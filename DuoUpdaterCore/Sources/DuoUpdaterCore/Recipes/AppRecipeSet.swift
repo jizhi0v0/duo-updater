@@ -4,7 +4,7 @@ import Foundation
 /// across its channels and bundle ids — declared in `Recipes/<family>.swift`.
 ///
 /// Pure data. `VendorProbeRegistry.recipes`, `ChangelogRecipeRegistry.recipes`,
-/// `GitHubReleaseRegistry.rules`, `OneClickGateRegistry.gates`, `MacAppStoreProbeRegistry.cases`, the three
+/// `GitHubReleaseRegistry.rules`, `OneClickGateRegistry.gates`, `LoginItemAgentRestart.agentsByHost`, `MacAppStoreProbeRegistry.cases`, the three
 /// `ChannelProofRegistry` maps, `SparkleFeedCatalog.feeds` / `.supersededFeeds` / `.loginWalls`
 /// and `ChangelogCatalog.pages` are all derived from `AppRecipeIndex.all`.
 ///
@@ -33,6 +33,10 @@ public struct AppRecipeSet: Sendable {
     let loginWalls: [String: SparkleFeedCatalog.LoginWall]
     let changelogPages: [String: URL]
     public let oneClickGates: [OneClickGate]
+    /// Host bundle id → bundle ids of login-item agents in its
+    /// `Contents/Library/LoginItems/` to restart after we replace the host's
+    /// bundle. See `LoginItemAgentRestart`.
+    public let loginItemAgentRestarts: [String: [String]]
 
     init(
         family: String,
@@ -47,7 +51,8 @@ public struct AppRecipeSet: Sendable {
         supersededFeeds: [String: SparkleFeedCatalog.SupersededFeed] = [:],
         loginWalls: [String: SparkleFeedCatalog.LoginWall] = [:],
         changelogPages: [String: URL] = [:],
-        oneClickGates: [OneClickGate] = []
+        oneClickGates: [OneClickGate] = [],
+        loginItemAgentRestarts: [String: [String]] = [:]
     ) {
         self.family = family
         self.probes = probes
@@ -62,9 +67,10 @@ public struct AppRecipeSet: Sendable {
         self.loginWalls = loginWalls
         self.changelogPages = changelogPages
         self.oneClickGates = oneClickGates
+        self.loginItemAgentRestarts = loginItemAgentRestarts
     }
 
-    /// Every bundle id this family names, across all twelve kinds, as written.
+    /// Every bundle id this family names, across all thirteen kinds, as written.
     public var bundleIDs: Set<String> {
         var ids = Set<String>()
         ids.formUnion(probes.map(\.bundleID))
@@ -79,6 +85,7 @@ public struct AppRecipeSet: Sendable {
         ids.formUnion(loginWalls.keys)
         ids.formUnion(changelogPages.keys)
         ids.formUnion(oneClickGates.map(\.bundleID))
+        ids.formUnion(loginItemAgentRestarts.keys)
         return ids
     }
 }

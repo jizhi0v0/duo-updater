@@ -781,6 +781,71 @@
         }
       }
     },
+    "%@ didn’t come back after the update. Open %@, or log out and back in, to start it.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ ist nach dem Update nicht wieder gestartet. Öffne %@ oder melde dich ab und wieder an, um es zu starten."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ no volvió a iniciarse tras la actualización. Abre %@ o cierra sesión y vuelve a entrar para iniciarlo."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ n’a pas redémarré après la mise à jour. Ouvrez %@, ou fermez la session puis rouvrez-la, pour le lancer."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ non si è riavviato dopo l’aggiornamento. Apri %@, oppure esci e rientra nella sessione, per avviarlo."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アップデート後、%@ が再起動しませんでした。起動するには %@ を開くか、ログアウトしてからもう一度ログインしてください。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ não voltou a ser iniciado após a atualização. Abra %@ ou encerre a sessão e entre de novo para iniciá-lo."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ не запустился снова после обновления. Откройте %@ или выйдите из системы и войдите снова, чтобы запустить его."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ güncellemeden sonra yeniden başlamadı. Başlatmak için %@ uygulamasını açın ya da oturumu kapatıp yeniden açın."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新后 %@ 没有重新启动。请打开 %@，或注销后重新登录，以启动它。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新後 %@ 沒有重新啟動。請打開 %@，或登出後重新登入，以啟動它。"
+          }
+        }
+      }
+    },
     "%@ didn’t quit — it has a window waiting for you (a save prompt, a sign-in sheet, a dialog). Switch to it, deal with that window, then quit it or click Relaunch again. Nothing was changed and the new version is already installed.": {
       "extractionState": "manual",
       "localizations": {
@@ -15141,6 +15206,198 @@
         }
       }
     },
+    "The download is signed differently from the installed copy, so DuoUpdater can’t confirm they’re the same app. Install this version by hand once.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Download ist anders signiert als die installierte Kopie, daher kann DuoUpdater nicht bestätigen, dass es dieselbe App ist. Installiere diese Version einmal von Hand."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La descarga está firmada de otra forma que la copia instalada, así que DuoUpdater no puede confirmar que sean la misma app. Instala esta versión a mano una vez."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le téléchargement n’est pas signé de la même façon que la copie installée : DuoUpdater ne peut donc pas confirmer qu’il s’agit de la même app. Installez cette version à la main, une seule fois."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Il download è firmato in modo diverso dalla copia installata, quindi DuoUpdater non può confermare che sia la stessa app. Installa questa versione a mano una volta."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ダウンロードしたファイルはインストール済みのコピーと署名の種類が異なるため、同じ App であることを DuoUpdater では確認できません。このバージョンは一度だけ手動でインストールしてください。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O download está assinado de forma diferente da cópia instalada, então o DuoUpdater não consegue confirmar que são o mesmo app. Instale esta versão manualmente uma vez."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Загрузка подписана иначе, чем установленная копия, поэтому DuoUpdater не может подтвердить, что это то же приложение. Установите эту версию вручную один раз."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "İndirilen dosya yüklü kopyadan farklı biçimde imzalanmış; bu yüzden DuoUpdater bunların aynı uygulama olduğunu doğrulayamıyor. Bu sürümü bir kez elle yükleyin."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下载的文件与已装的副本签名方式不同，DuoUpdater 无法确认两者是同一个 App。请手动安装一次这个版本。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下載的檔案與已安裝的副本簽署方式不同，DuoUpdater 無法確認兩者是同一個 App。請手動安裝一次這個版本。"
+          }
+        }
+      }
+    },
+    "The download isn’t signed with the same certificate as the installed copy. Refusing to install it.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Download ist nicht mit demselben Zertifikat signiert wie die installierte Kopie. Er wird nicht installiert."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La descarga no está firmada con el mismo certificado que la copia instalada. No se instalará."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le téléchargement n’est pas signé avec le même certificat que la copie installée. Installation refusée."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Il download non è firmato con lo stesso certificato della copia installata. Non verrà installato."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ダウンロードしたファイルは、インストール済みのコピーと同じ証明書で署名されていません。インストールしません。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O download não está assinado com o mesmo certificado da cópia instalada. Não será instalado."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Загрузка подписана не тем сертификатом, что установленная копия. Установка не выполняется."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "İndirilen dosya, yüklü kopyayla aynı sertifikayla imzalanmamış. Yüklenmeyecek."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下载的文件与已装的副本不是用同一张证书签名的。不会安装。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下載的檔案與已安裝的副本不是用同一張憑證簽署的。不會安裝。"
+          }
+        }
+      }
+    },
+    "This version no longer carries an update signing key, so once installed DuoUpdater couldn’t check its future updates. Refusing to install it.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diese Version enthält keinen Update-Schlüssel mehr, sodass DuoUpdater nach der Installation ihre künftigen Updates nicht prüfen könnte. Sie wird nicht installiert."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta versión ya no incluye una clave de firma de actualizaciones, así que, una vez instalada, DuoUpdater no podría comprobar sus próximas actualizaciones. No se instalará."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cette version ne contient plus de clé de signature des mises à jour : une fois installée, DuoUpdater ne pourrait plus vérifier ses prochaines mises à jour. Installation refusée."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Questa versione non contiene più una chiave di firma degli aggiornamenti, quindi una volta installata DuoUpdater non potrebbe verificarne gli aggiornamenti futuri. Non verrà installata."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このバージョンにはアップデートの署名鍵が含まれていないため、インストールすると DuoUpdater は今後のアップデートを確認できなくなります。インストールしません。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta versão não traz mais uma chave de assinatura de atualizações, então, depois de instalada, o DuoUpdater não conseguiria verificar as próximas atualizações. Não será instalada."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "В этой версии больше нет ключа подписи обновлений, поэтому после установки DuoUpdater не сможет проверять её будущие обновления. Установка не выполняется."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu sürüm artık bir güncelleme imzalama anahtarı içermiyor; yüklenirse DuoUpdater sonraki güncellemelerini denetleyemez. Yüklenmeyecek."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这个版本不再带有更新签名密钥，装上后 DuoUpdater 将无法核对它以后的更新。不会安装。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這個版本不再帶有更新簽署金鑰，安裝後 DuoUpdater 將無法核對它以後的更新。不會安裝。"
+          }
+        }
+      }
+    },
     "checking upstream…": {
       "extractionState": "manual",
       "localizations": {
@@ -15206,67 +15463,67 @@
         }
       }
     },
-    "Checks only that the download is byte for byte the file GitHub publishes for the release — or, for apps built with MyGo, that it is signed with the update key of the app you have installed. Neither protects you the way a developer signature does if the developer’s account or key is taken over, and macOS may ask you to grant these apps’ privacy permissions again after each update.": {
+    "Checks only that the download is byte for byte the file GitHub publishes for the release. That doesn’t protect you the way a developer signature does if the developer’s account is taken over, and macOS may ask you to grant these apps’ privacy permissions again after each update.": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Prüft nur, ob der Download Byte für Byte die Datei ist, die GitHub für das Release veröffentlicht – oder bei mit MyGo erstellten Apps, ob er mit dem Update-Schlüssel der installierten App signiert ist. Beides schützt dich nicht so wie eine Entwicklersignatur, wenn das Konto oder der Schlüssel des Entwicklers übernommen wird. Außerdem fragt macOS nach jedem Update womöglich erneut nach den Datenschutzberechtigungen dieser Apps."
+            "value": "Prüft nur, ob der Download Byte für Byte die Datei ist, die GitHub für das Release veröffentlicht. Das schützt dich nicht so wie eine Entwicklersignatur, wenn das Konto des Entwicklers übernommen wird. Außerdem fragt macOS nach jedem Update womöglich erneut nach den Datenschutzberechtigungen dieser Apps."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Solo comprueba que la descarga sea, byte a byte, el archivo que GitHub publica para la versión o, en las apps creadas con MyGo, que esté firmada con la clave de actualización de la app que tienes instalada. Ninguna de las dos cosas te protege como una firma de desarrollador si alguien se hace con la cuenta o la clave del desarrollador, y es posible que macOS te pida conceder de nuevo los permisos de privacidad de estas apps tras cada actualización."
+            "value": "Solo comprueba que la descarga sea, byte a byte, el archivo que GitHub publica para la versión. Eso no te protege como una firma de desarrollador si alguien se hace con la cuenta del desarrollador, y es posible que macOS te pida conceder de nuevo los permisos de privacidad de estas apps tras cada actualización."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vérifie seulement que le téléchargement est, octet pour octet, le fichier que GitHub publie pour la version — ou, pour les apps créées avec MyGo, qu’il est signé avec la clé de mise à jour de l’app installée. Ni l’un ni l’autre ne vous protège comme une signature de développeur si le compte ou la clé du développeur est piraté, et macOS peut vous redemander les autorisations de confidentialité de ces apps après chaque mise à jour."
+            "value": "Vérifie seulement que le téléchargement est, octet pour octet, le fichier que GitHub publie pour la version. Cela ne vous protège pas comme une signature de développeur si le compte du développeur est piraté, et macOS peut vous redemander les autorisations de confidentialité de ces apps après chaque mise à jour."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Verifica solo che il download sia, byte per byte, il file che GitHub pubblica per la release oppure, per le app create con MyGo, che sia firmato con la chiave di aggiornamento dell’app installata. Nessuna delle due cose ti protegge come una firma dello sviluppatore se l’account o la chiave dello sviluppatore vengono compromessi, e macOS potrebbe chiederti di nuovo i permessi per la privacy di queste app dopo ogni aggiornamento."
+            "value": "Verifica solo che il download sia, byte per byte, il file che GitHub pubblica per la release. Questo non ti protegge come una firma dello sviluppatore se l’account dello sviluppatore viene compromesso, e macOS potrebbe chiederti di nuovo i permessi per la privacy di queste app dopo ogni aggiornamento."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "確認するのは、ダウンロードしたファイルが GitHub がそのリリースに公開しているファイルとバイト単位で一致すること、または MyGo で作られた App の場合はインストール済みの App のアップデート鍵で署名されていることだけです。開発元のアカウントや鍵が乗っ取られた場合、どちらも開発元の署名のようには防げません。また、アップデートのたびに macOS からこれらの App のプライバシー権限を再度求められることがあります。"
+            "value": "確認するのは、ダウンロードしたファイルが GitHub がそのリリースに公開しているファイルとバイト単位で一致することだけです。開発元のアカウントが乗っ取られた場合、開発元の署名のようには防げません。また、アップデートのたびに macOS からこれらの App のプライバシー権限を再度求められることがあります。"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Verifica apenas se o download é, byte a byte, o arquivo que o GitHub publica para a versão — ou, nos apps feitos com MyGo, se ele está assinado com a chave de atualização do app que você instalou. Nenhum dos dois protege você como uma assinatura de desenvolvedor se a conta ou a chave do desenvolvedor for invadida — e o macOS pode pedir que você conceda de novo as permissões de privacidade desses apps após cada atualização."
+            "value": "Verifica apenas se o download é, byte a byte, o arquivo que o GitHub publica para a versão. Isso não protege você como uma assinatura de desenvolvedor se a conta do desenvolvedor for invadida — e o macOS pode pedir que você conceda de novo as permissões de privacidade desses apps após cada atualização."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Проверяется только то, что загрузка побайтно совпадает с файлом, который GitHub публикует для релиза, или — для приложений на MyGo — что она подписана ключом обновлений установленного приложения. Ни то ни другое не защитит так, как подпись разработчика, если учётную запись или ключ разработчика захватят. Кроме того, после каждого обновления macOS может снова запросить для этих приложений разрешения конфиденциальности."
+            "value": "Проверяется только то, что загрузка побайтно совпадает с файлом, который GitHub публикует для релиза. Это не защитит так, как подпись разработчика, если учётную запись разработчика захватят. Кроме того, после каждого обновления macOS может снова запросить для этих приложений разрешения конфиденциальности."
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Yalnızca indirilen dosyanın, GitHub’ın sürüm için yayımladığı dosyayla bayt bayt aynı olduğunu ya da MyGo ile oluşturulmuş uygulamalarda yüklü uygulamanın güncelleme anahtarıyla imzalandığını denetler. Geliştiricinin hesabı veya anahtarı ele geçirilirse ikisi de sizi bir geliştirici imzası kadar korumaz. Ayrıca macOS her güncellemeden sonra bu uygulamaların gizlilik izinlerini yeniden isteyebilir."
+            "value": "Yalnızca indirilen dosyanın, GitHub’ın sürüm için yayımladığı dosyayla bayt bayt aynı olduğunu denetler. Geliştiricinin hesabı ele geçirilirse bu, sizi bir geliştirici imzası kadar korumaz. Ayrıca macOS her güncellemeden sonra bu uygulamaların gizlilik izinlerini yeniden isteyebilir."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "只核对下载的文件与 GitHub 为该版本公布的文件逐字节一致；对用 MyGo 构建的 App，则核对它是否用已装 App 的更新密钥签名。如果开发者的账号或密钥被盗，这两者都不如开发者签名能挡住。另外，每次更新后 macOS 可能会要求你重新授予这些 App 的隐私权限。"
+            "value": "只核对下载的文件与 GitHub 为该版本公布的文件逐字节一致。如果开发者的账号被盗，这不如开发者签名能挡住。另外，每次更新后 macOS 可能会要求你重新授予这些 App 的隐私权限。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "只核對下載的檔案與 GitHub 為該版本公布的檔案逐位元組一致；對用 MyGo 建置的 App，則核對它是否用已安裝 App 的更新金鑰簽署。如果開發者的帳號或金鑰被盜，這兩者都不如開發者簽署能擋住。另外，每次更新後 macOS 可能會要求你重新授予這些 App 的隱私權限。"
+            "value": "只核對下載的檔案與 GitHub 為該版本公布的檔案逐位元組一致。如果開發者的帳號被盜，這不如開發者簽署能擋住。另外，每次更新後 macOS 可能會要求你重新授予這些 App 的隱私權限。"
           }
         }
       }
@@ -15791,67 +16048,67 @@
         }
       }
     },
-    "For apps whose GitHub releases are only ad-hoc signed — Alacritty, Flameshot, darktable, disktree and Lokii — and for apps built with MyGo that are. An app installed with a developer signature is never replaced by one without, whatever this says.": {
+    "For apps whose GitHub releases are only ad-hoc signed — Alacritty, Flameshot, darktable, disktree and Lokii — and not for apps that sign their own updates with Sparkle or MyGo: those are updated in one click without it, checked against the update key in the copy you have installed. An app installed with a developer signature is never replaced by one without, whatever this says.": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Für Apps, deren GitHub-Releases nur ad-hoc signiert sind – Alacritty, Flameshot, darktable, disktree und Lokii –, und für mit MyGo erstellte Apps, bei denen das ebenso ist. Eine mit Entwicklersignatur installierte App wird nie durch eine ohne ersetzt, ganz gleich, was hier eingestellt ist."
+            "value": "Für Apps, deren GitHub-Releases nur ad-hoc signiert sind – Alacritty, Flameshot, darktable, disktree und Lokii. Apps ohne Entwicklersignatur, die ihre Updates selbst signieren (mit Sparkle oder MyGo), brauchen das nicht: Sie werden mit einem Klick aktualisiert und gegen den Update-Schlüssel der installierten Kopie geprüft. Eine mit Entwicklersignatur installierte App wird nie durch eine ohne ersetzt, ganz gleich, was hier eingestellt ist."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Para apps cuyas versiones en GitHub solo tienen firma ad hoc —Alacritty, Flameshot, darktable, disktree y Lokii— y para las apps creadas con MyGo que también la tienen. Una app instalada con firma de desarrollador nunca se sustituye por una sin ella, sea cual sea este ajuste."
+            "value": "Para apps cuyas versiones en GitHub solo tienen firma ad hoc: Alacritty, Flameshot, darktable, disktree y Lokii. Las apps sin firma de desarrollador que firman sus propias actualizaciones (con Sparkle o MyGo) no lo necesitan: se actualizan con un clic y se comprueban con la clave de actualización de la copia que tienes instalada. Una app instalada con firma de desarrollador nunca se sustituye por una sin ella, sea cual sea este ajuste."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pour les apps dont les versions GitHub ne sont signées qu’ad hoc — Alacritty, Flameshot, darktable, disktree et Lokii — et pour les apps créées avec MyGo qui le sont aussi. Une app installée avec une signature de développeur n’est jamais remplacée par une version sans, quel que soit ce réglage."
+            "value": "Pour les apps dont les versions GitHub ne sont signées qu’ad hoc : Alacritty, Flameshot, darktable, disktree et Lokii. Les apps sans signature de développeur qui signent elles-mêmes leurs mises à jour (avec Sparkle ou MyGo) n’en ont pas besoin : elles sont mises à jour en un clic, vérifiées avec la clé de mise à jour de la copie installée. Une app installée avec une signature de développeur n’est jamais remplacée par une version sans, quel que soit ce réglage."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Per le app le cui release su GitHub hanno solo una firma ad hoc (Alacritty, Flameshot, darktable, disktree e Lokii) e per le app create con MyGo nella stessa situazione. Un’app installata con la firma dello sviluppatore non viene mai sostituita da una senza, qualunque sia questa impostazione."
+            "value": "Per le app le cui release su GitHub hanno solo una firma ad hoc: Alacritty, Flameshot, darktable, disktree e Lokii. Le app senza firma dello sviluppatore che firmano da sé i propri aggiornamenti (con Sparkle o MyGo) non ne hanno bisogno: si aggiornano con un clic e vengono verificate con la chiave di aggiornamento della copia installata. Un’app installata con la firma dello sviluppatore non viene mai sostituita da una senza, qualunque sia questa impostazione."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "GitHub のリリースがアドホック署名だけの App（Alacritty、Flameshot、darktable、disktree、Lokii）と、同じくアドホック署名だけの MyGo 製 App が対象です。開発元の署名付きでインストールされている App が、署名のないものに置き換えられることは、この設定にかかわらずありません。"
+            "value": "GitHub のリリースがアドホック署名だけの App（Alacritty、Flameshot、darktable、disktree、Lokii）が対象です。開発元の署名がなくても、Sparkle や MyGo で自分のアップデートに署名している App にはこの設定は不要です。インストール済みのコピーにあるアップデート鍵で確認したうえで、ワンクリックでアップデートされます。開発元の署名付きでインストールされている App が、署名のないものに置き換えられることは、この設定にかかわらずありません。"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Para apps cujas versões no GitHub têm apenas assinatura ad hoc — Alacritty, Flameshot, darktable, disktree e Lokii — e para apps feitos com MyGo na mesma situação. Um app instalado com assinatura de desenvolvedor nunca é substituído por um sem, seja qual for este ajuste."
+            "value": "Para apps cujas versões no GitHub têm apenas assinatura ad hoc — Alacritty, Flameshot, darktable, disktree e Lokii. Apps sem assinatura de desenvolvedor que assinam as próprias atualizações (com Sparkle ou MyGo) não precisam disso: são atualizados com um clique, verificados com a chave de atualização da cópia que você instalou. Um app instalado com assinatura de desenvolvedor nunca é substituído por um sem, seja qual for este ajuste."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Для приложений, релизы которых на GitHub подписаны только ad hoc, — Alacritty, Flameshot, darktable, disktree и Lokii, — и для приложений на MyGo, подписанных так же. Приложение, установленное с подписью разработчика, никогда не заменяется версией без неё, что бы ни было выбрано здесь."
+            "value": "Для приложений, релизы которых на GitHub подписаны только ad hoc, — Alacritty, Flameshot, darktable, disktree и Lokii. Приложениям без подписи разработчика, которые сами подписывают свои обновления (через Sparkle или MyGo), это не нужно: они обновляются в один клик с проверкой по ключу обновлений установленной копии. Приложение, установленное с подписью разработчика, никогда не заменяется версией без неё, что бы ни было выбрано здесь."
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "GitHub sürümleri yalnızca ad hoc imzalı olan uygulamalar (Alacritty, Flameshot, darktable, disktree ve Lokii) ve aynı durumdaki MyGo ile oluşturulmuş uygulamalar için. Geliştirici imzasıyla yüklenmiş bir uygulama, bu ayar ne olursa olsun, imzasız bir sürümle asla değiştirilmez."
+            "value": "GitHub sürümleri yalnızca ad hoc imzalı olan uygulamalar için: Alacritty, Flameshot, darktable, disktree ve Lokii. Geliştirici imzası olmayan ama güncellemelerini kendisi imzalayan uygulamaların (Sparkle veya MyGo ile) buna ihtiyacı yoktur: yüklü kopyadaki güncelleme anahtarıyla doğrulanarak tek tıkla güncellenirler. Geliştirici imzasıyla yüklenmiş bir uygulama, bu ayar ne olursa olsun, imzasız bir sürümle asla değiştirilmez."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "适用于 GitHub 发布版只有 ad hoc 签名的 App（Alacritty、Flameshot、darktable、disktree 和 Lokii），以及同样只有 ad hoc 签名、用 MyGo 构建的 App。已装的 App 如果带开发者签名，无论这里怎么设，都不会被没有签名的版本替换。"
+            "value": "适用于 GitHub 发布版只有 ad hoc 签名的 App（Alacritty、Flameshot、darktable、disktree 和 Lokii）。没有开发者签名、但用 Sparkle 或 MyGo 给自己的更新签名的 App 不需要这个设置：它们会用已装副本里的更新密钥核对后一键更新。已装的 App 如果带开发者签名，无论这里怎么设，都不会被没有签名的版本替换。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "適用於 GitHub 發布版只有 ad hoc 簽署的 App（Alacritty、Flameshot、darktable、disktree 和 Lokii），以及同樣只有 ad hoc 簽署、用 MyGo 建置的 App。已安裝的 App 如果帶開發者簽署，無論這裡怎麼設，都不會被未簽署的版本替換。"
+            "value": "適用於 GitHub 發布版只有 ad hoc 簽署的 App（Alacritty、Flameshot、darktable、disktree 和 Lokii）。沒有開發者簽署、但用 Sparkle 或 MyGo 為自己的更新簽署的 App 不需要這個設定：它們會用已安裝副本裡的更新金鑰核對後一鍵更新。已安裝的 App 如果帶開發者簽署，無論這裡怎麼設，都不會被未簽署的版本替換。"
           }
         }
       }
@@ -22616,6 +22873,70 @@
         }
       }
     },
+    "The installed copy has neither a developer signature nor an update signing key, so DuoUpdater can’t confirm the download comes from the same developer. Refusing to install it.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die installierte Kopie hat weder eine Entwicklersignatur noch einen Update-Schlüssel, daher kann DuoUpdater nicht bestätigen, dass der Download vom selben Entwickler stammt. Er wird nicht installiert."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La copia instalada no tiene firma de desarrollador ni clave de firma de actualizaciones, así que DuoUpdater no puede confirmar que la descarga venga del mismo desarrollador. No se instalará."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La copie installée n’a ni signature de développeur ni clé de signature des mises à jour : DuoUpdater ne peut donc pas confirmer que le téléchargement vient du même développeur. Installation refusée."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La copia installata non ha né la firma dello sviluppatore né una chiave di firma degli aggiornamenti, quindi DuoUpdater non può confermare che il download venga dallo stesso sviluppatore. Non verrà installato."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "インストール済みのコピーには開発元の署名もアップデートの署名鍵もないため、ダウンロードが同じ開発元のものだと DuoUpdater では確認できません。インストールしません。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A cópia instalada não tem assinatura de desenvolvedor nem chave de assinatura de atualizações, então o DuoUpdater não consegue confirmar que o download vem do mesmo desenvolvedor. Não será instalado."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "У установленной копии нет ни подписи разработчика, ни ключа подписи обновлений, поэтому DuoUpdater не может подтвердить, что загрузка от того же разработчика. Установка не выполняется."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yüklü kopyanın ne geliştirici imzası ne de güncelleme imzalama anahtarı var; bu yüzden DuoUpdater indirilen dosyanın aynı geliştiriciden geldiğini doğrulayamıyor. Yüklenmeyecek."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已装的副本既没有开发者签名，也没有更新签名密钥，DuoUpdater 无法确认下载来自同一个开发者。不会安装。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已安裝的副本既沒有開發者簽署，也沒有更新簽署金鑰，DuoUpdater 無法確認下載來自同一個開發者。不會安裝。"
+          }
+        }
+      }
+    },
     "This app has no developer signature, and GitHub publishes no file hash for this release, so it can’t be updated in one click.": {
       "extractionState": "manual",
       "localizations": {
@@ -22872,71 +23193,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "這個 App 沒有開發者簽署，除非你在「設定」中允許，否則不會一鍵更新——允許後也只按 GitHub 公布的檔案雜湊核對。"
-          }
-        }
-      }
-    },
-    "This app has no developer signature, so it isn’t updated in one click unless you allow it in Settings — checked only against its developer’s update signature.": {
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Diese App hat keine Entwicklersignatur und wird daher nur dann per Klick aktualisiert, wenn du es in den Einstellungen erlaubst – geprüft wird dann nur gegen die Update-Signatur ihres Entwicklers."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Esta app no tiene firma de desarrollador, así que no se actualiza con un clic a menos que lo permitas en Ajustes, y entonces solo se comprueba con la firma de actualización de su desarrollador."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cette app n’a pas de signature de développeur : elle n’est mise à jour en un clic que si vous l’autorisez dans les Réglages — vérifiée uniquement par la signature de mise à jour de son développeur."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Questa app non ha la firma dello sviluppatore, quindi non viene aggiornata con un clic a meno che tu non lo consenta in Impostazioni, e in tal caso la verifica avviene solo con la firma di aggiornamento del suo sviluppatore."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "この App には開発元の署名がないため、設定で許可しない限りワンクリックではアップデートされません（許可した場合も、開発元のアップデート署名との照合だけになります）。"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Este app não tem assinatura de desenvolvedor, então não é atualizado com um clique a menos que você permita em Ajustes — verificado apenas pela assinatura de atualização do desenvolvedor."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "У этого приложения нет подписи разработчика, поэтому оно обновляется в один клик, только если вы разрешите это в настройках, — с проверкой лишь по подписи обновлений его разработчика."
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bu uygulamanın geliştirici imzası yok; bu yüzden Ayarlar’da izin vermedikçe tek tıkla güncellenmez — izin verirseniz yalnızca geliştiricisinin güncelleme imzasıyla denetlenir."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "这个 App 没有开发者签名，除非你在设置里允许，否则不会一键更新——允许后也只核对其开发者的更新签名。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "這個 App 沒有開發者簽署，除非你在「設定」中允許，否則不會一鍵更新——允許後也只核對其開發者的更新簽署。"
           }
         }
       }

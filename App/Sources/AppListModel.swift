@@ -3256,6 +3256,34 @@ final class AppListModel {
     /// scratch directories an install of the same app would also use.
     @ObservationIgnored private var launchRecovery: Task<Void, Never>?
 
+    /// The watch `processOrphanedInstallsOnceTheirChildExits` runs, nil when none.
+    @ObservationIgnored private var orphanWatch: Task<Void, Never>?
+
+    /// Launch processing leaves alone an install whose process is gone but
+    /// whose brew still runs (`InstallJournal.hasOrphanedChild`): the app is
+    /// brew's until it exits. Checked every 5 s; once no such child runs, the
+    /// journal is processed again — only it and the rollback-point sweep, not
+    /// the swap-leftover sweep, which must not run beside this session's own
+    /// swaps — so an app that brew left cut off gets its Restore row now, not
+    /// at the next launch. A held install lock (another process) waits for the
+    /// next tick.
+    private func processOrphanedInstallsOnceTheirChildExits() {
+        guard orphanWatch == nil else { return }
+        orphanWatch = Task.detached(priority: .utility) { [weak self] in
+            while true {
+                do { try await Task.sleep(for: .seconds(5)) } catch { break }
+                guard !InstallJournal.hasOrphanedChild() else { continue }
+                guard await InstallJournal.processLeftovers() != nil else { continue }
+                _ = await InstallCoordinator.sweepSettledInstallRollbackPoints()
+                break
+            }
+            await MainActor.run {
+                self?.orphanWatch = nil
+                self?.refreshInterruptedInstalls()
+            }
+        }
+    }
+
     /// Run the interrupted-swap recovery sweep once per session, off the main thread.
     ///
     /// `/Applications` is where the privileged, non-atomic whole-bundle swap can
@@ -3302,6 +3330,9 @@ final class AppListModel {
             // another process held the lock.
             if await InstallCoordinator.sweepSettledInstallRollbackPoints() == nil { swept = false }
             await MainActor.run { self?.refreshInterruptedInstalls() }
+            // An install of the last session whose brew outlived it is left
+            // for its brew to finish; look again once it has.
+            if InstallJournal.hasOrphanedChild() { await MainActor.run { self?.processOrphanedInstallsOnceTheirChildExits() } }
             guard !swept else { return }
             await MainActor.run { self?.didRecoverSwaps = false }
         }
@@ -3903,14 +3934,12 @@ final class AppListModel {
     /// code" across updates.
     func digestOnlyNote(for result: UpdateResult) -> String? {
         // A MyGo app is checked against its developer's own update signature
-        // (`InstallTrust.myGoSignatureOnly`), not a GitHub hash: same three
-        // states, its own words.
+        // (`InstallTrust.myGoSignatureOnly`), not a GitHub hash, and is not behind
+        // the setting: its own words, and never the "turned off" state.
         if result.remote?.installTrust == .myGoSignatureOnly {
             switch UpdatePolicy.digestOnlyOffer(result, settings: policySettings) {
-            case nil:
+            case nil, .turnedOff?:
                 return nil
-            case .turnedOff?:
-                return String(localized: "This app has no developer signature, so it isn’t updated in one click unless you allow it in Settings — checked only against its developer’s update signature.")
             case .noPublishedDigest?:
                 return String(localized: "This app has no developer signature, and its update feed signs no file for this release, so it can’t be updated in one click.")
             case .offered?:
@@ -4687,6 +4716,26 @@ final class AppListModel {
         }
     }
 
+    /// The app is updated, but a login-item agent of it (Secretive's SSH agent)
+    /// is gone or still the old code — what `duo install` warns about. A banner
+    /// as well as the row: the row of an app that is now current drops out of
+    /// the menu two seconds later. Posted in a batch too, unlike the success
+    /// banners `notify` gates: this is a problem the batch summary would hide.
+    ///
+    /// The row note is unregistered, like `backupCurrent`'s: it describes the
+    /// install that just finished, so it stays until the next action on the
+    /// row. It goes under a note already there rather than over it — that one
+    /// is `backupCurrent`'s, about the same install.
+    private func reportAgentsNotRestarted(_ agentBundleIDs: [String], of updated: UpdateResult) {
+        let agents = ListFormatter.localizedString(
+            byJoining: agentBundleIDs.map(LoginItemAgentRestart.displayName(forAgentBundleID:)))
+        let app = updated.app.name
+        Log.install.error("install done, but login-item agents not back on the new bundle: \(app, privacy: .public) — \(agentBundleIDs.joined(separator: ", "), privacy: .public)")
+        let note = String(localized: "\(agents) didn’t come back after the update. Open \(app), or log out and back in, to start it.")
+        installNotes[updated.id] = [installNotes[updated.id], note].compactMap { $0 }.joined(separator: "\n")
+        UpdateNotifier.agentsNotRestarted(app: app, body: note, rowID: updated.id)
+    }
+
     /// The in-flight "Updated ✓" window per row id, so re-entry can restart it.
     /// Entries remove themselves when the window ends.
     @ObservationIgnored private var justUpdatedTimers: [String: Task<Void, Never>] = [:]
@@ -5382,6 +5431,9 @@ final class AppListModel {
 
             let route = InstallCoordinator.route(
                 for: result, requiresInstaller: requiresInstaller(result))
+            // Login-item agents the recipe restarts after the swap that did not
+            // come back (`LoginItemAgentRestart`); said once the swap is read back.
+            var agentsNotRestarted: [String] = []
 
             switch route {
             case .installer, .homebrew, .vendor, .sparkle, .xcode:
@@ -5410,6 +5462,7 @@ final class AppListModel {
                 // leaves this false, so there the disk still decides (whether a
                 // store update can move an app to another path: not checked).
                 applied = outcome.applied
+                agentsNotRestarted = outcome.agentsNotRestarted
                 recordEffectiveHost(result, finalHost: outcome.finalHost)
                 await recordTraffic(
                     result, bytes: outcome.bytesDownloaded, applied: outcome.applied,
@@ -5786,6 +5839,7 @@ final class AppListModel {
             // the auto-restart below, which must not be refused as a restart
             // during this install's own bundle change.
             endBundleChange(id, token: bundleClaim)
+            if !agentsNotRestarted.isEmpty { reportAgentsNotRestarted(agentsNotRestarted, of: updated) }
             switch disposition {
             case .awaitingBatchRestart:
                 let from = result.app.shortVersion ?? result.app.buildVersion ?? "?"

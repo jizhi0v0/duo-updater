@@ -193,6 +193,10 @@ import Testing
 
     // MARK: - Real filesystems
 
+    /// How long `withVolume` keeps retrying a failed `create` or `attach`. 60 s
+    /// was outlasted twice on the hosted runner.
+    private static let transientBound: Duration = .seconds(120)
+
     /// Create, attach, and guarantee detach of a sparse image.
     private func withVolume(
         format: String, sizeMB: Int = 256, _ body: (URL) async throws -> Void
@@ -219,56 +223,64 @@ import Testing
             return (outcome.terminationStatus, String(decoding: outcome.standardOutput, as: UTF8.self))
         }
 
-        // On the hosted runner `create` sometimes answers "create failed - Resource
-        // busy" when several run at once, and a later try works. Retried for up to
-        // a minute, a second apart, like `TestDiskImages.detach`; a fixed count of
-        // tries is not a bound on time, since under load each try itself takes
-        // 1–41 s (median 7.6 s in run 38376650037). First seen 11 of 1,920
-        // creates eight at a time, none one at a time, all created on the second
-        // try (diag runs 37427083362, 37428672097, 2026-10-06). In 60 full Release
-        // suites (diag run 38376650037, macOS 27.0.1, 2026-10-13) 8 of 660 images
-        // answered busy: seven were created on the second or third try, the last
-        // 20.9 s after the first try began; the eighth was still busy on its
-        // fourth try 38.6 s in. With this bound, 60 more suites (diag run
-        // 38382272237, same day) had 19 of 660 images answer busy, and all 19
-        // were created: four only on the fifth try, the latest 50.4 s after its
-        // first try began. Any other failure is reported as it is.
-        let deadline = ContinuousClock.now + .seconds(60)
-        var created = (status: Int32(-1), output: "")
-        while true {
-            created = await run([
-                "create", "-size", "\(sizeMB)m", "-type", "SPARSE",
-                "-fs", format, "-volname", volname, image.path,
-            ])
-            guard created.status != 0, created.output.contains("Resource busy") else { break }
-            try? fm.removeItem(at: image)
-            guard ContinuousClock.now < deadline else { break }
-            try await Task.sleep(for: .seconds(1))
+        /// `arguments` run again, a second apart, while they fail, for up to
+        /// `transientBound` from the first try. `beforeRetry` puts back what a
+        /// failed try may have left. The tries and the time they took ride along
+        /// with hdiutil's last answer, so a failure that outlasts the bound says
+        /// how long it was given.
+        func retrying(
+            _ arguments: [String], beforeRetry: () async -> Void
+        ) async throws -> (status: Int32, output: String, tries: Int, seconds: Int) {
+            let start = ContinuousClock.now
+            var tries = 0
+            while true {
+                tries += 1
+                let r = await run(arguments)
+                let seconds = Int((ContinuousClock.now - start).components.seconds)
+                guard r.status != 0, ContinuousClock.now < start + Self.transientBound
+                else { return (r.status, r.output, tries, seconds) }
+                await beforeRetry()
+                try await Task.sleep(for: .seconds(1))
+            }
         }
-        try #require(created.status == 0,
-                     "could not create a \(format) image (\(created.status)): \(created.output)")
+
+        // Any failure of `create` or `attach` is retried, not only the answers
+        // seen so far: on the hosted xcode-27 runner (macOS 27.0.1) these two
+        // steps on a fresh image have failed with a new answer almost every time
+        // one was looked at, mostly in a runner's first suite, and each answer
+        // that was retried worked on a later try ("Directory not empty", "error
+        // 0xf8da0001" and "Device not configured" were each seen once, before a
+        // retry covered them). `create`: "Resource busy" (a further
+        // try works; in diag run 38382272237 19 of 660 images answered it, the
+        // latest created 50.4 s after its first try; still busy after 60 s twice
+        // since, runs 39013065891 and 39112907666, hence `transientBound` — with
+        // it, one busy image was created by a try ending 77 s in, diag run
+        // 39119862740), "No such file or directory" into a `$TMPDIR` that exists
+        // (runs 39104772469, 39111286040, 39119862740), "Directory not empty"
+        // and "error 0xf8da0001" (39119862740). `attach`: "no mountable file
+        // systems" (also on the mini, and on a dev Mac sixteen FAT images at a
+        // time: 14 of 800, all attached on the retry), "Resource busy"
+        // (39104772469), "Device not configured" (39119862740). A step that never
+        // works still fails, `transientBound` later, with hdiutil's own answer.
+        let created = try await retrying(
+            ["create", "-size", "\(sizeMB)m", "-type", "SPARSE",
+             "-fs", format, "-volname", volname, image.path],
+            beforeRetry: { try? fm.removeItem(at: image) })
+        try #require(created.status == 0, """
+            could not create a \(format) image (\(created.status), \(created.tries) tries \
+            in \(created.seconds) s): \(created.output)
+            """)
         defer { try? fm.removeItem(at: image) }
 
         try fm.createDirectory(at: mount, withIntermediateDirectories: true)
-        // Under load, attaching a fresh FAT-family image sometimes answers "attach
-        // failed - no mountable file systems", and the same image attaches a second
-        // later. Seen on the mini in Release Core tests (runs 37875961124,
-        // 38159603414-attempt 1; 2 of ~2,150 CI runs 2026-09-04 → 10-11). On a dev
-        // Mac (macOS 27.2, 2026-10-12), sixteen at a time: MS-DOS 11 of 400, ExFAT
-        // 3 of 400, APFS 0 of 400, all 14 attached on the retry and left nothing
-        // attached; MS-DOS eight at a time 0 of 400, one at a time 0 of 120. Any
-        // other failure is reported as it is.
-        var attached = (status: Int32(-1), output: "")
-        for attempt in 1...4 {
-            if attempt > 1 { try await Task.sleep(for: .seconds(1)) }
-            attached = await run([
-                "attach", "-nobrowse", "-mountpoint", mount.path, image.path,
-            ])
-            guard attached.status != 0,
-                  attached.output.contains("no mountable file systems") else { break }
-        }
-        try #require(attached.status == 0,
-                     "could not attach the \(format) image (\(attached.status)): \(attached.output)")
+        // A disk a failed `attach` left attached is taken off before the next try.
+        let attached = try await retrying(
+            ["attach", "-nobrowse", "-mountpoint", mount.path, image.path],
+            beforeRetry: { await TestDiskImages.detach(image) })
+        try #require(attached.status == 0, """
+            could not attach the \(format) image (\(attached.status), \(attached.tries) tries \
+            in \(attached.seconds) s): \(attached.output)
+            """)
         // Not a `defer`, which cannot await the detach: the body's outcome is held
         // until the volume is gone, then handed back.
         let outcome: Result<Void, Error>

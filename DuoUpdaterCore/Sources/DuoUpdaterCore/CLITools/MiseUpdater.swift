@@ -135,9 +135,17 @@ public struct MiseUpdater: Sendable {
         // It prints that warning only for a 403 from `api.github.com` when
         // `resolve_token` found nothing (`show_github_rate_limit_err`,
         // src/main.rs). Then, and only then, once more with the app's token.
-        if Self.foundNoToken(run), let token = await token() {
-            environment["MISE_GITHUB_TOKEN"] = token
-            run = await CLIToolCommandRunner.run(command, environment: environment, deadline: deadline, progress: progress)
+        if Self.foundNoToken(run) {
+            if let token = await token() {
+                environment["MISE_GITHUB_TOKEN"] = token
+                run = await CLIToolCommandRunner.run(command, environment: environment, deadline: deadline, progress: progress)
+            } else if Task.isCancelled {
+                // The row's Cancel cut the token lookup short (its timeout
+                // returns at once in a cancelled task): the retry it would
+                // have started is what the click stopped, though no commit was
+                // reached to refuse (`InstallJobs.cancelStoppedSomething`).
+                InstallJobs.noteRefusedCommit(InstallJobs.currentID)
+            }
         }
         let outcome: ChildProcess.Outcome
         switch run.result {

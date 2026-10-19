@@ -1475,3 +1475,29 @@ final class SparkleAppcastParser: NSObject, XMLParserDelegate {
         textBuffer = ""
     }
 }
+
+// MARK: - The nightly key check
+
+extension SparkleAppcastSource {
+
+    /// Download the smallest file `remote` publishes an EdDSA signature for — a
+    /// Sparkle patch when there is one, else the enclosure — and verify it
+    /// against `publicKey`. For `duo verify-install`: for an app without a Team
+    /// ID that key is the only thing a one-click checks the download against
+    /// (`SparkleInstaller`'s key-only route), so a vendor that stops signing, or
+    /// signs with another key, ends every one-click without anything else
+    /// noticing.
+    public func checkKey(_ remote: RemoteVersion, publicKey: String) async -> UpdateKeyCheck {
+        var signed: [(url: URL, size: Int64, signature: String)] = remote.deltas.compactMap {
+            guard $0.format == .sparkle, let signature = $0.edSignature else { return nil }
+            return ($0.url, $0.size ?? .max, signature)
+        }
+        if let url = remote.downloadURL, let signature = remote.edSignature, !signature.isEmpty {
+            signed.append((url, remote.downloadSize ?? .max, signature))
+        }
+        return await UpdateKeyCheck.smallest(of: signed, session: session) { data, signature in
+            try SignatureVerifier.verifyEdSignature(
+                fileData: data, signatureBase64: signature, publicKeyBase64: publicKey)
+        }
+    }
+}

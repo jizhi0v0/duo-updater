@@ -58,3 +58,5 @@ loginWalls["com.meta.endo"].login = URL("https://www.facebook.com/login/")
 changelogPages = Dictionary(count: 0)
 
 oneClickGates = Array(count: 0)
+
+loginItemAgentRestarts = Dictionary(count: 0)

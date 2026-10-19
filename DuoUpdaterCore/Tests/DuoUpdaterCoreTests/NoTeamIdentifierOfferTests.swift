@@ -6,8 +6,9 @@ import Testing
 /// one (`UpdatePolicy.lacksTeamIdentifierForRoute`), and `UpdateChecker` is what
 /// reads that off the bundle. The case behind it: CmdPalm, self-signed, offered
 /// a Sparkle Update that could only fail with "Could not read a Team Identifier
-/// from the installed app" (user report, 2026-10-18). Every app and source here
-/// is invented.
+/// from the installed app" (user report, 2026-10-18). Sparkle is the exception
+/// when the copy carries its own update key and the feed signs an archive: that
+/// is `SparkleInstaller`'s key-only route. Every app and source here is invented.
 @Suite struct NoTeamIdentifierOfferTests {
 
     private static func app(path: String = "/Applications/ZZFixtureNoTeam.app", edKey: String? = "key")
@@ -22,13 +23,14 @@ import Testing
     private static func result(
         source: String, url: String = "https://example.com/zz.zip",
         kind: VendorInstallerKind? = nil, trust: InstallTrust = .developerID,
-        sha: String? = nil, cask: String? = nil, manualInstaller: Bool = false, lacksTeam: Bool
+        sha: String? = nil, cask: String? = nil, manualInstaller: Bool = false, lacksTeam: Bool,
+        edKey: String? = "key", edSignature: String? = "sig"
     ) -> UpdateResult {
         var row = UpdateResult(
-            app: app(),
+            app: app(edKey: edKey),
             remote: RemoteVersion(
                 shortVersion: "2.0", version: nil, downloadURL: URL(string: url),
-                edSignature: "sig", sourceName: source, sourceIdentifier: cask,
+                edSignature: edSignature, sourceName: source, sourceIdentifier: cask,
                 requiresManualInstaller: manualInstaller, vendorInstallerKind: kind,
                 expectedSHA256: sha, installTrust: trust),
             status: .updateAvailable(latest: "2.0"))
@@ -52,14 +54,32 @@ import Testing
 
     // MARK: - The offer
 
-    /// The CmdPalm shape. Mutation: drop the check in `canAutoInstall` → red.
-    @Test func aSparkleUpdateOverACopyWithoutATeamIDIsNotOffered() {
+    /// The CmdPalm shape without an update key: nothing ties a download to the
+    /// copy, so no one-click. With a key in the copy and a signature in the feed,
+    /// the key-only route takes it. Mutations: drop the check in `canAutoInstall`
+    /// → the key-less row is offered, red; return true from
+    /// `lacksTeamIdentifierForRoute` for every Sparkle row (the old rule) → the
+    /// keyed row is withheld, red; drop either condition in
+    /// `sparkleKeyOnlyEligible` → red.
+    @Test func aSparkleUpdateOverACopyWithoutATeamIDIsOfferedOnlyOnItsUpdateKey() {
         #expect(Self.offered(Self.result(source: "Sparkle", lacksTeam: false)))
-        #expect(!Self.offered(Self.result(source: "Sparkle", lacksTeam: true)))
+        #expect(Self.offered(Self.result(source: "Sparkle", lacksTeam: true)))
+        #expect(!Self.offered(Self.result(source: "Sparkle", lacksTeam: true, edKey: nil)))
+        #expect(!Self.offered(Self.result(source: "Sparkle", lacksTeam: true, edKey: "")))
+        #expect(!Self.offered(Self.result(source: "Sparkle", lacksTeam: true, edSignature: nil)))
+        #expect(UpdatePolicy.withheldForMissingTeamIdentifier(
+            Self.result(source: "Sparkle", lacksTeam: true, edKey: nil),
+            settings: Self.settings, environment: Self.environment))
+        #expect(!UpdatePolicy.withheldForMissingTeamIdentifier(
+            Self.result(source: "Sparkle", lacksTeam: true),
+            settings: Self.settings, environment: Self.environment))
     }
 
     /// A signed Sparkle package goes to `PackageInstaller`, which refuses the
-    /// same copy. Mutation: drop the check in `requiresInstaller` → red.
+    /// same copy — even with an update key, as a package has no bundle for the
+    /// key-only route's identity gate. Mutation: drop the check in
+    /// `requiresInstaller` → red; drop the package test in
+    /// `sparkleKeyOnlyEligible` → red.
     @Test func aSparklePackageOverACopyWithoutATeamIDIsNotOffered() {
         let pkg = "https://example.com/zz.pkg"
         #expect(Self.installer(Self.result(source: "Sparkle", url: pkg, lacksTeam: false)))
@@ -107,7 +127,7 @@ import Testing
     /// not take that away. Mutation: judge the hand-off on the row as it is (drop
     /// the cleared copy in `defersToSelfUpdater`) → red.
     @Test func aRunningCopyWithoutATeamIDStillDefersToItsOwnUpdater() {
-        let row = Self.result(source: "Sparkle", lacksTeam: true)
+        let row = Self.result(source: "Sparkle", lacksTeam: true, edKey: nil)
         let running = InstallEnvironment(
             isHelperEnabled: false, runningAppPaths: [UpdatePolicy.runtimeBundlePath(row.app.path)],
             stagedSelfUpdates: [:])
@@ -122,7 +142,7 @@ import Testing
     /// Mutation: drop the assignment in `carriedForward` → red; carry it
     /// regardless of `sameCopy` → red.
     @Test func aRescanKeepsTheReadingOnlyForTheSameCopy() {
-        let row = Self.result(source: "Sparkle", lacksTeam: true)
+        let row = Self.result(source: "Sparkle", lacksTeam: true, edKey: nil)
         let same = row.carriedForward(onto: row.app, remote: row.remote, status: row.status, proven: nil)
         #expect(same.installedLacksTeamIdentifier)
         #expect(!Self.offered(same))

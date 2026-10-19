@@ -69,6 +69,23 @@ public enum SignatureVerifier {
         case bundleVersionDowngrade(installed: String, downloaded: String)
         /// Sparkle route, gate 7: the download has no `CFBundleVersion` to compare.
         case bundleVersionMissing
+        /// Sparkle route, installed copy without a Team ID: it carries no
+        /// `SUPublicEDKey` either, so nothing ties a download to it.
+        case noTeamIdentifierOrUpdateKey
+        /// Sparkle route, installed copy without a Team ID: the download is signed
+        /// a different way than the installed copy — ad-hoc against a certificate,
+        /// or the other way round. Signing never changes kind on this route.
+        case signingKindChanged
+        /// Sparkle route, self-signed installed copy: the download does not
+        /// satisfy the installed copy's designated requirement — it was not signed
+        /// with the same certificate.
+        case designatedRequirementNotSatisfied(OSStatus)
+        /// Sparkle route, installed copy without a Team ID: the download carries
+        /// no `SUPublicEDKey`. Installed, it would have no Team ID and no key, so
+        /// this route could not update it again, and neither could an ad-hoc
+        /// copy's own Sparkle (a copy signed with its own certificate could still
+        /// update through Sparkle's code-signing check).
+        case updateKeyRemoved
 
         public var errorDescription: String? {
             switch self {
@@ -116,6 +133,14 @@ public enum SignatureVerifier {
                 return String(localized: "The download is an older build (\(downloaded)) than the installed one (\(installed)), though the update feed offered it as newer. Refusing to install it.")
             case .bundleVersionMissing:
                 return String(localized: "The download has no build number, so DuoUpdater can’t confirm it isn’t older than the installed copy. Refusing to install it.")
+            case .noTeamIdentifierOrUpdateKey:
+                return String(localized: "The installed copy has neither a developer signature nor an update signing key, so DuoUpdater can’t confirm the download comes from the same developer. Refusing to install it.")
+            case .signingKindChanged:
+                return String(localized: "The download is signed differently from the installed copy, so DuoUpdater can’t confirm they’re the same app. Install this version by hand once.")
+            case .designatedRequirementNotSatisfied:
+                return String(localized: "The download isn’t signed with the same certificate as the installed copy. Refusing to install it.")
+            case .updateKeyRemoved:
+                return String(localized: "This version no longer carries an update signing key, so once installed DuoUpdater couldn’t check its future updates. Refusing to install it.")
             }
         }
     }
@@ -134,14 +159,27 @@ public enum SignatureVerifier {
         fileprivate init() {}
     }
 
+    /// Proof that `verifySparkleSignature` passed: the file's EdDSA signature
+    /// verified against the `SUPublicEDKey` read from the INSTALLED copy on disk.
+    /// Only that function can make one, so the no-Team-ID Sparkle route
+    /// (`ArtifactTrust.sparkleSignature`) cannot reach its identity gate on any
+    /// other key — in particular not on a key that came out of the download,
+    /// which is what `isEdKeyRotation` verifies against.
+    public struct VerifiedSparkleSignature: Sendable {
+        fileprivate init() {}
+    }
+
     /// Which identity gates a swap runs. `.developerID` is gates 3 and 4 as they
     /// have always been. `.publishedDigest` and `.myGoSignature` are the two
     /// ad-hoc routes, which differ only in their proof of origin and share the
-    /// identity gates — see `verifyDigestOnlyIdentity`.
+    /// identity gates — see `verifyDigestOnlyIdentity`. `.sparkleSignature` is
+    /// the Sparkle route for an installed copy without a Team ID — see
+    /// `verifySparkleKeyOnlyIdentity`.
     enum ArtifactTrust: Sendable {
         case developerID
         case publishedDigest(VerifiedDigest, bundleID: String, version: String)
         case myGoSignature(VerifiedMyGoSignature, bundleID: String, version: String)
+        case sparkleSignature(VerifiedSparkleSignature)
     }
 
     /// The digest-only route's whole proof of origin: the SHA-256 of `file` — the
@@ -193,6 +231,9 @@ public enum SignatureVerifier {
                 try verifyDigestOnlyIdentity(
                     installedApp: installedApp, downloadedApp: downloadedApp,
                     bundleID: bundleID, version: version)
+            case .sparkleSignature:
+                try verifySparkleKeyOnlyIdentity(
+                    installedApp: installedApp, downloadedApp: downloadedApp)
             }
 
             // Gate 5 reads the actual Mach-O slices; artifact filenames cannot
@@ -272,6 +313,90 @@ public enum SignatureVerifier {
         }
     }
 
+    // MARK: Gates 3 + 4, Sparkle route without a Team ID
+
+    /// Gates 3 and 4 for a Sparkle update over a copy with no Team ID, after
+    /// `verifySparkleSignature` has tied the download to the installed copy's own
+    /// update key. That key is the trust anchor, exactly as for the app's own
+    /// Sparkle; this gate keeps the swap from doing anything that copy's updater
+    /// would not have been handed by the same key holder:
+    ///
+    /// - Signing never changes kind. Both Team IDs are read again here (throwing,
+    ///   never a "no Team" guess); an installed Team ID takes gate 3 as usual, and
+    ///   a Team ID that appears only on the download is refused, as on the
+    ///   digest-only route. An ad-hoc copy takes only an ad-hoc download. A copy
+    ///   signed with its own certificate takes only a download that satisfies
+    ///   its designated requirement — signed with that same certificate — which
+    ///   also refuses a certificate-signed copy being replaced by an ad-hoc one.
+    ///   (An ad-hoc copy's designated requirement is its own cdhash, which no
+    ///   other build satisfies, so the ad-hoc case cannot use it.)
+    /// - The bundle is the same app: `CFBundleIdentifier` equal on both sides and
+    ///   to the download's signed identifier, for the reason
+    ///   `verifyDigestOnlyIdentity` gives (linker-signed builds sign as
+    ///   `Electron`). Sparkle itself has no such check.
+    /// - The download still carries an `SUPublicEDKey`. Sparkle refuses an update
+    ///   that drops the key ("Sparkle only supports rotation, but not removal of
+    ///   (Ed)DSA keys", `SUUpdateValidator`); here the key is the copy's only
+    ///   anchor, so installing one would leave nothing to check a later update
+    ///   against. A DIFFERENT key is a rotation, which Sparkle allows when the
+    ///   update is signed with the installed key — as gate 1 already required.
+    ///
+    /// No version pin: gate 7 (`verifyNoBundleVersionDowngrade`) refuses an older
+    /// build, which is the downgrade a feed could replay.
+    static func verifySparkleKeyOnlyIdentity(installedApp: URL, downloadedApp: URL) throws {
+        switch digestOnlyIdentity(
+            installedTeam: try teamIdentifier(at: installedApp),
+            downloadedTeam: try teamIdentifier(at: downloadedApp)) {
+        case .teamGate:
+            try verifyTeamIdentifierMatch(installedApp: installedApp, downloadedApp: downloadedApp)
+            try verifyBundleIdentifierMatch(installedApp: installedApp, downloadedApp: downloadedApp)
+            return
+        case .teamAppeared(let team):
+            throw VerifyError.teamIdentifierAppeared(downloaded: team)
+        case .adHoc:
+            break
+        }
+        let installedInfo = try signingInfo(at: installedApp)
+        let downloadedInfo = try signingInfo(at: downloadedApp)
+        func isAdHoc(_ info: [String: Any]) -> Bool {
+            let flags = (info[kSecCodeInfoFlags as String] as? NSNumber)?.uint32Value ?? 0
+            return flags & SecCodeSignatureFlags.adhoc.rawValue != 0
+        }
+        if isAdHoc(installedInfo) {
+            guard isAdHoc(downloadedInfo) else { throw VerifyError.signingKindChanged }
+        } else {
+            guard !isAdHoc(downloadedInfo) else { throw VerifyError.signingKindChanged }
+            try verifySatisfiesDesignatedRequirement(
+                installedApp: installedApp, downloadedApp: downloadedApp)
+        }
+        guard embeddedEdPublicKey(at: downloadedApp) != nil else { throw VerifyError.updateKeyRemoved }
+        let installedID = infoPlist(of: installedApp)["CFBundleIdentifier"] as? String ?? ""
+        let downloadedID = infoPlist(of: downloadedApp)["CFBundleIdentifier"] as? String ?? ""
+        let signedID = downloadedInfo[kSecCodeInfoIdentifier as String] as? String
+        guard !installedID.isEmpty, downloadedID == installedID, signedID == installedID else {
+            throw VerifyError.infoPlistIdentifierMismatch(
+                expected: installedID, installed: installedID,
+                downloaded: signedID == downloadedID ? downloadedID : "\(downloadedID) (signed as \(signedID ?? "nothing"))")
+        }
+    }
+
+    /// The download satisfies the installed copy's designated requirement — what
+    /// Sparkle's `SUCodeSigningVerifier` checks, with the same flags. Throws when
+    /// the installed copy has no requirement to read (unsigned).
+    static func verifySatisfiesDesignatedRequirement(installedApp: URL, downloadedApp: URL) throws {
+        var requirement: SecRequirement?
+        let read = SecCodeCopyDesignatedRequirement(try staticCode(at: installedApp), [], &requirement)
+        guard read == errSecSuccess, let requirement else {
+            throw VerifyError.designatedRequirementNotSatisfied(read)
+        }
+        let status = SecStaticCodeCheckValidity(
+            try staticCode(at: downloadedApp),
+            SecCSFlags(rawValue: kSecCSCheckAllArchitectures), requirement)
+        guard status == errSecSuccess else {
+            throw VerifyError.designatedRequirementNotSatisfied(status)
+        }
+    }
+
     static func infoPlist(of app: URL) -> [String: Any] {
         guard let data = try? Data(contentsOf: app.appendingPathComponent("Contents/Info.plist")),
               let plist = try? PropertyListSerialization.propertyList(from: data, format: nil)
@@ -326,6 +451,24 @@ public enum SignatureVerifier {
             throw VerifyError.myGoSignatureInvalid
         }
         return VerifiedMyGoSignature()
+    }
+
+    /// Gate 1 for an installed copy without a Team ID: the EdDSA signature over
+    /// `file` — the full archive, or the patch when one was downloaded — against
+    /// the `SUPublicEDKey` read from `installedApp` on disk, never from the
+    /// update or a cached scan. A missing key or signature refuses, and an
+    /// invalid one throws at once: there is no rotation fallback on this route,
+    /// because `isEdKeyRotation` leans on the Team-ID gate this copy cannot run.
+    /// Blocking file read; callers stay off the pool.
+    static func verifySparkleSignature(
+        of file: URL, signatureBase64: String?, installedApp: URL
+    ) throws -> VerifiedSparkleSignature {
+        guard let key = embeddedEdPublicKey(at: installedApp) else {
+            throw VerifyError.noTeamIdentifierOrUpdateKey
+        }
+        let data = try Data(contentsOf: file, options: .mappedIfSafe)
+        try verifyEdSignature(fileData: data, signatureBase64: signatureBase64, publicKeyBase64: key)
+        return VerifiedSparkleSignature()
     }
 
     // MARK: Gate 1b — vendor rotated its Sparkle signing key

@@ -214,6 +214,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**Moshi（Tauri）**](app-getmoshi-desktop-tauri.md) · `app.getmoshi.desktop.tauri` — 无自己的 recipe（2026-10-11 退役）· 厂商经 Tauri feed 迁往 Moshi Go，`BundleIDMigration` 让 Tauri 副本走 Moshi Go 的 recipe（一键未真机验证）· Tauri feed 的 0.5.12 包即 Moshi Go，真包核对 ✓ · 2026-10-11
 - [x] [**Jellyfin Server**](Jellyfin-Server.md) · `Jellyfin.Server` — P C (one-click) · 菜单栏启动器 + 子进程服务端，无自更新器 · 读厂商文件服务器 `latest-stable/arm64/` 索引，按比较过的版本拼不可变目录下 dmg · GitHub release 无 asset，只取说明 · rc 同 id，读作 stable（终版发布后带回 stable；rc 窗口期不推下一个 rc）· channel-verify 12.1→12.2 ✓，真机端到端待跑 · 2026-10-16
 - [x] [**Krita**](org-krita.md) · `org.krita` — P C (one-click dmg) · 5.x（下载页）与 6.x（Qt 6，读发布 RSS）两条正式线共用 id，按装机主版本分 recipe · 热修复第四段只在 `CFBundleLongVersionString`，版本取前三段 · 夜构建同 id 无后缀，未接 · 4.x 是另一个 Team，一键被拒 · 真实 DMG channel-verify ✓（5.3.3/5.3.4.1/6.0.3/6.0.4.1）· 2026-10-16
+- [x] [**Kiln**](com-superultra-kiln.md) · `com.superultra.kiln` — P (one-click zip) · 无自更新器（静态与运行时都核过），读产品页 `kiln-meta` 下载行的版本 · 安装固定 `latest/Kiln-mac.zip` · changelog ✗（厂商不发）· 一键真机端到端 ✓ · 2026-10-18
 
 ## Single-channel — GitHub Releases
 
@@ -254,7 +255,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**MeetingBar**](leits-MeetingBar.md) · `leits.MeetingBar` — G+H+MAS (one-click universal dmg) · 真包 v4.11.6 挂载验证 ✓（V5 预发布轨同 bundle id 无信号，未接入）· 2026-09-29
 - [x] [**Finicky**](se-johnste-finicky.md) · `se.johnste.finicky` — G (one-click universal dmg) · 真包 v4.2.2 挂载验证 ✓（alpha/beta 是 prerelease 轨，未接入）· 2026-09-29
 - [x] [**Cryptomator**](org-cryptomator.md) · `org.cryptomator` — G (one-click arm64 dmg) · 真包 1.19.3 挂载验证 ✓（alpha/beta/rc 是 prerelease 轨，未接入）· 2026-09-29
-- [x] [**Secretive**](com-maxgoedjen-Secretive-Host.md) · `com.maxgoedjen.Secretive.Host` — G (detection-only：内嵌 SSH agent 登录项，换包后不被重启) · 真包 v4.0.0 解压验证 ✓ · 2026-09-29
+- [x] [**Secretive**](com-maxgoedjen-Secretive-Host.md) · `com.maxgoedjen.Secretive.Host` — G + 一键 zip（换包后重启内嵌 SSH agent 登录项，`loginItemAgentRestarts`；不是 launchd 作业的 agent 不动、只报告）· 真机 3.0.4 → 4.0.0 一键后 SSH 签名 ✓（主 app 关着与开着两种） · 2026-10-19
 - [x] [**OpenInTerminal**](wang-jianing-app-OpenInTerminal.md) · `wang.jianing.app.OpenInTerminal` — G (one-click universal zip) · 真包 v2.3.9 解压验证 ✓ · 2026-09-29 · 改名前旧 id `wang.jianing.OpenInTerminal`（≤ 2.0.5）有意不覆盖：`BundleIDMigration` 会连一键一起开，而新版读不到旧 id 域里的设置；只检测规则挡不住同仓库 Lite 的 tag · 2026-10-14
 - [x] [**DSH Desktop**](ai-deepseek-dsh-desktop.md) · `ai.deepseek.dsh.desktop` — G (one-click universal dmg) · 真包 v2.0.17 挂载验证 ✓ · 2026-10-09
 - [x] [**Meetily**](com-meetily-ai.md) · `com.meetily.ai` — G (one-click arm64 dmg) · 真包 v0.4.0 挂载验证 ✓ · 2026-08-30
@@ -332,6 +333,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 
 - [x] [**Pulse**](com-egoist-pulse.md) · `com.egoist.pulse` — C（历史走 GitHub release 列表）· 检测与 tar.gz 一键走 MyGoUpdateSource · MyGo delta ✓（dmg 副本缺公证票据文件，首次退回全量）· 厂商 Ed25519 签名 + Team ID · 真包 0.1.11/0.1.12 ✓ · 一键端到端 ✓（dmg 布局 / tar.gz 布局 / 运行中）· `install.sh` 只装 Linux，无 macOS CLI · 2026-10-13
 - [x] [**Leafmark**](dev-leafmark-app.md) · `dev.leafmark.app` — 检测与 tar.gz 一键走 MyGoUpdateSource（无 recipe）· ad-hoc 签名，一键要打开「无开发者签名」设置 · MyGo delta ✓（未公证，dmg 副本也能吃）· changelog 结构化 ✓（manifest notes 按版本拆）· 一键端到端 ✓（设置开 / 运行中 / 设置关→拒绝）· 2026-10-13
+- [x] [**Mayoi**](dev-mayoi-editor.md) · `dev.mayoi.editor` — C（历史读仓库 `CHANGELOG.md`，19 版全）· 检测与 tar.gz/delta 一键走 MyGoUpdateSource · Developer ID + 公证 · MyGo delta ✓ · 真包 0.1.0/0.10.0/0.11.0 ✓ · 一键端到端 ✓ · 2026-10-18
 
 ## Sparkle-covered (auto-detected, no custom recipe)
 
@@ -343,7 +345,9 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**Proxyman**](com-proxyman-NSProxy.md) · `com.proxyman.NSProxy` — S · 一键 ✓ · changelog recipe（GitHub）✓ · 2026-10-08
 - [x] [**MonitorControl**](app-monitorcontrol-MonitorControl.md) · `app.monitorcontrol.MonitorControl` — S+B · 一键 ✓ · beta 开关（`MonitorControlChannel`，feed 尚无 beta）· changelog recipe ✓ · 2026-10-08
 - [x] [**RuntimeViewer**](com-JH-RuntimeViewer.md) · `com.JH.RuntimeViewer` — S+B · stable/beta（`RuntimeViewerChannel`）· 一键 ✓（含 beta、无 Sparkle 的 1.x）· changelog recipe ✓（stable/beta）· 2026-10-18
+- [x] [**AirBuild**](plus-yellow-AirBuild.md) · `plus.yellow.AirBuild` — S+B · stable/beta（`AirBuildChannel`）· 一键 ✓（不运行 / 运行中）· changelog ✗（厂商不发）· 2026-10-19
 - [x] [**Maccy**](org-p0deje-Maccy.md) · `org.p0deje.Maccy` — S · 检测 + changelog 结构化 ✓ · 一键未跑 · 2026-10-08
+- [x] [**TrellisWM**](app-trellisui-trelliswm.md) · `app.trellisui.trelliswm` — S · 一键（delta）✓ 0.9.4→0.9.5 · changelog recipe ✓（版本说明页按 `<h1>` 拆、分节保留）· 运行中一轮 ✓（未授辅助功能权限，系统设置前后一致）· 2026-10-19
 - [x] [**Keka**](com-aone-keka.md) · `com.aone.keka` — S · 检测 ✓ · changelog recipe（GitHub）✓ · 一键未跑 · 2026-10-08
 - [x] [**Vivaldi**](com-vivaldi-Vivaldi.md) · `com.vivaldi.Vivaldi` — S · 真包 8.2.4133.83/.84 验证 ✓ · 一键（delta）✓ · Snapshot 为独立 bundle id · changelog recipe（stable + Snapshot）· 2026-10-08
 - [x] [**OBS**](com-obsproject-obs-studio.md) · `com.obsproject.obs-studio` — S · 真包 32.2.1/32.2.2/33.0.0-beta5/beta6 验证 ✓ · stable 一键（delta）端到端 ✓ · beta `UpdateBranch` 绑定 ✓ · changelog recipe（feedPagePattern）✓ · 2026-10-08

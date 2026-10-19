@@ -45,7 +45,7 @@ Store 搜索没有 Longbridge Desktop。公开 stable 分发由厂商自己的 r
 - preview（`55721c0e`，2026-08-26 接入）: 独立 recipe，端点 `…/longbridge-desktop/preview/latest.json`，版本 pattern 要求 `-preview.N` 后缀；两条轨的 pattern 互不匹配，跨轨解析 fail-closed。
 
 ## Changelog
-- 来源（stable）: 英文版本页 `longbridge.com/en/changelog/longbridge-pro/{major.minor}`。官网一页对应一条小版本线（如 `…/0.19` 同页含 0.19.1 与 0.19.0），每版是一个 `release-section`。
+- 来源（stable）: 英文版本页 `longbridge.com/en/changelog/longbridge-pro/v{major.minor}`。官网一页对应一条小版本线（如 `…/v0.19` 同页含 0.19.1 与 0.19.0），每版是一个 `release-section`。不带 `v` 的 `…/0.19` 是 meta-refresh 跳转壳（见「历史与实测」2026-10-19）。
 - 来源（preview）: 官网已没有 preview 版本页（见「历史与实测」2026-10-14）。唯一仍发布 preview 说明的是 `…/longbridge-desktop/preview/latest.json` 的 `release_notes.en`。
 - 状态（stable）: `ChangelogRecipe`，正则取该页第一个 `release-section`（`data-rail-version` / `data-rail-date`），条目取 `div.prose` 里的 `<li>`/`<p>`；`<video>` 截断条目，`imagePattern` 收图。
 - 状态（preview）: `StructuredFormat.longbridgeDesktopManifest`，读 JSON 字符串 `release_notes.en`，每个 `- ` 行一条，去掉 `**` 与 `###` 标题。清单只含最新一版，所以无论请求哪个版本，条目都是这一版（条目上标的是它自己的版本号）。
@@ -99,6 +99,15 @@ Longbridge 归到 `native`。见 `AppRuntimeDetector`。
 
 
 ## 历史与实测
+
+### Recipes/com-longbridge-app-desktop.swift — changelog 版本页加 `v` 前缀（2026-10-19 实测，#1273）
+
+夜扫 2026-10-18 报 `noEntriesExtracted`（`verify/baseline.json` 记的上次正常 2026-10-15T14:32Z，`1.0.0`），抓到的响应是 455 B 的跳转壳。只读 GET，浏览器样式 User-Agent：
+
+- `/en/changelog/longbridge-pro/1.0`、`…/0.19`、`…/0.20` 都是 HTTP 200、453–458 B 的页面，只有 `<meta http-equiv="refresh">` + `location.replace` 指向 `…/v1.0`、`…/v0.19`、`…/v0.20`，没有 `release-section`。`ChangelogService` 不跟 meta-refresh，所以抽出 0 条。
+- 产品页 `/en/changelog/longbridge-pro/` 列出的 21 条小版本线（v0.1–v0.20、v1.0）全部复算（Python，recipe 同一正则）：带 `v` 的页 28–50 KB，每页 ≥1 个 `release-section`，第一节都抽到 ≥1 项（如 `v1.0` → 1.0.0、2026-10-13、11 项；`v0.19` → 0.19.1、2 项；`v0.18` → 0.18.4、2 项，共 5 节）；不带 `v` 的 21 页全是 453–458 B 跳转壳、0 节，`meta refresh` 都指向对应的 `v` 页。`v1.0`/`v0.19`/`v0.20` 的条目数与 10-14 用生产解析器测到的一致。
+- 旧 URL `/desktop/release-notes/v1.0.0` 仍 301 到不带 `v` 的 `…/1.0#v1.0.0`（再经跳转壳到 `v1.0`）。
+- 修法：`sourceTemplate` 改成 `…/longbridge-pro/v{majorMinor}`。
 
 ### Recipes/com-longbridge-app-desktop.swift — changelog（官网改版，2026-10-14 实测）
 

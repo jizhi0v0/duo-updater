@@ -82,19 +82,25 @@ public actor InstallCoordinator {
         /// the full archive and reports false, so the traffic ledger records what
         /// happened rather than what the feed offered.
         public let usedDelta: Bool
+        /// Bundle ids of the login-item agents the recipe asked us to restart
+        /// after the swap (`LoginItemAgentRestart`) that are not confirmed
+        /// running from the new bundle. Empty for every app that declares none.
+        public let agentsNotRestarted: [String]
 
         public init(
             bytesDownloaded: Int64,
             finalHost: String?,
             stagedPackageURL: URL?,
             applied: Bool,
-            usedDelta: Bool = false
+            usedDelta: Bool = false,
+            agentsNotRestarted: [String] = []
         ) {
             self.bytesDownloaded = bytesDownloaded
             self.finalHost = finalHost
             self.stagedPackageURL = stagedPackageURL
             self.applied = applied
             self.usedDelta = usedDelta
+            self.agentsNotRestarted = agentsNotRestarted
         }
     }
 
@@ -111,6 +117,11 @@ public actor InstallCoordinator {
     /// The live process list `NestedAppGuard` reads before a swap. A seam for
     /// tests.
     private let runningProcesses: @Sendable () -> [NestedAppGuard.RunningProcess]
+    /// The process list and signal `LoginItemAgentRestart` uses around a swap.
+    /// Seams for tests.
+    private let agentProcesses: @Sendable () -> [LoginItemAgentRestart.Process]
+    private let signalAgent: @Sendable (pid_t, Int32) -> Void
+    private let agentJobPID: @Sendable (String) async -> pid_t?
     /// Free space claimed by this process's installs. See `DiskSpaceGuard`.
     private let space: DiskSpaceGuard.SpaceLedger
 
@@ -119,8 +130,14 @@ public actor InstallCoordinator {
         xcodeDownloader: (any XcodeArchiveDownloading)? = nil,
         runningProcesses: @escaping @Sendable () -> [NestedAppGuard.RunningProcess] = NestedAppGuard.liveProcesses,
         space: DiskSpaceGuard.SpaceLedger = .shared,
-        vendor: VendorInstaller = VendorInstaller()
+        vendor: VendorInstaller = VendorInstaller(),
+        agentProcesses: @escaping @Sendable () -> [LoginItemAgentRestart.Process] = LoginItemAgentRestart.liveProcesses,
+        signalAgent: @escaping @Sendable (pid_t, Int32) -> Void = { _ = kill($0, $1) },
+        agentJobPID: @escaping @Sendable (String) async -> pid_t? = LoginItemAgentRestart.launchdJobPID
     ) {
+        self.agentProcesses = agentProcesses
+        self.signalAgent = signalAgent
+        self.agentJobPID = agentJobPID
         self.permits = permits
         self.vendor = vendor
         self.space = space
@@ -601,6 +618,7 @@ public actor InstallCoordinator {
             // Still needed: a cancel landing as the permit was handed over
             // returns normally with the permit held (see `waitForDownloadOrCancel`).
             try Task.checkCancellation()
+            let agents = snapshotLoginItemAgents(result)
             try await homebrew.upgrade(caskToken: token) { line in
                 progress(.runningCommand(line))
             }
@@ -608,7 +626,8 @@ public actor InstallCoordinator {
             applyHeld = false
             await releaseAfterDownload()
             return Outcome(
-                bytesDownloaded: 0, finalHost: nil, stagedPackageURL: nil, applied: true)
+                bytesDownloaded: 0, finalHost: nil, stagedPackageURL: nil, applied: true,
+                agentsNotRestarted: await restartLoginItemAgents(agents))
 
         case .vendor:
             do {
@@ -712,7 +731,8 @@ public actor InstallCoordinator {
             finalHost: outcome.finalHost,
             stagedPackageURL: outcome.stagedPackageURL,
             applied: outcome.applied,
-            usedDelta: outcome.usedDelta)
+            usedDelta: outcome.usedDelta,
+            agentsNotRestarted: outcome.agentsNotRestarted)
     }
 
     /// Source-specific proof over a package route's original download. A Sparkle
@@ -833,10 +853,12 @@ public actor InstallCoordinator {
         if spaceToApply > 0 {
             try await DiskSpaceGuard.ensureRoom(for: spaceToApply, sparing: backupKey)
         }
+        let agents = snapshotLoginItemAgents(result)
         Log.install.debug("\(label, privacy: .public): applying")
         try await apply(result, downloaded, progress)
         permits.signalApply()
         applyHeld = false
+        let agentsNotRestarted = await restartLoginItemAgents(agents)
         Log.install.debug("\(label, privacy: .public): applied")
         // Installed: whatever partial download this app left behind
         // (`ResumableDownloadStore`) is for a version it no longer needs.
@@ -845,6 +867,32 @@ public actor InstallCoordinator {
         return Outcome(
             bytesDownloaded: downloaded.bytesDownloaded, finalHost: downloaded.finalHost,
             stagedPackageURL: nil, applied: true,
-            usedDelta: downloaded.appliedPatch != nil)
+            usedDelta: downloaded.appliedPatch != nil,
+            agentsNotRestarted: agentsNotRestarted)
+    }
+
+    /// Right before a swap: the login-item agents `result`'s recipe asks to
+    /// restart, and which of their processes run from this bundle now. Empty
+    /// for every app that declares none. See `LoginItemAgentRestart`.
+    private func snapshotLoginItemAgents(_ result: UpdateResult) -> [LoginItemAgentRestart.Agent] {
+        guard let declared = LoginItemAgentRestart.declaredAgents(for: result.app) else { return [] }
+        return LoginItemAgentRestart.snapshot(
+            bundle: result.app.path, agentBundleIDs: declared, processes: agentProcesses)
+    }
+
+    /// Once the swap has landed: restart the agents `snapshot` found running,
+    /// returning the ids of any not confirmed back.
+    ///
+    /// In an unstructured task so that a cancel of the install does not reach
+    /// it: the swap has happened, and an agent left on the old code is the
+    /// state this exists to prevent. Its waits are bounded (about 15 s).
+    private func restartLoginItemAgents(_ snapshot: [LoginItemAgentRestart.Agent]) async -> [String] {
+        guard snapshot.contains(where: { !$0.processes.isEmpty }) else { return [] }
+        let processes = agentProcesses, signal = signalAgent, jobPID = agentJobPID
+        let results = await Task {
+            await LoginItemAgentRestart.restart(
+                snapshot, processes: processes, signal: signal, launchdJobPID: jobPID)
+        }.value
+        return results.filter { !$0.succeeded }.map(\.bundleID)
     }
 }

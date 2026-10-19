@@ -54,6 +54,11 @@ final class Downloader: NSObject, URLSessionDataDelegate, @unchecked Sendable {
         /// `FileHandle(forWritingTo:)` happened to throw. Not retried: the same
         /// directory problem would recur.
         case cannotCreatePartialFile(String)
+        /// A `206` whose own validator, of the kind sent as `If-Range`, is not
+        /// the one the bytes on disk were downloaded under: the object at the
+        /// URL changed, and the server ignored `If-Range`. Joined on, the file
+        /// would be two builds spliced. The download starts over from zero.
+        case resumedObjectChanged(String)
         var errorDescription: String? {
             switch self {
             case .httpStatus(let code):
@@ -66,6 +71,8 @@ final class Downloader: NSObject, URLSessionDataDelegate, @unchecked Sendable {
                 return "The server closed the connection after \(received) of \(expected) bytes."
             case .cannotCreatePartialFile(let path):
                 return "Couldn't create a fresh download file at \(path)."
+            case .resumedObjectChanged(let reason):
+                return "The file changed on the server while it was downloading (\(reason))."
             }
         }
     }
@@ -340,8 +347,11 @@ final class Downloader: NSObject, URLSessionDataDelegate, @unchecked Sendable {
                 // A kept partial the server will not extend — a 416 because the
                 // earlier call had every byte but was killed before finishing, a
                 // 206 from some other offset — is not this download's failure:
-                // drop it and start from zero, as an in-call resume would.
-                if resumingKept, !Self.isTransient(error) {
+                // drop it and start from zero, as an in-call resume would. Nor is
+                // a resume answered from a changed object, kept partial or not.
+                let objectChanged: Bool
+                if case .resumedObjectChanged = error as? DownloadError { objectChanged = true } else { objectChanged = false }
+                if resumingKept || objectChanged, !Self.isTransient(error) {
                     resumingKept = false
                     try? FileManager.default.removeItem(at: partial)
                     resumeValidator = nil
@@ -476,6 +486,12 @@ final class Downloader: NSObject, URLSessionDataDelegate, @unchecked Sendable {
                 }
                 declaredTotal = range.total
                 if attemptStartOffset > 0, range.first == attemptStartOffset {
+                    // A server that honours `If-Range` never answers a changed
+                    // object with a 206 (RFC 9110 §13.1.5: the whole new object,
+                    // 200); one that ignores it says so in the 206's own validator.
+                    if let sent = resumeValidator, let change = Self.validatorChange(sent: sent, http) {
+                        throw DownloadError.resumedObjectChanged(change)
+                    }
                     // Server honoured our range — append to what we already have.
                     totalExpected = range.total
                         ?? (attemptStartOffset + max(0, response.expectedContentLength))
@@ -742,6 +758,18 @@ final class Downloader: NSObject, URLSessionDataDelegate, @unchecked Sendable {
     /// §8.8.2.2, i.e. at least a minute older than the response's `Date`; not
     /// checked here. The failure mode of a too-fresh date is the one we already
     /// live with today without `If-Range` at all.)
+    /// How a `206`'s own validator contradicts `sent`, the `If-Range` it
+    /// answers — compared only within the kind sent (an entity tag against
+    /// `ETag`, a date against `Last-Modified`); nil when they agree or the
+    /// response carries none of that kind, which leaves nothing to compare.
+    static func validatorChange(sent: String, _ http: HTTPURLResponse?) -> String? {
+        let field = sent.hasPrefix("\"") ? "ETag" : "Last-Modified"
+        guard let got = http?.value(forHTTPHeaderField: field)?.trimmingCharacters(in: .whitespaces),
+              !got.isEmpty, got != sent
+        else { return nil }
+        return "\(field) \(got), not \(sent)"
+    }
+
     private static func strongValidator(_ http: HTTPURLResponse?) -> String? {
         guard let http else { return nil }
         if let etag = http.value(forHTTPHeaderField: "ETag")?

@@ -220,7 +220,7 @@ public enum SignatureVerifier {
         // before the gates. Every caller is before its install's commit point, so
         // the swap would refuse it anyway — but only after these checks, which
         // cannot be interrupted once started: ~2 s for Arc (`codesign --verify
-        // --deep`, measured 2026-10-19), far more for Xcode. A patch or a DMG
+        // --deep --strict` as a proxy, measured 2026-10-19). A patch or a DMG
         // mount that a cancel cannot cut runs to its end first, and then this
         // is the next place the cancel is seen.
         try Task.checkCancellation()

@@ -260,8 +260,11 @@ public enum InstallJobs {
         let phaseChanged: (@Sendable (Phase) -> Void)?
         var cancelRequested = false
         /// When the first cancel of this job was asked for, so its end can say
-        /// how long the row read "Cancelling…": the cancel line is logged where
-        /// the install stops, before its work directory and journal are cleaned.
+        /// how long the row read "Cancelling…". The job ends after the install's
+        /// wrap-up (its journal entry and rollback point), which comes after the
+        /// `install cancelled at` line. On the download-and-swap routes the work
+        /// directory is removed before that line (`fetchThenSwap`'s `defer`), so
+        /// that removal is inside "cancel requested → install cancelled at".
         var cancelRequestedAt: ContinuousClock.Instant?
         /// The label of the commit that moved the job past preparing.
         var committing: String?

@@ -1,14 +1,12 @@
 {
   "entries" : {
     "install:github:AprilNEA\/OpenLogi:stable" : {
-      "consecutiveActionable" : 14,
+      "closedAt" : "2026-10-19T11:23:39Z",
+      "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 1351,
-      "lastCommentedAt" : "2026-10-15T20:39:13Z",
-      "lastSignature" : "identityChanged: Sparkle key none → dwOe",
-      "previousSignature" : "identityChanged: Sparkle key none → dwOe",
-      "sweepsSinceComment" : 12
+      "sweepsSinceComment" : 0
     },
     "install:github:BlueBubblesApp\/bluebubbles-server:stable" : {
       "consecutiveActionable" : 0,
@@ -190,6 +188,18 @@
       "consecutiveInstallTransient" : 0,
       "sweepsSinceComment" : 0
     },
+    "install:github:anxndsgn\/git-switch:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
+    "install:github:anxndsgn\/pennybar:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
     "install:github:anywhere-labs\/dsh-desktop:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
@@ -233,10 +243,11 @@
       "sweepsSinceComment" : 0
     },
     "install:github:chekusu\/yomado:stable" : {
-      "consecutiveActionable" : 0,
+      "consecutiveActionable" : 1,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "sweepsSinceComment" : 0
+      "lastSignature" : "identityChanged: Sparkle key none → knah",
+      "sweepsSinceComment" : 1
     },
     "install:github:cjpais\/Handy:stable" : {
       "consecutiveActionable" : 0,
@@ -389,13 +400,11 @@
       "sweepsSinceComment" : 0
     },
     "install:github:huangy7\/lokii:stable" : {
-      "consecutiveActionable" : 2,
+      "closedAt" : "2026-10-19T11:23:42Z",
+      "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 1449,
-      "lastCommentedAt" : "2026-10-19T01:43:27Z",
-      "lastSignature" : "identityChanged: Sparkle key none → pxrs",
-      "previousSignature" : "identityChanged: Sparkle key none → pxrs",
       "sweepsSinceComment" : 0
     },
     "install:github:imputnet\/helium-macos:stable" : {
@@ -495,6 +504,12 @@
       "sweepsSinceComment" : 0
     },
     "install:github:matt1398\/claude-devtools:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
+    "install:github:maxgoedjen\/secretive:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
@@ -1398,6 +1413,12 @@
       "consecutiveInstallTransient" : 0,
       "sweepsSinceComment" : 0
     },
+    "install:vendor:com.superultra.kiln:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
     "install:vendor:com.surteesstudios.Bartender:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
@@ -1904,5 +1925,5 @@
     }
   },
   "schemaVersion" : 1,
-  "updatedAt" : "2026-10-19T01:43:27Z"
+  "updatedAt" : "2026-10-19T11:23:42Z"
 }

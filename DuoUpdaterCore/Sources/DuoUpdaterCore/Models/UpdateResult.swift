@@ -671,6 +671,26 @@ extension UpdateResult {
             offered: latest, offeredBuild: remote?.version)
     }
 
+    /// Both sides of the update line as text, as the row spells them: the sides
+    /// ``updateLineSides(latest:)`` keeps, with ``buildBump(latest:)``'s builds put
+    /// back when only the build changed ("1.169.0 (88700) → 1.169.0 (88758)").
+    /// The rows style the two parts apart, so they compose them themselves; this
+    /// is for the plain-text labels that must name the same thing.
+    public func updateLineText(latest: String) -> (installed: String, offered: String) {
+        let sides = updateLineSides(latest: latest)
+        guard let bump = buildBump(latest: latest) else { return sides }
+        return ("\(sides.installed) (\(bump.installed))", "\(sides.offered) (\(bump.remote))")
+    }
+
+    /// The offered version as every label beside the row names it ("Update …",
+    /// "Skip …"): the update line's offered side, so a label names what the line
+    /// does — without a build the line dropped ("Update 1.169.0 (88758)" under
+    /// "1.168.0 → 1.169.0"), and with one it put back ("Update 1.169.0 (88758)"
+    /// under "1.169.0 (88700) → 1.169.0 (88758)"). Nil when nothing is offered.
+    public var offeredDisplay: String? {
+        remote?.displayVersion.map { updateLineText(latest: $0).offered }
+    }
+
     /// ``updateLineSides(latest:)`` for a host that holds the strings rather than
     /// an `UpdateResult` (`duo check`'s row).
     public static func updateLineSides(

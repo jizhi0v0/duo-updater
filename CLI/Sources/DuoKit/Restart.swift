@@ -152,7 +152,7 @@ public enum Restart {
         if case .standDown(let discarded) = taken {
             // Lets go of the claim the copy took; a copy left there (none was
             // discarded) is the backup now if the app's updater swapped.
-            await InstallCoordinator.settlePendingBackup(for: app, succeeded: false)
+            await InstallCoordinator.settlePendingBackup(for: app)
             let copy = discarded ? " (the copy taken meanwhile was discarded)" : ""
             return ("quit while it was being backed up — its own updater is applying \(to) on its own; left it alone\(copy)", false)
         }
@@ -170,7 +170,7 @@ public enum Restart {
             system: .live(for: app))
         // The copy taken above waited in the pending slot; it is the backup
         // now only if the app changed — what the menu-bar app's Relaunch does.
-        await InstallCoordinator.settlePendingBackup(for: app, succeeded: ending.outcome == .applied)
+        await InstallCoordinator.settlePendingBackup(for: app)
         let disk = StagedRelaunch.diskVersionSide(app.path)
         return describe(ending, staged: to, disk: disk)
     }

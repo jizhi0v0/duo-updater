@@ -133,7 +133,7 @@ import Testing
             let atN = installed(app, version: "2.0")
             #expect(await InstallCoordinator.backUp(atN, route: .sparkle) == .saved)
             // The install is cancelled before its swap: nothing changed.
-            #expect(await InstallCoordinator.settlePendingBackup(for: atN, succeeded: false) == .kept)
+            #expect(await InstallCoordinator.settlePendingBackup(for: atN) == .kept)
 
             let backup = try #require(BackupStore.backup(forKey: key(app)))
             #expect(backup.version == "1.0")
@@ -157,13 +157,13 @@ import Testing
             let app = try await appAtNWithBackupOfNMinus1(in: apps)
             let atN = installed(app, version: "2.0")
             #expect(await InstallCoordinator.backUp(atN, route: .sparkle) == .saved)
-            await InstallCoordinator.settlePendingBackup(for: atN, succeeded: false)
+            await InstallCoordinator.settlePendingBackup(for: atN)
             let first = pendingMarkerInode(app)
 
             #expect(await InstallCoordinator.backUp(atN, route: .sparkle) == .saved)
             #expect(pendingMarkerInode(app) == first)
             #expect(BackupStore.backup(forKey: key(app))?.version == "1.0")
-            await InstallCoordinator.settlePendingBackup(for: atN, succeeded: false)
+            await InstallCoordinator.settlePendingBackup(for: atN)
         }
     }
 
@@ -177,7 +177,7 @@ import Testing
             let atN = installed(app, version: "2.0")
             #expect(await InstallCoordinator.backUp(atN, route: .sparkle) == .saved)
             try install(in: apps, version: "3.0")
-            #expect(await InstallCoordinator.settlePendingBackup(for: atN, succeeded: true) == .promoted)
+            #expect(await InstallCoordinator.settlePendingBackup(for: atN) == .promoted)
 
             let backup = try #require(BackupStore.backup(forKey: key(app)))
             #expect(backup.version == "2.0")
@@ -199,7 +199,7 @@ import Testing
             let atN = installed(app, version: "2.0")
             #expect(await InstallCoordinator.backUp(atN, route: .homebrew) == .saved)
             try FileManager.default.removeItem(at: app)
-            #expect(await InstallCoordinator.settlePendingBackup(for: atN, succeeded: false) == .promoted)
+            #expect(await InstallCoordinator.settlePendingBackup(for: atN) == .promoted)
             #expect(BackupStore.backup(forKey: key(app))?.version == "2.0")
         }
     }
@@ -248,7 +248,7 @@ import Testing
             try install(in: apps, version: "3.0")
             #expect(await InstallCoordinator.sweepPendingBackups(lock: testLock(outbox)) == 0)
             #expect(BackupStore.backup(forKey: key(app))?.version == "1.0")
-            #expect(await InstallCoordinator.settlePendingBackup(for: atN, succeeded: true) == .promoted)
+            #expect(await InstallCoordinator.settlePendingBackup(for: atN) == .promoted)
         }
     }
 
@@ -262,14 +262,14 @@ import Testing
             let app = try await appAtNWithBackupOfNMinus1(in: apps)
             let atN = installed(app, version: "2.0")
             #expect(await InstallCoordinator.backUp(atN, route: .sparkle) == .saved)
-            await InstallCoordinator.settlePendingBackup(for: atN, succeeded: false)
+            await InstallCoordinator.settlePendingBackup(for: atN)
             try install(in: apps, version: "3.0")
             let atNPlus1 = installed(app, version: "3.0")
 
             #expect(await InstallCoordinator.backUp(atNPlus1, route: .sparkle) == .saved)
             #expect(BackupStore.backup(forKey: key(app))?.version == "2.0")
             #expect(marker(of: pendingDir(app).appendingPathComponent("Foo.app")) == "3.0")
-            await InstallCoordinator.settlePendingBackup(for: atNPlus1, succeeded: false)
+            await InstallCoordinator.settlePendingBackup(for: atNPlus1)
         }
     }
 
@@ -284,31 +284,62 @@ import Testing
             let atN = installed(app, version: "2.0")
             #expect(await InstallCoordinator.backUp(atN, route: .sparkle) == .saved)
             try Data("state".utf8).write(to: app.appendingPathComponent("Contents/runtime.db"))
-            #expect(await InstallCoordinator.settlePendingBackup(for: atN, succeeded: false) == .kept)
+            #expect(await InstallCoordinator.settlePendingBackup(for: atN) == .kept)
             #expect(BackupStore.backup(forKey: key(app))?.version == "1.0")
         }
     }
 
-    /// An app that ships every build under the same version pair: a landed
-    /// install is told by the walk instead, and one that did not land is not.
-    /// Mutation: drop `succeeded` from the walk branch of
-    /// `pendingIsSuperseded` (always compare) → the failed one is promoted,
-    /// red; drop the walk branch → the landed one is kept, red.
-    @Test func aFrozenVersionAppIsPromotedOnlyWhenTheInstallLanded() async throws {
+    /// A swap that put the same version back — the download was not the one
+    /// the feed advertised, which the host reports as "applied nothing" after
+    /// the coordinator said `applied` — changed the bundle's files but not
+    /// the app: the earlier backup stays the way back.
+    /// Mutation: promote whenever the walk differs (the dropped
+    /// `succeeded`-gated branch, unconditional) → 2.0 replaces 1.0, red.
+    @Test func aSwapThatLeftTheSameVersionKeepsTheEarlierBackup() async throws {
         try await withStore { apps, _, _ in
             let app = try await appAtNWithBackupOfNMinus1(in: apps)
             let atN = installed(app, version: "2.0")
-            #expect(await InstallCoordinator.backUp(atN, route: .sparkle) == .saved)
-            // A new bundle, same pair: what such an app's update leaves.
-            try install(in: apps, version: "2.0", marker: "2.0-later")
-            #expect(await InstallCoordinator.settlePendingBackup(for: atN, succeeded: false) == .kept)
+            #expect(await InstallCoordinator.backUp(atN, route: .vendor) == .saved)
+            try install(in: apps, version: "2.0", marker: "2.0-again")
+            #expect(await InstallCoordinator.settlePendingBackup(for: atN) == .kept)
             #expect(BackupStore.backup(forKey: key(app))?.version == "1.0")
-            // Re-taken for the attempt that lands: the bundle changed, so
-            // the stale copy is replaced (same pair, so not promoted first).
-            #expect(await InstallCoordinator.backUp(atN, route: .sparkle) == .saved)
-            try install(in: apps, version: "2.0", marker: "2.0-latest")
-            #expect(await InstallCoordinator.settlePendingBackup(for: atN, succeeded: true) == .promoted)
-            #expect(BackupStore.backup(forKey: key(app))?.version == "2.0")
+        }
+    }
+
+    /// An app in a scan folder on a disk that is not mounted is unreachable,
+    /// not changed: a sweep then must not spend the earlier backup on it.
+    /// Mutation: drop the folder test in `pendingIsSuperseded` (missing app
+    /// always promotes) → 2.0 replaces 1.0, red.
+    @Test func anAppOnAVolumeThatIsNotMountedIsNotChanged() async throws {
+        try await withStore { apps, outbox, _ in
+            let volume = apps.appendingPathComponent("Volume", isDirectory: true)
+            let app = try await appAtNWithBackupOfNMinus1(in: volume)
+            try await BackupStore.savePending(
+                appPath: app, key: key(app), version: "2.0", buildVersion: "1",
+                bundleID: Self.bundleID)
+            try FileManager.default.removeItem(at: volume)
+            #expect(await InstallCoordinator.sweepPendingBackups(lock: testLock(outbox)) == 0)
+            #expect(BackupStore.backup(forKey: key(app))?.version == "1.0")
+            #expect(FileManager.default.fileExists(atPath: pendingDir(app).path))
+        }
+    }
+
+    /// The app's launch drops a cancelled attempt's leftover whose app is
+    /// unchanged — nothing lists it, so nothing else could remove it — and
+    /// still promotes one whose app changed. Other sweeps keep the leftover.
+    /// Mutation: ignore `droppingUnchanged` → the leftover stays, red.
+    @Test func theLaunchDropsAnUnchangedLeftover() async throws {
+        try await withStore { apps, outbox, _ in
+            let app = try install(in: apps, version: "2.0")
+            try await BackupStore.savePending(
+                appPath: app, key: key(app), version: "2.0", buildVersion: "1",
+                bundleID: Self.bundleID)
+            #expect(await InstallCoordinator.sweepPendingBackups(lock: testLock(outbox)) == 0)
+            #expect(FileManager.default.fileExists(atPath: pendingDir(app).path))
+            #expect(await InstallCoordinator.sweepPendingBackups(
+                lock: testLock(outbox), droppingUnchanged: true) == 0)
+            #expect(!FileManager.default.fileExists(atPath: pendingDir(app).path))
+            #expect(BackupStore.backup(forKey: key(app)) == nil)
         }
     }
 
@@ -330,7 +361,7 @@ import Testing
             #expect(BackupStore.allBackups().isEmpty)
 
             try install(in: apps, version: "3.0")
-            #expect(await InstallCoordinator.settlePendingBackup(for: atN, succeeded: true) == .promoted)
+            #expect(await InstallCoordinator.settlePendingBackup(for: atN) == .promoted)
             #expect(BackupStore.pendingTransferKeys() == [key(app)])
             let moved = try await BackupStore.transferToDestination(forKey: key(app))
             #expect(moved.location == .destination)
@@ -388,7 +419,35 @@ import Testing
             await StagedRelaunchBackup.System.live(for: atN, backUp: { .failed }).remove()
             #expect(!FileManager.default.fileExists(atPath: pendingDir(app).path))
             #expect(BackupStore.backup(forKey: key(app))?.version == "1.0")
-            #expect(await InstallCoordinator.settlePendingBackup(for: atN, succeeded: false) == .none)
+            #expect(await InstallCoordinator.settlePendingBackup(for: atN) == .none)
+        }
+    }
+
+    /// `backUp` for an input method snapshots its user data into the pending
+    /// copy's directory, never beside the earlier backup: that one keeps the
+    /// data it was taken with. Mutation: drop `in:` from the
+    /// `InputMethodDataBackup.save` call in `backUp` → the snapshot of N lands
+    /// beside the backup of N-1, red.
+    @Test func backUpSnapshotsAnInputMethodIntoThePendingCopy() async throws {
+        try await withStore { apps, _, _ in
+            let home = apps.appendingPathComponent("home", isDirectory: true)
+            let data = home.appendingPathComponent("Library/Application Support/Foo", isDirectory: true)
+            try FileManager.default.createDirectory(at: data, withIntermediateDirectories: true)
+            try Data("dictionary".utf8).write(to: data.appendingPathComponent("user.dict"))
+            // An input method is told by its folder (`UpdatePolicy.isInputMethod`).
+            let folder = apps.appendingPathComponent("Library/Input Methods", isDirectory: true)
+            let app = try await appAtNWithBackupOfNMinus1(in: folder)
+            let atN = installed(app, version: "2.0")
+            let outcome = await InputMethodDataBackup.$homeOverride.withValue(home) {
+                await InstallCoordinator.backUp(atN, route: .vendor)
+            }
+            #expect(outcome == .saved)
+            #expect(InputMethodDataBackup.snapshotExists(
+                in: InputMethodDataBackup.snapshotDirectory(
+                    forKey: key(app), in: BackupStore.pendingBackupsRoot)))
+            #expect(!InputMethodDataBackup.snapshotExists(
+                in: InputMethodDataBackup.snapshotDirectory(forKey: key(app))))
+            await InstallCoordinator.settlePendingBackup(for: atN)
         }
     }
 
@@ -413,7 +472,7 @@ import Testing
             }
             #expect(!captured.isEmpty)
             try install(in: apps, version: "3.0")
-            #expect(await BackupStore.settlePending(forKey: key(app), succeeded: true) == .promoted)
+            #expect(await BackupStore.settlePending(forKey: key(app)) == .promoted)
             #expect(InputMethodDataBackup.snapshotExists(
                 in: InputMethodDataBackup.snapshotDirectory(forKey: key(app))))
         }

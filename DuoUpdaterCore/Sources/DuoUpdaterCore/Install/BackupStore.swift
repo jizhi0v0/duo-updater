@@ -105,7 +105,7 @@ public enum BackupStore {
     /// N-1, the N→N+1 attempt backs up N, the cancel leaves N installed, and
     /// the backup of N-1 is gone while the one of N restores nothing. Here the
     /// copy waits, and becomes the user's backup only when the app is no
-    /// longer what it was copied from (``settlePending(forKey:succeeded:)``).
+    /// longer what it was copied from (``settlePending(forKey:)``).
     ///
     /// `.`-prefixed for the reason ``rollbackPointsRoot`` is: every scan of the
     /// outbox skips it, so it is not listed, not owed to the backup disk, not
@@ -729,7 +729,7 @@ public enum BackupStore {
 
     /// Copy the bundle at `appPath` as the user's backup for `key` ahead of an
     /// install, into ``pendingBackupsRoot`` — not over the user's backup, which
-    /// stays the rollback point until ``settlePending(forKey:succeeded:)``
+    /// stays the rollback point until ``settlePending(forKey:)``
     /// finds the app changed. Replaces only an earlier pending copy for `key`,
     /// and reuses it when the bundle is the one it was taken from.
     ///
@@ -760,7 +760,7 @@ public enum BackupStore {
         // changed since is the copy of the version before that change: it
         // becomes the user's backup before this one takes its slot, as it
         // would have at the end of the attempt that took it.
-        if pending { await settlePending(forKey: key, succeeded: false) }
+        if pending { await settlePending(forKey: key) }
         // Where this copy goes, and where its staging is built: the user's slot
         // in the outbox, the pending one, or the rollback points' own directory
         // inside it. All on the boot volume, so the swap at the end stays a
@@ -1218,7 +1218,7 @@ public enum BackupStore {
 
     // MARK: - Pending copies
 
-    /// What ``settlePending(forKey:succeeded:)`` did.
+    /// What ``settlePending(forKey:)`` did.
     public enum PendingSettlement: Sendable, Equatable {
         /// There was no pending copy for the key.
         case none
@@ -1236,22 +1236,23 @@ public enum BackupStore {
     /// taken from is no longer that bundle, kept while it still is.
     ///
     /// Read off the disk rather than taken from the install's word, so one
-    /// rule serves the end of an attempt, the launch after a process that
-    /// died between its swap and this, and the start of a later copy. The app
-    /// counts as changed when it is missing or unreadable — a swap that was
-    /// cut off, for which this copy is the way back — or when its Info.plist
-    /// names another version or build than the copy's. Not when only its
-    /// files moved: an app that writes into its own bundle while it runs
-    /// would otherwise spend the rollback point on an install that changed
-    /// nothing.
+    /// rule serves the end of an attempt, a hand-off that finished later
+    /// (Installer, an app's own updater after a Relaunch), the launch after a
+    /// process that died between its swap and this, and the start of a later
+    /// copy. The app counts as changed when it is missing or unreadable — a
+    /// swap that was cut off, for which this copy is the way back — or when
+    /// its Info.plist names another version or build than the copy's.
     ///
-    /// `succeeded` is the install's own word that it landed (the
-    /// coordinator's `applied`). With it, an app whose version pair did not
-    /// move — one that ships every build as the same "1.0 (1)" — counts as
-    /// changed when its walk no longer matches the one recorded before the
-    /// copy (``BundleStatIdentity``).
+    /// Not when only its files moved, and not on the install's word either.
+    /// An app that writes into its own bundle while it runs would otherwise
+    /// spend the rollback point on an install that changed nothing, and so
+    /// would a swap that put the same version back — a download that was not
+    /// the advertised one, which the host reports as "applied nothing" after
+    /// the coordinator said `applied`. An app that ships every update under
+    /// one version pair keeps the earlier backup as its way back: older than
+    /// it could be, never gone.
     @discardableResult
-    public static func settlePending(forKey key: String, succeeded: Bool) async -> PendingSettlement {
+    public static func settlePending(forKey key: String) async -> PendingSettlement {
         // Resolved here: `pendingBackupsRoot` honours a task-local the hop
         // below does not have.
         let dir = pendingBackupsRoot.appendingPathComponent(key, isDirectory: true)
@@ -1259,24 +1260,21 @@ public enum BackupStore {
         let copy = dir.appendingPathComponent(meta.bundleName)
         let app = URL(fileURLWithPath: meta.originalPath)
         let superseded = await offCooperativePool(qos: .userInitiated) {
-            pendingIsSuperseded(
-                app: app, copy: copy, sourceIdentity: meta.sourceIdentity, succeeded: succeeded)
+            pendingIsSuperseded(app: app, copy: copy)
         }
         guard superseded else { return .kept }
         return await promotePending(forKey: key) ? .promoted : .promotionFailed
     }
 
-    /// The test ``settlePending(forKey:succeeded:)`` applies — see there.
-    static func pendingIsSuperseded(
-        app: URL, copy: URL, sourceIdentity: String?, succeeded: Bool
-    ) -> Bool {
-        guard hasReadableBundle(at: app) else { return true }
-        guard versionPair(of: app) == versionPair(of: copy) else { return true }
-        guard succeeded, let sourceIdentity else { return false }
-        // No racy window: the recorded walk refused any entry that recent,
-        // so a write since moved a time it read.
-        let now = BundleStatIdentity.compute(for: app, racyWindow: 0)
-        return now != nil && now != sourceIdentity
+    /// The test ``settlePending(forKey:)`` applies — see there.
+    static func pendingIsSuperseded(app: URL, copy: URL) -> Bool {
+        guard hasReadableBundle(at: app) else {
+            // Its folder gone with it is a volume that is not mounted — a scan
+            // folder on an external disk — not an app that changed; promoting
+            // then would spend the earlier backup on an app that is intact.
+            return FileManager.default.fileExists(atPath: app.deletingLastPathComponent().path)
+        }
+        return versionPair(of: app) != versionPair(of: copy)
     }
 
     /// `CFBundleShortVersionString` and `CFBundleVersion` as the bundle's own

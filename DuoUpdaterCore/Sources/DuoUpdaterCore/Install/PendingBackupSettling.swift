@@ -17,14 +17,16 @@ extension InstallCoordinator {
     /// path can miss it. Also lets go of the claim `backUp` took, which is what
     /// lets the launch sweep see this key again.
     ///
-    /// - Parameter succeeded: the host's own word that the install landed (the
-    ///   coordinator returned `applied`); see `BackupStore.settlePending`.
+    /// Takes no word from the host on whether the install landed: what is on
+    /// disk decides (`BackupStore.settlePending`). A hand-off that finishes
+    /// later — Installer, an app's own updater after a Relaunch — is settled by
+    /// the next sweep, which the app runs on every re-read of its backups.
     @discardableResult
     public static func settlePendingBackup(
-        for app: InstalledApp, succeeded: Bool
+        for app: InstalledApp
     ) async -> BackupStore.PendingSettlement {
         let key = BackupStore.key(bundleID: app.bundleID, path: app.path)
-        let outcome = await BackupStore.settlePending(forKey: key, succeeded: succeeded)
+        let outcome = await BackupStore.settlePending(forKey: key)
         if outcome == .kept {
             Log.install.notice(
                 "backup: \(app.path.lastPathComponent, privacy: .public)'s copy stays pending — the app is still the bundle it was copied from, so the earlier backup stays the way back")
@@ -36,9 +38,16 @@ extension InstallCoordinator {
     /// Settle every pending backup no install is holding: the copy of an app
     /// that changed since — an install whose process died after its swap, an
     /// app that updated itself, one that was removed — becomes that app's
-    /// backup; one whose app is unchanged stays, for a retry to reuse. Run at
-    /// launch (the app) and at the start of `duo install`, `duo restart` and
-    /// `duo backups restore`. Returns how many were promoted.
+    /// backup; one whose app is unchanged stays, for a retry to reuse. Run by
+    /// the app at launch and whenever it re-reads its backups, and at the start
+    /// of `duo install`, `duo restart` and `duo backups restore`. Returns how
+    /// many were promoted.
+    ///
+    /// `droppingUnchanged` (the app's launch): a copy whose app is unchanged
+    /// is a cancelled attempt's leftover from an earlier session; it is
+    /// dropped rather than kept. Nothing lists it, so nothing else could ever
+    /// remove it while its app stays as it is, and a retry now only copies
+    /// again.
     ///
     /// Takes the machine-wide install lock, non-blocking, like
     /// ``sweepSettledInstallRollbackPoints(lock:)``: another process may be
@@ -48,7 +57,9 @@ extension InstallCoordinator {
     /// still runs (`InstallJournal.standing`): the app is that installer's
     /// until it exits.
     @discardableResult
-    public static func sweepPendingBackups(lock: ProcessInstallLock = .shared) async -> Int? {
+    public static func sweepPendingBackups(
+        lock: ProcessInstallLock = .shared, droppingUnchanged: Bool = false
+    ) async -> Int? {
         do {
             try await lock.claim()
         } catch {
@@ -60,8 +71,17 @@ extension InstallCoordinator {
         for (key, appPath) in BackupStore.pendingOrigins() {
             if case .stillRunning = InstallJournal.standing(of: appPath) { continue }
             guard await InstallRollbackPointClaims.pendingBackups.beginSweeping(key) else { continue }
-            if await BackupStore.settlePending(forKey: key, succeeded: false) == .promoted {
+            switch await BackupStore.settlePending(forKey: key) {
+            case .promoted:
                 promoted += 1
+            case .kept where droppingUnchanged:
+                let dir = BackupStore.pendingBackupsRoot.appendingPathComponent(key, isDirectory: true)
+                // A whole bundle copy: Dispatch.
+                await offCooperativePool(qos: .utility) { BackupStore.discardPending(at: dir) }
+                Log.install.notice(
+                    "pending backups: dropped \(appPath.lastPathComponent, privacy: .public)'s copy left by a cancelled attempt — the app is unchanged, and its earlier backup is still the way back")
+            case .kept, .none, .promotionFailed:
+                break
             }
             await InstallRollbackPointClaims.pendingBackups.endSweeping(key)
         }

@@ -3333,7 +3333,7 @@ final class AppListModel {
             // Install backups left pending by a process that died: the copy of
             // an app that changed since is that app's backup now (see
             // `sweepPendingBackups`). Retried with the rest.
-            switch await InstallCoordinator.sweepPendingBackups() {
+            switch await InstallCoordinator.sweepPendingBackups(droppingUnchanged: true) {
             case nil: swept = false
             case let promoted?: if promoted > 0 { await self?.refreshBackupIndex() }
             }
@@ -5401,8 +5401,7 @@ final class AppListModel {
             // the user's earlier one stayed the way back; it takes that slot
             // only now, and only if the app changed — a cancel or a failure
             // leaves the earlier one, and the copy for a retry to reuse.
-            if await InstallCoordinator.settlePendingBackup(
-                for: result.app, succeeded: applied) == .promoted {
+            if await InstallCoordinator.settlePendingBackup(for: result.app) == .promoted {
                 startOwedBackupTransfer()
                 await refreshBackupIndex()
             }
@@ -7147,15 +7146,11 @@ final class AppListModel {
         // This attempt supersedes whatever window the last one left pending.
         installerWindowPendingIds.remove(result.id)
         pinRowOrder()
-        // Whether the app's updater applied the build: what the backup this
-        // Relaunch took is settled with.
-        var relaunchApplied = false
         defer {
             // The copy taken below waited in the pending slot; it is the
             // backup now only if the app changed (`settlePendingBackup`).
             // Before the transfer below, which then carries it to the disk.
-            if await InstallCoordinator.settlePendingBackup(
-                for: result.app, succeeded: relaunchApplied) == .promoted {
+            if await InstallCoordinator.settlePendingBackup(for: result.app) == .promoted {
                 await refreshBackupIndex()
             }
             relaunching.remove(result.id)
@@ -7227,7 +7222,6 @@ final class AppListModel {
             wasFrontmost: wasFrontmost, system: .live(for: result.app))
         let outcome = ending.outcome
         let applied = outcome == .applied
-        relaunchApplied = applied
         if outcome == .wontQuit {
             // Giving up on *waiting* must not give up on the *hand-off*: if the user
             // answers that prompt a minute from now, the quit completes, ShipIt
@@ -8618,6 +8612,13 @@ final class AppListModel {
     /// Re-read which apps have a rollback backup on disk (one directory scan),
     /// mapping it onto the current rows.
     func refreshBackupIndex() async {
+        // An install's copy whose hand-off finished since — Installer clicked
+        // through, an app's own updater swapping after a Relaunch — becomes the
+        // backup here, before the index reads it: nothing else would settle it
+        // before the next launch. A directory listing when nothing is pending.
+        if let promoted = await InstallCoordinator.sweepPendingBackups(), promoted > 0 {
+            startOwedBackupTransfer()
+        }
         // Each row's key resolves symlinks in its path and hashes it, which on the
         // main actor was the largest part of a rescan in a cold-start profile. So
         // the keys are derived in the same hop, keyed by what they are derived

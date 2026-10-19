@@ -46,6 +46,13 @@ public enum BackupStore {
     /// Production never binds it and reads ``configure(compression:)``'s value.
     @TaskLocal public static var compressionOverride: BundleArchive.Compression?
 
+    /// Test seam for "is anything running from this bundle", which a reuse
+    /// asks (see `write`). Bound like the seams above; production never binds
+    /// it and asks ``AppRestarter/hasProcesses(insideBundle:)``. A fixture in
+    /// a temporary directory cannot be asked that for real: the bundle path
+    /// resolves without `/private` while the kernel reports the process with it.
+    @TaskLocal public static var runningOverride: (@Sendable (URL) -> Bool)?
+
     /// Where backups are written first, always on the boot volume.
     ///
     /// This is the store as it has always been — the name changed, the meaning
@@ -463,7 +470,7 @@ public enum BackupStore {
         let bundleID: String?
         let originalPath: String
         let bundleName: String
-        let savedAt: Date
+        var savedAt: Date
         /// Optional so sidecars written before this field decode unchanged —
         /// a stricter decoder would make every existing backup unreadable, and
         /// `backup(forKey:)` returns nil without a readable sidecar.
@@ -556,6 +563,14 @@ public enum BackupStore {
         /// older sidecar, and whenever the walk could not vouch for the tree —
         /// means the next attempt copies again, which is what it always did.
         var sourceIdentity: String?
+        /// ``BundleStatIdentity`` of the stored copy itself, read just after its
+        /// manifest. A retry used to replace a copy that had been altered in
+        /// the store since (the backed-up app launched from here and wrote into
+        /// itself, a cleaning tool); reusing it instead must not keep the
+        /// alteration, so the copy is walked again and has to match this.
+        /// Only on a copy that is a plain bundle on this Mac; absent means no
+        /// reuse.
+        var storedIdentity: String?
     }
 
     /// A filesystem-safe directory name for one installed copy of an app. It keeps
@@ -719,17 +734,44 @@ public enum BackupStore {
                 BundleStatIdentity.compute(for: appPath, racyWindow: racyWindow)
             }
         if let sourceIdentity,
-           let reused = reusableBackup(
+           let candidate = await reusableBackup(
                key: key, store: store, isUserBackup: isUserBackup, identity: sourceIdentity,
                version: version, buildVersion: buildVersion, bundleID: bundleID,
                appPath: appPath, fromPackageInstall: fromPackageInstall,
                fromAppStore: fromAppStore, purpose: purpose) {
-            // The same answer a copy cut off by the cancel gives, so the caller
-            // stops the install rather than going on.
-            if Task.isCancelled { throw CancellationError() }
-            Log.install.notice(
-                "backup: reusing the stored copy of \(name, privacy: .public) \(version ?? "?", privacy: .public) (\(buildVersion ?? "?", privacy: .public)) — the bundle on disk is the one it was taken from, unchanged; nothing copied\(reused.location == .destination ? " or transferred" : "", privacy: .public)")
-            return reused
+            // A running app can change its own files through a shared mapping
+            // without moving any time the walk reads (see `BundleStatIdentity`);
+            // once nothing runs from the bundle, every such mapping is gone and
+            // its write shows. Asked after the match, so it is only paid — and
+            // only logged — when it is what stands between a retry and reuse.
+            let isRunning = runningOverride ?? AppRestarter.hasProcesses(insideBundle:)
+            if await offCooperativePool(qos: .userInitiated, { isRunning(appPath) }) {
+                Log.install.notice(
+                    "backup: not reusing the stored copy of \(name, privacy: .public) — it is running, and a running app can change its own files without the filesystem showing it; copying again")
+            } else {
+                // The same answer a copy cut off by the cancel gives, so the
+                // caller stops the install rather than going on.
+                if Task.isCancelled { throw CancellationError() }
+                // Dated now: the copy is what a backup taken now would hold, and
+                // the low-space prune removes the oldest `savedAt` first — the
+                // cancelled attempt's date would put the rollback point for the
+                // latest update ahead of backups taken since.
+                var refreshed = candidate.meta
+                refreshed.savedAt = Date()
+                let redated = (try? JSONEncoder().encode(refreshed)).map {
+                    (try? $0.write(to: candidate.dir.appendingPathComponent("backup.json"),
+                                   options: .atomic)) != nil
+                } ?? false
+                if !redated {
+                    Log.install.error(
+                        "backup: could not re-date the reused copy of \(name, privacy: .public) — it keeps the date of the attempt that made it")
+                }
+                if let reused = backup(forKey: key, in: candidate.store) {
+                    Log.install.notice(
+                        "backup: reusing the stored copy of \(name, privacy: .public) \(version ?? "?", privacy: .public) (\(buildVersion ?? "?", privacy: .public)) — the bundle on disk is the one it was taken from, unchanged; nothing copied\(reused.location == .destination ? " or transferred" : "", privacy: .public)")
+                    return reused
+                }
+            }
         }
 
         // Build the new backup in a hidden staging dir FIRST, then swap it into place
@@ -876,6 +918,14 @@ public enum BackupStore {
         let manifest = await offCooperativePool(qos: .userInitiated) {
             BackupManifest.compute(for: staged)
         }
+        // What the copy looks like now, for a reuse to check it is still this.
+        // No racy window: the copy is ours, and nothing writes into it between
+        // here and a retry that could land on the very timestamp read here.
+        let storedIdentity = sourceIdentity == nil || manifest == nil
+            ? nil
+            : await offCooperativePool(qos: .userInitiated) {
+                BundleStatIdentity.compute(for: staged, racyWindow: 0)
+            }
         if manifest == nil {
             Log.install.error(
                 "backup: could not fingerprint \(name, privacy: .public) — restoring it will fall back to the signature gate")
@@ -895,7 +945,8 @@ public enum BackupStore {
             purpose: purpose,
             // Only beside a manifest: a copy we never fingerprinted is one
             // nothing may be reused against.
-            sourceIdentity: manifest == nil ? nil : sourceIdentity)
+            sourceIdentity: manifest == nil ? nil : sourceIdentity,
+            storedIdentity: storedIdentity)
         // The sidecar is what EVERY read path keys off (`backup(forKey:)` returns nil
         // without it), so a backup whose sidecar didn't write is unusable. Fail the
         // save (leaving the prior backup intact) rather than leave an invisible bundle.
@@ -990,13 +1041,15 @@ public enum BackupStore {
     ///
     /// Everything has to agree, not only the walk: the label pair, the bundle
     /// id, the path and name, the route flags and the purpose, and the copy
-    /// must have a manifest — the gate a restore checks it against — and its
-    /// payload must still be there.
+    /// must have a manifest — the gate a restore checks it against — and still
+    /// be what was stored: a bundle on this Mac walks to its recorded
+    /// ``Meta/storedIdentity``, an archive on the disk is still its recorded
+    /// size (its digest is checked on restore, as always).
     private static func reusableBackup(
         key: String, store: Store, isUserBackup: Bool, identity: String,
         version: String?, buildVersion: String?, bundleID: String?, appPath: URL,
         fromPackageInstall: Bool, fromAppStore: Bool, purpose: Purpose
-    ) -> Backup? {
+    ) async -> (store: Store, dir: URL, meta: Meta)? {
         let local = store.root.appendingPathComponent(key, isDirectory: true)
         var candidate = store
         if !FileManager.default.fileExists(atPath: local.path) {
@@ -1015,9 +1068,24 @@ public enum BackupStore {
               meta.fromAppStore == fromAppStore,
               (meta.purpose ?? .userBackup) == purpose
         else { return nil }
-        if candidate.location == .destination, meta.archiveSHA256 == nil { return nil }
-        // Reads the payload's presence the way every list does.
-        return backup(forKey: key, in: candidate)
+        switch candidate.location {
+        case .outbox:
+            guard let stored = meta.storedIdentity else { return nil }
+            // A whole-bundle walk, so to Dispatch; `dir` is resolved already.
+            let copy = dir.appendingPathComponent(meta.bundleName)
+            let now = await offCooperativePool(qos: .userInitiated) {
+                BundleStatIdentity.compute(for: copy, racyWindow: 0)
+            }
+            guard now == stored else { return nil }
+        case .destination:
+            guard meta.archiveSHA256 != nil, let archiveName = meta.archiveName,
+                  let bytes = meta.archiveBytes,
+                  let onDisk = try? FileManager.default.attributesOfItem(
+                    atPath: dir.appendingPathComponent(archiveName).path)[.size] as? Int64,
+                  onDisk == bytes
+            else { return nil }
+        }
+        return (candidate, dir, meta)
     }
 
     // MARK: - Transfer

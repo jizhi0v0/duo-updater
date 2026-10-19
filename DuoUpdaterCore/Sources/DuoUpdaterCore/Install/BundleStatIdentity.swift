@@ -14,8 +14,9 @@ import Foundation
 /// matching answer on the *source* — recorded just before the copy that the
 /// manifest was then computed from — lets a later attempt reuse that copy.
 ///
-/// **Why a match cannot mean different bytes.** Every write to a regular file
-/// through the filesystem moves its change time (`st_ctime`), and that field
+/// **Why a match cannot mean different bytes.** On APFS — and only there; see
+/// below — every write to a regular file through the filesystem moves its
+/// change time (`st_ctime`), and that field
 /// is the one userland cannot set: `setattrlist(2)` says "ATTR_CMN_CHGTIME
 /// cannot be set programmatically. Any attempt to set change time is
 /// ignored", and `utimes`/`futimens` set only access and modification time,
@@ -29,18 +30,34 @@ import Foundation
 /// manifest hashes it by. Whatever a later attempt reads, then, it can only
 /// equal this digest if no entry was written, replaced, added or removed.
 ///
-/// One gap is closed by refusing to answer: a file written so soon before the
-/// walk that a second write could land on the *same* timestamp reading (on
-/// APFS that is the same nanosecond; HFS+ keeps whole seconds). Any entry whose
-/// modification or change time is within ``racyWindow`` of the walk makes this
-/// return nil — "cannot vouch" — the way git treats a racily-clean index entry.
+/// Two gaps are closed by refusing to answer (nil, "cannot vouch"):
+///
+/// - A file written so soon before the walk that a second write could land on
+///   the *same* timestamp reading. Any entry whose modification or change time
+///   is within ``racyWindow`` of the walk makes this return nil, the way git
+///   treats a racily-clean index entry.
+/// - Any volume but APFS. On exFAT and FAT the change time is the modification
+///   time and `utimensat` sets both, so a same-size rewrite with the old time
+///   put back leaves every field here as it was — reproduced on scratch exFAT
+///   and MS-DOS images 2026-10-19. HFS+ keeps whole-second times and supports
+///   `exchangedata`, which swaps contents under an unchanged file id. A network
+///   volume reports what its server says.
+///
+/// One gap is the caller's to close: a store through a writable shared
+/// mapping (`mmap` with `MAP_SHARED`) changes the file's bytes and moves
+/// neither time until the mapping is synced, unmapped or its process exits —
+/// measured 2026-10-19, nothing moved for 5 s after the store while two copies
+/// of the file read `Xa` and `XY`. So a match only means "unchanged" when no
+/// process is running from inside the bundle (`BackupStore` checks), since any
+/// such mapping is dropped, and its time moved, when the process ends.
 ///
 /// What it cannot see, and does not claim to: changes made beneath the
-/// filesystem (a raw write to the device, media corruption), and a write that
-/// lands after the wall clock was set back to exactly the earlier change time.
-/// Neither is a change anything on this Mac makes to an app on purpose. A
-/// reused copy is still checked against its manifest on restore, as every
-/// backup is.
+/// filesystem (a raw write to the device, media corruption), a process that
+/// does not run from the bundle holding one of its files mapped for writing,
+/// and a write that lands after the wall clock was set back to exactly the
+/// earlier change time. None is a change anything on this Mac makes to an app
+/// on purpose. A reused copy is still checked against its manifest on
+/// restore, as every backup is.
 ///
 /// Directory timestamps are deliberately left out. A directory's own change
 /// time moves on things that are not its contents — the bundle directory
@@ -67,8 +84,8 @@ public enum BundleStatIdentity {
     public static var currentRacyWindow: TimeInterval { racyWindowOverride ?? racyWindow }
 
     /// The digest for the tree at `bundle`, or nil when it cannot be
-    /// vouched for: the bundle cannot be walked, an entry cannot be
-    /// `lstat`ed, or an entry was written within `window` of `now`.
+    /// vouched for: the bundle is not on APFS or cannot be walked, an entry
+    /// cannot be `lstat`ed, or an entry was written within `window` of `now`.
     ///
     /// `now` is read before the walk starts, so a write during the walk is
     /// either seen by it or later than `now` — both of which keep a later
@@ -79,6 +96,7 @@ public enum BundleStatIdentity {
         let base = bundle.standardizedFileURL.path
         var root = stat()
         guard lstat(base, &root) == 0, (root.st_mode & S_IFMT) == S_IFDIR else { return nil }
+        guard vouchesFor(fileSystemType: fileSystemType(of: base)) else { return nil }
         guard let walker = FileManager.default.enumerator(atPath: base) else { return nil }
         let cutoff = now.timeIntervalSince1970 - window
         var lines: [String] = []
@@ -111,6 +129,21 @@ public enum BundleStatIdentity {
         // render to the same stream.
         for line in lines { hasher.update(data: Data((line + "\0\0").utf8)) }
         return hasher.finalize().map { String(format: "%02x", $0) }.joined()
+    }
+
+    /// Whether a volume of this type keeps the promise the type comment
+    /// relies on: a change time userland cannot set, moved by every write.
+    static func vouchesFor(fileSystemType type: String?) -> Bool {
+        type == "apfs"
+    }
+
+    /// `f_fstypename` of the volume holding `path`, e.g. `apfs`, `hfs`, `exfat`.
+    static func fileSystemType(of path: String) -> String? {
+        var fs = statfs()
+        guard statfs(path, &fs) == 0 else { return nil }
+        return withUnsafeBytes(of: fs.f_fstypename) { raw in
+            String(decoding: raw.prefix { $0 != 0 }, as: UTF8.self)
+        }
     }
 
     private static func seconds(_ t: timespec) -> TimeInterval {

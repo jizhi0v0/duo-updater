@@ -100,23 +100,32 @@ import Testing
         #expect(after.st_mtimespec.tv_nsec == before.st_mtimespec.tv_nsec)
     }
 
+    /// The inode of the stored copy's marker (or of the archive, on the
+    /// disk). Unchanged means nothing was copied; a new copy is new files.
+    private func storedInode(_ backup: BackupStore.Backup) -> ino_t {
+        backup.location == .destination
+            ? inode(backup.bundlePath)
+            : inode(backup.bundlePath.appendingPathComponent("Contents/marker.txt"))
+    }
+
     // MARK: - Reuse
 
     /// The cancel-then-retry case: the second attempt finds its own earlier
-    /// copy and stores nothing new — same generation, same files — and that
+    /// copy and stores nothing new — same files, re-dated to now — and that
     /// copy still restores through every gate.
     @Test func aRetryOverTheUnchangedBundleReusesTheStoredCopy() async throws {
         try await withStore { apps, outbox, _ in
             let app = try makeApp(in: apps)
             let first = try await save(app)
-            let storedMarker = first.bundlePath.appendingPathComponent("Contents/marker.txt")
-            let firstInode = inode(storedMarker)
+            let firstInode = storedInode(first)
 
             let second = try await save(app)
-            #expect(second.savedAt == first.savedAt)
+            #expect(storedInode(second) == firstInode)
             #expect(second.fingerprint == first.fingerprint)
             #expect(second.bundlePath == first.bundlePath)
-            #expect(inode(storedMarker) == firstInode)
+            // Re-dated, so the low-space prune does not take it for old.
+            #expect(second.savedAt > first.savedAt)
+            #expect(BackupStore.backup(forKey: "foo")?.savedAt == second.savedAt)
             // Nothing staged and left behind either.
             let hidden = try FileManager.default.contentsOfDirectory(atPath: outbox.path)
                 .filter { $0.hasPrefix(".staging") }
@@ -138,15 +147,19 @@ import Testing
             let first = try await BackupStore.saveInstallRollbackPoint(
                 appPath: app, key: "foo", version: "1.0", buildVersion: "100",
                 bundleID: "com.example.reuse")
+            let firstInode = storedInode(first)
             let second = try await BackupStore.saveInstallRollbackPoint(
                 appPath: app, key: "foo", version: "1.0", buildVersion: "100",
                 bundleID: "com.example.reuse")
-            #expect(second.savedAt == first.savedAt)
+            #expect(storedInode(second) == firstInode)
             #expect(second.purpose == .installRollbackPoint)
             // And it is not taken for the user's backup, which has none.
             let user = try await save(app)
             #expect(user.purpose == .userBackup)
-            #expect(user.savedAt != first.savedAt)
+            #expect(storedInode(user) != firstInode)
+            #expect(storedInode(try await BackupStore.saveInstallRollbackPoint(
+                appPath: app, key: "foo", version: "1.0", buildVersion: "100",
+                bundleID: "com.example.reuse")) == firstInode)
         }
     }
 
@@ -156,15 +169,16 @@ import Testing
     @Test func aCopyAlreadyOnTheDiskIsReusedWithoutAnotherTransfer() async throws {
         try await withStore(disk: true) { apps, outbox, _ in
             let app = try makeApp(in: apps)
-            let first = try await save(app)
+            _ = try await save(app)
             #expect(BackupStore.pendingTransferKeys() == ["foo"])
-            _ = try await BackupStore.transferToDestination(forKey: "foo")
+            let moved = try await BackupStore.transferToDestination(forKey: "foo")
+            let movedInode = storedInode(moved)
             #expect(!FileManager.default.fileExists(
                 atPath: outbox.appendingPathComponent("foo").path))
 
             let second = try await save(app)
             #expect(second.location == .destination)
-            #expect(second.savedAt == first.savedAt)
+            #expect(storedInode(second) == movedInode)
             #expect(!FileManager.default.fileExists(
                 atPath: outbox.appendingPathComponent("foo").path))
             #expect(BackupStore.pendingTransferKeys().isEmpty)
@@ -197,10 +211,11 @@ import Testing
         try await withStore { apps, _, _ in
             let app = try makeApp(in: apps)
             let first = try await save(app)
+            let firstInode = storedInode(first)
             try rewriteKeepingMTime(app.appendingPathComponent("Contents/marker.txt"), with: "v9")
 
             let second = try await save(app)
-            #expect(second.savedAt != first.savedAt)
+            #expect(storedInode(second) != firstInode)
             #expect(second.fingerprint != first.fingerprint)
             #expect(marker(of: second.bundlePath) == "v9")
         }
@@ -209,23 +224,23 @@ import Testing
     @Test func anAddedFileIsCopiedAgain() async throws {
         try await withStore { apps, _, _ in
             let app = try makeApp(in: apps)
-            let first = try await save(app)
+            let firstInode = storedInode(try await save(app))
             try Data("x".utf8).write(to: app.appendingPathComponent("Contents/new.txt"))
             let second = try await save(app)
-            #expect(second.savedAt != first.savedAt)
+            #expect(storedInode(second) != firstInode)
         }
     }
 
     @Test func aRetargetedSymlinkIsCopiedAgain() async throws {
         try await withStore { apps, _, _ in
             let app = try makeApp(in: apps)
-            let first = try await save(app)
+            let firstInode = storedInode(try await save(app))
             let link = app.appendingPathComponent("Contents/Frameworks/Current")
             try FileManager.default.removeItem(at: link)
             try FileManager.default.createSymbolicLink(
                 atPath: link.path, withDestinationPath: "B")
             let second = try await save(app)
-            #expect(second.savedAt != first.savedAt)
+            #expect(storedInode(second) != firstInode)
         }
     }
 
@@ -234,15 +249,105 @@ import Testing
     @Test func aDifferentVersionOrBuildIsCopiedAgain() async throws {
         try await withStore { apps, _, _ in
             let app = try makeApp(in: apps)
-            let first = try await save(app)
+            let firstInode = storedInode(try await save(app))
             let bumped = try await save(app, version: "1.1")
-            #expect(bumped.savedAt != first.savedAt)
+            let bumpedInode = storedInode(bumped)
+            #expect(bumpedInode != firstInode)
             #expect(bumped.version == "1.1")
             let rebuilt = try await save(app, version: "1.1", build: "101")
-            #expect(rebuilt.savedAt != bumped.savedAt)
+            #expect(storedInode(rebuilt) != bumpedInode)
             #expect(rebuilt.buildVersion == "101")
         }
     }
+
+    /// The stored copy was changed after it was made (the backed-up app run
+    /// from the store, a cleaning tool). A retry used to replace it with a
+    /// fresh copy; it still does, rather than keep the damage.
+    @Test func aStoredCopyAlteredSinceIsCopiedAgain() async throws {
+        try await withStore { apps, _, _ in
+            let app = try makeApp(in: apps)
+            let first = try await save(app)
+            let firstInode = storedInode(first)
+            try rewriteKeepingMTime(
+                first.bundlePath.appendingPathComponent("Contents/marker.txt"), with: "zz")
+            let second = try await save(app)
+            #expect(storedInode(second) != firstInode)
+            #expect(marker(of: second.bundlePath) == "v1")
+        }
+    }
+
+    /// The same for the archive on the disk, which is checked by its size —
+    /// its digest is the restore's to check.
+    @Test func aResizedArchiveOnTheDiskIsCopiedAgain() async throws {
+        try await withStore(disk: true) { apps, outbox, _ in
+            let app = try makeApp(in: apps)
+            _ = try await save(app)
+            let moved = try await BackupStore.transferToDestination(forKey: "foo")
+            let handle = try FileHandle(forWritingTo: moved.bundlePath)
+            try handle.seekToEnd()
+            try handle.write(contentsOf: Data([0]))
+            try handle.close()
+
+            let second = try await save(app)
+            #expect(second.location == .outbox)
+            #expect(FileManager.default.fileExists(
+                atPath: outbox.appendingPathComponent("foo").path))
+        }
+    }
+
+    /// An outbox copy that does not match is never passed over for a matching
+    /// one on the disk: the outbox copy is the newer generation, and reusing
+    /// the disk's would leave it to replace the reuse on the next transfer.
+    @Test func aNonMatchingOutboxCopyIsNotPassedOverForTheDisk() async throws {
+        try await withStore(disk: true) { apps, _, _ in
+            let app = try makeApp(in: apps)
+            _ = try await save(app)
+            let moved = try await BackupStore.transferToDestination(forKey: "foo")
+            let movedInode = storedInode(moved)
+            // A different label lands in the outbox; the disk keeps "1.0".
+            let other = try await save(app, version: "1.1")
+            let otherInode = storedInode(other)
+
+            let again = try await save(app)
+            #expect(again.location == .outbox)
+            #expect(again.version == "1.0")
+            #expect(storedInode(again) != otherInode)
+            // The disk's generation is left as it was.
+            #expect(inode(moved.bundlePath) == movedInode)
+        }
+    }
+
+    /// Anything running from the bundle could be changing it through a shared
+    /// mapping that moves no timestamp, so a running app is copied again.
+    @Test func aRunningAppIsCopiedAgain() async throws {
+        try await withStore { apps, _, _ in
+            let app = try makeApp(in: apps)
+            let firstInode = storedInode(try await save(app))
+            let second = try await BackupStore.$runningOverride.withValue({ _ in true }) {
+                try await save(app)
+            }
+            #expect(storedInode(second) != firstInode)
+            // And once it has quit, the copy it left is reused.
+            let thirdInode = storedInode(second)
+            #expect(storedInode(try await save(app)) == thirdInode)
+        }
+    }
+
+    /// An input method's user-data snapshot is attached to the fresh outbox
+    /// generation after the save, so its bundle is always copied.
+    @Test func anInputMethodIsCopiedAgain() async throws {
+        try await withStore { apps, _, _ in
+            let dir = apps.appendingPathComponent("Library/Input Methods", isDirectory: true)
+            try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            let app = try makeApp(in: dir)
+            #expect(UpdatePolicy.isInputMethod(app))
+            let firstInode = storedInode(try await save(app))
+            let second = try await save(app)
+            #expect(storedInode(second) != firstInode)
+        }
+    }
+
+    // MARK: - The walk
 
     /// The default window: a walk within it of the last write cannot vouch
     /// for the tree, and so records nothing a retry could match. Walk times
@@ -263,5 +368,17 @@ import Testing
                         != nil)
             }
         }
+    }
+
+    /// Only APFS keeps the promise the walk relies on; exFAT/FAT let a
+    /// rewrite put every time back, HFS+ has `exchangedata`.
+    @Test func onlyAPFSIsVouchedFor() {
+        #expect(BundleStatIdentity.vouchesFor(fileSystemType: "apfs"))
+        for other in ["hfs", "exfat", "msdos", "smbfs", "nfs", "afpfs", ""] {
+            #expect(!BundleStatIdentity.vouchesFor(fileSystemType: other))
+        }
+        #expect(!BundleStatIdentity.vouchesFor(fileSystemType: nil))
+        #expect(BundleStatIdentity.fileSystemType(
+            of: FileManager.default.temporaryDirectory.path) == "apfs")
     }
 }

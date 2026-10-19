@@ -398,8 +398,14 @@ public actor InstallCoordinator {
         if let blocked = unreadable.sealed.first {
             return .unreadable(path: path.appendingPathComponent(blocked).path)
         }
+        // Held until `settlePendingBackup` lets go, so the launch sweep cannot
+        // decide this key's pending copy while the install it is for runs.
+        await InstallRollbackPointClaims.pendingBackups.beginTaking(key)
         do {
-            try await BackupStore.save(
+            // Pending, not over the user's backup: that stays the rollback
+            // point until the install changes the app, so a cancel or a
+            // failure from here on cannot cost it (`settlePendingBackup`).
+            try await BackupStore.savePending(
                 appPath: path, key: key, version: version,
                 buildVersion: buildVersion, bundleID: bundleID,
                 fromPackageInstall: fromPackage, fromAppStore: fromStore)
@@ -408,8 +414,8 @@ public actor InstallCoordinator {
             // them — and they are exactly what went missing when this app's
             // one-click for WeType was withdrawn. Cloned, so it is close to
             // free; deliberately AFTER the save, whose staging directory
-            // replaces the key directory wholesale. See
-            // `InputMethodDataBackup`.
+            // replaces the key directory wholesale — the pending one, which
+            // it moves with when promoted. See `InputMethodDataBackup`.
             //
             // Not folded into `BackupOutcome`: this is not a reason to change
             // what the user is told about the *bundle* rollback, and the
@@ -417,7 +423,7 @@ public actor InstallCoordinator {
             if InPlaceSwap.usesContentsRotation(target: path) {
                 let captured = await InputMethodDataBackup.save(
                     bundleName: path.deletingPathExtension().lastPathComponent,
-                    bundleID: bundleID, key: key)
+                    bundleID: bundleID, key: key, in: BackupStore.pendingBackupsRoot)
                 if captured.isEmpty {
                     Log.install.error(
                         "user data: captured nothing for \(path.lastPathComponent, privacy: .public) — a rollback will restore the bundle only")

@@ -91,7 +91,8 @@ extension StagedRelaunchBackup {
         public var releaseLock: @Sendable () async -> Void
         /// The copy itself.
         public var backUp: @Sendable () async -> InstallCoordinator.BackupOutcome
-        /// Delete the copy just stored.
+        /// Delete the copy just stored — the pending one; the backup it was
+        /// to replace stays.
         public var remove: @Sendable () async -> Void
 
         public init(
@@ -138,8 +139,14 @@ extension StagedRelaunchBackup {
                 backUp: backUp,
                 remove: {
                     let key = BackupStore.key(bundleID: app.bundleID, path: app.path)
+                    // Only the copy this Relaunch took, which waits in the
+                    // pending slot (`InstallCoordinator.backUp`): the backup
+                    // before it is still the way back, and the suspect copy
+                    // never replaced it. Resolved before the hop, which does
+                    // not see a test's root.
+                    let dir = BackupStore.pendingBackupsRoot.appendingPathComponent(key, isDirectory: true)
                     // Deletes a whole bundle copy: Dispatch, as `deleteBackups` does.
-                    await offCooperativePool(qos: .utility) { BackupStore.remove(forKey: key) }
+                    await offCooperativePool(qos: .utility) { BackupStore.discardPending(at: dir) }
                 })
         }
     }

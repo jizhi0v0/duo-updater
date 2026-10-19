@@ -135,6 +135,11 @@ extension InstallCoordinator {
 actor InstallRollbackPointClaims {
     static let shared = InstallRollbackPointClaims()
 
+    /// The same claims for an install's pending backup
+    /// (`InstallCoordinator.backUp` → `settlePendingBackup`) against
+    /// `sweepPendingBackups`.
+    static let pendingBackups = InstallRollbackPointClaims()
+
     private var taking: [String: Int] = [:]
     private var sweeping: Set<String> = []
     private var waiting: [String: [CheckedContinuation<Void, Never>]] = [:]
@@ -153,9 +158,11 @@ actor InstallRollbackPointClaims {
         taking[key] = count > 1 ? count - 1 : nil
     }
 
-    /// Claim `key` for the sweep, or false when an install holds it.
+    /// Claim `key` for the sweep, or false when an install holds it or
+    /// another sweep is deciding it (the app's launch sweep and a re-read of
+    /// its backups can overlap).
     func beginSweeping(_ key: String) -> Bool {
-        guard taking[key] == nil else { return false }
+        guard taking[key] == nil, !sweeping.contains(key) else { return false }
         sweeping.insert(key)
         return true
     }

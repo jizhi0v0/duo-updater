@@ -112,7 +112,11 @@ import Testing
             #expect(outcome == .cancelled)
             #expect(BackupStore.backup(forKey: key) == nil)
             #expect(BackupStore.allBackups().isEmpty)
-            #expect(Self.entries(root).isEmpty, "left behind: \(Self.entries(root))")
+            // The install's copy is built in the pending slot (`savePending`),
+            // which is all that is left: empty.
+            #expect(Self.entries(root) == [".pending"], "left behind: \(Self.entries(root))")
+            #expect(Self.entries(BackupStore.pendingBackupsRoot).isEmpty,
+                    "left behind: \(Self.entries(BackupStore.pendingBackupsRoot))")
             let attempt = InstallAttemptOutcome.cancelled(installed, at: stages.stage)
             #expect(attempt == .cancelled(at: .backingUp))
         }
@@ -134,7 +138,9 @@ import Testing
             try #require(cut.fired, "the copy finished before the watcher's first tick — nothing was cancelled mid-copy")
             #expect(outcome == .cancelled)
             #expect(BackupStore.backup(forKey: key)?.savedAt == earlier.savedAt)
-            #expect(Self.entries(root) == [key], "left behind: \(Self.entries(root))")
+            #expect(Self.entries(root) == [".pending", key], "left behind: \(Self.entries(root))")
+            #expect(Self.entries(BackupStore.pendingBackupsRoot).isEmpty,
+                    "left behind: \(Self.entries(BackupStore.pendingBackupsRoot))")
         }
     }
 

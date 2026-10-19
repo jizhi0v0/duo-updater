@@ -151,7 +151,13 @@ public struct Changelog: Codable, Sendable, Hashable {
     /// - 19: `GitHubMarkdownParser`'s prose pass drops a leading `•` from a line.
     ///   Notes already cached for a body typed as a `•` list (Junie 3659.4) keep
     ///   it, and the pane draws a second bullet beside it.
-    public static let parserGeneration = 19
+    /// - 20: a `markdownSource` recipe unwraps an inline code span that a hard
+    ///   wrap splits across two lines. Notes already cached keep its backticks
+    ///   (Mayoi 0.10.0's `` `mayoi <path>` ``), or pair them wrongly across
+    ///   spans (Mac Performance Monitor's `MemoryInspection.parseBytes` note).
+    ///   Of the 14 `markdownSource` recipes' live sources (2026-10-19), those two
+    ///   items are the only ones that change.
+    public static let parserGeneration = 20
 
     public let entries: [Entry]
 

@@ -571,4 +571,13 @@ extension InstallCommitTests {
             try? await Task.sleep(for: .milliseconds(5))
         }
     }
+
+    /// The cancel lines log a job by its leaf: an id is a path under the
+    /// user's home, and the prefix is only their account name.
+    ///
+    /// Mutation: `logName` returns `id` → red.
+    @Test func cancelLinesLogAJobByItsLeaf() {
+        #expect(InstallJobs.logName("/Users/someone/Applications/Arc.app") == "Arc.app")
+        #expect(InstallJobs.logName("cli-tool:claude:/Users/someone/.local/bin/claude") == "claude")
+    }
 }

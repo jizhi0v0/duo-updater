@@ -62,4 +62,20 @@ struct MayoiChangelogRecipeTests {
         #expect(item.contains("named"))
         #expect(item.contains(".exe"))
     }
+
+    /// 0.10.0 wraps inside a code span (`` `mayoi\n  <path>` ``). CommonMark
+    /// reads that line ending as a space, so the span is still code and loses
+    /// its backticks like a one-line span does.
+    @Test func inlineCodeWrappedAcrossALineIsUnwrapped() throws {
+        let item = try #require(Self.entries()["0.10.0"]?.first)
+        #expect(item == "macOS: files and folders dropped on the Dock icon open, as mayoi <path> opens them, and Mayoi is in the Finder's **Open With** menu")
+    }
+
+    /// A blank line ends the paragraph, so a backtick before it never pairs with
+    /// one after it.
+    @Test func inlineCodeNeverPairsAcrossABlankLine() {
+        let text = "run `a\n\nb` now"
+        #expect(ChangelogExtractor.unwrapMarkdownInlineCode(text) == text)
+        #expect(ChangelogExtractor.unwrapMarkdownInlineCode("run ``a\n \nb`` now") == "run ``a\n \nb`` now")
+    }
 }

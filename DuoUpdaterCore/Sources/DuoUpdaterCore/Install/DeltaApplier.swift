@@ -118,10 +118,9 @@ public enum DeltaApplier {
     ///   cancel almost nothing.
     ///
     /// The bundle it writes is `destination`, inside the install's work directory
-    /// (`reconstruct` passes `workDir/patched-…`). Nothing between this call and the
-    /// bundle swap checks for cancellation, so a cancel that lands during the patch
-    /// does not stop the install there: the patched bundle goes through the gates
-    /// and the swap as it would have without the cancel.
+    /// (`reconstruct` passes `workDir/patched-…`). A cancel that lands during the
+    /// patch stops the install right after it, before the bundle gates
+    /// (`SignatureVerifier.verifyInstallArtifact` checks first thing).
     public static func apply(
         installedApp: URL,
         patch: URL,

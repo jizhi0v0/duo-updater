@@ -53,8 +53,10 @@ private let hbuilderXCodeSpanFixture = #"""
     #expect(ChangelogExtractor.unwrapMarkdownInlineCode("cost is 50`") == "cost is 50`")
     // Double-backtick spans exist so the code text can itself contain a backtick.
     #expect(ChangelogExtractor.unwrapMarkdownInlineCode("run ``a `b` c`` now") == "run a `b` c now")
-    // A span may not straddle a line break.
-    #expect(ChangelogExtractor.unwrapMarkdownInlineCode("a`b\nc`d") == "a`b\nc`d")
+    // A span may cross one line break (CommonMark reads it as a space), but not
+    // a blank line, which ends the paragraph.
+    #expect(ChangelogExtractor.unwrapMarkdownInlineCode("a`b\nc`d") == "ab\ncd")
+    #expect(ChangelogExtractor.unwrapMarkdownInlineCode("a`b\n\nc`d") == "a`b\n\nc`d")
 }
 
 /// The flag is opt-in: a recipe reading HTML must keep a literal backtick a

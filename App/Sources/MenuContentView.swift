@@ -1294,9 +1294,9 @@ private struct AppRow: View {
             NSAttributedString(string: text, attributes: [.font: caption]).size().width
         }
         let bump = result.buildBump(latest: latest)
-        let installed = result.installedDisplay ?? "?"
+        let (installed, offered) = result.updateLineSides(latest: latest)
         let from = bump.map { "\(installed) (\($0.installed))" } ?? installed
-        let to = bump.map { "\(latest) (\($0.remote))" } ?? latest
+        let to = bump.map { "\(offered) (\($0.remote))" } ?? offered
         let natural = measure(from) + measure(to) + Self.versionArrowWidth
         return 0.75 * natural + 0.25 * Self.versionArrowWidth
     }
@@ -1783,7 +1783,7 @@ private struct AppRow: View {
     /// The installed-version side of the "from → to" line.
     @ViewBuilder
     private func fromVersion(latest: String) -> some View {
-        let marketing = result.installedDisplay ?? "?"
+        let marketing = result.updateLineSides(latest: latest).installed
         if let bump = result.buildBump(latest: latest) {
             // Marketing version is just context; the build is what changed.
             Text(marketing).foregroundStyle(.secondary)
@@ -1798,11 +1798,12 @@ private struct AppRow: View {
     /// what's actually new.
     @ViewBuilder
     private func toVersion(latest: String) -> some View {
+        let offered = result.updateLineSides(latest: latest).offered
         if let bump = result.buildBump(latest: latest) {
-            Text("\(latest) ").foregroundStyle(.secondary)
+            Text("\(offered) ").foregroundStyle(.secondary)
             + Text("(\(bump.remote))").fontWeight(.semibold).foregroundStyle(.tint)
         } else {
-            Text(latest).fontWeight(.semibold).foregroundStyle(.tint)
+            Text(offered).fontWeight(.semibold).foregroundStyle(.tint)
         }
     }
 

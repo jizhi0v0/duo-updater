@@ -177,24 +177,38 @@ func installProgressLabel(_ stage: InstallStage, cancel: InstallCancelState?) ->
 /// "Cancelling…" instead (`installProgressLabel`).
 struct InstallCancelButton: View {
     let state: InstallCancelState
+    /// Accepted, with "Cancelling…" not shown on the row yet
+    /// (`InstallRowSmoothing`): greyed, so a second click has nothing to do, and
+    /// its help already says what is happening.
+    var pending = false
     let action: () -> Void
 
-    /// What the glyph takes in the row, for a row that budgets its width.
-    static let width: CGFloat = 14
+    /// Room kept between the glyph and the row's trailing edge. Rows end 12pt
+    /// from their list's edge, and the overlay scroller takes 17pt there
+    /// (`NSScroller.scrollerWidth(for: .regular, scrollerStyle: .overlay)`,
+    /// read 2026-10-19), so a glyph flush with the edge sat against the
+    /// scroller. A button reads fine there; a small grey disc read as touching.
+    static let trailingInset: CGFloat = 5
+
+    /// What the glyph takes in the row, inset included, for a row that budgets
+    /// its width.
+    static let width: CGFloat = 14 + trailingInset
 
     var body: some View {
         Button(action: action) {
             Image(systemName: "xmark.circle.fill")
         }
         .buttonStyle(.borderless)
-        .disabled(state != .available)
+        .disabled(state != .available || pending)
         .help(help)
         // The glyph alone has the accessibility title "Close" (read from the
         // running app's AX tree, 2026-10-18).
         .accessibilityLabel(help)
+        .padding(.trailing, Self.trailingInset)
     }
 
     private var help: String {
+        if pending { return String(localized: "Cancelling…") }
         switch state {
         case .available, .cancelling: return String(localized: "Cancel update")
         case .committing: return String(localized: "Installing — can’t cancel now")
@@ -367,10 +381,14 @@ struct WorkbenchRowAction: View {
     /// and what that mark explains (`TestFlightUnboundedReason`). An input for the
     /// same reason as `helperEnabled`.
     var testFlightUnboundedReason: TestFlightUnboundedReason = .storeSilent
-    /// The running install's Cancel (`AppListModel.installCancels`), nil when
-    /// the row's stage is no install of ours — a rollback, a re-check. An input
-    /// for the same reason as `helperEnabled`.
+    /// The running install's Cancel as the rows draw it
+    /// (`AppListModel.installRows`), nil when the row's stage is no install of
+    /// ours — a rollback, a re-check. An input for the same reason as
+    /// `helperEnabled`.
     var installCancel: InstallCancelState? = nil
+    /// Its cancel was accepted, and "Cancelling…" is not due yet: the Cancel
+    /// stays, greyed (`InstallRowSmoothing`).
+    var installCancelPending = false
 
     @State private var showTestFlightTip = false
     @State private var showOrphanHint = false
@@ -417,7 +435,8 @@ struct WorkbenchRowAction: View {
             HStack(spacing: 8) {
                 installProgress(stage)
                 if let installCancel, installCancel != .cancelling {
-                    InstallCancelButton(state: installCancel, action: actions.cancelInstall)
+                    InstallCancelButton(
+                        state: installCancel, pending: installCancelPending, action: actions.cancelInstall)
                 }
             }
 

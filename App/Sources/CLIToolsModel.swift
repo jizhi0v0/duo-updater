@@ -899,10 +899,11 @@ final class CLIToolsModel {
         let update = providers[provider]
         // A job of its own (`InstallJobs.run`), so the row's Cancel reaches the
         // update before its command, and the command's `InstallCommit` greys it.
-        let outcome = await InstallJobs.run(Self.jobID(id), phaseChanged: { [weak self] _ in
+        let jobID = Self.jobID(id)
+        let (outcome, cancelStopped) = await InstallJobs.run(jobID, phaseChanged: { [weak self] _ in
             Task { @MainActor in self?.followPhase(id) }
         }) { @MainActor [weak self] in
-            await RequestAttribution.withApp(Self.attributionID(status)) {
+            let outcome = await RequestAttribution.withApp(Self.attributionID(status)) {
                 await update.update(status) { [weak self] line in
                     Task { @MainActor in
                         // A line can arrive after the update has finished and its progress
@@ -913,12 +914,20 @@ final class CLIToolsModel {
                     }
                 }
             }
+            // Asked while the job is still registered: it is forgotten when it ends.
+            return (outcome, InstallJobs.cancelStoppedSomething(jobID))
         }
-        // Accepted, so no command of it started after the click: whatever the
+        // Accepted, and it kept a command from starting — the first, or a retry
+        // after a refused run (uv's, bun's, mise's rejected token): whatever the
         // provider made of the cancel — "could not start" — is no failure.
-        if cancels[id] == .cancelling {
+        if cancels[id] == .cancelling, cancelStopped {
             Log.app.notice("\(status.kind.rawValue, privacy: .public) update at \(id.path, privacy: .public): cancelled before its command started")
             return nil
+        }
+        // Accepted only after the command had run and failed, with nothing left
+        // to start: the cancel stopped nothing, and the failure is the result.
+        if cancels[id] == .cancelling {
+            Log.app.notice("\(status.kind.rawValue, privacy: .public) update at \(id.path, privacy: .public): cancelled after its command had run; its result stands")
         }
         switch outcome {
         case .updated:

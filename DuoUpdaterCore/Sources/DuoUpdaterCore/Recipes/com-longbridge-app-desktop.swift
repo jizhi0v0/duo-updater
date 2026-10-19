@@ -91,7 +91,8 @@ enum com_longbridge_app_desktop {
         // Longbridge Desktop — the English release page for the installed minor
         // line, not the compact latest.json notes: the page carries the richer
         // release body and some releases interleave screenshots with their change
-        // lines. The vendor serves one page per MINOR line (`…/longbridge-pro/0.19`)
+        // lines. The vendor serves one page per MINOR line (`…/longbridge-pro/v0.19`;
+        // the unprefixed `…/0.19` is a 200 meta-refresh stub with no sections)
         // holding every patch release in it, each in a `release-section` carrying its
         // own `data-rail-version` and `data-rail-date`; the entry pattern takes the
         // first section, which is the newest on that page. A section ends at its
@@ -133,7 +134,7 @@ enum com_longbridge_app_desktop {
             ],
             maxEntries: 1,
             channel: .stable,
-            sourceTemplate: "https://longbridge.com/en/changelog/longbridge-pro/{majorMinor}",
+            sourceTemplate: "https://longbridge.com/en/changelog/longbridge-pro/v{majorMinor}",
             imagePattern: #"<img\b[^>]*\bsrc="(?<image>https://[^"]+)"#),
 
         // Longbridge Desktop Preview — no HTML page to read any more. The vendor's

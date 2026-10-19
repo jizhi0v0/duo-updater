@@ -11,6 +11,7 @@
       "lastSeenURL" : "https:\/\/github.com\/AprilNEA\/OpenLogi\/releases\/download\/v0.8.13\/OpenLogi-v0.8.13-macos-arm64.dmg",
       "lastSeenVersion" : "0.8.13",
       "signedIdentifier" : "org.openlogi.openlogi",
+      "sparklePublicKey" : "dwOe6ZzIDrpl1SpM+iAu1my3EquhGspSGlWBlq1zkdI=",
       "teamIdentifier" : "8U3ZJ258K9"
     },
     "github:BlueBubblesApp\/bluebubbles-server:stable" : {
@@ -867,7 +868,8 @@
       "lastSeenAt" : "2026-10-13T22:04:25Z",
       "lastSeenURL" : "https:\/\/github.com\/huangy7\/lokii\/releases\/download\/v0.1.2\/Lokii-arm64.dmg",
       "lastSeenVersion" : "0.1.2",
-      "signedIdentifier" : "com.lokii.app"
+      "signedIdentifier" : "com.lokii.app",
+      "sparklePublicKey" : "pxrsUMDmDnkDlrD0UqaLGc8tIGwWuY7xmmVT2G3SXtE="
     },
     "github:imputnet\/helium-macos:stable" : {
       "architectures" : [

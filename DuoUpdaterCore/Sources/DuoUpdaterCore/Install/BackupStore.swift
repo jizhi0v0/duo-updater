@@ -1229,6 +1229,27 @@ public enum BackupStore {
         if let destination = reachableDestinationRoot {
             sweepStaleScratch(in: destination, age: age, inFlight: inFlight)
         }
+        sweepStaleRollbackPointStaging(age: age)
+    }
+
+    /// The install rollback points stage in their own root
+    /// (`.rollback-points/.staging-<key>-<UUID>`), which the walk above skips
+    /// with every other hidden name. One a killed process left behind would
+    /// otherwise go only when that app takes its next point. Staging alone:
+    /// the points themselves are no scratch, however old.
+    private static func sweepStaleRollbackPointStaging(age: TimeInterval) {
+        let cutoff = Date().addingTimeInterval(-age)
+        guard let entries = try? FileManager.default.contentsOfDirectory(
+            at: rollbackPointsRoot, includingPropertiesForKeys: [.contentModificationDateKey], options: [])
+        else { return }
+        for entry in entries where entry.lastPathComponent.hasPrefix(".staging-") {
+            guard let modified = (try? entry.resourceValues(forKeys: [.contentModificationDateKey]))?
+                .contentModificationDate, modified < cutoff else { continue }
+            if forceRemove(entry) {
+                Log.install.notice(
+                    "backup: removed rollback-point staging \(entry.lastPathComponent, privacy: .public) left by an interrupted install")
+            }
+        }
     }
 
     private static func sweepStaleScratch(in root: URL, age: TimeInterval, inFlight: Set<String>) {

@@ -510,12 +510,28 @@ import Testing
 
     /// A UDZO image whose GPT holds two HFS+ volumes, `ZZFixture.app` on each.
     private func twoVolumeImage(in top: URL) async throws -> URL {
-        func sh(_ path: String, _ args: [String]) async throws -> ChildProcess.Outcome {
-            let r = try await ChildProcess.run(path, args, onCancel: .runToCompletion)
-            #expect(r.succeeded, "\((path as NSString).lastPathComponent) \(args.first ?? "") failed")
+        struct FixtureFailed: Error {}
+        // Every child is bounded: on the hosted xcode-27 runner one of them once
+        // never returned, and the suite hung on this test until the job was
+        // cancelled (diag run 39108932547, 2026-10-18). A minute and a half is
+        // well past the slowest of these steps seen there.
+        let bound = ChildProcess.Deadline(terminateAfter: .seconds(90), killAfter: .seconds(95))
+        func launch(_ path: String, _ args: [String]) async throws -> ChildProcess.Outcome {
+            let r = try await ChildProcess.run(path, args, deadline: bound, onCancel: .runToCompletion)
+            if r.timedOut {
+                Issue.record("\((path as NSString).lastPathComponent) \(args.first ?? "") did not exit in 90 s")
+            }
             return r
         }
-        // The two steps that need the disk to themselves. Right after `attach` and
+        func sh(_ path: String, _ args: [String]) async throws -> ChildProcess.Outcome {
+            let r = try await launch(path, args)
+            #expect(r.succeeded, """
+                \((path as NSString).lastPathComponent) \(args.first ?? "") failed: \
+                \(String(decoding: r.standardError, as: UTF8.self))
+                """)
+            return r
+        }
+        // The steps that need the disk to themselves. Right after `attach` and
         // after `partitionDisk`, something can still hold it for seconds — on the
         // hosted xcode-27 runner (macOS 27.0.1) `storagekitd` had /dev/rdiskN open
         // and `detach -force` failed "Resource busy" (exit 16) twice, then
@@ -525,32 +541,59 @@ import Testing
         // #1211 to 2026-10-12 (38160281041 … 38233464165). Not reproduced on a
         // 27.2 dev Mac. A retried `partitionDisk` that left a partial map would
         // show as `volumes.count != 2` below.
-        func retrying(_ path: String, _ args: [String]) async throws {
-            let deadline = ContinuousClock.now + .seconds(60)
+        func retrying(_ path: String, _ args: [String], for limit: Duration) async throws -> String? {
+            let deadline = ContinuousClock.now + limit
             while true {
-                let r = try await ChildProcess.run(path, args, onCancel: .runToCompletion)
-                if r.succeeded { return }
+                let r = try await launch(path, args)
+                if r.succeeded { return nil }
                 guard ContinuousClock.now < deadline else {
-                    Issue.record("""
-                        \((path as NSString).lastPathComponent) \(args.first ?? "") still \
-                        failing after 60 s: \(String(decoding: r.standardError, as: UTF8.self))
-                        """)
-                    return
+                    return String(decoding: r.standardError, as: UTF8.self)
                 }
                 try await Task.sleep(for: .seconds(1))
             }
         }
         let raw = top.appendingPathComponent("two-rw.dmg")
-        _ = try await sh("/usr/bin/hdiutil", [
-            "create", "-quiet", "-size", "40m", "-layout", "GPTSPUD", "-fs", "HFS+",
-            "-volname", "V1", raw.path])
-        let attached = try await sh("/usr/bin/hdiutil", ["attach", "-nomount", raw.path])
-        let device = String(decoding: attached.standardOutput, as: UTF8.self)
-            .split(whereSeparator: \.isWhitespace).first.map(String.init) ?? ""
-        try await retrying("/usr/sbin/diskutil", [
-            "partitionDisk", device, "GPT", "HFS+", "V1", "20M", "HFS+", "V2", "R"])
-        // Mount both, drop the app on each, and detach.
-        _ = try await sh("/usr/sbin/diskutil", ["mountDisk", device])
+        // `partitionDisk` has also gone on failing -69877 for the whole minute it
+        // was given, three times in ~200 full suites there (runs 39108932547,
+        // 39111286040, 2026-10-18; 128 full suites), and what holds the disk
+        // then is unknown. So after 30 s the disk is given up: detached, deleted,
+        // made again, up to three times.
+        var device = ""
+        var partitionError: String?
+        for round in 1...3 {
+            if round > 1 {
+                // By the device this fixture attached, through `launch`, so this
+                // detach is bounded like every other child here.
+                if let detachError = try await retrying(
+                    "/usr/bin/hdiutil", ["detach", device, "-force"], for: .seconds(30)) {
+                    Issue.record("hdiutil detach of the given-up disk still failing after 30 s: \(detachError)")
+                    throw FixtureFailed()
+                }
+                try? FileManager.default.removeItem(at: raw)
+            }
+            _ = try await sh("/usr/bin/hdiutil", [
+                "create", "-quiet", "-size", "40m", "-layout", "GPTSPUD", "-fs", "HFS+",
+                "-volname", "V1", raw.path])
+            let attached = try await sh("/usr/bin/hdiutil", ["attach", "-nomount", raw.path])
+            device = String(decoding: attached.standardOutput, as: UTF8.self)
+                .split(whereSeparator: \.isWhitespace).first.map(String.init) ?? ""
+            partitionError = try await retrying("/usr/sbin/diskutil", [
+                "partitionDisk", device, "GPT", "HFS+", "V1", "20M", "HFS+", "V2", "R"],
+                for: .seconds(30))
+            if partitionError == nil { break }
+        }
+        if let partitionError {
+            Issue.record("diskutil partitionDisk still failing on a third fresh disk: \(partitionError)")
+            throw FixtureFailed()
+        }
+        // Mount both, drop the app on each, and detach. `mountDisk` has failed
+        // there too, right after a `partitionDisk` that succeeded (run
+        // 39108932547).
+        if let mountError = try await retrying(
+            "/usr/sbin/diskutil", ["mountDisk", device], for: .seconds(30)) {
+            Issue.record("diskutil mountDisk still failing after 30 s: \(mountError)")
+            throw FixtureFailed()
+        }
         let listing = try await sh("/usr/sbin/diskutil", ["list", "-plist", device])
         let plist = try PropertyListSerialization.propertyList(
             from: listing.standardOutput, format: nil) as? [String: Any]
@@ -563,7 +606,10 @@ import Testing
                 at: URL(fileURLWithPath: volume).appendingPathComponent("ZZFixture.app"),
                 mode: 0o755, marker: "payload")
         }
-        try await retrying("/usr/bin/hdiutil", ["detach", device, "-force"])
+        if let detachError = try await retrying(
+            "/usr/bin/hdiutil", ["detach", device, "-force"], for: .seconds(60)) {
+            Issue.record("hdiutil detach still failing after 60 s: \(detachError)")
+        }
         let image = top.appendingPathComponent("two.dmg")
         _ = try await sh("/usr/bin/hdiutil", [
             "convert", "-quiet", raw.path, "-format", "UDZO", "-o", image.path])

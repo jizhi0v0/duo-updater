@@ -6,9 +6,13 @@ enum com_lokii_app {
         githubRules: [
         // Shared rationale for digest-only: Recipes/org-alacritty.swift.
 
-        // Lokii — Rust + AppKit file search. No Sparkle; its own AppUpdater reads
-        // `/releases/latest` of this repo. v-tags; short == the tag's X.Y.Z,
-        // CFBundleVersion is a constant `1` (0.1.0 and 0.1.1 both).
+        // History: docs/app-audits/com-lokii-app.md#历史与实测
+        // Lokii — Rust + AppKit file search. Up to 0.1.2 no Sparkle (its own
+        // AppUpdater reads `/releases/latest` of this repo) and CFBundleVersion a
+        // constant `1`. From 0.1.3 it embeds Sparkle with a per-arch `SUFeedURL`
+        // on huangy7.github.io, so a copy that new is answered by its feed and
+        // this rule is what older copies see newer releases through. v-tags;
+        // short == the tag's X.Y.Z.
         //
         // Ad-hoc signed, no Team ID (`spctl` rejects it), so the Team-ID gate
         // can't apply. It takes `.publishedDigestOnly`: on both arches of 0.1.0

@@ -115,4 +115,69 @@ import Testing
         #expect(out.stages["b"] == .queued)
         #expect(out.nextWake == at(550))
     }
+
+    // MARK: Cancel All
+
+    /// A clicked Cancel All follows the rows: greyed while a cancel has not
+    /// lasted, "Cancelling…" once one has, "Finishing…" when only installs past
+    /// their commit point are left.
+    ///
+    /// Mutation: drop the `cancelPending` rung → the first expectation reads
+    /// `.finishing`, red.
+    @Test func cancelAllFollowsTheRows() {
+        var s = Smoothing()
+        let stages: [String: InstallStage] = ["a": .downloading(fraction: 0.2), "b": .installing]
+        _ = s.update(stages: stages, cancels: ["a": .available, "b": .committing], now: at(0))
+
+        let clicked = s.update(stages: stages, cancels: ["a": .cancelling, "b": .tooLate], now: at(1000))
+        #expect(clicked.cancelAllPhase == .pending)
+        let slow = s.update(stages: stages, cancels: ["a": .cancelling, "b": .tooLate], now: at(1300))
+        #expect(slow.cancelAllPhase == .cancelling)
+        // "a" stopped; "b" is past its commit point and installs on.
+        let left = s.update(stages: ["b": .installing], cancels: ["b": .tooLate], now: at(1500))
+        #expect(left.cancelAllPhase == .finishing)
+    }
+
+    /// A cancel that ends its row within the delay never makes Cancel All say
+    /// "Cancelling…": it goes from greyed straight to "Finishing…".
+    ///
+    /// Mutation: a pending cancel counts as cancelling
+    /// (`|| !cancelPending.isEmpty` on the first rung) → `clicked` reads
+    /// `.cancelling`, red.
+    @Test func aQuickCancelGoesStraightToFinishing() {
+        var s = Smoothing()
+        let stages: [String: InstallStage] = ["a": .queued, "b": .installing]
+        _ = s.update(stages: stages, cancels: ["a": .available, "b": .committing], now: at(0))
+        let clicked = s.update(stages: stages, cancels: ["a": .cancelling, "b": .tooLate], now: at(500))
+        #expect(clicked.cancelAllPhase == .pending)
+        let ended = s.update(stages: ["b": .installing], cancels: ["b": .tooLate], now: at(600))
+        #expect(ended.cancelAllPhase == .finishing)
+    }
+
+    // MARK: Lines
+
+    /// A row whose line is text says the line of the stage it shows: "Queued"
+    /// while "Starting…" waits out the dwell, then the newest line; the
+    /// command's output moves as it comes.
+    ///
+    /// Mutation: `line` returns the newest text where it looks up the shown
+    /// stage's → the second expectation reads "Starting…", red.
+    @Test func aHeldStageKeepsItsLine() {
+        var s = Smoothing()
+        var lines = InstallRowLines<String>()
+        func shown(_ now: Int) -> String? {
+            lines.line("t", shown: s.update(stages: lines.stages, cancels: [:], now: at(now)).stages["t"])
+        }
+        lines.record("t", stage: .queued, text: "Queued")
+        #expect(shown(0) == "Queued")
+        lines.record("t", stage: .runningCommand(""), text: "Starting…")
+        #expect(shown(20) == "Queued")
+        lines.record("t", stage: .runningCommand("Downloading 1.2"), text: "Downloading 1.2")
+        #expect(shown(150) == "Queued")
+        #expect(shown(300) == "Downloading 1.2")
+        lines.record("t", stage: .runningCommand("Linking"), text: "Linking")
+        #expect(shown(310) == "Linking")
+        lines.clear("t")
+        #expect(shown(320) == nil)
+    }
 }

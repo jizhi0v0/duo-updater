@@ -71,3 +71,5 @@ changelogPages = Dictionary(count: 1)
 changelogPages["net.whatsapp.whatsapp"] = URL("https://apps.apple.com/app/id310633997?platform=mac")
 
 oneClickGates = Array(count: 0)
+
+loginItemAgentRestarts = Dictionary(count: 0)

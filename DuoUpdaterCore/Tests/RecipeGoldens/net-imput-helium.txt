@@ -78,3 +78,5 @@ changelogPages = Dictionary(count: 1)
 changelogPages["net.imput.helium"] = URL("https://github.com/imputnet/helium-macos/releases")
 
 oneClickGates = Array(count: 0)
+
+loginItemAgentRestarts = Dictionary(count: 0)

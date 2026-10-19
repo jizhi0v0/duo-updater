@@ -1394,6 +1394,15 @@ public enum Install {
         } else {
             print("   installed.")
         }
+        // A login-item agent the recipe restarts after the swap
+        // (`LoginItemAgentRestart`) that is not back on the new bundle: the app
+        // is updated, but the agent is gone or still the old code.
+        if !outcome.agentsNotRestarted.isEmpty {
+            FileHandle.standardError.write(Data("""
+                   warning: \(outcome.agentsNotRestarted.joined(separator: ", ")) did not come \
+                back from the new bundle. Open \(name) or log out and back in to start it.\n
+                """.utf8))
+        }
     }
 
     /// The row `emit` writes for an item `InstallCoordinator.perform` returned
@@ -1419,6 +1428,8 @@ public enum Install {
         // is the only route that produces one, and `NSNull` in a stream of
         // otherwise-typed values trips naive readers.
         if let staged = outcome.stagedPackageURL { payload["stagedPackage"] = staged.path }
+        // Omitted when empty, for the same reason.
+        if !outcome.agentsNotRestarted.isEmpty { payload["agentsNotRestarted"] = outcome.agentsNotRestarted }
         return payload
     }
 

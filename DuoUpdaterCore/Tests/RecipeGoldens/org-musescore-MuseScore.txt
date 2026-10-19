@@ -48,3 +48,5 @@ oneClickGates[0].bundleID = "org.musescore.MuseScore"
 oneClickGates[0].requirement = .installedVersion(pattern:)
 oneClickGates[0].requirement.pattern = "^4\\."
 oneClickGates[0].reason = "MuseScore 4 installs beside MuseScore 3, not over it; download it from musescore.org"
+
+loginItemAgentRestarts = Dictionary(count: 0)

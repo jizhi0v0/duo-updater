@@ -158,7 +158,8 @@ public enum Check {
     }
 
     static func buildBump(_ row: Row) -> (installed: String, remote: String)? {
-        guard row.latestVersion == row.installedVersion,
+        guard row.latestVersion.map({ UpdateResult.droppingTrailingBuild($0, build: row.latestBuild) })
+                == row.installedVersion,
               let installed = row.installedBuild.map(UpdateResult.strippingBuildPrefix),
               let remote = row.latestBuild.map(UpdateResult.strippingBuildPrefix),
               installed != remote
@@ -599,10 +600,17 @@ public enum Check {
             // `UpdateResult.buildBump`; the two must not describe an update
             // differently.
             let bump = Self.buildBump(row)
-            let installed = bump.map { "\(row.installedVersion ?? "?") (\($0.installed))" }
-                ?? (row.installedVersion ?? "?")
+            // A build on one side only is dropped, as on the menu bar's line
+            // (`UpdateResult.updateLineSides`).
+            let sides = row.latestVersion.map {
+                UpdateResult.updateLineSides(
+                    installed: row.installedVersion ?? "?", installedBuild: row.installedBuild,
+                    offered: $0, offeredBuild: row.latestBuild)
+            }
+            let installedRaw = sides?.installed ?? (row.installedVersion ?? "?")
+            let installed = bump.map { "\(installedRaw) (\($0.installed))" } ?? installedRaw
             var line = "  \(name)  \(installed)"
-            if let latestRaw = row.latestVersion {
+            if let latestRaw = sides?.offered {
                 let latest = bump.map { "\(latestRaw) (\($0.remote))" } ?? latestRaw
                 line += row.hasUpdate ? "  →  \(latest)" : "  (latest \(latest))"
             }

@@ -1679,9 +1679,9 @@ private struct WorkbenchSidebarRow: View {
                 // Same-marketing build bump (JetBrains EAP, Surge): show the builds so it
                 // doesn't read as a no-op "2026.2 → 2026.2".
                 let bump = result.buildBump(latest: latest)
-                let from = bump.map { "\(result.installedDisplay ?? "?") (\($0.installed))" }
-                    ?? (result.installedDisplay ?? "?")
-                let to = bump.map { "\(latest) (\($0.remote))" } ?? latest
+                let (installed, offered) = result.updateLineSides(latest: latest)
+                let from = bump.map { "\(installed) (\($0.installed))" } ?? installed
+                let to = bump.map { "\(offered) (\($0.remote))" } ?? offered
                 Text("\(from) → \(to)")
                     .font(.caption)
                     .foregroundStyle(.tint)
@@ -2780,9 +2780,9 @@ private struct DetailHeader: View {
             switch result.status {
             case .updateAvailable(let latest):
                 let bump = result.buildBump(latest: latest)
-                let from = bump.map { "\(result.installedDisplay ?? "?") (\($0.installed))" }
-                    ?? (result.installedDisplay ?? "?")
-                let to = bump.map { "\(latest) (\($0.remote))" } ?? latest
+                let (installed, offered) = result.updateLineSides(latest: latest)
+                let from = bump.map { "\(installed) (\($0.installed))" } ?? installed
+                let to = bump.map { "\(offered) (\($0.remote))" } ?? offered
                 Text("\(from)  →  \(to)")
                     .font(.callout).foregroundStyle(.tint)
                     .lineLimit(1).minimumScaleFactor(0.75)

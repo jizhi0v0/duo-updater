@@ -444,6 +444,34 @@ import Testing
         }
     }
 
+    /// The app had no backup yet (a first install with Keep Backups on was
+    /// cancelled), then went to the Trash: there is nothing a promotion could
+    /// cost, so the sweep promotes the copy, and it is listed — Clean Up
+    /// reaches it with the orphan setting off. With a backup disk configured
+    /// but not connected the sweep cannot know that, and keeps it.
+    /// Mutations: drop `hasNoBackup` from the sweep → kept, unlisted, red;
+    /// `hasNoBackup` answering true for an unconnected disk → promoted, red.
+    @Test func aCopyOfARemovedAppWithNoBackupIsPromotedSoItIsListed() async throws {
+        try await withStore { apps, outbox, _ in
+            let app = try install(in: apps, version: "2.0")
+            try await BackupStore.savePending(
+                appPath: app, key: key(app), version: "2.0", buildVersion: "1",
+                bundleID: Self.bundleID)
+            try FileManager.default.removeItem(at: app)
+            let away = BackupDestination(
+                kind: .external, path: apps.appendingPathComponent("NoSuchDisk").path,
+                identity: UUID().uuidString, volumeName: "NoSuchDisk")
+            let whileAway = await BackupStore.$destinationOverride.withValue(away) {
+                await InstallCoordinator.sweepPendingBackups(lock: testLock(outbox))
+            }
+            #expect(whileAway == 0)
+            #expect(FileManager.default.fileExists(atPath: pendingDir(app).path))
+
+            #expect(await InstallCoordinator.sweepPendingBackups(lock: testLock(outbox)) == 1)
+            #expect(BackupStore.listing().map(\.version) == ["2.0"])
+        }
+    }
+
     /// Deleting the app's backup takes its pending copy with it: nothing on
     /// screen could reach it afterwards. Mutation: drop `discardPending` from
     /// `remove(forKey:)` → the copy stays, red.

@@ -108,9 +108,11 @@ public enum BackupStore {
     /// longer what it was copied from (``settlePending(forKey:)``).
     ///
     /// `.`-prefixed for the reason ``rollbackPointsRoot`` is: every scan of the
-    /// outbox skips it, so it is not listed, not owed to the backup disk, not
-    /// an orphan and not a victim of the low-space prune. Inside the outbox, so
-    /// `ditto` clones and the promotion is a same-volume rename.
+    /// outbox skips it, so it is not listed, not owed to the backup disk and
+    /// not a victim of the low-space prune. The orphan prune is the one scan
+    /// that walks it (``pruneOrphans()``), for a copy whose app was removed.
+    /// Inside the outbox, so `ditto` clones and the promotion is a same-volume
+    /// rename.
     public static var pendingBackupsRoot: URL {
         outboxRoot.appendingPathComponent(".pending", isDirectory: true)
     }
@@ -1362,6 +1364,18 @@ public enum BackupStore {
     /// caller that deletes on a Dispatch thread, where a test's root is not seen.
     static func discardPending(at dir: URL) {
         removeClearingImmutableFlags(at: dir)
+    }
+
+    /// Whether `key` has no backup of the user's anywhere a promotion could
+    /// replace: none on this Mac, and none on the backup disk — which, when
+    /// one is configured, has to be connected to say so.
+    static func hasNoBackup(forKey key: String) -> Bool {
+        let fm = FileManager.default
+        guard !fm.fileExists(atPath: outboxRoot.appendingPathComponent(key, isDirectory: true).path)
+        else { return false }
+        guard destination.kind == .external else { return true }
+        guard let disk = reachableDestinationRoot else { return false }
+        return !fm.fileExists(atPath: disk.appendingPathComponent(key, isDirectory: true).path)
     }
 
     /// Every pending copy's key and the app it was taken from.

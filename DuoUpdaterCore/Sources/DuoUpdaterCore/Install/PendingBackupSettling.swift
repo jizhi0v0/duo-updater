@@ -39,8 +39,10 @@ extension InstallCoordinator {
     /// that changed since — an install whose process died after its swap, an
     /// app that updated itself — becomes that app's backup; one whose app is
     /// unchanged stays, for a retry to reuse. One whose app is simply gone
-    /// stays too (see below); `BackupStore.pruneOrphans` removes it with the
-    /// app's backups. Run by
+    /// stays too when it would replace an earlier backup (see below);
+    /// `BackupStore.pruneOrphans` removes it with the app's backups. With no
+    /// earlier backup there is nothing to lose: it is promoted, so it is
+    /// listed and Clean Up reaches it whatever the orphan setting says. Run by
     /// the app at launch and whenever it re-reads its backups, and at the start
     /// of `duo install`, `duo restart` and `duo backups restore`. Returns how
     /// many were promoted.
@@ -50,8 +52,9 @@ extension InstallCoordinator {
     /// after a Relaunch — that will change the app in a later session, and
     /// then it is the backup of the version that hand-off replaced. A missing
     /// app counts as changed only when the install journal records an install
-    /// of it as cut off (`InstallJournal.standing`): otherwise it may be on a
-    /// volume that is not mounted, intact.
+    /// of it as cut off (`InstallJournal.standing`), or when the app has no
+    /// backup it could replace (`BackupStore.hasNoBackup`): otherwise it may
+    /// be on a volume that is not mounted, intact.
     ///
     /// Takes the machine-wide install lock, non-blocking, like
     /// ``sweepSettledInstallRollbackPoints(lock:)``: another process may be
@@ -74,8 +77,9 @@ extension InstallCoordinator {
             let standing = InstallJournal.standing(of: appPath)
             if case .stillRunning = standing { continue }
             guard await InstallRollbackPointClaims.pendingBackups.beginSweeping(key) else { continue }
+            let missingAppIsChanged = standing == .interrupted || BackupStore.hasNoBackup(forKey: key)
             if await BackupStore.settlePending(
-                forKey: key, missingAppIsChanged: standing == .interrupted) == .promoted {
+                forKey: key, missingAppIsChanged: missingAppIsChanged) == .promoted {
                 promoted += 1
             }
             await InstallRollbackPointClaims.pendingBackups.endSweeping(key)

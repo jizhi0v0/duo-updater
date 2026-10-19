@@ -28,8 +28,8 @@
 
 当前生效源: **GitHub**（channel-verify 实测，见「如何复验」）。
 
-本文只覆盖 `Obelus.app`。`install.sh` / mise 装在 `~/.local/bin` 的 `ob`、`obg` 裸二进制不是 app，扫描看不到，
-见「已知问题」。
+`install.sh` 装在 `~/.local/bin` 的 `obg`、`ob` 裸二进制不是 app，走 CLI 工具组 `Obelus`（`ObelusProvider`），
+见「命令行：`obg` / `ob`」。
 
 ## Channel 详情
 
@@ -99,18 +99,42 @@
   - 运行中一轮没跑: app 没有自更新器（只读 `/releases/latest` 的 JSON），不存在碰撞面
 - 阻塞: 无
 
+## 命令行：`obg` / `ob`
+- 代码: `DuoUpdaterCore/Sources/DuoUpdaterCore/CLITools/Obelus*.swift`，kind `.obelus`，一个组两行（`obg` 窗口版、`ob` 终端版）
+- 检测: 只看 `~/.local/bin/obg`、`~/.local/bin/ob`（`install.sh` 的默认 `--dir`）；`--dir` / `OBELUS_INSTALL_DIR` 装到别处的不扫。
+  realpath 落在 Homebrew Cellar、`/opt/homebrew`、Nix、`~/.cargo`、mise 的 `…/mise/installs/…` 或 `.app` 里的不算本组
+  （mise 的 `github:obelus-editor/obelus` 交给 `mise upgrade`，同 Herdr 的做法）。文件里没有 `obelus/` 的 `ob` 是别的工具，不出行
+- 版本: 从文件里读 User-Agent `obelus/<version>`，不运行。2026-10-19 对 0.9.0–0.16.0 每个 macOS 构建的两个二进制实测：
+  `obelus/<v>` 各出现 2 次（一个切片一次），都是自己的版本；其他 `obelus/` 后面是路径。`obg --version` 输出 `obg 0.16.0`，与之一致
+- 最新版: `releases/latest/download/SHA256SUMS`（release 下载，不走 API，不耗 GitHub API 配额），版本取自其中 macOS 归档的文件名；
+  两行共用一次请求
+- 一键: 厂商 `install.sh`（`master`），以 `/bin/sh <file> --bin <obg|ob> --version v<latest> --dir <dir> --no-omarchy --no-desktop`
+  运行，`--version` 钉在检查时比较过的版本；子进程 `PATH` 只放脚本用到的工具，没有 `sudo`。目录不可写或路径是 symlink 时不给一键，给命令
+- 信任: 二进制只有 ad-hoc 签名，所以装完后要求文件与该版本发布的构建逐字节一致：下载 `<bin>-<v>-universal2-apple-darwin.tar.xz`，
+  比对该版本 `SHA256SUMS` 的那一行，解包后哈希二进制，按版本+二进制记在 `obelus-published-digests.json`。
+  `SHA256SUMS` 里没有这一归档时报 unverified 并给命令
+- Changelog: GitHub Releases 正文（API `releases?per_page=30`，只在打开说明时请求），与 app 同一份
+- 图标: release 资产 `obelus.svg` 的点-线-点标记（去掉底板，Apache-2.0），黄铜色 tint
+- 端到端（2026-10-19，真机 Apple silicon，本分支 `make install` + `make cli`）:
+  - 用厂商 `install.sh --bin both --version v0.15.0` 装进 `~/.local/bin`（此前两个文件都不存在）
+  - `duo list`: `Obelus 0.15.0 [Rust] ~/.local/bin/obg`、`… ~/.local/bin/ob`；`duo check`: 两行 `0.15.0 → 0.16.0`，无 hold-back
+  - `duo install --yes ~/.local/bin/obg ~/.local/bin/ob`: `2 installed, 0 failed`（35 s）。之后 `obg 0.16.0` / `ob 0.16.0`，
+    sha256 分别 `7f9af726…d6d8` / `520ae146…1309`，与 v0.16.0 归档里解出的二进制相同；inode 变了（`install` 换文件，不写进运行中的二进制）；
+    `~/.local/share/applications`、`~/.config/omarchy` 没被创建；再 `duo check` up to date
+  - GUI: `obg` 退回 0.15.0 后，CLI 标签页 Obelus 组显示 `obg 0.15.0 → 0.16.0` + Update、`ob 0.16.0`，图标正常（深色外观）；
+    点 Update → `Starting…` → 约 6 s 后文件为 0.16.0、sha256 同上；详情页显示 0.16.0（2026-10-16）的 16 条说明
+  - 收尾: `install.sh --uninstall` 删掉两个文件，删掉 `obelus-published-digests.json`；`Obelus.app` 未动
+- duo CLI: 逻辑全在 Core，`duo list` / `check` / `install` 与 GUI 同一条路径（上面实测）
+
 ## 已知问题
-- **`install.sh` / mise 装的 `ob`、`obg` 不检测。** README 在 macOS 上主推的就是这条路径（`~/.local/bin` 里的裸
-  二进制，ad-hoc），所以按 README 装的用户多半没有 `Obelus.app`。仓库对非 Homebrew CLI 的决定是逐个工具写
-  `CLIToolProvider`、不做通用系统（`CLITools/`）；Obelus 没有 self-update 命令，厂商的更新方式是重跑 `install.sh`
-  或 `mise upgrade`，`SHA256SUMS` 可满足 `CLIToolTrust` 的哈希路线。这是独立的一块工作，没在本次做。
+- `--dir` / `OBELUS_INSTALL_DIR` 装到 `~/.local/bin` 以外的 `obg` / `ob` 看不到（同 zoxide，只扫默认目录）。
+- 浅色外观下的图标颜色没有在运行中的 app 里看过（只看了深色）。
 - 厂商将来若改用 Developer ID 签名，装着 ad-hoc 旧版的用户一键会被 `teamIdentifierAppeared` 拒绝（信任只升不降），
   要手动更新一次；rule 也要改回默认的 Team-ID 路线。
 - ad-hoc 签名每次构建 cdhash 都变，app 拿到的 TCC 授权（如果有）更新后可能要重授；与谁来装无关。
 
 ## 建议下一步
-1. `ob` / `obg` 裸二进制：照现有 `CLITools/` 的 provider 写法单独接（检测 `~/.local/bin` 及 `--dir`，版本 `obg --version`，
-   一键 = 下载 tar.xz + 按 `SHA256SUMS` 核对），带 icon。
+- 无。
 
 ## 如何复验
 - `swift run --package-path application-test feed-discover <0.15.0 的 Obelus.app>` →

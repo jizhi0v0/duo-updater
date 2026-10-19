@@ -5,7 +5,7 @@ import Foundation
 /// Each one has its own rules — where its installers put it, how its version is
 /// read, which command updates it and when that may run — so each keeps its own
 /// detection and update code (`ClaudeCode*`, `Bub*`, `Fx*`, `Uv*`, `Junie*`,
-/// `Rust*`, `Npm*`, `Boat*`, `Codex*`, `Bun*`, `Opencode*`, `CursorAgent*`, `Amp*`, `VitePlus*`, `Herdr*`, `Luvus*`, `Lorca*`, `Zoxide*`, `Nvm*`, `Atuin*`, `Ghcup*`, `Flyctl*`, `Helm*`, `Starship*`, `Deno*`, `Mise*`). What they share is
+/// `Rust*`, `Npm*`, `Boat*`, `Codex*`, `Bun*`, `Opencode*`, `CursorAgent*`, `Amp*`, `VitePlus*`, `Herdr*`, `Luvus*`, `Lorca*`, `Zoxide*`, `Nvm*`, `Atuin*`, `Ghcup*`, `Flyctl*`, `Helm*`, `Starship*`, `Deno*`, `Mise*`, `Obelus*`). What they share is
 /// how the app lists them, sums them up and runs their updates: `CLIToolStatus`,
 /// `CLIToolReport` and `CLIToolProvider` below. A later tool is a new provider and
 /// a new `Kind`; the popover row and the workbench's CLI tab read it the same way.
@@ -63,6 +63,9 @@ public enum CLIToolKind: String, Sendable, Codable, CaseIterable {
     case deno
     /// jdx's mise as its installer leaves it, `~/.local/bin/mise`.
     case mise
+    /// obelus-editor's Obelus, `~/.local/bin/obg` and `~/.local/bin/ob`: one
+    /// group, a row each.
+    case obelus
 
     /// The tool's own name, as its vendor writes it. Untranslated, like a formula
     /// name on the brew row.
@@ -94,6 +97,7 @@ public enum CLIToolKind: String, Sendable, Codable, CaseIterable {
         case .starship: return "Starship"
         case .deno: return "Deno"
         case .mise: return "mise"
+        case .obelus: return "Obelus"
         case .pnpm: return "pnpm"
         case .yarn: return "Yarn"
         }
@@ -253,6 +257,7 @@ public struct CLIToolStatus: Sendable, Equatable {
         case starship(StarshipInstall)
         case deno(DenoInstall)
         case mise(MiseInstall)
+        case obelus(ObelusInstall)
     }
 
     public init(
@@ -334,6 +339,7 @@ public struct CLIToolReport: Sendable, Equatable {
         case starship
         case deno
         case mise
+        case obelus
         case pnpm
         case yarn
     }

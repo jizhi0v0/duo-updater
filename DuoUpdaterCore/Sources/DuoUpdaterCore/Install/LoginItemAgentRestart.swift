@@ -43,7 +43,9 @@ import Foundation
 ///   openApplication`) when its login item is not running — in 2.x and 3.x
 ///   alike — and nothing relaunches an agent started that way: measured on
 ///   2.4.1, whose agent had the label `application.…` and was not back 15 s
-///   after `SIGTERM`. Ending it would turn "signing may hang later" into "no
+///   after `SIGTERM`. The same 2.4.1 after its setup's Install had the job
+///   (label = the agent's bundle id), and launchd did relaunch it; so did
+///   3.0.0, 3.0.3 and 3.0.4 (audit, 「一键安装」). Ending it would turn "signing may hang later" into "no
 ///   agent at all". Opening the host after the update registers the login
 ///   item again, and launchd's new agent takes over the socket — measured on
 ///   3.0.4 → 4.0.0 with an agent started through LaunchServices — which is

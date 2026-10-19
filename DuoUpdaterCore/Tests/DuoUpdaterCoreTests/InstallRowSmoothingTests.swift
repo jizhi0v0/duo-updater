@@ -130,12 +130,12 @@ import Testing
         _ = s.update(stages: stages, cancels: ["a": .available, "b": .committing], now: at(0))
 
         let clicked = s.update(stages: stages, cancels: ["a": .cancelling, "b": .tooLate], now: at(1000))
-        #expect(clicked.cancelAllPhase == .pending)
+        #expect(clicked.cancelAllPhase(holding: nil) == .pending)
         let slow = s.update(stages: stages, cancels: ["a": .cancelling, "b": .tooLate], now: at(1300))
-        #expect(slow.cancelAllPhase == .cancelling)
+        #expect(slow.cancelAllPhase(holding: nil) == .cancelling)
         // "a" stopped; "b" is past its commit point and installs on.
         let left = s.update(stages: ["b": .installing], cancels: ["b": .tooLate], now: at(1500))
-        #expect(left.cancelAllPhase == .finishing)
+        #expect(left.cancelAllPhase(holding: nil) == .finishing)
     }
 
     /// A cancel that ends its row within the delay never makes Cancel All say
@@ -149,9 +149,26 @@ import Testing
         let stages: [String: InstallStage] = ["a": .queued, "b": .installing]
         _ = s.update(stages: stages, cancels: ["a": .available, "b": .committing], now: at(0))
         let clicked = s.update(stages: stages, cancels: ["a": .cancelling, "b": .tooLate], now: at(500))
-        #expect(clicked.cancelAllPhase == .pending)
+        #expect(clicked.cancelAllPhase(holding: nil) == .pending)
         let ended = s.update(stages: ["b": .installing], cancels: ["b": .tooLate], now: at(600))
-        #expect(ended.cancelAllPhase == .finishing)
+        #expect(ended.cancelAllPhase(holding: nil) == .finishing)
+    }
+
+    /// Once no row is running the batch is only wrapping up: Cancel All keeps
+    /// saying what it said — greyed after a quick cancel, "Cancelling…" after a
+    /// slow one — instead of "Finishing…" over nothing, or a step back.
+    ///
+    /// Mutations: drop the `stages.isEmpty` rung → `.finishing`, red; return
+    /// `.pending` there instead of `previous` → the `.cancelling` hold, red.
+    @Test func aBatchWrappingUpKeepsWhatItSaid() {
+        var s = Smoothing()
+        _ = s.update(stages: ["a": .downloading(fraction: 0.1)], cancels: ["a": .available], now: at(0))
+        _ = s.update(stages: ["a": .downloading(fraction: 0.1)], cancels: ["a": .cancelling], now: at(100))
+        let wrappingUp = s.update(stages: [:], cancels: [:], now: at(240))
+        #expect(wrappingUp.cancelAllPhase(holding: nil) == .pending)
+        #expect(wrappingUp.cancelAllPhase(holding: .pending) == .pending)
+        #expect(wrappingUp.cancelAllPhase(holding: .cancelling) == .cancelling)
+        #expect(wrappingUp.cancelAllPhase(holding: .finishing) == .finishing)
     }
 
     // MARK: Lines

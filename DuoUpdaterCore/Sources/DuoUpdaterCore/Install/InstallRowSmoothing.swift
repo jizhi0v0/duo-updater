@@ -45,23 +45,30 @@ public struct InstallRowSmoothing<Key: Hashable & Sendable>: Sendable {
 
         /// What a clicked Cancel All says until its batch ends, read off the
         /// rows as they draw — so it moves when they do, and never says
-        /// "Cancelling…" for a cancel the rows never showed.
-        public var cancelAllPhase: CancelAllPhase {
+        /// "Cancelling…" for a cancel the rows never showed. Once no row is
+        /// running the batch is only wrapping up, and it keeps saying what it
+        /// said, `previous` (greyed if nothing yet): measured 2026-10-19 on the
+        /// dev Mac, that wrap-up took 0.6 s after the last row ended, and
+        /// "Finishing…" over no running install was a flash and untrue, while
+        /// going back to a greyed "Cancel All" after "Cancelling…" read as a
+        /// step back.
+        public func cancelAllPhase(holding previous: CancelAllPhase?) -> CancelAllPhase {
             if cancels.values.contains(.cancelling) { return .cancelling }
             if !cancelPending.isEmpty { return .pending }
+            if stages.isEmpty { return previous ?? .pending }
             return .finishing
         }
     }
 
-    /// See ``Output/cancelAllPhase``.
+    /// See ``Output/cancelAllPhase(holding:)``.
     public enum CancelAllPhase: Sendable, Equatable {
         /// A cancel was accepted and has not lasted ``cancellingDelay`` yet:
         /// greyed, as the rows' Cancels are.
         case pending
         /// A row is still being stopped: "Cancelling…".
         case cancelling
-        /// Nothing is left to stop. Every install still running is past its
-        /// commit point, or was not the batch's to stop, and runs to its end —
+        /// Nothing is left to stop, and an install is still running: past its
+        /// commit point, or not the batch's to stop, it runs to its end —
         /// a swap, a restart: "Finishing…". Said apart because that can take
         /// tens of seconds, and "Cancelling…" for all of it read as stuck.
         case finishing

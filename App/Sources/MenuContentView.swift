@@ -617,13 +617,13 @@ struct MenuContentView: View {
     }
 
     /// Cancel All's title. Once clicked it follows the rows as they draw
-    /// (`InstallRowSmoothing.Output.cancelAllPhase`): greyed as it was while a
-    /// cancel has not lasted long enough for the rows to say so, "Cancelling…"
-    /// while one is being stopped, and "Finishing…" once all that is left is
-    /// installs past the point a cancel can reach, which run to their end.
+    /// (`AppListModel.cancelAllPhase`): greyed as it was while a cancel has not
+    /// lasted long enough for the rows to say so, "Cancelling…" while one is
+    /// being stopped, and "Finishing…" once all that is left is installs past
+    /// the point a cancel can reach, which run to their end.
     private var cancelAllTitle: String {
         guard model.isCancellingAll else { return String(localized: "Cancel All") }
-        switch model.installRows.cancelAllPhase {
+        switch model.cancelAllPhase ?? .pending {
         case .pending: return String(localized: "Cancel All")
         case .cancelling: return String(localized: "Cancelling…")
         case .finishing: return String(localized: "Finishing…")

@@ -64,11 +64,21 @@ public enum InstallJobs {
     /// thread moved the job, each time its phase changes — what a window's
     /// Cancel button greys out on. Registering an id that is already
     /// registered replaces it.
+    ///
+    /// `cancelStands`: a cancel refused because the job was committing is
+    /// kept, and applied the moment the job is preparing again — a commit that
+    /// did not land, before the job's retry (`endCommit`). For a host with no
+    /// second press to wait for (`duo`'s signal); a window re-arms its Cancel
+    /// instead. Applied under the same lock `beginCommit` checks, so no commit
+    /// can start between the job going back to preparing and the cancel.
     public static func register(
         _ id: String, cancel: @escaping @Sendable () -> Void,
-        phaseChanged: (@Sendable (Phase) -> Void)? = nil
+        phaseChanged: (@Sendable (Phase) -> Void)? = nil,
+        cancelStands: Bool = false
     ) {
-        registry.withLock { $0[id] = Job(cancel: cancel, phaseChanged: phaseChanged) }
+        registry.withLock {
+            $0[id] = Job(cancel: cancel, phaseChanged: phaseChanged, cancelStands: cancelStands)
+        }
     }
 
     /// Run `body` as job `id`, for a host: registered for the whole of it, with
@@ -94,13 +104,14 @@ public enum InstallJobs {
     public static func run<T: Sendable>(
         _ id: String,
         phaseChanged: (@Sendable (Phase) -> Void)? = nil,
+        cancelStands: Bool = false,
         isolation: isolated (any Actor)? = #isolation,
         _ body: @escaping @Sendable @isolated(any) () async -> T
     ) async -> T {
         let handle = TaskHandle()
         // Before the task exists: a cancel that comes first is applied the
         // moment it does, and no commit of the job can start unregistered.
-        register(id, cancel: { handle.cancel() }, phaseChanged: phaseChanged)
+        register(id, cancel: { handle.cancel() }, phaseChanged: phaseChanged, cancelStands: cancelStands)
         defer { unregister(id) }
         // Bound around the creation: an unstructured task inherits the
         // creator's task-locals.
@@ -168,7 +179,13 @@ public enum InstallJobs {
     public static func cancel(_ id: String) -> CancelResult {
         let (answer, toCall) = registry.withLock { jobs -> (CancelResult, (@Sendable () -> Void)?) in
             guard var job = jobs[id] else { return (.notFound, nil) }
-            if let label = job.committing { return (.tooLate(committing: label), nil) }
+            if let label = job.committing {
+                if job.cancelStands && !job.landed {
+                    job.cancelPending = true
+                    jobs[id] = job
+                }
+                return (.tooLate(committing: label), nil)
+            }
             let first = !job.cancelRequested
             job.cancelRequested = true
             if first { job.cancelRequestedAt = .now }
@@ -251,21 +268,44 @@ public enum InstallJobs {
     /// returned before, the job is preparing again.
     static func endCommit(_ id: String?, landed: Bool) {
         guard let id else { return }
-        let changed = registry.withLock { jobs -> (@Sendable (Phase) -> Void)? in
-            guard var job = jobs[id] else { return nil }
+        let (changed, toCall) = registry.withLock {
+            jobs -> ((@Sendable (Phase) -> Void)?, (@Sendable () -> Void)?) in
+            guard var job = jobs[id] else { return (nil, nil) }
             job.depth -= 1
             if landed { job.landed = true }
             let was = job.committing
             if job.depth == 0 && !job.landed { job.committing = nil }
+            // Preparing again with a refused cancel standing (`cancelStands`):
+            // it applies now, before this lock is let go, so the next
+            // `beginCommit` finds it.
+            var toCall: (@Sendable () -> Void)?
+            if job.committing == nil && job.cancelPending {
+                job.cancelPending = false
+                if !job.cancelRequested {
+                    job.cancelRequested = true
+                    job.cancelRequestedAt = .now
+                    toCall = job.cancel
+                }
+            }
             jobs[id] = job
-            return was != nil && job.committing == nil ? job.phaseChanged : nil
+            return (was != nil && job.committing == nil ? job.phaseChanged : nil, toCall)
         }
+        if toCall != nil {
+            Log.install.notice(
+                "cancel requested earlier applies now: \(logName(id), privacy: .public) is preparing again")
+        }
+        toCall?()
         changed?(.preparing)
     }
 
     private struct Job {
         let cancel: @Sendable () -> Void
         let phaseChanged: (@Sendable (Phase) -> Void)?
+        /// See `register(_:cancel:phaseChanged:cancelStands:)`.
+        let cancelStands: Bool
+        /// A cancel refused while committing, kept for when the job is
+        /// preparing again (`cancelStands` only).
+        var cancelPending = false
         var cancelRequested = false
         /// When the first cancel of this job was asked for, so its end can say
         /// how long the row read "Cancelling…". The job ends after the install's

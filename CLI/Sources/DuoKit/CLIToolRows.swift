@@ -433,14 +433,25 @@ enum CLIToolRows {
             let name = status.name ?? status.kind.displayName
             if !json { out("→ \(name)  \(status.path)") }
             guard let provider = providers.first(where: { $0.kind == status.kind }) else { continue }
-            // The one already started finishes — its update AND the re-read that
-            // verifies it — in `SignalGate.finishing`. The command itself runs to
-            // completion anyway, but the re-read after it (uv's, Deno's, fx's,
-            // mise's `--version`) is `.terminateChild`, which a cancelled task
-            // refuses to spawn: the update would be reported failed after it had
-            // succeeded.
-            let (outcome, after, exit) = await SignalGate.finishing {
-                () -> (CLIToolUpdateOutcome, String?, CLIToolExit.Status?) in
+            // A job of its own (`InstallJobs.run`), as the app's row runs it
+            // (`CLIToolsModel.run`): `SignalGate`'s cancel reaches the update
+            // only before its command's `InstallCommit`, so a signal during the
+            // preparation — a token exchange, a check, a download — stops it
+            // there. Once the command started, the cancel is refused and the
+            // update finishes with the re-read that verifies it (uv's, Deno's,
+            // fx's, mise's `--version`), which is `.terminateChild` and which a
+            // cancelled task would refuse to spawn: the update would be reported
+            // failed after it had succeeded.
+            //
+            // A signal refused while a command ran still stands
+            // (`cancelStands`). When that command did not land — uv's, bun's,
+            // mise's run with a rejected token — the job is preparing again
+            // before its retry, and the signal applies then: the retry does not
+            // start. The app's row re-arms its Cancel at that point
+            // (`CLIToolsModel.followPhase`); `duo` has no second press to wait for.
+            let jobID = "cli-tool:\(status.kind.rawValue):\(status.path)"
+            let (outcome, after, exit, cancelStopped) = await InstallJobs.run(jobID, cancelStands: true) {
+                () -> (CLIToolUpdateOutcome, String?, CLIToolExit.Status?, Bool) in
                 let exits = ExitLog()
                 let outcome = await CLIToolExit.$observer.withValue({ exits.append($0) }) {
                     await RequestAttribution.withApp(CLITools.attributionID(status)) {
@@ -456,7 +467,28 @@ enum CLIToolRows {
                         after = await provider.check().statuses.first { $0.path == status.path }?.installedVersion
                     }
                 }
-                return (outcome, after, exits.last)
+                // Asked while the job is still registered: it is forgotten when it ends.
+                return (outcome, after, exits.last, InstallJobs.cancelStoppedSomething(jobID))
+            }
+            // The signal kept a command from starting — the first, or a retry
+            // after a refused run: whatever the provider made of the refused
+            // commit ("could not start") is no failure, and nothing was updated.
+            // A cancel accepted only after the command had run and failed, with
+            // nothing left to start, stopped nothing, and that failure is the
+            // result.
+            if cancelStopped {
+                if json {
+                    var row = payload(status, Result(outcome: .cancelled))
+                    row["stage"] = InstallStage.runningCommand("").name
+                    NDJSON.emit(row)
+                } else {
+                    // A command that ran reported its exit (`CLIToolExit`).
+                    out(exit == nil
+                        ? "   cancelled before its command started — not updated"
+                        : "   cancelled before its retry started — not updated")
+                }
+                tally.record(.cancelled)
+                continue
             }
             let result = result(of: outcome, before: status.installedVersion, after: after, exit: exit)
             tally.record(result.outcome)

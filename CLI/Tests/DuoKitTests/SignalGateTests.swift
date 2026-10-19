@@ -451,12 +451,12 @@ import Foundation
         #expect(!anyFailed)
     }
 
-    /// Cancelled while a tool's update runs, the update's own verification — a
-    /// `.terminateChild` version read, as uv's, Deno's, fx's and mise's are —
-    /// still runs, and the row is installed, not failed.
+    /// Cancelled while a tool's update command runs, the update's own
+    /// verification — a `.terminateChild` version read, as uv's, Deno's, fx's
+    /// and mise's are — still runs, and the row is installed, not failed.
     ///
-    /// Mutation: call the step without `SignalGate.finishing` → the re-read
-    /// refuses to spawn in the cancelled task and the row is failed.
+    /// Mutation: call the step directly instead of through `InstallJobs.run` →
+    /// the re-read refuses to spawn in the cancelled task and the row is failed.
     @Test func aToolUpdateCancelledMidwayIsReportedAsApplied() async {
         let inUpdate = Latch()
         let cancelled = Latch()
@@ -464,7 +464,7 @@ import Foundation
         let out = Lines(), err = Lines()
         let task = Task {
             var tally = Install.Tally()
-            await CLIToolRows.apply([CLIToolRowsTests.uv], providers: [provider], json: false,
+            await CLIToolRows.apply([Self.uvMidway], providers: [provider], json: false,
                                     tally: &tally, out: { out.add($0) }, err: { err.add($0) })
             return tally
         }
@@ -475,6 +475,72 @@ import Foundation
         #expect(tally.installed == 1)
         #expect(tally.failed == 0)
         #expect(out.all.contains("   updated: 1.0.0 → 1.1.0"))
+        #expect(err.all.isEmpty)
+    }
+
+    /// A signal while a tool's update still prepares — before its command's
+    /// `InstallCommit`, where uv's, bun's and mise's token exchange and the
+    /// downloads run — stops it there: the command never starts, and the row
+    /// is cancelled, not failed and not installed. The app's row does the same
+    /// (`CLIToolsModel.run`).
+    ///
+    /// Mutation: run the step in `SignalGate.finishing` instead of
+    /// `InstallJobs.run` → the commit is not refused, the command runs and the
+    /// row is installed.
+    @Test func aToolUpdateCancelledBeforeItsCommandIsCancelled() async {
+        let inPreparation = Latch()
+        let cancelled = Latch()
+        let commandRan = Flag()
+        let provider = PreparingProvider(
+            kind: .uv, inPreparation: inPreparation, cancelled: cancelled, commandRan: commandRan)
+        let out = Lines(), err = Lines()
+        let task = Task {
+            var tally = Install.Tally()
+            await CLIToolRows.apply([Self.uvPreparing], providers: [provider], json: false,
+                                    tally: &tally, out: { out.add($0) }, err: { err.add($0) })
+            return tally
+        }
+        await inPreparation.wait()
+        task.cancel()
+        cancelled.open()
+        let tally = await task.value
+        #expect(!commandRan.isSet)
+        #expect(tally.cancelled == 1)
+        #expect(tally.installed == 0)
+        #expect(tally.failed == 0)
+        #expect(out.all.contains("   cancelled before its command started — not updated"))
+        #expect(err.all.isEmpty)
+    }
+
+    /// A signal while a command runs is refused — but when that command does
+    /// not land (uv's, bun's, mise's run with a rejected token) and the update
+    /// goes on to a retry, the signal still stands: the retry does not start,
+    /// and the row is cancelled, saying it was the retry that was stopped.
+    ///
+    /// Mutation: run the job without `cancelStands` in `CLIToolRows.apply` →
+    /// the retry runs and the row is installed.
+    @Test func aRetryAfterARefusedCommandDoesNotStartOnceSignalled() async {
+        let inCommand = Latch()
+        let cancelled = Latch()
+        let retryRan = Flag()
+        let provider = RetryingProvider(
+            kind: .uv, inCommand: inCommand, cancelled: cancelled, retryRan: retryRan)
+        let out = Lines(), err = Lines()
+        let task = Task {
+            var tally = Install.Tally()
+            await CLIToolRows.apply([Self.uvRetry], providers: [provider], json: false,
+                                    tally: &tally, out: { out.add($0) }, err: { err.add($0) })
+            return tally
+        }
+        await inCommand.wait()
+        task.cancel()
+        cancelled.open()
+        let tally = await task.value
+        #expect(!retryRan.isSet)
+        #expect(tally.cancelled == 1)
+        #expect(tally.installed == 0)
+        #expect(tally.failed == 0)
+        #expect(out.all.contains("   cancelled before its retry started — not updated"))
         #expect(err.all.isEmpty)
     }
 
@@ -643,8 +709,16 @@ import Foundation
         func scan() async -> [CLIToolSighting] { [] }
         func check() async -> CLIToolReport { CLIToolReport(kind: kind, statuses: [], context: .fx(FxSettings())) }
         func update(_ status: CLIToolStatus, progress: @escaping @Sendable (String) -> Void) async -> CLIToolUpdateOutcome {
-            inUpdate.open()
-            await cancelled.wait()
+            // The command, past its point of no return as a real runner's is
+            // (`CLIToolCommandRunner`); the cancel lands while it runs.
+            do {
+                try await InstallCommit.run("update command") {
+                    inUpdate.open()
+                    await cancelled.wait()
+                }
+            } catch {
+                return .failed(message: "the command could not start", output: "")
+            }
             guard let reread = try? await ChildProcess.run(
                 "/bin/sh", ["-c", "echo 1.1.0"], standardOutput: .capture, standardError: .discard,
                 onCancel: .terminateChild)
@@ -656,7 +730,67 @@ import Foundation
         func releaseNotes(for status: CLIToolStatus, force: Bool) async throws -> Changelog { Changelog(entries: []) }
     }
 
+    /// A tool whose update is cancelled while it prepares: its command would run
+    /// behind `InstallCommit`, as a real runner's does.
+    struct PreparingProvider: CLIToolProvider {
+        let kind: CLIToolKind
+        let inPreparation: Latch
+        let cancelled: Latch
+        let commandRan: Flag
+
+        func scan() async -> [CLIToolSighting] { [] }
+        func check() async -> CLIToolReport { CLIToolReport(kind: kind, statuses: [], context: .fx(FxSettings())) }
+        func update(_ status: CLIToolStatus, progress: @escaping @Sendable (String) -> Void) async -> CLIToolUpdateOutcome {
+            inPreparation.open()
+            await cancelled.wait()
+            do {
+                try await InstallCommit.run("update command") { commandRan.set() }
+            } catch {
+                return .failed(message: "the command could not start", output: "")
+            }
+            return .updated(version: "1.1.0")
+        }
+        func releaseNotes(for status: CLIToolStatus, force: Bool) async throws -> Changelog { Changelog(entries: []) }
+    }
+
+    /// A tool whose first command is refused (exits non-zero, so it does not
+    /// land) while the signal arrives, and which then retries, as uv, bun and
+    /// mise do after a rejected token.
+    struct RetryingProvider: CLIToolProvider {
+        let kind: CLIToolKind
+        let inCommand: Latch
+        let cancelled: Latch
+        let retryRan: Flag
+
+        func scan() async -> [CLIToolSighting] { [] }
+        func check() async -> CLIToolReport { CLIToolReport(kind: kind, statuses: [], context: .fx(FxSettings())) }
+        func update(_ status: CLIToolStatus, progress: @escaping @Sendable (String) -> Void) async -> CLIToolUpdateOutcome {
+            let first = try? await InstallCommit.run("update command", landed: { (code: Int32) in code == 0 }) {
+                inCommand.open()
+                await cancelled.wait()
+                return Int32(1)
+            }
+            guard first != nil else { return .failed(message: "the command could not start", output: "") }
+            CLIToolExit.observer?(CLIToolExit.Status(
+                executable: "/ZZFixture-home/signalgate-retry/uv", status: 1, signal: false, timedOut: false))
+            do {
+                try await InstallCommit.run("update command") { retryRan.set() }
+            } catch {
+                return .failed(message: "the retry could not start", output: "")
+            }
+            return .updated(version: "1.1.0")
+        }
+        func releaseNotes(for status: CLIToolStatus, force: Bool) async throws -> Changelog { Changelog(entries: []) }
+    }
+
     // MARK: - Fixtures
+
+    /// A `uv` copy of its own for each test that cancels a running tool update:
+    /// the update runs as an `InstallJobs` job keyed by the copy's path, and a
+    /// parallel test on the same path would share that job.
+    static let uvMidway = CLIToolRowsTests.status(.uv, "/ZZFixture-home/signalgate-midway/uv")
+    static let uvPreparing = CLIToolRowsTests.status(.uv, "/ZZFixture-home/signalgate-preparing/uv")
+    static let uvRetry = CLIToolRowsTests.status(.uv, "/ZZFixture-home/signalgate-retry/uv")
 
     /// Ten lines 0.2 s apart (~2 s), then the marker, then exit 0.
     static func tenLines(marker: String) -> String {

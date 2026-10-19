@@ -144,6 +144,8 @@ public struct ResolvedChannel: Sendable, Equatable {
 ///                                     true→beta; else nil, see the type)
 ///   * Open Screen Sharing → `updateTrack` row in its group container's GRDB
 ///                                     database (`"nightly"`→nightly; else nil)
+///   * RuntimeViewer → `…/Application Support/RuntimeViewer/settings.json`
+///                                     → `update.includePrereleases` (Bool: true→beta, else stable)
 ///
 /// So there is no generic reader. `ChannelBinding` is the single authority the
 /// scanner consults; an app with no resolver returns nil and the generic
@@ -195,6 +197,7 @@ public enum ChannelBinding {
         MonitorControlChannel.bundleID.lowercased(),
         ZettlrChannel.bundleID.lowercased(),
         OpenScreenSharingChannel.bundleID.lowercased(),
+        RuntimeViewerChannel.bundleID.lowercased(),
     ]
 
     /// The directories holding every preference a resolver above reads, for a
@@ -312,6 +315,10 @@ public enum ChannelBinding {
         // Zettlr deliberately adds nothing, for Cindy's reason: its `config.json`
         // sits in the app's Electron `userData` directory beside its logs and
         // caches. See `ZettlrChannel`.
+        //
+        // RuntimeViewer deliberately adds nothing, for Cindy's reason: its
+        // `settings.json` sits beside the app's other state. See
+        // `RuntimeViewerChannel`.
         //
         // Open Screen Sharing deliberately adds nothing, for Cindy's reason: its
         // database sits in the app's group container beside its caches. See
@@ -522,6 +529,8 @@ public enum ChannelBinding {
             return { _, strings in AdGuardChannel.resolve(bundleStrings: strings) }
         case OpenScreenSharingChannel.bundleID.lowercased():
             return { _, _ in OpenScreenSharingChannel.resolveCurrent() }
+        case RuntimeViewerChannel.bundleID.lowercased():
+            return { feeds, _ in RuntimeViewerChannel.resolveCurrent(bundleFeeds: feeds) }
         default:                       return nil
         }
     }
@@ -572,6 +581,12 @@ public enum ChannelBinding {
         (IINAChannel.bundleID, IINAChannel.resolve(receiveBeta: true)),
         (MacMouseFixChannel.bundleID, MacMouseFixChannel.resolve(checkForPrereleases: false)),
         (MacMouseFixChannel.bundleID, MacMouseFixChannel.resolve(checkForPrereleases: true)),
+        // A copy that declares its feed stands in for the bundle; the older ones
+        // that do not are handed the same address (see the type).
+        (RuntimeViewerChannel.bundleID, RuntimeViewerChannel.resolve(
+            includePrereleases: false, bundleFeeds: RuntimeViewerChannel.declaringBundleFeeds)),
+        (RuntimeViewerChannel.bundleID, RuntimeViewerChannel.resolve(
+            includePrereleases: true, bundleFeeds: RuntimeViewerChannel.declaringBundleFeeds)),
         // Both toggles, because "internal" subsumes "pre" — a user with both on is
         // opted into two tags at once and must be offered whichever is newer.
         (BetterDisplayChannel.bundleID,

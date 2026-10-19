@@ -97,6 +97,10 @@ public actor HomebrewInstaller {
             let (outcome, output) = try await StreamedLines.run(
                 brew, arguments, environment: env, onOutput: onOutput,
                 onLaunch: { journal?.noteChild($0) })
+            // brew ran: a failure from here may have moved the old app aside
+            // (its rescue does not always put it back), so it is no "nothing
+            // changed". One that could not even start throws above, unmarked.
+            InstallCommit.handedOver()
 
             guard outcome.succeeded else {
                 throw BrewError.failed(code: outcome.terminationStatus, output: output)

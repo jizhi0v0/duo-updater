@@ -277,9 +277,57 @@ import Foundation
         #expect(outcome.standardOutput.isEmpty)
     }
 
+    /// `nohup duo install …` starts `duo` with SIGHUP ignored: the hangup
+    /// `nohup` was for stops nothing and says nothing — the command runs to its
+    /// own end and status — but still detaches the outputs, or the next stderr
+    /// line through `FileHandle` would abort `duo` on a dead terminal. A signal
+    /// not started ignored still stops it.
+    /// Mutations: drop the `startedIgnored` guard → red (cancelled, 129, a
+    /// notice); move it above `hangUp()` → red (no hang-up).
+    @Test func aSignalStartedIgnoredStopsNothingButAHangUpStillDetaches() async {
+        let harness = Harness()
+        let sawCancel = Lines()
+        let status = await harness.run(SignalGate(), startedIgnored: [SIGHUP]) {
+            harness.deliver(SIGHUP)
+            if Task.isCancelled { sawCancel.add("cancelled") }
+            return 3
+        }
+        #expect(status == 3)
+        #expect(sawCancel.all.isEmpty)
+        #expect(harness.hangUps.all == ["hangUp"])
+        #expect(harness.notices.all.isEmpty)
+
+        let other = Harness()
+        let stopped = await other.run(SignalGate(), startedIgnored: [SIGHUP]) {
+            other.deliver(SIGINT)
+            return 0
+        }
+        #expect(stopped == 130)
+        #expect(other.notices.all.count == 1)
+    }
+
+    /// The default reads the dispositions as they are before arming.
+    @Test func ignoredNowIsWhatIsIgnored() {
+        #expect(SignalGate.ignoredNow(isIgnored: { $0 == SIGHUP }) == [SIGHUP])
+        #expect(SignalGate.ignoredNow(isIgnored: { _ in false }).isEmpty)
+    }
+
+    /// `isIgnored` reads the disposition as it is, and changes nothing.
+    /// SIGUSR2, which nothing else here touches, so no other test races it.
+    /// Mutation: compare against `SIG_DFL` instead → red.
+    @Test func isIgnoredReadsTheDisposition() {
+        let previous = signal(SIGUSR2, SIG_IGN)
+        defer { signal(SIGUSR2, previous) }
+        #expect(SignalGate.isIgnored(SIGUSR2))
+        #expect(SignalGate.isIgnored(SIGUSR2))
+        signal(SIGUSR2, SIG_DFL)
+        #expect(!SignalGate.isIgnored(SIGUSR2))
+    }
+
     // MARK: - Stopping before the next item
 
-    /// A cancelled `CLIToolRows.apply` starts no further tool update.
+    /// A cancelled `CLIToolRows.apply` starts no further tool update, and
+    /// counts the one it did not start as cancelled — and as nothing else.
     ///
     /// Mutation: drop the `Task.isCancelled` check → the provider is called.
     @Test func cancelledToolUpdatesStartNoFurtherTool() async {
@@ -295,7 +343,9 @@ import Foundation
         task.cancel()
         let tally = await task.value
         #expect(calls.paths.isEmpty)
-        #expect(tally == Install.Tally())
+        var cancelledOnly = Install.Tally()
+        cancelledOnly.record(.cancelled)
+        #expect(tally == cancelledOnly)
     }
 
     /// A cancelled `Install.apply` does not start the next item: it is counted
@@ -622,9 +672,13 @@ import Foundation
         let started = Latch()
         private let handler = HandlerBox()
 
-        func run(_ gate: SignalGate, _ command: @escaping @Sendable () async -> Int32) async -> Int32 {
+        func run(
+            _ gate: SignalGate, startedIgnored: Set<Int32> = [],
+            _ command: @escaping @Sendable () async -> Int32
+        ) async -> Int32 {
             await gate.run(
                 command,
+                startedIgnored: startedIgnored,
                 arm: { self.handler.set($0) },
                 say: { self.notices.add($0); self.events.add("say") },
                 hangUp: { self.hangUps.add("hangUp"); self.events.add("hangUp") },

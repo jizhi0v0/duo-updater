@@ -43,6 +43,10 @@ struct PopoverRowAction: View {
     /// Why a TestFlight row cannot bound its beta — decides which mark it carries
     /// and what that mark explains (`TestFlightUnboundedReason`).
     var testFlightUnboundedReason: TestFlightUnboundedReason = .storeSilent
+    /// The running install's Cancel (`AppListModel.installCancels`), nil when
+    /// the row's stage is no install of ours — a rollback, a re-check. The row
+    /// budgets its width (`AppRow.cancelReserve`).
+    var installCancel: InstallCancelState? = nil
 
     /// Owned here rather than by the row: the licence-boundary warning belongs to
     /// this control, and nothing outside it reads the flag.
@@ -84,7 +88,15 @@ struct PopoverRowAction: View {
             updatedIndicator
 
         case .installing(let stage):
-            installProgress(stage)
+            HStack(spacing: 4) {
+                installProgress(stage)
+                if let installCancel, installCancel != .cancelling {
+                    InstallCancelButton(state: installCancel, action: actions.cancelInstall)
+                }
+            }
+
+        case .interruptedInstall(let action):
+            interruptedTrailing(action)
 
         case .ignored:
             // Surfaced only under "Show all" — a muted tag with manage actions in
@@ -232,10 +244,38 @@ struct PopoverRowAction: View {
 
     @ViewBuilder
     private func installProgress(_ stage: InstallStage) -> some View {
-        if case .downloading(let f) = stage {
+        // A cancelled download stops; the bar would only freeze.
+        if case .downloading(let f) = stage, installCancel != .cancelling {
             downloadProgress(f)
         } else {
             stageProgress(stage)
+        }
+    }
+
+    /// An interrupted row's way back, in the Update button's slot and shape.
+    /// Restore is bordered as the workbench's Rollback list draws it;
+    /// Reinstall runs the row's update again, so it is Update's prominent one.
+    @ViewBuilder
+    private func interruptedTrailing(_ action: RowActionState.InterruptedInstallAction) -> some View {
+        switch action {
+        case .restore:
+            Button { actions.restoreInterrupted() } label: { Text("Restore").rowButtonLabel() }
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+                .controlSize(.small)
+                .buttonStyle(.bordered)
+                .help(interruptedRestoreHelp(result.app.name))
+        case .reinstall:
+            Button { actions.install() } label: { Text("Reinstall").rowButtonLabel() }
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+                .controlSize(.small)
+                .buttonStyle(.borderedProminent)
+                .help(interruptedReinstallHelp(result.app.name))
+        case .noWayBack:
+            Text(interruptedRowLabel()).font(.caption2).foregroundStyle(.tertiary)
+                .lineLimit(1).minimumScaleFactor(0.7)
+                .help(interruptedNoWayBackHelp(result.app.name))
         }
     }
 
@@ -292,14 +332,14 @@ struct PopoverRowAction: View {
         if showsStageLabel(stage) {
             HStack(spacing: 4) {
                 ProgressView().controlSize(.small)
-                Text(installStageLabel(stage))
+                Text(installProgressLabel(stage, cancel: installCancel))
                     .font(.caption2).foregroundStyle(.secondary)
                     .lineLimit(1)
             }
             .frame(minWidth: 64, alignment: .center)
         } else {
             ProgressView().controlSize(.small)
-                .help("\(installStageLabel(stage)) \(result.app.name)")
+                .help("\(installProgressLabel(stage, cancel: installCancel)) \(result.app.name)")
         }
     }
 

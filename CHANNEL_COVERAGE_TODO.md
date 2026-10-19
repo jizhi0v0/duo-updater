@@ -146,6 +146,14 @@ Info.plist 在 2.02 上**完全不可用**（版本是 Electron 的 `36.6.0`）�
   （`releases/download/nightly/metadata.json` 的 `build`，`versionIsBuild`），一键 pkg，`ChannelProofRegistry` 登记
   `.artifact(/releases/download/nightly/OpenScreenSharing.pkg)`。没有 FDA 时 nightly 副本按 stable 读，不会被降级。
 
+### Pattern C 续 — RuntimeViewer（2026-10-18 接 beta）
+
+- **RuntimeViewer** `com.JH.RuntimeViewer` — 设置 → Updates →「Include pre-release versions (Beta)」写
+  `~/Library/Application Support/RuntimeViewer/settings.json` 的 `update.includePrereleases`（真 app 拨开关实测：开 `true`、关 `false`，文件保留；
+  从未改过设置时没有这个文件）。一个 feed，预发布 item 打 `<sparkle:channel>beta`。beta 包的版本号不带后缀
+  （3.0.0-beta.7 读 `3.0.0`），`detect()` 没有信号，所以 `RuntimeViewerChannel`：`true` → `.beta`，其他 → `.stable`（权威，和 app 自己一样）。
+  标签是派生的，不需要 proof。详见 [审计](docs/app-audits/com-JH-RuntimeViewer.md)
+
 ### Pattern C 续 — CodeEdit（2026-09-12 接，`dev` 是唯一轨的标签）
 
 - **CodeEdit** `app.codeedit.CodeEdit` — Info.plist 自带 `SUFeedURL`

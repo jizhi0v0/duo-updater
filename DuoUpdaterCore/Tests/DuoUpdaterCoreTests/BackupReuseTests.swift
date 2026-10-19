@@ -379,6 +379,16 @@ import Testing
         #expect(Array("QQ浏览器助手".utf8).count == 17)
         #expect(BackupStore.anyExecutable(["QQ浏览器助手"], isNamed: [cut("QQ浏览器助手")]))
         #expect(BackupStore.anyExecutable(["Приложение"], isNamed: [cut("Приложение")]))
+        // Started through another normalization than the file's own: the
+        // kernel keeps the bytes of the path it was given.
+        let name = "Café-Überwachungsdienst"
+        let nfd = name.decomposedStringWithCanonicalMapping
+        let nfc = name.precomposedStringWithCanonicalMapping
+        #expect(Array(nfd.utf8) != Array(nfc.utf8))
+        #expect(BackupStore.anyExecutable([nfd], isNamed: [cut(nfc)]))
+        #expect(BackupStore.anyExecutable([nfc], isNamed: [cut(nfd)]))
+        #expect(BackupStore.anyExecutable(["Café"].map(\.decomposedStringWithCanonicalMapping),
+                                          isNamed: [Array("Café".precomposedStringWithCanonicalMapping.utf8)]))
         // A shorter name is the whole name.
         #expect(!BackupStore.anyExecutable(["service-helper"], isNamed: [cut("service")]))
         #expect(!BackupStore.anyExecutable(["Foo"], isNamed: [cut("Bar")]))

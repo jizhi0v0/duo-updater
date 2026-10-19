@@ -1054,12 +1054,22 @@ public enum BackupStore {
     /// name, so a 15-byte name matches any executable whose UTF-8 bytes it
     /// begins — compared as bytes, since the cut can split a character; a
     /// shorter one is the whole name.
+    ///
+    /// The kernel takes the name from the path the launcher passed to `exec`,
+    /// not from the directory entry, and APFS finds a file whichever Unicode
+    /// normalization that path is in. So each executable is tried in its own
+    /// spelling and in both canonical forms. Measured 2026-10-19: a file named
+    /// in NFD and started through its NFC spelling got the NFC bytes
+    /// (`Café-Überwach`).
     static func anyExecutable(_ executables: [String], isNamed names: [[UInt8]]) -> Bool {
         let cut = 15
+        let spellings = executables.flatMap { executable in
+            [executable, executable.precomposedStringWithCanonicalMapping,
+             executable.decomposedStringWithCanonicalMapping].map { Array($0.utf8) }
+        }
         return names.contains { short in
-            executables.contains { executable in
-                let full = Array(executable.utf8)
-                return short.count >= cut ? full.starts(with: short) : full == short
+            spellings.contains { full in
+                short.count >= cut ? full.starts(with: short) : full == short
             }
         }
     }

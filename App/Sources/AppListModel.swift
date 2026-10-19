@@ -9205,7 +9205,6 @@ final class AppListModel {
     /// committing finish (`InstallBatchQueue.cancelAll`).
     func cancelInstallAll() {
         guard isInstallingAll, !isCancellingAll, let queue = batchQueue else { return }
-        isCancellingAll = true
         // A target whose row was clicked again since is left to that click; one
         // queued behind its row's earlier run has no job yet, and the
         // registered one is that earlier run's wrap-up, which must not be cut.
@@ -9227,7 +9226,12 @@ final class AppListModel {
         for (id, answer) in answers where installCancels[id] == .available {
             installCancels[id] = InstallCancelState.after(answer, claimed: installing[id] != nil)
         }
-        // Said at once, whether or not a table above changed.
+        // Set only now, with every table above as Cancel All leaves it: each
+        // write there re-derives the rows, and a title taken from a halfway
+        // state — two queued targets, one removed — would read "Finishing…"
+        // and be held once the second went (`cancelAllPhase(holding:)`). Said
+        // at once, whether or not a table above changed.
+        isCancellingAll = true
         smoothInstallRows()
     }
 

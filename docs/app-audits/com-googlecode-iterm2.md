@@ -242,3 +242,17 @@ Detection recipes 列表显示 `fetched iterm2.com but extracted no entries`。�
 | `testing_changes3.txt` | 1 条：3.7.4beta1、September 30, 2026、128 项 | 同左 |
 
 `ITerm2ChangelogRecipeTests.readsAStableFileWithNoPeriodAfterTheYear` 的 fixture 是这次取回文件的前 10 行。
+
+### Recipes/com-googlecode-iterm2.swift — 正文只在完整版本行处结束（2026-10-19 实测，#1428）
+
+夜扫报 `noEntriesExtracted`：`verify/baseline.json` 记的上次正常是 2026-10-15T14:32Z（`3.7.5`），#1428 在 2026-10-18 开出时已连续 11 次失败。只读 GET `full_changes.txt` 与 `testing_changes3.txt`，Python 按同一正则复算：
+3.7.6 的文件第三行是正文 `Version 3.7.5 was accidentally built without the`。旧正文终止条件 `(?=\nVersion[ \t]+\d|\z)` 在这一行就成立，
+惰性正文因此为空，0 项，`maxEntries 1` 下没有条目。终止条件改成完整版本行（`Version <ver> [of iTerm2] was built on`）后：
+
+| 文件 | 旧正则 | 新正则 |
+|---|---|---|
+| `full_changes.txt` | 1 条 3.7.6、October 15, 2026、0 项 | 1 条 3.7.6、October 15, 2026、36 项（`grep -c '^- '` 也是 36） |
+| `testing_changes3.txt` | 1 条 3.7.7beta1、92 项 | 同左 |
+
+两份文件各只有一行完整版本行（`full_changes.txt` 以 `Version` 开头的行有 2 行，第二行是正文），与 recipe 注释「每份文件一个版本」一致。
+`ITerm2ChangelogRecipeTests.proseStartingWithVersionDoesNotEndTheEntry` 的 fixture 是这次取回文件的前 17 行（加上第 18 行的空行），与实时文件逐行 diff 一致。变异：把终止条件改回旧的，这个测试失败，已还原。

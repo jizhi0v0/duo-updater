@@ -57,8 +57,11 @@ struct LocalStashFallbackTests {
         name: String, bundleID: String, electronUpdate: ElectronUpdateConfig?
     ) -> InstalledApp {
         // Invented, and asserted absent: a real path here would put the gates on
-        // whatever the host happens to have installed.
-        let path = URL(fileURLWithPath: "/Applications/\(name)-Installed.app")
+        // whatever the host happens to have installed. Unique per run: the
+        // installer's scratch dir in `$TMPDIR` is named off this path and the
+        // version, and two test processes sharing one (concurrent CI jobs on the
+        // same runner user) deleted and filled it under each other.
+        let path = URL(fileURLWithPath: "/Applications/\(name)-\(UUID().uuidString).app")
         #expect(!FileManager.default.fileExists(atPath: path.path))
         return InstalledApp(
             name: name, bundleID: bundleID,

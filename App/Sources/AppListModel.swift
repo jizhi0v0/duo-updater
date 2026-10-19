@@ -9151,11 +9151,6 @@ final class AppListModel {
         listActivity.canOfferUpdateAll(targetCount: installAllTargets().count)
     }
 
-    /// A row's Cancel. A target "Update All" has not started leaves its queue
-    /// at once; a running install is cancelled through the registry
-    /// (`InstallJobs.cancel`), which refuses once it is committing. Refused is
-    /// no error (§5.8): the registry logs it, and the row says the install is
-    /// already finishing. A job that ended meanwhile needs nothing.
     /// Re-derive `installRows` from the install tables, and wake again when a
     /// stage that is waiting for its turn, or a "Cancelling…", is due.
     private func smoothInstallRows() {
@@ -9174,6 +9169,11 @@ final class AppListModel {
         }
     }
 
+    /// A row's Cancel. A target "Update All" has not started leaves its queue
+    /// at once; a running install is cancelled through the registry
+    /// (`InstallJobs.cancel`), which refuses once it is committing. Refused is
+    /// no error (§5.8): the registry logs it, and the row says the install is
+    /// already finishing. A job that ended meanwhile needs nothing.
     func cancelInstall(_ result: UpdateResult) {
         let id = result.id
         guard installCancels[id] == .available else { return }

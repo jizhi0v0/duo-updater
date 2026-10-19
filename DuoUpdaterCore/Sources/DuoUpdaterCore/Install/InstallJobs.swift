@@ -136,12 +136,20 @@ public enum InstallJobs {
         }
     }
 
+    /// A job id as the log shows it: its leaf. An app row's id is the bundle's
+    /// path and a command-line tool's ends in the binary's, both under the
+    /// user's home, where the prefix is only their account name — the same
+    /// rule as the install log's other paths (`InstallCoordinator`).
+    static func logName(_ id: String) -> String {
+        (id as NSString).lastPathComponent
+    }
+
     /// Forget job `id`, whatever its phase. Call it when the job's task ends.
     public static func unregister(_ id: String) {
         let cancelledAt = registry.withLock { jobs in jobs.removeValue(forKey: id)?.cancelRequestedAt }
         if let cancelledAt {
             Log.install.notice(
-                "job \(id, privacy: .public) ended \(Log.seconds(.now - cancelledAt), privacy: .public) after its cancel was requested")
+                "job \(logName(id), privacy: .public) ended \(Log.seconds(.now - cancelledAt), privacy: .public) after its cancel was requested")
         }
     }
 
@@ -170,13 +178,13 @@ public enum InstallJobs {
         // Outside the lock: the closure is the host's, and cancelling a task
         // runs its cancellation handlers inline.
         if toCall != nil {
-            Log.install.notice("cancel requested: \(id, privacy: .public) is preparing")
+            Log.install.notice("cancel requested: \(logName(id), privacy: .public) is preparing")
         }
         toCall?()
         // Not an error: the job finishes, which is the rule past the commit.
         if case .tooLate(let label) = answer {
             Log.install.notice(
-                "cancel requested after commit point — ignored: \(id, privacy: .public) is in \(label, privacy: .public)")
+                "cancel requested after commit point — ignored: \(logName(id), privacy: .public) is in \(label, privacy: .public)")
         }
         return answer
     }

@@ -3306,6 +3306,7 @@ final class AppListModel {
                 guard !InstallJournal.hasOrphanedChild() else { continue }
                 guard await InstallJournal.processLeftovers() != nil else { continue }
                 _ = await InstallCoordinator.sweepSettledInstallRollbackPoints()
+                _ = await InstallCoordinator.sweepPendingBackups()
                 break
             }
             await MainActor.run {
@@ -3360,6 +3361,13 @@ final class AppListModel {
             // `sweepSettledInstallRollbackPoints`), retried with the rest when
             // another process held the lock.
             if await InstallCoordinator.sweepSettledInstallRollbackPoints() == nil { swept = false }
+            // Install backups left pending by a process that died: the copy of
+            // an app that changed since is that app's backup now (see
+            // `sweepPendingBackups`). Retried with the rest.
+            switch await InstallCoordinator.sweepPendingBackups() {
+            case nil: swept = false
+            case let promoted?: if promoted > 0 { await self?.refreshBackupIndex() }
+            }
             await MainActor.run { self?.refreshInterruptedInstalls() }
             // An install of the last session whose brew outlived it is left
             // for its brew to finish; look again once it has.
@@ -5527,6 +5535,14 @@ final class AppListModel {
         defer {
             await InstallCoordinator.settleInstallRollbackPoint(
                 for: result.app, journal: journal, succeeded: applied)
+            // The backup this attempt took waited in the pending slot, and
+            // the user's earlier one stayed the way back; it takes that slot
+            // only now, and only if the app changed — a cancel or a failure
+            // leaves the earlier one, and the copy for a retry to reuse.
+            if await InstallCoordinator.settlePendingBackup(for: result.app) == .promoted {
+                startOwedBackupTransfer()
+                await refreshBackupIndex()
+            }
         }
         // Cancelled during the copy (which then kept nothing) or just after it
         // (a finished backup is kept): nothing is fetched.
@@ -7269,6 +7285,12 @@ final class AppListModel {
         installerWindowPendingIds.remove(result.id)
         pinRowOrder()
         defer {
+            // The copy taken below waited in the pending slot; it is the
+            // backup now only if the app changed (`settlePendingBackup`).
+            // Before the transfer below, which then carries it to the disk.
+            if await InstallCoordinator.settlePendingBackup(for: result.app) == .promoted {
+                await refreshBackupIndex()
+            }
             relaunching.remove(result.id)
             releaseRowOrder()
             // A `.wontQuit` bail armed a hand-off, and the app may have quit while
@@ -8728,6 +8750,15 @@ final class AppListModel {
     /// Re-read which apps have a rollback backup on disk (one directory scan),
     /// mapping it onto the current rows.
     func refreshBackupIndex() async {
+        // An install's copy whose hand-off finished since — Installer clicked
+        // through, an app's own updater swapping after a Relaunch — becomes the
+        // backup here, before the index reads it: nothing else would settle it
+        // before the next launch. A directory listing when nothing is pending.
+        // Starts no transfer: this runs inside a Relaunch, right before the
+        // quit, and the seconds after it are the app's own installer's (see
+        // `startOwedBackupTransfer`). The promoted copy is owed in its sidecar,
+        // and the next transfer picks it up.
+        await InstallCoordinator.sweepPendingBackups()
         // Each row's key resolves symlinks in its path and hashes it, which on the
         // main actor was the largest part of a rescan in a cold-start profile. So
         // the keys are derived in the same hop, keyed by what they are derived

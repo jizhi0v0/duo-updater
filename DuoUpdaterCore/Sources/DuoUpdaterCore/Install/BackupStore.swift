@@ -94,6 +94,36 @@ public enum BackupStore {
               isActive: false)
     }
 
+    /// Where an install's backup waits until the install changes the app
+    /// (``savePending(appPath:key:version:buildVersion:bundleID:fromPackageInstall:fromAppStore:)``):
+    /// one directory per key, laid out exactly like the outbox, inside it.
+    ///
+    /// Apart because the user's slot holds ONE generation (retention = 1), and
+    /// a copy written there as the install starts replaced the previous one at
+    /// once — so an install cancelled or failed after its backup had already
+    /// spent the way back to the version before: app at N with a backup of
+    /// N-1, the N→N+1 attempt backs up N, the cancel leaves N installed, and
+    /// the backup of N-1 is gone while the one of N restores nothing. Here the
+    /// copy waits, and becomes the user's backup only when the app is no
+    /// longer what it was copied from (``settlePending(forKey:)``).
+    ///
+    /// `.`-prefixed for the reason ``rollbackPointsRoot`` is: every scan of the
+    /// outbox skips it, so it is not listed, not owed to the backup disk and
+    /// not a victim of the low-space prune. The orphan prune is the one scan
+    /// that walks it (``pruneOrphans()``), for a copy whose app was removed.
+    /// Inside the outbox, so `ditto` clones and the promotion is a same-volume
+    /// rename.
+    public static var pendingBackupsRoot: URL {
+        outboxRoot.appendingPathComponent(".pending", isDirectory: true)
+    }
+
+    /// ``pendingBackupsRoot`` as a store: plain bundles on this Mac. Never
+    /// active, and never read by anything that lists or restores.
+    static var pendingStore: Store {
+        Store(root: pendingBackupsRoot, location: .outbox, identity: nil, volumeName: nil,
+              isActive: false)
+    }
+
     // MARK: - Destination
 
     private nonisolated(unsafe) static var configuredDestination: BackupDestination = .local
@@ -699,18 +729,45 @@ public enum BackupStore {
             fromAppStore: fromAppStore, purpose: .installRollbackPoint)
     }
 
-    /// The copy both of the above make, into the store `purpose` names.
+    /// Copy the bundle at `appPath` as the user's backup for `key` ahead of an
+    /// install, into ``pendingBackupsRoot`` — not over the user's backup, which
+    /// stays the rollback point until ``settlePending(forKey:)``
+    /// finds the app changed. Replaces only an earlier pending copy for `key`,
+    /// and reuses it when the bundle is the one it was taken from.
+    ///
+    /// Returns the stored copy: the pending one, or the user's backup when that
+    /// is already a copy of this very bundle (nothing is then pending).
+    @discardableResult
+    public static func savePending(
+        appPath: URL, key: String, version: String?, buildVersion: String? = nil,
+        bundleID: String?,
+        fromPackageInstall: Bool = false, fromAppStore: Bool = false
+    ) async throws -> Backup {
+        try await write(
+            appPath: appPath, key: key, version: version, buildVersion: buildVersion,
+            bundleID: bundleID, fromPackageInstall: fromPackageInstall,
+            fromAppStore: fromAppStore, purpose: .userBackup, pending: true)
+    }
+
+    /// The copy all three of the above make, into the store `purpose` and
+    /// `pending` name.
     private static func write(
         appPath: URL, key: String, version: String?, buildVersion: String?,
         bundleID: String?,
-        fromPackageInstall: Bool, fromAppStore: Bool, purpose: Purpose
+        fromPackageInstall: Bool, fromAppStore: Bool, purpose: Purpose, pending: Bool = false
     ) async throws -> Backup {
         let fm = FileManager.default
         let isUserBackup = purpose == .userBackup
+        // A pending copy left by an earlier attempt over a bundle that has
+        // changed since is the copy of the version before that change: it
+        // becomes the user's backup before this one takes its slot, as it
+        // would have at the end of the attempt that took it.
+        if pending { await settlePending(forKey: key) }
         // Where this copy goes, and where its staging is built: the user's slot
-        // in the outbox, or the rollback points' own directory inside it. Both
-        // on the boot volume, so the swap at the end stays a same-volume rename.
-        let store = isUserBackup ? outboxStore : rollbackPointStore
+        // in the outbox, the pending one, or the rollback points' own directory
+        // inside it. All on the boot volume, so the swap at the end stays a
+        // same-volume rename.
+        let store = pending ? pendingStore : isUserBackup ? outboxStore : rollbackPointStore
         let root = store.root
         // Always the outbox, never the destination — even when one is configured.
         // Writing here first is what makes an unplugged disk a delay rather than a
@@ -738,7 +795,7 @@ public enum BackupStore {
                key: key, store: store, isUserBackup: isUserBackup, identity: sourceIdentity,
                version: version, buildVersion: buildVersion, bundleID: bundleID,
                appPath: appPath, fromPackageInstall: fromPackageInstall,
-               fromAppStore: fromAppStore, purpose: purpose) {
+               fromAppStore: fromAppStore, purpose: purpose, pending: pending) {
             // A running app can change its own files through a shared mapping
             // without moving any time the walk reads (see `BundleStatIdentity`);
             // once nothing runs from the bundle, every such mapping is gone and
@@ -994,7 +1051,7 @@ public enum BackupStore {
             // fingerprinted one sits in the store, and the update proceeds as though
             // it were unprotected. Ask what is actually on disk instead of inferring
             // it from the throw.
-            if let landed = isUserBackup ? backup(forKey: key) : backup(forKey: key, in: store),
+            if let landed = isUserBackup && !pending ? backup(forKey: key) : backup(forKey: key, in: store),
                landed.savedAt == savedAt {
                 Log.install.error(
                     "backup: \(name, privacy: .public) is stored and usable, but the copy it replaced would not delete — \(error.localizedDescription, privacy: .public)")
@@ -1012,9 +1069,10 @@ public enum BackupStore {
         // to that orphan), drop it so retention stays at one copy on disk instead
         // of leaking a whole stale bundle per migrated app.
         // The user's slot only: under the rollback points' root there is no
-        // legacy key, and the outbox's is not this copy's to remove.
+        // legacy key, and the outbox's is not this copy's to remove. A pending
+        // copy is not the canonical backup yet; its promotion does this.
         let legacy = legacyKey(bundleID: bundleID, path: appPath)
-        if isUserBackup, legacy != key {
+        if isUserBackup, !pending, legacy != key {
             // Flags cleared: an orphan under the legacy key is by definition an
             // old backup, so it is exactly the generation that can still carry
             // one, and nothing ever revisits that key to try again.
@@ -1113,10 +1171,19 @@ public enum BackupStore {
     private static func reusableBackup(
         key: String, store: Store, isUserBackup: Bool, identity: String,
         version: String?, buildVersion: String?, bundleID: String?, appPath: URL,
-        fromPackageInstall: Bool, fromAppStore: Bool, purpose: Purpose
+        fromPackageInstall: Bool, fromAppStore: Bool, purpose: Purpose, pending: Bool
     ) async -> (store: Store, dir: URL, meta: Meta)? {
-        let local = store.root.appendingPathComponent(key, isDirectory: true)
         var candidate = store
+        // A pending write asks its own slot first, then the user's: a backup
+        // there taken of this very bundle (before pending copies existed, the
+        // install's copy went straight there) already is what the install's
+        // copy would become.
+        if pending,
+           !FileManager.default.fileExists(
+               atPath: store.root.appendingPathComponent(key, isDirectory: true).path) {
+            candidate = outboxStore
+        }
+        let local = candidate.root.appendingPathComponent(key, isDirectory: true)
         if !FileManager.default.fileExists(atPath: local.path) {
             guard isUserBackup, let diskRoot = try? destinationRoot() else { return nil }
             candidate = activeStore(root: diskRoot)
@@ -1151,6 +1218,186 @@ public enum BackupStore {
             else { return nil }
         }
         return (candidate, dir, meta)
+    }
+
+    // MARK: - Pending copies
+
+    /// What ``settlePending(forKey:)`` did.
+    public enum PendingSettlement: Sendable, Equatable {
+        /// There was no pending copy for the key.
+        case none
+        /// The app is still the bundle the copy was taken from: kept, for a
+        /// retry to reuse, and the user's backup is still the rollback point.
+        case kept
+        /// The app changed: the copy is the user's backup now.
+        case promoted
+        /// The app changed, but the copy would not move into place. It stays
+        /// pending, for the next settle or the launch sweep.
+        case promotionFailed
+    }
+
+    /// Decide `key`'s pending copy: the user's backup once the app it was
+    /// taken from is no longer that bundle, kept while it still is.
+    ///
+    /// Read off the disk rather than taken from the install's word, so one
+    /// rule serves the end of an attempt, a hand-off that finished later
+    /// (Installer, an app's own updater after a Relaunch), the launch after a
+    /// process that died between its swap and this, and the start of a later
+    /// copy. The app counts as changed when it is missing or unreadable — a
+    /// swap that was cut off, for which this copy is the way back — or when
+    /// its Info.plist names another version or build than the copy's.
+    ///
+    /// Not when only its files moved, and not on the install's word either.
+    /// An app that writes into its own bundle while it runs would otherwise
+    /// spend the rollback point on an install that changed nothing, and so
+    /// would a swap that put the same version back — a download that was not
+    /// the advertised one, which the host reports as "applied nothing" after
+    /// the coordinator said `applied`. An app that ships every update under
+    /// one version pair keeps the earlier backup as its way back: older than
+    /// it could be, never gone.
+    ///
+    /// `missingAppIsChanged` false (the sweep, which has no install of its
+    /// own to vouch for): an app that is not there counts as unchanged. It may
+    /// sit on a volume that is not mounted — whose mount point folder can
+    /// outlive it, so the folder test below cannot tell — or have been put in
+    /// the Trash. The sweep passes true only for an app the install journal
+    /// records as cut off, whose way back this copy is. (It promotes the copy
+    /// of a missing app with no backup at all itself, folder or not: there
+    /// is nothing for that promotion to cost — `hasNoBackup(forPendingKey:)`.)
+    @discardableResult
+    public static func settlePending(
+        forKey key: String, missingAppIsChanged: Bool = true
+    ) async -> PendingSettlement {
+        // Resolved here: `pendingBackupsRoot` honours a task-local the hop
+        // below does not have.
+        let dir = pendingBackupsRoot.appendingPathComponent(key, isDirectory: true)
+        guard let meta = readMeta(in: dir) else { return .none }
+        let copy = dir.appendingPathComponent(meta.bundleName)
+        let app = URL(fileURLWithPath: meta.originalPath)
+        let superseded = await offCooperativePool(qos: .userInitiated) {
+            pendingIsSuperseded(app: app, copy: copy, missingAppIsChanged: missingAppIsChanged)
+        }
+        guard superseded else { return .kept }
+        return await promotePending(forKey: key) ? .promoted : .promotionFailed
+    }
+
+    /// The test ``settlePending(forKey:)`` applies — see there.
+    static func pendingIsSuperseded(app: URL, copy: URL, missingAppIsChanged: Bool) -> Bool {
+        guard hasReadableBundle(at: app) else {
+            guard missingAppIsChanged else { return false }
+            // Its folder gone with it is a volume that is not mounted — a scan
+            // folder on an external disk — not an app that changed; promoting
+            // then would spend the earlier backup on an app that is intact.
+            return FileManager.default.fileExists(atPath: app.deletingLastPathComponent().path)
+        }
+        return versionPair(of: app) != versionPair(of: copy)
+    }
+
+    /// `CFBundleShortVersionString` and `CFBundleVersion` as the bundle's own
+    /// Info.plist has them — never a label the scanner derived.
+    private static func versionPair(of bundle: URL) -> [String?] {
+        guard let data = try? Data(contentsOf: BundleLayout.infoPlistURL(for: bundle)),
+              let info = try? PropertyListSerialization.propertyList(
+                from: data, options: [], format: nil) as? [String: Any]
+        else { return [nil, nil] }
+        return [info["CFBundleShortVersionString"] as? String, info["CFBundleVersion"] as? String]
+    }
+
+    /// Move `key`'s pending copy over the user's backup: the exchange `write`
+    /// makes at the end of a copy into the user's slot, made once the install
+    /// it was taken for has changed the app. False when there is no pending
+    /// copy, or it would not move.
+    static func promotePending(forKey key: String) async -> Bool {
+        let fm = FileManager.default
+        let pendingDir = pendingBackupsRoot.appendingPathComponent(key, isDirectory: true)
+        guard let meta = readMeta(in: pendingDir) else { return false }
+        let root = outboxRoot
+        let dir = root.appendingPathComponent(key, isDirectory: true)
+        // A copy of the generation being replaced that is on its way to the
+        // disk removes `dir` when it finishes — by then the promoted copy.
+        // Waited out, as Clean Up's delete waits it out.
+        await BackupTransferQueue.shared.withhold([key])
+        let superseding = fm.fileExists(atPath: dir.path)
+        // The generation being replaced has to be deletable for the exchange
+        // to finish — see the same step in `write`.
+        if superseding { await clearUserImmutableFlags(under: dir) }
+        let exchangeError: (any Error)? = await offCooperativePool(qos: .userInitiated) {
+            do {
+                if superseding {
+                    _ = try FileManager.default.replaceItemAt(dir, withItemAt: pendingDir)
+                } else {
+                    try FileManager.default.createDirectory(
+                        at: root, withIntermediateDirectories: true)
+                    try FileManager.default.moveItem(at: pendingDir, to: dir)
+                }
+                return nil
+            } catch {
+                return error
+            }
+        }
+        await BackupTransferQueue.shared.release([key])
+        if let exchangeError {
+            // `replaceItemAt` can put the copy in place and then fail removing
+            // the one it displaced: ask the disk, as `write` does.
+            guard !fm.fileExists(atPath: pendingDir.path),
+                  readMeta(in: dir)?.savedAt == meta.savedAt else {
+                Log.install.error(
+                    "backup: \(meta.bundleName, privacy: .public)'s copy stays pending — moving it over the previous backup failed: \(exchangeError.localizedDescription, privacy: .public)")
+                return false
+            }
+            Log.install.error(
+                "backup: \(meta.bundleName, privacy: .public)'s copy is the backup now, but the one it replaced would not delete — \(exchangeError.localizedDescription, privacy: .public)")
+        }
+        // The migration cleanup `write` makes for a copy into the user's slot.
+        let legacy = legacyKey(bundleID: meta.bundleID, path: URL(fileURLWithPath: meta.originalPath))
+        if legacy != key {
+            await removeClearingImmutableFlagsOffPool(
+                at: root.appendingPathComponent(legacy, isDirectory: true))
+        }
+        Log.install.notice(
+            "backup: \(meta.bundleName, privacy: .public) \(meta.version ?? "?", privacy: .public) (\(meta.buildVersion ?? "?", privacy: .public)) is the backup now — the app is no longer the bundle it was copied from")
+        return true
+    }
+
+    /// Drop `key`'s pending copy, leaving the user's backup as it is.
+    public static func discardPending(forKey key: String) {
+        discardPending(at: pendingBackupsRoot.appendingPathComponent(key, isDirectory: true))
+    }
+
+    /// ``discardPending(forKey:)`` with the directory already resolved, for a
+    /// caller that deletes on a Dispatch thread, where a test's root is not seen.
+    static func discardPending(at dir: URL) {
+        removeClearingImmutableFlags(at: dir)
+    }
+
+    /// Whether the app pending copy `key` was taken from has no backup of
+    /// the user's anywhere a promotion could replace or remove: under none of
+    /// the keys its backup can be read under (``keyCandidates(bundleID:path:migrations:)``
+    /// — promotion removes the legacy one), on this Mac or on the backup disk,
+    /// which, when one is configured, has to be connected to say so. False
+    /// when there is no pending copy.
+    static func hasNoBackup(forPendingKey key: String) -> Bool {
+        guard let meta = readMeta(in: pendingBackupsRoot.appendingPathComponent(key, isDirectory: true))
+        else { return false }
+        let keys = Set([key] + keyCandidates(
+            bundleID: meta.bundleID, path: URL(fileURLWithPath: meta.originalPath)))
+        var roots = [outboxRoot]
+        if destination.kind == .external {
+            guard let disk = reachableDestinationRoot else { return false }
+            roots.append(disk)
+        }
+        let fm = FileManager.default
+        return !roots.contains { root in
+            keys.contains { fm.fileExists(atPath: root.appendingPathComponent($0, isDirectory: true).path) }
+        }
+    }
+
+    /// Every pending copy's key and the app it was taken from.
+    static func pendingOrigins() -> [(key: String, appPath: URL)] {
+        storedKeys(in: pendingBackupsRoot).compactMap { key in
+            readMeta(in: pendingBackupsRoot.appendingPathComponent(key, isDirectory: true))
+                .map { (key, URL(fileURLWithPath: $0.originalPath)) }
+        }
     }
 
     // MARK: - Transfer
@@ -1445,24 +1692,26 @@ public enum BackupStore {
             sweepStaleScratch(in: destination, age: age, inFlight: inFlight)
         }
         sweepStaleRollbackPointStaging(age: age)
+        sweepStaleRollbackPointStaging(age: age, in: pendingBackupsRoot)
     }
 
     /// The install rollback points stage in their own root
     /// (`.rollback-points/.staging-<key>-<UUID>`), which the walk above skips
     /// with every other hidden name. One a killed process left behind would
     /// otherwise go only when that app takes its next point. Staging alone:
-    /// the points themselves are no scratch, however old.
-    private static func sweepStaleRollbackPointStaging(age: TimeInterval) {
+    /// the points themselves are no scratch, however old. The pending copies
+    /// stage in theirs (`.pending/.staging-…`) and are swept the same way.
+    private static func sweepStaleRollbackPointStaging(age: TimeInterval, in root: URL? = nil) {
         let cutoff = Date().addingTimeInterval(-age)
         guard let entries = try? FileManager.default.contentsOfDirectory(
-            at: rollbackPointsRoot, includingPropertiesForKeys: [.contentModificationDateKey], options: [])
+            at: root ?? rollbackPointsRoot, includingPropertiesForKeys: [.contentModificationDateKey], options: [])
         else { return }
         for entry in entries where entry.lastPathComponent.hasPrefix(".staging-") {
             guard let modified = (try? entry.resourceValues(forKeys: [.contentModificationDateKey]))?
                 .contentModificationDate, modified < cutoff else { continue }
             if forceRemove(entry) {
                 Log.install.notice(
-                    "backup: removed rollback-point staging \(entry.lastPathComponent, privacy: .public) left by an interrupted install")
+                    "backup: removed staging \(entry.lastPathComponent, privacy: .public) under \((root ?? rollbackPointsRoot).lastPathComponent, privacy: .public), left by an interrupted install")
             }
         }
     }
@@ -2312,6 +2561,9 @@ public enum BackupStore {
             removeClearingImmutableFlags(
                 at: store.root.appendingPathComponent(key, isDirectory: true))
         }
+        // An install's copy waiting to become this backup goes with it: it is
+        // this app's backup too, and nothing on screen could remove it later.
+        discardPending(forKey: key)
         // The recorded facts describe bytes that are now gone, and they are held
         // outside the store, so nothing above would ever reach them.
         BackupFactsLibrary.drop(forKey: key)
@@ -2465,6 +2717,11 @@ public enum BackupStore {
     public static func pruneOrphans() -> Int64 {
         let held = InstallJournal.journaledBackupKeys()
         var freed = pruneOrphans(in: outboxRoot, sparing: held)
+        // An install's copy of an app removed since: the sweep keeps it (an
+        // app that is not there may be on a volume that is not mounted), and
+        // nothing lists it, so this is the one place it goes — under the
+        // same setting and the same journal guard as the backups themselves.
+        freed += pruneOrphans(in: pendingBackupsRoot, sparing: held)
         if let destination = reachableDestinationRoot {
             freed += pruneOrphans(in: destination, sparing: held)
         }
@@ -2528,6 +2785,11 @@ public enum BackupStore {
         if root.standardizedFileURL == outboxRoot.standardizedFileURL {
             dirs += (try? FileManager.default.contentsOfDirectory(
                 at: rollbackPointsRoot, includingPropertiesForKeys: nil,
+                options: [.skipsHiddenFiles])) ?? []
+            // The pending copies likewise: this Mac's disk, kept out of every
+            // listing by the same hidden directory.
+            dirs += (try? FileManager.default.contentsOfDirectory(
+                at: pendingBackupsRoot, includingPropertiesForKeys: nil,
                 options: [.skipsHiddenFiles])) ?? []
         }
         // Through the same index the listing reads, which is what makes the two

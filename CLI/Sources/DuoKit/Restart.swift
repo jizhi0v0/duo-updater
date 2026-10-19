@@ -36,6 +36,8 @@ public enum Restart {
         // is skipped with a line saying the app may be damaged — about an app
         // that may be intact. Skipped when another process holds the lock.
         await InstallJournal.processLeftovers(lock: lock)
+        // And the backups such a run left pending (`sweepPendingBackups`).
+        await InstallCoordinator.sweepPendingBackups(lock: lock)
         let apps = await Inventory.scanIfFinished(settings)
         let selected: [InstalledApp]
         switch Inventory.select(apps, matching: options.queries) {
@@ -148,6 +150,9 @@ public enum Restart {
             runningBefore: Set(running.map(\.processIdentifier)),
             system: .live(for: app, backUp: { await InstallCoordinator.backUp(app, route: .sparkle) }))
         if case .standDown(let discarded) = taken {
+            // Lets go of the claim the copy took; a copy left there (none was
+            // discarded) is the backup now if the app's updater swapped.
+            await InstallCoordinator.settlePendingBackup(for: app)
             let copy = discarded ? " (the copy taken meanwhile was discarded)" : ""
             return ("quit while it was being backed up — its own updater is applying \(to) on its own; left it alone\(copy)", false)
         }
@@ -163,6 +168,9 @@ public enum Restart {
             app, staged: staged, old: app.versionSide,
             wasFrontmost: AppRestarter.isFrontmost(running), quitPatience: patience,
             system: .live(for: app))
+        // The copy taken above waited in the pending slot; it is the backup
+        // now only if the app changed — what the menu-bar app's Relaunch does.
+        await InstallCoordinator.settlePendingBackup(for: app)
         let disk = StagedRelaunch.diskVersionSide(app.path)
         return describe(ending, staged: to, disk: disk)
     }

@@ -128,6 +128,11 @@ public enum Install {
         // way back. Before the rollback sweep below, which keeps those apps'
         // points. Skipped when another process holds the install lock.
         await InstallJournal.processLeftovers()
+        // Install backups a killed run left pending: the copy of an app that
+        // changed since becomes its backup (`sweepPendingBackups`) — before
+        // the lines below, which name each interrupted app's way back. Silent;
+        // skipped when another process holds the install lock.
+        await InstallCoordinator.sweepPendingBackups()
         for interrupted in InstallJournal.interruptedInstalls() {
             FileHandle.standardError.write(Data((interruptedWarning(interrupted) + "\n").utf8))
         }
@@ -1123,6 +1128,10 @@ public enum Install {
             defer {
                 await InstallCoordinator.settleInstallRollbackPoint(
                     for: toInstall.app, journal: journal, succeeded: applied)
+                // The backup taken above waited in the pending slot; it
+                // replaces the earlier one only if the app changed — what the
+                // menu-bar app's install does.
+                await InstallCoordinator.settlePendingBackup(for: toInstall.app)
             }
             // Cancelled during the copy (which then kept nothing) or just after
             // it (a finished backup is kept): nothing is fetched.

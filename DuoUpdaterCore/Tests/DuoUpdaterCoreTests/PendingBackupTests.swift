@@ -306,40 +306,72 @@ import Testing
         }
     }
 
-    /// An app in a scan folder on a disk that is not mounted is unreachable,
-    /// not changed: a sweep then must not spend the earlier backup on it.
-    /// Mutation: drop the folder test in `pendingIsSuperseded` (missing app
-    /// always promotes) → 2.0 replaces 1.0, red.
-    @Test func anAppOnAVolumeThatIsNotMountedIsNotChanged() async throws {
+    /// The sweep has no install of its own to vouch for an app that is not
+    /// there: it may sit on a volume that is not mounted — with its folder
+    /// gone, or with the mount point folder left behind — or be in the Trash.
+    /// Either way the earlier backup stays.
+    /// Mutation: the sweep passes `missingAppIsChanged: true` → the case with
+    /// the folder left behind promotes 2.0 over 1.0, red.
+    @Test func theSweepKeepsAPendingCopyWhoseAppIsSimplyNotThere() async throws {
         try await withStore { apps, outbox, _ in
-            let volume = apps.appendingPathComponent("Volume", isDirectory: true)
-            let app = try await appAtNWithBackupOfNMinus1(in: volume)
-            try await BackupStore.savePending(
-                appPath: app, key: key(app), version: "2.0", buildVersion: "1",
-                bundleID: Self.bundleID)
-            try FileManager.default.removeItem(at: volume)
-            #expect(await InstallCoordinator.sweepPendingBackups(lock: testLock(outbox)) == 0)
-            #expect(BackupStore.backup(forKey: key(app))?.version == "1.0")
-            #expect(FileManager.default.fileExists(atPath: pendingDir(app).path))
+            for keepsFolder in [false, true] {
+                let volume = apps.appendingPathComponent("Volume-\(keepsFolder)", isDirectory: true)
+                let app = try await appAtNWithBackupOfNMinus1(in: volume)
+                try await BackupStore.savePending(
+                    appPath: app, key: key(app), version: "2.0", buildVersion: "1",
+                    bundleID: Self.bundleID)
+                try FileManager.default.removeItem(at: keepsFolder ? app : volume)
+                #expect(await InstallCoordinator.sweepPendingBackups(lock: testLock(outbox)) == 0)
+                #expect(BackupStore.backup(forKey: key(app))?.version == "1.0")
+                #expect(FileManager.default.fileExists(atPath: pendingDir(app).path))
+            }
         }
     }
 
-    /// The app's launch drops a cancelled attempt's leftover whose app is
-    /// unchanged — nothing lists it, so nothing else could remove it — and
-    /// still promotes one whose app changed. Other sweeps keep the leftover.
-    /// Mutation: ignore `droppingUnchanged` → the leftover stays, red.
-    @Test func theLaunchDropsAnUnchangedLeftover() async throws {
+    /// An install cut off after its swap removed the app — the process died,
+    /// so no settle ran — is on the journal as interrupted: the sweep makes
+    /// the copy the backup, the way back to the app as it was.
+    /// Mutation: the sweep passes `missingAppIsChanged: false` → kept, red.
+    @Test func theSweepPromotesTheCopyOfAnAppAnInterruptedInstallLeftMissing() async throws {
         try await withStore { apps, outbox, _ in
-            let app = try install(in: apps, version: "2.0")
+            let journal = outbox.appendingPathComponent("journal", isDirectory: true)
+            try FileManager.default.createDirectory(at: journal, withIntermediateDirectories: true)
+            let app = try await appAtNWithBackupOfNMinus1(in: apps)
             try await BackupStore.savePending(
                 appPath: app, key: key(app), version: "2.0", buildVersion: "1",
                 bundleID: Self.bundleID)
-            #expect(await InstallCoordinator.sweepPendingBackups(lock: testLock(outbox)) == 0)
-            #expect(FileManager.default.fileExists(atPath: pendingDir(app).path))
-            #expect(await InstallCoordinator.sweepPendingBackups(
-                lock: testLock(outbox), droppingUnchanged: true) == 0)
-            #expect(!FileManager.default.fileExists(atPath: pendingDir(app).path))
-            #expect(BackupStore.backup(forKey: key(app)) == nil)
+            try FileManager.default.removeItem(at: app)
+            // A pid that names no process: the install's owner is gone.
+            let dead = InstallJournal.ProcessStamp(pid: 99_999, started: 1)
+            let cutOff = InstallJournal.Entry(
+                job: UUID().uuidString, appID: app.path, appName: "Foo",
+                bundleID: Self.bundleID, appPath: app.path,
+                oldVersion: "2.0", oldBuild: "1", oldCDHash: nil,
+                targetVersion: "3.0", targetBuild: nil, route: "homebrew",
+                backupKey: key(app), startedAt: Date(), owner: dead, child: nil,
+                workDirectories: [], mounts: [], damage: .missing)
+            #expect(InstallJournal.write(cutOff, to: journal.appendingPathComponent("\(cutOff.job).json")))
+            await InstallJournal.$rootOverride.withValue(journal) {
+                #expect(InstallJournal.standing(of: app) == .interrupted)
+                #expect(await InstallCoordinator.sweepPendingBackups(lock: testLock(outbox)) == 1)
+            }
+            #expect(BackupStore.backup(forKey: key(app))?.version == "2.0")
+        }
+    }
+
+    /// At the end of an attempt a missing app whose folder is gone too is
+    /// a volume that went away meanwhile, not a swap that removed the app.
+    /// Mutation: the folder test in `pendingIsSuperseded` answers true → the
+    /// copy is promoted, red.
+    @Test func anAttemptsSettleKeepsTheCopyWhenTheAppsFolderIsGone() async throws {
+        try await withStore { apps, _, _ in
+            let volume = apps.appendingPathComponent("Volume", isDirectory: true)
+            let app = try await appAtNWithBackupOfNMinus1(in: volume)
+            let atN = installed(app, version: "2.0")
+            #expect(await InstallCoordinator.backUp(atN, route: .sparkle) == .saved)
+            try FileManager.default.removeItem(at: volume)
+            #expect(await InstallCoordinator.settlePendingBackup(for: atN) == .kept)
+            #expect(BackupStore.backup(forKey: key(app))?.version == "1.0")
         }
     }
 

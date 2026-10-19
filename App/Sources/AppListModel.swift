@@ -3333,7 +3333,7 @@ final class AppListModel {
             // Install backups left pending by a process that died: the copy of
             // an app that changed since is that app's backup now (see
             // `sweepPendingBackups`). Retried with the rest.
-            switch await InstallCoordinator.sweepPendingBackups(droppingUnchanged: true) {
+            switch await InstallCoordinator.sweepPendingBackups() {
             case nil: swept = false
             case let promoted?: if promoted > 0 { await self?.refreshBackupIndex() }
             }
@@ -8616,9 +8616,11 @@ final class AppListModel {
         // through, an app's own updater swapping after a Relaunch — becomes the
         // backup here, before the index reads it: nothing else would settle it
         // before the next launch. A directory listing when nothing is pending.
-        if let promoted = await InstallCoordinator.sweepPendingBackups(), promoted > 0 {
-            startOwedBackupTransfer()
-        }
+        // Starts no transfer: this runs inside a Relaunch, right before the
+        // quit, and the seconds after it are the app's own installer's (see
+        // `startOwedBackupTransfer`). The promoted copy is owed in its sidecar,
+        // and the next transfer picks it up.
+        await InstallCoordinator.sweepPendingBackups()
         // Each row's key resolves symlinks in its path and hashes it, which on the
         // main actor was the largest part of a rescan in a cold-start profile. So
         // the keys are derived in the same hop, keyed by what they are derived

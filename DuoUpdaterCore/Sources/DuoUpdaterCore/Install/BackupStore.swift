@@ -1251,8 +1251,17 @@ public enum BackupStore {
     /// the coordinator said `applied`. An app that ships every update under
     /// one version pair keeps the earlier backup as its way back: older than
     /// it could be, never gone.
+    ///
+    /// `missingAppIsChanged` false (the sweep, which has no install of its
+    /// own to vouch for): an app that is not there counts as unchanged. It may
+    /// sit on a volume that is not mounted — whose mount point folder can
+    /// outlive it, so the folder test below cannot tell — or have been put in
+    /// the Trash. The sweep passes true only for an app the install journal
+    /// records as cut off, whose way back this copy is.
     @discardableResult
-    public static func settlePending(forKey key: String) async -> PendingSettlement {
+    public static func settlePending(
+        forKey key: String, missingAppIsChanged: Bool = true
+    ) async -> PendingSettlement {
         // Resolved here: `pendingBackupsRoot` honours a task-local the hop
         // below does not have.
         let dir = pendingBackupsRoot.appendingPathComponent(key, isDirectory: true)
@@ -1260,15 +1269,16 @@ public enum BackupStore {
         let copy = dir.appendingPathComponent(meta.bundleName)
         let app = URL(fileURLWithPath: meta.originalPath)
         let superseded = await offCooperativePool(qos: .userInitiated) {
-            pendingIsSuperseded(app: app, copy: copy)
+            pendingIsSuperseded(app: app, copy: copy, missingAppIsChanged: missingAppIsChanged)
         }
         guard superseded else { return .kept }
         return await promotePending(forKey: key) ? .promoted : .promotionFailed
     }
 
     /// The test ``settlePending(forKey:)`` applies — see there.
-    static func pendingIsSuperseded(app: URL, copy: URL) -> Bool {
+    static func pendingIsSuperseded(app: URL, copy: URL, missingAppIsChanged: Bool) -> Bool {
         guard hasReadableBundle(at: app) else {
+            guard missingAppIsChanged else { return false }
             // Its folder gone with it is a volume that is not mounted — a scan
             // folder on an external disk — not an app that changed; promoting
             // then would spend the earlier backup on an app that is intact.

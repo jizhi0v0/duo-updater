@@ -18,6 +18,7 @@
 
 当前生效源（`UpdateChecker` 优先链中第一个应答的）: **Sparkle**（`feed-discover`：`declared  https://trelliswm.app/appcast.xml`）。
 
+- 旧版本（2026-10-19 下载 `releases/TrellisWM-<v>.dmg` 逐个读 Info.plist，0.8.x 404）：0.9.0（build 85）声明的是旧域名 `https://trellisui.app/appcast.xml`，0.9.1（149）、0.9.2（152）起是 `trelliswm.app`。旧地址今天仍是 200，内容与新地址逐字节相同（3 条 item），channel-verify 0.9.0 dmg：`SUFeedURL https://trellisui.app/appcast.xml`、`winning source Sparkle`、`latest 0.9.5`、`status UPDATE → 0.9.5`。四个版本都是 `app.trellisui.trelliswm`、Team `W437NFRGZW`。旧地址哪天失效，0.9.0 的副本要靠 `SparkleFeedCatalog.supersededFeeds` 接回来。
 - Homebrew —：`brew search --cask trellis` 无结果（2026-10-19）。
 - MAS / GitHub —：没有。
 

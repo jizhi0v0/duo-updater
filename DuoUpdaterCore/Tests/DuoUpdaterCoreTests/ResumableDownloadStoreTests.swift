@@ -372,6 +372,47 @@ struct ResumableDownloadStoreTests {
         }
     }
 
+    /// A server that ignores `If-Range` answers a resume of a changed object
+    /// with a `206` anyway; its own validator says the object changed, so the
+    /// kept bytes are dropped and the download starts over — not two builds
+    /// spliced. A validator that agrees, or none of the kind sent, is joined on
+    /// as before: nothing to compare.
+    /// Mutation: drop the `validatorChange` check in `Downloader` → the changed
+    /// cases come back spliced (10 seed bytes + the new object's remainder), one
+    /// request.
+    @Test(arguments: [
+        ("\"zz\"", ["ETag": "\"zz-v2\""], true),
+        ("Wed, 15 Nov 1995 04:58:08 GMT", ["Last-Modified": "Thu, 16 Nov 1995 04:58:08 GMT"], true),
+        ("\"zz\"", ["ETag": "\"zz\""], false),
+        ("\"zz\"", [:], false),
+    ])
+    func aResumeAnsweredFromAChangedObjectStartsOver(
+        sent: String, validators: [String: String], changed: Bool
+    ) async throws {
+        let root = try scratch("root"), work = try scratch("work")
+        defer { [root, work].forEach { try? FileManager.default.removeItem(at: $0) } }
+        let server = try Server(body: Self.body, validators: validators, stallAt: nil)
+        defer { server.stop() }
+        let url = server.url("zz.dmg")
+        let seeded = Data(repeating: 7, count: 10)
+
+        try await ResumableDownloadStore.$rootOverride.withValue(root) {
+            try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+            let entry = ResumableDownloadStore.Entry(url: url, root: root)
+            try seeded.write(to: entry.partial)
+            try ResumableDownloadStore.writeMeta(
+                .init(url: url.absoluteString, validator: sent, bytesWritten: 10, appID: nil, createdAt: Date()),
+                to: entry)
+            let file = try await Downloader(destinationDir: work) { _ in }.download(url)
+            let got = try Data(contentsOf: file)
+            #expect(got == (changed ? Self.body : seeded + Self.body.dropFirst(10)))
+        }
+        let requests = server.requests
+        #expect(Server.header("If-Range", in: requests[0]) == sent)
+        #expect(requests.count == (changed ? 2 : 1))
+        if changed, let restart = requests.dropFirst().first { #expect(Server.header("Range", in: restart) == nil) }
+    }
+
     /// The process dies with the transfer under way: no cancellation, no
     /// cleanup. Simulated by copying the store's directory as it stands while
     /// the bytes are flowing; a new `Downloader` pointed at that copy resumes.

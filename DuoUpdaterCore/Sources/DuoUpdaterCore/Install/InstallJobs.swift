@@ -12,16 +12,18 @@ import Foundation
 /// **Phases.** `.preparing` until a commit starts; `.committing` while one runs
 /// AND after one returned — past the point of no return a job stays there
 /// (the design's rule: cancellable up to the commit, never after it). A commit
-/// that did NOT land puts the job back to `.preparing`: one that threw, or one
-/// whose value its `landed` predicate rejected (`InstallCommit.run`). The
+/// that did NOT land puts the job back to `.preparing`: one that threw before
+/// its body said `InstallCommit.handedOver()`, or one whose value its `landed`
+/// predicate rejected (`InstallCommit.run`). The
 /// routes report "refused, nothing installed" one of those two ways — a swap
 /// that did not land throws; a `mas install` attempt that exited non-zero, or
 /// a vendor update command that exited with a failure status, returns that
 /// status — so stopping then loses nothing. The backoff between two
 /// `mas install` attempts, and a CLI runner's second try after a rejected
 /// token, are exactly that window. A failed commit can still have changed
-/// something on the way (a brew run that failed halfway); `.preparing` then
-/// means only "this job will start nothing further".
+/// something on the way; a route whose third party already has the install
+/// (App Store's pressed button, a brew that ran) says so with `handedOver()`,
+/// and its throw then keeps the job committing.
 ///
 /// **A truthful answer.** `cancel` answering `.cancelled` means no commit of
 /// that job will start: the request is recorded under the lock that

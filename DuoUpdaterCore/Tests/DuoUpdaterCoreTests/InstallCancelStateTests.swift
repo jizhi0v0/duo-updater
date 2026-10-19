@@ -20,13 +20,25 @@ import Testing
     }
 
     /// A commit greys a live Cancel and one that did not land brings it back;
-    /// a click already answered keeps its answer.
+    /// an accepted click keeps its answer.
     /// Mutation: drop the `(.committing, .preparing)` case → red.
     @Test func theCancelFollowsTheJob() {
         #expect(InstallCancelState.available.following(.committing) == .committing)
         #expect(InstallCancelState.committing.following(.preparing) == .available)
         #expect(InstallCancelState.cancelling.following(.committing) == .cancelling)
-        #expect(InstallCancelState.tooLate.following(.preparing) == .tooLate)
+        #expect(InstallCancelState.cancelling.following(.preparing) == .cancelling)
+        #expect(InstallCancelState.tooLate.following(.committing) == .tooLate)
+        #expect(InstallCancelState.available.following(nil) == .available)
+    }
+
+    /// A click refused while a commit ran is not kept by the registry
+    /// (`InstallJobs.cancel` answers `.tooLate` and changes nothing), so when
+    /// that commit did not land — a `mas install` attempt that exited non-zero,
+    /// with a retry still to come — the Cancel is live again, not greyed with
+    /// "already finishing" over an install that is preparing.
+    /// Mutation: drop `(.tooLate, .preparing)` → red.
+    @Test func aRefusedClickIsLiveAgainWhenTheCommitDidNotLand() {
+        #expect(InstallCancelState.tooLate.following(.preparing) == .available)
         #expect(InstallCancelState.available.following(nil) == .available)
     }
 }

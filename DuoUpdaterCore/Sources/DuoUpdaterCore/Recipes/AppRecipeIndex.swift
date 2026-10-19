@@ -175,6 +175,7 @@ public enum AppRecipeIndex {
         com_sublimemerge.set,
         com_sublimetext_4.set,
         com_supercmd_app.set,
+        com_superultra_kiln.set,
         com_surteesstudios_Bartender.set,
         com_t3tools_t3code.set,
         com_tableplus_VMPal.set,

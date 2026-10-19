@@ -30,12 +30,14 @@ public enum InstallCancelState: Sendable, Equatable {
     }
 
     /// The state once the job moved to `phase`, from `self`: a commit greys a
-    /// live Cancel and a commit that did not land brings it back; a Cancel
-    /// already clicked keeps saying what the click came to.
+    /// live Cancel and a commit that did not land brings it back — also after a
+    /// click it refused, which the registry did not keep (a `mas install` that
+    /// exited non-zero is retried, and a cancel before the retry is a cancel);
+    /// a Cancel accepted keeps saying "Cancelling…".
     public func following(_ phase: InstallJobs.Phase?) -> InstallCancelState {
         switch (self, phase) {
         case (.available, .committing): return .committing
-        case (.committing, .preparing): return .available
+        case (.committing, .preparing), (.tooLate, .preparing): return .available
         default: return self
         }
     }

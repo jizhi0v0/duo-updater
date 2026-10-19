@@ -391,6 +391,17 @@ public enum InstallJournal {
         }
     }
 
+    /// Whether the Info.plist names a `CFBundleExecutable` the bundle does not
+    /// have. False when it names none, unlike ``hasMainExecutable(_:)``.
+    static func namesAMissingExecutable(_ app: URL) -> Bool {
+        guard let data = try? Data(contentsOf: BundleLayout.infoPlistURL(for: app)),
+              let info = try? PropertyListSerialization.propertyList(
+                from: data, options: [], format: nil) as? [String: Any],
+              let name = info["CFBundleExecutable"] as? String, !name.isEmpty
+        else { return false }
+        return !hasMainExecutable(app)
+    }
+
     /// Whether the file the Info.plist's `CFBundleExecutable` names exists —
     /// `Contents/MacOS/` for a Mac app, the bundle root of a wrapped iOS app
     /// (``BundleLayout``). False when it names none.
@@ -656,6 +667,12 @@ public enum InstallJournal {
         guard BackupStore.hasReadableBundle(at: app) else {
             return .damaged(FileManager.default.fileExists(atPath: app.path) ? .unreadable : .missing)
         }
+        // A bundle copied into place file by file (a move across volumes is a
+        // copy) and cut off can have the new Info.plist before the executable
+        // it names: that reads as the target version, but does not run. Only
+        // an executable the Info.plist names and the bundle lacks counts — an
+        // app without `CFBundleExecutable` is not taken for a broken one.
+        if namesAMissingExecutable(app) { return .damaged(.unreadable) }
         // The target on disk is an install that landed, whatever its signature
         // says now: a new version that writes into its own bundle fails a
         // resource check from then on, and calling that "interrupted" would

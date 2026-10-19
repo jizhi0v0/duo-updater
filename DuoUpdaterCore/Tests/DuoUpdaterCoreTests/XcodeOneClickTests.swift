@@ -272,9 +272,13 @@ import Foundation
         let fake = FakeDownloader(mode: .fail)
         let coordinator = InstallCoordinator(
             permits: InstallPermits(downloads: 1, applies: 1), xcodeDownloader: fake)
+        // A path unique per run: the coordinator scratches in `$TMPDIR` under a
+        // name taken from the path and version, and a concurrent test process on
+        // the same name would put the directory back after this one removed it.
         await #expect(throws: ZZDownloadFailed.self) {
             _ = try await coordinator.perform(
-                Self.result(), route: .xcode, installedPopulation: [], digestOnlyAllowed: false,
+                Self.result(path: "/ZZFixture/\(UUID().uuidString)/Xcode-beta.app"),
+                route: .xcode, installedPopulation: [], digestOnlyAllowed: false,
                 progress: { _ in })
         }
         let dir = try #require(fake.directory)

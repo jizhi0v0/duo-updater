@@ -1019,8 +1019,12 @@ public actor BrewFormulaService {
     /// upgrade or install (`packagesToFetch`). Both are interrupted as a
     /// terminal's Ctrl-C would (`.interruptChild`): brew's download queue stops
     /// its curl workers and leaves `.incomplete` files, never a package in the
-    /// cache, and `brew update` rolls its repository back (Homebrew 7.0.9,
-    /// `download_queue.rb` `cancel`, `cmd/update.sh` `reset_on_interrupt`).
+    /// cache, and `brew update` rolls its repository back (Homebrew 7.0.9 and
+    /// 7.0.10, `download_queue.rb` `cancel`, `cmd/update.sh`
+    /// `reset_on_interrupt`). The auto-update's `brew update-report` has no
+    /// handler of its own: a cancel landing there ends it as a terminal's
+    /// Ctrl-C during `brew upgrade` would (`brew.rb`, `rescue Interrupt` →
+    /// exit 130) — no more than that, and no worse.
     ///
     /// Nothing here is needed for the upgrade to work: a dry run or fetch that
     /// fails is logged and the upgrade downloads what is missing itself, as it
@@ -1051,8 +1055,10 @@ public actor BrewFormulaService {
     ///
     /// They are the lines under each `==> Would upgrade …` and
     /// `==> Would install …` heading, one package a line, as
-    /// `Formatter.version_changes` writes it: `name [old ->] new [(size)]`, the
-    /// columns padded with spaces (Homebrew 7.0.9 `utils/formatter.rb`). The
+    /// brew writes it: `name [old ->] new [(size)]`, the columns padded with
+    /// spaces (Homebrew 7.0.10 `Formatter.version_changes` in
+    /// `utils/formatter.rb`; 7.0.9 `Upgrade.format_upgrade_summary`, the same
+    /// shape). The
     /// name is the formula's `full_specified_name`, which `brew fetch` takes.
     /// Lines under other headings — pinned packages, deprecated ones, core
     /// formulae that would build from source (listed above them already) — are

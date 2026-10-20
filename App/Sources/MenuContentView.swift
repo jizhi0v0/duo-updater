@@ -868,11 +868,26 @@ private struct CommandLineRow: View {
             Half(isHomebrew: true, icon: "mug", title: "Homebrew", lines: lines,
                  mark: mark.map { AnyView($0) }, button: button.map { AnyView($0) })
         }
-        if model.brewUpgrading {
-            // Its Cancel where the Update button stood, as an app row's.
-            return half([Text(model.brewBulkProgressText ?? String(localized: "Running brew upgrade…"))
-                .monospacedDigit()], mark: spinner,
-                        button: BrewUpgradeCancelButton(jobID: AppListModel.upgradeAllJobID, model: model))
+        if model.brewUpgrading || !model.upgradingFormulae.isEmpty {
+            // One Cancel where the Update button stood, for Upgrade All and for
+            // a formula's own upgrade from the workbench alike, as the Other
+            // tools row's (2026-10-20: a formula's showed nothing here).
+            let cancel: (any View)? = model.brewRowCancel.map { group in
+                InstallCancelButton(state: group.state, pending: group.pending, count: group.live) {
+                    model.cancelBrewRow()
+                }
+            }
+            if model.brewUpgrading && !model.cliTools.runQueue.isWaiting(.upgradeAll) {
+                return half([Text(model.brewBulkProgressText ?? String(localized: "Running brew upgrade…"))
+                    .monospacedDigit()], mark: spinner, button: cancel)
+            }
+            if let name = model.brewRowRunningFormula {
+                return half([Text(String(localized: "Upgrading \(name)")),
+                             model.formulaProgressLine(name).map { Text($0).monospacedDigit() }].compactMap { $0 },
+                            mark: spinner, button: cancel)
+            }
+            // Every run it stands for waits its turn behind another click's.
+            return half([Text(String(localized: "Queued"))], mark: spinner, button: cancel)
         }
         if outdated == 0 && !model.brewChecked {
             // Before the first verdict only; a re-check keeps the last answer up.

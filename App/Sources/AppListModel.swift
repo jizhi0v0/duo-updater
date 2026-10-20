@@ -4738,19 +4738,10 @@ final class AppListModel {
         await brewLane.handle(.afterAction("brew upgrade \(name)"))
     }
 
-    /// The registry's id for a formula row's upgrade: apart from the app rows',
-    /// whose ids are bundle paths, and the tool rows' (`CLIToolsModel.jobID`).
-    nonisolated static func formulaJobID(_ name: String) -> String {
-        "brew-formula:\(name)"
-    }
-
-    /// The registry's id for Upgrade All. Not a formula's: a formula name has
-    /// no `:`.
-    nonisolated static let upgradeAllJobID = "brew-upgrade-all"
-
-    /// The id `brew update`'s Cancel goes by while it waits its turn. It has
-    /// no job: once it runs, it has no Cancel.
-    nonisolated static let homebrewUpdateJobID = "brew-update"
+    /// The registry's ids for our brew runs (`BrewRowRuns`).
+    nonisolated static func formulaJobID(_ name: String) -> String { BrewRowRuns.formulaJobID(name) }
+    nonisolated static let upgradeAllJobID = BrewRowRuns.upgradeAllJobID
+    nonisolated static let homebrewUpdateJobID = BrewRowRuns.homebrewUpdateJobID
 
     /// A brew run's Cancel — a formula row's, Upgrade All's, or `brew update`'s
     /// while it waits. One still waiting its turn leaves the queue
@@ -4767,6 +4758,30 @@ final class AppListModel {
             return
         }
         brewCancels[jobID] = InstallCancelState.after(InstallJobs.cancel(jobID))
+    }
+
+    /// The brew runs the popover's Homebrew row stands for (`BrewRowRuns`).
+    var brewRowJobIDs: [String] {
+        BrewRowRuns.jobIDs(upgradingAll: brewUpgrading, formulae: upgradingFormulae)
+    }
+
+    /// The popover Homebrew row's one Cancel, over every run it stands for.
+    var brewRowCancel: InstallRowSmoothing<String>.GroupCancel? {
+        BrewRowRuns.cancel(brewRowJobIDs, in: brewCancelRows)
+    }
+
+    /// The popover Homebrew row's Cancel: each run it stands for that can
+    /// still be cancelled is (`cancelBrewUpgrade`).
+    func cancelBrewRow() {
+        let cancellable = BrewRowRuns.cancellable(brewRowJobIDs, in: brewCancels)
+        Log.app.notice("Homebrew row: cancel, \(cancellable.count, privacy: .public) of \(self.brewRowJobIDs.count, privacy: .public) runs still cancellable")
+        for jobID in cancellable { cancelBrewUpgrade(jobID) }
+    }
+
+    /// The formula whose own upgrade has its turn, if one does: the head of
+    /// the popover's Homebrew row. One brew run goes at a time (`CLIRunQueue`).
+    var brewRowRunningFormula: String? {
+        upgradingFormulae.sorted().first { !cliTools.runQueue.isWaiting(.upgradeFormula($0)) }
     }
 
     /// The queue's name for the brew run a Cancel's job id belongs to.

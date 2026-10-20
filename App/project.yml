@@ -104,6 +104,9 @@ targets:
       # The row note for a backup skipped over an earlier install. Foundation
       # and Core only.
       - path: Sources/EarlierInstallBackupNote.swift
+      # What the popover's Homebrew row stands for, and what its Cancel stops.
+      # Foundation and Core only.
+      - path: Sources/BrewRowRuns.swift
     dependencies:
       - package: DuoUpdaterCore
         product: DuoUpdaterCore

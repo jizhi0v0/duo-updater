@@ -290,8 +290,8 @@ def older_identities(owner, repo, releases, facts, d):
     every bundle id and Team a user may still have, and the newest package
     alone hid both of TaskExplorer's (2.x shipped as
     `com.objective-see.TaskExplorer`) and Lapce's `0.10.0-dev` early builds."""
-    # Every stable release, not only the ones `versionPattern` reads: copies from
-    # before a change of tag scheme are the likeliest to carry an older id or Team.
+    # Every stable release, not only the ones `versionPattern` reads: a copy from
+    # under an older tag scheme is a copy users may still have, and is compared too.
     stable = [r for r in releases if not r.get("prerelease")]
     tags = [r["tag_name"] for r in stable]
     picks = []
@@ -341,8 +341,11 @@ def older_identities(owner, repo, releases, facts, d):
             lines.append(f"{tag}: Team {o['teamIdentifier'] or 'none (ad-hoc)'} — TODO(audit) the install gate "
                          "refuses copies signed by another Team")
         if tag not in d["readTags"]:
-            lines.append(f"{tag}: versionPattern does not read this tag — TODO(audit) a change of tag "
-                         "scheme; copies of it are offered nothing")
+            # Not a gap: the rule resolves `/releases/latest`, and an installed copy
+            # is compared against that whatever its own tag looked like (UTM's
+            # pre-v2.1.0 tags, GitHubReleasesSource). Only history entries are lost.
+            lines.append(f"{tag}: versionPattern does not read this tag (an older tag scheme) — its "
+                         "copies are still offered the newest release; its notes get no history entry")
         if find_version(tag, o["shortVersion"] or "") is None:
             lines.append(f"{tag}: the bundle says {o['shortVersion']!r} — TODO(audit) copies of that build "
                          "never compare with the tags")

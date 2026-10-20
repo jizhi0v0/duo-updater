@@ -46,10 +46,15 @@ for f in "$@"; do
     # The app naming its own GitHub releases: a sign it updates itself, which a
     # bundle without SUFeedURL or an updater framework does not otherwise show
     # (Lapce reads `api.github.com/repos/lapce/lapce/releases/latest`).
-    command -v strings >/dev/null || echo "  exe-references unavailable: strings not found (xcode-select --install)"
-    strings -a "$exe" 2>/dev/null \
-      | grep -oE '(api\.github\.com/repos|github\.com)/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/releases(/latest|/download/)?' \
-      | sort -u | head -5 | sed 's/^/  exe-references /'
+    # `/usr/bin/strings` is a shim that exists without the command-line tools and
+    # then asks to install them (a dialog), so ask `xcode-select -p` first.
+    if xcode-select -p >/dev/null 2>&1; then
+      strings -a "$exe" 2>/dev/null \
+        | grep -oE '(api\.github\.com/repos|github\.com)/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/releases(/latest|/download/)?' \
+        | sort -u | head -5 | sed 's/^/  exe-references /'
+    else
+      echo "  exe-references unavailable: no developer tools (xcode-select -p fails)"
+    fi
   fi
   [ -d "$t/m" ] && hdiutil detach "$t/m" >/dev/null 2>&1
   rm -rf "$t"

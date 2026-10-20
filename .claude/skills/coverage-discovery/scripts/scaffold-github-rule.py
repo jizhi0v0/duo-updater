@@ -344,9 +344,17 @@ def older_identities(owner, repo, releases, facts, d):
         # tag looked like (UTM's pre-v2.1.0 tags, GitHubReleasesSource) — which
         # reaches it only while its version numbers below the newest. An older
         # scheme that numbers higher (a year-based 2019.1 before a 1.0) never is.
-        older_numbers_higher = nums(o["shortVersion"] or "") >= nums(facts["shortVersion"] or "")
-        if older_numbers_higher:
-            lines.append(f"{tag}: the bundle says {o['shortVersion']!r}, not below the newest "
+        # Compared only when both are plain dotted numbers. `VersionComparator`
+        # ranks text (`2.0.0-rc` below `2.0.0`), and re-implementing it here would
+        # be a second copy of production logic to drift; a version with text gets
+        # a line that claims neither way.
+        older = o["shortVersion"] or ""
+        if not re.fullmatch(VERSION, older):
+            lines.append(f"{tag}: the bundle says {older!r}, not a plain dotted version — not compared "
+                         f"with {facts['shortVersion']!r} here; VersionComparator decides whether its copies "
+                         "are offered the update")
+        elif nums(older) >= nums(facts["shortVersion"] or ""):
+            lines.append(f"{tag}: the bundle says {older!r}, not below the newest "
                          f"{facts['shortVersion']!r} — TODO(audit) copies of it are never offered the update")
         elif tag not in d["readTags"]:
             lines.append(f"{tag}: versionPattern does not read this tag (an older tag scheme) — its copies "

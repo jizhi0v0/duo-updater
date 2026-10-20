@@ -9281,7 +9281,10 @@ final class AppListModel {
         // self-updated *externally* while the batch ran — Chrome's Keystone applying a
         // new build during the "Update All" — is re-evaluated and clears, instead of
         // keeping its stale "update available" row until the next backstop tick. Safe
-        // here: every install in the batch has finished, so there's no spinner to churn.
+        // here: every install in the batch has finished. A row install clicked on its
+        // own may still run — the rescan applies its rows only if nothing wrote
+        // `results` meanwhile, that install's `replaceRow` lands after it, and the
+        // rescan its swap defers is drained when it ends (`drainDeferredLocalRescan`).
         await performLocalRescan(unattended: false)
         // The authoritative process-version sweep inside `performLocalRescan` has
         // now converted these provisional states into `needsRestart` (or proved the
@@ -9337,7 +9340,8 @@ final class AppListModel {
         }
     }
 
-    /// Whether to show the batch button: nothing in flight, and more than one app
+    /// Whether to show the batch button: no refresh, scan, check or batch in
+    /// flight (row installs do not hide it), and more than one app
     /// it would act on. Both halves live in `ListActivity.canOfferUpdateAll`.
     var canUpdateAll: Bool {
         listActivity.canOfferUpdateAll(targetCount: installAllTargets().count)

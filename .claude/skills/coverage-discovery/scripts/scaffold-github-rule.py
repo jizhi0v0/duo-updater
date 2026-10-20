@@ -250,12 +250,20 @@ def derive(owner, repo, facts, releases):
     if archs and not any(a.startswith("arm64") for a in archs):
         raise Stop(f"{asset} is an Intel build ({' '.join(archs)}); DuoUpdater is arm64-only — "
                    "pass the arm64 or universal asset")
-    # An `arm64e` slice alone is Apple silicon too, and runs on macOS 27.2 with no
-    # boot-arg (measured 10-20); before macOS 26 a third party's arm64e reportedly
-    # needed `-arm64e_preview_abi`, and DuoUpdater supports 15.
-    if archs and "arm64" not in archs:
-        notes.append(f"the only Apple silicon slice is {', '.join(a for a in archs if a.startswith('arm64'))}: "
-                     "TODO(audit) — check it launches on macOS 15 (DuoUpdater's floor) before offering it")
+    # macOS 15.7.9 runs a third party's arm64e slice only at pointer-authentication
+    # ABI version 1 (`USR01`, Xcode 26). A `USR00` slice (Xcode 16) is killed, and
+    # the loader picks it over an arm64 slice beside it rather than falling back
+    # (hosted macos-15, run 39397882273; Secretive 4.0.0's USR01 runs). DuoUpdater
+    # supports macOS 15.
+    if "arm64e" in archs:
+        abi = facts.get("arm64ePtrauth")
+        version = re.fullmatch(r"USR([0-9]+)", abi or "")
+        if version is None:
+            notes.append(f"the arm64e slice's pointer-authentication ABI was not read ({abi or 'no developer '
+                         'tools'}): TODO(audit) — `otool -hv -arch arm64e`; macOS 15 kills USR00")
+        elif int(version.group(1)) == 0:
+            notes.append(f"the arm64e slice is pointer-authentication ABI {abi}: TODO(audit) — macOS 15 kills "
+                         "it, even with arm64 beside it, so the package may not launch for users on 15")
     names = {a["name"] for a in rel["assets"]}
     asset_pattern = generalise(asset, find_version(asset, short, prefer=(tag_version,)), VERSION, build)
     match_pattern = asset_pattern
@@ -476,6 +484,7 @@ def package_facts(path):
         "minimumSystemVersion": val("LSMinimumSystemVersion"),
         "sparkleFeedURL": val("SUFeedURL"),
         "architectures": (val("archs") or "").split(),
+        "arm64ePtrauth": val("arm64e-ptrauth"),
         "teamIdentifier": val("TeamIdentifier") if val("TeamIdentifier") != "not set" else None,
         "signedIdentifier": val("Identifier"),
         "sealOK": val("codesign-verify-exit") == "0",

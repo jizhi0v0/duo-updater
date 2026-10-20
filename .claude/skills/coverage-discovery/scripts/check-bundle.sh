@@ -24,7 +24,13 @@ for f in "$@"; do
     # PyInstaller writes the executable as `MacOS/aw-qt` (ActivityWatch 0.14.1).
     e=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$P")
     exe="$app/Contents/MacOS/${e#MacOS/}"
-    echo "  archs=$(lipo -archs "$exe")"
+    archs=$(lipo -archs "$exe")
+    echo "  archs=$archs"
+    # The arm64e slice's pointer-authentication ABI (`otool -hv` caps, USR00 or
+    # USR01): macOS 15.7.9 kills a USR00 slice even with arm64 beside it.
+    # `otool` is a developer-tools shim like `strings` below.
+    case " $archs " in *" arm64e "*) xcode-select -p >/dev/null 2>&1 \
+      && echo "  arm64e-ptrauth=$(otool -hv -arch arm64e "$exe" | awk 'END {print $4}')";; esac
     codesign -dvv "$app" 2>&1 | grep -E '^(Identifier|TeamIdentifier)=' | sed 's/^/  /'
     codesign --verify --deep --strict "$app" 2>/dev/null; echo "  codesign-verify-exit=$?"
     spctl -a -vv -t exec "$app" 2>&1 | grep -E '^source=' | sed 's/^/  spctl /'

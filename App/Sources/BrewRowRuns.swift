@@ -38,6 +38,15 @@ enum BrewRowRuns {
         rows.groupCancel(of: jobIDs, running: running.map { [$0] } ?? [])
     }
 
+    /// A formula's line before its run has written one: "Queued" while it
+    /// waits its turn, "Starting…" from the turn on. The queue hands the turn
+    /// over one main-actor hop before the run's task says so itself
+    /// (`CLIRunQueue.advance`), and in that hop the popover row's head already
+    /// named the formula: "Upgrading jq · Queued" (review, 2026-10-20).
+    static func lineBeforeItsRun(waiting: Bool) -> String {
+        waiting ? String(localized: "Queued") : String(localized: "Starting…")
+    }
+
     /// The runs a click on it cancels: those that still can be. Those past the
     /// upgrade's start finish.
     static func cancellable(_ jobIDs: [String], in cancels: [String: InstallCancelState]) -> [String] {

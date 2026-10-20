@@ -4686,8 +4686,9 @@ final class AppListModel {
             formulaUpgradeNotes[name] = nil
             brewCancels[jobID] = nil
         }
-        formulaUpgradeNotes[name] = cliTools.runQueue.running != nil
-            ? String(localized: "Queued") : String(localized: "Starting…")
+        // Its line until its run writes one: "Queued", then "Starting…" from
+        // its turn on (`formulaProgressLine`).
+        formulaUpgradeNotes[name] = nil
         let ran = await cliTools.runQueue.perform(.upgradeFormula(name), whenCancelled: end) {
             // Read again at its turn: an Upgrade All queued ahead of it may have
             // upgraded it already.
@@ -4807,7 +4808,9 @@ final class AppListModel {
         if brewCancelRows.cancels[Self.formulaJobID(name)] == .cancelling {
             return String(localized: "Cancelling…")
         }
-        return formulaUpgradeNotes[name]
+        if let note = formulaUpgradeNotes[name] { return note }
+        guard upgradingFormulae.contains(name) else { return nil }
+        return BrewRowRuns.lineBeforeItsRun(waiting: cliTools.runQueue.isWaiting(.upgradeFormula(name)))
     }
 
     /// The Cancel moves with the job: greyed once the upgrade started.

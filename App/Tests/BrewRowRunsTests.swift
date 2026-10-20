@@ -74,6 +74,16 @@ struct BrewRowRunsTests {
             == .init(state: .available, pending: false, live: 2, queuedOnly: false))
     }
 
+    /// A formula queued behind another run says "Queued" until its turn, and
+    /// "Starting…" from the turn on, before its run has written a line.
+    ///
+    /// Mutation: say "Queued" whatever `waiting` is (the click-time line kept)
+    /// → red.
+    @Test func aFormulaSaysStartingFromItsTurn() {
+        #expect(BrewRowRuns.lineBeforeItsRun(waiting: true) == "Queued")
+        #expect(BrewRowRuns.lineBeforeItsRun(waiting: false) == "Starting…")
+    }
+
     /// A click cancels the row's runs that still can be, and nothing else: not
     /// one past its start, nor one already cancelling, nor a queued `brew
     /// update`.

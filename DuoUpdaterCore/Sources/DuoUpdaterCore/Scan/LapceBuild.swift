@@ -35,7 +35,9 @@ public enum LapceBuild {
     /// `.nightly` when the executable carries the nightly's name constant, nil
     /// otherwise (stable, or nothing readable): nil leaves the ordinary channel
     /// detection standing. Remembered per executable identity (size and mtime),
-    /// since a stable copy's read walks the whole executable (94 MB at 0.4.6).
+    /// since a stable copy's read walks the whole executable (94 MB at 0.4.6);
+    /// a nightly's stops at the first hit (byte 35,277,466 of 90,539,952 in the
+    /// 2026-10-09 nightly).
     public static func channel(bundleAt bundleURL: URL) -> ReleaseChannel? {
         let plist = NSDictionary(
             contentsOf: bundleURL.appendingPathComponent("Contents/Info.plist")) as? [String: Any]

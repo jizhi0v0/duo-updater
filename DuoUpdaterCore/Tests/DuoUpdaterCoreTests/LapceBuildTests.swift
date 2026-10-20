@@ -50,6 +50,30 @@ struct LapceBuildTests {
         #expect(LapceBuild.channel(bundleAt: missing) == nil)
     }
 
+    /// The remembered answer belongs to the executable, not to its path: a
+    /// stable build copied over a nightly at the same path is read again and
+    /// called stable (the cache key carries size and mtime).
+    @Test func aReplacedExecutableIsReadAgain() throws {
+        let app = FileManager.default.temporaryDirectory
+            .appendingPathComponent("LapceBuildTests-\(UUID().uuidString)/Lapce.app")
+        defer { try? FileManager.default.removeItem(at: app.deletingLastPathComponent()) }
+        let contents = app.appendingPathComponent("Contents")
+        try FileManager.default.createDirectory(
+            at: contents.appendingPathComponent("MacOS"), withIntermediateDirectories: true)
+        let plist: [String: Any] = ["CFBundleIdentifier": "io.lapce", "CFBundleExecutable": "lapce"]
+        try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0)
+            .write(to: contents.appendingPathComponent("Info.plist"))
+        let executable = contents.appendingPathComponent("MacOS/lapce")
+
+        try Data(("\u{1}junk\0" + Layout.nightly).utf8).write(to: executable)
+        #expect(LapceBuild.channel(bundleAt: app) == .nightly)
+
+        try Data(("\u{1}junk\0" + Layout.stable).utf8).write(to: executable)
+        try FileManager.default.setAttributes(
+            [.modificationDate: Date().addingTimeInterval(60)], ofItemAtPath: executable.path)
+        #expect(LapceBuild.channel(bundleAt: app) == nil)
+    }
+
     /// The wiring, through `AppScanner.readApp(at:)` on bundles on disk: the
     /// nightly marker makes a Lapce copy `.nightly` (so the stable GitHub rule
     /// steps aside), a stable copy stays `.stable`, and the marker means nothing

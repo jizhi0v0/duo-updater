@@ -342,9 +342,10 @@ let boundSource = bundleID.map { id -> String in
 // AppScanner makes. See `BlenderBuildInfo`.
 let blender = bundleID == BlenderBuildInfo.bundleID ? BlenderBuildInfo.read(bundleAt: appPath) : nil
 // Lapce's nightly is named only in its executable — the same read AppScanner
-// makes. See `LapceBuild`.
+// makes. See `LapceBuild`. AppScanner applies a ChannelBinding after it, so a
+// binding wins here too.
 let lapce = bundleID == LapceBuild.bundleID ? LapceBuild.channel(bundleAt: appPath) : nil
-let detected = weChatDevTools?.channel ?? blender?.channel ?? lapce ?? bound?.channel ?? inferred
+let detected = weChatDevTools?.channel ?? blender?.channel ?? bound?.channel ?? lapce ?? inferred
 
 print("""
 

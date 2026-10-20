@@ -2,6 +2,28 @@
 
 Esta es la traducción al español del archivo CHANGELOG.md. La versión en inglés es la autoridad en caso de discrepancias. Los números de versión no incluidos aquí se mostrarán automáticamente en inglés en la ventana de Novedades.
 
+## 0.5.11
+
+**Puedes cancelar una actualización, o todas con «Cancelar todo».** La mayoría de las actualizaciones se pueden cancelar hasta que se empieza a reemplazar la propia app, una fórmula de Homebrew mientras brew la descarga, y una descarga cancelada que reintentas en pocos minutos sigue donde se quedó; las actualizaciones de casks de Homebrew y del App Store solo se pueden cancelar antes de empezar.
+
+**Salir ya no corta una actualización.** «Salir» espera a las actualizaciones en curso y ofrece «Salir al terminar»; si aun así se interrumpe una actualización, su fila ofrece «Restaurar», incluso en actualizaciones de Homebrew y del App Store con las copias de seguridad desactivadas.
+
+**Se admiten cuatro apps más.** Obelus (con sus herramientas de línea de comandos `obg` y `ob`), PennyBar, Git Switch y Kiln reciben comprobación de actualizaciones y actualizaciones con un clic, y Secretive ahora también se actualiza con un clic y reinicia su agente SSH con la nueva versión; la actualización con un clic de la app Obelus necesita «Permitir actualizaciones con un clic para apps sin firma de desarrollador».
+
+**Las apps que firman sus actualizaciones con su propia clave se actualizan con un clic.** Las apps de Sparkle sin Apple Team ID, como Lokii, se rechazaban, y las apps cuya vía de actualización necesita un Team ID ya no muestran un botón de actualizar que solo podía fallar.
+
+**DuoUpdater rechaza más actualizaciones que no deberían instalarse.** Ahora se rechazan una descarga más antigua que la versión que tienes, una actualización que quita la clave de firma de la app y un feed de actualizaciones que no supera una comprobación de firma que exige su desarrollador.
+
+**Reabrir vuelve a abrir las apps que tardan en cerrarse,** como ChatGPT, en lugar de dejarlas cerradas. Si algo vuelve a poner una versión anterior justo después de reiniciar, la fila lo indica y ofrece de nuevo la actualización.
+
+**Más versiones beta y notas de la versión.** AirBuild y RuntimeViewer siguen su propio interruptor de beta, las copias de RuntimeViewer demasiado antiguas para actualizarse solas ya se pueden actualizar, Tamio y TrellisWM muestran notas de la versión como es debido, Mayoi muestra todo su historial y vuelven las notas de la versión de iTerm2 y Longbridge.
+
+**Correcciones.** BetterTouchTool vuelve a actualizarse con un clic mientras su vigilante está activo. La comprobación de actualizaciones de Cork vuelve a funcionar de forma fiable, igual que las actualizaciones con un clic de WorkBuddy y Yomado. A un Xcode del App Store ahora se le ofrecen versiones menores como 27.0.1 o 27.1.1, que antes aparecían como al día. Las actualizaciones con un clic de Memoh solo usan las versiones fechadas del propio fabricante, para que una copia antigua que ejecuta su propio servidor no se convierta en un cliente de la nube. La línea de actualización muestra el número de compilación en ambos lados o en ninguno, y los botones dicen «Actualizar 1.53.0» sin repetir la compilación. El código en las notas de la versión ya no muestra comillas invertidas sueltas donde se parte la línea. «Revertir» ahora se llama «Restaurar» en todas partes.
+
+**La insignia de tecnología dice qué incluye una app,** por ejemplo «Incluye Qt Widgets y CEF.»
+
+**Línea de comandos.** Ctrl-C durante `duo install` termina el paso en curso en lugar de detenerse a mitad de reemplazar una app, y una herramienta que aún se está preparando se detiene antes de ejecutar su actualización.
+
 ## 0.5.10
 
 **Surge y TablePlus ya no ofrecen una actualización que tu licencia no puede abrir.** Las dos apps se niegan a abrir una versión publicada después de que terminen tus actualizaciones; esa versión ahora muestra un candado en lugar de un botón de actualizar, y el candado indica hasta cuándo cubre tu licencia y que la renueves en la app.

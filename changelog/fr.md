@@ -2,6 +2,28 @@
 
 Ceci est la traduction de `CHANGELOG.md`. La version anglaise fait autorité. Les versions non énumérées ici reviennent automatiquement à l’anglais.
 
+## 0.5.11
+
+**Vous pouvez annuler une mise à jour, ou toutes avec « Tout annuler ».** La plupart des mises à jour peuvent être annulées jusqu’au moment où l’app elle-même est remplacée, une formule Homebrew pendant que brew la télécharge, et un téléchargement annulé que vous relancez dans les minutes qui suivent reprend là où il s’était arrêté ; les mises à jour de casks Homebrew et de l’App Store ne peuvent être annulées qu’avant de commencer.
+
+**Quitter n’interrompt plus une mise à jour.** « Quitter » attend les mises à jour en cours et propose « Quitter une fois terminé » ; si une mise à jour est tout de même interrompue, sa ligne propose « Restaurer », même pour les mises à jour Homebrew et App Store quand les sauvegardes sont désactivées.
+
+**Quatre apps de plus sont prises en charge.** Obelus (avec ses outils en ligne de commande `obg` et `ob`), PennyBar, Git Switch et Kiln bénéficient de la vérification des mises à jour et des mises à jour en un clic, et Secretive se met désormais à jour en un clic lui aussi, en redémarrant son agent SSH sur la nouvelle version ; la mise à jour en un clic de l’app Obelus nécessite « Autoriser les mises à jour en un clic des apps sans signature de développeur ».
+
+**Les apps qui signent leurs mises à jour avec leur propre clé se mettent à jour en un clic.** Les apps Sparkle sans Team ID Apple, comme Lokii, étaient refusées, et les apps dont la méthode de mise à jour exige un Team ID n’affichent plus un bouton de mise à jour voué à l’échec.
+
+**DuoUpdater refuse davantage de mises à jour qui ne devraient pas s’installer.** Un téléchargement plus ancien que la version installée, une mise à jour qui abandonne la clé de signature de l’app et un flux de mises à jour qui échoue à une vérification de signature exigée par son développeur sont désormais refusés.
+
+**Relancer rouvre les apps lentes à quitter,** comme ChatGPT, au lieu de les laisser fermées. Si quelque chose remet une version plus ancienne juste après un redémarrage, la ligne le signale et propose de nouveau la mise à jour.
+
+**Plus de versions bêta et de notes de version.** AirBuild et RuntimeViewer suivent leur propre option bêta, les copies de RuntimeViewer trop anciennes pour se mettre à jour elles-mêmes peuvent être mises à jour, Tamio et TrellisWM affichent de vraies notes de version, Mayoi affiche tout son historique, et les notes de version d’iTerm2 et de Longbridge sont de retour.
+
+**Corrections.** BetterTouchTool se met de nouveau à jour en un clic pendant que son chien de garde tourne. La vérification des mises à jour de Cork fonctionne de nouveau de façon fiable, tout comme les mises à jour en un clic de WorkBuddy et Yomado. Un Xcode de l’App Store se voit désormais proposer les versions intermédiaires comme 27.0.1 ou 27.1.1, qui apparaissaient auparavant comme à jour. Les mises à jour en un clic de Memoh ne prennent que les builds datés de l’éditeur, pour qu’une ancienne copie qui fait tourner son propre serveur ne devienne pas un client cloud. La ligne de mise à jour affiche un numéro de build des deux côtés ou d’aucun, et les boutons indiquent « Mettre à jour 1.53.0 » sans répéter le build. Le code dans les notes de version n’affiche plus d’accents graves parasites aux retours à la ligne. « Revenir en arrière » s’appelle désormais « Restaurer » partout.
+
+**Le badge de technologie indique ce qu’une app contient,** par exemple « Contient Qt Widgets et CEF. »
+
+**Ligne de commande.** Ctrl-C pendant `duo install` termine l’étape en cours au lieu de s’arrêter au milieu du remplacement d’une app, et un outil encore en préparation s’arrête avant de lancer sa mise à jour.
+
 ## 0.5.10
 
 **Surge et TablePlus ne proposent plus une mise à jour que votre licence ne peut pas ouvrir.** Les deux apps refusent de lancer une version publiée après la fin de vos mises à jour ; cette version affiche désormais un cadenas au lieu d’un bouton de mise à jour, et le cadenas indique jusqu’à quand votre licence vous couvre et qu’il faut la renouveler dans l’app.

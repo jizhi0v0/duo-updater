@@ -2,6 +2,28 @@
 
 Dies ist eine deutsche Übersetzung von `CHANGELOG.md`. Die englische Fassung ist maßgeblich; frühere Versionen, die hier nicht aufgeführt sind, fallen automatisch auf Englisch zurück.
 
+## 0.5.11
+
+**Du kannst ein Update abbrechen – oder alle auf einmal mit „Alle abbrechen“.** „Abbrechen“ funktioniert bei den meisten Updates, bis die App selbst ersetzt wird, bei einer Homebrew-Formel, während brew sie lädt, und ein abgebrochener Download, den du innerhalb weniger Minuten erneut startest, setzt dort fort, wo er aufgehört hat; Updates von Homebrew-Casks und aus dem App Store lassen sich nur abbrechen, bevor sie beginnen.
+
+**Beenden bricht kein Update mehr ab.** „Beenden“ wartet auf laufende Updates und bietet „Nach Abschluss beenden“ an; wird ein Update trotzdem unterbrochen, bietet seine Zeile „Wiederherstellen“ an, auch bei Homebrew- und App-Store-Updates mit ausgeschalteten Backups.
+
+**Vier weitere Apps werden unterstützt.** Obelus (mit seinen Befehlszeilen-Tools `obg` und `ob`), PennyBar, Git Switch und Kiln erhalten Update-Prüfungen und Updates per Klick, und auch Secretive lässt sich jetzt per Klick aktualisieren und startet seinen SSH-Agent mit der neuen Version neu; für Updates per Klick der Obelus-App muss „Ein-Klick-Updates für Apps ohne Entwicklersignatur erlauben“ eingeschaltet sein.
+
+**Apps, die ihre Updates mit einem eigenen Schlüssel signieren, lassen sich per Klick aktualisieren.** Sparkle-Apps ohne Apple Team ID wie Lokii wurden bisher abgelehnt, und Apps, deren Update-Weg eine Team ID braucht, zeigen keine Update-Taste mehr, die nur scheitern konnte.
+
+**DuoUpdater lehnt mehr Updates ab, die nicht installiert werden sollten.** Ein Download, der älter ist als dein Build, ein Update, das den Signaturschlüssel der App weglässt, und ein Update-Feed, der eine vom Entwickler verlangte Signaturprüfung nicht besteht, werden jetzt abgelehnt.
+
+**„Neu starten“ öffnet Apps wieder, die sich nur langsam beenden,** etwa ChatGPT, statt sie geschlossen zu lassen. Legt etwas direkt nach einem Neustart eine ältere Version zurück, sagt die Zeile das und bietet das Update erneut an.
+
+**Mehr Beta-Builds und Versionshinweise.** AirBuild und RuntimeViewer folgen ihrem eigenen Beta-Schalter, RuntimeViewer-Kopien, die zu alt sind, um sich selbst zu aktualisieren, lassen sich aktualisieren, Tamio und TrellisWM zeigen richtige Versionshinweise, Mayoi zeigt seinen ganzen Verlauf, und die Versionshinweise von iTerm2 und Longbridge sind zurück.
+
+**Korrekturen.** BetterTouchTool lässt sich wieder per Klick aktualisieren, während sein Watchdog läuft. Die Update-Prüfungen für Cork funktionieren wieder zuverlässig, ebenso die Updates per Klick für WorkBuddy und Yomado. Einem Xcode aus dem App Store werden jetzt Punkt-Releases wie 27.0.1 oder 27.1.1 angeboten, die bisher als aktuell galten. Updates per Klick für Memoh nehmen nur noch die datierten Builds des Herstellers, damit eine ältere Kopie mit eigenem Server nicht zu einem Cloud-Client wird. Die Update-Zeile zeigt die Build-Nummer auf beiden Seiten oder auf keiner, und Tasten lauten „1.53.0 aktualisieren“, ohne den Build zu wiederholen. Code in Versionshinweisen zeigt an Zeilenumbrüchen keine verirrten Backticks mehr. Die Funktion heißt jetzt überall einheitlich „Wiederherstellen“.
+
+**Das Laufzeit-Abzeichen sagt, was eine App enthält,** zum Beispiel „Enthält Qt Widgets und CEF.“
+
+**Befehlszeile.** Ctrl-C während `duo install` beendet den laufenden Schritt, statt mitten im Ersetzen einer App aufzuhören, und ein Tool, das sich noch vorbereitet, stoppt, bevor es sein Update ausführt.
+
 ## 0.5.10
 
 **Surge und TablePlus bieten kein Update mehr an, das deine Lizenz nicht öffnet.** Beide Apps starten keine Version, die nach dem Ende deines Update-Zeitraums erschienen ist; diese Version zeigt jetzt ein Schloss statt einer Update-Taste, und das Schloss nennt, bis wann deine Lizenz reicht, und dass du sie in der App verlängern kannst.

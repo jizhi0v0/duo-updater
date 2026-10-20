@@ -170,8 +170,15 @@ final class AppListModel {
 
     /// Per-app install progress, keyed by app id.
     private(set) var installing: [String: InstallStage] = [:] {
-        didSet { smoothInstallRows() }
+        didSet {
+            smoothInstallRows()
+            let ended = oldValue.keys.filter { installing[$0] == nil }
+            if !ended.isEmpty { installOwnership.record(ended: ended) }
+        }
     }
+    /// Which rows an install owned while a local rescan was reading the disk
+    /// (`InstallOwnership`): those keep the row their install wrote.
+    @ObservationIgnored private var installOwnership = InstallOwnership()
     /// True while "Update All" is running. Blocks a second batch from being
     /// started while the first one still has queued work.
     private(set) var isInstallingAll = false
@@ -4145,6 +4152,7 @@ final class AppListModel {
         // proofs-file read and decode, a carried-forward row per app).
         let prior = results
         let priorGeneration = resultsGeneration
+        let ownershipMark = installOwnership.mark(installing: installing.keys)
         let restart = needsRestart, staged = pendingSelfUpdate
         let armed = armedSelfInstallers, pinned = pinnedOrder
         // The whole closure off the cooperative pool, not just the TestFlight
@@ -4167,13 +4175,21 @@ final class AppListModel {
         // round publishing, a row refreshed, an install starting and freezing the
         // order. The rows are applied only if none did; otherwise they are merged
         // and sorted again here against the current state, which is exactly what
-        // this line did before the hop existed, so a stale merge is never what
-        // lands.
+        // this line did before the hop existed.
+        //
+        // Either way, a row an install owned while the scan ran keeps the row it
+        // has now (`InstallOwnership`): the scan may have read its bundle before
+        // or during the swap, and the install writes its own row once it has
+        // re-checked. Re-merged, that read put the old version back with a live
+        // Update — a row clicked on its own whose install lands during Update
+        // All's closing rescan.
+        let owned = installOwnership.owned(since: ownershipMark, installing: installing.keys)
         if resultsGeneration == priorGeneration, needsRestart == restart,
            pendingSelfUpdate == staged, armedSelfInstallers == armed, pinnedOrder == pinned {
-            results = rows
+            results = owned.isEmpty ? rows
+                : sorted(InstallOwnership.applying(rows, keeping: owned, from: results))
         } else {
-            results = sorted(mergeScanned(found))
+            results = sorted(InstallOwnership.applying(mergeScanned(found), keeping: owned, from: results))
         }
         prefetchRowIcons()
         await computeRestartInfo()
@@ -9281,7 +9297,9 @@ final class AppListModel {
         // self-updated *externally* while the batch ran — Chrome's Keystone applying a
         // new build during the "Update All" — is re-evaluated and clears, instead of
         // keeping its stale "update available" row until the next backstop tick. Safe
-        // here: every install in the batch has finished, so there's no spinner to churn.
+        // here: every install in the batch has finished. A row install clicked on its
+        // own may still run, or land while this reads the disk: its row keeps what
+        // its install wrote (`InstallOwnership`), not this scan's read of it.
         await performLocalRescan(unattended: false)
         // The authoritative process-version sweep inside `performLocalRescan` has
         // now converted these provisional states into `needsRestart` (or proved the
@@ -9337,7 +9355,8 @@ final class AppListModel {
         }
     }
 
-    /// Whether to show the batch button: nothing in flight, and more than one app
+    /// Whether to show the batch button: no refresh, scan, check or batch in
+    /// flight (row installs do not hide it), and more than one app
     /// it would act on. Both halves live in `ListActivity.canOfferUpdateAll`.
     var canUpdateAll: Bool {
         listActivity.canOfferUpdateAll(targetCount: installAllTargets().count)
@@ -10051,8 +10070,9 @@ final class AppListModel {
     }
 
     /// A narrowed local rescan run *while* an install is in flight: re-read disk and
-    /// re-derive status against each row's cached remote, but replace only rows that
-    /// are NOT currently installing (or queued). This clears an app that self-updated
+    /// re-derive status against each row's cached remote, but replace only rows no
+    /// install owned while it read (`InstallOwnership`: installing or queued at
+    /// either end, or finished in between). This clears an app that self-updated
     /// externally mid-install — which the deferred full rescan would otherwise leave
     /// stale until the batch ends — without touching the installing rows, their
     /// spinners, or the global restart/staging/backup flags (the install flow owns
@@ -10066,6 +10086,7 @@ final class AppListModel {
         // attended one admits `.unknown`, which here would open TestFlight's
         // container on a trigger nobody aimed at us.
         let readsTestFlight = unattendedMayReadTestFlightStore
+        let ownershipMark = installOwnership.mark(installing: installing.keys)
         // Off the cooperative pool for the reason `refreshLocal` gives.
         let found = await offCooperativePool(qos: .utility) {
             AppScanner(
@@ -10078,7 +10099,10 @@ final class AppListModel {
             mergeScanned(found).map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
         var next = results
         var changed = false
-        for i in next.indices where installing[next[i].id] == nil {
+        // Not only the rows installing now: one whose install finished while
+        // the scan ran was read before its swap (`InstallOwnership`).
+        let owned = installOwnership.owned(since: ownershipMark, installing: installing.keys)
+        for i in next.indices where !owned.contains(next[i].id) {
             guard let fresh = mergedByID[next[i].id],
                   fresh.status != next[i].status
                     // The PAIR, so an app that self-updated externally between

@@ -35,7 +35,8 @@ public struct ListActivity: Sendable, Equatable {
     public var isChecking: Bool
     /// A batch "Update All" is running.
     public var isInstallingAll: Bool
-    /// At least one row has an install of its own in flight.
+    /// At least one row has an install of its own in flight. Holds Refresh, not
+    /// Update All (`canInstallAll`).
     public var hasRowInstalls: Bool
 
     /// Takes the row-install COUNT, not a pre-negated `hasRowInstalls` flag.
@@ -62,9 +63,8 @@ public struct ListActivity: Sendable, Equatable {
 
     /// Nothing that rewrites or mutates the list is in flight.
     ///
-    /// Every whole-list action shares this one condition. They differ only in what
-    /// they additionally require (Update All also wants more than one target), never
-    /// in which flags mean "busy" — so they read this rather than re-listing them.
+    /// Refresh reads this whole condition. Update All reads all of it but the row
+    /// installs (`canInstallAll`), which it works around rather than waits for.
     public var isIdle: Bool {
         !isRefreshing && !isScanning && !isChecking && !isInstallingAll && !hasRowInstalls
     }
@@ -74,9 +74,16 @@ public struct ListActivity: Sendable, Equatable {
     /// is already running, which is what `isRefreshing` adds over the older spelling.
     public var canRefresh: Bool { isIdle }
 
-    /// Whether `installAll` may start. Same condition as `canRefresh`: a batch
-    /// install and a refresh each assume they own the list.
-    public var canInstallAll: Bool { isIdle }
+    /// Whether `installAll` may start: not while a refresh, scan or check is
+    /// rewriting the list, and not while another batch runs. Rows installing on
+    /// their own do not stop it — a click on one row must not hide Update All for
+    /// the rest. The batch takes only the rows not already installing
+    /// (`installAllTargets`), and the gates every install goes through keep
+    /// Homebrew and the App Store from running more at once than two row clicks
+    /// already can.
+    public var canInstallAll: Bool {
+        !isRefreshing && !isScanning && !isChecking && !isInstallingAll
+    }
 
     /// A scan/check round is in flight — a refresh (either leg, and the gaps
     /// between them) or a standalone re-check of failed rows.

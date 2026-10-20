@@ -315,6 +315,51 @@ private func cstrings(_ paths: String...) -> AppRuntimeDetector.CStringReader {
     #expect(detect(bundle, libraries: reader(appKit), cstrings: cstrings("/egui-0.36.2/src/lib.rs")) == .electron)
 }
 
+// MARK: - NSH, from its payload directory and the runner's crate paths
+
+/// The C strings of nsh 0.1.1's two prebuilt runners and of one built from
+/// source, as `nsh package` left them in real bundles.
+private func nshAppKitRunner() -> AppRuntimeDetector.CStringReader {
+    cstrings("crates/nsh-core/src/fenwick.rs", "crates/nsh-platform-macos/src/surface.rs")
+}
+private func nshGPUIRunner() -> AppRuntimeDetector.CStringReader {
+    cstrings(
+        "/Users/runner/work/nsh/nsh/crates/nsh-core/src/fenwick.rs",
+        "nsh-platform-gpui/src/view.rs",
+        "/Users/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/gpui-fast-0.1.9/src/scene.rs")
+}
+private func nshSourceRunner() -> AppRuntimeDetector.CStringReader {
+    cstrings("/Users/dev/nsh/crates/nsh-core/src/core/mod.rs")
+}
+
+@Test func aPackagedNSHAppIsNSHWhicheverRunnerItShips() throws {
+    let builder = try BundleBuilder(); defer { builder.cleanUp() }
+    let bundle = try builder.app("Counter", files: ["Resources/nsh/app.json", "Resources/nsh/bundle.nshc"])
+    for runner in [nshAppKitRunner(), nshGPUIRunner(), nshSourceRunner()] {
+        #expect(detect(bundle, libraries: reader(appKit), cstrings: runner) == .nsh)
+    }
+}
+
+@Test func aPureRustNSHAppWithoutCompiledTSXIsStillNSH() throws {
+    // A Rust app has no `bundle.nshc`; `app.json` is written for every app.
+    let builder = try BundleBuilder(); defer { builder.cleanUp() }
+    let bundle = try builder.app("Counter", files: ["Resources/nsh/app.json"])
+    #expect(detect(bundle, libraries: reader(appKit), cstrings: nshAppKitRunner()) == .nsh)
+}
+
+@Test func nshNeedsBothItsPayloadAndItsCrate() throws {
+    let builder = try BundleBuilder(); defer { builder.cleanUp() }
+    // A GPUI app embedding NSH's `AppView` links the crate and ships no payload:
+    // it is a GPUI app.
+    let embedding = try builder.app("Host")
+    #expect(detect(embedding, libraries: reader(appKit), cstrings: nshGPUIRunner()) == .gpui)
+    #expect(detect(embedding, libraries: reader(appKit), cstrings: nshAppKitRunner()) == .native)
+    // A directory of that name with no NSH in the binary says nothing.
+    let lookalike = try builder.app("Other", files: ["Resources/nsh/app.json"])
+    #expect(detect(lookalike, libraries: reader(appKit), cstrings: cstrings("/Users/dev/other/src/main.rs")) == .native)
+    #expect(detect(lookalike, libraries: reader(appKit), cstrings: { _ in nil }) == .native)
+}
+
 // MARK: - Python apps drawing with Qt
 
 @Test func aPythonAppShippingPyQtIsQt() throws {

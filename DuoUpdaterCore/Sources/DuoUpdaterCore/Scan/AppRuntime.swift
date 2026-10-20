@@ -40,6 +40,10 @@ public enum AppRuntime: String, Sendable, Hashable, CaseIterable, Codable {
     case gpui
     /// A Rust app drawing its interface with egui, the immediate-mode UI library.
     case egui
+    /// An app packaged by NSH (Native Shell, nsh.dev): TSX modules run by a Rust
+    /// engine and drawn as AppKit views or with GPUI, depending on which of its
+    /// runners was packaged.
+    case nsh
     /// Flutter's macOS embedder.
     case flutter
     /// Qt (5 or 6), deployed with its frameworks inside the bundle.
@@ -70,11 +74,12 @@ public enum AppRuntime: String, Sendable, Hashable, CaseIterable, Codable {
     /// or the row would be labelled from a binary the popover is forbidden to read.
     /// `.mygo` and `.wails` are compiled in the same way and stay out for the first
     /// half of that reason: a Go module list describes the one binary it is in. So
-    /// do `.gpui` and `.egui`, read from the strings of the one binary they are in.
+    /// do `.gpui` and `.egui`, read from the strings of the one binary they are in,
+    /// and `.nsh`, which needs those strings too.
     var isBundled: Bool {
         switch self {
         case .electron, .flutter, .qt, .java, .chromium: true
-        case .tauri, .mygo, .wails, .gpui, .egui, .native, .catalyst, .iOSApp, .reactNative: false
+        case .tauri, .mygo, .wails, .gpui, .egui, .nsh, .native, .catalyst, .iOSApp, .reactNative: false
         }
     }
 }
@@ -448,6 +453,25 @@ public enum AppRuntimeDetector {
         // them. GPUI before egui: an app is not expected to carry both, and a GPUI
         // app is the one shape here that also embeds a renamed wry for web content.
         if let executable, let strings = cstrings(executable) {
+            // NSH, before GPUI because one of its two runners is a GPUI app.
+            // `nsh package` copies a prebuilt runner in as the executable and puts
+            // the app beside it in `Resources/nsh/`: `app.json` always, and
+            // `bundle.nshc` (the compiled TSX) — always in 0.1.1, but skipped for a
+            // pure-Rust app by the packager on nsh's main branch — so the first is
+            // the one looked for. Apps packaged with nsh 0.1.1 for both
+            // targets, and one with a Rust crate of its own, all carry it, and all
+            // three binaries carry `nsh-core`'s source path — workspace-relative
+            // in the AppKit runner (`crates/nsh-core/src/…`), absolute in the
+            // GPUI one and in a runner built from source.
+            //
+            // Both are required. The directory alone is a name another app could
+            // use, and the crate alone is also what an app embedding NSH's
+            // `AppView` in its own window links — that app is not built with NSH,
+            // and keeps whatever label its own runtime earns.
+            if Self.containsCratePath(strings, "nsh-core"),
+               fm.fileExists(atPath: contents.appendingPathComponent("Resources/nsh/app.json").path) {
+                return reading(.nsh)
+            }
             if Self.containsCratePath(strings, "gpui") { return reading(.gpui) }
             if Self.containsCratePath(strings, "egui") { return reading(.egui) }
         }

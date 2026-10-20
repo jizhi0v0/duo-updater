@@ -24952,6 +24952,71 @@
         }
       }
     },
+    "Built with NSH — an interface written in TSX, run by a Rust engine and drawn with AppKit or GPUI.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mit NSH gebaut – eine in TSX geschriebene Oberfläche, ausgeführt von einer Rust-Engine und gezeichnet mit AppKit oder GPUI."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hecha con NSH: una interfaz escrita en TSX, ejecutada por un motor en Rust y dibujada con AppKit o GPUI."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Conçue avec NSH — une interface écrite en TSX, exécutée par un moteur Rust et dessinée avec AppKit ou GPUI."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Creata con NSH: un’interfaccia scritta in TSX, eseguita da un motore Rust e disegnata con AppKit o GPUI."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "NSH 製 — TSX で書かれた画面を Rust エンジンが動かし、AppKit または GPUI で描画します。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Feito com NSH — uma interface escrita em TSX, executada por um motor em Rust e desenhada com AppKit ou GPUI."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сделано на NSH — интерфейс на TSX, который исполняет движок на Rust и рисует через AppKit или GPUI."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "NSH ile geliştirildi — TSX ile yazılmış, bir Rust motorunca çalıştırılan ve AppKit ya da GPUI ile çizilen bir arayüz."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "用 NSH 构建 —— 界面用 TSX 编写，由 Rust 引擎运行，经 AppKit 或 GPUI 绘制。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "以 NSH 建構——介面以 TSX 撰寫，由 Rust 引擎執行，透過 AppKit 或 GPUI 繪製。"
+          }
+        }
+      }
+    },
     "Built with Tauri — a Rust app drawing into the system WebView.": {
       "extractionState": "manual",
       "localizations": {

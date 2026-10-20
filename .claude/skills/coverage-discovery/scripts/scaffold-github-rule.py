@@ -259,11 +259,15 @@ def derive(owner, repo, facts, releases):
         abi = facts.get("arm64ePtrauth")
         version = re.fullmatch(r"USR([0-9]+)", abi or "")
         if version is None:
-            notes.append(f"the arm64e slice's pointer-authentication ABI was not read ({abi or 'no developer '
-                         'tools'}): TODO(audit) — `otool -hv -arch arm64e`; macOS 15 kills USR00")
+            said = abi or "no developer tools"
+            notes.append(f"the arm64e slice's pointer-authentication ABI was not read ({said}): "
+                         "TODO(audit) — `otool -hv -arch arm64e`; macOS 15 kills USR00")
         elif int(version.group(1)) == 0:
             notes.append(f"the arm64e slice is pointer-authentication ABI {abi}: TODO(audit) — macOS 15 kills "
                          "it, even with arm64 beside it, so the package may not launch for users on 15")
+        elif int(version.group(1)) != 1:
+            notes.append(f"the arm64e slice is pointer-authentication ABI {abi}: TODO(audit) — only USR01 "
+                         "was seen running on macOS 15; check it launches there")
     names = {a["name"] for a in rel["assets"]}
     asset_pattern = generalise(asset, find_version(asset, short, prefer=(tag_version,)), VERSION, build)
     match_pattern = asset_pattern

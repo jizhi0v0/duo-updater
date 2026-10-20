@@ -72,6 +72,7 @@ public enum AppRecipeIndex {
         com_DanPristupov_Fork.set,
         com_dirijor_diri.set,
         com_docker_docker.set,
+        com_dominikmartn_Harp.set,
         com_dwarvesv_minimalbar.set,
         com_egoist_pulse.set,
         com_electron_goose.set,

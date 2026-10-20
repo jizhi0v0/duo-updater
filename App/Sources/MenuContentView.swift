@@ -603,12 +603,14 @@ struct MenuContentView: View {
                         .fixedSize(horizontal: true, vertical: false)
                         .disabled(model.isCancellingAll)
                         .help("Stop Update All: updates that haven’t started are dropped, and ones already installing finish")
-                    } else if model.canUpdateAll {
+                    } else if model.isStartingInstallAll || model.canUpdateAll {
+                        // Greyed from the click until the batch claims its rows.
                         Button("Update All") { Task { await model.installAll() } }
                             .lineLimit(1)
                             .controlSize(.small)
                             .buttonStyle(.borderedProminent)
                             .fixedSize(horizontal: true, vertical: false)
+                            .disabled(model.isStartingInstallAll)
                             .help("Install every pending update that can be applied automatically")
                     } else {
                         Color.clear.frame(width: 0, height: 20)

@@ -2799,10 +2799,15 @@ struct CLIToolsModelTests {
     }
 
     /// Still not offered once asked again at its turn, the click is not
-    /// dropped without a word: the row says it was not updated, and why.
+    /// dropped without a word: the row says it was not updated, and why —
+    /// until its tool's next check, which says what is true then: offered
+    /// again, the line must not sit beside the live Update (review, #1511
+    /// round 1).
     ///
-    /// Mutation: drop the `errors[id]` line in `offerAtTurn` → the row goes
-    /// back to its held-back line with nothing said, red.
+    /// Mutations: drop the `errors[id]` line in `offerAtTurn` → the row goes
+    /// back to its held-back line with nothing said, red; drop the
+    /// `notRunAtTurn` loop in `apply` → the reason outlives the next check,
+    /// red.
     @Test(.timeLimit(.minutes(1))) func aClickStillNotOfferedAtItsTurnSaysWhy() async {
         let ahead = Self.id(Self.ownPath())
         let path = Self.ownPackage()
@@ -2816,6 +2821,8 @@ struct CLIToolsModelTests {
             checker: FakeCheck([
                 (Self.report(.npm, [Self.status(path, kind: .npm)]), nil),
                 (Self.report(.npm, [busy]), nil),
+                (Self.report(.npm, [busy]), nil),
+                (Self.report(.npm, [Self.status(path, kind: .npm)]), nil),
             ]),
             updater: updater)
         let model = Self.model(
@@ -2835,6 +2842,11 @@ struct CLIToolsModelTests {
         #expect(model.errors[queued] == "Not updated: \(CLIToolsModel.reason(.busy, of: busy))")
         #expect(model.updating.isEmpty)
         #expect(model.cancels[queued] == nil)
+
+        // The next check offers it again.
+        await model.refresh()
+        #expect(model.oneClickable.contains { $0.toolID == queued })
+        #expect(model.errors[queued] == nil)
     }
 
     /// An update that ran nothing — something else was already updating the

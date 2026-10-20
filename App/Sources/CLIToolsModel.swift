@@ -148,6 +148,10 @@ final class CLIToolsModel {
     private(set) var errors: [CLIToolID: String] = [:]
     /// The full output of each failed update: the detail pane's log.
     private(set) var errorLogs: [CLIToolID: String] = [:]
+    /// The copies whose `errors` line says a click was not run at its turn
+    /// (`offerAtTurn`): about that click only, so gone once a later check of
+    /// its tool lands, whatever it says.
+    @ObservationIgnored private var notRunAtTurn: Set<CLIToolID> = []
     /// Installs just updated → the version they now read as. Open sessions keep
     /// the old version until restarted, so the row says so.
     ///
@@ -657,6 +661,14 @@ final class CLIToolsModel {
             errors[id] = nil
             errorLogs[id] = nil
         }
+        // "Not updated: <reason>" was true when the click's turn came. Kept by
+        // the rule above once its tool is offered again, it read as the reason
+        // beside a live Update on every later check (review, #1511 round 1).
+        let answered = Set(answers.map(\.1.kind))
+        for id in notRunAtTurn where answered.contains(id.kind) {
+            notRunAtTurn.remove(id)
+            errors[id] = nil
+        }
         // "Updated to X" is about the copy as DuoUpdater left it. Something else
         // has changed it since (or it is gone) — the claim no longer holds.
         for (id, version) in justUpdated {
@@ -944,6 +956,7 @@ final class CLIToolsModel {
         Log.app.notice("\(id.kind.rawValue, privacy: .public) update at \(id.path, privacy: .public): not run at its turn, no longer offered (\(now.map { "\($0.state)" } ?? "gone", privacy: .public)\(why.map { ": \($0)" } ?? "", privacy: .public))")
         // Updated from a terminal meanwhile, or gone: the row says that by itself.
         if let now, now.state == .updateAvailable || now.state == .unknown {
+            notRunAtTurn.insert(id)
             errors[id] = why.map { String(localized: "Not updated: \($0)") }
                 ?? String(localized: "Not updated: the update is no longer offered")
         }
@@ -1048,6 +1061,7 @@ final class CLIToolsModel {
         let id = status.toolID
         errors[id] = nil
         errorLogs[id] = nil
+        notRunAtTurn.remove(id)
         setProgress(id, .runningCommand(""), String(localized: "Starting…"))
         let update = providers[provider]
         // A job of its own (`InstallJobs.run`), so the row's Cancel reaches the

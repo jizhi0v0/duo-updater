@@ -46,6 +46,13 @@ wrong at least once.
    the audit and the row keeps the placeholder (Cork, MuseScore, 2026-10-16,
    caught only by review).
 
+6. **Draft questions get committed as answers.** `scaffold-github-rule.py`
+   drafts a family file and its audit with a `TODO(audit)` wherever only the
+   audit can answer (does the app update itself, an older bundle id, a
+   same-name prerelease, a system extension). Its drafts pass every other
+   check here and `make test` (measured 2026-10-20 on the TaskExplorer and
+   Lapce drafts), so nothing but this stops one landing unanswered.
+
 Deliberately NOT checked: that every registry bundle id has an audit. 149 of
 them do not, and turning a documentation backlog into a red build would only
 teach people to skip the check.
@@ -151,6 +158,18 @@ def check_no_handover_placeholders(problems):
                 f"{INDEX}:{n}: 「待主会话」 is a hand-over placeholder — "
                 "write the result from the audit's 一键安装 section"
             )
+
+
+def check_no_scaffold_todos(problems):
+    paths = [os.path.join(AUD, f) for f in audit_files() + ["README.md"]]
+    paths += [os.path.join(RECIPES, f) for f in sorted(os.listdir(RECIPES)) if f.endswith(".swift")]
+    for path in paths:
+        for n, line in enumerate(open(path, encoding="utf-8"), 1):
+            if "TODO(audit)" in line:
+                problems.append(
+                    f"{path}:{n}: TODO(audit) left from the scaffold draft — "
+                    "answer it with evidence (app-audit's coverage checklist)"
+                )
 
 
 def registry_bundle_ids():
@@ -309,6 +328,7 @@ def main():
     check_no_machine_state(problems)
     check_no_local_evidence_pointers(problems)
     check_no_handover_placeholders(problems)
+    check_no_scaffold_todos(problems)
     check_filename_matches_bundle_id(problems, registry_bundle_ids())
     scanned, families = check_history_pointers(problems)
 
@@ -330,7 +350,7 @@ def main():
     print(
         f"✓ app audits consistent — {n} docs, all indexed, "
         "no machine inventory, no pointers into untracked evidence, "
-        "no hand-over placeholders, "
+        "no hand-over placeholders, no unanswered TODO(audit), "
         f"history pointers resolve ({scanned} Swift files, {families} families)"
     )
     return 0

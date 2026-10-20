@@ -90,6 +90,12 @@ public struct InstallRowSmoothing<Key: Hashable & Sendable>: Sendable {
         public var pending: Bool
         /// How many a click stops: its help says so when more than one.
         public var live: Int
+
+        public init(state: InstallCancelState, pending: Bool, live: Int) {
+            self.state = state
+            self.pending = pending
+            self.live = live
+        }
     }
 
     /// See ``Output/cancelAllPhase(holding:)``.

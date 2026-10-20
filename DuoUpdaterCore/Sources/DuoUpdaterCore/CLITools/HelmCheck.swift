@@ -104,7 +104,7 @@ public struct HelmCheck: Sendable {
         let asRoot = !install.writable && rootDirectory(install)
         if asRoot, install.changeable {
             return verdict(state, latest: newest,
-                           note: "\(binary) can be changed without a password, and the script runs it as root: not run",
+                           note: "\(binary) or its directory is not root’s alone, and the script runs it as root: not run",
                            withheld: .unsupportedInstaller, manualCommand: Self.documentedCommand(installer: installer))
         }
         if !install.writable, !asRoot {

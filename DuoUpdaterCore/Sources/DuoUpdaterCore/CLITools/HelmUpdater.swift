@@ -128,7 +128,7 @@ public struct HelmUpdater: Sendable {
                 return .failed(message: "not run: \(install.directory) is no longer root’s directory", output: "")
             }
             guard !now.changeable else {
-                return .failed(message: "not run: \(binary) can be changed without a password, and the script runs it as root",
+                return .failed(message: "not run: \(binary) or its directory is not root’s alone, and the script runs it as root",
                                output: "")
             }
         } else {

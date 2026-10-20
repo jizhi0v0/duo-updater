@@ -425,7 +425,7 @@ import CryptoKit
         #expect(status.oneClick == nil)
         #expect(status.withheld == .unsupportedInstaller)
         #expect(status.manualCommand?.display == Self.documented)
-        #expect(status.note?.contains("can be changed without a password") == true)
+        #expect(status.note?.contains("is not root’s alone") == true)
         #expect(await box.updater().update(status) == .notOffered)
         #expect(box.ranAsRoot.isEmpty)
 
@@ -439,12 +439,14 @@ import CryptoKit
     }
 
     /// Not root's alone, so never run as root, whatever `access(W_OK)` says
-    /// now: a 555 file owned by this user (who may `chmod u+w` it), a
+    /// now: an install owned by this user (who may `chmod u+w` it), a
     /// directory its group may write, a directory with an ACL (one granting
     /// `add_file,delete_child` let this user `mv` over a file in a 555
-    /// directory, measured 2026-10-20).
+    /// directory, measured 2026-10-20) — and, in a directory that is root's
+    /// alone, a file its group may write, or a file with an ACL (one granting
+    /// `writesecurity` lets the mode be changed; `access(W_OK)` still says no).
     /// Mutations: drop the owner test; drop the group/other test; drop the
-    /// ACL test.
+    /// ACL test; drop the file's `onlyRootMayChange`.
     @Test func anInstallNotRootsAloneIsNeverRunAsRoot() async throws {
         let box = try Sandbox()
         try box.install(version: "3.21.4")
@@ -461,22 +463,36 @@ import CryptoKit
         #expect(!(try await box.status().needsAdministrator))
         try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: box.bin.path)
 
-        try Self.allowReplacing(in: box.bin.path)
+        try FileManager.default.setAttributes([.posixPermissions: 0o575], ofItemAtPath: box.binary.path)
+        #expect(access(box.binary.path, W_OK) != 0)
+        #expect(!(try await box.status().needsAdministrator))
+        try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: box.binary.path)
+
+        try Self.setACL(box.binary.path, "allow:writesecurity")
+        #expect(access(box.binary.path, W_OK) != 0)
+        let fileACL = try await box.status()
+        #expect(!fileACL.needsAdministrator)
+        #expect(fileACL.withheld == .unsupportedInstaller)
+        let none = try #require(acl_init(0))
+        defer { acl_free(UnsafeMutableRawPointer(none)) }
+        #expect(acl_set_file(box.binary.path, ACL_TYPE_EXTENDED, none) == 0)
+        #expect(try await box.status().needsAdministrator)
+
+        try Self.setACL(box.bin.path, "allow:write,delete_child")
         #expect(access(box.bin.path, W_OK) != 0)
         let acl = try await box.status()
         #expect(!acl.needsAdministrator)
         #expect(acl.withheld == .unsupportedInstaller)
     }
 
-    /// Gives everyone, this user among them, `add_file,delete_child` on
-    /// `directory` through an ACL.
-    static func allowReplacing(in directory: String) throws {
-        // As `acl_to_text` spells `chmod +a "everyone allow add_file,delete_child"`
-        // (a directory's `add_file` is `write`).
-        let text = "!#acl 1\ngroup:ABCDEFAB-CDEF-ABCD-EFAB-CDEF0000000C:everyone:12:allow:write,delete_child\n"
+    /// Gives everyone, this user among them, `rule` on `path` through an ACL,
+    /// spelt as `acl_to_text` spells `chmod +a "everyone <rule>"` (a
+    /// directory's `add_file` is `write`; measured 2026-10-20).
+    static func setACL(_ path: String, _ rule: String) throws {
+        let text = "!#acl 1\ngroup:ABCDEFAB-CDEF-ABCD-EFAB-CDEF0000000C:everyone:12:\(rule)\n"
         let acl = try #require(acl_from_text(text))
         defer { acl_free(UnsafeMutableRawPointer(acl)) }
-        #expect(acl_set_file(directory, ACL_TYPE_EXTENDED, acl) == 0)
+        #expect(acl_set_file(path, ACL_TYPE_EXTENDED, acl) == 0)
     }
 
     /// The click runs exactly the documented command as root, and what it left
@@ -557,7 +573,7 @@ import CryptoKit
         guard case .failed(let writable, _) = await box.updater(asRoot: { box.rootRun(to: "3.22.0") }).update(status) else {
             Issue.record("ran as root a file this user can write"); return
         }
-        #expect(writable.contains("can be changed without a password"))
+        #expect(writable.contains("is not root’s alone"))
         try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: box.binary.path)
 
         box.publish("3.21.4", "not this file")

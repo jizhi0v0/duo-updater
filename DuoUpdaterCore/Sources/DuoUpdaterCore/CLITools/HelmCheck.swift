@@ -14,8 +14,13 @@ import Foundation
 ///    `/usr/local/bin` is root's on most Macs. There — the directory the script
 ///    defaults to and escalates for, and root's — the one-click is that
 ///    documented command run as root behind the administrator panel
-///    (`CLIToolAdministratorRun`), after the same gates; anywhere else this user
-///    cannot write, the update is reported with the command for the user to run.
+///    (`CLIToolAdministratorRun`), after the same gates — but only for a file
+///    this user can neither write nor replace: the script runs the installed
+///    `helm version` as root, and a file this user may change could be swapped
+///    after the byte check below, while the panel is up, for anything to run
+///    as root.
+///    Anywhere else this user cannot write, and for such a file, the update is
+///    reported with the command for the user to run.
 /// 4. **The trust rule** (`CLIToolTrust`): helm is only ever ad hoc signed, and
 ///    the script runs the installed `helm version` before it replaces it, so the
 ///    file must be byte for byte its version's published build (`HelmVerifier`).
@@ -97,6 +102,11 @@ public struct HelmCheck: Sendable {
         // Root's default directory: the documented command, as root, past the
         // same gates as below (the script runs the installed `helm version`).
         let asRoot = !install.writable && rootDirectory(install)
+        if asRoot, install.changeable {
+            return verdict(state, latest: newest,
+                           note: "\(binary) can be changed without a password, and the script runs it as root: not run",
+                           withheld: .unsupportedInstaller, manualCommand: Self.documentedCommand(installer: installer))
+        }
         if !install.writable, !asRoot {
             return verdict(state, latest: newest,
                            note: "the script would need sudo to replace \(install.path)",

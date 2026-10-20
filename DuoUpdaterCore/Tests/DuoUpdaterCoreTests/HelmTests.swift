@@ -61,6 +61,14 @@ import CryptoKit
             return binary
         }
 
+        /// Root's directory and file as `sudo` left them: neither one this
+        /// user may write.
+        func makeRoots() throws {
+            try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: binary.path)
+            try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: bin.path)
+            isRootsDirectory = true
+        }
+
         func publish(_ version: String, _ text: String) { lock.withLock { published[version] = text } }
         var downloadCount: Int { lock.withLock { downloads } }
         func read(_ name: String) -> String? { try? String(contentsOf: root.appendingPathComponent(name), encoding: .utf8) }
@@ -153,7 +161,9 @@ import CryptoKit
             if publishNew { publish(version, next) }
             do {
                 try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: bin.path)
+                try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: binary.path)
                 try Data(next.utf8).write(to: binary)
+                try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: binary.path)
                 try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: bin.path)
             } catch {
                 Issue.record("\(error)")
@@ -376,8 +386,7 @@ import CryptoKit
     @Test func rootsDirectoryOffersTheDocumentedCommandAsRoot() async throws {
         let box = try Sandbox()
         try box.install(version: "3.21.4")
-        try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: box.bin.path)
-        box.isRootsDirectory = true
+        try box.makeRoots()
         let status = try await box.status()
         #expect(status.needsAdministrator)
         #expect(status.withheld == nil)
@@ -391,14 +400,43 @@ import CryptoKit
         #expect(!tampered.needsAdministrator)
     }
 
+    /// A file this user may write is never run as root, even in root's
+    /// directory: the script runs the installed `helm version`, and the file
+    /// could be swapped after the byte check, while the panel is up. It is
+    /// reported with the documented command, like a read-only install. So is a
+    /// read-only file in a directory this user may write.
+    /// Mutations: drop the check's `changeable` test; read the file's own
+    /// write access as never; read the directory's as never.
+    @Test func aWritableFileInRootsDirectoryIsNeverRunAsRoot() async throws {
+        let box = try Sandbox()
+        try box.install(version: "3.21.4")
+        try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: box.bin.path)
+        box.isRootsDirectory = true
+        let status = try await box.status()
+        #expect(!status.needsAdministrator)
+        #expect(status.oneClick == nil)
+        #expect(status.withheld == .unsupportedInstaller)
+        #expect(status.manualCommand?.display == Self.documented)
+        #expect(status.note?.contains("can be changed without a password") == true)
+        #expect(await box.updater().update(status) == .notOffered)
+        #expect(box.ranAsRoot.isEmpty)
+
+        // A read-only file in a directory this user can write: replaced by a
+        // rename as easily.
+        try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: box.binary.path)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: box.bin.path)
+        let replaceable = try await box.status()
+        #expect(!replaceable.needsAdministrator)
+        #expect(replaceable.withheld == .unsupportedInstaller)
+    }
+
     /// The click runs exactly the documented command as root, and what it left
     /// is checked like any update's. Mutation: run another command than
     /// `HelmCheck.documentedCommand`.
     @Test func updatesAsRoot() async throws {
         let box = try Sandbox()
         try box.install(version: "3.21.4")
-        try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: box.bin.path)
-        box.isRootsDirectory = true
+        try box.makeRoots()
         let status = try await box.status()
         let outcome = await box.updater(asRoot: { box.rootRun(to: "3.22.0") }).update(status)
         #expect(outcome == .updated(version: "3.22.0"))
@@ -411,8 +449,7 @@ import CryptoKit
     @Test func anUnpublishedRootResultIsAFailure() async throws {
         let box = try Sandbox()
         try box.install(version: "3.21.4")
-        try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: box.bin.path)
-        box.isRootsDirectory = true
+        try box.makeRoots()
         let status = try await box.status()
         box.publish("3.22.0", "the real 3.22.0")
         let outcome = await box.updater(asRoot: { box.rootRun(to: "3.22.0", publishNew: false) }).update(status)
@@ -428,8 +465,7 @@ import CryptoKit
     @Test func whatARootRunCanAnswer() async throws {
         let box = try Sandbox()
         try box.install(version: "3.21.4")
-        try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: box.bin.path)
-        box.isRootsDirectory = true
+        try box.makeRoots()
         let status = try await box.status()
         #expect(await box.updater(asRoot: { .declined }).update(status) == .declined)
         #expect(box.scanner.scan().first?.version == "3.21.4")
@@ -444,14 +480,15 @@ import CryptoKit
         #expect(message == "SHA sum of /tmp/x.tar.gz does not match. Aborting. (exit 1)")
     }
 
-    /// Asked again at the click: still root's directory, still not writable, the
-    /// file still its published build — else nothing runs as root.
-    /// Mutations: drop the click's `rootDirectory` test; drop `!now.writable`.
+    /// Asked again at the click: still root's directory, the file one this
+    /// user can neither write nor replace (a writable directory, then a
+    /// writable file), still its published build — else nothing runs as root.
+    /// Mutations: drop the click's `rootDirectory` test; drop the click's
+    /// `changeable` test; read the directory's write access as never.
     @Test func aRootRunReasksItsGates() async throws {
         let box = try Sandbox()
         try box.install(version: "3.21.4")
-        try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: box.bin.path)
-        box.isRootsDirectory = true
+        try box.makeRoots()
         let status = try await box.status()
 
         box.isRootsDirectory = false
@@ -466,6 +503,13 @@ import CryptoKit
             Issue.record("ran as root in a directory this user can write"); return
         }
         try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: box.bin.path)
+
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: box.binary.path)
+        guard case .failed(let writable, _) = await box.updater(asRoot: { box.rootRun(to: "3.22.0") }).update(status) else {
+            Issue.record("ran as root a file this user can write"); return
+        }
+        #expect(writable.contains("can be changed without a password"))
+        try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: box.binary.path)
 
         box.publish("3.21.4", "not this file")
         guard case .failed = await box.updater(asRoot: { box.rootRun(to: "3.22.0") }).update(status) else {

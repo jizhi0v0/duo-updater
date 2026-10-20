@@ -43,11 +43,16 @@ public struct HelmInstall: Sendable, Equatable, Codable {
     /// Whether this user may overwrite the file (`cp` writes into it) in its
     /// directory without `sudo`.
     public let writable: Bool
+    /// Whether this user may change the file without a password in any way:
+    /// write into it, or replace it in its directory. The script runs the
+    /// installed `helm version` before replacing it, so such a file is never
+    /// run as root (`HelmCheck`). Unless given, the same as `writable`.
+    public let changeable: Bool
     public let problem: Problem?
 
     public init(
         path: String, binary: String? = nil, version: String?, target: String? = "arm64",
-        quarantined: Bool = false, writable: Bool = true, problem: Problem? = nil
+        quarantined: Bool = false, writable: Bool = true, changeable: Bool? = nil, problem: Problem? = nil
     ) {
         self.path = path
         self.binary = binary
@@ -55,6 +60,7 @@ public struct HelmInstall: Sendable, Equatable, Codable {
         self.target = target
         self.quarantined = quarantined
         self.writable = writable
+        self.changeable = changeable ?? writable
         self.problem = problem
     }
 
@@ -125,7 +131,8 @@ public struct HelmScanner: Sendable {
         let directory = (path as NSString).deletingLastPathComponent
         return HelmInstall(
             path: path, binary: binary, version: version, target: readTarget(url), quarantined: isQuarantined(url),
-            writable: access(directory, W_OK) == 0 && access(binary, W_OK) == 0, problem: problem)
+            writable: access(directory, W_OK) == 0 && access(binary, W_OK) == 0,
+            changeable: access(directory, W_OK) == 0 || access(binary, W_OK) == 0, problem: problem)
     }
 
     static let marker = Data("mod\thelm.sh/helm/v".utf8)

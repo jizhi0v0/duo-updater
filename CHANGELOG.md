@@ -19,6 +19,28 @@ release note is debugging our code:
 
 Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
+## 0.5.11
+
+**You can cancel an update, or all of them with Cancel All.** Cancel works until the app itself is being replaced, including a Homebrew formula while brew downloads it, and a cancelled download picks up where it stopped next time.
+
+**Quitting no longer cuts an update off.** Quit waits for updates in progress and offers Quit When Done; if an update is interrupted anyway, its row offers Restore, even for Homebrew and App Store updates with backups turned off.
+
+**Four more apps are supported.** Obelus (with its `obg` and `ob` command-line tools), PennyBar, Git Switch and Kiln get update checks and one-click updates, and Secretive now updates in one click too, restarting its SSH agent on the new version; one-click for the Obelus app needs "Allow one-click updates for apps without a developer signature".
+
+**Apps that sign their updates with their own key update in one click.** Sparkle apps without an Apple Team ID, such as Lokii, used to be refused, and apps whose route needs a Team ID no longer show an Update button that could only fail.
+
+**DuoUpdater refuses more updates that shouldn't install.** A download older than the build you have, an update that drops the app's signing key, and an update feed that fails a signature check its developer requires are now refused.
+
+**Relaunch reopens apps that are slow to quit,** such as ChatGPT, instead of leaving them closed. If something puts an older version back right after a restart, the row says so and offers the update again.
+
+**More beta builds and release notes.** AirBuild and RuntimeViewer follow their own beta switch, RuntimeViewer copies too old to update themselves can be updated, Tamio and TrellisWM show proper release notes, Mayoi shows its full history, and iTerm2 and Longbridge release notes are back.
+
+**Fixes.** BetterTouchTool updates in one click again while its watchdog runs. Cork's update checks work reliably again, and so do one-click updates for WorkBuddy and Yomado. An App Store Xcode is now offered point releases like 27.0.1 or 27.1.1, which used to show as up to date. One-click updates for Memoh only take the vendor's own dated builds, so an older copy that runs its own server isn't turned into a cloud client. The update line shows a build number on both sides or neither, and buttons read "Update 1.53.0" without repeating the build. Code in release notes no longer shows stray backticks where it wraps. "Roll back" is now called Restore everywhere.
+
+**The runtime badge says what an app ships,** for example "Ships Qt Widgets and CEF."
+
+**Command line.** Ctrl-C during `duo install` finishes the step in progress instead of stopping halfway through replacing an app, and a tool that is still preparing stops before it runs its update.
+
 ## 0.5.10
 
 **Surge and TablePlus no longer offer an update your licence won't open.** Both apps refuse to run a version released after your updates ended; that version now shows a lock instead of an update button, and the lock says when your coverage ended and to renew in the app.

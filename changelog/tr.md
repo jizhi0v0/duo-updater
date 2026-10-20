@@ -2,6 +2,28 @@
 
 Bu, `CHANGELOG.md` dosyasının Türkçe çevirisidir. Geçerli olan İngilizce sürümdür; burada yer almayan eski sürümler otomatik olarak İngilizce gösterilir.
 
+## 0.5.11
+
+**Bir güncellemeyi ya da “Tümünü İptal Et” ile hepsini iptal edebilirsiniz.** “Vazgeç”, uygulamanın kendisi değiştirilmeye başlanana kadar çalışır; brew indirirken bir Homebrew formülü de buna dahildir. İptal edilen bir indirme de bir dahaki sefere kaldığı yerden devam eder.
+
+**Çıkmak artık güncellemeyi yarıda kesmiyor.** “Çık”, süren güncellemeleri bekler ve “Bitince Çık” seçeneğini sunar; bir güncelleme yine de kesilirse, yedekler kapalıyken yapılan Homebrew ve App Store güncellemelerinde bile satırında “Geri Yükle” çıkar.
+
+**Dört uygulama daha destekleniyor.** Obelus (`obg` ve `ob` komut satırı araçlarıyla birlikte), PennyBar, Git Switch ve Kiln güncelleme denetimi ve tek tıkla güncelleme alıyor; Secretive de artık tek tıkla güncelleniyor ve SSH ajanını yeni sürümle yeniden başlatıyor. Obelus uygulamasının tek tıkla güncellenmesi için “Geliştirici imzası olmayan uygulamalarda tek tıkla güncellemeye izin ver” gerekiyor.
+
+**Güncellemelerini kendi anahtarıyla imzalayan uygulamalar tek tıkla güncelleniyor.** Lokii gibi Apple Team ID’si olmayan Sparkle uygulamaları önceden reddediliyordu; güncelleme yolu Team ID gerektiren uygulamalar da artık yalnızca başarısız olabilecek bir güncelleme düğmesi göstermiyor.
+
+**DuoUpdater, kurulmaması gereken daha fazla güncellemeyi reddediyor.** Sizdeki derlemeden eski bir indirme, uygulamanın imzalama anahtarını bırakan bir güncelleme ve geliştiricisinin şart koştuğu bir imza denetiminden geçemeyen bir güncelleme akışı artık reddediliyor.
+
+**Yeniden Başlat, ChatGPT gibi geç kapanan uygulamaları kapalı bırakmak yerine yeniden açıyor.** Yeniden başlatmanın hemen ardından bir şey eski bir sürümü geri koyarsa satır bunu söylüyor ve güncellemeyi yeniden sunuyor.
+
+**Daha fazla beta derlemesi ve sürüm notu.** AirBuild ve RuntimeViewer kendi beta anahtarlarını izliyor, kendini güncelleyemeyecek kadar eski RuntimeViewer kopyaları güncellenebiliyor, Tamio ve TrellisWM düzgün sürüm notları gösteriyor, Mayoi tüm geçmişini gösteriyor; iTerm2 ve Longbridge sürüm notları da geri döndü.
+
+**Düzeltmeler.** BetterTouchTool, gözcü süreci çalışırken yeniden tek tıkla güncelleniyor. Cork’un güncelleme denetimi yeniden güvenilir biçimde çalışıyor; WorkBuddy ve Yomado’nun tek tıkla güncellemeleri de öyle. App Store’dan kurulan Xcode’a artık 27.0.1 ya da 27.1.1 gibi ara sürümler sunuluyor; bunlar önceden güncel görünüyordu. Memoh’un tek tıkla güncellemeleri yalnızca üreticinin kendi tarihli derlemelerini alıyor; böylece kendi sunucusunu çalıştıran eski bir kopya bulut istemcisine dönüşmüyor. Güncelleme satırı derleme numarasını ya iki tarafta da ya da hiçbirinde gösteriyor; düğmeler de derlemeyi tekrarlamadan “1.53.0 sürümüne güncelle” diyor. Sürüm notlarındaki kod, satırın kaydığı yerde artık başıboş ters tırnaklar göstermiyor. “Geri Al” artık her yerde “Geri Yükle” olarak geçiyor.
+
+**Çalışma ortamı rozeti bir uygulamanın neler içerdiğini söylüyor,** örneğin “İçerdiği: Qt Widgets ve CEF.”
+
+**Komut satırı.** `duo install` sırasında Ctrl-C, bir uygulamayı değiştirmenin ortasında durmak yerine süren adımı tamamlıyor; hâlâ hazırlanmakta olan bir araç da güncellemesini çalıştırmadan önce duruyor.
+
 ## 0.5.10
 
 **Surge ve TablePlus artık lisansınızın açamayacağı bir güncellemeyi önermiyor.** İki uygulama da güncelleme süreniz bittikten sonra yayımlanan bir sürümü çalıştırmayı reddeder; bu sürüm artık güncelleme düğmesi yerine bir kilit gösteriyor ve kilit, lisansınızın ne zamana kadar kapsadığını ve uygulamada yenilemeniz gerektiğini söylüyor.

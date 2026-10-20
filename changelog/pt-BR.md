@@ -2,6 +2,28 @@
 
 Esta é a tradução para o português do Brasil do arquivo CHANGELOG.md. A versão em inglês prevalece em caso de divergência. Os números de versão que não aparecem aqui são mostrados automaticamente em inglês na janela Novidades.
 
+## 0.5.11
+
+**Você pode cancelar uma atualização, ou todas com “Cancelar Tudo”.** “Cancelar” funciona até o próprio app começar a ser substituído, inclusive com uma fórmula do Homebrew enquanto o brew a baixa, e um download cancelado continua de onde parou na próxima vez.
+
+**Encerrar não corta mais uma atualização.** “Encerrar” espera as atualizações em andamento e oferece “Encerrar ao Concluir”; se uma atualização for interrompida mesmo assim, a linha dela oferece “Restaurar”, até em atualizações do Homebrew e da App Store com os backups desativados.
+
+**Mais quatro apps são compatíveis.** Obelus (com suas ferramentas de linha de comando `obg` e `ob`), PennyBar, Git Switch e Kiln ganham verificação de atualizações e atualização com um clique, e o Secretive agora também atualiza com um clique, reiniciando seu agente SSH na versão nova; a atualização com um clique do app Obelus precisa de “Permitir atualizações com um clique para apps sem assinatura de desenvolvedor”.
+
+**Apps que assinam as atualizações com a própria chave atualizam com um clique.** Apps Sparkle sem Team ID da Apple, como o Lokii, eram recusados, e apps cujo caminho de atualização exige um Team ID não mostram mais um botão de atualizar que só podia falhar.
+
+**O DuoUpdater recusa mais atualizações que não deveriam ser instaladas.** Um download mais antigo que a versão que você tem, uma atualização que remove a chave de assinatura do app e um feed de atualizações que falha numa verificação de assinatura exigida pelo desenvolvedor agora são recusados.
+
+**Reabrir abre de novo os apps que demoram a encerrar,** como o ChatGPT, em vez de deixá-los fechados. Se algo colocar uma versão mais antiga de volta logo depois de reiniciar, a linha avisa e oferece a atualização de novo.
+
+**Mais versões beta e notas da versão.** AirBuild e RuntimeViewer seguem a própria opção de beta, cópias do RuntimeViewer antigas demais para se atualizarem sozinhas agora podem ser atualizadas, Tamio e TrellisWM mostram notas da versão de verdade, o Mayoi mostra todo o histórico, e as notas da versão do iTerm2 e do Longbridge voltaram.
+
+**Correções.** O BetterTouchTool volta a atualizar com um clique enquanto o watchdog dele está rodando. A verificação de atualizações do Cork volta a funcionar de forma confiável, assim como a atualização com um clique do WorkBuddy e do Yomado. Um Xcode da App Store agora recebe versões intermediárias como 27.0.1 ou 27.1.1, que antes apareciam como atualizadas. A atualização com um clique do Memoh só usa as builds datadas do próprio fornecedor, para que uma cópia mais antiga que roda o próprio servidor não vire um cliente de nuvem. A linha de atualização mostra o número da build dos dois lados ou de nenhum, e os botões dizem “Atualizar 1.53.0” sem repetir a build. Código nas notas da versão não mostra mais crases soltas onde a linha quebra. “Reverter” agora se chama “Restaurar” em todo lugar.
+
+**O selo de tecnologia diz o que um app inclui,** por exemplo “Inclui Qt Widgets e CEF.”
+
+**Linha de comando.** Ctrl-C durante `duo install` termina a etapa em andamento em vez de parar no meio da substituição de um app, e uma ferramenta que ainda está se preparando para antes de executar a atualização.
+
 ## 0.5.10
 
 **O Surge e o TablePlus não oferecem mais uma atualização que sua licença não consegue abrir.** Os dois apps se recusam a abrir uma versão lançada depois que suas atualizações terminaram; essa versão agora mostra um cadeado em vez de um botão de atualizar, e o cadeado diz até quando sua licença cobre e para renová-la no app.

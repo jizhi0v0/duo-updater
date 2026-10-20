@@ -2167,10 +2167,13 @@ struct CLIToolsModelTests {
         let click = Task { await model.update(id) }
         await until { model.runQueue.isWaiting(.tool(id)) }
         model.cancel(id)
-        await click.value
+        // Released inside the Cancel, not when the click's task resumes: no
+        // frame in between draws a row neither queued nor released.
         #expect(!model.updating.contains(id))
+        #expect(!model.queued.contains(id))
         #expect(model.cancels[id] == nil)
         #expect(model.runQueue.waiting.isEmpty)
+        await click.value
 
         await gate.open()
         await held.value
@@ -2197,15 +2200,56 @@ struct CLIToolsModelTests {
         let all = Task { await model.updateAll() }
         await until { model.updateAllWaiting }
         #expect(model.queued == [Self.id(Self.pnpmCLI, .npm), Self.id(Self.tsx, .npm)])
+        #expect(model.updateAllCancel == .available)
         model.cancelUpdateAll()
-        await all.value
+        // Inside the Cancel, as a row's.
+        #expect(!model.updatingAll)
         #expect(model.updating.isEmpty)
         #expect(model.queued.isEmpty)
         #expect(model.cancels.isEmpty)
+        #expect(model.updateAllCancel == nil)
+        await all.value
 
         await gate.open()
         await held.value
         #expect(await updater.calls.isEmpty)
+    }
+
+    /// Update All's own Cancel while it runs cancels every copy that still can
+    /// be: the one running what comes before its command, and the one waiting
+    /// in its lane. Neither fails, and the batch ends.
+    ///
+    /// Mutation: `cancelUpdateAll` returns once the queue had nothing waiting →
+    /// both copies run, red.
+    @Test(.timeLimit(.minutes(1))) func updateAllsCancelWhileItRunsCancelsWhatItStillCan() async {
+        let prefix = "/Users/u/.nvm/versions/node/v24.11.0-\(UUID().uuidString)"
+        let first = prefix + "/lib/node_modules/pnpm"
+        let second = prefix + "/lib/node_modules/tsx"
+        let updater = FakeUpdater()
+        let gate = Gate()
+        await updater.setGate(gate)
+        await updater.setCommits(gate: nil)
+        let npm = FakeProvider(
+            kind: .npm,
+            checker: FakeCheck([(Self.report(.npm, [Self.status(first, kind: .npm), Self.status(second, kind: .npm)]), nil)]),
+            updater: updater)
+        let model = Self.model([npm])
+        await model.refresh()
+
+        let all = Task { await model.updateAll() }
+        await until { await gate.arrived == 1 }
+        #expect(model.updateAllCancel == .available)
+        model.cancelUpdateAll()
+        // The queued one at once; the running one is cancelling.
+        #expect(!model.updating.contains(Self.id(second, .npm)))
+        #expect(model.cancels[Self.id(first, .npm)] == .cancelling)
+        await gate.open()
+        await all.value
+
+        #expect(await updater.calls == [Self.id(first, .npm)])
+        #expect(model.errors.isEmpty)
+        #expect(model.updating.isEmpty)
+        #expect(!model.updatingAll)
     }
 
     /// Cancelling every copy of a waiting Update All one by one takes Update

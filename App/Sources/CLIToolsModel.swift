@@ -135,6 +135,9 @@ final class CLIToolsModel {
     @ObservationIgnored private var cancelRowWake: Task<Void, Never>?
     /// Copies cancelled while `updateAll` had them queued: their lane skips them.
     @ObservationIgnored private var cancelledWhileQueued: Set<CLIToolID> = []
+    /// The copies the running (or waiting) `updateAll` claimed. Not observed:
+    /// it changes only with `updatingAll`, which is.
+    @ObservationIgnored private var batchIDs: Set<CLIToolID> = []
     /// The latest output line of each running update. Set through
     /// `setProgress`, which records its stage for the rows (`progressLine`).
     private(set) var progress: [CLIToolID: String] = [:] {
@@ -860,17 +863,17 @@ final class CLIToolsModel {
         guard oneClickable.contains(where: { $0.toolID == id }) else { return }
         updating.insert(id)
         cancels[id] = .available
-        // Held until the re-check below has landed, not just until the command
-        // exits: that check waits on the network, and releasing the row earlier
-        // shows the old "outdated" verdict with a live Update button for its length.
-        defer { release(id) }
         // Behind another click's run, it waits its turn claimed, as a copy
-        // under `updateAll` does: "Queued", with its Cancel live.
+        // under `updateAll` does: "Queued", with its Cancel live. Taken back
+        // while it waits, the row is released inside the Cancel (`CLIRunQueue`).
         if runQueue.running != nil {
             queued.insert(id)
             setProgress(id, .queued, String(localized: "Queued"))
         }
-        await runQueue.perform(.tool(id)) {
+        // Held until the re-check below has landed, not just until the command
+        // exits: that check waits on the network, and releasing the row earlier
+        // shows the old "outdated" verdict with a live Update button for its length.
+        let ran = await runQueue.perform(.tool(id), whenCancelled: { self.release(id) }) {
             self.queued.remove(id)
             // Read again at its turn: a check while it waited may have moved the
             // offer, or taken it away. `outdated`, not `oneClickable`, which
@@ -886,6 +889,7 @@ final class CLIToolsModel {
             }
             self.settle(status, outcome)
         }
+        if ran { release(id) }
     }
 
     /// The index in `providers` of `status`'s own tool, never another's: each
@@ -910,10 +914,10 @@ final class CLIToolsModel {
     /// already finishing. Cancelled is not failed: no red line, no re-check.
     func cancel(_ id: CLIToolID) {
         guard cancels[id] == .available else { return }
-        // Its own click, waiting behind another's run: out of the queue.
+        // Its own click, waiting behind another's run: out of the queue, its
+        // row released by the click's `whenCancelled`.
         if runQueue.cancel(.tool(id)) {
             Log.app.notice("\(id.kind.rawValue, privacy: .public) update at \(id.path, privacy: .public): cancelled while it waited its turn")
-            release(id)
             return
         }
         if queued.contains(id) {
@@ -1102,7 +1106,7 @@ final class CLIToolsModel {
         let batch = batchable.compactMap { status in provider(of: status).map { (status, $0) } }
         guard !batch.isEmpty else { return }
         updatingAll = true
-        defer { updatingAll = false }
+        batchIDs = Set(batch.map(\.0.toolID))
         // Every copy is claimed now, not when its turn comes: until then its row
         // says "Queued" instead of offering an Update that would race its lane.
         // That holds while Update All itself waits behind another click's run.
@@ -1112,25 +1116,48 @@ final class CLIToolsModel {
             cancels[status.toolID] = .available
             setProgress(status.toolID, .queued, String(localized: "Queued"))
         }
-        let ran = await runQueue.perform(.updateAllTools) { await self.runBatch(batch) }
-        // Taken back while it waited (`cancelUpdateAll`): nothing ran.
-        if !ran {
+        // Taken back while it waited (`cancelUpdateAll`): nothing ran, and every
+        // copy it claimed is released inside the Cancel.
+        let ran = await runQueue.perform(.updateAllTools, whenCancelled: {
             for (status, _) in batch {
-                cancelledWhileQueued.remove(status.toolID)
-                if queued.contains(status.toolID) { release(status.toolID) }
+                self.cancelledWhileQueued.remove(status.toolID)
+                if self.queued.contains(status.toolID) { self.release(status.toolID) }
             }
-        }
+            self.endUpdateAll()
+        }) { await self.runBatch(batch) }
+        if ran { endUpdateAll() }
     }
 
-    /// Whether Update All is waiting behind another click's run: the popover's
-    /// row and the workbench header then offer to take it back.
+    private func endUpdateAll() {
+        updatingAll = false
+        batchIDs = []
+    }
+
+    /// Whether Update All is waiting behind another click's run.
     var updateAllWaiting: Bool { runQueue.isWaiting(.updateAllTools) }
 
-    /// Take back an Update All still waiting its turn; every copy it claimed
-    /// goes back to its Update. One already running is cancelled copy by copy.
+    /// Update All's own Cancel, beside its progress in the workbench header and
+    /// the popover row: live while it waits its turn, or while any copy it
+    /// claimed can still be cancelled (`cancels`); greyed once every one left
+    /// has started its command. Nil when no Update All runs.
+    var updateAllCancel: InstallCancelState? {
+        guard updatingAll else { return nil }
+        if updateAllWaiting { return .available }
+        return batchIDs.contains { cancels[$0] == .available } ? .available : .committing
+    }
+
+    /// Update All's Cancel: one still waiting its turn leaves the queue, and
+    /// every copy it claimed goes back to its Update. One running cancels each
+    /// copy that still can be (`cancel`), the rest finish.
     func cancelUpdateAll() {
-        guard runQueue.cancel(.updateAllTools) else { return }
-        Log.app.notice("Update All: cancelled while it waited its turn")
+        if runQueue.cancel(.updateAllTools) {
+            Log.app.notice("Update All: cancelled while it waited its turn")
+            return
+        }
+        guard updatingAll else { return }
+        let cancellable = batchIDs.filter { cancels[$0] == .available }
+        Log.app.notice("Update All: cancel, \(cancellable.count, privacy: .public) of \(self.batchIDs.count, privacy: .public) copies still cancellable")
+        for id in cancellable { cancel(id) }
     }
 
     /// `updateAll`'s turn: the lanes at once, each tool re-checked when its last

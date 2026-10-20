@@ -1041,12 +1041,12 @@ struct WorkbenchWindowView: View {
                 .help(String(localized: "Updates each copy in place with its own tool’s update command, on the channel that tool is set to. Copies without a one-click update, and copies whose update asks for an administrator password, are left alone."))
                 .opacity(tools.updatingAll ? 0 : 1)
                 .overlay(alignment: .trailing) {
-                    if tools.updatingAll {
+                    // Its Cancel beside the spinner, waiting or running, as
+                    // Homebrew's Upgrade All has (`CLIToolsModel.updateAllCancel`).
+                    if let cancel = tools.updateAllCancel {
                         HStack(spacing: 4) {
                             ProgressView().controlSize(.small)
-                            if tools.updateAllWaiting {
-                                InstallCancelButton(state: .available) { tools.cancelUpdateAll() }
-                            }
+                            InstallCancelButton(state: cancel) { tools.cancelUpdateAll() }
                         }
                     }
                 }

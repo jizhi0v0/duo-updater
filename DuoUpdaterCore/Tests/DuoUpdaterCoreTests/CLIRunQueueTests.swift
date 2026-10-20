@@ -118,6 +118,35 @@ import Testing
         #expect(record.order == ["a", "c"])
     }
 
+    /// A waiting click's `whenCancelled` runs inside `cancel`, before it returns
+    /// — not when the caller's task next runs, which left a frame between the
+    /// two — and a click that gets its turn never runs it.
+    ///
+    /// Mutation: call the cleanup after resuming the waiter, from its task →
+    /// `cleaned` is still false when `cancel` returns, red.
+    @Test func whenCancelledRunsInsideTheCancel() async {
+        let queue = CLIRunQueue<String>()
+        let hold = Hold()
+        let record = Record()
+        let first = Task { @MainActor in await queue.perform("a") { await hold.wait() } }
+        await until { hold.entered }
+        let second = Task { @MainActor in
+            await queue.perform("b", whenCancelled: { record.order.append("cleaned b") }) {}
+        }
+        let third = Task { @MainActor in
+            await queue.perform("c", whenCancelled: { record.order.append("cleaned c") }) {
+                record.order.append("ran c")
+            }
+        }
+        await until { queue.waiting.count == 2 }
+
+        #expect(queue.cancel("b"))
+        #expect(record.order == ["cleaned b"])
+        hold.release()
+        _ = await (first.value, second.value, third.value)
+        #expect(record.order == ["cleaned b", "ran c"])
+    }
+
     /// Only a waiting click can be taken back: not the running one, nor one
     /// never made.
     @Test func onlyAWaitingClickCanBeCancelled() async {

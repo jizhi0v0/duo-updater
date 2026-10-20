@@ -29,6 +29,12 @@ import Observation
 /// The same click twice is taken once: while it waits or runs, another is
 /// dropped. A waiting click can be taken back (`cancel`); a running one is the
 /// caller's to stop, if it can be stopped at all.
+///
+/// A click taken back is cleaned up inside `cancel`, by the `whenCancelled` its
+/// caller gave, not when the caller's task next runs: in between, SwiftUI could
+/// draw a frame of a row neither waiting nor released (2026-10-20, a one-frame
+/// flicker on Cancel), and a new click on that row could be claimed and then
+/// released by the old task.
 @MainActor @Observable
 public final class CLIRunQueue<Key: Hashable & Sendable> {
     /// The click whose run is going, from its turn until its run returns.
@@ -36,6 +42,7 @@ public final class CLIRunQueue<Key: Hashable & Sendable> {
     /// The clicks waiting, oldest first.
     public private(set) var waiting: [Key] = []
     @ObservationIgnored private var turns: [Key: CheckedContinuation<Bool, Never>] = [:]
+    @ObservationIgnored private var cleanups: [Key: () -> Void] = [:]
 
     public init() {}
 
@@ -46,15 +53,19 @@ public final class CLIRunQueue<Key: Hashable & Sendable> {
 
     /// Run `body` once every click taken before this one has finished. Returns
     /// false without running it when the same click is already waiting or
-    /// running, or when it was cancelled while it waited.
+    /// running, or when it was cancelled while it waited — `whenCancelled` has
+    /// then run already, inside `cancel`.
     ///
     /// The caller's task is not watched: cancelling it while it waits leaves the
     /// click in the queue. `cancel` is how a click is taken back.
     @discardableResult
-    public func perform(_ key: Key, _ body: () async -> Void) async -> Bool {
+    public func perform(
+        _ key: Key, whenCancelled: @escaping () -> Void = {}, _ body: () async -> Void
+    ) async -> Bool {
         guard !contains(key) else { return false }
         if running != nil {
             waiting.append(key)
+            cleanups[key] = whenCancelled
             let go = await withCheckedContinuation { turns[key] = $0 }
             guard go else { return false }
         }
@@ -70,6 +81,7 @@ public final class CLIRunQueue<Key: Hashable & Sendable> {
     public func cancel(_ key: Key) -> Bool {
         guard let index = waiting.firstIndex(of: key) else { return false }
         waiting.remove(at: index)
+        cleanups.removeValue(forKey: key)?()
         turns.removeValue(forKey: key)?.resume(returning: false)
         return true
     }
@@ -82,6 +94,7 @@ public final class CLIRunQueue<Key: Hashable & Sendable> {
         guard !waiting.isEmpty else { return }
         let next = waiting.removeFirst()
         running = next
+        cleanups[next] = nil
         turns.removeValue(forKey: next)?.resume(returning: true)
     }
 }

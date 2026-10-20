@@ -925,12 +925,14 @@ private struct CommandLineRow: View {
             let claimed = tools.statuses.filter {
                 tools.updating.contains($0.toolID) && !tools.queued.contains($0.toolID)
             }
+            // Update All is this row's button's: while it waits or runs, its
+            // Cancel stands where that button stood, as Homebrew's row has.
+            let cancel: (any View)? = tools.updateAllCancel.map { state in
+                InstallCancelButton(state: state) { tools.cancelUpdateAll() }
+            }
             if claimed.isEmpty {
                 // Every copy claimed waits its turn behind another click's run
-                // (`CLIRunQueue`). An Update All waiting is this row's button's,
-                // so its Cancel stands where that button stood.
-                let cancel: (any View)? = tools.updateAllWaiting
-                    ? InstallCancelButton(state: .available) { tools.cancelUpdateAll() } : nil
+                // (`CLIRunQueue`).
                 return half([Text(String(localized: "Queued"))], mark: spinner, button: cancel)
             }
             let running = claimed.filter { !tools.awaitingCheck.contains($0.toolID) }
@@ -939,7 +941,8 @@ private struct CommandLineRow: View {
                 ? String(localized: "Updating \(named[0].kind.displayName)")
                 : String(localized: "Updating command-line tools")
             let progress = named.lazy.compactMap { tools.progressLine($0.toolID) }.first
-            return half([Text(head), progress.map { Text($0).monospacedDigit() }].compactMap { $0 }, mark: spinner)
+            return half([Text(head), progress.map { Text($0).monospacedDigit() }].compactMap { $0 },
+                        mark: spinner, button: cancel)
         }
         if !tools.checked { return half([Text(String(localized: "Checking…"))], mark: spinner) }
         if !tools.outdated.isEmpty {

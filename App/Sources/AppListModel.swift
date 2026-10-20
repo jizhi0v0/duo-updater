@@ -4533,14 +4533,16 @@ final class AppListModel {
         homebrewUpdating = true
         homebrewUpdateError = nil
         let jobID = Self.homebrewUpdateJobID
-        defer { homebrewUpdating = false; homebrewUpdateNote = nil; brewCancels[jobID] = nil }
-        // Behind another click's run (`CLIRunQueue`) it waits "Queued", and can
-        // be taken back until its turn. `brew update` itself has no Cancel.
+        // Run once: inside the Cancel when it is taken back while it waits
+        // (`CLIRunQueue`), otherwise when it is done.
+        let end = { [self] in homebrewUpdating = false; homebrewUpdateNote = nil; brewCancels[jobID] = nil }
+        // Behind another click's run it waits "Queued", and can be taken back
+        // until its turn. `brew update` itself has no Cancel.
         if cliTools.runQueue.running != nil {
             homebrewUpdateNote = String(localized: "Queued")
             brewCancels[jobID] = .available
         }
-        await cliTools.runQueue.perform(.homebrewUpdate) {
+        let ran = await cliTools.runQueue.perform(.homebrewUpdate, whenCancelled: end) {
             self.brewCancels[jobID] = nil
             // Read again at its turn: a background `brew update` or a check
             // while it waited may have taken the offer away.
@@ -4566,6 +4568,7 @@ final class AppListModel {
             }
             await self.brewLane.handle(.afterAction("brew update"))
         }
+        if ran { end() }
     }
 
     /// Run `brew upgrade --formula` (the bulk action, mirroring a bare terminal
@@ -4578,12 +4581,16 @@ final class AppListModel {
         // Live from the click: until its turn (`CLIRunQueue`) it takes Upgrade
         // All out of the queue; after, it cancels brew's downloads.
         brewCancels[jobID] = .available
-        defer {
+        // Run once: inside the Cancel when it is taken back while it waits,
+        // otherwise when it is done.
+        let end = { [self] in
             brewUpgrading = false; brewUpgradeNote = nil; brewUpgradeDone = 0; brewUpgradeTotal = 0
             brewCancels[jobID] = nil
         }
         if cliTools.runQueue.running != nil { brewUpgradeNote = String(localized: "Queued") }
-        await cliTools.runQueue.perform(.upgradeAll) { await self.runUpgradeAll() }
+        if await cliTools.runQueue.perform(.upgradeAll, whenCancelled: end, { await self.runUpgradeAll() }) {
+            end()
+        }
     }
 
     /// Upgrade All's turn.
@@ -4656,20 +4663,23 @@ final class AppListModel {
         // Live from the click: until its turn (`CLIRunQueue`) it takes the
         // upgrade out of the queue; after, it cancels brew's downloads.
         brewCancels[jobID] = .available
-        defer {
+        // Run once: inside the Cancel when it is taken back while it waits,
+        // otherwise when it is done.
+        let end = { [self] in
             upgradingFormulae.remove(name)
             formulaUpgradeNotes[name] = nil
             brewCancels[jobID] = nil
         }
         formulaUpgradeNotes[name] = cliTools.runQueue.running != nil
             ? String(localized: "Queued") : String(localized: "Starting…")
-        await cliTools.runQueue.perform(.upgradeFormula(name)) {
+        let ran = await cliTools.runQueue.perform(.upgradeFormula(name), whenCancelled: end) {
             // Read again at its turn: an Upgrade All queued ahead of it may have
             // upgraded it already.
             guard self.brewFormulae.contains(where: { $0.name == name && $0.hasUpdate }) else { return }
             self.formulaUpgradeNotes[name] = String(localized: "Starting…")
             await self.runFormulaUpgrade(name)
         }
+        if ran { end() }
     }
 
     /// One formula's upgrade, at its turn.
@@ -4734,9 +4744,10 @@ final class AppListModel {
     /// not failed: no red line, no re-read.
     func cancelBrewUpgrade(_ jobID: String) {
         guard brewCancels[jobID] == .available else { return }
+        // Still waiting its turn: out of the queue, its row cleared by the
+        // run's `whenCancelled`.
         if let run = Self.queuedRun(ofJob: jobID), cliTools.runQueue.cancel(run) {
             Log.app.notice("\(jobID, privacy: .public): cancelled while it waited its turn")
-            brewCancels[jobID] = nil
             return
         }
         brewCancels[jobID] = InstallCancelState.after(InstallJobs.cancel(jobID))

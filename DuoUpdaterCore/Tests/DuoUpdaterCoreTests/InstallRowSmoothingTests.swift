@@ -171,6 +171,44 @@ import Testing
         #expect(wrappingUp.cancelAllPhase(holding: .finishing) == .finishing)
     }
 
+    // MARK: One Cancel for several rows
+
+    /// The popover's tools row stands for every copy it updates: its Cancel is
+    /// live while any can still be cancelled, and counts those a click stops —
+    /// not the ones past their commit, accepted already, or not the row's.
+    ///
+    /// Mutation: count every `.available` as live, pending included → `live`
+    /// reads 2, red; iterate `cancels` instead of `ids` → "z" counted, red.
+    @Test func aGroupCancelIsLiveWhileAnyRowCanBeCancelled() {
+        var s = Smoothing()
+        let stages: [String: InstallStage] = ["a": .queued, "b": .installing, "c": .queued, "z": .queued]
+        _ = s.update(stages: stages, cancels: ["a": .available, "b": .committing, "c": .available, "z": .available], now: at(0))
+        let two = s.update(stages: stages, cancels: ["a": .available, "b": .committing, "c": .available, "z": .available], now: at(10))
+        #expect(two.groupCancel(of: ["a", "b", "c"]) == .init(state: .available, pending: false, live: 2))
+        let one = s.update(stages: stages, cancels: ["a": .available, "b": .committing, "c": .cancelling, "z": .available], now: at(20))
+        #expect(one.groupCancel(of: ["a", "b", "c"]) == .init(state: .available, pending: false, live: 1))
+    }
+
+    /// Nothing left to stop: greyed as the rows' Cancels are — pending first,
+    /// for its 0.3 s, then past the commit, then refused there — and gone once
+    /// every one says "Cancelling…", which the row's line says.
+    ///
+    /// Mutations: drop the `pending` rung → `.committing`, red; swap the
+    /// `committing` and `tooLate` rungs → `.tooLate`, red; count `.cancelling`
+    /// as committing → not nil, red.
+    @Test func aGroupCancelGreysAsItsRowsDo() {
+        var s = Smoothing()
+        let stages: [String: InstallStage] = ["a": .queued, "b": .installing, "c": .installing]
+        _ = s.update(stages: stages, cancels: ["a": .available, "b": .committing, "c": .committing], now: at(0))
+        let clicked = s.update(stages: stages, cancels: ["a": .cancelling, "b": .committing, "c": .tooLate], now: at(100))
+        #expect(clicked.groupCancel(of: ["a", "b", "c"]) == .init(state: .available, pending: true, live: 0))
+        let shown = s.update(stages: stages, cancels: ["a": .cancelling, "b": .committing, "c": .tooLate], now: at(400))
+        #expect(shown.groupCancel(of: ["a", "b", "c"]) == .init(state: .committing, pending: false, live: 0))
+        #expect(shown.groupCancel(of: ["a", "c"]) == .init(state: .tooLate, pending: false, live: 0))
+        #expect(shown.groupCancel(of: ["a"]) == nil)
+        #expect(shown.groupCancel(of: ["gone"]) == nil)
+    }
+
     // MARK: Lines
 
     /// A row whose line is text says the line of the stage it shows: "Queued"

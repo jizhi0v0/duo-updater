@@ -1162,6 +1162,24 @@ final class CLIToolsModel {
         for id in cancellable { cancel(id) }
     }
 
+    /// The popover row's Cancel: one for every copy the row says is updating,
+    /// Update All's and a click's of its own alike (`groupCancel`), so a tool
+    /// updated from the workbench can be stopped from there too (2026-10-20).
+    /// Nil when nothing is left that the row could stop or grey.
+    var rowCancel: InstallRowSmoothing<CLIToolID>.GroupCancel? {
+        cancelRows.groupCancel(of: updating)
+    }
+
+    /// The popover row's Cancel: Update All still waiting its turn leaves the
+    /// queue, then each copy claimed that still can be is cancelled (`cancel`);
+    /// those past their command finish.
+    func cancelRow() {
+        if updateAllWaiting { cancelUpdateAll() }
+        let cancellable = updating.filter { cancels[$0] == .available }
+        Log.app.notice("Other tools row: cancel, \(cancellable.count, privacy: .public) of \(self.updating.count, privacy: .public) copies still cancellable")
+        for id in cancellable { cancel(id) }
+    }
+
     /// `updateAll`'s turn: the lanes at once, each tool re-checked when its last
     /// lane is done.
     private func runBatch(_ batch: [(CLIToolStatus, Int)]) async {

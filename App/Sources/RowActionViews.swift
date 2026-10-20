@@ -226,6 +226,9 @@ struct InstallCancelButton: View {
     /// (`InstallRowSmoothing`): greyed, so a second click has nothing to do, and
     /// its help already says what is happening.
     var pending = false
+    /// How many updates a click stops, for a Cancel that stands for several
+    /// (`InstallRowSmoothing.Output.groupCancel`): its help says how many.
+    var count = 1
     let action: () -> Void
 
     /// Room kept between the glyph and the row's trailing edge. Rows end 12pt
@@ -255,7 +258,8 @@ struct InstallCancelButton: View {
     private var help: String {
         if pending { return String(localized: "Cancelling…") }
         switch state {
-        case .available, .cancelling: return String(localized: "Cancel update")
+        case .available, .cancelling:
+            return count > 1 ? String(localized: "Cancel \(count) updates") : String(localized: "Cancel update")
         case .committing: return String(localized: "Installing — can’t cancel now")
         case .tooLate: return String(localized: "Already finishing — can’t cancel")
         }

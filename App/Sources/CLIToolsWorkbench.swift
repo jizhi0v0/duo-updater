@@ -198,6 +198,7 @@ struct CLIToolSidebarRow: View {
                 HStack(spacing: 6) {
                     Text(verbatim: CLIToolPresentation.title(of: status, home: homeDirectory, among: cli.statuses))
                         .font(.body).lineLimit(1).truncationMode(.middle)
+                    if CLIToolPresentation.showsSudoBadge(status) { CLISudoBadge() }
                     // Something runs this install's binary — this very file, by
                     // path (`CLIToolProcesses`) — as an app row's dot says.
                     if cli.liveUsage(id)?.isRunning == true {
@@ -302,6 +303,25 @@ struct CLIToolSidebarRow: View {
             // would leave a 260 pt sidebar too little room for the title beside it.
             CopyCommandButton(command: command)
         }
+    }
+}
+
+/// "sudo" beside the name of an install whose update asks for an
+/// administrator password (`CLIToolPresentation.showsSudoBadge`): the reason
+/// is on hover, so the row's Update reads as what it is before it is clicked.
+/// The word is the command's, so untranslated.
+struct CLISudoBadge: View {
+    var body: some View {
+        Text(verbatim: "sudo")
+            .font(.caption2.monospaced())
+            .lineLimit(1)
+            .fixedSize()
+            .padding(.horizontal, 5)
+            .padding(.vertical, 1)
+            .background(Capsule().fill(.secondary.opacity(0.16)))
+            .foregroundStyle(.secondary)
+            .help(CLIToolPresentation.sudoBadgeHelp)
+            .accessibilityLabel(CLIToolPresentation.sudoBadgeHelp)
     }
 }
 
@@ -711,6 +731,7 @@ struct CLIToolDetailPane: View {
                 // tool's group holds several kinds of thing. The path says which.
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Text(verbatim: status.name ?? status.kind.displayName).font(.title2).fontWeight(.semibold)
+                    if CLIToolPresentation.showsSudoBadge(status) { CLISudoBadge() }
                     if showsRuntime { CLIRuntimeTagSlot(path: status.path) }
                 }
                 Text(verbatim: ClaudeCodePresentation.abbreviate(status.path, home: homeDirectory))

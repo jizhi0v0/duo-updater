@@ -26,6 +26,13 @@ import Observation
 /// overlap to keep up. Tool against tool loses only the overlap two single-row
 /// clicks had; Update All's own lanes still run side by side inside its turn.
 ///
+/// Not here: a tool update that asks for an administrator password. Its panel
+/// comes at the click (`CLIToolsModel.update`, `updateAll`) — queued, it came
+/// whenever its turn did, minutes later, and held the whole app until
+/// answered — and its root shell, `env -i` with the system `PATH`, writes only
+/// its own tool's file, so it has no Homebrew run to clash with
+/// (`CLIToolAdministratorRun`).
+///
 /// The same click twice is taken once: while it waits or runs, another is
 /// dropped. A waiting click can be taken back (`cancel`); a running one is the
 /// caller's to stop, if it can be stopped at all.

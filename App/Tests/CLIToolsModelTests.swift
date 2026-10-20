@@ -189,9 +189,24 @@ struct CLIToolsModelTests {
         }
 
         func set(_ id: CLIToolID, _ outcome: CLIToolUpdateOutcome) { outcomes[id] = outcome }
+
+        /// The panel: logged, held until answered, then the answer told.
+        private func raisePanel(_ id: CLIToolID) async {
+            events.append("panel \(id.path)")
+            await panelGates[id]?.wait()
+            let answered = CLIToolAdministratorPanel.answered
+            await MainActor.run { answered?() }
+        }
         func setGate(_ gate: Gate?) { self.gate = gate }
         func setGate(_ id: CLIToolID, _ gate: Gate) { gates[id] = gate }
         func setLines(_ lines: [String]) { linesBeforeReturn = lines }
+
+        /// What ran, in order: "panel <path>" when an administrator copy's panel
+        /// was raised, "command <path>" when any other copy's command ran.
+        private(set) var events: [String] = []
+        /// Held between raising a copy's panel and the user's answer to it.
+        var panelGates: [CLIToolID: Gate] = [:]
+        func setPanelGate(_ id: CLIToolID, _ gate: Gate) { panelGates[id] = gate }
 
         func run(_ status: CLIToolStatus, _ progress: @escaping @Sendable (String) -> Void) async
             -> CLIToolUpdateOutcome
@@ -203,6 +218,22 @@ struct CLIToolsModelTests {
             for line in linesBeforeReturn { progress(line) }
             await gate?.wait()
             await gates[status.toolID]?.wait()
+            if status.needsAdministrator {
+                // The real runner's shape (`CLIToolAdministratorRun.Shell`): the
+                // panel inside its commit, so a cancel before it raises none,
+                // and the task-local told once it is answered.
+                let id = status.toolID
+                do {
+                    try await InstallCommit.run("administrator run", landed: { _ in true }) {
+                        await self.raisePanel(id)
+                    }
+                } catch {
+                    running -= 1
+                    return .failed(message: "cancelled before the administrator panel was raised; nothing ran", output: "")
+                }
+            } else {
+                events.append("command \(status.path)")
+            }
             if commits {
                 let held = commitGate
                 let lands = commitLands
@@ -2059,29 +2090,236 @@ struct CLIToolsModelTests {
             manualCommand: status.oneClick, detail: status.detail, needsAdministrator: true)
     }
 
-    /// Update All never raises the administrator panel: a copy whose update needs
-    /// it is left to its own row's click, which does run it.
+    /// Paths of their own per test: a copy's job is registered by its path
+    /// (`InstallJobs`), and the suite runs its cases at once.
+    struct SudoPaths {
+        let token = UUID().uuidString
+        var helm: String { "/usr/local/bin/helm-\(token)" }
+        var starship: String { "/usr/local/bin/starship-\(token)" }
+        var fx: String { "/Users/u/.fx/bin/fx-\(token)" }
+        var helmID: CLIToolID { CLIToolID(kind: .helm, path: helm) }
+        var starshipID: CLIToolID { CLIToolID(kind: .starship, path: starship) }
+        var fxID: CLIToolID { CLIToolID(kind: .fx, path: fx) }
+    }
+
+    /// Helm and Starship needing sudo, fx in a lane, all three behind one
+    /// updater — rows in that order (`CLIToolKind.allCases`).
+    static func sudoModel(_ updater: FakeUpdater, _ paths: SudoPaths,
+                          check: [CLIToolKind: FakeCheck] = [:]) -> CLIToolsModel {
+        let check = { (kind: CLIToolKind, status: CLIToolStatus) in
+            check[kind] ?? FakeCheck([(Self.report(kind, [status]), nil)])
+        }
+        return Self.model([
+            FakeProvider(kind: .fx, checker: check(.fx, Self.status(paths.fx, kind: .fx)), updater: updater),
+            FakeProvider(kind: .helm, checker: check(.helm, Self.asAdministrator(Self.status(paths.helm, kind: .helm))),
+                         updater: updater),
+            FakeProvider(kind: .starship,
+                         checker: check(.starship, Self.asAdministrator(Self.status(paths.starship, kind: .starship))),
+                         updater: updater),
+        ])
+    }
+
+    /// The lanes take only the copies that need no password; those that do are
+    /// counted apart, as what Update All asks a panel for.
     ///
-    /// Mutation: build `updateAll`'s batch from `oneClickable` again.
-    @Test func updateAllLeavesAnAdministratorCopyToItsOwnClick() async {
-        let updater = FakeUpdater()
-        let helm = FakeProvider(
-            kind: .helm,
-            checker: FakeCheck([(Self.report(.helm, [Self.asAdministrator(Self.status(Self.rootHelm, kind: .helm))]), nil)]),
-            updater: updater)
-        let fx = FakeProvider(
-            kind: .fx, checker: FakeCheck([(Self.report(.fx, [Self.status(Self.fx, kind: .fx)]), nil)]), updater: updater)
-        let model = Self.model([helm, fx])
+    /// Mutation: build `adminOffered` from `joinsUpdateAll` → the count is 1, red.
+    @Test func theCopiesNeedingSudoAreCountedApart() async {
+        let p = SudoPaths()
+        let model = Self.sudoModel(FakeUpdater(), p)
         await model.refresh()
-        #expect(model.offered.count == 2)
-        #expect(model.batchOffered.map(\.toolID) == [Self.id(Self.fx, .fx)])
-        #expect(model.batchable.map(\.toolID) == [Self.id(Self.fx, .fx)])
+        let helm = p.helmID, starship = p.starshipID
+        #expect(model.offered.count == 3)
+        #expect(model.batchOffered.map(\.toolID) == [p.fxID])
+        #expect(model.batchable.map(\.toolID) == [p.fxID])
+        #expect(model.adminOffered.map(\.toolID) == [helm, starship])
+        #expect(model.adminBatchable.map(\.toolID) == [helm, starship])
+        #expect(model.needSudoCount == 2)
+        #expect(model.updateAllStartable && model.updateAllOffered)
+    }
+
+    /// A row that needs sudo, clicked while another click's run holds the
+    /// queue, raises its panel now — not when the queue frees, minutes later.
+    ///
+    /// Mutation: drop the `needsAdministrator` branch in `update` → it queues
+    /// behind the held run, no panel, red.
+    @Test(.timeLimit(.minutes(1))) func aSudoRowRaisesItsPanelAtTheClick() async {
+        let updater = FakeUpdater()
+        let p = SudoPaths()
+        let model = Self.sudoModel(updater, p)
+        await model.refresh()
+        let helm = p.helmID
+        let gate = Gate()
+        let held = await holdQueue(model, gate)
+
+        await model.update(helm)
+        #expect(await updater.events == ["panel \(p.helm)"])
+        #expect(model.runQueue.running == .upgradeAll)
+        #expect(!model.runQueue.isWaiting(.tool(helm)))
+        #expect(!model.updating.contains(helm))
+
+        await gate.open()
+        _ = await held.value
+    }
+
+    /// Update All asks for each copy that needs sudo at the click, in row
+    /// order, the next panel only once the one before is answered — and all
+    /// of it before its lanes' turn, here held by another click's run.
+    ///
+    /// Mutations: don't wait for an answer before the next panel (start each
+    /// copy's task and go on) → Starship's panel is up beside Helm's, red; ask
+    /// after `runQueue.perform` → no panel while the queue is held, red.
+    @Test(.timeLimit(.minutes(1))) func updateAllAsksEachSudoCopyAtTheClickOneAfterAnother() async {
+        let updater = FakeUpdater()
+        let p = SudoPaths()
+        let model = Self.sudoModel(updater, p)
+        await model.refresh()
+        let helm = p.helmID, starship = p.starshipID
+        let helmAnswer = Gate()
+        await updater.setPanelGate(helm, helmAnswer)
+        let gate = Gate()
+        let held = await holdQueue(model, gate)
+
+        let all = Task { await model.updateAll() }
+        await until { await updater.events == ["panel \(p.helm)"] }
+        // Helm's panel unanswered: Starship's is not raised beside it.
+        try? await Task.sleep(for: .milliseconds(50))
+        #expect(await updater.events == ["panel \(p.helm)"])
+        #expect(model.queued.contains(starship))
+        #expect(model.queued.contains(p.fxID))
+
+        await helmAnswer.open()
+        await until { await updater.events.count == 2 }
+        await until { model.runQueue.isWaiting(.updateAllTools) }
+        #expect(await updater.events == ["panel \(p.helm)", "panel \(p.starship)"])
+
+        await gate.open()
+        _ = await held.value
+        await all.value
+        #expect(await updater.events == ["panel \(p.helm)", "panel \(p.starship)", "command \(p.fx)"])
+        #expect(!model.updatingAll)
+        #expect(model.updating.isEmpty)
+    }
+
+    /// One panel dismissed: that copy drops out — no red line, its Update back
+    /// — and the rest of Update All runs.
+    ///
+    /// Mutation: drop `self.release(id)` from `startAsking`'s task → the
+    /// dismissed copy stays claimed, no Update, red.
+    @Test(.timeLimit(.minutes(1))) func aDismissedPanelDropsOnlyItsCopy() async {
+        let updater = FakeUpdater()
+        let p = SudoPaths()
+        let starship = p.starshipID
+        await updater.set(starship, .declined)
+        // Helm's check after its update finds it current.
+        let helmChecks = FakeCheck([
+            (Self.report(.helm, [Self.asAdministrator(Self.status(p.helm, kind: .helm))]), nil),
+            (Self.report(.helm, [Self.status(p.helm, kind: .helm, version: "2.1.285", state: .upToDate,
+                                             oneClick: false)]), nil),
+        ])
+        let model = Self.sudoModel(updater, p, check: [.helm: helmChecks])
+        await model.refresh()
 
         await model.updateAll()
-        #expect(await updater.calls == [Self.id(Self.fx, .fx)])
+        #expect(await updater.events == ["panel \(p.helm)", "panel \(p.starship)", "command \(p.fx)"])
+        #expect(model.errors[starship] == nil)
+        #expect(model.oneClickable.map(\.toolID).contains(starship))
+        #expect(model.justUpdated[p.helmID] == "2.1.285")
+        #expect(!model.updatingAll)
+    }
 
-        await model.update(Self.id(Self.rootHelm, .helm))
-        #expect(await updater.calls == [Self.id(Self.fx, .fx), Self.id(Self.rootHelm, .helm)])
+    /// Update All with only copies that need sudo has no lane to queue: it
+    /// runs them while another click's run holds the queue.
+    ///
+    /// Mutation: always `runQueue.perform(.updateAllTools)` → it waits for the
+    /// held run, red (`updatingAll` stays true).
+    @Test(.timeLimit(.minutes(1))) func updateAllOfSudoCopiesAloneTakesNoTurn() async {
+        let updater = FakeUpdater()
+        let p = SudoPaths()
+        let helm = p.helmID
+        let model = Self.model([FakeProvider(
+            kind: .helm,
+            checker: FakeCheck([(Self.report(.helm, [Self.asAdministrator(Self.status(p.helm, kind: .helm))]), nil)]),
+            updater: updater)])
+        await model.refresh()
+        let gate = Gate()
+        let held = await holdQueue(model, gate)
+
+        let all = Task { await model.updateAll() }
+        await until { await updater.events == ["panel \(p.helm)"] }
+        await until { !model.updatingAll }
+        #expect(!model.runQueue.isWaiting(.updateAllTools))
+        #expect(!model.updating.contains(helm))
+
+        await gate.open()
+        _ = await held.value
+        await all.value
+    }
+
+    /// Cancelled before its panel: no panel, nothing run, no red line — for a
+    /// row's own click, and for Update All's copies, whether running up to
+    /// its panel or waiting for the one before.
+    ///
+    /// Mutation: drop the `cancelledWhileQueued` skip before each panel in
+    /// `updateAll` → Starship's panel is raised after it was cancelled, red.
+    @Test(.timeLimit(.minutes(1))) func aCancelBeforeThePanelRaisesNone() async {
+        let updater = FakeUpdater()
+        let p = SudoPaths()
+        let model = Self.sudoModel(updater, p)
+        await model.refresh()
+        let helm = p.helmID, starship = p.starshipID
+        let beforePanel = Gate()
+        await updater.setGate(helm, beforePanel)
+
+        let click = Task { await model.update(helm) }
+        await until { await beforePanel.arrived == 1 }
+        model.cancel(helm)
+        await beforePanel.open()
+        await click.value
+        #expect(await updater.events.isEmpty)
+        #expect(model.errors[helm] == nil)
+        #expect(model.oneClickable.map(\.toolID).contains(helm))
+
+        // Update All: Helm's panel held up, Starship cancelled while it waits
+        // for it; the lane still runs.
+        let helmAnswer = Gate()
+        await updater.setPanelGate(helm, helmAnswer)
+        let all = Task { await model.updateAll() }
+        await until { await updater.events == ["panel \(p.helm)"] }
+        model.cancel(starship)
+        #expect(!model.updating.contains(starship))
+        await helmAnswer.open()
+        await all.value
+        #expect(await updater.events == ["panel \(p.helm)", "command \(p.fx)"])
+        #expect(model.errors[starship] == nil)
+        #expect(!model.updatingAll)
+    }
+
+    /// Update All cancelled while a panel is up: the copies still waiting —
+    /// the next panel's, the lane's — are released and never run, and there
+    /// is no queue turn to wait for. The copy whose panel is up is past its
+    /// Cancel (its commit) and goes on.
+    ///
+    /// Mutation: send `batch` to the queue rather than the copies still
+    /// claimed (`lanes`) → fx's command runs after its cancel, red.
+    @Test(.timeLimit(.minutes(1))) func cancellingUpdateAllWhileAPanelIsUpRunsNothingElse() async {
+        let updater = FakeUpdater()
+        let p = SudoPaths()
+        let model = Self.sudoModel(updater, p)
+        await model.refresh()
+        let helmAnswer = Gate()
+        await updater.setPanelGate(p.helmID, helmAnswer)
+
+        let all = Task { await model.updateAll() }
+        await until { await updater.events == ["panel \(p.helm)"] }
+        await until { model.cancels[p.helmID] == .committing }
+        model.cancelUpdateAll()
+        #expect(!model.updating.contains(p.starshipID))
+        #expect(!model.updating.contains(p.fxID))
+        await helmAnswer.open()
+        await all.value
+        #expect(await updater.events == ["panel \(p.helm)"])
+        #expect(!model.updatingAll)
+        #expect(model.updating.isEmpty)
     }
 
     /// Dismissing the panel is a decision: no red line on the row, nothing

@@ -23522,71 +23522,6 @@
         }
       }
     },
-    "Updates each copy in place with its own tool’s update command, on the channel that tool is set to. Copies without a one-click update, and copies whose update asks for an administrator password, are left alone.": {
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Aktualisiert jede Kopie an Ort und Stelle mit dem Update-Befehl ihres eigenen Tools, auf dem Kanal, den dieses Tool eingestellt hat. Kopien ohne Ein-Klick-Update und Kopien, deren Update nach einem Administratorpasswort fragt, bleiben unberührt."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Actualiza cada copia en su sitio con el comando de actualización de su propia herramienta, en el canal que esa herramienta tenga configurado. Las copias sin actualización en un clic, y las copias cuya actualización pide una contraseña de administrador, no se tocan."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Met à jour chaque copie sur place avec la commande de mise à jour de son propre outil, sur le canal choisi dans cet outil. Les copies sans mise à jour en un clic, et celles dont la mise à jour demande un mot de passe administrateur, ne sont pas touchées."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Aggiorna ogni copia sul posto con il comando di aggiornamento del suo strumento, sul canale impostato in quello strumento. Le copie senza aggiornamento in un clic, e quelle il cui aggiornamento chiede una password di amministratore, non vengono toccate."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "各コピーを、その場所のまま、それぞれのツール自身のアップデートコマンドで、そのツールに設定されたチャンネルでアップデートします。ワンクリック更新のないコピーと、アップデートに管理者パスワードが必要なコピーには触れません。"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Atualiza cada cópia no lugar com o comando de atualização da própria ferramenta, no canal definido nessa ferramenta. Cópias sem atualização em um clique, e cópias cuja atualização pede a senha de administrador, não são alteradas."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Обновляет каждую копию на месте командой обновления её собственного инструмента, на канале, выбранном в этом инструменте. Копии без обновления в один клик и копии, обновление которых запрашивает пароль администратора, не затрагиваются."
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Her kopyayı yerinde, kendi aracının güncelleme komutuyla ve o araçta ayarlı kanalda günceller. Tek tıkla güncellemesi olmayan kopyalara ve güncellemesi yönetici parolası isteyen kopyalara dokunulmaz."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "在原位置、用各自工具自己的更新命令、按该工具设定的渠道更新每一份副本。没有一键更新的副本，以及更新需要管理员密码的副本，保持不动。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "在原位置、用各自工具自己的更新指令、依該工具設定的頻道更新每一份副本。沒有一鍵更新的副本，以及更新需要管理者密碼的副本，維持不動。"
-          }
-        }
-      }
-    },
     "upstream check failed": {
       "extractionState": "manual",
       "localizations": {
@@ -78645,6 +78580,345 @@
           "stringUnit": {
             "state": "translated",
             "value": "v%@ · 上次更新被中斷"
+          }
+        }
+      }
+    },
+    "Updates each copy in place with its own tool’s update command, on the channel that tool is set to. Copies without a one-click update are left alone. Copies whose update needs sudo ask for an administrator password first, one panel each.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aktualisiert jede Kopie an Ort und Stelle mit dem Update-Befehl ihres eigenen Tools, auf dem Kanal, den dieses Tool eingestellt hat. Kopien ohne Ein-Klick-Update bleiben unberührt. Kopien, deren Update sudo braucht, fragen zuerst nach einem Administratorpasswort, ein Dialog pro Kopie."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Updates each copy in place with its own tool’s update command, on the channel that tool is set to. Copies without a one-click update are left alone. Copies whose update needs sudo ask for an administrator password first, one panel each."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Actualiza cada copia en su sitio con el comando de actualización de su propia herramienta, en el canal que esa herramienta tenga configurado. Las copias sin actualización en un clic no se tocan. Las copias cuya actualización necesita sudo piden primero una contraseña de administrador, un panel por copia."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Met à jour chaque copie sur place avec la commande de mise à jour de son propre outil, sur le canal choisi dans cet outil. Les copies sans mise à jour en un clic ne sont pas touchées. Celles dont la mise à jour nécessite sudo demandent d’abord un mot de passe administrateur, une fenêtre par copie."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aggiorna ogni copia sul posto con il comando di aggiornamento del suo strumento, sul canale impostato in quello strumento. Le copie senza aggiornamento in un clic non vengono toccate. Quelle il cui aggiornamento richiede sudo chiedono prima una password di amministratore, un pannello per copia."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "各コピーを、その場所のまま、それぞれのツール自身のアップデートコマンドで、そのツールに設定されたチャンネルでアップデートします。ワンクリック更新のないコピーには触れません。アップデートに sudo が必要なコピーは、先に管理者パスワードを求めます（コピーごとに 1 回）。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Atualiza cada cópia no lugar com o comando de atualização da própria ferramenta, no canal definido nessa ferramenta. Cópias sem atualização em um clique não são alteradas. Cópias cuja atualização precisa de sudo pedem antes a senha de administrador, um painel por cópia."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Обновляет каждую копию на месте командой обновления её собственного инструмента, на канале, выбранном в этом инструменте. Копии без обновления в один клик не затрагиваются. Копии, обновлению которых нужен sudo, сначала запрашивают пароль администратора — по одному окну на копию."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Her kopyayı yerinde, kendi aracının güncelleme komutuyla ve o araçta ayarlı kanalda günceller. Tek tıkla güncellemesi olmayan kopyalara dokunulmaz. Güncellemesi sudo gerektiren kopyalar önce yönetici parolası ister, her kopya için bir pencere."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在原位置、用各自工具自己的更新命令、按该工具设定的渠道更新每一份副本。没有一键更新的副本保持不动。更新需要 sudo 的副本会先要求输入管理员密码，每份一个弹窗。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在原位置、用各自工具自己的更新指令、依該工具設定的頻道更新每一份副本。沒有一鍵更新的副本維持不動。更新需要 sudo 的副本會先要求輸入管理者密碼，每份一個對話框。"
+          }
+        }
+      }
+    },
+    "Installed in root’s /usr/local/bin — updating asks for an administrator password.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In /usr/local/bin von root installiert – das Update fragt nach einem Administratorpasswort."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Installed in root’s /usr/local/bin — updating asks for an administrator password."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Instalado en /usr/local/bin de root: la actualización pide una contraseña de administrador."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Installé dans le /usr/local/bin de root — la mise à jour demande un mot de passe administrateur."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Installato in /usr/local/bin di root — l’aggiornamento chiede una password di amministratore."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "root の /usr/local/bin にインストールされています。アップデートには管理者パスワードが必要です。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Instalado no /usr/local/bin do root — a atualização pede a senha de administrador."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Установлено в /usr/local/bin пользователя root — обновление запрашивает пароль администратора."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "root’un /usr/local/bin dizinine kurulu — güncelleme yönetici parolası ister."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "装在 root 的 /usr/local/bin 中——更新时会要求输入管理员密码。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "裝在 root 的 /usr/local/bin 中——更新時會要求輸入管理者密碼。"
+          }
+        }
+      }
+    },
+    "%lld need sudo": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld needs sudo"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld need sudo"
+                }
+              }
+            }
+          }
+        },
+        "de": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld braucht sudo"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld brauchen sudo"
+                }
+              }
+            }
+          }
+        },
+        "es": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld necesita sudo"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld necesitan sudo"
+                }
+              }
+            }
+          }
+        },
+        "fr": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld nécessite sudo"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld nécessitent sudo"
+                }
+              }
+            }
+          }
+        },
+        "it": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld richiede sudo"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld richiedono sudo"
+                }
+              }
+            }
+          }
+        },
+        "ja": {
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld 件は sudo が必要"
+                }
+              }
+            }
+          }
+        },
+        "pt-BR": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld precisa de sudo"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld precisam de sudo"
+                }
+              }
+            }
+          }
+        },
+        "ru": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld требует sudo"
+                }
+              },
+              "few": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld требуют sudo"
+                }
+              },
+              "many": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld требуют sudo"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld требуют sudo"
+                }
+              }
+            }
+          }
+        },
+        "tr": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld sudo gerektiriyor"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld sudo gerektiriyor"
+                }
+              }
+            }
+          }
+        },
+        "zh-Hans": {
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld 个需要 sudo"
+                }
+              }
+            }
+          }
+        },
+        "zh-Hant": {
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld 個需要 sudo"
+                }
+              }
+            }
           }
         }
       }

@@ -986,6 +986,12 @@ struct WorkbenchWindowView: View {
                     // about it too (`CLIToolsModel.unchecked`).
                     Text(String(localized: "Up to date")).foregroundStyle(.secondary).lineLimit(1)
                 }
+                if let sudo = CLIToolPresentation.needSudo(tools.needSudoCount) {
+                    Text(sudo)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .help(CLIToolPresentation.sudoBadgeHelp)
+                }
                 if !held.isEmpty {
                     // Why each was held back, on hover: "openclaw 2026.9.8 needs …".
                     Text(String(localized: "\(held.count) held back"))
@@ -1020,7 +1026,8 @@ struct WorkbenchWindowView: View {
 
     /// Update All for the tool groups: what the popover's "Other tools" Update
     /// runs — every copy with a one-click update, each with its own tool's
-    /// command, the independent ones at once (`CLIToolsModel.lane(of:)`). Copies
+    /// command, the independent ones at once (`CLIToolsModel.lane(of:)`), after
+    /// one administrator panel per copy that needs sudo, at the click. Copies
     /// without one are left alone.
     ///
     /// Kept while any update is on offer, disabled while every one of them is
@@ -1035,14 +1042,14 @@ struct WorkbenchWindowView: View {
     @ViewBuilder
     private var otherToolsBulkUpdate: some View {
         let tools = model.cliTools
-        if !tools.batchOffered.isEmpty || tools.updatingAll {
+        if tools.updateAllOffered || tools.updatingAll {
             Button("Update All") { Task { await tools.updateAll() } }
                 .controlSize(.small)
                 .buttonStyle(.bordered)
                 // Not disabled by another run: behind one it waits its turn
                 // (`CLIRunQueue`), and can be taken back meanwhile.
-                .disabled(tools.updatingAll || tools.batchable.isEmpty)
-                .help(String(localized: "Updates each copy in place with its own tool’s update command, on the channel that tool is set to. Copies without a one-click update, and copies whose update asks for an administrator password, are left alone."))
+                .disabled(tools.updatingAll || !tools.updateAllStartable)
+                .help(CLIToolPresentation.updateAllHelp)
                 .opacity(tools.updatingAll ? 0 : 1)
                 .overlay(alignment: .trailing) {
                     // Its Cancel beside the spinner, waiting or running, as

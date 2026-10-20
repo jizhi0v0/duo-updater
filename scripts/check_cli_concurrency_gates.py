@@ -4,7 +4,8 @@
 No button is disabled by another run at all: every model action
 (`AppListModel.upgradeBrewFormulae`, `upgradeBrewFormula`, `updateHomebrew`,
 `CLIToolsModel.update`/`updateAll`) takes the click and waits its turn in one
-queue, `CLIRunQueue` in Core. Before #1312, each Update and Upgrade All carried
+queue, `CLIRunQueue` in Core (a tool update that asks for an administrator
+password raises its panel at the click instead, outside it). Before #1312, each Update and Upgrade All carried
 its own `.disabled(…)` over brew's and the tools' state, and they drifted:
 Upgrade All waited for every tool, a formula row for `brew update` only, its
 detail pane for nothing.

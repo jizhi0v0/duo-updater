@@ -2,8 +2,12 @@ import Foundation
 
 /// Runs a vendor's documented install command as root, behind the system's
 /// administrator panel — for an install in a directory only root may write
-/// (`/usr/local/bin` as `sudo` left it), and only from a click on that row's
-/// own Update (`CLIToolsModel.update`; `updateAll` skips these rows).
+/// (`/usr/local/bin` as `sudo` left it), and only from a click: that row's
+/// own Update (`CLIToolsModel.update`), or the app's Update All, which asks
+/// for each such copy at the click, one panel after another
+/// (`CLIToolsModel.updateAll`). Neither waits in the CLI tab's queue
+/// (`CLIRunQueue`): the root shell runs under `env -i` with the system `PATH`
+/// and writes only its tool's file, so it cannot clash with a Homebrew run.
 ///
 /// **Whose name is on the panel.** The command goes through `do shell script …
 /// with administrator privileges` run by `NSAppleScript` inside DuoUpdater, not
@@ -137,7 +141,11 @@ enum CLIToolAdministratorRun {
             _ text: String, directory: URL, progress: @escaping @Sendable (String) -> Void
         ) async -> Result {
             let authorize = self.authorize
-            switch await MainActor.run(body: { authorize(text) }) {
+            switch await MainActor.run(body: { () -> Authorization in
+                let answer = authorize(text)
+                CLIToolAdministratorPanel.answered?()
+                return answer
+            }) {
             case .error(let number, _) where number == CLIToolAdministratorRun.userCanceled:
                 return .declined
             case .error(let number, let message):
@@ -239,4 +247,16 @@ enum CLIToolAdministratorRun {
         let message = info?[NSAppleScript.errorMessage] as? String ?? ""
         return .error(number: number, message: message)
     }
+}
+
+/// Who is told when an administrator panel has its answer.
+public enum CLIToolAdministratorPanel {
+    /// Called on the main actor as soon as the panel this task raised is
+    /// answered — authorized, dismissed or refused — before the command it
+    /// authorized runs. Bound by the app's Update All around each copy whose
+    /// update asks for a password (`CLIToolsModel.updateAll`), so it raises
+    /// the next copy's panel once this one's is answered rather than once its
+    /// command is done. An update that ends before raising a panel never calls
+    /// it; its caller waits for the update's end instead.
+    @TaskLocal public static var answered: (@MainActor @Sendable () -> Void)?
 }

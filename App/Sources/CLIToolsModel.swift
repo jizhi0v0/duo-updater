@@ -232,15 +232,27 @@ final class CLIToolsModel {
     /// The outdated installs no click will update: a gate held them back
     /// (`CLIToolStatus.withheld` says which).
     var heldBack: [CLIToolStatus] { outdated.filter { $0.oneClick == nil } }
-    /// The offered updates Update All runs: not one that needs an administrator
-    /// password (`CLIToolStatus.needsAdministrator`). Each of those asks on its
-    /// own row's click, so a batch never raises a panel, let alone a stack of
-    /// them; and one panel for the whole batch would run every such command as
-    /// root on a single answer about none of them in particular.
+    /// The offered updates Update All runs in its lanes: not one that needs an
+    /// administrator password (`CLIToolStatus.needsAdministrator`). Lanes never
+    /// raise a panel; those are `adminOffered`.
     var batchOffered: [CLIToolStatus] { offered.filter(\.joinsUpdateAll) }
     /// `batchOffered` less the copies already updating: what Update All would
-    /// start now.
+    /// start now in its lanes.
     var batchable: [CLIToolStatus] { oneClickable.filter(\.joinsUpdateAll) }
+    /// The offered updates that ask for an administrator password. Update All
+    /// asks for each at its click, one panel per copy, before its lanes' turn —
+    /// never one panel for all of them, which would run every such command as
+    /// root on a single answer about none of them in particular.
+    var adminOffered: [CLIToolStatus] { offered.filter(\.needsAdministrator) }
+    /// `adminOffered` less the copies already updating: the panels Update All
+    /// would raise now.
+    var adminBatchable: [CLIToolStatus] { oneClickable.filter(\.needsAdministrator) }
+    /// How many offered updates need sudo: the summary's "need sudo".
+    var needSudoCount: Int { adminOffered.count }
+    /// Whether Update All has anything to start now, in a lane or behind a panel.
+    var updateAllStartable: Bool { !batchable.isEmpty || !adminBatchable.isEmpty }
+    /// Whether Update All has anything on offer, running or not.
+    var updateAllOffered: Bool { !batchOffered.isEmpty || !adminOffered.isEmpty }
 
     /// Whether this Mac has anything for the CLI surface to show at all.
     var hasAnything: Bool { !statuses.isEmpty }
@@ -860,9 +872,20 @@ final class CLIToolsModel {
         // Re-read here, not trusted from the click: the list may have been
         // re-checked since the row was drawn, and `oneClickable` is what carries
         // every gate — auto-update on, nothing else updating, not already ours.
-        guard oneClickable.contains(where: { $0.toolID == id }) else { return }
+        guard let clicked = oneClickable.first(where: { $0.toolID == id }) else { return }
         updating.insert(id)
         cancels[id] = .available
+        // One that asks for an administrator password raises its panel now,
+        // beside whatever the queue runs, not when its turn comes — minutes
+        // later, holding the whole app until answered. Nothing to clash with:
+        // the root shell runs under `env -i` with the system `PATH` and writes
+        // only its tool's file (`CLIToolAdministratorRun`); the queue is there
+        // for Homebrew against the tools.
+        if clicked.needsAdministrator {
+            await runClaimed(id)
+            release(id)
+            return
+        }
         // Behind another click's run, it waits its turn claimed, as a copy
         // under `updateAll` does: "Queued", with its Cancel live. Taken back
         // while it waits, the row is released inside the Cancel (`CLIRunQueue`).
@@ -874,22 +897,28 @@ final class CLIToolsModel {
         // exits: that check waits on the network, and releasing the row earlier
         // shows the old "outdated" verdict with a live Update button for its length.
         let ran = await runQueue.perform(.tool(id), whenCancelled: { self.release(id) }) {
-            self.queued.remove(id)
-            // Read again at its turn: a check while it waited may have moved the
-            // offer, or taken it away. `outdated`, not `oneClickable`, which
-            // leaves out the copy this click has claimed.
-            guard let status = self.outdated.first(where: { $0.toolID == id && $0.oneClick != nil }),
-                  let provider = self.provider(of: status)
-            else { return }
-            // Cancelled before its command started: nothing ran, nothing to re-check.
-            guard let outcome = await self.run(status, with: provider) else { return }
-            if Self.needsRecheck(outcome) {
-                self.setProgress(id, .checking, String(localized: "Checking…"))
-                await self.check([provider])
-            }
-            self.settle(status, outcome)
+            await self.runClaimed(id)
         }
         if ran { release(id) }
+    }
+
+    /// The update of a copy already claimed (`updating`), at its turn, then its
+    /// tool's re-check. The caller releases it.
+    private func runClaimed(_ id: CLIToolID) async {
+        queued.remove(id)
+        // Read again at its turn: a check while it waited may have moved the
+        // offer, or taken it away. `outdated`, not `oneClickable`, which
+        // leaves out the copy this click has claimed.
+        guard let status = outdated.first(where: { $0.toolID == id && $0.oneClick != nil }),
+              let provider = provider(of: status)
+        else { return }
+        // Cancelled before its command started: nothing ran, nothing to re-check.
+        guard let outcome = await run(status, with: provider) else { return }
+        if Self.needsRecheck(outcome) {
+            setProgress(id, .checking, String(localized: "Checking…"))
+            await check([provider])
+        }
+        settle(status, outcome)
     }
 
     /// The index in `providers` of `status`'s own tool, never another's: each
@@ -1093,41 +1122,109 @@ final class CLIToolsModel {
         }
     }
 
-    /// Update every install in `batchable`, whatever its tool: the lanes
-    /// (`lane(of:)`) at once, the copies of one lane one after another, and each
-    /// tool re-checked once, as soon as the last lane holding any of its copies
-    /// is done.
+    /// Update every install in `batchable` and `adminBatchable`, whatever its
+    /// tool.
+    ///
+    /// First, at the click, each copy that asks for an administrator password,
+    /// in row order: its panel is raised, and the next copy's only once this
+    /// one's is answered, so the panels come one after another. Outside the
+    /// queue, as a row's own click on one is (`update`); a dismissed panel drops
+    /// that copy and the rest goes on.
+    ///
+    /// Then, at Update All's turn in the queue, the lanes (`lane(of:)`) at once,
+    /// the copies of one lane one after another, and each tool re-checked once,
+    /// as soon as the last lane holding any of its copies is done. With no lane
+    /// copy left there is no turn to wait for.
     ///
     /// One copy at a time across every tool, as it was, took the sum of every
     /// installer — Junie's alone downloads ~330 MB — plus a re-check of every
     /// tool after each copy.
     func updateAll() async {
         guard !updatingAll else { return }
-        // `batchable`, never `oneClickable`: no administrator panel from a batch.
-        let batch = batchable.compactMap { status in provider(of: status).map { (status, $0) } }
-        guard !batch.isEmpty else { return }
+        let withProvider = { (statuses: [CLIToolStatus]) in
+            statuses.compactMap { status in self.provider(of: status).map { (status, $0) } }
+        }
+        let batch = withProvider(batchable)
+        let asking = withProvider(adminBatchable)
+        guard !batch.isEmpty || !asking.isEmpty else { return }
         updatingAll = true
-        batchIDs = Set(batch.map(\.0.toolID))
+        batchIDs = Set((batch + asking).map(\.0.toolID))
         // Every copy is claimed now, not when its turn comes: until then its row
         // says "Queued" instead of offering an Update that would race its lane.
-        // That holds while Update All itself waits behind another click's run.
-        for (status, _) in batch {
+        // That holds while Update All itself waits behind another click's run,
+        // and for a copy whose panel waits on the one before it.
+        for (status, _) in batch + asking {
             updating.insert(status.toolID)
             queued.insert(status.toolID)
             cancels[status.toolID] = .available
             setProgress(status.toolID, .queued, String(localized: "Queued"))
         }
-        // Taken back while it waited (`cancelUpdateAll`): nothing ran, and every
-        // copy it claimed is released inside the Cancel.
-        let ran = await runQueue.perform(.updateAllTools, whenCancelled: {
-            // The batch's copies as they stand, not as clicked: one cancelled
-            // out of it and clicked again waits as a click of its own, and is
-            // left to that click.
-            for id in self.batchIDs where self.queued.contains(id) { self.release(id) }
-            for (status, _) in batch { self.cancelledWhileQueued.remove(status.toolID) }
-            self.endUpdateAll()
-        }) { await self.runBatch(batch) }
-        if ran { endUpdateAll() }
+        var rootRuns: [Task<Void, Never>] = []
+        for (status, _) in asking {
+            // Cancelled while it waited for the panel before its own.
+            if cancelledWhileQueued.remove(status.toolID) != nil { continue }
+            rootRuns.append(await startAsking(status.toolID))
+        }
+        // The lane copies still Update All's: one cancelled while the panels
+        // were up is released, and a click of its own may have it now.
+        for (status, _) in batch where !batchIDs.contains(status.toolID) {
+            cancelledWhileQueued.remove(status.toolID)
+        }
+        let lanes = batch.filter { batchIDs.contains($0.0.toolID) }
+        var ended = false
+        if !lanes.isEmpty {
+            // Taken back while it waited (`cancelUpdateAll`): nothing of the
+            // lanes ran, and every lane copy is released inside the Cancel.
+            _ = await runQueue.perform(.updateAllTools, whenCancelled: {
+                // The batch's copies as they stand, not as clicked: one cancelled
+                // out of it and clicked again waits as a click of its own, and is
+                // left to that click.
+                for id in self.batchIDs where self.queued.contains(id) { self.release(id) }
+                for (status, _) in lanes { self.cancelledWhileQueued.remove(status.toolID) }
+                // Over at once unless a copy behind a panel still runs.
+                if self.batchIDs.isEmpty {
+                    self.endUpdateAll()
+                    ended = true
+                }
+            }) { await self.runBatch(lanes) }
+        }
+        for run in rootRuns { await run.value }
+        if !ended { endUpdateAll() }
+    }
+
+    /// Start the update of `id`, claimed by `updateAll`, and return once its
+    /// administrator panel has its answer (`CLIToolAdministratorPanel`) — or
+    /// once its update has ended without raising one. The update goes on in
+    /// the task returned.
+    private func startAsking(_ id: CLIToolID) async -> Task<Void, Never> {
+        let answered = PanelAnswer()
+        let run = Task { @MainActor in
+            await CLIToolAdministratorPanel.$answered.withValue({ answered.signal() }) {
+                await self.runClaimed(id)
+            }
+            self.release(id)
+            answered.signal()
+        }
+        await answered.wait()
+        return run
+    }
+
+    /// One panel's answer, awaited once.
+    @MainActor private final class PanelAnswer {
+        private var done = false
+        private var waiter: CheckedContinuation<Void, Never>?
+
+        func signal() {
+            guard !done else { return }
+            done = true
+            waiter?.resume()
+            waiter = nil
+        }
+
+        func wait() async {
+            guard !done else { return }
+            await withCheckedContinuation { waiter = $0 }
+        }
     }
 
     private func endUpdateAll() {

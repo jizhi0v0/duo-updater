@@ -1027,4 +1027,33 @@ struct CLIToolPayloadPresentationTests {
             == "Asks for an administrator password, then runs this command as root: only an administrator can write to /usr/local/bin.")
         #expect(CLIToolPresentation.manualCommand(status) == documented.display)
     }
+
+    /// The "sudo" badge stands beside an update that asks for an administrator
+    /// password, and only while that update is offered; the summary counts
+    /// them, and says nothing at none.
+    ///
+    /// Mutations: drop `status.oneClick != nil` from `showsSudoBadge`; return a
+    /// line for a count of 0 from `needSudo`.
+    @Test func theSudoBadgeAndSummary() {
+        let base = F.helm(writable: false)
+        func helm(administrator: Bool, oneClick: Bool) -> CLIToolStatus {
+            let command = CLIToolCommand(executable: "curl", arguments: ["-fsSL", "https://example.invalid/get-helm-3"],
+                                         pathPrefix: nil)
+            return CLIToolStatus(
+                kind: .helm, path: base.path, installedVersion: "3.21.4", latestVersion: "3.22.0", channel: "v3",
+                state: .updateAvailable, oneClick: oneClick ? command : nil, withheld: oneClick ? nil : .busy,
+                note: nil, manualCommand: command, detail: base.detail, needsAdministrator: administrator)
+        }
+        #expect(CLIToolPresentation.showsSudoBadge(helm(administrator: true, oneClick: true)))
+        #expect(!CLIToolPresentation.showsSudoBadge(helm(administrator: true, oneClick: false)))
+        #expect(!CLIToolPresentation.showsSudoBadge(helm(administrator: false, oneClick: true)))
+        #expect(CLIToolPresentation.sudoBadgeHelp
+            == "Installed in root’s /usr/local/bin — updating asks for an administrator password.")
+        // The test bundle has no catalog, so the key's English form: the
+        // catalog's plural says "1 needs sudo".
+        #expect(CLIToolPresentation.needSudo(0) == nil)
+        #expect(CLIToolPresentation.needSudo(2) == "2 need sudo")
+        #expect(CLIToolPresentation.updateAllHelp.hasSuffix(
+            "Copies whose update needs sudo ask for an administrator password first, one panel each."))
+    }
 }

@@ -326,7 +326,7 @@ def older_identities(owner, repo, releases, facts, d):
         if a.get("digest") and a["digest"] != f"sha256:{o['sha256']}":
             lines.append(f"{tag}: the download does not hash to GitHub's digest — retry before trusting it")
             continue
-        same = []
+        same, said = [], len(lines)
         if o["bundleIdentifier"] == facts["bundleIdentifier"]:
             same.append("bundle id")
         elif (o["bundleIdentifier"] or "").lower() == facts["bundleIdentifier"].lower():
@@ -340,18 +340,23 @@ def older_identities(owner, repo, releases, facts, d):
         else:
             lines.append(f"{tag}: Team {o['teamIdentifier'] or 'none (ad-hoc)'} — TODO(audit) the install gate "
                          "refuses copies signed by another Team")
-        if tag not in d["readTags"]:
-            # Not a gap: the rule resolves `/releases/latest`, and an installed copy
-            # is compared against that whatever its own tag looked like (UTM's
-            # pre-v2.1.0 tags, GitHubReleasesSource). Only history entries are lost.
-            lines.append(f"{tag}: versionPattern does not read this tag (an older tag scheme) — its "
-                         "copies are still offered the newest release; its notes get no history entry")
+        # An installed copy is compared against `/releases/latest` whatever its own
+        # tag looked like (UTM's pre-v2.1.0 tags, GitHubReleasesSource) — which
+        # reaches it only while its version numbers below the newest. An older
+        # scheme that numbers higher (a year-based 2019.1 before a 1.0) never is.
+        older_numbers_higher = nums(o["shortVersion"] or "") >= nums(facts["shortVersion"] or "")
+        if older_numbers_higher:
+            lines.append(f"{tag}: the bundle says {o['shortVersion']!r}, not below the newest "
+                         f"{facts['shortVersion']!r} — TODO(audit) copies of it are never offered the update")
+        elif tag not in d["readTags"]:
+            lines.append(f"{tag}: versionPattern does not read this tag (an older tag scheme) — its copies "
+                         f"({o['shortVersion']}) are still offered the newest release; its notes get no history entry")
         if find_version(tag, o["shortVersion"] or "") is None:
             lines.append(f"{tag}: the bundle says {o['shortVersion']!r} — TODO(audit) copies of that build "
                          "never compare with the tags")
         else:
             same.append("version = tag")
-        if len(same) == 3:
+        if len(same) == 3 and len(lines) == said:
             lines.append(f"{tag} ({a['name']}): same bundle id and Team, version matches its tag")
     return lines
 

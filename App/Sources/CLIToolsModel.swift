@@ -899,6 +899,11 @@ final class CLIToolsModel {
     }
 
     private func release(_ id: CLIToolID) {
+        // Out of a running or waiting Update All for good, however its claim
+        // ended — done, failed, cancelled queued or before its command: a click
+        // of its own on this row later is not Update All's to cancel or release
+        // (review, #1498, rounds 1 and 2).
+        batchIDs.remove(id)
         updating.remove(id)
         queued.remove(id)
         awaitingCheck.remove(id)
@@ -921,9 +926,6 @@ final class CLIToolsModel {
             return
         }
         if queued.contains(id) {
-            // Out of the batch for good: a click of its own on this row later
-            // is not Update All's to cancel or release (review, #1498).
-            batchIDs.remove(id)
             cancelledWhileQueued.insert(id)
             Log.app.notice("\(id.kind.rawValue, privacy: .public) update at \(id.path, privacy: .public): cancelled before it started")
             release(id)

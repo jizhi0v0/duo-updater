@@ -2293,6 +2293,46 @@ struct CLIToolsModelTests {
         #expect(model.updating.isEmpty)
     }
 
+    /// A copy whose update failed inside a running Update All, and was clicked
+    /// again, waits as a click of its own: Update All's Cancel neither reaches
+    /// it nor counts it — greyed while the copy left in the batch is past its
+    /// command (review, #1498, round 2).
+    ///
+    /// Mutation: drop `batchIDs.remove` from `release` → the Cancel reads live
+    /// and takes the retry out of the queue, red.
+    @Test(.timeLimit(.minutes(1))) func aRetryClickedDuringUpdateAllIsNotItsToCancel() async {
+        let prefix = "/Users/u/.nvm/versions/node/v24.11.0-\(UUID().uuidString)"
+        let x = Self.id(prefix + "/lib/node_modules/pnpm", .npm)
+        let yPath = Self.ownPath()
+        let y = Self.id(yPath)
+        let xUpdater = FakeUpdater()
+        await xUpdater.set(x, .failed(message: "npm ERR! x", output: "npm ERR! x"))
+        let yUpdater = FakeUpdater()
+        let commitGate = Gate()
+        await yUpdater.setCommits(gate: commitGate)
+        let npm = FakeProvider(
+            kind: .npm, checker: FakeCheck([(Self.report(.npm, [Self.status(x.path, kind: .npm)]), nil)]),
+            updater: xUpdater)
+        let model = Self.model(check: FakeCheck([(Self.report(Self.status(yPath)), nil)]), updater: yUpdater, others: [npm])
+        await model.refresh()
+
+        let all = Task { await model.updateAll() }
+        await until { await commitGate.arrived == 1 }
+        await until { model.cancels[y] == .committing && !model.updating.contains(x) }
+        #expect(model.errors[x] == "npm ERR! x")
+        let retry = Task { await model.update(x) }
+        await until { model.runQueue.isWaiting(.tool(x)) }
+        #expect(model.updateAllCancel == .committing)
+        model.cancelUpdateAll()
+        #expect(model.runQueue.isWaiting(.tool(x)))
+        #expect(model.cancels[x] == .available)
+
+        await commitGate.open()
+        await all.value
+        await retry.value
+        #expect(await xUpdater.calls == [x, x])
+    }
+
     /// Cancelling every copy of a waiting Update All one by one takes Update
     /// All itself out of the queue: it would have nothing to run. A row's own
     /// click waiting beside it is not one of its copies, and stays.

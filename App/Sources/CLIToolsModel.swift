@@ -194,6 +194,14 @@ final class CLIToolsModel {
     /// lived 1 s through (measured 2026-10-17, 1 of 6).
     @ObservationIgnored private var staleSeen: [StaleProcess: Date] = [:]
     private struct StaleProcess: Hashable { let id: CLIToolID; let pid: pid_t }
+    /// Who started each process `usage` names (`CLIToolProcessOrigin`), for
+    /// the workbench's Running row. The chain is read again with every read of
+    /// the process table — a parent can exit — and launchd is asked for a
+    /// process's coalition once, until the pid is another process's.
+    private(set) var origins: [pid_t: CLIToolProcessOrigin] = [:]
+    /// Each origin's one line (`CLIToolProcessOrigin.summary`), worded off the
+    /// main actor: naming an app by its bundle identifier asks LaunchServices.
+    private(set) var originSummaries: [pid_t: String] = [:]
     /// Reads left on the 3 s clock after a wake, whether or not AppKit says a
     /// window is on screen yet at that moment (review, #1374).
     @ObservationIgnored private var wakeGraceReads = 0
@@ -791,6 +799,7 @@ final class CLIToolsModel {
             Log.app.notice("cli-tools: stale shown now: \(said.isEmpty ? "none" : said, privacy: .public)\(unconfirmed ? " (more to confirm)" : "", privacy: .public)")
         }
         if confirmed != usage { usage = confirmed }
+        await readOrigins(of: Set(confirmed.values.flatMap { $0.current + $0.stale.map(\.pid) }))
         watchExits(of: Set(found.values.flatMap { $0.current + $0.stale.map(\.pid) }))
         announceStale()
         if unconfirmed {
@@ -799,6 +808,26 @@ final class CLIToolsModel {
                 await self.refreshUsage()
             }
         }
+    }
+
+    /// `origins` for exactly `pids`, reusing each one's coalition while the
+    /// pid is still the process it was read from (same start time).
+    private func readOrigins(of pids: Set<pid_t>) async {
+        let known = origins
+        let (read, summaries) = await offCooperativePool(qos: .utility) {
+            () -> ([pid_t: CLIToolProcessOrigin], [pid_t: String]) in
+            var answer: [pid_t: CLIToolProcessOrigin] = [:]
+            for pid in pids {
+                var origin = known[pid].flatMap { CLIToolProcessOrigin.read(pid: pid, coalition: .some($0.coalition)) }
+                if origin == nil || origin?.started != known[pid]?.started {
+                    origin = CLIToolProcessOrigin.read(pid: pid)
+                }
+                answer[pid] = origin
+            }
+            return (answer, answer.mapValues { $0.summary() })
+        }
+        if read != origins { origins = read }
+        if summaries != originSummaries { originSummaries = summaries }
     }
 
     /// Keep an exit watch on exactly `pids`. One that exits before its watch

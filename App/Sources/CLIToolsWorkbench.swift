@@ -334,33 +334,162 @@ struct CLISudoBadge: View {
 
 /// The detail panes' Running fact: which processes run the binary, and which
 /// of them are still on a copy other than the one installed now (`CLIToolUsage`).
+/// Under each version, its pids by who started them (`CLIToolProcessOrigin`);
+/// a pid is a link that opens what is known of it below.
 private struct CLIToolRunningValue: View {
     let usage: CLIToolUsage
     let kind: CLIToolKind
+    let origins: [pid_t: CLIToolProcessOrigin]
+    let summaries: [pid_t: String]
+
+    @State private var shown: pid_t?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             if !usage.current.isEmpty {
-                Text(verbatim: String(localized: "\(usage.current.count) on this version") + " · " + pids(usage.current))
+                Text(verbatim: String(localized: "\(usage.current.count) on this version"))
+                pidLines(usage.current)
             }
             // One line per older version, so ten sessions on three versions
             // say which pid is on which (measured 2026-10-17: one sentence of
             // eight pids wrapped mid-list and paired none with its version).
             ForEach(usage.staleByVersion, id: \.version) { group in
-                Text(verbatim: CLIToolWording.stillRunning(group.pids.count, on: group.version, of: kind)
-                     + " · " + pids(group.pids))
+                Text(verbatim: CLIToolWording.stillRunning(group.pids.count, on: group.version, of: kind))
                     .foregroundStyle(.orange)
+                pidLines(group.pids)
             }
             if !usage.stale.isEmpty {
                 Text("Restart to use the version installed now.")
                     .font(.caption).foregroundStyle(.secondary)
             }
+            if let shown, let origin = origins[shown] {
+                CLIToolProcessDetail(origin: origin)
+                    .padding(.top, 6)
+            }
+        }
+        // The process exited: its details go with it.
+        .onChange(of: origins[shown ?? 0] == nil) { _, gone in if gone { shown = nil } }
+    }
+
+    /// One line per origin: "pid 230, 9548 · used by Claude".
+    private func pidLines(_ pids: [pid_t]) -> some View {
+        let groups = Dictionary(grouping: pids) { summaries[$0] ?? "" }
+            .map { (summary: $0.key, pids: $0.value.sorted()) }
+            .sorted { $0.pids[0] < $1.pids[0] }
+        return ForEach(groups, id: \.summary) { group in
+            Text(line(group.pids, group.summary))
+                .foregroundStyle(.secondary)
+                // Out of the grid's text selection, so a click on a pid is a
+                // click on its link (as the Compatibility row's versions).
+                .textSelection(.disabled)
+                .environment(\.openURL, OpenURLAction { url in
+                    guard url.scheme == Self.scheme, let pid = pid_t(url.host() ?? "") else { return .discarded }
+                    shown = shown == pid ? nil : pid
+                    return .handled
+                })
         }
     }
 
-    private func pids(_ pids: [pid_t]) -> String {
-        "pid " + pids.map(String.init).joined(separator: ", ")
+    private static let scheme = "duo-pid"
+
+    private func line(_ pids: [pid_t], _ summary: String) -> AttributedString {
+        var line = AttributedString("pid ")
+        for (index, pid) in pids.enumerated() {
+            if index > 0 { line += AttributedString(", ") }
+            var link = AttributedString(String(pid))
+            link.link = URL(string: "\(Self.scheme)://\(pid)")
+            link.underlineStyle = .single
+            if pid == shown { link.inlinePresentationIntent = .stronglyEmphasized }
+            line += link
+        }
+        if !summary.isEmpty { line += AttributedString(" · " + summary) }
+        return line
     }
+}
+
+/// What is known of one running process: its command line, when it started,
+/// its executable, and the chain of processes above it — each to copy, show
+/// in Finder, or bring forward.
+private struct CLIToolProcessDetail: View {
+    let origin: CLIToolProcessOrigin
+
+    var body: some View {
+        Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 8, verticalSpacing: 4) {
+            GridRow {
+                label("Process")
+                HStack(spacing: 4) {
+                    Text(verbatim: "pid \(origin.pid)")
+                    CopyCommandButton(command: String(origin.pid))
+                }
+            }
+            if !origin.arguments.isEmpty {
+                GridRow {
+                    label("Command")
+                    HStack(alignment: .firstTextBaseline, spacing: 4) {
+                        Text(verbatim: commandLine).font(.callout.monospaced())
+                        CopyCommandButton(command: commandLine)
+                    }
+                }
+            }
+            if let started = origin.started {
+                GridRow {
+                    label("Started")
+                    Text(started, format: .dateTime.month().day().hour().minute().second())
+                }
+            }
+            if let executable = origin.executable {
+                GridRow {
+                    label("Executable")
+                    Button {
+                        NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: executable)])
+                    } label: {
+                        Text(verbatim: (executable as NSString).abbreviatingWithTildeInPath)
+                            .multilineTextAlignment(.leading)
+                    }
+                    .buttonStyle(.link)
+                    .help(String(localized: "Show in Finder"))
+                }
+            }
+            GridRow {
+                label("Started by")
+                VStack(alignment: .leading, spacing: 2) {
+                    ForEach(Array(origin.ancestors.enumerated()), id: \.element.pid) { depth, ancestor in
+                        HStack(spacing: 4) {
+                            Text(verbatim: "↳").foregroundStyle(.tertiary)
+                            if let app = ancestor.app, let running = NSRunningApplication(processIdentifier: ancestor.pid) {
+                                Button(ancestor.name) { running.activate() }
+                                    .buttonStyle(.link)
+                                    .help(String(localized: "Bring \(CLIToolProcessOrigin.name(ofApp: app)) forward"))
+                            } else {
+                                Text(verbatim: ancestor.name)
+                            }
+                            Text(verbatim: String(ancestor.pid)).foregroundStyle(.tertiary).monospacedDigit()
+                        }
+                        .padding(.leading, CGFloat(depth) * 12)
+                    }
+                }
+            }
+            if let coalition = origin.coalition {
+                GridRow {
+                    label("Started in")
+                    Text(verbatim: coalition.ended
+                         ? String(localized: "\(coalition.name) (no longer running)") : coalition.name)
+                }
+            }
+        }
+        .padding(8)
+        .background(RoundedRectangle(cornerRadius: 6).fill(.quaternary.opacity(0.5)))
+    }
+
+    private func label(_ title: LocalizedStringKey) -> some View {
+        Text(title).foregroundStyle(.secondary).gridColumnAlignment(.trailing)
+    }
+
+    /// `argv` as a shell would read it back: an argument with a space quoted.
+    private var commandLine: String {
+        origin.arguments.map { $0.contains(" ") ? "'\($0)'" : $0 }.joined(separator: " ")
+    }
+
 }
 
 // MARK: - Copy button
@@ -606,7 +735,7 @@ struct ClaudeCodeDetailPane: View {
             if let usage = cli.liveUsage(id) {
                 GridRow {
                     label("Running")
-                    CLIToolRunningValue(usage: usage, kind: .claudeCode)
+                    CLIToolRunningValue(usage: usage, kind: .claudeCode, origins: cli.origins, summaries: cli.originSummaries)
                 }
             }
             GridRow {
@@ -812,7 +941,7 @@ struct CLIToolDetailPane: View {
             if let usage = cli.liveUsage(id) {
                 GridRow {
                     label("Running")
-                    CLIToolRunningValue(usage: usage, kind: status.kind)
+                    CLIToolRunningValue(usage: usage, kind: status.kind, origins: cli.origins, summaries: cli.originSummaries)
                 }
             }
             GridRow {

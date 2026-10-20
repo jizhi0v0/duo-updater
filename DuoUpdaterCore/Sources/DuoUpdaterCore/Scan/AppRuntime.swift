@@ -456,8 +456,9 @@ public enum AppRuntimeDetector {
             // NSH, before GPUI because one of its two runners is a GPUI app.
             // `nsh package` copies a prebuilt runner in as the executable and puts
             // the app beside it in `Resources/nsh/`: `app.json` always, and
-            // `bundle.nshc` (the compiled TSX) unless the app is pure Rust, so the
-            // first is the one looked for. Apps packaged with nsh 0.1.1 for both
+            // `bundle.nshc` (the compiled TSX) — always in 0.1.1, but skipped for a
+            // pure-Rust app by the packager on nsh's main branch — so the first is
+            // the one looked for. Apps packaged with nsh 0.1.1 for both
             // targets, and one with a Rust crate of its own, all carry it, and all
             // three binaries carry `nsh-core`'s source path — workspace-relative
             // in the AppKit runner (`crates/nsh-core/src/…`), absolute in the

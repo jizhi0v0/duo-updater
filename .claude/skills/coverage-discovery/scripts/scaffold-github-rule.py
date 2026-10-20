@@ -70,14 +70,17 @@ def nums(version):
 
 
 def find_version(text, short, prefer=()):
-    """Span of the version in a tag or asset name: a literal first, then any
-    dotted number equal to `short` component by component (`26.09.3` is
-    `26.9.3`, `3.7.9` is `3.7.9.0`)."""
+    """Span of the version in a tag or asset name: a whole dotted number in
+    `text` equal to a literal (`prefer`, then `short`) first, then one equal
+    to `short` component by component (`26.09.3` is `26.9.3`, `1.5.0` is
+    `1.5`). Only whole numbers count, so `1.5` never takes the head of
+    `1.5.0` and leaves its `.0` behind as literal pattern text."""
+    found = list(re.finditer(VERSION, text))
     for literal in (*prefer, short):
-        if literal and re.fullmatch(VERSION, literal) and literal in text:
-            i = text.index(literal)
-            return i, i + len(literal)
-    for m in re.finditer(VERSION, text):
+        for m in found:
+            if literal and m.group() == literal:
+                return m.span()
+    for m in found:
         if nums(m.group()) == nums(short):
             return m.span()
     return None

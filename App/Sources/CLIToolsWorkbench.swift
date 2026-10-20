@@ -219,9 +219,12 @@ struct CLIToolSidebarRow: View {
 
     /// The row's tooltip. The still-running sentence leads it: the mark's own
     /// `.help` is overridden by this one (AXHelp read the path on the mark,
-    /// 2026-10-17), so the row says it for the mark.
+    /// 2026-10-17), so the row says it for the mark — and for the "sudo" badge,
+    /// whose own `.help` it overrides the same way (AXHelp read the path on
+    /// the badge, 2026-10-20).
     private var help: String {
-        let base = CLIToolPresentation.explanation(status) ?? status.path
+        var base = CLIToolPresentation.explanation(status) ?? status.path
+        if CLIToolPresentation.showsSudoBadge(status) { base = CLIToolPresentation.sudoBadgeHelp + "\n" + base }
         guard let usage = cli.liveUsage(id), let line = CLIToolWording.stillRunning(usage, of: status.kind) else { return base }
         return line + "\n" + base
     }

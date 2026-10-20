@@ -47,15 +47,26 @@ import Testing
         #expect(s.update(stages: ["a": .extracting], cancels: [:], now: at(410)).stages["a"] == .extracting)
     }
 
-    /// An install that ended leaves its row at once, whatever was waiting.
+    /// An install that ended leaves its row at once, whatever was waiting —
+    /// and a new install on that row, inside the dwell, starts from its own
+    /// first stage, not the last one the ended install showed. (The row
+    /// leaving holds by construction: what is drawn is built from the stages
+    /// passed in. What the smoothing remembers of it is what can go wrong.)
+    ///
+    /// Mutation: keep the ended row's shown stage (drop the `shown` filter in
+    /// `update`) → the restart reads `.checking` until 700 ms, red.
     @Test func anEndedInstallLeavesTheRowAtOnce() {
         var s = Smoothing()
         _ = s.update(stages: ["a": .queued], cancels: ["a": .available], now: at(0))
-        _ = s.update(stages: ["a": .checking], cancels: ["a": .available], now: at(20))
-        let ended = s.update(stages: [:], cancels: [:], now: at(40))
+        _ = s.update(stages: ["a": .checking], cancels: ["a": .available], now: at(400))
+        let ended = s.update(stages: [:], cancels: [:], now: at(450))
         #expect(ended.stages.isEmpty)
         #expect(ended.cancels.isEmpty)
         #expect(ended.nextWake == nil)
+
+        let again = s.update(stages: ["a": .queued], cancels: ["a": .available], now: at(500))
+        #expect(again.stages["a"] == .queued)
+        #expect(again.nextWake == nil)
     }
 
     /// An accepted cancel keeps the row's progress and greys its Cancel until
@@ -207,6 +218,27 @@ import Testing
         #expect(shown.groupCancel(of: ["a", "c"]) == .init(state: .tooLate, pending: false, live: 0))
         #expect(shown.groupCancel(of: ["a"]) == nil)
         #expect(shown.groupCancel(of: ["gone"]) == nil)
+    }
+
+    /// A Cancel beside a head that can no longer be stopped stops only what
+    /// waits behind it, and says so; one that stops the head too, or beside a
+    /// head that names nothing running ("Queued"), says what it always did.
+    ///
+    /// Mutations: drop `liveRunning == 0` → the live head reads queued-only,
+    /// red; drop `!running.isEmpty` → the call without `running` reads
+    /// queued-only, red.
+    @Test func aGroupCancelSaysWhenItStopsOnlyTheQueued() {
+        var s = Smoothing()
+        let stages: [String: InstallStage] = ["go": .installing, "all": .queued]
+        let committing = s.update(stages: stages, cancels: ["go": .committing, "all": .available], now: at(0))
+        #expect(committing.groupCancel(of: ["all", "go"], running: ["go"])
+            == .init(state: .available, pending: false, live: 1, queuedOnly: true))
+        #expect(committing.groupCancel(of: ["all", "go"])
+            == .init(state: .available, pending: false, live: 1, queuedOnly: false))
+
+        let live = s.update(stages: stages, cancels: ["go": .available, "all": .available], now: at(10))
+        #expect(live.groupCancel(of: ["all", "go"], running: ["go"])
+            == .init(state: .available, pending: false, live: 2, queuedOnly: false))
     }
 
     // MARK: Lines

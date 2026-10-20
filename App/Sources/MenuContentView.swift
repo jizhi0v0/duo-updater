@@ -873,7 +873,8 @@ private struct CommandLineRow: View {
             // a formula's own upgrade from the workbench alike, as the Other
             // tools row's (2026-10-20: a formula's showed nothing here).
             let cancel: (any View)? = model.brewRowCancel.map { group in
-                InstallCancelButton(state: group.state, pending: group.pending, count: group.live) {
+                InstallCancelButton(state: group.state, pending: group.pending, count: group.live,
+                                    queuedOnly: group.queuedOnly) {
                     model.cancelBrewRow()
                 }
             }
@@ -944,7 +945,8 @@ private struct CommandLineRow: View {
             // says is updating — Update All's, and a click's of its own from the
             // workbench, which had none here (2026-10-20).
             let cancel: (any View)? = tools.rowCancel.map { group in
-                InstallCancelButton(state: group.state, pending: group.pending, count: group.live) {
+                InstallCancelButton(state: group.state, pending: group.pending, count: group.live,
+                                    queuedOnly: group.queuedOnly) {
                     tools.cancelRow()
                 }
             }

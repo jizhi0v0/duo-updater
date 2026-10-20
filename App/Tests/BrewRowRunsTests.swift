@@ -57,6 +57,23 @@ struct BrewRowRunsTests {
         #expect(BrewRowRuns.cancel([Self.go, Self.jq], in: shown) == nil)
     }
 
+    /// "Upgrading go · Installing…" with Upgrade All queued behind it: the
+    /// row's live Cancel takes back only Upgrade All, and says it stops the
+    /// queued one, not "Cancel update" beside go's name (review, 2026-10-20).
+    /// With go still live, a click stops both, as it said.
+    ///
+    /// Mutation: `cancel` drops `running` → `queuedOnly` false, red.
+    @Test func itsCancelSaysWhenItStopsOnlyTheQueued() {
+        var s = InstallRowSmoothing<String>()
+        let ids = [Self.all, Self.go]
+        let committing = s.update(stages: [:], cancels: [Self.go: .committing, Self.all: .available], now: at(0))
+        #expect(BrewRowRuns.cancel(ids, in: committing, running: Self.go)
+            == .init(state: .available, pending: false, live: 1, queuedOnly: true))
+        let live = s.update(stages: [:], cancels: [Self.go: .available, Self.all: .available], now: at(10))
+        #expect(BrewRowRuns.cancel(ids, in: live, running: Self.go)
+            == .init(state: .available, pending: false, live: 2, queuedOnly: false))
+    }
+
     /// A click cancels the row's runs that still can be, and nothing else: not
     /// one past its start, nor one already cancelling, nor a queued `brew
     /// update`.

@@ -4767,7 +4767,15 @@ final class AppListModel {
 
     /// The popover Homebrew row's one Cancel, over every run it stands for.
     var brewRowCancel: InstallRowSmoothing<String>.GroupCancel? {
-        BrewRowRuns.cancel(brewRowJobIDs, in: brewCancelRows)
+        BrewRowRuns.cancel(brewRowJobIDs, in: brewCancelRows, running: brewRowRunningJobID)
+    }
+
+    /// The run the popover's Homebrew row names at its head, as it picks it:
+    /// Upgrade All once it has its turn, else the formula that has
+    /// (`brewRowRunningFormula`); nil while every one waits.
+    var brewRowRunningJobID: String? {
+        if brewUpgrading && !cliTools.runQueue.isWaiting(.upgradeAll) { return Self.upgradeAllJobID }
+        return brewRowRunningFormula.map(Self.formulaJobID)
     }
 
     /// The popover Homebrew row's Cancel: each run it stands for that can

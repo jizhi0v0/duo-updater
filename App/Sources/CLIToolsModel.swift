@@ -1242,11 +1242,14 @@ final class CLIToolsModel {
     /// Update All's own Cancel, beside its progress in the workbench header and
     /// the popover row: live while it waits its turn, or while any copy it
     /// claimed can still be cancelled (`cancels`); greyed once every one left
-    /// has started its command. Nil when no Update All runs.
+    /// has started its command, saying "Cancelling…" while a copy its click
+    /// stopped is still being stopped — not "can't cancel now" right after a
+    /// Cancel it took (review, 2026-10-20). Nil when no Update All runs.
     var updateAllCancel: InstallCancelState? {
         guard updatingAll else { return nil }
         if updateAllWaiting { return .available }
-        return batchIDs.contains { cancels[$0] == .available } ? .available : .committing
+        if batchIDs.contains(where: { cancels[$0] == .available }) { return .available }
+        return batchIDs.contains { cancels[$0] == .cancelling } ? .cancelling : .committing
     }
 
     /// Update All's Cancel: one still waiting its turn leaves the queue, and
@@ -1266,9 +1269,11 @@ final class CLIToolsModel {
     /// The popover row's Cancel: one for every copy the row says is updating,
     /// Update All's and a click's of its own alike (`groupCancel`), so a tool
     /// updated from the workbench can be stopped from there too (2026-10-20).
-    /// Nil when nothing is left that the row could stop or grey.
+    /// Nil when nothing is left that the row could stop or grey. The row's
+    /// head names the copies not queued: when only queued ones can still be
+    /// stopped, its help says so.
     var rowCancel: InstallRowSmoothing<CLIToolID>.GroupCancel? {
-        cancelRows.groupCancel(of: updating)
+        cancelRows.groupCancel(of: updating, running: updating.subtracting(queued))
     }
 
     /// The popover row's Cancel: Update All still waiting its turn leaves the

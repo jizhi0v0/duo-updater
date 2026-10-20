@@ -2849,6 +2849,36 @@ struct CLIToolsModelTests {
         #expect(model.errors[queued] == nil)
     }
 
+    /// A copy back on offer without any check of its tool — the GitHub pause
+    /// that held it back at its click's turn lifted — loses its "Not updated"
+    /// line with it, rather than keeping the old reason beside a live Update
+    /// until its tool is next checked (review, #1511 round 2).
+    ///
+    /// Mutation: drop the `notRunAtTurn` loop in `publishStatuses` → the line
+    /// stays, red.
+    @Test(.timeLimit(.minutes(1))) func aNotUpdatedLineGoesWhenThePauseThatCausedItLifts() async {
+        let zoxide = Self.status("/Users/u/.local/bin/zoxide-\(UUID().uuidString)", kind: .zoxide)
+        let id = zoxide.toolID
+        let updater = FakeUpdater()
+        let model = Self.model([FakeProvider(kind: .zoxide, checker: FakeCheck([(Self.report(.zoxide, [zoxide]), nil)]), updater: updater)])
+        await model.refresh()
+        let gate = Gate()
+        let held = await holdQueue(model, gate)
+
+        let click = Task { await model.update(id) }
+        await until { model.runQueue.isWaiting(.tool(id)) }
+        model.gitHubPause = [.anonymous: Date().addingTimeInterval(600)]
+        await gate.open()
+        await held.value
+        await click.value
+        #expect(await updater.calls.isEmpty)
+        #expect(model.errors[id] != nil)
+
+        model.gitHubPause = [:]
+        #expect(model.oneClickable.contains { $0.toolID == id })
+        #expect(model.errors[id] == nil)
+    }
+
     /// An update that ran nothing — something else was already updating the
     /// copy — has nothing left to cancel: no live Cancel while its tool's
     /// re-check is out ("Waiting to check"), where a click on it found no job

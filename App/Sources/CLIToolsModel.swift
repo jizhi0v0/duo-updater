@@ -77,6 +77,14 @@ final class CLIToolsModel {
         statuses = checkedStatuses.map {
             $0.applyingGitHubPause(gitHubPause, updatersGetOurToken: updatersGetOurToken, now: current)
         }
+        // "Not updated: <reason>" said why a click's copy was not offered at its
+        // turn. Offered again — also with no check of its tool, as when the
+        // GitHub pause lifts — it would read as the reason beside a live Update
+        // (review, #1511 round 2).
+        for id in notRunAtTurn where statuses.contains(where: { $0.toolID == id && $0.oneClick != nil }) {
+            notRunAtTurn.remove(id)
+            errors[id] = nil
+        }
     }
     /// The tool-wide settings each tool's verdicts were made under, for its group
     /// header: Claude Code's channel and auto-update, fx's settings.

@@ -906,12 +906,7 @@ final class CLIToolsModel {
     /// tool's re-check. The caller releases it.
     private func runClaimed(_ id: CLIToolID) async {
         queued.remove(id)
-        // Read again at its turn: a check while it waited may have moved the
-        // offer, or taken it away. `outdated`, not `oneClickable`, which
-        // leaves out the copy this click has claimed.
-        guard let status = outdated.first(where: { $0.toolID == id && $0.oneClick != nil }),
-              let provider = provider(of: status)
-        else { return }
+        guard let status = await offerAtTurn(id), let provider = provider(of: status) else { return }
         // Cancelled before its command started: nothing ran, nothing to re-check.
         guard let outcome = await run(status, with: provider) else { return }
         if Self.needsRecheck(outcome) {
@@ -919,6 +914,40 @@ final class CLIToolsModel {
             await check([provider])
         }
         settle(status, outcome)
+    }
+
+    /// `id`'s offer, read again at its turn: a check while it waited may have
+    /// moved it, or taken it away. `outdated`, not `oneClickable`, which leaves
+    /// out the copy this click has claimed.
+    ///
+    /// Taken away, it is asked of its own tool once more before the click is
+    /// given up. Checks are not held off while an update runs, and one then can
+    /// read the run ahead of it — its npm child in the prefix both share, "npm
+    /// is busy" — or leave the copy unanswered; that run re-checks its own tool
+    /// only, so the click went away at its turn with nothing run and nothing
+    /// said (review, 2026-10-20). Still not offered, the row says so, and why.
+    private func offerAtTurn(_ id: CLIToolID) async -> CLIToolStatus? {
+        let offer = { self.outdated.first { $0.toolID == id && $0.oneClick != nil } }
+        if let status = offer() { return status }
+        if let index = providers.firstIndex(where: { $0.kind == id.kind }) {
+            // Nothing to cancel while it is asked: the update starts after.
+            cancels[id] = nil
+            setProgress(id, .checking, String(localized: "Checking…"))
+            await check([index])
+            if let status = offer() {
+                cancels[id] = .available
+                return status
+            }
+        }
+        let now = status(id)
+        let why = now.flatMap { now in now.withheld.map { Self.reason($0, of: now) } }
+        Log.app.notice("\(id.kind.rawValue, privacy: .public) update at \(id.path, privacy: .public): not run at its turn, no longer offered (\(now.map { "\($0.state)" } ?? "gone", privacy: .public)\(why.map { ": \($0)" } ?? "", privacy: .public))")
+        // Updated from a terminal meanwhile, or gone: the row says that by itself.
+        if let now, now.state == .updateAvailable || now.state == .unknown {
+            errors[id] = why.map { String(localized: "Not updated: \($0)") }
+                ?? String(localized: "Not updated: the update is no longer offered")
+        }
+        return nil
     }
 
     /// The index in `providers` of `status`'s own tool, never another's: each
@@ -1041,6 +1070,11 @@ final class CLIToolsModel {
             // Asked while the job is still registered: it is forgotten when it ends.
             return (outcome, InstallJobs.cancelStoppedSomething(jobID))
         }
+        // The job has ended, so a Cancel still live would find nothing and just
+        // go away (review, 2026-10-20): one that ran nothing — `.busy`,
+        // `.notOffered` — never committed, and kept it through the re-check
+        // and, under `updateAll`, the other lanes' wait. Not offered from here.
+        if cancels[id] == .available { cancels[id] = nil }
         // Accepted, and it kept a command from starting — the first, or a retry
         // after a refused run (uv's, bun's, mise's rejected token): whatever the
         // provider made of the cancel — "could not start" — is no failure.

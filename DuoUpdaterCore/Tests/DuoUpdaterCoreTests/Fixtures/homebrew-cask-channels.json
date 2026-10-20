@@ -620,5 +620,100 @@
    "monterey",
    "arm64_monterey"
   ]
+ },
+ {
+  "token": "vibetunnel",
+  "full_token": "vibetunnel",
+  "old_tokens": [],
+  "tap": "homebrew/cask",
+  "name": [
+   "VibeTunnel"
+  ],
+  "desc": "Turn any browser into your terminal",
+  "homepage": "https://vibetunnel.sh/",
+  "url": "https://github.com/amantus-ai/vibetunnel/releases/download/v1.0.0-beta.18/VibeTunnel-1.0.0-beta.18.dmg",
+  "url_specs": {},
+  "version": "1.0.0-beta.18",
+  "autobump": true,
+  "no_autobump_message": null,
+  "skip_livecheck": false,
+  "installed": null,
+  "installed_time": null,
+  "bundle_version": null,
+  "bundle_short_version": null,
+  "pinned": false,
+  "pinned_version": null,
+  "outdated": false,
+  "sha256": "3e42340e28c908bdc7e8ba20ee4e7f6ab3c32885832bf947e6e0935f9017b8cc",
+  "artifacts": [
+   {
+    "app": [
+     "VibeTunnel.app"
+    ],
+    "target": "/Applications/VibeTunnel.app"
+   },
+   {
+    "binary": [
+     "$APPDIR/VibeTunnel.app/Contents/Resources/vt"
+    ],
+    "target": "$HOMEBREW_PREFIX/bin/vt"
+   },
+   {
+    "zap": [
+     {
+      "trash": [
+       "~/Library/Application Support/VibeTunnel",
+       "~/Library/Caches/com.amantus.vibetunnel",
+       "~/Library/Preferences/com.amantus.vibetunnel.plist",
+       "~/Library/Saved Application State/com.amantus.vibetunnel.savedState"
+      ]
+     }
+    ]
+   }
+  ],
+  "caveats": null,
+  "caveats_rosetta": null,
+  "depends_on": {
+   "arch": [
+    {
+     "type": "arm",
+     "bits": 64
+    }
+   ],
+   "macos": {
+    ">=": [
+     "14"
+    ]
+   }
+  },
+  "conflicts_with": null,
+  "container": null,
+  "rename": [],
+  "auto_updates": null,
+  "deprecated": false,
+  "deprecation_date": null,
+  "deprecation_reason": null,
+  "deprecation_replacement_formula": null,
+  "deprecation_replacement_cask": null,
+  "deprecate_args": null,
+  "disabled": false,
+  "disable_date": null,
+  "disable_reason": null,
+  "disable_replacement_formula": null,
+  "disable_replacement_cask": null,
+  "disable_args": null,
+  "tap_git_head": "74f63824ed8e2448d0d088944faa25742fa73b51",
+  "languages": [],
+  "ruby_source_path": "Casks/v/vibetunnel.rb",
+  "ruby_source_checksum": {
+   "sha256": "e42da2672ffba1f15183fba6885fa296b5c0d008a10a4313159a349878669c52"
+  },
+  "variations": {},
+  "supported_platforms": [
+   "arm64_golden_gate",
+   "arm64_tahoe",
+   "arm64_sequoia",
+   "arm64_sonoma"
+  ]
  }
 ]

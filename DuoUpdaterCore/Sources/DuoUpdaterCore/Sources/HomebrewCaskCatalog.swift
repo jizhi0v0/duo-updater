@@ -189,12 +189,27 @@ public struct CaskEntry: Sendable {
     /// Second check: the cask's own `.app` name must also read `.stable` through
     /// `ReleaseChannel.detect`, which keeps out a suffix-less cask whose app
     /// carries a channel word. A backstop today: in the catalog read 2026-10-20,
-    /// none of the 4,763 casks the indexer keeps has that shape without being
-    /// `auto_updates`; the one cask in the whole catalog that does, `alpha` →
-    /// `Alpha.app`, is disabled. A cask with no `.app` artifact has only the token
-    /// to go on.
+    /// of the 1,860 non-`auto_updates` casks the index can match (1,803 without
+    /// `@`), none has that shape; the one cask in the whole catalog that does,
+    /// `alpha` → `Alpha.app`, is disabled. A cask with no `.app` artifact has only
+    /// the token to go on.
+    ///
+    /// Third: the cask's own version must read `.stable` the same way. A standard
+    /// cask can track a vendor whose every release is numbered as a beta —
+    /// `vibetunnel` `1.0.0-beta.18`, `bambu-connect` `2.5.0-beta.15` — and each copy
+    /// it installs then reads `.beta` on disk (`ReleaseChannel.detect` step 4), so
+    /// without this every one of its users would be told they are leaving a beta
+    /// for a stable build that is itself the next beta. Found by review on #1501;
+    /// in the same catalog it drops five of the 1,803 (`vibetunnel`,
+    /// `bambu-connect`, `teensy`, `jazzup`, `paparazzi`).
+    /// The marketing part only, split as `HomebrewCaskSource` splits it.
     public var isStandardStableCask: Bool {
         guard !token.contains("@") else { return false }
+        let marketing = version
+            .split(whereSeparator: { $0 == "," || $0 == ":" }).first.map(String.init) ?? version
+        guard ReleaseChannel.detect(
+            name: "", bundleID: nil, keystoneChannel: nil, version: marketing) == .stable
+        else { return false }
         return appFilenames.allSatisfy { filename in
             let name = filename.hasSuffix(".app") ? String(filename.dropLast(4)) : filename
             return ReleaseChannel.detect(

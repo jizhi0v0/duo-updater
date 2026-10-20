@@ -7,15 +7,18 @@ import Foundation
 /// gate — `UpdateResult.replacesChannelWithStable` routes the row through the
 /// existing confirmation and the update stays on offer.
 ///
-/// The fixture is five **live catalog entries**, verbatim, from
+/// The fixture is six **live catalog entries**, verbatim, from
 /// `formulae.brew.sh/api/cask.json` fetched 2026-10-20, in catalog order
-/// (positions 4179, 4180, 4888, 7359, 7360 of 7,798). Each is there for one
-/// shape the rule has to get right:
+/// (positions 4179, 4180, 4888, 7359, 7360, 7416 of 7,798). Each is there for
+/// one shape the rule has to get right:
 ///   - `lapce` — the case that found the gap (#1500): a standard cask, not
 ///     `auto_updates`, and the only Lapce cask; its nightly shares `Lapce.app`.
 ///   - `freelens` / `freelens@nightly` and `utm` / `utm@beta` — a standard cask
 ///     and its channel cask installing the SAME `.app`, neither `auto_updates`,
 ///     so the bundle cannot say which one brew installed and the token decides.
+///   - `vibetunnel` — a standard cask whose every release is numbered as a beta
+///     (`1.0.0-beta.18`), so its copies read `.beta` while the cask installs the
+///     next beta, not a stable build (found by review on #1501).
 ///
 /// Mutations, each applied to the working tree and this suite run (2026-10-20);
 /// the red column is what failed, not what was predicted:
@@ -27,6 +30,7 @@ import Foundation
 /// | 3 | `isStandardStableCask`: skip the `.app` name check (`true \|\| allSatisfy`) | red: `aSuffixlessCaskWhoseAppReadsAsAChannelIsNot` — and only it, which is what a backstop no live cask reaches looks like |
 /// | 4 | `replacesChannelWithStable`: return `effectiveReleaseChannel` without the `.stable` check | red: `aStableCopyOfAStableCaskIsNot` |
 /// | 5 | `isMajorUpgrade`: drop `\|\| replacesChannelWithStable != nil` | red: `aNightlyCopyOfAStableCaskIsReminded` |
+/// | 6 | `isStandardStableCask`: drop the cask-version check (`== .stable \|\| true`) | red: `aStandardCaskNumberedAsBetasIsNot`, `aCopyOfABetaNumberedStandardCaskIsNotReminded` |
 struct HomebrewCaskChannelReminderTests {
 
     private static func index() throws -> CaskIndex {
@@ -106,6 +110,26 @@ struct HomebrewCaskChannelReminderTests {
         let pinned = try #require(
             index.allByAppFilename.values.flatMap { $0 }.first { $0.token == "carbon-copy-cloner@6" })
         #expect(!pinned.isStandardStableCask)
+    }
+
+    /// The third check: no `@`, a plain `.app`, but the vendor numbers its
+    /// releases as betas — the cask is not a stable track to switch anyone to.
+    @Test func aStandardCaskNumberedAsBetasIsNot() throws {
+        #expect(try !Self.entry("vibetunnel").isStandardStableCask)
+    }
+
+    /// And so its users, whose copies read `.beta` because of that numbering, are
+    /// not told they are leaving a beta.
+    @Test func aCopyOfABetaNumberedStandardCaskIsNotReminded() async throws {
+        let version = "1.0.0-beta.17"
+        let channel = ReleaseChannel.detect(
+            name: "VibeTunnel", bundleID: "sh.vibetunnel.vibetunnel", keystoneChannel: nil, version: version)
+        #expect(channel == .beta)
+        let copy = Self.app("VibeTunnel.app", bundleID: "sh.vibetunnel.vibetunnel", version: version, channel: channel)
+        let row = try await Self.row(for: copy, installed: ["vibetunnel"])
+        #expect(row.remote?.sourceIdentifier == "vibetunnel")
+        #expect(row.remote?.offeredChannel == nil)
+        #expect(row.replacesChannelWithStable == nil)
     }
 
     /// The second check: no `@`, but its `.app` reads as a channel word. Built by

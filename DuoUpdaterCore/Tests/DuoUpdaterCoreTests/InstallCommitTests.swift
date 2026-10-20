@@ -256,7 +256,7 @@ import Testing
         }
         await entered.wait()
         #expect(InstallJobs.cancel(id) == .tooLate(committing: "ZZFixture-swap"))
-        #expect(InstallJobs.cancelAll()[id] == .tooLate(committing: "ZZFixture-swap"))
+        #expect(InstallJobs.cancelAll(where: { $0 == id })[id] == .tooLate(committing: "ZZFixture-swap"))
         release.fire()
         #expect(try await task.value == "landed")
         #expect(!cancelled.value)
@@ -507,13 +507,16 @@ import Testing
     }
 
     /// `cancelAll` cancels every job still preparing and reports the rest.
+    /// Scoped to this test's jobs: `.serialized` holds only within this suite,
+    /// and a whole-registry `cancelAll()` cancelled the jobs other suites run
+    /// alongside it (`BrewFormulaUpgradeTests`, CI run 39280020300).
     @Test func cancelAllCancelsEveryPreparingJob() {
         let a = Self.id(), b = Self.id()
         let cancelledA = Flag(), cancelledB = Flag()
         InstallJobs.register(a, cancel: { cancelledA.set() })
         InstallJobs.register(b, cancel: { cancelledB.set() })
         defer { InstallJobs.unregister(a); InstallJobs.unregister(b) }
-        let answers = InstallJobs.cancelAll()
+        let answers = InstallJobs.cancelAll(where: { $0 == a || $0 == b })
         #expect(answers[a] == .cancelled)
         #expect(answers[b] == .cancelled)
         #expect(cancelledA.value && cancelledB.value)

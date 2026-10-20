@@ -209,7 +209,15 @@ public enum InstallJobs {
     /// `cancel` for every registered job; each id's answer.
     @discardableResult
     public static func cancelAll() -> [String: CancelResult] {
-        let ids = registry.withLock { Array($0.keys) }
+        cancelAll(where: { _ in true })
+    }
+
+    /// `cancelAll` for the registered jobs whose id `include` accepts. For
+    /// tests: the registry is process-wide, and other suites run their jobs
+    /// in parallel, so a test's `cancelAll()` would cancel theirs too.
+    @discardableResult
+    static func cancelAll(where include: (String) -> Bool) -> [String: CancelResult] {
+        let ids = registry.withLock { $0.keys.filter(include) }
         var answers: [String: CancelResult] = [:]
         for id in ids { answers[id] = cancel(id) }
         return answers

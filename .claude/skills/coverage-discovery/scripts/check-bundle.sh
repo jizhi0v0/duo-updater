@@ -45,6 +45,18 @@ for f in "$@"; do
       [ -d "$app/$d" ] || continue
       find "$app/$d" -mindepth 1 -maxdepth 1 | while read -r c; do printf '  component %s\n' "${c#$app/}"; done
     done
+    # An updater with no SUFeedURL: electron-builder's `app-update.yml` (read as
+    # `ElectronUpdateConfig.parse` does: flat top-level scalars, one quoting) and a
+    # Sparkle.framework whose feed is set at runtime (AltTab), where
+    # `AppScanner.sparkleFrameworks` looks: top level and one framework deep.
+    yml="$app/Contents/Resources/app-update.yml"
+    if [ -f "$yml" ]; then
+      printf '  updater electron-updater%s\n' "$(tr -d '\r' < "$yml" \
+        | sed -nE "s/^(provider|owner|repo|url):[[:space:]]*['\"]?([^'\"]*)['\"]?[[:space:]]*\$/ \1=\2/p" | tr -d '\n')"
+    fi
+    for s in "$app/Contents/Frameworks/Sparkle.framework" "$app"/Contents/Frameworks/*.framework/Frameworks/Sparkle.framework; do
+      [ -e "$s" ] && printf '  updater sparkle-framework %s\n' "${s#$app/}"
+    done
     # The app naming its own GitHub releases: a sign it updates itself, which a
     # bundle without SUFeedURL or an updater framework does not otherwise show
     # (Lapce reads `api.github.com/repos/lapce/lapce/releases/latest`).

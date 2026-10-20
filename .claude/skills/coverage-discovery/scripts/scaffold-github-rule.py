@@ -27,7 +27,8 @@ tarball, an Intel-only asset or bundle, any other version scheme, or a Sparkle
 feed in the bundle stops the script with the reason; those take an audit, not a
 template. A prerelease that ships an asset of the same name, another installer
 in the release with the same bundle id, a system extension or other
-component, or an executable naming its own releases is drafted with a
+component, an updater the bundle carries without SUFeedURL (`app-update.yml`, a
+`Sparkle.framework`), or an executable naming its own releases is drafted with a
 `TODO(audit)` note instead. The checks
 here only fail early; what decides is `make test`, `duo verify`,
 `install-verify` and the real-machine one-click, as for a hand-written rule.
@@ -204,6 +205,22 @@ def derive(owner, repo, facts, releases):
     if own:
         notes.append(f"the executable names its own releases ({own[0]}): TODO(audit) — it likely "
                      "updates itself; find out how, and whether it races ours")
+    # Neither stops the script: no generic source reads a runtime Sparkle feed or
+    # a non-generic electron provider, so a rule may still be the answer. The yml
+    # is quoted as written — Hyper's names `zeit/hyper`, the repo's old name.
+    electron = facts.get("electronUpdater")
+    if electron is not None:
+        said = " ".join(f"{k}={v}" for k, v in electron.items()) or "no provider"
+        if electron.get("provider", "").lower() == "generic" and electron.get("url"):
+            notes.append(f"app-update.yml ({said}): TODO(audit) — electron-updater updates it itself, and "
+                         "ElectronManifestSource already reads that manifest with no rule (last in SourceStack, "
+                         "so a rule would answer first); find out whether a rule is needed at all")
+        else:
+            notes.append(f"app-update.yml ({said}): TODO(audit) — electron-updater updates it itself; "
+                         "find out whether it races ours")
+    for s in facts.get("sparkleFrameworks") or []:
+        notes.append(f"{s} with no SUFeedURL: TODO(audit) — Sparkle with its feed set at runtime; find the "
+                     "feed (feed-discover, SparkleFeedCatalog) and whether it races ours")
 
     if not re.fullmatch(VERSION, short):
         raise Stop(f"CFBundleShortVersionString {short!r} is not a plain dotted version: "
@@ -440,6 +457,10 @@ def package_facts(path):
     with open(path, "rb") as f:
         sha = hashlib.sha256(f.read()).hexdigest()
     spctl = re.search(r"^  spctl source=(.*)$", out, re.M)
+    # An empty value is dropped, as `ElectronUpdateConfig.parse` does (QQ's `url: ''`).
+    electron = re.search(r"^  updater electron-updater(.*)$", out, re.M)
+    if electron:
+        electron = {k: v for k, _, v in (kv.partition("=") for kv in electron.group(1).split()) if v}
     return {
         "asset": os.path.basename(path),
         "bundleIdentifier": val("CFBundleIdentifier"),
@@ -457,6 +478,8 @@ def package_facts(path):
         "loginItems": [n for n in nested if "Library/LoginItems/" in n],
         "components": components,
         "exeReferences": references,
+        "electronUpdater": electron,
+        "sparkleFrameworks": re.findall(r"^  updater sparkle-framework (.*)$", out, re.M),
         "sha256": sha,
     }
 

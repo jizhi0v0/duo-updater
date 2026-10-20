@@ -89,7 +89,9 @@
 
 ## 一键安装
 - 状态: 支持（stable）；nightly 副本不推
-- 端到端: 未跑（交给主会话真机：v0.4.5 → v0.4.6）
+- 端到端: ✓ 0.4.5 → 0.4.6，app 不运行（2026-10-20）。`duo install` 依次走 `verifyingSignature` → `extracting` →
+  `verifyingCodeSignature` → `installed`；装后 0.4.6、Team `CYSGAZFR8D`、`codesign --verify --deep --strict` 为 0、
+  `spctl` Notarized Developer ID，`duo check` 报 up to date。运行中一轮未跑
 - 格式: dmg（universal）
 - 校验: GitHub digest `sha256:d4ba42218148446c265c6a823107a969b3b0dca5e14df834563f2859927228f5`，与下载的 v0.4.6 包 `shasum -a 256` 一致；
   v0.4.5 `sha256:354e7e5b…13b8` 同样一致；规则无需额外配置

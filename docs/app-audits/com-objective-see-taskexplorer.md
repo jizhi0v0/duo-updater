@@ -85,14 +85,17 @@
 
 ## 一键安装
 - 状态: **支持**（按 Team 闸）
-- 端到端: 未跑（主会话真机跑）
+- 端到端: ✓ 3.0.0 → 3.1.0，app 不运行（2026-10-20）。`duo install` 依次走 `verifyingSignature` → `extracting` →
+  `verifyingCodeSignature` → `installed`；装后 `com.objective-see.taskexplorer` 3.1.0、Team `VBG97UB4TA`、
+  `codesign --verify --deep --strict` 为 0、`spctl` Notarized Developer ID，`duo check` 报 up to date。运行中一轮未跑
 - 格式: zip（universal，公证、staple）。zip 里有 AppleDouble 条目（`._*`，3.1.0 有 63 个），生产的 `ditto -x -k`
   解出后 `codesign --verify --deep --strict` 为 0（3.0.0、3.1.0 实测）
 - 嵌套: 3.x 含 Endpoint Security **系统扩展** `Contents/Library/SystemExtensions/com.objective-see.taskexplorer.extension.systemextension`
   （扩展 `CFBundleVersion` 跟 app 走：3.0.0 / 3.1.0）。没有 LoginItems、XPC、LaunchAgents。2.1.0 只有 `Contents/XPCServices/remoteTaskService.xpc`
   - app 每次启动都提交激活请求，`actionForReplacingExtension` 恒返回 replace（`App/Extension.m`），所以换包后下次启动会把扩展换成新版
   - Apple 文档：用户删除 app 时系统自动卸载它的系统扩展（[Installing System Extensions and Drivers](https://developer.apple.com/documentation/systemextensions/installing-system-extensions-and-drivers)）。
-    一键换包算不算「删除」**未验证**，真机一轮要在换包前后看 `systemextensionsctl list`
+    一键换包算不算「删除」**仍未验证**：真机一轮里 app 从未启动、扩展从未激活，换包前后 `systemextensionsctl list`
+    都没有 objective-see 条目。要验证得启动 app 并批准扩展（会弹系统授权框），再换包看扩展的去留
   - app 要求在 `/Applications` 下运行（否则弹窗要求移动），真机一轮装在那里即可
 - 校验: GitHub 资产 `digest`（sha256）。下载后 `shasum -a 256`: 3.1.0 = `536bda55…9ca8705`、3.0.0 = `4a97769c…ca961a02`，
   与各自 `digest` 相同；也与正文写的 SHA-256 相同。2.1.0 资产没有 `digest`（早于 GitHub 加 digest）

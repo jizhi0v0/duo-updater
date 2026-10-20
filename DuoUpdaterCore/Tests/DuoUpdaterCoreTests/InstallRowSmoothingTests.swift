@@ -201,12 +201,16 @@ import Testing
     }
 
     /// Nothing left to stop: greyed as the rows' Cancels are — pending first,
-    /// for its 0.3 s, then past the commit, then refused there — and gone once
-    /// every one says "Cancelling…", which the row's line says.
+    /// for its 0.3 s, then one being stopped beside the rest, then past the
+    /// commit, then refused there — and gone once every one says
+    /// "Cancelling…", which the row's line says. One being stopped beside one
+    /// past its commit says "Cancelling…", as Update All's header does, not
+    /// "can't cancel now" (review, 2026-10-20, round 2).
     ///
-    /// Mutations: drop the `pending` rung → `.committing`, red; swap the
-    /// `committing` and `tooLate` rungs → `.tooLate`, red; count `.cancelling`
-    /// as committing → not nil, red.
+    /// Mutations: drop the `pending` rung → `.cancelling`, red; drop the
+    /// `cancelling` rung → `.committing`, red; swap the `committing` and
+    /// `tooLate` rungs → `.tooLate`, red; take the `cancelling` rung alone →
+    /// not nil, red.
     @Test func aGroupCancelGreysAsItsRowsDo() {
         var s = Smoothing()
         let stages: [String: InstallStage] = ["a": .queued, "b": .installing, "c": .installing]
@@ -214,8 +218,10 @@ import Testing
         let clicked = s.update(stages: stages, cancels: ["a": .cancelling, "b": .committing, "c": .tooLate], now: at(100))
         #expect(clicked.groupCancel(of: ["a", "b", "c"]) == .init(state: .available, pending: true, live: 0))
         let shown = s.update(stages: stages, cancels: ["a": .cancelling, "b": .committing, "c": .tooLate], now: at(400))
-        #expect(shown.groupCancel(of: ["a", "b", "c"]) == .init(state: .committing, pending: false, live: 0))
-        #expect(shown.groupCancel(of: ["a", "c"]) == .init(state: .tooLate, pending: false, live: 0))
+        #expect(shown.groupCancel(of: ["a", "b", "c"]) == .init(state: .cancelling, pending: false, live: 0))
+        #expect(shown.groupCancel(of: ["a", "c"]) == .init(state: .cancelling, pending: false, live: 0))
+        #expect(shown.groupCancel(of: ["b", "c"]) == .init(state: .committing, pending: false, live: 0))
+        #expect(shown.groupCancel(of: ["c"]) == .init(state: .tooLate, pending: false, live: 0))
         #expect(shown.groupCancel(of: ["a"]) == nil)
         #expect(shown.groupCancel(of: ["gone"]) == nil)
     }

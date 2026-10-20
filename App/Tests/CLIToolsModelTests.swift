@@ -2777,6 +2777,50 @@ struct CLIToolsModelTests {
         #expect(await npmUpdater.calls.isEmpty)
     }
 
+    /// Update All in two lanes, one past its command's start and one stopped
+    /// from the row: once "Cancelling…" is due the row's greyed Cancel says
+    /// so, as Update All's header in the workbench does, not "Installing —
+    /// can't cancel now" for as long as the other runs (review, 2026-10-20,
+    /// round 2).
+    ///
+    /// Mutation: drop `groupCancel`'s `cancelling` rung → `.committing`, red.
+    @Test(.timeLimit(.minutes(1))) func theRowsCancelSaysCancellingBesideALanePastItsCommit() async {
+        let path = Self.ownPath()
+        let claude = Self.id(path)
+        let updater = FakeUpdater()
+        await updater.set(claude, .updated(version: "2.1.285"))
+        let commitGate = Gate()
+        await updater.setCommits(gate: commitGate)
+        let package = Self.ownPackage()
+        let pnpm = Self.id(package, .npm)
+        let npmUpdater = FakeUpdater()
+        let gate = Gate()
+        await npmUpdater.setGate(gate)
+        await npmUpdater.setCommits(gate: nil)
+        let npm = FakeProvider(
+            kind: .npm,
+            checker: FakeCheck([(Self.report(.npm, [Self.status(package, kind: .npm)]), nil)]),
+            updater: npmUpdater)
+        let model = Self.model(check: FakeCheck([(Self.report(Self.status(path)), nil)]), updater: updater, others: [npm])
+        await model.refresh()
+
+        let all = Task { await model.updateAll() }
+        await until { await commitGate.arrived == 1 }
+        await until { model.cancels[claude] == .committing }
+        await until { await gate.arrived == 1 }
+        model.cancelRow()
+        #expect(model.cancels[pnpm] == .cancelling)
+        #expect(model.rowCancel == .init(state: .available, pending: true, live: 0))
+        await until { model.cancelRows.cancels[pnpm] == .cancelling && model.cancelRows.cancelPending.isEmpty }
+        #expect(model.rowCancel == .init(state: .cancelling, pending: false, live: 0))
+        #expect(model.updateAllCancel == .cancelling)
+
+        await gate.open()
+        await commitGate.open()
+        await all.value
+        #expect(!model.updatingAll)
+    }
+
     // MARK: a click's offer at its turn
 
     /// A copy of another tool in the same npm prefix as the run ahead of it,
@@ -2888,18 +2932,126 @@ struct CLIToolsModelTests {
         #expect(model.errors[queued] == nil)
     }
 
+    /// "Not updated: <reason>" is about its own tool: another tool's check —
+    /// here the re-check after another click on the copy ahead — leaves it,
+    /// and its own tool's next check takes it away (review, 2026-10-20,
+    /// round 2: any tool's check did).
+    ///
+    /// Mutation: drop the `notRunAtTurn` skip in `apply`'s error loop → gone
+    /// after the other tool's check, red.
+    @Test(.timeLimit(.minutes(1))) func aNotUpdatedLineWaitsForItsOwnToolsCheck() async {
+        let ahead = Self.id(Self.ownPath())
+        let path = Self.ownPackage()
+        let queued = Self.id(path, .npm)
+        let updater = FakeUpdater()
+        let gate = Gate()
+        await updater.setGate(ahead, gate)
+        let busy = Self.status(path, kind: .npm, oneClick: false, withheld: .busy)
+        let npm = FakeProvider(
+            kind: .npm,
+            checker: FakeCheck([
+                (Self.report(.npm, [Self.status(path, kind: .npm)]), nil),
+                (Self.report(.npm, [busy]), nil),
+                (Self.report(.npm, [busy]), nil),
+                (Self.report(.npm, [Self.status(path, kind: .npm)]), nil),
+            ]),
+            updater: updater)
+        let claude = FakeCheck([(Self.report(Self.status(ahead.path)), nil)])
+        let model = Self.model(check: claude, updater: updater, others: [npm])
+        await model.refresh()
+
+        let first = Task { await model.update(ahead) }
+        await until { await gate.arrived == 1 }
+        let second = Task { await model.update(queued) }
+        await until { model.runQueue.isWaiting(.tool(queued)) }
+        await model.refresh()
+        await gate.open()
+        await first.value
+        await second.value
+        let line = "Not updated: \(CLIToolsModel.reason(.busy, of: busy))"
+        #expect(model.errors[queued] == line)
+
+        // Claude Code's copy again: its re-check asks Claude Code alone.
+        let claudeChecks = await claude.calls
+        await model.update(ahead)
+        #expect(await claude.calls == claudeChecks + 1)
+        #expect(model.errors[queued] == line)
+
+        await model.refresh()
+        #expect(model.oneClickable.contains { $0.toolID == queued })
+        #expect(model.errors[queued] == nil)
+    }
+
+    /// A click queued as one that needs no password, whose copy a check while
+    /// it waited found now asks for one, is not run at its turn: its panel
+    /// would come minutes after the click, holding the app (review,
+    /// 2026-10-20, round 2). The row says to click again — kept through a
+    /// republish that leaves it offered, gone at its tool's next check — and
+    /// a click then raises the panel at the click.
+    ///
+    /// Mutations: drop the `needsAdministrator` guard in `offerAtTurn` → the
+    /// panel at the turn, red; drop `wasOffered` in `publishStatuses` → the
+    /// line goes when the pause is set, red.
+    @Test(.timeLimit(.minutes(1))) func aClickWhoseCopyNowAsksForAPasswordIsNotRunAtItsTurn() async {
+        let p = SudoPaths()
+        let id = p.starshipID
+        let plain = Self.status(p.starship, kind: .starship)
+        let check = FakeCheck([
+            (Self.report(.starship, [plain]), nil),
+            (Self.report(.starship, [Self.asAdministrator(plain)]), nil),
+        ])
+        let updater = FakeUpdater()
+        let model = Self.model([FakeProvider(kind: .starship, checker: check, updater: updater)])
+        await model.refresh()
+        let gate = Gate()
+        let held = await holdQueue(model, gate)
+
+        let click = Task { await model.update(id) }
+        await until { model.runQueue.isWaiting(.tool(id)) }
+        await model.refresh()
+        #expect(model.status(id)?.needsAdministrator == true)
+        await gate.open()
+        _ = await held.value
+        await click.value
+
+        #expect(await updater.events.isEmpty)
+        #expect(await updater.calls.isEmpty)
+        #expect(model.updating.isEmpty)
+        let line = "Not updated: it now asks for an administrator password — click Update again"
+        #expect(model.errors[id] == line)
+        #expect(model.oneClickable.contains { $0.toolID == id })
+        model.gitHubPause = [:]
+        #expect(model.errors[id] == line)
+        await model.refresh()
+        #expect(model.errors[id] == nil)
+
+        await model.update(id)
+        #expect(await updater.events == ["panel \(p.starship)"])
+    }
+
     /// A copy back on offer without any check of its tool — the GitHub pause
     /// that held it back at its click's turn lifted — loses its "Not updated"
     /// line with it, rather than keeping the old reason beside a live Update
     /// until its tool is next checked (review, #1511 round 2).
     ///
-    /// Mutation: drop the `notRunAtTurn` loop in `publishStatuses` → the line
-    /// stays, red.
+    /// Held back by the pause alone, the click is not asked again at its turn:
+    /// that check is refused by the same closed budget, and its answer — no
+    /// verdict, as zoxide's check gives when the gate refuses it — replaced
+    /// the "update available" the pause held back, so the Update did not come
+    /// back when it lifted (review, 2026-10-20, round 2). The second answer
+    /// here is that refusal.
+    ///
+    /// Mutations: drop the `notRunAtTurn` loop in `publishStatuses` → the line
+    /// stays, red; drop `heldByPause` in `offerAtTurn` → asked again, no Update
+    /// once the pause lifts, red.
     @Test(.timeLimit(.minutes(1))) func aNotUpdatedLineGoesWhenThePauseThatCausedItLifts() async {
-        let zoxide = Self.status("/Users/u/.local/bin/zoxide-\(UUID().uuidString)", kind: .zoxide)
+        let path = "/Users/u/.local/bin/zoxide-\(UUID().uuidString)"
+        let zoxide = Self.status(path, kind: .zoxide)
         let id = zoxide.toolID
+        let refused = Self.status(path, kind: .zoxide, state: .unknown, latest: nil, oneClick: false, withheld: .rateLimited)
+        let check = FakeCheck([(Self.report(.zoxide, [zoxide]), nil), (Self.report(.zoxide, [refused]), nil)])
         let updater = FakeUpdater()
-        let model = Self.model([FakeProvider(kind: .zoxide, checker: FakeCheck([(Self.report(.zoxide, [zoxide]), nil)]), updater: updater)])
+        let model = Self.model([FakeProvider(kind: .zoxide, checker: check, updater: updater)])
         await model.refresh()
         let gate = Gate()
         let held = await holdQueue(model, gate)
@@ -2911,7 +3063,10 @@ struct CLIToolsModelTests {
         await held.value
         await click.value
         #expect(await updater.calls.isEmpty)
-        #expect(model.errors[id] != nil)
+        #expect(await check.calls == 1)
+        let heldBack = model.status(id)
+        #expect(heldBack?.withheld == .rateLimited)
+        #expect(model.errors[id] == heldBack.map { "Not updated: \(CLIToolsModel.reason(.rateLimited, of: $0))" })
 
         model.gitHubPause = [:]
         #expect(model.oneClickable.contains { $0.toolID == id })

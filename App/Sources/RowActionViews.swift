@@ -266,7 +266,9 @@ struct InstallCancelButton: View {
         case .available:
             return count > 1 ? String(localized: "Cancel \(count) updates") : String(localized: "Cancel update")
         // Rows draw none once accepted; Update All's header keeps its greyed
-        // glyph while its copies are stopped (`CLIToolsModel.updateAllCancel`).
+        // glyph while its copies are stopped (`CLIToolsModel.updateAllCancel`),
+        // and a row standing for several while one is stopped beside one past
+        // its commit (`GroupCancel`).
         case .cancelling: return String(localized: "Cancelling…")
         case .committing: return String(localized: "Installing — can’t cancel now")
         case .tooLate: return String(localized: "Already finishing — can’t cancel")

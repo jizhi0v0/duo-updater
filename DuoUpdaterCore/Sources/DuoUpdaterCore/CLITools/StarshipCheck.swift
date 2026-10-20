@@ -14,6 +14,10 @@ import Foundation
 ///    documented command with the script's own `-y` (its one question reads
 ///    `/dev/tty`, which a run behind the panel has not got) run as root behind
 ///    the administrator panel (`CLIToolAdministratorRun`), after the same gates.
+///    No "root's alone" gate as Helm's (`HelmCheck`): the script never runs the
+///    installed binary — its `starship init` lines are printed, not run — and
+///    unpacks with `tar -o`, so root owns what it writes (read 2026-10-20); a
+///    script that ran the binary, or kept the archive's owner, would need it.
 ///    Anywhere else this user cannot write, the documented command is reported
 ///    for the user to run.
 /// 4. **The trust rule** (`CLIToolTrust`): every build is held to the `.sha256`

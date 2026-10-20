@@ -149,6 +149,12 @@ public struct CaskEntry: Sendable {
     /// The cask's `depends_on.macos`, when it states one. `nil` means "runs
     /// anywhere", which is what the catalog says for the large majority.
     public let macOS: CaskMacOSRequirement?
+    /// The `.app` filenames this cask installs (`CaskIndex`'s lookup key), empty
+    /// for a cask with no `app` artifact. Read by `isStandardStableCask`.
+    public let appFilenames: [String]
+    /// The bundle ids the cask's `uninstall: quit:` names (`CaskIndex`'s second
+    /// key), empty when it names none. Read by `isStandardStableCask`.
+    public let bundleIDs: [String]
 
     public init(
         token: String,
@@ -156,7 +162,9 @@ public struct CaskEntry: Sendable {
         url: URL?,
         autoUpdates: Bool,
         installKind: CaskInstallKind,
-        macOS: CaskMacOSRequirement? = nil
+        macOS: CaskMacOSRequirement? = nil,
+        appFilenames: [String] = [],
+        bundleIDs: [String] = []
     ) {
         self.token = token
         self.version = version
@@ -164,6 +172,60 @@ public struct CaskEntry: Sendable {
         self.autoUpdates = autoUpdates
         self.installKind = installKind
         self.macOS = macOS
+        self.appFilenames = appFilenames
+        self.bundleIDs = bundleIDs
+    }
+
+    /// Whether this is the app's standard cask, which installs its stable
+    /// release — what `HomebrewCaskSource` reports as `RemoteVersion.offeredChannel`
+    /// so a nightly or beta copy can be told that brew will put stable over it.
+    ///
+    /// The catalog states no channel, so this reads Homebrew's own naming rule
+    /// (docs.brew.sh/Cask-Cookbook, "Token reference"): an alternative upstream
+    /// channel is the standard token plus `@<channel>` (`google-chrome@beta`,
+    /// `vlc@nightly`), and "the most recent version does not have a suffix". So
+    /// any `@` disqualifies, the channel casks being the point: a nightly copy
+    /// installed by `foo@nightly` is where it belongs.
+    ///
+    /// `@<version>` casks (`corretto@11`) are skipped too, although they are
+    /// stable: a nightly dragged over a `foo@11` install gets no reminder. An
+    /// accepted miss — rare, and it errs toward silence.
+    ///
+    /// Second check: the cask's own `.app` name must also read `.stable` through
+    /// `ReleaseChannel.detect`, which keeps out a suffix-less cask whose app
+    /// carries a channel word. A backstop today: in the catalog read 2026-10-20,
+    /// of the 1,860 non-`auto_updates` casks the index can match (1,803 without
+    /// `@`), none has that shape; the one cask in the whole catalog that does,
+    /// `alpha` → `Alpha.app`, is disabled. A cask with no `.app` artifact has only
+    /// the token to go on.
+    ///
+    /// Third: the cask's own version must read `.stable` the same way. A standard
+    /// cask can track a vendor whose every release is numbered as a beta —
+    /// `vibetunnel` `1.0.0-beta.18`, `bambu-connect` `2.5.0-beta.15` — and each copy
+    /// it installs then reads `.beta` on disk (`ReleaseChannel.detect` step 4), so
+    /// without this every one of its users would be told they are leaving a beta
+    /// for a stable build that is itself the next beta. Found by review on #1501;
+    /// in the same catalog it drops five of the 1,803 (`vibetunnel`,
+    /// `bambu-connect`, `teensy`, `jazzup`, `paparazzi`).
+    /// The marketing part only, split as `HomebrewCaskSource` splits it.
+    public var isStandardStableCask: Bool {
+        guard !token.contains("@") else { return false }
+        let marketing = version
+            .split(whereSeparator: { $0 == "," || $0 == ":" }).first.map(String.init) ?? version
+        // Asked once per bundle id the cask names, so a channel suffix on the id
+        // (`….beta`) counts, and so do `detect`'s bundle-scoped version rules
+        // (Little Snitch's "… nightly (…)", Carbon Copy Cloner's `-b<N>`), which a
+        // nil id skips. Review round 2 on #1501.
+        let ids: [String?] = bundleIDs.isEmpty ? [nil] : bundleIDs
+        return ids.allSatisfy { id in
+            ReleaseChannel.detect(
+                name: "", bundleID: id, keystoneChannel: nil, version: marketing) == .stable
+                && appFilenames.allSatisfy { filename in
+                    let name = filename.hasSuffix(".app") ? String(filename.dropLast(4)) : filename
+                    return ReleaseChannel.detect(
+                        name: name, bundleID: id, keystoneChannel: nil, bundleFileName: filename) == .stable
+                }
+        }
     }
 
     /// Whether this cask's own constraint admits the given host. No constraint
@@ -375,6 +437,8 @@ public actor HomebrewCaskCatalog {
                 (cask["disabled"] as? Bool) != true
             else { continue }
 
+            let appNames = appFilenames(in: cask["artifacts"])
+            let ids = bundleIDs(in: cask["artifacts"])
             let entry = CaskEntry(
                 token: token,
                 version: version,
@@ -382,7 +446,9 @@ public actor HomebrewCaskCatalog {
                 autoUpdates: (cask["auto_updates"] as? Bool) ?? false,
                 installKind: installKind(
                     artifacts: cask["artifacts"], url: cask["url"] as? String),
-                macOS: CaskMacOSRequirement.parse(dependsOn: cask["depends_on"])
+                macOS: CaskMacOSRequirement.parse(dependsOn: cask["depends_on"]),
+                appFilenames: appNames,
+                bundleIDs: ids
             )
 
             // Both keys keep every declaring cask, in catalog order. Keeping the
@@ -391,10 +457,10 @@ public actor HomebrewCaskCatalog {
             // and the one this Mac can run, rather than whichever token sorted
             // first (the `onyx` / `onyx@beta` split, issue #638):
             // `docs/engine-notes/homebrew-cask-catalog.md` §2.
-            for appName in appFilenames(in: cask["artifacts"]) {
+            for appName in appNames {
                 byApp[appName.lowercased(), default: []].append(entry)
             }
-            for bundleID in bundleIDs(in: cask["artifacts"]) {
+            for bundleID in ids {
                 allByBundle[bundleID.lowercased(), default: []].append(entry)
             }
         }

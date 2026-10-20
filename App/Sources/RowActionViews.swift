@@ -134,6 +134,51 @@ struct SubscriptionHoldPanel: View {
     }
 }
 
+/// What a channel-switch hint opens, in both windows — the popover's amber mark
+/// and the workbench's "Switches to stable" label, each beside the row's usual
+/// Update button. A Homebrew update that puts the stable cask over a copy the user
+/// replaced with a nightly or beta (`UpdateResult.replacesChannelWithStable`).
+/// It explains and nothing more: the update stays the ordinary one, because brew's
+/// own `brew upgrade` makes the same switch. The channel is spelled as the row's
+/// tag spells it (`ChannelTag`).
+struct ChannelSwitchPanel: View {
+    let result: UpdateResult
+    let channel: ReleaseChannel
+    let actions: RowActions
+    let dismiss: () -> Void
+
+    /// The hint's tooltip, on both surfaces.
+    static var help: String {
+        String(localized: "Updating switches this copy to the stable build — click for details")
+    }
+
+    private var offered: String {
+        guard let latest = result.remote?.displayVersion else { return "?" }
+        return result.updateLineText(latest: latest).offered
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label("Switches to stable", systemImage: "exclamationmark.triangle.fill")
+                .font(.headline)
+            Text("This copy of \(result.app.name) comes from the \(channel.rawValue.uppercased()) channel. Updating to \(offered) through Homebrew installs the stable cask over it, so you leave the \(channel.rawValue.uppercased()) channel. Some apps keep separate settings for each channel.")
+                .font(.callout)
+                .fixedSize(horizontal: false, vertical: true)
+            Text("To stay on \(channel.rawValue.uppercased()), get its updates from the vendor rather than from Homebrew. If “Keep a backup of the previous version” is on in [Settings](duoupdater-settings:backups), you can restore the version you have now.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .environment(\.openURL, OpenURLAction { _ in
+                    dismiss()
+                    actions.openBackupSetting()
+                    return .handled
+                })
+        }
+        .padding(12)
+        .frame(width: 290)
+    }
+}
+
 /// The words for a `.subscriptionHold` row, shared by both windows.
 enum SubscriptionHoldWording {
     static var title: String { String(localized: "Not covered by your subscription") }
@@ -393,6 +438,7 @@ struct WorkbenchRowAction: View {
     @State private var showTestFlightTip = false
     @State private var showOrphanHint = false
     @State private var showSubscriptionHint = false
+    @State private var showChannelSwitch = false
 
     var body: some View {
         // `ui = f(state)`. The ladder that decides WHICH of these applies lives in
@@ -630,6 +676,34 @@ struct WorkbenchRowAction: View {
     /// for the one-click-safe cases. Major upgrades and region/compat-gated App Store
     /// apps are intentionally NOT one-click here — they keep their explanatory
     /// popover affordances in the menu bar — so we show a hint that points there.
+    /// The row's usual button, with a "Switches to stable" label before it when
+    /// the update puts the stable cask over a nightly or beta copy
+    /// (`UpdateResult.replacesChannelWithStable`). The label is a button onto the
+    /// panel the popover's hint opens, like `.orphanedStoreCopy`'s; the update
+    /// button stays, because brew's own `brew upgrade` makes the same switch.
+    @ViewBuilder
+    private func withChannelSwitchHint<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+        if let channel = result.replacesChannelWithStable {
+            HStack(spacing: 10) {
+                Button { showChannelSwitch = true } label: {
+                    Label("Switches to stable", systemImage: "exclamationmark.triangle.fill")
+                        .font(.callout).foregroundStyle(.orange)
+                        .lineLimit(1).minimumScaleFactor(0.7)
+                }
+                .buttonStyle(.plain)
+                .help(ChannelSwitchPanel.help)
+                .popover(isPresented: $showChannelSwitch, arrowEdge: .bottom) {
+                    ChannelSwitchPanel(
+                        result: result, channel: channel, actions: actions,
+                        dismiss: { showChannelSwitch = false })
+                }
+                content()
+            }
+        } else {
+            content()
+        }
+    }
+
     @ViewBuilder
     private func updateAction(_ route: UpdateRoute) -> some View {
         // The route was resolved by the model, not re-derived here, so this window
@@ -661,33 +735,41 @@ struct WorkbenchRowAction: View {
 
         case .majorUpgrade:
             // License-boundary warning lives in the popover; don't one-click it here.
-            Label("Major update", systemImage: "exclamationmark.triangle.fill")
-                .font(.callout).foregroundStyle(.orange)
-                // Same overflow protection its `.macIncompatible` /
-                // `.needsNewerMacOS` / `.region` siblings carry — it had none, and
-                // the catalog's longest translation of it is es "Actualización
-                // importante" (24 characters, drawn at `.callout`). UNMEASURED
-                // against a real row: this is the protection every sibling label
-                // has, not a fix for a width somebody measured overflowing.
-                .lineLimit(1).minimumScaleFactor(0.7)
-                .help("Major version upgrade — review and install it from the menu-bar popover")
+            // A channel switch that is also a major upgrade keeps its own label
+            // beside this one (review round 4, #1501).
+            withChannelSwitchHint {
+                Label("Major update", systemImage: "exclamationmark.triangle.fill")
+                    .font(.callout).foregroundStyle(.orange)
+                    // Same overflow protection its `.macIncompatible` /
+                    // `.needsNewerMacOS` / `.region` siblings carry — it had none, and
+                    // the catalog's longest translation of it is es "Actualización
+                    // importante" (24 characters, drawn at `.callout`). UNMEASURED
+                    // against a real row: this is the protection every sibling label
+                    // has, not a fix for a width somebody measured overflowing.
+                    .lineLimit(1).minimumScaleFactor(0.7)
+                    .help("Major version upgrade — review and install it from the menu-bar popover")
+            }
 
         case .autoInstall:
-            Button("Update \(result.offeredDisplay ?? "")") { actions.install() }
-                .buttonStyle(.borderedProminent)
-                .help("Download and install \(result.app.name) \(result.offeredDisplay ?? "")")
+            withChannelSwitchHint {
+                Button("Update \(result.offeredDisplay ?? "")") { actions.install() }
+                    .buttonStyle(.borderedProminent)
+                    .help("Download and install \(result.app.name) \(result.offeredDisplay ?? "")")
+            }
 
         case .installer(let stagedFileName):
             // Already downloaded → "Install" re-opens that exact package instead of
             // fetching it again. See `AppListModel.stagedPackage(for:)`.
-            if let stagedFileName {
-                Button("Install") { actions.openStagedPackage() }
-                    .buttonStyle(.borderedProminent)
-                    .help("\(stagedFileName) is already downloaded — opens it in macOS's installer (asks for admin). Nothing is downloaded again.")
-            } else {
-                Button("Update") { actions.install() }
-                    .buttonStyle(.bordered)
-                    .help("Downloads the official installer and opens it (asks for admin)")
+            withChannelSwitchHint {
+                if let stagedFileName {
+                    Button("Install") { actions.openStagedPackage() }
+                        .buttonStyle(.borderedProminent)
+                        .help("\(stagedFileName) is already downloaded — opens it in macOS's installer (asks for admin). Nothing is downloaded again.")
+                } else {
+                    Button("Update") { actions.install() }
+                        .buttonStyle(.bordered)
+                        .help("Downloads the official installer and opens it (asks for admin)")
+                }
             }
 
         case .appStore(let storeManagedHere, let gate):

@@ -273,11 +273,12 @@ extension View {
     /// second click of a double-click on Update does not cancel what the first
     /// started, nor the reverse.
     ///
-    /// Meant for the pointer only: it turns off hit-testing, and Return or
-    /// space on a focused button and AXPress are meant to go through — a
-    /// keystroke is never the tail of a double-click. The look is unchanged;
-    /// the click the slot swallows is the rest of one already answered — the
-    /// control it swapped in is that answer.
+    /// The pointer only: it turns off hit-testing. AXPress goes through (on the
+    /// dev Mac, 2026-10-20: Update, Cancel, Update, Cancel pressed by AXPress
+    /// within 0.33 s all took), and Return or space on a focused button is
+    /// meant to as well — a keystroke is never the tail of a double-click.
+    /// The look is unchanged; the click the slot swallows is the rest of one
+    /// already answered — the control it swapped in is that answer.
     func swallowsClicksAfterSwap<Occupant: Equatable & Sendable>(of occupant: Occupant) -> some View {
         modifier(SlotSwapClickGuardModifier(occupant: occupant))
     }

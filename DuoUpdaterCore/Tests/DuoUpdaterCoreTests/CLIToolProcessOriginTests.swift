@@ -142,13 +142,17 @@ struct CLIToolProcessOriginTests {
 
     /// On this machine: a child of the test process has the test process as
     /// its parent, and launchd names a coalition for it.
-    @Test func readsALiveChild() throws {
-        let child = Process()
-        child.executableURL = URL(fileURLWithPath: "/bin/sleep")
-        child.arguments = ["30"]
-        try child.run()
-        defer { child.terminate() }
-        let o = try #require(Origin.read(pid: child.processIdentifier))
+    @Test func readsALiveChild() async throws {
+        let (pids, continuation) = AsyncStream.makeStream(of: pid_t.self)
+        let child = Task {
+            try await ChildProcess.run("/bin/sleep", ["30"], standardOutput: .discard, standardError: .discard,
+                                       onCancel: .terminateChild, onLaunch: { continuation.yield($0) })
+        }
+        defer { child.cancel() }
+        var iterator = pids.makeAsyncIterator()
+        let pid = try #require(await iterator.next())
+        let coalition = await Origin.readCoalition(of: pid)
+        let o = try #require(await offCooperativePool { Origin.read(pid: pid, coalition: coalition) })
         #expect(o.executable == "/bin/sleep")
         #expect(o.arguments == ["/bin/sleep", "30"])
         #expect(o.ancestors.first?.pid == getpid())

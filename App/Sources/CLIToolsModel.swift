@@ -814,19 +814,21 @@ final class CLIToolsModel {
     /// pid is still the process it was read from (same start time).
     private func readOrigins(of pids: Set<pid_t>) async {
         let known = origins
-        let (read, summaries) = await offCooperativePool(qos: .utility) {
-            () -> ([pid_t: CLIToolProcessOrigin], [pid_t: String]) in
+        var read = await offCooperativePool(qos: .utility) { () -> [pid_t: CLIToolProcessOrigin] in
             var answer: [pid_t: CLIToolProcessOrigin] = [:]
             for pid in pids {
-                var origin = known[pid].flatMap { CLIToolProcessOrigin.read(pid: pid, coalition: .some($0.coalition)) }
-                if origin == nil || origin?.started != known[pid]?.started {
-                    origin = CLIToolProcessOrigin.read(pid: pid)
-                }
-                answer[pid] = origin
+                answer[pid] = CLIToolProcessOrigin.read(pid: pid, coalition: known[pid]?.coalition)
             }
-            return (answer, answer.mapValues { $0.summary() })
+            return answer
         }
-        if read != origins { origins = read }
+        // launchd only for a process not read before: a new pid, or one
+        // another process has taken since.
+        for (pid, origin) in read where known[pid] == nil || known[pid]?.started != origin.started {
+            read[pid] = origin.with(coalition: await CLIToolProcessOrigin.readCoalition(of: pid))
+        }
+        let origins = read
+        let summaries = await offCooperativePool(qos: .utility) { origins.mapValues { $0.summary() } }
+        if read != self.origins { self.origins = read }
         if summaries != originSummaries { originSummaries = summaries }
     }
 

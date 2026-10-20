@@ -171,10 +171,11 @@ public struct CLIToolProcessOrigin: Sendable, Equatable {
 
     // MARK: - Reading
 
-    /// Everything about `pid` the kernel and launchd will say now; nil once it
-    /// has exited. A `coalition` passed in — even `.some(nil)`, launchd said
-    /// nothing last time — is the caller's cache, and launchd is not asked.
-    public static func read(pid: pid_t, coalition: Coalition?? = nil) -> CLIToolProcessOrigin? {
+    /// What the kernel says of `pid` now, with `coalition` — the caller's,
+    /// from `readCoalition` — as it is; nil once the process has exited.
+    /// Synchronous and cheap (`proc_pidinfo`, `KERN_PROCARGS2`), but it asks
+    /// LaunchServices which ancestors are apps: run it off the cooperative pool.
+    public static func read(pid: pid_t, coalition: Coalition?) -> CLIToolProcessOrigin? {
         guard let parent = parentPID(of: pid) else { return nil }
         var ancestors: [Ancestor] = []
         var next = parent
@@ -189,7 +190,13 @@ public struct CLIToolProcessOrigin: Sendable, Equatable {
         return CLIToolProcessOrigin(
             pid: pid, arguments: ClaudeCodeActivity.argumentsAndEnvironment(of: pid)?.arguments ?? [],
             started: CLIToolProcesses.startTime(of: pid), executable: path(of: pid), ancestors: ancestors,
-            coalition: coalition ?? readCoalition(of: pid))
+            coalition: coalition)
+    }
+
+    /// This origin with launchd's coalition.
+    public func with(coalition: Coalition?) -> CLIToolProcessOrigin {
+        CLIToolProcessOrigin(pid: pid, arguments: arguments, started: started, executable: executable,
+                             ancestors: ancestors, coalition: coalition)
     }
 
     static func ancestor(_ pid: pid_t) -> Ancestor {
@@ -223,24 +230,16 @@ public struct CLIToolProcessOrigin: Sendable, Equatable {
     }
 
     /// `launchctl print pid/<pid>`'s resource coalition, or nil.
-    public static func readCoalition(of pid: pid_t) -> Coalition? {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/bin/launchctl")
-        process.arguments = ["print", "pid/\(pid)"]
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = FileHandle.nullDevice
-        guard (try? process.run()) != nil else { return nil }
+    public static func readCoalition(of pid: pid_t) async -> Coalition? {
         // Measured at under 10 ms; a launchd that does not answer must not
         // hold the read.
-        let deadline = DispatchWorkItem { if process.isRunning { process.terminate() } }
-        DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 2, execute: deadline)
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        process.waitUntilExit()
-        deadline.cancel()
+        guard let outcome = try? await ChildProcess.run(
+            "/bin/launchctl", ["print", "pid/\(pid)"], standardError: .discard,
+            deadline: .init(terminateAfter: .seconds(2), killAfter: .seconds(3)), onCancel: .terminateChild)
+        else { return nil }
         // Not the exit status: a pid gone by now prints a stub and exits 0,
         // one launchd will not show (root's) exits 1 — only the block counts.
-        return parseCoalition(String(decoding: data, as: UTF8.self))
+        return parseCoalition(String(decoding: outcome.standardOutput, as: UTF8.self))
     }
 
     /// The `resource coalition = { … }` block's name and state.

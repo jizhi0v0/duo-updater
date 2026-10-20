@@ -178,7 +178,9 @@ reason that holds. "Not checked" is not a recorded gap.
   (`.installedVersion(pattern:)`, `.asarEntry`) for another edition or major
   version on the same id, which keeps detection and withholds only one-click;
   `.publishedDigestOnly` for ad-hoc builds; a bundle-id-scoped branch in
-  `ReleaseChannel.detect` when only that bundle tells its tracks apart. A copy
+  `ReleaseChannel.detect` when only that bundle tells its tracks apart; a
+  scan-time read of the executable (`Scan/BlenderBuildInfo.swift`) when only
+  the binary does, its Info.plist being identical across tracks. A copy
   the rule would offer a wrong version, or one-click would replace with
   another edition, is never a gap: gate it first. Check every vendor fact in
   a gap's reason ("their own updater already moves them to the latest") in
@@ -582,7 +584,8 @@ swift run --package-path application-test channel-verify "<path-to-.app-or-.dmg>
 ```
 
 It prints the real bundle id, real `CFBundleShortVersionString`, the detected
-channel, and the live probe's from→to verdict.
+channel, and the live probe's from→to verdict. A `.zip` is neither: `ditto -x -k`
+it and pass the `.app` (it otherwise stops on `cannot read …/Contents/Info.plist`).
 
 **Tiered identity resolution — cheapest authoritative source first:**
 1. Channel **installed** → read its bundle directly (`mdls`, `application.ini`).
@@ -1020,6 +1023,11 @@ same check.
 
 当前生效源（`UpdateChecker` 优先链中第一个应答的）: **...**
 
+## 覆盖清单
+- 各版本的 bundle id / Team: ...（较早的版本读真包，不读下载页）
+- 其他轨: ...
+- 版本范围、主机下限: ...（每组副本要么由规则覆盖，要么写成缺口并附上站得住的理由）
+
 ## Channel 详情
 
 | Channel | Bundle ID | 独立/共享 | 检测信号 | 门控方式 | 状态 |
@@ -1031,6 +1039,9 @@ same check.
 - 源: ...
 - 端点: ...
 - 注意事项: (版本方案陷阱、rollout、WAF 等)
+
+## 按架构 / 按 OS 分轨
+- 架构: universal / arm64 / 分架构资产；`LSMinimumSystemVersion`: ...
 
 ## 增量更新（delta / binary patch）
 > 三栏分开写，每栏标证据来源。空着不如写「没查」。
@@ -1072,6 +1083,9 @@ same check.
 
 ## 已知问题
 - ...
+
+## 如何复验
+（每个 ✓ 对应的命令：下载、`check-bundle.sh`、`channel-verify`）
 
 ## 建议下一步
 1. ...

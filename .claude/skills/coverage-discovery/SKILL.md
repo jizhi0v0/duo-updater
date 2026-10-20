@@ -83,6 +83,8 @@ grep -rnF '<bundle id>' DuoUpdaterCore/Sources docs/app-audits
 | `noKnownUpdater`, Developer ID + notarized | Dispatch (Phase 3) |
 | No Team ID, shipped as a GitHub release asset | Dispatch. One-click goes through `installTrust: .publishedDigestOnly` when every condition in `Recipes/org-alacritty.swift` holds; otherwise detection-only. Lokii and disktree are the worked examples |
 | No Team ID / not notarized | Detection-only at best — except a MyGo app (`declared`, MyGo), whose vendor signature carries one-click behind the user's setting. Dispatch only if detection alone is worth it |
+| A prerelease ships an asset with the stable one's name (Lapce's `nightly` and `Lapce-macos.dmg`) | Download it too and diff its Info.plist with the stable one's. Same bundle id means another track on the same id: flag it in the brief, so the agent settles it per app-audit's coverage checklist |
+| `check-bundle.sh` lists a `component` (system extension, XPC service, launchd job) or `exe-references` the app's own releases | Flag it in the brief: something that runs outside the bundle, or an updater with no plist signal (Lapce) |
 | `check-bundle.sh` lists a `nested` app with `LSUIElement=true` | Flag it in the brief: a resident helper that keeps running after a bundle swap. `LSBackgroundOnly` launchers that exit are fine (OpenInTerminal) |
 | Another product under the same bundle id: an older major shipped beside the new one (MuseScore 3 / 4), or an edition (GitKraken On-Premise differs only in `app.asar`'s `clientType.js`) | Flag it in the brief. Detection stays; one-click for those copies goes behind a `OneClickGate` in the family's recipe file (`.installedVersion` / `.asarEntry`) |
 
@@ -92,12 +94,13 @@ The brief follows the memory note `subagent-brief-rules`. It must say:
 
 - `isolation: "worktree"`, and first `git fetch origin && git switch -c recipe/<app> origin/main`;
 - its own `SCR=$(mktemp -d "$TMPDIR/recipe-<app>.XXXX")`;
-- follow `.claude/skills/app-audit/SKILL.md` and `fragile-recipe`; a new family starts from `scripts/scaffold-github-rule.py <owner/repo> --package <asset>`, which drafts the rule, its `AppRecipeIndex` line, the audit doc and the README row and leaves `TODO(audit)` where judgment is needed. When it stops (prerelease track, pkg/tarball, a version that is not plain dotted, a Sparkle feed), write the rule by hand with `git show <a recent GitHubReleaseRule commit>` as the worked example;
+- follow `.claude/skills/app-audit/SKILL.md` and `fragile-recipe`; a new family starts from `scripts/scaffold-github-rule.py <owner/repo> --package <asset>`, which drafts the rule, its `AppRecipeIndex` line, the audit doc and the README row, reads the previous and oldest listed stable packages too, and leaves `TODO(audit)` where judgment is needed (an older bundle id or Team, a same-name prerelease, a system extension or other component, an executable naming its own releases). Every `TODO(audit)` is resolved with evidence before the commit. When it stops (the package is itself a prerelease, pkg/tarball, a version that is not plain dotted, a Sparkle feed), write the rule by hand with `git show <a recent GitHubReleaseRule commit>` as the worked example;
 - the facts triage already found (bundle id, Team, feed-discover verdict, nested helpers, other products under the same id), so the agent doesn't rediscover them;
 - one-click when the app is Developer ID signed with a Team ID, `spctl` says Notarized, and the asset is dmg or zip; prefer universal, otherwise arm64. An ad-hoc build gets `.publishedDigestOnly` as in Phase 2; when a condition fails the audit names it, and "ad-hoc" alone is not a reason;
 - check the **previous** release's Team ID too, because a change means the gate refuses every old copy;
-- old→new `channel-verify` on the previous and newest packages, goldens re-recorded, `make test` in the foreground judged by exit code;
+- old→new `channel-verify` on the previous and newest packages (it reads a `.app` or a `.dmg`; `ditto -x -k` a `.zip` first and pass the `.app`), goldens re-recorded, `make test` in the foreground judged by exit code;
 - the audit doc plus a README line **in the section matching its source**. A row whose coverage is generic Sparkle (`— S`) belongs in the Sparkle section; `AppAuditCoverageTests` fails it anywhere else;
+- a track or group of copies left unwired goes in the report under 「待用户决定」 with its reason: the agent can't ask, and app-audit never lets "not wired" be decided alone. The main session asks the user before the batch merges;
 - commit with `git commit -F`, no push;
 - **forbidden**: `make install`, `make cli`, the `duo` CLI, `pkill`, `git stash`, copying into /Applications, launching anything downloaded, touching quarantine, anything that pops system UI. The end-to-end run is yours, serially (Phase 5): the CLI and /Applications are shared. A claim about install behaviour ("the next attempt draws the zip") is a hypothesis until Phase 5;
 - hygiene, each of which went wrong once:
@@ -117,7 +120,7 @@ For each report:
 
 1. Read the diff (`git show <sha>`), and read the rule's comment as a list of claims.
 2. Re-run `check-bundle.sh` yourself on the agent's newest and previous downloads (they are in its `$SCR`). Don't take the Team, version or notarization from the report.
-3. Question every deliberate "can't" in the report (detection-only, a skipped track). Is the reason measured or assumed (read the helper's source, as for OpenInTerminal)?
+3. Question every deliberate "can't" in the report (detection-only, a skipped track). Is the reason measured or assumed (read the helper's source, as for OpenInTerminal)? Take each 「待用户决定」 item to the user.
 
 Then pick the agents' **own** commits (parent = `origin/main`) onto one
 integration branch cut from `origin/main`:
@@ -227,7 +230,7 @@ after the review round is read and found free of blocking findings. A green
 ## File map
 
 - `scripts/candidates.py` — Phase 1 ranking, minus what the repo covers
-- `scripts/check-bundle.sh` — package identity, signature, notarization, nested helpers
+- `scripts/check-bundle.sh` — package identity, signature, notarization, nested apps, components that run outside the app, references to the app's own GitHub releases
 - `scripts/scaffold-github-rule.py` — drafts a new single-rule GitHub family from its real package (`--facts` replays it on an `install-verify` report)
 - `scripts/integrate.sh` — cherry-pick with README/index conflict resolution
 - `.claude/skills/app-audit/SKILL.md` — the per-app method each agent follows

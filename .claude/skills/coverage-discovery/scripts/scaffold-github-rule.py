@@ -16,10 +16,16 @@ With --facts it writes nothing and prints the rule it WOULD derive for an
 existing `install-verify` item, from what that job read off the package. That
 is how the derivation is checked against the hand-written rules.
 
+It also fetches the previous and the oldest listed stable release (each up to
+300 MB) and compares their bundle id, Team and version with the newest.
+
 Scope: one stable rule for one bundle id, a .dmg or .zip asset, a plain dotted
-CFBundleShortVersionString. A prerelease track, a .pkg or tarball, an Intel-only
-asset, any other version scheme, or a Sparkle feed in the bundle stops the
-script with the reason; those take an audit, not a template. The checks
+CFBundleShortVersionString. A package that is itself a prerelease, a .pkg or
+tarball, an Intel-only asset, any other version scheme, or a Sparkle feed in the
+bundle stops the script with the reason; those take an audit, not a template. A
+prerelease that ships an asset of the same name, a system extension or other
+component, or an executable naming its own releases is drafted with a
+`TODO(audit)` note instead. The checks
 here only fail early; what decides is `make test`, `duo verify`,
 `install-verify` and the real-machine one-click, as for a hand-written rule.
 """
@@ -29,8 +35,10 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
+import tempfile
 import time
 import urllib.parse
 
@@ -50,6 +58,7 @@ ARCH_TOKENS = {
     "x86_64": ["x86_64", "x86-64", "x64", "x86", "amd64", "intel"],
 }
 RECENT = 10  # stable releases the asset pattern must stay unambiguous on
+OLDER_CAP = 300 * 1024 * 1024  # largest older package fetched for the identity comparison
 
 
 class Stop(Exception):
@@ -147,14 +156,34 @@ def derive(owner, repo, facts, releases):
     """The rule, from package facts and the repository's releases."""
     notes = []
     asset = facts["asset"]
-    rel = next((r for r in releases
-                if (facts.get("tag") in (None, r["tag_name"]))
-                and any(a["name"] == asset for a in r["assets"])), None)
-    if rel is None:
+    short = facts["shortVersion"] or ""
+    carrying = [r for r in releases if any(a["name"] == asset for a in r["assets"])]
+    if not carrying:
         raise Stop(f"no release among the newest {len(releases)} carries an asset named {asset}")
+
+    def digest_of(r):
+        return next(a.get("digest") for a in r["assets"] if a["name"] == asset)
+
+    # Which release the package IS. A name alone does not say when it carries no
+    # version: Lapce ships `Lapce-macos.dmg` in every release, and the newest one
+    # holding that name is its `nightly` prerelease, not the v0.4.6 package given.
+    if facts.get("tag"):
+        rel = next((r for r in carrying if r["tag_name"] == facts["tag"]), None)
+    elif facts.get("sha256"):
+        rel = next((r for r in carrying if digest_of(r) == f"sha256:{facts['sha256']}"), None)
+    else:
+        rel = None
+    if rel is None:
+        rel = next((r for r in carrying if not r.get("prerelease") and find_version(r["tag_name"], short)),
+                   carrying[0])
     tag = rel["tag_name"]
     if rel.get("prerelease"):
-        raise Stop(f"{tag} is a prerelease: a channel rule, which this template does not draft")
+        raise Stop(f"the package is {tag}, a prerelease: a channel rule, which this template does not draft")
+    twins = [r["tag_name"] for r in carrying if r.get("prerelease")]
+    if twins:
+        notes.append(f"prerelease {', '.join(twins[:3])} ships an asset of the same name: TODO(audit) — "
+                     "likely another track on the same bundle id; download it, diff its Info.plist "
+                     "with this one, and settle it per app-audit's coverage checklist")
     if facts.get("sparkleFeedURL"):
         raise Stop(f"the bundle declares SUFeedURL {facts['sparkleFeedURL']}: "
                    "SparkleAppcastSource covers it with no rule")
@@ -163,7 +192,13 @@ def derive(owner, repo, facts, releases):
                      "exits is fine; a resident agent keeps the old code running after the swap "
                      "(loginItemAgentRestarts)")
 
-    short = facts["shortVersion"] or ""
+    for c in facts.get("components", []):
+        notes.append(f"{c}: TODO(audit) — runs outside the app; check what a bundle swap does to it")
+    own = [r for r in facts.get("exeReferences", []) if f"/{owner}/{repo}/releases".lower() in r.lower()]
+    if own:
+        notes.append(f"the executable names its own releases ({own[0]}): TODO(audit) — it likely "
+                     "updates itself; find out how, and whether it races ours")
+
     if not re.fullmatch(VERSION, short):
         raise Stop(f"CFBundleShortVersionString {short!r} is not a plain dotted version: "
                    "the version pattern needs writing by hand")
@@ -188,6 +223,7 @@ def derive(owner, repo, facts, releases):
         raise Stop(f"{asset} is an Intel build; DuoUpdater is arm64-only — pass the arm64 or universal asset")
     names = {a["name"] for a in rel["assets"]}
     asset_pattern = generalise(asset, find_version(asset, short, prefer=(tag_version,)), VERSION, build)
+    match_pattern = asset_pattern
 
     if asset.endswith(".dmg"):
         kind = ".dmg"
@@ -208,7 +244,8 @@ def derive(owner, repo, facts, releases):
         if not hits:
             notes.append(f"{r['tag_name']} has no asset the pattern matches (offered as no macOS build)")
     others = sorted(n for n in names - {asset}
-                    if re.search(r"\.(dmg|zip|pkg)$", n) and not re.search(asset_pattern, n))
+                    if re.search(r"\.(dmg|zip|pkg)$", n) and not re.search(asset_pattern, n)
+                    and not re.search(r"(?i)windows|win32|win64|linux|\.(msi|exe|deb|rpm|appimage)", n))
     if others:
         notes.append(f"other installers in {tag} the pattern leaves out: {', '.join(others)}")
 
@@ -240,7 +277,71 @@ def derive(owner, repo, facts, releases):
         "digest": digest,
         "versionPattern": version_pattern, "installAssetPattern": asset_pattern,
         "installerKind": kind, "installTrust": trust, "notes": notes,
+        "matchPattern": match_pattern, "readTags": [r["tag_name"] for r in read],
     }
+
+
+def older_identities(owner, repo, releases, facts, d):
+    """Read the previous and the oldest listed stable release the way the newest
+    was read, and say where they differ: app-audit's coverage checklist wants
+    every bundle id and Team a user may still have, and the newest package
+    alone hid both of TaskExplorer's (2.x shipped as
+    `com.objective-see.TaskExplorer`) and Lapce's `0.10.0-dev` early builds."""
+    stable = [r for r in releases if r["tag_name"] in d["readTags"]]
+    tags = [r["tag_name"] for r in stable]
+    picks = []
+    if d["tag"] in tags and tags.index(d["tag"]) + 1 < len(stable):
+        picks.append(stable[tags.index(d["tag"]) + 1])
+    if stable and stable[-1]["tag_name"] != d["tag"] and stable[-1] not in picks:
+        picks.append(stable[-1])
+    lines = []
+    for r in picks:
+        tag = r["tag_name"]
+        a = next((a for a in r["assets"]
+                  if re.search(d["matchPattern"], a["name"]) and arch_class(a["name"]) != "x86_64"), None)
+        if a is None:
+            lines.append(f"{tag}: no asset the pattern matches — TODO(audit) read an older package by hand")
+            continue
+        if a["size"] > OLDER_CAP:
+            lines.append(f"{tag}: {a['name']} is {a['size'] // 2**20} MB, not fetched — TODO(audit) compare it by hand")
+            continue
+        tmp = tempfile.mkdtemp(prefix="scaffold-older.")
+        try:
+            dest = os.path.join(tmp, a["name"])
+            if subprocess.run(["curl", "-sSfL", "-o", dest, a["browser_download_url"]]).returncode:
+                lines.append(f"{tag}: download failed — TODO(audit) compare it by hand")
+                continue
+            o = package_facts(dest)
+        except Stop as e:
+            lines.append(f"{tag}: {e}")
+            continue
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+        if a.get("digest") and a["digest"] != f"sha256:{o['sha256']}":
+            lines.append(f"{tag}: the download does not hash to GitHub's digest — retry before trusting it")
+            continue
+        same = []
+        if o["bundleIdentifier"] == facts["bundleIdentifier"]:
+            same.append("bundle id")
+        elif (o["bundleIdentifier"] or "").lower() == facts["bundleIdentifier"].lower():
+            lines.append(f"{tag}: bundle id `{o['bundleIdentifier']}` differs only in case — TODO(audit) "
+                         "a BundleIDMigration entry, or those copies match no rule")
+        else:
+            lines.append(f"{tag}: bundle id `{o['bundleIdentifier']}` — TODO(audit) the same app under an "
+                         "older id (BundleIDMigration) or another product")
+        if o["teamIdentifier"] == facts["teamIdentifier"]:
+            same.append("Team")
+        else:
+            lines.append(f"{tag}: Team {o['teamIdentifier'] or 'none (ad-hoc)'} — TODO(audit) the install gate "
+                         "refuses copies signed by another Team")
+        if find_version(tag, o["shortVersion"] or "") is None:
+            lines.append(f"{tag}: the bundle says {o['shortVersion']!r} — TODO(audit) copies of that build "
+                         "never compare with the tags")
+        else:
+            same.append("version = tag")
+        if len(same) == 3:
+            lines.append(f"{tag} ({a['name']}): same bundle id and Team, version matches its tag")
+    return lines
 
 
 # MARK: - Package facts
@@ -257,6 +358,8 @@ def package_facts(path):
         return None if v in (None, "", "<none>") else v
 
     nested = re.findall(r"^  nested (\S.*?) id=", out, re.M)
+    components = re.findall(r"^  component (.*)$", out, re.M)
+    references = re.findall(r"^  exe-references (.*)$", out, re.M)
     with open(path, "rb") as f:
         sha = hashlib.sha256(f.read()).hexdigest()
     spctl = re.search(r"^  spctl source=(.*)$", out, re.M)
@@ -275,6 +378,8 @@ def package_facts(path):
         "spctl": spctl.group(1).strip() if spctl else "rejected",
         "nested": nested,
         "loginItems": [n for n in nested if "Library/LoginItems/" in n],
+        "components": components,
+        "exeReferences": references,
         "sha256": sha,
     }
 
@@ -370,6 +475,10 @@ def audit_doc(family, owner, repo, f, d, today):
     else:
         oneclick = "仅检测（" + next((n for n in d["notes"] if n.startswith("ad-hoc")), "") + "）"
     notes = "\n".join(f"- {n}" for n in d["notes"]) or "- —"
+    older = "\n".join(f"  - {n}" for n in d.get("older", [])) or "  - （列表里没有更早的稳定版）"
+    parts = f.get("nested", []) + f.get("components", [])
+    unpack = (f"ditto -x -k {f['asset']} x && " if f["asset"].endswith(".zip") else "")
+    target = "x/*.app" if f["asset"].endswith(".zip") else f["asset"]
     return f"""# {f.get('name') or repo}
 
 ## 基本信息
@@ -389,6 +498,13 @@ def audit_doc(family, owner, repo, f, d, today):
 | **stable** | TODO    | TODO     | TODO | ✓     | —           |
 
 当前生效源: **GitHub**（TODO(audit): channel-verify 实测）
+
+## 覆盖清单
+- 各版本的 bundle id / Team（脚本读了最新、上一版和列表里最老的稳定版）:
+  - {d['tag']}: `{f['bundleIdentifier']}`，Team {f['teamIdentifier'] or '无'}
+{older}
+- 其他轨: TODO(audit)
+- 主机下限: TODO(audit)（`App/project.yml` 的 ARCHS / deployment target）
 
 ## Channel 详情
 
@@ -411,6 +527,12 @@ TODO(audit): 有没有 prerelease / beta / nightly，各自什么 bundle id（re
 | 结论 | 没查 | 没查 | 没查 |
 | 证据 | | | |
 
+## 已停放整包（自更新器下完、还没装的那份）
+
+| | 客户端会停放吗 | 本次实际停放了什么 | 我们能否直接拿来装 |
+|---|---|---|---|
+| 结论 | 没查 | 没查 | 没查 |
+
 ## Changelog
 - 来源: GitHub release 正文（`GitHubReleasesSource`）
 - 结构化: TODO(audit)（channel-verify 的 `changelog pane` 行）
@@ -419,6 +541,7 @@ TODO(audit): 有没有 prerelease / beta / nightly，各自什么 bundle id（re
 - 状态: {oneclick}
 - 端到端: 未跑（TODO(audit): 真机从上一版装到最新版）
 - 格式: {d['installerKind'] or '—'}
+- 嵌套 / 常驻组件: {', '.join(parts) if parts else '无'}
 - 校验: GitHub digest {('`' + d['digest'] + '`，与下载的包一致') if d['digest'] else '未发布'}
 - **读的是**: 人人可手动下载的 GA（`/releases/latest`）
 
@@ -427,7 +550,9 @@ TODO(audit): 有没有 prerelease / beta / nightly，各自什么 bundle id（re
 
 ## 如何复验
 ```bash
+gh release download {d['tag']} --repo {owner}/{repo} --pattern '{f['asset']}'
 .claude/skills/coverage-discovery/scripts/check-bundle.sh {f['asset']}
+{unpack}swift run --package-path application-test channel-verify {target} --expect stable
 ```
 """
 
@@ -481,7 +606,10 @@ def main():
         taken = subprocess.run(["grep", "-rlF", f'"{bid}"', RECIPES], capture_output=True, text=True).stdout.split()
         if taken:
             raise Stop(f"{bid} is already named in {', '.join(os.path.relpath(t, REPO) for t in taken)}")
-        d = derive(owner, repo, facts, gh_releases(owner, repo))
+        releases = gh_releases(owner, repo)
+        d = derive(owner, repo, facts, releases)
+        d["older"] = older_identities(owner, repo, releases, facts, d)
+        d["notes"] += [n for n in d["older"] if "TODO(audit)" in n or "retry" in n]
 
         open(path, "w").write(family_file(family, enum, owner, repo, facts, d))
         insert_index_line(family, enum)

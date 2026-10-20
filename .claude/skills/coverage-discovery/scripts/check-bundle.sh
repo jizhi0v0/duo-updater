@@ -35,6 +35,20 @@ for f in "$@"; do
         "$(/usr/libexec/PlistBuddy -c 'Print :LSUIElement' "$np" 2>/dev/null || echo -)" \
         "$(/usr/libexec/PlistBuddy -c 'Print :LSBackgroundOnly' "$np" 2>/dev/null || echo -)"
     done
+    # Everything else that runs without being opened — the places
+    # `BundleDiff.privilegedComponents` watches. A system extension or launchd job
+    # is not a nested app, and the loop above never saw TaskExplorer's.
+    for d in Contents/Library/SystemExtensions Contents/XPCServices Contents/Library/LaunchServices \
+             Contents/Library/LaunchAgents Contents/Library/LaunchDaemons; do
+      [ -d "$app/$d" ] || continue
+      find "$app/$d" -mindepth 1 -maxdepth 1 | while read -r c; do printf '  component %s\n' "${c#$app/}"; done
+    done
+    # The app naming its own GitHub releases: a sign it updates itself, which a
+    # bundle without SUFeedURL or an updater framework does not otherwise show
+    # (Lapce reads `api.github.com/repos/lapce/lapce/releases/latest`).
+    strings -a "$exe" 2>/dev/null \
+      | grep -oE '(api\.github\.com/repos|github\.com)/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/releases(/latest|/download/)?' \
+      | sort -u | head -5 | sed 's/^/  exe-references /'
   fi
   [ -d "$t/m" ] && hdiutil detach "$t/m" >/dev/null 2>&1
   rm -rf "$t"

@@ -341,7 +341,11 @@ let boundSource = bundleID.map { id -> String in
 // Blender's cycle and commit exist only in its executable — the same read
 // AppScanner makes. See `BlenderBuildInfo`.
 let blender = bundleID == BlenderBuildInfo.bundleID ? BlenderBuildInfo.read(bundleAt: appPath) : nil
-let detected = weChatDevTools?.channel ?? blender?.channel ?? bound?.channel ?? inferred
+// Lapce's nightly is named only in its executable — the same read AppScanner
+// makes. See `LapceBuild`. AppScanner applies a ChannelBinding after it, so a
+// binding wins here too.
+let lapce = bundleID == LapceBuild.bundleID ? LapceBuild.channel(bundleAt: appPath) : nil
+let detected = weChatDevTools?.channel ?? blender?.channel ?? bound?.channel ?? lapce ?? inferred
 
 print("""
 
@@ -355,6 +359,7 @@ print("""
   package.json    \(weChatDevTools.map { "\($0.version) · versionType → \($0.channel.rawValue)" } ?? "<none>")
   HFBuildLabel    \(hyperFramesBuild.map { "b\($0)" } ?? "<none>")
   Blender build   \(blender.map { "cycle \($0.cycle?.rawValue ?? "?") · \($0.branch ?? "?") · \($0.commit ?? "?") · built \($0.builtAt.map { "\($0)" } ?? "?") · track commit \($0.trackCommit ?? "<none>")" } ?? "<none>")
+  Lapce build     \(bundleID == LapceBuild.bundleID ? (lapce?.rawValue ?? "no nightly marker") : "<none>")
   inferred        \(inferred.rawValue)\(bound == nil ? "" : "  (overridden below)")
   ChannelBinding  \(bound.map { "\($0.channel.rawValue) — \(boundSource ?? "")" } ?? "<none for this app>")
   ─────────────────────────────────────────────
@@ -513,7 +518,7 @@ let chainApp = InstalledApp(
     hasSparkleUpdater: FileManager.default.fileExists(
         atPath: appPath.appendingPathComponent("Contents/Frameworks/Sparkle.framework").path),
     releaseChannel: detected,
-    channelIsAuthoritative: bound != nil || weChatDevTools != nil)
+    channelIsAuthoritative: bound != nil || weChatDevTools != nil || lapce != nil)
 
 // `SourceStack.make`, not a hand-copied list: a copy here once dropped
 // `ElectronManifestSource` and ran Homebrew/Sparkle in the wrong order, so an

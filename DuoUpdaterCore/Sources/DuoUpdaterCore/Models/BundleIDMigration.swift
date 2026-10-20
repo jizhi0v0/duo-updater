@@ -136,6 +136,17 @@ public struct BundleIDMigration: Sendable, Equatable {
             from: "com.oracle.workbench.MySQLWorkbench", to: "com.oracle.mysqlworkbench",
             teamID: "VB5E2TV963", lastFromVersion: "8.0.47", firstToVersion: "26.7.0",
             isRewrite: true),
+        // TaskExplorer changed the case of its id with the 3.0 rewrite: the
+        // 2.1.0 zip is `com.objective-see.TaskExplorer`, the 3.0.0 and 3.1.0
+        // zips are `com.objective-see.taskexplorer`, the same Team; there are
+        // no releases between. 2.1.0's own update check reads the same
+        // products.json key that now names 3.1.0, so the vendor offers 3.x to
+        // 2.x copies as an ordinary update: a rename, not `isRewrite`, although
+        // its 3.0.0 notes call the code "a near complete rewrite". See
+        // docs/app-audits/com-objective-see-taskexplorer.md, 旧 bundle id.
+        BundleIDMigration(
+            from: "com.objective-see.TaskExplorer", to: "com.objective-see.taskexplorer",
+            teamID: "VBG97UB4TA", lastFromVersion: "2.1.0", firstToVersion: "3.0.0"),
     ]
 
     /// Whether an installed copy signed as `from` at `version` is this rename.

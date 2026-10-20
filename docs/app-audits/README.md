@@ -304,6 +304,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**PennyBar**](dev-pennybar-PennyBar.md) · `dev.pennybar.PennyBar` — G (one-click dmg) · 无自更新器 · 只有 v0.1.0 一个 release · changelog ✗（厂商正文只有 Full Changelog 链接）· 一键真机端到端 ✓ · 2026-10-19
 - [x] [**Git Switch**](dev-xinan-git-switch.md) · `dev.xinan.git-switch` — G (one-click zip) · 无自更新器 · 只有 v1.0.1 一个 release；版本号写死在 Xcode 工程、不随 tag 盖章 · changelog ✗（厂商正文只有 Full Changelog 链接）· 一键真机端到端 ✓ · 2026-10-19
 - [ ] [**TaskExplorer**](com-objective-see-taskexplorer.md) · `com.objective-see.taskexplorer` — G (one-click universal zip) · 无自更新器（只提示） · 真包 2.1.0/3.0.0/3.1.0 channel-verify ✓（3.0.0、2.1.0 → 3.1.0，3.1.0 up to date） · 2.x 的 `com.objective-see.TaskExplorer` 经 `BundleIDMigration` · 含 Endpoint Security 系统扩展，换包影响待真机 · 一键端到端未跑 · changelog 结构化 ✓（多一条赞助行） · 2026-10-20
+- [ ] [**Lapce**](io-lapce.md) · `io.lapce` — G (one-click universal dmg) · 自研更新器（点「Restart to update」才下载） · 真包 0.4.5/0.4.6 channel-verify ✓（0.4.5 → 0.4.6、0.4.6 up to date） · changelog 结构化 ✓（Features/Changes / Bug Fixes） · **nightly 只识别不推**（同 id 同 plist，`LapceBuild` 读可执行文件里的 `Lapce-Nightly`） · v0.0.6–v0.2.0 的 `0.10.0-dev` 副本不检测 · 一键端到端未跑 · 2026-10-20
 
 ## Changelog-only (detection via Sparkle or Homebrew)
 

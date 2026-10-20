@@ -946,8 +946,8 @@ private struct CommandLineRow: View {
         }
         if !tools.checked { return half([Text(String(localized: "Checking…"))], mark: spinner) }
         if !tools.outdated.isEmpty {
-            let button: (any View)? = tools.batchable.isEmpty ? nil : updateButton(
-                help: String(localized: "Updates each copy in place with its own tool’s update command, on the channel that tool is set to. Copies without a one-click update, and copies whose update asks for an administrator password, are left alone.")
+            let button: (any View)? = !tools.updateAllStartable ? nil : updateButton(
+                help: CLIToolPresentation.updateAllHelp
             ) { await tools.updateAll() }
             if let error = tools.outdated.lazy.compactMap({ tools.errors[$0.toolID] }).first {
                 return half([Text(error).foregroundStyle(.red)], button: button)
@@ -963,7 +963,8 @@ private struct CommandLineRow: View {
                 else { return half([heldLine].compactMap { $0 }) }
                 return half([Text(CLIToolsModel.reason(withheld, of: status))] + (held > 1 ? [heldLine].compactMap { $0 } : []))
             }
-            return half([Text(String(localized: "\(tools.offered.count) updates")), heldLine].compactMap { $0 },
+            let sudoLine = CLIToolPresentation.needSudo(tools.needSudoCount).map { Text($0) }
+            return half([Text(String(localized: "\(tools.offered.count) updates")), sudoLine, heldLine].compactMap { $0 },
                         button: button)
         }
         if !tools.unchecked.isEmpty {

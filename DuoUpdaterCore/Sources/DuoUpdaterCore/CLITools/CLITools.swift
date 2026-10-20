@@ -76,11 +76,13 @@ public enum CLITools {
 }
 
 extension CLIToolStatus {
-    /// Whether Update All runs this copy: an update is offered and it does not
-    /// need an administrator password (`needsAdministrator`). Each of those asks
-    /// on its own row's click, so a batch never raises a panel, let alone a stack
-    /// of them; and one panel for the whole batch would run every such command as
-    /// root on a single answer about none of them in particular.
+    /// Whether this copy runs in an Update All lane: an update is offered and it
+    /// does not need an administrator password (`needsAdministrator`). Lanes
+    /// never raise a panel. The app's Update All asks for each
+    /// `needsAdministrator` copy itself, at the click, one panel per copy — never
+    /// one panel for the whole batch, which would run every such command as root
+    /// on a single answer about none of them in particular. `duo`, which asks for
+    /// no password, runs only the copies this admits.
     public var joinsUpdateAll: Bool { oneClick != nil && !needsAdministrator }
 
     /// The command to copy beside an update the user turned the tool's

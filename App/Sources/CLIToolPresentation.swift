@@ -219,6 +219,28 @@ enum CLIToolPresentation {
     ///   of the version its receipt names to check the files against it
     ///   (`UvVerifier`) — 18,986,443 bytes for 0.9.18, the one measured.
     ///
+    /// Whether the "sudo" badge stands beside the install's name: its one-click
+    /// update asks for an administrator password (`needsAdministrator`).
+    static func showsSudoBadge(_ status: CLIToolStatus) -> Bool {
+        status.needsAdministrator && status.oneClick != nil
+    }
+
+    /// The "sudo" badge's tooltip.
+    static var sudoBadgeHelp: String {
+        String(localized: "Installed in root’s /usr/local/bin — updating asks for an administrator password.")
+    }
+
+    /// "1 needs sudo", "2 need sudo": how many offered updates ask for an
+    /// administrator password, beside the updates count. Nil at none.
+    static func needSudo(_ count: Int) -> String? {
+        count > 0 ? String(localized: "\(count) need sudo") : nil
+    }
+
+    /// Update All's tooltip, in the popover and the workbench header.
+    static var updateAllHelp: String {
+        String(localized: "Updates each copy in place with its own tool’s update command, on the channel that tool is set to. Copies without a one-click update are left alone. Copies whose update needs sudo ask for an administrator password first, one panel each.")
+    }
+
     /// And an update that runs as root (`CLIToolStatus.needsAdministrator`):
     /// the password it asks for, and why.
     static func caution(_ status: CLIToolStatus) -> String? {

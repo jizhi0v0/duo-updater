@@ -198,6 +198,7 @@ struct CLIToolSidebarRow: View {
                 HStack(spacing: 6) {
                     Text(verbatim: CLIToolPresentation.title(of: status, home: homeDirectory, among: cli.statuses))
                         .font(.body).lineLimit(1).truncationMode(.middle)
+                    if CLIToolPresentation.showsSudoBadge(status) { CLISudoBadge() }
                     // Something runs this install's binary — this very file, by
                     // path (`CLIToolProcesses`) — as an app row's dot says.
                     if cli.liveUsage(id)?.isRunning == true {
@@ -218,9 +219,12 @@ struct CLIToolSidebarRow: View {
 
     /// The row's tooltip. The still-running sentence leads it: the mark's own
     /// `.help` is overridden by this one (AXHelp read the path on the mark,
-    /// 2026-10-17), so the row says it for the mark.
+    /// 2026-10-17), so the row says it for the mark — and for the "sudo" badge,
+    /// whose own `.help` it overrides the same way (AXHelp read the path on
+    /// the badge, 2026-10-20).
     private var help: String {
-        let base = CLIToolPresentation.explanation(status) ?? status.path
+        var base = CLIToolPresentation.explanation(status) ?? status.path
+        if CLIToolPresentation.showsSudoBadge(status) { base = CLIToolPresentation.sudoBadgeHelp + "\n" + base }
         guard let usage = cli.liveUsage(id), let line = CLIToolWording.stillRunning(usage, of: status.kind) else { return base }
         return line + "\n" + base
     }
@@ -302,6 +306,25 @@ struct CLIToolSidebarRow: View {
             // would leave a 260 pt sidebar too little room for the title beside it.
             CopyCommandButton(command: command)
         }
+    }
+}
+
+/// "sudo" beside the name of an install whose update asks for an
+/// administrator password (`CLIToolPresentation.showsSudoBadge`): the reason
+/// is on hover, so the row's Update reads as what it is before it is clicked.
+/// The word is the command's, so untranslated.
+struct CLISudoBadge: View {
+    var body: some View {
+        Text(verbatim: "sudo")
+            .font(.caption2.monospaced())
+            .lineLimit(1)
+            .fixedSize()
+            .padding(.horizontal, 5)
+            .padding(.vertical, 1)
+            .background(Capsule().fill(.secondary.opacity(0.16)))
+            .foregroundStyle(.secondary)
+            .help(CLIToolPresentation.sudoBadgeHelp)
+            .accessibilityLabel(CLIToolPresentation.sudoBadgeHelp)
     }
 }
 
@@ -711,6 +734,7 @@ struct CLIToolDetailPane: View {
                 // tool's group holds several kinds of thing. The path says which.
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Text(verbatim: status.name ?? status.kind.displayName).font(.title2).fontWeight(.semibold)
+                    if CLIToolPresentation.showsSudoBadge(status) { CLISudoBadge() }
                     if showsRuntime { CLIRuntimeTagSlot(path: status.path) }
                 }
                 Text(verbatim: ClaudeCodePresentation.abbreviate(status.path, home: homeDirectory))

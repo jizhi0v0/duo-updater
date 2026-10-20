@@ -921,6 +921,8 @@ struct WorkbenchWindowView: View {
                     }
                 }
             }
+            // The rest of a double-click on Upgrade All is not a click on its Cancel.
+            .swallowsClicksAfterSwap(of: model.brewUpgrading)
         }
     }
 
@@ -1061,6 +1063,8 @@ struct WorkbenchWindowView: View {
                         }
                     }
                 }
+                // The rest of a double-click on Update All is not a click on its Cancel.
+                .swallowsClicksAfterSwap(of: tools.updatingAll)
         }
     }
 
@@ -1890,18 +1894,25 @@ private struct BrewFormulaSidebarRow: View {
                 }
             }
             Spacer()
-            if upgrading {
-                HStack(spacing: 4) {
-                    ProgressView().controlSize(.small)
-                    BrewUpgradeCancelButton(jobID: AppListModel.formulaJobID(formula.name), model: model)
-                }
-            } else if formula.hasUpdate {
-                Button("Update") { Task { await model.upgradeBrewFormula(named: formula.name) } }
-                    .controlSize(.small)
-                    .buttonStyle(.borderedProminent)
-            }
+            action.swallowsClicksAfterSwap(of: upgrading)
         }
         .padding(.vertical, 2)
+    }
+
+    /// Update and its Cancel take turns here: the rest of a double-click that
+    /// swapped them is not a click on the other.
+    @ViewBuilder
+    private var action: some View {
+        if upgrading {
+            HStack(spacing: 4) {
+                ProgressView().controlSize(.small)
+                BrewUpgradeCancelButton(jobID: AppListModel.formulaJobID(formula.name), model: model)
+            }
+        } else if formula.hasUpdate {
+            Button("Update") { Task { await model.upgradeBrewFormula(named: formula.name) } }
+                .controlSize(.small)
+                .buttonStyle(.borderedProminent)
+        }
     }
 }
 
@@ -1952,18 +1963,23 @@ private struct HomebrewSelfUpdateSidebarRow: View {
                 }
             }
             Spacer()
-            if model.homebrewUpdating {
-                HStack(spacing: 4) {
-                    ProgressView().controlSize(.small)
-                    // Only while it waits its turn: `brew update` itself has none.
-                    BrewUpgradeCancelButton(jobID: AppListModel.homebrewUpdateJobID, model: model)
+            // Update and its Cancel take turns here: the rest of a double-click
+            // that swapped them is not a click on the other.
+            ZStack {
+                if model.homebrewUpdating {
+                    HStack(spacing: 4) {
+                        ProgressView().controlSize(.small)
+                        // Only while it waits its turn: `brew update` itself has none.
+                        BrewUpgradeCancelButton(jobID: AppListModel.homebrewUpdateJobID, model: model)
+                    }
+                } else {
+                    Button("Update") { Task { await model.updateHomebrew() } }
+                        .controlSize(.small)
+                        .buttonStyle(.borderedProminent)
+                        .help(String(localized: "Runs `brew update`, which updates Homebrew and refreshes its package lists using your own Homebrew settings."))
                 }
-            } else {
-                Button("Update") { Task { await model.updateHomebrew() } }
-                    .controlSize(.small)
-                    .buttonStyle(.borderedProminent)
-                    .help(String(localized: "Runs `brew update`, which updates Homebrew and refreshes its package lists using your own Homebrew settings."))
             }
+            .swallowsClicksAfterSwap(of: model.homebrewUpdating)
         }
         .padding(.vertical, 2)
     }
@@ -2298,7 +2314,17 @@ private struct FormulaDetailPane: View {
                 }
             }
             Spacer()
-            if upgrading {
+            headerAction.swallowsClicksAfterSwap(of: upgrading)
+        }
+        .padding(16)
+    }
+
+    /// Update and its Cancel take turns here: the rest of a double-click that
+    /// swapped them is not a click on the other.
+    @ViewBuilder
+    private var headerAction: some View {
+        if upgrading {
+            HStack(spacing: 12) {
                 HStack(spacing: 7) {
                     ProgressView().controlSize(.small)
                     Text(model.formulaProgressLine(formula.name) ?? String(localized: "Updating…"))
@@ -2308,13 +2334,12 @@ private struct FormulaDetailPane: View {
                 .padding(.horizontal, 12).padding(.vertical, 6)
                 .background(.quaternary, in: Capsule())
                 BrewUpgradeCancelButton(jobID: AppListModel.formulaJobID(formula.name), model: model)
-            } else if formula.hasUpdate {
-                Button("Update") { Task { await model.upgradeBrewFormula(named: formula.name) } }
-                    .controlSize(.large)
-                    .buttonStyle(.borderedProminent)
             }
+        } else if formula.hasUpdate {
+            Button("Update") { Task { await model.upgradeBrewFormula(named: formula.name) } }
+                .controlSize(.large)
+                .buttonStyle(.borderedProminent)
         }
-        .padding(16)
     }
 
     @ViewBuilder

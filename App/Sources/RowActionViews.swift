@@ -266,6 +266,71 @@ struct InstallCancelButton: View {
     }
 }
 
+extension View {
+    /// Swallows pointer clicks on this slot for one double-click interval after
+    /// `occupant` changes (`SlotSwapClickGuard`): wrap the slot where Update
+    /// and its Cancel take turns, keyed on which one stands there, so the
+    /// second click of a double-click on Update does not cancel what the first
+    /// started, nor the reverse.
+    ///
+    /// The pointer only: it turns off hit-testing, which Return or space on a
+    /// focused button and AXPress do not go through. A keystroke is never the
+    /// tail of a double-click, so a second one is meant. The look is unchanged;
+    /// the click the slot swallows is the rest of one already answered — the
+    /// control it swapped in is that answer.
+    func swallowsClicksAfterSwap<Occupant: Equatable & Sendable>(of occupant: Occupant) -> some View {
+        modifier(SlotSwapClickGuardModifier(occupant: occupant))
+    }
+}
+
+private struct SlotSwapClickGuardModifier<Occupant: Equatable & Sendable>: ViewModifier {
+    let occupant: Occupant
+    @State private var clickGuard = SlotSwapClickGuard<Occupant>()
+    @State private var swallowing = false
+
+    func body(content: Content) -> some View {
+        content
+            .allowsHitTesting(!swallowing)
+            .overlay {
+                // Takes the click itself: with the slot merely not hit-testable
+                // it would fall through to the row behind it.
+                if swallowing {
+                    Color.clear
+                        .contentShape(Rectangle())
+                        .onTapGesture {}
+                        .accessibilityHidden(true)
+                }
+            }
+            .onChange(of: occupant, initial: true) { _, now in
+                let clock = ContinuousClock.now
+                clickGuard.observe(now, at: clock)
+                swallowing = clickGuard.swallows(at: clock)
+            }
+            .task(id: clickGuard.swallowsUntil) {
+                guard let until = clickGuard.swallowsUntil else { return }
+                try? await Task.sleep(until: until, clock: .continuous)
+                guard !Task.isCancelled else { return }
+                swallowing = clickGuard.swallows(at: .now)
+            }
+    }
+}
+
+extension RowActionState {
+    /// Whether an app row's slot holds a running install's progress and Cancel
+    /// rather than its Update: the swap both windows' rows guard.
+    var isInstallingSlot: Bool {
+        if case .installing = self { true } else { false }
+    }
+}
+
+private extension SlotSwapClickGuard {
+    /// The system's double-click interval, read at each swap: it is a user
+    /// setting (System Settings → Accessibility → Pointer Control).
+    mutating func observe(_ occupant: Occupant, at now: Instant) {
+        observe(occupant, now: now, interval: .milliseconds(Int(NSEvent.doubleClickInterval * 1000)))
+    }
+}
+
 func installStageLabel(_ stage: InstallStage) -> String {
     switch stage {
     case .queued: return String(localized: "Queued")
@@ -445,6 +510,13 @@ struct WorkbenchRowAction: View {
     @State private var showChannelSwitch = false
 
     var body: some View {
+        // Update and its Cancel take turns in this slot: the rest of a
+        // double-click that swapped them is not a click on the other.
+        slot.swallowsClicksAfterSwap(of: state.isInstallingSlot)
+    }
+
+    @ViewBuilder
+    private var slot: some View {
         // `ui = f(state)`. The ladder that decides WHICH of these applies lives in
         // `RowAction.state`, shared with the popover, so the two windows cannot
         // disagree about what a row is — they used to, most visibly during an App

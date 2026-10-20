@@ -587,28 +587,34 @@ struct MenuContentView: View {
                     .truncationMode(.tail)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .help(Text(statusLine))
-                if model.isInstallingAll {
-                    // Update All's own slot while it runs (§6). Disabled once
-                    // clicked, saying so, until the batch has ended.
-                    Button(cancelAllTitle) {
-                        model.cancelInstallAll()
-                    }
-                    .lineLimit(1)
-                    .controlSize(.small)
-                    .buttonStyle(.bordered)
-                    .fixedSize(horizontal: true, vertical: false)
-                    .disabled(model.isCancellingAll)
-                    .help("Stop Update All: updates that haven’t started are dropped, and ones already installing finish")
-                } else if model.canUpdateAll {
-                    Button("Update All") { Task { await model.installAll() } }
+                // One view for the slot, so the guard sees Update All and Cancel
+                // All take turns: the second click of a double-click on Update
+                // All was Cancel All on the batch it had just started.
+                ZStack {
+                    if model.isInstallingAll {
+                        // Update All's own slot while it runs (§6). Disabled once
+                        // clicked, saying so, until the batch has ended.
+                        Button(cancelAllTitle) {
+                            model.cancelInstallAll()
+                        }
                         .lineLimit(1)
                         .controlSize(.small)
-                        .buttonStyle(.borderedProminent)
+                        .buttonStyle(.bordered)
                         .fixedSize(horizontal: true, vertical: false)
-                        .help("Install every pending update that can be applied automatically")
-                } else {
-                    Color.clear.frame(width: 0, height: 20)
+                        .disabled(model.isCancellingAll)
+                        .help("Stop Update All: updates that haven’t started are dropped, and ones already installing finish")
+                    } else if model.canUpdateAll {
+                        Button("Update All") { Task { await model.installAll() } }
+                            .lineLimit(1)
+                            .controlSize(.small)
+                            .buttonStyle(.borderedProminent)
+                            .fixedSize(horizontal: true, vertical: false)
+                            .help("Install every pending update that can be applied automatically")
+                    } else {
+                        Color.clear.frame(width: 0, height: 20)
+                    }
                 }
+                .swallowsClicksAfterSwap(of: model.isInstallingAll)
             }
             .padding(.top, 8)
             .padding(.bottom, 5)
@@ -814,6 +820,8 @@ private struct CommandLineRow: View {
         var mark: AnyView? = nil
         /// The Update button, when one is offered.
         var button: AnyView? = nil
+        /// Its run's Cancel stands where `button`'s Update did.
+        var running = false
     }
 
     var body: some View {
@@ -852,7 +860,7 @@ private struct CommandLineRow: View {
                 StillRunningMark(lines: stillRunningLines, showInWindow: showInWindow)
             }
             half.mark
-            half.button
+            half.button.swallowsClicksAfterSwap(of: half.running)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
@@ -864,11 +872,12 @@ private struct CommandLineRow: View {
         guard model.brewInstalled else { return nil }
         let outdated = model.brewOutdatedFormulae.count
         let unchecked = model.brewUnchecked.count
+        let running = model.brewUpgrading || !model.upgradingFormulae.isEmpty
         func half(_ lines: [Text], mark: (any View)? = nil, button: (any View)? = nil) -> Half {
             Half(isHomebrew: true, icon: "mug", title: "Homebrew", lines: lines,
-                 mark: mark.map { AnyView($0) }, button: button.map { AnyView($0) })
+                 mark: mark.map { AnyView($0) }, button: button.map { AnyView($0) }, running: running)
         }
-        if model.brewUpgrading || !model.upgradingFormulae.isEmpty {
+        if running {
             // One Cancel where the Update button stood, for Upgrade All and for
             // a formula's own upgrade from the workbench alike, as the Other
             // tools row's (2026-10-20: a formula's showed nothing here).
@@ -927,11 +936,12 @@ private struct CommandLineRow: View {
 
     private var toolsHalf: Half? {
         guard !tools.sightings.isEmpty else { return nil }
+        let running = tools.updatingAll || !tools.updating.isEmpty
         func half(_ lines: [Text], mark: (any View)? = nil, button: (any View)? = nil) -> Half {
             Half(icon: "terminal", title: String(localized: "Other tools"), lines: lines,
-                 mark: mark.map { AnyView($0) }, button: button.map { AnyView($0) })
+                 mark: mark.map { AnyView($0) }, button: button.map { AnyView($0) }, running: running)
         }
-        if tools.updatingAll || !tools.updating.isEmpty {
+        if running {
             // The tool running, and one live line. `updateAll` runs several tools
             // at once: then the row names none of them, and the line is the first
             // running copy's — one still running its command before one done and

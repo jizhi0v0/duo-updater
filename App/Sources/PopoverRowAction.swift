@@ -64,8 +64,14 @@ struct PopoverRowAction: View {
     @State private var showOrphanHint = false
     @State private var showTestFlightTip = false
 
-    @ViewBuilder
     var body: some View {
+        // Update and its Cancel take turns in this slot: the rest of a
+        // double-click that swapped them is not a click on the other.
+        slot.swallowsClicksAfterSwap(of: state.isInstallingSlot)
+    }
+
+    @ViewBuilder
+    private var slot: some View {
         // `ui = f(state)`. The ladder deciding WHICH of these applies is
         // `RowAction.state`, shared with the workbench — this window used to carry
         // its own copy in a different order, which is how the two drifted apart.

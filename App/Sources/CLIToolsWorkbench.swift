@@ -211,7 +211,9 @@ struct CLIToolSidebarRow: View {
                 caption
             }
             Spacer()
-            trailing
+            // Update and its Cancel take turns here: the rest of a double-click
+            // that swapped them is not a click on the other.
+            trailing.swallowsClicksAfterSwap(of: updating)
         }
         .padding(.vertical, 2)
         .help(help)
@@ -554,16 +556,25 @@ struct ClaudeCodeDetailPane: View {
                     .textSelection(.enabled)
             }
             Spacer()
-            if updating {
-                UpdateProgressCapsule(line: cli.progressLine(id))
-                CLIToolCancelButton(id: id, cli: cli)
-            } else if status.oneClick != nil, let latest = status.latestVersion {
-                Button("Update to \(latest)") { Task { await cli.update(id) } }
-                    .controlSize(.large)
-                    .buttonStyle(.borderedProminent)
-            }
+            headerAction.swallowsClicksAfterSwap(of: updating)
         }
         .padding(16)
+    }
+
+    /// Update and its Cancel take turns here: the rest of a double-click that
+    /// swapped them is not a click on the other.
+    @ViewBuilder
+    private var headerAction: some View {
+        if updating {
+            HStack(spacing: 12) {
+                UpdateProgressCapsule(line: cli.progressLine(id))
+                CLIToolCancelButton(id: id, cli: cli)
+            }
+        } else if status.oneClick != nil, let latest = status.latestVersion {
+            Button("Update to \(latest)") { Task { await cli.update(id) } }
+                .controlSize(.large)
+                .buttonStyle(.borderedProminent)
+        }
     }
 
     /// The install's path, and the file that actually runs when it is another one
@@ -743,21 +754,30 @@ struct CLIToolDetailPane: View {
                     .textSelection(.enabled)
             }
             Spacer()
-            if updating {
-                UpdateProgressCapsule(line: cli.progressLine(id))
-                CLIToolCancelButton(id: id, cli: cli)
-            } else if status.needsAdministrator, status.oneClick != nil, let latest = status.latestVersion {
-                Button("Update to \(latest)") { Task { await cli.update(id) } }
-                    .controlSize(.large)
-                    .buttonStyle(.borderedProminent)
-                    .help(String(localized: "Asks for an administrator password"))
-            } else if status.oneClick != nil, let latest = status.latestVersion {
-                Button("Update to \(latest)") { Task { await cli.update(id) } }
-                    .controlSize(.large)
-                    .buttonStyle(.borderedProminent)
-            }
+            headerAction.swallowsClicksAfterSwap(of: updating)
         }
         .padding(16)
+    }
+
+    /// Update and its Cancel take turns here: the rest of a double-click that
+    /// swapped them is not a click on the other.
+    @ViewBuilder
+    private var headerAction: some View {
+        if updating {
+            HStack(spacing: 12) {
+                UpdateProgressCapsule(line: cli.progressLine(id))
+                CLIToolCancelButton(id: id, cli: cli)
+            }
+        } else if status.needsAdministrator, status.oneClick != nil, let latest = status.latestVersion {
+            Button("Update to \(latest)") { Task { await cli.update(id) } }
+                .controlSize(.large)
+                .buttonStyle(.borderedProminent)
+                .help(String(localized: "Asks for an administrator password"))
+        } else if status.oneClick != nil, let latest = status.latestVersion {
+            Button("Update to \(latest)") { Task { await cli.update(id) } }
+                .controlSize(.large)
+                .buttonStyle(.borderedProminent)
+        }
     }
 
     private var facts: some View {

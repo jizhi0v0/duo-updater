@@ -144,6 +144,7 @@ public enum AppRecipeIndex {
         com_obelisk_app.set,
         com_objective_see_KnockKnock.set,
         com_objective_see_lulu_app.set,
+        com_objective_see_taskexplorer.set,
         com_obsproject_obs_studio.set,
         com_officecommun_search.set,
         com_openai_chat.set,

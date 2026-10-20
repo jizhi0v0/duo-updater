@@ -303,6 +303,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**Open Screen Sharing**](io-nekohasekai-screensharing.md) · `io.nekohasekai.screensharing` — G (one-click pkg，系统 Installer) · 真包 1.0.0/1.0.1 channel-verify ✓ · 一键端到端 ✓（不运行 + 运行中 + `duo restart`） · changelog 结构化 ✓（厂商正文无小节） · nightly 轨 ✓（V，`OpenScreenSharingChannel` 读 group 容器 SQLite，要完全磁盘访问；真 app 拨开关取证，一键端到端 ✓） · 2026-10-17
 - [x] [**PennyBar**](dev-pennybar-PennyBar.md) · `dev.pennybar.PennyBar` — G (one-click dmg) · 无自更新器 · 只有 v0.1.0 一个 release · changelog ✗（厂商正文只有 Full Changelog 链接）· 一键真机端到端 ✓ · 2026-10-19
 - [x] [**Git Switch**](dev-xinan-git-switch.md) · `dev.xinan.git-switch` — G (one-click zip) · 无自更新器 · 只有 v1.0.1 一个 release；版本号写死在 Xcode 工程、不随 tag 盖章 · changelog ✗（厂商正文只有 Full Changelog 链接）· 一键真机端到端 ✓ · 2026-10-19
+- [ ] [**TaskExplorer**](com-objective-see-taskexplorer.md) · `com.objective-see.taskexplorer` — G (one-click universal zip) · 无自更新器（只提示） · 真包 2.1.0/3.0.0/3.1.0 channel-verify ✓（3.0.0、2.1.0 → 3.1.0，3.1.0 up to date） · 2.x 的 `com.objective-see.TaskExplorer` 经 `BundleIDMigration` · 含 Endpoint Security 系统扩展，换包影响待真机 · 一键端到端未跑 · changelog 结构化 ✓（多一条赞助行） · 2026-10-20
 
 ## Changelog-only (detection via Sparkle or Homebrew)
 

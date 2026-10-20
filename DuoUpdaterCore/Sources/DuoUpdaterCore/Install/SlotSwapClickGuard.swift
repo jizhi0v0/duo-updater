@@ -25,7 +25,9 @@ public struct SlotSwapClickGuard<Occupant: Equatable & Sendable>: Sendable {
 
     /// The slot holds `occupant` at `now`. A change from the one seen last
     /// swallows clicks until `interval` from now — the system's double-click
-    /// interval, the longest a second click of the same double-click can come.
+    /// interval, "the time in which a second click must occur in order to be
+    /// considered a doubleClick" (`NSEvent.doubleClickInterval`, AppKit's
+    /// NSEvent.h).
     public mutating func observe(_ occupant: Occupant, now: Instant, interval: Duration) {
         defer { self.occupant = occupant }
         guard let previous = self.occupant, previous != occupant else { return }

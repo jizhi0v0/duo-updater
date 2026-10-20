@@ -273,9 +273,9 @@ extension View {
     /// second click of a double-click on Update does not cancel what the first
     /// started, nor the reverse.
     ///
-    /// The pointer only: it turns off hit-testing, which Return or space on a
-    /// focused button and AXPress do not go through. A keystroke is never the
-    /// tail of a double-click, so a second one is meant. The look is unchanged;
+    /// Meant for the pointer only: it turns off hit-testing, and Return or
+    /// space on a focused button and AXPress are meant to go through — a
+    /// keystroke is never the tail of a double-click. The look is unchanged;
     /// the click the slot swallows is the rest of one already answered — the
     /// control it swapped in is that answer.
     func swallowsClicksAfterSwap<Occupant: Equatable & Sendable>(of occupant: Occupant) -> some View {
@@ -292,8 +292,8 @@ private struct SlotSwapClickGuardModifier<Occupant: Equatable & Sendable>: ViewM
         content
             .allowsHitTesting(!swallowing)
             .overlay {
-                // Takes the click itself: with the slot merely not hit-testable
-                // it would fall through to the row behind it.
+                // Takes the click, so it stops here rather than going on to
+                // whatever is behind the slot.
                 if swallowing {
                     Color.clear
                         .contentShape(Rectangle())
@@ -325,7 +325,8 @@ extension RowActionState {
 
 private extension SlotSwapClickGuard {
     /// The system's double-click interval, read at each swap: it is a user
-    /// setting (System Settings → Accessibility → Pointer Control).
+    /// setting (System Settings → Accessibility → Pointer Control →
+    /// Double-click speed, per Apple's Mac User Guide).
     mutating func observe(_ occupant: Occupant, at now: Instant) {
         observe(occupant, now: now, interval: .milliseconds(Int(NSEvent.doubleClickInterval * 1000)))
     }

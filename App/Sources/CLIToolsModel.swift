@@ -965,7 +965,8 @@ final class CLIToolsModel {
     /// queued it as one that did not, or the reverse, it is not run: the click
     /// decided its route (`update`), and the panel raised at its turn would
     /// come minutes after the click, holding the app (review, 2026-10-20,
-    /// round 2). The row says to click again.
+    /// round 2). The row says to try again — "click Update" would not be
+    /// true in the popover, whose Other tools row has only Update All.
     private func offerAtTurn(_ id: CLIToolID, needsAdministrator: Bool) async -> CLIToolStatus? {
         let offer = { self.outdated.first { $0.toolID == id && $0.oneClick != nil } }
         var offered = offer()
@@ -983,9 +984,7 @@ final class CLIToolsModel {
             guard offered.needsAdministrator != needsAdministrator else { return offered }
             Log.app.notice("\(id.kind.rawValue, privacy: .public) update at \(id.path, privacy: .public): not run at its turn, \(offered.needsAdministrator ? "now needs" : "no longer needs", privacy: .public) an administrator password")
             notRunAtTurn.insert(id)
-            errors[id] = offered.needsAdministrator
-                ? String(localized: "Not updated: it now asks for an administrator password — click Update again")
-                : String(localized: "Not updated: it no longer asks for an administrator password — click Update again")
+            errors[id] = Self.routeChangedLine(nowNeedsAdministrator: offered.needsAdministrator)
             return nil
         }
         let now = status(id)
@@ -998,6 +997,89 @@ final class CLIToolsModel {
                 ?? String(localized: "Not updated: the update is no longer offered")
         }
         return nil
+    }
+
+    /// The row's line for a copy not run at its turn because its update now
+    /// asks for an administrator password, or no longer does.
+    private static func routeChangedLine(nowNeedsAdministrator: Bool) -> String {
+        nowNeedsAdministrator
+            ? String(localized: "Not updated: it now asks for an administrator password — try again")
+            : String(localized: "Not updated: it no longer asks for an administrator password — try again")
+    }
+
+    /// What an Update All lane runs for `clicked` at its turn in the lane: the
+    /// copy's offer as it stands now, not as it stood at the click — the turn
+    /// can come minutes later, behind Homebrew or another click, and a check
+    /// meanwhile may have moved the offer (npm's one-click pins
+    /// `name@version`), held it back for the GitHub pause, or changed whether
+    /// it asks for an administrator password. Nil when it is not to run; the
+    /// caller releases it.
+    ///
+    /// Read, not asked: no check here, unlike a single click's turn
+    /// (`offerAtTurn`). One per copy would be a network round per copy, and in
+    /// lanes running side by side a check can read another lane's copy of the
+    /// same tool halfway through its install — why a tool is re-checked only
+    /// once its last lane is done (`BatchRun.lanesLeft`).
+    ///
+    /// So a verdict that says nothing about the offer falls back on the
+    /// click's: "an update is already running" (`.busy`), which a check
+    /// landing mid-batch gives every other copy in an npm prefix while the
+    /// lane's own previous copy runs its npm there (real Mac, 2026-10-20),
+    /// and a channel that could not be read. Dropped on those, Update All
+    /// would skip the very copies it was clicked for. The fallback is no
+    /// licence to run over a busy prefix: npm's updater looks for an npm
+    /// running there itself before it starts, and answers `.busy` without
+    /// running anything (`NpmUpdater`). The pause still applies to it. Any
+    /// other gate — the install broken, unverified, its runtime too old — is
+    /// about the copy itself, and its row says why it was not run.
+    ///
+    /// The lanes never raise a panel: one whose route changed is not run, and
+    /// its row says to try again, which at the click asks for it.
+    private func laneOfferAtTurn(_ clicked: CLIToolStatus) -> CLIToolStatus? {
+        let id = clicked.toolID
+        let now = status(id)
+        let checked = checkedStatuses.first { $0.toolID == id }
+        // Offered as checked: what the row shows, held back by the GitHub pause
+        // or not (as `offerAtTurn`'s `heldByPause` reads it).
+        let checkedOffered = checked.map { $0.state == .updateAvailable && $0.oneClick != nil } ?? false
+        let saysNothing = checked.map {
+            ($0.state == .updateAvailable || $0.state == .unknown)
+                && [.busy, .channelUnreadable, .rateLimited].contains($0.withheld)
+        } ?? false
+        let turn: CLIToolStatus
+        if checkedOffered, let now {
+            turn = now
+        } else if saysNothing {
+            turn = clicked.applyingGitHubPause(gitHubPause, updatersGetOurToken: updatersGetOurToken, now: self.now())
+        } else {
+            // Updated meanwhile, gone, or held back by a gate of its own.
+            let why = now.flatMap { now in now.withheld.map { Self.reason($0, of: now) } }
+            Log.app.notice("\(id.kind.rawValue, privacy: .public) update at \(id.path, privacy: .public): Update All did not run it at its turn, no longer offered (\(now.map { "\($0.state)" } ?? "gone", privacy: .public)\(why.map { ": \($0)" } ?? "", privacy: .public))")
+            if let now, now.state == .updateAvailable || now.state == .unknown {
+                notRunAtTurn.insert(id)
+                errors[id] = why.map { String(localized: "Not updated: \($0)") }
+                    ?? String(localized: "Not updated: the update is no longer offered")
+            }
+            return nil
+        }
+        guard turn.oneClick != nil else {
+            let why = turn.withheld.map { Self.reason($0, of: turn) }
+            Log.app.notice("\(id.kind.rawValue, privacy: .public) update at \(id.path, privacy: .public): Update All did not run it at its turn, held back (\(why ?? "-", privacy: .public))")
+            notRunAtTurn.insert(id)
+            errors[id] = why.map { String(localized: "Not updated: \($0)") }
+                ?? String(localized: "Not updated: the update is no longer offered")
+            return nil
+        }
+        guard turn.needsAdministrator == clicked.needsAdministrator else {
+            Log.app.notice("\(id.kind.rawValue, privacy: .public) update at \(id.path, privacy: .public): Update All did not run it at its turn, \(turn.needsAdministrator ? "now needs" : "no longer needs", privacy: .public) an administrator password")
+            notRunAtTurn.insert(id)
+            errors[id] = Self.routeChangedLine(nowNeedsAdministrator: turn.needsAdministrator)
+            return nil
+        }
+        if turn != clicked {
+            Log.app.notice("\(id.kind.rawValue, privacy: .public) update at \(id.path, privacy: .public): Update All runs it as it stands at its turn (\(clicked.latestVersion ?? "-", privacy: .public) at the click, \(turn.latestVersion ?? "-", privacy: .public) now)")
+        }
+        return turn
     }
 
     /// The index in `providers` of `status`'s own tool, never another's: each
@@ -1403,11 +1485,17 @@ final class CLIToolsModel {
     }
 
     private func runLane(_ lane: [(CLIToolStatus, Int)], _ run: BatchRun) async {
-        for (status, provider) in lane {
+        for (clicked, provider) in lane {
             // Cancelled while it waited: its row was released then — and may be
             // claimed again by a click of its own, whose "Queued" stays.
-            if cancelledWhileQueued.remove(status.toolID) != nil { continue }
-            queued.remove(status.toolID)
+            if cancelledWhileQueued.remove(clicked.toolID) != nil { continue }
+            queued.remove(clicked.toolID)
+            // Its offer as it stands at its turn; not to run, it leaves the
+            // batch as a copy cancelled before its command does.
+            guard let status = laneOfferAtTurn(clicked) else {
+                release(clicked.toolID)
+                continue
+            }
             guard let outcome = await self.run(status, with: provider) else {
                 release(status.toolID)
                 continue

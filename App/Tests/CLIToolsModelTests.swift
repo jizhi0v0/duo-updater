@@ -167,6 +167,8 @@ struct CLIToolsModelTests {
         /// its earlier one finishes.
         var gates: [CLIToolID: Gate] = [:]
         private(set) var calls: [CLIToolID] = []
+        /// The statuses those calls were given, in order: the offer each ran.
+        private(set) var ran: [CLIToolStatus] = []
         private(set) var maxRunning = 0
         private var running = 0
         /// The progress callback of the latest call, kept past its return.
@@ -212,6 +214,7 @@ struct CLIToolsModelTests {
             -> CLIToolUpdateOutcome
         {
             calls.append(status.toolID)
+            ran.append(status)
             running += 1
             maxRunning = max(maxRunning, running)
             lastProgress = progress
@@ -2985,7 +2988,7 @@ struct CLIToolsModelTests {
     /// A click queued as one that needs no password, whose copy a check while
     /// it waited found now asks for one, is not run at its turn: its panel
     /// would come minutes after the click, holding the app (review,
-    /// 2026-10-20, round 2). The row says to click again — kept through a
+    /// 2026-10-20, round 2). The row says to try again — kept through a
     /// republish that leaves it offered, gone at its tool's next check — and
     /// a click then raises the panel at the click.
     ///
@@ -3017,7 +3020,7 @@ struct CLIToolsModelTests {
         #expect(await updater.events.isEmpty)
         #expect(await updater.calls.isEmpty)
         #expect(model.updating.isEmpty)
-        let line = "Not updated: it now asks for an administrator password — click Update again"
+        let line = "Not updated: it now asks for an administrator password — try again"
         #expect(model.errors[id] == line)
         #expect(model.oneClickable.contains { $0.toolID == id })
         model.gitHubPause = [:]
@@ -3101,5 +3104,188 @@ struct CLIToolsModelTests {
         await recheck.open()
         await click.value
         #expect(model.updating.isEmpty)
+    }
+
+    // MARK: an Update All lane copy at its turn
+
+    /// Update All waits its turn behind another run, and a check meanwhile
+    /// moved a copy's offer: its lane runs the offer as it stands at the
+    /// copy's turn, not the one clicked — npm's one-click pins
+    /// `name@version`, so the clicked one installs the older release.
+    ///
+    /// Mutation: run `clicked` in `runLane` in place of `laneOfferAtTurn`'s
+    /// answer → the 2.0.0 offer runs, red.
+    @Test(.timeLimit(.minutes(1))) func aLaneRunsTheOfferAsItStandsAtItsTurn() async {
+        let path = Self.ownPackage()
+        let id = Self.id(path, .npm)
+        let check = FakeCheck([
+            (Self.report(.npm, [Self.status(path, kind: .npm, version: "1.0.0", latest: "2.0.0")]), nil),
+            (Self.report(.npm, [Self.status(path, kind: .npm, version: "1.0.0", latest: "2.1.0")]), nil),
+        ])
+        let updater = FakeUpdater()
+        let model = Self.model([FakeProvider(kind: .npm, checker: check, updater: updater)])
+        await model.refresh()
+        let gate = Gate()
+        let held = await holdQueue(model, gate)
+
+        let all = Task { await model.updateAll() }
+        await until { model.runQueue.isWaiting(.updateAllTools) }
+        await model.refresh()
+        await gate.open()
+        _ = await held.value
+        await all.value
+
+        #expect(await updater.calls == [id])
+        #expect(await updater.ran.map(\.latestVersion) == ["2.1.0"])
+        #expect(!model.updatingAll)
+        #expect(model.updating.isEmpty)
+    }
+
+    /// A lane copy the GitHub pause holds back at its turn — set while Update
+    /// All waited — is not run: its updater would ask GitHub from its own
+    /// process on the closed budget. Its row says why, it leaves the batch,
+    /// and nothing ran, so its tool is not re-checked into the refusal that
+    /// would lose the "update available" the pause holds back.
+    ///
+    /// Mutation: drop the `turn.oneClick != nil` guard in `laneOfferAtTurn`
+    /// → the command runs, red.
+    @Test(.timeLimit(.minutes(1))) func aLaneCopyHeldBackByThePauseAtItsTurnIsNotRun() async {
+        let path = "/Users/u/.local/bin/zoxide-\(UUID().uuidString)"
+        let zoxide = Self.status(path, kind: .zoxide)
+        let id = zoxide.toolID
+        let check = FakeCheck([(Self.report(.zoxide, [zoxide]), nil)])
+        let updater = FakeUpdater()
+        let model = Self.model([FakeProvider(kind: .zoxide, checker: check, updater: updater)])
+        await model.refresh()
+        let gate = Gate()
+        let held = await holdQueue(model, gate)
+
+        let all = Task { await model.updateAll() }
+        await until { model.runQueue.isWaiting(.updateAllTools) }
+        model.gitHubPause = [.anonymous: Date().addingTimeInterval(600)]
+        await gate.open()
+        _ = await held.value
+        await all.value
+
+        #expect(await updater.calls.isEmpty)
+        #expect(await check.calls == 1)
+        let heldBack = model.status(id)
+        #expect(heldBack?.withheld == .rateLimited)
+        #expect(model.errors[id] == heldBack.map { "Not updated: \(CLIToolsModel.reason(.rateLimited, of: $0))" })
+        #expect(model.updating.isEmpty)
+        #expect(model.cancels[id] == nil)
+        #expect(!model.updatingAll)
+
+        model.gitHubPause = [:]
+        #expect(model.oneClickable.contains { $0.toolID == id })
+        #expect(model.errors[id] == nil)
+    }
+
+    /// A lane copy a check found now asks for an administrator password is not
+    /// run at its turn: the lanes never raise a panel, and the copy's command
+    /// as clicked, without root, fails "needs sudo". The row says to try
+    /// again, true in the popover too, where only Update All is.
+    ///
+    /// Mutation: drop the `needsAdministrator` guard in `laneOfferAtTurn` →
+    /// the command runs, red.
+    @Test(.timeLimit(.minutes(1))) func aLaneCopyThatNowAsksForAPasswordIsNotRunAtItsTurn() async {
+        let p = SudoPaths()
+        let id = p.starshipID
+        let plain = Self.status(p.starship, kind: .starship)
+        let check = FakeCheck([
+            (Self.report(.starship, [plain]), nil),
+            (Self.report(.starship, [Self.asAdministrator(plain)]), nil),
+        ])
+        let updater = FakeUpdater()
+        let model = Self.model([FakeProvider(kind: .starship, checker: check, updater: updater)])
+        await model.refresh()
+        let gate = Gate()
+        let held = await holdQueue(model, gate)
+
+        let all = Task { await model.updateAll() }
+        await until { model.runQueue.isWaiting(.updateAllTools) }
+        await model.refresh()
+        await gate.open()
+        _ = await held.value
+        await all.value
+
+        #expect(await updater.events.isEmpty)
+        #expect(await updater.calls.isEmpty)
+        #expect(model.errors[id] == "Not updated: it now asks for an administrator password — try again")
+        #expect(model.updating.isEmpty)
+        #expect(!model.updatingAll)
+    }
+
+    /// A lane copy updated from a terminal while Update All waited is left
+    /// alone, without a word: its row says it is current by itself.
+    ///
+    /// Mutation: `runLane` without `laneOfferAtTurn`, running the copy as
+    /// clicked (main before this change) → the command runs, red.
+    @Test(.timeLimit(.minutes(1))) func aLaneCopyUpdatedMeanwhileIsReleasedQuietly() async {
+        let path = Self.ownPackage()
+        let id = Self.id(path, .npm)
+        let check = FakeCheck([
+            (Self.report(.npm, [Self.status(path, kind: .npm)]), nil),
+            (Self.report(.npm, [Self.status(path, kind: .npm, version: "2.1.285", state: .upToDate, oneClick: false)]), nil),
+        ])
+        let updater = FakeUpdater()
+        let model = Self.model([FakeProvider(kind: .npm, checker: check, updater: updater)])
+        await model.refresh()
+        let gate = Gate()
+        let held = await holdQueue(model, gate)
+
+        let all = Task { await model.updateAll() }
+        await until { model.runQueue.isWaiting(.updateAllTools) }
+        await model.refresh()
+        await gate.open()
+        _ = await held.value
+        await all.value
+
+        #expect(await updater.calls.isEmpty)
+        #expect(model.errors[id] == nil)
+        #expect(model.updating.isEmpty)
+        #expect(!model.updatingAll)
+    }
+
+    /// The trap: a check landing mid-batch reads the lane's own running npm in
+    /// the prefix and marks the next copy there "npm is busy" — seen on the
+    /// real Mac (2026-10-20). That verdict says nothing about the offer: the
+    /// copy still runs at its turn, once the copy ahead of it is done, on the
+    /// offer clicked. No check is asked for it: the lane's tool is re-checked
+    /// once, at its end.
+    ///
+    /// Mutation: drop the `saysNothing` fallback in `laneOfferAtTurn` → the
+    /// second copy is dropped with "Not updated: …", red.
+    @Test(.timeLimit(.minutes(1))) func aLaneCopyACheckMidBatchFoundBusyStillRuns() async {
+        let first = Self.ownPackage()
+        let second = Self.ownPackage()
+        let busy = Self.status(second, kind: .npm, oneClick: false, withheld: .busy)
+        let check = FakeCheck([
+            (Self.report(.npm, [Self.status(first, kind: .npm), Self.status(second, kind: .npm)]), nil),
+            // The background check while the first copy's npm runs.
+            (Self.report(.npm, [Self.status(first, kind: .npm, oneClick: false, withheld: .busy), busy]), nil),
+            // The lane's re-check at its end.
+            (Self.report(.npm, [Self.status(first, kind: .npm, version: "2.1.285", state: .upToDate, oneClick: false),
+                                Self.status(second, kind: .npm, version: "2.1.285", state: .upToDate, oneClick: false)]), nil),
+        ])
+        let updater = FakeUpdater()
+        let gate = Gate()
+        await updater.setGate(Self.id(first, .npm), gate)
+        let model = Self.model([FakeProvider(kind: .npm, checker: check, updater: updater)])
+        await model.refresh()
+
+        let all = Task { await model.updateAll() }
+        await until { await gate.arrived == 1 }
+        await model.refresh()
+        #expect(model.status(Self.id(second, .npm))?.withheld == .busy)
+        await gate.open()
+        await all.value
+
+        #expect(await updater.calls == [Self.id(first, .npm), Self.id(second, .npm)])
+        #expect(await updater.maxRunning == 1)
+        #expect(await check.calls == 3)
+        #expect(model.errors[Self.id(second, .npm)] == nil)
+        #expect(model.updating.isEmpty)
+        #expect(!model.updatingAll)
     }
 }

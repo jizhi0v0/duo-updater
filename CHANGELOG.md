@@ -21,7 +21,7 @@ Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
 ## 0.5.11
 
-**You can cancel an update, or all of them with Cancel All.** Cancel works until the app itself is being replaced, including a Homebrew formula while brew downloads it, and a cancelled download picks up where it stopped next time.
+**You can cancel an update, or all of them with Cancel All.** Most updates can be cancelled until the app itself is being replaced, a Homebrew formula while brew downloads it, and a cancelled download that you retry within a few minutes picks up where it stopped; Homebrew cask and App Store updates can be cancelled only before they start.
 
 **Quitting no longer cuts an update off.** Quit waits for updates in progress and offers Quit When Done; if an update is interrupted anyway, its row offers Restore, even for Homebrew and App Store updates with backups turned off.
 

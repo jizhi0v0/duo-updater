@@ -4,7 +4,7 @@ Dies ist eine deutsche Übersetzung von `CHANGELOG.md`. Die englische Fassung is
 
 ## 0.5.11
 
-**Du kannst ein Update abbrechen – oder alle auf einmal mit „Alle abbrechen“.** „Abbrechen“ funktioniert, bis die App selbst ersetzt wird, auch bei einer Homebrew-Formel, während brew sie lädt, und ein abgebrochener Download setzt beim nächsten Mal dort fort, wo er aufgehört hat.
+**Du kannst ein Update abbrechen – oder alle auf einmal mit „Alle abbrechen“.** „Abbrechen“ funktioniert bei den meisten Updates, bis die App selbst ersetzt wird, bei einer Homebrew-Formel, während brew sie lädt, und ein abgebrochener Download, den du innerhalb weniger Minuten erneut startest, setzt dort fort, wo er aufgehört hat; Updates von Homebrew-Casks und aus dem App Store lassen sich nur abbrechen, bevor sie beginnen.
 
 **Beenden bricht kein Update mehr ab.** „Beenden“ wartet auf laufende Updates und bietet „Nach Abschluss beenden“ an; wird ein Update trotzdem unterbrochen, bietet seine Zeile „Wiederherstellen“ an, auch bei Homebrew- und App-Store-Updates mit ausgeschalteten Backups.
 

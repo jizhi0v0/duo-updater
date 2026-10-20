@@ -4,7 +4,7 @@ Bu, `CHANGELOG.md` dosyasının Türkçe çevirisidir. Geçerli olan İngilizce 
 
 ## 0.5.11
 
-**Bir güncellemeyi ya da “Tümünü İptal Et” ile hepsini iptal edebilirsiniz.** “Vazgeç”, uygulamanın kendisi değiştirilmeye başlanana kadar çalışır; brew indirirken bir Homebrew formülü de buna dahildir. İptal edilen bir indirme de bir dahaki sefere kaldığı yerden devam eder.
+**Bir güncellemeyi ya da “Tümünü İptal Et” ile hepsini iptal edebilirsiniz.** Çoğu güncelleme, uygulamanın kendisi değiştirilmeye başlanana kadar iptal edilebilir; bir Homebrew formülü de brew onu indirirken iptal edilebilir. İptal edilen bir indirmeyi birkaç dakika içinde yeniden denerseniz kaldığı yerden devam eder; Homebrew cask ve App Store güncellemeleri ise yalnızca başlamadan önce iptal edilebilir.
 
 **Çıkmak artık güncellemeyi yarıda kesmiyor.** “Çık”, süren güncellemeleri bekler ve “Bitince Çık” seçeneğini sunar; bir güncelleme yine de kesilirse, yedekler kapalıyken yapılan Homebrew ve App Store güncellemelerinde bile satırında “Geri Yükle” çıkar.
 

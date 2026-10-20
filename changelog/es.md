@@ -4,7 +4,7 @@ Esta es la traducción al español del archivo CHANGELOG.md. La versión en ingl
 
 ## 0.5.11
 
-**Puedes cancelar una actualización, o todas con «Cancelar todo».** «Cancelar» funciona hasta que se empieza a reemplazar la propia app, también con una fórmula de Homebrew mientras brew la descarga, y una descarga cancelada sigue donde se quedó la próxima vez.
+**Puedes cancelar una actualización, o todas con «Cancelar todo».** La mayoría de las actualizaciones se pueden cancelar hasta que se empieza a reemplazar la propia app, una fórmula de Homebrew mientras brew la descarga, y una descarga cancelada que reintentas en pocos minutos sigue donde se quedó; las actualizaciones de casks de Homebrew y del App Store solo se pueden cancelar antes de empezar.
 
 **Salir ya no corta una actualización.** «Salir» espera a las actualizaciones en curso y ofrece «Salir al terminar»; si aun así se interrumpe una actualización, su fila ofrece «Restaurar», incluso en actualizaciones de Homebrew y del App Store con las copias de seguridad desactivadas.
 

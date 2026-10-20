@@ -4,7 +4,7 @@ Ceci est la traduction de `CHANGELOG.md`. La version anglaise fait autorité. Le
 
 ## 0.5.11
 
-**Vous pouvez annuler une mise à jour, ou toutes avec « Tout annuler ».** « Annuler » fonctionne jusqu’au moment où l’app elle-même est remplacée, y compris pour une formule Homebrew pendant que brew la télécharge, et un téléchargement annulé reprend la fois suivante là où il s’était arrêté.
+**Vous pouvez annuler une mise à jour, ou toutes avec « Tout annuler ».** La plupart des mises à jour peuvent être annulées jusqu’au moment où l’app elle-même est remplacée, une formule Homebrew pendant que brew la télécharge, et un téléchargement annulé que vous relancez dans les minutes qui suivent reprend là où il s’était arrêté ; les mises à jour de casks Homebrew et de l’App Store ne peuvent être annulées qu’avant de commencer.
 
 **Quitter n’interrompt plus une mise à jour.** « Quitter » attend les mises à jour en cours et propose « Quitter une fois terminé » ; si une mise à jour est tout de même interrompue, sa ligne propose « Restaurer », même pour les mises à jour Homebrew et App Store quand les sauvegardes sont désactivées.
 

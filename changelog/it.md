@@ -4,7 +4,7 @@ Questa è la traduzione di `CHANGELOG.md`. In caso di differenze fa fede la vers
 
 ## 0.5.11
 
-**Puoi annullare un aggiornamento, o tutti con «Annulla tutto».** «Annulla» funziona finché non inizia la sostituzione dell’app stessa, anche per una formula Homebrew mentre brew la scarica, e un download annullato riprende la volta successiva da dove si era fermato.
+**Puoi annullare un aggiornamento, o tutti con «Annulla tutto».** La maggior parte degli aggiornamenti si può annullare finché non inizia la sostituzione dell’app stessa, una formula Homebrew mentre brew la scarica, e un download annullato che riprovi entro pochi minuti riprende da dove si era fermato; gli aggiornamenti dei cask Homebrew e dell’App Store si possono annullare solo prima che inizino.
 
 **Uscire non interrompe più un aggiornamento.** «Esci» attende gli aggiornamenti in corso e offre «Esci al termine»; se un aggiornamento viene comunque interrotto, la sua riga offre «Ripristina», anche per gli aggiornamenti Homebrew e App Store con i backup disattivati.
 

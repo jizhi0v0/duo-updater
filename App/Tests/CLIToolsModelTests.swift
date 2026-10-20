@@ -2322,6 +2322,50 @@ struct CLIToolsModelTests {
         #expect(model.updating.isEmpty)
     }
 
+    /// The lane copy cancelled while a sudo copy's root run goes on, Update
+    /// All waiting behind another click's run: once that root run is done,
+    /// nothing is left for Update All's turn, and it gives it up at once
+    /// rather than sit "Queued" until the run ahead ends (review, #1502).
+    ///
+    /// Mutation: drop the `batchIDs.isEmpty` check after `release(id)` in
+    /// `startAsking` → Update All stays waiting while the queue is held, red.
+    @Test(.timeLimit(.minutes(1))) func updateAllLeavesTheQueueWhenItsLastCopyEndsBehindAPanel() async {
+        let updater = FakeUpdater()
+        let p = SudoPaths()
+        // Helm's re-check after its run is held: its root run is still going.
+        let helmRan = Gate()
+        let helmChecks = FakeCheck([
+            (Self.report(.helm, [Self.asAdministrator(Self.status(p.helm, kind: .helm))]), nil),
+            (Self.report(.helm, [Self.status(p.helm, kind: .helm, version: "2.1.285", state: .upToDate,
+                                             oneClick: false)]), helmRan),
+        ])
+        let model = Self.model([
+            FakeProvider(kind: .fx, checker: FakeCheck([(Self.report(.fx, [Self.status(p.fx, kind: .fx)]), nil)]),
+                         updater: updater),
+            FakeProvider(kind: .helm, checker: helmChecks, updater: updater),
+        ])
+        await model.refresh()
+        let gate = Gate()
+        let held = await holdQueue(model, gate)
+
+        let all = Task { await model.updateAll() }
+        await until { model.runQueue.isWaiting(.updateAllTools) }
+        await until { await helmRan.arrived == 1 }
+        model.cancel(p.fxID)
+        #expect(model.runQueue.isWaiting(.updateAllTools))
+
+        await helmRan.open()
+        await until { !model.updatingAll }
+        #expect(!model.runQueue.isWaiting(.updateAllTools))
+        #expect(model.runQueue.running == .upgradeAll)
+        #expect(await updater.events == ["panel \(p.helm)"])
+        #expect(model.updating.isEmpty)
+
+        await gate.open()
+        _ = await held.value
+        await all.value
+    }
+
     /// Dismissing the panel is a decision: no red line on the row, nothing
     /// claimed as updated, and no re-check — nothing ran.
     ///

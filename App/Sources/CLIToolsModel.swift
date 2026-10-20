@@ -1203,6 +1203,10 @@ final class CLIToolsModel {
                 await self.runClaimed(id)
             }
             self.release(id)
+            // The last copy of an Update All still waiting its turn — its lane
+            // copies cancelled while this one ran: nothing is left for that
+            // turn to run (review, #1502 round 1).
+            if self.runQueue.isWaiting(.updateAllTools), self.batchIDs.isEmpty { self.cancelUpdateAll() }
             answered.signal()
         }
         await answered.wait()

@@ -17,14 +17,18 @@ existing `install-verify` item, from what that job read off the package. That
 is how the derivation is checked against the hand-written rules.
 
 It also fetches the previous and the oldest listed stable release (each up to
-300 MB) and compares their bundle id, Team and version with the newest.
+300 MB) and compares their bundle id, Team and version with the newest, and one
+other installer of the same kind and arch in the newest release, if there is
+one, for its bundle id.
 
 Scope: one stable rule for one bundle id, a .dmg or .zip asset, a plain dotted
 CFBundleShortVersionString. A package that is itself a prerelease, a .pkg or
-tarball, an Intel-only asset, any other version scheme, or a Sparkle feed in the
-bundle stops the script with the reason; those take an audit, not a template. A
-prerelease that ships an asset of the same name, a system extension or other
-component, or an executable naming its own releases is drafted with a
+tarball, an Intel-only asset or bundle, any other version scheme, or a Sparkle
+feed in the bundle stops the script with the reason; those take an audit, not a
+template. A prerelease that ships an asset of the same name, another installer
+in the release with the same bundle id, a system extension or other
+component, an updater the bundle carries without SUFeedURL (`app-update.yml`, a
+`Sparkle.framework`), or an executable naming its own releases is drafted with a
 `TODO(audit)` note instead. The checks
 here only fail early; what decides is `make test`, `duo verify`,
 `install-verify` and the real-machine one-click, as for a hand-written rule.
@@ -201,6 +205,22 @@ def derive(owner, repo, facts, releases):
     if own:
         notes.append(f"the executable names its own releases ({own[0]}): TODO(audit) — it likely "
                      "updates itself; find out how, and whether it races ours")
+    # Neither stops the script: no generic source reads a runtime Sparkle feed or
+    # a non-generic electron provider, so a rule may still be the answer. The yml
+    # is quoted as written — Hyper's names `zeit/hyper`, the repo's old name.
+    electron = facts.get("electronUpdater")
+    if electron is not None:
+        said = " ".join(f"{k}={v}" for k, v in electron.items()) or "no provider"
+        if electron.get("provider", "").lower() == "generic" and electron.get("url"):
+            notes.append(f"app-update.yml ({said}): TODO(audit) — electron-updater updates it itself, and "
+                         "ElectronManifestSource already reads that manifest with no rule (last in SourceStack, "
+                         "so a rule would answer first); find out whether a rule is needed at all")
+        else:
+            notes.append(f"app-update.yml ({said}): TODO(audit) — electron-updater updates it itself; "
+                         "find out whether it races ours")
+    for s in facts.get("sparkleFrameworks") or []:
+        notes.append(f"{s} with no SUFeedURL: TODO(audit) — Sparkle with its feed set at runtime; find the "
+                     "feed (feed-discover, SparkleFeedCatalog) and whether it races ours")
 
     if not re.fullmatch(VERSION, short):
         raise Stop(f"CFBundleShortVersionString {short!r} is not a plain dotted version: "
@@ -224,6 +244,30 @@ def derive(owner, repo, facts, releases):
     # never the asset it should pick.
     if arch_class(asset) == "x86_64":
         raise Stop(f"{asset} is an Intel build; DuoUpdater is arm64-only — pass the arm64 or universal asset")
+    # A name with no arch marker says nothing: Journey's `Journey-darwin-2.14.6.zip`
+    # is x86_64 only. `--facts` carries no architectures and skips this.
+    archs = facts.get("architectures") or []
+    if archs and not any(a.startswith("arm64") for a in archs):
+        raise Stop(f"{asset} is an Intel build ({' '.join(archs)}); DuoUpdater is arm64-only — "
+                   "pass the arm64 or universal asset")
+    # macOS 15.7.9 runs a third party's arm64e slice only at pointer-authentication
+    # ABI version 1 (`USR01`, Xcode 26). A `USR00` slice (Xcode 16) is killed, and
+    # the loader picks it over an arm64 slice beside it rather than falling back
+    # (hosted macos-15, run 39397882273; Secretive 4.0.0's USR01 runs). DuoUpdater
+    # supports macOS 15.
+    if "arm64e" in archs:
+        abi = facts.get("arm64ePtrauth")
+        version = re.fullmatch(r"USR([0-9]+)", abi or "")
+        if version is None:
+            said = abi or "no developer tools"
+            notes.append(f"the arm64e slice's pointer-authentication ABI was not read ({said}): "
+                         "TODO(audit) — `otool -hv -arch arm64e`; macOS 15 kills USR00")
+        elif int(version.group(1)) == 0:
+            notes.append(f"the arm64e slice is pointer-authentication ABI {abi}: TODO(audit) — macOS 15 kills "
+                         "it, even with arm64 beside it, so the package may not launch for users on 15")
+        elif int(version.group(1)) != 1:
+            notes.append(f"the arm64e slice is pointer-authentication ABI {abi}: TODO(audit) — only USR01 "
+                         "was seen running on macOS 15; check it launches there")
     names = {a["name"] for a in rel["assets"]}
     asset_pattern = generalise(asset, find_version(asset, short, prefer=(tag_version,)), VERSION, build)
     match_pattern = asset_pattern
@@ -251,6 +295,13 @@ def derive(owner, repo, facts, releases):
                     and not re.search(r"(?i)windows|win32|win64|linux|\.(msi|exe|deb|rpm|appimage)", n))
     if others:
         notes.append(f"other installers in {tag} the pattern leaves out: {', '.join(others)}")
+    # One of the same kind for the same machine may be another product under the
+    # same id: ActivityWatch ships `activitywatch-tauri-v0.14.1-macos-arm64.dmg`
+    # and `activitywatch-v0.14.1-macos-arm64.dmg`. `same_id_product` reads it.
+    # Debug symbols are no product (AltTab's `Sparkle.framework.dSYM.zip`).
+    siblings = [{k: a.get(k) for k in ("name", "size", "digest", "browser_download_url")}
+                for a in rel["assets"] if a["name"] in others and ".dsym." not in a["name"].lower()
+                and a["name"].endswith(kind) and arch_class(a["name"]) == arch_class(asset)]
 
     digest = next(a.get("digest") for a in rel["assets"] if a["name"] == asset)
     if facts.get("sha256") and digest and digest != f"sha256:{facts['sha256']}":
@@ -281,7 +332,41 @@ def derive(owner, repo, facts, releases):
         "versionPattern": version_pattern, "installAssetPattern": asset_pattern,
         "installerKind": kind, "installTrust": trust, "notes": notes,
         "matchPattern": match_pattern, "readTags": [r["tag_name"] for r in read],
+        "siblings": siblings,
     }
+
+
+def same_id_product(facts, d):
+    """Read one of `d["siblings"]` and say whether it is this bundle id. Two
+    products under one id (ActivityWatch's Tauri and classic builds, both
+    `net.activitywatch.ActivityWatch` 0.14.1, Team XM9GC3SUL2) are one rule to
+    DuoUpdater, which then installs this asset over the other's copies."""
+    if not d["siblings"]:
+        return []
+    a = d["siblings"][0]
+    if a["size"] > OLDER_CAP:
+        return [f"{a['name']} is {a['size'] // 2**20} MB, not fetched — TODO(audit) compare its Info.plist "
+                "with this one by hand"]
+    tmp = tempfile.mkdtemp(prefix="scaffold-sibling.")
+    try:
+        dest = os.path.join(tmp, a["name"])
+        if subprocess.run(["curl", "-sSfL", "--connect-timeout", "20", "--max-time", "900",
+                           "-o", dest, a["browser_download_url"]]).returncode:
+            return [f"{a['name']}: download failed — TODO(audit) compare its Info.plist with this one by hand"]
+        o = package_facts(dest)
+    except Stop as e:
+        if "no .app at the top" in str(e):
+            return [f"{a['name']} holds no .app at its top: not compared"]
+        return [f"{a['name']}: {e} — TODO(audit) compare it by hand"]
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+    if a.get("digest") and a["digest"] != f"sha256:{o['sha256']}":
+        return [f"{a['name']}: the download does not hash to GitHub's digest — retry before trusting it"]
+    if o["bundleIdentifier"] != facts["bundleIdentifier"]:
+        return []
+    return [f"{a['name']} in {d['tag']} is the same bundle id (version {o['shortVersion']}, Team "
+            f"{o['teamIdentifier'] or 'none'}): TODO(audit) — another product or build under the same id; "
+            "the rule would replace its users' copy with this one"]
 
 
 def older_identities(owner, repo, releases, facts, d):
@@ -390,6 +475,10 @@ def package_facts(path):
     with open(path, "rb") as f:
         sha = hashlib.sha256(f.read()).hexdigest()
     spctl = re.search(r"^  spctl source=(.*)$", out, re.M)
+    # An empty value is dropped, as `ElectronUpdateConfig.parse` does (QQ's `url: ''`).
+    electron = re.search(r"^  updater electron-updater(.*)$", out, re.M)
+    if electron:
+        electron = {k: v for k, _, v in (kv.partition("=") for kv in electron.group(1).split()) if v}
     return {
         "asset": os.path.basename(path),
         "bundleIdentifier": val("CFBundleIdentifier"),
@@ -399,6 +488,7 @@ def package_facts(path):
         "minimumSystemVersion": val("LSMinimumSystemVersion"),
         "sparkleFeedURL": val("SUFeedURL"),
         "architectures": (val("archs") or "").split(),
+        "arm64ePtrauth": val("arm64e-ptrauth"),
         "teamIdentifier": val("TeamIdentifier") if val("TeamIdentifier") != "not set" else None,
         "signedIdentifier": val("Identifier"),
         "sealOK": val("codesign-verify-exit") == "0",
@@ -407,6 +497,8 @@ def package_facts(path):
         "loginItems": [n for n in nested if "Library/LoginItems/" in n],
         "components": components,
         "exeReferences": references,
+        "electronUpdater": electron,
+        "sparkleFrameworks": re.findall(r"^  updater sparkle-framework (.*)$", out, re.M),
         "sha256": sha,
     }
 
@@ -635,6 +727,7 @@ def main():
             raise Stop(f"{bid} is already named in {', '.join(os.path.relpath(t, REPO) for t in taken)}")
         releases = gh_releases(owner, repo)
         d = derive(owner, repo, facts, releases)
+        d["notes"] += same_id_product(facts, d)
         d["older"] = older_identities(owner, repo, releases, facts, d)
         d["notes"] += [n for n in d["older"] if "TODO(audit)" in n or "retry" in n]
 

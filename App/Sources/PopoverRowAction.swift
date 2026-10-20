@@ -521,7 +521,9 @@ struct PopoverRowAction: View {
         if result.isVendorRewrite {
             vendorRewritePopover
         } else if let channel = result.replacesChannelWithStable {
-            channelSwitchPopover(channel)
+            ChannelSwitchPanel(
+                result: result, channel: channel, actions: actions, keepBackups: keepBackups,
+                dismiss: { showMajorWarning = false })
         } else {
             licenseBoundaryPopover
         }
@@ -548,27 +550,6 @@ struct PopoverRowAction: View {
             Text("\(result.app.name) \(confirmationSides.installed) → \(confirmationSides.offered) replaces this app with the vendor’s rewrite. Features and settings may differ from the version you have now.")
                 .font(.callout)
             Text("The new version replaces this copy. If “Keep a backup of the previous version” is on in [Settings](duoupdater-settings:backups), you can restore the version you have now.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .environment(\.openURL, openBackupSettingLink)
-            majorUpgradeButtons
-        }
-        .padding(12)
-        .frame(width: 290)
-    }
-
-    /// The same confirmation for a Homebrew update that puts the stable cask over
-    /// a copy the user replaced with a nightly or beta
-    /// (`UpdateResult.replacesChannelWithStable`). A reminder, not a refusal: the
-    /// install is the ordinary brew one, and brew's own `brew upgrade` would do
-    /// the same. The channel is spelled as the row's tag spells it (`ChannelTag`).
-    private func channelSwitchPopover(_ channel: ReleaseChannel) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Label("Switches to stable", systemImage: "exclamationmark.triangle.fill")
-                .font(.headline)
-            Text("This copy of \(result.app.name) comes from the \(channel.rawValue.uppercased()) channel. Updating to \(confirmationSides.offered) through Homebrew installs the stable cask over it, so you leave the \(channel.rawValue.uppercased()) channel. Some apps keep separate settings for each channel.")
-                .font(.callout)
-            Text("To stay on \(channel.rawValue.uppercased()), get its updates from the vendor rather than from Homebrew. If “Keep a backup of the previous version” is on in [Settings](duoupdater-settings:backups), you can restore the version you have now.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .environment(\.openURL, openBackupSettingLink)

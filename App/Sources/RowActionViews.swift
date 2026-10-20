@@ -134,6 +134,63 @@ struct SubscriptionHoldPanel: View {
     }
 }
 
+/// What a channel switch opens, in both windows — the popover's badge and the
+/// workbench's "Switches to stable" label are both buttons onto this one panel,
+/// like `OrphanedCopyPanel`. A Homebrew update that puts the stable cask over a
+/// copy the user replaced with a nightly or beta
+/// (`UpdateResult.replacesChannelWithStable`): a reminder, not a refusal — the
+/// install is the ordinary brew one, and brew's own `brew upgrade` would do the
+/// same. The channel is spelled as the row's tag spells it (`ChannelTag`).
+struct ChannelSwitchPanel: View {
+    let result: UpdateResult
+    let channel: ReleaseChannel
+    let actions: RowActions
+    /// Off, the panel also offers to back up for this update only — the same
+    /// choice the major-upgrade confirmation offers.
+    let keepBackups: Bool
+    let dismiss: () -> Void
+
+    private var offered: String {
+        guard let latest = result.remote?.displayVersion else { return "?" }
+        return result.updateLineText(latest: latest).offered
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label("Switches to stable", systemImage: "exclamationmark.triangle.fill")
+                .font(.headline)
+            Text("This copy of \(result.app.name) comes from the \(channel.rawValue.uppercased()) channel. Updating to \(offered) through Homebrew installs the stable cask over it, so you leave the \(channel.rawValue.uppercased()) channel. Some apps keep separate settings for each channel.")
+                .font(.callout)
+                .fixedSize(horizontal: false, vertical: true)
+            Text("To stay on \(channel.rawValue.uppercased()), get its updates from the vendor rather than from Homebrew. If “Keep a backup of the previous version” is on in [Settings](duoupdater-settings:backups), you can restore the version you have now.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .environment(\.openURL, OpenURLAction { _ in
+                    dismiss()
+                    actions.openBackupSetting()
+                    return .handled
+                })
+            HStack(spacing: 8) {
+                Button("Update anyway") {
+                    dismiss()
+                    actions.install()
+                }
+                if !keepBackups {
+                    Button("Back Up & Update") {
+                        dismiss()
+                        actions.installBackingUpOnce()
+                    }
+                    .help("Keeps a backup of the version you have now, for this update only, so you can restore it. Backups stay off in Settings.")
+                }
+            }
+            .controlSize(.small)
+        }
+        .padding(12)
+        .frame(width: 290)
+    }
+}
+
 /// The words for a `.subscriptionHold` row, shared by both windows.
 enum SubscriptionHoldWording {
     static var title: String { String(localized: "Not covered by your subscription") }
@@ -372,6 +429,9 @@ struct WorkbenchRowAction: View {
     let state: RowActionState
     let result: UpdateResult
     var actions: RowActions = .init()
+    /// Whether "Keep a backup so updates can be rolled back" is on — read only by
+    /// the channel-switch panel, which offers a one-off backup when it is off.
+    var keepBackups: Bool = true
     /// Whether the privileged helper is approved. Only affects an App Store row's
     /// help text; carried as an input so this view stays a pure function of what it
     /// is given (which is what lets `RowStateGallery` render every case with no
@@ -393,6 +453,7 @@ struct WorkbenchRowAction: View {
     @State private var showTestFlightTip = false
     @State private var showOrphanHint = false
     @State private var showSubscriptionHint = false
+    @State private var showChannelSwitch = false
 
     var body: some View {
         // `ui = f(state)`. The ladder that decides WHICH of these applies lives in
@@ -660,23 +721,36 @@ struct WorkbenchRowAction: View {
                 .help("\(result.app.name) is running — open it so its own updater applies the update. Quit it, or pick “Always replace” in Settings, to install directly.")
 
         case .majorUpgrade:
-            // License-boundary warning lives in the popover; don't one-click it here.
-            // A channel switch says so instead (`UpdateResult.replacesChannelWithStable`):
-            // "Major update" would be wrong about a 0.4.5 → 0.4.6 that leaves a nightly.
-            let switchesChannel = result.replacesChannelWithStable != nil
-            Label(switchesChannel ? String(localized: "Switches to stable") : String(localized: "Major update"),
-                  systemImage: "exclamationmark.triangle.fill")
-                .font(.callout).foregroundStyle(.orange)
-                // Same overflow protection its `.macIncompatible` /
-                // `.needsNewerMacOS` / `.region` siblings carry — it had none, and
-                // the catalog's longest translation of it is es "Actualización
-                // importante" (24 characters, drawn at `.callout`). UNMEASURED
-                // against a real row: this is the protection every sibling label
-                // has, not a fix for a width somebody measured overflowing.
-                .lineLimit(1).minimumScaleFactor(0.7)
-                .help(switchesChannel
-                      ? String(localized: "Switches this copy to the stable build — review and install it from the menu-bar popover")
-                      : String(localized: "Major version upgrade — review and install it from the menu-bar popover"))
+            if let channel = result.replacesChannelWithStable {
+                // A channel switch says so instead of "Major update", which would be
+                // wrong about a 0.4.5 → 0.4.6 that leaves a nightly — and, like
+                // `.orphanedStoreCopy`, is a button onto the panel the popover's badge
+                // opens, its "Update anyway" included.
+                Button { showChannelSwitch = true } label: {
+                    Label("Switches to stable", systemImage: "exclamationmark.triangle.fill")
+                        .font(.callout).foregroundStyle(.orange)
+                        .lineLimit(1).minimumScaleFactor(0.7)
+                }
+                .buttonStyle(.plain)
+                .help("Switches this copy to the stable build — click before updating")
+                .popover(isPresented: $showChannelSwitch, arrowEdge: .bottom) {
+                    ChannelSwitchPanel(
+                        result: result, channel: channel, actions: actions, keepBackups: keepBackups,
+                        dismiss: { showChannelSwitch = false })
+                }
+            } else {
+                // License-boundary warning lives in the popover; don't one-click it here.
+                Label("Major update", systemImage: "exclamationmark.triangle.fill")
+                    .font(.callout).foregroundStyle(.orange)
+                    // Same overflow protection its `.macIncompatible` /
+                    // `.needsNewerMacOS` / `.region` siblings carry — it had none, and
+                    // the catalog's longest translation of it is es "Actualización
+                    // importante" (24 characters, drawn at `.callout`). UNMEASURED
+                    // against a real row: this is the protection every sibling label
+                    // has, not a fix for a width somebody measured overflowing.
+                    .lineLimit(1).minimumScaleFactor(0.7)
+                    .help("Major version upgrade — review and install it from the menu-bar popover")
+            }
 
         case .autoInstall:
             Button("Update \(result.offeredDisplay ?? "")") { actions.install() }

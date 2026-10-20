@@ -2676,6 +2676,7 @@ private struct DetailHeader: View {
                         cancelInstall: { model.cancelInstall(result) },
                         restoreInterrupted: { Task { await model.restoreInterrupted(result) } },
                         retryPausedUntil: model.gitHubPausedUntil),
+                    keepBackups: model.prefs.keepBackups,
                     helperEnabled: model.helperEnabled,
                     testFlightUnboundedReason: model.testFlightUnboundedReason,
                     installCancel: model.installRows.cancels[result.id],

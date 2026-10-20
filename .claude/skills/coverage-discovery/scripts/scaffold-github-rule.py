@@ -245,9 +245,10 @@ def derive(owner, repo, facts, releases):
     if arch_class(asset) == "x86_64":
         raise Stop(f"{asset} is an Intel build; DuoUpdater is arm64-only — pass the arm64 or universal asset")
     # A name with no arch marker says nothing: Journey's `Journey-darwin-2.14.6.zip`
-    # is x86_64 only. `--facts` carries no architectures and skips this.
+    # is x86_64 only. `--facts` carries no architectures and skips this. An
+    # `arm64e` slice runs on Apple silicon too.
     archs = facts.get("architectures") or []
-    if archs and "arm64" not in archs:
+    if archs and not any(a.startswith("arm64") for a in archs):
         raise Stop(f"{asset} is an Intel build ({' '.join(archs)}); DuoUpdater is arm64-only — "
                    "pass the arm64 or universal asset")
     names = {a["name"] for a in rel["assets"]}

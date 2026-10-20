@@ -2527,7 +2527,7 @@ struct CLIToolsModelTests {
         let all = Task { await model.updateAll() }
         await until { model.updateAllWaiting }
         #expect(model.queued == [Self.id(Self.pnpmCLI, .npm), Self.id(Self.tsx, .npm)])
-        #expect(model.updateAllCancel == .available)
+        #expect(model.updateAllCancel?.state == .available)
         model.cancelUpdateAll()
         // Inside the Cancel, as a row's.
         #expect(!model.updatingAll)
@@ -2567,12 +2567,15 @@ struct CLIToolsModelTests {
 
         let all = Task { await model.updateAll() }
         await until { await gate.arrived == 1 }
-        #expect(model.updateAllCancel == .available)
+        #expect(model.updateAllCancel?.state == .available)
         model.cancelUpdateAll()
         // The queued one at once; the running one is cancelling.
         #expect(!model.updating.contains(Self.id(second, .npm)))
         #expect(model.cancels[Self.id(first, .npm)] == .cancelling)
-        #expect(model.updateAllCancel == .cancelling)
+        // Off the rows' smoothed Cancels: greyed at once, "Cancelling…" when
+        // the row says it.
+        #expect(model.updateAllCancel == .init(state: .available, pending: true, live: 0))
+        await until { model.updateAllCancel?.state == .cancelling }
         await gate.open()
         await all.value
 
@@ -2652,7 +2655,7 @@ struct CLIToolsModelTests {
         #expect(model.errors[x] == "npm ERR! x")
         let retry = Task { await model.update(x) }
         await until { model.runQueue.isWaiting(.tool(x)) }
-        #expect(model.updateAllCancel == .committing)
+        #expect(model.updateAllCancel?.state == .committing)
         model.cancelUpdateAll()
         #expect(model.runQueue.isWaiting(.tool(x)))
         #expect(model.cancels[x] == .available)
@@ -2813,12 +2816,84 @@ struct CLIToolsModelTests {
         #expect(model.rowCancel == .init(state: .available, pending: true, live: 0))
         await until { model.cancelRows.cancels[pnpm] == .cancelling && model.cancelRows.cancelPending.isEmpty }
         #expect(model.rowCancel == .init(state: .cancelling, pending: false, live: 0))
-        #expect(model.updateAllCancel == .cancelling)
+        #expect(model.updateAllCancel?.state == .cancelling)
 
         await gate.open()
         await commitGate.open()
         await all.value
         #expect(!model.updatingAll)
+    }
+
+    /// The one snapshot every command-line tools surface draws from
+    /// (`rowSnapshot`), read off a running Update All in two lanes: each
+    /// copy's phase and smoothed Cancel, and Update All's own facts — and
+    /// the surfaces drawn from it agree with the model's own Cancels.
+    ///
+    /// Mutations: `phase` without its `queued` rung → the waiting copy reads
+    /// `.running`, red; the builder passes the raw `cancels` → `cancelPending`
+    /// false beside a `.cancelling`, red.
+    @Test(.timeLimit(.minutes(1))) func theRowSnapshotIsReadOffTheModel() async {
+        let path = Self.ownPath()
+        let claude = Self.id(path)
+        let updater = FakeUpdater()
+        await updater.set(claude, .updated(version: "2.1.285"))
+        let commitGate = Gate()
+        await updater.setCommits(gate: commitGate)
+        let package = Self.ownPackage()
+        let second = Self.ownPackage()
+        let pnpm = Self.id(package, .npm)
+        let tsx = Self.id(second, .npm)
+        let npmUpdater = FakeUpdater()
+        let gate = Gate()
+        await npmUpdater.setGate(gate)
+        await npmUpdater.setCommits(gate: nil)
+        let npm = FakeProvider(
+            kind: .npm,
+            checker: FakeCheck([(Self.report(.npm, [Self.status(package, kind: .npm), Self.status(second, kind: .npm)]), nil)]),
+            updater: npmUpdater)
+        let model = Self.model(check: FakeCheck([(Self.report(Self.status(path)), nil)]), updater: updater, others: [npm])
+        await model.refresh()
+        #expect(model.rowSnapshot.updateAllHeader == .update(startable: true))
+
+        let all = Task { await model.updateAll() }
+        await until { await commitGate.arrived == 1 }
+        await until { model.cancels[claude] == .committing }
+        await until { await gate.arrived == 1 }
+        let running = model.rowSnapshot
+        #expect(running.tools.map(\.id) == model.statuses.map(\.toolID))
+        #expect(running.hasSightings && running.checked)
+        #expect(running.updatingAll && !running.updateAllWaiting)
+        #expect(running.batchIDs == [claude, pnpm, tsx])
+        #expect(running.updateAllOffered && !running.updateAllStartable)
+        #expect(running.tool(claude)?.phase == .running)
+        #expect(running.tool(claude)?.cancel == .committing)
+        // The second package waits behind the first in their prefix's lane.
+        #expect(running.tool(tsx)?.phase == .queued)
+        let status = model.status(pnpm)!
+        #expect(running.tool(pnpm) == .live(
+            id: pnpm, kind: .npm, phase: .running, cancel: .available, cancelPending: false,
+            line: model.progressLine(pnpm), state: .updateAvailable, oneClick: true,
+            needsAdministrator: false, withheld: nil, manualCommand: CLIToolPresentation.manualCommand(status),
+            hasLatestVersion: true, error: nil, justUpdated: nil))
+
+        model.cancelRow()
+        #expect(model.cancels[pnpm] == .cancelling)
+        let accepted = model.rowSnapshot
+        #expect(accepted.tool(pnpm)?.cancel == .available)
+        #expect(accepted.tool(pnpm)?.cancelPending == true)
+        #expect(accepted.tool(tsx) == nil || accepted.tool(tsx)?.phase == .idle)
+        // Every surface off the one snapshot, the model's Cancels included.
+        #expect(accepted.sidebar(pnpm).slot == .cancel(.init(state: .available, pending: true, live: 0)))
+        #expect(accepted.detailHeader(pnpm).action == accepted.sidebar(pnpm).slot)
+        #expect(accepted.popover?.button == .cancel(.init(state: .available, pending: true, live: 0)))
+        #expect(accepted.updateAllHeader == .running(.init(state: .available, pending: true, live: 0)))
+        #expect(model.rowCancel == accepted.rowCancel)
+        #expect(model.updateAllCancel == accepted.updateAllCancel)
+
+        await gate.open()
+        await commitGate.open()
+        await all.value
+        #expect(model.rowSnapshot.tools.allSatisfy { $0.phase == .idle })
     }
 
     // MARK: a click's offer at its turn

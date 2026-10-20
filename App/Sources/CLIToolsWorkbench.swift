@@ -189,9 +189,11 @@ struct CLIToolSidebarRow: View {
     var showsRuntime = true
 
     private var id: CLIToolID { status.toolID }
-    private var updating: Bool { cli.updating.contains(id) }
+    /// What the row draws (`CLIRowSnapshot.sidebar`).
+    private var row: CLISidebarRow<CLIToolID> { cli.rowSnapshot.sidebar(id) }
 
     var body: some View {
+        let row = row
         HStack(spacing: 8) {
             CLIToolIcon(kind: status.kind, size: 22)
             VStack(alignment: .leading, spacing: 1) {
@@ -208,12 +210,12 @@ struct CLIToolSidebarRow: View {
                         CLIRuntimeTagSlot(path: status.path, interactive: false)
                     }
                 }
-                caption
+                caption(row.caption)
             }
             Spacer()
             // Update and its Cancel take turns here: the rest of a double-click
             // that swapped them is not a click on the other.
-            trailing.swallowsClicksAfterSwap(of: updating)
+            trailing(row.slot).swallowsClicksAfterSwap(of: row.slot.isRunning)
         }
         .padding(.vertical, 2)
         .help(help)
@@ -232,18 +234,19 @@ struct CLIToolSidebarRow: View {
     }
 
     @ViewBuilder
-    private var caption: some View {
-        if let error = cli.errors[id] {
+    private func caption(_ caption: CLISidebarRow<CLIToolID>.Caption) -> some View {
+        switch caption {
+        case .error(let error):
             Text(verbatim: error).font(.caption).foregroundStyle(.red).lineLimit(1)
-        } else if updating {
+        case .progress(let progress):
             // The update's own output ("Downloading…"), so it visibly moves, like a
             // formula upgrade's row.
-            Text(verbatim: cli.progressLine(id) ?? String(localized: "Updating…"))
+            Text(verbatim: progress.text)
                 .font(.caption).foregroundStyle(.secondary)
                 .lineLimit(1).truncationMode(.middle)
-        } else if let version = cli.justUpdated[id] {
+        case .updated(let version, let restartSessions):
             Group {
-                if status.kind == .claudeCode {
+                if restartSessions {
                     // Sessions already open keep running the version they started with.
                     Text("Updated to \(version) · restart open sessions")
                 } else {
@@ -251,7 +254,14 @@ struct CLIToolSidebarRow: View {
                 }
             }
             .font(.caption).foregroundStyle(.secondary).lineLimit(1)
-        } else if let warning = CLIToolPresentation.rowWarning(status) {
+        case .status:
+            statusCaption
+        }
+    }
+
+    @ViewBuilder
+    private var statusCaption: some View {
+        if let warning = CLIToolPresentation.rowWarning(status) {
             Text(verbatim: warning).font(.caption).foregroundStyle(.orange).lineLimit(1)
         } else {
             HStack(spacing: 4) {
@@ -286,27 +296,26 @@ struct CLIToolSidebarRow: View {
     }
 
     @ViewBuilder
-    private var trailing: some View {
-        if updating {
+    private func trailing(_ slot: CLIRowState<CLIToolID>) -> some View {
+        switch slot {
+        case .cancel, .spinnerOnly:
             HStack(spacing: 4) {
                 ProgressView().controlSize(.small)
-                CLIToolCancelButton(id: id, cli: cli)
+                CLIToolCancelButton(slot: slot, id: id, cli: cli)
             }
-        } else if status.needsAdministrator, status.oneClick != nil {
+        case .update(let admin):
             // The same button as every row's, as an app row whose update can
             // raise the administrator panel has; the password is in its help.
-            Button("Update") { Task { await cli.update(id) } }
+            let update = Button("Update") { Task { await cli.update(id) } }
                 .controlSize(.small)
                 .buttonStyle(.borderedProminent)
-                .help(String(localized: "Asks for an administrator password"))
-        } else if status.oneClick != nil {
-            Button("Update") { Task { await cli.update(id) } }
-                .controlSize(.small)
-                .buttonStyle(.borderedProminent)
-        } else if let command = CLIToolPresentation.manualCommand(status) {
+            if admin { update.help(String(localized: "Asks for an administrator password")) } else { update }
+        case .copy(let command):
             // A glyph, like the Brew trust command's row button: a labelled button
             // would leave a 260 pt sidebar too little room for the title beside it.
             CopyCommandButton(command: command)
+        case .none:
+            EmptyView()
         }
     }
 }
@@ -404,13 +413,15 @@ private struct CopyCommandButton: View {
 /// A copy's Cancel beside its progress (`InstallCancelButton`), while
 /// DuoUpdater runs its update. Gone once the cancel was accepted: the progress
 /// line says "Cancelling…" until the row settles (`CLIToolsModel.cancel`).
+/// `slot` is the row's (`CLIRowState`): `.spinnerOnly` draws none.
 private struct CLIToolCancelButton: View {
+    let slot: CLIRowState<CLIToolID>
     let id: CLIToolID
     let cli: CLIToolsModel
 
     var body: some View {
-        if let state = cli.cancelRows.cancels[id], state != .cancelling {
-            InstallCancelButton(state: state, pending: cli.cancelRows.cancelPending.contains(id)) {
+        if case .cancel(let group) = slot {
+            InstallCancelButton(state: group.state, pending: group.pending) {
                 cli.cancel(id)
             }
         }
@@ -418,17 +429,56 @@ private struct CLIToolCancelButton: View {
 }
 
 private struct UpdateProgressCapsule: View {
-    let line: String?
+    let progress: CLIProgressLine
 
     var body: some View {
         HStack(spacing: 7) {
             ProgressView().controlSize(.small)
-            Text(verbatim: line ?? String(localized: "Updating…"))
+            Text(verbatim: progress.text)
                 .font(.callout).foregroundStyle(.secondary)
                 .lineLimit(1)
         }
         .padding(.horizontal, 12).padding(.vertical, 6)
         .background(.quaternary, in: Capsule())
+    }
+}
+
+/// A detail pane's header action (`CLIDetailHeader`): "Update to X", or the
+/// update's progress capsule and its Cancel. Update and its Cancel take turns
+/// here: the rest of a double-click that swapped them is not a click on the
+/// other (the caller's `swallowsClicksAfterSwap`).
+private struct CLIToolHeaderAction: View {
+    let header: CLIDetailHeader<CLIToolID>
+    let latest: String?
+    let id: CLIToolID
+    let cli: CLIToolsModel
+
+    var body: some View {
+        switch header.action {
+        case .cancel, .spinnerOnly:
+            HStack(spacing: 12) {
+                UpdateProgressCapsule(progress: header.progress ?? .updating)
+                CLIToolCancelButton(slot: header.action, id: id, cli: cli)
+            }
+        case .update(let admin):
+            let update = Button("Update to \(latest ?? "")") { Task { await cli.update(id) } }
+                .controlSize(.large)
+                .buttonStyle(.borderedProminent)
+            if admin { update.help(String(localized: "Asks for an administrator password")) } else { update }
+        case .copy, .none:
+            EmptyView()
+        }
+    }
+}
+
+extension CLIProgressLine {
+    /// The line as a row shows it.
+    var text: String {
+        switch self {
+        case .cancelling: String(localized: "Cancelling…")
+        case .line(let line): line
+        case .updating: String(localized: "Updating…")
+        }
     }
 }
 
@@ -521,7 +571,8 @@ struct ClaudeCodeDetailPane: View {
 
     private var path: String { status.install.path }
     private var id: CLIToolID { CLIToolID(kind: .claudeCode, path: path) }
-    private var updating: Bool { cli.updating.contains(id) }
+    /// What the header's action draws (`CLIRowSnapshot.detailHeader`).
+    private var headerState: CLIDetailHeader<CLIToolID> { cli.rowSnapshot.detailHeader(id) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -556,25 +607,11 @@ struct ClaudeCodeDetailPane: View {
                     .textSelection(.enabled)
             }
             Spacer()
-            headerAction.swallowsClicksAfterSwap(of: updating)
+            let header = headerState
+            CLIToolHeaderAction(header: header, latest: status.latestVersion, id: id, cli: cli)
+                .swallowsClicksAfterSwap(of: header.action.isRunning)
         }
         .padding(16)
-    }
-
-    /// Update and its Cancel take turns here: the rest of a double-click that
-    /// swapped them is not a click on the other.
-    @ViewBuilder
-    private var headerAction: some View {
-        if updating {
-            HStack(spacing: 12) {
-                UpdateProgressCapsule(line: cli.progressLine(id))
-                CLIToolCancelButton(id: id, cli: cli)
-            }
-        } else if status.oneClick != nil, let latest = status.latestVersion {
-            Button("Update to \(latest)") { Task { await cli.update(id) } }
-                .controlSize(.large)
-                .buttonStyle(.borderedProminent)
-        }
     }
 
     /// The install's path, and the file that actually runs when it is another one
@@ -720,7 +757,8 @@ struct CLIToolDetailPane: View {
     @State private var breakingJump: BreakingChangesJump?
 
     private var id: CLIToolID { status.toolID }
-    private var updating: Bool { cli.updating.contains(id) }
+    /// What the header's action draws (`CLIRowSnapshot.detailHeader`).
+    private var headerState: CLIDetailHeader<CLIToolID> { cli.rowSnapshot.detailHeader(id) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -754,30 +792,11 @@ struct CLIToolDetailPane: View {
                     .textSelection(.enabled)
             }
             Spacer()
-            headerAction.swallowsClicksAfterSwap(of: updating)
+            let header = headerState
+            CLIToolHeaderAction(header: header, latest: status.latestVersion, id: id, cli: cli)
+                .swallowsClicksAfterSwap(of: header.action.isRunning)
         }
         .padding(16)
-    }
-
-    /// Update and its Cancel take turns here: the rest of a double-click that
-    /// swapped them is not a click on the other.
-    @ViewBuilder
-    private var headerAction: some View {
-        if updating {
-            HStack(spacing: 12) {
-                UpdateProgressCapsule(line: cli.progressLine(id))
-                CLIToolCancelButton(id: id, cli: cli)
-            }
-        } else if status.needsAdministrator, status.oneClick != nil, let latest = status.latestVersion {
-            Button("Update to \(latest)") { Task { await cli.update(id) } }
-                .controlSize(.large)
-                .buttonStyle(.borderedProminent)
-                .help(String(localized: "Asks for an administrator password"))
-        } else if status.oneClick != nil, let latest = status.latestVersion {
-            Button("Update to \(latest)") { Task { await cli.update(id) } }
-                .controlSize(.large)
-                .buttonStyle(.borderedProminent)
-        }
     }
 
     private var facts: some View {

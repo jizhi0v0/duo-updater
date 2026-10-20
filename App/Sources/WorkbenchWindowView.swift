@@ -1044,27 +1044,30 @@ struct WorkbenchWindowView: View {
     @ViewBuilder
     private var otherToolsBulkUpdate: some View {
         let tools = model.cliTools
-        if tools.updateAllOffered || tools.updatingAll {
+        // `CLIRowSnapshot.updateAllHeader`.
+        let header = tools.rowSnapshot.updateAllHeader
+        let running: InstallRowSmoothing<CLIToolID>.GroupCancel? = if case .running(let cancel) = header { cancel } else { nil }
+        if header != .hidden {
             Button("Update All") { Task { await tools.updateAll() } }
                 .controlSize(.small)
                 .buttonStyle(.bordered)
                 // Not disabled by another run: behind one it waits its turn
                 // (`CLIRunQueue`), and can be taken back meanwhile.
-                .disabled(tools.updatingAll || !tools.updateAllStartable)
+                .disabled(header != .update(startable: true))
                 .help(CLIToolPresentation.updateAllHelp)
-                .opacity(tools.updatingAll ? 0 : 1)
+                .opacity(running != nil ? 0 : 1)
                 .overlay(alignment: .trailing) {
                     // Its Cancel beside the spinner, waiting or running, as
                     // Homebrew's Upgrade All has (`CLIToolsModel.updateAllCancel`).
-                    if let cancel = tools.updateAllCancel {
+                    if let cancel = running {
                         HStack(spacing: 4) {
                             ProgressView().controlSize(.small)
-                            InstallCancelButton(state: cancel) { tools.cancelUpdateAll() }
+                            InstallCancelButton(state: cancel.state, pending: cancel.pending) { tools.cancelUpdateAll() }
                         }
                     }
                 }
                 // The rest of a double-click on Update All is not a click on its Cancel.
-                .swallowsClicksAfterSwap(of: tools.updatingAll)
+                .swallowsClicksAfterSwap(of: running != nil)
         }
     }
 

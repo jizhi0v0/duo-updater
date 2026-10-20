@@ -938,85 +938,56 @@ private struct CommandLineRow: View {
     // MARK: Other tools
 
     private var toolsHalf: Half? {
-        guard !tools.sightings.isEmpty else { return nil }
-        let running = tools.updatingAll || !tools.updating.isEmpty
-        func half(_ lines: [Text], mark: (any View)? = nil, button: (any View)? = nil) -> Half {
-            Half(icon: "terminal", title: String(localized: "Other tools"), lines: lines,
-                 mark: mark.map { AnyView($0) }, button: button.map { AnyView($0) }, running: running)
+        // What it says, its mark and its button: `CLIRowSnapshot.popover`.
+        guard let row = tools.rowSnapshot.popover else { return nil }
+        let mark: (any View)? = switch row.mark {
+        case .spinner: spinner
+        case .seal: seal
+        case .question: question
+        case nil: nil
         }
-        if running {
-            // The tool running, and one live line. `updateAll` runs several tools
-            // at once: then the row names none of them, and the line is the first
-            // running copy's — one still running its command before one done and
-            // waiting on its check, whose "Waiting to check" would read as if
-            // nothing were downloading. A queued copy is not running.
-            let claimed = tools.statuses.filter {
-                tools.updating.contains($0.toolID) && !tools.queued.contains($0.toolID)
+        let button: (any View)? = switch row.button {
+        case .update: updateButton(help: CLIToolPresentation.updateAllHelp) { await tools.updateAll() }
+        // One Cancel where the Update button stood, for every copy the row
+        // says is updating — Update All's, and a click's of its own from the
+        // workbench, which had none here (2026-10-20).
+        case .cancel(let group):
+            InstallCancelButton(state: group.state, pending: group.pending, count: group.live,
+                                queuedOnly: group.queuedOnly) {
+                tools.cancelRow()
             }
-            // One Cancel where the Update button stood, for every copy the row
-            // says is updating — Update All's, and a click's of its own from the
-            // workbench, which had none here (2026-10-20).
-            let cancel: (any View)? = tools.rowCancel.map { group in
-                InstallCancelButton(state: group.state, pending: group.pending, count: group.live,
-                                    queuedOnly: group.queuedOnly) {
-                    tools.cancelRow()
-                }
-            }
-            if claimed.isEmpty {
-                // Every copy claimed waits its turn behind another click's run
-                // (`CLIRunQueue`).
-                return half([Text(String(localized: "Queued"))], mark: spinner, button: cancel)
-            }
-            let running = claimed.filter { !tools.awaitingCheck.contains($0.toolID) }
-            let named = running.isEmpty ? claimed : running
-            let head = Set(named.map(\.kind)).count == 1
-                ? String(localized: "Updating \(named[0].kind.displayName)")
-                : String(localized: "Updating command-line tools")
-            let progress = named.lazy.compactMap { tools.progressLine($0.toolID) }.first
-            return half([Text(head), progress.map { Text($0).monospacedDigit() }].compactMap { $0 },
-                        mark: spinner, button: cancel)
+        case .none, .copy, .spinnerOnly: nil
         }
-        if !tools.checked { return half([Text(String(localized: "Checking…"))], mark: spinner) }
-        if !tools.outdated.isEmpty {
-            let button: (any View)? = !tools.updateAllStartable ? nil : updateButton(
-                help: CLIToolPresentation.updateAllHelp
-            ) { await tools.updateAll() }
-            if let error = tools.outdated.lazy.compactMap({ tools.errors[$0.toolID] }).first {
-                return half([Text(error).foregroundStyle(.red)], button: button)
-            }
-            // "Updates" are what the button updates; a held-back one is counted
-            // apart, so "2 updates" no longer sits beside one copy to update.
-            let held = tools.heldBack.count
-            let heldLine = held > 0 ? Text(String(localized: "\(held) held back")) : nil
-            if tools.offered.isEmpty {
-                // Nothing to click, so the row says why, in the user's terms.
-                guard let status = tools.heldBack.first(where: { $0.withheld != nil }),
-                      let withheld = status.withheld
-                else { return half([heldLine].compactMap { $0 }) }
-                return half([Text(CLIToolsModel.reason(withheld, of: status))] + (held > 1 ? [heldLine].compactMap { $0 } : []))
-            }
-            let sudoLine = CLIToolPresentation.needSudo(tools.needSudoCount).map { Text($0) }
-            return half([Text(String(localized: "\(tools.offered.count) updates")), sudoLine, heldLine].compactMap { $0 },
-                        button: button)
+        return Half(icon: "terminal", title: String(localized: "Other tools"), lines: row.lines.map(toolsLine),
+                    mark: mark.map { AnyView($0) }, button: button.map { AnyView($0) }, running: row.isRunning)
+    }
+
+    /// One part of the Other tools row's line (`CLIPopoverRow.Line`), worded.
+    private func toolsLine(_ line: CLIPopoverRow<CLIToolID>.Line) -> Text {
+        switch line {
+        case .queued: return Text(String(localized: "Queued"))
+        case .updating(let kind?): return Text(String(localized: "Updating \(kind.displayName)"))
+        case .updating(nil): return Text(String(localized: "Updating command-line tools"))
+        case .progress(.cancelling): return Text(String(localized: "Cancelling…")).monospacedDigit()
+        case .progress(.line(let text)): return Text(text).monospacedDigit()
+        case .progress(.updating): return Text(String(localized: "Updating…")).monospacedDigit()
+        case .checking: return Text(String(localized: "Checking…"))
+        case .error(let error): return Text(error).foregroundStyle(.red)
+        case .updates(let count): return Text(String(localized: "\(count) updates"))
+        case .needSudo(let count): return Text(CLIToolPresentation.needSudo(count) ?? "")
+        case .heldBack(let count): return Text(String(localized: "\(count) held back"))
+        case .withheld(let id, let withheld):
+            // In the user's terms, as the copy's own row says it.
+            return Text(tools.status(id).map { CLIToolsModel.reason(withheld, of: $0) }
+                ?? CLIToolsModel.reason(withheld, of: id.kind))
+        case .notChecked(let count): return Text(String(localized: "\(count) not checked"))
+        case .updated(let kind, let version): return Text(String(localized: "\(kind.displayName) updated to \(version)"))
+        // A running process keeps the binary it started with; for Claude Code
+        // that is every open session.
+        case .takesEffect(.claudeCode): return Text(String(localized: "New sessions use it; restart open ones"))
+        case .takesEffect: return Text(String(localized: "Takes effect the next time it runs"))
+        case .upToDate: return Text(String(localized: "Up to date"))
         }
-        if !tools.unchecked.isEmpty {
-            // Not "up to date" while a copy went unanswered.
-            if let status = tools.unchecked.first(where: { $0.withheld != nil }), let withheld = status.withheld {
-                return half([Text(CLIToolsModel.reason(withheld, of: status))], mark: question)
-            }
-            return half([Text(String(localized: "\(tools.unchecked.count) not checked"))], mark: question)
-        }
-        if let status = tools.statuses.first(where: { tools.justUpdated[$0.toolID] != nil }),
-           let version = tools.justUpdated[status.toolID] {
-            // A running process keeps the binary it started with; for Claude Code
-            // that is every open session.
-            let hint = status.kind == .claudeCode
-                ? String(localized: "New sessions use it; restart open ones")
-                : String(localized: "Takes effect the next time it runs")
-            return half([Text(String(localized: "\(status.kind.displayName) updated to \(version)")), Text(hint)],
-                        mark: seal)
-        }
-        return half([Text(String(localized: "Up to date"))], mark: seal)
     }
 
     /// One line per tool with processes still on the copy from before its

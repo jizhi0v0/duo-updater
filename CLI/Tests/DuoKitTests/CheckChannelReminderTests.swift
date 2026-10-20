@@ -3,7 +3,7 @@ import Foundation
 @testable import DuoKit
 import DuoUpdaterCore
 
-/// `duo check` and `duo install` say what the menu bar's confirmation says: the
+/// `duo check` and `duo install` say what the menu bar's hint says: the
 /// update puts the stable cask over a nightly or beta copy
 /// (`UpdateResult.replacesChannelWithStable`). Said, never refused — the install
 /// still runs. Mutation: drop either `print` of the note → its test goes red.

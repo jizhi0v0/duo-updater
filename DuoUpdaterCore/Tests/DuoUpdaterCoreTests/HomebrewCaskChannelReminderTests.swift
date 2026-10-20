@@ -186,6 +186,21 @@ struct HomebrewCaskChannelReminderTests {
         #expect(row.hasUpdate)
     }
 
+    /// A channel switch that is also a major upgrade (a nightly at 0.4.5, the
+    /// standard cask at 1.0.0) is both: the major bump puts the row behind the
+    /// existing confirmation, as for any Homebrew major, and the reminder stays —
+    /// the rows draw it on that route too (review round 4, #1501).
+    @Test func aChannelSwitchThatIsAlsoAMajorUpgradeIsStillReminded() {
+        var remote = RemoteVersion(
+            shortVersion: "1.0.0", version: nil, downloadURL: nil,
+            sourceName: "Homebrew", sourceIdentifier: "lapce")
+        remote.offeredChannel = .stable
+        let row = UpdateResult(
+            app: Self.lapce(.nightly), remote: remote, status: .updateAvailable(latest: "1.0.0"))
+        #expect(row.replacesChannelWithStable == .nightly)
+        #expect(row.isMajorUpgrade)
+    }
+
     /// The normal case — a stable cask over a stable copy — says nothing, and is
     /// not a major upgrade (0.4.5 → 0.4.6).
     @Test func aStableCopyOfAStableCaskIsNot() async throws {

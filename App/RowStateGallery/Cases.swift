@@ -67,6 +67,18 @@ enum RowStateGalleryCases {
             remote: remote, status: .updateAvailable(latest: "0.4.6"))
     }()
 
+    /// `channelSwitchApp` with the cask a major ahead (0.4.5 → 1.0.0), so the row
+    /// takes the major-upgrade route and the reminder has to ride along on it.
+    static let channelSwitchMajorApp: UpdateResult = {
+        var remote = RemoteVersion(
+            shortVersion: "1.0.0", version: nil,
+            downloadURL: URL(string: "https://example.com/Example.dmg"),
+            sourceName: "Homebrew", sourceIdentifier: "lapce")
+        remote.offeredChannel = .stable
+        return UpdateResult(
+            app: channelSwitchApp.app, remote: remote, status: .updateAvailable(latest: "1.0.0"))
+    }()
+
     // The App Store branches are the reason these exist. A single fixture with
     // `remote.appStore == nil` sent EVERY App Store state down `openButton`, so
     // three tiles rendered byte-identically and `appStoreTrailing` — region hint,
@@ -105,7 +117,8 @@ enum RowStateGalleryCases {
     @MainActor
     private static func popoverTile(name: String, state: RowActionState, result: UpdateResult) -> AnyView {
         switch name {
-        case "38-major-upgrade-explanation", "52-vendor-rewrite-explanation":
+        case "38-major-upgrade-explanation", "52-vendor-rewrite-explanation",
+             "57-channel-switch-major-upgrade-explanation":
             return AnyView(
                 PopoverRowAction(state: state, result: result).majorUpgradePopover.fixedSize())
         case "39-region-hint-explanation", "40-mac-compat-hint-explanation", "44-needs-newer-macos-hint-explanation":
@@ -199,6 +212,13 @@ enum RowStateGalleryCases {
         if name == "54-subscription-hold-explanation" {
             guard case .subscriptionHold(let hold) = state else { return AnyView(EmptyView()) }
             return AnyView(SubscriptionHoldPanel(result: result, hold: hold).fixedSize())
+        }
+        // The workbench's half of 57 is its row — "Switches to stable" beside
+        // "Major update" — since its explanation is the popover's.
+        if name == "57-channel-switch-major-upgrade-explanation" {
+            return AnyView(
+                WorkbenchRowAction(state: state, result: result)
+                    .frame(width: tileWidth, height: tileHeight, alignment: .trailing))
         }
         if name == "56-channel-switch-explanation" {
             guard let channel = result.replacesChannelWithStable else { return AnyView(EmptyView()) }
@@ -349,6 +369,9 @@ enum RowStateGalleryCases {
         // before it — a reminder, the update unchanged — and the hint's panel.
         ("55-channel-switch", .updateAvailable(.autoInstall), channelSwitchApp),
         ("56-channel-switch-explanation", .updateAvailable(.autoInstall), channelSwitchApp),
+        // The same switch with the cask a major ahead: the major-upgrade route, the
+        // channel panel above the license confirmation (review round 4, #1501).
+        ("57-channel-switch-major-upgrade-explanation", .updateAvailable(.majorUpgrade), channelSwitchMajorApp),
     ]
 
     /// A date written out, never read, for the same reason as the hosts below.
@@ -401,6 +424,7 @@ enum RowStateGalleryCases {
         "52-vendor-rewrite-explanation",
         "54-subscription-hold-explanation",
         "56-channel-switch-explanation",
+        "57-channel-switch-major-upgrade-explanation",
     ]
 
     /// Tiles that are ALLOWED to draw nothing — keyed by SURFACE and state, not by

@@ -545,10 +545,23 @@ struct PopoverRowAction: View {
     // still start `false`, and both buttons here still call `actions.install()`.
     @ViewBuilder
     var majorUpgradePopover: some View {
-        if result.isVendorRewrite {
-            vendorRewritePopover
-        } else {
-            licenseBoundaryPopover
+        // A major upgrade can also be a channel switch (a nightly at 0.4.5, the
+        // standard cask at 1.0.0). The hint that `withChannelSwitchHint` puts
+        // beside an ordinary Update button has no place on this route, so its
+        // panel goes above the confirmation instead — the reminder must not vanish
+        // just because the version also crossed a major (review round 4, #1501).
+        VStack(alignment: .leading, spacing: 0) {
+            if let channel = result.replacesChannelWithStable {
+                ChannelSwitchPanel(
+                    result: result, channel: channel, actions: actions,
+                    dismiss: { showMajorWarning = false })
+                Divider()
+            }
+            if result.isVendorRewrite {
+                vendorRewritePopover
+            } else {
+                licenseBoundaryPopover
+            }
         }
     }
 

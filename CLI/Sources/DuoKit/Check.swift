@@ -56,7 +56,8 @@ public enum Check {
 
     /// The reminder `check` and `install` print under a row whose update puts the
     /// stable cask over a nightly or beta copy. Said, not refused: the user chose
-    /// a reminder over a gate, and the menu bar asks before the same install.
+    /// a reminder over a gate, and the menu bar shows a hint beside the same
+    /// install.
     static func channelReminder(_ channel: String) -> String {
         "this copy comes from the \(channel) channel; the update installs the stable cask over it"
     }

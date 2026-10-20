@@ -59,7 +59,10 @@ import Foundation
         static func sh(_ line: String) -> (String, String)? {
             let process = Process()
             process.executableURL = URL(fileURLWithPath: "/bin/sh")
-            process.arguments = ["-c", line]
+            // Under the strictest umask a user may have (`launchctl config user
+            // umask 077`), not this process's 022 — so it is the line's own
+            // `umask 022` that leaves `log` and `status` readable here.
+            process.arguments = ["-c", "umask 077; " + line]
             // What `do shell script` hands root (TN2065: the parent's
             // environment) — the app's, which `env -i` must keep out.
             process.environment = [

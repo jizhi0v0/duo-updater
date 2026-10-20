@@ -245,12 +245,17 @@ def derive(owner, repo, facts, releases):
     if arch_class(asset) == "x86_64":
         raise Stop(f"{asset} is an Intel build; DuoUpdater is arm64-only — pass the arm64 or universal asset")
     # A name with no arch marker says nothing: Journey's `Journey-darwin-2.14.6.zip`
-    # is x86_64 only. `--facts` carries no architectures and skips this. An
-    # `arm64e` slice runs on Apple silicon too.
+    # is x86_64 only. `--facts` carries no architectures and skips this.
     archs = facts.get("architectures") or []
     if archs and not any(a.startswith("arm64") for a in archs):
         raise Stop(f"{asset} is an Intel build ({' '.join(archs)}); DuoUpdater is arm64-only — "
                    "pass the arm64 or universal asset")
+    # An `arm64e` slice alone is Apple silicon too, and runs on macOS 27.2 with no
+    # boot-arg (measured 10-20); before macOS 26 a third party's arm64e reportedly
+    # needed `-arm64e_preview_abi`, and DuoUpdater supports 15.
+    if archs and "arm64" not in archs:
+        notes.append(f"the only Apple silicon slice is {', '.join(a for a in archs if a.startswith('arm64'))}: "
+                     "TODO(audit) — check it launches on macOS 15 (DuoUpdater's floor) before offering it")
     names = {a["name"] for a in rel["assets"]}
     asset_pattern = generalise(asset, find_version(asset, short, prefer=(tag_version,)), VERSION, build)
     match_pattern = asset_pattern

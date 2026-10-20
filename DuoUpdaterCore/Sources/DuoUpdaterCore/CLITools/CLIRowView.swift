@@ -96,9 +96,82 @@ public struct CLIRowSnapshot<Key: Hashable & Sendable>: Equatable, Sendable {
                  withheld: withheld, manualCommand: manualCommand, hasLatestVersion: hasLatestVersion,
                  error: error, justUpdated: justUpdated)
         }
+
+        /// Its Cancel as every surface counts it. A live one on a copy whose
+        /// job has ended — its update ran and waits on its check, or its turn
+        /// is asking its tool again — stops nothing: there is no Cancel then
+        /// (#1511: one kept live through the re-check went away when clicked).
+        var countedCancel: InstallCancelState? {
+            switch phase {
+            case .awaitingCheck, .checkingAtTurn:
+                return cancel == .available && !cancelPending ? nil : cancel
+            case .idle, .queued, .running:
+                return cancel
+            }
+        }
+
+        /// Its progress as its rows word it: "Cancelling…" once that is due,
+        /// else its line; nil while it has none.
+        var progress: CLIProgressLine? {
+            if cancel == .cancelling { return .cancelling }
+            return line.map(CLIProgressLine.line)
+        }
+
+        /// What its own Update slot holds while it runs: its spinner, with its
+        /// Cancel unless it has none to show (accepted and said on its line).
+        private var runningSlot: CLIRowState<Key> {
+            CLIRowSnapshot(tools: [self]).groupCancel(of: [id], running: [], floor: false)
+                .map(CLIRowState.cancel) ?? .spinnerOnly
+        }
+
+        /// Its row in the workbench sidebar: the trailing slot and the caption.
+        /// Its own facts alone, so a row is built and drawn from its copy only
+        /// (`CLIRowSnapshot.sidebar(_:)` is this). Idle, it reads neither its
+        /// Cancel nor its line.
+        public var sidebar: CLISidebarRow<Key> {
+            let slot: CLIRowState<Key>
+            if phase != .idle {
+                slot = runningSlot
+            } else if oneClick {
+                slot = .update(admin: needsAdministrator)
+            } else if let manualCommand {
+                slot = .copy(manualCommand)
+            } else {
+                slot = .none
+            }
+            let caption: CLISidebarRow<Key>.Caption
+            if let error {
+                caption = .error(error)
+            } else if phase != .idle {
+                caption = .progress(progress ?? .updating)
+            } else if let justUpdated {
+                caption = .updated(version: justUpdated, restartSessions: kind == .claudeCode)
+            } else {
+                caption = .status
+            }
+            return CLISidebarRow(slot: slot, caption: caption)
+        }
+
+        /// Its detail pane's header action: "Update to X", or the update's
+        /// progress capsule with its Cancel. Never a command to copy — the pane
+        /// says that further down. Its own facts alone, as `sidebar`.
+        public var detailHeader: CLIDetailHeader<Key> {
+            if phase != .idle {
+                return CLIDetailHeader(action: runningSlot, progress: progress ?? .updating)
+            }
+            if oneClick, hasLatestVersion {
+                return CLIDetailHeader(action: .update(admin: needsAdministrator), progress: nil)
+            }
+            return CLIDetailHeader(action: .none, progress: nil)
+        }
     }
 
     public var tools: [Tool]
+    /// Copies an update has claimed that the last check no longer lists — a
+    /// check during the update found them gone or moved. They still run, so
+    /// they count for whether the row is running and for every Cancel, but
+    /// no row names them.
+    public var unlisted: [Tool]
     /// Whether the scan found any copy at all: the popover's row is there.
     public var hasSightings: Bool
     /// Whether the first check has returned.
@@ -115,11 +188,12 @@ public struct CLIRowSnapshot<Key: Hashable & Sendable>: Equatable, Sendable {
     public var updateAllStartable: Bool
 
     public init(
-        tools: [Tool] = [], hasSightings: Bool = true, checked: Bool = true,
+        tools: [Tool] = [], unlisted: [Tool] = [], hasSightings: Bool = true, checked: Bool = true,
         updatingAll: Bool = false, updateAllWaiting: Bool = false, batchIDs: Set<Key> = [],
         updateAllOffered: Bool = false, updateAllStartable: Bool = false
     ) {
         self.tools = tools
+        self.unlisted = unlisted
         self.hasSightings = hasSightings
         self.checked = checked
         self.updatingAll = updatingAll
@@ -131,31 +205,21 @@ public struct CLIRowSnapshot<Key: Hashable & Sendable>: Equatable, Sendable {
 
     /// The same with **no defaults** — see `Tool.live`.
     public static func live(
-        tools: [Tool], hasSightings: Bool, checked: Bool,
+        tools: [Tool], unlisted: [Tool], hasSightings: Bool, checked: Bool,
         updatingAll: Bool, updateAllWaiting: Bool, batchIDs: Set<Key>,
         updateAllOffered: Bool, updateAllStartable: Bool
     ) -> CLIRowSnapshot {
-        CLIRowSnapshot(tools: tools, hasSightings: hasSightings, checked: checked,
+        CLIRowSnapshot(tools: tools, unlisted: unlisted, hasSightings: hasSightings, checked: checked,
                        updatingAll: updatingAll, updateAllWaiting: updateAllWaiting, batchIDs: batchIDs,
                        updateAllOffered: updateAllOffered, updateAllStartable: updateAllStartable)
     }
 
-    public func tool(_ id: Key) -> Tool? { tools.first { $0.id == id } }
+    public func tool(_ id: Key) -> Tool? { tools.first { $0.id == id } ?? unlisted.first { $0.id == id } }
+
+    /// Every copy the snapshot knows, listed or not.
+    private var everyCopy: [Tool] { tools + unlisted }
 
     // MARK: - Cancel
-
-    /// A copy's Cancel as every surface counts it. A live one on a copy whose
-    /// job has ended — its update ran and waits on its check, or its turn is
-    /// asking its tool again — stops nothing: there is no Cancel then (#1511:
-    /// one kept live through the re-check went away when clicked).
-    private func cancel(of tool: Tool) -> InstallCancelState? {
-        switch tool.phase {
-        case .awaitingCheck, .checkingAtTurn:
-            return tool.cancel == .available && !tool.cancelPending ? nil : tool.cancel
-        case .idle, .queued, .running:
-            return tool.cancel
-        }
-    }
 
     /// The one Cancel aggregator: what a Cancel standing for the copies
     /// `scope` names draws (`InstallRowSmoothing.Output.groupCancel`), off the
@@ -163,8 +227,8 @@ public struct CLIRowSnapshot<Key: Hashable & Sendable>: Equatable, Sendable {
     /// `floor` keeps a greyed one where there would be none.
     public func groupCancel(of scope: Set<Key>, running: Set<Key>, floor: Bool) -> GroupCancel? {
         var rows = InstallRowSmoothing<Key>.Output()
-        for tool in tools where scope.contains(tool.id) {
-            rows.cancels[tool.id] = cancel(of: tool)
+        for tool in everyCopy where scope.contains(tool.id) {
+            rows.cancels[tool.id] = tool.countedCancel
             if tool.cancelPending { rows.cancelPending.insert(tool.id) }
         }
         return rows.groupCancel(of: scope, running: running, floor: floor)
@@ -173,8 +237,8 @@ public struct CLIRowSnapshot<Key: Hashable & Sendable>: Equatable, Sendable {
     /// The popover row's Cancel: every copy the row says is updating, whichever
     /// click claimed it. The row's head names those not queued.
     public var rowCancel: GroupCancel? {
-        let claimed = Set(tools.lazy.filter { $0.phase != .idle }.map(\.id))
-        let running = Set(tools.lazy.filter { $0.phase != .idle && $0.phase != .queued }.map(\.id))
+        let claimed = Set(everyCopy.lazy.filter { $0.phase != .idle }.map(\.id))
+        let running = Set(everyCopy.lazy.filter { $0.phase != .idle && $0.phase != .queued }.map(\.id))
         return groupCancel(of: claimed, running: running, floor: false)
     }
 
@@ -193,57 +257,14 @@ public struct CLIRowSnapshot<Key: Hashable & Sendable>: Equatable, Sendable {
 
     // MARK: - Surfaces
 
-    /// One copy's progress as its rows word it: "Cancelling…" once that is
-    /// due, else its line; nil while it has none.
-    private func progress(of tool: Tool) -> CLIProgressLine? {
-        if tool.cancel == .cancelling { return .cancelling }
-        return tool.line.map(CLIProgressLine.line)
-    }
-
-    /// What a copy's own Update slot holds while it runs: its spinner, with
-    /// its Cancel unless it has none to show (accepted and said on its line).
-    private func runningSlot(_ tool: Tool) -> CLIRowState<Key> {
-        groupCancel(of: [tool.id], running: [], floor: false).map(CLIRowState.cancel) ?? .spinnerOnly
-    }
-
-    /// The workbench sidebar's row of `id`: its trailing slot and its caption.
+    /// The workbench sidebar's row of `id` (`Tool.sidebar`).
     public func sidebar(_ id: Key) -> CLISidebarRow<Key> {
-        guard let tool = tool(id) else { return CLISidebarRow(slot: .none, caption: .status) }
-        let slot: CLIRowState<Key>
-        if tool.phase != .idle {
-            slot = runningSlot(tool)
-        } else if tool.oneClick {
-            slot = .update(admin: tool.needsAdministrator)
-        } else if let command = tool.manualCommand {
-            slot = .copy(command)
-        } else {
-            slot = .none
-        }
-        let caption: CLISidebarRow<Key>.Caption
-        if let error = tool.error {
-            caption = .error(error)
-        } else if tool.phase != .idle {
-            caption = .progress(progress(of: tool) ?? .updating)
-        } else if let version = tool.justUpdated {
-            caption = .updated(version: version, restartSessions: tool.kind == .claudeCode)
-        } else {
-            caption = .status
-        }
-        return CLISidebarRow(slot: slot, caption: caption)
+        tool(id)?.sidebar ?? CLISidebarRow(slot: .none, caption: .status)
     }
 
-    /// A detail pane's header action for `id`: "Update to X", or the update's
-    /// progress capsule with its Cancel. Never a command to copy — the pane
-    /// says that further down.
+    /// A detail pane's header action for `id` (`Tool.detailHeader`).
     public func detailHeader(_ id: Key) -> CLIDetailHeader<Key> {
-        guard let tool = tool(id) else { return CLIDetailHeader(action: .none, progress: nil) }
-        if tool.phase != .idle {
-            return CLIDetailHeader(action: runningSlot(tool), progress: progress(of: tool) ?? .updating)
-        }
-        if tool.oneClick, tool.hasLatestVersion {
-            return CLIDetailHeader(action: .update(admin: tool.needsAdministrator), progress: nil)
-        }
-        return CLIDetailHeader(action: .none, progress: nil)
+        tool(id)?.detailHeader ?? CLIDetailHeader(action: .none, progress: nil)
     }
 
     /// The workbench's Update All for the tool groups.
@@ -257,7 +278,7 @@ public struct CLIRowSnapshot<Key: Hashable & Sendable>: Equatable, Sendable {
     public var popover: CLIPopoverRow<Key>? {
         guard hasSightings else { return nil }
         typealias Row = CLIPopoverRow<Key>
-        if updatingAll || tools.contains(where: { $0.phase != .idle }) {
+        if updatingAll || everyCopy.contains(where: { $0.phase != .idle }) {
             let button = rowCancel.map(CLIRowState.cancel) ?? .none
             // A queued copy is not running.
             let claimed = tools.filter { $0.phase != .idle && $0.phase != .queued }
@@ -271,7 +292,7 @@ public struct CLIRowSnapshot<Key: Hashable & Sendable>: Equatable, Sendable {
             let running = claimed.filter { $0.phase != .awaitingCheck }
             let named = running.isEmpty ? claimed : running
             let head = Row.Line.updating(Set(named.map(\.kind)).count == 1 ? named[0].kind : nil)
-            let progress = named.lazy.compactMap { self.progress(of: $0) }.first
+            let progress = named.lazy.compactMap(\.progress).first
             return Row(lines: [head] + (progress.map { [.progress($0)] } ?? []),
                        mark: .spinner, button: button, isRunning: true)
         }

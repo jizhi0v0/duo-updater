@@ -2854,12 +2854,14 @@ struct CLIToolsModelTests {
         let model = Self.model(check: FakeCheck([(Self.report(Self.status(path)), nil)]), updater: updater, others: [npm])
         await model.refresh()
         #expect(model.rowSnapshot.updateAllHeader == .update(startable: true))
+        expectRowToolsAgree(model)
 
         let all = Task { await model.updateAll() }
         await until { await commitGate.arrived == 1 }
         await until { model.cancels[claude] == .committing }
         await until { await gate.arrived == 1 }
         let running = model.rowSnapshot
+        expectRowToolsAgree(model)
         #expect(running.tools.map(\.id) == model.statuses.map(\.toolID))
         #expect(running.hasSightings && running.checked)
         #expect(running.updatingAll && !running.updateAllWaiting)
@@ -2884,16 +2886,32 @@ struct CLIToolsModelTests {
         #expect(accepted.tool(tsx) == nil || accepted.tool(tsx)?.phase == .idle)
         // Every surface off the one snapshot, the model's Cancels included.
         #expect(accepted.sidebar(pnpm).slot == .cancel(.init(state: .available, pending: true, live: 0)))
-        #expect(accepted.detailHeader(pnpm).action == accepted.sidebar(pnpm).slot)
+        #expect(accepted.detailHeader(pnpm).action == .cancel(.init(state: .available, pending: true, live: 0)))
         #expect(accepted.popover?.button == .cancel(.init(state: .available, pending: true, live: 0)))
         #expect(accepted.updateAllHeader == .running(.init(state: .available, pending: true, live: 0)))
-        #expect(model.rowCancel == accepted.rowCancel)
-        #expect(model.updateAllCancel == accepted.updateAllCancel)
+        #expect(model.rowCancel == .init(state: .available, pending: true, live: 0))
+        #expect(model.updateAllCancel == .init(state: .available, pending: true, live: 0))
+        expectRowToolsAgree(model)
 
         await gate.open()
         await commitGate.open()
         await all.value
         #expect(model.rowSnapshot.tools.allSatisfy { $0.phase == .idle })
+        expectRowToolsAgree(model)
+    }
+
+    /// What a sidebar row and a detail header build for their one copy
+    /// (`rowTool`) is what the whole snapshot holds for it, so the scoped
+    /// builder and the full one cannot drift apart.
+    private func expectRowToolsAgree(_ model: CLIToolsModel, sourceLocation: SourceLocation = #_sourceLocation) {
+        let snapshot = model.rowSnapshot
+        for status in model.statuses {
+            let id = status.toolID
+            #expect(model.rowTool(status) == snapshot.tool(id), sourceLocation: sourceLocation)
+            #expect(model.rowTool(id) == snapshot.tool(id), sourceLocation: sourceLocation)
+            #expect(model.rowTool(status).sidebar == snapshot.sidebar(id), sourceLocation: sourceLocation)
+            #expect(model.rowTool(status).detailHeader == snapshot.detailHeader(id), sourceLocation: sourceLocation)
+        }
     }
 
     // MARK: a click's offer at its turn

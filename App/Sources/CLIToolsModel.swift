@@ -1367,25 +1367,49 @@ final class CLIToolsModel {
     }
 
     /// What every command-line tools surface draws from (`CLIRowSnapshot`):
-    /// the popover's row, the workbench's rows, detail headers and Update All
-    /// all read whether a copy runs, and what its Cancel says, from here.
+    /// the popover's row and the workbench's Update All read whether a copy
+    /// runs, and what its Cancel says, from here; a sidebar row and a detail
+    /// header from `rowTool`, the same facts of their one copy.
     var rowSnapshot: CLIRowSnapshot<CLIToolID> {
-        .live(
-            tools: statuses.map { status in
-                let id = status.toolID
-                return .live(
-                    id: id, kind: status.kind, phase: phase(id),
-                    cancel: cancelRows.cancels[id], cancelPending: cancelRows.cancelPending.contains(id),
-                    line: stageLine(id),
-                    state: status.state, oneClick: status.oneClick != nil,
-                    needsAdministrator: status.needsAdministrator, withheld: status.withheld,
-                    manualCommand: CLIToolPresentation.manualCommand(status),
-                    hasLatestVersion: status.latestVersion != nil,
-                    error: errors[id], justUpdated: justUpdated[id])
-            },
+        let listed = Set(statuses.map(\.toolID))
+        return .live(
+            tools: statuses.map { rowTool(id: $0.toolID, status: $0) },
+            // Claimed, and gone from the last check's report: still running,
+            // still the row's to count and to cancel.
+            unlisted: updating.union(batchIDs).subtracting(listed)
+                .sorted { $0.tag < $1.tag }.map { rowTool(id: $0, status: nil) },
             hasSightings: !sightings.isEmpty, checked: checked,
             updatingAll: updatingAll, updateAllWaiting: updateAllWaiting, batchIDs: batchIDs,
             updateAllOffered: updateAllOffered, updateAllStartable: updateAllStartable)
+    }
+
+    /// One copy's facts for its own sidebar row and detail header, as
+    /// `rowSnapshot` holds them. Reads only what that copy's rows need: an
+    /// idle copy reads `updating` and its status, error and confirmation —
+    /// never `progress` or `cancelRows`, which change with every output line
+    /// of any update.
+    func rowTool(_ status: CLIToolStatus) -> CLIRowSnapshot<CLIToolID>.Tool {
+        rowTool(id: status.toolID, status: status)
+    }
+
+    /// The same for `id`, listed or not.
+    func rowTool(_ id: CLIToolID) -> CLIRowSnapshot<CLIToolID>.Tool {
+        rowTool(id: id, status: status(id))
+    }
+
+    private func rowTool(id: CLIToolID, status: CLIToolStatus?) -> CLIRowSnapshot<CLIToolID>.Tool {
+        let phase = phase(id)
+        let runs = phase != .idle
+        return .live(
+            id: id, kind: id.kind, phase: phase,
+            cancel: runs ? cancelRows.cancels[id] : nil,
+            cancelPending: runs && cancelRows.cancelPending.contains(id),
+            line: runs ? stageLine(id) : nil,
+            state: status?.state ?? .unknown, oneClick: status?.oneClick != nil,
+            needsAdministrator: status?.needsAdministrator ?? false, withheld: status?.withheld,
+            manualCommand: status.flatMap(CLIToolPresentation.manualCommand),
+            hasLatestVersion: status?.latestVersion != nil,
+            error: errors[id], justUpdated: justUpdated[id])
     }
 
     /// `id`'s phase, read off the claim sets. Claimed, not queued and not

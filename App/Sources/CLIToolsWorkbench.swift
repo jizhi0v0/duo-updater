@@ -189,8 +189,8 @@ struct CLIToolSidebarRow: View {
     var showsRuntime = true
 
     private var id: CLIToolID { status.toolID }
-    /// What the row draws (`CLIRowSnapshot.sidebar`).
-    private var row: CLISidebarRow<CLIToolID> { cli.rowSnapshot.sidebar(id) }
+    /// What the row draws (`CLIRowSnapshot.Tool.sidebar`).
+    private var row: CLISidebarRow<CLIToolID> { cli.rowTool(status).sidebar }
 
     var body: some View {
         let row = row
@@ -571,8 +571,8 @@ struct ClaudeCodeDetailPane: View {
 
     private var path: String { status.install.path }
     private var id: CLIToolID { CLIToolID(kind: .claudeCode, path: path) }
-    /// What the header's action draws (`CLIRowSnapshot.detailHeader`).
-    private var headerState: CLIDetailHeader<CLIToolID> { cli.rowSnapshot.detailHeader(id) }
+    /// What the header's action draws (`CLIRowSnapshot.Tool.detailHeader`).
+    private var headerState: CLIDetailHeader<CLIToolID> { cli.rowTool(id).detailHeader }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -757,8 +757,8 @@ struct CLIToolDetailPane: View {
     @State private var breakingJump: BreakingChangesJump?
 
     private var id: CLIToolID { status.toolID }
-    /// What the header's action draws (`CLIRowSnapshot.detailHeader`).
-    private var headerState: CLIDetailHeader<CLIToolID> { cli.rowSnapshot.detailHeader(id) }
+    /// What the header's action draws (`CLIRowSnapshot.Tool.detailHeader`).
+    private var headerState: CLIDetailHeader<CLIToolID> { cli.rowTool(status).detailHeader }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {

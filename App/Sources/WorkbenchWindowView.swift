@@ -1041,34 +1041,8 @@ struct WorkbenchWindowView: View {
     /// landing mid-run can hold back every copy left ("npm is busy in this
     /// prefix", its own run's npm), and the header took its spinner and Cancel
     /// with it (2026-10-20, #1498 real-Mac check).
-    @ViewBuilder
     private var otherToolsBulkUpdate: some View {
-        let tools = model.cliTools
-        // `CLIRowSnapshot.updateAllHeader`.
-        let header = tools.rowSnapshot.updateAllHeader
-        let running: InstallRowSmoothing<CLIToolID>.GroupCancel? = if case .running(let cancel) = header { cancel } else { nil }
-        if header != .hidden {
-            Button("Update All") { Task { await tools.updateAll() } }
-                .controlSize(.small)
-                .buttonStyle(.bordered)
-                // Not disabled by another run: behind one it waits its turn
-                // (`CLIRunQueue`), and can be taken back meanwhile.
-                .disabled(header != .update(startable: true))
-                .help(CLIToolPresentation.updateAllHelp)
-                .opacity(running != nil ? 0 : 1)
-                .overlay(alignment: .trailing) {
-                    // Its Cancel beside the spinner, waiting or running, as
-                    // Homebrew's Upgrade All has (`CLIToolsModel.updateAllCancel`).
-                    if let cancel = running {
-                        HStack(spacing: 4) {
-                            ProgressView().controlSize(.small)
-                            InstallCancelButton(state: cancel.state, pending: cancel.pending) { tools.cancelUpdateAll() }
-                        }
-                    }
-                }
-                // The rest of a double-click on Update All is not a click on its Cancel.
-                .swallowsClicksAfterSwap(of: running != nil)
-        }
+        OtherToolsUpdateAllButton(tools: model.cliTools)
     }
 
     // MARK: - Homebrew group
@@ -5028,4 +5002,40 @@ private struct CachedWebViewRepresentable: NSViewRepresentable {
 
     // The cached view already holds the loaded page; nothing to do on update.
     func updateNSView(_ view: WKWebView, context: Context) {}
+}
+
+/// Update All for the tool groups in the workbench sidebar's header
+/// (`WorkbenchWindowView.otherToolsBulkUpdate`), drawn from
+/// `CLIRowSnapshot.updateAllHeader`. A view of its own so that what it reads —
+/// the rows' smoothed Cancels and lines, which change with every output line
+/// of a running update — redraws it alone, not the whole workbench.
+private struct OtherToolsUpdateAllButton: View {
+    let tools: CLIToolsModel
+
+    var body: some View {
+        let header = tools.rowSnapshot.updateAllHeader
+        let running: InstallRowSmoothing<CLIToolID>.GroupCancel? = if case .running(let cancel) = header { cancel } else { nil }
+        if header != .hidden {
+            Button("Update All") { Task { await tools.updateAll() } }
+                .controlSize(.small)
+                .buttonStyle(.bordered)
+                // Not disabled by another run: behind one it waits its turn
+                // (`CLIRunQueue`), and can be taken back meanwhile.
+                .disabled(header != .update(startable: true))
+                .help(CLIToolPresentation.updateAllHelp)
+                .opacity(running != nil ? 0 : 1)
+                .overlay(alignment: .trailing) {
+                    // Its Cancel beside the spinner, waiting or running, as
+                    // Homebrew's Upgrade All has (`CLIToolsModel.updateAllCancel`).
+                    if let cancel = running {
+                        HStack(spacing: 4) {
+                            ProgressView().controlSize(.small)
+                            InstallCancelButton(state: cancel.state, pending: cancel.pending) { tools.cancelUpdateAll() }
+                        }
+                    }
+                }
+                // The rest of a double-click on Update All is not a click on its Cancel.
+                .swallowsClicksAfterSwap(of: running != nil)
+        }
+    }
 }

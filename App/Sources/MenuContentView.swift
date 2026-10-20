@@ -925,10 +925,13 @@ private struct CommandLineRow: View {
             let claimed = tools.statuses.filter {
                 tools.updating.contains($0.toolID) && !tools.queued.contains($0.toolID)
             }
-            // Update All is this row's button's: while it waits or runs, its
-            // Cancel stands where that button stood, as Homebrew's row has.
-            let cancel: (any View)? = tools.updateAllCancel.map { state in
-                InstallCancelButton(state: state) { tools.cancelUpdateAll() }
+            // One Cancel where the Update button stood, for every copy the row
+            // says is updating — Update All's, and a click's of its own from the
+            // workbench, which had none here (2026-10-20).
+            let cancel: (any View)? = tools.rowCancel.map { group in
+                InstallCancelButton(state: group.state, pending: group.pending, count: group.live) {
+                    tools.cancelRow()
+                }
             }
             if claimed.isEmpty {
                 // Every copy claimed waits its turn behind another click's run

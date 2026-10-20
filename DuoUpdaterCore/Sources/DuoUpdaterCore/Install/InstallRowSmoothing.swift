@@ -58,6 +58,44 @@ public struct InstallRowSmoothing<Key: Hashable & Sendable>: Sendable {
             if stages.isEmpty { return previous ?? .pending }
             return .finishing
         }
+
+        /// One Cancel for the rows `ids` names, as a row that sums them up
+        /// draws it — the popover's command-line tools row, over every copy it
+        /// is updating, whichever click claimed it: live while any of them can
+        /// still be cancelled, and then greyed as theirs are (accepted, past
+        /// the commit, refused there). Nil once every one says "Cancelling…",
+        /// which the row's line then says, or when none has a Cancel.
+        public func groupCancel(of ids: some Sequence<Key>) -> GroupCancel? {
+            var live = 0, pending = false, committing = false, tooLate = false
+            for id in ids {
+                switch cancels[id] {
+                case .available: if cancelPending.contains(id) { pending = true } else { live += 1 }
+                case .committing: committing = true
+                case .tooLate: tooLate = true
+                case .cancelling, nil: break
+                }
+            }
+            if live > 0 { return GroupCancel(state: .available, pending: false, live: live) }
+            if pending { return GroupCancel(state: .available, pending: true, live: 0) }
+            if committing { return GroupCancel(state: .committing, pending: false, live: 0) }
+            if tooLate { return GroupCancel(state: .tooLate, pending: false, live: 0) }
+            return nil
+        }
+    }
+
+    /// See ``Output/groupCancel(of:)``: what `InstallCancelButton` draws.
+    public struct GroupCancel: Sendable, Equatable {
+        public var state: InstallCancelState
+        /// Accepted, with "Cancelling…" not shown yet: greyed.
+        public var pending: Bool
+        /// How many a click stops: its help says so when more than one.
+        public var live: Int
+
+        public init(state: InstallCancelState, pending: Bool, live: Int) {
+            self.state = state
+            self.pending = pending
+            self.live = live
+        }
     }
 
     /// See ``Output/cancelAllPhase(holding:)``.

@@ -2697,4 +2697,44 @@ struct CLIToolsModelTests {
         await click.value
         #expect(await updater.calls == [single])
     }
+
+    /// The popover row's one Cancel stands for every copy the row says is
+    /// updating, whichever click claimed it: a row's own click from the
+    /// workbench, waiting its turn, and a waiting Update All's copies are all
+    /// taken back by it, and none runs (2026-10-20: a lone click had none).
+    ///
+    /// Mutations: `rowCancel` over Update All's copies only (`batchIDs`) → no
+    /// Cancel for the lone click, then `live` 2, red; `cancelRow` only calls
+    /// `cancelUpdateAll` → the click stays claimed, red.
+    @Test(.timeLimit(.minutes(1))) func theRowsCancelTakesBackEveryClickItShows() async {
+        let path = Self.ownPath()
+        let single = Self.id(path)
+        let updater = FakeUpdater()
+        let npm = FakeProvider(
+            kind: .npm,
+            checker: FakeCheck([(Self.report(.npm, [Self.status(Self.pnpmCLI, kind: .npm), Self.status(Self.tsx, kind: .npm)]), nil)]),
+            updater: updater)
+        let model = Self.model(check: FakeCheck([(Self.report(Self.status(path)), nil)]), updater: updater, others: [npm])
+        await model.refresh()
+        let gate = Gate()
+        let held = await holdQueue(model, gate)
+
+        let click = Task { await model.update(single) }
+        await until { model.runQueue.isWaiting(.tool(single)) }
+        #expect(model.rowCancel == .init(state: .available, pending: false, live: 1))
+        let all = Task { await model.updateAll() }
+        await until { model.updateAllWaiting }
+        #expect(model.rowCancel == .init(state: .available, pending: false, live: 3))
+        model.cancelRow()
+        #expect(!model.updatingAll)
+        #expect(model.updating.isEmpty)
+        #expect(model.runQueue.waiting.isEmpty)
+        #expect(model.rowCancel == nil)
+        await all.value
+        await click.value
+
+        await gate.open()
+        await held.value
+        #expect(await updater.calls.isEmpty)
+    }
 }

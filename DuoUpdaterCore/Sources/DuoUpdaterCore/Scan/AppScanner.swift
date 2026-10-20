@@ -836,6 +836,12 @@ public struct AppScanner: Sendable {
             releaseChannel = channel
             channelIsAuthoritative = true
         }
+        // Lapce: the nightly shares the stable id and Info.plist; only the
+        // executable names it. See `LapceBuild`.
+        if bundleID == LapceBuild.bundleID, let channel = LapceBuild.channel(bundleAt: bundleURL) {
+            releaseChannel = channel
+            channelIsAuthoritative = true
+        }
         if let bound = channelBinding(
             bundleID, ChannelBinding.bundleFeeds(fromInfoPlist: plist),
             ChannelBinding.bundleStrings(fromInfoPlist: plist)) {

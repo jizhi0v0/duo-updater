@@ -460,6 +460,17 @@ public struct RemoteVersion: Sendable, Hashable {
     /// answer.
     public let subscriptionHold: SubscriptionHold?
 
+    /// The channel of the build this answer would INSTALL, when the source can
+    /// name it independently of the copy on disk. Only `HomebrewCaskSource` sets
+    /// it, to `.stable` for a standard cask (`CaskEntry.isStandardStableCask`); nil
+    /// everywhere else means "not stated", never "stable".
+    ///
+    /// Not `releaseChannel`, which describes the INSTALLED copy. The two differ
+    /// exactly when brew is about to put a stable build over a copy the user
+    /// replaced with a nightly or beta — `UpdateResult.replacesChannelWithStable`.
+    /// About the cask, not the copy, so `carriedForward` keeps it across a rescan.
+    public var offeredChannel: ReleaseChannel?
+
     public init(
         shortVersion: String?,
         version: String?,
@@ -957,6 +968,27 @@ public struct UpdateResult: Sendable, Identifiable, Equatable {
         return VersionComparator.compare(offered, migration.firstToVersion) != .orderedAscending
     }
 
+    /// The non-stable channel this copy is on when the update offered would put a
+    /// STABLE build over it — a cask brew installed, which the user then replaced
+    /// with a nightly or beta of the same app (Lapce: `brew install --cask lapce`,
+    /// then the nightly dragged over it; `LapceBuild` reads it as `.nightly`, and
+    /// the `lapce` cask has no other track). nil for every other row.
+    ///
+    /// A reminder, not a gate — the user decided so (2026-10-20). Like
+    /// `isVendorRewrite` it makes `isMajorUpgrade` true, which puts the row behind
+    /// the existing confirmation: it prompts, it never blocks. The update itself
+    /// is unchanged; brew would do the same on the user's own `brew upgrade`
+    /// (measured with Homebrew 7.0.10: it moved the nightly aside and installed
+    /// 0.4.6 without looking inside the bundle).
+    ///
+    /// Only the source can say what it installs (`RemoteVersion.offeredChannel`),
+    /// and only Homebrew does; the copy's side is the channel the row shows.
+    public var replacesChannelWithStable: ReleaseChannel? {
+        guard case .updateAvailable = status, remote?.offeredChannel == .stable else { return nil }
+        let installed = effectiveReleaseChannel
+        return installed == .stable ? nil : installed
+    }
+
     /// True when the available update is a notable/major upgrade — the signal we
     /// surface to warn that a commercial app may require a new license (the same
     /// heuristic MacUpdater surfaces).
@@ -977,8 +1009,9 @@ public struct UpdateResult: Sendable, Identifiable, Equatable {
         guard case .updateAvailable = status else { return false }
 
         // Ahead of every tier below, the license-neutral sources included: the
-        // question here is not a license but a different app.
-        if isVendorRewrite { return true }
+        // question here is not a license but a different app — or, for a channel
+        // switch, a different track of it.
+        if isVendorRewrite || replacesChannelWithStable != nil { return true }
 
         if let floor = remote?.minimumAutoupdateVersion?
             .trimmingCharacters(in: .whitespacesAndNewlines), !floor.isEmpty,

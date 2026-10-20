@@ -87,7 +87,7 @@ public struct HomebrewCaskSource: UpdateSource {
             .split(whereSeparator: { $0 == "," || $0 == ":" }).first
             .map(String.init) ?? entry.version
 
-        return RemoteVersion(
+        var remote = RemoteVersion(
             shortVersion: marketing,
             version: nil,
             // No URL is what keeps a detection-only cask off the package route
@@ -101,5 +101,11 @@ public struct HomebrewCaskSource: UpdateSource {
             sourceIdentifier: entry.token,
             requiresManualInstaller: entry.installKind != .brew
         )
+        // What brew will put on disk, for the reminder when that is not the
+        // copy's own channel (`UpdateResult.replacesChannelWithStable`). This
+        // source still answers for a nightly copy, on purpose: the user chose a
+        // reminder over a gate, and the cask is what brew updates either way.
+        if entry.isStandardStableCask { remote.offeredChannel = .stable }
+        return remote
     }
 }

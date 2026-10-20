@@ -49,6 +49,24 @@ enum RowStateGalleryCases {
             sourceName: "Vendor"),
         status: .updateAvailable(latest: "26.7.0"))
 
+    /// A copy brew installed from the standard cask and the user replaced with a
+    /// nightly — `UpdateResult.replacesChannelWithStable` needs the Homebrew
+    /// answer to say it installs stable (`offeredChannel`) and the copy to be on
+    /// another channel; either missing draws the license panel instead.
+    static let channelSwitchApp: UpdateResult = {
+        var remote = RemoteVersion(
+            shortVersion: "0.4.6", version: nil,
+            downloadURL: URL(string: "https://example.com/Example.dmg"),
+            sourceName: "Homebrew", sourceIdentifier: "lapce")
+        remote.offeredChannel = .stable
+        return UpdateResult(
+            app: InstalledApp(
+                name: "Lapce", bundleID: "io.lapce", shortVersion: "0.4.5", buildVersion: "1",
+                path: URL(fileURLWithPath: "/Applications/Lapce.app"),
+                isMASApp: false, sparkleFeedURL: nil, releaseChannel: .nightly),
+            remote: remote, status: .updateAvailable(latest: "0.4.6"))
+    }()
+
     // The App Store branches are the reason these exist. A single fixture with
     // `remote.appStore == nil` sent EVERY App Store state down `openButton`, so
     // three tiles rendered byte-identically and `appStoreTrailing` — region hint,
@@ -87,7 +105,7 @@ enum RowStateGalleryCases {
     @MainActor
     private static func popoverTile(name: String, state: RowActionState, result: UpdateResult) -> AnyView {
         switch name {
-        case "38-major-upgrade-explanation", "52-vendor-rewrite-explanation":
+        case "38-major-upgrade-explanation", "52-vendor-rewrite-explanation", "56-channel-switch-explanation":
             return AnyView(
                 PopoverRowAction(state: state, result: result).majorUpgradePopover.fixedSize())
         case "39-region-hint-explanation", "40-mac-compat-hint-explanation", "44-needs-newer-macos-hint-explanation":
@@ -316,6 +334,11 @@ enum RowStateGalleryCases {
         // (Surge): the lock in the checkmark's place, and its panel.
         ("53-subscription-hold", .subscriptionHold(subscriptionHold), app),
         ("54-subscription-hold-explanation", .subscriptionHold(subscriptionHold), app),
+        // 18's badge and 38's panel, for a Homebrew update that puts the stable
+        // cask over a nightly copy (`UpdateResult.replacesChannelWithStable`): the
+        // same confirmation, channel wording; the workbench says it in words.
+        ("55-channel-switch", .updateAvailable(.majorUpgrade), channelSwitchApp),
+        ("56-channel-switch-explanation", .updateAvailable(.majorUpgrade), channelSwitchApp),
     ]
 
     /// A date written out, never read, for the same reason as the hosts below.
@@ -367,6 +390,7 @@ enum RowStateGalleryCases {
         "51-orphaned-store-copy-explanation",
         "52-vendor-rewrite-explanation",
         "54-subscription-hold-explanation",
+        "56-channel-switch-explanation",
     ]
 
     /// Tiles that are ALLOWED to draw nothing — keyed by SURFACE and state, not by
@@ -389,6 +413,7 @@ enum RowStateGalleryCases {
         "workbench/48-not-for-this-macos-ceiling-explanation",
         "workbench/49-not-for-this-macos-floor-explanation",
         "workbench/52-vendor-rewrite-explanation",
+        "workbench/56-channel-switch-explanation",
     ]
 
     /// Pairs of states that legitimately draw the same picture, keyed
@@ -484,6 +509,16 @@ enum RowStateGalleryCases {
         ["popover/43-update-app-store-needs-newer-macos", "popover/50-orphaned-store-copy"],
         ["popover/46-not-for-this-macos-ceiling", "popover/50-orphaned-store-copy"],
         ["popover/47-not-for-this-macos-floor", "popover/50-orphaned-store-copy"],
+        // A channel switch is 18's confirmation with other words, so it takes 18's
+        // badge — and collides with every triangle 18 does. Popover only; the
+        // workbench says "Switches to stable". Not claimed as tooltip-differentiated:
+        // the panel is what tells them apart.
+        ["popover/18-update-major-upgrade", "popover/55-channel-switch"],
+        ["popover/22-update-app-store-mac-incompatible", "popover/55-channel-switch"],
+        ["popover/43-update-app-store-needs-newer-macos", "popover/55-channel-switch"],
+        ["popover/46-not-for-this-macos-ceiling", "popover/55-channel-switch"],
+        ["popover/47-not-for-this-macos-floor", "popover/55-channel-switch"],
+        ["popover/50-orphaned-store-copy", "popover/55-channel-switch"],
         // Workbench, and on purpose: a vendor's floor reached through a probe or a
         // feed is the same condition as the App Store's floor, so it takes the same
         // words ("Needs a newer macOS") rather than a synonym (`OSWindowWording`).
@@ -538,6 +573,7 @@ enum RowStateGalleryCases {
         "popover/47-not-for-this-macos-floor",
         "popover/50-orphaned-store-copy",
         "popover/53-subscription-hold",
+        "popover/55-channel-switch",
 
         // Cause 2: a plain native `ProgressView()` (indeterminate spinner) or
         // `ProgressView(value:)` (determinate bar) — `ImageRenderer` draws the

@@ -18,7 +18,7 @@
 |             | Sparkle | Homebrew | MAS | GitHub | VendorProbe |
 |-------------|---------|----------|-----|--------|-------------|
 | **stable**  | —       | ✓（cask 装的副本走 brew） | — | ✓ | — |
-| **nightly** | —       | ✗（cask 装后换成 nightly 的副本仍被推 stable，见已知问题） | —   | ✗（识别、GitHub 路径不推 stable；见下） | — |
+| **nightly** | —       | ✗（cask 装后换成 nightly 的副本仍被推 stable，但会提醒，见已知问题） | —   | ✗（识别、GitHub 路径不推 stable；见下） | — |
 
 当前生效源: **GitHub**（channel-verify：`winning source GitHub`）
 
@@ -39,7 +39,7 @@
   v0.4.6 / v0.4.5 含 `Lapce-Stable` 3 次、`Lapce-Nightly` 0 次。`+Nightly.` 不能当标记——stable 里也有（更新器拼 nightly 版本号的格式串）。
 - **为什么必须识别 nightly**: 只有 stable rule 时 nightly 副本被当成 stable，下一个 stable 发布时会被推送并一键装到 nightly 上——
   换了轨道，而且 app 按 `NAME` 找数据目录（`~/Library/Application Support/dev.lapce.Lapce-Nightly` vs `…Lapce-Stable`），
-  用户会看到设置和插件「没了」（`…Lapce-Stable` 是 cask 的 zap 列出的路径；`…Lapce-Nightly` 按 `ProjectDirs::from("dev", "lapce", NAME)` 推得，未在真机上看）。所以 `LapceBuild` 把它判为 `.nightly`，`GitHubReleasesSource` 的渠道闸让 stable rule 跳过它。**这层保护只覆盖 GitHub 路径**；Homebrew 路径见已知问题。
+  用户会看到设置和插件「没了」（`…Lapce-Stable` 是 cask 的 zap 列出的路径；`…Lapce-Nightly` 按 `ProjectDirs::from("dev", "lapce", NAME)` 推得，未在真机上看）。所以 `LapceBuild` 把它判为 `.nightly`，`GitHubReleasesSource` 的渠道闸让 stable rule 跳过它。**这层保护只覆盖 GitHub 路径**；Homebrew 路径只提醒，见已知问题。
 - **为什么 nightly 不接 rule（缺口的理由）**: nightly tag 叫 `nightly`，不带版本；装好的副本 plist 版本在两次 release 之间不动，
   所以没法用版本号比新旧。能比的只有 commit（二进制里 `+Nightly.<7 位>` 对 release 的 `target_commitish`），
   这要 `BuildLineage` / `headBuildPattern` 那一类按 commit 排序的机制，而它们只在 VendorProbe 上有、`GitHubReleaseRule` 没有。
@@ -104,7 +104,7 @@
 - nightly 轨只识别不更新（见 Channel 详情）
 - v0.0.6 – v0.2.0 的 `0.10.0-dev` 副本不检测（见更新检测）
 - 识别要读可执行文件，按 size+mtime 缓存，同一份只读一次。stable 副本没有标记，要读到文件尾（v0.4.6 为 94 MB）；nightly 读到第一处标记就停（2026-10-09 nightly 在第 35,277,466 字节，共 90,539,952 字节）
-- **cask 装、后来换成 nightly 的副本不受保护**: `HomebrewCaskSource` 排在 GitHub 前面（`Engine/SourceStack.swift:37` vs `:46`），且完全不读 `releaseChannel`（`HomebrewCaskSource.swift` 里 0 处）。`brew install --cask lapce` 之后用户手动换成 nightly 的副本，仍会被推 stable cask，`brew upgrade --cask lapce` 照常执行，nightly 被换成 stable。这是 `HomebrewCaskSource` 全引擎的缺口，不是 Lapce 特有的，另行跟踪；`LapceBuild` 只保护 GitHub 路径
+- **cask 装、后来换成 nightly 的副本：只提醒、不拦截**（用户 2026-10-20 拍板）: `HomebrewCaskSource` 排在 GitHub 前面，照样推 stable cask、一键照样执行 `brew install --cask --force lapce`。但标准 cask（token 不带 `@`，`CaskEntry.isStandardStableCask`）的应答带 `offeredChannel = .stable`，副本被识别成 nightly 时 `UpdateResult.replacesChannelWithStable` 非 nil：菜单栏走现有的「重大更新」确认框（换成「Switches to stable」文案），workbench 显示「Switches to stable」，`duo check` / `duo install` 在该行下打一行 `note:`。实测（Homebrew 7.0.10）用户自己跑 `brew upgrade --cask lapce` 也会把 nightly 换成 stable，brew 不看 .app 内容。全引擎通用，不是 Lapce 特有的
 - 可执行文件读不了时（`LapceBuild` 返回 nil），保留 `detect()` 的结果 `.stable`，nightly 副本会走 stable rule。现实中不太会出现：这要求 Info.plist 可读而 `Contents/MacOS/lapce` 不可读（权限或文件被换掉的瞬间）
 
 ## 建议下一步

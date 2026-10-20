@@ -149,6 +149,9 @@ public struct CaskEntry: Sendable {
     /// The cask's `depends_on.macos`, when it states one. `nil` means "runs
     /// anywhere", which is what the catalog says for the large majority.
     public let macOS: CaskMacOSRequirement?
+    /// The `.app` filenames this cask installs (`CaskIndex`'s lookup key), empty
+    /// for a cask with no `app` artifact. Read by `isStandardStableCask`.
+    public let appFilenames: [String]
 
     public init(
         token: String,
@@ -156,7 +159,8 @@ public struct CaskEntry: Sendable {
         url: URL?,
         autoUpdates: Bool,
         installKind: CaskInstallKind,
-        macOS: CaskMacOSRequirement? = nil
+        macOS: CaskMacOSRequirement? = nil,
+        appFilenames: [String] = []
     ) {
         self.token = token
         self.version = version
@@ -164,6 +168,38 @@ public struct CaskEntry: Sendable {
         self.autoUpdates = autoUpdates
         self.installKind = installKind
         self.macOS = macOS
+        self.appFilenames = appFilenames
+    }
+
+    /// Whether this is the app's standard cask, which installs its stable
+    /// release — what `HomebrewCaskSource` reports as `RemoteVersion.offeredChannel`
+    /// so a nightly or beta copy can be told that brew will put stable over it.
+    ///
+    /// The catalog states no channel, so this reads Homebrew's own naming rule
+    /// (docs.brew.sh/Cask-Cookbook, "Token reference"): an alternative upstream
+    /// channel is the standard token plus `@<channel>` (`google-chrome@beta`,
+    /// `vlc@nightly`), and "the most recent version does not have a suffix". So
+    /// any `@` disqualifies, the channel casks being the point: a nightly copy
+    /// installed by `foo@nightly` is where it belongs.
+    ///
+    /// `@<version>` casks (`corretto@11`) are skipped too, although they are
+    /// stable: a nightly dragged over a `foo@11` install gets no reminder. An
+    /// accepted miss — rare, and it errs toward silence.
+    ///
+    /// Second check: the cask's own `.app` name must also read `.stable` through
+    /// `ReleaseChannel.detect`, which keeps out a suffix-less cask whose app
+    /// carries a channel word. A backstop today: in the catalog read 2026-10-20,
+    /// none of the 4,763 casks the indexer keeps has that shape without being
+    /// `auto_updates`; the one cask in the whole catalog that does, `alpha` →
+    /// `Alpha.app`, is disabled. A cask with no `.app` artifact has only the token
+    /// to go on.
+    public var isStandardStableCask: Bool {
+        guard !token.contains("@") else { return false }
+        return appFilenames.allSatisfy { filename in
+            let name = filename.hasSuffix(".app") ? String(filename.dropLast(4)) : filename
+            return ReleaseChannel.detect(
+                name: name, bundleID: nil, keystoneChannel: nil, bundleFileName: filename) == .stable
+        }
     }
 
     /// Whether this cask's own constraint admits the given host. No constraint
@@ -375,6 +411,7 @@ public actor HomebrewCaskCatalog {
                 (cask["disabled"] as? Bool) != true
             else { continue }
 
+            let appNames = appFilenames(in: cask["artifacts"])
             let entry = CaskEntry(
                 token: token,
                 version: version,
@@ -382,7 +419,8 @@ public actor HomebrewCaskCatalog {
                 autoUpdates: (cask["auto_updates"] as? Bool) ?? false,
                 installKind: installKind(
                     artifacts: cask["artifacts"], url: cask["url"] as? String),
-                macOS: CaskMacOSRequirement.parse(dependsOn: cask["depends_on"])
+                macOS: CaskMacOSRequirement.parse(dependsOn: cask["depends_on"]),
+                appFilenames: appNames
             )
 
             // Both keys keep every declaring cask, in catalog order. Keeping the
@@ -391,7 +429,7 @@ public actor HomebrewCaskCatalog {
             // and the one this Mac can run, rather than whichever token sorted
             // first (the `onyx` / `onyx@beta` split, issue #638):
             // `docs/engine-notes/homebrew-cask-catalog.md` §2.
-            for appName in appFilenames(in: cask["artifacts"]) {
+            for appName in appNames {
                 byApp[appName.lowercased(), default: []].append(entry)
             }
             for bundleID in bundleIDs(in: cask["artifacts"]) {

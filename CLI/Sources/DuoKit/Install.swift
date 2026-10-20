@@ -776,6 +776,9 @@ public enum Install {
                 print("  \(item.result.app.name)  \(item.result.app.shortVersion ?? "?")"
                     + "  →  \(item.result.remote?.displayVersion ?? "?")"
                     + "  [\(item.route.rawValue)]")
+                if let channel = item.result.replacesChannelWithStable {
+                    print("      note: \(Check.channelReminder(channel.rawValue))")
+                }
             }
             // A tool's route is its own update command: the one its row's
             // Update button runs.

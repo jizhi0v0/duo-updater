@@ -661,7 +661,11 @@ struct WorkbenchRowAction: View {
 
         case .majorUpgrade:
             // License-boundary warning lives in the popover; don't one-click it here.
-            Label("Major update", systemImage: "exclamationmark.triangle.fill")
+            // A channel switch says so instead (`UpdateResult.replacesChannelWithStable`):
+            // "Major update" would be wrong about a 0.4.5 → 0.4.6 that leaves a nightly.
+            let switchesChannel = result.replacesChannelWithStable != nil
+            Label(switchesChannel ? String(localized: "Switches to stable") : String(localized: "Major update"),
+                  systemImage: "exclamationmark.triangle.fill")
                 .font(.callout).foregroundStyle(.orange)
                 // Same overflow protection its `.macIncompatible` /
                 // `.needsNewerMacOS` / `.region` siblings carry — it had none, and
@@ -670,7 +674,9 @@ struct WorkbenchRowAction: View {
                 // against a real row: this is the protection every sibling label
                 // has, not a fix for a width somebody measured overflowing.
                 .lineLimit(1).minimumScaleFactor(0.7)
-                .help("Major version upgrade — review and install it from the menu-bar popover")
+                .help(switchesChannel
+                      ? String(localized: "Switches this copy to the stable build — review and install it from the menu-bar popover")
+                      : String(localized: "Major version upgrade — review and install it from the menu-bar popover"))
 
         case .autoInstall:
             Button("Update \(result.offeredDisplay ?? "")") { actions.install() }

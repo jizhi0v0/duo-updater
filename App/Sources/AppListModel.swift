@@ -2250,8 +2250,6 @@ final class AppListModel {
                   !String(describing: type(of: window)).contains("StatusBar") else { return }
             MainActor.assumeIsolated { self?.cliTools.wakeProcessWatch() }
         }
-        // A tool's update never runs beside a brew run (`CLIConcurrency`).
-        cliTools.blockedByHomebrew = { [weak self] in self?.cliBlockedReason(.tool) != nil }
         // A rejection is reported from whichever request met it; the banner hears
         // of it on the main actor, unless the credentials changed in between.
         GitHubCredentials.shared.onRejected { [weak self] generation in
@@ -4531,41 +4529,72 @@ final class AppListModel {
     /// Run `brew update` for the offered release, then re-check and re-read the
     /// Brew tree (an update refreshes the package lists, so new upgrades can appear).
     func updateHomebrew() async {
-        // Not on top of another brew run or a tool's update (`CLIConcurrency`).
-        guard let offered = homebrewSelfUpdate, cliStart(.homebrewUpdate) == .now else { return }
+        guard homebrewSelfUpdate != nil, !homebrewUpdating else { return }
         homebrewUpdating = true
         homebrewUpdateError = nil
-        homebrewUpdateNote = String(localized: "Starting…")
-        defer { homebrewUpdating = false; homebrewUpdateNote = nil }
-        await afterBackgroundHomebrewUpdate()
-        do {
-            try await brewFormulaService.updateHomebrew(
-                environment: homebrewUpdateEnvironment
-            ) { [weak self] line in
-                Task { @MainActor in self?.homebrewUpdateNote = line }
+        let jobID = Self.homebrewUpdateJobID
+        // Run once: inside the Cancel when it is taken back while it waits
+        // (`CLIRunQueue`), otherwise when it is done.
+        let end = { [self] in homebrewUpdating = false; homebrewUpdateNote = nil; brewCancels[jobID] = nil }
+        // Behind another click's run it waits "Queued", and can be taken back
+        // until its turn. `brew update` itself has no Cancel.
+        if cliTools.runQueue.running != nil {
+            homebrewUpdateNote = String(localized: "Queued")
+            brewCancels[jobID] = .available
+        }
+        let ran = await cliTools.runQueue.perform(.homebrewUpdate, whenCancelled: end) {
+            self.brewCancels[jobID] = nil
+            // Read again at its turn: a background `brew update` or a check
+            // while it waited may have taken the offer away.
+            guard let offered = self.homebrewSelfUpdate else { return }
+            self.homebrewUpdateNote = String(localized: "Starting…")
+            await self.afterBackgroundHomebrewUpdate()
+            do {
+                try await self.brewFormulaService.updateHomebrew(
+                    environment: self.homebrewUpdateEnvironment
+                ) { [weak self] line in
+                    Task { @MainActor in self?.homebrewUpdateNote = line }
+                }
+            } catch {
+                self.homebrewUpdateError = error.localizedDescription
+                return
             }
-        } catch {
-            homebrewUpdateError = error.localizedDescription
-            return
+            await self.homebrewSelfUpdateLane.handle(.afterAction("brew update"))
+            // A successful `brew update` that still leaves the same release on offer
+            // (e.g. a mirror remote that lags GitHub) would otherwise look like a button
+            // that does nothing.
+            if let still = self.homebrewSelfUpdate, still.latest == offered.latest {
+                self.homebrewUpdateError = String(localized: "brew update finished, but Homebrew is still \(still.installed).")
+            }
+            await self.brewLane.handle(.afterAction("brew update"))
         }
-        await homebrewSelfUpdateLane.handle(.afterAction("brew update"))
-        // A successful `brew update` that still leaves the same release on offer
-        // (e.g. a mirror remote that lags GitHub) would otherwise look like a button
-        // that does nothing.
-        if let still = homebrewSelfUpdate, still.latest == offered.latest {
-            homebrewUpdateError = String(localized: "brew update finished, but Homebrew is still \(still.installed).")
-        }
-        await brewLane.handle(.afterAction("brew update"))
+        if ran { end() }
     }
 
     /// Run `brew upgrade --formula` (the bulk action, mirroring a bare terminal
     /// `brew upgrade` but formula-scoped) and refresh the list when it finishes.
     func upgradeBrewFormulae() async {
-        // Not on top of `brew update`, a row's own upgrade or a tool's update
-        // (`CLIConcurrency`).
-        guard cliStart(.upgradeAll) == .now else { return }
+        guard !brewUpgrading else { return }
         brewUpgrading = true
         brewUpgradeError = nil
+        let jobID = Self.upgradeAllJobID
+        // Live from the click: until its turn (`CLIRunQueue`) it takes Upgrade
+        // All out of the queue; after, it cancels brew's downloads.
+        brewCancels[jobID] = .available
+        // Run once: inside the Cancel when it is taken back while it waits,
+        // otherwise when it is done.
+        let end = { [self] in
+            brewUpgrading = false; brewUpgradeNote = nil; brewUpgradeDone = 0; brewUpgradeTotal = 0
+            brewCancels[jobID] = nil
+        }
+        if cliTools.runQueue.running != nil { brewUpgradeNote = String(localized: "Queued") }
+        if await cliTools.runQueue.perform(.upgradeAll, whenCancelled: end, { await self.runUpgradeAll() }) {
+            end()
+        }
+    }
+
+    /// Upgrade All's turn.
+    private func runUpgradeAll() async {
         brewUpgradeNote = String(localized: "Starting…")
         // Snapshot the target set so dependency formulae brew pulls in (which also
         // emit a 🍺 line) don't inflate the count past the user-visible total.
@@ -4573,14 +4602,12 @@ final class AppListModel {
         // Cask tokens are upgraded by name in a second pass — never a bare
         // `brew upgrade --cask`, which would reach GUI casks this surface doesn't own.
         let caskTokens = brewOutdatedFormulae.filter { $0.kind == .cask }.map(\.name)
+        // Taken at its turn, not at the click: a formula's own upgrade queued
+        // ahead of it may have upgraded some already.
+        guard !targets.isEmpty else { return }
         brewUpgradeTotal = targets.count
         brewUpgradeDone = 0
         let jobID = Self.upgradeAllJobID
-        brewCancels[jobID] = .available
-        defer {
-            brewUpgrading = false; brewUpgradeNote = nil; brewUpgradeDone = 0; brewUpgradeTotal = 0
-            brewCancels[jobID] = nil
-        }
         let onOutput: @Sendable (String) -> Void = { [weak self] line in
             Task { @MainActor in
                 self?.brewUpgradeNote = line
@@ -4629,19 +4656,35 @@ final class AppListModel {
     /// Upgrade a single formula (`brew upgrade --formula <name>`) — the per-row
     /// action in the workbench Brew list — then re-read the outdated set.
     func upgradeBrewFormula(named name: String) async {
-        // Not on top of another brew run — Upgrade All included — or a tool's
-        // update (`CLIConcurrency`).
-        guard cliStart(.upgradeFormula) == .now else { return }
+        guard !upgradingFormulae.contains(name) else { return }
         upgradingFormulae.insert(name)
         formulaUpgradeErrors[name] = nil
-        formulaUpgradeNotes[name] = String(localized: "Starting…")
         let jobID = Self.formulaJobID(name)
+        // Live from the click: until its turn (`CLIRunQueue`) it takes the
+        // upgrade out of the queue; after, it cancels brew's downloads.
         brewCancels[jobID] = .available
-        defer {
+        // Run once: inside the Cancel when it is taken back while it waits,
+        // otherwise when it is done.
+        let end = { [self] in
             upgradingFormulae.remove(name)
             formulaUpgradeNotes[name] = nil
             brewCancels[jobID] = nil
         }
+        formulaUpgradeNotes[name] = cliTools.runQueue.running != nil
+            ? String(localized: "Queued") : String(localized: "Starting…")
+        let ran = await cliTools.runQueue.perform(.upgradeFormula(name), whenCancelled: end) {
+            // Read again at its turn: an Upgrade All queued ahead of it may have
+            // upgraded it already.
+            guard self.brewFormulae.contains(where: { $0.name == name && $0.hasUpdate }) else { return }
+            self.formulaUpgradeNotes[name] = String(localized: "Starting…")
+            await self.runFormulaUpgrade(name)
+        }
+        if ran { end() }
+    }
+
+    /// One formula's upgrade, at its turn.
+    private func runFormulaUpgrade(_ name: String) async {
+        let jobID = Self.formulaJobID(name)
         // A job of its own (`InstallJobs.run`), so the row's Cancel reaches the
         // wait for a background `brew update` and brew's downloads ahead of the
         // upgrade, and the upgrade's `InstallCommit` greys it.
@@ -4689,13 +4732,34 @@ final class AppListModel {
     /// no `:`.
     nonisolated static let upgradeAllJobID = "brew-upgrade-all"
 
-    /// A brew upgrade's Cancel — a formula row's or Upgrade All's: through the
-    /// registry (`InstallJobs.cancel`), which refuses once the upgrade itself
-    /// started — no error then (§5.8), the row says it is already finishing.
-    /// Cancelled is not failed: no red line, no re-read.
+    /// The id `brew update`'s Cancel goes by while it waits its turn. It has
+    /// no job: once it runs, it has no Cancel.
+    nonisolated static let homebrewUpdateJobID = "brew-update"
+
+    /// A brew run's Cancel — a formula row's, Upgrade All's, or `brew update`'s
+    /// while it waits. One still waiting its turn leaves the queue
+    /// (`CLIRunQueue`); one running goes through the registry
+    /// (`InstallJobs.cancel`), which refuses once the upgrade itself started —
+    /// no error then (§5.8), the row says it is already finishing. Cancelled is
+    /// not failed: no red line, no re-read.
     func cancelBrewUpgrade(_ jobID: String) {
         guard brewCancels[jobID] == .available else { return }
+        // Still waiting its turn: out of the queue, its row cleared by the
+        // run's `whenCancelled`.
+        if let run = Self.queuedRun(ofJob: jobID), cliTools.runQueue.cancel(run) {
+            Log.app.notice("\(jobID, privacy: .public): cancelled while it waited its turn")
+            return
+        }
         brewCancels[jobID] = InstallCancelState.after(InstallJobs.cancel(jobID))
+    }
+
+    /// The queue's name for the brew run a Cancel's job id belongs to.
+    nonisolated static func queuedRun(ofJob jobID: String) -> CLIRun? {
+        if jobID == upgradeAllJobID { return .upgradeAll }
+        if jobID == homebrewUpdateJobID { return .homebrewUpdate }
+        let prefix = formulaJobID("")
+        guard jobID.hasPrefix(prefix) else { return nil }
+        return .upgradeFormula(String(jobID.dropFirst(prefix.count)))
     }
 
     /// The line under a formula row's name while it upgrades: brew's phase, or
@@ -4741,40 +4805,9 @@ final class AppListModel {
 
     /// One-line "x/n" status for an in-flight bulk upgrade — the count of the next
     /// formula being worked on over the total. nil when no bulk run is active.
-    // MARK: - Which CLI-tab runs wait for which (#1312)
-
-    /// The CLI tab's runs under way, as `CLIConcurrency` names them.
-    private var runningCLIOperations: [CLIOperation] {
-        var running: [CLIOperation] = []
-        if homebrewUpdating { running.append(.homebrewUpdate) }
-        if brewUpgrading { running.append(.upgradeAll) }
-        if !upgradingFormulae.isEmpty { running.append(.upgradeFormula) }
-        if cliTools.updatingAll || !cliTools.updating.isEmpty { running.append(.tool) }
-        return running
-    }
-
-    /// Whether `operation` may start now: what every model action checks.
-    func cliStart(_ operation: CLIOperation) -> CLIStart {
-        CLIConcurrency.start(operation, running: runningCLIOperations)
-    }
-
-    /// Why `operation`'s button is disabled, for its tooltip; nil while it may
-    /// start. Every Update and Upgrade All in the CLI tab, popover and
-    /// workbench, reads this and nothing else.
-    func cliBlockedReason(_ operation: CLIOperation) -> String? {
-        guard case .blocked(let blocker) = cliStart(operation) else { return nil }
-        switch (operation.isHomebrew, blocker.isHomebrew) {
-        case (true, true):
-            return String(localized: "Another Homebrew command is running. Try again once it has finished.")
-        case (true, false):
-            return String(localized: "Command-line tools are updating. Homebrew can’t run until they finish: it could replace the node or libraries they run on.")
-        default:
-            return String(localized: "Homebrew is running. Tools can’t update until it finishes: it could replace the node or libraries they run on.")
-        }
-    }
-
     var brewBulkProgressText: String? {
         guard brewUpgrading else { return nil }
+        if cliTools.runQueue.isWaiting(.upgradeAll) { return String(localized: "Queued") }
         if brewCancelRows.cancels[Self.upgradeAllJobID] == .cancelling { return String(localized: "Cancelling…") }
         guard brewUpgradeTotal > 0 else { return nil }
         let current = min(brewUpgradeDone + 1, brewUpgradeTotal)

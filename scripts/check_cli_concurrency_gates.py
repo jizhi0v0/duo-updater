@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """No CLI-tab button decides on its own which brew or tool run blocks it (#1312).
 
-Which run waits for which is one rule, `CLIConcurrency.start` in Core, consulted
-by every model action (`AppListModel.upgradeBrewFormulae`, `upgradeBrewFormula`,
-`updateHomebrew`, `CLIToolsModel.update`/`updateAll`). Before it, each Update
-and Upgrade All carried its own `.disabled(…)` over brew's and the tools' state,
-and they drifted: Upgrade All waited for every tool, a formula row for
-`brew update` only, its detail pane for nothing.
+No button is disabled by another run at all: every model action
+(`AppListModel.upgradeBrewFormulae`, `upgradeBrewFormula`, `updateHomebrew`,
+`CLIToolsModel.update`/`updateAll`) takes the click and waits its turn in one
+queue, `CLIRunQueue` in Core. Before #1312, each Update and Upgrade All carried
+its own `.disabled(…)` over brew's and the tools' state, and they drifted:
+Upgrade All waited for every tool, a formula row for `brew update` only, its
+detail pane for nothing.
 
 This lint fails on a `.disabled(…)` or `disabled:` argument in the popover or
 the workbench that reads that state again. Tool against tool stays each tool's
@@ -63,7 +64,7 @@ def main():
     for path, line, expr in found:
         print(f"✗ {path}:{line}: a button gates on brew or tool state itself: {' '.join(expr.split())}")
     if found:
-        print("  Let the model action wait its turn (CLIConcurrency.start) instead.")
+        print("  Let the model action wait its turn (CLIRunQueue) instead.")
         return 1
     print(f"✓ No inline brew/tool gate in {len(SCANNED)} CLI-tab views")
     return 0

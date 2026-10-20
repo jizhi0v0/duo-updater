@@ -329,6 +329,10 @@ final class CLIToolsModel {
     /// Per provider (by index in `providers`), the generation of the latest check
     /// started that asks it.
     @ObservationIgnored private var latestCheck: [Int: Int] = [:]
+    /// Per provider, the generation of the check whose report is on screen:
+    /// whether it started before an Update All lane ran anything
+    /// (`laneOfferAtTurn`).
+    @ObservationIgnored private var reportGeneration: [Int: Int] = [:]
     /// Per provider, the report on screen.
     @ObservationIgnored private var reports: [Int: CLIToolReport] = [:]
     /// Checks started and not yet returned; `checking` while any is out.
@@ -631,6 +635,7 @@ final class CLIToolsModel {
         let superseded = answers.count - current.count
         Log.app.notice("cli-tools check of \(indices.count, privacy: .public) tool(s): \(Log.seconds(clock.now - began), privacy: .public); slowest \(slowest, privacy: .public); \(unanswered, privacy: .public) copies not checked\(superseded > 0 ? ", \(superseded) superseded by a later check" : "", privacy: .public)")
         guard !current.isEmpty else { return }
+        for (index, _) in current { reportGeneration[index] = generation }
         apply(current, startedAt: started)
     }
 
@@ -1021,21 +1026,32 @@ final class CLIToolsModel {
     /// same tool halfway through its install — why a tool is re-checked only
     /// once its last lane is done (`BatchRun.lanesLeft`).
     ///
-    /// So a verdict that says nothing about the offer falls back on the
-    /// click's: "an update is already running" (`.busy`), which a check
-    /// landing mid-batch gives every other copy in an npm prefix while the
-    /// lane's own previous copy runs its npm there (real Mac, 2026-10-20),
-    /// and a channel that could not be read. Dropped on those, Update All
-    /// would skip the very copies it was clicked for. The fallback is no
-    /// licence to run over a busy prefix: npm's updater looks for an npm
-    /// running there itself before it starts, and answers `.busy` without
-    /// running anything (`NpmUpdater`). The pause still applies to it. Any
-    /// other gate — the install broken, unverified, its runtime too old — is
-    /// about the copy itself, and its row says why it was not run.
+    /// So a verdict that may clear by itself (`mayClearByItself`) falls back
+    /// on the click's offer: "an update is already running" (`.busy`), which a
+    /// check landing mid-batch gives every other copy in an npm prefix while
+    /// the lane's own previous copy runs its npm there (real Mac, 2026-10-20),
+    /// a channel or a version that could not be read. Dropped on those, Update
+    /// All would skip the very copies it was clicked for. So does any verdict
+    /// short of an offer from a check that started once this lane had run
+    /// something (`readsTheLane`): the copies of a lane share what the update
+    /// writes, and the one before can be the next one's updater — rustup ahead
+    /// of its toolchains, whose trust rests on rustup's own file, bun ahead of
+    /// its packages — so "not verified" read mid-install is about the batch,
+    /// not the copy (review, 2026-10-21). A verdict from before the lane ran,
+    /// a check while Update All waited its turn, is about the copy: broken,
+    /// unverified, its runtime too old, the row says why it was not run.
+    ///
+    /// The fallback runs what the user clicked, as every lane did before; it
+    /// does not re-read what the verdict hid. npm's and Claude Code's updaters
+    /// look for a running update themselves and answer `.busy` without running
+    /// anything (`NpmUpdater`, `ClaudeCodeUpdater`), and the trust-checking
+    /// ones (rustup, boat, herdr, atuin) check the file again; a setting
+    /// changed meanwhile behind a busy verdict is not seen. The pause still
+    /// applies to it.
     ///
     /// The lanes never raise a panel: one whose route changed is not run, and
     /// its row says to try again, which at the click asks for it.
-    private func laneOfferAtTurn(_ clicked: CLIToolStatus) -> CLIToolStatus? {
+    private func laneOfferAtTurn(_ clicked: CLIToolStatus, readsTheLane: Bool) -> CLIToolStatus? {
         let id = clicked.toolID
         let now = status(id)
         let checked = checkedStatuses.first { $0.toolID == id }
@@ -1043,13 +1059,13 @@ final class CLIToolsModel {
         // or not (as `offerAtTurn`'s `heldByPause` reads it).
         let checkedOffered = checked.map { $0.state == .updateAvailable && $0.oneClick != nil } ?? false
         let saysNothing = checked.map {
-            ($0.state == .updateAvailable || $0.state == .unknown)
-                && [.busy, .channelUnreadable, .rateLimited].contains($0.withheld)
+            ($0.state == .updateAvailable || $0.state == .unknown) && (readsTheLane || Self.mayClearByItself($0))
         } ?? false
         let turn: CLIToolStatus
         if checkedOffered, let now {
             turn = now
         } else if saysNothing {
+            Log.app.notice("\(id.kind.rawValue, privacy: .public) update at \(id.path, privacy: .public): Update All runs it on the offer clicked, its check\(readsTheLane ? " (made while its lane ran)" : "", privacy: .public) now says \(checked.flatMap(\.withheld).map { "\($0)" } ?? "-", privacy: .public)")
             turn = clicked.applyingGitHubPause(gitHubPause, updatersGetOurToken: updatersGetOurToken, now: self.now())
         } else {
             // Updated meanwhile, gone, or held back by a gate of its own.
@@ -1482,9 +1498,15 @@ final class CLIToolsModel {
         var lanesLeft: [Int: Int] = [:]
         /// Per provider, its copies whose update ran and wait on its re-check.
         var ran: [Int: [(CLIToolStatus, CLIToolUpdateOutcome)]] = [:]
+        /// Per provider, its copies not run at their turn, as clicked, with
+        /// the line their row said why.
+        var notRun: [Int: [(CLIToolStatus, String)]] = [:]
     }
 
     private func runLane(_ lane: [(CLIToolStatus, Int)], _ run: BatchRun) async {
+        // The generation of the last check started before this lane ran
+        // anything; a report newer than it may have read the lane's own work.
+        var ranSince: Int?
         for (clicked, provider) in lane {
             // Cancelled while it waited: its row was released then — and may be
             // claimed again by a click of its own, whose "Queued" stays.
@@ -1492,10 +1514,15 @@ final class CLIToolsModel {
             queued.remove(clicked.toolID)
             // Its offer as it stands at its turn; not to run, it leaves the
             // batch as a copy cancelled before its command does.
-            guard let status = laneOfferAtTurn(clicked) else {
+            let readsTheLane = ranSince.map { reportGeneration[provider, default: 0] > $0 } ?? false
+            guard let status = laneOfferAtTurn(clicked, readsTheLane: readsTheLane) else {
+                if notRunAtTurn.contains(clicked.toolID), let line = errors[clicked.toolID] {
+                    run.notRun[provider, default: []].append((clicked, line))
+                }
                 release(clicked.toolID)
                 continue
             }
+            if ranSince == nil { ranSince = refreshGeneration }
             guard let outcome = await self.run(status, with: provider) else {
                 release(status.toolID)
                 continue
@@ -1525,6 +1552,19 @@ final class CLIToolsModel {
             for (status, outcome) in run.ran[provider] ?? [] {
                 settle(status, outcome)
                 release(status.toolID)
+            }
+            // "Not updated: …" goes with its tool's next check (`apply`), and
+            // this one is the batch's own, right after the line was said: a
+            // copy skipped for its new administrator route came back as a
+            // live Update with nothing said (review, 2026-10-21). Kept while
+            // it still holds — not offered, or offered on the other route.
+            for (clicked, line) in run.notRun[provider] ?? [] {
+                guard let now = status(clicked.toolID), now.state == .updateAvailable,
+                      now.oneClick == nil || now.needsAdministrator != clicked.needsAdministrator,
+                      errors[clicked.toolID] == nil
+                else { continue }
+                notRunAtTurn.insert(clicked.toolID)
+                errors[clicked.toolID] = line
             }
         }
     }

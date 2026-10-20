@@ -3288,4 +3288,137 @@ struct CLIToolsModelTests {
         #expect(model.updating.isEmpty)
         #expect(!model.updatingAll)
     }
+
+    /// A lane copy a check found held back by a gate of its own while Update
+    /// All waited its turn — before its lane ran anything, so not the batch's
+    /// doing — is not run, and its row says why.
+    ///
+    /// Mutation: run `clicked` in `laneOfferAtTurn`'s own-gate branch → the
+    /// command runs, red.
+    @Test(.timeLimit(.minutes(1))) func aLaneCopyHeldBackByItsOwnGateBeforeItsLaneRanIsNotRun() async {
+        let path = Self.ownPackage()
+        let id = Self.id(path, .npm)
+        let tooOld = Self.status(path, kind: .npm, oneClick: false, withheld: .runtimeTooOld)
+        let check = FakeCheck([(Self.report(.npm, [Self.status(path, kind: .npm)]), nil), (Self.report(.npm, [tooOld]), nil)])
+        let updater = FakeUpdater()
+        let model = Self.model([FakeProvider(kind: .npm, checker: check, updater: updater)])
+        await model.refresh()
+        let gate = Gate()
+        let held = await holdQueue(model, gate)
+
+        let all = Task { await model.updateAll() }
+        await until { model.runQueue.isWaiting(.updateAllTools) }
+        await model.refresh()
+        await gate.open()
+        _ = await held.value
+        await all.value
+
+        #expect(await updater.calls.isEmpty)
+        #expect(model.errors[id] == "Not updated: \(CLIToolsModel.reason(.runtimeTooOld, of: tooOld))")
+        #expect(model.updating.isEmpty)
+        #expect(!model.updatingAll)
+    }
+
+    /// A channel that could not be read, while Update All waited, says nothing
+    /// about the offer: the copy runs at its turn on the offer clicked.
+    ///
+    /// Mutation: `mayClearByItself` out of `saysNothing` → dropped, red.
+    @Test(.timeLimit(.minutes(1))) func aLaneCopyWhoseChannelWasUnreadableStillRuns() async {
+        let path = Self.ownPackage()
+        let id = Self.id(path, .npm)
+        let check = FakeCheck([
+            (Self.report(.npm, [Self.status(path, kind: .npm)]), nil),
+            (Self.report(.npm, [Self.status(path, kind: .npm, state: .unknown, latest: nil, oneClick: false, withheld: .channelUnreadable)]), nil),
+            (Self.report(.npm, [Self.status(path, kind: .npm, version: "2.1.285", state: .upToDate, oneClick: false)]), nil),
+        ])
+        let updater = FakeUpdater()
+        let model = Self.model([FakeProvider(kind: .npm, checker: check, updater: updater)])
+        await model.refresh()
+        let gate = Gate()
+        let held = await holdQueue(model, gate)
+
+        let all = Task { await model.updateAll() }
+        await until { model.runQueue.isWaiting(.updateAllTools) }
+        await model.refresh()
+        await gate.open()
+        _ = await held.value
+        await all.value
+
+        #expect(await updater.ran.map(\.latestVersion) == ["2.1.285"])
+        #expect(model.errors[id] == nil)
+        #expect(!model.updatingAll)
+    }
+
+    /// The copies of a lane share what its update writes, and the one ahead
+    /// can be the next one's updater — rustup ahead of its toolchains, whose
+    /// trust rests on rustup's own file. A check that started once the lane
+    /// ran something can read that half-done: "not verified" then is about the
+    /// batch, and the next copy still runs (review, 2026-10-21).
+    ///
+    /// Mutation: `readsTheLane` always false → dropped as unverified, red.
+    @Test(.timeLimit(.minutes(1))) func aLaneCopyACheckMidLaneFoundUnverifiedStillRuns() async {
+        let first = Self.ownPackage()
+        let second = Self.ownPackage()
+        let check = FakeCheck([
+            (Self.report(.npm, [Self.status(first, kind: .npm), Self.status(second, kind: .npm)]), nil),
+            (Self.report(.npm, [Self.status(first, kind: .npm, oneClick: false, withheld: .busy),
+                                Self.status(second, kind: .npm, oneClick: false, withheld: .unverified)]), nil),
+            (Self.report(.npm, [Self.status(first, kind: .npm, version: "2.1.285", state: .upToDate, oneClick: false),
+                                Self.status(second, kind: .npm, version: "2.1.285", state: .upToDate, oneClick: false)]), nil),
+        ])
+        let updater = FakeUpdater()
+        let gate = Gate()
+        await updater.setGate(Self.id(first, .npm), gate)
+        let model = Self.model([FakeProvider(kind: .npm, checker: check, updater: updater)])
+        await model.refresh()
+
+        let all = Task { await model.updateAll() }
+        await until { await gate.arrived == 1 }
+        await model.refresh()
+        #expect(model.status(Self.id(second, .npm))?.withheld == .unverified)
+        await gate.open()
+        await all.value
+
+        #expect(await updater.calls == [Self.id(first, .npm), Self.id(second, .npm)])
+        #expect(model.errors[Self.id(second, .npm)] == nil)
+        #expect(!model.updatingAll)
+    }
+
+    /// A lane copy skipped for its new administrator route keeps its line
+    /// through the batch's own re-check of its tool — run because another copy
+    /// in its lane ran — rather than coming back as a live Update with nothing
+    /// said (review, 2026-10-21). The next check takes it away.
+    ///
+    /// Mutation: drop the `run.notRun` loop after the lane's re-check → nil,
+    /// red.
+    @Test(.timeLimit(.minutes(1))) func aSkippedLaneCopysLineOutlivesTheBatchsOwnRecheck() async {
+        let first = Self.ownPackage()
+        let second = Self.ownPackage()
+        let plain = Self.status(second, kind: .npm)
+        let root = Self.asAdministrator(plain)
+        let check = FakeCheck([
+            (Self.report(.npm, [Self.status(first, kind: .npm), plain]), nil),
+            (Self.report(.npm, [Self.status(first, kind: .npm), root]), nil),
+            (Self.report(.npm, [Self.status(first, kind: .npm, version: "2.1.285", state: .upToDate, oneClick: false), root]), nil),
+        ])
+        let updater = FakeUpdater()
+        let model = Self.model([FakeProvider(kind: .npm, checker: check, updater: updater)])
+        await model.refresh()
+        let gate = Gate()
+        let held = await holdQueue(model, gate)
+
+        let all = Task { await model.updateAll() }
+        await until { model.runQueue.isWaiting(.updateAllTools) }
+        await model.refresh()
+        await gate.open()
+        _ = await held.value
+        await all.value
+
+        let id = Self.id(second, .npm)
+        #expect(await updater.calls == [Self.id(first, .npm)])
+        #expect(await check.calls == 3)
+        #expect(model.errors[id] == "Not updated: it now asks for an administrator password — try again")
+        await model.refresh()
+        #expect(model.errors[id] == nil)
+    }
 }

@@ -15076,71 +15076,6 @@
         }
       }
     },
-    "Switches this copy to the stable build — click before updating": {
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ersetzt diese Kopie durch den Stable-Build – vor dem Update anklicken"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sustituye esta copia por la versión estable: haz clic antes de actualizar"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Remplace cette copie par la version stable — cliquez avant de mettre à jour"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sostituisce questa copia con la versione stabile: fai clic prima di aggiornare"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "このコピーを安定版に置き換えます — アップデートの前にクリックしてください"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Substitui esta cópia pela versão estável — clique antes de atualizar"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Заменит эту копию стабильной сборкой — нажмите перед обновлением"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bu kopyayı kararlı sürümle değiştirir — güncellemeden önce tıklayın"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "会把这份副本换成稳定版——更新前请先点开"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "會把這份副本換成穩定版——更新前請先點開"
-          }
-        }
-      }
-    },
     "Switches to stable": {
       "extractionState": "manual",
       "localizations": {
@@ -24038,6 +23973,71 @@
           "stringUnit": {
             "state": "translated",
             "value": "在原位置、用各自工具自己的更新指令、依該工具設定的頻道更新每一份副本。沒有一鍵更新的副本，以及更新需要管理者密碼的副本，維持不動。"
+          }
+        }
+      }
+    },
+    "Updating switches this copy to the stable build — click for details": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Update ersetzt diese Kopie durch den Stable-Build – für Details klicken"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Al actualizar, esta copia pasa a la versión estable: haz clic para ver los detalles"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La mise à jour remplace cette copie par la version stable — cliquez pour en savoir plus"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "L’aggiornamento sostituisce questa copia con la versione stabile: fai clic per i dettagli"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アップデートするとこのコピーは安定版に置き換わります — クリックして詳細を表示"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A atualização substitui esta cópia pela versão estável — clique para ver detalhes"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Обновление заменит эту копию стабильной сборкой — нажмите, чтобы узнать подробности"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Güncelleme bu kopyayı kararlı sürümle değiştirir — ayrıntılar için tıklayın"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新会把这份副本换成稳定版——点击查看详情"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新會把這份副本換成穩定版——點擊查看詳情"
           }
         }
       }

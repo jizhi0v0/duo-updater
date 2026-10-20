@@ -974,12 +974,12 @@ public struct UpdateResult: Sendable, Identifiable, Equatable {
     /// then the nightly dragged over it; `LapceBuild` reads it as `.nightly`, and
     /// the `lapce` cask has no other track). nil for every other row.
     ///
-    /// A reminder, not a gate — the user decided so (2026-10-20). Like
-    /// `isVendorRewrite` it makes `isMajorUpgrade` true, which puts the row behind
-    /// the existing confirmation: it prompts, it never blocks. The update itself
-    /// is unchanged; brew would do the same on the user's own `brew upgrade`
-    /// (measured with Homebrew 7.0.10: it moved the nightly aside and installed
-    /// 0.4.6 without looking inside the bundle).
+    /// A reminder only — the user decided so (2026-10-20): stay consistent with
+    /// Homebrew, whose own `brew upgrade` makes the same switch (measured with
+    /// Homebrew 7.0.10: it moved the nightly aside and installed 0.4.6 without
+    /// looking inside the bundle). So this changes nothing about the update: not
+    /// `isMajorUpgrade`, not the route, not Update All. The rows show a hint
+    /// beside their usual button and `duo` prints a note.
     ///
     /// Only the source can say what it installs (`RemoteVersion.offeredChannel`),
     /// and only Homebrew does; the copy's side is the channel the row shows.
@@ -1009,9 +1009,8 @@ public struct UpdateResult: Sendable, Identifiable, Equatable {
         guard case .updateAvailable = status else { return false }
 
         // Ahead of every tier below, the license-neutral sources included: the
-        // question here is not a license but a different app — or, for a channel
-        // switch, a different track of it.
-        if isVendorRewrite || replacesChannelWithStable != nil { return true }
+        // question here is not a license but a different app.
+        if isVendorRewrite { return true }
 
         if let floor = remote?.minimumAutoupdateVersion?
             .trimmingCharacters(in: .whitespacesAndNewlines), !floor.isEmpty,

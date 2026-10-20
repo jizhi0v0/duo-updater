@@ -104,7 +104,7 @@
 - nightly 轨只识别不更新（见 Channel 详情）
 - v0.0.6 – v0.2.0 的 `0.10.0-dev` 副本不检测（见更新检测）
 - 识别要读可执行文件，按 size+mtime 缓存，同一份只读一次。stable 副本没有标记，要读到文件尾（v0.4.6 为 94 MB）；nightly 读到第一处标记就停（2026-10-09 nightly 在第 35,277,466 字节，共 90,539,952 字节）
-- **cask 装、后来换成 nightly 的副本：只提醒、不拦截**（用户 2026-10-20 拍板）: `HomebrewCaskSource` 排在 GitHub 前面，照样推 stable cask、一键照样执行 `brew install --cask --force lapce`。但标准 cask（token 不带 `@`，`CaskEntry.isStandardStableCask`）的应答带 `offeredChannel = .stable`，副本被识别成 nightly 时 `UpdateResult.replacesChannelWithStable` 非 nil：菜单栏走现有的「重大更新」确认框（换成「Switches to stable」文案），workbench 显示「Switches to stable」，`duo check` / `duo install` 在该行下打一行 `note:`。实测（Homebrew 7.0.10）用户自己跑 `brew upgrade --cask lapce` 也会把 nightly 换成 stable，brew 不看 .app 内容。全引擎通用，不是 Lapce 特有的
+- **cask 装、后来换成 nightly 的副本：只提醒、不拦截**（用户 2026-10-20 拍板）: `HomebrewCaskSource` 排在 GitHub 前面，照样推 stable cask、一键照样执行 `brew install --cask --force lapce`。但标准 cask（token 不带 `@`，`CaskEntry.isStandardStableCask`）的应答带 `offeredChannel = .stable`，副本被识别成 nightly 时 `UpdateResult.replacesChannelWithStable` 非 nil：菜单栏在 Update 按钮旁多一个橙色提示，workbench 在 Update 按钮旁多一个「Switches to stable」，点开都是同一个说明面板；`duo check` / `duo install` 在该行下打一行 `note:`。更新本身不变（不算重大更新、不进确认框、照样在 Update All 里），与 brew 自己的行为一致。实测（Homebrew 7.0.10）用户自己跑 `brew upgrade --cask lapce` 也会把 nightly 换成 stable，brew 不看 .app 内容。全引擎通用，不是 Lapce 特有的
 - 可执行文件读不了时（`LapceBuild` 返回 nil），保留 `detect()` 的结果 `.stable`，nightly 副本会走 stable rule。现实中不太会出现：这要求 Info.plist 可读而 `Contents/MacOS/lapce` 不可读（权限或文件被换掉的瞬间）
 
 ## 建议下一步

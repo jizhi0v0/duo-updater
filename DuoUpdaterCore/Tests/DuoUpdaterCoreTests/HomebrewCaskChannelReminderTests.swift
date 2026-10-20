@@ -4,8 +4,9 @@ import Foundation
 
 /// The reminder for a cask brew installed whose copy the user replaced with a
 /// nightly or beta: `brew` will put the stable cask over it. A reminder, not a
-/// gate — `UpdateResult.replacesChannelWithStable` routes the row through the
-/// existing confirmation and the update stays on offer.
+/// gate: `UpdateResult.replacesChannelWithStable` adds a hint and a note, and
+/// changes nothing about the update, which brew's own `brew upgrade` would make
+/// the same way (the user's decision, 2026-10-20).
 ///
 /// The fixture is six **live catalog entries**, verbatim, from
 /// `formulae.brew.sh/api/cask.json` fetched 2026-10-20, in catalog order
@@ -29,8 +30,9 @@ import Foundation
 /// | 2 | `isStandardStableCask`: drop the `@` guard | red: `aChannelCaskIsNot`, `aVersionPinnedCaskIsSkippedToo`, `aNightlyCopyOfANightlyCaskIsNot`, `aBetaCopyOfABetaCaskIsNot` |
 /// | 3 | `isStandardStableCask`: skip the `.app` name check (`true \|\| allSatisfy`) | red: `aSuffixlessCaskWhoseAppReadsAsAChannelIsNot` — and only it, which is what a backstop no live cask reaches looks like |
 /// | 4 | `replacesChannelWithStable`: return `effectiveReleaseChannel` without the `.stable` check | red: `aStableCopyOfAStableCaskIsNot` |
-/// | 5 | `isMajorUpgrade`: drop `\|\| replacesChannelWithStable != nil` | red: `aNightlyCopyOfAStableCaskIsReminded` |
-/// | 6 | `isStandardStableCask`: drop the cask-version check (`== .stable \|\| true`) | red: `aStandardCaskNumberedAsBetasIsNot`, `aCopyOfABetaNumberedStandardCaskIsNotReminded` |
+/// | 5 | `isMajorUpgrade`: `if isVendorRewrite \|\| replacesChannelWithStable != nil` (the first version of this PR, which put the row behind the confirmation) | red: `aNightlyCopyOfAStableCaskIsReminded` |
+/// | 6 | `isStandardStableCask`: drop the cask-version check | red: `aStandardCaskNumberedAsBetasIsNot`, `aCopyOfABetaNumberedStandardCaskIsNotReminded`, `aBundleIDThatReadsAsAChannelIsNot` (re-measured with `version: nil` after the bundle-id change) |
+/// | 7 | `isStandardStableCask`: ask with no bundle id (`ids = [nil]`) | red: `aBundleIDThatReadsAsAChannelIsNot` |
 struct HomebrewCaskChannelReminderTests {
 
     private static func index() throws -> CaskIndex {
@@ -132,6 +134,28 @@ struct HomebrewCaskChannelReminderTests {
         #expect(row.replacesChannelWithStable == nil)
     }
 
+    /// The checks run with each bundle id the cask's `uninstall: quit:` names, so
+    /// a channel suffix on the id counts, and so do `detect`'s bundle-scoped
+    /// version rules, which a nil id skips. Hand-built: over the 434 standard,
+    /// non-`auto_updates` casks that name a bundle id in the 2026-10-20 catalog,
+    /// neither shape occurs, so this is a backstop (review round 2 on #1501).
+    @Test func aBundleIDThatReadsAsAChannelIsNot() {
+        let suffixed = CaskEntry(
+            token: "example", version: "2.0.0", url: nil, autoUpdates: false,
+            installKind: .brew, appFilenames: ["Example.app"], bundleIDs: ["com.example.app.beta"])
+        #expect(!suffixed.isStandardStableCask)
+        // Little Snitch's nightly spells its channel in a version only its own
+        // bundle-scoped rule reads (`ReleaseChannel.detect` step 0.7).
+        let scoped = CaskEntry(
+            token: "example", version: "6.5 nightly (7301)", url: nil, autoUpdates: false,
+            installKind: .brew, appFilenames: ["Little Snitch.app"], bundleIDs: ["at.obdev.littlesnitch"])
+        #expect(!scoped.isStandardStableCask)
+        let plain = CaskEntry(
+            token: "example", version: "2.0.0", url: nil, autoUpdates: false,
+            installKind: .brew, appFilenames: ["Example.app"], bundleIDs: ["com.example.app"])
+        #expect(plain.isStandardStableCask)
+    }
+
     /// The second check: no `@`, but its `.app` reads as a channel word. Built by
     /// hand from the real `alpha` cask (token, version and `Alpha.app` as the
     /// 2026-10-20 catalog has them) because that cask is `disabled`, which the
@@ -151,13 +175,14 @@ struct HomebrewCaskChannelReminderTests {
     // MARK: - The reminder on a row
 
     /// The case itself: `brew install --cask lapce`, then the nightly dragged
-    /// over it. The update stays on offer, behind the confirmation.
+    /// over it. Reminded, and nothing else: not a major upgrade, so no
+    /// confirmation and still in Update All.
     @Test func aNightlyCopyOfAStableCaskIsReminded() async throws {
         let row = try await Self.row(for: Self.lapce(.nightly), installed: ["lapce"])
         #expect(row.remote?.sourceName == "Homebrew")
         #expect(row.remote?.offeredChannel == .stable)
         #expect(row.replacesChannelWithStable == .nightly)
-        #expect(row.isMajorUpgrade)
+        #expect(!row.isMajorUpgrade)
         #expect(row.hasUpdate)
     }
 

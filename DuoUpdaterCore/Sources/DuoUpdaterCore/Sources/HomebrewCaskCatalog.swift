@@ -152,6 +152,9 @@ public struct CaskEntry: Sendable {
     /// The `.app` filenames this cask installs (`CaskIndex`'s lookup key), empty
     /// for a cask with no `app` artifact. Read by `isStandardStableCask`.
     public let appFilenames: [String]
+    /// The bundle ids the cask's `uninstall: quit:` names (`CaskIndex`'s second
+    /// key), empty when it names none. Read by `isStandardStableCask`.
+    public let bundleIDs: [String]
 
     public init(
         token: String,
@@ -160,7 +163,8 @@ public struct CaskEntry: Sendable {
         autoUpdates: Bool,
         installKind: CaskInstallKind,
         macOS: CaskMacOSRequirement? = nil,
-        appFilenames: [String] = []
+        appFilenames: [String] = [],
+        bundleIDs: [String] = []
     ) {
         self.token = token
         self.version = version
@@ -169,6 +173,7 @@ public struct CaskEntry: Sendable {
         self.installKind = installKind
         self.macOS = macOS
         self.appFilenames = appFilenames
+        self.bundleIDs = bundleIDs
     }
 
     /// Whether this is the app's standard cask, which installs its stable
@@ -207,13 +212,19 @@ public struct CaskEntry: Sendable {
         guard !token.contains("@") else { return false }
         let marketing = version
             .split(whereSeparator: { $0 == "," || $0 == ":" }).first.map(String.init) ?? version
-        guard ReleaseChannel.detect(
-            name: "", bundleID: nil, keystoneChannel: nil, version: marketing) == .stable
-        else { return false }
-        return appFilenames.allSatisfy { filename in
-            let name = filename.hasSuffix(".app") ? String(filename.dropLast(4)) : filename
-            return ReleaseChannel.detect(
-                name: name, bundleID: nil, keystoneChannel: nil, bundleFileName: filename) == .stable
+        // Asked once per bundle id the cask names, so a channel suffix on the id
+        // (`….beta`) counts, and so do `detect`'s bundle-scoped version rules
+        // (Little Snitch's "… nightly (…)", Carbon Copy Cloner's `-b<N>`), which a
+        // nil id skips. Review round 2 on #1501.
+        let ids: [String?] = bundleIDs.isEmpty ? [nil] : bundleIDs
+        return ids.allSatisfy { id in
+            ReleaseChannel.detect(
+                name: "", bundleID: id, keystoneChannel: nil, version: marketing) == .stable
+                && appFilenames.allSatisfy { filename in
+                    let name = filename.hasSuffix(".app") ? String(filename.dropLast(4)) : filename
+                    return ReleaseChannel.detect(
+                        name: name, bundleID: id, keystoneChannel: nil, bundleFileName: filename) == .stable
+                }
         }
     }
 
@@ -427,6 +438,7 @@ public actor HomebrewCaskCatalog {
             else { continue }
 
             let appNames = appFilenames(in: cask["artifacts"])
+            let ids = bundleIDs(in: cask["artifacts"])
             let entry = CaskEntry(
                 token: token,
                 version: version,
@@ -435,7 +447,8 @@ public actor HomebrewCaskCatalog {
                 installKind: installKind(
                     artifacts: cask["artifacts"], url: cask["url"] as? String),
                 macOS: CaskMacOSRequirement.parse(dependsOn: cask["depends_on"]),
-                appFilenames: appNames
+                appFilenames: appNames,
+                bundleIDs: ids
             )
 
             // Both keys keep every declaring cask, in catalog order. Keeping the
@@ -447,7 +460,7 @@ public actor HomebrewCaskCatalog {
             for appName in appNames {
                 byApp[appName.lowercased(), default: []].append(entry)
             }
-            for bundleID in bundleIDs(in: cask["artifacts"]) {
+            for bundleID in ids {
                 allByBundle[bundleID.lowercased(), default: []].append(entry)
             }
         }

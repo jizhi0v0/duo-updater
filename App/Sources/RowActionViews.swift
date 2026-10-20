@@ -134,21 +134,23 @@ struct SubscriptionHoldPanel: View {
     }
 }
 
-/// What a channel switch opens, in both windows — the popover's badge and the
-/// workbench's "Switches to stable" label are both buttons onto this one panel,
-/// like `OrphanedCopyPanel`. A Homebrew update that puts the stable cask over a
-/// copy the user replaced with a nightly or beta
-/// (`UpdateResult.replacesChannelWithStable`): a reminder, not a refusal — the
-/// install is the ordinary brew one, and brew's own `brew upgrade` would do the
-/// same. The channel is spelled as the row's tag spells it (`ChannelTag`).
+/// What a channel-switch hint opens, in both windows — the popover's amber mark
+/// and the workbench's "Switches to stable" label, each beside the row's usual
+/// Update button. A Homebrew update that puts the stable cask over a copy the user
+/// replaced with a nightly or beta (`UpdateResult.replacesChannelWithStable`).
+/// It explains and nothing more: the update stays the ordinary one, because brew's
+/// own `brew upgrade` makes the same switch. The channel is spelled as the row's
+/// tag spells it (`ChannelTag`).
 struct ChannelSwitchPanel: View {
     let result: UpdateResult
     let channel: ReleaseChannel
     let actions: RowActions
-    /// Off, the panel also offers to back up for this update only — the same
-    /// choice the major-upgrade confirmation offers.
-    let keepBackups: Bool
     let dismiss: () -> Void
+
+    /// The hint's tooltip, on both surfaces.
+    static var help: String {
+        String(localized: "Updating switches this copy to the stable build — click for details")
+    }
 
     private var offered: String {
         guard let latest = result.remote?.displayVersion else { return "?" }
@@ -171,20 +173,6 @@ struct ChannelSwitchPanel: View {
                     actions.openBackupSetting()
                     return .handled
                 })
-            HStack(spacing: 8) {
-                Button("Update anyway") {
-                    dismiss()
-                    actions.install()
-                }
-                if !keepBackups {
-                    Button("Back Up & Update") {
-                        dismiss()
-                        actions.installBackingUpOnce()
-                    }
-                    .help("Keeps a backup of the version you have now, for this update only, so you can restore it. Backups stay off in Settings.")
-                }
-            }
-            .controlSize(.small)
         }
         .padding(12)
         .frame(width: 290)
@@ -429,9 +417,6 @@ struct WorkbenchRowAction: View {
     let state: RowActionState
     let result: UpdateResult
     var actions: RowActions = .init()
-    /// Whether "Keep a backup so updates can be rolled back" is on — read only by
-    /// the channel-switch panel, which offers a one-off backup when it is off.
-    var keepBackups: Bool = true
     /// Whether the privileged helper is approved. Only affects an App Store row's
     /// help text; carried as an input so this view stays a pure function of what it
     /// is given (which is what lets `RowStateGallery` render every case with no
@@ -691,6 +676,34 @@ struct WorkbenchRowAction: View {
     /// for the one-click-safe cases. Major upgrades and region/compat-gated App Store
     /// apps are intentionally NOT one-click here — they keep their explanatory
     /// popover affordances in the menu bar — so we show a hint that points there.
+    /// The row's usual button, with a "Switches to stable" label before it when
+    /// the update puts the stable cask over a nightly or beta copy
+    /// (`UpdateResult.replacesChannelWithStable`). The label is a button onto the
+    /// panel the popover's hint opens, like `.orphanedStoreCopy`'s; the update
+    /// button stays, because brew's own `brew upgrade` makes the same switch.
+    @ViewBuilder
+    private func withChannelSwitchHint<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+        if let channel = result.replacesChannelWithStable {
+            HStack(spacing: 10) {
+                Button { showChannelSwitch = true } label: {
+                    Label("Switches to stable", systemImage: "exclamationmark.triangle.fill")
+                        .font(.callout).foregroundStyle(.orange)
+                        .lineLimit(1).minimumScaleFactor(0.7)
+                }
+                .buttonStyle(.plain)
+                .help(ChannelSwitchPanel.help)
+                .popover(isPresented: $showChannelSwitch, arrowEdge: .bottom) {
+                    ChannelSwitchPanel(
+                        result: result, channel: channel, actions: actions,
+                        dismiss: { showChannelSwitch = false })
+                }
+                content()
+            }
+        } else {
+            content()
+        }
+    }
+
     @ViewBuilder
     private func updateAction(_ route: UpdateRoute) -> some View {
         // The route was resolved by the model, not re-derived here, so this window
@@ -721,53 +734,38 @@ struct WorkbenchRowAction: View {
                 .help("\(result.app.name) is running — open it so its own updater applies the update. Quit it, or pick “Always replace” in Settings, to install directly.")
 
         case .majorUpgrade:
-            if let channel = result.replacesChannelWithStable {
-                // A channel switch says so instead of "Major update", which would be
-                // wrong about a 0.4.5 → 0.4.6 that leaves a nightly — and, like
-                // `.orphanedStoreCopy`, is a button onto the panel the popover's badge
-                // opens, its "Update anyway" included.
-                Button { showChannelSwitch = true } label: {
-                    Label("Switches to stable", systemImage: "exclamationmark.triangle.fill")
-                        .font(.callout).foregroundStyle(.orange)
-                        .lineLimit(1).minimumScaleFactor(0.7)
-                }
-                .buttonStyle(.plain)
-                .help("Switches this copy to the stable build — click before updating")
-                .popover(isPresented: $showChannelSwitch, arrowEdge: .bottom) {
-                    ChannelSwitchPanel(
-                        result: result, channel: channel, actions: actions, keepBackups: keepBackups,
-                        dismiss: { showChannelSwitch = false })
-                }
-            } else {
-                // License-boundary warning lives in the popover; don't one-click it here.
-                Label("Major update", systemImage: "exclamationmark.triangle.fill")
-                    .font(.callout).foregroundStyle(.orange)
-                    // Same overflow protection its `.macIncompatible` /
-                    // `.needsNewerMacOS` / `.region` siblings carry — it had none, and
-                    // the catalog's longest translation of it is es "Actualización
-                    // importante" (24 characters, drawn at `.callout`). UNMEASURED
-                    // against a real row: this is the protection every sibling label
-                    // has, not a fix for a width somebody measured overflowing.
-                    .lineLimit(1).minimumScaleFactor(0.7)
-                    .help("Major version upgrade — review and install it from the menu-bar popover")
-            }
+            // License-boundary warning lives in the popover; don't one-click it here.
+            Label("Major update", systemImage: "exclamationmark.triangle.fill")
+                .font(.callout).foregroundStyle(.orange)
+                // Same overflow protection its `.macIncompatible` /
+                // `.needsNewerMacOS` / `.region` siblings carry — it had none, and
+                // the catalog's longest translation of it is es "Actualización
+                // importante" (24 characters, drawn at `.callout`). UNMEASURED
+                // against a real row: this is the protection every sibling label
+                // has, not a fix for a width somebody measured overflowing.
+                .lineLimit(1).minimumScaleFactor(0.7)
+                .help("Major version upgrade — review and install it from the menu-bar popover")
 
         case .autoInstall:
-            Button("Update \(result.offeredDisplay ?? "")") { actions.install() }
-                .buttonStyle(.borderedProminent)
-                .help("Download and install \(result.app.name) \(result.offeredDisplay ?? "")")
+            withChannelSwitchHint {
+                Button("Update \(result.offeredDisplay ?? "")") { actions.install() }
+                    .buttonStyle(.borderedProminent)
+                    .help("Download and install \(result.app.name) \(result.offeredDisplay ?? "")")
+            }
 
         case .installer(let stagedFileName):
             // Already downloaded → "Install" re-opens that exact package instead of
             // fetching it again. See `AppListModel.stagedPackage(for:)`.
-            if let stagedFileName {
-                Button("Install") { actions.openStagedPackage() }
-                    .buttonStyle(.borderedProminent)
-                    .help("\(stagedFileName) is already downloaded — opens it in macOS's installer (asks for admin). Nothing is downloaded again.")
-            } else {
-                Button("Update") { actions.install() }
-                    .buttonStyle(.bordered)
-                    .help("Downloads the official installer and opens it (asks for admin)")
+            withChannelSwitchHint {
+                if let stagedFileName {
+                    Button("Install") { actions.openStagedPackage() }
+                        .buttonStyle(.borderedProminent)
+                        .help("\(stagedFileName) is already downloaded — opens it in macOS's installer (asks for admin). Nothing is downloaded again.")
+                } else {
+                    Button("Update") { actions.install() }
+                        .buttonStyle(.bordered)
+                        .help("Downloads the official installer and opens it (asks for admin)")
+                }
             }
 
         case .appStore(let storeManagedHere, let gate):

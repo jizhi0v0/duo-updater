@@ -52,7 +52,7 @@ enum RowStateGalleryCases {
     /// A copy brew installed from the standard cask and the user replaced with a
     /// nightly — `UpdateResult.replacesChannelWithStable` needs the Homebrew
     /// answer to say it installs stable (`offeredChannel`) and the copy to be on
-    /// another channel; either missing draws the license panel instead.
+    /// another channel; either missing draws a plain Update button instead.
     static let channelSwitchApp: UpdateResult = {
         var remote = RemoteVersion(
             shortVersion: "0.4.6", version: nil,
@@ -105,7 +105,7 @@ enum RowStateGalleryCases {
     @MainActor
     private static func popoverTile(name: String, state: RowActionState, result: UpdateResult) -> AnyView {
         switch name {
-        case "38-major-upgrade-explanation", "52-vendor-rewrite-explanation", "56-channel-switch-explanation":
+        case "38-major-upgrade-explanation", "52-vendor-rewrite-explanation":
             return AnyView(
                 PopoverRowAction(state: state, result: result).majorUpgradePopover.fixedSize())
         case "39-region-hint-explanation", "40-mac-compat-hint-explanation", "44-needs-newer-macos-hint-explanation":
@@ -134,6 +134,10 @@ enum RowStateGalleryCases {
                 }
                 return AnyView(popover.needsNewerMacOSHintPopover(info, minimum: minimum).fixedSize())
             }
+        case "56-channel-switch-explanation":
+            guard let channel = result.replacesChannelWithStable else { return AnyView(EmptyView()) }
+            return AnyView(
+                ChannelSwitchPanel(result: result, channel: channel, actions: .init(), dismiss: {}).fixedSize())
         case "51-orphaned-store-copy-explanation":
             // The copy and version come off the STATE, as the real badge reads them.
             guard case .orphanedStoreCopy(let copy, let version) = state else { return AnyView(EmptyView()) }
@@ -199,8 +203,7 @@ enum RowStateGalleryCases {
         if name == "56-channel-switch-explanation" {
             guard let channel = result.replacesChannelWithStable else { return AnyView(EmptyView()) }
             return AnyView(
-                ChannelSwitchPanel(result: result, channel: channel, actions: .init(), keepBackups: true, dismiss: {})
-                    .fixedSize())
+                ChannelSwitchPanel(result: result, channel: channel, actions: .init(), dismiss: {}).fixedSize())
         }
         if explanationCaseNames.contains(name) {
             return AnyView(EmptyView())
@@ -341,11 +344,11 @@ enum RowStateGalleryCases {
         // (Surge): the lock in the checkmark's place, and its panel.
         ("53-subscription-hold", .subscriptionHold(subscriptionHold), app),
         ("54-subscription-hold-explanation", .subscriptionHold(subscriptionHold), app),
-        // 18's badge and 38's panel, for a Homebrew update that puts the stable
-        // cask over a nightly copy (`UpdateResult.replacesChannelWithStable`): the
-        // same confirmation, channel wording; the workbench says it in words.
-        ("55-channel-switch", .updateAvailable(.majorUpgrade), channelSwitchApp),
-        ("56-channel-switch-explanation", .updateAvailable(.majorUpgrade), channelSwitchApp),
+        // A Homebrew update that puts the stable cask over a nightly copy
+        // (`UpdateResult.replacesChannelWithStable`): 12's Update button with a hint
+        // before it — a reminder, the update unchanged — and the hint's panel.
+        ("55-channel-switch", .updateAvailable(.autoInstall), channelSwitchApp),
+        ("56-channel-switch-explanation", .updateAvailable(.autoInstall), channelSwitchApp),
     ]
 
     /// A date written out, never read, for the same reason as the hosts below.
@@ -515,16 +518,6 @@ enum RowStateGalleryCases {
         ["popover/43-update-app-store-needs-newer-macos", "popover/50-orphaned-store-copy"],
         ["popover/46-not-for-this-macos-ceiling", "popover/50-orphaned-store-copy"],
         ["popover/47-not-for-this-macos-floor", "popover/50-orphaned-store-copy"],
-        // A channel switch is 18's confirmation with other words, so it takes 18's
-        // badge — and collides with every triangle 18 does. Popover only; the
-        // workbench says "Switches to stable". Not claimed as tooltip-differentiated:
-        // the panel is what tells them apart.
-        ["popover/18-update-major-upgrade", "popover/55-channel-switch"],
-        ["popover/22-update-app-store-mac-incompatible", "popover/55-channel-switch"],
-        ["popover/43-update-app-store-needs-newer-macos", "popover/55-channel-switch"],
-        ["popover/46-not-for-this-macos-ceiling", "popover/55-channel-switch"],
-        ["popover/47-not-for-this-macos-floor", "popover/55-channel-switch"],
-        ["popover/50-orphaned-store-copy", "popover/55-channel-switch"],
         // Workbench, and on purpose: a vendor's floor reached through a probe or a
         // feed is the same condition as the App Store's floor, so it takes the same
         // words ("Needs a newer macOS") rather than a synonym (`OSWindowWording`).

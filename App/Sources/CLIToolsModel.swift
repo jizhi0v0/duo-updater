@@ -74,14 +74,18 @@ final class CLIToolsModel {
 
     private func publishStatuses() {
         let current = self.now()
+        let wasOffered = Set(statuses.lazy.filter { $0.oneClick != nil }.map(\.toolID))
         statuses = checkedStatuses.map {
             $0.applyingGitHubPause(gitHubPause, updatersGetOurToken: updatersGetOurToken, now: current)
         }
         // "Not updated: <reason>" said why a click's copy was not offered at its
         // turn. Offered again — also with no check of its tool, as when the
         // GitHub pause lifts — it would read as the reason beside a live Update
-        // (review, #1511 round 2).
-        for id in notRunAtTurn where statuses.contains(where: { $0.toolID == id && $0.oneClick != nil }) {
+        // (review, #1511 round 2). Offered again only: one said beside an Update
+        // that stayed (its update now asks for an administrator password) is
+        // kept until its tool's next check.
+        for id in notRunAtTurn where !wasOffered.contains(id)
+            && statuses.contains(where: { $0.toolID == id && $0.oneClick != nil }) {
             notRunAtTurn.remove(id)
             errors[id] = nil
         }
@@ -658,21 +662,24 @@ final class CLIToolsModel {
         sightings = checkedSightings
         checked = true
         let byID = Dictionary(statuses.map { ($0.toolID, $0) }, uniquingKeysWith: { a, _ in a })
+        let answered = Set(answers.map(\.1.kind))
         // An error describes an attempt at an update that is still on offer. Once
         // the copy is no longer behind — updated from a terminal, or gone — it
         // would otherwise sit beside a current install in the workbench. Nor once
         // nothing is offered: openclaw's own update reported a failed check after
         // installing the newest release its node runs (2026-10-02), and the row
         // went on showing that failure where it should say the next release
-        // needs a newer Node.
+        // needs a newer Node. Not "Not updated: <reason>", whose copy is not on
+        // offer by its nature: it waits for its own tool's check, below — any
+        // tool's check took it away (review, 2026-10-20, round 2).
         for id in errors.keys where byID[id]?.state != .updateAvailable || byID[id]?.oneClick == nil {
+            if notRunAtTurn.contains(id), !answered.contains(id.kind) { continue }
             errors[id] = nil
             errorLogs[id] = nil
         }
         // "Not updated: <reason>" was true when the click's turn came. Kept by
         // the rule above once its tool is offered again, it read as the reason
         // beside a live Update on every later check (review, #1511 round 1).
-        let answered = Set(answers.map(\.1.kind))
         for id in notRunAtTurn where answered.contains(id.kind) {
             notRunAtTurn.remove(id)
             errors[id] = nil
@@ -902,7 +909,7 @@ final class CLIToolsModel {
         // only its tool's file (`CLIToolAdministratorRun`); the queue is there
         // for Homebrew against the tools.
         if clicked.needsAdministrator {
-            await runClaimed(id)
+            await runClaimed(id, needsAdministrator: true)
             release(id)
             return
         }
@@ -917,16 +924,17 @@ final class CLIToolsModel {
         // exits: that check waits on the network, and releasing the row earlier
         // shows the old "outdated" verdict with a live Update button for its length.
         let ran = await runQueue.perform(.tool(id), whenCancelled: { self.release(id) }) {
-            await self.runClaimed(id)
+            await self.runClaimed(id, needsAdministrator: false)
         }
         if ran { release(id) }
     }
 
     /// The update of a copy already claimed (`updating`), at its turn, then its
-    /// tool's re-check. The caller releases it.
-    private func runClaimed(_ id: CLIToolID) async {
+    /// tool's re-check. The caller releases it. `needsAdministrator` is what
+    /// the click decided the copy's route on (`update`).
+    private func runClaimed(_ id: CLIToolID, needsAdministrator: Bool) async {
         queued.remove(id)
-        guard let status = await offerAtTurn(id), let provider = provider(of: status) else { return }
+        guard let status = await offerAtTurn(id, needsAdministrator: needsAdministrator), let provider = provider(of: status) else { return }
         // Cancelled before its command started: nothing ran, nothing to re-check.
         guard let outcome = await run(status, with: provider) else { return }
         if Self.needsRecheck(outcome) {
@@ -946,18 +954,39 @@ final class CLIToolsModel {
     /// is busy" — or leave the copy unanswered; that run re-checks its own tool
     /// only, so the click went away at its turn with nothing run and nothing
     /// said (review, 2026-10-20). Still not offered, the row says so, and why.
-    private func offerAtTurn(_ id: CLIToolID) async -> CLIToolStatus? {
+    ///
+    /// Held back only by the GitHub pause (`gitHubPause`), it is not asked
+    /// again: its check would be refused by the same closed budget, and that
+    /// answer — no verdict — would replace the "update available" the pause
+    /// holds back, so the Update would not come back when the pause lifts
+    /// (review, 2026-10-20, round 2).
+    ///
+    /// Offered, but now asking for an administrator password where the click
+    /// queued it as one that did not, or the reverse, it is not run: the click
+    /// decided its route (`update`), and the panel raised at its turn would
+    /// come minutes after the click, holding the app (review, 2026-10-20,
+    /// round 2). The row says to click again.
+    private func offerAtTurn(_ id: CLIToolID, needsAdministrator: Bool) async -> CLIToolStatus? {
         let offer = { self.outdated.first { $0.toolID == id && $0.oneClick != nil } }
-        if let status = offer() { return status }
-        if let index = providers.firstIndex(where: { $0.kind == id.kind }) {
+        var offered = offer()
+        let heldByPause = offered == nil
+            && checkedStatuses.contains { $0.toolID == id && $0.state == .updateAvailable && $0.oneClick != nil }
+        if offered == nil, !heldByPause, let index = providers.firstIndex(where: { $0.kind == id.kind }) {
             // Nothing to cancel while it is asked: the update starts after.
             cancels[id] = nil
             setProgress(id, .checking, String(localized: "Checking…"))
             await check([index])
-            if let status = offer() {
-                cancels[id] = .available
-                return status
-            }
+            offered = offer()
+            if offered != nil { cancels[id] = .available }
+        }
+        if let offered {
+            guard offered.needsAdministrator != needsAdministrator else { return offered }
+            Log.app.notice("\(id.kind.rawValue, privacy: .public) update at \(id.path, privacy: .public): not run at its turn, \(offered.needsAdministrator ? "now needs" : "no longer needs", privacy: .public) an administrator password")
+            notRunAtTurn.insert(id)
+            errors[id] = offered.needsAdministrator
+                ? String(localized: "Not updated: it now asks for an administrator password — click Update again")
+                : String(localized: "Not updated: it no longer asks for an administrator password — click Update again")
+            return nil
         }
         let now = status(id)
         let why = now.flatMap { now in now.withheld.map { Self.reason($0, of: now) } }
@@ -1256,7 +1285,7 @@ final class CLIToolsModel {
         let answered = PanelAnswer()
         let run = Task { @MainActor in
             await CLIToolAdministratorPanel.$answered.withValue({ answered.signal() }) {
-                await self.runClaimed(id)
+                await self.runClaimed(id, needsAdministrator: true)
             }
             self.release(id)
             // The last copy of an Update All still waiting its turn — its lane

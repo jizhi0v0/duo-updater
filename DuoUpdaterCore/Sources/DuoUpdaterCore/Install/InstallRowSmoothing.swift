@@ -62,9 +62,13 @@ public struct InstallRowSmoothing<Key: Hashable & Sendable>: Sendable {
         /// One Cancel for the rows `ids` names, as a row that sums them up
         /// draws it — the popover's command-line tools row, over every copy it
         /// is updating, whichever click claimed it: live while any of them can
-        /// still be cancelled, and then greyed as theirs are (accepted, past
-        /// the commit, refused there). Nil once every one says "Cancelling…",
-        /// which the row's line then says, or when none has a Cancel.
+        /// still be cancelled, and then greyed as theirs are (accepted, being
+        /// stopped, past the commit, refused there). Nil once every one says
+        /// "Cancelling…", which the row's line then says, or when none has a
+        /// Cancel. One being stopped beside one past its commit says
+        /// "Cancelling…", as Update All's own Cancel in the workbench header
+        /// does (`CLIToolsModel.updateAllCancel`): "can't cancel now" right
+        /// after a Cancel it took read as refused (review, 2026-10-20, round 2).
         ///
         /// `running` is what the row's head names, the rest waiting their turn
         /// behind it: when none of those a click stops is among them, the
@@ -72,7 +76,7 @@ public struct InstallRowSmoothing<Key: Hashable & Sendable>: Sendable {
         /// "Upgrading go · Installing…" beside a live "Cancel update" that
         /// took back the Upgrade All queued behind it (review, 2026-10-20).
         public func groupCancel(of ids: some Sequence<Key>, running: Set<Key> = []) -> GroupCancel? {
-            var live = 0, liveRunning = 0, pending = false, committing = false, tooLate = false
+            var live = 0, liveRunning = 0, pending = false, cancelling = false, committing = false, tooLate = false
             for id in ids {
                 switch cancels[id] {
                 case .available:
@@ -80,9 +84,10 @@ public struct InstallRowSmoothing<Key: Hashable & Sendable>: Sendable {
                         live += 1
                         if running.contains(id) { liveRunning += 1 }
                     }
+                case .cancelling: cancelling = true
                 case .committing: committing = true
                 case .tooLate: tooLate = true
-                case .cancelling, nil: break
+                case nil: break
                 }
             }
             if live > 0 {
@@ -90,6 +95,7 @@ public struct InstallRowSmoothing<Key: Hashable & Sendable>: Sendable {
                                    queuedOnly: !running.isEmpty && liveRunning == 0)
             }
             if pending { return GroupCancel(state: .available, pending: true, live: 0) }
+            if cancelling, committing || tooLate { return GroupCancel(state: .cancelling, pending: false, live: 0) }
             if committing { return GroupCancel(state: .committing, pending: false, live: 0) }
             if tooLate { return GroupCancel(state: .tooLate, pending: false, live: 0) }
             return nil

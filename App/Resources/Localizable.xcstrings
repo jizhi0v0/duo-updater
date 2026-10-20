@@ -79901,6 +79901,136 @@
           }
         }
       }
+    },
+    "Not updated: it now asks for an administrator password — click Update again": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nicht aktualisiert: Das Update fragt jetzt nach einem Administratorpasswort – klicke erneut auf „Aktualisieren“"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se actualizó: ahora pide una contraseña de administrador; haz clic de nuevo en Actualizar"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Non mis à jour : la mise à jour demande désormais un mot de passe administrateur — cliquez à nouveau sur Mettre à jour"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Non aggiornato: ora chiede una password di amministratore — fai di nuovo clic su Aggiorna"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アップデートされていません: 管理者パスワードが必要になりました — もう一度「更新」をクリックしてください"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Não atualizado: agora pede a senha de administrador — clique em Atualizar de novo"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не обновлено: теперь запрашивается пароль администратора — нажмите «Обновить» ещё раз"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Güncellenmedi: artık yönetici parolası istiyor — Güncelle’ye yeniden tıklayın"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未更新：此更新现在需要输入管理员密码——请再点一次「更新」"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未更新：此更新現在需要輸入管理者密碼——請再按一次「更新」"
+          }
+        }
+      }
+    },
+    "Not updated: it no longer asks for an administrator password — click Update again": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nicht aktualisiert: Das Update fragt nicht mehr nach einem Administratorpasswort – klicke erneut auf „Aktualisieren“"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se actualizó: ya no pide una contraseña de administrador; haz clic de nuevo en Actualizar"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Non mis à jour : la mise à jour ne demande plus de mot de passe administrateur — cliquez à nouveau sur Mettre à jour"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Non aggiornato: non chiede più una password di amministratore — fai di nuovo clic su Aggiorna"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アップデートされていません: 管理者パスワードが不要になりました — もう一度「更新」をクリックしてください"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Não atualizado: não pede mais a senha de administrador — clique em Atualizar de novo"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не обновлено: пароль администратора больше не запрашивается — нажмите «Обновить» ещё раз"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Güncellenmedi: artık yönetici parolası istemiyor — Güncelle’ye yeniden tıklayın"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未更新：此更新不再需要输入管理员密码——请再点一次「更新」"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未更新：此更新不再需要輸入管理者密碼——請再按一次「更新」"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

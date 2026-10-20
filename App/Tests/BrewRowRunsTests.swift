@@ -31,7 +31,9 @@ struct BrewRowRunsTests {
     /// behind it, one Cancel stops both: "Cancel 2 updates". A queued `brew
     /// update`'s live Cancel is not counted. Upgrade All past its start greys
     /// nothing while another can still be stopped, and greys the row's Cancel
-    /// once nothing can; once every one says "Cancelling…" it is gone.
+    /// once nothing can — saying "Cancelling…" while the ones its click
+    /// stopped are being stopped, not "can't cancel now" (review, 2026-10-20,
+    /// round 2); once every one says "Cancelling…" it is gone.
     ///
     /// Mutation: `cancel` over every key in `cancels` instead of the row's →
     /// `brew update` counted, `live` 2 then 3, red.
@@ -53,7 +55,7 @@ struct BrewRowRunsTests {
         ]
         _ = s.update(stages: [:], cancels: accepted, now: at(20))
         let shown = s.update(stages: [:], cancels: accepted, now: at(400))
-        #expect(BrewRowRuns.cancel(three, in: shown) == .init(state: .committing, pending: false, live: 0))
+        #expect(BrewRowRuns.cancel(three, in: shown) == .init(state: .cancelling, pending: false, live: 0))
         #expect(BrewRowRuns.cancel([Self.go, Self.jq], in: shown) == nil)
     }
 

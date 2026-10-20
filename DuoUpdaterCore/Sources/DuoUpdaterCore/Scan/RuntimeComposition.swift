@@ -57,6 +57,7 @@ public enum RuntimeComposition {
         case .flutter:  found = flutter(context)
         case .gpui:     found = gpui(context)
         case .egui:     found = egui(context)
+        case .nsh:      found = nsh(context)
         case .tauri:    found = tauri(context)
         case .wails:    found = wails(context)
         // Apple's stacks are `LinkedFrameworks`' job. Linking WebKit or Metal is

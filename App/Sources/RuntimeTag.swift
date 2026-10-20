@@ -8,9 +8,9 @@ import DuoUpdaterCore
 /// **Where a runtime has a mark of its own, this draws that mark**, not an
 /// imitation of it: Electron, Tauri, Flutter, Qt and React Native are Simple
 /// Icons artwork (`RuntimeArtwork`, which says why hand-drawn near-misses were replaced), a
-/// single path in a 24-unit box filled with the runtime's hue. Chromium's disc
-/// and MyGo's ring-in-a-square are drawn from geometry here, because they are
-/// nothing but geometry and neither has an icon to import. The rest take SF
+/// single path in a 24-unit box filled with the runtime's hue. Chromium's disc,
+/// MyGo's ring-in-a-square and NSH's arch-over-a-dot are drawn from geometry
+/// here, because they are nothing but geometry and none has an icon to import. The rest take SF
 /// Symbols: a bolt for GPUI and a lettered square for egui, which have no mark
 /// of their own, and for Wails, whose mark does not survive 12pt; a steaming cup for Java, which has no usable mark; and for the three
 /// Apple-platform cases a device silhouette — a tablet and phone for Catalyst, a
@@ -197,6 +197,7 @@ struct RuntimeTag: View {
     /// red. That leaves no system hue unused that survives both appearances —
     /// yellow is out for Tauri's reason — so GPUI shares Chromium's blue (Zed's
     /// own colour) and egui shares Tauri's orange (Rust's), told apart by shape.
+    /// NSH's own mark is lime green, so it shares Qt's green the same way.
     ///
     /// Native is the one neutral, and it can afford to be: its mark is a solid
     /// Apple glyph, which carries at grey where a thin outline did not. That
@@ -209,6 +210,7 @@ struct RuntimeTag: View {
         case .wails:     return .red
         case .gpui:      return .blue
         case .egui:      return .orange
+        case .nsh:       return .green
         case .flutter:   return .cyan
         case .qt:        return .green
         case .java:      return .brown
@@ -232,6 +234,7 @@ struct RuntimeTag: View {
         case .wails:     return "Wails"
         case .gpui:      return "GPUI"
         case .egui:      return "egui"
+        case .nsh:       return "NSH"
         case .flutter:   return "Flutter"
         case .qt:        return "Qt"
         case .java:      return "Java"
@@ -260,7 +263,7 @@ struct RuntimeTag: View {
         case .gpui:      return "bolt.fill"       // see RuntimeArtwork: no mark of its own
         case .egui:      return "e.square.fill"
         case .wails:     return "w.square.fill"   // its logo is illegible at 12pt; see RuntimeArtwork
-        case .electron, .tauri, .mygo, .flutter, .qt, .chromium, .reactNative: return nil
+        case .electron, .tauri, .mygo, .nsh, .flutter, .qt, .chromium, .reactNative: return nil
         }
     }
 
@@ -316,6 +319,7 @@ struct RuntimeTag: View {
         case .wails:     return String(localized: "Built with Wails — a Go app showing its interface in the system WebView.")
         case .gpui:      return String(localized: "Built with GPUI — the Rust framework Zed is built on, drawing every pixel itself on the GPU.")
         case .egui:      return String(localized: "Built with egui — a Rust app drawing its own interface.")
+        case .nsh:       return String(localized: "Built with NSH — an interface written in TSX, run by a Rust engine and drawn with AppKit or GPUI.")
         case .flutter:   return String(localized: "Built with Flutter.")
         case .qt:        return String(localized: "Built with Qt.")
         case .java:      return String(localized: "A Java app, shipping the runtime it needs.")
@@ -363,6 +367,8 @@ private struct RuntimeMark: View {
             ChromiumDisc(size: size)
         } else if runtime == .mygo {
             MyGoMark(size: size)
+        } else if runtime == .nsh {
+            NSHMark(size: size)
         } else if let path = Self.cache[runtime] {
             // Authored in a 24-unit box, and SVG's y-axis points down exactly as
             // SwiftUI's does, so this is a scale and nothing more. Filled with the
@@ -403,6 +409,35 @@ private struct MyGoMark: View {
                     .blendMode(.destinationOut)
             )
             .compositingGroup()
+            .frame(width: size, height: size)
+    }
+}
+
+/// NSH's mark: an arch over a dot, as the favicon of nsh.dev draws it in a
+/// 100-unit box — the arch's centre line rising from (16, 88) to a half circle of
+/// radius 34 about (50, 46) and back down to (84, 88), stroked at 20 with round
+/// ends, and a dot of radius 11 at (50, 64). The favicon paints the arch in a
+/// lime gradient and the dot near-black; here both take the runtime's hue, like
+/// every other mark.
+private struct NSHMark: View {
+    let size: CGFloat
+
+    private static let shape: Path = {
+        var arch = Path()
+        arch.move(to: CGPoint(x: 16, y: 88))
+        arch.addLine(to: CGPoint(x: 16, y: 46))
+        arch.addRelativeArc(center: CGPoint(x: 50, y: 46), radius: 34,
+                            startAngle: .degrees(180), delta: .degrees(180))
+        arch.addLine(to: CGPoint(x: 84, y: 88))
+        var mark = arch.strokedPath(StrokeStyle(lineWidth: 20, lineCap: .round))
+        mark.addEllipse(in: CGRect(x: 39, y: 53, width: 22, height: 22))
+        return mark
+    }()
+
+    var body: some View {
+        Self.shape
+            .applying(CGAffineTransform(scaleX: size / 100, y: size / 100))
+            .fill(.foreground)
             .frame(width: size, height: size)
     }
 }

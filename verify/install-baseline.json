@@ -243,14 +243,14 @@
       "sweepsSinceComment" : 0
     },
     "install:github:chekusu\/yomado:stable" : {
-      "consecutiveActionable" : 4,
+      "consecutiveActionable" : 5,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 1489,
       "lastCommentedAt" : "2026-10-19T17:53:52Z",
       "lastSignature" : "identityChanged: Sparkle key none → knah",
       "previousSignature" : "identityChanged: Sparkle key none → knah",
-      "sweepsSinceComment" : 2
+      "sweepsSinceComment" : 3
     },
     "install:github:cjpais\/Handy:stable" : {
       "consecutiveActionable" : 0,
@@ -458,6 +458,12 @@
       "consecutiveInstallTransient" : 0,
       "sweepsSinceComment" : 0
     },
+    "install:github:lapce\/lapce:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
     "install:github:leits\/MeetingBar:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
@@ -603,6 +609,12 @@
       "sweepsSinceComment" : 0
     },
     "install:github:objective-see\/LuLu:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
+    "install:github:objective-see\/TaskExplorer:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
@@ -1934,5 +1946,5 @@
     }
   },
   "schemaVersion" : 1,
-  "updatedAt" : "2026-10-20T02:07:26Z"
+  "updatedAt" : "2026-10-20T10:38:46Z"
 }

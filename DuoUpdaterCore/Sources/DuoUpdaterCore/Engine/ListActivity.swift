@@ -35,6 +35,10 @@ public struct ListActivity: Sendable, Equatable {
     public var isChecking: Bool
     /// A batch "Update All" is running.
     public var isInstallingAll: Bool
+    /// An "Update All" click is asking the helper for its status, which the
+    /// batch's filter reads, before it claims the batch. The header shows the
+    /// button greyed for it, and a second click finds nothing to start.
+    public var isStartingInstallAll: Bool
     /// At least one row has an install of its own in flight. Holds Refresh, not
     /// Update All (`canInstallAll`).
     public var hasRowInstalls: Bool
@@ -52,12 +56,14 @@ public struct ListActivity: Sendable, Equatable {
         isScanning: Bool = false,
         isChecking: Bool = false,
         isInstallingAll: Bool = false,
+        isStartingInstallAll: Bool = false,
         rowInstallCount: Int = 0
     ) {
         self.isRefreshing = isRefreshing
         self.isScanning = isScanning
         self.isChecking = isChecking
         self.isInstallingAll = isInstallingAll
+        self.isStartingInstallAll = isStartingInstallAll
         self.hasRowInstalls = rowInstallCount > 0
     }
 
@@ -75,14 +81,15 @@ public struct ListActivity: Sendable, Equatable {
     public var canRefresh: Bool { isIdle }
 
     /// Whether `installAll` may start: not while a refresh, scan or check is
-    /// rewriting the list, and not while another batch runs. Rows installing on
+    /// rewriting the list, and not while another batch runs or another click
+    /// is starting one. Rows installing on
     /// their own do not stop it — a click on one row must not hide Update All for
     /// the rest. The batch takes only the rows not already installing
     /// (`installAllTargets`), and the gates every install goes through keep
     /// Homebrew and the App Store from running more at once than two row clicks
     /// already can.
     public var canInstallAll: Bool {
-        !isRefreshing && !isScanning && !isChecking && !isInstallingAll
+        !isRefreshing && !isScanning && !isChecking && !isInstallingAll && !isStartingInstallAll
     }
 
     /// A scan/check round is in flight — a refresh (either leg, and the gaps
@@ -107,10 +114,12 @@ public struct ListActivity: Sendable, Equatable {
     /// through the per-row policy predicates (`canAutoInstall`, `requiresInstaller`,
     /// `defersToSelfUpdater`…). As a plain parameter that argument is evaluated
     /// BEFORE the call, so the whole sweep would run on every read even while a
-    /// batch install is in flight — and `MenuContentView` reads this on every
-    /// render, which during a download is every progress callback. The `&&` this
-    /// replaced short-circuited on `!isInstallingAll` and never reached the sweep;
-    /// the autoclosure is what preserves that.
+    /// batch install or a round is in flight — and `MenuContentView` reads this on
+    /// every render, which during a download is every progress callback. The `&&`
+    /// short-circuits on `canInstallAll` and never reaches the sweep then; the
+    /// autoclosure is what preserves that. Rows downloading on their own do NOT
+    /// short-circuit it (they leave `canInstallAll` true), so during a row's
+    /// download the sweep does run on every progress render.
     public func canOfferUpdateAll(targetCount: @autoclosure () -> Int) -> Bool {
         canInstallAll && targetCount() > 1
     }

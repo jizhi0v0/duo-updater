@@ -21,7 +21,9 @@ for f in "$@"; do
     for k in CFBundleIdentifier CFBundleName CFBundleShortVersionString CFBundleVersion LSMinimumSystemVersion SUFeedURL; do
       printf '  %s=%s\n' "$k" "$(/usr/libexec/PlistBuddy -c "Print :$k" "$P" 2>/dev/null || echo '<none>')"
     done
-    exe="$app/Contents/MacOS/$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$P")"
+    # PyInstaller writes the executable as `MacOS/aw-qt` (ActivityWatch 0.14.1).
+    e=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$P")
+    exe="$app/Contents/MacOS/${e#MacOS/}"
     echo "  archs=$(lipo -archs "$exe")"
     codesign -dvv "$app" 2>&1 | grep -E '^(Identifier|TeamIdentifier)=' | sed 's/^/  /'
     codesign --verify --deep --strict "$app" 2>/dev/null; echo "  codesign-verify-exit=$?"

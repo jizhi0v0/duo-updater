@@ -17,13 +17,16 @@ existing `install-verify` item, from what that job read off the package. That
 is how the derivation is checked against the hand-written rules.
 
 It also fetches the previous and the oldest listed stable release (each up to
-300 MB) and compares their bundle id, Team and version with the newest.
+300 MB) and compares their bundle id, Team and version with the newest, and one
+other installer of the same kind and arch in the newest release, if there is
+one, for its bundle id.
 
 Scope: one stable rule for one bundle id, a .dmg or .zip asset, a plain dotted
 CFBundleShortVersionString. A package that is itself a prerelease, a .pkg or
-tarball, an Intel-only asset, any other version scheme, or a Sparkle feed in the
-bundle stops the script with the reason; those take an audit, not a template. A
-prerelease that ships an asset of the same name, a system extension or other
+tarball, an Intel-only asset or bundle, any other version scheme, or a Sparkle
+feed in the bundle stops the script with the reason; those take an audit, not a
+template. A prerelease that ships an asset of the same name, another installer
+in the release with the same bundle id, a system extension or other
 component, or an executable naming its own releases is drafted with a
 `TODO(audit)` note instead. The checks
 here only fail early; what decides is `make test`, `duo verify`,
@@ -224,6 +227,12 @@ def derive(owner, repo, facts, releases):
     # never the asset it should pick.
     if arch_class(asset) == "x86_64":
         raise Stop(f"{asset} is an Intel build; DuoUpdater is arm64-only — pass the arm64 or universal asset")
+    # A name with no arch marker says nothing: Journey's `Journey-darwin-2.14.6.zip`
+    # is x86_64 only. `--facts` carries no architectures and skips this.
+    archs = facts.get("architectures") or []
+    if archs and "arm64" not in archs:
+        raise Stop(f"{asset} is an Intel build ({' '.join(archs)}); DuoUpdater is arm64-only — "
+                   "pass the arm64 or universal asset")
     names = {a["name"] for a in rel["assets"]}
     asset_pattern = generalise(asset, find_version(asset, short, prefer=(tag_version,)), VERSION, build)
     match_pattern = asset_pattern
@@ -251,6 +260,13 @@ def derive(owner, repo, facts, releases):
                     and not re.search(r"(?i)windows|win32|win64|linux|\.(msi|exe|deb|rpm|appimage)", n))
     if others:
         notes.append(f"other installers in {tag} the pattern leaves out: {', '.join(others)}")
+    # One of the same kind for the same machine may be another product under the
+    # same id: ActivityWatch ships `activitywatch-tauri-v0.14.1-macos-arm64.dmg`
+    # and `activitywatch-v0.14.1-macos-arm64.dmg`. `same_id_product` reads it.
+    # Debug symbols are no product (AltTab's `Sparkle.framework.dSYM.zip`).
+    siblings = [{k: a.get(k) for k in ("name", "size", "digest", "browser_download_url")}
+                for a in rel["assets"] if a["name"] in others and ".dsym." not in a["name"].lower()
+                and a["name"].endswith(kind) and arch_class(a["name"]) == arch_class(asset)]
 
     digest = next(a.get("digest") for a in rel["assets"] if a["name"] == asset)
     if facts.get("sha256") and digest and digest != f"sha256:{facts['sha256']}":
@@ -281,7 +297,41 @@ def derive(owner, repo, facts, releases):
         "versionPattern": version_pattern, "installAssetPattern": asset_pattern,
         "installerKind": kind, "installTrust": trust, "notes": notes,
         "matchPattern": match_pattern, "readTags": [r["tag_name"] for r in read],
+        "siblings": siblings,
     }
+
+
+def same_id_product(facts, d):
+    """Read one of `d["siblings"]` and say whether it is this bundle id. Two
+    products under one id (ActivityWatch's Tauri and classic builds, both
+    `net.activitywatch.ActivityWatch` 0.14.1, Team XM9GC3SUL2) are one rule to
+    DuoUpdater, which then installs this asset over the other's copies."""
+    if not d["siblings"]:
+        return []
+    a = d["siblings"][0]
+    if a["size"] > OLDER_CAP:
+        return [f"{a['name']} is {a['size'] // 2**20} MB, not fetched — TODO(audit) compare its Info.plist "
+                "with this one by hand"]
+    tmp = tempfile.mkdtemp(prefix="scaffold-sibling.")
+    try:
+        dest = os.path.join(tmp, a["name"])
+        if subprocess.run(["curl", "-sSfL", "--connect-timeout", "20", "--max-time", "900",
+                           "-o", dest, a["browser_download_url"]]).returncode:
+            return [f"{a['name']}: download failed — TODO(audit) compare its Info.plist with this one by hand"]
+        o = package_facts(dest)
+    except Stop as e:
+        if "no .app at the top" in str(e):
+            return [f"{a['name']} holds no .app at its top: not compared"]
+        return [f"{a['name']}: {e} — TODO(audit) compare it by hand"]
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+    if a.get("digest") and a["digest"] != f"sha256:{o['sha256']}":
+        return [f"{a['name']}: the download does not hash to GitHub's digest — retry before trusting it"]
+    if o["bundleIdentifier"] != facts["bundleIdentifier"]:
+        return []
+    return [f"{a['name']} in {d['tag']} is the same bundle id (version {o['shortVersion']}, Team "
+            f"{o['teamIdentifier'] or 'none'}): TODO(audit) — another product or build under the same id; "
+            "the rule would replace its users' copy with this one"]
 
 
 def older_identities(owner, repo, releases, facts, d):
@@ -635,6 +685,7 @@ def main():
             raise Stop(f"{bid} is already named in {', '.join(os.path.relpath(t, REPO) for t in taken)}")
         releases = gh_releases(owner, repo)
         d = derive(owner, repo, facts, releases)
+        d["notes"] += same_id_product(facts, d)
         d["older"] = older_identities(owner, repo, releases, facts, d)
         d["notes"] += [n for n in d["older"] if "TODO(audit)" in n or "retry" in n]
 

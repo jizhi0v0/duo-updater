@@ -921,16 +921,15 @@ final class CLIToolsModel {
             return
         }
         if queued.contains(id) {
+            // Out of the batch for good: a click of its own on this row later
+            // is not Update All's to cancel or release (review, #1498).
+            batchIDs.remove(id)
             cancelledWhileQueued.insert(id)
             Log.app.notice("\(id.kind.rawValue, privacy: .public) update at \(id.path, privacy: .public): cancelled before it started")
             release(id)
             // The last copy of an Update All still waiting its turn: nothing is
-            // left for it to run. Its copies are the queued ones that are not a
-            // click of their own.
-            if runQueue.isWaiting(.updateAllTools),
-               !queued.contains(where: { !runQueue.isWaiting(.tool($0)) }) {
-                cancelUpdateAll()
-            }
+            // left for it to run.
+            if runQueue.isWaiting(.updateAllTools), batchIDs.isEmpty { cancelUpdateAll() }
             return
         }
         cancels[id] = InstallCancelState.after(InstallJobs.cancel(Self.jobID(id)))
@@ -1119,10 +1118,11 @@ final class CLIToolsModel {
         // Taken back while it waited (`cancelUpdateAll`): nothing ran, and every
         // copy it claimed is released inside the Cancel.
         let ran = await runQueue.perform(.updateAllTools, whenCancelled: {
-            for (status, _) in batch {
-                self.cancelledWhileQueued.remove(status.toolID)
-                if self.queued.contains(status.toolID) { self.release(status.toolID) }
-            }
+            // The batch's copies as they stand, not as clicked: one cancelled
+            // out of it and clicked again waits as a click of its own, and is
+            // left to that click.
+            for id in self.batchIDs where self.queued.contains(id) { self.release(id) }
+            for (status, _) in batch { self.cancelledWhileQueued.remove(status.toolID) }
             self.endUpdateAll()
         }) { await self.runBatch(batch) }
         if ran { endUpdateAll() }
@@ -1193,9 +1193,10 @@ final class CLIToolsModel {
 
     private func runLane(_ lane: [(CLIToolStatus, Int)], _ run: BatchRun) async {
         for (status, provider) in lane {
-            queued.remove(status.toolID)
-            // Cancelled while it waited: its row was released then.
+            // Cancelled while it waited: its row was released then — and may be
+            // claimed again by a click of its own, whose "Queued" stays.
             if cancelledWhileQueued.remove(status.toolID) != nil { continue }
+            queued.remove(status.toolID)
             guard let outcome = await self.run(status, with: provider) else {
                 release(status.toolID)
                 continue

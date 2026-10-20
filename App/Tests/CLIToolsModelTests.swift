@@ -2252,6 +2252,47 @@ struct CLIToolsModelTests {
         #expect(!model.updatingAll)
     }
 
+    /// A copy cancelled out of a waiting Update All and clicked again waits as
+    /// a click of its own: taking Update All back then leaves it claimed,
+    /// "Queued" with its Cancel, and it runs at its turn (review, #1498).
+    ///
+    /// Mutation: release every click-time copy that is still queued (the old
+    /// loop) → the copy loses its claim while its click waits, red.
+    @Test(.timeLimit(.minutes(1))) func aCopyClickedAgainSurvivesItsUpdateAllsCancel() async {
+        let prefix = "/Users/u/.nvm/versions/node/v24.11.0-\(UUID().uuidString)"
+        let a = Self.id(prefix + "/lib/node_modules/pnpm", .npm)
+        let c = Self.id(prefix + "/lib/node_modules/tsx", .npm)
+        let updater = FakeUpdater()
+        let npm = FakeProvider(
+            kind: .npm,
+            checker: FakeCheck([(Self.report(.npm, [Self.status(a.path, kind: .npm), Self.status(c.path, kind: .npm)]), nil)]),
+            updater: updater)
+        let model = Self.model([npm])
+        await model.refresh()
+        let gate = Gate()
+        let held = await holdQueue(model, gate)
+
+        let all = Task { await model.updateAll() }
+        await until { model.updateAllWaiting }
+        model.cancel(c)
+        let click = Task { await model.update(c) }
+        await until { model.runQueue.isWaiting(.tool(c)) }
+        // Not Update All's any more: its live Cancel would not reach it.
+        model.cancelUpdateAll()
+        await all.value
+        #expect(!model.updating.contains(a))
+        #expect(model.updating.contains(c))
+        #expect(model.queued.contains(c))
+        #expect(model.cancels[c] == .available)
+        #expect(model.runQueue.waiting == [.tool(c)])
+
+        await gate.open()
+        await held.value
+        await click.value
+        #expect(await updater.calls == [c])
+        #expect(model.updating.isEmpty)
+    }
+
     /// Cancelling every copy of a waiting Update All one by one takes Update
     /// All itself out of the queue: it would have nothing to run. A row's own
     /// click waiting beside it is not one of its copies, and stays.

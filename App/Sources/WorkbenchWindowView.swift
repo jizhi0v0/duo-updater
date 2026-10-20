@@ -80,6 +80,16 @@ struct WorkbenchWindowView: View {
     @State private var uncheckedRevealHandled = 0
     /// Briefly true after a reveal, so the rows it scrolled to stand out.
     @State private var highlightUnchecked = false
+    /// Bumped by each "Show in Window" from the popover's Homebrew or "Other
+    /// tools" row: the CLI list scrolls that level's header (`cliRevealTarget`)
+    /// to its top, `uncheckedRevealRequest`'s way. Opening the level alone left
+    /// "Other tools" below a long Homebrew group, out of view (2026-10-20: the
+    /// list stayed at its top, 62 packages above it) — and, once that scrolled,
+    /// Homebrew above the list's top.
+    @State private var cliRevealRequest = 0
+    @State private var cliRevealHandled = 0
+    /// The header the latest request scrolls to.
+    @State private var cliRevealTarget = Self.homebrewHeaderID
     /// Whether the user keeps the CLI tab's Homebrew group open. Remembered across
     /// launches, like the changelog layout; closed until they open it. What else
     /// opens the group, and why that never writes here: `HomebrewGroupState`.
@@ -282,12 +292,6 @@ struct WorkbenchWindowView: View {
             || !model.cliTools.justUpdated.isEmpty
     }
 
-    /// Why every "Other tools" Update is disabled — a Homebrew run is under way
-    /// (`CLIConcurrency`) — for its tooltip; nil while they may run.
-    private var toolUpdateBlockedReason: String? {
-        model.cliBlockedReason(.tool)
-    }
-
     /// The app the detail pane shows — keyed off the debounced `detailSelection`,
     /// not the live `selection`, so fast arrow-key scrubbing doesn't rebuild it.
     private var selected: UpdateResult? {
@@ -326,6 +330,12 @@ struct WorkbenchWindowView: View {
     /// as one of the Homebrew group's rows (`isHomebrewRow`).
     static let homebrewSelfUpdateTag = "brew:self-update"
 
+    /// The "Other tools" header's scroll id (`cliRevealRequest`): not a
+    /// selection tag, since the header is not a row.
+    static let otherToolsHeaderID = "cli:other-tools-header"
+    /// The Homebrew header's, likewise.
+    static let homebrewHeaderID = "cli:homebrew-header"
+
     /// The Homebrew update on offer, when its row is the selection.
     private var selectedHomebrewSelfUpdate: HomebrewSelfUpdate? {
         detailSelection == Self.homebrewSelfUpdateTag ? model.homebrewSelfUpdate : nil
@@ -363,12 +373,10 @@ struct WorkbenchWindowView: View {
                 Group {
                     if case .claudeCode(let claudeCode) = status.detail {
                         ClaudeCodeDetailPane(status: claudeCode, cli: model.cliTools,
-                                             showsRuntime: model.prefs.showCLIRuntimeTags,
-                                             blockedReason: toolUpdateBlockedReason)
+                                             showsRuntime: model.prefs.showCLIRuntimeTags)
                     } else {
                         CLIToolDetailPane(status: status, cli: model.cliTools,
-                                          showsRuntime: model.prefs.showCLIRuntimeTags,
-                                          blockedReason: toolUpdateBlockedReason)
+                                          showsRuntime: model.prefs.showCLIRuntimeTags)
                     }
                 }
                 .id(status.toolID.tag)
@@ -576,6 +584,8 @@ struct WorkbenchWindowView: View {
         searchText = ""
         sidebarTab = .cli
         otherToolsRevealing = true
+        cliRevealTarget = Self.otherToolsHeaderID
+        cliRevealRequest += 1
     }
 
     /// Honor a pending "Show in Window" from the popover's Homebrew row: the CLI
@@ -588,6 +598,8 @@ struct WorkbenchWindowView: View {
         searchText = ""
         homebrewRevealing = true
         sidebarTab = .cli
+        cliRevealTarget = Self.homebrewHeaderID
+        cliRevealRequest += 1
     }
 
     // MARK: - Sidebar
@@ -889,15 +901,13 @@ struct WorkbenchWindowView: View {
     @ViewBuilder
     private var brewBulkUpgrade: some View {
         if !model.brewOutdatedFormulae.isEmpty {
-            let blocked = model.cliBlockedReason(.upgradeAll)
             ZStack(alignment: .trailing) {
+                // Never disabled by another run: behind one it waits its turn
+                // (`CLIRunQueue`), "Queued" with its Cancel.
                 Button("Upgrade All") { Task { await model.upgradeBrewFormulae() } }
                     .controlSize(.small)
                     .buttonStyle(.bordered)
-                    // Not beside another brew run or a tool's update; the tooltip
-                    // says which (`CLIConcurrency`).
-                    .disabled(blocked != nil)
-                    .help(blocked ?? String(localized: "Runs `brew upgrade --formula` — upgrades every outdated CLI formula at once. Casks are managed per-row above."))
+                    .help(String(localized: "Runs `brew upgrade --formula` — upgrades every outdated CLI formula at once. Casks are managed per-row above."))
                     .opacity(model.brewUpgrading ? 0 : 1)
                     .accessibilityHidden(model.brewUpgrading)
                 if model.brewUpgrading {
@@ -1025,12 +1035,20 @@ struct WorkbenchWindowView: View {
             Button("Update All") { Task { await tools.updateAll() } }
                 .controlSize(.small)
                 .buttonStyle(.bordered)
-                // Not beside a brew run; the tooltip says so (`CLIConcurrency`).
-                .disabled(tools.updatingAll || tools.batchable.isEmpty || toolUpdateBlockedReason != nil)
-                .help(toolUpdateBlockedReason ?? String(localized: "Updates each copy in place with its own tool’s update command, on the channel that tool is set to. Copies without a one-click update, and copies whose update asks for an administrator password, are left alone."))
+                // Not disabled by another run: behind one it waits its turn
+                // (`CLIRunQueue`), and can be taken back meanwhile.
+                .disabled(tools.updatingAll || tools.batchable.isEmpty)
+                .help(String(localized: "Updates each copy in place with its own tool’s update command, on the channel that tool is set to. Copies without a one-click update, and copies whose update asks for an administrator password, are left alone."))
                 .opacity(tools.updatingAll ? 0 : 1)
-                .overlay {
-                    if tools.updatingAll { ProgressView().controlSize(.small) }
+                .overlay(alignment: .trailing) {
+                    if tools.updatingAll {
+                        HStack(spacing: 4) {
+                            ProgressView().controlSize(.small)
+                            if tools.updateAllWaiting {
+                                InstallCancelButton(state: .available) { tools.cancelUpdateAll() }
+                            }
+                        }
+                    }
                 }
         }
     }
@@ -1190,6 +1208,7 @@ struct WorkbenchWindowView: View {
                 if showsBrew {
                     homebrewHeader(lists, expanded: brewExpanded)
                         .sidebarSectionHeader(first: true)
+                        .id(Self.homebrewHeaderID)
                     homebrewSummary(lists)
                         .sidebarStaticRow()
                     if brewExpanded {
@@ -1222,6 +1241,14 @@ struct WorkbenchWindowView: View {
                 // what the groups below come to, and Update All for them.
                 let othersExpanded = otherToolsExpanded(lists)
                 if searchQuery.isEmpty ? !model.cliTools.statuses.isEmpty : !lists.cliTools.isEmpty {
+                    // A later section's header sits 16 pt under the row above, the
+                    // first's 12 (`sidebarSectionHeader`). The 4 pt between is drawn
+                    // apart from the header, which takes the first's padding: scrolled
+                    // to the top (`cliRevealRequest`) it then lands where Homebrew's
+                    // does, not 4 pt lower (2026-10-20, y 190 against 186).
+                    if showsBrew {
+                        Color.clear.frame(height: 4).accessibilityHidden(true)
+                    }
                     // Homebrew's header, so the two levels open, close and line up
                     // alike.
                     HomebrewGroupHeader(
@@ -1240,7 +1267,8 @@ struct WorkbenchWindowView: View {
                         otherToolsBulkUpdate
                     }
                     .padding(.trailing, Self.sectionHeaderTrailingInset)
-                    .sidebarSectionHeader(first: !showsBrew)
+                    .sidebarSectionHeader(first: true)
+                    .id(Self.otherToolsHeaderID)
                     otherToolsSummary(lists)
                         .sidebarStaticRow()
                 }
@@ -1250,8 +1278,7 @@ struct WorkbenchWindowView: View {
                     ForEach(group.statuses, id: \.toolID) { status in
                         CLIToolSidebarRow(
                             status: status, cli: model.cliTools,
-                            showsRuntime: model.prefs.showCLIRuntimeTags,
-                            blockedReason: toolUpdateBlockedReason)
+                            showsRuntime: model.prefs.showCLIRuntimeTags)
                             .sidebarRow(status.toolID.tag, selection: $selection)
                     }
                 }
@@ -1300,6 +1327,20 @@ struct WorkbenchWindowView: View {
                 try? await Task.sleep(for: .seconds(2))
                 // Not guarded on cancellation: a highlight left on would never clear.
                 withAnimation(.easeOut(duration: 0.6)) { highlightUnchecked = false }
+            }
+            // The popover's Homebrew and "Other tools" rows: that level's header
+            // to the top of the list, at once — not after the unchecked reveal's
+            // 150 ms wait, which in a freshly opened window showed the list's top
+            // for ~100 ms before the jump (recorded at 60 fps, 2026-10-20) — and
+            // once more a frame later, for a list laid out after the first. Marked
+            // handled only by a task that was not cancelled, for the reason above.
+            .task(id: cliRevealRequest) {
+                guard cliRevealRequest != cliRevealHandled else { return }
+                proxy.scrollTo(cliRevealTarget, anchor: .top)
+                try? await Task.sleep(for: .milliseconds(16))
+                guard !Task.isCancelled else { return }
+                cliRevealHandled = cliRevealRequest
+                proxy.scrollTo(cliRevealTarget, anchor: .top)
             }
         }
     }
@@ -1777,8 +1818,12 @@ extension AppListModel {
     /// per-row set, so during Upgrade All the selected row spun while its pane
     /// offered Update — a conflicting `brew upgrade` on top of the bulk run
     /// (2026-10-06).
+    ///
+    /// An Upgrade All still waiting its turn (`CLIRunQueue`) covers none yet:
+    /// its header says "Queued", and the rows keep their Update.
     func isUpgrading(_ formula: BrewInstalledFormula) -> Bool {
-        upgradingFormulae.contains(formula.name) || (brewUpgrading && formula.hasUpdate)
+        upgradingFormulae.contains(formula.name)
+            || (brewUpgrading && formula.hasUpdate && !cliTools.runQueue.isWaiting(.upgradeAll))
     }
 }
 
@@ -1840,21 +1885,19 @@ private struct BrewFormulaSidebarRow: View {
                     BrewUpgradeCancelButton(jobID: AppListModel.formulaJobID(formula.name), model: model)
                 }
             } else if formula.hasUpdate {
-                let blocked = model.cliBlockedReason(.upgradeFormula)
                 Button("Update") { Task { await model.upgradeBrewFormula(named: formula.name) } }
                     .controlSize(.small)
                     .buttonStyle(.borderedProminent)
-                    .disabled(blocked != nil)
-                    .help(blocked ?? "")
             }
         }
         .padding(.vertical, 2)
     }
 }
 
-/// A brew upgrade's Cancel beside its progress (`InstallCancelButton`): a
-/// formula row's own upgrade (`AppListModel.formulaJobID`) or Upgrade All
-/// (`upgradeAllJobID`) — a row that only spins because Upgrade All covers it
+/// A brew run's Cancel beside its progress (`InstallCancelButton`): a
+/// formula row's own upgrade (`AppListModel.formulaJobID`), Upgrade All
+/// (`upgradeAllJobID`), or `brew update` while it waits its turn
+/// (`homebrewUpdateJobID`) — a row that only spins because Upgrade All covers it
 /// has none. Gone once the cancel was accepted: the progress says
 /// "Cancelling…" until the run ends (`AppListModel.cancelBrewUpgrade`).
 struct BrewUpgradeCancelButton: View {
@@ -1879,9 +1922,6 @@ private struct HomebrewSelfUpdateSidebarRow: View {
     let update: HomebrewSelfUpdate
     @Bindable var model: AppListModel
 
-    /// Why `brew update` can't start now (`CLIConcurrency`), for the tooltip.
-    private var blocked: String? { model.cliBlockedReason(.homebrewUpdate) }
-
     var body: some View {
         HStack(spacing: 8) {
             Image(systemName: "mug")
@@ -1902,13 +1942,16 @@ private struct HomebrewSelfUpdateSidebarRow: View {
             }
             Spacer()
             if model.homebrewUpdating {
-                ProgressView().controlSize(.small)
+                HStack(spacing: 4) {
+                    ProgressView().controlSize(.small)
+                    // Only while it waits its turn: `brew update` itself has none.
+                    BrewUpgradeCancelButton(jobID: AppListModel.homebrewUpdateJobID, model: model)
+                }
             } else {
                 Button("Update") { Task { await model.updateHomebrew() } }
                     .controlSize(.small)
                     .buttonStyle(.borderedProminent)
-                    .disabled(blocked != nil)
-                    .help(blocked ?? String(localized: "Runs `brew update`, which updates Homebrew and refreshes its package lists using your own Homebrew settings."))
+                    .help(String(localized: "Runs `brew update`, which updates Homebrew and refreshes its package lists using your own Homebrew settings."))
             }
         }
         .padding(.vertical, 2)
@@ -2255,12 +2298,9 @@ private struct FormulaDetailPane: View {
                 .background(.quaternary, in: Capsule())
                 BrewUpgradeCancelButton(jobID: AppListModel.formulaJobID(formula.name), model: model)
             } else if formula.hasUpdate {
-                let blocked = model.cliBlockedReason(.upgradeFormula)
                 Button("Update") { Task { await model.upgradeBrewFormula(named: formula.name) } }
                     .controlSize(.large)
                     .buttonStyle(.borderedProminent)
-                    .disabled(blocked != nil)
-                    .help(blocked ?? "")
             }
         }
         .padding(16)

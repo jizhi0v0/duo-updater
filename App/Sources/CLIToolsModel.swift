@@ -17,6 +17,21 @@ extension CLIToolStatus {
     var toolID: CLIToolID { CLIToolID(kind: kind, path: path) }
 }
 
+/// One click in the CLI tab that changes something, as its queue
+/// (`CLIRunQueue`) names it: one of Homebrew's runs, or an "Other tools" update.
+enum CLIRun: Hashable, Sendable {
+    /// `brew update`.
+    case homebrewUpdate
+    /// Homebrew's Upgrade All.
+    case upgradeAll
+    /// One formula's own upgrade.
+    case upgradeFormula(String)
+    /// One copy's own update.
+    case tool(CLIToolID)
+    /// "Other tools" Update All.
+    case updateAllTools
+}
+
 extension CLIToolSighting {
     var toolID: CLIToolID { CLIToolID(kind: kind, path: path) }
 }
@@ -91,9 +106,10 @@ final class CLIToolsModel {
     /// longer running anything. Under `updateAll` the re-check waits for the
     /// tool's other lanes, so this can last as long as the slowest of them.
     private(set) var awaitingCheck: Set<CLIToolID> = []
-    /// Whether a Homebrew run is under way, which no tool's update runs beside
-    /// (`CLIConcurrency`). Set by `AppListModel`, which owns Homebrew's runs.
-    @ObservationIgnored var blockedByHomebrew: (@MainActor () -> Bool)?
+    /// Every click in the CLI tab that changes something, Homebrew's included,
+    /// run one at a time in the order made (`CLIRunQueue`). Here because the
+    /// tools' runs are; `AppListModel` puts Homebrew's in the same one.
+    let runQueue = CLIRunQueue<CLIRun>()
     /// True for the whole of `updateAll`, including the re-checks at the end of
     /// each tool's lanes, so the popover row stays in its updating state instead
     /// of flashing back to "Update" between two copies.
@@ -841,23 +857,35 @@ final class CLIToolsModel {
         // Re-read here, not trusted from the click: the list may have been
         // re-checked since the row was drawn, and `oneClickable` is what carries
         // every gate — auto-update on, nothing else updating, not already ours.
-        guard blockedByHomebrew?() != true,
-              let status = oneClickable.first(where: { $0.toolID == id }),
-              let provider = provider(of: status)
-        else { return }
+        guard oneClickable.contains(where: { $0.toolID == id }) else { return }
         updating.insert(id)
         cancels[id] = .available
         // Held until the re-check below has landed, not just until the command
         // exits: that check waits on the network, and releasing the row earlier
         // shows the old "outdated" verdict with a live Update button for its length.
         defer { release(id) }
-        // Cancelled before its command started: nothing ran, nothing to re-check.
-        guard let outcome = await run(status, with: provider) else { return }
-        if Self.needsRecheck(outcome) {
-            setProgress(id, .checking, String(localized: "Checking…"))
-            await check([provider])
+        // Behind another click's run, it waits its turn claimed, as a copy
+        // under `updateAll` does: "Queued", with its Cancel live.
+        if runQueue.running != nil {
+            queued.insert(id)
+            setProgress(id, .queued, String(localized: "Queued"))
         }
-        settle(status, outcome)
+        await runQueue.perform(.tool(id)) {
+            self.queued.remove(id)
+            // Read again at its turn: a check while it waited may have moved the
+            // offer, or taken it away. `outdated`, not `oneClickable`, which
+            // leaves out the copy this click has claimed.
+            guard let status = self.outdated.first(where: { $0.toolID == id && $0.oneClick != nil }),
+                  let provider = self.provider(of: status)
+            else { return }
+            // Cancelled before its command started: nothing ran, nothing to re-check.
+            guard let outcome = await self.run(status, with: provider) else { return }
+            if Self.needsRecheck(outcome) {
+                self.setProgress(id, .checking, String(localized: "Checking…"))
+                await self.check([provider])
+            }
+            self.settle(status, outcome)
+        }
     }
 
     /// The index in `providers` of `status`'s own tool, never another's: each
@@ -882,10 +910,23 @@ final class CLIToolsModel {
     /// already finishing. Cancelled is not failed: no red line, no re-check.
     func cancel(_ id: CLIToolID) {
         guard cancels[id] == .available else { return }
+        // Its own click, waiting behind another's run: out of the queue.
+        if runQueue.cancel(.tool(id)) {
+            Log.app.notice("\(id.kind.rawValue, privacy: .public) update at \(id.path, privacy: .public): cancelled while it waited its turn")
+            release(id)
+            return
+        }
         if queued.contains(id) {
             cancelledWhileQueued.insert(id)
             Log.app.notice("\(id.kind.rawValue, privacy: .public) update at \(id.path, privacy: .public): cancelled before it started")
             release(id)
+            // The last copy of an Update All still waiting its turn: nothing is
+            // left for it to run. Its copies are the queued ones that are not a
+            // click of their own.
+            if runQueue.isWaiting(.updateAllTools),
+               !queued.contains(where: { !runQueue.isWaiting(.tool($0)) }) {
+                cancelUpdateAll()
+            }
             return
         }
         cancels[id] = InstallCancelState.after(InstallJobs.cancel(Self.jobID(id)))
@@ -1056,7 +1097,7 @@ final class CLIToolsModel {
     /// installer — Junie's alone downloads ~330 MB — plus a re-check of every
     /// tool after each copy.
     func updateAll() async {
-        guard !updatingAll, blockedByHomebrew?() != true else { return }
+        guard !updatingAll else { return }
         // `batchable`, never `oneClickable`: no administrator panel from a batch.
         let batch = batchable.compactMap { status in provider(of: status).map { (status, $0) } }
         guard !batch.isEmpty else { return }
@@ -1064,12 +1105,37 @@ final class CLIToolsModel {
         defer { updatingAll = false }
         // Every copy is claimed now, not when its turn comes: until then its row
         // says "Queued" instead of offering an Update that would race its lane.
+        // That holds while Update All itself waits behind another click's run.
         for (status, _) in batch {
             updating.insert(status.toolID)
             queued.insert(status.toolID)
             cancels[status.toolID] = .available
             setProgress(status.toolID, .queued, String(localized: "Queued"))
         }
+        let ran = await runQueue.perform(.updateAllTools) { await self.runBatch(batch) }
+        // Taken back while it waited (`cancelUpdateAll`): nothing ran.
+        if !ran {
+            for (status, _) in batch {
+                cancelledWhileQueued.remove(status.toolID)
+                if queued.contains(status.toolID) { release(status.toolID) }
+            }
+        }
+    }
+
+    /// Whether Update All is waiting behind another click's run: the popover's
+    /// row and the workbench header then offer to take it back.
+    var updateAllWaiting: Bool { runQueue.isWaiting(.updateAllTools) }
+
+    /// Take back an Update All still waiting its turn; every copy it claimed
+    /// goes back to its Update. One already running is cancelled copy by copy.
+    func cancelUpdateAll() {
+        guard runQueue.cancel(.updateAllTools) else { return }
+        Log.app.notice("Update All: cancelled while it waited its turn")
+    }
+
+    /// `updateAll`'s turn: the lanes at once, each tool re-checked when its last
+    /// lane is done.
+    private func runBatch(_ batch: [(CLIToolStatus, Int)]) async {
         var lanes: [[(CLIToolStatus, Int)]] = []
         var laneOf: [String: Int] = [:]
         for copy in batch {

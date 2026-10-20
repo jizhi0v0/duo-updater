@@ -229,6 +229,9 @@ struct InstallCancelButton: View {
     /// How many updates a click stops, for a Cancel that stands for several
     /// (`InstallRowSmoothing.Output.groupCancel`): its help says how many.
     var count = 1
+    /// Every update a click stops waits behind the one its row names, which
+    /// goes on (`GroupCancel.queuedOnly`): its help says it stops the queued.
+    var queuedOnly = false
     let action: () -> Void
 
     /// Room kept between the glyph and the row's trailing edge. Rows end 12pt
@@ -258,8 +261,13 @@ struct InstallCancelButton: View {
     private var help: String {
         if pending { return String(localized: "Cancelling…") }
         switch state {
-        case .available, .cancelling:
+        case .available where queuedOnly:
+            return count > 1 ? String(localized: "Cancel \(count) queued updates") : String(localized: "Cancel queued update")
+        case .available:
             return count > 1 ? String(localized: "Cancel \(count) updates") : String(localized: "Cancel update")
+        // Rows draw none once accepted; Update All's header keeps its greyed
+        // glyph while its copies are stopped (`CLIToolsModel.updateAllCancel`).
+        case .cancelling: return String(localized: "Cancelling…")
         case .committing: return String(localized: "Installing — can’t cancel now")
         case .tooLate: return String(localized: "Already finishing — can’t cancel")
         }

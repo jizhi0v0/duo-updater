@@ -19,6 +19,12 @@ import SwiftUI
 /// The Homebrew group's section header: open/close, and Upgrade All. The
 /// "Other tools" level above the tool groups wears the same one, with its own
 /// title and Update All.
+///
+/// As tall as its button whether or not the button is there: the button goes
+/// once nothing is left on offer, and the header shrank to its title, moving
+/// every row below 6 pt up as the last update ended (the user's recording of a
+/// workbench Helm update, 2026-10-20: "Other tools" y 28 → 21 px, its first
+/// row 142 → 130 px at 2x).
 struct HomebrewGroupHeader<Trailing: View>: View {
     var title = "Homebrew"
     let expanded: Bool
@@ -27,6 +33,20 @@ struct HomebrewGroupHeader<Trailing: View>: View {
     @ViewBuilder let trailing: () -> Trailing
 
     var body: some View {
+        ZStack(alignment: .trailing) {
+            // The room a small bordered button takes, unseen, so the header's
+            // height does not depend on whether its own is drawn.
+            Button(String(localized: "Upgrade All")) {}
+                .controlSize(.small)
+                .buttonStyle(.bordered)
+                .hidden()
+                .frame(width: 0)
+                .accessibilityHidden(true)
+            row
+        }
+    }
+
+    private var row: some View {
         HStack(spacing: 6) {
             Button(action: toggle) {
                 HStack(spacing: 4) {

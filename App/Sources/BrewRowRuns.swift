@@ -30,10 +30,21 @@ enum BrewRowRuns {
 
     /// The row's Cancel, as `InstallCancelButton` draws it, over every run it
     /// stands for (`groupCancel`), as the Other tools row's
-    /// (`CLIToolsModel.rowCancel`).
-    static func cancel(_ jobIDs: [String], in rows: InstallRowSmoothing<String>.Output)
+    /// (`CLIToolsModel.rowCancel`). `running` is the run the row's head names,
+    /// if one: the others wait their turn behind it.
+    static func cancel(_ jobIDs: [String], in rows: InstallRowSmoothing<String>.Output,
+                       running: String? = nil)
         -> InstallRowSmoothing<String>.GroupCancel? {
-        rows.groupCancel(of: jobIDs)
+        rows.groupCancel(of: jobIDs, running: running.map { [$0] } ?? [])
+    }
+
+    /// A formula's line before its run has written one: "Queued" while it
+    /// waits its turn, "Starting…" from the turn on. The queue hands the turn
+    /// over one main-actor hop before the run's task says so itself
+    /// (`CLIRunQueue.advance`), and in that hop the popover row's head already
+    /// named the formula: "Upgrading jq · Queued" (review, 2026-10-20).
+    static func lineBeforeItsRun(waiting: Bool) -> String {
+        waiting ? String(localized: "Queued") : String(localized: "Starting…")
     }
 
     /// The runs a click on it cancels: those that still can be. Those past the

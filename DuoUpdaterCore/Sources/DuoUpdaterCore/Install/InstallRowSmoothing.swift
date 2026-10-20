@@ -65,17 +65,30 @@ public struct InstallRowSmoothing<Key: Hashable & Sendable>: Sendable {
         /// still be cancelled, and then greyed as theirs are (accepted, past
         /// the commit, refused there). Nil once every one says "Cancelling…",
         /// which the row's line then says, or when none has a Cancel.
-        public func groupCancel(of ids: some Sequence<Key>) -> GroupCancel? {
-            var live = 0, pending = false, committing = false, tooLate = false
+        ///
+        /// `running` is what the row's head names, the rest waiting their turn
+        /// behind it: when none of those a click stops is among them, the
+        /// Cancel says it stops the queued ones (`GroupCancel.queuedOnly`) —
+        /// "Upgrading go · Installing…" beside a live "Cancel update" that
+        /// took back the Upgrade All queued behind it (review, 2026-10-20).
+        public func groupCancel(of ids: some Sequence<Key>, running: Set<Key> = []) -> GroupCancel? {
+            var live = 0, liveRunning = 0, pending = false, committing = false, tooLate = false
             for id in ids {
                 switch cancels[id] {
-                case .available: if cancelPending.contains(id) { pending = true } else { live += 1 }
+                case .available:
+                    if cancelPending.contains(id) { pending = true } else {
+                        live += 1
+                        if running.contains(id) { liveRunning += 1 }
+                    }
                 case .committing: committing = true
                 case .tooLate: tooLate = true
                 case .cancelling, nil: break
                 }
             }
-            if live > 0 { return GroupCancel(state: .available, pending: false, live: live) }
+            if live > 0 {
+                return GroupCancel(state: .available, pending: false, live: live,
+                                   queuedOnly: !running.isEmpty && liveRunning == 0)
+            }
             if pending { return GroupCancel(state: .available, pending: true, live: 0) }
             if committing { return GroupCancel(state: .committing, pending: false, live: 0) }
             if tooLate { return GroupCancel(state: .tooLate, pending: false, live: 0) }
@@ -90,11 +103,15 @@ public struct InstallRowSmoothing<Key: Hashable & Sendable>: Sendable {
         public var pending: Bool
         /// How many a click stops: its help says so when more than one.
         public var live: Int
+        /// Every one a click stops waits its turn behind what the row's head
+        /// names, which goes on: its help says it cancels the queued ones.
+        public var queuedOnly: Bool
 
-        public init(state: InstallCancelState, pending: Bool, live: Int) {
+        public init(state: InstallCancelState, pending: Bool, live: Int, queuedOnly: Bool = false) {
             self.state = state
             self.pending = pending
             self.live = live
+            self.queuedOnly = queuedOnly
         }
     }
 

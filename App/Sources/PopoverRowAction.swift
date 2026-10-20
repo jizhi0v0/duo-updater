@@ -56,6 +56,7 @@ struct PopoverRowAction: View {
     /// this control, and nothing outside it reads the flag.
     @State private var showMajorWarning = false
     @State private var showRegionHint = false
+    @State private var showChannelSwitch = false
     @State private var showMacCompatHint = false
     @State private var showNeedsNewerMacOSHint = false
     @State private var showOSWindowHint = false
@@ -226,9 +227,9 @@ struct PopoverRowAction: View {
         case .majorUpgrade:
             majorUpgradeBadge
         case .autoInstall:
-            autoUpdateButton
+            withChannelSwitchHint { autoUpdateButton }
         case .installer(let stagedFileName):
-            installerButton(stagedFileName: stagedFileName)
+            withChannelSwitchHint { installerButton(stagedFileName: stagedFileName) }
         case .appStore(let managedHere, let gate):
             if let info = result.remote?.appStore {
                 appStoreTrailing(info, managedHere: managedHere, gate: gate)
@@ -348,6 +349,34 @@ struct PopoverRowAction: View {
         }
     }
 
+
+    /// The row's usual button, with — when the update puts the stable cask over a
+    /// nightly or beta copy (`UpdateResult.replacesChannelWithStable`) — an amber
+    /// hint before it that opens `ChannelSwitchPanel`. A reminder beside the
+    /// button, never instead of it: brew's own `brew upgrade` makes the same
+    /// switch, so the update stays one click and in Update All. Same shape as the
+    /// App Store region hint.
+    @ViewBuilder
+    private func withChannelSwitchHint<Button: View>(@ViewBuilder _ button: () -> Button) -> some View {
+        if let channel = result.replacesChannelWithStable {
+            HStack(spacing: 6) {
+                SwiftUI.Button { showChannelSwitch = true } label: {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                }
+                .buttonStyle(.borderless)
+                .help(ChannelSwitchPanel.help)
+                .popover(isPresented: $showChannelSwitch, arrowEdge: .bottom) {
+                    ChannelSwitchPanel(
+                        result: result, channel: channel, actions: actions,
+                        dismiss: { showChannelSwitch = false })
+                }
+                button()
+            }
+        } else {
+            button()
+        }
+    }
 
     private var autoUpdateButton: some View {
         Button { actions.install() } label: { Text("Update").rowButtonLabel() }
@@ -516,10 +545,23 @@ struct PopoverRowAction: View {
     // still start `false`, and both buttons here still call `actions.install()`.
     @ViewBuilder
     var majorUpgradePopover: some View {
-        if result.isVendorRewrite {
-            vendorRewritePopover
-        } else {
-            licenseBoundaryPopover
+        // A major upgrade can also be a channel switch (a nightly at 0.4.5, the
+        // standard cask at 1.0.0). The hint that `withChannelSwitchHint` puts
+        // beside an ordinary Update button has no place on this route, so its
+        // panel goes above the confirmation instead — the reminder must not vanish
+        // just because the version also crossed a major (review round 4, #1501).
+        VStack(alignment: .leading, spacing: 0) {
+            if let channel = result.replacesChannelWithStable {
+                ChannelSwitchPanel(
+                    result: result, channel: channel, actions: actions,
+                    dismiss: { showMajorWarning = false })
+                Divider()
+            }
+            if result.isVendorRewrite {
+                vendorRewritePopover
+            } else {
+                licenseBoundaryPopover
+            }
         }
     }
 

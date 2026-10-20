@@ -14881,6 +14881,71 @@
         }
       }
     },
+    "Switches to stable": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wechselt zu Stable"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cambia a la versión estable"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Passe à la version stable"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Passa alla versione stabile"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "安定版に切り替わります"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Muda para a versão estável"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Переход на стабильную"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kararlı sürüme geçer"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "将换成稳定版"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "將換成穩定版"
+          }
+        }
+      }
+    },
     "The download has no build number, so DuoUpdater can’t confirm it isn’t older than the installed copy. Refusing to install it.": {
       "extractionState": "manual",
       "localizations": {
@@ -15135,6 +15200,71 @@
           "stringUnit": {
             "state": "translated",
             "value": "下載的檔案與已安裝的副本不是用同一張憑證簽署的。不會安裝。"
+          }
+        }
+      }
+    },
+    "This copy of %@ comes from the %@ channel. Updating to %@ through Homebrew installs the stable cask over it, so you leave the %@ channel. Some apps keep separate settings for each channel.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diese Kopie von %1$@ ist ein %2$@-Build. Das Update auf %3$@ über Homebrew installiert das Stable-Cask darüber, du verlässt also den %4$@-Kanal. Manche Apps speichern für jeden Kanal eigene Einstellungen."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta copia de %1$@ es una versión %2$@. Actualizar a %3$@ con Homebrew instala encima el cask estable, así que dejarás el canal %4$@. Algunas apps guardan ajustes distintos para cada canal."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cette copie de %1$@ est une version %2$@. La mise à jour vers %3$@ via Homebrew installe le cask stable par-dessus : vous quittez le canal %4$@. Certaines apps conservent des réglages distincts pour chaque canal."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Questa copia di %1$@ è una build %2$@. L’aggiornamento a %3$@ tramite Homebrew installa sopra il cask stabile, quindi lasci il canale %4$@. Alcune app conservano impostazioni separate per ogni canale."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "この %1$@ は %2$@ ビルドです。Homebrew で %3$@ にアップデートすると安定版の cask が上書きインストールされ、%4$@ チャンネルから外れます。チャンネルごとに設定を分けて保存するアプリもあります。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta cópia do %1$@ é uma versão %2$@. Atualizar para %3$@ pelo Homebrew instala o cask estável por cima, então você sai do canal %4$@. Alguns apps guardam ajustes separados para cada canal."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Эта копия %1$@ — сборка %2$@. Обновление до %3$@ через Homebrew установит поверх неё стабильный cask, и вы уйдёте с канала %4$@. Некоторые приложения хранят отдельные настройки для каждого канала."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu %1$@ kopyası bir %2$@ sürümü. Homebrew ile %3$@ sürümüne güncellemek kararlı cask’i üzerine kurar, yani %4$@ kanalından çıkarsınız. Bazı uygulamalar her kanal için ayrı ayarlar tutar."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这份 %1$@ 是 %2$@ 版。通过 Homebrew 更新到 %3$@ 会用稳定版 cask 覆盖它，你会离开 %4$@ 渠道。有些 app 每个渠道的设置是分开存的。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這份 %1$@ 是 %2$@ 版。透過 Homebrew 更新到 %3$@ 會用穩定版 cask 覆蓋它，你會離開 %4$@ 頻道。有些 app 每個頻道的設定是分開存的。"
           }
         }
       }
@@ -23262,6 +23392,71 @@
         }
       }
     },
+    "To stay on %@, get its updates from the vendor rather than from Homebrew. If “Keep a backup of the previous version” is on in [Settings](duoupdater-settings:backups), you can restore the version you have now.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Um bei %@ zu bleiben, hol dir die Updates vom Hersteller statt über Homebrew. Wenn „Backup der vorherigen Version aufbewahren“ in den [Einstellungen](duoupdater-settings:backups) aktiviert ist, kannst du die aktuelle Version wiederherstellen."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Para seguir en %@, obtén las actualizaciones del fabricante en lugar de Homebrew. Si “Conservar una copia de seguridad de la versión anterior” está activado en [Ajustes](duoupdater-settings:backups), puedes restaurar tu versión actual."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pour rester sur %@, obtenez les mises à jour auprès de l’éditeur plutôt que de Homebrew. Si « Conserver une sauvegarde de la version précédente » est activé dans les [Réglages](duoupdater-settings:backups), vous pouvez restaurer votre version actuelle."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Per restare su %@, prendi gli aggiornamenti dallo sviluppatore invece che da Homebrew. Se “Conserva un backup della versione precedente” è attivo nelle [Impostazioni](duoupdater-settings:backups), puoi ripristinare la versione attuale."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ のままにするには、Homebrew ではなく開発元からアップデートを入手してください。[設定](duoupdater-settings:backups)で「1つ前のバージョンのバックアップを保持する」がオンなら、現在のバージョンに復元できます。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Para continuar no %@, obtenha as atualizações do fabricante em vez do Homebrew. Se “Manter um backup da versão anterior” estiver ativado nos [Ajustes](duoupdater-settings:backups), você pode restaurar a versão atual."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Чтобы остаться на %@, получайте обновления от разработчика, а не через Homebrew. Если в [настройках](duoupdater-settings:backups) включено «Хранить резервную копию предыдущей версии», можно восстановить текущую версию."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ kanalında kalmak için güncellemeleri Homebrew yerine geliştiriciden alın. [Ayarlar](duoupdater-settings:backups)’da “Önceki sürümün yedeğini tut” açıksa şu anki sürümü geri yükleyebilirsiniz."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "想留在 %@，就从厂商那里获取更新，别走 Homebrew。如果[设置](duoupdater-settings:backups)中打开了“保留上一版本的备份”，可以恢复到你现在的版本。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "想留在 %@，就從廠商那裡取得更新，別走 Homebrew。如果[設定](duoupdater-settings:backups)中開啟了「保留上一版本的備份」，可以還原到你目前的版本。"
+          }
+        }
+      }
+    },
     "Unknown: no installer receipt names it": {
       "extractionState": "manual",
       "localizations": {
@@ -23518,6 +23713,71 @@
           "stringUnit": {
             "state": "translated",
             "value": "更新工具"
+          }
+        }
+      }
+    },
+    "Updating switches this copy to the stable build — click for details": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Update ersetzt diese Kopie durch den Stable-Build – für Details klicken"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Al actualizar, esta copia pasa a la versión estable: haz clic para ver los detalles"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La mise à jour remplace cette copie par la version stable — cliquez pour en savoir plus"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "L’aggiornamento sostituisce questa copia con la versione stabile: fai clic per i dettagli"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アップデートするとこのコピーは安定版に置き換わります — クリックして詳細を表示"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A atualização substitui esta cópia pela versão estável — clique para ver detalhes"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Обновление заменит эту копию стабильной сборкой — нажмите, чтобы узнать подробности"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Güncelleme bu kopyayı kararlı sürümle değiştirir — ayrıntılar için tıklayın"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新会把这份副本换成稳定版——点击查看详情"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新會把這份副本換成穩定版——點擊查看詳情"
           }
         }
       }

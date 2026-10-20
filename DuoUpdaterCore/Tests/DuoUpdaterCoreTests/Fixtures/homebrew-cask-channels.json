@@ -1,0 +1,719 @@
+[
+ {
+  "token": "freelens",
+  "full_token": "freelens",
+  "old_tokens": [],
+  "tap": "homebrew/cask",
+  "name": [
+   "Freelens"
+  ],
+  "desc": "Kubernetes IDE",
+  "homepage": "https://freelens.app/",
+  "url": "https://github.com/freelensapp/freelens/releases/download/v1.10.3/Freelens-1.10.3-macos-arm64.dmg",
+  "url_specs": {},
+  "version": "1.10.3",
+  "autobump": true,
+  "no_autobump_message": null,
+  "skip_livecheck": false,
+  "installed": null,
+  "installed_time": null,
+  "bundle_version": null,
+  "bundle_short_version": null,
+  "pinned": false,
+  "pinned_version": null,
+  "outdated": false,
+  "sha256": "ae33e11d5db858da1f64ae2c4f7ca3835786780bcb2af02e55fe756f08900419",
+  "artifacts": [
+   {
+    "app": [
+     "Freelens.app"
+    ],
+    "target": "/Applications/Freelens.app"
+   },
+   {
+    "zap": [
+     {
+      "trash": [
+       "~/Library/Application Support/Freelens",
+       "~/Library/Logs/Freelens"
+      ]
+     }
+    ]
+   }
+  ],
+  "caveats": null,
+  "caveats_rosetta": null,
+  "depends_on": {
+   "macos": {
+    ">=": [
+     "12"
+    ]
+   }
+  },
+  "conflicts_with": {
+   "cask": [
+    "freelens@nightly"
+   ]
+  },
+  "container": null,
+  "rename": [],
+  "auto_updates": null,
+  "deprecated": false,
+  "deprecation_date": null,
+  "deprecation_reason": null,
+  "deprecation_replacement_formula": null,
+  "deprecation_replacement_cask": null,
+  "deprecate_args": null,
+  "disabled": false,
+  "disable_date": null,
+  "disable_reason": null,
+  "disable_replacement_formula": null,
+  "disable_replacement_cask": null,
+  "disable_args": null,
+  "tap_git_head": "74f63824ed8e2448d0d088944faa25742fa73b51",
+  "languages": [],
+  "ruby_source_path": "Casks/f/freelens.rb",
+  "ruby_source_checksum": {
+   "sha256": "5c34bb13e2e4f1564a8d571060f881aa58e67e8373d7f0005b336b37ad1d6e94"
+  },
+  "variations": {
+   "golden_gate": {
+    "url": "https://github.com/freelensapp/freelens/releases/download/v1.10.3/Freelens-1.10.3-macos-amd64.dmg",
+    "sha256": "d9b462114b9587ca8daaf1ce62529de7d3ec65e42f39628edfc10ecbd69c3175"
+   },
+   "tahoe": {
+    "url": "https://github.com/freelensapp/freelens/releases/download/v1.10.3/Freelens-1.10.3-macos-amd64.dmg",
+    "sha256": "d9b462114b9587ca8daaf1ce62529de7d3ec65e42f39628edfc10ecbd69c3175"
+   },
+   "sequoia": {
+    "url": "https://github.com/freelensapp/freelens/releases/download/v1.10.3/Freelens-1.10.3-macos-amd64.dmg",
+    "sha256": "d9b462114b9587ca8daaf1ce62529de7d3ec65e42f39628edfc10ecbd69c3175"
+   },
+   "sonoma": {
+    "url": "https://github.com/freelensapp/freelens/releases/download/v1.10.3/Freelens-1.10.3-macos-amd64.dmg",
+    "sha256": "d9b462114b9587ca8daaf1ce62529de7d3ec65e42f39628edfc10ecbd69c3175"
+   },
+   "ventura": {
+    "url": "https://github.com/freelensapp/freelens/releases/download/v1.10.3/Freelens-1.10.3-macos-amd64.dmg",
+    "sha256": "d9b462114b9587ca8daaf1ce62529de7d3ec65e42f39628edfc10ecbd69c3175"
+   },
+   "monterey": {
+    "url": "https://github.com/freelensapp/freelens/releases/download/v1.10.3/Freelens-1.10.3-macos-amd64.dmg",
+    "sha256": "d9b462114b9587ca8daaf1ce62529de7d3ec65e42f39628edfc10ecbd69c3175"
+   },
+   "big_sur": {
+    "url": "https://github.com/freelensapp/freelens/releases/download/v1.10.3/Freelens-1.10.3-macos-amd64.dmg",
+    "sha256": "d9b462114b9587ca8daaf1ce62529de7d3ec65e42f39628edfc10ecbd69c3175"
+   },
+   "x86_64_linux": {
+    "url": "https://github.com/freelensapp/freelens/releases/download/v1.10.3/Freelens-1.10.3-linux-amd64.AppImage",
+    "sha256": "5be46890eb13e167559b862b9a6f246eeec0a72761c0b3e91a646329323581e9",
+    "artifacts": [
+     {
+      "app_image": [
+       "Freelens-1.10.3-linux-amd64.AppImage",
+       {
+        "target": "Freelens.AppImage"
+       }
+      ],
+      "target": "/$HOME/Applications/Freelens.AppImage"
+     },
+     {
+      "zap": [
+       {
+        "trash": "~/.config/Freelens"
+       }
+      ]
+     }
+    ],
+    "depends_on": {}
+   },
+   "arm64_linux": {
+    "url": "https://github.com/freelensapp/freelens/releases/download/v1.10.3/Freelens-1.10.3-linux-arm64.AppImage",
+    "sha256": "d9a030f7461f4cf0e489e863d738aeac17882c4b843a66c979457677b05b9a8e",
+    "artifacts": [
+     {
+      "app_image": [
+       "Freelens-1.10.3-linux-arm64.AppImage",
+       {
+        "target": "Freelens.AppImage"
+       }
+      ],
+      "target": "/$HOME/Applications/Freelens.AppImage"
+     },
+     {
+      "zap": [
+       {
+        "trash": "~/.config/Freelens"
+       }
+      ]
+     }
+    ],
+    "depends_on": {}
+   }
+  },
+  "supported_platforms": [
+   "golden_gate",
+   "arm64_golden_gate",
+   "tahoe",
+   "arm64_tahoe",
+   "sequoia",
+   "arm64_sequoia",
+   "sonoma",
+   "arm64_sonoma",
+   "ventura",
+   "arm64_ventura",
+   "monterey",
+   "arm64_monterey",
+   "x86_64_linux",
+   "arm64_linux"
+  ]
+ },
+ {
+  "token": "freelens@nightly",
+  "full_token": "freelens@nightly",
+  "old_tokens": [],
+  "tap": "homebrew/cask",
+  "name": [
+   "Freelens"
+  ],
+  "desc": "Kubernetes IDE",
+  "homepage": "https://freelens.app/",
+  "url": "https://github.com/freelensapp/freelens-nightly-builds/releases/download/v2.0.0-0-nightly-2026-10-19/Freelens-2.0.0-0-nightly-2026-10-19-macos-arm64.dmg",
+  "url_specs": {},
+  "version": "2.0.0-0-nightly-2026-10-19",
+  "autobump": true,
+  "no_autobump_message": null,
+  "skip_livecheck": false,
+  "installed": null,
+  "installed_time": null,
+  "bundle_version": null,
+  "bundle_short_version": null,
+  "pinned": false,
+  "pinned_version": null,
+  "outdated": false,
+  "sha256": "cc08abc64efe61da4ebafb52e53251a9f31741e6e6a4cb1fd15d9e5525fba285",
+  "artifacts": [
+   {
+    "app": [
+     "Freelens.app"
+    ],
+    "target": "/Applications/Freelens.app"
+   },
+   {
+    "zap": [
+     {
+      "trash": [
+       "~/Library/Application Support/com.apple.sharedfilelist/com.apple.LSSharedFileList.ApplicationRecentDocuments/app.freelens.freelens.sfl*",
+       "~/Library/Application Support/Freelens",
+       "~/Library/Logs/Freelens",
+       "~/Library/Preferences/app.freelens.Freelens.plist",
+       "~/Library/Saved Application State/app.freelens.Freelens.savedState"
+      ],
+      "rmdir": "~/.freelens"
+     }
+    ]
+   }
+  ],
+  "caveats": null,
+  "caveats_rosetta": null,
+  "depends_on": {
+   "macos": {
+    ">=": [
+     "12"
+    ]
+   }
+  },
+  "conflicts_with": {
+   "cask": [
+    "freelens"
+   ]
+  },
+  "container": null,
+  "rename": [],
+  "auto_updates": null,
+  "deprecated": false,
+  "deprecation_date": null,
+  "deprecation_reason": null,
+  "deprecation_replacement_formula": null,
+  "deprecation_replacement_cask": null,
+  "deprecate_args": null,
+  "disabled": false,
+  "disable_date": null,
+  "disable_reason": null,
+  "disable_replacement_formula": null,
+  "disable_replacement_cask": null,
+  "disable_args": null,
+  "tap_git_head": "74f63824ed8e2448d0d088944faa25742fa73b51",
+  "languages": [],
+  "ruby_source_path": "Casks/f/freelens@nightly.rb",
+  "ruby_source_checksum": {
+   "sha256": "51e6e1d9c3d9f1bf138298dba93e6d36de2d896c3341da2c3f27eb1640996cb5"
+  },
+  "variations": {
+   "golden_gate": {
+    "url": "https://github.com/freelensapp/freelens-nightly-builds/releases/download/v2.0.0-0-nightly-2026-10-19/Freelens-2.0.0-0-nightly-2026-10-19-macos-amd64.dmg",
+    "sha256": "eb8583eca33d29437f47d8ef260b787c27494acfc182724d74687a86bbc14ec1"
+   },
+   "tahoe": {
+    "url": "https://github.com/freelensapp/freelens-nightly-builds/releases/download/v2.0.0-0-nightly-2026-10-19/Freelens-2.0.0-0-nightly-2026-10-19-macos-amd64.dmg",
+    "sha256": "eb8583eca33d29437f47d8ef260b787c27494acfc182724d74687a86bbc14ec1"
+   },
+   "sequoia": {
+    "url": "https://github.com/freelensapp/freelens-nightly-builds/releases/download/v2.0.0-0-nightly-2026-10-19/Freelens-2.0.0-0-nightly-2026-10-19-macos-amd64.dmg",
+    "sha256": "eb8583eca33d29437f47d8ef260b787c27494acfc182724d74687a86bbc14ec1"
+   },
+   "sonoma": {
+    "url": "https://github.com/freelensapp/freelens-nightly-builds/releases/download/v2.0.0-0-nightly-2026-10-19/Freelens-2.0.0-0-nightly-2026-10-19-macos-amd64.dmg",
+    "sha256": "eb8583eca33d29437f47d8ef260b787c27494acfc182724d74687a86bbc14ec1"
+   },
+   "ventura": {
+    "url": "https://github.com/freelensapp/freelens-nightly-builds/releases/download/v2.0.0-0-nightly-2026-10-19/Freelens-2.0.0-0-nightly-2026-10-19-macos-amd64.dmg",
+    "sha256": "eb8583eca33d29437f47d8ef260b787c27494acfc182724d74687a86bbc14ec1"
+   },
+   "monterey": {
+    "url": "https://github.com/freelensapp/freelens-nightly-builds/releases/download/v2.0.0-0-nightly-2026-10-19/Freelens-2.0.0-0-nightly-2026-10-19-macos-amd64.dmg",
+    "sha256": "eb8583eca33d29437f47d8ef260b787c27494acfc182724d74687a86bbc14ec1"
+   },
+   "x86_64_linux": {
+    "url": "https://github.com/freelensapp/freelens-nightly-builds/releases/download/v2.0.0-0-nightly-2026-10-19/Freelens-2.0.0-0-nightly-2026-10-19-macos-amd64.dmg",
+    "sha256": null
+   },
+   "arm64_linux": {
+    "sha256": null
+   }
+  },
+  "supported_platforms": [
+   "golden_gate",
+   "arm64_golden_gate",
+   "tahoe",
+   "arm64_tahoe",
+   "sequoia",
+   "arm64_sequoia",
+   "sonoma",
+   "arm64_sonoma",
+   "ventura",
+   "arm64_ventura",
+   "monterey",
+   "arm64_monterey"
+  ]
+ },
+ {
+  "token": "lapce",
+  "full_token": "lapce",
+  "old_tokens": [],
+  "tap": "homebrew/cask",
+  "name": [
+   "Lapce"
+  ],
+  "desc": "Open source code editor written in Rust",
+  "homepage": "https://lapce.dev/",
+  "url": "https://github.com/lapce/lapce/releases/download/v0.4.6/Lapce-macos.dmg",
+  "url_specs": {},
+  "version": "0.4.6",
+  "autobump": true,
+  "no_autobump_message": null,
+  "skip_livecheck": false,
+  "installed": null,
+  "installed_time": null,
+  "bundle_version": null,
+  "bundle_short_version": null,
+  "pinned": false,
+  "pinned_version": null,
+  "outdated": false,
+  "sha256": "d4ba42218148446c265c6a823107a969b3b0dca5e14df834563f2859927228f5",
+  "artifacts": [
+   {
+    "uninstall": [
+     {
+      "quit": "io.lapce"
+     }
+    ]
+   },
+   {
+    "app": [
+     "Lapce.app"
+    ],
+    "target": "/Applications/Lapce.app"
+   },
+   {
+    "binary": [
+     "$APPDIR/Lapce.app/Contents/MacOS/lapce"
+    ],
+    "target": "$HOMEBREW_PREFIX/bin/lapce"
+   },
+   {
+    "zap": [
+     {
+      "trash": [
+       "~/.lapce",
+       "~/Library/Application Support/dev.lapce.Lapce-Stable",
+       "~/Library/Application Support/Lapce",
+       "~/Library/Saved Application State/io.lapce.savedState"
+      ]
+     }
+    ]
+   }
+  ],
+  "caveats": null,
+  "caveats_rosetta": null,
+  "depends_on": {
+   "macos": {}
+  },
+  "conflicts_with": null,
+  "container": null,
+  "rename": [],
+  "auto_updates": null,
+  "deprecated": false,
+  "deprecation_date": null,
+  "deprecation_reason": null,
+  "deprecation_replacement_formula": null,
+  "deprecation_replacement_cask": null,
+  "deprecate_args": null,
+  "disabled": false,
+  "disable_date": null,
+  "disable_reason": null,
+  "disable_replacement_formula": null,
+  "disable_replacement_cask": null,
+  "disable_args": null,
+  "tap_git_head": "74f63824ed8e2448d0d088944faa25742fa73b51",
+  "languages": [],
+  "ruby_source_path": "Casks/l/lapce.rb",
+  "ruby_source_checksum": {
+   "sha256": "996733f4dcf27e02b1f34f1e55890e71a16828fc9b0d326a2cb75e51567aaa8c"
+  },
+  "variations": {},
+  "supported_platforms": [
+   "golden_gate",
+   "arm64_golden_gate",
+   "tahoe",
+   "arm64_tahoe",
+   "sequoia",
+   "arm64_sequoia",
+   "sonoma",
+   "arm64_sonoma",
+   "ventura",
+   "arm64_ventura",
+   "monterey",
+   "arm64_monterey",
+   "big_sur",
+   "arm64_big_sur"
+  ]
+ },
+ {
+  "token": "utm",
+  "full_token": "utm",
+  "old_tokens": [],
+  "tap": "homebrew/cask",
+  "name": [
+   "UTM"
+  ],
+  "desc": "Virtual machines UI using QEMU",
+  "homepage": "https://mac.getutm.app/",
+  "url": "https://github.com/utmapp/UTM/releases/download/v5.0.8/UTM.dmg",
+  "url_specs": {},
+  "version": "5.0.8",
+  "autobump": true,
+  "no_autobump_message": null,
+  "skip_livecheck": false,
+  "installed": null,
+  "installed_time": null,
+  "bundle_version": null,
+  "bundle_short_version": null,
+  "pinned": false,
+  "pinned_version": null,
+  "outdated": false,
+  "sha256": "7b2d7b2e2a02b3de1757ef19a8f36573e6d9cceae8c8cca0abcbcaa4a852019a",
+  "artifacts": [
+   {
+    "uninstall": [
+     {
+      "quit": "com.utmapp.UTM"
+     }
+    ]
+   },
+   {
+    "app": [
+     "UTM.app"
+    ],
+    "target": "/Applications/UTM.app"
+   },
+   {
+    "binary": [
+     "$APPDIR/UTM.app/Contents/MacOS/utmctl"
+    ],
+    "target": "$HOMEBREW_PREFIX/bin/utmctl"
+   },
+   {
+    "zap": [
+     {
+      "trash": [
+       "~/Library/Application Scripts/*com.utmapp*",
+       "~/Library/Containers/com.utmapp*",
+       "~/Library/Group Containers/*.com.utmapp.UTM",
+       "~/Library/Preferences/com.utmapp.UTM.plist",
+       "~/Library/Saved Application State/com.utmapp.UTM.savedState"
+      ]
+     }
+    ]
+   }
+  ],
+  "caveats": null,
+  "caveats_rosetta": null,
+  "depends_on": {
+   "macos": {
+    ">=": [
+     "12"
+    ]
+   }
+  },
+  "conflicts_with": {
+   "cask": [
+    "utm@beta"
+   ]
+  },
+  "container": null,
+  "rename": [],
+  "auto_updates": null,
+  "deprecated": false,
+  "deprecation_date": null,
+  "deprecation_reason": null,
+  "deprecation_replacement_formula": null,
+  "deprecation_replacement_cask": null,
+  "deprecate_args": null,
+  "disabled": false,
+  "disable_date": null,
+  "disable_reason": null,
+  "disable_replacement_formula": null,
+  "disable_replacement_cask": null,
+  "disable_args": null,
+  "tap_git_head": "74f63824ed8e2448d0d088944faa25742fa73b51",
+  "languages": [],
+  "ruby_source_path": "Casks/u/utm.rb",
+  "ruby_source_checksum": {
+   "sha256": "3ae224ef463dc52075cf1d9e7b819bfec1b2167b7454aa62d964877eee715d24"
+  },
+  "variations": {},
+  "supported_platforms": [
+   "golden_gate",
+   "arm64_golden_gate",
+   "tahoe",
+   "arm64_tahoe",
+   "sequoia",
+   "arm64_sequoia",
+   "sonoma",
+   "arm64_sonoma",
+   "ventura",
+   "arm64_ventura",
+   "monterey",
+   "arm64_monterey"
+  ]
+ },
+ {
+  "token": "utm@beta",
+  "full_token": "utm@beta",
+  "old_tokens": [],
+  "tap": "homebrew/cask",
+  "name": [
+   "UTM"
+  ],
+  "desc": "Virtual machines UI using QEMU",
+  "homepage": "https://mac.getutm.app/",
+  "url": "https://github.com/utmapp/UTM/releases/download/v5.0.8/UTM.dmg",
+  "url_specs": {},
+  "version": "5.0.8",
+  "autobump": true,
+  "no_autobump_message": null,
+  "skip_livecheck": false,
+  "installed": null,
+  "installed_time": null,
+  "bundle_version": null,
+  "bundle_short_version": null,
+  "pinned": false,
+  "pinned_version": null,
+  "outdated": false,
+  "sha256": "7b2d7b2e2a02b3de1757ef19a8f36573e6d9cceae8c8cca0abcbcaa4a852019a",
+  "artifacts": [
+   {
+    "uninstall": [
+     {
+      "quit": "com.utmapp.UTM"
+     }
+    ]
+   },
+   {
+    "app": [
+     "UTM.app"
+    ],
+    "target": "/Applications/UTM.app"
+   },
+   {
+    "binary": [
+     "$APPDIR/UTM.app/Contents/MacOS/utmctl"
+    ],
+    "target": "$HOMEBREW_PREFIX/bin/utmctl"
+   },
+   {
+    "zap": [
+     {
+      "trash": [
+       "~/Library/Application Scripts/*.com.utmapp.UTM",
+       "~/Library/Application Scripts/com.utmapp.QEMUHelper",
+       "~/Library/Application Scripts/com.utmapp.UTM",
+       "~/Library/Containers/com.utmapp.QEMUHelper",
+       "~/Library/Containers/com.utmapp.UTM",
+       "~/Library/Group Containers/*.com.utmapp.UTM",
+       "~/Library/Preferences/com.utmapp.UTM.plist",
+       "~/Library/Saved Application State/com.utmapp.UTM.savedState"
+      ]
+     }
+    ]
+   }
+  ],
+  "caveats": null,
+  "caveats_rosetta": null,
+  "depends_on": {
+   "macos": {
+    ">=": [
+     "12"
+    ]
+   }
+  },
+  "conflicts_with": {
+   "cask": [
+    "utm"
+   ]
+  },
+  "container": null,
+  "rename": [],
+  "auto_updates": null,
+  "deprecated": false,
+  "deprecation_date": null,
+  "deprecation_reason": null,
+  "deprecation_replacement_formula": null,
+  "deprecation_replacement_cask": null,
+  "deprecate_args": null,
+  "disabled": false,
+  "disable_date": null,
+  "disable_reason": null,
+  "disable_replacement_formula": null,
+  "disable_replacement_cask": null,
+  "disable_args": null,
+  "tap_git_head": "74f63824ed8e2448d0d088944faa25742fa73b51",
+  "languages": [],
+  "ruby_source_path": "Casks/u/utm@beta.rb",
+  "ruby_source_checksum": {
+   "sha256": "3778dee7d9d440b4272029e8017d8d679e04c6702e0b1322a269448d204b5771"
+  },
+  "variations": {},
+  "supported_platforms": [
+   "golden_gate",
+   "arm64_golden_gate",
+   "tahoe",
+   "arm64_tahoe",
+   "sequoia",
+   "arm64_sequoia",
+   "sonoma",
+   "arm64_sonoma",
+   "ventura",
+   "arm64_ventura",
+   "monterey",
+   "arm64_monterey"
+  ]
+ },
+ {
+  "token": "vibetunnel",
+  "full_token": "vibetunnel",
+  "old_tokens": [],
+  "tap": "homebrew/cask",
+  "name": [
+   "VibeTunnel"
+  ],
+  "desc": "Turn any browser into your terminal",
+  "homepage": "https://vibetunnel.sh/",
+  "url": "https://github.com/amantus-ai/vibetunnel/releases/download/v1.0.0-beta.18/VibeTunnel-1.0.0-beta.18.dmg",
+  "url_specs": {},
+  "version": "1.0.0-beta.18",
+  "autobump": true,
+  "no_autobump_message": null,
+  "skip_livecheck": false,
+  "installed": null,
+  "installed_time": null,
+  "bundle_version": null,
+  "bundle_short_version": null,
+  "pinned": false,
+  "pinned_version": null,
+  "outdated": false,
+  "sha256": "3e42340e28c908bdc7e8ba20ee4e7f6ab3c32885832bf947e6e0935f9017b8cc",
+  "artifacts": [
+   {
+    "app": [
+     "VibeTunnel.app"
+    ],
+    "target": "/Applications/VibeTunnel.app"
+   },
+   {
+    "binary": [
+     "$APPDIR/VibeTunnel.app/Contents/Resources/vt"
+    ],
+    "target": "$HOMEBREW_PREFIX/bin/vt"
+   },
+   {
+    "zap": [
+     {
+      "trash": [
+       "~/Library/Application Support/VibeTunnel",
+       "~/Library/Caches/com.amantus.vibetunnel",
+       "~/Library/Preferences/com.amantus.vibetunnel.plist",
+       "~/Library/Saved Application State/com.amantus.vibetunnel.savedState"
+      ]
+     }
+    ]
+   }
+  ],
+  "caveats": null,
+  "caveats_rosetta": null,
+  "depends_on": {
+   "arch": [
+    {
+     "type": "arm",
+     "bits": 64
+    }
+   ],
+   "macos": {
+    ">=": [
+     "14"
+    ]
+   }
+  },
+  "conflicts_with": null,
+  "container": null,
+  "rename": [],
+  "auto_updates": null,
+  "deprecated": false,
+  "deprecation_date": null,
+  "deprecation_reason": null,
+  "deprecation_replacement_formula": null,
+  "deprecation_replacement_cask": null,
+  "deprecate_args": null,
+  "disabled": false,
+  "disable_date": null,
+  "disable_reason": null,
+  "disable_replacement_formula": null,
+  "disable_replacement_cask": null,
+  "disable_args": null,
+  "tap_git_head": "74f63824ed8e2448d0d088944faa25742fa73b51",
+  "languages": [],
+  "ruby_source_path": "Casks/v/vibetunnel.rb",
+  "ruby_source_checksum": {
+   "sha256": "e42da2672ffba1f15183fba6885fa296b5c0d008a10a4313159a349878669c52"
+  },
+  "variations": {},
+  "supported_platforms": [
+   "arm64_golden_gate",
+   "arm64_tahoe",
+   "arm64_sequoia",
+   "arm64_sonoma"
+  ]
+ }
+]

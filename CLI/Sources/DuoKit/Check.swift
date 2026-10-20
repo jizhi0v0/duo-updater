@@ -49,6 +49,17 @@ public enum Check {
         let hasUpdate: Bool
         let hidden: Bool
         let route: String?
+        /// The copy's channel when the update would put a stable build over it
+        /// (`UpdateResult.replacesChannelWithStable`); omitted from JSON otherwise.
+        var replacesChannel: String? = nil
+    }
+
+    /// The reminder `check` and `install` print under a row whose update puts the
+    /// stable cask over a nightly or beta copy. Said, not refused: the user chose
+    /// a reminder over a gate, and the menu bar shows a hint beside the same
+    /// install.
+    static func channelReminder(_ channel: String) -> String {
+        "this copy comes from the \(channel) channel; the update installs the stable cask over it"
     }
 
     /// What to tell the user about a refresh attempt. Written to stderr so `--json`
@@ -292,7 +303,8 @@ public enum Check {
                 hidden: hidden,
                 route: options.checkForUpdates
                     ? route(result, settings: settings, environment: environment)
-                    : nil))
+                    : nil,
+                replacesChannel: result.replacesChannelWithStable?.rawValue))
         }
 
         var tools: [CLIToolRows.Row] = []
@@ -621,6 +633,7 @@ public enum Check {
             if !tags.isEmpty { line += "  [\(tags.joined(separator: ", "))]" }
             if let failure = failure(row) { line += "  — check failed: \(failure)" }
             print(line)
+            if let channel = row.replacesChannel { print("      note: \(channelReminder(channel))") }
         }
         CLIToolRows.emitText(tools, checked: checked, print: print)
         let actionable = rows.filter(isActionable).count + tools.filter(\.hasUpdate).count

@@ -70,6 +70,13 @@ enum CLIToolAdministratorRun {
     /// The row's line while the panel is up, said before it is raised.
     static let waitingLine = "Waiting for an administrator password…"
 
+    /// The row's line once the panel authorized the run, said before anything
+    /// else happens on the main thread: until the command's first log line,
+    /// the row went on reading `waitingLine`, and under Update All the next
+    /// panel, raised a moment later, froze it there — two rows "waiting for a
+    /// password" with one already given (real Mac, 2026-10-20).
+    static let authorizedLine = "Running as root…"
+
     /// AppleScript's "User canceled." — what dismissing the panel answers.
     static let userCanceled = -128
 
@@ -143,6 +150,7 @@ enum CLIToolAdministratorRun {
             let authorize = self.authorize
             switch await MainActor.run(body: { () -> Authorization in
                 let answer = authorize(text)
+                if answer == .authorized { progress(CLIToolAdministratorRun.authorizedLine) }
                 CLIToolAdministratorPanel.answered?()
                 return answer
             }) {

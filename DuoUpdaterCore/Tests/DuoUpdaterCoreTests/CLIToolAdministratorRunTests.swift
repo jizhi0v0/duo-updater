@@ -91,7 +91,7 @@ import Foundation
         let outcome = try #require(Self.outcome(run))
         #expect(outcome.terminationStatus == 3)
         #expect(!outcome.timedOut)
-        #expect(lines.all == ["Waiting for an administrator password…", "one", "two"])
+        #expect(lines.all == ["Waiting for an administrator password…", "Running as root…", "one", "two"])
         #expect(box.given.count == 1)
         #expect(box.leftovers.isEmpty)
     }
@@ -149,15 +149,19 @@ import Foundation
     /// Whoever bound `CLIToolAdministratorPanel.answered` is told once the
     /// panel has its answer — authorized or dismissed — before the command's
     /// first line, so the app's Update All can raise the next panel without
-    /// waiting for this command to finish.
-    /// Mutations: drop the call; make it after `follow`.
+    /// waiting for this command to finish. An authorized panel's row says
+    /// so first (`authorizedLine`), so it does not sit on "Waiting for an
+    /// administrator password…" behind the next panel; a dismissed one does not.
+    /// Mutations: drop the call; make it after `follow`; drop the
+    /// `authorizedLine`; say it for any answer.
     @Test func tellsWhoeverWaitsThatThePanelWasAnswered() async throws {
         let box = try Sandbox()
         let tell: @MainActor @Sendable () -> Void = { box.say("answered") }
         _ = await CLIToolAdministratorPanel.$answered.withValue(tell) {
             await box.shell().run("echo one") { box.say($0) }
         }
-        #expect(box.said == ["line: Waiting for an administrator password…", "panel", "line: answered", "line: one"])
+        #expect(box.said == ["line: Waiting for an administrator password…", "panel", "line: Running as root…",
+                             "line: answered", "line: one"])
         let declined = try Sandbox()
         let tellDeclined: @MainActor @Sendable () -> Void = { declined.say("answered") }
         _ = await CLIToolAdministratorPanel.$answered.withValue(tellDeclined) {

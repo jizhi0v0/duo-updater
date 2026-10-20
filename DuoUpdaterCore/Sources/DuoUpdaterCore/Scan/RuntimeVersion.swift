@@ -154,7 +154,7 @@ public enum RuntimeVersion {
             let modules = executable.flatMap(GoBuildInfo.read(at:))
             version = AppRuntimeDetector.wailsModules.lazy
                 .compactMap { modules?.module($0)?.builtVersion }.first
-        case .flutter, .native, .catalyst, .iOSApp, .reactNative, .gpui, .egui:
+        case .flutter, .native, .catalyst, .iOSApp, .reactNative, .gpui, .egui, .nsh:
             version = nil
         }
         // A nil reached under `scanningBinaries: false` is not an answer about the

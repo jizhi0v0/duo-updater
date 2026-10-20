@@ -8,6 +8,10 @@ extension RuntimeComposition {
     static let eguiWgpu = RuntimeComponent(id: "egui.wgpu", name: "wgpu")
     /// egui drawn through OpenGL, by way of the `glow` crate.
     static let eguiGlow = RuntimeComponent(id: "egui.glow", name: "glow")
+    /// NSH drawing its modules as AppKit views.
+    static let nshAppKit = RuntimeComponent(id: "nsh.appkit", name: "AppKit")
+    /// NSH drawing its modules with GPUI.
+    static let nshGPUI = RuntimeComponent(id: "nsh.gpui", name: "GPUI")
 
     /// GPUI, from `__TEXT,__cstring` — the section the detector reads its crate
     /// paths from.
@@ -52,6 +56,29 @@ extension RuntimeComposition {
             || contains(strings, "/src/native/glow_integration.rs") {
             found.append(eguiGlow)
         }
+        return found
+    }
+
+    /// NSH, from `__TEXT,__cstring`: which of its runners was packaged, and a
+    /// web view where one is linked.
+    ///
+    /// `nsh package --target macos` and `--target gpui` produce the same bundle
+    /// around different executables, so the badge cannot say which way the app
+    /// draws and this line does. The AppKit runner carries
+    /// `crates/nsh-platform-macos/src/…` (and so does a runner built from source
+    /// with the app's own Rust crate); the GPUI runner's own crate is written
+    /// relative, as `nsh-platform-gpui/src/…` with no slash before it, so it is
+    /// told by the GPUI crates it links instead (`gpui-fast-0.1.9`), the
+    /// detector's own GPUI evidence.
+    ///
+    /// The GPUI runner also links wry (`lb-wry-0.53.3`, under `src/wkwebview/`),
+    /// for the `WebView` element; the AppKit runner of nsh 0.1.1 has no such path.
+    static func nsh(_ context: Context) -> [RuntimeComponent] {
+        guard let strings = context.section("__TEXT", "__cstring") else { return [] }
+        var found: [RuntimeComponent] = []
+        if AppRuntimeDetector.containsCratePath(strings, "nsh-platform-macos") { found.append(nshAppKit) }
+        if AppRuntimeDetector.containsCratePath(strings, "gpui") { found.append(nshGPUI) }
+        if contains(strings, wkwebviewModule) { found.append(rustWebView) }
         return found
     }
 

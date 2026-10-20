@@ -119,6 +119,37 @@ private func read(_ runtime: AppRuntime, _ sections: [String: String]) throws ->
     #expect(try read(.egui, ["__TEXT,__const": "\(registry)/egui-wgpu-0.36.2/src/lib.rs\u{0}"]).isEmpty)
 }
 
+// MARK: NSH
+
+/// nsh 0.1.1's AppKit runner: its own platform crate, written relative, and no
+/// web view.
+@Test func nshOnItsAppKitRunnerShipsAppKit() throws {
+    let found = try read(.nsh, cstring(
+        "crates/nsh-core/src/fenwick.rs", "crates/nsh-platform-macos/src/surface.rs"))
+    #expect(found.map(\.id) == ["nsh.appkit"])
+    #expect(found.map(\.name) == ["AppKit"])
+}
+
+/// nsh 0.1.1's GPUI runner: its platform crate has no slash before it, so GPUI
+/// is told by `gpui-fast`; it links `lb-wry` for the WebView element.
+@Test func nshOnItsGPUIRunnerShipsGPUIAndTheWebView() throws {
+    let found = try read(.nsh, cstring(
+        "/Users/runner/work/nsh/nsh/crates/nsh-core/src/fenwick.rs",
+        "nsh-platform-gpui/src/view.rs",
+        "\(registry)/gpui-fast-0.1.9/src/scene.rs",
+        "\(registry)/lb-wry-0.53.3/src/wkwebview/class/url_scheme_handler.rs"))
+    #expect(found.map(\.id) == ["nsh.gpui", "gpui.webview"])
+    #expect(found.map(\.name) == ["GPUI", "WKWebView"])
+}
+
+/// A runner `nsh package` built from source for an app with its own Rust crate.
+@Test func nshOnARunnerBuiltFromSourceShipsAppKit() throws {
+    let found = try read(.nsh, cstring(
+        "/Users/dev/nsh-source-v0.1.1/crates/nsh-core/src/core/mod.rs",
+        "/Users/dev/nsh-source-v0.1.1/crates/nsh-platform-macos/src/view.rs"))
+    #expect(found.map(\.id) == ["nsh.appkit"])
+}
+
 // MARK: Tauri and Wails
 
 /// Jan, Handy, Clash Verge and the others: wry, tao and the WebKit bindings

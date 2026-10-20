@@ -50,13 +50,31 @@ struct ListActivityTests {
         ListActivity(isScanning: true),
         ListActivity(isChecking: true),
         ListActivity(isInstallingAll: true),
-        ListActivity(rowInstallCount: 1),
     ])
     func eachFlagBlocks(_ activity: ListActivity) {
         #expect(activity.isIdle == false)
         #expect(activity.canRefresh == false)
         #expect(activity.canInstallAll == false)
         #expect(activity.canOfferUpdateAll(targetCount: 7) == false)
+    }
+
+    /// A click on one row must not hide Update All for the rest: a row install
+    /// holds Refresh, which rewrites every row, but not the batch, which takes
+    /// only the rows not already installing.
+    @Test("a row install holds Refresh but not Update All")
+    func rowInstallHoldsRefreshOnly() {
+        let activity = ListActivity(rowInstallCount: 1)
+        #expect(activity.isIdle == false)
+        #expect(activity.canRefresh == false)
+        #expect(activity.canInstallAll)
+        #expect(activity.canOfferUpdateAll(targetCount: 2))
+        // One left besides the row: its own Update button is that control.
+        #expect(activity.canOfferUpdateAll(targetCount: 1) == false)
+    }
+
+    @Test("a row install beside a running batch still blocks a second batch")
+    func rowInstallWithBatchBlocks() {
+        #expect(ListActivity(isInstallingAll: true, rowInstallCount: 1).canInstallAll == false)
     }
 
     // MARK: - The settled state still works
@@ -136,7 +154,6 @@ struct ListActivityShortCircuitTests {
     /// before the call, and this test fails.
     @Test("a busy list never evaluates the target count", arguments: [
         ListActivity(isInstallingAll: true),
-        ListActivity(rowInstallCount: 1),
         ListActivity(isRefreshing: true),
         ListActivity(isScanning: true),
         ListActivity(isChecking: true),
@@ -150,10 +167,15 @@ struct ListActivityShortCircuitTests {
 
     /// The other half: an idle list DOES need the count, so the autoclosure must
     /// actually be called (exactly once — it is not memoised anywhere).
-    @Test("an idle list evaluates the target count once")
-    func idleListEvaluatesOnce() {
+    /// A list with only row installs in flight can still start a batch, so it
+    /// needs the count too.
+    @Test("an idle list evaluates the target count once", arguments: [
+        ListActivity(),
+        ListActivity(rowInstallCount: 1),
+    ])
+    func idleListEvaluatesOnce(_ activity: ListActivity) {
         var evaluations = 0
-        let offered = ListActivity().canOfferUpdateAll(targetCount: { evaluations += 1; return 7 }())
+        let offered = activity.canOfferUpdateAll(targetCount: { evaluations += 1; return 7 }())
         #expect(offered)
         #expect(evaluations == 1)
     }

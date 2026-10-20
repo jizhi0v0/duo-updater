@@ -194,7 +194,10 @@ def derive(owner, repo, facts, releases):
 
     for c in facts.get("components", []):
         notes.append(f"{c}: TODO(audit) — runs outside the app; check what a bundle swap does to it")
-    own = [r for r in facts.get("exeReferences", []) if f"/{owner}/{repo}/releases".lower() in r.lower()]
+    if facts.get("exeReferences", []) is None:
+        notes.append("`strings` is not installed, so the executable was not searched for its own "
+                     "releases: TODO(audit) find out whether it updates itself")
+    own = [r for r in facts.get("exeReferences") or [] if f"/{owner}/{repo}/releases".lower() in r.lower()]
     if own:
         notes.append(f"the executable names its own releases ({own[0]}): TODO(audit) — it likely "
                      "updates itself; find out how, and whether it races ours")
@@ -287,7 +290,9 @@ def older_identities(owner, repo, releases, facts, d):
     every bundle id and Team a user may still have, and the newest package
     alone hid both of TaskExplorer's (2.x shipped as
     `com.objective-see.TaskExplorer`) and Lapce's `0.10.0-dev` early builds."""
-    stable = [r for r in releases if r["tag_name"] in d["readTags"]]
+    # Every stable release, not only the ones `versionPattern` reads: copies from
+    # before a change of tag scheme are the likeliest to carry an older id or Team.
+    stable = [r for r in releases if not r.get("prerelease")]
     tags = [r["tag_name"] for r in stable]
     picks = []
     if d["tag"] in tags and tags.index(d["tag"]) + 1 < len(stable):
@@ -308,7 +313,8 @@ def older_identities(owner, repo, releases, facts, d):
         tmp = tempfile.mkdtemp(prefix="scaffold-older.")
         try:
             dest = os.path.join(tmp, a["name"])
-            if subprocess.run(["curl", "-sSfL", "-o", dest, a["browser_download_url"]]).returncode:
+            if subprocess.run(["curl", "-sSfL", "--connect-timeout", "20", "--max-time", "900",
+                               "-o", dest, a["browser_download_url"]]).returncode:
                 lines.append(f"{tag}: download failed — TODO(audit) compare it by hand")
                 continue
             o = package_facts(dest)
@@ -334,6 +340,9 @@ def older_identities(owner, repo, releases, facts, d):
         else:
             lines.append(f"{tag}: Team {o['teamIdentifier'] or 'none (ad-hoc)'} — TODO(audit) the install gate "
                          "refuses copies signed by another Team")
+        if tag not in d["readTags"]:
+            lines.append(f"{tag}: versionPattern does not read this tag — TODO(audit) a change of tag "
+                         "scheme; copies of it are offered nothing")
         if find_version(tag, o["shortVersion"] or "") is None:
             lines.append(f"{tag}: the bundle says {o['shortVersion']!r} — TODO(audit) copies of that build "
                          "never compare with the tags")
@@ -359,7 +368,9 @@ def package_facts(path):
 
     nested = re.findall(r"^  nested (\S.*?) id=", out, re.M)
     components = re.findall(r"^  component (.*)$", out, re.M)
-    references = re.findall(r"^  exe-references (.*)$", out, re.M)
+    references = re.findall(r"^  exe-references (?!unavailable)(.*)$", out, re.M)
+    if re.search(r"^  exe-references unavailable", out, re.M):
+        references = None
     with open(path, "rb") as f:
         sha = hashlib.sha256(f.read()).hexdigest()
     spctl = re.search(r"^  spctl source=(.*)$", out, re.M)

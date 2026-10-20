@@ -46,6 +46,7 @@ for f in "$@"; do
     # The app naming its own GitHub releases: a sign it updates itself, which a
     # bundle without SUFeedURL or an updater framework does not otherwise show
     # (Lapce reads `api.github.com/repos/lapce/lapce/releases/latest`).
+    command -v strings >/dev/null || echo "  exe-references unavailable: strings not found (xcode-select --install)"
     strings -a "$exe" 2>/dev/null \
       | grep -oE '(api\.github\.com/repos|github\.com)/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/releases(/latest|/download/)?' \
       | sort -u | head -5 | sed 's/^/  exe-references /'

@@ -1028,10 +1028,14 @@ struct WorkbenchWindowView: View {
     /// while it runs rather than replaced by one. The header's height is the
     /// button's: when it went away for a single row's update and came back when
     /// that failed, every row below moved 1 pt up and back (fx, 2026-10-06).
+    /// Kept too while Update All waits or runs, whatever is on offer: a check
+    /// landing mid-run can hold back every copy left ("npm is busy in this
+    /// prefix", its own run's npm), and the header took its spinner and Cancel
+    /// with it (2026-10-20, #1498 real-Mac check).
     @ViewBuilder
     private var otherToolsBulkUpdate: some View {
         let tools = model.cliTools
-        if !tools.batchOffered.isEmpty {
+        if !tools.batchOffered.isEmpty || tools.updatingAll {
             Button("Update All") { Task { await tools.updateAll() } }
                 .controlSize(.small)
                 .buttonStyle(.bordered)

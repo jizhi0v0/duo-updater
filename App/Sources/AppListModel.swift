@@ -169,19 +169,28 @@ final class AppListModel {
     private(set) var lastScan: Date?
 
     /// Per-app install progress, keyed by app id.
-    private(set) var installing: [String: InstallStage] = [:] {
-        didSet {
+    private(set) var installing: [String: InstallStage] {
+        get { installTable.stages }
+        set {
+            installTable.stages = newValue
             smoothInstallRows()
-            let ended = oldValue.keys.filter { installing[$0] == nil }
-            if !ended.isEmpty { installOwnership.record(ended: ended) }
+        }
+        _modify {
+            yield &installTable.stages
+            smoothInstallRows()
         }
     }
-    /// Which rows an install owned while a local rescan was reading the disk
-    /// (`InstallOwnership`): those keep the row their install wrote.
-    @ObservationIgnored private var installOwnership = InstallOwnership()
+    /// `installing`, and which rows an install owned while a local rescan was
+    /// reading the disk (`InstallTable`, `InstallOwnership`): those keep the
+    /// row their install wrote.
+    private var installTable = InstallTable()
     /// True while "Update All" is running. Blocks a second batch from being
     /// started while the first one still has queued work.
     private(set) var isInstallingAll = false
+    /// From an "Update All" click until it has claimed its batch or let it go
+    /// (`ListActivity.isStartingInstallAll`): the helper-status read it waits
+    /// for first.
+    private(set) var isStartingInstallAll = false
     /// The Cancel each row an install runs for offers (`InstallCancelState`),
     /// from the moment the install is registered — or claimed by "Update All" —
     /// until it returns. A row with no entry offers none: a rollback, a re-check.
@@ -1062,6 +1071,7 @@ final class AppListModel {
             isScanning: isScanning,
             isChecking: isChecking,
             isInstallingAll: isInstallingAll,
+            isStartingInstallAll: isStartingInstallAll,
             rowInstallCount: installing.count)
     }
 
@@ -1346,11 +1356,12 @@ final class AppListModel {
     /// panel/window-tracking machinery the first time we actually hit a denial.
     @ObservationIgnored private lazy var permissionFlow = PermissionFlow.makeController()
     /// During a batch, a stale App Management preflight can make several parallel
-    /// installs fail together. Show the permission guide once for that wave.
-    @ObservationIgnored private var appManagementPermissionFlowPresentedInBatch = false
+    /// installs fail together. Show the permission guide once for that wave
+    /// (`OncePerBatchPrompt`).
+    @ObservationIgnored private var appManagementPermissionPrompt = OncePerBatchPrompt()
     /// Same for the App Store helper: a batch of App Store updates all fail on the
     /// same unusable helper, and three identical dialogs would be worse than none.
-    @ObservationIgnored private var helperApprovalFlowPresentedInBatch = false
+    @ObservationIgnored private var helperApprovalPrompt = OncePerBatchPrompt()
 
     /// User settings (token, concurrency, ignore list, backups…). Read live on
     /// each refresh so a change made in the Settings window takes effect next check.
@@ -4152,24 +4163,25 @@ final class AppListModel {
         // proofs-file read and decode, a carried-forward row per app).
         let prior = results
         let priorGeneration = resultsGeneration
-        let ownershipMark = installOwnership.mark(installing: installing.keys)
         let restart = needsRestart, staged = pendingSelfUpdate
         let armed = armedSelfInstallers, pinned = pinnedOrder
         // The whole closure off the cooperative pool, not just the TestFlight
         // read: `AppScanner.scan()` is synchronous to the bottom and bounded the
         // same way (see `BoundedBlockingWork`), so a detached task here parks a
         // cooperative thread for as long as the app-data gate goes unanswered.
-        let (found, rows) = await offCooperativePool(qos: .userInitiated) {
-            let found = AppScanner(
-                extraLocations: extraScan,
-                testflight: readsTestFlight
-                    ? TestFlightInventory() : TestFlightInventory(macRows: [], accessible: false)
-            ).scan()
-            let merged = ScanRowAssembly.merged(
-                found, prior: prior, proofs: ResolvedChannelStore.Snapshot())
-            return (found, RowOrder.sorted(
-                merged, needsRestart: restart, stagedSelfUpdates: staged,
-                armedSelfInstallers: armed, pinnedOrder: pinned))
+        let ((found, rows), owned) = await InstallTable.scan({ installTable }) {
+            await offCooperativePool(qos: .userInitiated) {
+                let found = AppScanner(
+                    extraLocations: extraScan,
+                    testflight: readsTestFlight
+                        ? TestFlightInventory() : TestFlightInventory(macRows: [], accessible: false)
+                ).scan()
+                let merged = ScanRowAssembly.merged(
+                    found, prior: prior, proofs: ResolvedChannelStore.Snapshot())
+                return (found, RowOrder.sorted(
+                    merged, needsRestart: restart, stagedSelfUpdates: staged,
+                    armedSelfInstallers: armed, pinnedOrder: pinned))
+            }
         }
         // The scan takes long enough for any of those to move under it — a check
         // round publishing, a row refreshed, an install starting and freezing the
@@ -4183,7 +4195,6 @@ final class AppListModel {
         // re-checked. Re-merged, that read put the old version back with a live
         // Update — a row clicked on its own whose install lands during Update
         // All's closing rescan.
-        let owned = installOwnership.owned(since: ownershipMark, installing: installing.keys)
         if resultsGeneration == priorGeneration, needsRestart == restart,
            pendingSelfUpdate == staged, armedSelfInstallers == armed, pinnedOrder == pinned {
             results = owned.isEmpty ? rows
@@ -6107,7 +6118,7 @@ final class AppListModel {
             // the drag-to-authorize panel; the install can be retried once granted.
             Log.install.error("install blocked by App Management: \(result.app.name, privacy: .public)")
             installErrors[id] = error.errorDescription
-            presentAppManagementPermissionFlowForInstallFailure()
+            presentAppManagementPermissionFlowForInstallFailure(batchRun: deferBookkeeping)
         } catch is AuthorizationDeclinedError {
             // The user dismissed the administrator panel. Nothing failed and nothing
             // was touched, so this leaves no red error — it records the refusal
@@ -6127,7 +6138,7 @@ final class AppListModel {
             // failure floats its authorize panel.
             Log.install.error("install blocked by helper approval: \(result.app.name, privacy: .public)")
             installErrors[id] = error.errorDescription
-            await presentHelperApprovalFlowForInstallFailure()
+            await presentHelperApprovalFlowForInstallFailure(batchRun: deferBookkeeping)
         } catch {
             // A failed *App Store* install whose bundle is ALREADY at the target
             // version isn't a real failure — it's a no-op reinstall the store tooling
@@ -7909,11 +7920,11 @@ final class AppListModel {
     ///
     /// Shown at most once per batch, like the App Management flow — an "Update All"
     /// across three App Store apps must not stack three identical dialogs.
-    private func presentHelperApprovalFlowForInstallFailure() async {
-        if isInstallingAll {
-            guard !helperApprovalFlowPresentedInBatch else { return }
-            helperApprovalFlowPresentedInBatch = true
-        }
+    /// `batchRun`: the failed install is one of the batch's own runs
+    /// (`deferBookkeeping`). A row clicked by hand while a batch runs is not,
+    /// and its failure asks whatever the batch has shown.
+    private func presentHelperApprovalFlowForInstallFailure(batchRun: Bool) async {
+        guard helperApprovalPrompt.shouldPresent(batchRun: batchRun) else { return }
         await helperClient.reregister()
         helperEnabled = helperClient.isEnabled
         // Repaired silently — the record was stale, not unapproved. Nothing to ask;
@@ -7937,11 +7948,10 @@ final class AppListModel {
         }
     }
 
-    private func presentAppManagementPermissionFlowForInstallFailure() {
-        if isInstallingAll {
-            guard !appManagementPermissionFlowPresentedInBatch else { return }
-            appManagementPermissionFlowPresentedInBatch = true
-        }
+    /// Once per batch, for the batch's own runs only — see
+    /// `presentHelperApprovalFlowForInstallFailure`.
+    private func presentAppManagementPermissionFlowForInstallFailure(batchRun: Bool) {
+        guard appManagementPermissionPrompt.shouldPresent(batchRun: batchRun) else { return }
         presentAppManagementPermissionFlow()
     }
 
@@ -9198,15 +9208,24 @@ final class AppListModel {
     /// installer window that interrupts the user. The shared restart/staging/backup
     /// sweep runs once after the whole batch has settled.
     func installAll() async {
-        // The filter below reads `helperEnabled`, which `refreshPermissionStatus()`
-        // no longer updates before returning. Awaited here, ahead of the guard, so
-        // nothing suspends between the guard and `isInstallingAll = true` and a
-        // second tap still finds the batch already claimed.
-        await refreshHelperStatus()
         // Say WHY, like `refresh` and `refreshLocal` do. A notification banner's
         // "Update All" routes straight here, so a tap that lands while a check or a
         // refresh is running is otherwise a banner that dismisses with nothing
-        // installed and nothing logged.
+        // installed and nothing logged. Asked twice: here, so a second tap while
+        // this one waits below is answered at once, and again after the wait.
+        guard listActivity.canInstallAll else {
+            Log.app.info("update all: skipped — \(String(describing: self.listActivity), privacy: .public)")
+            return
+        }
+        // The filter below reads `helperEnabled`, which `refreshPermissionStatus()`
+        // no longer updates before returning. Awaited here, ahead of the second
+        // guard, so nothing suspends between that guard and `isInstallingAll =
+        // true`. The header greys the button for the wait.
+        isStartingInstallAll = true
+        let helperWait = ContinuousClock.now
+        await refreshHelperStatus()
+        isStartingInstallAll = false
+        Log.app.info("update all: helper status read in \(String(describing: ContinuousClock.now - helperWait), privacy: .public)")
         guard listActivity.canInstallAll else {
             Log.app.info("update all: skipped — \(String(describing: self.listActivity), privacy: .public)")
             return
@@ -9223,8 +9242,8 @@ final class AppListModel {
         let targets = installAllTargets()
         guard !targets.isEmpty else { return }
         isInstallingAll = true
-        appManagementPermissionFlowPresentedInBatch = false
-        helperApprovalFlowPresentedInBatch = false
+        appManagementPermissionPrompt.reset()
+        helperApprovalPrompt.reset()
         // Claim every target `.queued` up front so each row shows a queued spinner
         // immediately — not a still-clickable "Update" button that would otherwise let
         // a manual tap race the batch — for the whole queue, not just the few currently
@@ -9250,7 +9269,7 @@ final class AppListModel {
             cancelAllPhase = nil
             batchQueue = nil
             batchClaims = [:]
-            appManagementPermissionFlowPresentedInBatch = false
+            appManagementPermissionPrompt.reset()
             // Not a row its own Cancel released and a click queued again
             // since: that click's claim is the row's latest now.
             for target in targets where installing[target.id] == .queued
@@ -10101,22 +10120,23 @@ final class AppListModel {
         // attended one admits `.unknown`, which here would open TestFlight's
         // container on a trigger nobody aimed at us.
         let readsTestFlight = unattendedMayReadTestFlightStore
-        let ownershipMark = installOwnership.mark(installing: installing.keys)
         // Off the cooperative pool for the reason `refreshLocal` gives.
-        let found = await offCooperativePool(qos: .utility) {
-            AppScanner(
-                extraLocations: extraScan,
-                testflight: readsTestFlight
-                    ? TestFlightInventory() : TestFlightInventory(macRows: [], accessible: false)
-            ).scan()
+        // Not only the rows installing now are owned: one whose install
+        // finished while the scan ran was read before its swap
+        // (`InstallOwnership`).
+        let (found, owned) = await InstallTable.scan({ installTable }) {
+            await offCooperativePool(qos: .utility) {
+                AppScanner(
+                    extraLocations: extraScan,
+                    testflight: readsTestFlight
+                        ? TestFlightInventory() : TestFlightInventory(macRows: [], accessible: false)
+                ).scan()
+            }
         }
         let mergedByID = Dictionary(
             mergeScanned(found).map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
         var next = results
         var changed = false
-        // Not only the rows installing now: one whose install finished while
-        // the scan ran was read before its swap (`InstallOwnership`).
-        let owned = installOwnership.owned(since: ownershipMark, installing: installing.keys)
         for i in next.indices where !owned.contains(next[i].id) {
             guard let fresh = mergedByID[next[i].id],
                   fresh.status != next[i].status

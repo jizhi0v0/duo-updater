@@ -2776,4 +2776,175 @@ struct CLIToolsModelTests {
         await click.value
         #expect(await npmUpdater.calls.isEmpty)
     }
+
+    // MARK: a click's offer at its turn
+
+    /// A copy of another tool in the same npm prefix as the run ahead of it,
+    /// whose own unique path keeps its job apart from other cases'.
+    static func ownPackage() -> String { prefix + "/lib/node_modules/pkg-\(UUID().uuidString)" }
+
+    /// A click queued behind another tool's run, whose offer a check made
+    /// while it waited took away — that run's own npm child read as "npm is
+    /// busy" in the prefix both share — is asked again of its own tool at its
+    /// turn, and runs once offered again. The run's re-check covers only its
+    /// own tool, and the click used to vanish: released at its turn, nothing
+    /// run, nothing said (review, 2026-10-20). Nothing is cancellable while
+    /// that check is out: the update starts only after it.
+    ///
+    /// Mutations: drop the re-check in `offerAtTurn` → the click is released
+    /// unrun, red; drop its `cancels[id] = nil` → a live Cancel over the
+    /// check, red.
+    @Test(.timeLimit(.minutes(1))) func aClickWhoseOfferACheckTookAwayIsAskedAgainAtItsTurn() async {
+        let ahead = Self.id(Self.ownPath())
+        let path = Self.ownPackage()
+        let queued = Self.id(path, .npm)
+        let updater = FakeUpdater()
+        await updater.set(queued, .updated(version: "2.1.285"))
+        let gate = Gate()
+        await updater.setGate(ahead, gate)
+        let turnCheck = Gate()
+        let npm = FakeProvider(
+            kind: .npm,
+            checker: FakeCheck([
+                (Self.report(.npm, [Self.status(path, kind: .npm)]), nil),
+                (Self.report(.npm, [Self.status(path, kind: .npm, oneClick: false, withheld: .busy)]), nil),
+                (Self.report(.npm, [Self.status(path, kind: .npm)]), turnCheck),
+            ]),
+            updater: updater)
+        let model = Self.model(
+            check: FakeCheck([(Self.report(Self.status(ahead.path)), nil)]), updater: updater, others: [npm])
+        await model.refresh()
+
+        let first = Task { await model.update(ahead) }
+        await until { await gate.arrived == 1 }
+        let second = Task { await model.update(queued) }
+        await until { model.runQueue.isWaiting(.tool(queued)) }
+        // A background check while the first runs.
+        await model.refresh()
+        #expect(model.outdated.first { $0.toolID == queued }?.oneClick == nil)
+
+        await gate.open()
+        await first.value
+        await until { await turnCheck.arrived == 1 }
+        #expect(model.updating.contains(queued))
+        #expect(model.progress[queued] == "Checking…")
+        #expect(model.cancels[queued] == nil)
+        await turnCheck.open()
+        await second.value
+
+        #expect(await updater.calls == [ahead, queued])
+        #expect(model.errors[queued] == nil)
+        #expect(model.updating.isEmpty)
+    }
+
+    /// Still not offered once asked again at its turn, the click is not
+    /// dropped without a word: the row says it was not updated, and why —
+    /// until its tool's next check, which says what is true then: offered
+    /// again, the line must not sit beside the live Update (review, #1511
+    /// round 1).
+    ///
+    /// Mutations: drop the `errors[id]` line in `offerAtTurn` → the row goes
+    /// back to its held-back line with nothing said, red; drop the
+    /// `notRunAtTurn` loop in `apply` → the reason outlives the next check,
+    /// red.
+    @Test(.timeLimit(.minutes(1))) func aClickStillNotOfferedAtItsTurnSaysWhy() async {
+        let ahead = Self.id(Self.ownPath())
+        let path = Self.ownPackage()
+        let queued = Self.id(path, .npm)
+        let updater = FakeUpdater()
+        let gate = Gate()
+        await updater.setGate(ahead, gate)
+        let busy = Self.status(path, kind: .npm, oneClick: false, withheld: .busy)
+        let npm = FakeProvider(
+            kind: .npm,
+            checker: FakeCheck([
+                (Self.report(.npm, [Self.status(path, kind: .npm)]), nil),
+                (Self.report(.npm, [busy]), nil),
+                (Self.report(.npm, [busy]), nil),
+                (Self.report(.npm, [Self.status(path, kind: .npm)]), nil),
+            ]),
+            updater: updater)
+        let model = Self.model(
+            check: FakeCheck([(Self.report(Self.status(ahead.path)), nil)]), updater: updater, others: [npm])
+        await model.refresh()
+
+        let first = Task { await model.update(ahead) }
+        await until { await gate.arrived == 1 }
+        let second = Task { await model.update(queued) }
+        await until { model.runQueue.isWaiting(.tool(queued)) }
+        await model.refresh()
+        await gate.open()
+        await first.value
+        await second.value
+
+        #expect(await updater.calls == [ahead])
+        #expect(model.errors[queued] == "Not updated: \(CLIToolsModel.reason(.busy, of: busy))")
+        #expect(model.updating.isEmpty)
+        #expect(model.cancels[queued] == nil)
+
+        // The next check offers it again.
+        await model.refresh()
+        #expect(model.oneClickable.contains { $0.toolID == queued })
+        #expect(model.errors[queued] == nil)
+    }
+
+    /// A copy back on offer without any check of its tool — the GitHub pause
+    /// that held it back at its click's turn lifted — loses its "Not updated"
+    /// line with it, rather than keeping the old reason beside a live Update
+    /// until its tool is next checked (review, #1511 round 2).
+    ///
+    /// Mutation: drop the `notRunAtTurn` loop in `publishStatuses` → the line
+    /// stays, red.
+    @Test(.timeLimit(.minutes(1))) func aNotUpdatedLineGoesWhenThePauseThatCausedItLifts() async {
+        let zoxide = Self.status("/Users/u/.local/bin/zoxide-\(UUID().uuidString)", kind: .zoxide)
+        let id = zoxide.toolID
+        let updater = FakeUpdater()
+        let model = Self.model([FakeProvider(kind: .zoxide, checker: FakeCheck([(Self.report(.zoxide, [zoxide]), nil)]), updater: updater)])
+        await model.refresh()
+        let gate = Gate()
+        let held = await holdQueue(model, gate)
+
+        let click = Task { await model.update(id) }
+        await until { model.runQueue.isWaiting(.tool(id)) }
+        model.gitHubPause = [.anonymous: Date().addingTimeInterval(600)]
+        await gate.open()
+        await held.value
+        await click.value
+        #expect(await updater.calls.isEmpty)
+        #expect(model.errors[id] != nil)
+
+        model.gitHubPause = [:]
+        #expect(model.oneClickable.contains { $0.toolID == id })
+        #expect(model.errors[id] == nil)
+    }
+
+    /// An update that ran nothing — something else was already updating the
+    /// copy — has nothing left to cancel: no live Cancel while its tool's
+    /// re-check is out ("Waiting to check"), where a click on it found no job
+    /// and the button just went away (review, 2026-10-20).
+    ///
+    /// Mutation: drop the `cancels[id] = nil` once the job ended in `run` →
+    /// the Cancel stays `.available`, red.
+    @Test(.timeLimit(.minutes(1))) func anUpdateThatRanNothingOffersNoCancel() async {
+        let path = Self.ownPath()
+        let id = Self.id(path)
+        let recheck = Gate()
+        let check = FakeCheck([
+            (Self.report(Self.status(path)), nil),
+            (Self.report(Self.status(path, oneClick: false, withheld: .busy)), recheck),
+        ])
+        let updater = FakeUpdater()
+        await updater.set(id, .busy("claude update (pid 4242) is running"))
+        let model = Self.model(check: check, updater: updater)
+        await model.refresh()
+
+        let click = Task { await model.update(id) }
+        await until { await recheck.arrived == 1 }
+        #expect(model.updating.contains(id))
+        #expect(model.cancels[id] == nil)
+        #expect(model.rowCancel == nil)
+        await recheck.open()
+        await click.value
+        #expect(model.updating.isEmpty)
+    }
 }

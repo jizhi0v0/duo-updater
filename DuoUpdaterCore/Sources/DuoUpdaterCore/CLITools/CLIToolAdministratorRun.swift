@@ -7,7 +7,8 @@ import Foundation
 /// for each such copy at the click, one panel after another
 /// (`CLIToolsModel.updateAll`). Neither waits in the CLI tab's queue
 /// (`CLIRunQueue`): the root shell runs under `env -i` with the system `PATH`
-/// and writes only its tool's file, so it cannot clash with a Homebrew run.
+/// and writes only its tool's file and its own output directory, so it cannot
+/// clash with a Homebrew run.
 ///
 /// **Whose name is on the panel.** The command goes through `do shell script …
 /// with administrator privileges` run by `NSAppleScript` inside DuoUpdater, not
@@ -33,11 +34,29 @@ import Foundation
 /// only, `/` as the working directory, umask 022 and no stdin. Nothing else of
 /// the app's environment reaches it.
 ///
-/// **Where the output goes.** A directory of the user's own in their temporary
-/// directory (never `HOME`), into which the root shell creates `log` and
-/// `status` with noclobber (`set -C`: `O_EXCL`, so a link planted at either
-/// name is refused rather than written through). The directory is the user's,
-/// so both files are removed with it afterwards.
+/// **Where the output goes.** Into a directory root makes for itself once the
+/// panel has authorized: `mktemp -d` under `/private/tmp` (root's, sticky), made
+/// readable (755) so this process can follow `log` and `status` (644, umask
+/// 022), its path the `do shell script` result. Root deletes it itself a minute
+/// after writing `status` (`linger`), long past the half-second poll; a run
+/// whose status lands while the app is not polling just reads as timed out.
+///
+/// Never a path the user can change. It used to be a directory of the user's,
+/// made before the panel, with the files created under noclobber (`set -C`) —
+/// which is not `O_EXCL`: `/bin/sh` is bash 3.2, whose noclobber opens an
+/// existing non-regular file as usual. Measured 2026-10-20: `set -C; echo hi >
+/// a` with `a` a link to `/dev/null`, or to a FIFO, exits 0 and the FIFO's
+/// reader gets "hi"; only a link to a regular file is refused. So any process
+/// of the user's could, while the panel was up, point `log` at a root-only
+/// device or swap the empty directory for a link to a root-only one, and root
+/// wrote there. Root's own directory leaves nothing to point: `mktemp`'s
+/// `mkdir` refuses an existing name and follows no link, the sticky bit keeps
+/// anyone else from renaming or removing it, and only root writes inside it.
+/// Weighed and not taken: piping the output to a writer dropped to the user
+/// (`sudo -u`), which the user's processes could kill mid-install, and
+/// checking the files from the shell, which has no `O_NOFOLLOW`. The output is
+/// a vendor installer's progress and is readable by other accounts on the Mac
+/// while it lingers, as it would be on a shared terminal.
 ///
 /// The command is a constant of the tool's check (`HelmCheck.rootCommand`,
 /// `StarshipCheck.rootCommand`) — never a string from a status, a file or the
@@ -60,7 +79,8 @@ enum CLIToolAdministratorRun {
 
     /// The panel's answer to one `do shell script … with administrator privileges`.
     enum Authorization: Sendable, Equatable {
-        case authorized
+        /// What the shell printed: where root put the run's output.
+        case authorized(String)
         /// AppleScript's error number and message.
         case error(number: Int, message: String)
     }
@@ -89,19 +109,24 @@ enum CLIToolAdministratorRun {
         return (info.st_mode & S_IFMT) == S_IFDIR && info.st_uid == 0
     }
 
-    /// The live runner: the panel in this process, output under the user's
-    /// temporary directory, the system proxy passed on.
+    /// Where root makes the run's output directory: root's, sticky, and not a
+    /// link (`/tmp` is one).
+    static let liveWorkRoot = "/private/tmp"
+
+    /// The live runner: the panel in this process, output under root's own
+    /// directory in `liveWorkRoot`, the system proxy passed on.
     static func live(deadline: ChildProcess.Deadline) -> Runner {
         let shell = Shell(
             authorize: { inProcess($0) },
-            workRoot: FileManager.default.temporaryDirectory,
+            workRoot: URL(fileURLWithPath: liveWorkRoot, isDirectory: true),
             environment: { ProcessInfo.processInfo.environmentWithSystemProxy },
-            poll: .milliseconds(500), beforePanel: .milliseconds(150), deadline: deadline)
+            poll: .milliseconds(500), beforePanel: .milliseconds(150), linger: 60, deadline: deadline)
         return { command, progress in await shell.run(command, progress: progress) }
     }
 
     struct Shell: Sendable {
         let authorize: Authorize
+        /// The directory root's `mktemp -d` makes the output directory in.
         let workRoot: URL
         let environment: @Sendable () -> [String: String]
         let poll: Duration
@@ -111,19 +136,15 @@ enum CLIToolAdministratorRun {
         /// user answers, and the row went on reading "Checking …" behind the
         /// panel (seen 2026-10-10).
         let beforePanel: Duration
+        /// Seconds root keeps the output directory after writing `status`
+        /// before deleting it — this process cannot delete what is root's.
+        let linger: Int
         let deadline: ChildProcess.Deadline
 
         func run(_ command: String, progress: @escaping @Sendable (String) -> Void) async -> Result {
-            let directory = workRoot.appendingPathComponent("duoupdater-admin-\(UUID().uuidString)", isDirectory: true)
-            do {
-                try FileManager.default.createDirectory(
-                    at: directory, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
-            } catch {
-                return .refused("could not prepare \(directory.path): \(error.localizedDescription)")
-            }
-            defer { try? FileManager.default.removeItem(at: directory) }
             let text = CLIToolAdministratorRun.shell(
-                command: command, directory: directory.path, proxies: CLIToolAdministratorRun.proxies(environment()))
+                command: command, workRoot: workRoot.path, linger: linger,
+                proxies: CLIToolAdministratorRun.proxies(environment()))
             progress(CLIToolAdministratorRun.waitingLine)
             // cancel-ok: one-shot pause before the commit; InstallCommit.run below refuses a cancelled caller
             try? await Task.sleep(for: beforePanel)
@@ -138,19 +159,17 @@ enum CLIToolAdministratorRun {
             let result = try? await InstallCommit.run("administrator run", landed: {
                 if case .ran = $0 { return true } else { return false }
             }) {
-                await shell.authorizeAndFollow(text, directory: directory, progress: progress)
+                await shell.authorizeAndFollow(text, progress: progress)
             }
             return result ?? .refused("cancelled before the administrator panel was raised; nothing ran")
         }
 
         /// `run` from the panel on — its commit. See there.
-        private func authorizeAndFollow(
-            _ text: String, directory: URL, progress: @escaping @Sendable (String) -> Void
-        ) async -> Result {
+        private func authorizeAndFollow(_ text: String, progress: @escaping @Sendable (String) -> Void) async -> Result {
             let authorize = self.authorize
             switch await MainActor.run(body: { () -> Authorization in
                 let answer = authorize(text)
-                if answer == .authorized { progress(CLIToolAdministratorRun.authorizedLine) }
+                if case .authorized = answer { progress(CLIToolAdministratorRun.authorizedLine) }
                 CLIToolAdministratorPanel.answered?()
                 return answer
             }) {
@@ -158,10 +177,28 @@ enum CLIToolAdministratorRun {
                 return .declined
             case .error(let number, let message):
                 return .refused(message.isEmpty ? "authorization failed (\(number))" : message)
-            case .authorized:
-                break
+            case .authorized(let printed):
+                guard let directory = outputDirectory(printed) else {
+                    // The command was started; where it writes is unknown.
+                    let outcome = ChildProcess.Outcome(
+                        terminationStatus: -1, uncaughtSignal: false, timedOut: false,
+                        standardOutput: Data(), standardError: Data())
+                    return .ran(CLIToolCommandRunner.Run(
+                        result: .finished(outcome), lines: ["the root shell named no output directory: \(printed)"]))
+                }
+                return await follow(directory, progress: progress)
             }
-            return await follow(directory, progress: progress)
+        }
+
+        /// The directory the shell printed, when it is one `mktemp` made
+        /// directly in `workRoot` from the line's template.
+        func outputDirectory(_ printed: String) -> URL? {
+            let path = printed.trimmingCharacters(in: .whitespacesAndNewlines)
+            let prefix = workRoot.path + "/" + CLIToolAdministratorRun.outputPrefix
+            guard path.hasPrefix(prefix), path.count > prefix.count,
+                  !path.dropFirst(prefix.count).contains("/")
+            else { return nil }
+            return URL(fileURLWithPath: path, isDirectory: true)
         }
 
         /// The background command's log, line by line, until its status lands
@@ -211,19 +248,26 @@ enum CLIToolAdministratorRun {
         }
     }
 
-    /// The shell line `do shell script` runs as root. It returns at once: the
-    /// command runs in a background subshell whose output goes to
-    /// `<directory>/log` and whose exit status goes to `<directory>/status`.
-    static func shell(command: String, directory: String, proxies: [String: String]) -> String {
+    /// The start of the output directory's name; `mktemp` fills in the rest.
+    static let outputPrefix = "duoupdater-admin."
+
+    /// The shell line `do shell script` runs as root. It makes the output
+    /// directory, prints its path and returns at once: the command runs in a
+    /// background subshell whose output goes to `log` there and whose exit
+    /// status goes to `status`, and which deletes the directory `linger`
+    /// seconds later. A directory that cannot be made fails the line, and
+    /// nothing runs.
+    static func shell(command: String, workRoot: String, linger: Int, proxies: [String: String]) -> String {
         let environment = [
             "HOME=/var/root", "USER=root", "LOGNAME=root", "SHELL=/bin/sh",
             "PATH=\(CLIToolCommandRunner.systemPath):/usr/local/bin",
         ] + proxies.keys.sorted().map { "\($0)=\(quote(proxies[$0] ?? ""))" }
-        let log = quote(directory + "/log")
-        let status = quote(directory + "/status")
-        return "( set -C; cd / && umask 022 && /usr/bin/env -i \(environment.joined(separator: " ")) "
-            + "/bin/sh -c \(quote(command)) < /dev/null > \(log) 2>&1; echo $? > \(status) ) "
-            + "< /dev/null > /dev/null 2>&1 &"
+        let template = quote(workRoot + "/" + outputPrefix + "XXXXXXXX")
+        return "cd / || exit 1; umask 022; d=$(/usr/bin/mktemp -d \(template)) || exit 1; "
+            + "/bin/chmod 755 \"$d\" || exit 1; "
+            + "( /usr/bin/env -i \(environment.joined(separator: " ")) "
+            + "/bin/sh -c \(quote(command)) < /dev/null > \"$d/log\" 2>&1; echo $? > \"$d/status\"; "
+            + "/bin/sleep \(linger); /bin/rm -rf \"$d\" ) < /dev/null > /dev/null 2>&1 & echo \"$d\""
     }
 
     /// The proxy variables of `environment` (`SystemProxyEnvironment`'s), and no
@@ -250,7 +294,8 @@ enum CLIToolAdministratorRun {
             return .error(number: 0, message: "could not build the AppleScript")
         }
         var info: NSDictionary?
-        if script.executeAndReturnError(&info) != nil { return .authorized }
+        let result: NSAppleEventDescriptor? = script.executeAndReturnError(&info)
+        if let result { return .authorized(result.stringValue ?? "") }
         let number = (info?[NSAppleScript.errorNumber] as? NSNumber)?.intValue ?? 0
         let message = info?[NSAppleScript.errorMessage] as? String ?? ""
         return .error(number: number, message: message)

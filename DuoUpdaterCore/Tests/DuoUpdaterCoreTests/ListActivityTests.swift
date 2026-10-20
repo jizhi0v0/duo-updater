@@ -77,6 +77,17 @@ struct ListActivityTests {
         #expect(ListActivity(isInstallingAll: true, rowInstallCount: 1).canInstallAll == false)
     }
 
+    /// An Update All click awaits the helper's status before it claims the
+    /// batch. A second click (or a banner's Update All) in that time must find
+    /// nothing to start, and the header must not offer the button live.
+    @Test("a click starting Update All blocks another")
+    func startingBlocksASecondBatch() {
+        let starting = ListActivity(isStartingInstallAll: true)
+        #expect(starting.canInstallAll == false)
+        #expect(starting.canOfferUpdateAll(targetCount: 7) == false)
+        #expect(ListActivity(isStartingInstallAll: true, rowInstallCount: 1).canInstallAll == false)
+    }
+
     // MARK: - The settled state still works
 
     @Test("idle permits every whole-list action")
@@ -154,6 +165,7 @@ struct ListActivityShortCircuitTests {
     /// before the call, and this test fails.
     @Test("a busy list never evaluates the target count", arguments: [
         ListActivity(isInstallingAll: true),
+        ListActivity(isStartingInstallAll: true),
         ListActivity(isRefreshing: true),
         ListActivity(isScanning: true),
         ListActivity(isChecking: true),

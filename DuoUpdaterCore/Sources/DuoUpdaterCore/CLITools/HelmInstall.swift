@@ -43,10 +43,11 @@ public struct HelmInstall: Sendable, Equatable, Codable {
     /// Whether this user may overwrite the file (`cp` writes into it) in its
     /// directory without `sudo`.
     public let writable: Bool
-    /// Whether this user may change the file without a password in any way:
-    /// write into it, or replace it in its directory. The script runs the
-    /// installed `helm version` before replacing it, so such a file is never
-    /// run as root (`HelmCheck`). Unless given, the same as `writable`.
+    /// Whether anyone but root may change the file without a password: unless
+    /// the file and its directory are both root's alone
+    /// (`HelmScanner.onlyRootMayChange`). The script runs the installed `helm
+    /// version` before replacing it, so such a file is never run as root
+    /// (`HelmCheck`). Unless given, the same as `writable`.
     public let changeable: Bool
     public let problem: Problem?
 
@@ -84,17 +85,41 @@ public struct HelmScanner: Sendable {
     let systemDirectory: URL
     let isQuarantined: QuarantineCheck
     let readTarget: TargetRead
+    /// Whose files count as root's: root's; this user's in tests, whose
+    /// fixtures cannot be root's.
+    let rootID: uid_t
 
     public init(home: URL = FileManager.default.homeDirectoryForCurrentUser) {
         self.init(home: home, systemDirectory: URL(fileURLWithPath: "/usr/local/bin"),
                   isQuarantined: CLIToolTrust.hasQuarantine, readTarget: HelmScanner.target(of:))
     }
 
-    init(home: URL, systemDirectory: URL, isQuarantined: @escaping QuarantineCheck, readTarget: @escaping TargetRead) {
+    init(home: URL, systemDirectory: URL, isQuarantined: @escaping QuarantineCheck, readTarget: @escaping TargetRead,
+         rootID: uid_t = 0) {
         self.home = home
         self.systemDirectory = systemDirectory
         self.isQuarantined = isQuarantined
         self.readTarget = readTarget
+        self.rootID = rootID
+    }
+
+    /// Whether only root may change `path`: owned by `rootID`, writable by
+    /// neither its group nor others, and without an ACL. Not `access(W_OK)`,
+    /// which answers for the mode bits as they are now: the owner of a 555
+    /// file may `chmod u+w` it, and an ACL granting `add_file,delete_child`
+    /// on a 555 directory let this user `mv` over a file in it while
+    /// `access(W_OK)` on the directory said no (measured 2026-10-20). Any ACL
+    /// counts, even one that only denies: what it grants is not read here.
+    static func onlyRootMayChange(_ path: String, rootID: uid_t) -> Bool {
+        var info = stat()
+        guard lstat(path, &info) == 0, info.st_uid == rootID, info.st_mode & (S_IWGRP | S_IWOTH) == 0 else {
+            return false
+        }
+        if let acl = acl_get_link_np(path, ACL_TYPE_EXTENDED) {
+            acl_free(UnsafeMutableRawPointer(acl))
+            return false
+        }
+        return true
     }
 
     var location: String { systemDirectory.path + "/helm" }
@@ -132,7 +157,9 @@ public struct HelmScanner: Sendable {
         return HelmInstall(
             path: path, binary: binary, version: version, target: readTarget(url), quarantined: isQuarantined(url),
             writable: access(directory, W_OK) == 0 && access(binary, W_OK) == 0,
-            changeable: access(directory, W_OK) == 0 || access(binary, W_OK) == 0, problem: problem)
+            changeable: access(directory, W_OK) == 0 || access(binary, W_OK) == 0
+                || !Self.onlyRootMayChange(directory, rootID: rootID) || !Self.onlyRootMayChange(binary, rootID: rootID),
+            problem: problem)
     }
 
     static let marker = Data("mod\thelm.sh/helm/v".utf8)

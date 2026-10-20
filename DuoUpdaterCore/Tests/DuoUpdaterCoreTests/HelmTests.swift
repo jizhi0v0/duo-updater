@@ -23,12 +23,19 @@ import CryptoKit
         private var published: [String: String] = [:]
         private var downloads = 0
         private var rootsDirectory = false
+        private var rootID = getuid()
         private var rootCommands: [String] = []
 
         /// Whether the check reads the fixture directory as root's default.
         var isRootsDirectory: Bool {
             get { lock.withLock { rootsDirectory } }
             set { lock.withLock { rootsDirectory = newValue } }
+        }
+        /// Whose files the scanner counts as root's: this user's, whose
+        /// fixtures cannot be root's, unless a test says otherwise.
+        var standsForRoot: uid_t {
+            get { lock.withLock { rootID } }
+            set { lock.withLock { rootID = newValue } }
         }
         /// What was run as root, in order.
         var ranAsRoot: [String] { lock.withLock { rootCommands } }
@@ -61,8 +68,8 @@ import CryptoKit
             return binary
         }
 
-        /// Root's directory and file as `sudo` left them: neither one this
-        /// user may write.
+        /// Root's directory and file as `sudo` left them: owned by whoever
+        /// `standsForRoot`, writable by no one.
         func makeRoots() throws {
             try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: binary.path)
             try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: bin.path)
@@ -99,7 +106,8 @@ import CryptoKit
         }
 
         var scanner: HelmScanner {
-            HelmScanner(home: home, systemDirectory: bin, isQuarantined: { _ in false }, readTarget: { _ in "arm64" })
+            HelmScanner(home: home, systemDirectory: bin, isQuarantined: { _ in false }, readTarget: { _ in "arm64" },
+                        rootID: standsForRoot)
         }
 
         static func archive(_ version: String) -> Data { Data("tgz-\(version)".utf8) }
@@ -428,6 +436,47 @@ import CryptoKit
         let replaceable = try await box.status()
         #expect(!replaceable.needsAdministrator)
         #expect(replaceable.withheld == .unsupportedInstaller)
+    }
+
+    /// Not root's alone, so never run as root, whatever `access(W_OK)` says
+    /// now: a 555 file owned by this user (who may `chmod u+w` it), a
+    /// directory its group may write, a directory with an ACL (one granting
+    /// `add_file,delete_child` let this user `mv` over a file in a 555
+    /// directory, measured 2026-10-20).
+    /// Mutations: drop the owner test; drop the group/other test; drop the
+    /// ACL test.
+    @Test func anInstallNotRootsAloneIsNeverRunAsRoot() async throws {
+        let box = try Sandbox()
+        try box.install(version: "3.21.4")
+        try box.makeRoots()
+        #expect(try await box.status().needsAdministrator)
+
+        box.standsForRoot = 0
+        let owned = try await box.status()
+        #expect(!owned.needsAdministrator)
+        #expect(owned.withheld == .unsupportedInstaller)
+        box.standsForRoot = getuid()
+
+        try FileManager.default.setAttributes([.posixPermissions: 0o575], ofItemAtPath: box.bin.path)
+        #expect(!(try await box.status().needsAdministrator))
+        try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: box.bin.path)
+
+        try Self.allowReplacing(in: box.bin.path)
+        #expect(access(box.bin.path, W_OK) != 0)
+        let acl = try await box.status()
+        #expect(!acl.needsAdministrator)
+        #expect(acl.withheld == .unsupportedInstaller)
+    }
+
+    /// Gives everyone, this user among them, `add_file,delete_child` on
+    /// `directory` through an ACL.
+    static func allowReplacing(in directory: String) throws {
+        // As `acl_to_text` spells `chmod +a "everyone allow add_file,delete_child"`
+        // (a directory's `add_file` is `write`).
+        let text = "!#acl 1\ngroup:ABCDEFAB-CDEF-ABCD-EFAB-CDEF0000000C:everyone:12:allow:write,delete_child\n"
+        let acl = try #require(acl_from_text(text))
+        defer { acl_free(UnsafeMutableRawPointer(acl)) }
+        #expect(acl_set_file(directory, ACL_TYPE_EXTENDED, acl) == 0)
     }
 
     /// The click runs exactly the documented command as root, and what it left

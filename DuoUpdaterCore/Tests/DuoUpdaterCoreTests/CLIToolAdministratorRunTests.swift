@@ -8,7 +8,10 @@ import Foundation
 /// No panel is raised here. Where a run is followed, the "authorization" is a
 /// stand-in that runs the very line the panel would be given with `/bin/sh` as
 /// this user — so what is checked is the line itself (its environment, its
-/// noclobber, its backgrounding) and the polling, never root.
+/// output directory, its backgrounding) and the polling, never root. Run as
+/// this user, `mktemp` makes the output directory in the fixture as this
+/// user's; that it is root's in `/private/tmp` on a real run is checked from
+/// the line and the host's `/private/tmp`, not by running as root.
 @Suite struct CLIToolAdministratorRunTests {
 
     final class Sandbox: @unchecked Sendable {
@@ -32,20 +35,28 @@ import Foundation
         var said: [String] { lock.withLock { events } }
         func say(_ line: String) { lock.withLock { events.append("line: " + line) } }
 
-        func asUser(answer: CLIToolAdministratorRun.Authorization? = nil) -> CLIToolAdministratorRun.Authorize {
+        /// `whilePanelIsUp` is another process of the user's, acting before
+        /// the user answers.
+        func asUser(answer: CLIToolAdministratorRun.Authorization? = nil,
+                    whilePanelIsUp: (@Sendable () -> Void)? = nil) -> CLIToolAdministratorRun.Authorize {
             { shell in
                 self.lock.withLock { self.shells.append(shell); self.events.append("panel") }
+                whilePanelIsUp?()
                 if let answer { return answer }
-                return Sandbox.sh(shell) ? .authorized : .error(number: 1, message: "sh failed")
+                guard let (printed, said) = Sandbox.sh(shell) else { return .error(number: 1, message: "sh failed") }
+                return printed.isEmpty ? .error(number: 1, message: said) : .authorized(printed)
             }
         }
 
-        /// Starts the line and does not wait: like `do shell script` on it, the
-        /// shell returns at once, the command going on in the background.
+        /// Runs the line and returns its standard output and error once it
+        /// exits: like `do shell script` on it, the shell returns at once, the
+        /// command going on in the background. The line prints only on
+        /// success, so nothing printed stands for the failure `do shell
+        /// script` would raise.
         /// offpool-lint:allow — stands in for the panel's synchronous main-actor
-        /// call, so it cannot await `ChildProcess`; it starts the shell and
-        /// never waits on it.
-        static func sh(_ line: String) -> Bool {
+        /// call, so it cannot await `ChildProcess`; it reads only the
+        /// foreground line's output, which ends once it backgrounds the command.
+        static func sh(_ line: String) -> (String, String)? {
             let process = Process()
             process.executableURL = URL(fileURLWithPath: "/bin/sh")
             process.arguments = ["-c", line]
@@ -55,15 +66,25 @@ import Foundation
                 "HOME": "/Users/ZZFixture-ann", "HELM_INSTALL_DIR": "/elsewhere", "PATH": "/usr/bin:/bin",
                 "TMPDIR": "/var/folders/ZZFixture/T/",
             ]
-            do { try process.run() } catch { return false }
-            return true
+            let output = Pipe()
+            let errors = Pipe()
+            process.standardOutput = output
+            process.standardError = errors
+            do { try process.run() } catch { return nil }
+            let printed = output.fileHandleForReading.readDataToEndOfFile()
+            let said = errors.fileHandleForReading.readDataToEndOfFile()
+            return (String(decoding: printed, as: UTF8.self), String(decoding: said, as: UTF8.self))
         }
 
+        /// `linger` outlasts every test that does not wait for the removal,
+        /// so a late poll still finds the status.
         func shell(answer: CLIToolAdministratorRun.Authorization? = nil, environment: [String: String] = [:],
-                   deadline: Duration = .seconds(20)) -> CLIToolAdministratorRun.Shell {
+                   deadline: Duration = .seconds(20), linger: Int = 60,
+                   whilePanelIsUp: (@Sendable () -> Void)? = nil) -> CLIToolAdministratorRun.Shell {
             CLIToolAdministratorRun.Shell(
-                authorize: asUser(answer: answer), workRoot: root, environment: { environment },
-                poll: .milliseconds(20), beforePanel: .zero, deadline: ChildProcess.Deadline(terminateAfter: deadline, killAfter: deadline))
+                authorize: asUser(answer: answer, whilePanelIsUp: whilePanelIsUp), workRoot: root,
+                environment: { environment }, poll: .milliseconds(20), beforePanel: .zero, linger: linger,
+                deadline: ChildProcess.Deadline(terminateAfter: deadline, killAfter: deadline))
         }
 
         var leftovers: [String] { (try? FileManager.default.contentsOfDirectory(atPath: root.path)) ?? [] }
@@ -80,8 +101,10 @@ import Foundation
     }
 
     /// The command's output, line by line, and its exit status; the panel was
-    /// asked once; nothing is left in the working directory.
-    /// Mutations: drop the final `drain()`; read the status before the line ends.
+    /// asked once; the line made one output directory, readable but writable
+    /// only by its owner, with `log` and `status` likewise.
+    /// Mutations: drop the final `drain()`; read the status before the line
+    /// ends; drop the `chmod 755`; drop the umask.
     @Test func followsTheRunToItsStatus() async throws {
         let box = try Sandbox()
         let lines = LockedLines()
@@ -93,6 +116,28 @@ import Foundation
         #expect(!outcome.timedOut)
         #expect(lines.all == ["Waiting for an administrator password…", "Running as root…", "one", "two"])
         #expect(box.given.count == 1)
+        #expect(box.leftovers.count == 1)
+        let made = try #require(box.leftovers.first)
+        #expect(made.hasPrefix(CLIToolAdministratorRun.outputPrefix))
+        func mode(_ name: String) throws -> Int {
+            let path = box.root.appendingPathComponent(made).appendingPathComponent(name).path
+            return try #require(try FileManager.default.attributesOfItem(atPath: path)[.posixPermissions] as? Int)
+        }
+        #expect(try mode("") == 0o755)
+        #expect(try mode("log") == 0o644)
+        #expect(try mode("status") == 0o644)
+    }
+
+    /// The line deletes its output directory `linger` seconds after the
+    /// status — this process cannot delete root's. Only the removal is
+    /// checked: under a starved pool the poll may wake after it.
+    /// Mutation: drop the `rm -rf`.
+    @Test func removesItsOutputDirectoryAfterTheLinger() async throws {
+        let box = try Sandbox()
+        _ = await box.shell(deadline: .seconds(3), linger: 1).run("echo one") { _ in }
+        for _ in 0..<1000 where !box.leftovers.isEmpty {
+            try await Task.sleep(for: .milliseconds(20))
+        }
         #expect(box.leftovers.isEmpty)
     }
 
@@ -195,27 +240,121 @@ import Foundation
         #expect(!outcome.succeeded)
     }
 
-    /// The root shell creates its files with noclobber: a link planted at
-    /// `log` is refused, not written through, and the command does not run.
-    /// Mutation: drop `set -C`.
-    @Test func aPlantedLinkIsNotWrittenThrough() async throws {
+    /// A process of the user's that, while the panel is up, points `log` at
+    /// a FIFO it reads and `status` at a character device (`/dev/null`)
+    /// gets nothing: there is no output directory yet to plant in, and the
+    /// one root makes is its own. With the directory made by the app before
+    /// the panel (until 2026-10-20) bash 3.2's noclobber opened both links —
+    /// the output went through the FIFO (to whichever reader came first:
+    /// this one, or the app's own follow), the status to `/dev/null`, and the
+    /// run read as timed out. The app's follow, opening `log` to read it,
+    /// also waited for the FIFO's next writer for ever (seen as a hang
+    /// mutating back to it); a writer opened and closed every 20 ms until the
+    /// run ends lets such an open go, so the old line fails here rather than
+    /// hangs.
+    /// Mutation: make the directory before the panel and hand it to the line.
+    @Test func linksPlantedWhileThePanelIsUpCatchNothing() async throws {
         let box = try Sandbox()
-        let directory = box.root.appendingPathComponent("run")
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        let victim = box.root.appendingPathComponent("victim")
-        try Data("keep\n".utf8).write(to: victim)
-        try FileManager.default.createSymbolicLink(atPath: directory.appendingPathComponent("log").path,
-                                                   withDestinationPath: victim.path)
-        let marker = box.root.appendingPathComponent("RAN").path
-        let line = CLIToolAdministratorRun.shell(command: "echo clobbered; touch \(marker)", directory: directory.path,
-                                                 proxies: [:])
-        #expect(Sandbox.sh(line))
-        let status = directory.appendingPathComponent("status")
-        for _ in 0..<500 where CLIToolAdministratorRun.Shell.status(at: status) == nil {
-            try await Task.sleep(for: .milliseconds(10))
+        let attacker = try Sandbox()
+        let fifo = attacker.root.appendingPathComponent("fifo").path
+        #expect(mkfifo(fifo, 0o600) == 0)
+        // A reader already there, so a writer's open does not wait for one.
+        let reader = open(fifo, O_RDONLY | O_NONBLOCK)
+        #expect(reader >= 0)
+        defer { close(reader) }
+        let root = box.root
+        let shell = box.shell(deadline: .seconds(3), whilePanelIsUp: {
+            for name in (try? FileManager.default.contentsOfDirectory(atPath: root.path)) ?? [] {
+                let directory = root.appendingPathComponent(name)
+                try? FileManager.default.createSymbolicLink(
+                    atPath: directory.appendingPathComponent("log").path, withDestinationPath: fifo)
+                try? FileManager.default.createSymbolicLink(
+                    atPath: directory.appendingPathComponent("status").path, withDestinationPath: "/dev/null")
+            }
+        })
+        let ended = InstallCommitTests.Flag()
+        let running = Task { () async -> CLIToolAdministratorRun.Result in
+            let result = await shell.run("echo one") { _ in }
+            ended.set()
+            return result
         }
-        #expect(CLIToolAdministratorRun.Shell.status(at: status) != 0)
-        #expect(try String(contentsOf: victim, encoding: .utf8) == "keep\n")
+        while !ended.value {
+            let writer = open(fifo, O_WRONLY | O_NONBLOCK)
+            if writer >= 0 { close(writer) }
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        let result = await running.value
+        var buffer = [UInt8](repeating: 0, count: 256)
+        let caught = read(reader, &buffer, buffer.count)
+        #expect(caught <= 0, "the FIFO's reader got \(String(decoding: buffer.prefix(max(caught, 0)), as: UTF8.self))")
+        let run = try #require(Self.ran(result))
+        #expect(run.lines == ["one"])
+        let outcome = try #require(Self.outcome(run))
+        #expect(outcome.terminationStatus == 0)
+        #expect(!outcome.timedOut)
+    }
+
+    /// A process of the user's that, while the panel is up, swaps whatever
+    /// directory it finds for a link to one of its choosing (standing in for
+    /// a root-only one such as `/etc/paths.d`) gets nothing written there.
+    /// With the app's own directory made before the panel (until 2026-10-20)
+    /// root followed the link and wrote `log` and `status` into it.
+    /// Mutation: make the directory before the panel and hand it to the line.
+    @Test func aDirectorySwappedForALinkWhileThePanelIsUpGetsNothing() async throws {
+        let box = try Sandbox()
+        let target = try Sandbox()
+        let root = box.root
+        let result = await box.shell(deadline: .seconds(3), whilePanelIsUp: {
+            for name in (try? FileManager.default.contentsOfDirectory(atPath: root.path)) ?? [] {
+                let directory = root.appendingPathComponent(name)
+                try? FileManager.default.removeItem(at: directory)
+                try? FileManager.default.createSymbolicLink(atPath: directory.path, withDestinationPath: target.root.path)
+            }
+        }).run("echo one") { _ in }
+        #expect(target.leftovers.isEmpty)
+        let run = try #require(Self.ran(result))
+        #expect(run.lines == ["one"])
+    }
+
+    /// On a real run the output directory is made in `/private/tmp`, which
+    /// is root's, sticky and not a link — so no one else can rename, remove
+    /// or write into what root's `mktemp` made there.
+    /// Mutation: make `liveWorkRoot` the user's temporary directory.
+    @Test func theLiveOutputIsMadeInRootsStickyTmp() {
+        var info = stat()
+        #expect(lstat(CLIToolAdministratorRun.liveWorkRoot, &info) == 0)
+        #expect((info.st_mode & S_IFMT) == S_IFDIR)
+        #expect(info.st_uid == 0)
+        #expect((info.st_mode & S_ISVTX) != 0)
+    }
+
+    /// Only a directory `mktemp` made right in the work root from the line's
+    /// template is followed.
+    /// Mutation: drop the `/` test.
+    @Test func followsOnlyADirectoryMadeFromTheTemplate() throws {
+        let box = try Sandbox()
+        let shell = box.shell()
+        let made = box.root.path + "/" + CLIToolAdministratorRun.outputPrefix + "AbC123xY"
+        #expect(shell.outputDirectory(made + "\n")?.path == made)
+        #expect(shell.outputDirectory(made + "/../../etc") == nil)
+        #expect(shell.outputDirectory(box.root.path + "/" + CLIToolAdministratorRun.outputPrefix) == nil)
+        #expect(shell.outputDirectory("/etc/paths.d") == nil)
+        #expect(shell.outputDirectory("") == nil)
+    }
+
+    /// A line that cannot make its output directory fails, and its command
+    /// does not run.
+    /// Mutation: drop the `|| exit 1`s (the line then prints an empty path).
+    @Test func noOutputDirectoryRunsNothing() async throws {
+        let box = try Sandbox()
+        let marker = box.root.appendingPathComponent("RAN").path
+        let missing = CLIToolAdministratorRun.Shell(
+            authorize: box.asUser(), workRoot: box.root.appendingPathComponent("absent"), environment: { [:] },
+            poll: .milliseconds(20), beforePanel: .zero, linger: 60,
+            deadline: ChildProcess.Deadline(terminateAfter: .seconds(3), killAfter: .seconds(3)))
+        let result = await missing.run("touch \(CLIToolAdministratorRun.quote(marker))") { _ in }
+        guard case .refused = result else { Issue.record("expected refused, got \(result)"); return }
+        try await Task.sleep(for: .milliseconds(200))
         #expect(!FileManager.default.fileExists(atPath: marker))
     }
 
@@ -279,12 +418,13 @@ import Foundation
         #expect(CLIToolAdministratorRun.appleScript(for: #"echo "a\b""#)
             == #"do shell script "echo \"a\\b\"" with administrator privileges"#)
         let line = CLIToolAdministratorRun.shell(
-            command: "curl -sS https://starship.rs/install.sh | sh -s -- -y", directory: "/tmp/ZZFixture dir",
-            proxies: ["https_proxy": "http://h:1"])
-        #expect(line.hasPrefix("( set -C; cd / && umask 022 && /usr/bin/env -i HOME=/var/root "))
+            command: "curl -sS https://starship.rs/install.sh | sh -s -- -y", workRoot: "/tmp/ZZFixture dir",
+            linger: 60, proxies: ["https_proxy": "http://h:1"])
+        #expect(line.hasPrefix("cd / || exit 1; umask 022; d=$(/usr/bin/mktemp -d '/tmp/ZZFixture dir/duoupdater-admin.XXXXXXXX') || exit 1; "))
+        #expect(line.contains("( /usr/bin/env -i HOME=/var/root "))
         #expect(line.contains(" https_proxy='http://h:1' /bin/sh -c 'curl -sS https://starship.rs/install.sh | sh -s -- -y' "))
-        #expect(line.contains("> '/tmp/ZZFixture dir/log' 2>&1; echo $? > '/tmp/ZZFixture dir/status' )"))
-        #expect(line.hasSuffix("< /dev/null > /dev/null 2>&1 &"))
+        #expect(line.contains(#"> "$d/log" 2>&1; echo $? > "$d/status"; /bin/sleep 60; /bin/rm -rf "$d" )"#))
+        #expect(line.hasSuffix(#"< /dev/null > /dev/null 2>&1 & echo "$d""#))
     }
 
     /// Only `/usr/local/bin` itself can be root's default; never a fixture or a

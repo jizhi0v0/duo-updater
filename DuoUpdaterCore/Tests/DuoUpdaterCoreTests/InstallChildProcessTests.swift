@@ -700,11 +700,15 @@ import Testing
     /// A patch that is running when its task is cancelled runs to its end. The
     /// stand-in does what Sparkle's `BinaryDelta` does: it makes an
     /// `apply-binary-delta.*` file under `$TMPDIR`, works a while, then deletes that
-    /// file and writes the destination. It also drops a `started` marker beside the
-    /// destination, so the test can wait for it without listing `$TMPDIR`, which is
-    /// large on a developer's Mac. The test cancels after the marker appears. The
-    /// patch finishes, `apply` returns normally, and nothing is left in the
-    /// process's temporary directory.
+    /// file and writes the destination. Once the file exists it writes the file's
+    /// path into a `started` marker beside the destination, by rename so the marker
+    /// is never seen empty. The test cancels after the marker appears. The patch
+    /// finishes, `apply` returns normally, and the file the marker names is gone.
+    ///
+    /// The test checks that one path rather than listing `$TMPDIR`: the directory
+    /// is shared with every other process of the same user, and CI's debug and
+    /// release jobs run this test at the same time on one Mac, so a listing also
+    /// saw the other job's diff (run 39376307487).
     ///
     /// Mutation: `DeltaApplier.apply` becomes `.terminateChild` → the stand-in is
     /// killed mid-work, `apply` throws `CancellationError`, the destination is never
@@ -715,17 +719,16 @@ import Testing
         defer { try? fm.removeItem(at: top) }
         // `apply <old> <new> <patch>`: $3 is the destination.
         let host = try toolBundle(in: top, script: """
-            touch "$(dirname "$3")/started"
             f=$(mktemp "${TMPDIR:-/tmp}/apply-binary-delta.XXXXXXXXXX")
             printf 'diff' > "$f"
+            printf '%s' "$f" > "$(dirname "$3")/started.part"
+            mv "$(dirname "$3")/started.part" "$(dirname "$3")/started"
             sleep 0.5
             rm -f "$f"
             mkdir -p "$3/Contents"
             """)
         let out = top.appendingPathComponent("ZZNew.app")
         let started = top.appendingPathComponent("started")
-        let processTemp = fm.temporaryDirectory
-        let before = temporaryDiffs(in: processTemp)
 
         let task = Task {
             try await DeltaApplier.apply(installedApp: top, patch: top, destination: out, bundle: host)
@@ -737,22 +740,19 @@ import Testing
         #expect(fm.fileExists(atPath: started.path), "the stand-in never started")
         task.cancel()
         let result = await task.result
-        let left = temporaryDiffs(in: processTemp).subtracting(before)
-        // Clean up only what this test made in the process's directory.
-        for name in left { try? fm.removeItem(at: processTemp.appendingPathComponent(name)) }
-
         if case .failure(let error) = result {
             Issue.record("the patch was torn down by the cancel: \(error)")
         }
+        let diff = try? String(contentsOf: started, encoding: .utf8)
+        let recorded = try #require(diff.flatMap { $0.contains("/apply-binary-delta.") ? $0 : nil },
+                                    "the stand-in recorded no temporary diff: \(String(describing: diff))")
+        let left = fm.fileExists(atPath: recorded)
+        // Clean up only what this test made in the process's directory.
+        if left { try? fm.removeItem(atPath: recorded) }
+
         #expect(fm.fileExists(atPath: out.appendingPathComponent("Contents").path),
                 "the patch did not finish after the cancel")
-        #expect(left.isEmpty, "a cancelled patch left \(left.sorted()) in the process's temporary directory")
-    }
-
-    /// Names of Sparkle's `apply-binary-delta.*` temporary files in `directory`.
-    private func temporaryDiffs(in directory: URL) -> Set<String> {
-        let names = (try? FileManager.default.contentsOfDirectory(atPath: directory.path)) ?? []
-        return Set(names.filter { $0.hasPrefix("apply-binary-delta.") })
+        #expect(!left, "a cancelled patch left \(recorded) in the process's temporary directory")
     }
 
     // MARK: - Delta route

@@ -2181,6 +2181,51 @@ struct CLIToolsModelTests {
         #expect(model.errors[id] == nil)
     }
 
+    /// Its Cancel pressed after its turn came but before its task resumed (one
+    /// main-actor hop) still takes it back: it never runs, and a later Update
+    /// All runs its copy (review, #1498, round 4: it used to take the copy's
+    /// branch, run anyway, and leave the row marked cancelled, so every later
+    /// Update All skipped it and left it "Queued").
+    ///
+    /// Mutation: drop the hand-over branch in `CLIRunQueue.cancel` → the
+    /// update runs, red.
+    @Test(.timeLimit(.minutes(1))) func anUpdateCancelledAsItsTurnComesNeverRuns() async {
+        let id = Self.id(Self.pnpmCLI, .npm)
+        let updater = FakeUpdater()
+        await updater.set(id, .updated(version: "10.0.1"))
+        let npm = FakeProvider(
+            kind: .npm,
+            checker: FakeCheck([(Self.report(.npm, [Self.status(Self.pnpmCLI, kind: .npm)]), nil)]),
+            updater: updater)
+        let model = Self.model([npm])
+        await model.refresh()
+        let gate = Gate()
+        // The Cancel is made at the very end of the held run: its task is
+        // enqueued before the run hands its turn to the click, so it runs
+        // between that hand-over and the click's task resuming.
+        let held = Task { @MainActor in
+            await model.runQueue.perform(.upgradeAll) {
+                await gate.wait()
+                Task { @MainActor in model.cancel(id) }
+            }
+        }
+        await until { await gate.arrived == 1 }
+        let click = Task { await model.update(id) }
+        await until { model.runQueue.isWaiting(.tool(id)) }
+        await gate.open()
+        await held.value
+        await click.value
+        #expect(await updater.calls.isEmpty)
+        #expect(model.updating.isEmpty)
+        #expect(model.cancels.isEmpty)
+        #expect(model.errors[id] == nil)
+
+        await model.updateAll()
+        #expect(await updater.calls == [id])
+        #expect(model.updating.isEmpty)
+        #expect(model.queued.isEmpty)
+    }
+
     /// Update All behind another run claims its copies at once, and taking it
     /// back while it waits releases every one of them, none run.
     ///

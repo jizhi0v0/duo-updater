@@ -147,6 +147,54 @@ import Testing
         #expect(record.order == ["cleaned b", "ran c"])
     }
 
+    /// A Cancel pressed after a click's turn came but before its task resumed —
+    /// one main-actor hop — still takes it back: it never runs, its
+    /// `whenCancelled` runs inside the Cancel, and the turn goes on to the next.
+    /// The same click made again in that hop queues and runs.
+    ///
+    /// Mutation: drop the hand-over branch in `cancel` → `cancel("b")` is false
+    /// and "b" runs, red.
+    @Test func aClickTakenBackAsItsTurnComesNeverRuns() async {
+        let queue = CLIRunQueue<String>()
+        let hold = Hold()
+        let record = Record()
+        var cancelled: Bool?
+        var againRan: Bool?
+        // Made at the very end of "a"'s run: this task is enqueued before "a"
+        // hands the turn to "b", so it runs between that hand-over and "b"'s
+        // task resuming.
+        let first = Task { @MainActor in
+            await queue.perform("a") {
+                await hold.wait()
+                Task { @MainActor in
+                    cancelled = queue.cancel("b")
+                    // In the same hop: `perform` queues before its first await.
+                    againRan = await queue.perform("b") { record.order.append("b again") }
+                }
+            }
+        }
+        await until { hold.entered }
+        let second = Task { @MainActor in
+            await queue.perform("b", whenCancelled: { record.order.append("cleaned b") }) {
+                record.order.append("ran b")
+            }
+        }
+        await until { queue.isWaiting("b") }
+        let third = Task { @MainActor in await queue.perform("c") { record.order.append("ran c") } }
+        await until { queue.waiting == ["b", "c"] }
+        hold.release()
+        _ = await first.value
+        #expect(await second.value == false)
+        _ = await third.value
+        await until { againRan != nil }
+        #expect(againRan == true)
+        #expect(cancelled == true)
+        // Made again, it queues as a new click: behind "c".
+        #expect(record.order == ["cleaned b", "ran c", "b again"])
+        #expect(queue.running == nil)
+        #expect(queue.waiting.isEmpty)
+    }
+
     /// Only a waiting click can be taken back: not the running one, nor one
     /// never made.
     @Test func onlyAWaitingClickCanBeCancelled() async {

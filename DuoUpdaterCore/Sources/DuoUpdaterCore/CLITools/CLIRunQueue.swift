@@ -43,13 +43,21 @@ public final class CLIRunQueue<Key: Hashable & Sendable> {
     public private(set) var waiting: [Key] = []
     @ObservationIgnored private var turns: [Key: CheckedContinuation<Bool, Never>] = [:]
     @ObservationIgnored private var cleanups: [Key: () -> Void] = [:]
+    /// The click its turn was handed to, until its task resumes — one
+    /// main-actor hop later, and a Cancel pressed in between is still in time
+    /// (review, #1498, round 4). `taken` once it was.
+    @ObservationIgnored private var handedOver: (key: Key, taken: Bool)?
 
     public init() {}
 
     public func isWaiting(_ key: Key) -> Bool { waiting.contains(key) }
 
-    /// Waiting or running.
-    public func contains(_ key: Key) -> Bool { running == key || waiting.contains(key) }
+    /// Waiting or running — not one taken back as its turn came, which is
+    /// only on its way out.
+    public func contains(_ key: Key) -> Bool {
+        if let handed = handedOver, handed.key == key, handed.taken { return waiting.contains(key) }
+        return running == key || waiting.contains(key)
+    }
 
     /// Run `body` once every click taken before this one has finished. Returns
     /// false without running it when the same click is already waiting or
@@ -68,6 +76,15 @@ public final class CLIRunQueue<Key: Hashable & Sendable> {
             cleanups[key] = whenCancelled
             let go = await withCheckedContinuation { turns[key] = $0 }
             guard go else { return false }
+            let taken = handedOver?.taken ?? false
+            handedOver = nil
+            // Its `whenCancelled` ran inside `cancel`; the turn goes on to the
+            // next click, which may be this same click made again.
+            if taken {
+                advance()
+                return false
+            }
+            cleanups[key] = nil
         }
         running = key
         await body()
@@ -75,10 +92,18 @@ public final class CLIRunQueue<Key: Hashable & Sendable> {
         return true
     }
 
-    /// Take back a click still waiting. False when it is not waiting: it never
-    /// was, or its turn has come.
+    /// Take back a click still waiting, or whose turn has come but whose run
+    /// has not started. False otherwise: it never was, or its run started.
     @discardableResult
     public func cancel(_ key: Key) -> Bool {
+        // Its turn came, but its run has not started: as good as waiting. It
+        // stays `running` until its task resumes and hands the turn on, so a
+        // click made in between still queues behind.
+        if let handed = handedOver, handed.key == key, !handed.taken {
+            handedOver?.taken = true
+            cleanups.removeValue(forKey: key)?()
+            return true
+        }
         guard let index = waiting.firstIndex(of: key) else { return false }
         waiting.remove(at: index)
         cleanups.removeValue(forKey: key)?()
@@ -94,7 +119,7 @@ public final class CLIRunQueue<Key: Hashable & Sendable> {
         guard !waiting.isEmpty else { return }
         let next = waiting.removeFirst()
         running = next
-        cleanups[next] = nil
+        handedOver = (next, false)
         turns.removeValue(forKey: next)?.resume(returning: true)
     }
 }

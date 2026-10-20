@@ -701,9 +701,9 @@ import Testing
     /// stand-in does what Sparkle's `BinaryDelta` does: it makes an
     /// `apply-binary-delta.*` file under `$TMPDIR`, works a while, then deletes that
     /// file and writes the destination. Once the file exists it writes the file's
-    /// path into a `started` marker beside the destination. The test cancels after
-    /// the marker appears. The patch finishes, `apply` returns normally, and the
-    /// file the marker names is gone.
+    /// path into a `started` marker beside the destination, by rename so the marker
+    /// is never seen empty. The test cancels after the marker appears. The patch
+    /// finishes, `apply` returns normally, and the file the marker names is gone.
     ///
     /// The test checks that one path rather than listing `$TMPDIR`: the directory
     /// is shared with every other process of the same user, and CI's debug and
@@ -721,7 +721,8 @@ import Testing
         let host = try toolBundle(in: top, script: """
             f=$(mktemp "${TMPDIR:-/tmp}/apply-binary-delta.XXXXXXXXXX")
             printf 'diff' > "$f"
-            printf '%s' "$f" > "$(dirname "$3")/started"
+            printf '%s' "$f" > "$(dirname "$3")/started.part"
+            mv "$(dirname "$3")/started.part" "$(dirname "$3")/started"
             sleep 0.5
             rm -f "$f"
             mkdir -p "$3/Contents"
@@ -739,18 +740,19 @@ import Testing
         #expect(fm.fileExists(atPath: started.path), "the stand-in never started")
         task.cancel()
         let result = await task.result
-        let diff = try #require(try? String(contentsOf: started, encoding: .utf8),
-                                "the stand-in never recorded its temporary diff")
-        let left = fm.fileExists(atPath: diff)
-        // Clean up only what this test made in the process's directory.
-        if left { try? fm.removeItem(atPath: diff) }
-
         if case .failure(let error) = result {
             Issue.record("the patch was torn down by the cancel: \(error)")
         }
+        let diff = try? String(contentsOf: started, encoding: .utf8)
+        let recorded = try #require(diff.flatMap { $0.contains("/apply-binary-delta.") ? $0 : nil },
+                                    "the stand-in recorded no temporary diff: \(String(describing: diff))")
+        let left = fm.fileExists(atPath: recorded)
+        // Clean up only what this test made in the process's directory.
+        if left { try? fm.removeItem(atPath: recorded) }
+
         #expect(fm.fileExists(atPath: out.appendingPathComponent("Contents").path),
                 "the patch did not finish after the cancel")
-        #expect(!left, "a cancelled patch left \(diff) in the process's temporary directory")
+        #expect(!left, "a cancelled patch left \(recorded) in the process's temporary directory")
     }
 
     // MARK: - Delta route

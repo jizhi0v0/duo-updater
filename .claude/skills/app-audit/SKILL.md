@@ -1162,7 +1162,7 @@ suggestions. Use this decision table:
 |---------|--------|-----|
 | Needs VendorProbe recipe | → `/fragile-recipe <app>` (VendorProbe path) | Pass the endpoint URL, version pattern, and channel from the audit |
 | Needs ChangelogRecipe | → `/fragile-recipe <app>` (Changelog path) | Pass the changelog URL and markup structure from the audit |
-| Needs GitHubReleaseRule | → Edit the family's file under `Recipes/` directly | Add the rule to its `githubRules:` with owner/repo/pattern/channel (new family: also a line in `AppRecipeIndex.all`), then re-record goldens (below) |
+| Needs GitHubReleaseRule | → Edit the family's file under `Recipes/` directly | Add the rule to its `githubRules:` with owner/repo/pattern/channel (new family: also a line in `AppRecipeIndex.all`; for a single stable rule, `.claude/skills/coverage-discovery/scripts/scaffold-github-rule.py <owner/repo> --package <asset>` drafts both plus the audit doc and README row), then re-record goldens (below) |
 | Needs ChannelBinding | → Edit `ChannelBinding.swift` + new `<App>Channel.swift` | Create resolver, add to switch, add tests |
 | Needs channel added to existing probe | → Edit the family's file under `Recipes/` | Duplicate the stable recipe in its `probes:`, change channel + endpoint, then re-record goldens (below) |
 | Blocked (same ID, undetectable) | → Update `CHANNEL_COVERAGE_TODO.md` §3 | Document the reason; no code change |

@@ -92,7 +92,7 @@ The brief follows the memory note `subagent-brief-rules`. It must say:
 
 - `isolation: "worktree"`, and first `git fetch origin && git switch -c recipe/<app> origin/main`;
 - its own `SCR=$(mktemp -d "$TMPDIR/recipe-<app>.XXXX")`;
-- follow `.claude/skills/app-audit/SKILL.md` and `fragile-recipe`, with `git show <a recent GitHubReleaseRule commit>` as the worked example;
+- follow `.claude/skills/app-audit/SKILL.md` and `fragile-recipe`; a new family starts from `scripts/scaffold-github-rule.py <owner/repo> --package <asset>`, which drafts the rule, its `AppRecipeIndex` line, the audit doc and the README row and leaves `TODO(audit)` where judgment is needed. When it stops (prerelease track, pkg/tarball, a version that is not plain dotted, a Sparkle feed), write the rule by hand with `git show <a recent GitHubReleaseRule commit>` as the worked example;
 - the facts triage already found (bundle id, Team, feed-discover verdict, nested helpers, other products under the same id), so the agent doesn't rediscover them;
 - one-click when the app is Developer ID signed with a Team ID, `spctl` says Notarized, and the asset is dmg or zip; prefer universal, otherwise arm64. An ad-hoc build gets `.publishedDigestOnly` as in Phase 2; when a condition fails the audit names it, and "ad-hoc" alone is not a reason;
 - check the **previous** release's Team ID too, because a change means the gate refuses every old copy;
@@ -228,6 +228,7 @@ after the review round is read and found free of blocking findings. A green
 
 - `scripts/candidates.py` — Phase 1 ranking, minus what the repo covers
 - `scripts/check-bundle.sh` — package identity, signature, notarization, nested helpers
+- `scripts/scaffold-github-rule.py` — drafts a new single-rule GitHub family from its real package (`--facts` replays it on an `install-verify` report)
 - `scripts/integrate.sh` — cherry-pick with README/index conflict resolution
 - `.claude/skills/app-audit/SKILL.md` — the per-app method each agent follows
 - `.claude/skills/channel-discovery/SKILL.md` — the sibling breadth pass, for channels of covered apps

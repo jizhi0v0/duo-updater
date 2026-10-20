@@ -18,12 +18,12 @@ for f in "$@"; do
   echo "== $f"
   if [ -z "$app" ]; then echo "  no .app at the top of the archive"; else
     P="$app/Contents/Info.plist"
-    for k in CFBundleIdentifier CFBundleShortVersionString CFBundleVersion LSMinimumSystemVersion SUFeedURL; do
+    for k in CFBundleIdentifier CFBundleName CFBundleShortVersionString CFBundleVersion LSMinimumSystemVersion SUFeedURL; do
       printf '  %s=%s\n' "$k" "$(/usr/libexec/PlistBuddy -c "Print :$k" "$P" 2>/dev/null || echo '<none>')"
     done
     exe="$app/Contents/MacOS/$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$P")"
     echo "  archs=$(lipo -archs "$exe")"
-    codesign -dvv "$app" 2>&1 | grep -E '^TeamIdentifier' | sed 's/^/  /'
+    codesign -dvv "$app" 2>&1 | grep -E '^(Identifier|TeamIdentifier)=' | sed 's/^/  /'
     codesign --verify --deep --strict "$app" 2>/dev/null; echo "  codesign-verify-exit=$?"
     spctl -a -vv -t exec "$app" 2>&1 | grep -E '^source=' | sed 's/^/  spctl /'
     # Nested apps and login items: a long-running helper keeps executing the old

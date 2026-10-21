@@ -2,6 +2,24 @@
 
 Ceci est la traduction de `CHANGELOG.md`. La version anglaise fait autorité. Les versions non énumérées ici reviennent automatiquement à l’anglais.
 
+## 0.5.12
+
+**Trois apps de plus sont prises en charge.** Harp, TaskExplorer et Lapce bénéficient de la vérification des mises à jour et des mises à jour en un clic. Biome installé avec son script officiel rejoint « Autres outils » et se met lui aussi à jour en un clic, et les notes de version de l’app Claude s’affichent de nouveau.
+
+**Chaque clic sur Homebrew et les outils en ligne de commande est pris en compte.** Un clic pendant qu’une autre mise à jour tourne attend désormais son tour « En attente », avec « Annuler », au lieu que le bouton reste grisé jusqu’à la fin de la première. Les lignes Homebrew et « Autres outils » de la barre des menus proposent « Annuler » pour toute mise à jour qu’elles affichent, y compris une mise à jour lancée depuis l’atelier.
+
+**Les outils qui exigent un mot de passe administrateur le demandent dès le clic.** Helm et Starship installés dans un dossier système affichent la fenêtre de mot de passe tout de suite plutôt qu’à leur tour ; « Tout mettre à jour » les inclut désormais, avec une fenêtre pour chacun, et une étiquette « sudo » les signale. DuoUpdater ne se fige plus tant que cette fenêtre est ouverte.
+
+**« Tout mettre à jour » reste disponible pendant la mise à jour d’apps isolées.** Il disparaissait jusqu’à la fin de la mise à jour de l’app ; il met maintenant à jour les autres.
+
+**DuoUpdater prévient avant que Homebrew remplace votre nightly ou bêta par la version stable.** Si vous avez remplacé une app Homebrew par sa version nightly ou bêta, la ligne indique désormais que la mise à jour la fait repasser en version stable, comme le fait la mise à niveau de Homebrew elle-même.
+
+**L’atelier indique qui a lancé un outil en ligne de commande en cours d’exécution.** Chaque processus indique l’app ou la session qui l’a lancé, et un clic sur son pid affiche la ligne de commande, la chaîne de processus et la commande pour l’arrêter.
+
+**Corrections.** Au lancement, la barre des menus affiche « Vérification… » jusqu’à la fin de la première vérification, au lieu de « Tout est à jour ». La case « Tout afficher » est visible sur le verre du menu, et les lignes Homebrew et « Autres outils » s’alignent sur les apps au-dessus. Un double-clic sur « Mettre à jour » ou « Annuler » n’annule plus ce qu’a fait son premier clic. Les apps conçues avec NSH ont leur propre badge de technologie.
+
+**Sous le capot.** Les mises à jour exécutées en tant qu’administrateur n’écrivent que dans un dossier qui leur est propre, et Helm n’est jamais exécuté en tant qu’administrateur depuis un fichier que votre compte pourrait modifier. La dernière ligne affichée par une commande ne clignote plus quand une mise à jour passe à l’étape suivante.
+
 ## 0.5.11
 
 **Vous pouvez annuler une mise à jour, ou toutes avec « Tout annuler ».** La plupart des mises à jour peuvent être annulées jusqu’au moment où l’app elle-même est remplacée, une formule Homebrew pendant que brew la télécharge, et un téléchargement annulé que vous relancez dans les minutes qui suivent reprend là où il s’était arrêté ; les mises à jour de casks Homebrew et de l’App Store ne peuvent être annulées qu’avant de commencer.

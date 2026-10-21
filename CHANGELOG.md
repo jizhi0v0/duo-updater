@@ -19,6 +19,24 @@ release note is debugging our code:
 
 Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
+## 0.5.12
+
+**Three more apps are supported.** Harp, TaskExplorer and Lapce get update checks and one-click updates. Biome installed with its official script joins Other tools and updates in one click too, and release notes for the Claude app show again.
+
+**Every Homebrew and command-line tool click is taken.** A click while another update runs now waits its turn as Queued, with a Cancel, instead of the button staying greyed out until the first one finishes. The menu-bar rows for Homebrew and Other tools offer a Cancel for any update they show, including one started from the workbench.
+
+**Tools that need an administrator password ask at the click.** Helm and Starship in a system folder raise the password panel right away instead of when their turn comes, Update All now includes them with one panel each, and a "sudo" label marks them. DuoUpdater no longer freezes while that panel is up.
+
+**Update All stays available while single apps update.** It used to disappear until that app's update ended; now it updates the rest.
+
+**DuoUpdater says so before Homebrew puts a stable build over your nightly or beta.** If you replaced a Homebrew app with its nightly or beta, the row now marks that updating switches it back to stable, as Homebrew's own upgrade does.
+
+**The workbench shows who started a running command-line tool.** Each process says which app or session started it, and clicking its pid shows the command line, the process chain and the command to stop it.
+
+**Fixes.** At launch the menu bar says Checking… until the first check is done, instead of "Everything is up to date". The Show all checkbox is visible on the menu's glass, and the Homebrew and Other tools rows line up with the apps above them. A double-click on Update or Cancel no longer undoes what its first click did. Apps built with NSH get their own runtime badge.
+
+**Under the hood.** Updates that run as administrator write only into a folder of their own, and Helm is never run as administrator from a file your account could change. A command's last output line no longer flashes as an update moves on.
+
 ## 0.5.11
 
 **You can cancel an update, or all of them with Cancel All.** Most updates can be cancelled until the app itself is being replaced, a Homebrew formula while brew downloads it, and a cancelled download that you retry within a few minutes picks up where it stopped; Homebrew cask and App Store updates can be cancelled only before they start.

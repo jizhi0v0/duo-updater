@@ -74,7 +74,7 @@
 
 | | 客户端会停放吗 | 本次实际停放了什么 | 我们能否直接拿来装 |
 |---|---|---|---|
-| 结论 | 不会 | 没查（未跑运行中一轮） | — |
+| 结论 | 不会 | 没查（运行中一轮没点它的「Restart to update」，也没去找停放目录） | — |
 | 证据 | `download_release` 只在用户点「Restart to update」后执行，下载完立刻 `extract` + `restart`；文件 `~/Library/Application Support/dev.lapce.Lapce-Stable/updates/Lapce-macos.dmg`，macOS 上 `cleanup()` 不删，留下的是**已装上**的那版 | — | — |
 
 - 记录文件与字段: 无（没有完成记录，也没有摘要）
@@ -91,7 +91,10 @@
 - 状态: 支持（stable）；nightly 副本不推
 - 端到端: ✓ 0.4.5 → 0.4.6，app 不运行（2026-10-20）。`duo install` 依次走 `verifyingSignature` → `extracting` →
   `verifyingCodeSignature` → `installed`；装后 0.4.6、Team `CYSGAZFR8D`、`codesign --verify --deep --strict` 为 0、
-  `spctl` Notarized Developer ID，`duo check` 报 up to date。运行中一轮未跑
+  `spctl` Notarized Developer ID，`duo check` 报 up to date。
+  运行中一轮 ✓（2026-10-22，`fc3c0f71` 的 `make cli`）：0.4.5 运行中 `duo install io.lapce --yes` → installed、
+  提示 `Still running the old code: Lapce`；磁盘 0.4.6、Team 不变、codesign/spctl 通过；`duo restart Lapce` 起了新进程，
+  退出后磁盘仍 0.4.6、`duo check` up to date。首次启动建了 `~/Library/Application Support/dev.lapce.Lapce-Stable`
 - 格式: dmg（universal）
 - 校验: GitHub digest `sha256:d4ba42218148446c265c6a823107a969b3b0dca5e14df834563f2859927228f5`，与下载的 v0.4.6 包 `shasum -a 256` 一致；
   v0.4.5 `sha256:354e7e5b…13b8` 同样一致；规则无需额外配置
@@ -108,8 +111,7 @@
 - 可执行文件读不了时（`LapceBuild` 返回 nil），保留 `detect()` 的结果 `.stable`，nightly 副本会走 stable rule。现实中不太会出现：这要求 Info.plist 可读而 `Contents/MacOS/lapce` 不可读（权限或文件被换掉的瞬间）
 
 ## 建议下一步
-1. 主会话真机一键：v0.4.5 → v0.4.6（不运行 + 运行中两轮），回填本节和 README 行
-2. 若要接 nightly：需要 `GitHubReleaseRule` 按 commit 比较（二进制 `VERSION` 的 `+Nightly.<sha7>` 对 `nightly` release 的 `target_commitish`）
+1. 若要接 nightly：需要 `GitHubReleaseRule` 按 commit 比较（二进制 `VERSION` 的 `+Nightly.<sha7>` 对 `nightly` release 的 `target_commitish`）
 
 ## 如何复验
 ```bash

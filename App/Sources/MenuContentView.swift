@@ -871,59 +871,48 @@ private struct CommandLineRow: View {
     // MARK: Homebrew
 
     private var brewHalf: Half? {
-        guard model.brewInstalled else { return nil }
-        let outdated = model.brewOutdatedFormulae.count
-        let unchecked = model.brewUnchecked.count
-        let running = model.brewUpgrading || !model.upgradingFormulae.isEmpty
-        func half(_ lines: [Text], mark: (any View)? = nil, button: (any View)? = nil) -> Half {
-            Half(isHomebrew: true, icon: "mug", title: "Homebrew", lines: lines,
-                 mark: mark.map { AnyView($0) }, button: button.map { AnyView($0) }, running: running)
+        // What it says, its mark and its button: `BrewRowSnapshot.popover`.
+        guard let row = model.brewRowSnapshot.popover else { return nil }
+        let mark: (any View)? = switch row.mark {
+        case .spinner: spinner
+        case .seal: seal
+        case .unchecked: uncheckedMark
+        case nil: nil
         }
-        if running {
-            // One Cancel where the Update button stood, for Upgrade All and for
-            // a formula's own upgrade from the workbench alike, as the Other
-            // tools row's (2026-10-20: a formula's showed nothing here).
-            let cancel: (any View)? = model.brewRowCancel.map { group in
-                InstallCancelButton(state: group.state, pending: group.pending, count: group.live,
-                                    queuedOnly: group.queuedOnly) {
-                    model.cancelBrewRow()
-                }
+        let button: (any View)? = switch row.button {
+        case .update:
+            updateButton(
+                help: String(localized: "Runs `brew upgrade --formula`, then upgrades any listed cask by name. Covers command-line formulae plus casks that install no app (CLIs, fonts) — those have no row of their own. GUI casks are managed per-app above and are never touched. The count reads your local tap; brew refreshes itself during the upgrade, so it still lands the latest.")
+            ) { await model.upgradeBrewFormulae() }
+        // One Cancel where the Update button stood, for Upgrade All and for
+        // a formula's own upgrade from the workbench alike, as the Other
+        // tools row's (2026-10-20: a formula's showed nothing here).
+        case .cancel(let group):
+            InstallCancelButton(state: group.state, pending: group.pending, count: group.live,
+                                queuedOnly: group.queuedOnly) {
+                model.cancelBrewRow()
             }
-            if model.brewUpgrading && !model.cliTools.runQueue.isWaiting(.upgradeAll) {
-                return half([Text(model.brewBulkProgressText ?? String(localized: "Running brew upgrade…"))
-                    .monospacedDigit()], mark: spinner, button: cancel)
-            }
-            if let name = model.brewRowRunningFormula {
-                return half([Text(String(localized: "Upgrading \(name)")),
-                             model.formulaProgressLine(name).map { Text($0).monospacedDigit() }].compactMap { $0 },
-                            mark: spinner, button: cancel)
-            }
-            // Every run it stands for waits its turn behind another click's.
-            return half([Text(String(localized: "Queued"))], mark: spinner, button: cancel)
+        case .none, .copy, .spinnerOnly: nil
         }
-        if outdated == 0 && !model.brewChecked {
-            // Before the first verdict only; a re-check keeps the last answer up.
-            return half([Text(String(localized: "Checking…"))], mark: spinner)
+        return Half(isHomebrew: true, icon: "mug", title: "Homebrew", lines: row.lines.map(brewLine),
+                    mark: mark.map { AnyView($0) }, button: button.map { AnyView($0) }, running: row.isRunning)
+    }
+
+    /// One part of the Homebrew row's line (`BrewPopoverRow.Line`), worded.
+    private func brewLine(_ line: BrewPopoverRow.Line) -> Text {
+        switch line {
+        case .progress(let progress): return Text(progress.text).monospacedDigit()
+        case .upgrading(let name): return Text(String(localized: "Upgrading \(name)"))
+        case .checking: return Text(String(localized: "Checking…"))
+        case .error(let error): return Text(error).foregroundStyle(.red)
+        case .updates(let count): return Text(String(localized: "\(count) updates"))
+        // Packages brew wouldn't read: no count here can include them.
+        case .notChecked(let count): return Text(String(localized: "\(count) not checked"))
+        // Formulae Homebrew is phasing out (`BrewLifecycle`): checked, so not
+        // in either count, but nothing else here would say so.
+        case .deprecated(let count): return Text(String(localized: "\(count) deprecated"))
+        case .upToDate: return Text(String(localized: "Up to date"))
         }
-        // Packages brew wouldn't read stay said beside the updates: they are the
-        // ones no count here can include.
-        let uncheckedLine = unchecked > 0 ? Text(String(localized: "\(unchecked) not checked")) : nil
-        // Formulae Homebrew is phasing out (`BrewLifecycle`): checked, so not in
-        // either count, but nothing else here would say so.
-        let deprecated = model.brewFormulae.filter { $0.lifecycle != nil }.count
-            + model.brewCaskLifecycles.count
-        let deprecatedLine = deprecated > 0 ? Text(String(localized: "\(deprecated) deprecated")) : nil
-        if outdated > 0 {
-            let first = model.brewUpgradeError.map { Text($0).foregroundStyle(.red) }
-                ?? Text(String(localized: "\(outdated) updates"))
-            return half([first, uncheckedLine, deprecatedLine].compactMap { $0 },
-                        mark: unchecked > 0 ? uncheckedMark : nil,
-                        button: updateButton(
-                            help: String(localized: "Runs `brew upgrade --formula`, then upgrades any listed cask by name. Covers command-line formulae plus casks that install no app (CLIs, fonts) — those have no row of their own. GUI casks are managed per-app above and are never touched. The count reads your local tap; brew refreshes itself during the upgrade, so it still lands the latest.")
-                        ) { await model.upgradeBrewFormulae() })
-        }
-        if let uncheckedLine { return half([uncheckedLine, deprecatedLine].compactMap { $0 }, mark: uncheckedMark) }
-        return half([Text(String(localized: "Up to date")), deprecatedLine].compactMap { $0 }, mark: seal)
     }
 
     private var uncheckedMark: some View {

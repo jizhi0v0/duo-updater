@@ -893,37 +893,10 @@ struct WorkbenchWindowView: View {
 
     /// Bulk "Upgrade All" for the Homebrew group — runs `brew upgrade --formula` (all
     /// outdated CLI formulae at once). Only shown when there are formulae to upgrade;
-    /// casks stay per-row (their own distribution channel). While the bulk run is in
-    /// flight its progress and a spinner take the button's place — drawn over the
-    /// button, which keeps its room unseen: the header's height is the button's,
-    /// and the shorter spinner in its stead moved every row below 1 pt up and back
-    /// (2026-10-06).
-    @ViewBuilder
+    /// casks stay per-row (their own distribution channel). Its own view
+    /// (`BrewUpgradeAllButton`), so its progress redraws it alone.
     private var brewBulkUpgrade: some View {
-        if !model.brewOutdatedFormulae.isEmpty {
-            ZStack(alignment: .trailing) {
-                // Never disabled by another run: behind one it waits its turn
-                // (`CLIRunQueue`), "Queued" with its Cancel.
-                Button("Upgrade All") { Task { await model.upgradeBrewFormulae() } }
-                    .controlSize(.small)
-                    .buttonStyle(.bordered)
-                    .help(String(localized: "Runs `brew upgrade --formula` — upgrades every outdated CLI formula at once. Casks are managed per-row above."))
-                    .opacity(model.brewUpgrading ? 0 : 1)
-                    .accessibilityHidden(model.brewUpgrading)
-                if model.brewUpgrading {
-                    HStack(spacing: 6) {
-                        if let progress = model.brewBulkProgressText {
-                            Text(progress)
-                                .font(.caption).foregroundStyle(.secondary).monospacedDigit()
-                        }
-                        ProgressView().controlSize(.small)
-                        BrewUpgradeCancelButton(jobID: AppListModel.upgradeAllJobID, model: model)
-                    }
-                }
-            }
-            // The rest of a double-click on Upgrade All is not a click on its Cancel.
-            .swallowsClicksAfterSwap(of: model.brewUpgrading)
-        }
+        BrewUpgradeAllButton(model: model)
     }
 
     // MARK: - Other tools
@@ -1801,24 +1774,6 @@ private struct WorkbenchRollbackRow: View {
 
 // MARK: - Brew formula row
 
-extension AppListModel {
-    /// Whether `formula` is being upgraded: by its own row, or by a bulk "Upgrade
-    /// All", which upgrades every *outdated* formula at once — so each outdated
-    /// one is part of it. Up-to-date leaves aren't touched by the bulk run.
-    ///
-    /// One answer for the row and the detail pane. The pane once read only the
-    /// per-row set, so during Upgrade All the selected row spun while its pane
-    /// offered Update — a conflicting `brew upgrade` on top of the bulk run
-    /// (2026-10-06).
-    ///
-    /// An Upgrade All still waiting its turn (`CLIRunQueue`) covers none yet:
-    /// its header says "Queued", and the rows keep their Update.
-    func isUpgrading(_ formula: BrewInstalledFormula) -> Bool {
-        upgradingFormulae.contains(formula.name)
-            || (brewUpgrading && formula.hasUpdate && !cliTools.runQueue.isWaiting(.upgradeAll))
-    }
-}
-
 /// A CLI-formula row under the Brew tree. Unlike a cask (which reuses
 /// `WorkbenchSidebarRow` + the app install path), a formula isn't an app — no
 /// bundle icon, channel, or changelog — so it gets this compact row with its own
@@ -1827,68 +1782,86 @@ private struct BrewFormulaSidebarRow: View {
     let formula: BrewInstalledFormula
     @Bindable var model: AppListModel
 
-    private var upgrading: Bool { model.isUpgrading(formula) }
-    private var error: String? { model.formulaUpgradeErrors[formula.name] }
-    private var progressNote: String? { model.formulaProgressLine(formula.name) }
+    /// What the row draws (`BrewRowSnapshot.Formula.row`): its own
+    /// formula's facts, so an idle row does not redraw with another's
+    /// progress.
+    private var row: BrewFormulaRow { model.brewFormulaRow(formula) }
 
     var body: some View {
+        let row = row
         HStack(spacing: 8) {
             FormulaIcon(name: formula.name, size: 22)
             VStack(alignment: .leading, spacing: 1) {
                 Text(formula.name).font(.body).lineLimit(1)
-                if let error {
-                    Text(error).font(.caption).foregroundStyle(.red).lineLimit(1)
-                } else if upgrading, let progressNote {
-                    // Live brew output ("Downloading…", "Pouring…") so the upgrade
-                    // visibly progresses instead of sitting on a bare spinner.
-                    Text(progressNote)
-                        .font(.caption).foregroundStyle(.secondary)
-                        .lineLimit(1).truncationMode(.middle)
-                } else if let available = formula.availableVersion {
-                    Text("\(formula.installedVersion) → \(available)")
-                        .font(.caption)
-                        .foregroundStyle(.tint)
-                        .lineLimit(1)
-                } else if let head = formula.head {
-                    // Up to date by brew's measure, which doesn't look upstream:
-                    // say what is known about upstream instead.
-                    let status = model.headStatus(for: head)
-                    Text("\(formula.installedVersion) · \(status.text)")
-                        .font(.caption)
-                        .foregroundStyle(status.isBehind ? AnyShapeStyle(.orange) : AnyShapeStyle(.secondary))
-                        .lineLimit(1)
-                } else if let lifecycle = formula.lifecycle {
-                    // Up to date, but Homebrew is phasing it out: say so in the one
-                    // line the row has. An update line above outranks it.
-                    Text("\(formula.installedVersion) · \(lifecycle.statusText)")
-                        .font(.caption)
-                        .foregroundStyle(.orange)
-                        .lineLimit(1)
-                } else {
-                    // Up-to-date leaf: just its version, like an up-to-date app row.
-                    Text(formula.installedVersion)
-                        .font(.caption).foregroundStyle(.secondary).lineLimit(1)
-                }
+                caption(row.caption)
             }
             Spacer()
-            action.swallowsClicksAfterSwap(of: upgrading)
+            action(row.slot).swallowsClicksAfterSwap(of: row.slot.isRunning)
         }
         .padding(.vertical, 2)
+    }
+
+    @ViewBuilder
+    private func caption(_ caption: BrewFormulaRow.Caption) -> some View {
+        switch caption {
+        case .error(let error):
+            Text(error).font(.caption).foregroundStyle(.red).lineLimit(1)
+        case .progress(let progress):
+            // Live brew output ("Downloading…", "Pouring…") so the upgrade
+            // visibly progresses instead of sitting on a bare spinner.
+            Text(progress.text)
+                .font(.caption).foregroundStyle(.secondary)
+                .lineLimit(1).truncationMode(.middle)
+        case .status:
+            statusCaption
+        }
+    }
+
+    @ViewBuilder
+    private var statusCaption: some View {
+        if let available = formula.availableVersion {
+            Text("\(formula.installedVersion) → \(available)")
+                .font(.caption)
+                .foregroundStyle(.tint)
+                .lineLimit(1)
+        } else if let head = formula.head {
+            // Up to date by brew's measure, which doesn't look upstream:
+            // say what is known about upstream instead.
+            let status = model.headStatus(for: head)
+            Text("\(formula.installedVersion) · \(status.text)")
+                .font(.caption)
+                .foregroundStyle(status.isBehind ? AnyShapeStyle(.orange) : AnyShapeStyle(.secondary))
+                .lineLimit(1)
+        } else if let lifecycle = formula.lifecycle {
+            // Up to date, but Homebrew is phasing it out: say so in the one
+            // line the row has. An update line above outranks it.
+            Text("\(formula.installedVersion) · \(lifecycle.statusText)")
+                .font(.caption)
+                .foregroundStyle(.orange)
+                .lineLimit(1)
+        } else {
+            // Up-to-date leaf: just its version, like an up-to-date app row.
+            Text(formula.installedVersion)
+                .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+        }
     }
 
     /// Update and its Cancel take turns here: the rest of a double-click that
     /// swapped them is not a click on the other.
     @ViewBuilder
-    private var action: some View {
-        if upgrading {
+    private func action(_ slot: CLIRowState<String>) -> some View {
+        switch slot {
+        case .cancel, .spinnerOnly:
             HStack(spacing: 4) {
                 ProgressView().controlSize(.small)
-                BrewUpgradeCancelButton(jobID: AppListModel.formulaJobID(formula.name), model: model)
+                BrewUpgradeCancelButton(slot: slot, jobID: AppListModel.formulaJobID(formula.name), model: model)
             }
-        } else if formula.hasUpdate {
+        case .update:
             Button("Update") { Task { await model.upgradeBrewFormula(named: formula.name) } }
                 .controlSize(.small)
                 .buttonStyle(.borderedProminent)
+        case .none, .copy:
+            EmptyView()
         }
     }
 }
@@ -1896,16 +1869,29 @@ private struct BrewFormulaSidebarRow: View {
 /// A brew run's Cancel beside its progress (`InstallCancelButton`): a
 /// formula row's own upgrade (`AppListModel.formulaJobID`), Upgrade All
 /// (`upgradeAllJobID`), or `brew update` while it waits its turn
-/// (`homebrewUpdateJobID`) — a row that only spins because Upgrade All covers it
-/// has none. Gone once the cancel was accepted: the progress says
-/// "Cancelling…" until the run ends (`AppListModel.cancelBrewUpgrade`).
+/// (`homebrewUpdateJobID`), as `BrewRowSnapshot` decides it — a row that only
+/// spins because Upgrade All covers it has none (`.spinnerOnly`). A row's is
+/// gone once the cancel was accepted, its progress saying "Cancelling…" until
+/// the run ends (`AppListModel.cancelBrewUpgrade`); Upgrade All's stays,
+/// greyed, as the tool groups' Update All's does.
 struct BrewUpgradeCancelButton: View {
+    let slot: CLIRowState<String>
     let jobID: String
     let model: AppListModel
 
+    init(slot: CLIRowState<String>, jobID: String, model: AppListModel) {
+        self.slot = slot
+        self.jobID = jobID
+        self.model = model
+    }
+
+    init(cancel: BrewRowSnapshot.GroupCancel?, jobID: String, model: AppListModel) {
+        self.init(slot: cancel.map(CLIRowState.cancel) ?? .spinnerOnly, jobID: jobID, model: model)
+    }
+
     var body: some View {
-        if let state = model.brewCancelRows.cancels[jobID], state != .cancelling {
-            InstallCancelButton(state: state, pending: model.brewCancelRows.cancelPending.contains(jobID)) {
+        if case .cancel(let group) = slot {
+            InstallCancelButton(state: group.state, pending: group.pending) {
                 model.cancelBrewUpgrade(jobID)
             }
         }
@@ -1947,7 +1933,8 @@ private struct HomebrewSelfUpdateSidebarRow: View {
                     HStack(spacing: 4) {
                         ProgressView().controlSize(.small)
                         // Only while it waits its turn: `brew update` itself has none.
-                        BrewUpgradeCancelButton(jobID: AppListModel.homebrewUpdateJobID, model: model)
+                        BrewUpgradeCancelButton(cancel: model.homebrewUpdateCancel,
+                                                jobID: AppListModel.homebrewUpdateJobID, model: model)
                     }
                 } else {
                     Button("Update") { Task { await model.updateHomebrew() } }
@@ -2239,8 +2226,6 @@ private struct FormulaDetailPane: View {
     let formula: BrewInstalledFormula
     @Bindable var model: AppListModel
 
-    private var upgrading: Bool { model.isUpgrading(formula) }
-
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             header
@@ -2291,7 +2276,9 @@ private struct FormulaDetailPane: View {
                 }
             }
             Spacer()
-            headerAction.swallowsClicksAfterSwap(of: upgrading)
+            // What it draws: `BrewRowSnapshot.Formula.row`, as its sidebar row.
+            let row = model.brewFormulaRow(formula)
+            headerAction(row).swallowsClicksAfterSwap(of: row.slot.isRunning)
         }
         .padding(16)
     }
@@ -2299,23 +2286,26 @@ private struct FormulaDetailPane: View {
     /// Update and its Cancel take turns here: the rest of a double-click that
     /// swapped them is not a click on the other.
     @ViewBuilder
-    private var headerAction: some View {
-        if upgrading {
+    private func headerAction(_ row: BrewFormulaRow) -> some View {
+        switch row.slot {
+        case .cancel, .spinnerOnly:
             HStack(spacing: 12) {
                 HStack(spacing: 7) {
                     ProgressView().controlSize(.small)
-                    Text(model.formulaProgressLine(formula.name) ?? String(localized: "Updating…"))
+                    Text((row.progress ?? .updating).text)
                         .font(.callout).foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
                 .padding(.horizontal, 12).padding(.vertical, 6)
                 .background(.quaternary, in: Capsule())
-                BrewUpgradeCancelButton(jobID: AppListModel.formulaJobID(formula.name), model: model)
+                BrewUpgradeCancelButton(slot: row.slot, jobID: AppListModel.formulaJobID(formula.name), model: model)
             }
-        } else if formula.hasUpdate {
+        case .update:
             Button("Update") { Task { await model.upgradeBrewFormula(named: formula.name) } }
                 .controlSize(.large)
                 .buttonStyle(.borderedProminent)
+        case .none, .copy:
+            EmptyView()
         }
     }
 
@@ -5036,6 +5026,49 @@ private struct OtherToolsUpdateAllButton: View {
                 }
                 // The rest of a double-click on Update All is not a click on its Cancel.
                 .swallowsClicksAfterSwap(of: running != nil)
+        }
+    }
+}
+
+/// Upgrade All for the Homebrew group in the workbench sidebar
+/// (`WorkbenchWindowView.brewBulkUpgrade`), drawn from
+/// `BrewRowSnapshot.upgradeAllHeader`. A view of its own so that what it reads —
+/// the brew runs' smoothed Cancels and its count, which move with every
+/// formula poured — redraws it alone, not the whole workbench.
+///
+/// While it runs, its progress and a spinner take the button's place — drawn
+/// over the button, which keeps its room unseen: the header's height is the
+/// button's, and the shorter spinner in its stead moved every row below 1 pt
+/// up and back (2026-10-06).
+private struct BrewUpgradeAllButton: View {
+    let model: AppListModel
+
+    var body: some View {
+        let header = model.brewRowSnapshot.upgradeAllHeader
+        if header != .hidden {
+            let running = header != .update
+            ZStack(alignment: .trailing) {
+                // Never disabled by another run: behind one it waits its turn
+                // (`CLIRunQueue`), "Queued" with its Cancel.
+                Button("Upgrade All") { Task { await model.upgradeBrewFormulae() } }
+                    .controlSize(.small)
+                    .buttonStyle(.bordered)
+                    .help(String(localized: "Runs `brew upgrade --formula` — upgrades every outdated CLI formula at once. Casks are managed per-row above."))
+                    .opacity(running ? 0 : 1)
+                    .accessibilityHidden(running)
+                if case .running(let cancel, let progress) = header {
+                    HStack(spacing: 6) {
+                        if let progress {
+                            Text(progress.text)
+                                .font(.caption).foregroundStyle(.secondary).monospacedDigit()
+                        }
+                        ProgressView().controlSize(.small)
+                        BrewUpgradeCancelButton(cancel: cancel, jobID: AppListModel.upgradeAllJobID, model: model)
+                    }
+                }
+            }
+            // The rest of a double-click on Upgrade All is not a click on its Cancel.
+            .swallowsClicksAfterSwap(of: running)
         }
     }
 }

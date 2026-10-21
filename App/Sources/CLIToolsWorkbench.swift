@@ -343,32 +343,174 @@ struct CLISudoBadge: View {
 
 /// The detail panes' Running fact: which processes run the binary, and which
 /// of them are still on a copy other than the one installed now (`CLIToolUsage`).
+/// Under each version, its pids by who started them (`CLIToolProcessOrigin`);
+/// a pid is a link that opens what is known of it in a popover.
 private struct CLIToolRunningValue: View {
     let usage: CLIToolUsage
     let kind: CLIToolKind
+    let origins: [pid_t: CLIToolProcessOrigin]
+    let summaries: [pid_t: String]
+
+    @State private var shown: pid_t?
+    /// The pid whose popover a click outside it closed, and when: the click
+    /// on that same pid's link that closed it arrives just after, and is not
+    /// a request to open it again.
+    @State private var dismissed: (pid: pid_t, at: ContinuousClock.Instant)?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             if !usage.current.isEmpty {
-                Text(verbatim: String(localized: "\(usage.current.count) on this version") + " · " + pids(usage.current))
+                Text(verbatim: String(localized: "\(usage.current.count) on this version"))
+                pidLines(usage.current)
             }
             // One line per older version, so ten sessions on three versions
             // say which pid is on which (measured 2026-10-17: one sentence of
             // eight pids wrapped mid-list and paired none with its version).
             ForEach(usage.staleByVersion, id: \.version) { group in
-                Text(verbatim: CLIToolWording.stillRunning(group.pids.count, on: group.version, of: kind)
-                     + " · " + pids(group.pids))
+                Text(verbatim: CLIToolWording.stillRunning(group.pids.count, on: group.version, of: kind))
                     .foregroundStyle(.orange)
+                pidLines(group.pids)
             }
             if !usage.stale.isEmpty {
                 Text("Restart to use the version installed now.")
                     .font(.caption).foregroundStyle(.secondary)
             }
         }
+        // The process exited: its details go with it.
+        .onChange(of: origins[shown ?? 0] == nil) { _, gone in if gone { shown = nil } }
     }
 
-    private func pids(_ pids: [pid_t]) -> String {
-        "pid " + pids.map(String.init).joined(separator: ", ")
+    /// One line per origin: "pid 230, 9548 · used by Claude". Each pid is a
+    /// button of its own, so its popover points at it; the line wraps.
+    private func pidLines(_ pids: [pid_t]) -> some View {
+        let groups = Dictionary(grouping: pids) { summaries[$0] ?? "" }
+            .map { (summary: $0.key, pids: $0.value.sorted()) }
+            .sorted { $0.pids[0] < $1.pids[0] }
+        return ForEach(groups, id: \.summary) { group in
+            FlowLayout(spacing: 4, lineSpacing: 2) {
+                Text(verbatim: "pid").foregroundStyle(.secondary)
+                ForEach(Array(group.pids.enumerated()), id: \.element) { index, pid in
+                    HStack(spacing: 0) {
+                        pidLink(pid)
+                        if index < group.pids.count - 1 { Text(verbatim: ",").foregroundStyle(.secondary) }
+                    }
+                }
+                // Word by word: the layout places each piece at its natural
+                // width, so a summary in one piece could not wrap and ran past
+                // the column in a narrow window.
+                if !group.summary.isEmpty {
+                    ForEach(Array(("· " + group.summary).split(separator: " ").enumerated()), id: \.offset) {
+                        Text(verbatim: String($0.element)).foregroundStyle(.secondary)
+                    }
+                }
+            }
+        }
+    }
+
+    /// Underlined like the Compatibility row's versions; bold while open.
+    /// Plain until its origin is read: a popover with nothing in it is no answer.
+    @ViewBuilder private func pidLink(_ pid: pid_t) -> some View {
+        if origins[pid] == nil {
+            Text(verbatim: String(pid)).foregroundStyle(.secondary)
+        } else {
+            pidButton(pid)
+        }
+    }
+
+    private func pidButton(_ pid: pid_t) -> some View {
+        Button {
+            // The click outside that closed this pid's popover is this click:
+            // it is not a request to open it again.
+            if let dismissed, dismissed.pid == pid, dismissed.at.duration(to: .now) < .milliseconds(500) {
+                self.dismissed = nil
+                return
+            }
+            shown = shown == pid ? nil : pid
+        } label: {
+            Text(verbatim: String(pid)).underline().fontWeight(shown == pid ? .semibold : nil)
+        }
+        .buttonStyle(.link)
+        .popover(isPresented: Binding(
+            get: { shown == pid },
+            set: { presented in
+                guard !presented, shown == pid else { return }
+                dismissed = (pid, .now)
+                shown = nil
+            }
+        ), arrowEdge: .bottom) {
+            if let origin = origins[pid] { CLIToolProcessDetail(origin: origin) }
+        }
+    }
+}
+
+/// What is known of one running process, in the popover a click on its pid
+/// opens: its command line, when it started, and the chain of processes above
+/// it, each to copy, bring forward, or show in Finder. The copy buttons share
+/// the trailing edge.
+private struct CLIToolProcessDetail: View {
+    let origin: CLIToolProcessOrigin
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            line(copying: String(origin.pid)) {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text(verbatim: "pid \(origin.pid)").font(.headline)
+                    if let started = origin.started {
+                        Text("Started").foregroundStyle(.secondary)
+                        Text(started, format: .dateTime.month().day().hour().minute().second()).foregroundStyle(.secondary)
+                    }
+                }
+            }
+            if !origin.arguments.isEmpty {
+                line(copying: origin.commandLine) {
+                    Text(verbatim: origin.commandLine).font(.callout.monospaced())
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            chain
+            // To copy, not to run: a plain `kill` sends SIGTERM, which the
+            // process may catch to shut down cleanly.
+            line(copying: "kill \(origin.pid)") {
+                Text(verbatim: "kill \(origin.pid)").font(.callout.monospaced())
+            }
+            if let executable = origin.executable {
+                Button("Show in Finder") {
+                    NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: executable)])
+                }
+                .buttonStyle(.link)
+                .help((executable as NSString).abbreviatingWithTildeInPath)
+            }
+        }
+        .padding(12)
+        .frame(width: 440, alignment: .leading)
+    }
+
+    private func line(copying command: String, @ViewBuilder _ content: () -> some View) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            content()
+            Spacer(minLength: 0)
+            CopyCommandButton(command: command)
+        }
+    }
+
+    /// The chain from the top down to the process itself: "launchd › tmux › uv".
+    /// An app in it is a link that brings it forward.
+    private var chain: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 4) {
+            ForEach(Array(origin.ancestors.reversed().enumerated()), id: \.element.pid) { index, ancestor in
+                if index > 0 { Text(verbatim: "›").foregroundStyle(.tertiary) }
+                if let app = ancestor.app, let running = NSRunningApplication(processIdentifier: ancestor.pid) {
+                    Button(ancestor.name) { running.activate() }
+                        .buttonStyle(.link)
+                        .help(String(localized: "Bring \(CLIToolProcessOrigin.name(ofApp: app)) forward"))
+                } else {
+                    Text(verbatim: ancestor.name).help(Text(verbatim: "pid \(ancestor.pid)"))
+                }
+            }
+            if !origin.ancestors.isEmpty { Text(verbatim: "›").foregroundStyle(.tertiary) }
+            Text(verbatim: origin.executable.map { ($0 as NSString).lastPathComponent } ?? "pid \(origin.pid)")
+        }
+        .foregroundStyle(.secondary)
     }
 }
 
@@ -643,7 +785,7 @@ struct ClaudeCodeDetailPane: View {
             if let usage = cli.liveUsage(id) {
                 GridRow {
                     label("Running")
-                    CLIToolRunningValue(usage: usage, kind: .claudeCode)
+                    CLIToolRunningValue(usage: usage, kind: .claudeCode, origins: cli.origins, summaries: cli.originSummaries)
                 }
             }
             GridRow {
@@ -831,7 +973,7 @@ struct CLIToolDetailPane: View {
             if let usage = cli.liveUsage(id) {
                 GridRow {
                     label("Running")
-                    CLIToolRunningValue(usage: usage, kind: status.kind)
+                    CLIToolRunningValue(usage: usage, kind: status.kind, origins: cli.origins, summaries: cli.originSummaries)
                 }
             }
             GridRow {

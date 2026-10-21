@@ -198,6 +198,14 @@ final class CLIToolsModel {
     /// lived 1 s through (measured 2026-10-17, 1 of 6).
     @ObservationIgnored private var staleSeen: [StaleProcess: Date] = [:]
     private struct StaleProcess: Hashable { let id: CLIToolID; let pid: pid_t }
+    /// Who started each process `usage` names (`CLIToolProcessOrigin`), for
+    /// the workbench's Running row. The chain is read again with every read of
+    /// the process table — a parent can exit — and launchd is asked for a
+    /// process's coalition once, until the pid is another process's.
+    private(set) var origins: [pid_t: CLIToolProcessOrigin] = [:]
+    /// Each origin's one line (`CLIToolProcessOrigin.summary`), worded off the
+    /// main actor: naming an app by its bundle identifier asks LaunchServices.
+    private(set) var originSummaries: [pid_t: String] = [:]
     /// Reads left on the 3 s clock after a wake, whether or not AppKit says a
     /// window is on screen yet at that moment (review, #1374).
     @ObservationIgnored private var wakeGraceReads = 0
@@ -764,6 +772,7 @@ final class CLIToolsModel {
             Log.app.notice("cli-tools: stale shown now: \(said.isEmpty ? "none" : said, privacy: .public)\(unconfirmed ? " (more to confirm)" : "", privacy: .public)")
         }
         if confirmed != usage { usage = confirmed }
+        await readOrigins(of: Set(confirmed.values.flatMap { $0.current + $0.stale.map(\.pid) }))
         watchExits(of: Set(found.values.flatMap { $0.current + $0.stale.map(\.pid) }))
         announceStale()
         if unconfirmed {
@@ -772,6 +781,30 @@ final class CLIToolsModel {
                 await self.refreshUsage()
             }
         }
+    }
+
+    /// `origins` for exactly `pids`, reusing each one's coalition while the
+    /// pid is still the process it was read from (same start time).
+    private func readOrigins(of pids: Set<pid_t>) async {
+        let known = origins
+        var read = await offCooperativePool(qos: .utility) { () -> [pid_t: CLIToolProcessOrigin] in
+            var answer: [pid_t: CLIToolProcessOrigin] = [:]
+            for pid in pids {
+                answer[pid] = CLIToolProcessOrigin.read(pid: pid, coalition: known[pid]?.coalition)
+            }
+            return answer
+        }
+        // launchd again unless this same process's coalition has already
+        // ended: what started it can go while it lives on (an SSH session
+        // read `active`, then `terminated` with the daemon still running).
+        for (pid, origin) in read
+        where known[pid]?.started != origin.started || known[pid]?.coalition?.ended != true {
+            read[pid] = origin.with(coalition: await CLIToolProcessOrigin.readCoalition(of: pid))
+        }
+        let origins = read
+        let summaries = await offCooperativePool(qos: .utility) { origins.mapValues { $0.summary() } }
+        if read != self.origins { self.origins = read }
+        if summaries != originSummaries { originSummaries = summaries }
     }
 
     /// Keep an exit watch on exactly `pids`. One that exits before its watch

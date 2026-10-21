@@ -49,8 +49,8 @@
 
 | | 客户端会停放吗 | 本次实际停放了什么 | 我们能否直接拿来装 |
 |---|---|---|---|
-| 结论 | 默认不会 | 没查 | — |
-| 证据 | Info.plist 没有 `SUAutomaticallyUpdate`，Sparkle 只弹提示 | 第二轮（运行中）未跑，见「一键安装」 | — |
+| 结论 | 默认不会 | 无 | — |
+| 证据 | Info.plist 没有 `SUAutomaticallyUpdate`，Sparkle 只弹提示 | 第二轮启动 0.4.0 (991) 后，`~/Library/Caches` / `Application Support` / `Containers` 没有新的 >8 MB 文件（app 停在激活向导上） | — |
 
 ## Changelog
 - 来源: Sparkle inline（每个 item 的 `<description>` 是 `<ul><li>` 列表，另有 `sparkle:releaseNotesLink` 指向 `https://nsloon.app/Loon4Mac/changelog.html#build-<build>`）
@@ -61,15 +61,18 @@
 - Recipe 状态: 不需要
 
 ## 一键安装
-- 状态: 支持（不运行时真机通过；运行中未验，见下）
+- 状态: 支持（不运行、运行中两轮真机通过；系统扩展 / helper 的升级只有静态分析，见下）
 - 端到端（2026-10-21，真包 0.4.0 (991) → 0.5.0 (1009)，Loon 全程未启动）:
   - `ditto` 0.4.0 (991) 进 `/Applications`；`duo install /Applications/Loon.app --yes --json` →
     `outcome: installed`，`route: sparkle`，`bytesDownloaded: 61875853`（= appcast 的 `length`），9.4 s
   - 之后为 0.5.0 (1009)，inode 变了，`codesign --verify --deep --strict` 通过，`spctl` accepted / Notarized Developer ID，
     Team `ASX2695DJ4`；与厂商 0.5.0 包的 CDHash 相同，全树（文件 sha256 + 符号链接目标）一致；`duo backups` 无 Loon 的备份；
     再跑 `duo check` → `Everything is up to date.`
-  - **第二轮（运行中）未跑**：Loon 是代理 app，首次启动要装网络系统扩展和特权 helper（需要用户在系统设置里批准、输管理员密码），
-    启动后还可能与同机的其他代理工具冲突。所以「运行中换包后系统扩展 / helper 能否被新版正常替换」还没有真机证据
+  - 第二轮（运行中，2026-10-21，另一台 macOS 26.7 的 Mac）：装 0.4.0 (991) 并启动。首启是三步向导
+    （激活码 → Helper Tool → System Extension），激活码只能在 Loon iOS app 里生成，所以停在第一步，扩展和 helper 都没装上。
+    `duo install --yes --json` → `installed`，`route: sparkle`，13.6 s；盘上 1009，CDHash 同厂商包，10 s 内没被改回。
+    `duo restart Loon` → `restarted`，新进程的主二进制 inode 就是新包那份
+  - **未验：** 已激活、扩展和 helper 都在跑的副本上换包并重启。没有激活码，做不了。下面是静态分析的结论
 - 格式: dmg（根目录 `Loon.app` + `Applications` 链接），EdDSA 签名（`sparkle:edSignature`），Sparkle 路线
 - 校验: appcast 的 `sparkle:edSignature` + `length`；Team ID 闸
 - **读的是**: 人人可手动下载的 GA（GitHub release 的 dmg）
@@ -77,15 +80,24 @@
   - `Contents/Library/SystemExtensions/com.loon.Loon.LoonTunnelExtension.systemextension`（网络扩展）
   - `Contents/Library/LaunchServices/com.loon.Loon.LoonHelper`（`SMPrivilegedExecutables`，SMJobBless 特权 helper）
   - `Contents/Dashboard/Loon Dashboard.app`（`com.loon.Loon-Dashboard`，普通 app）
-  - 系统扩展和 helper 都由 app 自己在启动时激活 / 升级；换包本身只替换 bundle，和厂商 Sparkle 的整包替换相同
+  - 两个版本的对比（0.4.0 (991) / 0.5.0 (1009)）：helper 内嵌 `CFBundleVersion` 1.0.55 / 1.0.57，launchd plist `KeepAlive` + `RunAtLoad`；
+    扩展 `CFBundleVersion` 991 / 1009，`NEMachServiceName` 是 `group.com.loon.mac.xpc.<构建号>`，也就是 app 只和同构建号的扩展通信
+  - 主二进制里的日志串（`strings`，0.5.0）说明升级由 app 自己在启动时做，不靠更新器：
+    - helper：`[HelperLifecycle][App][GuidePrepare] Installed helper version=%@ bundledVersion=%@`、
+      `Update not required version=%@`、`Bless start bundledVersion=%@`、`Update verified runningVersion=%@`，即比较内嵌和已装的版本，新了就重新 bless
+    - 扩展：`[Startup][SystemExtension] Silent update request submitted`、`VPN disconnect requested`，以及
+      `[SystemExtensionCoordinator] Replacement requested existing=%@(%@) new=%@(%@) action=replace`，即启动时先断开 VPN、再提交替换请求
+  - 所以 `duo restart` 之后走的是同一条启动路径，和 Loon 自己的 Sparkle 更新装完后重开一样；换包本身只替换 bundle。
+    替换扩展时 macOS 会不会再要用户批准，由系统决定，两种更新方式都一样；Apple 论坛里两种情况都有报告（未验）
 - 阻塞: 无（运行中一轮待验）
 
 ## 已知问题
-- 运行中换包、`duo restart` 后系统扩展 / 特权 helper 的升级行为未在真机验证
+- 已激活副本上换包、`duo restart` 后系统扩展 / 特权 helper 的升级行为未在真机验证（需要 iOS app 生成的激活码）
+- 换包后不重启时，旧进程继续和旧扩展通信（mach 服务名带旧构建号），直到下次启动才替换
 
 ## 建议下一步
-1. 在一台能批准系统扩展的机器上补第二轮：装 0.4.0 (991)、启动并完成扩展授权，`duo install` + `duo restart Loon`，
-   看 `systemextensionsctl list` 里 `com.loon.Loon.LoonTunnelExtension` 是否升到新版本、helper 是否被替换
+1. 有激活码时补一轮：装 0.4.0 (991)、激活并完成 helper / 扩展授权，`duo install` + `duo restart Loon`，
+   看 `systemextensionsctl list` 里 `com.loon.Loon.LoonTunnelExtension` 是否升到 1009、helper 是否换成 1.0.57
 
 ## 如何复验
 

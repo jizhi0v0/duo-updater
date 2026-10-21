@@ -380,55 +380,50 @@ private struct CLIToolRunningValue: View {
         .onChange(of: origins[shown ?? 0] == nil) { _, gone in if gone { shown = nil } }
     }
 
-    /// One line per origin: "pid 230, 9548 · used by Claude".
+    /// One line per origin: "pid 230, 9548 · used by Claude". Each pid is a
+    /// button of its own, so its popover points at it; the line wraps.
     private func pidLines(_ pids: [pid_t]) -> some View {
         let groups = Dictionary(grouping: pids) { summaries[$0] ?? "" }
             .map { (summary: $0.key, pids: $0.value.sorted()) }
             .sorted { $0.pids[0] < $1.pids[0] }
         return ForEach(groups, id: \.summary) { group in
-            Text(line(group.pids, group.summary))
-                .foregroundStyle(.secondary)
-                // Out of the grid's text selection, so a click on a pid is a
-                // click on its link (as the Compatibility row's versions).
-                .textSelection(.disabled)
-                .environment(\.openURL, OpenURLAction { url in
-                    guard url.scheme == Self.scheme, let pid = pid_t(url.host() ?? "") else { return .discarded }
-                    if let dismissed, dismissed.pid == pid, dismissed.at.duration(to: .now) < .milliseconds(500) {
-                        self.dismissed = nil
-                        return .handled
+            FlowLayout(spacing: 4, lineSpacing: 2) {
+                Text(verbatim: "pid").foregroundStyle(.secondary)
+                ForEach(Array(group.pids.enumerated()), id: \.element) { index, pid in
+                    HStack(spacing: 0) {
+                        pidLink(pid)
+                        if index < group.pids.count - 1 { Text(verbatim: ",").foregroundStyle(.secondary) }
                     }
-                    shown = shown == pid ? nil : pid
-                    return .handled
-                })
-                // On the line, not the pid: a link inside text has no frame
-                // of its own to point at.
-                .popover(isPresented: Binding(
-                    get: { shown.map(group.pids.contains) ?? false },
-                    set: { presented in
-                        guard !presented, let pid = shown else { return }
-                        dismissed = (pid, .now)
-                        shown = nil
-                    }
-                ), arrowEdge: .bottom) {
-                    if let shown, let origin = origins[shown] { CLIToolProcessDetail(origin: origin) }
                 }
+                if !group.summary.isEmpty { Text(verbatim: "· " + group.summary).foregroundStyle(.secondary) }
+            }
         }
     }
 
-    private static let scheme = "duo-pid"
-
-    private func line(_ pids: [pid_t], _ summary: String) -> AttributedString {
-        var line = AttributedString("pid ")
-        for (index, pid) in pids.enumerated() {
-            if index > 0 { line += AttributedString(", ") }
-            var link = AttributedString(String(pid))
-            link.link = URL(string: "\(Self.scheme)://\(pid)")
-            link.underlineStyle = .single
-            if pid == shown { link.inlinePresentationIntent = .stronglyEmphasized }
-            line += link
+    /// Underlined like the Compatibility row's versions; bold while open.
+    private func pidLink(_ pid: pid_t) -> some View {
+        Button {
+            // The click outside that closed this pid's popover is this click:
+            // it is not a request to open it again.
+            if let dismissed, dismissed.pid == pid, dismissed.at.duration(to: .now) < .milliseconds(500) {
+                self.dismissed = nil
+                return
+            }
+            shown = shown == pid ? nil : pid
+        } label: {
+            Text(verbatim: String(pid)).underline().fontWeight(shown == pid ? .semibold : nil)
         }
-        if !summary.isEmpty { line += AttributedString(" · " + summary) }
-        return line
+        .buttonStyle(.link)
+        .popover(isPresented: Binding(
+            get: { shown == pid },
+            set: { presented in
+                guard !presented, shown == pid else { return }
+                dismissed = (pid, .now)
+                shown = nil
+            }
+        ), arrowEdge: .bottom) {
+            if let origin = origins[pid] { CLIToolProcessDetail(origin: origin) }
+        }
     }
 }
 

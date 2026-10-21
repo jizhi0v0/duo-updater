@@ -788,7 +788,7 @@ struct MenuContentView: View {
 /// The footer's "Show all" box. AppKit's `.checkbox` draws its unchecked box as a
 /// dark fill with no edge, which on the popover's glass measured 1.36:1 against
 /// the background (2026-10-21) — the box all but vanished. An outlined square in
-/// the secondary colour the footer's other glyphs use stays visible.
+/// the secondary colour of the command-line rows' icons above it measured 3.25:1.
 private struct PopoverCheckboxStyle: ToggleStyle {
     func makeBody(configuration: Configuration) -> some View {
         Button {

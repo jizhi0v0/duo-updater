@@ -385,6 +385,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**Kuvo**](run-kuvo-app.md) · `run.kuvo.app` — S · 一键 ✓ · ✗ changelog：厂商 release 正文为空、无 CHANGELOG · 2026-10-12
 - [x] [**Seedmux**](com-xx-seedmux.md) · `com.xx.seedmux` — S · arm64/x86_64 各自 feed · 一键（delta）不运行 ✓、运行中（守护进程换新）✓ · changelog 结构化（双语、无分节）· 2026-10-15
 - [x] [**Tamio**](sb-moe-tamio.md) · `sb.moe.tamio` — S · 单轨 · changelog recipe ✓（仓库 CHANGELOG.md，分节保留）· 一键真机端到端 ✓（不运行 + 运行中）· 首启许可窗挡退出，restart 未验 · 2026-10-19
+- [x] [**Loon**](com-loon-Loon.md) · `com.loon.Loon` — S · 单轨 · 一键真机不运行 ✓、运行中未验（系统扩展 + 特权 helper）· changelog 结构化（inline 列表，无分节）· 2026-10-21
 
 ## Investigated — blocked safely
 

@@ -907,9 +907,9 @@ final class AppListModel {
     /// render a state as nothing.
     func rowState(for result: UpdateResult) -> RowActionState {
         // The assembly is `RowActionFacts.assemble` in Core, where it can be
-        // tested; this is the wiring that hands it the tables. `self.` on the
-        // route because it is an `@autoclosure` the facts hold rather than a
-        // value they copy — see `RowActionFacts.route`.
+        // tested; this is the wiring that hands it the tables. It resolves the
+        // route only for a row with an update on offer, and that read is the
+        // memo's — see `memoisedRoute(for:)`.
         RowAction.state(for: RowActionFacts.assemble(
             for: result,
             tables: rowStateTables,
@@ -917,8 +917,43 @@ final class AppListModel {
             isVersionSkipped: prefs.isVersionSkipped(
                 result.app, version: result.remote?.versionSide),
             orphanedStoreSibling: orphanedStoreCopies[result.id],
-            route: self.rowRoute(for: result)))
+            route: memoisedRoute(for: result)))
     }
+
+    /// `rowRoute(for:)`, kept per row until something it read changes.
+    ///
+    /// Every row with an update on offer reads its route on every repaint — on
+    /// a download tick, the whole list repaints — and resolving one rebuilds
+    /// `policyEnvironment` several times and, for a pkg row with a package
+    /// downloaded, stats it. None of that changes on a tick.
+    ///
+    /// What invalidates it is whatever the resolution itself read: it runs
+    /// under `withObservationTracking`, so a change to any observed property it
+    /// touched — this model's, `prefs`', `AppleDeveloperSession`'s — drops every
+    /// kept route, and `results` is read on purpose so a rescan does too. Not
+    /// tracked, the one thing that is not observed: whether a staged package is
+    /// still on disk. That is re-asked whenever the memo is dropped, and a
+    /// package swept between two drops is caught by `openStagedPackage`, which
+    /// clears it and puts the row back to Update.
+    ///
+    /// A row reading a kept route registered none of those reads with the view
+    /// asking, so `routeMemoEpoch` is what repaints it: read here, bumped when
+    /// the memo is dropped. Until that bump lands a repaint resolves afresh
+    /// rather than reading a stale route — the drop itself is synchronous.
+    private func memoisedRoute(for result: UpdateResult) -> UpdateRoute {
+        _ = routeMemoEpoch
+        return routeMemo.route(for: result.id) { generation in
+            withObservationTracking {
+                _ = results
+                return rowRoute(for: result)
+            } onChange: { [weak self, routeMemo] in
+                guard routeMemo.invalidate(generation: generation) else { return }
+                Task { @MainActor in self?.routeMemoEpoch &+= 1 }
+            }
+        }
+    }
+    @ObservationIgnored private let routeMemo = RowRouteMemo()
+    private var routeMemoEpoch = 0
 
     /// The per-row tables as Core wants them. Eight copies of a
     /// copy-on-write collection: retains, no allocation.
@@ -945,14 +980,14 @@ final class AppListModel {
     /// does not is the same row telling two stories.
     ///
     /// The decision itself is `UpdateRoute.resolve(_:)` in Core (issue #261) — this
-    /// is only the wiring that fills `RouteInputs`. It stays a method the caller
-    /// invokes lazily (`rowState(for:)` passes `self.rowRoute(for: result)` into an
-    /// `@autoclosure` parameter) rather than a stored value, so building
-    /// `RouteInputs` — which calls `canAutoInstall` / `requiresInstaller` /
-    /// `defersToSelfUpdater` unconditionally and, when `requiresInstaller` is
-    /// true, reads `stagedPackage(for:)` too — only happens for a row that
-    /// actually reaches `.updateAvailable`. See `RowActionFacts.route`'s doc
-    /// comment, and the note below on what changed inside that boundary.
+    /// is only the wiring that fills `RouteInputs`. `rowState(for:)` reaches it
+    /// through `memoisedRoute(for:)`, and only for a row with an update on offer,
+    /// so building `RouteInputs` — which calls `canAutoInstall` /
+    /// `requiresInstaller` / `defersToSelfUpdater` unconditionally and, when
+    /// `requiresInstaller` is true, reads `stagedPackage(for:)` too — happens once
+    /// per such row until an input changes, not once per repaint. See
+    /// `RowActionFacts.route`'s doc comment, and the note below on what changed
+    /// inside that boundary.
     private func rowRoute(for result: UpdateResult) -> UpdateRoute {
         // `requiresInstaller` is read twice below (the gate, and the installer
         // rung itself); computed once here rather than reasked. This does NOT

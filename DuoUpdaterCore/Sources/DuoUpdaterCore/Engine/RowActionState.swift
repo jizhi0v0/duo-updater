@@ -307,10 +307,10 @@ extension AppStoreGate {
 /// compiles only the files it names, so this was the one rung of the two
 /// row-state ladders that had genuinely been re-derived rather than moved when
 /// `RowActionState` made that trip, and it was executed by nothing — only
-/// hand-compared against the view it replaced. `RowActionFacts.route` stays the
-/// `@autoclosure` deferral point (`routeIsDeferred` pins that); this struct is
-/// built inside it, on the caller's side, once per row that actually reaches
-/// `.updateAvailable`.
+/// hand-compared against the view it replaced. This struct is built on the
+/// caller's side, only for a row with an update on offer (`RowActionFacts.assemble`
+/// evaluates its route for those alone), and the caller memoises the answer per
+/// row (`AppListModel.memoisedRoute`).
 public struct RouteInputs {
     /// `remote?.sourceName == "Toolbox" || app.isToolboxManaged` — JetBrains
     /// Toolbox owns the install outright.
@@ -490,7 +490,7 @@ public struct RowStateTables: Sendable {
     }
 }
 
-public struct RowActionFacts {
+public struct RowActionFacts: Sendable, Equatable {
     public var status: UpdateStatus
     public var awaitingQuitConfirm: String?
     public var isRelaunching: Bool
@@ -522,17 +522,23 @@ public struct RowActionFacts {
     /// The copy that gets this row's store updates instead, when this row is an
     /// orphan (`AppStoreLeftoverCopy.orphans`): its file name and version. Read
     /// only by the `.updateAvailable` rung.
-    public var orphanedStoreSibling: (copy: String, version: String)?
+    public var orphanedStoreSibling: OrphanedStoreSibling?
     /// `UpdateResult.heldBySubscription`. Read only by the `.upToDate` rung.
     public var subscriptionHold: SubscriptionHold?
-    /// Deferred on purpose. Only the `.updateAvailable` rung reads it, and the
-    /// caller's route resolution is the expensive part of assembling these facts —
-    /// it rebuilds an install environment several times and can stat the disk. As a
-    /// plain argument it ran for EVERY row on every repaint, including rows that
-    /// leave the ladder at the quit prompt or the install stage and never look at
-    /// it. Same trap as `ListActivity.canOfferUpdateAll`, which is why this is an
-    /// `@autoclosure` too rather than a value.
-    public var route: () -> UpdateRoute
+    /// How the update on offer would be applied; nil for a row with none. Only
+    /// the rungs that need an update on offer read it — the interrupted row's
+    /// Reinstall and `.updateAvailable` — and a nil there resolves to
+    /// `.detectionOnly`, which installs nothing.
+    ///
+    /// A value, so the facts compare. It used to be an escaping `@autoclosure`
+    /// that captured the model: resolving a route rebuilds an install
+    /// environment several times and can stat the disk, and as a plain argument
+    /// it ran for EVERY row on every repaint, including rows that leave the
+    /// ladder at the quit prompt or the install stage. Both halves of that are
+    /// still kept, elsewhere: `assemble` resolves it only for a row with an
+    /// update on offer, and the caller memoises it per row
+    /// (`AppListModel.memoisedRoute`, `RowRouteMemo`), so a repaint reads it.
+    public var route: UpdateRoute?
 
     public init(
         status: UpdateStatus,
@@ -550,9 +556,9 @@ public struct RowActionFacts {
         isMASApp: Bool = false,
         isTestFlightApp: Bool = false,
         hasSparkleFeed: Bool = false,
-        orphanedStoreSibling: (copy: String, version: String)? = nil,
+        orphanedStoreSibling: OrphanedStoreSibling? = nil,
         subscriptionHold: SubscriptionHold? = nil,
-        route: @autoclosure @escaping () -> UpdateRoute = .autoInstall
+        route: UpdateRoute? = nil
     ) {
         self.status = status
         self.awaitingQuitConfirm = awaitingQuitConfirm
@@ -593,7 +599,7 @@ public enum RowAction {
         // reinstall is offered only where the update runs in one click.
         if let hasWayBack = facts.interruptedHasWayBack {
             if hasWayBack { return .interruptedInstall(.restore) }
-            if facts.hasUpdate, facts.route() == .autoInstall { return .interruptedInstall(.reinstall) }
+            if facts.hasUpdate, facts.route == .autoInstall { return .interruptedInstall(.reinstall) }
             return .interruptedInstall(.noWayBack)
         }
         if facts.isIgnored { return .ignored }
@@ -620,7 +626,7 @@ public enum RowAction {
             if let sibling = facts.orphanedStoreSibling {
                 return .orphanedStoreCopy(updatedCopy: sibling.copy, version: sibling.version)
             }
-            return .updateAvailable(facts.route())
+            return .updateAvailable(facts.route ?? .detectionOnly)
         case .error(let message):
             return .checkFailed(message: message, rateLimited: facts.status.isRateLimitError)
         case .unknown:
@@ -652,19 +658,22 @@ extension RowActionFacts {
     /// two copies of one app share a bundle id and must not share a row's
     /// install stage or relaunch flag.
     ///
-    /// `route` stays an `@autoclosure` all the way through: only the
-    /// `.updateAvailable` rung reads it, and computing it is the expensive part
-    /// of assembling facts (it rebuilds an `InstallEnvironment`, and stats the
-    /// disk for pkg rows). This function must not call it — `routeIsDeferred`
-    /// counts the calls.
+    /// `route` is evaluated only for a row with an update on offer — the only
+    /// rows whose ladder reads it — and at most once. Resolving one is the
+    /// expensive part of assembling facts (it rebuilds an `InstallEnvironment`,
+    /// and stats the disk for pkg rows), and every other row, up-to-date ones
+    /// most of all, is asked for on every repaint.
+    /// `assemblingFactsResolvesTheRouteOnlyForAnUpdate` counts the calls.
     public static func assemble(
         for result: UpdateResult,
         tables: RowStateTables,
         isIgnored: Bool,
         isVersionSkipped: Bool,
         orphanedStoreSibling: InstalledApp? = nil,
-        route: @escaping @autoclosure () -> UpdateRoute
+        route: @autoclosure () -> UpdateRoute
     ) -> RowActionFacts {
+        let hasUpdate: Bool
+        if case .updateAvailable = result.status { hasUpdate = true } else { hasUpdate = false }
         let staged = UpdatePolicy.actionableStaged(
             result, staged: tables.pendingSelfUpdate[result.id])
         return RowActionFacts(
@@ -684,9 +693,21 @@ extension RowActionFacts {
             isTestFlightApp: result.app.isTestFlightApp,
             hasSparkleFeed: result.app.sparkleFeedURL != nil,
             orphanedStoreSibling: orphanedStoreSibling.map {
-                ($0.path.lastPathComponent, $0.shortVersion ?? "?")
+                OrphanedStoreSibling(copy: $0.path.lastPathComponent, version: $0.shortVersion ?? "?")
             },
             subscriptionHold: result.heldBySubscription,
-            route: route())
+            route: hasUpdate ? route() : nil)
+    }
+}
+
+/// The copy an orphaned App Store row's updates land on instead
+/// (`RowActionFacts.orphanedStoreSibling`): its file name and version.
+public struct OrphanedStoreSibling: Sendable, Equatable {
+    public var copy: String
+    public var version: String
+
+    public init(copy: String, version: String) {
+        self.copy = copy
+        self.version = version
     }
 }

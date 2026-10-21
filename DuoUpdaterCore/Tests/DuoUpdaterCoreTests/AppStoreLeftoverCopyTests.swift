@@ -82,7 +82,7 @@ private func row(_ app: InstalledApp, latest: String) -> UpdateResult {
     var facts = RowActionFacts(
         status: .updateAvailable(latest: "1.10.0"), isMASApp: true, route: store)
     #expect(RowAction.state(for: facts) == .updateAvailable(store))
-    facts.orphanedStoreSibling = ("AndroMeld.app", "1.10.0")
+    facts.orphanedStoreSibling = OrphanedStoreSibling(copy: "AndroMeld.app", version: "1.10.0")
     let state = RowAction.state(for: facts)
     #expect(state == .orphanedStoreCopy(updatedCopy: "AndroMeld.app", version: "1.10.0"))
     #expect(state.needsExplanation)

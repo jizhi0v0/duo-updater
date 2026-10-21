@@ -1163,6 +1163,12 @@ final class CLIToolsModel {
         return progressLines.line(id, shown: cancelRows.stages[id])
     }
 
+    /// The stage of `stageLine(id)`'s line.
+    private func stageLineStage(_ id: CLIToolID) -> InstallStage? {
+        guard progress[id] != nil else { return nil }
+        return progressLines.stage(id, shown: cancelRows.stages[id])
+    }
+
     /// `id`'s row now reads `text`, a line of `stage`.
     private func setProgress(_ id: CLIToolID, _ stage: InstallStage, _ text: String) {
         progressLines.record(id, stage: stage, text: text)
@@ -1471,6 +1477,7 @@ final class CLIToolsModel {
             cancel: runs ? cancelRows.cancels[id] : nil,
             cancelPending: runs && cancelRows.cancelPending.contains(id),
             line: runs ? stageLine(id) : nil,
+            lineStage: runs ? stageLineStage(id) : nil,
             state: status?.state ?? .unknown, oneClick: status?.oneClick != nil,
             needsAdministrator: status?.needsAdministrator ?? false, withheld: status?.withheld,
             manualCommand: status.flatMap(CLIToolPresentation.manualCommand),

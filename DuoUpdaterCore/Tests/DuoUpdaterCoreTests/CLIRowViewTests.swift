@@ -397,32 +397,36 @@ import Testing
             snapshot: Snapshot(tools: [], hasSightings: false),
             expected: nil),
         PopoverCase(
-            // Two kinds running: no name, and the first running copy's line.
+            // Two kinds running: no name, and no output line.
             name: "multi-kind head",
             snapshot: Snapshot(tools: [
-                .init(id: "a", kind: .uv, phase: .running, cancel: .committing, line: "Downloading uv"),
-                .init(id: "b", kind: .npm, phase: .running, cancel: .committing, line: "added 1 package"),
+                .init(id: "a", kind: .uv, phase: .running, cancel: .committing, line: "Downloading uv",
+                      lineStage: .runningCommand("Downloading uv")),
+                .init(id: "b", kind: .npm, phase: .running, cancel: .committing, line: "added 1 package",
+                      lineStage: .runningCommand("added 1 package")),
             ], updatingAll: true, batchIDs: ["a", "b"]),
-            expected: CLIPopoverRow(lines: [.updating(nil), .progress(.line("Downloading uv"))], mark: .spinner,
+            expected: CLIPopoverRow(lines: [.updating(nil)], mark: .spinner,
                                     button: .cancel(Group(state: .committing, pending: false, live: 0)), isRunning: true)),
         PopoverCase(
-            // Two copies of one kind: its name.
+            // Two copies of one kind: its name, and no output line.
             name: "one kind, two copies",
             snapshot: Snapshot(tools: [
-                .init(id: "a", kind: .npm, phase: .running, cancel: .committing, line: "added 1 package"),
+                .init(id: "a", kind: .npm, phase: .running, cancel: .committing, line: "added 1 package",
+                      lineStage: .runningCommand("added 1 package")),
                 .init(id: "b", kind: .npm, phase: .running, cancel: .committing),
             ], updatingAll: true, batchIDs: ["a", "b"]),
-            expected: CLIPopoverRow(lines: [.updating(.npm), .progress(.line("added 1 package"))], mark: .spinner,
+            expected: CLIPopoverRow(lines: [.updating(.npm)], mark: .spinner,
                                     button: .cancel(Group(state: .committing, pending: false, live: 0)), isRunning: true)),
         PopoverCase(
             // One waiting on its check before one still running: the running
-            // one is named and its line shown, not "Waiting to check".
+            // one is named, and neither its output nor "Waiting to check" shown.
             name: "awaitingCheck before running",
             snapshot: Snapshot(tools: [
-                .init(id: "a", kind: .uv, phase: .awaitingCheck, line: "Waiting to check"),
-                .init(id: "b", kind: .npm, phase: .running, cancel: .committing, line: "added 1 package"),
+                .init(id: "a", kind: .uv, phase: .awaitingCheck, line: "Waiting to check", lineStage: .checking),
+                .init(id: "b", kind: .npm, phase: .running, cancel: .committing, line: "added 1 package",
+                      lineStage: .runningCommand("added 1 package")),
             ], updatingAll: true, batchIDs: ["a", "b"]),
-            expected: CLIPopoverRow(lines: [.updating(.npm), .progress(.line("added 1 package"))], mark: .spinner,
+            expected: CLIPopoverRow(lines: [.updating(.npm)], mark: .spinner,
                                     button: .cancel(Group(state: .committing, pending: false, live: 0)), isRunning: true)),
         PopoverCase(
             // Every claimed one waits on its check: they are named, the first one's line.
@@ -446,5 +450,73 @@ import Testing
 
     @Test(arguments: popoverCases) func thePopoversOtherRungs(_ c: PopoverCase) {
         #expect(c.snapshot.popover == c.expected)
+    }
+
+    // MARK: - The popover row's line
+
+    /// A running copy's line, and whether the popover's row says it.
+    struct LineCase: CustomTestStringConvertible, Sendable {
+        var line: String
+        var stage: InstallStage
+        var shown: Bool
+        var testDescription: String { "\(line) (\(stage.name)) \(shown ? "shown" : "not shown")" }
+    }
+
+    static let lineCases: [LineCase] = [
+        // Its command running: "Updating npm" says it.
+        LineCase(line: "Starting…", stage: .runningCommand(""), shown: false),
+        LineCase(line: "changed 81 packages in 5s", stage: .runningCommand("changed 81 packages in 5s"), shown: false),
+        LineCase(line: CLIToolAdministratorRun.authorizedLine,
+                 stage: .runningCommand(CLIToolAdministratorRun.authorizedLine), shown: false),
+        // Stage words stay.
+        LineCase(line: "Queued", stage: .queued, shown: true),
+        LineCase(line: "Checking…", stage: .checking, shown: true),
+        LineCase(line: "Waiting to check", stage: .checking, shown: true),
+        LineCase(line: CLIToolAdministratorRun.waitingLine,
+                 stage: .runningCommand(CLIToolAdministratorRun.waitingLine), shown: true),
+    ]
+
+    /// The popover's row never shows a copy's command output, nor its
+    /// "Starting…": while the head copy runs its command the row reads
+    /// "Updating npm" alone — on main the outgoing copy's last output line
+    /// showed for a frame when the head moved on (2026-10-21, 3 of 5 rounds).
+    /// The workbench still shows every line.
+    ///
+    /// Mutation: the popover takes `progress` where it takes `popoverProgress`
+    /// → the output line cases read `.progress(.line(…))`, red.
+    @Test(arguments: lineCases) func thePopoverRowShowsStageWordsNotOutput(_ c: LineCase) {
+        for phase: CLIRunPhase in [.running, .checkingAtTurn, .awaitingCheck] {
+            let tool = Snapshot.Tool(id: "a", kind: .npm, phase: phase, cancel: .committing,
+                                     line: c.line, lineStage: c.stage, state: .updateAvailable, oneClick: true)
+            let s = Snapshot(tools: [tool])
+            #expect(s.popover?.lines == [.updating(.npm)] + (c.shown ? [.progress(.line(c.line))] : []))
+            #expect(s.sidebar("a").caption == .progress(.line(c.line)))
+            #expect(s.detailHeader("a").progress == .line(c.line))
+        }
+    }
+
+    /// "Cancelling…" stays on the row whatever its line was.
+    @Test func cancellingShowsOverACommandLine() {
+        let tool = Snapshot.Tool(id: "a", kind: .npm, phase: .running, cancel: .cancelling,
+                                 line: "changed 81 packages in 5s",
+                                 lineStage: .runningCommand("changed 81 packages in 5s"))
+        #expect(Snapshot(tools: [tool]).popover?.lines == [.updating(.npm), .progress(.cancelling)])
+    }
+
+    /// The head copy still running its command while a copy behind it shows
+    /// a stage word the row would say on its own ("Checking…" at its turn).
+    /// The row is "Updating npm" alone: the line is the head's, never one
+    /// borrowed from further back.
+    ///
+    /// Mutation: take `named.lazy.compactMap(\.popoverProgress).first` → the
+    /// row reads "Updating npm · Checking…", red.
+    @Test func theHeadCopysCommandHidesTheLineBehindIt() {
+        let s = Snapshot(tools: [
+            .init(id: "mcp-remote", kind: .npm, phase: .running, cancel: .committing,
+                  line: "changed 81 packages in 5s", lineStage: .runningCommand("changed 81 packages in 5s")),
+            .init(id: "tsls", kind: .npm, phase: .checkingAtTurn, cancel: .available,
+                  line: "Checking…", lineStage: .checking),
+        ], updatingAll: true, batchIDs: ["mcp-remote", "tsls"])
+        #expect(s.popover?.lines == [.updating(.npm)])
     }
 }

@@ -395,7 +395,14 @@ private struct CLIToolRunningValue: View {
                         if index < group.pids.count - 1 { Text(verbatim: ",").foregroundStyle(.secondary) }
                     }
                 }
-                if !group.summary.isEmpty { Text(verbatim: "· " + group.summary).foregroundStyle(.secondary) }
+                // Word by word: the layout places each piece at its natural
+                // width, so a summary in one piece could not wrap and ran past
+                // the column in a narrow window.
+                if !group.summary.isEmpty {
+                    ForEach(Array(("· " + group.summary).split(separator: " ").enumerated()), id: \.offset) {
+                        Text(verbatim: String($0.element)).foregroundStyle(.secondary)
+                    }
+                }
             }
         }
     }

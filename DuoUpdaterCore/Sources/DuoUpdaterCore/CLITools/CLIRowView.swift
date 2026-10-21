@@ -44,6 +44,9 @@ public struct CLIRowSnapshot<Key: Hashable & Sendable>: Equatable, Sendable {
         /// Its progress line for the stage the row shows
         /// (`InstallRowLines.line(_:shown:)`); nil while it has none.
         public var line: String?
+        /// The stage `line` is a line of (`InstallRowLines.stage(_:shown:)`):
+        /// tells a command's output from a stage word.
+        public var lineStage: InstallStage?
         public var state: CLIToolState
         /// `CLIToolStatus.oneClick != nil`: every gate passed, the GitHub
         /// pause's included.
@@ -61,7 +64,7 @@ public struct CLIRowSnapshot<Key: Hashable & Sendable>: Equatable, Sendable {
         public init(
             id: Key, kind: CLIToolKind, phase: CLIRunPhase = .idle,
             cancel: InstallCancelState? = nil, cancelPending: Bool = false, line: String? = nil,
-            state: CLIToolState = .upToDate, oneClick: Bool = false, needsAdministrator: Bool = false,
+            lineStage: InstallStage? = nil, state: CLIToolState = .upToDate, oneClick: Bool = false, needsAdministrator: Bool = false,
             withheld: CLIToolWithheld? = nil, manualCommand: String? = nil, hasLatestVersion: Bool = true,
             error: String? = nil, justUpdated: String? = nil
         ) {
@@ -71,6 +74,7 @@ public struct CLIRowSnapshot<Key: Hashable & Sendable>: Equatable, Sendable {
             self.cancel = cancel
             self.cancelPending = cancelPending
             self.line = line
+            self.lineStage = lineStage
             self.state = state
             self.oneClick = oneClick
             self.needsAdministrator = needsAdministrator
@@ -86,13 +90,13 @@ public struct CLIRowSnapshot<Key: Hashable & Sendable>: Equatable, Sendable {
         /// compile into a plausible row.
         public static func live(
             id: Key, kind: CLIToolKind, phase: CLIRunPhase,
-            cancel: InstallCancelState?, cancelPending: Bool, line: String?,
+            cancel: InstallCancelState?, cancelPending: Bool, line: String?, lineStage: InstallStage?,
             state: CLIToolState, oneClick: Bool, needsAdministrator: Bool,
             withheld: CLIToolWithheld?, manualCommand: String?, hasLatestVersion: Bool,
             error: String?, justUpdated: String?
         ) -> Tool {
             Tool(id: id, kind: kind, phase: phase, cancel: cancel, cancelPending: cancelPending, line: line,
-                 state: state, oneClick: oneClick, needsAdministrator: needsAdministrator,
+                 lineStage: lineStage, state: state, oneClick: oneClick, needsAdministrator: needsAdministrator,
                  withheld: withheld, manualCommand: manualCommand, hasLatestVersion: hasLatestVersion,
                  error: error, justUpdated: justUpdated)
         }
@@ -115,6 +119,17 @@ public struct CLIRowSnapshot<Key: Hashable & Sendable>: Equatable, Sendable {
         var progress: CLIProgressLine? {
             if cancel == .cancelling { return .cancelling }
             return line.map(CLIProgressLine.line)
+        }
+
+        /// Its progress as the popover's row words it: none while its line is
+        /// its command running — "Starting…", "Running as root…" or an
+        /// output line — the row's "Updating npm" says that. The wait for an
+        /// administrator password asks something of whoever reads it, so it
+        /// stays.
+        var popoverProgress: CLIProgressLine? {
+            guard progress != .cancelling, case .runningCommand = lineStage,
+                  line != CLIToolAdministratorRun.waitingLine else { return progress }
+            return nil
         }
 
         /// What its own Update slot holds while it runs: its spinner, with its
@@ -295,11 +310,13 @@ public struct CLIRowSnapshot<Key: Hashable & Sendable>: Equatable, Sendable {
             }
             // `updateAll` runs several tools at once: then the row names none,
             // and the line is the first running copy's — one still running
-            // its command before one waiting on its check.
+            // its command before one waiting on its check. None while that
+            // copy's command runs: "Updating npm" says it, and its output
+            // showed for a frame after the head moved on to the next copy.
             let running = claimed.filter { $0.phase != .awaitingCheck }
             let named = running.isEmpty ? claimed : running
             let head = Row.Line.updating(Set(named.map(\.kind)).count == 1 ? named[0].kind : nil)
-            let progress = named.lazy.compactMap(\.progress).first
+            let progress = named.first { $0.progress != nil }?.popoverProgress
             return Row(lines: [head] + (progress.map { [.progress($0)] } ?? []),
                        mark: .spinner, button: button, isRunning: true)
         }

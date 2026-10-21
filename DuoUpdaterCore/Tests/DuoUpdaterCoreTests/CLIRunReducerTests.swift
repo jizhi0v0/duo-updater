@@ -38,6 +38,7 @@ import Testing
     final class Run {
         var state = State()
         var lines: [String: String] = [:]
+        var stages: [String: InstallStage] = [:]
         var effects: [Effect] = []
         var updateAllWaiting = false
 
@@ -57,8 +58,8 @@ import Testing
             state = next
             for effect in out {
                 switch effect {
-                case .showLine(let id, let line): lines[id] = Self.text(line)
-                case .clearLine(let id): lines[id] = nil
+                case .showLine(let id, let line): lines[id] = Self.text(line); stages[id] = Self.stage(line)
+                case .clearLine(let id): lines[id] = nil; stages[id] = nil
                 default: break
                 }
             }
@@ -81,6 +82,16 @@ import Testing
             case .checking: return "Checking…"
             case .waitingToCheck: return "Waiting to check"
             case .output(let text): return text
+            }
+        }
+
+        /// The stage the app records each line with (`CLIToolsModel.perform`).
+        static func stage(_ line: CLIRunLine) -> InstallStage {
+            switch line {
+            case .queued: return .queued
+            case .starting: return .runningCommand("")
+            case .checking, .waitingToCheck: return .checking
+            case .output(let text): return .runningCommand(text)
             }
         }
 
@@ -114,6 +125,7 @@ import Testing
                 return .live(
                     id: id, kind: status.kind, phase: phase,
                     cancel: runs ? state.cancels[id] : nil, cancelPending: false, line: runs ? lines[id] : nil,
+                    lineStage: runs ? stages[id] : nil,
                     state: status.state, oneClick: status.oneClick != nil,
                     needsAdministrator: status.needsAdministrator, withheld: status.withheld,
                     manualCommand: nil, hasLatestVersion: status.latestVersion != nil,
@@ -219,7 +231,7 @@ import Testing
         r.send(.commandStarting("a"))
         let s = r.snapshot([back])
         #expect(s.sidebar("a") == CLISidebarRow(slot: .cancel(Self.live), caption: .progress(.line("Starting…"))))
-        #expect(s.popover == CLIPopoverRow(lines: [.updating(.fx), .progress(.line("Starting…"))],
+        #expect(s.popover == CLIPopoverRow(lines: [.updating(.fx)],
                                            mark: .spinner, button: .cancel(Self.live), isRunning: true))
         #expect(r.runs(of: "a") == 1)
     }
@@ -320,7 +332,7 @@ import Testing
         s = r.snapshot([moved, b, c])
         #expect(s.sidebar("a") == CLISidebarRow(slot: .cancel(Self.live), caption: .progress(.line("Downloading 1.2.0"))))
         #expect(s.sidebar("b") == CLISidebarRow(slot: .cancel(Self.live), caption: .progress(.line("Queued"))))
-        #expect(s.popover?.lines == [.updating(.fx), .progress(.line("Downloading 1.2.0"))])
+        #expect(s.popover?.lines == [.updating(.fx)])
         #expect(s.updateAllHeader == .running(three))
         // Its re-check waits on the lane's other copies.
         #expect(r.send(.commandEnded("a", needsRecheck: true, cancelStopped: false)) == [.showLine("a", .waitingToCheck)])
@@ -558,7 +570,7 @@ import Testing
         #expect(r.state.updatingAll)
         let s = r.snapshot([a, b])
         #expect(s.sidebar("a") == CLISidebarRow(slot: .update(admin: false), caption: .status))
-        #expect(s.popover?.lines == [.updating(.fx), .progress(.line("Starting…"))])
+        #expect(s.popover?.lines == [.updating(.fx)])
         #expect(s.updateAllHeader == .running(Self.live))
     }
 

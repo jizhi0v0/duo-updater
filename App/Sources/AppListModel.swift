@@ -4698,7 +4698,7 @@ final class AppListModel {
             brewCancels[jobID] = nil
         }
         // Its line until its run writes one: "Queued", then "Starting…" from
-        // its turn on (`formulaProgressLine`).
+        // its turn on (`BrewRowSnapshot.Formula.line`).
         formulaUpgradeNotes[name] = nil
         let ran = await cliTools.runQueue.perform(.upgradeFormula(name), whenCancelled: end) {
             // Read again at its turn: an Upgrade All queued ahead of it may have
@@ -4777,31 +4777,12 @@ final class AppListModel {
         BrewRowRuns.jobIDs(upgradingAll: brewUpgrading, formulae: upgradingFormulae)
     }
 
-    /// The popover Homebrew row's one Cancel, over every run it stands for.
-    var brewRowCancel: InstallRowSmoothing<String>.GroupCancel? {
-        BrewRowRuns.cancel(brewRowJobIDs, in: brewCancelRows, running: brewRowRunningJobID)
-    }
-
-    /// The run the popover's Homebrew row names at its head, as it picks it:
-    /// Upgrade All once it has its turn, else the formula that has
-    /// (`brewRowRunningFormula`); nil while every one waits.
-    var brewRowRunningJobID: String? {
-        if brewUpgrading && !cliTools.runQueue.isWaiting(.upgradeAll) { return Self.upgradeAllJobID }
-        return brewRowRunningFormula.map(Self.formulaJobID)
-    }
-
     /// The popover Homebrew row's Cancel: each run it stands for that can
     /// still be cancelled is (`cancelBrewUpgrade`).
     func cancelBrewRow() {
         let cancellable = BrewRowRuns.cancellable(brewRowJobIDs, in: brewCancels)
         Log.app.notice("Homebrew row: cancel, \(cancellable.count, privacy: .public) of \(self.brewRowJobIDs.count, privacy: .public) runs still cancellable")
         for jobID in cancellable { cancelBrewUpgrade(jobID) }
-    }
-
-    /// The formula whose own upgrade has its turn, if one does: the head of
-    /// the popover's Homebrew row. One brew run goes at a time (`CLIRunQueue`).
-    var brewRowRunningFormula: String? {
-        upgradingFormulae.sorted().first { !cliTools.runQueue.isWaiting(.upgradeFormula($0)) }
     }
 
     /// The queue's name for the brew run a Cancel's job id belongs to.
@@ -4813,15 +4794,59 @@ final class AppListModel {
         return .upgradeFormula(String(jobID.dropFirst(prefix.count)))
     }
 
-    /// The line under a formula row's name while it upgrades: brew's phase, or
-    /// "Cancelling…" once that is due (`brewCancelRows`).
-    func formulaProgressLine(_ name: String) -> String? {
-        if brewCancelRows.cancels[Self.formulaJobID(name)] == .cancelling {
-            return String(localized: "Cancelling…")
-        }
-        if let note = formulaUpgradeNotes[name] { return note }
-        guard upgradingFormulae.contains(name) else { return nil }
-        return BrewRowRuns.lineBeforeItsRun(waiting: cliTools.runQueue.isWaiting(.upgradeFormula(name)))
+    /// Where the brew run `run` is (`CLIRunPhase`): idle unless `claimed`,
+    /// queued while it waits its turn (`CLIRunQueue`), running from its turn
+    /// on. The one place the Homebrew rows ask the queue.
+    private func brewRunPhase(claimed: Bool, _ run: CLIRun) -> CLIRunPhase {
+        guard claimed else { return .idle }
+        return cliTools.runQueue.isWaiting(run) ? .queued : .running
+    }
+
+    /// One brew run's facts, as `BrewRowSnapshot` holds them. Its Cancel only
+    /// while it is claimed: an idle one reads nothing of `brewCancelRows`.
+    private func brewRun(_ jobID: String, _ phase: CLIRunPhase) -> BrewRowSnapshot.Run {
+        let claimed = phase != .idle
+        return .live(id: jobID, phase: phase,
+                     cancel: claimed ? brewCancelRows.cancels[jobID] : nil,
+                     cancelPending: claimed && brewCancelRows.cancelPending.contains(jobID))
+    }
+
+    private var upgradeAllPhase: CLIRunPhase { brewRunPhase(claimed: brewUpgrading, .upgradeAll) }
+
+    /// One formula's facts. Idle, it reads neither `brewCancelRows` nor
+    /// `formulaUpgradeNotes`, which change with every line of any upgrade.
+    private func brewFormula(_ name: String, hasUpdate: Bool) -> BrewRowSnapshot.Formula {
+        let phase = brewRunPhase(claimed: upgradingFormulae.contains(name), .upgradeFormula(name))
+        return .live(name: name, hasUpdate: hasUpdate, run: brewRun(Self.formulaJobID(name), phase),
+                     note: phase != .idle ? formulaUpgradeNotes[name] : nil,
+                     error: formulaUpgradeErrors[name])
+    }
+
+    /// What `formula`'s sidebar row and detail header draw
+    /// (`BrewRowSnapshot.Formula.row`): its own facts, and Upgrade All's phase.
+    func brewFormulaRow(_ formula: BrewInstalledFormula) -> BrewFormulaRow {
+        brewFormula(formula.name, hasUpdate: formula.hasUpdate).row(upgradeAll: upgradeAllPhase)
+    }
+
+    /// What the popover's Homebrew row and the workbench's Upgrade All draw
+    /// from (`BrewRowSnapshot`).
+    var brewRowSnapshot: BrewRowSnapshot {
+        .live(
+            upgradeAll: brewRun(Self.upgradeAllJobID, upgradeAllPhase),
+            upgradeAllDone: brewUpgradeDone, upgradeAllTotal: brewUpgradeTotal, upgradeAllError: brewUpgradeError,
+            // The popover row's: those with an upgrade of their own claimed.
+            formulae: upgradingFormulae.sorted().map { name in
+                brewFormula(name, hasUpdate: brewFormulae.contains { $0.name == name && $0.hasUpdate })
+            },
+            installed: brewInstalled, checked: brewChecked,
+            outdated: brewOutdatedFormulae.count, unchecked: brewUnchecked.count,
+            deprecated: brewFormulae.filter { $0.lifecycle != nil }.count + brewCaskLifecycles.count)
+    }
+
+    /// `brew update`'s Cancel beside its row's progress, while it waits its
+    /// turn; it has none once it runs.
+    var homebrewUpdateCancel: BrewRowSnapshot.GroupCancel? {
+        brewRun(Self.homebrewUpdateJobID, brewRunPhase(claimed: homebrewUpdating, .homebrewUpdate)).ownCancel
     }
 
     /// The Cancel moves with the job: greyed once the upgrade started.
@@ -4854,17 +4879,6 @@ final class AppListModel {
         if l.contains("downloading") || l.contains("fetching") || l.contains("bottle") { return String(localized: "Downloading…") }
         if l.contains("cleaning") || l.contains("cleanup") { return String(localized: "Cleaning up…") }
         return nil
-    }
-
-    /// One-line "x/n" status for an in-flight bulk upgrade — the count of the next
-    /// formula being worked on over the total. nil when no bulk run is active.
-    var brewBulkProgressText: String? {
-        guard brewUpgrading else { return nil }
-        if cliTools.runQueue.isWaiting(.upgradeAll) { return String(localized: "Queued") }
-        if brewCancelRows.cancels[Self.upgradeAllJobID] == .cancelling { return String(localized: "Cancelling…") }
-        guard brewUpgradeTotal > 0 else { return nil }
-        let current = min(brewUpgradeDone + 1, brewUpgradeTotal)
-        return String(localized: "Upgrading… (\(current)/\(brewUpgradeTotal))")
     }
 
     /// The releases `update` would bring (`HomebrewReleaseNotes.relevant`). The

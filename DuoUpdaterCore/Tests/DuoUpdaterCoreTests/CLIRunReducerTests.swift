@@ -20,25 +20,24 @@ import Testing
     /// An fx copy at `path`, its key in these tests.
     static func fx(
         _ path: String, state: CLIToolState = .updateAvailable, oneClick: Bool = true, admin: Bool = false,
-        latest: String = "1.1.0", withheld: CLIToolWithheld? = nil
+        latest: String = "1.1.0", withheld: CLIToolWithheld? = nil, installed: String = "1.0.0"
     ) -> CLIToolStatus {
         CLIToolStatus(
-            kind: .fx, path: path, installedVersion: "1.0.0", latestVersion: latest, channel: nil, state: state,
+            kind: .fx, path: path, installedVersion: installed, latestVersion: latest, channel: nil, state: state,
             oneClick: oneClick ? CLIToolCommand(executable: path, arguments: ["upgrade"], pathPrefix: nil) : nil,
             withheld: withheld, note: nil,
-            detail: .fx(FxInstall(path: path, version: "1.0.0")), needsAdministrator: admin)
+            detail: .fx(FxInstall(path: path, version: installed)), needsAdministrator: admin)
     }
 
     /// The app's side of a sequence, as much of it as the rows read: the lines
-    /// and red lines the effects set, and whether Update All waits in the
-    /// queue (`CLIRunQueue`, the app's). A class, so a step can be sent inside
+    /// the effects set, the red lines worded from the state, and whether
+    /// Update All waits in the queue (`CLIRunQueue`, the app's). A class, so a step can be sent inside
     /// `#expect`; `copy` follows one run two ways. Every effect is kept, so a test can
     /// count the commands started. The answers the app feeds back — the
     /// queue's, the registry's — are sent by each test, as the steps they are.
     final class Run {
         var state = State()
         var lines: [String: String] = [:]
-        var errors: [String: String] = [:]
         var effects: [Effect] = []
         var updateAllWaiting = false
 
@@ -47,7 +46,6 @@ import Testing
             let run = Run()
             run.state = state
             run.lines = lines
-            run.errors = errors
             run.effects = effects
             run.updateAllWaiting = updateAllWaiting
             return run
@@ -61,7 +59,6 @@ import Testing
                 switch effect {
                 case .showLine(let id, let line): lines[id] = Self.text(line)
                 case .clearLine(let id): lines[id] = nil
-                case .sayNotRun(let id, let why): errors[id] = Self.text(why)
                 default: break
                 }
             }
@@ -69,7 +66,14 @@ import Testing
             return out
         }
 
-        /// The app's wording (`CLIToolsModel.perform`, `notRunLine`).
+        /// Each row's red line, as the app words it (`CLIToolsModel.errors`).
+        var errors: [String: String] { state.redLines.mapValues(Self.text) }
+
+        /// Whether nothing runs, waits or is claimed: what is left once every
+        /// run is over, whatever its rows still say.
+        var runsNothing: Bool { state.claims.isEmpty && state.cancels.isEmpty && !state.updatingAll }
+
+        /// The app's wording (`CLIToolsModel.perform`, `notRunLine`, `redLine`).
         static func text(_ line: CLIRunLine) -> String {
             switch line {
             case .queued: return "Queued"
@@ -90,6 +94,15 @@ import Testing
             }
         }
 
+        static func text(_ line: CLIRunRedLine) -> String {
+            switch line {
+            case .failed(let message): return message
+            case .stillOn(let version): return "Still \(version) after the update"
+            case .versionUnreadable: return "Couldn’t read the version after the update"
+            case .notRun(let why): return text(why)
+            }
+        }
+
         /// Every surface for `statuses`, the copies' verdicts on screen now,
         /// as `CLIToolsModel.rowSnapshot` builds it — less the smoothing,
         /// whose clock these tests leave out.
@@ -104,7 +117,7 @@ import Testing
                     state: status.state, oneClick: status.oneClick != nil,
                     needsAdministrator: status.needsAdministrator, withheld: status.withheld,
                     manualCommand: nil, hasLatestVersion: status.latestVersion != nil,
-                    error: errors[id], justUpdated: nil)
+                    error: errors[id], justUpdated: state.justUpdated[id])
             }
             let offered = statuses.filter { $0.state == .updateAvailable && $0.oneClick != nil }
             return .live(
@@ -112,6 +125,18 @@ import Testing
                 updatingAll: state.updatingAll, updateAllWaiting: updateAllWaiting, batchIDs: state.batchIDs,
                 updateAllOffered: !offered.isEmpty,
                 updateAllStartable: offered.contains { !state.updating.contains($0.path) })
+        }
+
+        /// A check landing, as `CLIToolsModel.apply` sends it: each copy the
+        /// state holds a red line or an "Updated to X" for, as `statuses`
+        /// list it now (nil when they do not), its tool asked or not. Every
+        /// copy in these tests is an fx one, so one flag says it.
+        @discardableResult
+        func checkLanded(_ statuses: [CLIToolStatus], answered: Bool) -> [Effect] {
+            let byID = Dictionary(statuses.map { ($0.path, $0) }, uniquingKeysWith: { a, _ in a })
+            return send(.checkLanded(Dictionary(uniqueKeysWithValues: state.readByACheck.map {
+                ($0, CLIRunChecked(answered: answered, status: byID[$0]))
+            })))
         }
 
         /// How many times `id`'s command was started.
@@ -163,10 +188,12 @@ import Testing
                                         needsAdministrator: false)
         let busy = CLIToolWording.reason(.busy, of: gone)
         #expect(second == .notRun(.notOffered(reason: busy)))
-        #expect(r.send(.offerRead("a", second)) == [.sayNotRun("a", .notOffered(reason: busy))])
+        #expect(r.send(.offerRead("a", second)) == [])
+        #expect(r.state.redLines["a"] == .notRun(.notOffered(reason: busy)))
         #expect(r.state.cancels["a"] == nil)
         r.send(.released("a"))
-        #expect(r.state == State())
+        #expect(r.runsNothing)
+        #expect(r.state.notRunAtTurn == ["a"])
         #expect(r.runs(of: "a") == 0)
         s = r.snapshot([gone])
         #expect(s.sidebar("a") == CLISidebarRow(slot: .none, caption: .error("Not updated: \(busy)")))
@@ -231,7 +258,8 @@ import Testing
         let r = Run()
         r.send(.clicked("a", offered: true, needsAdministrator: false, queueBusy: false))
         r.send(.turnCame("a"))
-        #expect(r.send(.offerRead("a", offer)) == [.sayNotRun("a", .notOffered(reason: why))])
+        #expect(r.send(.offerRead("a", offer)) == [])
+        #expect(r.state.redLines["a"] == .notRun(.notOffered(reason: why)))
         // Its Cancel was never taken: no ask, no "Checking…".
         #expect(r.state.cancels["a"] == .available)
         #expect(r.lines["a"] == nil)
@@ -247,7 +275,8 @@ import Testing
         let r = Run()
         r.send(.clicked("a", offered: true, needsAdministrator: false, queueBusy: true))
         r.send(.turnCame("a"))
-        #expect(r.send(.offerRead("a", offer)) == [.sayNotRun("a", .routeChanged(nowNeedsAdministrator: true))])
+        #expect(r.send(.offerRead("a", offer)) == [])
+        #expect(r.state.redLines["a"] == .notRun(.routeChanged(nowNeedsAdministrator: true)))
         r.send(.released("a"))
         let s = r.snapshot([admin])
         #expect(s.sidebar("a") == CLISidebarRow(
@@ -303,7 +332,8 @@ import Testing
         let readB = CLIRunOffer.laneAtTurn(clicked: b, published: admin, checked: admin, readsTheLane: true,
                                            clickedNow: { b })
         #expect(readB.offer == .notRun(.routeChanged(nowNeedsAdministrator: true)))
-        #expect(r.send(.offerRead("b", readB.offer)) == [.sayNotRun("b", .routeChanged(nowNeedsAdministrator: true))])
+        #expect(r.send(.offerRead("b", readB.offer)) == [])
+        #expect(r.state.redLines["b"] == .notRun(.routeChanged(nowNeedsAdministrator: true)))
         r.send(.released("b"))
         #expect(r.state.batchIDs == ["a", "c"])
         s = r.snapshot([moved, admin, c])
@@ -336,7 +366,8 @@ import Testing
         r.send(.released("a"))
         r.send(.released("c"))
         r.send(.updateAllFinished)
-        #expect(r.state == State())
+        #expect(r.runsNothing)
+        #expect(r.state.redLines == ["b": .notRun(.routeChanged(nowNeedsAdministrator: true))])
         #expect(r.runs(of: "a") == 1)
         #expect(r.runs(of: "b") == 0)
         #expect(r.runs(of: "c") == 1)
@@ -630,5 +661,287 @@ import Testing
         // A line after the copy was released pins nothing on its row.
         r.send(.released("a"))
         #expect(r.send(.outputLine("a", "late")) == [])
+    }
+
+    // MARK: - Red lines, checks landing, settle (phase 4b)
+
+    /// A lane copy not run at its turn — its update now asks for an
+    /// administrator password — whose tool's re-check is the batch's own,
+    /// right after its "Not updated" line was said. That check takes the line
+    /// away, as any check of its tool does; the lane says it again while it
+    /// still holds, so the row does not come back as a live Update with
+    /// nothing said (review, 2026-10-21). Once it no longer holds, it is not.
+    @Test func laneCopyNotRunAtItsTurnKeepsItsLineThroughTheBatchsCheck() {
+        let r = Run()
+        let a = Self.fx("a"), b = Self.fx("b")
+        r.send(.updateAllClicked(lanes: ["a", "b"], asking: []))
+        r.send(.lanesReady(["a", "b"]))
+        r.send(.laneTurnCame("a"))
+        r.send(.offerRead("a", .run(a)))
+        r.send(.commandStarting("a"))
+        r.send(.commandEnded("a", needsRecheck: true, cancelStopped: false))
+
+        // `b`'s turn: on the other route now, so not run.
+        r.send(.laneTurnCame("b"))
+        let admin = Self.fx("b", admin: true)
+        let why = CLIRunNotRun.routeChanged(nowNeedsAdministrator: true)
+        #expect(CLIRunOffer.laneAtTurn(clicked: b, published: admin, checked: admin, readsTheLane: true,
+                                       clickedNow: { b }).offer == .notRun(why))
+        r.send(.offerRead("b", .notRun(why)))
+        r.send(.released("b"))
+        let line = "Not updated: it now asks for an administrator password — try again"
+        #expect(r.errors["b"] == line)
+
+        // The tool's re-check, once its last lane is done: the batch's own.
+        r.send(.recheckStarted(["a"]))
+        let updated = Self.fx("a", state: .upToDate, oneClick: false, installed: "1.1.0")
+        r.checkLanded([updated, admin], answered: true)
+        #expect(r.errors["b"] == nil)
+        let checked = r.copy()
+
+        // Still offered on the other route: said again.
+        #expect(r.send(.notRunRechecked("b", why, clickedNeedsAdministrator: false, now: admin)) == [])
+        #expect(r.errors["b"] == line)
+        #expect(r.state.notRunAtTurn == ["b"])
+        r.send(.updateSettled("a", before: "1.0.0", after: "1.1.0"))
+        r.send(.released("a"))
+        r.send(.updateAllFinished)
+        #expect(r.runsNothing)
+        let s = r.snapshot([updated, admin])
+        #expect(s.sidebar("b") == CLISidebarRow(slot: .update(admin: true), caption: .error(line)))
+        #expect(s.detailHeader("b") == CLIDetailHeader(action: .update(admin: true), progress: nil))
+        #expect(s.sidebar("a") == CLISidebarRow(slot: .none, caption: .updated(version: "1.1.0", restartSessions: false)))
+        // The next check of its tool takes it away for good.
+        r.checkLanded([updated, admin], answered: true)
+        #expect(r.errors["b"] == nil)
+
+        // No longer holding, it is not said again: offered on the route
+        // clicked, current, or gone.
+        let nows: [CLIToolStatus?] = [Self.fx("b"), Self.fx("b", state: .upToDate, oneClick: false, installed: "1.1.0"), nil]
+        for now in nows {
+            let other = checked.copy()
+            #expect(other.send(.notRunRechecked("b", why, clickedNeedsAdministrator: false, now: now)) == [])
+            #expect(other.errors["b"] == nil)
+        }
+        // Nor over a line the row says by now.
+        let failed = checked.copy()
+        failed.send(.commandFailed("b", message: "EACCES", log: "EACCES"))
+        failed.send(.notRunRechecked("b", why, clickedNeedsAdministrator: false, now: admin))
+        #expect(failed.errors["b"] == "EACCES")
+    }
+
+    /// A click whose copy was updated from a terminal while it waited its
+    /// turn, a background check landing first: that check takes the copy's
+    /// old red line away — it describes an update no longer on offer — and
+    /// the turn, asking once more, runs nothing and says nothing.
+    @Test func clickUpdatedFromATerminalWithACheckBeforeItsTurnRunsNothingAndSaysNothing() {
+        let r = Run()
+        let a = Self.fx("a")
+        // An earlier click on it failed.
+        r.send(.clicked("a", offered: true, needsAdministrator: false, queueBusy: false))
+        r.send(.turnCame("a"))
+        r.send(.offerRead("a", .run(a)))
+        r.send(.commandStarting("a"))
+        r.send(.commandEnded("a", needsRecheck: false, cancelStopped: false))
+        r.send(.commandFailed("a", message: "EACCES", log: "line 1\nEACCES"))
+        r.send(.released("a"))
+        #expect(r.errors["a"] == "EACCES")
+        #expect(r.state.logs["a"] == "line 1\nEACCES")
+
+        // Clicked again, behind another click's run.
+        r.send(.clicked("a", offered: true, needsAdministrator: false, queueBusy: true))
+        // Updated from a terminal meanwhile; a background check lands.
+        let current = Self.fx("a", state: .upToDate, oneClick: false, installed: "1.1.0")
+        r.checkLanded([current], answered: true)
+        #expect(r.errors["a"] == nil)
+        #expect(r.state.logs["a"] == nil)
+        #expect(r.state.claims["a"] == CLIRunClaim(phase: .queued, byUpdateAll: false))
+        var s = r.snapshot([current])
+        #expect(s.sidebar("a") == CLISidebarRow(slot: .cancel(Self.live), caption: .progress(.line("Queued"))))
+
+        // Its turn: not offered, so its tool is asked once more; still current.
+        r.send(.turnCame("a"))
+        let first = CLIRunOffer.atTurn(offered: nil, published: current, heldByPause: false, asked: false,
+                                       needsAdministrator: false)
+        #expect(first == .askTool)
+        #expect(r.send(.offerRead("a", first)) == [.showLine("a", .checking), .check("a")])
+        r.checkLanded([current], answered: true)
+        let second = CLIRunOffer.atTurn(offered: nil, published: current, heldByPause: false, asked: true,
+                                        needsAdministrator: false)
+        #expect(second == .notRun(.silent))
+        #expect(r.send(.offerRead("a", second)) == [])
+        r.send(.released("a"))
+        #expect(r.runsNothing)
+        #expect(r.state.redLines.isEmpty)
+        #expect(r.state.logs.isEmpty)
+        // Only the earlier, failed click ran.
+        #expect(r.runs(of: "a") == 1)
+        s = r.snapshot([current])
+        #expect(s.sidebar("a") == CLISidebarRow(slot: .none, caption: .status))
+        #expect(s.popover == CLIPopoverRow(lines: [.upToDate], mark: .seal, button: .none, isRunning: false))
+    }
+
+    /// A lane copy whose command failed, its tool re-checked for another
+    /// copy that ran: the failure is still on offer, so its red line and log
+    /// stay through that check. A later check that finds it current takes
+    /// them away.
+    @Test func failedCommandKeepsItsRedLineThroughTheRecheck() {
+        let r = Run()
+        let a = Self.fx("a"), b = Self.fx("b")
+        r.send(.updateAllClicked(lanes: ["a", "b"], asking: []))
+        r.send(.lanesReady(["a", "b"]))
+        r.send(.laneTurnCame("a"))
+        r.send(.offerRead("a", .run(a)))
+        r.send(.commandStarting("a"))
+        // A failure needs no re-check: it is said on the row, and released.
+        #expect(r.send(.commandEnded("a", needsRecheck: false, cancelStopped: false)) == [])
+        r.send(.commandFailed("a", message: "npm ERR! code EACCES", log: "npm ERR! code EACCES\nnpm ERR! path /opt"))
+        r.send(.released("a"))
+        #expect(r.errors["a"] == "npm ERR! code EACCES")
+
+        r.send(.laneTurnCame("b"))
+        r.send(.offerRead("b", .run(b)))
+        r.send(.commandStarting("b"))
+        r.send(.commandEnded("b", needsRecheck: true, cancelStopped: false))
+        r.send(.recheckStarted(["b"]))
+        // The tool's re-check: `a` still behind and offered, `b` current.
+        let updatedB = Self.fx("b", state: .upToDate, oneClick: false, installed: "1.1.0")
+        r.checkLanded([a, updatedB], answered: true)
+        #expect(r.errors["a"] == "npm ERR! code EACCES")
+        #expect(r.state.logs["a"] == "npm ERR! code EACCES\nnpm ERR! path /opt")
+        #expect(r.send(.updateSettled("b", before: "1.0.0", after: "1.1.0")) == [.startConfirmation("b")])
+        r.send(.released("b"))
+        r.send(.updateAllFinished)
+        #expect(r.runsNothing)
+        let s = r.snapshot([a, updatedB])
+        #expect(s.sidebar("a") == CLISidebarRow(slot: .update(admin: false), caption: .error("npm ERR! code EACCES")))
+        #expect(s.sidebar("b") == CLISidebarRow(slot: .none, caption: .updated(version: "1.1.0", restartSessions: false)))
+        // Another tool's check leaves it too.
+        r.checkLanded([a, updatedB], answered: false)
+        #expect(r.errors["a"] == "npm ERR! code EACCES")
+
+        // Updated from a terminal since: the failure no longer holds.
+        let current = Self.fx("a", state: .upToDate, oneClick: false, installed: "1.1.0")
+        r.checkLanded([current, updatedB], answered: true)
+        #expect(r.errors["a"] == nil)
+        #expect(r.state.logs["a"] == nil)
+    }
+
+    /// An administrator panel declined: a decision, not a failure. Its retry
+    /// cleared the copy's last failure as its command started — before the
+    /// panel — and the decline says nothing: no red line, no re-check, its
+    /// Update back.
+    @Test func declinedAdministratorPanelLeavesNoRedLine() {
+        let r = Run()
+        let a = Self.fx("a", admin: true)
+        // An earlier click on it failed.
+        r.send(.clicked("a", offered: true, needsAdministrator: true, queueBusy: false))
+        r.send(.turnCame("a"))
+        r.send(.offerRead("a", .run(a)))
+        r.send(.commandStarting("a"))
+        r.send(.commandEnded("a", needsRecheck: false, cancelStopped: false))
+        r.send(.commandFailed("a", message: "fx: permission denied", log: "fx: permission denied"))
+        r.send(.released("a"))
+        #expect(r.errors["a"] == "fx: permission denied")
+
+        // Clicked again: its panel at the click.
+        #expect(r.send(.clicked("a", offered: true, needsAdministrator: true, queueBusy: true)) == [.raisePanel("a")])
+        r.send(.turnCame("a"))
+        r.send(.offerRead("a", .run(a)))
+        #expect(r.send(.commandStarting("a")) == [.showLine("a", .starting)])
+        #expect(r.state.redLines["a"] == nil)
+        #expect(r.state.logs["a"] == nil)
+        // Declined: nothing ran, nothing to re-check.
+        #expect(r.send(.commandEnded("a", needsRecheck: false, cancelStopped: false)) == [])
+        r.send(.released("a"))
+        #expect(r.runsNothing)
+        #expect(r.state.redLines.isEmpty)
+        #expect(r.state.logs.isEmpty)
+        let s = r.snapshot([a])
+        #expect(s.sidebar("a") == CLISidebarRow(slot: .update(admin: true), caption: .status))
+        #expect(s.detailHeader("a") == CLIDetailHeader(action: .update(admin: true), progress: nil))
+    }
+
+    /// Exit 0 is not proof of an update (`CLITools.settle`): a run that left
+    /// the version where it was says so in red, one whose version could not
+    /// be read says that. One that moved it says "Updated to X" for the
+    /// confirmation window — and no longer once a check finds the copy
+    /// changed again, or gone.
+    @Test func settleConfirmsAnUpdateOnlyWhenTheVersionMoved() {
+        let r = Run()
+        let a = Self.fx("a")
+        r.send(.clicked("a", offered: true, needsAdministrator: false, queueBusy: false))
+        r.send(.turnCame("a"))
+        r.send(.offerRead("a", .run(a)))
+        r.send(.commandStarting("a"))
+        r.send(.commandEnded("a", needsRecheck: true, cancelStopped: false))
+        r.send(.recheckStarted(["a"]))
+        let ran = r.copy()
+
+        let still = ran.copy()
+        #expect(still.send(.updateSettled("a", before: "1.0.0", after: "1.0.0")) == [])
+        #expect(still.errors["a"] == "Still 1.0.0 after the update")
+        #expect(still.state.justUpdated.isEmpty)
+        let unreadable = ran.copy()
+        #expect(unreadable.send(.updateSettled("a", before: "1.0.0", after: nil)) == [])
+        #expect(unreadable.errors["a"] == "Couldn’t read the version after the update")
+
+        #expect(r.send(.updateSettled("a", before: "1.0.0", after: "1.1.0")) == [.startConfirmation("a")])
+        #expect(r.state.justUpdated == ["a": "1.1.0"])
+        #expect(r.state.redLines.isEmpty)
+        r.send(.released("a"))
+        let updated = Self.fx("a", state: .upToDate, oneClick: false, installed: "1.1.0")
+        var s = r.snapshot([updated])
+        #expect(s.sidebar("a") == CLISidebarRow(slot: .none, caption: .updated(version: "1.1.0", restartSessions: false)))
+        // A check that finds it as DuoUpdater left it keeps it.
+        r.checkLanded([updated], answered: true)
+        #expect(r.state.justUpdated == ["a": "1.1.0"])
+        let ended = r.copy()
+        #expect(ended.send(.confirmationEnded("a")) == [])
+        #expect(ended.state.justUpdated.isEmpty)
+        s = ended.snapshot([updated])
+        #expect(s.sidebar("a") == CLISidebarRow(slot: .none, caption: .status))
+        // Updated again from a terminal, or gone: the claim no longer holds.
+        let again = r.copy()
+        again.checkLanded([Self.fx("a", state: .upToDate, oneClick: false, installed: "1.2.0")], answered: true)
+        #expect(again.state.justUpdated.isEmpty)
+        let gone = r.copy()
+        gone.checkLanded([], answered: true)
+        #expect(gone.state.justUpdated.isEmpty)
+    }
+
+    /// The verdicts published again with a copy offered where it was not —
+    /// the GitHub pause that held it back at its click's turn lifted, with no
+    /// check of its tool: its "Not updated" line goes, or it would read as the
+    /// reason beside a live Update (review, #1511 round 2). A failure stays,
+    /// and so does a "Not updated" line beside an Update that stayed: one not
+    /// newly offered waits for its tool's next check.
+    @Test func offeredAgainTakesTheNotRunLineAwayAndNothingElse() {
+        let r = Run()
+        let pausedWhy = CLIRunNotRun.notOffered(reason: "paused")
+        r.send(.clicked("a", offered: true, needsAdministrator: false, queueBusy: false))
+        r.send(.turnCame("a"))
+        r.send(.offerRead("a", .notRun(pausedWhy)))
+        r.send(.released("a"))
+        r.send(.clicked("b", offered: true, needsAdministrator: false, queueBusy: false))
+        r.send(.turnCame("b"))
+        r.send(.offerRead("b", .run(Self.fx("b"))))
+        r.send(.commandStarting("b"))
+        r.send(.commandEnded("b", needsRecheck: false, cancelStopped: false))
+        r.send(.commandFailed("b", message: "EACCES", log: "EACCES"))
+        r.send(.released("b"))
+        r.send(.clicked("c", offered: true, needsAdministrator: false, queueBusy: false))
+        r.send(.turnCame("c"))
+        r.send(.offerRead("c", .notRun(.routeChanged(nowNeedsAdministrator: true))))
+        r.send(.released("c"))
+        #expect(r.state.notRunAtTurn == ["a", "c"])
+
+        #expect(r.send(.offersPublished(newlyOffered: ["a", "b"])) == [])
+        #expect(r.errors == [
+            "b": "EACCES",
+            "c": "Not updated: it now asks for an administrator password — try again",
+        ])
+        let s = r.snapshot([Self.fx("a")])
+        #expect(s.sidebar("a") == CLISidebarRow(slot: .update(admin: false), caption: .status))
     }
 }

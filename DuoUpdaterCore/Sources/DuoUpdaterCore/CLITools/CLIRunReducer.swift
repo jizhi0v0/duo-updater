@@ -15,10 +15,12 @@ public struct CLIRunClaim: Equatable, Sendable {
 }
 
 /// What the command-line tools' runs are, as plain values: every claim, every
-/// Cancel and whether Update All runs. `CLIRunReducer` is the only thing that
-/// changes it, so every transition — a click, Update All, a turn, a Cancel, a
-/// release — is a pure function a sequence test can replay step by step,
-/// rather than a model under `until {}` polling (UI = f(state), phase 4).
+/// Cancel, whether Update All runs, and what each row says once its run is
+/// over — its red line, its log, its "Updated to X". `CLIRunReducer` is the
+/// only thing that changes it, so every transition — a click, Update All, a
+/// turn, a Cancel, a release, a check landing — is a pure function a sequence
+/// test can replay step by step, rather than a model under `until {}` polling
+/// (UI = f(state), phases 4 and 4b).
 public struct CLIRunState<Key: Hashable & Sendable>: Equatable, Sendable {
     /// Every copy DuoUpdater is updating right now, one claim each, from the
     /// click until the re-check after it has landed — and, under Update All,
@@ -34,6 +36,18 @@ public struct CLIRunState<Key: Hashable & Sendable>: Equatable, Sendable {
     /// True for the whole of Update All, including the re-checks at the end
     /// of each tool's lanes.
     public var updatingAll = false
+    /// Each copy's red line: its last failed update, a run that left its
+    /// version where it was, or why a click was not run at its turn. Kept past
+    /// the claim, until a retry or a check says it no longer holds
+    /// (`checkLanded`, `offersPublished`).
+    public var redLines: [Key: CLIRunRedLine] = [:]
+    /// The full output of each failed update: the detail pane's log.
+    public var logs: [Key: String] = [:]
+    /// Copies just updated → the version they now read as: "Updated to X".
+    /// A confirmation, not a state: the app's window ends it
+    /// (`startConfirmation`, `confirmationEnded`), and a check that finds the
+    /// copy changed again, or gone, ends it sooner.
+    public var justUpdated: [Key: String] = [:]
 
     public init() {}
 
@@ -46,6 +60,46 @@ public struct CLIRunState<Key: Hashable & Sendable>: Equatable, Sendable {
     public var batchIDs: Set<Key> { Set(claims.lazy.filter { $0.value.byUpdateAll }.map(\.key)) }
 
     public func phase(_ key: Key) -> CLIRunPhase { claims[key]?.phase ?? .idle }
+
+    /// The copies whose red line says a click was not run at its turn: about
+    /// that click only, so gone once a later check of its tool lands.
+    public var notRunAtTurn: Set<Key> {
+        Set(redLines.lazy.filter { if case .notRun = $0.value { return true } else { return false } }.map(\.key))
+    }
+
+    /// The copies a landing check may change something of — a red line, an
+    /// "Updated to X": those `checkLanded` needs to be told about.
+    public var readByACheck: Set<Key> { Set(redLines.keys).union(justUpdated.keys) }
+}
+
+/// A row's red line, as a transition sets it. Worded by the app, whose strings
+/// are localized; a failed command's own message is passed through.
+public enum CLIRunRedLine: Equatable, Sendable {
+    /// Its update failed: the command's own one-line message.
+    case failed(String)
+    /// Its update exited 0, and the copy still reads as this version: "Still
+    /// X after the update" (`CLITools.settle`).
+    case stillOn(String)
+    /// Its update exited 0, and no version could be read after it.
+    case versionUnreadable
+    /// Not run at its turn, and why. Never `.silent`, which says nothing.
+    case notRun(CLIRunNotRun)
+}
+
+/// A copy as a check that has just landed leaves it (`CLIRunEvent.checkLanded`).
+public struct CLIRunChecked: Equatable, Sendable {
+    /// Its tool was among those the check asked.
+    public var answered: Bool
+    /// Its verdict on screen now; nil when no check on screen finds it.
+    public var status: CLIToolStatus?
+
+    public init(answered: Bool, status: CLIToolStatus?) {
+        self.answered = answered
+        self.status = status
+    }
+
+    /// Offered now: behind, with a one-click.
+    var offered: Bool { status.map { $0.state == .updateAvailable && $0.oneClick != nil } ?? false }
 }
 
 /// A row's progress line, as a transition sets it. Worded by the app, whose
@@ -76,7 +130,8 @@ public enum CLIRunEvent<Key: Hashable & Sendable>: Equatable, Sendable {
     case turnCame(Key)
     /// Its offer read at its turn (`CLIRunOffer.atTurn`, `laneAtTurn`).
     case offerRead(Key, CLIRunOffer)
-    /// Its command is about to start.
+    /// Its command is about to start: a retry, so its last red line and log
+    /// no longer hold.
     case commandStarting(Key)
     /// A line of its command's output.
     case outputLine(Key, String)
@@ -87,7 +142,28 @@ public enum CLIRunEvent<Key: Hashable & Sendable>: Equatable, Sendable {
     /// its tool's check says; `cancelStopped`: an accepted Cancel kept a
     /// command from starting (`InstallJobs.cancelStoppedSomething`).
     case commandEnded(Key, needsRecheck: Bool, cancelStopped: Bool)
-    /// The re-check of these copies' tool starts.
+    /// Its command failed, and the Cancel did not stop it first: `message` is
+    /// the row's line, `log` the detail pane's.
+    case commandFailed(Key, message: String, log: String)
+    /// Its update exited 0 and its tool's re-check has landed: `before` is the
+    /// version it was run on, `after` the version it reads as now — the
+    /// updater's own re-read, else the check's. Exit 0 is not proof of an
+    /// update (`CLITools.settle`).
+    case updateSettled(Key, before: String?, after: String?)
+    /// Its "Updated to X" has been up for the app's confirmation window.
+    case confirmationEnded(Key)
+    /// The verdicts on screen were published again — a check landed, or the
+    /// GitHub pause moved — and these copies are offered now where they were
+    /// not before.
+    case offersPublished(newlyOffered: Set<Key>)
+    /// A check's reports are on screen: each copy of `readByACheck`, as it now
+    /// stands. A copy left out is left as it is.
+    case checkLanded([Key: CLIRunChecked])
+    /// Update All's re-check of the tool of a lane copy not run at its turn
+    /// has landed, and took its "Not updated" line away (`checkLanded`):
+    /// `why` is what that line said, `clickedNeedsAdministrator` the route
+    /// Update All's click read, `now` its verdict on screen now.
+    case notRunRechecked(Key, CLIRunNotRun, clickedNeedsAdministrator: Bool, now: CLIToolStatus?)    /// The re-check of these copies' tool starts.
     case recheckStarted([Key])
     /// Its part is over, however it ended: done, failed, not run, cancelled.
     case released(Key)
@@ -129,8 +205,9 @@ public enum CLIRunEffect<Key: Hashable & Sendable>: Equatable, Sendable {
     case showLine(Key, CLIRunLine)
     /// Its row has no line any more.
     case clearLine(Key)
-    /// Its row's red line says why it was not run.
-    case sayNotRun(Key, CLIRunNotRun)
+    /// Its "Updated to X" is up: start its confirmation window, or start it
+    /// again, which ends in `confirmationEnded`.
+    case startConfirmation(Key)
     /// Wait for its turn in the queue (`CLIRunQueue`), then run it.
     case enqueue(Key)
     /// Run it now, outside the queue: its administrator panel comes at the
@@ -220,10 +297,15 @@ public enum CLIRunReducer {
             switch offer {
             case .run: effects.append(.startCommand(id))
             case .notRun(.silent), .askTool: break
-            case .notRun(let why): effects.append(.sayNotRun(id, why))
+            // Its row says why; about this click only (`checkLanded`).
+            case .notRun(let why): s.redLines[id] = .notRun(why)
             }
 
         case .commandStarting(let id):
+            // A retry: the last failure, or why the last click was not run,
+            // no longer holds.
+            s.redLines[id] = nil
+            s.logs[id] = nil
             effects.append(.showLine(id, .starting))
 
         case .outputLine(let id, let line):
@@ -249,6 +331,88 @@ public enum CLIRunReducer {
                 s.claims[id]?.phase = .awaitingCheck
                 effects.append(.showLine(id, .waitingToCheck))
             }
+
+        case .commandFailed(let id, let message, let log):
+            s.redLines[id] = .failed(message)
+            s.logs[id] = log
+
+        case .updateSettled(let id, let before, let after):
+            switch CLITools.settle(before: before, after: after) {
+            case .updated(let version):
+                s.justUpdated[id] = version
+                effects.append(.startConfirmation(id))
+            // Brew's "brew update finished, but Homebrew is still X" rule: a
+            // run that changed nothing reads as a failure, not as silence.
+            case .unchanged(let version):
+                s.redLines[id] = .stillOn(version)
+            case .unreadable:
+                s.redLines[id] = .versionUnreadable
+            }
+
+        case .confirmationEnded(let id):
+            s.justUpdated[id] = nil
+
+        case .offersPublished(let newlyOffered):
+            // "Not updated: <reason>" said why a click's copy was not offered
+            // at its turn. Offered again — also with no check of its tool, as
+            // when the GitHub pause lifts — it would read as the reason beside
+            // a live Update (review, #1511 round 2). Offered again only: one
+            // said beside an Update that stayed (its update now asks for an
+            // administrator password) is kept until its tool's next check.
+            for id in newlyOffered {
+                if case .notRun? = s.redLines[id] { s.redLines[id] = nil }
+            }
+
+        case .checkLanded(let copies):
+            for (id, copy) in copies {
+                if let line = s.redLines[id] {
+                    let notRun: Bool
+                    if case .notRun = line { notRun = true } else { notRun = false }
+                    if !copy.offered {
+                        // A red line describes an attempt at an update still on
+                        // offer. Once the copy is no longer behind — updated
+                        // from a terminal, or gone — it would sit beside a
+                        // current install. Nor once nothing is offered:
+                        // openclaw's own update reported a failed check after
+                        // installing the newest release its node runs
+                        // (2026-10-02), and the row went on showing that
+                        // failure where it should say the next release needs
+                        // a newer Node. Not "Not updated: <reason>", whose copy
+                        // is not on offer by its nature: it waits for its own
+                        // tool's check, below — any tool's check took it away
+                        // (review, 2026-10-20, round 2).
+                        if !notRun || copy.answered {
+                            s.redLines[id] = nil
+                            s.logs[id] = nil
+                        }
+                    } else if notRun, copy.answered {
+                        // "Not updated: <reason>" was true when the click's
+                        // turn came. Kept by the rule above once its tool is
+                        // offered again, it read as the reason beside a live
+                        // Update on every later check (review, #1511 round 1).
+                        s.redLines[id] = nil
+                    }
+                }
+                // "Updated to X" is about the copy as DuoUpdater left it.
+                // Something else has changed it since (or it is gone): the
+                // claim no longer holds.
+                if let version = s.justUpdated[id], copy.status?.installedVersion != version {
+                    s.justUpdated[id] = nil
+                }
+            }
+
+        case .notRunRechecked(let id, let why, let clickedNeedsAdministrator, let now):
+            // "Not updated: …" goes with its tool's next check, and this one
+            // is the batch's own, right after the line was said: a copy
+            // skipped for its new administrator route came back as a live
+            // Update with nothing said (review, 2026-10-21). Said again while
+            // it still holds — not offered, or offered on the other route —
+            // unless the row says something else by now.
+            guard why != .silent, let now, now.state == .updateAvailable,
+                  now.oneClick == nil || now.needsAdministrator != clickedNeedsAdministrator,
+                  s.redLines[id] == nil
+            else { return (state, []) }
+            s.redLines[id] = .notRun(why)
 
         case .recheckStarted(let ids):
             effects = ids.map { CLIRunEffect<Key>.showLine($0, .checking) }

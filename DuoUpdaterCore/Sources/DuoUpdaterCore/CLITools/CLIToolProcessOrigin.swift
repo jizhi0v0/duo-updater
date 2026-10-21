@@ -193,11 +193,12 @@ public struct CLIToolProcessOrigin: Sendable, Equatable {
             coalition: coalition)
     }
 
-    /// `arguments` as a POSIX shell reads them back: an argument with anything
-    /// but plain characters single-quoted, a `'` inside it as `'\''`.
+    /// `arguments` as a POSIX shell or zsh reads them back: an argument with
+    /// anything but plain characters single-quoted, a `'` inside it as `'\''`.
+    /// A leading `=` is not plain: zsh expands `=ls` to `/bin/ls`.
     public var commandLine: String {
         arguments.map { argument in
-            let plain = !argument.isEmpty && argument.unicodeScalars.allSatisfy {
+            let plain = !argument.isEmpty && !argument.hasPrefix("=") && argument.unicodeScalars.allSatisfy {
                 $0.isASCII && (CharacterSet.alphanumerics.contains($0) || "@%+=:,./_-".unicodeScalars.contains($0))
             }
             return plain ? argument : "'" + argument.replacingOccurrences(of: "'", with: #"'\''"#) + "'"

@@ -923,7 +923,7 @@ final class CLIToolsModel {
         cancels[id] = .available
         // One that asks for an administrator password raises its panel now,
         // beside whatever the queue runs, not when its turn comes — minutes
-        // later, holding the whole app until answered. Nothing to clash with:
+        // later. Nothing to clash with:
         // the root shell runs under `env -i` with the system `PATH` and writes
         // only its tool's file (`CLIToolAdministratorRun`); the queue is there
         // for Homebrew against the tools.
@@ -983,8 +983,7 @@ final class CLIToolsModel {
     /// Offered, but now asking for an administrator password where the click
     /// queued it as one that did not, or the reverse, it is not run: the click
     /// decided its route (`update`), and the panel raised at its turn would
-    /// come minutes after the click, holding the app (review, 2026-10-20,
-    /// round 2). The row says to try again — "click Update" would not be
+    /// come minutes after the click (review, 2026-10-20, round 2). The row says to try again — "click Update" would not be
     /// true in the popover, whose Other tools row has only Update All.
     private func offerAtTurn(_ id: CLIToolID, needsAdministrator: Bool) async -> CLIToolStatus? {
         let offer = { self.outdated.first { $0.toolID == id && $0.oneClick != nil } }

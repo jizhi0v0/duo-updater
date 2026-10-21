@@ -503,15 +503,19 @@ import Testing
         #expect(Snapshot(tools: [tool]).popover?.lines == [.updating(.npm), .progress(.cancelling)])
     }
 
-    /// The flash: Update All of two npm copies in one lane, the head on the
-    /// first still running its command while the second has a line too. The
-    /// row is "Updating npm" alone — no line of the first, none of the second.
+    /// The head copy still running its command while a copy behind it shows
+    /// a stage word the row would say on its own ("Checking…" at its turn).
+    /// The row is "Updating npm" alone: the line is the head's, never one
+    /// borrowed from further back.
+    ///
+    /// Mutation: take `named.lazy.compactMap(\.popoverProgress).first` → the
+    /// row reads "Updating npm · Checking…", red.
     @Test func theHeadCopysCommandHidesTheLineBehindIt() {
         let s = Snapshot(tools: [
             .init(id: "mcp-remote", kind: .npm, phase: .running, cancel: .committing,
                   line: "changed 81 packages in 5s", lineStage: .runningCommand("changed 81 packages in 5s")),
-            .init(id: "tsls", kind: .npm, phase: .running, cancel: .available,
-                  line: "Starting…", lineStage: .runningCommand("")),
+            .init(id: "tsls", kind: .npm, phase: .checkingAtTurn, cancel: .available,
+                  line: "Checking…", lineStage: .checking),
         ], updatingAll: true, batchIDs: ["mcp-remote", "tsls"])
         #expect(s.popover?.lines == [.updating(.npm)])
     }

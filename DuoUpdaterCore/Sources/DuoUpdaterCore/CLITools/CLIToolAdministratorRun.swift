@@ -17,12 +17,30 @@ import Foundation
 /// whose panel read "osascript" since Monterey that `osascript` "was intended
 /// for folks writing shell scripts, not as an API for use by apps … use the
 /// `NSAppleScript` API" (developer.apple.com/forums/thread/695616).
-/// `NSAppleScript` is on the Threading Programming Guide's "Main Thread Only
-/// Classes" list, so the panel is raised from the main actor and the main
-/// thread waits for the user's answer — and no longer: the command itself is
-/// started in the background (TN2065's `command > file 2>&1 &`), so
-/// `do shell script` returns as soon as it is authorized and the run is
-/// followed by polling its log and status files from here.
+///
+/// **Which thread waits for the answer.** Not the main one: `NSAppleScript`'s
+/// `executeAndReturnError` returns only once the user answers the panel, and
+/// run on the main actor it froze the whole app for that long — 877 of 877
+/// samples in `OSAExecute` with the panel up, no redraw, no ✕ (real Mac,
+/// 2026-10-21). The Threading Programming Guide still lists `NSAppleScript` as
+/// main-thread-only, but the AppleScript 10.6 release notes lifted that: "OSA
+/// and AppleScript are now thread-safe … This also applies to
+/// `NSAppleScript`", with "trying to manipulate the same script from multiple
+/// threads at once" not recommended. A scripting-addition command is run on
+/// the main thread anyway unless its Info.plist marks it `ThreadSafe` (TN1164);
+/// StandardAdditions marks `do shell script` (`sysoexec`) so. The panel itself
+/// is SecurityAgent's, not this process's. So the script is built and
+/// compiled on the main thread, and run on one serial queue of its own
+/// (`panelQueue`), one panel at a time as the main thread used to give; only
+/// the answer comes back to the main actor. (Compiled on the main thread
+/// because a process whose first AppleScript ran on another thread stopped
+/// draining its main queue under a bare `CFRunLoopRun`, the test runner's
+/// loop: measured 2026-10-21, macOS 27.2; under `NSApplication.run` it did
+/// not, and compiling on the main thread first cured both.)
+/// The command itself is started in the background (TN2065's
+/// `command > file 2>&1 &`), so `do shell script` returns as soon as it is
+/// authorized and the run is followed by polling its log and status files
+/// from here.
 ///
 /// **What root gets.** TN2065: `do shell script` "inherits the environment of
 /// its parent process" — DuoUpdater's, `HOME` included — so a vendor script
@@ -85,7 +103,9 @@ enum CLIToolAdministratorRun {
         case error(number: Int, message: String)
     }
 
-    typealias Authorize = @MainActor @Sendable (_ shell: String) -> Authorization
+    /// Called on `panelQueue`, never on the main thread; it blocks until the
+    /// panel is answered.
+    typealias Authorize = @Sendable (_ shell: String) -> Authorization
 
     /// The row's line while the panel is up, said before it is raised.
     static let waitingLine = "Waiting for an administrator password…"
@@ -130,11 +150,11 @@ enum CLIToolAdministratorRun {
         let workRoot: URL
         let environment: @Sendable () -> [String: String]
         let poll: Duration
-        /// How long the main thread is left free between saying the panel is
-        /// coming and raising it, so the row can draw that line first: once
-        /// `NSAppleScript` holds the main thread nothing redraws until the
-        /// user answers, and the row went on reading "Checking …" behind the
-        /// panel (seen 2026-10-10).
+        /// How long the row is given between saying the panel is coming and
+        /// raising it, so it can draw that line first: when `NSAppleScript`
+        /// held the main thread nothing redrew until the user answered, and
+        /// the row went on reading "Checking …" behind the panel (seen
+        /// 2026-10-10).
         let beforePanel: Duration
         /// Seconds root keeps the output directory after writing `status`
         /// before deleting it — this process cannot delete what is root's.
@@ -167,12 +187,14 @@ enum CLIToolAdministratorRun {
         /// `run` from the panel on — its commit. See there.
         private func authorizeAndFollow(_ text: String, progress: @escaping @Sendable (String) -> Void) async -> Result {
             let authorize = self.authorize
-            switch await MainActor.run(body: { () -> Authorization in
-                let answer = authorize(text)
+            let answer = await withCheckedContinuation { continuation in
+                CLIToolAdministratorRun.panelQueue.async { continuation.resume(returning: authorize(text)) }
+            }
+            await MainActor.run {
                 if case .authorized = answer { progress(CLIToolAdministratorRun.authorizedLine) }
                 CLIToolAdministratorPanel.answered?()
-                return answer
-            }) {
+            }
+            switch answer {
             case .error(let number, _) where number == CLIToolAdministratorRun.userCanceled:
                 return .declined
             case .error(let number, let message):
@@ -288,14 +310,43 @@ enum CLIToolAdministratorRun {
         return "do shell script \"\(literal)\" with administrator privileges"
     }
 
-    /// The panel, raised by this process.
-    @MainActor static func inProcess(_ shell: String) -> Authorization {
-        guard let script = NSAppleScript(source: appleScript(for: shell)) else {
-            return .error(number: 0, message: "could not build the AppleScript")
+    /// Where every panel's script is built and run: off the main thread, and
+    /// one at a time. Serial, so overcommit — it gets a thread however busy
+    /// the cooperative pool is (`offCooperativePool`).
+    static let panelQueue = DispatchQueue(label: "CLIToolAdministratorRun.panel", qos: .userInitiated)
+
+    /// The panel, raised by this process. Blocks until it is answered; called
+    /// on `panelQueue`.
+    static func inProcess(_ shell: String) -> Authorization {
+        execute(appleScript(for: shell))
+    }
+
+    /// `source` built and compiled by `NSAppleScript` on the main thread, then
+    /// run on the calling thread — never the main one.
+    static func execute(_ source: String) -> Authorization {
+        dispatchPrecondition(condition: .notOnQueue(.main))
+        final class Compiled: @unchecked Sendable {
+            var script: NSAppleScript?
+            var info: NSDictionary?
         }
-        var info: NSDictionary?
+        let compiled = DispatchQueue.main.sync { () -> Compiled in
+            let made = Compiled()
+            guard let script = NSAppleScript(source: source) else { return made }
+            var info: NSDictionary?
+            if script.compileAndReturnError(&info) { made.script = script } else { made.info = info }
+            return made
+        }
+        var info = compiled.info
+        guard let script = compiled.script else {
+            if info == nil { return .error(number: 0, message: "could not build the AppleScript") }
+            return error(info)
+        }
         let result: NSAppleEventDescriptor? = script.executeAndReturnError(&info)
         if let result { return .authorized(result.stringValue ?? "") }
+        return error(info)
+    }
+
+    private static func error(_ info: NSDictionary?) -> Authorization {
         let number = (info?[NSAppleScript.errorNumber] as? NSNumber)?.intValue ?? 0
         let message = info?[NSAppleScript.errorMessage] as? String ?? ""
         return .error(number: number, message: message)

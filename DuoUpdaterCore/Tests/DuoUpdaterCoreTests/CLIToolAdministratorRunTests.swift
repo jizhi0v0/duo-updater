@@ -53,8 +53,8 @@ import Foundation
         /// command going on in the background. The line prints only on
         /// success, so nothing printed stands for the failure `do shell
         /// script` would raise.
-        /// offpool-lint:allow — stands in for the panel's synchronous main-actor
-        /// call, so it cannot await `ChildProcess`; it reads only the
+        /// offpool-lint:allow — stands in for the panel's synchronous call on
+        /// `panelQueue`, so it cannot await `ChildProcess`; it reads only the
         /// foreground line's output, which ends once it backgrounds the command.
         static func sh(_ line: String) -> (String, String)? {
             let process = Process()
@@ -185,9 +185,58 @@ import Foundation
         #expect(box.leftovers.isEmpty)
     }
 
-    /// The row is told the panel is coming before it is raised: once
-    /// `NSAppleScript` holds the main thread, no later line is drawn until the
-    /// user answers. Mutations: drop the line; say it after the panel.
+    /// The panel is waited for off the main thread, and the main actor keeps
+    /// running while it is up: run on the main actor, `NSAppleScript` froze
+    /// the app until the user answered (877/877 samples in `OSAExecute`, real
+    /// Mac, 2026-10-21). Mutation: authorize inside `MainActor.run` again —
+    /// the panel is on the main thread and the main actor's hop is not run
+    /// until it is answered.
+    @Test func waitsForThePanelOffTheMainThread() async throws {
+        let box = try Sandbox()
+        final class Seen: @unchecked Sendable {
+            var onMain: Bool?
+            var mainActorRan: Bool?
+        }
+        let seen = Seen()
+        let result = await box.shell(whilePanelIsUp: {
+            seen.onMain = Thread.isMainThread
+            let ran = DispatchSemaphore(value: 0)
+            Task { @MainActor in ran.signal() }
+            // offpool-lint:allow — runs on `panelQueue`, the panel's own
+            // thread, as the real panel's wait does; bounded so the mutation
+            // fails rather than hangs.
+            seen.mainActorRan = ran.wait(timeout: .now() + 3) == .success
+        }).run("true") { _ in }
+        #expect(Self.ran(result) != nil)
+        #expect(seen.onMain == false)
+        #expect(seen.mainActorRan == true)
+    }
+
+    /// `NSAppleScript` runs `do shell script` on `panelQueue`, off the main
+    /// thread, and answers what it printed — the live path short of the
+    /// administrator panel (no `with administrator privileges`, so no UI) —
+    /// and the main queue is still drained afterwards. Run cold off the main
+    /// thread, this process's first AppleScript left this runner's main queue
+    /// undrained for good, so every later main-actor hop hung (2026-10-21).
+    /// Mutation: build and compile the script on the calling thread.
+    @Test func runsTheAppleScriptOnThePanelQueue() async {
+        let (answer, drained) = await withCheckedContinuation { continuation in
+            CLIToolAdministratorRun.panelQueue.async {
+                let answer = CLIToolAdministratorRun.execute(#"do shell script "echo off-main""#)
+                let ran = DispatchSemaphore(value: 0)
+                DispatchQueue.main.async { ran.signal() }
+                // offpool-lint:allow — on `panelQueue`, not the pool; bounded so
+                // the mutation fails rather than hangs.
+                continuation.resume(returning: (answer, ran.wait(timeout: .now() + 5) == .success))
+            }
+        }
+        #expect(answer == .authorized("off-main"))
+        #expect(drained)
+    }
+
+    /// The row is told the panel is coming before it is raised, and given
+    /// `beforePanel` to draw it. Mutations: drop the line; say it after the
+    /// panel.
     @Test func saysThePanelIsComingBeforeRaisingIt() async throws {
         let box = try Sandbox()
         _ = await box.shell(answer: .error(number: -128, message: "User canceled.")).run("true") { box.say($0) }

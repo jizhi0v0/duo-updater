@@ -2900,6 +2900,8 @@ struct CLIToolsModelTests {
         await until { await commitGate.arrived == 1 }
         await until { model.cancels[claude] == .committing }
         await until { await gate.arrived == 1 }
+        // "Queued" is held up by the dwell when "Starting…" follows it fast.
+        await until { model.progressLine(pnpm) == String(localized: "Starting…") }
         let running = model.rowSnapshot
         expectRowToolsAgree(model)
         #expect(running.tools.map(\.id) == model.statuses.map(\.toolID))
@@ -2914,7 +2916,8 @@ struct CLIToolsModelTests {
         let status = model.status(pnpm)!
         #expect(running.tool(pnpm) == .live(
             id: pnpm, kind: .npm, phase: .running, cancel: .available, cancelPending: false,
-            line: model.progressLine(pnpm), state: .updateAvailable, oneClick: true,
+            line: model.progressLine(pnpm), lineStage: .runningCommand(""),
+            state: .updateAvailable, oneClick: true,
             needsAdministrator: false, withheld: nil, manualCommand: CLIToolPresentation.manualCommand(status),
             hasLatestVersion: true, error: nil, justUpdated: nil))
 

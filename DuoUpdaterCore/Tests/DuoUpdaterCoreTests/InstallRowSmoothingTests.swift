@@ -303,6 +303,40 @@ import Testing
         #expect(shown(2600) == "Checking…")
     }
 
+    /// `stage` names the stage of the line `line` gives, at every step: a held
+    /// "Queued" is `.queued` while "Starting…" waits, each output line its own
+    /// `.runningCommand`, "Checking…" `.checking`.
+    ///
+    /// Mutation: `stage` returns the newest stage → at 20 it says
+    /// `.runningCommand("")` while the line is "Queued", red.
+    @Test func theLinesStageFollowsTheLine() {
+        var s = Smoothing()
+        var lines = InstallRowLines<String>()
+        func shown(_ now: Int) -> (String?, InstallStage?) {
+            let stage = s.update(stages: lines.stages, cancels: [:], now: at(now)).stages["t"]
+            return (lines.line("t", shown: stage), lines.stage("t", shown: stage))
+        }
+        func expect(_ now: Int, _ text: String?, _ stage: InstallStage?) {
+            let (shownText, shownStage) = shown(now)
+            #expect(shownText == text)
+            #expect(shownStage == stage)
+        }
+        lines.record("t", stage: .queued, text: "Queued")
+        expect(0, "Queued", .queued)
+        lines.record("t", stage: .runningCommand(""), text: "Starting…")
+        expect(20, "Queued", .queued)
+        expect(300, "Starting…", .runningCommand(""))
+        lines.record("t", stage: .runningCommand("Downloading 1.2"), text: "Downloading 1.2")
+        expect(600, "Downloading 1.2", .runningCommand("Downloading 1.2"))
+        lines.record("t", stage: .runningCommand("Linking"), text: "Linking")
+        expect(610, "Downloading 1.2", .runningCommand("Downloading 1.2"))
+        lines.record("t", stage: .checking, text: "Checking…")
+        expect(620, "Downloading 1.2", .runningCommand("Downloading 1.2"))
+        expect(900, "Checking…", .checking)
+        lines.clear("t")
+        expect(920, nil, nil)
+    }
+
     /// Lines faster than the dwell: the one shown when it is up is the newest,
     /// and the wake asks again at the right time.
     @Test func linesFasterThanTheDwellShowTheNewestWhenItIsUp() {

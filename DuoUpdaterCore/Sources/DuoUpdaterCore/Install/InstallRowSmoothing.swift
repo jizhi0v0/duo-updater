@@ -260,4 +260,12 @@ public struct InstallRowLines<Key: Hashable & Sendable>: Sendable {
         if case .runningCommand(let line) = shown, !line.isEmpty { return line }
         return byStage[key]?[shown.name] ?? newest.text
     }
+
+    /// The stage of the line `line(_:shown:)` gives for `key`.
+    public func stage(_ key: Key, shown: InstallStage?) -> InstallStage? {
+        guard let newest = latest[key] else { return nil }
+        guard let shown, shown != newest.stage else { return newest.stage }
+        if case .runningCommand(let line) = shown, !line.isEmpty { return shown }
+        return byStage[key]?[shown.name] == nil ? newest.stage : shown
+    }
 }

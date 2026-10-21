@@ -179,44 +179,57 @@ struct MenuContentView: View {
 
     @ViewBuilder
     private var content: some View {
-        if model.results.isEmpty {
-            // `isRoundInFlight`, not `isScanning`: a user-present refresh clears the
-            // saved release notes BEFORE it raises `isScanning`, and that await lets
-            // a cold launch paint here with no rows yet — which read "No apps yet"
-            // over a scan that was about to start (#253's gap, one surface over).
-            let emptyTitle = model.listActivity.isRoundInFlight
-                ? String(localized: "Scanning…")
-                : String(localized: "No apps yet")
+        // `isRoundInFlight`, not `isScanning`: a user-present refresh clears the
+        // saved release notes BEFORE it raises `isScanning`, and that await lets
+        // a cold launch paint here with no rows yet — which read "No apps yet"
+        // over a scan that was about to start (#253's gap, one surface over).
+        switch PopoverListContent.decide(
+            hasRows: !model.results.isEmpty,
+            visibleIsEmpty: visible.isEmpty,
+            isSearching: isSearching,
+            isRoundInFlight: model.listActivity.isRoundInFlight,
+            answeredThisLaunch: model.answeredThisLaunch,
+            failedCheckCount: model.failedCheckCount
+        ) {
+        case .scanning:
+            ContentUnavailableView(String(localized: "Scanning…"), systemImage: "magnifyingglass")
+                .frame(height: 200)
+        case .noApps:
+            ContentUnavailableView(String(localized: "No apps yet"), systemImage: "magnifyingglass")
+                .frame(height: 200)
+        case .checking:
+            // Same icon and frame as "Scanning…", which it follows, so the
+            // placeholder changes its word and nothing else.
+            ContentUnavailableView(String(localized: "Checking…"), systemImage: "magnifyingglass")
+                .frame(height: 200)
+        case .noMatches:
+            ContentUnavailableView.search(text: searchText)
+                .frame(height: 200)
+        case .noUpdatesFound:
+            // Same rule as `statusLine`: with unanswered rows this is not a
+            // "clean run" screen, and the seal is the strongest success signal
+            // in the whole popover.
             ContentUnavailableView(
-                emptyTitle,
-                systemImage: "magnifyingglass"
+                "No updates found",
+                systemImage: "questionmark.circle",
+                description: Text("Some apps could not be checked — see above.")
             )
             .frame(height: 200)
-        } else if visible.isEmpty {
-            if isSearching {
-                ContentUnavailableView.search(text: searchText)
-                    .frame(height: 200)
-            } else {
-                // Same rule as `statusLine`: with unanswered rows this is not a
-                // "clean run" screen, and the seal is the strongest success signal
-                // in the whole popover.
-                if model.failedCheckCount > 0 {
-                    ContentUnavailableView(
-                        "No updates found",
-                        systemImage: "questionmark.circle",
-                        description: Text("Some apps could not be checked — see above.")
-                    )
-                    .frame(height: 200)
-                } else {
-                    ContentUnavailableView(
-                        "Everything is up to date",
-                        systemImage: "checkmark.seal.fill",
-                        description: Text("Toggle “Show all” to see every app.")
-                    )
-                    .frame(height: 200)
-                }
-            }
-        } else if listOverflows {
+        case .upToDate:
+            ContentUnavailableView(
+                "Everything is up to date",
+                systemImage: "checkmark.seal.fill",
+                description: Text("Toggle “Show all” to see every app.")
+            )
+            .frame(height: 200)
+        case .rows:
+            rowList
+        }
+    }
+
+    @ViewBuilder
+    private var rowList: some View {
+        if listOverflows {
             // Long enough that it scrolls no matter how the rows measure, so there
             // is nothing left for the measurement below to decide: pin the frame and
             // let a LazyVStack realize only the rows actually on screen.

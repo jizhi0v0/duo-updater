@@ -557,6 +557,10 @@ final class AppListModel {
     /// When the last full networked check finished — shown in the header so the
     /// user can judge how fresh the results are.
     private(set) var lastCheck: Date?
+    /// A full round has finished since launch. `lastCheck` cannot say this: it is
+    /// restored from the last session. Until it is true the rows hold no answer
+    /// from this launch, and the popover says it is checking (`PopoverListContent`).
+    private(set) var answeredThisLaunch = false
     /// result.id → the version we have a rollback backup for, refreshed from the
     /// on-disk backup store whenever the list changes.
     private(set) var backupVersions: [String: String] = [:]
@@ -3892,6 +3896,7 @@ final class AppListModel {
         recordCheckOutcomes(checked)
         scheduleAutomaticRetry(afterRound: checked, intent: intent)
         lastCheck = .now
+        answeredThisLaunch = true
         prefs.lastCheckDate = lastCheck  // persist so the scheduler survives relaunches
         // Ready before Diagnostics is opened, so even the first visit after launch
         // draws the list rather than a spinner the list then replaces.

@@ -401,7 +401,16 @@ private struct CLIToolRunningValue: View {
     }
 
     /// Underlined like the Compatibility row's versions; bold while open.
-    private func pidLink(_ pid: pid_t) -> some View {
+    /// Plain until its origin is read: a popover with nothing in it is no answer.
+    @ViewBuilder private func pidLink(_ pid: pid_t) -> some View {
+        if origins[pid] == nil {
+            Text(verbatim: String(pid)).foregroundStyle(.secondary)
+        } else {
+            pidButton(pid)
+        }
+    }
+
+    private func pidButton(_ pid: pid_t) -> some View {
         Button {
             // The click outside that closed this pid's popover is this click:
             // it is not a request to open it again.

@@ -47,7 +47,7 @@ rollout 端点的 `updateTo` 现在带 hex `sha256`（和 `size`）；2026-08-15
 
 症状：工作台 Detection recipes 报 `fetched claude.com but extracted no entries`。
 实测（2026-10-21，Python urllib、浏览器 UA）：`https://claude.com/docs/cowork/changelog.md` 200 `text/markdown`，219,541 B；`<Update` 0 处，
-`**v<version>**` 独占一行 68 处（最新 `**v3.1623.0**`），每个 release 多了一行 `Bundled Claude Code version: …`，`.md` 里没有日期。
+`**v<version>**` 独占一行 68 处（最新 `**v3.1623.0**`），68 个里有 17 个在版本行下多了一行 `Bundled Claude Code version: …`（decoder 不读它），`.md` 里没有日期。
 日期只在 HTML 页（`data-component-part="update-description"`，70 处，v3.1623.0 → `2026-10-20`）。
 没换源的理由：Mintlify 的 `/docs/cowork/changelog/rss.xml` 只有 15 个 item，`pubDate` 与 HTML 的日期在其中 4 个上差一天（v2.31226.0、v2.9939.4、v2.7032.0、v2.2553.13）；
 HTML 页 1.19 MB、class 是 Tailwind 串。所以留在 `.md`，decoder 两种形状都读，新形状的条目不带日期。

@@ -70,6 +70,21 @@ struct PopoverRowAction: View {
         slot.swallowsClicksAfterSwap(of: state.isInstallingSlot)
     }
 
+    /// Everything this control decides beyond the state — the Cancel, Retry,
+    /// the channel-switch hint, the confirmation's Back Up & Update, the App
+    /// Store redirect, what a detection-only row opens — answered in Core for
+    /// both windows (`RowActionControls`). This window's own differences are
+    /// the `.popover` half of that answer, not `if`s here.
+    private var controls: RowActionControls {
+        RowActionControls.resolve(
+            state,
+            facts: .init(
+                result: result, installCancel: installCancel,
+                retryPausedUntil: actions.retryPausedUntil,
+                keepBackups: keepBackups, helperEnabled: helperEnabled),
+            surface: .popover)
+    }
+
     @ViewBuilder
     private var slot: some View {
         // `ui = f(state)`. The ladder deciding WHICH of these applies is
@@ -101,9 +116,9 @@ struct PopoverRowAction: View {
         case .installing(let stage):
             HStack(spacing: 4) {
                 installProgress(stage)
-                if let installCancel, installCancel != .cancelling {
+                if let cancel = controls.cancel {
                     InstallCancelButton(
-                        state: installCancel, pending: installCancelPending, action: actions.cancelInstall)
+                        state: cancel, pending: installCancelPending, action: actions.cancelInstall)
                 }
             }
 
@@ -236,11 +251,13 @@ struct PopoverRowAction: View {
             withChannelSwitchHint { autoUpdateButton }
         case .installer(let stagedFileName):
             withChannelSwitchHint { installerButton(stagedFileName: stagedFileName) }
-        case .appStore(let managedHere, let gate):
+        case .appStore(_, let gate):
             if let info = result.remote?.appStore {
-                appStoreTrailing(info, managedHere: managedHere, gate: gate)
+                appStoreTrailing(info, gate: gate)
             } else {
-                openButton
+                // Unreachable: the route is `.appStore` only for a row with a
+                // listing (`RouteInputs.hasAppStoreAvailability`).
+                openButton(.resolve(pageURL: result.remote?.pageURL))
             }
         case .appleSignIn(let need):
             Button { actions.signInToAppleDeveloper() } label: { Text("Sign In…").rowButtonLabel() }
@@ -250,14 +267,16 @@ struct PopoverRowAction: View {
                 .buttonStyle(.bordered)
                 .help(appleSignInHelp(need))
         case .detectionOnly:
-            openButton
+            if let affordance = controls.detectionOnly {
+                openButton(affordance)
+            }
         }
     }
 
     @ViewBuilder
     private func installProgress(_ stage: InstallStage) -> some View {
         // A cancelled download stops; the bar would only freeze.
-        if case .downloading(let f) = stage, installCancel != .cancelling {
+        if case .fraction(let f) = controls.progress {
             downloadProgress(f)
         } else {
             stageProgress(stage)
@@ -364,7 +383,7 @@ struct PopoverRowAction: View {
     /// App Store region hint.
     @ViewBuilder
     private func withChannelSwitchHint<Button: View>(@ViewBuilder _ button: () -> Button) -> some View {
-        if let channel = result.replacesChannelWithStable {
+        if let hint = controls.channelSwitch, hint.placement == .besideControl {
             HStack(spacing: 6) {
                 SwiftUI.Button { showChannelSwitch = true } label: {
                     Image(systemName: "exclamationmark.triangle.fill")
@@ -374,7 +393,7 @@ struct PopoverRowAction: View {
                 .help(ChannelSwitchPanel.help)
                 .popover(isPresented: $showChannelSwitch, arrowEdge: .bottom) {
                     ChannelSwitchPanel(
-                        result: result, channel: channel, actions: actions,
+                        result: result, channel: hint.channel, actions: actions,
                         dismiss: { showChannelSwitch = false })
                 }
                 button()
@@ -557,9 +576,9 @@ struct PopoverRowAction: View {
         // panel goes above the confirmation instead — the reminder must not vanish
         // just because the version also crossed a major (review round 4, #1501).
         VStack(alignment: .leading, spacing: 0) {
-            if let channel = result.replacesChannelWithStable {
+            if let hint = controls.channelSwitch, hint.placement == .inConfirmation {
                 ChannelSwitchPanel(
-                    result: result, channel: channel, actions: actions,
+                    result: result, channel: hint.channel, actions: actions,
                     dismiss: { showMajorWarning = false })
                 Divider()
             }
@@ -625,7 +644,7 @@ struct PopoverRowAction: View {
                 showMajorWarning = false
                 actions.install()
             }
-            if !keepBackups {
+            if controls.offersBackUpOnce {
                 Button("Back Up & Update") {
                     showMajorWarning = false
                     actions.installBackingUpOnce()
@@ -648,27 +667,24 @@ struct PopoverRowAction: View {
     /// Fallback for updates we can detect but not install in place (GitHub
     /// releases, self-updating apps like Chrome). Opens the official download /
     /// releases page in the browser so the user can grab it through the app's own
-    /// channel; only reveals in Finder if there's no URL to open — in which case
-    /// the button title says so too (see `DetectionOnlyAffordance`, #197).
-    private var openButton: some View {
-        Button { openAction() } label: { Text(openButtonTitle).rowButtonLabel() }
+    /// channel, or hands an app's own deep link to the app; only reveals in Finder
+    /// if there's no URL to open — in which case the button title says so too
+    /// (see `DetectionOnlyAffordance`, #197).
+    private func openButton(_ affordance: DetectionOnlyAffordance) -> some View {
+        Button { openDetectionOnly(affordance, app: result.app.path) } label: { Text(openButtonTitle(affordance)).rowButtonLabel() }
             .controlSize(.small)
             .buttonStyle(.bordered)
-            .help(openHelp)
+            .help(detectionOnlyHelp(affordance, appName: result.app.name))
     }
 
-    /// `.openPage`'s title is this host's own call (kept out of
+    /// The page cases' title is this host's own call (kept out of
     /// `DetectionOnlyAffordance` on purpose — see its doc comment): the popover
     /// says "Open" here, matching its other single-word action buttons.
-    private var openButtonTitle: String {
-        switch detectionOnlyAffordance {
-        case .openPage: return String(localized: "Open")
+    private func openButtonTitle(_ affordance: DetectionOnlyAffordance) -> String {
+        switch affordance {
+        case .openPage, .openInApp: return String(localized: "Open")
         case .revealInFinder: return DetectionOnlyAffordance.revealInFinderTitle
         }
-    }
-
-    private var detectionOnlyAffordance: DetectionOnlyAffordance {
-        DetectionOnlyAffordance.resolve(pageURL: result.remote?.pageURL)
     }
 
     /// Shown for a running self-updating app under the "defer while running"
@@ -678,22 +694,6 @@ struct PopoverRowAction: View {
             .controlSize(.small)
             .buttonStyle(.bordered)
             .help("\(result.app.name) is running — open it and let its own updater apply \(result.offeredDisplay ?? String(localized: "the update")). Quit it, or pick “Always replace” in Settings, to install directly.")
-    }
-
-    private func openAction() {
-        guard let url = result.remote?.pageURL else {
-            NSWorkspace.shared.activateFileViewerSelecting([result.app.path])
-            return
-        }
-        if let scheme = url.scheme, scheme != "http", scheme != "https" {
-            // App-internal deep link (e.g. chrome://settings/help). Hand it to the
-            // app itself so it acts through its own update channel — for Chrome,
-            // opening that page triggers a Keystone update check + download.
-            let config = NSWorkspace.OpenConfiguration()
-            NSWorkspace.shared.open([url], withApplicationAt: result.app.path, configuration: config)
-        } else {
-            NSWorkspace.shared.open(url)
-        }
     }
 
     /// JetBrains Toolbox manages this app's updates. Toolbox registers no URL
@@ -718,14 +718,6 @@ struct PopoverRowAction: View {
     }
 
 
-    private var openHelp: String {
-        guard let url = result.remote?.pageURL else { return String(localized: "Reveal in Finder") }
-        if let scheme = url.scheme, scheme != "http", scheme != "https" {
-            return String(localized: "Open \(result.app.name)’s built-in updater (it updates itself)")
-        }
-        return String(localized: "Open the official download page")
-    }
-
     /// App Store apps: when the app is in the signed-in region, a Get button
     /// deep-links to the product page; when it isn't, a globe badge opens a
     /// popover explaining the region lock (the store would just say "App Not
@@ -748,7 +740,7 @@ struct PopoverRowAction: View {
     /// doc comment gives for why a missing wire-up must be a compile error,
     /// not a quietly-wrong default.
     @ViewBuilder
-    private func appStoreTrailing(_ info: AppStoreAvailability, managedHere: Bool, gate: AppStoreGate) -> some View {
+    private func appStoreTrailing(_ info: AppStoreAvailability, gate: AppStoreGate) -> some View {
         switch gate {
         case .macIncompatible:
             // A newer build exists but Apple has marked it as no longer running on
@@ -791,44 +783,29 @@ struct PopoverRowAction: View {
                 regionHintPopover(info)
             }
         case .none:
-            if managedHere {
-                // Wrapped iPhone/iPad app on the mas route: mas has no Mac-store entry
-                // for it, so a one-click here would always fail. Send the user to its
-                // product page, where an available update shows an "Update" button.
-                //
-                // Conditioned on the route rather than inferred from it: this branch is
-                // reached whenever `canAutoInstall` is false, which has causes other than
-                // the strategy — a declined elevation most of all, and every wrapped app
-                // qualifies for one (they sit in a root-owned `/Applications`). Without
-                // the check, the button and its "can’t be updated from here" help text
-                // would say that on a route where they can.
-                Button { openInAppStore(info) } label: { Text("App Store").rowButtonLabel() }
+            // `.iPhoneApp`: a wrapped iPhone/iPad app on the mas route — mas has no
+            // Mac-store entry for it, so a one-click here would always fail. Send the
+            // user to its product page, where an available update shows an "Update"
+            // button. Conditioned on the route rather than inferred from it: this
+            // branch is reached whenever `canAutoInstall` is false, which has causes
+            // other than the strategy — a declined elevation most of all, and every
+            // wrapped app qualifies for one (they sit in a root-owned
+            // `/Applications`). Without the check, the button and its "can’t be
+            // updated from here" help text would say that on a route where they can.
+            //
+            // Otherwise a redirect, not a one-click — the App Store route needs the
+            // privileged helper approved (`UpdatePolicy.canAutoInstall`, case "App
+            // Store"). But the row IS an installed app with a pending update, which
+            // the store itself calls **Update**; "Get" reads as "not installed yet",
+            // and no row that reaches here ever is. The help text carries the real
+            // reason.
+            if let redirect = controls.appStoreRedirect {
+                Button { openInAppStore(info) } label: { Text(appStoreRedirectTitle(redirect)).rowButtonLabel() }
                     .controlSize(.small)
                     .buttonStyle(.bordered)
-                    .help("Update \(result.app.name) in the App Store — iPhone/iPad apps can’t be updated from here")
-            } else {
-                // A redirect, not a one-click — the App Store route needs the privileged
-                // helper approved (`UpdatePolicy.canAutoInstall`, case "App Store"). But
-                // the row IS an installed app with a pending update, which the store
-                // itself calls **Update**; "Get" reads as "not installed yet", and no row
-                // that reaches here ever is. The help text carries the real reason.
-                Button { openInAppStore(info) } label: { Text("Update").rowButtonLabel() }
-                    .controlSize(.small)
-                    .buttonStyle(.bordered)
-                    .help(appStoreRedirectHelp)
+                    .help(appStoreRedirectHelp(redirect, appName: result.app.name))
             }
         }
-    }
-
-    /// Why this row hands off to the App Store instead of installing in place.
-    /// Approving the helper is the one lever the user actually has, so name it when
-    /// that's what's missing — otherwise the button just looks like something we
-    /// decline to do, with nothing to act on.
-    private var appStoreRedirectHelp: String {
-        if !helperEnabled {
-            return String(localized: "Opens \(result.app.name) in the App Store. Turn on the background helper in Settings to install App Store updates in one click.")
-        }
-        return String(localized: "Update \(result.app.name) in the App Store")
     }
 
     private func openInAppStore(_ info: AppStoreAvailability) {
@@ -1028,7 +1005,7 @@ struct PopoverRowAction: View {
                 .help(rateLimited ? RowActions.pausedHelp(actions.retryPausedUntil) ?? "" : "")
             // No Retry while GitHub's budget is closed: the gate would refuse
             // it unsent, a click that does nothing.
-            if !(rateLimited && actions.retryPausedUntil != nil) {
+            if controls.offersRetry {
                 Button { actions.retry() } label: {
                     Image(systemName: "arrow.clockwise")
                 }

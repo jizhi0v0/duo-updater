@@ -188,7 +188,7 @@ public struct CLIRunBatch<Key: Hashable & Sendable>: Equatable, Sendable {
     /// Whether `report`, a tool's report of that check generation, is from a
     /// check that started once `id`'s lane had run something.
     public func readsTheLane(_ id: Key, report: Int) -> Bool {
-        laneOf[id].flatMap { ranSince[$0] }.map { report >= $0 } ?? false // RED CHECK 3
+        laneOf[id].flatMap { ranSince[$0] }.map { report > $0 } ?? false
     }
 }
 
@@ -429,7 +429,7 @@ public enum CLIRunReducer {
             // A lane's first command: a check started after it may read the
             // lane's own work. Not a click of its own on a copy cancelled out
             // of the batch (#1535).
-            if /* RED CHECK 4 */ let batch = s.batch, let lane = batch.laneOf[id],
+            if s.claims[id]?.byUpdateAll == true, let batch = s.batch, let lane = batch.laneOf[id],
                batch.ranSince[lane] == nil {
                 s.batch?.ranSince[lane] = batch.checkGeneration
             }
@@ -641,7 +641,8 @@ public enum CLIRunReducer {
         case .laneCommandEnded(let id, let result):
             guard result != .nothingToCheck, let tool = s.batch?.copies[id]?.tool else {
                 // A failure is said on the row; nothing to wait for.
-                break // RED CHECK 5: not released
+                effects.append(release(&s, id))
+                break
             }
             s.batch?.ran[tool, default: []].append(CLIRunBatch<Key>.Ran(id: id, result: result))
 
@@ -653,7 +654,7 @@ public enum CLIRunReducer {
             var ready: [Int] = []
             for tool in Set(batch.lanes[index].compactMap { batch.copies[$0]?.tool }).sorted() {
                 s.batch?.lanesLeft[tool, default: 1] -= 1
-                if true /* RED CHECK 1 */, !(batch.ran[tool] ?? []).isEmpty { ready.append(tool) }
+                if s.batch?.lanesLeft[tool] == 0, !(batch.ran[tool] ?? []).isEmpty { ready.append(tool) }
             }
             guard !ready.isEmpty else { break }
             for tool in ready {
@@ -678,7 +679,7 @@ public enum CLIRunReducer {
             // "Not updated: …" goes with its tool's next check, and this one
             // is the batch's own: said again while it still holds
             // (`notRunRechecked`).
-            for notRun in [] as [CLIRunBatch<Key>.NotRun] { // RED CHECK 2
+            for notRun in batch.notRun[tool] ?? [] {
                 let (next, said) = Self.reduce(s, .notRunRechecked(
                     notRun.id, notRun.why, clickedNeedsAdministrator: notRun.clickedNeedsAdministrator,
                     now: now[notRun.id]))

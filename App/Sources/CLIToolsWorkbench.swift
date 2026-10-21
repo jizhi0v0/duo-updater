@@ -502,10 +502,7 @@ private struct CLIToolProcessDetail: View {
         Text(title).foregroundStyle(.secondary).gridColumnAlignment(.trailing)
     }
 
-    /// `argv` as a shell would read it back: an argument with a space quoted.
-    private var commandLine: String {
-        origin.arguments.map { $0.contains(" ") ? "'\($0)'" : $0 }.joined(separator: " ")
-    }
+    private var commandLine: String { origin.commandLine }
 
 }
 

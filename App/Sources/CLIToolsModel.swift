@@ -821,9 +821,11 @@ final class CLIToolsModel {
             }
             return answer
         }
-        // launchd only for a process not read before: a new pid, or one
-        // another process has taken since.
-        for (pid, origin) in read where known[pid] == nil || known[pid]?.started != origin.started {
+        // launchd again unless this same process's coalition has already
+        // ended: what started it can go while it lives on (an SSH session
+        // read `active`, then `terminated` with the daemon still running).
+        for (pid, origin) in read
+        where known[pid]?.started != origin.started || known[pid]?.coalition?.ended != true {
             read[pid] = origin.with(coalition: await CLIToolProcessOrigin.readCoalition(of: pid))
         }
         let origins = read

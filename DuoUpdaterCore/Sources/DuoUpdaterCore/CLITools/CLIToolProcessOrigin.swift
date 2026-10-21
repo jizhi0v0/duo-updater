@@ -193,6 +193,17 @@ public struct CLIToolProcessOrigin: Sendable, Equatable {
             coalition: coalition)
     }
 
+    /// `arguments` as a POSIX shell reads them back: an argument with anything
+    /// but plain characters single-quoted, a `'` inside it as `'\''`.
+    public var commandLine: String {
+        arguments.map { argument in
+            let plain = !argument.isEmpty && argument.unicodeScalars.allSatisfy {
+                $0.isASCII && (CharacterSet.alphanumerics.contains($0) || "@%+=:,./_-".unicodeScalars.contains($0))
+            }
+            return plain ? argument : "'" + argument.replacingOccurrences(of: "'", with: #"'\''"#) + "'"
+        }.joined(separator: " ")
+    }
+
     /// This origin with launchd's coalition.
     public func with(coalition: Coalition?) -> CLIToolProcessOrigin {
         CLIToolProcessOrigin(pid: pid, arguments: arguments, started: started, executable: executable,

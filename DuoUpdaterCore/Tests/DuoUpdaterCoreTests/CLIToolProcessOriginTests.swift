@@ -140,6 +140,20 @@ struct CLIToolProcessOriginTests {
         #expect(Origin.parseCoalition("pid/1 = {\n}") == nil)
     }
 
+    /// The copied command line, read back by /bin/sh, is the same argv.
+    @Test func theCommandLineReadsBackAsTheSameArguments() async throws {
+        let arguments = ["/usr/local/bin/claude", "-p", "what's wrong with this build", #"{"a":1}"#, "a&b", "$(touch x)",
+                         "", "--flag=a,b:c/d@e%f+g_h.i-j", "naïve", "a\nb"]
+        let line = Origin(pid: 1, arguments: arguments, started: nil, executable: nil, ancestors: [], coalition: nil)
+            .commandLine
+        #expect(line.hasPrefix(#"/usr/local/bin/claude -p 'what'\''s wrong with this build'"#))
+        let outcome = try await ChildProcess.run("/bin/sh", ["-c", #"eval "set -- $1"; printf '%s\0' "$@""#, "sh", line],
+                                                 standardError: .discard, onCancel: .terminateChild)
+        let readBack = outcome.standardOutput.split(separator: 0, omittingEmptySubsequences: false).dropLast()
+            .map { String(decoding: $0, as: UTF8.self) }
+        #expect(readBack == arguments)
+    }
+
     /// On this machine: a child of the test process has the test process as
     /// its parent, and launchd names a coalition for it.
     @Test func readsALiveChild() async throws {

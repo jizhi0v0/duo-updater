@@ -38,7 +38,7 @@ public struct BiomeRelease: Sendable {
     /// What the installer reads.
     public static let latestURL = URL(string: "https://biomejs.dev/api/versions/latest.txt")!
     /// Every release's digests, to name the build a file is (`learnPublished`).
-    /// 100 reach back to 2.0.0-beta (March 2025): ~3.3 MB, asked at most once
+    /// 100 reach back to `cli/v1.9.0` (September 2024): ~3.3 MB, asked at most once
     /// per new Biome release.
     public static let publishedURL = URL(string: "https://api.github.com/repos/biomejs/biome/releases?per_page=100")!
     /// The notes: one release a week or so, so 30 reach back about seven months.

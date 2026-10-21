@@ -92,6 +92,9 @@
       `[SystemExtensionCoordinator] Replacement requested existing=%@(%@) new=%@(%@) action=replace`，即启动时先断开 VPN、再提交替换请求
   - 所以 `duo restart` 之后走的是同一条启动路径，和 Loon 自己的 Sparkle 更新装完后重开一样；换包本身只替换 bundle。
     替换扩展时 macOS 会不会再要用户批准，由系统决定，两种更新方式都一样；Apple 论坛里两种情况都有报告（未验）
+  - 还没排除的一点：主二进制里有 `SPUUpdaterDelegate` 的 `updater:willInstallUpdate:`、`updater:shouldPostponeRelaunchForUpdate:untilInvokingBlock:`、
+    `updaterWillRelaunchApplication:` 等选择子名。`strings` 分不出这是 Loon 实现了这些回调，还是只带着协议元数据；
+    若 Loon 在 Sparkle 装包前后另做了扩展 / helper 的准备，duo 换包时不会经过那一步（未验）
 - 阻塞: 无（运行中一轮待验）
 
 ## 已知问题

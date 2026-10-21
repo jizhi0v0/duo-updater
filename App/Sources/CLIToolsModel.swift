@@ -1049,6 +1049,12 @@ final class CLIToolsModel {
     /// shows (`cancelRows`), or "Cancelling…" once that is due.
     func progressLine(_ id: CLIToolID) -> String? {
         if cancelRows.cancels[id] == .cancelling { return String(localized: "Cancelling…") }
+        return stageLine(id)
+    }
+
+    /// The line of the stage `id`'s row shows (`cancelRows`), "Cancelling…"
+    /// aside; nil while it has none.
+    private func stageLine(_ id: CLIToolID) -> String? {
         // Read through `progress`, which is observed, rather than only
         // `progressLines`, which is not: a new line of the same stage —
         // "Waiting to check", then "Checking…" — redraws the row by itself
@@ -1324,17 +1330,16 @@ final class CLIToolsModel {
     /// Whether Update All is waiting behind another click's run.
     var updateAllWaiting: Bool { runQueue.isWaiting(.updateAllTools) }
 
-    /// Update All's own Cancel, beside its progress in the workbench header and
-    /// the popover row: live while it waits its turn, or while any copy it
-    /// claimed can still be cancelled (`cancels`); greyed once every one left
-    /// has started its command, saying "Cancelling…" while a copy its click
-    /// stopped is still being stopped — not "can't cancel now" right after a
-    /// Cancel it took (review, 2026-10-20). Nil when no Update All runs.
-    var updateAllCancel: InstallCancelState? {
-        guard updatingAll else { return nil }
-        if updateAllWaiting { return .available }
-        if batchIDs.contains(where: { cancels[$0] == .available }) { return .available }
-        return batchIDs.contains { cancels[$0] == .cancelling } ? .cancelling : .committing
+    /// Update All's own Cancel, beside its progress in the workbench header:
+    /// live while it waits its turn, or while any copy it claimed can still be
+    /// cancelled; greyed once every one left has started its command, saying
+    /// "Cancelling…" while a copy its click stopped is still being stopped —
+    /// not "can't cancel now" right after a Cancel it took (review,
+    /// 2026-10-20). Off the rows' smoothed Cancels, as the popover row's
+    /// (`CLIRowSnapshot.updateAllCancel`), so the two change together. Nil when
+    /// no Update All runs.
+    var updateAllCancel: InstallRowSmoothing<CLIToolID>.GroupCancel? {
+        rowSnapshot.updateAllCancel
     }
 
     /// Update All's Cancel: one still waiting its turn leaves the queue, and
@@ -1358,7 +1363,65 @@ final class CLIToolsModel {
     /// head names the copies not queued: when only queued ones can still be
     /// stopped, its help says so.
     var rowCancel: InstallRowSmoothing<CLIToolID>.GroupCancel? {
-        cancelRows.groupCancel(of: updating, running: updating.subtracting(queued))
+        rowSnapshot.rowCancel
+    }
+
+    /// What every command-line tools surface draws from (`CLIRowSnapshot`):
+    /// the popover's row and the workbench's Update All read whether a copy
+    /// runs, and what its Cancel says, from here; a sidebar row and a detail
+    /// header from `rowTool`, the same facts of their one copy.
+    var rowSnapshot: CLIRowSnapshot<CLIToolID> {
+        let listed = Set(statuses.map(\.toolID))
+        return .live(
+            tools: statuses.map { rowTool(id: $0.toolID, status: $0) },
+            // Claimed, and gone from the last check's report: still running,
+            // still the row's to count and to cancel.
+            unlisted: updating.union(batchIDs).subtracting(listed)
+                .sorted { $0.tag < $1.tag }.map { rowTool(id: $0, status: nil) },
+            hasSightings: !sightings.isEmpty, checked: checked,
+            updatingAll: updatingAll, updateAllWaiting: updateAllWaiting, batchIDs: batchIDs,
+            updateAllOffered: updateAllOffered, updateAllStartable: updateAllStartable)
+    }
+
+    /// One copy's facts for its own sidebar row and detail header, as
+    /// `rowSnapshot` holds them. Reads only what that copy's rows need: an
+    /// idle copy reads `updating` and its status, error and confirmation —
+    /// never `progress` or `cancelRows`, which change with every output line
+    /// of any update.
+    func rowTool(_ status: CLIToolStatus) -> CLIRowSnapshot<CLIToolID>.Tool {
+        rowTool(id: status.toolID, status: status)
+    }
+
+    /// The same for `id`, listed or not.
+    func rowTool(_ id: CLIToolID) -> CLIRowSnapshot<CLIToolID>.Tool {
+        rowTool(id: id, status: status(id))
+    }
+
+    private func rowTool(id: CLIToolID, status: CLIToolStatus?) -> CLIRowSnapshot<CLIToolID>.Tool {
+        let phase = phase(id)
+        let runs = phase != .idle
+        return .live(
+            id: id, kind: id.kind, phase: phase,
+            cancel: runs ? cancelRows.cancels[id] : nil,
+            cancelPending: runs && cancelRows.cancelPending.contains(id),
+            line: runs ? stageLine(id) : nil,
+            state: status?.state ?? .unknown, oneClick: status?.oneClick != nil,
+            needsAdministrator: status?.needsAdministrator ?? false, withheld: status?.withheld,
+            manualCommand: status.flatMap(CLIToolPresentation.manualCommand),
+            hasLatestVersion: status?.latestVersion != nil,
+            error: errors[id], justUpdated: justUpdated[id])
+    }
+
+    /// `id`'s phase, read off the claim sets. Claimed, not queued and not
+    /// waiting on its check, with no Cancel at all is `offerAtTurn` asking its
+    /// tool again — or, for an instant, a failed run about to be released,
+    /// which draws the same.
+    private func phase(_ id: CLIToolID) -> CLIRunPhase {
+        guard updating.contains(id) else { return .idle }
+        if queued.contains(id) { return .queued }
+        if awaitingCheck.contains(id) { return .awaitingCheck }
+        if cancelRows.cancels[id] == nil { return .checkingAtTurn }
+        return .running
     }
 
     /// The popover row's Cancel: Update All still waiting its turn leaves the

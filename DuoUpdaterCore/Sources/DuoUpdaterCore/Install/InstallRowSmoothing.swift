@@ -75,7 +75,13 @@ public struct InstallRowSmoothing<Key: Hashable & Sendable>: Sendable {
         /// Cancel says it stops the queued ones (`GroupCancel.queuedOnly`) —
         /// "Upgrading go · Installing…" beside a live "Cancel update" that
         /// took back the Upgrade All queued behind it (review, 2026-10-20).
-        public func groupCancel(of ids: some Sequence<Key>, running: Set<Key> = []) -> GroupCancel? {
+        ///
+        /// `floor` is for a Cancel that must keep its place while its run
+        /// goes on — Update All's in the workbench header, whose height is
+        /// its button's (#1498): where the rest would give nil it gives a
+        /// greyed one instead, "Cancelling…" while one is being stopped and
+        /// "can't cancel now" otherwise.
+        public func groupCancel(of ids: some Sequence<Key>, running: Set<Key> = [], floor: Bool = false) -> GroupCancel? {
             var live = 0, liveRunning = 0, pending = false, cancelling = false, committing = false, tooLate = false
             for id in ids {
                 switch cancels[id] {
@@ -98,6 +104,7 @@ public struct InstallRowSmoothing<Key: Hashable & Sendable>: Sendable {
             if cancelling, committing || tooLate { return GroupCancel(state: .cancelling, pending: false, live: 0) }
             if committing { return GroupCancel(state: .committing, pending: false, live: 0) }
             if tooLate { return GroupCancel(state: .tooLate, pending: false, live: 0) }
+            if floor { return GroupCancel(state: cancelling ? .cancelling : .committing, pending: false, live: 0) }
             return nil
         }
     }

@@ -32,8 +32,9 @@ struct PopoverListContentTests {
     }
 
     /// The cold launch recorded on 2026-10-21, step by step, as the model's state
-    /// stood at each render (`base.mp4`, frames at 0.5 s, 10.29 s, 10.49 s,
-    /// 10.61 s): what the list area showed then, and what it shows now. The list
+    /// stood at each render (the recording's frames at 0.5 s, 10.29 s, 10.49 s,
+    /// 10.61 s, listed in #1545): what the list area showed then, and what it
+    /// shows now. The list
     /// changes from the placeholder to the rows exactly once, at the end.
     @Test("the recorded cold launch shows the list once")
     func recordedColdLaunch() {

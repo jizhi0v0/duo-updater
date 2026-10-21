@@ -141,6 +141,25 @@ import Testing
 
         /// How many times `id`'s command was started.
         func runs(of id: String) -> Int { effects.filter { $0 == .startCommand(id) }.count }
+
+        /// A lane copy's turn and command, as `CLIToolsModel.runLane` sends
+        /// them for one offered as clicked whose command needs its tool's
+        /// re-check: `report` is the generation of its tool's report on screen.
+        func runLaneCopy(_ id: String, report: Int = 0, _ result: CLIRunLaneResult) {
+            send(.laneTurnCame(id, reportGeneration: report))
+            send(.offerRead(id, .run(CLIRunReducerTests.fx(id))))
+            send(.commandStarting(id))
+            send(.commandEnded(id, needsRecheck: true, cancelStopped: false))
+            send(.laneCommandEnded(id, result))
+        }
+
+        /// The re-checks Update All asked for, in order.
+        var rechecks: [Effect] { effects.filter { if case .recheck = $0 { return true } else { return false } } }
+    }
+
+    /// A copy of Update All's lanes: `tool` its provider, `lane` its lane.
+    static func lane(_ id: String, tool: Int = 0, _ lane: String, admin: Bool = false) -> CLIRunLaneCopy<String> {
+        CLIRunLaneCopy(id: id, tool: tool, lane: lane, needsAdministrator: admin)
     }
 
     // MARK: - #1520: a click's offer read at its turn
@@ -309,7 +328,7 @@ import Testing
 
         // Its turn. `a`: the offer moved.
         r.updateAllWaiting = false
-        #expect(r.send(.laneTurnCame("a")) == [.readLaneOffer("a")])
+        #expect(r.send(.laneTurnCame("a", reportGeneration: 0)) == [.readLaneOffer("a", readsTheLane: false)])
         let moved = Self.fx("a", latest: "1.2.0")
         let readA = CLIRunOffer.laneAtTurn(clicked: a, published: moved, checked: moved, readsTheLane: false,
                                            clickedNow: { a })
@@ -327,7 +346,7 @@ import Testing
         #expect(r.state.claims["a"] == CLIRunClaim(phase: .awaitingCheck, byUpdateAll: true))
 
         // `b`: now asks for an administrator password.
-        #expect(r.send(.laneTurnCame("b")) == [.readLaneOffer("b")])
+        #expect(r.send(.laneTurnCame("b", reportGeneration: 0)) == [.readLaneOffer("b", readsTheLane: false)])
         let admin = Self.fx("b", admin: true)
         let readB = CLIRunOffer.laneAtTurn(clicked: b, published: admin, checked: admin, readsTheLane: true,
                                            clickedNow: { b })
@@ -343,7 +362,7 @@ import Testing
         #expect(s.detailHeader("b") == CLIDetailHeader(action: .update(admin: true), progress: nil))
 
         // `c`: "not verified", read while its lane ran.
-        #expect(r.send(.laneTurnCame("c")) == [.readLaneOffer("c")])
+        #expect(r.send(.laneTurnCame("c", reportGeneration: 0)) == [.readLaneOffer("c", readsTheLane: false)])
         let unverified = Self.fx("c", state: .unknown, oneClick: false, withheld: .unverified)
         let readC = CLIRunOffer.laneAtTurn(clicked: c, published: unverified, checked: unverified, readsTheLane: true,
                                            clickedNow: { c })
@@ -411,9 +430,9 @@ import Testing
 
         // Update All's turn: its lane skips `a`, whose "Queued" stays.
         r.updateAllWaiting = false
-        #expect(r.send(.laneTurnCame("a")) == [])
+        #expect(r.send(.laneTurnCame("a", reportGeneration: 0)) == [])
         #expect(r.state.claims["a"] == CLIRunClaim(phase: .queued, byUpdateAll: false))
-        #expect(r.send(.laneTurnCame("b")) == [.readLaneOffer("b")])
+        #expect(r.send(.laneTurnCame("b", reportGeneration: 0)) == [.readLaneOffer("b", readsTheLane: false)])
         r.send(.offerRead("b", .run(b)))
         r.send(.commandStarting("b"))
         s = r.snapshot([a, b])
@@ -442,7 +461,7 @@ import Testing
         let a = Self.fx("a")
         r.send(.updateAllClicked(lanes: ["a"], asking: []))
         r.send(.lanesReady(["a"]))
-        r.send(.laneTurnCame("a"))
+        r.send(.laneTurnCame("a", reportGeneration: 0))
         r.send(.offerRead("a", .run(a)))
         r.send(.commandStarting("a"))
         r.send(.commandEnded("a", needsRecheck: true, cancelStopped: false))
@@ -546,7 +565,7 @@ import Testing
         let a = Self.fx("a"), b = Self.fx("b")
         r.send(.updateAllClicked(lanes: ["b"], asking: []))
         r.send(.lanesReady(["b"]))
-        r.send(.laneTurnCame("b"))
+        r.send(.laneTurnCame("b", reportGeneration: 0))
         r.send(.offerRead("b", .run(b)))
         r.send(.commandStarting("b"))
         #expect(r.send(.clicked("a", offered: true, needsAdministrator: false, queueBusy: true))
@@ -676,13 +695,13 @@ import Testing
         let a = Self.fx("a"), b = Self.fx("b")
         r.send(.updateAllClicked(lanes: ["a", "b"], asking: []))
         r.send(.lanesReady(["a", "b"]))
-        r.send(.laneTurnCame("a"))
+        r.send(.laneTurnCame("a", reportGeneration: 0))
         r.send(.offerRead("a", .run(a)))
         r.send(.commandStarting("a"))
         r.send(.commandEnded("a", needsRecheck: true, cancelStopped: false))
 
         // `b`'s turn: on the other route now, so not run.
-        r.send(.laneTurnCame("b"))
+        r.send(.laneTurnCame("b", reportGeneration: 0))
         let admin = Self.fx("b", admin: true)
         let why = CLIRunNotRun.routeChanged(nowNeedsAdministrator: true)
         #expect(CLIRunOffer.laneAtTurn(clicked: b, published: admin, checked: admin, readsTheLane: true,
@@ -790,7 +809,7 @@ import Testing
         let a = Self.fx("a"), b = Self.fx("b")
         r.send(.updateAllClicked(lanes: ["a", "b"], asking: []))
         r.send(.lanesReady(["a", "b"]))
-        r.send(.laneTurnCame("a"))
+        r.send(.laneTurnCame("a", reportGeneration: 0))
         r.send(.offerRead("a", .run(a)))
         r.send(.commandStarting("a"))
         // A failure needs no re-check: it is said on the row, and released.
@@ -799,7 +818,7 @@ import Testing
         r.send(.released("a"))
         #expect(r.errors["a"] == "npm ERR! code EACCES")
 
-        r.send(.laneTurnCame("b"))
+        r.send(.laneTurnCame("b", reportGeneration: 0))
         r.send(.offerRead("b", .run(b)))
         r.send(.commandStarting("b"))
         r.send(.commandEnded("b", needsRecheck: true, cancelStopped: false))
@@ -943,5 +962,274 @@ import Testing
         ])
         let s = r.snapshot([Self.fx("a")])
         #expect(s.sidebar("a") == CLISidebarRow(slot: .update(admin: false), caption: .status))
+    }
+
+    // MARK: - Update All's lanes (phase 4b-2)
+
+    /// Update All over two npm prefixes and uv: npm's copies in two lanes
+    /// (nvm's, fnm's), uv's in one. Each tool is re-checked once, as soon as
+    /// the last lane holding one of its copies is done — uv's while npm's
+    /// fnm lane still runs, npm's only after it — and that check settles
+    /// every copy of the tool that ran, then releases it.
+    @Test func twoLanesOnOneProviderAreRecheckedOnceAfterTheLastLane() {
+        let r = Run()
+        let copies = [Self.lane("a", tool: 0, "node:/nvm"), Self.lane("b", tool: 0, "node:/fnm"),
+                      Self.lane("c", tool: 0, "node:/nvm"), Self.lane("u", tool: 1, "uv")]
+        r.send(.updateAllClicked(lanes: ["a", "b", "c", "u"], asking: []))
+        r.send(.lanesReady(["a", "b", "c", "u"]))
+        // Lanes in click order, each copy in its lane in click order.
+        #expect(r.send(.batchStarted(copies, checkGeneration: 0)) == [.runLanes([["a", "c"], ["b"], ["u"]])])
+        #expect(r.state.batch?.lanesLeft == [0: 2, 1: 1])
+
+        // nvm's lane: both its copies; npm still has fnm's lane left.
+        r.runLaneCopy("a", .updated(before: "1.0.0", reported: nil))
+        r.runLaneCopy("c", .updated(before: "1.0.0", reported: "1.1.0"))
+        #expect(r.send(.laneDone(0)) == [])
+        #expect(r.state.batch?.lanesLeft == [0: 1, 1: 1])
+        #expect(r.state.claims["a"] == CLIRunClaim(phase: .awaitingCheck, byUpdateAll: true))
+        #expect(r.lines["a"] == "Waiting to check")
+        #expect(r.lines["c"] == "Waiting to check")
+
+        // uv's only lane: uv is re-checked now, without npm.
+        r.runLaneCopy("u", .ranNothing)
+        #expect(r.send(.laneDone(2)) == [.showLine("u", .checking), .recheck([1])])
+        let uvNow = Self.fx("u", state: .upToDate, oneClick: false)
+        #expect(r.send(.toolRechecked(1, now: ["u": uvNow])) == [.clearLine("u")])
+        #expect(r.state.claims["a"] == CLIRunClaim(phase: .awaitingCheck, byUpdateAll: true))
+        #expect(r.state.claims["c"] == CLIRunClaim(phase: .awaitingCheck, byUpdateAll: true))
+
+        // fnm's lane, npm's last: npm is re-checked once, for all three.
+        r.runLaneCopy("b", .updated(before: "1.0.0", reported: nil))
+        #expect(r.send(.laneDone(1)) == [
+            .showLine("a", .checking), .showLine("c", .checking), .showLine("b", .checking), .recheck([0]),
+        ])
+        #expect(r.lines["b"] == "Checking…")
+        // `a` moved; `c`'s updater re-read 1.1.0 where the check had not
+        // caught up, and its own re-read comes first; `b` stayed put.
+        let now = ["a": Self.fx("a", state: .upToDate, oneClick: false, installed: "1.1.0"),
+                   "b": Self.fx("b"), "c": Self.fx("c")]
+        #expect(r.send(.toolRechecked(0, now: now)) == [
+            .startConfirmation("a"), .clearLine("a"), .startConfirmation("c"), .clearLine("c"), .clearLine("b"),
+        ])
+        #expect(r.state.justUpdated == ["a": "1.1.0", "c": "1.1.0"])
+        #expect(r.state.redLines == ["b": .stillOn("1.0.0")])
+        #expect(r.state.batchIDs.isEmpty)
+        #expect(r.rechecks == [.recheck([1]), .recheck([0])])
+        // Asked again, the batch has nothing left to settle or release.
+        #expect(r.send(.toolRechecked(0, now: now)) == [])
+
+        r.send(.updateAllFinished)
+        #expect(r.runsNothing)
+        #expect(r.state.batch == nil)
+        #expect(["a", "b", "c", "u"].map(r.runs(of:)) == [1, 1, 1, 1])
+    }
+
+    /// The real-Mac case of #1541: a copy in nvm's lane not run at its turn
+    /// (its prefix's node quarantined while Update All waited), the fnm lane
+    /// of the same tool running. Its "Not updated" line is said again after
+    /// the batch's own npm check from what the reducer recorded at its turn —
+    /// no `notRunRechecked` sent by the app — and only for the tool
+    /// re-checked, and only while it still holds.
+    @Test func notUpdatedLineIsSaidAgainFromTheReducersOwnRecord() {
+        let r = Run()
+        let copies = [Self.lane("a", tool: 0, "node:/nvm"), Self.lane("s", tool: 0, "node:/nvm"),
+                      Self.lane("b", tool: 0, "node:/fnm")]
+        r.send(.updateAllClicked(lanes: ["a", "s", "b"], asking: []))
+        r.send(.lanesReady(["a", "s", "b"]))
+        r.send(.batchStarted(copies, checkGeneration: 0))
+
+        // `a`: not run, and why. `s`: updated from a terminal, said nothing.
+        let quarantined = Self.fx("a", oneClick: false, withheld: .unverified)
+        let why = CLIRunNotRun.notOffered(reason: CLIToolWording.reason(.unverified, of: quarantined))
+        #expect(CLIRunOffer.laneAtTurn(clicked: Self.fx("a"), published: quarantined, checked: quarantined,
+                                       readsTheLane: false, clickedNow: { Self.fx("a") }).offer == .notRun(why))
+        r.send(.laneTurnCame("a", reportGeneration: 0))
+        r.send(.offerRead("a", .notRun(why)))
+        r.send(.released("a"))
+        r.send(.laneTurnCame("s", reportGeneration: 0))
+        r.send(.offerRead("s", .notRun(.silent)))
+        r.send(.released("s"))
+        #expect(r.state.batch?.notRun == [0: [CLIRunBatch<String>.NotRun(id: "a", why: why, clickedNeedsAdministrator: false)]])
+        // npm's fnm lane is still to come: no re-check yet.
+        #expect(r.send(.laneDone(0)) == [])
+
+        r.runLaneCopy("b", .updated(before: "1.0.0", reported: "1.1.0"))
+        #expect(r.send(.laneDone(1)) == [.showLine("b", .checking), .recheck([0])])
+        // The batch's own check lands, and takes the line away, as any check
+        // of its tool does.
+        let updatedB = Self.fx("b", state: .upToDate, oneClick: false, installed: "1.1.0")
+        r.checkLanded([quarantined, updatedB], answered: true)
+        #expect(r.errors["a"] == nil)
+        let landed = r.copy()
+
+        // Its tool re-checked: said again, from the batch's record.
+        let line = "Not updated: \(CLIToolWording.reason(.unverified, of: quarantined))"
+        #expect(r.send(.toolRechecked(0, now: ["a": quarantined, "b": updatedB])) == [
+            .startConfirmation("b"), .clearLine("b"),
+        ])
+        #expect(r.errors == ["a": line])
+        #expect(r.state.batch?.notRun[0] == nil)
+        r.send(.updateAllFinished)
+        #expect(r.runsNothing)
+        let snap = r.snapshot([quarantined, updatedB])
+        #expect(snap.sidebar("a") == CLISidebarRow(slot: .none, caption: .error(line)))
+        #expect(snap.sidebar("b") == CLISidebarRow(slot: .none, caption: .updated(version: "1.1.0", restartSessions: false)))
+        #expect(r.runs(of: "a") == 0)
+        #expect(r.runs(of: "s") == 0)
+
+        // Another tool's re-check says nothing of it.
+        let other = landed.copy()
+        #expect(other.send(.toolRechecked(1, now: ["a": quarantined])) == [])
+        #expect(other.errors["a"] == nil)
+        // Nor once it no longer holds: the quarantine lifted and the copy
+        // offered again on the route clicked, or the copy gone.
+        for now in [Self.fx("a"), nil] {
+            let lifted = landed.copy()
+            lifted.send(.toolRechecked(0, now: now.map { ["a": $0, "b": updatedB] } ?? ["b": updatedB]))
+            #expect(lifted.errors["a"] == nil)
+        }
+    }
+
+    /// What a lane's turn reads its check against: a check started before the
+    /// lane's first command is about the copy (`readsTheLane` false) — also
+    /// one started after Update All's turn came; one started after that
+    /// command may have read the lane's own work (true). Per lane: another
+    /// lane that has run nothing yet reads false.
+    @Test func readsTheLaneOnlyForACheckStartedAfterTheLanesFirstCommand() {
+        // With no batch, a check changes nothing.
+        let idle = Run()
+        #expect(idle.send(.checkStarted(generation: 7)) == [])
+        #expect(idle.state == State())
+
+        let r = Run()
+        let copies = [Self.lane("a", "fx"), Self.lane("b", "fx"), Self.lane("c", tool: 1, "uv")]
+        r.send(.updateAllClicked(lanes: ["a", "b", "c"], asking: []))
+        r.send(.lanesReady(["a", "b", "c"]))
+        r.send(.batchStarted(copies, checkGeneration: 3))
+        // A check started at the turn, before the lane ran anything, landed.
+        r.send(.checkStarted(generation: 4))
+        #expect(r.send(.laneTurnCame("a", reportGeneration: 4)) == [.readLaneOffer("a", readsTheLane: false)])
+        r.send(.offerRead("a", .run(Self.fx("a"))))
+        #expect(r.state.batch?.ranSince == [:])
+        r.send(.commandStarting("a"))
+        #expect(r.state.batch?.ranSince == [0: 4])
+        r.send(.commandEnded("a", needsRecheck: true, cancelStopped: false))
+        r.send(.laneCommandEnded("a", .updated(before: "1.0.0", reported: nil)))
+
+        // `b`'s turn, with that same report on screen: about the copy.
+        let before = r.copy()
+        #expect(before.send(.laneTurnCame("b", reportGeneration: 4)) == [.readLaneOffer("b", readsTheLane: false)])
+        // A check that started once `a`'s command had: about the batch.
+        r.send(.checkStarted(generation: 5))
+        #expect(r.copy().send(.laneTurnCame("b", reportGeneration: 5)) == [.readLaneOffer("b", readsTheLane: true)])
+        // The other lane has run nothing yet: the same report is about its copy.
+        #expect(r.copy().send(.laneTurnCame("c", reportGeneration: 5)) == [.readLaneOffer("c", readsTheLane: false)])
+        // A later command in the lane keeps the lane's first.
+        r.send(.laneTurnCame("b", reportGeneration: 5))
+        r.send(.offerRead("b", .run(Self.fx("b"))))
+        r.send(.commandStarting("b"))
+        #expect(r.state.batch?.ranSince == [0: 4])
+        #expect(r.state.batch?.checkGeneration == 5)
+    }
+
+    /// #1535 through the lanes: a copy cancelled out of a waiting Update All
+    /// and clicked again. Its lane skips it, its own click's command and its
+    /// own "Not updated" are not the batch's, the batch's re-check releases
+    /// only the copy that ran in it, and its own turn runs it: once.
+    @Test func laneCopyCancelledWhileWaitingThenClickedAgainRunsOnce() {
+        let r = Run()
+        r.updateAllWaiting = true
+        r.send(.updateAllClicked(lanes: ["a", "b"], asking: []))
+        r.send(.lanesReady(["a", "b"]))
+        r.send(.cancelClicked("a"))
+        #expect(r.send(.notWaitingInQueue("a", updateAllWaiting: true)) == [.clearLine("a")])
+        #expect(r.send(.clicked("a", offered: true, needsAdministrator: false, queueBusy: true))
+            == [.showLine("a", .queued), .enqueue("a")])
+
+        // Update All's turn: `a` is still among the copies its lane lists.
+        r.updateAllWaiting = false
+        #expect(r.send(.batchStarted([Self.lane("a", "fx"), Self.lane("b", "fx")], checkGeneration: 0))
+            == [.runLanes([["a", "b"]])])
+        #expect(r.send(.laneTurnCame("a", reportGeneration: 0)) == [])
+        #expect(r.state.claims["a"] == CLIRunClaim(phase: .queued, byUpdateAll: false))
+        #expect(r.lines["a"] == "Queued")
+
+        // Its own click's run, while the lane still runs, is not the lane's:
+        // no `ranSince`, no "Not updated" kept for the batch's check.
+        let own = r.copy()
+        own.send(.turnCame("a"))
+        own.send(.offerRead("a", .run(Self.fx("a"))))
+        own.send(.commandStarting("a"))
+        #expect(own.state.batch?.ranSince == [:])
+        let ownNotRun = r.copy()
+        ownNotRun.send(.turnCame("a"))
+        ownNotRun.send(.offerRead("a", .notRun(.notOffered(reason: nil))))
+        #expect(ownNotRun.state.batch?.notRun == [:])
+
+        r.runLaneCopy("b", .updated(before: "1.0.0", reported: "1.1.0"))
+        #expect(r.send(.laneDone(0)) == [.showLine("b", .checking), .recheck([0])])
+        #expect(r.send(.toolRechecked(0, now: ["b": Self.fx("b", state: .upToDate, oneClick: false, installed: "1.1.0")]))
+            == [.startConfirmation("b"), .clearLine("b")])
+        #expect(r.state.claims == ["a": CLIRunClaim(phase: .queued, byUpdateAll: false)])
+        #expect(r.lines["a"] == "Queued")
+        r.send(.updateAllFinished)
+        #expect(r.state.claims == ["a": CLIRunClaim(phase: .queued, byUpdateAll: false)])
+
+        // Its own turn: it runs, once.
+        r.send(.turnCame("a"))
+        #expect(r.send(.offerRead("a", .run(Self.fx("a")))) == [.startCommand("a")])
+        #expect(r.runs(of: "a") == 1)
+        #expect(r.runs(of: "b") == 1)
+    }
+
+    /// #1536 through the lanes: from the release of the last copy by its
+    /// tool's re-check to Update All's end — another lane done after it,
+    /// with nothing to re-check — no row says "Queued", nothing draws as
+    /// running, and the header has no Cancel.
+    @Test func noQueuedBetweenTheLastLaneReleaseAndUpdateAllsEnd() {
+        let r = Run()
+        r.send(.updateAllClicked(lanes: ["a", "b"], asking: []))
+        r.send(.lanesReady(["a", "b"]))
+        r.send(.batchStarted([Self.lane("a", tool: 0, "fx"), Self.lane("b", tool: 1, "uv")], checkGeneration: 0))
+
+        // `b` fails: said on its row, released at once, nothing to re-check.
+        r.send(.laneTurnCame("b", reportGeneration: 0))
+        r.send(.offerRead("b", .run(Self.fx("b"))))
+        r.send(.commandStarting("b"))
+        r.send(.commandEnded("b", needsRecheck: false, cancelStopped: false))
+        r.send(.commandFailed("b", message: "EACCES", log: "EACCES"))
+        #expect(r.send(.laneCommandEnded("b", .nothingToCheck)) == [.clearLine("b")])
+        #expect(r.state.batchIDs == ["a"])
+
+        r.runLaneCopy("a", .updated(before: "1.0.0", reported: "1.1.0"))
+        #expect(r.send(.laneDone(0)) == [.showLine("a", .checking), .recheck([0])])
+        let current = Self.fx("a", state: .upToDate, oneClick: false, installed: "1.1.0")
+        let behind = Self.fx("b")
+        r.send(.toolRechecked(0, now: ["a": current]))
+
+        // The window: the last copy released, Update All not yet ended.
+        func drawsEnded() {
+            #expect(r.state.updatingAll)
+            #expect(r.state.batchIDs.isEmpty)
+            #expect(r.state.claims.isEmpty)
+            #expect(!r.lines.values.contains("Queued"))
+            let s = r.snapshot([current, behind])
+            #expect(s.popover?.isRunning == false)
+            #expect(s.popover?.lines.contains(.queued) == false)
+            #expect(s.sidebar("a") == CLISidebarRow(slot: .none, caption: .updated(version: "1.1.0", restartSessions: false)))
+            #expect(s.sidebar("b") == CLISidebarRow(slot: .update(admin: false), caption: .error("EACCES")))
+            #expect(s.detailHeader("a") == CLIDetailHeader(action: .none, progress: nil))
+            // `b` is on offer again: the button, live, and no Cancel.
+            #expect(s.updateAllHeader == .update(startable: true))
+        }
+        drawsEnded()
+        // uv's lane done last: it ran nothing to re-check.
+        #expect(r.send(.laneDone(1)) == [])
+        drawsEnded()
+
+        r.send(.updateAllFinished)
+        #expect(r.runsNothing)
+        #expect(r.state.batch == nil)
+        #expect(!r.lines.values.contains("Queued"))
     }
 }

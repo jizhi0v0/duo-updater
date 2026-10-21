@@ -48,6 +48,9 @@ public struct CLIRunState<Key: Hashable & Sendable>: Equatable, Sendable {
     /// (`startConfirmation`, `confirmationEnded`), and a check that finds the
     /// copy changed again, or gone, ends it sooner.
     public var justUpdated: [Key: String] = [:]
+    /// Update All's lanes, from its turn in the queue (`batchStarted`) to its
+    /// end (`updateAllFinished`); nil otherwise.
+    public var batch: CLIRunBatch<Key>?
 
     public init() {}
 
@@ -100,6 +103,93 @@ public struct CLIRunChecked: Equatable, Sendable {
 
     /// Offered now: behind, with a one-click.
     var offered: Bool { status.map { $0.state == .updateAvailable && $0.oneClick != nil } ?? false }
+}
+
+/// A copy of Update All's lanes, as its turn in the queue starts them
+/// (`CLIRunEvent.batchStarted`).
+public struct CLIRunLaneCopy<Key: Hashable & Sendable>: Equatable, Sendable {
+    public let id: Key
+    /// Its tool: its provider's index in the app's list.
+    public let tool: Int
+    /// Its lane (`CLIToolsModel.lane(of:)`): copies with the same one run one
+    /// after another, copies in different ones side by side.
+    public let lane: String
+    /// The route Update All's click read: whether its update asked for an
+    /// administrator password then.
+    public let needsAdministrator: Bool
+
+    public init(id: Key, tool: Int, lane: String, needsAdministrator: Bool) {
+        self.id = id
+        self.tool = tool
+        self.lane = lane
+        self.needsAdministrator = needsAdministrator
+    }
+}
+
+/// What a lane copy's command ended with, as its tool's re-check needs it
+/// (`CLIRunEvent.laneCommandEnded`).
+public enum CLIRunLaneResult: Equatable, Sendable {
+    /// It exited 0, run on `before`; `reported` is the updater's own re-read
+    /// of the version after it, nil when it made none.
+    case updated(before: String?, reported: String?)
+    /// It ran nothing — an update already running, or the offer gone — so
+    /// its tool's re-check says what is true now.
+    case ranNothing
+    /// Its failure is on its row, or its panel was dismissed: nothing to wait
+    /// for.
+    case nothingToCheck
+}
+
+/// Update All's lanes as they run: what `runBatch` and `runLane` used to keep
+/// by hand in the app, so when a tool is re-checked, what a lane's turn reads
+/// and what is said after the batch's own check are the reducer's to decide.
+public struct CLIRunBatch<Key: Hashable & Sendable>: Equatable, Sendable {
+    /// A lane copy whose command ran and waits on its tool's re-check.
+    public struct Ran: Equatable, Sendable {
+        public var id: Key
+        public var result: CLIRunLaneResult
+    }
+
+    /// A lane copy not run at its turn, with what its row said, and the route
+    /// Update All's click read.
+    public struct NotRun: Equatable, Sendable {
+        public var id: Key
+        public var why: CLIRunNotRun
+        public var clickedNeedsAdministrator: Bool
+    }
+
+    /// The lanes, each in click order, in the order their first copy was
+    /// clicked.
+    public var lanes: [[Key]] = []
+    /// Each lane copy as `batchStarted` gave it.
+    public var copies: [Key: CLIRunLaneCopy<Key>] = [:]
+    /// Each lane copy's lane, an index in `lanes`.
+    public var laneOf: [Key: Int] = [:]
+    /// Per tool, the lanes not yet done that hold one of its copies. A tool is
+    /// re-checked once this is 0: earlier, its check could read a copy in the
+    /// middle of its install.
+    public var lanesLeft: [Int: Int] = [:]
+    /// The generation of the last check started (`checkStarted`).
+    public var checkGeneration: Int
+    /// Per lane, the generation of the last check started before the lane ran
+    /// its first command; a report newer than it may have read the lane's own
+    /// work (`readsTheLane`).
+    public var ranSince: [Int: Int] = [:]
+    /// Per tool, its copies whose command ran and wait on its re-check, in
+    /// the order they ran.
+    public var ran: [Int: [Ran]] = [:]
+    /// Per tool, its copies not run at their turn.
+    public var notRun: [Int: [NotRun]] = [:]
+
+    public init(checkGeneration: Int) {
+        self.checkGeneration = checkGeneration
+    }
+
+    /// Whether `report`, a tool's report of that check generation, is from a
+    /// check that started once `id`'s lane had run something.
+    public func readsTheLane(_ id: Key, report: Int) -> Bool {
+        laneOf[id].flatMap { ranSince[$0] }.map { report > $0 } ?? false
+    }
 }
 
 /// A row's progress line, as a transition sets it. Worded by the app, whose
@@ -163,7 +253,8 @@ public enum CLIRunEvent<Key: Hashable & Sendable>: Equatable, Sendable {
     /// has landed, and took its "Not updated" line away (`checkLanded`):
     /// `why` is what that line said, `clickedNeedsAdministrator` the route
     /// Update All's click read, `now` its verdict on screen now.
-    case notRunRechecked(Key, CLIRunNotRun, clickedNeedsAdministrator: Bool, now: CLIToolStatus?)    /// The re-check of these copies' tool starts.
+    case notRunRechecked(Key, CLIRunNotRun, clickedNeedsAdministrator: Bool, now: CLIToolStatus?)
+    /// The re-check of these copies' tool starts.
     case recheckStarted([Key])
     /// Its part is over, however it ended: done, failed, not run, cancelled.
     case released(Key)
@@ -184,8 +275,23 @@ public enum CLIRunEvent<Key: Hashable & Sendable>: Equatable, Sendable {
     /// Every panel is up or answered: Update All's lanes take their place in
     /// the queue with these copies, those it still holds.
     case lanesReady([Key])
-    /// A lane has reached this copy.
-    case laneTurnCame(Key)
+    /// Update All's turn in the queue has come: these copies, in click order,
+    /// run in their lanes. `checkGeneration`: the last check started so far.
+    case batchStarted([CLIRunLaneCopy<Key>], checkGeneration: Int)
+    /// A check of the tools started, numbered `generation` — one more than
+    /// the check started before it, whichever tools each asks.
+    case checkStarted(generation: Int)
+    /// A lane has reached this copy. `reportGeneration`: the generation of the
+    /// check whose report of its tool is on screen now.
+    case laneTurnCame(Key, reportGeneration: Int)
+    /// A lane copy's command has ended (`commandEnded` and, for a failure,
+    /// `commandFailed` already sent), with what its tool's re-check needs.
+    case laneCommandEnded(Key, CLIRunLaneResult)
+    /// The lane at this index in `CLIRunBatch.lanes` has run its last copy.
+    case laneDone(Int)
+    /// The re-check of this tool, asked for by `recheck`, has landed: `now`
+    /// holds its copies' verdicts on screen now (a copy gone is missing).
+    case toolRechecked(Int, now: [Key: CLIToolStatus])
     /// Update All, still waiting its turn, was taken back out of the queue.
     case updateAllWithdrawn
     /// Update All's run and its panels' runs have all returned.
@@ -232,8 +338,15 @@ public enum CLIRunEffect<Key: Hashable & Sendable>: Equatable, Sendable {
     case runUpdateAll
     /// Put Update All's lanes in the queue with these copies.
     case enqueueUpdateAll([Key])
-    /// Read this lane copy's offer at its turn.
-    case readLaneOffer(Key)
+    /// Run these lanes side by side, each one copy after another.
+    case runLanes([[Key]])
+    /// Read this lane copy's offer at its turn. `readsTheLane`: the check on
+    /// screen for its tool started once its lane had run something
+    /// (`CLIRunOffer.laneAtTurn`).
+    case readLaneOffer(Key, readsTheLane: Bool)
+    /// Re-check these tools, then send `toolRechecked` for each, in this
+    /// order.
+    case recheck([Int])
     /// Take Update All back out of the queue, or cancel each copy it holds
     /// that can still be (`updateAllNotWaiting`).
     case withdrawUpdateAll
@@ -298,7 +411,14 @@ public enum CLIRunReducer {
             case .run: effects.append(.startCommand(id))
             case .notRun(.silent), .askTool: break
             // Its row says why; about this click only (`checkLanded`).
-            case .notRun(let why): s.redLines[id] = .notRun(why)
+            case .notRun(let why):
+                s.redLines[id] = .notRun(why)
+                // A lane copy's line is said again after the batch's own check
+                // of its tool (`toolRechecked`), so the batch keeps it.
+                if s.claims[id]?.byUpdateAll == true, let copy = s.batch?.copies[id] {
+                    s.batch?.notRun[copy.tool, default: []].append(CLIRunBatch<Key>.NotRun(
+                        id: id, why: why, clickedNeedsAdministrator: copy.needsAdministrator))
+                }
             }
 
         case .commandStarting(let id):
@@ -306,6 +426,13 @@ public enum CLIRunReducer {
             // no longer holds.
             s.redLines[id] = nil
             s.logs[id] = nil
+            // A lane's first command: a check started after it may read the
+            // lane's own work. Not a click of its own on a copy cancelled out
+            // of the batch (#1535).
+            if s.claims[id]?.byUpdateAll == true, let batch = s.batch, let lane = batch.laneOf[id],
+               batch.ranSince[lane] == nil {
+                s.batch?.ranSince[lane] = batch.checkGeneration
+            }
             effects.append(.showLine(id, .starting))
 
         case .outputLine(let id, let line):
@@ -475,13 +602,92 @@ public enum CLIRunReducer {
             let held = ids.filter { s.claims[$0]?.byUpdateAll == true }
             if !held.isEmpty { effects.append(.enqueueUpdateAll(held)) }
 
-        case .laneTurnCame(let id):
+        case .batchStarted(let copies, let checkGeneration):
+            var batch = CLIRunBatch<Key>(checkGeneration: checkGeneration)
+            var laneIndex: [String: Int] = [:]
+            for copy in copies {
+                let index: Int
+                if let known = laneIndex[copy.lane] {
+                    index = known
+                    batch.lanes[index].append(copy.id)
+                } else {
+                    index = batch.lanes.count
+                    laneIndex[copy.lane] = index
+                    batch.lanes.append([copy.id])
+                }
+                batch.copies[copy.id] = copy
+                batch.laneOf[copy.id] = index
+            }
+            for lane in batch.lanes {
+                for tool in Set(lane.compactMap { batch.copies[$0]?.tool }) { batch.lanesLeft[tool, default: 0] += 1 }
+            }
+            s.batch = batch
+            effects.append(.runLanes(batch.lanes))
+
+        case .checkStarted(let generation):
+            // Only a batch reads it (`ranSince`); with none, nothing changes.
+            guard s.batch != nil else { return (state, []) }
+            s.batch?.checkGeneration = generation
+
+        case .laneTurnCame(let id, let reportGeneration):
             // Cancelled while it waited: its row was released then — and may
             // be claimed again by a click of its own, whose "Queued" stays
             // and whose own turn runs it, once (#1535).
             guard s.claims[id]?.byUpdateAll == true else { return (state, []) }
             s.claims[id]?.phase = .running
-            effects.append(.readLaneOffer(id))
+            let readsTheLane = s.batch?.readsTheLane(id, report: reportGeneration) ?? false
+            effects.append(.readLaneOffer(id, readsTheLane: readsTheLane))
+
+        case .laneCommandEnded(let id, let result):
+            guard result != .nothingToCheck, let tool = s.batch?.copies[id]?.tool else {
+                // A failure is said on the row; nothing to wait for.
+                effects.append(release(&s, id))
+                break
+            }
+            s.batch?.ran[tool, default: []].append(CLIRunBatch<Key>.Ran(id: id, result: result))
+
+        case .laneDone(let index):
+            guard let batch = s.batch, batch.lanes.indices.contains(index) else { return (state, []) }
+            // A tool is re-checked once no lane is left that holds one of its
+            // copies: earlier, its check could read a copy in the middle of
+            // its install. Only one that ran something.
+            var ready: [Int] = []
+            for tool in Set(batch.lanes[index].compactMap { batch.copies[$0]?.tool }).sorted() {
+                s.batch?.lanesLeft[tool, default: 1] -= 1
+                if s.batch?.lanesLeft[tool] == 0, !(batch.ran[tool] ?? []).isEmpty { ready.append(tool) }
+            }
+            guard !ready.isEmpty else { break }
+            for tool in ready {
+                effects += (batch.ran[tool] ?? []).map { CLIRunEffect<Key>.showLine($0.id, .checking) }
+            }
+            effects.append(.recheck(ready))
+
+        case .toolRechecked(let tool, let now):
+            guard let batch = s.batch else { return (state, []) }
+            for ran in batch.ran[tool] ?? [] {
+                // Exit 0 is not proof of an update (`CLITools.settle`): the
+                // updater's own re-read first, the fresh check's when it had
+                // none.
+                if case .updated(let before, let reported) = ran.result {
+                    let after = reported ?? now[ran.id]?.installedVersion
+                    let (next, settled) = Self.reduce(s, .updateSettled(ran.id, before: before, after: after))
+                    s = next
+                    effects += settled
+                }
+                effects.append(release(&s, ran.id))
+            }
+            // "Not updated: …" goes with its tool's next check, and this one
+            // is the batch's own: said again while it still holds
+            // (`notRunRechecked`).
+            for notRun in batch.notRun[tool] ?? [] {
+                let (next, said) = Self.reduce(s, .notRunRechecked(
+                    notRun.id, notRun.why, clickedNeedsAdministrator: notRun.clickedNeedsAdministrator,
+                    now: now[notRun.id]))
+                s = next
+                effects += said
+            }
+            s.batch?.ran[tool] = nil
+            s.batch?.notRun[tool] = nil
 
         case .updateAllWithdrawn:
             // Nothing of the lanes ran. The batch's copies as they stand, not
@@ -499,6 +705,7 @@ public enum CLIRunReducer {
         case .updateAllFinished:
             // Every copy it claimed has been released by now.
             s.updatingAll = false
+            s.batch = nil
 
         case .cancelUpdateAllClicked:
             // Still waiting its turn, it leaves the queue first.

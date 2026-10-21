@@ -583,6 +583,8 @@ final class CLIToolsModel {
     private func check(_ indices: [Int]) async {
         refreshGeneration += 1
         let generation = refreshGeneration
+        // What a lane's turn reads its check against (`CLIRunBatch.ranSince`).
+        send(.checkStarted(generation: generation))
         for index in indices { latestCheck[index] = generation }
         let started = now()
         checksInFlight += 1
@@ -985,7 +987,7 @@ final class CLIToolsModel {
     /// (`offerAtTurn`). One per copy would be a network round per copy, and in
     /// lanes running side by side a check can read another lane's copy of the
     /// same tool halfway through its install — why a tool is re-checked only
-    /// once its last lane is done (`BatchRun.lanesLeft`).
+    /// once its last lane is done (`CLIRunBatch.lanesLeft`).
     ///
     /// So a verdict that may clear by itself (`mayClearByItself`) falls back
     /// on the click's offer: "an update is already running" (`.busy`), which a
@@ -1125,7 +1127,7 @@ final class CLIToolsModel {
             cancelUpdateAll()
         // The caller's, awaited where it sent the event.
         case .enqueue, .raisePanel, .check, .startCommand, .stoppedBeforeCommand,
-             .runUpdateAll, .enqueueUpdateAll, .readLaneOffer, .updateAllEnded:
+             .runUpdateAll, .enqueueUpdateAll, .runLanes, .readLaneOffer, .recheck, .updateAllEnded:
             break
         }
     }
@@ -1497,94 +1499,81 @@ final class CLIToolsModel {
     }
 
     /// `updateAll`'s turn: the lanes at once, each tool re-checked when its last
-    /// lane is done.
+    /// lane is done. Which copies make a lane, which tool is re-checked when,
+    /// and what a turn reads its check against are the reducer's
+    /// (`CLIRunBatch`); the lanes' loops and their tasks are here.
     private func runBatch(_ batch: [(CLIToolStatus, Int)]) async {
-        var lanes: [[(CLIToolStatus, Int)]] = []
-        var laneOf: [String: Int] = [:]
-        for copy in batch {
-            let key = Self.lane(of: copy.0)
-            if let index = laneOf[key] { lanes[index].append(copy) } else {
-                laneOf[key] = lanes.count
-                lanes.append([copy])
-            }
+        let clicked = Dictionary(batch.map { ($0.0.toolID, $0) }, uniquingKeysWith: { a, _ in a })
+        let copies = batch.map { status, provider in
+            CLIRunLaneCopy(id: status.toolID, tool: provider, lane: Self.lane(of: status),
+                           needsAdministrator: status.needsAdministrator)
         }
-        let run = BatchRun()
-        for lane in lanes {
-            for provider in Set(lane.map(\.1)) { run.lanesLeft[provider, default: 0] += 1 }
-        }
+        var lanes: [[CLIToolID]] = []
+        for case .runLanes(let ids) in send(.batchStarted(copies, checkGeneration: refreshGeneration)) { lanes = ids }
         // A task per lane, not a task group: Swift 6.4's Release build has
         // miscompiled a group's `for await` before (swift64-release-taskgroup-
         // miscompile), and these need nothing a group adds.
-        let tasks = lanes.map { lane in Task { @MainActor in await self.runLane(lane, run) } }
+        let tasks = lanes.enumerated().map { index, lane in
+            Task { @MainActor in await self.runLane(index, lane.compactMap { clicked[$0] }) }
+        }
         for task in tasks { await task.value }
     }
 
-    /// What the lanes of one `updateAll` share.
-    @MainActor private final class BatchRun {
-        /// Per provider, the lanes not yet done that hold one of its copies.
-        var lanesLeft: [Int: Int] = [:]
-        /// Per provider, its copies whose update ran and wait on its re-check.
-        var ran: [Int: [(CLIToolStatus, CLIToolUpdateOutcome)]] = [:]
-        /// Per provider, its copies not run at their turn, as clicked, with
-        /// why their row said they were not.
-        var notRun: [Int: [(CLIToolStatus, CLIRunNotRun)]] = [:]
-    }
-
-    private func runLane(_ lane: [(CLIToolStatus, Int)], _ run: BatchRun) async {
-        // The generation of the last check started before this lane ran
-        // anything; a report newer than it may have read the lane's own work.
-        var ranSince: Int?
+    private func runLane(_ index: Int, _ lane: [(CLIToolStatus, Int)]) async {
         for (clicked, provider) in lane {
             // Cancelled while it waited: its row was released then — and may be
             // claimed again by a click of its own, whose "Queued" stays (#1535).
-            guard send(.laneTurnCame(clicked.toolID)).contains(.readLaneOffer(clicked.toolID)) else { continue }
+            // Whether its check may have read this lane's own work is the
+            // reducer's (`CLIRunBatch.readsTheLane`).
+            let turn = send(.laneTurnCame(clicked.toolID, reportGeneration: reportGeneration[provider, default: 0]))
+            guard let readsTheLane = turn.lazy.compactMap({ effect -> Bool? in
+                if case .readLaneOffer(clicked.toolID, let reads) = effect { return reads }
+                return nil
+            }).first else { continue }
             // Its offer as it stands at its turn; not to run, it leaves the
-            // batch as a copy cancelled before its command does.
-            let readsTheLane = ranSince.map { reportGeneration[provider, default: 0] > $0 } ?? false
+            // batch as a copy cancelled before its command does. One whose row
+            // says why is kept for the batch's own check (`CLIRunBatch.notRun`).
             let offer = laneOfferAtTurn(clicked, readsTheLane: readsTheLane)
             guard send(.offerRead(clicked.toolID, offer)).contains(.startCommand(clicked.toolID)),
                   case .run(let status) = offer else {
-                if case .notRun(let why)? = runState.redLines[clicked.toolID] {
-                    run.notRun[provider, default: []].append((clicked, why))
-                }
                 release(clicked.toolID)
                 continue
             }
-            if ranSince == nil { ranSince = refreshGeneration }
             guard let outcome = await self.run(status, with: provider) else {
                 release(status.toolID)
                 continue
             }
-            if Self.needsRecheck(outcome) {
-                run.ran[provider, default: []].append((status, outcome))
-            } else {
-                // A failure is said on the row; nothing to wait for.
-                release(status.toolID)
+            // One that needs its tool's re-check waits for it; a failure is
+            // said on the row, and is released (`laneCommandEnded`).
+            let result: CLIRunLaneResult
+            switch outcome {
+            case .updated(let version): result = .updated(before: status.installedVersion, reported: version)
+            case .busy, .notOffered: result = .ranNothing
+            case .failed, .declined: result = .nothingToCheck
             }
+            send(.laneCommandEnded(status.toolID, result))
         }
-        // A tool is re-checked once no lane is left that holds one of its copies:
-        // earlier, its check could read a copy in the middle of its install.
+        // A tool is re-checked once no lane is left that holds one of its
+        // copies (`laneDone`).
         var ready: [Int] = []
-        for provider in Set(lane.map(\.1)) {
-            run.lanesLeft[provider, default: 1] -= 1
-            if run.lanesLeft[provider] == 0, run.ran[provider] != nil { ready.append(provider) }
-        }
+        for case .recheck(let tools) in send(.laneDone(index)) { ready = tools }
         guard !ready.isEmpty else { return }
+        await check(ready)
         for provider in ready {
-            send(.recheckStarted((run.ran[provider] ?? []).map(\.0.toolID)))
-        }
-        await check(ready.sorted())
-        for provider in ready {
-            for (status, outcome) in run.ran[provider] ?? [] {
-                settle(status, outcome)
-                release(status.toolID)
-            }
-            // "Not updated: …" goes with its tool's next check, and this one
-            // is the batch's own: said again while it still holds
-            // (`CLIRunEvent.notRunRechecked`).
-            for (clicked, why) in run.notRun[provider] ?? [] {
-                send(.notRunRechecked(clicked.toolID, why, clickedNeedsAdministrator: clicked.needsAdministrator,
-                                      now: status(clicked.toolID)))
+            let kind = providers[provider].kind
+            let now = Dictionary(statuses.filter { $0.kind == kind }.map { ($0.toolID, $0) },
+                                 uniquingKeysWith: { a, _ in a })
+            // Settled and released; "Not updated: …" said again while it still
+            // holds (`toolRechecked`).
+            for case .clearLine(let id) in send(.toolRechecked(provider, now: now)) {
+                switch runState.redLines[id] {
+                case .stillOn(let version)?:
+                    Log.app.info("\(id.kind.rawValue, privacy: .public) update at \(id.path, privacy: .public) exited 0 but left \(version, privacy: .public)")
+                case .versionUnreadable?:
+                    Log.app.info("\(id.kind.rawValue, privacy: .public) update at \(id.path, privacy: .public) exited 0 but left an unreadable version")
+                default:
+                    break
+                }
             }
         }
     }

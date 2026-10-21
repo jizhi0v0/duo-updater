@@ -417,9 +417,17 @@ private struct CLIToolProcessDetail: View {
         Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 8, verticalSpacing: 4) {
             GridRow {
                 label("Process")
-                HStack(spacing: 4) {
-                    Text(verbatim: "pid \(origin.pid)")
-                    CopyCommandButton(command: String(origin.pid))
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 4) {
+                        Text(verbatim: "pid \(origin.pid)")
+                        CopyCommandButton(command: String(origin.pid))
+                    }
+                    // To copy, not to run: a plain `kill` sends SIGTERM, which
+                    // the process may catch to shut down cleanly.
+                    HStack(spacing: 4) {
+                        Text(verbatim: "kill \(origin.pid)").font(.callout.monospaced())
+                        CopyCommandButton(command: "kill \(origin.pid)")
+                    }
                 }
             }
             if !origin.arguments.isEmpty {

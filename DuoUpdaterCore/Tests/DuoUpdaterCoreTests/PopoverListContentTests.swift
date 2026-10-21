@@ -31,6 +31,28 @@ struct PopoverListContentTests {
         #expect(decide(visibleIsEmpty: false, isRoundInFlight: false, answeredThisLaunch: true) == .rows)
     }
 
+    /// The cold launch recorded on 2026-10-21, step by step, as the model's state
+    /// stood at each render (`base.mp4`, frames at 0.5 s, 10.29 s, 10.49 s,
+    /// 10.61 s): what the list area showed then, and what it shows now. The list
+    /// changes from the placeholder to the rows exactly once, at the end.
+    @Test("the recorded cold launch shows the list once")
+    func recordedColdLaunch() {
+        struct Step { let name: String; let visibleIsEmpty: Bool; let inFlight: Bool; let answered: Bool }
+        let steps = [
+            Step(name: "scan published, every row .unknown", visibleIsEmpty: true, inFlight: true, answered: false),
+            Step(name: "round results published", visibleIsEmpty: false, inFlight: true, answered: false),
+            Step(name: "restart sweep re-sorted (Zed Preview on top)", visibleIsEmpty: false, inFlight: true, answered: false),
+            Step(name: "staging sweep re-sorted (Spotify on top)", visibleIsEmpty: false, inFlight: true, answered: false),
+            Step(name: "round recorded as finished", visibleIsEmpty: false, inFlight: true, answered: true),
+            Step(name: "round over", visibleIsEmpty: false, inFlight: false, answered: true),
+        ]
+        let shown = steps.map {
+            decide(visibleIsEmpty: $0.visibleIsEmpty, isRoundInFlight: $0.inFlight, answeredThisLaunch: $0.answered)
+        }
+        #expect(shown == [.checking, .checking, .checking, .checking, .rows, .rows])
+        #expect(!shown.contains(.upToDate))
+    }
+
     /// A later round carries the verdicts it had: its rows stay up, and an empty
     /// list is still the last round's answer.
     @Test("later rounds keep showing the last answer")

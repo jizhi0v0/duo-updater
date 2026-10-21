@@ -207,9 +207,8 @@ public enum CLIRunReducer {
                 // Nothing to cancel while its tool is asked: the update
                 // starts after. Its phase says so, rather than being read
                 // off its missing Cancel.
-                s.cancels[id] = nil
-                s.claims[id]?.phase = .checkingAtTurn
-                return (s, [.showLine(id, .checking), .check(id)])
+                s.claims[id]?.phase = .checkingAtTurn  // RED CHECK 1
+                return (s, [.showLine(id, .checking)])
             case .run, .notRun:
                 // Asked, and offered again: its Cancel comes back.
                 if offer.offered, s.claims[id]?.phase == .checkingAtTurn {
@@ -219,7 +218,7 @@ public enum CLIRunReducer {
             }
             switch offer {
             case .run: effects.append(.startCommand(id))
-            case .notRun(.silent), .askTool: break
+            case .notRun(.silent), .askTool, .notRun(.routeChanged): break  // RED CHECK 2
             case .notRun(let why): effects.append(.sayNotRun(id, why))
             }
 
@@ -253,6 +252,10 @@ public enum CLIRunReducer {
         case .recheckStarted(let ids):
             effects = ids.map { CLIRunEffect<Key>.showLine($0, .checking) }
 
+        case .released(let id) where s.claims[id]?.byUpdateAll == true && s.batchIDs == [id]:
+            s.claims[id] = CLIRunClaim(phase: .queued, byUpdateAll: true)  // RED CHECK 4
+            effects.append(.showLine(id, .queued))
+
         case .released(let id):
             // Out of a running or waiting Update All for good, however its
             // claim ended: a click of its own on this row later is not Update
@@ -260,7 +263,7 @@ public enum CLIRunReducer {
             effects.append(release(&s, id))
 
         case .cancelClicked(let id):
-            guard s.cancels[id] == .available else { return (state, []) }
+            guard s.cancels[id] != nil else { return (state, []) }  // RED CHECK 5
             // Its own click, waiting behind another's run, first: out of the
             // queue, its row released by the click's `whenCancelled`.
             effects.append(.withdrawClick(id))
@@ -315,7 +318,7 @@ public enum CLIRunReducer {
             // Cancelled while it waited: its row was released then — and may
             // be claimed again by a click of its own, whose "Queued" stays
             // and whose own turn runs it, once (#1535).
-            guard s.claims[id]?.byUpdateAll == true else { return (state, []) }
+            guard s.claims[id] != nil else { return (state, []) }  // RED CHECK 3
             s.claims[id]?.phase = .running
             effects.append(.readLaneOffer(id))
 
@@ -335,6 +338,7 @@ public enum CLIRunReducer {
         case .updateAllFinished:
             // Every copy it claimed has been released by now.
             s.updatingAll = false
+            for id in s.batchIDs { effects.append(release(&s, id)) }  // RED CHECK 4
 
         case .cancelUpdateAllClicked:
             // Still waiting its turn, it leaves the queue first.

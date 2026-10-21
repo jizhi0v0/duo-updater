@@ -80,7 +80,8 @@ import Testing
     }()
 
     /// One copy, "a", with an update on offer (or held back with a command to
-    /// copy). In a batch, Update All runs and holds it — or, idle, has let it go.
+    /// copy). In a batch, Update All runs and holds it — or, idle, has let it
+    /// go: it holds nothing then, and is drawn as ended.
     static func snapshot(_ c: Case) -> Snapshot {
         let tool = Snapshot.Tool(
             id: "a", kind: .uv, phase: c.phase,
@@ -120,11 +121,11 @@ import Testing
 
         // Popover.
         let popover = s.popover
-        if running || c.batch {
+        if running {
             #expect(popover?.isRunning == true)
             #expect(popover?.mark == .spinner)
             #expect(popover?.button == (own.map(CLIRowState.cancel) ?? CLIRowState<String>.none))
-            if c.phase == .idle || c.phase == .queued {
+            if c.phase == .queued {
                 #expect(popover?.lines == [.queued])
             } else {
                 #expect(popover?.lines == [.updating(.uv), .progress(progress)])
@@ -138,7 +139,7 @@ import Testing
         }
 
         // Update All header.
-        if c.batch {
+        if c.batch && running {
             #expect(s.updateAllHeader == .running(Self.headerCancel(c.phase, c.cancel)))
         } else if c.oneClick {
             #expect(s.updateAllHeader == .update(startable: !running))
@@ -211,13 +212,46 @@ import Testing
         #expect(header?.pending == true)
     }
 
-    /// #1498: Update All running with none of its copies left — the header
-    /// keeps a greyed Cancel, so its height does not move.
-    @Test func theHeaderKeepsAGreyedCancelWithNoCopyLeft() {
-        let s = Snapshot(tools: [.init(id: "a", kind: .uv, state: .updateAvailable, oneClick: true)],
-                         updatingAll: true, batchIDs: [], updateAllOffered: true)
+    /// #1498: Update All running with no Cancel left on any of its copies —
+    /// the header keeps a greyed one, so its height does not move.
+    @Test func theHeaderKeepsAGreyedCancelWithNoCancelLeft() {
+        let s = Snapshot(tools: [.init(id: "a", kind: .uv, phase: .awaitingCheck, state: .updateAvailable,
+                                       oneClick: true)],
+                         updatingAll: true, batchIDs: ["a"], updateAllOffered: true)
         #expect(Self.headerCancel(s).map { [$0.state] } == [.committing])
         #expect(Self.headerCancel(s)?.pending == false)
+    }
+
+    /// 2026-10-21 popover recording: between the last copy's release and
+    /// `endUpdateAll()` Update All holds no copy and waits on nothing, so
+    /// nothing is left for it to run. The row went "Checking…" → "Queued"
+    /// (33–60 ms) → "1 update · 1 held back"; it must draw the idle row at
+    /// once, and the header what it draws once Update All has ended.
+    @Test func updateAllWithNoCopyLeftDrawsWhatItDrawsOnceEnded() {
+        let tools: [Snapshot.Tool] = [
+            .init(id: "a", kind: .uv, state: .updateAvailable, oneClick: true),
+            .init(id: "b", kind: .npm, state: .updateAvailable, manualCommand: "npm i -g b"),
+        ]
+        let ending = Snapshot(tools: tools, updatingAll: true, updateAllWaiting: false, batchIDs: [],
+                              updateAllOffered: true, updateAllStartable: true)
+        let ended = Snapshot(tools: tools, updateAllOffered: true, updateAllStartable: true)
+        #expect(ending.popover == CLIPopoverRow(lines: [.updates(1), .heldBack(1)], mark: nil,
+                                                button: .update(admin: false), isRunning: false))
+        #expect(ending.popover == ended.popover)
+        #expect(ending.updateAllHeader == ended.updateAllHeader)
+        #expect(ending.updateAllCancel == nil)
+    }
+
+    /// Update All waiting its turn behind another click's run, its copies
+    /// claimed and queued: "Queued", and its own Cancel live on the header.
+    @Test func updateAllWaitingItsTurnSaysQueued() {
+        let s = Snapshot(tools: [.init(id: "a", kind: .uv, phase: .queued, cancel: .available,
+                                       state: .updateAvailable, oneClick: true)],
+                         updatingAll: true, updateAllWaiting: true, batchIDs: ["a"], updateAllOffered: true)
+        #expect(s.popover == CLIPopoverRow(lines: [.queued], mark: .spinner,
+                                           button: .cancel(Group(state: .available, pending: false, live: 1)),
+                                           isRunning: true))
+        #expect(s.updateAllHeader == .running(Group(state: .available, pending: false, live: 1)))
     }
 
     /// The two detail panes decide alike: Claude Code's header asks for an

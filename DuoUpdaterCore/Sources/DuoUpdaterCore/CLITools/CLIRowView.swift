@@ -187,6 +187,13 @@ public struct CLIRowSnapshot<Key: Hashable & Sendable>: Equatable, Sendable {
     /// Update All has anything to start now.
     public var updateAllStartable: Bool
 
+    /// Update All still has something to run: it waits its turn, or holds a
+    /// copy. Every copy is claimed at its click and released only when its
+    /// part is done, so with neither left `updatingAll` is just the moment
+    /// before `endUpdateAll()` — drawn as ended: a frame drawn in it said
+    /// "Queued" between the last "Checking…" and the idle row (2026-10-21).
+    private var updateAllRuns: Bool { updatingAll && (updateAllWaiting || !batchIDs.isEmpty) }
+
     public init(
         tools: [Tool] = [], unlisted: [Tool] = [], hasSightings: Bool = true, checked: Bool = true,
         updatingAll: Bool = false, updateAllWaiting: Bool = false, batchIDs: Set<Key> = [],
@@ -246,7 +253,7 @@ public struct CLIRowSnapshot<Key: Hashable & Sendable>: Equatable, Sendable {
     /// still holds: never nil while it runs, so the header keeps its height
     /// (#1498). Nil when no Update All runs.
     public var updateAllCancel: GroupCancel? {
-        guard updatingAll else { return nil }
+        guard updateAllRuns else { return nil }
         let group = groupCancel(of: batchIDs, running: [], floor: true)
         // Still waiting its turn, Update All itself leaves the queue on a click.
         if updateAllWaiting, let group, group.state != .available || group.pending {
@@ -269,7 +276,7 @@ public struct CLIRowSnapshot<Key: Hashable & Sendable>: Equatable, Sendable {
 
     /// The workbench's Update All for the tool groups.
     public var updateAllHeader: CLIUpdateAllHeader<Key> {
-        if updatingAll, let cancel = updateAllCancel { return .running(cancel) }
+        if let cancel = updateAllCancel { return .running(cancel) }
         if updateAllOffered { return .update(startable: updateAllStartable) }
         return .hidden
     }
@@ -278,7 +285,7 @@ public struct CLIRowSnapshot<Key: Hashable & Sendable>: Equatable, Sendable {
     public var popover: CLIPopoverRow<Key>? {
         guard hasSightings else { return nil }
         typealias Row = CLIPopoverRow<Key>
-        if updatingAll || everyCopy.contains(where: { $0.phase != .idle }) {
+        if updateAllRuns || everyCopy.contains(where: { $0.phase != .idle }) {
             let button = rowCancel.map(CLIRowState.cancel) ?? .none
             // A queued copy is not running.
             let claimed = tools.filter { $0.phase != .idle && $0.phase != .queued }

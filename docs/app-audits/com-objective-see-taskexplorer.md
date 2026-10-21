@@ -70,7 +70,7 @@
 
 | | 客户端会停放吗 | 本次实际停放了什么 | 我们能否直接拿来装 |
 |---|---|---|---|
-| 结论 | 不会 | 没查（运行中一轮未跑） | — |
+| 结论 | 不会 | 没查（运行中一轮没去找停放目录；源码不下载） | — |
 | 证据 | `Update.m` 不下载任何东西（源码） | — | — |
 
 ## Changelog
@@ -87,7 +87,10 @@
 - 状态: **支持**（按 Team 闸）
 - 端到端: ✓ 3.0.0 → 3.1.0，app 不运行（2026-10-20）。`duo install` 依次走 `verifyingSignature` → `extracting` →
   `verifyingCodeSignature` → `installed`；装后 `com.objective-see.taskexplorer` 3.1.0、Team `VBG97UB4TA`、
-  `codesign --verify --deep --strict` 为 0、`spctl` Notarized Developer ID，`duo check` 报 up to date。运行中一轮未跑
+  `codesign --verify --deep --strict` 为 0、`spctl` Notarized Developer ID，`duo check` 报 up to date。
+  运行中一轮 ✓（2026-10-22，`fc3c0f71` 的 `make cli`，扩展**未批准**）：3.0.0 运行中 `duo install` → installed、提示仍跑旧代码；
+  磁盘 3.1.0、codesign/spctl 通过；`duo restart TaskExplorer` 起了新进程，退出后磁盘仍 3.1.0、`duo check` up to date。
+  前后 `systemextensionsctl list` 都没有 objective-see 条目，`~/Library/LaunchAgents` 无变化
 - 格式: zip（universal，公证、staple）。zip 里有 AppleDouble 条目（`._*`，3.1.0 有 63 个），生产的 `ditto -x -k`
   解出后 `codesign --verify --deep --strict` 为 0（3.0.0、3.1.0 实测）
 - 嵌套: 3.x 含 Endpoint Security **系统扩展** `Contents/Library/SystemExtensions/com.objective-see.taskexplorer.extension.systemextension`
@@ -107,7 +110,7 @@
 - changelog 面板多出赞助行
 
 ## 建议下一步
-1. 真机一键：3.0.0 → 3.1.0，不运行 + 运行中两轮；两轮都在前后记 `systemextensionsctl list`，运行中一轮 `duo restart` 后看扩展是否换成 3.1.0 且仍 activated enabled
+1. 真机：先批准 3.0.0 的系统扩展（要用户在系统设置里授权），再一键到 3.1.0、`duo restart`，看扩展是否换成 3.1.0 且仍 activated enabled
 2. 2.1.0 → 3.1.0 跨改名一轮（`BundleIDMigration` 放行 bundle id 闸）
 
 ## 如何复验

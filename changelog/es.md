@@ -2,6 +2,24 @@
 
 Esta es la traducción al español del archivo CHANGELOG.md. La versión en inglés es la autoridad en caso de discrepancias. Los números de versión no incluidos aquí se mostrarán automáticamente en inglés en la ventana de Novedades.
 
+## 0.5.12
+
+**Se admiten tres apps más.** Harp, TaskExplorer y Lapce reciben comprobación de actualizaciones y actualizaciones con un clic. Biome instalado con su script oficial se suma a «Otras herramientas» y también se actualiza con un clic, y vuelven a mostrarse las notas de la versión de la app Claude.
+
+**Se aceptan todos los clics en Homebrew y en las herramientas de línea de comandos.** Un clic mientras se ejecuta otra actualización ahora espera su turno como «En cola», con «Cancelar», en lugar de que el botón siga atenuado hasta que termine la primera. Las filas de Homebrew y de «Otras herramientas» en la barra de menús ofrecen «Cancelar» para cualquier actualización que muestren, incluida una iniciada desde el banco de trabajo.
+
+**Las herramientas que necesitan la contraseña de administrador la piden al hacer clic.** Helm y Starship instalados en una carpeta del sistema muestran el panel de contraseña en el momento, no cuando les llega el turno; «Actualizar todo» ahora los incluye con un panel para cada uno, y una etiqueta «sudo» los identifica. DuoUpdater ya no se bloquea mientras ese panel está abierto.
+
+**«Actualizar todo» sigue disponible mientras se actualizan apps sueltas.** Antes desaparecía hasta que terminaba la actualización de esa app; ahora actualiza las demás.
+
+**DuoUpdater avisa antes de que Homebrew ponga una versión estable sobre tu nightly o beta.** Si reemplazaste una app de Homebrew por su versión nightly o beta, la fila ahora indica que actualizar la devuelve a la versión estable, como hace la propia actualización de Homebrew.
+
+**El banco de trabajo muestra quién inició una herramienta de línea de comandos en ejecución.** Cada proceso indica qué app o sesión lo inició, y al hacer clic en su pid se ven la línea de comandos, la cadena de procesos y el comando para detenerlo.
+
+**Correcciones.** Al abrir la app, la barra de menús dice «Comprobando…» hasta que termina la primera comprobación, en lugar de «Todo está actualizado». La casilla «Mostrar todo» se ve sobre el cristal del menú, y las filas de Homebrew y de «Otras herramientas» se alinean con las apps de arriba. Un doble clic en «Actualizar» o «Cancelar» ya no deshace lo que hizo su primer clic. Las apps creadas con NSH tienen su propia insignia de tecnología.
+
+**Por dentro.** Las actualizaciones que se ejecutan como administrador solo escriben en una carpeta propia, y Helm nunca se ejecuta como administrador desde un archivo que tu cuenta pueda modificar. La última línea de salida de un comando ya no parpadea cuando una actualización avanza.
+
 ## 0.5.11
 
 **Puedes cancelar una actualización, o todas con «Cancelar todo».** La mayoría de las actualizaciones se pueden cancelar hasta que se empieza a reemplazar la propia app, una fórmula de Homebrew mientras brew la descarga, y una descarga cancelada que reintentas en pocos minutos sigue donde se quedó; las actualizaciones de casks de Homebrew y del App Store solo se pueden cancelar antes de empezar.

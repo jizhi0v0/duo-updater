@@ -2,6 +2,24 @@
 
 Bu, `CHANGELOG.md` dosyasının Türkçe çevirisidir. Geçerli olan İngilizce sürümdür; burada yer almayan eski sürümler otomatik olarak İngilizce gösterilir.
 
+## 0.5.12
+
+**Üç uygulama daha destekleniyor.** Harp, TaskExplorer ve Lapce güncelleme denetimi ve tek tıkla güncelleme alıyor. Resmî betiğiyle kurulan Biome da “Diğer araçlar”a katılıyor ve o da tek tıkla güncelleniyor; Claude uygulamasının sürüm notları yeniden görünüyor.
+
+**Homebrew ve komut satırı araçlarındaki her tıklama kabul ediliyor.** Başka bir güncelleme sürerken yapılan tıklama, artık düğmeyi ilki bitene kadar gri bırakmak yerine “Vazgeç” ile birlikte “Sırada” olarak sırasını bekliyor. Menü çubuğundaki Homebrew ve “Diğer araçlar” satırları, gösterdikleri her güncelleme için “Vazgeç” sunuyor; çalışma alanından başlatılan bir güncelleme de buna dahil.
+
+**Yönetici parolası gereken araçlar tıklandığı anda soruyor.** Bir sistem klasöründeki Helm ve Starship, sıraları geldiğinde değil, tıklandığı anda parola panelini açıyor; “Tümünü Güncelle” artık her biri için bir panelle onları da kapsıyor ve bir “sudo” etiketi onları işaretliyor. Bu panel açıkken DuoUpdater artık donmuyor.
+
+**Tek tek uygulamalar güncellenirken “Tümünü Güncelle” kullanılabilir kalıyor.** Önceden o uygulamanın güncellemesi bitene kadar kayboluyordu; şimdi geri kalanları güncelliyor.
+
+**DuoUpdater, Homebrew nightly ya da beta sürümünüzün üzerine kararlı bir derleme koymadan önce bunu söylüyor.** Bir Homebrew uygulamasını nightly ya da beta sürümüyle değiştirdiyseniz, satır artık güncellemenin onu kararlı sürüme geri döndüreceğini belirtiyor; Homebrew’un kendi yükseltmesi de aynısını yapar.
+
+**Çalışma alanı, çalışan bir komut satırı aracını kimin başlattığını gösteriyor.** Her süreç onu hangi uygulamanın ya da oturumun başlattığını söylüyor; PID’sine tıklayınca komut satırı, süreç zinciri ve onu durdurmak için gereken komut görünüyor.
+
+**Düzeltmeler.** Açılışta menü çubuğu, ilk denetim bitene kadar “Her şey güncel” yerine “Denetleniyor…” diyor. “Tümünü göster” onay kutusu menünün cam zemininde görünüyor; Homebrew ve “Diğer araçlar” satırları da üstteki uygulamalarla hizalanıyor. “Güncelle” ya da “Vazgeç” düğmesine çift tıklamak artık ilk tıklamanın yaptığını geri almıyor. NSH ile yapılmış uygulamalar kendi çalışma ortamı rozetini alıyor.
+
+**Perde arkasında.** Yönetici olarak çalışan güncellemeler yalnızca kendilerine ait bir klasöre yazıyor ve Helm, hesabınızın değiştirebileceği bir dosyadan asla yönetici olarak çalıştırılmıyor. Bir komutun son çıktı satırı, güncelleme ilerlerken artık bir anlık yanıp sönmüyor.
+
 ## 0.5.11
 
 **Bir güncellemeyi ya da “Tümünü İptal Et” ile hepsini iptal edebilirsiniz.** Çoğu güncelleme, uygulamanın kendisi değiştirilmeye başlanana kadar iptal edilebilir; bir Homebrew formülü de brew onu indirirken iptal edilebilir. İptal edilen bir indirmeyi birkaç dakika içinde yeniden denerseniz kaldığı yerden devam eder; Homebrew cask ve App Store güncellemeleri ise yalnızca başlamadan önce iptal edilebilir.

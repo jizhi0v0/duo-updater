@@ -225,8 +225,7 @@ import Foundation
                 let answer = CLIToolAdministratorRun.execute(#"do shell script "echo off-main""#)
                 let ran = DispatchSemaphore(value: 0)
                 DispatchQueue.main.async { ran.signal() }
-                // offpool-lint:allow — on `panelQueue`, not the pool; bounded so
-                // the mutation fails rather than hangs.
+                // Bounded, so the mutation fails rather than hangs.
                 continuation.resume(returning: (answer, ran.wait(timeout: .now() + 5) == .success))
             }
         }

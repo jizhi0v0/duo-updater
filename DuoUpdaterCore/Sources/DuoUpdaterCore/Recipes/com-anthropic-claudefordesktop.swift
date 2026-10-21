@@ -107,11 +107,14 @@ enum com_anthropic_claudefordesktop {
         // text/markdown form of every docs page): server-rendered, on a stable URL, and
         // free of the hashed-JS + zstd-cache fragility of the in-app "What's new" popup
         // (which reads an inline array baked into claude.ai's web bundle — variable
-        // names rotate every deploy). Each release is one block, e.g.:
-        //   <Update label="v1.22209.0" description="2026-07-16"> … </Update>
+        // names rotate every deploy). Each release starts at a line that is only
+        //   **v3.1623.0**
+        // and runs to the next one (it used to be an
+        // `<Update label="v…" description="<date>">` block; the decoder reads both).
         // version = the label minus its leading "v" (matches the
-        // com.anthropic.claudefordesktop build the VendorProbe reads); date = the
-        // description verbatim. Inside, notes are grouped into `**General**`, `**Code**`,
+        // com.anthropic.claudefordesktop build the VendorProbe reads); date = the old
+        // block's description, none in the bold shape (the `.md` no longer carries
+        // dates). Inside, notes are grouped into `**General**`, `**Code**`,
         // `**Cowork**`, and `**3P**` sections of `* ` markdown bullets.
         //
         // Decoded, not regex-extracted: the regex recipe that used to live here

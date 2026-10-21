@@ -34,7 +34,7 @@ public enum CLIToolWording {
         case .deno: return "Deno Land"
         case .mise: return "Jeffrey Dickey"
         case .bub, .rust, .npm, .boat, .vitePlus, .herdr, .luvus, .lorca, .zoxide, .nvm, .atuin, .ghcup, .flyctl, .helm, .starship,
-             .obelus, .pnpm, .yarn: return nil
+             .obelus, .biome, .pnpm, .yarn: return nil
         }
     }
 
@@ -269,6 +269,12 @@ public enum CLIToolWording {
         case (.unsupportedInstaller, .obelus(let obelus)):
             if !obelus.linked, !obelus.writable { return String(localized: "Updating it needs administrator rights") }
         case (.unverified, .obelus):
+            return String(localized: "The new release can’t be checked against a published digest")
+        // In `BiomeCheck`'s order, as zoxide's; a file that is no published
+        // build (no version) keeps the generic "not the build" reason.
+        case (.unsupportedInstaller, .biome(let biome)):
+            if !biome.linked, !biome.writable { return String(localized: "Updating it needs administrator rights") }
+        case (.unverified, .biome(let biome)) where biome.version != nil:
             return String(localized: "The new release can’t be checked against a published digest")
         case (.unsupportedInstaller, .atuin(let atuin)) where atuin.problem == nil && !atuin.writable:
             return String(localized: "Updating it needs administrator rights")

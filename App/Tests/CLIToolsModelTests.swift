@@ -71,6 +71,7 @@ struct CLIToolsModelTests {
         case .deno: detail = .deno(DenoInstall(path: path, version: version))
         case .mise: detail = .mise(MiseInstall(path: path, version: version))
         case .obelus: detail = .obelus(ObelusInstall(path: path, version: version))
+        case .biome: detail = .biome(BiomeInstall(path: path, version: version))
         }
         return CLIToolStatus(
             kind: kind, path: path, installedVersion: version, latestVersion: latest,
@@ -113,6 +114,7 @@ struct CLIToolsModelTests {
         case .deno: context = .deno
         case .mise: context = .mise
         case .obelus: context = .obelus
+        case .biome: context = .biome
         case .pnpm: context = .pnpm
         case .yarn: context = .yarn
         }

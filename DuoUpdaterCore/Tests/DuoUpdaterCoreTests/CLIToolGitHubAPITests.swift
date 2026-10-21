@@ -20,7 +20,7 @@ struct CLIToolGitHubAPITests {
             VitePlusProvider(), HerdrProvider(), LuvusProvider(), LorcaProvider(), ZoxideProvider(), NvmProvider(),
             AtuinProvider(), GhcupProvider(),
             FlyctlProvider(), HelmProvider(), StarshipProvider(),
-            DenoProvider(), MiseProvider(), ObelusProvider(), GlobalPackagesProvider(.pnpm), GlobalPackagesProvider(.yarn),
+            DenoProvider(), MiseProvider(), ObelusProvider(), BiomeProvider(), GlobalPackagesProvider(.pnpm), GlobalPackagesProvider(.yarn),
         ]
         #expect(Set(providers.map(\.kind)) == Set(CLIToolKind.allCases))
         #expect(Set(providers.filter(\.readsGitHubAPI).map(\.kind)) == [.bun, .opencode, .herdr, .zoxide, .nvm])

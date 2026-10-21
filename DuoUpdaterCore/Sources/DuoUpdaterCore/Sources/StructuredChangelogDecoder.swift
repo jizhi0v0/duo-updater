@@ -441,14 +441,42 @@ public enum StructuredChangelogDecoder {
     /// a different order than in-app. Only the surface order (General before Code)
     /// carries over.
     ///
+    /// The `.md` has come in two shapes. Each release was an
+    /// `<Update label="v<version>" description="<date>">` block; it is now (seen
+    /// 2026-10-21) a line that is only `**v<version>**`, running to the next such
+    /// line, with no date anywhere in the `.md` (the dates are only in the HTML
+    /// page). Both are read, so a release in the bold shape has no date. In that
+    /// shape an announcement ("Known issue: …", "Resolved: …") is a bold line
+    /// inside the release above it, read like a surface that is not shown.
+    ///
     /// Blocks whose label is not a `v<version>` (a "Known issue: …" announcement)
     /// are skipped, as are "No user-facing changes." placeholders. Items stay the
     /// text as written — plain, like the regex recipe this replaced.
     static func decodeClaudeDesktop(_ body: String, maxEntries: Int?) -> Changelog? {
         guard let blockRegex = try? NSRegularExpression(
             pattern: #"<Update label="v([^"]+)" description="([^"]*)">(.*?)</Update>"#,
-            options: [.dotMatchesLineSeparators])
+            options: [.dotMatchesLineSeparators]),
+              let boldRegex = try? NSRegularExpression(
+            pattern: #"^[ \t]*\*\*v([0-9][^*\s]*)\*\*[ \t]*$"#,
+            options: [.anchorsMatchLines])
         else { return nil }
+
+        let ns = body as NSString
+        let whole = NSRange(location: 0, length: ns.length)
+        var blocks: [(version: String, date: String, text: String)] =
+            blockRegex.matches(in: body, range: whole).map {
+                (ns.substring(with: $0.range(at: 1)), ns.substring(with: $0.range(at: 2)),
+                 ns.substring(with: $0.range(at: 3)))
+            }
+        if blocks.isEmpty {
+            let starts = boldRegex.matches(in: body, range: whole)
+            for (index, match) in starts.enumerated() {
+                let from = match.range.location + match.range.length
+                let to = index + 1 < starts.count ? starts[index + 1].range.location : ns.length
+                blocks.append((ns.substring(with: match.range(at: 1)), "",
+                               ns.substring(with: NSRange(location: from, length: to - from))))
+            }
+        }
 
         let shownSurfaces: Set<String> = ["general", "code"]
         let kinds = ["New", "Improved", "Fixed"]
@@ -458,18 +486,14 @@ public enum StructuredChangelogDecoder {
         }
 
         var entries: [Changelog.Entry] = []
-        let ns = body as NSString
-        for match in blockRegex.matches(in: body, range: NSRange(location: 0, length: ns.length)) {
-            let version = ns.substring(with: match.range(at: 1))
-                .trimmingCharacters(in: .whitespaces)
+        for block in blocks {
+            let version = block.version.trimmingCharacters(in: .whitespaces)
             guard !version.isEmpty else { continue }
-            let date = ns.substring(with: match.range(at: 2))
-                .trimmingCharacters(in: .whitespaces)
+            let date = block.date.trimmingCharacters(in: .whitespaces)
 
             var grouped: [String: [String]] = [:]
             var surface: String?
-            for rawLine in ns.substring(with: match.range(at: 3))
-                .split(whereSeparator: { $0.isNewline }) {
+            for rawLine in block.text.split(whereSeparator: { $0.isNewline }) {
                 let line = rawLine.trimmingCharacters(in: .whitespaces)
                 if line.count > 4, line.hasPrefix("**"), line.hasSuffix("**") {
                     surface = line.dropFirst(2).dropLast(2).lowercased()

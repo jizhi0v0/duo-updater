@@ -42,3 +42,13 @@ rollout 端点的 `updateTo` 现在带 hex `sha256`（和 `size`）；2026-08-15
 - 生产路径（`VendorProbeSource.probeDiagnostic` 两个 recipe 各跑一次，再 `best(of:)`）：rollout 的 `expectedSHA256` 是 `494c3c6e…`，GA 为 nil；
   `best` 选 GA（2.19675.1 更高），结果 `expectedSHA256` 为 nil。`VendorInstaller.verifySHA256` 对下载的 rollout zip 通过，翻转一个字节的副本抛 `checksumMismatch`（临时测试，跑完已删）。没有跑 `duo install`。
 - 观测（**未查原因**）：这台机器的 rollout 端点答 1.46388.4，比 GA 的 2.19675.1 低一个大版本，所以眼下 rollout 不会胜出，这次接上的摘要在本机暂时用不到。
+
+### Recipes/com-anthropic-claudefordesktop.swift — changelog `.md` 改成 `**v…**` 行（2026-10-21）
+
+症状：工作台 Detection recipes 报 `fetched claude.com but extracted no entries`。
+实测（2026-10-21，Python urllib、浏览器 UA）：`https://claude.com/docs/cowork/changelog.md` 200 `text/markdown`，219,541 B；`<Update` 0 处，
+`**v<version>**` 独占一行 68 处（最新 `**v3.1623.0**`），每个 release 多了一行 `Bundled Claude Code version: …`，`.md` 里没有日期。
+日期只在 HTML 页（`data-component-part="update-description"`，70 处，v3.1623.0 → `2026-10-20`）。
+没换源的理由：Mintlify 的 `/docs/cowork/changelog/rss.xml` 只有 15 个 item，`pubDate` 与 HTML 的日期在其中 4 个上差一天（v2.31226.0、v2.9939.4、v2.7032.0、v2.2553.13）；
+HTML 页 1.19 MB、class 是 Tailwind 串。所以留在 `.md`，decoder 两种形状都读，新形状的条目不带日期。
+announcement（`**Resolved: Cowork on Windows**`、`**Known issue: …**`）现在是上一个 release 块里的一行粗体，按不显示的 surface 处理。

@@ -206,6 +206,56 @@ func appleSignInHelp(_ need: AppleSignInNeed) -> String {
     }
 }
 
+/// An App Store redirect's button title, shared by both windows: "App Store"
+/// for a wrapped iPhone/iPad app, which goes to its product page, else "Update"
+/// — what the store itself calls an installed app's pending update.
+func appStoreRedirectTitle(_ redirect: AppStoreRedirect) -> String {
+    switch redirect {
+    case .iPhoneApp: return String(localized: "App Store")
+    case .helperOff, .openStore: return String(localized: "Update")
+    }
+}
+
+/// Why a row hands off to the App Store instead of installing in place, shared
+/// by both windows. Approving the helper is the one lever the user actually
+/// has, so it is named when that's what's missing — otherwise the button just
+/// looks like something we decline to do, with nothing to act on.
+func appStoreRedirectHelp(_ redirect: AppStoreRedirect, appName: String) -> String {
+    switch redirect {
+    case .iPhoneApp:
+        return String(localized: "Update \(appName) in the App Store — iPhone/iPad apps can’t be updated from here")
+    case .helperOff:
+        return String(localized: "Opens \(appName) in the App Store. Turn on the background helper in Settings to install App Store updates in one click.")
+    case .openStore:
+        return String(localized: "Update \(appName) in the App Store")
+    }
+}
+
+/// What a detection-only row's button does, in both windows.
+@MainActor
+func openDetectionOnly(_ affordance: DetectionOnlyAffordance, app: URL) {
+    switch affordance {
+    case .openPage(let url):
+        NSWorkspace.shared.open(url)
+    case .openInApp(let url):
+        // Hand the deep link to this copy of the app, so it acts through its
+        // own update channel — see `DetectionOnlyAffordance.openInApp`.
+        NSWorkspace.shared.open(
+            [url], withApplicationAt: app, configuration: NSWorkspace.OpenConfiguration())
+    case .revealInFinder:
+        NSWorkspace.shared.activateFileViewerSelecting([app])
+    }
+}
+
+/// A detection-only button's tooltip, shared by both windows.
+func detectionOnlyHelp(_ affordance: DetectionOnlyAffordance, appName: String) -> String {
+    switch affordance {
+    case .openPage: return String(localized: "Open the official download page")
+    case .openInApp: return String(localized: "Open \(appName)’s built-in updater (it updates itself)")
+    case .revealInFinder: return String(localized: "Reveal in Finder")
+    }
+}
+
 /// The word beside a running install's spinner: its stage, or "Cancelling…"
 /// once its Cancel was accepted, until the row settles. Shared so the popover
 /// row measures the text it will draw (`AppRow.showsStageLabel`).
@@ -527,6 +577,18 @@ struct WorkbenchRowAction: View {
         slot.swallowsClicksAfterSwap(of: state.isInstallingSlot)
     }
 
+    /// Everything this control decides beyond the state, answered in Core for
+    /// both windows (`RowActionControls`) — the `.workbench` half of it. This
+    /// window has no major-upgrade confirmation, so it never reads backups.
+    private var controls: RowActionControls {
+        RowActionControls.resolve(
+            state,
+            facts: .init(
+                result: result, installCancel: installCancel,
+                retryPausedUntil: actions.retryPausedUntil, helperEnabled: helperEnabled),
+            surface: .workbench)
+    }
+
     @ViewBuilder
     private var slot: some View {
         // `ui = f(state)`. The ladder that decides WHICH of these applies lives in
@@ -568,9 +630,9 @@ struct WorkbenchRowAction: View {
         case .installing(let stage):
             HStack(spacing: 8) {
                 installProgress(stage)
-                if let installCancel, installCancel != .cancelling {
+                if let cancel = controls.cancel {
                     InstallCancelButton(
-                        state: installCancel, pending: installCancelPending, action: actions.cancelInstall)
+                        state: cancel, pending: installCancelPending, action: actions.cancelInstall)
                 }
             }
 
@@ -618,7 +680,7 @@ struct WorkbenchRowAction: View {
                     .lineLimit(1).minimumScaleFactor(0.7)
                     .foregroundStyle(rateLimited ? Color.orange : Color.secondary)
                     .help(rateLimited ? RowActions.pausedHelp(actions.retryPausedUntil) ?? "" : "")
-                if !(rateLimited && actions.retryPausedUntil != nil) {
+                if controls.offersRetry {
                     Button { actions.retry() } label: {
                         Image(systemName: "arrow.clockwise")
                     }
@@ -771,7 +833,7 @@ struct WorkbenchRowAction: View {
     /// button stays, because brew's own `brew upgrade` makes the same switch.
     @ViewBuilder
     private func withChannelSwitchHint<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
-        if let channel = result.replacesChannelWithStable {
+        if let hint = controls.channelSwitch, hint.placement == .besideControl {
             HStack(spacing: 10) {
                 Button { showChannelSwitch = true } label: {
                     Label("Switches to stable", systemImage: "exclamationmark.triangle.fill")
@@ -782,7 +844,7 @@ struct WorkbenchRowAction: View {
                 .help(ChannelSwitchPanel.help)
                 .popover(isPresented: $showChannelSwitch, arrowEdge: .bottom) {
                     ChannelSwitchPanel(
-                        result: result, channel: channel, actions: actions,
+                        result: result, channel: hint.channel, actions: actions,
                         dismiss: { showChannelSwitch = false })
                 }
                 content()
@@ -860,7 +922,7 @@ struct WorkbenchRowAction: View {
                 }
             }
 
-        case .appStore(let storeManagedHere, let gate):
+        case .appStore(_, let gate):
             // Which of the three pictures below applies comes from the route's
             // `gate`, not from re-reading `result.remote?.appStore` here — that
             // used to be exactly how this branch decided (issue #260), which is
@@ -905,13 +967,13 @@ struct WorkbenchRowAction: View {
                 // Mac App Store app lands here when the privileged helper isn't
                 // approved yet — still an installed app with a pending update, so
                 // it says **Update** (what the store calls it), never "Get".
-                Button(storeManagedHere ? String(localized: "App Store") : String(localized: "Update")) {
-                    if let url = info?.deepLink ?? result.remote?.pageURL { NSWorkspace.shared.open(url) }
+                if let redirect = controls.appStoreRedirect {
+                    Button(appStoreRedirectTitle(redirect)) {
+                        if let url = info?.deepLink ?? result.remote?.pageURL { NSWorkspace.shared.open(url) }
+                    }
+                    .buttonStyle(.bordered)
+                    .help(appStoreRedirectHelp(redirect, appName: result.app.name))
                 }
-                .buttonStyle(.bordered)
-                .help(storeManagedHere
-                      ? String(localized: "Update \(result.app.name) in the App Store — iPhone/iPad apps can’t be updated from here")
-                      : appStoreRedirectHelp)
             }
 
         case .appleSignIn(let need):
@@ -920,48 +982,35 @@ struct WorkbenchRowAction: View {
                 .help(appleSignInHelp(need))
 
         case .detectionOnly:
-            // No artifact, no vendorInstallerKind, no App Store route. Mirror the
-            // popover's fallback instead of rendering nothing when there's no page
-            // either — see `DetectionOnlyAffordance` (#197). The title for
-            // `.openPage` is this host's own call (kept out of the shared type on
-            // purpose): "Open page" here, distinct from the popover's "Open".
-            let affordance = DetectionOnlyAffordance.resolve(pageURL: result.remote?.pageURL)
-            let title = affordance == .revealInFinder
-                ? DetectionOnlyAffordance.revealInFinderTitle
-                : String(localized: "Open page")
-            Button(title) {
-                switch affordance {
-                case .openPage(let url):
-                    // Unlike the popover's openAction(), this always does a
-                    // plain open — it does not check for a non-http(s) scheme
-                    // and hand it to the app itself via `withApplicationAt:`.
-                    // Pre-existing gap, out of scope for #197.
-                    NSWorkspace.shared.open(url)
-                case .revealInFinder:
-                    NSWorkspace.shared.activateFileViewerSelecting([result.app.path])
+            // No artifact, no vendorInstallerKind, no App Store route. Same
+            // affordance as the popover's, opened the same way — an app's own deep
+            // link goes to the app (`DetectionOnlyAffordance.openInApp`); this
+            // window used to give it to a plain open. The title for a web page is
+            // this host's own call (kept out of the shared type on purpose): "Open
+            // page" here, distinct from the popover's "Open". A deep link is not a
+            // page, so it says "Open", as the self-updater route's button does.
+            if let affordance = controls.detectionOnly {
+                Button(detectionOnlyTitle(affordance)) {
+                    openDetectionOnly(affordance, app: result.app.path)
                 }
+                .buttonStyle(.bordered)
+                .help(detectionOnlyHelp(affordance, appName: result.app.name))
             }
-            .buttonStyle(.bordered)
-            .help(affordance == .revealInFinder
-                  ? DetectionOnlyAffordance.revealInFinderTitle
-                  : String(localized: "Open the official download page"))
         }
     }
 
-    /// Why this row hands off to the App Store instead of installing in place —
-    /// same reasoning as the popover's: approving the helper is the one lever the
-    /// user has, so say so when that's what's missing.
-    private var appStoreRedirectHelp: String {
-        if !helperEnabled {
-            return String(localized: "Opens \(result.app.name) in the App Store. Turn on the background helper in Settings to install App Store updates in one click.")
+    private func detectionOnlyTitle(_ affordance: DetectionOnlyAffordance) -> String {
+        switch affordance {
+        case .openPage: return String(localized: "Open page")
+        case .openInApp: return String(localized: "Open")
+        case .revealInFinder: return DetectionOnlyAffordance.revealInFinderTitle
         }
-        return String(localized: "Update \(result.app.name) in the App Store")
     }
 
     @ViewBuilder
     private func installProgress(_ stage: InstallStage) -> some View {
         HStack(spacing: 8) {
-            if case .downloading(let f) = stage, installCancel != .cancelling {
+            if case .fraction(let f) = controls.progress {
                 ProgressView(value: f).frame(width: 80).controlSize(.small)
                 Text("\(Int(f * 100))%")
                     .font(.callout).foregroundStyle(.secondary)

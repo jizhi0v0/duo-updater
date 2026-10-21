@@ -64,7 +64,8 @@ struct PackageRestartReconcilerTests {
     /// Producing it means walking every running process on the machine and
     /// `realpath`-ing its bundle, on the main actor; and "nothing staged" is
     /// almost every pass, since `reconcilePackageRestarts` runs on every rescan.
-    /// Same shape as `routeIsDeferred` in `RowActionStateTests`, and the same
+    /// Same shape as `assemblingFactsResolvesTheRouteOnlyForAnUpdate` in
+    /// `BadgeAndNeedsActionTests`, and the same
     /// positive pole: deferral alone would stay green if the parameter stopped
     /// being read at all, so the loaded pass asserts it IS evaluated — exactly
     /// once, since the loop reads it per id.

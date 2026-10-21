@@ -2,8 +2,9 @@ import Foundation
 import DuoUpdaterCore
 
 /// The registry ids of our brew runs, and which of them the popover's Homebrew
-/// row stands for and its one Cancel stops. Kept out of `AppListModel` so the
-/// app's test target can compile it.
+/// row stands for and its one Cancel stops. What the rows draw of them is
+/// `BrewRowSnapshot`'s, in Core. Kept out of `AppListModel` so the app's test
+/// target can compile it.
 enum BrewRowRuns {
 
     /// The registry's id for a formula row's upgrade: apart from the app rows',
@@ -28,28 +29,24 @@ enum BrewRowRuns {
         (upgradingAll ? [upgradeAllJobID] : []) + formulae.sorted().map(formulaJobID)
     }
 
-    /// The row's Cancel, as `InstallCancelButton` draws it, over every run it
-    /// stands for (`groupCancel`), as the Other tools row's
-    /// (`CLIToolsModel.rowCancel`). `running` is the run the row's head names,
-    /// if one: the others wait their turn behind it.
-    static func cancel(_ jobIDs: [String], in rows: InstallRowSmoothing<String>.Output,
-                       running: String? = nil)
-        -> InstallRowSmoothing<String>.GroupCancel? {
-        rows.groupCancel(of: jobIDs, running: running.map { [$0] } ?? [])
-    }
-
-    /// A formula's line before its run has written one: "Queued" while it
-    /// waits its turn, "Starting…" from the turn on. The queue hands the turn
-    /// over one main-actor hop before the run's task says so itself
-    /// (`CLIRunQueue.advance`), and in that hop the popover row's head already
-    /// named the formula: "Upgrading jq · Queued" (review, 2026-10-20).
-    static func lineBeforeItsRun(waiting: Bool) -> String {
-        waiting ? String(localized: "Queued") : String(localized: "Starting…")
-    }
-
     /// The runs a click on it cancels: those that still can be. Those past the
     /// upgrade's start finish.
     static func cancellable(_ jobIDs: [String], in cancels: [String: InstallCancelState]) -> [String] {
         jobIDs.filter { cancels[$0] == .available }
+    }
+}
+
+extension BrewProgressLine {
+    /// The line as the Homebrew rows show it.
+    var text: String {
+        switch self {
+        case .queued: String(localized: "Queued")
+        case .starting: String(localized: "Starting…")
+        case .cancelling: String(localized: "Cancelling…")
+        case .note(let note): note
+        case .count(let current, let total): String(localized: "Upgrading… (\(current)/\(total))")
+        case .runningBrewUpgrade: String(localized: "Running brew upgrade…")
+        case .updating: String(localized: "Updating…")
+        }
     }
 }

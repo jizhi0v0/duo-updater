@@ -53,7 +53,7 @@ import Testing
             status: .updateAvailable(latest: "2.0"), installStage: .installing,
             interruptedHasWayBack: true)) == .installing(.installing))
         #expect(RowAction.state(for: RowActionFacts(
-            status: .updateAvailable(latest: "2.0"))) == .updateAvailable(.autoInstall))
+            status: .updateAvailable(latest: "2.0"), route: .autoInstall)) == .updateAvailable(.autoInstall))
     }
 
     /// The table is read under the row's id, the install path.

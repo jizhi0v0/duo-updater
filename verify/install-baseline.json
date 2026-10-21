@@ -243,14 +243,14 @@
       "sweepsSinceComment" : 0
     },
     "install:github:chekusu\/yomado:stable" : {
-      "consecutiveActionable" : 5,
+      "consecutiveActionable" : 8,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 1489,
       "lastCommentedAt" : "2026-10-19T17:53:52Z",
       "lastSignature" : "identityChanged: Sparkle key none → knah",
       "previousSignature" : "identityChanged: Sparkle key none → knah",
-      "sweepsSinceComment" : 3
+      "sweepsSinceComment" : 6
     },
     "install:github:cjpais\/Handy:stable" : {
       "consecutiveActionable" : 0,
@@ -331,6 +331,12 @@
       "sweepsSinceComment" : 0
     },
     "install:github:desktop\/desktop:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
+    "install:github:dominikmartn\/harp:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
@@ -1946,5 +1952,5 @@
     }
   },
   "schemaVersion" : 1,
-  "updatedAt" : "2026-10-20T10:38:46Z"
+  "updatedAt" : "2026-10-21T02:06:20Z"
 }

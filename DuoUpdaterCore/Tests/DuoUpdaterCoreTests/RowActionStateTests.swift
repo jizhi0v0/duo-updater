@@ -133,34 +133,27 @@ struct RowActionStateTests {
             needsRestart: true)) == .relaunchToApplyStaged(to: "2.0"))
     }
 
-    /// The route must stay unevaluated for rows that never reach the
-    /// `.updateAvailable` rung. Resolving it is the expensive half of assembling
-    /// the facts — the caller rebuilds an install environment several times and can
-    /// stat the disk — and it runs per row on every repaint, so an eager argument
-    /// costs that on rows showing a progress bar. Deleting `@autoclosure` from
-    /// `RowActionFacts.init` makes this fail and nothing else.
-    @Test("the route is not resolved for a row that cannot use it")
-    func routeIsDeferred() {
-        final class Counter: @unchecked Sendable { var n = 0 }
-        let calls = Counter()
-        _ = RowAction.state(for: RowActionFacts(
-            status: .updateAvailable(latest: "2.0"),
-            installStage: .installing,
-            route: { calls.n += 1; return .autoInstall }()))
-        #expect(calls.n == 0)
+    /// The route is a value the facts hold, so two facts for one row compare —
+    /// and the route is part of what they compare. Where it is resolved, and how
+    /// rarely, is `assemble`'s business (`assemblingFactsResolvesTheRouteOnlyForAnUpdate`).
+    ///
+    /// Mutation: leave `route` out of `RowActionFacts`'s `==` (a hand-written
+    /// one) → the second expectation is red.
+    @Test("facts compare by value, route included")
+    func factsCompareByValue() {
+        let facts = RowActionFacts(status: .updateAvailable(latest: "2.0"), route: .autoInstall)
+        #expect(facts == RowActionFacts(status: .updateAvailable(latest: "2.0"), route: .autoInstall))
+        #expect(facts != RowActionFacts(status: .updateAvailable(latest: "2.0"), route: .majorUpgrade))
+    }
 
-        _ = RowAction.state(for: RowActionFacts(
-            status: .updateAvailable(latest: "2.0"),
-            isIgnored: true,
-            route: { calls.n += 1; return .autoInstall }()))
-        #expect(calls.n == 0)
-
-        // ...and it IS resolved when the row actually offers an update, so the
-        // deferral cannot be "never called".
-        _ = RowAction.state(for: RowActionFacts(
-            status: .updateAvailable(latest: "2.0"),
-            route: { calls.n += 1; return .autoInstall }()))
-        #expect(calls.n == 1)
+    /// An update row whose route nobody resolved offers no install: it reads as
+    /// detection-only, never as the one-click it cannot vouch for.
+    /// Mutation: resolve a nil route to `.autoInstall` → red.
+    @Test("an unresolved route installs nothing")
+    func unresolvedRouteInstallsNothing() {
+        let state = RowAction.state(for: RowActionFacts(status: .updateAvailable(latest: "2.0")))
+        #expect(state == .updateAvailable(.detectionOnly))
+        #expect(!state.offersUpdate)
     }
 
     /// A staged build the app already downloaded outranks our own Update:
@@ -216,7 +209,8 @@ struct RowActionStateTests {
     func restartIsSteadyAcrossTransientStatus() {
         #expect(RowAction.state(for: RowActionFacts(status: .unknown, needsRestart: true))
                 == .restartToApply)
-        #expect(RowAction.state(for: RowActionFacts(status: .updateAvailable(latest: "2"), needsRestart: true))
+        #expect(RowAction.state(for: RowActionFacts(
+            status: .updateAvailable(latest: "2"), needsRestart: true, route: .autoInstall))
                 == .updateAvailable(.autoInstall))
     }
 

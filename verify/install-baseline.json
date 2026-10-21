@@ -243,14 +243,14 @@
       "sweepsSinceComment" : 0
     },
     "install:github:chekusu\/yomado:stable" : {
-      "consecutiveActionable" : 10,
+      "consecutiveActionable" : 11,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 1489,
       "lastCommentedAt" : "2026-10-19T17:53:52Z",
       "lastSignature" : "identityChanged: Sparkle key none → knah",
       "previousSignature" : "identityChanged: Sparkle key none → knah",
-      "sweepsSinceComment" : 8
+      "sweepsSinceComment" : 9
     },
     "install:github:cjpais\/Handy:stable" : {
       "consecutiveActionable" : 0,
@@ -676,10 +676,9 @@
     },
     "install:github:pingdotgg\/t3code:nightly" : {
       "consecutiveActionable" : 0,
-      "consecutiveInfra" : 1,
+      "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "infraSince" : "2026-10-21T16:11:52Z",
-      "sweepsSinceComment" : 1
+      "sweepsSinceComment" : 0
     },
     "install:github:podman-desktop\/podman-desktop:stable" : {
       "consecutiveActionable" : 0,
@@ -1953,5 +1952,5 @@
     }
   },
   "schemaVersion" : 1,
-  "updatedAt" : "2026-10-21T16:11:55Z"
+  "updatedAt" : "2026-10-21T21:01:25Z"
 }

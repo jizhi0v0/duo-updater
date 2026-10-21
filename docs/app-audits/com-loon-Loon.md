@@ -25,8 +25,11 @@
 不是另一条轨：12 个 GitHub release 全部非 prerelease，appcast 只有一份。
 
 覆盖清单：
-- **bundle id**: 最早的 0.1 (42) 和 0.4.0 (991)、0.5.0 (1009) 都是 `com.loon.Loon`，没有改名
-- **版本区间**: 0.1 (42) 已带同一个 `SUFeedURL`、同一个 `SUPublicEDKey`、同一个 Team `ASX2695DJ4`，所以每个已发布版本都能检测，Team 闸也不会拦
+- **bundle id**: 还能下载的最早 release 0.1 (42)，以及 0.4.0 (991)、0.5.0 (1009) 都是 `com.loon.Loon`，没有改名
+- **版本区间**: 0.1 (42) 已带同一个 `SUFeedURL`、同一个 `SUPublicEDKey`、同一个 Team `ASX2695DJ4`，所以 42 – 1009 都能检测，Team 闸也不会拦
+- **更早的构建（未验）**: appcast 还列着 0.1 的 17、18、23–29、32、34、39–41 和 0.2.0 (52)，但它们的 GitHub release 已删，
+  enclosure 地址 404（2026-10-21 查 17、41、52），拿不到包核对。厂商仓库里 `appcast.xml` 在 build 17 之前就以同一路径创建，
+  所以这些副本很可能声明同一个 feed；若不是，结果是检测失败或一键被闸拒绝，不会给错版本
 - **发布轨**: 只有 stable
 
 ## 更新检测

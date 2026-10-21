@@ -14,8 +14,14 @@ import Foundation
 ///
 /// - **A stage stays up for at least ``dwell``.** A different stage reported
 ///   sooner waits until then, and the one shown then is the latest reported.
-///   Progress within one stage (a download's fraction, a command's output line)
-///   is shown as it comes.
+///   A download's fraction is progress within one stage, shown as it comes.
+/// - **So does each line of a command's output.** A line is text to read, not
+///   a fraction: the next line, or the next stage, waits until it has been up
+///   for ``dwell``. Shown as they came, the last line before "Checking…" was
+///   on screen for one to three frames — "run `npm fund` for details" for
+///   40–55 ms, "helm installed into /usr/local/bin/helm" for 50–95 ms
+///   (window recordings read frame by frame, 2026-10-21) — and the row's
+///   width jumped with it.
 /// - **"Cancelling…" waits ``cancellingDelay``.** An accepted cancel keeps the
 ///   row's progress with its Cancel greyed (`cancelPending`) until then; a
 ///   cancel that has ended the install by then never shows "Cancelling…" at
@@ -167,7 +173,7 @@ public struct InstallRowSmoothing<Key: Hashable & Sendable>: Sendable {
                 out.stages[id] = stage
                 continue
             }
-            if current.stage.name == stage.name {
+            if current.stage.name == stage.name, !Self.isNewLine(stage, after: current.stage) {
                 // Same stage, new progress: shown as it comes, without restarting
                 // the stage's time on the row.
                 shown[id]?.stage = stage
@@ -201,6 +207,13 @@ public struct InstallRowSmoothing<Key: Hashable & Sendable>: Sendable {
         out.nextWake = wakes.min()
         return out
     }
+
+    /// Whether `stage` is another line of a command's output than `shown`:
+    /// shown only once `shown` has had its ``dwell``, as a different stage is.
+    private static func isNewLine(_ stage: InstallStage, after shown: InstallStage) -> Bool {
+        if case .runningCommand = stage, stage != shown { return true }
+        return false
+    }
 }
 
 /// The line a row shows while ``InstallRowSmoothing`` holds its stage back: the
@@ -220,8 +233,15 @@ public struct InstallRowLines<Key: Hashable & Sendable>: Sendable {
     public var stages: [Key: InstallStage] { latest.mapValues(\.stage) }
 
     /// `key`'s row now reads `text`, a line of `stage`.
+    ///
+    /// A command's output line is its stage's payload, so it is not kept by
+    /// stage name: the smoothing can hold one line while newer ones arrive
+    /// (``InstallRowSmoothing``), and `line(_:shown:)` reads the held one off
+    /// the stage itself. Kept by name, the newest line would overwrite what the
+    /// held "Starting…" (`.runningCommand("")`) says.
     public mutating func record(_ key: Key, stage: InstallStage, text: String) {
         latest[key] = (stage, text)
+        if case .runningCommand(let line) = stage, !line.isEmpty { return }
         byStage[key, default: [:]][stage.name] = text
     }
 
@@ -232,10 +252,20 @@ public struct InstallRowLines<Key: Hashable & Sendable>: Sendable {
     }
 
     /// What `key`'s row says while the smoothing shows `shown`: the newest line
-    /// when that is its stage, else the line `shown` was last reported with.
+    /// when that is the stage shown, a held output line itself, else the line
+    /// `shown` was last reported with.
     public func line(_ key: Key, shown: InstallStage?) -> String? {
         guard let newest = latest[key] else { return nil }
-        guard let shown, shown.name != newest.stage.name else { return newest.text }
+        guard let shown, shown != newest.stage else { return newest.text }
+        if case .runningCommand(let line) = shown, !line.isEmpty { return line }
         return byStage[key]?[shown.name] ?? newest.text
+    }
+
+    /// The stage of the line `line(_:shown:)` gives for `key`.
+    public func stage(_ key: Key, shown: InstallStage?) -> InstallStage? {
+        guard let newest = latest[key] else { return nil }
+        guard let shown, shown != newest.stage else { return newest.stage }
+        if case .runningCommand(let line) = shown, !line.isEmpty { return shown }
+        return byStage[key]?[shown.name] == nil ? newest.stage : shown
     }
 }

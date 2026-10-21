@@ -78,17 +78,10 @@ final class CLIToolsModel {
         statuses = checkedStatuses.map {
             $0.applyingGitHubPause(gitHubPause, updatersGetOurToken: updatersGetOurToken, now: current)
         }
-        // "Not updated: <reason>" said why a click's copy was not offered at its
-        // turn. Offered again — also with no check of its tool, as when the
-        // GitHub pause lifts — it would read as the reason beside a live Update
-        // (review, #1511 round 2). Offered again only: one said beside an Update
-        // that stayed (its update now asks for an administrator password) is
-        // kept until its tool's next check.
-        for id in notRunAtTurn where !wasOffered.contains(id)
-            && statuses.contains(where: { $0.toolID == id && $0.oneClick != nil }) {
-            notRunAtTurn.remove(id)
-            errors[id] = nil
-        }
+        // A "Not updated" line beside an Update offered again goes
+        // (`CLIRunEvent.offersPublished`).
+        let newlyOffered = Set(statuses.lazy.filter { $0.oneClick != nil }.map(\.toolID)).subtracting(wasOffered)
+        if !newlyOffered.isEmpty { send(.offersPublished(newlyOffered: newlyOffered)) }
     }
     /// The tool-wide settings each tool's verdicts were made under, for its group
     /// header: Claude Code's channel and auto-update, fx's settings.
@@ -105,19 +98,32 @@ final class CLIToolsModel {
     /// for the brew row.
     private(set) var sightings: [CLIToolSighting] = []
 
-    /// Installs DuoUpdater is updating right now, from the click until the re-check
-    /// after it has landed — and, under `updateAll`, every copy it will update,
-    /// from the start: a copy waiting its turn is claimed, as `installAll` claims
-    /// an app row, so it shows "Queued" rather than a live Update.
-    private(set) var updating: Set<CLIToolID> = []
-    /// The copies `updateAll` has claimed whose turn has not come: the rest of
-    /// their lane is still running.
-    private(set) var queued: Set<CLIToolID> = []
+    /// Every copy's claim and Cancel, and whether Update All runs
+    /// (`CLIRunState`): from the click until the re-check after it has landed
+    /// — and, under `updateAll`, every copy it will update, from the start, so
+    /// a copy waiting its turn shows "Queued" rather than a live Update. Also
+    /// what each row says once its run is over: its red line, its log, its
+    /// "Updated to X" (`errors`, `errorLogs`, `justUpdated`), set and cleared
+    /// by the same reducer — at a retry, a failure, a settle, a check landing
+    /// (phase 4b).
+    /// Changed only through `send`, by `CLIRunReducer`: the transitions are a
+    /// pure function in Core, replayed there as event sequences, and this
+    /// model is their effect runner — the awaits stay here (UI = f(state),
+    /// phase 4). Before, they were writes to `claims` and `cancels` between
+    /// two awaits, tested by polling the model (#1520, #1522, #1535, #1536).
+    private var runState = CLIRunState<CLIToolID>() {
+        didSet { smoothCancelRows() }
+    }
+    /// Installs DuoUpdater is updating right now (`CLIRunState.claims`).
+    var updating: Set<CLIToolID> { runState.updating }
+    /// The copies claimed whose turn has not come: behind another click's run,
+    /// or in a lane of `updateAll`'s whose earlier copies are still running.
+    var queued: Set<CLIToolID> { runState.queued }
     /// The copies whose update has run and whose tool's re-check has not landed:
     /// still claimed, so the old verdict's Update does not come back, but no
     /// longer running anything. Under `updateAll` the re-check waits for the
     /// tool's other lanes, so this can last as long as the slowest of them.
-    private(set) var awaitingCheck: Set<CLIToolID> = []
+    var awaitingCheck: Set<CLIToolID> { runState.awaitingCheck }
     /// Every click in the CLI tab that changes something, Homebrew's included,
     /// run one at a time in the order made (`CLIRunQueue`). Here because the
     /// tools' runs are; `AppListModel` puts Homebrew's in the same one.
@@ -125,14 +131,12 @@ final class CLIToolsModel {
     /// True for the whole of `updateAll`, including the re-checks at the end of
     /// each tool's lanes, so the popover row stays in its updating state instead
     /// of flashing back to "Update" between two copies.
-    private(set) var updatingAll = false
+    var updatingAll: Bool { runState.updatingAll }
     /// The Cancel of each copy whose update DuoUpdater runs
     /// (`InstallCancelState`): live while it waits its turn under `updateAll`
     /// or runs what comes before its command, greyed once the command started
     /// (its `InstallCommit`). Cleared with the claim (`release`).
-    private(set) var cancels: [CLIToolID: InstallCancelState] = [:] {
-        didSet { smoothCancelRows() }
-    }
+    var cancels: [CLIToolID: InstallCancelState] { runState.cancels }
     /// `cancels` and the progress lines' stages as the rows draw them
     /// (`InstallRowSmoothing`): an accepted cancel says "Cancelling…" only once
     /// it has lasted `InstallRowSmoothing.cancellingDelay`, and one that ended
@@ -145,34 +149,34 @@ final class CLIToolsModel {
     @ObservationIgnored private var progressLines = InstallRowLines<CLIToolID>()
     @ObservationIgnored private var cancelRowSmoothing = InstallRowSmoothing<CLIToolID>()
     @ObservationIgnored private var cancelRowWake: Task<Void, Never>?
-    /// Copies cancelled while `updateAll` had them queued: their lane skips them.
-    @ObservationIgnored private var cancelledWhileQueued: Set<CLIToolID> = []
-    /// The copies the running (or waiting) `updateAll` claimed. Not observed:
-    /// it changes only with `updatingAll`, which is.
-    @ObservationIgnored private var batchIDs: Set<CLIToolID> = []
+    /// The copies the running (or waiting) `updateAll` still holds. A copy
+    /// cancelled while queued is not among them, nor is one a click of its own
+    /// claimed again after that: its lane, or the loop raising the panels in
+    /// `updateAll`, skips it (only one `updateAll` runs at a time).
+    private var batchIDs: Set<CLIToolID> { runState.batchIDs }
     /// The latest output line of each running update. Set through
     /// `setProgress`, which records its stage for the rows (`progressLine`).
     private(set) var progress: [CLIToolID: String] = [:] {
         didSet { smoothCancelRows() }
     }
     /// The last failed update of each install: the row's one line. Also an update
-    /// that exited 0 but left the version where it was.
-    private(set) var errors: [CLIToolID: String] = [:]
-    /// The full output of each failed update: the detail pane's log.
-    private(set) var errorLogs: [CLIToolID: String] = [:]
-    /// The copies whose `errors` line says a click was not run at its turn
-    /// (`offerAtTurn`): about that click only, so gone once a later check of
-    /// its tool lands, whatever it says.
-    @ObservationIgnored private var notRunAtTurn: Set<CLIToolID> = []
-    /// Installs just updated → the version they now read as. Open sessions keep
-    /// the old version until restarted, so the row says so.
+    /// that exited 0 but left the version where it was, and a click not run at
+    /// its turn. Worded here from `CLIRunState.redLines`, which the reducer
+    /// sets and clears — at a retry, a failure, a settle, a check landing.
+    var errors: [CLIToolID: String] { runState.redLines.mapValues(Self.redLine) }
+    /// The full output of each failed update: the detail pane's log
+    /// (`CLIRunState.logs`).
+    var errorLogs: [CLIToolID: String] { runState.logs }
+    /// Installs just updated → the version they now read as
+    /// (`CLIRunState.justUpdated`). Open sessions keep the old version until
+    /// restarted, so the row says so.
     ///
     /// A confirmation, not a state: each entry clears itself after
     /// `confirmationWindow`, as an app row's "Updated ✓" does
     /// (`AppListModel.markJustUpdated`). Kept until something changed the copy, it
     /// pinned "Claude Code updated to 2.1.285" on the popover for good — the first
     /// thing the user saw after a real update on 2026-10-01.
-    private(set) var justUpdated: [CLIToolID: String] = [:]
+    var justUpdated: [CLIToolID: String] { runState.justUpdated }
     /// Who is running each install right now (`CLIToolProcesses`), for the row's
     /// running dot and its "still on the old version" line. Only installs
     /// something runs are in it. Re-read by `watchProcesses`, on its own clock.
@@ -337,6 +341,10 @@ final class CLIToolsModel {
     /// Per provider (by index in `providers`), the generation of the latest check
     /// started that asks it.
     @ObservationIgnored private var latestCheck: [Int: Int] = [:]
+    /// Per provider, the generation of the check whose report is on screen:
+    /// whether it started before an Update All lane ran anything
+    /// (`laneOfferAtTurn`).
+    @ObservationIgnored private var reportGeneration: [Int: Int] = [:]
     /// Per provider, the report on screen.
     @ObservationIgnored private var reports: [Int: CLIToolReport] = [:]
     /// Checks started and not yet returned; `checking` while any is out.
@@ -556,29 +564,10 @@ final class CLIToolsModel {
 
     /// Whether an unchecked install's reason can go away without anything on disk
     /// changing — the network came back, the other update finished — and so is
-    /// worth a re-check on the next open. The others (a dev-channel fx, a copy not
-    /// signed by its vendor, an editable bub, a broken venv) stay until the scan
-    /// sees the disk change — a new version, or a new `CLIToolSighting.state`
-    /// for one repaired in place — which `moved` already catches; re-checking them on
-    /// every open re-ran every tool's network check for nothing (found in
-    /// review, 2026-10-01).
-    ///
-    /// The three later reasons are disk changes too. `.staged` ends when Junie
-    /// applies its update at a launch — a new build and no `pending-update.json`,
-    /// both in its sighting. `.unverified` ends with another file or a lifted
-    /// quarantine flag: uv's hash verdict, rustup's sha256, an npm prefix's node
-    /// signature and quarantine are all in theirs. `.runtimeTooOld` ends with
-    /// another node in the prefix (its sighting) or a new release, which the
-    /// report's age covers as for any verdict — and it comes with a verdict,
-    /// `.updateAvailable`, so it is never among `unchecked` anyway.
+    /// worth a re-check on the next open (`CLIRunOffer.mayClearByItself`, in
+    /// Core since an Update All lane's read at its turn rests on it too).
     nonisolated static func mayClearByItself(_ status: CLIToolStatus) -> Bool {
-        switch status.withheld {
-        // A rate limit ends when GitHub's hour does, as `channelUnreadable` did
-        // for it before it had a case of its own.
-        case nil, .channelUnreadable, .rateLimited, .busy, .versionUnreadable: return true
-        case .staged, .unverified, .runtimeTooOld: return false
-        default: return false
-        }
+        CLIRunOffer.mayClearByItself(status)
     }
 
     /// Re-scan and re-check every tool.
@@ -602,6 +591,8 @@ final class CLIToolsModel {
     private func check(_ indices: [Int]) async {
         refreshGeneration += 1
         let generation = refreshGeneration
+        // What a lane's turn reads its check against (`CLIRunBatch.ranSince`).
+        send(.checkStarted(generation: generation))
         for index in indices { latestCheck[index] = generation }
         let started = now()
         checksInFlight += 1
@@ -639,6 +630,7 @@ final class CLIToolsModel {
         let superseded = answers.count - current.count
         Log.app.notice("cli-tools check of \(indices.count, privacy: .public) tool(s): \(Log.seconds(clock.now - began), privacy: .public); slowest \(slowest, privacy: .public); \(unanswered, privacy: .public) copies not checked\(superseded > 0 ? ", \(superseded) superseded by a later check" : "", privacy: .public)")
         guard !current.isEmpty else { return }
+        for (index, _) in current { reportGeneration[index] = generation }
         apply(current, startedAt: started)
     }
 
@@ -671,32 +663,13 @@ final class CLIToolsModel {
         checked = true
         let byID = Dictionary(statuses.map { ($0.toolID, $0) }, uniquingKeysWith: { a, _ in a })
         let answered = Set(answers.map(\.1.kind))
-        // An error describes an attempt at an update that is still on offer. Once
-        // the copy is no longer behind — updated from a terminal, or gone — it
-        // would otherwise sit beside a current install in the workbench. Nor once
-        // nothing is offered: openclaw's own update reported a failed check after
-        // installing the newest release its node runs (2026-10-02), and the row
-        // went on showing that failure where it should say the next release
-        // needs a newer Node. Not "Not updated: <reason>", whose copy is not on
-        // offer by its nature: it waits for its own tool's check, below — any
-        // tool's check took it away (review, 2026-10-20, round 2).
-        for id in errors.keys where byID[id]?.state != .updateAvailable || byID[id]?.oneClick == nil {
-            if notRunAtTurn.contains(id), !answered.contains(id.kind) { continue }
-            errors[id] = nil
-            errorLogs[id] = nil
+        // Which red lines and "Updated to X" still hold is the reducer's to
+        // say (`CLIRunEvent.checkLanded`): each copy it holds one for, as it
+        // stands now, and whether its own tool was asked.
+        let copies = runState.readByACheck.map { id in
+            (id, CLIRunChecked(answered: answered.contains(id.kind), status: byID[id]))
         }
-        // "Not updated: <reason>" was true when the click's turn came. Kept by
-        // the rule above once its tool is offered again, it read as the reason
-        // beside a live Update on every later check (review, #1511 round 1).
-        for id in notRunAtTurn where answered.contains(id.kind) {
-            notRunAtTurn.remove(id)
-            errors[id] = nil
-        }
-        // "Updated to X" is about the copy as DuoUpdater left it. Something else
-        // has changed it since (or it is gone) — the claim no longer holds.
-        for (id, version) in justUpdated {
-            if byID[id]?.installedVersion != version { justUpdated[id] = nil }
-        }
+        if !copies.isEmpty { send(.checkLanded(Dictionary(uniqueKeysWithValues: copies))) }
         onReport?()
         Task { await loadBreaking() }
         // A check that finds the tool current is when a copy it updated by
@@ -930,32 +903,27 @@ final class CLIToolsModel {
     /// provider and no other, then re-check that tool.
     func update(_ id: CLIToolID) async {
         // Re-read here, not trusted from the click: the list may have been
-        // re-checked since the row was drawn, and `oneClickable` is what carries
-        // every gate — auto-update on, nothing else updating, not already ours.
-        guard let clicked = oneClickable.first(where: { $0.toolID == id }) else { return }
-        updating.insert(id)
-        cancels[id] = .available
+        // re-checked since the row was drawn, and `offered` is what carries
+        // every gate — auto-update on, nothing else updating. Not already
+        // ours is the reducer's to say (`CLIRunEvent.clicked`).
+        let clicked = offered.first { $0.toolID == id }
+        let effects = send(.clicked(id, offered: clicked != nil,
+                                    needsAdministrator: clicked?.needsAdministrator ?? false,
+                                    queueBusy: runQueue.running != nil))
         // One that asks for an administrator password raises its panel now,
         // beside whatever the queue runs, not when its turn comes — minutes
-        // later, holding the whole app until answered. Nothing to clash with:
-        // the root shell runs under `env -i` with the system `PATH` and writes
-        // only its tool's file (`CLIToolAdministratorRun`); the queue is there
-        // for Homebrew against the tools.
-        if clicked.needsAdministrator {
+        // later (`CLIRunReducer`).
+        if effects.contains(.raisePanel(id)) {
             await runClaimed(id, needsAdministrator: true)
             release(id)
             return
         }
-        // Behind another click's run, it waits its turn claimed, as a copy
-        // under `updateAll` does: "Queued", with its Cancel live. Taken back
-        // while it waits, the row is released inside the Cancel (`CLIRunQueue`).
-        if runQueue.running != nil {
-            queued.insert(id)
-            setProgress(id, .queued, String(localized: "Queued"))
-        }
-        // Held until the re-check below has landed, not just until the command
-        // exits: that check waits on the network, and releasing the row earlier
-        // shows the old "outdated" verdict with a live Update button for its length.
+        guard effects.contains(.enqueue(id)) else { return }
+        // Taken back while it waits, the row is released inside the Cancel
+        // (`CLIRunQueue`). Held until the re-check below has landed, not just
+        // until the command exits: that check waits on the network, and
+        // releasing the row earlier shows the old "outdated" verdict with a
+        // live Update button for its length.
         let ran = await runQueue.perform(.tool(id), whenCancelled: { self.release(id) }) {
             await self.runClaimed(id, needsAdministrator: false)
         }
@@ -966,71 +934,157 @@ final class CLIToolsModel {
     /// tool's re-check. The caller releases it. `needsAdministrator` is what
     /// the click decided the copy's route on (`update`).
     private func runClaimed(_ id: CLIToolID, needsAdministrator: Bool) async {
-        queued.remove(id)
+        send(.turnCame(id))
         guard let status = await offerAtTurn(id, needsAdministrator: needsAdministrator), let provider = provider(of: status) else { return }
         // Cancelled before its command started: nothing ran, nothing to re-check.
         guard let outcome = await run(status, with: provider) else { return }
         if Self.needsRecheck(outcome) {
-            setProgress(id, .checking, String(localized: "Checking…"))
+            send(.recheckStarted([id]))
             await check([provider])
         }
         settle(status, outcome)
     }
 
-    /// `id`'s offer, read again at its turn: a check while it waited may have
-    /// moved it, or taken it away. `outdated`, not `oneClickable`, which leaves
-    /// out the copy this click has claimed.
+    /// `id`'s offer, read again at its turn (`CLIRunOffer.atTurn`): a check
+    /// while it waited may have moved it, or taken it away. `outdated`, not
+    /// `oneClickable`, which leaves out the copy this click has claimed.
     ///
-    /// Taken away, it is asked of its own tool once more before the click is
-    /// given up. Checks are not held off while an update runs, and one then can
-    /// read the run ahead of it — its npm child in the prefix both share, "npm
-    /// is busy" — or leave the copy unanswered; that run re-checks its own tool
-    /// only, so the click went away at its turn with nothing run and nothing
-    /// said (review, 2026-10-20). Still not offered, the row says so, and why.
-    ///
-    /// Held back only by the GitHub pause (`gitHubPause`), it is not asked
-    /// again: its check would be refused by the same closed budget, and that
-    /// answer — no verdict — would replace the "update available" the pause
-    /// holds back, so the Update would not come back when the pause lifts
-    /// (review, 2026-10-20, round 2).
+    /// Taken away, and not by the GitHub pause, it is asked of its own tool
+    /// once more before the click is given up (review, 2026-10-20). Still not
+    /// offered, the row says so, and why (`CLIRunState.redLines`).
     ///
     /// Offered, but now asking for an administrator password where the click
     /// queued it as one that did not, or the reverse, it is not run: the click
     /// decided its route (`update`), and the panel raised at its turn would
-    /// come minutes after the click, holding the app (review, 2026-10-20,
-    /// round 2). The row says to click again.
+    /// come minutes after the click (review, 2026-10-20, round 2). The row says to try again — "click Update" would not be
+    /// true in the popover, whose Other tools row has only Update All.
     private func offerAtTurn(_ id: CLIToolID, needsAdministrator: Bool) async -> CLIToolStatus? {
-        let offer = { self.outdated.first { $0.toolID == id && $0.oneClick != nil } }
-        var offered = offer()
-        let heldByPause = offered == nil
-            && checkedStatuses.contains { $0.toolID == id && $0.state == .updateAvailable && $0.oneClick != nil }
-        if offered == nil, !heldByPause, let index = providers.firstIndex(where: { $0.kind == id.kind }) {
-            // Nothing to cancel while it is asked: the update starts after.
-            cancels[id] = nil
-            setProgress(id, .checking, String(localized: "Checking…"))
-            await check([index])
-            offered = offer()
-            if offered != nil { cancels[id] = .available }
+        let index = providers.firstIndex(where: { $0.kind == id.kind })
+        let read = { (asked: Bool) in
+            CLIRunOffer.atTurn(
+                offered: self.outdated.first { $0.toolID == id && $0.oneClick != nil },
+                published: self.status(id),
+                heldByPause: self.checkedStatuses.contains {
+                    $0.toolID == id && $0.state == .updateAvailable && $0.oneClick != nil
+                },
+                asked: asked, needsAdministrator: needsAdministrator)
         }
-        if let offered {
-            guard offered.needsAdministrator != needsAdministrator else { return offered }
-            Log.app.notice("\(id.kind.rawValue, privacy: .public) update at \(id.path, privacy: .public): not run at its turn, \(offered.needsAdministrator ? "now needs" : "no longer needs", privacy: .public) an administrator password")
-            notRunAtTurn.insert(id)
-            errors[id] = offered.needsAdministrator
-                ? String(localized: "Not updated: it now asks for an administrator password — click Update again")
-                : String(localized: "Not updated: it no longer asks for an administrator password — click Update again")
+        var offer = read(index == nil)
+        if offer == .askTool, let index {
+            if send(.offerRead(id, .askTool)).contains(.check(id)) { await check([index]) }
+            offer = read(true)
+        }
+        switch offer {
+        case .run, .askTool:
+            break
+        case .notRun(.routeChanged(let nowNeeds)):
+            Log.app.notice("\(id.kind.rawValue, privacy: .public) update at \(id.path, privacy: .public): not run at its turn, \(nowNeeds ? "now needs" : "no longer needs", privacy: .public) an administrator password")
+        case .notRun:
+            let now = status(id)
+            let why = now.flatMap { now in now.withheld.map { Self.reason($0, of: now) } }
+            Log.app.notice("\(id.kind.rawValue, privacy: .public) update at \(id.path, privacy: .public): not run at its turn, no longer offered (\(now.map { "\($0.state)" } ?? "gone", privacy: .public)\(why.map { ": \($0)" } ?? "", privacy: .public))")
+        }
+        guard send(.offerRead(id, offer)).contains(.startCommand(id)), case .run(let status) = offer else { return nil }
+        return status
+    }
+
+    /// A row's red line (`CLIRunState.redLines`), worded.
+    private static func redLine(_ line: CLIRunRedLine) -> String {
+        switch line {
+        case .failed(let message): return message
+        case .stillOn(let version): return String(localized: "Still \(version) after the update")
+        case .versionUnreadable: return String(localized: "Couldn’t read the version after the update")
+        // Never `.silent`: the reducer stores no line for it.
+        case .notRun(let why): return notRunLine(why) ?? ""
+        }
+    }
+
+    /// The row's line for a copy not run at its turn because its update now
+    /// asks for an administrator password, or no longer does.
+    private static func routeChangedLine(nowNeedsAdministrator: Bool) -> String {
+        nowNeedsAdministrator
+            ? String(localized: "Not updated: it now asks for an administrator password — try again")
+            : String(localized: "Not updated: it no longer asks for an administrator password — try again")
+    }
+
+    /// What an Update All lane runs for `clicked` at its turn in the lane: the
+    /// copy's offer as it stands now, not as it stood at the click — the turn
+    /// can come minutes later, behind Homebrew or another click, and a check
+    /// meanwhile may have moved the offer (npm's one-click pins
+    /// `name@version`), held it back for the GitHub pause, or changed whether
+    /// it asks for an administrator password. The read itself is
+    /// `CLIRunOffer.laneAtTurn`'s, a pure function in Core; here it is logged.
+    /// Not `.run`, the caller releases it.
+    ///
+    /// Read, not asked: no check here, unlike a single click's turn
+    /// (`offerAtTurn`). One per copy would be a network round per copy, and in
+    /// lanes running side by side a check can read another lane's copy of the
+    /// same tool halfway through its install — why a tool is re-checked only
+    /// once its last lane is done (`CLIRunBatch.lanesLeft`).
+    ///
+    /// So a verdict that may clear by itself (`mayClearByItself`) falls back
+    /// on the click's offer: "an update is already running" (`.busy`), which a
+    /// check landing mid-batch gives every other copy in an npm prefix while
+    /// the lane's own previous copy runs its npm there (real Mac, 2026-10-20),
+    /// a channel or a version that could not be read. Dropped on those, Update
+    /// All would skip the very copies it was clicked for. So does any verdict
+    /// short of an offer from a check that started once this lane had run
+    /// something (`readsTheLane`): the copies of a lane share what the update
+    /// writes, and the one before can be the next one's updater — rustup ahead
+    /// of its toolchains, whose trust rests on rustup's own file, bun ahead of
+    /// its packages — so "not verified" read mid-install is about the batch,
+    /// not the copy (review, 2026-10-21). A verdict from before the lane ran,
+    /// a check while Update All waited its turn, is about the copy: broken,
+    /// unverified, its runtime too old, the row says why it was not run.
+    ///
+    /// The fallback runs what the user clicked, as every lane did before; it
+    /// does not re-read what the verdict hid. npm's and Claude Code's updaters
+    /// look for a running update themselves and answer `.busy` without running
+    /// anything (`NpmUpdater`, `ClaudeCodeUpdater`), and the trust-checking
+    /// ones (rustup, boat, herdr, atuin) check the file again; a setting
+    /// changed meanwhile behind a busy verdict is not seen. The pause still
+    /// applies to it.
+    ///
+    /// The lanes never raise a panel: one whose route changed is not run, and
+    /// its row says to try again, which at the click asks for it.
+    private func laneOfferAtTurn(_ clicked: CLIToolStatus, readsTheLane: Bool) -> CLIRunOffer {
+        let id = clicked.toolID
+        let now = status(id)
+        let checked = checkedStatuses.first { $0.toolID == id }
+        let lane = CLIRunOffer.laneAtTurn(
+            clicked: clicked, published: now, checked: checked, readsTheLane: readsTheLane,
+            clickedNow: { clicked.applyingGitHubPause(gitHubPause, updatersGetOurToken: updatersGetOurToken, now: self.now()) })
+        if lane.onClickedOffer {
+            Log.app.notice("\(id.kind.rawValue, privacy: .public) update at \(id.path, privacy: .public): Update All runs it on the offer clicked, its check\(readsTheLane ? " (made while its lane ran)" : "", privacy: .public) now says \(checked.flatMap(\.withheld).map { "\($0)" } ?? "-", privacy: .public)")
+        }
+        switch lane.offer {
+        case .run(let turn):
+            if turn != clicked {
+                Log.app.notice("\(id.kind.rawValue, privacy: .public) update at \(id.path, privacy: .public): Update All runs it as it stands at its turn (\(clicked.latestVersion ?? "-", privacy: .public) at the click, \(turn.latestVersion ?? "-", privacy: .public) now)")
+            }
+        case .notRun(.heldBack(let why)):
+            Log.app.notice("\(id.kind.rawValue, privacy: .public) update at \(id.path, privacy: .public): Update All did not run it at its turn, held back (\(why ?? "-", privacy: .public))")
+        case .notRun(.routeChanged(let nowNeeds)):
+            Log.app.notice("\(id.kind.rawValue, privacy: .public) update at \(id.path, privacy: .public): Update All did not run it at its turn, \(nowNeeds ? "now needs" : "no longer needs", privacy: .public) an administrator password")
+        case .notRun, .askTool:
+            let why = now.flatMap { now in now.withheld.map { Self.reason($0, of: now) } }
+            Log.app.notice("\(id.kind.rawValue, privacy: .public) update at \(id.path, privacy: .public): Update All did not run it at its turn, no longer offered (\(now.map { "\($0.state)" } ?? "gone", privacy: .public)\(why.map { ": \($0)" } ?? "", privacy: .public))")
+        }
+        return lane.offer
+    }
+
+    /// What a copy's row says when it was not run at its turn; nil when it
+    /// says nothing (`CLIRunNotRun.silent`).
+    private static func notRunLine(_ why: CLIRunNotRun) -> String? {
+        switch why {
+        case .routeChanged(let nowNeeds):
+            return routeChangedLine(nowNeedsAdministrator: nowNeeds)
+        case .notOffered(let reason), .heldBack(let reason):
+            return reason.map { String(localized: "Not updated: \($0)") }
+                ?? String(localized: "Not updated: the update is no longer offered")
+        case .silent:
             return nil
         }
-        let now = status(id)
-        let why = now.flatMap { now in now.withheld.map { Self.reason($0, of: now) } }
-        Log.app.notice("\(id.kind.rawValue, privacy: .public) update at \(id.path, privacy: .public): not run at its turn, no longer offered (\(now.map { "\($0.state)" } ?? "gone", privacy: .public)\(why.map { ": \($0)" } ?? "", privacy: .public))")
-        // Updated from a terminal meanwhile, or gone: the row says that by itself.
-        if let now, now.state == .updateAvailable || now.state == .unknown {
-            notRunAtTurn.insert(id)
-            errors[id] = why.map { String(localized: "Not updated: \($0)") }
-                ?? String(localized: "Not updated: the update is no longer offered")
-        }
-        return nil
     }
 
     /// The index in `providers` of `status`'s own tool, never another's: each
@@ -1043,14 +1097,72 @@ final class CLIToolsModel {
         // Out of a running or waiting Update All for good, however its claim
         // ended — done, failed, cancelled queued or before its command: a click
         // of its own on this row later is not Update All's to cancel or release
-        // (review, #1498, rounds 1 and 2).
-        batchIDs.remove(id)
-        updating.remove(id)
-        queued.remove(id)
-        awaitingCheck.remove(id)
-        progressLines.clear(id)
-        progress[id] = nil
-        cancels[id] = nil
+        // (review, #1498, rounds 1 and 2): its claim goes, `byUpdateAll` with it.
+        send(.released(id))
+    }
+
+    /// Apply `event` (`CLIRunReducer`), then perform its synchronous effects:
+    /// a row's line, a Cancel's way through the queue or the registry, the
+    /// confirmation window of an "Updated to X". The rest — a turn in the
+    /// queue, a panel, a check, a command — are the caller's, which awaits them; they are
+    /// returned for it to read. The state is set before any effect runs, so
+    /// an event an effect sends in turn (a Cancel the queue answers inside
+    /// `CLIRunQueue.cancel`) sees it.
+    @discardableResult
+    private func send(_ event: CLIRunEvent<CLIToolID>) -> [CLIRunEffect<CLIToolID>] {
+        let (next, effects) = CLIRunReducer.reduce(runState, event)
+        if next != runState { runState = next }
+        for effect in effects { perform(effect) }
+        return effects
+    }
+
+    private func perform(_ effect: CLIRunEffect<CLIToolID>) {
+        switch effect {
+        case .showLine(let id, let line):
+            switch line {
+            case .queued: setProgress(id, .queued, String(localized: "Queued"))
+            case .starting: setProgress(id, .runningCommand(""), String(localized: "Starting…"))
+            case .checking: setProgress(id, .checking, String(localized: "Checking…"))
+            case .waitingToCheck: setProgress(id, .checking, String(localized: "Waiting to check"))
+            case .output(let text): setProgress(id, .runningCommand(text), text)
+            }
+        case .clearLine(let id):
+            progressLines.clear(id)
+            progress[id] = nil
+        case .startConfirmation(let id):
+            startConfirmation(id)
+        case .withdrawClick(let id):
+            // Its own click, waiting behind another's run: out of the queue,
+            // its row released by the click's `whenCancelled`.
+            if runQueue.cancel(.tool(id)) {
+                Log.app.notice("\(id.kind.rawValue, privacy: .public) update at \(id.path, privacy: .public): cancelled while it waited its turn")
+                return
+            }
+            let next = send(.notWaitingInQueue(id, updateAllWaiting: runQueue.isWaiting(.updateAllTools)))
+            if !next.contains(.cancelJob(id)) {
+                Log.app.notice("\(id.kind.rawValue, privacy: .public) update at \(id.path, privacy: .public): cancelled before it started")
+            }
+        case .cancelJob(let id):
+            send(.cancelAnswered(id, InstallJobs.cancel(Self.jobID(id))))
+        case .cancelCopy(let id):
+            cancel(id)
+        case .withdrawUpdateAll:
+            if runQueue.cancel(.updateAllTools) {
+                Log.app.notice("Update All: cancelled while it waited its turn")
+                return
+            }
+            if updatingAll {
+                let cancellable = batchIDs.filter { cancels[$0] == .available }
+                Log.app.notice("Update All: cancel, \(cancellable.count, privacy: .public) of \(self.batchIDs.count, privacy: .public) copies still cancellable")
+            }
+            send(.updateAllNotWaiting)
+        case .cancelUpdateAll:
+            cancelUpdateAll()
+        // The caller's, awaited where it sent the event.
+        case .enqueue, .raisePanel, .check, .startCommand, .stoppedBeforeCommand,
+             .runUpdateAll, .enqueueUpdateAll, .runLanes, .readLaneOffer, .recheck, .updateAllEnded:
+            break
+        }
     }
 
     /// A copy's Cancel. One `updateAll` has not reached leaves its lane at once;
@@ -1058,24 +1170,12 @@ final class CLIToolsModel {
     /// registry (`InstallJobs.cancel`), which refuses once the command started —
     /// no error then (§5.8): the registry logs it, and the row says it is
     /// already finishing. Cancelled is not failed: no red line, no re-check.
+    ///
+    /// The order — the queue, then a copy not reached yet, then the registry —
+    /// is `CLIRunReducer`'s (`cancelClicked`, `notWaitingInQueue`); the queue's
+    /// and the registry's answers come back to it as events.
     func cancel(_ id: CLIToolID) {
-        guard cancels[id] == .available else { return }
-        // Its own click, waiting behind another's run: out of the queue, its
-        // row released by the click's `whenCancelled`.
-        if runQueue.cancel(.tool(id)) {
-            Log.app.notice("\(id.kind.rawValue, privacy: .public) update at \(id.path, privacy: .public): cancelled while it waited its turn")
-            return
-        }
-        if queued.contains(id) {
-            cancelledWhileQueued.insert(id)
-            Log.app.notice("\(id.kind.rawValue, privacy: .public) update at \(id.path, privacy: .public): cancelled before it started")
-            release(id)
-            // The last copy of an Update All still waiting its turn: nothing is
-            // left for it to run.
-            if runQueue.isWaiting(.updateAllTools), batchIDs.isEmpty { cancelUpdateAll() }
-            return
-        }
-        cancels[id] = InstallCancelState.after(InstallJobs.cancel(Self.jobID(id)))
+        send(.cancelClicked(id))
     }
 
     /// The running update's line on its row: the line of the stage the row
@@ -1094,6 +1194,12 @@ final class CLIToolsModel {
         // instead of on whatever else changes `cancelRows` with it.
         guard progress[id] != nil else { return nil }
         return progressLines.line(id, shown: cancelRows.stages[id])
+    }
+
+    /// The stage of `stageLine(id)`'s line.
+    private func stageLineStage(_ id: CLIToolID) -> InstallStage? {
+        guard progress[id] != nil else { return nil }
+        return progressLines.stage(id, shown: cancelRows.stages[id])
     }
 
     /// `id`'s row now reads `text`, a line of `stage`.
@@ -1125,8 +1231,7 @@ final class CLIToolsModel {
     /// The Cancel moves with the job: greyed once the command started, live
     /// again if it was refused and the tool may try again (`InstallJobs`).
     private func followPhase(_ id: CLIToolID) {
-        guard let state = cancels[id] else { return }
-        cancels[id] = state.following(InstallJobs.phase(of: Self.jobID(id)))
+        send(.jobPhaseChanged(id, InstallJobs.phase(of: Self.jobID(id))))
     }
 
     /// The command alone, for a copy already in `updating`: its output goes to the
@@ -1135,10 +1240,8 @@ final class CLIToolsModel {
     /// command started.
     private func run(_ status: CLIToolStatus, with provider: Int) async -> CLIToolUpdateOutcome? {
         let id = status.toolID
-        errors[id] = nil
-        errorLogs[id] = nil
-        notRunAtTurn.remove(id)
-        setProgress(id, .runningCommand(""), String(localized: "Starting…"))
+        // Clears its last red line and log: a retry (`CLIRunEvent.commandStarting`).
+        send(.commandStarting(id))
         let update = providers[provider]
         // A job of its own (`InstallJobs.run`), so the row's Cancel reaches the
         // update before its command, and the command's `InstallCommit` greys it.
@@ -1151,9 +1254,10 @@ final class CLIToolsModel {
                     Task { @MainActor in
                         // A line can arrive after the update has finished and its progress
                         // been cleared; writing it then would pin a stale line on the row.
-                        // Nor over "Cancelling…", which holds until the row settles.
-                        guard let self, self.updating.contains(id), self.cancels[id] != .cancelling else { return }
-                        self.setProgress(id, .runningCommand(line), line)
+                        // Nor over "Cancelling…", which holds until the row settles
+                        // (`CLIRunEvent.outputLine`).
+                        guard let self else { return }
+                        self.send(.outputLine(id, line))
                     }
                 }
             }
@@ -1164,11 +1268,14 @@ final class CLIToolsModel {
         // go away (review, 2026-10-20): one that ran nothing — `.busy`,
         // `.notOffered` — never committed, and kept it through the re-check
         // and, under `updateAll`, the other lanes' wait. Not offered from here.
-        if cancels[id] == .available { cancels[id] = nil }
         // Accepted, and it kept a command from starting — the first, or a retry
         // after a refused run (uv's, bun's, mise's rejected token): whatever the
         // provider made of the cancel — "could not start" — is no failure.
-        if cancels[id] == .cancelling, cancelStopped {
+        // Otherwise one that needs its tool's re-check waits for it, said apart
+        // from "Checking…": under `updateAll` the check can wait a while on the
+        // tool's other lanes, and nothing is checking meanwhile.
+        let ended = send(.commandEnded(id, needsRecheck: Self.needsRecheck(outcome), cancelStopped: cancelStopped))
+        if ended.contains(.stoppedBeforeCommand(id)) {
             Log.app.notice("\(status.kind.rawValue, privacy: .public) update at \(id.path, privacy: .public): cancelled before its command started")
             return nil
         }
@@ -1182,8 +1289,7 @@ final class CLIToolsModel {
             break
         case .failed(let message, let output):
             Log.app.info("\(status.kind.rawValue, privacy: .public) update failed at \(id.path, privacy: .public): \(message, privacy: .public)")
-            errors[id] = message
-            errorLogs[id] = output
+            send(.commandFailed(id, message: message, log: output))
         case .busy, .notOffered:
             // Nothing ran. Something changed between the check and the click — an
             // update started elsewhere, or the offer went away — so the re-check
@@ -1194,12 +1300,6 @@ final class CLIToolsModel {
             // failure, so no red line — the row goes back to its Update, as an
             // app's declined panel leaves no error (`AppListModel`).
             Log.app.notice("\(status.kind.rawValue, privacy: .public) update at \(id.path, privacy: .public): administrator panel dismissed, nothing ran")
-        }
-        if Self.needsRecheck(outcome) {
-            awaitingCheck.insert(id)
-            // Said apart from "Checking…": under `updateAll` the check can wait a
-            // while on the tool's other lanes, and nothing is checking meanwhile.
-            setProgress(id, .checking, String(localized: "Waiting to check"))
         }
         return outcome
     }
@@ -1218,23 +1318,18 @@ final class CLIToolsModel {
         guard case .updated(let version) = outcome else { return }
         let id = status.toolID
         // Exit 0 is not proof of an update (`CLITools.settle`): the updater's
-        // own re-read first, the fresh check's when it had none.
+        // own re-read first, the fresh check's when it had none. "Updated to
+        // X", or a red line saying it is still there, is the reducer's
+        // (`CLIRunEvent.updateSettled`).
         let after = version ?? self.status(id)?.installedVersion
-        if case .updated(let after) = CLITools.settle(before: status.installedVersion, after: after) {
-            confirmUpdate(id, version: after)
-        } else {
+        if !send(.updateSettled(id, before: status.installedVersion, after: after)).contains(.startConfirmation(id)) {
             Log.app.info("\(status.kind.rawValue, privacy: .public) update at \(id.path, privacy: .public) exited 0 but left \(after ?? "an unreadable version", privacy: .public)")
-            // Brew's "brew update finished, but Homebrew is still X" rule: a
-            // run that changed nothing reads as a failure, not as silence.
-            errors[id] = after.map { String(localized: "Still \($0) after the update") }
-                ?? String(localized: "Couldn’t read the version after the update")
         }
     }
 
-    /// Show "Updated to X" for `confirmationWindow`, then let the row say what it
+    /// Keep "Updated to X" for `confirmationWindow`, then let the row say what it
     /// says of any current copy. Re-entry restarts the window.
-    private func confirmUpdate(_ id: CLIToolID, version: String) {
-        justUpdated[id] = version
+    private func startConfirmation(_ id: CLIToolID) {
         confirmationTimers[id]?.cancel()
         let window = confirmationWindow
         confirmationTimers[id] = Task { @MainActor [weak self] in
@@ -1242,7 +1337,7 @@ final class CLIToolsModel {
             // A newer window owns the clearing.
             guard !Task.isCancelled, let self else { return }
             self.confirmationTimers[id] = nil
-            self.justUpdated[id] = nil
+            self.send(.confirmationEnded(id))
         }
     }
 
@@ -1264,52 +1359,34 @@ final class CLIToolsModel {
     /// installer — Junie's alone downloads ~330 MB — plus a re-check of every
     /// tool after each copy.
     func updateAll() async {
-        guard !updatingAll else { return }
         let withProvider = { (statuses: [CLIToolStatus]) in
             statuses.compactMap { status in self.provider(of: status).map { (status, $0) } }
         }
         let batch = withProvider(batchable)
         let asking = withProvider(adminBatchable)
-        guard !batch.isEmpty || !asking.isEmpty else { return }
-        updatingAll = true
-        batchIDs = Set((batch + asking).map(\.0.toolID))
-        // Every copy is claimed now, not when its turn comes: until then its row
-        // says "Queued" instead of offering an Update that would race its lane.
-        // That holds while Update All itself waits behind another click's run,
-        // and for a copy whose panel waits on the one before it.
-        for (status, _) in batch + asking {
-            updating.insert(status.toolID)
-            queued.insert(status.toolID)
-            cancels[status.toolID] = .available
-            setProgress(status.toolID, .queued, String(localized: "Queued"))
-        }
+        // Already running, or nothing to start: the reducer's to say
+        // (`CLIRunEvent.updateAllClicked`). Every copy is claimed now, "Queued".
+        guard send(.updateAllClicked(lanes: batch.map(\.0.toolID), asking: asking.map(\.0.toolID)))
+            .contains(.runUpdateAll) else { return }
         var rootRuns: [Task<Void, Never>] = []
         for (status, _) in asking {
-            // Cancelled while it waited for the panel before its own.
-            if cancelledWhileQueued.remove(status.toolID) != nil { continue }
+            // Cancelled while it waited for the panel before its own — and
+            // perhaps claimed again since by a click of its own.
+            guard send(.panelTurnCame(status.toolID)).contains(.raisePanel(status.toolID)) else { continue }
             rootRuns.append(await startAsking(status.toolID))
         }
         // The lane copies still Update All's: one cancelled while the panels
         // were up is released, and a click of its own may have it now.
-        for (status, _) in batch where !batchIDs.contains(status.toolID) {
-            cancelledWhileQueued.remove(status.toolID)
-        }
-        let lanes = batch.filter { batchIDs.contains($0.0.toolID) }
+        var held: Set<CLIToolID> = []
+        for case .enqueueUpdateAll(let ids) in send(.lanesReady(batch.map(\.0.toolID))) { held = Set(ids) }
+        let lanes = batch.filter { held.contains($0.0.toolID) }
         var ended = false
         if !lanes.isEmpty {
             // Taken back while it waited (`cancelUpdateAll`): nothing of the
-            // lanes ran, and every lane copy is released inside the Cancel.
+            // lanes ran, and every lane copy is released inside the Cancel
+            // (`CLIRunEvent.updateAllWithdrawn`).
             _ = await runQueue.perform(.updateAllTools, whenCancelled: {
-                // The batch's copies as they stand, not as clicked: one cancelled
-                // out of it and clicked again waits as a click of its own, and is
-                // left to that click.
-                for id in self.batchIDs where self.queued.contains(id) { self.release(id) }
-                for (status, _) in lanes { self.cancelledWhileQueued.remove(status.toolID) }
-                // Over at once unless a copy behind a panel still runs.
-                if self.batchIDs.isEmpty {
-                    self.endUpdateAll()
-                    ended = true
-                }
+                if self.send(.updateAllWithdrawn).contains(.updateAllEnded) { ended = true }
             }) { await self.runBatch(lanes) }
         }
         for run in rootRuns { await run.value }
@@ -1326,11 +1403,10 @@ final class CLIToolsModel {
             await CLIToolAdministratorPanel.$answered.withValue({ answered.signal() }) {
                 await self.runClaimed(id, needsAdministrator: true)
             }
-            self.release(id)
-            // The last copy of an Update All still waiting its turn — its lane
-            // copies cancelled while this one ran: nothing is left for that
-            // turn to run (review, #1502 round 1).
-            if self.runQueue.isWaiting(.updateAllTools), self.batchIDs.isEmpty { self.cancelUpdateAll() }
+            // Released; the last copy of an Update All still waiting its turn
+            // — its lane copies cancelled while this one ran: nothing is left
+            // for that turn to run (review, #1502 round 1).
+            self.send(.panelRunEnded(id, updateAllWaiting: self.runQueue.isWaiting(.updateAllTools)))
             answered.signal()
         }
         await answered.wait()
@@ -1355,9 +1431,10 @@ final class CLIToolsModel {
         }
     }
 
+    /// Every copy it claimed has been released by now, so `batchIDs` is
+    /// already empty.
     private func endUpdateAll() {
-        updatingAll = false
-        batchIDs = []
+        send(.updateAllFinished)
     }
 
     /// Whether Update All is waiting behind another click's run.
@@ -1379,14 +1456,8 @@ final class CLIToolsModel {
     /// every copy it claimed goes back to its Update. One running cancels each
     /// copy that still can be (`cancel`), the rest finish.
     func cancelUpdateAll() {
-        if runQueue.cancel(.updateAllTools) {
-            Log.app.notice("Update All: cancelled while it waited its turn")
-            return
-        }
-        guard updatingAll else { return }
-        let cancellable = batchIDs.filter { cancels[$0] == .available }
-        Log.app.notice("Update All: cancel, \(cancellable.count, privacy: .public) of \(self.batchIDs.count, privacy: .public) copies still cancellable")
-        for id in cancellable { cancel(id) }
+        // The queue first, then each copy (`CLIRunEffect.withdrawUpdateAll`).
+        send(.cancelUpdateAllClicked)
     }
 
     /// The popover row's Cancel: one for every copy the row says is updating,
@@ -1418,9 +1489,10 @@ final class CLIToolsModel {
 
     /// One copy's facts for its own sidebar row and detail header, as
     /// `rowSnapshot` holds them. Reads only what that copy's rows need: an
-    /// idle copy reads `updating` and its status, error and confirmation —
+    /// idle copy reads `runState` and its status, error and confirmation —
     /// never `progress` or `cancelRows`, which change with every output line
-    /// of any update.
+    /// of any update. `runState` changes only when a copy is claimed, released
+    /// or moves to its next phase, or its Cancel moves.
     func rowTool(_ status: CLIToolStatus) -> CLIRowSnapshot<CLIToolID>.Tool {
         rowTool(id: status.toolID, status: status)
     }
@@ -1438,23 +1510,22 @@ final class CLIToolsModel {
             cancel: runs ? cancelRows.cancels[id] : nil,
             cancelPending: runs && cancelRows.cancelPending.contains(id),
             line: runs ? stageLine(id) : nil,
+            lineStage: runs ? stageLineStage(id) : nil,
             state: status?.state ?? .unknown, oneClick: status?.oneClick != nil,
             needsAdministrator: status?.needsAdministrator ?? false, withheld: status?.withheld,
             manualCommand: status.flatMap(CLIToolPresentation.manualCommand),
             hasLatestVersion: status?.latestVersion != nil,
-            error: errors[id], justUpdated: justUpdated[id])
+            error: runState.redLines[id].map(Self.redLine), justUpdated: runState.justUpdated[id])
     }
 
-    /// `id`'s phase, read off the claim sets. Claimed, not queued and not
-    /// waiting on its check, with no Cancel at all is `offerAtTurn` asking its
-    /// tool again — or, for an instant, a failed run about to be released,
-    /// which draws the same.
+    /// `id`'s phase, as its claim stores it (`CLIRunState.phase`). No longer inferred from a
+    /// missing Cancel (`cancelRows`): that also drew a failed run about to be
+    /// released, its Cancel already nil, as `.checkingAtTurn`. It draws the
+    /// same as `.running` there — the two differ only in a live Cancel
+    /// (`CLIRowSnapshot.Tool.countedCancel`), and the smoothing passes a nil
+    /// one straight through (`InstallRowSmoothing.update`).
     private func phase(_ id: CLIToolID) -> CLIRunPhase {
-        guard updating.contains(id) else { return .idle }
-        if queued.contains(id) { return .queued }
-        if awaitingCheck.contains(id) { return .awaitingCheck }
-        if cancelRows.cancels[id] == nil { return .checkingAtTurn }
-        return .running
+        runState.phase(id)
     }
 
     /// The popover row's Cancel: Update All still waiting its turn leaves the
@@ -1468,71 +1539,81 @@ final class CLIToolsModel {
     }
 
     /// `updateAll`'s turn: the lanes at once, each tool re-checked when its last
-    /// lane is done.
+    /// lane is done. Which copies make a lane, which tool is re-checked when,
+    /// and what a turn reads its check against are the reducer's
+    /// (`CLIRunBatch`); the lanes' loops and their tasks are here.
     private func runBatch(_ batch: [(CLIToolStatus, Int)]) async {
-        var lanes: [[(CLIToolStatus, Int)]] = []
-        var laneOf: [String: Int] = [:]
-        for copy in batch {
-            let key = Self.lane(of: copy.0)
-            if let index = laneOf[key] { lanes[index].append(copy) } else {
-                laneOf[key] = lanes.count
-                lanes.append([copy])
-            }
+        let clicked = Dictionary(batch.map { ($0.0.toolID, $0) }, uniquingKeysWith: { a, _ in a })
+        let copies = batch.map { status, provider in
+            CLIRunLaneCopy(id: status.toolID, tool: provider, lane: Self.lane(of: status),
+                           needsAdministrator: status.needsAdministrator)
         }
-        let run = BatchRun()
-        for lane in lanes {
-            for provider in Set(lane.map(\.1)) { run.lanesLeft[provider, default: 0] += 1 }
-        }
+        var lanes: [[CLIToolID]] = []
+        for case .runLanes(let ids) in send(.batchStarted(copies, checkGeneration: refreshGeneration)) { lanes = ids }
         // A task per lane, not a task group: Swift 6.4's Release build has
         // miscompiled a group's `for await` before (swift64-release-taskgroup-
         // miscompile), and these need nothing a group adds.
-        let tasks = lanes.map { lane in Task { @MainActor in await self.runLane(lane, run) } }
+        let tasks = lanes.enumerated().map { index, lane in
+            Task { @MainActor in await self.runLane(index, lane.compactMap { clicked[$0] }) }
+        }
         for task in tasks { await task.value }
     }
 
-    /// What the lanes of one `updateAll` share.
-    @MainActor private final class BatchRun {
-        /// Per provider, the lanes not yet done that hold one of its copies.
-        var lanesLeft: [Int: Int] = [:]
-        /// Per provider, its copies whose update ran and wait on its re-check.
-        var ran: [Int: [(CLIToolStatus, CLIToolUpdateOutcome)]] = [:]
-    }
-
-    private func runLane(_ lane: [(CLIToolStatus, Int)], _ run: BatchRun) async {
-        for (status, provider) in lane {
+    private func runLane(_ index: Int, _ lane: [(CLIToolStatus, Int)]) async {
+        for (clicked, provider) in lane {
             // Cancelled while it waited: its row was released then — and may be
-            // claimed again by a click of its own, whose "Queued" stays.
-            if cancelledWhileQueued.remove(status.toolID) != nil { continue }
-            queued.remove(status.toolID)
+            // claimed again by a click of its own, whose "Queued" stays (#1535).
+            // Whether its check may have read this lane's own work is the
+            // reducer's (`CLIRunBatch.readsTheLane`).
+            let turn = send(.laneTurnCame(clicked.toolID, reportGeneration: reportGeneration[provider, default: 0]))
+            guard let readsTheLane = turn.lazy.compactMap({ effect -> Bool? in
+                if case .readLaneOffer(clicked.toolID, let reads) = effect { return reads }
+                return nil
+            }).first else { continue }
+            // Its offer as it stands at its turn; not to run, it leaves the
+            // batch as a copy cancelled before its command does. One whose row
+            // says why is kept for the batch's own check (`CLIRunBatch.notRun`).
+            let offer = laneOfferAtTurn(clicked, readsTheLane: readsTheLane)
+            guard send(.offerRead(clicked.toolID, offer)).contains(.startCommand(clicked.toolID)),
+                  case .run(let status) = offer else {
+                release(clicked.toolID)
+                continue
+            }
             guard let outcome = await self.run(status, with: provider) else {
                 release(status.toolID)
                 continue
             }
-            if Self.needsRecheck(outcome) {
-                run.ran[provider, default: []].append((status, outcome))
-            } else {
-                // A failure is said on the row; nothing to wait for.
-                release(status.toolID)
+            // One that needs its tool's re-check waits for it; a failure is
+            // said on the row, and is released (`laneCommandEnded`).
+            let result: CLIRunLaneResult
+            switch outcome {
+            case .updated(let version): result = .updated(before: status.installedVersion, reported: version)
+            case .busy, .notOffered: result = .ranNothing
+            case .failed, .declined: result = .nothingToCheck
             }
+            send(.laneCommandEnded(status.toolID, result))
         }
-        // A tool is re-checked once no lane is left that holds one of its copies:
-        // earlier, its check could read a copy in the middle of its install.
+        // A tool is re-checked once no lane is left that holds one of its
+        // copies (`laneDone`).
         var ready: [Int] = []
-        for provider in Set(lane.map(\.1)) {
-            run.lanesLeft[provider, default: 1] -= 1
-            if run.lanesLeft[provider] == 0, run.ran[provider] != nil { ready.append(provider) }
-        }
+        for case .recheck(let tools) in send(.laneDone(index)) { ready = tools }
         guard !ready.isEmpty else { return }
+        await check(ready)
         for provider in ready {
-            for (status, _) in run.ran[provider] ?? [] {
-                setProgress(status.toolID, .checking, String(localized: "Checking…"))
-            }
-        }
-        await check(ready.sorted())
-        for provider in ready {
-            for (status, outcome) in run.ran[provider] ?? [] {
-                settle(status, outcome)
-                release(status.toolID)
+            let kind = providers[provider].kind
+            let now = Dictionary(statuses.filter { $0.kind == kind }.map { ($0.toolID, $0) },
+                                 uniquingKeysWith: { a, _ in a })
+            // Settled and released; "Not updated: …" said again while it still
+            // holds (`toolRechecked`).
+            for case .clearLine(let id) in send(.toolRechecked(provider, now: now)) {
+                switch runState.redLines[id] {
+                case .stillOn(let version)?:
+                    Log.app.info("\(id.kind.rawValue, privacy: .public) update at \(id.path, privacy: .public) exited 0 but left \(version, privacy: .public)")
+                case .versionUnreadable?:
+                    Log.app.info("\(id.kind.rawValue, privacy: .public) update at \(id.path, privacy: .public) exited 0 but left an unreadable version")
+                default:
+                    break
+                }
             }
         }
     }

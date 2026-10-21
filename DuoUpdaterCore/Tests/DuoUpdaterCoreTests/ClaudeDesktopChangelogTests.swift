@@ -70,6 +70,65 @@ private let claudeDesktopDocsFixture = #"""
 </Update>
 """#
 
+/// `claude.com/docs/cowork/changelog.md` as served 2026-10-21, after the page
+/// dropped its `<Update>` blocks: each release is a `**v<version>**` line and the
+/// `.md` has no dates. Verbatim slices joined in page order — the header, the
+/// 2.42304.2 release (nothing user-facing anywhere), and the "Resolved: …"
+/// announcement that sits inside the release above 1.52386.6, then 1.52386.6.
+private let claudeDesktopBoldLabelFixture = #"""
+> ## Documentation Index
+> Fetch the complete documentation index at: https://claude.com/docs/llms.txt
+> Use this file to discover all available pages before exploring further.
+
+# Changelog
+
+> Release notes for Claude Desktop
+
+**v2.42304.2**
+
+Bundled Claude Code version: 2.1.299.
+
+**General**
+
+* No user-facing changes.
+
+**Code**
+
+* No user-facing changes.
+
+**Cowork**
+
+* No user-facing changes.
+
+**3P**
+
+* No user-facing changes.
+
+**Resolved: Cowork on Windows**
+
+Microsoft has released a Windows update that fixes the issue where Cowork could not reach your files on Windows PCs. Install the latest Windows update and restart your PC. On Windows 11 24H2 and 25H2 the fix is [KB5129195](https://support.microsoft.com/en-us/servicing/os/windows-11/2026/09/kb5129195-windows-11-24h2-25h2-security-update). On Windows 11 23H2 the fix is [KB5129242](https://support.microsoft.com/en-us/servicing/os/windows-11/2026/09/kb5129242-windows-11-23h2-update). On Windows 10 21H2 and 22H2 the fix is [KB5129236](https://support.microsoft.com/en-us/servicing/os/windows-10/2026/09/kb5129236-windows-10-21h2-22h2-update). No Claude Desktop update is needed.
+
+**v1.52386.6**
+
+**General**
+
+* Updated the bundled Claude Code CLI to version 2.1.270.
+* Fixed organization plugins enabled through Claude Code's managed settings not loading; they load from the next session.
+* Fixed sessions with a very large prompt getting permanently stuck on a "Prompt is too long" error.
+
+**Code**
+
+* Fixed users sometimes being told a model they have access to is restricted, and a running session silently switching to the organization's default model.
+
+**Cowork**
+
+* No user-facing changes.
+
+**3P**
+
+* No user-facing changes.
+"""#
+
 @Suite struct ClaudeDesktopChangelogTests {
 
     /// What the in-app "What's new" shows for 1.52386.0 in the Code tab. Not
@@ -137,5 +196,35 @@ private let claudeDesktopDocsFixture = #"""
             body, format: .claudeDesktopChangelog, channel: nil, maxEntries: 2))
         #expect(changelog.entries.map(\.version) == ["1.0.1", "1.0.2"])
         #expect(changelog.entries.first?.date == nil)
+    }
+
+    /// The bold-label shape, through the registered recipe. 2.42304.2 has nothing
+    /// outside "No user-facing changes." and is dropped; the announcement's prose
+    /// and the 3P and Cowork placeholders contribute nothing; 1.52386.6 has no date.
+    @Test func registeredRecipeReadsTheBoldLabelShape() throws {
+        let recipe = try #require(
+            ChangelogRecipeRegistry.recipe(forBundleID: "com.anthropic.claudefordesktop"))
+        let changelog = try #require(ChangelogService.parse(recipe, body: claudeDesktopBoldLabelFixture))
+        let notes = [
+            "Updated the bundled Claude Code CLI to version 2.1.270.",
+            "Fixed organization plugins enabled through Claude Code's managed settings not loading; they load from the next session.",
+            "Fixed sessions with a very large prompt getting permanently stuck on a \"Prompt is too long\" error.",
+            "Fixed users sometimes being told a model they have access to is restricted, and a running session silently switching to the organization's default model.",
+        ]
+        #expect(changelog == Changelog(entries: [
+            Changelog.Entry(
+                version: "1.52386.6", date: nil, items: notes,
+                content: [.heading("Improved"), .note(notes[0]), .heading("Fixed")]
+                    + notes.dropFirst().map(Changelog.Entry.Block.note)),
+        ]))
+    }
+
+    @Test func boldLabelCapStopsAtMaxEntries() throws {
+        let body = (1...3).map { "**v1.0.\($0)**\n\n**Code**\n\n* Fixed \($0)." }
+            .joined(separator: "\n\n")
+        let changelog = try #require(StructuredChangelogDecoder.decode(
+            body, format: .claudeDesktopChangelog, channel: nil, maxEntries: 2))
+        #expect(changelog.entries.map(\.version) == ["1.0.1", "1.0.2"])
+        #expect(changelog.entries.map(\.items) == [["Fixed 1."], ["Fixed 2."]])
     }
 }

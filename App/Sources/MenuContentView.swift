@@ -179,44 +179,57 @@ struct MenuContentView: View {
 
     @ViewBuilder
     private var content: some View {
-        if model.results.isEmpty {
-            // `isRoundInFlight`, not `isScanning`: a user-present refresh clears the
-            // saved release notes BEFORE it raises `isScanning`, and that await lets
-            // a cold launch paint here with no rows yet — which read "No apps yet"
-            // over a scan that was about to start (#253's gap, one surface over).
-            let emptyTitle = model.listActivity.isRoundInFlight
-                ? String(localized: "Scanning…")
-                : String(localized: "No apps yet")
+        // `isRoundInFlight`, not `isScanning`: a user-present refresh clears the
+        // saved release notes BEFORE it raises `isScanning`, and that await lets
+        // a cold launch paint here with no rows yet — which read "No apps yet"
+        // over a scan that was about to start (#253's gap, one surface over).
+        switch PopoverListContent.decide(
+            hasRows: !model.results.isEmpty,
+            visibleIsEmpty: visible.isEmpty,
+            isSearching: isSearching,
+            isRoundInFlight: model.listActivity.isRoundInFlight,
+            answeredThisLaunch: model.answeredThisLaunch,
+            failedCheckCount: model.failedCheckCount
+        ) {
+        case .scanning:
+            ContentUnavailableView(String(localized: "Scanning…"), systemImage: "magnifyingglass")
+                .frame(height: 200)
+        case .noApps:
+            ContentUnavailableView(String(localized: "No apps yet"), systemImage: "magnifyingglass")
+                .frame(height: 200)
+        case .checking:
+            // Same icon and frame as "Scanning…", which it follows, so the
+            // placeholder changes its word and nothing else.
+            ContentUnavailableView(String(localized: "Checking…"), systemImage: "magnifyingglass")
+                .frame(height: 200)
+        case .noMatches:
+            ContentUnavailableView.search(text: searchText)
+                .frame(height: 200)
+        case .noUpdatesFound:
+            // Same rule as `statusLine`: with unanswered rows this is not a
+            // "clean run" screen, and the seal is the strongest success signal
+            // in the whole popover.
             ContentUnavailableView(
-                emptyTitle,
-                systemImage: "magnifyingglass"
+                "No updates found",
+                systemImage: "questionmark.circle",
+                description: Text("Some apps could not be checked — see above.")
             )
             .frame(height: 200)
-        } else if visible.isEmpty {
-            if isSearching {
-                ContentUnavailableView.search(text: searchText)
-                    .frame(height: 200)
-            } else {
-                // Same rule as `statusLine`: with unanswered rows this is not a
-                // "clean run" screen, and the seal is the strongest success signal
-                // in the whole popover.
-                if model.failedCheckCount > 0 {
-                    ContentUnavailableView(
-                        "No updates found",
-                        systemImage: "questionmark.circle",
-                        description: Text("Some apps could not be checked — see above.")
-                    )
-                    .frame(height: 200)
-                } else {
-                    ContentUnavailableView(
-                        "Everything is up to date",
-                        systemImage: "checkmark.seal.fill",
-                        description: Text("Toggle “Show all” to see every app.")
-                    )
-                    .frame(height: 200)
-                }
-            }
-        } else if listOverflows {
+        case .upToDate:
+            ContentUnavailableView(
+                "Everything is up to date",
+                systemImage: "checkmark.seal.fill",
+                description: Text("Toggle “Show all” to see every app.")
+            )
+            .frame(height: 200)
+        case .rows:
+            rowList
+        }
+    }
+
+    @ViewBuilder
+    private var rowList: some View {
+        if listOverflows {
             // Long enough that it scrolls no matter how the rows measure, so there
             // is nothing left for the measurement below to decide: pin the frame and
             // let a LazyVStack realize only the rows actually on screen.
@@ -718,7 +731,7 @@ struct MenuContentView: View {
     private var footer: some View {
         HStack {
             Toggle("Show all", isOn: $showAll)
-                .toggleStyle(.checkbox)
+                .toggleStyle(PopoverCheckboxStyle())
                 .font(.caption)
             Spacer()
             Button {
@@ -785,6 +798,40 @@ struct MenuContentView: View {
     }
 }
 
+/// The footer's "Show all" box. AppKit's `.checkbox` draws its unchecked box as a
+/// dark fill with no edge, which on the popover's glass measured 1.36:1 against
+/// the background (2026-10-21) — the box all but vanished. An outlined square drawn
+/// as the footer's icon buttons are measured 5.80:1, level with them.
+private struct PopoverCheckboxStyle: ToggleStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: 4) {
+            // Only the box is a borderless button, so AppKit draws it as it draws
+            // the footer's icon buttons; the label inside it would dim with it.
+            Button {
+                configuration.isOn.toggle()
+            } label: {
+                if configuration.isOn {
+                    Image(systemName: "checkmark.square.fill")
+                        .imageScale(.large)
+                        .foregroundStyle(.tint)
+                } else {
+                    Image(systemName: "square")
+                        .imageScale(.large)
+                }
+            }
+            .buttonStyle(.borderless)
+            configuration.label
+                .contentShape(Rectangle())
+                .onTapGesture { configuration.isOn.toggle() }
+        }
+        // Still a checkbox to VoiceOver and to AX scripts that press it.
+        .accessibilityRepresentation {
+            Toggle(isOn: configuration.$isOn) { configuration.label }
+                .toggleStyle(.checkbox)
+        }
+    }
+}
+
 /// The popover's rows for command-line tools, as the workbench's CLI tab holds
 /// them: one for Homebrew's packages and one for every other tool (Claude Code,
 /// bub, fx, …), each with its own state and its own Update. A later tool joins
@@ -840,8 +887,10 @@ private struct CommandLineRow: View {
         let status = half.lines.dropFirst().reduce(half.lines.first ?? Text(verbatim: "")) {
             $0 + Text(verbatim: " · ") + $1
         }
-        return HStack(spacing: 8) {
-            Image(systemName: half.icon).foregroundStyle(.secondary).frame(width: 18)
+        // AppRow's columns: a 30pt icon slot and 10pt to the text, so these
+        // titles start on the app names' edge above them, not 14pt left of it.
+        return HStack(spacing: 10) {
+            Image(systemName: half.icon).foregroundStyle(.secondary).frame(width: 30)
             // The text opens the workbench, where each package and copy has its
             // own row; the controls stay the row's actions.
             Button(action: half.isHomebrew ? showHomebrew : showInWindow) {

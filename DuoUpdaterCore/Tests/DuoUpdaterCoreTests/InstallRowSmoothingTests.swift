@@ -250,8 +250,8 @@ import Testing
     // MARK: Lines
 
     /// A row whose line is text says the line of the stage it shows: "Queued"
-    /// while "Starting…" waits out the dwell, then the newest line; the
-    /// command's output moves as it comes.
+    /// while "Starting…" waits out the dwell, then the newest line; each
+    /// output line then stays up for the dwell before the next replaces it.
     ///
     /// Mutation: `line` returns the newest text where it looks up the shown
     /// stage's → the second expectation reads "Starting…", red.
@@ -269,8 +269,85 @@ import Testing
         #expect(shown(150) == "Queued")
         #expect(shown(300) == "Downloading 1.2")
         lines.record("t", stage: .runningCommand("Linking"), text: "Linking")
-        #expect(shown(310) == "Linking")
+        #expect(shown(310) == "Downloading 1.2")
+        #expect(shown(600) == "Linking")
         lines.clear("t")
-        #expect(shown(320) == nil)
+        #expect(shown(620) == nil)
+    }
+
+    /// The flash measured 2026-10-21: the last output line, then "Checking…"
+    /// a few frames later. The line stays up for the dwell, and so does the
+    /// stage after it; lines arriving faster than that show the newest when
+    /// the dwell is up, never one that came and went in between.
+    ///
+    /// Mutation: show a new output line as it comes (drop `isNewLine` from the
+    /// same-stage test in `update`) → "helm installed…" gives way to
+    /// "Checking…" at 2050, red.
+    @Test func eachOutputLineStaysUpForTheDwell() {
+        var s = Smoothing()
+        var lines = InstallRowLines<String>()
+        func shown(_ now: Int) -> String? {
+            lines.line("t", shown: s.update(stages: lines.stages, cancels: [:], now: at(now)).stages["t"])
+        }
+        lines.record("t", stage: .runningCommand(""), text: "Starting…")
+        #expect(shown(0) == "Starting…")
+        // "Starting…" has had its dwell: the first line shows as it comes.
+        lines.record("t", stage: .runningCommand("Downloading helm"), text: "Downloading helm")
+        #expect(shown(2000) == "Downloading helm")
+        lines.record("t", stage: .runningCommand("helm installed into /usr/local/bin/helm"),
+                     text: "helm installed into /usr/local/bin/helm")
+        #expect(shown(2010) == "Downloading helm")
+        #expect(shown(2300) == "helm installed into /usr/local/bin/helm")
+        lines.record("t", stage: .checking, text: "Checking…")
+        #expect(shown(2350) == "helm installed into /usr/local/bin/helm")
+        #expect(shown(2600) == "Checking…")
+    }
+
+    /// `stage` names the stage of the line `line` gives, at every step: a held
+    /// "Queued" is `.queued` while "Starting…" waits, each output line its own
+    /// `.runningCommand`, "Checking…" `.checking`.
+    ///
+    /// Mutation: `stage` returns the newest stage → at 20 it says
+    /// `.runningCommand("")` while the line is "Queued", red.
+    @Test func theLinesStageFollowsTheLine() {
+        var s = Smoothing()
+        var lines = InstallRowLines<String>()
+        func shown(_ now: Int) -> (String?, InstallStage?) {
+            let stage = s.update(stages: lines.stages, cancels: [:], now: at(now)).stages["t"]
+            return (lines.line("t", shown: stage), lines.stage("t", shown: stage))
+        }
+        func expect(_ now: Int, _ text: String?, _ stage: InstallStage?) {
+            let (shownText, shownStage) = shown(now)
+            #expect(shownText == text)
+            #expect(shownStage == stage)
+        }
+        lines.record("t", stage: .queued, text: "Queued")
+        expect(0, "Queued", .queued)
+        lines.record("t", stage: .runningCommand(""), text: "Starting…")
+        expect(20, "Queued", .queued)
+        expect(300, "Starting…", .runningCommand(""))
+        lines.record("t", stage: .runningCommand("Downloading 1.2"), text: "Downloading 1.2")
+        expect(600, "Downloading 1.2", .runningCommand("Downloading 1.2"))
+        lines.record("t", stage: .runningCommand("Linking"), text: "Linking")
+        expect(610, "Downloading 1.2", .runningCommand("Downloading 1.2"))
+        lines.record("t", stage: .checking, text: "Checking…")
+        expect(620, "Downloading 1.2", .runningCommand("Downloading 1.2"))
+        expect(900, "Checking…", .checking)
+        lines.clear("t")
+        expect(920, nil, nil)
+    }
+
+    /// Lines faster than the dwell: the one shown when it is up is the newest,
+    /// and the wake asks again at the right time.
+    @Test func linesFasterThanTheDwellShowTheNewestWhenItIsUp() {
+        var s = Smoothing()
+        _ = s.update(stages: ["a": .runningCommand("one")], cancels: [:], now: at(0))
+        let held = s.update(stages: ["a": .runningCommand("two")], cancels: [:], now: at(100))
+        #expect(held.stages["a"] == .runningCommand("one"))
+        #expect(held.nextWake == at(300))
+        #expect(s.update(stages: ["a": .runningCommand("three")], cancels: [:], now: at(200)).stages["a"] == .runningCommand("one"))
+        let due = s.update(stages: ["a": .runningCommand("three")], cancels: [:], now: at(300))
+        #expect(due.stages["a"] == .runningCommand("three"))
+        #expect(due.nextWake == nil)
     }
 }

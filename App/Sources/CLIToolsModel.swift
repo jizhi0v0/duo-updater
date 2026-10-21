@@ -1481,7 +1481,7 @@ final class CLIToolsModel {
         for (status, provider) in lane {
             // Cancelled while it waited: its row was released then — and may be
             // claimed again by a click of its own, whose "Queued" stays.
-            guard claims[status.toolID]?.byUpdateAll == true else { continue }
+            guard claims[status.toolID] != nil else { continue }
             claims[status.toolID]?.phase = .running
             guard let outcome = await self.run(status, with: provider) else {
                 release(status.toolID)

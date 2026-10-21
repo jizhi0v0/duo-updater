@@ -1141,7 +1141,7 @@ struct WorkbenchWindowView: View {
             return CLIToolPresentation.channels(of: model.cliTools.statuses.filter { $0.kind == .fx })
         case .bub:
             return nil
-        case .uv, .junie, .rust, .npm, .boat, .codex, .bun, .pnpm, .yarn, .opencode, .cursorAgent, .amp, .vitePlus, .herdr, .luvus, .lorca, .zoxide, .nvm, .atuin, .ghcup, .flyctl, .helm, .starship, .deno, .mise, .obelus:
+        case .uv, .junie, .rust, .npm, .boat, .codex, .bun, .pnpm, .yarn, .opencode, .cursorAgent, .amp, .vitePlus, .herdr, .luvus, .lorca, .zoxide, .nvm, .atuin, .ghcup, .flyctl, .helm, .starship, .deno, .mise, .obelus, .biome:
             return CLIToolPresentation.headerSummary(
                 kind, statuses: model.cliTools.statuses, context: model.cliTools.contexts[kind])
         }

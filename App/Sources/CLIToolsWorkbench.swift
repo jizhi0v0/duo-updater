@@ -46,7 +46,8 @@ struct LogoTile<Mark: View>: View {
 /// wordmark); Deno is deno.com's brand kit, its light mark and, in the dark, its
 /// outlined one, as the kit's guidelines ask; mise is its repo's
 /// `docs/public/logo-light.svg`; Obelus is its release's `obelus.svg`, the
-/// dot-line-dot mark without its tile; Atuin's turtle (atuin.sh's brand assets) and
+/// dot-line-dot mark without its tile; Biome is Simple Icons 16.34.0's (CC0,
+/// from biomejs/resources' `icon-light-mono.svg`); Atuin's turtle (atuin.sh's brand assets) and
 /// zoxide's keycap (`contrib/logo-{light,dark}.svg`) keep their own colours,
 /// since one colour would leave a blob and a blank square. bub and Lorca publish
 /// only a PNG, so they stand in with an SF Symbol.
@@ -102,6 +103,7 @@ struct CLIToolIcon: View {
         case .mise: "cli-mise"
         case .flyctl: "cli-flyctl"
         case .obelus: "cli-obelus"
+        case .biome: "cli-biome"
         case .bub, .lorca: nil
         }
     }
@@ -139,6 +141,8 @@ struct CLIToolIcon: View {
                 : NSColor(srgbRed: 0x8C / 255, green: 0x6F / 255, blue: 0x33 / 255, alpha: 1)
         })
         case .starship: Color(red: 0xDD / 255, green: 0x0B / 255, blue: 0x78 / 255)
+        // Simple Icons' brand colour for Biome, the blue its installer prints in.
+        case .biome: Color(red: 0x60 / 255, green: 0xA5 / 255, blue: 0xFA / 255)
         // Simple Icons' brand colours: pnpm's orange, Yarn's blue.
         case .pnpm: Color(red: 0xF6 / 255, green: 0x92 / 255, blue: 0x20 / 255)
         case .yarn: Color(red: 0x2C / 255, green: 0x8E / 255, blue: 0xBB / 255)

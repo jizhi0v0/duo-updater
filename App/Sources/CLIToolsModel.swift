@@ -115,9 +115,8 @@ final class CLIToolsModel {
     /// Without its `batch` (Update All's lanes), which is kept apart in
     /// `laneBatch`: no row reads it, and kept here, its bookkeeping — a lane
     /// done, a check started — wrote and published `runState` where nothing
-    /// did before it moved into the reducer. With it here, the popover row
-    /// showed a copy's last output line for a frame as its lane moved on to
-    /// the next copy, which it did not before (real Mac, #1543).
+    /// did before it moved into the reducer. Apart, `runState` is written
+    /// where it was before (#1543).
     private var runState = CLIRunState<CLIToolID>() {
         didSet { smoothCancelRows() }
     }

@@ -2912,7 +2912,8 @@ struct CLIToolsModelTests {
         let status = model.status(pnpm)!
         #expect(running.tool(pnpm) == .live(
             id: pnpm, kind: .npm, phase: .running, cancel: .available, cancelPending: false,
-            line: model.progressLine(pnpm), state: .updateAvailable, oneClick: true,
+            line: model.progressLine(pnpm), lineStage: .runningCommand(""),
+            state: .updateAvailable, oneClick: true,
             needsAdministrator: false, withheld: nil, manualCommand: CLIToolPresentation.manualCommand(status),
             hasLatestVersion: true, error: nil, justUpdated: nil))
 

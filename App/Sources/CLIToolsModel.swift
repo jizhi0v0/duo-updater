@@ -111,9 +111,19 @@ final class CLIToolsModel {
     /// model is their effect runner — the awaits stay here (UI = f(state),
     /// phase 4). Before, they were writes to `claims` and `cancels` between
     /// two awaits, tested by polling the model (#1520, #1522, #1535, #1536).
+    ///
+    /// Without its `batch` (Update All's lanes), which is kept apart in
+    /// `laneBatch`: no row reads it, and kept here, its bookkeeping — a lane
+    /// done, a check started — wrote and published `runState` where nothing
+    /// did before it moved into the reducer. With it here, the popover row
+    /// showed a copy's last output line for a frame as its lane moved on to
+    /// the next copy, which it did not before (real Mac, #1543).
     private var runState = CLIRunState<CLIToolID>() {
         didSet { smoothCancelRows() }
     }
+    /// `runState.batch` (`CLIRunBatch`), out of observation: `send` hands the
+    /// reducer the two together.
+    @ObservationIgnored private var laneBatch: CLIRunBatch<CLIToolID>?
     /// Installs DuoUpdater is updating right now (`CLIRunState.claims`).
     var updating: Set<CLIToolID> { runState.updating }
     /// The copies claimed whose turn has not come: behind another click's run,
@@ -1077,7 +1087,12 @@ final class CLIToolsModel {
     /// `CLIRunQueue.cancel`) sees it.
     @discardableResult
     private func send(_ event: CLIRunEvent<CLIToolID>) -> [CLIRunEffect<CLIToolID>] {
-        let (next, effects) = CLIRunReducer.reduce(runState, event)
+        var state = runState
+        state.batch = laneBatch
+        let (reduced, effects) = CLIRunReducer.reduce(state, event)
+        laneBatch = reduced.batch
+        var next = reduced
+        next.batch = nil
         if next != runState { runState = next }
         for effect in effects { perform(effect) }
         return effects

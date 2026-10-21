@@ -718,7 +718,7 @@ struct MenuContentView: View {
     private var footer: some View {
         HStack {
             Toggle("Show all", isOn: $showAll)
-                .toggleStyle(.checkbox)
+                .toggleStyle(PopoverCheckboxStyle())
                 .font(.caption)
             Spacer()
             Button {
@@ -785,6 +785,32 @@ struct MenuContentView: View {
     }
 }
 
+/// The footer's "Show all" box. AppKit's `.checkbox` draws its unchecked box as a
+/// dark fill with no edge, which on the popover's glass measured 1.36:1 against
+/// the background (2026-10-21) — the box all but vanished. An outlined square in
+/// the secondary colour the footer's other glyphs use stays visible.
+private struct PopoverCheckboxStyle: ToggleStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        Button {
+            configuration.isOn.toggle()
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: configuration.isOn ? "checkmark.square.fill" : "square")
+                    .imageScale(.large)
+                    .foregroundStyle(configuration.isOn ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
+                configuration.label
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        // Still a checkbox to VoiceOver and to AX scripts that press it.
+        .accessibilityRepresentation {
+            Toggle(isOn: configuration.$isOn) { configuration.label }
+                .toggleStyle(.checkbox)
+        }
+    }
+}
+
 /// The popover's rows for command-line tools, as the workbench's CLI tab holds
 /// them: one for Homebrew's packages and one for every other tool (Claude Code,
 /// bub, fx, …), each with its own state and its own Update. A later tool joins
@@ -840,8 +866,10 @@ private struct CommandLineRow: View {
         let status = half.lines.dropFirst().reduce(half.lines.first ?? Text(verbatim: "")) {
             $0 + Text(verbatim: " · ") + $1
         }
-        return HStack(spacing: 8) {
-            Image(systemName: half.icon).foregroundStyle(.secondary).frame(width: 18)
+        // AppRow's columns: a 30pt icon slot and 10pt to the text, so these
+        // titles start on the app names' edge above them, not 14pt left of it.
+        return HStack(spacing: 10) {
+            Image(systemName: half.icon).foregroundStyle(.secondary).frame(width: 30)
             // The text opens the workbench, where each package and copy has its
             // own row; the controls stay the row's actions.
             Button(action: half.isHomebrew ? showHomebrew : showInWindow) {

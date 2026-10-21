@@ -871,59 +871,48 @@ private struct CommandLineRow: View {
     // MARK: Homebrew
 
     private var brewHalf: Half? {
-        guard model.brewInstalled else { return nil }
-        let outdated = model.brewOutdatedFormulae.count
-        let unchecked = model.brewUnchecked.count
-        let running = model.brewUpgrading || !model.upgradingFormulae.isEmpty
-        func half(_ lines: [Text], mark: (any View)? = nil, button: (any View)? = nil) -> Half {
-            Half(isHomebrew: true, icon: "mug", title: "Homebrew", lines: lines,
-                 mark: mark.map { AnyView($0) }, button: button.map { AnyView($0) }, running: running)
+        // What it says, its mark and its button: `BrewRowSnapshot.popover`.
+        guard let row = model.brewRowSnapshot.popover else { return nil }
+        let mark: (any View)? = switch row.mark {
+        case .spinner: spinner
+        case .seal: seal
+        case .unchecked: uncheckedMark
+        case nil: nil
         }
-        if running {
-            // One Cancel where the Update button stood, for Upgrade All and for
-            // a formula's own upgrade from the workbench alike, as the Other
-            // tools row's (2026-10-20: a formula's showed nothing here).
-            let cancel: (any View)? = model.brewRowCancel.map { group in
-                InstallCancelButton(state: group.state, pending: group.pending, count: group.live,
-                                    queuedOnly: group.queuedOnly) {
-                    model.cancelBrewRow()
-                }
+        let button: (any View)? = switch row.button {
+        case .update:
+            updateButton(
+                help: String(localized: "Runs `brew upgrade --formula`, then upgrades any listed cask by name. Covers command-line formulae plus casks that install no app (CLIs, fonts) — those have no row of their own. GUI casks are managed per-app above and are never touched. The count reads your local tap; brew refreshes itself during the upgrade, so it still lands the latest.")
+            ) { await model.upgradeBrewFormulae() }
+        // One Cancel where the Update button stood, for Upgrade All and for
+        // a formula's own upgrade from the workbench alike, as the Other
+        // tools row's (2026-10-20: a formula's showed nothing here).
+        case .cancel(let group):
+            InstallCancelButton(state: group.state, pending: group.pending, count: group.live,
+                                queuedOnly: group.queuedOnly) {
+                model.cancelBrewRow()
             }
-            if model.brewUpgrading && !model.cliTools.runQueue.isWaiting(.upgradeAll) {
-                return half([Text(model.brewBulkProgressText ?? String(localized: "Running brew upgrade…"))
-                    .monospacedDigit()], mark: spinner, button: cancel)
-            }
-            if let name = model.brewRowRunningFormula {
-                return half([Text(String(localized: "Upgrading \(name)")),
-                             model.formulaProgressLine(name).map { Text($0).monospacedDigit() }].compactMap { $0 },
-                            mark: spinner, button: cancel)
-            }
-            // Every run it stands for waits its turn behind another click's.
-            return half([Text(String(localized: "Queued"))], mark: spinner, button: cancel)
+        case .none, .copy, .spinnerOnly: nil
         }
-        if outdated == 0 && !model.brewChecked {
-            // Before the first verdict only; a re-check keeps the last answer up.
-            return half([Text(String(localized: "Checking…"))], mark: spinner)
+        return Half(isHomebrew: true, icon: "mug", title: "Homebrew", lines: row.lines.map(brewLine),
+                    mark: mark.map { AnyView($0) }, button: button.map { AnyView($0) }, running: row.isRunning)
+    }
+
+    /// One part of the Homebrew row's line (`BrewPopoverRow.Line`), worded.
+    private func brewLine(_ line: BrewPopoverRow.Line) -> Text {
+        switch line {
+        case .progress(let progress): return Text(progress.text).monospacedDigit()
+        case .upgrading(let name): return Text(String(localized: "Upgrading \(name)"))
+        case .checking: return Text(String(localized: "Checking…"))
+        case .error(let error): return Text(error).foregroundStyle(.red)
+        case .updates(let count): return Text(String(localized: "\(count) updates"))
+        // Packages brew wouldn't read: no count here can include them.
+        case .notChecked(let count): return Text(String(localized: "\(count) not checked"))
+        // Formulae Homebrew is phasing out (`BrewLifecycle`): checked, so not
+        // in either count, but nothing else here would say so.
+        case .deprecated(let count): return Text(String(localized: "\(count) deprecated"))
+        case .upToDate: return Text(String(localized: "Up to date"))
         }
-        // Packages brew wouldn't read stay said beside the updates: they are the
-        // ones no count here can include.
-        let uncheckedLine = unchecked > 0 ? Text(String(localized: "\(unchecked) not checked")) : nil
-        // Formulae Homebrew is phasing out (`BrewLifecycle`): checked, so not in
-        // either count, but nothing else here would say so.
-        let deprecated = model.brewFormulae.filter { $0.lifecycle != nil }.count
-            + model.brewCaskLifecycles.count
-        let deprecatedLine = deprecated > 0 ? Text(String(localized: "\(deprecated) deprecated")) : nil
-        if outdated > 0 {
-            let first = model.brewUpgradeError.map { Text($0).foregroundStyle(.red) }
-                ?? Text(String(localized: "\(outdated) updates"))
-            return half([first, uncheckedLine, deprecatedLine].compactMap { $0 },
-                        mark: unchecked > 0 ? uncheckedMark : nil,
-                        button: updateButton(
-                            help: String(localized: "Runs `brew upgrade --formula`, then upgrades any listed cask by name. Covers command-line formulae plus casks that install no app (CLIs, fonts) — those have no row of their own. GUI casks are managed per-app above and are never touched. The count reads your local tap; brew refreshes itself during the upgrade, so it still lands the latest.")
-                        ) { await model.upgradeBrewFormulae() })
-        }
-        if let uncheckedLine { return half([uncheckedLine, deprecatedLine].compactMap { $0 }, mark: uncheckedMark) }
-        return half([Text(String(localized: "Up to date")), deprecatedLine].compactMap { $0 }, mark: seal)
     }
 
     private var uncheckedMark: some View {
@@ -938,85 +927,56 @@ private struct CommandLineRow: View {
     // MARK: Other tools
 
     private var toolsHalf: Half? {
-        guard !tools.sightings.isEmpty else { return nil }
-        let running = tools.updatingAll || !tools.updating.isEmpty
-        func half(_ lines: [Text], mark: (any View)? = nil, button: (any View)? = nil) -> Half {
-            Half(icon: "terminal", title: String(localized: "Other tools"), lines: lines,
-                 mark: mark.map { AnyView($0) }, button: button.map { AnyView($0) }, running: running)
+        // What it says, its mark and its button: `CLIRowSnapshot.popover`.
+        guard let row = tools.rowSnapshot.popover else { return nil }
+        let mark: (any View)? = switch row.mark {
+        case .spinner: spinner
+        case .seal: seal
+        case .question: question
+        case nil: nil
         }
-        if running {
-            // The tool running, and one live line. `updateAll` runs several tools
-            // at once: then the row names none of them, and the line is the first
-            // running copy's — one still running its command before one done and
-            // waiting on its check, whose "Waiting to check" would read as if
-            // nothing were downloading. A queued copy is not running.
-            let claimed = tools.statuses.filter {
-                tools.updating.contains($0.toolID) && !tools.queued.contains($0.toolID)
+        let button: (any View)? = switch row.button {
+        case .update: updateButton(help: CLIToolPresentation.updateAllHelp) { await tools.updateAll() }
+        // One Cancel where the Update button stood, for every copy the row
+        // says is updating — Update All's, and a click's of its own from the
+        // workbench, which had none here (2026-10-20).
+        case .cancel(let group):
+            InstallCancelButton(state: group.state, pending: group.pending, count: group.live,
+                                queuedOnly: group.queuedOnly) {
+                tools.cancelRow()
             }
-            // One Cancel where the Update button stood, for every copy the row
-            // says is updating — Update All's, and a click's of its own from the
-            // workbench, which had none here (2026-10-20).
-            let cancel: (any View)? = tools.rowCancel.map { group in
-                InstallCancelButton(state: group.state, pending: group.pending, count: group.live,
-                                    queuedOnly: group.queuedOnly) {
-                    tools.cancelRow()
-                }
-            }
-            if claimed.isEmpty {
-                // Every copy claimed waits its turn behind another click's run
-                // (`CLIRunQueue`).
-                return half([Text(String(localized: "Queued"))], mark: spinner, button: cancel)
-            }
-            let running = claimed.filter { !tools.awaitingCheck.contains($0.toolID) }
-            let named = running.isEmpty ? claimed : running
-            let head = Set(named.map(\.kind)).count == 1
-                ? String(localized: "Updating \(named[0].kind.displayName)")
-                : String(localized: "Updating command-line tools")
-            let progress = named.lazy.compactMap { tools.progressLine($0.toolID) }.first
-            return half([Text(head), progress.map { Text($0).monospacedDigit() }].compactMap { $0 },
-                        mark: spinner, button: cancel)
+        case .none, .copy, .spinnerOnly: nil
         }
-        if !tools.checked { return half([Text(String(localized: "Checking…"))], mark: spinner) }
-        if !tools.outdated.isEmpty {
-            let button: (any View)? = !tools.updateAllStartable ? nil : updateButton(
-                help: CLIToolPresentation.updateAllHelp
-            ) { await tools.updateAll() }
-            if let error = tools.outdated.lazy.compactMap({ tools.errors[$0.toolID] }).first {
-                return half([Text(error).foregroundStyle(.red)], button: button)
-            }
-            // "Updates" are what the button updates; a held-back one is counted
-            // apart, so "2 updates" no longer sits beside one copy to update.
-            let held = tools.heldBack.count
-            let heldLine = held > 0 ? Text(String(localized: "\(held) held back")) : nil
-            if tools.offered.isEmpty {
-                // Nothing to click, so the row says why, in the user's terms.
-                guard let status = tools.heldBack.first(where: { $0.withheld != nil }),
-                      let withheld = status.withheld
-                else { return half([heldLine].compactMap { $0 }) }
-                return half([Text(CLIToolsModel.reason(withheld, of: status))] + (held > 1 ? [heldLine].compactMap { $0 } : []))
-            }
-            let sudoLine = CLIToolPresentation.needSudo(tools.needSudoCount).map { Text($0) }
-            return half([Text(String(localized: "\(tools.offered.count) updates")), sudoLine, heldLine].compactMap { $0 },
-                        button: button)
+        return Half(icon: "terminal", title: String(localized: "Other tools"), lines: row.lines.map(toolsLine),
+                    mark: mark.map { AnyView($0) }, button: button.map { AnyView($0) }, running: row.isRunning)
+    }
+
+    /// One part of the Other tools row's line (`CLIPopoverRow.Line`), worded.
+    private func toolsLine(_ line: CLIPopoverRow<CLIToolID>.Line) -> Text {
+        switch line {
+        case .queued: return Text(String(localized: "Queued"))
+        case .updating(let kind?): return Text(String(localized: "Updating \(kind.displayName)"))
+        case .updating(nil): return Text(String(localized: "Updating command-line tools"))
+        case .progress(.cancelling): return Text(String(localized: "Cancelling…")).monospacedDigit()
+        case .progress(.line(let text)): return Text(text).monospacedDigit()
+        case .progress(.updating): return Text(String(localized: "Updating…")).monospacedDigit()
+        case .checking: return Text(String(localized: "Checking…"))
+        case .error(let error): return Text(error).foregroundStyle(.red)
+        case .updates(let count): return Text(String(localized: "\(count) updates"))
+        case .needSudo(let count): return Text(CLIToolPresentation.needSudo(count) ?? "")
+        case .heldBack(let count): return Text(String(localized: "\(count) held back"))
+        case .withheld(let id, let withheld):
+            // In the user's terms, as the copy's own row says it.
+            return Text(tools.status(id).map { CLIToolsModel.reason(withheld, of: $0) }
+                ?? CLIToolsModel.reason(withheld, of: id.kind))
+        case .notChecked(let count): return Text(String(localized: "\(count) not checked"))
+        case .updated(let kind, let version): return Text(String(localized: "\(kind.displayName) updated to \(version)"))
+        // A running process keeps the binary it started with; for Claude Code
+        // that is every open session.
+        case .takesEffect(.claudeCode): return Text(String(localized: "New sessions use it; restart open ones"))
+        case .takesEffect: return Text(String(localized: "Takes effect the next time it runs"))
+        case .upToDate: return Text(String(localized: "Up to date"))
         }
-        if !tools.unchecked.isEmpty {
-            // Not "up to date" while a copy went unanswered.
-            if let status = tools.unchecked.first(where: { $0.withheld != nil }), let withheld = status.withheld {
-                return half([Text(CLIToolsModel.reason(withheld, of: status))], mark: question)
-            }
-            return half([Text(String(localized: "\(tools.unchecked.count) not checked"))], mark: question)
-        }
-        if let status = tools.statuses.first(where: { tools.justUpdated[$0.toolID] != nil }),
-           let version = tools.justUpdated[status.toolID] {
-            // A running process keeps the binary it started with; for Claude Code
-            // that is every open session.
-            let hint = status.kind == .claudeCode
-                ? String(localized: "New sessions use it; restart open ones")
-                : String(localized: "Takes effect the next time it runs")
-            return half([Text(String(localized: "\(status.kind.displayName) updated to \(version)")), Text(hint)],
-                        mark: seal)
-        }
-        return half([Text(String(localized: "Up to date"))], mark: seal)
     }
 
     /// One line per tool with processes still on the copy from before its

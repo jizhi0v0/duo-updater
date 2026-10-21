@@ -907,9 +907,9 @@ final class AppListModel {
     /// render a state as nothing.
     func rowState(for result: UpdateResult) -> RowActionState {
         // The assembly is `RowActionFacts.assemble` in Core, where it can be
-        // tested; this is the wiring that hands it the tables. `self.` on the
-        // route because it is an `@autoclosure` the facts hold rather than a
-        // value they copy — see `RowActionFacts.route`.
+        // tested; this is the wiring that hands it the tables. It resolves the
+        // route only for a row with an update on offer, and that read is the
+        // memo's — see `memoisedRoute(for:)`.
         RowAction.state(for: RowActionFacts.assemble(
             for: result,
             tables: rowStateTables,
@@ -917,8 +917,46 @@ final class AppListModel {
             isVersionSkipped: prefs.isVersionSkipped(
                 result.app, version: result.remote?.versionSide),
             orphanedStoreSibling: orphanedStoreCopies[result.id],
-            route: self.rowRoute(for: result)))
+            route: memoisedRoute(for: result)))
     }
+
+    /// `rowRoute(for:)`, kept per row until something it read changes.
+    ///
+    /// Every row with an update on offer reads its route on every repaint — on
+    /// a download tick, the whole list repaints — and resolving one rebuilds
+    /// `policyEnvironment` several times and, for a pkg row with a package
+    /// downloaded, stats it. None of that changes on a tick.
+    ///
+    /// What invalidates it is whatever the resolution itself read: it runs
+    /// under `withObservationTracking`, so a change to any observed property it
+    /// touched — this model's, `prefs`', `AppleDeveloperSession`'s — drops every
+    /// kept route, and `results` is read on purpose so a rescan does too. Not
+    /// tracked, the one thing that is not observed: whether a staged package is
+    /// still on disk. That is re-asked whenever the memo is dropped, at the
+    /// latest at the next staging sweep after a rescan (it rewrites `results`,
+    /// then `pruneStagedPackages` drops a swept entry). Between two drops a
+    /// swept package's row keeps its Install; clicking it reaches
+    /// `openStagedPackage`, which forgets the entry, and that write drops the
+    /// memo and puts the row back to Update.
+    ///
+    /// A row reading a kept route registered none of those reads with the view
+    /// asking, so `routeMemoEpoch` is what repaints it: read here, bumped when
+    /// the memo is dropped. Until that bump lands a repaint resolves afresh
+    /// rather than reading a stale route — the drop itself is synchronous.
+    private func memoisedRoute(for result: UpdateResult) -> UpdateRoute {
+        _ = routeMemoEpoch
+        return routeMemo.route(for: result.id) { generation in
+            withObservationTracking {
+                _ = results
+                return rowRoute(for: result)
+            } onChange: { [weak self, routeMemo] in
+                guard routeMemo.invalidate(generation: generation) else { return }
+                Task { @MainActor in self?.routeMemoEpoch &+= 1 }
+            }
+        }
+    }
+    @ObservationIgnored private let routeMemo = RowRouteMemo()
+    private var routeMemoEpoch = 0
 
     /// The per-row tables as Core wants them. Eight copies of a
     /// copy-on-write collection: retains, no allocation.
@@ -945,14 +983,14 @@ final class AppListModel {
     /// does not is the same row telling two stories.
     ///
     /// The decision itself is `UpdateRoute.resolve(_:)` in Core (issue #261) — this
-    /// is only the wiring that fills `RouteInputs`. It stays a method the caller
-    /// invokes lazily (`rowState(for:)` passes `self.rowRoute(for: result)` into an
-    /// `@autoclosure` parameter) rather than a stored value, so building
-    /// `RouteInputs` — which calls `canAutoInstall` / `requiresInstaller` /
-    /// `defersToSelfUpdater` unconditionally and, when `requiresInstaller` is
-    /// true, reads `stagedPackage(for:)` too — only happens for a row that
-    /// actually reaches `.updateAvailable`. See `RowActionFacts.route`'s doc
-    /// comment, and the note below on what changed inside that boundary.
+    /// is only the wiring that fills `RouteInputs`. `rowState(for:)` reaches it
+    /// through `memoisedRoute(for:)`, and only for a row with an update on offer,
+    /// so building `RouteInputs` — which calls `canAutoInstall` /
+    /// `requiresInstaller` / `defersToSelfUpdater` unconditionally and, when
+    /// `requiresInstaller` is true, reads `stagedPackage(for:)` too — happens once
+    /// per such row until an input changes, not once per repaint. See
+    /// `RowActionFacts.route`'s doc comment, and the note below on what changed
+    /// inside that boundary.
     private func rowRoute(for result: UpdateResult) -> UpdateRoute {
         // `requiresInstaller` is read twice below (the gate, and the installer
         // rung itself); computed once here rather than reasked. This does NOT
@@ -4698,7 +4736,7 @@ final class AppListModel {
             brewCancels[jobID] = nil
         }
         // Its line until its run writes one: "Queued", then "Starting…" from
-        // its turn on (`formulaProgressLine`).
+        // its turn on (`BrewRowSnapshot.Formula.line`).
         formulaUpgradeNotes[name] = nil
         let ran = await cliTools.runQueue.perform(.upgradeFormula(name), whenCancelled: end) {
             // Read again at its turn: an Upgrade All queued ahead of it may have
@@ -4777,31 +4815,12 @@ final class AppListModel {
         BrewRowRuns.jobIDs(upgradingAll: brewUpgrading, formulae: upgradingFormulae)
     }
 
-    /// The popover Homebrew row's one Cancel, over every run it stands for.
-    var brewRowCancel: InstallRowSmoothing<String>.GroupCancel? {
-        BrewRowRuns.cancel(brewRowJobIDs, in: brewCancelRows, running: brewRowRunningJobID)
-    }
-
-    /// The run the popover's Homebrew row names at its head, as it picks it:
-    /// Upgrade All once it has its turn, else the formula that has
-    /// (`brewRowRunningFormula`); nil while every one waits.
-    var brewRowRunningJobID: String? {
-        if brewUpgrading && !cliTools.runQueue.isWaiting(.upgradeAll) { return Self.upgradeAllJobID }
-        return brewRowRunningFormula.map(Self.formulaJobID)
-    }
-
     /// The popover Homebrew row's Cancel: each run it stands for that can
     /// still be cancelled is (`cancelBrewUpgrade`).
     func cancelBrewRow() {
         let cancellable = BrewRowRuns.cancellable(brewRowJobIDs, in: brewCancels)
         Log.app.notice("Homebrew row: cancel, \(cancellable.count, privacy: .public) of \(self.brewRowJobIDs.count, privacy: .public) runs still cancellable")
         for jobID in cancellable { cancelBrewUpgrade(jobID) }
-    }
-
-    /// The formula whose own upgrade has its turn, if one does: the head of
-    /// the popover's Homebrew row. One brew run goes at a time (`CLIRunQueue`).
-    var brewRowRunningFormula: String? {
-        upgradingFormulae.sorted().first { !cliTools.runQueue.isWaiting(.upgradeFormula($0)) }
     }
 
     /// The queue's name for the brew run a Cancel's job id belongs to.
@@ -4813,15 +4832,59 @@ final class AppListModel {
         return .upgradeFormula(String(jobID.dropFirst(prefix.count)))
     }
 
-    /// The line under a formula row's name while it upgrades: brew's phase, or
-    /// "Cancelling…" once that is due (`brewCancelRows`).
-    func formulaProgressLine(_ name: String) -> String? {
-        if brewCancelRows.cancels[Self.formulaJobID(name)] == .cancelling {
-            return String(localized: "Cancelling…")
-        }
-        if let note = formulaUpgradeNotes[name] { return note }
-        guard upgradingFormulae.contains(name) else { return nil }
-        return BrewRowRuns.lineBeforeItsRun(waiting: cliTools.runQueue.isWaiting(.upgradeFormula(name)))
+    /// Where the brew run `run` is (`CLIRunPhase`): idle unless `claimed`,
+    /// queued while it waits its turn (`CLIRunQueue`), running from its turn
+    /// on. The one place the Homebrew rows ask the queue.
+    private func brewRunPhase(claimed: Bool, _ run: CLIRun) -> CLIRunPhase {
+        guard claimed else { return .idle }
+        return cliTools.runQueue.isWaiting(run) ? .queued : .running
+    }
+
+    /// One brew run's facts, as `BrewRowSnapshot` holds them. Its Cancel only
+    /// while it is claimed: an idle one reads nothing of `brewCancelRows`.
+    private func brewRun(_ jobID: String, _ phase: CLIRunPhase) -> BrewRowSnapshot.Run {
+        let claimed = phase != .idle
+        return .live(id: jobID, phase: phase,
+                     cancel: claimed ? brewCancelRows.cancels[jobID] : nil,
+                     cancelPending: claimed && brewCancelRows.cancelPending.contains(jobID))
+    }
+
+    private var upgradeAllPhase: CLIRunPhase { brewRunPhase(claimed: brewUpgrading, .upgradeAll) }
+
+    /// One formula's facts. Idle, it reads neither `brewCancelRows` nor
+    /// `formulaUpgradeNotes`, which change with every line of any upgrade.
+    private func brewFormula(_ name: String, hasUpdate: Bool) -> BrewRowSnapshot.Formula {
+        let phase = brewRunPhase(claimed: upgradingFormulae.contains(name), .upgradeFormula(name))
+        return .live(name: name, hasUpdate: hasUpdate, run: brewRun(Self.formulaJobID(name), phase),
+                     note: phase != .idle ? formulaUpgradeNotes[name] : nil,
+                     error: formulaUpgradeErrors[name])
+    }
+
+    /// What `formula`'s sidebar row and detail header draw
+    /// (`BrewRowSnapshot.Formula.row`): its own facts, and Upgrade All's phase.
+    func brewFormulaRow(_ formula: BrewInstalledFormula) -> BrewFormulaRow {
+        brewFormula(formula.name, hasUpdate: formula.hasUpdate).row(upgradeAll: upgradeAllPhase)
+    }
+
+    /// What the popover's Homebrew row and the workbench's Upgrade All draw
+    /// from (`BrewRowSnapshot`).
+    var brewRowSnapshot: BrewRowSnapshot {
+        .live(
+            upgradeAll: brewRun(Self.upgradeAllJobID, upgradeAllPhase),
+            upgradeAllDone: brewUpgradeDone, upgradeAllTotal: brewUpgradeTotal, upgradeAllError: brewUpgradeError,
+            // The popover row's: those with an upgrade of their own claimed.
+            formulae: upgradingFormulae.sorted().map { name in
+                brewFormula(name, hasUpdate: brewFormulae.contains { $0.name == name && $0.hasUpdate })
+            },
+            installed: brewInstalled, checked: brewChecked,
+            outdated: brewOutdatedFormulae.count, unchecked: brewUnchecked.count,
+            deprecated: brewFormulae.filter { $0.lifecycle != nil }.count + brewCaskLifecycles.count)
+    }
+
+    /// `brew update`'s Cancel beside its row's progress, while it waits its
+    /// turn; it has none once it runs.
+    var homebrewUpdateCancel: BrewRowSnapshot.GroupCancel? {
+        brewRun(Self.homebrewUpdateJobID, brewRunPhase(claimed: homebrewUpdating, .homebrewUpdate)).ownCancel
     }
 
     /// The Cancel moves with the job: greyed once the upgrade started.
@@ -4854,17 +4917,6 @@ final class AppListModel {
         if l.contains("downloading") || l.contains("fetching") || l.contains("bottle") { return String(localized: "Downloading…") }
         if l.contains("cleaning") || l.contains("cleanup") { return String(localized: "Cleaning up…") }
         return nil
-    }
-
-    /// One-line "x/n" status for an in-flight bulk upgrade — the count of the next
-    /// formula being worked on over the total. nil when no bulk run is active.
-    var brewBulkProgressText: String? {
-        guard brewUpgrading else { return nil }
-        if cliTools.runQueue.isWaiting(.upgradeAll) { return String(localized: "Queued") }
-        if brewCancelRows.cancels[Self.upgradeAllJobID] == .cancelling { return String(localized: "Cancelling…") }
-        guard brewUpgradeTotal > 0 else { return nil }
-        let current = min(brewUpgradeDone + 1, brewUpgradeTotal)
-        return String(localized: "Upgrading… (\(current)/\(brewUpgradeTotal))")
     }
 
     /// The releases `update` would bring (`HomebrewReleaseNotes.relevant`). The
@@ -6879,7 +6931,19 @@ final class AppListModel {
     /// is on disk, re-verified, and handed back to macOS's installer, which brings
     /// its existing window forward if it's still open.
     func openStagedPackage(_ result: UpdateResult) async {
-        guard let staged = stagedPackage(for: result) else { return }
+        guard let staged = stagedPackage(for: result) else {
+            // Swept since the row last asked. Forget it now, as the next
+            // `pruneStagedPackages` would (it keeps a pending entry whatever its
+            // file): the row's route is memoised (`memoisedRoute`) and does not
+            // watch the disk, so without this write its Install would stay, and
+            // do nothing, until something else the route reads changed.
+            if let entry = stagedPackages[result.id], !packageRestartPending.contains(result.id),
+               !FileManager.default.fileExists(atPath: entry.url.path) {
+                stagedPackages[result.id] = nil
+                persistStagedPackages()
+            }
+            return
+        }
         installErrors[result.id] = nil
         do {
             try await packageInstaller.reopen(

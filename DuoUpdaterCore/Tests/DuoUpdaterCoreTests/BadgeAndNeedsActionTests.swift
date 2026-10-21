@@ -361,31 +361,34 @@ struct RowFactsAssemblyTests {
             .stagedRelaunchTarget != nil)
     }
 
-    /// `assemble` must not evaluate the route. Computing it rebuilds an
-    /// `InstallEnvironment` and stats the disk for pkg rows, and only the
-    /// `.updateAvailable` rung ever reads it — the cost this `@autoclosure`
-    /// exists to avoid for every installing, ignored or quit-confirming row.
+    /// `assemble` resolves the route for a row with an update on offer, once,
+    /// and for no other row. Resolving one rebuilds an `InstallEnvironment` and
+    /// stats the disk for pkg rows, and every row is assembled on every repaint
+    /// — up-to-date rows, the bulk of the list, most of all.
     ///
-    /// Mutation: change `route` to a plain (non-autoclosure) parameter, or store
-    /// `route()` into a local inside `assemble`.
-    @Test func assemblingFactsDoesNotComputeTheRoute() {
+    /// Mutation: pass `route()` unconditionally in `assemble` → the up-to-date
+    /// row counts a call, red.
+    @Test func assemblingFactsResolvesTheRouteOnlyForAnUpdate() {
         final class Counter: @unchecked Sendable { var calls = 0 }
         let counter = Counter()
 
-        let facts = RowActionFacts.assemble(
+        let current = RowActionFacts.assemble(
             for: row, tables: RowStateTables(), isIgnored: false,
             isVersionSkipped: false,
             route: { counter.calls += 1; return UpdateRoute.majorUpgrade }())
-
         #expect(counter.calls == 0)
+        #expect(current.route == nil)
 
-        // Deferred is only half of it: `RowActionFacts.route` has a DEFAULT, so
-        // dropping the argument from `assemble` altogether compiles and leaves a
-        // deferral-only assertion green — while every `.updateAvailable` row in
-        // production renders whatever that default happens to be. Read it once
-        // and check the value arrived. (`routeIsDeferred` in RowActionStateTests
-        // carries the same positive pole for the same reason.)
-        #expect(facts.route() == .majorUpgrade)
+        // The positive pole: `RowActionFacts.init` defaults the route, so
+        // dropping the argument from `assemble` altogether would compile and
+        // leave a zero-calls assertion green — while every `.updateAvailable`
+        // row in production rendered that default. Check the value arrives.
+        let update = UpdateResult(app: row.app, remote: nil, status: .updateAvailable(latest: "2.0"))
+        let offered = RowActionFacts.assemble(
+            for: update, tables: RowStateTables(), isIgnored: false,
+            isVersionSkipped: false,
+            route: { counter.calls += 1; return UpdateRoute.majorUpgrade }())
         #expect(counter.calls == 1)
+        #expect(offered.route == .majorUpgrade)
     }
 }

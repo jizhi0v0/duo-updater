@@ -774,6 +774,41 @@ struct CLIToolsModelTests {
         #expect(model.updating.isEmpty)
     }
 
+    /// A copy cancelled while queued in a running lane and clicked again waits
+    /// as a click of its own: the lane goes past it, leaving that claim, and it
+    /// runs once, at the click's turn.
+    ///
+    /// Mutation: skip in `runLane` only a copy with no claim at all
+    /// (`claims[id] == nil`) → the lane runs the click's copy and releases it,
+    /// and the click runs it again, red.
+    @Test(.timeLimit(.minutes(1))) func aCopyCancelledInItsLaneAndClickedAgainRunsOnce() async {
+        let first = Self.id(Self.pnpmCLI, .npm)
+        let second = Self.id(Self.tsx, .npm)
+        let updater = FakeUpdater()
+        let gate = Gate()
+        await updater.setGate(first, gate)
+        let npm = FakeProvider(
+            kind: .npm,
+            checker: FakeCheck([(Self.report(.npm, [Self.status(Self.pnpmCLI, kind: .npm), Self.status(Self.tsx, kind: .npm)]), nil)]),
+            updater: updater)
+        let model = Self.model([npm])
+        await model.refresh()
+
+        let all = Task { await model.updateAll() }
+        await until { await gate.arrived == 1 }
+        model.cancel(second)
+        let click = Task { await model.update(second) }
+        await until { model.runQueue.isWaiting(.tool(second)) }
+        #expect(model.queued.contains(second))
+        #expect(model.cancels[second] == .available)
+
+        await gate.open()
+        await all.value
+        await click.value
+        #expect(await updater.calls == [first, second])
+        #expect(model.updating.isEmpty)
+    }
+
     // MARK: updateAll
 
     static let prefix = "/Users/u/.nvm/versions/node/v24.11.0"

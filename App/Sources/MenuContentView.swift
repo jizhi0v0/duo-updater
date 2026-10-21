@@ -787,22 +787,30 @@ struct MenuContentView: View {
 
 /// The footer's "Show all" box. AppKit's `.checkbox` draws its unchecked box as a
 /// dark fill with no edge, which on the popover's glass measured 1.36:1 against
-/// the background (2026-10-21) — the box all but vanished. An outlined square in
-/// the secondary colour of the command-line rows' icons above it measured 3.25:1.
+/// the background (2026-10-21) — the box all but vanished. An outlined square drawn
+/// as the footer's icon buttons are measured 5.80:1, level with them.
 private struct PopoverCheckboxStyle: ToggleStyle {
     func makeBody(configuration: Configuration) -> some View {
-        Button {
-            configuration.isOn.toggle()
-        } label: {
-            HStack(spacing: 4) {
-                Image(systemName: configuration.isOn ? "checkmark.square.fill" : "square")
-                    .imageScale(.large)
-                    .foregroundStyle(configuration.isOn ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
-                configuration.label
+        HStack(spacing: 4) {
+            // Only the box is a borderless button, so AppKit draws it as it draws
+            // the footer's icon buttons; the label inside it would dim with it.
+            Button {
+                configuration.isOn.toggle()
+            } label: {
+                if configuration.isOn {
+                    Image(systemName: "checkmark.square.fill")
+                        .imageScale(.large)
+                        .foregroundStyle(.tint)
+                } else {
+                    Image(systemName: "square")
+                        .imageScale(.large)
+                }
             }
-            .contentShape(Rectangle())
+            .buttonStyle(.borderless)
+            configuration.label
+                .contentShape(Rectangle())
+                .onTapGesture { configuration.isOn.toggle() }
         }
-        .buttonStyle(.plain)
         // Still a checkbox to VoiceOver and to AX scripts that press it.
         .accessibilityRepresentation {
             Toggle(isOn: configuration.$isOn) { configuration.label }

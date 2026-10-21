@@ -304,7 +304,9 @@ public enum CLIRunReducer {
         case .commandStarting(let id):
             // A retry: the last failure, or why the last click was not run,
             // no longer holds.
-            effects.append(.showLine(id, .starting)) // RED CHECK 4: no clear
+            s.redLines[id] = nil
+            s.logs[id] = nil
+            effects.append(.showLine(id, .starting))
 
         case .outputLine(let id, let line):
             // A line can arrive after the update has finished and its row
@@ -358,7 +360,7 @@ public enum CLIRunReducer {
             // said beside an Update that stayed (its update now asks for an
             // administrator password) is kept until its tool's next check.
             for id in newlyOffered {
-                if case .notRun? = s.redLines[id] { _ = id } // RED CHECK 6
+                if case .notRun? = s.redLines[id] { s.redLines[id] = nil }
             }
 
         case .checkLanded(let copies):
@@ -379,11 +381,11 @@ public enum CLIRunReducer {
                         // is not on offer by its nature: it waits for its own
                         // tool's check, below — any tool's check took it away
                         // (review, 2026-10-20, round 2).
-                        if notRun && copy.answered { // RED CHECK 2
+                        if !notRun || copy.answered {
                             s.redLines[id] = nil
                             s.logs[id] = nil
                         }
-                    } else if copy.answered { // RED CHECK 3
+                    } else if notRun, copy.answered {
                         // "Not updated: <reason>" was true when the click's
                         // turn came. Kept by the rule above once its tool is
                         // offered again, it read as the reason beside a live
@@ -394,7 +396,7 @@ public enum CLIRunReducer {
                 // "Updated to X" is about the copy as DuoUpdater left it.
                 // Something else has changed it since (or it is gone): the
                 // claim no longer holds.
-                if let version = s.justUpdated[id], copy.status?.installedVersion != version, false { // RED CHECK 5
+                if let version = s.justUpdated[id], copy.status?.installedVersion != version {
                     s.justUpdated[id] = nil
                 }
             }
@@ -406,7 +408,7 @@ public enum CLIRunReducer {
             // Update with nothing said (review, 2026-10-21). Said again while
             // it still holds — not offered, or offered on the other route —
             // unless the row says something else by now.
-            guard false, why != .silent, let now, // RED CHECK 1 now.state == .updateAvailable,
+            guard why != .silent, let now, now.state == .updateAvailable,
                   now.oneClick == nil || now.needsAdministrator != clickedNeedsAdministrator,
                   s.redLines[id] == nil
             else { return (state, []) }

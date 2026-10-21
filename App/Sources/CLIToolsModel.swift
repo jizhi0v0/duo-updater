@@ -78,17 +78,10 @@ final class CLIToolsModel {
         statuses = checkedStatuses.map {
             $0.applyingGitHubPause(gitHubPause, updatersGetOurToken: updatersGetOurToken, now: current)
         }
-        // "Not updated: <reason>" said why a click's copy was not offered at its
-        // turn. Offered again — also with no check of its tool, as when the
-        // GitHub pause lifts — it would read as the reason beside a live Update
-        // (review, #1511 round 2). Offered again only: one said beside an Update
-        // that stayed (its update now asks for an administrator password) is
-        // kept until its tool's next check.
-        for id in notRunAtTurn where !wasOffered.contains(id)
-            && statuses.contains(where: { $0.toolID == id && $0.oneClick != nil }) {
-            notRunAtTurn.remove(id)
-            errors[id] = nil
-        }
+        // A "Not updated" line beside an Update offered again goes
+        // (`CLIRunEvent.offersPublished`).
+        let newlyOffered = Set(statuses.lazy.filter { $0.oneClick != nil }.map(\.toolID)).subtracting(wasOffered)
+        if !newlyOffered.isEmpty { send(.offersPublished(newlyOffered: newlyOffered)) }
     }
     /// The tool-wide settings each tool's verdicts were made under, for its group
     /// header: Claude Code's channel and auto-update, fx's settings.
@@ -108,7 +101,11 @@ final class CLIToolsModel {
     /// Every copy's claim and Cancel, and whether Update All runs
     /// (`CLIRunState`): from the click until the re-check after it has landed
     /// — and, under `updateAll`, every copy it will update, from the start, so
-    /// a copy waiting its turn shows "Queued" rather than a live Update.
+    /// a copy waiting its turn shows "Queued" rather than a live Update. Also
+    /// what each row says once its run is over: its red line, its log, its
+    /// "Updated to X" (`errors`, `errorLogs`, `justUpdated`), set and cleared
+    /// by the same reducer — at a retry, a failure, a settle, a check landing
+    /// (phase 4b).
     /// Changed only through `send`, by `CLIRunReducer`: the transitions are a
     /// pure function in Core, replayed there as event sequences, and this
     /// model is their effect runner — the awaits stay here (UI = f(state),
@@ -163,23 +160,23 @@ final class CLIToolsModel {
         didSet { smoothCancelRows() }
     }
     /// The last failed update of each install: the row's one line. Also an update
-    /// that exited 0 but left the version where it was.
-    private(set) var errors: [CLIToolID: String] = [:]
-    /// The full output of each failed update: the detail pane's log.
-    private(set) var errorLogs: [CLIToolID: String] = [:]
-    /// The copies whose `errors` line says a click was not run at its turn
-    /// (`offerAtTurn`): about that click only, so gone once a later check of
-    /// its tool lands, whatever it says.
-    @ObservationIgnored private var notRunAtTurn: Set<CLIToolID> = []
-    /// Installs just updated → the version they now read as. Open sessions keep
-    /// the old version until restarted, so the row says so.
+    /// that exited 0 but left the version where it was, and a click not run at
+    /// its turn. Worded here from `CLIRunState.redLines`, which the reducer
+    /// sets and clears — at a retry, a failure, a settle, a check landing.
+    var errors: [CLIToolID: String] { runState.redLines.mapValues(Self.redLine) }
+    /// The full output of each failed update: the detail pane's log
+    /// (`CLIRunState.logs`).
+    var errorLogs: [CLIToolID: String] { runState.logs }
+    /// Installs just updated → the version they now read as
+    /// (`CLIRunState.justUpdated`). Open sessions keep the old version until
+    /// restarted, so the row says so.
     ///
     /// A confirmation, not a state: each entry clears itself after
     /// `confirmationWindow`, as an app row's "Updated ✓" does
     /// (`AppListModel.markJustUpdated`). Kept until something changed the copy, it
     /// pinned "Claude Code updated to 2.1.285" on the popover for good — the first
     /// thing the user saw after a real update on 2026-10-01.
-    private(set) var justUpdated: [CLIToolID: String] = [:]
+    var justUpdated: [CLIToolID: String] { runState.justUpdated }
     /// Who is running each install right now (`CLIToolProcesses`), for the row's
     /// running dot and its "still on the old version" line. Only installs
     /// something runs are in it. Re-read by `watchProcesses`, on its own clock.
@@ -656,32 +653,13 @@ final class CLIToolsModel {
         checked = true
         let byID = Dictionary(statuses.map { ($0.toolID, $0) }, uniquingKeysWith: { a, _ in a })
         let answered = Set(answers.map(\.1.kind))
-        // An error describes an attempt at an update that is still on offer. Once
-        // the copy is no longer behind — updated from a terminal, or gone — it
-        // would otherwise sit beside a current install in the workbench. Nor once
-        // nothing is offered: openclaw's own update reported a failed check after
-        // installing the newest release its node runs (2026-10-02), and the row
-        // went on showing that failure where it should say the next release
-        // needs a newer Node. Not "Not updated: <reason>", whose copy is not on
-        // offer by its nature: it waits for its own tool's check, below — any
-        // tool's check took it away (review, 2026-10-20, round 2).
-        for id in errors.keys where byID[id]?.state != .updateAvailable || byID[id]?.oneClick == nil {
-            if notRunAtTurn.contains(id), !answered.contains(id.kind) { continue }
-            errors[id] = nil
-            errorLogs[id] = nil
+        // Which red lines and "Updated to X" still hold is the reducer's to
+        // say (`CLIRunEvent.checkLanded`): each copy it holds one for, as it
+        // stands now, and whether its own tool was asked.
+        let copies = runState.readByACheck.map { id in
+            (id, CLIRunChecked(answered: answered.contains(id.kind), status: byID[id]))
         }
-        // "Not updated: <reason>" was true when the click's turn came. Kept by
-        // the rule above once its tool is offered again, it read as the reason
-        // beside a live Update on every later check (review, #1511 round 1).
-        for id in notRunAtTurn where answered.contains(id.kind) {
-            notRunAtTurn.remove(id)
-            errors[id] = nil
-        }
-        // "Updated to X" is about the copy as DuoUpdater left it. Something else
-        // has changed it since (or it is gone) — the claim no longer holds.
-        for (id, version) in justUpdated {
-            if byID[id]?.installedVersion != version { justUpdated[id] = nil }
-        }
+        if !copies.isEmpty { send(.checkLanded(Dictionary(uniqueKeysWithValues: copies))) }
         onReport?()
         Task { await loadBreaking() }
         // A check that finds the tool current is when a copy it updated by
@@ -938,7 +916,7 @@ final class CLIToolsModel {
     ///
     /// Taken away, and not by the GitHub pause, it is asked of its own tool
     /// once more before the click is given up (review, 2026-10-20). Still not
-    /// offered, the row says so, and why (`CLIRunEffect.sayNotRun`).
+    /// offered, the row says so, and why (`CLIRunState.redLines`).
     ///
     /// Offered, but now asking for an administrator password where the click
     /// queued it as one that did not, or the reverse, it is not run: the click
@@ -973,6 +951,17 @@ final class CLIToolsModel {
         }
         guard send(.offerRead(id, offer)).contains(.startCommand(id)), case .run(let status) = offer else { return nil }
         return status
+    }
+
+    /// A row's red line (`CLIRunState.redLines`), worded.
+    private static func redLine(_ line: CLIRunRedLine) -> String {
+        switch line {
+        case .failed(let message): return message
+        case .stillOn(let version): return String(localized: "Still \(version) after the update")
+        case .versionUnreadable: return String(localized: "Couldn’t read the version after the update")
+        // Never `.silent`: the reducer stores no line for it.
+        case .notRun(let why): return notRunLine(why) ?? ""
+        }
     }
 
     /// The row's line for a copy not run at its turn because its update now
@@ -1079,8 +1068,8 @@ final class CLIToolsModel {
 
     /// Apply `event` (`CLIRunReducer`), then perform its synchronous effects:
     /// a row's line, a Cancel's way through the queue or the registry, the
-    /// row's "Not updated" line. The rest — a turn in the queue, a panel, a
-    /// check, a command — are the caller's, which awaits them; they are
+    /// confirmation window of an "Updated to X". The rest — a turn in the
+    /// queue, a panel, a check, a command — are the caller's, which awaits them; they are
     /// returned for it to read. The state is set before any effect runs, so
     /// an event an effect sends in turn (a Cancel the queue answers inside
     /// `CLIRunQueue.cancel`) sees it.
@@ -1105,10 +1094,8 @@ final class CLIToolsModel {
         case .clearLine(let id):
             progressLines.clear(id)
             progress[id] = nil
-        case .sayNotRun(let id, let why):
-            guard let line = Self.notRunLine(why) else { return }
-            notRunAtTurn.insert(id)
-            errors[id] = line
+        case .startConfirmation(let id):
+            startConfirmation(id)
         case .withdrawClick(let id):
             // Its own click, waiting behind another's run: out of the queue,
             // its row released by the click's `whenCancelled`.
@@ -1212,9 +1199,7 @@ final class CLIToolsModel {
     /// command started.
     private func run(_ status: CLIToolStatus, with provider: Int) async -> CLIToolUpdateOutcome? {
         let id = status.toolID
-        errors[id] = nil
-        errorLogs[id] = nil
-        notRunAtTurn.remove(id)
+        // Clears its last red line and log: a retry (`CLIRunEvent.commandStarting`).
         send(.commandStarting(id))
         let update = providers[provider]
         // A job of its own (`InstallJobs.run`), so the row's Cancel reaches the
@@ -1263,8 +1248,7 @@ final class CLIToolsModel {
             break
         case .failed(let message, let output):
             Log.app.info("\(status.kind.rawValue, privacy: .public) update failed at \(id.path, privacy: .public): \(message, privacy: .public)")
-            errors[id] = message
-            errorLogs[id] = output
+            send(.commandFailed(id, message: message, log: output))
         case .busy, .notOffered:
             // Nothing ran. Something changed between the check and the click — an
             // update started elsewhere, or the offer went away — so the re-check
@@ -1293,23 +1277,18 @@ final class CLIToolsModel {
         guard case .updated(let version) = outcome else { return }
         let id = status.toolID
         // Exit 0 is not proof of an update (`CLITools.settle`): the updater's
-        // own re-read first, the fresh check's when it had none.
+        // own re-read first, the fresh check's when it had none. "Updated to
+        // X", or a red line saying it is still there, is the reducer's
+        // (`CLIRunEvent.updateSettled`).
         let after = version ?? self.status(id)?.installedVersion
-        if case .updated(let after) = CLITools.settle(before: status.installedVersion, after: after) {
-            confirmUpdate(id, version: after)
-        } else {
+        if !send(.updateSettled(id, before: status.installedVersion, after: after)).contains(.startConfirmation(id)) {
             Log.app.info("\(status.kind.rawValue, privacy: .public) update at \(id.path, privacy: .public) exited 0 but left \(after ?? "an unreadable version", privacy: .public)")
-            // Brew's "brew update finished, but Homebrew is still X" rule: a
-            // run that changed nothing reads as a failure, not as silence.
-            errors[id] = after.map { String(localized: "Still \($0) after the update") }
-                ?? String(localized: "Couldn’t read the version after the update")
         }
     }
 
-    /// Show "Updated to X" for `confirmationWindow`, then let the row say what it
+    /// Keep "Updated to X" for `confirmationWindow`, then let the row say what it
     /// says of any current copy. Re-entry restarts the window.
-    private func confirmUpdate(_ id: CLIToolID, version: String) {
-        justUpdated[id] = version
+    private func startConfirmation(_ id: CLIToolID) {
         confirmationTimers[id]?.cancel()
         let window = confirmationWindow
         confirmationTimers[id] = Task { @MainActor [weak self] in
@@ -1317,7 +1296,7 @@ final class CLIToolsModel {
             // A newer window owns the clearing.
             guard !Task.isCancelled, let self else { return }
             self.confirmationTimers[id] = nil
-            self.justUpdated[id] = nil
+            self.send(.confirmationEnded(id))
         }
     }
 
@@ -1494,7 +1473,7 @@ final class CLIToolsModel {
             needsAdministrator: status?.needsAdministrator ?? false, withheld: status?.withheld,
             manualCommand: status.flatMap(CLIToolPresentation.manualCommand),
             hasLatestVersion: status?.latestVersion != nil,
-            error: errors[id], justUpdated: justUpdated[id])
+            error: runState.redLines[id].map(Self.redLine), justUpdated: runState.justUpdated[id])
     }
 
     /// `id`'s phase, as its claim stores it (`CLIRunState.phase`). No longer inferred from a
@@ -1547,8 +1526,8 @@ final class CLIToolsModel {
         /// Per provider, its copies whose update ran and wait on its re-check.
         var ran: [Int: [(CLIToolStatus, CLIToolUpdateOutcome)]] = [:]
         /// Per provider, its copies not run at their turn, as clicked, with
-        /// the line their row said why.
-        var notRun: [Int: [(CLIToolStatus, String)]] = [:]
+        /// why their row said they were not.
+        var notRun: [Int: [(CLIToolStatus, CLIRunNotRun)]] = [:]
     }
 
     private func runLane(_ lane: [(CLIToolStatus, Int)], _ run: BatchRun) async {
@@ -1565,8 +1544,8 @@ final class CLIToolsModel {
             let offer = laneOfferAtTurn(clicked, readsTheLane: readsTheLane)
             guard send(.offerRead(clicked.toolID, offer)).contains(.startCommand(clicked.toolID)),
                   case .run(let status) = offer else {
-                if notRunAtTurn.contains(clicked.toolID), let line = errors[clicked.toolID] {
-                    run.notRun[provider, default: []].append((clicked, line))
+                if case .notRun(let why)? = runState.redLines[clicked.toolID] {
+                    run.notRun[provider, default: []].append((clicked, why))
                 }
                 release(clicked.toolID)
                 continue
@@ -1600,18 +1579,12 @@ final class CLIToolsModel {
                 settle(status, outcome)
                 release(status.toolID)
             }
-            // "Not updated: …" goes with its tool's next check (`apply`), and
-            // this one is the batch's own, right after the line was said: a
-            // copy skipped for its new administrator route came back as a
-            // live Update with nothing said (review, 2026-10-21). Kept while
-            // it still holds — not offered, or offered on the other route.
-            for (clicked, line) in run.notRun[provider] ?? [] {
-                guard let now = status(clicked.toolID), now.state == .updateAvailable,
-                      now.oneClick == nil || now.needsAdministrator != clicked.needsAdministrator,
-                      errors[clicked.toolID] == nil
-                else { continue }
-                notRunAtTurn.insert(clicked.toolID)
-                errors[clicked.toolID] = line
+            // "Not updated: …" goes with its tool's next check, and this one
+            // is the batch's own: said again while it still holds
+            // (`CLIRunEvent.notRunRechecked`).
+            for (clicked, why) in run.notRun[provider] ?? [] {
+                send(.notRunRechecked(clicked.toolID, why, clickedNeedsAdministrator: clicked.needsAdministrator,
+                                      now: status(clicked.toolID)))
             }
         }
     }

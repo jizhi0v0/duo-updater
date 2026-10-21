@@ -932,9 +932,12 @@ final class AppListModel {
     /// touched — this model's, `prefs`', `AppleDeveloperSession`'s — drops every
     /// kept route, and `results` is read on purpose so a rescan does too. Not
     /// tracked, the one thing that is not observed: whether a staged package is
-    /// still on disk. That is re-asked whenever the memo is dropped, and a
-    /// package swept between two drops is caught by `openStagedPackage`, which
-    /// clears it and puts the row back to Update.
+    /// still on disk. That is re-asked whenever the memo is dropped, at the
+    /// latest at the next staging sweep after a rescan (it rewrites `results`,
+    /// then `pruneStagedPackages` drops a swept entry). Between two drops a
+    /// swept package's row keeps its Install; clicking it reaches
+    /// `openStagedPackage`, which forgets the entry, and that write drops the
+    /// memo and puts the row back to Update.
     ///
     /// A row reading a kept route registered none of those reads with the view
     /// asking, so `routeMemoEpoch` is what repaints it: read here, bumped when
@@ -6914,7 +6917,19 @@ final class AppListModel {
     /// is on disk, re-verified, and handed back to macOS's installer, which brings
     /// its existing window forward if it's still open.
     func openStagedPackage(_ result: UpdateResult) async {
-        guard let staged = stagedPackage(for: result) else { return }
+        guard let staged = stagedPackage(for: result) else {
+            // Swept since the row last asked. Forget it now, as the next
+            // `pruneStagedPackages` would (it keeps a pending entry whatever its
+            // file): the row's route is memoised (`memoisedRoute`) and does not
+            // watch the disk, so without this write its Install would stay, and
+            // do nothing, until something else the route reads changed.
+            if let entry = stagedPackages[result.id], !packageRestartPending.contains(result.id),
+               !FileManager.default.fileExists(atPath: entry.url.path) {
+                stagedPackages[result.id] = nil
+                persistStagedPackages()
+            }
+            return
+        }
         installErrors[result.id] = nil
         do {
             try await packageInstaller.reopen(

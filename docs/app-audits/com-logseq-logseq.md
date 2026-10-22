@@ -67,7 +67,7 @@
 
 | | 客户端会停放吗 | 本次实际停放了什么 | 我们能否直接拿来装 |
 |---|---|---|---|
-| 结论 | 会 | 没跑（第二轮真机由主会话做） | 按代码应该能（`SelfUpdaterStash` 的 electron-updater 布局） |
+| 结论 | 会 | 真机（2026-10-22）：2.0.1 启动 21 s 后停放 `Logseq-darwin-arm64-2.0.2.zip`（171440323 B）+ `update-info.json` | 能：`duo install --json` 给 `bytesDownloaded: 0`，直接用了这份 zip |
 | 证据 | 启动时 `autoDownload true` → `~/Library/Caches/logseq-updater/pending/` + `update-info.json`（目录名来自 `app-update.yml` 的 `updaterCacheDirName`），停放的是 arm64 **zip**（`latest-arm64-mac.yml` 的 `path`）。`autoInstallOnAppQuit false`：`MacUpdater.js` 只在 `quitAndInstall` 时才把 zip 交给 Squirrel，所以退出时不会自己装 | — | `SelfUpdaterStash` 从归档本身判断容器格式，不看路线是 dmg（`LocalStagedInstaller.kind` 的注释） |
 
 ## Changelog
@@ -83,23 +83,25 @@
 - 嵌套: 只有 `Contents/Frameworks` 下 4 个 Electron Helper（`LSUIElement`，随主进程起落），没有 `Contents/Library/LoginItems`、`Helpers`、LaunchAgent plist
 - 校验: GitHub 资产 `digest`。2.0.2 dmg `sha256:b9a16b6ddef1659aa3c2301ce37a0336377644bbf1016051e3d19d1a66776314`，2.0.1 dmg `sha256:b76af25384f8aaa0ba322f8b5523aea712d9750d9f3e79cac55dc783796439cd`，下载的包 `shasum -a 256` 都相同，大小等于 Content-Length
 - **读的是**: 人人可手动下载的 GA（`/releases/latest`），也是 app 自己更新器读的那一个
-- 端到端: **没跑，待主会话真机**
-- 启动副作用（读 2.0.2 `app.asar` 的 `electron.js`，没有实际启动）:
-  - 每次启动往 `~/.local/bin/logseq` 写一个 CLI 启动脚本（`#!/usr/bin/env sh` + `# logseq-cli-managed`，`ELECTRON_RUN_AS_NODE=1 exec "<Logseq 可执行文件>" "<app.asar>/js/logseq-cli.js"`），mode 755。文件已存在且不带 `logseq-cli-managed` 标记时不覆盖；目录建不出来或不可写时弹 `dialog.showErrorBox`（模态框）。2.0.1 也有这段，0.10.15 没有
-  - 包里有 `Contents/Resources/.agents/skills/logseq-cli/SKILL.md`，`logseq-cli.js` 用它（`skill_file_under`）。在 `electron.js` 里没找到往 `~/.claude`、`~/.agents` 写东西的代码（`grep` 计数 0），没实测
+- 端到端（2026-10-22，本分支 `make cli` 的 duo）:
+  - 第一轮（不运行）: 2.0.1 → `duo check` `2.0.1 → 2.0.2 [GitHub, in-place]` → `duo install` `verifyingSignature extracting verifyingCodeSignature installing done installed.` → 2.0.2、可执行文件 inode 变、`TeamIdentifier=K378MFWK59`、`codesign --verify --deep --strict` 退出 0、`spctl` accepted、`diff -r` 与厂商 2.0.2 包相同
+  - 第二轮（运行中）: 启动 2.0.1，等 electron-updater 停放 2.0.2（见上表）后 `duo install --json` → `outcome installed`、`bytesDownloaded 0`；`duo restart Logseq` 后主进程和 `db-worker-node` 都是新的（13:09:03 / 13:09:06），旧 worker 已退出；之后 10 s 磁盘一直是 2.0.2、签名有效；停放的 zip 还留在 `pending/`（`autoInstallOnAppQuit false`，退出不会再装）
+- 启动副作用（读 2.0.2 `app.asar` 的 `electron.js`；2026-10-22 真机启动核对）:
+  - 每次启动往 `~/.local/bin/logseq` 写一个 CLI 启动脚本（`#!/usr/bin/env sh` + `# logseq-cli-managed`，`ELECTRON_RUN_AS_NODE=1 exec "<Logseq 可执行文件>" "<app.asar>/js/logseq-cli.js"`），mode 755。文件已存在且不带 `logseq-cli-managed` 标记时不覆盖；目录建不出来或不可写时弹 `dialog.showErrorBox`（模态框）。2.0.1 也有这段，0.10.15 没有。真机：启动 2.0.1 即写出该文件
+  - 包里有 `Contents/Resources/.agents/skills/logseq-cli/SKILL.md`，`logseq-cli.js` 用它（`skill_file_under`）。在 `electron.js` 里没找到往 `~/.claude`、`~/.agents` 写东西的代码（`grep` 计数 0）。真机：启动前后 `~/.claude/skills`、`~/.agents/skills` 列表不变
   - 注册 `logseq://` URL scheme（Info.plist `CFBundleURLTypes`）
-  - 建图谱目录（`~/logseq/graphs` 一类，`ensureDirSync`）
+  - 建图谱目录（`~/logseq/graphs` 一类，`ensureDirSync`）。真机：首启建了 `~/logseq`（含 Demo 图谱）、`~/.logseq`、`~/Library/Application Support/Logseq`、`~/Library/Logs/Logseq`、`~/Library/Caches/logseq-updater`
   - MCP server 要在设置里打开才起（`settings.ai/enable-mcp-server`）
   - Rosetta 下跑 x64 版才弹「去下载 arm64 或 nightly」框（`runningUnderARM64Translation`），arm64 包不会弹
   - 没有 `setLoginItemSettings` / `openAtLogin`（计数 0）
 
 ## 已知问题
+- **正常退出后 `db-worker-node` 不退**（真机 2026-10-22）：AppleScript `quit` 让主进程退出后，`Logseq …/app.asar/js/db-worker-node.js --repo logseq_db_Demo` 被 launchd 收养（ppid 1），30 s 后仍在。`duo restart` 那次旧 worker 随重启退出了，所以不影响换包；这是厂商行为，记在这里
 - changelog 面板丢了 `Fixed issues` 编号列表，见上
 - `com.electron.logseq`（0.10.x）副本没有任何来源回答（`unknown`），有意如此，见覆盖清单
 
 ## 建议下一步
-1. 主会话真机两轮（不运行 / 运行中），过了再把 README 那一行的一键列改掉。
-2. 单独接入 Logseq OG（`logseq/og`，cask `logseq-og`）：先读真包确认 bundle id，再决定 0.10.x 的 `com.electron.logseq` 副本该不该经 `BundleIDMigration` 交给 OG（同为文件图谱版；要先查 OG 的 Team）。
+1. 单独接入 Logseq OG（`logseq/og`，cask `logseq-og`）：先读真包确认 bundle id，再决定 0.10.x 的 `com.electron.logseq` 副本该不该经 `BundleIDMigration` 交给 OG（同为文件图谱版；要先查 OG 的 Team）。
 
 ## 历史与实测
 - 2026-10-22：下载 2.0.2 / 2.0.1 / 0.10.15 / nightly(20261021) 四个 arm64 dmg 读身份（`check-bundle.sh`），结果见上面各节；channel-verify：2.0.1 → `UPDATE → 2.0.2`，2.0.2 `up to date`，nightly `inferred stable`、`up to date`，0.10.15 `unknown (no source answered)`。

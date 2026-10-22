@@ -130,6 +130,7 @@ swift run --package-path application-test channel-verify <26.8.2 Self-Host dmg> 
   - `v26.8.2-0` Self-Host: 同 id、版本、Team、公证；Cloud 0、Self-Host 1；66958960 字节；sha256 `12529633…3bd9`；Info.plist md5 与 Cloud 相同（`ae904e0b…878e`）
   - `v26.9.0-0` Cloud: 26.9.0，同上；Cloud 1、Self-Host 0；68517472 字节；sha256 `a4aebe60…3a1b`
   - `v26.9.0-0` Self-Host: 同 id、版本、Team、公证；Cloud 0、Self-Host 1；67253440 字节；sha256 `2decddd2…795f`；Info.plist md5 与 Cloud 相同（`5400602f…035e90`）
+- 2026-10-22（全量扫描：GitHub API 列出的全部非 prerelease release 中每个 `Hoppscotch_mac_aarch64.dmg` 与 `Hoppscotch_SelfHost_mac_aarch64.dmg`，逐个下载、挂载，对 `Contents/MacOS/hoppscotch-desktop` 做 `LC_ALL=C grep -a -c -F`）：第二代 Cloud 45 个（`v25.2.0-0`…`v26.9.0-0`）全部 Self-Host 字面量 0、Cloud 字面量 1；Self-Host 39 个（`v25.4.0-0`…`v26.9.0-0`，含只有 Self-Host 的 `v26.6.1-0`）全部 Self-Host 1、Cloud 0。两种标记在已发布的 arm64 包里互斥。有 API `digest` 的包 sha256 全部相同，`v25.5.1-0` 及更早的资产 API 不给 digest（17 个，无从比对）。第一代（版本带 `-N`，42 个）没有 `hoppscotch-desktop` 这个可执行文件，不在规则范围内。
 
 ## 建议下一步
 1. 决定要不要放开 `hoppscotch-selfhost` cask 的 brew 一键（加进 Self-Host gate 的 `offering`）。

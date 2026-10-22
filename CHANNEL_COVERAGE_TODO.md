@@ -511,6 +511,15 @@ rc 目录在终版发布后仍留着，接 preview 轨需要 `detect()` 加一�
 在 rc 与终版之间取高的 probe。`unstable/` 只发 tar.xz（不是 .app），不算可装的轨。
 详见 [审计](docs/app-audits/Jellyfin-Server.md)。
 
+### Headroom — beta（rc）（2026-10-22 查，未接）
+
+`com.extraheadroom.headroom` 的 rc 包与 stable 同 bundle id、同 Team，版本串 `0.9.47-rc.3`（真包实测）。
+`detect()` 把它读成 stable，stable rule 判为已最新（不降级）；缺口只在 rc 窗口期看不到新 rc。app 自己在
+版本带 `-`、`HEADROOM_BETA_CHANNEL` 为真或 `~/Library/Application Support/Headroom/beta_channel` 存在时
+读 `staging-rolling/latest.json`，那里会落后于最新的 rc tag（2026-10-22：rc.3 已发，端点仍是 rc.2）。
+接 beta 需要 `detect()` 加一条 bundle 限定的 `-rc.N` 规则、一条读 `staging-rolling/latest.json` 的
+VendorProbe，以及读哨兵文件的 `ChannelBinding`。详见 [审计](docs/app-audits/com-extraheadroom-headroom.md)。
+
 ---
 
 ## §3 死轨 — Pattern D / 不可行（已否决，**勿重开**）

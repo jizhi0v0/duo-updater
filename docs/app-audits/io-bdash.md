@@ -73,7 +73,7 @@ Bdash  [io.bdash]  1.35.3
 
 | | 客户端会停放吗 | 本次实际停放了什么 | 我们能否直接拿来装 |
 |---|---|---|---|
-| 结论 | 不会 | 未运行 app，未观测 | 不需要 |
+| 结论 | 不会 | 无（2026-10-22 真机运行 1.35.3，没有更新器） | 不需要 |
 | 证据 | 自带的「更新」只开网页，不下载（`menu.ts`）；`app-update.yml` 的 `updaterCacheDirName: bdash-updater` 没有代码读 | — | — |
 
 SelfUpdaterStash 不适用：没有暂存。
@@ -102,14 +102,16 @@ SelfUpdaterStash 不适用：没有暂存。
 - Recipe 状态: 不需要
 
 ## 一键安装
-- 状态: **规则已开（`.developerID` + dmg）；真机端到端待主会话，本 PR 未做**
+- 状态: **支持（`.developerID` + dmg），真机两轮通过（2026-10-22，本分支 `make cli` 的 duo）**
+  - 第一轮（不运行）: 1.35.3 → `duo check` `1.35.3 → 1.35.4 [GitHub, in-place]` → `duo install` `extracting verifyingCodeSignature installing done installed.` → 1.35.4、可执行文件 inode 变、`TeamIdentifier=4GERXBURZN`、`codesign --verify --deep --strict` 退出 0、`spctl` accepted、`diff -r` 与厂商 1.35.4 包相同
+  - 第二轮（运行中）: 启动 1.35.3（一个主窗口），`duo install` 后提示 `Still running the old code`；`duo restart Bdash` 后新进程起来，之后 10 s 磁盘一直是 1.35.4、签名有效
 - 格式: dmg，`hdiutil imageinfo` `Format: UDZO`；根目录 `Bdash.app` + `Applications -> /Applications` 软链 + 背景图
 - 嵌套: 只有 Electron 的四个 Helper（`io.bdash.helper`、`.GPU`、`.Plugin`、`.Renderer`，都 `LSUIElement`），无 `Contents/Library`（无 LoginItems / LaunchAgents / LaunchServices）。app.asar 里没有 `openAtLogin` / `setLoginItemSettings` / `LaunchAgents` / `setAsDefaultProtocolClient`；Info.plist 无 `CFBundleURLTypes`
 - 签名: 1.35.3、1.35.4（以及 1.17.1）`TeamIdentifier=4GERXBURZN`、`codesign --verify` exit 0、`spctl` Notarized Developer ID；hardened runtime，entitlements `allow-jit`、`allow-unsigned-executable-memory`、`disable-library-validation`
 - 校验: GitHub 资产 `digest`。v1.35.4 dmg `sha256:75be2be37c29e5ccc4160e905cb9acbef8de392016339fcb8078a4f644e505df`（256334401 字节），v1.35.3 dmg `sha256:869d5f458861c3c9694edabc3fccf5913f8d80d42ad5b99a39f1ff9658b34f06`（243704665 字节）；`gh release download` 后 `shasum -a 256` 相同
 - **读的是**: 人人可手动下载的 GA（`/releases/latest`，app 自己的「Check for Updates...」也读这个端点）
-- 真机时要注意的副作用（都来自源码/包内容，未运行验证）:
-  - 首次启动写 `~/.bdash/bdash.sqlite3`（`src/mcp/src/database.ts` 的默认路径；cask `zap` 也列了 `~/.bdash`）、`~/Library/Application Support/Bdash`、`~/Library/Logs/Bdash`、`~/Library/Preferences/io.bdash.plist`
+- 启动副作用（来自源码/包内容；2026-10-22 真机核对的已注明）:
+  - 首次启动写 `~/.bdash/bdash.sqlite3`（`src/mcp/src/database.ts` 的默认路径；cask `zap` 也列了 `~/.bdash`）、`~/Library/Application Support/Bdash`、`~/Library/Logs/Bdash`、`~/Library/Preferences/io.bdash.plist`。真机：首启这四处都建了
   - 不自动往 `~/.claude` / `~/.agents` 写东西：设置页的「MCP Server」只显示一段 JSON 和「Copy」按钮（`Setting.tsx`，`clipboard.writeText`）；app.asar 里的 `.agents` 两处命中是 `follow-redirects` 的 `this._options.agents`，不是路径
   - **MCP server 进程**：用户若照 README 把 `node /Applications/Bdash.app/Contents/Resources/mcp/server.js` 配进 Claude Code，那个 node 进程由 MCP 客户端启动、不是 Bdash 的进程，换包后它还在跑旧文件里的代码，直到客户端重启它（我的推断，未验证；duo 的「运行中」判断是否把它算进去也未验证）
   - 无登录项、无 LaunchAgent、无 root helper、不改默认 app
@@ -119,8 +121,7 @@ SelfUpdaterStash 不适用：没有暂存。
 - 1.17.1 之前的老副本的 Team / 公证未逐个下载核对
 
 ## 建议下一步
-1. 主会话真机两轮（见 PR）。
-2. 下一个正式版出来后复查 `/releases/latest` 指向它、资产名仍是 `Bdash-<v>-universal.dmg`。
+1. 下一个正式版出来后复查 `/releases/latest` 指向它、资产名仍是 `Bdash-<v>-universal.dmg`。
 
 ## 如何复验
 ```

@@ -304,8 +304,9 @@ import Foundation
     /// `lts/-N` has no alias file: nvm counts back from the end of `ls alias/lts`,
     /// so `lts/-1` is the line before the newest. On the installed line it is
     /// moved like `lts/*`; one that counts past the codenames is left alone.
-    /// Mutation: drop the `lts/-N` step → `lts/-1` on 22 is left on a release
-    /// that may not be installed.
+    /// Mutations: drop the `lts/-N` step → `lts/-1` on 22 is left on a release
+    /// that may not be installed; drop the `*` refusal → `lts/-2` follows `*`
+    /// to 24 and moves a 24 default nvm itself can't resolve.
     @Test func nvmsPreviousLTSDefaultIsResolvedLikeNvm() throws {
         let home = try Self.scratch()
         defer { try? FileManager.default.removeItem(at: home) }
@@ -317,8 +318,10 @@ import Foundation
         try Data("lts/-1\n".utf8).write(to: nvmDir.appendingPathComponent("alias/default"))
         #expect(NodeUpgradeCommand.nvmDefault(in: nvmDir, installed: "22.21.1") == .ltsOnLine("lts/-1"))
         #expect(NodeUpgradeCommand.nvmDefault(in: nvmDir, installed: "24.13.0") == .leftAlone)
+        // nvm refuses `lts/-2` here ("That many LTS releases do not exist yet."):
+        // counted back it lands on `*`, which would otherwise lead on to 24.
         try Data("lts/-2\n".utf8).write(to: nvmDir.appendingPathComponent("alias/default"))
-        #expect(NodeUpgradeCommand.nvmDefault(in: nvmDir, installed: "22.21.1") == .leftAlone)
+        #expect(NodeUpgradeCommand.nvmDefault(in: nvmDir, installed: "24.13.0") == .leftAlone)
         #expect(NodeUpgradeCommand.ltsOffset("lts/-0") == nil)
         #expect(NodeUpgradeCommand.ltsOffset("lts/-12") == 12)
     }

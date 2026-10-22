@@ -463,9 +463,9 @@
       "bundleIdentifier" : "com.FluidApp.app",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "1.6.9",
-      "lastSeenAt" : "2026-10-12T23:51:09Z",
-      "lastSeenURL" : "https:\/\/github.com\/altic-dev\/FluidVoice\/releases\/download\/v1.6.11\/Fluid-oss-1.6.11.dmg",
-      "lastSeenVersion" : "1.6.11",
+      "lastSeenAt" : "2026-10-22T16:05:56Z",
+      "lastSeenURL" : "https:\/\/github.com\/altic-dev\/FluidVoice\/releases\/download\/v1.6.12\/Fluid-oss-1.6.12.dmg",
+      "lastSeenVersion" : "1.6.12",
       "signedIdentifier" : "com.FluidApp.app",
       "teamIdentifier" : "V4J43B279J"
     },
@@ -502,9 +502,9 @@
       "bundleIdentifier" : "ai.opencode.desktop",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "1.18.35",
-      "lastSeenAt" : "2026-10-16T15:41:53Z",
-      "lastSeenURL" : "https:\/\/github.com\/anomalyco\/opencode\/releases\/download\/v1.19.3\/opencode-desktop-mac-arm64.dmg",
-      "lastSeenVersion" : "1.19.3",
+      "lastSeenAt" : "2026-10-22T16:05:56Z",
+      "lastSeenURL" : "https:\/\/github.com\/anomalyco\/opencode\/releases\/download\/v1.19.4\/opencode-desktop-mac-arm64.dmg",
+      "lastSeenVersion" : "1.19.4",
       "signedIdentifier" : "ai.opencode.desktop",
       "teamIdentifier" : "5NZ4Q7NXJ4"
     },
@@ -840,9 +840,9 @@
       "bundleIdentifier" : "com.github.GitHubClient",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "3.6.7-beta3",
-      "lastSeenAt" : "2026-10-20T20:56:03Z",
-      "lastSeenURL" : "https:\/\/github.com\/desktop\/desktop\/releases\/download\/release-3.6.8-beta3\/GitHub.Desktop-arm64.zip",
-      "lastSeenVersion" : "3.6.8-beta3",
+      "lastSeenAt" : "2026-10-22T16:05:56Z",
+      "lastSeenURL" : "https:\/\/github.com\/desktop\/desktop\/releases\/download\/release-3.6.8-beta4\/GitHub.Desktop-arm64.zip",
+      "lastSeenVersion" : "3.6.8-beta4",
       "signedIdentifier" : "com.github.GitHubClient",
       "teamIdentifier" : "VEKTX9H2N7"
     },
@@ -1013,9 +1013,9 @@
       "bundleIdentifier" : "com.extraheadroom.headroom",
       "firstSeenAt" : "2026-10-22T10:43:03Z",
       "firstSeenVersion" : "0.9.46",
-      "lastSeenAt" : "2026-10-22T10:43:03Z",
-      "lastSeenURL" : "https:\/\/github.com\/gglucass\/headroom-desktop\/releases\/download\/v0.9.46\/Headroom_0.9.46_mac.dmg",
-      "lastSeenVersion" : "0.9.46",
+      "lastSeenAt" : "2026-10-22T16:05:56Z",
+      "lastSeenURL" : "https:\/\/github.com\/gglucass\/headroom-desktop\/releases\/download\/v0.9.47\/Headroom_0.9.47_mac.dmg",
+      "lastSeenVersion" : "0.9.47",
       "signedIdentifier" : "com.extraheadroom.headroom",
       "teamIdentifier" : "ZA6LNF9PF9"
     },
@@ -1059,6 +1059,32 @@
       "lastSeenVersion" : "4.7.2",
       "signedIdentifier" : "org.godotengine.godot",
       "teamIdentifier" : "6K46PWY5DM"
+    },
+    "github:hoppscotch\/releases:stable" : {
+      "architectures" : [
+        "arm64"
+      ],
+      "bundleIdentifier" : "io.hoppscotch.desktop",
+      "firstSeenAt" : "2026-10-22T16:05:56Z",
+      "firstSeenVersion" : "26.9.0",
+      "lastSeenAt" : "2026-10-22T16:05:56Z",
+      "lastSeenURL" : "https:\/\/github.com\/hoppscotch\/releases\/releases\/download\/v26.9.0-0\/Hoppscotch_mac_aarch64.dmg",
+      "lastSeenVersion" : "26.9.0",
+      "signedIdentifier" : "io.hoppscotch.desktop",
+      "teamIdentifier" : "XBK86CMQGZ"
+    },
+    "github:hoppscotch\/releases:stable:selfhost" : {
+      "architectures" : [
+        "arm64"
+      ],
+      "bundleIdentifier" : "io.hoppscotch.desktop",
+      "firstSeenAt" : "2026-10-22T16:05:56Z",
+      "firstSeenVersion" : "26.9.0",
+      "lastSeenAt" : "2026-10-22T16:05:56Z",
+      "lastSeenURL" : "https:\/\/github.com\/hoppscotch\/releases\/releases\/download\/v26.9.0-0\/Hoppscotch_SelfHost_mac_aarch64.dmg",
+      "lastSeenVersion" : "26.9.0",
+      "signedIdentifier" : "io.hoppscotch.desktop",
+      "teamIdentifier" : "XBK86CMQGZ"
     },
     "github:huangy7\/lokii:stable" : {
       "architectures" : [
@@ -1311,8 +1337,8 @@
       "bundleIdentifier" : "com.xd.cindy",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "0.1.101",
-      "lastSeenAt" : "2026-10-22T10:43:03Z",
-      "lastSeenURL" : "https:\/\/github.com\/makecindy\/cindy\/releases\/download\/v0.1.114-beta\/cindy-0.1.114-darwin-arm64-global.dmg",
+      "lastSeenAt" : "2026-10-22T16:05:56Z",
+      "lastSeenURL" : "https:\/\/github.com\/makecindy\/cindy\/releases\/download\/v0.1.114\/cindy-0.1.114-darwin-arm64-global.dmg",
       "lastSeenVersion" : "0.1.114",
       "signedIdentifier" : "com.xd.cindy",
       "teamIdentifier" : "SX9RG894L5"
@@ -1324,9 +1350,9 @@
       "bundleIdentifier" : "com.xd.cindycn",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "0.1.97",
-      "lastSeenAt" : "2026-10-21T16:11:52Z",
-      "lastSeenURL" : "https:\/\/github.com\/makecindy\/cindy\/releases\/download\/v0.1.113\/cindy-0.1.113-darwin-arm64-cn.dmg",
-      "lastSeenVersion" : "0.1.113",
+      "lastSeenAt" : "2026-10-22T16:05:56Z",
+      "lastSeenURL" : "https:\/\/github.com\/makecindy\/cindy\/releases\/download\/v0.1.114\/cindy-0.1.114-darwin-arm64-cn.dmg",
+      "lastSeenVersion" : "0.1.114",
       "signedIdentifier" : "com.xd.cindycn",
       "teamIdentifier" : "NTC4BJ542G"
     },
@@ -1337,9 +1363,9 @@
       "bundleIdentifier" : "com.xd.cindy",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "0.1.97",
-      "lastSeenAt" : "2026-10-21T16:11:52Z",
-      "lastSeenURL" : "https:\/\/github.com\/makecindy\/cindy\/releases\/download\/v0.1.113\/cindy-0.1.113-darwin-arm64-global.dmg",
-      "lastSeenVersion" : "0.1.113",
+      "lastSeenAt" : "2026-10-22T16:05:56Z",
+      "lastSeenURL" : "https:\/\/github.com\/makecindy\/cindy\/releases\/download\/v0.1.114\/cindy-0.1.114-darwin-arm64-global.dmg",
+      "lastSeenVersion" : "0.1.114",
       "signedIdentifier" : "com.xd.cindy",
       "teamIdentifier" : "SX9RG894L5"
     },
@@ -1770,9 +1796,9 @@
       "bundleIdentifier" : "com.t3tools.t3code",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "0.0.46-nightly.20261008.2849",
-      "lastSeenAt" : "2026-10-22T10:43:03Z",
-      "lastSeenURL" : "https:\/\/github.com\/pingdotgg\/t3code\/releases\/download\/v0.1.2-nightly.20261022.3512\/T3-Code-0.1.2-nightly.20261022.3512-arm64.dmg",
-      "lastSeenVersion" : "0.1.2-nightly.20261022.3512",
+      "lastSeenAt" : "2026-10-22T16:05:56Z",
+      "lastSeenURL" : "https:\/\/github.com\/pingdotgg\/t3code\/releases\/download\/v0.1.2-nightly.20261022.3526\/T3-Code-0.1.2-nightly.20261022.3526-arm64.dmg",
+      "lastSeenVersion" : "0.1.2-nightly.20261022.3526",
       "signedIdentifier" : "com.t3tools.t3code",
       "teamIdentifier" : "ARK85ZXQ4Z"
     },
@@ -2089,6 +2115,32 @@
       "signedIdentifier" : "digital.twisted.noTunes",
       "teamIdentifier" : "JP6WW46Y42"
     },
+    "github:tropy\/tropy:beta" : {
+      "architectures" : [
+        "arm64"
+      ],
+      "bundleIdentifier" : "org.tropy.tropy-beta",
+      "firstSeenAt" : "2026-10-22T16:05:56Z",
+      "firstSeenVersion" : "1.18.0-beta.6",
+      "lastSeenAt" : "2026-10-22T16:05:56Z",
+      "lastSeenURL" : "https:\/\/github.com\/tropy\/tropy\/releases\/download\/v1.18.0-beta.6\/tropy-1.18.0-beta.6-darwin-arm64.zip",
+      "lastSeenVersion" : "1.18.0-beta.6",
+      "signedIdentifier" : "org.tropy.tropy-beta",
+      "teamIdentifier" : "8LAYR367YV"
+    },
+    "github:tropy\/tropy:stable" : {
+      "architectures" : [
+        "arm64"
+      ],
+      "bundleIdentifier" : "org.tropy.tropy",
+      "firstSeenAt" : "2026-10-22T16:05:56Z",
+      "firstSeenVersion" : "1.17.3",
+      "lastSeenAt" : "2026-10-22T16:05:56Z",
+      "lastSeenURL" : "https:\/\/github.com\/tropy\/tropy\/releases\/download\/v1.17.3\/tropy-1.17.3-darwin-arm64.zip",
+      "lastSeenVersion" : "1.17.3",
+      "signedIdentifier" : "org.tropy.tropy",
+      "teamIdentifier" : "8LAYR367YV"
+    },
     "github:trycua\/cua:nightly" : {
       "architectures" : [
         "arm64",
@@ -2138,9 +2190,9 @@
       "bundleIdentifier" : "com.usebruno.app",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "4.2.1",
-      "lastSeenAt" : "2026-10-11T17:17:49Z",
-      "lastSeenURL" : "https:\/\/github.com\/usebruno\/bruno\/releases\/download\/v4.2.1\/bruno_4.2.1_arm64_mac.dmg",
-      "lastSeenVersion" : "4.2.1",
+      "lastSeenAt" : "2026-10-22T16:05:56Z",
+      "lastSeenURL" : "https:\/\/github.com\/usebruno\/bruno\/releases\/download\/v4.3.0\/bruno_4.3.0_arm64_mac.dmg",
+      "lastSeenVersion" : "4.3.0",
       "signedIdentifier" : "com.usebruno.app",
       "teamIdentifier" : "W7LPPWA48L"
     },
@@ -2232,9 +2284,9 @@
       "bundleIdentifier" : "com.yetone.magpie",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "0.1.1133",
-      "lastSeenAt" : "2026-10-22T10:43:03Z",
-      "lastSeenURL" : "https:\/\/github.com\/yetone\/magpie-releases\/releases\/download\/v0.1.1319\/magpie-darwin-arm64.zip",
-      "lastSeenVersion" : "0.1.1319",
+      "lastSeenAt" : "2026-10-22T16:05:56Z",
+      "lastSeenURL" : "https:\/\/github.com\/yetone\/magpie-releases\/releases\/download\/v0.1.1324\/magpie-darwin-arm64.zip",
+      "lastSeenVersion" : "0.1.1324",
       "signedIdentifier" : "com.yetone.magpie",
       "teamIdentifier" : "LY7MVTUDZG"
     },
@@ -2498,9 +2550,9 @@
       "bundleIdentifier" : "com.anthropic.claudefordesktop",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "2.31226.0",
-      "lastSeenAt" : "2026-10-21T21:01:22Z",
-      "lastSeenURL" : "https:\/\/downloads.claude.ai\/releases\/darwin\/universal\/3.1623.1\/Claude-99e484be3828a3767e90385312c83202bca35d8c.zip",
-      "lastSeenVersion" : "3.1623.1",
+      "lastSeenAt" : "2026-10-22T16:05:56Z",
+      "lastSeenURL" : "https:\/\/downloads.claude.ai\/releases\/darwin\/universal\/3.1623.4\/Claude-c2d2186fc67f536dfb131352c659f99b10840e4b.zip",
+      "lastSeenVersion" : "3.1623.4",
       "signedIdentifier" : "com.anthropic.claudefordesktop",
       "teamIdentifier" : "Q6L2SF6YDW"
     },
@@ -3089,9 +3141,9 @@
       ],
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "16.109.26053122",
-      "lastSeenAt" : "2026-10-14T21:05:01Z",
-      "lastSeenURL" : "https:\/\/res.public.onecdn.static.microsoft\/mro1cdnstorage\/C1297A47-86C4-4C1F-97FA-950631F94777\/MacAutoupdate\/Microsoft_Outlook_16.114.26101123_Updater.pkg",
-      "lastSeenVersion" : "16.114.26101123",
+      "lastSeenAt" : "2026-10-22T16:05:56Z",
+      "lastSeenURL" : "https:\/\/res.public.onecdn.static.microsoft\/mro1cdnstorage\/C1297A47-86C4-4C1F-97FA-950631F94777\/MacAutoupdate\/Microsoft_Outlook_16.114.26102031_Updater.pkg",
+      "lastSeenVersion" : "16.114.26102031",
       "packageTeamIdentifier" : "UBF8T346G9"
     },
     "vendor:com.microsoft.Powerpoint:stable" : {
@@ -3192,9 +3244,9 @@
       ],
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "16.109.26053122",
-      "lastSeenAt" : "2026-10-14T21:05:01Z",
-      "lastSeenURL" : "https:\/\/res.public.onecdn.static.microsoft\/mro1cdnstorage\/C1297A47-86C4-4C1F-97FA-950631F94777\/MacAutoupdate\/Microsoft_OneNote_16.114.26101123_Updater.pkg",
-      "lastSeenVersion" : "16.114.26101123",
+      "lastSeenAt" : "2026-10-22T16:05:56Z",
+      "lastSeenURL" : "https:\/\/res.public.onecdn.static.microsoft\/mro1cdnstorage\/C1297A47-86C4-4C1F-97FA-950631F94777\/MacAutoupdate\/Microsoft_OneNote_16.114.26102031_Updater.pkg",
+      "lastSeenVersion" : "16.114.26102031",
       "packageTeamIdentifier" : "UBF8T346G9"
     },
     "vendor:com.microsoft.teams2:stable" : {
@@ -3227,8 +3279,8 @@
       ],
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "4.42.0",
-      "lastSeenAt" : "2026-10-22T10:43:03Z",
-      "lastSeenURL" : "https:\/\/a56.gdl.netease.com\/uuyc_4.44.0_nochannel.pkg?key1=50e21a05affd17fa79745f5b04b4ff86&key2=6ada90bb&n=uuyc_4.44.0.pkg",
+      "lastSeenAt" : "2026-10-22T16:05:56Z",
+      "lastSeenURL" : "https:\/\/a56.gdl.netease.com\/uuyc_4.44.0_nochannel.pkg?key1=2060931257332ca2f99480caf4dc68b9&key2=6adadc95&n=uuyc_4.44.0.pkg",
       "lastSeenVersion" : "4.43.1",
       "packageTeamIdentifier" : "PU9BNSBJW7"
     },
@@ -3334,8 +3386,8 @@
       "bundleIdentifier" : "com.raycast.macos",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "1.104.31",
-      "lastSeenAt" : "2026-10-22T10:43:03Z",
-      "lastSeenURL" : "https:\/\/worker.raycast-releases.com\/?url=https%3A%2F%2Fraycast-releases.9a8adc978cc22e82f2df4dd5f45c4ef2.r2.cloudflarestorage.com%2FRaycast_v1.104.32_6b800d2ac7ce45ea67da1038cace3ddbc467c094_universal.dmg%3Fresponse-content-disposition%3Dattachment%253B%2520filename%253D%2522Raycast.dmg%2522%26X-Amz-Algorithm%3DAWS4-HMAC-SHA256%26X-Amz-Credential%3Db3c053179dd07241f8271dbe9002b57e%252F20261022%252Fauto%252Fs3%252Faws4_request%26X-Amz-Date%3D20261022T104155Z%26X-Amz-Expires%3D3600%26X-Amz-SignedHeaders%3Dhost%26X-Amz-Signature%3D7e068a6df2205b0057ceb27eb5cdca264383f2792fa3f7a51763c0867c9da803",
+      "lastSeenAt" : "2026-10-22T16:05:56Z",
+      "lastSeenURL" : "https:\/\/worker.raycast-releases.com\/?url=https%3A%2F%2Fraycast-releases.9a8adc978cc22e82f2df4dd5f45c4ef2.r2.cloudflarestorage.com%2FRaycast_v1.104.32_6b800d2ac7ce45ea67da1038cace3ddbc467c094_universal.dmg%3Fresponse-content-disposition%3Dattachment%253B%2520filename%253D%2522Raycast.dmg%2522%26X-Amz-Algorithm%3DAWS4-HMAC-SHA256%26X-Amz-Credential%3Db3c053179dd07241f8271dbe9002b57e%252F20261022%252Fauto%252Fs3%252Faws4_request%26X-Amz-Date%3D20261022T160431Z%26X-Amz-Expires%3D3600%26X-Amz-SignedHeaders%3Dhost%26X-Amz-Signature%3D995b210efc491f0ec4f76358bca1efdd3ef872481e8bb37459fa56737406a71d",
       "lastSeenVersion" : "1.104.32",
       "signedIdentifier" : "com.raycast.macos",
       "teamIdentifier" : "SY64MV22J9"
@@ -3694,9 +3746,9 @@
       "bundleIdentifier" : "com.unity3d.unityhub",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "3.22.2",
-      "lastSeenAt" : "2026-10-13T22:04:25Z",
-      "lastSeenURL" : "https:\/\/public-cdn.cloud.unity3d.com\/hub\/prod\/3.22.3\/UnityHubSetup-3.22.3-arm64.zip",
-      "lastSeenVersion" : "3.22.3",
+      "lastSeenAt" : "2026-10-22T16:05:56Z",
+      "lastSeenURL" : "https:\/\/public-cdn.cloud.unity3d.com\/hub\/prod\/3.22.4\/UnityHubSetup-3.22.4-arm64.zip",
+      "lastSeenVersion" : "3.22.4",
       "signedIdentifier" : "com.unity3d.unityhub",
       "teamIdentifier" : "9QW8UQUTAA"
     },
@@ -3802,9 +3854,9 @@
       "bundleIdentifier" : "dev.hyperframes.desktop.canary",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "b292",
-      "lastSeenAt" : "2026-10-22T10:43:03Z",
-      "lastSeenURL" : "https:\/\/static.heygen.ai\/hyperframes-oss\/desktop\/canary\/HyperFrames-b453-0cd48ff65.zip",
-      "lastSeenVersion" : "b453",
+      "lastSeenAt" : "2026-10-22T16:05:56Z",
+      "lastSeenURL" : "https:\/\/static.heygen.ai\/hyperframes-oss\/desktop\/canary\/HyperFrames-b456-b29af9a91.zip",
+      "lastSeenVersion" : "b456",
       "signedIdentifier" : "dev.hyperframes.desktop.canary",
       "teamIdentifier" : "2VW993BDT8"
     },
@@ -3816,9 +3868,9 @@
       "bundleIdentifier" : "dev.hyperframes.desktop",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "b290",
-      "lastSeenAt" : "2026-10-22T01:55:36Z",
-      "lastSeenURL" : "https:\/\/static.heygen.ai\/hyperframes-oss\/desktop\/HyperFrames-b450-8696f97d9.zip",
-      "lastSeenVersion" : "b450",
+      "lastSeenAt" : "2026-10-22T16:05:56Z",
+      "lastSeenURL" : "https:\/\/static.heygen.ai\/hyperframes-oss\/desktop\/HyperFrames-b455-c101da22a.zip",
+      "lastSeenVersion" : "b455",
       "signedIdentifier" : "dev.hyperframes.desktop",
       "teamIdentifier" : "2VW993BDT8"
     },
@@ -4110,8 +4162,8 @@
       "bundleIdentifier" : "net.whatsapp.WhatsApp",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "26.40.20",
-      "lastSeenAt" : "2026-10-22T10:43:03Z",
-      "lastSeenURL" : "https:\/\/scontent.xx.fbcdn.net\/v\/t39.16592-6\/10000000_2528297554359959_6991407864911732556_n.dmg\/WhatsApp-2.26.42.19.dmg?_nc_cat=110&ccb=1-7&_nc_sid=8f3826&_nc_ohc=z1bp5QhFDx8Q7kNvwGmxCp5&_nc_oc=Ado-jhk2tGAAHV8oo36ZXEviB8s8yA7d0s0DGR0AlCptWeO5AesAZ5-vGn3R0fV0I-c&_nc_zt=14&_nc_ht=scontent.xx&_nc_gid=guA7xoT-_iuU9QR_SvbEjw&_nc_ss=7b20f&oh=00_AQP-EtxZ9ttCA_lRHu3n08eOYYCH4NOnDPH-5MyW1wtyXw&oe=6ADFD1A9",
+      "lastSeenAt" : "2026-10-22T16:05:56Z",
+      "lastSeenURL" : "https:\/\/scontent.xx.fbcdn.net\/v\/t39.16592-6\/10000000_2528297554359959_6991407864911732556_n.dmg\/WhatsApp-2.26.42.19.dmg?_nc_cat=110&ccb=1-7&_nc_sid=8f3826&_nc_ohc=z1bp5QhFDx8Q7kNvwGmxCp5&_nc_oc=Ado-jhk2tGAAHV8oo36ZXEviB8s8yA7d0s0DGR0AlCptWeO5AesAZ5-vGn3R0fV0I-c&_nc_zt=14&_nc_ht=scontent.xx&_nc_gid=Cm7BscbxExMQNrArpf5lAg&_nc_ss=7b20f&oh=00_AQMJWnHxahIGDgurDzovWLRDcvyrhzhVzK2I7EvTEsLF8g&oe=6AE009E9",
       "lastSeenVersion" : "26.42.19",
       "signedIdentifier" : "net.whatsapp.WhatsApp",
       "sparklePublicKey" : "2jE1ZmLwrfk0yprKc8DTdt5YlKRGI7lGmnf3EJqBA5A=",
@@ -4437,9 +4489,9 @@
       "bundleIdentifier" : "org.mozilla.thunderbirdbeta",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "158.0b5",
-      "lastSeenAt" : "2026-10-22T01:55:36Z",
+      "lastSeenAt" : "2026-10-22T16:05:56Z",
       "lastSeenURL" : "https:\/\/download-installer.cdn.mozilla.net\/pub\/thunderbird\/releases\/159.0b5\/mac\/en-US\/Thunderbird%20159.0b5.dmg",
-      "lastSeenVersion" : "159.0b4",
+      "lastSeenVersion" : "159.0b5",
       "signedIdentifier" : "org.mozilla.thunderbirdbeta",
       "teamIdentifier" : "43AQ936H96"
     },

@@ -34,9 +34,9 @@
   | 2.3.1 | `PicGo-2.3.1-arm64.dmg` | 同 | 无（`codesign-verify-exit=1`） | — | arm64 |
   | 2.3.0-beta.8 | `PicGo-2.3.0-beta.8.dmg` | 同 | 无（`codesign-verify-exit=1`） | — | x86_64 |
 
-  没有改名前的旧 id。Team 只有一个，没换过；变化是「从无签名到有签名」，发生在 2.4.1 → 2.4.2-beta.0 之间。
+  **有改名前的旧 id**：`v1.0.2`–`v1.2.1` 的 `package.json` 里 `build.appId` 是 `org.simulatedgreg.electron-vue`，`v1.3.0` 起才是 `com.molunerfinn.picgo`（`gh api repos/Molunerfinn/PicGo/contents/package.json?ref=<tag>`，实测 `v1.0.0`、`v1.0.1`、`v1.0.2`、`v1.0.3`、`v1.1.0`、`v1.2.0`、`v1.2.1` 是旧 id，`v1.3.0`、`v1.4.0`、`v1.5.0`、`v2.0.0` 是新 id）。旧 id 的包没有读真包，只读到 electron-builder 的配置，见「已知问题」。Team 只有一个，没换过；变化是「从无签名到有签名」，发生在 2.4.1 → 2.4.2-beta.0 之间。
 - **其他轨**: beta，**同一个 bundle id**。版本串带 `-beta.N`（真包 `CFBundleShortVersionString` = `2.4.2-beta.0`、`2.3.0-beta.8`），`ReleaseChannel.detect` 的 Electron 点号计数规则（`-beta\.[0-9]+`）判为 `.beta`，stable rule 不服务它（见「Channel 详情」）。最后一个 beta 是 `v2.4.2-beta.0`（2025-12-31），3.x 没有发过 beta
-- **版本范围**: v1.0.2–v2.3.0 的 mac 资产是不带架构的 `PicGo-<v>.dmg`（x86_64）、v1.x 还有 `picgo-<v>-mac.zip`；`v2.0.5` 一个 mac 包都没有。都不影响：stable rule 读 `/releases/latest`，只需要最新版有 `-arm64.dmg`。这些旧副本照常检测到 3.0.3；一键见下
+- **版本范围**: v1.0.2–v2.3.0 的 mac 资产是不带架构的 `PicGo-<v>.dmg`（x86_64）、v1.x 还有 `picgo-<v>-mac.zip`；`v2.0.5` 一个 mac 包都没有。都不影响：stable rule 读 `/releases/latest`，只需要最新版有 `-arm64.dmg`。其中 `v1.3.0`–`v2.3.0` 的旧副本照常检测到 3.0.3（bundle id 同为 `com.molunerfinn.picgo`：`v1.3.0`–`v2.0.0` 读 `package.json` 核对过，`v2.2.0`、`v2.3.0` 的 `package.json` 里已没有 `appId`，`v2.0.1`–`v2.2.2` 没有逐版核对，2.3.0-beta.8 起以上表真包为准）；`v1.0.2`–`v1.2.1` 的副本是另一个 bundle id（`org.simulatedgreg.electron-vue`），规则不认，**检测不到**，见「已知问题」。一键见下
 - **主机下限**: DuoUpdater 只出 arm64（`App/project.yml` `ARCHS: arm64`），x64 dmg 无需服务；`LSMinimumSystemVersion` 12.0（2.4.1 起），低于我们的部署下限
 
 ## Channel 详情
@@ -97,6 +97,7 @@
   - beta 副本: 没有 offer，见上
 
 ## 已知问题
+- `v1.0.2`–`v1.2.1` 的副本（旧 bundle id `org.simulatedgreg.electron-vue`）检测不到 3.0.3，也不会被提示。证据：`package.json` 在 `v1.0.2`、`v1.1.0`、`v1.2.0`、`v1.2.1` 的 `build.appId` 都是 `org.simulatedgreg.electron-vue`，`v1.3.0` 改成 `com.molunerfinn.picgo`；这几个版本的 release 只有 `PicGo-<v>.dmg`（`v1.2.0`/`v1.2.1` 另带 `picgo-<v>-mac.zip`）。没有做 `BundleIDMigration`：这个 id 是 electron-vue 脚手架留下的，不是 PicGo 独有。electron-vue 模板 `template/package.json` 的早期提交写死了它，后来才改成提示输入 `{{ appid }}`（默认 `com.example.yourapp`），GitHub 代码搜索 `"org.simulatedgreg.electron-vue" in:file filename:package.json` 命中 258 个文件，分属 `PanJiaChen/electron-vue-admin`、`SmallRuralDog/electron-vue-music` 等互不相干的项目。对这个 id 做迁移，会把别的 electron-vue 应用也当成 PicGo。旧 id 的 `CFBundleIdentifier` 没有读真包（未下载 1.x 的 dmg），只读到 `package.json` 里的 electron-builder 配置
 - 启动副作用（读源码得来；2026-10-22 真机核对的已注明）:
   - 首启把 `public/Upload pictures with PicGo.workflow` 复制到 `~/Library/Services/`（`src/main/utils/beforeOpen.ts` `resolveMacWorkFlow`，已存在就跳过）——Finder 右键「服务」菜单项。cask 的 `zap` 也列了这个路径。真机：首启即写出
   - 配置和数据写在 `~/Library/Application Support/picgo/`

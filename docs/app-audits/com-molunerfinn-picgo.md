@@ -71,7 +71,7 @@
 
 | | 客户端会停放吗 | 本次实际停放了什么 | 我们能否直接拿来装 |
 |---|---|---|---|
-| 结论 | 不会 | 没查（真机第二轮待主会话） | 不需要 |
+| 结论 | 不会 | 无（2026-10-22 真机运行 3.0.2，只弹了「Find new version」对话框，没有下载） | 不需要 |
 | 证据 | `updateChecker.ts` 只 `shell.openExternal` 到 release 页，不下载 | — | — |
 
 ## Changelog
@@ -83,8 +83,10 @@
 - Recipe 状态: 不需要
 
 ## 一键安装
-- 状态: **支持**（rule 已写；真机端到端**未跑**，待主会话）
-- 端到端: 未跑——按分工由主会话做
+- 状态: **支持，真机两轮通过（2026-10-22，本分支 `make cli` 的 duo）**
+- 端到端:
+  - 第一轮（不运行）: 3.0.2 → `duo check` `3.0.2 → 3.0.3 [GitHub, in-place]` → `duo install` `extracting verifyingCodeSignature installing done installed.` → 3.0.3、可执行文件 inode 变、`TeamIdentifier=QDG8UZ6TCP`、`codesign --verify --deep --strict` 退出 0、`spctl` accepted、`diff -r` 与厂商 3.0.3 包相同
+  - 第二轮（运行中）: 启动 3.0.2，它弹出自己的「Find new version 3.0.3 … do you want to download the latest version?」（No More Notice / No / Yes）。`duo install` 照常换包（`Still running the old code`）；**这个对话框开着时 `duo restart PicGo` 退不掉它**：`still running — likely a save prompt, left it alone`，旧进程留着、磁盘已是 3.0.3。点掉对话框的 No 后再 `duo restart PicGo` → 新进程起来，之后 10 s 磁盘一直是 3.0.3、签名有效
 - 格式: dmg（`hdiutil imageinfo`: `Format: UDZO`, UDIF read-only compressed (zlib)），根目录 `PicGo.app` + `Applications` 软链
 - 嵌套: 只有 `Contents/Frameworks` 里的四个 Electron helper（`LSUIElement=true`，随主进程起落）；没有 `Contents/Library/LoginItems`、`Contents/Helpers`、LaunchAgent
 - 签名: 3.0.2 和 3.0.3 都是 `QDG8UZ6TCP`、Notarized
@@ -95,12 +97,12 @@
   - beta 副本: 没有 offer，见上
 
 ## 已知问题
-- 启动副作用（读源码得来，真机未观测）:
-  - 首启把 `public/Upload pictures with PicGo.workflow` 复制到 `~/Library/Services/`（`src/main/utils/beforeOpen.ts` `resolveMacWorkFlow`，已存在就跳过）——Finder 右键「服务」菜单项。cask 的 `zap` 也列了这个路径
+- 启动副作用（读源码得来；2026-10-22 真机核对的已注明）:
+  - 首启把 `public/Upload pictures with PicGo.workflow` 复制到 `~/Library/Services/`（`src/main/utils/beforeOpen.ts` `resolveMacWorkFlow`，已存在就跳过）——Finder 右键「服务」菜单项。cask 的 `zap` 也列了这个路径。真机：首启即写出
   - 配置和数据写在 `~/Library/Application Support/picgo/`
   - 登录项: `app.setLoginItemSettings({ openAtLogin: settings.autoStart || false })`（`src/main/lifeCycle/index.ts`），**默认关**；开了也是主 app 本身，不是 helper
-  - 启动即开本地 HTTP 服务（`server.startup()`，默认端口 36677）
-  - 有新版时弹一个 Yes/No 消息框（无父窗口），点 Yes 打开浏览器
+  - 启动即开本地 HTTP 服务（`server.startup()`，默认端口 36677）。真机：`lsof` 见 `127.0.0.1:36677 (LISTEN)`
+  - 有新版时弹一个 Yes/No 消息框（无父窗口），点 Yes 打开浏览器。真机：启动即弹；它开着时 app 不响应退出，`duo restart` 会如实报「likely a save prompt」并不动它
   - 注册全局快捷键（`shortKeyHandler.init()`）
 - 2.4.1 及更早的副本一键被拒，见上
 
@@ -123,5 +125,4 @@ swift run --package-path application-test channel-verify PicGo-2.4.1-arm64.dmg -
 ```
 
 ## 建议下一步
-1. 真机端到端（主会话）：3.0.2 → 3.0.3，不运行 + 运行中 + `duo restart`。
-2. 决定是否给 beta 副本加 `.beta` rule（CotEditor / SwitchHosts 式，收 `-beta.N` 和纯数字 tag，加 channel proof）。不加的话 beta 副本一直显示「未知」。
+1. 决定是否给 beta 副本加 `.beta` rule（CotEditor / SwitchHosts 式，收 `-beta.N` 和纯数字 tag，加 channel proof）。不加的话 beta 副本一直显示「未知」。

@@ -63,7 +63,7 @@ public enum Check {
     }
 
     /// The npm packages' names under each node prefix's path
-    /// (`CLIToolStatus.npmPackageName`), Claude Code's npm install among them.
+    /// (`CLIToolStatus.npmPackage`), Claude Code's npm install among them.
     static func packagesByPrefix(_ tools: [CLIToolRows.Row]) -> [String: [String]] {
         var out: [String: [String]] = [:]
         for tool in tools {

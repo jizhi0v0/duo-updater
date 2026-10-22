@@ -140,6 +140,7 @@ public enum AppRecipeIndex {
         com_microsoft_VSCode.set,
         com_microsoft_Word.set,
         com_mitchellh_ghostty.set,
+        com_molunerfinn_picgo.set,
         com_mongodb_compass.set,
         com_moonlight_stream_Moonlight.set,
         com_moonshot_kimichat.set,

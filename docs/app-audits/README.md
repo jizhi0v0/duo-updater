@@ -315,6 +315,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**Sentinel**](com-alienator88-Sentinel.md) · `com.alienator88.Sentinel` — G (one-click universal zip) · AlinFoundation 自研更新器（点 Update 才下载、下完立即换包，不停放） · 真包 3.1.3/3.1.4 channel-verify ✓（3.1.3 → 3.1.4、3.1.4 up to date） · 1.0–1.4 的 `com.alienator88.sentinel`（ad-hoc）只检测 · changelog 结构化（单个 What's New 不显示；条目带 `[x]` 前缀） · 一键端到端 ✓ 两轮（不运行 / 运行中） · 2026-10-22
 - [x] [**MacsyZones**](MeowingCat-MacsyZones.md) · `MeowingCat.MacsyZones` — G (one-click universal zip) · 自研更新器（每次启动查 `/releases/latest`，有新版就自己下载换包重启，不停放） · 真包 3.1/3.1.1 channel-verify ✓（3.1 → 3.1.1、3.1.1 up to date），v1.1–v3.1.1 同 Team · 一键端到端 ✓ 两轮（不运行 / 运行中） · changelog 结构化但累积式正文被压平（3.1.1 显示 18 条，只有 1 条是本版） · 2026-10-22
 - [x] [**FSNotes**](co-fluder-FSNotes.md) · `co.fluder.FSNotes` — G (one-click universal zip) · 无自更新器 · MAS 同 id（`isMASApp` 跳过） · 真包 7.3.4/7.3.5/7.3.6 channel-verify ✓（7.3.5 → 7.3.6、7.3.6 up to date） · tag/资产名 `v?` 两种方案都读 · 一键端到端 ✓ 两轮（不运行 / 运行中） · changelog 结构化 ✓（`###` 小节保留，末尾有序列表/段落丢） · 2026-10-22
+- [x] [**PicGo**](com-molunerfinn-picgo.md) · `com.molunerfinn.picgo` — G (one-click arm64 dmg) · 自研更新检查（只弹框开网页，不下载） · 真包 3.0.2/3.0.3 channel-verify ✓ · beta 副本（同 id，`-beta.N`）判 `.beta`、不给 stable · 2.4.1 及更早无 Team，一键被拒 · 一键端到端 ✓ 两轮（运行中：它自己的新版对话框开着时 `duo restart` 退不掉，点掉后正常） · changelog 结构化 ✓（中英两遍标题） · 2026-10-22
 
 ## Changelog-only (detection via Sparkle or Homebrew)
 

@@ -62,7 +62,7 @@
 
 | | 客户端会停放吗 | 本次实际停放了什么 | 我们能否直接拿来装 |
 |---|---|---|---|
-| 结论 | 不会 | 没查（真机第二轮补） | 不需要 |
+| 结论 | 不会 | 无（2026-10-22 真机运行 1.3.0 约 25 s，没有停放任何东西） | 不需要 |
 | 证据 | v1.4.0 `UpdateService.swift`：启动 5 s 后（距上次检查超过 1 h）和每 24 h 只做检查；`downloadAndInstall()` 只由「Update Available」窗口和设置页的按钮调用。点了之后下到 `$TMPDIR/ClaudoscopeUpdate-<UUID>/Claudoscope.dmg`，挂载、校验 Team `DN8M2CQ4D2`，把当前 bundle 改名为同目录的 `Claudoscope.app.bak`，拷入新版，然后退出重开；失败时删临时目录 | — | — |
 
 - `.bak`: 厂商更新器换包后留下 `Claudoscope.app.bak`（与 app 同目录），新版成功启动两次后删掉（`ClaudoscopeApp.swift` 的 `UpdateTriggerView`）。扩展名不是 `.app`，`AppScanner` 不把它当成副本（`guard entry.pathExtension == "app"`，读代码，没在真机上看）。
@@ -77,8 +77,11 @@
 - Recipe 状态: 不需要
 
 ## 一键安装
-- 状态: **支持**（规则已接；真机端到端未跑）
-- 端到端: **未跑**。本次审计没有动真机，交给主会话
+- 状态: **支持，真机两轮通过（2026-10-22，本分支 `make cli` 的 duo）**
+- 端到端:
+  - 第一轮（不运行）: 1.3.0 → `duo check` `1.3.0 → 1.4.0 [GitHub, in-place]` → `duo install` `extracting verifyingCodeSignature installing done installed.` → 1.4.0、可执行文件 inode 变、`TeamIdentifier=DN8M2CQ4D2`、`codesign --verify --deep --strict` 退出 0、`spctl` accepted、`diff -r` 与厂商 1.4.0 包相同
+  - 第二轮（运行中）: 启动 1.3.0（AX 看不到窗口，没出现开机启动询问或更新窗口），`duo install` 后提示 `Still running the old code`；`duo restart Claudoscope` 后新进程起来，之后 10 s 磁盘一直是 1.4.0、签名有效
+  - `~/.claude`: 启动前后 `~/.claude/settings.json` 字节相同，`~/.claude/hooks` 列表不变，没有 `.claudoscope-events`；`~/.claude.json` 只有 Claude Code 自己的 `pluginUsage` 变了（`mcpServers` 相同、全文无 claudoscope）；`sfltool dumpbtm` 无 claudoscope 条目
 - 格式: dmg（UDZO，`hdiutil imageinfo` 实测），根目录 `Claudoscope.app` + `Applications` 软链
 - 嵌套 / 常驻组件: 没有 LoginItems / Helpers / XPC / LaunchAgent。`Contents/MacOS/claudoscope-mcp`（同 Team 签名）是 MCP stdio shim，只在用户在设置里开了 MCP、Claude Code 拉起它时运行，换包后旧 shim 要等那个 Claude Code 会话重启才换成新代码（读源码，未实测）
 - 签名: 上一版 1.3.0 和最新 1.4.0 都是 Team `DN8M2CQ4D2`、Notarized Developer ID；更早各版也一样，没换过 Team
@@ -86,7 +89,7 @@
 - **读的是**: 人人可手动下载的 GA（`/releases/latest`，厂商自己的更新器读的也是它）
 - 阻塞: 无
 
-### 真机前要知道的副作用（来源：v1.4.0 源码，未在真机上观察）
+### 启动副作用（来源：v1.4.0 源码；2026-10-22 真机核对见「一键安装」）
 - **首次启动**: 没看过引导（`hasSeenOnboarding` 为假）就弹引导窗口，之后弹一次「开机启动」询问（NSAlert，会临时把 activation policy 切成 `.regular`）；选是就 `SMAppService.mainApp.register()` 注册成登录项。
 - **启动 5 s 后**（距上次检查超过 1 h）请求 GitHub `/releases/latest`，有新版就弹「Update Available」窗口；不点就不下载。
 - **`~/.claude`**: 默认设置下启动**不写** `~/.claude`。启动时会做的只有：删除 `~/.claude/.claudoscope-events/` 下的 `*.json`（自己的事件队列；目录不存在就什么都不做）。要写都得用户先打开开关：
@@ -102,8 +105,7 @@
 - 厂商更新器在 app 旁边留 `Claudoscope.app.bak`，直到新版启动两次。
 
 ## 建议下一步
-1. 主会话真机端到端（两轮，见下），然后把 README 那一行的一键状态改成实测结果。
-2. 下一个正式版出来后复查 `/releases/latest`、版本模式、资产名。
+1. 下一个正式版出来后复查 `/releases/latest`、版本模式、资产名。
 
 ### 真机两轮建议
 真机前先备份 `~/.claude/settings.json`、`~/.claude.json` 和 `defaults export com.claudoscope.app`（如果已有）；跑完对比 `~/.claude` 有没有新文件。

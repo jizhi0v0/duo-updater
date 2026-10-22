@@ -80746,6 +80746,136 @@
           }
         }
       }
+    },
+    "Global packages that stay with %@ include: %@. Reinstall them under %@ with npm install -g.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zu den globalen Paketen, die bei %@ bleiben, gehören: %@. Installiere sie unter %@ mit npm install -g neu."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Entre los paquetes globales que se quedan en %@ están: %@. Vuelve a instalarlos en %@ con npm install -g."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Parmi les paquets globaux qui restent avec %@ : %@. Réinstallez-les sous %@ avec npm install -g."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tra i pacchetti globali che restano con %@ ci sono: %@. Reinstallali sotto %@ con npm install -g."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ に残るグローバルパッケージには次のものがあります: %@。%@ で npm install -g を使って再インストールしてください。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Entre os pacotes globais que ficam com o %@ estão: %@. Reinstale-os no %@ com npm install -g."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Среди глобальных пакетов, которые остаются у %@: %@. Переустановите их для %@ командой npm install -g."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ sürümünde kalan genel paketler arasında şunlar var: %@. Bunları %@ altında npm install -g ile yeniden yükleyin."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "留在 %@ 的全局包包括：%@。请在 %@ 下用 npm install -g 重新安装。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "留在 %@ 的全域套件包括：%@。請在 %@ 下用 npm install -g 重新安裝。"
+          }
+        }
+      }
+    },
+    "nvm’s default was %@; this sets it to %@.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Standard von nvm war %@; dieser Befehl setzt ihn auf %@."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El valor predeterminado de nvm era %@; esto lo cambia a %@."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La version par défaut de nvm était %@ ; cette commande la remplace par %@."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Il valore predefinito di nvm era %@; questo lo imposta su %@."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "nvm のデフォルトは %@ でした。このコマンドで %@ に設定されます。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O padrão do nvm era %@; isto o define como %@."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "По умолчанию в nvm было %@; эта команда меняет это на %@."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "nvm’in varsayılanı %@ idi; bu komut onu %@ yapar."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "nvm 的默认版本原为 %@；此命令会将其设为 %@。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "nvm 的預設版本原為 %@；此命令會將其設為 %@。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

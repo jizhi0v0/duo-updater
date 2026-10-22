@@ -62,6 +62,17 @@ public enum Check {
         "this copy comes from the \(channel) channel; the update installs the stable cask over it"
     }
 
+    /// The npm packages' names under each node prefix's path
+    /// (`CLIToolStatus.npmPackage`), Claude Code's npm install among them.
+    static func packagesByPrefix(_ tools: [CLIToolRows.Row]) -> [String: [String]] {
+        var out: [String: [String]] = [:]
+        for tool in tools {
+            guard let package = tool.status?.npmPackage else { continue }
+            out[package.prefix, default: []].append(package.name)
+        }
+        return out
+    }
+
     /// What to tell the user about a refresh attempt. Written to stderr so `--json`
     /// stays one object per line, and phrased so that "we launched TestFlight" is
     /// never left implicit — the user is entitled to know why an app appeared.
@@ -213,9 +224,9 @@ public enum Check {
         // What nodejs.org and php.net say about the installed Node.js and
         // Homebrew PHP (`RuntimeSecurityReport`): text only — `--json` gains no
         // field — and only for a whole check, not one narrowed to named apps.
-        let securityLines: Task<[String], Never>? = checkForUpdates && !options.json && wantsTools
+        let security: Task<RuntimeSecurityReport, Never>? = checkForUpdates && !options.json && wantsTools
             && options.queries.isEmpty
-            ? Task { await RuntimeSecurityFeeds.shared.report().englishLines }
+            ? Task { await RuntimeSecurityFeeds.shared.report() }
             : nil
         let selected: [InstalledApp]
         var selectedTools: [CLIToolRows.Row]?
@@ -320,12 +331,15 @@ public enum Check {
         } else if let toolRows {
             tools = await toolRows.value
         }
+        // Every npm package checked, by prefix, before the filter below: what
+        // an fnm upgrade command leaves behind (`NodeUpgradeCommand`).
+        let securityLines = await security?.value.englishLines(packagesByPrefix: Self.packagesByPrefix(tools)) ?? []
         // `--all`'s rule for apps: without it, a check shows what has an update
         // and what could not be checked.
         if options.checkForUpdates && !options.all { tools = tools.filter { $0.hasUpdate || $0.unchecked } }
 
         return finish(
-            rows, tools: tools, securityLines: await securityLines?.value ?? [],
+            rows, tools: tools, securityLines: securityLines,
             command: options.checkForUpdates ? "check" : "list", json: options.json,
             scanAbandoned: scanned == nil, testFlightGap: gap)
     }

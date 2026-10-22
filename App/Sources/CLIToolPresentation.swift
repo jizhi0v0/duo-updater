@@ -288,6 +288,68 @@ enum CLIToolPresentation {
         }
     }
 
+    // MARK: - Runtime security notices
+
+    /// The notices of the node an npm prefix group runs, for the ⚠ on its
+    /// header and the popover it opens: one mark per node, not one per package. Homebrew's node is
+    /// matched by the keg any of its packages' `bin/node` resolves into.
+    static func nodeNotices(
+        ofPrefix prefix: NodePrefix, statuses: [CLIToolStatus], in report: RuntimeSecurityReport
+    ) -> [RuntimeSecurityNotice] {
+        let keg = statuses.lazy.compactMap { status -> String? in
+            guard case .npm(let package) = status.detail, package.install.prefix.path == prefix.path else { return nil }
+            return package.install.runtime.homebrewKeg
+        }.first
+        return report.nodeNotices(forPrefix: prefix, homebrewKeg: keg)
+    }
+
+    /// A sidebar ⚠'s tooltip and accessibility label: the notice block's
+    /// sentences. nil — no mark — when there are no notices.
+    static func securityMarkHelp(_ notices: [RuntimeSecurityNotice]) -> String? {
+        guard !notices.isEmpty else { return nil }
+        return String(securityNotice(notices).characters)
+    }
+
+    /// A Homebrew node or php formula's notices as the one block its detail pane
+    /// shows: a sentence each, the release or advisory each names a link to it.
+    /// Says only what the publisher published — never that the install is
+    /// vulnerable.
+    static func securityNotice(_ notices: [RuntimeSecurityNotice]) -> AttributedString {
+        var block = AttributedString()
+        for notice in notices {
+            if !block.characters.isEmpty { block += AttributedString(" ") }
+            switch notice {
+            case .nodeSecurityReleases(let installed, let count, let latest, _):
+                let major = String(installed.prefix { $0 != "." })
+                block += linking(
+                    String(localized: "Newer Node.js \(major) releases marked as security releases by nodejs.org: \(count), the latest \(latest)."),
+                    [(latest, RuntimeSecurityNotice.nodeReleaseURL(latest))])
+            case .nodeEndOfLife(let major, let date):
+                block += AttributedString(String(localized: "Node.js \(major) reached end of life on \(date)."))
+            case .phpAdvisories(let installed, let fixed, let advisories):
+                let ids = advisories.map(\.label).joined(separator: ", ")
+                block += linking(
+                    String(localized: "\(installed) is older than \(fixed), which fixes \(ids) (php.net/GitHub advisory)."),
+                    advisories.map { ($0.label, $0.url) })
+            case .phpEndOfLife(let branch, let date):
+                block += AttributedString(String(localized: "PHP \(branch) reached end of security support on \(date)."))
+            }
+        }
+        return block
+    }
+
+    /// `sentence` with the first unlinked occurrence of each text a link.
+    private static func linking(_ sentence: String, _ links: [(text: String, url: URL)]) -> AttributedString {
+        var linked = AttributedString(sentence)
+        var searchFrom = linked.startIndex
+        for (text, url) in links {
+            guard let range = linked[searchFrom...].range(of: text) else { continue }
+            linked[range].link = url
+            searchFrom = range.upperBound
+        }
+        return linked
+    }
+
     /// The signature as a fact's value. `signer` is the certificate's name, which
     /// for uv is not the tool's vendor.
     static func signature(_ signature: CLIToolTrust.Signature?, signer: String, team: String) -> String {

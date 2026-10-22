@@ -250,6 +250,7 @@ public enum AppRecipeIndex {
         io_podmandesktop_PodmanDesktop.set,
         io_rancherdesktop_app.set,
         io_tailscale_ipn_macsys.set,
+        is_follow.set,
         jan_ai_app.set,
         Jellyfin_Server.set,
         leits_MeetingBar.set,

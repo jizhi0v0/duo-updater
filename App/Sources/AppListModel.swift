@@ -1167,6 +1167,8 @@ final class AppListModel {
     /// Node.js and Homebrew PHP (`RuntimeSecurityReport`), for the formula pane
     /// and the npm packages' Node fact. Re-read with each brew read.
     private(set) var runtimeSecurity = RuntimeSecurityReport()
+    /// Bumped per brew read; a report from an earlier read is dropped.
+    private var runtimeSecurityGeneration = 0
 
     /// A HEAD install's upstream check, as the user last asked for it.
     enum HeadCheckState: Equatable {
@@ -4311,8 +4313,15 @@ final class AppListModel {
     private func readBrewFormulae() async {
         // Beside the read, not after it: the feeds may wait on the network, and
         // nvm's node has notices with no Homebrew at all. The feeds ask each
-        // source each time, conditionally (`RuntimeSecurityFeeds`).
-        Task { runtimeSecurity = await RuntimeSecurityFeeds.shared.report() }
+        // source each time, conditionally (`RuntimeSecurityFeeds`). Only the
+        // latest read's report lands: an older one scanned the installs before
+        // an upgrade, and the coalesced asks let it finish after a newer one.
+        runtimeSecurityGeneration += 1
+        let securityGeneration = runtimeSecurityGeneration
+        Task {
+            let report = await RuntimeSecurityFeeds.shared.report()
+            if securityGeneration == runtimeSecurityGeneration { runtimeSecurity = report }
+        }
         guard BrewFormulaService.isAvailable else {
             brewOutdatedFormulae = []
             brewFormulae = []

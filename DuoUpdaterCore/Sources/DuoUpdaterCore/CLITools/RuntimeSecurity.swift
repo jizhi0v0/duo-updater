@@ -249,20 +249,26 @@ public enum RuntimeSecurityRules {
          data.nodeSchedule?.endOfLifeNotice(installed: version, today: today)].compactMap { $0 }
     }
 
-    /// A PHP install at exactly `version`. A branch php.net calls `eol` gets
-    /// that and nothing else: php.net publishes no fix for it, so no advisory
-    /// can name a version that fixes it. A branch `branches.php` doesn't list,
-    /// or a `branches.php` too old to speak from, gets nothing — whether it is
-    /// still supported is exactly what isn't known.
+    /// A PHP install at exactly `version`: the advisories whose fix on its own
+    /// branch is newer, then — for a branch php.net calls `eol` — that. An `eol`
+    /// branch can still have one: php.net shipped 8.1.34 for advisories that
+    /// list `< 8.1.34`, so an 8.1.33 is told both that 8.1.34 fixes them and
+    /// that 8.1 is past support. A branch `branches.php` doesn't list, or a
+    /// `branches.php` too old to speak from, gets nothing — whether it is still
+    /// supported is exactly what isn't known.
     public static func php(version: String, data: RuntimeSecurityData) -> [RuntimeSecurityNotice] {
         guard let v = RuntimeVersionTriple(version), let branches = data.phpBranches else { return [] }
         let name = "\(v.major).\(v.minor)"
         guard let branch = branches.branches[name] else { return [] }
-        if branch.state == "eol" {
-            guard let end = branch.securitySupportEnd else { return [] }
-            return [.phpEndOfLife(branch: name, date: end)]
+        var notices = phpAdvisories(v, data.phpAdvisories)
+        if branch.state == "eol", let end = branch.securitySupportEnd {
+            notices.append(.phpEndOfLife(branch: name, date: end))
         }
-        guard let advisories = data.phpAdvisories else { return [] }
+        return notices
+    }
+
+    private static func phpAdvisories(_ v: RuntimeVersionTriple, _ advisories: PHPAdvisories?) -> [RuntimeSecurityNotice] {
+        guard let advisories else { return [] }
         // Only the entry on the install's own branch: one advisory lists a fix
         // per branch, and 8.4.27 is not older than 8.4.27 because 8.5.12 exists.
         var applying: [(reference: PHPAdvisoryReference, fixed: RuntimeVersionTriple)] = []

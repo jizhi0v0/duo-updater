@@ -126,10 +126,19 @@ import Foundation
         ])
     }
 
-    /// php@8.1 is `eol`: that, and no advisory verdict, though GHSA-3237 lists
-    /// `< 8.1.34`. Mutation: fall through to the advisories → a second notice.
-    @Test func anEndOfLifeBranchGetsOnlyItsEndOfLife() throws {
-        #expect(RuntimeSecurityRules.php(version: "8.1.33", data: try Self.data())
+    /// php@8.1 is `eol`, and php.net still shipped 8.1.34 for GHSA-3237 (`< 8.1.34`):
+    /// an 8.1.33 hears both. GHSA-wpj3's fix (8.1.28) is older than it, so it isn't
+    /// named. Mutation: return the end of life alone for an `eol` branch → the
+    /// advisory is missing.
+    @Test func anEndOfLifeBranchStillHearsItsOwnBranchsFix() throws {
+        #expect(RuntimeSecurityRules.php(version: "8.1.33", data: try Self.data()) == [
+            .phpAdvisories(installed: "8.1.33", fixed: "8.1.34", advisories: [PHPAdvisoryReference(
+                id: "CVE-2025-14177", severity: "medium",
+                url: URL(string: "https://github.com/php/php-src/security/advisories/GHSA-3237-qqm7-mfv7")!)]),
+            .phpEndOfLife(branch: "8.1", date: "2025-12-31"),
+        ])
+        // At the branch's last release only the end of life is left.
+        #expect(RuntimeSecurityRules.php(version: "8.1.34", data: try Self.data())
             == [.phpEndOfLife(branch: "8.1", date: "2025-12-31")])
     }
 
@@ -209,7 +218,7 @@ import Foundation
         ])
         let report = RuntimeSecurityReport(installs: installs, data: try Self.data(), today: Self.today)
         #expect(report.notices(forFormula: "php@8.4").isEmpty)
-        #expect(report.notices(forFormula: "php@8.1") == [.phpEndOfLife(branch: "8.1", date: "2025-12-31")])
+        #expect(report.notices(forFormula: "php@8.1").last == .phpEndOfLife(branch: "8.1", date: "2025-12-31"))
         #expect(report.notices(forFormula: "node@24").count == 1)
     }
 

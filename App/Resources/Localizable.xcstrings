@@ -80486,6 +80486,396 @@
           }
         }
       }
+    },
+    "Newer Node.js %@ releases marked as security releases by nodejs.org: %lld, the latest %@.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Neuere Releases von Node.js %@, die nodejs.org als Sicherheitsreleases kennzeichnet: %lld, das neueste ist %@."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Versiones más recientes de Node.js %@ que nodejs.org marca como versiones de seguridad: %lld; la última es %@."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Versions plus récentes de Node.js %@ signalées comme versions de sécurité par nodejs.org : %lld, la dernière étant %@."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Release più recenti di Node.js %@ contrassegnate da nodejs.org come release di sicurezza: %lld, l’ultima è %@."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "nodejs.org がセキュリティリリースとしている Node.js %@ の新しいリリース: %lld 件、最新は %@。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Versões mais recentes do Node.js %@ marcadas como versões de segurança pelo nodejs.org: %lld, a mais recente é %@."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Более новые выпуски Node.js %@, которые nodejs.org отмечает как выпуски безопасности: %lld, последний — %@."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "nodejs.org’un güvenlik sürümü olarak işaretlediği daha yeni Node.js %@ sürümleri: %lld, en yenisi %@."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "nodejs.org 标记为安全版本的更新 Node.js %@ 版本：%lld 个，最新为 %@。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "nodejs.org 標記為安全性版本的較新 Node.js %@ 版本：%lld 個，最新為 %@。"
+          }
+        }
+      }
+    },
+    "Node.js %@ reached end of life on %@.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Node.js %@ hat am %@ das Ende seines Lebenszyklus erreicht."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Node.js %@ llegó al fin de su vida útil el %@."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Node.js %@ a atteint sa fin de vie le %@."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Node.js %@ ha raggiunto la fine del ciclo di vita il %@."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Node.js %@ は %@ にサポート終了（EOL）となりました。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O Node.js %@ chegou ao fim da vida útil em %@."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Поддержка Node.js %@ прекращена %@."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Node.js %@, %@ tarihinde kullanım ömrünün sonuna ulaştı."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Node.js %@ 已于 %@ 停止支持（EOL）。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Node.js %@ 已於 %@ 停止支援（EOL）。"
+          }
+        }
+      }
+    },
+    "%@ is older than %@, which fixes %@ (php.net/GitHub advisory).": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ ist älter als %@, das %@ behebt (Sicherheitshinweis von php.net/GitHub)."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ es anterior a %@, que corrige %@ (aviso de php.net/GitHub)."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ est antérieure à %@, qui corrige %@ (avis php.net/GitHub)."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ è precedente a %@, che corregge %@ (avviso php.net/GitHub)."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ は %@ より古く、%@ は後者で修正されています（php.net/GitHub のアドバイザリ）。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ é anterior a %@, que corrige %@ (aviso do php.net/GitHub)."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ старше %@, где исправлено: %@ (бюллетень php.net/GitHub)."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@, %@ sürümünden eski; %@ bu sürümde düzeltildi (php.net/GitHub bildirimi)."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 早于 %@，后者修复了 %@（php.net/GitHub 公告）。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 早於 %@，後者修正了 %@（php.net/GitHub 公告）。"
+          }
+        }
+      }
+    },
+    "PHP %@ reached end of security support on %@.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Sicherheitsunterstützung für PHP %@ endete am %@."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PHP %@ dejó de recibir soporte de seguridad el %@."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PHP %@ n’est plus pris en charge pour la sécurité depuis le %@."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Il supporto di sicurezza di PHP %@ è terminato il %@."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PHP %@ のセキュリティサポートは %@ に終了しました。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O suporte de segurança do PHP %@ terminou em %@."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Поддержка безопасности PHP %@ закончилась %@."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PHP %@ için güvenlik desteği %@ tarihinde sona erdi."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PHP %@ 的安全支持已于 %@ 结束。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PHP %@ 的安全性支援已於 %@ 結束。"
+          }
+        }
+      }
+    },
+    "Global packages that stay with %@ include: %@. Reinstall them under %@ with npm install -g.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zu den globalen Paketen, die bei %@ bleiben, gehören: %@. Installiere sie unter %@ mit npm install -g neu."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Entre los paquetes globales que se quedan en %@ están: %@. Vuelve a instalarlos en %@ con npm install -g."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Parmi les paquets globaux qui restent avec %@ : %@. Réinstallez-les sous %@ avec npm install -g."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tra i pacchetti globali che restano con %@ ci sono: %@. Reinstallali sotto %@ con npm install -g."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ に残るグローバルパッケージには次のものがあります: %@。%@ で npm install -g を使って再インストールしてください。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Entre os pacotes globais que ficam com o %@ estão: %@. Reinstale-os no %@ com npm install -g."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Среди глобальных пакетов, которые остаются у %@: %@. Переустановите их для %@ командой npm install -g."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ sürümünde kalan genel paketler arasında şunlar var: %@. Bunları %@ altında npm install -g ile yeniden yükleyin."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "留在 %@ 的全局包包括：%@。请在 %@ 下用 npm install -g 重新安装。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "留在 %@ 的全域套件包括：%@。請在 %@ 下用 npm install -g 重新安裝。"
+          }
+        }
+      }
+    },
+    "nvm’s default was %@; this sets it to %@.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Standard von nvm war %@; dieser Befehl setzt ihn auf %@."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El valor predeterminado de nvm era %@; esto lo cambia a %@."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La version par défaut de nvm était %@ ; cette commande la remplace par %@."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Il valore predefinito di nvm era %@; questo lo imposta su %@."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "nvm のデフォルトは %@ でした。このコマンドで %@ に設定されます。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O padrão do nvm era %@; isto o define como %@."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "По умолчанию в nvm было %@; эта команда меняет это на %@."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "nvm’in varsayılanı %@ idi; bu komut onu %@ yapar."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "nvm 的默认版本原为 %@；此命令会将其设为 %@。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "nvm 的預設版本原為 %@；此命令會將其設為 %@。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

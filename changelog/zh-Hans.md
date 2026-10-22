@@ -2,6 +2,16 @@
 
 本文档是 CHANGELOG.md 的简体中文翻译。英文版本是权威参考。未在本文档中列出的版本将自动回退至英文显示。
 
+## 0.5.13
+
+**又支持了 25 个 App。** Adrafinil、Bdash、Claudoscope、Deadbolt、DiffusionBee、Folo、FSNotes、Headroom、Hoppscotch、Hyper、Itsypad、Itsytv、Logseq、MacsyZones、massCode、Phosphene、PicGo、Readest、Sentinel、Simple Comic、SmoothCSV、Swift Quit、SwiftPlantUML、Tropy 和 Whispering 可以检查更新和一键更新。Tropy 的 beta 单独按自己的通道更新；Folo、massCode、PicGo 和 SmoothCSV 的旧 beta 副本会被告知最新的稳定版。
+
+**工作台会标出有更新的安全版本、或已停止支持的 Node.js 和 Homebrew PHP。** 提示只转述 Node.js 和 PHP 项目自己发布的内容；对用 nvm 或 fnm 安装的 Node.js，还会给出一条可以复制的命令来安装那个安全版本。`duo check` 也会列出同样的提示。
+
+**“重新启动”会等待退出较慢的 App。** 以前几秒后就放弃，说那个 App 可能在弹存盘提示，并让它保持关闭。
+
+**修复。** Homebrew 认为已是最新而跳过的更新，现在显示为失败并说明原因，而不是显示已安装。像 MKVToolNix 这样 Homebrew 版本号带重新打包后缀的 App，不会再反复提供刚装好的更新。对还停在 macOS“从互联网下载”确认框上的 App 运行 `duo restart`，会提示先点“打开”，而不是说它在弹存盘提示。
+
 ## 0.5.12
 
 **又支持了 3 个 App。** Harp、TaskExplorer 和 Lapce 可以检查更新和一键更新。用官方脚本安装的 Biome 也加入了“其他工具”，同样能一键更新；Claude App 的更新说明又能显示了。

@@ -2,6 +2,16 @@
 
 このページは `CHANGELOG.md` の日本語訳です。英語版が権威あるバージョンであり、ここに記載されていないバージョンは自動的に英語版へフォールバックします。
 
+## 0.5.13
+
+**対応 App が 25 個増えました。** Adrafinil、Bdash、Claudoscope、Deadbolt、DiffusionBee、Folo、FSNotes、Headroom、Hoppscotch、Hyper、Itsypad、Itsytv、Logseq、MacsyZones、massCode、Phosphene、PicGo、Readest、Sentinel、Simple Comic、SmoothCSV、Swift Quit、SwiftPlantUML、Tropy、Whispering でアップデートの確認とワンクリックアップデートが使えるようになりました。Tropy のベータ版は独自の経路でアップデートされ、Folo、massCode、PicGo、SmoothCSV の古いベータ版には最新の安定版が知らされます。
+
+**ワークベンチが、新しいセキュリティリリースがある、またはサポートが終了した Node.js と Homebrew の PHP に印を付けるようになりました。** 通知は Node.js と PHP の各プロジェクトが公開している内容をそのまま伝え、nvm や fnm でインストールした Node.js にはセキュリティリリースをインストールするためのコピーできるコマンドを示します。`duo check` にも同じ通知が表示されます。
+
+**「再起動」は、終了に時間がかかる App を待つようになりました。** 以前は数秒であきらめ、保存の確認が出ているようだと表示して、App を閉じたままにしていました。
+
+**修正。** Homebrew が最新とみなしてスキップしたアップデートは、インストール済みではなく、理由付きで失敗として表示されるようになりました。MKVToolNix のように Homebrew のバージョンに再パッケージの接尾辞が付く App で、受け取ったばかりのアップデートが再び表示されることはなくなりました。macOS の「インターネットからダウンロードされた」確認で止まっている App に `duo restart` を実行すると、保存の確認と呼ぶのではなく、まず「開く」をクリックするよう案内します。
+
 ## 0.5.12
 
 **対応 App が 3 個増えました。** Harp、TaskExplorer、Lapce でアップデートの確認とワンクリックアップデートが使えるようになりました。公式スクリプトでインストールした Biome も「その他のツール」に加わってワンクリックでアップデートでき、Claude App のリリースノートも再び表示されるようになりました。

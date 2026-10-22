@@ -19,6 +19,16 @@ release note is debugging our code:
 
 Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
+## 0.5.13
+
+**Twenty-five more apps are supported.** Adrafinil, Bdash, Claudoscope, Deadbolt, DiffusionBee, Folo, FSNotes, Headroom, Hoppscotch, Hyper, Itsypad, Itsytv, Logseq, MacsyZones, massCode, Phosphene, PicGo, Readest, Sentinel, Simple Comic, SmoothCSV, Swift Quit, SwiftPlantUML, Tropy and Whispering get update checks and one-click updates. Tropy's beta is updated on its own track, and older beta copies of Folo, massCode, PicGo and SmoothCSV are told about the latest stable release.
+
+**The workbench flags Node.js and Homebrew PHP installs that have a newer security release or have reached end of life.** The notice repeats what the Node.js and PHP projects publish, and for Node.js installed with nvm or fnm it gives a command you can copy to install the security release; `duo check` lists the same notices.
+
+**Relaunch waits for an app that is slow to quit.** It used to give up after a few seconds, say the app was probably showing a save prompt, and leave it closed.
+
+**Fixes.** An update Homebrew skipped as already current now shows as failed with the reason, instead of installed. Apps whose Homebrew version carries a re-packaging suffix, such as MKVToolNix, stop offering the update they just got. `duo restart` on an app still waiting at macOS's "downloaded from the Internet" prompt says to click Open first, instead of calling it a save prompt.
+
 ## 0.5.12
 
 **Three more apps are supported.** Harp, TaskExplorer and Lapce get update checks and one-click updates. Biome installed with its official script joins Other tools and updates in one click too, and release notes for the Claude app show again.

@@ -2,6 +2,16 @@
 
 Ceci est la traduction de `CHANGELOG.md`. La version anglaise fait autorité. Les versions non énumérées ici reviennent automatiquement à l’anglais.
 
+## 0.5.13
+
+**25 apps de plus sont prises en charge.** Adrafinil, Bdash, Claudoscope, Deadbolt, DiffusionBee, Folo, FSNotes, Headroom, Hoppscotch, Hyper, Itsypad, Itsytv, Logseq, MacsyZones, massCode, Phosphene, PicGo, Readest, Sentinel, Simple Comic, SmoothCSV, Swift Quit, SwiftPlantUML, Tropy et Whispering bénéficient de la vérification des mises à jour et des mises à jour en un clic. La bêta de Tropy est mise à jour sur sa propre voie, et les anciennes copies bêta de Folo, massCode, PicGo et SmoothCSV sont informées de la dernière version stable.
+
+**L’atelier signale les installations de Node.js et de PHP Homebrew qui ont une version de sécurité plus récente ou sont arrivées en fin de vie.** L’avis reprend ce que publient les projets Node.js et PHP, et pour Node.js installé avec nvm ou fnm il donne une commande à copier pour installer la version de sécurité ; `duo check` affiche les mêmes avis.
+
+**« Relancer » attend une app lente à quitter.** Il abandonnait au bout de quelques secondes, indiquait que l’app affichait sans doute une demande d’enregistrement et la laissait fermée.
+
+**Corrections.** Une mise à jour que Homebrew a ignorée car il la jugeait déjà à jour s’affiche maintenant comme échouée, avec la raison, au lieu d’installée. Les apps dont la version Homebrew porte un suffixe de réemballage, comme MKVToolNix, ne proposent plus la mise à jour qu’elles viennent de recevoir. `duo restart` sur une app encore bloquée sur l’invite macOS « téléchargée depuis Internet » indique qu’il faut d’abord cliquer sur « Ouvrir », au lieu de parler d’une demande d’enregistrement.
+
 ## 0.5.12
 
 **Trois apps de plus sont prises en charge.** Harp, TaskExplorer et Lapce bénéficient de la vérification des mises à jour et des mises à jour en un clic. Biome installé avec son script officiel rejoint « Autres outils » et se met lui aussi à jour en un clic, et les notes de version de l’app Claude s’affichent de nouveau.

@@ -2,6 +2,16 @@
 
 Dies ist eine deutsche Übersetzung von `CHANGELOG.md`. Die englische Fassung ist maßgeblich; frühere Versionen, die hier nicht aufgeführt sind, fallen automatisch auf Englisch zurück.
 
+## 0.5.13
+
+**25 weitere Apps werden unterstützt.** Adrafinil, Bdash, Claudoscope, Deadbolt, DiffusionBee, Folo, FSNotes, Headroom, Hoppscotch, Hyper, Itsypad, Itsytv, Logseq, MacsyZones, massCode, Phosphene, PicGo, Readest, Sentinel, Simple Comic, SmoothCSV, Swift Quit, SwiftPlantUML, Tropy und Whispering erhalten Update-Prüfungen und Updates per Klick. Die Beta von Tropy wird auf eigenem Weg aktualisiert, und ältere Beta-Kopien von Folo, massCode, PicGo und SmoothCSV erfahren von der neuesten stabilen Version.
+
+**Die Werkbank markiert Node.js- und Homebrew-PHP-Installationen, für die es eine neuere Sicherheitsversion gibt oder deren Support beendet ist.** Der Hinweis gibt wieder, was die Node.js- und PHP-Projekte veröffentlichen, und für mit nvm oder fnm installiertes Node.js nennt er einen Befehl zum Kopieren, der die Sicherheitsversion installiert; `duo check` listet dieselben Hinweise auf.
+
+**„Neu starten“ wartet auf eine App, die sich langsam beendet.** Bisher gab es nach wenigen Sekunden auf, meldete, die App zeige wohl eine Speichern-Abfrage, und ließ sie geschlossen.
+
+**Korrekturen.** Ein Update, das Homebrew als bereits aktuell übersprungen hat, wird jetzt mit Begründung als fehlgeschlagen angezeigt statt als installiert. Apps, deren Homebrew-Version einen Zusatz für ein neu verpacktes Paket trägt, etwa MKVToolNix, bieten das gerade erhaltene Update nicht mehr erneut an. `duo restart` sagt bei einer App, die noch auf die macOS-Abfrage „aus dem Internet geladen“ wartet, dass zuerst „Öffnen“ geklickt werden muss, statt von einer Speichern-Abfrage zu sprechen.
+
 ## 0.5.12
 
 **Drei weitere Apps werden unterstützt.** Harp, TaskExplorer und Lapce erhalten Update-Prüfungen und Updates per Klick. Biome, mit seinem offiziellen Skript installiert, kommt zu „Andere Tools“ hinzu und lässt sich ebenfalls per Klick aktualisieren, und die Versionshinweise der Claude-App werden wieder angezeigt.

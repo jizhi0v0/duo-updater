@@ -149,6 +149,7 @@ public enum AppRecipeIndex {
         com_MrKai77_Loop.set,
         com_neovide_neovide.set,
         com_netease_uuremote.set,
+        com_nickustinov_itsypad.set,
         com_nssurge_surge_mac.set,
         com_nuebling_mac_mouse_fix.set,
         com_obelisk_app.set,

@@ -36,7 +36,7 @@
 - 发版流程：`.github/workflows/release.yml` 先建 `prerelease: true` 的空 release 再分平台上传，stable 由维护者事后去掉 prerelease。所以新 release 头几分钟没有 mac 资产、stable 头几分钟还在 prerelease 里，两种都由 `resolve` 的「没有 mac 资产就往回找」和 `/releases/latest` 处理。v1.15.0 是个 stable 版本至今还挂着 prerelease 标记（`/releases/latest` 不读它，后来的版本已经覆盖它）。
 
 ### 覆盖清单
-- **bundle id**：stable 从 1.12.0 到 1.17.3 都是 `org.tropy.tropy`（真包）；beta `org.tropy.tropy-beta`（真包）。没有改名前的旧 id。`build.js` 的大小写规则（`org.tropy.Tropy` 小写化）在更早的版本是否一样没读包（未验证，1.12.0 之前的副本已有四年）。
+- **bundle id**：stable 从 1.12.0 到 1.17.3 都是 `org.tropy.tropy`（真包）；beta `org.tropy.tropy-beta`（真包）。**v1.11.0-beta.3 及以前的 beta 也是 `org.tropy.tropy`**（`scripts/build.js` 在 `v1.11.0-beta.3` 是 `appBundleId: 'org.tropy.tropy'`，`v1.11.1-beta.1` 起才是 ``org.tropy.${qualified.name}``，GitHub contents API 2026-10-22 核过）——见「已知问题」。`build.js` 的大小写规则（`org.tropy.Tropy` 小写化）在更早的版本是否一样没读包（未验证，1.12.0 之前的副本已有四年）。
 - **版本轨**：stable、beta 两轨都接了。alpha 轨源码里有（`release.js` 非 beta 的 prerelease → `alpha`），但仓库从未发过 alpha tag，不收。`1.0.0-rc.1`（2017）同理。
 - **版本范围**：Team 从 2022 到今天一致。arm64 资产从 1.9.0 开始（1.9.0 只有 arm64 dmg，1.10.0 起才有 `-darwin-arm64.zip`），之前只有 x64；DuoUpdater 只跑 arm64（`App/project.yml`），所以更早的 x64 副本照样被供 arm64 zip——厂商自己也把 Rosetta 下的 x64 版迁到 arm64 feed。
 - **主机下限**：`LSMinimumSystemVersion` 10.13.0，低于我们的下限。
@@ -120,6 +120,7 @@
 3. beta 可选：`Tropy Beta.app` 1.18.0-beta.5 → beta.6，同样步骤。
 
 ## 已知问题
+- **2021 年及以前的 Tropy Beta 副本没有检测**：v1.11.0-beta.3 及以前的 beta（`Tropy Beta.app`，版本 `x.y.z-beta.N`）bundle id 是 `org.tropy.tropy`。`ReleaseChannel.detect` 把它们读成 `.beta`，而 `org.tropy.tropy` 只有 stable 规则，于是没有任何来源回答；厂商 beta feed 也回 204。补救选项（未做）：给 `org.tropy.tropy` 加一条只检测的 beta 规则，指向当前 beta tag（那是另一个 bundle id 的 `Tropy Beta.app`，所以不能一键）
 - beta 的 changelog 基本为空（厂商）。
 - `:finland:` 之类 emoji 短码按原文显示。
 - **退出慢**（真机 2026-10-22）：普通退出 9.3 s，有暂存更新时约 40 s，都超过 `duo restart` 的等待；duo 会报「likely a save prompt」并不重新拉起，更新仍由 ShipIt 装上。

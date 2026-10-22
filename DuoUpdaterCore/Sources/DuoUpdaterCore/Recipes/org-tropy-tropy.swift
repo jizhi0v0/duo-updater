@@ -13,10 +13,14 @@ enum org_tropy_tropy {
         // (`SelfUpdaterStaging` reads that ShipIt state already). No
         // `app-update.yml`, no `SUFeedURL`, so no generic source covers it.
         //
-        // Stable and beta are SEPARATE apps: `scripts/build.js` sets
-        // `appBundleId` to `org.tropy.tropy` for a release version and to
-        // `org.tropy.tropy-beta` ("Tropy Beta.app") for a `-beta.N` one, so the
-        // two rules below never see each other's copies.
+        // Stable and beta are SEPARATE apps from v1.11.1-beta.1 on:
+        // `scripts/build.js` sets `appBundleId` to `org.tropy.tropy` for a
+        // release version and to `org.tropy.tropy-beta` ("Tropy Beta.app") for
+        // a `-beta.N` one, so the two rules below never see each other's
+        // copies. Up to v1.11.0-beta.3 every build, beta included, was
+        // `org.tropy.tropy`; such an old beta copy reads as `.beta` under the
+        // stable id, where no rule answers — a recorded gap (audit).
+        // History: docs/app-audits/org-tropy-tropy.md#历史与实测
         //
         // Stable tags read `v1.17.3`; up to 1.9.0 (2021) they had no `v`
         // (`1.9.0`, `1.8.2` … `1.0.0`). Those are the same app with the same

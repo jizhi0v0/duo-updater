@@ -18,8 +18,9 @@ enum io_hoppscotch_desktop {
         // Tags read `v26.9.0-0`; the bundle says 26.9.0 from v25.2.0-0 on. The
         // first generation (v23.8.3-1 … v25.1.1-2) kept the suffix in the bundle
         // (`25.1.1-2`, `25.1.1-0`), so the pattern reads every tag's base
-        // version and the suffix is dropped: all 88 tags read (2026-10-22).
-        // v26.6.1-0 shipped SelfHost assets only: nothing to install then.
+        // version and the suffix is dropped. A release that ships SelfHost
+        // assets only (v26.6.1-0) has nothing to install.
+        // History: docs/app-audits/io-hoppscotch-desktop.md#历史与实测
         GitHubReleaseRule(
             bundleID: "io.hoppscotch.desktop",
             owner: "hoppscotch", repo: "releases",

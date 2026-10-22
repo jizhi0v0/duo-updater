@@ -54,7 +54,7 @@
 
 | | 客户端会停放吗 | 本次实际停放了什么 | 我们能否直接拿来装 |
 |---|---|---|---|
-| 结论 | 不会 | 没查（真机第二轮未跑） | 不需要 |
+| 结论 | 不会 | 无（2026-10-22 真机运行 Cloud 26.8.2，没有停放任何东西） | 不需要 |
 | 证据 | tauri-plugin-updater 2.3.1 `src/updater.rs`（tag `updater-v2.3.1`）：`download` 把整包读进内存，macOS `install_inner` 把当前 app rename 到临时目录、把 tar.gz 直接解到原路径；不写停放文件 | — | — |
 
 ## Changelog
@@ -66,7 +66,10 @@
 
 ## 一键安装
 - 状态: **支持（Cloud 第二代 arm64 副本）**，Self-Host、第一代、x64 副本仅检测
-- 端到端: **未跑**，真机由主会话做
+- 端到端（2026-10-22，本分支 `make cli` 的 duo）:
+  - Self-Host 26.8.2（可执行文件含 `hoppscotch-selfhost-desktop.json`）: `duo check` → `26.8.2 → 26.9.0 [GitHub]`；`duo install` → `Skipping: Hoppscotch — detection only for this copy — this is not a proven Cloud edition copy (Self-Host, or an Intel build); update it from its own updater`，磁盘仍是 26.8.2 Self-Host、inode 不变
+  - Cloud 26.8.2，不运行: `duo check` → `26.8.2 → 26.9.0 [GitHub, in-place]`；`duo install` `extracting verifyingCodeSignature installing done installed.` → 26.9.0、可执行文件 inode 变、含 `hoppscotch-cloud-desktop.json`、`TeamIdentifier=XBK86CMQGZ`、`codesign --verify --deep --strict` 退出 0、`spctl` accepted、`diff -r` 与厂商 26.9.0 Cloud 包相同
+  - Cloud 26.8.2，运行中: 启动（窗口 `main`），`duo install` 后提示 `Still running the old code`；`duo restart Hoppscotch` 后新进程起来，之后 10 s 磁盘一直是 26.9.0、签名有效。启动建了 `~/Library/{Application Support,Caches,Logs,WebKit}/io.hoppscotch.desktop`
 - 格式: dmg（UDZO），根目录 `Hoppscotch.app`。Pattern `^Hoppscotch_mac_(?:aarch64|x64)\.dmg$`，kind `.dmg`
 - 嵌套: 没有。`Contents` 只有 `MacOS/hoppscotch-desktop`、`Resources/icon.icns`、`Info.plist`、签名；没有 LoginItems / Helpers / LaunchAgent，没有 `LSUIElement`
 - 签名: 26.8.2、26.9.0 都是 `TeamIdentifier=XBK86CMQGZ`，`codesign --verify` 通过，`spctl` Notarized Developer ID
@@ -101,6 +104,8 @@ curl -s https://releases.hoppscotch.com/central-desktop.json | head -3          
 swift test --package-path DuoUpdaterCore --filter OneClickGateTests
 ```
 
+## 历史与实测
+- 2026-10-22（从 `io-hoppscotch-desktop.swift` 注释迁出）：原文「the pattern reads every tag's base version and the suffix is dropped: all 88 tags read (2026-10-22). v26.6.1-0 shipped SelfHost assets only: nothing to install then.」——当天 88 个非 prerelease tag 全部读得出；v26.6.1-0 只有 SelfHost 资产。
+
 ## 建议下一步
-1. 主会话真机一键：26.8.2 Cloud → 26.9.0（不运行、运行中各一轮），并在 Self-Host 26.8.2 上确认 `duo install` 拒绝、`duo check` 仍显示更新。
-2. 决定要不要为 hoppscotch.com 的发版说明写 ChangelogRecipe。
+1. 决定要不要为 hoppscotch.com 的发版说明写 ChangelogRecipe。

@@ -60,7 +60,7 @@
 
 | | 客户端会停放吗 | 本次实际停放了什么 | 我们能否直接拿来装 |
 |---|---|---|---|
-| 结论 | 不会 | 没查（未做第二轮真机） | 不需要 |
+| 结论 | 不会 | 无（2026-10-22 真机运行 7.3.5 约 10 s，没有停放任何东西） | 不需要 |
 | 证据 | 没有更新器，不下载新版 | — | — |
 
 ## Changelog
@@ -73,19 +73,21 @@
 - Recipe 状态: 不需要
 
 ## 一键安装
-- 状态: 支持（规则已接；真机端到端待主会话）
-- 端到端: **未跑**。本次是并行接入 agent，按约定不在真机装 / 启动；由主会话做
+- 状态: **支持，真机两轮通过（2026-10-22，本分支 `make cli` 的 duo）**
+- 端到端:
+  - 第一轮（不运行）: 7.3.5 → `duo check` `7.3.5 → 7.3.6 [GitHub, in-place]` → `duo install` `extracting verifyingCodeSignature installing done installed.` → 7.3.6、可执行文件 inode 变、`TeamIdentifier=866P6MTE92`、`codesign --verify --deep --strict` 退出 0、`spctl` accepted、`diff -r` 与厂商 7.3.6 包相同
+  - 第二轮（运行中）: 启动 7.3.5（主窗口直接打开到「FSNotes › Welcome › 1. Introduction」，没有弹存储目录面板），`duo install` 后提示 `Still running the old code`；`duo restart FSNotes` 后新进程起来，之后 10 s 磁盘一直是 7.3.6、签名有效
 - 格式: zip（`compression method=store`），根目录就是 `FSNotes.app`
 - **待审项「v7.3.4 没有 mac 资产」→ 不成立。** v7.3.4 的资产是 `FSNotes_7.3.4.zip`（名字里没有 `v`，tag 有），真包 `co.fluder.FSNotes` 7.3.4（719）、Team `866P6MTE92`、Notarized，是普通 Mac 版；分诊草稿的 `^FSNotes_v…` 没匹配上而已。install pattern 已改成 `v?`
 - 嵌套 / 常驻组件: 无（没有 LoginItems / Helpers / XPC / LaunchAgent）。app 是 sandboxed（`com.apple.security.app-sandbox`）
 - 签名: 7.3.4、7.3.5、7.3.6 都是 Team `866P6MTE92`、Notarized Developer ID；上一版与最新版 Team 相同，旧副本不会被安装闸拒
 - 校验: GitHub 资产 `digest`。v7.3.6 `sha256:5de97f63df2f91533fd26fc98588cdaea29dc1ef4612a6164d6cc3468c457c56`、v7.3.5 `sha256:c7b64db673acd38d4a3df32000afff143df095716b5fd661ae1d57277a10bafc`，与下载的 zip `shasum -a 256` 相同，大小 16860055 / 16855446 等于 Content-Length
 - **读的是**: 人人可手动下载的 GA（`/releases/latest`；Homebrew cask 的 URL 也是这个资产。仓库 README 推的是 App Store，GitHub zip 是公开的免费构建）
-- 主会话真机时注意（来自源码 `FSNotes/AppDelegate.swift` on `master`，未实测）:
+- 启动副作用（来自源码 `FSNotes/AppDelegate.swift` on `master`；2026-10-22 真机核对的已注明）:
   - 首启若没有存储目录（`UserDefaultsManagement.storagePath == nil`），弹 `NSOpenPanel`「Please select default storage directory」并直接 `return`，不开主窗口
-  - `CLOUD_RELATED_BLOCK` 编译时会在 iCloud 容器里建 `Documents` 目录（`~/Library/Mobile Documents/iCloud~co~fluder~fsnotes/`）
+  - `CLOUD_RELATED_BLOCK` 编译时会在 iCloud 容器里建 `Documents` 目录（`~/Library/Mobile Documents/iCloud~co~fluder~fsnotes/`）。**真机：首启在这里写了 `Documents/Welcome/` 9 篇示例笔记（`.textbundle`）和 `Documents/Trash/`，会同步到用户的 iCloud Drive**；默认存储就是 iCloud，所以没弹存储目录面板
   - 从 MAS 换过来且默认存储在 iCloud Drive 时会弹「是否搬旧库」的 `NSAlert`（`checkStorageChanges`）
-  - 没有登录项 / LaunchAgent / root helper / 默认 app 注册；不写 `~/.claude` / `~/.agents`（二进制与源码均无此路径，未实测）
+  - 没有登录项 / LaunchAgent / root helper / 默认 app 注册；不写 `~/.claude` / `~/.agents`（二进制与源码均无此路径）
   - 数据在 `~/Library/Containers/co.fluder.FSNotes`（cask 的 zap 也只列它和 `Application Scripts`）
 - 阻塞: 无
 
@@ -106,4 +108,4 @@ ditto -x -k FSNotes_v7.3.6.zip x536 && swift run --package-path application-test
 channel-verify 实测（2026-10-22）: 7.3.5 → `winning source GitHub`、`latest 7.3.6`、`status UPDATE → 7.3.6`；7.3.6 → `up to date`；6.10.2（旧 tag 方案）→ `UPDATE → 7.3.6`。三次 `detected channel → stable`。
 
 ## 建议下一步
-1. 主会话真机两轮（不运行 / 运行中），然后把 README 行的一键列改成实测结果。
+无。厂商发下一个版本时复查资产名（`FSNotes_<v>.zip` / `FSNotes_v<v>.zip`）和 Team。

@@ -62,6 +62,7 @@ public enum AppRecipeIndex {
         com_carriez_rustdesk.set,
         com_ccswitch_desktop.set,
         com_claudecode_context.set,
+        com_claudoscope_app.set,
         com_colliderli_iina.set,
         com_conductor_app.set,
         com_corecode_MacUpdater.set,

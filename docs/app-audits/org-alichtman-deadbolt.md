@@ -75,7 +75,7 @@
 - 端到端（2026-10-22，本分支 `make cli` 的 duo，app 不运行）:
   - 真 2.1.0（ad-hoc）: `duo check` → `2.1.0 → 2.1.1 [GitHub]`；`duo install` → `Skipping: Deadbolt — the installed copy has no developer Team ID to check the download against`，磁盘仍是 2.1.0、inode 不变
   - 真 0.1.0（同 Team `BF3UMC9FSZ`，Apple Development 证书、未公证、x86_64，没启动）: `duo check` → `0.1.0 → 2.1.1 [GitHub, in-place]`；`duo install` `extracting verifyingCodeSignature installing done installed.` → 2.1.1、可执行文件 inode 变、`TeamIdentifier=BF3UMC9FSZ`、`codesign --verify --deep --strict` 退出 0、`spctl` accepted（Notarized Developer ID）、`diff -r` 与厂商 2.1.1 arm64 包相同
-  - **运行中一轮没跑**：没有能正常启动的同 Team 旧版（0.1.0 未公证且是 x86_64，会弹 Gatekeeper / Rosetta）；它也没有自更新器，运行中换包走通用的 quit → swap → relaunch 路径
+  - **运行中一轮没跑**：没有能正常启动的同 Team 旧版（0.1.0 未公证且是 x86_64，会弹 Gatekeeper / Rosetta）。它没有自更新器，所以不走「先退出再换包」的 StagedRelaunch（那只用于 app 自己更新器已暂存的更新）；运行中一键走通用路径：在活着的进程底下换包，之后 CLI 打印 `Still running the old code: Deadbolt` 和 `duo restart …`，菜单栏 app 按「更新后自动重启」偏好重启（见下方已知问题）。没跑的运行中一轮要测的正是这种「Electron 主进程还活着、bundle 已被换掉」的情形（`Deadbolt Helper*.app` 按需从 `Contents/Frameworks/` 起）
 - 格式: dmg（UDZO），根目录 `Deadbolt.app` + `Applications` 软链
 - 嵌套: 只有 Electron 的四个 `Contents/Frameworks/Deadbolt Helper*.app`（`LSUIElement`，随主进程起落）；没有 LoginItems / Library / XPCServices；Info.plist 无 `CFBundleDocumentTypes` / `CFBundleURLTypes`；entitlements 只有 `com.apple.security.cs.allow-jit`
 - 签名: 2.1.1 `TeamIdentifier=BF3UMC9FSZ`、notarized、hardened runtime。**上一版 2.1.0 没有 Team**，所以从 2.1.0（以及 2.0.x、1.0.0）升级会被 Team 闸拒；第一个能一键升级的场景是 2.1.1 → 下一版，或 0.1.0 → 2.1.1

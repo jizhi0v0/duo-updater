@@ -274,17 +274,12 @@ enum CLIToolPresentation {
     /// channel and update every pane shows: who signed it and how it got there,
     /// and anything else the verdict rests on. Empty for a tool without a payload
     /// worth showing (bub, fx, a Rust toolchain, whose channel is already there).
-    /// `runtimeSecurity` adds what nodejs.org says about an npm package's node
-    /// to its Node fact.
-    static func facts(
-        of status: CLIToolStatus, home: String, runtimeSecurity: RuntimeSecurityReport = RuntimeSecurityReport()
-    ) -> [Fact] {
+    static func facts(of status: CLIToolStatus, home: String) -> [Fact] {
         switch status.detail {
         case .uv(let uv): return facts(of: uv, home: home)
         case .junie(let junie): return facts(of: junie, withheld: status.withheld)
         case .rust(let item): return facts(of: item, withheld: status.withheld)
-        case .npm(let package):
-            return facts(of: package, withheld: status.withheld, home: home, runtimeSecurity: runtimeSecurity)
+        case .npm(let package): return facts(of: package, withheld: status.withheld, home: home)
         case .codex(let codex): return facts(of: codex)
         case .bun(let bun): return facts(of: bun)
         case .opencode(let opencode): return facts(of: opencode)
@@ -295,20 +290,32 @@ enum CLIToolPresentation {
 
     // MARK: - Runtime security notices
 
-    /// What the Node fact adds for its node's notices (`RuntimeSecurityNotice`):
-    /// "4 security releases since (latest 24.22.1)", "end of life since
-    /// 2026-04-30". PHP's are not a node's, and have no place here.
-    static func nodeSecurityTail(_ notices: [RuntimeSecurityNotice]) -> [String] {
-        notices.compactMap { notice in
-            switch notice {
-            case .nodeSecurityReleases(_, let count, let latest, _):
-                String(localized: "\(count) security releases since (latest \(latest))")
-            case .nodeEndOfLife(_, let date):
-                String(localized: "end of life since \(date)")
-            case .phpAdvisories, .phpEndOfLife:
-                nil
-            }
-        }
+    /// The notices of the node an npm package runs — its detail pane's Security
+    /// row, after the Node fact; [] for any other tool, and for a package with
+    /// no node of its own.
+    static func nodeNotices(of status: CLIToolStatus, in report: RuntimeSecurityReport) -> [RuntimeSecurityNotice] {
+        guard case .npm(let package) = status.detail, package.install.runtime.node != nil else { return [] }
+        return report.nodeNotices(forPrefix: package.install.prefix, homebrewKeg: package.install.runtime.homebrewKeg)
+    }
+
+    /// The notices of the node an npm prefix group runs, for the ⚠ on its
+    /// header: one mark per node, not one per package. Homebrew's node is
+    /// matched by the keg any of its packages' `bin/node` resolves into.
+    static func nodeNotices(
+        ofPrefix prefix: NodePrefix, statuses: [CLIToolStatus], in report: RuntimeSecurityReport
+    ) -> [RuntimeSecurityNotice] {
+        let keg = statuses.lazy.compactMap { status -> String? in
+            guard case .npm(let package) = status.detail, package.install.prefix.path == prefix.path else { return nil }
+            return package.install.runtime.homebrewKeg
+        }.first
+        return report.nodeNotices(forPrefix: prefix, homebrewKeg: keg)
+    }
+
+    /// A sidebar ⚠'s tooltip and accessibility label: the notice block's
+    /// sentences. nil — no mark — when there are no notices.
+    static func securityMarkHelp(_ notices: [RuntimeSecurityNotice]) -> String? {
+        guard !notices.isEmpty else { return nil }
+        return String(securityNotice(notices).characters)
     }
 
     /// A Homebrew node or php formula's notices as the one block its detail pane
@@ -470,9 +477,7 @@ enum CLIToolPresentation {
         return [Fact(label: String(localized: "Verification"), value: value)]
     }
 
-    private static func facts(
-        of package: NpmPackage, withheld: CLIToolWithheld?, home: String, runtimeSecurity: RuntimeSecurityReport
-    ) -> [Fact] {
+    private static func facts(of package: NpmPackage, withheld: CLIToolWithheld?, home: String) -> [Fact] {
         let install = package.install
         var facts = [Fact(
             label: String(localized: "Prefix"),
@@ -481,11 +486,9 @@ enum CLIToolPresentation {
         if install.runtime.node == nil {
             node = String(localized: "None of its own")
         } else {
-            node = ([nodeVersion(of: package),
-                     signature(install.runtime.nodeSignature, signer: "Node.js Foundation",
-                               team: NpmScanner.nodeTeamIdentifier)]
-                    + nodeSecurityTail(runtimeSecurity.nodeNotices(
-                        forPrefix: install.prefix, homebrewKeg: install.runtime.homebrewKeg)).map { Optional($0) })
+            node = [nodeVersion(of: package),
+                    signature(install.runtime.nodeSignature, signer: "Node.js Foundation",
+                              team: NpmScanner.nodeTeamIdentifier)]
                 .compactMap { $0 }.joined(separator: " · ")
         }
         facts.append(Fact(label: String(localized: "Node"), value: node))

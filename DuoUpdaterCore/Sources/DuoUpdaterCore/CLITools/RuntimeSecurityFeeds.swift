@@ -4,11 +4,15 @@ import Foundation
 /// index, nodejs/Release's schedule, php.net's branches and php-src's GitHub
 /// security advisories.
 ///
-/// Each source is asked at most once a day, and conditionally (`ETag` /
-/// `Last-Modified` from its last 200). A copy is spoken from for 48 hours after
-/// it was last confirmed — a 200, or a 304 to it — and not after: past that,
-/// or with no copy at all, that source gives no notices, so a failed fetch
-/// never turns into a stale verdict. Only the sources an install needs are
+/// Each source is asked whenever a report is: on the app's Homebrew package
+/// read (`AppListModel.readBrewFormulae` — its schedule's tick, an open or
+/// focus of the popover or workbench, the refresh button, after a brew run of
+/// ours) and on each `duo check`, so no clock of its own. Asked conditionally
+/// (`ETag` / `Last-Modified` from its last 200), one ask at a time per source.
+/// A copy is spoken from for 48 hours after it was last confirmed — a 200, or
+/// a 304 to it — and not after: past that, or with no copy at all, that source
+/// gives no notices, so a failed fetch never turns into a stale verdict; it is
+/// simply asked again at the next read. Only the sources an install needs are
 /// asked: a Mac without PHP never reaches GitHub for its advisories.
 ///
 /// The advisories go through the app's GitHub plumbing: the token chain
@@ -16,9 +20,8 @@ import Foundation
 /// rejected-token retry, `GitHubAPIMock`), and `GitHubConditionalCache`'s
 /// credential fingerprint and conditional headers, so a 304 to an
 /// authenticated request costs no quota. Not that cache's storage: its entries
-/// expire after a day — the cadence here, so every validator would have
-/// expired by the next ask — and `GitHubReleasesSource` prunes it to the
-/// registry's endpoints. The validators and raw bodies live in this store's
+/// expire after a day, short of the 48 hours this store speaks from a copy, and
+/// `GitHubReleasesSource` prunes it to the registry's endpoints. The validators and raw bodies live in this store's
 /// own file instead, beside it in `DuoStateDirectory`, shared by the app and
 /// `duo`.
 public actor RuntimeSecurityFeeds {
@@ -52,7 +55,7 @@ public actor RuntimeSecurityFeeds {
     }
 
     /// One source's last good copy: its raw body (each page, for the
-    /// advisories), validators, and when it was last confirmed and last asked.
+    /// advisories), validators, and when it was last confirmed.
     struct Entry: Codable, Sendable, Equatable {
         var pages: [Data] = []
         var etag: String?
@@ -62,12 +65,7 @@ public actor RuntimeSecurityFeeds {
         var authFingerprint: String?
         /// The last 200, or 304 to this copy.
         var confirmedAt: Date?
-        /// The last request, answered or not.
-        var askedAt: Date?
     }
-
-    /// How long after the last ask a source is asked again.
-    static let askInterval: TimeInterval = 24 * 60 * 60
     /// How long after it was last confirmed a copy is spoken from.
     static let maxAge: TimeInterval = 48 * 60 * 60
     /// Pages of advisories followed at most; php-src had 66 advisories on one
@@ -96,7 +94,7 @@ public actor RuntimeSecurityFeeds {
     }
 
     /// The notices for what is installed under `home` and `brewRoot` now,
-    /// asking each needed source first if its day is up.
+    /// asking each needed source first.
     public func report(
         home: URL = FileManager.default.homeDirectoryForCurrentUser,
         brewRoot: URL? = RuntimeInstall.defaultBrewRoot
@@ -112,11 +110,11 @@ public actor RuntimeSecurityFeeds {
         return RuntimeSecurityReport(installs: installs, data: await data(needed), today: Self.day(now()))
     }
 
-    /// `sources`' data, each asked first when due; nil for one without a copy
+    /// `sources`' data, each asked first; nil for one without a copy
     /// confirmed in the last `maxAge`.
     func data(_ sources: [Source]) async -> RuntimeSecurityData {
         await withTaskGroup(of: Void.self) { group in
-            for source in sources { group.addTask { await self.refreshIfDue(source) } }
+            for source in sources { group.addTask { await self.ask(source) } }
         }
         let current = now()
         func pages(_ source: Source) -> [Data]? {
@@ -132,11 +130,10 @@ public actor RuntimeSecurityFeeds {
             phpAdvisories: pages(.phpAdvisories).flatMap { PHPAdvisories(pages: $0) })
     }
 
-    /// Ask `source` unless it was asked in the last `askInterval`; one ask at a
-    /// time per source.
-    private func refreshIfDue(_ source: Source) async {
+    /// Ask `source`, one ask at a time: a report wanted while one is out waits
+    /// for that one's answer instead of asking again.
+    private func ask(_ source: Source) async {
         if let running = inFlight[source] { return await running.value }
-        if let asked = loadedEntries()[source]?.askedAt, now().timeIntervalSince(asked) < Self.askInterval { return }
         let task = Task { await self.refresh(source) }
         inFlight[source] = task
         await task.value
@@ -164,7 +161,6 @@ public actor RuntimeSecurityFeeds {
         let asked = now()
         do {
             let (data, response) = try await session.countedData(for: request, purpose: .catalog)
-            entry.askedAt = asked
             guard let http = response as? HTTPURLResponse else { throw URLError(.badServerResponse) }
             if http.statusCode == 304, !entry.pages.isEmpty {
                 entry.confirmedAt = asked
@@ -190,14 +186,13 @@ public actor RuntimeSecurityFeeds {
                     pages: pages.map { Data(Array($0)) },
                     etag: http.value(forHTTPHeaderField: "ETag"),
                     lastModified: http.value(forHTTPHeaderField: "Last-Modified"),
-                    authFingerprint: fingerprint, confirmedAt: asked, askedAt: asked)
+                    authFingerprint: fingerprint, confirmedAt: asked)
             } else {
                 Log.source.notice("runtime-security: \(source.rawValue, privacy: .public) answered HTTP \(http.statusCode, privacy: .public)")
             }
         } catch {
-            // Held back by the rate-limit gate: nothing was sent, so this is
-            // not the day's ask.
-            if !GitHubRateLimitGate.isRefusal(error) { entry.askedAt = asked }
+            // Held back by the rate-limit gate, the request was never sent;
+            // either way the copy stands, and the next read asks again.
             Log.source.notice("runtime-security: \(source.rawValue, privacy: .public) failed — \(error.localizedDescription, privacy: .public)")
         }
         entries?[source] = entry

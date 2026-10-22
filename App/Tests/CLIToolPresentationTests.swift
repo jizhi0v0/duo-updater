@@ -634,25 +634,60 @@ struct CLIToolPayloadPresentationTests {
         #expect(linked.contains(.init(label: "Linked to", value: "~/src/openclaw")))
     }
 
-    /// The Node fact carries its node's notices — the node this prefix runs,
-    /// matched by the prefix's path, and no other's.
+    /// An npm package's node notices are its own node's — by the prefix's
+    /// path, or for Homebrew's node by its keg — and the Node fact itself no
+    /// longer carries them (they have a Security row of their own).
     ///
-    /// Mutation: match any node install in `nodeNotices` → the fact of a prefix
-    /// on another node grows these too; drop the tail → no notice at all.
-    @Test func theNodeFactCarriesItsNodesSecurityNotices() {
+    /// Mutation: match any node install in `nodeNotices` → a prefix on another
+    /// node gets these too.
+    @Test func anNpmPackagesNodeNoticesAreItsOwnNodes() {
         let prefix = CLIToolFixtures.nvm("24.13.0")
+        let notices: [RuntimeSecurityNotice] = [
+            .nodeSecurityReleases(installed: "24.13.0", count: 4, latest: "24.22.1", latestDate: "2026-10-20"),
+            .nodeEndOfLife(major: "24", date: "2028-04-30")]
         let report = RuntimeSecurityReport(entries: [.init(
             install: RuntimeInstall(kind: .node, version: "24.13.0", origin: .manager(.nvm, prefix: prefix.path)),
-            notices: [.nodeSecurityReleases(installed: "24.13.0", count: 4, latest: "24.22.1", latestDate: "2026-10-20"),
-                      .nodeEndOfLife(major: "24", date: "2028-04-30")])])
-        let node = { (status: CLIToolStatus) in
-            CLIToolPresentation.facts(of: status, home: Self.home, runtimeSecurity: report)
-                .first { $0.label == "Node" }?.value
-        }
-        #expect(node(F.npm()) == "24.13.0 · Signed by Node.js Foundation (Team HX7739G8FX)"
-            + " · 4 security releases since (latest 24.22.1) · end of life since 2028-04-30")
-        #expect(node(F.npm(F.npmInstall(prefix: CLIToolFixtures.nvm("22.0.0"))))
-            == "22.0.0 · Signed by Node.js Foundation (Team HX7739G8FX)")
+            notices: notices)])
+        #expect(CLIToolPresentation.nodeNotices(of: F.npm(), in: report) == notices)
+        #expect(CLIToolPresentation.facts(of: F.npm(), home: Self.home).first { $0.label == "Node" }?.value
+            == "24.13.0 · Signed by Node.js Foundation (Team HX7739G8FX)")
+        let other = F.npm(F.npmInstall(prefix: CLIToolFixtures.nvm("22.0.0")))
+        #expect(CLIToolPresentation.nodeNotices(of: other, in: report).isEmpty)
+        #expect(CLIToolPresentation.nodeNotices(of: F.uv(), in: report).isEmpty)
+        // The group header asks the same question of the prefix.
+        #expect(CLIToolPresentation.nodeNotices(ofPrefix: prefix, statuses: [F.npm()], in: report) == notices)
+        #expect(CLIToolPresentation.nodeNotices(
+            ofPrefix: CLIToolFixtures.nvm("22.0.0"), statuses: [other], in: report).isEmpty)
+    }
+
+    /// Homebrew's node, on the system prefix, is matched by the keg its
+    /// packages' `bin/node` resolves into.
+    @Test func aSystemPrefixsNodeIsMatchedByItsKeg() {
+        let prefix = NodePrefix(path: "/opt/homebrew", source: .system, layoutNodeVersion: "26.12.0")
+        let keg = "/zzfixture/Cellar/node/26.12.0"
+        let base = F.npmInstall(prefix: prefix)
+        let install = NpmInstall(
+            path: base.path, name: base.name, version: base.version, manifestName: base.manifestName, prefix: prefix,
+            runtime: NpmRuntime(node: "/opt/homebrew/bin/node", npm: nil, npmVersion: nil, nodeSignature: .adHoc,
+                                nodeQuarantined: false, nodeVersion: "26.12.0", homebrewKeg: keg),
+            linkTarget: nil, ownUpdate: nil)
+        let notices: [RuntimeSecurityNotice] = [
+            .nodeSecurityReleases(installed: "26.12.0", count: 1, latest: "26.12.1", latestDate: "2026-10-21")]
+        let report = RuntimeSecurityReport(entries: [.init(
+            install: RuntimeInstall(kind: .node, version: "26.12.0", origin: .homebrew(formula: "node", keg: keg)),
+            notices: notices)])
+        #expect(CLIToolPresentation.nodeNotices(ofPrefix: prefix, statuses: [F.npm(install)], in: report) == notices)
+        #expect(CLIToolPresentation.nodeNotices(ofPrefix: prefix, statuses: [], in: report).isEmpty)
+    }
+
+    /// A mark only where there are notices; its tooltip is their sentences.
+    ///
+    /// Mutation: drop `guard !notices.isEmpty` → every npm group header and
+    /// every formula row grows an empty ⚠.
+    @Test func theSecurityMarkIsOnlyForNotices() {
+        #expect(CLIToolPresentation.securityMarkHelp([]) == nil)
+        #expect(CLIToolPresentation.securityMarkHelp([.phpEndOfLife(branch: "8.1", date: "2025-12-31")])
+            == "PHP 8.1 reached end of security support on 2025-12-31.")
     }
 
     /// A formula's notice block: each notice a sentence, each release or

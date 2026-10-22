@@ -659,6 +659,39 @@ private struct FailedUpdateLogRow: View {
     }
 }
 
+/// The facts grid's row for what nodejs.org says about the node an npm package
+/// runs (`RuntimeSecurityNotice`): the formula pane's sentences, in the
+/// Compatibility row's look. Its link opens the release's announcement.
+private struct RuntimeSecurityRow: View {
+    let notices: [RuntimeSecurityNotice]
+
+    var body: some View {
+        GridRow {
+            Text("Security").foregroundStyle(.secondary).gridColumnAlignment(.trailing)
+            Label {
+                Text(sentence)
+                    .textSelection(.disabled)
+                    // NSWorkspace rather than SwiftUI's own `openURL`, which
+                    // errors -50 in this app's windows (see `AlcoveSettingsPage`).
+                    .environment(\.openURL, OpenURLAction { url in
+                        NSWorkspace.shared.open(url)
+                        return .handled
+                    })
+            } icon: {
+                Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+            }
+        }
+    }
+
+    private var sentence: AttributedString {
+        var sentence = CLIToolPresentation.securityNotice(notices)
+        for run in sentence.runs where run.link != nil {
+            sentence[run.range].underlineStyle = .single
+        }
+        return sentence
+    }
+}
+
 /// The facts grid's row for an update whose release notes mark breaking changes
 /// (`CLIToolsModel.breaking`): which versions, in words. Both detail panes'.
 /// Each version is a link: a long run of skipped releases puts the one that
@@ -899,7 +932,7 @@ struct CLIToolDetailPane: View {
     let status: CLIToolStatus
     let cli: CLIToolsModel
     var showsRuntime = true
-    /// For an npm package's Node fact (`CLIToolPresentation.nodeSecurityTail`).
+    /// For an npm package's Security row (`CLIToolPresentation.nodeNotices`).
     var runtimeSecurity = RuntimeSecurityReport()
     /// The latest click on a version in the Compatibility row, for the notes.
     @State private var breakingJump: BreakingChangesJump?
@@ -963,20 +996,16 @@ struct CLIToolDetailPane: View {
                 Text(verbatim: latest)
             }
             // The tool's own: signature, how it got there, what else the verdict
-            // rests on (`CLIToolPresentation.facts`).
-            ForEach(CLIToolPresentation.facts(of: status, home: homeDirectory, runtimeSecurity: runtimeSecurity),
-                    id: \.label) { fact in
-                GridRow {
-                    Text(verbatim: fact.label).foregroundStyle(.secondary).gridColumnAlignment(.trailing)
-                    // No `fixedSize(vertical:)` on any text of this pane: the window's
-                    // `.contentMinSize` measures it at a near-zero width, where a
-                    // fixed-size paragraph wraps a character a line — uv's facts
-                    // pushed the workbench's minimum height to 3857 pt, off the
-                    // bottom of the screen (2026-10-02; the Rollback notice did the
-                    // same in September). Unfixed, the text still wraps in full.
-                    Text(verbatim: fact.value)
-                }
+            // rests on (`CLIToolPresentation.facts`) — and, right after an npm
+            // package's Node fact, what nodejs.org says about that node.
+            let facts = CLIToolPresentation.facts(of: status, home: homeDirectory)
+            let split = facts.firstIndex { $0.label == String(localized: "Node") }.map { $0 + 1 } ?? facts.count
+            factRows(facts[..<split])
+            let security = CLIToolPresentation.nodeNotices(of: status, in: runtimeSecurity)
+            if !security.isEmpty {
+                RuntimeSecurityRow(notices: security)
             }
+            factRows(facts[split...])
             if let usage = cli.liveUsage(id) {
                 GridRow {
                     label("Running")
@@ -997,6 +1026,21 @@ struct CLIToolDetailPane: View {
             }
         }
         .textSelection(.enabled)
+    }
+
+    private func factRows(_ facts: ArraySlice<CLIToolPresentation.Fact>) -> some View {
+        ForEach(facts, id: \.label) { fact in
+            GridRow {
+                Text(verbatim: fact.label).foregroundStyle(.secondary).gridColumnAlignment(.trailing)
+                // No `fixedSize(vertical:)` on any text of this pane: the window's
+                // `.contentMinSize` measures it at a near-zero width, where a
+                // fixed-size paragraph wraps a character a line — uv's facts
+                // pushed the workbench's minimum height to 3857 pt, off the
+                // bottom of the screen (2026-10-02; the Rollback notice did the
+                // same in September). Unfixed, the text still wraps in full.
+                Text(verbatim: fact.value)
+            }
+        }
     }
 
     private func label(_ key: LocalizedStringKey) -> some View {

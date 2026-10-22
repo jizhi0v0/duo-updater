@@ -4311,7 +4311,7 @@ final class AppListModel {
     private func readBrewFormulae() async {
         // Beside the read, not after it: the feeds may wait on the network, and
         // nvm's node has notices with no Homebrew at all. The feeds ask each
-        // source at most once a day (`RuntimeSecurityFeeds`).
+        // source each time, conditionally (`RuntimeSecurityFeeds`).
         Task { runtimeSecurity = await RuntimeSecurityFeeds.shared.report() }
         guard BrewFormulaService.isAvailable else {
             brewOutdatedFormulae = []

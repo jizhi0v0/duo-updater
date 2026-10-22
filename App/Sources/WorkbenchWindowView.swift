@@ -1116,6 +1116,14 @@ struct WorkbenchWindowView: View {
                     .minimumScaleFactor(0.8)
                     .help(summary)
             }
+            // The node an npm prefix runs has notices: one mark for the node,
+            // on its group, not one on each package it runs.
+            if let prefix = group.prefix {
+                if let help = CLIToolPresentation.securityMarkHelp(CLIToolPresentation.nodeNotices(
+                    ofPrefix: prefix, statuses: model.cliTools.statuses, in: model.runtimeSecurity)) {
+                    RuntimeSecurityMark(help: help).font(.caption)
+                }
+            }
         }
         .padding(.trailing, Self.sectionHeaderTrailingInset)
     }
@@ -1814,7 +1822,16 @@ private struct BrewFormulaSidebarRow: View {
                 .font(.caption).foregroundStyle(.secondary)
                 .lineLimit(1).truncationMode(.middle)
         case .status:
-            statusCaption
+            HStack(spacing: 4) {
+                statusCaption
+                // A homebrew/core node or php with notices: the mark the CLI
+                // rows give breaking changes, after the version. The detail
+                // pane says it in words.
+                if let help = CLIToolPresentation.securityMarkHelp(
+                    model.runtimeSecurity.notices(forFormula: formula.name)) {
+                    RuntimeSecurityMark(help: help).font(.caption)
+                }
+            }
         }
     }
 
@@ -2605,6 +2622,20 @@ extension BrewLifecycle {
     static func today() -> String {
         let c = Calendar(identifier: .gregorian).dateComponents([.year, .month, .day], from: Date())
         return String(format: "%04d-%02d-%02d", c.year!, c.month!, c.day!)
+    }
+}
+
+/// The ⚠ a sidebar row or npm group header carries when a node or php it stands
+/// for has notices (`RuntimeSecurityNotice`): the CLI rows' breaking-changes
+/// mark, its sentences on hover (`CLIToolPresentation.securityMarkHelp`).
+private struct RuntimeSecurityMark: View {
+    let help: String
+
+    var body: some View {
+        Image(systemName: "exclamationmark.triangle.fill")
+            .foregroundStyle(.orange)
+            .help(help)
+            .accessibilityLabel(help)
     }
 }
 

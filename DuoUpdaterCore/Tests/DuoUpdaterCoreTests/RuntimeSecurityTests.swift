@@ -236,6 +236,8 @@ import Foundation
     final class Stub: URLProtocol, @unchecked Sendable {
         nonisolated(unsafe) static var responses: [String: (Int, Data, [String: String])] = [:]
         nonisolated(unsafe) static var seen: [URLRequest] = []
+        /// How long each answer takes, so two reports can overlap one ask.
+        nonisolated(unsafe) static var delay: TimeInterval = 0
 
         override class func canInit(with request: URLRequest) -> Bool { true }
         override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
@@ -244,15 +246,23 @@ import Foundation
             let (status, body, headers) = Self.responses[request.url!.absoluteString] ?? (500, Data(), [:])
             let response = HTTPURLResponse(
                 url: request.url!, statusCode: status, httpVersion: "HTTP/1.1", headerFields: headers)!
-            client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
-            client?.urlProtocol(self, didLoad: body)
-            client?.urlProtocolDidFinishLoading(self)
+            let answer = { [client] in
+                client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+                client?.urlProtocol(self, didLoad: body)
+                client?.urlProtocolDidFinishLoading(self)
+            }
+            if Self.delay > 0 {
+                DispatchQueue.global().asyncAfter(deadline: .now() + Self.delay, execute: answer)
+            } else {
+                answer()
+            }
         }
         override func stopLoading() {}
     }
 
     private static func session() -> URLSession {
         Stub.seen = []
+        Stub.delay = 0
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [Stub.self]
         return URLSession(configuration: config)
@@ -265,10 +275,11 @@ import Foundation
         var now = Date(timeIntervalSince1970: 1_792_600_000)
     }
 
-    /// The first ask is unconditional; a day later the stored validator is sent
-    /// and a 304 confirms the copy; within the day nothing is asked.
-    /// Mutation: drop the ask interval → a second request at +1 h.
-    @Test func eachSourceIsAskedOnceADayConditionally() async throws {
+    /// Every report asks again — the cadence is the read that wants it — and
+    /// conditionally: the first ask is unconditional, the next sends the
+    /// stored validators, and a 304 confirms the copy.
+    /// Mutation: drop the validators → the second ask is unconditional.
+    @Test func everyReportAsksConditionally() async throws {
         let dir = try Self.scratch()
         defer { try? FileManager.default.removeItem(at: dir) }
         let clock = Clock()
@@ -285,11 +296,7 @@ import Foundation
         #expect(Stub.seen.count == 2)
         #expect(Stub.seen.allSatisfy { $0.value(forHTTPHeaderField: "If-None-Match") == nil })
 
-        clock.now += 60 * 60
-        _ = await feeds.report(for: Self.node)
-        #expect(Stub.seen.count == 2)
-
-        clock.now += 24 * 60 * 60
+        clock.now += 5 * 60
         Stub.responses = Stub.responses.mapValues { (304, Data(), $0.2) }
         #expect(await feeds.report(for: Self.node).entries.count == 1)
         #expect(Stub.seen.count == 4)
@@ -298,6 +305,25 @@ import Foundation
         #expect(conditional.contains { $0.value(forHTTPHeaderField: "If-Modified-Since") == "Wed, 21 Oct 2026 10:36:37 GMT" })
         // No PHP installed: GitHub was never asked.
         #expect(!Stub.seen.contains { $0.url?.host == "api.github.com" })
+    }
+
+    /// Two reports at once share one ask per source.
+    /// Mutation: drop the `inFlight` check → four requests.
+    @Test func overlappingReportsShareOneAsk() async throws {
+        let dir = try Self.scratch()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let session = Self.session()
+        Stub.delay = 0.3
+        Stub.responses = [
+            RuntimeSecurityFeeds.Source.nodeReleases.url.absoluteString: (200, try Self.fixture("nodejs-dist-index.json"), [:]),
+            RuntimeSecurityFeeds.Source.nodeSchedule.url.absoluteString: (200, try Self.fixture("nodejs-release-schedule.json"), [:]),
+        ]
+        let feeds = RuntimeSecurityFeeds(fileURL: dir.appendingPathComponent("feeds.json"), session: session, token: { nil })
+        async let first = feeds.report(for: Self.node)
+        async let second = feeds.report(for: Self.node)
+        let (a, b) = await (first, second)
+        #expect(a.entries.count == 1 && b.entries.count == 1)
+        #expect(Stub.seen.count == 2)
     }
 
     /// A failed ask keeps speaking from a copy confirmed within 48 hours, and
@@ -320,6 +346,7 @@ import Foundation
         clock.now += 47 * 60 * 60
         let second = RuntimeSecurityFeeds(fileURL: file, session: Self.session(), token: { nil }, now: { clock.now })
         #expect(await second.report(for: Self.node).entries.count == 1)
+        // It was asked, and failed: a failure is retried at the next read.
         #expect(Stub.seen.count == 2)
 
         clock.now += 2 * 60 * 60

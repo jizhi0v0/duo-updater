@@ -56,6 +56,12 @@ public struct OneClickGate: Sendable {
         /// reason as `asarEntry`. The verdict is cached per Info.plist and
         /// executable identity (`ExecutableMarker`).
         case executableContains(marker: String)
+        /// The bundle's main executable was read whole and does not contain
+        /// `marker`: for an edition whose sibling's marker must be absent, since
+        /// `executableContains` alone admits a copy that holds both. Fails
+        /// closed the same way: an empty marker, or anything that keeps the
+        /// whole executable from being read, is not admitted.
+        case executableLacks(marker: String)
     }
 
     public init(bundleID: String, requirement: Requirement, reason: String, offering: String? = nil) {
@@ -97,7 +103,9 @@ public struct OneClickGate: Sendable {
             return String(decoding: data, as: UTF8.self)
                 .range(of: pattern, options: .regularExpression) != nil
         case .executableContains(let marker):
-            return ExecutableMarker.found(marker, inMainExecutableOf: app.path, fresh: fresh)
+            return ExecutableMarker.presence(marker, inMainExecutableOf: app.path, fresh: fresh) == .present
+        case .executableLacks(let marker):
+            return ExecutableMarker.presence(marker, inMainExecutableOf: app.path, fresh: fresh) == .absent
         }
     }
 }
@@ -120,50 +128,60 @@ enum ExecutableMarker {
     /// room for growth while bounding one cold read to a few hundred ms.
     static let byteLimit: Int64 = 256 << 20
 
+    /// What a read of the executable proved about the marker. `unknown` is
+    /// everything that is neither a hit nor a whole read without one (no plist,
+    /// no executable, unreadable, non-regular, oversized, an empty marker), so
+    /// neither `executableContains` nor `executableLacks` admits it.
+    enum Presence: Sendable, Equatable { case present, absent, unknown }
+
     static func found(_ marker: String, inMainExecutableOf bundle: URL, fresh: Bool = false) -> Bool {
-        guard !marker.isEmpty else { return false }
+        presence(marker, inMainExecutableOf: bundle, fresh: fresh) == .present
+    }
+
+    static func presence(_ marker: String, inMainExecutableOf bundle: URL, fresh: Bool = false) -> Presence {
+        guard !marker.isEmpty else { return .unknown }
         let plistPath = bundle.appendingPathComponent("Contents/Info.plist").path
-        guard let plistIdentity = FileIdentity(atPath: plistPath) else { return false }
+        guard let plistIdentity = FileIdentity(atPath: plistPath) else { return .unknown }
         let key = Key(bundle: bundle.path, marker: marker)
         if !fresh, let kept = cache.withLock({ $0[key] }), kept.plist == plistIdentity,
            kept.executablePath.flatMap({ FileIdentity(atPath: $0) }) == kept.executable {
-            return kept.verdict
+            return kept.presence
         }
         let entry = read(marker, bundle: bundle, plistIdentity: plistIdentity)
         cache.withLock { $0[key] = entry }
-        return entry.verdict
+        return entry.presence
     }
 
-    /// `found` without the cache, neither read nor written: for a bundle that
+    /// `presence` without the cache, neither read nor written: for a bundle that
     /// is about to move or be deleted (a downloaded package before the swap).
-    static func foundUncached(_ marker: String, inMainExecutableOf bundle: URL) -> Bool {
+    static func presenceUncached(_ marker: String, inMainExecutableOf bundle: URL) -> Presence {
         guard !marker.isEmpty,
               let plistIdentity = FileIdentity(
                 atPath: bundle.appendingPathComponent("Contents/Info.plist").path)
-        else { return false }
-        return read(marker, bundle: bundle, plistIdentity: plistIdentity).verdict
+        else { return .unknown }
+        return read(marker, bundle: bundle, plistIdentity: plistIdentity).presence
     }
 
     private static func read(_ marker: String, bundle: URL, plistIdentity: FileIdentity) -> Entry {
         guard let info = NSDictionary(
                 contentsOf: bundle.appendingPathComponent("Contents/Info.plist")) as? [String: Any],
               let name = info["CFBundleExecutable"] as? String, !name.isEmpty, !name.contains("/")
-        else { return Entry(plist: plistIdentity, executablePath: nil, executable: nil, verdict: false) }
+        else { return Entry(plist: plistIdentity, executablePath: nil, executable: nil, presence: .unknown) }
         let path = bundle.appendingPathComponent("Contents/MacOS").appendingPathComponent(name).path
         // Non-blocking, so a FIFO there cannot hold the open; a regular file
         // reads the same either way. `fstat` on what was opened decides the rest.
         let descriptor = open(path, O_RDONLY | O_NONBLOCK | O_CLOEXEC)
         guard descriptor >= 0 else {
-            return Entry(plist: plistIdentity, executablePath: path, executable: nil, verdict: false)
+            return Entry(plist: plistIdentity, executablePath: path, executable: nil, presence: .unknown)
         }
         defer { close(descriptor) }
         var status = stat()
         guard fstat(descriptor, &status) == 0 else {
-            return Entry(plist: plistIdentity, executablePath: path, executable: nil, verdict: false)
+            return Entry(plist: plistIdentity, executablePath: path, executable: nil, presence: .unknown)
         }
         let identity = FileIdentity(status)
         guard status.st_mode & S_IFMT == S_IFREG, Int64(status.st_size) <= byteLimit else {
-            return Entry(plist: plistIdentity, executablePath: path, executable: identity, verdict: false)
+            return Entry(plist: plistIdentity, executablePath: path, executable: identity, presence: .unknown)
         }
         var search = ExecutableBytes.MarkerSearch(marker: Data(marker.utf8), before: 0)
         var hit = false
@@ -179,8 +197,10 @@ enum ExecutableMarker {
             }
             return !hit
         }
-        return Entry(plist: plistIdentity, executablePath: path, executable: identity,
-                     verdict: readable && hit && total <= byteLimit)
+        // A hit stops the read early; no hit is `absent` only after the whole
+        // file was read within the limit.
+        let presence: Presence = !readable || total > byteLimit ? .unknown : hit ? .present : .absent
+        return Entry(plist: plistIdentity, executablePath: path, executable: identity, presence: presence)
     }
 
     struct FileIdentity: Hashable {
@@ -210,7 +230,7 @@ enum ExecutableMarker {
         let plist: FileIdentity
         let executablePath: String?
         let executable: FileIdentity?
-        let verdict: Bool
+        let presence: Presence
     }
     private static let cache = Mutex<[Key: Entry]>([:])
 }
@@ -250,18 +270,36 @@ public enum OneClickGateRegistry {
         return "\(remote.sourceName):\(package)"
     }
 
-    /// The `.executableContains` markers of the scoped gates that name this
-    /// offer: what the downloaded package itself must contain before it is
-    /// swapped in (`VendorInstaller`), so a package that is not the edition its
-    /// name says cannot replace a copy of the other one. Empty for every
-    /// offer of every app without scoped gates.
-    static func packageMarkers(for bundleID: String?, offering remote: RemoteVersion?) -> [String] {
+    /// A marker the downloaded package's main executable must contain
+    /// (`present`) or must have been read whole without (`!present`).
+    struct PackageMarker: Equatable, Sendable {
+        let marker: String
+        let present: Bool
+    }
+
+    /// The `.executableContains` and `.executableLacks` markers of the scoped
+    /// gates that name this offer: what the downloaded package itself must and
+    /// must not contain before it is swapped in, so a package that is not the
+    /// edition its name says, or holds both editions' markers, cannot replace
+    /// a copy. Empty for every offer of every app without scoped gates.
+    ///
+    /// Checked on the `.vendor` route only (`VendorInstaller`, step 3c), where
+    /// we unpack the package ourselves before the swap. The Sparkle,
+    /// `.installer` (pkg), Xcode, App Store and Homebrew routes never consult
+    /// it: a scoped gate's `offering` must not name an offer that takes one of
+    /// those routes, except the Homebrew casks listed in
+    /// `OneClickGateTests.offeringsWithoutAPackageCheck` (brew fetches and
+    /// swaps the package itself; the gate still checks the copy).
+    static func packageMarkers(for bundleID: String?, offering remote: RemoteVersion?) -> [PackageMarker] {
         guard let id = bundleID?.lowercased(), let candidates = byBundleID[id] else { return [] }
         let identity = offerIdentity(remote)
         return candidates.compactMap { gate in
-            guard gate.offering != nil, gate.applies(toOffer: identity),
-                  case .executableContains(let marker) = gate.requirement else { return nil }
-            return marker
+            guard gate.offering != nil, gate.applies(toOffer: identity) else { return nil }
+            switch gate.requirement {
+            case .executableContains(let marker): return PackageMarker(marker: marker, present: true)
+            case .executableLacks(let marker): return PackageMarker(marker: marker, present: false)
+            case .installedVersion, .asarEntry: return nil
+            }
         }
     }
 

@@ -135,21 +135,25 @@ struct OneClickGateTests {
         }
         #expect(OneClickGateRegistry.withholding(cloud, offering: cloudOffer) == nil)
         #expect(OneClickGateRegistry.withholding(
-            cloud, offering: remote(package: "Hoppscotch_mac_x64.dmg")) == nil)
-        #expect(OneClickGateRegistry.withholding(
             cloud, offering: remote(source: "Homebrew", package: "hoppscotch")) == nil)
         #expect(OneClickGateRegistry.withholding(selfHost, offering: selfHostOffer) == nil)
+        #expect(OneClickGateRegistry.withholding(
+            selfHost, offering: remote(source: "Homebrew", package: "hoppscotch-selfhost")) == nil)
         // Across editions: withheld by the offered edition's gate.
         #expect(marker(cloud, selfHostOffer) == Self.selfHostFeed)
         #expect(marker(selfHost, cloudOffer) == Self.cloudFeed)
         #expect(marker(selfHost, remote(source: "Homebrew", package: "hoppscotch")) == Self.cloudFeed)
+        #expect(marker(cloud, remote(source: "Homebrew", package: "hoppscotch-selfhost")) == Self.selfHostFeed)
         // Neither literal: withheld whichever edition is offered.
         #expect(marker(neither, cloudOffer) == Self.cloudFeed)
         #expect(marker(neither, selfHostOffer) == Self.selfHostFeed)
-        // An offer no gate names, for either copy: the Self-Host cask, another
-        // asset, another source, no package, no offer.
+        // An offer no gate names, for either copy: the x64 dmgs (no copy
+        // that passes is x64), another asset, another cask, another source,
+        // no package, no offer.
         let unnamed: [RemoteVersion?] = [
-            remote(source: "Homebrew", package: "hoppscotch-selfhost"),
+            remote(package: "Hoppscotch_mac_x64.dmg"),
+            remote(package: "Hoppscotch_SelfHost_mac_x64.dmg"),
+            remote(source: "Homebrew", package: "hoppscotch-selfhost@beta"),
             remote(package: "Hoppscotch_mac_aarch64.tar.gz"),
             remote(source: "Vendor", package: Self.cloudDMG),
             RemoteVersion(shortVersion: "99.0", version: nil, downloadURL: nil,
@@ -165,7 +169,11 @@ struct OneClickGateTests {
         // First generation: the bundle version keeps the tag's `-N`, even with
         // the marker present.
         for version in ["25.1.1-2", "25.1.1-0", "23.8.3-1"] {
-            for (feed, offer) in [(Self.cloudFeed, cloudOffer), (Self.selfHostFeed, selfHostOffer)] {
+            for (feed, offer) in [
+                (Self.cloudFeed, cloudOffer), (Self.selfHostFeed, selfHostOffer),
+                (Self.cloudFeed, remote(source: "Homebrew", package: "hoppscotch")),
+                (Self.selfHostFeed, remote(source: "Homebrew", package: "hoppscotch-selfhost")),
+            ] {
                 #expect(OneClickGateRegistry.withholding(
                     try hoppscotch(version, feed: feed), offering: offer) != nil, "\(version)")
             }
@@ -174,16 +182,184 @@ struct OneClickGateTests {
             try hoppscotch(nil, feed: Self.cloudFeed), offering: cloudOffer) != nil)
     }
 
-    /// The markers the downloaded package must carry: the offered edition's;
-    /// none for an offer no edition gate names, or for an app without them.
+    /// A copy whose executable holds both editions' literals is neither
+    /// edition: no offer is admitted, whichever edition's package and source.
+    ///
+    /// Mutation (run): either `executableLacks` gate removed from the recipe
+    /// → that edition's offers admit this copy, red.
+    @Test func aCopyWithBothEditionsMarkersIsWithheld() throws {
+        let both = try hoppscotch("26.9.0", feed: "\(Self.cloudFeed) \(Self.selfHostFeed)")
+        for offer in [
+            remote(package: Self.cloudDMG), remote(package: Self.selfHostDMG),
+            remote(source: "Homebrew", package: "hoppscotch"),
+            remote(source: "Homebrew", package: "hoppscotch-selfhost"),
+        ] {
+            let gate = OneClickGateRegistry.withholding(both, offering: offer)
+            #expect(gate != nil, "\(String(describing: OneClickGateRegistry.offerIdentity(offer)))")
+            guard case .executableLacks? = gate?.requirement else {
+                Issue.record("withheld by \(String(describing: gate?.requirement)), not the sibling marker")
+                continue
+            }
+        }
+    }
+
+    /// `executableLacks` admits only a whole read without the marker: what
+    /// keeps the executable from being read is a refusal, not an absence.
+    @Test func anAbsentMarkerThatCannotBeReadIsNotAdmitted() throws {
+        let marker = Self.selfHostFeed
+        func admits(_ bundle: URL, _ gateMarker: String = marker) -> Bool {
+            OneClickGate(bundleID: "zz.fixture", requirement: .executableLacks(marker: gateMarker), reason: "r")
+                .admits(app("zz.fixture", "1.0", at: bundle))
+        }
+        let plist: [String: Any] = ["CFBundleExecutable": "hoppscotch-desktop"]
+        #expect(admits(try tauriBundle(plist: plist, executable: hoppscotchExecutable(feed: Self.cloudFeed))))
+        #expect(!admits(try tauriBundle(plist: plist, executable: hoppscotchExecutable(feed: marker))))
+        #expect(!admits(try tauriBundle(plist: nil, executable: hoppscotchExecutable(feed: Self.cloudFeed))))
+        #expect(!admits(try tauriBundle(plist: plist, executable: nil)))
+        #expect(!admits(try tauriBundle(plist: plist, executable: hoppscotchExecutable(feed: Self.cloudFeed)), ""))
+        let locked = try tauriBundle(plist: plist, executable: hoppscotchExecutable(feed: Self.cloudFeed))
+        let lockedFile = locked.appendingPathComponent("Contents/MacOS/hoppscotch-desktop")
+        try FileManager.default.setAttributes([.posixPermissions: 0], ofItemAtPath: lockedFile.path)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: lockedFile.path) }
+        #expect(!admits(locked))
+        // Over the size limit: never read whole, so never proven absent.
+        let big = try tauriBundle(plist: plist, executable: hoppscotchExecutable(feed: Self.cloudFeed))
+        let handle = try FileHandle(forWritingTo: URL(fileURLWithPath: executablePath(of: big)))
+        try handle.truncate(atOffset: UInt64(ExecutableMarker.byteLimit) + 1)
+        try handle.close()
+        #expect(!admits(big))
+    }
+
+    /// An x64 package offered to an arm64 copy (a release that ships only
+    /// x64 dmgs, say) is no offer of the gates': refused by the offer and by
+    /// the coordinator before anything is downloaded, not after a full
+    /// download by the installer's package check.
+    ///
+    /// Mutation (run): the offering widened back to `(?:aarch64|x64)` → the
+    /// Cloud copy is admitted for the x64 dmg, red.
+    @Test func anX64OfferIsWithheldBeforeInstall() async throws {
+        let settings = UpdateSettings(appStoreUpdateStrategy: .full, vendorInstallPolicy: .deferWhenRunning)
+        let environment = InstallEnvironment(isHelperEnabled: false, runningAppPaths: [], stagedSelfUpdates: [:])
+        let coordinator = InstallCoordinator(permits: InstallPermits(downloads: 1, applies: 1))
+        for (feed, package) in [
+            (Self.cloudFeed, "Hoppscotch_mac_x64.dmg"), (Self.selfHostFeed, "Hoppscotch_SelfHost_mac_x64.dmg"),
+        ] {
+            let result = offer(try hoppscotch("26.8.2", feed: feed), source: "GitHub", package: package)
+            #expect(OneClickGateRegistry.withholding(result.app, offering: result.remote)?.reason
+                    == OneClickGate.unnamedOfferReason, "\(package)")
+            #expect(!UpdatePolicy.canAutoInstall(result, settings: settings, environment: environment))
+            await #expect(throws: OneClickGateRegistry.Withheld.self) {
+                _ = try await coordinator.perform(
+                    result, route: .vendor, installedPopulation: [result.app],
+                    digestOnlyAllowed: false, progress: { _ in })
+            }
+        }
+    }
+
+    /// The `hoppscotch-selfhost` cask goes to a proven Self-Host copy only.
+    ///
+    /// Mutation (run): `|Homebrew:hoppscotch-selfhost` removed from the
+    /// Self-Host offering → the Self-Host copy is withheld as an unnamed
+    /// offer, red.
+    @Test func theSelfHostCaskIsForSelfHostCopiesOnly() throws {
+        let cask = remote(source: "Homebrew", package: "hoppscotch-selfhost")
+        #expect(OneClickGateRegistry.withholding(
+            try hoppscotch("26.9.0", feed: Self.selfHostFeed), offering: cask) == nil)
+        for copy in [
+            try hoppscotch("26.9.0", feed: Self.cloudFeed),
+            try hoppscotch("26.9.0", feed: "\(Self.cloudFeed) \(Self.selfHostFeed)"),
+            try hoppscotch("25.1.1-2", feed: Self.selfHostFeed),
+            try hoppscotch("26.9.0", feed: "ch-cloud ch-selfh"),
+        ] {
+            #expect(OneClickGateRegistry.withholding(copy, offering: cask) != nil)
+        }
+        #expect(OneClickGateRegistry.withholding(
+            try hoppscotch("26.9.0", feed: Self.selfHostFeed),
+            offering: remote(source: "Homebrew", package: "hoppscotch")) != nil)
+    }
+
+    /// Offers a scoped gate may name although their route never consults
+    /// `packageMarkers`: brew fetches and swaps the package itself, so only
+    /// the gate on the copy stands before the swap.
+    static let offeringsWithoutAPackageCheck: Set<String> = [
+        "Homebrew:hoppscotch", "Homebrew:hoppscotch-selfhost",
+    ]
+
+    /// The package check (`VendorInstaller` step 3c) runs on the `.vendor`
+    /// route only. Every offer a scoped gate names must take that route, or be
+    /// one of the listed exceptions, and every exception must still be named.
+    ///
+    /// A probe, not a proof over the pattern's language: the offers tried are
+    /// every source name the router tells apart, with every package name the
+    /// pattern spells out (its runs of name characters, unescaped) plus a
+    /// made-up one, at every installer kind the source can carry (a GitHub
+    /// asset: the kind of the id's rule whose asset pattern takes it; other
+    /// vendor sources: every kind). Routed by `InstallCoordinator.route`, a
+    /// `.pkg` as `requiresInstaller`.
+    @Test func everyOfferAScopedGateNamesHasAPackageCheck() {
+        let vendorSources = ["GitHub", "Vendor", ElectronManifestSource.sourceName, MyGoUpdateSource.sourceName]
+        let sources = vendorSources + ["Homebrew", "App Store", XcodeReleasesSource.sourceName, "Sparkle", "Unknown"]
+        var named: Set<String> = []
+        for gate in OneClickGateRegistry.gates {
+            guard let offering = gate.offering else { continue }
+            let unescaped = offering.replacingOccurrences(of: #"\\(.)"#, with: "$1", options: .regularExpression)
+            var packages = Set(unescaped.matches(of: /[A-Za-z0-9_.@-]+/).map { String($0.output) })
+            packages.insert("Package.dmg")
+            let rules = GitHubReleaseRegistry.rules.filter { $0.bundleID.lowercased() == gate.bundleID.lowercased() }
+            for source in sources {
+                for package in packages {
+                    var kinds: [VendorInstallerKind?]
+                    if source == "GitHub" {
+                        kinds = rules.filter {
+                            $0.installAssetPattern.map { package.range(of: $0, options: .regularExpression) != nil } ?? false
+                        }.map(\.installerKind)
+                    } else if vendorSources.contains(source) {
+                        kinds = VendorInstallerKind.allCases
+                    } else {
+                        kinds = [nil]
+                    }
+                    if kinds.isEmpty { kinds = [nil] }
+                    for kind in kinds {
+                        let remote = RemoteVersion(
+                            shortVersion: "99.0", version: nil,
+                            downloadURL: URL(string: "https://example.invalid/download/\(package)"),
+                            sourceName: source,
+                            sourceIdentifier: source == "Homebrew" ? package : nil,
+                            vendorInstallerKind: kind)
+                        guard let identity = OneClickGateRegistry.offerIdentity(remote),
+                              gate.applies(toOffer: identity) else { continue }
+                        let result = UpdateResult(
+                            app: app(gate.bundleID, "99.0"), remote: remote,
+                            status: .updateAvailable(latest: "99.0"))
+                        let route = InstallCoordinator.route(for: result, requiresInstaller: kind == .pkg)
+                        guard route != .vendor else { continue }
+                        named.insert(identity)
+                        #expect(Self.offeringsWithoutAPackageCheck.contains(identity),
+                                "\(gate.bundleID) names \(identity), routed \(route) with no package check")
+                    }
+                }
+            }
+        }
+        #expect(named == Self.offeringsWithoutAPackageCheck, "an exception no gate names any more")
+    }
+
+    /// The markers the downloaded package must carry, and must have been read
+    /// whole without: the offered edition's, and the other's; none for an
+    /// offer no edition gate names, or for an app without them.
     @Test func thePackageMustCarryTheOfferedEditionsMarker() {
         let id = "io.hoppscotch.desktop"
-        #expect(OneClickGateRegistry.packageMarkers(for: id, offering: remote(package: Self.cloudDMG))
-            == [Self.cloudFeed])
-        #expect(OneClickGateRegistry.packageMarkers(for: id, offering: remote(package: Self.selfHostDMG))
-            == [Self.selfHostFeed])
+        let cloud = [
+            OneClickGateRegistry.PackageMarker(marker: Self.cloudFeed, present: true),
+            OneClickGateRegistry.PackageMarker(marker: Self.selfHostFeed, present: false),
+        ]
+        let selfHost = [
+            OneClickGateRegistry.PackageMarker(marker: Self.selfHostFeed, present: true),
+            OneClickGateRegistry.PackageMarker(marker: Self.cloudFeed, present: false),
+        ]
+        #expect(OneClickGateRegistry.packageMarkers(for: id, offering: remote(package: Self.cloudDMG)) == cloud)
+        #expect(OneClickGateRegistry.packageMarkers(for: id, offering: remote(package: Self.selfHostDMG)) == selfHost)
         #expect(OneClickGateRegistry.packageMarkers(
-            for: id, offering: remote(source: "Homebrew", package: "hoppscotch")) == [Self.cloudFeed])
+            for: id, offering: remote(source: "Homebrew", package: "hoppscotch")) == cloud)
         #expect(OneClickGateRegistry.packageMarkers(for: id, offering: nil).isEmpty)
         #expect(OneClickGateRegistry.packageMarkers(
             for: "com.axosoft.gitkraken", offering: remote(package: "App.zip")).isEmpty)

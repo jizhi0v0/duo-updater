@@ -61,7 +61,7 @@ loginWalls = Dictionary(count: 0)
 
 changelogPages = Dictionary(count: 0)
 
-oneClickGates = Array(count: 3)
+oneClickGates = Array(count: 5)
 oneClickGates[0] = struct OneClickGate
 oneClickGates[0].bundleID = "io.hoppscotch.desktop"
 oneClickGates[0].requirement = .installedVersion(pattern:)
@@ -73,12 +73,24 @@ oneClickGates[1].bundleID = "io.hoppscotch.desktop"
 oneClickGates[1].requirement = .executableContains(marker:)
 oneClickGates[1].requirement.marker = "hoppscotch-cloud-desktop.json"
 oneClickGates[1].reason = "this is not a proven Cloud edition copy (Self-Host, or an Intel build) and the update is the Cloud edition; update it from its own updater"
-oneClickGates[1].offering? = "^(?:GitHub:Hoppscotch_mac_(?:aarch64|x64)\\.dmg|Homebrew:hoppscotch)$"
+oneClickGates[1].offering? = "^(?:GitHub:Hoppscotch_mac_aarch64\\.dmg|Homebrew:hoppscotch)$"
 oneClickGates[2] = struct OneClickGate
 oneClickGates[2].bundleID = "io.hoppscotch.desktop"
-oneClickGates[2].requirement = .executableContains(marker:)
+oneClickGates[2].requirement = .executableLacks(marker:)
 oneClickGates[2].requirement.marker = "hoppscotch-selfhost-desktop.json"
-oneClickGates[2].reason = "this is not a proven Self-Host edition copy (Cloud, or an Intel build) and the update is the Self-Host edition; update it from its own updater"
-oneClickGates[2].offering? = "^GitHub:Hoppscotch_SelfHost_mac_(?:aarch64|x64)\\.dmg$"
+oneClickGates[2].reason = "this copy also carries the Self-Host edition's marker, so it is not a proven Cloud edition copy; update it from its own updater"
+oneClickGates[2].offering? = "^(?:GitHub:Hoppscotch_mac_aarch64\\.dmg|Homebrew:hoppscotch)$"
+oneClickGates[3] = struct OneClickGate
+oneClickGates[3].bundleID = "io.hoppscotch.desktop"
+oneClickGates[3].requirement = .executableContains(marker:)
+oneClickGates[3].requirement.marker = "hoppscotch-selfhost-desktop.json"
+oneClickGates[3].reason = "this is not a proven Self-Host edition copy (Cloud, or an Intel build) and the update is the Self-Host edition; update it from its own updater"
+oneClickGates[3].offering? = "^(?:GitHub:Hoppscotch_SelfHost_mac_aarch64\\.dmg|Homebrew:hoppscotch-selfhost)$"
+oneClickGates[4] = struct OneClickGate
+oneClickGates[4].bundleID = "io.hoppscotch.desktop"
+oneClickGates[4].requirement = .executableLacks(marker:)
+oneClickGates[4].requirement.marker = "hoppscotch-cloud-desktop.json"
+oneClickGates[4].reason = "this copy also carries the Cloud edition's marker, so it is not a proven Self-Host edition copy; update it from its own updater"
+oneClickGates[4].offering? = "^(?:GitHub:Hoppscotch_SelfHost_mac_aarch64\\.dmg|Homebrew:hoppscotch-selfhost)$"
 
 loginItemAgentRestarts = Dictionary(count: 0)

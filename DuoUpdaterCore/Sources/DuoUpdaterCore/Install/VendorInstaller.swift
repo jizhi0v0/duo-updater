@@ -89,7 +89,8 @@ public actor VendorInstaller {
         /// speak for these bytes.
         case digestOnlyNeedsTheAsset
         /// The downloaded app does not carry the edition marker of the
-        /// package it was offered as (`OneClickGateRegistry.packageMarkers`).
+        /// package it was offered as, or carries another edition's
+        /// (`OneClickGateRegistry.packageMarkers`).
         case packageEditionMismatch
 
         public var errorDescription: String? {
@@ -420,18 +421,21 @@ public actor VendorInstaller {
         }
 
         // 3c. The edition the offer was gated as (`OneClickGate.offering`):
-        // the package itself must carry that edition's marker, so an asset
-        // whose name says one edition and whose binary is the other cannot
-        // replace a copy of the other. No markers for every app but those
-        // with edition-scoped gates. Before the signature gates only because it
-        // needs no signature to refuse; both run before anything is swapped.
-        for marker in OneClickGateRegistry.packageMarkers(
+        // the package itself must carry that edition's marker and, read whole,
+        // lack the other edition's, so an asset whose name says one edition and
+        // whose binary is the other (or both) cannot replace a copy. No markers
+        // for every app but those with edition-scoped gates. Before the
+        // signature gates only because it needs no signature to refuse; both
+        // run before anything is swapped.
+        for required in OneClickGateRegistry.packageMarkers(
             for: result.app.recipeBundleID, offering: remote) {
             let app = newApp
-            let found = try await offCooperativePool {
-                ExecutableMarker.foundUncached(marker, inMainExecutableOf: app)
+            let presence = await offCooperativePool {
+                ExecutableMarker.presenceUncached(required.marker, inMainExecutableOf: app)
             }
-            guard found else { throw InstallError.packageEditionMismatch }
+            guard presence == (required.present ? .present : .absent) else {
+                throw InstallError.packageEditionMismatch
+            }
         }
 
         // 4. Validate the final app, whether unpacked or reconstructed from a delta.

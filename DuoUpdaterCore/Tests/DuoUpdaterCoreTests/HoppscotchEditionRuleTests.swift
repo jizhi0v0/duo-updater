@@ -115,25 +115,32 @@ import Testing
             environment: InstallEnvironment(isHelperEnabled: false, runningAppPaths: [], stagedSelfUpdates: [:]))
     }
 
-    @Test func eachCopySelectsItsEditionsRule() throws {
+    @Test func eachCopySelectsItsEditionsRule() async throws {
         let rules = Self.registryRules
         #expect(rules.count == 2)
-        func variant(_ literal: String?) throws -> String? {
-            try #require(GitHubReleasesSource.rule(
-                forEditionOf: try copy("26.6.0", literal: literal), among: rules)).variant
+        func variant(_ literal: String?, among rules: [GitHubReleaseRule] = rules) async throws -> String? {
+            let app = try copy("26.6.0", literal: literal)
+            return try #require(await GitHubReleasesSource.rule(forEditionOf: app, among: rules)).variant
         }
-        #expect(try variant(Self.selfHostFeed) == "selfhost")
-        #expect(try variant(Self.cloudFeed) == nil)
+        #expect(try await variant(Self.selfHostFeed) == "selfhost")
+        #expect(try await variant(Self.cloudFeed) == nil)
         // Neither literal (the x64 builds), and no executable: the Cloud rule.
-        #expect(try variant("ch-cloud ch-selfh") == nil)
-        #expect(try variant(nil) == nil)
+        #expect(try await variant("ch-cloud ch-selfh") == nil)
+        #expect(try await variant(nil) == nil)
         // Declaration order does not decide it.
-        #expect(GitHubReleasesSource.rule(
-            forEditionOf: try copy("26.6.0", literal: Self.selfHostFeed), among: rules.reversed())?.variant
-            == "selfhost")
-        #expect(GitHubReleasesSource.rule(
-            forEditionOf: try copy("26.6.0", literal: Self.cloudFeed), among: rules.reversed())?.variant
-            == nil)
+        #expect(try await variant(Self.selfHostFeed, among: rules.reversed()) == "selfhost")
+        #expect(try await variant(Self.cloudFeed, among: rules.reversed()) == nil)
+        // No marked rule among them: the unmarked one, whatever the copy holds.
+        let unmarked = rules.filter { $0.installedExecutableMarker == nil }
+        #expect(try await variant(Self.selfHostFeed, among: unmarked) == nil)
+    }
+
+    /// A copy holding both editions' literals is neither edition: whatever
+    /// rule answers for it, the source's offer is not admitted.
+    @Test func aCopyWithBothMarkersGetsNoOneClick() async throws {
+        let app = try copy("26.5.0", literal: "\(Self.cloudFeed) \(Self.selfHostFeed)")
+        let remote = try #require(try await source().latestVersion(for: app))
+        #expect(!canAutoInstall(app, remote))
     }
 
     /// The gap this closes: a SelfHost copy on 26.6.0 sees the SelfHost-only
@@ -200,6 +207,8 @@ import Testing
     ///
     /// Mutation (run): the 3c loop in `VendorInstaller.verifiedBundle` removed
     /// → the mismatched package is refused by the signature gate instead, red.
+    /// Mutation (run): 3c checking only the markers that must be present →
+    /// the both-marker package reaches the signature gate, red.
     @Test func theInstallerRefusesAPackageOfTheOtherEdition() async throws {
         let installed = try copy("26.5.0", literal: Self.selfHostFeed)
         let remote = RemoteVersion(
@@ -223,6 +232,13 @@ import Testing
         let wrong = await apply(Self.cloudFeed)
         guard case VendorInstaller.InstallError.packageEditionMismatch? = wrong else {
             Issue.record("expected packageEditionMismatch, got \(String(describing: wrong))")
+            return
+        }
+        // Both editions' literals: the SelfHost one is there, the Cloud one
+        // must not be.
+        let both = await apply("\(Self.cloudFeed) \(Self.selfHostFeed)")
+        guard case VendorInstaller.InstallError.packageEditionMismatch? = both else {
+            Issue.record("expected packageEditionMismatch for both markers, got \(String(describing: both))")
             return
         }
         let right = await apply(Self.selfHostFeed)
@@ -276,11 +292,23 @@ import Testing
             from: try JSONEncoder().encode(OneClickGate(
                 bundleID: "zz.fixture", requirement: .installedVersion(pattern: "x"), reason: "r")))
         #expect(unscoped.offering == nil)
-        // Every registered gate and rule round-trips its new field.
+        // Every registered gate and rule round-trips its new field; a gate,
+        // its requirement too (`executableLacks` among them).
+        let sorted = JSONEncoder()
+        sorted.outputFormatting = .sortedKeys
         for gate in OneClickGateRegistry.gates {
             let back = try JSONDecoder().decode(OneClickGate.self, from: try JSONEncoder().encode(gate))
             #expect(back.offering == gate.offering)
+            #expect(try sorted.encode(back) == (try sorted.encode(gate)))
         }
+        let lacks = OneClickGate(
+            bundleID: "zz.fixture", requirement: .executableLacks(marker: "edition-f.json"), reason: "r")
+        let lacksBack = try JSONDecoder().decode(OneClickGate.self, from: try JSONEncoder().encode(lacks))
+        guard case .executableLacks(let marker) = lacksBack.requirement else {
+            Issue.record("decoded as \(lacksBack.requirement)")
+            return
+        }
+        #expect(marker == "edition-f.json")
         for rule in GitHubReleaseRegistry.rules {
             let back = try JSONDecoder().decode(GitHubReleaseRule.self, from: try JSONEncoder().encode(rule))
             #expect(back.installedExecutableMarker == rule.installedExecutableMarker)

@@ -1,6 +1,12 @@
 import Foundation
 
 enum io_hoppscotch_desktop {
+    static let cloudMarker = "hoppscotch-cloud-desktop.json"
+    static let selfHostMarker = "hoppscotch-selfhost-desktop.json"
+    static let cloudOffering = #"^(?:GitHub:Hoppscotch_mac_aarch64\.dmg|Homebrew:hoppscotch)$"#
+    static let selfHostOffering =
+        #"^(?:GitHub:Hoppscotch_SelfHost_mac_aarch64\.dmg|Homebrew:hoppscotch-selfhost)$"#
+
     static let set = AppRecipeSet(
         family: "io-hoppscotch-desktop",
         githubRules: [
@@ -40,7 +46,7 @@ enum io_hoppscotch_desktop {
             installAssetPattern: #"^Hoppscotch_SelfHost_mac_(?:aarch64|x64)\.dmg$"#,
             installerKind: .dmg,
             variant: "selfhost",
-            installedExecutableMarker: "hoppscotch-selfhost-desktop.json"),
+            installedExecutableMarker: selfHostMarker),
         ],
         oneClickGates: [
             // First generation (`Hoppscotch` executable, central-desktop.json
@@ -56,17 +62,32 @@ enum io_hoppscotch_desktop {
             // `…/hoppscotch-selfhost-desktop.json`. The x64 builds hold neither
             // literal whole (only fragments such as `ch-cloud`), so an x64 copy
             // is withheld too. Each edition's package goes only to a copy with
-            // that edition's literal; any other offer for this id (the
-            // `hoppscotch-selfhost` cask among them) is withheld.
+            // that edition's literal and without the other's: a copy (or, in
+            // the installer, a package) holding both is not proven either
+            // edition. Only the arm64 dmgs are named, since only arm64 copies
+            // can pass; an x64 dmg offered to one is withheld before download.
+            // Any other offer for this id is withheld.
             OneClickGate(
                 bundleID: "io.hoppscotch.desktop",
-                requirement: .executableContains(marker: "hoppscotch-cloud-desktop.json"),
+                requirement: .executableContains(marker: cloudMarker),
                 reason: "this is not a proven Cloud edition copy (Self-Host, or an Intel build) and the update is the Cloud edition; update it from its own updater",
-                offering: #"^(?:GitHub:Hoppscotch_mac_(?:aarch64|x64)\.dmg|Homebrew:hoppscotch)$"#),
+                offering: cloudOffering),
             OneClickGate(
                 bundleID: "io.hoppscotch.desktop",
-                requirement: .executableContains(marker: "hoppscotch-selfhost-desktop.json"),
+                requirement: .executableLacks(marker: selfHostMarker),
+                reason: "this copy also carries the Self-Host edition's marker, so it is not a proven Cloud edition copy; update it from its own updater",
+                offering: cloudOffering),
+            // The `hoppscotch-selfhost` cask installs the SelfHost arm64 dmg,
+            // as `hoppscotch` installs the Cloud one.
+            OneClickGate(
+                bundleID: "io.hoppscotch.desktop",
+                requirement: .executableContains(marker: selfHostMarker),
                 reason: "this is not a proven Self-Host edition copy (Cloud, or an Intel build) and the update is the Self-Host edition; update it from its own updater",
-                offering: #"^GitHub:Hoppscotch_SelfHost_mac_(?:aarch64|x64)\.dmg$"#),
+                offering: selfHostOffering),
+            OneClickGate(
+                bundleID: "io.hoppscotch.desktop",
+                requirement: .executableLacks(marker: cloudMarker),
+                reason: "this copy also carries the Cloud edition's marker, so it is not a proven Self-Host edition copy; update it from its own updater",
+                offering: selfHostOffering),
         ])
 }

@@ -834,7 +834,7 @@ public struct GitHubReleasesSource: UpdateSource {
         //
         // Within the channel, an edition-marked rule answers for the copies
         // whose executable carries its marker (`installedExecutableMarker`).
-        guard let detectedRule = Self.rule(
+        guard let detectedRule = await Self.rule(
             forEditionOf: app, among: candidates.filter { $0.channel == app.releaseChannel })
         else {
             Log.source.info(
@@ -860,15 +860,20 @@ public struct GitHubReleasesSource: UpdateSource {
     /// The rule among `rules` (one channel's) that answers for `app`: the first
     /// edition-marked rule whose marker the copy's executable contains, else the
     /// first unmarked rule. The executable is read only when a marked rule is
-    /// present, through `ExecutableMarker`'s cache.
+    /// present, through `ExecutableMarker`'s cache, and off the cooperative
+    /// pool (`offCooperativePool`): a cold read is the whole file, tens of MB.
     static func rule(
         forEditionOf app: InstalledApp, among rules: [GitHubReleaseRule]
-    ) -> GitHubReleaseRule? {
-        let edition = rules.first { rule in
-            guard let marker = rule.installedExecutableMarker else { return false }
-            return ExecutableMarker.found(marker, inMainExecutableOf: app.path)
+    ) async -> GitHubReleaseRule? {
+        let unmarked = rules.first { $0.installedExecutableMarker == nil }
+        let markers = rules.compactMap(\.installedExecutableMarker)
+        guard !markers.isEmpty else { return unmarked }
+        let bundle = app.path
+        let found = await offCooperativePool {
+            markers.first { ExecutableMarker.found($0, inMainExecutableOf: bundle) }
         }
-        return edition ?? rules.first { $0.installedExecutableMarker == nil }
+        guard let found else { return unmarked }
+        return rules.first { $0.installedExecutableMarker == found }
     }
 
     /// Resolve an otherwise-undetectable channel from the exact release that

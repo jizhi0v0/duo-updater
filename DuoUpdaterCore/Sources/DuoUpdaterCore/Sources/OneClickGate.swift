@@ -181,7 +181,8 @@ public enum OneClickGateRegistry {
 
     /// The first gate for `app` that does not admit it, or nil when every gate
     /// does (or the app has none — every app but a few).
-    /// `fresh` re-reads what a gate caches (`OneClickGate.admits(_:fresh:)`).
+    /// `fresh` bypasses the `.executableContains` verdict cache only
+    /// (`OneClickGate.admits(_:fresh:)`); other requirements answer as usual.
     public static func withholding(_ app: InstalledApp, fresh: Bool = false) -> OneClickGate? {
         guard let id = app.recipeBundleID?.lowercased(), let candidates = byBundleID[id] else { return nil }
         return candidates.first { !$0.admits(app, fresh: fresh) }

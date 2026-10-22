@@ -221,9 +221,52 @@ struct OneClickGateTests {
         #expect(ExecutableMarker.found(Self.marker, inMainExecutableOf: bundle))
         #expect(!ExecutableMarker.found(Self.marker, inMainExecutableOf: bundle, fresh: true))
         #expect(!ExecutableMarker.found(Self.marker, inMainExecutableOf: bundle))
-        // The install-time gate goes through `fresh`.
-        let copy = app("io.hoppscotch.desktop", "26.9.0", at: bundle)
+    }
+
+    /// A Cloud copy whose verdict is cached as admitted, then turned into
+    /// Self-Host in place with the executable's device, inode, size and mtime
+    /// kept: the cache still says Cloud, the copy on disk is not.
+    private func cloudCachedButNowSelfHost() throws -> InstalledApp {
+        // Padded to the Self-Host feed's length, so the swap keeps the size.
+        let cloud = "hoppscotch-cloud-desktop.json\0\0\0"
+        let selfHost = "hoppscotch-selfhost-desktop.json"
+        precondition(cloud.utf8.count == selfHost.utf8.count)
+        let bundle = try tauriBundle(
+            plist: ["CFBundleExecutable": "hoppscotch-desktop"], executable: hoppscotchExecutable(feed: cloud))
+        let copy = app("io.hoppscotch.desktop", "26.8.2", at: bundle)
+        #expect(OneClickGateRegistry.withholding(copy) == nil)
+        let path = executablePath(of: bundle)
+        let before = ExecutableMarker.FileIdentity(atPath: path)
+        let time = modified(path)
+        try overwrite(path, with: hoppscotchExecutable(feed: selfHost))
+        setModified(path, time)
+        #expect(ExecutableMarker.FileIdentity(atPath: path) == before)
+        #expect(OneClickGateRegistry.withholding(copy) == nil, "the offer answers from the cache")
+        return copy
+    }
+
+    /// The install-time ask (`fresh`) reads the swapped copy, not the cache.
+    @Test func theFreshAskSeesACopyTheCacheDoesNot() throws {
+        let copy = try cloudCachedButNowSelfHost()
         #expect(OneClickGateRegistry.withholding(copy, fresh: true) != nil)
+    }
+
+    /// The coordinator's gate is that fresh ask. The offer has no download URL,
+    /// so a gate that let the copy through fails on something else, offline.
+    @Test func theCoordinatorReadsTheCopyAsItIsNow() async throws {
+        let copy = try cloudCachedButNowSelfHost()
+        let result = UpdateResult(
+            app: copy,
+            remote: RemoteVersion(
+                shortVersion: "99.0", version: nil, downloadURL: nil,
+                sourceName: "GitHub", vendorInstallerKind: .dmg),
+            status: .updateAvailable(latest: "99.0"))
+        let coordinator = InstallCoordinator(permits: InstallPermits(downloads: 1, applies: 1))
+        await #expect(throws: OneClickGateRegistry.Withheld.self) {
+            _ = try await coordinator.perform(
+                result, route: .vendor, installedPopulation: [copy],
+                digestOnlyAllowed: false, progress: { _ in })
+        }
     }
 
     @Test func aChangedExecutableOrPlistIsReadAgain() throws {

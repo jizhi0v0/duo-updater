@@ -1121,8 +1121,10 @@ struct WorkbenchWindowView: View {
                 let notices = CLIToolPresentation.nodeNotices(
                     ofPrefix: prefix, statuses: model.cliTools.statuses, in: model.runtimeSecurity)
                 if let help = CLIToolPresentation.securityMarkHelp(notices) {
+                    let statuses = model.cliTools.statuses, report = model.runtimeSecurity
                     RuntimeSecurityMarkButton(
-                        help: help, title: cliToolHeaderSummary(group) ?? group.kind.displayName, notices: notices)
+                        help: help, title: cliToolHeaderSummary(group) ?? group.kind.displayName, notices: notices,
+                        upgrade: { CLIToolPresentation.upgradeCommand(ofPrefix: prefix, statuses: statuses, in: report) })
                         .font(.caption)
                 }
             }
@@ -2415,16 +2417,30 @@ private struct BrewHeadNotice: View {
 /// A command shown for the user to run, with a copy button that confirms.
 private struct CopyableCommandBox: View {
     let command: String
+    /// False never breaks the command at its spaces, which reads as several
+    /// commands: each `&&` step gets a line of its own, shrunk to fit rather
+    /// than cut off. (A sideways scroll hid the end — "fnm default 24.22." on
+    /// the real Mac — with nothing to say there was more.)
+    var wraps = true
 
     @State private var copied = false
     @State private var copiedResetTask: Task<Void, Never>?
 
     var body: some View {
         HStack(spacing: 8) {
-            Text(command)
-                .font(.system(.body, design: .monospaced))
+            if wraps {
+                commandText.fixedSize(horizontal: false, vertical: true)
+            } else {
+                VStack(alignment: .leading, spacing: 2) {
+                    ForEach(Array(Self.steps(command).enumerated()), id: \.offset) { _, step in
+                        Text(step)
+                            .font(.system(.body, design: .monospaced))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                    }
+                }
                 .textSelection(.enabled)
-                .fixedSize(horizontal: false, vertical: true)
+            }
             Spacer()
             Button {
                 NSPasteboard.general.clearContents()
@@ -2445,6 +2461,18 @@ private struct CopyableCommandBox: View {
         }
         .padding(10)
         .background(.quaternary, in: RoundedRectangle(cornerRadius: 6))
+    }
+
+    private var commandText: some View {
+        Text(command)
+            .font(.system(.body, design: .monospaced))
+            .textSelection(.enabled)
+    }
+
+    /// `a && b` as `a` and `&& b`, for display only; the copy is the command.
+    static func steps(_ command: String) -> [String] {
+        let parts = command.components(separatedBy: " && ")
+        return [parts[0]] + parts.dropFirst().map { "&& " + $0 }
     }
 }
 
@@ -2656,6 +2684,9 @@ private struct RuntimeSecurityMarkButton: View {
     /// Which node: the header's "nvm · node 24.13.0".
     let title: String
     let notices: [RuntimeSecurityNotice]
+    /// The command to copy for an nvm or fnm node (`NodeUpgradeCommand`). Asked
+    /// only when the popover opens: it reads the manager's default alias.
+    let upgrade: () -> NodeUpgradeCommand?
 
     @State private var showing = false
 
@@ -2684,26 +2715,49 @@ private struct RuntimeSecurityMarkButton: View {
     }
 
     private var detail: some View {
-        HStack(alignment: .top, spacing: 12) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .font(.system(size: 26))
-                .foregroundStyle(.orange)
-            VStack(alignment: .leading, spacing: 4) {
-                Text(verbatim: title).font(.headline)
-                Text(underliningLinks(CLIToolPresentation.securityNotice(notices)))
+        detail(upgrade: upgrade())
+    }
+
+    private func detail(upgrade: NodeUpgradeCommand?) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: 26))
+                    .foregroundStyle(.orange)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(verbatim: title).font(.headline)
+                    Text(underliningLinks(CLIToolPresentation.securityNotice(notices)))
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        // NSWorkspace rather than SwiftUI's own `openURL`, which
+                        // errors -50 in this app's windows (see `AlcoveSettingsPage`).
+                        .environment(\.openURL, OpenURLAction { url in
+                            NSWorkspace.shared.open(url)
+                            return .handled
+                        })
+                }
+            }
+            // Handed out, never run: installing beside the old version and
+            // moving packages is the user's to decide. The whole popover's
+            // width, not the text column's, and never broken mid-step: fnm's
+            // `install … && fnm default …` broke into three at 300 pt.
+            if let upgrade {
+                Text("To update it yourself, run:")
                     .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    // NSWorkspace rather than SwiftUI's own `openURL`, which
-                    // errors -50 in this app's windows (see `AlcoveSettingsPage`).
-                    .environment(\.openURL, OpenURLAction { url in
-                        NSWorkspace.shared.open(url)
-                        return .handled
-                    })
+                    .padding(.top, 4)
+                CopyableCommandBox(command: upgrade.command, wraps: false)
+                ForEach([CLIToolPresentation.packagesLeftBehind(upgrade),
+                         CLIToolPresentation.replacedDefault(upgrade)].compactMap { $0 }, id: \.self) { line in
+                    Text(line)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
         }
         .padding(14)
-        .frame(width: 300, alignment: .leading)
+        .frame(width: upgrade == nil ? 300 : 420, alignment: .leading)
     }
 }
 

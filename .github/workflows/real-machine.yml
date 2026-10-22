@@ -1,0 +1,42 @@
+# A pull request that changes product code must carry a real-machine record in
+# its description, or a `Real-machine: not needed — <reason>` line. The rule,
+# its exemptions and what it cannot see: scripts/check_real_machine_record.py.
+#
+# Its own workflow, not a job in ci.yml, because it must run again when the
+# description is edited (`edited`), and ci.yml must not: that would rebuild and
+# retest everything and, through its cancel-in-progress group, cancel the build
+# already running. Linux, a sparse checkout and two API reads, so it takes none
+# of the five macOS slots and waits on nothing.
+#
+# The script reads the description and the file list from the API when it
+# runs, not from the event payload, so a re-run sees the current description.
+name: Real-machine record
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, edited, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: real-machine-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  real-machine:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: scripts/check_real_machine_record.py
+          sparse-checkout-cone-mode: false
+
+      - name: Description has a real-machine record
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: python3 scripts/check_real_machine_record.py --pr "$PR"

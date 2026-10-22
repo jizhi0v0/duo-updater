@@ -26,6 +26,12 @@
       "consecutiveInstallTransient" : 0,
       "sweepsSinceComment" : 0
     },
+    "install:github:EpicenterHQ\/epicenter:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
     "install:github:Eugeny\/tabby:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
@@ -68,7 +74,25 @@
       "consecutiveInstallTransient" : 0,
       "sweepsSinceComment" : 0
     },
+    "install:github:MaddTheSane\/Simple-Comic:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
+    "install:github:MarcoEidinger\/SwiftPlantUML-Xcode-Extension:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
     "install:github:MarkEdit-app\/MarkEdit:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
+    "install:github:Molunerfinn\/PicGo:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
@@ -81,6 +105,12 @@
       "sweepsSinceComment" : 0
     },
     "install:github:MuhammedKalkan\/OpenLens:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
+    "install:github:RSSNext\/Folo:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
@@ -158,7 +188,19 @@
       "consecutiveInstallTransient" : 0,
       "sweepsSinceComment" : 0
     },
+    "install:github:alichtman\/deadbolt:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
     "install:github:alienator88\/Pearcleaner:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
+    "install:github:alienator88\/Sentinel:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
@@ -230,6 +272,12 @@
       "consecutiveInstallTransient" : 0,
       "sweepsSinceComment" : 0
     },
+    "install:github:bdash-app\/bdash:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
     "install:github:beekeeper-studio\/beekeeper-studio:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
@@ -243,14 +291,14 @@
       "sweepsSinceComment" : 0
     },
     "install:github:chekusu\/yomado:stable" : {
-      "consecutiveActionable" : 12,
+      "consecutiveActionable" : 13,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 1489,
       "lastCommentedAt" : "2026-10-19T17:53:52Z",
       "lastSignature" : "identityChanged: Sparkle key none → knah",
       "previousSignature" : "identityChanged: Sparkle key none → knah",
-      "sweepsSinceComment" : 10
+      "sweepsSinceComment" : 11
     },
     "install:github:cjpais\/Handy:stable" : {
       "consecutiveActionable" : 0,
@@ -259,6 +307,12 @@
       "sweepsSinceComment" : 0
     },
     "install:github:clash-verge-rev\/clash-verge-rev:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
+    "install:github:cordwainersmith\/Claudoscope:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
@@ -336,6 +390,12 @@
       "consecutiveInstallTransient" : 0,
       "sweepsSinceComment" : 0
     },
+    "install:github:divamgupta\/diffusionbee-stable-diffusion-ui:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
     "install:github:dominikmartn\/harp:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
@@ -396,7 +456,19 @@
       "consecutiveInstallTransient" : 0,
       "sweepsSinceComment" : 0
     },
+    "install:github:gglucass\/headroom-desktop:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
     "install:github:github\/app:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
+    "install:github:glushchenko\/fsnotes:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
@@ -440,6 +512,18 @@
       "consecutiveInstallTransient" : 0,
       "sweepsSinceComment" : 0
     },
+    "install:github:kageroumado\/adrafinil:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
+    "install:github:kageroumado\/phosphene:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
     "install:github:keepassxreboot\/keepassxc:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
@@ -447,6 +531,12 @@
       "sweepsSinceComment" : 0
     },
     "install:github:kenn-io\/agentsview:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
+    "install:github:kohii\/smoothcsv3:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
@@ -482,6 +572,12 @@
       "consecutiveInstallTransient" : 0,
       "sweepsSinceComment" : 0
     },
+    "install:github:logseq\/logseq:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
     "install:github:m1ckc3s\/claude-status-bar:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
@@ -507,6 +603,12 @@
       "sweepsSinceComment" : 0
     },
     "install:github:makecindy\/cindy:stable:global" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
+    "install:github:massCodeIO\/massCode:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
@@ -602,6 +704,18 @@
       "consecutiveInstallTransient" : 0,
       "sweepsSinceComment" : 0
     },
+    "install:github:nickustinov\/itsypad-macos:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
+    "install:github:nickustinov\/itsytv-macos:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
     "install:github:obelus-editor\/obelus:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
@@ -639,6 +753,12 @@
       "sweepsSinceComment" : 0
     },
     "install:github:ollama\/ollama:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
+    "install:github:onebadidea\/swiftquit:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
@@ -704,6 +824,12 @@
       "consecutiveInstallTransient" : 0,
       "sweepsSinceComment" : 0
     },
+    "install:github:readest\/readest:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
     "install:github:redis\/RedisInsight:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
@@ -711,6 +837,12 @@
       "sweepsSinceComment" : 0
     },
     "install:github:reviu-dev\/reviu:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
+    "install:github:rohanrhu\/MacsyZones:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
@@ -837,6 +969,12 @@
       "sweepsSinceComment" : 0
     },
     "install:github:utmapp\/UTM:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
+    "install:github:vercel\/hyper:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
@@ -1952,5 +2090,5 @@
     }
   },
   "schemaVersion" : 1,
-  "updatedAt" : "2026-10-22T01:55:39Z"
+  "updatedAt" : "2026-10-22T10:43:08Z"
 }

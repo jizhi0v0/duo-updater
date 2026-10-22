@@ -31,7 +31,12 @@ A covered PR's description must have one of:
       `Real machine`, or 真机) and is not a pending placeholder, whose heading
       or body has a date (YYYY-MM-DD) and whose body has at least one result
       line: a list item, a table row or a line of a fenced code block. The
-      onboarding PRs write `## Real-machine result (2026-10-22)`;
+      onboarding PRs write `## Real-machine result (2026-10-22)`. A heading
+      with pending wording (`PENDING`: "pending", "not done", "for the main
+      session", 待, 未跑 …) is a placeholder, whatever else it has. An
+      unticked `- [ ]` item is a plan, not a result, and neither is a line with
+      pending wording unless it also marks an outcome (✓ ✔ ✗ ✘): "✓ round 1;
+      round 2 未跑" is a result, "round 2 not done yet" is not;
 
   (b) an opt-out line, for a refactor, test-only change or internal plumbing
       that has no behaviour to see on a machine:
@@ -80,7 +85,16 @@ EXEMPT_BRANCHES = (
 
 HEADING = re.compile(r"^(#{1,6})\s+(.*?)\s*#*\s*$")
 RECORD_HEADING = re.compile(r"real[- ]machine|真机", re.IGNORECASE)
-PENDING = re.compile(r"pending|待|\btodo\b|not run|未跑|未验", re.IGNORECASE)
+# The wording this repository's descriptions use for a run nobody did yet:
+# "Real machine: pending (main session)", 真机：待主会话, #1588's "Not done here
+# (real-machine checks for the main session)".
+PENDING = re.compile(
+    r"pending|待|\btodo\b|\bto do\b|not run|not done|not yet|planned|"
+    r"for the main session|未跑|未验|未做|没跑|没做",
+    re.IGNORECASE,
+)
+UNTICKED = re.compile(r"^\s*(?:[-*+]|\d+[.)])\s+\[ \]")
+OUTCOME = re.compile(r"[✓✔✗✘]")
 DATE = re.compile(r"\b(20\d\d)-(\d\d)-(\d\d)\b")
 RESULT_LINE = re.compile(r"^\s*(?:[-*+]|\d+[.)])\s+\S|^\s*\|")
 TABLE_RULE = re.compile(r"^\s*\|[\s:|-]*\|?\s*$")
@@ -161,7 +175,9 @@ def record_sections(body):
             dated = dated or _has_date(text)
             if fenced and text.strip():
                 results += 1
-            elif not fenced and RESULT_LINE.match(text) and not TABLE_RULE.match(text):
+            elif (not fenced and RESULT_LINE.match(text)
+                  and not TABLE_RULE.match(text) and not UNTICKED.match(text)
+                  and (OUTCOME.search(text) or not PENDING.search(text))):
                 results += 1
         sections.append((title, dated, results))
     return sections

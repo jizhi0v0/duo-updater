@@ -72,6 +72,32 @@ class CheckRealMachineRecordTests(unittest.TestCase):
         self.assertFalse(check("## 真机：待主会话 2026-10-22\n- later\n"))
         self.assertTrue(check("## 真机结果 (2026-10-22)\n- ✓\n"))
 
+    def test_a_dated_not_done_section_is_not_a_record(self):
+        # #1588's heading, with the date its failure message asked for.
+        body = (
+            "## Not done here (real-machine checks for the main session) 2026-10-22\n"
+            "- Tropy: `duo restart Tropy` with 1.17.3 staged\n"
+        )
+        self.assertFalse(check(body))
+        self.assertFalse(check(body.replace("Not done here", "Checks")))
+        self.assertTrue(check(body.replace(" for the main session", "").replace("Not done here", "Done")))
+        self.assertFalse(check("## Real-machine run: not yet (2026-10-22)\n- ✓\n"))
+        self.assertFalse(check("## 真机：未做 (2026-10-22)\n- ✓\n"))
+
+    def test_an_unticked_item_is_not_a_result(self):
+        body = "## Real-machine result (2026-10-22)\n- [ ] run one-click on the dev Mac\n"
+        self.assertFalse(check(body))
+        self.assertFalse(check(body.replace("- [ ]", "1. [ ]")))
+        self.assertTrue(check(body.replace("[ ]", "[x]")))
+
+    def test_a_pending_line_is_not_a_result_unless_it_marks_an_outcome(self):
+        body = "## Real-machine result (2026-10-22)\n- round 2 not done yet\n"
+        self.assertFalse(check(body))
+        self.assertFalse(check(body.replace("not done yet", "planned for the main session")))
+        # #1576's line: one round passed, the other was not run.
+        self.assertTrue(check(body.replace(
+            "round 2 not done yet", "一键端到端 ✓ 不运行一轮（运行中一轮未跑：启动会弹本地网络授权框）")))
+
     def test_a_heading_inside_a_code_block_is_not_read(self):
         body = "```\n" + RECORD + "```\n"
         self.assertFalse(check(body))

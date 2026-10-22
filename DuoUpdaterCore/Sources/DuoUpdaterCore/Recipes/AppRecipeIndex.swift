@@ -71,6 +71,7 @@ public enum AppRecipeIndex {
         com_cu4uc_mounty.set,
         com_culturedcode_ThingsMac.set,
         com_DanPristupov_Fork.set,
+        com_diffusionbee_diffusionbee.set,
         com_dirijor_diri.set,
         com_docker_docker.set,
         com_dominikmartn_Harp.set,

@@ -323,6 +323,7 @@ public enum AppRecipeIndex {
         org_rustgis_RustGIS.set,
         org_tabby.set,
         org_torproject_torbrowser.set,
+        org_tropy_tropy.set,
         org_upscayl_Upscayl.set,
         org_videolan_vlc.set,
         org_whispersystems_signal_desktop.set,

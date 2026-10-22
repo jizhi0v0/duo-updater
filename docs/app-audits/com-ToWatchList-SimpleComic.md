@@ -38,7 +38,7 @@
   - 锚定：`App-Store-2.0`、`App-Store-2.0.0`、`2.0.0` 读得出；`App-Store-2.0.0-beta`、`App-Store-2.0.0-rc.1`、`2.0.0b1` 不读（Python `re` 跑过同一个正则）。
 - 资产: `^Simple\.Comic(?:\.app)?(?:\.[0-9]+(?:\.[0-9]+)+)?\.zip$`。历史资产名换过四种：`Simple.Comic.<v>.zip`（1.9.4/1.9.5/1.9.8/1.9.9）、`Simple.Comic.zip`（1.9.7）、`Simple.Comic.app.zip`（1.9.1/1.9.2/1.9.6）、`Simple.Comic.app.<v>.zip`（1.9.3），全部匹配；`Source code.zip`、`.dmg`、`.zip.sha256` 不匹配。
   - 分诊的「不少 release 没有 mac 资产」**不成立**：脚手架只认 `Simple.Comic.<v>.zip`，所以把 1.9.7/1.9.6/1.9.3/1.9.2 报成没有 macOS 包；实际上 10 个 release 里 9 个各有一个 zip，只有 `App-Store-1.8.8` 一个资产都没有。
-  - `/releases/latest` 指向的 release 没有匹配资产时：引擎回落到 `/releases?per_page=20`、去掉 prerelease/draft 后往回走，最多跳过 `maxReleasesWithoutMacOSAsset` 个没资产的 release（`GitHubReleasesSource.resolve`）。按现在的资产 pattern，只有 1.8.8 会被跳过；下一版若再换资产名（第五种），会表现为停在旧版本并记 `no release carries an asset matching` 错误日志，而不是装错东西。
+  - `/releases/latest` 指向的 release 没有匹配资产时：引擎回落到 `/releases?per_page=20`、去掉 prerelease/draft 后往回走，最多跳过 `maxReleasesWithoutMacOSAsset` 个没资产的 release（`GitHubReleasesSource.settle`）。按现在的资产 pattern，只有 1.8.8 会被跳过。下一版若再换资产名（第五种），最新那个 release 被跳过，往回走到 1.9.9 就匹配，`recordSuccess` 记成功：**不记** `no release carries an asset matching` 错误日志，健康状态保持绿，提供的版本停在 1.9.9（不会装错东西，但也不会提示新版）。唯一的信号是诊断里的警告：被跳过的更新 release 若带看着像 macOS 安装包的资产，报 `installAssetRenamed`，否则报 `installAssetMissing`（`resolveDiagnostic` 经 `skippedReleaseWarning` 给出）。那条错误日志加 `recordMiss` 只在整页都没有匹配资产、或连续跳过的 release 超过 `maxReleasesWithoutMacOSAsset`（5）个时才出现，而这个仓库有 9 个带 zip 的 release，前一种不会发生。
 - 注意事项: 1.9.9 之后（2025-01）没有新 release。
 
 ## 按架构 / 按 OS 分轨

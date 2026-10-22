@@ -625,7 +625,7 @@ public actor InstallCoordinator {
             // returns normally with the permit held (see `waitForDownloadOrCancel`).
             try Task.checkCancellation()
             let agents = snapshotLoginItemAgents(result)
-            try await homebrew.upgrade(caskToken: token) { line in
+            try await homebrew.upgrade(caskToken: token, app: result.app.path) { line in
                 progress(.runningCommand(line))
             }
             permits.signalApply()

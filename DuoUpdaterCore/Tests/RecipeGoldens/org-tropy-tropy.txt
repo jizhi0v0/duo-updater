@@ -1,0 +1,86 @@
+// Generated from AppRecipeIndex.all by RecipeGoldenTests. Do not edit by hand.
+// Regenerate: DUO_RECORD_RECIPE_GOLDENS=1 swift test --package-path DuoUpdaterCore --filter RecipeGoldenTests
+
+family = "org-tropy-tropy"
+
+probes = Array(count: 0)
+
+changelogs = Array(count: 0)
+
+githubRules = Array(count: 3)
+githubRules[0] = struct GitHubReleaseRule
+githubRules[0].bundleID = "org.tropy.tropy"
+githubRules[0].owner = "tropy"
+githubRules[0].repo = "tropy"
+githubRules[0].usePrereleases = false
+githubRules[0].listPageSize = 20
+githubRules[0].versionPattern = "^v?([0-9]+(?:\\.[0-9]+)+)$"
+githubRules[0].candidateScope = .newest
+githubRules[0].probesNewestFirst = true
+githubRules[0].installedTagPrefix = nil
+githubRules[0].channel = .stable
+githubRules[0].installAssetPattern? = "^tropy-[0-9]+(?:\\.[0-9]+)+-darwin-arm64\\.zip$"
+githubRules[0].installerKind? = .zip
+githubRules[0].installTrust = .developerID
+githubRules[0].variant = nil
+githubRules[0].architectureRequirement = nil
+githubRules[0].tagRefPrefix = nil
+githubRules[0].installedExecutableMarker = nil
+githubRules[1] = struct GitHubReleaseRule
+githubRules[1].bundleID = "org.tropy.tropy-beta"
+githubRules[1].owner = "tropy"
+githubRules[1].repo = "tropy"
+githubRules[1].usePrereleases = true
+githubRules[1].listPageSize = 8
+githubRules[1].versionPattern = "^v?([0-9]+(?:\\.[0-9]+)+-beta\\.[0-9]+)$"
+githubRules[1].candidateScope = .newest
+githubRules[1].probesNewestFirst = true
+githubRules[1].installedTagPrefix = nil
+githubRules[1].channel = .beta
+githubRules[1].installAssetPattern? = "^tropy-[0-9]+(?:\\.[0-9]+)+-beta\\.[0-9]+-darwin-arm64\\.zip$"
+githubRules[1].installerKind? = .zip
+githubRules[1].installTrust = .developerID
+githubRules[1].variant = nil
+githubRules[1].architectureRequirement = nil
+githubRules[1].tagRefPrefix = nil
+githubRules[1].installedExecutableMarker = nil
+githubRules[2] = struct GitHubReleaseRule
+githubRules[2].bundleID = "org.tropy.tropy"
+githubRules[2].owner = "tropy"
+githubRules[2].repo = "tropy"
+githubRules[2].usePrereleases = true
+githubRules[2].listPageSize = 8
+githubRules[2].versionPattern = "^v?([0-9]+(?:\\.[0-9]+)+-beta\\.[0-9]+)$"
+githubRules[2].candidateScope = .newest
+githubRules[2].probesNewestFirst = true
+githubRules[2].installedTagPrefix = nil
+githubRules[2].channel = .beta
+githubRules[2].installAssetPattern = nil
+githubRules[2].installerKind = nil
+githubRules[2].installTrust = .developerID
+githubRules[2].variant? = "stable-id"
+githubRules[2].architectureRequirement = nil
+githubRules[2].tagRefPrefix = nil
+githubRules[2].installedExecutableMarker = nil
+
+appStoreCases = Array(count: 0)
+
+channelProofs = Dictionary(count: 0)
+
+githubChannelProofs = Dictionary(count: 1)
+githubChannelProofs[ChannelProofKey(bundleID: "org.tropy.tropy-beta", channel: .beta)] = .artifact(_:)
+githubChannelProofs[ChannelProofKey(bundleID: "org.tropy.tropy-beta", channel: .beta)].0 = "/download/v[0-9.]+-beta\\.[0-9]+/tropy-[0-9.]+-beta\\.[0-9]+-darwin-arm64\\.zip$"
+
+bindingProofs = Dictionary(count: 0)
+
+sparkleFeeds = Dictionary(count: 0)
+
+supersededFeeds = Dictionary(count: 0)
+
+loginWalls = Dictionary(count: 0)
+
+changelogPages = Dictionary(count: 0)
+
+oneClickGates = Array(count: 0)
+
+loginItemAgentRestarts = Dictionary(count: 0)

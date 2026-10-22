@@ -634,6 +634,100 @@ struct CLIToolPayloadPresentationTests {
         #expect(linked.contains(.init(label: "Linked to", value: "~/src/openclaw")))
     }
 
+    /// An npm prefix's node notices are its own node's — by the prefix's path,
+    /// or for Homebrew's node by its keg — and its packages' Node fact carries
+    /// none: they are said once, on the prefix's header.
+    ///
+    /// Mutation: match any node install in `nodeNotices` → a prefix on another
+    /// node gets these too.
+    @Test func anNpmPackagesNodeNoticesAreItsOwnNodes() {
+        let prefix = CLIToolFixtures.nvm("24.13.0")
+        let notices: [RuntimeSecurityNotice] = [
+            .nodeSecurityReleases(installed: "24.13.0", count: 4, latest: "24.22.1", latestDate: "2026-10-20"),
+            .nodeEndOfLife(major: "24", date: "2028-04-30")]
+        let report = RuntimeSecurityReport(entries: [.init(
+            install: RuntimeInstall(kind: .node, version: "24.13.0", origin: .manager(.nvm, prefix: prefix.path)),
+            notices: notices)])
+        #expect(CLIToolPresentation.facts(of: F.npm(), home: Self.home).first { $0.label == "Node" }?.value
+            == "24.13.0 · Signed by Node.js Foundation (Team HX7739G8FX)")
+        let other = F.npm(F.npmInstall(prefix: CLIToolFixtures.nvm("22.0.0")))
+        #expect(CLIToolPresentation.nodeNotices(ofPrefix: prefix, statuses: [F.npm()], in: report) == notices)
+        #expect(CLIToolPresentation.nodeNotices(
+            ofPrefix: CLIToolFixtures.nvm("22.0.0"), statuses: [other], in: report).isEmpty)
+    }
+
+    /// Homebrew's node, on the system prefix, is matched by the keg its
+    /// packages' `bin/node` resolves into.
+    @Test func aSystemPrefixsNodeIsMatchedByItsKeg() {
+        let prefix = NodePrefix(path: "/opt/homebrew", source: .system, layoutNodeVersion: "26.12.0")
+        let keg = "/zzfixture/Cellar/node/26.12.0"
+        let base = F.npmInstall(prefix: prefix)
+        let install = NpmInstall(
+            path: base.path, name: base.name, version: base.version, manifestName: base.manifestName, prefix: prefix,
+            runtime: NpmRuntime(node: "/opt/homebrew/bin/node", npm: nil, npmVersion: nil, nodeSignature: .adHoc,
+                                nodeQuarantined: false, nodeVersion: "26.12.0", homebrewKeg: keg),
+            linkTarget: nil, ownUpdate: nil)
+        let notices: [RuntimeSecurityNotice] = [
+            .nodeSecurityReleases(installed: "26.12.0", count: 1, latest: "26.12.1", latestDate: "2026-10-21")]
+        let report = RuntimeSecurityReport(entries: [.init(
+            install: RuntimeInstall(kind: .node, version: "26.12.0", origin: .homebrew(formula: "node", keg: keg)),
+            notices: notices)])
+        #expect(CLIToolPresentation.nodeNotices(ofPrefix: prefix, statuses: [F.npm(install)], in: report) == notices)
+        #expect(CLIToolPresentation.nodeNotices(ofPrefix: prefix, statuses: [], in: report).isEmpty)
+    }
+
+    /// The header popover's command: fnm's names the prefix's packages it
+    /// leaves behind; an end of life alone has none.
+    @Test func theHeaderPopoverHandsOutTheCommand() {
+        let prefix = NodePrefix(
+            path: "/zzfixture/fnm/node-versions/v24.12.0/installation", source: .fnm, layoutNodeVersion: "24.12.0")
+        let install = RuntimeInstall(kind: .node, version: "24.12.0", origin: .manager(.fnm, prefix: prefix.path))
+        let statuses = [F.npm(F.npmInstall(prefix: prefix))]
+        let report = RuntimeSecurityReport(entries: [.init(install: install, notices: [
+            .nodeSecurityReleases(installed: "24.12.0", count: 5, latest: "24.22.1", latestDate: "2026-10-20")])])
+        let upgrade = CLIToolPresentation.upgradeCommand(ofPrefix: prefix, statuses: statuses, in: report)
+        #expect(upgrade?.command == "fnm install 24.22.1")
+        #expect(upgrade.flatMap(CLIToolPresentation.packagesLeftBehind)
+            == "Global packages that stay with 24.12.0 include: openclaw. Reinstall them under 24.22.1 with npm install -g.")
+        #expect(upgrade.flatMap(CLIToolPresentation.replacedDefault) == nil)
+        let eol = RuntimeSecurityReport(entries: [.init(install: install, notices: [.nodeEndOfLife(major: "24", date: "2026-01-01")])])
+        #expect(CLIToolPresentation.upgradeCommand(ofPrefix: prefix, statuses: statuses, in: eol) == nil)
+    }
+
+    /// A mark only where there are notices; its tooltip is their sentences.
+    ///
+    /// Mutation: drop `guard !notices.isEmpty` → every npm group header and
+    /// every formula row grows an empty ⚠.
+    @Test func theSecurityMarkIsOnlyForNotices() {
+        #expect(CLIToolPresentation.securityMarkHelp([]) == nil)
+        #expect(CLIToolPresentation.securityMarkHelp([.phpEndOfLife(branch: "8.1", date: "2025-12-31")])
+            == "PHP 8.1 reached end of security support on 2025-12-31.")
+    }
+
+    /// A formula's notice block: each notice a sentence, each release or
+    /// advisory it names a link to the publisher's page.
+    @Test func aFormulasSecurityNoticeLinksWhatItNames() {
+        let node = CLIToolPresentation.securityNotice([
+            .nodeSecurityReleases(installed: "26.12.0", count: 1, latest: "26.12.1", latestDate: "2026-10-21"),
+            .nodeEndOfLife(major: "26", date: "2026-01-01"),
+        ])
+        #expect(String(node.characters)
+            == "Newer Node.js 26 releases marked as security releases by nodejs.org: 1, the latest 26.12.1."
+            + " Node.js 26 reached end of life on 2026-01-01.")
+        #expect(node.runs.compactMap(\.link) == [URL(string: "https://nodejs.org/en/blog/release/v26.12.1/")!])
+        let first = URL(string: "https://github.com/php/php-src/security/advisories/GHSA-w8hw-w9fx-j79w")!
+        let second = URL(string: "https://github.com/php/php-src/security/advisories/GHSA-ch8v-r6jh-4vvr")!
+        let php = CLIToolPresentation.securityNotice([.phpAdvisories(installed: "8.4.24", fixed: "8.4.27", advisories: [
+            PHPAdvisoryReference(id: "CVE-2026-109618", severity: "critical", url: first),
+            PHPAdvisoryReference(id: "GHSA-ch8v-r6jh-4vvr", severity: "low", url: second),
+        ])])
+        #expect(String(php.characters) == "8.4.24 is older than 8.4.27, which fixes CVE-2026-109618 (critical),"
+            + " GHSA-ch8v-r6jh-4vvr (low) (php.net/GitHub advisory).")
+        #expect(php.runs.compactMap(\.link) == [first, second])
+        #expect(String(CLIToolPresentation.securityNotice([.phpEndOfLife(branch: "8.1", date: "2025-12-31")]).characters)
+            == "PHP 8.1 reached end of security support on 2025-12-31.")
+    }
+
     /// The caution beside an offered update says only what the click really
     /// does besides updating (read in `JunieUpdater`, `NpmCheck.updateCommand`,
     /// `UvVerifier`), and nothing beside a click that is not offered.

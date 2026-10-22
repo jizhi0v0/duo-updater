@@ -1,0 +1,457 @@
+[
+ {
+  "ghsa_id": "GHSA-7875-c8px-7q5f",
+  "cve_id": "CVE-2026-93682",
+  "url": "https://api.github.com/repos/php/php-src/security-advisories/GHSA-7875-c8px-7q5f",
+  "html_url": "https://github.com/php/php-src/security/advisories/GHSA-7875-c8px-7q5f",
+  "summary": "Out-of-bounds read in the HTTP stream wrapper when following a redirect with an empty Location header",
+  "severity": "medium",
+  "identifiers": [
+   {
+    "value": "GHSA-7875-c8px-7q5f",
+    "type": "GHSA"
+   },
+   {
+    "value": "CVE-2026-93682",
+    "type": "CVE"
+   }
+  ],
+  "state": "published",
+  "created_at": null,
+  "updated_at": "2026-09-25T19:54:11Z",
+  "published_at": "2026-09-24T10:07:25Z",
+  "closed_at": null,
+  "withdrawn_at": null,
+  "vulnerabilities": [
+   {
+    "package": {
+     "ecosystem": "php",
+     "name": "ext-standard"
+    },
+    "vulnerable_version_range": "<8.2.34",
+    "patched_versions": "8.2.34",
+    "vulnerable_functions": []
+   },
+   {
+    "package": {
+     "ecosystem": "php",
+     "name": "ext-standard"
+    },
+    "vulnerable_version_range": "<8.3.35",
+    "patched_versions": "8.3.35",
+    "vulnerable_functions": []
+   },
+   {
+    "package": {
+     "ecosystem": "php",
+     "name": "ext-standard"
+    },
+    "vulnerable_version_range": "<8.4.26",
+    "patched_versions": "8.4.26",
+    "vulnerable_functions": []
+   },
+   {
+    "package": {
+     "ecosystem": "php",
+     "name": "ext-standard"
+    },
+    "vulnerable_version_range": "<8.5.11",
+    "patched_versions": "8.5.11",
+    "vulnerable_functions": []
+   }
+  ],
+  "comments": 0
+ },
+ {
+  "ghsa_id": "GHSA-w8hw-w9fx-j79w",
+  "cve_id": "CVE-2026-109618",
+  "url": "https://api.github.com/repos/php/php-src/security-advisories/GHSA-w8hw-w9fx-j79w",
+  "html_url": "https://github.com/php/php-src/security/advisories/GHSA-w8hw-w9fx-j79w",
+  "summary": "RCE via OOM corruption",
+  "severity": "critical",
+  "identifiers": [
+   {
+    "value": "GHSA-w8hw-w9fx-j79w",
+    "type": "GHSA"
+   },
+   {
+    "value": "CVE-2026-109618",
+    "type": "CVE"
+   }
+  ],
+  "state": "published",
+  "created_at": null,
+  "updated_at": "2026-10-21T13:34:25Z",
+  "published_at": "2026-10-21T13:34:25Z",
+  "closed_at": null,
+  "withdrawn_at": null,
+  "vulnerabilities": [
+   {
+    "package": {
+     "ecosystem": "php",
+     "name": "php-src"
+    },
+    "vulnerable_version_range": "< 8.2.35",
+    "patched_versions": "8.2.35",
+    "vulnerable_functions": []
+   },
+   {
+    "package": {
+     "ecosystem": "php",
+     "name": "php-src"
+    },
+    "vulnerable_version_range": "< 8.3.36",
+    "patched_versions": "8.3.36",
+    "vulnerable_functions": []
+   },
+   {
+    "package": {
+     "ecosystem": "php",
+     "name": "php-src"
+    },
+    "vulnerable_version_range": "< 8.4.27",
+    "patched_versions": "8.4.27",
+    "vulnerable_functions": []
+   },
+   {
+    "package": {
+     "ecosystem": "php",
+     "name": "php-src"
+    },
+    "vulnerable_version_range": "< 8.5.12",
+    "patched_versions": "8.5.12",
+    "vulnerable_functions": []
+   }
+  ],
+  "comments": 6
+ },
+ {
+  "ghsa_id": "GHSA-6wmf-4rv5-p3rp",
+  "cve_id": "CVE-2026-109619",
+  "url": "https://api.github.com/repos/php/php-src/security-advisories/GHSA-6wmf-4rv5-p3rp",
+  "html_url": "https://github.com/php/php-src/security/advisories/GHSA-6wmf-4rv5-p3rp",
+  "summary": "RCE via stale global state",
+  "severity": "critical",
+  "identifiers": [
+   {
+    "value": "GHSA-6wmf-4rv5-p3rp",
+    "type": "GHSA"
+   },
+   {
+    "value": "CVE-2026-109619",
+    "type": "CVE"
+   }
+  ],
+  "state": "published",
+  "created_at": null,
+  "updated_at": "2026-10-21T13:34:13Z",
+  "published_at": "2026-10-21T13:34:13Z",
+  "closed_at": null,
+  "withdrawn_at": null,
+  "vulnerabilities": [
+   {
+    "package": {
+     "ecosystem": "php",
+     "name": "php-src"
+    },
+    "vulnerable_version_range": "< 8.2.35",
+    "patched_versions": "8.2.35",
+    "vulnerable_functions": []
+   },
+   {
+    "package": {
+     "ecosystem": "php",
+     "name": "php-src"
+    },
+    "vulnerable_version_range": "< 8.3.36",
+    "patched_versions": "8.3.36",
+    "vulnerable_functions": []
+   },
+   {
+    "package": {
+     "ecosystem": "php",
+     "name": "php-src"
+    },
+    "vulnerable_version_range": "< 8.4.27",
+    "patched_versions": "8.4.27",
+    "vulnerable_functions": []
+   },
+   {
+    "package": {
+     "ecosystem": "php",
+     "name": "php-src"
+    },
+    "vulnerable_version_range": "< 8.5.12",
+    "patched_versions": "8.5.12",
+    "vulnerable_functions": []
+   }
+  ],
+  "comments": 7
+ },
+ {
+  "ghsa_id": "GHSA-ch8v-r6jh-4vvr",
+  "cve_id": null,
+  "url": "https://api.github.com/repos/php/php-src/security-advisories/GHSA-ch8v-r6jh-4vvr",
+  "html_url": "https://github.com/php/php-src/security/advisories/GHSA-ch8v-r6jh-4vvr",
+  "summary": "ext/filter: encode 0xFF in FILTER_SANITIZE_ENCODED",
+  "severity": "low",
+  "identifiers": [
+   {
+    "value": "GHSA-ch8v-r6jh-4vvr",
+    "type": "GHSA"
+   }
+  ],
+  "state": "published",
+  "created_at": null,
+  "updated_at": "2026-09-24T10:07:15Z",
+  "published_at": "2026-09-24T10:07:15Z",
+  "closed_at": null,
+  "withdrawn_at": null,
+  "vulnerabilities": [
+   {
+    "package": {
+     "ecosystem": "other",
+     "name": "ext-filter"
+    },
+    "vulnerable_version_range": "<8.2.34",
+    "patched_versions": "8.2.34",
+    "vulnerable_functions": []
+   },
+   {
+    "package": {
+     "ecosystem": "other",
+     "name": "ext-filter"
+    },
+    "vulnerable_version_range": "<8.3.35",
+    "patched_versions": "8.3.35",
+    "vulnerable_functions": []
+   },
+   {
+    "package": {
+     "ecosystem": "other",
+     "name": "ext-filter"
+    },
+    "vulnerable_version_range": "<8.4.25",
+    "patched_versions": "8.4.25",
+    "vulnerable_functions": []
+   },
+   {
+    "package": {
+     "ecosystem": "other",
+     "name": "ext-filter"
+    },
+    "vulnerable_version_range": "<8.5.10",
+    "patched_versions": "8.5.10",
+    "vulnerable_functions": []
+   }
+  ],
+  "comments": 5
+ },
+ {
+  "ghsa_id": "GHSA-x692-q9x7-8c3f",
+  "cve_id": "CVE-2026-17544",
+  "url": "https://api.github.com/repos/php/php-src/security-advisories/GHSA-x692-q9x7-8c3f",
+  "html_url": "https://github.com/php/php-src/security/advisories/GHSA-x692-q9x7-8c3f",
+  "summary": "Out-of-bounds write in bccomp() via crafted operand and scale",
+  "severity": "high",
+  "identifiers": [
+   {
+    "value": "GHSA-x692-q9x7-8c3f",
+    "type": "GHSA"
+   },
+   {
+    "value": "CVE-2026-17544",
+    "type": "CVE"
+   }
+  ],
+  "state": "published",
+  "created_at": null,
+  "updated_at": "2026-07-30T11:03:07Z",
+  "published_at": "2026-07-30T11:03:07Z",
+  "closed_at": null,
+  "withdrawn_at": null,
+  "vulnerabilities": [
+   {
+    "package": {
+     "ecosystem": "php",
+     "name": "ext-bcmath"
+    },
+    "vulnerable_version_range": "<8.4.24",
+    "patched_versions": "8.4.24",
+    "vulnerable_functions": []
+   },
+   {
+    "package": {
+     "ecosystem": "php",
+     "name": "ext-bcmath"
+    },
+    "vulnerable_version_range": "<8.5.9",
+    "patched_versions": "8.5.9",
+    "vulnerable_functions": []
+   }
+  ],
+  "comments": 2
+ },
+ {
+  "ghsa_id": "GHSA-3237-qqm7-mfv7",
+  "cve_id": "CVE-2025-14177",
+  "url": "https://api.github.com/repos/php/php-src/security-advisories/GHSA-3237-qqm7-mfv7",
+  "html_url": "https://github.com/php/php-src/security/advisories/GHSA-3237-qqm7-mfv7",
+  "summary": "Information Leak of Memory in getimagesize",
+  "severity": "medium",
+  "identifiers": [
+   {
+    "value": "GHSA-3237-qqm7-mfv7",
+    "type": "GHSA"
+   },
+   {
+    "value": "CVE-2025-14177",
+    "type": "CVE"
+   }
+  ],
+  "state": "published",
+  "created_at": null,
+  "updated_at": "2025-12-30T22:41:58Z",
+  "published_at": "2025-12-18T16:10:22Z",
+  "closed_at": null,
+  "withdrawn_at": null,
+  "vulnerabilities": [
+   {
+    "package": {
+     "ecosystem": "",
+     "name": ""
+    },
+    "vulnerable_version_range": "< 8.1.34",
+    "patched_versions": "8.1.34",
+    "vulnerable_functions": []
+   },
+   {
+    "package": {
+     "ecosystem": "",
+     "name": ""
+    },
+    "vulnerable_version_range": "< 8.2.30",
+    "patched_versions": "8.2.30",
+    "vulnerable_functions": []
+   },
+   {
+    "package": {
+     "ecosystem": "",
+     "name": ""
+    },
+    "vulnerable_version_range": "< 8.3.29",
+    "patched_versions": "8.3.29",
+    "vulnerable_functions": []
+   },
+   {
+    "package": {
+     "ecosystem": "",
+     "name": ""
+    },
+    "vulnerable_version_range": "< 8.4.16",
+    "patched_versions": "8.4.16",
+    "vulnerable_functions": []
+   },
+   {
+    "package": {
+     "ecosystem": "",
+     "name": ""
+    },
+    "vulnerable_version_range": "< 8.5.1",
+    "patched_versions": "8.5.1",
+    "vulnerable_functions": []
+   }
+  ],
+  "comments": 8
+ },
+ {
+  "ghsa_id": "GHSA-9fcc-425m-g385",
+  "cve_id": "CVE-2024-5585",
+  "url": "https://api.github.com/repos/php/php-src/security-advisories/GHSA-9fcc-425m-g385",
+  "html_url": "https://github.com/php/php-src/security/advisories/GHSA-9fcc-425m-g385",
+  "summary": "bypass CVE-2024-1874",
+  "severity": "high",
+  "identifiers": [
+   {
+    "value": "GHSA-9fcc-425m-g385",
+    "type": "GHSA"
+   },
+   {
+    "value": "CVE-2024-5585",
+    "type": "CVE"
+   }
+  ],
+  "state": "published",
+  "created_at": null,
+  "updated_at": "2024-06-09T18:37:46Z",
+  "published_at": "2024-06-09T18:37:46Z",
+  "closed_at": null,
+  "withdrawn_at": null,
+  "vulnerabilities": [
+   {
+    "package": {
+     "ecosystem": "",
+     "name": ""
+    },
+    "vulnerable_version_range": "8.3.6",
+    "patched_versions": "8.1.29, 8.2.20, 8.3.8",
+    "vulnerable_functions": []
+   }
+  ],
+  "comments": 6
+ },
+ {
+  "ghsa_id": "GHSA-wpj3-hf5j-x4v4",
+  "cve_id": "CVE-2024-2756",
+  "url": "https://api.github.com/repos/php/php-src/security-advisories/GHSA-wpj3-hf5j-x4v4",
+  "html_url": "https://github.com/php/php-src/security/advisories/GHSA-wpj3-hf5j-x4v4",
+  "summary": "__Host-/__Secure- cookie bypass due to partial CVE-2022-31629 fix",
+  "severity": "medium",
+  "identifiers": [
+   {
+    "value": "GHSA-wpj3-hf5j-x4v4",
+    "type": "GHSA"
+   },
+   {
+    "value": "CVE-2024-2756",
+    "type": "CVE"
+   }
+  ],
+  "state": "published",
+  "created_at": null,
+  "updated_at": "2024-04-11T17:12:53Z",
+  "published_at": "2024-04-11T17:12:53Z",
+  "closed_at": null,
+  "withdrawn_at": null,
+  "vulnerabilities": [
+   {
+    "package": {
+     "ecosystem": "",
+     "name": ""
+    },
+    "vulnerable_version_range": "> 8.1.11, < 8.1.28",
+    "patched_versions": "8.1.28",
+    "vulnerable_functions": []
+   },
+   {
+    "package": {
+     "ecosystem": "",
+     "name": ""
+    },
+    "vulnerable_version_range": "< 8.2.18",
+    "patched_versions": "8.2.18",
+    "vulnerable_functions": []
+   },
+   {
+    "package": {
+     "ecosystem": "",
+     "name": ""
+    },
+    "vulnerable_version_range": "< 8.3.5",
+    "patched_versions": "8.3.6",
+    "vulnerable_functions": []
+   }
+  ],
+  "comments": 13
+ }
+]

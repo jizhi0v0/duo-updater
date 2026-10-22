@@ -1077,10 +1077,13 @@ private func matches(
 
 @Test func registryHasNoDuplicateBundleChannelPairs() {
     // Two rules for the same (bundle id, channel) would make which one applies
-    // depend on registry order.
+    // depend on registry order. An edition-marked rule (`installedExecutableMarker`)
+    // is chosen by the copy's executable, not by order, so its marker is part of
+    // the key; `HoppscotchEditionRuleTests.editionMarkedRulesAreWellFormed`
+    // checks those rules.
     var seen = Set<String>()
     for r in GitHubReleaseRegistry.rules {
-        let key = "\(r.bundleID)|\(r.channel.rawValue)"
+        let key = "\(r.bundleID)|\(r.channel.rawValue)|\(r.installedExecutableMarker ?? "")"
         #expect(!seen.contains(key), "duplicate rule for \(key)")
         seen.insert(key)
     }

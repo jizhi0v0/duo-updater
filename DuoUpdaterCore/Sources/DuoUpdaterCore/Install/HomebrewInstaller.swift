@@ -12,6 +12,10 @@ public actor HomebrewInstaller {
     public enum BrewError: LocalizedError {
         case brewNotFound
         case failed(code: Int32, output: String)
+        /// brew exited 0 and the app is the bundle it was before: same version
+        /// pair, same executable. `caskroomVersion` is what brew records as
+        /// installed, nil when the Caskroom has no entry for the token.
+        case unchanged(caskToken: String, onDisk: VersionSide, caskroomVersion: String?)
 
         public var errorDescription: String? {
             switch self {
@@ -19,9 +23,54 @@ public actor HomebrewInstaller {
                 return "Homebrew isn’t installed (no brew found in the usual locations)."
             case .failed(let code, let output):
                 return HomebrewInstaller.failureDescription(code: code, output: output)
+            case .unchanged(let token, let onDisk, let caskroomVersion):
+                let disk = onDisk.text(withBuild: true)
+                guard let caskroomVersion else {
+                    return "brew exited without replacing the app: it is still \(disk) on disk"
+                }
+                return "brew considers \(token) current (Caskroom records \(caskroomVersion))"
+                    + " while the app on disk is \(disk) — brew did not replace it"
             }
         }
     }
+
+    /// What says whether brew's run replaced the bundle: both version fields,
+    /// read from the Info.plist on disk, and the main executable's identity
+    /// (`RuntimeVersion.executableIdentity`, size and modification time) and
+    /// file number. The executable is there for a cask revision the bundle
+    /// never carries (#1562): brew replaces the app and the version pair reads
+    /// the same. The file number is there for a revision whose executable is
+    /// byte for byte the old one (a re-stapled dmg): staging keeps the
+    /// archive's modification times, but brew moves a fresh copy into place.
+    struct BundleSnapshot: Equatable {
+        var version: VersionSide
+        var executable: String?
+        var executableNode: UInt64?
+
+        static func read(_ app: URL) -> BundleSnapshot {
+            let info = NSDictionary(contentsOf: BundleLayout.infoPlistURL(for: app)) as? [String: Any]
+            let executable = AppRuntimeDetector.executableURL(
+                bundleAt: app, infoPlist: info ?? [:], fm: FileManager.default)
+            return BundleSnapshot(
+                version: StagedRelaunch.diskVersionSide(app),
+                executable: executable.flatMap { RuntimeVersion.executableIdentity(of: $0) },
+                executableNode: executable.flatMap {
+                    ((try? FileManager.default.attributesOfItem(atPath: $0.path))?[.systemFileNumber]
+                        as? NSNumber)?.uint64Value
+                })
+        }
+
+        /// Whether `after` is the same bundle as this one. False when either
+        /// side could not be read: a cask renamed in its new version leaves
+        /// nothing at the old path, and that is not "unchanged".
+        func isUnchanged(_ after: BundleSnapshot) -> Bool {
+            !version.isEmpty && executable != nil && self == after
+        }
+    }
+
+    /// Test seam: the brew to run instead of ``brewPath()``. Bound per task;
+    /// production never binds it.
+    @TaskLocal static var brewPathOverride: String?
 
     /// The one-line description both `BrewError.failed` copies (this one and
     /// `BrewFormulaService.BrewError`) report. The popover and workbench rows render
@@ -63,12 +112,24 @@ public actor HomebrewInstaller {
         return tail.isEmpty ? "brew failed (\(code)): \(error)" : "brew failed (\(code)): \(error) — \(tail)"
     }
 
-    /// Run `brew install --cask --force <token>`, streaming output lines.
+    /// Run `brew install --cask --force <token>`, streaming output lines, and
+    /// throw `BrewError.unchanged` when it exits 0 and `app` is still the
+    /// bundle it was.
+    ///
+    /// Exit 0 is not proof of an update. `brew install` hands a cask that is
+    /// already installed to its upgrade path, which skips one whose Caskroom
+    /// version is current with `Warning: Not upgrading <token>, the latest
+    /// version is already installed` and exits 0; `--force` only lets it
+    /// overwrite existing files (Homebrew 7.0.10, `cmd/install.rb` and
+    /// `cask/upgrade.rb`). Measured 2026-10-22: Caskroom at
+    /// `hoppscotch-selfhost` 26.9.0-0, the app replaced by the vendor's 26.8.2,
+    /// and this route reported it installed while 26.8.2 stayed on disk.
     public func upgrade(
         caskToken: String,
+        app: URL,
         onOutput: @Sendable @escaping (String) -> Void
     ) async throws {
-        guard let brew = Self.brewPath() else { throw BrewError.brewNotFound }
+        guard let brew = Self.brewPathOverride ?? Self.brewPath() else { throw BrewError.brewNotFound }
 
         // `--` terminates option parsing so a token can never be misread as a flag.
         let arguments = ["install", "--cask", "--force", "--", caskToken]
@@ -93,6 +154,7 @@ public actor HomebrewInstaller {
         // `onLaunch` runs in `ChildProcess`'s detached task, which has no
         // task-locals.
         let journal = InstallJournal.current
+        let before = BundleSnapshot.read(app)
         try await InstallCommit.run("brew upgrade") { [env] in
             let (outcome, output) = try await StreamedLines.run(
                 brew, arguments, environment: env, onOutput: onOutput,
@@ -104,6 +166,11 @@ public actor HomebrewInstaller {
 
             guard outcome.succeeded else {
                 throw BrewError.failed(code: outcome.terminationStatus, output: output)
+            }
+            if before.isUnchanged(BundleSnapshot.read(app)) {
+                throw BrewError.unchanged(
+                    caskToken: caskToken, onDisk: before.version,
+                    caskroomVersion: BrewLocalInventory().installedVersion(caskToken: caskToken))
             }
         }
     }

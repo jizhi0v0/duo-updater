@@ -171,10 +171,6 @@ public enum UpdatePolicy {
         // release; this is the only branch here that turns a *previously offered*
         // one-click off, and only the user can turn it back on (row context menu).
         if elevationDeclined(result, settings: settings, environment: environment) { return false }
-        // A copy its recipe family keeps off the one-click (another app or
-        // edition under the same id, see `OneClickGate`): detection only, every
-        // source.
-        if OneClickGateRegistry.withholding(result.app) != nil { return false }
         // No Team ID on the installed copy: a route that pins one could only
         // fail at gate 3 (CmdPalm, self-signed, 2026-10-18 user report).
         if lacksTeamIdentifierForRoute(result) { return false }
@@ -208,6 +204,12 @@ public enum UpdatePolicy {
         // ShipIt swap. Defer to Relaunch. (A staged build that *trails* the latest
         // isn't actionable as Relaunch, so we still offer Update — a direct jump.)
         if actionableStaged(result, staged: environment.stagedSelfUpdates[result.id]) != nil { return false }
+        // A copy its recipe family keeps off the one-click (another app or
+        // edition under the same id, see `OneClickGate`): detection only, every
+        // source. Last of the refusals above, which are all plain `return false`
+        // and so give the same answer in any order: a gate may read a file
+        // (`.executableContains`), and a row they already refuse skips it.
+        if OneClickGateRegistry.withholding(result.app, offering: result.remote) != nil { return false }
         switch result.remote?.sourceName {
         case "Sparkle":
             let ext = result.remote?.downloadURL?.pathExtension.lowercased()

@@ -424,7 +424,7 @@ public enum Install {
             // that, rather than blaming a source that does publish an artefact.
             // A copy its recipe family keeps off the one-click (`OneClickGate`):
             // the source does publish an artefact, just not one for this copy.
-            if let gate = OneClickGateRegistry.withholding(result.app) {
+            if let gate = OneClickGateRegistry.withholding(result.app, offering: result.remote) {
                 return .refuse("detection only for this copy — \(gate.reason)", nil)
             }
             if let staged = UpdatePolicy.actionableStaged(

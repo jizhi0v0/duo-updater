@@ -1115,6 +1115,19 @@ struct WorkbenchWindowView: View {
                     .minimumScaleFactor(0.8)
                     .help(summary)
             }
+            // The node an npm prefix runs has notices: one mark for the node,
+            // on its group, not one on each package it runs. A click says them.
+            if let prefix = group.prefix {
+                let notices = CLIToolPresentation.nodeNotices(
+                    ofPrefix: prefix, statuses: model.cliTools.statuses, in: model.runtimeSecurity)
+                if let help = CLIToolPresentation.securityMarkHelp(notices) {
+                    let statuses = model.cliTools.statuses, report = model.runtimeSecurity
+                    RuntimeSecurityMarkButton(
+                        help: help, title: cliToolHeaderSummary(group) ?? group.kind.displayName, notices: notices,
+                        upgrade: { CLIToolPresentation.upgradeCommand(ofPrefix: prefix, statuses: statuses, in: report) })
+                        .font(.caption)
+                }
+            }
         }
         .padding(.trailing, Self.sectionHeaderTrailingInset)
     }
@@ -1813,7 +1826,16 @@ private struct BrewFormulaSidebarRow: View {
                 .font(.caption).foregroundStyle(.secondary)
                 .lineLimit(1).truncationMode(.middle)
         case .status:
-            statusCaption
+            HStack(spacing: 4) {
+                statusCaption
+                // A homebrew/core node or php with notices: the mark the CLI
+                // rows give breaking changes, after the version. The detail
+                // pane says it in words.
+                if let help = CLIToolPresentation.securityMarkHelp(
+                    model.runtimeSecurity.notices(forFormula: formula.name)) {
+                    RuntimeSecurityMark(help: help).font(.caption)
+                }
+            }
         }
     }
 
@@ -2234,6 +2256,14 @@ private struct FormulaDetailPane: View {
                     .padding(.horizontal, 16)
                     .padding(.bottom, 12)
             }
+            // A homebrew/core node or php's notices (`RuntimeSecurityReport`),
+            // in the deprecation notice's place and look.
+            let security = model.runtimeSecurity.notices(forFormula: formula.name)
+            if !security.isEmpty {
+                BrewLifecycleNotice(text: CLIToolPresentation.securityNotice(security))
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 12)
+            }
             if let head = formula.head {
                 BrewHeadNotice(head: head, model: model)
                     .padding(.horizontal, 16)
@@ -2387,16 +2417,30 @@ private struct BrewHeadNotice: View {
 /// A command shown for the user to run, with a copy button that confirms.
 private struct CopyableCommandBox: View {
     let command: String
+    /// False never breaks the command at its spaces, which reads as several
+    /// commands: each `&&` step gets a line of its own, shrunk to fit rather
+    /// than cut off. (A sideways scroll hid the end — "fnm default 24.22." on
+    /// the real Mac — with nothing to say there was more.)
+    var wraps = true
 
     @State private var copied = false
     @State private var copiedResetTask: Task<Void, Never>?
 
     var body: some View {
         HStack(spacing: 8) {
-            Text(command)
-                .font(.system(.body, design: .monospaced))
+            if wraps {
+                commandText.fixedSize(horizontal: false, vertical: true)
+            } else {
+                VStack(alignment: .leading, spacing: 2) {
+                    ForEach(Array(Self.steps(command).enumerated()), id: \.offset) { _, step in
+                        Text(step)
+                            .font(.system(.body, design: .monospaced))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                    }
+                }
                 .textSelection(.enabled)
-                .fixedSize(horizontal: false, vertical: true)
+            }
             Spacer()
             Button {
                 NSPasteboard.general.clearContents()
@@ -2417,6 +2461,18 @@ private struct CopyableCommandBox: View {
         }
         .padding(10)
         .background(.quaternary, in: RoundedRectangle(cornerRadius: 6))
+    }
+
+    private var commandText: some View {
+        Text(command)
+            .font(.system(.body, design: .monospaced))
+            .textSelection(.enabled)
+    }
+
+    /// `a && b` as `a` and `&& b`, for display only; the copy is the command.
+    static func steps(_ command: String) -> [String] {
+        let parts = command.components(separatedBy: " && ")
+        return [parts[0]] + parts.dropFirst().map { "&& " + $0 }
     }
 }
 
@@ -2452,12 +2508,27 @@ extension AppListModel {
 /// (`BrewLifecycle`), above its release notes: what that means for updates, why,
 /// when, and the replacement brew suggests, to copy — like `brew trust`, shown for
 /// the user to run, never run here.
+///
+/// Also a node or php formula's security notices (`RuntimeSecurityNotice`), in
+/// the same place and look: `init(text:)`, whose links open in the browser.
 private struct BrewLifecycleNotice: View {
-    let name: String
-    let lifecycle: BrewLifecycle
+    let text: AttributedString
+    let replacementCommand: String?
+    let replacementName: String?
+
     /// A cask's notice speaks of the cask, not of the app's updates, which may
     /// come from another source (see `BrewCaskLifecycle`).
-    var isCask = false
+    init(name: String, lifecycle: BrewLifecycle, isCask: Bool = false) {
+        text = AttributedString(lifecycle.sentences(for: name, isCask: isCask).joined(separator: " "))
+        replacementCommand = lifecycle.replacementCommand
+        replacementName = lifecycle.replacementName
+    }
+
+    init(text: AttributedString) {
+        self.text = underliningLinks(text)
+        replacementCommand = nil
+        replacementName = nil
+    }
 
     @State private var copied = false
     @State private var copiedResetTask: Task<Void, Never>?
@@ -2465,12 +2536,18 @@ private struct BrewLifecycleNotice: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Label {
-                Text(lifecycle.sentences(for: name, isCask: isCask).joined(separator: " "))
+                Text(text)
                     .fixedSize(horizontal: false, vertical: true)
+                    // NSWorkspace rather than SwiftUI's own `openURL`, which
+                    // errors -50 in this app's windows (see `AlcoveSettingsPage`).
+                    .environment(\.openURL, OpenURLAction { url in
+                        NSWorkspace.shared.open(url)
+                        return .handled
+                    })
             } icon: {
                 Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
             }
-            if let command = lifecycle.replacementCommand, let replacement = lifecycle.replacementName {
+            if let command = replacementCommand, let replacement = replacementName {
                 Text(String(localized: "Homebrew suggests \(replacement) instead:"))
                 HStack(spacing: 8) {
                     Text(command)
@@ -2570,6 +2647,117 @@ extension BrewLifecycle {
     static func today() -> String {
         let c = Calendar(identifier: .gregorian).dateComponents([.year, .month, .day], from: Date())
         return String(format: "%04d-%02d-%02d", c.year!, c.month!, c.day!)
+    }
+}
+
+/// The ⚠ a sidebar row or npm group header carries when a node or php it stands
+/// for has notices (`RuntimeSecurityNotice`): the CLI rows' breaking-changes
+/// mark, its sentences on hover (`CLIToolPresentation.securityMarkHelp`).
+private struct RuntimeSecurityMark: View {
+    let help: String
+
+    var body: some View {
+        Image(systemName: "exclamationmark.triangle.fill")
+            .foregroundStyle(.orange)
+            .help(help)
+            .accessibilityLabel(help)
+    }
+}
+
+/// `text` with its links underlined as well as tinted, like the app's other
+/// inline links: a version alone in the accent colour reads as emphasis.
+private func underliningLinks(_ text: AttributedString) -> AttributedString {
+    var underlined = text
+    for run in underlined.runs where run.link != nil {
+        underlined[run.range].underlineStyle = .single
+    }
+    return underlined
+}
+
+/// `RuntimeSecurityMark` as a button, for an npm prefix group's header: a
+/// click opens the node's notices in a popover — `RuntimeTag`'s click-through,
+/// in its layout and its way — with the release links, which open in the
+/// browser. Its own Button, so the popover anchors to the mark, not to the
+/// header row.
+private struct RuntimeSecurityMarkButton: View {
+    let help: String
+    /// Which node: the header's "nvm · node 24.13.0".
+    let title: String
+    let notices: [RuntimeSecurityNotice]
+    /// The command to copy for an nvm or fnm node (`NodeUpgradeCommand`). Asked
+    /// only when the popover opens: it reads the manager's default alias.
+    let upgrade: () -> NodeUpgradeCommand?
+
+    @State private var showing = false
+
+    var body: some View {
+        Button { showing = true } label: {
+            RuntimeSecurityMark(help: help)
+                // A caption-sized glyph is a small target; padded like
+                // `RuntimeTag`'s mark without moving the drawing.
+                .padding(3)
+                .contentShape(Rectangle())
+                .padding(-3)
+        }
+        .buttonStyle(.borderless)
+        .help(help)
+        .accessibilityLabel(help)
+        .popover(isPresented: $showing, arrowEdge: .bottom) { detail }
+        // `RuntimeTag`'s reason: a popover hangs where it opened once the list
+        // scrolls, so it closes when the mark moves.
+        .background(
+            GeometryReader { geometry in
+                Color.clear.onChange(of: geometry.frame(in: .global).minY) {
+                    showing = false
+                }
+            }
+        )
+    }
+
+    private var detail: some View {
+        detail(upgrade: upgrade())
+    }
+
+    private func detail(upgrade: NodeUpgradeCommand?) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: 26))
+                    .foregroundStyle(.orange)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(verbatim: title).font(.headline)
+                    Text(underliningLinks(CLIToolPresentation.securityNotice(notices)))
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        // NSWorkspace rather than SwiftUI's own `openURL`, which
+                        // errors -50 in this app's windows (see `AlcoveSettingsPage`).
+                        .environment(\.openURL, OpenURLAction { url in
+                            NSWorkspace.shared.open(url)
+                            return .handled
+                        })
+                }
+            }
+            // Handed out, never run: installing beside the old version and
+            // moving packages is the user's to decide. The whole popover's
+            // width, not the text column's, and never broken mid-step: fnm's
+            // `install … && fnm default …` broke into three at 300 pt.
+            if let upgrade {
+                Text("To update it yourself, run:")
+                    .font(.callout)
+                    .padding(.top, 4)
+                CopyableCommandBox(command: upgrade.command, wraps: false)
+                ForEach([CLIToolPresentation.packagesLeftBehind(upgrade),
+                         CLIToolPresentation.replacedDefault(upgrade)].compactMap { $0 }, id: \.self) { line in
+                    Text(line)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+        .padding(14)
+        .frame(width: upgrade == nil ? 300 : 420, alignment: .leading)
     }
 }
 

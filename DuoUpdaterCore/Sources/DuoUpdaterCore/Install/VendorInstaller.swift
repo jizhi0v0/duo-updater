@@ -88,6 +88,10 @@ public actor VendorInstaller {
         /// asset itself — a stash or a patch — so the published digest cannot
         /// speak for these bytes.
         case digestOnlyNeedsTheAsset
+        /// The downloaded app does not carry the edition marker of the
+        /// package it was offered as, or carries another edition's
+        /// (`OneClickGateRegistry.packageMarkers`).
+        case packageEditionMismatch
 
         public var errorDescription: String? {
             switch self {
@@ -105,6 +109,8 @@ public actor VendorInstaller {
                 return String(localized: "This app has no developer signature, and one-click updates for such apps are turned off in Settings. Nothing was changed.")
             case .digestOnlyNeedsTheAsset:
                 return "Only the release asset itself can be checked against GitHub's published hash. Nothing was changed."
+            case .packageEditionMismatch:
+                return "The downloaded app is not the edition this copy is. Nothing was changed."
             }
         }
     }
@@ -412,6 +418,24 @@ public actor VendorInstaller {
                 bundleName: installed.deletingPathExtension().lastPathComponent,
                 onStage: onStage,
                 vetStub: Self.stubSignedByTeam(of: installed))
+        }
+
+        // 3c. The edition the offer was gated as (`OneClickGate.offering`):
+        // the package itself must carry that edition's marker and, read whole,
+        // lack the other edition's, so an asset whose name says one edition and
+        // whose binary is the other (or both) cannot replace a copy. No markers
+        // for every app but those with edition-scoped gates. Before the
+        // signature gates only because it needs no signature to refuse; both
+        // run before anything is swapped.
+        for required in OneClickGateRegistry.packageMarkers(
+            for: result.app.recipeBundleID, offering: remote) {
+            let app = newApp
+            let presence = await offCooperativePool {
+                ExecutableMarker.presenceUncached(required.marker, inMainExecutableOf: app)
+            }
+            guard presence == (required.present ? .present : .absent) else {
+                throw InstallError.packageEditionMismatch
+            }
         }
 
         // 4. Validate the final app, whether unpacked or reconstructed from a delta.

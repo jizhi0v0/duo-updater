@@ -247,8 +247,10 @@ enum CLIToolRows {
     /// `check`'s and `list`'s lines for the tools, under a heading of their
     /// own after the apps. The path is printed whole: it is what names one copy
     /// among several to `duo install`.
-    static func emitText(_ rows: [Row], checked: Bool, print: (String) -> Void) {
-        guard !rows.isEmpty else { return }
+    /// `securityLines` (`RuntimeSecurityReport.englishLines`) end the section,
+    /// which they open on their own when no tool is shown.
+    static func emitText(_ rows: [Row], securityLines: [String] = [], checked: Bool, print: (String) -> Void) {
+        guard !rows.isEmpty || !securityLines.isEmpty else { return }
         print("")
         print("Command-line tools:")
         let width = min(28, rows.map(\.name.count).max() ?? 10)
@@ -272,6 +274,7 @@ enum CLIToolRows {
             print(line)
             for detail in details(row) { print("      \(detail)") }
         }
+        for line in securityLines { print(line) }
     }
 
     /// What an update row adds under itself: that its notes mark breaking

@@ -62,6 +62,17 @@ public enum Check {
         "this copy comes from the \(channel) channel; the update installs the stable cask over it"
     }
 
+    /// The npm packages' names under each node prefix's path
+    /// (`CLIToolStatus.npmPackage`), Claude Code's npm install among them.
+    static func packagesByPrefix(_ tools: [CLIToolRows.Row]) -> [String: [String]] {
+        var out: [String: [String]] = [:]
+        for tool in tools {
+            guard let package = tool.status?.npmPackage else { continue }
+            out[package.prefix, default: []].append(package.name)
+        }
+        return out
+    }
+
     /// What to tell the user about a refresh attempt. Written to stderr so `--json`
     /// stays one object per line, and phrased so that "we launched TestFlight" is
     /// never left implicit — the user is entitled to know why an app appeared.
@@ -210,6 +221,13 @@ public enum Check {
         let toolRows: Task<[CLIToolRows.Row], Never>? = wantsTools
             ? Task { checkForUpdates ? await CLIToolRows.checkedRows() : await CLIToolRows.scannedRows() }
             : nil
+        // What nodejs.org and php.net say about the installed Node.js and
+        // Homebrew PHP (`RuntimeSecurityReport`): text only — `--json` gains no
+        // field — and only for a whole check, not one narrowed to named apps.
+        let security: Task<RuntimeSecurityReport, Never>? = checkForUpdates && !options.json && wantsTools
+            && options.queries.isEmpty
+            ? Task { await RuntimeSecurityFeeds.shared.report() }
+            : nil
         let selected: [InstalledApp]
         var selectedTools: [CLIToolRows.Row]?
         if options.queries.isEmpty {
@@ -313,12 +331,16 @@ public enum Check {
         } else if let toolRows {
             tools = await toolRows.value
         }
+        // Every npm package checked, by prefix, before the filter below: what
+        // an fnm upgrade command leaves behind (`NodeUpgradeCommand`).
+        let securityLines = await security?.value.englishLines(packagesByPrefix: Self.packagesByPrefix(tools)) ?? []
         // `--all`'s rule for apps: without it, a check shows what has an update
         // and what could not be checked.
         if options.checkForUpdates && !options.all { tools = tools.filter { $0.hasUpdate || $0.unchecked } }
 
         return finish(
-            rows, tools: tools, command: options.checkForUpdates ? "check" : "list", json: options.json,
+            rows, tools: tools, securityLines: securityLines,
+            command: options.checkForUpdates ? "check" : "list", json: options.json,
             scanAbandoned: scanned == nil, testFlightGap: gap)
     }
 
@@ -475,7 +497,7 @@ public enum Check {
     /// checked, and its own stderr line has already said why. Both commands say so
     /// in place of their empty-result line.
     static func finish(
-        _ rows: [Row], tools: [CLIToolRows.Row] = [], command: String, json: Bool,
+        _ rows: [Row], tools: [CLIToolRows.Row] = [], securityLines: [String] = [], command: String, json: Bool,
         scanAbandoned: Bool, testFlightGap gap: TestFlightGap?,
         out: (String) -> Void = { print($0) },
         err: (String) -> Void = { line in
@@ -490,7 +512,8 @@ public enum Check {
             let incomplete: Incomplete? = scanAbandoned
                 ? .scanAbandoned
                 : (gap?.leavesVerdictsUnproven == true ? .verdictsUnproven : nil)
-            emitText(rows, tools: tools, checked: checked, incomplete: incomplete, print: out)
+            emitText(rows, tools: tools, securityLines: securityLines, checked: checked, incomplete: incomplete,
+                     print: out)
         }
         if checked, let gap { err(note(gap)) }
         // Exit 1 signals "there is something to do", so `duo check && echo clean`
@@ -574,10 +597,12 @@ public enum Check {
     /// "everything is current", or — after an abandoned scan — "nothing looked at"
     /// rather than "nothing installed". `print` is the stream, for tests.
     static func emitText(
-        _ rows: [Row], tools: [CLIToolRows.Row] = [], checked: Bool, incomplete: Incomplete? = nil,
-        print: (String) -> Void = { Swift.print($0) }
+        _ rows: [Row], tools: [CLIToolRows.Row] = [], securityLines: [String] = [], checked: Bool,
+        incomplete: Incomplete? = nil, print: (String) -> Void = { Swift.print($0) }
     ) {
         guard !rows.isEmpty || !tools.isEmpty else {
+            // Not an update, so not in the summary: said after it.
+            defer { CLIToolRows.emitText([], securityLines: securityLines, checked: checked, print: print) }
             guard checked else {
                 print(incomplete == .scanAbandoned
                     ? "No apps listed: the app scan was abandoned (see above)."
@@ -635,7 +660,7 @@ public enum Check {
             print(line)
             if let channel = row.replacesChannel { print("      note: \(channelReminder(channel))") }
         }
-        CLIToolRows.emitText(tools, checked: checked, print: print)
+        CLIToolRows.emitText(tools, securityLines: securityLines, checked: checked, print: print)
         let actionable = rows.filter(isActionable).count + tools.filter(\.hasUpdate).count
         let failed = rows.filter { failure($0) != nil }.count + tools.filter(\.unchecked).count
         if checked {

@@ -103,12 +103,25 @@ enum ExecutableBytes {
     /// results; whole `BundleFactsReader.scan` runs over the 128 apps took 334 s
     /// before and 325 s after.
     static func forEachChunk(
-        of url: URL, overlap: Int, chunkSize: Int = 4 << 20,
+        of url: URL, overlap: Int, chunkSize: Int = defaultChunkSize,
+        _ body: (_ buffer: UnsafeRawBufferPointer, _ carried: Int, _ isLast: Bool) -> Bool
+    ) -> Bool {
+        guard let handle = try? FileHandle(forReadingFrom: url) else { return false }
+        defer { try? handle.close() }
+        return forEachChunk(ofDescriptor: handle.fileDescriptor, overlap: overlap, chunkSize: chunkSize, body)
+    }
+
+    /// The default chunk size of ``forEachChunk(of:overlap:chunkSize:_:)``.
+    static let defaultChunkSize = 4 << 20
+
+    /// ``forEachChunk(of:overlap:chunkSize:_:)`` on a descriptor the caller
+    /// opened (and checked) itself, read from its current offset. The caller
+    /// closes it.
+    static func forEachChunk(
+        ofDescriptor descriptor: Int32, overlap: Int, chunkSize: Int = defaultChunkSize,
         _ body: (_ buffer: UnsafeRawBufferPointer, _ carried: Int, _ isLast: Bool) -> Bool
     ) -> Bool {
         precondition(overlap >= 0 && chunkSize > 0)
-        guard let handle = try? FileHandle(forReadingFrom: url) else { return false }
-        defer { try? handle.close() }
         let buffer = UnsafeMutableRawBufferPointer.allocate(byteCount: overlap + chunkSize, alignment: 16)
         defer { buffer.deallocate() }
         let base = buffer.baseAddress!
@@ -116,7 +129,7 @@ enum ExecutableBytes {
         while true {
             var filled = 0
             while filled < chunkSize {
-                let n = read(handle.fileDescriptor, base + carried + filled, chunkSize - filled)
+                let n = read(descriptor, base + carried + filled, chunkSize - filled)
                 if n > 0 {
                     filled += n
                 } else if n == 0 {

@@ -237,6 +237,28 @@ import DuoUpdaterCore
         #expect(text.contains("3 updates available of 0 apps and 3 command-line tools shown."))
     }
 
+    /// The runtimes' security lines (`RuntimeSecurityReport.englishLines`) end
+    /// the tools' section — and open it when no tool is shown, even under
+    /// "Everything is up to date.". They are not updates: the exit code and the
+    /// summary don't count them.
+    @Test func securityLinesEndTheToolsSection() {
+        let security = ["  nvm node 24.13.0: 4 security releases since (latest 24.22.1) — https://nodejs.org/en/blog/release/v24.22.1/"]
+        let lines = Lines()
+        Check.emitText([], tools: [CLIToolRows.Row(Self.uv)], securityLines: security, checked: true,
+                       print: { lines.add($0) })
+        let tools = lines.all.firstIndex(of: "Command-line tools:")
+        #expect(tools != nil)
+        #expect(lines.all.firstIndex(of: security[0]).map { $0 > (tools ?? .max) } == true)
+        #expect(lines.all.last == "\n  1 update available of 0 apps and 1 command-line tool shown.")
+
+        let empty = Lines()
+        Check.emitText([], securityLines: security, checked: true, print: { empty.add($0) })
+        #expect(empty.all == ["Everything is up to date.", "", "Command-line tools:", security[0]])
+        let quiet = { (_: String) in }
+        #expect(Check.finish([], securityLines: security, command: "check", json: false, scanAbandoned: false,
+                             testFlightGap: nil, out: quiet, err: quiet) == 0)
+    }
+
     /// Schema 2, and a tool row says it is one.
     @Test func jsonRowsCarryTheToolAndTheSchemaSays2() throws {
         let lines = Lines()

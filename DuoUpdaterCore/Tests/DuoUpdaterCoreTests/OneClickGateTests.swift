@@ -4,7 +4,7 @@ import Testing
 
 /// `OneClickGate`: a recipe family names which installed copies may take the
 /// one-click; everything else keeps detection only. Exercised through the
-/// gates registered today (MuseScore and Memoh by installed version, GitKraken
+/// gates registered today (MuseScore, Memoh, Hyper, Readest and massCode by installed version, GitKraken
 /// by an asar entry, Hoppscotch by both a version and an executable marker) and
 /// through both places that enforce them.
 struct OneClickGateTests {
@@ -84,7 +84,33 @@ struct OneClickGateTests {
 
     @Test func theRegisteredGatesAreTheMeasuredCases() {
         #expect(Set(OneClickGateRegistry.gates.map(\.bundleID))
-            == ["org.musescore.MuseScore", "com.axosoft.gitkraken", "ai.memoh.desktop", "io.hoppscotch.desktop"])
+            == ["org.musescore.MuseScore", "com.axosoft.gitkraken", "ai.memoh.desktop", "io.hoppscotch.desktop",
+                "co.zeit.hyper", "com.bilingify.readest", "io.masscode.app"])
+    }
+
+    /// Versions of the real bundles: stable 3.4.1, 3.4.0, 3.0.2 and the canary
+    /// 4.0.0-canary.5, all `co.zeit.hyper`, Team JW6Y669B67. Older canary
+    /// tags (`3.4.0-canary.1`, `3.0.1-canary.4`) stamp the same shape.
+    @Test func hyperOneClickIsForStableCopiesOnly() {
+        for version in ["3.4.1", "3.4.0", "3.0.2", "4.0.0"] {
+            #expect(OneClickGateRegistry.withholding(app("co.zeit.hyper", version), offering: nil) == nil, "\(version)")
+        }
+        for version in ["4.0.0-canary.5", "3.4.0-canary.1", "3.0.1-canary.4"] {
+            #expect(OneClickGateRegistry.withholding(app("co.zeit.hyper", version), offering: nil) != nil, "\(version)")
+        }
+    }
+
+    /// The versions of the real bundles: GitHub's stable dmgs (0.12.16, 0.12.12,
+    /// 0.10.1, 0.7.9) and the nightly `.app.tar.gz` from
+    /// download.readest.com/nightly/ (0.12.16-2026102206), all
+    /// `com.bilingify.readest`, Team J5W48D69VR.
+    @Test func readestOneClickIsForStableBuildsOnly() {
+        for version in ["0.12.16", "0.12.12", "0.10.1", "0.7.9", "1.0"] {
+            #expect(OneClickGateRegistry.withholding(app("com.bilingify.readest", version), offering: nil) == nil, "\(version)")
+        }
+        for version in ["0.12.16-2026102206", "0.11.4-2026061406"] {
+            #expect(OneClickGateRegistry.withholding(app("com.bilingify.readest", version), offering: nil) != nil, "\(version)")
+        }
     }
 
     /// A bundle at a fresh path whose Info.plist is `plist` and whose
@@ -606,6 +632,19 @@ struct OneClickGateTests {
             #expect(OneClickGateRegistry.withholding(app("ai.memoh.desktop", version), offering: nil) != nil, "\(version)")
         }
         #expect(OneClickGateRegistry.withholding(app("ai.memoh.desktop", nil), offering: nil) != nil)
+    }
+
+    /// The versions of real bundles (5.12.0, 6.0.0, 6.2.1, 6.3.1, 2.0.0-beta.6,
+    /// all `io.masscode.app`). v6 reads only a Markdown Vault, which v5
+    /// introduced; a 4.x or older library is unreadable by it.
+    @Test func massCodeOneClickIsFor5xAnd6xCopiesOnly() {
+        for version in ["6.3.1", "6.2.1", "6.0.0", "5.12.0", "5.0.0"] {
+            #expect(OneClickGateRegistry.withholding(app("io.masscode.app", version), offering: nil) == nil, "\(version)")
+        }
+        for version in ["4.7.1", "3.12.1", "2.0.0-beta.6", "7.0.0", "60.0"] {
+            #expect(OneClickGateRegistry.withholding(app("io.masscode.app", version), offering: nil) != nil, "\(version)")
+        }
+        #expect(OneClickGateRegistry.withholding(app("io.masscode.app", nil), offering: nil) != nil)
     }
 
     @Test func gitKrakenOneClickIsForAProvenNormalEditionOnly() throws {

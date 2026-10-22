@@ -262,6 +262,7 @@ public enum AppRecipeIndex {
         llc_turing_CrystalFetch.set,
         md_obsidian.set,
         me_qii404_another_redis_desktop_manager.set,
+        MeowingCat_MacsyZones.set,
         MstyStudio.set,
         net_ankiweb_anki.set,
         net_freemacsoft_AppCleaner.set,

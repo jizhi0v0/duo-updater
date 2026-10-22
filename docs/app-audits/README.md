@@ -313,6 +313,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**Folo**](is-follow.md) · `is.follow` — G (one-click arm64 dmg；monorepo，锚定 `desktop/v` 与旧 `v` tag，不收 `mobile/`) · electron-updater custom provider + Squirrel 暂存 · 真包 1.15.0/1.16.0 channel-verify ✓ · 一键端到端 ✓ 两轮（运行中自己已暂存同版本时让路，`duo restart` 由 ShipIt 装上） · changelog 结构化（三节标题保留） · 2026-10-22
 - [x] [**Whispering**](com-bradenwong-whispering.md) · `com.bradenwong.whispering` — G (one-click arm64 dmg) · Tauri updater（点了才下载、不停放） · 真包 7.7.1/7.9.0/7.10.0/7.11.0 channel-verify ✓（→ 7.11.0，7.11.0 up to date） · 4.0.0–4.7.2 ad-hoc 一键被拒 · 一键端到端 ✓ 两轮（不运行 / 运行中） · changelog 结构化（标题保留，纯段落小节不显示） · 2026-10-22
 - [x] [**Sentinel**](com-alienator88-Sentinel.md) · `com.alienator88.Sentinel` — G (one-click universal zip) · AlinFoundation 自研更新器（点 Update 才下载、下完立即换包，不停放） · 真包 3.1.3/3.1.4 channel-verify ✓（3.1.3 → 3.1.4、3.1.4 up to date） · 1.0–1.4 的 `com.alienator88.sentinel`（ad-hoc）只检测 · changelog 结构化（单个 What's New 不显示；条目带 `[x]` 前缀） · 一键端到端 ✓ 两轮（不运行 / 运行中） · 2026-10-22
+- [x] [**MacsyZones**](MeowingCat-MacsyZones.md) · `MeowingCat.MacsyZones` — G (one-click universal zip) · 自研更新器（每次启动查 `/releases/latest`，有新版就自己下载换包重启，不停放） · 真包 3.1/3.1.1 channel-verify ✓（3.1 → 3.1.1、3.1.1 up to date），v1.1–v3.1.1 同 Team · 一键端到端 ✓ 两轮（不运行 / 运行中） · changelog 结构化但累积式正文被压平（3.1.1 显示 18 条，只有 1 条是本版） · 2026-10-22
 
 ## Changelog-only (detection via Sparkle or Homebrew)
 

@@ -60,7 +60,7 @@
 
 | | 客户端会停放吗 | 本次实际停放了什么 | 我们能否直接拿来装 |
 |---|---|---|---|
-| 结论 | 不会 | 没查（没做真机） | 不需要 |
+| 结论 | 不会 | 无（没有更新器；真机没跑运行中一轮，见一键安装） | 不需要 |
 | 证据 | electron-updater 没打包、没调用 | — | — |
 
 ## Changelog
@@ -72,7 +72,10 @@
 
 ## 一键安装
 - 状态: **支持**（对 Team `BF3UMC9FSZ` 的副本）
-- 端到端: **未跑**，真机由主会话做
+- 端到端（2026-10-22，本分支 `make cli` 的 duo，app 不运行）:
+  - 真 2.1.0（ad-hoc）: `duo check` → `2.1.0 → 2.1.1 [GitHub]`；`duo install` → `Skipping: Deadbolt — the installed copy has no developer Team ID to check the download against`，磁盘仍是 2.1.0、inode 不变
+  - 真 0.1.0（同 Team `BF3UMC9FSZ`，Apple Development 证书、未公证、x86_64，没启动）: `duo check` → `0.1.0 → 2.1.1 [GitHub, in-place]`；`duo install` `extracting verifyingCodeSignature installing done installed.` → 2.1.1、可执行文件 inode 变、`TeamIdentifier=BF3UMC9FSZ`、`codesign --verify --deep --strict` 退出 0、`spctl` accepted（Notarized Developer ID）、`diff -r` 与厂商 2.1.1 arm64 包相同
+  - **运行中一轮没跑**：没有能正常启动的同 Team 旧版（0.1.0 未公证且是 x86_64，会弹 Gatekeeper / Rosetta）；它也没有自更新器，运行中换包走通用的 quit → swap → relaunch 路径
 - 格式: dmg（UDZO），根目录 `Deadbolt.app` + `Applications` 软链
 - 嵌套: 只有 Electron 的四个 `Contents/Frameworks/Deadbolt Helper*.app`（`LSUIElement`，随主进程起落）；没有 LoginItems / Library / XPCServices；Info.plist 无 `CFBundleDocumentTypes` / `CFBundleURLTypes`；entitlements 只有 `com.apple.security.cs.allow-jit`
 - 签名: 2.1.1 `TeamIdentifier=BF3UMC9FSZ`、notarized、hardened runtime。**上一版 2.1.0 没有 Team**，所以从 2.1.0（以及 2.0.x、1.0.0）升级会被 Team 闸拒；第一个能一键升级的场景是 2.1.1 → 下一版，或 0.1.0 → 2.1.1
@@ -81,7 +84,7 @@
 - 阻塞: 无。厂商还没有第二个 Developer ID 签名的 release，真机从「上一版」升级只能用 0.1.0（同 Team，但不是 Developer ID、没公证、x86_64）
 
 ## 已知问题
-- 2.0.x / 2.1.0 / 1.0.0 的副本能看到更新但不能一键（Team 闸），按代码（`SignatureVerifier.verifyTeamIdentifierMatch`）报 `noTeamIdentifier(which: "installed")`，未实测。要手动装一次 2.1.1
+- 2.0.x / 2.1.0 / 1.0.0 的副本能看到更新但不能一键（Team 闸），真机已验证 2.1.0（见上）。要手动装一次 2.1.1
 - macOS 上关掉最后一个窗口不退出（`window-all-closed` 在 darwin 上不 quit），运行中换包后要 `duo restart`
 
 ## 如何复验
@@ -96,5 +99,5 @@ swift run --package-path application-test channel-verify Deadbolt-2.1.1-arm64.dm
 ```
 
 ## 建议下一步
-1. 主会话真机：一键端到端（见 PR 说明里的步骤），然后把 README 那一行改成真机结果。
+1. 厂商发下一个 Developer ID 版本后，补一轮 2.1.1 → 新版的运行中真机。
 2. 下一个正式版出来后，复查 `/releases/latest`、资产名仍是 `Deadbolt-<v>-arm64.dmg`、Team 仍是 `BF3UMC9FSZ`，用 2.1.1 → 新版再跑一次一键。

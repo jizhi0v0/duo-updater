@@ -57,7 +57,7 @@
 
 | | 客户端会停放吗 | 本次实际停放了什么 | 我们能否直接拿来装 |
 |---|---|---|---|
-| 结论 | 不会 | 没查（真机待主会话） | 不需要 |
+| 结论 | 不会 | 无（2026-10-22 真机运行 2.5.1 约 50 s，没有停放任何东西） | 不需要 |
 | 证据 | `check_for_updates()` 只弹框、打开官网，不下载（见「基本信息」） | — | — |
 
 ## Changelog
@@ -69,7 +69,9 @@
 - Recipe 状态: 不需要
 
 ## 一键安装
-- 状态: **规则已接；真机端到端待主会话**（本次没有在真机上安装或启动）
+- 状态: **支持，真机两轮通过（2026-10-22，本分支 `make cli` 的 duo）**
+  - 第一轮（不运行）: 2.5.1 → `duo check` `2.5.1 → 2.5.3 [GitHub, in-place]` → `duo install` `downloading… extracting verifyingCodeSignature installing done installed.` → 2.5.3、可执行文件 inode 变、`TeamIdentifier=6QF6Z7X8UW`、`codesign --verify --deep --strict` 退出 0、`spctl` accepted（Notarized Developer ID）、`diff -r` 与厂商 2.5.3 包相同
+  - 第二轮（运行中）: 启动 2.5.1（主进程 + 4 个 helper + `core/diffusionbee_backend`），`duo install` 后提示 `Still running the old code`；`duo restart DiffusionBee` 后旧后端（pid 56423）退出，只剩新版主进程和新后端（13:01:30 / 13:01:33 启动），磁盘 2.5.3、签名有效
 - 格式: dmg（`hdiutil imageinfo` `Format: UDZO`，2.5.1 / 2.5.3 相同），根目录 `DiffusionBee.app` + `Applications` 软链。Pattern `^DiffusionBee_MPS_arm64-[0-9]+(?:\.[0-9]+)+\.dmg$`，kind `.dmg`
 - 嵌套（2.5.3）: 只有 Electron 自带的四个 `Contents/Frameworks/DiffusionBee Helper*.app`（`LSUIElement=true`，随主进程起落）；没有 `Contents/Library/LoginItems`、`Contents/Helpers`、LaunchAgent。`app.asar` 里 `setLoginItemSettings` / `openAtLogin` / `LaunchAgents` 都是 0 次
 - 签名: 2.5.1、2.5.2、2.5.3 都是 `TeamIdentifier=6QF6Z7X8UW`，`codesign --verify` 通过，`spctl` Notarized Developer ID。上一版和最新版 Team 相同，旧副本不会被 Team 闸拒
@@ -78,16 +80,15 @@
 - 阻塞: 无
 
 ## 已知问题
-- **首次使用会下载很大的模型。** 默认模型 `SDB_0.1.tdict` 从 `huggingface.co/divamgupta/stable_diffusion_mps` 下载，2026-10-22 `content-length` 2440763520 B（约 2.4 GB），存进 `~/.diffusionbee`；回退地址 `models.diffusionbee.com`。从 `app.asar` 静态读没找到首启自动触发下载的调用点（未验证：可能要到选模型 / 生成时才下）
+- **首次使用会下载很大的模型。** 默认模型 `SDB_0.1.tdict` 从 `huggingface.co/divamgupta/stable_diffusion_mps` 下载，2026-10-22 `content-length` 2440763520 B（约 2.4 GB），存进 `~/.diffusionbee`；回退地址 `models.diffusionbee.com`。从 `app.asar` 静态读没找到首启自动触发下载的调用点（真机核对：启动、运行中换包、重启，全程没碰界面，`~/.diffusionbee` 只有 8 KB，没有触发下载）
 - **启动时把自己设成 `diffusionbee://` 的默认处理者**（`app.setAsDefaultProtocolClient("diffusionbee")`，`app.asar`），用来处理 `huggingface_sd_model/…` 深链
 - **数据目录在 `~/.diffusionbee`**（导入的模型 `imported_models/`、图片 `inp_images/`），cask 的 `zap` 也列了它和 `~/Library/Application Support/DiffusionBee`
-- **运行中替换时的 Python 后端**: 主进程用 `Contents/Resources/core` 里的后端起子进程，`window-all-closed` 时 `kill` 它（`app.asar`）。运行中一键后，后端会不会随退出一并结束、新版启动会不会和残留后端冲突，未验证
+- **运行中替换时的 Python 后端**: 主进程用 `Contents/Resources/core` 里的后端起子进程，`window-all-closed` 时 `kill` 它（`app.asar`）。真机核对：`duo restart` 时旧后端随主进程一起退出，没有残留
 - 旧 id `com.linerai.liner` 的副本不检测，见「覆盖清单」
 
 ## 建议下一步
-1. 主会话真机两轮（不运行 / 运行中），把结果写回「一键安装」和 README 那一行。
-2. 若要覆盖 `com.linerai.liner` 时期的 DiffusionBee，需要一种能按 `CFBundleName`（`DiffusionBee` vs `Liner`）区分的迁移条件；现有 `BundleIDMigration` 做不到，属于引擎改动，先不做。
-3. 厂商下一个版本出来后复查 tag 仍是裸 `X.Y.Z`、资产名仍是 `DiffusionBee_MPS_arm64-<v>.dmg`。
+1. 若要覆盖 `com.linerai.liner` 时期的 DiffusionBee，需要一种能按 `CFBundleName`（`DiffusionBee` vs `Liner`）区分的迁移条件；现有 `BundleIDMigration` 做不到，属于引擎改动，先不做。
+2. 厂商下一个版本出来后复查 tag 仍是裸 `X.Y.Z`、资产名仍是 `DiffusionBee_MPS_arm64-<v>.dmg`。
 
 ## 如何复验
 ```

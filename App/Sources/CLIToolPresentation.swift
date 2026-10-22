@@ -296,11 +296,38 @@ enum CLIToolPresentation {
     static func nodeNotices(
         ofPrefix prefix: NodePrefix, statuses: [CLIToolStatus], in report: RuntimeSecurityReport
     ) -> [RuntimeSecurityNotice] {
-        let keg = statuses.lazy.compactMap { status -> String? in
+        report.nodeNotices(forPrefix: prefix, homebrewKeg: homebrewKeg(ofPrefix: prefix, statuses: statuses))
+    }
+
+    /// The Homebrew keg any of a prefix's packages' `bin/node` resolves into.
+    private static func homebrewKeg(ofPrefix prefix: NodePrefix, statuses: [CLIToolStatus]) -> String? {
+        statuses.lazy.compactMap { status -> String? in
             guard case .npm(let package) = status.detail, package.install.prefix.path == prefix.path else { return nil }
             return package.install.runtime.homebrewKeg
         }.first
-        return report.nodeNotices(forPrefix: prefix, homebrewKeg: keg)
+    }
+
+    /// The command the header popover hands out for an nvm or fnm node with
+    /// newer security releases (`NodeUpgradeCommand`); nil for any other.
+    static func upgradeCommand(
+        ofPrefix prefix: NodePrefix, statuses: [CLIToolStatus], in report: RuntimeSecurityReport
+    ) -> NodeUpgradeCommand? {
+        guard let entry = report.nodeEntry(
+            forPrefix: prefix, homebrewKeg: homebrewKeg(ofPrefix: prefix, statuses: statuses))
+        else { return nil }
+        let packages = statuses.compactMap { status -> String? in
+            guard case .npm(let package) = status.detail, package.install.prefix.path == prefix.path else { return nil }
+            return package.install.name
+        }
+        return NodeUpgradeCommand(entry, packages: packages)
+    }
+
+    /// What an upgrade command leaves under the old version (fnm's global
+    /// packages), in a sentence; nil when it leaves nothing.
+    static func packagesLeftBehind(_ upgrade: NodeUpgradeCommand) -> String? {
+        guard !upgrade.packagesLeftBehind.isEmpty else { return nil }
+        let names = upgrade.packagesLeftBehind.joined(separator: ", ")
+        return String(localized: "Global packages stay with \(upgrade.installed): \(names). Reinstall them under \(upgrade.latest) with npm install -g.")
     }
 
     /// A sidebar ⚠'s tooltip and accessibility label: the notice block's

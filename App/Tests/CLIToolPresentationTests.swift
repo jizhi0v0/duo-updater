@@ -676,6 +676,23 @@ struct CLIToolPayloadPresentationTests {
         #expect(CLIToolPresentation.nodeNotices(ofPrefix: prefix, statuses: [], in: report).isEmpty)
     }
 
+    /// The header popover's command: fnm's names the prefix's packages it
+    /// leaves behind; an end of life alone has none.
+    @Test func theHeaderPopoverHandsOutTheCommand() {
+        let prefix = NodePrefix(
+            path: "/zzfixture/fnm/node-versions/v24.12.0/installation", source: .fnm, layoutNodeVersion: "24.12.0")
+        let install = RuntimeInstall(kind: .node, version: "24.12.0", origin: .manager(.fnm, prefix: prefix.path))
+        let statuses = [F.npm(F.npmInstall(prefix: prefix))]
+        let report = RuntimeSecurityReport(entries: [.init(install: install, notices: [
+            .nodeSecurityReleases(installed: "24.12.0", count: 5, latest: "24.22.1", latestDate: "2026-10-20")])])
+        let upgrade = CLIToolPresentation.upgradeCommand(ofPrefix: prefix, statuses: statuses, in: report)
+        #expect(upgrade?.command == "fnm install 24.22.1")
+        #expect(upgrade.flatMap(CLIToolPresentation.packagesLeftBehind)
+            == "Global packages stay with 24.12.0: openclaw. Reinstall them under 24.22.1 with npm install -g.")
+        let eol = RuntimeSecurityReport(entries: [.init(install: install, notices: [.nodeEndOfLife(major: "24", date: "2026-01-01")])])
+        #expect(CLIToolPresentation.upgradeCommand(ofPrefix: prefix, statuses: statuses, in: eol) == nil)
+    }
+
     /// A mark only where there are notices; its tooltip is their sentences.
     ///
     /// Mutation: drop `guard !notices.isEmpty` → every npm group header and

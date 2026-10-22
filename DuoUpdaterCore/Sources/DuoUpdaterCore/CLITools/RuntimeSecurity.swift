@@ -433,6 +433,11 @@ public struct RuntimeSecurityReport: Sendable, Equatable {
     /// The notices of the node an npm prefix runs: a version manager's prefix
     /// by its path, Homebrew's by the keg its `bin/node` resolves into.
     public func nodeNotices(forPrefix prefix: NodePrefix, homebrewKeg: String?) -> [RuntimeSecurityNotice] {
+        nodeEntry(forPrefix: prefix, homebrewKeg: homebrewKeg)?.notices ?? []
+    }
+
+    /// The node install an npm prefix runs, with its notices; nil without any.
+    public func nodeEntry(forPrefix prefix: NodePrefix, homebrewKeg: String?) -> Entry? {
         entries.first { entry in
             guard entry.install.kind == .node else { return false }
             switch entry.install.origin {
@@ -441,12 +446,15 @@ public struct RuntimeSecurityReport: Sendable, Equatable {
                 guard let homebrewKeg else { return false }
                 return URL(fileURLWithPath: homebrewKeg).resolvingSymlinksInPath().path == keg
             }
-        }?.notices ?? []
+        }
     }
 
     /// `duo check`'s lines, one per install: `nvm node 24.13.0: …`, `brew php
-    /// 8.4.26: …`, each advisory's link on a detail line under a PHP one.
-    public var englishLines: [String] {
+    /// 8.4.26: …`, each advisory's link on a detail line under a PHP one, and
+    /// under an nvm or fnm node the command that installs its latest security
+    /// release (`NodeUpgradeCommand`). `packagesByPrefix`: the global packages'
+    /// names under each prefix path, for what fnm leaves behind.
+    public func englishLines(packagesByPrefix: [String: [String]] = [:]) -> [String] {
         entries.flatMap { entry -> [String] in
             let install = entry.install
             let label: String
@@ -459,8 +467,106 @@ public struct RuntimeSecurityReport: Sendable, Equatable {
                 guard case .phpAdvisories(_, _, let advisories) = notice else { continue }
                 lines += advisories.map { "      \($0.id): \($0.url.absoluteString)" }
             }
+            if case .manager(_, let prefix) = install.origin,
+               let upgrade = NodeUpgradeCommand(entry, packages: packagesByPrefix[prefix] ?? []) {
+                lines.append("      to update it yourself: \(upgrade.command)")
+                if let left = upgrade.englishPackagesLeftBehind { lines.append("      \(left)") }
+            }
             return lines
         }
+    }
+}
+
+/// The command that installs a version manager's node's latest security
+/// release, for the user to copy and run — never run here. nvm and fnm keep
+/// each version in a directory of its own, so there is no upgrade in place:
+/// the newer version is installed beside the old one (which stays), the global
+/// packages moved where the manager can, and the default switched only when it
+/// named the old version exactly.
+///
+/// - nvm (README, "Migrating Global Packages While Installing"):
+///   `nvm install <latest> --reinstall-packages-from=<installed>`, then
+///   `nvm alias default <latest>` when `$NVM_DIR/alias/default` names the
+///   installed version. A floating default (`lts/*`, `node`, `24`) already
+///   follows the newer install.
+/// - fnm (`docs/commands.md`): `fnm install <latest>`, then `fnm default
+///   <latest>` when fnm's `aliases/default` link (`alias.rs`: a link to the
+///   version's installation directory) points at the installed version. fnm
+///   documents no way to move global packages, so they are named instead.
+/// - mise, asdf: their docs give no command that installs a version and moves
+///   the global packages from another, so none is offered.
+///
+/// Only for newer security releases of the same major: an end of life alone
+/// gets none, since its way out is another major.
+public struct NodeUpgradeCommand: Sendable, Equatable {
+    public let command: String
+    /// The installed and latest versions.
+    public let installed: String
+    public let latest: String
+    /// Global packages under the installed version the command doesn't move
+    /// (fnm's); empty for nvm, which moves them.
+    public let packagesLeftBehind: [String]
+
+    /// nil unless the install is an nvm or fnm node with a
+    /// `.nodeSecurityReleases` notice. `packages`: the global packages' names
+    /// under its prefix.
+    public init?(_ entry: RuntimeSecurityReport.Entry, packages: [String]) {
+        guard entry.install.kind == .node, case .manager(let source, let prefix) = entry.install.origin,
+              let latest = entry.notices.lazy.compactMap({ notice -> String? in
+                  if case .nodeSecurityReleases(_, _, let latest, _) = notice { return latest }
+                  return nil
+              }).first
+        else { return nil }
+        let installed = entry.install.version
+        let prefixURL = URL(fileURLWithPath: prefix)
+        switch source {
+        case .nvm:
+            // `<NVM_DIR>/versions/node/v<installed>`.
+            let nvmDir = prefixURL.deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            var command = "nvm install \(latest) --reinstall-packages-from=\(installed)"
+            if Self.nvmDefault(in: nvmDir, names: installed) { command += " && nvm alias default \(latest)" }
+            self.init(command: command, installed: installed, latest: latest, packagesLeftBehind: [])
+        case .fnm:
+            // `<fnm dir>/node-versions/v<installed>/installation`.
+            let fnmDir = prefixURL.deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            var command = "fnm install \(latest)"
+            if Self.fnmDefault(in: fnmDir, isPrefix: prefixURL) { command += " && fnm default \(latest)" }
+            self.init(command: command, installed: installed, latest: latest, packagesLeftBehind: packages)
+        default:
+            return nil
+        }
+    }
+
+    init(command: String, installed: String, latest: String, packagesLeftBehind: [String]) {
+        self.command = command
+        self.installed = installed
+        self.latest = latest
+        self.packagesLeftBehind = packagesLeftBehind
+    }
+
+    /// `duo`'s sentence for `packagesLeftBehind`; nil when there are none.
+    public var englishPackagesLeftBehind: String? {
+        guard !packagesLeftBehind.isEmpty else { return nil }
+        return "Global packages stay with \(installed): \(packagesLeftBehind.joined(separator: ", ")). "
+            + "Reinstall them under \(latest) with npm install -g."
+    }
+
+    /// Whether `<nvmDir>/alias/default` names exactly `version` (`24.13.0` or
+    /// `v24.13.0`), rather than an alias that follows newer installs.
+    static func nvmDefault(in nvmDir: URL, names version: String) -> Bool {
+        guard let text = try? String(contentsOf: nvmDir.appendingPathComponent("alias/default"), encoding: .utf8)
+        else { return false }
+        let alias = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return alias == version || alias == "v" + version
+    }
+
+    /// Whether `<fnmDir>/aliases/default` links to `prefix`.
+    static func fnmDefault(in fnmDir: URL, isPrefix prefix: URL) -> Bool {
+        let link = fnmDir.appendingPathComponent("aliases/default")
+        guard let destination = try? FileManager.default.destinationOfSymbolicLink(atPath: link.path) else { return false }
+        let target = URL(fileURLWithPath: destination, relativeTo: link.deletingLastPathComponent())
+        return target.standardizedFileURL.resolvingSymlinksInPath().path
+            == prefix.standardizedFileURL.resolvingSymlinksInPath().path
     }
 }
 

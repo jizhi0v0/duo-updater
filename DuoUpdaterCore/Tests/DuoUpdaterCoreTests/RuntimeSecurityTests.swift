@@ -236,8 +236,93 @@ import Foundation
         let report = RuntimeSecurityReport(installs: installs, data: try Self.data(), today: Self.today)
         let prefix = NodePrefix(path: nvm.path, source: .nvm, layoutNodeVersion: "24.13.0")
         #expect(report.nodeNotices(forPrefix: prefix, homebrewKeg: nil).count == 1)
-        #expect(report.englishLines == [
-            "  nvm node 24.13.0: 4 security releases since (latest 24.22.1) — https://nodejs.org/en/blog/release/v24.22.1/"])
+        #expect(report.englishLines() == [
+            "  nvm node 24.13.0: 4 security releases since (latest 24.22.1) — https://nodejs.org/en/blog/release/v24.22.1/",
+            "      to update it yourself: nvm install 24.22.1 --reinstall-packages-from=24.13.0"])
+    }
+
+    // MARK: - The command to copy
+
+    private static let security = RuntimeSecurityNotice.nodeSecurityReleases(
+        installed: "24.13.0", count: 4, latest: "24.22.1", latestDate: "2026-10-20")
+
+    /// An nvm version directory under a scratch `NVM_DIR`, with `alias/default`
+    /// holding `defaultAlias` when given.
+    private static func nvm(_ home: URL, defaultAlias: String?) throws -> RuntimeSecurityReport.Entry {
+        let nvmDir = home.appendingPathComponent(".nvm")
+        let prefix = nvmDir.appendingPathComponent("versions/node/v24.13.0")
+        try FileManager.default.createDirectory(at: prefix, withIntermediateDirectories: true)
+        if let defaultAlias {
+            try FileManager.default.createDirectory(at: nvmDir.appendingPathComponent("alias"), withIntermediateDirectories: true)
+            try Data((defaultAlias + "\n").utf8).write(to: nvmDir.appendingPathComponent("alias/default"))
+        }
+        return .init(install: RuntimeInstall(kind: .node, version: "24.13.0", origin: .manager(.nvm, prefix: prefix.path)),
+                     notices: [Self.security])
+    }
+
+    /// nvm moves the packages itself; the default follows only when it named
+    /// the installed version — `lts/*` and `24` follow newer installs already.
+    /// Mutation: always append the default → `lts/*` would be pinned to 24.22.1.
+    @Test func nvmsCommandMovesPackagesAndPinsOnlyAPinnedDefault() throws {
+        let base = "nvm install 24.22.1 --reinstall-packages-from=24.13.0"
+        for (alias, expected) in [("v24.13.0", base + " && nvm alias default 24.22.1"),
+                                  ("24.13.0", base + " && nvm alias default 24.22.1"),
+                                  ("lts/*", base), ("node", base), ("24", base), ("v24.12.0", base)] {
+            let home = try Self.scratch()
+            defer { try? FileManager.default.removeItem(at: home) }
+            let upgrade = NodeUpgradeCommand(try Self.nvm(home, defaultAlias: alias), packages: ["openclaw"])
+            #expect(upgrade?.command == expected, "default \(alias)")
+            #expect(upgrade?.packagesLeftBehind == [])
+        }
+        let home = try Self.scratch()
+        defer { try? FileManager.default.removeItem(at: home) }
+        #expect(NodeUpgradeCommand(try Self.nvm(home, defaultAlias: nil), packages: [])?.command == base)
+    }
+
+    /// fnm's default is a link to a version's installation directory; its
+    /// packages stay behind, and are named.
+    /// Mutation: drop the link comparison → a default on 22.21.1 is moved.
+    @Test func fnmsCommandNamesThePackagesItLeaves() throws {
+        let home = try Self.scratch()
+        defer { try? FileManager.default.removeItem(at: home) }
+        let fnm = home.appendingPathComponent(".local/share/fnm")
+        let prefix = fnm.appendingPathComponent("node-versions/v24.12.0/installation")
+        let other = fnm.appendingPathComponent("node-versions/v22.21.1/installation")
+        for dir in [prefix, other, fnm.appendingPathComponent("aliases")] {
+            try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        }
+        let entry = RuntimeSecurityReport.Entry(
+            install: RuntimeInstall(kind: .node, version: "24.12.0", origin: .manager(.fnm, prefix: prefix.path)),
+            notices: [.nodeSecurityReleases(installed: "24.12.0", count: 5, latest: "24.22.1", latestDate: "2026-10-20")])
+        let link = fnm.appendingPathComponent("aliases/default").path
+        try FileManager.default.createSymbolicLink(atPath: link, withDestinationPath: prefix.path)
+        let upgrade = NodeUpgradeCommand(entry, packages: ["pnpm"])
+        #expect(upgrade?.command == "fnm install 24.22.1 && fnm default 24.22.1")
+        #expect(upgrade?.englishPackagesLeftBehind
+            == "Global packages stay with 24.12.0: pnpm. Reinstall them under 24.22.1 with npm install -g.")
+        try FileManager.default.removeItem(atPath: link)
+        try FileManager.default.createSymbolicLink(atPath: link, withDestinationPath: other.path)
+        #expect(NodeUpgradeCommand(entry, packages: [])?.command == "fnm install 24.22.1")
+        #expect(NodeUpgradeCommand(entry, packages: [])?.englishPackagesLeftBehind == nil)
+    }
+
+    /// An end of life alone has no command (its way out is another major), nor
+    /// has a node of another manager or of Homebrew (which has Update).
+    @Test func onlyNvmAndFnmSecurityReleasesGetACommand() throws {
+        let home = try Self.scratch()
+        defer { try? FileManager.default.removeItem(at: home) }
+        let nvm = try Self.nvm(home, defaultAlias: "v24.13.0")
+        #expect(NodeUpgradeCommand(.init(install: nvm.install, notices: [.nodeEndOfLife(major: "24", date: "2026-01-01")]),
+                                   packages: []) == nil)
+        for origin: RuntimeInstall.Origin in [.manager(.mise, prefix: "/x"), .manager(.asdf, prefix: "/x"),
+                                              .homebrew(formula: "node@24", keg: "/k")] {
+            #expect(NodeUpgradeCommand(.init(install: RuntimeInstall(kind: .node, version: "24.13.0", origin: origin),
+                                             notices: [Self.security]), packages: []) == nil)
+        }
+        // duo's line under the notice.
+        let report = RuntimeSecurityReport(entries: [nvm])
+        #expect(report.englishLines().last
+            == "      to update it yourself: nvm install 24.22.1 --reinstall-packages-from=24.13.0 && nvm alias default 24.22.1")
     }
 
     // MARK: - Fetching

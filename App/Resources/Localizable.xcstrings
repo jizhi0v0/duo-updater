@@ -80746,6 +80746,71 @@
           }
         }
       }
+    },
+    "Global packages stay with %@: %@. Reinstall them under %@ with npm install -g.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Globale Pakete bleiben bei %@: %@. Installiere sie unter %@ mit npm install -g neu."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Los paquetes globales se quedan en %@: %@. Vuelve a instalarlos en %@ con npm install -g."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les paquets globaux restent avec %@ : %@. Réinstallez-les sous %@ avec npm install -g."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "I pacchetti globali restano con %@: %@. Reinstallali sotto %@ con npm install -g."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "グローバルパッケージは %@ に残ります: %@。%@ で npm install -g を使って再インストールしてください。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Os pacotes globais ficam com o %@: %@. Reinstale-os no %@ com npm install -g."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Глобальные пакеты остаются у %@: %@. Переустановите их для %@ командой npm install -g."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Genel paketler %@ sürümünde kalır: %@. Bunları %@ altında npm install -g ile yeniden yükleyin."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "全局包留在 %@：%@。请在 %@ 下用 npm install -g 重新安装。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "全域套件留在 %@：%@。請在 %@ 下用 npm install -g 重新安裝。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

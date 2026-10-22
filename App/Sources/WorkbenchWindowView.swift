@@ -1121,8 +1121,10 @@ struct WorkbenchWindowView: View {
                 let notices = CLIToolPresentation.nodeNotices(
                     ofPrefix: prefix, statuses: model.cliTools.statuses, in: model.runtimeSecurity)
                 if let help = CLIToolPresentation.securityMarkHelp(notices) {
+                    let statuses = model.cliTools.statuses, report = model.runtimeSecurity
                     RuntimeSecurityMarkButton(
-                        help: help, title: cliToolHeaderSummary(group) ?? group.kind.displayName, notices: notices)
+                        help: help, title: cliToolHeaderSummary(group) ?? group.kind.displayName, notices: notices,
+                        upgrade: { CLIToolPresentation.upgradeCommand(ofPrefix: prefix, statuses: statuses, in: report) })
                         .font(.caption)
                 }
             }
@@ -2656,6 +2658,9 @@ private struct RuntimeSecurityMarkButton: View {
     /// Which node: the header's "nvm · node 24.13.0".
     let title: String
     let notices: [RuntimeSecurityNotice]
+    /// The command to copy for an nvm or fnm node (`NodeUpgradeCommand`). Asked
+    /// only when the popover opens: it reads the manager's default alias.
+    let upgrade: () -> NodeUpgradeCommand?
 
     @State private var showing = false
 
@@ -2700,6 +2705,20 @@ private struct RuntimeSecurityMarkButton: View {
                         NSWorkspace.shared.open(url)
                         return .handled
                     })
+                // Handed out, never run: installing beside the old version and
+                // moving packages is the user's to decide.
+                if let upgrade = upgrade() {
+                    Text("To update it yourself, run:")
+                        .font(.callout)
+                        .padding(.top, 6)
+                    CopyableCommandBox(command: upgrade.command)
+                    if let left = CLIToolPresentation.packagesLeftBehind(upgrade) {
+                        Text(left)
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
             }
         }
         .padding(14)

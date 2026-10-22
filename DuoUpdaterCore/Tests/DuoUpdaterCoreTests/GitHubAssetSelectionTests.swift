@@ -203,6 +203,17 @@ struct GitHubAssetSelectionTests {
           "AstrLink_0.2.6_amd64.AppImage.sig", "AstrLink_0.2.6_amd64.deb",
           "AstrLink_0.2.6_x64-setup.exe", "AstrLink_0.2.6_x64-setup.exe.sig",
           "AstrLink_0.2.6_x64.dmg", "latest.json", "SHA256SUMS"]),
+        // Hoppscotch: Cloud and Self-Host dmgs per architecture beside the
+        // Tauri tar.gz archives and the Linux/Windows packages (v26.9.0-0's
+        // assets, in the order GitHub listed them); only the Cloud dmgs match.
+        (#"^Hoppscotch_mac_(?:aarch64|x64)\.dmg$"#,
+         ["Hoppscotch_Cloud_win_x64_portable.zip", "Hoppscotch_linux_x64.AppImage",
+          "Hoppscotch_linux_x64.deb", "Hoppscotch_mac_aarch64.dmg", "Hoppscotch_mac_aarch64.tar.gz",
+          "Hoppscotch_mac_x64.dmg", "Hoppscotch_mac_x64.tar.gz", "Hoppscotch_SelfHost_linux_x64.AppImage",
+          "Hoppscotch_SelfHost_linux_x64.deb", "Hoppscotch_SelfHost_mac_aarch64.dmg",
+          "Hoppscotch_SelfHost_mac_aarch64.tar.gz", "Hoppscotch_SelfHost_mac_x64.dmg",
+          "Hoppscotch_SelfHost_mac_x64.tar.gz", "Hoppscotch_SelfHost_win_x64.msi",
+          "Hoppscotch_SelfHost_win_x64_portable.zip", "Hoppscotch_win_x64.msi"]),
     ]
 
     /// Registry patterns whose alternation chooses between TAGS rather than

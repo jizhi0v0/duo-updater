@@ -141,6 +141,7 @@ struct RecipeCodableTests {
                 samples: [
                     (.installedVersion(pattern: "^4"), #"{"kind":"installedVersion","pattern":"^4"}"#),
                     (.asarEntry(path: "a/b.js", pattern: "N"), #"{"kind":"asarEntry","path":"a\/b.js","pattern":"N"}"#),
+                    (.executableContains(marker: "m.json"), #"{"kind":"executableContains","marker":"m.json"}"#),
                 ]),
 
             // Each sample beside the exact JSON it must encode to. These literals are

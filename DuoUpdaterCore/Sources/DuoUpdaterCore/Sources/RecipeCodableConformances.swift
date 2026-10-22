@@ -866,13 +866,14 @@ extension OneClickGate: Codable {
 }
 
 extension OneClickGate.Requirement: Codable {
-    enum CodingKind: String, CaseIterable { case installedVersion, asarEntry }
+    enum CodingKind: String, CaseIterable { case installedVersion, asarEntry, executableContains }
 
     public init(from decoder: Decoder) throws {
         let (kind, c) = try RecipeCoding.taggedObject(CodingKind.self, in: decoder) {
             switch $0 {
             case .installedVersion: return ["pattern"]
             case .asarEntry: return ["path", "pattern"]
+            case .executableContains: return ["marker"]
             }
         }
         switch kind {
@@ -882,6 +883,8 @@ extension OneClickGate.Requirement: Codable {
             self = .asarEntry(
                 path: try c.decode(String.self, forKey: .init("path")),
                 pattern: try c.decode(String.self, forKey: .init("pattern")))
+        case .executableContains:
+            self = .executableContains(marker: try c.decode(String.self, forKey: .init("marker")))
         }
     }
 
@@ -896,6 +899,9 @@ extension OneClickGate.Requirement: Codable {
             kind = .asarEntry
             try c.encode(path, forKey: .init("path"))
             try c.encode(pattern, forKey: .init("pattern"))
+        case .executableContains(let marker):
+            kind = .executableContains
+            try c.encode(marker, forKey: .init("marker"))
         }
         try c.encode(kind.rawValue, forKey: .init("kind"))
     }

@@ -245,6 +245,7 @@ public enum AppRecipeIndex {
         io_github_obelus_editor_obelus.set,
         io_github_tobi_disktree.set,
         io_github_wickenico_wailbrew.set,
+        io_hoppscotch_desktop.set,
         io_lapce.set,
         io_nekohasekai_screensharing.set,
         io_podmandesktop_PodmanDesktop.set,

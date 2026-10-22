@@ -16,7 +16,7 @@
 |              | Sparkle | Homebrew | MAS | GitHub | VendorProbe |
 |--------------|---------|----------|-----|--------|-------------|
 | **stable**   | —       | ✓（通用源，只管 cask 装的副本；本次未实测） | — | ✓ | — |
-| **beta**     | —       | —        | —   | ○      | —           |
+| **beta**     | —       | —        | —   | ✓（只检测，给最新稳定版） | —           |
 
 当前生效源: **GitHub**（channel-verify 实测，3.0.2 dmg）。`feed-discover` 对 3.0.2 dmg: `review electronProviderNeedsConstruction` —— bundle 里有 electron-builder 写的 `Contents/Resources/app-update.yml`（`provider: github`, `updaterCacheDirName: picgo-updater`），但 app 不读它，`ElectronManifestSource` 也不接 github provider，所以要这条 rule。
 
@@ -44,12 +44,12 @@
 | Channel | Bundle ID | 独立/共享 | 检测信号 | 门控方式 | 状态 |
 |---------|-----------|----------|---------|---------|------|
 | stable  | `com.molunerfinn.picgo` | 共享 | 版本串无后缀 | `/releases/latest` | ✓ |
-| beta    | `com.molunerfinn.picgo` | 共享 | 版本串 `-beta.N` → `.beta` | 无 rule，GitHub 源跳过 | ○ |
+| beta    | `com.molunerfinn.picgo` | 共享 | 版本串 `-beta.N` → `.beta` | `.beta` rule 读 `/releases/latest` | ✓（只检测） |
 
-- **beta 副本不会被当成 stable。** 两个真 beta 包 channel-verify `--expect beta` 都是 `detected channel → beta`、`winning source <none>`、`status unknown (no source answered)`（原始输出见「如何复验」）。不需要 `OneClickGate`：gate 是「有检测、只扣一键」的场景，而 beta 副本根本拿不到 stable 的 offer
+- **beta 副本不会被当成 stable。** 版本串带 `-beta.N`，`ReleaseChannel.detect` 判 `.beta`，stable rule 不服务它。加 beta rule 之前，两个真 beta 包 channel-verify `--expect beta` 都是 `winning source <none>`、`status unknown (no source answered)`；加了之后是 `winning source GitHub`、`UPDATE → 3.0.3`、`download` 只是 releases 页（见「历史与实测」）
 - 厂商 app 自己怎么分：`settings.checkBetaUpdate`（存在 PicGo 自己的 `data.json` 配置里，`!== false` 即开，**默认开**）。开着时 `getLatestVersion` 取所有非 draft release 的 semver 最大值，所以今天给 beta 副本提示的是 stable 3.0.3
 - 9 个 `v2.3.0-beta.N` tag 没标 prerelease（之后的 beta 都标了），所以出现在「非 prerelease 却读不出」里；版本模式故意不收，见「更新检测」
-- **beta 是缺口 ○，不是被挡掉。** 可以照 CotEditor / SwitchHosts 的做法加一条 `.beta` rule（`usePrereleases: true`，版本模式同时收 `-beta.N` 和纯数字 tag，再加 `githubChannelProofs`），让 beta 副本也拿到 3.0.3，和厂商自己的提示一致。本次没做，交主会话决定
+- **beta：✓（只检测）。** 照 SmoothCSV 的做法加了一条 `channel: .beta` 的 GitHub rule：同一个仓库、同样的 tag 模式、读 `/releases/latest`，没有 `installAssetPattern` / `installerKind` / `installedTagPrefix`。beta 副本看到的是最新稳定版 3.0.3，和厂商 `checkBetaUpdate`（默认开）今天给它的提示一致；3.x 没发过 beta，所以不读 prerelease。只检测的理由：非 stable 轨的安装要 channel proof，而两条轨在 release 上没有区别，能区分的只有已装副本的版本号。副本手动换成稳定版后由 stable rule 服务，一键也就有了
 
 ## 更新检测
 - 源: `Molunerfinn/PicGo` GitHub Releases，`/releases/latest`
@@ -79,7 +79,7 @@
 - 结构化（2026-10-22，channel-verify `changelog pane`，从 3.0.2 起）: `source structured: 1 entries; newest 3.0.3: 11 items, headings ["Features", "Performance", "Bug Fixes", "Features", "Performance", "Bug Fixes", "Windows", "macOS", "Linux"]; first items ["✨ **Choose the upload configuration per ", "Perf: Fixed the `PicGo Helper (GPU)` pro", "Fix: PicGo launching twice and showing i"]`
 - **标题保留了，没被压平。** 重复的三组标题是因为厂商正文是英文一遍、`---`、中文一遍，两半用同样的 `## Features / ## Performance / ## Bug Fixes`；最后的 `Windows / macOS / Linux` 是「国内可下载链接」节的下载链接（5 条），也算进了 11 条（英 3 + 中 3 + 下载 5）
 - 丢掉的: 每版 `## Features` 下开头的介绍段落（列表前的段落，同 Harp 记录的 `GitHubMarkdownParser.sectionProse` 取舍）、代码块和表格。真正的改动都写成了列表项，所以面板上有内容
-- 跟随 channel: —（beta 无 rule）
+- 跟随 channel: —（beta rule 读的也是稳定版正文）
 - Recipe 状态: 不需要
 
 ## 一键安装
@@ -94,7 +94,7 @@
 - **读的是**: 人人可手动下载的 GA（`/releases/latest`，即厂商自己更新提示打开的那一页）
 - 阻塞 / 拒装的副本:
   - **2.4.1 及更早**（ad-hoc 或无签名）: 检测正常（channel-verify 2.4.1 → `UPDATE → 3.0.3`），一键被 Team 闸拒（安装副本无 Team，`SignatureVerifier.verifyTeamIdentifierMatch` 抛 `noTeamIdentifier(which: "installed")`），用户手动更新一次。`.publishedDigestOnly` 不适用：它要求两边都没有 Team，而下载包有 `QDG8UZ6TCP`
-  - beta 副本: 没有 offer，见上
+  - beta 副本: 有检测（3.0.3），没有一键：beta rule 只检测，`download` 是 releases 页，见「Channel 详情」
 
 ## 已知问题
 - `v1.0.2`–`v1.2.1` 的副本（旧 bundle id `org.simulatedgreg.electron-vue`）检测不到 3.0.3，也不会被提示。证据：`package.json` 在 `v1.0.2`、`v1.1.0`、`v1.2.0`、`v1.2.1` 的 `build.appId` 都是 `org.simulatedgreg.electron-vue`，`v1.3.0` 改成 `com.molunerfinn.picgo`；这几个版本的 release 只有 `PicGo-<v>.dmg`（`v1.2.0`/`v1.2.1` 另带 `picgo-<v>-mac.zip`）。没有做 `BundleIDMigration`：这个 id 是 electron-vue 脚手架留下的，不是 PicGo 独有。electron-vue 模板 `template/package.json` 的早期提交写死了它，后来才改成提示输入 `{{ appid }}`（默认 `com.example.yourapp`），GitHub 代码搜索 `"org.simulatedgreg.electron-vue" in:file filename:package.json` 命中 258 个文件，分属 `PanJiaChen/electron-vue-admin`、`SmallRuralDog/electron-vue-music` 等互不相干的项目。对这个 id 做迁移，会把别的 electron-vue 应用也当成 PicGo。旧 id 的 `CFBundleIdentifier` 没有读真包（未下载 1.x 的 dmg），只读到 `package.json` 里的 electron-builder 配置
@@ -117,13 +117,27 @@ swift run --package-path application-test channel-verify PicGo-3.0.2-arm64.dmg -
 #   download https://github.com/Molunerfinn/PicGo/releases/download/v3.0.3/PicGo-3.0.3-arm64.dmg; status UPDATE → 3.0.3
 swift run --package-path application-test channel-verify PicGo-3.0.3-arm64.dmg --expect stable
 #   winning source GitHub; latest 3.0.3; status up to date
-swift run --package-path application-test channel-verify PicGo-2.4.2-beta.0-arm64.dmg --expect beta
-#   short version 2.4.2-beta.0; detected channel → beta; winning source <none>; status unknown (no source answered)
-swift run --package-path application-test channel-verify PicGo-2.3.0-beta.8.dmg --expect beta
-#   short version 2.3.0-beta.8; detected channel → beta; winning source <none>; status unknown (no source answered)
+swift run --package-path application-test channel-verify PicGo-2.4.0-beta.10-arm64.dmg --expect beta
+#   detected channel → beta; winning source GitHub; latest 3.0.3;
+#   download https://github.com/Molunerfinn/PicGo/releases; status UPDATE → 3.0.3
 swift run --package-path application-test channel-verify PicGo-2.4.1-arm64.dmg --expect stable
 #   detected channel → stable; winning source GitHub; status UPDATE → 3.0.3
 ```
 
-## 建议下一步
-1. 决定是否给 beta 副本加 `.beta` rule（CotEditor / SwitchHosts 式，收 `-beta.N` 和纯数字 tag，加 channel proof）。不加的话 beta 副本一直显示「未知」。
+## 历史与实测
+
+### 2026-10-22 —— beta 副本加只检测的 `.beta` rule
+
+- 加 rule 之前（同日接入时）: `PicGo-2.4.2-beta.0-arm64.dmg`、`PicGo-2.3.0-beta.8.dmg` channel-verify `--expect beta` 都是 `detected channel → beta`、`winning source <none>`、`status unknown (no source answered)`
+- 厂商行为: `src/main/utils/updateChecker.ts`（`dev`）里 `isCheckBetaUpdate = getConfig('settings.checkBetaUpdate') !== false`，传给 `getLatestVersion`；`/releases/latest` 是 `v3.0.3`（`prerelease: false`）
+- 加 rule 之后，`PicGo-2.4.0-beta.10-arm64.dmg`（93119301 字节，sha256 `ddf5a477af295cf9ffbca1a36536089ed144147a3d820a99b7c8e7c1e3e907a5`，与 API `digest` 相同）:
+  ```
+  short version   2.4.0-beta.10
+  detected channel  → beta
+  ✓ detection matches --expect beta
+  winning source  GitHub
+  latest          3.0.3
+  download        https://github.com/Molunerfinn/PicGo/releases
+  status          UPDATE → 3.0.3
+  ```
+- 对照 `PicGo-3.0.2-arm64.dmg` `--expect stable`，结果不变: `winning source GitHub`、`latest 3.0.3`、`download https://github.com/Molunerfinn/PicGo/releases/download/v3.0.3/PicGo-3.0.3-arm64.dmg`、`UPDATE → 3.0.3`

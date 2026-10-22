@@ -107,6 +107,7 @@ public enum AppRecipeIndex {
         com_hnc_Discord.set,
         com_insomnia_app.set,
         com_intelliscapesolutions_caffeine.set,
+        com_itsytv_app.set,
         com_jetbrains_air.set,
         com_jetbrains_intellij.set,
         com_jetbrains_toolbox.set,

@@ -274,18 +274,81 @@ enum CLIToolPresentation {
     /// channel and update every pane shows: who signed it and how it got there,
     /// and anything else the verdict rests on. Empty for a tool without a payload
     /// worth showing (bub, fx, a Rust toolchain, whose channel is already there).
-    static func facts(of status: CLIToolStatus, home: String) -> [Fact] {
+    /// `runtimeSecurity` adds what nodejs.org says about an npm package's node
+    /// to its Node fact.
+    static func facts(
+        of status: CLIToolStatus, home: String, runtimeSecurity: RuntimeSecurityReport = RuntimeSecurityReport()
+    ) -> [Fact] {
         switch status.detail {
         case .uv(let uv): return facts(of: uv, home: home)
         case .junie(let junie): return facts(of: junie, withheld: status.withheld)
         case .rust(let item): return facts(of: item, withheld: status.withheld)
-        case .npm(let package): return facts(of: package, withheld: status.withheld, home: home)
+        case .npm(let package):
+            return facts(of: package, withheld: status.withheld, home: home, runtimeSecurity: runtimeSecurity)
         case .codex(let codex): return facts(of: codex)
         case .bun(let bun): return facts(of: bun)
         case .opencode(let opencode): return facts(of: opencode)
         case .amp(let amp): return facts(of: amp)
         case .claudeCode, .bub, .fx, .boat, .cursorAgent, .vitePlus, .herdr, .luvus, .lorca, .zoxide, .nvm, .atuin, .ghcup, .flyctl, .helm, .starship, .deno, .mise, .obelus, .biome: return []
         }
+    }
+
+    // MARK: - Runtime security notices
+
+    /// What the Node fact adds for its node's notices (`RuntimeSecurityNotice`):
+    /// "4 security releases since (latest 24.22.1)", "end of life since
+    /// 2026-04-30". PHP's are not a node's, and have no place here.
+    static func nodeSecurityTail(_ notices: [RuntimeSecurityNotice]) -> [String] {
+        notices.compactMap { notice in
+            switch notice {
+            case .nodeSecurityReleases(_, let count, let latest, _):
+                String(localized: "\(count) security releases since (latest \(latest))")
+            case .nodeEndOfLife(_, let date):
+                String(localized: "end of life since \(date)")
+            case .phpAdvisories, .phpEndOfLife:
+                nil
+            }
+        }
+    }
+
+    /// A Homebrew node or php formula's notices as the one block its detail pane
+    /// shows: a sentence each, the release or advisory each names a link to it.
+    /// Says only what the publisher published — never that the install is
+    /// vulnerable.
+    static func securityNotice(_ notices: [RuntimeSecurityNotice]) -> AttributedString {
+        var block = AttributedString()
+        for notice in notices {
+            if !block.characters.isEmpty { block += AttributedString(" ") }
+            switch notice {
+            case .nodeSecurityReleases(let installed, let count, let latest, _):
+                let major = String(installed.prefix { $0 != "." })
+                block += linking(
+                    String(localized: "Newer Node.js \(major) releases marked as security releases by nodejs.org: \(count), the latest \(latest)."),
+                    [(latest, RuntimeSecurityNotice.nodeReleaseURL(latest))])
+            case .nodeEndOfLife(let major, let date):
+                block += AttributedString(String(localized: "Node.js \(major) reached end of life on \(date)."))
+            case .phpAdvisories(let installed, let fixed, let advisories):
+                let ids = advisories.map(\.label).joined(separator: ", ")
+                block += linking(
+                    String(localized: "\(installed) is older than \(fixed), which fixes \(ids) (php.net/GitHub advisory)."),
+                    advisories.map { ($0.label, $0.url) })
+            case .phpEndOfLife(let branch, let date):
+                block += AttributedString(String(localized: "PHP \(branch) reached end of security support on \(date)."))
+            }
+        }
+        return block
+    }
+
+    /// `sentence` with the first unlinked occurrence of each text a link.
+    private static func linking(_ sentence: String, _ links: [(text: String, url: URL)]) -> AttributedString {
+        var linked = AttributedString(sentence)
+        var searchFrom = linked.startIndex
+        for (text, url) in links {
+            guard let range = linked[searchFrom...].range(of: text) else { continue }
+            linked[range].link = url
+            searchFrom = range.upperBound
+        }
+        return linked
     }
 
     /// The signature as a fact's value. `signer` is the certificate's name, which
@@ -407,7 +470,9 @@ enum CLIToolPresentation {
         return [Fact(label: String(localized: "Verification"), value: value)]
     }
 
-    private static func facts(of package: NpmPackage, withheld: CLIToolWithheld?, home: String) -> [Fact] {
+    private static func facts(
+        of package: NpmPackage, withheld: CLIToolWithheld?, home: String, runtimeSecurity: RuntimeSecurityReport
+    ) -> [Fact] {
         let install = package.install
         var facts = [Fact(
             label: String(localized: "Prefix"),
@@ -416,9 +481,11 @@ enum CLIToolPresentation {
         if install.runtime.node == nil {
             node = String(localized: "None of its own")
         } else {
-            node = [nodeVersion(of: package),
-                    signature(install.runtime.nodeSignature, signer: "Node.js Foundation",
-                              team: NpmScanner.nodeTeamIdentifier)]
+            node = ([nodeVersion(of: package),
+                     signature(install.runtime.nodeSignature, signer: "Node.js Foundation",
+                               team: NpmScanner.nodeTeamIdentifier)]
+                    + nodeSecurityTail(runtimeSecurity.nodeNotices(
+                        forPrefix: install.prefix, homebrewKeg: install.runtime.homebrewKeg)).map { Optional($0) })
                 .compactMap { $0 }.joined(separator: " · ")
         }
         facts.append(Fact(label: String(localized: "Node"), value: node))

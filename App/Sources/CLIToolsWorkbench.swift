@@ -899,6 +899,8 @@ struct CLIToolDetailPane: View {
     let status: CLIToolStatus
     let cli: CLIToolsModel
     var showsRuntime = true
+    /// For an npm package's Node fact (`CLIToolPresentation.nodeSecurityTail`).
+    var runtimeSecurity = RuntimeSecurityReport()
     /// The latest click on a version in the Compatibility row, for the notes.
     @State private var breakingJump: BreakingChangesJump?
 
@@ -962,7 +964,8 @@ struct CLIToolDetailPane: View {
             }
             // The tool's own: signature, how it got there, what else the verdict
             // rests on (`CLIToolPresentation.facts`).
-            ForEach(CLIToolPresentation.facts(of: status, home: homeDirectory), id: \.label) { fact in
+            ForEach(CLIToolPresentation.facts(of: status, home: homeDirectory, runtimeSecurity: runtimeSecurity),
+                    id: \.label) { fact in
                 GridRow {
                     Text(verbatim: fact.label).foregroundStyle(.secondary).gridColumnAlignment(.trailing)
                     // No `fixedSize(vertical:)` on any text of this pane: the window's

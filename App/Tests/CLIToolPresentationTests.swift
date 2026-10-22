@@ -634,6 +634,51 @@ struct CLIToolPayloadPresentationTests {
         #expect(linked.contains(.init(label: "Linked to", value: "~/src/openclaw")))
     }
 
+    /// The Node fact carries its node's notices — the node this prefix runs,
+    /// matched by the prefix's path, and no other's.
+    ///
+    /// Mutation: match any node install in `nodeNotices` → the fact of a prefix
+    /// on another node grows these too; drop the tail → no notice at all.
+    @Test func theNodeFactCarriesItsNodesSecurityNotices() {
+        let prefix = CLIToolFixtures.nvm("24.13.0")
+        let report = RuntimeSecurityReport(entries: [.init(
+            install: RuntimeInstall(kind: .node, version: "24.13.0", origin: .manager(.nvm, prefix: prefix.path)),
+            notices: [.nodeSecurityReleases(installed: "24.13.0", count: 4, latest: "24.22.1", latestDate: "2026-10-20"),
+                      .nodeEndOfLife(major: "24", date: "2028-04-30")])])
+        let node = { (status: CLIToolStatus) in
+            CLIToolPresentation.facts(of: status, home: Self.home, runtimeSecurity: report)
+                .first { $0.label == "Node" }?.value
+        }
+        #expect(node(F.npm()) == "24.13.0 · Signed by Node.js Foundation (Team HX7739G8FX)"
+            + " · 4 security releases since (latest 24.22.1) · end of life since 2028-04-30")
+        #expect(node(F.npm(F.npmInstall(prefix: CLIToolFixtures.nvm("22.0.0"))))
+            == "22.0.0 · Signed by Node.js Foundation (Team HX7739G8FX)")
+    }
+
+    /// A formula's notice block: each notice a sentence, each release or
+    /// advisory it names a link to the publisher's page.
+    @Test func aFormulasSecurityNoticeLinksWhatItNames() {
+        let node = CLIToolPresentation.securityNotice([
+            .nodeSecurityReleases(installed: "26.12.0", count: 1, latest: "26.12.1", latestDate: "2026-10-21"),
+            .nodeEndOfLife(major: "26", date: "2026-01-01"),
+        ])
+        #expect(String(node.characters)
+            == "Newer Node.js 26 releases marked as security releases by nodejs.org: 1, the latest 26.12.1."
+            + " Node.js 26 reached end of life on 2026-01-01.")
+        #expect(node.runs.compactMap(\.link) == [URL(string: "https://nodejs.org/en/blog/release/v26.12.1/")!])
+        let first = URL(string: "https://github.com/php/php-src/security/advisories/GHSA-w8hw-w9fx-j79w")!
+        let second = URL(string: "https://github.com/php/php-src/security/advisories/GHSA-ch8v-r6jh-4vvr")!
+        let php = CLIToolPresentation.securityNotice([.phpAdvisories(installed: "8.4.24", fixed: "8.4.27", advisories: [
+            PHPAdvisoryReference(id: "CVE-2026-109618", severity: "critical", url: first),
+            PHPAdvisoryReference(id: "GHSA-ch8v-r6jh-4vvr", severity: "low", url: second),
+        ])])
+        #expect(String(php.characters) == "8.4.24 is older than 8.4.27, which fixes CVE-2026-109618 (critical),"
+            + " GHSA-ch8v-r6jh-4vvr (low) (php.net/GitHub advisory).")
+        #expect(php.runs.compactMap(\.link) == [first, second])
+        #expect(String(CLIToolPresentation.securityNotice([.phpEndOfLife(branch: "8.1", date: "2025-12-31")]).characters)
+            == "PHP 8.1 reached end of security support on 2025-12-31.")
+    }
+
     /// The caution beside an offered update says only what the click really
     /// does besides updating (read in `JunieUpdater`, `NpmCheck.updateCommand`,
     /// `UvVerifier`), and nothing beside a click that is not offered.

@@ -1163,6 +1163,10 @@ final class AppListModel {
     private(set) var brewUnchecked: [BrewUncheckedPackage] = []
     /// Installed casks Homebrew deprecated or disabled — see `BrewCaskLifecycle`.
     private(set) var brewCaskLifecycles: [BrewCaskLifecycle] = []
+    /// What nodejs.org, nodejs/Release and php.net say about the installed
+    /// Node.js and Homebrew PHP (`RuntimeSecurityReport`), for the formula pane
+    /// and the npm packages' Node fact. Re-read with each brew read.
+    private(set) var runtimeSecurity = RuntimeSecurityReport()
 
     /// A HEAD install's upstream check, as the user last asked for it.
     enum HeadCheckState: Equatable {
@@ -4305,6 +4309,10 @@ final class AppListModel {
     /// pass. Never throws — any failure just leaves the list empty, so no row
     /// shows on a clean or brew-less machine.
     private func readBrewFormulae() async {
+        // Beside the read, not after it: the feeds may wait on the network, and
+        // nvm's node has notices with no Homebrew at all. The feeds ask each
+        // source at most once a day (`RuntimeSecurityFeeds`).
+        Task { runtimeSecurity = await RuntimeSecurityFeeds.shared.report() }
         guard BrewFormulaService.isAvailable else {
             brewOutdatedFormulae = []
             brewFormulae = []

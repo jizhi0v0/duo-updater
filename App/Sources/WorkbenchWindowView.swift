@@ -376,7 +376,8 @@ struct WorkbenchWindowView: View {
                                              showsRuntime: model.prefs.showCLIRuntimeTags)
                     } else {
                         CLIToolDetailPane(status: status, cli: model.cliTools,
-                                          showsRuntime: model.prefs.showCLIRuntimeTags)
+                                          showsRuntime: model.prefs.showCLIRuntimeTags,
+                                          runtimeSecurity: model.runtimeSecurity)
                     }
                 }
                 .id(status.toolID.tag)
@@ -2234,6 +2235,14 @@ private struct FormulaDetailPane: View {
                     .padding(.horizontal, 16)
                     .padding(.bottom, 12)
             }
+            // A homebrew/core node or php's notices (`RuntimeSecurityReport`),
+            // in the deprecation notice's place and look.
+            let security = model.runtimeSecurity.notices(forFormula: formula.name)
+            if !security.isEmpty {
+                BrewLifecycleNotice(text: CLIToolPresentation.securityNotice(security))
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 12)
+            }
             if let head = formula.head {
                 BrewHeadNotice(head: head, model: model)
                     .padding(.horizontal, 16)
@@ -2452,12 +2461,32 @@ extension AppListModel {
 /// (`BrewLifecycle`), above its release notes: what that means for updates, why,
 /// when, and the replacement brew suggests, to copy — like `brew trust`, shown for
 /// the user to run, never run here.
+///
+/// Also a node or php formula's security notices (`RuntimeSecurityNotice`), in
+/// the same place and look: `init(text:)`, whose links open in the browser.
 private struct BrewLifecycleNotice: View {
-    let name: String
-    let lifecycle: BrewLifecycle
+    let text: AttributedString
+    let replacementCommand: String?
+    let replacementName: String?
+
     /// A cask's notice speaks of the cask, not of the app's updates, which may
     /// come from another source (see `BrewCaskLifecycle`).
-    var isCask = false
+    init(name: String, lifecycle: BrewLifecycle, isCask: Bool = false) {
+        text = AttributedString(lifecycle.sentences(for: name, isCask: isCask).joined(separator: " "))
+        replacementCommand = lifecycle.replacementCommand
+        replacementName = lifecycle.replacementName
+    }
+
+    init(text: AttributedString) {
+        var underlined = text
+        // Underlined as well as tinted, like the app's other inline links.
+        for run in underlined.runs where run.link != nil {
+            underlined[run.range].underlineStyle = .single
+        }
+        self.text = underlined
+        replacementCommand = nil
+        replacementName = nil
+    }
 
     @State private var copied = false
     @State private var copiedResetTask: Task<Void, Never>?
@@ -2465,12 +2494,18 @@ private struct BrewLifecycleNotice: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Label {
-                Text(lifecycle.sentences(for: name, isCask: isCask).joined(separator: " "))
+                Text(text)
                     .fixedSize(horizontal: false, vertical: true)
+                    // NSWorkspace rather than SwiftUI's own `openURL`, which
+                    // errors -50 in this app's windows (see `AlcoveSettingsPage`).
+                    .environment(\.openURL, OpenURLAction { url in
+                        NSWorkspace.shared.open(url)
+                        return .handled
+                    })
             } icon: {
                 Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
             }
-            if let command = lifecycle.replacementCommand, let replacement = lifecycle.replacementName {
+            if let command = replacementCommand, let replacement = replacementName {
                 Text(String(localized: "Homebrew suggests \(replacement) instead:"))
                 HStack(spacing: 8) {
                     Text(command)

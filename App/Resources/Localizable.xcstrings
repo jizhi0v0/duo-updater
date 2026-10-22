@@ -80486,6 +80486,528 @@
           }
         }
       }
+    },
+    "%lld security releases since (latest %@)": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld Sicherheitsrelease seitdem (neuestes %@)"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld Sicherheitsreleases seitdem (neuestes %@)"
+                }
+              }
+            }
+          }
+        },
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld security release since (latest %@)"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld security releases since (latest %@)"
+                }
+              }
+            }
+          }
+        },
+        "es": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld versión de seguridad desde entonces (la última, %@)"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld versiones de seguridad desde entonces (la última, %@)"
+                }
+              }
+            }
+          }
+        },
+        "fr": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld version de sécurité depuis (la dernière : %@)"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld versions de sécurité depuis (la dernière : %@)"
+                }
+              }
+            }
+          }
+        },
+        "it": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld release di sicurezza da allora (l’ultima %@)"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld release di sicurezza da allora (l’ultima %@)"
+                }
+              }
+            }
+          }
+        },
+        "ja": {
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "以降のセキュリティリリース %lld 件（最新は %@）"
+                }
+              }
+            }
+          }
+        },
+        "pt-BR": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld versão de segurança desde então (a mais recente: %@)"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld versões de segurança desde então (a mais recente: %@)"
+                }
+              }
+            }
+          }
+        },
+        "ru": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld выпуск безопасности с тех пор (последний — %@)"
+                }
+              },
+              "few": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld выпуска безопасности с тех пор (последний — %@)"
+                }
+              },
+              "many": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld выпусков безопасности с тех пор (последний — %@)"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld выпуска безопасности с тех пор (последний — %@)"
+                }
+              }
+            }
+          }
+        },
+        "tr": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "o zamandan beri %lld güvenlik sürümü (en yenisi %@)"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "o zamandan beri %lld güvenlik sürümü (en yenisi %@)"
+                }
+              }
+            }
+          }
+        },
+        "zh-Hans": {
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "此后有 %lld 个安全版本（最新 %@）"
+                }
+              }
+            }
+          }
+        },
+        "zh-Hant": {
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "此後有 %lld 個安全性版本（最新 %@）"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "end of life since %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Support beendet seit %@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "fin de vida desde el %@"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "fin de vie depuis le %@"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "fine vita dal %@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ にサポート終了"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "fim de vida desde %@"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "поддержка прекращена с %@"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ tarihinden beri destek dışı"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自 %@ 起已停止支持"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自 %@ 起已停止支援"
+          }
+        }
+      }
+    },
+    "Newer Node.js %@ releases marked as security releases by nodejs.org: %lld, the latest %@.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Neuere Releases von Node.js %@, die nodejs.org als Sicherheitsreleases kennzeichnet: %lld, das neueste ist %@."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Versiones más recientes de Node.js %@ que nodejs.org marca como versiones de seguridad: %lld; la última es %@."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Versions plus récentes de Node.js %@ signalées comme versions de sécurité par nodejs.org : %lld, la dernière étant %@."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Release più recenti di Node.js %@ contrassegnate da nodejs.org come release di sicurezza: %lld, l’ultima è %@."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "nodejs.org がセキュリティリリースとしている Node.js %@ の新しいリリース: %lld 件、最新は %@。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Versões mais recentes do Node.js %@ marcadas como versões de segurança pelo nodejs.org: %lld, a mais recente é %@."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Более новые выпуски Node.js %@, которые nodejs.org отмечает как выпуски безопасности: %lld, последний — %@."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "nodejs.org’un güvenlik sürümü olarak işaretlediği daha yeni Node.js %@ sürümleri: %lld, en yenisi %@."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "nodejs.org 标记为安全版本的更新 Node.js %@ 版本：%lld 个，最新为 %@。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "nodejs.org 標記為安全性版本的較新 Node.js %@ 版本：%lld 個，最新為 %@。"
+          }
+        }
+      }
+    },
+    "Node.js %@ reached end of life on %@.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Node.js %@ hat am %@ das Ende seines Lebenszyklus erreicht."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Node.js %@ llegó al fin de su vida útil el %@."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Node.js %@ a atteint sa fin de vie le %@."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Node.js %@ ha raggiunto la fine del ciclo di vita il %@."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Node.js %@ は %@ にサポート終了（EOL）となりました。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O Node.js %@ chegou ao fim da vida útil em %@."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Поддержка Node.js %@ прекращена %@."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Node.js %@, %@ tarihinde kullanım ömrünün sonuna ulaştı."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Node.js %@ 已于 %@ 停止支持（EOL）。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Node.js %@ 已於 %@ 停止支援（EOL）。"
+          }
+        }
+      }
+    },
+    "%@ is older than %@, which fixes %@ (php.net/GitHub advisory).": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ ist älter als %@, das %@ behebt (Sicherheitshinweis von php.net/GitHub)."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ es anterior a %@, que corrige %@ (aviso de php.net/GitHub)."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ est antérieure à %@, qui corrige %@ (avis php.net/GitHub)."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ è precedente a %@, che corregge %@ (avviso php.net/GitHub)."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ は %@ より古く、%@ は後者で修正されています（php.net/GitHub のアドバイザリ）。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ é anterior a %@, que corrige %@ (aviso do php.net/GitHub)."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ старше %@, где исправлено: %@ (бюллетень php.net/GitHub)."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@, %@ sürümünden eski; %@ bu sürümde düzeltildi (php.net/GitHub bildirimi)."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 早于 %@，后者修复了 %@（php.net/GitHub 公告）。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 早於 %@，後者修正了 %@（php.net/GitHub 公告）。"
+          }
+        }
+      }
+    },
+    "PHP %@ reached end of security support on %@.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Sicherheitsunterstützung für PHP %@ endete am %@."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PHP %@ dejó de recibir soporte de seguridad el %@."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PHP %@ n’est plus pris en charge pour la sécurité depuis le %@."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Il supporto di sicurezza di PHP %@ è terminato il %@."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PHP %@ のセキュリティサポートは %@ に終了しました。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O suporte de segurança do PHP %@ terminou em %@."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Поддержка безопасности PHP %@ закончилась %@."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PHP %@ için güvenlik desteği %@ tarihinde sona erdi."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PHP %@ 的安全支持已于 %@ 结束。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PHP %@ 的安全性支援已於 %@ 結束。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

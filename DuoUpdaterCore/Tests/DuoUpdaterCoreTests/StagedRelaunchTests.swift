@@ -46,7 +46,11 @@ import Testing
         var job: ParkedInstallerProbe.LoadedJob?
         var jobGoneAt: Int?
         /// The app's on-screen windows at a tick (0 is before the quit request).
-        var windows: (Int) -> Int = { _ in 0 }
+        /// By default a save sheet comes up on its window once asked: a quit
+        /// still pending past the grace is a prompt unless a case says otherwise.
+        var windows: (Int) -> Set<StagedRelaunch.OnScreenWindow> = {
+            $0 < 1 ? [StagedRelaunchTests.window] : [StagedRelaunchTests.window, StagedRelaunchTests.sheet]
+        }
 
         init(disk: VersionSide, new: VersionSide) { self.disk = disk; self.new = new }
 
@@ -84,6 +88,11 @@ import Testing
                 sparkleInstallerPIDs: { _ in [] }),
             onScreenWindows: { w.windows(w.now) })
     }
+
+    /// Windows by number; `alert` is an app-modal one (`isModalPanel`).
+    fileprivate static let window = StagedRelaunch.OnScreenWindow(id: 101, isModalPanel: false)
+    fileprivate static let sheet = StagedRelaunch.OnScreenWindow(id: 102, isModalPanel: false)
+    private static let alert = StagedRelaunch.OnScreenWindow(id: 103, isModalPanel: true)
 
     private func run(_ w: World, _ staged: StagedSelfUpdate?) async -> StagedRelaunch.Ending {
         await StagedRelaunch.quitAndAwait(
@@ -191,10 +200,10 @@ import Testing
     /// The mini 2026-10-18: ChatGPT closed its window ~0.4 s after the request and
     /// exited at ~5.8 s, just past the grace. Its windows being gone means it is
     /// exiting, so the wait goes on and the swap is seen to land. Mutation: drop
-    /// the `closedItsWindows` branch → `.wontQuit` at the grace, red.
+    /// the `showsNoPrompt` branch → `.wontQuit` at the grace, red.
     @Test func anAppThatClosedItsWindowsIsWaitedForPastTheGrace() async {
         let w = World(disk: old, new: new)
-        w.windows = { $0 < 2 ? 1 : 0 }
+        w.windows = { $0 < 2 ? [Self.window] : [] }
         w.quitsAt = 29
         w.landsAt = 31
         w.updaterRelaunches = false
@@ -204,22 +213,69 @@ import Testing
         #expect(w.launches.count == 1 && w.launches.allSatisfy { $0 >= 31 }, "reopened after the landing, by the fallback")
     }
 
-    /// A window still on screen past the grace is a prompt: the same 5 s bail
-    /// as before, however soon the app would have exited.
-    @Test func aWindowStillOnScreenEndsAtTheGrace() async {
+    /// Tropy 1.17.2, 2026-10-22: an Electron app whose ShipIt had 1.17.3 staged
+    /// kept its window on screen and exited 27.9 s after the request (about
+    /// 40 s in another round), with no prompt. `duo restart` called it a save
+    /// prompt at ~5 s, and nothing reopened it after ShipIt swapped. The same
+    /// window still up is no prompt: the wait goes on, the swap lands, and the
+    /// fallback reopens it. Mutation: back to "windows gone" (`closedItsWindows`)
+    /// → `.wontQuit` at the grace; or `slowQuitTicks` back to 150 → `.wontQuit`
+    /// at 150; red either way.
+    @Test func theSameWindowStillOnScreenIsWaitedFor() async {
         let w = World(disk: old, new: new)
-        w.windows = { _ in 1 }
+        w.windows = { _ in [Self.window] }
+        w.quitsAt = 200
+        w.landsAt = 202
+        w.updaterRelaunches = false
+        let ending = await run(w, staged(.shipIt))
+        #expect(ending.outcome == .applied)
+        #expect(ending.everQuit)
+        #expect(w.launches.count == 1 && w.launches.allSatisfy { $0 >= 202 }, "reopened after the landing, by the fallback")
+    }
+
+    /// A window that was not on screen at the request — a save sheet — is a
+    /// prompt: the same 5 s bail as before, however soon the app would have
+    /// exited.
+    @Test func aNewWindowOnScreenEndsAtTheGrace() async {
+        let w = World(disk: old, new: new)
+        w.windows = { $0 < 1 ? [Self.window] : [Self.window, Self.sheet] }
         w.quitsAt = 29
         let ending = await run(w, staged(.sparkle))
         #expect(ending.outcome == .wontQuit)
         #expect(w.now == StagedRelaunch.quitGraceTicks + 1)
     }
 
-    /// Nothing on screen when asked (hidden, minimized, another Space): no
-    /// reading, so the grace stands.
-    @Test func noWindowsAtTheRequestGivesNoReading() async {
+    /// PicGo 3.0.2's own "Find new version" dialog, already up when asked, held
+    /// its quit. An app-modal alert on screen is a prompt even if it was there
+    /// before the request. Mutation: drop the `isModalPanel` test from
+    /// `showsNoPrompt` → waited on to `slowQuitTicks`, red.
+    @Test func anAlertAlreadyUpAtTheRequestEndsAtTheGrace() async {
         let w = World(disk: old, new: new)
-        w.windows = { _ in 0 }
+        w.windows = { _ in [Self.window, Self.alert] }
+        w.quitsAt = nil
+        let ending = await run(w, staged(.sparkle))
+        #expect(ending.outcome == .wontQuit)
+        #expect(w.now == StagedRelaunch.quitGraceTicks + 1)
+    }
+
+    /// Nothing on screen when asked (hidden, minimized, another Space) and
+    /// nothing since: no prompt, so a slow exit is waited for.
+    @Test func nothingOnScreenAtTheRequestIsWaitedFor() async {
+        let w = World(disk: old, new: new)
+        w.windows = { _ in [] }
+        w.quitsAt = 29
+        w.landsAt = 31
+        w.updaterRelaunches = false
+        let ending = await run(w, staged(.sparkle))
+        #expect(ending.outcome == .applied)
+        #expect(w.launches.count == 1 && w.launches.allSatisfy { $0 >= 31 })
+    }
+
+    /// A hidden app's save sheet un-hides its window next to the sheet (test
+    /// app, 2026-10-22): both new on screen, so a prompt at the grace.
+    @Test func aHiddenAppsPromptEndsAtTheGrace() async {
+        let w = World(disk: old, new: new)
+        w.windows = { $0 < 1 ? [] : [Self.window, Self.sheet] }
         w.quitsAt = 29
         let ending = await run(w, staged(.sparkle))
         #expect(ending.outcome == .wontQuit)
@@ -230,7 +286,7 @@ import Testing
     /// at `slowQuitTicks`.
     @Test func aPromptAfterTheWindowsClosedEndsTheWaitAtOnce() async {
         let w = World(disk: old, new: new)
-        w.windows = { $0 < 2 ? 1 : ($0 < 40 ? 0 : 1) }
+        w.windows = { $0 < 2 ? [Self.window] : ($0 < 40 ? [] : [Self.window, Self.sheet]) }
         w.quitsAt = nil
         let ending = await run(w, staged(.sparkle))
         #expect(ending.outcome == .wontQuit)
@@ -240,7 +296,7 @@ import Testing
     /// Windows gone but the process never exits: the extension is bounded.
     @Test func aWindowlessAppThatNeverExitsEndsAtTheSlowQuitBound() async {
         let w = World(disk: old, new: new)
-        w.windows = { $0 < 2 ? 1 : 0 }
+        w.windows = { $0 < 2 ? [Self.window] : [] }
         w.quitsAt = nil
         let ending = await run(w, staged(.sparkle))
         #expect(ending.outcome == .wontQuit)
@@ -253,7 +309,7 @@ import Testing
     /// that branch → the wait runs on to `slowQuitTicks`, red.
     @Test func aStopEndsTheWindowsGoneExtension() async {
         let w = World(disk: old, new: new)
-        w.windows = { $0 < 2 ? 1 : 0 }
+        w.windows = { $0 < 2 ? [Self.window] : [] }
         w.quitsAt = nil
         let ending = await StagedRelaunch.quitAndAwait(
             app, staged: staged(.sparkle), old: old, wasFrontmost: false,
@@ -264,10 +320,13 @@ import Testing
         #expect(w.now == 40)
     }
 
-    @Test func closedItsWindowsNeedsWindowsAtTheRequest() {
-        #expect(StagedRelaunch.closedItsWindows(atQuit: 1, now: 0))
-        #expect(!StagedRelaunch.closedItsWindows(atQuit: 0, now: 0))
-        #expect(!StagedRelaunch.closedItsWindows(atQuit: 2, now: 1))
+    @Test func showsNoPromptOnlyWithoutNewWindowsOrAlerts() {
+        #expect(StagedRelaunch.showsNoPrompt(atQuit: [Self.window], now: []))
+        #expect(StagedRelaunch.showsNoPrompt(atQuit: [], now: []))
+        #expect(StagedRelaunch.showsNoPrompt(atQuit: [Self.window], now: [Self.window]))
+        #expect(!StagedRelaunch.showsNoPrompt(atQuit: [Self.window], now: [Self.sheet]))
+        #expect(!StagedRelaunch.showsNoPrompt(atQuit: [], now: [Self.window]))
+        #expect(!StagedRelaunch.showsNoPrompt(atQuit: [Self.alert], now: [Self.alert]))
     }
 
     /// ShipIt: back up on the old bundle means the swap was called off — stop

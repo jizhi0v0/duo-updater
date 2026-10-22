@@ -311,6 +311,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**DiffusionBee**](com-diffusionbee-diffusionbee.md) · `com.diffusionbee.diffusionbee` — G (one-click arm64 dmg) · 自带检查只弹框开官网（端点冻结在 1.7.4） · 真包 2.5.1/2.5.2/2.5.3 channel-verify ✓（2.5.1、2.5.2 → 2.5.3，2.5.3 up to date） · `weights` tag 是模型权重，不收 · 0.1.0–1.5.2 的 `com.linerai.liner` 不接（与 Liner.ai 同 id 同 Team） · 一键端到端 ✓ 两轮（不运行 / 运行中，Python 后端随重启退出） · changelog 结构化（厂商无小标题，子项被平铺） · 2026-10-22
 - [x] [**Logseq**](com-logseq-logseq.md) · `com.logseq.logseq` — G (one-click arm64 dmg) · electron-updater（启动即下载、不自动装） · 真包 2.0.1/2.0.2 channel-verify ✓（2.0.1 → 2.0.2、2.0.2 up to date） · nightly 同 plist、不门控（自带更新器同样回 stable） · 0.10.x 的 `com.electron.logseq` 是文件图谱版（现 Logseq OG），有意不迁移 · 一键端到端 ✓ 两轮（运行中直接用了 electron-updater 停放的 zip，0 字节下载） · changelog 结构化（`Fixed issues` 编号列表被解析器丢掉） · 2026-10-22
 - [x] [**Folo**](is-follow.md) · `is.follow` — G (one-click arm64 dmg；monorepo，锚定 `desktop/v` 与旧 `v` tag，不收 `mobile/`) · electron-updater custom provider + Squirrel 暂存 · 真包 1.15.0/1.16.0 channel-verify ✓ · 一键端到端 ✓ 两轮（运行中自己已暂存同版本时让路，`duo restart` 由 ShipIt 装上） · changelog 结构化（三节标题保留） · 2026-10-22
+- [x] [**Whispering**](com-bradenwong-whispering.md) · `com.bradenwong.whispering` — G (one-click arm64 dmg) · Tauri updater（点了才下载、不停放） · 真包 7.7.1/7.9.0/7.10.0/7.11.0 channel-verify ✓（→ 7.11.0，7.11.0 up to date） · 4.0.0–4.7.2 ad-hoc 一键被拒 · 一键端到端 ✓ 两轮（不运行 / 运行中） · changelog 结构化（标题保留，纯段落小节不显示） · 2026-10-22
 
 ## Changelog-only (detection via Sparkle or Homebrew)
 

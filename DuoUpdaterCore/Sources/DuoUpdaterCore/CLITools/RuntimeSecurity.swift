@@ -608,15 +608,32 @@ public struct NodeUpgradeCommand: Sendable, Equatable {
 
     /// `lts/*` → `lts/krypton` → `v24.13.0`, through `<nvmDir>/alias/`; nil
     /// when the chain doesn't end in an exact version within a few steps.
+    /// `lts/-N` has no file: nvm (`nvm_normalize_lts`) takes the (N+1)th name
+    /// from the end of `ls alias/lts` — `lts/-1` is the line before the newest
+    /// — and refuses one that lands on `*`.
     static func resolveLTS(_ alias: String, in nvmDir: URL) -> RuntimeVersionTriple? {
         var name = alias
         for _ in 0..<4 {
+            if let back = Self.ltsOffset(name) {
+                let names = ((try? FileManager.default.contentsOfDirectory(
+                    atPath: nvmDir.appendingPathComponent("alias/lts").path)) ?? []).sorted()
+                guard back < names.count, names[names.count - 1 - back] != "*" else { return nil }
+                name = "lts/" + names[names.count - 1 - back]
+            }
             guard let next = readAlias(name, in: nvmDir) else { return nil }
             if let version = RuntimeVersionTriple(next) { return version }
             guard next.hasPrefix("lts/") else { return nil }
             name = next
         }
         return nil
+    }
+
+    /// `lts/-1` → 1, as nvm accepts it (`lts/-[1-9][0-9]*`); nil otherwise.
+    static func ltsOffset(_ name: String) -> Int? {
+        guard name.hasPrefix("lts/-") else { return nil }
+        let digits = name.dropFirst(5)
+        guard let first = digits.first, first != "0", digits.allSatisfy({ $0.isASCII && $0.isNumber }) else { return nil }
+        return Int(digits)
     }
 
     private static func readAlias(_ name: String, in nvmDir: URL) -> String? {

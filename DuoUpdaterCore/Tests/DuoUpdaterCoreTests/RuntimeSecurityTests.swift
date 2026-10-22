@@ -301,6 +301,28 @@ import Foundation
             "      to update it yourself: \(moved)", "      nvm's default was lts/*; this sets it to 24.22.1."])
     }
 
+    /// `lts/-N` has no alias file: nvm counts back from the end of `ls alias/lts`,
+    /// so `lts/-1` is the line before the newest. On the installed line it is
+    /// moved like `lts/*`; one that counts past the codenames is left alone.
+    /// Mutation: drop the `lts/-N` step → `lts/-1` on 22 is left on a release
+    /// that may not be installed.
+    @Test func nvmsPreviousLTSDefaultIsResolvedLikeNvm() throws {
+        let home = try Self.scratch()
+        defer { try? FileManager.default.removeItem(at: home) }
+        let nvmDir = home.appendingPathComponent(".nvm")
+        try FileManager.default.createDirectory(at: nvmDir.appendingPathComponent("alias/lts"), withIntermediateDirectories: true)
+        for (name, target) in [("*", "lts/krypton"), ("krypton", "v24.22.1"), ("jod", "v22.23.4")] {
+            try Data((target + "\n").utf8).write(to: nvmDir.appendingPathComponent("alias/lts/\(name)"))
+        }
+        try Data("lts/-1\n".utf8).write(to: nvmDir.appendingPathComponent("alias/default"))
+        #expect(NodeUpgradeCommand.nvmDefault(in: nvmDir, installed: "22.21.1") == .ltsOnLine("lts/-1"))
+        #expect(NodeUpgradeCommand.nvmDefault(in: nvmDir, installed: "24.13.0") == .leftAlone)
+        try Data("lts/-2\n".utf8).write(to: nvmDir.appendingPathComponent("alias/default"))
+        #expect(NodeUpgradeCommand.nvmDefault(in: nvmDir, installed: "22.21.1") == .leftAlone)
+        #expect(NodeUpgradeCommand.ltsOffset("lts/-0") == nil)
+        #expect(NodeUpgradeCommand.ltsOffset("lts/-12") == 12)
+    }
+
     /// fnm's default is a link to a version's installation directory; its
     /// packages stay behind, and are named.
     /// Mutation: drop the link comparison → a default on 22.21.1 is moved.

@@ -58,7 +58,7 @@
 
 | | 客户端会停放吗 | 本次实际停放了什么 | 我们能否直接拿来装 |
 |---|---|---|---|
-| 结论 | 不会 | 没查（真机待做） | 不需要 |
+| 结论 | 不会 | 无（没有更新器；真机第二轮未跑，见一键安装） | 不需要 |
 | 证据 | 没有更新器，不下载 | — | — |
 
 ## Changelog
@@ -75,10 +75,13 @@
 - 签名: 1.5 `TeamIdentifier=M4FH9KS7W7`、Notarized Developer ID、hardened runtime；嵌套的 LaunchAtLoginHelper 同 Team
 - 校验: GitHub 没有给这三个资产发 `digest`（API 的 `digest` 字段为空），Team-ID 路线不需要它
 - **读的是**: 人人可手动下载的 GA（`/releases/latest`）
-- **1.4 / 1.3 → 1.5 会被拒**: 默认信任 `.developerID` 走 `SignatureVerifier.verifyTeamIdentifierMatch`，已装副本没有 Team → `noTeamIdentifier(which: "installed")`（「Could not read a Team Identifier from the installed app.」）。检测照常提示 1.5，用户需手动装一次；之后 1.5 → 未来版本走一键（前提是厂商继续用同一个 Team 签名）。按代码推断，**未真机验证**
+- **1.4 / 1.3 → 1.5 会被拒**: 默认信任 `.developerID` 走 `SignatureVerifier.verifyTeamIdentifierMatch`，已装副本没有 Team → `noTeamIdentifier(which: "installed")`。检测照常提示 1.5，用户需手动装一次；之后 1.5 → 未来版本走一键（前提是厂商继续用同一个 Team 签名）。**真机已验证（2026-10-22）**：`duo install` 输出 `Skipping: Swift Quit — the installed copy has no developer Team ID to check the download against`，已装的 1.4 原样未动
 - **目前没有「Developer ID 旧版 → 新版」的真实组合**：1.5 是唯一一个有 Team 的 release，也是最新版
 - 嵌套 / 常驻组件: `Contents/Library/LoginItems/LaunchAtLoginHelper.app`（`onebadidea.Swift-Quit-LaunchAtLoginHelper`，`LSBackgroundOnly=true`）。来自 `sindresorhus/LaunchAtLogin`（`Package.resolved` 钉在 `e8171b3e`，即 4.2.0），`Sources/LaunchAtLoginHelper/main.swift`：主 app 没在跑就 `launchApplication` 它，然后 `NSApp.terminate`，**是启动完就退出的 launcher，不常驻**。可执行文件里有 `runningApplicationsWithBundleIdentifier:`、`launchApplication:`、`-LaunchAtLoginHelper$`，与该源码一致。只有用户在设置里打开「Launch at Login」时才经 `SMLoginItemSetEnabled` 注册（默认 `launchAtLogin=false`）。不需要 `loginItemAgentRestarts`
-- 端到端: **未跑，待主会话真机**（本次只做了 channel-verify 与静态检查）
+- 端到端（2026-10-22，本分支 `make cli` 的 duo，app 不运行）:
+  - 第一轮，真 1.4（ad-hoc）: `duo check` → `1.4 → 1.5 [GitHub]`；`duo install` 拒（见上），磁盘仍是 1.4
+  - 第二轮，Developer ID 换包路径: 因为没有真实的「有 Team 的旧版」，用厂商 1.5 包把 `CFBundleShortVersionString` 改成 1.4 当作旧副本（只读 Team 的闸不看封印）。`duo check` → `1.4 → 1.5 [GitHub, in-place]`；`duo install` → `downloading… extracting verifyingCodeSignature installing done installed.`。结果: 版本 1.5、可执行文件 inode 变了、`TeamIdentifier=M4FH9KS7W7`、`codesign --verify --deep --strict` 退出 0、`spctl` accepted（Notarized Developer ID）、`diff -r` 与厂商 1.5 包完全一致
+  - **运行中那一轮没跑**: 1.5 启动就要辅助功能权限（没有就弹系统框并退出），授权后会自动退出任何关掉最后一个窗口的 app（见下）。在开发机上跑会打断用户，按「不弹系统 UI」的规矩不做。它没有自更新器，不存在暂存冲突；运行中换包走的是通用的 quit → swap → relaunch 路径
 
 ### 真机注意事项（从 v1.5 源码读出，标注来源）
 - **启动即请求辅助功能权限**：`applicationDidFinishLaunching` 先 `AXSwift.checkIsProcessTrusted(prompt: true)`，未授权就弹系统的辅助功能授权框并立刻 `NSApp.terminate`（`AppDelegate.swift` on `v1.5`；可执行文件导入 `_AXIsProcessTrustedWithOptions`）。所以没授权时 app 根本「运行」不住
@@ -104,5 +107,4 @@ gh api "repos/sindresorhus/LaunchAtLogin-Legacy/contents/Sources/LaunchAtLoginHe
 ```
 
 ## 建议下一步
-1. 真机一键（主会话）后，把结果写进「一键安装」并更新 README 那一行。
-2. 厂商发下一个 release 时复查：签名是否仍是 `M4FH9KS7W7`、资产名是否仍是 `Swift.Quit.zip`、tag 仍是 `v<x.y>`。
+1. 厂商发下一个 release 时复查：签名是否仍是 `M4FH9KS7W7`、资产名是否仍是 `Swift.Quit.zip`、tag 仍是 `v<x.y>`。

@@ -273,6 +273,7 @@ public enum AppRecipeIndex {
         net_whatsapp_WhatsApp.set,
         notion_id.set,
         now_typeless_desktop.set,
+        onebadidea_Swift_Quit.set,
         org_alacritty.set,
         org_audacityteam_audacity.set,
         org_blenderfoundation_blender.set,

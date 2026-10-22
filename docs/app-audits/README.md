@@ -307,6 +307,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**Lapce**](io-lapce.md) · `io.lapce` — G (one-click universal dmg) · 自研更新器（点「Restart to update」才下载） · 真包 0.4.5/0.4.6 channel-verify ✓（0.4.5 → 0.4.6、0.4.6 up to date） · changelog 结构化 ✓（Features/Changes / Bug Fixes） · **nightly 只识别不推**（同 id 同 plist，`LapceBuild` 读可执行文件里的 `Lapce-Nightly`；只护 GitHub 路径，cask 装后换成 nightly 的副本仍被推 stable cask） · v0.0.6–v0.2.0 的 `0.10.0-dev` 副本不检测 · 一键端到端 ✓ 0.4.5 → 0.4.6（不运行） · 2026-10-20
 - [x] [**Harp**](com-dominikmartn-Harp.md) · `com.dominikmartn.Harp` — G (one-click arm64 dmg) · Warp 的 `oss` 分支，无自更新器 · 真包 0.1.0/0.1.1 channel-verify ✓ · 一键端到端 ✓ 0.1.0 → 0.1.1（不运行 + 运行中 + `duo restart`） · changelog 结构化（列表前的改动段落被解析器丢掉） · 2026-10-20
 - [x] [**Hyper**](co-zeit-hyper.md) · `co.zeit.hyper` — G (one-click arm64 dmg) · Squirrel.Mac 自更新（`releases.hyper.is` Hazel 风格 feed，会停放、退出时换包） · 真包 3.4.0/3.4.1 channel-verify ✓（3.4.0 → 3.4.1、3.4.1 up to date） · tag 放宽 `v?` 读全 41 个 stable · **canary 同 id、被识别成 stable，一键用 OneClickGate 挡住**，canary 轨未跟踪 · changelog 结构化（说明段被丢） · 一键端到端 ✓ 两轮（不运行 / 运行中：Squirrel 同时停放了同版本 3.4.1，ShipIt 在重启后换包，结果正确） · 2026-10-22
+- [x] [**Swift Quit**](onebadidea-Swift-Quit.md) · `onebadidea.Swift-Quit` — G (one-click universal zip) · 无自更新器 · 真包 1.3/1.4/1.5 channel-verify ✓（1.3、1.4 → 1.5，1.5 up to date） · 1.3/1.4 是 ad-hoc，一键被 Team 闸拒（手动换一次） · LoginItem 是启动即退的 launcher · changelog 结构化 ✓ · 一键端到端 ✓（不运行；1.4 ad-hoc 真机被拒、Developer ID 换包真机过；运行中轮未跑：要辅助功能授权且会退出别的 app） · 2026-10-22
 
 ## Changelog-only (detection via Sparkle or Homebrew)
 

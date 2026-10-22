@@ -57,33 +57,57 @@ public enum StagedRelaunch {
     /// After our own launch (swap-on-launch), how long to let the updater's own
     /// open of the new build register before the fallback launches it.
     public static let settleTicks = 15
-    /// How long, from the quit request, an app that has closed every window it
-    /// had on screen may take to exit before the wait gives up anyway (~30 s).
+    /// How long, from the quit request, an app that shows no prompt may take to
+    /// exit before the wait gives up anyway (~60 s).
     ///
     /// The grace above is a guess that "still up after 5 s" means a save prompt.
     /// It guesses wrong for an app that is simply slow to exit: ChatGPT on the
     /// loaded mini, 2026-10-18, exited 5.41–6.01 s after the request in 10 of 10
-    /// rounds, its window gone after 0.35–0.55 s. Past the grace, such an app is
-    /// given this long instead (`closedItsWindows`). The signal only ever
+    /// rounds, its window gone after 0.35–0.55 s; Tropy 1.17.2, 2026-10-22,
+    /// exited 27.9 s after the request by its own log (Electron, no prompt),
+    /// and about 40 s by `pgrep` in another round. Past the grace, such an app
+    /// is given this long instead (`showsNoPrompt`). The signal only ever
     /// lengthens the wait, by at most this much, and the wait still ends the
     /// same way: if it misreads a prompt as a slow quit, the cost is a later
     /// `.wontQuit`, never a different one.
-    public static let slowQuitTicks = 150
+    public static let slowQuitTicks = 300
 
-    /// Whether an app still running after the quit request is on its way out:
-    /// it had windows on screen when asked, and has none now.
+    /// One of the app's windows on screen (`onScreenWindows`).
+    public struct OnScreenWindow: Hashable, Sendable {
+        /// The window server's number for it, stable for the window's life.
+        public let id: UInt32
+        /// At the modal-panel level or above: an app-modal alert.
+        public let isModalPanel: Bool
+
+        public init(id: UInt32, isModalPanel: Bool) {
+            self.id = id
+            self.isModalPanel = isModalPanel
+        }
+    }
+
+    /// Whether an app still running after the quit request shows nothing that
+    /// could be holding the quit up: every window on screen now was already on
+    /// screen when it was asked, and none is an app-modal alert.
+    ///
+    /// Measured with a test app, 2026-10-22: a slow quit (`.terminateLater`,
+    /// answered after 6 s) kept its one window, same number, until it exited;
+    /// every prompt arrived as a window with a new number — a save sheet at
+    /// layer 0, a windowless `NSAlert.runModal` at layer 8 (the modal-panel
+    /// level), and a save sheet on a hidden app un-hid its window, which came
+    /// back on screen next to the sheet. An alert already up when asked is the
+    /// layer-8 test: PicGo 3.0.2's own "Find new version" dialog held its quit
+    /// (audit, PR #1574). UNVERIFIED: that dialog's layer — a sheet already up
+    /// at the request is read as a slow quit, so it ends at `slowQuitTicks`.
     ///
     /// On-screen windows, not every window the server lists: AppKit keeps a
     /// closed window in `.optionAll` (offscreen), measured with a test app
-    /// 2026-10-18. Measured the same day, a quit prompt is always on screen: a
-    /// save sheet un-hides and un-minimizes its window, and a windowless alert
-    /// is a window of its own. An app with nothing on screen when asked (hidden,
-    /// minimized, on another Space) gives no reading, and the grace stands.
-    /// UNVERIFIED: the other-Space case on a real Space switch. A switch during
-    /// the wait that takes the count to zero only lengthens the wait, and a
-    /// prompt brought back on screen ends it at once.
-    public static func closedItsWindows(atQuit: Int, now: Int) -> Bool {
-        atQuit > 0 && now == 0
+    /// 2026-10-18, so closing windows reads as no prompt too. Also no prompt: a
+    /// prompt drawn inside a window already up (a web view's own dialog), or
+    /// raised on another Space. UNVERIFIED on a real app; either only moves
+    /// the `.wontQuit` later, by at most `slowQuitTicks`, and a window that
+    /// comes on screen ends the extension on that tick.
+    public static func showsNoPrompt(atQuit: Set<OnScreenWindow>, now: Set<OnScreenWindow>) -> Bool {
+        now.isSubset(of: atQuit) && !now.contains(where: \.isModalPanel)
     }
 
     /// How long a quit we asked for may still be answered. The menu-bar app's
@@ -175,8 +199,8 @@ public enum StagedRelaunch {
         public var relaunch: @Sendable (_ activates: Bool) async -> Bool
         /// What `ParkedInstallerProbe.isAlive` asks.
         public var installer: ParkedInstallerProbe.System
-        /// The app's windows on screen now, every instance (`onScreenWindowCount`).
-        public var onScreenWindows: @Sendable () -> Int
+        /// The app's windows on screen now, every instance (`onScreenWindows(pids:)`).
+        public var onScreenWindows: @Sendable () -> Set<OnScreenWindow>
         /// Whether an instance is held at macOS's first-open prompt
         /// (`OpenConfirmationHold`). Asked once, before anything is quit.
         public var heldAtOpenPrompt: @Sendable () -> Bool
@@ -189,7 +213,7 @@ public enum StagedRelaunch {
             awaitBundleProcessesGone: @escaping @Sendable () async -> Void,
             relaunch: @escaping @Sendable (_ activates: Bool) async -> Bool,
             installer: ParkedInstallerProbe.System,
-            onScreenWindows: @escaping @Sendable () -> Int = { 0 },
+            onScreenWindows: @escaping @Sendable () -> Set<OnScreenWindow> = { [] },
             heldAtOpenPrompt: @escaping @Sendable () -> Bool = { false }
         ) {
             self.tick = tick
@@ -216,7 +240,7 @@ public enum StagedRelaunch {
                 relaunch: { await AppRestarter.relaunchAfterSwap(app, activates: $0) },
                 installer: .live,
                 onScreenWindows: {
-                    onScreenWindowCount(pids: Set(AppRestarter.runningInstances(of: app).map(\.processIdentifier)))
+                    StagedRelaunch.onScreenWindows(pids: Set(AppRestarter.runningInstances(of: app).map(\.processIdentifier)))
                 },
                 heldAtOpenPrompt: { OpenConfirmationHold.anyHeld(AppRestarter.runningInstances(of: app)) })
         }
@@ -290,7 +314,7 @@ public enum StagedRelaunch {
         var installerProbe = installerProbe
         Log.app.notice("relaunch-staged: quitting \(app.name, privacy: .public) (\(old.text(withBuild: true), privacy: .public)) — \(appliesOnLaunch ? "reopening it so its updater applies on launch" : "letting its own updater swap & relaunch (no reopen)", privacy: .public)\(installerProbe.map { ", watching installer \(String(describing: $0.target))" } ?? "", privacy: .public)")
         // Before the request: what it had on screen is the baseline for telling a
-        // slow exit from a prompt (`closedItsWindows`).
+        // slow exit from a prompt (`showsNoPrompt`).
         let windowsAtQuit = system.onScreenWindows()
         system.terminate()
 
@@ -348,13 +372,13 @@ public enum StagedRelaunch {
                 }
             } else if !everQuit && tick >= quitGraceTicks && tick < slowQuitTicks
                         && !quitPatience.stopWaiting()
-                        && closedItsWindows(atQuit: windowsAtQuit, now: system.onScreenWindows()) {
-                // Its windows are gone: exiting slowly, not held by a prompt. Keep
-                // waiting; a window back on screen ends this branch next tick, and
+                        && showsNoPrompt(atQuit: windowsAtQuit, now: system.onScreenWindows()) {
+                // Nothing new on screen: exiting slowly, not held by a prompt. Keep
+                // waiting; a window coming on screen ends this branch that tick, and
                 // so does a stop (`duo restart`'s Ctrl-C), checked first.
                 if !slowQuitLogged {
                     slowQuitLogged = true
-                    Log.app.notice("relaunch-staged: \(app.name, privacy: .public) closed its windows but is still exiting — waiting up to \(slowQuitTicks, privacy: .public) ticks for it")
+                    Log.app.notice("relaunch-staged: \(app.name, privacy: .public) shows no prompt but is still exiting — waiting up to \(slowQuitTicks, privacy: .public) ticks for it")
                 }
             } else if !everQuit && (tick >= quitPatience.ticks
                                     || (tick >= quitGraceTicks && quitPatience.stopWaiting())) {
@@ -418,33 +442,38 @@ public enum StagedRelaunch {
     /// `.wontQuit` later, by at most `slowQuitTicks`. No permission needed: the
     /// probe that measured ChatGPT ran as a fresh LaunchAgent binary with no
     /// Screen Recording grant and counted its window; only window titles are
-    /// withheld without it.
-    public static func onScreenWindowCount(pids: Set<pid_t>) -> Int {
-        windows(of: pids, [.optionOnScreenOnly, .excludeDesktopElements]).filter {
-            guard let layer = $0 else { return false }
-            return layer >= 0 && layer < Int(CGWindowLevelForKey(.statusWindow))
-        }.count
+    /// withheld without it. Window numbers are not: a probe submitted to
+    /// launchd, 2026-10-22, with `CGPreflightScreenCaptureAccess()` false, read
+    /// a number for 38 of 38 windows and a title for 1.
+    public static func onScreenWindows(pids: Set<pid_t>) -> Set<OnScreenWindow> {
+        guard !pids.isEmpty,
+              let list = CGWindowListCopyWindowInfo(
+                [.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]]
+        else { return [] }
+        let modalPanel = Int(CGWindowLevelForKey(.modalPanelWindow))
+        return Set(list.compactMap {
+            guard let owner = $0[kCGWindowOwnerPID as String] as? pid_t, pids.contains(owner),
+                  let layer = $0[kCGWindowLayer as String] as? Int,
+                  layer >= 0 && layer < Int(CGWindowLevelForKey(.statusWindow)),
+                  let id = $0[kCGWindowNumber as String] as? UInt32
+            else { return nil }
+            return OnScreenWindow(id: id, isModalPanel: layer >= modalPanel)
+        })
     }
 
     /// Every window the server lists for `pids` — on screen or not, at any
     /// layer. `OpenConfirmationHold`'s count: a process held at the first-open
     /// prompt owned none in `.optionAll` (measured 2026-10-22), and counting
     /// offscreen windows and every layer only ever makes "held" rarer. No
-    /// permission needed, as for `onScreenWindowCount`.
+    /// permission needed, as for `onScreenWindows(pids:)`.
     public static func ownedWindowCount(pids: Set<pid_t>) -> Int {
-        windows(of: pids, [.optionAll]).count
-    }
-
-    /// The layer of each window `CGWindowListCopyWindowInfo` lists under
-    /// `options` whose owner is in `pids` (nil when the entry has none).
-    private static func windows(of pids: Set<pid_t>, _ options: CGWindowListOption) -> [Int?] {
         guard !pids.isEmpty,
-              let list = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]]
-        else { return [] }
-        return list.compactMap {
-            guard let owner = $0[kCGWindowOwnerPID as String] as? pid_t, pids.contains(owner) else { return nil }
-            return .some($0[kCGWindowLayer as String] as? Int)
-        }
+              let list = CGWindowListCopyWindowInfo([.optionAll], kCGNullWindowID) as? [[String: Any]]
+        else { return 0 }
+        return list.filter {
+            guard let owner = $0[kCGWindowOwnerPID as String] as? pid_t else { return false }
+            return pids.contains(owner)
+        }.count
     }
 
     /// Both version fields read straight from the bundle's `Info.plist` — not

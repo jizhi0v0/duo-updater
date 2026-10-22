@@ -307,6 +307,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**Lapce**](io-lapce.md) · `io.lapce` — G (one-click universal dmg) · 自研更新器（点「Restart to update」才下载） · 真包 0.4.5/0.4.6 channel-verify ✓（0.4.5 → 0.4.6、0.4.6 up to date） · changelog 结构化 ✓（Features/Changes / Bug Fixes） · **nightly 只识别不推**（同 id 同 plist，`LapceBuild` 读可执行文件里的 `Lapce-Nightly`；只护 GitHub 路径，cask 装后换成 nightly 的副本仍被推 stable cask） · v0.0.6–v0.2.0 的 `0.10.0-dev` 副本不检测 · 一键端到端 ✓ 0.4.5 → 0.4.6（不运行） · 2026-10-20
 - [x] [**Harp**](com-dominikmartn-Harp.md) · `com.dominikmartn.Harp` — G (one-click arm64 dmg) · Warp 的 `oss` 分支，无自更新器 · 真包 0.1.0/0.1.1 channel-verify ✓ · 一键端到端 ✓ 0.1.0 → 0.1.1（不运行 + 运行中 + `duo restart`） · changelog 结构化（列表前的改动段落被解析器丢掉） · 2026-10-20
 - [x] [**Hoppscotch**](io-hoppscotch-desktop.md) · `io.hoppscotch.desktop` — G (one-click arm64 dmg，Cloud 与 Self-Host 第二代副本各装各的 dmg；第一代、x64 副本由 OneClickGate 仅检测) · Tauri 自更新器（内存下载，不停放） · 真包 26.8.2/26.9.0 channel-verify ✓ · changelog 结构化但只有一行 bump 说明 · 一键端到端 ✓ Cloud 两轮、加 Self-Host 规则后 Self-Host 与 Cloud 各一轮（装上的可执行文件与各自厂商包逐字节相同） · 2026-10-22
+- [x] [**Swift Quit**](onebadidea-Swift-Quit.md) · `onebadidea.Swift-Quit` — G (one-click universal zip) · 无自更新器 · 真包 1.3/1.4/1.5 channel-verify ✓（1.3、1.4 → 1.5，1.5 up to date） · 1.3/1.4 是 ad-hoc，一键被 Team 闸拒（手动换一次） · LoginItem 是启动即退的 launcher · changelog 结构化 ✓ · 一键端到端 ✓（不运行；1.4 ad-hoc 真机被拒、Developer ID 换包真机过；运行中轮未跑：要辅助功能授权且会退出别的 app） · 2026-10-22
 
 ## Changelog-only (detection via Sparkle or Homebrew)
 

@@ -51,7 +51,7 @@
 
 | | 客户端会停放吗 | 本次实际停放了什么 | 我们能否直接拿来装 |
 |---|---|---|---|
-| 结论 | 不会 | 没查（真机第二轮未跑） | 不需要 |
+| 结论 | 不会 | 无（2026-10-22 真机运行 1.5.1，没有更新器） | 不需要 |
 | 证据 | 不下载任何东西（源码，见基本信息） | — | — |
 
 ## Changelog
@@ -62,7 +62,10 @@
 - Recipe 状态: 不需要
 
 ## 一键安装
-- 状态: **支持**（rule 有 `installAssetPattern`）；真机端到端**未跑，待主会话**
+- 状态: **支持**（rule 有 `installAssetPattern`），真机两轮通过（2026-10-22，本分支 `make cli` 的 duo）
+  - 第一轮（不运行）: 1.5.1 → `duo check` `1.5.1 → 1.6.0 [GitHub, in-place]` → `duo install` `extracting verifyingCodeSignature installing done installed.` → 1.6.0、可执行文件 inode 变、`TeamIdentifier=6V66CC3AN6`、`codesign --verify --deep --strict` 退出 0、`spctl` accepted、`diff -r` 与厂商 1.6.0 包相同
+  - 第二轮（运行中）: 启动 1.5.1，pkd 当即登记了两个扩展（`pluginkit -m -v`：`SwiftPlantUMLActionExtension(1.5.1)`、`SwiftPlantUMLSourceEditorExtension(1.5.1)`，未启用）；`duo install` 后提示 `Still running the old code`，`duo restart SwiftPlantUML` 后新进程起来，之后 10 s 磁盘一直是 1.6.0、签名有效；**换包后 pkd 自动把两个扩展重新登记为 1.6.0**
+  - 没跑的：扩展**已启用**时换包后是否仍为 `+`、Xcode 开着时换包——启用要用户在系统设置里点，这次没做
 - 格式: zip，根目录 `SwiftPlantUMLApp.app`。Pattern `^SwiftPlantUMLApp\.zip$`，kind `.zip`
 - 签名: 1.5.1、1.6.0（以及更早的所有版本）Team `6V66CC3AN6`，Notarized，hardened runtime；Team 没换过，旧副本都过得了安装闸
 - 校验: 资产没有 GitHub `digest`（`gh api …/releases/tags/1.6.0` 的 `digest` 为 null，2024 年上传，早于 GitHub 加摘要），只靠 Team-ID 闸。真包 SHA-256: 1.6.0 `74b2c77a…f067d`（6882756 字节）、1.5.1 `0c264321…91aa`（6925930 字节）
@@ -85,8 +88,8 @@
 - **启用状态（系统设置 › 通用 › 登录项与扩展 › Xcode Source Editor / Finder）。** `man pluginkit`（本机）:「Elections are applied to all plug-ins with given identifier」——用户的「use / ignore」选择按扩展 identifier 记，不按路径或版本记；换包后 identifier 不变（上表，1.0.0 起没变过）。按这个说明选择应保留，**未真机验证**，列为主会话的检查项
 - **结论：一键直接开，不加 `OneClickGate`。** 没有常驻 helper；`OneClickGate` 是按版本/版本形态扣一键，跟「Xcode 开着」无关，加了也挡不住什么。最坏情况（Xcode 里还是旧扩展）与厂商唯一的更新方式（手动覆盖）一样
 
-### 主会话真机要注意的副作用
-- 首启：只开一个 Preferences 窗口（`ContentView` / `SettingsView`）；app 有 sandbox，写 `~/Library/Containers/us.eidinger.SwiftPlantUML`、group container `group.6V66CC3AN6.us.eidinger.SwiftPlantUML`（cask `zap` 段也列了 `~/Library/Application Scripts/…`、`~/Library/Group Containers/…`）
+### 启动副作用（2026-10-22 真机核对的已注明）
+- 首启：只开一个 Preferences 窗口（`ContentView` / `SettingsView`）；app 有 sandbox，写 `~/Library/Containers/us.eidinger.SwiftPlantUML`、group container `group.6V66CC3AN6.us.eidinger.SwiftPlantUML`（cask `zap` 段也列了 `~/Library/Application Scripts/…`、`~/Library/Group Containers/…`）。真机：首启建了 app 和两个扩展各自的 `Containers`、`Application Scripts`，以及 group container
 - 登录项 / LaunchAgent / root helper: 包里和源码里都没有
 - 系统 UI: 首次放进 `/Applications` 后 pkd 会登记两个扩展（不弹框）；不会自动启用，用户要在系统设置里勾
 - 不往 `~/.claude` / `~/.agents` 写东西（源码无此类路径；sandbox 也写不到）
@@ -107,5 +110,5 @@ pluginkit -m -v -A -i us.eidinger.SwiftPlantUMLSourceEditorExtension            
 ```
 
 ## 建议下一步
-1. 主会话真机：1.5.1 → 1.6.0，第一轮不运行、第二轮运行中；另外在系统设置里先启用 Xcode Source Editor 扩展，换包后用 `pluginkit -m -v -A -i us.eidinger.SwiftPlantUMLSourceEditorExtension` 确认仍是 `+` 且路径/版本是 1.6.0
+1. 可补一轮：在系统设置里先启用 Xcode Source Editor 扩展再换包，然后用 `pluginkit -m -v -A -i us.eidinger.SwiftPlantUMLSourceEditorExtension` 确认仍是 `+` 且路径/版本是 1.6.0
 2. 厂商发新版后复查资产名仍是 `SwiftPlantUMLApp.zip`

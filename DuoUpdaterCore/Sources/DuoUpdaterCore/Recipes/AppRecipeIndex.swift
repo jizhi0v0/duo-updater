@@ -82,6 +82,7 @@ public enum AppRecipeIndex {
         com_electron_wispr_flow.set,
         com_eusoft_eudic.set,
         com_exafunction_windsurf.set,
+        com_extraheadroom_headroom.set,
         com_federicoterzi_espanso.set,
         com_figma_Desktop.set,
         com_FluidApp_app.set,

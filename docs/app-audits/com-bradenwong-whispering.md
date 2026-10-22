@@ -54,8 +54,8 @@
 - install pattern `^Whispering_[0-9]+(?:\.[0-9]+)+_aarch64(?:_darwin)?\.dmg$`（`_darwin` 是 7.6.0–7.7.1 的命名，分诊草稿漏了它）
 - **待审项「有 tag 读不出」**: 读不出的两个都有意不收——
   - `models/parakeet-tdt-0.6b-v3-int8`：Parakeet 模型权重的 release（6 个资产，没有 app），不是本产品的版本
-  - `feature/whi-61-hotfix-infoplist-permissions-after-code-signing`：2024-07 的分支构建，资产是 `Whispering_4.7.1_*.dmg`；分支名不是版本号，4.7.1 早已被后续正式版覆盖
-- **待审项「`/releases/latest` 是不是永远是 Whispering」**: 现在是（v7.11.0）。但这个 monorepo 已经发过非 Whispering 的正式 release（上面的 `models/…`，2025-09-19 发布），`main` 上还有 `@epicenter/*@x.y.z` 的 npm 包 tag（目前没有对应 release）。不需要改走列表：这条规则带 `installAssetPattern`，`GitHubReleasesSource.settle` 在 latest 那一个 release 没有匹配资产时会改读 `/releases?per_page=20` 并按 `stableOnly` 往回走，跳过 tag 不匹配的条目，走到最新的 Whispering release。如果以后非 Whispering 的 release 一次连发 20 个以上，那一页里会没有 Whispering，规则回报 `.unknown`（不会误报「已是最新」）
+  - `feature/whi-61-hotfix-infoplist-permissions-after-code-signing`：2024-07 的分支构建，资产是 `Whispering_4.7.1_*.dmg`；分支名不是版本号，4.7.1 早已被后续正式版覆盖。资产里的 `Whispering_4.7.1_aarch64.dmg` **匹配** install pattern，所以它若成为 `/releases/latest`，`settle` 不会改读列表（latest 那一个 release 已有匹配资产），也不会往回走：tag 不匹配 `versionPattern`，规则不给答案，并记一次 recipe miss（`1 releases fetched, none matched the version pattern`）。要靠 `models/…` 那种没有 dmg 的 release 才会触发往回走
+- **待审项「`/releases/latest` 是不是永远是 Whispering」**: 现在是（v7.11.0）。但这个 monorepo 已经发过非 Whispering 的正式 release（上面的 `models/…`，2025-09-19 发布），`main` 上还有 `@epicenter/*@x.y.z` 的 npm 包 tag（目前没有对应 release）。不需要改走列表：这条规则带 `installAssetPattern`，`GitHubReleasesSource.settle` 在 latest 那一个 release 没有匹配资产时会改读 `/releases?per_page=20` 并按 `stableOnly` 往回走，跳过 tag 不匹配的条目，走到最新的 Whispering release（这只对没有匹配资产的 release 成立，如 `models/…`；`feature/whi-61-…` 带匹配的 dmg，不会走这条路，见上）。如果以后非 Whispering 的 release 一次连发 20 个以上，那一页里会没有 Whispering，规则回报 `.unknown`（不会误报「已是最新」）
 - 分诊说「v7.6.0/7.7.x/7.10.0 没有 mac 资产」**不对**：7.6.0、7.7.0、7.7.1 有 `Whispering_<v>_aarch64_darwin.dmg` 和 `…_x64_darwin.dmg`（已收进 install pattern）；7.7.2 有标准命名的包；7.10.0 只有 `Whispering_7.10.0_x64.dmg`，没有 arm64 包，规则按「没有本机架构的包」跳过它
 - channel-verify（production `UpdateChecker.check()`，2026-10-22）:
   - 7.9.0 dmg → `winning source GitHub`、`latest 7.11.0`、`status UPDATE → 7.11.0`

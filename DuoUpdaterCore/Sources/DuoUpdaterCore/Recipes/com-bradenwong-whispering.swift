@@ -13,9 +13,13 @@ enum com_bradenwong_whispering {
         //
         // Tags read `v7.11.0`, the bundle says 7.11.0. Not read on purpose:
         // `models/parakeet-…` (model weights) and `feature/whi-61-…` (a 2024
-        // branch build of 4.7.1), and `_assets` is a prerelease. If one of them
-        // ever becomes `/releases/latest`, it carries no matching dmg and the
-        // rule walks the list back to the newest Whispering release.
+        // branch build of 4.7.1), and `_assets` is a prerelease. The first two
+        // fail on the tag, and they differ on the asset. If `models/…` ever
+        // becomes `/releases/latest`, it carries no dmg, so the rule fetches
+        // the list and walks back to the newest Whispering release. The
+        // `feature/…` release carries `Whispering_4.7.1_aarch64.dmg`, which
+        // the install pattern matches, so there is no walk-back: the rule
+        // reads no version from it, answers nothing and records a recipe miss.
         // 7.6.0–7.7.1 named their dmg `…_aarch64_darwin.dmg`; 7.10.0 shipped
         // only an x64 dmg and is skipped as no Apple-silicon build.
         // One-click: com.bradenwong.whispering, Team 3C7J97QA5Z, notarized,

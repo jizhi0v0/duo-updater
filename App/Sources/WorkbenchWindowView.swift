@@ -2417,8 +2417,10 @@ private struct BrewHeadNotice: View {
 /// A command shown for the user to run, with a copy button that confirms.
 private struct CopyableCommandBox: View {
     let command: String
-    /// False keeps the command on one line, scrolling sideways when it is
-    /// wider than the box: a command broken at its spaces reads as several.
+    /// False never breaks the command at its spaces, which reads as several
+    /// commands: each `&&` step gets a line of its own, shrunk to fit rather
+    /// than cut off. (A sideways scroll hid the end — "fnm default 24.22." on
+    /// the real Mac — with nothing to say there was more.)
     var wraps = true
 
     @State private var copied = false
@@ -2429,9 +2431,15 @@ private struct CopyableCommandBox: View {
             if wraps {
                 commandText.fixedSize(horizontal: false, vertical: true)
             } else {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    commandText.lineLimit(1).fixedSize()
+                VStack(alignment: .leading, spacing: 2) {
+                    ForEach(Array(Self.steps(command).enumerated()), id: \.offset) { _, step in
+                        Text(step)
+                            .font(.system(.body, design: .monospaced))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                    }
                 }
+                .textSelection(.enabled)
             }
             Spacer()
             Button {
@@ -2459,6 +2467,12 @@ private struct CopyableCommandBox: View {
         Text(command)
             .font(.system(.body, design: .monospaced))
             .textSelection(.enabled)
+    }
+
+    /// `a && b` as `a` and `&& b`, for display only; the copy is the command.
+    static func steps(_ command: String) -> [String] {
+        let parts = command.components(separatedBy: " && ")
+        return [parts[0]] + parts.dropFirst().map { "&& " + $0 }
     }
 }
 
@@ -2726,7 +2740,7 @@ private struct RuntimeSecurityMarkButton: View {
             }
             // Handed out, never run: installing beside the old version and
             // moving packages is the user's to decide. The whole popover's
-            // width, not the text column's, and on one line: fnm's
+            // width, not the text column's, and never broken mid-step: fnm's
             // `install … && fnm default …` broke into three at 300 pt.
             if let upgrade {
                 Text("To update it yourself, run:")

@@ -49,7 +49,7 @@ beta 规则只检测、不开一键：非 stable 轨的安装要 channel proof�
 - **自带更新器**（证据：3.26.0 可执行文件的 strings；插件行为来自官方源码 `tauri-apps/plugins-workspace` tag `updater-v2.10.1` 的 `plugins/updater/src/{updater,commands}.rs`）:
   - 是 Tauri updater：`tauri-plugin-updater/2.10.1`，App 自己的 `smoothcsv::features::updater::{manager,status}`，前端命令 `download_update`、`request_install_update`、`get_update_state`
   - 端点: `https://api.smoothcsv.com/api/updates` 和 `https://github.com/kohii/smoothcsv3/releases/latest/download/latest.json`。前者实测（2026-10-22）`301` 到后者。`latest.json` 的 `darwin-*` 都指向 `releases/latest/download/SmoothCSV_universal.app.tar.gz`，`version` 3.26.0。和本规则读的是同一个 `/releases/latest`
-  - 会不会暂存: 插件的 `download` 返回 `Vec<u8>`，命令层存成内存资源 `DownloadedBytes`；`install_inner`（macOS）把 tar.gz 解到临时目录 `tauri_updated_app*`，把当前 app 挪到 `tauri_current_app*`，再 rename 新 app 到原路径（没权限时用 AppleScript `with administrator privileges`）。**插件不在磁盘上停放下载**。App 自己的 manager 是闭源的，它会不会另外把字节写盘**没核**，要第二轮真机的前后 diff 来定
+  - 会不会暂存: 插件的 `download` 返回 `Vec<u8>`，命令层存成内存资源 `DownloadedBytes`；`install_inner`（macOS）把 tar.gz 解到临时目录 `tauri_updated_app*`，把当前 app 挪到 `tauri_current_app*`，再 rename 新 app 到原路径（没权限时用 AppleScript `with administrator privileges`）。**插件不在磁盘上停放下载**。App 自己的 manager 是闭源的；2026-10-22 真机运行 3.25.1 约 20 s，前后 diff 没看到写盘的更新包（`$TMPDIR/com.smoothcsv.desktop` 只有 `WebKit/`）。没在 App 里点下载，所以「点了下载之后」会不会写盘仍没核
   - 设置: v3.13.0 起 `Settings › Application › Update` 可设成 Manual（release notes）；默认模式是只检查还是自动下载**没核**
 - 已安装 3.0.0-beta.11 的可执行文件里也有 `releases/latest`（`check-bundle.sh` 的 `exe-references`），beta 副本自己的更新器同样走稳定版
 
@@ -67,7 +67,7 @@ beta 规则只检测、不开一键：非 stable 轨的安装要 channel proof�
 
 | | 客户端会停放吗 | 本次实际停放了什么 | 我们能否直接拿来装 |
 |---|---|---|---|
-| 结论 | 插件不会（内存）；App 自己会不会写盘没核 | 没查（第二轮真机待主会话） | 不能（内存里的字节拿不到） |
+| 结论 | 插件不会（内存）；App 自己会不会写盘没完全核 | 无（2026-10-22 真机，没在 App 里点下载） | 不能（内存里的字节拿不到） |
 | 证据 | `commands.rs` `struct DownloadedBytes(pub Vec<u8>)`；`updater.rs` `download` → `Result<Vec<u8>>` | — | `SelfUpdaterStash` 读磁盘布局，这里没有 |
 
 - 和我们抢的方式: 运行中的旧进程如果已经下载了某个版本 X（在内存里），duo 装上更新的 Y 之后用户再点 App 里的「安装更新」，插件会把磁盘上的 Y 挪走、换成 X——**降级**。插件安装时不比版本，只换 `extract_path`（源码如上）。这是推断，没真机复现，见「一键安装」的第二轮步骤
@@ -87,18 +87,21 @@ beta 规则只检测、不开一键：非 stable 轨的安装要 channel proof�
 
 ## 一键安装
 - 状态: **支持**（稳定规则）；beta 规则仅检测
-- 端到端: **未跑**——真机端到端由主会话做（本次是并行 agent，不碰 `/Applications`、不启动 app）
+- 端到端（2026-10-22，本分支 `make cli` 的 duo）:
+  - 第一轮（不运行）: 3.25.1 → `duo check` `3.25.1 → 3.26.0 [GitHub, in-place]` → `duo install` `extracting verifyingCodeSignature installing done installed.` → 3.26.0、可执行文件 inode 变、`TeamIdentifier=46PHP2W2TP`、`codesign --verify --deep --strict` 退出 0、`spctl` accepted、`diff -r` 与厂商 3.26.0 包相同
+  - 第二轮（运行中）: 启动 3.25.1（一个窗口，没有未存文档），`duo install` 后提示 `Still running the old code`；`duo restart SmoothCSV` 后新进程起来，之后 10 s 磁盘一直是 3.26.0、签名有效
+  - 「内存里有一个比 latest 旧的版本、用户再点 App 内安装」那个降级场景没跑（要本地代理改写两个更新端点），仍是推断
 - 格式: dmg（UDZO，GUID 分区），根目录 `SmoothCSV.app` + `Applications` 软链 + `.VolumeIcon.icns`
 - 嵌套 / 常驻组件: 无。`Contents/` 下只有 `MacOS/{smoothcsv-app,smoothcsv-cli}`、`Resources/icon.icns`、Info.plist、签名；没有 LoginItems / Helpers / XPC / LaunchAgent；strings 里没有 `SMAppService`、`LaunchAgents`、`LoginItems`
 - 签名: 3.25.1、3.26.0 都是 `46PHP2W2TP`、Notarized Developer ID
 - 校验: GitHub 资产 `digest`。v3.26.0 `sha256:75f8428947c86c91a70c19eed001f8bbd71a84c2a605af77fcba69bf09ea6681`、v3.25.1 `sha256:88024528426c8426e45ade15233c1e1cd28e77cd75067318a833108b89ff9d76`，`gh release download` 下来的 dmg `shasum -a 256` 都相同，大小 35811363 / 34876703 字节等于资产大小
 - **读的是**: 人人可手动下载的 GA（`/releases/latest`；官网下载页和 Tauri 更新器都指向它）
-- 主会话真机要注意的副作用（来源已标）:
-  - 首启: 未授权时会弹授权提醒（3.25.1 release notes「The reminder now appears every 3 days」）；`verify_license_key` 命令在 strings 里。是不是模态框没核
+- 启动副作用（来源已标；2026-10-22 真机核对的已注明）:
+  - 首启: 未授权时会弹授权提醒（3.25.1 release notes「The reminder now appears every 3 days」）；`verify_license_key` 命令在 strings 里。真机这次没看到授权提醒（只有一个主窗口），是不是模态框仍没核
   - 退出: 3.26.0 起 Hot Exit 默认开，退出不问保存（3.26.0 release notes）；3.25.x 从外部退出（Dock、AppleScript）有未存改动时会问（3.25.0 release notes）。3.25.1 运行时别留未存文档
   - 文件关联: Info.plist 声明 csv / tsv（`LSHandlerRank Default`）和 `smoothcsv://` URL scheme（deep-link 插件）。strings 里没有 `LSSetDefault*`，没看到主动抢默认 app 的代码
   - CLI: 命令面板「Install 'smoothcsv' command in PATH」才装，写 `/usr/local/bin/smoothcsv`，可能弹管理员框（strings 里 `/usr/local/bin/smoothcsv`、`with administrator privileges`；`docs/cli.md`）。启动时不做。真机别点它
-  - 不写 `~/.claude` / `~/.agents`（strings 里没有这两个路径）；数据在 `~/Library/Application Support/com.smoothcsv.desktop` 等（Homebrew cask 的 zap 列表）
+  - 不写 `~/.claude` / `~/.agents`（strings 里没有这两个路径）；数据在 `~/Library/Application Support/com.smoothcsv.desktop` 等（Homebrew cask 的 zap 列表）。真机首启建了 `~/Library/{Application Support,Caches,Logs,WebKit}/com.smoothcsv.desktop`，没有 `/usr/local/bin/smoothcsv`
   - 自带更新器会在启动后检查（默认模式没核），插件安装时可能弹管理员框（app 所在目录没写权限时）
 - 第二轮怎么造「内存里有一个比 latest 旧的版本」（没试过）: 装 3.25.0 并启动，让它的更新器拿到 3.25.1。两个端点都指向 `/releases/latest`（现在是 3.26.0），所以要把 `api.smoothcsv.com/api/updates` 和 GitHub 的 `latest.json` 映射到一份本地 JSON：内容取 v3.25.1 的 `latest.json`（它的 `signature` 是 3.25.1 tar.gz 的签名），把 `darwin-*` 的 `url` 改成 `releases/download/v3.25.1/SmoothCSV_universal.app.tar.gz`（原文是 `releases/latest/download/…`，会拿到 3.26.0 的包而签名对不上）。在 App 里下载但不装 → `duo install` 装 3.26.0 → 再在 App 里点安装 → 看磁盘是不是回到 3.25.1
 
@@ -120,5 +123,4 @@ curl -sS -D - -o /dev/null https://api.smoothcsv.com/api/updates                
 ```
 
 ## 建议下一步
-1. 主会话真机两轮（不运行 / 运行中），把结果写进「一键安装」，再勾 README 那一行
-2. 要不要让 `GitHubMarkdownParser` 在有列表时也保留 `###` 小节的段落（SmoothCSV 每个小版本的重点都在那里）——通用解析器改动，要 owner 定
+1. 要不要让 `GitHubMarkdownParser` 在有列表时也保留 `###` 小节的段落（SmoothCSV 每个小版本的重点都在那里）——通用解析器改动，要 owner 定

@@ -64,7 +64,7 @@
 
 | | 客户端会停放吗 | 本次实际停放了什么 | 我们能否直接拿来装 |
 |---|---|---|---|
-| 结论 | 不会（直接原地换包） | 没查（未跑真机） | 不需要 |
+| 结论 | 不会（直接原地换包） | 无（2026-10-22 真机运行 0.9.45 约 20 s，没有停放任何东西） | 不需要 |
 | 证据 | `TauriPendingUpdate::install` 调 `download_and_install`：下载到内存、校验、原地替换 bundle，之后提示「installed and ready to restart」（`src/lib/appUpdate.ts`）。bundle 可写时（`silent_install_supported`）无需点击就会在后台装 | — | — |
 
 - 后果：app 运行时，磁盘上的 bundle 可能已被它自己换成新版，进程仍是旧版，直到用户重启或「idle applier」（65 分钟无流量）重启
@@ -79,8 +79,11 @@
 - Recipe 状态: 不需要
 
 ## 一键安装
-- 状态: **支持**（rule 已接；真机端到端待主会话）
-- 端到端: 未跑（接入 agent 不做真机；由主会话按下面的步骤跑）
+- 状态: **支持，真机两轮通过（2026-10-22，本分支 `make cli` 的 duo）**
+- 端到端:
+  - 第一轮（不运行）: 0.9.45 → `duo check` `0.9.45 → 0.9.46 [GitHub, in-place]` → `duo install` `extracting verifyingCodeSignature installing done installed.` → 0.9.46、可执行文件 inode 变、`TeamIdentifier=ZA6LNF9PF9`、`codesign --verify --deep --strict` 退出 0、`spctl` accepted、`diff -r` 与厂商 0.9.46 包相同
+  - 第二轮（运行中，没碰向导）: 启动 0.9.45（主进程 + `--crash-guard`，窗口「Welcome to Headroom」），`duo install` → `Still running the old code`；`duo restart Headroom` 后主进程和 crash guard 都换成新的，之后 10 s 磁盘一直是 0.9.46、签名有效
+  - 本机没有 Headroom 旧数据；启动前后 `~/.claude/settings.json`、`~/.claude.json`、`~/.codex/config.toml`、`~/.zshrc`、`~/.zprofile`、`~/.profile` 字节相同，`~/Library/LaunchAgents` 不变。启用过客户端的副本被换包时 crash guard 会改写这些文件，这种情形没测
 - 格式: dmg（UDIF zlib），根目录 `Headroom.app`。Pattern `^Headroom_[0-9]+(?:\.[0-9]+)+_mac\.dmg$`，kind `.dmg`，`-rc`/`-gt` 的 dmg 不匹配
 - 嵌套: 没有。`Contents/MacOS` 只有 `headroom-desktop`，`Contents/Resources` 只有 `icon.icns`，没有 LoginItems / Helpers / XPC
 - 签名: 0.9.45、0.9.46 都是 `TeamIdentifier=ZA6LNF9PF9`，`spctl` Notarized Developer ID，`codesign --verify` 通过
@@ -88,8 +91,8 @@
 - **读的是**: 人人可手动下载的 GA
 - 阻塞: 无
 
-### 真机注意事项（主会话跑之前读）
-来源都是 `main` 上的源码（2026-10-22 读），除标注外都**未在真机观测**：
+### 启动副作用
+来源都是 `main` 上的源码（2026-10-22 读），除标注外都**未在真机观测**（真机结果见上「端到端」）：
 - **会改 `~/.claude`、shell 配置、Codex 配置**——但只在用户在向导/Connectors 页启用某个客户端之后：`apply_client_setup("claude_code")`（`src-tauri/src/client_adapters.rs`）往 `~/.claude/settings.json` 的 `env` 写 `ANTHROPIC_BASE_URL`（指向本机代理）、`ENABLE_TOOL_SEARCH`，加 guard hook、`~/.claude/hooks/headroom-rtk-rewrite.sh`、`~/.claude/commands/remote-control.md`、statusline；往 `~/.zshrc` / `~/.zprofile` / `~/.bashrc` / `~/.bash_profile` / `~/.profile` 写 shell 块；Codex 则改 `~/.codex/config.toml`（provider 与 MCP）。启用后若 Claude Code 正在这台机器上用，它的请求会改走 Headroom 代理
 - **退出与启动会自动改写这些文件**：每次退出 `clear_client_setups()` 撤掉接线；下次启动 `restore_client_setups()` 按 `remembered_clients` 重新接上；每小时、以及 `~/.claude/settings.json` 变化后 5 分钟内 `repair_client_setups()` 自愈。所以只要 `~/Library/Application Support/Headroom/` 里有旧的启用记录，单纯启动就会改 `~/.claude/settings.json`
 - **崩溃守护进程**：启动时再起一份自己（`headroom-desktop --crash-guard`），读 stdin 等主进程退出，然后把客户端接线撤掉再退出。主进程被 duo 退出/替换时它也会写一次配置文件
@@ -113,7 +116,7 @@
 - `com.garm.headroom`（0.1.0–0.1.7）没有可下载的真包，未加迁移
 
 ## 建议下一步
-1. 主会话真机两轮（上面的步骤），过了再把 README 行的「一键端到端」改成结果
+1. 可补一轮：启用过 Claude Code 客户端的副本被换包时，crash guard 撤掉 / 重接接线的前后对比
 2. 要接 beta 时（引擎改动）：`ReleaseChannel.detect` 加 `com.extraheadroom.headroom` 的 `-rc.N` → `.beta` 分支；beta 用 VendorProbe 读 `https://github.com/gglucass/headroom-desktop/releases/download/staging-rolling/latest.json`（`"version"`、`platforms.darwin-aarch64.url` 是 `.app.tar.gz`）；`beta_channel` 哨兵文件要 `ChannelBinding`
 3. 每次新正式版先核 Team 是否还是 `ZA6LNF9PF9`
 

@@ -114,6 +114,7 @@ public enum AppRecipeIndex {
         com_kruszoneq_macUSB.set,
         com_lemon_lvoverseas.set,
         com_local_claudestatusbar.set,
+        com_logseq_logseq.set,
         com_lokii_app.set,
         com_longbridge_app_desktop.set,
         com_macpaw_site_theunarchiver.set,

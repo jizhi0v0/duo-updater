@@ -171,6 +171,7 @@ public enum AppRecipeIndex {
         com_ScooterSoftware_BeyondCompare.set,
         com_sequel_ace_sequel_ace.set,
         com_shotbase_app.set,
+        com_smoothcsv_desktop.set,
         com_Snipaste.set,
         com_sogou_inputmethod_sogou.set,
         com_spotify_client.set,

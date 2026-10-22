@@ -7155,6 +7155,13 @@ final class AppListModel {
         installNotes[id] = nil
     }
 
+    /// The note for a Relaunch that found the app held at macOS's first-open
+    /// prompt (`.awaitingOpenConfirmation`, both paths). Hedged as `duo
+    /// restart`'s line is: a slow normal launch reads the same for a moment.
+    static func awaitingOpenConfirmationNote(_ name: String) -> String {
+        String(localized: "\(name) hasn’t finished opening. If macOS is asking whether to open it, click Open, then click Relaunch again. Nothing was changed.")
+    }
+
     /// Quit the stale running instance and relaunch it so the new version takes
     /// effect. Graceful only — if it won't quit (unsaved work), we leave it and
     /// keep the Restart prompt for the user to retry. An app that isn't running
@@ -7305,6 +7312,16 @@ final class AppListModel {
             // you" rather than "unsaved work": the case in hand was Eudic's login
             // sheet, which has nothing to save.
             let note = String(localized: "\(result.app.name) didn’t quit — it has a window waiting for you (a save prompt, a sign-in sheet, a dialog). Switch to it, deal with that window, then quit it or click Relaunch again. Nothing was changed and the new version is already installed.")
+            installNotes[result.id] = note
+            restartWontQuitNotes[result.id] = note
+        case .awaitingOpenConfirmation:
+            // Held at macOS's first-open prompt, likely: nothing was quit. Keep
+            // the badge and arm no hand-off — once the user clicks Open the app
+            // launches normally, and a hand-off would only fire if it quit, which
+            // here means the user chose Cancel at that prompt and does not want
+            // it reopened. The note retracts like the one above: on the next
+            // Relaunch click, a rollback, or an install of the row.
+            let note = Self.awaitingOpenConfirmationNote(result.app.name)
             installNotes[result.id] = note
             restartWontQuitNotes[result.id] = note
         case .relaunched(let relaunched):
@@ -7559,8 +7576,16 @@ final class AppListModel {
                 installerWindowPendingIds.insert(result.id)
             }
         }
+        if outcome == .awaitingOpenConfirmation {
+            // Nothing was quit, so nothing is handed off: approved, the app
+            // launches normally and its staging waits for the next Relaunch.
+            // Not a red line either — its updater did not fail at anything.
+            let note = Self.awaitingOpenConfirmationNote(result.app.name)
+            installNotes[result.id] = note
+            restartWontQuitNotes[result.id] = note
+        }
         let failureMessage: String? = switch outcome {
-        case .applied, .wontQuit: nil
+        case .applied, .wontQuit, .awaitingOpenConfirmation: nil
         case .swapDidNotLand:
             String(localized: "\(result.app.name) quit, but its own updater didn’t apply the update in time.")
         case .restartedWithoutUpdate:

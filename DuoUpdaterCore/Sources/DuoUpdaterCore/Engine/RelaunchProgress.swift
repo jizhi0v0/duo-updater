@@ -208,6 +208,12 @@ public enum StagedRelaunchOutcome: Sendable, Equatable {
     /// (`ReappearanceWatch`). Deliberately says nothing about who reopened it —
     /// the user, a login item, anything — only that it runs without the update.
     case restartedWithoutUpdate
+    /// The app had not finished launching and owned no window — held at
+    /// macOS's first-open prompt, likely (`OpenConfirmationHold`). Nothing was
+    /// quit and no hand-off is armed: once the user clicks Open it launches
+    /// normally, and a later Relaunch applies the staged build. Never produced
+    /// by `classify`; `StagedRelaunch.quitAndAwait` returns it before the quit.
+    case awaitingOpenConfirmation
 
     /// - Parameters:
     ///   - landed: whether the on-disk version advanced during the wait.

@@ -177,6 +177,9 @@ public enum StagedRelaunch {
         public var installer: ParkedInstallerProbe.System
         /// The app's windows on screen now, every instance (`onScreenWindowCount`).
         public var onScreenWindows: @Sendable () -> Int
+        /// Whether an instance is held at macOS's first-open prompt
+        /// (`OpenConfirmationHold`). Asked once, before anything is quit.
+        public var heldAtOpenPrompt: @Sendable () -> Bool
 
         public init(
             tick: @escaping @Sendable () async -> Void,
@@ -186,7 +189,8 @@ public enum StagedRelaunch {
             awaitBundleProcessesGone: @escaping @Sendable () async -> Void,
             relaunch: @escaping @Sendable (_ activates: Bool) async -> Bool,
             installer: ParkedInstallerProbe.System,
-            onScreenWindows: @escaping @Sendable () -> Int = { 0 }
+            onScreenWindows: @escaping @Sendable () -> Int = { 0 },
+            heldAtOpenPrompt: @escaping @Sendable () -> Bool = { false }
         ) {
             self.tick = tick
             self.isRunning = isRunning
@@ -196,6 +200,7 @@ public enum StagedRelaunch {
             self.relaunch = relaunch
             self.installer = installer
             self.onScreenWindows = onScreenWindows
+            self.heldAtOpenPrompt = heldAtOpenPrompt
         }
 
         public static func live(for app: InstalledApp) -> System {
@@ -212,7 +217,8 @@ public enum StagedRelaunch {
                 installer: .live,
                 onScreenWindows: {
                     onScreenWindowCount(pids: Set(AppRestarter.runningInstances(of: app).map(\.processIdentifier)))
-                })
+                },
+                heldAtOpenPrompt: { OpenConfirmationHold.anyHeld(AppRestarter.runningInstances(of: app)) })
         }
     }
 
@@ -240,6 +246,16 @@ public enum StagedRelaunch {
         _ app: InstalledApp, staged: StagedSelfUpdate?, old: VersionSide,
         wasFrontmost: Bool, quitPatience: QuitPatience = .grace, system: System
     ) async -> Ending {
+        // Held at macOS's first-open prompt: it would not answer the quit, and
+        // the wait would end as `.wontQuit` — "likely a save prompt", which it
+        // is not. Checked before the quit rather than when the wait ends, so no
+        // quit is ever sent to it: whether a quit sent to a held app is dropped
+        // or delivered once the user clicks Open is not known (UNVERIFIED), and
+        // the second would close the app the user had just agreed to open.
+        if system.heldAtOpenPrompt() {
+            Log.app.notice("relaunch-staged: \(app.name, privacy: .public) hasn't finished launching and has no window (likely macOS's first-open prompt) — not quitting it")
+            return Ending(outcome: .awaitingOpenConfirmation, everQuit: false, reopenFailed: false)
+        }
         let buildIsDerived = AppScanner.buildVersionIsOverridden(bundleID: app.bundleID)
         // Spotify only swaps when its old build is opened again; ShipIt/Sparkle
         // swap on quit and must not be reopened early. See `StagedApplyTrigger`.
@@ -404,15 +420,31 @@ public enum StagedRelaunch {
     /// Screen Recording grant and counted its window; only window titles are
     /// withheld without it.
     public static func onScreenWindowCount(pids: Set<pid_t>) -> Int {
-        guard !pids.isEmpty,
-              let list = CGWindowListCopyWindowInfo(
-                [.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]]
-        else { return 0 }
-        return list.filter {
-            guard let owner = $0[kCGWindowOwnerPID as String] as? pid_t else { return false }
-            guard let layer = $0[kCGWindowLayer as String] as? Int else { return false }
-            return pids.contains(owner) && layer >= 0 && layer < Int(CGWindowLevelForKey(.statusWindow))
+        windows(of: pids, [.optionOnScreenOnly, .excludeDesktopElements]).filter {
+            guard let layer = $0 else { return false }
+            return layer >= 0 && layer < Int(CGWindowLevelForKey(.statusWindow))
         }.count
+    }
+
+    /// Every window the server lists for `pids` — on screen or not, at any
+    /// layer. `OpenConfirmationHold`'s count: a process held at the first-open
+    /// prompt owned none in `.optionAll` (measured 2026-10-22), and counting
+    /// offscreen windows and every layer only ever makes "held" rarer. No
+    /// permission needed, as for `onScreenWindowCount`.
+    public static func ownedWindowCount(pids: Set<pid_t>) -> Int {
+        windows(of: pids, [.optionAll]).count
+    }
+
+    /// The layer of each window `CGWindowListCopyWindowInfo` lists under
+    /// `options` whose owner is in `pids` (nil when the entry has none).
+    private static func windows(of pids: Set<pid_t>, _ options: CGWindowListOption) -> [Int?] {
+        guard !pids.isEmpty,
+              let list = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]]
+        else { return [] }
+        return list.compactMap {
+            guard let owner = $0[kCGWindowOwnerPID as String] as? pid_t, pids.contains(owner) else { return nil }
+            return .some($0[kCGWindowLayer as String] as? Int)
+        }
     }
 
     /// Both version fields read straight from the bundle's `Info.plist` — not

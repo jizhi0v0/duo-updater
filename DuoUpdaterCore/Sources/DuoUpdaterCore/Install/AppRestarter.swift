@@ -24,6 +24,10 @@ public enum AppRestarter {
         /// Quit was requested but the app never actually exited within the
         /// timeout — almost always a save prompt. Left running, untouched.
         case stillRunning
+        /// An instance had not finished launching and owned no window — held
+        /// at macOS's first-open prompt, likely (`OpenConfirmationHold`).
+        /// Nothing was quit: decided before the quit request, not after the wait.
+        case awaitingOpenConfirmation
         /// The app itself was running (whether or not anything was nested inside
         /// it), got quit, and we tried to bring it back. `true` if that relaunch
         /// succeeded. Reached only when `main` was non-empty — see `nestedOnly`
@@ -64,6 +68,19 @@ public enum AppRestarter {
         let nested = nestedRunningInstances(of: app)
         let running = main + nested
         guard !running.isEmpty else { return .notRunning }
+        // Held at macOS's first-open prompt, it would not answer the quit, and
+        // the ~30 s wait below would end as `.stillRunning` — "likely a save
+        // prompt", which it is not. Asked before the quit rather than when the
+        // wait ends, so no quit is ever sent to it: whether one sent to a held
+        // app is dropped or delivered once the user clicks Open is not known
+        // (UNVERIFIED), and the second would close the app the user had just
+        // agreed to open. Over `running`, nested apps included: the quit below
+        // would reach every one of them.
+        if OpenConfirmationHold.anyHeld(running) {
+            Log.install.notice(
+                "app-restarter: \(app.name, privacy: .public) hasn't finished launching and has no window (likely macOS's first-open prompt) — not quitting it")
+            return .awaitingOpenConfirmation
+        }
         // Sampled before the quit — once every instance is gone, so is the
         // answer — and decides whether the relaunch takes the foreground (see
         // `isFrontmost`).

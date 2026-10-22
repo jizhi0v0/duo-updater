@@ -101,6 +101,81 @@ private func appNamed(_ filename: String) -> InstalledApp {
     #expect(remote?.sourceIdentifier == "tableplus")
 }
 
+// MARK: - Packaging revision the bundle never carries (#1553)
+
+/// Homebrew's installed version is the newest `.metadata/<version>/<timestamp>`
+/// that holds the caskfile — a leftover version dir, an older timestamp or a
+/// timestamp without `Casks/<token>.*` does not count.
+@Test func inventoryReadsTheVersionHomebrewRecordsAsInstalled() throws {
+    let tmp = URL(fileURLWithPath: NSTemporaryDirectory())
+        .appendingPathComponent("caskroom-\(UUID().uuidString)")
+    let fm = FileManager.default
+    defer { try? fm.removeItem(at: tmp) }
+    func record(_ token: String, _ version: String, _ stamp: String, caskfile: String?) throws {
+        let dir = tmp.appendingPathComponent("\(token)/.metadata/\(version)/\(stamp)/Casks")
+        try fm.createDirectory(at: dir, withIntermediateDirectories: true)
+        if let caskfile {
+            try Data().write(to: dir.appendingPathComponent("\(token).\(caskfile)"))
+        }
+    }
+    try record("mkvtoolnix-app", "102.0", "20261001120000.000", caskfile: "rb")
+    try record("mkvtoolnix-app", "102.0-2", "20261021200000.000", caskfile: "json")
+    try record("leftover", "2.0", "20261001120000.000", caskfile: "json")
+    try record("leftover", "3.0", "20261002120000.000", caskfile: nil)
+    try fm.createDirectory(at: tmp.appendingPathComponent("bare/1.0"), withIntermediateDirectories: true)
+
+    let inv = BrewLocalInventory(caskroomPaths: [tmp.path])
+    #expect(inv.installedVersion(caskToken: "mkvtoolnix-app") == "102.0-2")
+    #expect(inv.installedVersion(caskToken: "leftover") == nil)
+    #expect(inv.installedVersion(caskToken: "bare") == nil)
+    #expect(inv.isInstalled(caskToken: "bare"))
+}
+
+private func mkvToolNix(caskroomVersion: String?, appVersion: String = "102.0") async throws -> RemoteVersion? {
+    let entry = CaskEntry(
+        token: "mkvtoolnix-app", version: "102.0-2",
+        url: URL(string: "https://mkvtoolnix.download/macos/releases/102.0/MKVToolNix-102.0-2-arm64.dmg"),
+        autoUpdates: false, installKind: .brew
+    )
+    let source = HomebrewCaskSource(
+        catalog: catalog(with: entry, appFilename: "MKVToolNix.app"),
+        inventory: BrewLocalInventory(
+            installedTokens: ["mkvtoolnix-app"],
+            installedVersions: caskroomVersion.map { ["mkvtoolnix-app": $0] } ?? [:])
+    )
+    // What the 102.0-2 package's Info.plist actually says (read off the real dmg).
+    let app = InstalledApp(
+        name: "MKVToolNix", bundleID: "download.mkvtoolnix.MKVToolNix",
+        shortVersion: appVersion, buildVersion: appVersion,
+        path: URL(fileURLWithPath: "/Applications/MKVToolNix.app"),
+        isMASApp: false, sparkleFeedURL: nil
+    )
+    return try await source.latestVersion(for: app)
+}
+
+/// Before brew has the revision, it is an update, as in `brew outdated`.
+@Test(arguments: ["102.0", "102.0-1", nil] as [String?])
+func revisionNotYetInstalledIsStillOffered(caskroomVersion: String?) async throws {
+    let remote = try await mkvToolNix(caskroomVersion: caskroomVersion)
+    #expect(remote?.shortVersion == "102.0-2")
+    #expect(VersionComparator.isNewer(remote?.shortVersion ?? "", than: "102.0"))
+}
+
+/// Once brew records "102.0-2" installed, the bundle's 102.0 is that release —
+/// the row must not keep offering what was just installed.
+@Test func revisionHomebrewRecordsInstalledIsNotOfferedAgain() async throws {
+    let remote = try await mkvToolNix(caskroomVersion: "102.0-2")
+    #expect(remote?.shortVersion == "102.0")
+    #expect(!VersionComparator.isNewer(remote?.shortVersion ?? "", than: "102.0"))
+}
+
+/// The revision is dropped only when the rest of it is the bundle's version: a
+/// copy brew's record does not describe keeps the cask version as is.
+@Test func revisionIsKeptWhenTheBundleIsSomeOtherVersion() async throws {
+    let remote = try await mkvToolNix(caskroomVersion: "102.0-2", appVersion: "101.0")
+    #expect(remote?.shortVersion == "102.0-2")
+}
+
 // MARK: - SourceStack order
 
 /// A brew-installed app that also carries a `SUFeedURL` must be answered by

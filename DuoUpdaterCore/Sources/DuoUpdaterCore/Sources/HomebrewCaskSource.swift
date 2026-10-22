@@ -83,9 +83,23 @@ public struct HomebrewCaskSource: UpdateSource {
         // separators — keying only on "," left the ":build" form (e.g. "1.2.3:456")
         // intact, which then mis-compares against the bare installed "1.2.3" and can
         // surface a spurious update.
-        let marketing = entry.version
+        var marketing = entry.version
             .split(whereSeparator: { $0 == "," || $0 == ":" }).first
             .map(String.init) ?? entry.version
+
+        // A packaging revision the bundle never carries (#1553): MKVToolNix's
+        // cask is "102.0-2" while the app inside reads 102.0 / 102.0, so no
+        // install can ever reach "102.0-2" and the row offers it forever. Once
+        // Homebrew records that exact cask version as installed — `brew
+        // outdated`'s own test — the bundle's spelling is the release, so offer
+        // that instead. Before then the revision still shows as an update, as
+        // it does in `brew outdated`.
+        if let installed = app.shortVersion,
+           inventory.installedVersion(caskToken: entry.token) == entry.version,
+           let dash = marketing.lastIndex(of: "-"),
+           VersionComparator.compare(String(marketing[..<dash]), installed) == .orderedSame {
+            marketing = String(marketing[..<dash])
+        }
 
         var remote = RemoteVersion(
             shortVersion: marketing,

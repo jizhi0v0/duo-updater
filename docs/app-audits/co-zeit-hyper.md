@@ -75,7 +75,7 @@
 
 | | 客户端会停放吗 | 本次实际停放了什么 | 我们能否直接拿来装 |
 |---|---|---|---|
-| 结论 | 会（启动 10 s 后检查，之后每 30 min） | 未实测（没启动 app） | 不用：它停放的就是 GitHub 上的 `-mac-arm64.zip`，和我们装的同版本 |
+| 结论 | 会（启动 10 s 后检查，之后每 30 min） | 真机实测（2026-10-22）：3.4.0 启动约 23 s 后 ShipIt 已武装（`Detected this as an install request` 12:47:08），停放的是 3.4.1 | 不用：它停放的就是 GitHub 上的 `-mac-arm64.zip`，和我们装的同版本 |
 | 证据 | `updater.ts`：`autoUpdater.on('update-downloaded', …)`，`setTimeout(checkForUpdates, 10s)` / `setInterval(…, 30m)`；Squirrel.Mac 停放在 `~/Library/Caches/co.zeit.hyper.ShipIt`（brew cask 的 zap 也列了这个目录），退出时 ShipIt 换包 | — | — |
 
 - Hazel 风格的 feed 只回最新版，对已是最新的版本回 `204`（实测 `…/darwin_arm64/3.4.1` → HTTP 204），所以停放的永远是当时的 latest。服务器响应头 `server: Vercel`；路由形状和 JSON 字段与 Hazel 一致，「是 Hazel」是我的推断，服务器没说。
@@ -88,7 +88,9 @@
 - Recipe 状态: 不需要
 
 ## 一键安装
-- 状态: **接了，真机端到端待主会话**（本 agent 没有安装或启动任何东西）
+- 状态: **支持，真机两轮通过（2026-10-22，本分支 `make cli` 的 duo）**
+  - 第一轮（不运行）: 3.4.0 → `duo check` `3.4.0 → 3.4.1 [GitHub, in-place]` → `duo install` `downloading… extracting verifyingCodeSignature installing done installed.` → 3.4.1、可执行文件 inode 变、`TeamIdentifier=JW6Y669B67`、`codesign --verify --deep --strict` 退出 0、`spctl` accepted（Notarized Developer ID）、`diff -r` 与厂商 3.4.1 包相同
+  - 第二轮（运行中）: 启动 3.4.0 后立即 `duo install`（12:46:45 → 12:47:17 完成，提示 `Still running the old code: Hyper`）。装的过程中 Squirrel 已停放 3.4.1，ShipIt 12:47:08 武装。`duo restart Hyper`：旧进程退出 → ShipIt 12:47:35 开始安装、12:47:41 把它停放的 3.4.1 换进 `/Applications/Hyper.app`（`Installation completed successfully`）；我们的重启 12:47:35 已拉起新进程，所以 **ShipIt 的换包发生在新进程运行期间**。两边是同一版本（`RestartStandoff` 的「同一构建就放行」），结果正确：磁盘 3.4.1、签名有效，新进程正常运行、退出正常。停放的若不是同一版本会怎样，这次没有造出来（Hazel feed 只回最新版）
 - 格式: dmg（`hdiutil imageinfo`：UDZO），根目录 `Hyper.app` + `Applications` 软链。kind `.dmg`
 - 嵌套: `Contents/Frameworks` 下 4 个 Electron helper（`Hyper Helper{, (GPU), (Plugin), (Renderer)}.app`，`LSUIElement`，随主进程起停）；没有 `Contents/Library/LoginItems`、LaunchAgent、XPC helper
 - 签名: 3.4.0、3.4.1 都是 `TeamIdentifier=JW6Y669B67`，`codesign --verify` 通过，`spctl` Notarized Developer ID，hardened runtime
@@ -96,9 +98,9 @@
 - 一键门控: canary 副本被 `OneClickGate` 挡住（见上）
 - **读的是**: 人人可手动下载的 GA（`/releases/latest`）
 
-### 主会话真机要注意的副作用（读源码 `v3.4.1` 得到，未实测）
-- **把自己设成 `ssh://` 的默认处理程序**：`app/index.ts` 启动时 `config.defaultSSHApp && !app.isDefaultProtocolClient('ssh')` → `app.setAsDefaultProtocolClient('ssh')`，默认配置 `defaultSSHApp: true`（`app/config/config-default.js`）。本机目前 LSHandlers 里没有 ssh 的条目。撤销：在 `~/.hyper.js` 里设 `defaultSSHApp: false` 再启动一次（源码走 `removeAsDefaultProtocolClient('ssh')`），或真机前先写好这个配置。
-- **写配置和插件目录**：macOS 上配置目录是 home（`app/config/paths.ts`），首启生成 `~/.hyper.js`、`~/.hyper_plugins/`（插件用自带 yarn 联网安装）。另有 `~/Library/Application Support/Hyper`、`~/Library/Logs/Hyper` 等（brew zap 清单）。本机目前都不存在，验完删掉即可。
+### 启动副作用（读源码 `v3.4.1`，2026-10-22 真机核对）
+- **把自己设成 `ssh://` 的默认处理程序**：`app/index.ts` 启动时 `config.defaultSSHApp && !app.isDefaultProtocolClient('ssh')` → `app.setAsDefaultProtocolClient('ssh')`，默认配置 `defaultSSHApp: true`（`app/config/config-default.js`）。真机核对：启动后 `NSWorkspace.urlForApplication(toOpen: ssh://…)` 指向 Hyper；LSHandlers 里仍没有 ssh 条目（是 Info.plist 声明的 scheme 生效，不是写入用户偏好）。把 app 移走并 `lsregister -u` 后回到系统默认 Terminal。另一种撤销：在 `~/.hyper.js` 里设 `defaultSSHApp: false` 再启动一次（源码走 `removeAsDefaultProtocolClient('ssh')`），或真机前先写好这个配置。
+- **写配置和插件目录**：macOS 上配置目录是 home（`app/config/paths.ts`），首启生成 `~/.hyper.js`、`~/.hyper_plugins/`（插件用自带 yarn 联网安装）。另有 `~/Library/Application Support/Hyper`、`~/Library/Logs/Hyper` 等（brew zap 清单）。真机核对：首启即生成 `~/.hyper.js`、`~/.hyper_plugins/`、`~/Library/Application Support/Hyper`、`~/Library/Preferences/co.zeit.hyper.plist`、`~/Library/Caches/co.zeit.hyper`；`~/Library/Logs/Hyper` 没出现。
 - **CLI 软链**：每次启动 `installCLI(false)` 静默尝试 `ln -s …/bin/hyper /usr/local/bin/hyper`。本机 `/usr/local/bin` 是 `root:wheel 755`，会 EACCES；`silent=true` 时不弹框、不发通知（`cli-install.ts`），只写日志。
 - **自更新器会停放并在退出时换包**：启动 10 s 后 Squirrel 检查 `releases.hyper.is`，3.4.0 会下载 3.4.1 zip 到 `~/Library/Caches/co.zeit.hyper.ShipIt`，app 退出时 ShipIt 自己把 `/Applications/Hyper.app` 换成 3.4.1。这会和 duo install 抢同一个 bundle，第二轮要注意（见下）。
 - 没有登录项、LaunchAgent、root helper、首启向导；不碰 `~/.claude`、`~/.agents`（源码里没有这些路径，未实测）。Electron 20 在 macOS 27 上能否正常启动未验证。
@@ -114,8 +116,7 @@
 - 厂商 2023 年后没有发版。
 
 ## 建议下一步
-1. 主会话真机两轮一键，通过后把 README 那一行改成 ✓。
-2. 如果 Hyper 再发 canary，再考虑 `ReleaseChannel.detect` 认 `-canary.<N>` + canary rule。
+1. 如果 Hyper 再发 canary，再考虑 `ReleaseChannel.detect` 认 `-canary.<N>` + canary rule。
 
 ## 如何复验
 ```

@@ -7,7 +7,7 @@ probes = Array(count: 0)
 
 changelogs = Array(count: 0)
 
-githubRules = Array(count: 2)
+githubRules = Array(count: 3)
 githubRules[0] = struct GitHubReleaseRule
 githubRules[0].bundleID = "org.tropy.tropy"
 githubRules[0].owner = "tropy"
@@ -42,6 +42,23 @@ githubRules[1].installTrust = .developerID
 githubRules[1].variant = nil
 githubRules[1].architectureRequirement = nil
 githubRules[1].tagRefPrefix = nil
+githubRules[2] = struct GitHubReleaseRule
+githubRules[2].bundleID = "org.tropy.tropy"
+githubRules[2].owner = "tropy"
+githubRules[2].repo = "tropy"
+githubRules[2].usePrereleases = true
+githubRules[2].listPageSize = 8
+githubRules[2].versionPattern = "^v?([0-9]+(?:\\.[0-9]+)+-beta\\.[0-9]+)$"
+githubRules[2].candidateScope = .newest
+githubRules[2].probesNewestFirst = true
+githubRules[2].installedTagPrefix = nil
+githubRules[2].channel = .beta
+githubRules[2].installAssetPattern = nil
+githubRules[2].installerKind = nil
+githubRules[2].installTrust = .developerID
+githubRules[2].variant? = "stable-id"
+githubRules[2].architectureRequirement = nil
+githubRules[2].tagRefPrefix = nil
 
 appStoreCases = Array(count: 0)
 

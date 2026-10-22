@@ -18,8 +18,9 @@ enum org_tropy_tropy {
         // release version and to `org.tropy.tropy-beta` ("Tropy Beta.app") for
         // a `-beta.N` one, so the two rules below never see each other's
         // copies. Up to v1.11.0-beta.3 every build, beta included, was
-        // `org.tropy.tropy`; such an old beta copy reads as `.beta` under the
-        // stable id, where no rule answers — a recorded gap (audit).
+        // `org.tropy.tropy` ("Tropy Beta.app", version `x.y.z-beta.N`); such
+        // an old beta copy reads as `.beta` under the stable id, and the third
+        // rule below answers it.
         // History: docs/app-audits/org-tropy-tropy.md#历史与实测
         //
         // Stable tags read `v1.17.3`; up to 1.9.0 (2021) they had no `v`
@@ -64,6 +65,27 @@ enum org_tropy_tropy {
             installAssetPattern: #"^tropy-[0-9]+(?:\.[0-9]+)+-beta\.[0-9]+-darwin-arm64\.zip$"#,
             installerKind: .zip,
             channel: .beta),
+
+        // Old Tropy Beta — a beta copy from v1.11.0-beta.3 or earlier, still on
+        // the stable id `org.tropy.tropy` (real v1.10.0-beta.2 and
+        // v1.11.0-beta.3 zips: `Tropy Beta.app`, CFBundleName "Tropy Beta",
+        // both version keys `x.y.z-beta.N`), so `ReleaseChannel.detect` reads
+        // it as `.beta` and the channel gate sends it here, never to the
+        // stable rule. It is told about the current beta tags, the same ones
+        // the rule above reads. Detection only: those tags ship
+        // `org.tropy.tropy-beta`, a different app, so swapping one over this
+        // copy would replace it with another bundle id. No
+        // `installedTagPrefix`: stable copies of `org.tropy.tropy` keep going
+        // straight to the stable rule. `variant` because it reads the same
+        // repo and channel as the rule above, and needs its own health row.
+        GitHubReleaseRule(
+            bundleID: "org.tropy.tropy",
+            owner: "tropy", repo: "tropy",
+            usePrereleases: true,
+            listPageSize: 8,
+            versionPattern: #"^v?([0-9]+(?:\.[0-9]+)+-beta\.[0-9]+)$"#,
+            channel: .beta,
+            variant: "stable-id"),
         ],
         // The beta asset URL carries its `-beta.N` tag in the path (and in the
         // file name), which no stable release's URL does.

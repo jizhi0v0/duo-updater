@@ -50,6 +50,9 @@ struct GitHubListPageSizeTests {
         // Tropy Beta: newest 100 releases on 2026-10-22, 77 beta tags; worst
         // gap 2 (v1.18.0-beta.0 → v1.17.3-beta.1), so the floor is 3.
         "org.tropy.tropy-beta/beta": 3,
+        // Old Tropy Beta (`org.tropy.tropy`, `.beta`): the same repo and the
+        // same beta pattern as the row above, so the same gap and floor.
+        "org.tropy.tropy/beta": 3,
         // Tag gap + 1, and nothing else. An earlier version added
         // `maxReleasesWithoutMacOSAsset` (5) to every floor, on the belief that
         // the walk past assetless releases had to fit inside the page or the

@@ -28,22 +28,23 @@
 |---------|-----------|----------|---------|---------|------|
 | stable  | `org.tropy.tropy` | 独立 | 默认 | `/releases/latest` | ✓ |
 | beta    | `org.tropy.tropy-beta` | 独立（Pattern A） | `CFBundleName` = `Tropy Beta`，版本后缀 `-beta.N` → `.beta` | list + `^v?(…-beta\.[0-9]+)$` | ✓ |
+| beta（v1.11.0-beta.3 及以前） | `org.tropy.tropy` | 与 stable 共享 id | 同上：`CFBundleName` = `Tropy Beta`，版本 `x.y.z-beta.N` → `.beta` | 同一 list + 同一 pattern，只检测 | ✓（只检测） |
 
-- 两轨是两个 app，可以并存，不存在同 id 跨轨误推。
+- 两轨是两个 app，可以并存，不存在同 id 跨轨误推。例外是 v1.11.0-beta.3 及以前的旧 beta：它和 stable 共用 `org.tropy.tropy`，靠 `.beta` 走到 `org.tropy.tropy` 下那条 `.beta` 规则（channel gate 按 `releaseChannel` 选规则；这条规则没有 `installedTagPrefix`，所以 stable 副本照旧直接走 stable 规则）。
 - beta 的自更新器读 `tropy.org/update/beta/darwin/arm64/<v>`，2026-10-22 对 1.17.3-beta.1、1.18.0-beta.5、1.18.0-beta.6 都回 204（什么都不给），所以 beta 副本只有我们这条 rule 会提示更新。服务端为什么不给没查（未验证）。
 - beta 的 `CFBundleShortVersionString` 带后缀（真包 `1.18.0-beta.6`），pattern 捕获组也保留后缀，否则 beta 永远比自己新。
 - beta rule 不收 stable tag：stable 是另一个 app，beta 副本永远不会变成它。
 - 发版流程：`.github/workflows/release.yml` 先建 `prerelease: true` 的空 release 再分平台上传，stable 由维护者事后去掉 prerelease。所以新 release 头几分钟没有 mac 资产、stable 头几分钟还在 prerelease 里，两种都由 `resolve` 的「没有 mac 资产就往回找」和 `/releases/latest` 处理。v1.15.0 是个 stable 版本至今还挂着 prerelease 标记（`/releases/latest` 不读它，后来的版本已经覆盖它）。
 
 ### 覆盖清单
-- **bundle id**：stable 从 1.12.0 到 1.17.3 都是 `org.tropy.tropy`（真包）；beta `org.tropy.tropy-beta`（真包）。**v1.11.0-beta.3 及以前的 beta 也是 `org.tropy.tropy`**（`scripts/build.js` 在 `v1.11.0-beta.3` 是 `appBundleId: 'org.tropy.tropy'`，`v1.11.1-beta.1` 起才是 ``org.tropy.${qualified.name}``，GitHub contents API 2026-10-22 核过）——见「已知问题」。`build.js` 的大小写规则（`org.tropy.Tropy` 小写化）在更早的版本是否一样没读包（未验证，1.12.0 之前的副本已有四年）。
+- **bundle id**：stable 从 1.12.0 到 1.17.3 都是 `org.tropy.tropy`（真包）；beta `org.tropy.tropy-beta`（真包）。**v1.11.0-beta.3 及以前的 beta 也是 `org.tropy.tropy`**（`scripts/build.js` 在 `v1.11.0-beta.3` 是 `appBundleId: 'org.tropy.tropy'`，`v1.11.1-beta.1` 起才是 ``org.tropy.${qualified.name}``，GitHub contents API 2026-10-22 核过；v1.10.0-beta.2、v1.11.0-beta.3 真包也是，见「历史与实测」）。这批旧 beta 由 `org.tropy.tropy` 的第三条规则（`.beta`，只检测）覆盖，告诉它当前 beta tag。`build.js` 的大小写规则（`org.tropy.Tropy` 小写化）在更早的版本是否一样没读包（未验证，1.12.0 之前的副本已有四年）。
 - **版本轨**：stable、beta 两轨都接了。alpha 轨源码里有（`release.js` 非 beta 的 prerelease → `alpha`），但仓库从未发过 alpha tag，不收。`1.0.0-rc.1`（2017）同理。
 - **版本范围**：Team 从 2022 到今天一致。arm64 资产从 1.9.0 开始（1.9.0 只有 arm64 dmg，1.10.0 起才有 `-darwin-arm64.zip`），之前只有 x64；DuoUpdater 只跑 arm64（`App/project.yml`），所以更早的 x64 副本照样被供 arm64 zip——厂商自己也把 Rosetta 下的 x64 版迁到 arm64 feed。
 - **主机下限**：`LSMinimumSystemVersion` 10.13.0，低于我们的下限。
-- **一键**：两轨都是 Developer ID + 同一 Team + 公证，一键都开。
+- **一键**：两轨都是 Developer ID + 同一 Team + 公证，一键都开。旧 beta（`org.tropy.tropy` + `.beta`）只检测：当前 beta tag 的包是 `org.tropy.tropy-beta`，是另一个 app，装过去会换掉 bundle id，所以不给安装资产。
 
 ## 更新检测
-- 源: `tropy/tropy` GitHub Releases。stable 读 `/releases/latest`；beta 读 list（`listPageSize` 8）。
+- 源: `tropy/tropy` GitHub Releases。stable 读 `/releases/latest`；beta 读 list（`listPageSize` 8）。旧 beta（`org.tropy.tropy` + `.beta`）读同一个 list、同一个 pattern。
 - stable 版本: `^v?([0-9]+(?:\.[0-9]+)+)$`。tag `v1.17.3` → `1.17.3` = `CFBundleShortVersionString`。
 - beta 版本: `^v?([0-9]+(?:\.[0-9]+)+-beta\.[0-9]+)$`。`v1.18.0-beta.6` → `1.18.0-beta.6` = 真包的 `CFBundleShortVersionString`。
 - `CFBundleVersion` 两轨都等于 short version，不影响比较。
@@ -98,7 +99,7 @@
 ## 一键安装
 - 状态: **支持（stable），真机通过（2026-10-22，本分支 `make cli` 的 duo）**；beta 轨没在真机上跑
   - 第一轮（不运行）: 1.17.2 → `duo check` `1.17.2 → 1.17.3 [GitHub, in-place]` → `duo install` `extracting verifyingCodeSignature installing done installed.` → 1.17.3、可执行文件 inode 变、`TeamIdentifier=8LAYR367YV`、`codesign --verify --deep --strict` 退出 0、`spctl` accepted、`diff -r` 与厂商 1.17.3 包相同
-  - 第二轮（运行中，不加 `--no-auto-updates`）: Squirrel 15 s 内暂存了 1.17.3；`duo install --json` → `skipped`，`its own updater already has 1.17.3 staged — quit it to apply, or duo restart`；`duo restart Tropy` → **`still running — likely a save prompt, left 1.17.3 staged`**，并没有存盘框：Tropy 退出很慢，旧进程约 40 s 后才退，ShipIt 14:51:42 开始、14:52:11 装完，磁盘 1.17.3、签名有效，但 app 没被拉起来。另测一次没暂存时的普通退出：9.3 s。即 Tropy 的退出时间超过 `duo restart` 的等待，结果正确、提示语不准
+  - 第二轮（运行中，不加 `--no-auto-updates`）: Squirrel 15 s 内暂存了 1.17.3；`duo install --json` → `skipped`，`its own updater already has 1.17.3 staged — quit it to apply, or duo restart`；`duo restart Tropy` **在非 TTY 的 shell 里跑**（stdin 不是终端）→ **`still running — likely a save prompt, left 1.17.3 staged`**，并没有存盘框：有暂存更新时 Tropy 退出很慢，旧进程约 40 s 后才退，ShipIt 14:51:42 开始、14:52:11 装完，磁盘 1.17.3、签名有效，但 app 没被拉起来。原因是非 TTY 的 `duo restart` 走 `.grace`：约 5 s（`StagedRelaunch.quitGraceTicks`）还没退就报「likely a save prompt」并放弃，不重新拉起（只有 app 先关掉窗口时才延长到约 30 s，`slowQuitTicks`）。TTY 里跑会打印「hasn't quit yet」并等最多 10 分钟（`quitHandoffMaxAge`），这一轮没测。另测一次没暂存时的普通退出：9.3 s，在普通路径约 30 s 的等待之内（`AppRestarter`），会被重新拉起。各路径见「已知问题」
 - 格式: zip（`ditto -x -k`，根目录就是 `Tropy.app` / `Tropy Beta.app`）。stable `^tropy-[0-9]+(?:\.[0-9]+)+-darwin-arm64\.zip$`，beta `^tropy-[0-9]+(?:\.[0-9]+)+-beta\.[0-9]+-darwin-arm64\.zip$`，kind `.zip`。两个 pattern 互不相交（stable 的不允许 `-beta.N`）
 - 签名: 见「基本信息」，Team 前后一致
 - 校验: GitHub 资产 `digest`；`curl` 下来的四个 zip `shasum -a 256` 都等于资产 digest（1.17.3 `92dd44c6…b42192`，1.17.2 `302a4afe…bd2972`，beta.6 `49c1a856…feed0c`，beta.5 `86986cd4…b7f73`）
@@ -120,17 +121,24 @@
 3. beta 可选：`Tropy Beta.app` 1.18.0-beta.5 → beta.6，同样步骤。
 
 ## 已知问题
-- **2021 年及以前的 Tropy Beta 副本没有检测**：v1.11.0-beta.3 及以前的 beta（`Tropy Beta.app`，版本 `x.y.z-beta.N`）bundle id 是 `org.tropy.tropy`。`ReleaseChannel.detect` 把它们读成 `.beta`，而 `org.tropy.tropy` 只有 stable 规则，于是没有任何来源回答；厂商 beta feed 也回 204。补救选项（未做）：给 `org.tropy.tropy` 加一条只检测的 beta 规则，指向当前 beta tag（那是另一个 bundle id 的 `Tropy Beta.app`，所以不能一键）
 - beta 的 changelog 基本为空（厂商）。
 - `:finland:` 之类 emoji 短码按原文显示。
-- **退出慢**（真机 2026-10-22）：普通退出 9.3 s，有暂存更新时约 40 s，都超过 `duo restart` 的等待；duo 会报「likely a save prompt」并不重新拉起，更新仍由 ShipIt 装上。
+- **有暂存更新时退出慢，非 TTY 的 `duo restart` 不重新拉起**（真机 2026-10-22；记录的那一轮就是非 TTY）：有暂存更新时 Tropy 约 40 s 才退，没暂存时 9.3 s。按路径：
+  - 没暂存（普通路径，`AppRestarter`）：等约 30 s，9.3 s 的退出在内，会重新拉起。
+  - 有暂存、非 TTY 的 `duo restart`（脚本、agent 的 shell）：约 5 s 宽限后报「likely a save prompt」并放弃，不重新拉起；更新仍由 ShipIt 装上。宽限只在 app 先关掉窗口时延长到约 30 s，结局一样是放弃。PR #1588 在 main 上对 SIGSTOP 住的 Tropy 实测约 7 s 放弃。
+  - 有暂存、TTY 里的 `duo restart`：打印「hasn't quit yet … waiting up to 10 min」，最多等 10 分钟；退了就等换包并拉起。
+  - 菜单栏 app：仍在运行时把退出交给 quit hand-off，app 退出后再拉起。
 
 ## 建议下一步
 1. beta 轨（`Tropy Beta.app` beta.5 → beta.6）可补一轮真机。
-2. 是否放宽 `duo restart` 对慢退出 app 的等待（同类：ChatGPT 5.4–6.0 s），要 owner 定。
+2. 非 TTY `duo restart` 的放弃由 PR jizhi0v0/duo-updater#1588 处理（有暂存、没有新窗口/模态框时最多等约 60 s；未合并）。合并后用非 TTY 的 `duo restart Tropy` 复测一轮。
 3. 1.18.0 正式版出来后复查：`/releases/latest` 指向它、资产名仍是 `tropy-<v>-darwin-arm64.zip`。
 
 ## 历史与实测
+- 2026-10-22 旧 beta 真包（`gh` 列出的 release 资产，`curl` 下载、`unzip -Z1` 看根目录、`PlistBuddy` 读 `Contents/Info.plist`）：
+  - `tropy-1.11.0-beta.3-darwin-arm64.zip`（sha256 `4292f97a…2ce80e`）：根目录 `Tropy Beta.app`；`CFBundleIdentifier` `org.tropy.tropy`，`CFBundleName` `Tropy Beta`，`CFBundleShortVersionString` `1.11.0-beta.3`，`CFBundleVersion` `1.11.0-beta.3`
+  - `tropy-1.10.0-beta.2-darwin-arm64.zip`（sha256 `50cee8c0…60c5dc31`）：根目录 `Tropy Beta.app`；`CFBundleIdentifier` `org.tropy.tropy`，`CFBundleName` `Tropy Beta`，`CFBundleShortVersionString` `1.10.0-beta.2`，`CFBundleVersion` `1.10.0-beta.2`
+  - 两者 `channel-verify --expect beta`：`inferred beta`、`detected channel → beta`、winning source GitHub、`latest 1.18.0-beta.6`、`download https://github.com/tropy/tropy/releases`（只检测，没有安装资产）、`UPDATE → 1.18.0-beta.6`。同时 1.17.2 stable 包照旧 `detected channel → stable`、`UPDATE → 1.17.3`、download `…/v1.17.3/tropy-1.17.3-darwin-arm64.zip`。
 - 2026-10-22（从 `org-tropy-tropy.swift` beta 规则注释迁出）：原文「listPageSize 8: worst run between two beta tags in the newest 100 releases is 2 (2026-10-22), floor 3, pinned in `GitHubListPageSizeTests`.」——最新 100 个 release 里两个 beta tag 之间最长隔 2 个非 beta release，测试里的下限是 3，规则取 8。
 
 ## 如何复验
@@ -140,6 +148,7 @@ gh release view v1.17.3 -R tropy/tropy --json assets -q '.assets[]|.name+" "+.di
 swift run --package-path application-test feed-discover Tropy.app            # 1.17.2 → no Sparkle / electron / MyGo
 swift run --package-path application-test channel-verify <1.17.2>/Tropy.app --expect stable
 swift run --package-path application-test channel-verify <beta.5>/"Tropy Beta.app" --expect beta
+swift run --package-path application-test channel-verify <1.11.0-beta.3>/"Tropy Beta.app" --expect beta   # 旧 beta，org.tropy.tropy
 ```
 
 2026-10-22 实测（zip 用 `ditto -x -k` 解开后跑）：
@@ -150,5 +159,7 @@ swift run --package-path application-test channel-verify <beta.5>/"Tropy Beta.ap
 | 1.17.3 zip | `org.tropy.tropy` | 1.17.3 | stable ✓ | GitHub | up to date |
 | 1.18.0-beta.5 zip | `org.tropy.tropy-beta` | 1.18.0-beta.5 | beta ✓（inferred beta） | GitHub | `UPDATE → 1.18.0-beta.6`，download `…/v1.18.0-beta.6/tropy-1.18.0-beta.6-darwin-arm64.zip` |
 | 1.18.0-beta.6 zip | `org.tropy.tropy-beta` | 1.18.0-beta.6 | beta ✓ | GitHub | up to date |
+| 1.11.0-beta.3 zip | `org.tropy.tropy` | 1.11.0-beta.3 | beta ✓（inferred beta） | GitHub | `UPDATE → 1.18.0-beta.6`，只检测（download 是 releases 页） |
+| 1.10.0-beta.2 zip | `org.tropy.tropy` | 1.10.0-beta.2 | beta ✓ | GitHub | `UPDATE → 1.18.0-beta.6`，只检测 |
 
 `check-bundle.sh` 对 1.12.0 / 1.17.2 / 1.17.3 / beta.5 / beta.6：全部 `TeamIdentifier=8LAYR367YV`、`codesign-verify-exit=0`、`spctl source=Notarized Developer ID`、`archs=arm64`。

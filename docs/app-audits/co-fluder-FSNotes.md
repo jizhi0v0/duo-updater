@@ -22,7 +22,7 @@
 ## 覆盖清单
 - 各版本的 bundle id / Team（读真包）:
   - 7.3.6、7.3.5、7.3.4、6.10.2、4.10.2、1.4：全部 `co.fluder.FSNotes`、Team `866P6MTE92`。1.4（2018）只有 x86_64 且早于公证，其余 universal、Notarized。没有改名前的旧 id，不需要 `BundleIDMigration`
-- 其他轨: 只有 GitHub 上标了 `prerelease` 的 beta（`7.0.0b1`…`7.0.0b6`，`dev` 分支；更早的 `6.0.0beta*`、`5beta*`），没有独立 bundle id，app 里也没有切 beta 的开关（包里没有任何更新器）。stable rule 读 `/releases/latest`，GitHub 算它时排除 prerelease；版本模式锚定，`7.0.0b6` 也读不出。装了 beta 的副本按版本比较照常提示下一个正式版
+- 其他轨: 只有 GitHub 上标了 `prerelease` 的 beta（`7.0.0b1`…`7.0.0b6`，`dev` 分支；更早的 `6.0.0beta*`、`5beta*`），没有独立 bundle id，app 里也没有切 beta 的开关（包里没有任何更新器）。stable rule 读 `/releases/latest`，GitHub 算它时排除 prerelease；版本模式锚定，`7.0.0b6` 也读不出。**装了 beta 的副本在对应正式版出来时不会被提示**：beta 带的是正式版的版本号（`7.0.0b1`、`7.0.0b6` 的 `project.pbxproj` 里 `MARKETING_VERSION = 7.0.0`，`Info.plist` 的 `CFBundleShortVersionString` 取 `$(MARKETING_VERSION)`，只有构建号 684 → 700 → 702 在变），所以 `v7.0.0` 成为 `/releases/latest` 后，`7.0.0b6` 这份副本读作 7.0.0，与 7.0.0 相比是「已是最新」，要等下一个点版本（`v7.1.0`）才会被提示。构建号不参与比较（见「更新检测」）。记在「已知问题」
 - Mac App Store 副本: 同一个 bundle id。MAS 副本带 `Contents/_MASReceipt/receipt`，`AppScanner` 记 `isMASApp`，`GitHubReleasesSource` 开头 `guard !app.isMASApp` 直接跳过，所以 GitHub 规则既不检测也不一键 MAS 副本。GitHub zip 里没有 `_MASReceipt`（7.3.6 包实测）。MAS 版 Team：项目 Release 配置是 `CODE_SIGN_IDENTITY = "3rd Party Mac Developer Application"`、`DEVELOPMENT_TEAM = 866P6MTE92`、`PROVISIONING_PROFILE_SPECIFIER = "MAS Distribution"`（settled from source: `project.pbxproj` on `master`），即与 GitHub 版同一个 Team。**MAS 二进制本身没有读**（付费，未下载），这一点只来自源码
 - iCloud: GitHub 版签了 iCloud 容器 `iCloud.co.fluder.fsnotes`（`CloudDocuments`）、KVS `866P6MTE92.co.fluder.fsnotes`，和 MAS 版共用（同一个 Team 下才能共用容器）。换包不动容器
 - 版本范围、主机下限: 7.x `LSMinimumSystemVersion` 12.4，6.10.2 是 10.14。DuoUpdater 本身是 macOS 15 / arm64（`App/project.yml`），都在厂商下限之上，不需要 `hostRequirement`
@@ -32,7 +32,7 @@
 | Channel | Bundle ID | 独立/共享 | 检测信号 | 门控方式 | 状态 |
 |---------|-----------|----------|---------|---------|------|
 | stable  | `co.fluder.FSNotes` | — | 默认 | `/releases/latest` | ✓ |
-| beta    | `co.fluder.FSNotes` | 共享 | 无（只有 GitHub `prerelease` 标记） | — | — 不单独接：没有应用内开关，beta 只在大版本前出几版 |
+| beta    | `co.fluder.FSNotes` | 共享 | 无（只有 GitHub `prerelease` 标记） | — | — 不单独接：没有应用内开关，beta 只在大版本前出几版。装了 beta 的副本在对应正式版出来时读作「已是最新」，见「已知问题」 |
 
 ## 更新检测
 - 源: `glushchenko/fsnotes` GitHub Releases，`/releases/latest`
@@ -92,6 +92,7 @@
 - 阻塞: 无
 
 ## 已知问题
+- 装了 beta 的副本（`7.0.0bN` 这类）在同号正式版成为 `/releases/latest` 时被判「已是最新」，不会被提示换成正式版，要等下一个点版本。原因：beta 与正式版共用同一个 `MARKETING_VERSION`，beta 无渠道信号，版本比较只看营销版本号、构建号不参与。证据（`gh api repos/glushchenko/fsnotes/contents/FSNotes.xcodeproj/project.pbxproj?ref=<tag>`，macOS target）：`7.0.0b1` 为 `MARKETING_VERSION = 7.0.0` / `CURRENT_PROJECT_VERSION = 684`，`7.0.0b6` 为 7.0.0 / 700，`v7.0.0` 为 7.0.0 / 702。窗口：`v7.0.0` 发布于 2026-01-19，`v7.1.0` 发布于 2026-01-31，这段时间里 `7.0.0b6` 副本读作 7.0.0。下一轮 `8.0.0bN` 对 `v8.0.0` 会重演。规则没改：beta 副本与正式版共用 bundle id，包内没有可区分的信号。
 - MAS 版二进制的 Team 只从项目配置读到，没有拿真 MAS 包核对
 - 7.0.0 这类长正文末尾的有序列表和致谢段落在面板里不显示（通用解析器行为）
 

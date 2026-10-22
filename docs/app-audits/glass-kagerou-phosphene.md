@@ -8,8 +8,10 @@
 - Team ID: `52K336H235`（Developer ID + 公证）。真包 1.0、1.1、1.11.1、1.11.2 全部同一 Team，`codesign --verify --deep --strict` 通过，
   spctl `Notarized Developer ID`
 - 观测版本: 1.11.2（tag `v1.11.2`，资产 `Phosphene-1.11.2.dmg`，`CFBundleVersion` 27）；观测日期: 2026-10-22
-- 自更新机制: 有，**会自己下载、暂存、换包**。1.1 起内嵌 [Tiptoe](https://github.com/artginzburg/Tiptoe) 1.1.0 over
-  [mxcl/AppUpdater](https://github.com/mxcl/AppUpdater) 4.2.1（`Phosphene/SilentUpdates.swift`、`Package.resolved`，v1.11.2 源码）。
+- 自更新机制: 1.4 起**会自己下载、暂存、换包**（`Phosphene/SilentUpdates.swift`、`Package.resolved` 在 `v1.4` 才首次出现）：内嵌 [Tiptoe](https://github.com/artginzburg/Tiptoe) over
+  [mxcl/AppUpdater](https://github.com/mxcl/AppUpdater)，1.4–1.8 锁定 Tiptoe 1.0.0 / AppUpdater 4.1.1，1.11.1 和 1.11.2 锁定 Tiptoe 1.1.0 / AppUpdater 4.2.1（1.9.0、1.10.x、1.11.0 的锁定版本没有读）。
+  1.0 没有更新器；1.1–1.3.0 只有通知式检查（`Phosphene/UpdateCheckService.swift`，源码注释：「It never downloads or installs」，只请求 `releases/latest` 并给出 releases 页链接）。
+  检查频率：`v1.4`–`v1.11.1` 的 `checkInterval = 60 * 60 * 24`（每天一次），`v1.11.2` 起 `4 * 60 * 60`（每 4 小时；v1.11.2 的 release 说明：「Phosphene checks for updates every four hours」）。
   没有 Sparkle、没有 `SUFeedURL`。细节见「已停放整包」
 - 分发: GitHub Releases；Homebrew cask `phosphene`（url 即 GitHub 资产，`auto_updates` 未设，`depends_on macos >= 26`）；
   官网下载链接 `kagerou.glass/get/phosphene` 302 到同一个 GitHub 资产。没有 MAS
@@ -27,7 +29,7 @@
 ## 覆盖清单
 - 各版本的 bundle id / Team（真包读取）:
   - v1.0（`Phosphene.dmg`）: `glass.kagerou.phosphene`，Team 52K336H235，short `1.0`，universal，二进制里没有 GitHub 更新地址（还没有自更新器）
-  - v1.1（`Phosphene-1.1.dmg`）: 同 id、同 Team，short `1.1`，**arm64 only**，二进制已引用 `api.github.com/repos/kageroumado/phosphene/releases/latest`
+  - v1.1（`Phosphene-1.1.dmg`）: 同 id、同 Team，short `1.1`，**arm64 only**，二进制已引用 `api.github.com/repos/kageroumado/phosphene/releases/latest`（这是 1.1–1.3.0 的通知式检查的地址，不是下载器；AppUpdater 请求的是 `/releases`）
   - v1.11.1、v1.11.2: 同 id、同 Team，short 与 tag 一致，universal
   - 没有换过 bundle id，也没有换过 Team，安装闸不会拒旧副本。cask 的 zap 列了一个旧的扩展容器
     `glass.kagerou.phosphene.wallpaper-extension`，那是内嵌扩展的 id，不是主 app 的，不影响检测
@@ -70,7 +72,7 @@
 
 怎么停放（源码，未在真机上看）:
 - `PhospheneManager` 注册默认值 `autoInstallUpdates = true`、`launchAtLogin = true`；启动时 `SilentUpdates.start(autoInstall:)`。
-  每 4 小时、以及打开菜单 / 唤醒后（距上次超过 1 小时）向 `api.github.com/repos/kageroumado/phosphene/releases` 查一次
+  每 4 小时、以及打开菜单 / 唤醒后（距上次超过 1 小时）向 `api.github.com/repos/kageroumado/phosphene/releases` 查一次（这是 1.11.2 的行为；1.4–1.11.1 是每天一次，见基本信息）
 - 有新版且自动安装开着时，AppUpdater 把 `Phosphene-<version>.dmg` 下到 `$TMPDIR/app-updater-<UUID>/`，校验 Team ID，
   再**拷到 app 旁边**成为隐藏文件 `.app-updater-<UUID>.dmg`（`/Applications` 下），只读挂载到 `$TMPDIR/app-updater-<UUID>/mounted`，
   然后交给 Tiptoe 等「安静时刻」
@@ -84,8 +86,9 @@
   它装之前只校验磁盘上那份的 Team / 签名标识 / bundle id（`PreparedInstallation.installAndRelaunch` → `driver.validate`），
   **不比版本**。所以:
   - 握着的是同一版（最常见：它和我们读的是同一个 latest）: 下一个安静时刻它把同版本再装一遍并重启 app，结果无害
-  - 握着的是比我们装的旧的一版（新版发布后它最多 4 小时才会再查）: 它会把我们装的新版换回旧版，重启后再查到新版、再自己升上来。
+  - 握着的是比我们装的旧的一版（新版发布后它要等下一次检查才会再查：1.11.2 起最多 4 小时，1.4–1.11.1 最多约一天）: 它会把我们装的新版换回旧版，重启后再查到新版、再自己升上来。
     厂商在 1.11.2 的说明里承认过同类问题（「Update Now」会装上它一直握着的上一版）
+- 上面按 AppUpdater 4.2.1 读的源码；1.4–1.8 锁定的是 4.1.1，那个版本的 `installAndRelaunch` 没有读，是否也不比版本未验证。
 - 判断: 这是厂商自己的更新器在它自己的窗口里的行为，结果自愈，不伤数据，不加 `OneClickGate`。真机第二轮专门看它（见「一键安装」）
 
 ## Changelog

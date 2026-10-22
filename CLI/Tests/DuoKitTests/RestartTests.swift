@@ -30,6 +30,27 @@ import DuoUpdaterCore
         #expect(Restart.isFailure(.stillRunning))
     }
 
+    /// Held at macOS's first-open prompt: not "likely a save prompt", and the
+    /// restart that was asked for did not happen, so it fails the run.
+    @Test func anAppHeldAtTheOpenPromptSaysSoAndFails() {
+        #expect(Restart.isFailure(.awaitingOpenConfirmation))
+        #expect(Restart.describe(.awaitingOpenConfirmation)
+            == "hasn't finished opening — if macOS is asking whether to open it, click Open, then run duo restart again")
+    }
+
+    /// The printed line, in the `name  text` columns every outcome uses.
+    @Test func aHeldAppsLineKeepsTheColumns() async {
+        let app = InstalledApp(
+            name: "Hoppscotch", bundleID: "io.hoppscotch.desktop", shortVersion: "1.0", buildVersion: "1",
+            path: URL(fileURLWithPath: "/ZZFixture-held/Hoppscotch.app"), isMASApp: false, sparkleFeedURL: nil)
+        let lines = SignalGateTests.Lines()
+        let anyFailed = await Restart.restartEach(
+            [app], staged: [:], keepBackups: false, waitsForAnswer: false, print: { lines.add($0) },
+            restart: { _ in .awaitingOpenConfirmation })
+        #expect(lines.all == ["Hoppscotch  hasn't finished opening — if macOS is asking whether to open it, click Open, then run duo restart again"])
+        #expect(anyFailed)
+    }
+
     /// Nothing to do is success, not failure — asking to restart an app that
     /// isn't running (or has no bundle id to match) didn't fail at anything.
     @Test func notRunningAndNoBundleIDAreNotFailures() {
@@ -109,6 +130,9 @@ import DuoUpdaterCore
         #expect(line(.swapDidNotLand).failed)
         #expect(line(.restartedWithoutUpdate).text == "restarted without applying 12.6.0")
         #expect(line(.restartedWithoutUpdate).failed)
+        #expect(line(.awaitingOpenConfirmation).text
+            == "hasn't finished opening, left 12.6.0 staged — if macOS is asking whether to open it, click Open, then run duo restart again")
+        #expect(line(.awaitingOpenConfirmation).failed)
     }
 
     /// The rollback-point line, worded as `duo install` words its own. Nothing

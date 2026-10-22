@@ -143,6 +143,13 @@ public enum Restart {
             // apply it now — the GUI's Relaunch stands down here too.
             return ("not running — nothing to restart; its own updater has \(to) staged", false)
         }
+        // Before the rollback copy: an app held at macOS's first-open prompt is
+        // not quit, so there is nothing to roll back from and no "backed up" line.
+        if await OpenConfirmationHold.isHeld(running) {
+            return describe(
+                StagedRelaunch.Ending(outcome: .awaitingOpenConfirmation, everQuit: false, reopenFailed: false),
+                staged: to, disk: VersionSide())
+        }
         // The rollback point the menu-bar app's Relaunch takes, honouring the
         // same preference — while the bundle on disk is still the running build.
         let taken = await StagedRelaunchBackup.take(
@@ -227,6 +234,8 @@ public enum Restart {
             return ("quit, but its own updater didn't apply \(to) in time\(reopen)", true)
         case .restartedWithoutUpdate:
             return ("restarted without applying \(to)", true)
+        case .awaitingOpenConfirmation:
+            return ("hasn't finished opening, left \(to) staged — \(openPromptHint)", true)
         }
     }
 
@@ -261,12 +270,20 @@ public enum Restart {
         }
     }
 
+    /// Both paths' line for an app held at macOS's first-open prompt
+    /// (`OpenConfirmationHold`): nothing was quit. Hedged — "not finished and no
+    /// window" is the prompt's reading, but a slow normal launch reads the same
+    /// for a moment.
+    static let awaitingOpenConfirmation = "hasn't finished opening — \(openPromptHint)"
+    static let openPromptHint = "if macOS is asking whether to open it, click Open, then run duo restart again"
+
     /// The line printed for one app's outcome.
     static func describe(_ outcome: AppRestarter.Outcome) -> String {
         switch outcome {
         case .noBundleID:        return "skipped — no bundle identifier to match against"
         case .notRunning:        return "not running — nothing to restart"
         case .stillRunning:      return "still running — likely a save prompt, left it alone"
+        case .awaitingOpenConfirmation: return awaitingOpenConfirmation
         case .relaunched(true):  return "restarted"
         case .relaunched(false): return "quit, but the relaunch failed"
         case .nestedOnly(relaunched: true):
@@ -280,9 +297,13 @@ public enum Restart {
     /// shapes where the app is left worse off than a clean restart count: still up
     /// when it should have quit, quit but never came back, or a nested app that
     /// was quit for the swap and never came back either.
+    ///
+    /// `.awaitingOpenConfirmation` counts too, as `.stillRunning` does: nothing
+    /// was changed, but the restart that was asked for did not happen.
     static func isFailure(_ outcome: AppRestarter.Outcome) -> Bool {
         switch outcome {
-        case .stillRunning, .relaunched(false), .nestedOnly(relaunched: false): return true
+        case .stillRunning, .awaitingOpenConfirmation, .relaunched(false), .nestedOnly(relaunched: false):
+            return true
         case .noBundleID, .notRunning, .relaunched(true), .nestedOnly(relaunched: true): return false
         }
     }

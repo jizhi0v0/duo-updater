@@ -911,6 +911,71 @@
         }
       }
     },
+    "%@ hasn’t finished opening. If macOS is asking whether to open it, click Open, then click Relaunch again. Nothing was changed.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ ist noch nicht fertig geöffnet. Wenn macOS fragt, ob du die App öffnen willst, klicke auf „Öffnen“ und dann erneut auf „Neu starten“. Es wurde nichts verändert."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ aún no ha terminado de abrirse. Si macOS te pregunta si quieres abrirla, pulsa «Abrir» y luego vuelve a pulsar «Reabrir». No se ha cambiado nada."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ n’a pas fini de s’ouvrir. Si macOS vous demande si vous voulez l’ouvrir, cliquez sur « Ouvrir », puis recliquez sur « Relancer ». Rien n’a été modifié."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ non ha ancora finito di aprirsi. Se macOS chiede se vuoi aprirla, fai clic su Apri, poi di nuovo su Riapri. Non è stato modificato nulla."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ はまだ起動しきっていません。macOS が開いてよいか確認している場合は「開く」をクリックしてから、もう一度「再起動」をクリックしてください。何も変更していません。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ ainda não terminou de abrir. Se o macOS estiver perguntando se você quer abri-lo, clique em Abrir e depois em Reabrir de novo. Nada foi alterado."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ ещё не до конца открылось. Если macOS спрашивает, открыть ли его, нажмите «Открыть», а затем снова «Перезапустить». Ничего не изменено."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ henüz açılmayı bitirmedi. macOS açmak isteyip istemediğinizi soruyorsa Aç’a, ardından tekrar Yeniden Başlat’a tıklayın. Hiçbir şey değiştirilmedi."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 还没有打开完成。如果 macOS 在问你是否要打开它，请点「打开」，然后再点一次「重新启动」。什么都没有改动。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 還沒有開啟完成。如果 macOS 在詢問你是否要開啟它，請按「打開」，然後再按一次「重新開啟」。沒有做任何變更。"
+          }
+        }
+      }
+    },
     "%@ installs its downloaded update at its next launch": {
       "extractionState": "manual",
       "localizations": {

@@ -445,6 +445,21 @@ public enum StagedRelaunch {
         })
     }
 
+    /// Every window the server lists for `pids` — on screen or not, at any
+    /// layer. `OpenConfirmationHold`'s count: a process held at the first-open
+    /// prompt owned none in `.optionAll` (measured 2026-10-22), and counting
+    /// offscreen windows and every layer only ever makes "held" rarer. No
+    /// permission needed, as for `onScreenWindows(pids:)`.
+    public static func ownedWindowCount(pids: Set<pid_t>) -> Int {
+        guard !pids.isEmpty,
+              let list = CGWindowListCopyWindowInfo([.optionAll], kCGNullWindowID) as? [[String: Any]]
+        else { return 0 }
+        return list.filter {
+            guard let owner = $0[kCGWindowOwnerPID as String] as? pid_t else { return false }
+            return pids.contains(owner)
+        }.count
+    }
+
     /// Both version fields read straight from the bundle's `Info.plist` — not
     /// `Bundle(path:)`, which memoises per path and would answer with the build
     /// the swap just replaced.

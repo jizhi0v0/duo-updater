@@ -73,7 +73,7 @@ settled from source: `MacsyZones/Updater.swift`、`MacsyZones/App.swift`、`Macs
 
 | | 客户端会停放吗 | 本次实际停放了什么 | 我们能否直接拿来装 |
 |---|---|---|---|
-| 结论 | 不会 | 没查（真机第二轮待主会话） | 不需要 |
+| 结论 | 不会 | 无（2026-10-22 真机运行 3.1 约 40 s，没有自更新，也没有停放） | 不需要 |
 | 证据 | 源码：下载回调里立刻解压并由 `update.sh` 换包，临时目录随即删除 | — | — |
 
 ## Changelog
@@ -86,8 +86,11 @@ settled from source: `MacsyZones/Updater.swift`、`MacsyZones/App.swift`、`Macs
 - Recipe 状态: 暂不加（`ChangelogRecipe` 能否按「本版本那一节」切片没有验证；首选是解析器认这两种措辞）
 
 ## 一键安装
-- 状态: **支持**（rule 已接；真机端到端待主会话）
-- 端到端: 未跑。本次只做了 channel-verify 和包身份核对，没有往 `/Applications` 放任何东西、没有启动 app
+- 状态: **支持，真机两轮通过（2026-10-22，本分支 `make cli` 的 duo）**
+- 端到端:
+  - 第一轮（不运行）: 3.1 → `duo check` `3.1 → 3.1.1 [GitHub, in-place]` → `duo install` `extracting verifyingCodeSignature installing done installed.` → 3.1.1、可执行文件 inode 变、`TeamIdentifier=59CP56H446`、`codesign --verify --deep --strict` 退出 0、`spctl` accepted、`diff -r` 与厂商 3.1.1 包相同
+  - 第二轮（运行中）: 启动 3.1，**20 s 内它没有自更新**（磁盘一直是 3.1、进程不变、没有 `update.sh`，`UpdateState.json` 为 `{}`）。本机没给它辅助功能权限，界面停在一个无标题的面板上；源码说的「启动即检查」是不是要先过辅助功能这一步，没核实。随后 `duo install` → `Still running the old code`，`duo restart MacsyZones` → 新进程起来，没有「already running」告警，之后 10 s 磁盘一直是 3.1.1、签名有效
+  - 自更新器和 duo 同时换包的竞态（见上「和我们会不会冲突」）这次没造出来
 - 格式: zip（`ditto -x -k` 后根目录就是 `MacsyZones.app`）。Pattern `^MacsyZones(?:-[0-9.]+)?\.zip$`（v1.5 的资产叫 `MacsyZones-1.5.zip`），kind `.zip`
 - 嵌套 / 常驻组件: 无。`Contents/` 下只有 `MacOS/MacsyZones`、`Resources/`（图标、`Assets.car`、`README.md`）、签名；没有 LoginItems / Helpers / XPC / LaunchAgent。app 本身是 `LSUIElement` 菜单栏常驻进程，entitlements 为空（不沙盒）
 - 登录项: 菜单里的「Start at login」开关调 `SMAppService.mainApp.register()`，登记的是 app 本身，不是单独的 helper；默认关（状态读 `SMAppService.mainApp.status`，源码里没有自动 register 的地方）
@@ -98,12 +101,13 @@ settled from source: `MacsyZones/Updater.swift`、`MacsyZones/App.swift`、`Macs
 
 ## 已知问题
 - changelog 面板把历次版本的条目都算在最新版名下，见上
-- 启动副作用（读源码，未在真机上观察）:
+- 启动副作用（读源码；2026-10-22 真机核对的已注明）:
   - 没有辅助功能权限时弹 `AccessibilityDialog`（自绘 NSPanel，引导去系统设置授权，授权后要重启 app）；有权限且没完成过引导时弹 Onboarding 窗口
   - 已有一个实例在跑时，新实例弹 critical `NSAlert`「MacsyZones is already running」（`.screenSaver` 级别、所有 Space）后退出。duo 重启若在旧进程退干净之前拉起新进程，会撞上它
   - 全局鼠标 / 快捷键监听：拖动任意窗口会出现布局分区覆盖层和吸附
   - 数据写在 `~/Library/Application Support/MeowingCat.MacsyZones/`（`UserLayouts.json`、`UpdateState.json` 等）。Homebrew cask 的 `zap` 写的是 `~/Library/Application Support/MacsyZones` 和 `com.macsyzones.MacsyZones.plist`，和源码不一致（厂商 cask 的问题，不影响我们）
   - 源码里没有写 `~/.claude` / `~/.agents` 的地方
+  - 真机：首启建了 `~/Library/Application Support/MeowingCat.MacsyZones/`（`AppSettings.json`、`UserLayouts.json`、`UpdateState.json`、`SpaceLayoutPreferences.json`）、`~/Library/Caches/MeowingCat.MacsyZones`、`~/Library/HTTPStorages/MeowingCat.MacsyZones`
 
 ## 如何复验
 ```bash
@@ -119,5 +123,4 @@ swift run --package-path application-test channel-verify v3.1.1/x/MacsyZones.app
 ```
 
 ## 建议下一步
-1. 真机两轮（主会话）：第一轮 app 不运行，3.1 → `duo install`；第二轮 app 运行中。第二轮要先挡住它自己的更新器，否则 3.1 一启动就把自己升到 3.1.1，没有「旧版在跑」可测。
-2. 解析器（引擎改动，待定）：让 `GitHubMarkdownParser.withoutEarlierReleases` 认 `Changelog vX` 和 `What's new with vX` 这两种措辞，较早版本的节就会被剥掉，3.1.1 只剩自己那一条。注意该函数的注释明确把 `What's new in 2.0` 列为「不是信号」，加这两种措辞前要先扫一遍现有 GitHub 规则的正文，确认没有误伤。
+1. 解析器（引擎改动，待定）：让 `GitHubMarkdownParser.withoutEarlierReleases` 认 `Changelog vX` 和 `What's new with vX` 这两种措辞，较早版本的节就会被剥掉，3.1.1 只剩自己那一条。注意该函数的注释明确把 `What's new in 2.0` 列为「不是信号」，加这两种措辞前要先扫一遍现有 GitHub 规则的正文，确认没有误伤。

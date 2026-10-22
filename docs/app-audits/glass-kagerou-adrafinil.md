@@ -59,7 +59,7 @@
 
 | | 客户端会停放吗 | 本次实际停放了什么 | 我们能否直接拿来装 |
 |---|---|---|---|
-| 结论 | 会（1.6.0 起，自动安装默认开） | 没查（没有运行它） | ○ 需要引擎加一种停放位，不做 |
+| 结论 | 会（1.6.0 起，自动安装默认开） | 2026-10-22 真机运行 1.13.0 约 30 s，没停放（`/Applications/.app-updater-*` 没出现） | ○ 需要引擎加一种停放位，不做 |
 | 证据 | 读自 v1.13.1 源码和它锁定的 Tiptoe a48f105 / AppUpdater a2b8989 | — | 没有完成记录文件；停放的 dmg 文件名只有 UUID |
 
 怎么停放（源码，未在真机上看）:
@@ -92,7 +92,10 @@
 
 ## 一键安装
 - 状态: 支持（不加 `OneClickGate`，理由见下）
-- 端到端: **未跑**（本次是 agent 接入，没做真机；由主会话做）
+- 端到端（2026-10-22，本分支 `make cli` 的 duo）:
+  - 第一轮（不运行）: 1.13.0 → `duo check` `1.13.0 → 1.13.1 [GitHub, in-place]` → `duo install` `extracting verifyingCodeSignature installing done installed.` → 1.13.1、可执行文件 inode 变、`TeamIdentifier=52K336H235`、`codesign --verify --deep --strict` 退出 0、`spctl` accepted、`diff -r` 与厂商 1.13.1 包相同（装好的 bundle 带 `com.apple.provenance`）
+  - 第二轮 2a（运行中，预先 `defaults write … AdrafinilDidCompleteFirstRun -bool true` 跳过 setup）: 启动后没有管理员框，`launchctl print gui/501/glass.kagerou.adrafinil.daemon` / `system/glass.kagerou.adrafinil.helper` 都找不到（没注册服务）；`duo install` → `Still running the old code`，`duo restart Adrafinil` 后新进程起来，之后 10 s 磁盘一直是 1.13.1、签名有效。`~/.claude/settings.json` 字节不变、`~/.claude.json` 无 adrafinil、`~/Library/LaunchAgents` 不变、没有 CLI 软链
+  - **2b（注册了 daemon / root helper 后换包）没跑**：要用户在系统设置里批准 root daemon。daemon/helper 换包后自换新代码、BTM 授权、provenance 对已注册服务的影响仍是读源码的结论
 - 格式: dmg（ULFO，arm64），根目录 `Adrafinil.app`
 - 校验: GitHub digest 与下载的包一致：1.13.1 `sha256:89eb7c82f0a706235eed5ef13ce5700e6fd12d2e5155cce5d1179decd50dfa0b`，
   1.13.0 `sha256:538e8aa21bdcb34d93bb7136b22dadea51a15e7223f65348dd9f2b4e0f6c8704`
@@ -118,7 +121,7 @@
 - **结论**: 一键直接开，不加 `OneClickGate`、不加 `loginItemAgentRestarts`（后者只认 `Contents/Library/LoginItems` 里的 `.app`，这里不适用；
   而且在保持唤醒时杀 daemon 会丢掉正在跑的 agent 的保持，厂商刻意推迟到空闲）
 
-### 真机时要注意的副作用（读自 v1.13.1 源码，未在真机上看）
+### 启动副作用（读自 v1.13.1 源码；2026-10-22 真机核对见「一键安装」）
 - **首启弹 setup 窗口**（`InstallerView`），启动本身**不弹管理员框、不注册任何服务**。setup 里：
   - 注册 helper/daemon 和登录项要点按钮；之后系统会弹「登录项」通知并要求在「系统设置 › 通用 › 登录项与扩展」里批准（批准 root daemon 时系统可能要求管理员认证，未验证）
   - **agent 那一步默认勾上所有检测到的 agent（含 Claude Code）**，点安装会写 `~/.claude/settings.json` 的 hooks（`UserPromptSubmit`/`Stop`/`SessionEnd`…）和 `~/.claude.json` 的 MCP 条目，
@@ -169,4 +172,4 @@ swift run --package-path application-test channel-verify v1.13.1/Adrafinil-1.13.
 ```
 
 ## 建议下一步
-1. 主会话真机两轮（见「一键安装」），尤其 2b：确认换包后 daemon/helper 自己换成新代码、BTM 授权不掉、`com.apple.provenance` 不影响已注册服务
+1. 补跑 2b（需要用户批准 root daemon）：确认换包后 daemon/helper 自己换成新代码、BTM 授权不掉、`com.apple.provenance` 不影响已注册服务

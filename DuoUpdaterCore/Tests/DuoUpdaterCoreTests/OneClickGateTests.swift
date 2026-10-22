@@ -4,7 +4,7 @@ import Testing
 
 /// `OneClickGate`: a recipe family names which installed copies may take the
 /// one-click; everything else keeps detection only. Exercised through the
-/// gates registered today (MuseScore and Memoh by installed version, GitKraken
+/// gates registered today (MuseScore, Memoh and Readest by installed version, GitKraken
 /// by an asar entry) and through both places that enforce them.
 struct OneClickGateTests {
     /// A bundle at a fresh path whose `app.asar` packs `files` (path → contents),
@@ -70,7 +70,21 @@ struct OneClickGateTests {
 
     @Test func theRegisteredGatesAreTheMeasuredCases() {
         #expect(Set(OneClickGateRegistry.gates.map(\.bundleID))
-            == ["org.musescore.MuseScore", "com.axosoft.gitkraken", "ai.memoh.desktop"])
+            == ["org.musescore.MuseScore", "com.axosoft.gitkraken", "ai.memoh.desktop",
+                "com.bilingify.readest"])
+    }
+
+    /// The versions of the real bundles: GitHub's stable dmgs (0.12.16, 0.12.12,
+    /// 0.10.1, 0.7.9) and the nightly `.app.tar.gz` from
+    /// download.readest.com/nightly/ (0.12.16-2026102206), all
+    /// `com.bilingify.readest`, Team J5W48D69VR.
+    @Test func readestOneClickIsForStableBuildsOnly() {
+        for version in ["0.12.16", "0.12.12", "0.10.1", "0.7.9", "1.0"] {
+            #expect(OneClickGateRegistry.withholding(app("com.bilingify.readest", version)) == nil, "\(version)")
+        }
+        for version in ["0.12.16-2026102206", "0.11.4-2026061406"] {
+            #expect(OneClickGateRegistry.withholding(app("com.bilingify.readest", version)) != nil, "\(version)")
+        }
     }
 
     @Test func museScoreOneClickIsFor4xCopiesOnly() {

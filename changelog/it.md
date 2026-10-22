@@ -2,6 +2,16 @@
 
 Questa è la traduzione di `CHANGELOG.md`. In caso di differenze fa fede la versione inglese. Le versioni non elencate qui vengono mostrate automaticamente in inglese.
 
+## 0.5.13
+
+**Sono supportate 25 app in più.** Adrafinil, Bdash, Claudoscope, Deadbolt, DiffusionBee, Folo, FSNotes, Headroom, Hoppscotch, Hyper, Itsypad, Itsytv, Logseq, MacsyZones, massCode, Phosphene, PicGo, Readest, Sentinel, Simple Comic, SmoothCSV, Swift Quit, SwiftPlantUML, Tropy e Whispering ottengono il controllo degli aggiornamenti e gli aggiornamenti con un clic. La beta di Tropy si aggiorna su un percorso a sé, e le vecchie copie beta di Folo, massCode, PicGo e SmoothCSV vengono informate dell’ultima versione stabile.
+
+**Il banco di lavoro segnala le installazioni di Node.js e di PHP di Homebrew che hanno una versione di sicurezza più recente o hanno raggiunto la fine del supporto.** L’avviso riporta ciò che pubblicano i progetti Node.js e PHP, e per Node.js installato con nvm o fnm fornisce un comando da copiare per installare la versione di sicurezza; `duo check` elenca gli stessi avvisi.
+
+**«Riapri» aspetta un’app lenta a chiudersi.** Prima si arrendeva dopo pochi secondi, diceva che l’app mostrava probabilmente una richiesta di salvataggio e la lasciava chiusa.
+
+**Correzioni.** Un aggiornamento che Homebrew ha saltato considerandolo già aggiornato ora risulta non riuscito, con il motivo, invece che installato. Le app la cui versione Homebrew ha un suffisso di nuovo impacchettamento, come MKVToolNix, non offrono più l’aggiornamento appena ricevuto. `duo restart` su un’app ancora ferma alla richiesta di macOS «scaricata da Internet» dice di fare prima clic su «Apri», invece di parlare di una richiesta di salvataggio.
+
 ## 0.5.12
 
 **Sono supportate tre app in più.** Harp, TaskExplorer e Lapce ottengono il controllo degli aggiornamenti e gli aggiornamenti con un clic. Biome installato con il suo script ufficiale si aggiunge ad «Altri strumenti» e si aggiorna anch’esso con un clic, e le note di rilascio dell’app Claude sono di nuovo visibili.

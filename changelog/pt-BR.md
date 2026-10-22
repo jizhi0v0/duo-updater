@@ -2,6 +2,16 @@
 
 Esta é a tradução para o português do Brasil do arquivo CHANGELOG.md. A versão em inglês prevalece em caso de divergência. Os números de versão que não aparecem aqui são mostrados automaticamente em inglês na janela Novidades.
 
+## 0.5.13
+
+**Mais 25 apps são compatíveis.** Adrafinil, Bdash, Claudoscope, Deadbolt, DiffusionBee, Folo, FSNotes, Headroom, Hoppscotch, Hyper, Itsypad, Itsytv, Logseq, MacsyZones, massCode, Phosphene, PicGo, Readest, Sentinel, Simple Comic, SmoothCSV, Swift Quit, SwiftPlantUML, Tropy e Whispering ganham verificação de atualizações e atualização com um clique. A beta do Tropy é atualizada por um caminho próprio, e cópias beta antigas de Folo, massCode, PicGo e SmoothCSV ficam sabendo da versão estável mais recente.
+
+**A bancada marca instalações de Node.js e de PHP do Homebrew que têm uma versão de segurança mais nova ou chegaram ao fim do suporte.** O aviso repete o que os projetos Node.js e PHP publicam e, para Node.js instalado com nvm ou fnm, traz um comando que você pode copiar para instalar a versão de segurança; o `duo check` lista os mesmos avisos.
+
+**“Reabrir” espera um app que demora para fechar.** Antes ele desistia após alguns segundos, dizia que o app provavelmente mostrava um pedido para salvar e o deixava fechado.
+
+**Correções.** Uma atualização que o Homebrew pulou por considerar o app já atualizado agora aparece como falha, com o motivo, em vez de instalada. Apps cuja versão no Homebrew tem um sufixo de reempacotamento, como o MKVToolNix, param de oferecer a atualização que acabaram de receber. O `duo restart` num app ainda parado no aviso do macOS de “baixado da Internet” diz para clicar em “Abrir” primeiro, em vez de falar em pedido para salvar.
+
 ## 0.5.12
 
 **Mais três apps são compatíveis.** Harp, TaskExplorer e Lapce ganham verificação de atualizações e atualização com um clique. O Biome instalado com o script oficial entra em “Outras ferramentas” e também atualiza com um clique, e as notas da versão do app Claude voltaram a aparecer.

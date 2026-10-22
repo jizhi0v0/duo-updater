@@ -2,6 +2,16 @@
 
 Bu, `CHANGELOG.md` dosyasının Türkçe çevirisidir. Geçerli olan İngilizce sürümdür; burada yer almayan eski sürümler otomatik olarak İngilizce gösterilir.
 
+## 0.5.13
+
+**25 uygulama daha destekleniyor.** Adrafinil, Bdash, Claudoscope, Deadbolt, DiffusionBee, Folo, FSNotes, Headroom, Hoppscotch, Hyper, Itsypad, Itsytv, Logseq, MacsyZones, massCode, Phosphene, PicGo, Readest, Sentinel, Simple Comic, SmoothCSV, Swift Quit, SwiftPlantUML, Tropy ve Whispering güncelleme denetimi ve tek tıkla güncelleme alıyor. Tropy’nin betası kendi yolundan güncelleniyor; Folo, massCode, PicGo ve SmoothCSV’nin eski beta kopyalarına en yeni kararlı sürüm bildiriliyor.
+
+**Çalışma alanı, daha yeni bir güvenlik sürümü olan ya da desteği sona eren Node.js ve Homebrew PHP kurulumlarını işaretliyor.** Uyarı, Node.js ve PHP projelerinin yayımladıklarını aktarıyor; nvm ya da fnm ile kurulan Node.js için güvenlik sürümünü kurmak üzere kopyalayabileceğiniz bir komut veriyor. `duo check` de aynı uyarıları listeliyor.
+
+**“Yeniden Başlat”, kapanması uzun süren bir uygulamayı bekliyor.** Önceden birkaç saniye sonra vazgeçiyor, uygulamanın muhtemelen bir kaydetme sorusu gösterdiğini söylüyor ve onu kapalı bırakıyordu.
+
+**Düzeltmeler.** Homebrew’un zaten güncel sayıp atladığı bir güncelleme artık kuruldu yerine nedeniyle birlikte başarısız olarak görünüyor. MKVToolNix gibi Homebrew sürümünde yeniden paketleme eki taşıyan uygulamalar, az önce aldıkları güncellemeyi yeniden sunmuyor. macOS’un “İnternetten indirildi” sorusunda bekleyen bir uygulamada `duo restart`, bunu bir kaydetme sorusu saymak yerine önce “Aç”a tıklamayı söylüyor.
+
 ## 0.5.12
 
 **Üç uygulama daha destekleniyor.** Harp, TaskExplorer ve Lapce güncelleme denetimi ve tek tıkla güncelleme alıyor. Resmî betiğiyle kurulan Biome da “Diğer araçlar”a katılıyor ve o da tek tıkla güncelleniyor; Claude uygulamasının sürüm notları yeniden görünüyor.

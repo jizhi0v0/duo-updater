@@ -65,7 +65,7 @@
 
 | | 客户端会停放吗 | 本次实际停放了什么 | 我们能否直接拿来装 |
 |---|---|---|---|
-| 结论 | 会（自动安装默认开） | 没查（没有运行它） | ○ 需要引擎加一种停放位，不做 |
+| 结论 | 会（自动安装默认开） | 2026-10-22 真机运行 1.11.1 约 80 s，没停放（`/Applications/.app-updater-*` 没出现） | ○ 需要引擎加一种停放位，不做 |
 | 证据 | 见下，读自 v1.11.2 源码和它锁定的 Tiptoe / AppUpdater 版本 | — | 没有完成记录文件；停放的 dmg 文件名只有 UUID |
 
 怎么停放（源码，未在真机上看）:
@@ -100,7 +100,11 @@
 
 ## 一键安装
 - 状态: 支持
-- 端到端: **未跑**（本次是 agent 接入，没有做真机；由主会话做）
+- 端到端（2026-10-22，本分支 `make cli` 的 duo）:
+  - 第一轮（不运行）: 1.11.1 → `duo check` `1.11.1 → 1.11.2 [GitHub, in-place]` → `duo install` `extracting verifyingCodeSignature installing done installed.` → 1.11.2、可执行文件 inode 变、`TeamIdentifier=52K336H235`、`codesign --verify --deep --strict` 退出 0、`spctl` accepted、`diff -r` 与厂商 1.11.2 包相同
+  - 第二轮（运行中，先 `defaults write … launchAtLogin -bool false`，自动安装保持默认开）: 启动后 60 s 内它没下载也没停放；`duo install` → `Still running the old code`，`duo restart Phosphene` 后新进程起来，之后 10 s 磁盘一直是 1.11.2、签名有效。「它握着的准备安装在安静时刻再装一遍」这次没造出来
+  - 墙纸 `Index.plist` 前后字节相同（Provider 仍是 `default`）；`sfltool dumpbtm`（前后都是 229 条）里没有 phosphene；`~/Library/LaunchAgents` 不变
+  - **发现**: `PhospheneExtension`（墙纸扩展）在 `duo install` 进行中（15:38:47）被系统拉起，**跑的是 duo 的暂存副本** `/Applications/.duoupdater-staged-Phosphene.app/…/PhospheneExtension`（`lsof` 的 txt 路径），换包后这个进程留了下来（ppid 1，app 退出后仍在），二进制路径已不存在；内容是新版 1.11.2，所以不是跑旧代码。系统随后把扩展登记到 `/Applications/Phosphene.app` 的 1.11.2。即 duo 在 `/Applications` 里的暂存目录对 ExtensionKit / LaunchServices 可见
 - 格式: dmg（ULFO，universal），根目录 `Phosphene.app` + `Applications` 链接 + 背景图
 - 校验: GitHub digest 与下载的包一致：1.11.2 `sha256:3d9654302692eaef7c01813061d1a8fff5630d187d1553c7bce429ec5aba6c41`，
   1.11.1 `sha256:d2aef6cf18f031a3c415f1a58d41011e9c8c5599715abeae06285d84a9fe5908`
@@ -112,18 +116,18 @@
   用的是同一个可执行文件，做完就退出
 - 阻塞: 无
 
-真机时要注意的副作用（读自 v1.11.2 源码，未在真机上看）:
+启动副作用（读自 v1.11.2 源码；2026-10-22 真机核对的已注明）:
 - **首次启动就注册登录项**: `launchAtLogin` 默认 true，`syncLaunchAtLogin` 会 `SMAppService.mainApp.register()`（系统可能弹「已添加登录项」通知）。
-  启动前 `defaults write glass.kagerou.phosphene launchAtLogin -bool false` 可避免；之后用 `sfltool dumpbtm` 前后比对
+  启动前 `defaults write glass.kagerou.phosphene launchAtLogin -bool false` 可避免；之后用 `sfltool dumpbtm` 前后比对。真机：预先写了 false，没有登记登录项
 - **自动安装默认开**，空闲 120 s 就会自己升级（见上），会把「从 1.11.1 装到 1.11.2」变成它自己装的。
   第一轮（不运行）无关；第二轮要么先 `defaults write glass.kagerou.phosphene autoInstallUpdates -bool false`，要么让它的窗口一直开着
-- 墙纸: 不会自己改当前墙纸（`importVideo` 注释: 只导入，选择在系统设置里）。app 装上后系统设置的墙纸面板里大概会出现 Phosphene 一组（README 的截图；装上即出现还是首启后出现，未验证）。
+- 墙纸: 不会自己改当前墙纸（`importVideo` 注释: 只导入，选择在系统设置里）。app 装上后系统设置的墙纸面板里大概会出现 Phosphene 一组（README 的截图；装上即出现还是首启后出现，未验证）。真机：当前墙纸没被改。
   菜单里的「Restart Wallpaper Agent」和扩展检测到卡死时会 `killall WallpaperAgent`（`WallpaperPrefsService.swift`、`SpiralRecovery.swift`），测试时别点
 - 菜单栏弹出面板会问一次是否参与匿名统计（Digoxin），默认不发
 - 没有首启向导窗口；更新后的「What's New」只在它自己升级过（Tiptoe 记了 `justUpdatedTo`）时出现，我们换的包不会触发
 - 不往 `~/.claude`、`~/.agents` 写东西（GitHub 代码搜索 `.claude` / `.agents` 无命中）；也不写 LaunchAgents
 - 会产生的数据: `~/Library/Preferences/glass.kagerou.phosphene.plist`、`~/Library/Application Support/Phosphene`、
-  扩展容器 `~/Library/Containers/glass.kagerou.phosphene.extension`（cask zap 的清单）
+  扩展容器 `~/Library/Containers/glass.kagerou.phosphene.extension`（cask zap 的清单）。真机首启建了偏好、`~/Library/{Caches,HTTPStorages}/glass.kagerou.phosphene` 和扩展容器
 
 推荐的两轮真机步骤:
 1. app 不运行: 装 1.11.1 → `duo install glass.kagerou.phosphene` → 磁盘 1.11.2、Team 不变、codesign/spctl 通过、`duo check` up to date
@@ -139,6 +143,7 @@
 
 ## 已知问题
 - 运行中换包后，旧进程握着的准备安装可能在安静时刻再装一遍（同版本无害；旧版本会短暂降级、随后自愈）。见「已停放整包」
+- duo 换包时墙纸扩展可能从 `/Applications/.duoupdater-staged-Phosphene.app` 被拉起并在换包后残留（见「一键安装」）。内容是新版，影响是多一个孤儿进程；根因在 duo 的暂存位置，属引擎问题，本 PR 不改
 - 1.11.0 那种纯段落正文，changelog 里多一条下载链接和一条商标声明
 
 ## 如何复验

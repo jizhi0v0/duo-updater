@@ -56,7 +56,7 @@
 
 | | 客户端会停放吗 | 本次实际停放了什么 | 我们能否直接拿来装 |
 |---|---|---|---|
-| 结论 | 不会 | 没查（真机第二轮待主会话） | 不需要 |
+| 结论 | 不会 | 无（2026-10-22 真机运行 1.9.8，没有自更新器） | 不需要 |
 | 证据 | 无更新器、二进制无下载更新的代码线索 | — | — |
 
 ## Changelog
@@ -70,16 +70,19 @@
 - Recipe 状态: 不需要
 
 ## 一键安装
-- 状态: **支持（规则已接；真机端到端待主会话）**
+- 状态: **支持，真机两轮通过（2026-10-22，本分支 `make cli` 的 duo）**
 - 格式: zip（`ditto` 解开后根目录就是 `Simple Comic.app`），kind `.zip`，universal
 - 嵌套: `Contents/PlugIns/QuickComic Preview.appex`、`QuickComic Thumbnailer.appex`（Quick Look 扩展）和 `Contents/Library/QuickLook/QuickComic.qlgenerator`；没有 `LoginItems` / `Helpers` / LaunchAgent / XPC 服务，没有常驻进程
 - 签名: 1.9.8、1.9.9 都是 `TeamIdentifier=3D9SMH4RWM`，`codesign --verify` exit 0，`spctl` Notarized Developer ID。Team 未换，旧副本的一键不会被 Team 闸拒
 - 校验: 资产没有 GitHub `digest`（1.9.9 上传于 2025-01，早于 GitHub 2025-06 开始给资产算摘要），只靠 Team-ID 闸。本次下载的 sha256：1.9.8 `4346ad5fe036ce7f37831d9a7e1e4ee4a1cd3f2fae64b92ca9a0cd028f95d545`（14392463 字节），1.9.9 `34fa1777c0643d145b8e8ba90b6c6eeb096b21c3beb34728c9df97dad9a1f1ac`（14392270 字节），大小等于资产 `size`
 - **读的是**: 人人可手动下载的 GA（`/releases/latest`，cask 也指向它）
-- 端到端: **未跑**，由主会话真机验证。真机时注意：
-  - 文档类型：Info.plist 对 cbz/cbr/cb7/cbt 声明 `LSHandlerRank = Default`（读自 1.9.9 Info.plist）。放进 `/Applications` 后 LaunchServices 登记它，若机器上没有别的漫画阅读器，这几类文件的默认打开方式会变成 Simple Comic；zip/rar/pdf/图片只是 `Alternate`，不会抢
-  - Quick Look：两个 appex 会随 app 登记给 pluginkit，cbz/cbr 的预览和缩略图会由它接管（推断自 bundle 结构，未实测）
-  - 没有登录项、LaunchAgent、root helper、自更新器；首启向导/模态框未知（没启动过）。二进制里没有 `~/.claude` / `~/.agents` 相关字符串（未专门取证，`strings` 只查了上面那组关键词）
+- 端到端:
+  - 第一轮（不运行）: 1.9.8 → `duo check` `1.9.8 → 1.9.9 [GitHub, in-place]` → `duo install` `extracting verifyingCodeSignature installing done installed.` → 1.9.9、可执行文件 inode 变、`TeamIdentifier=3D9SMH4RWM`、`codesign --verify --deep --strict` 退出 0、`spctl` accepted、`diff -r` 与厂商 1.9.9 包相同
+  - 第二轮（运行中）: 启动 1.9.8（没有窗口、没有首启向导或模态框），`duo install` 后提示 `Still running the old code`；`duo restart "Simple Comic"` 后新进程起来，之后 10 s 磁盘一直是 1.9.9、签名有效
+- 启动副作用（2026-10-22 真机核对的已注明）:
+  - 文档类型：Info.plist 对 cbz/cbr/cb7/cbt 声明 `LSHandlerRank = Default`（读自 1.9.9 Info.plist）。放进 `/Applications` 后 LaunchServices 登记它，若机器上没有别的漫画阅读器，这几类文件的默认打开方式会变成 Simple Comic；zip/rar/pdf/图片只是 `Alternate`，不会抢。真机：启动前后用户的 LSHandlers 没变（Default rank 不写用户偏好）
+  - Quick Look：两个 appex 会随 app 登记给 pluginkit，cbz/cbr 的预览和缩略图会由它接管（推断自 bundle 结构）。真机：首启建了 `~/Library/Containers/com.ToWatchList.SimpleComic{,.QuickComic-Preview,.QuickComic-Thumbnailer}`，即两个 Quick Look 扩展跑过
+  - 没有登录项、LaunchAgent、root helper、自更新器；真机首启没有向导或模态框。二进制里没有 `~/.claude` / `~/.agents` 相关字符串（未专门取证，`strings` 只查了上面那组关键词）
 - 阻塞: 无
 
 ## 已知问题
@@ -97,5 +100,4 @@ swift run --package-path application-test channel-verify "x1.9.9/Simple Comic.ap
 ```
 
 ## 建议下一步
-1. 主会话真机两轮（不运行 / 运行中）跑一键 1.9.8 → 1.9.9，结果写进上面「端到端」和 README 那一行。
-2. 下一个 release 出来后核对资产名仍被 pattern 接住（这个仓库换过四次资产名）。
+1. 下一个 release 出来后核对资产名仍被 pattern 接住（这个仓库换过四次资产名）。

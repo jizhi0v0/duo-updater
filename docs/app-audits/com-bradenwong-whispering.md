@@ -78,7 +78,7 @@
 
 | | 客户端会停放吗 | 本次实际停放了什么 | 我们能否直接拿来装 |
 |---|---|---|---|
-| 结论 | 不会 | 没查（真机第二轮待做） | 不需要 |
+| 结论 | 不会 | 无（2026-10-22 真机运行 7.9.0 约 20 s，没有停放任何东西） | 不需要 |
 | 证据 | `tauri-plugin-updater` 2.9.0 `updater.rs`（tag `updater-v2.9.0`）：`download` 返回内存里的 `Vec<u8>`，macOS 的 `install_inner` 解到 `tempfile` 临时目录、当场把旧 app 挪去备份并换上新 app；没有跨启动保留的下载目录。只有用户在 app 里点「Install Update」才会触发 | — | — |
 
 - 记录文件与字段: 无
@@ -93,19 +93,21 @@
 - Recipe 状态: 不需要
 
 ## 一键安装
-- 状态: **支持**（规则已接；真机端到端待做）
-- 端到端: **未跑**。本次只做了检测与 channel-verify，真机（装旧版 → `duo install`）留给后续一轮
+- 状态: **支持，真机两轮通过（2026-10-22，本分支 `make cli` 的 duo）**
+- 端到端:
+  - 第一轮（不运行）: 7.9.0 → `duo check` `7.9.0 → 7.11.0 [GitHub, in-place]` → `duo install` `extracting verifyingCodeSignature installing done installed.` → 7.11.0、可执行文件 inode 变、`TeamIdentifier=3C7J97QA5Z`、`codesign --verify --deep --strict` 退出 0、`spctl` accepted、`diff -r` 与厂商 7.11.0 包相同
+  - 第二轮（运行中）: 启动 7.9.0（一个窗口，没有系统授权框），`duo install` 后提示 `Still running the old code`；`duo restart Whispering` 后新进程 13:39:58 起来，之后 10 s 磁盘一直是 7.11.0、签名有效。辅助功能授权是否跨版本保留没测（本机没给它授权）
 - 格式: dmg（UDZO，GUID），根目录 `Whispering.app` + `Applications` 软链。app 里只有 `Contents/MacOS/whispering` 一个可执行文件和 `Resources/icon.icns`，没有 LoginItems / Helpers / XPC / 嵌套 app
 - 签名: 7.11.0、7.9.0 都是 `TeamIdentifier=3C7J97QA5Z`、`spctl` Notarized Developer ID、hardened runtime、`stapler validate` 通过
 - 校验: GitHub 资产 `digest`。v7.11.0 `Whispering_7.11.0_aarch64.dmg` = `sha256:7c15883a5562e594633e2636db5abbc8197b8ae93c4714711bf802b531eaf2d0`，下载到的 15606745 字节 `shasum -a 256` 相同
 - **读的是**: 人人可手动下载的 GA（`/releases/latest`，和 app 自己的 Tauri updater 读的是同一个 release）
 - 阻塞: 无。4.0.0–4.7.2 等无 Team 的老副本一键被拒，见覆盖清单
-- 真机注意事项（来自源码 @ `v7.11.0`，未在真机上看过）:
+- 启动副作用（来自源码 @ `v7.11.0`；2026-10-22 真机核对的已注明）:
   - 启动时 `register-permissions.ts` 只**检查**辅助功能和麦克风权限，没给就弹应用内 toast；麦克风系统框要用户点 toast 上的「Enable Permission」才请求。辅助功能的 toast 写着「This often requires removing and re-adding the app after updates」——换包后辅助功能授权是否保留值得在真机上看一眼（同 Team、同 bundle id 的指定要求应当不变，未验证）
   - 「Start on login」是设置里的开关，默认关；打开后由 `tauri-plugin-autostart`（`MacosLauncher::LaunchAgent`）在 `~/Library/LaunchAgents/` 写一个启动 app 本体的 plist，不是常驻 helper，换包后路径不变
   - 启动即向 Aptabase（`us.aptabase.com`）发 `app_started` 事件（发行版编译进了 app key）；退出发 `app_exited`
   - `single-instance` 插件：再次启动只会聚焦已有窗口
-  - 有首启引导（`register-onboarding.ts`，未读内容）；不写 `~/.claude` / `~/.agents`（源码里没有相关路径，未在真机上 diff）
+  - 有首启引导（`register-onboarding.ts`，未读内容）；不写 `~/.claude` / `~/.agents`（源码里没有相关路径；真机启动前后这两处、`~/Library/LaunchAgents` 都没变）。真机首启建了 `~/Library/{Application Support,Caches,Logs,WebKit}/com.bradenwong.whispering`
 
 ## 已知问题
 - v7.2.2 的 arm64 资产叫 `Whispering_7.2.1_aarch64.dmg`，里面的 bundle 也是 7.2.1（与 v7.2.1 的包不是同一个文件）。Developer ID 路线不比对包内版本，若厂商在最新版上再犯，一键会装上一个自报旧版本的包，然后继续提示更新。历史上只此一次（另有 v4.1.2 / v4.2.1 带着旧版本号的包），记录不处理
@@ -124,5 +126,4 @@ curl -sL https://github.com/EpicenterHQ/epicenter/releases/latest/download/lates
 ```
 
 ## 建议下一步
-1. 真机两轮（7.9.0 → 7.11.0）：不运行一轮、运行中一轮加 `duo restart`；Tauri updater 不停放整包，第二轮不需要造「暂存了旧版本」的场景。
-2. 下一个正式版（很可能是 v8.0.0）发布时复查：bundle id 是否换成 `so.epicenter.whispering`、是否 ad-hoc、资产命名，以及 `/releases/latest` 是否仍是 Whispering。
+1. 下一个正式版（很可能是 v8.0.0）发布时复查：bundle id 是否换成 `so.epicenter.whispering`、是否 ad-hoc、资产命名，以及 `/releases/latest` 是否仍是 Whispering。

@@ -36,12 +36,16 @@ public actor HomebrewInstaller {
 
     /// What says whether brew's run replaced the bundle: both version fields,
     /// read from the Info.plist on disk, and the main executable's identity
-    /// (`RuntimeVersion.executableIdentity`, size and modification time).
-    /// The executable is there for a cask revision the bundle never carries
-    /// (#1562): brew replaces the app and the version pair reads the same.
+    /// (`RuntimeVersion.executableIdentity`, size and modification time) and
+    /// file number. The executable is there for a cask revision the bundle
+    /// never carries (#1562): brew replaces the app and the version pair reads
+    /// the same. The file number is there for a revision whose executable is
+    /// byte for byte the old one (a re-stapled dmg): staging keeps the
+    /// archive's modification times, but brew moves a fresh copy into place.
     struct BundleSnapshot: Equatable {
         var version: VersionSide
         var executable: String?
+        var executableNode: UInt64?
 
         static func read(_ app: URL) -> BundleSnapshot {
             let info = NSDictionary(contentsOf: BundleLayout.infoPlistURL(for: app)) as? [String: Any]
@@ -49,7 +53,11 @@ public actor HomebrewInstaller {
                 bundleAt: app, infoPlist: info ?? [:], fm: FileManager.default)
             return BundleSnapshot(
                 version: StagedRelaunch.diskVersionSide(app),
-                executable: executable.flatMap { RuntimeVersion.executableIdentity(of: $0) })
+                executable: executable.flatMap { RuntimeVersion.executableIdentity(of: $0) },
+                executableNode: executable.flatMap {
+                    ((try? FileManager.default.attributesOfItem(atPath: $0.path))?[.systemFileNumber]
+                        as? NSNumber)?.uint64Value
+                })
         }
 
         /// Whether `after` is the same bundle as this one. False when either

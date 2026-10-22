@@ -94,6 +94,27 @@ import Foundation
         try await fixture.upgrade()
     }
 
+    /// A revision whose executable is byte for byte the old one, with the
+    /// archive's modification time kept: only the file is new.
+    @Test func aFreshCopyOfTheSameExecutableIsNotUnchanged() async throws {
+        let fixture = try Fixture(brewScript: "")
+        defer { fixture.remove() }
+        let executable = "\(fixture.app.path)/Contents/MacOS/Zzfixture"
+        let script = """
+            #!/bin/sh
+            /bin/cp -p '\(executable)' '\(fixture.root.path)/staged' || exit 1
+            /bin/mv -f '\(fixture.root.path)/staged' '\(executable)'
+            exit 0
+            """
+        try Data(script.utf8).write(to: fixture.brew)
+        let before = HomebrewInstaller.BundleSnapshot.read(fixture.app)
+        try await fixture.upgrade()
+        let after = HomebrewInstaller.BundleSnapshot.read(fixture.app)
+        // The case this covers: everything but the file number reads the same.
+        #expect(after.version == before.version && after.executable == before.executable)
+        #expect(after.executableNode != before.executableNode)
+    }
+
     /// A cask renamed in its new version leaves nothing at the old path; that
     /// is brew moving the app, not leaving it.
     @Test func aBundleGoneFromTheOldPathIsNotUnchanged() async throws {

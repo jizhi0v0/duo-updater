@@ -36,6 +36,7 @@ public enum AppRecipeIndex {
         at_studio_AsideBrowser.set,
         bot_cline_app.set,
         cc_ffitch_shottr.set,
+        co_fluder_FSNotes.set,
         co_palokaj_battery.set,
         com_1password_1password.set,
         com_adguard_mac_adguard.set,

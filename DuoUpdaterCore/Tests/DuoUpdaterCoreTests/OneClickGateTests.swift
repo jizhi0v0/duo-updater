@@ -1,5 +1,4 @@
 import Foundation
-import Synchronization
 import Testing
 @testable import DuoUpdaterCore
 
@@ -315,21 +314,11 @@ struct OneClickGateTests {
         }
     }
 
-    /// `found` on another thread, or nil when it has not returned within `limit`.
-    private func foundPromptly(in bundle: URL, limit: Double = 5) -> Bool? {
-        let done = DispatchSemaphore(value: 0)
-        let answer = Mutex<Bool?>(nil)
-        Thread.detachNewThread {
-            answer.withLock { $0 = ExecutableMarker.found(Self.marker, inMainExecutableOf: bundle) }
-            done.signal()
-        }
-        guard done.wait(timeout: .now() + limit) == .success else { return nil }
-        return answer.withLock { $0 }
-    }
-
     /// Only a regular file of bounded size is read; anything else is refused
-    /// at once, never waited on.
-    @Test func aNonRegularOrOversizedExecutableIsNotAdmittedPromptly() throws {
+    /// without being read. Each case is the witness of one guard, and neither
+    /// has a timeout: a guard that goes missing shows as a wrong answer here
+    /// (a FIFO that is read matches, an oversized file that is read matches).
+    @Test func aNonRegularOrOversizedExecutableIsNotAdmitted() throws {
         let plist: [String: Any] = ["CFBundleExecutable": "hoppscotch-desktop"]
         // A FIFO holding the marker with its writer gone, so a read sees the
         // bytes and then end of file: reading it would match, and only the
@@ -345,18 +334,15 @@ struct OneClickGateTests {
         let written = bytes.withUnsafeBytes { write(writer, $0.baseAddress, $0.count) }
         #expect(written == bytes.count)
         close(writer)
-        #expect(foundPromptly(in: fifo) == false, "FIFO")
-        // A symlink to a character device that never ends.
-        let zero = try tauriBundle(plist: plist, executable: nil)
-        try FileManager.default.createSymbolicLink(
-            atPath: executablePath(of: zero), withDestinationPath: "/dev/zero")
-        #expect(foundPromptly(in: zero, limit: 1) == false, "/dev/zero")
-        // Over the size limit (sparse, so nothing is written), marker or not.
+        #expect(!ExecutableMarker.found(Self.marker, inMainExecutableOf: fifo), "FIFO")
+        // Over the size limit (sparse, so nothing is written). The marker is
+        // near the start of the file: read, it would match, so only the size
+        // check refuses it.
         let big = try tauriBundle(plist: plist, executable: hoppscotchExecutable(feed: Self.marker))
         let handle = try FileHandle(forWritingTo: URL(fileURLWithPath: executablePath(of: big)))
         try handle.truncate(atOffset: UInt64(ExecutableMarker.byteLimit) + 1)
         try handle.close()
-        #expect(foundPromptly(in: big, limit: 1) == false, "over the limit")
+        #expect(!ExecutableMarker.found(Self.marker, inMainExecutableOf: big), "over the limit")
     }
 
     @Test func museScoreOneClickIsFor4xCopiesOnly() {

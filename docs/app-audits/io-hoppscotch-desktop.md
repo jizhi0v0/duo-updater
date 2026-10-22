@@ -20,7 +20,7 @@
 
 ## 覆盖清单
 - **各版本的 bundle id / Team**（读真包）: 23.8.3-1、25.1.1-0、25.1.1-2（第一代）、25.2.0、26.8.2、26.9.0（Cloud 与 Self-Host）都是 `io.hoppscotch.desktop`、Team `XBK86CMQGZ`、`spctl` Notarized Developer ID。没有改过 id，Team 没换过。
-- **同一 id 下的两个版本（Cloud / Self-Host）**: 同一个 release 同时发 `Hoppscotch_mac_<arch>.dmg`（Cloud）和 `Hoppscotch_SelfHost_mac_<arch>.dmg`。26.9.0 两个 arm64 包的 Info.plist 字节相同（md5 一样），版本、id、Team 也一样，差别只在可执行文件 `Contents/MacOS/hoppscotch-desktop` 里编进去的更新地址。规则只装 Cloud；Self-Host 副本由 `OneClickGate` 的 `.executableContains` 挡在一键之外，仍然有检测（两个版本共用 tag，版本号对 Self-Host 同样正确）。
+- **同一 id 下的两个版本（Cloud / Self-Host）**: 同一个 release 同时发 `Hoppscotch_mac_<arch>.dmg`（Cloud）和 `Hoppscotch_SelfHost_mac_<arch>.dmg`。26.9.0 两个 arm64 包的 Info.plist 字节相同（md5 一样），版本、id、Team 也一样，差别只在可执行文件 `Contents/MacOS/hoppscotch-desktop` 里编进去的更新地址。规则只装 Cloud；Self-Host 副本由 `OneClickGate` 的 `.executableContains` 挡在一键之外，仍然有检测：两个版本共用 tag 和版本号，所以通常对 Self-Host 同样正确。**例外**是只发了 Self-Host 资产的 release（`v26.6.1-0`）：规则靠 Cloud dmg 认版本，会跳过它，Self-Host 副本看到的是前一版，见「已知问题」。
 - **第一代 app（v23.8.3-1 … v25.1.1-2）**: 可执行文件叫 `Hoppscotch`，更新源 `https://releases.hoppscotch.com/central-desktop.json`，bundle 版本保留 tag 的 `-N`（`23.8.3-1`、`25.1.1-0`、`25.1.1-2`）。`central-desktop.json` 至今（2026-10-22）仍是 `v25.1.1-2`，厂商没有把这一代迁到第二代。第二代从 `v25.2.0-0` 开始，bundle 版本不带后缀（`25.2.0`）。第一代副本由 `.installedVersion(^[0-9]+(?:\.[0-9]+)+$)` 挡在一键之外，检测照常（版本比较读到 `25.1.1-2` < `26.9.0`，channel-verify 显示 UPDATE → 26.9.0）。
 - **x64 副本**: x64 的 Cloud（25.2.0、26.8.2、26.9.0）和 Self-Host（26.9.0）可执行文件里都**没有**完整的更新地址字面量（只有 `ch-cloud` / `ch-selfh` 这样的碎片），所以 `.executableContains` 对任何 x64 副本都不放行（失败即拒）。DuoUpdater 只跑 arm64（`App/project.yml` `ARCHS: arm64`），x64 副本只会是 Rosetta 下跑的 Intel 版；它们保留检测、没有一键。
 - **版本范围、主机下限**: 所有样本 `LSMinimumSystemVersion` 10.13，低于我们的下限。
@@ -31,13 +31,13 @@
 | Channel | Bundle ID | 独立/共享 | 检测信号 | 门控方式 | 状态 |
 |---------|-----------|----------|---------|---------|------|
 | stable（Cloud，第二代 arm64） | `io.hoppscotch.desktop` | 共享 | 可执行文件含 `hoppscotch-cloud-desktop.json` | GitHub `/releases/latest` | ✓ 检测 + 一键 |
-| stable（Self-Host） | 同上 | 共享 | 可执行文件含 `hoppscotch-selfhost-desktop.json` | 同一条规则 | ✓ 检测，一键由 gate 拒 |
+| stable（Self-Host） | 同上 | 共享 | 可执行文件含 `hoppscotch-selfhost-desktop.json` | 同一条规则（按 Cloud dmg 认版本） | ✓ 检测（只发 Self-Host 资产的 release 会漏，见已知问题），一键由 gate 拒 |
 | 第一代 | 同上 | 共享 | bundle 版本带 `-N` | 同一条规则 | ✓ 检测，一键由 gate 拒 |
 
 ## 更新检测
 - 源: `hoppscotch/releases` GitHub Releases，`/releases/latest`（2026-10-22 是 `v26.9.0-0`）
 - 版本: `^v([0-9]+(?:\.[0-9]+)+)-[0-9]+$`，读 tag 的主版本、丢掉 `-N`。88 个非 prerelease tag 全部能读（`-0` 67 个、`-1` 15 个、`-2` 5 个、`-3` 1 个）。`25.1.1`、`24.6.0`、`24.3.1`、`23.12.3`、`23.12.0` 各有 2–3 个 tag，都是第一代的重发
-- 资产: `^Hoppscotch_mac_(?:aarch64|x64)\.dmg$`，按主机架构选；Self-Host 资产、tar.gz、Windows/Linux 包不匹配。`v26.6.1-0` 只发了 Self-Host 资产，那一版对 Cloud 没有可装的包
+- 资产: `^Hoppscotch_mac_(?:aarch64|x64)\.dmg$`，按主机架构选；Self-Host 资产、tar.gz、Windows/Linux 包不匹配。`v26.6.1-0` 只发了 Self-Host 资产，那一版对 Cloud 没有可装的包，规则因此把它当作不存在（对 Self-Host 副本的后果见「已知问题」）
 - Release 正文只有一行（`chore: bump cloud-desktop and selfhost-desktop to 26.9.0-0`）
 
 ## 按架构 / 按 OS 分轨
@@ -85,6 +85,7 @@
 - 阻塞: 无
 
 ## 已知问题
+- **只发 Self-Host 资产的 release，Self-Host 副本检测不到。** 规则以 Cloud dmg 认版本（`installAssetPattern` 只匹配 `Hoppscotch_mac_*.dmg`）；一个 release 没有 Cloud dmg 时，`GitHubReleasesSource` 在 `/releases/latest` 无匹配资产后回退到 release 列表，跳过该 tag，答出前一个有 Cloud dmg 的版本。`v26.6.1-0` 就是这种 release：它做 `/releases/latest` 的那约 15 天里（见「历史与实测」），非 brew 的 Self-Host 26.6.0 副本被告知已是最新，而 Self-Host 26.6.1 已经发布。被跳过的 tag 只进诊断信息，列表行上看不出。这类副本没有别的检测路线（`hoppscotch-selfhost` cask 装的由 Homebrew 源先答，不受影响）。反向（Cloud-only 的 release 让 Self-Host 副本看到没有 Self-Host 包的更新）要求 release 缺 Self-Host 资产；Self-Host 资产从 `v25.4.0-0` 起每版都有，缺 Self-Host 资产的 release 都早于它，所以至今没发生过。规则没有改，这个缺口保留。
 - Self-Host、第一代、x64 副本只有检测没有一键，见上。x64 Cloud 副本被拒是因为字面量不完整，不是因为它是别的版本；可执行文件里另有 `Sitemap: https://hoppscotch.io/sitemap.xml`（Cloud）/ `Sitemap: http://localhost:3000/sitemap.xml`（Self-Host）可以同时分出两种架构（上面所有样本都对得上），没有用
 - changelog 面板只有一行 bump 说明，见上
 - `hoppscotch-selfhost` cask 装的副本也没有一键：gate 对所有路线都生效，`brew upgrade --cask` 这条也被拒，只剩检测
@@ -105,6 +106,7 @@ swift test --package-path DuoUpdaterCore --filter OneClickGateTests
 ```
 
 ## 历史与实测
+- 2026-10-22（GitHub API `repos/hoppscotch/releases/releases`，共 88 条，全部非 draft、非 prerelease，逐条数 dmg 资产）：只有 `v26.6.1-0` 没有 Cloud dmg（`Hoppscotch_mac_*.dmg` 0 个，`Hoppscotch_SelfHost_mac_*.dmg` 2 个）。创建/发布时间 `v26.6.1-0` 2026-07-15 08:39Z / 12:42Z，下一版 `v26.7.0-0` 2026-07-30 12:02Z / 19:09Z，前一版 `v26.6.0-0` 2026-06-30；`/releases/latest` 因此约 15 天（07-15 到 07-30）是没有 Cloud dmg 的 `v26.6.1-0`。资产组合：Cloud 有 Self-Host 无 49 个（`v25.3.2-0` 及更早）、两者都有 38 个（`v25.4.0-0` 起，不含 `v26.6.1-0`）、只有 Self-Host 1 个（`v26.6.1-0`）。当天 `/releases/latest` 是 `v26.9.0-0`。
 - 2026-10-22（从 `io-hoppscotch-desktop.swift` 注释迁出）：原文「the pattern reads every tag's base version and the suffix is dropped: all 88 tags read (2026-10-22). v26.6.1-0 shipped SelfHost assets only: nothing to install then.」——当天 88 个非 prerelease tag 全部读得出；v26.6.1-0 只有 SelfHost 资产。
 
 ## 建议下一步

@@ -252,6 +252,7 @@ public enum AppRecipeIndex {
         info_marcel_dierkes_KeepingYouAwake.set,
         io_agentsview_desktop.set,
         io_balena_etcher.set,
+        io_bdash.set,
         io_beekeeperstudio_desktop.set,
         io_dcloud_HBuilderX.set,
         io_ganeshrvel_openmtp.set,

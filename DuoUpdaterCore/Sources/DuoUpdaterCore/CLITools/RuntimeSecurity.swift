@@ -487,17 +487,18 @@ public struct RuntimeSecurityReport: Sendable, Equatable {
 ///
 /// - nvm (README, "Migrating Global Packages While Installing"):
 ///   `nvm install <latest> --reinstall-packages-from=<installed>`, then
-///   `nvm alias default <latest>` unless `$NVM_DIR/alias/default` names
-///   another version exactly — which the user pinned, and keeps. A default
-///   that names the installed version follows the install; so does any alias
-///   that isn't an exact version (`lts/*`, `lts/krypton`, `node`, `24`):
-///   those don't follow what is installed. `alias/lts/*` holds
-///   `lts/<codename>`, whose file holds a version, and nvm rewrites them to
-///   the newest *published* release whenever it lists the remote versions —
-///   which an online `nvm install` does. After installing the security
-///   release, such a default can name a release that isn't installed, or
-///   another major, and the moved packages fall off `PATH`. The replaced alias
-///   is said (`replacedNvmDefault`).
+///   `nvm alias default <latest>` only when `$NVM_DIR/alias/default` is on
+///   the installed version's line and won't follow the install by itself:
+///   the installed version exactly, or an `lts/…` alias that resolves to its
+///   major. `alias/lts/*` holds `lts/<codename>`, whose file holds a version,
+///   and nvm rewrites those to the newest *published* release whenever it
+///   lists the remote versions — which an online `nvm install` does — so after
+///   installing the security release such a default can name a release that
+///   isn't installed, and the moved packages fall off `PATH`. The replaced
+///   alias is said (`replacedNvmDefault`). A partial version (`24`), `node`
+///   or `stable` resolves against the *installed* versions and follows on its
+///   own; one on another line, `system`, or another exact version is the
+///   user's choice and is left alone.
 /// - fnm (`docs/commands.md`): `fnm install <latest>`, then `fnm default
 ///   <latest>` when fnm's `aliases/default` link (`alias.rs`: a link to the
 ///   version's installation directory) points at the installed version. fnm
@@ -540,10 +541,10 @@ public struct NodeUpgradeCommand: Sendable, Equatable {
             switch Self.nvmDefault(in: nvmDir, installed: installed) {
             case .installed:
                 command += " && nvm alias default \(latest)"
-            case .alias(let alias):
+            case .ltsOnLine(let alias):
                 command += " && nvm alias default \(latest)"
                 replaced = alias
-            case .otherVersion, .none:
+            case .leftAlone, .none:
                 break
             }
             self.init(command: command, installed: installed, latest: latest, packagesLeftBehind: [],
@@ -586,20 +587,43 @@ public struct NodeUpgradeCommand: Sendable, Equatable {
     enum NvmDefault: Equatable {
         /// The installed version, `24.13.0` or `v24.13.0`.
         case installed
-        /// Another exact version: the user's pin.
-        case otherVersion
-        /// Anything else — `lts/*`, `node`, `24` — as written.
-        case alias(String)
+        /// An `lts/…` alias, as written, that resolves to the installed
+        /// version's major.
+        case ltsOnLine(String)
+        /// Anything the command leaves as it is: another exact version, an
+        /// `lts/…` on another major, a partial version, `node`, `stable`,
+        /// `system`.
+        case leftAlone
     }
 
     /// nil when there is no default (or it can't be read): none is set then.
     static func nvmDefault(in nvmDir: URL, installed version: String) -> NvmDefault? {
-        guard let text = try? String(contentsOf: nvmDir.appendingPathComponent("alias/default"), encoding: .utf8)
+        guard let alias = readAlias("default", in: nvmDir) else { return nil }
+        if alias == version || alias == "v" + version { return .installed }
+        guard alias.hasPrefix("lts/"), let installed = RuntimeVersionTriple(version),
+              let resolved = resolveLTS(alias, in: nvmDir), resolved.major == installed.major
+        else { return .leftAlone }
+        return .ltsOnLine(alias)
+    }
+
+    /// `lts/*` → `lts/krypton` → `v24.13.0`, through `<nvmDir>/alias/`; nil
+    /// when the chain doesn't end in an exact version within a few steps.
+    static func resolveLTS(_ alias: String, in nvmDir: URL) -> RuntimeVersionTriple? {
+        var name = alias
+        for _ in 0..<4 {
+            guard let next = readAlias(name, in: nvmDir) else { return nil }
+            if let version = RuntimeVersionTriple(next) { return version }
+            guard next.hasPrefix("lts/") else { return nil }
+            name = next
+        }
+        return nil
+    }
+
+    private static func readAlias(_ name: String, in nvmDir: URL) -> String? {
+        guard let text = try? String(contentsOf: nvmDir.appendingPathComponent("alias/\(name)"), encoding: .utf8)
         else { return nil }
         let alias = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !alias.isEmpty else { return nil }
-        if alias == version || alias == "v" + version { return .installed }
-        return RuntimeVersionTriple(alias) != nil ? .otherVersion : .alias(alias)
+        return alias.isEmpty ? nil : alias
     }
 
     /// Whether `<fnmDir>/aliases/default` links to `prefix`.

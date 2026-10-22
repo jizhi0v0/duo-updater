@@ -253,29 +253,36 @@ import Foundation
         let prefix = nvmDir.appendingPathComponent("versions/node/v24.13.0")
         try FileManager.default.createDirectory(at: prefix, withIntermediateDirectories: true)
         if let defaultAlias {
-            try FileManager.default.createDirectory(at: nvmDir.appendingPathComponent("alias"), withIntermediateDirectories: true)
+            try FileManager.default.createDirectory(at: nvmDir.appendingPathComponent("alias/lts"), withIntermediateDirectories: true)
             try Data((defaultAlias + "\n").utf8).write(to: nvmDir.appendingPathComponent("alias/default"))
+            // As nvm leaves them after listing remotes: each codename at its
+            // line's newest *published* release, not necessarily installed.
+            for (name, target) in [("*", "lts/krypton"), ("krypton", "v24.22.1"), ("jod", "v22.23.4")] {
+                try Data((target + "\n").utf8).write(to: nvmDir.appendingPathComponent("alias/lts/\(name)"))
+            }
         }
         return .init(install: RuntimeInstall(kind: .node, version: "24.13.0", origin: .manager(.nvm, prefix: prefix.path)),
                      notices: [Self.security])
     }
 
-    /// nvm moves the packages itself. The default moves to the new version
-    /// unless it pins another version exactly: when it names the installed
-    /// one, and when it is any alias — `lts/*` resolves through
-    /// `lts/<codename>` to the newest *published* release, which nvm rewrites
-    /// when it lists remotes, so it need not name what was just installed.
-    /// A replaced alias is said.
-    /// Mutations: append only for the installed version → `lts/*` keeps a
-    /// default that may name an uninstalled release; append for every exact
-    /// version → a pin on 24.12.0 is moved.
-    @Test func nvmsCommandMovesTheDefaultUnlessAnotherVersionIsPinned() throws {
+    /// nvm moves the packages itself. The default moves to the new version only
+    /// when it is on the installed line and won't follow by itself: the
+    /// installed version exactly, or an `lts/…` resolving to its major (nvm
+    /// rewrites those to the newest *published* release). A partial version,
+    /// `node`, `stable` follow the installed versions on their own; another
+    /// line (`lts/jod` → 22, `22`, `system`) or another exact version is the
+    /// user's and is left alone. A replaced alias is said.
+    /// Mutations: move every `lts/…` regardless of line → `lts/jod` is moved;
+    /// skip the `lts/…` case → `lts/*` keeps a default that may name an
+    /// uninstalled release.
+    @Test func nvmsCommandMovesOnlyADefaultOnItsLineThatWontFollow() throws {
         let base = "nvm install 24.22.1 --reinstall-packages-from=24.13.0"
         let moved = base + " && nvm alias default 24.22.1"
         for (alias, expected, replaced) in [
             ("v24.13.0", moved, nil), ("24.13.0", moved, nil),
-            ("lts/*", moved, "lts/*"), ("lts/krypton", moved, "lts/krypton"), ("node", moved, "node"),
-            ("24", moved, "24"), ("stable", moved, "stable"),
+            ("lts/*", moved, "lts/*"), ("lts/krypton", moved, "lts/krypton"),
+            ("lts/jod", base, nil), ("node", base, nil), ("stable", base, nil), ("24", base, nil),
+            ("22", base, nil), ("system", base, nil),
             ("v24.12.0", base, nil), ("22.21.1", base, nil),
         ] as [(String, String, String?)] {
             let home = try Self.scratch()

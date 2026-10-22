@@ -87,10 +87,12 @@ HEADING = re.compile(r"^(#{1,6})\s+(.*?)\s*#*\s*$")
 RECORD_HEADING = re.compile(r"real[- ]machine|真机", re.IGNORECASE)
 # The wording this repository's descriptions use for a run nobody did yet:
 # "Real machine: pending (main session)", 真机：待主会话, #1588's "Not done here
-# (real-machine checks for the main session)".
+# (real-machine checks for the main session)". Whole words, because result
+# lines use their neighbours: "not running" is a one-click round and
+# `duo restart`'s output, "nothing to do" an install's, 等待 is "wait".
 PENDING = re.compile(
-    r"pending|待|\btodo\b|\bto do\b|not run|not done|not yet|planned|"
-    r"for the main session|未跑|未验|未做|没跑|没做",
+    r"pending|(?<![等期])待|\btodo\b|\bnot run\b|\bnot done\b|\bnot yet\b|"
+    r"\bplanned\b|\bfor the main session\b|未跑|未验|未做|没跑|没做",
     re.IGNORECASE,
 )
 UNTICKED = re.compile(r"^\s*(?:[-*+]|\d+[.)])\s+\[ \]")
@@ -150,7 +152,8 @@ def opt_out_reason(body):
 
 
 def record_sections(body):
-    """Each real-machine heading: (heading, has_date, result_line_count)."""
+    """Each real-machine heading: (heading, has_date, result_line_count,
+    lines_read_as_not_done)."""
     lines = _lines_outside_fences(body)
     sections = []
     for i, (line, in_fence) in enumerate(lines):
@@ -159,10 +162,11 @@ def record_sections(body):
             continue
         level, title = len(m.group(1)), m.group(2)
         if PENDING.search(title):
-            sections.append((title, False, 0))
+            sections.append((title, False, 0, 0))
             continue
         dated = _has_date(title)
         results = 0
+        not_done = 0
         for text, fenced in lines[i + 1:]:
             if not fenced:
                 h = HEADING.match(text)
@@ -175,11 +179,12 @@ def record_sections(body):
             dated = dated or _has_date(text)
             if fenced and text.strip():
                 results += 1
-            elif (not fenced and RESULT_LINE.match(text)
-                  and not TABLE_RULE.match(text) and not UNTICKED.match(text)
-                  and (OUTCOME.search(text) or not PENDING.search(text))):
-                results += 1
-        sections.append((title, dated, results))
+            elif not fenced and RESULT_LINE.match(text) and not TABLE_RULE.match(text):
+                if UNTICKED.match(text) or (PENDING.search(text) and not OUTCOME.search(text)):
+                    not_done += 1
+                else:
+                    results += 1
+        sections.append((title, dated, results, not_done))
     return sections
 
 
@@ -202,12 +207,12 @@ def evaluate(body, files, head_ref, files_complete=True):
     if reason_text:
         return True, "opt-out: Real-machine: not needed — %s" % reason_text
     sections = record_sections(body)
-    for title, dated, results in sections:
+    for title, dated, results, _ in sections:
         if dated and results:
             return True, "record: \"%s\" (dated, %d result line(s))" % (title, results)
 
     problems = []
-    for title, dated, results in sections:
+    for title, dated, results, not_done in sections:
         if PENDING.search(title):
             problems.append("  \"%s\" is a pending placeholder" % title)
             continue
@@ -216,7 +221,10 @@ def evaluate(body, files, head_ref, files_complete=True):
             missing.append("date (YYYY-MM-DD)")
         if not results:
             missing.append("result line (list item, table row or code block)")
-        problems.append("  \"%s\" has no %s" % (title, " and no ".join(missing)))
+        line = "  \"%s\" has no %s" % (title, " and no ".join(missing))
+        if not results and not_done:
+            line += "; %d item(s) read as not done (`- [ ]`, or pending wording with no ✓ ✔ ✗ ✘)" % not_done
+        problems.append(line)
     msg = [
         "%s, but the description has no real-machine record." % reason,
     ]

@@ -98,6 +98,28 @@ class CheckRealMachineRecordTests(unittest.TestCase):
         self.assertTrue(check(body.replace(
             "round 2 not done yet", "一键端到端 ✓ 不运行一轮（运行中一轮未跑：启动会弹本地网络授权框）")))
 
+    def test_result_wording_that_contains_pending_words_still_counts(self):
+        # Review round 2: "not running" is a round's name and `duo restart`'s output.
+        body = (
+            "## Real-machine result (2026-10-23)\n"
+            "- 2.1.0 → 2.1.1, app not running: refused (`noTeamIdentifier`), nothing changed on disk\n"
+        )
+        self.assertTrue(check(body))
+        self.assertTrue(check(
+            "## Real-machine result (2026-10-23)\n"
+            "- `duo restart Foo` → `not running — nothing to restart`\n"))
+        self.assertTrue(check(body.replace("app not running: refused", "nothing to do")))
+        self.assertTrue(check(body.replace("app not running: refused", "等待 ShipIt 换包后是 2.1.1")))
+        # Paired: the same line with the phrase that does mean "not run".
+        self.assertFalse(check(body.replace("app not running: refused (`noTeamIdentifier`), nothing changed on disk", "app not run")))
+        self.assertFalse(check(body.replace("app not running: refused (`noTeamIdentifier`), nothing changed on disk", "待跑")))
+
+    def test_the_failure_says_items_were_read_as_not_done(self):
+        passed, msg = rm.evaluate(
+            "## Real-machine result (2026-10-22)\n- [ ] run it\n", CORE, BRANCH, True)
+        self.assertFalse(passed)
+        self.assertIn("1 item(s) read as not done", msg)
+
     def test_a_heading_inside_a_code_block_is_not_read(self):
         body = "```\n" + RECORD + "```\n"
         self.assertFalse(check(body))

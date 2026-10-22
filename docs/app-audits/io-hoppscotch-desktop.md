@@ -31,7 +31,7 @@
 | Channel | Bundle ID | 独立/共享 | 检测信号 | 门控方式 | 状态 |
 |---------|-----------|----------|---------|---------|------|
 | stable（Cloud，第二代 arm64） | `io.hoppscotch.desktop` | 共享 | 可执行文件含 `hoppscotch-cloud-desktop.json` | GitHub `/releases/latest` | ✓ 检测 + 一键 |
-| stable（Self-Host，第二代 arm64） | 同上 | 共享 | 可执行文件含 `hoppscotch-selfhost-desktop.json` | Self-Host 规则（`variant: "selfhost"`，按 Self-Host dmg 认版本） | ✓ 检测 + 一键（真机待验） |
+| stable（Self-Host，第二代 arm64） | 同上 | 共享 | 可执行文件含 `hoppscotch-selfhost-desktop.json` | Self-Host 规则（`variant: "selfhost"`，按 Self-Host dmg 认版本） | ✓ 检测 + 一键 |
 | stable（x64，两种版本） | 同上 | 共享 | 两个字面量都不完整 | Cloud 规则 | ✓ 检测（x64 Self-Host 副本遇只发 Self-Host 资产的 release 会漏），一键由 gate 拒 |
 | 第一代 | 同上 | 共享 | bundle 版本带 `-N` | 同一条规则 | ✓ 检测，一键由 gate 拒 |
 
@@ -67,8 +67,11 @@
 - Recipe 状态: 待定（要不要写 ChangelogRecipe 还没决定）
 
 ## 一键安装
-- 状态: **支持（Cloud 与 Self-Host 第二代 arm64 副本，各装各的 dmg）**，第一代、x64 副本仅检测。Self-Host 的一键**真机未验**（下面的端到端是加 Self-Host 规则之前的）
-- 端到端（2026-10-22，本分支 `make cli` 的 duo）:
+- 状态: **支持（Cloud 与 Self-Host 第二代 arm64 副本，各装各的 dmg）**，第一代、x64 副本仅检测
+- 端到端，加 Self-Host 规则后（2026-10-22，`614c7a02` 的 `make install` + `make cli`）:
+  - Self-Host 26.8.2，运行中（可执行文件含 `hoppscotch-selfhost-desktop.json`）: `duo check` → `26.8.2 → 26.9.0 [GitHub, in-place]`；`duo install --yes` `downloading… verifyingSignature extracting verifyingCodeSignature installing done installed.`（16 s）→ 26.9.0，可执行文件 sha256 `5e87fd3f…2e84` 与厂商 26.9.0 Self-Host dmg 里的相同（Cloud 的是 `16b26b59…f2e6`），仍含 Self-Host 标记，`TeamIdentifier=XBK86CMQGZ`、`codesign --verify --deep --strict` 退出 0；`duo restart Hoppscotch` 后新进程（17:01:33 起）跑 `/Applications/Hoppscotch.app`
+  - Cloud 26.8.2，运行中（回归）: `duo check` → `26.8.2 → 26.9.0 [GitHub, in-place]`；`duo install --yes`（14 s）→ 26.9.0，可执行文件 sha256 `16b26b59…f2e6` 与厂商 Cloud 包相同、无 Self-Host 标记、签名有效；`duo restart` 后新进程起来
+- 端到端，加 Self-Host 规则前（2026-10-22，当时分支 `make cli` 的 duo）:
   - Self-Host 26.8.2（可执行文件含 `hoppscotch-selfhost-desktop.json`）: `duo check` → `26.8.2 → 26.9.0 [GitHub]`；`duo install` → `Skipping: Hoppscotch — detection only for this copy — this is not a proven Cloud edition copy (Self-Host, or an Intel build); update it from its own updater`，磁盘仍是 26.8.2 Self-Host、inode 不变
   - Cloud 26.8.2，不运行: `duo check` → `26.8.2 → 26.9.0 [GitHub, in-place]`；`duo install` `extracting verifyingCodeSignature installing done installed.` → 26.9.0、可执行文件 inode 变、含 `hoppscotch-cloud-desktop.json`、`TeamIdentifier=XBK86CMQGZ`、`codesign --verify --deep --strict` 退出 0、`spctl` accepted、`diff -r` 与厂商 26.9.0 Cloud 包相同
   - Cloud 26.8.2，运行中: 启动（窗口 `main`），`duo install` 后提示 `Still running the old code`；`duo restart Hoppscotch` 后新进程起来，之后 10 s 磁盘一直是 26.9.0、签名有效。启动建了 `~/Library/{Application Support,Caches,Logs,WebKit}/io.hoppscotch.desktop`
@@ -129,6 +132,5 @@ swift run --package-path application-test channel-verify <26.8.2 Self-Host dmg> 
   - `v26.9.0-0` Self-Host: 同 id、版本、Team、公证；Cloud 0、Self-Host 1；67253440 字节；sha256 `2decddd2…795f`；Info.plist md5 与 Cloud 相同（`5400602f…035e90`）
 
 ## 建议下一步
-1. 真机验 Self-Host arm64 副本的一键（26.8.2 → 26.9.0，装后可执行文件仍含 `hoppscotch-selfhost-desktop.json`），再把一键状态改成已验。
-2. 决定要不要放开 `hoppscotch-selfhost` cask 的 brew 一键（加进 Self-Host gate 的 `offering`）。
-3. 决定要不要为 hoppscotch.com 的发版说明写 ChangelogRecipe。
+1. 决定要不要放开 `hoppscotch-selfhost` cask 的 brew 一键（加进 Self-Host gate 的 `offering`）。
+2. 决定要不要为 hoppscotch.com 的发版说明写 ChangelogRecipe。

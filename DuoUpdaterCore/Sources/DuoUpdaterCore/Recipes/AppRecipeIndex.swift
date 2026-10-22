@@ -339,6 +339,7 @@ public enum AppRecipeIndex {
         tv_plex_desktop.set,
         uk_co_bzwrd_macperfmonitor.set,
         uk_whatcable_whatcable.set,
+        us_eidinger_SwiftPlantUML.set,
         wang_jianing_app_OpenInTerminal.set,
         xyz_chatboxapp_app.set,
     ]

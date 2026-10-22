@@ -71,7 +71,7 @@
 
 | | 客户端会停放吗 | 本次实际停放了什么 | 我们能否直接拿来装 |
 |---|---|---|---|
-| 结论 | 不会 | 没查（真机第二轮待主会话） | 不需要 |
+| 结论 | 不会 | 无（2026-10-22 真机运行 0.12.12 约 25 s，没有停放任何东西） | 不需要 |
 | 证据 | tauri-plugin-updater 2.11.0（`updater.rs` macOS `install_inner`）：`download` 返回 `Vec<u8>`，装时解到 `tempdir`（前缀 `tauri_updated_app`），把旧 bundle 挪到另一个 `tempdir`（`tauri_current_app`），再 rename 新的进来；没有落盘的暂存包。Readest 的 `UpdaterWindow.tsx` 只在用户点了「Download and install now?」之后才调 `downloadAndInstall`，完成后 `relaunch()` | — | — |
 
 - 目标目录不可写时，Tauri 退到 `do shell script "rm -rf … && mv -f …" with administrator privileges`（可执行文件里有这个字符串），会弹管理员框；只发生在用户自己点安装时
@@ -86,19 +86,21 @@
 
 ## 一键安装
 - 状态: **支持（stable 副本）**；nightly 副本被 `OneClickGate` 挡，只检测
-- 端到端: **未跑**。真机（装上一版 → `duo install`）由主会话做
+- 端到端（2026-10-22，本分支 `make cli` 的 duo）:
+  - 第一轮（不运行）: 0.12.12 → `duo check` `0.12.12 → 0.12.16 [GitHub, in-place]` → `duo install` `extracting verifyingCodeSignature installing done installed.` → 0.12.16、可执行文件 inode 变、`TeamIdentifier=J5W48D69VR`、`codesign --verify --deep --strict` 退出 0、`spctl` accepted、`diff -r` 与厂商 0.12.16 包相同
+  - 第二轮（运行中）: 启动 0.12.12，`duo install` 后提示 `Still running the old code`；`duo restart Readest` 后新进程 13:24:48 起来，之后 10 s 磁盘一直是 0.12.16、签名有效。运行期间只有一个主窗口（System Events 只列出 `Readest`），没看到「Software Update」窗口
 - 格式: dmg（`hdiutil imageinfo`: `UDZO`），根目录 `Readest.app` + `Applications` 软链
 - 嵌套: 无。0.12.16 dmg 里的 bundle 在 `Contents/` 下三层内找不到 `.app` / `.framework` / `LoginItems` / `Helpers` / `Library`，`MacOS/` 只有 `readest`（nightly 包 `Contents/` 为 `CodeResources`、`Info.plist`、`MacOS`、`Resources`、`_CodeSignature`、`embedded.provisionprofile`）；没有 LoginItems / Helpers / LaunchAgent / Frameworks。可执行文件里没有 `SMAppService`、`LaunchAgents`、`.claude`、`.agents`、`.codex` 字符串
 - 签名: 0.7.9、0.10.1、0.12.12、0.12.16 都是 Team `J5W48D69VR`、Notarized Developer ID，Team 没换过
 - 校验: GitHub 资产 `digest`。v0.12.16 dmg `sha256:493f8393b5f1e7d1cd26525f0737b2658cafc7efb0657d9102834c6bdd194f0f`，`gh release download` 的文件 `shasum -a 256` 相同、70983929 字节等于资产大小；v0.12.12 dmg `sha256:e6ea4dddaeed113eaa72e027b6b29c1a47846896a88727b343f6d8551937bd33` 同样相符
 - **读的是**: 人人可手动下载的 GA（`/releases/latest`；Readest 自己的 stable 更新器读的也是这一版）
 - 阻塞: 无
-- 主会话真机要注意（来自源码 / 包内容，均未在真机上观察）:
+- 启动副作用（来自源码 / 包内容；2026-10-22 真机核对的已注明）:
   - 首启自动检查更新（`autoCheckUpdates` 默认 true，24 h 节流）：从 0.12.12 启动会弹一个「Software Update」窗口（`updater.ts` `showUpdateWindow`）。不要点里面的安装，否则是 Tauri 自己换包
   - 换到新版后再启动，`checkAppReleaseNotes` 会因版本变高弹出更新说明窗口
   - Info.plist 声明 epub / pdf / fb2 / cbz / mobi / azw / txt 的文档类型，`LSHandlerRank` 都是 `Alternate`（不抢默认打开方式）；URL scheme `readest`、`readest-onedrive`
-  - entitlements 带 iCloud 容器 `iCloud.com.bilingify.readest`（CloudDocuments），首启可能在 iCloud Drive 建 Readest 文件夹（推断，未验证）
-  - 包里没有登录项、LaunchAgent、root helper；不往 `~/.claude` / `~/.agents` 写（strings 无，推断）
+  - entitlements 带 iCloud 容器 `iCloud.com.bilingify.readest`（CloudDocuments），真机：首启建了 `~/Library/Mobile Documents/iCloud~com~bilingify~readest/Documents`（空），另有 `~/Library/{Application Support,Caches,WebKit,Logs}/com.bilingify.readest`
+  - 包里没有登录项、LaunchAgent、root helper；不往 `~/.claude` / `~/.agents` 写（strings 无；真机启动前后这两处没有新条目）
   - 自更新器不暂存，第二轮无法造「暂存了一个比 latest 旧的版本」；能撞上的只有用户在它自己的更新窗口里点安装，那是就地换包
 
 ## 已知问题
@@ -130,5 +132,4 @@ channel-verify 原始输出（2026-10-22）:
 ```
 
 ## 建议下一步
-1. 主会话真机两轮（上一版 0.12.12 → 0.12.16），结果写回「一键安装」并把 README 行改成 ✓
-2. nightly 轨（需要决定是否做引擎改动）: `ReleaseChannel.detect` 按 bundle id 认 `-[0-9]{10}$` 版本后缀为 nightly（或 `ChannelBinding` 读 `settings.json` 的 `updateChannel`），加 `.nightly` `VendorProbeRecipe` 读 `https://download.readest.com/nightly/latest.json`；一键要装 `.app.tar.gz`（Tauri 包，minisign 签名、无摘要），另需 `ChannelProofRegistry` 条目
+1. nightly 轨（需要决定是否做引擎改动）: `ReleaseChannel.detect` 按 bundle id 认 `-[0-9]{10}$` 版本后缀为 nightly（或 `ChannelBinding` 读 `settings.json` 的 `updateChannel`），加 `.nightly` `VendorProbeRecipe` 读 `https://download.readest.com/nightly/latest.json`；一键要装 `.app.tar.gz`（Tauri 包，minisign 签名、无摘要），另需 `ChannelProofRegistry` 条目

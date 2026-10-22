@@ -20,6 +20,31 @@
           private, and are not carried over.
         -->
         <item>
+            <title>0.5.13</title>
+            <pubDate>Fri, 23 Oct 2026 01:01:51 +0800</pubDate>
+            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.5.13</link>
+            <sparkle:version>131</sparkle:version>
+            <sparkle:shortVersionString>0.5.13</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[**Twenty-five more apps are supported.** Adrafinil, Bdash, Claudoscope, Deadbolt, DiffusionBee, Folo, FSNotes, Headroom, Hoppscotch, Hyper, Itsypad, Itsytv, Logseq, MacsyZones, massCode, Phosphene, PicGo, Readest, Sentinel, Simple Comic, SmoothCSV, Swift Quit, SwiftPlantUML, Tropy and Whispering get update checks and one-click updates. Tropy's beta is updated on its own track, and older beta copies of Folo, massCode, PicGo and SmoothCSV are told about the latest stable release.
+
+**The workbench flags Node.js and Homebrew PHP installs that have a newer security release or have reached end of life.** The notice repeats what the Node.js and PHP projects publish, and for Node.js installed with nvm or fnm it gives a command you can copy to install the security release; `duo check` lists the same notices.
+
+**Relaunch waits for an app that is slow to quit.** It used to give up after a few seconds, say the app was probably showing a save prompt, and leave it closed.
+
+**Fixes.** An update Homebrew skipped as already current now shows as failed with the reason, instead of installed. Apps whose Homebrew version carries a re-packaging suffix, such as MKVToolNix, stop offering the update they just got. `duo restart` on an app still waiting at macOS's "downloaded from the Internet" prompt says to click Open first, instead of calling it a save prompt.
+]]></description>
+            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.5.13/DuoUpdater-0.5.13-macos.zip" length="14956115" type="application/octet-stream" sparkle:edSignature="H/mrabJuJ4F2WQeDKGP3Iy+W1Lfemwv6QsyHjp7Hn6to7fHJ9GJvfsgMKVyyRTptRRfW9uSdrAxsLr9fKPfxBw=="/>
+            <sparkle:deltas>
+                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.5.13/DuoUpdater131-130.delta" sparkle:deltaFrom="130" length="1291218" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="468528" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="NDZ+H/MzNAGNtUO2yNgB+Ny4pYl1GivRVu1NGx7GUvihd9vlliAJ9N0rx3CPuGk8t/0PfkpXUxrHqmPMzsLXBg=="/>
+                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.5.13/DuoUpdater131-129.delta" sparkle:deltaFrom="129" length="2084394" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="468528" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="ccqlCzn0/1KF5EBW6nUI37CTStpiNCV/y4Vl8d89YvHajePxLdUQz2CRREgXOxoqYGdtiMNmOojaOu/5X9UtDQ=="/>
+                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.5.13/DuoUpdater131-128.delta" sparkle:deltaFrom="128" length="2788742" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="468528" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="N6x5MzdAddErXJN5mwIP4K3aBxLfGrYzcb0bFTOpnHMYyS88MZK+J+nOBPsNu636f1WfDpFnRX/trDy54GW0Ag=="/>
+                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.5.13/DuoUpdater131-127.delta" sparkle:deltaFrom="127" length="2858862" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="468528" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="CpvzLZOTLoLg1J1qRnkeSK2YZIyUSqMENz/T/hYu/6T9wOb7hjC2eJpy8q1cifF5yNvWV3sTenK1YvVmj2bZDg=="/>
+                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.5.13/DuoUpdater131-126.delta" sparkle:deltaFrom="126" length="3006218" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="468528" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="qp4OcwZ4sjpX+77zFiPkznpesOGc3I7Dt2fOEA/iqqXvtI/G7LSS4B48posyODYyrb2YPK38ymo2j44DPBo8AA=="/>
+            </sparkle:deltas>
+        </item>
+        <item>
             <title>0.5.12</title>
             <pubDate>Thu, 22 Oct 2026 01:37:55 +0800</pubDate>
             <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.5.12</link>
@@ -27,22 +52,6 @@
             <sparkle:shortVersionString>0.5.12</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <description sparkle:format="markdown"><![CDATA[**Three more apps are supported.** Harp, TaskExplorer and Lapce get update checks and one-click updates. Biome installed with its official script joins Other tools and updates in one click too, and release notes for the Claude app show again.
-
-**Every Homebrew and command-line tool click is taken.** A click while another update runs now waits its turn as Queued, with a Cancel, instead of the button staying greyed out until the first one finishes. The menu-bar rows for Homebrew and Other tools offer a Cancel for any update they show, including one started from the workbench.
-
-**Tools that need an administrator password ask at the click.** Helm and Starship in a system folder raise the password panel right away instead of when their turn comes, Update All now includes them with one panel each, and a "sudo" label marks them. DuoUpdater no longer freezes while that panel is up.
-
-**Update All stays available while single apps update.** It used to disappear until that app's update ended; now it updates the rest.
-
-**DuoUpdater says so before Homebrew puts a stable build over your nightly or beta.** If you replaced a Homebrew app with its nightly or beta, the row now marks that updating switches it back to stable, as Homebrew's own upgrade does.
-
-**The workbench shows who started a running command-line tool.** Each process says which app or session started it, and clicking its pid shows the command line, the process chain and the command to stop it.
-
-**Fixes.** At launch the menu bar says Checking… until the first check is done, instead of "Everything is up to date". The Show all checkbox is visible on the menu's glass, and the Homebrew and Other tools rows line up with the apps above them. A double-click on Update or Cancel no longer undoes what its first click did. Apps built with NSH get their own runtime badge.
-
-**Under the hood.** Updates that run as administrator write only into a folder of their own, and Helm is never run as administrator from a file your account could change. A command's last output line no longer flashes as an update moves on.
-]]></description>
             <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.5.12/DuoUpdater-0.5.12-macos.zip" length="14840840" type="application/octet-stream" sparkle:edSignature="71H+IFpumCnHT2HB050hBhwui0uGGfUUqrUXoIAEXou+5CpeByFLKcbSyA+8pT+9O8DznX+HA0BKtr4IKNxEBg=="/>
             <sparkle:deltas>
                 <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.5.12/DuoUpdater130-129.delta" sparkle:deltaFrom="129" length="1903954" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="468528" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="QMHIXW2ZUPLByMLX6z3vAIUbm9K4oPhV4l1C7/ANcg0VHXIwk3gpbyO+dG6Mule+z6XJ9+FRvlGiDaHanBw3Dg=="/>
@@ -101,23 +110,6 @@
                 <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.5.9/DuoUpdater127-124.delta" sparkle:deltaFrom="124" length="2240210" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="468528" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="BNcF9YH1K4FwKUqe9pgeZtUNZW7TUGkJlGn7GgetUAeDWdRCbhjHwRGcIEVtgjN6u0KZ+wBuDDu9Xbg6buTSDw=="/>
                 <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.5.9/DuoUpdater127-123.delta" sparkle:deltaFrom="123" length="2370058" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="468528" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="uTmzCYscGuHHATzyDORoRUz9nlCgz8ZohkDZKtEKR3aODKVhTrls6pueskMxeQoYkd7bONvc/hYVQH0ADlCVDA=="/>
                 <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.5.9/DuoUpdater127-122.delta" sparkle:deltaFrom="122" length="2415126" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="468528" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="VSiFwi8OGnGeU5wsxo7EabHwKkh+nzYDv3nGIOxmi8r0fc7pM6z5AP9zvyucX4JojtAIbeQR/om2vo30yAxDAw=="/>
-            </sparkle:deltas>
-        </item>
-        <item>
-            <title>0.5.8</title>
-            <pubDate>Fri, 16 Oct 2026 01:07:39 +0800</pubDate>
-            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.5.8</link>
-            <sparkle:version>126</sparkle:version>
-            <sparkle:shortVersionString>0.5.8</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
-            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.5.8/DuoUpdater-0.5.8-macos.zip" length="13901899" type="application/octet-stream" sparkle:edSignature="5wmBy6ECU4+wgG8ogWHSwPARZjOrQOHeMcvS52l8YESoa4ejKix1FTEpO9I73VqLe7dcoCMrX1Ao2kEIvNgwDQ=="/>
-            <sparkle:deltas>
-                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.5.8/DuoUpdater126-125.delta" sparkle:deltaFrom="125" length="1676690" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="468528" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="YlhIyEmlNAUTjII+JwFfyDlMMH8gVbs73Pa7epxR4K6JOABSmUoTeXkPgc9rDirkijdDmKhEtBYX/D17EOsvBw=="/>
-                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.5.8/DuoUpdater126-124.delta" sparkle:deltaFrom="124" length="1968490" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="468528" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="AIhsSznUT066JQrVYKjwTL1TZUKpDYylGh36fZTlhCQhZDmln8y+AgP685e9G45vdzl15nOQylVVD/IC59KtBw=="/>
-                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.5.8/DuoUpdater126-123.delta" sparkle:deltaFrom="123" length="2111850" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="468528" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="OaaWxyudXJB8znYAoSi8xO0La/I2Kh4S88neQmmqLSPeP5J29wuOEWHYBATnOzow7as1R2HnFlZL7Vam3nEyCA=="/>
-                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.5.8/DuoUpdater126-122.delta" sparkle:deltaFrom="122" length="2168346" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="468528" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="2tCFHMO3nRMZRoXgEz/Nbmonq9Ykykx46Fse7+jI5KOm2cDpeXwCcOZqc4p2qMlikC6Oyfi23XDmu1A8rdjwCQ=="/>
-                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.5.8/DuoUpdater126-121.delta" sparkle:deltaFrom="121" length="2761330" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="468528" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="4KnAwKeDPHKhKof1dxFV0FiRZI6blyCMuoMN8ETERbf3GMNMuk95g6rG+73YpD2mSkNj8ZJQ3An5OAhPFmMuAg=="/>
             </sparkle:deltas>
         </item>
         <item>

@@ -78,7 +78,7 @@
 
 | | 客户端会停放吗 | 本次实际停放了什么 | 我们能否直接拿来装 |
 |---|---|---|---|
-| 结论 | 会（Squirrel.Mac） | 没有启动 app，未观测 | **不能**，但已有的 Relaunch 路线认得它 |
+| 结论 | 会（Squirrel.Mac） | 真机（2026-10-22）：1.17.2 启动 15 s 后 `~/Library/Caches/org.tropy.tropy.ShipIt/update.*/Tropy.app`（1.17.3）已武装 | **不能**，但已有的让路 / Relaunch 路线认得它（见一键安装） |
 | 证据 | 启动即 `updater.start()`（`src/main/tropy.js`，`state.updater` 默认 true、`--auto-updates` 默认 true），立刻检查并下载；`update-downloaded` 后弹「update ready」提示，用户点了才 `quitAndInstall()`。Electron 官方文档：「a successfully downloaded update will always be applied the next time the application starts」（https://www.electronjs.org/docs/latest/api/auto-updater） | — | `SelfUpdaterStash` 只认 electron-updater 的 `pending/` 和 Cindy，**不读 Squirrel**；但 `SelfUpdaterStaging.staged` 读 `~/Library/Caches/org.tropy.tropy.ShipIt/ShipItState.plist`（按 `targetBundleURL` 对路径），比已装新时走 Relaunch；`SelfUpdaterDownload.squirrelInFlight` 认得下载中。要让 Stash 也读 Squirrel 的包得改引擎，本次不做 |
 
 ## 嵌套 helper（待审项「4 个 helper 的 bundle id 都是 org.tropy.tropy-helper」）
@@ -96,18 +96,20 @@
 - Recipe 状态: 不需要
 
 ## 一键安装
-- 状态: **已接线，真机端到端未做（待主会话）**
+- 状态: **支持（stable），真机通过（2026-10-22，本分支 `make cli` 的 duo）**；beta 轨没在真机上跑
+  - 第一轮（不运行）: 1.17.2 → `duo check` `1.17.2 → 1.17.3 [GitHub, in-place]` → `duo install` `extracting verifyingCodeSignature installing done installed.` → 1.17.3、可执行文件 inode 变、`TeamIdentifier=8LAYR367YV`、`codesign --verify --deep --strict` 退出 0、`spctl` accepted、`diff -r` 与厂商 1.17.3 包相同
+  - 第二轮（运行中，不加 `--no-auto-updates`）: Squirrel 15 s 内暂存了 1.17.3；`duo install --json` → `skipped`，`its own updater already has 1.17.3 staged — quit it to apply, or duo restart`；`duo restart Tropy` → **`still running — likely a save prompt, left 1.17.3 staged`**，并没有存盘框：Tropy 退出很慢，旧进程约 40 s 后才退，ShipIt 14:51:42 开始、14:52:11 装完，磁盘 1.17.3、签名有效，但 app 没被拉起来。另测一次没暂存时的普通退出：9.3 s。即 Tropy 的退出时间超过 `duo restart` 的等待，结果正确、提示语不准
 - 格式: zip（`ditto -x -k`，根目录就是 `Tropy.app` / `Tropy Beta.app`）。stable `^tropy-[0-9]+(?:\.[0-9]+)+-darwin-arm64\.zip$`，beta `^tropy-[0-9]+(?:\.[0-9]+)+-beta\.[0-9]+-darwin-arm64\.zip$`，kind `.zip`。两个 pattern 互不相交（stable 的不允许 `-beta.N`）
 - 签名: 见「基本信息」，Team 前后一致
 - 校验: GitHub 资产 `digest`；`curl` 下来的四个 zip `shasum -a 256` 都等于资产 digest（1.17.3 `92dd44c6…b42192`，1.17.2 `302a4afe…bd2972`，beta.6 `49c1a856…feed0c`，beta.5 `86986cd4…b7f73`）
 - **读的是**: 人人可下的 GA（`/releases/latest`）；beta 是 GitHub 上公开的 prerelease
 
-### 主会话真机要注意的副作用（读源码得来，未在真机观测）
+### 启动副作用（读源码得来；2026-10-22 真机核对的已注明）
 - **自带更新器启动即下载**：stable 1.17.2 启动后会立即请求 `tropy.org/update/latest/darwin/arm64/1.17.2`，拿到 1.17.3 的 zip 解到 `~/Library/Caches/org.tropy.tropy.ShipIt/` 并弹「update ready」提示。这会和我们抢：第二轮（运行中）里，如果 Squirrel 已暂存，我们的行可能变成 Relaunch 而不是 Update。只想测我们的下载路线的话，用 `--no-auto-updates` 启动（`src/main/args.js`：`'auto-updates': { type: 'boolean', default: true }`，`parseArgs` 开了 `allowNegative`、`strict: false`；注意 `--auto-updates=false` 不行，`strict: false` 下它会被读成字符串 `"false"`，仍是真值——按 Node `util.parseArgs` 行为推断，未实测），或者先启动、等它暂存完再看 Relaunch 路线。
 - **造「暂存了比 latest 旧的版本」**：只有 1.17.3 是 latest，没法让厂商 feed 暂存更旧的。办法是装 1.17.1，`--no-auto-updates` 启动避免下载；或者让 Squirrel 先暂存 1.17.3 再换回更旧的副本——`SelfUpdaterStaging` 只认 `targetBundleURL` 指向本路径、且比已装新的暂存包。
 - **改系统设置**：启动时 `app.setAsDefaultProtocolClient('tropy')`（`src/main/index.js`），把 `tropy://` URL scheme 注册给自己。不动壁纸、输入法、默认浏览器。
 - **本地端口**：起一个本地 API 服务，stable 端口 2019，beta 2029（`src/main/tropy.js` `static defaults.port`；`src/main/api.js`）。
-- 没有登录项、LaunchAgent、root helper（包里没有 `Contents/Library/`；GitHub code search `repo:tropy/tropy setLoginItemSettings`、`openAtLogin` 各 `total_count` 0）。没有往 `~/.claude` / `~/.agents` 写东西的迹象（code search `repo:tropy/tropy .claude` `total_count` 0；code search 不覆盖依赖，未真机验证）。
+- 没有登录项、LaunchAgent、root helper（包里没有 `Contents/Library/`；GitHub code search `repo:tropy/tropy setLoginItemSettings`、`openAtLogin` 各 `total_count` 0）。没有往 `~/.claude` / `~/.agents` 写东西的迹象（code search `repo:tropy/tropy .claude` `total_count` 0；code search 不覆盖依赖）。真机首启建了 `~/Library/{Application Support,Caches,Logs}/Tropy`、`~/Library/Caches/org.tropy.tropy{,.ShipIt}`、`~/Library/HTTPStorages/org.tropy.tropy`、偏好 plist
 - 首启：会打开最近项目或空窗口；有没有首启向导没读到，未验证。
 - 单实例锁：`app.requestSingleInstanceLock`，第二次启动会把参数交给已运行的实例然后退出。
 - 数据：`~/Library/Application Support/Tropy`（stable）、`Tropy Beta`（beta），项目文件在用户自选位置。
@@ -120,10 +122,15 @@
 ## 已知问题
 - beta 的 changelog 基本为空（厂商）。
 - `:finland:` 之类 emoji 短码按原文显示。
+- **退出慢**（真机 2026-10-22）：普通退出 9.3 s，有暂存更新时约 40 s，都超过 `duo restart` 的等待；duo 会报「likely a save prompt」并不重新拉起，更新仍由 ShipIt 装上。
 
 ## 建议下一步
-1. 主会话真机两轮。
-2. 1.18.0 正式版出来后复查：`/releases/latest` 指向它、资产名仍是 `tropy-<v>-darwin-arm64.zip`。
+1. beta 轨（`Tropy Beta.app` beta.5 → beta.6）可补一轮真机。
+2. 是否放宽 `duo restart` 对慢退出 app 的等待（同类：ChatGPT 5.4–6.0 s），要 owner 定。
+3. 1.18.0 正式版出来后复查：`/releases/latest` 指向它、资产名仍是 `tropy-<v>-darwin-arm64.zip`。
+
+## 历史与实测
+- 2026-10-22（从 `org-tropy-tropy.swift` beta 规则注释迁出）：原文「listPageSize 8: worst run between two beta tags in the newest 100 releases is 2 (2026-10-22), floor 3, pinned in `GitHubListPageSizeTests`.」——最新 100 个 release 里两个 beta tag 之间最长隔 2 个非 beta release，测试里的下限是 3，规则取 8。
 
 ## 如何复验
 ```

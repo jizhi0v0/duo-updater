@@ -46,10 +46,11 @@ enum org_tropy_tropy {
         // 1.17.3-beta.1, 1.18.0-beta.5 and 1.18.0-beta.6 on 2026-10-22, so
         // this rule is the only thing that tells a beta copy it is behind.
         //
-        // listPageSize 8: worst run between two beta tags in the newest 100
-        // releases is 2 (2026-10-22), floor 3, pinned in
-        // `GitHubListPageSizeTests`. Real 1.18.0-beta.5 and beta.6 zips:
-        // org.tropy.tropy-beta, Team 8LAYR367YV, notarized.
+        // listPageSize 8: well above the worst run of non-beta releases
+        // between two beta tags, pinned in `GitHubListPageSizeTests`. Real
+        // 1.18.0-beta.5 and beta.6 zips: org.tropy.tropy-beta, Team
+        // 8LAYR367YV, notarized.
+        // History: docs/app-audits/org-tropy-tropy.md#历史与实测
         GitHubReleaseRule(
             bundleID: "org.tropy.tropy-beta",
             owner: "tropy", repo: "tropy",

@@ -55,7 +55,7 @@
 
 | | 客户端会停放吗 | 本次实际停放了什么 | 我们能否直接拿来装 |
 |---|---|---|---|
-| 结论 | 不会 | 没查（未做真机第二轮） | 不需要 |
+| 结论 | 不会 | 无（2026-10-22 真机运行 3.1.3 约 15 s，没有停放任何东西） | 不需要 |
 | 证据 | 源码（AlinFoundation `f61241c`，`Sources/AlinFoundation/UpdaterService.swift`）：`downloadUpdate` 把资产写到 `~/Library/Application Support/Sentinel/<资产名>`，紧接着 `unzipAndReplace` 做 `rm -rf <bundle>` + `ditto -xk <zip> <app 目录>` + `rm -f <zip>`，失败时用 `osascript … with administrator privileges` 重做同样三步。zip 只在下载到换包之间存在 | — | — |
 
 - 触发: 启动时 `Updater.checkAndUpdateIfNeeded`（默认频率 daily = 每次启动）只请求 `api.github.com/repos/alienator88/Sentinel/releases` 和 `contents/announcements.json`，置 `updateAvailable` 显示角标，`sheet: false`，不弹窗、不下载。下载只发生在用户点更新面板的 Update（`UpdateView.swift` 的 `updateButtons`）
@@ -72,19 +72,21 @@
 - Recipe 状态: 不需要
 
 ## 一键安装
-- 状态: **支持（规则已接，真机端到端未跑）**
+- 状态: **支持，真机两轮通过（2026-10-22，本分支 `make cli` 的 duo）**
 - 格式: zip，根目录 `Sentinel.app`（3.1.4 的 zip 另带 `__MACOSX/`，`ContentsPayload` 会忽略）。Pattern `^Sentinel\.zip$`，kind `.zip`
 - 嵌套: `Contents/PlugIns/FinderOpen.appex`（Finder Sync 扩展，右键「Sentinel Unquarantine」）。没有 `Contents/Library/LoginItems`、`LaunchDaemons`、`Helpers`，没有嵌套 app。可执行文件链接 ServiceManagement，但那是 AlinFoundation 的 `HelperToolManager`，Sentinel 源码不调用它（`main` 分支全部 17 个 `.swift` 里 `HelperToolManager` / `SMAppService` 零命中）
 - 签名: 3.1.3、3.1.4 都是 `TeamIdentifier=BK8443AXLU`，`codesign --verify --deep --strict` 退出 0，`spctl` `Notarized Developer ID`
 - 校验: GitHub 资产 `digest`。3.1.4 `Sentinel.zip` `sha256:fd329451f8d747b4af065036219d75893e6a98c6f3c33b48e3e766a0caa762eb`，2918208 字节；3.0.0 起的资产都有 digest，2.2 及更早没有（在 GitHub 加 digest 之前上传）
 - **读的是**: 人人可手动下载的 GA（`/releases/latest`；cask 的 url 也是它）
-- 端到端: **未跑**，本次只做到 channel-verify。真机由主会话做
-- 真机注意事项（从源码读的，未在真机上验证）:
+- 端到端:
+  - 第一轮（不运行）: 3.1.3 → `duo check` `3.1.3 → 3.1.4 [GitHub, in-place]` → `duo install` `extracting verifyingCodeSignature installing done installed.` → 3.1.4、可执行文件 inode 变、`TeamIdentifier=BK8443AXLU`、`codesign --verify --deep --strict` 退出 0、`spctl` accepted、`diff -r` 与厂商 3.1.4 包相同
+  - 第二轮（运行中）: 启动 3.1.3（一个窗口），`duo install` 后提示 `Still running the old code`；`duo restart Sentinel` 后新进程 13:46:34 起来，之后 10 s 磁盘一直是 3.1.4、签名有效。前后 `spctl --status` 都是 `assessments enabled`
+- 启动副作用（从源码读的；2026-10-22 真机核对的已注明）:
   - 不要往 Sentinel 窗口或 Dock 图标拖任何东西，不要用 Sentinel 打开 `.app`，不要访问 `sentinel://…?path=` 链接：这些都会对目标跑 `xattr -rd com.apple.quarantine`，「自动启动」偏好默认开，随后还会启动那个 app（`DeepLink.swift`、`CmdDrops.swift`）
   - 不要碰 Gatekeeper 开关：它走 `AuthorizationExecuteWithPrivileges` 弹管理员框跑 `spctl --global-enable/--global-disable`（`Gatekeeper.swift`）
   - 启动本身不要管理员权限、不装 helper / 登录项 / LaunchAgent。启动时会跑 `security find-identity -p codesigning -v`（列签名证书给设置页用）和 `spctl --status`，以及上面两个匿名 GitHub API 请求（与 duo 共享同一 IP 的匿名限额）
-  - Finder 扩展要用户在设置里开（开关调 `FIFinderSyncController.showExtensionManagementInterface()` 打开系统界面）；首启是否默认开着未验证。若真机上它是开着的，换包后 Finder 里正在跑的扩展进程仍是旧代码，直到 Finder 重新拉起它；未验证
-  - 写的地方: `~/Library/Application Support/Sentinel/`（AlinFoundation 启动时建），偏好 `com.alienator88.Sentinel`，app group `group.com.alienator88.Sentinel`
+  - Finder 扩展要用户在设置里开（开关调 `FIFinderSyncController.showExtensionManagementInterface()` 打开系统界面）；真机：首启由系统登记了 `FinderOpen.appex`（`pluginkit -m -v` 列出、没有 `+`，即未启用）。若用户开了它，换包后 Finder 里正在跑的扩展进程仍是旧代码，直到 Finder 重新拉起它；这一点未验证
+  - 写的地方: `~/Library/Application Support/Sentinel/`（AlinFoundation 启动时建），偏好 `com.alienator88.Sentinel`，app group `group.com.alienator88.Sentinel`。真机首启建了 `~/Library/Application Support/Sentinel`、`~/Library/Caches/com.alienator88.Sentinel`、`~/Library/HTTPStorages/com.alienator88.Sentinel`、偏好 plist，以及扩展的 `~/Library/Containers/com.alienator88.Sentinel`
 - 阻塞: 无
 
 ## 已知问题
@@ -105,5 +107,4 @@ swift run --package-path application-test channel-verify out14/Sentinel.app --ex
 ```
 
 ## 建议下一步
-1. 主会话真机两轮（不运行 / 运行中 + `duo restart`），结果补进「一键安装」。
-2. 下一个正式版出来后复查 tag 仍是纯数字、`Sentinel.zip` 仍在。
+1. 下一个正式版出来后复查 tag 仍是纯数字、`Sentinel.zip` 仍在。

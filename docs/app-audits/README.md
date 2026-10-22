@@ -306,6 +306,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**TaskExplorer**](com-objective-see-taskexplorer.md) · `com.objective-see.taskexplorer` — G (one-click universal zip) · 无自更新器（只提示） · 真包 2.1.0/3.0.0/3.1.0 channel-verify ✓（3.0.0、2.1.0 → 3.1.0，3.1.0 up to date） · 2.x 的 `com.objective-see.TaskExplorer` 经 `BundleIDMigration` · 含 Endpoint Security 系统扩展（已激活的扩展换包后去留未验证） · 一键端到端 ✓ 3.0.0 → 3.1.0（不运行） · changelog 结构化 ✓（多一条赞助行） · 2026-10-20
 - [x] [**Lapce**](io-lapce.md) · `io.lapce` — G (one-click universal dmg) · 自研更新器（点「Restart to update」才下载） · 真包 0.4.5/0.4.6 channel-verify ✓（0.4.5 → 0.4.6、0.4.6 up to date） · changelog 结构化 ✓（Features/Changes / Bug Fixes） · **nightly 只识别不推**（同 id 同 plist，`LapceBuild` 读可执行文件里的 `Lapce-Nightly`；只护 GitHub 路径，cask 装后换成 nightly 的副本仍被推 stable cask） · v0.0.6–v0.2.0 的 `0.10.0-dev` 副本不检测 · 一键端到端 ✓ 0.4.5 → 0.4.6（不运行） · 2026-10-20
 - [x] [**Harp**](com-dominikmartn-Harp.md) · `com.dominikmartn.Harp` — G (one-click arm64 dmg) · Warp 的 `oss` 分支，无自更新器 · 真包 0.1.0/0.1.1 channel-verify ✓ · 一键端到端 ✓ 0.1.0 → 0.1.1（不运行 + 运行中 + `duo restart`） · changelog 结构化（列表前的改动段落被解析器丢掉） · 2026-10-20
+- [ ] [**SwiftPlantUML**](us-eidinger-SwiftPlantUML.md) · `us.eidinger.SwiftPlantUML` — G (one-click universal zip) · 无自更新器（「Release Notes」菜单只开网页） · Xcode Source Editor + Finder Action 扩展、XPC service 都按需起，不加 gate · 真包 1.0/1.5.1/1.6.0 channel-verify ✓（→ 1.6.0，1.6.0 up to date） · changelog 结构化 ✓（`Features` 保留） · 一键端到端待主会话 · 2026-10-22
 
 ## Changelog-only (detection via Sparkle or Homebrew)
 

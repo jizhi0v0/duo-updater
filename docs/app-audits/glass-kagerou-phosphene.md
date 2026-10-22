@@ -107,7 +107,7 @@
   - 第一轮（不运行）: 1.11.1 → `duo check` `1.11.1 → 1.11.2 [GitHub, in-place]` → `duo install` `extracting verifyingCodeSignature installing done installed.` → 1.11.2、可执行文件 inode 变、`TeamIdentifier=52K336H235`、`codesign --verify --deep --strict` 退出 0、`spctl` accepted、`diff -r` 与厂商 1.11.2 包相同
   - 第二轮（运行中，先 `defaults write … launchAtLogin -bool false`，自动安装保持默认开）: 启动后 60 s 内它没下载也没停放；`duo install` → `Still running the old code`，`duo restart Phosphene` 后新进程起来，之后 10 s 磁盘一直是 1.11.2、签名有效。「它握着的准备安装在安静时刻再装一遍」这次没造出来
   - 墙纸 `Index.plist` 前后字节相同（Provider 仍是 `default`）；`sfltool dumpbtm`（前后都是 229 条）里没有 phosphene；`~/Library/LaunchAgents` 不变
-  - **发现**: `PhospheneExtension`（墙纸扩展）在 `duo install` 进行中（15:38:47）被系统拉起，**跑的是 duo 的暂存副本** `/Applications/.duoupdater-staged-Phosphene.app/…/PhospheneExtension`（`lsof` 的 txt 路径），换包后这个进程留了下来（ppid 1，app 退出后仍在），二进制路径已不存在；内容是新版 1.11.2，所以不是跑旧代码。系统随后把扩展登记到 `/Applications/Phosphene.app` 的 1.11.2。即 duo 在 `/Applications` 里的暂存目录对 ExtensionKit / LaunchServices 可见
+  - **发现（2026-10-22 复核后更正）**: 墙纸扩展 `PhospheneExtension`[50738] 是 15:38:47 由 WallpaperAgent 从 `/Applications/Phosphene.app/Contents/Extensions/PhospheneExtension.appex` 拉起的（系统日志 `com.apple.extensionkit:launch` 与 `launchd … Successfully spawned PhospheneExtension[50738]`），即**当时装着的 1.11.1**，早于 duo 换包。`replaceItemAt` 交换两个 bundle，旧包在被删前处于 `.duoupdater-staged-Phosphene.app`，所以 `lsof` 对仍映射着的旧二进制显示这个路径。换包后这个扩展进程**继续跑 1.11.1 的代码**（ppid 1，app 退出后仍在），直到它自己退出；`duo restart` 只重启 app，不重启它的扩展。系统随后把扩展登记到 `/Applications/Phosphene.app` 的 1.11.2。之前写的「从 duo 暂存副本拉起、跑的是新版」是错的
 - 格式: dmg（ULFO，universal），根目录 `Phosphene.app` + `Applications` 链接 + 背景图
 - 校验: GitHub digest 与下载的包一致：1.11.2 `sha256:3d9654302692eaef7c01813061d1a8fff5630d187d1553c7bce429ec5aba6c41`，
   1.11.1 `sha256:d2aef6cf18f031a3c415f1a58d41011e9c8c5599715abeae06285d84a9fe5908`
@@ -146,7 +146,7 @@
 
 ## 已知问题
 - 运行中换包后，旧进程握着的准备安装可能在安静时刻再装一遍（同版本无害；旧版本会短暂降级、随后自愈）。见「已停放整包」
-- duo 换包时墙纸扩展可能从 `/Applications/.duoupdater-staged-Phosphene.app` 被拉起并在换包后残留（见「一键安装」）。内容是新版，影响是多一个孤儿进程；根因在 duo 的暂存位置，属引擎问题，本 PR 不改
+- 换包前已被系统拉起的墙纸扩展，换包后继续跑旧版代码直到它退出（见「一键安装」）；`duo restart` 不重启扩展。厂商自己的更新器同样整包替换，结果相同。不改引擎：换个暂存位置也只是把旧包换到那里
 - 1.11.0 那种纯段落正文，changelog 里多一条下载链接和一条商标声明
 
 ## 如何复验

@@ -68,6 +68,11 @@
 
 ## 一键安装
 - 状态: **支持（Cloud 与 Self-Host 第二代 arm64 副本，各装各的 arm64 dmg；brew 装的副本各走各的 cask）**，第一代、x64 副本、两个字面量都含的副本仅检测
+- 端到端，标记互斥 + 只给 arm64 + `hoppscotch-selfhost` cask 之后（2026-10-22，`5affc05b` 的 `make install` + `make cli`）:
+  - GitHub 路线 Self-Host 26.8.2，运行中: `duo check` → `26.8.2 → 26.9.0 [GitHub, in-place]`；`duo install --yes`（14 s）→ 26.9.0，可执行文件 sha256 `5e87fd3f…2e84`（= 厂商 Self-Host 包），签名有效；`duo restart` 后新进程起来
+  - GitHub 路线 Cloud 26.8.2，运行中: `[GitHub, in-place]`；`duo install --yes`（16 s）→ 26.9.0，sha256 `16b26b59…f2e6`（= 厂商 Cloud 包），签名有效
+  - brew 路线 `hoppscotch-selfhost` cask: 用本地 tap 把 cask 钉在 `26.8.2-0`（官方 Self-Host 26.8.2 dmg 的 sha256）装上，Caskroom 记 `26.8.2-0`。`duo check` → `26.8.2 → 26.9.0-0 [Homebrew, in-place]`；运行中 `duo install --yes`（19 s）：brew `🍺 hoppscotch-selfhost was successfully upgraded!`，Caskroom → `26.9.0-0`，可执行文件 sha256 `5e87fd3f…2e84`（= 厂商 Self-Host 26.9.0），`codesign --verify --deep --strict` 退出 0，之后 `duo check` → `Everything is up to date.`。brew 的 `uninstall quit:` 退不掉运行中的 app（`did not quit`，要 Terminal 的自动化授权），换包在活进程底下完成
+  - brew 路线的 `duo restart`：第一次报 `still running — likely a save prompt, left it alone`。原因是那个进程卡在 Gatekeeper 的首次打开确认框（brew 装的副本带 quarantine，测试里是刚装的 26.8.2），没有窗口、也不退出；确认框点「打开」后再 `duo restart` 3 s 完成，新进程映射新可执行文件、有窗口。真实用户在首次打开时就已点过，这一步是测试造的
 - 端到端，加 Self-Host 规则后（2026-10-22，`614c7a02` 的 `make install` + `make cli`）:
   - Self-Host 26.8.2，运行中（可执行文件含 `hoppscotch-selfhost-desktop.json`）: `duo check` → `26.8.2 → 26.9.0 [GitHub, in-place]`；`duo install --yes` `downloading… verifyingSignature extracting verifyingCodeSignature installing done installed.`（16 s）→ 26.9.0，可执行文件 sha256 `5e87fd3f…2e84` 与厂商 26.9.0 Self-Host dmg 里的相同（Cloud 的是 `16b26b59…f2e6`），仍含 Self-Host 标记，`TeamIdentifier=XBK86CMQGZ`、`codesign --verify --deep --strict` 退出 0；`duo restart Hoppscotch` 后新进程（17:01:33 起）跑 `/Applications/Hoppscotch.app`
   - Cloud 26.8.2，运行中（回归）: `duo check` → `26.8.2 → 26.9.0 [GitHub, in-place]`；`duo install --yes`（14 s）→ 26.9.0，可执行文件 sha256 `16b26b59…f2e6` 与厂商 Cloud 包相同、无 Self-Host 标记、签名有效；`duo restart` 后新进程起来
@@ -107,7 +112,7 @@
 - **只发 Self-Host 资产的 release：arm64 Self-Host 副本已补上，x64 Self-Host 副本仍漏。** 加了 Self-Host 规则（2026-10-22）后，arm64 Self-Host 副本按 Self-Host dmg 认版本，`v26.6.1-0` 这类 release 会作为更新出现（`HoppscotchEditionRuleTests.aSelfHostCopySeesASelfHostOnlyRelease` 回放了它）。x64 Self-Host 副本的可执行文件没有完整的 Self-Host 字面量，仍落在 Cloud 规则上：遇到只发 Self-Host 资产的 release 时，`/releases/latest` 无 Cloud dmg、回退列表、跳过该 tag，答出前一个有 Cloud dmg 的版本（`v26.6.1-0` 做 latest 的约 15 天里就是这样）。读不出可执行文件的副本同理。反向（缺 Self-Host 资产的 release 让 Self-Host 副本看到没有 Self-Host 包的更新）现在不会发生：Self-Host 规则只认 Self-Host dmg。`hoppscotch-selfhost` cask 装的副本由 Homebrew 源先答，不受影响。
 - 第一代、x64 副本只有检测没有一键，见上。x64 副本被拒是因为字面量不完整，不是因为它是别的版本；可执行文件里另有 `Sitemap: https://hoppscotch.io/sitemap.xml`（Cloud）/ `Sitemap: http://localhost:3000/sitemap.xml`（Self-Host）可以同时分出两种架构（上面所有样本都对得上），没有用
 - changelog 面板只有一行 bump 说明，见上
-- `hoppscotch-selfhost` cask 装的副本：已放开（加进 Self-Host gate 的 `offering`，与 `hoppscotch` cask 对称）。被 `hoppscotch-selfhost` cask 认领的 Cloud 副本（用户拿 Cloud dmg 覆盖了 cask 装的 Self-Host）由 Self-Host gate 拒，不会被 brew 装回 Self-Host。**待真机验证**：brew 路线（`hoppscotch-selfhost` cask 装的 Self-Host 副本一键升级）还没在真机上跑过，由用户跑
+- `hoppscotch-selfhost` cask 装的副本：已放开（加进 Self-Host gate 的 `offering`，与 `hoppscotch` cask 对称）。被 `hoppscotch-selfhost` cask 认领的 Cloud 副本（用户拿 Cloud dmg 覆盖了 cask 装的 Self-Host）由 Self-Host gate 拒，不会被 brew 装回 Self-Host。brew 路线真机已过（2026-10-22，见「一键安装」端到端）
 - x64 dmg 不再给一键：以前 arm64 副本可能被给到 x64 dmg，gate 放行、下完整包后装包检查以 `packageEditionMismatch` 失败（理由误导），且每次检查按钮重现；现在 `offering` 只列 arm64 dmg，下载前拒
 - 安装时的 gate 在 `InstallCoordinator.perform` 开头读一次（不走缓存），到换包之间副本若被换成别的版本，不会再查
 - 下载下来的包现在查版本（见「门控」），但只在 `.vendor` 路线；brew 路线（`Homebrew:hoppscotch`、`Homebrew:hoppscotch-selfhost`）换包由 brew 做，不查。这两个是 `everyOfferAScopedGateNamesHasAPackageCheck` 里列明的例外；brew 按 cask 的 sha256 校验下载，但不知道版本标记
@@ -138,5 +143,4 @@ swift run --package-path application-test channel-verify <26.8.2 Self-Host dmg> 
 - 2026-10-22（全量扫描：GitHub API 列出的全部非 prerelease release 中每个 `Hoppscotch_mac_aarch64.dmg` 与 `Hoppscotch_SelfHost_mac_aarch64.dmg`，逐个下载、挂载，对 `Contents/MacOS/hoppscotch-desktop` 做 `LC_ALL=C grep -a -c -F`）：第二代 Cloud 45 个（`v25.2.0-0`…`v26.9.0-0`）全部 Self-Host 字面量 0、Cloud 字面量 1；Self-Host 39 个（`v25.4.0-0`…`v26.9.0-0`，含只有 Self-Host 的 `v26.6.1-0`）全部 Self-Host 1、Cloud 0。两种标记在已发布的 arm64 包里互斥。有 API `digest` 的包 sha256 全部相同，`v25.5.1-0` 及更早的资产 API 不给 digest（17 个，无从比对）。第一代（版本带 `-N`，42 个）没有 `hoppscotch-desktop` 这个可执行文件，不在规则范围内。
 
 ## 建议下一步
-1. 真机验证 `hoppscotch-selfhost` cask 的 brew 一键（已决定放开，与 `hoppscotch` cask 对称；用户来跑）。
-2. 决定要不要为 hoppscotch.com 的发版说明写 ChangelogRecipe。
+1. 决定要不要为 hoppscotch.com 的发版说明写 ChangelogRecipe。

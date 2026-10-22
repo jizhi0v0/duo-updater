@@ -60,7 +60,7 @@
 
 | | 客户端会停放吗 | 本次实际停放了什么 | 我们能否直接拿来装 |
 |---|---|---|---|
-| 结论 | 会，两处 | 没查（真机待主会话） | ○ |
+| 结论 | 会，两处 | 真机（2026-10-22）：1.15.0 启动 16 s 后 `~/Library/Caches/Folo/pending/` 有 `Folo-1.16.0-macos-arm64.zip` + `update-info.json`，`is.follow.ShipIt/update.*/Folo.app` 已武装（`ShipItState.plist` 指向 `/Applications/Folo.app`） | ○（ShipIt 那份由通用路径让路，见一键安装） |
 | 证据 | `configs.ts`: `autoCheckUpdate`、`autoDownloadUpdate` 都是 true，15 min 轮询；`index.ts`: `autoInstallOnAppQuit = true`。`app.asar` 里 `MacUpdater`：electron-updater 下完 zip 后立刻起本地代理喂给 Squirrel.Mac（`nativeUpdater.checkForUpdates()`），Squirrel 再暂存一份 | — | `SelfUpdaterStash` 的 electron 布局只认 bundle 自己声明的 `updaterCacheDirName`，Folo 的 `app-update.yml` 没有（`owner/repo/provider: custom/private`），所以不读 |
 
 - 停放位置（从 `app.asar` 读）: electron-updater 是 `path.join(baseCachePath, dirName || app.name)`，没有 `updaterCacheDirName` 时就是 `~/Library/Caches/Folo/pending/`（`update-info.json` + zip，完成后才写记录，sha512 base64）；Squirrel.Mac 是 `~/Library/Caches/is.follow.ShipIt/`。后者由引擎通用的 ShipIt 处理（`SelfUpdaterStaging`）
@@ -74,17 +74,20 @@
 - Recipe 状态: 不需要
 
 ## 一键安装
-- 状态: **支持**（rule 已接；真机端到端未跑，待主会话）
+- 状态: **支持，真机两轮通过（2026-10-22，本分支 `make cli` 的 duo）**
 - 格式: dmg（`hdiutil imageinfo`: `UDZO`），根目录 `Folo.app`。Pattern `^Folo-[0-9]+(?:\.[0-9]+)+-macos-arm64\.dmg$`，kind `.dmg`
 - 嵌套: 只有 `Contents/Frameworks/Folo Helper{, (GPU), (Plugin), (Renderer)}.app`（Electron 的子进程 helper，随主进程退出），没有 `Contents/Library/LoginItems`、`Contents/Helpers`、LaunchAgent
 - 签名: 1.15.0 和 1.16.0 都是 `TeamIdentifier=492J8Q67PF`，`spctl` `Notarized Developer ID`，`codesign --verify` 通过
 - 校验: GitHub 资产 `digest`。1.16.0 arm64 dmg 资产 `sha256:0b44b8d39115ec6d1c0f88e0f47abb0da5d866a4dc19248c22ac51b4e6922673`，下载的文件 `shasum -a 256` 相同，140223564 字节等于资产大小
 - **读的是**: 人人可手动下载的 GA（`/releases/latest`；厂商自己的 OTA manifest 也指向同一批 GitHub 资产）
-- 端到端: **未跑**。这次接入在隔离环境里做，按约定真机由主会话跑。主会话要注意:
+- 端到端:
+  - 第一轮（不运行）: 1.15.0 → `duo check` `1.15.0 → 1.16.0 [GitHub, in-place]` → `duo install` `extracting verifyingCodeSignature installing done installed.` → 1.16.0、可执行文件 inode 变、`TeamIdentifier=492J8Q67PF`、`codesign --verify --deep --strict` 退出 0、`spctl` accepted、`diff -r` 与厂商 1.16.0 包相同
+  - 第二轮（运行中）: 启动 1.15.0，等它自己停放 1.16.0（见上表）后 `duo install --json` → `skipped`，原因 `its own updater already has 1.16.0 staged — quit it to apply, or duo restart`（让路给同版本的暂存）；`duo restart Folo` → `quit — its own updater applied 1.16.0`：ShipIt 13:33:29 开始、13:33:30 装完，新进程 13:33:30 起来，之后 10 s 磁盘一直是 1.16.0、签名有效
+- 启动副作用（2026-10-22 真机核对的已注明）:
   - 启动会注册 `folo://` URL scheme（`setAsDefaultProtocolClient`）
   - 开机启动是设置里的开关（`setLoginItemSettings({openAtLogin})`），不是默认写入；没有 LaunchAgent / root helper
-  - 1.15.0 的 release note 之后修了「每次启动都把会话写进 Folo CLI 配置」：`~/.folo/config.json`（`app.asar` 里 `CLI_CONFIG_DIR = ~/.folo`）。不登录时预计不写，启动前后对比 `~/.folo`
-  - 首启界面未看（未验证）；不往 `~/.claude`、`~/.agents` 写（`app.asar` 里没有 `.claude`；`.agents` 两处命中是无关的压缩代码）
+  - 1.15.0 的 release note 之后修了「每次启动都把会话写进 Folo CLI 配置」：`~/.folo/config.json`（`app.asar` 里 `CLI_CONFIG_DIR = ~/.folo`）。不登录时预计不写。真机：没登录，启动后没有 `~/.folo`
+  - 真机首启建了 `~/Library/{Application Support,Logs,Caches}/Folo`、`~/Library/Caches/is.follow{,.ShipIt}`、`~/Library/HTTPStorages/is.follow`、`~/Library/Preferences/is.follow.plist`；不往 `~/.claude`、`~/.agents` 写（`app.asar` 里没有 `.claude`；`.agents` 两处命中是无关的压缩代码）
   - 运行中会自己下载并经 Squirrel 暂存新版，退出时由 ShipIt 装上（`autoInstallOnAppQuit`）
 - 阻塞: 无（Follow 时期 `-beta.N` 副本见覆盖清单，是检测缺口）
 
@@ -108,6 +111,5 @@ curl -s -H 'X-App-Platform: desktop/macos/dmg' -H 'X-App-Version: 1.15.0' -H 'X-
 ```
 
 ## 建议下一步
-1. 主会话真机两轮（见一键安装一节），把结果补进本节和 README 行
-2. 若要覆盖 Follow 时期 `-beta.N` 副本：`ReleaseChannel.detect` 加 `is.follow` 分支（引擎改动，待 owner 定）
-3. 若要用上停放的 zip：`SelfUpdaterStash` 给 `is.follow` 明确停放目录 `Folo`（引擎改动；先确认两份副本共用目录的处理）
+1. 若要覆盖 Follow 时期 `-beta.N` 副本：`ReleaseChannel.detect` 加 `is.follow` 分支（引擎改动，待 owner 定）
+2. 若要用上停放的 zip：`SelfUpdaterStash` 给 `is.follow` 明确停放目录 `Folo`（引擎改动；先确认两份副本共用目录的处理）

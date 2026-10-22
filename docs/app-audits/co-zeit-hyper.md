@@ -21,7 +21,7 @@
 当前生效源: **GitHub**（channel-verify 实测）。`feed-discover` 对 3.4.0 dmg：`review electronProviderNeedsConstruction`——bundle 里有 electron-builder 生成的 `Contents/Resources/app-update.yml`（`owner: zeit, repo: hyper, provider: github`），但 app 不用它（`updater.ts` 只用 `electron.autoUpdater`），`ElectronManifestSource` 也不构造 github provider，所以不会被 generic 源覆盖，需要这条 rule。
 
 ## 覆盖清单
-- **bundle id**: 只有 `co.zeit.hyper`。最老查到的 3.0.2（2019，x86_64）也是它，没有改名。
+- **bundle id**: `co.zeit.hyper`，唯一的一次改名在 0.8.0 → 0.8.1 之间。0.8.0（2016-10-06）发的是 HyperTerm：`package.json` @ `0.8.0` 的 `build.appId` 是 `co.zeit.hyperterm`，`app/package.json` 的 `productName` 是 `HyperTerm`，资产是 `hyperterm-0.8.0-mac.zip` / `hyperterm-0.8.0.dmg`；0.8.1（2016-10-11）起 `appId` 是 `co.zeit.hyper`、资产是 `hyper-0.8.1-mac.zip`。最老真包 3.0.2（2019，x86_64）已经是 `co.zeit.hyper`。`co.zeit.hyperterm` 的副本没有覆盖，见「已知问题」。
 - **发版轨道**: stable 和 canary。canary 的 tag 全部是 `…-canary.N`，GitHub 上 47 个 canary release 都标了 `prerelease: true`。app 里用 `~/.hyper.js` 的 `updateChannel: 'canary'` 切轨，canary 构建的 Info.plist 与 stable 只差版本号（`4.0.0-canary.5`）。见「Channel 详情」。
 - **版本范围**: 3.0.2（2019）到 3.4.1 Team 都是 `JW6Y669B67`，安装闸不会拒旧副本。2.x 及更早没有下载核对（只影响 2019 年以前的副本，一键装的是最新 arm64 包，Team 闸比对的是装好的旧副本，如果 Team 不同会拒，不会误装）。
 - **我们的主机下限**: DuoUpdater 只出 arm64。3.1.0 起有 arm64 资产；3.0.2 及更早只有 x86_64，这类副本也会被提示 3.4.1、一键装成 arm64（Team 相同）。
@@ -90,7 +90,7 @@
 ## 一键安装
 - 状态: **支持，真机两轮通过（2026-10-22，本分支 `make cli` 的 duo）**
   - 第一轮（不运行）: 3.4.0 → `duo check` `3.4.0 → 3.4.1 [GitHub, in-place]` → `duo install` `downloading… extracting verifyingCodeSignature installing done installed.` → 3.4.1、可执行文件 inode 变、`TeamIdentifier=JW6Y669B67`、`codesign --verify --deep --strict` 退出 0、`spctl` accepted（Notarized Developer ID）、`diff -r` 与厂商 3.4.1 包相同
-  - 第二轮（运行中）: 启动 3.4.0 后立即 `duo install`（12:46:45 → 12:47:17 完成，提示 `Still running the old code: Hyper`）。装的过程中 Squirrel 已停放 3.4.1，ShipIt 12:47:08 武装。`duo restart Hyper`：旧进程退出 → ShipIt 12:47:35 开始安装、12:47:41 把它停放的 3.4.1 换进 `/Applications/Hyper.app`（`Installation completed successfully`）；我们的重启 12:47:35 已拉起新进程，所以 **ShipIt 的换包发生在新进程运行期间**。两边是同一版本（`RestartStandoff` 的「同一构建就放行」），结果正确：磁盘 3.4.1、签名有效，新进程正常运行、退出正常。停放的若不是同一版本会怎样，这次没有造出来（Hazel feed 只回最新版）
+  - 第二轮（运行中）: 启动 3.4.0 后立即 `duo install`（12:46:45 → 12:47:17 完成，提示 `Still running the old code: Hyper`）。装的过程中 Squirrel 已停放 3.4.1，ShipIt 12:47:08 武装。`duo restart Hyper`：旧进程退出 → ShipIt 12:47:35 开始安装、12:47:41 把它停放的 3.4.1 换进 `/Applications/Hyper.app`（`Installation completed successfully`）；我们的重启 12:47:35 已拉起新进程，所以 **ShipIt 的换包发生在新进程运行期间**。两边都是 3.4.1（Hyper 的 Squirrel 停放的就是 latest），所以后写的一方无害：磁盘 3.4.1、签名有效，新进程正常运行、退出正常。这条路径上没有任何守卫在判断：`duo restart` 走 `AppRestarter.restart`（退出再拉起），不查 `RestartStandoff`；GUI 的 Restart 只对 Sparkle 暂存才去读（`result.app.hasSparkleUpdater`），Hyper 带的是 `Squirrel.framework`，`staged` 为 nil、`decide` 直接 `.proceed`。停放的若不是同一版本会怎样，这次没有造出来（Hazel feed 只回最新版）
 - 格式: dmg（`hdiutil imageinfo`：UDZO），根目录 `Hyper.app` + `Applications` 软链。kind `.dmg`
 - 嵌套: `Contents/Frameworks` 下 4 个 Electron helper（`Hyper Helper{, (GPU), (Plugin), (Renderer)}.app`，`LSUIElement`，随主进程起停）；没有 `Contents/Library/LoginItems`、LaunchAgent、XPC helper
 - 签名: 3.4.0、3.4.1 都是 `TeamIdentifier=JW6Y669B67`，`codesign --verify` 通过，`spctl` Notarized Developer ID，hardened runtime
@@ -114,6 +114,7 @@
 - canary 副本被识别成 stable（见「Channel 详情」）；一键已挡，检测会对 3.x canary 提示 stable 3.4.1、对 4.0.0-canary.1–4 显示 up to date。
 - changelog 丢了 3.4.1 的说明段。
 - 厂商 2023 年后没有发版。
+- `co.zeit.hyperterm`（HyperTerm 0.8.0 及更早的 0.x，2016，Electron 1.4，x86_64）的副本没有覆盖：唯一的 rule 绑 `bundleID: "co.zeit.hyper"`，`BundleIDMigration` 里也没有 `hyperterm`；Homebrew 源丢掉 `auto_updates` 的 cask（`HomebrewCaskSource`），所以这类副本的行不显示更新。不加 migration 的原因：`BundleIDMigration` 只能在同一个 Team 内迁移（`teamID` 字段，装机时 Team 闸先跑），而 0.8.0 的 Team 没核实：没有下载 0.8.0 的 zip 看签名，`.travis.yml` @ `0.8.0` 里也没有签名/证书步骤（`grep -ciE "csc|sign|cert"` 为 0，仅此一项，不能推出它没签名），Team 是否等于 `JW6Y669B67` 未验证。2016 年的包，影响面极小。它自带的更新器也已经指不到东西：`app/auto-updater.js` @ `0.8.0` 的 `FEED_URL` 是 `https://hyperterm-updates.now.sh/update/<platform>`，2026-10-22 请求 `…/update/osx/0.8.0` 先 308 到 `hyperterm-updates.vercel.app`，再回 404，所以这类副本自己也升不到 `co.zeit.hyper`。recipe 里「`3.0.2 … 0.8.0` 都是同一个 app 的 stable」按 bundle id 说不准确，对用户可见的行为没有影响（检测和 changelog 只读 `/releases/latest`）。
 
 ## 建议下一步
 1. 如果 Hyper 再发 canary，再考虑 `ReleaseChannel.detect` 认 `-canary.<N>` + canary rule。

@@ -248,6 +248,7 @@ public enum AppRecipeIndex {
         eu_davidbures_cork.set,
         eu_exelban_Stats.set,
         fr_handbrake_HandBrake.set,
+        glass_kagerou_adrafinil.set,
         glass_kagerou_phosphene.set,
         im_riot_app.set,
         info_marcel_dierkes_KeepingYouAwake.set,

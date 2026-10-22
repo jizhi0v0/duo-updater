@@ -70,7 +70,19 @@ struct OneClickGateTests {
 
     @Test func theRegisteredGatesAreTheMeasuredCases() {
         #expect(Set(OneClickGateRegistry.gates.map(\.bundleID))
-            == ["org.musescore.MuseScore", "com.axosoft.gitkraken", "ai.memoh.desktop"])
+            == ["org.musescore.MuseScore", "com.axosoft.gitkraken", "ai.memoh.desktop", "co.zeit.hyper"])
+    }
+
+    /// Versions of the real bundles: stable 3.4.1, 3.4.0, 3.0.2 and the canary
+    /// 4.0.0-canary.5, all `co.zeit.hyper`, Team JW6Y669B67. Older canary
+    /// tags (`3.4.0-canary.1`, `3.0.1-canary.4`) stamp the same shape.
+    @Test func hyperOneClickIsForStableCopiesOnly() {
+        for version in ["3.4.1", "3.4.0", "3.0.2", "4.0.0"] {
+            #expect(OneClickGateRegistry.withholding(app("co.zeit.hyper", version)) == nil, "\(version)")
+        }
+        for version in ["4.0.0-canary.5", "3.4.0-canary.1", "3.0.1-canary.4"] {
+            #expect(OneClickGateRegistry.withholding(app("co.zeit.hyper", version)) != nil, "\(version)")
+        }
     }
 
     @Test func museScoreOneClickIsFor4xCopiesOnly() {

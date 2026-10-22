@@ -262,6 +262,7 @@ public enum AppRecipeIndex {
         io_github_tobi_disktree.set,
         io_github_wickenico_wailbrew.set,
         io_lapce.set,
+        io_masscode_app.set,
         io_nekohasekai_screensharing.set,
         io_podmandesktop_PodmanDesktop.set,
         io_rancherdesktop_app.set,

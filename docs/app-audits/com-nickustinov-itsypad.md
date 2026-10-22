@@ -53,7 +53,7 @@
 
 | | 客户端会停放吗 | 本次实际停放了什么 | 我们能否直接拿来装 |
 |---|---|---|---|
-| 结论 | 不会 | 没查（未做真机第二轮） | 不需要 |
+| 结论 | 不会 | 没跑运行中一轮（见一键安装）；源码里不下载 | 不需要 |
 | 证据 | `UpdateChecker.swift` 不下载任何东西 | — | — |
 
 ## Changelog
@@ -68,14 +68,18 @@
 - Recipe 状态: 不需要
 
 ## 一键安装
-- 状态: **支持**（规则已开；真机端到端未跑，由主会话做）
+- 状态: **支持，真机不运行一轮通过（2026-10-22，本分支 `make cli` 的 duo）**
 - 格式: dmg（`hdiutil imageinfo` Format UDZO），根目录 `Itsypad.app` + `Applications` 软链。kind `.dmg`
 - 嵌套: 1.8.2 起 `Contents` 下只有 `Info.plist`、`MacOS`、`PkgInfo`、`Resources`、`_CodeSignature`、`embedded.provisionprofile`：没有 LoginItems / Helpers / XPC / Frameworks / LaunchAgent plist（1.0.0–1.0.5 带一个 `CodeLanguages_Container.framework`，1.3.0 起去掉）。「Open at login」是设置里的开关，`SMAppService.mainApp.register()` 把 app 本身登记为登录项，默认关（`SettingsStore.launchAtLogin = false`），没有常驻 helper
 - 沙盒: Developer ID 版也带 `com.apple.security.app-sandbox`，外加 CloudKit / iCloud KVS、`network.client`、`~/Library/Application Support/Itsypad/` 的临时例外（旧版数据迁移用）；数据在 `~/Library/Containers/com.nickustinov.itsypad`
 - 签名: 1.17.0、1.18.0 都是 `TeamIdentifier=R892A93W42`，`spctl` Notarized Developer ID；1.0.1 的 Team 例外见「覆盖清单」
 - 校验: GitHub 资产 `digest`。下载的 1.17.0 / 1.18.0 dmg `shasum -a 256` 分别为 `8cf7bb25…304c68` / `d93d98de…2cff7bbe`，与 API 的 `digest` 相同，字节数等于资产大小（3519026 / 3535231）；其余 29 个包同样一致
 - **读的是**: 人人可手动下载的 GA（`/releases/latest`，README 的下载说明指向 GitHub releases）
-- 端到端: 未跑（这一轮的接入不做真机）。主会话真机时注意（均读自 `main` 源码，未在运行中观察）：
+- 端到端:
+  - 1.17.0 → `duo check` `1.17.0 → 1.18.0 [GitHub, in-place]` → `duo install` `extracting verifyingCodeSignature installing done installed.` → 1.18.0、可执行文件 inode 变、`TeamIdentifier=R892A93W42`、`codesign --verify --deep --strict` 退出 0、`spctl` accepted、`diff -r` 与厂商 1.18.0 包相同
+  - 小写的 `itsypad.app` 1.6.0 → `duo check` `1.6.0 → 1.18.0 [GitHub, in-place]` → `duo install` 成功；**换完目录名仍是小写 `itsypad.app`**，里面是 1.18.0（可执行文件 `Itsypad`），签名 / `spctl` 通过，`duo check` 不再列出更新
+  - **运行中一轮没跑**：启动即默认开剪贴板监控并经 CloudKit 同步到登录的 iCloud 账号（见下），在开发机上跑会把用户的剪贴板写进 iCloud；它的更新器只提示不下载，运行中换包走通用的 quit → swap → relaunch 路径
+- 启动副作用（均读自 `main` 源码，未在运行中观察）：
   - 启动即显示编辑器窗口并 `NSApp.activate(ignoringOtherApps: true)` 抢前台（`AppDelegate.setupEditorWindow`）；首次启动在窗口里放一个「Welcome to Itsypad」标签页，不是模态框
   - 启动时按设置注册全局热键（`HotkeyManager.shared.register()`；无设置时的默认是三击左 Option，是否因此触发输入监控/辅助功能授权框未验证）、默认开剪贴板监控（`clipboardEnabled` 默认 true），会把运行期间的剪贴板内容记进它自己的历史
   - iCloud 同步默认开（`icloudSync` 默认 true，`SettingsStore` 339 行），启动时 `registerForRemoteNotifications` 并经 CloudKit 同步标签页和剪贴板历史到登录的 iCloud 账号。真机验证会把测试期间的内容写进那个账号的私有库，验完要在设置里关掉或清理（未验证实际写入了什么）
@@ -84,7 +88,7 @@
 - 阻塞: 无
 
 ## 已知问题
-- 从 1.6.0 及更早（`itsypad.app`）一键到 `Itsypad.app`：bundle 目录名的大小写变了（可执行文件名两段都是 `Itsypad`）。安装器在原路径换包，换完的目录名是否保持小写没有验证（我的推断：不影响启动）
+- 从 1.6.0 及更早（`itsypad.app`）一键：安装器在原路径换包，真机（2026-10-22）换完目录名保持小写 `itsypad.app`，内容是 1.18.0、签名有效。没启动验证（见上）
 - 1.0.1 的副本一键被 Team 闸拒，见「覆盖清单」
 
 ## 如何复验
@@ -100,4 +104,4 @@ curl -sS "https://itunes.apple.com/lookup?bundleId=com.nickustinov.itsypad&count
 ```
 
 ## 建议下一步
-1. 主会话真机端到端：1.17.0 → 1.18.0，不运行 + 运行中 + `duo restart`，然后把 README 那一行的「一键端到端待主会话」换成结果。
+1. 运行中一轮可在一台关掉 iCloud 同步 / 剪贴板监控的机器上补跑。

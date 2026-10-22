@@ -55,6 +55,7 @@ public enum AppRecipeIndex {
         com_astrlink_desktop.set,
         com_axosoft_gitkraken.set,
         com_baidu_BaiduNetdisk_mac.set,
+        com_bilingify_readest.set,
         com_bitwarden_desktop.set,
         com_bjango_istatmenus.set,
         com_BlueBubbles_BlueBubbles_Server.set,

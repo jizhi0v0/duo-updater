@@ -426,7 +426,9 @@ public enum StagedRelaunch {
     /// `.wontQuit` later, by at most `slowQuitTicks`. No permission needed: the
     /// probe that measured ChatGPT ran as a fresh LaunchAgent binary with no
     /// Screen Recording grant and counted its window; only window titles are
-    /// withheld without it.
+    /// withheld without it. Window numbers are not: a probe submitted to
+    /// launchd, 2026-10-22, with `CGPreflightScreenCaptureAccess()` false, read
+    /// a number for 38 of 38 windows and a title for 1.
     public static func onScreenWindows(pids: Set<pid_t>) -> Set<OnScreenWindow> {
         guard !pids.isEmpty,
               let list = CGWindowListCopyWindowInfo(

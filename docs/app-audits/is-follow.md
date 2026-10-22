@@ -16,13 +16,14 @@
 |              | Sparkle | Homebrew | MAS | GitHub | VendorProbe |
 |--------------|---------|----------|-----|--------|-------------|
 | **stable**   | —       | —（`auto_updates`，`HomebrewCaskSource` 让出） | —（只有 iOS 版） | ✓ | — |
+| **beta**（Follow 时期 `-beta.N` 副本） | — | — | — | ✓（只检测，给最新稳定版） | — |
 
 当前生效源: **GitHub**（channel-verify 实测，见如何复验）。`feed-discover` 对 1.16.0 dmg: `review electronProviderNeedsConstruction`——bundle 里的 `app-update.yml` 是 `provider: custom`，地址在代码里构造，`ElectronManifestSource` 读不了，所以需要 GitHub rule。
 
 ## 覆盖清单
 - **bundle id**: 读了 5 个年代的真包，都是 `is.follow`：0.1.0-beta.0（universal，`Follow.app`）、0.2.6-beta.0、0.3.12（最后一个 Follow 名字的版本）、0.9.0、1.15.0、1.16.0。改名没换 id，不需要 `BundleIDMigration`。
-- **Team**: 二分真包得出换 Team 的点：0.3.3-beta.0 = `NCLY2BLCL2`，0.3.4-beta.0 / 0.3.5 / 0.3.7 / 0.3.12 / 0.9.0 / 1.15.0 / 1.16.0 = `492J8Q67PF`。0.3.3-beta.0 及更早的副本一键会被 Team 闸拒（见下一条，它们实际上连检测都拿不到）。
-- **Follow 时期的 `-beta.N` / `-alpha.N` 副本（0.3.4-beta.1 及更早）**: 这些 tag 在 GitHub 上**不标 prerelease**，当时就是主线；但 bundle 的 `CFBundleShortVersionString` 带 `-beta.0`，`ReleaseChannel.detect` 按版本后缀判成 beta（channel-verify 0.2.6-beta.0 dmg: `inferred beta` → `winning source <none>`，`status unknown`）。stable rule 按通道闸不服务它们，于是这批副本显示 unknown。**缺口，未接**。现有机制里能解的是在 `ReleaseChannel.detect` 里给 `is.follow` 加一个按 bundle id 的分支（`-beta.N` 视为 stable），那是引擎改动，不在这次接入里做。它们最晚的是 2025-02 的构建，`≤0.3.3-beta.0` 即使判成 stable 一键也会被 Team 闸拒。
+- **Team**: 二分真包得出换 Team 的点：0.3.3-beta.0 = `NCLY2BLCL2`，0.3.4-beta.0 / 0.3.5 / 0.3.7 / 0.3.12 / 0.9.0 / 1.15.0 / 1.16.0 = `492J8Q67PF`。0.3.3-beta.0 及更早的副本一键会被 Team 闸拒（它们都是 `-beta.N` / `-alpha.N` 版本，见下一条）。
+- **Follow 时期的 `-beta.N` 副本（`0.1.0-beta.0` … `0.3.4-beta.1`，2024-10 到 2025-02，21 个 release）**: 这些 tag 在 GitHub 上**不标 prerelease**，当时就是主线；但 bundle 的 `CFBundleShortVersionString` 带 `-beta.N`，`ReleaseChannel.detect` 按版本后缀判成 beta，stable rule 按通道闸不服务它们。**✓（只检测）**：加了一条 `channel: .beta` 的 GitHub rule，同一个仓库、同样的 tag 模式、读 `/releases/latest`（`desktop/v1.16.0`），不带 `installAssetPattern` / `installerKind` / `installedTagPrefix`，这批副本看到最新稳定版。只检测的理由：非 stable 轨的安装要 channel proof，而能区分两者的只有已装副本的版本号；`≤0.3.3-beta.0` 的副本还是 Team `NCLY2BLCL2`，一键本来也会被 Team 闸拒。副本手动换成稳定版后由 stable rule 服务。真包结果见「历史与实测」。更早的 `0.0.1-alpha.N` 副本 `ReleaseChannel.detect` 判 stable（单测探针：`0.0.1-alpha.22`、`0.0.1-alpha.3` → stable），由 stable rule 检测，没有读真包
 - **其他轨**: 桌面端现在只有 stable。`desktop/v1.6.0`、`v0.6.0` 标了 prerelease，`/releases/latest` 本来就跳过；`allowPrerelease = channel !== "stable"`（`index.ts`），channel 是构建时定的，GitHub 上没有非 stable 的桌面构建可读。
 - **移动端 tag**（`mobile/v0.6.1` 等 19 个）: 是 iOS/Android app，没有 macOS 资产，pattern 锚定 `^(?:desktop/)?v…$` 有意不收。`/releases/latest` 目前指 `desktop/v1.16.0`（2026-10-22），尽管 `mobile/v0.6.1` 发得更晚——仓库手动把桌面版标成 latest。万一哪天 latest 变成 mobile tag：它不带匹配的 dmg，source 会退到列表页（20 条，`stableOnly`），mobile tag 不匹配 pattern、不计入「缺资产」次数，往下找到最近的 desktop tag。
 - **iOS 版（App Store 的 `is.follow`）**: 同一个 bundle id，在 Apple 芯片 Mac 上能装的是 wrapped iOS bundle。`AppScanner` 对 wrapped bundle 置 `isMASApp = true`（`Scan/AppScanner.swift` `isMAS = !isTestFlight && (isiOSAppOnMac || hasReceipt)`），`UpdateChecker` 对 `isMASApp` 跳过 `answersAppStoreCopies == false` 的 source（GitHub 是 false），所以 GitHub rule 不会给 iOS 版报 1.16.0、更不会拿 dmg 盖掉它。**这条是读代码得出的，没有在真实的 wrapped 副本上跑过**。
@@ -34,7 +35,7 @@
 | Channel | Bundle ID | 独立/共享 | 检测信号 | 门控方式 | 状态 |
 |---------|-----------|----------|---------|---------|------|
 | stable  | `is.follow` | — | 默认 | `/releases/latest` + 锚定 pattern | ✓ |
-| （Follow 时期 `-beta.N` 副本） | `is.follow` | 共享 | 版本后缀 → beta | 无 rule | ○（需要 `ReleaseChannel.detect` 分支） |
+| （Follow 时期 `-beta.N` 副本） | `is.follow` | 共享 | 版本后缀 → beta | `.beta` rule 读 `/releases/latest` | ✓（只检测） |
 
 ## 更新检测
 - 源: `RSSNext/Folo` GitHub Releases，`/releases/latest`
@@ -70,7 +71,7 @@
 ## Changelog
 - 来源: GitHub Release body，经 `GitHubMarkdownParser`
 - 结构化（2026-10-22，channel-verify 从 1.15.0 起的 `changelog pane`）: `source structured: 1 entries; newest 1.16.0: 33 items, headings ["Shiny new things", "Improvements", "No longer broken"]; first items ["Two-factor authentication setup now has ", "Smoother timeline, sidebar, reader and A", "Much better keyboard and screen reader s"]`——三个 `##` 小节标题都保留，条目没被压平。正文顶部的 `# What's new in v1.16.0` 是标题行，不进条目
-- 跟随 channel: —（单轨）
+- 跟随 channel: —（beta rule 读的也是稳定版正文）
 - Recipe 状态: 不需要
 
 ## 一键安装
@@ -89,10 +90,9 @@
   - 1.15.0 的 release note 之后修了「每次启动都把会话写进 Folo CLI 配置」：`~/.folo/config.json`（`app.asar` 里 `CLI_CONFIG_DIR = ~/.folo`）。不登录时预计不写。真机：没登录，启动后没有 `~/.folo`
   - 真机首启建了 `~/Library/{Application Support,Logs,Caches}/Folo`、`~/Library/Caches/is.follow{,.ShipIt}`、`~/Library/HTTPStorages/is.follow`、`~/Library/Preferences/is.follow.plist`；不往 `~/.claude`、`~/.agents` 写（`app.asar` 里没有 `.claude`；`.agents` 两处命中是无关的压缩代码）
   - 运行中会自己下载并经 Squirrel 暂存新版，退出时由 ShipIt 装上（`autoInstallOnAppQuit`）
-- 阻塞: 无（Follow 时期 `-beta.N` 副本见覆盖清单，是检测缺口）
+- 阻塞: 无。Follow 时期 `-beta.N` 副本只检测、没有一键，见覆盖清单
 
 ## 已知问题
-- Follow 时期 `-beta.N` 版本号的副本被判成 beta、没有源回答，见覆盖清单
 - 改名前的 `Follow.app`（0.3.5–0.3.12，Team 已是 `492J8Q67PF`）会被一键原地换成 `Folo.app` 的内容、路径仍叫 `Follow.app`（解包按 `.app` 取、换包按已装路径）。和厂商自己的 Squirrel 原地换包同一结果，未真机验证
 
 ## 如何复验
@@ -104,12 +104,30 @@ swift run --package-path application-test channel-verify Folo-1.15.0-macos-arm64
   # → detected stable，winning source GitHub，latest 1.16.0，UPDATE → 1.16.0，changelog pane 见上
 swift run --package-path application-test channel-verify Folo-1.16.0-macos-arm64.dmg --expect stable   # → up to date
 swift run --package-path application-test channel-verify Follow-0.3.12-macos-arm64.dmg --expect stable # → stable，UPDATE → 1.16.0
-swift run --package-path application-test channel-verify Follow-0.2.6-beta.0-macos-arm64.dmg           # → inferred beta，unknown
+swift run --package-path application-test channel-verify Follow-0.3.4-beta.1-macos-arm64.dmg --expect beta # → beta，GitHub，UPDATE → 1.16.0，download 是 releases 页
 .claude/skills/coverage-discovery/scripts/check-bundle.sh <dmg>            # Team / spctl / nested / updater
 curl -s -H 'X-App-Platform: desktop/macos/dmg' -H 'X-App-Version: 1.15.0' -H 'X-App-Runtime-Version: 1.15.0' \
   -H 'X-App-Channel: stable' https://ota.folo.is/manifest                  # → app.version 1.16.0，GitHub 资产 URL
 ```
 
+## 历史与实测
+
+### 2026-10-22 —— Follow 时期 `-beta.N` 副本加只检测的 `.beta` rule
+
+- 加 rule 之前（同日接入时）: `Follow-0.2.6-beta.0-macos-arm64.dmg` channel-verify 是 `inferred beta` → `winning source <none>`、`status unknown`
+- `gh api` 核对: `v0.1.0-beta.0` … `v0.3.4-beta.1` 共 21 个 desktop release 全是 `prerelease: false`，各带 `Follow-<v>-macos-arm64.dmg` 或 universal dmg；`/releases/latest` 是 `desktop/v1.16.0`
+- 加 rule 之后，`Follow-0.3.4-beta.1-macos-arm64.dmg`（97042582 字节，sha256 `aa85a8d50748df2a3a139d7a62e02a542235ebe15f24b5443ee2d88c9a2c6748`；这个 release 的资产没有 API `digest`）:
+  ```
+  app             Follow
+  short version   0.3.4-beta.1
+  detected channel  → beta
+  ✓ detection matches --expect beta
+  winning source  GitHub
+  latest          1.16.0
+  download        https://github.com/RSSNext/Folo/releases
+  status          UPDATE → 1.16.0
+  ```
+- 对照 `Folo-1.15.0-macos-arm64.dmg` `--expect stable`，结果不变: `winning source GitHub`、`latest 1.16.0`、`download https://github.com/RSSNext/Folo/releases/download/desktop/v1.16.0/Folo-1.16.0-macos-arm64.dmg`、`UPDATE → 1.16.0`
+
 ## 建议下一步
-1. 若要覆盖 Follow 时期 `-beta.N` 副本：`ReleaseChannel.detect` 加 `is.follow` 分支（引擎改动，待 owner 定）
-2. 若要用上停放的 zip：`SelfUpdaterStash` 给 `is.follow` 明确停放目录 `Folo`（引擎改动；先确认两份副本共用目录的处理）
+1. 若要用上停放的 zip：`SelfUpdaterStash` 给 `is.follow` 明确停放目录 `Folo`（引擎改动；先确认两份副本共用目录的处理）

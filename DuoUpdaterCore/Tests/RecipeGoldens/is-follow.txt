@@ -7,7 +7,7 @@ probes = Array(count: 0)
 
 changelogs = Array(count: 0)
 
-githubRules = Array(count: 1)
+githubRules = Array(count: 2)
 githubRules[0] = struct GitHubReleaseRule
 githubRules[0].bundleID = "is.follow"
 githubRules[0].owner = "RSSNext"
@@ -25,6 +25,23 @@ githubRules[0].installTrust = .developerID
 githubRules[0].variant = nil
 githubRules[0].architectureRequirement = nil
 githubRules[0].tagRefPrefix = nil
+githubRules[1] = struct GitHubReleaseRule
+githubRules[1].bundleID = "is.follow"
+githubRules[1].owner = "RSSNext"
+githubRules[1].repo = "Folo"
+githubRules[1].usePrereleases = false
+githubRules[1].listPageSize = 20
+githubRules[1].versionPattern = "^(?:desktop/)?v([0-9]+(?:\\.[0-9]+)+)$"
+githubRules[1].candidateScope = .newest
+githubRules[1].probesNewestFirst = true
+githubRules[1].installedTagPrefix = nil
+githubRules[1].channel = .beta
+githubRules[1].installAssetPattern = nil
+githubRules[1].installerKind = nil
+githubRules[1].installTrust = .developerID
+githubRules[1].variant = nil
+githubRules[1].architectureRequirement = nil
+githubRules[1].tagRefPrefix = nil
 
 appStoreCases = Array(count: 0)
 

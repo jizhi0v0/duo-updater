@@ -322,6 +322,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**Headroom**](com-extraheadroom-headroom.md) · `com.extraheadroom.headroom` — G (one-click universal dmg) · Tauri updater（读同一个 `/releases/latest`，原地静默换包） · 真包 0.9.45/0.9.46 channel-verify ✓ · beta（`-rc.N`，同 id）未接，需引擎改动 · 一键端到端 ✓ 两轮（未启用客户端时启动前后 `~/.claude`、shell 配置都没变） · changelog 结构化（一句话正文，1 条） · 2026-10-22
 - [x] [**Phosphene**](glass-kagerou-phosphene.md) · `glass.kagerou.phosphene` — G (one-click universal dmg) · 自带更新器 Tiptoe + mxcl/AppUpdater（默认自动下载、空闲时换包；运行中换包后旧进程可能再装一遍它握着的版本） · 真包 1.11.1/1.11.2 channel-verify ✓（1.11.1、1.0 → 1.11.2，1.11.2 up to date） · 一键端到端 ✓ 两轮（墙纸未被改；换包前已运行的墙纸扩展换包后仍跑旧代码，见审计） · changelog 结构化 ✓ · 2026-10-22
 - [x] [**Itsypad**](com-nickustinov-itsypad.md) · `com.nickustinov.itsypad` — G (one-click universal dmg) · 自带检查只提示、开浏览器，不下载 · 真包 1.0.1/1.6.0/1.17.0/1.18.0 channel-verify ✓（1.0.1、1.6.0、1.17.0 → 1.18.0，1.18.0 up to date） · 1.0.1 是另一个 Team，一键被 Team 闸拒 · MAS 版同 id，归 MAS 源 · changelog 结构化 ✓（多小标题时保留） · 一键端到端 ✓ 不运行（含小写 `itsypad.app` 1.6.0）；运行中一轮未跑：启动会把剪贴板同步进 iCloud · 2026-10-22
+- [x] [**Claudoscope**](com-claudoscope-app.md) · `com.claudoscope.app` — G (one-click universal dmg) · 自研更新器（点击才下载、换包，不暂存） · 真包 1.3.0/1.4.0 channel-verify ✓（1.3.0 → 1.4.0、1.4.0 up to date） · v0.3.0/v0.3.1 包里写 1.0.0、v0.3.6 写 0.3.5，都照常推 1.4.0 · 一键端到端 ✓ 两轮（不运行 / 运行中；启动前后 `~/.claude` 未被改） · changelog 结构化 ✓（标题前的说明段落不显示） · 2026-10-22
 
 ## Changelog-only (detection via Sparkle or Homebrew)
 

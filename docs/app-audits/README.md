@@ -318,6 +318,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**PicGo**](com-molunerfinn-picgo.md) · `com.molunerfinn.picgo` — G (one-click arm64 dmg) · 自研更新检查（只弹框开网页，不下载） · 真包 3.0.2/3.0.3 channel-verify ✓ · beta 副本（同 id，`-beta.N`）判 `.beta`、不给 stable · 2.4.1 及更早无 Team，一键被拒 · 一键端到端 ✓ 两轮（运行中：它自己的新版对话框开着时 `duo restart` 退不掉，点掉后正常） · changelog 结构化 ✓（中英两遍标题） · 2026-10-22
 - [x] [**SmoothCSV**](com-smoothcsv-desktop.md) · `com.smoothcsv.desktop` — G (one-click universal dmg) · Tauri updater（读同一个 `/releases/latest`，下载留在内存） · 真包 3.25.1/3.26.0 channel-verify ✓（3.25.1 → 3.26.0、3.26.0 up to date） · 3.0.0 前的 beta 副本由 `.beta` 规则仅检测 · 0.1.0 alpha（`com.smoothcsv`、无签名）不收 · changelog 结构化（Improvements / Bug Fixes），New Features 小节被解析器丢掉 · 一键端到端 ✓ 两轮（不运行 / 运行中；Tauri 内存里旧版的降级场景未造） · 2026-10-22
 - [x] [**Itsytv**](com-itsytv-app.md) · `com.itsytv.app` — G (one-click universal dmg) · 自带检查只提示、开浏览器，不下载 · 真包 1.4.1/1.6.1/1.6.2 channel-verify ✓（1.4.1、1.6.1 → 1.6.2，1.6.2 up to date） · 1.0.0/1.0.3/1.1.0/1.2.1 是另一个 Team，一键被 Team 闸拒 · MAS 版同 id，归 MAS 源 · changelog 结构化 ✓（无小标题） · 一键端到端 ✓ 不运行一轮（运行中一轮未跑：启动会弹本地网络授权框） · 2026-10-22
+- [x] [**Simple Comic**](com-ToWatchList-SimpleComic.md) · `com.ToWatchList.SimpleComic` — G (one-click universal zip) · 无自更新器 · tag `App-Store-<v>`（`1.9.1` 无前缀，同一产品） · 资产名换过四种，pattern 全收 · 真包 1.9.8/1.9.9 channel-verify ✓（1.9.8 → 1.9.9、1.9.9 up to date） · MAS 副本同 id，归 MAS 源 · changelog 结构化 ✓（What's Changed 列表，无厂商分节） · 一键端到端 ✓ 两轮（不运行 / 运行中） · 2026-10-22
 
 ## Changelog-only (detection via Sparkle or Homebrew)
 

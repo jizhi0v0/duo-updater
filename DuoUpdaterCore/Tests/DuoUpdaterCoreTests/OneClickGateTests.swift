@@ -70,7 +70,7 @@ struct OneClickGateTests {
 
     @Test func theRegisteredGatesAreTheMeasuredCases() {
         #expect(Set(OneClickGateRegistry.gates.map(\.bundleID))
-            == ["org.musescore.MuseScore", "com.axosoft.gitkraken", "ai.memoh.desktop"])
+            == ["org.musescore.MuseScore", "com.axosoft.gitkraken", "ai.memoh.desktop", "io.masscode.app"])
     }
 
     @Test func museScoreOneClickIsFor4xCopiesOnly() {
@@ -91,6 +91,19 @@ struct OneClickGateTests {
             #expect(OneClickGateRegistry.withholding(app("ai.memoh.desktop", version)) != nil, "\(version)")
         }
         #expect(OneClickGateRegistry.withholding(app("ai.memoh.desktop", nil)) != nil)
+    }
+
+    /// The versions of real bundles (5.12.0, 6.0.0, 6.2.1, 6.3.1, 2.0.0-beta.6,
+    /// all `io.masscode.app`). v6 reads only a Markdown Vault, which v5
+    /// introduced; a 4.x or older library is unreadable by it.
+    @Test func massCodeOneClickIsFor5xAnd6xCopiesOnly() {
+        for version in ["6.3.1", "6.2.1", "6.0.0", "5.12.0", "5.0.0"] {
+            #expect(OneClickGateRegistry.withholding(app("io.masscode.app", version)) == nil, "\(version)")
+        }
+        for version in ["4.7.1", "3.12.1", "2.0.0-beta.6", "7.0.0", "60.0"] {
+            #expect(OneClickGateRegistry.withholding(app("io.masscode.app", version)) != nil, "\(version)")
+        }
+        #expect(OneClickGateRegistry.withholding(app("io.masscode.app", nil)) != nil)
     }
 
     @Test func gitKrakenOneClickIsForAProvenNormalEditionOnly() throws {

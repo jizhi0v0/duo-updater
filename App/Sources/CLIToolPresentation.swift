@@ -290,16 +290,8 @@ enum CLIToolPresentation {
 
     // MARK: - Runtime security notices
 
-    /// The notices of the node an npm package runs — its detail pane's Security
-    /// row, after the Node fact; [] for any other tool, and for a package with
-    /// no node of its own.
-    static func nodeNotices(of status: CLIToolStatus, in report: RuntimeSecurityReport) -> [RuntimeSecurityNotice] {
-        guard case .npm(let package) = status.detail, package.install.runtime.node != nil else { return [] }
-        return report.nodeNotices(forPrefix: package.install.prefix, homebrewKeg: package.install.runtime.homebrewKeg)
-    }
-
     /// The notices of the node an npm prefix group runs, for the ⚠ on its
-    /// header: one mark per node, not one per package. Homebrew's node is
+    /// header and the popover it opens: one mark per node, not one per package. Homebrew's node is
     /// matched by the keg any of its packages' `bin/node` resolves into.
     static func nodeNotices(
         ofPrefix prefix: NodePrefix, statuses: [CLIToolStatus], in report: RuntimeSecurityReport

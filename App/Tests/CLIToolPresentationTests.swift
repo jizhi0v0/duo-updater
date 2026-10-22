@@ -634,9 +634,9 @@ struct CLIToolPayloadPresentationTests {
         #expect(linked.contains(.init(label: "Linked to", value: "~/src/openclaw")))
     }
 
-    /// An npm package's node notices are its own node's — by the prefix's
-    /// path, or for Homebrew's node by its keg — and the Node fact itself no
-    /// longer carries them (they have a Security row of their own).
+    /// An npm prefix's node notices are its own node's — by the prefix's path,
+    /// or for Homebrew's node by its keg — and its packages' Node fact carries
+    /// none: they are said once, on the prefix's header.
     ///
     /// Mutation: match any node install in `nodeNotices` → a prefix on another
     /// node gets these too.
@@ -648,13 +648,9 @@ struct CLIToolPayloadPresentationTests {
         let report = RuntimeSecurityReport(entries: [.init(
             install: RuntimeInstall(kind: .node, version: "24.13.0", origin: .manager(.nvm, prefix: prefix.path)),
             notices: notices)])
-        #expect(CLIToolPresentation.nodeNotices(of: F.npm(), in: report) == notices)
         #expect(CLIToolPresentation.facts(of: F.npm(), home: Self.home).first { $0.label == "Node" }?.value
             == "24.13.0 · Signed by Node.js Foundation (Team HX7739G8FX)")
         let other = F.npm(F.npmInstall(prefix: CLIToolFixtures.nvm("22.0.0")))
-        #expect(CLIToolPresentation.nodeNotices(of: other, in: report).isEmpty)
-        #expect(CLIToolPresentation.nodeNotices(of: F.uv(), in: report).isEmpty)
-        // The group header asks the same question of the prefix.
         #expect(CLIToolPresentation.nodeNotices(ofPrefix: prefix, statuses: [F.npm()], in: report) == notices)
         #expect(CLIToolPresentation.nodeNotices(
             ofPrefix: CLIToolFixtures.nvm("22.0.0"), statuses: [other], in: report).isEmpty)

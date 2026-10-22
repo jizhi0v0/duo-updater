@@ -376,8 +376,7 @@ struct WorkbenchWindowView: View {
                                              showsRuntime: model.prefs.showCLIRuntimeTags)
                     } else {
                         CLIToolDetailPane(status: status, cli: model.cliTools,
-                                          showsRuntime: model.prefs.showCLIRuntimeTags,
-                                          runtimeSecurity: model.runtimeSecurity)
+                                          showsRuntime: model.prefs.showCLIRuntimeTags)
                     }
                 }
                 .id(status.toolID.tag)
@@ -1117,11 +1116,14 @@ struct WorkbenchWindowView: View {
                     .help(summary)
             }
             // The node an npm prefix runs has notices: one mark for the node,
-            // on its group, not one on each package it runs.
+            // on its group, not one on each package it runs. A click says them.
             if let prefix = group.prefix {
-                if let help = CLIToolPresentation.securityMarkHelp(CLIToolPresentation.nodeNotices(
-                    ofPrefix: prefix, statuses: model.cliTools.statuses, in: model.runtimeSecurity)) {
-                    RuntimeSecurityMark(help: help).font(.caption)
+                let notices = CLIToolPresentation.nodeNotices(
+                    ofPrefix: prefix, statuses: model.cliTools.statuses, in: model.runtimeSecurity)
+                if let help = CLIToolPresentation.securityMarkHelp(notices) {
+                    RuntimeSecurityMarkButton(
+                        help: help, title: cliToolHeaderSummary(group) ?? group.kind.displayName, notices: notices)
+                        .font(.caption)
                 }
             }
         }
@@ -2495,12 +2497,7 @@ private struct BrewLifecycleNotice: View {
     }
 
     init(text: AttributedString) {
-        var underlined = text
-        // Underlined as well as tinted, like the app's other inline links.
-        for run in underlined.runs where run.link != nil {
-            underlined[run.range].underlineStyle = .single
-        }
-        self.text = underlined
+        self.text = underliningLinks(text)
         replacementCommand = nil
         replacementName = nil
     }
@@ -2636,6 +2633,77 @@ private struct RuntimeSecurityMark: View {
             .foregroundStyle(.orange)
             .help(help)
             .accessibilityLabel(help)
+    }
+}
+
+/// `text` with its links underlined as well as tinted, like the app's other
+/// inline links: a version alone in the accent colour reads as emphasis.
+private func underliningLinks(_ text: AttributedString) -> AttributedString {
+    var underlined = text
+    for run in underlined.runs where run.link != nil {
+        underlined[run.range].underlineStyle = .single
+    }
+    return underlined
+}
+
+/// `RuntimeSecurityMark` as a button, for an npm prefix group's header: a
+/// click opens the node's notices in a popover — `RuntimeTag`'s click-through,
+/// in its layout and its way — with the release links, which open in the
+/// browser. Its own Button, so the popover anchors to the mark, not to the
+/// header row.
+private struct RuntimeSecurityMarkButton: View {
+    let help: String
+    /// Which node: the header's "nvm · node 24.13.0".
+    let title: String
+    let notices: [RuntimeSecurityNotice]
+
+    @State private var showing = false
+
+    var body: some View {
+        Button { showing = true } label: {
+            RuntimeSecurityMark(help: help)
+                // A caption-sized glyph is a small target; padded like
+                // `RuntimeTag`'s mark without moving the drawing.
+                .padding(3)
+                .contentShape(Rectangle())
+                .padding(-3)
+        }
+        .buttonStyle(.borderless)
+        .help(help)
+        .accessibilityLabel(help)
+        .popover(isPresented: $showing, arrowEdge: .bottom) { detail }
+        // `RuntimeTag`'s reason: a popover hangs where it opened once the list
+        // scrolls, so it closes when the mark moves.
+        .background(
+            GeometryReader { geometry in
+                Color.clear.onChange(of: geometry.frame(in: .global).minY) {
+                    showing = false
+                }
+            }
+        )
+    }
+
+    private var detail: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 26))
+                .foregroundStyle(.orange)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(verbatim: title).font(.headline)
+                Text(underliningLinks(CLIToolPresentation.securityNotice(notices)))
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    // NSWorkspace rather than SwiftUI's own `openURL`, which
+                    // errors -50 in this app's windows (see `AlcoveSettingsPage`).
+                    .environment(\.openURL, OpenURLAction { url in
+                        NSWorkspace.shared.open(url)
+                        return .handled
+                    })
+            }
+        }
+        .padding(14)
+        .frame(width: 300, alignment: .leading)
     }
 }
 

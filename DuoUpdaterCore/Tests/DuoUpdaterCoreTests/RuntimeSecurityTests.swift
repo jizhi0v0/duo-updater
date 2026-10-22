@@ -260,23 +260,38 @@ import Foundation
                      notices: [Self.security])
     }
 
-    /// nvm moves the packages itself; the default follows only when it named
-    /// the installed version — `lts/*` and `24` follow newer installs already.
-    /// Mutation: always append the default → `lts/*` would be pinned to 24.22.1.
-    @Test func nvmsCommandMovesPackagesAndPinsOnlyAPinnedDefault() throws {
+    /// nvm moves the packages itself. The default moves to the new version
+    /// unless it pins another version exactly: when it names the installed
+    /// one, and when it is any alias — `lts/*` resolves through
+    /// `lts/<codename>` to the newest *published* release, which nvm rewrites
+    /// when it lists remotes, so it need not name what was just installed.
+    /// A replaced alias is said.
+    /// Mutations: append only for the installed version → `lts/*` keeps a
+    /// default that may name an uninstalled release; append for every exact
+    /// version → a pin on 24.12.0 is moved.
+    @Test func nvmsCommandMovesTheDefaultUnlessAnotherVersionIsPinned() throws {
         let base = "nvm install 24.22.1 --reinstall-packages-from=24.13.0"
-        for (alias, expected) in [("v24.13.0", base + " && nvm alias default 24.22.1"),
-                                  ("24.13.0", base + " && nvm alias default 24.22.1"),
-                                  ("lts/*", base), ("node", base), ("24", base), ("v24.12.0", base)] {
+        let moved = base + " && nvm alias default 24.22.1"
+        for (alias, expected, replaced) in [
+            ("v24.13.0", moved, nil), ("24.13.0", moved, nil),
+            ("lts/*", moved, "lts/*"), ("lts/krypton", moved, "lts/krypton"), ("node", moved, "node"),
+            ("24", moved, "24"), ("stable", moved, "stable"),
+            ("v24.12.0", base, nil), ("22.21.1", base, nil),
+        ] as [(String, String, String?)] {
             let home = try Self.scratch()
             defer { try? FileManager.default.removeItem(at: home) }
             let upgrade = NodeUpgradeCommand(try Self.nvm(home, defaultAlias: alias), packages: ["openclaw"])
             #expect(upgrade?.command == expected, "default \(alias)")
+            #expect(upgrade?.replacedNvmDefault == replaced, "default \(alias)")
             #expect(upgrade?.packagesLeftBehind == [])
         }
         let home = try Self.scratch()
         defer { try? FileManager.default.removeItem(at: home) }
         #expect(NodeUpgradeCommand(try Self.nvm(home, defaultAlias: nil), packages: [])?.command == base)
+        let floating = NodeUpgradeCommand(try Self.nvm(home, defaultAlias: "lts/*"), packages: [])
+        #expect(floating?.englishReplacedDefault == "nvm's default was lts/*; this sets it to 24.22.1.")
+        #expect(RuntimeSecurityReport(entries: [try Self.nvm(home, defaultAlias: "lts/*")]).englishLines().suffix(2) == [
+            "      to update it yourself: \(moved)", "      nvm's default was lts/*; this sets it to 24.22.1."])
     }
 
     /// fnm's default is a link to a version's installation directory; its
@@ -299,7 +314,7 @@ import Foundation
         let upgrade = NodeUpgradeCommand(entry, packages: ["pnpm"])
         #expect(upgrade?.command == "fnm install 24.22.1 && fnm default 24.22.1")
         #expect(upgrade?.englishPackagesLeftBehind
-            == "Global packages stay with 24.12.0: pnpm. Reinstall them under 24.22.1 with npm install -g.")
+            == "Global packages that stay with 24.12.0 include: pnpm. Reinstall them under 24.22.1 with npm install -g.")
         try FileManager.default.removeItem(atPath: link)
         try FileManager.default.createSymbolicLink(atPath: link, withDestinationPath: other.path)
         #expect(NodeUpgradeCommand(entry, packages: [])?.command == "fnm install 24.22.1")
@@ -323,6 +338,34 @@ import Foundation
         let report = RuntimeSecurityReport(entries: [nvm])
         #expect(report.englishLines().last
             == "      to update it yourself: nvm install 24.22.1 --reinstall-packages-from=24.13.0 && nvm alias default 24.22.1")
+    }
+
+    /// Claude Code's npm install has a row of its own, not an npm package's;
+    /// it is still a global package under its prefix, by its npm name.
+    /// Mutation: drop the `.claudeCode` case → fnm's sentence misses it.
+    @Test func claudeCodesNpmInstallIsAPackageOfItsPrefix() {
+        let prefix = "/zzfixture/fnm/node-versions/v24.12.0/installation"
+        let install = ClaudeCodeInstall(
+            path: prefix + "/lib/node_modules/@anthropic-ai/claude-code", method: .npm, origin: .conventional,
+            executable: nil, version: "2.1.300", signature: nil, problem: nil, nodePrefix: prefix)
+        let status = CLIToolStatus(
+            kind: .claudeCode, path: install.path, installedVersion: "2.1.300", latestVersion: nil,
+            channel: "latest", state: .upToDate, oneClick: nil, withheld: nil, note: nil,
+            detail: .claudeCode(ClaudeCodeStatus(
+                install: install, channel: .latest, latestVersion: nil, versionConfirmed: nil,
+                state: .upToDate, oneClick: nil, note: nil)))
+        #expect(status.npmPackage?.name == "@anthropic-ai/claude-code")
+        #expect(status.npmPackage?.prefix == prefix)
+        let native = ClaudeCodeInstall(
+            path: "/zzfixture/.local/bin/claude", method: .native, origin: .conventional,
+            executable: nil, version: "2.1.300", signature: nil, problem: nil)
+        let nativeStatus = CLIToolStatus(
+            kind: .claudeCode, path: native.path, installedVersion: "2.1.300", latestVersion: nil,
+            channel: "latest", state: .upToDate, oneClick: nil, withheld: nil, note: nil,
+            detail: .claudeCode(ClaudeCodeStatus(
+                install: native, channel: .latest, latestVersion: nil, versionConfirmed: nil,
+                state: .upToDate, oneClick: nil, note: nil)))
+        #expect(nativeStatus.npmPackage == nil)
     }
 
     // MARK: - Fetching

@@ -316,18 +316,30 @@ enum CLIToolPresentation {
             forPrefix: prefix, homebrewKeg: homebrewKeg(ofPrefix: prefix, statuses: statuses))
         else { return nil }
         let packages = statuses.compactMap { status -> String? in
-            guard case .npm(let package) = status.detail, package.install.prefix.path == prefix.path else { return nil }
-            return package.install.name
+            guard let package = status.npmPackage,
+                  package.prefix == URL(fileURLWithPath: prefix.path).standardizedFileURL.path
+            else { return nil }
+            return package.name
         }
         return NodeUpgradeCommand(entry, packages: packages)
     }
 
     /// What an upgrade command leaves under the old version (fnm's global
-    /// packages), in a sentence; nil when it leaves nothing.
+    /// packages), in a sentence; nil when it leaves nothing. "Include": the
+    /// app lists the packages with a command, and Claude Code, not every
+    /// package in the prefix (`NpmScanner`).
     static func packagesLeftBehind(_ upgrade: NodeUpgradeCommand) -> String? {
         guard !upgrade.packagesLeftBehind.isEmpty else { return nil }
         let names = upgrade.packagesLeftBehind.joined(separator: ", ")
-        return String(localized: "Global packages stay with \(upgrade.installed): \(names). Reinstall them under \(upgrade.latest) with npm install -g.")
+        return String(localized: "Global packages that stay with \(upgrade.installed) include: \(names). Reinstall them under \(upgrade.latest) with npm install -g.")
+    }
+
+    /// The nvm default alias an upgrade command replaces, in a sentence; nil
+    /// when it replaces none.
+    static func replacedDefault(_ upgrade: NodeUpgradeCommand) -> String? {
+        upgrade.replacedNvmDefault.map {
+            String(localized: "nvm’s default was \($0); this sets it to \(upgrade.latest).")
+        }
     }
 
     /// A sidebar ⚠'s tooltip and accessibility label: the notice block's

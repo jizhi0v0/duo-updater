@@ -688,7 +688,8 @@ struct CLIToolPayloadPresentationTests {
         let upgrade = CLIToolPresentation.upgradeCommand(ofPrefix: prefix, statuses: statuses, in: report)
         #expect(upgrade?.command == "fnm install 24.22.1")
         #expect(upgrade.flatMap(CLIToolPresentation.packagesLeftBehind)
-            == "Global packages stay with 24.12.0: openclaw. Reinstall them under 24.22.1 with npm install -g.")
+            == "Global packages that stay with 24.12.0 include: openclaw. Reinstall them under 24.22.1 with npm install -g.")
+        #expect(upgrade.flatMap(CLIToolPresentation.replacedDefault) == nil)
         let eol = RuntimeSecurityReport(entries: [.init(install: install, notices: [.nodeEndOfLife(major: "24", date: "2026-01-01")])])
         #expect(CLIToolPresentation.upgradeCommand(ofPrefix: prefix, statuses: statuses, in: eol) == nil)
     }

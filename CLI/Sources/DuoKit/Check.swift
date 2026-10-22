@@ -62,12 +62,13 @@ public enum Check {
         "this copy comes from the \(channel) channel; the update installs the stable cask over it"
     }
 
-    /// The npm packages' names under each node prefix's path.
+    /// The npm packages' names under each node prefix's path
+    /// (`CLIToolStatus.npmPackageName`), Claude Code's npm install among them.
     static func packagesByPrefix(_ tools: [CLIToolRows.Row]) -> [String: [String]] {
         var out: [String: [String]] = [:]
         for tool in tools {
-            guard case .npm(let package)? = tool.status?.detail else { continue }
-            out[package.install.prefix.path, default: []].append(package.install.name)
+            guard let package = tool.status?.npmPackage else { continue }
+            out[package.prefix, default: []].append(package.name)
         }
         return out
     }

@@ -2417,16 +2417,22 @@ private struct BrewHeadNotice: View {
 /// A command shown for the user to run, with a copy button that confirms.
 private struct CopyableCommandBox: View {
     let command: String
+    /// False keeps the command on one line, scrolling sideways when it is
+    /// wider than the box: a command broken at its spaces reads as several.
+    var wraps = true
 
     @State private var copied = false
     @State private var copiedResetTask: Task<Void, Never>?
 
     var body: some View {
         HStack(spacing: 8) {
-            Text(command)
-                .font(.system(.body, design: .monospaced))
-                .textSelection(.enabled)
-                .fixedSize(horizontal: false, vertical: true)
+            if wraps {
+                commandText.fixedSize(horizontal: false, vertical: true)
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    commandText.lineLimit(1).fixedSize()
+                }
+            }
             Spacer()
             Button {
                 NSPasteboard.general.clearContents()
@@ -2447,6 +2453,12 @@ private struct CopyableCommandBox: View {
         }
         .padding(10)
         .background(.quaternary, in: RoundedRectangle(cornerRadius: 6))
+    }
+
+    private var commandText: some View {
+        Text(command)
+            .font(.system(.body, design: .monospaced))
+            .textSelection(.enabled)
     }
 }
 
@@ -2689,40 +2701,49 @@ private struct RuntimeSecurityMarkButton: View {
     }
 
     private var detail: some View {
-        HStack(alignment: .top, spacing: 12) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .font(.system(size: 26))
-                .foregroundStyle(.orange)
-            VStack(alignment: .leading, spacing: 4) {
-                Text(verbatim: title).font(.headline)
-                Text(underliningLinks(CLIToolPresentation.securityNotice(notices)))
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    // NSWorkspace rather than SwiftUI's own `openURL`, which
-                    // errors -50 in this app's windows (see `AlcoveSettingsPage`).
-                    .environment(\.openURL, OpenURLAction { url in
-                        NSWorkspace.shared.open(url)
-                        return .handled
-                    })
-                // Handed out, never run: installing beside the old version and
-                // moving packages is the user's to decide.
-                if let upgrade = upgrade() {
-                    Text("To update it yourself, run:")
+        detail(upgrade: upgrade())
+    }
+
+    private func detail(upgrade: NodeUpgradeCommand?) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: 26))
+                    .foregroundStyle(.orange)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(verbatim: title).font(.headline)
+                    Text(underliningLinks(CLIToolPresentation.securityNotice(notices)))
                         .font(.callout)
-                        .padding(.top, 6)
-                    CopyableCommandBox(command: upgrade.command)
-                    if let left = CLIToolPresentation.packagesLeftBehind(upgrade) {
-                        Text(left)
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        // NSWorkspace rather than SwiftUI's own `openURL`, which
+                        // errors -50 in this app's windows (see `AlcoveSettingsPage`).
+                        .environment(\.openURL, OpenURLAction { url in
+                            NSWorkspace.shared.open(url)
+                            return .handled
+                        })
+                }
+            }
+            // Handed out, never run: installing beside the old version and
+            // moving packages is the user's to decide. The whole popover's
+            // width, not the text column's, and on one line: fnm's
+            // `install … && fnm default …` broke into three at 300 pt.
+            if let upgrade {
+                Text("To update it yourself, run:")
+                    .font(.callout)
+                    .padding(.top, 4)
+                CopyableCommandBox(command: upgrade.command, wraps: false)
+                ForEach([CLIToolPresentation.packagesLeftBehind(upgrade),
+                         CLIToolPresentation.replacedDefault(upgrade)].compactMap { $0 }, id: \.self) { line in
+                    Text(line)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
         }
         .padding(14)
-        .frame(width: 300, alignment: .leading)
+        .frame(width: upgrade == nil ? 300 : 420, alignment: .leading)
     }
 }
 

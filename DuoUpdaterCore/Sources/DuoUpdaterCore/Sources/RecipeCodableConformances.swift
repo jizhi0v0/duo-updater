@@ -545,7 +545,7 @@ extension GitHubReleaseRule: Codable {
         case bundleID, owner, repo, usePrereleases, listPageSize, versionPattern
         case candidateScope, probesNewestFirst, installedTagPrefix, channel
         case installAssetPattern, installerKind, installTrust, variant
-        case architectureRequirement, tagRefPrefix
+        case architectureRequirement, tagRefPrefix, installedExecutableMarker
     }
 
     private static var codingDefaults: GitHubReleaseRule {
@@ -583,7 +583,10 @@ extension GitHubReleaseRule: Codable {
                 GitHubArchitectureRequirement.self, forKey: .architectureRequirement,
                 default: d.architectureRequirement),
             tagRefPrefix: try c.decodeOptional(
-                String.self, forKey: .tagRefPrefix, default: d.tagRefPrefix))
+                String.self, forKey: .tagRefPrefix, default: d.tagRefPrefix),
+            installedExecutableMarker: try c.decodeOptional(
+                String.self, forKey: .installedExecutableMarker,
+                default: d.installedExecutableMarker))
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -610,6 +613,9 @@ extension GitHubReleaseRule: Codable {
             architectureRequirement, forKey: .architectureRequirement,
             defaultIsNil: d.architectureRequirement == nil)
         try c.encodeOptional(tagRefPrefix, forKey: .tagRefPrefix, defaultIsNil: d.tagRefPrefix == nil)
+        try c.encodeOptional(
+            installedExecutableMarker, forKey: .installedExecutableMarker,
+            defaultIsNil: d.installedExecutableMarker == nil)
     }
 }
 
@@ -846,7 +852,7 @@ extension SparkleFeedCatalog.LoginWall: Codable {
 }
 
 extension OneClickGate: Codable {
-    enum CodingKeys: String, CodingKey, CaseIterable { case bundleID, requirement, reason }
+    enum CodingKeys: String, CodingKey, CaseIterable { case bundleID, requirement, reason, offering }
 
     public init(from decoder: Decoder) throws {
         try RecipeCoding.rejectUnknownKeys(in: decoder, allowed: CodingKeys.self)
@@ -854,7 +860,8 @@ extension OneClickGate: Codable {
         self.init(
             bundleID: try c.decode(String.self, forKey: .bundleID),
             requirement: try c.decode(Requirement.self, forKey: .requirement),
-            reason: try c.decode(String.self, forKey: .reason))
+            reason: try c.decode(String.self, forKey: .reason),
+            offering: try c.decodeOptional(String.self, forKey: .offering, default: nil))
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -862,6 +869,7 @@ extension OneClickGate: Codable {
         try c.encode(bundleID, forKey: .bundleID)
         try c.encode(requirement, forKey: .requirement)
         try c.encode(reason, forKey: .reason)
+        try c.encodeOptional(offering, forKey: .offering, defaultIsNil: true)
     }
 }
 

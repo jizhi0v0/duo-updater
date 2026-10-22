@@ -88,6 +88,9 @@ public actor VendorInstaller {
         /// asset itself — a stash or a patch — so the published digest cannot
         /// speak for these bytes.
         case digestOnlyNeedsTheAsset
+        /// The downloaded app does not carry the edition marker of the
+        /// package it was offered as (`OneClickGateRegistry.packageMarkers`).
+        case packageEditionMismatch
 
         public var errorDescription: String? {
             switch self {
@@ -105,6 +108,8 @@ public actor VendorInstaller {
                 return String(localized: "This app has no developer signature, and one-click updates for such apps are turned off in Settings. Nothing was changed.")
             case .digestOnlyNeedsTheAsset:
                 return "Only the release asset itself can be checked against GitHub's published hash. Nothing was changed."
+            case .packageEditionMismatch:
+                return "The downloaded app is not the edition this copy is. Nothing was changed."
             }
         }
     }
@@ -412,6 +417,21 @@ public actor VendorInstaller {
                 bundleName: installed.deletingPathExtension().lastPathComponent,
                 onStage: onStage,
                 vetStub: Self.stubSignedByTeam(of: installed))
+        }
+
+        // 3c. The edition the offer was gated as (`OneClickGate.offering`):
+        // the package itself must carry that edition's marker, so an asset
+        // whose name says one edition and whose binary is the other cannot
+        // replace a copy of the other. No markers for every app but those
+        // with edition-scoped gates. Before the signature gates only because it
+        // needs no signature to refuse; both run before anything is swapped.
+        for marker in OneClickGateRegistry.packageMarkers(
+            for: result.app.recipeBundleID, offering: remote) {
+            let app = newApp
+            let found = try await offCooperativePool {
+                ExecutableMarker.foundUncached(marker, inMainExecutableOf: app)
+            }
+            guard found else { throw InstallError.packageEditionMismatch }
         }
 
         // 4. Validate the final app, whether unpacked or reconstructed from a delta.

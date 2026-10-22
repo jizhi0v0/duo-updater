@@ -15,8 +15,15 @@ import Synchronization
 ///  - GitKraken's On-Premise Serverless edition shares the normal edition's id,
 ///    Team and Info.plist; the normal build would swap its edition.
 ///
-/// A gate is a requirement on the copy on disk, never on the machine or the
-/// download. Several gates for one id must all admit.
+/// A gate is a requirement on the copy on disk, never on the machine. Several
+/// gates for one id must all admit.
+///
+/// A gate may also be scoped to the package on offer (`offering`), for an id
+/// whose editions each have their own package: Hoppscotch's Cloud and Self-Host
+/// share id, Team and Info.plist, and each edition's gate asks for its own
+/// marker only when its own package is offered. Once an id has a scoped gate,
+/// an offer none of its scoped gates names is withheld (`unnamedOffer`): a
+/// package nobody has tied to an edition is never swapped in.
 public struct OneClickGate: Sendable {
     /// Matched against `InstalledApp.recipeBundleID`, case-insensitively.
     public let bundleID: String
@@ -24,6 +31,12 @@ public struct OneClickGate: Sendable {
     /// Why a copy that fails the requirement is kept off the one-click and what
     /// to do instead, for the log, the CLI and the refusal the installer reports.
     public let reason: String
+    /// Nil: the gate applies to every offer. Otherwise a pattern (searched;
+    /// write your own anchors) on the offer's identity, `"<source>:<package>"`
+    /// (`OneClickGateRegistry.offerIdentity`): the gate applies only to the
+    /// offers it matches, e.g. `GitHub:Hoppscotch_SelfHost_mac_aarch64.dmg` or
+    /// `Homebrew:hoppscotch`.
+    public let offering: String?
 
     public enum Requirement: Sendable {
         /// `CFBundleShortVersionString` matches this pattern (searched; write
@@ -45,11 +58,30 @@ public struct OneClickGate: Sendable {
         case executableContains(marker: String)
     }
 
-    public init(bundleID: String, requirement: Requirement, reason: String) {
+    public init(bundleID: String, requirement: Requirement, reason: String, offering: String? = nil) {
         self.bundleID = bundleID
         self.requirement = requirement
         self.reason = reason
+        self.offering = offering
     }
+
+    /// Whether this gate speaks for the offer whose identity is `identity`.
+    func applies(toOffer identity: String?) -> Bool {
+        guard let offering else { return true }
+        guard let identity else { return false }
+        return identity.range(of: offering, options: .regularExpression) != nil
+    }
+
+    /// What withholds an offer none of an id's scoped gates names. Its
+    /// requirement never admits.
+    static func unnamedOffer(bundleID: String) -> OneClickGate {
+        OneClickGate(
+            bundleID: bundleID, requirement: .installedVersion(pattern: "(?!)"),
+            reason: unnamedOfferReason)
+    }
+
+    static let unnamedOfferReason =
+        "the update on offer is not a package DuoUpdater has tied to this copy's edition; update it from its own updater"
 
     /// Whether `app` meets the requirement. `fresh` reads the executable for
     /// `.executableContains` again instead of trusting the cached verdict —
@@ -100,6 +132,16 @@ enum ExecutableMarker {
         let entry = read(marker, bundle: bundle, plistIdentity: plistIdentity)
         cache.withLock { $0[key] = entry }
         return entry.verdict
+    }
+
+    /// `found` without the cache, neither read nor written: for a bundle that
+    /// is about to move or be deleted (a downloaded package before the swap).
+    static func foundUncached(_ marker: String, inMainExecutableOf bundle: URL) -> Bool {
+        guard !marker.isEmpty,
+              let plistIdentity = FileIdentity(
+                atPath: bundle.appendingPathComponent("Contents/Info.plist").path)
+        else { return false }
+        return read(marker, bundle: bundle, plistIdentity: plistIdentity).verdict
     }
 
     private static func read(_ marker: String, bundle: URL, plistIdentity: FileIdentity) -> Entry {
@@ -179,13 +221,48 @@ public enum OneClickGateRegistry {
     private static let byBundleID: [String: [OneClickGate]] =
         Dictionary(grouping: gates, by: { $0.bundleID.lowercased() })
 
-    /// The first gate for `app` that does not admit it, or nil when every gate
-    /// does (or the app has none — every app but a few).
+    /// The first gate for `app` and the offer `remote` that does not admit it,
+    /// or nil when every gate does (or the app has none — every app but a few).
+    /// Gates scoped to other offers (`OneClickGate.offering`) are skipped; when
+    /// the id has scoped gates and none names this offer, `unnamedOffer`.
     /// `fresh` bypasses the `.executableContains` verdict cache only
     /// (`OneClickGate.admits(_:fresh:)`); other requirements answer as usual.
-    public static func withholding(_ app: InstalledApp, fresh: Bool = false) -> OneClickGate? {
+    public static func withholding(
+        _ app: InstalledApp, offering remote: RemoteVersion?, fresh: Bool = false
+    ) -> OneClickGate? {
         guard let id = app.recipeBundleID?.lowercased(), let candidates = byBundleID[id] else { return nil }
-        return candidates.first { !$0.admits(app, fresh: fresh) }
+        let identity = offerIdentity(remote)
+        let scoped = candidates.filter { $0.offering != nil }
+        if !scoped.isEmpty, !scoped.contains(where: { $0.applies(toOffer: identity) }) {
+            return .unnamedOffer(bundleID: candidates[0].bundleID)
+        }
+        return candidates.first { $0.applies(toOffer: identity) && !$0.admits(app, fresh: fresh) }
+    }
+
+    /// `"<source>:<package>"` for an offer: the Homebrew cask token, else the
+    /// last path component of the download URL (a GitHub asset's name). Nil
+    /// without an offer or a package name.
+    public static func offerIdentity(_ remote: RemoteVersion?) -> String? {
+        guard let remote else { return nil }
+        let package = remote.sourceName == "Homebrew"
+            ? remote.sourceIdentifier : remote.downloadURL?.lastPathComponent
+        guard let package, !package.isEmpty else { return nil }
+        return "\(remote.sourceName):\(package)"
+    }
+
+    /// The `.executableContains` markers of the scoped gates that name this
+    /// offer: what the downloaded package itself must contain before it is
+    /// swapped in (`VendorInstaller`), so a package that is not the edition its
+    /// name says cannot replace a copy of the other one. Empty for every
+    /// offer of every app without scoped gates.
+    static func packageMarkers(for bundleID: String?, offering remote: RemoteVersion?) -> [String] {
+        guard let id = bundleID?.lowercased(), let candidates = byBundleID[id] else { return [] }
+        let identity = offerIdentity(remote)
+        return candidates.compactMap { gate in
+            guard gate.offering != nil, gate.applies(toOffer: identity),
+                  case .executableContains(let marker) = gate.requirement else { return nil }
+            return marker
+        }
     }
 
     /// Thrown by `InstallCoordinator.perform` for a copy a gate does not admit.

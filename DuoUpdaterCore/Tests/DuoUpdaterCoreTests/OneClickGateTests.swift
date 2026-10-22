@@ -59,15 +59,28 @@ struct OneClickGateTests {
         ]))
     }
 
-    private func offer(_ app: InstalledApp, source: String = "Vendor") -> UpdateResult {
-        UpdateResult(
-            app: app,
-            remote: RemoteVersion(
-                shortVersion: "99.0", version: nil,
-                downloadURL: URL(string: "https://example.invalid/App.zip"),
-                sourceName: source, vendorInstallerKind: .zip),
-            status: .updateAvailable(latest: "99.0"))
+    private func offer(
+        _ app: InstalledApp, source: String = "Vendor", package: String = "App.zip"
+    ) -> UpdateResult {
+        UpdateResult(app: app, remote: remote(source: source, package: package),
+                     status: .updateAvailable(latest: "99.0"))
     }
+
+    /// An offer of `package` from `source`: the download URL's last component,
+    /// and for Homebrew the cask token.
+    private func remote(source: String = "GitHub", package: String) -> RemoteVersion {
+        RemoteVersion(
+            shortVersion: "99.0", version: nil,
+            downloadURL: URL(string: "https://example.invalid/download/\(package)"),
+            sourceName: source,
+            sourceIdentifier: source == "Homebrew" ? package : nil,
+            vendorInstallerKind: .zip)
+    }
+
+    private static let cloudDMG = "Hoppscotch_mac_aarch64.dmg"
+    private static let selfHostDMG = "Hoppscotch_SelfHost_mac_aarch64.dmg"
+    private static let cloudFeed = "hoppscotch-cloud-desktop.json"
+    private static let selfHostFeed = "hoppscotch-selfhost-desktop.json"
 
     @Test func theRegisteredGatesAreTheMeasuredCases() {
         #expect(Set(OneClickGateRegistry.gates.map(\.bundleID))
@@ -104,22 +117,76 @@ struct OneClickGateTests {
             executable: hoppscotchExecutable(feed: feed)))
     }
 
-    @Test func hoppscotchOneClickIsForSecondGenerationCloudCopiesOnly() throws {
-        #expect(OneClickGateRegistry.withholding(try hoppscotch("26.9.0", feed: "hoppscotch-cloud-desktop.json")) == nil)
+    /// Each edition's package goes to that edition's copies only; a copy with
+    /// neither literal, a first-generation copy and any offer no gate names
+    /// are withheld.
+    @Test func hoppscotchOneClickIsPerEditionForSecondGenerationCopies() throws {
+        let cloud = try hoppscotch("26.9.0", feed: Self.cloudFeed)
         // Self-Host: same id, version and plist; only the executable differs.
-        let selfHost = try hoppscotch("26.9.0", feed: "hoppscotch-selfhost-desktop.json")
-        if case .executableContains(let marker)? = OneClickGateRegistry.withholding(selfHost)?.requirement {
-            #expect(marker == "hoppscotch-cloud-desktop.json")
-        } else {
-            Issue.record("Self-Host copy not withheld by the executable gate")
+        let selfHost = try hoppscotch("26.9.0", feed: Self.selfHostFeed)
+        // The x64 builds: fragments only, neither literal whole.
+        let neither = try hoppscotch("26.9.0", feed: "ch-cloud ch-selfh")
+        let cloudOffer = remote(package: Self.cloudDMG)
+        let selfHostOffer = remote(package: Self.selfHostDMG)
+        func marker(_ app: InstalledApp, _ offer: RemoteVersion?) -> String? {
+            guard case .executableContains(let marker)? =
+                    OneClickGateRegistry.withholding(app, offering: offer)?.requirement else { return nil }
+            return marker
+        }
+        #expect(OneClickGateRegistry.withholding(cloud, offering: cloudOffer) == nil)
+        #expect(OneClickGateRegistry.withholding(
+            cloud, offering: remote(package: "Hoppscotch_mac_x64.dmg")) == nil)
+        #expect(OneClickGateRegistry.withholding(
+            cloud, offering: remote(source: "Homebrew", package: "hoppscotch")) == nil)
+        #expect(OneClickGateRegistry.withholding(selfHost, offering: selfHostOffer) == nil)
+        // Across editions: withheld by the offered edition's gate.
+        #expect(marker(cloud, selfHostOffer) == Self.selfHostFeed)
+        #expect(marker(selfHost, cloudOffer) == Self.cloudFeed)
+        #expect(marker(selfHost, remote(source: "Homebrew", package: "hoppscotch")) == Self.cloudFeed)
+        // Neither literal: withheld whichever edition is offered.
+        #expect(marker(neither, cloudOffer) == Self.cloudFeed)
+        #expect(marker(neither, selfHostOffer) == Self.selfHostFeed)
+        // An offer no gate names, for either copy: the Self-Host cask, another
+        // asset, another source, no package, no offer.
+        let unnamed: [RemoteVersion?] = [
+            remote(source: "Homebrew", package: "hoppscotch-selfhost"),
+            remote(package: "Hoppscotch_mac_aarch64.tar.gz"),
+            remote(source: "Vendor", package: Self.cloudDMG),
+            RemoteVersion(shortVersion: "99.0", version: nil, downloadURL: nil,
+                          sourceName: "GitHub", vendorInstallerKind: .dmg),
+            nil,
+        ]
+        for copy in [cloud, selfHost] {
+            for (index, offer) in unnamed.enumerated() {
+                #expect(OneClickGateRegistry.withholding(copy, offering: offer)?.reason
+                        == OneClickGate.unnamedOfferReason, "offer \(index)")
+            }
         }
         // First generation: the bundle version keeps the tag's `-N`, even with
         // the marker present.
         for version in ["25.1.1-2", "25.1.1-0", "23.8.3-1"] {
-            #expect(OneClickGateRegistry.withholding(
-                try hoppscotch(version, feed: "hoppscotch-cloud-desktop.json")) != nil, "\(version)")
+            for (feed, offer) in [(Self.cloudFeed, cloudOffer), (Self.selfHostFeed, selfHostOffer)] {
+                #expect(OneClickGateRegistry.withholding(
+                    try hoppscotch(version, feed: feed), offering: offer) != nil, "\(version)")
+            }
         }
-        #expect(OneClickGateRegistry.withholding(try hoppscotch(nil, feed: "hoppscotch-cloud-desktop.json")) != nil)
+        #expect(OneClickGateRegistry.withholding(
+            try hoppscotch(nil, feed: Self.cloudFeed), offering: cloudOffer) != nil)
+    }
+
+    /// The markers the downloaded package must carry: the offered edition's;
+    /// none for an offer no edition gate names, or for an app without them.
+    @Test func thePackageMustCarryTheOfferedEditionsMarker() {
+        let id = "io.hoppscotch.desktop"
+        #expect(OneClickGateRegistry.packageMarkers(for: id, offering: remote(package: Self.cloudDMG))
+            == [Self.cloudFeed])
+        #expect(OneClickGateRegistry.packageMarkers(for: id, offering: remote(package: Self.selfHostDMG))
+            == [Self.selfHostFeed])
+        #expect(OneClickGateRegistry.packageMarkers(
+            for: id, offering: remote(source: "Homebrew", package: "hoppscotch")) == [Self.cloudFeed])
+        #expect(OneClickGateRegistry.packageMarkers(for: id, offering: nil).isEmpty)
+        #expect(OneClickGateRegistry.packageMarkers(
+            for: "com.axosoft.gitkraken", offering: remote(package: "App.zip")).isEmpty)
     }
 
     /// Fails closed: whatever keeps the executable from being read is a refusal.
@@ -233,32 +300,32 @@ struct OneClickGateTests {
         let bundle = try tauriBundle(
             plist: ["CFBundleExecutable": "hoppscotch-desktop"], executable: hoppscotchExecutable(feed: cloud))
         let copy = app("io.hoppscotch.desktop", "26.8.2", at: bundle)
-        #expect(OneClickGateRegistry.withholding(copy) == nil)
+        #expect(OneClickGateRegistry.withholding(copy, offering: remote(package: Self.cloudDMG)) == nil)
         let path = executablePath(of: bundle)
         let before = ExecutableMarker.FileIdentity(atPath: path)
         let time = modified(path)
         try overwrite(path, with: hoppscotchExecutable(feed: selfHost))
         setModified(path, time)
         #expect(ExecutableMarker.FileIdentity(atPath: path) == before)
-        #expect(OneClickGateRegistry.withholding(copy) == nil, "the offer answers from the cache")
+        #expect(OneClickGateRegistry.withholding(copy, offering: remote(package: Self.cloudDMG)) == nil,
+                "the offer answers from the cache")
         return copy
     }
 
     /// The install-time ask (`fresh`) reads the swapped copy, not the cache.
     @Test func theFreshAskSeesACopyTheCacheDoesNot() throws {
         let copy = try cloudCachedButNowSelfHost()
-        #expect(OneClickGateRegistry.withholding(copy, fresh: true) != nil)
+        #expect(OneClickGateRegistry.withholding(
+            copy, offering: remote(package: Self.cloudDMG), fresh: true) != nil)
     }
 
-    /// The coordinator's gate is that fresh ask. The offer has no download URL,
-    /// so a gate that let the copy through fails on something else, offline.
+    /// The coordinator's gate is that fresh ask. The offer's download host
+    /// does not resolve, so a gate that let the copy through fails on
+    /// something else, offline.
     @Test func theCoordinatorReadsTheCopyAsItIsNow() async throws {
         let copy = try cloudCachedButNowSelfHost()
         let result = UpdateResult(
-            app: copy,
-            remote: RemoteVersion(
-                shortVersion: "99.0", version: nil, downloadURL: nil,
-                sourceName: "GitHub", vendorInstallerKind: .dmg),
+            app: copy, remote: remote(package: Self.cloudDMG),
             status: .updateAvailable(latest: "99.0"))
         let coordinator = InstallCoordinator(permits: InstallPermits(downloads: 1, applies: 1))
         await #expect(throws: OneClickGateRegistry.Withheld.self) {
@@ -346,10 +413,10 @@ struct OneClickGateTests {
     }
 
     @Test func museScoreOneClickIsFor4xCopiesOnly() {
-        #expect(OneClickGateRegistry.withholding(app("org.musescore.MuseScore", "3.6.2.548020600")) != nil)
-        #expect(OneClickGateRegistry.withholding(app("org.musescore.MuseScore", nil)) != nil)
-        #expect(OneClickGateRegistry.withholding(app("org.musescore.MuseScore", "4.7.4")) == nil)
-        #expect(OneClickGateRegistry.withholding(app("org.musescore.MuseScore", "4.0")) == nil)
+        #expect(OneClickGateRegistry.withholding(app("org.musescore.MuseScore", "3.6.2.548020600"), offering: nil) != nil)
+        #expect(OneClickGateRegistry.withholding(app("org.musescore.MuseScore", nil), offering: nil) != nil)
+        #expect(OneClickGateRegistry.withholding(app("org.musescore.MuseScore", "4.7.4"), offering: nil) == nil)
+        #expect(OneClickGateRegistry.withholding(app("org.musescore.MuseScore", "4.0"), offering: nil) == nil)
     }
 
     /// The versions of the real bundles: the vendor's CDN builds, and the OSS
@@ -357,29 +424,30 @@ struct OneClickGateTests {
     /// 0.9.0, the 0.7.0 one) — all `ai.memoh.desktop`, Team P9R669C27U.
     @Test func memohOneClickIsForTheVendorsDatedBuildsOnly() {
         for version in ["2026.10.19-1", "2026.9.16-1", "2027.1.2-3"] {
-            #expect(OneClickGateRegistry.withholding(app("ai.memoh.desktop", version)) == nil, "\(version)")
+            #expect(OneClickGateRegistry.withholding(app("ai.memoh.desktop", version), offering: nil) == nil, "\(version)")
         }
         for version in ["0.16.0", "0.13.0", "0.9.0", "0.7.0", "1.0.0"] {
-            #expect(OneClickGateRegistry.withholding(app("ai.memoh.desktop", version)) != nil, "\(version)")
+            #expect(OneClickGateRegistry.withholding(app("ai.memoh.desktop", version), offering: nil) != nil, "\(version)")
         }
-        #expect(OneClickGateRegistry.withholding(app("ai.memoh.desktop", nil)) != nil)
+        #expect(OneClickGateRegistry.withholding(app("ai.memoh.desktop", nil), offering: nil) != nil)
     }
 
     @Test func gitKrakenOneClickIsForAProvenNormalEditionOnly() throws {
-        #expect(OneClickGateRegistry.withholding(try gitKraken("NORMAL")) == nil)
-        #expect(OneClickGateRegistry.withholding(try gitKraken("STANDALONE")) != nil)
+        #expect(OneClickGateRegistry.withholding(try gitKraken("NORMAL"), offering: nil) == nil)
+        #expect(OneClickGateRegistry.withholding(try gitKraken("STANDALONE"), offering: nil) != nil)
         // No asar, no entry, or an entry naming no edition: withheld.
         let id = "com.axosoft.gitkraken"
-        #expect(OneClickGateRegistry.withholding(app(id, "12.5.0", at: try bundle(nil))) != nil)
-        #expect(OneClickGateRegistry.withholding(app(id, "12.5.0", at: try bundle(["package.json": "{}"]))) != nil)
+        #expect(OneClickGateRegistry.withholding(app(id, "12.5.0", at: try bundle(nil)), offering: nil) != nil)
+        #expect(OneClickGateRegistry.withholding(
+            app(id, "12.5.0", at: try bundle(["package.json": "{}"])), offering: nil) != nil)
         #expect(OneClickGateRegistry.withholding(app(id, "12.5.0", at: try bundle(
-            ["src/main/static/clientType.js": "module.exports = 1;"]))) != nil)
+            ["src/main/static/clientType.js": "module.exports = 1;"])), offering: nil) != nil)
     }
 
     @Test func anAppWithNoGateIsUntouched() throws {
         let other = app("com.example.other", "1.0", at: try bundle(
             ["src/main/static/clientType.js": "module.exports = 'STANDALONE';"]))
-        #expect(OneClickGateRegistry.withholding(other) == nil)
+        #expect(OneClickGateRegistry.withholding(other, offering: nil) == nil)
     }
 
     /// The offer: detection stays, the one-click goes, whatever the source.
@@ -393,8 +461,12 @@ struct OneClickGateTests {
         #expect(!can(offer(try gitKraken("STANDALONE"))))
         #expect(can(offer(app("org.musescore.MuseScore", "4.7.4"), source: "GitHub")))
         #expect(!can(offer(app("org.musescore.MuseScore", "3.6.2.548020600"), source: "GitHub")))
-        #expect(can(offer(try hoppscotch("26.8.2", feed: "hoppscotch-cloud-desktop.json"), source: "GitHub")))
-        #expect(!can(offer(try hoppscotch("26.8.2", feed: "hoppscotch-selfhost-desktop.json"), source: "GitHub")))
+        let cloud = try hoppscotch("26.8.2", feed: Self.cloudFeed)
+        let selfHost = try hoppscotch("26.8.2", feed: Self.selfHostFeed)
+        #expect(can(offer(cloud, source: "GitHub", package: Self.cloudDMG)))
+        #expect(can(offer(selfHost, source: "GitHub", package: Self.selfHostDMG)))
+        #expect(!can(offer(cloud, source: "GitHub", package: Self.selfHostDMG)))
+        #expect(!can(offer(selfHost, source: "GitHub", package: Self.cloudDMG)))
     }
 
     /// The gate: refused before anything is touched, on every route.
@@ -404,7 +476,8 @@ struct OneClickGateTests {
             (offer(app("org.musescore.MuseScore", "3.6.2.548020600"), source: "GitHub"), InstallCoordinator.Route.vendor),
             (offer(try gitKraken("STANDALONE")), .vendor),
             (offer(try gitKraken("STANDALONE")), .homebrew),
-            (offer(try hoppscotch("26.8.2", feed: "hoppscotch-selfhost-desktop.json"), source: "GitHub"), .vendor),
+            (offer(try hoppscotch("26.8.2", feed: Self.selfHostFeed), source: "GitHub", package: Self.cloudDMG), .vendor),
+            (offer(try hoppscotch("26.8.2", feed: Self.cloudFeed), source: "GitHub", package: Self.selfHostDMG), .vendor),
         ] {
             await #expect(throws: OneClickGateRegistry.Withheld.self) {
                 _ = try await coordinator.perform(

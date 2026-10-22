@@ -209,7 +209,7 @@ public enum UpdatePolicy {
         // source. Last of the refusals above, which are all plain `return false`
         // and so give the same answer in any order: a gate may read a file
         // (`.executableContains`), and a row they already refuse skips it.
-        if OneClickGateRegistry.withholding(result.app) != nil { return false }
+        if OneClickGateRegistry.withholding(result.app, offering: result.remote) != nil { return false }
         switch result.remote?.sourceName {
         case "Sparkle":
             let ext = result.remote?.downloadURL?.pathExtension.lowercased()

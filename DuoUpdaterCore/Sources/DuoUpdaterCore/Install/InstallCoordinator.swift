@@ -498,7 +498,7 @@ public actor InstallCoordinator {
         // gate reads the executable again instead of its cached verdict. The
         // other requirements are unaffected (`.asarEntry` keeps its own cache,
         // `.installedVersion` reads this `InstalledApp`).
-        if let gate = OneClickGateRegistry.withholding(result.app, fresh: true) {
+        if let gate = OneClickGateRegistry.withholding(result.app, offering: result.remote, fresh: true) {
             Log.install.notice(
                 "install refused: \(label, privacy: .public) — one-click gate: \(gate.reason, privacy: .public)")
             throw OneClickGateRegistry.Withheld(appName: result.app.name, reason: gate.reason)

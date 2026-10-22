@@ -236,6 +236,20 @@ public struct GitHubReleaseRule: Sendable {
     /// `GitHubTagRefResolutionTests.tagRefRulesAreWellFormed` enforces that.
     public let tagRefPrefix: String?
 
+    /// A literal the installed copy's main executable must contain for this
+    /// rule to be the one that answers for it — for editions that share one
+    /// bundle id, Info.plist and channel and differ only in the binary
+    /// (Hoppscotch Cloud and Self-Host). Read through `ExecutableMarker`, so a
+    /// repeated ask is two cached `stat`s. Among one channel's rules, the first
+    /// marked rule whose marker the copy contains answers; a copy matching no
+    /// marker (unreadable, or a build without the literal) gets the first
+    /// unmarked rule, as if the marked ones did not exist. Nil (the default)
+    /// for every rule but those. `editionMarkedRulesAreWellFormed` requires a
+    /// marked rule to be stable, discovered by no installed tag, and to have an
+    /// unmarked sibling on its channel. One-click per edition is
+    /// `OneClickGate`'s, scoped to each edition's package, not this field's.
+    public let installedExecutableMarker: String?
+
     public init(
         bundleID: String,
         owner: String,
@@ -252,9 +266,11 @@ public struct GitHubReleaseRule: Sendable {
         probesNewestFirst: Bool = true,
         variant: String? = nil,
         architectureRequirement: GitHubArchitectureRequirement? = nil,
-        tagRefPrefix: String? = nil
+        tagRefPrefix: String? = nil,
+        installedExecutableMarker: String? = nil
     ) {
         self.bundleID = bundleID
+        self.installedExecutableMarker = installedExecutableMarker
         self.tagRefPrefix = tagRefPrefix
         self.variant = variant
         self.architectureRequirement = architectureRequirement
@@ -290,9 +306,11 @@ public struct GitHubReleaseRule: Sendable {
     /// asset is chosen. `variant` names a rule apart from its siblings, like
     /// `bundleID`. `architectureRequirement` is about the machine, not the
     /// channel — the same reason `VendorProbeRecipe` leaves out `hostRequirement`.
+    /// `installedExecutableMarker` says which installed copy the rule answers
+    /// for, like `bundleID`, never which release or asset it accepts.
     static let nonAnchorFields: Set<String> = [
         "bundleID", "channel", "listPageSize", "probesNewestFirst", "installTrust", "variant",
-        "architectureRequirement"]
+        "architectureRequirement", "installedExecutableMarker"]
 
     /// Everything this rule says about WHICH repository it reads and WHICH
     /// releases and assets it will accept — the text a
@@ -813,7 +831,12 @@ public struct GitHubReleasesSource: UpdateSource {
         // the right endpoint; when only a stable rule exists, a detected
         // nightly/beta install finds no match and is skipped rather than offered
         // a cross-channel build.
-        guard let detectedRule = candidates.first(where: { $0.channel == app.releaseChannel }) else {
+        //
+        // Within the channel, an edition-marked rule answers for the copies
+        // whose executable carries its marker (`installedExecutableMarker`).
+        guard let detectedRule = Self.rule(
+            forEditionOf: app, among: candidates.filter { $0.channel == app.releaseChannel })
+        else {
             Log.source.info(
                 "GitHub skip \(bundleID, privacy: .public): no rule for app channel \(app.releaseChannel.rawValue, privacy: .public)")
             return nil
@@ -832,6 +855,20 @@ public struct GitHubReleasesSource: UpdateSource {
         // a retryable `.error` row rather than swallowing it into a nil that's
         // indistinguishable from "no source for this app".
         return try await resolve(rule, anchoredTo: app.shortVersion).remote
+    }
+
+    /// The rule among `rules` (one channel's) that answers for `app`: the first
+    /// edition-marked rule whose marker the copy's executable contains, else the
+    /// first unmarked rule. The executable is read only when a marked rule is
+    /// present, through `ExecutableMarker`'s cache.
+    static func rule(
+        forEditionOf app: InstalledApp, among rules: [GitHubReleaseRule]
+    ) -> GitHubReleaseRule? {
+        let edition = rules.first { rule in
+            guard let marker = rule.installedExecutableMarker else { return false }
+            return ExecutableMarker.found(marker, inMainExecutableOf: app.path)
+        }
+        return edition ?? rules.first { $0.installedExecutableMarker == nil }
     }
 
     /// Resolve an otherwise-undetectable channel from the exact release that

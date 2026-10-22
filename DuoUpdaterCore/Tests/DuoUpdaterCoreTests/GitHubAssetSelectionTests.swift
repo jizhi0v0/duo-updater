@@ -214,6 +214,15 @@ struct GitHubAssetSelectionTests {
           "Hoppscotch_SelfHost_mac_aarch64.tar.gz", "Hoppscotch_SelfHost_mac_x64.dmg",
           "Hoppscotch_SelfHost_mac_x64.tar.gz", "Hoppscotch_SelfHost_win_x64.msi",
           "Hoppscotch_SelfHost_win_x64_portable.zip", "Hoppscotch_win_x64.msi"]),
+        // The same listing for the Self-Host rule: only the Self-Host dmgs match.
+        (#"^Hoppscotch_SelfHost_mac_(?:aarch64|x64)\.dmg$"#,
+         ["Hoppscotch_Cloud_win_x64_portable.zip", "Hoppscotch_linux_x64.AppImage",
+          "Hoppscotch_linux_x64.deb", "Hoppscotch_mac_aarch64.dmg", "Hoppscotch_mac_aarch64.tar.gz",
+          "Hoppscotch_mac_x64.dmg", "Hoppscotch_mac_x64.tar.gz", "Hoppscotch_SelfHost_linux_x64.AppImage",
+          "Hoppscotch_SelfHost_linux_x64.deb", "Hoppscotch_SelfHost_mac_aarch64.dmg",
+          "Hoppscotch_SelfHost_mac_aarch64.tar.gz", "Hoppscotch_SelfHost_mac_x64.dmg",
+          "Hoppscotch_SelfHost_mac_x64.tar.gz", "Hoppscotch_SelfHost_win_x64.msi",
+          "Hoppscotch_SelfHost_win_x64_portable.zip", "Hoppscotch_win_x64.msi"]),
     ]
 
     /// Registry patterns whose alternation chooses between TAGS rather than

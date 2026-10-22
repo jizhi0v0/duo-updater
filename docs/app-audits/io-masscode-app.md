@@ -69,7 +69,7 @@
 
 | | 客户端会停放吗 | 本次实际停放了什么 | 我们能否直接拿来装 |
 |---|---|---|---|
-| 结论 | 会（同大版本、偏好默认开） | 没查（真机待主会话） | 布局已支持，待真机 |
+| 结论 | 会（同大版本、偏好默认开） | 真机（2026-10-22）：6.2.1 启动 57 s 后 `~/Library/Caches/masscode-updater/pending/` 有 `massCode-6.3.1-arm64-mac.zip`（269629632 B）+ `update-info.json`，`io.masscode.app.ShipIt` 已武装 | 同版本时 duo 让路给它（见一键安装），没走到读 zip 那一步 |
 | 证据 | `src/main/updates/index.ts` v6.3.1 的 `downloadUpdate()`；`app-update.yml` `updaterCacheDirName: masscode-updater` | — | `SelfUpdaterStash` 的 `.electronUpdater(cacheDirectoryName:)` 布局读 `~/Library/Caches/<updaterCacheDirName>/pending/update-info.json` |
 
 - 记录文件与字段: electron-updater 的 `pending/update-info.json`（下载完成后写，`sha512` base64，见 `SelfUpdaterStash` 注释）
@@ -89,7 +89,7 @@
 - Recipe 状态: 不需要
 
 ## 一键安装
-- 状态: **支持（5.x / 6.x 副本）**，真机端到端未跑（待主会话）
+- 状态: **支持（5.x / 6.x 副本）**，真机两轮通过（2026-10-22，本分支 `make cli` 的 duo）
 - 格式: dmg（`hdiutil imageinfo` `Format: UDZO`），根目录 `massCode.app` + `Applications` 软链。模式 `^massCode-[0-9]+(?:\.[0-9]+)+-arm64\.dmg$`，kind `.dmg`
 - 嵌套: 只有 `Contents/Frameworks` 下四个 Electron helper（`LSUIElement`）和 `Squirrel.framework`；没有 `Contents/Library/LoginItems`、`Contents/Helpers`。`app.asar` 里没有 `setLoginItemSettings` / `openAtLogin` / `LaunchAgents`
 - 签名: 6.0.0、6.2.1、6.3.1、5.12.0 都是 `GCU493MNF8`，Notarized Developer ID，`codesign --verify` 通过
@@ -101,10 +101,13 @@
   - 下个大版本（7.x）出来时 6.x 副本会被这个门挡住，直到读过 7.0 的 release notes 后把 7 加进模式。宁可挡住（少一次一键）也不放过可能读不了库的跨版本
 - 上一版 Team: 6.2.1 与 6.3.1 相同，不存在换 Team 拒装
 - **读的是**: 人人可手动下载的 GA
-- 端到端: **未跑**（本次审计不做真机，待主会话）
+- 端到端:
+  - 第一轮（不运行）: 6.2.1 → `duo check` `6.2.1 → 6.3.1 [GitHub, in-place]` → `duo install` `extracting verifyingCodeSignature installing done installed.` → 6.3.1、可执行文件 inode 变、`TeamIdentifier=GCU493MNF8`、`codesign --verify --deep --strict` 退出 0、`spctl` accepted、`diff -r` 与厂商 6.3.1 包相同
+  - 第二轮（运行中）: 启动 6.2.1，它自己停放了 6.3.1（见上表）；`duo install --json` → `skipped`，`its own updater already has 6.3.1 staged — quit it to apply, or duo restart`；`duo restart massCode` → `quit — its own updater applied 6.3.1`（ShipIt 14:44:19 开始、14:44:20 装完），之后 10 s 磁盘一直是 6.3.1、签名有效
+  - 「暂存了比 latest 旧的版本」那一种没造（要代理改写更新查询）；5.x → 6.x 和 4.x 被门拒都没真机跑
 
-### 主会话真机要注意的副作用
-- 数据目录：`~/Library/Application Support/massCode`（issue #978 给的路径；cask `zap` 写的是小写 `masscode`，以真机为准）、`~/.massCode`、默认 vault `~/massCode`（cask `zap` 的 `rmdir`）。首启可能有选库 / 引导界面（未验证）
+### 启动副作用（2026-10-22 真机核对的已注明）
+- 数据目录：`~/Library/Application Support/massCode`（issue #978 给的路径；cask `zap` 写的是小写 `masscode`，以真机为准）、`~/.massCode`、默认 vault `~/massCode`（cask `zap` 的 `rmdir`）。真机：首启建了 `~/Library/Application Support/masscode`（小写，和 cask 一致）、`~/.massCode`、`~/massCode`，以及 `~/Library/{Caches,HTTPStorages}/io.masscode.app`、`io.masscode.app.ShipIt`、`masscode-updater`、偏好 plist；没看到选库对话框。启动前后 `~/.claude/skills`、`~/.agents/skills` 没变，也没有 `.runtime`
 - 注册 `masscode://` URL scheme（`electron-builder.json` `protocols`，asar 里有 `setAsDefaultProtocolClient`）；不改其他默认 app
 - 不写 `~/.claude` / `~/.agents`：asar 里出现的 `.claude/skills`、`.agents/skills`、`.cursor/mcp.json` 都是打包进来的 Vercel AI SDK 文档文字，不是代码路径。MCP 服务器默认关（v6.0.0 notes）
 - 语义搜索模型（约 210 MB）只在用户运行「Turn on semantic search」时下载（v6.3.1 notes）
@@ -132,6 +135,5 @@ swift run --package-path application-test channel-verify massCode-2.0.0-beta.6-a
 ```
 
 ## 建议下一步
-1. 主会话跑两轮真机，结果补进「一键安装」，README 那一行去掉「一键端到端待主会话」
-2. 7.0 发布时读它的 release notes，决定是否把 7 加进一键门
-3. （可选，引擎）旧 beta 副本若要按 stable 检测，需在 `ReleaseChannel.detect` 给 `io.masscode.app` 加分支
+1. 7.0 发布时读它的 release notes，决定是否把 7 加进一键门
+2. （可选，引擎）旧 beta 副本若要按 stable 检测，需在 `ReleaseChannel.detect` 给 `io.masscode.app` 加分支

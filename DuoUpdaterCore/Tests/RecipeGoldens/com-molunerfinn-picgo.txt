@@ -25,6 +25,7 @@ githubRules[0].installTrust = .developerID
 githubRules[0].variant = nil
 githubRules[0].architectureRequirement = nil
 githubRules[0].tagRefPrefix = nil
+githubRules[0].installedExecutableMarker = nil
 githubRules[1] = struct GitHubReleaseRule
 githubRules[1].bundleID = "com.molunerfinn.picgo"
 githubRules[1].owner = "Molunerfinn"
@@ -42,6 +43,7 @@ githubRules[1].installTrust = .developerID
 githubRules[1].variant = nil
 githubRules[1].architectureRequirement = nil
 githubRules[1].tagRefPrefix = nil
+githubRules[1].installedExecutableMarker = nil
 
 appStoreCases = Array(count: 0)
 

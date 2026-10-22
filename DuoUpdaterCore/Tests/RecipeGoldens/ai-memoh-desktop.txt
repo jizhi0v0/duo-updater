@@ -102,5 +102,6 @@ oneClickGates[0].bundleID = "ai.memoh.desktop"
 oneClickGates[0].requirement = .installedVersion(pattern:)
 oneClickGates[0].requirement.pattern = "^20[0-9]{2}\\."
 oneClickGates[0].reason = "a Memoh build from GitHub, which may run its own local server; download the current build from memoh.ai"
+oneClickGates[0].offering = nil
 
 loginItemAgentRestarts = Dictionary(count: 0)

@@ -494,8 +494,11 @@ public actor InstallCoordinator {
         // the report arrives hours later.
         let label = "\(result.app.name) [\(result.app.bundleID ?? "?")]"
         // `canAutoInstall` is the offer; this is the gate, for every route, before
-        // anything is touched (`OneClickGate`).
-        if let gate = OneClickGateRegistry.withholding(result.app) {
+        // anything is touched (`OneClickGate`). Fresh: an `.executableContains`
+        // gate reads the executable again instead of its cached verdict. The
+        // other requirements are unaffected (`.asarEntry` keeps its own cache,
+        // `.installedVersion` reads this `InstalledApp`).
+        if let gate = OneClickGateRegistry.withholding(result.app, offering: result.remote, fresh: true) {
             Log.install.notice(
                 "install refused: \(label, privacy: .public) — one-click gate: \(gate.reason, privacy: .public)")
             throw OneClickGateRegistry.Withheld(appName: result.app.name, reason: gate.reason)

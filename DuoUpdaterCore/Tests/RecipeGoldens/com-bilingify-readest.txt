@@ -25,6 +25,7 @@ githubRules[0].installTrust = .developerID
 githubRules[0].variant = nil
 githubRules[0].architectureRequirement = nil
 githubRules[0].tagRefPrefix = nil
+githubRules[0].installedExecutableMarker = nil
 
 appStoreCases = Array(count: 0)
 
@@ -48,5 +49,6 @@ oneClickGates[0].bundleID = "com.bilingify.readest"
 oneClickGates[0].requirement = .installedVersion(pattern:)
 oneClickGates[0].requirement.pattern = "^[0-9]+(?:\\.[0-9]+)+$"
 oneClickGates[0].reason = "a Readest nightly build; update it from Readest's own updater"
+oneClickGates[0].offering = nil
 
 loginItemAgentRestarts = Dictionary(count: 0)

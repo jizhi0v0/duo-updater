@@ -103,5 +103,6 @@ oneClickGates[0].requirement = .asarEntry(path:pattern:)
 oneClickGates[0].requirement.path = "src/main/static/clientType.js"
 oneClickGates[0].requirement.pattern = "module\\.exports\\s*=\\s*['\"]NORMAL['\"]"
 oneClickGates[0].reason = "this is not the normal edition; On-Premise copies update from GitKraken's On-Premise download"
+oneClickGates[0].offering = nil
 
 loginItemAgentRestarts = Dictionary(count: 0)

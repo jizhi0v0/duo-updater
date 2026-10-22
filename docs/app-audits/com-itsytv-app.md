@@ -52,7 +52,7 @@
 
 | | 客户端会停放吗 | 本次实际停放了什么 | 我们能否直接拿来装 |
 |---|---|---|---|
-| 结论 | 不会 | 没查（未做真机第二轮） | 不需要 |
+| 结论 | 不会 | 没跑运行中一轮（见一键安装）；源码里不下载 | 不需要 |
 | 证据 | `UpdateChecker.swift` 不下载任何东西 | — | — |
 
 ## Changelog
@@ -63,14 +63,17 @@
 - Recipe 状态: 不需要
 
 ## 一键安装
-- 状态: **支持**（规则已开；真机端到端未跑，由主会话做）
+- 状态: **支持，真机不运行一轮通过（2026-10-22，本分支 `make cli` 的 duo）**
 - 格式: dmg（UDZO，`hdiutil imageinfo`），根目录 `Itsytv.app` + `Applications` 软链。kind `.dmg`
 - 嵌套: 没有 LoginItems / Helpers / XPC / framework / LaunchAgent plist。「Launch at login」是菜单里的勾选项，`SMAppService.mainApp.register()` 把 app 本身登记为登录项，默认不开，没有常驻 helper
 - 沙盒: Developer ID 版也带 `com.apple.security.app-sandbox` + `network.client`，数据在 `~/Library/Containers/com.itsytv.app`
 - 签名: 1.6.1、1.6.2 都是 `TeamIdentifier=R892A93W42`，`spctl` Notarized Developer ID，hardened runtime；Team 来回的四个旧版见「覆盖清单」
 - 校验: GitHub 资产 `digest`。下载的 1.6.1 / 1.6.2 dmg `shasum -a 256` 分别为 `cdd88872…f546b3` / `6ad433fd…be50ae`，与 API 的 `digest` 相同，字节数等于资产大小（4211298 / 4182941）
 - **读的是**: 人人可手动下载的 GA（`/releases/latest`，README 的下载说明指向它）
-- 端到端: 未跑（这一轮的接入不做真机）。主会话真机时注意：
+- 端到端:
+  - 第一轮（不运行）: 1.6.1 → `duo check` `1.6.1 → 1.6.2 [GitHub, in-place]` → `duo install` `extracting verifyingCodeSignature installing done installed.` → 1.6.2、可执行文件 inode 变、`TeamIdentifier=R892A93W42`、`codesign --verify --deep --strict` 退出 0、`spctl` accepted、`diff -r` 与厂商 1.6.2 包相同
+  - **运行中一轮没跑**：一启动就做 Bonjour 发现，可能在开发机屏幕上弹系统的本地网络授权框；它的更新器只提示不下载，运行中换包走的是通用的 quit → swap → relaunch 路径（同批其他 app 已真机过）
+- 启动副作用（读源码，未在真机上观察）:
   - 首次启动弹 iOS 版推广窗口并 `NSApp.activate(ignoringOtherApps:)` 抢前台，直到点掉（`iosPromoDismissed`，`IosPromoView.swift`，1.6.1 / 1.6.2 的可执行文件里都有）
   - 启动会做本地网络 Bonjour 发现（`_companion-link._tcp`、`_mediaremotetv._tcp`），可能弹本地网络授权框
   - 自带检查不会和我们抢；不点菜单就不联网查更新
@@ -91,4 +94,4 @@ curl -sS "https://itunes.apple.com/lookup?id=6759216148&country=us"             
 ```
 
 ## 建议下一步
-1. 主会话真机端到端：1.6.1 → 1.6.2，不运行 + 运行中 + `duo restart`，然后把 README 那一行的「一键端到端待主会话」换成结果。
+1. 运行中一轮可在一台能点掉本地网络授权框的机器上补跑。

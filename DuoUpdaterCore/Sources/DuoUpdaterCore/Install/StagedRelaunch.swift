@@ -201,9 +201,6 @@ public enum StagedRelaunch {
         public var installer: ParkedInstallerProbe.System
         /// The app's windows on screen now, every instance (`onScreenWindows(pids:)`).
         public var onScreenWindows: @Sendable () -> Set<OnScreenWindow>
-        /// Whether an instance is held at macOS's first-open prompt
-        /// (`OpenConfirmationHold`). Asked once, before anything is quit.
-        public var heldAtOpenPrompt: @Sendable () -> Bool
 
         public init(
             tick: @escaping @Sendable () async -> Void,
@@ -213,8 +210,7 @@ public enum StagedRelaunch {
             awaitBundleProcessesGone: @escaping @Sendable () async -> Void,
             relaunch: @escaping @Sendable (_ activates: Bool) async -> Bool,
             installer: ParkedInstallerProbe.System,
-            onScreenWindows: @escaping @Sendable () -> Set<OnScreenWindow> = { [] },
-            heldAtOpenPrompt: @escaping @Sendable () -> Bool = { false }
+            onScreenWindows: @escaping @Sendable () -> Set<OnScreenWindow> = { [] }
         ) {
             self.tick = tick
             self.isRunning = isRunning
@@ -224,7 +220,6 @@ public enum StagedRelaunch {
             self.relaunch = relaunch
             self.installer = installer
             self.onScreenWindows = onScreenWindows
-            self.heldAtOpenPrompt = heldAtOpenPrompt
         }
 
         public static func live(for app: InstalledApp) -> System {
@@ -241,8 +236,7 @@ public enum StagedRelaunch {
                 installer: .live,
                 onScreenWindows: {
                     StagedRelaunch.onScreenWindows(pids: Set(AppRestarter.runningInstances(of: app).map(\.processIdentifier)))
-                },
-                heldAtOpenPrompt: { OpenConfirmationHold.anyHeld(AppRestarter.runningInstances(of: app)) })
+                })
         }
     }
 
@@ -270,16 +264,6 @@ public enum StagedRelaunch {
         _ app: InstalledApp, staged: StagedSelfUpdate?, old: VersionSide,
         wasFrontmost: Bool, quitPatience: QuitPatience = .grace, system: System
     ) async -> Ending {
-        // Held at macOS's first-open prompt: it would not answer the quit, and
-        // the wait would end as `.wontQuit` — "likely a save prompt", which it
-        // is not. Checked before the quit rather than when the wait ends, so no
-        // quit is ever sent to it: whether a quit sent to a held app is dropped
-        // or delivered once the user clicks Open is not known (UNVERIFIED), and
-        // the second would close the app the user had just agreed to open.
-        if system.heldAtOpenPrompt() {
-            Log.app.notice("relaunch-staged: \(app.name, privacy: .public) hasn't finished launching and has no window (likely macOS's first-open prompt) — not quitting it")
-            return Ending(outcome: .awaitingOpenConfirmation, everQuit: false, reopenFailed: false)
-        }
         let buildIsDerived = AppScanner.buildVersionIsOverridden(bundleID: app.bundleID)
         // Spotify only swaps when its old build is opened again; ShipIt/Sparkle
         // swap on quit and must not be reopened early. See `StagedApplyTrigger`.

@@ -67,19 +67,12 @@ public enum AppRestarter {
         // Surge it was no longer part of.
         let nested = nestedRunningInstances(of: app)
         let running = main + nested
-        guard !running.isEmpty else { return .notRunning }
-        // Held at macOS's first-open prompt, it would not answer the quit, and
-        // the ~30 s wait below would end as `.stillRunning` — "likely a save
-        // prompt", which it is not. Asked before the quit rather than when the
-        // wait ends, so no quit is ever sent to it: whether one sent to a held
-        // app is dropped or delivered once the user clicks Open is not known
-        // (UNVERIFIED), and the second would close the app the user had just
-        // agreed to open. Over `running`, nested apps included: the quit below
-        // would reach every one of them.
-        if OpenConfirmationHold.anyHeld(running) {
-            Log.install.notice(
-                "app-restarter: \(app.name, privacy: .public) hasn't finished launching and has no window (likely macOS's first-open prompt) — not quitting it")
-            return .awaitingOpenConfirmation
+        if let early = await preQuitOutcome(running, isHeld: { await OpenConfirmationHold.isHeld($0) }) {
+            if early == .awaitingOpenConfirmation {
+                Log.install.notice(
+                    "app-restarter: \(app.name, privacy: .public) is held at macOS's first-open prompt (not finished launching, no window, quarantined, still so after the re-check) — not quitting it")
+            }
+            return early
         }
         // Sampled before the quit — once every instance is gone, so is the
         // answer — and decides whether the relaunch takes the foreground (see
@@ -110,6 +103,24 @@ public enum AppRestarter {
                 parentPath: parentPath, nestedBundles: nestedBundles)
         }
         return outcome ?? .stillRunning
+    }
+
+    /// `restart`'s answer before anything is quit, or nil to go on to the quit.
+    /// Generic so a test can drive it without a live process.
+    ///
+    /// Held at macOS's first-open prompt (`OpenConfirmationHold`), an app would
+    /// not answer the quit, and the ~30 s wait would end as `.stillRunning` —
+    /// "likely a save prompt", which it is not. Asked before the quit rather
+    /// than when the wait ends, so no quit is ever sent to it: whether one sent
+    /// to a held app is dropped or delivered once the user clicks Open is not
+    /// known (UNVERIFIED), and the second would close the app the user had just
+    /// agreed to open. Over every instance, nested apps included: the quit would
+    /// reach each of them. Anything not held goes on exactly as before.
+    static func preQuitOutcome<Instance>(
+        _ running: [Instance], isHeld: ([Instance]) async -> Bool
+    ) async -> Outcome? {
+        guard !running.isEmpty else { return .notRunning }
+        return await isHeld(running) ? .awaitingOpenConfirmation : nil
     }
 
     /// `restart` from the quit on — its commit (`InstallCommit`).

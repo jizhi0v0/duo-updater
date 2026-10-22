@@ -489,6 +489,9 @@ final class AppListModel {
     /// landing while the app is still up, after which its "the new version is
     /// already installed" is no longer true (`rollback`).
     @ObservationIgnored private var restartWontQuitNotes: [String: String] = [:]
+    /// id → the app whose "hasn't finished opening" note (kept in
+    /// `restartWontQuitNotes`) retracts itself once it has (`settleOpenPromptNotes`).
+    @ObservationIgnored private var openPromptNoteApps: [String: InstalledApp] = [:]
     /// id → the post-relaunch watch `scheduleRelaunchRecheck` started. Kept only
     /// so a later restart or bundle change of the row can cancel it.
     @ObservationIgnored private var relaunchRechecks: [String: Task<Void, Never>] = [:]
@@ -7157,9 +7160,49 @@ final class AppListModel {
 
     /// The note for a Relaunch that found the app held at macOS's first-open
     /// prompt (`.awaitingOpenConfirmation`, both paths). Hedged as `duo
-    /// restart`'s line is: a slow normal launch reads the same for a moment.
+    /// restart`'s line is: a launch slower than the re-check reads the same.
     static func awaitingOpenConfirmationNote(_ name: String) -> String {
         String(localized: "\(name) hasn’t finished opening. If macOS is asking whether to open it, click Open, then click Relaunch again. Nothing was changed.")
+    }
+
+    /// Put up `awaitingOpenConfirmationNote` and keep it only while it is true.
+    ///
+    /// Written into `restartWontQuitNotes`, so everything that retracts the
+    /// "didn't quit" note retracts this one too (the next Relaunch click, a
+    /// rollback, an install). On top of that it goes once every instance has
+    /// finished launching — the user clicked Open — or none is left (Cancel):
+    /// checked on each workspace launch/terminate event
+    /// (`handleRunningAppsChange`) and, because it is not verified that the
+    /// launch event fires again when a held app is let through, by a 1 s poll
+    /// for up to `StagedRelaunch.quitHandoffMaxAge`.
+    private func showAwaitingOpenConfirmation(_ result: UpdateResult) {
+        let note = Self.awaitingOpenConfirmationNote(result.app.name)
+        installNotes[result.id] = note
+        restartWontQuitNotes[result.id] = note
+        openPromptNoteApps[result.id] = result.app
+        let id = result.id
+        Task { @MainActor [weak self] in
+            for _ in 0..<Int(StagedRelaunch.quitHandoffMaxAge) {
+                // cancel-ok: an unstructured poll nobody cancels; it ends when the note goes.
+                try? await Task.sleep(for: .seconds(1))
+                guard let self, self.openPromptNoteApps[id] != nil else { return }
+                self.settleOpenPromptNotes()
+            }
+        }
+    }
+
+    /// Retract each `showAwaitingOpenConfirmation` note whose app has finished
+    /// launching or quit; forget one somebody else already took down.
+    private func settleOpenPromptNotes() {
+        for (id, app) in openPromptNoteApps {
+            guard restartWontQuitNotes[id] == Self.awaitingOpenConfirmationNote(app.name) else {
+                openPromptNoteApps[id] = nil
+                continue
+            }
+            guard AppRestarter.runningInstances(of: app).allSatisfy(\.isFinishedLaunching) else { continue }
+            openPromptNoteApps[id] = nil
+            retractRestartNote(id, from: &restartWontQuitNotes)
+        }
     }
 
     /// Quit the stale running instance and relaunch it so the new version takes
@@ -7319,11 +7362,9 @@ final class AppListModel {
             // the badge and arm no hand-off — once the user clicks Open the app
             // launches normally, and a hand-off would only fire if it quit, which
             // here means the user chose Cancel at that prompt and does not want
-            // it reopened. The note retracts like the one above: on the next
-            // Relaunch click, a rollback, or an install of the row.
-            let note = Self.awaitingOpenConfirmationNote(result.app.name)
-            installNotes[result.id] = note
-            restartWontQuitNotes[result.id] = note
+            // it reopened. The note goes once the app has finished launching
+            // (`showAwaitingOpenConfirmation`).
+            showAwaitingOpenConfirmation(result)
         case .relaunched(let relaunched):
             needsRestart.remove(result.id)
             pendingBatchRestart[result.id] = nil
@@ -7522,6 +7563,15 @@ final class AppListModel {
             Log.app.notice("relaunch-staged: \(result.app.name, privacy: .public) not running — its updater applies it on its own")
             return
         }
+        // Held at macOS's first-open prompt (`OpenConfirmationHold`): not quit,
+        // so no rollback copy either — checked before it. Nothing is handed off:
+        // approved, the app launches normally and its staging waits for the next
+        // Relaunch. Not a red line — its updater did not fail at anything.
+        if await OpenConfirmationHold.isHeld(running) {
+            Log.app.notice("relaunch-staged: \(result.app.name, privacy: .public) is held at macOS's first-open prompt — not quitting it")
+            showAwaitingOpenConfirmation(result)
+            return
+        }
 
         // A rollback point, as `install` takes before every route — here, while the
         // bundle on disk is still the build that is running, because the quit below
@@ -7576,15 +7626,9 @@ final class AppListModel {
                 installerWindowPendingIds.insert(result.id)
             }
         }
-        if outcome == .awaitingOpenConfirmation {
-            // Nothing was quit, so nothing is handed off: approved, the app
-            // launches normally and its staging waits for the next Relaunch.
-            // Not a red line either — its updater did not fail at anything.
-            let note = Self.awaitingOpenConfirmationNote(result.app.name)
-            installNotes[result.id] = note
-            restartWontQuitNotes[result.id] = note
-        }
         let failureMessage: String? = switch outcome {
+        // `.awaitingOpenConfirmation` is decided above, before the backup;
+        // `quitAndAwait` never returns it.
         case .applied, .wontQuit, .awaitingOpenConfirmation: nil
         case .swapDidNotLand:
             String(localized: "\(result.app.name) quit, but its own updater didn’t apply the update in time.")
@@ -10363,6 +10407,7 @@ final class AppListModel {
         // Before the needs-restart early-out below: a quit hand-off fires exactly
         // on a terminate event, and usually with `needsRestart` empty.
         settleQuitHandoffs()
+        settleOpenPromptNotes()
         // A `ChannelBinding` app launching or quitting is the other moment (besides
         // `windowAppeared`) we use to notice its channel toggle flipped in the
         // vendor app itself — the common "open Settings, flip the toggle, quit"

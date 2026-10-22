@@ -12,58 +12,127 @@ import Foundation
 /// `brew install --cask` (quarantine `0181`, no user-approved bit), at t+4 s
 /// and t+12 s: `isFinishedLaunching` false and no window of its own in
 /// `CGWindowListCopyWindowInfo(.optionAll)`. After the user clicked Open, the
-/// same pid read finished and owned 7 windows; a running app stopped with
-/// SIGSTOP (the stand-in for "won't quit") read finished, 7 windows.
+/// same pid read finished and owned 7 windows (quarantine `01c1`).
 ///
-/// Both conditions, never either alone. Normal launches measured the same day,
-/// three runs each under load: Hoppscotch finished at 0.67–0.75 s with its
-/// first window at 0.67–0.70 s, but ImageOptim's first window (0.25–0.28 s)
-/// came *before* it finished (0.37–0.40 s) — so "not finished" alone reads a
-/// normal launch as held, and "no windows" alone reads every hidden or
-/// windowless app as held. UNVERIFIED: heavy apps (Xcode), which may stay
-/// unfinished and windowless for several seconds of a normal launch; a restart
-/// asked for then is told the app hasn't finished opening, which is true.
+/// **All four conditions, each one there because a census or a probe broke
+/// the test without it** (2026-10-22):
+///  1. **Not finished launching** and 2. **no window of its own.** Neither
+///     alone: ImageOptim's first window (0.25–0.28 s) came before it finished
+///     launching (0.37–0.40 s), and a hidden or windowless app has none.
+///  3. **Its bundle carries `com.apple.quarantine` without the user-approved
+///     flag (0x40).** Without it, 52 of 190 running processes on a Mac read
+///     (1)+(2) permanently — daemons, XPC services, widgets, input-method
+///     services (`SogouServices`), apps that never run `NSApplication` (Apple:
+///     "Some applications do not post this notification … and so are never
+///     reported as finished launching"). None of the 52 was quarantined. Not
+///     enough on its own: 7 apps in /Applications carried `0181` though some
+///     had been opened (AirCard, last used 2026-10-07).
+///  4. **Still so after `recheckDelay`.** Without it, a quarantined app that
+///     is merely slow to launch is caught mid-launch: a synthetic app busy 8 s
+///     before `NSApp.run` read held at t=2 s, while the pre-change restart
+///     queued its quit, which was delivered right after `didFinishLaunching`,
+///     and relaunched it (16.4 s, `relaunched(true)`). Normal launches
+///     measured finish in ≤0.75 s; the prompt holds indefinitely. A launch
+///     slower than the delay with no window yet still reads held — UNVERIFIED
+///     how common that is (heavy apps such as Xcode were not measured).
 ///
-/// Judged per process, not over the screen: with two apps held at once only
-/// one prompt window was on screen, while each app's own reading was right.
+/// Judged per process: with two apps held at once only one prompt window was
+/// on screen, while each app's own reading was right. Only an instance that
+/// read held the first time is read again.
 ///
-/// Known gap, from Apple's documentation of `isFinishedLaunching`: "Some
-/// applications do not post this notification … and so are never reported as
-/// finished launching" — those that do not rely on `NSApplication`. Such an
-/// app with no window of its own would read as held for as long as it runs.
-/// No such app is known among what DuoUpdater restarts; not measured.
+/// Apps DuoUpdater installed itself carry no quarantine (`InPlaceSwap` strips
+/// it), so this only ever concerns copies installed some other way.
 public enum OpenConfirmationHold {
 
-    /// The test itself: not finished launching, and no window of its own.
-    public static func isHeld(finishedLaunching: Bool, windows: Int) -> Bool {
-        !finishedLaunching && windows == 0
-    }
+    /// How long a first "held" reading has to last. Normal launches measured
+    /// finish in ≤0.75 s; ~2 s leaves room for load.
+    public static let recheckDelay: Duration = .seconds(2)
 
-    /// One process's reading, as `isHeld` takes it.
+    /// One process's reading.
     public struct Reading: Sendable, Equatable {
         public let finishedLaunching: Bool
+        /// Windows the process owns, on screen or not (`ownedWindowCount`).
         public let windows: Int
-        public init(finishedLaunching: Bool, windows: Int) {
+        /// Its bundle carries `com.apple.quarantine` without the
+        /// user-approved flag (`quarantinePending`).
+        public let quarantinePending: Bool
+
+        public init(finishedLaunching: Bool, windows: Int, quarantinePending: Bool) {
             self.finishedLaunching = finishedLaunching
             self.windows = windows
+            self.quarantinePending = quarantinePending
         }
+
+        /// Conditions 1–3. Condition 4 is `isHeld`'s second reading.
+        public var looksHeld: Bool { !finishedLaunching && windows == 0 && quarantinePending }
     }
 
-    /// Whether any of these processes is held. One held instance is enough to
-    /// stop a restart before its quit: the quit would reach the held one too.
-    public static func anyHeld(_ readings: [Reading]) -> Bool {
-        readings.contains { isHeld(finishedLaunching: $0.finishedLaunching, windows: $0.windows) }
+    /// Whether any of `instances` is held: read held, and read held again
+    /// after `settle` (the live one waits `recheckDelay`). One held instance is
+    /// enough to stop a restart: its quit would reach that one too. `settle` is
+    /// never called when nothing reads held the first time — the common case
+    /// costs no wait.
+    public static func isHeld<Instance>(
+        _ instances: [Instance], read: (Instance) -> Reading, settle: () async -> Void
+    ) async -> Bool {
+        let suspects = instances.filter { read($0).looksHeld }
+        guard !suspects.isEmpty else { return false }
+        await settle()
+        return suspects.contains { read($0).looksHeld }
     }
 
-    /// `anyHeld` over live processes. The window count is only read for a
-    /// process that has not finished launching — the common case costs no
-    /// window-server query.
-    public static func anyHeld(_ instances: [NSRunningApplication]) -> Bool {
-        anyHeld(instances.map { instance in
-            let finished = instance.isFinishedLaunching
-            return Reading(
-                finishedLaunching: finished,
-                windows: finished ? 0 : StagedRelaunch.ownedWindowCount(pids: [instance.processIdentifier]))
+    /// `isHeld` over live processes.
+    public static func isHeld(_ instances: [NSRunningApplication]) async -> Bool {
+        await isHeld(instances, read: { reading(of: $0) }, settle: {
+            // cancel-ok: a cancelled caller only re-reads sooner; nothing has been quit yet.
+            try? await Task.sleep(for: recheckDelay)
         })
+    }
+
+    /// The live reading of one process. Each source is injectable, so a test
+    /// can see that the process's own pid and bundle are what get asked.
+    public static func reading(
+        of instance: NSRunningApplication,
+        windows: (pid_t) -> Int = { StagedRelaunch.ownedWindowCount(pids: [$0]) },
+        quarantine: (URL) -> String? = quarantineValue
+    ) -> Reading {
+        reading(
+            finishedLaunching: instance.isFinishedLaunching, pid: instance.processIdentifier,
+            bundle: instance.bundleURL, windows: windows, quarantine: quarantine)
+    }
+
+    /// `reading(of:)` from the instance's fields, so a test can pass a bundle
+    /// (the test process has none).
+    static func reading(
+        finishedLaunching: Bool, pid: pid_t, bundle: URL?,
+        windows: (pid_t) -> Int, quarantine: (URL) -> String?
+    ) -> Reading {
+        Reading(
+            finishedLaunching: finishedLaunching,
+            windows: windows(pid),
+            quarantinePending: quarantinePending(bundle.flatMap(quarantine)))
+    }
+
+    /// Whether a `com.apple.quarantine` value marks a copy macOS has not been
+    /// told to open yet: present, with the user-approved flag (0x40) clear in
+    /// its leading hex field (`0181;…` vs `01c1;…`). Absent or unparsable →
+    /// false: the narrow side, which leaves the restart as it was before this
+    /// existed.
+    public static func quarantinePending(_ value: String?) -> Bool {
+        guard let field = value?.split(separator: ";", omittingEmptySubsequences: false).first,
+              let flags = UInt32(field, radix: 16) else { return false }
+        return flags & 0x40 == 0
+    }
+
+    /// The `com.apple.quarantine` value on the bundle itself (symlinks not
+    /// followed), or nil when it has none or it cannot be read.
+    public static func quarantineValue(_ bundle: URL) -> String? {
+        let path = bundle.path
+        let size = getxattr(path, "com.apple.quarantine", nil, 0, 0, XATTR_NOFOLLOW)
+        guard size > 0 else { return nil }
+        var buffer = [UInt8](repeating: 0, count: size)
+        let read = getxattr(path, "com.apple.quarantine", &buffer, size, 0, XATTR_NOFOLLOW)
+        guard read > 0 else { return nil }
+        return String(decoding: buffer.prefix(read), as: UTF8.self)
     }
 }

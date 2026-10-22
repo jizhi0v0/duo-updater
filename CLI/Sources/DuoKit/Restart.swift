@@ -143,6 +143,13 @@ public enum Restart {
             // apply it now — the GUI's Relaunch stands down here too.
             return ("not running — nothing to restart; its own updater has \(to) staged", false)
         }
+        // Before the rollback copy: an app held at macOS's first-open prompt is
+        // not quit, so there is nothing to roll back from and no "backed up" line.
+        if await OpenConfirmationHold.isHeld(running) {
+            return describe(
+                StagedRelaunch.Ending(outcome: .awaitingOpenConfirmation, everQuit: false, reopenFailed: false),
+                staged: to, disk: VersionSide())
+        }
         // The rollback point the menu-bar app's Relaunch takes, honouring the
         // same preference — while the bundle on disk is still the running build.
         let taken = await StagedRelaunchBackup.take(

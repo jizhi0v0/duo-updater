@@ -16,6 +16,21 @@ import Foundation
             path: URL(fileURLWithPath: path), isMASApp: false, sparkleFeedURL: nil)
     }
 
+    /// `restart`'s answer before the quit (`preQuitOutcome`): nothing running →
+    /// `.notRunning` without asking about a hold; held → `.awaitingOpenConfirmation`;
+    /// anything else → nil, the pre-existing quit path unchanged.
+    /// Mutation: drop the held branch (always nil) → red; ask `isHeld` on an
+    /// empty list → red.
+    @Test func preQuitOutcomeStopsOnlyAHeldApp() async {
+        var asked: [[Int]] = []
+        #expect(await AppRestarter.preQuitOutcome([Int](), isHeld: { asked.append($0); return true }) == .notRunning)
+        #expect(asked.isEmpty)
+        #expect(await AppRestarter.preQuitOutcome([7, 8], isHeld: { asked.append($0); return true })
+            == .awaitingOpenConfirmation)
+        #expect(asked == [[7, 8]])
+        #expect(await AppRestarter.preQuitOutcome([7], isHeld: { _ in false }) == nil)
+    }
+
     /// The reason `runningInstances(of:)` matches on path rather than bundle id:
     /// channel siblings like Android Studio Preview and Stable share one bundle
     /// id but live at different paths, and only the exact-path install should be

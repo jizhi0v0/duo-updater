@@ -51,8 +51,6 @@ import Testing
         var windows: (Int) -> Set<StagedRelaunch.OnScreenWindow> = {
             $0 < 1 ? [StagedRelaunchTests.window] : [StagedRelaunchTests.window, StagedRelaunchTests.sheet]
         }
-        /// Held at macOS's first-open prompt (`OpenConfirmationHold`).
-        var heldAtOpenPrompt = false
 
         init(disk: VersionSide, new: VersionSide) { self.disk = disk; self.new = new }
 
@@ -88,8 +86,7 @@ import Testing
                 isAlive: { _ in false },
                 loadedJob: { _ in w.job },
                 sparkleInstallerPIDs: { _ in [] }),
-            onScreenWindows: { w.windows(w.now) },
-            heldAtOpenPrompt: { w.heldAtOpenPrompt })
+            onScreenWindows: { w.windows(w.now) })
     }
 
     /// Windows by number; `alert` is an app-modal one (`isModalPanel`).
@@ -321,22 +318,6 @@ import Testing
             system: system(w))
         #expect(ending.outcome == .wontQuit)
         #expect(w.now == 40)
-    }
-
-    /// Held at macOS's first-open prompt: ends at once as
-    /// `.awaitingOpenConfirmation` — never `.wontQuit` ("likely a save
-    /// prompt") — with no quit sent, no tick waited and no reopen.
-    /// Mutation: drop the check → terminated, `.wontQuit` after the grace, red.
-    @Test func anAppHeldAtTheOpenPromptIsNotQuit() async {
-        let w = World(disk: old, new: new)
-        w.heldAtOpenPrompt = true
-        w.quitsAt = nil
-        let ending = await run(w, staged(.shipIt))
-        #expect(ending == StagedRelaunch.Ending(
-            outcome: .awaitingOpenConfirmation, everQuit: false, reopenFailed: false))
-        #expect(!w.terminated)
-        #expect(w.now == 0)
-        #expect(w.launches.isEmpty)
     }
 
     @Test func showsNoPromptOnlyWithoutNewWindowsOrAlerts() {

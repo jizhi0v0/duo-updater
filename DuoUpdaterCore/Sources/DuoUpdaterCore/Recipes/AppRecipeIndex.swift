@@ -294,6 +294,7 @@ public enum AppRecipeIndex {
         now_typeless_desktop.set,
         onebadidea_Swift_Quit.set,
         org_alacritty.set,
+        org_alichtman_deadbolt.set,
         org_audacityteam_audacity.set,
         org_blenderfoundation_blender.set,
         org_cindori_TrimEnabler4.set,

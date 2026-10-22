@@ -56,6 +56,7 @@ public enum AppRecipeIndex {
         com_bjango_istatmenus.set,
         com_BlueBubbles_BlueBubbles_Server.set,
         com_bombich_ccc.set,
+        com_bradenwong_whispering.set,
         com_brave_Browser.set,
         com_bytedance_inputmethod_doubaoime.set,
         com_canva_CanvaDesktop.set,

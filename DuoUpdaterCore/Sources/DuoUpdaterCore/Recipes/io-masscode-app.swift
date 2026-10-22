@@ -4,6 +4,7 @@ enum io_masscode_app {
     static let set = AppRecipeSet(
         family: "io-masscode-app",
         githubRules: [
+        // History: docs/app-audits/io-masscode-app.md#历史与实测
         // massCode — Electron snippet manager (massCodeIO/massCode). Its own
         // updater is electron-updater with `provider: github`, which states no
         // address `ElectronManifestSource` may use, so this rule is the route.
@@ -15,8 +16,8 @@ enum io_masscode_app {
         // `v2.0.0-beta.1`…`beta.6` (2022, not flagged prerelease, older than
         // v2.0.0) and the flagged `v3.0.0-beta.1` / `v4.0.0-beta.2` /
         // `v4.0.0.beta-1`. A copy of any of them reports `x.y.z-beta.N`, which
-        // `ReleaseChannel.detect` reads as beta, so this stable rule does not
-        // serve it.
+        // `ReleaseChannel.detect` reads as beta, so the beta rule below serves
+        // it, not this one.
         //
         // `massCode-<v>-arm64.dmg` is io.masscode.app, Team GCU493MNF8,
         // notarized (6.0.0, 6.2.1, 6.3.1). The unsuffixed dmg/zip are the x64
@@ -27,6 +28,24 @@ enum io_masscode_app {
             versionPattern: #"^v([0-9]+(?:\.[0-9]+)+)$"#,
             installAssetPattern: #"^massCode-[0-9]+(?:\.[0-9]+)+-arm64\.dmg$"#,
             installerKind: .dmg),
+
+        // A copy on a beta (`2.0.0-beta.6`, `3.0.0-beta.1`, `4.0.0-beta.2`):
+        // same bundle id, but its version makes `ReleaseChannel.detect` call it
+        // beta, and the stable rule refuses it; without this rule channel-verify
+        // reads "no source answered". There has been no beta since
+        // `v4.0.0-beta.2` (2025-07); 5.x and 6.x shipped as stable only. So the
+        // release a beta copy moves to is the newest stable one: same tags as
+        // the stable rule, read from `/releases/latest`.
+        //
+        // Detection-only: a non-stable install needs a channel proof, and only
+        // the installed version tells the two tracks apart, nothing in the
+        // release. Every beta is 4.x or older, so the `^[56]\.` gate below
+        // would refuse one-click to these copies as well.
+        GitHubReleaseRule(
+            bundleID: "io.masscode.app",
+            owner: "massCodeIO", repo: "massCode",
+            versionPattern: #"^v([0-9]+(?:\.[0-9]+)+)$"#,
+            channel: .beta),
         ],
         // One-click only for 5.x and 6.x copies. v6 opens only a Markdown
         // Vault and dropped SQLite and the built-in migration (v6.0.0 release

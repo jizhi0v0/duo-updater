@@ -16,7 +16,7 @@
 |              | Sparkle | Homebrew | MAS | GitHub | VendorProbe |
 |--------------|---------|----------|-----|--------|-------------|
 | **stable**   | —       | 现有通用 cask 源 | — | ✓ | — |
-| **beta**     | —       | —        | —   | ✗（见覆盖清单）| — |
+| **beta**     | —       | —        | —   | ✓（只检测，给最新稳定版）| — |
 
 当前生效源（channel-verify 实测）: **GitHub**。
 
@@ -27,8 +27,8 @@
 - **Team**：6.0.0 / 6.2.1 / 6.3.1 / 5.12.0 都是 `GCU493MNF8`；2.0.0-beta.6 是 `NXRD82TAC2`。换 Team 发生在 2.x 和 5.12.0 之间（具体哪一版没逐个下包查）。换 Team 之前的副本，安装闸本来就会拒掉；再加上下面的一键门，它们也不会被提供一键
 - **beta / 预发布**：
   - `v2.0.0-beta.1`…`beta.6`（2022-04，**没标 prerelease**），`v3.0.0-beta.1`、`v4.0.0-beta.2`、`v4.0.0.beta-1`（标了 prerelease）。版本模式 `^v([0-9]+(?:\.[0-9]+)+)$` 不收这些，所以 72 个 release tag 里读出 66 个（另有 `v4.7.0`、`v6.3.0` 两个 tag 没有 release，`v6.3.0` 比 `v6.3.1` 早 15 分钟打，`v6.3.1` 带了构建修复 #988）
-  - 这些 beta 和正式版同一个 id。真包 2.0.0-beta.6 的 `CFBundleShortVersionString` 是 `2.0.0-beta.6`，`ReleaseChannel.detect` 第 4 步（`-beta.<N>`）把它读成 **beta**，这条 stable rule 不服务它：channel-verify `--expect beta` 通过，`winning source <none>`、`status unknown (no source answered)`
-  - **记为缺口**：这些 beta 副本没有检测。理由：最后一个是 2025-07 的 4.0.0-beta.2，之后没有 beta 轨；就算改成 `.stable` 让它们看到 6.3.1，一键门也会挡住（4.x 及更早的库 6.x 打不开），只多一条「有新版」提示。让它们按 stable 检测需要在 `ReleaseChannel.detect` 加 bundle-id 分支，属于引擎改动，没做
+  - 这些 beta 和正式版同一个 id。真包 2.0.0-beta.6、4.0.0-beta.2 的 `CFBundleShortVersionString` 带 `-beta.N`，`ReleaseChannel.detect` 第 4 步（`-beta.<N>`）把它读成 **beta**，stable rule 不服务它（加 beta rule 之前 channel-verify：`winning source <none>`、`status unknown (no source answered)`）
+  - **✓（只检测）**：加了一条 `channel: .beta` 的 GitHub rule，同一个仓库、同样的 tag 模式、读 `/releases/latest`，不带 `installAssetPattern` / `installerKind` / `installedTagPrefix`。最后一个 beta 是 2025-07 的 4.0.0-beta.2，之后 5.x、6.x 只发正式版，所以 beta 副本看到的是最新稳定版（今天 6.3.1）。只检测的理由：非 stable 轨的安装要 channel proof，而能区分两条轨的只有已装副本的版本号；而且 beta 都是 4.x 及更早，`^[56]\.` 一键门本来也会挡（4.x 及更早的库 6.x 打不开）。真包结果见「历史与实测」
 - **版本范围**：一键只给 5.x / 6.x 副本（下面的 `OneClickGate`）。4.x 及更早的副本保留检测、不给一键
 - **主机下限**：DuoUpdater 只出 arm64（`App/project.yml`）。arm64 dmg 的 `LSMinimumSystemVersion` 是 11.0（5.12.0 / 6.x），不构成限制
 - **同 id 下的其他产品**：没有。v3 的构建配置里有 `-sponsored` 产物名，6.x 的资产里没有；资产模式锚定 `-arm64\.dmg$`，不会选到
@@ -38,7 +38,7 @@
 | Channel | Bundle ID | 独立/共享 | 检测信号 | 门控方式 | 状态 |
 |---------|-----------|----------|---------|---------|------|
 | stable  | `io.masscode.app` | 共享 | 默认 | `/releases/latest` | ✓ |
-| beta（2022–2025 的旧 beta） | `io.masscode.app` | 共享 | 版本号 `-beta.N` | 无 rule | ✗ 缺口（见上） |
+| beta（2022–2025 的旧 beta） | `io.masscode.app` | 共享 | 版本号 `-beta.N` | `.beta` rule 读 `/releases/latest` | ✓（只检测） |
 
 ## 更新检测
 - 源: `massCodeIO/massCode` GitHub Releases，`/releases/latest`
@@ -48,7 +48,7 @@
   - 6.2.1 → `winning source GitHub`、`latest 6.3.1`、`status UPDATE → 6.3.1`
   - 6.3.1 → `status up to date`
   - 5.12.0 → `UPDATE → 6.3.1`（检测正常；一键由门挡住）
-  - 2.0.0-beta.6 → `detected channel → beta`、`status unknown (no source answered)`
+  - 4.0.0-beta.2 → `detected channel → beta`、`winning source GitHub`、`UPDATE → 6.3.1`、`download` 是 releases 页（加 beta rule 之后；之前 2.0.0-beta.6 是 `status unknown (no source answered)`）
 - **供应链事件**（GHSA-347q-f3qv-xq9w，issue #978）：2026-10-11 有人用维护者泄露的 GitHub token 推了恶意提交、打 `v6.2.0` tag，由**正常的 release 工作流构建、签名、发布**，20:35–约 00:05 UTC 在 releases 上，也经 app 自己的自动更新下发。6.2.0 已撤下（tag 也删了），6.2.1 是从恢复后的代码重建的。这类发布签名和 Team 都是厂商自己的，我们的安装闸（bundle id + Team + 公证）挡不住；GitHub 资产 `digest` 也只证明下到的是发布的那份。这条 rule 读到的就是 app 自己更新器读的同一个 releases，所以暴露面和厂商自带更新器相同，不更大（自带更新器默认自动下载、退出即装；我们的一键要用户点）
 
 ## 按架构 / 按 OS 分轨
@@ -85,7 +85,7 @@
   - 6.2.1: 4 items，headings `[]`（「Security Release」一节是纯段落，走 prose 兜底，4 段都在）
   - 6.3.1: 16 items，headings `["Fixes", "What's Changed"]`
 - **纯段落的大节被丢掉。** 厂商把主要新功能写成「标题 + 段落」（6.3.1 的 `## Semantic Search`、`## MCP Editing and Organization`；6.0.0 的 `## MCP Integration`、`## Performance`、`## Upgrading to v6`），只要正文里还有列表，解析器就只留列表，这些节连标题一起不显示。6.0.0 的 `AI Assistant` 标题留下了，但下面只剩三条示例提问（原文的引号列表）。`Upgrading to v6`（升级前要迁移库）也因此不在面板里。这是通用解析器的取舍（与 Harp 同一类），没有改；分节标题本身保留、没有被压平
-- 跟随 channel: —（单轨）
+- 跟随 channel: —（beta rule 读的也是稳定版正文）
 - Recipe 状态: 不需要
 
 ## 一键安装
@@ -120,7 +120,6 @@
 3. 一键门（可选）：`ditto` 5.12.0 进去 → `duo check` 应显示 6.3.1、可一键（GitHub 源不走大版本确认）；4.x 副本 `duo install` 应被拒并给出门的 reason
 
 ## 已知问题
-- beta 副本（`x.y.z-beta.N`）没有检测，见覆盖清单
 - changelog 面板丢掉纯段落的功能节，见 Changelog
 - 供应链事件说明这个仓库的 release 曾被冒名发布并签名，见更新检测
 
@@ -131,9 +130,26 @@ gh release view v6.3.1 -R massCodeIO/massCode --json assets -q '.assets[]|.name+
 swift run --package-path application-test feed-discover massCode-6.2.1-arm64.dmg        # → electronProviderNeedsConstruction
 swift run --package-path application-test channel-verify massCode-6.2.1-arm64.dmg --expect stable   # → GitHub, UPDATE → 6.3.1
 swift run --package-path application-test channel-verify massCode-6.3.1-arm64.dmg --expect stable   # → up to date
-swift run --package-path application-test channel-verify massCode-2.0.0-beta.6-arm64.dmg --expect beta   # → no source answered
+swift run --package-path application-test channel-verify massCode-4.0.0-beta.2-arm64.dmg --expect beta   # → GitHub, UPDATE → 6.3.1, download 是 releases 页
 ```
+
+## 历史与实测
+
+### 2026-10-22 —— beta 副本加只检测的 `.beta` rule
+
+- 加 rule 之前（同日接入时）: `massCode-2.0.0-beta.6-arm64.dmg` channel-verify `--expect beta` 是 `winning source <none>`、`status unknown (no source answered)`
+- `gh api` 核对: 带 `beta` 的 release 只有 `v2.0.0-beta.1`…`beta.6`（2022-04，`prerelease: false`）、`v3.0.0-beta.1`（2022-08）、`v4.0.0.beta-1`（2025-07-03）、`v4.0.0-beta.2`（2025-07-04），后三个 `prerelease: true`；之后只有正式版，`/releases/latest` 是 `v6.3.1`
+- 加 rule 之后，`massCode-4.0.0-beta.2-arm64.dmg`（158638834 字节，sha256 `48561ffb5f305bc8a609f46bf4aec2444bd1dbd879876d3a6ff8629fb4d8787f`，与 API `digest` 相同）:
+  ```
+  short version   4.0.0-beta.2
+  detected channel  → beta
+  ✓ detection matches --expect beta
+  winning source  GitHub
+  latest          6.3.1
+  download        https://github.com/massCodeIO/massCode/releases
+  status          UPDATE → 6.3.1
+  ```
+- 对照 `massCode-6.2.1-arm64.dmg` `--expect stable`，结果不变: `winning source GitHub`、`latest 6.3.1`、`download https://github.com/massCodeIO/massCode/releases/download/v6.3.1/massCode-6.3.1-arm64.dmg`、`UPDATE → 6.3.1`
 
 ## 建议下一步
 1. 7.0 发布时读它的 release notes，决定是否把 7 加进一键门
-2. （可选，引擎）旧 beta 副本若要按 stable 检测，需在 `ReleaseChannel.detect` 给 `io.masscode.app` 加分支

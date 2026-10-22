@@ -273,6 +273,7 @@ public enum AppRecipeIndex {
         notion_id.set,
         now_typeless_desktop.set,
         org_alacritty.set,
+        org_alichtman_deadbolt.set,
         org_audacityteam_audacity.set,
         org_blenderfoundation_blender.set,
         org_cindori_TrimEnabler4.set,

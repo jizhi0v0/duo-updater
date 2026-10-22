@@ -10,9 +10,18 @@ enum com_bilingify_readest {
         // `.app.tar.gz` into memory and swaps the bundle in place; nothing is
         // parked on disk. No helper or login item ships in the bundle.
         //
-        // Tags read `v0.12.16`; the bundle says 0.12.16. Every release carries
-        // one `Readest_<version>_universal.dmg` (com.bilingify.readest, Team
-        // J5W48D69VR, notarized; same id and Team back to v0.7.9). The other
+        // Tags read `v0.12.16`; the bundle says 0.12.16. Every release but two
+        // carries one `Readest_<version>_universal.dmg` (com.bilingify.readest,
+        // Team J5W48D69VR, notarized; same id and Team back to v0.7.9). The two
+        // are v0.9.90 and v0.9.91, whose dmg is named
+        // `Readest_<version>_universal_darwin.dmg`; the install pattern does not
+        // match it, and both sit far below the newest release. Were a future
+        // /releases/latest to ship that name, the engine would find no matching
+        // asset on it, fetch the list, skip that release and offer the newest
+        // earlier one that matches, with an `installAssetRenamed` warning naming
+        // the skipped tag (a recipe miss once more than five in a row lack a
+        // match). The new release would then not be offered until the pattern
+        // accepts the `_darwin` name. The other
         // zips in a release are the KOReader / Calibre / CrossPoint plugins and
         // the send-to-readest extension, not the app. Two releases (v0.9.39,
         // v0.11.16) are flagged prerelease; they are ordinary builds, and

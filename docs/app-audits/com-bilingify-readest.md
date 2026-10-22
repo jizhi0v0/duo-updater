@@ -28,7 +28,7 @@
   - v0.7.9（release 列表里最老的一版）: 同 id、同 Team，`CFBundleVersion` 是时间戳 `20241201.120129`（只比 `CFBundleShortVersionString`，不影响）
   - 没有改名前的旧 bundle id
 - 其他轨: nightly（见下）；release 列表 108 个 release 里有两个 `prerelease: true`（v0.9.39、v0.11.16），都是普通版本号、正文是正常的 Release Highlights，后面都有正式版（v0.11.17、v0.11.18 …），不是独立的轨，`/releases/latest` 本来就跳过它们
-- 版本范围: 108 个 release 的 tag 全部是 `v<数字>(.<数字>)+`，`versionPattern` 都读得出；每个 release 恰好一个 `Readest_<version>_universal.dmg`
+- 版本范围: 108 个 release 的 tag 全部是 `v<数字>(.<数字>)+`，`versionPattern` 都读得出；108 个 release 里 106 个恰好一个 `Readest_<version>_universal.dmg`；v0.9.90 和 v0.9.91 的 dmg 叫 `Readest_<version>_universal_darwin.dmg`，install pattern 不匹配（各自仍恰好一个 dmg，这两个 release 离最新版很远，不在现行答案的路径上）
 - 主机下限: DuoUpdater 自身 macOS 15、arm64（`App/project.yml`）；Readest `LSMinimumSystemVersion` 12.0、universal，都在下限之下，不需要 `hostRequirement`
 - 商店副本: 同 id，按 receipt 识别，GitHub 源不应答（引擎已有的结构性闸，不是本 rule 的事）
 
@@ -104,6 +104,7 @@
   - 自更新器不暂存，第二轮无法造「暂存了一个比 latest 旧的版本」；能撞上的只有用户在它自己的更新窗口里点安装，那是就地换包
 
 ## 已知问题
+- v0.9.90、v0.9.91 的 dmg 叫 `Readest_<version>_universal_darwin.dmg`（`gh api repos/readest/readest/releases/tags/v0.9.91` 的资产列表可复核；108 个 release 的 dmg 名逐个枚举过，只有这两个不是 `_universal.dmg`），不匹配 `installAssetPattern`，没有改 pattern。现在 `/releases/latest` 是 v0.12.16，不受影响。如果将来的 latest 用 `_darwin` 这个名字：引擎在 latest 上找不到匹配资产，改取 release 列表，跳过这一版，往回走到最近一个有匹配资产的 release 并把它当答案（用户看不到这个新版本），同时给出 `installAssetRenamed` 警告（`skippedReleaseWarning`，点名被跳过的 tag 和 `.dmg` 候选）；连续超过 `maxReleasesWithoutMacOSAsset`（5）个都没有匹配则不答并记 recipe miss。出现这种情况就得放宽 pattern
 - nightly 副本行上显示的是 stable 视角（同 base 时 up to date，看不到更新的 nightly 构建），一键被挡；接 nightly 需要引擎改动，见上
 - App Store 版与 GitHub 版同 id；商店副本靠引擎的 MAS 闸避开 GitHub 源，本次没有商店副本可测
 

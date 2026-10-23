@@ -4,6 +4,14 @@ import DuoUpdaterCore
 
 /// Carries the measured height of the popover's update list up to the frame, so it
 /// can hug its content instead of guessing a per-row height.
+/// The tool groups' page's own height: its header's and its rows', summed.
+struct ToolsPageHeightKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value += nextValue()
+    }
+}
+
 private struct ListHeightKey: PreferenceKey {
     static let defaultValue: CGFloat = 0
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
@@ -37,6 +45,9 @@ struct MenuContentView: View {
     /// The page's height, taken from the list as it opens — before its search
     /// is cleared, which would size the page to the whole list.
     @State private var toolsPageOpenHeight: CGFloat = 200
+    /// What the page's own rows need (`ToolsPageHeightKey`), measured while it
+    /// waits off to the side.
+    @State private var toolsPageContentHeight: CGFloat = 0
     /// The apps' search as the page opened, put back as it closes, so the
     /// list comes back as it was left, at its height.
     @State private var appSearchBeforeToolsPage = ""
@@ -49,7 +60,10 @@ struct MenuContentView: View {
     /// closes.
     private func setToolsPage(_ open: Bool) {
         if open {
-            toolsPageOpenHeight = toolsPageHeight
+            // The list's height or the page's own, whichever is taller, up to
+            // the cap: a taller list keeps what is below where it was; a
+            // shorter one — two apps, or a search — does not squeeze the page.
+            toolsPageOpenHeight = min(Self.maxListHeight, max(toolsPageHeight, toolsPageContentHeight))
             appSearchBeforeToolsPage = searchText
             searchText = ""
         } else {
@@ -151,7 +165,10 @@ struct MenuContentView: View {
                 // An overlay, so the closed page adds nothing to the height.
                 .overlay(alignment: .topLeading) {
                     ToolsPage(tools: model.cliTools, isOpen: toolsPageOpen, height: toolsPageOpenHeight,
-                              query: searchText,
+                              // The apps' search is not the page's: closed, it
+                              // filtered the page down to its header, and the page
+                              // measured that (31 pt) as its height.
+                              query: toolsPageOpen ? searchText : "",
                               close: { setToolsPage(false) },
                               show: { tag in
                                   model.requestedWorkbenchCLITool = tag
@@ -159,6 +176,7 @@ struct MenuContentView: View {
                                   model.surfaceWindow(sceneID: WorkbenchWindowView.windowID)
                               })
                         .frame(width: MenuLayoutMetrics.width)
+                        .onPreferenceChange(ToolsPageHeightKey.self) { toolsPageContentHeight = $0 }
                         .allowsHitTesting(toolsPageOpen)
                         .accessibilityHidden(!toolsPageOpen)
                         .alignmentGuide(.leading) { _ in -MenuLayoutMetrics.width }
@@ -337,11 +355,9 @@ struct MenuContentView: View {
     /// Tallest the list gets before it scrolls.
     private static let maxListHeight: CGFloat = 380
 
-    /// The tool groups' page's height: the app list's as it stood — its
-    /// placeholders' 200, or the rows' measured height up to the cap — so
-    /// opening the page moves nothing below it and the chevron stays under
-    /// the pointer. No floor: one of 200 pt grew a short list's popover and
-    /// took the chevron with it; a short page scrolls instead.
+    /// The app list's height as it stands — its placeholders' 200, or the
+    /// rows' measured height up to the cap. The page opens at least this
+    /// tall, so a taller list leaves what is below it where it was.
     private var toolsPageHeight: CGFloat {
         if visible.isEmpty { return 200 }
         if listOverflows { return Self.maxListHeight }
@@ -977,6 +993,11 @@ struct ToolsPage: View {
         return CLIToolPresentation.holding(entries, to: keeping.isEmpty ? nil : keeping, id: \.id)
     }
 
+    /// A part's height into `ToolsPageHeightKey`, which sums the parts.
+    private static var measured: some View {
+        GeometryReader { Color.clear.preference(key: ToolsPageHeightKey.self, value: $0.size.height) }
+    }
+
     /// Whether the chevron has a page to open.
     @MainActor static func hasGroups(_ tools: CLIToolsModel) -> Bool { !entries(tools).isEmpty }
 
@@ -1003,7 +1024,8 @@ struct ToolsPage: View {
             .help(String(localized: "Hide groups"))
             .padding(.horizontal, 12)
             .padding(.vertical, 7)
-            Divider()
+            .background(Self.measured)
+            Divider().background(Self.measured)
             ScrollView {
                 VStack(spacing: 0) {
                     ForEach(Array(shown.enumerated()), id: \.element.id) { index, entry in
@@ -1011,6 +1033,7 @@ struct ToolsPage: View {
                         row(entry)
                     }
                 }
+                .background(Self.measured)
             }
             .overlay {
                 if shown.isEmpty, !trimmed.isEmpty { ContentUnavailableView.search(text: trimmed) }

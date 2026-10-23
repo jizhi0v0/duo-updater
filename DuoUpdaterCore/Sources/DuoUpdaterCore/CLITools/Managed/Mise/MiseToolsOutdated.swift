@@ -186,12 +186,20 @@ struct MiseToolsOutdated: Sendable, Equatable {
             // Not listed: no request of this tool has anything newer inside
             // it (a listing names one, whichever collapsed) — or mise could
             // not read the tool at all, which only `mise latest` tells apart.
-            guard latest["\(tool)@\(requested)"] != nil else {
+            guard let newest = latest["\(tool)@\(requested)"] else {
                 decided.blocker = .channelUnreadable("mise latest \(tool)@\(requested) printed no version")
                 return decided
             }
-            decided.vendorWouldUpgrade = false
-            decided.latestWithinRequest = entry.version
+            // What it printed is the answer: newer than the install (the
+            // network came back between `outdated` and `latest`) is what
+            // `mise upgrade` moves to now; else the row is current.
+            if VersionComparator.isNewer(newest, than: entry.version) {
+                decided.vendorWouldUpgrade = true
+                decided.latestWithinRequest = newest
+            } else {
+                decided.vendorWouldUpgrade = false
+                decided.latestWithinRequest = entry.version
+            }
         } else {
             decided.blocker = .notRequested(
                 "mise outdated reports one request per tool, and named \(tool)@\(plain?.requested ?? "?")")

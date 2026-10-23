@@ -266,6 +266,7 @@ struct MiseToolsAdapterTests {
         #expect(MiseToolsOutdated.parse(Data("mise ERROR".utf8)) == nil)
 
         let host = FakeHost(ls: try Self.fixture("ls.json"), outdated: Data(), bump: try Self.fixture("outdated-bump.json"))
+        host.respond(["latest", "node@20"], with: Data("20.10.0\n".utf8))
         let report = await Self.provider(host).check()
         let node = try #require(Self.status(report, "node@20"))
         #expect(node.state == .upToDate)
@@ -274,6 +275,19 @@ struct MiseToolsAdapterTests {
         #expect(ManagedCheck.beyondRequest(node) == "26.12.1")
         #expect(node.manualCommand?.arguments == ["upgrade", "--bump", "node"])
         #expect(node.commandToCopy == nil)
+    }
+
+    /// The network came back between `mise outdated` (which could read
+    /// nothing, `{}`) and `mise latest node@20` (which printed 20.20.2): the
+    /// printed version is the answer, so node is offered, not called current
+    /// for a quarter of an hour. Mutation: check only that `mise latest`
+    /// printed something.
+    @Test func aNewerVersionMiseLatestPrintedIsOffered() async throws {
+        let host = FakeHost(ls: try Self.fixture("ls.json"), outdated: Data("{}".utf8), bump: Data("{}".utf8))
+        let node = try #require(Self.status(await Self.provider(host).check(), "node@20"))
+        #expect(node.state == .updateAvailable)
+        #expect(node.latestVersion == "20.20.2")
+        #expect(node.oneClick?.arguments == ["upgrade", "-y", "node"])
     }
 
     /// Offline, mise prints `{}` to both reads and exits 0 (mise 2026.10.7,
@@ -317,6 +331,7 @@ struct MiseToolsAdapterTests {
         bumpless.respond(["outdated", "--json"], with: Data("{}".utf8))
         bumpless.respond(["outdated", "--bump", "--json"], with: nil)
         bumpless.respond(["latest", "npm:prettier"], with: Data(), exitStatus: 1)
+        bumpless.respond(["latest", "node@20"], with: Data("20.10.0\n".utf8))
         let partial = await Self.provider(bumpless).check()
         #expect(Self.status(partial, "node@20")?.state == .upToDate)
         #expect(Self.status(partial, "jq@1.6")?.state == .pinned)

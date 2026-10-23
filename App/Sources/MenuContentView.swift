@@ -42,8 +42,8 @@ struct MenuContentView: View {
     /// Not remembered: the popover's view tree outlives its window, so it is
     /// reset each time the popover closes (`onDisappear`).
     @State private var toolsPageOpen = false
-    /// The page's height, taken from the list as it opens — before its search
-    /// is cleared, which would size the page to the whole list.
+    /// The page's height, taken as it opens (`setToolsPage`) and held while
+    /// it is open, so its search filters rows without resizing the popover.
     @State private var toolsPageOpenHeight: CGFloat = 200
     /// What the page's own rows need (`ToolsPageHeightKey`), measured while it
     /// waits off to the side.

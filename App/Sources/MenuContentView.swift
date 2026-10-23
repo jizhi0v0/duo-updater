@@ -1006,6 +1006,8 @@ private struct CommandLineRow: View {
         case .queued: return Text(String(localized: "Queued"))
         case .updating(let kind?): return Text(String(localized: "Updating \(kind.displayName)"))
         case .updating(nil): return Text(String(localized: "Updating command-line tools"))
+        // The same sentence as a kind's, with the manager's group in it: "Updating mise tools".
+        case .updatingGroup(let group): return Text(String(localized: "Updating \(group)"))
         case .progress(.cancelling): return Text(String(localized: "Cancelling…")).monospacedDigit()
         case .progress(.line(let text)): return Text(text).monospacedDigit()
         case .progress(.updating): return Text(String(localized: "Updating…")).monospacedDigit()
@@ -1020,6 +1022,7 @@ private struct CommandLineRow: View {
                 ?? CLIToolsModel.reason(withheld, of: id.kind))
         case .notChecked(let count): return Text(String(localized: "\(count) not checked"))
         case .updated(let kind, let version): return Text(String(localized: "\(kind.displayName) updated to \(version)"))
+        case .updatedItem(let name, let version): return Text(String(localized: "\(name) updated to \(version)"))
         // A running process keeps the binary it started with; for Claude Code
         // that is every open session.
         case .takesEffect(.claudeCode): return Text(String(localized: "New sessions use it; restart open ones"))

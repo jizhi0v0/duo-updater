@@ -3,15 +3,21 @@ import Foundation
 /// The one list a new manager is added to. Order = order of the managed groups
 /// in the CLI tab, after every standalone kind (D12).
 ///
-/// Empty in P0 (plans/cli-managers-redesign.md §8.1): the plumbing is in, no
-/// manager is visible. P1 adds `MiseToolsAdapter()`, P2 uv tool and pipx, P3
-/// the version lines, P4 cargo and go.
+/// P1 (plans/cli-managers-redesign.md §8.1) registers mise's tools; P2 adds uv
+/// tool and pipx, P3 the version lines, P4 cargo and go.
 public enum ManagerRegistry {
-    public static let adapters: [any ManagerAdapter] = []
+    /// Every manager, reading `home`.
+    public static func all(home: URL) -> [any ManagerAdapter] {
+        [MiseToolsAdapter(home: home)]
+    }
 
-    /// One `ManagedProvider` per adapter, for `CLITools.providers()`.
+    /// Every manager, reading this user's home.
+    public static let adapters: [any ManagerAdapter] = all(home: FileManager.default.homeDirectoryForCurrentUser)
+
+    /// One `ManagedProvider` per adapter, for `CLITools.providers()`: adapter
+    /// and provider read the same home.
     public static func providers(home: URL = FileManager.default.homeDirectoryForCurrentUser) -> [any CLIToolProvider] {
-        adapters.map { ManagedProvider($0, home: home) }
+        all(home: home).map { ManagedProvider($0, home: home) }
     }
 
     /// The descriptor of a registered manager; nil for one not registered (a

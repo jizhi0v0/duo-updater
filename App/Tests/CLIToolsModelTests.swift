@@ -2943,7 +2943,7 @@ struct CLIToolsModelTests {
             line: model.progressLine(pnpm), lineStage: .runningCommand(""),
             state: .updateAvailable, oneClick: true,
             needsAdministrator: false, withheld: nil, manualCommand: CLIToolPresentation.manualCommand(status),
-            hasLatestVersion: true, error: nil, justUpdated: nil))
+            hasLatestVersion: true, error: nil, justUpdated: nil, groupTitle: nil, itemTitle: nil))
 
         model.cancelRow()
         #expect(model.cancels[pnpm] == .cancelling)

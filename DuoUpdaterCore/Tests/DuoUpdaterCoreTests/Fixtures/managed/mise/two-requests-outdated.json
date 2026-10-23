@@ -1,0 +1,13 @@
+{
+  "node": {
+    "name": "node",
+    "requested": "22",
+    "current": "22.1.0",
+    "bump": null,
+    "latest": "22.23.4",
+    "source": {
+      "type": "mise.toml",
+      "path": "/ZZFixture-home/.config/mise/config.toml"
+    }
+  }
+}

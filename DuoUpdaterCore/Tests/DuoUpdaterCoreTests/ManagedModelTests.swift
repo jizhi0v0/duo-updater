@@ -101,7 +101,7 @@ struct ManagedModelTests {
             proxyEnvironment: { ["https_proxy": "http://zz.invalid:3128"] },
             processes: { processes },
             token: { token },
-            runner: { command, environment, _, progress in
+            runner: { command, environment, _, _, progress in
                 let result = await runs.record(command, environment)
                 for line in result.lines { progress(line) }
                 return result

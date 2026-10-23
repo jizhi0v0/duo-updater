@@ -153,7 +153,11 @@ public struct ManagedItem: Sendable, Equatable {
     }
 
     public enum NotesSource: Sendable, Equatable {
-        case gitHubReleases(owner: String, repo: String)
+        /// A repository's GitHub Releases. `tagPrefix` is what stands before the
+        /// version in its tags — "jq-" for `jq-1.8.2`; empty for `v1.8.2` and
+        /// `1.8.2` — so a tag of another product in the same repository is
+        /// never read as this item's.
+        case gitHubReleases(owner: String, repo: String, tagPrefix: String)
         /// A raw Markdown document with one heading per version (Node's
         /// `CHANGELOG_V<major>.md`).
         case rawMarkdown(URL)

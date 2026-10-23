@@ -60,13 +60,19 @@ public struct CLIRowSnapshot<Key: Hashable & Sendable>: Equatable, Sendable {
         public var error: String?
         /// "Updated to X", while it is said.
         public var justUpdated: String?
+        /// What the popover's row names it by in place of its kind, for a
+        /// kind whose name says nothing (`.managed`): its manager's group
+        /// ("mise tools", `ManagerDescriptor.displayName`) and its own name
+        /// ("node", `CLIToolStatus.name`). Nil for every other kind.
+        public var groupTitle: String?
+        public var itemTitle: String?
 
         public init(
             id: Key, kind: CLIToolKind, phase: CLIRunPhase = .idle,
             cancel: InstallCancelState? = nil, cancelPending: Bool = false, line: String? = nil,
             lineStage: InstallStage? = nil, state: CLIToolState = .upToDate, oneClick: Bool = false, needsAdministrator: Bool = false,
             withheld: CLIToolWithheld? = nil, manualCommand: String? = nil, hasLatestVersion: Bool = true,
-            error: String? = nil, justUpdated: String? = nil
+            error: String? = nil, justUpdated: String? = nil, groupTitle: String? = nil, itemTitle: String? = nil
         ) {
             self.id = id
             self.kind = kind
@@ -83,6 +89,8 @@ public struct CLIRowSnapshot<Key: Hashable & Sendable>: Equatable, Sendable {
             self.hasLatestVersion = hasLatestVersion
             self.error = error
             self.justUpdated = justUpdated
+            self.groupTitle = groupTitle
+            self.itemTitle = itemTitle
         }
 
         /// The same with **no defaults** — what the app builds its rows from
@@ -93,12 +101,12 @@ public struct CLIRowSnapshot<Key: Hashable & Sendable>: Equatable, Sendable {
             cancel: InstallCancelState?, cancelPending: Bool, line: String?, lineStage: InstallStage?,
             state: CLIToolState, oneClick: Bool, needsAdministrator: Bool,
             withheld: CLIToolWithheld?, manualCommand: String?, hasLatestVersion: Bool,
-            error: String?, justUpdated: String?
+            error: String?, justUpdated: String?, groupTitle: String?, itemTitle: String?
         ) -> Tool {
             Tool(id: id, kind: kind, phase: phase, cancel: cancel, cancelPending: cancelPending, line: line,
                  lineStage: lineStage, state: state, oneClick: oneClick, needsAdministrator: needsAdministrator,
                  withheld: withheld, manualCommand: manualCommand, hasLatestVersion: hasLatestVersion,
-                 error: error, justUpdated: justUpdated)
+                 error: error, justUpdated: justUpdated, groupTitle: groupTitle, itemTitle: itemTitle)
         }
 
         /// Its Cancel as every surface counts it. A live one on a copy whose
@@ -315,7 +323,7 @@ public struct CLIRowSnapshot<Key: Hashable & Sendable>: Equatable, Sendable {
             // showed for a frame after the head moved on to the next copy.
             let running = claimed.filter { $0.phase != .awaitingCheck }
             let named = running.isEmpty ? claimed : running
-            let head = Row.Line.updating(Set(named.map(\.kind)).count == 1 ? named[0].kind : nil)
+            let head = Self.updatingHead(named)
             let progress = named.first { $0.progress != nil }?.popoverProgress
             return Row(lines: [head] + (progress.map { [.progress($0)] } ?? []),
                        mark: .spinner, button: button, isRunning: true)
@@ -352,10 +360,23 @@ public struct CLIRowSnapshot<Key: Hashable & Sendable>: Equatable, Sendable {
             return Row(lines: [.notChecked(unchecked.count)], mark: .question, button: .none, isRunning: false)
         }
         if let updated = tools.first(where: { $0.justUpdated != nil }), let version = updated.justUpdated {
-            return Row(lines: [.updated(updated.kind, version: version), .takesEffect(updated.kind)],
+            let line = updated.itemTitle.map { Row.Line.updatedItem($0, version: version) }
+                ?? .updated(updated.kind, version: version)
+            return Row(lines: [line, .takesEffect(updated.kind)],
                        mark: .seal, button: .none, isRunning: false)
         }
         return Row(lines: [.upToDate], mark: .seal, button: .none, isRunning: false)
+    }
+
+    /// "Updating npm" when every copy named is of one kind; "Updating mise
+    /// tools" when they are one manager's items, since "Managed tools" names
+    /// no manager; else "Updating command-line tools".
+    static func updatingHead(_ named: [Tool]) -> CLIPopoverRow<Key>.Line {
+        guard Set(named.map(\.kind)).count == 1, let first = named.first else { return .updating(nil) }
+        guard first.kind == .managed else { return .updating(first.kind) }
+        let groups = Set(named.map(\.groupTitle))
+        guard groups.count == 1, let group = first.groupTitle else { return .updating(nil) }
+        return .updatingGroup(group)
     }
 }
 
@@ -432,6 +453,8 @@ public struct CLIPopoverRow<Key: Hashable & Sendable>: Equatable, Sendable {
         case queued
         /// "Updating <kind>"; nil is "Updating command-line tools".
         case updating(CLIToolKind?)
+        /// "Updating mise tools": one manager's items (`Tool.groupTitle`).
+        case updatingGroup(String)
         case progress(CLIProgressLine)
         case checking
         /// In red.
@@ -444,6 +467,8 @@ public struct CLIPopoverRow<Key: Hashable & Sendable>: Equatable, Sendable {
         case withheld(Key, CLIToolWithheld)
         case notChecked(Int)
         case updated(CLIToolKind, version: String)
+        /// "node updated to 20.20.2": a managed item, by its own name.
+        case updatedItem(String, version: String)
         /// When the new version takes effect, which differs for Claude Code.
         case takesEffect(CLIToolKind)
         case upToDate

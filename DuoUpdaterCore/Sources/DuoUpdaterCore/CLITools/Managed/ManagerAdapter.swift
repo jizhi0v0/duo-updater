@@ -19,6 +19,13 @@ public protocol ManagerAdapter: Sendable {
     /// requests, the binary's trust. A test asserts no `ChildProcess` runs here.
     func scan() async -> ManagedScan
 
+    /// The scan as the check stands on it: what only running the binary can
+    /// read, and `scan` may not — mise's `--version`, which decides an
+    /// effect and the group's header. Asked once per check, before `check`;
+    /// its roots are the ones the check's rows and header read. Default: the
+    /// scan as it is.
+    func resolve(_ scan: ManagedScan) async -> ManagedScan
+
     /// Network and/or spawn, bounded like today's providers (≤15 s per request
     /// — `CLIToolsModel.check`'s rule). One verdict per item it answers for.
     func check(_ scan: ManagedScan) async -> [ManagedVerdict]
@@ -28,6 +35,13 @@ public protocol ManagerAdapter: Sendable {
     /// manager's root variables); nil when there is none.
     func upgrade(_ item: ManagedItem, root: ManagedRoot) -> (command: CLIToolCommand, environment: [String: String])?
 
+    /// Where the manager's commands run — its upgrade and the check's own
+    /// spawns. A manager that reads its config from where it runs (mise)
+    /// must see the same directory at the check and at the click, and never
+    /// the inherited one: under a `duo` run from a terminal that is the
+    /// user's project. Default `/` (design §4: cwd `/` unless stated).
+    func workingDirectory(home: URL) -> URL
+
     /// The command a user runs to lift a pin or move a request; copied, never run.
     func unpin(_ item: ManagedItem, root: ManagedRoot) -> CLIToolCommand?
 
@@ -35,6 +49,13 @@ public protocol ManagerAdapter: Sendable {
     /// upgrade running, by argv — `ManagedActivity`), in English; nil when not.
     /// Asked at the check and again at the click.
     func busy(_ item: ManagedItem, root: ManagedRoot, processes: [NpmActivity.Process]) -> String?
+
+    /// `checked` as it is right now, for the click's gate (`ManagedProvider
+    /// .update`): nil when it is gone. Default: the scan's item of the same
+    /// identity. A manager whose rows the disk alone cannot name — mise, one
+    /// row per request in its config — re-reads with its own read-only
+    /// command (cancellable: the click has not reached its commit point).
+    func current(_ checked: ManagedItem, in scan: ManagedScan) async -> ManagedItem?
 
     /// Re-read what `item` is after the command, by its key: a line's newest
     /// patch, a package's venv. Nil when it cannot be read.
@@ -49,6 +70,11 @@ public protocol ManagerAdapter: Sendable {
 }
 
 extension ManagerAdapter {
+    public func resolve(_ scan: ManagedScan) async -> ManagedScan { scan }
+    public func workingDirectory(home: URL) -> URL { URL(fileURLWithPath: "/") }
+    public func current(_ checked: ManagedItem, in scan: ManagedScan) async -> ManagedItem? {
+        scan.items.first { $0.identity == checked.identity }
+    }
     public func unpin(_ item: ManagedItem, root: ManagedRoot) -> CLIToolCommand? { nil }
     public func busy(_ item: ManagedItem, root: ManagedRoot, processes: [NpmActivity.Process]) -> String? { nil }
     public func releaseNotes(for item: ManagedItem, force: Bool) async throws -> Changelog { Changelog(entries: []) }

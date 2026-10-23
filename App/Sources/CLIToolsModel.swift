@@ -886,6 +886,9 @@ final class CLIToolsModel {
         await pass.value
     }
 
+    /// The most managed rows' notes one breaking-hint pass reads (D10).
+    nonisolated static let managedBreakingDocuments = 5
+
     /// One pass of `loadBreaking`. Rows one after another; a document that fails
     /// is not asked again in the same pass and the row gets no hint — the next
     /// check tries again. A row whose range moved while its notes loaded is left
@@ -901,8 +904,16 @@ final class CLIToolsModel {
             breakingRead[id] = nil
         }
         var failed: Set<String> = []
+        // D10: a managed row's notes are a GitHub document each, and one
+        // manager can hold dozens of rows; past the cap a row's hint waits
+        // for the next pass, and its pane reads the notes when it opens.
+        var managedDocuments: Set<String> = []
         for status in reading where breakingRead[status.toolID] != range(status) {
             guard !failed.contains(status.releaseNotesKey) else { continue }
+            if let item = status.managedItem, item.notes != nil, !managedDocuments.contains(status.releaseNotesKey) {
+                guard managedDocuments.count < Self.managedBreakingDocuments else { continue }
+                managedDocuments.insert(status.releaseNotesKey)
+            }
             let notes: Changelog
             do { notes = try await releaseNotes(for: status, force: false) } catch {
                 failed.insert(status.releaseNotesKey)
@@ -1537,7 +1548,8 @@ final class CLIToolsModel {
             needsAdministrator: status?.needsAdministrator ?? false, withheld: status?.withheld,
             manualCommand: status.flatMap(CLIToolPresentation.manualCommand),
             hasLatestVersion: status?.latestVersion != nil,
-            error: runState.redLines[id].map(Self.redLine), justUpdated: runState.justUpdated[id])
+            error: runState.redLines[id].map(Self.redLine), justUpdated: runState.justUpdated[id],
+            groupTitle: status?.managedItem?.descriptor.displayName, itemTitle: status?.managedItem?.name)
     }
 
     /// `id`'s phase, as its claim stores it (`CLIRunState.phase`). No longer inferred from a

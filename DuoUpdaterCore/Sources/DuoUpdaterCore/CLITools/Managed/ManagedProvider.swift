@@ -22,8 +22,8 @@ public struct ManagedProvider: CLIToolProvider {
     /// How the vendor's command is run. Production: `CLIToolCommandRunner.run`,
     /// with its commit point; a test's double answers without spawning.
     public typealias Runner = @Sendable (
-        _ command: CLIToolCommand, _ environment: [String: String], _ deadline: ChildProcess.Deadline,
-        _ progress: @escaping @Sendable (String) -> Void
+        _ command: CLIToolCommand, _ environment: [String: String], _ workingDirectory: URL,
+        _ deadline: ChildProcess.Deadline, _ progress: @escaping @Sendable (String) -> Void
     ) async -> RunResult
 
     public struct RunResult: Sendable, Equatable {
@@ -66,8 +66,9 @@ public struct ManagedProvider: CLIToolProvider {
 
     /// `CLIToolCommandRunner.run`: stdout and stderr merged, the command's
     /// launch the commit point, run to completion once started.
-    static let commandRunner: Runner = { command, environment, deadline, progress in
-        let run = await CLIToolCommandRunner.run(command, environment: environment, deadline: deadline, progress: progress)
+    static let commandRunner: Runner = { command, environment, workingDirectory, deadline, progress in
+        let run = await CLIToolCommandRunner.run(
+            command, environment: environment, deadline: deadline, workingDirectory: workingDirectory, progress: progress)
         switch run.result {
         case .couldNotStart(let error):
             return RunResult(succeeded: false, failureMessage: "could not run \(command.executable): \(error)", lines: run.lines)
@@ -87,7 +88,11 @@ public struct ManagedProvider: CLIToolProvider {
     }
 
     public func check() async -> CLIToolReport {
-        let scan = await adapter.scan()
+        let found = await adapter.scan()
+        // The sightings stay the scan's own, so the next scan compares equal
+        // to this report while the disk is unchanged (`CLIToolsModel.onOpen`).
+        var scan = found
+        if !found.items.isEmpty { scan = await adapter.resolve(found) }
         let context = CLIToolReport.Context.managed(ManagerContext(descriptor: adapter.descriptor, roots: scan.roots))
         guard !scan.items.isEmpty else {
             return CLIToolReport(kind: .managed, statuses: [], context: context, sightings: [])
@@ -100,7 +105,7 @@ public struct ManagedProvider: CLIToolProvider {
                 upgrade: root.flatMap { adapter.upgrade(verdict.item, root: $0)?.command },
                 unpin: root.flatMap { adapter.unpin(verdict.item, root: $0) })
         }
-        return CLIToolReport(kind: .managed, statuses: statuses, context: context, sightings: scan.sightings())
+        return CLIToolReport(kind: .managed, statuses: statuses, context: context, sightings: found.sightings())
     }
 
     /// Runs `status.oneClick` — the adapter's upgrade command — and nothing
@@ -112,7 +117,7 @@ public struct ManagedProvider: CLIToolProvider {
     ) async -> CLIToolUpdateOutcome {
         guard let command = status.oneClick, case .managed(let checked) = status.detail else { return .notOffered }
         let scan = await adapter.scan()
-        guard let item = scan.items.first(where: { $0.identity == checked.identity }) else {
+        guard let item = await adapter.current(checked, in: scan) else {
             return .failed(message: "not run: \(checked.name) is no longer under \(checked.root)", output: "")
         }
         guard item.installed == checked.installed else {
@@ -136,13 +141,14 @@ public struct ManagedProvider: CLIToolProvider {
         environment["NO_COLOR"] = "1"
         for (key, value) in upgrade.environment { environment[key] = value }
         let deadline = adapter.descriptor.deadline
-        var run = await runner(command, environment, deadline, progress)
+        let directory = adapter.workingDirectory(home: home)
+        var run = await runner(command, environment, directory, deadline, progress)
         // mise's handoff, shared (`ManagedTokenRetry`): once more with the
         // app's token, only after the vendor said it found none of its own.
         if let retry = adapter.tokenRetry, retry.applies(failed: !run.succeeded, lines: run.lines) {
             if let token = await token() {
                 environment[retry.variable] = token
-                run = await runner(command, environment, deadline, progress)
+                run = await runner(command, environment, directory, deadline, progress)
             } else if Task.isCancelled {
                 // The row's Cancel cut the token lookup short: the retry it
                 // would have started is what the click stopped

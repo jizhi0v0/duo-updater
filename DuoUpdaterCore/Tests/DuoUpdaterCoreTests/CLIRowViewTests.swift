@@ -519,4 +519,22 @@ import Testing
         ], updatingAll: true, batchIDs: ["mcp-remote", "tsls"])
         #expect(s.popover?.lines == [.updating(.npm)])
     }
+
+    /// A managed row's kind names no manager ("Managed tools"): the head
+    /// names the manager's group when every copy running is one manager's,
+    /// and the confirmation names the item. Two managers running read as
+    /// two kinds. Mutation: word `.managed` by its kind's display name.
+    @Test func aManagedRowIsNamedByItsManagerAndItsItem() {
+        let mise = Snapshot.Tool(id: "a", kind: .managed, phase: .running, cancel: .committing,
+                                 groupTitle: "mise tools", itemTitle: "node")
+        let jq = Snapshot.Tool(id: "b", kind: .managed, phase: .running, cancel: .committing,
+                               groupTitle: "mise tools", itemTitle: "jq")
+        let uv = Snapshot.Tool(id: "c", kind: .managed, phase: .running, cancel: .committing,
+                               groupTitle: "uv tools", itemTitle: "ruff")
+        #expect(Snapshot(tools: [mise, jq], updatingAll: true, batchIDs: ["a", "b"]).popover?.lines
+            == [.updatingGroup("mise tools")])
+        #expect(Snapshot(tools: [mise, uv], updatingAll: true, batchIDs: ["a", "c"]).popover?.lines == [.updating(nil)])
+        let updated = Snapshot.Tool(id: "a", kind: .managed, justUpdated: "20.20.2", groupTitle: "mise tools", itemTitle: "node")
+        #expect(Snapshot(tools: [updated]).popover?.lines == [.updatedItem("node", version: "20.20.2"), .takesEffect(.managed)])
+    }
 }

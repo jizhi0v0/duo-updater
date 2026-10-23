@@ -1,0 +1,36 @@
+{
+  "jq": {
+    "name": "jq",
+    "requested": "1.6",
+    "current": "1.6",
+    "bump": "1.8",
+    "latest": "1.8.2",
+    "release_url": "https://github.com/jqlang/jq/releases/tag/jq-1.8.2",
+    "source": {
+      "type": "mise.toml",
+      "path": "/ZZFixture-home/.config/mise/config.toml"
+    }
+  },
+  "node": {
+    "name": "node",
+    "requested": "20",
+    "current": "20.10.0",
+    "bump": "26",
+    "latest": "26.12.1",
+    "source": {
+      "type": "mise.toml",
+      "path": "/ZZFixture-home/.config/mise/config.toml"
+    }
+  },
+  "npm:prettier": {
+    "name": "npm:prettier",
+    "requested": "2.0.0",
+    "current": "2.0.0",
+    "bump": "3.9.10",
+    "latest": "3.9.10",
+    "source": {
+      "type": "mise.toml",
+      "path": "/ZZFixture-home/.config/mise/config.toml"
+    }
+  }
+}

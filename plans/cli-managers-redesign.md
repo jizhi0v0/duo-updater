@@ -2,7 +2,7 @@
 
 Design for jizhi0v0/duo-updater, branch `runtime-composition-detail`, HEAD `cbc6bcc1`. Repo paths: `C/` = `DuoUpdaterCore/Sources/DuoUpdaterCore/CLITools/`. Evidence IDs refer to the twelve research files; review verdicts override reports (corrections are applied inline and marked "corrected"). Anything not in that set is in §12.
 
-**Status (2026-10-23): §0 done, P0 green on CI, no manager registered.** The owner took every recommended option (§11). §0's survey is `plans/cli-managers-int-on-main.md` (committed beside this file); P0's code is on `plan/cli-managers-redesign` (PR #1613) — see the status log at the end of this file for what is in and what is not. Before P1, read §13 (cancel, which every adapter must measure for real).
+**Status (2026-10-23): §0 done, P0 green on CI; P1 (mise tools) written, awaiting CI and the Mac acceptance.** The owner took every recommended option (§11). §0's survey is `plans/cli-managers-int-on-main.md` (committed beside this file); P0's code is on `plan/cli-managers-redesign` (PR #1613) — see the status log at the end of this file for what is in and what is not. Before P1, read §13 (cancel, which every adapter must measure for real).
 
 The research files (six reports, six reviews) stay on the owner's Mac, because they hold that machine's inventory. Every fact this design relies on is restated in §2 with its claim ID. Treat an ID as a pointer, not as something you can open from a cloud session. When a fact matters for your phase and you doubt it, re-verify it yourself the way §12 does: in an isolated home, with the command and its raw output.
 
@@ -263,7 +263,7 @@ Common to all: `home` injected; scan reads only under `home` and the two Homebre
 ### 4.1 mise tools (`mise`) — Phase 1, closes #1605
 - **Root/binary**: `~/.local/share/mise` (+ `~/.config/mise`, `~/.local/state/mise`); binary = `MiseScanner` (reused: Team `4993Y37DX6`, not quarantined, C/MiseInstall.swift:75-137). Items need the binary for the check; with no trusted mise, items are listed from disk and reported `.updaterMissing`/`.wrongSigner`.
 - **Scan** (no spawn): `installs/<slug>/<version>` real dirs (skip symlinks and dot-dirs as `NodePrefixes.versionDirectories` does, :124-137), name from `.mise.backend.toml` `short`/`full` (MISE-05); versions in `tool-purgatory.json` tagged (MISE-31). Sighting state = backend + version set + config mtime (`config.toml`, `~/.tool-versions`).
-- **Check** (3 spawns, cwd `$HOME` — D3): `mise ls --json`, `mise outdated --json`, `mise outdated --bump --json`, env `HOME`, `PATH=<data>/shims:<~/.local/bin>:system`, `NO_COLOR=1`, `MISE_YES=1`? (no: `-y` only on upgrade). Empty stdout = `{}` (MISE-56). Rows: one per `ls` entry with `requested_version` (`shape: .request`, key `<name>@<requested>`), `installed:true`, not `scheduled_for_pruning`; `active:false` entries no config requests → not shown (D4), purgatory ones → `alsoInstalled` on the active row. Verdict: the `outdated` entry for `name` applies to the row whose `requested` equals its `requested`; a second request of the same tool with no entry → `blocker .notRequestedByOutdated` note "mise outdated reports one request per tool" (MISE-23, review fact 4). `current:null` rows (requested, not installed) are not rows (MISE-24). `latestWithinRequest` = plain `latest`; `latestOverall` = `--bump` `latest`; `vendorWouldUpgrade` = plain entry present. `request` kind from the string: three numeric parts or a full backend-exact version → `.exact`, else `.range`.
+- **Check** (3 spawns, cwd `/` — D3's fallback, see §12 item 1; originally `$HOME`): `mise ls --json`, `mise outdated --json`, `mise outdated --bump --json`, env `HOME`, `PATH=<data>/shims:<~/.local/bin>:system`, `NO_COLOR=1`, `MISE_YES=1`? (no: `-y` only on upgrade). Empty stdout = `{}` (MISE-56). Rows: one per `ls` entry with `requested_version` (`shape: .request`, key `<name>@<requested>`), `installed:true`, not `scheduled_for_pruning`; `active:false` entries no config requests → not shown (D4), purgatory ones → `alsoInstalled` on the active row. Verdict: the `outdated` entry for `name` applies to the row whose `requested` equals its `requested`; a second request of the same tool with no entry → `blocker .notRequestedByOutdated` note "mise outdated reports one request per tool" (MISE-23, review fact 4). `current:null` rows (requested, not installed) are not rows (MISE-24). `latestWithinRequest` = plain `latest`; `latestOverall` = `--bump` `latest`; `vendorWouldUpgrade` = plain entry present. `request` kind from the string: three numeric parts or a full backend-exact version → `.exact`, else `.range`.
 - **Upgrade**: `<mise> upgrade -y <name>` (MISE-31/41), never `@<version>` (MISE-36), never `--bump`. `unpin` = `mise upgrade --bump <name>` (copy only; rewrites config, MISE-34). Effects: `.oldKept(for: "24h")` when mise ≥ 2026.8.15 (from `--version`), else `.oldRemoved` (MISE-32/33). Token retry as `MiseUpdater` (§12 for the warning string on backend installs).
 - **Busy**: a running `mise upgrade|install|use` from this binary (generic `ManagedActivity`, argv match like `MiseActivity.selfUpdating`, C/MiseActivity.swift:24-29).
 - **Notes**: `release_url` → owner/repo → `DenoChangelog.gitHubReleases` (MISE-46 corrected); `github:`/`ubi:`/`asdf:<o>/<r>` ids → same (MISE-49); `core:node` → `CHANGELOG_V<major>.md`; `npm:<n>` → `NpmChangelog` with the packument's repository (INT-46); `pipx:<n>` → PyPI `project_urls` (UV-27 priority rule); else empty `Changelog`.
@@ -432,7 +432,7 @@ Every real-machine step: isolated roots only, never the user's `~/.local/share/m
 |---|---|---|
 | D1 | Version lines: **one row per line** (Node by major, Python/Ruby by X.Y), newest installed patch on the row, older patches as an "Also installed" fact | one row per installed patch |
 | D2 | Range held at its top: **`.upToDate`** + fact "newer beyond the request" with the unpin command | `.pinned` |
-| D3 | mise scope: **cwd `$HOME`, no `--global`**. If §12 item 1 shows mise prompting on an untrusted `~/mise.toml`, fall back to cwd `/` (global config only) and record it here | `--global` |
+| D3 | mise scope: **cwd `$HOME`, no `--global`**. If §12 item 1 shows mise prompting on an untrusted `~/mise.toml`, fall back to cwd `/` (global config only) and record it here. **Fallback taken 2026-10-23 (P1):** from `$HOME` an untrusted `~/mise.toml` fails every command, and `-y` *trusts* it (§12 item 1) — so mise runs from `/` | `--global` |
 | D4 | mise installs no config requests: **not rows** | rows as `unknown` |
 | D5.1 | Homebrew-keg manager binaries (fnm, go, pyenv, rbenv, pipx): **extend the existing keg trust rule → one-click**. How "keg" is detected is §12 item 7 | copy command only |
 | D5.2 | Script managers with nothing to verify (git-checkout pyenv/rbenv, pip/uv-installed pipx): **report + copy command** until a user asks | nvm-style exemption |
@@ -455,9 +455,11 @@ Open, to be decided from §13's measurements: **D15**, whether any manager's com
 
 Each: the check to run, in an isolated home.
 1. **mise from a GUI cwd `$HOME` with an untrusted config**: `env -i HOME=$ISO PATH=/usr/bin:/bin $ISO/.local/bin/mise ls --json` and `outdated --json` with an untrusted `$ISO/mise.toml` — does it prompt, skip, or fail? (MISE could-not-verify #7.) Decides D3.
+   **Done 2026-10-23** (mise 2026.10.7 linux-x64, isolated home, stdin `/dev/null`): a `~/mise.toml` with only `[tools]` is read with no trust asked; one with `[env]` makes `ls --json` from `$HOME` fail — `mise ERROR Config files in ~/mise.toml are not trusted.`, exit 1, nothing on stdout. **`mise install -y` / `upgrade -y` run from `$HOME` trust it**: they wrote `~/.local/state/mise/trusted-configs/<home>` and installed its request. From `/`: only the global config is read (not `~/mise.toml`, not `~/.tool-versions`), and `install -y` / `upgrade -y jq` wrote no trusted-configs. → D3's fallback, cwd `/`.
 2. **mise token retry string on backend installs**: with the anonymous budget spent, `mise upgrade -y jq` (aqua) and `github:BurntSushi/ripgrep` — is "No GitHub token was found" printed as for self-update (INT-80)? Decides whether `ManagedTokenRetry` applies.
 3. **mise `upgrade -y` and PATH needs**: `env -i HOME=$ISO PATH=$ISO/.local/share/mise/shims:$ISO/.local/bin:/usr/bin:/bin mise upgrade -y npm:prettier` and `pipx:ruff` (MISE-76): do npm/pipx backends find node/uv? Record the exact PATH prefix needed.
-4. **Timing**: wall time of `mise ls --json`, `outdated --json`, `outdated --bump --json` warm and cold; `uv tool list --outdated` with 10 tools; `go list -m -json X@latest` per module — all must fit the 15 s rule.
+   **npm done 2026-10-23**: with `"npm:prettier" = "2"`, `PATH=/usr/bin:/bin` alone (no node anywhere on it) upgraded 2.0.0 → 2.8.8 — 2026.10.7 runs its own node. The shims and `~/.local/bin` still lead `PATH` (§4.1). pipx not measured.
+4. **Timing**: wall time of `mise ls --json`, `outdated --json`, `outdated --bump --json` warm and cold (**mise done 2026-10-23**: 15 ms; 520 ms cold / 15 ms warm; 194 ms / 17 ms, three tools); `uv tool list --outdated` with 10 tools; `go list -m -json X@latest` per module — all must fit the 15 s rule.
 5. **mise default `minimum_release_age` in `outdated`**: observe on a release <24 h old (MISE-30 narrow measured only 400d).
 6. **pyenv/rbenv Homebrew definition paths**: `ls "$(brew --prefix pyenv)/plugins/python-build/share/python-build" | wc -l` and `ls "$(brew --prefix ruby-build)/share/ruby-build" | wc -l` on a real `brew install` (reviewer used fixtures; could-not-verify #6).
 7. **Signatures of keg/pkg manager binaries**: `codesign -dv --verbose=2 /opt/homebrew/bin/{fnm,go,pyenv,rbenv,pipx}` and `/usr/local/go/bin/go` (if present); decides how D5's keg rule is implemented (path-under-Cellar vs signature).
@@ -540,7 +542,16 @@ None of the following has been verified. Each is an assumption to test, not a fa
 - `uv tool upgrade` syncs the venv in place;
 - nvm and fnm extract into the final version dir.
 
-Deliverable: one table, manager × stage → {safe to stop / leaves X / breaks Y}. The owner then decides D15 for each manager:
+Deliverable: one table, manager × stage → {safe to stop / leaves X / breaks Y}.
+
+**mise, measured 2026-10-23** (2026.10.7 linux-x64, isolated home, `mise upgrade -y node` from 22.1.0 to 22.23.4, signal sent to the process group 0.6 s and 2.8 s in):
+
+| Stage | SIGINT | SIGTERM | Old version | Left behind | Next plain run |
+|---|---|---|---|---|---|
+| download (0.6 s) | exit 130 | signal 15 | runs (v22.1.0), still the request's | half-written `installs/node/22.23.4` (no `bin/node`), `downloads/node/22.23.4`; not in `mise ls` | completes it (exit 0, v22.23.4, download removed) |
+| extract (2.8 s) | exit 130 | signal 15 | runs | the same | completes it |
+
+The final link/purgatory write was not hit separately (the whole install took ~3.5 s). On this evidence mise is (b)-eligible for download and extract; D15 stays (a) until the owner rules. The owner then decides D15 for each manager:
 
 - (a) keep `.runToCompletion` (today's rule);
 - (b) allow `.terminateChild` in named stages only (e.g. a compile), with the row's Cancel live during them and greyed again at the stage that writes.
@@ -585,3 +596,29 @@ Until then, (a) holds everywhere.
 - A quarantined manager binary read "Not the build <signer> published". `ManagedItem.binaryTrust` (set by `ManagedCheck` from the root) lets the wording say "Quarantined, so not run", as every other kind does.
 - `.runtimeTooOld` on a managed row read npm's "Needs a newer Node". The managed arm words it from the verdict's note ("the newest release needs rustc 1.85").
 
+### 2026-10-23 — P1 written (mise tools)
+
+**In:**
+
+- `C/Managed/Mise/`: `MiseToolsAdapter` (descriptor, a `Host` seam for every read of the Mac, scan, check, upgrade, unpin, busy, re-read, notes, token retry), `MiseToolsLs` and `MiseToolsOutdated` (the parsers and the join of §4.1). Registered: `ManagerRegistry.all(home:)` = `[MiseToolsAdapter]`.
+- Shared, found while writing the adapter:
+  - `ManagerAdapter.resolve(_:)` (default: the scan): what only running the binary reads — mise's `--version` — once per check, so `scan` stays disk-only while the header and the purgatory effect still get the version.
+  - `ManagerAdapter.current(_:in:)` (default: the scan's item): the click's gate. A mise row is a request, which only `mise ls` can name, so the scan's items are per tool directory and the click re-reads with `ls` (`.terminateChild`, before the commit point).
+  - `ManagerAdapter.workingDirectory(home:)` (default `/`) and `CLIToolCommandRunner.run(workingDirectory:)`: the provider passed none, so a `duo install` from a project ran the vendor command in that project — for mise, against the project's config.
+  - `ManagedCheck`: a row with nothing known whose root's binary may not run is withheld by that binary's trust (`.wrongSigner`/`.unverified`/`.updaterMissing`), not "channel unreadable" (§3.2 row 1).
+  - `NotesSource.gitHubReleases` carries the tag prefix (jq tags `jq-1.8.2`).
+- App: the popover names the manager ("Updating mise tools", `CLIPopoverRow.Line.updatingGroup`) and the item ("node updated to 20.20.2", `.updatedItem`), from `CLIRowSnapshot.Tool.groupTitle`/`itemTitle`; existing catalog keys. D10's cap: ≤5 managed documents per breaking-hint pass (`CLIToolsModel.managedBreakingDocuments`).
+- Tests: `MiseToolsAdapterTests` over mise's raw output (`Fixtures/managed/mise/`, 2026.10.7), including the source test that `scan()` names no spawn (§10); a popover case in `CLIRowViewTests`.
+
+**Decisions taken while writing (owner to confirm or reverse):**
+
+- D3's fallback (cwd `/`), on §12 item 1's measurement. A request in `~/mise.toml`, `~/.tool-versions` or a project is not a row.
+- Notes: none for `core:node` (P3's `CHANGELOG_V<major>.md` parser), `pipx:` (P2's PyPI rule) and `asdf:` — an asdf id names the plugin's repository, not the tool's (the design listed it with github/ubi).
+- Two requests of one tool: the one `mise outdated` names is answered; the other is `.unknown` with the reason. Both carry a note that one click moves every request of the tool.
+- `CLIToolsModel.summary` (a log line) still says "Managed tools ×N".
+
+**Not done (owed before P1 is accepted):**
+
+- `make test` on a Mac (CI).
+- §8.1's real-machine acceptance and §13.2 C1–C6 with `make install`'s app and `duo` on a Mac: the vendor's behaviour above was measured on Linux with the real mise binary, never DuoUpdater running it. Signature and quarantine of the macOS binary were not re-read.
+- §12 item 2 (the token-retry marker on a backend install) and item 5 (`minimum_release_age`).

@@ -16,7 +16,8 @@ import Foundation
 ///    `duo`'s "beyond the request" line (not to copy: `commandToCopy` hands
 ///    nothing out for a current row);
 /// 5. installed above the newest → `.ahead`; equal → `.upToDate`;
-/// 6. nothing known either way → `.unknown`, channel unreadable.
+/// 6. nothing known either way → `.unknown`: withheld by the root's binary
+///    when that may not run (the check needed it), else channel unreadable.
 ///
 /// Then two gates that only take the one-click away: the root's binary not
 /// runnable (its command is handed out to copy, D5.2), and the manager already
@@ -78,6 +79,18 @@ public enum ManagedCheck {
         } else if verdict.vendorWouldUpgrade == false {
             state = .upToDate
             latest = installed
+        } else if let root, !root.runnable {
+            // Nothing known, because the check runs the manager's own binary
+            // and that one may not run (mise's `outdated`, §4.1): the row
+            // says why the binary was not run, not that a channel was down.
+            state = .unknown
+            if let gate = root.binary?.trust.withheld, let binary = root.binary {
+                withheld = gate
+                note = "\(binary.path) is \(binary.trust.english), so nothing of it is run"
+            } else {
+                withheld = .updaterMissing
+                note = "\(item.descriptor.displayName)'s program was not found under \(item.root)"
+            }
         } else {
             state = .unknown
             withheld = .channelUnreadable

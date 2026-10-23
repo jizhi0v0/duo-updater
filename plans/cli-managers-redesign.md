@@ -2,7 +2,7 @@
 
 Design for jizhi0v0/duo-updater, branch `runtime-composition-detail`, HEAD `cbc6bcc1`. Repo paths: `C/` = `DuoUpdaterCore/Sources/DuoUpdaterCore/CLITools/`. Evidence IDs refer to the twelve research files; review verdicts override reports (corrections are applied inline and marked "corrected"). Anything not in that set is in §12.
 
-**Status (2026-10-24): §0 done, P0 green on CI; P1 (mise tools) green on CI and through the Mac acceptance; owed: §12 item 5, the aqua silent-success follow-up (status log, 2026-10-24), the owner's answer on P1's decisions.** The owner took every recommended option (§11). §0's survey is `plans/cli-managers-int-on-main.md` (committed beside this file); P0's code is on `plan/cli-managers-redesign` (PR #1613) — see the status log at the end of this file for what is in and what is not. Before P1, read §13 (cancel, which every adapter must measure for real).
+**Status (2026-10-24): §0 done, P0 green on CI; P1 (mise tools) green on CI and through the Mac acceptance; owed: §12 item 5, the aqua silent-success follow-up (status log, 2026-10-24).** The owner took every recommended option (§11). §0's survey is `plans/cli-managers-int-on-main.md` (committed beside this file); P0's code is on `plan/cli-managers-redesign` (PR #1613) — see the status log at the end of this file for what is in and what is not. Before P1, read §13 (cancel, which every adapter must measure for real).
 
 The research files (six reports, six reviews) stay on the owner's Mac, because they hold that machine's inventory. Every fact this design relies on is restated in §2 with its claim ID. Treat an ID as a pointer, not as something you can open from a cloud session. When a fact matters for your phase and you doubt it, re-verify it yourself the way §12 does: in an isolated home, with the command and its raw output.
 
@@ -612,7 +612,7 @@ Until then, (a) holds everywhere.
 - App: the popover names the manager ("Updating mise tools", `CLIPopoverRow.Line.updatingGroup`) and the item ("node updated to 20.20.2", `.updatedItem`), from `CLIRowSnapshot.Tool.groupTitle`/`itemTitle`; existing catalog keys. D10's cap: ≤5 managed documents per breaking-hint pass (`CLIToolsModel.managedBreakingDocuments`).
 - Tests: `MiseToolsAdapterTests` over mise's raw output (`Fixtures/managed/mise/`, 2026.10.7), including the source test that `scan()` names no spawn (§10); a popover case in `CLIRowViewTests`.
 
-**Decisions taken while writing (owner to confirm or reverse):**
+**Decisions taken while writing — owner kept all four (2026-10-24):**
 
 - D3's fallback (cwd `/`), on §12 item 1's measurement. A request in `~/mise.toml`, `~/.tool-versions` or a project is not a row.
 - Notes: none for `core:node` (P3's `CHANGELOG_V<major>.md` parser), `pipx:` (P2's PyPI rule) and `asdf:` — an asdf id names the plugin's repository, not the tool's (the design listed it with github/ubi).
@@ -644,4 +644,4 @@ Until then, (a) holds everywhere.
 - `MISE_USE_VERSIONS_HOST=false`, cache empty: ripgrep → exit 1, "(403 Forbidden) for url (https://api.github.com/repos/BurntSushi/ripgrep/releases?per_page=100)", "github auth: no", and the marker "No GitHub token was found" (1 line) — so `ManagedTokenRetry` applies; the same command with `MISE_GITHUB_TOKEN` (the `gh` token) → exit 0, installed. jq (aqua) → three 403 retries on `/releases/latest`, "GitHub rate limit exceeded", "Error getting latest version for jq: no latest version found", then "All tools are up to date" and **exit 0** with jq still 1.6, and no marker: no retry, and `ManagedProvider.update` would return `.updated(version:)` with the unchanged 1.6 (not run in the app).
 - Cleanup: cache restored from its copy, ripgrep uninstalled (and its three dangling alias links removed), fixtures reset, config sha256 `23fa2ec4…` unchanged throughout.
 
-**Still owed:** item 5 (`minimum_release_age`); the aqua case above — a mise run that exits 0 with nothing upgraded is reported `.updated` with the unchanged version (owner to decide); the owner's answer on the four decisions in the P1 entry above.
+**Still owed:** item 5 (`minimum_release_age`); the aqua case above — a mise run that exits 0 with nothing upgraded is reported `.updated` with the unchanged version (owner to decide).

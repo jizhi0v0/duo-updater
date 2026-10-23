@@ -249,6 +249,23 @@ public struct CLIRowSnapshot<Key: Hashable & Sendable>: Equatable, Sendable {
     /// Every copy the snapshot knows, listed or not.
     private var everyCopy: [Tool] { tools + unlisted }
 
+    /// The same snapshot over the copies `scope` names only: one tool group's
+    /// popover sub-row, or a manager's own level in the workbench. Update All
+    /// counts for it only while it holds a copy of `scope` — one started for
+    /// another group is not this group's run. `offered` and `startable` are
+    /// Update All's over `scope`, which only the model can say.
+    public func scoped(to scope: Set<Key>, updateAllOffered offered: Bool, updateAllStartable startable: Bool) -> CLIRowSnapshot {
+        let batch = batchIDs.intersection(scope)
+        let tools = tools.filter { scope.contains($0.id) }
+        // A batch waiting its turn holds every copy it claimed, so one that
+        // holds none of `scope` waits for another group.
+        let mine = updatingAll && !batch.isEmpty
+        return CLIRowSnapshot(
+            tools: tools, unlisted: unlisted.filter { scope.contains($0.id) }, hasSightings: !tools.isEmpty,
+            checked: checked, updatingAll: mine, updateAllWaiting: mine && updateAllWaiting, batchIDs: batch,
+            updateAllOffered: offered, updateAllStartable: startable)
+    }
+
     // MARK: - Cancel
 
     /// The one Cancel aggregator: what a Cancel standing for the copies
@@ -359,7 +376,16 @@ public struct CLIRowSnapshot<Key: Hashable & Sendable>: Equatable, Sendable {
             }
             return Row(lines: [.notChecked(unchecked.count)], mark: .question, button: .none, isRunning: false)
         }
-        if let updated = tools.first(where: { $0.justUpdated != nil }), let version = updated.justUpdated {
+        // "3 updated" once several were: naming the first alone said "jq
+        // updated to 1.8.2" after an update of mise tools' three (2026-10-24).
+        let updatedCopies = tools.filter { $0.justUpdated != nil }
+        if updatedCopies.count > 1 {
+            // When it takes effect is said only while that is one answer.
+            let kinds = Set(updatedCopies.map(\.kind))
+            let effect: [Row.Line] = kinds.count == 1 ? kinds.map(Row.Line.takesEffect) : []
+            return Row(lines: [.updatedCount(updatedCopies.count)] + effect, mark: .seal, button: .none, isRunning: false)
+        }
+        if let updated = updatedCopies.first, let version = updated.justUpdated {
             let line = updated.itemTitle.map { Row.Line.updatedItem($0, version: version) }
                 ?? .updated(updated.kind, version: version)
             return Row(lines: [line, .takesEffect(updated.kind)],
@@ -469,6 +495,8 @@ public struct CLIPopoverRow<Key: Hashable & Sendable>: Equatable, Sendable {
         case updated(CLIToolKind, version: String)
         /// "node updated to 20.20.2": a managed item, by its own name.
         case updatedItem(String, version: String)
+        /// "3 updated": more than one copy was.
+        case updatedCount(Int)
         /// When the new version takes effect, which differs for Claude Code.
         case takesEffect(CLIToolKind)
         case upToDate

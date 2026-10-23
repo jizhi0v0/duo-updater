@@ -1445,6 +1445,9 @@ final class AppListModel {
     /// group open. With one request for both rows, a click on Homebrew's landed on
     /// another tool's row with Homebrew's packages hidden (review, #1008).
     var requestedWorkbenchHomebrew = false
+    /// The same for a row on the popover's tool groups' page: the tag of the
+    /// copy the workbench selects, which opens its level and scrolls to it.
+    var requestedWorkbenchCLITool: String?
 
     /// Whether a GitHub token resolved (explicit, env, or `gh` login) under the
     /// credentials in use now — the latest `resolvedGitHubToken`, which a round,

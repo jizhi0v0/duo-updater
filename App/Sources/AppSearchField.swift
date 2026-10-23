@@ -29,6 +29,9 @@ struct AppSearchField: NSViewRepresentable {
 
     func updateNSView(_ field: NSSearchField, context: Context) {
         if field.stringValue != text { field.stringValue = text }
+        // The popover's one field searches the apps or, on the tool groups'
+        // page, the groups: the same field, so its prompt follows.
+        if field.placeholderString != prompt { field.placeholderString = prompt }
     }
 
     func makeCoordinator() -> Coordinator { Coordinator(text: $text) }

@@ -1391,12 +1391,26 @@ final class CLIToolsModel {
     /// One copy at a time across every tool, as it was, took the sum of every
     /// installer — Junie's alone downloads ~330 MB — plus a re-check of every
     /// tool after each copy.
-    func updateAll() async {
+    ///
+    /// `scope` limits it to one group's copies: a popover sub-row's Update, a
+    /// manager's level in the workbench, or "Other tools" without the managers.
+    /// While another Update All holds the turn, a scoped one clicks its copies
+    /// one by one instead, each waiting its turn (`update`): the reducer runs one
+    /// Update All at a time, and a second click on it would do nothing.
+    func updateAll(in scope: Set<CLIToolID>? = nil) async {
+        let inScope = { (status: CLIToolStatus) in scope?.contains(status.toolID) ?? true }
+        if scope != nil, updatingAll {
+            for status in oneClickable where inScope(status) {
+                let id = status.toolID
+                Task { await self.update(id) }
+            }
+            return
+        }
         let withProvider = { (statuses: [CLIToolStatus]) in
             statuses.compactMap { status in self.provider(of: status).map { (status, $0) } }
         }
-        let batch = withProvider(batchable)
-        let asking = withProvider(adminBatchable)
+        let batch = withProvider(batchable.filter(inScope))
+        let asking = withProvider(adminBatchable.filter(inScope))
         // Already running, or nothing to start: the reducer's to say
         // (`CLIRunEvent.updateAllClicked`). Every copy is claimed now, "Queued".
         guard send(.updateAllClicked(lanes: batch.map(\.0.toolID), asking: asking.map(\.0.toolID)))
@@ -1520,6 +1534,16 @@ final class CLIToolsModel {
             updateAllOffered: updateAllOffered, updateAllStartable: updateAllStartable)
     }
 
+    /// `rowSnapshot` over the copies `scope` names (`CLIRowSnapshot.scoped`):
+    /// one group's popover sub-row, or a manager's level in the workbench.
+    func rowSnapshot(in scope: Set<CLIToolID>) -> CLIRowSnapshot<CLIToolID> {
+        let inScope = { (status: CLIToolStatus) in scope.contains(status.toolID) }
+        return rowSnapshot.scoped(
+            to: scope,
+            updateAllOffered: batchOffered.contains(where: inScope) || adminOffered.contains(where: inScope),
+            updateAllStartable: batchable.contains(where: inScope) || adminBatchable.contains(where: inScope))
+    }
+
     /// One copy's facts for its own sidebar row and detail header, as
     /// `rowSnapshot` holds them. Reads only what that copy's rows need: an
     /// idle copy reads `runState` and its status, error and confirmation —
@@ -1569,6 +1593,17 @@ final class CLIToolsModel {
         if updateAllWaiting { cancelUpdateAll() }
         let cancellable = updating.filter { cancels[$0] == .available }
         Log.app.notice("Other tools row: cancel, \(cancellable.count, privacy: .public) of \(self.updating.count, privacy: .public) copies still cancellable")
+        for id in cancellable { cancel(id) }
+    }
+
+    /// The Cancel of one group (`rowSnapshot(in:)`): its copies that still can
+    /// be are cancelled; an Update All waiting its turn for this group alone
+    /// leaves the queue. Another group's copies go on.
+    func cancelRow(in scope: Set<CLIToolID>) {
+        if updateAllWaiting, !batchIDs.isEmpty, batchIDs.isSubset(of: scope) { cancelUpdateAll() }
+        let mine = updating.filter { scope.contains($0) }
+        let cancellable = mine.filter { cancels[$0] == .available }
+        Log.app.notice("group cancel: \(cancellable.count, privacy: .public) of \(mine.count, privacy: .public) copies still cancellable")
         for id in cancellable { cancel(id) }
     }
 

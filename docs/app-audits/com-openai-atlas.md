@@ -15,6 +15,20 @@
 - 分发: 官方静态 CDN `persistent.oaistatic.com/atlas/public/` + Homebrew cask
   `chatgpt-atlas`（`auto_updates: true`）
 
+## 产品终止（2026-10-23 记）
+
+厂商公告（2026-10-23 读取原文）：
+- [ChatGPT release notes「Retiring Atlas」](https://help.openai.com/en/articles/6825453-chatgpt-release-notes)：
+  “Atlas is scheduled to stop working on August 9, 2026.” 之前要自行导出数据：书签、标签页、历史不会自动迁移；
+  cookie 与密码可导出到 ChatGPT 桌面端，书签可导出到 Chrome。
+- [ChatGPT Atlas retirement](https://help.openai.com/en/articles/20001371-chatgpt-atlas-retirement)：
+  “ChatGPT Atlas has been retired and no longer receives updates.” 这页没写日期；`sunsets` 链的是它，
+  因为它是面向已装用户的善后说明（导入书签、卸载、数据去向）。
+- **2026-08-09 起停止运行**（`sunsets` 的 `endDate`）。厂商推荐 ChatGPT 桌面端与 ChatGPT Chrome 扩展。
+
+同日实测：feed 仍返回 200、3 条，最新 `1.2026.189.1`（2026-07-24）；cask `chatgpt-atlas` 的
+`disabled` 为 true（`disable_date` 2026-08-26），`deprecated` 为 false。
+
 ## 覆盖矩阵
 
 > ✓ = 已接入  ○ = 可接入(未实现)  ✗ = 已调查不可行  — = 不适用

@@ -160,6 +160,7 @@ public enum AppRecipeIndex {
         com_objective_see_taskexplorer.set,
         com_obsproject_obs_studio.set,
         com_officecommun_search.set,
+        com_openai_atlas.set,
         com_openai_chat.set,
         com_openai_codex.set,
         com_operasoftware_Opera.set,

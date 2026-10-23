@@ -52,3 +52,5 @@ oneClickGates[0].reason = "a Readest nightly build; update it from Readest's own
 oneClickGates[0].offering = nil
 
 loginItemAgentRestarts = Dictionary(count: 0)
+
+sunsets = Dictionary(count: 0)

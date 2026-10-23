@@ -81,3 +81,5 @@ changelogPages["net.imput.helium"] = URL("https://github.com/imputnet/helium-mac
 oneClickGates = Array(count: 0)
 
 loginItemAgentRestarts = Dictionary(count: 0)
+
+sunsets = Dictionary(count: 0)

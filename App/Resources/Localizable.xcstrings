@@ -14426,6 +14426,71 @@
         }
       }
     },
+    "Read the announcement": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ankündigung lesen"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Leer el anuncio"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lire l’annonce"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Leggi l’annuncio"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "発表を読む"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ler o anúncio"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Прочитать заявление"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Duyuruyu oku"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "阅读公告"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "閱讀公告"
+          }
+        }
+      }
+    },
     "Report a failed update": {
       "extractionState": "manual",
       "localizations": {
@@ -15137,6 +15202,266 @@
           "stringUnit": {
             "state": "translated",
             "value": "將換成穩定版"
+          }
+        }
+      }
+    },
+    "The developer has announced that %@ stopped working on %@.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Laut Ankündigung des Entwicklers funktioniert %1$@ seit dem %2$@ nicht mehr."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El desarrollador ha anunciado que %1$@ dejó de funcionar el %2$@."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Selon l’annonce du développeur, %1$@ a cessé de fonctionner le %2$@."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lo sviluppatore ha annunciato che %1$@ ha smesso di funzionare il %2$@."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開発元の発表によると、%1$@ は %2$@ に使えなくなりました。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O desenvolvedor anunciou que %1$@ deixou de funcionar em %2$@."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "По заявлению разработчика, %1$@ не работает с %2$@."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Geliştirici, %1$@ uygulamasının %2$@ tarihinde çalışmayı durdurduğunu duyurdu."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "开发者已宣布 %1$@ 已于 %2$@ 停止运行。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開發者已宣布 %1$@ 已於 %2$@ 停止運作。"
+          }
+        }
+      }
+    },
+    "The developer has announced that %@ will stop working on %@.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Entwickler hat angekündigt, dass %1$@ ab dem %2$@ nicht mehr funktioniert."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El desarrollador ha anunciado que %1$@ dejará de funcionar el %2$@."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Selon l’annonce du développeur, %1$@ cessera de fonctionner le %2$@."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lo sviluppatore ha annunciato che %1$@ smetterà di funzionare il %2$@."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開発元は、%1$@ が %2$@ に使えなくなると発表しています。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O desenvolvedor anunciou que %1$@ deixará de funcionar em %2$@."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "По заявлению разработчика, %1$@ перестанет работать с %2$@."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Geliştirici, %1$@ uygulamasının %2$@ tarihinde çalışmayı durduracağını duyurdu."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "开发者已宣布 %1$@ 将于 %2$@ 停止运行。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開發者已宣布 %1$@ 將於 %2$@ 停止運作。"
+          }
+        }
+      }
+    },
+    "The developer has announced this app stopped working on %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Laut Ankündigung des Entwicklers funktioniert diese App seit dem %@ nicht mehr"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El desarrollador ha anunciado que esta app dejó de funcionar el %@"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le développeur a annoncé que cette app a cessé de fonctionner le %@"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lo sviluppatore ha annunciato che questa app ha smesso di funzionare il %@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開発元の発表によると、このアプリは %@ に使えなくなりました"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O desenvolvedor anunciou que este app deixou de funcionar em %@"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "По заявлению разработчика, это приложение не работает с %@"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Geliştirici, bu uygulamanın %@ tarihinde çalışmayı durdurduğunu duyurdu"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "开发者已宣布此 App 已于 %@ 停止运行"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開發者已宣布此 App 已於 %@ 停止運作"
+          }
+        }
+      }
+    },
+    "The developer has announced this app stops working on %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Entwickler hat angekündigt, dass diese App ab dem %@ nicht mehr funktioniert"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El desarrollador ha anunciado que esta app dejará de funcionar el %@"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le développeur a annoncé que cette app cessera de fonctionner le %@"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lo sviluppatore ha annunciato che questa app smetterà di funzionare il %@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開発元は、このアプリが %@ に使えなくなると発表しています"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O desenvolvedor anunciou que este app deixará de funcionar em %@"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "По заявлению разработчика, это приложение перестанет работать с %@"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Geliştirici, bu uygulamanın %@ tarihinde çalışmayı durduracağını duyurdu"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "开发者已宣布此 App 将于 %@ 停止运行"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開發者已宣布此 App 將於 %@ 停止運作"
           }
         }
       }

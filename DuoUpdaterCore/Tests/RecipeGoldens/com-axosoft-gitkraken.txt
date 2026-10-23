@@ -106,3 +106,5 @@ oneClickGates[0].reason = "this is not the normal edition; On-Premise copies upd
 oneClickGates[0].offering = nil
 
 loginItemAgentRestarts = Dictionary(count: 0)
+
+sunsets = Dictionary(count: 0)

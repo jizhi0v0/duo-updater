@@ -851,6 +851,26 @@ extension SparkleFeedCatalog.LoginWall: Codable {
     }
 }
 
+// MARK: - ProductSunset
+
+extension ProductSunset: Codable {
+    enum CodingKeys: String, CodingKey, CaseIterable { case endDate, announcement }
+
+    public init(from decoder: Decoder) throws {
+        try RecipeCoding.rejectUnknownKeys(in: decoder, allowed: CodingKeys.self)
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            endDate: try c.decode(String.self, forKey: .endDate),
+            announcement: try c.decode(URL.self, forKey: .announcement))
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(endDate, forKey: .endDate)
+        try c.encode(announcement, forKey: .announcement)
+    }
+}
+
 extension OneClickGate: Codable {
     enum CodingKeys: String, CodingKey, CaseIterable { case bundleID, requirement, reason, offering }
 

@@ -33,3 +33,5 @@ changelogPages["com.nssurge.surge-mac"] = URL("https://nssurge.com/support/mac/r
 oneClickGates = Array(count: 0)
 
 loginItemAgentRestarts = Dictionary(count: 0)
+
+sunsets = Dictionary(count: 0)

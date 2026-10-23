@@ -273,4 +273,47 @@ private let installed = [
         #expect(status == 0)
         #expect(Check.failure(row(hasUpdate: false, hidden: false)) == nil)
     }
+
+    /// An app whose developer announced its end is listed without `--all`, even
+    /// when current. Mutation: drop the sunset case from `showsByDefault` → red.
+    @Test func aSunsetAppIsShownByDefault() {
+        let arc = UpdateResult(
+            app: InstalledApp(
+                name: "Arc", bundleID: "company.thebrowser.Browser", shortVersion: "1.170.0",
+                buildVersion: "89123", path: URL(fileURLWithPath: "/Applications/Arc.app"),
+                isMASApp: false, sparkleFeedURL: nil),
+            remote: nil, status: .upToDate)
+        #expect(Check.showsByDefault(arc))
+        #expect(!Check.showsByDefault(result(.upToDate)))
+    }
+
+    /// The note under the row and the JSON field, before and from the end date.
+    /// Mutations: swap the two sentences; drop the note line; drop `sunset` from
+    /// the row.
+    @Test func aSunsetRowCarriesTheAnnouncement() throws {
+        let before = try #require(Check.sunset(forBundleID: "company.thebrowser.browser", today: "2026-12-21"))
+        let on = try #require(Check.sunset(forBundleID: "company.thebrowser.Browser", today: "2026-12-22"))
+        #expect(!before.ended)
+        #expect(on.ended)
+        #expect(Check.sunset(forBundleID: "com.example.fixture", today: "2026-12-22") == nil)
+        #expect(Check.sunsetNote(before)
+            == "the developer has announced it will stop working on 2026-12-22 — https://arc.net/")
+        #expect(Check.sunsetNote(on)
+            == "the developer has announced it stopped working on 2026-12-22 — https://arc.net/")
+
+        let row = Check.Row(
+            name: "Arc", bundleID: "company.thebrowser.Browser", path: "/Applications/Arc.app",
+            installedVersion: "1.170.0", installedBuild: "89123",
+            latestVersion: "1.170.0", source: "Sparkle", status: "up-to-date",
+            hasUpdate: false, hidden: false, route: nil, sunset: before)
+        var out: [String] = []
+        Check.emitText([row], checked: true, print: { out.append($0) })
+        #expect(out.contains("      note: \(Check.sunsetNote(before))"))
+        var json: [String] = []
+        Check.emitJSON([row], command: "check", print: { json.append($0) })
+        let line = try #require(json.first { $0.contains("\"Arc\"") })
+        #expect(line.contains(#""sunset":{"#))
+        #expect(line.contains(#""endDate":"2026-12-22""#))
+        #expect(line.contains(#""ended":false"#))
+    }
 }

@@ -93,3 +93,5 @@ changelogPages["com.robinebers.openusage"] = URL("https://github.com/robinebers/
 oneClickGates = Array(count: 0)
 
 loginItemAgentRestarts = Dictionary(count: 0)
+
+sunsets = Dictionary(count: 0)

@@ -15,6 +15,17 @@
 - 仍在更新：stable feed 三条 9-23 / 9-30 / 10-02，RC feed 10-06；近十几版的说明都只写
   Chromium 版本与安全修复
 
+## 产品终止（2026-10-23 记）
+
+厂商公告：[arc.net 首页「A farewell to Arc」](https://arc.net/)（2026-10-23 读取原文）。
+- 10-22：停止注册新账号；当时的最新版加了「导出全部数据」与更顺的 Dia 导入。
+- 11-23：iOS / Android 上 AI 功能关闭，Arc Search 不能再登录、同步。
+- **12-22：macOS / Windows 上的 Arc 不能再访问、使用；账号停用，个人数据 30 天内删除。**
+- 厂商推荐迁移到 Dia（`company.thebrowser.dia`，同一团队）。
+
+同日实测：stable feed 仍在出版本，最新 `1.170.0 (89123)`；cask `arc` 的 `deprecated` / `disabled`
+均为 false。所以「上游多久没发版」和 Homebrew 生命周期标记在 12-22 之前都不会亮。
+
 ## 覆盖矩阵
 
 > ✓ = 已接入  ○ = 可接入(未实现)  ✗ = 已调查不可行  — = 不适用

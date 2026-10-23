@@ -73,3 +73,5 @@ changelogPages["net.whatsapp.whatsapp"] = URL("https://apps.apple.com/app/id3106
 oneClickGates = Array(count: 0)
 
 loginItemAgentRestarts = Dictionary(count: 0)
+
+sunsets = Dictionary(count: 0)

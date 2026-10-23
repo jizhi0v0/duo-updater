@@ -131,6 +131,13 @@ struct RecipeCodableTests {
                     feed: URL(string: "https://example.invalid/appcast.xml")!,
                     login: URL(string: "https://example.invalid/login/")!)),
             .structure(
+                ProductSunset.self,
+                keys: ProductSunset.CodingKeys.allCases.map(\.stringValue),
+                required: #"{"endDate":"2026-12-22","announcement":"https://example.invalid/farewell"}"#,
+                expected: .init(
+                    endDate: "2026-12-22",
+                    announcement: URL(string: "https://example.invalid/farewell")!)),
+            .structure(
                 OneClickGate.self,
                 keys: OneClickGate.CodingKeys.allCases.map(\.stringValue),
                 required: #"{"bundleID":"zz.fixture","requirement":{"kind":"installedVersion","pattern":"^4\\."},"reason":"r"}"#,
@@ -388,6 +395,7 @@ struct RecipeCodableTests {
             try stable(set.changelogPages, "\(at).changelogPages")
             try stable(set.oneClickGates, "\(at).oneClickGates")
             try stable(set.loginItemAgentRestarts, "\(at).loginItemAgentRestarts")
+            try stable(set.sunsets, "\(at).sunsets")
         }
         #expect(failures.isEmpty, Comment(rawValue: failures.joined(separator: "\n")))
         // The kinds above are listed by hand; a kind added to `AppRecipeSet` and
@@ -456,6 +464,7 @@ struct RecipeCodableTests {
         case let v as [String: SparkleFeedCatalog.LoginWall]: return try check(v, count: v.count)
         case let v as [OneClickGate]: return try check(v, count: v.count)
         case let v as [String: [String]]: return try check(v, count: v.count)
+        case let v as [String: ProductSunset]: return try check(v, count: v.count)
         default: return (0, "no round trip for \(type(of: value))")
         }
     }

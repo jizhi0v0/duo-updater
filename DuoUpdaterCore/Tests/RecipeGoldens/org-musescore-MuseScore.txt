@@ -52,3 +52,5 @@ oneClickGates[0].reason = "MuseScore 4 installs beside MuseScore 3, not over it;
 oneClickGates[0].offering = nil
 
 loginItemAgentRestarts = Dictionary(count: 0)
+
+sunsets = Dictionary(count: 0)

@@ -14468,7 +14468,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Прочитать объявление"
+            "value": "Прочитать заявление"
           }
         },
         "tr": {
@@ -15224,7 +15224,7 @@
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Le développeur a annoncé que %1$@ a cessé de fonctionner le %2$@."
+            "value": "Selon l’annonce du développeur, %1$@ a cessé de fonctionner le %2$@."
           }
         },
         "it": {
@@ -15242,13 +15242,13 @@
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "O desenvolvedor anunciou que o %1$@ deixou de funcionar em %2$@."
+            "value": "O desenvolvedor anunciou que %1$@ deixou de funcionar em %2$@."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "По объявлению разработчика, %1$@ не работает с %2$@."
+            "value": "По заявлению разработчика, %1$@ не работает с %2$@."
           }
         },
         "tr": {
@@ -15260,7 +15260,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "开发者已宣布 %1$@ 已于 %2$@ 停止工作。"
+            "value": "开发者已宣布 %1$@ 已于 %2$@ 停止运行。"
           }
         },
         "zh-Hant": {
@@ -15289,7 +15289,7 @@
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Le développeur a annoncé que %1$@ cessera de fonctionner le %2$@."
+            "value": "Selon l’annonce du développeur, %1$@ cessera de fonctionner le %2$@."
           }
         },
         "it": {
@@ -15307,13 +15307,13 @@
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "O desenvolvedor anunciou que o %1$@ deixará de funcionar em %2$@."
+            "value": "O desenvolvedor anunciou que %1$@ deixará de funcionar em %2$@."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "По объявлению разработчика, %1$@ перестанет работать с %2$@."
+            "value": "По заявлению разработчика, %1$@ перестанет работать с %2$@."
           }
         },
         "tr": {
@@ -15325,7 +15325,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "开发者已宣布 %1$@ 将于 %2$@ 停止工作。"
+            "value": "开发者已宣布 %1$@ 将于 %2$@ 停止运行。"
           }
         },
         "zh-Hant": {
@@ -15378,19 +15378,19 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "По объявлению разработчика, это приложение не работает с %@"
+            "value": "По заявлению разработчика, это приложение не работает с %@"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Geliştirici bu uygulamanın %@ tarihinde çalışmayı durdurduğunu duyurdu"
+            "value": "Geliştirici, bu uygulamanın %@ tarihinde çalışmayı durdurduğunu duyurdu"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "开发者已宣布此 App 已于 %@ 停止工作"
+            "value": "开发者已宣布此 App 已于 %@ 停止运行"
           }
         },
         "zh-Hant": {
@@ -15443,19 +15443,19 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "По объявлению разработчика, это приложение перестанет работать с %@"
+            "value": "По заявлению разработчика, это приложение перестанет работать с %@"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Geliştirici bu uygulamanın %@ tarihinde çalışmayı durduracağını duyurdu"
+            "value": "Geliştirici, bu uygulamanın %@ tarihinde çalışmayı durduracağını duyurdu"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "开发者已宣布此 App 将于 %@ 停止工作"
+            "value": "开发者已宣布此 App 将于 %@ 停止运行"
           }
         },
         "zh-Hant": {

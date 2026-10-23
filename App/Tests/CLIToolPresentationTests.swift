@@ -543,11 +543,13 @@ struct CLIToolPayloadPresentationTests {
             installPath: "/Users/ann/.local/share/zz/node/20.20.2", shape: .request,
             request: ManagedItem.Request(kind: .range, spelled: "20"), installed: "20.20.2",
             latestWithinRequest: "20.20.2", latestOverall: "26.12.1")
-        let current = CLIToolStatus(
-            kind: .managed, path: held.installPath, identity: held.identity, installedVersion: "20.20.2", latestVersion: "20.20.2",
-            channel: nil, state: .upToDate, oneClick: nil, withheld: nil, note: nil,
-            manualCommand: CLIToolCommand(executable: "/Users/ann/.local/bin/zz", arguments: ["upgrade", "--bump", "node"], pathPrefix: nil),
-            name: "node", detail: .managed(held))
+        // Through `ManagedCheck`, as the provider makes it: the unpin command
+        // must come from the verdict, not be set by hand here.
+        let root = ManagedRoot(manager: zz.id, path: held.root, binary: nil)
+        let current = ManagedCheck.status(
+            ManagedVerdict(item: held, vendorWouldUpgrade: false), root: root, upgrade: nil,
+            unpin: CLIToolCommand(executable: "/Users/ann/.local/bin/zz", arguments: ["upgrade", "--bump", "node"], pathPrefix: nil))
+        #expect(current.state == .upToDate)
         #expect(CLIToolPresentation.facts(of: current, home: Self.home)
             .contains(.init(label: "Beyond the request", value: "26.12.1 — /Users/ann/.local/bin/zz upgrade --bump node")))
     }

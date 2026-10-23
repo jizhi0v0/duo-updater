@@ -323,6 +323,10 @@ public enum CLIToolWording {
                 return String(localized: "Not signed by its developer")
             }
             return String(localized: "Not signed by \(signer)")
+        // Only the quarantine flag held it back: the binary may well be the
+        // vendor's (`ManagedRoot.Trust.quarantined`), as for every other kind.
+        case (.unverified, .managed(let item)) where item.binaryTrust == .quarantined:
+            return quarantined
         case (.unverified, .managed(let item)):
             guard let signer = item.descriptor.signer else {
                 return String(localized: "Not the build its developer published")
@@ -334,9 +338,12 @@ public enum CLIToolWording {
         case (.channelUnreadable, .managed(let item)):
             let manager = item.descriptor.displayName
             return String(localized: "Couldn’t reach \(manager)’s release channel")
-        case (.unsupportedInstaller, .managed):
+        case (.unsupportedInstaller, .managed), (.runtimeTooOld, .managed):
             // The verdict's own reason (`ManagedVerdict.Blocker.note`): a git
-            // crate, an editable venv, a request the manager does not report on.
+            // crate, an editable venv, a request the manager does not report
+            // on; the runtime a newer release needs (a crate's `rust_version`
+            // above the toolchain's rustc — not Node, which the kind-level
+            // wording below assumes).
             if let note = status.note { return note }
         default:
             break

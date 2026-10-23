@@ -114,6 +114,11 @@ public struct ManagedItem: Sendable, Equatable {
     public let effects: [Effect]
     /// What the detail pane lists, worded by the app.
     public let facts: [Fact]
+    /// The trust of the root's binary when the row was made (`ManagedCheck`
+    /// sets it from the root): what the wording reads to tell a quarantined
+    /// binary from one another signer built. Nil before the check, and when
+    /// the root has no binary.
+    public let binaryTrust: ManagedRoot.Trust?
 
     public enum Shape: String, Sendable, Codable {
         /// One version at a time (uv tool, pipx, cargo, go).
@@ -228,7 +233,7 @@ public struct ManagedItem: Sendable, Equatable {
         descriptor: ManagerDescriptor, root: String, key: String, name: String, installPath: String,
         shape: Shape, request: Request? = nil, installed: String?, latestWithinRequest: String? = nil,
         latestOverall: String? = nil, alsoInstalled: [String] = [], backend: String? = nil,
-        notes: NotesSource? = nil, effects: [Effect] = [], facts: [Fact] = []
+        notes: NotesSource? = nil, effects: [Effect] = [], facts: [Fact] = [], binaryTrust: ManagedRoot.Trust? = nil
     ) {
         precondition(!key.contains(ManagerID.identitySeparator), "an item key is part of an identity split on |")
         self.manager = descriptor.id
@@ -247,6 +252,16 @@ public struct ManagedItem: Sendable, Equatable {
         self.notes = notes
         self.effects = effects
         self.facts = facts
+        self.binaryTrust = binaryTrust
+    }
+
+    /// This item with the root's binary trust recorded on it.
+    func with(binaryTrust: ManagedRoot.Trust?) -> ManagedItem {
+        ManagedItem(
+            descriptor: descriptor, root: root, key: key, name: name, installPath: installPath, shape: shape,
+            request: request, installed: installed, latestWithinRequest: latestWithinRequest,
+            latestOverall: latestOverall, alsoInstalled: alsoInstalled, backend: backend, notes: notes,
+            effects: effects, facts: facts, binaryTrust: binaryTrust)
     }
 
     /// What names this row across checks, whatever directory it sits in now:

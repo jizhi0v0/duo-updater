@@ -559,7 +559,14 @@ import DuoUpdaterCore
     @Test func managedTextSaysWhatTheUpdateDoesAndWhatLiesBeyond() {
         let update = CLIToolRows.Row(Self.managed())
         #expect(CLIToolRows.details(update) == ["the update keeps the old version for 24h"])
-        let held = CLIToolRows.Row(Self.managed(installed: "20.20.2", state: .upToDate))
+        // Through `ManagedCheck`, as the provider makes it: the unpin command
+        // must come from the verdict, not be set by hand here.
+        let heldItem = Self.managed(installed: "20.20.2", state: .upToDate).managedItem!
+        let held = CLIToolRows.Row(ManagedCheck.status(
+            ManagedVerdict(item: heldItem, vendorWouldUpgrade: false),
+            root: ManagedRoot(manager: heldItem.manager, path: heldItem.root, binary: nil), upgrade: nil,
+            unpin: CLIToolCommand(executable: "/ZZFixture-home/.local/bin/zz", arguments: ["upgrade", "--bump", "node"], pathPrefix: nil)))
+        #expect(held.state == CLIToolState.upToDate.rawValue)
         #expect(held.latestBeyondRequest == "26.12.1")
         #expect(CLIToolRows.details(held)
             == ["26.12.1 available beyond the request — /ZZFixture-home/.local/bin/zz upgrade --bump node"])

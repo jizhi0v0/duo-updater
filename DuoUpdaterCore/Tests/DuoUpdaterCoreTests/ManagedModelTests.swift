@@ -182,16 +182,23 @@ struct ManagedModelTests {
     }
 
     /// A range held at its top with newer beyond it is current (D2); what lies
-    /// beyond is a fact, read by `beyondRequest`. Mutation: count it as
-    /// outdated; read `latestOverall` as the row's latest.
+    /// beyond is a fact, read by `beyondRequest`, with the unpin command on
+    /// `manualCommand` — and nothing to copy on the row, since it is current.
+    /// Mutations: count it as outdated; read `latestOverall` as the row's
+    /// latest; set `manualCommand` only on `.pinned` (review round 1).
     @Test func aRangeAtItsTopIsCurrentWithTheGapAsAFact() {
         let node = Self.item(installed: "20.20.2", within: "20.20.2", overall: "26.12.1")
         let status = Self.status(node, vendorWouldUpgrade: false)
         #expect(status.state == .upToDate)
         #expect(status.latestVersion == "20.20.2")
         #expect(status.oneClick == nil)
+        #expect(status.manualCommand == Self.unpin(node))
+        #expect(status.commandToCopy == nil)
         #expect(ManagedCheck.beyondRequest(status) == "26.12.1")
         #expect(ManagedCheck.beyondRequest(Self.status()) == nil)
+        // Nothing beyond: no command rides along.
+        let flat = Self.status(Self.item(installed: "20.20.2", within: "20.20.2", overall: "20.20.2"), vendorWouldUpgrade: false)
+        #expect(flat.manualCommand == nil)
     }
 
     /// Installed equals the latest → current; above it → ahead.
@@ -236,7 +243,10 @@ struct ManagedModelTests {
         #expect(Self.status(blocker: .rateLimited).withheld == .rateLimited)
         #expect(Self.status(blocker: .rateLimited).isRateLimitError)
         #expect(Self.status(blocker: .versionUnreadable).withheld == .versionUnreadable)
-        #expect(Self.status(blocker: .runtimeTooOld("rustc 1.85")).withheld == .runtimeTooOld)
+        let msrv = Self.status(blocker: .runtimeTooOld("rustc 1.85"))
+        #expect(msrv.withheld == .runtimeTooOld)
+        // Worded from the verdict, not as npm's "Needs a newer Node" (review round 1).
+        #expect(CLIToolWording.reason(.runtimeTooOld, of: msrv) == "the newest release needs rustc 1.85")
         #expect(Self.status(blocker: .notRequested("mise outdated reports one request per tool")).withheld == .unsupportedInstaller)
     }
 
@@ -267,6 +277,10 @@ struct ManagedModelTests {
         let quarantined = Self.status(root: Self.root(trust: .quarantined))
         #expect(quarantined.withheld == .unverified)
         #expect(quarantined.note?.contains("quarantined") == true)
+        #expect(quarantined.managedItem?.binaryTrust == .quarantined)
+        // Only the flag held it back, so it is not "not ZZ Corp's build" (review round 1).
+        #expect(CLIToolWording.reason(.unverified, of: quarantined) == "Quarantined, so not run")
+        #expect(CLIToolWording.reason(.unverified, of: unsigned) == "Not the build ZZ Corp published")
 
         let missing = Self.status(root: Self.root(trust: nil))
         #expect(missing.withheld == .updaterMissing)

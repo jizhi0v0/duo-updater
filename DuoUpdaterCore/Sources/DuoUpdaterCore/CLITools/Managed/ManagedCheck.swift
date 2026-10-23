@@ -12,7 +12,9 @@ import Foundation
 ///    command to copy, never offered (the 2026-10-13 rule);
 /// 4. installed below the newest known, though the vendor would not move it
 ///    (a range held at its top with newer beyond, D2; the vendor said no) →
-///    `.upToDate`; the pane says what lies beyond from `latestOverall`;
+///    `.upToDate`, the unpin command on `manualCommand` for the pane's and
+///    `duo`'s "beyond the request" line (not to copy: `commandToCopy` hands
+///    nothing out for a current row);
 /// 5. installed above the newest → `.ahead`; equal → `.upToDate`;
 /// 6. nothing known either way → `.unknown`, channel unreadable.
 ///
@@ -82,6 +84,14 @@ public enum ManagedCheck {
             note = "could not read the release channel"
         }
 
+        // A current row held inside its request with newer beyond it (D2):
+        // the command that lifts the request rides along for the pane's and
+        // `duo`'s "beyond the request" line.
+        if state == .upToDate, manual == nil, let installed, let overall = item.latestOverall,
+           VersionComparator.isNewer(overall, than: installed) {
+            manual = unpin
+        }
+
         // The binary's trust takes the click away, never the verdict: the
         // command stays to copy, as bub's does today (`CLIToolStatus.commandToCopy`).
         if oneClick != nil {
@@ -109,7 +119,9 @@ public enum ManagedCheck {
             kind: .managed, path: item.installPath, identity: item.identity, installedVersion: installed,
             latestVersion: latest, channel: nil, state: state, oneClick: oneClick, withheld: withheld, note: note,
             manualCommand: manual, name: item.name, releaseNotesKey: releaseNotesKey(item),
-            detail: .managed(item))
+            // The root's trust rides on the item, so the wording can tell a
+            // quarantined binary from another signer's (`CLIToolWording.reason`).
+            detail: .managed(item.with(binaryTrust: root?.binary?.trust)))
     }
 
     /// One document per (manager, item key): two roots with the same item read

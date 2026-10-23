@@ -2,7 +2,7 @@
 
 Design for jizhi0v0/duo-updater, branch `runtime-composition-detail`, HEAD `cbc6bcc1`. Repo paths: `C/` = `DuoUpdaterCore/Sources/DuoUpdaterCore/CLITools/`. Evidence IDs refer to the twelve research files; review verdicts override reports (corrections are applied inline and marked "corrected"). Anything not in that set is in §12.
 
-**Status (2026-10-23): §0 done, P0 written, no manager registered.** The owner took every recommended option (§11). §0's survey is `plans/cli-managers-int-on-main.md` (committed beside this file); P0's code is on `plan/cli-managers-redesign` — see the status log at the end of this file for what is in, what is not, and what P0 still owes before it is accepted (`make test` on a Mac: the P0 session had no Swift toolchain). Before P1, read §13 (cancel, which every adapter must measure for real).
+**Status (2026-10-23): §0 done, P0 green on CI, no manager registered.** The owner took every recommended option (§11). §0's survey is `plans/cli-managers-int-on-main.md` (committed beside this file); P0's code is on `plan/cli-managers-redesign` (PR #1613) — see the status log at the end of this file for what is in and what is not. Before P1, read §13 (cancel, which every adapter must measure for real).
 
 The research files (six reports, six reviews) stay on the owner's Mac, because they hold that machine's inventory. Every fact this design relies on is restated in §2 with its claim ID. Treat an ID as a pointer, not as something you can open from a cloud session. When a fact matters for your phase and you doubt it, re-verify it yourself the way §12 does: in an isolated home, with the command and its raw output.
 
@@ -371,7 +371,7 @@ Everything reuses what exists; one new element is called out.
 
 **P0 — Plumbing (no new manager visible).** `C/Managed/{ManagerID,ManagerDescriptor,ManagedItem,ManagedVerdict,ManagerAdapter,ManagedCheck,ManagedProvider,ManagedActivity,ManagerRegistry}.swift`; `.managed` kind, `identity`, `providerID`, `CLIToolSighting.name/identity`; the one-time switch arms (§3.5); `CLIToolRows` fields; tests. Acceptance: `make test` exit 0; `CLIToolsTests` order test rewritten and green; a `FakeManagerAdapter` through `CLIToolsModelTests` proves: identity stable across a moved `installPath` (justUpdated and selection survive), lane by descriptor, pause by descriptor, pinned never counted in `offered`; `duo check --json` row for the fake carries the new keys and `schemaVersion: 2`; app rows unchanged for all 28 kinds (snapshot of `CLIToolPresentation.groups` over fixture statuses).
 
-*Written 2026-10-23 (see the status log); `make test` not yet run.*
+*Written 2026-10-23 (see the status log); CI's swift, app, release and test jobs green on `a9e6c01` (run 39932065312).*
 
 **P1 — mise tools.** `C/Managed/Mise/{MiseToolsAdapter,MiseToolsLs,MiseToolsOutdated}.swift`, registry line, strings. Acceptance: unit fixtures from `r-mise-asdf/out-cur-ls.json`, `out-cur-outdated2.json`, `out-cur-outdated-bump.json`, `out-old-ls.json`, `out-old-outdated-bump.json`, the 2024.12.6 empty-stdout case; mutation checks (§9). Real machine, isolated: `HOME=<iso>` populated like the researchers did (`MISE_DATA_DIR` et al. point into `<iso>` because the adapter sets `HOME=<iso>` for the child), `<iso>/.local/bin/mise` a symlink to the real signed binary, tools `jq="1.6"`, `node="20"`, `npm:prettier="2.0.0"` installed at old versions; run the provider via a test executable with `home: <iso>`: expect rows node (`updateAvailable` 20.10.0→20.20.2), jq (`pinned`, copy `mise upgrade --bump jq`), prettier (`pinned`); one-click on node → `.updated("20.20.2")`, config byte-identical, purgatory entry present, `alsoInstalled` shows 20.10.0; `duo check --json`/`duo install mise/node` on the same iso home agree with the app's statuses; before/after `stat` of `~/.local/share/mise`, `~/.config/mise`, `~/Library/Caches/mise` identical (the researchers' `before.txt/after.txt` method); UI: duoshot of the workbench group header, a pinned row with the copy glyph, an updating row, the popover "Updating mise tools"; `make install` + real popover open shows the group without the user's real mise config being written (owner's OK needed only if the real home is used — it is not).
 
@@ -577,5 +577,11 @@ Until then, (a) holds everywhere.
 - The "no `ChildProcess` in any adapter's `scan`" source-scan test (§10): written with the first adapter.
 - Logos for the new managers (`cli-pipx`, `cli-fnm`, `cli-pyenv`, `cli-rbenv`, `cli-go`): assets, per adapter phase.
 
-**Owed before P0 is accepted:** `make test` exit 0 on a Mac. The session that wrote P0 ran on Linux with no Swift toolchain, so none of the Swift above has been compiled; the Python gates that run there passed (`check_localizable_specifiers.py`). Expect compile fixes on the first run.
+**Acceptance:** written on Linux with no Swift toolchain; CI compiled and ran it on a Mac — swift, app, release and test jobs green on `a9e6c01` (run 39932065312, 2026-10-23). The Python gates passed locally first.
+
+**Review round 1 (`a9e6c01`), three blocking findings, all fixed in the next commit:**
+
+- D2: `ManagedCheck` set the unpin command only on `.pinned`, so a range held at its top had nothing for the pane's and `duo`'s "beyond the request … — command" line. Now `manualCommand` carries the unpin command on that `.upToDate` row too (nothing to copy: `commandToCopy` hands nothing out for a current row). The pane and `duo` tests build that row through `ManagedCheck` now, not by hand.
+- A quarantined manager binary read "Not the build <signer> published". `ManagedItem.binaryTrust` (set by `ManagedCheck` from the root) lets the wording say "Quarantined, so not run", as every other kind does.
+- `.runtimeTooOld` on a managed row read npm's "Needs a newer Node". The managed arm words it from the verdict's note ("the newest release needs rustc 1.85").
 

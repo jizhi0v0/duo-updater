@@ -473,6 +473,85 @@ struct CLIToolPayloadPresentationTests {
             == "openclaw · /opt/homebrew")
     }
 
+    /// A managed group is one manager's one root: two roots of a manager are
+    /// two groups, titled by the manager, each row by its item's name; the
+    /// group's id tells the pair apart. Mutations: key managed groups by kind
+    /// alone; title the group by `kind.displayName`.
+    @Test func managedGroupsSplitByManagerAndRoot() throws {
+        let zz = ManagerDescriptor(id: ManagerID("zz-fake"), displayName: "ZZ Fake tools", signer: nil, logo: nil,
+                                   tint: .label, lane: "zz-fake")
+        let yy = ManagerDescriptor(id: ManagerID("yy-fake"), displayName: "YY Fake lines", signer: nil, logo: nil,
+                                   tint: .label, lane: "yy-fake")
+        func row(_ descriptor: ManagerDescriptor, root: String, key: String) -> CLIToolStatus {
+            let item = ManagedItem(descriptor: descriptor, root: root, key: key, name: key, installPath: root + "/" + key,
+                                   shape: .package, installed: "1.0", latestWithinRequest: "1.0")
+            return CLIToolStatus(kind: .managed, path: item.installPath, identity: item.identity, installedVersion: "1.0",
+                                 latestVersion: "1.0", channel: nil, state: .upToDate, oneClick: nil, withheld: nil,
+                                 note: nil, name: key, detail: .managed(item))
+        }
+        let rows = [row(zz, root: "/Users/ann/.local/share/zz", key: "node"),
+                    row(zz, root: "/Users/ann/.local/share/zz", key: "jq"),
+                    row(zz, root: "/Users/ann/.zz-other", key: "node"),
+                    row(yy, root: "/Users/ann/.yy", key: "v22"),
+                    F.uv()]
+        let groups = CLIToolPresentation.groups(rows)
+        try #require(groups.count == 4)
+        #expect(groups.map(\.title) == ["ZZ Fake tools", "ZZ Fake tools", "YY Fake lines", "uv"])
+        #expect(groups.map(\.statuses.count) == [2, 1, 1, 1])
+        #expect(groups.map(\.root) == ["/Users/ann/.local/share/zz", "/Users/ann/.zz-other", "/Users/ann/.yy", nil])
+        #expect(Set(groups.map(\.id)).count == 4)
+        #expect(CLIToolPresentation.title(of: rows[0], home: Self.home) == "node")
+    }
+
+    /// A managed row's pane: the request and backend, the adapter's facts,
+    /// what lies beyond a range held at its top (D2), and what the update
+    /// does (D6/D7/D8); a `dropsSpecifier` effect is the row's orange caption
+    /// before the click (D7); an exact request is worded as pinned to the
+    /// manager's config. Mutations: drop the `.managed` arm of `facts(of:)`;
+    /// drop the effect check from `rowWarning`.
+    @Test func aManagedRowsPaneSaysWhatTheUpdateDoes() {
+        let zz = ManagerDescriptor(id: ManagerID("zz-fake"), displayName: "ZZ Fake tools", signer: nil, logo: nil,
+                                   tint: .label, lane: "zz-fake")
+        let item = ManagedItem(
+            descriptor: zz, root: "/Users/ann/.local/share/zz", key: "ruff", name: "ruff",
+            installPath: "/Users/ann/.local/share/zz/ruff", shape: .package,
+            request: ManagedItem.Request(kind: .exact, spelled: "==0.6.0"), installed: "0.6.0",
+            latestWithinRequest: "0.6.0", latestOverall: "0.9.0", backend: "pip",
+            effects: [.dropsSpecifier("ruff==0.6.0"), .oldRemoved], facts: [.python("3.12.15")])
+        let command = CLIToolCommand(executable: "/Users/ann/.local/bin/zz", arguments: ["upgrade", "ruff"], pathPrefix: nil)
+        let offered = CLIToolStatus(
+            kind: .managed, path: item.installPath, identity: item.identity, installedVersion: "0.6.0", latestVersion: "0.9.0",
+            channel: nil, state: .updateAvailable, oneClick: command, withheld: nil, note: nil, name: "ruff", detail: .managed(item))
+        let facts = CLIToolPresentation.facts(of: offered, home: Self.home)
+        #expect(facts.contains(.init(label: "Backend", value: "pip")))
+        #expect(facts.contains(.init(label: "Requested", value: "==0.6.0")))
+        #expect(facts.contains(.init(label: "Python", value: "3.12.15")))
+        #expect(facts.last?.label == "What the update does")
+        #expect(facts.last?.value == "drops the recorded specifier ruff==0.6.0; removes the old version")
+        #expect(CLIToolPresentation.rowWarning(offered) == "drops the recorded specifier ruff==0.6.0")
+
+        let pinned = CLIToolStatus(
+            kind: .managed, path: item.installPath, identity: item.identity, installedVersion: "0.6.0", latestVersion: "0.9.0",
+            channel: nil, state: .pinned, oneClick: nil, withheld: nil, note: nil, manualCommand: command, name: "ruff",
+            detail: .managed(item))
+        #expect(CLIToolWording.pinned(pinned) == "Pinned to ==0.6.0 in ZZ Fake tools’s config, so it doesn’t follow new releases")
+        #expect(CLIToolPresentation.rowWarning(pinned) == nil)
+
+        // A range held at its top: current, with the gap and the unpin command in the pane.
+        let held = ManagedItem(
+            descriptor: zz, root: "/Users/ann/.local/share/zz", key: "node@20", name: "node",
+            installPath: "/Users/ann/.local/share/zz/node/20.20.2", shape: .request,
+            request: ManagedItem.Request(kind: .range, spelled: "20"), installed: "20.20.2",
+            latestWithinRequest: "20.20.2", latestOverall: "26.12.1")
+        let current = CLIToolStatus(
+            kind: .managed, path: held.installPath, identity: held.identity, installedVersion: "20.20.2", latestVersion: "20.20.2",
+            channel: nil, state: .upToDate, oneClick: nil, withheld: nil, note: nil,
+            manualCommand: CLIToolCommand(executable: "/Users/ann/.local/bin/zz", arguments: ["upgrade", "--bump", "node"], pathPrefix: nil),
+            name: "node", detail: .managed(held))
+        #expect(CLIToolPresentation.facts(of: current, home: Self.home)
+            .contains(.init(label: "Beyond the request", value: "26.12.1 — /Users/ann/.local/bin/zz upgrade --bump node")))
+    }
+
     /// The CLI tab's order: a group with an update before one without, the
     /// outdated copies first within a group, and tool order otherwise — npm's
     /// prefixes being groups of their own.

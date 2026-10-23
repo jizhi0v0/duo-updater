@@ -54,6 +54,10 @@ struct LogoTile<Mark: View>: View {
 struct CLIToolIcon: View {
     let kind: CLIToolKind
     let size: CGFloat
+    /// A managed row's manager, whose logo and tint the row wears
+    /// (`ManagerDescriptor`); nil for every other kind, and for a `.managed`
+    /// icon drawn without its status.
+    var managed: ManagerDescriptor? = nil
 
     var body: some View {
         LogoTile(tint: tint, size: size) { mark.foregroundStyle(tint) }
@@ -105,6 +109,7 @@ struct CLIToolIcon: View {
         case .obelus: "cli-obelus"
         case .biome: "cli-biome"
         case .bub, .lorca: nil
+        case .managed: managed?.logo
         }
     }
 
@@ -146,6 +151,12 @@ struct CLIToolIcon: View {
         // Simple Icons' brand colours: pnpm's orange, Yarn's blue.
         case .pnpm: Color(red: 0xF6 / 255, green: 0x92 / 255, blue: 0x20 / 255)
         case .yarn: Color(red: 0x2C / 255, green: 0x8E / 255, blue: 0xBB / 255)
+        // The manager's own, as its descriptor gives it.
+        case .managed:
+            switch managed?.tint {
+            case .rgb(let red, let green, let blue)?: Color(red: red, green: green, blue: blue)
+            case .label?, nil: Color(nsColor: .labelColor)
+            }
         // GHCup's page heads itself with the Haskell logo: Haskell's purple,
         // and in the dark the lightest purple of haskell.org's own logo, as
         // #5D4F85 all but vanished on a dark sidebar.
@@ -199,7 +210,7 @@ struct CLIToolSidebarRow: View {
     var body: some View {
         let row = row
         HStack(spacing: 8) {
-            CLIToolIcon(kind: status.kind, size: 22)
+            CLIToolIcon(kind: status.kind, size: 22, managed: status.managedItem?.descriptor)
             VStack(alignment: .leading, spacing: 1) {
                 HStack(spacing: 6) {
                     Text(verbatim: CLIToolPresentation.title(of: status, home: homeDirectory, among: cli.statuses))
@@ -923,7 +934,7 @@ struct CLIToolDetailPane: View {
 
     private var header: some View {
         HStack(spacing: 12) {
-            CLIToolIcon(kind: status.kind, size: 44)
+            CLIToolIcon(kind: status.kind, size: 44, managed: status.managedItem?.descriptor)
             VStack(alignment: .leading, spacing: 2) {
                 // "rustup", an npm package's name: the install's own name when the
                 // tool's group holds several kinds of thing. The path says which.

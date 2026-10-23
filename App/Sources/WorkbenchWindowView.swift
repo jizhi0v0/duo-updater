@@ -1104,7 +1104,7 @@ struct WorkbenchWindowView: View {
     /// nothing for bub, which has neither.
     private func cliToolHeader(_ group: CLIToolPresentation.Group) -> some View {
         HStack(spacing: 6) {
-            Text(verbatim: group.kind.displayName)
+            Text(verbatim: group.title)
             Spacer()
             if let summary = cliToolHeaderSummary(group) {
                 // Several languages say "auto-update off" in twice the English width;
@@ -1123,7 +1123,7 @@ struct WorkbenchWindowView: View {
                 if let help = CLIToolPresentation.securityMarkHelp(notices) {
                     let statuses = model.cliTools.statuses, report = model.runtimeSecurity
                     RuntimeSecurityMarkButton(
-                        help: help, title: cliToolHeaderSummary(group) ?? group.kind.displayName, notices: notices,
+                        help: help, title: cliToolHeaderSummary(group) ?? group.title, notices: notices,
                         upgrade: { CLIToolPresentation.upgradeCommand(ofPrefix: prefix, statuses: statuses, in: report) })
                         .font(.caption)
                 }
@@ -1157,6 +1157,12 @@ struct WorkbenchWindowView: View {
         case .uv, .junie, .rust, .npm, .boat, .codex, .bun, .pnpm, .yarn, .opencode, .cursorAgent, .amp, .vitePlus, .herdr, .luvus, .lorca, .zoxide, .nvm, .atuin, .ghcup, .flyctl, .helm, .starship, .deno, .mise, .obelus, .biome:
             return CLIToolPresentation.headerSummary(
                 kind, statuses: model.cliTools.statuses, context: model.cliTools.contexts[kind])
+        case .managed:
+            // The manager's binary and this group's root: "mise 2026.10.7 ·
+            // ~/.local/share/mise" (`ManagerContext.headerSummary`).
+            guard let manager = group.manager else { return nil }
+            return model.cliTools.managedContexts[manager]?.headerSummary(
+                home: FileManager.default.homeDirectoryForCurrentUser.path, root: group.root)
         }
     }
 

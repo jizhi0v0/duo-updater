@@ -6,15 +6,27 @@ import DuoUpdaterCore
 /// a path, but nothing here relies on it — an install is always named by both.
 struct CLIToolID: Hashable, Sendable {
     let kind: CLIToolKind
+    /// `CLIToolStatus.identity`: the install's path for every kind but
+    /// `.managed`, whose rows are named "<manager>|<root>|<key>" because their
+    /// directory moves when a new version lands beside the old one. Kept under
+    /// this name for the call sites; `status(id)?.path` is the directory.
     let path: String
 
     /// The workbench sidebar's selection tag, "claude-code:/Users/…/claude". The
     /// kind's raw value holds no colon, so the path is everything after the first.
     var tag: String { "\(kind.rawValue):\(path)" }
+
+    /// The id of the provider that owns this copy (`CLIToolProvider.id`): the
+    /// kind's raw value, or "managed:<manager>" read off the identity's first
+    /// part — the same answer `CLIToolStatus.providerID` gives, without the status.
+    var providerID: String {
+        guard kind == .managed, let parts = ManagedItem.parse(identity: path) else { return kind.rawValue }
+        return ManagerDescriptor.providerID(of: parts.manager)
+    }
 }
 
 extension CLIToolStatus {
-    var toolID: CLIToolID { CLIToolID(kind: kind, path: path) }
+    var toolID: CLIToolID { CLIToolID(kind: kind, path: identity) }
 }
 
 /// One click in the CLI tab that changes something, as its queue
@@ -33,7 +45,7 @@ enum CLIRun: Hashable, Sendable {
 }
 
 extension CLIToolSighting {
-    var toolID: CLIToolID { CLIToolID(kind: kind, path: path) }
+    var toolID: CLIToolID { CLIToolID(kind: kind, path: identity) }
 }
 
 /// Command-line tools that are not Homebrew's — Claude Code, bub, fx — as the
@@ -86,6 +98,9 @@ final class CLIToolsModel {
     /// The tool-wide settings each tool's verdicts were made under, for its group
     /// header: Claude Code's channel and auto-update, fx's settings.
     private(set) var contexts: [CLIToolKind: CLIToolReport.Context] = [:]
+    /// The same for each managed group, by manager: every `ManagedProvider` is
+    /// of kind `.managed`, so `contexts` could hold only one of them.
+    private(set) var managedContexts: [ManagerID: ManagerContext] = [:]
     /// Flips true once the first check returns.
     private(set) var checked = false
     /// A check is in flight.
@@ -545,7 +560,7 @@ final class CLIToolsModel {
 
     /// The tools at `indices`, by name, for the log.
     private func names(_ indices: [Int]) -> String {
-        indices.map { providers[$0].kind.displayName }.joined(separator: ", ")
+        indices.map { providers[$0].attributionName }.joined(separator: ", ")
     }
 
     /// Whether a tool is checked on this tick. Every tool is, except one whose
@@ -614,7 +629,7 @@ final class CLIToolsModel {
             await self.inProviderOrder(indices) { provider in
                 let clock = ContinuousClock()
                 let began = clock.now
-                let report = await RequestAttribution.withApp(provider.kind.displayName) { await provider.check() }
+                let report = await RequestAttribution.withApp(provider.attributionName) { await provider.check() }
                 return (report, clock.now - began)
             }
         }.value
@@ -625,7 +640,7 @@ final class CLIToolsModel {
         // What tuning reads: how long the check took, which tools held it up
         // (every verdict waits for the slowest), and what it left unanswered.
         let slowest = timed.sorted { $0.1.1 > $1.1.1 }.prefix(3)
-            .map { "\(providers[$0.0].kind.displayName) \(Log.seconds($0.1.1))" }.joined(separator: ", ")
+            .map { "\(providers[$0.0].attributionName) \(Log.seconds($0.1.1))" }.joined(separator: ", ")
         let unanswered = current.flatMap { $0.1.statuses }.filter { $0.state == .unknown }.count
         let superseded = answers.count - current.count
         Log.app.notice("cli-tools check of \(indices.count, privacy: .public) tool(s): \(Log.seconds(clock.now - began), privacy: .public); slowest \(slowest, privacy: .public); \(unanswered, privacy: .public) copies not checked\(superseded > 0 ? ", \(superseded) superseded by a later check" : "", privacy: .public)")
@@ -656,18 +671,23 @@ final class CLIToolsModel {
         }
         let ordered = reports.keys.sorted().compactMap { reports[$0] }
         contexts = Dictionary(ordered.map { ($0.kind, $0.context) }, uniquingKeysWith: { a, _ in a })
+        managedContexts = Dictionary(ordered.compactMap { report -> (ManagerID, ManagerContext)? in
+            if case .managed(let context) = report.context { return (context.descriptor.id, context) }
+            return nil
+        }, uniquingKeysWith: { a, _ in a })
         checkedStatuses = ordered.flatMap(\.statuses)
         publishStatuses()
         checkedSightings = ordered.flatMap(\.sightings)
         sightings = checkedSightings
         checked = true
         let byID = Dictionary(statuses.map { ($0.toolID, $0) }, uniquingKeysWith: { a, _ in a })
-        let answered = Set(answers.map(\.1.kind))
+        // By provider id, not kind: every manager's provider is `.managed`.
+        let answered = Set(answers.map { providers[$0.0].id })
         // Which red lines and "Updated to X" still hold is the reducer's to
         // say (`CLIRunEvent.checkLanded`): each copy it holds one for, as it
         // stands now, and whether its own tool was asked.
         let copies = runState.readByACheck.map { id in
-            (id, CLIRunChecked(answered: answered.contains(id.kind), status: byID[id]))
+            (id, CLIRunChecked(answered: answered.contains(id.providerID), status: byID[id]))
         }
         if !copies.isEmpty { send(.checkLanded(Dictionary(uniqueKeysWithValues: copies))) }
         onReport?()
@@ -959,7 +979,7 @@ final class CLIToolsModel {
     /// come minutes after the click (review, 2026-10-20, round 2). The row says to try again — "click Update" would not be
     /// true in the popover, whose Other tools row has only Update All.
     private func offerAtTurn(_ id: CLIToolID, needsAdministrator: Bool) async -> CLIToolStatus? {
-        let index = providers.firstIndex(where: { $0.kind == id.kind })
+        let index = providers.firstIndex(where: { $0.id == id.providerID })
         let read = { (asked: Bool) in
             CLIRunOffer.atTurn(
                 offered: self.outdated.first { $0.toolID == id && $0.oneClick != nil },
@@ -1089,8 +1109,10 @@ final class CLIToolsModel {
 
     /// The index in `providers` of `status`'s own tool, never another's: each
     /// provider's command is the one its vendor documents for its own installs.
+    /// By provider id (`CLIToolStatus.providerID`): every manager's provider is
+    /// of kind `.managed`.
     private func provider(of status: CLIToolStatus) -> Int? {
-        providers.firstIndex { $0.kind == status.kind }
+        providers.firstIndex { $0.id == status.providerID }
     }
 
     private func release(_ id: CLIToolID) {
@@ -1600,8 +1622,8 @@ final class CLIToolsModel {
         guard !ready.isEmpty else { return }
         await check(ready)
         for provider in ready {
-            let kind = providers[provider].kind
-            let now = Dictionary(statuses.filter { $0.kind == kind }.map { ($0.toolID, $0) },
+            let providerID = providers[provider].id
+            let now = Dictionary(statuses.filter { $0.providerID == providerID }.map { ($0.toolID, $0) },
                                  uniquingKeysWith: { a, _ in a })
             // Settled and released; "Not updated: …" said again while it still
             // holds (`toolRechecked`).
@@ -1630,12 +1652,17 @@ final class CLIToolsModel {
     ///   files (rustup and its toolchains, bun and the packages `bun add -g`
     ///   installed, pnpm's and Yarn's global packages, `claude update` and the
     ///   versions it keeps).
+    /// - A managed row's lane is its manager's (`ManagerDescriptor.lane`): uv
+    ///   tools share uv's with uv itself and bub, mise tools share mise's,
+    ///   cargo shares Rust's — the manager's own update replaces what moves them.
     nonisolated static func lane(of status: CLIToolStatus) -> String {
         switch status.detail {
         case .npm(let package) where package.install.bun == nil && package.install.global == nil:
             return "node:" + Self.canonical(package.install.prefix.path)
         case .claudeCode(let claude) where claude.install.method == .npm:
             if let prefix = claude.install.nodePrefix { return "node:" + Self.canonical(prefix) }
+        case .managed(let item):
+            return item.descriptor.lane
         default:
             break
         }
@@ -1658,7 +1685,7 @@ final class CLIToolsModel {
            status.latestVersion.map({ latest in cached.entries.contains { $0.version == latest } }) ?? true {
             return cached
         }
-        guard let provider = providers.first(where: { $0.kind == status.kind }) else { throw NoProvider() }
+        guard let provider = providers.first(where: { $0.id == status.providerID }) else { throw NoProvider() }
         let changelog = try await RequestAttribution.withApp(Self.attributionID(status)) {
             try await provider.releaseNotes(for: status, force: force)
         }

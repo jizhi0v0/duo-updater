@@ -69,10 +69,13 @@ struct MenuContentView: View {
     /// starts empty, the apps' is left as it was.
     private func setToolsPage(_ open: Bool) {
         if open {
-            // The list's height or the page's own, whichever is taller, up to
-            // the cap: a taller list keeps what is below where it was; a
-            // shorter one — two apps, or a search — does not squeeze the page.
-            toolsPageOpenHeight = min(Self.maxListHeight, max(toolsPageHeight, toolsPageContentHeight))
+            // The page's own height, up to the cap, whatever the app list's:
+            // held at a taller list's, a page of a few groups opened over
+            // blank space (owner, 2026-10-24: "the stable height looks like a
+            // bug"); squeezed to a shorter one's, it showed half a row. The
+            // list's height stands in until the page has measured itself.
+            let own = toolsPageContentHeight > 0 ? toolsPageContentHeight : toolsPageHeight
+            toolsPageOpenHeight = min(Self.maxListHeight, own)
             toolsPageHeld = ToolsPage.entries(model.cliTools).map(\.id)
         }
         withAnimation(.easeInOut(duration: 0.22)) {
@@ -164,8 +167,8 @@ struct MenuContentView: View {
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
             }
-            // The tool groups' page stands in the list's place, at the taller
-            // of its height and the page's own (`setToolsPage`).
+            // The tool groups' page stands in the list's place, at its own
+            // height (`setToolsPage`).
             // Both stay in the tree and slide by offset, side by side. With an
             // insertion and a removal instead, quick clicks left the views of
             // interrupted slides drawn over each other until each finished —
@@ -373,8 +376,8 @@ struct MenuContentView: View {
     private static let maxListHeight: CGFloat = 380
 
     /// The app list's height as it stands — its placeholders' 200, or the
-    /// rows' measured height up to the cap. The page opens at least this
-    /// tall, so a taller list leaves what is below it where it was.
+    /// rows' measured height up to the cap: the page's until it has measured
+    /// its own.
     private var toolsPageHeight: CGFloat {
         if visible.isEmpty { return 200 }
         if listOverflows { return Self.maxListHeight }
@@ -962,10 +965,10 @@ private struct PopoverCheckboxStyle: ToggleStyle {
 /// something to say — an update, a run, a failure — as the workbench draws them
 /// (`CLIToolPresentation.groups`): Claude Code, npm · nvm, mise tools. Each has
 /// its own Update and Cancel over its copies only (`CLIToolsModel.rowSnapshot(in:)`);
-/// "Other tools" below keeps Update All. It opens at the taller of the app list's
-/// height and its own, up to the list's cap (`MenuContentView.setToolsPage`): a
-/// taller list keeps the popover's size, a shorter one grows it while the page is
-/// open; past the cap the page scrolls.
+/// "Other tools" below keeps Update All. It opens at its own height, up to the app
+/// list's cap (`MenuContentView.setToolsPage`), so the popover fits the groups
+/// while it is open; past the cap the page scrolls. The height holds while it is
+/// open: its search filters rows without resizing the popover.
 struct ToolsPage: View {
     let tools: CLIToolsModel
     /// The groups the page opened with, in that order: they keep their rows
@@ -1043,20 +1046,25 @@ struct ToolsPage: View {
             .padding(.vertical, 7)
             .background(Self.measured)
             Divider().background(Self.measured)
-            ScrollView {
-                VStack(spacing: 0) {
-                    ForEach(Array(shown.enumerated()), id: \.element.id) { index, entry in
-                        if index > 0 { Divider() }
-                        row(entry)
+            if shown.isEmpty, !trimmed.isEmpty {
+                // In the list's place, as the app list does. Over an emptied
+                // scroll view it drew nothing, and the popover's whole
+                // accessibility tree read empty (2026-10-24).
+                ContentUnavailableView.search(text: trimmed)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                ScrollView {
+                    VStack(spacing: 0) {
+                        ForEach(Array(shown.enumerated()), id: \.element.id) { index, entry in
+                            if index > 0 { Divider() }
+                            row(entry)
+                        }
                     }
+                    .background(Self.measured)
                 }
-                .background(Self.measured)
-            }
-            .overlay {
-                if shown.isEmpty, !trimmed.isEmpty { ContentUnavailableView.search(text: trimmed) }
             }
         }
-        .frame(height: height)
+        .frame(height: height, alignment: .top)
         // A shade apart from the app list it covers: a level below it.
         .background(Color.primary.opacity(0.04))
     }

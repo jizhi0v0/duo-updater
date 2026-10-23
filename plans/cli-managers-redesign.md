@@ -615,7 +615,7 @@ Until then, (a) holds everywhere.
 - D3's fallback (cwd `/`), on §12 item 1's measurement. A request in `~/mise.toml`, `~/.tool-versions` or a project is not a row.
 - Notes: none for `core:node` (P3's `CHANGELOG_V<major>.md` parser), `pipx:` (P2's PyPI rule) and `asdf:` — an asdf id names the plugin's repository, not the tool's (the design listed it with github/ubi).
 - Two requests of one tool: the one `mise outdated` names is answered; the other is `.unknown` with the reason. Both carry a note that one click moves every request of the tool.
-- Offline (review round 3): mise prints `{}` to both reads and exits 0, naming each tool it could not read only on stderr (`Error getting latest version for <tool>: …`). Those tools are `.unknown`; so is an exact pin whose `--bump` read failed or named it, since plain `outdated` never looks a pin up. Relying on that warning's wording is the one string-match in the join; if mise rewords it, a tool mise could not read reads as current again.
+- Offline (review rounds 3–4): mise prints `{}` to both reads and exits 0, and what it warns depends on the backend (`core:node` "Error getting latest version for node", aqua's jq only "Remote versions cannot be fetched for jqlang/jq") and on `quiet` (nothing). So a row the two maps leave out is current only once `mise latest <tool>@<request>` printed a version, and a pin is held only once `--bump` or `mise latest <tool>` named what lies beyond it; otherwise `.unknown`. Online `mise latest` answered in 14–400 ms; offline it printed nothing for every backend tried. A `mise latest` that hits the 15 s deadline stops the rest of that check.
 - `CLIToolsModel.summary` (a log line) still says "Managed tools ×N".
 
 **Not done (owed before P1 is accepted):**

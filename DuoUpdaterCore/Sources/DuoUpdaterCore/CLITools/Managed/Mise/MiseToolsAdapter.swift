@@ -17,11 +17,14 @@ import Foundation
 ///   (`~/.config/mise/config.toml` and its `conf.d`; not `~/.tool-versions`),
 ///   which needs no trust, and `-y` trusted nothing. That is D3's fallback,
 ///   taken: a request in a project or in `~/mise.toml` is not a row.
-/// - **The check is three read-only commands** — `mise ls --json`, `mise
-///   outdated --json`, `mise outdated --bump --json` (`MiseToolsLs`,
-///   `MiseToolsOutdated`) — 15 ms, 520 ms cold / 15 ms warm, 194 ms / 17 ms.
-///   mise asks mise-versions.jdx.dev, and api.github.com only as a fallback
-///   with its own token chain (MISE-28/29).
+/// - **The check is read-only commands** — `mise ls --json`, `mise outdated
+///   --json`, `mise outdated --bump --json` (`MiseToolsLs`,
+///   `MiseToolsOutdated`) — 15 ms, 520 ms cold / 15 ms warm, 194 ms / 17 ms;
+///   then one `mise latest <tool>[@<request>]` for each row those two leave
+///   out (14–400 ms), since an absence there is also what mise prints when it
+///   could not read a tool at all (offline: `{}`, exit 0). mise asks
+///   mise-versions.jdx.dev, and api.github.com only as a fallback with its own
+///   token chain (MISE-28/29).
 /// - **The update is `mise upgrade -y <tool>`**: the config byte-identical
 ///   (sha256 before and after), the old version kept 24 h in
 ///   `~/.local/state/mise/tool-purgatory.json` (≥2026.8.15, else removed at
@@ -70,7 +73,8 @@ public struct MiseToolsAdapter: ManagerAdapter {
         public var directories: @Sendable (String) -> [String]?
         /// A file's modification date. Blocking.
         public var modified: @Sendable (String) -> Date?
-        /// One read-only mise command's output, nil unless it exited 0.
+        /// One read-only mise command's output; nil when it could not run, was
+        /// stopped by its deadline or a signal.
         public var run: @Sendable (_ executable: String, _ arguments: [String], _ environment: [String: String]) async -> Output?
         /// The proxy variables a GUI app lacks (`SystemProxyEnvironment`).
         public var proxyEnvironment: @Sendable () -> [String: String]
@@ -120,27 +124,30 @@ public struct MiseToolsAdapter: ManagerAdapter {
                     guard let outcome = try? await ChildProcess.run(
                         executable, arguments, environment: environment,
                         workingDirectory: URL(fileURLWithPath: "/"), standardInput: Data(),
-                        standardOutput: .capture, standardError: .capture,
+                        standardOutput: .capture, standardError: .discard,
                         deadline: MiseToolsAdapter.checkDeadline, onCancel: .terminateChild),
-                          outcome.succeeded, !outcome.timedOut
+                          !outcome.timedOut, !outcome.uncaughtSignal
                     else { return nil }
-                    return Output(stdout: outcome.standardOutput, stderr: outcome.standardError)
+                    return Output(stdout: outcome.standardOutput, exitStatus: outcome.terminationStatus)
                 },
                 proxyEnvironment: { SystemProxyEnvironment.applied(to: [:]) },
                 processes: { NpmActivity.runningProcesses() })
         }
     }
 
-    /// A read's two streams: the JSON on stdout, mise's warnings on stderr
-    /// (`MiseToolsOutdated.unresolved` reads them).
+    /// A read's standard output and exit status. `mise latest` is read for
+    /// what it printed whatever its exit (offline, aqua's printed nothing with
+    /// exit 0); every other read counts only with exit 0 (`succeeded`).
     public struct Output: Sendable {
         public var stdout: Data
-        public var stderr: Data
+        public var exitStatus: Int32
 
-        public init(stdout: Data, stderr: Data = Data()) {
+        public init(stdout: Data, exitStatus: Int32 = 0) {
             self.stdout = stdout
-            self.stderr = stderr
+            self.exitStatus = exitStatus
         }
+
+        var succeeded: Bool { exitStatus == 0 }
     }
 
     let home: URL
@@ -242,7 +249,7 @@ public struct MiseToolsAdapter: ManagerAdapter {
             return scan.items.map { ManagedVerdict(item: $0, vendorWouldUpgrade: nil) }
         }
         let environment = commandEnvironment()
-        guard let lsOutput = await host.run(binary.path, ["ls", "--json"], environment),
+        guard let lsOutput = await host.run(binary.path, ["ls", "--json"], environment), lsOutput.succeeded,
               let ls = MiseToolsLs.parse(lsOutput.stdout)
         else {
             return scan.items.map {
@@ -250,10 +257,18 @@ public struct MiseToolsAdapter: ManagerAdapter {
             }
         }
         let outdated = await host.run(binary.path, ["outdated", "--json"], environment)
-            .flatMap { MiseToolsOutdated.parse($0.stdout, stderr: $0.stderr) }
+            .flatMap { $0.succeeded ? MiseToolsOutdated.parse($0.stdout) : nil }
         let bump = await host.run(binary.path, ["outdated", "--bump", "--json"], environment)
-            .flatMap { MiseToolsOutdated.parse($0.stdout, stderr: $0.stderr) }
-        let reading = MiseToolsOutdated.Reading(ls: ls, outdated: outdated, bump: bump)
+            .flatMap { $0.succeeded ? MiseToolsOutdated.parse($0.stdout) : nil }
+        var latest: [String: String] = [:]
+        for argument in MiseToolsOutdated.confirmations(ls: ls, outdated: outdated, bump: bump) {
+            // One that ran into the deadline (offline, npm's lookup waited
+            // 20 s) stops the rest: each would wait as long, and the rows
+            // they were for read as unknown anyway.
+            guard let output = await host.run(binary.path, ["latest", argument], environment) else { break }
+            if let version = Self.version(output.stdout) { latest[argument] = version }
+        }
+        let reading = MiseToolsOutdated.Reading(ls: ls, outdated: outdated, bump: bump, latest: latest)
 
         let reader = self.host
         let descriptor = self.descriptor
@@ -341,13 +356,20 @@ public struct MiseToolsAdapter: ManagerAdapter {
 
     /// `checked`'s request as `mise ls` lists it now.
     func row(of checked: ManagedItem, binary: String) async -> MiseToolsLs.Entry? {
-        guard let output = await host.run(binary, ["ls", "--json"], commandEnvironment()),
+        guard let output = await host.run(binary, ["ls", "--json"], commandEnvironment()), output.succeeded,
               let ls = MiseToolsLs.parse(output.stdout),
               let tool = ls.tools.first(where: { $0.name == checked.name })
         else { return nil }
         return tool.entries.first { entry in
             entry.isRow && entry.requestedVersion.map { Self.key(tool: tool.name, requested: $0) } == checked.key
         }
+    }
+
+    /// What `mise latest` printed: one line, a version; nil for nothing.
+    static func version(_ stdout: Data) -> String? {
+        let text = String(decoding: stdout, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty, !text.contains(where: \.isWhitespace) else { return nil }
+        return text
     }
 
     /// "node@20", "npm:prettier@2.0.0": one per request, holding no `|`.

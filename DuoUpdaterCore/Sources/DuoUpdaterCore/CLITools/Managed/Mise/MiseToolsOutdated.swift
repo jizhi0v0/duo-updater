@@ -38,23 +38,21 @@ struct MiseToolsOutdated: Sendable, Equatable {
     }
 
     let entries: [String: Entry]
-    /// The tools mise could not read a newest version of, by name. mise leaves
-    /// such a tool out of the map and still exits 0, so its absence is not
-    /// "nothing newer". Measured offline on 2026.10.7
-    /// (`offline-outdated*.stderr.txt`): `{}` on stdout, exit 0, and on stderr
-    /// `mise WARN  Error getting latest version for node: error sending
-    /// request: …` — from plain `outdated` for the range request, and from
-    /// `--bump` for every tool, exact pins included (jq: "no latest version
-    /// found"; prettier: "timed out after 20.00s").
-    var unresolved: Set<String> = []
 
     /// Empty output is "nothing outdated" (before 2025.2.8 mise printed
-    /// nothing then); nil when the output is not mise's map. `stderr` names the
-    /// tools mise could not read (`unresolved`).
-    static func parse(_ data: Data, stderr: Data = Data()) -> MiseToolsOutdated? {
-        let unresolved = Self.unresolved(stderr)
+    /// nothing then); nil when the output is not mise's map.
+    ///
+    /// **An absence is not "nothing newer".** A tool mise could not read a
+    /// newest version of is left out too, and mise still exits 0 — measured
+    /// offline on 2026.10.7 (`offline-outdated*`): `{}` from both reads. What
+    /// it says on stderr depends on the backend (`core:node` warns "Error
+    /// getting latest version for node", aqua's jq only "Remote versions cannot
+    /// be fetched for jqlang/jq") and on the user's `quiet` setting (nothing at
+    /// all). So a row the map leaves out is current only once `mise latest`
+    /// printed a version for it (`Reading.latest`).
+    static func parse(_ data: Data) -> MiseToolsOutdated? {
         if data.allSatisfy({ $0 == 0x20 || $0 == 0x0A || $0 == 0x0D || $0 == 0x09 }) {
-            return MiseToolsOutdated(entries: [:], unresolved: unresolved)
+            return MiseToolsOutdated(entries: [:])
         }
         guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
         var entries: [String: Entry] = [:]
@@ -64,23 +62,7 @@ struct MiseToolsOutdated: Sendable, Equatable {
             else { continue }
             entries[name] = entry
         }
-        return MiseToolsOutdated(entries: entries, unresolved: unresolved)
-    }
-
-    /// The tool names of mise's "Error getting latest version for <tool>: …"
-    /// warnings (`OutdatedInfo::resolve`, v2026.10.7).
-    static func unresolved(_ stderr: Data) -> Set<String> {
-        let marker = "Error getting latest version for "
-        var tools: Set<String> = []
-        for line in String(decoding: stderr, as: UTF8.self).split(whereSeparator: \.isNewline) {
-            let text = CLIToolCommandRunner.stripEscapes(String(line))
-            guard let start = text.range(of: marker) else { continue }
-            let rest = text[start.upperBound...]
-            guard let end = rest.range(of: ": ") else { continue }
-            let tool = String(rest[..<end.lowerBound])
-            if !tool.isEmpty { tools.insert(tool) }
-        }
-        return tools
+        return MiseToolsOutdated(entries: entries)
     }
 
     // MARK: - The join
@@ -92,6 +74,30 @@ struct MiseToolsOutdated: Sendable, Equatable {
         let outdated: MiseToolsOutdated?
         /// Nil when `--bump` failed: nothing is known beyond the requests.
         let bump: MiseToolsOutdated?
+        /// What `mise latest` printed, by its argument: "node@20" (the newest
+        /// inside a request), "jq" (the newest overall). Asked for what the
+        /// two maps leave out (`confirmations`); a key that printed nothing is
+        /// absent. Measured on 2026.10.7: online `jq@1.6` → 1.6, `jq` → 1.8.2,
+        /// `node@lts` → 24.22.1, 14–400 ms; offline every one printed nothing
+        /// (exit 0 for aqua's jq, 1 for node and npm), `quiet` or not.
+        var latest: [String: String] = [:]
+    }
+
+    /// The `mise latest` arguments a check must ask so that no row is called
+    /// current, or held at a pin, on an absence alone: `<tool>@<request>` for
+    /// a request plain `outdated` does not list, `<tool>` for a tool `--bump`
+    /// does not list.
+    static func confirmations(ls: MiseToolsLs, outdated: MiseToolsOutdated?, bump: MiseToolsOutdated?) -> [String] {
+        var arguments: [String] = []
+        for tool in ls.tools {
+            for entry in tool.entries where entry.isRow {
+                guard let requested = entry.requestedVersion, outdated?.entries[tool.name] == nil else { continue }
+                arguments.append("\(tool.name)@\(requested)")
+            }
+            if bump?.entries[tool.name] == nil, tool.entries.contains(where: \.isRow) { arguments.append(tool.name) }
+        }
+        var seen: Set<String> = []
+        return arguments.filter { seen.insert($0).inserted }
     }
 
     /// One verdict per row of `reading.ls` (`MiseToolsLs.Entry.isRow`), in
@@ -113,7 +119,7 @@ struct MiseToolsOutdated: Sendable, Equatable {
             for entry in rows {
                 let decided = decide(
                     tool: tool.name, entry: entry, rows: rows, purgatory: purgatory,
-                    outdated: reading.outdated, bump: reading.bump)
+                    outdated: reading.outdated, bump: reading.bump, latest: reading.latest)
                 verdicts.append(ManagedVerdict(
                     item: item(tool.name, entry, decided), vendorWouldUpgrade: decided.vendorWouldUpgrade,
                     blocker: decided.blocker))
@@ -137,7 +143,7 @@ struct MiseToolsOutdated: Sendable, Equatable {
 
     static func decide(
         tool: String, entry: MiseToolsLs.Entry, rows: [MiseToolsLs.Entry], purgatory: [String],
-        outdated: MiseToolsOutdated?, bump: MiseToolsOutdated?
+        outdated: MiseToolsOutdated?, bump: MiseToolsOutdated?, latest: [String: String] = [:]
     ) -> Decided {
         let requested = entry.requestedVersion ?? ""
         var decided = Decided()
@@ -163,10 +169,6 @@ struct MiseToolsOutdated: Sendable, Equatable {
             decided.blocker = .channelUnreadable("mise outdated did not answer")
             return decided
         }
-        if outdated.unresolved.contains(tool) {
-            decided.blocker = .channelUnreadable("mise could not read the newest \(tool)")
-            return decided
-        }
 
         // A tool's one entry is this row's when it is the tool's only row, or
         // when it names this row's request.
@@ -182,7 +184,12 @@ struct MiseToolsOutdated: Sendable, Equatable {
             decided.releaseURL = own.releaseURL
         } else if plain == nil {
             // Not listed: no request of this tool has anything newer inside
-            // it (a listing names one, whichever collapsed).
+            // it (a listing names one, whichever collapsed) — or mise could
+            // not read the tool at all, which only `mise latest` tells apart.
+            guard latest["\(tool)@\(requested)"] != nil else {
+                decided.blocker = .channelUnreadable("mise latest \(tool)@\(requested) printed no version")
+                return decided
+            }
             decided.vendorWouldUpgrade = false
             decided.latestWithinRequest = entry.version
         } else {
@@ -191,21 +198,22 @@ struct MiseToolsOutdated: Sendable, Equatable {
             return decided
         }
 
-        // An exact pin is told from a current row by `--bump` alone: plain
-        // `outdated` never looks up its newest.
-        let bumpRead = bump.map { !$0.unresolved.contains(tool) } ?? false
-        if !bumpRead, kind == .exact {
-            decided.vendorWouldUpgrade = nil
-            decided.blocker = .channelUnreadable("mise outdated --bump could not read the newest \(tool)")
-            return decided
-        }
         let beyond = bump?.entries[tool]
         if let own = mine(beyond) {
             decided.latestOverall = own.latest
             decided.releaseURL = decided.releaseURL ?? own.releaseURL
-        } else if bumpRead, beyond == nil {
-            // Nothing newer beyond any request of this tool.
-            decided.latestOverall = decided.latestWithinRequest
+        } else if beyond == nil {
+            if let newest = latest[tool] {
+                // Nothing newer beyond any request of this tool, read for
+                // certain: what `mise latest <tool>` printed.
+                decided.latestOverall = newest
+            } else if kind == .exact {
+                // A pin is told from a current row by what lies beyond it
+                // alone, and nothing was read of that.
+                decided.vendorWouldUpgrade = nil
+                decided.blocker = .channelUnreadable("mise latest \(tool) printed no version")
+                return decided
+            }
         } else if let beyond {
             decided.notes.append(
                 "mise outdated --bump reports one request per tool, and named \(tool)@\(beyond.requested ?? "?"): what lies beyond \(requested) was not read")

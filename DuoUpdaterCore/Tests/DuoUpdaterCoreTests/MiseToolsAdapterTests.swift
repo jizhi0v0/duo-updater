@@ -55,9 +55,9 @@ struct MiseToolsAdapterTests {
             installs + "/npm-prettier": ["2.0.0"],
         ]
 
-        func respond(_ arguments: [String], with data: Data?, stderr: Data = Data()) {
+        func respond(_ arguments: [String], with data: Data?, exitStatus: Int32 = 0) {
             lock.withLock {
-                _responses[arguments.joined(separator: " ")] = data.map { MiseToolsAdapter.Output(stdout: $0, stderr: stderr) }
+                _responses[arguments.joined(separator: " ")] = data.map { MiseToolsAdapter.Output(stdout: $0, exitStatus: exitStatus) }
             }
         }
         var runs: [(arguments: [String], environment: [String: String])] { lock.withLock { _runs } }
@@ -67,6 +67,14 @@ struct MiseToolsAdapterTests {
             respond(["ls", "--json"], with: ls)
             respond(["outdated", "--json"], with: outdated)
             respond(["outdated", "--bump", "--json"], with: bump)
+            // What `mise latest` printed online for the fixtures' home
+            // (2026.10.7, 2026-10-23).
+            for (argument, version) in [
+                ("jq@1.6", "1.6"), ("jq", "1.8.2"), ("node@20", "20.20.2"), ("node@22", "22.23.4"), ("node", "26.12.1"),
+                ("npm:prettier@2.0.0", "2.0.0"), ("npm:prettier", "3.9.10"),
+            ] {
+                respond(["latest", argument], with: Data((version + "\n").utf8))
+            }
         }
 
         var host: MiseToolsAdapter.Host {
@@ -219,7 +227,8 @@ struct MiseToolsAdapterTests {
         }
     }
 
-    /// The check's three commands, exactly, with an environment built from
+    /// The check's commands, exactly — the three reads, then `mise latest`
+    /// for each request plain `outdated` left out — with an environment built from
     /// scratch: the proxy, `HOME`, a `PATH` led by mise's shims, `NO_COLOR` —
     /// no `MISE_*` of a terminal's, no token. And the binary's version is read
     /// once, for the header and the effect. Mutation: inherit the environment;
@@ -227,7 +236,10 @@ struct MiseToolsAdapterTests {
     @Test func theCheckRunsThreeReadsWithABuiltEnvironment() async throws {
         let host = try Self.standard()
         let report = await Self.provider(host).check()
-        #expect(host.runs.map(\.arguments) == [["ls", "--json"], ["outdated", "--json"], ["outdated", "--bump", "--json"]])
+        #expect(host.runs.map(\.arguments) == [
+            ["ls", "--json"], ["outdated", "--json"], ["outdated", "--bump", "--json"],
+            ["latest", "jq@1.6"], ["latest", "npm:prettier@2.0.0"],
+        ])
         for run in host.runs {
             #expect(Set(run.environment.keys) == ["https_proxy", "HOME", "PATH", "NO_COLOR"])
             #expect(run.environment["HOME"] == "/ZZFixture-home")
@@ -264,38 +276,51 @@ struct MiseToolsAdapterTests {
         #expect(node.commandToCopy == nil)
     }
 
-    /// Offline, mise prints `{}` to both reads and exits 0; only its warnings
-    /// say which tools it could not read (mise 2026.10.7, its proxy pointed at
-    /// a closed port, `offline-outdated*`). No row reads as current then: the
-    /// range request is unknown, and so are the exact pins, which only
-    /// `--bump` can tell from current. Mutation: read an empty map as
-    /// "nothing newer" whatever stderr says; let a pin with no `--bump`
-    /// answer fall through to current.
+    /// Offline, mise prints `{}` to both reads and exits 0 (mise 2026.10.7,
+    /// its proxy pointed at a closed port, `offline-outdated*`); what it warns
+    /// depends on the backend and on `quiet`, so the rows the maps leave out
+    /// are read again with `mise latest`, which printed nothing for any of
+    /// them. No row reads as current then — not node's range, not the exact
+    /// pins, not a range on aqua's jq (`jq = "1"`, which warns no "Error
+    /// getting latest version" at all). Mutation: read an absence from the
+    /// maps as "nothing newer"; let a pin with nothing read beyond it fall
+    /// through to current.
     @Test func offlineIsNeverCurrent() async throws {
-        let host = FakeHost(ls: try Self.fixture("ls.json"), outdated: nil, bump: nil)
-        host.respond(["outdated", "--json"], with: try Self.fixture("offline-outdated.json"),
-                     stderr: try Self.fixture("offline-outdated.stderr.txt"))
-        host.respond(["outdated", "--bump", "--json"], with: try Self.fixture("offline-outdated-bump.json"),
-                     stderr: try Self.fixture("offline-outdated-bump.stderr.txt"))
-        #expect(MiseToolsOutdated.unresolved(try Self.fixture("offline-outdated.stderr.txt")) == ["node"])
-        #expect(MiseToolsOutdated.unresolved(try Self.fixture("offline-outdated-bump.stderr.txt"))
-            == ["node", "jq", "npm:prettier"])
+        let ls = String(decoding: try Self.fixture("ls.json"), as: UTF8.self)
+            .replacingOccurrences(of: #""requested_version": "1.6""#, with: #""requested_version": "1""#)
+        #expect(ls.contains(#""requested_version": "1""#))
+        let host = FakeHost(ls: Data(ls.utf8), outdated: try Self.fixture("offline-outdated.json"),
+                            bump: try Self.fixture("offline-outdated-bump.json"))
+        for argument in ["jq@1", "node@20", "npm:prettier@2.0.0", "jq", "node", "npm:prettier"] {
+            host.respond(["latest", argument], with: Data(), exitStatus: argument.hasPrefix("jq") ? 0 : 1)
+        }
         let report = await Self.provider(host).check()
-        #expect(report.statuses.count == 3)
+        #expect(report.statuses.map { $0.managedItem?.key } == ["jq@1", "node@20", "npm:prettier@2.0.0"])
         for status in report.statuses {
             #expect(status.state == .unknown, "\(status.name ?? "")")
             #expect(status.withheld == .channelUnreadable)
             #expect(status.oneClick == nil)
         }
-        // `--bump` alone failing (it timed out: mise's own 20 s is past the
-        // 15 s deadline) leaves a range row current inside its request, and
-        // a pin unknown.
+
+        // A `mise latest` that ran into the deadline stops the rest: each
+        // would wait as long.
+        let stalled = FakeHost(ls: try Self.fixture("ls.json"), outdated: Data("{}".utf8), bump: Data("{}".utf8))
+        stalled.respond(["latest", "jq@1.6"], with: nil)
+        _ = await Self.provider(stalled).check()
+        #expect(stalled.runs.filter { $0.arguments.first == "latest" }.map(\.arguments) == [["latest", "jq@1.6"]])
+
+        // `--bump` failing alone (it times out: mise's own 20 s is past the
+        // 15 s deadline) leaves the pins to `mise latest <tool>`: read, jq is
+        // pinned; not read, prettier is unknown. node stays current inside
+        // its request.
         let bumpless = try Self.standard()
         bumpless.respond(["outdated", "--json"], with: Data("{}".utf8))
         bumpless.respond(["outdated", "--bump", "--json"], with: nil)
+        bumpless.respond(["latest", "npm:prettier"], with: Data(), exitStatus: 1)
         let partial = await Self.provider(bumpless).check()
         #expect(Self.status(partial, "node@20")?.state == .upToDate)
-        #expect(Self.status(partial, "jq@1.6")?.state == .unknown)
+        #expect(Self.status(partial, "jq@1.6")?.state == .pinned)
+        #expect(Self.status(partial, "npm:prettier@2.0.0")?.state == .unknown)
     }
 
     /// After `mise upgrade -y node`: the row is 20.20.2 and current; the

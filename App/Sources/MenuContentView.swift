@@ -49,7 +49,7 @@ struct MenuContentView: View {
     /// waits off to the side.
     @State private var toolsPageContentHeight: CGFloat = 0
     /// The page's own search, which the one field edits while the page is
-    /// open. The apps' search is never touched: clearing it as the page
+    /// open, kept as the apps' is. The apps' search is never touched: clearing it as the page
     /// opened, and putting it back as it closed, changed the list in the
     /// middle of the slide — "No Results" cross-fading with the rows, left
     /// drawn over both (owner, 2026-10-24).
@@ -65,8 +65,7 @@ struct MenuContentView: View {
     /// Opens or closes the tool groups' page, sliding it in from the right
     /// over the app list and back out — a level below "Other tools", as its
     /// header says. The search field stays where it is and searches whatever
-    /// is shown, each side with its own text (`toolsSearchText`): the page's
-    /// starts empty, the apps' is left as it was.
+    /// is shown, each side with its own text, kept (`toolsSearchText`).
     private func setToolsPage(_ open: Bool) {
         if open {
             // The page's own height, up to the cap, whatever the app list's:
@@ -81,12 +80,8 @@ struct MenuContentView: View {
         withAnimation(.easeInOut(duration: 0.22)) {
             toolsPageOpen = open
         } completion: {
-            // Not while sliding out: a row leaving, or one the search had
-            // hidden coming back, then moved the rest.
-            if !toolsPageOpen {
-                toolsPageHeld = nil
-                toolsSearchText = ""
-            }
+            // Not while sliding out: a row leaving then moved the rest.
+            if !toolsPageOpen { toolsPageHeld = nil }
         }
     }
 
@@ -232,7 +227,6 @@ struct MenuContentView: View {
         .frame(width: MenuLayoutMetrics.width)
         .onDisappear {
             toolsPageOpen = false
-            toolsSearchText = ""
             toolsPageHeld = nil
         }
         .task {
@@ -1053,20 +1047,30 @@ struct ToolsPage: View {
                 ContentUnavailableView.search(text: trimmed)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                ScrollView {
-                    VStack(spacing: 0) {
-                        ForEach(Array(shown.enumerated()), id: \.element.id) { index, entry in
-                            if index > 0 { Divider() }
-                            row(entry)
-                        }
-                    }
-                    .background(Self.measured)
-                }
+                ScrollView { rows(shown) }
             }
+        }
+        // The height it opens at is every row's, whatever its search holds
+        // (kept, as the apps' is): a hidden copy of them all, measured.
+        .background(alignment: .top) {
+            rows(entries)
+                .fixedSize(horizontal: false, vertical: true)
+                .background(Self.measured)
+                .hidden()
+                .accessibilityHidden(true)
         }
         .frame(height: height, alignment: .top)
         // A shade apart from the app list it covers: a level below it.
         .background(Color.primary.opacity(0.04))
+    }
+
+    private func rows(_ list: [Entry]) -> some View {
+        VStack(spacing: 0) {
+            ForEach(Array(list.enumerated()), id: \.element.id) { index, entry in
+                if index > 0 { Divider() }
+                row(entry)
+            }
+        }
     }
 
     private func row(_ entry: Entry) -> some View {

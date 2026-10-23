@@ -455,6 +455,24 @@ struct ManagedModelTests {
         #expect(await provider.update(status, progress: { _ in }) == .failed(message: "zz: no such tool (exit 1)", output: "a\nzz: no such tool"))
     }
 
+    /// A run that exits well but leaves the version where it was is a failure,
+    /// with the vendor's output kept — not "updated to" the same version.
+    /// Mutation: drop the guard, and this reads `.updated` with the old version.
+    @Test func aRunThatMovesNothingIsNotAnUpdate() async throws {
+        let adapter = FakeAdapter()
+        let runs = Runs()
+        await runs.set([ManagedProvider.RunResult(succeeded: true, failureMessage: nil, lines: ["All tools are up to date"])])
+        let provider = Self.provider(adapter, runs: runs)
+        let status = try #require(await provider.check().statuses.first)
+        let installed = try #require(status.installedVersion)
+        adapter.rereadVersion = installed
+        guard case .failed(let message, let output) = await provider.update(status, progress: { _ in }) else {
+            Issue.record("an unchanged version read as updated"); return
+        }
+        #expect(message.hasPrefix("not updated: \(status.name ?? "") is still \(installed)"))
+        #expect(output == "All tools are up to date")
+    }
+
     /// mise's handoff, shared: a second run with the app's token only when the
     /// adapter opts in, the first run failed and printed the marker, and a
     /// token resolves. Mutations: retry on any failure; hand the token on up

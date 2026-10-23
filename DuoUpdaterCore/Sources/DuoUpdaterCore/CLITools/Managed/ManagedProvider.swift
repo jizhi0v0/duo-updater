@@ -160,7 +160,17 @@ public struct ManagedProvider: CLIToolProvider {
             return .failed(message: run.failureMessage ?? "\(adapter.descriptor.displayName): the update failed",
                            output: run.lines.joined(separator: "\n"))
         }
-        return .updated(version: await adapter.reread(item))
+        let version = await adapter.reread(item)
+        // A run that ended well but moved nothing is not an update: mise, with
+        // its versions host off and GitHub refusing, printed "All tools are up
+        // to date" and exited 0 with aqua's jq still 1.6 (2026-10-24, §12 item 2).
+        // The row keeps its update and its button, and says why.
+        if let version, let installed = item.installed, version == installed {
+            return .failed(
+                message: "not updated: \(item.name) is still \(installed); \(adapter.descriptor.displayName) finished without installing a newer version",
+                output: run.lines.joined(separator: "\n"))
+        }
+        return .updated(version: version)
     }
 
     public func releaseNotes(for status: CLIToolStatus, force: Bool) async throws -> Changelog {

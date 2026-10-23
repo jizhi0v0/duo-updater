@@ -70,8 +70,8 @@ public struct MiseToolsAdapter: ManagerAdapter {
         public var directories: @Sendable (String) -> [String]?
         /// A file's modification date. Blocking.
         public var modified: @Sendable (String) -> Date?
-        /// One read-only mise command's standard output, nil unless it exited 0.
-        public var run: @Sendable (_ executable: String, _ arguments: [String], _ environment: [String: String]) async -> Data?
+        /// One read-only mise command's output, nil unless it exited 0.
+        public var run: @Sendable (_ executable: String, _ arguments: [String], _ environment: [String: String]) async -> Output?
         /// The proxy variables a GUI app lacks (`SystemProxyEnvironment`).
         public var proxyEnvironment: @Sendable () -> [String: String]
         public var processes: @Sendable () -> [NpmActivity.Process]
@@ -82,7 +82,7 @@ public struct MiseToolsAdapter: ManagerAdapter {
             contents: @escaping @Sendable (String) -> Data?,
             directories: @escaping @Sendable (String) -> [String]?,
             modified: @escaping @Sendable (String) -> Date?,
-            run: @escaping @Sendable (String, [String], [String: String]) async -> Data?,
+            run: @escaping @Sendable (String, [String], [String: String]) async -> Output?,
             proxyEnvironment: @escaping @Sendable () -> [String: String],
             processes: @escaping @Sendable () -> [NpmActivity.Process]
         ) {
@@ -120,14 +120,26 @@ public struct MiseToolsAdapter: ManagerAdapter {
                     guard let outcome = try? await ChildProcess.run(
                         executable, arguments, environment: environment,
                         workingDirectory: URL(fileURLWithPath: "/"), standardInput: Data(),
-                        standardOutput: .capture, standardError: .discard,
+                        standardOutput: .capture, standardError: .capture,
                         deadline: MiseToolsAdapter.checkDeadline, onCancel: .terminateChild),
                           outcome.succeeded, !outcome.timedOut
                     else { return nil }
-                    return outcome.standardOutput
+                    return Output(stdout: outcome.standardOutput, stderr: outcome.standardError)
                 },
                 proxyEnvironment: { SystemProxyEnvironment.applied(to: [:]) },
                 processes: { NpmActivity.runningProcesses() })
+        }
+    }
+
+    /// A read's two streams: the JSON on stdout, mise's warnings on stderr
+    /// (`MiseToolsOutdated.unresolved` reads them).
+    public struct Output: Sendable {
+        public var stdout: Data
+        public var stderr: Data
+
+        public init(stdout: Data, stderr: Data = Data()) {
+            self.stdout = stdout
+            self.stderr = stderr
         }
     }
 
@@ -230,15 +242,17 @@ public struct MiseToolsAdapter: ManagerAdapter {
             return scan.items.map { ManagedVerdict(item: $0, vendorWouldUpgrade: nil) }
         }
         let environment = commandEnvironment()
-        guard let lsData = await host.run(binary.path, ["ls", "--json"], environment),
-              let ls = MiseToolsLs.parse(lsData)
+        guard let lsOutput = await host.run(binary.path, ["ls", "--json"], environment),
+              let ls = MiseToolsLs.parse(lsOutput.stdout)
         else {
             return scan.items.map {
                 ManagedVerdict(item: $0, vendorWouldUpgrade: nil, blocker: .channelUnreadable("mise ls --json did not answer"))
             }
         }
-        let outdated = await host.run(binary.path, ["outdated", "--json"], environment).flatMap(MiseToolsOutdated.parse)
-        let bump = await host.run(binary.path, ["outdated", "--bump", "--json"], environment).flatMap(MiseToolsOutdated.parse)
+        let outdated = await host.run(binary.path, ["outdated", "--json"], environment)
+            .flatMap { MiseToolsOutdated.parse($0.stdout, stderr: $0.stderr) }
+        let bump = await host.run(binary.path, ["outdated", "--bump", "--json"], environment)
+            .flatMap { MiseToolsOutdated.parse($0.stdout, stderr: $0.stderr) }
         let reading = MiseToolsOutdated.Reading(ls: ls, outdated: outdated, bump: bump)
 
         let reader = self.host
@@ -327,8 +341,8 @@ public struct MiseToolsAdapter: ManagerAdapter {
 
     /// `checked`'s request as `mise ls` lists it now.
     func row(of checked: ManagedItem, binary: String) async -> MiseToolsLs.Entry? {
-        guard let data = await host.run(binary, ["ls", "--json"], commandEnvironment()),
-              let ls = MiseToolsLs.parse(data),
+        guard let output = await host.run(binary, ["ls", "--json"], commandEnvironment()),
+              let ls = MiseToolsLs.parse(output.stdout),
               let tool = ls.tools.first(where: { $0.name == checked.name })
         else { return nil }
         return tool.entries.first { entry in

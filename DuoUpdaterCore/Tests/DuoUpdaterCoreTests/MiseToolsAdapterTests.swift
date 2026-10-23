@@ -32,7 +32,7 @@ struct MiseToolsAdapterTests {
     /// to run, in order.
     final class FakeHost: @unchecked Sendable {
         private let lock = NSLock()
-        private var _responses: [String: Data] = [:]
+        private var _responses: [String: MiseToolsAdapter.Output] = [:]
         private var _runs: [(arguments: [String], environment: [String: String])] = []
         private var _versionReads = 0
         var install: MiseInstall? = MiseInstall(path: MiseToolsAdapterTests.mise, version: nil)
@@ -55,8 +55,10 @@ struct MiseToolsAdapterTests {
             installs + "/npm-prettier": ["2.0.0"],
         ]
 
-        func respond(_ arguments: [String], with data: Data?) {
-            lock.withLock { _responses[arguments.joined(separator: " ")] = data }
+        func respond(_ arguments: [String], with data: Data?, stderr: Data = Data()) {
+            lock.withLock {
+                _responses[arguments.joined(separator: " ")] = data.map { MiseToolsAdapter.Output(stdout: $0, stderr: stderr) }
+            }
         }
         var runs: [(arguments: [String], environment: [String: String])] { lock.withLock { _runs } }
         var versionReads: Int { lock.withLock { _versionReads } }
@@ -260,6 +262,40 @@ struct MiseToolsAdapterTests {
         #expect(ManagedCheck.beyondRequest(node) == "26.12.1")
         #expect(node.manualCommand?.arguments == ["upgrade", "--bump", "node"])
         #expect(node.commandToCopy == nil)
+    }
+
+    /// Offline, mise prints `{}` to both reads and exits 0; only its warnings
+    /// say which tools it could not read (mise 2026.10.7, its proxy pointed at
+    /// a closed port, `offline-outdated*`). No row reads as current then: the
+    /// range request is unknown, and so are the exact pins, which only
+    /// `--bump` can tell from current. Mutation: read an empty map as
+    /// "nothing newer" whatever stderr says; let a pin with no `--bump`
+    /// answer fall through to current.
+    @Test func offlineIsNeverCurrent() async throws {
+        let host = FakeHost(ls: try Self.fixture("ls.json"), outdated: nil, bump: nil)
+        host.respond(["outdated", "--json"], with: try Self.fixture("offline-outdated.json"),
+                     stderr: try Self.fixture("offline-outdated.stderr.txt"))
+        host.respond(["outdated", "--bump", "--json"], with: try Self.fixture("offline-outdated-bump.json"),
+                     stderr: try Self.fixture("offline-outdated-bump.stderr.txt"))
+        #expect(MiseToolsOutdated.unresolved(try Self.fixture("offline-outdated.stderr.txt")) == ["node"])
+        #expect(MiseToolsOutdated.unresolved(try Self.fixture("offline-outdated-bump.stderr.txt"))
+            == ["node", "jq", "npm:prettier"])
+        let report = await Self.provider(host).check()
+        #expect(report.statuses.count == 3)
+        for status in report.statuses {
+            #expect(status.state == .unknown, "\(status.name ?? "")")
+            #expect(status.withheld == .channelUnreadable)
+            #expect(status.oneClick == nil)
+        }
+        // `--bump` alone failing (it timed out: mise's own 20 s is past the
+        // 15 s deadline) leaves a range row current inside its request, and
+        // a pin unknown.
+        let bumpless = try Self.standard()
+        bumpless.respond(["outdated", "--json"], with: Data("{}".utf8))
+        bumpless.respond(["outdated", "--bump", "--json"], with: nil)
+        let partial = await Self.provider(bumpless).check()
+        #expect(Self.status(partial, "node@20")?.state == .upToDate)
+        #expect(Self.status(partial, "jq@1.6")?.state == .unknown)
     }
 
     /// After `mise upgrade -y node`: the row is 20.20.2 and current; the

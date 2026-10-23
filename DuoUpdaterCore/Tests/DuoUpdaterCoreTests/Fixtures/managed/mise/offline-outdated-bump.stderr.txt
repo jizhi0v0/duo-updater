@@ -1,0 +1,25 @@
+mise WARN  HTTP GET https://mise-versions.jdx.dev/api/github/repos/jqlang/jq/releases/latest attempt 1 failed after 628µs (transient): error sending request; retrying in 135.920019ms
+mise WARN  HTTP GET https://mise-versions.jdx.dev/data/node.toml attempt 1 failed after 796µs (transient): error sending request; retrying in 143.850979ms
+mise WARN  HTTP GET https://mise-versions.jdx.dev/api/github/repos/jqlang/jq/releases/latest attempt 2 failed after 278µs (transient): error sending request; retrying in 960.721789ms
+mise WARN  mise-versions endpoint=version_list tool=node outcome=failed status=0 fallback=true error="error sending request"
+mise WARN  HTTP GET https://nodejs.org/dist/index.json attempt 1 failed after 270µs (transient): error sending request; retrying in 165.661515ms
+mise WARN  HTTP GET https://nodejs.org/dist/index.json attempt 2 failed after 232µs (transient): error sending request; retrying in 943.805622ms
+mise WARN  HTTP GET https://mise-versions.jdx.dev/api/github/repos/jqlang/jq/releases/latest attempt 3 failed after 355µs (transient): error sending request; retrying in 3.631901435s
+mise WARN  HTTP GET https://nodejs.org/dist/index.json attempt 3 failed after 323µs (transient): error sending request; retrying in 2.696723867s
+mise WARN  Error getting latest version for node: error sending request: client error (Connect): tunnel error: failed to create underlying connection: tcp connect error: Connection refused (os error 111)
+mise WARN  mise-versions endpoint=github_release repo=jqlang/jq tag=latest outcome=failed status=0 fallback=true error="error sending request"
+mise WARN  HTTP GET https://api.github.com/repos/jqlang/jq/releases/latest attempt 1 failed after 117µs (transient): error sending request; retrying in 183.973434ms
+mise WARN  HTTP GET https://api.github.com/repos/jqlang/jq/releases/latest attempt 2 failed after 254µs (transient): error sending request; retrying in 574.033782ms
+mise WARN  HTTP GET https://api.github.com/repos/jqlang/jq/releases/latest attempt 3 failed after 228µs (transient): error sending request; retrying in 3.621477743s
+mise WARN  HTTP GET https://mise-versions.jdx.dev/data/jq.toml attempt 1 failed after 79µs (transient): error sending request; retrying in 177.403291ms
+mise WARN  mise-versions endpoint=version_list tool=jq outcome=failed status=0 fallback=true error="error sending request"
+mise WARN  HTTP GET https://mise-versions.jdx.dev/api/github/repos/jqlang/jq/releases?page=1 attempt 1 failed after 131µs (transient): error sending request; retrying in 113.779113ms
+mise WARN  HTTP GET https://mise-versions.jdx.dev/api/github/repos/jqlang/jq/releases?page=1 attempt 2 failed after 239µs (transient): error sending request; retrying in 604.861891ms
+mise WARN  HTTP GET https://mise-versions.jdx.dev/api/github/repos/jqlang/jq/releases?page=1 attempt 3 failed after 231µs (transient): error sending request; retrying in 2.3605634s
+mise WARN  mise-versions endpoint=github_releases repo=jqlang/jq page=1 outcome=failed status=0 fallback=true error="error sending request"
+mise WARN  HTTP GET https://api.github.com/repos/jqlang/jq/releases?per_page=100 attempt 1 failed after 277µs (transient): error sending request; retrying in 170.594019ms
+mise WARN  HTTP GET https://api.github.com/repos/jqlang/jq/releases?per_page=100 attempt 2 failed after 370µs (transient): error sending request; retrying in 944.354839ms
+mise WARN  HTTP GET https://api.github.com/repos/jqlang/jq/releases?per_page=100 attempt 3 failed after 254µs (transient): error sending request; retrying in 2.02694844s
+mise WARN  Remote versions cannot be fetched for jqlang/jq: error sending request: client error (Connect): tunnel error: failed to create underlying connection: tcp connect error: Connection refused (os error 111)
+mise WARN  Error getting latest version for jq: no latest version found
+mise WARN  Error getting latest version for npm:prettier: timed out after 20.00s

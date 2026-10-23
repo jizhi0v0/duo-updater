@@ -38,12 +38,23 @@ struct MiseToolsOutdated: Sendable, Equatable {
     }
 
     let entries: [String: Entry]
+    /// The tools mise could not read a newest version of, by name. mise leaves
+    /// such a tool out of the map and still exits 0, so its absence is not
+    /// "nothing newer". Measured offline on 2026.10.7
+    /// (`offline-outdated*.stderr.txt`): `{}` on stdout, exit 0, and on stderr
+    /// `mise WARN  Error getting latest version for node: error sending
+    /// request: …` — from plain `outdated` for the range request, and from
+    /// `--bump` for every tool, exact pins included (jq: "no latest version
+    /// found"; prettier: "timed out after 20.00s").
+    var unresolved: Set<String> = []
 
     /// Empty output is "nothing outdated" (before 2025.2.8 mise printed
-    /// nothing then); nil when the output is not mise's map.
-    static func parse(_ data: Data) -> MiseToolsOutdated? {
+    /// nothing then); nil when the output is not mise's map. `stderr` names the
+    /// tools mise could not read (`unresolved`).
+    static func parse(_ data: Data, stderr: Data = Data()) -> MiseToolsOutdated? {
+        let unresolved = Self.unresolved(stderr)
         if data.allSatisfy({ $0 == 0x20 || $0 == 0x0A || $0 == 0x0D || $0 == 0x09 }) {
-            return MiseToolsOutdated(entries: [:])
+            return MiseToolsOutdated(entries: [:], unresolved: unresolved)
         }
         guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
         var entries: [String: Entry] = [:]
@@ -53,7 +64,23 @@ struct MiseToolsOutdated: Sendable, Equatable {
             else { continue }
             entries[name] = entry
         }
-        return MiseToolsOutdated(entries: entries)
+        return MiseToolsOutdated(entries: entries, unresolved: unresolved)
+    }
+
+    /// The tool names of mise's "Error getting latest version for <tool>: …"
+    /// warnings (`OutdatedInfo::resolve`, v2026.10.7).
+    static func unresolved(_ stderr: Data) -> Set<String> {
+        let marker = "Error getting latest version for "
+        var tools: Set<String> = []
+        for line in String(decoding: stderr, as: UTF8.self).split(whereSeparator: \.isNewline) {
+            let text = CLIToolCommandRunner.stripEscapes(String(line))
+            guard let start = text.range(of: marker) else { continue }
+            let rest = text[start.upperBound...]
+            guard let end = rest.range(of: ": ") else { continue }
+            let tool = String(rest[..<end.lowerBound])
+            if !tool.isEmpty { tools.insert(tool) }
+        }
+        return tools
     }
 
     // MARK: - The join
@@ -136,6 +163,10 @@ struct MiseToolsOutdated: Sendable, Equatable {
             decided.blocker = .channelUnreadable("mise outdated did not answer")
             return decided
         }
+        if outdated.unresolved.contains(tool) {
+            decided.blocker = .channelUnreadable("mise could not read the newest \(tool)")
+            return decided
+        }
 
         // A tool's one entry is this row's when it is the tool's only row, or
         // when it names this row's request.
@@ -160,11 +191,19 @@ struct MiseToolsOutdated: Sendable, Equatable {
             return decided
         }
 
+        // An exact pin is told from a current row by `--bump` alone: plain
+        // `outdated` never looks up its newest.
+        let bumpRead = bump.map { !$0.unresolved.contains(tool) } ?? false
+        if !bumpRead, kind == .exact {
+            decided.vendorWouldUpgrade = nil
+            decided.blocker = .channelUnreadable("mise outdated --bump could not read the newest \(tool)")
+            return decided
+        }
         let beyond = bump?.entries[tool]
         if let own = mine(beyond) {
             decided.latestOverall = own.latest
             decided.releaseURL = decided.releaseURL ?? own.releaseURL
-        } else if bump != nil, beyond == nil {
+        } else if bumpRead, beyond == nil {
             // Nothing newer beyond any request of this tool.
             decided.latestOverall = decided.latestWithinRequest
         } else if let beyond {

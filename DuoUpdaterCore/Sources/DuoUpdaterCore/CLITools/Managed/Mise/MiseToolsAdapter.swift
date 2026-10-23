@@ -336,8 +336,9 @@ public struct MiseToolsAdapter: ManagerAdapter {
     }
 
     /// `MiseUpdater`'s handoff (2026.10.5's words when mise found no token of
-    /// its own and GitHub answered 403). Not seen on a backend install yet
-    /// (§12 item 2): the second run happens only after mise printed it.
+    /// its own and GitHub answered 403). Seen on a backend install too: a
+    /// `github:` install, 2026.10.15, with the versions host off (§12 item 2).
+    /// The second run happens only after mise printed it.
     public var tokenRetry: ManagedTokenRetry? {
         ManagedTokenRetry(variable: "MISE_GITHUB_TOKEN", marker: "No GitHub token was found")
     }

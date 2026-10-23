@@ -386,7 +386,9 @@ struct MiseToolsAdapterTests {
              "node": [{"version": "20.20.2", "requested_version": "20", "install_path": "/z/installs/node/20.20.2",
                        "installed": true, "active": true, "a_field_of_a_newer_mise": [1, 2]}]}
             """#.utf8)))
-        let verdicts = MiseToolsOutdated.verdicts(.init(ls: ls, outdated: .init(entries: [:]), bump: .init(entries: [:]))) {
+        let reading = MiseToolsOutdated.Reading(
+            ls: ls, outdated: .init(entries: [:]), bump: .init(entries: [:]), latest: ["node@20": "20.20.2", "node": "26.12.1"])
+        let verdicts = MiseToolsOutdated.verdicts(reading) {
             tool, entry, decided in
             ManagedItem(
                 descriptor: MiseToolsAdapter.descriptor, root: "/z", key: MiseToolsAdapter.key(tool: tool, requested: entry.requestedVersion ?? ""),

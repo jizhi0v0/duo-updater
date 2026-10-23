@@ -22,7 +22,17 @@ struct CLIToolGitHubAPITests {
             FlyctlProvider(), HelmProvider(), StarshipProvider(),
             DenoProvider(), MiseProvider(), ObelusProvider(), BiomeProvider(), GlobalPackagesProvider(.pnpm), GlobalPackagesProvider(.yarn),
         ]
-        #expect(Set(providers.map(\.kind)) == Set(CLIToolKind.allCases))
+        #expect(Set(providers.map(\.kind)) == Set(CLIToolKind.allCases).subtracting([.managed]))
         #expect(Set(providers.filter(\.readsGitHubAPI).map(\.kind)) == [.bun, .opencode, .herdr, .zoxide, .nvm])
+    }
+
+    /// No manager's check asks api.github.com from our process (design §3.4):
+    /// mise's own process may, with its own token chain, which is its
+    /// `updaterSpendsGitHubAPI`, not this. Holds for every registered adapter.
+    ///
+    /// Mutation: set `readsGitHubAPI` on `ManagedProvider`.
+    @Test func noManagedProviderReadsTheGitHubAPI() {
+        #expect(ManagerRegistry.providers().allSatisfy { !$0.readsGitHubAPI })
+        #expect(!ManagedProvider(ManagedModelTests.FakeAdapter()).readsGitHubAPI)
     }
 }

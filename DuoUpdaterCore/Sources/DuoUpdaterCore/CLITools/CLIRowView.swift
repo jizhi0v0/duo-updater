@@ -60,13 +60,19 @@ public struct CLIRowSnapshot<Key: Hashable & Sendable>: Equatable, Sendable {
         public var error: String?
         /// "Updated to X", while it is said.
         public var justUpdated: String?
+        /// What the popover's row names it by in place of its kind, for a
+        /// kind whose name says nothing (`.managed`): its manager's group
+        /// ("mise tools", `ManagerDescriptor.displayName`) and its own name
+        /// ("node", `CLIToolStatus.name`). Nil for every other kind.
+        public var groupTitle: String?
+        public var itemTitle: String?
 
         public init(
             id: Key, kind: CLIToolKind, phase: CLIRunPhase = .idle,
             cancel: InstallCancelState? = nil, cancelPending: Bool = false, line: String? = nil,
             lineStage: InstallStage? = nil, state: CLIToolState = .upToDate, oneClick: Bool = false, needsAdministrator: Bool = false,
             withheld: CLIToolWithheld? = nil, manualCommand: String? = nil, hasLatestVersion: Bool = true,
-            error: String? = nil, justUpdated: String? = nil
+            error: String? = nil, justUpdated: String? = nil, groupTitle: String? = nil, itemTitle: String? = nil
         ) {
             self.id = id
             self.kind = kind
@@ -83,6 +89,8 @@ public struct CLIRowSnapshot<Key: Hashable & Sendable>: Equatable, Sendable {
             self.hasLatestVersion = hasLatestVersion
             self.error = error
             self.justUpdated = justUpdated
+            self.groupTitle = groupTitle
+            self.itemTitle = itemTitle
         }
 
         /// The same with **no defaults** — what the app builds its rows from
@@ -93,12 +101,12 @@ public struct CLIRowSnapshot<Key: Hashable & Sendable>: Equatable, Sendable {
             cancel: InstallCancelState?, cancelPending: Bool, line: String?, lineStage: InstallStage?,
             state: CLIToolState, oneClick: Bool, needsAdministrator: Bool,
             withheld: CLIToolWithheld?, manualCommand: String?, hasLatestVersion: Bool,
-            error: String?, justUpdated: String?
+            error: String?, justUpdated: String?, groupTitle: String?, itemTitle: String?
         ) -> Tool {
             Tool(id: id, kind: kind, phase: phase, cancel: cancel, cancelPending: cancelPending, line: line,
                  lineStage: lineStage, state: state, oneClick: oneClick, needsAdministrator: needsAdministrator,
                  withheld: withheld, manualCommand: manualCommand, hasLatestVersion: hasLatestVersion,
-                 error: error, justUpdated: justUpdated)
+                 error: error, justUpdated: justUpdated, groupTitle: groupTitle, itemTitle: itemTitle)
         }
 
         /// Its Cancel as every surface counts it. A live one on a copy whose
@@ -241,6 +249,23 @@ public struct CLIRowSnapshot<Key: Hashable & Sendable>: Equatable, Sendable {
     /// Every copy the snapshot knows, listed or not.
     private var everyCopy: [Tool] { tools + unlisted }
 
+    /// The same snapshot over the copies `scope` names only: one tool group's
+    /// popover sub-row, or a manager's own level in the workbench. Update All
+    /// counts for it only while it holds a copy of `scope` — one started for
+    /// another group is not this group's run. `offered` and `startable` are
+    /// Update All's over `scope`, which only the model can say.
+    public func scoped(to scope: Set<Key>, updateAllOffered offered: Bool, updateAllStartable startable: Bool) -> CLIRowSnapshot {
+        let batch = batchIDs.intersection(scope)
+        let tools = tools.filter { scope.contains($0.id) }
+        // A batch waiting its turn holds every copy it claimed, so one that
+        // holds none of `scope` waits for another group.
+        let mine = updatingAll && !batch.isEmpty
+        return CLIRowSnapshot(
+            tools: tools, unlisted: unlisted.filter { scope.contains($0.id) }, hasSightings: !tools.isEmpty,
+            checked: checked, updatingAll: mine, updateAllWaiting: mine && updateAllWaiting, batchIDs: batch,
+            updateAllOffered: offered, updateAllStartable: startable)
+    }
+
     // MARK: - Cancel
 
     /// The one Cancel aggregator: what a Cancel standing for the copies
@@ -315,7 +340,7 @@ public struct CLIRowSnapshot<Key: Hashable & Sendable>: Equatable, Sendable {
             // showed for a frame after the head moved on to the next copy.
             let running = claimed.filter { $0.phase != .awaitingCheck }
             let named = running.isEmpty ? claimed : running
-            let head = Row.Line.updating(Set(named.map(\.kind)).count == 1 ? named[0].kind : nil)
+            let head = Self.updatingHead(named)
             let progress = named.first { $0.progress != nil }?.popoverProgress
             return Row(lines: [head] + (progress.map { [.progress($0)] } ?? []),
                        mark: .spinner, button: button, isRunning: true)
@@ -351,11 +376,33 @@ public struct CLIRowSnapshot<Key: Hashable & Sendable>: Equatable, Sendable {
             }
             return Row(lines: [.notChecked(unchecked.count)], mark: .question, button: .none, isRunning: false)
         }
-        if let updated = tools.first(where: { $0.justUpdated != nil }), let version = updated.justUpdated {
-            return Row(lines: [.updated(updated.kind, version: version), .takesEffect(updated.kind)],
+        // "3 updated" once several were: naming the first alone said "jq
+        // updated to 1.8.2" after an update of mise tools' three (2026-10-24).
+        let updatedCopies = tools.filter { $0.justUpdated != nil }
+        if updatedCopies.count > 1 {
+            // When it takes effect is said only while that is one answer.
+            let kinds = Set(updatedCopies.map(\.kind))
+            let effect: [Row.Line] = kinds.count == 1 ? kinds.map(Row.Line.takesEffect) : []
+            return Row(lines: [.updatedCount(updatedCopies.count)] + effect, mark: .seal, button: .none, isRunning: false)
+        }
+        if let updated = updatedCopies.first, let version = updated.justUpdated {
+            let line = updated.itemTitle.map { Row.Line.updatedItem($0, version: version) }
+                ?? .updated(updated.kind, version: version)
+            return Row(lines: [line, .takesEffect(updated.kind)],
                        mark: .seal, button: .none, isRunning: false)
         }
         return Row(lines: [.upToDate], mark: .seal, button: .none, isRunning: false)
+    }
+
+    /// "Updating npm" when every copy named is of one kind; "Updating mise
+    /// tools" when they are one manager's items, since "Managed tools" names
+    /// no manager; else "Updating command-line tools".
+    static func updatingHead(_ named: [Tool]) -> CLIPopoverRow<Key>.Line {
+        guard Set(named.map(\.kind)).count == 1, let first = named.first else { return .updating(nil) }
+        guard first.kind == .managed else { return .updating(first.kind) }
+        let groups = Set(named.map(\.groupTitle))
+        guard groups.count == 1, let group = first.groupTitle else { return .updating(nil) }
+        return .updatingGroup(group)
     }
 }
 
@@ -432,6 +479,8 @@ public struct CLIPopoverRow<Key: Hashable & Sendable>: Equatable, Sendable {
         case queued
         /// "Updating <kind>"; nil is "Updating command-line tools".
         case updating(CLIToolKind?)
+        /// "Updating mise tools": one manager's items (`Tool.groupTitle`).
+        case updatingGroup(String)
         case progress(CLIProgressLine)
         case checking
         /// In red.
@@ -444,6 +493,10 @@ public struct CLIPopoverRow<Key: Hashable & Sendable>: Equatable, Sendable {
         case withheld(Key, CLIToolWithheld)
         case notChecked(Int)
         case updated(CLIToolKind, version: String)
+        /// "node updated to 20.20.2": a managed item, by its own name.
+        case updatedItem(String, version: String)
+        /// "3 updated": more than one copy was.
+        case updatedCount(Int)
         /// When the new version takes effect, which differs for Claude Code.
         case takesEffect(CLIToolKind)
         case upToDate

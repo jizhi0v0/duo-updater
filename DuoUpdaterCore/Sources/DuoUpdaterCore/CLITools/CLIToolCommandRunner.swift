@@ -25,9 +25,13 @@ enum CLIToolCommandRunner {
     /// `standardInput` replaces the inherited stdin — a terminal, under a `duo`
     /// run from one — for a tool that asks questions when it has a terminal
     /// (`HerdrUpdater`).
+    ///
+    /// `workingDirectory` replaces the inherited one — under a `duo` run from
+    /// a terminal, the user's project — for a tool that reads its config from
+    /// where it runs (mise, `ManagedProvider`).
     static func run(
         _ command: CLIToolCommand, environment: [String: String], deadline: ChildProcess.Deadline,
-        standardInput: Data? = nil, progress: @escaping @Sendable (String) -> Void
+        standardInput: Data? = nil, workingDirectory: URL? = nil, progress: @escaping @Sendable (String) -> Void
     ) async -> Run {
         let log = OutputLog(onLine: progress)
         let result: Run.Result
@@ -45,8 +49,8 @@ enum CLIToolCommandRunner {
                 "update command", landed: { $0.succeeded || $0.uncaughtSignal || $0.timedOut }
             ) {
                 try await ChildProcess.run(
-                    command.executable, command.arguments, environment: environment, standardInput: standardInput,
-                    standardOutput: .discard, standardError: .mergeIntoOutput,
+                    command.executable, command.arguments, environment: environment,
+                    workingDirectory: workingDirectory, standardInput: standardInput, standardOutput: .discard, standardError: .mergeIntoOutput,
                     deadline: deadline, onCancel: .runToCompletion,
                     onOutputChunk: { log.append($0) })
             })

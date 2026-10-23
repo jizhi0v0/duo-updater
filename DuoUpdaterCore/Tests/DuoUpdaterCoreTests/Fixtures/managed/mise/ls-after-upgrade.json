@@ -1,0 +1,49 @@
+{
+  "jq": [
+    {
+      "version": "1.6",
+      "requested_version": "1.6",
+      "install_path": "/ZZFixture-home/.local/share/mise/installs/jq/1.6",
+      "source": {
+        "type": "mise.toml",
+        "path": "/ZZFixture-home/.config/mise/config.toml"
+      },
+      "installed": true,
+      "active": true
+    }
+  ],
+  "node": [
+    {
+      "version": "20.10.0",
+      "install_path": "/ZZFixture-home/.local/share/mise/installs/node/20.10.0",
+      "scheduled_for_pruning": true,
+      "prune_after": "2026-10-24T10:07:47Z",
+      "installed": true,
+      "active": false
+    },
+    {
+      "version": "20.20.2",
+      "requested_version": "20",
+      "install_path": "/ZZFixture-home/.local/share/mise/installs/node/20.20.2",
+      "source": {
+        "type": "mise.toml",
+        "path": "/ZZFixture-home/.config/mise/config.toml"
+      },
+      "installed": true,
+      "active": true
+    }
+  ],
+  "npm:prettier": [
+    {
+      "version": "2.0.0",
+      "requested_version": "2.0.0",
+      "install_path": "/ZZFixture-home/.local/share/mise/installs/npm-prettier/2.0.0",
+      "source": {
+        "type": "mise.toml",
+        "path": "/ZZFixture-home/.config/mise/config.toml"
+      },
+      "installed": true,
+      "active": true
+    }
+  ]
+}

@@ -129,7 +129,7 @@ import Testing
                     state: status.state, oneClick: status.oneClick != nil,
                     needsAdministrator: status.needsAdministrator, withheld: status.withheld,
                     manualCommand: nil, hasLatestVersion: status.latestVersion != nil,
-                    error: errors[id], justUpdated: state.justUpdated[id])
+                    error: errors[id], justUpdated: state.justUpdated[id], groupTitle: nil, itemTitle: nil)
             }
             let offered = statuses.filter { $0.state == .updateAvailable && $0.oneClick != nil }
             return .live(

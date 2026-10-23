@@ -35,16 +35,29 @@ public enum CLIToolWording {
         case .mise: return "Jeffrey Dickey"
         case .bub, .rust, .npm, .boat, .vitePlus, .herdr, .luvus, .lorca, .zoxide, .nvm, .atuin, .ghcup, .flyctl, .helm, .starship,
              .obelus, .biome, .pnpm, .yarn: return nil
+        // A managed row's signer is its manager's (`ManagerDescriptor.signer`),
+        // read from the status in `reason(_:of status:)`.
+        case .managed: return nil
         }
     }
 
     /// What a pinned package's row says (`CLIToolState.pinned`): the specifier
     /// that holds it and whose list it is in. nil for any other status.
     public static func pinned(_ status: CLIToolStatus) -> String? {
-        guard status.state == .pinned, case .npm(let package) = status.detail,
-              let specifier = package.install.specifier else { return nil }
-        let manager = status.kind.displayName
-        return String(localized: "Pinned to \(specifier) in \(manager)’s global packages, so it doesn’t follow new releases")
+        guard status.state == .pinned else { return nil }
+        switch status.detail {
+        case .npm(let package):
+            guard let specifier = package.install.specifier else { return nil }
+            let manager = status.kind.displayName
+            return String(localized: "Pinned to \(specifier) in \(manager)’s global packages, so it doesn’t follow new releases")
+        case .managed(let item):
+            // An exact request in the manager's config (`ManagedItem.Request`).
+            guard let request = item.request, request.kind == .exact else { return nil }
+            let manager = item.descriptor.displayName
+            return String(localized: "Pinned to \(request.spelled) in \(manager)’s config, so it doesn’t follow new releases")
+        default:
+            return nil
+        }
     }
 
     /// Why an install has no one-click, in the user's terms rather than the gate's.
@@ -300,6 +313,38 @@ public enum CLIToolWording {
         // cannot write to.
         case (.unsupportedInstaller, .nvm(let nvm)) where !nvm.writable:
             return String(localized: "Updating it needs administrator rights")
+        // A managed row's wording names its manager, never "Managed tools"
+        // (`ManagerDescriptor`); the gates every manager shares are worded once.
+        case (.busy, .managed(let item)):
+            let manager = item.descriptor.displayName
+            return String(localized: "\(manager) is already changing its items")
+        case (.wrongSigner, .managed(let item)):
+            guard let signer = item.descriptor.signer else {
+                return String(localized: "Not signed by its developer")
+            }
+            return String(localized: "Not signed by \(signer)")
+        // Only the quarantine flag held it back: the binary may well be the
+        // vendor's (`ManagedRoot.Trust.quarantined`), as for every other kind.
+        case (.unverified, .managed(let item)) where item.binaryTrust == .quarantined:
+            return quarantined
+        case (.unverified, .managed(let item)):
+            guard let signer = item.descriptor.signer else {
+                return String(localized: "Not the build its developer published")
+            }
+            return String(localized: "Not the build \(signer) published")
+        case (.updaterMissing, .managed(let item)):
+            let manager = item.descriptor.displayName
+            return String(localized: "\(manager)’s program wasn’t found")
+        case (.channelUnreadable, .managed(let item)):
+            let manager = item.descriptor.displayName
+            return String(localized: "Couldn’t reach \(manager)’s release channel")
+        case (.unsupportedInstaller, .managed), (.runtimeTooOld, .managed):
+            // The verdict's own reason (`ManagedVerdict.Blocker.note`): a git
+            // crate, an editable venv, a request the manager does not report
+            // on; the runtime a newer release needs (a crate's `rust_version`
+            // above the toolchain's rustc — not Node, which the kind-level
+            // wording below assumes).
+            if let note = status.note { return note }
         default:
             break
         }

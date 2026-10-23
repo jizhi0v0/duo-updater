@@ -57,8 +57,23 @@ enum CLIToolPresentation {
         let kind: CLIToolKind
         /// The node prefix of an npm group; nil for every other tool.
         let prefix: NodePrefix?
+        /// The manager and root of a managed group (`ManagedItem.manager`,
+        /// `.root`): one group per install of a manager; nil for every other kind.
+        let manager: ManagerID?
+        let root: String?
         let statuses: [CLIToolStatus]
-        var id: String { kind.rawValue + ":" + (prefix?.path ?? "") }
+        var id: String { Self.key(kind: kind, prefix: prefix, manager: manager, root: root) }
+
+        /// The header's title: the tool's name, or the manager's
+        /// (`ManagerDescriptor.displayName`) for a managed group.
+        var title: String {
+            statuses.first?.managedItem?.descriptor.displayName ?? kind.displayName
+        }
+
+        static func key(kind: CLIToolKind, prefix: NodePrefix?, manager: ManagerID?, root: String?) -> String {
+            if let manager { return kind.rawValue + ":" + manager.rawValue + "|" + (root ?? "") }
+            return kind.rawValue + ":" + (prefix?.path ?? "")
+        }
     }
 
     /// `statuses` with the tools that have an update first — the Apps tab's and the
@@ -100,21 +115,28 @@ enum CLIToolPresentation {
     /// `statuses` as the CLI tab draws them, in their own order (`CLIToolKind`'s,
     /// then each tool's): one group per tool, npm's split by prefix, each prefix
     /// where its first package stood. Flattened, the order of every row.
+    /// A managed group is one manager's one root ("mise tools" under
+    /// `~/.local/share/mise`), in the order the registry lists the managers
+    /// and each adapter lists its roots.
     static func groups(_ statuses: [CLIToolStatus]) -> [Group] {
         var keys: [String] = []
-        var members: [String: (kind: CLIToolKind, prefix: NodePrefix?, statuses: [CLIToolStatus])] = [:]
+        var members: [String: (kind: CLIToolKind, prefix: NodePrefix?, manager: ManagerID?, root: String?,
+                               statuses: [CLIToolStatus])] = [:]
         for status in statuses {
             var prefix: NodePrefix?
             if status.kind == .npm, case .npm(let package) = status.detail { prefix = package.install.prefix }
-            let key = status.kind.rawValue + ":" + (prefix?.path ?? "")
+            let item = status.managedItem
+            let key = Group.key(kind: status.kind, prefix: prefix, manager: item?.manager, root: item?.root)
             if members[key] == nil {
                 keys.append(key)
-                members[key] = (status.kind, prefix, [])
+                members[key] = (status.kind, prefix, item?.manager, item?.root, [])
             }
             members[key]?.statuses.append(status)
         }
         return keys.compactMap { key in
-            members[key].map { Group(kind: $0.kind, prefix: $0.prefix, statuses: $0.statuses) }
+            members[key].map {
+                Group(kind: $0.kind, prefix: $0.prefix, manager: $0.manager, root: $0.root, statuses: $0.statuses)
+            }
         }
     }
 
@@ -154,6 +176,18 @@ enum CLIToolPresentation {
     static func rowWarning(_ status: CLIToolStatus) -> String? {
         if case .claudeCode(let claudeCode) = status.detail {
             return ClaudeCodePresentation.rowWarning(claudeCode)
+        }
+        // A managed update whose vendor does something the user should see
+        // before the click: pipx drops a `==`, fnm leaves global packages behind
+        // (D7). The versions stay in the detail pane.
+        if status.state == .updateAvailable, let item = status.managedItem,
+           let effect = item.effects.first(where: { effect in
+               switch effect {
+               case .dropsSpecifier, .packagesNotCarried: return true
+               default: return false
+               }
+           }) {
+            return effectWording(effect)
         }
         guard status.state == .unknown, let withheld = status.withheld else { return nil }
         return CLIToolsModel.reason(withheld, of: status)
@@ -284,7 +318,76 @@ enum CLIToolPresentation {
         case .bun(let bun): return facts(of: bun)
         case .opencode(let opencode): return facts(of: opencode)
         case .amp(let amp): return facts(of: amp)
+        case .managed(let item): return facts(of: item, status: status, home: home)
         case .claudeCode, .bub, .fx, .boat, .cursorAgent, .vitePlus, .herdr, .luvus, .lorca, .zoxide, .nvm, .atuin, .ghcup, .flyctl, .helm, .starship, .deno, .mise, .obelus, .biome: return []
+        }
+    }
+
+    /// A managed row's facts, the same for every manager (design §5): what the
+    /// adapter recorded (`ManagedItem.facts`), what lies beyond the request
+    /// when the row is current (D2), and what the vendor's update does besides
+    /// moving the version (`ManagedItem.effects`, D6/D7/D8).
+    private static func facts(of item: ManagedItem, status: CLIToolStatus, home: String) -> [Fact] {
+        var facts: [Fact] = []
+        if let backend = item.backend { facts.append(Fact(label: String(localized: "Backend"), value: backend)) }
+        if let request = item.request {
+            facts.append(Fact(label: String(localized: "Requested"), value: request.spelled))
+        }
+        for fact in item.facts {
+            switch fact {
+            case .source(let path):
+                facts.append(Fact(label: String(localized: "Source"), value: ClaudeCodePresentation.abbreviate(path, home: home)))
+            case .backend(let backend):
+                if item.backend == nil { facts.append(Fact(label: String(localized: "Backend"), value: backend)) }
+            case .request(let request):
+                if item.request == nil { facts.append(Fact(label: String(localized: "Requested"), value: request)) }
+            case .alsoInstalled(let versions):
+                facts.append(Fact(label: String(localized: "Also installed"), value: versions.joined(separator: ", ")))
+            case .defaultAlias(let value):
+                facts.append(Fact(label: String(localized: "Default"), value: value))
+            case .python(let version):
+                facts.append(Fact(label: String(localized: "Python"), value: version))
+            case .target(let target):
+                facts.append(Fact(label: String(localized: "Target"), value: target))
+            case .asKnownBy(let tool):
+                facts.append(Fact(label: String(localized: "Known by"), value: tool))
+            case .beyondRequest(let latest, let command):
+                facts.append(Fact(label: String(localized: "Beyond the request"),
+                                  value: command.map { "\(latest) — \($0.display)" } ?? latest))
+            case .note(let text):
+                facts.append(Fact(label: String(localized: "Note"), value: text))
+            }
+        }
+        if !item.alsoInstalled.isEmpty,
+           !item.facts.contains(where: { if case .alsoInstalled = $0 { return true } else { return false } }) {
+            facts.append(Fact(label: String(localized: "Also installed"), value: item.alsoInstalled.joined(separator: ", ")))
+        }
+        if let beyond = ManagedCheck.beyondRequest(status),
+           !item.facts.contains(where: { if case .beyondRequest = $0 { return true } else { return false } }) {
+            let unpin = status.manualCommand?.display
+            facts.append(Fact(label: String(localized: "Beyond the request"),
+                              value: unpin.map { "\(beyond) — \($0)" } ?? beyond))
+        }
+        if !item.effects.isEmpty {
+            facts.append(Fact(label: String(localized: "What the update does"),
+                              value: item.effects.map(effectWording).joined(separator: "; ")))
+        }
+        return facts
+    }
+
+    /// `ManagedItem.Effect`, in the user's language. The English is
+    /// `Effect.english`, which `duo` prints.
+    static func effectWording(_ effect: ManagedItem.Effect) -> String {
+        switch effect {
+        case .oldKept(let period?): return String(localized: "keeps the old version for \(period)")
+        case .oldKept(nil): return String(localized: "keeps the old version beside the new one")
+        case .oldRemoved: return String(localized: "removes the old version")
+        case .dropsSpecifier(let specifier): return String(localized: "drops the recorded specifier \(specifier)")
+        case .defaultStays(let version): return String(localized: "leaves default on \(version)")
+        case .packagesNotCarried: return String(localized: "does not carry global packages over")
+        case .compilesFromSource: return String(localized: "compiles from source")
+        case .configRewritten: return String(localized: "rewrites the manager’s config")
+        case .cannotBeCancelledOnceStarted: return String(localized: "can’t be cancelled once it has started")
         }
     }
 

@@ -21,10 +21,22 @@ struct CLIToolsTests {
             detail: .fx(FxInstall(path: path, version: "1.0.0")), needsAdministrator: administrator)
     }
 
-    /// Every tool has its provider, once, in `CLIToolKind`'s order — the order
-    /// the app's CLI tab and `duo` list them in.
+    /// Every standalone tool has its provider, once, in `CLIToolKind`'s order —
+    /// the order the app's CLI tab and `duo` list them in — and then one
+    /// `ManagedProvider` per registered manager, all of kind `.managed`, in
+    /// `ManagerRegistry`'s order (D12).
+    ///
+    /// Mutations: register a manager's provider twice; put `.managed` anywhere
+    /// but last in `CLIToolKind`; drop `ManagerRegistry.providers()` from
+    /// `CLITools.providers()`.
     @Test func everyKindHasOneProviderInKindOrder() {
-        #expect(CLITools.providers().map(\.kind) == CLIToolKind.allCases)
+        let providers = CLITools.providers()
+        let standalone = CLIToolKind.allCases.filter { $0 != .managed }
+        #expect(CLIToolKind.allCases.last == .managed)
+        #expect(providers.prefix(standalone.count).map(\.kind) == standalone)
+        let managed = providers.dropFirst(standalone.count)
+        #expect(managed.allSatisfy { $0.kind == .managed })
+        #expect(managed.map(\.id) == ManagerRegistry.adapters.map(\.descriptor.providerID))
     }
 
     /// While a GitHub API budget is closed, a one-click whose vendor command

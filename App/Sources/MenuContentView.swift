@@ -4,6 +4,14 @@ import DuoUpdaterCore
 
 /// Carries the measured height of the popover's update list up to the frame, so it
 /// can hug its content instead of guessing a per-row height.
+/// The tool groups' page's own height: its header's and its rows', summed.
+struct ToolsPageHeightKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value += nextValue()
+    }
+}
+
 private struct ListHeightKey: PreferenceKey {
     static let defaultValue: CGFloat = 0
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
@@ -30,7 +38,52 @@ struct MenuContentView: View {
     /// Measured height of the visible update list, so the popover hugs its content
     /// exactly (capped at 380) instead of overshooting with a per-row estimate.
     @State private var listContentHeight: CGFloat = 0
+    /// The tool groups' page (`ToolsPage`) stands in the app list's place.
+    /// Not remembered: the popover's view tree outlives its window, so it is
+    /// reset each time the popover closes (`onDisappear`).
+    @State private var toolsPageOpen = false
+    /// The page's height, taken as it opens (`setToolsPage`) and held while
+    /// it is open, so its search filters rows without resizing the popover.
+    @State private var toolsPageOpenHeight: CGFloat = 200
+    /// What the page's own rows need (`ToolsPageHeightKey`), measured while it
+    /// waits off to the side.
+    @State private var toolsPageContentHeight: CGFloat = 0
+    /// The page's own search, which the one field edits while the page is
+    /// open, kept as the apps' is. The apps' search is never touched: clearing it as the page
+    /// opened, and putting it back as it closed, changed the list in the
+    /// middle of the slide — "No Results" cross-fading with the rows, left
+    /// drawn over both (owner, 2026-10-24).
+    @State private var toolsSearchText = ""
+    /// The groups the page opened with, in that order (`ToolsPage.held`).
+    /// Taken as it opens and dropped once it has slid out, so the closed page
+    /// — whose height the next open is measured from — draws the rows that
+    /// open will: kept from the last open, a group whose update had ended was
+    /// measured, then dropped, leaving a row's height blank (review, round 8).
+    @State private var toolsPageHeld: [String]?
     @Environment(\.openWindow) private var openWindow
+
+    /// Opens or closes the tool groups' page, sliding it in from the right
+    /// over the app list and back out — a level below "Other tools", as its
+    /// header says. The search field stays where it is and searches whatever
+    /// is shown, each side with its own text, kept (`toolsSearchText`).
+    private func setToolsPage(_ open: Bool) {
+        if open {
+            // The page's own height, up to the cap, whatever the app list's:
+            // held at a taller list's, a page of a few groups opened over
+            // blank space (owner, 2026-10-24: "the stable height looks like a
+            // bug"); squeezed to a shorter one's, it showed half a row. The
+            // list's height stands in until the page has measured itself.
+            let own = toolsPageContentHeight > 0 ? toolsPageContentHeight : toolsPageHeight
+            toolsPageOpenHeight = min(Self.maxListHeight, own)
+            toolsPageHeld = ToolsPage.entries(model.cliTools).map(\.id)
+        }
+        withAnimation(.easeInOut(duration: 0.22)) {
+            toolsPageOpen = open
+        } completion: {
+            // Not while sliding out: a row leaving then moved the rest.
+            if !toolsPageOpen { toolsPageHeld = nil }
+        }
+    }
 
     /// Whether the user is actively filtering — drives the search-across-all
     /// behavior and the "no matches" empty state.
@@ -99,14 +152,52 @@ struct MenuContentView: View {
                 checkFailureBanner
                 Divider()
             }
-            // Only worth showing once the list is long enough to be hard to scan;
-            // stays put while a query is active even if it filters down to a few.
-            if model.results.count > 8 || isSearching {
-                AppSearchField(text: $searchText)
+            // One field for both: it keeps its place when the page opens, so
+            // nothing below it moves (2026-10-24: hidden on the page, every row
+            // shifted by its height).
+            if showsSearchField {
+                AppSearchField(
+                    text: toolsPageOpen ? $toolsSearchText : $searchText,
+                    prompt: toolsPageOpen ? String(localized: "Search tools") : String(localized: "Search apps"))
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
             }
+            // The tool groups' page stands in the list's place, at its own
+            // height (`setToolsPage`).
+            // Both stay in the tree and slide by offset, side by side. With an
+            // insertion and a removal instead, quick clicks left the views of
+            // interrupted slides drawn over each other until each finished —
+            // "Checking…" over the groups' rows, recorded on a cold launch on
+            // 2026-10-24 — and the placeholder showed through the page.
+            // One strip of the two, moved as one: offset apart, the
+            // placeholder kept still while the page slid over it.
             content
+                .frame(width: MenuLayoutMetrics.width)
+                .allowsHitTesting(!toolsPageOpen)
+                .accessibilityHidden(toolsPageOpen)
+                .frame(height: toolsPageOpen ? toolsPageOpenHeight : nil, alignment: .top)
+                // An overlay, so the closed page adds nothing to the height.
+                .overlay(alignment: .topLeading) {
+                    ToolsPage(tools: model.cliTools, held: toolsPageHeld, height: toolsPageOpenHeight,
+                              // Its own search: the apps' filtered the closed page
+                              // down to its header, and the page measured that
+                              // (31 pt) as its height.
+                              query: toolsSearchText,
+                              close: { setToolsPage(false) },
+                              show: { tag in
+                                  model.requestedWorkbenchCLITool = tag
+                                  openWindow(id: WorkbenchWindowView.windowID)
+                                  model.surfaceWindow(sceneID: WorkbenchWindowView.windowID)
+                              })
+                        .frame(width: MenuLayoutMetrics.width)
+                        .onPreferenceChange(ToolsPageHeightKey.self) { toolsPageContentHeight = $0 }
+                        .allowsHitTesting(toolsPageOpen)
+                        .accessibilityHidden(!toolsPageOpen)
+                        .alignmentGuide(.leading) { _ in -MenuLayoutMetrics.width }
+                }
+                .offset(x: toolsPageOpen ? -MenuLayoutMetrics.width : 0)
+                .frame(width: MenuLayoutMetrics.width, alignment: .leading)
+                .clipped()
             if showCommandLineRow {
                 Divider()
                 // Target first, then open — the Changelog deep link's order.
@@ -126,12 +217,18 @@ struct MenuContentView: View {
                         model.requestedWorkbenchBrewUnchecked = true
                         openWindow(id: WorkbenchWindowView.windowID)
                         model.surfaceWindow(sceneID: WorkbenchWindowView.windowID)
-                    })
+                    },
+                    toolsPageOpen: toolsPageOpen,
+                    toggleToolsPage: { setToolsPage(!toolsPageOpen) })
             }
             Divider()
             footer
         }
         .frame(width: MenuLayoutMetrics.width)
+        .onDisappear {
+            toolsPageOpen = false
+            toolsPageHeld = nil
+        }
         .task {
             // Take activation the moment the popover appears, because otherwise the
             // user's first click inside it is spent doing exactly that.
@@ -192,16 +289,13 @@ struct MenuContentView: View {
             failedCheckCount: model.failedCheckCount
         ) {
         case .scanning:
-            ContentUnavailableView(String(localized: "Scanning…"), systemImage: "magnifyingglass")
-                .frame(height: 200)
+            placeholder(String(localized: "Scanning…"), systemImage: "magnifyingglass")
         case .noApps:
-            ContentUnavailableView(String(localized: "No apps yet"), systemImage: "magnifyingglass")
-                .frame(height: 200)
+            placeholder(String(localized: "No apps yet"), systemImage: "magnifyingglass")
         case .checking:
             // Same icon and frame as "Scanning…", which it follows, so the
             // placeholder changes its word and nothing else.
-            ContentUnavailableView(String(localized: "Checking…"), systemImage: "magnifyingglass")
-                .frame(height: 200)
+            placeholder(String(localized: "Checking…"), systemImage: "magnifyingglass")
         case .noMatches:
             ContentUnavailableView.search(text: searchText)
                 .frame(height: 200)
@@ -209,22 +303,32 @@ struct MenuContentView: View {
             // Same rule as `statusLine`: with unanswered rows this is not a
             // "clean run" screen, and the seal is the strongest success signal
             // in the whole popover.
-            ContentUnavailableView(
-                "No updates found",
-                systemImage: "questionmark.circle",
-                description: Text("Some apps could not be checked — see above.")
-            )
-            .frame(height: 200)
+            placeholder(String(localized: "No updates found"), systemImage: "questionmark.circle",
+                        description: Text("Some apps could not be checked — see above."))
         case .upToDate:
-            ContentUnavailableView(
-                "Everything is up to date",
-                systemImage: "checkmark.seal.fill",
-                description: Text("Toggle “Show all” to see every app.")
-            )
-            .frame(height: 200)
+            placeholder(String(localized: "Everything is up to date"), systemImage: "checkmark.seal.fill",
+                        description: Text("Toggle “Show all” to see every app."))
         case .rows:
             rowList
         }
+    }
+
+    /// An empty list's placeholder. Its icon is fitted to one box, so every
+    /// state draws it the same size: at the system's size the glyphs' own
+    /// proportions differed — the magnifier 34 pt across, the seal 39
+    /// (rendered at 370 × 200, 2026-10-24). In a 41 pt box each measures
+    /// 39–40, the seal as before.
+    private func placeholder(_ title: String, systemImage: String, description: Text? = nil) -> some View {
+        ContentUnavailableView {
+            Label {
+                Text(verbatim: title)
+            } icon: {
+                Image(systemName: systemImage).resizable().scaledToFit().frame(width: 41, height: 41)
+            }
+        } description: {
+            description
+        }
+        .frame(height: 200)
     }
 
     @ViewBuilder
@@ -264,6 +368,19 @@ struct MenuContentView: View {
 
     /// Tallest the list gets before it scrolls.
     private static let maxListHeight: CGFloat = 380
+
+    /// The app list's height as it stands — its placeholders' 200, or the
+    /// rows' measured height up to the cap: the page's until it has measured
+    /// its own.
+    private var toolsPageHeight: CGFloat {
+        if visible.isEmpty { return 200 }
+        if listOverflows { return Self.maxListHeight }
+        return min(Self.maxListHeight, listContentHeight == 0 ? 54 : listContentHeight)
+    }
+
+    /// Only worth showing once the list is long enough to be hard to scan;
+    /// stays put while a query is active even if it filters down to a few.
+    private var showsSearchField: Bool { model.results.count > 8 || isSearching }
 
     /// Shortest a row can possibly be: the 30pt icon plus its 7pt vertical padding.
     /// A row with an install error or a note is taller, which only makes the list
@@ -629,6 +746,11 @@ struct MenuContentView: View {
                         Color.clear.frame(width: 0, height: 20)
                     }
                 }
+                // The apps' button: over the tool groups' page it read as that
+                // page's. Kept in its place, so the line beside it doesn't move.
+                .opacity(toolsPageOpen ? 0 : 1)
+                .allowsHitTesting(!toolsPageOpen)
+                .accessibilityHidden(toolsPageOpen)
                 .swallowsClicksAfterSwap(of: model.isInstallingAll)
             }
             .padding(.top, 8)
@@ -832,6 +954,233 @@ private struct PopoverCheckboxStyle: ToggleStyle {
     }
 }
 
+/// The groups under "Other tools", on a page of the popover in the app list's
+/// place, opened by the chevron beside "Other tools": one row per group with
+/// something to say — an update, a run, a failure — as the workbench draws them
+/// (`CLIToolPresentation.groups`): Claude Code, npm · nvm, mise tools. Each has
+/// its own Update and Cancel over its copies only (`CLIToolsModel.rowSnapshot(in:)`);
+/// "Other tools" below keeps Update All. It opens at its own height, up to the app
+/// list's cap (`MenuContentView.setToolsPage`), so the popover fits the groups
+/// while it is open; past the cap the page scrolls. The height holds while it is
+/// open: its search filters rows without resizing the popover.
+struct ToolsPage: View {
+    let tools: CLIToolsModel
+    /// The groups the page opened with, in that order: they keep their rows
+    /// until it closes — one whose update ended says so on its line — so a row
+    /// never leaves from under the pointer: when mise tools' row went at the
+    /// end of its update, the page, scrolled to its end, jumped 34 pt (recorded
+    /// 2026-10-24). Nil while closed; the popover owns it
+    /// (`MenuContentView.toolsPageHeld`).
+    let held: [String]?
+    let height: CGFloat
+    /// The popover's search field, which searches the groups here: a group's
+    /// name or one of its tools' ("node" finds mise tools).
+    let query: String
+    let close: () -> Void
+    /// Opens the workbench on a copy (its tag), as the app rows do.
+    let show: (String) -> Void
+
+    /// One group's row: who it is and its snapshot.
+    struct Entry: Identifiable {
+        let id: String
+        let title: String
+        let statuses: [CLIToolStatus]
+        let scope: Set<CLIToolID>
+        let snapshot: CLIRowSnapshot<CLIToolID>
+    }
+
+    /// The groups with work, and those `keeping` names whatever they say now,
+    /// in `keeping`'s order first, then the rest: managers' groups, then the
+    /// single tools'.
+    @MainActor static func entries(_ tools: CLIToolsModel, keeping: [String] = []) -> [Entry] {
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        let kept = Set(keeping)
+        // The managers' groups first, as the workbench draws their levels
+        // above "Other tools" (owner, 2026-10-24): one manager and its many
+        // packages, as Homebrew is.
+        let groups = CLIToolPresentation.groups(tools.statuses)
+        let ordered = groups.filter { $0.manager != nil } + groups.filter { $0.manager == nil }
+        let entries: [Entry] = ordered.compactMap { group in
+            let scope = Set(group.statuses.map(\.toolID))
+            let snapshot = tools.rowSnapshot(in: scope)
+            guard kept.contains(group.id) || snapshot.tools.contains(where: {
+                $0.phase != .idle || $0.error != nil || $0.state == .updateAvailable
+            }) else { return nil }
+            let title = group.prefix.map { "\(group.title) · \(CLIToolPresentation.prefixLabel($0, home: home))" }
+                ?? group.title
+            return Entry(id: group.id, title: title, statuses: group.statuses, scope: scope, snapshot: snapshot)
+        }
+        return CLIToolPresentation.holding(entries, to: keeping.isEmpty ? nil : keeping, id: \.id)
+    }
+
+    /// A part's height into `ToolsPageHeightKey`, which sums the parts.
+    private static var measured: some View {
+        GeometryReader { Color.clear.preference(key: ToolsPageHeightKey.self, value: $0.size.height) }
+    }
+
+    /// Whether the chevron has a page to open.
+    @MainActor static func hasGroups(_ tools: CLIToolsModel) -> Bool { !entries(tools).isEmpty }
+
+    var body: some View {
+        let entries = Self.entries(tools, keeping: held ?? [])
+        let trimmed = SearchMatch.trimmed(query)
+        let shown = trimmed.isEmpty ? entries : entries.filter { entry in
+            SearchMatch.matches(trimmed, in: [entry.title] + entry.statuses.compactMap(\.name))
+        }
+        VStack(spacing: 0) {
+            // Where the page sits: under "Other tools", whose row below stays
+            // marked while it is open. The back chevron leads, as in a menu's
+            // submenu turned into a page.
+            Button(action: close) {
+                HStack(spacing: 6) {
+                    Image(systemName: "chevron.left").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                    Image(systemName: "terminal").foregroundStyle(.secondary)
+                    Text("Other tools").fontWeight(.semibold)
+                    Spacer(minLength: 0)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help(String(localized: "Hide groups"))
+            .padding(.horizontal, 12)
+            .padding(.vertical, 7)
+            .background(Self.measured)
+            Divider().background(Self.measured)
+            if shown.isEmpty, !trimmed.isEmpty {
+                // In the list's place, as the app list does. Over an emptied
+                // scroll view it drew nothing, and the popover's whole
+                // accessibility tree read empty (2026-10-24).
+                ContentUnavailableView.search(text: trimmed)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                ScrollView { rows(shown) }
+            }
+        }
+        // The height it opens at is every row's, whatever its search holds
+        // (kept, as the apps' is): a hidden copy of them all, measured.
+        .background(alignment: .top) {
+            rows(entries)
+                .fixedSize(horizontal: false, vertical: true)
+                .background(Self.measured)
+                .hidden()
+                .accessibilityHidden(true)
+        }
+        .frame(height: height, alignment: .top)
+        // A shade apart from the app list it covers: a level below it.
+        .background(Color.primary.opacity(0.04))
+    }
+
+    private func rows(_ list: [Entry]) -> some View {
+        VStack(spacing: 0) {
+            ForEach(Array(list.enumerated()), id: \.element.id) { index, entry in
+                if index > 0 { Divider() }
+                row(entry)
+            }
+        }
+    }
+
+    private func row(_ entry: Entry) -> some View {
+        let popover = entry.snapshot.popover
+        // The workbench selects the group's first copy with work, else its first.
+        let target = entry.snapshot.tools.first(where: {
+            $0.phase != .idle || $0.error != nil || $0.state == .updateAvailable
+        })?.id.tag ?? entry.statuses.first?.toolID.tag
+        return HStack(spacing: 10) {
+            Button { if let target { show(target) } } label: {
+                HStack(spacing: 10) {
+                    if let first = entry.statuses.first {
+                        CLIToolIcon(kind: first.kind, size: 30, managed: first.managedItem?.descriptor)
+                            .frame(width: 30)
+                    }
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(verbatim: entry.title).lineLimit(1)
+                        line(entry, popover).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help(String(localized: "Show in Window"))
+            switch popover?.button {
+            case .update:
+                Button { Task { await tools.updateAll(in: entry.scope) } } label: {
+                    Text("Update").frame(minWidth: PopoverRowAction.buttonLabelMinWidth)
+                }
+                .lineLimit(1)
+                .fixedSize()
+                .controlSize(.small)
+                .buttonStyle(.bordered)
+                .help(CLIToolPresentation.updateAllHelp)
+            case .cancel(let group):
+                HStack(spacing: 4) {
+                    ProgressView().controlSize(.small)
+                    InstallCancelButton(state: group.state, pending: group.pending, count: group.live,
+                                        queuedOnly: group.queuedOnly) {
+                        tools.cancelRow(in: entry.scope)
+                    }
+                }
+            case .spinnerOnly:
+                ProgressView().controlSize(.small)
+            case .some(.none), .copy, nil:
+                EmptyView()
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 7)
+    }
+
+    /// Its versions while it has one copy with an update and nothing runs —
+    /// "2.1.308 → 2.1.309" says more than "1 update" — else what its row says.
+    private func line(_ entry: Entry, _ popover: CLIPopoverRow<CLIToolID>?) -> Text {
+        if entry.statuses.count == 1, let status = entry.statuses.first, status.state == .updateAvailable,
+           popover?.isRunning == false, popover?.button == .update(admin: status.needsAdministrator) {
+            // The app rows' caption: the new version tinted.
+            if let installed = status.installedVersion, let latest = status.latestVersion {
+                return Text(verbatim: "\(installed) → ") + Text(verbatim: latest).foregroundColor(.accentColor)
+            }
+            return Text(verbatim: CLIToolPresentation.versionCaption(status))
+        }
+        let parts = (popover?.lines ?? []).map { CommandLineWording.line($0, tools: tools) }
+        return parts.dropFirst().reduce(parts.first ?? Text(verbatim: "")) { $0 + Text(verbatim: " · ") + $1 }
+    }
+}
+
+enum CommandLineWording {
+    /// One part of a command-line row's line (`CLIPopoverRow.Line`), worded:
+    /// the popover's "Other tools" row and each group on its page (`ToolsPage`).
+    @MainActor static func line(_ line: CLIPopoverRow<CLIToolID>.Line, tools: CLIToolsModel) -> Text {
+        switch line {
+        case .queued: return Text(String(localized: "Queued"))
+        case .updating(let kind?): return Text(String(localized: "Updating \(kind.displayName)"))
+        case .updating(nil): return Text(String(localized: "Updating command-line tools"))
+        // The same sentence as a kind's, with the manager's group in it: "Updating mise tools".
+        case .updatingGroup(let group): return Text(String(localized: "Updating \(group)"))
+        case .progress(.cancelling): return Text(String(localized: "Cancelling…")).monospacedDigit()
+        case .progress(.line(let text)): return Text(text).monospacedDigit()
+        case .progress(.updating): return Text(String(localized: "Updating…")).monospacedDigit()
+        case .checking: return Text(String(localized: "Checking…"))
+        case .error(let error): return Text(error).foregroundStyle(.red)
+        case .updates(let count): return Text(String(localized: "\(count) updates"))
+        case .needSudo(let count): return Text(CLIToolPresentation.needSudo(count) ?? "")
+        case .heldBack(let count): return Text(String(localized: "\(count) held back"))
+        case .withheld(let id, let withheld):
+            // In the user's terms, as the copy's own row says it.
+            return Text(tools.status(id).map { CLIToolsModel.reason(withheld, of: $0) }
+                ?? CLIToolsModel.reason(withheld, of: id.kind))
+        case .notChecked(let count): return Text(String(localized: "\(count) not checked"))
+        case .updated(let kind, let version): return Text(String(localized: "\(kind.displayName) updated to \(version)"))
+        case .updatedItem(let name, let version): return Text(String(localized: "\(name) updated to \(version)"))
+        case .updatedCount(let count): return Text(String(localized: "\(count) updated"))
+        // A running process keeps the binary it started with; for Claude Code
+        // that is every open session.
+        case .takesEffect(.claudeCode): return Text(String(localized: "New sessions use it; restart open ones"))
+        case .takesEffect: return Text(String(localized: "Takes effect the next time it runs"))
+        case .upToDate: return Text(String(localized: "Up to date"))
+        }
+    }
+}
+
 /// The popover's rows for command-line tools, as the workbench's CLI tab holds
 /// them: one for Homebrew's packages and one for every other tool (Claude Code,
 /// bub, fx, …), each with its own state and its own Update. A later tool joins
@@ -871,16 +1220,41 @@ private struct CommandLineRow: View {
         var button: AnyView? = nil
         /// Its run's Cancel stands where `button`'s Update did.
         var running = false
+        /// A chevron beside the title opens the groups' page (`ToolsPage`).
+        var expandable = false
     }
 
+    /// Whether the popover shows the tool groups (`ToolsPage`) in the app list's
+    /// place. Owned by the popover, which resets it each time it closes.
+    let toolsPageOpen: Bool
+    /// Opens or closes that page (`MenuContentView.setToolsPage`).
+    let toggleToolsPage: () -> Void
+
     var body: some View {
-        let halves = [brewHalf, toolsHalf].compactMap { $0 }
+        let halves = [brewHalf, toolsHalf(expandable: ToolsPage.hasGroups(tools))].compactMap { $0 }
         VStack(spacing: 0) {
             ForEach(halves.indices, id: \.self) { i in
                 if i > 0 { Divider() }
                 row(halves[i])
             }
         }
+    }
+
+    /// The chevron beside "Other tools": its own click, apart from the title
+    /// and the line beside it, which open the workbench. It points the way
+    /// the groups' page moves — forward to slide it in from the right, back
+    /// while it is open to slide it out — never down: the page is a level of
+    /// its own, not rows unfolding under this one.
+    private var stackToggle: some View {
+        Button(action: toggleToolsPage) {
+            Image(systemName: toolsPageOpen ? "chevron.backward" : "chevron.forward")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: 14, height: 14)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(toolsPageOpen ? String(localized: "Hide groups") : String(localized: "Show groups"))
     }
 
     private func row(_ half: Half) -> some View {
@@ -893,17 +1267,40 @@ private struct CommandLineRow: View {
             Image(systemName: half.icon).foregroundStyle(.secondary).frame(width: 30)
             // The text opens the workbench, where each package and copy has its
             // own row; the controls stay the row's actions.
-            Button(action: half.isHomebrew ? showHomebrew : showInWindow) {
+            if half.expandable {
+                // The title and its line each open the workbench; the chevron
+                // between them has its own click.
+                let open = half.isHomebrew ? showHomebrew : showInWindow
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(verbatim: half.title).font(.caption).fontWeight(.medium)
-                    status.font(.caption2).foregroundStyle(.secondary)
+                    HStack(spacing: 2) {
+                        Button(action: open) { Text(verbatim: half.title).font(.caption).fontWeight(.medium) }
+                            .buttonStyle(.plain)
+                            .help(String(localized: "Show in Window"))
+                        stackToggle
+                    }
+                    Button(action: open) {
+                        status.font(.caption2).foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .help(String(localized: "Show in Window"))
                 }
                 .lineLimit(1)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(Rectangle())
+            } else {
+                Button(action: half.isHomebrew ? showHomebrew : showInWindow) {
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(verbatim: half.title).font(.caption).fontWeight(.medium)
+                        status.font(.caption2).foregroundStyle(.secondary)
+                    }
+                    .lineLimit(1)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help(String(localized: "Show in Window"))
             }
-            .buttonStyle(.plain)
-            .help(String(localized: "Show in Window"))
             // Whatever the row says: a text in this line did not fit beside the
             // Update button in 17 of 22 language and count pairs (measured
             // 2026-10-17), so it is a mark, as Homebrew's not-checked one is.
@@ -915,6 +1312,8 @@ private struct CommandLineRow: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
+        // Marked while its page is open above: the page is this row's level.
+        .background(half.expandable && toolsPageOpen ? Color.accentColor.opacity(0.12) : Color.clear)
     }
 
     // MARK: Homebrew
@@ -975,7 +1374,9 @@ private struct CommandLineRow: View {
 
     // MARK: Other tools
 
-    private var toolsHalf: Half? {
+    /// "Other tools": every command-line tool but Homebrew's, managers' items
+    /// too. Its Update is Update All over all of them, its Cancel every copy's.
+    private func toolsHalf(expandable: Bool) -> Half? {
         // What it says, its mark and its button: `CLIRowSnapshot.popover`.
         guard let row = tools.rowSnapshot.popover else { return nil }
         let mark: (any View)? = switch row.mark {
@@ -996,36 +1397,10 @@ private struct CommandLineRow: View {
             }
         case .none, .copy, .spinnerOnly: nil
         }
-        return Half(icon: "terminal", title: String(localized: "Other tools"), lines: row.lines.map(toolsLine),
-                    mark: mark.map { AnyView($0) }, button: button.map { AnyView($0) }, running: row.isRunning)
-    }
-
-    /// One part of the Other tools row's line (`CLIPopoverRow.Line`), worded.
-    private func toolsLine(_ line: CLIPopoverRow<CLIToolID>.Line) -> Text {
-        switch line {
-        case .queued: return Text(String(localized: "Queued"))
-        case .updating(let kind?): return Text(String(localized: "Updating \(kind.displayName)"))
-        case .updating(nil): return Text(String(localized: "Updating command-line tools"))
-        case .progress(.cancelling): return Text(String(localized: "Cancelling…")).monospacedDigit()
-        case .progress(.line(let text)): return Text(text).monospacedDigit()
-        case .progress(.updating): return Text(String(localized: "Updating…")).monospacedDigit()
-        case .checking: return Text(String(localized: "Checking…"))
-        case .error(let error): return Text(error).foregroundStyle(.red)
-        case .updates(let count): return Text(String(localized: "\(count) updates"))
-        case .needSudo(let count): return Text(CLIToolPresentation.needSudo(count) ?? "")
-        case .heldBack(let count): return Text(String(localized: "\(count) held back"))
-        case .withheld(let id, let withheld):
-            // In the user's terms, as the copy's own row says it.
-            return Text(tools.status(id).map { CLIToolsModel.reason(withheld, of: $0) }
-                ?? CLIToolsModel.reason(withheld, of: id.kind))
-        case .notChecked(let count): return Text(String(localized: "\(count) not checked"))
-        case .updated(let kind, let version): return Text(String(localized: "\(kind.displayName) updated to \(version)"))
-        // A running process keeps the binary it started with; for Claude Code
-        // that is every open session.
-        case .takesEffect(.claudeCode): return Text(String(localized: "New sessions use it; restart open ones"))
-        case .takesEffect: return Text(String(localized: "Takes effect the next time it runs"))
-        case .upToDate: return Text(String(localized: "Up to date"))
-        }
+        return Half(icon: "terminal", title: String(localized: "Other tools"),
+                    lines: row.lines.map { CommandLineWording.line($0, tools: tools) },
+                    mark: mark.map { AnyView($0) }, button: button.map { AnyView($0) }, running: row.isRunning,
+                    expandable: expandable)
     }
 
     /// One line per tool with processes still on the copy from before its

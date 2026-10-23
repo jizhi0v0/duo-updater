@@ -65,12 +65,29 @@ enum CLIToolRows {
         /// What a name argument is matched against: the install's own name when
         /// it has one, else the tool's display name and raw value.
         let names: [String]
+        /// A managed row's manager (`ManagerID`'s raw value: "mise", "uv-tool");
+        /// nil for every other tool. With it, the keys below (schema 2 still:
+        /// added keys are not a bump, `NDJSON.schemaVersion`).
+        var manager: String? = nil
+        /// The item's key inside its root ("node@20", "ruff", "v22").
+        var item: String? = nil
+        /// The manager's data root the item sits under.
+        var root: String? = nil
+        /// What the user asked the manager for ("20", "==0.6.0", "lts/*"), as
+        /// written; nil when the manager keeps none.
+        var request: String? = nil
+        /// The newest beyond the request, when the row is held inside one.
+        var latestBeyondRequest: String? = nil
+        /// What the vendor's update does besides moving the version
+        /// (`ManagedItem.Effect.english`), for `install` to print first.
+        var effects: [String]? = nil
         /// The verdict this row was made from; nil for `list`'s.
         let status: CLIToolStatus?
 
         enum CodingKeys: String, CodingKey {
             case tool, name, path, installedVersion, latestVersion, channel, state, hasUpdate, oneClick,
-                 needsAdministrator, withheld, reason, note, command, runtime, breakingIn, running
+                 needsAdministrator, withheld, reason, note, command, runtime, breakingIn, running,
+                 manager, item, root, request, latestBeyondRequest, effects
         }
 
         struct Running: Encodable, Equatable {
@@ -109,17 +126,48 @@ enum CLIToolRows {
             reason = status.withheld.map { CLIToolWording.reason($0, of: status) }
             note = status.note
             command = status.commandToCopy?.display
-            names = status.name.map { [$0] } ?? [status.kind.displayName, status.kind.rawValue]
+            if let managed = status.managedItem {
+                manager = managed.manager.rawValue
+                item = managed.key
+                root = managed.root
+                request = managed.request?.spelled
+                latestBeyondRequest = ManagedCheck.beyondRequest(status)
+                effects = managed.effects.isEmpty ? nil : managed.effects.map(\.english)
+            }
+            // A current row held inside its request (`latestBeyondRequest`)
+            // carries the command that lifts the request, as the pane does.
+            if latestBeyondRequest != nil, command == nil { command = status.manualCommand?.display }
+            names = Self.matchNames(status.kind, name: status.name, identity: status.identity)
             self.status = status
         }
 
         init(_ sighting: CLIToolSighting) {
             tool = sighting.kind.rawValue
-            name = sighting.kind.displayName
+            name = sighting.name ?? sighting.kind.displayName
             path = sighting.path
             installedVersion = sighting.version
-            names = [sighting.kind.displayName, sighting.kind.rawValue]
+            if sighting.kind == .managed, let parts = ManagedItem.parse(identity: sighting.identity) {
+                manager = parts.manager.rawValue
+                item = parts.key
+                root = parts.root
+            }
+            names = Self.matchNames(sighting.kind, name: sighting.name, identity: sighting.identity)
             status = nil
+        }
+
+        /// What a name argument is matched against (`Inventory.select`): the
+        /// install's own name when it has one, else the tool's display name and
+        /// raw value. A managed row also answers to its key and to
+        /// "<manager>/<key>" — `duo install mise/node` names one row where
+        /// `node` would be ambiguous between mise's and nvm's (the existing
+        /// "never a guess" rule).
+        static func matchNames(_ kind: CLIToolKind, name: String?, identity: String) -> [String] {
+            if kind == .managed, let parts = ManagedItem.parse(identity: identity) {
+                var names = [parts.key, "\(parts.manager.rawValue)/\(parts.key)"]
+                if let name, !names.contains(name) { names.append(name) }
+                return names
+            }
+            return name.map { [$0] } ?? [kind.displayName, kind.rawValue]
         }
 
         /// A check that gave no verdict: broken, not the vendor's, unreadable,
@@ -186,7 +234,7 @@ enum CLIToolRows {
         let breaking = await breakingVersions(of: statuses, providers: providers)
         return await withUsage(await withRuntimes(statuses.map { status in
             var row = Row(status)
-            row.breakingIn = breaking[status.kind.rawValue + ":" + status.path]
+            row.breakingIn = breaking[status.kind.rawValue + ":" + status.identity]
             return row
         }))
     }
@@ -201,7 +249,8 @@ enum CLIToolRows {
         var documents: [String: Changelog?] = [:]
         var found: [String: [String]] = [:]
         for status in statuses where CLIToolChangelog.readsForBreaking(status) {
-            guard let provider = providers.first(where: { $0.kind == status.kind }) else { continue }
+            // By provider id: every manager's provider is of kind `.managed`.
+            guard let provider = providers.first(where: { $0.id == status.providerID }) else { continue }
             let key = status.releaseNotesKey
             if documents[key] == nil {
                 documents[key] = .some(try? await RequestAttribution.withApp(CLITools.attributionID(status)) {
@@ -211,7 +260,7 @@ enum CLIToolRows {
             guard let notes = documents[key] ?? nil else { continue }
             let versions = CLIToolChangelog.breakingVersions(
                 in: notes, installed: status.installedVersion, latest: status.latestVersion)
-            if !versions.isEmpty { found[status.kind.rawValue + ":" + status.path] = versions }
+            if !versions.isEmpty { found[status.kind.rawValue + ":" + status.identity] = versions }
         }
         return found
     }
@@ -231,10 +280,10 @@ enum CLIToolRows {
     /// its own requests learned — the checks that read the API probe it first.
     static func check(_ providers: [any CLIToolProvider] = CLITools.providers()) async -> [CLIToolStatus] {
         let statuses = await CLITools.inProviderOrder(providers, Array(providers.indices)) { provider in
-            await RequestAttribution.withApp(provider.kind.displayName) { await provider.check() }
+            await RequestAttribution.withApp(provider.attributionName) { await provider.check() }
         }.flatMap { $0.1.statuses }
         guard let gate = GitHubRateLimitGate.active,
-              statuses.contains(where: { $0.oneClick != nil && $0.kind.updaterSpendsGitHubAPI != nil })
+              statuses.contains(where: { $0.oneClick != nil && $0.updaterSpendsGitHubAPI != nil })
         else { return statuses }
         let pause = await gate.pause()
         guard !pause.isEmpty else { return statuses }
@@ -303,7 +352,13 @@ enum CLIToolRows {
         if row.state == CLIToolState.pinned.rawValue {
             return lines + (row.command.map { ["to follow new releases again: \($0)"] } ?? [])
         }
+        // Held inside a request with newer beyond it (a managed row, D2): said
+        // under a current row, with the command that lifts the request.
+        if let beyond = row.latestBeyondRequest {
+            lines.append("\(beyond) available beyond the request" + (row.command.map { " — \($0)" } ?? ""))
+        }
         guard row.hasUpdate else { return lines }
+        for effect in row.effects ?? [] { lines.append("the update \(effect)") }
         if let breaking = row.breakingIn, !breaking.isEmpty { lines.append(CLIToolWording.breaking(breaking)) }
         if row.needsAdministrator == true {
             lines.append(administratorReason)
@@ -435,7 +490,7 @@ enum CLIToolRows {
             }
             let name = status.name ?? status.kind.displayName
             if !json { out("→ \(name)  \(status.path)") }
-            guard let provider = providers.first(where: { $0.kind == status.kind }) else { continue }
+            guard let provider = providers.first(where: { $0.id == status.providerID }) else { continue }
             // A job of its own (`InstallJobs.run`), as the app's row runs it
             // (`CLIToolsModel.run`): `SignalGate`'s cancel reaches the update
             // only before its command's `InstallCommit`, so a signal during the
@@ -452,7 +507,9 @@ enum CLIToolRows {
             // before its retry, and the signal applies then: the retry does not
             // start. The app's row re-arms its Cancel at that point
             // (`CLIToolsModel.followPhase`); `duo` has no second press to wait for.
-            let jobID = "cli-tool:\(status.kind.rawValue):\(status.path)"
+            // The app's id for the same job (`CLIToolsModel.jobID`): by identity,
+            // which is the path for every kind but `.managed`.
+            let jobID = "cli-tool:\(status.kind.rawValue):\(status.identity)"
             let (outcome, after, exit, cancelStopped) = await InstallJobs.run(jobID, cancelStands: true) {
                 () -> (CLIToolUpdateOutcome, String?, CLIToolExit.Status?, Bool) in
                 let exits = ExitLog()
@@ -467,7 +524,7 @@ enum CLIToolRows {
                     // none — the app's order (`CLIToolsModel.settle`).
                     after = version
                     if after == nil {
-                        after = await provider.check().statuses.first { $0.path == status.path }?.installedVersion
+                        after = await provider.check().statuses.first { $0.identity == status.identity }?.installedVersion
                     }
                 }
                 // Asked while the job is still registered: it is forgotten when it ends.
@@ -518,6 +575,7 @@ enum CLIToolRows {
             "tool": status.kind.rawValue, "name": status.name ?? status.kind.displayName, "path": status.path,
             "applied": result.outcome == .installed, "outcome": result.outcome.rawValue,
         ]
+        for (key, value) in managedKeys(status) { payload[key] = value }
         if let version = result.version { payload["version"] = version }
         if let reason = result.reason { payload["reason"] = reason }
         if let exit = result.exit {
@@ -533,8 +591,18 @@ enum CLIToolRows {
             "tool": status.kind.rawValue, "name": status.name ?? status.kind.displayName, "path": status.path,
             "applied": false, "outcome": Install.RowOutcome.skipped.rawValue, "reason": reason,
         ]
+        for (key, value) in managedKeys(status) { payload[key] = value }
         if let command { payload["command"] = command }
         return payload
+    }
+
+    /// The managed keys an `install` row carries, as `check`'s row does
+    /// (`Row.manager` …): which manager, which item, under which root.
+    static func managedKeys(_ status: CLIToolStatus) -> [String: Any] {
+        guard let item = status.managedItem else { return [:] }
+        var keys: [String: Any] = ["manager": item.manager.rawValue, "item": item.key, "root": item.root]
+        if let request = item.request?.spelled { keys["request"] = request }
+        return keys
     }
 
     /// The exit statuses an update's commands ended with, gathered from

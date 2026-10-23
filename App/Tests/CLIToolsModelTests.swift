@@ -72,6 +72,15 @@ struct CLIToolsModelTests {
         case .mise: detail = .mise(MiseInstall(path: path, version: version))
         case .obelus: detail = .obelus(ObelusInstall(path: path, version: version))
         case .biome: detail = .biome(BiomeInstall(path: path, version: version))
+        case .managed:
+            // A managed row by its path alone: its key is the directory's name,
+            // its root the directory above. `managed(…)` builds one whose
+            // identity is chosen apart from its path.
+            let directory = (path as NSString).deletingLastPathComponent
+            detail = .managed(ManagedItem(
+                descriptor: Self.fakeManager, root: directory, key: (path as NSString).lastPathComponent,
+                name: (path as NSString).lastPathComponent, installPath: path, shape: .package,
+                installed: version, latestWithinRequest: latest))
         }
         return CLIToolStatus(
             kind: kind, path: path, installedVersion: version, latestVersion: latest,
@@ -117,13 +126,23 @@ struct CLIToolsModelTests {
         case .biome: context = .biome
         case .pnpm: context = .pnpm
         case .yarn: context = .yarn
+        case .managed: context = .managed(ManagerContext(descriptor: Self.fakeManager, roots: []))
         }
         return CLIToolReport(kind: kind, statuses: statuses, context: context)
     }
 
+    /// The same shape a provider's own scan answers: by identity, which is the
+    /// path for every kind but `.managed`.
     nonisolated static func sighting(_ status: CLIToolStatus) -> CLIToolSighting {
-        CLIToolSighting(kind: status.kind, path: status.path, version: status.installedVersion)
+        CLIToolSighting(kind: status.kind, path: status.path, version: status.installedVersion, identity: status.identity)
     }
+
+    /// A manager that does not exist, for the managed rows' fixtures
+    /// (`CLIToolsModelManagedTests`). Its lane is uv's and its upgrade spends
+    /// our token's GitHub budget, like mise's, so both rules can be seen.
+    static let fakeManager = ManagerDescriptor(
+        id: ManagerID("zz-fake"), displayName: "ZZ Fake tools", signer: "ZZ Corp", logo: nil, tint: .label,
+        lane: "uv", updaterSpendsGitHubAPI: .ourTokenIfAny)
 
     /// Suspends callers until opened. Counts arrivals, so a test can wait for the
     /// code under test to reach it.
@@ -281,6 +300,11 @@ struct CLIToolsModelTests {
         /// the real checks' shape: a cancelled request or a killed `--version`
         /// comes back as "couldn't reach" / "couldn't read".
         var whenCancelled: CLIToolReport?
+        /// A managed provider's id ("managed:<manager>", `ManagedProvider.id`);
+        /// nil for every other kind, whose id is the kind's raw value.
+        var providerID: String?
+
+        var id: String { providerID ?? kind.rawValue }
 
         func scan() async -> [CLIToolSighting] { await scanner() }
 
@@ -2919,7 +2943,7 @@ struct CLIToolsModelTests {
             line: model.progressLine(pnpm), lineStage: .runningCommand(""),
             state: .updateAvailable, oneClick: true,
             needsAdministrator: false, withheld: nil, manualCommand: CLIToolPresentation.manualCommand(status),
-            hasLatestVersion: true, error: nil, justUpdated: nil))
+            hasLatestVersion: true, error: nil, justUpdated: nil, groupTitle: nil, itemTitle: nil))
 
         model.cancelRow()
         #expect(model.cancels[pnpm] == .cancelling)

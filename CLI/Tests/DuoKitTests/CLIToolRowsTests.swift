@@ -484,4 +484,95 @@ import DuoUpdaterCore
         func add(_ line: String) { lock.withLock { lines.append(line) } }
         var all: [String] { lock.withLock { lines } }
     }
+
+    // MARK: - Managed rows
+
+    static let zzManager = ManagerDescriptor(id: ManagerID("zz-fake"), displayName: "ZZ Fake tools", signer: nil,
+                                             logo: nil, tint: .label, lane: "zz-fake")
+
+    static func managed(
+        key: String = "node@20", installed: String = "20.10.0", latest: String = "20.20.2", overall: String? = "26.12.1",
+        state: CLIToolState = .updateAvailable, effects: [ManagedItem.Effect] = [.oldKept(for: "24h")]
+    ) -> CLIToolStatus {
+        let root = "/ZZFixture-home/.local/share/zz"
+        let item = ManagedItem(
+            descriptor: zzManager, root: root, key: key, name: String(key.prefix { $0 != "@" }),
+            installPath: root + "/installs/node/" + installed, shape: .request,
+            request: ManagedItem.Request(kind: .range, spelled: "20"), installed: installed,
+            latestWithinRequest: latest, latestOverall: overall, effects: effects)
+        let command = CLIToolCommand(executable: "/ZZFixture-home/.local/bin/zz", arguments: ["upgrade", "-y", item.name], pathPrefix: nil)
+        return CLIToolStatus(
+            kind: .managed, path: item.installPath, identity: item.identity, installedVersion: installed,
+            latestVersion: latest, channel: nil, state: state, oneClick: state == .updateAvailable ? command : nil,
+            withheld: nil, note: nil,
+            manualCommand: state == .upToDate ? CLIToolCommand(executable: "/ZZFixture-home/.local/bin/zz", arguments: ["upgrade", "--bump", item.name], pathPrefix: nil) : nil,
+            name: item.name, detail: .managed(item))
+    }
+
+    /// A managed row carries its manager, item, root, request and effects
+    /// beside the shared keys, under `tool: "managed"`; the schema stays 2
+    /// (added keys are not a bump, D-B). Mutation: drop any of the keys from
+    /// `CodingKeys`.
+    @Test func aManagedRowCarriesItsManagerAndItem() throws {
+        let lines = Lines()
+        Check.emitJSON([], tools: [CLIToolRows.Row(Self.managed())], command: "check", print: { lines.add($0) })
+        #expect(lines.all.first == #"{"command":"check","schemaVersion":2}"#)
+        let row = try JSONSerialization.jsonObject(with: Data(lines.all[1].utf8)) as? [String: Any]
+        #expect(row?["tool"] as? String == "managed")
+        #expect(row?["manager"] as? String == "zz-fake")
+        #expect(row?["item"] as? String == "node@20")
+        #expect(row?["root"] as? String == "/ZZFixture-home/.local/share/zz")
+        #expect(row?["request"] as? String == "20")
+        #expect(row?["name"] as? String == "node")
+        #expect(row?["path"] as? String == "/ZZFixture-home/.local/share/zz/installs/node/20.10.0")
+        #expect(row?["effects"] as? [String] == ["keeps the old version for 24h"])
+        #expect(row?["latestBeyondRequest"] == nil)
+        #expect(row?["hasUpdate"] as? Bool == true)
+        // A row of any other kind carries none of them.
+        let plain = try JSONSerialization.jsonObject(with: JSONEncoder().encode(CLIToolRows.Row(Self.uv))) as? [String: Any]
+        #expect(plain?["manager"] == nil)
+        #expect(plain?["item"] == nil)
+    }
+
+    /// A managed row answers to its key, to "<manager>/<key>" and to its name:
+    /// `duo install zz-fake/node` names one row where `node` could be several
+    /// (`Inventory.select`'s "never a guess" rule). Mutation: name it by
+    /// `status.name` alone.
+    @Test func aManagedRowIsNamedByItsKeyAndItsManager() throws {
+        let row = CLIToolRows.Row(Self.managed())
+        #expect(row.names == ["node@20", "zz-fake/node@20", "node"])
+        let picked = try Inventory.select(Self.apps, tools: Self.tools + [row], matching: ["zz-fake/node"]).get()
+        #expect(picked.tools.map(\.name) == ["node"])
+        // `list`'s row, from the scan alone, is named the same way.
+        let sighting = CLIToolSighting(kind: .managed, path: Self.managed().path, version: "20.10.0",
+                                       identity: Self.managed().identity, name: "node")
+        let listed = CLIToolRows.Row(sighting)
+        #expect(listed.name == "node")
+        #expect(listed.manager == "zz-fake")
+        #expect(listed.item == "node@20")
+        #expect(listed.names == row.names)
+    }
+
+    /// The text under a managed row: what the update does, and under a current
+    /// row held inside its request, what lies beyond it with the command that
+    /// lifts the request (D2). Mutation: drop the effects loop from `details`.
+    @Test func managedTextSaysWhatTheUpdateDoesAndWhatLiesBeyond() {
+        let update = CLIToolRows.Row(Self.managed())
+        #expect(CLIToolRows.details(update) == ["the update keeps the old version for 24h"])
+        // Through `ManagedCheck`, as the provider makes it: the unpin command
+        // must come from the verdict, not be set by hand here.
+        let heldItem = Self.managed(installed: "20.20.2", state: .upToDate).managedItem!
+        let held = CLIToolRows.Row(ManagedCheck.status(
+            ManagedVerdict(item: heldItem, vendorWouldUpgrade: false),
+            root: ManagedRoot(manager: heldItem.manager, path: heldItem.root, binary: nil), upgrade: nil,
+            unpin: CLIToolCommand(executable: "/ZZFixture-home/.local/bin/zz", arguments: ["upgrade", "--bump", "node"], pathPrefix: nil)))
+        #expect(held.state == CLIToolState.upToDate.rawValue)
+        #expect(held.latestBeyondRequest == "26.12.1")
+        #expect(CLIToolRows.details(held)
+            == ["26.12.1 available beyond the request — /ZZFixture-home/.local/bin/zz upgrade --bump node"])
+        let payload = CLIToolRows.payload(Self.managed(), CLIToolRows.Result(outcome: .installed, version: "20.20.2"))
+        #expect(payload["manager"] as? String == "zz-fake")
+        #expect(payload["item"] as? String == "node@20")
+        #expect(payload["request"] as? String == "20")
+    }
 }

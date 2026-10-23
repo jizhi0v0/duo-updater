@@ -519,4 +519,62 @@ import Testing
         ], updatingAll: true, batchIDs: ["mcp-remote", "tsls"])
         #expect(s.popover?.lines == [.updating(.npm)])
     }
+
+    /// A managed row's kind names no manager ("Managed tools"): the head
+    /// names the manager's group when every copy running is one manager's,
+    /// and the confirmation names the item. Two managers running read as
+    /// two kinds. Mutation: word `.managed` by its kind's display name.
+    @Test func aManagedRowIsNamedByItsManagerAndItsItem() {
+        let mise = Snapshot.Tool(id: "a", kind: .managed, phase: .running, cancel: .committing,
+                                 groupTitle: "mise tools", itemTitle: "node")
+        let jq = Snapshot.Tool(id: "b", kind: .managed, phase: .running, cancel: .committing,
+                               groupTitle: "mise tools", itemTitle: "jq")
+        let uv = Snapshot.Tool(id: "c", kind: .managed, phase: .running, cancel: .committing,
+                               groupTitle: "uv tools", itemTitle: "ruff")
+        #expect(Snapshot(tools: [mise, jq], updatingAll: true, batchIDs: ["a", "b"]).popover?.lines
+            == [.updatingGroup("mise tools")])
+        #expect(Snapshot(tools: [mise, uv], updatingAll: true, batchIDs: ["a", "c"]).popover?.lines == [.updating(nil)])
+        let updated = Snapshot.Tool(id: "a", kind: .managed, justUpdated: "20.20.2", groupTitle: "mise tools", itemTitle: "node")
+        #expect(Snapshot(tools: [updated]).popover?.lines == [.updatedItem("node", version: "20.20.2"), .takesEffect(.managed)])
+        // Several updated: the count, not the first one's name.
+        let jqUpdated = Snapshot.Tool(id: "b", kind: .managed, justUpdated: "1.8.2", groupTitle: "mise tools", itemTitle: "jq")
+        #expect(Snapshot(tools: [updated, jqUpdated]).popover?.lines == [.updatedCount(2), .takesEffect(.managed)])
+        // Of two kinds, when it takes effect differs, so no such line.
+        let claude = Snapshot.Tool(id: "c", kind: .claudeCode, justUpdated: "2.1.309")
+        #expect(Snapshot(tools: [updated, claude]).popover?.lines == [.updatedCount(2)])
+    }
+
+    /// One group's sub-row and level (`scoped`): an Update All holding only
+    /// another group's copies is not this group's run, so this group still
+    /// offers its own Update; the group whose copies it holds draws it running.
+    @Test func aScopedSnapshotRunsOnlyWhileUpdateAllHoldsOneOfItsCopies() {
+        let node = Snapshot.Tool(id: "node", kind: .managed, phase: .running, cancel: .committing,
+                                 state: .updateAvailable, oneClick: true, groupTitle: "mise tools", itemTitle: "node")
+        let uv = Snapshot.Tool(id: "uv", kind: .uv, state: .updateAvailable, oneClick: true)
+        let all = Snapshot(tools: [node, uv], updatingAll: true, batchIDs: ["node"],
+                           updateAllOffered: true, updateAllStartable: true)
+
+        let mise = all.scoped(to: ["node"], updateAllOffered: true, updateAllStartable: false)
+        #expect(mise.popover?.lines == [.updatingGroup("mise tools")])
+        #expect(mise.popover?.isRunning == true)
+        #expect(mise.updateAllHeader == .running(Group(state: .committing, pending: false, live: 0)))
+
+        let others = all.scoped(to: ["uv"], updateAllOffered: true, updateAllStartable: true)
+        #expect(others.popover == CLIPopoverRow(lines: [.updates(1)], mark: nil,
+                                                button: .update(admin: false), isRunning: false))
+        #expect(others.updateAllHeader == .update(startable: true))
+    }
+
+    /// A scope with no copy has no row (`popover` nil), and one waiting its
+    /// turn counts as waiting only for the group it holds a copy of.
+    @Test func aScopedSnapshotWaitsOnlyForItsOwnBatch() {
+        let jq = Snapshot.Tool(id: "jq", kind: .managed, phase: .queued, cancel: .available,
+                               state: .updateAvailable, oneClick: true, groupTitle: "mise tools", itemTitle: "jq")
+        let uv = Snapshot.Tool(id: "uv", kind: .uv, state: .updateAvailable, oneClick: true)
+        let all = Snapshot(tools: [jq, uv], updatingAll: true, updateAllWaiting: true, batchIDs: ["jq"],
+                           updateAllOffered: true)
+        #expect(all.scoped(to: [], updateAllOffered: false, updateAllStartable: false).popover == nil)
+        #expect(all.scoped(to: ["jq"], updateAllOffered: true, updateAllStartable: false).popover?.lines == [.queued])
+        #expect(all.scoped(to: ["uv"], updateAllOffered: true, updateAllStartable: true).popover?.lines == [.updates(1)])
+    }
 }

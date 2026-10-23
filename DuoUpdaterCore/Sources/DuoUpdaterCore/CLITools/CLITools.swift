@@ -7,17 +7,24 @@ import Foundation
 /// the app is a bug.
 public enum CLITools {
 
-    /// One provider per tool, in `CLIToolKind.allCases` order: what the app's
-    /// `CLIToolsModel` asks by default, and what `duo` asks.
+    /// One provider per tool, in `CLIToolKind.allCases` order — then one per
+    /// registered manager, in `ManagerRegistry` order (all of kind `.managed`,
+    /// which is last): what the app's `CLIToolsModel` asks by default, and what
+    /// `duo` asks.
     public static func providers() -> [any CLIToolProvider] {
-        inKindOrder([
+        inKindOrder(standaloneProviders() + ManagerRegistry.providers())
+    }
+
+    /// The providers of every kind but `.managed`, one each.
+    static func standaloneProviders() -> [any CLIToolProvider] {
+        [
             ClaudeCodeProvider(), BubProvider(), FxProvider(), UvProvider(), JunieProvider(), RustProvider(), NpmProvider(),
             BoatProvider(), CodexProvider(), BunProvider(), OpencodeProvider(), CursorAgentProvider(), AmpProvider(),
             VitePlusProvider(), HerdrProvider(), LuvusProvider(), LorcaProvider(), ZoxideProvider(), NvmProvider(),
             AtuinProvider(), GhcupProvider(),
             FlyctlProvider(), HelmProvider(), StarshipProvider(),
             DenoProvider(), MiseProvider(), ObelusProvider(), BiomeProvider(), GlobalPackagesProvider(.pnpm), GlobalPackagesProvider(.yarn),
-        ])
+        ]
     }
 
     /// `providers` in `CLIToolKind.allCases` order, two of one kind in the order

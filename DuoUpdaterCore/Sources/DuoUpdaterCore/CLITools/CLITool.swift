@@ -69,6 +69,13 @@ public enum CLIToolKind: String, Sendable, Codable, CaseIterable {
     /// Biome, the JS/TS linter and formatter, as its installer leaves it,
     /// `~/.local/bin/biome`.
     case biome
+    /// Every item any manager keeps — mise's tools, uv's tools and Pythons,
+    /// pipx venvs, nvm's and fnm's Nodes, pyenv's and rbenv's lines, cargo's
+    /// and go's installs (`CLITools/Managed/`). Which manager is a value on
+    /// the status (`ManagedItem.manager`), not a kind: one `ManagedProvider`
+    /// per manager, all of this kind, told apart by `CLIToolProvider.id`. Last,
+    /// so the managed groups come after every standalone kind (D12).
+    case managed
 
     /// The tool's own name, as its vendor writes it. Untranslated, like a formula
     /// name on the brew row.
@@ -104,6 +111,9 @@ public enum CLIToolKind: String, Sendable, Codable, CaseIterable {
         case .biome: return "Biome"
         case .pnpm: return "pnpm"
         case .yarn: return "Yarn"
+        // Never a row's title: a managed row is named by its item, its group
+        // by its manager (`ManagerDescriptor.displayName`).
+        case .managed: return "Managed tools"
         }
     }
 }
@@ -192,12 +202,19 @@ public enum CLIToolWithheld: String, Sendable, Codable {
 }
 
 /// One install of one tool and its verdict: what every surface reads the same way
-/// whatever the tool. Identity is `(kind, path)`.
+/// whatever the tool. Identity is `(kind, identity)` — and `identity` is `path`
+/// for every kind but `.managed`.
 public struct CLIToolStatus: Sendable, Equatable {
     public let kind: CLIToolKind
-    /// The install's identity on disk; what "this copy" means to the tool's own
+    /// Where the install is on disk; what "this copy" means to the tool's own
     /// code (`ClaudeCodeInstall.path`, …).
     public let path: String
+    /// What names this copy across checks: `path`, except for a managed row,
+    /// whose directory moves when a new version lands beside the old one and
+    /// which is named "<manager>|<root>|<key>" instead (`ManagedItem.identity`).
+    /// The app's `CLIToolID`, the announcement ledger's keys and `duo`'s job ids
+    /// are built from this.
+    public let identity: String
     /// What the install reads as, nil when it could not be read.
     public let installedVersion: String?
     /// What the install's channel points at, nil when it could not be read.
@@ -263,16 +280,19 @@ public struct CLIToolStatus: Sendable, Equatable {
         case mise(MiseInstall)
         case obelus(ObelusInstall)
         case biome(BiomeInstall)
+        /// Any manager's item (`CLITools/Managed/`).
+        case managed(ManagedItem)
     }
 
     public init(
-        kind: CLIToolKind, path: String, installedVersion: String?, latestVersion: String?,
+        kind: CLIToolKind, path: String, identity: String? = nil, installedVersion: String?, latestVersion: String?,
         channel: String?, state: CLIToolState, oneClick: CLIToolCommand?,
         withheld: CLIToolWithheld?, note: String?, manualCommand: CLIToolCommand? = nil,
         name: String? = nil, releaseNotesKey: String? = nil, detail: Detail, needsAdministrator: Bool = false
     ) {
         self.kind = kind
         self.path = path
+        self.identity = identity ?? path
         self.installedVersion = installedVersion
         self.latestVersion = latestVersion
         self.channel = channel
@@ -298,11 +318,26 @@ public struct CLIToolStatus: Sendable, Equatable {
     /// only the click is withheld, and comes back when the gate opens.
     public func heldBackByGitHubRateLimit(until: Date) -> CLIToolStatus {
         CLIToolStatus(
-            kind: kind, path: path, installedVersion: installedVersion, latestVersion: latestVersion,
+            kind: kind, path: path, identity: identity, installedVersion: installedVersion, latestVersion: latestVersion,
             channel: channel, state: state, oneClick: nil, withheld: .rateLimited,
             note: "update held back: GitHub's API budget is spent until \(until.formatted(.iso8601))",
             manualCommand: manualCommand, name: name, releaseNotesKey: releaseNotesKey, detail: detail,
             needsAdministrator: needsAdministrator)
+    }
+
+    /// The id of the provider that made this verdict (`CLIToolProvider.id`): the
+    /// kind's raw value, or "managed:<manager>" for a managed row — the key the
+    /// app and `duo` look a status's provider up by, since every manager's
+    /// provider is of kind `.managed`.
+    public var providerID: String {
+        if case .managed(let item) = detail { return item.descriptor.providerID }
+        return kind.rawValue
+    }
+
+    /// The managed item behind this row, nil for every other kind.
+    public var managedItem: ManagedItem? {
+        if case .managed(let item) = detail { return item }
+        return nil
     }
 }
 
@@ -348,6 +383,8 @@ public struct CLIToolReport: Sendable, Equatable {
         case biome
         case pnpm
         case yarn
+        /// A manager and the installs of it the check found (`ManagedProvider`).
+        case managed(ManagerContext)
     }
 
     public init(
@@ -356,8 +393,10 @@ public struct CLIToolReport: Sendable, Equatable {
         self.kind = kind
         self.statuses = statuses
         self.context = context
+        // `name` stays nil here: an existing provider's own `scan()` sets none,
+        // and the two are compared as sets (`CLIToolsModel.onOpen`).
         self.sightings = sightings ?? statuses.map {
-            CLIToolSighting(kind: $0.kind, path: $0.path, version: $0.installedVersion)
+            CLIToolSighting(kind: $0.kind, path: $0.path, version: $0.installedVersion, identity: $0.identity)
         }
     }
 }
@@ -376,12 +415,24 @@ public struct CLIToolSighting: Sendable, Hashable {
     /// reinstalled, an editable bub reinstalled from PyPI) looked unchanged, and
     /// its stale "not checked" stayed until the report aged out (review, #942).
     public let state: String
+    /// What names the install across checks (`CLIToolStatus.identity`): `path`
+    /// for every kind but `.managed`.
+    public let identity: String
+    /// The install's own name when its tool's group holds more than one kind of
+    /// thing (`CLIToolStatus.name`) and the scan already knows it — a managed
+    /// item's; nil otherwise, as `duo list` prints the tool's name then.
+    public let name: String?
 
-    public init(kind: CLIToolKind, path: String, version: String?, state: String = "") {
+    public init(
+        kind: CLIToolKind, path: String, version: String?, state: String = "", identity: String? = nil,
+        name: String? = nil
+    ) {
         self.kind = kind
         self.path = path
         self.version = version
         self.state = state
+        self.identity = identity ?? path
+        self.name = name
     }
 }
 
@@ -435,6 +486,16 @@ public enum CLIToolReleaseNotesError: Error, Equatable {
 public protocol CLIToolProvider: Sendable {
     var kind: CLIToolKind { get }
 
+    /// What tells this provider from every other, where `kind` does not: the
+    /// kind's raw value, except for a `ManagedProvider`, one per manager and
+    /// all of kind `.managed` ("managed:<manager>"). A status names its own
+    /// provider the same way (`CLIToolStatus.providerID`).
+    var id: String { get }
+
+    /// What the provider's requests are filed under in the request log, and
+    /// what the check's timing log calls it: the kind's name, or the manager's.
+    var attributionName: String { get }
+
     /// Local and quick: no network. May read files and verify signatures; may run
     /// the tool only where its version cannot be read any other way (fx).
     func scan() async -> [CLIToolSighting]
@@ -467,6 +528,8 @@ public protocol CLIToolProvider: Sendable {
 
 extension CLIToolProvider {
     public var readsGitHubAPI: Bool { false }
+    public var id: String { kind.rawValue }
+    public var attributionName: String { kind.displayName }
 }
 
 public enum CLIToolChangelog {
@@ -502,6 +565,15 @@ extension CLIToolKind {
 }
 
 extension CLIToolStatus {
+    /// `CLIToolKind.updaterSpendsGitHubAPI` for this copy: the kind's answer, or
+    /// the manager's (`ManagerDescriptor.updaterSpendsGitHubAPI`) for a managed
+    /// row, since every manager's row is of one kind. `applyingGitHubPause` and
+    /// `duo`'s check read this, never the kind's directly.
+    public var updaterSpendsGitHubAPI: CLIToolKind.UpdaterGitHubAPI? {
+        if case .managed(let item) = detail { return item.descriptor.updaterSpendsGitHubAPI }
+        return kind.updaterSpendsGitHubAPI
+    }
+
     /// This verdict as it may be offered while GitHub's API budgets are closed
     /// (`pause`, until when, per credential; one absent is open): with its
     /// one-click held back when the tool's own update command would spend a
@@ -512,7 +584,7 @@ extension CLIToolStatus {
     public func applyingGitHubPause(
         _ pause: [GitHubRateLimitGate.Credential: Date], updatersGetOurToken: Bool, now: Date
     ) -> CLIToolStatus {
-        guard oneClick != nil, let access = kind.updaterSpendsGitHubAPI else { return self }
+        guard oneClick != nil, let access = updaterSpendsGitHubAPI else { return self }
         let credential: GitHubRateLimitGate.Credential =
             access == .ourTokenIfAny && updatersGetOurToken ? .token : .anonymous
         guard let until = pause[credential], until > now else { return self }

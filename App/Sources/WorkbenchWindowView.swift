@@ -90,6 +90,9 @@ struct WorkbenchWindowView: View {
     @State private var cliRevealHandled = 0
     /// The header the latest request scrolls to.
     @State private var cliRevealTarget = Self.homebrewHeaderID
+    /// Where that target lands: a header at the list's top, a tool's row in its
+    /// middle, with its group's header above it.
+    @State private var cliRevealAnchor: UnitPoint = .top
     /// Whether the user keeps the CLI tab's Homebrew group open. Remembered across
     /// launches, like the changelog layout; closed until they open it. What else
     /// opens the group, and why that never writes here: `HomebrewGroupState`.
@@ -103,6 +106,9 @@ struct WorkbenchWindowView: View {
     /// The popover's command-line rows opened the level for this visit, without
     /// rewriting what the user keeps — `homebrewRevealing`'s rule.
     @State private var otherToolsRevealing = false
+    /// The managers' levels (`managerLevels`) the user closed in this window;
+    /// every one is open otherwise.
+    @State private var collapsedManagerLevels: Set<String> = []
     /// The CLI tab's order — formula and tool rows' tags — as it stood when updates
     /// started running; nil while none runs. `CLIToolPresentation.holding`.
     @State private var heldCLIOrder: [String]?
@@ -411,6 +417,7 @@ struct WorkbenchWindowView: View {
             applyRequestedBrewUnchecked()
             applyRequestedCLITools()
             applyRequestedHomebrew()
+            applyRequestedCLITool()
             // Every lane decides what an open calls for (`AppListModel.refreshes`):
             // the apps a full check with no data or while TestFlight is still
             // owed a read, otherwise a network-free rescan (`AppsRefreshPolicy`);
@@ -515,6 +522,7 @@ struct WorkbenchWindowView: View {
         .onChange(of: model.requestedWorkbenchBrewUnchecked) { applyRequestedBrewUnchecked() }
         .onChange(of: model.requestedWorkbenchCLITools) { applyRequestedCLITools() }
         .onChange(of: model.requestedWorkbenchHomebrew) { applyRequestedHomebrew() }
+        .onChange(of: model.requestedWorkbenchCLITool) { applyRequestedCLITool() }
         // `initial`: the window can open on a run already going — Update All from
         // the popover, then the workbench — and the order it first shows must hold
         // too (review, #1013). Otherwise the snapshot is taken as the run starts:
@@ -585,6 +593,7 @@ struct WorkbenchWindowView: View {
         sidebarTab = .cli
         otherToolsRevealing = true
         cliRevealTarget = Self.otherToolsHeaderID
+        cliRevealAnchor = .top
         cliRevealRequest += 1
     }
 
@@ -599,6 +608,28 @@ struct WorkbenchWindowView: View {
         homebrewRevealing = true
         sidebarTab = .cli
         cliRevealTarget = Self.homebrewHeaderID
+        cliRevealAnchor = .top
+        cliRevealRequest += 1
+    }
+
+    /// Honor a pending click on a row of the popover's tool groups' page: the
+    /// CLI tab with that copy selected — its level opens for a selected row
+    /// (`otherToolsExpanded`, `managerLevelExpanded`) — and scrolled to. The tab
+    /// is set first, as in `applyRequestedApp`.
+    private func applyRequestedCLITool() {
+        guard let tag = model.requestedWorkbenchCLITool else { return }
+        model.requestedWorkbenchCLITool = nil
+        guard let status = model.cliTools.statuses.first(where: { $0.toolID.tag == tag }) else { return }
+        // A search could hide the row.
+        searchText = ""
+        sidebarTab = .cli
+        // A level the user closed in this window opens for it.
+        collapsedManagerLevels.remove(CLIToolPresentation.Group.key(
+            kind: status.kind, prefix: nil, manager: status.managedItem?.manager, root: status.managedItem?.root))
+        selection = tag
+        detailSelection = tag
+        cliRevealTarget = tag
+        cliRevealAnchor = .center
         cliRevealRequest += 1
     }
 
@@ -875,7 +906,11 @@ struct WorkbenchWindowView: View {
                 + lists.brewUnchecked.map { "brew:unchecked:\($0.id)" }
             return SidebarSelection.cliOrder(
                 homebrewExpanded: homebrewExpanded(lists), homebrew: brew,
-                otherToolsExpanded: otherToolsExpanded(lists), tools: lists.cliTools.map(\.toolID.tag))
+                otherToolsExpanded: otherToolsExpanded(lists),
+                tools: lists.cliTools.filter { $0.managedItem == nil }.map(\.toolID.tag),
+                managers: managerLevels(lists.cliTools).map {
+                    (managerLevelExpanded($0, lists), $0.statuses.map(\.toolID.tag))
+                })
         case .rollback:
             return lists.rollbackable.map(\.id)
         }
@@ -910,12 +945,63 @@ struct WorkbenchWindowView: View {
 
     /// A search is typed and matches a row of the tool groups.
     private func otherToolsSearchHits(_ lists: SidebarLists) -> Bool {
-        !searchQuery.isEmpty && !lists.cliTools.isEmpty
+        !searchQuery.isEmpty && lists.cliTools.contains { $0.managedItem == nil }
     }
 
     private func isOtherToolsRow(_ id: String?) -> Bool {
         guard let id else { return false }
-        return model.cliTools.statuses.contains { $0.toolID.tag == id }
+        return model.cliTools.statuses.contains { $0.managedItem == nil && $0.toolID.tag == id }
+    }
+
+    /// The copies under "Other tools": every tool but a manager's items, which
+    /// have a level of their own (`managerLevels`).
+    private var standaloneScope: Set<CLIToolID> {
+        Set(model.cliTools.statuses.filter { $0.managedItem == nil }.map(\.toolID))
+    }
+
+    // MARK: - Managers' own levels
+
+    /// Each manager's items ("mise tools") as a level of their own beside
+    /// Homebrew and "Other tools": the same shape as Homebrew, one manager and
+    /// its many packages, with its own counts and its own Update All. In the
+    /// order the groups are drawn (`CLIToolPresentation.groups`), from `statuses`.
+    private func managerLevels(_ statuses: [CLIToolStatus]) -> [CLIToolPresentation.Group] {
+        CLIToolPresentation.groups(statuses).filter { $0.manager != nil }
+    }
+
+    /// The whole level's copies, not the search's: what its counts and its
+    /// Update All cover.
+    private func scope(of level: CLIToolPresentation.Group) -> Set<CLIToolID> {
+        Set(model.cliTools.statuses.filter {
+            CLIToolPresentation.Group.key(kind: $0.kind, prefix: nil, manager: $0.managedItem?.manager,
+                                          root: $0.managedItem?.root) == level.id
+        }.map(\.toolID))
+    }
+
+    /// Open unless the user closed it in this window — not remembered, like
+    /// the popover's stack — or while a search matches inside it or one of its
+    /// rows is selected.
+    private func managerLevelExpanded(_ level: CLIToolPresentation.Group, _ lists: SidebarLists) -> Bool {
+        !collapsedManagerLevels.contains(level.id) || managerLevelSearchHits(level, lists)
+            || level.statuses.contains { $0.toolID.tag == selection }
+    }
+
+    private func managerLevelSearchHits(_ level: CLIToolPresentation.Group, _ lists: SidebarLists) -> Bool {
+        !searchQuery.isEmpty && managerLevels(lists.cliTools).contains { $0.id == level.id }
+    }
+
+    /// A click on a manager level's header or summary. Closing it moves a
+    /// selection that was one of its rows off it, since that row is going.
+    private func toggleManagerLevel(_ level: CLIToolPresentation.Group, _ lists: SidebarLists) {
+        if managerLevelExpanded(level, lists) {
+            collapsedManagerLevels.insert(level.id)
+            if level.statuses.contains(where: { $0.toolID.tag == selection }) {
+                selection = nil
+                detailSelection = nil
+            }
+        } else {
+            collapsedManagerLevels.remove(level.id)
+        }
     }
 
     /// Opens or closes a group in one frame, not animated. The sidebar list drew
@@ -946,13 +1032,34 @@ struct WorkbenchWindowView: View {
     /// search's, like the Homebrew summary. A click on it opens or closes the
     /// level, like the Homebrew summary's.
     private func otherToolsSummary(_ lists: SidebarLists) -> some View {
+        toolsSummary(scope: standaloneScope, trailing: nil, toggleDisabled: otherToolsSearchHits(lists)) {
+            toggleOtherTools(lists)
+        }
+    }
+
+    /// The same row under a manager's level: its items' counts, and on the
+    /// right what its group header said — "mise 2026.10.15 · ~/.local/share/mise",
+    /// which tells two roots of one manager apart.
+    private func managerLevelSummary(_ level: CLIToolPresentation.Group, _ lists: SidebarLists) -> some View {
+        toolsSummary(scope: scope(of: level), trailing: cliToolHeaderSummary(level),
+                     toggleDisabled: managerLevelSearchHits(level, lists)) {
+            toggleManagerLevel(level, lists)
+        }
+    }
+
+    /// A level's counts over the copies `scope` names.
+    private func toolsSummary(
+        scope: Set<CLIToolID>, trailing: String?, toggleDisabled: Bool, toggle: @escaping () -> Void
+    ) -> some View {
         let tools = model.cliTools
+        let inScope = { (status: CLIToolStatus) in scope.contains(status.toolID) }
         // What Update All updates; a held-back update is counted apart — counted
         // with them, "2 updates" sat above one Update button.
-        let updates = tools.offered.count
-        let held = tools.heldBack
-        let unchecked = tools.unchecked.count
-        return Button { inOneFrame { toggleOtherTools(lists) } } label: {
+        let updates = tools.offered.filter(inScope).count
+        let held = tools.heldBack.filter(inScope)
+        let unchecked = tools.unchecked.filter(inScope).count
+        let sudoCount = tools.adminOffered.filter(inScope).count
+        return Button { inOneFrame(toggle) } label: {
             HStack(spacing: 8) {
                 if updates > 0 {
                     Text(String(localized: "\(updates) updates")).foregroundStyle(.tint).lineLimit(1)
@@ -961,7 +1068,7 @@ struct WorkbenchWindowView: View {
                     // about it too (`CLIToolsModel.unchecked`).
                     Text(String(localized: "Up to date")).foregroundStyle(.secondary).lineLimit(1)
                 }
-                if let sudo = CLIToolPresentation.needSudo(tools.needSudoCount) {
+                if let sudo = CLIToolPresentation.needSudo(sudoCount) {
                     Text(sudo)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
@@ -991,12 +1098,19 @@ struct WorkbenchWindowView: View {
                     .fixedSize()
                 }
                 Spacer(minLength: 0)
+                if let trailing {
+                    Text(verbatim: trailing)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                        .help(trailing)
+                }
             }
             .font(.caption)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .disabled(otherToolsSearchHits(lists))
+        .disabled(toggleDisabled)
     }
 
     /// Update All for the tool groups: what the popover's "Other tools" Update
@@ -1015,7 +1129,7 @@ struct WorkbenchWindowView: View {
     /// prefix", its own run's npm), and the header took its spinner and Cancel
     /// with it (2026-10-20, #1498 real-Mac check).
     private var otherToolsBulkUpdate: some View {
-        OtherToolsUpdateAllButton(tools: model.cliTools)
+        OtherToolsUpdateAllButton(tools: model.cliTools, scope: standaloneScope)
     }
 
     // MARK: - Homebrew group
@@ -1104,7 +1218,7 @@ struct WorkbenchWindowView: View {
     /// nothing for bub, which has neither.
     private func cliToolHeader(_ group: CLIToolPresentation.Group) -> some View {
         HStack(spacing: 6) {
-            Text(verbatim: group.kind.displayName)
+            Text(verbatim: group.title)
             Spacer()
             if let summary = cliToolHeaderSummary(group) {
                 // Several languages say "auto-update off" in twice the English width;
@@ -1123,7 +1237,7 @@ struct WorkbenchWindowView: View {
                 if let help = CLIToolPresentation.securityMarkHelp(notices) {
                     let statuses = model.cliTools.statuses, report = model.runtimeSecurity
                     RuntimeSecurityMarkButton(
-                        help: help, title: cliToolHeaderSummary(group) ?? group.kind.displayName, notices: notices,
+                        help: help, title: cliToolHeaderSummary(group) ?? group.title, notices: notices,
                         upgrade: { CLIToolPresentation.upgradeCommand(ofPrefix: prefix, statuses: statuses, in: report) })
                         .font(.caption)
                 }
@@ -1157,6 +1271,12 @@ struct WorkbenchWindowView: View {
         case .uv, .junie, .rust, .npm, .boat, .codex, .bun, .pnpm, .yarn, .opencode, .cursorAgent, .amp, .vitePlus, .herdr, .luvus, .lorca, .zoxide, .nvm, .atuin, .ghcup, .flyctl, .helm, .starship, .deno, .mise, .obelus, .biome:
             return CLIToolPresentation.headerSummary(
                 kind, statuses: model.cliTools.statuses, context: model.cliTools.contexts[kind])
+        case .managed:
+            // The manager's binary and this group's root: "mise 2026.10.7 ·
+            // ~/.local/share/mise" (`ManagerContext.headerSummary`).
+            guard let manager = group.manager else { return nil }
+            return model.cliTools.managedContexts[manager]?.headerSummary(
+                home: FileManager.default.homeDirectoryForCurrentUser.path, root: group.root)
         }
     }
 
@@ -1215,16 +1335,49 @@ struct WorkbenchWindowView: View {
                         }
                     }
                 }
-                // The popover's second row, "Other tools", as a level of its own:
-                // what the groups below come to, and Update All for them.
+                // Each manager's items, a level of their own right under Homebrew,
+                // which is one too — a manager and its many packages — and before
+                // the single tools under "Other tools" (owner, 2026-10-24; D12
+                // revised). Laid out as Homebrew's: header with its Update All,
+                // the counts row, its rows.
+                let levels = managerLevels(lists.cliTools)
+                ForEach(levels) { level in
+                    let expanded = managerLevelExpanded(level, lists)
+                    // The 4 pt between sections, as "Other tools" draws it below.
+                    if showsBrew || level.id != levels.first?.id {
+                        Color.clear.frame(height: 4).accessibilityHidden(true)
+                    }
+                    HomebrewGroupHeader(
+                        title: level.title,
+                        expanded: expanded,
+                        toggleDisabled: managerLevelSearchHits(level, lists),
+                        toggle: { inOneFrame { toggleManagerLevel(level, lists) } }
+                    ) {
+                        OtherToolsUpdateAllButton(tools: model.cliTools, scope: scope(of: level))
+                    }
+                    .padding(.trailing, Self.sectionHeaderTrailingInset)
+                    .sidebarSectionHeader(first: true)
+                    managerLevelSummary(level, lists)
+                        .sidebarStaticRow()
+                    ForEach(expanded ? level.statuses : [], id: \.toolID) { status in
+                        CLIToolSidebarRow(
+                            status: status, cli: model.cliTools,
+                            showsRuntime: model.prefs.showCLIRuntimeTags)
+                            .sidebarRow(status.toolID.tag, selection: $selection)
+                    }
+                }
+                // The popover's second row, "Other tools", as a level of its own,
+                // after the managers': what the groups below come to, and Update
+                // All for them.
                 let othersExpanded = otherToolsExpanded(lists)
-                if searchQuery.isEmpty ? !model.cliTools.statuses.isEmpty : !lists.cliTools.isEmpty {
+                let standalone = lists.cliTools.filter { $0.managedItem == nil }
+                if searchQuery.isEmpty ? !standaloneScope.isEmpty : !standalone.isEmpty {
                     // A later section's header sits 16 pt under the row above, the
                     // first's 12 (`sidebarSectionHeader`). The 4 pt between is drawn
                     // apart from the header, which takes the first's padding: scrolled
                     // to the top (`cliRevealRequest`) it then lands where Homebrew's
                     // does, not 4 pt lower (2026-10-20, y 190 against 186).
-                    if showsBrew {
+                    if showsBrew || !levels.isEmpty {
                         Color.clear.frame(height: 4).accessibilityHidden(true)
                     }
                     // Homebrew's header, so the two levels open, close and line up
@@ -1250,7 +1403,7 @@ struct WorkbenchWindowView: View {
                     otherToolsSummary(lists)
                         .sidebarStaticRow()
                 }
-                ForEach(othersExpanded ? CLIToolPresentation.groups(lists.cliTools) : []) { group in
+                ForEach(othersExpanded ? CLIToolPresentation.groups(standalone) : []) { group in
                     cliToolHeader(group)
                         .sidebarSectionHeader(first: false)
                     ForEach(group.statuses, id: \.toolID) { status in
@@ -1314,11 +1467,11 @@ struct WorkbenchWindowView: View {
             // handled only by a task that was not cancelled, for the reason above.
             .task(id: cliRevealRequest) {
                 guard cliRevealRequest != cliRevealHandled else { return }
-                proxy.scrollTo(cliRevealTarget, anchor: .top)
+                proxy.scrollTo(cliRevealTarget, anchor: cliRevealAnchor)
                 try? await Task.sleep(for: .milliseconds(16))
                 guard !Task.isCancelled else { return }
                 cliRevealHandled = cliRevealRequest
-                proxy.scrollTo(cliRevealTarget, anchor: .top)
+                proxy.scrollTo(cliRevealTarget, anchor: cliRevealAnchor)
             }
         }
     }
@@ -5268,12 +5421,15 @@ private struct CachedWebViewRepresentable: NSViewRepresentable {
 /// of a running update — redraws it alone, not the whole workbench.
 private struct OtherToolsUpdateAllButton: View {
     let tools: CLIToolsModel
+    /// The copies it updates and cancels (`CLIToolsModel.updateAll(in:)`):
+    /// "Other tools" without the managers, or one manager's level.
+    let scope: Set<CLIToolID>
 
     var body: some View {
-        let header = tools.rowSnapshot.updateAllHeader
+        let header = tools.rowSnapshot(in: scope).updateAllHeader
         let running: InstallRowSmoothing<CLIToolID>.GroupCancel? = if case .running(let cancel) = header { cancel } else { nil }
         if header != .hidden {
-            Button("Update All") { Task { await tools.updateAll() } }
+            Button("Update All") { Task { await tools.updateAll(in: scope) } }
                 .controlSize(.small)
                 .buttonStyle(.bordered)
                 // Not disabled by another run: behind one it waits its turn
@@ -5287,7 +5443,7 @@ private struct OtherToolsUpdateAllButton: View {
                     if let cancel = running {
                         HStack(spacing: 4) {
                             ProgressView().controlSize(.small)
-                            InstallCancelButton(state: cancel.state, pending: cancel.pending) { tools.cancelUpdateAll() }
+                            InstallCancelButton(state: cancel.state, pending: cancel.pending) { tools.cancelRow(in: scope) }
                         }
                     }
                 }

@@ -219,9 +219,10 @@ codesign -dvvv "<path>" 2>&1 | grep "TeamIdentifier"
 
 ### Phase 0½: Has the vendor announced the app's end?
 
-A feed that still ships releases says nothing about this: Arc's stable feed kept
-publishing after arc.net announced "Arc is sunsetting on December 22, 2026", and
-its cask was neither `deprecated` nor `disabled`. Ask the vendor directly.
+A feed that still serves releases says nothing about this: on 2026-10-23 arc.net
+said "Arc is sunsetting on December 22, 2026", while Arc's stable feed still
+served a current release and its cask was neither `deprecated` nor `disabled`.
+Ask the vendor directly.
 
 Read the vendor's own site, blog or announcement page, and for an open-source app
 the repo (README top, archived flag, pinned issue). Look for "sunset",

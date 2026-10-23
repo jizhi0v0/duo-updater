@@ -636,4 +636,6 @@ Until then, (a) holds everywhere.
 - `CLIToolsModel`: `updateAll(in:)` (while another Update All runs, a group's click queues its copies one by one), `rowSnapshot(in:)`, `cancelRow(in:)`.
 - Popover: the tool groups page (§5); a row opens the workbench on its tool; the empty list's placeholder icons share one 41 pt box (the magnifier drew 34 pt beside the seal's 39); "N updated" when more than one copy was just updated, where it used to name the first ("jq updated to 1.8.2" after three).
 
-**Still owed:** §12 item 2 (the token-retry marker on a backend install) and item 5 (`minimum_release_age`); the owner's answer on the four decisions in the P1 entry above.
+**§12 item 2, app side** (2026-10-24, `scripts/github_api_mock.py --scenario exhausted` + `DUO_GITHUB_API_MOCK`, `0b8568d8`): with the app's GitHub budget at 0, the gate holds mise tools back — popover "mise tools, Hitting GitHub's rate limit · 3 held back", the level "3 held back", jq's pane "Update: Hitting GitHub's rate limit" and its notes "Couldn't load the release notes · Hitting GitHub's rate limit"; `duo check --json` gives the three rows `withheld: rateLimited`. The mock reroutes only DuoUpdater's own requests: mise has no setting for its API host (only `github.oauth_api_url`, for its OAuth sign-in), so whether `mise upgrade` itself prints "No GitHub token was found" under a spent anonymous budget is still unmeasured.
+
+**Still owed:** §12 item 2's mise side (above) and item 5 (`minimum_release_age`); the owner's answer on the four decisions in the P1 entry above.

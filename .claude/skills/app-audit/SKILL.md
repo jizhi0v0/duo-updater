@@ -132,6 +132,8 @@ grep -n "<app name>\|<bundleID>" CHANNEL_COVERAGE_TODO.md
 brew info --cask "<cask-name>" 2>/dev/null
 ```
 
+Re-check Phase 0½ (has the vendor announced the app's end?) on every audit.
+
 Compile findings into the report template (§ Report template).
 
 ---
@@ -214,6 +216,32 @@ defaults read "<path>/Contents/Info" SUFeedURL 2>/dev/null
 defaults read "<path>/Contents/Info" KSChannelID 2>/dev/null
 codesign -dvvv "<path>" 2>&1 | grep "TeamIdentifier"
 ```
+
+### Phase 0½: Has the vendor announced the app's end?
+
+A feed that still ships releases says nothing about this: Arc's stable feed kept
+publishing after arc.net announced "Arc is sunsetting on December 22, 2026", and
+its cask was neither `deprecated` nor `disabled`. Ask the vendor directly.
+
+Read the vendor's own site, blog or announcement page, and for an open-source app
+the repo (README top, archived flag, pinned issue). Look for "sunset",
+"discontinued", "end of life", "no longer maintained", "shutting down", 停止维护,
+停服. Only the vendor's own pages count; press coverage and forum posts don't.
+
+- **An end date is announced** (the day the app can no longer be used):
+  1. In `DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/<bundle-id>.swift`, add to
+     the `AppRecipeSet`
+     `sunsets: ["<bundleID>": ProductSunset(endDate: "yyyy-MM-dd", announcement: URL(string: "<vendor's announcement>")!)]`.
+     `endDate` is the first day the app can no longer be used, per
+     `ProductSunset`'s doc comment — check it there rather than trusting this line.
+  2. Re-record the goldens:
+     `DUO_RECORD_RECIPE_GOLDENS=1 swift test --package-path DuoUpdaterCore --filter RecipeGoldenTests`.
+  3. In the audit doc, add `## 产品终止（yyyy-MM-dd 记）` after 基本信息, written like
+     `docs/app-audits/company-thebrowser-Browser.md`: the announcement link, the
+     dated steps the vendor lists, and what the feed and cask still say that day.
+- **Only "no longer actively developed", no end date:** not a sunset. Record it
+  in the audit doc's 已知问题 with the link and leave `sunsets` alone. When unsure
+  which of the two it is, ask the user.
 
 ### Phase 1: Distribution sources — WHERE can users get this app?
 

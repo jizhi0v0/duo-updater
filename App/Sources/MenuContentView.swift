@@ -990,11 +990,17 @@ struct ToolsPage: View {
     }
 
     /// The groups with work, and those `keeping` names whatever they say now,
-    /// in `keeping`'s order first, then the rest in the groups' own.
+    /// in `keeping`'s order first, then the rest: managers' groups, then the
+    /// single tools'.
     @MainActor static func entries(_ tools: CLIToolsModel, keeping: [String] = []) -> [Entry] {
         let home = FileManager.default.homeDirectoryForCurrentUser.path
         let kept = Set(keeping)
-        let entries: [Entry] = CLIToolPresentation.groups(tools.statuses).compactMap { group in
+        // The managers' groups first, as the workbench draws their levels
+        // above "Other tools" (owner, 2026-10-24): one manager and its many
+        // packages, as Homebrew is.
+        let groups = CLIToolPresentation.groups(tools.statuses)
+        let ordered = groups.filter { $0.manager != nil } + groups.filter { $0.manager == nil }
+        let entries: [Entry] = ordered.compactMap { group in
             let scope = Set(group.statuses.map(\.toolID))
             let snapshot = tools.rowSnapshot(in: scope)
             guard kept.contains(group.id) || snapshot.tools.contains(where: {

@@ -88,11 +88,11 @@ struct SidebarSelectionTests {
 
     /// A manager's level (mise tools) comes after "Other tools", and a closed
     /// one is skipped like the other levels.
-    @Test func theCLIOrderWalksEachOpenManagerLevelLast() {
-        let tools = ["tool:x"], mise = ["managed:node", "managed:jq"], uv = ["managed:ruff"]
-        #expect(SidebarSelection.cliOrder(homebrewExpanded: false, homebrew: [], otherToolsExpanded: true, tools: tools,
+    @Test func theCLIOrderWalksEachOpenManagerLevelBeforeTheOtherTools() {
+        let brew = ["formula:jq"], tools = ["tool:x"], mise = ["managed:node", "managed:jq"], uv = ["managed:ruff"]
+        #expect(SidebarSelection.cliOrder(homebrewExpanded: true, homebrew: brew, otherToolsExpanded: true, tools: tools,
                                           managers: [(true, mise), (false, uv)])
-            == tools + mise)
+            == brew + mise + tools)
         #expect(SidebarSelection.cliOrder(homebrewExpanded: false, homebrew: [], otherToolsExpanded: false, tools: tools,
                                           managers: [(false, mise), (true, uv)])
             == uv)

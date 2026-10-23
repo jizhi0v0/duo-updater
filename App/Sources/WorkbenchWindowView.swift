@@ -1335,8 +1335,40 @@ struct WorkbenchWindowView: View {
                         }
                     }
                 }
-                // The popover's second row, "Other tools", as a level of its own:
-                // what the groups below come to, and Update All for them.
+                // Each manager's items, a level of their own right under Homebrew,
+                // which is one too — a manager and its many packages — and before
+                // the single tools under "Other tools" (owner, 2026-10-24; D12
+                // revised). Laid out as Homebrew's: header with its Update All,
+                // the counts row, its rows.
+                let levels = managerLevels(lists.cliTools)
+                ForEach(levels) { level in
+                    let expanded = managerLevelExpanded(level, lists)
+                    // The 4 pt between sections, as "Other tools" draws it below.
+                    if showsBrew || level.id != levels.first?.id {
+                        Color.clear.frame(height: 4).accessibilityHidden(true)
+                    }
+                    HomebrewGroupHeader(
+                        title: level.title,
+                        expanded: expanded,
+                        toggleDisabled: managerLevelSearchHits(level, lists),
+                        toggle: { inOneFrame { toggleManagerLevel(level, lists) } }
+                    ) {
+                        OtherToolsUpdateAllButton(tools: model.cliTools, scope: scope(of: level))
+                    }
+                    .padding(.trailing, Self.sectionHeaderTrailingInset)
+                    .sidebarSectionHeader(first: true)
+                    managerLevelSummary(level, lists)
+                        .sidebarStaticRow()
+                    ForEach(expanded ? level.statuses : [], id: \.toolID) { status in
+                        CLIToolSidebarRow(
+                            status: status, cli: model.cliTools,
+                            showsRuntime: model.prefs.showCLIRuntimeTags)
+                            .sidebarRow(status.toolID.tag, selection: $selection)
+                    }
+                }
+                // The popover's second row, "Other tools", as a level of its own,
+                // after the managers': what the groups below come to, and Update
+                // All for them.
                 let othersExpanded = otherToolsExpanded(lists)
                 let standalone = lists.cliTools.filter { $0.managedItem == nil }
                 if searchQuery.isEmpty ? !standaloneScope.isEmpty : !standalone.isEmpty {
@@ -1345,7 +1377,7 @@ struct WorkbenchWindowView: View {
                     // apart from the header, which takes the first's padding: scrolled
                     // to the top (`cliRevealRequest`) it then lands where Homebrew's
                     // does, not 4 pt lower (2026-10-20, y 190 against 186).
-                    if showsBrew {
+                    if showsBrew || !levels.isEmpty {
                         Color.clear.frame(height: 4).accessibilityHidden(true)
                     }
                     // Homebrew's header, so the two levels open, close and line up
@@ -1375,30 +1407,6 @@ struct WorkbenchWindowView: View {
                     cliToolHeader(group)
                         .sidebarSectionHeader(first: false)
                     ForEach(group.statuses, id: \.toolID) { status in
-                        CLIToolSidebarRow(
-                            status: status, cli: model.cliTools,
-                            showsRuntime: model.prefs.showCLIRuntimeTags)
-                            .sidebarRow(status.toolID.tag, selection: $selection)
-                    }
-                }
-                // Each manager's items, a level of their own, laid out as the two
-                // above: header with its Update All, the counts row, its rows.
-                ForEach(managerLevels(lists.cliTools)) { level in
-                    let expanded = managerLevelExpanded(level, lists)
-                    Color.clear.frame(height: 4).accessibilityHidden(true)
-                    HomebrewGroupHeader(
-                        title: level.title,
-                        expanded: expanded,
-                        toggleDisabled: managerLevelSearchHits(level, lists),
-                        toggle: { inOneFrame { toggleManagerLevel(level, lists) } }
-                    ) {
-                        OtherToolsUpdateAllButton(tools: model.cliTools, scope: scope(of: level))
-                    }
-                    .padding(.trailing, Self.sectionHeaderTrailingInset)
-                    .sidebarSectionHeader(first: true)
-                    managerLevelSummary(level, lists)
-                        .sidebarStaticRow()
-                    ForEach(expanded ? level.statuses : [], id: \.toolID) { status in
                         CLIToolSidebarRow(
                             status: status, cli: model.cliTools,
                             showsRuntime: model.prefs.showCLIRuntimeTags)

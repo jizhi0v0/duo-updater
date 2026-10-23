@@ -50,14 +50,14 @@ enum SidebarSelection {
     }
 
     /// The CLI tab's selectable rows, in the order it draws them: the Homebrew
-    /// group's rows while it is open, then the tool groups' while "Other tools" is
-    /// open, then each manager's level's while it is open. A closed group's rows
-    /// are not drawn, so they are not walked either.
+    /// group's rows while it is open, then each manager's level's while it is
+    /// open, then the tool groups' while "Other tools" is open. A closed group's
+    /// rows are not drawn, so they are not walked either.
     static func cliOrder(
         homebrewExpanded: Bool, homebrew: [String], otherToolsExpanded: Bool, tools: [String],
         managers: [(expanded: Bool, tools: [String])] = []
     ) -> [String] {
-        (homebrewExpanded ? homebrew : []) + (otherToolsExpanded ? tools : [])
-            + managers.flatMap { $0.expanded ? $0.tools : [] }
+        (homebrewExpanded ? homebrew : []) + managers.flatMap { $0.expanded ? $0.tools : [] }
+            + (otherToolsExpanded ? tools : [])
     }
 }

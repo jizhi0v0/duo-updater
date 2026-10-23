@@ -28,6 +28,9 @@ struct AppSearchField: NSViewRepresentable {
     }
 
     func updateNSView(_ field: NSSearchField, context: Context) {
+        // The popover's field edits the apps' search or the tool groups' page's,
+        // a different binding on each side: typing must reach the current one.
+        context.coordinator.text = $text
         if field.stringValue != text { field.stringValue = text }
         // The popover's one field searches the apps or, on the tool groups'
         // page, the groups: the same field, so its prompt follows.
@@ -37,12 +40,12 @@ struct AppSearchField: NSViewRepresentable {
     func makeCoordinator() -> Coordinator { Coordinator(text: $text) }
 
     final class Coordinator: NSObject, NSSearchFieldDelegate {
-        @Binding var text: String
-        init(text: Binding<String>) { _text = text }
+        var text: Binding<String>
+        init(text: Binding<String>) { self.text = text }
 
         func controlTextDidChange(_ note: Notification) {
             guard let field = note.object as? NSSearchField else { return }
-            text = field.stringValue
+            text.wrappedValue = field.stringValue
         }
     }
 }

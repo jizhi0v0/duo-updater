@@ -48,9 +48,12 @@ struct MenuContentView: View {
     /// What the page's own rows need (`ToolsPageHeightKey`), measured while it
     /// waits off to the side.
     @State private var toolsPageContentHeight: CGFloat = 0
-    /// The apps' search as the page opened, put back as it closes, so the
-    /// list comes back as it was left, at its height.
-    @State private var appSearchBeforeToolsPage = ""
+    /// The page's own search, which the one field edits while the page is
+    /// open. The apps' search is never touched: clearing it as the page
+    /// opened, and putting it back as it closed, changed the list in the
+    /// middle of the slide — "No Results" cross-fading with the rows, left
+    /// drawn over both (owner, 2026-10-24).
+    @State private var toolsSearchText = ""
     /// The groups the page opened with, in that order (`ToolsPage.held`).
     /// Taken as it opens and dropped once it has slid out, so the closed page
     /// — whose height the next open is measured from — draws the rows that
@@ -62,8 +65,8 @@ struct MenuContentView: View {
     /// Opens or closes the tool groups' page, sliding it in from the right
     /// over the app list and back out — a level below "Other tools", as its
     /// header says. The search field stays where it is and searches whatever
-    /// is shown: empty on the page as it opens, the apps' search again as it
-    /// closes.
+    /// is shown, each side with its own text (`toolsSearchText`): the page's
+    /// starts empty, the apps' is left as it was.
     private func setToolsPage(_ open: Bool) {
         if open {
             // The list's height or the page's own, whichever is taller, up to
@@ -71,16 +74,16 @@ struct MenuContentView: View {
             // shorter one — two apps, or a search — does not squeeze the page.
             toolsPageOpenHeight = min(Self.maxListHeight, max(toolsPageHeight, toolsPageContentHeight))
             toolsPageHeld = ToolsPage.entries(model.cliTools).map(\.id)
-            appSearchBeforeToolsPage = searchText
-            searchText = ""
-        } else {
-            searchText = appSearchBeforeToolsPage
         }
         withAnimation(.easeInOut(duration: 0.22)) {
             toolsPageOpen = open
         } completion: {
-            // Not while sliding out: a row leaving then moved the rest.
-            if !toolsPageOpen { toolsPageHeld = nil }
+            // Not while sliding out: a row leaving, or one the search had
+            // hidden coming back, then moved the rest.
+            if !toolsPageOpen {
+                toolsPageHeld = nil
+                toolsSearchText = ""
+            }
         }
     }
 
@@ -156,7 +159,7 @@ struct MenuContentView: View {
             // shifted by its height).
             if showsSearchField {
                 AppSearchField(
-                    text: $searchText,
+                    text: toolsPageOpen ? $toolsSearchText : $searchText,
                     prompt: toolsPageOpen ? String(localized: "Search tools") : String(localized: "Search apps"))
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
@@ -178,10 +181,10 @@ struct MenuContentView: View {
                 // An overlay, so the closed page adds nothing to the height.
                 .overlay(alignment: .topLeading) {
                     ToolsPage(tools: model.cliTools, held: toolsPageHeld, height: toolsPageOpenHeight,
-                              // The apps' search is not the page's: closed, it
-                              // filtered the page down to its header, and the page
-                              // measured that (31 pt) as its height.
-                              query: toolsPageOpen ? searchText : "",
+                              // Its own search: the apps' filtered the closed page
+                              // down to its header, and the page measured that
+                              // (31 pt) as its height.
+                              query: toolsSearchText,
                               close: { setToolsPage(false) },
                               show: { tag in
                                   model.requestedWorkbenchCLITool = tag
@@ -225,8 +228,8 @@ struct MenuContentView: View {
         }
         .frame(width: MenuLayoutMetrics.width)
         .onDisappear {
-            if toolsPageOpen { searchText = appSearchBeforeToolsPage }
             toolsPageOpen = false
+            toolsSearchText = ""
             toolsPageHeld = nil
         }
         .task {

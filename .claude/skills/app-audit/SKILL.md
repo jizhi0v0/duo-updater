@@ -164,7 +164,17 @@ reason that holds. "Not checked" is not a recorded gap.
   downgrade until `ZettlrChannel` returned nil for it.
 - **Every version range.** Older copies may lack the update feed newer ones
   declare (a feed inside new bundles never reaches old copies), or be signed by
-  a different team.
+  a different team. List the range from the appcast items and the git tags,
+  not only from the releases still published: a build whose release was
+  deleted is still installed somewhere (Loon's appcast listed 0.1 builds
+  17–41 whose releases were gone). Check each in its package, or record it as
+  a gap with its worst case.
+- **Every licence state.** When a rule gates releases on a licence,
+  subscription or account (Surge, TablePlus), list each state a copy can be
+  in: licensed, never licensed, free or trial, expired. Say what the rule
+  offers each. "The licence can't be read" covers a licensed copy whose
+  record is missing, not a copy that never had one: TablePlus's first draft
+  gated every unlicensed copy until it checked for `.licensemac`.
 - **Our host floor, not the vendor's.** DuoUpdater only runs on the hosts
   `App/project.yml` allows (`ARCHS`, the macOS deployment target). A vendor
   minimum at or below that floor, or a problem only an Intel Mac would have, is

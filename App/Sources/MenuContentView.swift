@@ -51,6 +51,12 @@ struct MenuContentView: View {
     /// The apps' search as the page opened, put back as it closes, so the
     /// list comes back as it was left, at its height.
     @State private var appSearchBeforeToolsPage = ""
+    /// The groups the page opened with, in that order (`ToolsPage.held`).
+    /// Taken as it opens and dropped once it has slid out, so the closed page
+    /// — whose height the next open is measured from — draws the rows that
+    /// open will: kept from the last open, a group whose update had ended was
+    /// measured, then dropped, leaving a row's height blank (review, round 8).
+    @State private var toolsPageHeld: [String]?
     @Environment(\.openWindow) private var openWindow
 
     /// Opens or closes the tool groups' page, sliding it in from the right
@@ -64,12 +70,18 @@ struct MenuContentView: View {
             // the cap: a taller list keeps what is below where it was; a
             // shorter one — two apps, or a search — does not squeeze the page.
             toolsPageOpenHeight = min(Self.maxListHeight, max(toolsPageHeight, toolsPageContentHeight))
+            toolsPageHeld = ToolsPage.entries(model.cliTools).map(\.id)
             appSearchBeforeToolsPage = searchText
             searchText = ""
         } else {
             searchText = appSearchBeforeToolsPage
         }
-        withAnimation(.easeInOut(duration: 0.22)) { toolsPageOpen = open }
+        withAnimation(.easeInOut(duration: 0.22)) {
+            toolsPageOpen = open
+        } completion: {
+            // Not while sliding out: a row leaving then moved the rest.
+            if !toolsPageOpen { toolsPageHeld = nil }
+        }
     }
 
     /// Whether the user is actively filtering — drives the search-across-all
@@ -149,7 +161,8 @@ struct MenuContentView: View {
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
             }
-            // The tool groups' page stands in the list's place, at its height.
+            // The tool groups' page stands in the list's place, at the taller
+            // of its height and the page's own (`setToolsPage`).
             // Both stay in the tree and slide by offset, side by side. With an
             // insertion and a removal instead, quick clicks left the views of
             // interrupted slides drawn over each other until each finished —
@@ -164,7 +177,7 @@ struct MenuContentView: View {
                 .frame(height: toolsPageOpen ? toolsPageOpenHeight : nil, alignment: .top)
                 // An overlay, so the closed page adds nothing to the height.
                 .overlay(alignment: .topLeading) {
-                    ToolsPage(tools: model.cliTools, isOpen: toolsPageOpen, height: toolsPageOpenHeight,
+                    ToolsPage(tools: model.cliTools, held: toolsPageHeld, height: toolsPageOpenHeight,
                               // The apps' search is not the page's: closed, it
                               // filtered the page down to its header, and the page
                               // measured that (31 pt) as its height.
@@ -214,6 +227,7 @@ struct MenuContentView: View {
         .onDisappear {
             if toolsPageOpen { searchText = appSearchBeforeToolsPage }
             toolsPageOpen = false
+            toolsPageHeld = nil
         }
         .task {
             // Take activation the moment the popover appears, because otherwise the
@@ -945,12 +959,19 @@ private struct PopoverCheckboxStyle: ToggleStyle {
 /// something to say — an update, a run, a failure — as the workbench draws them
 /// (`CLIToolPresentation.groups`): Claude Code, npm · nvm, mise tools. Each has
 /// its own Update and Cancel over its copies only (`CLIToolsModel.rowSnapshot(in:)`);
-/// "Other tools" below keeps Update All. The page takes the list's height, so the
-/// popover keeps its size however many groups there are; the page scrolls.
+/// "Other tools" below keeps Update All. It opens at the taller of the app list's
+/// height and its own, up to the list's cap (`MenuContentView.setToolsPage`): a
+/// taller list keeps the popover's size, a shorter one grows it while the page is
+/// open; past the cap the page scrolls.
 struct ToolsPage: View {
     let tools: CLIToolsModel
-    /// Whether it is on screen: it stays in the tree while closed, off to the side.
-    let isOpen: Bool
+    /// The groups the page opened with, in that order: they keep their rows
+    /// until it closes — one whose update ended says so on its line — so a row
+    /// never leaves from under the pointer: when mise tools' row went at the
+    /// end of its update, the page, scrolled to its end, jumped 34 pt (recorded
+    /// 2026-10-24). Nil while closed; the popover owns it
+    /// (`MenuContentView.toolsPageHeld`).
+    let held: [String]?
     let height: CGFloat
     /// The popover's search field, which searches the groups here: a group's
     /// name or one of its tools' ("node" finds mise tools).
@@ -958,13 +979,6 @@ struct ToolsPage: View {
     let close: () -> Void
     /// Opens the workbench on a copy (its tag), as the app rows do.
     let show: (String) -> Void
-
-    /// The groups the page opened with, in that order. They keep their rows
-    /// until it closes — one whose update ended says so on its line — so a row
-    /// never leaves from under the pointer: when mise tools' row went at the
-    /// end of its update, the page, scrolled to its end, jumped 34 pt (recorded
-    /// 2026-10-24). Nil until it first opens; taken again on each open.
-    @State private var held: [String]?
 
     /// One group's row: who it is and its snapshot.
     struct Entry: Identifiable {
@@ -1042,10 +1056,6 @@ struct ToolsPage: View {
         .frame(height: height)
         // A shade apart from the app list it covers: a level below it.
         .background(Color.primary.opacity(0.04))
-        .onChange(of: isOpen) { _, open in
-            guard open else { return }
-            held = Self.entries(tools).map(\.id)
-        }
     }
 
     private func row(_ entry: Entry) -> some View {

@@ -70,3 +70,5 @@ oneClickGates[0].reason = "massCode 6 cannot open a library from massCode 4 or e
 oneClickGates[0].offering = nil
 
 loginItemAgentRestarts = Dictionary(count: 0)
+
+sunsets = Dictionary(count: 0)

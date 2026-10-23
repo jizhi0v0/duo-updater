@@ -172,3 +172,5 @@ changelogPages["com.longbridge.app.desktop"] = URL("https://longbridge.com/deskt
 oneClickGates = Array(count: 0)
 
 loginItemAgentRestarts = Dictionary(count: 0)
+
+sunsets = Dictionary(count: 0)

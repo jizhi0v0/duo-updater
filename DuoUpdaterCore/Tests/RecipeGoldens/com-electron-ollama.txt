@@ -81,3 +81,5 @@ changelogPages["com.electron.ollama"] = URL("https://github.com/ollama/ollama/re
 oneClickGates = Array(count: 0)
 
 loginItemAgentRestarts = Dictionary(count: 0)
+
+sunsets = Dictionary(count: 0)

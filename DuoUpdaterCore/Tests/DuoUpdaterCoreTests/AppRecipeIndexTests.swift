@@ -28,7 +28,7 @@ struct AppRecipeIndexTests {
         "probes", "changelogs", "githubRules", "appStoreCases",
         "channelProofs", "githubChannelProofs", "bindingProofs",
         "sparkleFeeds", "supersededFeeds", "loginWalls", "changelogPages", "oneClickGates",
-        "loginItemAgentRestarts",
+        "loginItemAgentRestarts", "sunsets",
     ]
 
     /// Mutation: give one family an entry for another family's bundle id (for
@@ -125,5 +125,6 @@ struct AppRecipeIndexTests {
         #expect(ChangelogCatalog.pages.count == sum { $0.changelogPages.count })
         #expect(OneClickGateRegistry.gates.count == sum { $0.oneClickGates.count })
         #expect(LoginItemAgentRestart.agentsByHost.count == sum { $0.loginItemAgentRestarts.count })
+        #expect(ProductSunsetCatalog.sunsets.count == sum { $0.sunsets.count })
     }
 }

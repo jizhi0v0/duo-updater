@@ -232,6 +232,7 @@ public enum AppRecipeIndex {
         com_youqu_todesk_mac.set,
         com_zarifpour_superconductor.set,
         com_zettlr_app.set,
+        company_thebrowser_Browser.set,
         dev_chekusu_yomado.set,
         dev_commandline_waveterm.set,
         dev_hyperframes_desktop.set,

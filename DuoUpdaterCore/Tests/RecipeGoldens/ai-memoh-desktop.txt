@@ -105,3 +105,5 @@ oneClickGates[0].reason = "a Memoh build from GitHub, which may run its own loca
 oneClickGates[0].offering = nil
 
 loginItemAgentRestarts = Dictionary(count: 0)
+
+sunsets = Dictionary(count: 0)

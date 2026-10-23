@@ -4,7 +4,7 @@ import Foundation
 /// across its channels and bundle ids — declared in `Recipes/<family>.swift`.
 ///
 /// Pure data. `VendorProbeRegistry.recipes`, `ChangelogRecipeRegistry.recipes`,
-/// `GitHubReleaseRegistry.rules`, `OneClickGateRegistry.gates`, `LoginItemAgentRestart.agentsByHost`, `MacAppStoreProbeRegistry.cases`, the three
+/// `GitHubReleaseRegistry.rules`, `OneClickGateRegistry.gates`, `LoginItemAgentRestart.agentsByHost`, `ProductSunsetCatalog.sunsets`, `MacAppStoreProbeRegistry.cases`, the three
 /// `ChannelProofRegistry` maps, `SparkleFeedCatalog.feeds` / `.supersededFeeds` / `.loginWalls`
 /// and `ChangelogCatalog.pages` are all derived from `AppRecipeIndex.all`.
 ///
@@ -37,6 +37,8 @@ public struct AppRecipeSet: Sendable {
     /// `Contents/Library/LoginItems/` to restart after we replace the host's
     /// bundle. See `LoginItemAgentRestart`.
     public let loginItemAgentRestarts: [String: [String]]
+    /// Bundle id → the vendor's published end of the app. See `ProductSunset`.
+    public let sunsets: [String: ProductSunset]
 
     init(
         family: String,
@@ -52,7 +54,8 @@ public struct AppRecipeSet: Sendable {
         loginWalls: [String: SparkleFeedCatalog.LoginWall] = [:],
         changelogPages: [String: URL] = [:],
         oneClickGates: [OneClickGate] = [],
-        loginItemAgentRestarts: [String: [String]] = [:]
+        loginItemAgentRestarts: [String: [String]] = [:],
+        sunsets: [String: ProductSunset] = [:]
     ) {
         self.family = family
         self.probes = probes
@@ -68,9 +71,10 @@ public struct AppRecipeSet: Sendable {
         self.changelogPages = changelogPages
         self.oneClickGates = oneClickGates
         self.loginItemAgentRestarts = loginItemAgentRestarts
+        self.sunsets = sunsets
     }
 
-    /// Every bundle id this family names, across all thirteen kinds, as written.
+    /// Every bundle id this family names, across all fourteen kinds, as written.
     public var bundleIDs: Set<String> {
         var ids = Set<String>()
         ids.formUnion(probes.map(\.bundleID))
@@ -86,6 +90,7 @@ public struct AppRecipeSet: Sendable {
         ids.formUnion(changelogPages.keys)
         ids.formUnion(oneClickGates.map(\.bundleID))
         ids.formUnion(loginItemAgentRestarts.keys)
+        ids.formUnion(sunsets.keys)
         return ids
     }
 }

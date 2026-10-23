@@ -94,3 +94,5 @@ oneClickGates[4].reason = "this copy also carries the Cloud edition's marker, so
 oneClickGates[4].offering? = "^(?:GitHub:Hoppscotch_SelfHost_mac_aarch64\\.dmg|Homebrew:hoppscotch-selfhost)$"
 
 loginItemAgentRestarts = Dictionary(count: 0)
+
+sunsets = Dictionary(count: 0)

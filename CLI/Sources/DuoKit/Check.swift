@@ -52,6 +52,33 @@ public enum Check {
         /// The copy's channel when the update would put a stable build over it
         /// (`UpdateResult.replacesChannelWithStable`); omitted from JSON otherwise.
         var replacesChannel: String? = nil
+        /// The developer's announced end of the app (`ProductSunset`); omitted
+        /// from JSON otherwise.
+        var sunset: Sunset? = nil
+
+        struct Sunset: Encodable, Equatable {
+            let endDate: String
+            let announcement: URL
+            /// Whether `endDate` has come.
+            let ended: Bool
+        }
+    }
+
+    /// The row's sunset as of `today` (`ProductSunsetCatalog.today()`).
+    static func sunset(forBundleID bundleID: String?, today: String) -> Row.Sunset? {
+        ProductSunsetCatalog.sunset(forBundleID: bundleID).map {
+            Row.Sunset(endDate: $0.endDate, announcement: $0.announcement,
+                       ended: $0.phase(today: today) == .ended)
+        }
+    }
+
+    /// The note `check` and `list` print under a row whose developer has
+    /// announced the app's end, said the way the app's detail pane says it.
+    static func sunsetNote(_ sunset: Row.Sunset) -> String {
+        (sunset.ended
+            ? "the developer has announced it stopped working on \(sunset.endDate)"
+            : "the developer has announced it will stop working on \(sunset.endDate)")
+            + " — \(sunset.announcement.absoluteString)"
     }
 
     /// The reminder `check` and `install` print under a row whose update puts the
@@ -148,14 +175,16 @@ public enum Check {
     /// A row worth acting on: an update the user has not hidden.
     static func isActionable(_ row: Row) -> Bool { row.hasUpdate && !row.hidden }
 
-    /// Whether a check lists this result without `--all`: an update, or a check
-    /// that failed. A failure is not "current" — nothing was learned — and leaving
+    /// Whether a check lists this result without `--all`: an update, a check
+    /// that failed, or an app whose developer has announced its end — a notice
+    /// the user would otherwise only see with `--all`. A failure is not "current" — nothing was learned — and leaving
     /// it out made a run whose only news was a failure print "Everything is up to
     /// date." (Muse, 2026-09-25: both its sources refused, the row said
     /// `error: HTTP 403`, the summary said everything was current.)
     static func showsByDefault(_ result: UpdateResult) -> Bool {
         if result.hasUpdate { return true }
         if case .error = result.status { return true }
+        if ProductSunsetCatalog.sunset(forBundleID: result.app.bundleID) != nil { return true }
         return false
     }
 
@@ -296,6 +325,7 @@ public enum Check {
             runningBundleIDs: runningBundleIDs())
 
         var rows: [Row] = []
+        let today = ProductSunsetCatalog.today()
         for result in results.sorted(by: { $0.app.name.localizedCaseInsensitiveCompare($1.app.name) == .orderedAscending }) {
             let hidden = settings.isHidden(result)
             if hidden && !options.includeHidden { continue }
@@ -322,7 +352,8 @@ public enum Check {
                 route: options.checkForUpdates
                     ? route(result, settings: settings, environment: environment)
                     : nil,
-                replacesChannel: result.replacesChannelWithStable?.rawValue))
+                replacesChannel: result.replacesChannelWithStable?.rawValue,
+                sunset: Self.sunset(forBundleID: result.app.bundleID, today: today)))
         }
 
         var tools: [CLIToolRows.Row] = []
@@ -659,6 +690,7 @@ public enum Check {
             if let failure = failure(row) { line += "  — check failed: \(failure)" }
             print(line)
             if let channel = row.replacesChannel { print("      note: \(channelReminder(channel))") }
+            if let sunset = row.sunset { print("      note: \(sunsetNote(sunset))") }
         }
         CLIToolRows.emitText(tools, securityLines: securityLines, checked: checked, print: print)
         let actionable = rows.filter(isActionable).count + tools.filter(\.hasUpdate).count

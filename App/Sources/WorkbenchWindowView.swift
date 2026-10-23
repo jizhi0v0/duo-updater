@@ -1330,6 +1330,11 @@ struct WorkbenchWindowView: View {
         let hasBackup = model.backupVersion(result.id) != nil
         VStack(alignment: .leading, spacing: 0) {
             DetailHeader(result: result, model: model)
+            if let sunset = ProductSunsetCatalog.sunset(forBundleID: result.app.bundleID) {
+                ProductSunsetNotice(name: result.app.name, sunset: sunset)
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 10)
+            }
             if let cask = model.brewCaskLifecycle(for: result) {
                 BrewLifecycleNotice(name: cask.token, lifecycle: cask.lifecycle, isCask: true)
                     .padding(.horizontal, 16)
@@ -1438,7 +1443,9 @@ private struct WorkbenchAppRow: View, @MainActor Equatable {
             clearSkip: { model.prefs.clearSkip(result.app) },
             fullDiskAccessNeeds: model.fullDiskAccessNeedsAffecting(result),
             grantFullDiskAccess: { model.presentFullDiskAccessPermissionFlow() },
-            caskLifecycle: model.brewCaskLifecycle(for: result)?.lifecycle)
+            caskLifecycle: model.brewCaskLifecycle(for: result)?.lifecycle,
+            sunsetPhase: ProductSunsetCatalog.sunset(forBundleID: result.app.bundleID)
+                .map { ($0.endDate, $0.phase(today: ProductSunsetCatalog.today())) })
             .equatable()
     }
 }
@@ -1545,6 +1552,9 @@ private struct WorkbenchSidebarRow: View {
     /// Set when the cask that installed this app is deprecated or disabled
     /// (`AppListModel.brewCaskLifecycle(for:)`); the detail pane says the rest.
     var caskLifecycle: BrewLifecycle? = nil
+    /// Set when the developer has announced the app's end (`ProductSunset`): the
+    /// end date and whether it has passed; the detail pane says the rest.
+    var sunsetPhase: (endDate: String, phase: ProductSunset.Phase)? = nil
 
     /// Whether the sidebar row has room for the runtime symbol.
     ///
@@ -1566,6 +1576,7 @@ private struct WorkbenchSidebarRow: View {
         if channel > 0 { used += channel + 6 }
         if !fullDiskAccessNeeds.isEmpty { used += FullDiskAccessMark.width() + 6 }
         if caskLifecycle != nil { used += BrewCaskLifecycleMark.width + 6 }
+        if sunsetPhase != nil { used += ProductSunsetMark.width + 6 }
         return used + RuntimeTag.width() + 6 <= Self.narrowestNameColumn ? runtime : nil
     }
 
@@ -1585,6 +1596,9 @@ private struct WorkbenchSidebarRow: View {
                     }
                     ChannelTag(channel: result.effectiveReleaseChannel)
                     FullDiskAccessMark(needs: fullDiskAccessNeeds, grant: grantFullDiskAccess)
+                    if let sunsetPhase {
+                        ProductSunsetMark(endDate: sunsetPhase.endDate, phase: sunsetPhase.phase)
+                    }
                     if let caskLifecycle {
                         BrewCaskLifecycleMark(lifecycle: caskLifecycle)
                     }
@@ -1730,6 +1744,7 @@ extension WorkbenchSidebarRow: @MainActor Equatable {
             && lhs.versionLineState == rhs.versionLineState && lhs.showsRuntime == rhs.showsRuntime
             && lhs.isIgnored == rhs.isIgnored && lhs.isVersionSkipped == rhs.isVersionSkipped
             && lhs.fullDiskAccessNeeds == rhs.fullDiskAccessNeeds && lhs.caskLifecycle == rhs.caskLifecycle
+            && lhs.sunsetPhase?.endDate == rhs.sunsetPhase?.endDate && lhs.sunsetPhase?.phase == rhs.sunsetPhase?.phase
     }
 }
 
@@ -2831,6 +2846,70 @@ extension BrewLifecycle {
         case .deprecated: String(localized: "Homebrew has deprecated the cask this app was installed with")
         case .disabled: String(localized: "Homebrew has disabled the cask this app was installed with")
         }
+    }
+}
+
+// MARK: - Product sunset
+
+/// The mark an app row carries when its developer has announced the app's end
+/// (`ProductSunset`): orange before the date, red from it on. A calendar, not
+/// Homebrew's triangle: this is the app itself stopping, not a package manager.
+private struct ProductSunsetMark: View {
+    let endDate: String
+    let phase: ProductSunset.Phase
+
+    static let width: CGFloat = 13
+
+    private var help: String {
+        switch phase {
+        case .upcoming: String(localized: "The developer has announced this app stops working on \(endDate)")
+        case .ended: String(localized: "The developer has announced this app stopped working on \(endDate)")
+        }
+    }
+
+    var body: some View {
+        Image(systemName: "calendar.badge.exclamationmark")
+            .font(.system(size: 10))
+            .foregroundStyle(phase == .upcoming ? .orange : .red)
+            .frame(width: Self.width)
+            .help(help)
+            .accessibilityLabel(help)
+    }
+}
+
+/// What the developer announced about the app's end, above its release notes:
+/// the date, worded by whether it has passed, and a link to the announcement.
+private struct ProductSunsetNotice: View {
+    let name: String
+    let sunset: ProductSunset
+
+    var body: some View {
+        let phase = sunset.phase(today: ProductSunsetCatalog.today())
+        VStack(alignment: .leading, spacing: 6) {
+            Label {
+                Text(phase == .upcoming
+                     ? String(localized: "The developer has announced that \(name) will stop working on \(sunset.endDate).")
+                     : String(localized: "The developer has announced that \(name) stopped working on \(sunset.endDate)."))
+                    .fixedSize(horizontal: false, vertical: true)
+            } icon: {
+                Image(systemName: "calendar.badge.exclamationmark")
+                    .foregroundStyle(phase == .upcoming ? .orange : .red)
+            }
+            // NSWorkspace rather than SwiftUI's `Link`/`openURL`, which errors -50
+            // in this app's windows (see `BrewLifecycleNotice`).
+            // Looks like the header's "Open page" link.
+            Button {
+                NSWorkspace.shared.open(sunset.announcement)
+            } label: {
+                Label("Read the announcement", systemImage: "safari")
+            }
+            .buttonStyle(.link)
+            .font(.callout)
+            .help(sunset.announcement.absoluteString)
+        }
+        // See `BrewUncheckedDetailPane.minTextWidth`: its `fixedSize` texts
+        // need a width floor when the window measures its minimum size.
+        .frame(minWidth: BrewUncheckedDetailPane.minTextWidth, maxWidth: 560, alignment: .topLeading)
     }
 }
 

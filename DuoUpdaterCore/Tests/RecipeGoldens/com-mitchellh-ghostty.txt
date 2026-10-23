@@ -62,3 +62,5 @@ changelogPages["com.mitchellh.ghostty"] = URL("https://ghostty.org/docs/install/
 oneClickGates = Array(count: 0)
 
 loginItemAgentRestarts = Dictionary(count: 0)
+
+sunsets = Dictionary(count: 0)

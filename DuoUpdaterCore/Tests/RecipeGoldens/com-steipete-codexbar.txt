@@ -29,3 +29,5 @@ changelogPages["com.steipete.codexbar"] = URL("https://github.com/steipete/Codex
 oneClickGates = Array(count: 0)
 
 loginItemAgentRestarts = Dictionary(count: 0)
+
+sunsets = Dictionary(count: 0)

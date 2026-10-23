@@ -52,3 +52,5 @@ oneClickGates[0].reason = "this is a Hyper canary build; one-click installs only
 oneClickGates[0].offering = nil
 
 loginItemAgentRestarts = Dictionary(count: 0)
+
+sunsets = Dictionary(count: 0)

@@ -55,6 +55,7 @@ test-scripts: check-python
 	$(PYTHON) scripts/test_appcast_edit.py
 	$(PYTHON) scripts/test_publish_release.py
 	$(PYTHON) scripts/test_homebrew_tap.py
+	$(PYTHON) scripts/test_sunset_sweep.py
 	$(PYTHON) scripts/test_site_floor.py
 	$(PYTHON) scripts/test_ci_route.py
 	$(PYTHON) scripts/test_ci_build_cache.py

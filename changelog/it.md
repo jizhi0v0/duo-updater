@@ -2,6 +2,20 @@
 
 Questa è la traduzione di `CHANGELOG.md`. In caso di differenze fa fede la versione inglese. Le versioni non elencate qui vengono mostrate automaticamente in inglese.
 
+## 0.5.14
+
+**Sono supportati gli strumenti di mise.** Ogni strumento della configurazione globale di mise ottiene il controllo degli aggiornamenti e l’aggiornamento con un clic entro la versione richiesta; uno strumento fissato mostra cosa c’è oltre il vincolo, con il comando per passarci. Si trovano sotto Homebrew nella scheda CLI del banco di lavoro.
+
+**«Altri strumenti» apre una propria pagina nella barra dei menu.** La freccia accanto ad «Altri strumenti» elenca ogni gruppo, come gli strumenti di mise, Claude Code o npm con nvm, ciascuno con i propri «Aggiorna» e «Annulla». Fai clic destro su un gruppo per mostrarlo nella finestra.
+
+**Sono elencati i cask di Homebrew senza app.** Un JDK come zulu, o un cask di cui hai eliminato l’app, ora compare sotto Homebrew con il suo aggiornamento, mentre prima non compariva da nessuna parte. I cask che si installano con un pacchetto chiedono la password in un pannello di DuoUpdater.
+
+**DuoUpdater ti avvisa quando uno sviluppatore ha annunciato la fine di un’app.** Arc (smette di funzionare il 2026-12-22) e ChatGPT Atlas (ha smesso di funzionare il 2026-08-09) ricevono un contrassegno nel banco di lavoro e un avviso con il link all’annuncio; anche `duo check` e `duo list` lo mostrano.
+
+**Gli aggiornamenti di Gemini si installano durante i rilasci graduali di Google.** Prima venivano rifiutati all’ultimo passaggio quando la seconda risposta di Google indicava la versione precedente.
+
+**L’avviso «non è stato possibile controllare» nomina le app.** Fai clic per mostrarle nell’elenco.
+
 ## 0.5.13
 
 **Sono supportate 25 app in più.** Adrafinil, Bdash, Claudoscope, Deadbolt, DiffusionBee, Folo, FSNotes, Headroom, Hoppscotch, Hyper, Itsypad, Itsytv, Logseq, MacsyZones, massCode, Phosphene, PicGo, Readest, Sentinel, Simple Comic, SmoothCSV, Swift Quit, SwiftPlantUML, Tropy e Whispering ottengono il controllo degli aggiornamenti e gli aggiornamenti con un clic. La beta di Tropy si aggiorna su un percorso a sé, e le vecchie copie beta di Folo, massCode, PicGo e SmoothCSV vengono informate dell’ultima versione stabile.

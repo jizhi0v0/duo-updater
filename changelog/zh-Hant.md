@@ -2,6 +2,20 @@
 
 本文件是 CHANGELOG.md 的繁體中文翻譯，以英文版為準。本文件中未列出的版本會自動改以英文顯示。
 
+## 0.5.14
+
+**支援 mise 管理的工具。** mise 全域設定裡的每個工具都能在你要求的版本範圍內檢查更新和一鍵更新；固定了版本的工具會顯示固定範圍之外的新版本，並給出切換過去的指令。它們在工作台 CLI 分頁裡排在 Homebrew 下面。
+
+**「其他工具」在選單列裡有了自己的頁面。** 點「其他工具」旁邊的箭頭，會按組列出 mise 工具、Claude Code、nvm 下的 npm 等，每組都有自己的「更新」和「取消」。按右鍵點一個組可以在視窗中顯示。
+
+**沒有 App 的 Homebrew cask 也會列出來。** 像 zulu 這樣的 JDK，或者 App 已被你刪掉的 cask，現在會帶著更新顯示在 Homebrew 下面，以前哪裡都看不到。用安裝套件安裝的 cask 會在 DuoUpdater 自己的面板裡向你要密碼。
+
+**開發者宣布 App 停止運作時，DuoUpdater 會告訴你。** Arc（將於 2026-12-22 停止運作）和 ChatGPT Atlas（已於 2026-08-09 停止運作）在工作台裡有標記，並有一條附公告連結的提示；`duo check` 和 `duo list` 也會顯示。
+
+**Google 分批推送期間，Gemini 也能裝上更新。** 以前 Google 第二次回答成舊版本時，會在最後一步被拒絕。
+
+**「無法檢查」的提示條會列出是哪些 App。** 點一下就在列表裡顯示它們。
+
 ## 0.5.13
 
 **又支援了 25 個 App。** Adrafinil、Bdash、Claudoscope、Deadbolt、DiffusionBee、Folo、FSNotes、Headroom、Hoppscotch、Hyper、Itsypad、Itsytv、Logseq、MacsyZones、massCode、Phosphene、PicGo、Readest、Sentinel、Simple Comic、SmoothCSV、Swift Quit、SwiftPlantUML、Tropy 和 Whispering 可以檢查更新和一鍵更新。Tropy 的 Beta 單獨按自己的通道更新；Folo、massCode、PicGo 和 SmoothCSV 的舊 Beta 副本會被告知最新的穩定版。

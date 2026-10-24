@@ -2,6 +2,20 @@
 
 Ceci est la traduction de `CHANGELOG.md`. La version anglaise fait autorité. Les versions non énumérées ici reviennent automatiquement à l’anglais.
 
+## 0.5.14
+
+**Les outils mise sont pris en charge.** Chaque outil de la configuration globale de mise bénéficie de la vérification des mises à jour et d’une mise à jour en un clic dans la version demandée ; un outil épinglé montre ce qui existe au-delà de l’épinglage, avec la commande pour y passer. Ils figurent sous Homebrew dans l’onglet CLI de l’atelier.
+
+**« Autres outils » ouvre sa propre page dans la barre des menus.** La flèche à côté d’« Autres outils » liste chaque groupe, comme les outils mise, Claude Code ou npm sous nvm, chacun avec son propre « Mettre à jour » et « Annuler ». Un clic droit sur un groupe permet de l’afficher dans la fenêtre.
+
+**Les casks Homebrew sans app sont listés.** Un JDK comme zulu, ou un cask dont vous avez supprimé l’app, apparaît maintenant sous Homebrew avec sa mise à jour, alors qu’il n’apparaissait nulle part. Les casks qui s’installent avec un paquet demandent votre mot de passe dans un panneau propre à DuoUpdater.
+
+**DuoUpdater vous prévient quand un développeur a annoncé la fin d’une app.** Arc (cesse de fonctionner le 2026-12-22) et ChatGPT Atlas (a cessé de fonctionner le 2026-08-09) reçoivent une marque dans l’atelier et un avis avec un lien vers l’annonce ; `duo check` et `duo list` l’affichent aussi.
+
+**Les mises à jour de Gemini s’installent pendant les déploiements progressifs de Google.** Elles étaient refusées à la dernière étape quand la seconde réponse de Google indiquait l’ancienne version.
+
+**Le bandeau « n’ont pas pu être vérifiées » nomme les apps.** Cliquez dessus pour les afficher dans la liste.
+
 ## 0.5.13
 
 **25 apps de plus sont prises en charge.** Adrafinil, Bdash, Claudoscope, Deadbolt, DiffusionBee, Folo, FSNotes, Headroom, Hoppscotch, Hyper, Itsypad, Itsytv, Logseq, MacsyZones, massCode, Phosphene, PicGo, Readest, Sentinel, Simple Comic, SmoothCSV, Swift Quit, SwiftPlantUML, Tropy et Whispering bénéficient de la vérification des mises à jour et des mises à jour en un clic. La bêta de Tropy est mise à jour sur sa propre voie, et les anciennes copies bêta de Folo, massCode, PicGo et SmoothCSV sont informées de la dernière version stable.

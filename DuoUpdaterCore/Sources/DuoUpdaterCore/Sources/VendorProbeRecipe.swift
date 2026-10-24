@@ -843,6 +843,15 @@ public struct VendorProbeRecipe: Sendable {
         /// `Recipes/com-google-GeminiMacOS.swift`), so the check and the
         /// re-check agree.
         ///
+        /// This is what the protocol asks of a client: the reply's `cohort` is
+        /// "The new cohort value for the application. The client should update
+        /// the cohort of this application to the new value", and the request's
+        /// defaults to "" — the empty value sent when nothing is stored
+        /// (https://chromium.googlesource.com/chromium/src/+/main/docs/updater/protocol_3_1.md,
+        /// read 2026-10-24). The same document allows ASCII 32–126 in a cohort;
+        /// `allowedCharacters` is narrower on purpose, and a refused reply is
+        /// logged by `VendorProbeSource`.
+        ///
         /// The value lives in `EchoedFieldStore`, keyed by recipe, so the menu
         /// bar and `duo` share one; a source without a store sends the empty
         /// value every time, which is the request as it was before.

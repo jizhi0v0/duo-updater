@@ -66,4 +66,4 @@ the version on this row.
 
 灰度结束：07:00Z 起原请求体（无 cohort）20/20 `1.135.1.1291`，`cohort` `1:3j3x:`、"Prod"。官网的不带版本号地址 `dl.google.com/release2/j33ro/release/Gemini.dmg` HEAD 10 次一致：`content-length` 256237111（等于 1.135.1.1291 包的 `size`），`last-modified` 05:49:16Z——它跟的是全量版，灰度期间停在旧版。同一时刻 Chrome（同一服务）在灰度：不带 cohort 20 次 11 Stable / 5 "156.0.8078.47 Rollout" / 4 Control；回显 Rollout、Stable 各 10/10 不变。服务端回的 cohort 可以与送去的不同（送 `1:1y5/3wo9:3vo3@0.0,3wol@0.5,3w59@0.0`，回 `1:1y5/3wo9:3wol@0.5`），所以每次回复都要重新存。
 
-改法：请求体加 `"cohort":"__COHORT__"`，填上次回复分配的值（`RequestBody.EchoedField`，存在 `EchoedFieldStore`，菜单栏与 `duo` 共用一个文件）；什么都没存时填空串，等于改动前的请求。检查拿到的 cohort 被复查原样送回，两次由同一组回答。代价：灰度期间 duo 可能比本机 Gemini 自己的更新器先看到新版（同一个官方签名包）。
+改法：请求体加 `"cohort":"__COHORT__"`，填上次回复分配的值（`RequestBody.EchoedField`，存在 `EchoedFieldStore`，菜单栏与 `duo` 共用一个文件）；什么都没存时填空串，等于改动前的请求（协议文档写请求的 `cohort` "Default: \"\""；回复的 `cohort` "The client should update the cohort of this application to the new value"——<https://chromium.googlesource.com/chromium/src/+/main/docs/updater/protocol_3_1.md>，2026-10-24 用 curl 取原文核对）。检查拿到的 cohort 被复查原样送回，两次由同一组回答。代价：灰度期间 duo 可能比本机 Gemini 自己的更新器先看到新版（同一个官方签名包）。

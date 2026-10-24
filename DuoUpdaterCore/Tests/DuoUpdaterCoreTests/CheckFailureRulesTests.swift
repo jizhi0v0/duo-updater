@@ -28,4 +28,15 @@ struct CheckFailureRulesTests {
         #expect(CheckFailureRules.isChronic(
             consecutiveFailures: CheckFailureRules.chronicThreshold + 10) == true)
     }
+
+    /// Up to one past the limit every name is shown ("and 1 more" would take the
+    /// room the name would); beyond it, the first `limit` in list order and a count.
+    @Test("the banner names the first apps and counts the rest, never \"and 1 more\"")
+    func bannerNames() {
+        #expect(CheckFailureRules.bannerNames([]) == ([], 0))
+        #expect(CheckFailureRules.bannerNames(["Zed"]) == (["Zed"], 0))
+        #expect(CheckFailureRules.bannerNames(["Zed", "VLC", "Warp"], limit: 2) == (["Zed", "VLC", "Warp"], 0))
+        #expect(CheckFailureRules.bannerNames(["Zed", "VLC", "Warp", "UTM"], limit: 2) == (["Zed", "VLC"], 2))
+        #expect(CheckFailureRules.bannerNames(["a", "b", "c", "d", "e"], limit: 1) == (["a"], 4))
+    }
 }

@@ -32,6 +32,9 @@ private enum MenuLayoutMetrics {
 struct MenuContentView: View {
     @Bindable var model: AppListModel
     @State private var showAll = false
+    /// A row the list should scroll to once it is drawn — the failed-check
+    /// banner's click (`showFailedRows`). Cleared when the scroll is done.
+    @State private var scrollTarget: String?
     /// Popover filter text. When non-empty it overrides the pending/Show-all split
     /// and searches across *every* app, so an up-to-date app is still findable.
     @State private var searchText = ""
@@ -331,8 +334,28 @@ struct MenuContentView: View {
         .frame(height: 200)
     }
 
-    @ViewBuilder
     private var rowList: some View {
+        ScrollViewReader { proxy in
+            scrollingRows(proxy)
+        }
+    }
+
+    /// Scrolls to `scrollTarget` once this scroll view is drawn. On each of the
+    /// two below, not around both: turning "Show all" on usually swaps the short
+    /// list for the long one, and the task goes with the one that leaves, so the
+    /// scroll lands in the one that is drawn.
+    private func scrollingToTarget(_ list: some View, _ proxy: ScrollViewProxy) -> some View {
+        list.task(id: scrollTarget) {
+            guard let id = scrollTarget else { return }
+            try? await Task.sleep(for: .milliseconds(50))
+            guard !Task.isCancelled else { return }
+            withAnimation { proxy.scrollTo(id, anchor: .top) }
+            scrollTarget = nil
+        }
+    }
+
+    @ViewBuilder
+    private func scrollingRows(_ proxy: ScrollViewProxy) -> some View {
         if listOverflows {
             // Long enough that it scrolls no matter how the rows measure, so there
             // is nothing left for the measurement below to decide: pin the frame and
@@ -343,12 +366,12 @@ struct MenuContentView: View {
             // main-thread layout inside `ScrollViewLayoutComputer → StackLayout`
             // asking every row for its size (sample, 2026-08-23) — on every toggle,
             // not just the first.
-            ScrollView {
+            scrollingToTarget(ScrollView {
                 LazyVStack(spacing: 0) { rows }
-            }
+            }, proxy)
             .frame(height: Self.maxListHeight)
         } else {
-            ScrollView {
+            scrollingToTarget(ScrollView {
                 // Plain VStack (not lazy) so the background GeometryReader measures
                 // the *full* content height — a LazyVStack only reports realized rows,
                 // which would feed back a too-short frame. Only reached for lists too
@@ -357,7 +380,7 @@ struct MenuContentView: View {
                     .background(GeometryReader { geo in
                         Color.clear.preference(key: ListHeightKey.self, value: geo.size.height)
                     })
-            }
+            }, proxy)
             // Hug the measured content exactly, capped at 380 (then it scrolls). Using
             // the true height — not a per-row estimate — means no dead space at the
             // bottom for short lists. 54 is just the pre-measurement placeholder.
@@ -492,21 +515,38 @@ struct MenuContentView: View {
     /// "127 apps · up to date" — see `AppListModel.failedCheckResults`. This says how
     /// many rows we have no answer for, names the error most of them share, and
     /// re-checks just those rows rather than everything.
+    ///
+    /// It also names them (#1622: a count alone left the reader to find the app
+    /// by scrolling), and clicking the text shows them: "Show all" on, since
+    /// that is the only list `.error` rows are in, and scrolled to the first.
     private var checkFailureBanner: some View {
         HStack(alignment: .center, spacing: 8) {
-            HStack(alignment: .top, spacing: 8) {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundStyle(.orange)
-                VStack(alignment: .leading, spacing: 1) {
-                    Text("\(model.failedCheckCount) apps could not be checked")
-                        .font(.caption).fontWeight(.medium)
-                        .lineLimit(2)
-                        .truncationMode(.tail)
-                    Text(model.failedCheckSummary ?? String(localized: "Every update source failed"))
-                        .font(.caption2).foregroundStyle(.secondary)
-                        .lineLimit(1).truncationMode(.middle)
+            Button(action: showFailedRows) {
+                HStack(alignment: .top, spacing: 8) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("\(model.failedCheckCount) apps could not be checked")
+                            .font(.caption).fontWeight(.medium)
+                            .lineLimit(2)
+                            .truncationMode(.tail)
+                        // The chevron the popover's other clickable banners
+                        // carry, here rather than at the edge, where Retry is.
+                        HStack(spacing: 3) {
+                            Text(verbatim: failedAppNames)
+                                .lineLimit(1).truncationMode(.tail)
+                            Image(systemName: "chevron.right").foregroundStyle(.tertiary)
+                        }
+                        .font(.caption2)
+                        Text(model.failedCheckSummary ?? String(localized: "Every update source failed"))
+                            .font(.caption2).foregroundStyle(.secondary)
+                            .lineLimit(1).truncationMode(.middle)
+                    }
                 }
+                .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
+            .help("Show these apps in the list")
             .layoutPriority(1)
             Spacer()
             if model.isRetryingFailedChecks {
@@ -529,6 +569,23 @@ struct MenuContentView: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
         .background(Color.orange.opacity(0.08))
+    }
+
+    /// "Zed, VLC, and 3 more", in list order (`CheckFailureRules.bannerNames`).
+    private var failedAppNames: String {
+        let (named, more) = CheckFailureRules.bannerNames(model.failedCheckResults.map(\.app.name))
+        let items = more > 0 ? named + [String(localized: "\(more) more")] : named
+        return ListFormatter.localizedString(byJoining: items)
+    }
+
+    /// The banner's click: everything that would keep the failed rows off the
+    /// list goes (the tool groups' page, a search, "Show all" off), then the
+    /// list scrolls to the first of them (`rowList`).
+    private func showFailedRows() {
+        if toolsPageOpen { setToolsPage(false) }
+        searchText = ""
+        showAll = true
+        scrollTarget = model.failedCheckResults.first?.id
     }
 
     /// GitHub answered the token with a 401 and the check carried on without it

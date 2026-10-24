@@ -63,6 +63,20 @@ public enum CheckFailureRules {
         return next
     }
 
+    // MARK: - Naming the failed rows
+
+    /// How many failed apps the popover's banner names before it counts the rest.
+    public static let namedInBanner = 2
+
+    /// The names the failed-check banner shows, in list order, and how many it
+    /// leaves to "and N more" (#1622: "1 app could not be checked" said nothing
+    /// about which app). Never "and 1 more": naming that one costs no more room
+    /// than counting it.
+    public static func bannerNames(_ names: [String], limit: Int = namedInBanner) -> (named: [String], more: Int) {
+        guard names.count > limit + 1 else { return (names, 0) }
+        return (Array(names.prefix(limit)), names.count - limit)
+    }
+
     // MARK: - Automatic retry
 
     /// How long after a scheduled round ends its one automatic retry fires.

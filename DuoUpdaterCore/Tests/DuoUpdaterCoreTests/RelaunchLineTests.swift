@@ -180,4 +180,120 @@ import Testing
         #expect(line.from == "1.0 (128)")
         #expect(line.to == "1.0")
     }
+
+    // MARK: - The update line while an older process is still running
+
+    private func offering(
+        short: String?, build: String?, latest: String?, latestBuild: String?,
+        namespace: InstalledApp.BuildNamespace = .bundle
+    ) -> UpdateResult {
+        UpdateResult(
+            app: app(short: short, build: build),
+            remote: RemoteVersion(shortVersion: latest, version: latestBuild,
+                                  buildNamespace: namespace, downloadURL: nil, sourceName: "Test"),
+            status: .updateAvailable(latest: latest ?? latestBuild ?? "?"))
+    }
+
+    /// The case that prompted this: Chrome running .85 with .86 on disk and 156
+    /// offered. The line names what is running, as Chrome's About page does.
+    @Test func chromeNamesTheRunningVersionNotTheOneOnDisk() {
+        let row = offering(short: "155.0.8059.86", build: "8059.86",
+                           latest: "156.0.8078.48", latestBuild: nil)
+        let line = row.runningUpdateLine(
+            latest: "156.0.8078.48", running: Side(marketing: "155.0.8059.85", build: "8059.85"))
+        #expect(line?.from == "155.0.8059.85")
+        #expect(line?.to == "156.0.8078.48")
+    }
+
+    /// Nothing running behind the disk, or only a bare build recovered: the
+    /// on-disk line stays, rather than "8059.85 → 156.0.8078.48".
+    @Test func withoutARunningMarketingVersionTheOnDiskLineStays() {
+        let row = offering(short: "155.0.8059.86", build: "8059.86",
+                           latest: "156.0.8078.48", latestBuild: nil)
+        #expect(row.runningUpdateLine(latest: "156.0.8078.48", running: nil) == nil)
+        #expect(row.runningUpdateLine(
+            latest: "156.0.8078.48", running: Side(marketing: nil, build: "8059.85")) == nil)
+    }
+
+    /// Same marketing version on both ends: the builds tell them apart when the
+    /// offered build is a `CFBundleVersion` like the running one; when it is not,
+    /// or there is none, nothing does and the on-disk line stays.
+    @Test func sameMarketingKeepsBuildsOnlyInTheRunningBuildsNamespace() {
+        let running = Side(marketing: "6.9.0", build: "12028")
+        let bundle = offering(short: "6.9.0", build: "12029", latest: "6.9.0", latestBuild: "12030")
+        let line = bundle.runningUpdateLine(latest: "6.9.0", running: running)
+        #expect(line?.from == "6.9.0 (12028)")
+        #expect(line?.to == "6.9.0 (12030)")
+
+        let vendor = offering(short: "6.9.0", build: "12029", latest: "6.9.0",
+                              latestBuild: "20260829211045", namespace: .vendor)
+        #expect(vendor.runningUpdateLine(latest: "6.9.0", running: running) == nil)
+
+        let noBuild = offering(short: "6.9.0", build: "12029", latest: "6.9.0", latestBuild: nil)
+        #expect(noBuild.runningUpdateLine(latest: "6.9.0", running: running) == nil)
+    }
+
+    /// A feed that writes "1.169.0 (88758)" as its display version: the trailing
+    /// build is the offered build, not part of the marketing version.
+    @Test func aDisplayVersionCarryingItsBuildIsReadAsMarketingPlusBuild() {
+        let row = offering(short: "1.168.1", build: "88701",
+                           latest: "1.169.0 (88758)", latestBuild: "88758")
+        let line = row.runningUpdateLine(
+            latest: "1.169.0 (88758)", running: Side(marketing: "1.168.0", build: "88700"))
+        #expect(line?.from == "1.168.0")
+        #expect(line?.to == "1.169.0")
+    }
+
+    /// A source that offers only a build puts that build beside the arrow, so the
+    /// running side has to be a build too. Opera's marketing version is "135.0";
+    /// "135.0 → 135.0.5973.133" would drop the only digits that differ. CapCut
+    /// beta and the Office recipes offer a `CFBundleVersion` too, so they take the
+    /// same branch ("9.4.0-beta4 → 9.4.0-beta6"). A build-only offer in the
+    /// vendor's namespace cannot be read against the running `CFBundleVersion`
+    /// and keeps the on-disk line. No recipe produces one on purpose: the Mozilla
+    /// probes set a display pattern (see the next test), so this is the shape a
+    /// Nightly offer degrades to only when that pattern fails to match.
+    @Test func aBuildOnlyOfferIsAnsweredWithTheRunningBuild() {
+        let running = Side(marketing: "135.0", build: "135.0.5973.100")
+        let opera = offering(short: "135.0", build: "135.0.5973.120",
+                             latest: nil, latestBuild: "135.0.5973.133")
+        let line = opera.runningUpdateLine(latest: "135.0.5973.133", running: running)
+        #expect(line?.from == "135.0.5973.100")
+        #expect(line?.to == "135.0.5973.133")
+
+        let capCut = offering(short: "9.3.4545", build: "9.4.0-beta5",
+                              latest: nil, latestBuild: "9.4.0-beta6")
+        let capCutLine = capCut.runningUpdateLine(
+            latest: "9.4.0-beta6", running: Side(marketing: "9.3.4531", build: "9.4.0-beta4"))
+        #expect(capCutLine?.from == "9.4.0-beta4")
+        #expect(capCutLine?.to == "9.4.0-beta6")
+
+        let vendor = offering(short: "157.0a1", build: "15726.8.29", latest: nil,
+                              latestBuild: "20260829211045", namespace: .vendor)
+        #expect(vendor.runningUpdateLine(
+            latest: "20260829211045", running: Side(marketing: "157.0a1", build: "15726.8.28")) == nil)
+
+        let noBuild = offering(short: "135.0", build: "135.0.5973.120",
+                               latest: nil, latestBuild: "135.0.5973.133")
+        #expect(noBuild.runningUpdateLine(
+            latest: "135.0.5973.133", running: Side(marketing: "135.0", build: nil)) == nil)
+    }
+
+    /// A Mozilla probe offers its BuildID in the vendor's namespace but puts the
+    /// display version ("156.0b3") in `shortVersion`, so it is not build-only: it
+    /// takes the marketing path and names the running marketing version. The
+    /// vendor build is never compared with the running `CFBundleVersion`.
+    @Test func aMozillaOfferWithItsDisplayVersionTakesTheMarketingPath() {
+        let beta = offering(short: "155.0", build: "15526.8.27", latest: "156.0b3",
+                            latestBuild: "20261020123456", namespace: .vendor)
+        let line = beta.runningUpdateLine(
+            latest: "156.0b3", running: Side(marketing: "155.0", build: "15526.8.26"))
+        #expect(line?.from == "155.0")
+        #expect(line?.to == "156.0b3")
+
+        let nightly = offering(short: "157.0a1", build: "15726.8.29", latest: "157.0a1",
+                               latestBuild: "20260829211045", namespace: .vendor)
+        #expect(nightly.runningUpdateLine(
+            latest: "157.0a1", running: Side(marketing: "157.0a1", build: "15726.8.28")) == nil)
+    }
 }

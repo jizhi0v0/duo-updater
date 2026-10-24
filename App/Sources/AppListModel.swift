@@ -804,6 +804,13 @@ final class AppListModel {
             recoveredMarketing: recoveredRestartMarketing[id])
     }
 
+    /// The update line's two ends when the process still running is older than the
+    /// bundle on disk — the running version, not the one on disk, on the left. Nil
+    /// when the row's ordinary on-disk line stands. See `UpdateResult.runningUpdateLine`.
+    func runningUpdateLine(_ result: UpdateResult, latest: String) -> (from: String, to: String)? {
+        result.runningUpdateLine(latest: latest, running: restartFromSide(result.id))
+    }
+
     /// The raw staged self-update for a row, if its own updater has downloaded a
     /// newer build than what's on disk (regardless of whether it's the latest).
     func stagedSelfUpdate(_ id: String) -> StagedSelfUpdate? { pendingSelfUpdate[id] }

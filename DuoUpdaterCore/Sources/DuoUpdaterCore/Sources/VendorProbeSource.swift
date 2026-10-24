@@ -100,6 +100,12 @@ public struct VendorProbeSource: UpdateSource {
     /// response-declared `minimum`/`maximumSystemVersionPattern` — can be tested
     /// for a Mac the tests are not running on.
     private let hostOSVersion: String
+    /// Where a recipe's `RequestBody.EchoedField` is kept between requests. Nil
+    /// sends the empty value every time and records nothing — what every test
+    /// and the `duo verify` sweeps get; the menu bar and `duo check`/`install`
+    /// pass `.shared` through `SourceStack.make`. Readable so the wiring can be
+    /// pinned by tests (`EchoedFieldWiringTests`).
+    public let echoedFields: EchoedFieldStore?
 
     /// Cancels every redirect so the 3xx response is returned as-is. No stored
     /// state, so `@unchecked Sendable` is safe and required for the static below.
@@ -184,9 +190,11 @@ public struct VendorProbeSource: UpdateSource {
         recipes: [VendorProbeRecipe] = VendorProbeRegistry.recipes,
         session: URLSession = .updates,
         hostOSVersion: String = HostOS.numericVersion(),
-        resolvesInstallRedirects: Bool = true
+        resolvesInstallRedirects: Bool = true,
+        echoedFields: EchoedFieldStore? = nil
     ) {
         self.resolvesInstallRedirects = resolvesInstallRedirects
+        self.echoedFields = echoedFields
         // Group by bundle id; each group holds that id's per-channel recipes.
         self.recipes = Dictionary(grouping: recipes, by: { $0.bundleID })
         self.session = session
@@ -1192,10 +1200,16 @@ public struct VendorProbeSource: UpdateSource {
             request.setValue(Self.userAgent, forHTTPHeaderField: "User-Agent")
             Self.apply(recipe.requestHeaders, to: &request)
             // An update service that only answers a POST (Omaha). The body is
-            // fixed by the recipe — nothing about this machine goes into it.
+            // fixed by the recipe — nothing about this machine goes into it —
+            // except an echoed field, which carries back what the service itself
+            // assigned last time (`RequestBody.EchoedField`).
             if let body = recipe.requestBody {
                 request.httpMethod = "POST"
-                request.httpBody = Data(body.json.utf8)
+                var json = body.json
+                if let field = body.echoedField {
+                    json = field.body(json, stored: await echoedFields?.value(for: recipe.recipeID))
+                }
+                request.httpBody = Data(json.utf8)
                 request.setValue(body.contentType, forHTTPHeaderField: "Content-Type")
             }
 
@@ -1227,8 +1241,25 @@ public struct VendorProbeSource: UpdateSource {
             guard okRange.contains(http.statusCode) else {
                 return .failure(.httpStatus(http.statusCode))
             }
+            let text = String(decoding: data, as: UTF8.self)
+            // Stored before the reply is even parsed: the assignment is a fact
+            // about the service's state whatever this recipe goes on to make of
+            // the rest, and the next request must carry it either way.
+            if let field = recipe.requestBody?.echoedField, let echoedFields {
+                if let assigned = field.assigned(in: text) {
+                    await echoedFields.record(assigned, for: recipe.recipeID)
+                } else if VendorProbeRecipe.extractVersion(
+                    from: text, pattern: field.responsePattern) != nil {
+                    // The reply named a value and we refused it. Nothing is
+                    // stored, so every request goes on being asked as a fresh
+                    // client — #1621 again, silently, unless this is said. The
+                    // value itself stays out of the log.
+                    Log.source.error(
+                        "\(recipe.recipeID, privacy: .public): the reply assigned a \(field.placeholder, privacy: .public) value that fails the recipe's validation; it was not stored")
+                }
+            }
             return .success(FetchedBody(
-                text: String(decoding: data, as: UTF8.self),
+                text: text,
                 resolvedDownload: recipe.downloadURL ?? recipe.url,
                 status: http.statusCode))
 

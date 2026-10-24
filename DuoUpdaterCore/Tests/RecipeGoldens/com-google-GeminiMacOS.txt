@@ -44,7 +44,11 @@ probes[0].install?.contentsArchivePattern = nil
 probes[0].install?.myGoPublicKey = nil
 probes[0].requestBody? = struct VendorProbeRecipe.RequestBody
 probes[0].requestBody?.contentType = "application/json"
-probes[0].requestBody?.json = "{\"request\":{\"protocol\":\"3.0\",\"os\":{\"platform\":\"mac\",\"arch\":\"arm64\"},\"app\":[{\"appid\":\"com.google.GeminiMacOS\",\"tag\":\"m1-prod\",\"version\":\"0.0.0.0\",\"updatecheck\":{}}]}}"
+probes[0].requestBody?.json = "{\"request\":{\"protocol\":\"3.0\",\"os\":{\"platform\":\"mac\",\"arch\":\"arm64\"},\"app\":[{\"appid\":\"com.google.GeminiMacOS\",\"tag\":\"m1-prod\",\"version\":\"0.0.0.0\",\"cohort\":\"__COHORT__\",\"updatecheck\":{}}]}}"
+probes[0].requestBody?.echoedField? = struct VendorProbeRecipe.RequestBody.EchoedField
+probes[0].requestBody?.echoedField?.placeholder = "__COHORT__"
+probes[0].requestBody?.echoedField?.responsePattern = "\"cohort\"\\s*:\\s*\"([^\"]*)\""
+probes[0].requestBody?.echoedField?.validationPattern = "[0-9]+:[0-9A-Za-z:/@.,-]*"
 probes[0].followRedirects = true
 probes[0].requestHeaders = Dictionary(count: 0)
 

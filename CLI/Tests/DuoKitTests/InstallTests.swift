@@ -1315,3 +1315,19 @@ import DuoUpdaterCore
         #expect(Install.restartArgument(name: "X", path: path, bundleIDBefore: "a", bundleIDNow: nil) == "X")
     }
 }
+
+/// `duo check` and `duo install` must build their stack with the shared cohort
+/// store, or the CLI rolls per request and #1621 comes back for it alone.
+@Test func theCLICheckerCarriesTheSharedEchoedFieldStore() throws {
+    let settings = Settings(
+        updateSettings: UpdateSettings(
+            appStoreUpdateStrategy: .full, vendorInstallPolicy: .deferWhenRunning),
+        ignoredKeys: [], skippedVersions: [:], customScanPaths: [],
+        maxConcurrency: 12,
+        testFlightDetection: .off, keepBackups: true, githubToken: nil, alcove: nil)
+    let checker = Inventory.checker(
+        settings, testflight: TestFlightInventory(macRows: [], accessible: false),
+        toolbox: ToolboxInventory())
+    let probe = try #require(checker.sources.compactMap { $0 as? VendorProbeSource }.first)
+    #expect(probe.echoedFields === EchoedFieldStore.shared)
+}

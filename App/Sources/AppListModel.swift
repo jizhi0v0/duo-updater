@@ -2440,7 +2440,8 @@ final class AppListModel {
     private func makeSources(token: String?) -> [any UpdateSource] {
         SourceStack.make(
             githubToken: token, alcove: alcoveCredentials(),
-            channelStore: ResolvedChannelStore.shared)
+            channelStore: ResolvedChannelStore.shared,
+            echoedFields: EchoedFieldStore.shared)
     }
 
     /// Alcove's licensed-update credentials, or nil if either secret is missing

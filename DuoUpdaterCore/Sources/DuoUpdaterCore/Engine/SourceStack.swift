@@ -18,10 +18,14 @@ public enum SourceStack {
     ///   - channelStore: where a source may remember a channel it PROVED
     ///     remotely, so it survives a failed check and costs one request rather
     ///     than one per check. Pass the same instance to `UpdateChecker`.
+    ///   - echoedFields: where a vendor probe keeps a value its service assigns
+    ///     and wants back (Omaha's rollout cohort, #1621). Nil asks as a fresh
+    ///     client every time.
     public static func make(
         githubToken: String?,
         alcove: AlcoveUpdateSource.Credentials? = nil,
-        channelStore: ResolvedChannelStore? = nil
+        channelStore: ResolvedChannelStore? = nil,
+        echoedFields: EchoedFieldStore? = nil
     ) -> [any UpdateSource] {
         var sources: [any UpdateSource] = [
             MacAppStoreSource(),
@@ -64,7 +68,8 @@ public enum SourceStack {
         // an install needs. `duo verify` builds its own source and leaves the
         // default on, because auditing where that redirect lands is its job. The
         // full reasoning and the measurement are on the property (issue #671).
-        sources.append(VendorProbeSource(resolvesInstallRedirects: false))
+        sources.append(VendorProbeSource(
+            resolvesInstallRedirects: false, echoedFields: echoedFields))
         // AFTER the bespoke recipes, not before. Eight of the nine Electron apps
         // on the development machine already have a recipe whose install spec
         // picks a particular asset, and moving this ahead of them would swap the

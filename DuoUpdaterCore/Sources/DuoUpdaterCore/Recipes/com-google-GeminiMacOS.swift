@@ -17,6 +17,20 @@ enum com_google_GeminiMacOS {
         // so no build-vs-marketing trap here. The reply is prefixed with Google's
         // `)]}'` anti-hijacking line, which the regex simply skips.
         //
+        // ⚠️ STAGED ROLLOUT, keyed on the Omaha `cohort` (#1621). A request
+        // without one is put in a cohort at random per request: 20 asks on
+        // 2026-10-24 answered 12 × 1.131.4.1198 ("Prod") and 8 × 1.135.1.1291
+        // ("Rollout - Prod"), so the pre-install re-check contradicted the check
+        // that made the offer and refused the install. A fixed `userid`,
+        // `requestid` or `sessionid` changes nothing; a cohort the server has
+        // just assigned is sticky (15/15 each way), an outdated one is rolled
+        // again. So the body sends back the cohort the last reply assigned
+        // (`RequestBody.EchoedField`, kept in `EchoedFieldStore`), the way a
+        // client that keeps state does — and the check and the re-check are
+        // answered from the same group. Gemini's own in-app updater sends none
+        // (captured 2026-10-24), so it rolls per check itself; GoogleUpdater
+        // keeps one, but reading it would not help (History).
+        //
         // The download is checked against the package's `hash_sha256` (hex), on
         // top of the Team-ID gate. The checksum pattern takes the package object
         // holding the same `Gemini-<version>.dmg` `name` the URL reads, whatever
@@ -49,7 +63,14 @@ enum com_google_GeminiMacOS {
             requestBody: .init(json: """
                 {"request":{"protocol":"3.0","os":{"platform":"mac","arch":"arm64"},\
                 "app":[{"appid":"com.google.GeminiMacOS","tag":"m1-prod",\
-                "version":"0.0.0.0","updatecheck":{}}]}}
-                """)),
+                "version":"0.0.0.0","cohort":"__COHORT__","updatecheck":{}}]}}
+                """,
+                echoedField: .init(
+                    placeholder: "__COHORT__",
+                    responsePattern: #""cohort"\s*:\s*"([^"]*)""#,
+                    // `<n>:<ids…>[@<fraction>]`, as assigned so far
+                    // (`1:3j3x:`, `1:3j3x/3wu9:`, `1:3j3x:3wu9@0.3`; Chrome's
+                    // carry `,` lists and `@2.0E-4` fractions).
+                    validationPattern: #"[0-9]+:[0-9A-Za-z:/@.,-]*"#))),
         ])
 }

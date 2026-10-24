@@ -194,7 +194,7 @@ extension VendorProbeRecipe.BuildLineageSpec: Codable {
 }
 
 extension VendorProbeRecipe.RequestBody: Codable {
-    enum CodingKeys: String, CodingKey, CaseIterable { case contentType, json }
+    enum CodingKeys: String, CodingKey, CaseIterable { case contentType, json, echoedField }
 
     public init(from decoder: Decoder) throws {
         try RecipeCoding.rejectUnknownKeys(in: decoder, allowed: CodingKeys.self)
@@ -203,13 +203,38 @@ extension VendorProbeRecipe.RequestBody: Codable {
         let d = Self(json: "")
         self.init(
             contentType: try c.decode(String.self, forKey: .contentType, default: d.contentType),
-            json: json)
+            json: json,
+            echoedField: try c.decodeOptional(
+                EchoedField.self, forKey: .echoedField, default: d.echoedField))
     }
 
     public func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
         try c.encode(contentType, forKey: .contentType)
         try c.encode(json, forKey: .json)
+        try c.encodeOptional(echoedField, forKey: .echoedField, defaultIsNil: true)
+    }
+}
+
+extension VendorProbeRecipe.RequestBody.EchoedField: Codable {
+    enum CodingKeys: String, CodingKey, CaseIterable {
+        case placeholder, responsePattern, validationPattern
+    }
+
+    public init(from decoder: Decoder) throws {
+        try RecipeCoding.rejectUnknownKeys(in: decoder, allowed: CodingKeys.self)
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            placeholder: try c.decode(String.self, forKey: .placeholder),
+            responsePattern: try c.decode(String.self, forKey: .responsePattern),
+            validationPattern: try c.decode(String.self, forKey: .validationPattern))
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(placeholder, forKey: .placeholder)
+        try c.encode(responsePattern, forKey: .responsePattern)
+        try c.encode(validationPattern, forKey: .validationPattern)
     }
 }
 

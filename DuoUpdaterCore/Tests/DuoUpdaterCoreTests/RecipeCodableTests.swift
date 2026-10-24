@@ -100,6 +100,12 @@ struct RecipeCodableTests {
                 required: #"{"json":"{}"}"#,
                 expected: .init(json: "{}")),
             .structure(
+                VendorProbeRecipe.RequestBody.EchoedField.self,
+                keys: VendorProbeRecipe.RequestBody.EchoedField.CodingKeys.allCases.map(\.stringValue),
+                required: #"{"placeholder":"__C__","responsePattern":"c=(\\w*)","validationPattern":"\\w+"}"#,
+                expected: .init(
+                    placeholder: "__C__", responsePattern: #"c=(\w*)"#, validationPattern: #"\w+"#)),
+            .structure(
                 ProbeIdentity.self,
                 keys: ProbeIdentity.CodingKeys.allCases.map(\.stringValue),
                 required: #"{"location":{"kind":"home","path":".zz"},"encoding":{"kind":"plain"},"validationPattern":"[a-z]+"}"#,

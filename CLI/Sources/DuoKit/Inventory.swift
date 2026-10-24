@@ -187,7 +187,8 @@ public enum Inventory {
         return UpdateChecker(
             sources: SourceStack.make(
                 githubToken: settings.githubToken, alcove: settings.alcove,
-                channelStore: ResolvedChannelStore.shared),
+                channelStore: ResolvedChannelStore.shared,
+                echoedFields: EchoedFieldStore.shared),
             maxConcurrency: settings.maxConcurrency,
             toolbox: ToolboxSource(inventory: toolbox),
             testflight: testflight,

@@ -243,4 +243,28 @@ import Testing
         #expect(line?.from == "1.168.0")
         #expect(line?.to == "1.169.0")
     }
+
+    /// A source that offers only a build puts that build beside the arrow, so the
+    /// running side has to be a build too. Opera's marketing version is "135.0";
+    /// "135.0 → 135.0.5973.133" would drop the only digits that differ. In the
+    /// vendor's namespace (CapCut beta, Office) the running `CFBundleVersion`
+    /// cannot be read against the offer, and the on-disk line stays.
+    @Test func aBuildOnlyOfferIsAnsweredWithTheRunningBuild() {
+        let running = Side(marketing: "135.0", build: "135.0.5973.100")
+        let opera = offering(short: "135.0", build: "135.0.5973.120",
+                             latest: nil, latestBuild: "135.0.5973.133")
+        let line = opera.runningUpdateLine(latest: "135.0.5973.133", running: running)
+        #expect(line?.from == "135.0.5973.100")
+        #expect(line?.to == "135.0.5973.133")
+
+        let vendor = offering(short: "9.3.4531", build: "4531", latest: nil,
+                              latestBuild: "9.4.0-beta6", namespace: .vendor)
+        #expect(vendor.runningUpdateLine(
+            latest: "9.4.0-beta6", running: Side(marketing: "9.3.4520", build: "4520")) == nil)
+
+        let noBuild = offering(short: "135.0", build: "135.0.5973.120",
+                               latest: nil, latestBuild: "135.0.5973.133")
+        #expect(noBuild.runningUpdateLine(
+            latest: "135.0.5973.133", running: Side(marketing: "135.0", build: nil)) == nil)
+    }
 }

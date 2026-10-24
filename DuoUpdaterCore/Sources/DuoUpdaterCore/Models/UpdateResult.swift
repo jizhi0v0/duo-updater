@@ -833,8 +833,21 @@ extension UpdateResult {
     /// ``relaunchLine(from:to:)``'s rule, and the offered build counts only when it
     /// is a `CFBundleVersion` like the running one; with nothing left to tell the
     /// two apart ("6.9.0 → 6.9.0") the on-disk line is kept.
+    ///
+    /// A source that offers only a build (`shortVersion == nil`) puts that build
+    /// beside the arrow, and ``installedDisplay`` answers it with the installed
+    /// build for the same reason. The running side follows: its build when that is
+    /// a `CFBundleVersion` like the offer — Opera's "135.0.5973.100 → 135.0.5973.133",
+    /// not "135.0 → …" — and the on-disk line when the offer is in the vendor's
+    /// namespace, where the running build cannot be read against it.
     public func runningUpdateLine(latest: String, running: VersionSide?) -> (from: String, to: String)? {
-        guard let running, let runningMarketing = running.marketing else { return nil }
+        guard let running else { return nil }
+        if let remote, remote.shortVersion == nil, remote.version != nil {
+            guard remote.buildNamespace == .bundle, let runningBuild = running.build,
+                  runningBuild != Self.strippingBuildPrefix(latest) else { return nil }
+            return (runningBuild, latest)
+        }
+        guard let runningMarketing = running.marketing else { return nil }
         let offeredMarketing = Self.droppingTrailingBuild(latest, build: remote?.version)
         let offeredBuild = remote?.buildNamespace == .bundle
             ? remote?.version.map(Self.strippingBuildPrefix) : nil

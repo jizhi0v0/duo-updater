@@ -19,6 +19,20 @@ release note is debugging our code:
 
 Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
+## 0.5.14
+
+**mise tools are supported.** Each tool in mise's global config gets an update check and a one-click update within the version you asked for; a pinned tool shows what lies beyond the pin, with the command to move to it. They sit under Homebrew in the workbench's CLI tab.
+
+**Other tools opens its own page in the menu bar.** The arrow beside Other tools lists each group, such as mise tools, Claude Code or npm under nvm, with its own Update and Cancel. Right-click a group to show it in the window.
+
+**Homebrew casks without an app are listed.** A JDK such as zulu, or a cask whose app you deleted, now shows under Homebrew with its update, where before it appeared nowhere. Casks that install with a package ask for your password in DuoUpdater's own panel.
+
+**DuoUpdater tells you when a developer has announced an app's end.** Arc (stops working on 2026-12-22) and ChatGPT Atlas (stopped on 2026-08-09) get a mark in the workbench and a notice linking to the announcement; `duo check` and `duo list` print it too.
+
+**Gemini updates install during Google's staged rollouts.** They used to be refused at the last step when Google's second answer named the older version.
+
+**The "could not be checked" banner names the apps.** Click it to show them in the list.
+
 ## 0.5.13
 
 **Twenty-five more apps are supported.** Adrafinil, Bdash, Claudoscope, Deadbolt, DiffusionBee, Folo, FSNotes, Headroom, Hoppscotch, Hyper, Itsypad, Itsytv, Logseq, MacsyZones, massCode, Phosphene, PicGo, Readest, Sentinel, Simple Comic, SmoothCSV, Swift Quit, SwiftPlantUML, Tropy and Whispering get update checks and one-click updates. Tropy's beta is updated on its own track, and older beta copies of Folo, massCode, PicGo and SmoothCSV are told about the latest stable release.

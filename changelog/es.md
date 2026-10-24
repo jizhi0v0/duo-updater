@@ -2,6 +2,20 @@
 
 Esta es la traducción al español del archivo CHANGELOG.md. La versión en inglés es la autoridad en caso de discrepancias. Los números de versión no incluidos aquí se mostrarán automáticamente en inglés en la ventana de Novedades.
 
+## 0.5.14
+
+**Se admiten las herramientas de mise.** Cada herramienta de la configuración global de mise recibe comprobación de actualizaciones y actualización con un clic dentro de la versión que pediste; una herramienta fijada muestra lo que hay más allá de la fijación, con el comando para pasar a ello. Aparecen bajo Homebrew en la pestaña CLI del banco de trabajo.
+
+**«Otras herramientas» abre su propia página en la barra de menús.** La flecha junto a «Otras herramientas» lista cada grupo, como las herramientas de mise, Claude Code o npm con nvm, cada uno con su propio «Actualizar» y «Cancelar». Haz clic derecho en un grupo para mostrarlo en la ventana.
+
+**Se listan los casks de Homebrew que no tienen app.** Un JDK como zulu, o un cask cuya app borraste, ahora aparece bajo Homebrew con su actualización, cuando antes no aparecía en ningún sitio. Los casks que se instalan con un paquete piden tu contraseña en un panel propio de DuoUpdater.
+
+**DuoUpdater te avisa cuando un desarrollador ha anunciado el fin de una app.** Arc (deja de funcionar el 2026-12-22) y ChatGPT Atlas (dejó de funcionar el 2026-08-09) reciben una marca en el banco de trabajo y un aviso con un enlace al anuncio; `duo check` y `duo list` también lo muestran.
+
+**Las actualizaciones de Gemini se instalan durante los despliegues escalonados de Google.** Antes se rechazaban en el último paso cuando la segunda respuesta de Google indicaba la versión anterior.
+
+**El aviso de «no se pudieron comprobar» nombra las apps.** Haz clic en él para mostrarlas en la lista.
+
 ## 0.5.13
 
 **Se admiten 25 apps más.** Adrafinil, Bdash, Claudoscope, Deadbolt, DiffusionBee, Folo, FSNotes, Headroom, Hoppscotch, Hyper, Itsypad, Itsytv, Logseq, MacsyZones, massCode, Phosphene, PicGo, Readest, Sentinel, Simple Comic, SmoothCSV, Swift Quit, SwiftPlantUML, Tropy y Whispering reciben comprobación de actualizaciones y actualizaciones con un clic. La beta de Tropy se actualiza por su propia vía, y las copias beta antiguas de Folo, massCode, PicGo y SmoothCSV se enteran de la última versión estable.

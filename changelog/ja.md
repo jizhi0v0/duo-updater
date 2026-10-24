@@ -2,6 +2,20 @@
 
 このページは `CHANGELOG.md` の日本語訳です。英語版が権威あるバージョンであり、ここに記載されていないバージョンは自動的に英語版へフォールバックします。
 
+## 0.5.14
+
+**mise のツールに対応しました。** mise のグローバル設定にある各ツールで、指定したバージョンの範囲内でのアップデートの確認とワンクリックアップデートが使えます。固定されたツールには、固定の先にあるバージョンと、そこへ移るためのコマンドが表示されます。ワークベンチの CLI タブで Homebrew の下に並びます。
+
+**「その他のツール」がメニューバーで専用のページを開くようになりました。** 「その他のツール」の横の矢印から、mise のツール、Claude Code、nvm の npm などのグループが一覧され、それぞれに「更新」と「キャンセル」があります。グループを右クリックするとウインドウで表示できます。
+
+**App のない Homebrew の cask が一覧に出るようになりました。** zulu のような JDK や、App を削除した cask が、アップデートとともに Homebrew の下に表示されます。以前はどこにも表示されませんでした。パッケージでインストールする cask は、DuoUpdater 自身のパネルでパスワードを尋ねます。
+
+**開発元が App の終了を発表したときに知らせるようになりました。** Arc（2026-12-22 に動作停止）と ChatGPT Atlas（2026-08-09 に動作停止）には、ワークベンチで印と発表へのリンク付きの通知が表示されます。`duo check` と `duo list` にも表示されます。
+
+**Google の段階的な配信中でも Gemini のアップデートがインストールされるようになりました。** 以前は、Google の 2 回目の応答が古いバージョンを返すと、最後の段階で拒否されていました。
+
+**「確認できませんでした」のバナーに App 名が表示されるようになりました。** クリックするとリストでそれらの App を表示します。
+
 ## 0.5.13
 
 **対応 App が 25 個増えました。** Adrafinil、Bdash、Claudoscope、Deadbolt、DiffusionBee、Folo、FSNotes、Headroom、Hoppscotch、Hyper、Itsypad、Itsytv、Logseq、MacsyZones、massCode、Phosphene、PicGo、Readest、Sentinel、Simple Comic、SmoothCSV、Swift Quit、SwiftPlantUML、Tropy、Whispering でアップデートの確認とワンクリックアップデートが使えるようになりました。Tropy のベータ版は独自の経路でアップデートされ、Folo、massCode、PicGo、SmoothCSV の古いベータ版には最新の安定版が知らされます。

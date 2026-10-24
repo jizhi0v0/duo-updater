@@ -2,6 +2,20 @@
 
 Esta é a tradução para o português do Brasil do arquivo CHANGELOG.md. A versão em inglês prevalece em caso de divergência. Os números de versão que não aparecem aqui são mostrados automaticamente em inglês na janela Novidades.
 
+## 0.5.14
+
+**As ferramentas do mise são compatíveis.** Cada ferramenta da configuração global do mise ganha verificação de atualizações e atualização com um clique dentro da versão que você pediu; uma ferramenta fixada mostra o que existe além da fixação, com o comando para passar a ela. Elas ficam abaixo do Homebrew na aba CLI da bancada.
+
+**“Outras ferramentas” abre uma página própria na barra de menus.** A seta ao lado de “Outras ferramentas” lista cada grupo, como as ferramentas do mise, Claude Code ou npm com nvm, cada um com seus próprios “Atualizar” e “Cancelar”. Clique com o botão direito num grupo para mostrá-lo na janela.
+
+**Casks do Homebrew sem app são listados.** Um JDK como o zulu, ou um cask cujo app você apagou, agora aparece abaixo do Homebrew com sua atualização, quando antes não aparecia em lugar nenhum. Casks que instalam com um pacote pedem sua senha num painel do próprio DuoUpdater.
+
+**O DuoUpdater avisa quando um desenvolvedor anunciou o fim de um app.** Arc (para de funcionar em 2026-12-22) e ChatGPT Atlas (parou de funcionar em 2026-08-09) ganham uma marca na bancada e um aviso com link para o anúncio; `duo check` e `duo list` também o mostram.
+
+**Atualizações do Gemini são instaladas durante as liberações graduais do Google.** Antes eram recusadas no último passo quando a segunda resposta do Google indicava a versão mais antiga.
+
+**O aviso de “não puderam ser verificados” mostra o nome dos apps.** Clique nele para mostrá-los na lista.
+
 ## 0.5.13
 
 **Mais 25 apps são compatíveis.** Adrafinil, Bdash, Claudoscope, Deadbolt, DiffusionBee, Folo, FSNotes, Headroom, Hoppscotch, Hyper, Itsypad, Itsytv, Logseq, MacsyZones, massCode, Phosphene, PicGo, Readest, Sentinel, Simple Comic, SmoothCSV, Swift Quit, SwiftPlantUML, Tropy e Whispering ganham verificação de atualizações e atualização com um clique. A beta do Tropy é atualizada por um caminho próprio, e cópias beta antigas de Folo, massCode, PicGo e SmoothCSV ficam sabendo da versão estável mais recente.

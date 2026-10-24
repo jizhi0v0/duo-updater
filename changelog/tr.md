@@ -2,6 +2,20 @@
 
 Bu, `CHANGELOG.md` dosyasının Türkçe çevirisidir. Geçerli olan İngilizce sürümdür; burada yer almayan eski sürümler otomatik olarak İngilizce gösterilir.
 
+## 0.5.14
+
+**mise araçları destekleniyor.** mise’ın genel yapılandırmasındaki her araç, istediğiniz sürüm içinde güncelleme denetimi ve tek tıkla güncelleme alıyor; sabitlenmiş bir araç, sabitlemenin ötesinde ne olduğunu ve oraya geçmek için komutu gösteriyor. Çalışma alanının CLI sekmesinde Homebrew’un altında yer alıyorlar.
+
+**“Diğer araçlar” menü çubuğunda kendi sayfasını açıyor.** “Diğer araçlar”ın yanındaki ok, mise araçları, Claude Code ya da nvm altındaki npm gibi her grubu kendi “Güncelle” ve “Vazgeç” düğmeleriyle listeliyor. Bir gruba sağ tıklayarak onu pencerede gösterebilirsiniz.
+
+**Uygulaması olmayan Homebrew cask’leri listeleniyor.** zulu gibi bir JDK ya da uygulamasını sildiğiniz bir cask, önceden hiçbir yerde görünmezken artık güncellemesiyle birlikte Homebrew’un altında görünüyor. Paketle kurulan cask’ler parolanızı DuoUpdater’ın kendi panelinde soruyor.
+
+**DuoUpdater, bir geliştirici bir uygulamanın sonunu duyurduğunda size söylüyor.** Arc (2026-12-22’de çalışmayı bırakıyor) ve ChatGPT Atlas (2026-08-09’da çalışmayı bıraktı) çalışma alanında bir işaret ve duyuruya bağlantı veren bir uyarı alıyor; `duo check` ve `duo list` de bunu gösteriyor.
+
+**Gemini güncellemeleri Google’ın kademeli dağıtımları sırasında da kuruluyor.** Önceden Google’ın ikinci yanıtı eski sürümü söylediğinde son adımda reddediliyordu.
+
+**“Denetlenemedi” uyarısı uygulamaların adlarını veriyor.** Tıklayınca listede gösteriyor.
+
 ## 0.5.13
 
 **25 uygulama daha destekleniyor.** Adrafinil, Bdash, Claudoscope, Deadbolt, DiffusionBee, Folo, FSNotes, Headroom, Hoppscotch, Hyper, Itsypad, Itsytv, Logseq, MacsyZones, massCode, Phosphene, PicGo, Readest, Sentinel, Simple Comic, SmoothCSV, Swift Quit, SwiftPlantUML, Tropy ve Whispering güncelleme denetimi ve tek tıkla güncelleme alıyor. Tropy’nin betası kendi yolundan güncelleniyor; Folo, massCode, PicGo ve SmoothCSV’nin eski beta kopyalarına en yeni kararlı sürüm bildiriliyor.

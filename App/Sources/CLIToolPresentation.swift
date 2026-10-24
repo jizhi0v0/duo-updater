@@ -230,6 +230,12 @@ enum CLIToolPresentation {
         String(localized: "Installed in root’s /usr/local/bin — updating asks for an administrator password.")
     }
 
+    /// The "sudo" badge's tooltip on a Homebrew cask whose upgrade runs a pkg
+    /// (`BrewInstalledFormula.needsSudo`).
+    static var brewSudoBadgeHelp: String {
+        String(localized: "Its installer runs as an administrator — updating asks for your password.")
+    }
+
     /// "1 needs sudo", "2 need sudo": how many offered updates ask for an
     /// administrator password, beside the updates count. Nil at none.
     static func needSudo(_ count: Int) -> String? {

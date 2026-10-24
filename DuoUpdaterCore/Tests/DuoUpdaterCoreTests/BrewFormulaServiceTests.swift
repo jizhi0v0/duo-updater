@@ -242,25 +242,12 @@ import Foundation
         #expect(result.isEmpty)
     }
 
-    /// End-to-end wiring for the cask path: JSON in, filtered-by-`installsAnApp`
-    /// result out. `zzfixture-cli` has no staged `.app`/`.pkg` anywhere real (it
-    /// doesn't exist), so it passes the filter; the parser/filter behavior itself
-    /// is covered in depth by `BrewOutdatedCaskTests`.
-    ///
-    /// The fake `Executor` above only replaces the `brew` subprocess half of
-    /// `outdatedCasks()` — the filter half, `installsAnApp(caskToken:)`, reads the
-    /// REAL Caskroom via `BrewLocalInventory.defaultCaskroomPaths` directly off
-    /// disk, with no executor seam. So an invented-sounding fixture name is not
-    /// enough by itself (CLAUDE.md "测试不能问宿主": a name that merely LOOKS
-    /// fictitious but happens to collide with something real on some machine is
-    /// exactly the "implicitly asking the host" shape). Assert up front, as a gate
-    /// that fails loudly rather than a comment that can rot, that this name is not
-    /// staged in any real Caskroom this test would actually read.
+    /// End-to-end wiring for the cask path: JSON in, filtered by `caskFacts`
+    /// result out. The test service's `caskFacts` seam answers "no app" for
+    /// every token, so `zzfixture-cli` passes the filter without anything
+    /// reading the host's Caskroom; the parser/filter behavior itself is
+    /// covered in depth by `BrewOutdatedCaskTests`.
     @Test func outdatedCasksParsesAndFiltersASuccessfulResponse() async throws {
-        for root in BrewLocalInventory.defaultCaskroomPaths {
-            #expect(!FileManager.default.fileExists(atPath: root + "/zzfixture-cli"))
-        }
-
         let payload = Data("""
         {"formulae":[],"casks":[
           {"name":"zzfixture-cli","installed_versions":["0.1.0"],

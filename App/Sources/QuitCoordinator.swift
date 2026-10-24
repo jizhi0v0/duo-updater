@@ -228,7 +228,7 @@ extension AppListModel {
             rowNames: installing.keys.sorted().map(name) + relaunching.sorted().map(name),
             batchRunning: isInstallingAll || cliTools.updatingAll,
             homebrewRunning: brewUpgrading || homebrewUpdating,
-            formulae: upgradingFormulae.sorted(),
+            formulae: upgradingFormulae.sorted().map(BrewInstalledFormula.displayName(forKey:)),
             // `awaitingCheck`: the update has run, only the re-check is left.
             cliTools: cliTools.updating.subtracting(cliTools.awaitingCheck)
                 .map(\.kind.displayName).sorted(),

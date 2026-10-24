@@ -13516,6 +13516,219 @@
         }
       }
     },
+    "Homebrew can’t upgrade %@ itself: its installer has to be run by hand.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew kann %@ nicht selbst aktualisieren: Sein Installationsprogramm muss von Hand ausgeführt werden."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew can’t upgrade %@ itself: its installer has to be run by hand."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew no puede actualizar %@ por sí solo: su instalador se tiene que ejecutar a mano."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew ne peut pas mettre à jour %@ lui-même : son programme d’installation doit être lancé à la main."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew non può aggiornare %@ da solo: il suo programma di installazione va eseguito a mano."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew は %@ を自動でアップグレードできません。インストーラを手動で実行する必要があります。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O Homebrew não consegue atualizar %@ sozinho: o instalador precisa ser executado manualmente."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew не может обновить %@ сам: установщик нужно запустить вручную."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew %@ uygulamasını kendisi güncelleyemez: yükleyicisinin elle çalıştırılması gerekir."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew 无法自行升级 %@：它的安装器需要手动运行。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew 無法自行升級 %@：它的安裝器需要手動執行。"
+          }
+        }
+      }
+    },
+    "Homebrew needs your administrator password": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew braucht dein Administratorpasswort"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew needs your administrator password"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew necesita tu contraseña de administrador"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew a besoin de votre mot de passe administrateur"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew ha bisogno della tua password di amministratore"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew に管理者パスワードが必要です"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O Homebrew precisa da sua senha de administrador"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew нужен пароль администратора"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew yönetici parolanızı istiyor"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew 需要你的管理员密码"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew 需要你的管理者密碼"
+          }
+        }
+      }
+    },
+    "Its installer runs as an administrator — updating asks for your password.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sein Installationsprogramm läuft als Administrator – das Update fragt nach deinem Passwort."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Its installer runs as an administrator — updating asks for your password."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Su instalador se ejecuta como administrador: la actualización pide tu contraseña."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Son programme d’installation s’exécute en tant qu’administrateur — la mise à jour demande votre mot de passe."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Il suo programma di installazione viene eseguito come amministratore — l’aggiornamento chiede la tua password."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "インストーラが管理者として実行されます。アップデートにはパスワードが必要です。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O instalador é executado como administrador — a atualização pede sua senha."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Установщик запускается от имени администратора — обновление запрашивает пароль."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yükleyicisi yönetici olarak çalışır — güncelleme parolanızı ister."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "它的安装器以管理员身份运行，更新时会要求输入密码。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "它的安裝器以管理者身分執行，更新時會要求輸入密碼。"
+          }
+        }
+      }
+    },
     "No %@ found that can update it": {
       "extractionState": "manual",
       "localizations": {
@@ -15202,6 +15415,77 @@
           "stringUnit": {
             "state": "translated",
             "value": "將換成穩定版"
+          }
+        }
+      }
+    },
+    "That password didn’t work. Enter it again to upgrade %@.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Passwort hat nicht funktioniert. Gib es erneut ein, um %@ zu aktualisieren."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "That password didn’t work. Enter it again to upgrade %@."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esa contraseña no ha funcionado. Vuelve a introducirla para actualizar %@."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ce mot de passe n’a pas fonctionné. Saisissez-le à nouveau pour mettre à jour %@."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La password non ha funzionato. Inseriscila di nuovo per aggiornare %@."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "パスワードが正しくありませんでした。%@ をアップグレードするには、もう一度入力してください。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Essa senha não funcionou. Digite-a novamente para atualizar %@."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Пароль не подошёл. Введите его ещё раз, чтобы обновить %@."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Parola işe yaramadı. %@ güncellemesi için yeniden girin."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "密码不正确。请再次输入以升级 %@。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "密碼不正確。請再次輸入以升級 %@。"
           }
         }
       }
@@ -24298,6 +24582,77 @@
           "stringUnit": {
             "state": "translated",
             "value": "更新會把這份副本換成穩定版——點擊查看詳情"
+          }
+        }
+      }
+    },
+    "Upgrading %@ runs its installer as an administrator. DuoUpdater hands the password to Homebrew’s sudo for this upgrade and doesn’t keep it.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Update von %@ führt sein Installationsprogramm als Administrator aus. DuoUpdater gibt das Passwort für dieses Update an sudo von Homebrew weiter und speichert es nicht."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Upgrading %@ runs its installer as an administrator. DuoUpdater hands the password to Homebrew’s sudo for this upgrade and doesn’t keep it."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Actualizar %@ ejecuta su instalador como administrador. DuoUpdater entrega la contraseña al sudo de Homebrew para esta actualización y no la guarda."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La mise à jour de %@ exécute son programme d’installation en tant qu’administrateur. DuoUpdater transmet le mot de passe au sudo de Homebrew pour cette mise à jour et ne le conserve pas."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "L’aggiornamento di %@ esegue il suo programma di installazione come amministratore. DuoUpdater passa la password al sudo di Homebrew per questo aggiornamento e non la conserva."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ のアップグレードではインストーラが管理者として実行されます。DuoUpdater はこのアップグレードのためにパスワードを Homebrew の sudo に渡すだけで、保存しません。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Atualizar %@ executa o instalador como administrador. O DuoUpdater repassa a senha ao sudo do Homebrew para esta atualização e não a guarda."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Обновление %@ запускает установщик от имени администратора. DuoUpdater передаёт пароль в sudo Homebrew только для этого обновления и не сохраняет его."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ güncellemesi yükleyicisini yönetici olarak çalıştırır. DuoUpdater parolayı bu güncelleme için Homebrew’un sudo’suna iletir ve saklamaz."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "升级 %@ 会以管理员身份运行它的安装器。DuoUpdater 只把密码交给本次升级里 Homebrew 的 sudo，不会保存。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "升級 %@ 會以管理者身分執行它的安裝器。DuoUpdater 只把密碼交給本次升級中 Homebrew 的 sudo，不會保存。"
           }
         }
       }

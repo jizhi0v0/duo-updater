@@ -279,7 +279,7 @@ struct WorkbenchWindowView: View {
     }
 
     /// A formula row's tag, as `heldCLIOrder` names it.
-    private static func formulaTag(_ formula: BrewInstalledFormula) -> String { "brew:formula:\(formula.name)" }
+    private static func formulaTag(_ formula: BrewInstalledFormula) -> String { "brew:formula:\(formula.key)" }
 
     /// Anything in the CLI tab is updating — Homebrew's Upgrade All or a formula's
     /// own, Update All or a tool's own — or still saying "Updated to X". The tab's
@@ -304,8 +304,8 @@ struct WorkbenchWindowView: View {
     private var selectedFormula: BrewInstalledFormula? {
         let prefix = "brew:formula:"
         guard let id = detailSelection, id.hasPrefix(prefix) else { return nil }
-        let name = String(id.dropFirst(prefix.count))
-        return model.brewFormulae.first { $0.name == name }
+        let key = String(id.dropFirst(prefix.count))
+        return model.brewFormulae.first { $0.key == key }
     }
 
     /// The unchecked Brew package selected, when the selection is one of those rows
@@ -1820,7 +1820,10 @@ private struct BrewFormulaSidebarRow: View {
         HStack(spacing: 8) {
             FormulaIcon(name: formula.name, size: 22)
             VStack(alignment: .leading, spacing: 1) {
-                Text(formula.name).font(.body).lineLimit(1)
+                HStack(spacing: 4) {
+                    Text(formula.name).font(.body).lineLimit(1)
+                    if formula.needsSudo { CLISudoBadge(help: CLIToolPresentation.brewSudoBadgeHelp) }
+                }
                 caption(row.caption)
             }
             Spacer()
@@ -1846,7 +1849,7 @@ private struct BrewFormulaSidebarRow: View {
                 // A homebrew/core node or php with notices: the mark the CLI
                 // rows give breaking changes, after the version. The detail
                 // pane says it in words.
-                if let help = CLIToolPresentation.securityMarkHelp(
+                if formula.kind == .formula, let help = CLIToolPresentation.securityMarkHelp(
                     model.runtimeSecurity.notices(forFormula: formula.name)) {
                     RuntimeSecurityMark(help: help).font(.caption)
                 }
@@ -1891,10 +1894,10 @@ private struct BrewFormulaSidebarRow: View {
         case .cancel, .spinnerOnly:
             HStack(spacing: 4) {
                 ProgressView().controlSize(.small)
-                BrewUpgradeCancelButton(slot: slot, jobID: AppListModel.formulaJobID(formula.name), model: model)
+                BrewUpgradeCancelButton(slot: slot, jobID: AppListModel.formulaJobID(formula.key), model: model)
             }
         case .update:
-            Button("Update") { Task { await model.upgradeBrewFormula(named: formula.name) } }
+            Button("Update") { Task { await model.upgradeBrewFormula(named: formula.key) } }
                 .controlSize(.small)
                 .buttonStyle(.borderedProminent)
         case .none, .copy:
@@ -2267,13 +2270,19 @@ private struct FormulaDetailPane: View {
         VStack(alignment: .leading, spacing: 0) {
             header
             if let lifecycle = formula.lifecycle {
-                BrewLifecycleNotice(name: formula.name, lifecycle: lifecycle)
+                BrewLifecycleNotice(name: formula.name, lifecycle: lifecycle, isCask: formula.kind == .cask)
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 12)
+            }
+            // Why an update it shows has no Update (`manualInstaller`).
+            if formula.manualInstaller, formula.hasUpdate {
+                BrewLifecycleNotice(text: AttributedString(String(localized: "Homebrew can’t upgrade \(formula.name) itself: its installer has to be run by hand.")))
                     .padding(.horizontal, 16)
                     .padding(.bottom, 12)
             }
             // A homebrew/core node or php's notices (`RuntimeSecurityReport`),
             // in the deprecation notice's place and look.
-            let security = model.runtimeSecurity.notices(forFormula: formula.name)
+            let security = formula.kind == .formula ? model.runtimeSecurity.notices(forFormula: formula.name) : []
             if !security.isEmpty {
                 BrewLifecycleNotice(text: CLIToolPresentation.securityNotice(security))
                     .padding(.horizontal, 16)
@@ -2297,6 +2306,8 @@ private struct FormulaDetailPane: View {
         // notes for a version it is no longer displaying. See `FormulaReleaseStore`
         // for which refreshes actually move it (a plain `brew upgrade` does not).
         .task(id: notesVersion) {
+            // A cask's notes aren't a formula's: none are looked up by its name.
+            guard formula.kind == .formula else { return }
             model.ensureFormulaReleaseLoading(name: formula.name, version: notesVersion)
         }
     }
@@ -2311,7 +2322,10 @@ private struct FormulaDetailPane: View {
         HStack(spacing: 12) {
             FormulaIcon(name: formula.name, size: 44)
             VStack(alignment: .leading, spacing: 2) {
-                Text(formula.name).font(.title2).fontWeight(.semibold)
+                HStack(spacing: 6) {
+                    Text(formula.name).font(.title2).fontWeight(.semibold)
+                    if formula.needsSudo { CLISudoBadge(help: CLIToolPresentation.brewSudoBadgeHelp) }
+                }
                 if let available = formula.availableVersion {
                     Text("\(formula.installedVersion) → \(available)")
                         .font(.callout).foregroundStyle(.tint)
@@ -2343,10 +2357,10 @@ private struct FormulaDetailPane: View {
                 }
                 .padding(.horizontal, 12).padding(.vertical, 6)
                 .background(.quaternary, in: Capsule())
-                BrewUpgradeCancelButton(slot: row.slot, jobID: AppListModel.formulaJobID(formula.name), model: model)
+                BrewUpgradeCancelButton(slot: row.slot, jobID: AppListModel.formulaJobID(formula.key), model: model)
             }
         case .update:
-            Button("Update") { Task { await model.upgradeBrewFormula(named: formula.name) } }
+            Button("Update") { Task { await model.upgradeBrewFormula(named: formula.key) } }
                 .controlSize(.large)
                 .buttonStyle(.borderedProminent)
         case .none, .copy:
@@ -2356,6 +2370,15 @@ private struct FormulaDetailPane: View {
 
     @ViewBuilder
     private var notes: some View {
+        if formula.kind == .cask {
+            noNotes
+        } else {
+            formulaNotes
+        }
+    }
+
+    @ViewBuilder
+    private var formulaNotes: some View {
         switch model.formulaReleaseState(name: formula.name, version: notesVersion) {
         case .loaded(let release):
             if let changelog = release.changelog {

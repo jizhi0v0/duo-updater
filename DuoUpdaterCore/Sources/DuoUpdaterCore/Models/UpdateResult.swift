@@ -816,6 +816,35 @@ extension UpdateResult {
                             build: staged.buildVersion.map(Self.strippingBuildPrefix)))
     }
 
+    /// Both ends of the *update* line when the process still running is older than
+    /// the bundle on disk: the running version on the left, the offered one on the
+    /// right. Nil when the line should keep the on-disk version instead.
+    ///
+    /// The left side used to be the bundle on disk whatever was running. Chrome's
+    /// updater lands each build beside the running one and waits for a relaunch, so
+    /// a Chrome launched on 155.0.8059.85 kept running it for a day and a half with
+    /// .86 on disk — and once 156.0.8078.48 shipped, the row read
+    /// "155.0.8059.86 → 156.0.8078.48" while Chrome's own About page said .85.
+    /// The .86 the row named had never run at all. The left side is now what the
+    /// user is actually using, the same version Chrome's own About page shows.
+    ///
+    /// Only when the running side has a marketing version: `lsappinfo` reports a
+    /// bare build, and "8059.85 → 156.0.8078.48" pairs two namespaces. Builds follow
+    /// ``relaunchLine(from:to:)``'s rule, and the offered build counts only when it
+    /// is a `CFBundleVersion` like the running one; with nothing left to tell the
+    /// two apart ("6.9.0 → 6.9.0") the on-disk line is kept.
+    public func runningUpdateLine(latest: String, running: VersionSide?) -> (from: String, to: String)? {
+        guard let running, let runningMarketing = running.marketing else { return nil }
+        let offeredMarketing = Self.droppingTrailingBuild(latest, build: remote?.version)
+        let offeredBuild = remote?.buildNamespace == .bundle
+            ? remote?.version.map(Self.strippingBuildPrefix) : nil
+        let differs = runningMarketing != offeredMarketing
+            || (offeredBuild != nil && running.build != nil && offeredBuild != running.build)
+        guard differs else { return nil }
+        return Self.relaunchLine(
+            from: running, to: VersionSide(marketing: offeredMarketing, build: offeredBuild))
+    }
+
 }
 
 public enum UpdateStatus: Sendable, Equatable {

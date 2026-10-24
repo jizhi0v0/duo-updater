@@ -1587,6 +1587,7 @@ private struct WorkbenchAppRow: View, @MainActor Equatable {
             isChecking: model.installing[result.id] != nil,
             isRunning: model.isRunning(result),
             versionLineState: model.versionLineState(for: result),
+            runningSide: model.restartFromSide(result.id),
             showsRuntime: model.prefs.showRuntimeTags,
             isIgnored: model.prefs.isIgnored(result.app),
             isVersionSkipped: model.prefs.isVersionSkipped(
@@ -1688,6 +1689,10 @@ private struct WorkbenchSidebarRow: View {
     /// its own ladder again (#289) — it stays exactly what the popover and the
     /// action button already agreed on.
     let versionLineState: RowVersionLineState
+    /// The running version when an older process is still live behind the bundle
+    /// on disk (`AppListModel.restartFromSide`), so the update subtitle names what
+    /// is running rather than what has never run (`UpdateResult.runningUpdateLine`).
+    let runningSide: UpdateResult.VersionSide?
     /// Whether to show the runtime chip (Electron / Tauri / native / …).
     let showsRuntime: Bool
     /// The user's two verdicts, and the ways back out of them. Passed in rather
@@ -1865,10 +1870,12 @@ private struct WorkbenchSidebarRow: View {
             if case .updateAvailable(let latest) = result.status {
                 // Same-marketing build bump (JetBrains EAP, Surge): show the builds so it
                 // doesn't read as a no-op "2026.2 → 2026.2".
+                // Names the running version when an older process is still live.
+                let running = result.runningUpdateLine(latest: latest, running: runningSide)
                 let bump = result.buildBump(latest: latest)
                 let (installed, offered) = result.updateLineSides(latest: latest)
-                let from = bump.map { "\(installed) (\($0.installed))" } ?? installed
-                let to = bump.map { "\(offered) (\($0.remote))" } ?? offered
+                let from = running?.from ?? bump.map { "\(installed) (\($0.installed))" } ?? installed
+                let to = running?.to ?? bump.map { "\(offered) (\($0.remote))" } ?? offered
                 Text("\(from) → \(to)")
                     .font(.caption)
                     .foregroundStyle(.tint)
@@ -1894,7 +1901,8 @@ private struct WorkbenchSidebarRow: View {
 extension WorkbenchSidebarRow: @MainActor Equatable {
     static func == (lhs: Self, rhs: Self) -> Bool {
         lhs.result == rhs.result && lhs.isChecking == rhs.isChecking && lhs.isRunning == rhs.isRunning
-            && lhs.versionLineState == rhs.versionLineState && lhs.showsRuntime == rhs.showsRuntime
+            && lhs.versionLineState == rhs.versionLineState && lhs.runningSide == rhs.runningSide
+            && lhs.showsRuntime == rhs.showsRuntime
             && lhs.isIgnored == rhs.isIgnored && lhs.isVersionSkipped == rhs.isVersionSkipped
             && lhs.fullDiskAccessNeeds == rhs.fullDiskAccessNeeds && lhs.caskLifecycle == rhs.caskLifecycle
             && lhs.sunsetPhase?.endDate == rhs.sunsetPhase?.endDate && lhs.sunsetPhase?.phase == rhs.sunsetPhase?.phase
@@ -3289,10 +3297,12 @@ private struct DetailHeader: View {
         case .status:
             switch result.status {
             case .updateAvailable(let latest):
+                // Names the running version when an older process is still live.
+                let running = model.runningUpdateLine(result, latest: latest)
                 let bump = result.buildBump(latest: latest)
                 let (installed, offered) = result.updateLineSides(latest: latest)
-                let from = bump.map { "\(installed) (\($0.installed))" } ?? installed
-                let to = bump.map { "\(offered) (\($0.remote))" } ?? offered
+                let from = running?.from ?? bump.map { "\(installed) (\($0.installed))" } ?? installed
+                let to = running?.to ?? bump.map { "\(offered) (\($0.remote))" } ?? offered
                 Text("\(from)  →  \(to)")
                     .font(.callout).foregroundStyle(.tint)
                     .lineLimit(1).minimumScaleFactor(0.75)

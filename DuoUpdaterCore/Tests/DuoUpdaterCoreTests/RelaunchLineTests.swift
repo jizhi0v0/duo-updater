@@ -180,4 +180,67 @@ import Testing
         #expect(line.from == "1.0 (128)")
         #expect(line.to == "1.0")
     }
+
+    // MARK: - The update line while an older process is still running
+
+    private func offering(
+        short: String?, build: String?, latest: String?, latestBuild: String?,
+        namespace: InstalledApp.BuildNamespace = .bundle
+    ) -> UpdateResult {
+        UpdateResult(
+            app: app(short: short, build: build),
+            remote: RemoteVersion(shortVersion: latest, version: latestBuild,
+                                  buildNamespace: namespace, downloadURL: nil, sourceName: "Test"),
+            status: .updateAvailable(latest: latest ?? latestBuild ?? "?"))
+    }
+
+    /// The case that prompted this: Chrome running .85 with .86 on disk and 156
+    /// offered. The line names what is running, as Chrome's About page does.
+    @Test func chromeNamesTheRunningVersionNotTheOneOnDisk() {
+        let row = offering(short: "155.0.8059.86", build: "8059.86",
+                           latest: "156.0.8078.48", latestBuild: nil)
+        let line = row.runningUpdateLine(
+            latest: "156.0.8078.48", running: Side(marketing: "155.0.8059.85", build: "8059.85"))
+        #expect(line?.from == "155.0.8059.85")
+        #expect(line?.to == "156.0.8078.48")
+    }
+
+    /// Nothing running behind the disk, or only a bare build recovered: the
+    /// on-disk line stays, rather than "8059.85 → 156.0.8078.48".
+    @Test func withoutARunningMarketingVersionTheOnDiskLineStays() {
+        let row = offering(short: "155.0.8059.86", build: "8059.86",
+                           latest: "156.0.8078.48", latestBuild: nil)
+        #expect(row.runningUpdateLine(latest: "156.0.8078.48", running: nil) == nil)
+        #expect(row.runningUpdateLine(
+            latest: "156.0.8078.48", running: Side(marketing: nil, build: "8059.85")) == nil)
+    }
+
+    /// Same marketing version on both ends: the builds tell them apart when the
+    /// offered build is a `CFBundleVersion` like the running one; when it is not,
+    /// or there is none, nothing does and the on-disk line stays.
+    @Test func sameMarketingKeepsBuildsOnlyInTheRunningBuildsNamespace() {
+        let running = Side(marketing: "6.9.0", build: "12028")
+        let bundle = offering(short: "6.9.0", build: "12029", latest: "6.9.0", latestBuild: "12030")
+        let line = bundle.runningUpdateLine(latest: "6.9.0", running: running)
+        #expect(line?.from == "6.9.0 (12028)")
+        #expect(line?.to == "6.9.0 (12030)")
+
+        let vendor = offering(short: "6.9.0", build: "12029", latest: "6.9.0",
+                              latestBuild: "20260829211045", namespace: .vendor)
+        #expect(vendor.runningUpdateLine(latest: "6.9.0", running: running) == nil)
+
+        let noBuild = offering(short: "6.9.0", build: "12029", latest: "6.9.0", latestBuild: nil)
+        #expect(noBuild.runningUpdateLine(latest: "6.9.0", running: running) == nil)
+    }
+
+    /// A feed that writes "1.169.0 (88758)" as its display version: the trailing
+    /// build is the offered build, not part of the marketing version.
+    @Test func aDisplayVersionCarryingItsBuildIsReadAsMarketingPlusBuild() {
+        let row = offering(short: "1.168.1", build: "88701",
+                           latest: "1.169.0 (88758)", latestBuild: "88758")
+        let line = row.runningUpdateLine(
+            latest: "1.169.0 (88758)", running: Side(marketing: "1.168.0", build: "88700"))
+        #expect(line?.from == "1.168.0")
+        #expect(line?.to == "1.169.0")
+    }
 }

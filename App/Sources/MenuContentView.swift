@@ -1794,10 +1794,11 @@ private struct AppRow: View {
         func measure(_ text: String) -> CGFloat {
             NSAttributedString(string: text, attributes: [.font: caption]).size().width
         }
+        let running = model.runningUpdateLine(result, latest: latest)
         let bump = result.buildBump(latest: latest)
         let (installed, offered) = result.updateLineSides(latest: latest)
-        let from = bump.map { "\(installed) (\($0.installed))" } ?? installed
-        let to = bump.map { "\(offered) (\($0.remote))" } ?? offered
+        let from = running?.from ?? bump.map { "\(installed) (\($0.installed))" } ?? installed
+        let to = running?.to ?? bump.map { "\(offered) (\($0.remote))" } ?? offered
         let natural = measure(from) + measure(to) + Self.versionArrowWidth
         return 0.75 * natural + 0.25 * Self.versionArrowWidth
     }
@@ -2191,24 +2192,32 @@ private struct AppRow: View {
         case .status:
             switch result.status {
             case .updateAvailable(let latest):
+            let running = model.runningUpdateLine(result, latest: latest)
             HStack(spacing: 4) {
-                fromVersion(latest: latest)
-                Image(systemName: "arrow.right").font(.caption2)
-                toVersion(latest: latest)
+                if let running {
+                    Text(running.from)
+                    Image(systemName: "arrow.right").font(.caption2)
+                    Text(running.to).fontWeight(.semibold).foregroundStyle(.tint)
+                } else {
+                    fromVersion(latest: latest)
+                    Image(systemName: "arrow.right").font(.caption2)
+                    toVersion(latest: latest)
+                }
             }
             .font(.caption)
-            // When an earlier update was installed but never restarted, the "from"
-            // above is the *staged* on-disk version — the live process is still
-            // older. That used to be spelled out inline as "· current <running>",
-            // but a third version number does not fit this row: at Chrome's four
-            // segments the line truncated to "current 151.0…", cutting off the only
-            // digits that differed from the two versions already on the line. The
-            // workbench's row never showed it either. So it lives on the hover
-            // instead, where it can be read in full, and the line keeps to the one
-            // comparison that decides the click: what you have vs what is offered.
-            .help(model.restartFromVersion(result.id).map {
-                String(localized: "Still running \($0) — relaunch pending from an earlier update")
-            } ?? "")
+            // When an earlier update was installed but never restarted, the live
+            // process is older than the bundle on disk. The line names the running
+            // version — what Chrome's own About page shows — and the version on disk,
+            // which has never run, goes on the hover: a third version number does
+            // not fit this row (at Chrome's four segments it truncated to
+            // "current 151.0…"). Only when nothing recovered the running marketing
+            // version does the line keep the on-disk one, and the hover names the
+            // running build instead.
+            .help(running != nil
+                ? String(localized: "Running \(model.restartFromVersion(result.id) ?? "?") but \(result.installedDisplay ?? "?") is installed — relaunch to apply it")
+                : model.restartFromVersion(result.id).map {
+                    String(localized: "Still running \($0) — relaunch pending from an earlier update")
+                } ?? "")
             // Long date-style versions (Warp) would otherwise wrap mid-number;
             // keep it one line and shrink slightly instead.
             .lineLimit(1)

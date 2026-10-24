@@ -269,7 +269,8 @@ public struct BrewRowSnapshot: Equatable, Sendable {
                            mark: .spinner, button: button, isRunning: true)
             }
             if let formula = runningFormula {
-                return Row(lines: [.upgrading(formula.name)] + (formula.line.map { [.progress($0)] } ?? []),
+                return Row(lines: [.upgrading(BrewInstalledFormula.displayName(forKey: formula.name))]
+                           + (formula.line.map { [.progress($0)] } ?? []),
                            mark: .spinner, button: button, isRunning: true)
             }
             // Every run it stands for waits its turn behind another click's.

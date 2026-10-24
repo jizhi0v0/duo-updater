@@ -26,8 +26,8 @@ import Foundation
     // MARK: - Formulae
 
     /// Mutation: drop the formula loop (or its `where`) → nothing reported.
-    @Test func aTapFormulaMissingFromInfoIsReportedWithItsRackVersion() {
-        let result = BrewFormulaService.uncheckedCandidates(
+    @Test func aTapFormulaMissingFromInfoIsReportedWithItsRackVersion() async {
+        let result = await BrewFormulaService.uncheckedCandidates(
             formulaFullNames: ["zzfixture-org/tap/zzfixture-tool"],
             installedInfo: Self.info(),
             formulaVersions: ["zzfixture-tool": "1.3.14"],
@@ -42,8 +42,8 @@ import Foundation
 
     /// Mutation: drop the `loadedRacks` check → every trusted tap
     /// formula would read as unchecked.
-    @Test func aTapFormulaBrewLoadedIsNotReported() {
-        let result = BrewFormulaService.uncheckedCandidates(
+    @Test func aTapFormulaBrewLoadedIsNotReported() async {
+        let result = await BrewFormulaService.uncheckedCandidates(
             formulaFullNames: ["zzfixture-org/tap/zzfixture-tool"],
             installedInfo: Self.info(formulae: #"{"name":"zzfixture-tool","full_name":"zzfixture-org/tap/zzfixture-tool"}"#),
             formulaVersions: ["zzfixture-tool": "1.0"],
@@ -55,8 +55,8 @@ import Foundation
     /// Mutation: match `info` by `full_name` instead of rack name → a formula that
     /// moved taps (receipt says `zzfixture-old/tap/…`, brew loaded it by bare name)
     /// would read as unchecked while `brew outdated` still covers it.
-    @Test func aFormulaThatMovedTapsIsNotReported() {
-        let result = BrewFormulaService.uncheckedCandidates(
+    @Test func aFormulaThatMovedTapsIsNotReported() async {
+        let result = await BrewFormulaService.uncheckedCandidates(
             formulaFullNames: ["zzfixture-old/tap/zzfixture-moved"],
             installedInfo: Self.info(formulae: #"{"name":"zzfixture-moved","full_name":"zzfixture-moved","tap":"homebrew/core"}"#),
             formulaVersions: ["zzfixture-moved": "1.0"],
@@ -67,8 +67,8 @@ import Foundation
 
     /// Mutation: drop the tap-qualified check → an official formula brew failed to
     /// load for some other reason would be blamed on a tap it doesn't have.
-    @Test func bareOfficialFormulaNamesAreNeverReported() {
-        let result = BrewFormulaService.uncheckedCandidates(
+    @Test func bareOfficialFormulaNamesAreNeverReported() async {
+        let result = await BrewFormulaService.uncheckedCandidates(
             formulaFullNames: ["zzfixture-core"],
             installedInfo: Self.info(),
             formulaVersions: ["zzfixture-core": "1.0"],
@@ -81,8 +81,8 @@ import Foundation
 
     /// Mutation: drop the cask loop → the measured shape (present, `tap: null`)
     /// goes unseen.
-    @Test func aCaskLoadedFromItsCaskroomCopyIsReportedWithItsReceiptTap() {
-        let result = BrewFormulaService.uncheckedCandidates(
+    @Test func aCaskLoadedFromItsCaskroomCopyIsReportedWithItsReceiptTap() async {
+        let result = await BrewFormulaService.uncheckedCandidates(
             formulaFullNames: [],
             installedInfo: Self.info(casks: #"{"token":"zzfixture-cli","full_token":"zzfixture-cli","tap":null,"version":"1.0","installed":"1.0","outdated":false}"#),
             formulaVersions: [:],
@@ -96,8 +96,8 @@ import Foundation
     /// Mutation: flag every cask (drop `where cask["tap"] is NSNull`), or treat an
     /// absent `tap` key like null → casks read from their tap or the API, and
     /// output from a brew that doesn't emit the key, would read as unchecked.
-    @Test func aCaskWithATapOrNoTapKeyIsNotReported() {
-        let result = BrewFormulaService.uncheckedCandidates(
+    @Test func aCaskWithATapOrNoTapKeyIsNotReported() async {
+        let result = await BrewFormulaService.uncheckedCandidates(
             formulaFullNames: [],
             installedInfo: Self.info(casks: """
                 {"token":"zzfixture-cli","full_token":"zzfixture-org/tap/zzfixture-cli","tap":"zzfixture-org/tap","installed":"1.0"},
@@ -112,8 +112,8 @@ import Foundation
 
     /// Mutation: drop the `caskInstallsAnApp` skip → an app cask, which already has
     /// its own row, would also be listed (and counted) as a Brew package.
-    @Test func aCaskThatInstallsAnAppIsNotReported() {
-        let result = BrewFormulaService.uncheckedCandidates(
+    @Test func aCaskThatInstallsAnAppIsNotReported() async {
+        let result = await BrewFormulaService.uncheckedCandidates(
             formulaFullNames: [],
             installedInfo: Self.info(casks: #"{"token":"zzfixture-gui","full_token":"zzfixture-gui","tap":null,"installed":"1.0"}"#),
             formulaVersions: [:],
@@ -125,8 +125,8 @@ import Foundation
     /// Mutation: derive `tap` from the first two components of any name (or label
     /// by a prefix match) → a bare token with no receipt tap could be labeled
     /// "not trusted" and offered a `brew trust` command that names no tap.
-    @Test func aCaskWithoutAReceiptTapStaysBareAndUnlabeled() {
-        let candidates = BrewFormulaService.uncheckedCandidates(
+    @Test func aCaskWithoutAReceiptTapStaysBareAndUnlabeled() async {
+        let candidates = await BrewFormulaService.uncheckedCandidates(
             formulaFullNames: [],
             installedInfo: Self.info(casks: #"{"token":"zzfixture-cli","full_token":"zzfixture-cli","tap":null,"installed":"1.0"}"#),
             formulaVersions: [:],
@@ -142,8 +142,8 @@ import Foundation
 
     /// Mutation: default a missing `formulae`/`casks` array to [] instead of
     /// bailing → a failed `brew info` read ("") would flag every tap formula.
-    @Test func anUnparseableInfoReadReportsNothing() {
-        let result = BrewFormulaService.uncheckedCandidates(
+    @Test func anUnparseableInfoReadReportsNothing() async {
+        let result = await BrewFormulaService.uncheckedCandidates(
             formulaFullNames: ["zzfixture-org/tap/zzfixture-tool"],
             installedInfo: Data(),
             formulaVersions: [:],

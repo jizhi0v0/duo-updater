@@ -131,16 +131,18 @@ import Foundation
     /// Mutation: read the artifact's first element (`Thorium.app`) instead of its
     /// `target` → a renamed app's row never matches. Mutation: drop the
     /// `installsAnApp` seam → a `.pkg` cask's app gets a second, app-less row.
-    @Test func caskLifecyclesCarryAppTargetsAndWhetherAnAppIsInstalled() {
-        let casks = BrewFormulaService.caskLifecycles(
-            installedInfo: Self.caskInfo, installsAnApp: { $0 == "zzfixture-pkg" })
+    /// Whether a cask's app has a row is the seam's alone, `app` artifact or
+    /// not: that app may be gone (`caskFacts`).
+    @Test func caskLifecyclesCarryAppTargetsAndWhetherAnAppIsInstalled() async {
+        let casks = await BrewFormulaService.caskLifecycles(
+            installedInfo: Self.caskInfo, installsAnApp: { $0 == "zzfixture-pkg" || $0 == "zzfixture-gui" })
         #expect(casks.map(\.token) == ["zzfixture-cli", "zzfixture-gui", "zzfixture-pkg"])
         #expect(casks.map(\.appPaths) == [[], ["/Applications/ZZFixture Browser.app"], []])
         #expect(casks.map(\.installsAnApp) == [false, true, true])
         #expect(casks.map(\.installedVersion) == ["152.0", "2.1.0", "1.0"])
         #expect(casks.map(\.lifecycle.stage) == [.disabled, .disabled, .deprecated])
         #expect(casks.first?.lifecycle.reason == "fails_gatekeeper_check")
-        #expect(BrewFormulaService.caskLifecycles(installedInfo: Data(), installsAnApp: { _ in false }).isEmpty)
+        #expect(await BrewFormulaService.caskLifecycles(installedInfo: Data(), installsAnApp: { _ in false }).isEmpty)
     }
 
     /// Through the service: the report carries the lifecycles from the same

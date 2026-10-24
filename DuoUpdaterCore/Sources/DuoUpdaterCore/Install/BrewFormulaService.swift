@@ -8,7 +8,7 @@ import Foundation
 /// installs no app** — a CLI (`codex`, `android-platform-tools`), a font, a driver
 /// — has no app row and so had no home at all: invisible to the per-app list
 /// because there's no bundle to scan, and invisible here because this service used
-/// to be `--formula` only. Those are included; see `installsAnApp(caskToken:)` for
+/// to be `--formula` only. Those are included; see `caskFacts(caskToken:)` for
 /// how the line is drawn.
 ///
 /// Upgrades stay explicitly scoped either way — `--formula` for formulae, and
@@ -42,8 +42,24 @@ public struct BrewOutdatedFormula: Sendable, Identifiable, Equatable {
 /// purpose, not a dependency pulled in for something else), with the newer version
 /// available when there is one. Drives the workbench Brew tree, which mirrors the
 /// Apps tree by listing everything you manage, not just what's outdated.
+///
+/// Or an installed cask that puts no app where the scanner looks (`kind ==
+/// .cask`, see `BrewFormulaService.caskFacts`): a CLI, a font, a JDK. It has no
+/// app row, so this tree is its one home, and it takes the formula rows'
+/// version line, Update and Cancel.
 public struct BrewInstalledFormula: Sendable, Identifiable, Equatable {
-    public var id: String { name }
+    public var id: String { key }
+    /// What the rows, their runs and the selection are keyed by. A cask's token
+    /// can be a formula's name too (`codex` is both), so a cask's is prefixed;
+    /// a formula's is its name, as before casks were listed here.
+    public var key: String { Self.key(kind: kind, name: name) }
+    public static func key(kind: BrewOutdatedFormula.Kind, name: String) -> String {
+        kind == .cask ? "cask:\(name)" : name
+    }
+    /// The name a `key` stands for, as rows and dialogs show it.
+    public static func displayName(forKey key: String) -> String {
+        key.hasPrefix("cask:") ? String(key.dropFirst("cask:".count)) : key
+    }
     public let name: String
     public let installedVersion: String
     /// The version `brew outdated` says is available, or nil when up to date.
@@ -53,6 +69,17 @@ public struct BrewInstalledFormula: Sendable, Identifiable, Equatable {
     public var lifecycle: BrewLifecycle? = nil
     /// Set when the keg in use was built from HEAD — see `BrewHeadInstall`.
     public var head: BrewHeadInstall? = nil
+    public var kind: BrewOutdatedFormula.Kind = .formula
+    /// A cask whose upgrade runs something under sudo (a pkg): DuoUpdater asks
+    /// for the administrator password brew's sudo needs (`BrewAskPass`).
+    public var needsSudo = false
+    /// A cask whose installer has to be run by hand (`installer manual:`).
+    /// `brew upgrade` refuses it — "Not upgrading N `installer manual` casks",
+    /// and the run fails (Homebrew 7.0.10 `cask/upgrade.rb`) — while `brew
+    /// outdated` still lists it, so it shows its update with no Update.
+    public var manualInstaller = false
+    /// Whether DuoUpdater can upgrade it (`brew upgrade`).
+    public var canUpgrade: Bool { hasUpdate && !manualInstaller }
 }
 
 /// Homebrew's verdict that a formula or cask is on its way out: `deprecate!` or
@@ -156,8 +183,8 @@ public struct BrewCaskLifecycle: Sendable, Identifiable, Equatable {
     public let installedVersion: String
     /// Where its `app` artifacts were installed (`/Applications/Foo.app`).
     public let appPaths: [String]
-    /// False for a CLI or font cask — `BrewFormulaService.installsAnApp(caskToken:)`,
-    /// which also counts a `.pkg` (it generally installs an app, though brew
+    /// False for a CLI, font or JDK cask — `BrewFormulaService.caskFacts(caskToken:)`,
+    /// which also counts a `.pkg` whose install receipts list a `.app` (brew
     /// records no path for it).
     public let installsAnApp: Bool
     public let lifecycle: BrewLifecycle
@@ -328,12 +355,14 @@ public actor BrewFormulaService {
     /// The tap a cask's Caskroom install receipt records (`source.tap`), or nil.
     /// A seam for the same reason as `Executor`: the real one reads the disk.
     typealias CaskReceiptTap = @Sendable (_ token: String) -> String?
-    /// `installsAnApp(caskToken:)`, injectable for the same reason.
-    typealias CaskInstallsAnApp = @Sendable (_ token: String) -> Bool
+    /// `caskFacts(caskToken:)`, injectable for the same reason.
+    typealias CaskFactsReader = @Sendable (
+        _ token: String, _ appTargets: [String]?, _ extraFolders: [String]
+    ) async -> CaskFacts
 
     private let executor: Executor
     private let caskReceiptTap: CaskReceiptTap
-    private let caskInstallsAnApp: CaskInstallsAnApp
+    private let caskFacts: CaskFactsReader
     /// Where `run` finds brew for the upgrades and `brew update`. A seam for the
     /// same reason as `Executor`: a test hands in a script, never the host's brew.
     private let brewPath: @Sendable () -> String?
@@ -341,7 +370,7 @@ public actor BrewFormulaService {
     public init() {
         self.executor = Self.executor(brewPath: HomebrewInstaller.brewPath)
         self.caskReceiptTap = { Self.realCaskReceiptTap($0) }
-        self.caskInstallsAnApp = { Self.installsAnApp(caskToken: $0) }
+        self.caskFacts = { await Self.caskFacts(caskToken: $0, appTargets: $1, extraFolders: $2) }
         self.brewPath = HomebrewInstaller.brewPath
     }
 
@@ -352,12 +381,12 @@ public actor BrewFormulaService {
     init(
         executor: @escaping Executor,
         caskReceiptTap: @escaping CaskReceiptTap = { _ in nil },
-        caskInstallsAnApp: @escaping CaskInstallsAnApp = { _ in false },
+        caskFacts: @escaping CaskFactsReader = { _, _, _ in CaskFacts(installsAnApp: false, needsSudo: false) },
         brewPath: @escaping @Sendable () -> String? = { nil }
     ) {
         self.executor = executor
         self.caskReceiptTap = caskReceiptTap
-        self.caskInstallsAnApp = caskInstallsAnApp
+        self.caskFacts = caskFacts
         self.brewPath = brewPath
     }
 
@@ -459,15 +488,18 @@ public actor BrewFormulaService {
         outdated: [BrewOutdatedFormula]
     ) -> [BrewInstalledFormula] {
         let available = Dictionary(
-            outdated.map { ($0.name, $0.currentVersion) },
+            outdated.map { (BrewInstalledFormula.key(kind: $0.kind, name: $0.name), $0.currentVersion) },
             uniquingKeysWith: { a, _ in a })
         return inventory.map { f in
             BrewInstalledFormula(
                 name: f.name,
                 installedVersion: f.installedVersion,
-                availableVersion: available[f.name],
+                availableVersion: available[f.key],
                 lifecycle: f.lifecycle,
-                head: f.head)
+                head: f.head,
+                kind: f.kind,
+                needsSudo: f.needsSudo,
+                manualInstaller: f.manualInstaller)
         }
         .sorted { lhs, rhs in
             if lhs.hasUpdate != rhs.hasUpdate { return lhs.hasUpdate }
@@ -532,9 +564,16 @@ public actor BrewFormulaService {
         public var caskLifecycles: [BrewCaskLifecycle] = []
         /// Formulae whose keg in use was built from HEAD, keyed by `full_name`.
         public var headInstalls: [String: BrewHeadInstall] = [:]
+        /// Installed casks with no app row (`appLessCasks`), sorted by token.
+        public var appLessCasks: [BrewInstalledFormula] = []
+        /// False when `brew info` failed: `appLessCasks` is empty for want of a
+        /// read, and the last ones still stand.
+        public var casksRead = true
     }
 
-    public func installedReport() async -> InstalledReport {
+    /// `extraFolders`: the folders the person added to the scan, which give an
+    /// app a row as the default ones do (`caskFacts`).
+    public func installedReport(extraFolders: [String] = []) async -> InstalledReport {
         async let formulaNames = runReading(["list", "--formula", "--full-name"])
         async let installedInfo = runReading(["info", "--json=v2", "--installed"])
         // Not `list --cask …` for anything: measured, `--versions` exits 1 outright
@@ -550,7 +589,15 @@ public actor BrewFormulaService {
         let fullNames = Self.parseLines(await formulaNames)
         let versions = Self.parseVersions(await versionList)
         let info = Data(await installedInfo.utf8)
-        let candidates = Self.uncheckedCandidates(
+        // Once per installed cask: a pkg cask's costs a few `pkgutil` reads.
+        var facts: [String: CaskFacts] = [:]
+        let targets = Self.appTargets(installedInfo: info)
+        for token in Self.installedCaskTokens(installedInfo: info) {
+            facts[token] = await caskFacts(token, targets[token] ?? [], extraFolders)
+        }
+        let caskInstallsAnApp: (String) async -> Bool = { facts[$0]?.installsAnApp ?? false }
+        let appLessCasks = Self.appLessCasks(installedInfo: info, facts: facts)
+        let candidates = await Self.uncheckedCandidates(
             formulaFullNames: fullNames,
             installedInfo: info,
             formulaVersions: versions,
@@ -563,12 +610,13 @@ public actor BrewFormulaService {
             availableCasks: Self.parseLines(await availableCasks),
             formulaVersions: versions)
         let lifecycles = Self.lifecycles(installedInfo: info)
-        let caskLifecycles = Self.caskLifecycles(installedInfo: info, installsAnApp: caskInstallsAnApp)
+        let caskLifecycles = await Self.caskLifecycles(installedInfo: info, installsAnApp: caskInstallsAnApp)
         let headInstalls = Self.headInstalls(installedInfo: info)
         guard !candidates.isEmpty else {
             return InstalledReport(
                 unchecked: orphans, lifecycles: lifecycles, caskLifecycles: caskLifecycles,
-                headInstalls: headInstalls)
+                headInstalls: headInstalls, appLessCasks: appLessCasks,
+                casksRead: Self.parsesCasks(installedInfo: info))
         }
 
         // `--installed` rather than naming the taps: `tap-info` on a tap that no
@@ -578,7 +626,78 @@ public actor BrewFormulaService {
             .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
         return InstalledReport(
             unchecked: unchecked, lifecycles: lifecycles, caskLifecycles: caskLifecycles,
-            headInstalls: headInstalls)
+            headInstalls: headInstalls, appLessCasks: appLessCasks,
+            casksRead: Self.parsesCasks(installedInfo: info))
+    }
+
+    /// Whether `info --json=v2 --installed` parsed with a `casks` array: a
+    /// failed read is "" (`runReading`), and must not read as "no casks".
+    static func parsesCasks(installedInfo: Data) -> Bool {
+        guard let root = try? JSONSerialization.jsonObject(with: installedInfo) as? [String: Any] else { return false }
+        return root["casks"] is [Any]
+    }
+
+    /// Each installed cask's relocated `.app` targets — where brew put its
+    /// apps — from `info --json=v2 --installed` (`"target"` beside each
+    /// relocated artifact, Homebrew 7.0.8 `cask/cask.rb` `artifacts_list`).
+    static func appTargets(installedInfo: Data) -> [String: [String]] {
+        guard
+            let root = try? JSONSerialization.jsonObject(with: installedInfo) as? [String: Any],
+            let casks = root["casks"] as? [[String: Any]]
+        else { return [:] }
+        var out: [String: [String]] = [:]
+        for c in casks {
+            guard let token = c["token"] as? String else { continue }
+            out[token] = ((c["artifacts"] as? [Any]) ?? []).compactMap { artifact -> String? in
+                guard let target = (artifact as? [String: Any])?["target"] as? String,
+                      target.lowercased().hasSuffix(".app") else { return nil }
+                return target
+            }
+        }
+        return out
+    }
+
+    /// Every cask token `info --json=v2 --installed` lists. [] for a read that
+    /// doesn't parse.
+    static func installedCaskTokens(installedInfo: Data) -> [String] {
+        guard
+            let root = try? JSONSerialization.jsonObject(with: installedInfo) as? [String: Any],
+            let casks = root["casks"] as? [[String: Any]]
+        else { return [] }
+        return casks.compactMap { $0["token"] as? String }
+    }
+
+    /// The installed casks with no app row (`CaskFacts.installsAnApp` false), as
+    /// Brew tree rows: version, Homebrew's deprecation, whether the upgrade needs
+    /// sudo. A cask brew read from its Caskroom copy (`"tap": null`, an untrusted
+    /// tap) is not one: it is an unchecked row (`uncheckedCandidates`), which
+    /// says why it has no update line. A token missing from `facts` is left out.
+    static func appLessCasks(installedInfo: Data, facts: [String: CaskFacts]) -> [BrewInstalledFormula] {
+        guard
+            let root = try? JSONSerialization.jsonObject(with: installedInfo) as? [String: Any],
+            let casks = root["casks"] as? [[String: Any]]
+        else { return [] }
+        return casks.compactMap { c -> BrewInstalledFormula? in
+            guard
+                !(c["tap"] is NSNull),
+                let token = c["token"] as? String,
+                let fact = facts[token], !fact.installsAnApp
+            else { return nil }
+            let manual = ((c["artifacts"] as? [Any]) ?? []).contains { artifact in
+                (((artifact as? [String: Any])?["installer"] as? [Any]) ?? []).contains {
+                    ($0 as? [String: Any])?["manual"] != nil
+                }
+            }
+            return BrewInstalledFormula(
+                name: token,
+                installedVersion: (c["installed"] as? String) ?? "—",
+                availableVersion: nil,
+                lifecycle: BrewLifecycle.parse(c),
+                kind: .cask,
+                needsSudo: fact.needsSudo,
+                manualInstaller: manual)
+        }
+        .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
 
     /// `BrewHeadInstall` for every formula whose keg in use is a HEAD one, keyed by
@@ -599,14 +718,15 @@ public actor BrewFormulaService {
     /// `BrewCaskLifecycle` for every cask `info --json=v2 --installed` flags, by
     /// token. [] for a read that doesn't parse.
     static func caskLifecycles(
-        installedInfo: Data, installsAnApp: (String) -> Bool
-    ) -> [BrewCaskLifecycle] {
+        installedInfo: Data, installsAnApp: (String) async -> Bool
+    ) async -> [BrewCaskLifecycle] {
         guard
             let root = try? JSONSerialization.jsonObject(with: installedInfo) as? [String: Any],
             let casks = root["casks"] as? [[String: Any]]
         else { return [] }
-        return casks.compactMap { c -> BrewCaskLifecycle? in
-            guard let token = c["token"] as? String, let lifecycle = BrewLifecycle.parse(c) else { return nil }
+        var out: [BrewCaskLifecycle] = []
+        for c in casks {
+            guard let token = c["token"] as? String, let lifecycle = BrewLifecycle.parse(c) else { continue }
             // `{"app": ["Foo.app"], "target": "/Applications/Foo.app"}` — the
             // target is where it landed, renamed or not: brew adds it to every
             // relocated artifact as `Relocated#target`, which resolves a
@@ -617,14 +737,16 @@ public actor BrewFormulaService {
                 guard let a = artifact as? [String: Any], a["app"] != nil else { return nil }
                 return a["target"] as? String
             }
-            return BrewCaskLifecycle(
+            // Not just "has an `app` artifact": its app may be gone (`caskFacts`).
+            let hasApp = await installsAnApp(token)
+            out.append(BrewCaskLifecycle(
                 token: token,
                 installedVersion: (c["installed"] as? String) ?? "—",
                 appPaths: appPaths,
-                installsAnApp: !appPaths.isEmpty || installsAnApp(token),
-                lifecycle: lifecycle)
+                installsAnApp: hasApp,
+                lifecycle: lifecycle))
         }
-        .sorted { $0.token.localizedCaseInsensitiveCompare($1.token) == .orderedAscending }
+        return out.sorted { $0.token.localizedCaseInsensitiveCompare($1.token) == .orderedAscending }
     }
 
     /// `BrewLifecycle` for every formula `info --json=v2 --installed` flags, keyed
@@ -706,8 +828,8 @@ public actor BrewFormulaService {
         installedInfo: Data,
         formulaVersions: [String: String],
         caskReceiptTap: (String) -> String?,
-        caskInstallsAnApp: (String) -> Bool
-    ) -> [BrewUncheckedPackage] {
+        caskInstallsAnApp: (String) async -> Bool
+    ) async -> [BrewUncheckedPackage] {
         guard
             let root = try? JSONSerialization.jsonObject(with: installedInfo) as? [String: Any],
             let formulae = root["formulae"] as? [[String: Any]],
@@ -740,7 +862,7 @@ public actor BrewFormulaService {
         // A cask that installs an app is skipped for the same reason `outdatedCasks()`
         // skips it: the app has its own row, possibly checked by another source.
         for cask in casks where cask["tap"] is NSNull {
-            guard let token = cask["token"] as? String, !caskInstallsAnApp(token) else { continue }
+            guard let token = cask["token"] as? String, !(await caskInstallsAnApp(token)) else { continue }
             let fullName = caskReceiptTap(token).map { "\($0)/\(token)" } ?? token
             out.append(BrewUncheckedPackage(
                 fullName: fullName, kind: .cask,
@@ -853,7 +975,7 @@ public actor BrewFormulaService {
 
     /// Outdated casks that install **no app** — the ones nothing else covers. See
     /// `BrewOutdatedFormula` for why GUI casks are excluded, and
-    /// `installsAnApp(caskToken:)` for how that's decided.
+    /// `caskFacts(caskToken:)` for how that's decided.
     ///
     /// Non-greedy on purpose: `--greedy` would pull in `auto_updates` casks, whose
     /// update channel is the app's own updater, not brew.
@@ -861,47 +983,207 @@ public actor BrewFormulaService {
     /// No direct `HomebrewInstaller.brewPath()` check here — `runReading` asks the
     /// executor, the one seam a test can control (see `Executor`); an absent brew
     /// reaches this the same way any other empty read does, via `output == ""`.
-    public func outdatedCasks() async throws -> [BrewOutdatedFormula] {
+    public func outdatedCasks(extraFolders: [String] = []) async throws -> [BrewOutdatedFormula] {
         let output = await runReading(["outdated", "--cask", "--json=v2"])
         guard let data = output.data(using: .utf8) else { return [] }
-        return Self.parseCasks(data).filter { !Self.installsAnApp(caskToken: $0.name) }
+        var out: [BrewOutdatedFormula] = []
+        for cask in Self.parseCasks(data) where !(await caskFacts(cask.name, nil, extraFolders)).installsAnApp {
+            out.append(cask)
+        }
+        return out
     }
 
-    /// Whether a cask's staged artifacts contain a `.app` (or a `.pkg`, which
-    /// generally installs one). Read straight off the Caskroom rather than from the
-    /// cask definition, so it needs no network and no catalog load.
+    /// What an installed cask put on disk, as far as two surfaces care: whether
+    /// the scanner gives it an app row, and whether its upgrade runs under sudo.
+    struct CaskFacts: Sendable, Equatable {
+        /// True → it has an app row already, and the Brew tree must not list it
+        /// too. False → a CLI, a font, a driver, a JDK: nothing else shows it.
+        var installsAnApp: Bool
+        /// It installs a pkg (or its `uninstall` names `pkgutil:` receipts), which
+        /// brew runs under `/usr/bin/sudo` (`cask/artifact/pkg.rb`
+        /// `requires_sudo?`, Homebrew 7.0.10).
+        var needsSudo: Bool
+    }
+
+    /// `CaskFacts`, read off brew's own record, the Caskroom and the package
+    /// receipts rather than the cask definition, so it needs no network and no
+    /// catalog load.
     ///
-    /// True → the app is on disk, the scanner finds it, and it already has its own
-    /// row; this surface must not list it too. False → a CLI, a font, a driver:
-    /// nothing else can show it.
+    /// "Installs an app" means the scanner gives one of the cask's apps a row:
+    /// a bundle that exists, directly inside a folder `AppScanner` lists
+    /// (`AppScanner.defaultLocations` and the person's own, `extraFolders`), with
+    /// a version (`AppScanner.hasRow`). Anything short of that would drop the
+    /// cask from the Brew tree with no app row to stand for it — invisible
+    /// (#1617). Where a cask's apps are:
     ///
-    /// Known edge: a cask whose pkg is deleted from the Caskroom after installing
-    /// would read as "no app" and get a second row here. Benign (a duplicate row,
-    /// never a missed update or a wrong install), and the upgrade path stays correct
-    /// either way — the token is genuinely brew-installed, or `brew outdated`
-    /// wouldn't have listed it.
-    static func installsAnApp(
+    /// - `appTargets`: where brew put each relocated artifact, from `brew info
+    ///   --json=v2 --installed` (`"target"`, Homebrew 7.0.8 `cask/cask.rb`
+    ///   `artifacts_list`). An app moved into a scanned folder counts — not one
+    ///   the person since deleted (bartender's and dropbox's links on the
+    ///   machine this was written on point at nothing), nor `box-tools`'
+    ///   `~/Library/Application Support/Box/…` or a service's `~/Library/Services`.
+    /// - Without that record (`outdatedCasks`, which reads none), the Caskroom:
+    ///   brew links each moved artifact's staged path to where it went
+    ///   (`cask/artifact/moved.rb` `post_move`, `FileUtils.ln_sf target,
+    ///   source`), and a link's destination is taken the same way. A `.app`
+    ///   that is a real directory stayed in the Caskroom: an `installer`'s own
+    ///   bundle (`Battle.net-Setup.app`), not what it installed. Only the first
+    ///   levels are walked, never into a bundle: a CLI's staged tree can be
+    ///   thousands of files (azure-cli's `libexec`).
+    /// - The receipts of its `uninstall` stanza's `pkgutil:` ids, read from the
+    ///   install receipt: brew records no path for a pkg (`receiptApps`).
+    ///   `zulu@25`'s wrote `/Library/Java/JavaVirtualMachines/zulu-25.jdk`, no
+    ///   app; aTrust's `/Library/sangfor/SDP/aTrust.app`, an app the scanner
+    ///   never sees.
+    ///
+    /// What can't be read — no record, no `pkgutil:` stanza, no receipt matching
+    /// it, a pkgutil read that failed — counts as no app. The cost of being
+    /// wrong that way is a second row for an app that has one; the other way, a
+    /// cask shown nowhere.
+    static func caskFacts(
         caskToken: String,
-        caskroomPaths: [String] = BrewLocalInventory.defaultCaskroomPaths
-    ) -> Bool {
+        appTargets: [String]? = nil,
+        extraFolders: [String] = [],
+        caskroomPaths: [String] = BrewLocalInventory.defaultCaskroomPaths,
+        scannedFolders: [String] = AppScanner.defaultLocations.map(\.path),
+        hasRow: (URL) -> Bool = AppScanner.hasRow,
+        receiptApps: (_ pkgutilPattern: String) async -> [String]? = {
+            await BrewFormulaService.receiptApps(pkgutilPattern: $0)
+        }
+    ) async -> CaskFacts {
         let fm = FileManager.default
-        let roots = caskroomPaths
-            .map { URL(fileURLWithPath: $0).appendingPathComponent(caskToken) }
+        let scanned = Set((scannedFolders + extraFolders).map { URL(fileURLWithPath: $0).standardizedFileURL.path })
+        func isShown(_ appPath: String) -> Bool {
+            let app = URL(fileURLWithPath: appPath).standardizedFileURL
+            return scanned.contains(app.deletingLastPathComponent().path) && hasRow(app)
+        }
+        let roots = caskroomPaths.map { URL(fileURLWithPath: $0).appendingPathComponent(caskToken) }
+        var visible = appTargets?.contains(where: isShown) ?? false
+        var hasPkg = false
         for root in roots {
             guard let versions = try? fm.contentsOfDirectory(
                 at: root, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])
             else { continue }
             for version in versions {
-                guard let staged = try? fm.contentsOfDirectory(
-                    at: version, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])
+                guard let walk = fm.enumerator(
+                    at: version, includingPropertiesForKeys: [.isSymbolicLinkKey],
+                    options: [.skipsHiddenFiles, .skipsPackageDescendants])
                 else { continue }
-                for entry in staged {
-                    let ext = entry.pathExtension.lowercased()
-                    if ext == "app" || ext == "pkg" || ext == "mpkg" { return true }
+                while let entry = walk.nextObject() as? URL {
+                    if walk.level >= Self.stagedDepth { walk.skipDescendants() }
+                    switch entry.pathExtension.lowercased() {
+                    case "app":
+                        guard
+                            appTargets == nil,
+                            let link = try? fm.destinationOfSymbolicLink(atPath: entry.path)
+                        else { continue }
+                        let destination = URL(fileURLWithPath: link, relativeTo: entry.deletingLastPathComponent())
+                        if isShown(destination.path) { visible = true }
+                    case "pkg", "mpkg":
+                        hasPkg = true
+                    default:
+                        continue
+                    }
                 }
             }
         }
-        return false
+        var needsSudo = hasPkg
+        for root in roots {
+            let patterns = pkgutilPatterns(
+                installReceipt: (try? Data(contentsOf: root.appendingPathComponent(".metadata/INSTALL_RECEIPT.json"))) ?? Data())
+            guard !patterns.isEmpty else { continue }
+            // Its uninstall forgets receipts and deletes what they list, as root.
+            needsSudo = true
+            guard !visible else { continue }
+            for pattern in patterns {
+                if let apps = await receiptApps(pattern), apps.contains(where: isShown) {
+                    visible = true
+                    break
+                }
+            }
+        }
+        return CaskFacts(installsAnApp: visible, needsSudo: needsSudo)
+    }
+
+    /// How deep `caskFacts` walks a version directory: `Foo/Foo.app` is level 2.
+    static let stagedDepth = 3
+
+    /// The `pkgutil:` patterns of the `uninstall` stanza a Caskroom
+    /// `INSTALL_RECEIPT.json` records under `uninstall_artifacts` — the same
+    /// `{"uninstall": [{"pkgutil": "id" | ["id", …], …}]}` shape `info --json=v2`
+    /// prints, since brew writes both from `Cask#artifacts_list` (Homebrew 7.0.10
+    /// `cask/tab.rb`). [] for a receipt that doesn't parse.
+    static func pkgutilPatterns(installReceipt: Data) -> [String] {
+        guard
+            let receipt = try? JSONSerialization.jsonObject(with: installReceipt) as? [String: Any],
+            let artifacts = receipt["uninstall_artifacts"] as? [[String: Any]]
+        else { return [] }
+        return artifacts
+            .flatMap { ($0["uninstall"] as? [[String: Any]]) ?? [] }
+            .flatMap { directive -> [String] in
+                if let one = directive["pkgutil"] as? String { return [one] }
+                return (directive["pkgutil"] as? [String]) ?? []
+            }
+    }
+
+    /// The app bundles the packages a `pkgutil:` pattern matches installed, as
+    /// absolute paths (`appBundles`); nil when no receipt matches or one can't
+    /// be read. The pattern is a regex, as brew treats it: `uninstall` resolves
+    /// it with `pkgutil --pkgs=<pattern>` (Homebrew 7.0.10 `cask/pkg.rb`
+    /// `Pkg.all_matching`).
+    static func receiptApps(pkgutilPattern: String) async -> [String]? {
+        func lines(_ arguments: [String]) async -> [String]? {
+            guard
+                let outcome = try? await ChildProcess.run(
+                    "/usr/sbin/pkgutil", arguments, standardError: .discard, onCancel: .runToCompletion),
+                outcome.terminationStatus == 0
+            else { return nil }
+            return String(decoding: outcome.standardOutput, as: UTF8.self)
+                .split(separator: "\n").map(String.init)
+        }
+        guard let ids = await lines(["--pkgs=\(pkgutilPattern)"]), !ids.isEmpty else { return nil }
+        var apps: [String] = []
+        for id in ids {
+            guard
+                let info = await lines(["--pkg-info", id]),
+                let volume = Self.pkgInfoField("volume", in: info),
+                let location = Self.pkgInfoField("location", in: info),
+                let dirs = await lines(["--only-dirs", "--files", id])
+            else { return nil }
+            apps += appBundles(volume: volume, location: location, directories: dirs)
+        }
+        return apps
+    }
+
+    /// A `pkgutil --pkg-info` field's value, `name: value`, trimmed — so an
+    /// empty one reads the same with or without the space after the colon.
+    static func pkgInfoField(_ name: String, in lines: [String]) -> String? {
+        lines.first { $0.hasPrefix("\(name):") }
+            .map { String($0.dropFirst(name.count + 1)).trimmingCharacters(in: .whitespaces) }
+    }
+
+    /// The app bundles one receipt installed: each directory it wrote, under its
+    /// volume and install location, cut at its first component ending in `.app`.
+    /// The location counts too — measured on this Mac, Tailscale's receipt has
+    /// location `Applications/Tailscale.app` and lists only `Contents/…` under
+    /// it, while `com.azulsystems.zulu.25`'s is
+    /// `Library/Java/JavaVirtualMachines/zulu-25.jdk` with no `.app` in its 673
+    /// files. pkgutil prints a location relative to the volume, and an empty
+    /// one for the volume's root: `location: ` with its trailing space
+    /// (measured, `pkgutil --pkg-info com.youqu.todesk.mac`, macOS 27.2).
+    static func appBundles(volume: String, location: String, directories: [String]) -> [String] {
+        let base = ([volume] + location.split(separator: "/").map(String.init))
+        var out: [String] = []
+        for directory in [""] + directories {
+            let components = base + directory.split(separator: "/").map(String.init)
+            guard let end = components.indices.dropFirst().first(where: {
+                components[$0].lowercased().hasSuffix(".app")
+            }) else { continue }
+            let path = URL(fileURLWithPath: components[0])
+                .appendingPathComponent(components[1...end].joined(separator: "/")).path
+            if !out.contains(path) { out.append(path) }
+        }
+        return out
     }
 
     /// Parse the `casks` array of an `outdated --json=v2` payload. Same shape as
@@ -969,8 +1251,12 @@ public actor BrewFormulaService {
     /// it (`prefetch`, and `brew fetch --cask` of the casks), then both upgrades
     /// run as one commit. A cask pass after a formula run that failed never
     /// starts, as before.
+    ///
+    /// The cask pass's sudo asks `password` (`BrewAskPass`); with none, a pkg
+    /// cask fails there as it always did.
     public func upgradeAll(
         casks tokens: [String],
+        password: SudoPasswordPrompt? = nil,
         onOutput: @Sendable @escaping (String) -> Void
     ) async throws {
         let formulae = ["upgrade", "--formula"]
@@ -986,8 +1272,43 @@ public actor BrewFormulaService {
         try await InstallCommit.run("brew upgrade") {
             try await self.run(formulae, environment: ["HOMEBREW_NO_AUTO_UPDATE": "1"], onOutput: onOutput)
             guard !tokens.isEmpty else { return }
+            try await self.runCaskUpgrade(tokens, password: password, onOutput: onOutput)
+        }
+    }
+
+    /// Upgrade one app-less cask (`brew upgrade --cask <token>`), the per-row
+    /// action for a cask in the workbench Brew list. As `upgrade(formula:)`: a
+    /// cancellable download first, then the upgrade as the commit. Its sudo, a
+    /// pkg's, asks `password`.
+    public func upgrade(
+        cask token: String,
+        password: SudoPasswordPrompt?,
+        onOutput: @Sendable @escaping (String) -> Void
+    ) async throws {
+        try await prefetch(["upgrade", "--cask", token], kind: "--cask", onOutput: onOutput)
+        try await InstallCommit.run("brew upgrade") {
+            try await self.runCaskUpgrade([token], password: password, onOutput: onOutput)
+        }
+    }
+
+    /// `brew upgrade --cask <tokens…>` with brew's sudo pointed at `password`.
+    /// The panel names the casks that run a pkg (`CaskFacts.needsSudo`) — all
+    /// of them when none reads so, since a sudo came from somewhere.
+    private func runCaskUpgrade(
+        _ tokens: [String],
+        password: SudoPasswordPrompt?,
+        onOutput: @Sendable @escaping (String) -> Void
+    ) async throws {
+        var sudoTokens: [String] = []
+        if password != nil {
+            for token in tokens where await caskFacts(token, nil, []).needsSudo { sudoTokens.append(token) }
+        }
+        try await BrewAskPass.withChannel(
+            packages: sudoTokens.isEmpty ? tokens : sudoTokens, prompt: password
+        ) { askpass in
             try await self.run(
-                ["upgrade", "--cask"] + tokens, environment: ["HOMEBREW_NO_AUTO_UPDATE": "1"],
+                ["upgrade", "--cask"] + tokens,
+                environment: askpass.merging(["HOMEBREW_NO_AUTO_UPDATE": "1"]) { a, _ in a },
                 onOutput: onOutput)
         }
     }

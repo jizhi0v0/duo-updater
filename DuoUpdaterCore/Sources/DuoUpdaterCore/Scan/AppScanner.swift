@@ -502,6 +502,20 @@ public struct AppScanner: Sendable {
 
     /// Read one `.app` bundle into an `InstalledApp`, or nil if it has no
     /// readable Info.plist.
+    /// Whether `readApp` would make `bundleURL` a row by the rules that drop a
+    /// bundle outright: a readable Info.plist (the wrapped iOS layout's
+    /// included) with a marketing version. For Homebrew's cask surface, which
+    /// must list a cask whose app gets no row (`BrewFormulaService.caskFacts`)
+    /// — one that is gone, or that has no version — without running a scan.
+    static func hasRow(_ bundleURL: URL) -> Bool {
+        let infoURL = BundleLayout.infoPlistURL(for: bundleURL, fileManager: .default)
+        guard
+            let data = try? Data(contentsOf: infoURL),
+            let plist = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any]
+        else { return false }
+        return VersionSide.plistVersionField(plist["CFBundleShortVersionString"]) != nil
+    }
+
     func readApp(at bundleURL: URL) -> InstalledApp? {
         let fm = FileManager.default
 

@@ -1226,7 +1226,9 @@ final class AppListModel {
 
     /// Flagged casks that install no app, so no other row would carry the notice.
     var brewAppLessCaskLifecycles: [BrewCaskLifecycle] {
-        brewCaskLifecycles.filter { !$0.installsAnApp }
+        // A cask with a row of its own in the tree carries its notice there.
+        let listed = Set(brewFormulae.filter { $0.kind == .cask }.map(\.name))
+        return brewCaskLifecycles.filter { !$0.installsAnApp && !listed.contains($0.token) }
     }
     /// Whether Homebrew is installed at all (cached once — install state doesn't
     /// change mid-session). Lets the menu reserve the brew row's space from the very
@@ -4366,7 +4368,9 @@ final class AppListModel {
         defer { if generation == brewRefreshGeneration { brewChecked = true } }
         // Independent of `outdated()` — four local reads, started now so they
         // overlap it rather than queueing behind it.
-        async let report = brewFormulaService.installedReport()
+        // The person's own scan folders give an app a row too (`caskFacts`).
+        let extraFolders = prefs.customScanPaths
+        async let report = brewFormulaService.installedReport(extraFolders: extraFolders)
         var outdated: [BrewOutdatedFormula]
         var outdatedRead = true
         do {
@@ -4379,8 +4383,18 @@ final class AppListModel {
         // App-less casks (CLIs, fonts) have no per-app row and no other home — see
         // `BrewOutdatedFormula`. Best-effort: a failure here must not blank the
         // formula count we already have.
-        let casks = (try? await brewFormulaService.outdatedCasks()) ?? []
+        let outdatedCasks = (try? await brewFormulaService.outdatedCasks(extraFolders: extraFolders)) ?? []
         let installed = await report
+        // The cask rows: this pass's, or the last ones when `brew info` failed
+        // and left none to go on (`InstalledReport.casksRead`). An outdated cask
+        // counts only when it has a row: `outdatedCasks` decides from the
+        // Caskroom alone, the report from where brew put each app.
+        let caskRows = installed.casksRead ? installed.appLessCasks : brewFormulae.filter { $0.kind == .cask }
+        let rowTokens = Set(caskRows.map(\.name))
+        let casks = outdatedCasks.filter { rowTokens.contains($0.name) }
+        // brew refuses to upgrade these: they show their update, but no Update,
+        // no place in Upgrade All and no count beside it.
+        let manual = Set(caskRows.filter(\.manualInstaller).map(\.name))
         let newUnchecked = installed.unchecked
         // Where the read's time went, beside the lane's own line for the pass.
         let total = clock.now - started
@@ -4391,29 +4405,35 @@ final class AppListModel {
         if !casks.isEmpty {
             Log.app.info("brew outdated: \(outdated.count, privacy: .public) formulae + \(casks.count, privacy: .public) app-less casks (\(casks.map(\.name).joined(separator: ", "), privacy: .public))")
         }
-        // Merge the formula badges into the tree BEFORE folding in casks: the tree
-        // lists `brew leaves`, which casks are not, so a cask name could only ever
-        // fail to match there.
+        // The tree is the leaves and the app-less casks; `merge` matches each to
+        // its update by kind and name, so a cask never takes a same-named
+        // formula's version, nor the other way round.
         //
         // An empty leaves read replacing a non-empty tree is taken as a failed read
         // (`runReading` answers "" for any non-zero exit, so the two can't be told
         // apart) and the previous tree is re-stamped instead of blanked. The cost:
         // uninstalling the very last leaf leaves its row up until a read that
         // returns something.
-        let inventory = leaves.isEmpty ? brewFormulae : leaves
+        // The app-less casks join the formula leaves here, from the same pass as
+        // their facts (`InstalledReport.appLessCasks`); never kept from the last
+        // tree, which would list them twice.
+        let inventory = (leaves.isEmpty ? brewFormulae.filter { $0.kind == .formula } : leaves)
+            + caskRows
         // A formula moved to a cask, removed or renamed is still a leaf — brew
         // loads it from its keg, or under its new name — and reads as up to date
         // there; its unchecked row is the one that's true.
         let shadowed = Set(newUnchecked.compactMap(\.leafName))
-        brewFormulae = BrewFormulaService.merge(inventory, outdated: outdated)
-            .filter { !shadowed.contains($0.name) }
+        brewFormulae = BrewFormulaService.merge(inventory, outdated: outdated + casks)
+            .filter { $0.kind == .cask || !shadowed.contains($0.name) }
             .map { f in
+                // A cask's lifecycle came with it; these maps are formulae's.
+                guard f.kind == .formula else { return f }
                 var f = f
                 f.lifecycle = installed.lifecycles[f.name]
                 f.head = installed.headInstalls[f.name]
                 return f
             }
-        brewOutdatedFormulae = outdated + casks
+        brewOutdatedFormulae = outdated + casks.filter { !manual.contains($0.name) }
         brewUnchecked = newUnchecked
         brewCaskLifecycles = installed.caskLifecycles
         if !brewUnchecked.isEmpty {
@@ -4440,7 +4460,7 @@ final class AppListModel {
         // that is already done: `readBrewFormulae` runs on every menu-bar
         // open, not just after an upgrade.
         let pending = brewFormulae.filter { formula in
-            formula.hasUpdate && formulaReleases.state(
+            formula.kind == .formula && formula.hasUpdate && formulaReleases.state(
                 name: formula.name,
                 version: formula.availableVersion ?? formula.installedVersion) == nil
         }
@@ -4691,7 +4711,8 @@ final class AppListModel {
         brewUpgradeNote = String(localized: "Starting…")
         // Snapshot the target set so dependency formulae brew pulls in (which also
         // emit a 🍺 line) don't inflate the count past the user-visible total.
-        let targets = Set(brewOutdatedFormulae.map(\.name))
+        // Keyed as the rows are: a formula and a cask may share a name.
+        let targets = Set(brewOutdatedFormulae.map { BrewInstalledFormula.key(kind: $0.kind, name: $0.name) })
         // Cask tokens are upgraded by name in a second pass — never a bare
         // `brew upgrade --cask`, which would reach GUI casks this surface doesn't own.
         let caskTokens = brewOutdatedFormulae.filter { $0.kind == .cask }.map(\.name)
@@ -4721,7 +4742,8 @@ final class AppListModel {
             await self.afterBackgroundHomebrewUpdate()
             var failure: (any Error)?
             do {
-                try await self.brewFormulaService.upgradeAll(casks: caskTokens, onOutput: onOutput)
+                try await self.brewFormulaService.upgradeAll(
+                    casks: caskTokens, password: BrewSudoPasswordPanel.prompt, onOutput: onOutput)
                 if !caskTokens.isEmpty {
                     self.brewUpgradeDone = min(self.brewUpgradeDone + caskTokens.count, self.brewUpgradeTotal)
                 }
@@ -4746,8 +4768,10 @@ final class AppListModel {
         await brewLane.handle(.afterAction("brew upgrade"))
     }
 
-    /// Upgrade a single formula (`brew upgrade --formula <name>`) — the per-row
-    /// action in the workbench Brew list — then re-read the outdated set.
+    /// Upgrade a single formula (`brew upgrade --formula <name>`), or an
+    /// app-less cask (`brew upgrade --cask <token>`) — the per-row action in the
+    /// workbench Brew list — then re-read the outdated set. `name` is the row's
+    /// `BrewInstalledFormula.key`, which every run, note and error is keyed by.
     func upgradeBrewFormula(named name: String) async {
         guard !upgradingFormulae.contains(name) else { return }
         upgradingFormulae.insert(name)
@@ -4769,7 +4793,7 @@ final class AppListModel {
         let ran = await cliTools.runQueue.perform(.upgradeFormula(name), whenCancelled: end) {
             // Read again at its turn: an Upgrade All queued ahead of it may have
             // upgraded it already.
-            guard self.brewFormulae.contains(where: { $0.name == name && $0.hasUpdate }) else { return }
+            guard self.brewFormulae.contains(where: { $0.key == name && $0.canUpgrade }) else { return }
             self.formulaUpgradeNotes[name] = String(localized: "Starting…")
             await self.runFormulaUpgrade(name)
         }
@@ -4788,13 +4812,19 @@ final class AppListModel {
             guard let self else { return (nil, false) }
             await self.afterBackgroundHomebrewUpdate()
             var failure: (any Error)?
+            // Map brew's noisy raw output to a clean phase word; ignore lines we
+            // don't recognize so the label stays stable instead of flickering
+            // through dependency chatter ("✔ Bottle graphite2 …").
+            let onOutput: @Sendable (String) -> Void = { [weak self] line in
+                guard let phase = Self.brewUpgradePhase(from: line) else { return }
+                Task { @MainActor in self?.formulaUpgradeNotes[name] = phase }
+            }
             do {
-                try await self.brewFormulaService.upgrade(formula: name) { [weak self] line in
-                    // Map brew's noisy raw output to a clean phase word; ignore lines we
-                    // don't recognize so the label stays stable instead of flickering
-                    // through dependency chatter ("✔ Bottle graphite2 …").
-                    guard let phase = Self.brewUpgradePhase(from: line) else { return }
-                    Task { @MainActor in self?.formulaUpgradeNotes[name] = phase }
+                if let cask = self.brewFormulae.first(where: { $0.key == name && $0.kind == .cask }) {
+                    try await self.brewFormulaService.upgrade(
+                        cask: cask.name, password: BrewSudoPasswordPanel.prompt, onOutput: onOutput)
+                } else {
+                    try await self.brewFormulaService.upgrade(formula: name, onOutput: onOutput)
                 }
             } catch {
                 failure = error
@@ -4891,7 +4921,7 @@ final class AppListModel {
     /// What `formula`'s sidebar row and detail header draw
     /// (`BrewRowSnapshot.Formula.row`): its own facts, and Upgrade All's phase.
     func brewFormulaRow(_ formula: BrewInstalledFormula) -> BrewFormulaRow {
-        brewFormula(formula.name, hasUpdate: formula.hasUpdate).row(upgradeAll: upgradeAllPhase)
+        brewFormula(formula.key, hasUpdate: formula.canUpgrade).row(upgradeAll: upgradeAllPhase)
     }
 
     /// What the popover's Homebrew row and the workbench's Upgrade All draw
@@ -4902,11 +4932,13 @@ final class AppListModel {
             upgradeAllDone: brewUpgradeDone, upgradeAllTotal: brewUpgradeTotal, upgradeAllError: brewUpgradeError,
             // The popover row's: those with an upgrade of their own claimed.
             formulae: upgradingFormulae.sorted().map { name in
-                brewFormula(name, hasUpdate: brewFormulae.contains { $0.name == name && $0.hasUpdate })
+                brewFormula(name, hasUpdate: brewFormulae.contains { $0.key == name && $0.canUpgrade })
             },
             installed: brewInstalled, checked: brewChecked,
             outdated: brewOutdatedFormulae.count, unchecked: brewUnchecked.count,
-            deprecated: brewFormulae.filter { $0.lifecycle != nil }.count + brewCaskLifecycles.count)
+            // Casks once: every flagged one is in `brewCaskLifecycles`, rows or not.
+            deprecated: brewFormulae.filter { $0.kind == .formula && $0.lifecycle != nil }.count
+                + brewCaskLifecycles.count)
     }
 
     /// `brew update`'s Cancel beside its row's progress, while it waits its

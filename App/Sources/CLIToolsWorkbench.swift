@@ -340,6 +340,9 @@ struct CLIToolSidebarRow: View {
 /// is on hover, so the row's Update reads as what it is before it is clicked.
 /// The word is the command's, so untranslated.
 struct CLISudoBadge: View {
+    /// Why it asks: the command-line tools' reason unless a row has its own.
+    var help = CLIToolPresentation.sudoBadgeHelp
+
     var body: some View {
         Text(verbatim: "sudo")
             .font(.caption2.monospaced())
@@ -349,8 +352,8 @@ struct CLISudoBadge: View {
             .padding(.vertical, 1)
             .background(Capsule().fill(.secondary.opacity(0.16)))
             .foregroundStyle(.secondary)
-            .help(CLIToolPresentation.sudoBadgeHelp)
-            .accessibilityLabel(CLIToolPresentation.sudoBadgeHelp)
+            .help(help)
+            .accessibilityLabel(help)
     }
 }
 

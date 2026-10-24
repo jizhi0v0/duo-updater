@@ -150,29 +150,32 @@ import os
         }
     }
 
-    /// The run ending while the panel is up closes it (the prompt is
-    /// cancelled) and returns at once: no panel for a run that is over, no
-    /// password for its sudo. Mutation: don't cancel in `close` → this waits
-    /// the prompt's 30 s and the script gets "late".
+    /// The run ending while the panel is up cancels the prompt (the app's panel
+    /// closes on cancel): no panel for a run that is over, no password for its
+    /// sudo. Asserted on the cancel itself, not on time (REVIEW.md: no
+    /// wall-clock bounds in the core suite). Mutation: don't cancel in `close`
+    /// → the prompt sleeps out its 30 s uncancelled and `cancelled` is false
+    /// (the script still gets nothing: `closing` drops the late answer).
     @Test func closingCancelsAPromptStillUp() async throws {
         let parent = try Self.parent()
         defer { try? FileManager.default.removeItem(at: parent) }
         let asked = Asked()
-        let started = ContinuousClock.now
+        let cancelled = OSAllocatedUnfairLock(initialState: false)
         var script: Task<ChildProcess.Outcome, any Error>?
         try await BrewAskPass.withChannel(
             packages: ["x"],
             prompt: { request in
                 asked.record(request)
                 try? await Task.sleep(for: .seconds(30))
-                return Task.isCancelled ? nil : "late"
+                cancelled.withLock { $0 = Task.isCancelled }
+                return "late"
             },
             temporaryDirectory: parent
         ) { environment in
             script = Task { try await Self.askpass(environment) }
             while asked.all.isEmpty { try await Task.sleep(for: .milliseconds(20)) }
         }
-        #expect(ContinuousClock.now - started < .seconds(10))
+        #expect(cancelled.withLock { $0 })
         let outcome = try await #require(script).value
         #expect(outcome.standardOutput.isEmpty)
     }

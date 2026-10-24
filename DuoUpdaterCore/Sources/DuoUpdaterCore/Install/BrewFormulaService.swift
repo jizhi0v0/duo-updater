@@ -1162,7 +1162,8 @@ public actor BrewFormulaService {
     /// it, while `com.azulsystems.zulu.25`'s is
     /// `Library/Java/JavaVirtualMachines/zulu-25.jdk` with no `.app` in its 673
     /// files. pkgutil prints a location relative to the volume, and an empty
-    /// one for the volume's root.
+    /// one for the volume's root: `location: ` with its trailing space
+    /// (measured, `pkgutil --pkg-info com.youqu.todesk.mac`, macOS 27.2).
     static func appBundles(volume: String, location: String, directories: [String]) -> [String] {
         let base = ([volume] + location.split(separator: "/").map(String.init))
         var out: [String] = []

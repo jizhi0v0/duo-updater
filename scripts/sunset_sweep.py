@@ -49,6 +49,7 @@ import os
 import re
 import subprocess
 import sys
+import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -174,9 +175,17 @@ def archived_query(repos: list[tuple[str, str]]) -> str:
 def graphql(query: str, token: str) -> dict:
     request = urllib.request.Request(
         GRAPHQL, data=json.dumps({"query": query}).encode(),
-        headers={"Authorization": f"bearer {token}", "Content-Type": "application/json"})
-    with urllib.request.urlopen(request, timeout=60) as response:
-        return json.load(response)
+        # GitHub's API asks for a User-Agent naming the client; the first CI run,
+        # sending urllib's default, got a bare 403 (2026-10-24).
+        headers={"Authorization": f"bearer {token}", "Content-Type": "application/json",
+                 "User-Agent": "duo-updater-sunset-sweep"})
+    try:
+        with urllib.request.urlopen(request, timeout=60) as response:
+            return json.load(response)
+    except urllib.error.HTTPError as error:
+        # The body says why (rate limit, scope, blocked client); the status alone doesn't.
+        body = error.read().decode("utf-8", "replace")[:300]
+        raise RuntimeError(f"GraphQL HTTP {error.code}: {body}") from error
 
 
 def github_leads(casks: list[dict], today: dt.date, days: int, fetch) -> list[Lead]:

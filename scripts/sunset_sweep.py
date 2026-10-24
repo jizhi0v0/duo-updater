@@ -13,8 +13,14 @@ Two layers:
   1. Signals, every cask, no model:
      • Homebrew marked the cask deprecated or disabled as `discontinued`,
        `unmaintained`, `no_longer_available` or `moved_to_mas`, dated within the
-       window. (`fails_gatekeeper_check`, two thirds of all marks, says nothing
-       about the product, so it is left out.)
+       window, or scheduled the cask to be disabled on a date still ahead. The
+       latter is how Homebrew records an announced end: `disable! date: <future>,
+       because: :discontinued` serves `deprecated` with that reason, no
+       `deprecation_date`, and the date in `disable_date` (Arc, 2026-12-22). It
+       is filed whenever seen, not only within the window, since the window
+       would miss a mark that landed before the sweep did.
+       (`fails_gatekeeper_check`, over half of all marks, says nothing about
+       the product, so it is left out.)
      • The cask downloads from a GitHub repository that was archived within the
        window.
   2. `--news`: Haiku searches the last week's news and vendor posts for macOS apps
@@ -114,8 +120,7 @@ def recorded_sunsets(recipes: Path = RECIPES) -> set[str]:
 def in_window(date: str | None, today: dt.date, days: int) -> bool:
     """`date` (yyyy-MM-dd, or an ISO timestamp) falls in the `days` before today, today included.
 
-    A future date is out: Homebrew dates a mark it schedules ahead, and the mark
-    is not in force yet."""
+    A future date is out; `homebrew_leads` reads a scheduled disable on its own."""
     if not date:
         return False
     try:
@@ -141,6 +146,15 @@ def homebrew_leads(casks: list[dict], today: dt.date, days: int) -> list[Lead]:
                     f"Homebrew {verb} the cask on {cask[date_key]} as `{reason}`.",
                     url=f"https://formulae.brew.sh/cask/{cask['token']}"))
                 break
+        else:
+            reason = cask.get("deprecation_reason")
+            disable_date = cask.get("disable_date") or ""
+            if (cask.get("deprecated") and not cask.get("disabled") and reason in PRODUCT_REASONS
+                    and disable_date[:10] > today.isoformat()):
+                leads.append(Lead(
+                    cask["token"], display_name(cask), cask.get("homepage") or "", "homebrew",
+                    f"Homebrew will disable the cask on {disable_date[:10]} as `{reason}`.",
+                    url=f"https://formulae.brew.sh/cask/{cask['token']}", end_date=disable_date[:10]))
     return leads
 
 
@@ -179,7 +193,10 @@ def github_leads(casks: list[dict], today: dt.date, days: int, fetch) -> list[Le
     leads = []
     for start in range(0, len(repos), 100):
         batch = repos[start:start + 100]
-        data = (fetch(archived_query(batch)) or {}).get("data") or {}
+        response = fetch(archived_query(batch)) or {}
+        data = response.get("data")
+        if data is None:
+            raise RuntimeError(f"GraphQL returned no data: {str(response.get('errors'))[:300]}")
         for i, repo in enumerate(batch):
             archived_at = (data.get(f"r{i}") or {}).get("archivedAt")
             if not in_window(archived_at, today, days):
@@ -311,10 +328,17 @@ def ask_news(today: dt.date, model: str) -> list[dict]:
     # "Not logged in" arrives as a successful-looking document with is_error set.
     if result.get("is_error"):
         raise RuntimeError(f"claude: {str(result.get('result'))[:500]}")
+    # A tool the flags refused would leave the model answering from nothing, and
+    # an empty list looks like a quiet week; say so instead.
+    if result.get("permission_denials"):
+        print(f"::warning::news search: tools refused: {str(result['permission_denials'])[:300]}")
     answer = result.get("structured_output")
     if isinstance(answer, str):
         answer = json.loads(answer)
-    return list((answer or {}).get("leads") or [])
+    if not isinstance(answer, dict) or not isinstance(answer.get("leads"), list):
+        raise RuntimeError(f"claude: no structured answer: {str(result.get('result'))[:300]}")
+    print(f"   news     : {result.get('num_turns')} turns, ${result.get('total_cost_usd')}")
+    return answer["leads"]
 
 
 def defuse(text: str) -> str:

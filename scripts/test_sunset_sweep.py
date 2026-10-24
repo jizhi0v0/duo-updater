@@ -47,6 +47,16 @@ class Homebrew(unittest.TestCase):
         ]
         self.assertEqual([l.token for l in s.homebrew_leads(casks, TODAY, 14)], ["gone", "off"])
 
+    def test_a_scheduled_disable_is_a_lead_whenever_seen(self):
+        # What `disable! date: "2026-12-22", because: :discontinued` serves (arc, 2026-10-24).
+        arc = cask("arc", deprecated=True, deprecation_reason="discontinued", deprecation_date=None,
+                   disabled=False, disable_date="2026-12-22", disable_reason=None)
+        leads = s.homebrew_leads([arc], TODAY, 14)
+        self.assertEqual([(l.token, l.end_date) for l in leads], [("arc", "2026-12-22")])
+        past = dict(arc, disable_date="2026-10-01")
+        gatekeeper = dict(arc, deprecation_reason="fails_gatekeeper_check")
+        self.assertEqual(s.homebrew_leads([past, gatekeeper], TODAY, 14), [])
+
     def test_deprecated_then_disabled_is_one_lead(self):
         both = cask("both", deprecated=True, deprecation_reason="unmaintained", deprecation_date="2026-10-15",
                     disabled=True, disable_reason="discontinued", disable_date="2026-10-20")
@@ -76,6 +86,11 @@ class Archived(unittest.TestCase):
         self.assertEqual(len(queries), 1)
         self.assertIn('repository(owner: "acme", name: "fresh")', queries[0])
         self.assertNotIn("elsewhere", queries[0])
+
+    def test_a_batch_without_data_is_an_error(self):
+        casks = [cask("x", url="https://github.com/o/x/releases/x.dmg")]
+        with self.assertRaises(RuntimeError):
+            s.github_leads(casks, TODAY, 14, lambda q: {"data": None, "errors": [{"message": "no"}]})
 
     def test_batches_of_one_hundred(self):
         casks = [cask(f"a{i}", url=f"https://github.com/o/a{i}/releases/x.dmg") for i in range(250)]

@@ -977,7 +977,8 @@ struct ToolsPage: View {
     /// name or one of its tools' ("node" finds mise tools).
     let query: String
     let close: () -> Void
-    /// Opens the workbench on a copy (its tag), as the app rows do.
+    /// Opens the workbench on a copy (its tag), from a row's right-click menu,
+    /// as the app rows' Changelog does.
     let show: (String) -> Void
 
     /// One group's row: who it is and its snapshot.
@@ -1085,23 +1086,20 @@ struct ToolsPage: View {
         let target = entry.snapshot.tools.first(where: {
             $0.phase != .idle || $0.error != nil || $0.state == .updateAvailable
         })?.id.tag ?? entry.statuses.first?.toolID.tag
+        // A left click does nothing, as on an app row: the row looks like one,
+        // and its Update sits beside it, so a click a little off it opened the
+        // workbench and closed the popover (owner, 2026-10-24). The workbench
+        // is on its right-click menu.
         return HStack(spacing: 10) {
-            Button { if let target { show(target) } } label: {
-                HStack(spacing: 10) {
-                    if let first = entry.statuses.first {
-                        CLIToolIcon(kind: first.kind, size: 30, managed: first.managedItem?.descriptor)
-                            .frame(width: 30)
-                    }
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(verbatim: entry.title).lineLimit(1)
-                        line(entry, popover).font(.caption).foregroundStyle(.secondary).lineLimit(1)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .contentShape(Rectangle())
+            if let first = entry.statuses.first {
+                CLIToolIcon(kind: first.kind, size: 30, managed: first.managedItem?.descriptor)
+                    .frame(width: 30)
             }
-            .buttonStyle(.plain)
-            .help(String(localized: "Show in Window"))
+            VStack(alignment: .leading, spacing: 1) {
+                Text(verbatim: entry.title).lineLimit(1)
+                line(entry, popover).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
             switch popover?.button {
             case .update:
                 Button { Task { await tools.updateAll(in: entry.scope) } } label: {
@@ -1128,6 +1126,12 @@ struct ToolsPage: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 7)
+        .contentShape(Rectangle())
+        .contextMenu {
+            if let target {
+                Button(String(localized: "Show in Window")) { show(target) }
+            }
+        }
     }
 
     /// Its versions while it has one copy with an update and nothing runs —

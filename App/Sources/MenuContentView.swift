@@ -1110,7 +1110,7 @@ struct ToolsPage: View {
                 .lineLimit(1)
                 .fixedSize()
                 .controlSize(.small)
-                .buttonStyle(.bordered)
+                .buttonStyle(.borderedProminent)
                 .help(CLIToolPresentation.updateAllHelp)
             case .cancel(let group):
                 HStack(spacing: 4) {

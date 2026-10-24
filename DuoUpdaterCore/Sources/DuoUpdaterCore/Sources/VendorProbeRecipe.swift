@@ -817,10 +817,83 @@ public struct VendorProbeRecipe: Sendable {
     public struct RequestBody: Sendable, Hashable {
         public let contentType: String
         public let json: String
+        /// A value the service assigns in its reply and expects back in the next
+        /// request. Nil for a body that is entirely fixed.
+        public let echoedField: EchoedField?
 
-        public init(contentType: String = "application/json", json: String) {
+        public init(
+            contentType: String = "application/json", json: String,
+            echoedField: EchoedField? = nil
+        ) {
             self.contentType = contentType
             self.json = json
+            self.echoedField = echoedField
+        }
+
+        /// One field of the body that is not fixed: the service names it in
+        /// each reply, and the next request sends back whatever the last reply
+        /// said, the way the vendor's own client does.
+        ///
+        /// Omaha's `cohort` is the case (#1621). A request without one is put in
+        /// a cohort at random, PER REQUEST, so during a staged rollout two
+        /// queries seconds apart answer different builds — and the pre-install
+        /// re-check, contradicting the check that made the offer, refused the
+        /// install. A request carrying the cohort the server last assigned is
+        /// answered from that cohort (measured on Gemini and Chrome, see
+        /// `Recipes/com-google-GeminiMacOS.swift`), so the check and the
+        /// re-check agree.
+        ///
+        /// The value lives in `EchoedFieldStore`, keyed by recipe, so the menu
+        /// bar and `duo` share one; a source without a store sends the empty
+        /// value every time, which is the request as it was before.
+        public struct EchoedField: Sendable, Hashable {
+            /// The literal token in `json` the value replaces. Must sit inside a
+            /// JSON string literal (`"cohort":"__COHORT__"`): the value is
+            /// substituted unescaped, and `allowedCharacters` is what keeps it
+            /// from leaving the string.
+            public let placeholder: String
+            /// Regex over the reply whose first capture group is the value the
+            /// service assigned.
+            public let responsePattern: String
+            /// What a value must look like, in full, before it is stored or
+            /// sent. A reply that stops matching it stores nothing.
+            public let validationPattern: String
+
+            public init(placeholder: String, responsePattern: String, validationPattern: String) {
+                self.placeholder = placeholder
+                self.responsePattern = responsePattern
+                self.validationPattern = validationPattern
+            }
+
+            /// URL-unreserved characters plus `:`, `/`, `@` and `,`, which Omaha
+            /// cohorts are written in (`1:3j3x/3wu9:`, `1:1y5:3vo3@0.0,3wo9@0.5`).
+            /// Excluded, whatever `validationPattern` allows: `"` (ends the
+            /// string), `\` (starts an escape), and everything else.
+            static let allowedCharacters = CharacterSet(
+                charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~:/@,")
+
+            /// `value`, when it may go on the wire. Empty is always acceptable:
+            /// it is what a request with nothing stored sends.
+            func accept(_ value: String) -> String? {
+                guard !value.isEmpty else { return value }
+                guard value.unicodeScalars.allSatisfy(Self.allowedCharacters.contains),
+                      value.range(of: "^(?:\(validationPattern))$", options: .regularExpression) != nil
+                else { return nil }
+                return value
+            }
+
+            /// `json` with the placeholder replaced by `stored`, or by the empty
+            /// value when nothing acceptable is stored.
+            func body(_ json: String, stored: String?) -> String {
+                json.replacingOccurrences(
+                    of: placeholder, with: stored.flatMap(accept) ?? "")
+            }
+
+            /// The value a reply assigned, when it names one that is acceptable.
+            func assigned(in reply: String) -> String? {
+                VendorProbeRecipe.extractVersion(from: reply, pattern: responsePattern)
+                    .flatMap(accept)
+            }
         }
     }
 

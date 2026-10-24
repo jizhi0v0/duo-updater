@@ -42,3 +42,28 @@ the version on this row.
 `dl.google.com/…_1.128.2.1001/Gemini-1.128.2.1001.dmg`（176,602,023 B，等于 `size`）后实算：SHA-256 等于 `hash_sha256`
 （`37f5a9bd…9bb1`），base64 SHA-1 等于 `hash`（`XFUQOg+le3g42ptq+6mg9w6Z4is=`）。`duo install Gemini` 1.113.6.866 → 1.128.2.1001：
 `extracting` 前出现 `verifyingSignature`（摘要闸），安装成功，`spctl` accepted，Notarized Developer ID，Google LLC (EQHXZ8M8AV)。
+
+### Recipes/com-google-GeminiMacOS.swift — 灰度按 Omaha `cohort` 分组，请求体回显上次回复分配的 cohort（2026-10-24，#1621）
+
+#1621：一键更新在安装前复查时报 "The update source answered 1.135.1.1291, then 1.131.4.1198 — nothing was installed."，即 `PreInstallGate` 的 `.answerRegressed`，闸本身按设计工作。
+
+实测（2026-10-24 ~02:00 UTC，按 recipe 原请求体 POST `update.googleapis.com/service/update2/json`）：
+
+- 不带 `cohort`：20 次里 12 × `1.131.4.1198`（`cohortname` "Prod"，回 `cohort` `1:3j3x:3wu9@0.3`）、8 × `1.135.1.1291`（"Rollout - Prod"，`1:3j3x/3wu9:`）。
+- 固定 `userid`、或固定 `requestid` + `sessionid`：仍随机（8:2、9:1）。
+- 带 `cohort: "1:3j3x:3wu9@0.3"`：15/15 `1.131.4.1198`；带 `"1:3j3x/3wu9:"`：15/15 `1.135.1.1291`。
+- 带本机旧值 `1:3j3x:3wu9@0.1`、`1:3j3x:`、`1:3j3x:3wu9`、`garbage`、空串：各 10 次都重新抽签（5:5 到 8:2）。所以只有服务端当期刚发的 cohort 是粘的，写死任何一个都会在下次灰度比例变化后失效。
+
+包内部（`/Applications/Gemini.app` 1.135.1.1291）：
+
+- `Info.plist` 只有 `KSChannelID` = `m1-prod`（即请求里的 `tag`）。
+- 二进制里有自带的 Omaha 更新器（`googlemac/Janus/MacApplication/Components/Updater/OmahaUpdater/OmahaService.swift`，同一端点；`checkForUpdate(appId:currentVersion:tag:platform:)` 签名里没有 cohort，持久化键只有 `com.google.Gemini.OmahaMetrics.*`）。它由 `app_useOmahaUpdater` 开关控制，本机 `com.google.GeminiMacOS` 与 `group.com.google.gemini` 里都是 `{"defaultValue":{"_0":false}}`——关着。它不发 cohort，见下面的抓包。
+- 本机实际更新 Gemini 的是系统 GoogleUpdater：`~/Library/Application Support/Google/GoogleUpdater/prefs.json` → `updateclientdata.apps["com.google.geminimacos"]` 存 `cohort`、`cohortname`、`pv`。`updater_history.jsonl` 里它的 cohort 从 `1:3j3x:` → `1:3j3x:3wu9@0.1`（pv 1.131.4.1198），之后某次检查被抽进 `1:3j3x/3wu9:`（"Rollout - Prod"），装上 1.135.1.1291。`/Library/Application Support/Google/GoogleUpdater` 本机不存在。
+
+抓包（用户提供，2026-10-24 06:52Z，macOS 26.7 的另一台 Mac）：app 自带更新器与 `GeminiAppLauncher` 各 POST 一次同一端点，请求体只有 `appid`、`version`（已装的 1.135.1.1291）、`tag`、`ping`（含 `ping_freshness`）、`os`——**不带 `cohort`**。所以走 app 自带更新器的 Mac，Gemini 自己每次检查也是重新抽签；没有「本机 cohort」可读。回复是 `cohort` `1:3j3x:`、"Prod"、`noupdate`。
+
+为什么没用 GoogleUpdater 存的 cohort（先实现过，复审后撤回）：GoogleUpdater 被分进 Rollout 的那次回复同时带了更新（`status: ok`），它随即自己装上新版；存的 cohort 是当期 Prod 时 duo 答旧版＝已装版，不出 offer。duo 真正会出 offer 的只剩存的 cohort 过期、每次重抽的情形，复查照样约 1−p 概率倒退。app 自带更新器的 Mac 上则根本没有可读的值。
+
+灰度结束：07:00Z 起原请求体（无 cohort）20/20 `1.135.1.1291`，`cohort` `1:3j3x:`、"Prod"。官网的不带版本号地址 `dl.google.com/release2/j33ro/release/Gemini.dmg` HEAD 10 次一致：`content-length` 256237111（等于 1.135.1.1291 包的 `size`），`last-modified` 05:49:16Z——它跟的是全量版，灰度期间停在旧版。同一时刻 Chrome（同一服务）在灰度：不带 cohort 20 次 11 Stable / 5 "156.0.8078.47 Rollout" / 4 Control；回显 Rollout、Stable 各 10/10 不变。服务端回的 cohort 可以与送去的不同（送 `1:1y5/3wo9:3vo3@0.0,3wol@0.5,3w59@0.0`，回 `1:1y5/3wo9:3wol@0.5`），所以每次回复都要重新存。
+
+改法：请求体加 `"cohort":"__COHORT__"`，填上次回复分配的值（`RequestBody.EchoedField`，存在 `EchoedFieldStore`，菜单栏与 `duo` 共用一个文件）；什么都没存时填空串，等于改动前的请求。检查拿到的 cohort 被复查原样送回，两次由同一组回答。代价：灰度期间 duo 可能比本机 Gemini 自己的更新器先看到新版（同一个官方签名包）。

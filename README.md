@@ -437,6 +437,13 @@ and Team ID the install gates compare — without installing anything, and holds
 one against what that installer was when first seen (`verify/identities.json`). It runs on a
 hosted runner (`.github/workflows/install-verify.yml`), where that traffic is free.
 
+Sunset notices need a vendor's announcement, and apps nobody has onboarded get no
+audit to find one. `.github/workflows/sunset-sweep.yml` runs `scripts/sunset_sweep.py`
+daily: it reads Homebrew's `discontinued`-style cask marks and newly archived GitHub
+repositories across every cask, has Haiku search the week's news, and files a
+`sunset-lead` issue for each new match. A lead is checked on the vendor's own page
+before any `sunsets` entry is written.
+
 ## Project layout
 
 - `DuoUpdaterCore/` — Swift Package with the detection engine and install

@@ -1,0 +1,83 @@
+# File a `sunset-lead` issue for each app whose end looks announced (#1610).
+#
+# A sunset notice shows for any installed app, integrated or not, but nothing
+# looked for one outside onboarding and audits. scripts/sunset_sweep.py says what
+# it reads (Homebrew's marks and archived GitHub repositories across every cask,
+# then a Haiku news search) and why it files leads rather than code: an end date
+# has to come from the vendor's own page, checked by a person or a session.
+#
+# Daily. The script looks back 14 days and skips any cask a `sunset-lead` issue
+# already names, so a run GitHub starts hours late, or not at all, loses nothing
+# and files nothing twice. It keeps no state, so it commits nothing.
+#
+# The news search uses CLAUDE_CODE_OAUTH_TOKEN (the one recipe-autofix.yml and
+# claude-review.yml use). Haiku gets WebSearch and WebFetch only, and the script
+# strips GH_TOKEN from its environment; what it reports only ever becomes the
+# text of an issue. Without the secret the search is skipped and the signals are
+# still filed. One run measured 2026-10-24: 15 turns, 38 s, $0.16.
+#
+# Otherwise ci.yml's rules: hosted runner, actions pinned by SHA.
+name: Sunset sweep
+
+on:
+  schedule:
+    # UTC. Any hour does; nothing else shares its state.
+    - cron: "23 3 * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Print the leads, file nothing"
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: sunset-sweep
+  cancel-in-progress: false
+
+jobs:
+  sweep:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      HAS_CLAUDE_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            scripts/sunset_sweep.py
+            DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes
+          sparse-checkout-cone-mode: false
+
+      # The version ClaudeCLI.swift's flags were checked against.
+      - name: Install Claude Code
+        if: env.HAS_CLAUDE_TOKEN == 'true'
+        run: |
+          npm install -g --no-audit --no-fund @anthropic-ai/claude-code@2.1.287
+          claude --version
+
+      - name: Label
+        if: ${{ inputs.dry_run != true }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh label create sunset-lead --repo "$GITHUB_REPOSITORY" --force \
+            --color c5def5 --description "An app's end may be announced; check the vendor's page"
+
+      - name: Sweep
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          DRY_RUN: ${{ inputs.dry_run == true }}
+        run: |
+          args=()
+          if [ "$HAS_CLAUDE_TOKEN" = "true" ]; then args+=(--news); fi
+          if [ "$DRY_RUN" = "true" ]; then args+=(--dry-run); fi
+          python3 scripts/sunset_sweep.py "${args[@]}"

@@ -248,9 +248,11 @@ import Testing
     /// running side has to be a build too. Opera's marketing version is "135.0";
     /// "135.0 → 135.0.5973.133" would drop the only digits that differ. CapCut
     /// beta and the Office recipes offer a `CFBundleVersion` too, so they take the
-    /// same branch ("9.4.0-beta4 → 9.4.0-beta6"). Only a vendor-namespace offer
-    /// — a Mozilla probe's 14-digit BuildID — cannot be read against the running
-    /// `CFBundleVersion`, and keeps the on-disk line.
+    /// same branch ("9.4.0-beta4 → 9.4.0-beta6"). A build-only offer in the
+    /// vendor's namespace cannot be read against the running `CFBundleVersion`
+    /// and keeps the on-disk line. No recipe produces one on purpose: the Mozilla
+    /// probes set a display pattern (see the next test), so this is the shape a
+    /// Nightly offer degrades to only when that pattern fails to match.
     @Test func aBuildOnlyOfferIsAnsweredWithTheRunningBuild() {
         let running = Side(marketing: "135.0", build: "135.0.5973.100")
         let opera = offering(short: "135.0", build: "135.0.5973.120",
@@ -275,5 +277,23 @@ import Testing
                                latest: nil, latestBuild: "135.0.5973.133")
         #expect(noBuild.runningUpdateLine(
             latest: "135.0.5973.133", running: Side(marketing: "135.0", build: nil)) == nil)
+    }
+
+    /// A Mozilla probe offers its BuildID in the vendor's namespace but puts the
+    /// display version ("156.0b3") in `shortVersion`, so it is not build-only: it
+    /// takes the marketing path and names the running marketing version. The
+    /// vendor build is never compared with the running `CFBundleVersion`.
+    @Test func aMozillaOfferWithItsDisplayVersionTakesTheMarketingPath() {
+        let beta = offering(short: "155.0", build: "15526.8.27", latest: "156.0b3",
+                            latestBuild: "20261020123456", namespace: .vendor)
+        let line = beta.runningUpdateLine(
+            latest: "156.0b3", running: Side(marketing: "155.0", build: "15526.8.26"))
+        #expect(line?.from == "155.0")
+        #expect(line?.to == "156.0b3")
+
+        let nightly = offering(short: "157.0a1", build: "15726.8.29", latest: "157.0a1",
+                               latestBuild: "20260829211045", namespace: .vendor)
+        #expect(nightly.runningUpdateLine(
+            latest: "157.0a1", running: Side(marketing: "157.0a1", build: "15726.8.28")) == nil)
     }
 }

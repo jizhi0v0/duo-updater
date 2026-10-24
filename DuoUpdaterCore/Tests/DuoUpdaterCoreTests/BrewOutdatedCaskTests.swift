@@ -244,6 +244,19 @@ import Foundation
             directories: ["Applications", "Applications/ToDesk.app", "Library/PlugIns/Foo.appex"]) == ["/Applications/ToDesk.app"])
     }
 
+    /// `pkgutil --pkg-info` fields, as measured for a receipt at the volume's
+    /// root (`location: ` then nothing), and without the trailing space too.
+    /// Mutation: match `"location: "` with its space → the second is nil, and
+    /// the cask's receipts read as unreadable.
+    @Test func pkgInfoFieldsReadWithOrWithoutTheTrailingSpace() {
+        let info = ["package-id: com.youqu.todesk.mac", "version: 4.3.0", "volume: /", "location: ", "install-time: 1"]
+        #expect(BrewFormulaService.pkgInfoField("location", in: info) == "")
+        #expect(BrewFormulaService.pkgInfoField("location", in: ["location:"]) == "")
+        #expect(BrewFormulaService.pkgInfoField("volume", in: info) == "/")
+        #expect(BrewFormulaService.pkgInfoField("location", in: ["location: Applications"]) == "Applications")
+        #expect(BrewFormulaService.pkgInfoField("location", in: ["version: 1"]) == nil)
+    }
+
     /// The Brew tree's cask rows come from the same `info --json=v2 --installed`
     /// read as everything else: casks with no app row only, a cask brew read from
     /// its Caskroom copy left to its unchecked row, version, lifecycle and sudo

@@ -1146,13 +1146,20 @@ public actor BrewFormulaService {
         for id in ids {
             guard
                 let info = await lines(["--pkg-info", id]),
-                let volume = info.first(where: { $0.hasPrefix("volume: ") })?.dropFirst("volume: ".count),
-                let location = info.first(where: { $0.hasPrefix("location: ") })?.dropFirst("location: ".count),
+                let volume = Self.pkgInfoField("volume", in: info),
+                let location = Self.pkgInfoField("location", in: info),
                 let dirs = await lines(["--only-dirs", "--files", id])
             else { return nil }
-            apps += appBundles(volume: String(volume), location: String(location), directories: dirs)
+            apps += appBundles(volume: volume, location: location, directories: dirs)
         }
         return apps
+    }
+
+    /// A `pkgutil --pkg-info` field's value, `name: value`, trimmed — so an
+    /// empty one reads the same with or without the space after the colon.
+    static func pkgInfoField(_ name: String, in lines: [String]) -> String? {
+        lines.first { $0.hasPrefix("\(name):") }
+            .map { String($0.dropFirst(name.count + 1)).trimmingCharacters(in: .whitespaces) }
     }
 
     /// The app bundles one receipt installed: each directory it wrote, under its

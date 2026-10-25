@@ -377,6 +377,46 @@ import Testing
         }
     }
 
+    /// A universal build lands. Gate 2's cdhash names one slice, and
+    /// `codesign --verify` checks every slice unless told otherwise, so a
+    /// `cdhash H"…"` requirement refused every universal update (Rectangle
+    /// 2.0.4 on the real machine, 2026-10-25) — the single-slice fixtures
+    /// above never showed it.
+    ///
+    /// Mutation: put back `-R 'cdhash H"…"'` as the pin → build 3 does not land.
+    @Test func aUniversalBuildThatWasGatedLands() async throws {
+        try await withFixture("universal") { fixture in
+            let vendor = fixture.vendor
+            try await signed(fixture.target, build: "1", with: vendor)
+            let source = fixture.dir.appendingPathComponent("src/\(Self.appName)")
+            try await DigestOnlyInstallTests.makeApp(
+                at: source, bundleID: Self.identifier, build: "3", signing: .unsigned)
+            let exe = source.appendingPathComponent("Contents/MacOS/zz").path
+            try await SelfSignedCodeSigner.run([
+                "/usr/bin/xcrun", "clang", "-arch", "arm64", "-arch", "x86_64",
+                "-Wl,-no_adhoc_codesign", "-o", exe, try universalSource(in: fixture.dir)])
+            try await SelfSignedCodeSigner.sign(source, identifier: Self.identifier, team: Self.team, with: vendor)
+            let check = try #require(await SignatureVerifier.verifyInstallArtifact(
+                downloadedApp: source, installedApp: fixture.target))
+            #expect(check.pinnedCdhash != nil, "premise: the install pins gate 2's cdhash")
+
+            let calls = Calls()
+            chmod(fixture.apps.path, 0o555)
+            try await InPlaceSwap.$elevatedShellOverride.withValue(runAsThisUser(fixture, calls: calls)) {
+                try await InPlaceSwap.replace(newApp: source, over: fixture.target, stagedCheck: check)
+            }
+            #expect(calls.all.count == 1, "the swap must have taken the elevated route")
+            #expect(build(of: fixture.target) == "3")
+            #expect(try leftoversInStagingRoot(for: fixture.target).isEmpty)
+        }
+    }
+
+    private func universalSource(in dir: URL) throws -> String {
+        let url = dir.appendingPathComponent("main.c")
+        try Data("int main(void) { return 0; }\n".utf8).write(to: url)
+        return url.path
+    }
+
     /// A restore's requirement is unchanged: no cdhash pin (another PR).
     @Test func aRestoreRequirementCarriesNoCdhashPin() {
         let restore = InPlaceSwap.StagedCopyRequirement(

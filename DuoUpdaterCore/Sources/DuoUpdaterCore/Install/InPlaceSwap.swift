@@ -840,12 +840,17 @@ public enum InPlaceSwap {
             return "/bin/test ! -L \(quotedPath)/Contents && /bin/test ! -L \(quotedPath)/Contents/MacOS && "
                 + "/usr/bin/codesign --verify --ignore-resources \(archs)-R \(req) \(quotedPath) && "
         }
-        // The pin is this Mac's slice only (a cdhash names one), and without
-        // resources: the clause before it has just validated them, on every
-        // slice, in a directory only root can write, and the code directory the
-        // cdhash names seals them. Asking again would hash a whole Xcode twice.
+        // The pin compares the cdhash `codesign -d` reports, not a `cdhash H"…"`
+        // requirement: verification defaults to every slice (codesign(1)), and
+        // one slice's cdhash fails the others, so a universal build — Rectangle
+        // 2.0.4, 2026-10-25 — was refused; `--arch` would have to guess the
+        // slice. `-d` picks the slice gate 2's `SecStaticCode` did, by the same
+        // default: the caller's architecture (x86_64 under Rosetta, measured),
+        // else the only one. The clause before it has just validated every
+        // slice, resources included, in a directory only root can write.
         let pin = requirement.pinnedCdhash.map {
-            "/usr/bin/codesign --verify --ignore-resources -R \(shellQuote("=cdhash H\"\($0)\"")) \(quotedPath) && "
+            "{ /bin/test \"$(/usr/bin/codesign -d --verbose=3 \(quotedPath) 2>&1 | /usr/bin/sed -n 's/^CDHash=//p')\" = \(shellQuote($0)) "
+                + "|| { echo \"the staged copy is not the build that was checked\" >&2; false; }; } && "
         } ?? ""
         return "/usr/bin/codesign --verify --deep --strict \(archs)-R \(req) \(quotedPath) && " + pin
     }

@@ -12,6 +12,10 @@ set -uo pipefail
 p=$1
 [[ $p =~ ^repos/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(/[A-Za-z0-9_./@%+-]*)?(\?[A-Za-z0-9_=\&.%-]*)?$ ]] || { echo "gh-get: only repos/<owner>/<repo>/... paths" >&2; exit 64; }
 [[ $p == *..* ]] && { echo "gh-get: '..' not allowed" >&2; exit 64; }
+# A percent-encoded dot builds '..' past the check above (%2e%2e). Only the path:
+# `%2f` stays allowed because ref names with a slash need it and, without a dot,
+# it cannot climb out of repos/<owner>/<repo>.
+case ${p%%\?*} in *%2[eE]*) echo "gh-get: encoded '.' not allowed in the path" >&2; exit 64 ;; esac
 if [ $# -eq 2 ]; then
   jq_bin=$(command -v jq) || { echo "gh-get: jq not found" >&2; exit 69; }
   gh api --method GET "$p" | env -i "$jq_bin" -r "$2"

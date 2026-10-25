@@ -33,7 +33,14 @@
 # whoever sent it (`all_external_contributors`). A fork's pull request runs the
 # fork's copy of this file, so the condition below cannot keep it off the mini by
 # itself; it keeps an approved fork PR on a hosted runner as long as the file is
-# ours. Pushes to main, the public record that main is green, stay hosted — and
+# ours. The same goes for the `runs-on` of the three macOS jobs: they name a hosted
+# runner for any pull request whose head repository is not this one, whatever the
+# `route` job printed, so a fork that only rewrites scripts/ci_route.py still stays
+# hosted and has to edit this file to get out, where a reviewer sees it. What a
+# fork cannot edit is the pre-job hook on the mini itself, which refuses every job
+# that is not this repository's own push, dispatch or pull request:
+# scripts/runner-hooks/job-started.sh, with the install steps in its header.
+# Pushes to main, the public record that main is green, stay hosted — and
 # with them the 3-core runner, the only place #351's pool starvation reproduced.
 # If the mini is down, dispatch this workflow on the branch: dispatch is hosted.
 #
@@ -126,7 +133,7 @@ jobs:
   swift:
     needs: route
     if: needs.route.outputs.bench_only != 'true'
-    runs-on: ${{ fromJSON(needs.route.outputs.runner) }}
+    runs-on: ${{ github.event.pull_request.head.repo.full_name != github.repository && 'xcode-27' || fromJSON(needs.route.outputs.runner) }}
     # Core's suite reaches vendor endpoints (the install gates download real
     # packages and verify sha512 + Team ID), so it is slower and less predictable
     # than a pure unit run. Generous, but far under the 6h job ceiling.
@@ -288,7 +295,7 @@ jobs:
   app:
     needs: route
     if: needs.route.outputs.bench_only != 'true'
-    runs-on: ${{ fromJSON(needs.route.outputs.runner) }}
+    runs-on: ${{ github.event.pull_request.head.repo.full_name != github.repository && 'xcode-27' || fromJSON(needs.route.outputs.runner) }}
     timeout-minutes: 30
     steps:
       - name: Check out
@@ -391,7 +398,7 @@ jobs:
   release:
     needs: route
     if: needs.route.outputs.bench_only != 'true'
-    runs-on: ${{ fromJSON(needs.route.outputs.runner) }}
+    runs-on: ${{ github.event.pull_request.head.repo.full_name != github.repository && 'xcode-27' || fromJSON(needs.route.outputs.runner) }}
     timeout-minutes: 30
     steps:
       # Same as `swift` (see there): the Simulator runtimes mount now, not under

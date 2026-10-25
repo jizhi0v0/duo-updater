@@ -71,7 +71,9 @@ public enum Report {
         if !notes.isEmpty {
             print("\n  \u{24D8} NOTES (about this machine, not the recipe)")
             for (recipeID, note) in notes {
-                print("      \(recipeID) — \(note)")
+                // A note's text is machine-generated but embeds vendor data (a
+                // scraped artifact URL, a redirect `Location`); scrub escapes.
+                print("      \(recipeID) — \(TerminalText.printable(note))")
             }
         }
 

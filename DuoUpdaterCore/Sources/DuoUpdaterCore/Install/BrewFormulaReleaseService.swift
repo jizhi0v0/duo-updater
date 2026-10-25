@@ -144,9 +144,16 @@ public actor BrewFormulaReleaseService {
     /// internal visibility.
     func persist(_ release: FormulaRelease, name: String, version: String) {
         let keep = fileURL(name: name, version: version).lastPathComponent
+        // Drop signed/session image URLs before the notes hit disk, the same way
+        // `ChangelogDiskCache` does for the recipe changelog cache — this second
+        // on-disk cache went through none of that filtering. The returned/ in-memory
+        // `release` is unchanged; only the file is scrubbed.
+        let onDisk = FormulaRelease(
+            changelog: release.changelog.map(ChangelogDiskCache.persisted),
+            pageURL: release.pageURL)
         do {
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-            let stored = Stored(release: release, parserGeneration: Changelog.parserGeneration)
+            let stored = Stored(release: onDisk, parserGeneration: Changelog.parserGeneration)
             try JSONEncoder().encode(stored).write(
                 to: directory.appendingPathComponent(keep), options: .atomic)
         } catch {

@@ -781,10 +781,19 @@ public enum UpdatePolicy {
     /// fix, with the update still not installed.
     ///
     /// An id with no row at all is settled too — that app is no longer installed.
+    ///
+    /// `failedRestores` is the one kind of error the verdict says nothing about:
+    /// a restore that failed, by id, with the installed version it failed on. A
+    /// restore usually starts from an up-to-date row (it puts back an older copy
+    /// over the newest one) and a failed one leaves it there, so `.upToDate`
+    /// would take the error down on the very next write to the row list — which
+    /// is how a failed Backdrop restore showed nothing anywhere. These settle
+    /// only when the app is gone or its installed version is no longer that one.
     public static func settledRowIDs(
         _ ids: some Sequence<String>,
         results: [UpdateResult],
-        installing: Set<String>
+        installing: Set<String>,
+        failedRestores: [String: VersionSide] = [:]
     ) -> Set<String> {
         // No rows at all is the pre-first-scan state, not "every app vanished".
         guard !results.isEmpty else { return [] }
@@ -793,6 +802,10 @@ public enum UpdatePolicy {
         for id in ids where !installing.contains(id) {
             guard let row = byID[id] else {
                 settled.insert(id)   // the app is gone from disk
+                continue
+            }
+            if let failedOn = failedRestores[id] {
+                if row.app.versionSide != failedOn { settled.insert(id) }
                 continue
             }
             // Written out rather than `!hasUpdate` so a new status has to be
@@ -806,6 +819,53 @@ public enum UpdatePolicy {
             }
         }
         return settled
+    }
+
+    /// A restore that failed: the text it wrote into `installErrors`, and the
+    /// installed version it failed on. See `settledRowIDs`.
+    public struct FailedRestore: Sendable, Equatable {
+        public let message: String
+        public let failedOn: VersionSide
+
+        public init(message: String, failedOn: VersionSide) {
+            self.message = message
+            self.failedOn = failedOn
+        }
+    }
+
+    /// One pass of `AppListModel.pruneSettledInstallErrors`: take down the
+    /// errors `settledRowIDs` counts as settled, and keep `failedRestores` to
+    /// the holds whose own text is still the error on screen.
+    ///
+    /// - Parameters:
+    ///   - errors: `installErrors`, pruned in place.
+    ///   - failedRestores: the failed restores' holds, pruned in place.
+    ///   - exempt: ids with a retraction of their own, left alone here.
+    public static func pruneInstallErrors(
+        _ errors: inout [String: String],
+        failedRestores: inout [String: FailedRestore],
+        exempt: Set<String>,
+        results: [UpdateResult],
+        installing: Set<String>
+    ) {
+        // A hold lives exactly as long as its own text is the error on screen.
+        // Checked on every pass, empty `errors` included: an action that cleared
+        // the last error leaves nothing else to end it. And checked again after
+        // settling, so an error this pass took down takes its hold with it. A
+        // hold that outlived its error would adopt the next error with the same
+        // text — the machine-lock refusal reads the same for an install — and
+        // judge it by the old restore's version.
+        func live() { failedRestores = failedRestores.filter { errors[$0.key] == $0.value.message } }
+        live()
+        guard !errors.isEmpty else { return }
+        for id in settledRowIDs(
+            errors.keys.filter { !exempt.contains($0) },
+            results: results, installing: installing,
+            failedRestores: failedRestores.mapValues(\.failedOn)
+        ) {
+            errors[id] = nil
+        }
+        live()
     }
 
     /// Which of the row notes this app wrote to describe *an action still in

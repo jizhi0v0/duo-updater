@@ -234,6 +234,8 @@ public enum SignatureVerifier {
                     installedApp: installedApp, downloadedApp: downloadedApp)
                 try verifyBundleIdentifierMatch(
                     installedApp: installedApp, downloadedApp: downloadedApp)
+                try verifySignedLikeInstalledCopy(
+                    installedApp: installedApp, downloadedApp: downloadedApp)
             case .publishedDigest(_, let bundleID, let version),
                  .myGoSignature(_, let bundleID, let version):
                 try verifyDigestOnlyIdentity(
@@ -403,6 +405,81 @@ public enum SignatureVerifier {
         guard status == errSecSuccess else {
             throw VerifyError.designatedRequirementNotSatisfied(status)
         }
+    }
+
+    // MARK: Gate 3b — signed by whoever signed the installed copy
+
+    /// Gate 3 compares Team ID strings, and a Team ID is only what the leaf
+    /// certificate's OU says; gate 2 checks the seal against no requirement, so
+    /// a self-signed certificate whose OU names the vendor's Team passes both,
+    /// and gate 4 with it (the identifier is the signer's to choose). This gate
+    /// is the anchor: the download must satisfy the installed copy's own
+    /// designated requirement — what `verifySatisfiesDesignatedRequirement` and
+    /// Sparkle check, and what macOS uses to decide a new build is the same app.
+    /// It follows whatever the installed copy is anchored to (Developer ID,
+    /// Apple, Mac App Store), which a fixed `anchor apple generic` + Developer ID
+    /// marker would not: that refuses Xcode and store copies.
+    ///
+    /// A `BundleIDMigration` rename is the one case the plain requirement gets
+    /// wrong: it names the installed copy's identifier, which the renamed build
+    /// no longer has. There the identifier clause is re-aimed at the download's
+    /// signed identifier and everything else — the anchor, the certificate
+    /// fields, the Team — still has to hold. Gate 4 has already decided whether
+    /// the identifier may change; this gate only asks who signed.
+    static func verifySignedLikeInstalledCopy(installedApp: URL, downloadedApp: URL) throws {
+        let text = try installedSignerRequirement(installedApp: installedApp, downloadedApp: downloadedApp)
+        var requirement: SecRequirement?
+        let made = SecRequirementCreateWithString(text as CFString, [], &requirement)
+        guard made == errSecSuccess, let requirement else {
+            throw VerifyError.designatedRequirementNotSatisfied(made)
+        }
+        let status = SecStaticCodeCheckValidity(
+            try staticCode(at: downloadedApp),
+            SecCSFlags(rawValue: kSecCSCheckAllArchitectures), requirement)
+        guard status == errSecSuccess else {
+            throw VerifyError.designatedRequirementNotSatisfied(status)
+        }
+    }
+
+    /// The installed copy's designated requirement as text, with its identifier
+    /// clause re-aimed at `downloadedApp`'s signed identifier when the two
+    /// differ (see `verifySignedLikeInstalledCopy`). Also what the privileged
+    /// swap re-checks its staged copy against (`InPlaceSwap`). Throws when the
+    /// installed copy has no requirement to read.
+    static func installedSignerRequirement(installedApp: URL, downloadedApp: URL) throws -> String {
+        var requirement: SecRequirement?
+        let read = SecCodeCopyDesignatedRequirement(try staticCode(at: installedApp), [], &requirement)
+        guard read == errSecSuccess, let requirement else {
+            throw VerifyError.designatedRequirementNotSatisfied(read)
+        }
+        var cfText: CFString?
+        let copied = SecRequirementCopyString(requirement, [], &cfText)
+        guard copied == errSecSuccess, let text = cfText as String? else {
+            throw VerifyError.designatedRequirementNotSatisfied(copied)
+        }
+        guard let installedID = try signingIdentifier(at: installedApp),
+              let downloadedID = try signingIdentifier(at: downloadedApp),
+              installedID != downloadedID
+        else { return text }
+        return Self.requirement(text, reaimedFrom: installedID, to: downloadedID)
+    }
+
+    /// `text` with every `identifier "<from>"` (quoted or bare, as
+    /// `SecRequirementCopyString` writes a simple one) replaced by
+    /// `identifier "<to>"`. A requirement that never names `from` comes back
+    /// unchanged, so it still has to be met as written.
+    static func requirement(_ text: String, reaimedFrom from: String, to: String) -> String {
+        func quoted(_ s: String) -> String {
+            "\"" + s.replacingOccurrences(of: "\\", with: "\\\\")
+                .replacingOccurrences(of: "\"", with: "\\\"") + "\""
+        }
+        let pattern = "identifier\\s+(?:"
+            + NSRegularExpression.escapedPattern(for: quoted(from)) + "|"
+            + NSRegularExpression.escapedPattern(for: from) + "(?=[\\s)]|$))"
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return text }
+        return regex.stringByReplacingMatches(
+            in: text, range: NSRange(text.startIndex..., in: text),
+            withTemplate: NSRegularExpression.escapedTemplate(for: "identifier " + quoted(to)))
     }
 
     static func infoPlist(of app: URL) -> [String: Any] {
@@ -629,6 +706,15 @@ public enum SignatureVerifier {
 
     public static func signingIdentifier(at url: URL) throws -> String? {
         try signingInfo(at: url)[kSecCodeInfoIdentifier as String] as? String
+    }
+
+    /// The signature's cdhash in hex — what a `cdhash H"…"` requirement names —
+    /// or nil when the code is unsigned or unreadable.
+    static func cdhashHex(at url: URL) -> String? {
+        guard let info = try? signingInfo(at: url),
+              let unique = info[kSecCodeInfoUnique as String] as? Data, !unique.isEmpty
+        else { return nil }
+        return unique.map { String(format: "%02x", $0) }.joined()
     }
 
     /// What a signature says about the code, for `duo diff` to compare across two

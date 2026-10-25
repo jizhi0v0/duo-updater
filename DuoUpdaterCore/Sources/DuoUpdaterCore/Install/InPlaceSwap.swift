@@ -68,7 +68,8 @@ public enum InPlaceSwap {
     /// `<App>.app.duoupdater-old` while `<App>.app` itself is missing. Sweep
     /// `directory` and rename any such orphan back into place — turning a would-be
     /// bricked app back into a working one — and clear stale `.duoupdater-new`/
-    /// `-staged` (and present-app `.duoupdater-old`) leftovers. Best-effort; safe to
+    /// `-staged` (and present-app `.duoupdater-old`) leftovers, and try the root-owned
+    /// `.duoupdater-stage.*` directories a privileged shell left. Best-effort; safe to
     /// run on every launch. Only the non-admin / read-only-parent install path can
     /// leave these behind (the common admin path is a truly atomic `replaceItemAt`).
     ///
@@ -144,6 +145,16 @@ public enum InPlaceSwap {
                 }
             } else if name.hasSuffix(newSuffix) || name.hasPrefix(stagedPrefix) {
                 try? fm.removeItem(at: entry)                 // unused new/staged leftover
+            } else if name.contains(privilegedStagingInfix) {
+                // A privileged shell's `mktemp -d` staging directory: root-owned
+                // and 0700, so this unprivileged sweep normally cannot remove it.
+                // The next privileged swap or place-back of the same app clears
+                // every one of these first (`privilegedStagingPrologue`); said
+                // here so a leftover is not silent until then.
+                do { try fm.removeItem(at: entry) } catch {
+                    Log.install.notice(
+                        "left \(name, privacy: .public) for the next privileged swap of that app to clear — \(error.localizedDescription, privacy: .public)")
+                }
             } else if name.hasSuffix(".app"), usesContentsRotation(target: entry) {
                 recoverInterruptedRotation(in: entry)
             }
@@ -493,7 +504,10 @@ public enum InPlaceSwap {
     /// The administrator half: one `osascript` shell, behind the same one-panel
     /// lock as `privilegedReplace`, and declining it reads the same way.
     private static func privilegedPlaceBack(newApp: URL, target: URL) async throws {
-        let shell = privilegedPlacementShell(newApp: newApp, target: target)
+        // Off the pool: the shell reads `newApp`'s signature for its re-check.
+        let shell = await offCooperativePool(qos: .userInitiated) {
+            privilegedPlacementShell(newApp: newApp, target: target)
+        }
         let appleScript = "do shell script \"\(escapeForAppleScript(shell))\" with administrator privileges"
         let outcome = try await elevationPanel.withApplyPermit {
             try await ChildProcess.run(
@@ -512,27 +526,106 @@ public enum InPlaceSwap {
     /// The authenticated shell for a place-back, split out so it can be run in a
     /// temporary directory without a password panel.
     ///
-    /// The copy is materialised beside the target first (`.duoupdater-new`,
-    /// which the launch sweep clears if this is cut off), then renamed in. The
-    /// rename is guarded by `test ! -e` and `test ! -L`: `mv` onto an existing
+    /// The copy is materialised in a root-owned `mktemp -d` directory beside the
+    /// target (`privilegedStagingPrologue`), re-checked there, then renamed in.
+    /// The rename is guarded by `test ! -e` and `test ! -L`: `mv` onto an existing
     /// directory does not fail, it moves the source INSIDE it, so without the
     /// guard a bundle that appeared in the meantime would get a second app
-    /// nested in it. Any failure removes the staged copy.
+    /// nested in it. Every exit removes the staging directory.
+    ///
+    /// There is no installed copy to take a requirement from, so the re-check
+    /// pins `newApp`'s own cdhash (`stagedCopyRequirement`).
     ///
     /// Ownership is left as `ditto` makes it — the source's, i.e. the user's.
     /// `privilegedReplacementShell` copies the owner off the bundle it replaces;
     /// here there is none to copy from, and inventing one is not this
     /// function's call.
     static func privilegedPlacementShell(newApp: URL, target: URL) -> String {
-        let new = shellQuote(target.path + ".duoupdater-new")
+        privilegedPlacementShell(
+            newApp: newApp, target: target,
+            requirement: stagedCopyRequirement(newApp: newApp, installed: nil))
+    }
+
+    static func privilegedPlacementShell(
+        newApp: URL, target: URL, requirement: StagedCopyRequirement?
+    ) -> String {
+        let new = stagedPath(for: target)
         let tgt = shellQuote(target.path)
         let src = shellQuote(newApp.path)
         return """
-        /bin/rm -rf \(new); \
+        \(privilegedStagingPrologue(target: target))\
         /usr/bin/ditto \(src) \(new) && \
+        \(stagedCopyCheck(new, requirement))\
         /bin/test ! -e \(tgt) && /bin/test ! -L \(tgt) && \
-        /bin/mv \(new) \(tgt) || { /bin/rm -rf \(new); false; }
+        /bin/mv \(new) \(tgt)
         """
+    }
+
+    // MARK: - Privileged staging
+
+    /// Names a privileged shell's staging directory: `<App>.app` + this +
+    /// `mktemp`'s six random characters. The launch sweep recognises it.
+    static let privilegedStagingInfix = ".duoupdater-stage."
+
+    /// What every privileged shell opens with. A fixed sibling such as
+    /// `<App>.app.duoupdater-new` is a name anyone who can write the folder (any
+    /// admin process, in `/Applications`) can place a symlink at between root's
+    /// `rm` and its `ditto`, which follows it. `mktemp -d` makes a directory
+    /// that did not exist, mode 0700 and owned by root, on the same volume as
+    /// the target so the final `mv` stays a rename. The trap removes it on
+    /// every exit, success included; the leading `rm` clears any a killed shell
+    /// left (root-owned, so the unprivileged launch sweep cannot). `rm` acts on
+    /// a symlink itself, never its target.
+    static func privilegedStagingPrologue(target: URL, alsoRemoving extra: String = "") -> String {
+        let tgt = shellQuote(target.path)
+        return "/bin/rm -rf \(extra)\(tgt)\(privilegedStagingInfix)*; "
+            + "S=$(/usr/bin/mktemp -d \(tgt)\(privilegedStagingInfix)XXXXXX) || exit 1; "
+            + "trap '/bin/rm -rf \"$S\"' EXIT; "
+    }
+
+    /// The staged copy's path inside the prologue's directory, for the shell.
+    static func stagedPath(for target: URL, appending component: String? = nil) -> String {
+        let name = component.map { target.lastPathComponent + "/" + $0 } ?? target.lastPathComponent
+        return "\"$S\"/" + shellQuote(name)
+    }
+
+    /// What the staged copy must still satisfy when root is about to rename it
+    /// in. The Swift gates ran on a bundle in a user-writable scratch directory
+    /// and root then copies it from there, so the copy root holds is checked
+    /// again, by root, in the same shell.
+    struct StagedCopyRequirement: Equatable, Sendable {
+        let text: String
+        /// Check every slice. A cdhash names one slice's signature, so that
+        /// form is checked on this Mac's slice only.
+        let allArchitectures: Bool
+    }
+
+    /// - An installed copy signed with a certificate: its designated
+    ///   requirement, re-aimed at `newApp`'s identifier on a rename — gate 3b's
+    ///   rule (`SignatureVerifier.verifySignedLikeInstalledCopy`).
+    /// - Otherwise (ad-hoc, whose requirement is its own cdhash; unsigned; no
+    ///   installed copy): `newApp`'s own cdhash, so the staged copy must be the
+    ///   very build that was gated.
+    /// - `newApp` unsigned: nil, nothing to check — no gate checked one either.
+    ///
+    /// Blocking Security calls; callers stay off the cooperative pool.
+    static func stagedCopyRequirement(newApp: URL, installed: URL?) -> StagedCopyRequirement? {
+        if let installed, let summary = SignatureVerifier.signingSummary(at: installed),
+           !summary.authorities.isEmpty, !summary.flags.contains("adhoc"),
+           let text = try? SignatureVerifier.installedSignerRequirement(
+               installedApp: installed, downloadedApp: newApp) {
+            return StagedCopyRequirement(text: text, allArchitectures: true)
+        }
+        guard let cdhash = SignatureVerifier.cdhashHex(at: newApp) else { return nil }
+        return StagedCopyRequirement(text: "cdhash H\"\(cdhash)\"", allArchitectures: false)
+    }
+
+    /// The `codesign` clause for `quotedPath`, `&&`-terminated, or empty when
+    /// there is nothing to check.
+    static func stagedCopyCheck(_ quotedPath: String, _ requirement: StagedCopyRequirement?) -> String {
+        guard let requirement else { return "" }
+        let archs = requirement.allArchitectures ? "--all-architectures " : ""
+        return "/usr/bin/codesign --verify --deep --strict \(archs)-R \(shellQuote("=" + requirement.text)) \(quotedPath) && "
     }
 
     /// The unprivileged whole-bundle exchange — `replace`'s non-elevated route,
@@ -1110,7 +1203,10 @@ public enum InPlaceSwap {
         // back (a rename preserves the inode, so the restored bundle answers with
         // the same number it started with).
         let identityBefore = inode(of: target)
-        let shell = privilegedReplacementShell(newApp: newApp, target: target)
+        // Off the pool: the shell reads both bundles' signatures for its re-check.
+        let shell = await offCooperativePool(qos: .userInitiated) {
+            privilegedReplacementShell(newApp: newApp, target: target)
+        }
         let appleScript = "do shell script \"\(escapeForAppleScript(shell))\" with administrator privileges"
 
         // One password panel at a time. The apply pool allows two concurrent
@@ -1165,24 +1261,34 @@ public enum InPlaceSwap {
     /// Reading the live modes and building this command happen before osascript is
     /// launched, while the old bundle is still present and authoritative.
     static func privilegedReplacementShell(newApp: URL, target: URL) -> String {
+        privilegedReplacementShell(
+            newApp: newApp, target: target,
+            requirement: stagedCopyRequirement(newApp: newApp, installed: target))
+    }
+
+    static func privilegedReplacementShell(
+        newApp: URL, target: URL, requirement: StagedCopyRequirement?
+    ) -> String {
         // Materialize the replacement *fully* before the original is touched, then
-        // swap via two same-directory renames. Never `rm` the original before its
+        // swap via two same-volume renames. Never `rm` the original before its
         // replacement exists on disk: a `rm -rf target && ditto` would, if the
         // process were killed (or power lost) in the gap, leave the user with a
         // destroyed app and no recovery — contradicting this module's atomicity
-        // guarantee. With this ordering:
-        //   • killed after ditto, before the renames → original intact, `.duo-new`
-        //     leftover (swept by the leading `rm -rf` on the next attempt);
+        // guarantee. The copy goes into a root-owned `mktemp -d` directory, not a
+        // fixed sibling, and is re-checked there before it moves
+        // (`privilegedStagingPrologue`, `stagedCopyRequirement`). With this ordering:
+        //   • killed after ditto, before the renames → original intact, staging
+        //     directory leftover (cleared by the leading `rm -rf` on the next attempt);
         //   • killed between the two renames → original is at `.duo-old`,
         //     recoverable, and the trailing `||` restores it in-band.
         // Each `mv` of a directory on the same volume is an atomic rename, so the
         // only missing-app window is the microscopic gap between two renames, and
         // even that is recoverable via `.duo-old`.
-        let new = shellQuote(target.path + ".duoupdater-new")
+        let new = stagedPath(for: target)
         let old = shellQuote(target.path + ".duoupdater-old")
         let tgt = shellQuote(target.path)
         let src = shellQuote(newApp.path)
-        let newContents = shellQuote(target.path + ".duoupdater-new/Contents")
+        let newContents = stagedPath(for: target, appending: "Contents")
 
         // Preserve the directory modes that define how this particular install is
         // maintained. Downloaded archives normally unpack as 755 (measured on the
@@ -1205,11 +1311,12 @@ public enum InPlaceSwap {
         // `aPrivilegedSwapDoesNotWidenA755Install`, which pins the limit as well as
         // the rule.
         //
-        // Apply modes to `.duoupdater-new` BEFORE its live rename. macOS can attach
+        // Apply modes to the staged copy BEFORE its live rename. macOS can attach
         // `com.apple.macl` as soon as a bundle occupies a registered app path; a
         // later chmod was measured returning EPERM even under `with administrator
-        // privileges`. Staging remains user-owned here, so an interrupted copy is
-        // still removable by the unprivileged recovery sweep.
+        // privileges`. The staging directory itself is root-owned 0700, so an
+        // interrupted copy is cleared by the next privileged shell, not the
+        // unprivileged sweep (`privilegedStagingPrologue`).
         let bundleMode = directoryMode(at: target)
         let contentsMode = directoryMode(
             at: target.appendingPathComponent("Contents", isDirectory: true))
@@ -1231,15 +1338,12 @@ public enum InPlaceSwap {
         // ownership detail would be the worse trade. Interpolated as integers
         // straight from `stat`, so there is nothing quotable in them.
         //
-        // Applied to the app *after* it is in place, not to `.duoupdater-new`
-        // before the renames. `recoverInterruptedSwaps` sweeps a stale
-        // `.duoupdater-new` unprivileged, with `try? removeItem` — so chowning the
-        // staged copy to root would leave a full-size leftover that the sweep
-        // silently cannot delete (EACCES on the first unlink inside a root-owned
-        // tree), stranded until the next privileged swap of that same app runs
-        // the leading `rm -rf`. Doing it last keeps the leftover ours to remove,
-        // and an interruption before the chown lands exactly the user-owned app
-        // that shipped before this existed — no worse than the status quo.
+        // Applied to the app *after* it is in place, not to the staged copy
+        // before the renames. (It was first placed here so a stale user-owned
+        // `.duoupdater-new` stayed removable by the unprivileged sweep; staging is
+        // root-owned now and cleared by the shell itself.) An interruption before
+        // the chown lands exactly the user-owned app that shipped before this
+        // existed — no worse than the status quo.
         let ownership: String = {
             let attrs = try? FileManager.default.attributesOfItem(atPath: target.path)
             guard let uid = (attrs?[.ownerAccountID] as? NSNumber)?.uint32Value,
@@ -1248,8 +1352,9 @@ public enum InPlaceSwap {
             return "/usr/sbin/chown -R \(uid):\(gid) \(tgt); "
         }()
         let shell = """
-        /bin/rm -rf \(new) \(old); \
+        \(privilegedStagingPrologue(target: target, alsoRemoving: old + " "))\
         /usr/bin/ditto \(src) \(new) && \
+        \(stagedCopyCheck(new, requirement))\
         \(preserveModes)/bin/mv \(tgt) \(old) && \
         { /bin/mv \(new) \(tgt) || { /bin/mv \(old) \(tgt); false; }; } && \
         { \(ownership)/bin/rm -rf \(old); }

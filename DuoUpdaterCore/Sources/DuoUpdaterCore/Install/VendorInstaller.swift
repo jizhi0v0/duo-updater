@@ -557,13 +557,19 @@ public actor VendorInstaller {
         return newApp
     }
 
-    /// Production's `vetStub`: the stub's seal verifies and its Team is the
-    /// installed copy's. Built here, outside any `async` body, because it only
-    /// ever runs inside `unpackVerified`'s `offCooperativePool` hop.
-    private static func stubSignedByTeam(of installed: URL) -> @Sendable (URL) throws -> Void {
+    /// Production's `vetStub`: the stub's seal verifies, its Team is the
+    /// installed copy's, and it is signed the way the installed copy's
+    /// designated requirement says — a Team string alone is only what a
+    /// certificate claims (`verifySignedLikeInstalledCopy`). The stub's own
+    /// identifier differs from the app's, so the requirement is re-aimed at it.
+    /// Built here, outside any `async` body, because it only ever runs inside
+    /// `unpackVerified`'s `offCooperativePool` hop.
+    static func stubSignedByTeam(of installed: URL) -> @Sendable (URL) throws -> Void {
         { stub in
             try SignatureVerifier.verifyCodeSignature(appAt: stub)
             try SignatureVerifier.verifyTeamIdentifierMatch(
+                installedApp: installed, downloadedApp: stub)
+            try SignatureVerifier.verifySignedLikeInstalledCopy(
                 installedApp: installed, downloadedApp: stub)
         }
     }

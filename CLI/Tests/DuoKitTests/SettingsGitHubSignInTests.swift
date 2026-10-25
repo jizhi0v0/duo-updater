@@ -38,7 +38,7 @@ import DuoUpdaterCore
         scratch.defaults.set(false, forKey: GitHubToken.usesCLIKey)
 
         await withEnvironmentToken {
-            let settings = await Settings.load(defaults: scratch.defaults, keychain: { _ in nil })
+            let settings = await Settings.load(defaults: scratch.defaults, keychain: { _ in nil }, store: { _, _ in })
             #expect(settings.githubToken == nil)
             #expect(GitHubToken.preresolved() == nil)
             #expect(await CLITools.vendorUpdatersGetOurToken() == false)
@@ -55,7 +55,7 @@ import DuoUpdaterCore
         await withEnvironmentToken(nil) {
             let settings = await Settings.load(
                 defaults: scratch.defaults,
-                keychain: { $0 == "github-token" ? "token-from-settings" : nil })
+                keychain: { $0 == "github-token" ? "token-from-settings" : nil }, store: { _, _ in })
             #expect(settings.githubToken == "token-from-settings")
             #expect(await CLITools.vendorUpdatersGetOurToken() == true)
         }
@@ -76,5 +76,37 @@ import DuoUpdaterCore
             #expect(GitHubToken.preresolved() == nil)
             #expect(await GitHubToken.resolve() == nil)
         }
+    }
+
+    /// A plaintext token left in the app's defaults by an old build is moved into
+    /// the Keychain when `duo` loads settings, as the app does at launch, and is
+    /// the token the run uses. The Keychain is a dictionary: nothing is written to
+    /// the user's.
+    ///
+    /// Mutation: pass the raw `keychain("github-token")` to `resolve` again → the
+    /// plaintext is neither used nor moved.
+    @Test func loadingSettingsMovesALegacyPlaintextTokenToTheKeychain() async {
+        let scratch = ScratchDefaults("github-sign-in-migrate")
+        defer { scratch.clear() }
+        scratch.defaults.set(false, forKey: GitHubToken.usesCLIKey)
+        scratch.defaults.set("token-from-the-plist", forKey: GitHubToken.legacyDefaultsKey)
+        let keychain = Keychain()
+
+        await withEnvironmentToken(nil) {
+            let settings = await Settings.load(
+                defaults: scratch.defaults, keychain: keychain.read, store: keychain.write)
+            #expect(settings.githubToken == "token-from-the-plist")
+            #expect(keychain.items["github-token"] == "token-from-the-plist")
+            #expect(scratch.defaults.object(forKey: GitHubToken.legacyDefaultsKey) == nil)
+        }
+    }
+
+    /// A dictionary standing in for the Keychain.
+    private final class Keychain: @unchecked Sendable {
+        private let lock = NSLock()
+        private var stored: [String: String] = [:]
+        var items: [String: String] { lock.withLock { stored } }
+        func read(_ account: String) -> String? { lock.withLock { stored[account] } }
+        func write(_ value: String, _ account: String) { lock.withLock { stored[account] = value } }
     }
 }

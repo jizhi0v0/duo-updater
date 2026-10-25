@@ -8,7 +8,9 @@ import DuoUpdaterCore
 /// writes it back on `didSet`, so a value the CLI writes is overwritten the next
 /// time the app touches anything — a CLI that appeared to work and silently
 /// didn't. Writes (`duo ignore`, `duo skip`) need a change-notification
-/// handshake with the app and are deliberately not here yet.
+/// handshake with the app and are deliberately not here yet. (The one exception
+/// is the GitHub token's old plaintext copy, which ``load()`` moves to the
+/// Keychain; the app has nothing in memory for that key to overwrite.)
 ///
 /// Key *names* are duplicated from `Preferences.Key` for everything except the
 /// two the policy consults, which are shared through `UpdateSettings`. That is
@@ -119,11 +121,16 @@ public struct Settings: Sendable {
 
     public static func load() async -> Settings {
         await load(defaults: UserDefaults(suiteName: suiteName) ?? .standard,
-                   keychain: { Keychain.string(account: $0) })
+                   keychain: { Keychain.string(account: $0) },
+                   store: { Keychain.set($0, account: $1) })
     }
 
-    /// `load()` with the preferences domain and the Keychain injected for tests.
-    static func load(defaults: UserDefaults, keychain: (String) -> String?) async -> Settings {
+    /// `load()` with the preferences domain and the Keychain (read, and write as
+    /// value then account) injected for tests. `store` has no default: a test that
+    /// forgot it would write the user's real Keychain.
+    static func load(
+        defaults: UserDefaults, keychain: (String) -> String?, store: (String, String) -> Void
+    ) async -> Settings {
         let strategy = defaults.string(forKey: UpdateSettings.appStoreUpdateStrategyKey)
             .flatMap(AppStoreUpdateStrategy.init(rawValue:)) ?? .full
         let vendorPolicy = defaults.string(forKey: UpdateSettings.vendorInstallPolicyKey)
@@ -133,7 +140,9 @@ public struct Settings: Sendable {
         // environment, else whatever `gh` is logged in as — or the entered token
         // alone, if the user turned the GitHub CLI's sign-in off in Settings
         // (absent reads as on, as there).
-        let explicit = keychain("github-token")
+        // An old plaintext copy in the defaults is moved to the Keychain here, as
+        // the app does at launch: the one write `duo` makes to these settings.
+        let explicit = GitHubToken.storedToken(defaults: defaults, read: keychain, write: store)
         let usesCLI = usesGitHubCLI(from: defaults)
         // And the same two values to the Core globals the app sets from
         // `Preferences`: `ChangelogService.gitHubToken()` — what the uv, bun and

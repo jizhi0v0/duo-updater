@@ -38,6 +38,10 @@ enum ChangelogLinkSweep {
         case gone(Int)
         /// Any other status, or no response at all. Says nothing about the page.
         case inconclusive(String)
+        /// The page redirects somewhere the app's changelog pane refuses to load
+        /// (`ChangelogURLPolicy`), so the request stopped at the redirect. Carries
+        /// the target.
+        case redirectRefused(String)
     }
 
     /// This check's own session, deliberately NOT the shared `URLSession.updates`.
@@ -55,8 +59,24 @@ enum ChangelogLinkSweep {
         config.urlCache = nil
         config.timeoutIntervalForRequest = 15
         config.httpMaximumConnectionsPerHost = 8
-        return URLSession(configuration: config)
+        return URLSession(configuration: config, delegate: ConfinedRedirects(), delegateQueue: nil)
     }()
+
+    /// Follows a redirect only where the app's changelog fetch would
+    /// (`ChangelogURLPolicy.confine`, enforced for it by the update session's
+    /// delegate). Without a delegate this session followed any redirect anywhere:
+    /// to plain http, to an IP literal, to a name on the local network. Declining
+    /// returns the 3xx, which `status` reports.
+    final class ConfinedRedirects: NSObject, URLSessionTaskDelegate {
+        func urlSession(
+            _ session: URLSession, task: URLSessionTask,
+            willPerformHTTPRedirection response: HTTPURLResponse,
+            newRequest request: URLRequest,
+            completionHandler: @escaping (URLRequest?) -> Void
+        ) {
+            completionHandler(request.url.map(ChangelogURLPolicy.isDisplayable) == true ? request : nil)
+        }
+    }
 
     /// Browser-ish, matching `VendorProbeSource`: several docs hosts serve a
     /// different (or no) response to an unrecognised agent, and a 403 we provoked
@@ -188,6 +208,13 @@ enum ChangelogLinkSweep {
         guard let http = response as? HTTPURLResponse else {
             return .inconclusive("answered with a non-HTTP response")
         }
+        // A 3xx only gets here when `ConfinedRedirects` declined to follow it.
+        if (300..<400).contains(http.statusCode),
+           let target = http.value(forHTTPHeaderField: "Location")
+               .flatMap({ URL(string: $0, relativeTo: http.url)?.absoluteURL }),
+           !ChangelogURLPolicy.isDisplayable(target) {
+            return .redirectRefused(target.absoluteString)
+        }
         switch http.statusCode {
         case 200..<300: return .alive
         case 404, 410:  return .gone(http.statusCode)
@@ -205,6 +232,14 @@ enum ChangelogLinkSweep {
         case .gone(let code):
             return "its release-notes page is gone: \(url.absoluteString) returns HTTP "
                 + "\(code) — the button in the app opens a dead page"
+        case .redirectRefused(let target):
+            // A note, like any answer that is not a 404: a redirect to somewhere
+            // odd is as consistent with a bot wall or a geo rule as with a vendor
+            // who really sends the button there.
+            return Finding.machineNotePrefix
+                + "changelogURLUnverified: \(url.absoluteString) redirects to \(target), which "
+                + "the app's changelog pane refuses to load (https, a named host, the default "
+                + "port) — needs a human with a browser"
         case .inconclusive(let detail):
             return Finding.machineNotePrefix
                 + "changelogURLUnverified: \(url.absoluteString) \(detail), which is as "

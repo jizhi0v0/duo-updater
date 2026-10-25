@@ -428,11 +428,22 @@ public enum InPlaceSwap {
                 // bundle in, and restores it if that fails. If the restore ALSO
                 // fails the app is missing from disk — and this is the one moment
                 // the line is load-bearing, so it must not claim the opposite.
-                // The pre-swap copy is parked in root's staging directory, which
-                // the shell then keeps and names on stderr; the launch sweep
-                // cannot reach it there (`privilegedStagingPrologue`).
+                // Where the pre-swap copy is depends on the route: a rotation
+                // parks `Contents` inside the bundle, where the launch sweep puts
+                // it back (`recoverInterruptedRotation`); the privileged shell
+                // parks the bundle in root's staging directory, keeps it and
+                // names it on stderr (`privilegedStagingPrologue`), out of the
+                // sweep's reach; `replaceItemAt` says nothing about it.
+                let parked: String
+                if identityTarget != target {
+                    parked = "its pre-swap Contents is at \(target.lastPathComponent)/\(rotationBackupName) and should be put back on next launch"
+                } else if elevated {
+                    parked = "its pre-swap copy was kept in root's staging folder under \(privilegedStagingRoot)"
+                } else {
+                    parked = "replaceItemAt did not say where its pre-swap copy went"
+                }
                 Log.install.error(
-                    "swap did NOT complete and \(target.lastPathComponent, privacy: .public) is MISSING from disk — its pre-swap copy was kept in root's staging folder under \(privilegedStagingRoot, privacy: .public)")
+                    "swap did NOT complete and \(target.lastPathComponent, privacy: .public) is MISSING from disk — \(parked, privacy: .public)")
             }
         }
 
@@ -591,13 +602,15 @@ public enum InPlaceSwap {
     /// The authenticated shell for a place-back, split out so it can be run in a
     /// temporary directory without a password panel.
     ///
-    /// The copy is materialised in a root-owned `mktemp -d` directory beside the
-    /// target (`privilegedStagingPrologue`), re-checked there when `requirement`
-    /// is given (see `placeBack`), then renamed in.
+    /// The copy is materialised in a root-owned `mktemp -d` directory under
+    /// `/private/var/tmp` (`privilegedStagingPrologue`), re-checked there when
+    /// `requirement` is given (see `placeBack`), then renamed in.
     /// The rename is guarded by `test ! -e` and `test ! -L`: `mv` onto an existing
     /// directory does not fail, it moves the source INSIDE it, so without the
     /// guard a bundle that appeared in the meantime would get a second app
-    /// nested in it. Every exit removes the staging directory.
+    /// nested in it. The guard is a check before the act, so the rename is
+    /// checked after it too (`landedCheck`). Every exit removes the staging
+    /// directory.
     ///
     /// Ownership is left as `ditto` makes it — the source's, i.e. the user's.
     /// `privilegedReplacementShell` copies the owner off the bundle it replaces;
@@ -613,9 +626,36 @@ public enum InPlaceSwap {
         \(privilegedStagingPrologue(target: target))\
         /usr/bin/ditto \(src) \(new) && \
         \(stagedCopyCheck(new, requirement))\
+        I=$(/usr/bin/stat -f %i \(new)) && \
         /bin/test ! -e \(tgt) && /bin/test ! -L \(tgt) && \
-        /bin/mv \(new) \(tgt)
+        /bin/mv \(new) \(tgt) && \
+        \(landedCheck("I", "while the app was being put back, so it was not."))
         """
+    }
+
+    /// Begins the stderr line a privileged shell writes when the rename that
+    /// was to put a bundle at the target moved it somewhere else.
+    /// `privilegedReplace` matches it: the target's identity has changed then
+    /// too, and that must not read as "replaced, then the cleanup failed".
+    static let foreignTargetMarker = "Something else was put at"
+
+    /// Whether the `mv` just made put the bundle whose inode is in `$<inode>` AT
+    /// the target, `&&`-ready. `mv` onto a directory, or onto a link to one,
+    /// moves the source INTO it, and the target path is empty between the two
+    /// renames of a swap — and on a place-back, between `test ! -e` and `mv` —
+    /// so a directory the user made there in that moment would be what sits at
+    /// the target, holding root's verified copy, and `chown -R` would then make
+    /// the user's own files in it root's. `stat` without `-L` does not follow
+    /// a link, so a link fails the comparison too. On a mismatch nothing more is
+    /// done to the target: `extra` runs, the line is written, the chain fails.
+    ///
+    /// Considered instead: `perl -e 'rename …'`, whose `rename(2)` replaces an
+    /// empty directory and fails `ENOTEMPTY` on a full one rather than moving
+    /// into it. It closes the window rather than detecting it, but makes the
+    /// swap depend on `/usr/bin/perl` still shipping with macOS.
+    static func landedCheck(_ inode: String, _ detail: String, extra: String = "") -> String {
+        "{ /bin/test \"$(/usr/bin/stat -f %i \"$T\")\" = \"$\(inode)\" || "
+            + "{ \(extra)echo \"\(foreignTargetMarker) $T \(detail)\" >&2; false; }; }"
     }
 
     // MARK: - Privileged staging
@@ -659,10 +699,10 @@ public enum InPlaceSwap {
     /// measured 2026-10-25: all on the Data volume.)
     ///
     /// The trap removes the directory on every exit, success included — unless
-    /// the target is missing and the bundle it displaced is parked in it
-    /// (`stagedOldPath`): then it is the only copy of the app, and stays where
-    /// only root can reach it rather than being deleted; the shell says where
-    /// on stderr. The `find` clears what a killed shell left for this target,
+    /// the target is missing, or holds something else (`landedCheck` sets `K`),
+    /// and the bundle it displaced is parked in it (`stagedOldPath`): then it
+    /// is the only copy of the app, and stays where only root can reach it
+    /// rather than being deleted; the shell says where on stderr. The `find` clears what a killed shell left for this target,
     /// root-owned ones only, and only when the target is there, for the same
     /// reason. The leading `rm` clears the beside-target names older builds
     /// used. `rm` acts on a symlink itself, never its target.
@@ -675,9 +715,10 @@ public enum InPlaceSwap {
             + "/bin/test -e \(tgt) && /usr/bin/find \(root) -maxdepth 1 -name '\(prefix)*' -type d -user 0 "
             + "-exec /bin/rm -rf {} +; "
             + "S=$(/usr/bin/mktemp -d \(root)/\(prefix)XXXXXX) || exit 1; "
-            + "T=\(tgt); O=\(stagedOldPath(for: target)); "
-            + "trap 'if /bin/test -e \"$T\" || /bin/test ! -e \"$O\"; then /bin/rm -rf \"$S\"; "
-            + "else echo \"The app was moved aside and could not be put back. It is at $O.\" >&2; fi' EXIT; "
+            + "K=; T=\(tgt); O=\(stagedOldPath(for: target)); "
+            + "trap 'if /bin/test -z \"$K\" && { /bin/test -e \"$T\" || /bin/test ! -e \"$O\"; }; "
+            + "then /bin/rm -rf \"$S\"; "
+            + "else echo \"The previous copy of the app was moved aside and is not back in place. It is at $O.\" >&2; fi' EXIT; "
             + "/bin/test \"$(/usr/bin/stat -f %d \"$S\")\" = \"$(/usr/bin/stat -f %d \(parent))\" || "
             + "{ echo \"The app's folder is not on the same disk as \(root), where DuoUpdater stages an "
             + "administrator install. Nothing was changed.\" >&2; exit 1; }; "
@@ -1396,6 +1437,11 @@ public enum InPlaceSwap {
             if isAuthorizationDeclined(msg) {
                 throw AuthorizationDeclinedError(targetPath: target.path)
             }
+            // The target's identity changed because something else was put
+            // there, not because the update landed (`landedCheck`).
+            if msg.contains(foreignTargetMarker) {
+                throw SwapError.notReplaceable(msg)
+            }
             // Asked after the declined check, which is about a shell that never
             // ran. This is the majority route — every root-owned bundle takes it,
             // 28 apps in `/Applications` on the development machine by this file's
@@ -1500,6 +1546,13 @@ public enum InPlaceSwap {
         // root-owned now and cleared by the shell itself.) An interruption before
         // the chown lands exactly the user-owned app that shipped before this
         // existed — no worse than the status quo.
+        // Both renames into the target are checked to have landed AT it
+        // (`landedCheck`) before anything else touches it — `chown -R` least of
+        // all. The in-band put-back too: moved into a directory put there, the
+        // app's previous copy is no longer where the trap looks for it.
+        let restored = landedCheck(
+            "J", "during the update. The app's previous copy was moved into it, at $T/\"" + shellQuote(
+                target.lastPathComponent + ".duoupdater-old") + "\".")
         let ownership: String = {
             let attrs = try? FileManager.default.attributesOfItem(atPath: target.path)
             guard let uid = (attrs?[.ownerAccountID] as? NSNumber)?.uint32Value,
@@ -1511,8 +1564,10 @@ public enum InPlaceSwap {
         \(privilegedStagingPrologue(target: target, alsoRemoving: shellQuote(target.path + ".duoupdater-old") + " "))\
         /usr/bin/ditto \(src) \(new) && \
         \(stagedCopyCheck(new, requirement))\
-        \(preserveModes)/bin/mv \(tgt) \(old) && \
-        { /bin/mv \(new) \(tgt) || { /bin/mv \(old) \(tgt); false; }; } && \
+        \(preserveModes)I=$(/usr/bin/stat -f %i \(new)) && J=$(/usr/bin/stat -f %i \(tgt)) && \
+        /bin/mv \(tgt) \(old) && \
+        { /bin/mv \(new) \(tgt) || { /bin/mv \(old) \(tgt) && \(restored); false; }; } && \
+        \(landedCheck("I", "during the update, so the update was not put in place.", extra: "K=1; ")) && \
         { \(ownership)/bin/rm -rf \(old); }
         """
         return shell

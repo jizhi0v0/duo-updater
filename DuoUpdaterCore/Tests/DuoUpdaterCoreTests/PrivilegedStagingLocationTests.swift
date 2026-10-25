@@ -164,6 +164,108 @@ import Testing
         #expect(stderr.contains("It is at \(parked.path)."), "\(stderr)")
     }
 
+    // MARK: - The empty target between the renames
+
+    /// Between `mv <target> <old>` and `mv <new> <target>` the target path is
+    /// empty, and the user can `mkdir` it: `mv` then moves root's copy INTO
+    /// that directory, and the user's directory is what sits at the target.
+    /// The `mkdir` is spliced into the shell right after the first rename, the
+    /// way the user would win the race. The swap must fail, leave the user's
+    /// directory alone and keep the parked copy.
+    ///
+    /// Mutation: drop `landedCheck` from the chain → the swap reports success.
+    @Test func aDirectoryPutAtTheTargetBetweenTheRenamesIsNotTakenForTheUpdate() async throws {
+        let fm = FileManager.default
+        let dir = try DigestOnlyInstallTests.scratch("stage-planted")
+        let apps = dir.appendingPathComponent("apps", isDirectory: true)
+        try fm.createDirectory(at: apps, withIntermediateDirectories: true)
+        let target = try plainBundle(at: apps.appendingPathComponent(Self.appName), marker: "old")
+        let incoming = try plainBundle(at: dir.appendingPathComponent("src/Incoming.app"), marker: "new")
+        defer {
+            chmod(apps.path, 0o755)
+            try? fm.removeItem(at: dir)
+            removeStagingLeftovers(for: target)
+        }
+        let calls = Calls()
+        let stderr = Calls()
+        chmod(apps.path, 0o555)
+        await InPlaceSwap.$elevatedShellOverride.withValue({ shell in
+            calls.add(shell)
+            chmod(apps.path, 0o755)
+            let spliced = try Self.splice("/bin/mkdir \(Self.quote(target.path)) && ",
+                                          afterNextAndOf: "/bin/mv \(Self.quote(target.path)) ", in: shell)
+            let outcome = try await ChildProcess.run("/bin/sh", ["-c", spliced], onCancel: .runToCompletion)
+            stderr.add(String(decoding: outcome.standardError, as: UTF8.self))
+            return outcome
+        }) {
+            await #expect(throws: (any Error).self) {
+                try await InPlaceSwap.replace(newApp: incoming, over: target)
+            }
+        }
+        #expect(calls.all.count == 1, "the swap must have taken the elevated route")
+        // The premise: root's copy went INTO the planted directory.
+        #expect(marker(of: target.appendingPathComponent(Self.appName)) == "new")
+        #expect(marker(of: target) == nil)
+        let message = stderr.all.joined()
+        #expect(message.contains("\(InPlaceSwap.foreignTargetMarker) \(target.path) during the update"), "\(message)")
+        let kept = try leftoversInStagingRoot(for: target)
+        #expect(kept.count == 1, "the parked copy must be kept: \(kept)")
+        let parked = URL(fileURLWithPath: InPlaceSwap.privilegedStagingRoot)
+            .appendingPathComponent(kept.first ?? "-")
+            .appendingPathComponent("\(Self.appName).duoupdater-old")
+        #expect(marker(of: parked) == "old")
+        #expect(message.contains("It is at \(parked.path)."), "\(message)")
+    }
+
+    /// The in-band put-back renames into the same empty target. Here the user
+    /// makes a directory that already holds `<App>.app`, so the second rename
+    /// fails and the put-back moves the previous copy into the user's
+    /// directory. The shell must say so, and where.
+    @Test func aPutBackIntoADirectoryPutAtTheTargetIsReported() async throws {
+        let fm = FileManager.default
+        let dir = try DigestOnlyInstallTests.scratch("stage-planted-back")
+        defer { try? fm.removeItem(at: dir) }
+        let target = try plainBundle(at: dir.appendingPathComponent(Self.appName), marker: "old")
+        let incoming = try plainBundle(at: dir.appendingPathComponent("src/Incoming.app"), marker: "new")
+        defer { removeStagingLeftovers(for: target) }
+        let shell = InPlaceSwap.privilegedReplacementShell(newApp: incoming, target: target)
+        let spliced = try Self.splice(
+            "/bin/mkdir -p \(Self.quote(target.appendingPathComponent("\(Self.appName)/x").path)) && ",
+            afterNextAndOf: "/bin/mv \(Self.quote(target.path)) ", in: shell)
+        let outcome = try await ChildProcess.run("/bin/sh", ["-c", spliced], onCancel: .runToCompletion)
+        let message = String(decoding: outcome.standardError, as: UTF8.self)
+
+        #expect(outcome.terminationStatus != 0)
+        let moved = target.appendingPathComponent("\(Self.appName).duoupdater-old")
+        #expect(marker(of: moved) == "old", "premise: the put-back moved the copy inside")
+        #expect(message.contains(InPlaceSwap.foreignTargetMarker), "\(message)")
+        #expect(message.contains("at \(moved.path)."), "\(message)")
+    }
+
+    /// A place-back's `test ! -e` is a check before the act; the same `mkdir`
+    /// between it and the `mv` must fail the shell.
+    @Test func aDirectoryPutAtAPlaceBackTargetIsNotTakenForTheApp() async throws {
+        let fm = FileManager.default
+        let dir = try DigestOnlyInstallTests.scratch("stage-planted-place")
+        defer { try? fm.removeItem(at: dir) }
+        let gone = dir.appendingPathComponent(Self.appName)
+        let incoming = try plainBundle(at: dir.appendingPathComponent("src/Incoming.app"), marker: "new")
+        defer { removeStagingLeftovers(for: gone) }
+        let shell = InPlaceSwap.privilegedPlacementShell(newApp: incoming, target: gone)
+        let anchor = "/bin/mv \"$S\"/\(Self.quote(Self.appName)) \(Self.quote(gone.path))"
+        let at = try #require(shell.range(of: anchor), "no final `mv` in: \(shell)")
+        let spliced = shell.replacingCharacters(
+            in: at.lowerBound..<at.lowerBound, with: "/bin/mkdir \(Self.quote(gone.path)) && ")
+        let outcome = try await ChildProcess.run("/bin/sh", ["-c", spliced], onCancel: .runToCompletion)
+        let message = String(decoding: outcome.standardError, as: UTF8.self)
+
+        #expect(outcome.terminationStatus != 0)
+        #expect(marker(of: gone.appendingPathComponent(Self.appName)) == "new", "premise: moved inside")
+        #expect(message.contains("\(InPlaceSwap.foreignTargetMarker) \(gone.path) while the app was being put back"),
+                "\(message)")
+        #expect(try leftoversInStagingRoot(for: gone).isEmpty)
+    }
+
     /// The final `mv` must be a rename. A target whose folder is on another
     /// volume than the staging root is refused before anything is copied, and
     /// the reason is said. `/dev` is a different device and nothing is written
@@ -318,6 +420,28 @@ import Testing
     private func leftoversBeside(in dir: URL) throws -> [String] {
         try FileManager.default.contentsOfDirectory(atPath: dir.path)
             .filter { $0.contains(InPlaceSwap.privilegedStagingInfix) || $0.hasSuffix(".duoupdater-old") }
+    }
+
+    static func quote(_ s: String) -> String {
+        "'" + s.replacingOccurrences(of: "'", with: "'\\''") + "'"
+    }
+
+    /// `shell` with `hook` inserted after the first ` && ` that follows
+    /// `anchor` — i.e. right after the command `anchor` starts has succeeded.
+    static func splice(_ hook: String, afterNextAndOf anchor: String, in shell: String) throws -> String {
+        guard let start = shell.range(of: anchor),
+              let and = shell.range(of: " && ", range: start.upperBound..<shell.endIndex) else {
+            throw SelfSignedCodeSigner.Failure(description: "no `\(anchor)… && ` in: \(shell)")
+        }
+        return shell.replacingCharacters(in: and.upperBound..<and.upperBound, with: hook)
+    }
+
+    /// This user's own staging directories for `target` — run as this user,
+    /// the shell's are not root's, and one it kept on purpose is left here.
+    private func removeStagingLeftovers(for target: URL) {
+        for name in (try? leftoversInStagingRoot(for: target)) ?? [] {
+            try? FileManager.default.removeItem(atPath: InPlaceSwap.privilegedStagingRoot + "/" + name)
+        }
     }
 
     private func leftoversInStagingRoot(for target: URL) throws -> [String] {

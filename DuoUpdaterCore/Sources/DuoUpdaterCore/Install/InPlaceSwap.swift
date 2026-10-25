@@ -309,8 +309,17 @@ public enum InPlaceSwap {
     /// shell that is performing them: the target ends up the old bundle or the new
     /// one, never a mixture. That is what the `offCooperativePool` hop callers
     /// used to make guaranteed, and they no longer make it.
+    ///
+    /// `stagedCheck` is for installs only: what `verifyInstallArtifact` returned
+    /// for `newApp`, which the privileged shell re-checks its staged copy
+    /// against. Nil — restores and rollbacks — adds no check, because a faithful
+    /// backup of an app that writes inside its own bundle is signature-invalid
+    /// by nature (`BackupManifest`), and a backup may be signed differently from
+    /// the copy it replaces; `BackupStore` proves a backup's authenticity itself.
     @discardableResult
-    static func replace(newApp: URL, over target: URL) async throws -> SwapOutcome {
+    static func replace(
+        newApp: URL, over target: URL, stagedCheck: StagedCopyRequirement? = nil
+    ) async throws -> SwapOutcome {
         try validateTarget(target)
         await stripQuarantine(newApp)
         // The single moment the user's disk actually changes. Logged at `.notice`
@@ -408,7 +417,8 @@ public enum InPlaceSwap {
             return outcome
         }
 
-        let elevatedOutcome = try await privilegedReplace(newApp: newApp, target: target)
+        let elevatedOutcome = try await privilegedReplace(
+            newApp: newApp, target: target, stagedCheck: stagedCheck)
         replaced = true
         if case .replacedButCleanupFailed(let reason) = elevatedOutcome { cleanupFailure = reason }
         return elevatedOutcome
@@ -436,14 +446,19 @@ public enum InPlaceSwap {
     ///
     /// Runs to completion once started, as `replace` does: nothing checks for
     /// cancellation and the privileged shell is `.runToCompletion`.
-    static func placeBack(newApp: URL, at target: URL) async throws {
+    ///
+    /// `stagedCheck` as for `replace`: nil — every caller today is a restore —
+    /// adds no check.
+    static func placeBack(
+        newApp: URL, at target: URL, stagedCheck: StagedCopyRequirement? = nil
+    ) async throws {
         try validatePlacement(target)
         await stripQuarantine(newApp)
         let elevated = placeBackNeedsElevation(at: target)
         Log.install.notice(
             "place back start: \(target.lastPathComponent, privacy: .public) elevated=\(elevated, privacy: .public)")
         if elevated {
-            try await privilegedPlaceBack(newApp: newApp, target: target)
+            try await privilegedPlaceBack(newApp: newApp, target: target, stagedCheck: stagedCheck)
         } else {
             // Off the pool: the first move can be a whole-bundle copy when the
             // scratch copy is on another volume.
@@ -503,11 +518,10 @@ public enum InPlaceSwap {
 
     /// The administrator half: one `osascript` shell, behind the same one-panel
     /// lock as `privilegedReplace`, and declining it reads the same way.
-    private static func privilegedPlaceBack(newApp: URL, target: URL) async throws {
-        // Off the pool: the shell reads `newApp`'s signature for its re-check.
-        let shell = await offCooperativePool(qos: .userInitiated) {
-            privilegedPlacementShell(newApp: newApp, target: target)
-        }
+    private static func privilegedPlaceBack(
+        newApp: URL, target: URL, stagedCheck: StagedCopyRequirement?
+    ) async throws {
+        let shell = privilegedPlacementShell(newApp: newApp, target: target, requirement: stagedCheck)
         let appleScript = "do shell script \"\(escapeForAppleScript(shell))\" with administrator privileges"
         let outcome = try await elevationPanel.withApplyPermit {
             try await ChildProcess.run(
@@ -527,27 +541,19 @@ public enum InPlaceSwap {
     /// temporary directory without a password panel.
     ///
     /// The copy is materialised in a root-owned `mktemp -d` directory beside the
-    /// target (`privilegedStagingPrologue`), re-checked there, then renamed in.
+    /// target (`privilegedStagingPrologue`), re-checked there when `requirement`
+    /// is given (see `placeBack`), then renamed in.
     /// The rename is guarded by `test ! -e` and `test ! -L`: `mv` onto an existing
     /// directory does not fail, it moves the source INSIDE it, so without the
     /// guard a bundle that appeared in the meantime would get a second app
     /// nested in it. Every exit removes the staging directory.
     ///
-    /// There is no installed copy to take a requirement from, so the re-check
-    /// pins `newApp`'s own cdhash (`stagedCopyRequirement`).
-    ///
     /// Ownership is left as `ditto` makes it — the source's, i.e. the user's.
     /// `privilegedReplacementShell` copies the owner off the bundle it replaces;
     /// here there is none to copy from, and inventing one is not this
     /// function's call.
-    static func privilegedPlacementShell(newApp: URL, target: URL) -> String {
-        privilegedPlacementShell(
-            newApp: newApp, target: target,
-            requirement: stagedCopyRequirement(newApp: newApp, installed: nil))
-    }
-
     static func privilegedPlacementShell(
-        newApp: URL, target: URL, requirement: StagedCopyRequirement?
+        newApp: URL, target: URL, requirement: StagedCopyRequirement? = nil
     ) -> String {
         let new = stagedPath(for: target)
         let tgt = shellQuote(target.path)
@@ -589,10 +595,12 @@ public enum InPlaceSwap {
         return "\"$S\"/" + shellQuote(name)
     }
 
-    /// What the staged copy must still satisfy when root is about to rename it
-    /// in. The Swift gates ran on a bundle in a user-writable scratch directory
-    /// and root then copies it from there, so the copy root holds is checked
-    /// again, by root, in the same shell.
+    /// What an installed update's staged copy must still satisfy when root is
+    /// about to rename it in. The Swift gates ran on a bundle in a user-writable
+    /// scratch directory and root then copies it from there, so the copy root
+    /// holds is checked again, by root, in the same shell. Made only by
+    /// `verifyInstallArtifact`, at the gate (`stagedCopyRequirement`), and
+    /// handed to `replace` by the installer.
     struct StagedCopyRequirement: Equatable, Sendable {
         let text: String
         /// Check every slice. A cdhash names one slice's signature, so that
@@ -600,24 +608,33 @@ public enum InPlaceSwap {
         let allArchitectures: Bool
     }
 
+    /// Decided at the gate, from what the gate saw:
     /// - An installed copy signed with a certificate: its designated
-    ///   requirement, re-aimed at `newApp`'s identifier on a rename — gate 3b's
-    ///   rule (`SignatureVerifier.verifySignedLikeInstalledCopy`).
-    /// - Otherwise (ad-hoc, whose requirement is its own cdhash; unsigned; no
-    ///   installed copy): `newApp`'s own cdhash, so the staged copy must be the
-    ///   very build that was gated.
-    /// - `newApp` unsigned: nil, nothing to check — no gate checked one either.
+    ///   requirement, re-aimed at the download's identifier on a rename — gate
+    ///   3b's rule (`SignatureVerifier.verifySignedLikeInstalledCopy`). Read off
+    ///   paths, but a substitute put in the download's place later cannot meet
+    ///   the installed copy's requirement, so when it is read does not matter.
+    /// - Otherwise (an ad-hoc installed copy, whose requirement is its own
+    ///   cdhash, or an unsigned one): `gatedCdhash`, which gate 2 read off the
+    ///   `SecStaticCode` it had just validated
+    ///   (`verifyCodeSignatureCapturingCdhash`) — so the staged copy must carry
+    ///   the code directory that passed gate 2.
+    /// - Neither (gate 2 reported no cdhash): nil, and the shell checks
+    ///   nothing. Gate 2 refuses an unsigned download, so this is not expected
+    ///   on an install; it is a residual, not a guarantee.
     ///
     /// Blocking Security calls; callers stay off the cooperative pool.
-    static func stagedCopyRequirement(newApp: URL, installed: URL?) -> StagedCopyRequirement? {
-        if let installed, let summary = SignatureVerifier.signingSummary(at: installed),
+    static func stagedCopyRequirement(
+        installed: URL, downloaded: URL, gatedCdhash: String?
+    ) -> StagedCopyRequirement? {
+        if let summary = SignatureVerifier.signingSummary(at: installed),
            !summary.authorities.isEmpty, !summary.flags.contains("adhoc"),
            let text = try? SignatureVerifier.installedSignerRequirement(
-               installedApp: installed, downloadedApp: newApp) {
+               installedApp: installed, downloadedApp: downloaded) {
             return StagedCopyRequirement(text: text, allArchitectures: true)
         }
-        guard let cdhash = SignatureVerifier.cdhashHex(at: newApp) else { return nil }
-        return StagedCopyRequirement(text: "cdhash H\"\(cdhash)\"", allArchitectures: false)
+        guard let gatedCdhash else { return nil }
+        return StagedCopyRequirement(text: "cdhash H\"\(gatedCdhash)\"", allArchitectures: false)
     }
 
     /// The `codesign` clause for `quotedPath`, `&&`-terminated, or empty when
@@ -1193,7 +1210,9 @@ public enum InPlaceSwap {
         }
     }
 
-    private static func privilegedReplace(newApp: URL, target: URL) async throws -> SwapOutcome {
+    private static func privilegedReplace(
+        newApp: URL, target: URL, stagedCheck: StagedCopyRequirement?
+    ) async throws -> SwapOutcome {
         // Read before anything moves. The shell's last clause —
         // `{ chown …; rm -rf old; }` — runs AFTER the two renames have put the new
         // bundle at `target`, so a failure there exits the chain non-zero with the
@@ -1203,10 +1222,7 @@ public enum InPlaceSwap {
         // back (a rename preserves the inode, so the restored bundle answers with
         // the same number it started with).
         let identityBefore = inode(of: target)
-        // Off the pool: the shell reads both bundles' signatures for its re-check.
-        let shell = await offCooperativePool(qos: .userInitiated) {
-            privilegedReplacementShell(newApp: newApp, target: target)
-        }
+        let shell = privilegedReplacementShell(newApp: newApp, target: target, requirement: stagedCheck)
         let appleScript = "do shell script \"\(escapeForAppleScript(shell))\" with administrator privileges"
 
         // One password panel at a time. The apply pool allows two concurrent
@@ -1260,14 +1276,9 @@ public enum InPlaceSwap {
     /// can be exercised in a temporary directory without raising a password panel.
     /// Reading the live modes and building this command happen before osascript is
     /// launched, while the old bundle is still present and authoritative.
-    static func privilegedReplacementShell(newApp: URL, target: URL) -> String {
-        privilegedReplacementShell(
-            newApp: newApp, target: target,
-            requirement: stagedCopyRequirement(newApp: newApp, installed: target))
-    }
-
+    /// `requirement` is `replace`'s `stagedCheck`: nil adds no check.
     static func privilegedReplacementShell(
-        newApp: URL, target: URL, requirement: StagedCopyRequirement?
+        newApp: URL, target: URL, requirement: StagedCopyRequirement? = nil
     ) -> String {
         // Materialize the replacement *fully* before the original is touched, then
         // swap via two same-volume renames. Never `rm` the original before its
@@ -1275,7 +1286,7 @@ public enum InPlaceSwap {
         // process were killed (or power lost) in the gap, leave the user with a
         // destroyed app and no recovery — contradicting this module's atomicity
         // guarantee. The copy goes into a root-owned `mktemp -d` directory, not a
-        // fixed sibling, and is re-checked there before it moves
+        // fixed sibling, and an install's copy is re-checked there before it moves
         // (`privilegedStagingPrologue`, `stagedCopyRequirement`). With this ordering:
         //   • killed after ditto, before the renames → original intact, staging
         //     directory leftover (cleared by the leading `rm -rf` on the next attempt);

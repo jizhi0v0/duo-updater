@@ -123,9 +123,11 @@ import Testing
         // itself is well-formed, not merely failing.
         try await SelfSignedCodeSigner.makeSignedApp(
             at: source, identifier: identifier, build: "2", team: team, with: vendor)
-        let honest = await offCooperativePool {
-            InPlaceSwap.privilegedReplacementShell(newApp: source, target: target)
-        }
+        let honestCheck = try #require(
+            await SignatureVerifier.verifyInstallArtifact(downloadedApp: source, installedApp: target))
+        #expect(honestCheck.allArchitectures, "a certificate-signed install takes the DR form")
+        let honest = InPlaceSwap.privilegedReplacementShell(
+            newApp: source, target: target, requirement: honestCheck)
         #expect(try await SelfSignedCodeSigner.shell(honest) == 0)
         #expect(build(of: target) == "2")
 
@@ -133,12 +135,13 @@ import Testing
         try fm.removeItem(at: source)
         try await SelfSignedCodeSigner.makeSignedApp(
             at: source, identifier: identifier, build: "3", team: team, with: vendor)
-        let shell = await offCooperativePool {
-            InPlaceSwap.privilegedReplacementShell(newApp: source, target: target)
-        }
+        let check = try await SignatureVerifier.verifyInstallArtifact(
+            downloadedApp: source, installedApp: target)
         try fm.removeItem(at: source)
         try await SelfSignedCodeSigner.makeSignedApp(
             at: source, identifier: identifier, build: "4", team: team, with: other)
+        let shell = InPlaceSwap.privilegedReplacementShell(
+            newApp: source, target: target, requirement: check)
 
         #expect(try await SelfSignedCodeSigner.shell(shell) != 0)
         #expect(build(of: target) == "2")
@@ -146,8 +149,8 @@ import Testing
     }
 
     /// An ad-hoc install has no requirement another build can meet (its own
-    /// cdhash), so the shell pins the gated build's cdhash instead: a different
-    /// — validly signed — ad-hoc build put in its place is refused.
+    /// cdhash), so the shell checks the cdhash gate 2 read: a different —
+    /// validly signed — ad-hoc build put in its place after the gate is refused.
     @Test func aStagedAdHocCopySwappedAfterTheGateFailsItsCdhashInTheShell() async throws {
         let fm = FileManager.default
         let dir = try DigestOnlyInstallTests.scratch("stage-cdhash")
@@ -156,22 +159,32 @@ import Testing
             at: dir.appendingPathComponent("ZZFixture.app"), build: "1", signing: .sealed(identifier: nil))
         let source = dir.appendingPathComponent("src/Incoming.app")
         try await DigestOnlyInstallTests.makeApp(at: source, build: "2", signing: .sealed(identifier: nil))
-        let shell = await offCooperativePool {
-            InPlaceSwap.privilegedReplacementShell(newApp: source, target: target)
-        }
+        let check = try await Self.digestGate(source, over: target, in: dir)
         try fm.removeItem(at: source)
         try await DigestOnlyInstallTests.makeApp(at: source, build: "9", signing: .sealed(identifier: nil))
+        let shell = InPlaceSwap.privilegedReplacementShell(newApp: source, target: target, requirement: check)
 
         #expect(try await SelfSignedCodeSigner.shell(shell) != 0)
         #expect(build(of: target) == "1")
         #expect(try stagingLeftovers(in: dir).isEmpty)
 
-        // The same shell, built for the build that IS there, lands.
-        let honest = await offCooperativePool {
-            InPlaceSwap.privilegedReplacementShell(newApp: source, target: target)
-        }
+        // Gated as it now is, the build that IS there lands.
+        let honestCheck = try await Self.digestGate(source, over: target, in: dir)
+        let honest = InPlaceSwap.privilegedReplacementShell(
+            newApp: source, target: target, requirement: honestCheck)
         #expect(try await SelfSignedCodeSigner.shell(honest) == 0)
         #expect(build(of: target) == "9")
+    }
+
+    /// The digest-only route's gate over an ad-hoc fixture, returning what the
+    /// swap re-checks. `makeApp`'s defaults are the rule's bundle id and version.
+    static func digestGate(
+        _ source: URL, over target: URL, in dir: URL
+    ) async throws -> InPlaceSwap.StagedCopyRequirement? {
+        try await SignatureVerifier.verifyInstallArtifact(
+            downloadedApp: source, installedApp: target,
+            trust: .publishedDigest(try DigestOnlyInstallTests.proof(in: dir),
+                                    bundleID: DigestOnlyInstallTests.bundleID, version: "2.0.0"))
     }
 
     /// The launch sweep knows the new staging name. Root's are 0700 and stay

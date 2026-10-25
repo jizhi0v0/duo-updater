@@ -208,6 +208,13 @@ public enum SignatureVerifier {
     /// installers call this with no extra arguments, so production behavior is
     /// unchanged. The parameters exist so a test can pin the gate-5/5b ordering
     /// without needing a real non-arm64 or Rosetta-less machine to do it on.
+    ///
+    /// Returns what a privileged swap must re-check its staged copy against
+    /// (`InPlaceSwap.stagedCopyRequirement`), fixed here, at the gate: callers
+    /// hand it to `InPlaceSwap.replace`. The bundle stays in a user-writable
+    /// scratch directory until root copies it, so anything read off it later
+    /// could describe a substitute.
+    @discardableResult
     static func verifyInstallArtifact(
         downloadedApp: URL,
         installedApp: URL,
@@ -215,7 +222,7 @@ public enum SignatureVerifier {
         canRunIntel: Bool = HostArch.canRunIntelBuilds,
         osVersion: String = HostOS.numericVersion(),
         trust: ArtifactTrust = .developerID
-    ) async throws {
+    ) async throws -> InPlaceSwap.StagedCopyRequirement? {
         // A cancel that landed while the bundle was being produced stops here,
         // before the gates. Every caller is before its install's commit point, so
         // the swap would refuse it anyway — but only after these checks, which
@@ -224,10 +231,10 @@ public enum SignatureVerifier {
         // mount that a cancel cannot cut runs to its end first, and then this
         // is the next place the cancel is seen.
         try Task.checkCancellation()
-        try await offCooperativePool {
+        return try await offCooperativePool {
             // Gates 2–4 pin a valid signature to this vendor AND this exact app.
             // Gate 2 is the same on both routes: an ad-hoc seal must still verify.
-            try verifyCodeSignature(appAt: downloadedApp)
+            let gatedCdhash = try verifyCodeSignatureCapturingCdhash(appAt: downloadedApp)
             switch trust {
             case .developerID:
                 try verifyTeamIdentifierMatch(
@@ -257,6 +264,8 @@ public enum SignatureVerifier {
                 installedApp: installedApp, downloadedApp: downloadedApp, host: host)
             // Gate 6 reads the bundle's OS floor even when the source omits it.
             try verifyRunnableSystemVersion(appAt: downloadedApp, osVersion: osVersion)
+            return InPlaceSwap.stagedCopyRequirement(
+                installed: installedApp, downloaded: downloadedApp, gatedCdhash: gatedCdhash)
         }
     }
 
@@ -624,13 +633,32 @@ public enum SignatureVerifier {
     /// unsigned files or resource-rule tricks. This is the central code-trust gate
     /// for the Vendor/GitHub paths (no EdDSA there), so it must be deep.
     public static func verifyCodeSignature(appAt url: URL) throws {
-        let code = try staticCode(at: url)
+        try verifyCodeSignature(of: try staticCode(at: url))
+    }
+
+    private static func verifyCodeSignature(of code: SecStaticCode) throws {
         let flags = SecCSFlags(rawValue: kSecCSCheckAllArchitectures
             | kSecCSCheckNestedCode | kSecCSStrictValidate)
         let status = SecStaticCodeCheckValidity(code, flags, nil)
         guard status == errSecSuccess else {
             throw VerifyError.codeSignatureInvalid(status)
         }
+    }
+
+    /// Gate 2, and the cdhash (hex, this Mac's slice — what a `cdhash H"…"`
+    /// requirement names) read off the SAME `SecStaticCode` the check just
+    /// validated, not off a second open of the path: the bundle sits in a
+    /// user-writable directory, and a path read later could describe a
+    /// substitute. Nil only if the validated signature reports no cdhash.
+    static func verifyCodeSignatureCapturingCdhash(appAt url: URL) throws -> String? {
+        let code = try staticCode(at: url)
+        try verifyCodeSignature(of: code)
+        var info: CFDictionary?
+        guard SecCodeCopySigningInformation(code, [], &info) == errSecSuccess,
+              let unique = (info as? [String: Any])?[kSecCodeInfoUnique as String] as? Data,
+              !unique.isEmpty
+        else { return nil }
+        return unique.map { String(format: "%02x", $0) }.joined()
     }
 
     // MARK: Gate 3 — Team Identifier must match the installed app
@@ -707,16 +735,6 @@ public enum SignatureVerifier {
     public static func signingIdentifier(at url: URL) throws -> String? {
         try signingInfo(at: url)[kSecCodeInfoIdentifier as String] as? String
     }
-
-    /// The signature's cdhash in hex — what a `cdhash H"…"` requirement names —
-    /// or nil when the code is unsigned or unreadable.
-    static func cdhashHex(at url: URL) -> String? {
-        guard let info = try? signingInfo(at: url),
-              let unique = info[kSecCodeInfoUnique as String] as? Data, !unique.isEmpty
-        else { return nil }
-        return unique.map { String(format: "%02x", $0) }.joined()
-    }
-
     /// What a signature says about the code, for `duo diff` to compare across two
     /// releases. Read from `SecCodeCopySigningInformation` — the same fields
     /// `codesign -dvv` prints — without spawning it once per bundle.

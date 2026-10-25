@@ -2088,9 +2088,16 @@ public enum BackupStore {
         // A key found through a `BundleIDMigration` holds the other id of the
         // pair, so "this backup is this app" no longer follows from the key.
         // Blocking Security calls when the ids differ, so off the pool.
-        try await offCooperativePool(qos: .userInitiated) {
+        //
+        // The requirement the authenticity gate checked is handed to the swap,
+        // so a privileged swap checks the copy root made against the same text
+        // — the scratch copy checked here is in this user's temporary
+        // directory, and anything running as this user can replace it before
+        // root copies it. Nil (no installed signature to check against) makes
+        // the swap refuse its privileged route.
+        let rootCheck = try await offCooperativePool(qos: .userInitiated) {
             try verifyRestoreIdentity(staged: staged, over: target)
-            try verifyRestoreAuthenticity(staged: staged, over: target)
+            return try verifyRestoreAuthenticity(staged: staged, over: target)
         }
         // The restore's point of no return (`InstallCommit`): a cancel before it
         // leaves the live app as it is and the scratch copy to the `defer`; one
@@ -2104,9 +2111,11 @@ public enum BackupStore {
         // has the same name) is still a bundle, and takes the ordinary swap.
         try await InstallCommit.run("restore swap") {
             if InPlaceSwap.isAbsent(target) {
-                try await InPlaceSwap.placeBack(newApp: staged, at: target)
+                try await InPlaceSwap.placeBack(
+                    newApp: staged, at: target, stagedCheck: rootCheck, refuseElevationWithoutCheck: true)
             } else {
-                _ = try await InPlaceSwap.replace(newApp: staged, over: target)
+                _ = try await InPlaceSwap.replace(
+                    newApp: staged, over: target, stagedCheck: rootCheck, refuseElevationWithoutCheck: true)
             }
         }
         // The app is back, so an install recorded as having cut it off no
@@ -2208,7 +2217,8 @@ public enum BackupStore {
     ///   designated requirement is its own cdhash, which no other build meets,
     ///   so applying it would refuse every legitimate rollback of that app; an
     ///   unsigned copy has nothing to compare with. A target that is gone or
-    ///   emptied has no signature either — both pass unchanged, as before.
+    ///   emptied has no signature either — both pass here, and the swap then
+    ///   refuses only its privileged route (`refuseElevationWithoutCheck`).
     /// - The installed copy's own designated requirement, Team or no Team. It
     ///   is what already binds the app to its developer across certificate
     ///   renewals, and it carries both the Developer ID and the App Store
@@ -2223,16 +2233,40 @@ public enum BackupStore {
     ///   bundle (ToDesk, EasyConnect — see `BackupManifest`) break their
     ///   resource seal, and a faithful copy of one must still roll back. The
     ///   code directory and main executable are still checked.
-    static func verifyRestoreAuthenticity(staged: URL, over target: URL) throws {
+    /// - What skipping resources gives up structurally is asked separately.
+    ///   `kSecCSStrictValidate` refuses a main executable or `Contents` that is
+    ///   a link; it does not refuse `Contents/MacOS` as a link out of the bundle
+    ///   (measured 2026-10-25), so that is checked here, for every backup: the
+    ///   signature checks pass on the genuine copy it points at, and once the
+    ///   bundle is back the executable is whatever that file becomes. No app in
+    ///   `/Applications` on the development machine (199) has either link.
+    ///
+    /// Returns what a privileged swap re-checks root's own copy against
+    /// (`InPlaceSwap.stagedCopyCheck`), or nil when there is no installed
+    /// signature to check against.
+    @discardableResult
+    static func verifyRestoreAuthenticity(
+        staged: URL, over target: URL
+    ) throws -> InPlaceSwap.StagedCopyRequirement? {
+        for interior in ["Contents", "Contents/MacOS"] {
+            let path = staged.appendingPathComponent(interior).path
+            if (try? FileManager.default.attributesOfItem(atPath: path))?[.type] as? FileAttributeType
+                == .typeSymbolicLink {
+                Log.install.error(
+                    "rollback: \(interior, privacy: .public) in the backup of \(target.lastPathComponent, privacy: .public) is a link — refusing to restore")
+                throw BackupError.backupCorrupted(staged.lastPathComponent)
+            }
+        }
         guard let installed = staticCode(at: target),
               let info = signingInformation(installed),
               let certificates = info[kSecCodeInfoCertificates as String] as? [SecCertificate],
               !certificates.isEmpty
-        else { return }
+        else { return nil }
         var designated: SecRequirement?
         var designatedText: CFString?
         let backup = staticCode(at: staged)
         var requirement: SecRequirement?
+        var requirementText: String?
         if SecCodeCopyDesignatedRequirement(installed, [], &designated) == errSecSuccess,
            let designated,
            SecRequirementCopyString(designated, [], &designatedText) == errSecSuccess,
@@ -2243,18 +2277,21 @@ public enum BackupStore {
                backupIdentifier: backup.flatMap(signingInformation)?[kSecCodeInfoIdentifier as String]
                    as? String) {
             _ = SecRequirementCreateWithString(text as CFString, [], &requirement)
+            requirementText = text
         }
         let status: OSStatus
         if let requirement, let backup {
-            status = checkValidity(backup, requirement)
+            status = checkValidity(backup, requirement, strict: true)
         } else {
             status = errSecCSReqFailed
         }
-        guard status == errSecSuccess else {
+        guard status == errSecSuccess, let requirementText else {
             Log.install.error(
                 "rollback: the backup of \(target.lastPathComponent, privacy: .public) does not satisfy the installed copy's designated requirement (status \(status, privacy: .public)) — refusing to restore")
             throw BackupError.signerMismatch(target.lastPathComponent)
         }
+        return InPlaceSwap.StagedCopyRequirement(
+            text: requirementText, allArchitectures: true, validatesResources: false)
     }
 
     /// The requirement text a backup is held to: the installed copy's
@@ -2349,10 +2386,16 @@ public enum BackupStore {
         return code
     }
 
-    private static func checkValidity(_ code: SecStaticCode, _ requirement: SecRequirement) -> OSStatus {
-        SecStaticCodeCheckValidity(
-            code, SecCSFlags(rawValue: kSecCSCheckAllArchitectures | kSecCSDoNotValidateResources),
-            requirement)
+    /// `strict` adds `kSecCSStrictValidate`: a bundle "structured in a way that
+    /// would allow tampering" is refused without resources being validated —
+    /// measured 2026-10-25 refusing a main executable or `Contents` that links
+    /// out of the bundle, and passing ToDesk and EasyConnect as installed.
+    private static func checkValidity(
+        _ code: SecStaticCode, _ requirement: SecRequirement, strict: Bool = false
+    ) -> OSStatus {
+        var flags = kSecCSCheckAllArchitectures | kSecCSDoNotValidateResources
+        if strict { flags |= kSecCSStrictValidate }
+        return SecStaticCodeCheckValidity(code, SecCSFlags(rawValue: flags), requirement)
     }
 
     /// Unpack this generation's user-data snapshot out of the destination into

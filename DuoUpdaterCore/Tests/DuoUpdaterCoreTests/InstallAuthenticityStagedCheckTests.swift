@@ -2,12 +2,13 @@ import Foundation
 import Testing
 @testable import DuoUpdaterCore
 
-/// PR #1661 review round 1. The privileged shell's re-check of its staged copy
-/// is for installs only, and what it checks is fixed at the gate:
+/// PR #1661 review round 1. What the privileged shell re-checks its staged copy
+/// against is fixed at the gate:
 ///
-/// - A restore or rollback passes no `stagedCheck`, so a faithful backup of an
+/// - A shell given no `stagedCheck` adds no check, so a faithful backup of an
 ///   app that writes inside its own bundle (signature-invalid by nature, see
-///   `BackupManifest`) is put back exactly as before the re-check existed.
+///   `BackupManifest`) is put back. A restore now passes the resource-blind
+///   form, which lets the same backup through (`RestoreRootRecheckTests`).
 /// - An install's check comes from `verifyInstallArtifact`; for an ad-hoc
 ///   installed copy it is the cdhash gate 2 read off the code it validated, so a
 ///   build put in the scratch copy's place after the gate is refused — signed or

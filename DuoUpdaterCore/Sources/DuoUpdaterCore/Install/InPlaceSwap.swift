@@ -31,6 +31,20 @@ public struct AuthorizationDeclinedError: LocalizedError {
     }
 }
 
+/// Thrown, before any administrator prompt, when a restore would need one and
+/// there is nothing to check the backup against: the installed copy carries no
+/// developer certificate, or there is no installed copy at all. The backup and
+/// the manifest it is checked against sit in one store this user can rewrite,
+/// so root would be putting back whatever is there.
+public struct UnverifiableRestoreError: LocalizedError {
+    public let targetPath: String
+
+    public var errorDescription: String? {
+        let name = URL(fileURLWithPath: targetPath).deletingPathExtension().lastPathComponent
+        return String(localized: "Restoring \(name) needs an administrator, and the installed copy has no developer signature to check the backup against — or there is no installed copy. It was not restored. Copy it back by hand from the backup, or reinstall it.")
+    }
+}
+
 /// The final, destructive step shared by `SparkleInstaller` and `VendorInstaller`:
 /// replace the verified `newApp` bundle over the installed `target` bundle.
 ///
@@ -62,6 +76,26 @@ public enum InPlaceSwap {
     /// user takes to answer would bring the parked thread straight back. Its
     /// waiters are not woken by cancellation, which is what a swap wants.
     private static let elevationPanel = InstallPermits(downloads: 0, applies: 1)
+
+    /// Tests only: run the privileged shell this way instead of through
+    /// `osascript … with administrator privileges`, so a test can drive the
+    /// elevated route — and a mutation that wrongly reaches it — without a
+    /// password panel. A task-local, so it reaches every `await` beneath the
+    /// test's `withValue`, `InstallCommit`'s inheriting `Task { }` included.
+    @TaskLocal static var elevatedShellOverride: (@Sendable (String) async throws -> ChildProcess.Outcome)?
+
+    /// Run one privileged shell: `osascript`, or the test override.
+    ///
+    /// `.runToCompletion`: once the shell is running, killing `osascript` could
+    /// land between `mv tgt old` and `mv new tgt`. stdout is discarded; the
+    /// shell's commands print nothing on it.
+    private static func runElevated(_ shell: String) async throws -> ChildProcess.Outcome {
+        if let elevatedShellOverride { return try await elevatedShellOverride(shell) }
+        let appleScript = "do shell script \"\(escapeForAppleScript(shell))\" with administrator privileges"
+        return try await ChildProcess.run(
+            "/usr/bin/osascript", ["-e", appleScript],
+            standardOutput: .discard, onCancel: .runToCompletion)
+    }
 
     /// Recover from a privileged swap (`privilegedReplace`) that was interrupted
     /// between its two renames: the installed app is then sitting at
@@ -310,15 +344,23 @@ public enum InPlaceSwap {
     /// one, never a mixture. That is what the `offCooperativePool` hop callers
     /// used to make guaranteed, and they no longer make it.
     ///
-    /// `stagedCheck` is for installs only: what `verifyInstallArtifact` returned
-    /// for `newApp`, which the privileged shell re-checks its staged copy
-    /// against. Nil — restores and rollbacks — adds no check, because a faithful
-    /// backup of an app that writes inside its own bundle is signature-invalid
-    /// by nature (`BackupManifest`), and a backup may be signed differently from
-    /// the copy it replaces; `BackupStore` proves a backup's authenticity itself.
+    /// `stagedCheck` is what the privileged shell re-checks its staged copy
+    /// against: for an install, what `verifyInstallArtifact` returned for
+    /// `newApp`; for a restore, what `BackupStore.verifyRestoreAuthenticity`
+    /// returned — the installed copy's designated requirement, checked without
+    /// resources, because a faithful backup of an app that writes inside its own
+    /// bundle is signature-invalid by nature (`BackupManifest`). Nil adds no check.
+    ///
+    /// `refuseElevationWithoutCheck`: a restore's. With no `stagedCheck` there
+    /// is nothing this user cannot rewrite that says what root should accept —
+    /// the backup's manifest sits in the same store as the backup — so the
+    /// elevated route throws `UnverifiableRestoreError` before any panel. Asked
+    /// here, where the route is decided, not by the caller beforehand: making a
+    /// bundle this user owns read-only would otherwise turn the answer.
     @discardableResult
     static func replace(
-        newApp: URL, over target: URL, stagedCheck: StagedCopyRequirement? = nil
+        newApp: URL, over target: URL, stagedCheck: StagedCopyRequirement? = nil,
+        refuseElevationWithoutCheck: Bool = false
     ) async throws -> SwapOutcome {
         try validateTarget(target)
         await stripQuarantine(newApp)
@@ -417,6 +459,9 @@ public enum InPlaceSwap {
             return outcome
         }
 
+        if refuseElevationWithoutCheck, stagedCheck == nil {
+            throw UnverifiableRestoreError(targetPath: target.path)
+        }
         let elevatedOutcome = try await privilegedReplace(
             newApp: newApp, target: target, stagedCheck: stagedCheck)
         replaced = true
@@ -447,10 +492,12 @@ public enum InPlaceSwap {
     /// Runs to completion once started, as `replace` does: nothing checks for
     /// cancellation and the privileged shell is `.runToCompletion`.
     ///
-    /// `stagedCheck` as for `replace`: nil — every caller today is a restore —
-    /// adds no check.
+    /// `stagedCheck` and `refuseElevationWithoutCheck` as for `replace`. Every
+    /// caller today is a restore, and with nothing installed there is no
+    /// signature to check against, so its elevated route is refused.
     static func placeBack(
-        newApp: URL, at target: URL, stagedCheck: StagedCopyRequirement? = nil
+        newApp: URL, at target: URL, stagedCheck: StagedCopyRequirement? = nil,
+        refuseElevationWithoutCheck: Bool = false
     ) async throws {
         try validatePlacement(target)
         await stripQuarantine(newApp)
@@ -458,6 +505,9 @@ public enum InPlaceSwap {
         Log.install.notice(
             "place back start: \(target.lastPathComponent, privacy: .public) elevated=\(elevated, privacy: .public)")
         if elevated {
+            if refuseElevationWithoutCheck, stagedCheck == nil {
+                throw UnverifiableRestoreError(targetPath: target.path)
+            }
             try await privilegedPlaceBack(newApp: newApp, target: target, stagedCheck: stagedCheck)
         } else {
             // Off the pool: the first move can be a whole-bundle copy when the
@@ -522,11 +572,8 @@ public enum InPlaceSwap {
         newApp: URL, target: URL, stagedCheck: StagedCopyRequirement?
     ) async throws {
         let shell = privilegedPlacementShell(newApp: newApp, target: target, requirement: stagedCheck)
-        let appleScript = "do shell script \"\(escapeForAppleScript(shell))\" with administrator privileges"
         let outcome = try await elevationPanel.withApplyPermit {
-            try await ChildProcess.run(
-                "/usr/bin/osascript", ["-e", appleScript],
-                standardOutput: .discard, onCancel: .runToCompletion)
+            try await runElevated(shell)
         }
         guard outcome.terminationStatus == 0 else {
             let msg = String(data: outcome.standardError, encoding: .utf8) ?? "unknown error"
@@ -595,17 +642,26 @@ public enum InPlaceSwap {
         return "\"$S\"/" + shellQuote(name)
     }
 
-    /// What an installed update's staged copy must still satisfy when root is
-    /// about to rename it in. The Swift gates ran on a bundle in a user-writable
-    /// scratch directory and root then copies it from there, so the copy root
-    /// holds is checked again, by root, in the same shell. Made only by
-    /// `verifyInstallArtifact`, at the gate (`stagedCopyRequirement`), and
-    /// handed to `replace` by the installer.
+    /// What a staged copy must still satisfy when root is about to rename it in.
+    /// The Swift gates ran on a bundle in a user-writable scratch directory and
+    /// root then copies it from there, so the copy root holds is checked again,
+    /// by root, in the same shell. Made by `verifyInstallArtifact`, at the gate
+    /// (`stagedCopyRequirement`), for an install, and by
+    /// `BackupStore.verifyRestoreAuthenticity` for a restore.
     struct StagedCopyRequirement: Equatable, Sendable {
         let text: String
         /// Check every slice. A cdhash names one slice's signature, so that
         /// form is checked on this Mac's slice only.
         let allArchitectures: Bool
+        /// False for a restore: the check `verifyRestoreAuthenticity` made,
+        /// without resources (`stagedCopyCheck`).
+        let validatesResources: Bool
+
+        init(text: String, allArchitectures: Bool, validatesResources: Bool = true) {
+            self.text = text
+            self.allArchitectures = allArchitectures
+            self.validatesResources = validatesResources
+        }
     }
 
     /// Decided at the gate, from what the gate saw:
@@ -639,10 +695,28 @@ public enum InPlaceSwap {
 
     /// The `codesign` clause for `quotedPath`, `&&`-terminated, or empty when
     /// there is nothing to check.
+    ///
+    /// A restore's (`validatesResources` false) is `verifyRestoreAuthenticity`'s
+    /// check: `--ignore-resources` is codesign(1)'s "do not validate the
+    /// contents of the code's resources", and on ten tampered copies of a
+    /// Developer ID app it refused and passed exactly what
+    /// `SecStaticCodeCheckValidity` with `kSecCSDoNotValidateResources` did
+    /// (2026-10-25; the code directory, Info.plist and every slice of the main
+    /// executable are still checked). No `--deep`/`--strict`: both reach into
+    /// resources. What resource validation would have caught structurally is
+    /// asked instead: `Contents` and `Contents/MacOS` must not be links. With
+    /// `Contents/MacOS` pointing out of the bundle every signature check passes
+    /// on a genuine copy, `ditto` keeps the link, and once root has renamed the
+    /// bundle in, the main executable is whatever that outside file becomes.
     static func stagedCopyCheck(_ quotedPath: String, _ requirement: StagedCopyRequirement?) -> String {
         guard let requirement else { return "" }
         let archs = requirement.allArchitectures ? "--all-architectures " : ""
-        return "/usr/bin/codesign --verify --deep --strict \(archs)-R \(shellQuote("=" + requirement.text)) \(quotedPath) && "
+        let req = shellQuote("=" + requirement.text)
+        guard requirement.validatesResources else {
+            return "/bin/test ! -L \(quotedPath)/Contents && /bin/test ! -L \(quotedPath)/Contents/MacOS && "
+                + "/usr/bin/codesign --verify --ignore-resources \(archs)-R \(req) \(quotedPath) && "
+        }
+        return "/usr/bin/codesign --verify --deep --strict \(archs)-R \(req) \(quotedPath) && "
     }
 
     /// The unprivileged whole-bundle exchange — `replace`'s non-elevated route,
@@ -1223,7 +1297,6 @@ public enum InPlaceSwap {
         // the same number it started with).
         let identityBefore = inode(of: target)
         let shell = privilegedReplacementShell(newApp: newApp, target: target, requirement: stagedCheck)
-        let appleScript = "do shell script \"\(escapeForAppleScript(shell))\" with administrator privileges"
 
         // One password panel at a time. The apply pool allows two concurrent
         // swaps, and now that every root-owned bundle takes this path (28 apps in
@@ -1239,9 +1312,7 @@ public enum InPlaceSwap {
         // land between `mv tgt old` and `mv new tgt`. stdout was inherited before;
         // the shell's commands print nothing on it.
         let outcome = try await elevationPanel.withApplyPermit {
-            try await ChildProcess.run(
-                "/usr/bin/osascript", ["-e", appleScript],
-                standardOutput: .discard, onCancel: .runToCompletion)
+            try await runElevated(shell)
         }
         guard outcome.terminationStatus == 0 else {
             let msg = String(data: outcome.standardError, encoding: .utf8) ?? "unknown error"

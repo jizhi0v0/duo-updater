@@ -6,8 +6,11 @@ import os
 /// `BrewAskPass`: the program brew's sudo runs for the password, driven here
 /// the way sudo drives it — exec'd as a child, its standard output read as the
 /// password, empty output taken as none (sudo(8) `-A`). No sudo runs: the
-/// script is the whole contract between the two. The last test runs it from an
-/// invented `brew` through `BrewFormulaService` (CLAUDE.md "测试不能问宿主").
+/// script is the whole contract between the two. `/usr/bin/time` stands in
+/// for sudo — a program that runs the askpass as its child and waits, as sudo
+/// does — and is the only ancestor `isSudo` takes for sudo here. The last test
+/// runs it from an invented `brew` through `BrewFormulaService` (CLAUDE.md
+/// "测试不能问宿主").
 @Suite struct BrewAskPassTests {
 
     /// What the prompt was asked, in order.
@@ -17,27 +20,33 @@ import os
         func record(_ request: SudoPasswordRequest) { requests.withLock { $0.append(request) } }
     }
 
+    /// The stand-in sudo, and the tests' `isSudo`.
+    private static let sudo = "/usr/bin/time"
+    private static let isSudo: BrewAskPass.IsSudo = { $0 == sudo }
+
     /// A parent directory of the test's own, with a quote in its name: the
-    /// script names its directory inside single quotes.
+    /// script names its directory inside single quotes. Short: the socket's
+    /// path has to fit `sun_path`.
     private static func parent() throws -> URL {
         let url = FileManager.default.temporaryDirectory
-            .appendingPathComponent("BrewAskPassTests it's-\(UUID().uuidString)")
+            .appendingPathComponent("BAP it's-\(UUID().uuidString.prefix(8))")
         try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         return url
     }
 
-    /// The program run as sudo runs it: a child of this process, so every run
-    /// here shares one parent — one "sudo".
+    /// The program run as sudo runs it, under a "sudo" of its own: a
+    /// different one each call, as two sudo calls in one brew run are.
     private static func askpass(_ environment: [String: String]) async throws -> ChildProcess.Outcome {
         let program = try #require(environment["SUDO_ASKPASS"])
-        return try await ChildProcess.run(program, ["Password:"], onCancel: .terminateChild)
+        return try await ChildProcess.run(sudo, [program, "Password:"], onCancel: .terminateChild)
     }
 
-    /// The program run from a shell of its own: a different parent each time,
-    /// as two sudo calls in one brew run are.
-    private static func askpassFromAnotherSudo(_ environment: [String: String]) async throws -> ChildProcess.Outcome {
+    /// The program run twice by one "sudo", as a sudo asks again after a
+    /// wrong password.
+    private static func askpassTwiceFromOneSudo(_ environment: [String: String]) async throws -> ChildProcess.Outcome {
         let program = try #require(environment["SUDO_ASKPASS"])
-        return try await ChildProcess.run("/bin/sh", ["-c", "\"$0\" Password:; :", program], onCancel: .terminateChild)
+        return try await ChildProcess.run(
+            sudo, ["/bin/sh", "-c", "\"$0\" Password:; \"$0\" Password:", program], onCancel: .terminateChild)
     }
 
     private static func output(_ outcome: ChildProcess.Outcome) -> String {
@@ -56,7 +65,8 @@ import os
         try await BrewAskPass.withChannel(
             packages: ["zulu@25"],
             prompt: { asked.record($0); return password },
-            temporaryDirectory: parent
+            temporaryDirectory: parent,
+            isSudo: Self.isSudo
         ) { environment in
             let program = URL(fileURLWithPath: try #require(environment["SUDO_ASKPASS"]))
             directory = program.deletingLastPathComponent()
@@ -79,12 +89,12 @@ import os
         defer { try? FileManager.default.removeItem(at: parent) }
         let asked = Asked()
         try await BrewAskPass.withChannel(
-            packages: ["a"], prompt: { asked.record($0); return "pw" }, temporaryDirectory: parent
+            packages: ["a"], prompt: { asked.record($0); return "pw" }, temporaryDirectory: parent,
+            isSudo: Self.isSudo
         ) { environment in
+            #expect(Self.output(try await Self.askpassTwiceFromOneSudo(environment)) == "pw\npw\n")
             _ = try await Self.askpass(environment)
             _ = try await Self.askpass(environment)
-            _ = try await Self.askpassFromAnotherSudo(environment)
-            _ = try await Self.askpassFromAnotherSudo(environment)
         }
         #expect(asked.all.map(\.attempt) == [1, 2, 1, 1])
     }
@@ -96,7 +106,8 @@ import os
         defer { try? FileManager.default.removeItem(at: parent) }
         let asked = Asked()
         try await BrewAskPass.withChannel(
-            packages: ["zulu@25"], prompt: { asked.record($0); return nil }, temporaryDirectory: parent
+            packages: ["zulu@25"], prompt: { asked.record($0); return nil }, temporaryDirectory: parent,
+            isSudo: Self.isSudo
         ) { environment in
             for _ in 0..<2 {
                 let outcome = try await Self.askpass(environment)
@@ -116,7 +127,7 @@ import os
             let parent = try Self.parent()
             defer { try? FileManager.default.removeItem(at: parent) }
             try await BrewAskPass.withChannel(
-                packages: ["x"], prompt: { _ in bad }, temporaryDirectory: parent
+                packages: ["x"], prompt: { _ in bad }, temporaryDirectory: parent, isSudo: Self.isSudo
             ) { environment in
                 let outcome = try await Self.askpass(environment)
                 #expect(outcome.standardOutput.isEmpty, "answer \(bad.debugDescription)")
@@ -124,30 +135,61 @@ import os
         }
     }
 
-    /// A reply meant for a script that died before reading it stays in the
-    /// FIFO; the next script must skip it and wait for its own. Here the dead
-    /// script's request is written straight to `request`. Mutation: read the
-    /// first line whatever it says → the live script prints "FIRST".
-    @Test func aStaleReplyIsNeverTakenForAnotherAsk() async throws {
+    /// An ask from a process with no sudo between it and this one — the
+    /// program run straight from here, or a bare connection to the socket — is
+    /// neither asked nor answered; the run's own sudo still is, after. Mutation:
+    /// drop the sudo requirement (any ancestry that reaches this process will
+    /// do) → both get the password and the prompt is asked three times.
+    @Test func anAskWithNoSudoOnTheWayIsNeitherAskedNorAnswered() async throws {
         let parent = try Self.parent()
         defer { try? FileManager.default.removeItem(at: parent) }
-        let answers = OSAllocatedUnfairLock(initialState: ["FIRST", "SECOND"])
         let asked = Asked()
         try await BrewAskPass.withChannel(
-            packages: ["x"],
-            prompt: { request in asked.record(request); return answers.withLock { $0.removeFirst() } },
-            temporaryDirectory: parent
+            packages: ["x"], prompt: { asked.record($0); return "pw" }, temporaryDirectory: parent,
+            isSudo: Self.isSudo
         ) { environment in
-            let directory = URL(fileURLWithPath: try #require(environment["SUDO_ASKPASS"])).deletingLastPathComponent()
-            let fd = open(directory.appendingPathComponent("request").path, O_WRONLY | O_NONBLOCK)
-            #expect(fd >= 0)
-            let line = Array("ask 2147483000 1\n".utf8)
-            _ = line.withUnsafeBytes { write(fd, $0.baseAddress, $0.count) }
-            close(fd)
-            while asked.all.isEmpty { try await Task.sleep(for: .milliseconds(20)) }
-            let outcome = try await Self.askpass(environment)
-            #expect(Self.output(outcome) == "SECOND\n")
+            let program = try #require(environment["SUDO_ASKPASS"])
+            let direct = try await ChildProcess.run(program, ["Password:"], onCancel: .terminateChild)
+            #expect(direct.standardOutput.isEmpty)
+            #expect(direct.terminationStatus == 1)
+            let socket = URL(fileURLWithPath: program).deletingLastPathComponent().appendingPathComponent("s").path
+            let bare = try await ChildProcess.run(
+                "/bin/sh", ["-c", #"printf 'ask 1 2\n' | /usr/bin/nc -U "$0""#, socket], onCancel: .terminateChild)
+            #expect(bare.standardOutput.isEmpty)
+            #expect(asked.all.isEmpty)
+            #expect(Self.output(try await Self.askpass(environment)) == "pw\n")
         }
+        #expect(asked.all == [SudoPasswordRequest(packages: ["x"], attempt: 1)])
+    }
+
+    /// An ask under a sudo that isn't this process's descendant — an orphan
+    /// whose parent is launchd now, as a double fork leaves it — is neither
+    /// asked nor answered. The orphan waits until it is one before it asks.
+    /// Mutation: take the sudo found so far when the walk reaches launchd →
+    /// the orphan gets the password.
+    @Test func anAskFromOutsideThisProcessIsNeitherAskedNorAnswered() async throws {
+        let parent = try Self.parent()
+        defer { try? FileManager.default.removeItem(at: parent) }
+        let asked = Asked()
+        let out = parent.appendingPathComponent("out")
+        let done = parent.appendingPathComponent("done")
+        try await BrewAskPass.withChannel(
+            packages: ["x"], prompt: { asked.record($0); return "pw" }, temporaryDirectory: parent,
+            isSudo: Self.isSudo
+        ) { environment in
+            let program = try #require(environment["SUDO_ASKPASS"])
+            let orphan = #"""
+            until [ "$(ps -o ppid= -p "$PPID" | tr -d ' ')" = 1 ]; do sleep 0.05; done
+            "$0" Password: > "$1"; : > "$2"
+            """#
+            _ = try await ChildProcess.run(
+                "/bin/sh", ["-c", #"( "$0" /bin/sh -c "$1" "$2" "$3" "$4" >/dev/null 2>&1 & ); :"#,
+                            Self.sudo, orphan, program, out.path, done.path],
+                onCancel: .terminateChild)
+            while !FileManager.default.fileExists(atPath: done.path) { try await Task.sleep(for: .milliseconds(20)) }
+        }
+        #expect(try Data(contentsOf: out).isEmpty)
+        #expect(asked.all.isEmpty)
     }
 
     /// The run ending while the panel is up cancels the prompt (the app's panel
@@ -170,7 +212,8 @@ import os
                 cancelled.withLock { $0 = Task.isCancelled }
                 return "late"
             },
-            temporaryDirectory: parent
+            temporaryDirectory: parent,
+            isSudo: Self.isSudo
         ) { environment in
             script = Task { try await Self.askpass(environment) }
             while asked.all.isEmpty { try await Task.sleep(for: .milliseconds(20)) }
@@ -202,6 +245,23 @@ import os
         #expect(environment.isEmpty)
     }
 
+    /// A directory whose socket path wouldn't fit `sun_path` (104 bytes with
+    /// its NUL) gives no program, as any other that can't be made, and leaves
+    /// nothing behind. Mutation: drop the length check → the path is cut short,
+    /// the socket bound where the program doesn't look, and a program handed
+    /// out that is never answered.
+    @Test func aSocketPathTooLongLeavesTheRunWithoutOne() async throws {
+        let parent = try Self.parent()
+        defer { try? FileManager.default.removeItem(at: parent) }
+        let deep = parent.appendingPathComponent(String(repeating: "d", count: 60))
+        try FileManager.default.createDirectory(at: deep, withIntermediateDirectories: true)
+        let environment = try await BrewAskPass.withChannel(
+            packages: ["x"], prompt: { _ in "pw" }, temporaryDirectory: deep, isSudo: Self.isSudo
+        ) { $0 }
+        #expect(environment.isEmpty)
+        #expect(try FileManager.default.contentsOfDirectory(atPath: deep.path).isEmpty)
+    }
+
     /// A body that throws still removes the directory.
     @Test func aFailedRunStillCleansUp() async throws {
         let parent = try Self.parent()
@@ -218,8 +278,8 @@ import os
     /// Through the service: only the cask upgrade gets `SUDO_ASKPASS`, the
     /// program it names answers with the prompt's password, and the panel
     /// names the cask that needs sudo. The invented `brew` logs each call with
-    /// whether the variable was set, and runs it on `upgrade --cask` as brew's
-    /// sudo would. Mutation: drop the askpass environment from
+    /// whether the variable was set, and runs it on `upgrade --cask` under the
+    /// stand-in sudo, as brew's sudo would. Mutation: drop the askpass environment from
     /// `runCaskUpgrade` → `got` is empty and the call reads `|unset`.
     @Test func theCaskUpgradeAndOnlyItGetsTheProgram() async throws {
         let dir = try Self.parent()
@@ -230,7 +290,7 @@ import os
         d=$(dirname "$0")
         printf '%s|%s\n' "$*" "${SUDO_ASKPASS:+set}${SUDO_ASKPASS:-unset}" | sed 's/|set.*/|set/' >> "$d/calls"
         case "$*" in
-          "upgrade --cask zzfixture-jdk zzfixture-cli") "$SUDO_ASKPASS" Password: > "$d/got" ;;
+          "upgrade --cask zzfixture-jdk zzfixture-cli") /usr/bin/time "$SUDO_ASKPASS" Password: > "$d/got" ;;
         esac
         exit 0
         """#.utf8).write(to: brew)
@@ -238,7 +298,8 @@ import os
         let service = BrewFormulaService(
             executor: { _ in nil },
             caskFacts: { token, _, _ in .init(installsAnApp: false, needsSudo: token == "zzfixture-jdk") },
-            brewPath: { brew.path })
+            brewPath: { brew.path },
+            askpassIsSudo: Self.isSudo)
         let asked = Asked()
         try await service.upgradeAll(
             casks: ["zzfixture-jdk", "zzfixture-cli"],

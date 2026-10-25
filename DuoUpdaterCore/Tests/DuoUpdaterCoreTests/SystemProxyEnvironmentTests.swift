@@ -113,9 +113,13 @@ import Foundation
     @Test func theChildEnvironmentDropsOnlyTheGitHubTokens() {
         let env = SystemProxyEnvironment.withoutGitHubTokens([
             "GH_TOKEN": "ZZFixture-gh", "GITHUB_TOKEN": "ZZFixture-github",
+            "GH_ENTERPRISE_TOKEN": "ZZFixture-ghe", "GITHUB_ENTERPRISE_TOKEN": "ZZFixture-ghe2",
+            "HOMEBREW_GITHUB_API_TOKEN": "ZZFixture-brew", "HOMEBREW_GITHUB_PACKAGES_TOKEN": "ZZFixture-brewpkg",
             "PATH": "/usr/bin", "https_proxy": "http://127.0.0.1:6152",
             "GITHUB_ACCESS_TOKEN": "ZZFixture-bun-own", "UV_GITHUB_TOKEN": "ZZFixture-uv-own",
         ])
+        // Every gh/Homebrew credential the user exported is dropped; a tool's own
+        // token variable (passed deliberately) and the proxy/PATH stay.
         #expect(env == [
             "PATH": "/usr/bin", "https_proxy": "http://127.0.0.1:6152",
             "GITHUB_ACCESS_TOKEN": "ZZFixture-bun-own", "UV_GITHUB_TOKEN": "ZZFixture-uv-own",

@@ -52,6 +52,20 @@ import DuoUpdaterCore
         }
     }
 
+    /// The NOTES block prints a machine note, whose text can carry a URL scraped
+    /// off the vendor's body or a redirect `Location`.
+    ///
+    /// Mutation: print `note` raw in the NOTES loop again.
+    @Test func aMachineNoteIsPrintedWithoutEscapes() throws {
+        let finding = Finding(
+            recipeID: "demo.note", registry: .vendor, bundleID: "b", channel: "stable", status: .ok,
+            warnings: [Finding.machineNotePrefix + "oneClickCandidate: https://x.example/a\(Self.clipboard).dmg"],
+            endpointHost: "example.com")
+        let out = try Self.printed([finding], showSamples: false)
+        #expect(out.contains("demo.note — oneClickCandidate: https://x.example/a.dmg"), "\(out)")
+        #expect(!out.contains(Self.clipboard) && !out.contains("\u{1B}]"))
+    }
+
     /// The INFRA and SKIPPED sections print `failureDetail` too.
     @Test func theInfraAndSkippedLinesAreCleanToo() throws {
         let infra = Finding(

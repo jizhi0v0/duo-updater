@@ -79,6 +79,45 @@ struct ChangelogDiskCacheTests {
         }
     }
 
+    /// The same signed URL inside an entry's Markdown body or a flat `items` line
+    /// (inline `![alt](url)`) is not written either; a plain inline image, an
+    /// inline link with a query, and the words around them stay.
+    ///
+    /// Mutation: have `scrubbingSignedInlineImages` return its input → the token
+    /// is in the file.
+    @Test func inlineSignedImagesInMarkdownAndItemsAreNotWrittenToDisk() async throws {
+        try await withScratchDirectory { dir in
+            let markdown = """
+                ## New
+                - Faster ![shot](https://cdn.example.com/b.png?X-Signature=s3cr3t-token) sync
+                - Logo ![logo](https://cdn.example.com/a.png) kept
+                - See [notes](https://example.com/notes?ref=app)
+                """
+            // A rich entry carries each line twice — in `items` and as a `.note`
+            // (`GitHubMarkdownParser`); the second copy must be scrubbed too. The
+            // `<…>` URL has a space and a `|`, which `URLComponents` cannot parse.
+            let line = "Faster ![shot](<https://cdn.example.com/c d.png?a|b=s3cr3t-token>) sync"
+            let changelog = Changelog(entries: [Changelog.Entry(
+                version: "1.0", date: nil,
+                items: [line, "Plain"],
+                content: [.heading("Added ![i](https://cdn.example.com/h.png#s3cr3t-token)"),
+                          .note(line), .note("Plain")],
+                markdown: markdown)])
+            await ChangelogDiskCache(directory: dir).set(changelog, for: Self.key)
+
+            let raw = try String(contentsOf: onDiskFileURL(in: dir), encoding: .utf8)
+            #expect(!raw.contains("s3cr3t-token"), "the token reached the file")
+
+            let entry = try #require(await ChangelogDiskCache(directory: dir).get(for: Self.key)?.entries.first)
+            #expect(entry.items == ["Faster  sync", "Plain"])
+            #expect(entry.content == [.heading("Added "), .note("Faster  sync"), .note("Plain")])
+            let kept = try #require(entry.markdown)
+            #expect(kept.contains("- Faster  sync"))
+            #expect(kept.contains("![logo](https://cdn.example.com/a.png)"))
+            #expect(kept.contains("[notes](https://example.com/notes?ref=app)"))
+        }
+    }
+
     /// A changelog with nothing to drop is written exactly as it was.
     @Test func aChangelogWithNoQueriedImagesIsWrittenUnchanged() async throws {
         try await withScratchDirectory { dir in

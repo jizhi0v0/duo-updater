@@ -320,7 +320,9 @@ enum CLIToolRows {
             if row.state == CLIToolState.pinned.rawValue, let status = row.status, let pinned = CLIToolWording.pinned(status) {
                 line += "  — \(pinned)"
             }
-            print(line)
+            // `installedVersion`/`latestVersion` are a tool's own `--version`
+            // and the vendor's release string; scrub terminal escapes.
+            print(TerminalText.printable(line))
             for detail in details(row) { print("      \(detail)") }
         }
         for line in securityLines { print(line) }

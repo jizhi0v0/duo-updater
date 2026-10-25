@@ -307,7 +307,7 @@ final class HelperShellRunner: PrivilegedMASRunner, @unchecked Sendable {
         // item switched off and unregisterable (see `repairRegistration`). So this
         // throws `helperUnresponsive`, whose message names the one thing that does
         // work, rather than burning a second 10s timeout pretending otherwise.
-        try await ensureReachable()
+        try await ensureReadyToInstall()
         do {
             return try await send(adamID: adamID, uid: uid, gid: gid,
                                   userName: userName, logPath: logPath)
@@ -326,7 +326,7 @@ final class HelperShellRunner: PrivilegedMASRunner, @unchecked Sendable {
             clearConnection()
             repairRegistration()
             do {
-                try await ensureReachable()
+                try await ensureReadyToInstall()
                 return try await send(adamID: adamID, uid: uid, gid: gid,
                                       userName: userName, logPath: logPath)
             } catch let retryError as NSError where Self.isConnectionFailure(retryError) {
@@ -359,10 +359,25 @@ final class HelperShellRunner: PrivilegedMASRunner, @unchecked Sendable {
     /// "switched on and working" — a distinction that otherwise only surfaces as a
     /// failed update, and that a replaced app bundle creates routinely.
     func isAnswering() async -> Bool {
-        do { try await ensureReachable(); return true } catch { return false }
+        do { _ = try await ensureReachable(); return true } catch { return false }
     }
 
-    private func ensureReachable() async throws {
+    /// `ensureReachable`, then refuse a helper that answers but would run `mas` as
+    /// root without verifying it first (`HelperInstallGate`). Both install attempts
+    /// go through here, and nothing else sends `installMASApp`.
+    private func ensureReadyToInstall() async throws {
+        let versionReply = try await ensureReachable()
+        do {
+            try HelperInstallGate.require(versionReply: versionReply)
+        } catch {
+            log.error("helper \(versionReply, privacy: .public) predates verified mas — refusing to send it the install")
+            throw error
+        }
+    }
+
+    /// The `helperVersion` reply of the helper that answered.
+    @discardableResult
+    private func ensureReachable() async throws -> String {
         // A deadline and a probe raced through ONE continuation — not a task group
         // with a timeout child. This used to be
         // `withThrowingTaskGroup { probe; sleep; first = await group.next() }`, and
@@ -377,21 +392,21 @@ final class HelperShellRunner: PrivilegedMASRunner, @unchecked Sendable {
         // its own timeout expired. `ResumeGuard` lets whichever side loses the race
         // be a no-op, which is what the guard was already there for.
         let conn = connection()
-        let answered = await withCheckedContinuation { (cont: CheckedContinuation<Bool, Never>) in
+        let answered = await withCheckedContinuation { (cont: CheckedContinuation<String?, Never>) in
             let once = ResumeGuard()
             Task {
                 try? await Task.sleep(for: Self.reachabilityTimeout)
-                once.once { cont.resume(returning: false) }
+                once.once { cont.resume(returning: nil) }
             }
             guard let proxy = conn.remoteObjectProxyWithErrorHandler({ _ in
-                once.once { cont.resume(returning: false) }
+                once.once { cont.resume(returning: nil) }
             }) as? MASHelperProtocol else {
-                once.once { cont.resume(returning: false) }
+                once.once { cont.resume(returning: nil) }
                 return
             }
-            proxy.helperVersion { _ in once.once { cont.resume(returning: true) } }
+            proxy.helperVersion { reply in once.once { cont.resume(returning: reply) } }
         }
-        guard answered else {
+        guard let versionReply = answered else {
             // Drop the connection: a fresh one is the only way a later attempt can
             // bind to a helper that did eventually come up. Invalidate it too, so the
             // call still parked on the silent peer is torn down rather than left
@@ -402,6 +417,7 @@ final class HelperShellRunner: PrivilegedMASRunner, @unchecked Sendable {
             log.error("helper did not answer within \(Self.reachabilityTimeout, privacy: .public) — treating as unavailable")
             throw MASInstaller.MASError.helperUnresponsive
         }
+        return versionReply
     }
 
     /// The two ways an XPC call fails when the peer never came up: Cocoa's

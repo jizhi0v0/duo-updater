@@ -62,7 +62,7 @@ import Testing
         try await DigestOnlyInstallTests.makeApp(at: source, build: "2", signing: .sealed(identifier: nil))
         let check = try #require(
             await InstallAuthenticityDRTests.digestGate(source, over: target, in: dir))
-        #expect(check.text.hasPrefix("cdhash H\""), "an ad-hoc install takes the cdhash form")
+        #expect(check.text == nil && check.pinnedCdhash != nil, "an ad-hoc install takes the cdhash form")
 
         for substitute in [DigestOnlyInstallTests.Signing.sealed(identifier: nil), .unsigned] {
             try fm.removeItem(at: source)
@@ -72,5 +72,35 @@ import Testing
             #expect(try await SelfSignedCodeSigner.shell(shell) != 0)
             #expect(SignatureVerifier.infoPlist(of: target)["CFBundleVersion"] as? String == "1")
         }
+    }
+
+    /// A universal ad-hoc build that was gated lands. Its cdhash names one
+    /// slice, and `codesign --verify` checks every slice unless told otherwise,
+    /// so a `cdhash H"…"` requirement refused every universal build — measured
+    /// on the Developer ID form with Rectangle 2.0.4 (2026-10-25).
+    ///
+    /// Mutation: give the ad-hoc form back `text: "cdhash H\"…\""` → build 2
+    /// does not land.
+    @Test func aUniversalAdHocBuildThatWasGatedLands() async throws {
+        let fm = FileManager.default
+        let dir = try DigestOnlyInstallTests.scratch("gate-universal")
+        defer { try? fm.removeItem(at: dir) }
+        let target = try await DigestOnlyInstallTests.makeApp(
+            at: dir.appendingPathComponent("ZZFixture.app"), version: "1.0.0", build: "1",
+            signing: .sealed(identifier: nil))
+        let source = dir.appendingPathComponent("src/ZZFixture.app")
+        try await DigestOnlyInstallTests.makeApp(at: source, build: "2", signing: .unsigned)
+        let main = dir.appendingPathComponent("main.c")
+        try Data("int main(void) { return 0; }\n".utf8).write(to: main)
+        try await SelfSignedCodeSigner.run([
+            "/usr/bin/xcrun", "clang", "-arch", "arm64", "-arch", "x86_64", "-o",
+            source.appendingPathComponent("Contents/MacOS/zz").path, main.path])
+        try await SelfSignedCodeSigner.run(["/usr/bin/codesign", "--force", "--sign", "-", source.path])
+        let check = try #require(
+            await InstallAuthenticityDRTests.digestGate(source, over: target, in: dir))
+        let shell = InPlaceSwap.privilegedReplacementShell(newApp: source, target: target, requirement: check)
+
+        #expect(try await SelfSignedCodeSigner.shell(shell) == 0)
+        #expect(SignatureVerifier.infoPlist(of: target)["CFBundleVersion"] as? String == "2")
     }
 }

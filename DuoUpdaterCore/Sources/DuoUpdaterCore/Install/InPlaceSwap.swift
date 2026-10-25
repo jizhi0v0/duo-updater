@@ -762,24 +762,19 @@ public enum InPlaceSwap {
     /// (`stagedCopyRequirement`), for an install, and by
     /// `BackupStore.verifyRestoreAuthenticity` for a restore.
     struct StagedCopyRequirement: Equatable, Sendable {
-        let text: String
-        /// Check every slice. A cdhash names one slice's signature, so that
-        /// form is checked on this Mac's slice only.
-        let allArchitectures: Bool
+        /// A designated requirement, checked on every slice. Nil for an ad-hoc
+        /// or unsigned installed copy, which has none another build could meet:
+        /// `pinnedCdhash` alone then names the build.
+        let text: String?
         /// False for a restore: the check `verifyRestoreAuthenticity` made,
         /// without resources (`stagedCopyCheck`).
         let validatesResources: Bool
-        /// An install's gate-2 cdhash beside a `text` that is a designated
-        /// requirement, checked as well: the requirement names a signer, and
-        /// every build that signer ever shipped meets it.
+        /// An install's gate-2 cdhash, checked as well: a requirement names a
+        /// signer, and every build that signer ever shipped meets it.
         let pinnedCdhash: String?
 
-        init(
-            text: String, allArchitectures: Bool, validatesResources: Bool = true,
-            pinnedCdhash: String? = nil
-        ) {
+        init(text: String?, validatesResources: Bool = true, pinnedCdhash: String? = nil) {
             self.text = text
-            self.allArchitectures = allArchitectures
             self.validatesResources = validatesResources
             self.pinnedCdhash = pinnedCdhash
         }
@@ -811,10 +806,10 @@ public enum InPlaceSwap {
            !summary.authorities.isEmpty, !summary.flags.contains("adhoc"),
            let text = try? SignatureVerifier.installedSignerRequirement(
                installedApp: installed, downloadedApp: downloaded) {
-            return StagedCopyRequirement(text: text, allArchitectures: true, pinnedCdhash: gatedCdhash)
+            return StagedCopyRequirement(text: text, pinnedCdhash: gatedCdhash)
         }
         guard let gatedCdhash else { return nil }
-        return StagedCopyRequirement(text: "cdhash H\"\(gatedCdhash)\"", allArchitectures: false)
+        return StagedCopyRequirement(text: nil, pinnedCdhash: gatedCdhash)
     }
 
     /// The `codesign` clause for `quotedPath`, `&&`-terminated, or empty when
@@ -834,11 +829,10 @@ public enum InPlaceSwap {
     /// bundle in, the main executable is whatever that outside file becomes.
     static func stagedCopyCheck(_ quotedPath: String, _ requirement: StagedCopyRequirement?) -> String {
         guard let requirement else { return "" }
-        let archs = requirement.allArchitectures ? "--all-architectures " : ""
-        let req = shellQuote("=" + requirement.text)
+        let req = requirement.text.map { "-R \(shellQuote("=" + $0)) " } ?? ""
         guard requirement.validatesResources else {
             return "/bin/test ! -L \(quotedPath)/Contents && /bin/test ! -L \(quotedPath)/Contents/MacOS && "
-                + "/usr/bin/codesign --verify --ignore-resources \(archs)-R \(req) \(quotedPath) && "
+                + "/usr/bin/codesign --verify --ignore-resources --all-architectures \(req)\(quotedPath) && "
         }
         // The pin compares the cdhash `codesign -d` reports, not a `cdhash H"…"`
         // requirement: verification defaults to every slice (codesign(1)), and
@@ -852,7 +846,7 @@ public enum InPlaceSwap {
             "{ /bin/test \"$(/usr/bin/codesign -d --verbose=3 \(quotedPath) 2>&1 | /usr/bin/sed -n 's/^CDHash=//p')\" = \(shellQuote($0)) "
                 + "|| { echo \"the staged copy is not the build that was checked\" >&2; false; }; } && "
         } ?? ""
-        return "/usr/bin/codesign --verify --deep --strict \(archs)-R \(req) \(quotedPath) && " + pin
+        return "/usr/bin/codesign --verify --deep --strict --all-architectures \(req)\(quotedPath) && " + pin
     }
 
     /// The unprivileged whole-bundle exchange — `replace`'s non-elevated route,

@@ -343,10 +343,10 @@ import Testing
             try await signed(older, build: "2", with: vendor)
             let check = try #require(await SignatureVerifier.verifyInstallArtifact(
                 downloadedApp: source, installedApp: fixture.target))
-            #expect(check.allArchitectures, "a certificate-signed install takes the DR form")
+            let requirement = try #require(check.text, "a certificate-signed install takes the DR form")
             // The premise: the substitute meets the installed copy's requirement.
             try await SelfSignedCodeSigner.run([
-                "/usr/bin/codesign", "--verify", "-R", "=" + check.text, older.path])
+                "/usr/bin/codesign", "--verify", "-R", "=" + requirement, older.path])
 
             let calls = Calls()
             chmod(fixture.apps.path, 0o555)
@@ -420,7 +420,7 @@ import Testing
     /// A restore's requirement is unchanged: no cdhash pin (another PR).
     @Test func aRestoreRequirementCarriesNoCdhashPin() {
         let restore = InPlaceSwap.StagedCopyRequirement(
-            text: "identifier \"zz\"", allArchitectures: true, validatesResources: false)
+            text: "identifier \"zz\"", validatesResources: false)
         let clause = InPlaceSwap.stagedCopyCheck("\"$S\"/'X.app'", restore)
         #expect(!clause.contains("cdhash"), "\(clause)")
     }

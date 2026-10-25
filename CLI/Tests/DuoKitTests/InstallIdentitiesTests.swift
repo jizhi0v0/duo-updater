@@ -1,4 +1,5 @@
 import Testing
+import CryptoKit
 import Foundation
 @testable import DuoKit
 import DuoUpdaterCore
@@ -96,16 +97,16 @@ import DuoUpdaterCore
     @Test func aNewURLMovesTheLastSeenStamp() {
         var store = InstallIdentities()
         var first = recorded()
-        first.lastSeenURL = "https://downloads.example.com/a.dmg"
+        first.lastSeenURLSHA256 = InstallIdentities.digest(ofURL: "https://downloads.example.com/a.dmg")
         _ = store.record("vendor:a", first)
         var moved = recorded(at: day2)
-        moved.lastSeenURL = "https://cdn.example.com/a.dmg"
+        moved.lastSeenURLSHA256 = InstallIdentities.digest(ofURL: "https://cdn.example.com/a.dmg")
         #expect(store.record("vendor:a", moved).isEmpty)
-        #expect(store.entries["vendor:a"]?.lastSeenURL == "https://cdn.example.com/a.dmg")
+        #expect(store.entries["vendor:a"]?.lastSeenURLSHA256 == InstallIdentities.digest(ofURL: "https://cdn.example.com/a.dmg"))
         #expect(store.entries["vendor:a"]?.lastSeenAt == day2)
     }
 
-    /// A file written before `lastSeenURL` existed still reads.
+    /// A file written before the URL was recorded still reads.
     @Test func anEntryWithoutAURLStillReads() throws {
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("identities-\(UUID().uuidString).json")
@@ -117,7 +118,79 @@ import DuoUpdaterCore
             """.utf8).write(to: url)
         let store = try InstallIdentities.load(from: url)
         #expect(store.entries["vendor:a"]?.lastSeenVersion == "1.0")
-        #expect(store.entries["vendor:a"]?.lastSeenURL == nil)
+        #expect(store.entries["vendor:a"]?.lastSeenURLSHA256 == nil)
+    }
+
+    private func sha256Hex(_ text: String) -> String {
+        SHA256.hash(data: Data(text.utf8)).map { String(format: "%02x", $0) }.joined()
+    }
+
+    /// `verify/identities.json` is committed to a public repository, and some
+    /// vendors' download URLs carry a signature or token. What is kept of the
+    /// URL is its digest: enough to tell "same URL as last time" and nothing else.
+    /// A file written before that names the URL; it reads, and what it is saved
+    /// as no longer does.
+    @Test func aSavedStoreHoldsTheURLsDigestAndAnOldFileIsMigrated() throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("identities-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let old = dir.appendingPathComponent("old.json")
+        let signed = "https://cdn.example.com/a.dmg?X-Amz-Signature=SECRET"
+        try Data("""
+            {"schemaVersion": 1, "entries": {"vendor:a": {"architectures": ["arm64"],
+             "firstSeenAt": "2026-09-01T00:00:00Z", "lastSeenAt": "2026-09-01T00:00:00Z",
+             "lastSeenVersion": "1.0", "lastSeenURL": "\(signed)"}}}
+            """.utf8).write(to: old)
+
+        let migrated = dir.appendingPathComponent("migrated.json")
+        try InstallIdentities.load(from: old).save(to: migrated)
+        let text = try String(contentsOf: migrated, encoding: .utf8)
+        #expect(!text.contains("SECRET"))
+        #expect(!text.contains("\"lastSeenURL\""))
+        #expect(text.contains("\"lastSeenURLSHA256\" : \"\(sha256Hex(signed))\""))
+
+        // And what was saved reads back as the same store.
+        let again = dir.appendingPathComponent("again.json")
+        try InstallIdentities.load(from: migrated).save(to: again)
+        #expect(try Data(contentsOf: again) == Data(contentsOf: migrated))
+    }
+
+    /// Migrating must not change what a run does: an entry that recorded a URL
+    /// before still skips that URL's download, and still downloads any other.
+    @Test func aMigratedEntryKeepsItsSkipBehaviour() throws {
+        let file = FileManager.default.temporaryDirectory
+            .appendingPathComponent("identities-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: file) }
+        let same = "https://cdn.example.com/a.dmg?X-Amz-Signature=SECRET"
+        try Data("""
+            {"schemaVersion": 1, "entries": {"vendor:a": {"architectures": ["arm64"],
+             "firstSeenAt": "2026-09-01T00:00:00Z", "lastSeenAt": "2026-09-01T00:00:00Z",
+             "lastSeenVersion": "1.0", "lastSeenURL": "\(same)"}}}
+            """.utf8).write(to: file)
+        let recorded = try #require(InstallIdentities.load(from: file).entries["vendor:a"])
+        var clean = Baseline.Entry()
+        clean.consecutiveActionable = 0
+        let previous = InstallVerify.Previous(recorded: recorded, baseline: clean)
+        #expect(InstallVerify.skipsDownload(
+            version: "1.0", urlSHA256: InstallIdentities.digest(ofURL: same), previous: previous))
+        #expect(!InstallVerify.skipsDownload(
+            version: "1.0", urlSHA256: InstallIdentities.digest(ofURL: same + "x"), previous: previous))
+    }
+
+    /// The report is a 90-day artifact from a public repository: a download URL
+    /// goes into it without its query (a presigned signature), fragment or
+    /// userinfo.
+    @Test func theReportsURLKeepsSchemeHostAndPathOnly() throws {
+        func shown(_ text: String) throws -> String {
+            InstallVerify.displayURL(try #require(URL(string: text)))
+        }
+        #expect(try shown("https://cdn.example.com/a/b.dmg?X-Amz-Signature=SECRET&X-Amz-Expires=3600")
+            == "https://cdn.example.com/a/b.dmg")
+        #expect(try shown("https://user:hunter2@cdn.example.com:8443/a.dmg#frag?x=SECRET")
+            == "https://cdn.example.com:8443/a.dmg")
+        #expect(try shown("https://github.com/o/r/releases/download/v1/App.dmg")
+            == "https://github.com/o/r/releases/download/v1/App.dmg")
     }
 
     /// The whole point: a change is reported and NOT accepted, so it is

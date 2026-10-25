@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import DuoUpdaterCore
 
@@ -20,7 +21,7 @@ public struct InstallIdentities: Codable, Sendable, Equatable {
     /// The fields a vendor changing would make an install gate refuse, or
     /// change what gets installed. Version and OS floor move every release and
     /// are kept only to say when the identity was last confirmed.
-    public struct Recorded: Codable, Sendable, Equatable {
+    public struct Recorded: Sendable, Equatable {
         public var bundleIdentifier: String?
         public var signedIdentifier: String?
         public var teamIdentifier: String?
@@ -32,12 +33,20 @@ public struct InstallIdentities: Codable, Sendable, Equatable {
         public var firstSeenVersion: String?
         public var lastSeenAt: Date
         public var lastSeenVersion: String?
-        /// Where that version was downloaded from. With `lastSeenVersion`, what
-        /// lets `duo verify-install` skip a download it has already read
-        /// (`InstallVerify.skipsDownload`). Nil in an entry written before this
-        /// field existed, which matches no URL — so that entry downloads once
-        /// more and records it.
-        public var lastSeenURL: String? = nil
+        /// SHA-256 of where that version was downloaded from, as lowercase hex
+        /// (`digest(ofURL:)`). With `lastSeenVersion`, what lets `duo
+        /// verify-install` skip a download it has already read
+        /// (`InstallVerify.skipsDownload`). The URL itself is not kept: this
+        /// file is committed to a public repository and a download URL can
+        /// carry a signature or token. Nothing needs it back — only whether it
+        /// is the same one. Nil in an entry written before the URL was recorded,
+        /// which matches no URL — so that entry downloads once more and records it.
+        public var lastSeenURLSHA256: String? = nil
+    }
+
+    /// The lowercase-hex SHA-256 of a download URL's exact text.
+    public static func digest(ofURL url: String) -> String {
+        SHA256.hash(data: Data(url.utf8)).map { String(format: "%02x", $0) }.joined()
     }
 
     public var schemaVersion = 1
@@ -76,7 +85,7 @@ public struct InstallIdentities: Codable, Sendable, Equatable {
     /// nothing to record: a package inside a disk image was never opened.
     static func observed(
         identity: ArtifactInspection.Identity?, packageTeamIdentifier: String?,
-        version: String?, url: String? = nil, at date: Date
+        version: String?, urlSHA256: String? = nil, at date: Date
     ) -> Recorded? {
         guard identity != nil || packageTeamIdentifier != nil else { return nil }
         return Recorded(
@@ -87,7 +96,7 @@ public struct InstallIdentities: Codable, Sendable, Equatable {
             sparklePublicKey: identity?.sparklePublicKey,
             architectures: identity?.architectures ?? [],
             firstSeenAt: date, firstSeenVersion: version,
-            lastSeenAt: date, lastSeenVersion: version, lastSeenURL: url)
+            lastSeenAt: date, lastSeenVersion: version, lastSeenURLSHA256: urlSHA256)
     }
 
     /// How `now` differs from `recorded`, one line per field. Empty when it is
@@ -127,10 +136,11 @@ public struct InstallIdentities: Codable, Sendable, Equatable {
         }
         let changes = Self.changes(from: recorded, to: now)
         if changes.isEmpty,
-           recorded.lastSeenVersion != now.lastSeenVersion || recorded.lastSeenURL != now.lastSeenURL {
+           recorded.lastSeenVersion != now.lastSeenVersion
+            || recorded.lastSeenURLSHA256 != now.lastSeenURLSHA256 {
             entries[recipeID]?.lastSeenAt = now.lastSeenAt
             entries[recipeID]?.lastSeenVersion = now.lastSeenVersion
-            entries[recipeID]?.lastSeenURL = now.lastSeenURL
+            entries[recipeID]?.lastSeenURLSHA256 = now.lastSeenURLSHA256
         }
         return changes
     }
@@ -140,5 +150,51 @@ public struct InstallIdentities: Codable, Sendable, Equatable {
     /// did not look at.
     mutating func prune(keeping live: Set<String>) {
         entries = entries.filter { live.contains($0.key) }
+    }
+}
+
+extension InstallIdentities.Recorded: Codable {
+    private enum CodingKeys: String, CodingKey {
+        case bundleIdentifier, signedIdentifier, teamIdentifier, packageTeamIdentifier
+        case sparklePublicKey, architectures, firstSeenAt, firstSeenVersion
+        case lastSeenAt, lastSeenVersion, lastSeenURLSHA256
+        /// What an entry written before the digest held: the URL itself, signed
+        /// query and all. Read, hashed, and never written back.
+        case legacyLastSeenURL = "lastSeenURL"
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        bundleIdentifier = try c.decodeIfPresent(String.self, forKey: .bundleIdentifier)
+        signedIdentifier = try c.decodeIfPresent(String.self, forKey: .signedIdentifier)
+        teamIdentifier = try c.decodeIfPresent(String.self, forKey: .teamIdentifier)
+        packageTeamIdentifier = try c.decodeIfPresent(String.self, forKey: .packageTeamIdentifier)
+        sparklePublicKey = try c.decodeIfPresent(String.self, forKey: .sparklePublicKey)
+        architectures = try c.decode([String].self, forKey: .architectures)
+        firstSeenAt = try c.decode(Date.self, forKey: .firstSeenAt)
+        firstSeenVersion = try c.decodeIfPresent(String.self, forKey: .firstSeenVersion)
+        lastSeenAt = try c.decode(Date.self, forKey: .lastSeenAt)
+        lastSeenVersion = try c.decodeIfPresent(String.self, forKey: .lastSeenVersion)
+        if let digest = try c.decodeIfPresent(String.self, forKey: .lastSeenURLSHA256) {
+            lastSeenURLSHA256 = digest
+        } else {
+            lastSeenURLSHA256 = try c.decodeIfPresent(String.self, forKey: .legacyLastSeenURL)
+                .map(InstallIdentities.digest(ofURL:))
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encodeIfPresent(bundleIdentifier, forKey: .bundleIdentifier)
+        try c.encodeIfPresent(signedIdentifier, forKey: .signedIdentifier)
+        try c.encodeIfPresent(teamIdentifier, forKey: .teamIdentifier)
+        try c.encodeIfPresent(packageTeamIdentifier, forKey: .packageTeamIdentifier)
+        try c.encodeIfPresent(sparklePublicKey, forKey: .sparklePublicKey)
+        try c.encode(architectures, forKey: .architectures)
+        try c.encode(firstSeenAt, forKey: .firstSeenAt)
+        try c.encodeIfPresent(firstSeenVersion, forKey: .firstSeenVersion)
+        try c.encode(lastSeenAt, forKey: .lastSeenAt)
+        try c.encodeIfPresent(lastSeenVersion, forKey: .lastSeenVersion)
+        try c.encodeIfPresent(lastSeenURLSHA256, forKey: .lastSeenURLSHA256)
     }
 }

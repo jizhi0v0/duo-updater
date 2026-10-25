@@ -1,4 +1,5 @@
 import Testing
+import CryptoKit
 import Foundation
 import Network
 @testable import DuoUpdaterCore
@@ -178,7 +179,7 @@ struct ResumableDownloadStoreTests {
         let entry = ResumableDownloadStore.Entry(url: url, root: root)
         try Data(repeating: 7, count: 10).write(to: entry.partial)
         try ResumableDownloadStore.writeMeta(
-            .init(url: url.absoluteString, validator: "\"zz\"", bytesWritten: 10,
+            .init(urlSHA256: ResumableDownloadStore.digest(of: url.absoluteString), validator: "\"zz\"", bytesWritten: 10,
                   appID: appID, createdAt: Date()),
             to: entry)
         return entry
@@ -290,7 +291,7 @@ struct ResumableDownloadStoreTests {
         let entry = ResumableDownloadStore.Entry(url: url, root: root)
         try Self.body.write(to: entry.partial)
         try ResumableDownloadStore.writeMeta(
-            .init(url: url.absoluteString, validator: "\"zz-v1\"", bytesWritten: Int64(Self.body.count),
+            .init(urlSHA256: ResumableDownloadStore.digest(of: url.absoluteString), validator: "\"zz-v1\"", bytesWritten: Int64(Self.body.count),
                   appID: nil, createdAt: Date()),
             to: entry)
 
@@ -337,6 +338,86 @@ struct ResumableDownloadStoreTests {
         let requests = server.requests
         #expect(requests.count == 2)
         #expect(Server.header("Range", in: requests[1]) == nil)
+    }
+
+    // MARK: - The sidecar does not hold the URL
+
+    private func sha256Hex(_ text: String) -> String {
+        SHA256.hash(data: Data(text.utf8)).map { String(format: "%02x", $0) }.joined()
+    }
+
+    /// A download URL can carry a signature or token. What the sidecar keeps is
+    /// the digest of it, which still tells a collision from a match but cannot
+    /// be replayed.
+    @Test func theSidecarHoldsTheURLsDigestNotTheURL() async throws {
+        let root = try scratch("root"), work = try scratch("work")
+        defer { [root, work].forEach { try? FileManager.default.removeItem(at: $0) } }
+        let server = try Server(body: Self.body, validators: Self.strong, stallAt: Self.stallAt)
+        defer { server.stop() }
+        let url = server.url("zz.dmg?token=SECRET-SIGNATURE")
+
+        try await ResumableDownloadStore.$rootOverride.withValue(root) {
+            try await downloadThenCancel(url, workDir: work)
+            let entry = ResumableDownloadStore.Entry(url: url, root: root)
+            let text = try String(contentsOf: entry.sidecar, encoding: .utf8)
+            #expect(!text.contains("SECRET-SIGNATURE"))
+            #expect(!text.contains("127.0.0.1"))
+            #expect(text.contains(sha256Hex(url.absoluteString)))
+        }
+    }
+
+    /// A sidecar from before the change names the full URL. The download it
+    /// belongs to is still resumed — dropping it would restart a transfer
+    /// that was stopped just before an update — and the next time the sidecar
+    /// is written it no longer holds the URL.
+    @Test func aSidecarWrittenBeforeTheChangeStillResumesAndIsRewrittenWithoutTheURL() async throws {
+        let root = try scratch("root"), work = try scratch("work")
+        defer { [root, work].forEach { try? FileManager.default.removeItem(at: $0) } }
+        let server = try Server(body: Self.body, validators: Self.strong, stallAt: nil)
+        defer { server.stop() }
+        let url = server.url("zz.dmg?token=SECRET-SIGNATURE")
+        let entry = ResumableDownloadStore.Entry(url: url, root: root)
+        try Self.body.prefix(Self.stallAt).write(to: entry.partial)
+        try Data(#"""
+            {"url":"\#(url.absoluteString)","validator":"\"zz-v1\"","bytesWritten":\#(Self.stallAt),"createdAt":"2026-10-25T00:00:00Z"}
+            """#.utf8).write(to: entry.sidecar)
+
+        try await ResumableDownloadStore.$rootOverride.withValue(root) {
+            let lease = try #require(ResumableDownloadStore.open(for: url, appID: nil))
+            #expect(lease.validator == "\"zz-v1\"")
+            #expect(lease.keptBytes == Int64(Self.stallAt))
+            ResumableDownloadStore.close(lease, keep: true)
+            let text = try String(contentsOf: entry.sidecar, encoding: .utf8)
+            #expect(!text.contains("SECRET-SIGNATURE"))
+            #expect(text.contains(sha256Hex(url.absoluteString)))
+
+            let downloader = Downloader(destinationDir: work) { _ in }
+            let file = try await downloader.download(url)
+            #expect(try Data(contentsOf: file) == Self.body)
+        }
+        #expect(Server.header("Range", in: server.requests[0]) == "bytes=\(Self.stallAt)-")
+    }
+
+    /// The check the sidecar's URL was kept for: a sidecar that names another
+    /// URL than the one asked for is not resumed — in the old format and the new.
+    @Test func aSidecarForAnotherURLIsNotResumed() async throws {
+        let root = try scratch("root")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let url = URL(string: "https://example.com/zz.dmg?token=a")!
+        let entry = ResumableDownloadStore.Entry(url: url, root: root)
+        let tail = #""validator":"v","bytesWritten":10,"createdAt":"2026-10-25T00:00:00Z"}"#
+        for sidecar in [
+            #"{"url":"https://example.com/other.dmg","# + tail,
+            #"{"urlSHA256":"\#(sha256Hex("https://example.com/other.dmg"))","# + tail,
+        ] {
+            try Data(repeating: 7, count: 10).write(to: entry.partial)
+            try Data(sidecar.utf8).write(to: entry.sidecar)
+            ResumableDownloadStore.$rootOverride.withValue(root) {
+                let lease = ResumableDownloadStore.open(for: url, appID: nil)
+                #expect(lease?.validator == nil)
+                if let lease { ResumableDownloadStore.close(lease, keep: false) }
+            }
+        }
     }
 
     // MARK: - Retention
@@ -407,7 +488,7 @@ struct ResumableDownloadStoreTests {
             let entry = ResumableDownloadStore.Entry(url: url, root: root)
             try seeded.write(to: entry.partial)
             try ResumableDownloadStore.writeMeta(
-                .init(url: url.absoluteString, validator: sent, bytesWritten: 10, appID: nil, createdAt: Date()),
+                .init(urlSHA256: ResumableDownloadStore.digest(of: url.absoluteString), validator: sent, bytesWritten: 10, appID: nil, createdAt: Date()),
                 to: entry)
             let file = try await Downloader(destinationDir: work) { _ in }.download(url)
             let got = try Data(contentsOf: file)

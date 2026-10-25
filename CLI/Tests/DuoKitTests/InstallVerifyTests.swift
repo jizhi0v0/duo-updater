@@ -177,7 +177,7 @@ import DuoUpdaterCore
             bundleIdentifier: "com.example.app", signedIdentifier: "com.example.app",
             teamIdentifier: "ABCDE12345", packageTeamIdentifier: nil, sparklePublicKey: nil,
             architectures: ["arm64"], firstSeenAt: day1, firstSeenVersion: version,
-            lastSeenAt: day1, lastSeenVersion: version, lastSeenURL: url)
+            lastSeenAt: day1, lastSeenVersion: version, lastSeenURLSHA256: url.map(InstallIdentities.digest(ofURL:)))
     }
 
     private func previous(
@@ -190,40 +190,40 @@ import DuoUpdaterCore
 
     @Test func theSameVersionAndURLWithACleanPastIsSkipped() {
         #expect(InstallVerify.skipsDownload(
-            version: "1.0", url: url, previous: previous(recorded: recorded())))
+            version: "1.0", urlSHA256: InstallIdentities.digest(ofURL: url), previous: previous(recorded: recorded())))
     }
 
     @Test func noRecordedIdentityIsDownloaded() {
         #expect(!InstallVerify.skipsDownload(
-            version: "1.0", url: url, previous: previous(recorded: nil)))
+            version: "1.0", urlSHA256: InstallIdentities.digest(ofURL: url), previous: previous(recorded: nil)))
     }
 
     @Test func aNewVersionIsDownloaded() {
         #expect(!InstallVerify.skipsDownload(
-            version: "1.1", url: url, previous: previous(recorded: recorded())))
+            version: "1.1", urlSHA256: InstallIdentities.digest(ofURL: url), previous: previous(recorded: recorded())))
     }
 
     @Test func aNewURLIsDownloaded() {
         #expect(!InstallVerify.skipsDownload(
-            version: "1.0", url: "https://downloads.example.com/App-1.0-b.dmg",
+            version: "1.0", urlSHA256: InstallIdentities.digest(ofURL: "https://downloads.example.com/App-1.0-b.dmg"),
             previous: previous(recorded: recorded())))
     }
 
-    /// An entry written before `lastSeenURL` existed matches no URL.
+    /// An entry written before the URL was recorded matches no URL.
     @Test func anEntryWithNoURLIsDownloaded() {
         #expect(!InstallVerify.skipsDownload(
-            version: "1.0", url: url, previous: previous(recorded: recorded(url: nil))))
+            version: "1.0", urlSHA256: InstallIdentities.digest(ofURL: url), previous: previous(recorded: recorded(url: nil))))
     }
 
     /// Two nils are not the same version.
     @Test func noVersionIsDownloaded() {
         #expect(!InstallVerify.skipsDownload(
-            version: nil, url: url, previous: previous(recorded: recorded(version: nil))))
+            version: nil, urlSHA256: InstallIdentities.digest(ofURL: url), previous: previous(recorded: recorded(version: nil))))
     }
 
     @Test func noBaselineEntryIsDownloaded() {
         #expect(!InstallVerify.skipsDownload(
-            version: "1.0", url: url,
+            version: "1.0", urlSHA256: InstallIdentities.digest(ofURL: url),
             previous: InstallVerify.Previous(recorded: recorded(), baseline: nil)))
     }
 
@@ -231,13 +231,13 @@ import DuoUpdaterCore
     /// fix would never register.
     @Test func aRunningStreakIsDownloaded() {
         #expect(!InstallVerify.skipsDownload(
-            version: "1.0", url: url,
+            version: "1.0", urlSHA256: InstallIdentities.digest(ofURL: url),
             previous: previous(recorded: recorded()) { $0.consecutiveActionable = 1 }))
     }
 
     @Test func anUnreachableStreakIsDownloaded() {
         #expect(!InstallVerify.skipsDownload(
-            version: "1.0", url: url,
+            version: "1.0", urlSHA256: InstallIdentities.digest(ofURL: url),
             previous: previous(recorded: recorded()) { $0.consecutiveInfra = 1 }))
     }
 
@@ -245,10 +245,10 @@ import DuoUpdaterCore
     @Test func anOpenIssueIsDownloaded() {
         let closed = day1
         #expect(!InstallVerify.skipsDownload(
-            version: "1.0", url: url,
+            version: "1.0", urlSHA256: InstallIdentities.digest(ofURL: url),
             previous: previous(recorded: recorded()) { $0.issueNumber = 42 }))
         #expect(InstallVerify.skipsDownload(
-            version: "1.0", url: url,
+            version: "1.0", urlSHA256: InstallIdentities.digest(ofURL: url),
             previous: previous(recorded: recorded()) { $0.issueNumber = 42; $0.closedAt = closed }))
     }
 

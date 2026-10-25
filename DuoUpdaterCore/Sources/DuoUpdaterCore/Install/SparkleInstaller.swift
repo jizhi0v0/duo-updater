@@ -371,16 +371,21 @@ public actor SparkleInstaller {
         }
 
         onStage(.verifyingCodeSignature)
+        let trust = SignatureVerifier.ArtifactTrust.sparkleSignature(proof)
         let stagedCheck = try await SignatureVerifier.verifyInstallArtifact(
             downloadedApp: newApp,
             installedApp: installedApp,
-            trust: .sparkleSignature(proof)
+            trust: trust
         )
         try SignatureVerifier.verifyNoBundleVersionDowngrade(
             installedApp: installedApp, downloadedApp: newApp)
 
         onStage(.installing)
-        try await installApp(newApp, over: installedApp, stagedCheck: stagedCheck)
+        let archiveAlone = await offCooperativePool {
+            SignatureVerifier.originRestsOnArchiveAlone(trust: trust, installedApp: installedApp)
+        }
+        try await installApp(
+            newApp, over: installedApp, stagedCheck: stagedCheck, refuseElevation: archiveAlone)
         onStage(.done)
     }
 
@@ -390,7 +395,8 @@ public actor SparkleInstaller {
     /// removal, atomic same-volume swap, and the privileged fallback all live in
     /// `InPlaceSwap`, shared with `VendorInstaller`.
     private func installApp(
-        _ newApp: URL, over target: URL, stagedCheck: InPlaceSwap.StagedCopyRequirement?
+        _ newApp: URL, over target: URL, stagedCheck: InPlaceSwap.StagedCopyRequirement?,
+        refuseElevation: Bool = false
     ) async throws {
         // Awaited in place: the swap's child processes (including the privileged
         // `osascript` that waits on the administrator panel) go through
@@ -406,7 +412,9 @@ public actor SparkleInstaller {
         // logged by `replace` itself, in its `defer` —
         // `aCleanupFailureReasonReachesTheInstallLog` reads it back.
         _ = try await InstallCommit.run("swap") {
-            try await InPlaceSwap.replace(newApp: newApp, over: target, stagedCheck: stagedCheck)
+            try await InPlaceSwap.replace(
+                newApp: newApp, over: target, stagedCheck: stagedCheck,
+                refuseElevation: refuseElevation)
         }
     }
 }

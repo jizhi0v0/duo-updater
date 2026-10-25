@@ -277,6 +277,57 @@ import Testing
         }
     }
 
+    /// Root's check has no `--strict`, so it is codesign's own rule that refuses
+    /// a main executable linked out of the bundle ("must be a regular file"),
+    /// not `kSecCSStrictValidate` as on the Swift side.
+    ///
+    /// Mutation: drop the `codesign` clause from `stagedCopyCheck` → it lands.
+    @Test func rootRefusesACopyWhoseMainExecutableLinksOut() async throws {
+        try await withFixture("exe-link-root") { fixture in
+            let fm = FileManager.default
+            try await signed(fixture.target, build: "2", with: fixture.vendor)
+            let staged = try await signed(
+                fixture.dir.appendingPathComponent("staged/\(Self.appName)"), build: "1", with: fixture.vendor)
+            let target = fixture.target
+            let check = try #require(
+                try await offCooperativePool { try BackupStore.verifyRestoreAuthenticity(staged: staged, over: target) })
+            let outside = fixture.dir.appendingPathComponent("outside-exe/zz")
+            try fm.createDirectory(at: outside.deletingLastPathComponent(), withIntermediateDirectories: true)
+            let exe = staged.appendingPathComponent("Contents/MacOS/zz")
+            try fm.moveItem(at: exe, to: outside)
+            try fm.createSymbolicLink(at: exe, withDestinationURL: outside)
+
+            let replace = InPlaceSwap.privilegedReplacementShell(newApp: staged, target: target, requirement: check)
+            #expect(try await SelfSignedCodeSigner.shell(replace) != 0)
+            #expect(build(of: target) == "2")
+            #expect(try stagingLeftovers(in: fixture.apps).isEmpty)
+        }
+    }
+
+    /// The scratch copy itself swapped for a link to a genuine copy elsewhere:
+    /// root's `ditto` copies through the link, so what it checks and places is
+    /// a real directory, never a link to a folder the user can still change.
+    @Test func rootPlacesARealDirectoryWhenTheScratchCopyIsALink() async throws {
+        try await withFixture("scratch-link-root") { fixture in
+            let fm = FileManager.default
+            try await signed(fixture.target, build: "2", with: fixture.vendor)
+            let genuine = try await signed(
+                fixture.dir.appendingPathComponent("elsewhere/\(Self.appName)"), build: "1", with: fixture.vendor)
+            let target = fixture.target
+            let check = try #require(
+                try await offCooperativePool { try BackupStore.verifyRestoreAuthenticity(staged: genuine, over: target) })
+            let staged = fixture.dir.appendingPathComponent("staged/\(Self.appName)")
+            try fm.createDirectory(at: staged.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try fm.createSymbolicLink(at: staged, withDestinationURL: genuine)
+
+            let replace = InPlaceSwap.privilegedReplacementShell(newApp: staged, target: target, requirement: check)
+            #expect(try await SelfSignedCodeSigner.shell(replace) == 0)
+            #expect(build(of: target) == "1")
+            #expect((try? fm.destinationOfSymbolicLink(atPath: target.path)) == nil)
+            #expect(try stagingLeftovers(in: fixture.apps).isEmpty)
+        }
+    }
+
     // MARK: - T4: the Swift gate's structural checks
 
     /// The main executable, or the whole `Contents`, linked out of the bundle.

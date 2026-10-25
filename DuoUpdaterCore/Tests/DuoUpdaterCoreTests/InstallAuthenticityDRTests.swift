@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import Security
 import Testing
@@ -64,6 +65,108 @@ import Testing
             at: genuine.deletingLastPathComponent(), withIntermediateDirectories: true)
         try await SelfSignedCodeSigner.run(["/usr/bin/ditto", installed.path, genuine.path])
         try await SignatureVerifier.verifyInstallArtifact(downloadedApp: genuine, installedApp: installed)
+    }
+
+    /// The same forgery on the two ad-hoc routes. A digest-only or MyGo rule
+    /// whose app is installed as a Team-signed copy takes `.teamGate`, which
+    /// compared Team ID strings and identifiers only — so the self-signed copy
+    /// claiming that Team passed there although `.developerID` refused it.
+    /// Mutation: drop `verifySignedLikeInstalledCopy` from
+    /// `verifyDigestOnlyIdentity`'s `.teamGate` → both routes accept, red.
+    @Test func aSelfSignedForgeryOfTheTeamIsRefusedOnTheDigestAndMyGoRoutes() async throws {
+        let dir = try DigestOnlyInstallTests.scratch("dr-forgery-digest")
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let (installed, forged) = try await Self.teamCopyAndForgery(in: dir)
+        let bundleID = try #require(
+            SignatureVerifier.infoPlist(of: installed)["CFBundleIdentifier"] as? String)
+        let version = try #require(
+            SignatureVerifier.infoPlist(of: installed)["CFBundleShortVersionString"] as? String)
+        let routes: [(String, SignatureVerifier.ArtifactTrust)] = [
+            ("publishedDigest", .publishedDigest(
+                try DigestOnlyInstallTests.proof(in: dir), bundleID: bundleID, version: version)),
+            ("myGoSignature", .myGoSignature(
+                try Self.myGoProof(), bundleID: bundleID, version: version)),
+        ]
+
+        let genuine = dir.appendingPathComponent("genuine/\(installed.lastPathComponent)")
+        try FileManager.default.createDirectory(
+            at: genuine.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try await SelfSignedCodeSigner.run(["/usr/bin/ditto", installed.path, genuine.path])
+
+        for (name, trust) in routes {
+            await #expect("\(name): the forgery must be refused") {
+                try await SignatureVerifier.verifyInstallArtifact(
+                    downloadedApp: forged, installedApp: installed, trust: trust)
+            } throws: {
+                if case SignatureVerifier.VerifyError.designatedRequirementNotSatisfied = $0 { return true }
+                return false
+            }
+            // Vacuity guard: an unmodified copy of the real app passes the same route.
+            try await SignatureVerifier.verifyInstallArtifact(
+                downloadedApp: genuine, installedApp: installed, trust: trust)
+        }
+    }
+
+    /// The Sparkle key-only route's `.teamGate`, kept the same as the others. An
+    /// installed Team copy normally goes `.developerID` before this route is
+    /// chosen, so this is the gate called directly. Mutation: drop
+    /// `verifySignedLikeInstalledCopy` from `verifySparkleKeyOnlyIdentity`'s
+    /// `.teamGate` → the forgery passes, red.
+    @Test func aSelfSignedForgeryOfTheTeamIsRefusedOnTheSparkleKeyOnlyTeamGate() async throws {
+        let dir = try DigestOnlyInstallTests.scratch("dr-forgery-sparkle")
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let (installed, forged) = try await Self.teamCopyAndForgery(in: dir)
+        let genuine = dir.appendingPathComponent("genuine/\(installed.lastPathComponent)")
+        try FileManager.default.createDirectory(
+            at: genuine.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try await SelfSignedCodeSigner.run(["/usr/bin/ditto", installed.path, genuine.path])
+
+        try await offCooperativePool {
+            #expect {
+                try SignatureVerifier.verifySparkleKeyOnlyIdentity(
+                    installedApp: installed, downloadedApp: forged)
+            } throws: {
+                if case SignatureVerifier.VerifyError.designatedRequirementNotSatisfied = $0 { return true }
+                return false
+            }
+            // Vacuity guard.
+            try SignatureVerifier.verifySparkleKeyOnlyIdentity(
+                installedApp: installed, downloadedApp: genuine)
+        }
+    }
+
+    /// The Team-signed app from Xcode and a self-signed forgery claiming its Team
+    /// and signed identifier, with the premise checked: the forgery's seal
+    /// verifies and gates 3 and 4 pass on it, so a refusal can only come from
+    /// the requirement.
+    static func teamCopyAndForgery(in dir: URL) async throws -> (installed: URL, forged: URL) {
+        let installed = try #require(await DigestOnlyInstallTests.teamSignedApp())
+        let (team, identifier) = try await offCooperativePool {
+            (try SignatureVerifier.teamIdentifier(at: installed),
+             try SignatureVerifier.signingIdentifier(at: installed))
+        }
+        let forgedTeam = try #require(team)
+        let forgedID = try #require(identifier)
+        let forger = try await SelfSignedCodeSigner.mint(team: forgedTeam, label: "forger", in: dir)
+        let forged = try await SelfSignedCodeSigner.makeSignedApp(
+            at: dir.appendingPathComponent("forged/App.app"), identifier: forgedID,
+            team: forgedTeam, with: forger)
+        try await offCooperativePool {
+            try SignatureVerifier.verifyCodeSignature(appAt: forged)
+            try SignatureVerifier.verifyTeamIdentifierMatch(installedApp: installed, downloadedApp: forged)
+            try SignatureVerifier.verifyBundleIdentifierMatch(installedApp: installed, downloadedApp: forged)
+        }
+        return (installed, forged)
+    }
+
+    /// A real MyGo proof — the only way to get one is a signature that verifies.
+    static func myGoProof() throws -> SignatureVerifier.VerifiedMyGoSignature {
+        let key = Curve25519.Signing.PrivateKey()
+        let file = Data("mygo".utf8)
+        let signature = try key.signature(for: Data(SHA256.hash(data: file)))
+        return try SignatureVerifier.verifyMyGoSignature(
+            fileData: file, signatureBase64: signature.base64EncodedString(),
+            publicKeyBase64: key.publicKey.rawRepresentation.base64EncodedString())
     }
 
     // MARK: - Item 6: the privileged shells

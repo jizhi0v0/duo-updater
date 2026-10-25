@@ -879,8 +879,11 @@ public actor PackageInstaller {
             "/usr/bin/xar", ["-xf", pkg.path, "--", name], cwd: scratch).code == 0
         else { return .unreadablePayload }
 
+        // `--` for the same reason as `xar` above: bsdtar reads an argument after
+        // the archive that starts with `-` as an option, and the member name comes
+        // out of the package (`--use-compress-program=…` runs a command).
         let body = await Self.runCapturingBytes(
-            "/usr/bin/tar", ["-xOf", payload.path, candidate.member])
+            "/usr/bin/tar", ["-xOf", payload.path, "--", candidate.member])
         // A `Payload` runs to hundreds of megabytes, so its removal is off the
         // cooperative pool, and it happens here rather than being left to the
         // scratch removal so the two are independent.

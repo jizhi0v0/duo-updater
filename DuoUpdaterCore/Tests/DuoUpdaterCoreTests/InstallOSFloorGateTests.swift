@@ -720,4 +720,63 @@ import Foundation
             #expect(leaked.isEmpty, "xar obeyed a member name as an option and wrote \(leaked)")
         }
     }
+
+    /// Test 13: the same for `tar -xOf Payload member`. bsdtar reads an argument
+    /// after the archive that starts with `-` as an option, and
+    /// `--use-compress-program=…` runs a command. `lsbom -s` prints every path
+    /// with a `./` prefix (measured), so a real Bom cannot reach this today; the
+    /// component is handed in directly to show the extraction itself no longer
+    /// depends on that.
+    ///
+    /// Two members: one named `--use-compress-program=/usr/bin/touch <marker>`
+    /// (unfixed: `touch` runs and the marker appears), and one under a `-Q`
+    /// directory that really is in the payload (unfixed: tar prints its usage and
+    /// the floor is unreadable; fixed: the floor is read — so the first half
+    /// cannot pass merely because extraction is broken).
+    @Test func aPayloadMemberNamedLikeATarOptionIsExtractedNotObeyed() async throws {
+        try await withPkgTempDir { dir in
+            let fm = FileManager.default
+            let appName = "ZZFixtureDash"
+            let plistMember = "-Q/\(appName).app/Contents/Info.plist"
+            let source = dir.appendingPathComponent("src", isDirectory: true)
+            try fm.createDirectory(
+                at: source.appendingPathComponent("-Q/\(appName).app/Contents", isDirectory: true),
+                withIntermediateDirectories: true)
+            try PropertyListSerialization.data(
+                fromPropertyList: ["CFBundleIdentifier": "com.zzfixture.dash",
+                                   "LSMinimumSystemVersion": "12.0"],
+                format: .xml, options: 0)
+                .write(to: source.appendingPathComponent(plistMember))
+            let pkgSource = dir.appendingPathComponent("pkgsrc", isDirectory: true)
+            try fm.createDirectory(at: pkgSource, withIntermediateDirectories: true)
+            let tarred = try await ChildProcess.run(
+                "/usr/bin/tar", ["-cf", pkgSource.appendingPathComponent("Payload").path, "--", plistMember],
+                workingDirectory: source, onCancel: .runToCompletion)
+            try #require(tarred.succeeded, "\(String(decoding: tarred.standardError, as: UTF8.self))")
+            let pkg = dir.appendingPathComponent("ZZFixtureDash.pkg")
+            let built = try await ChildProcess.run(
+                "/usr/bin/xar", ["-cf", pkg.path, "--", "Payload"],
+                workingDirectory: pkgSource, onCancel: .runToCompletion)
+            try #require(built.succeeded, "\(String(decoding: built.standardError, as: UTF8.self))")
+
+            func floor(member: String) async -> PackageInstaller.PayloadFloor {
+                await PackageInstaller.payloadMinimumSystemVersion(
+                    pkg,
+                    components: [PackageInstaller.Component(
+                        directory: "", installLocation: "/", payloadPaths: [member],
+                        destinations: [])],
+                    appName: appName, scratchRoot: dir)
+            }
+
+            #expect(await floor(member: plistMember) == .floor("12.0"))
+
+            let markerDirectory = dir.appendingPathComponent("marker/\(appName).app/Contents", isDirectory: true)
+            try fm.createDirectory(at: markerDirectory, withIntermediateDirectories: true)
+            let marker = markerDirectory.appendingPathComponent("Info.plist")
+            try #require(!dir.path.contains(" "), "the command below is split on spaces")
+            #expect(await floor(member: "--use-compress-program=/usr/bin/touch \(marker.path)")
+                == .unreadablePayload)
+            #expect(!fm.fileExists(atPath: marker.path), "tar obeyed a member name as an option and ran touch")
+        }
+    }
 }

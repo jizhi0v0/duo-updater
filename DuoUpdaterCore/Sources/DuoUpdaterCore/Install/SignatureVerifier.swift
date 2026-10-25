@@ -272,9 +272,10 @@ public enum SignatureVerifier {
     // MARK: Gates 3 + 4, digest-only route
 
     /// Which identity gate a digest-only swap may take, from the two Team IDs
-    /// alone. Trust is never lowered: an installed Team ID always means gate 3 as
-    /// usual (which refuses a download without one), and so does a download that
-    /// unexpectedly has one. Only "neither side has a Team ID" is the hash route.
+    /// alone. Trust is never lowered: an installed Team ID always means gates 3,
+    /// 3b and 4 exactly as on `.developerID` (gate 3 refuses a download without
+    /// one), and a download that unexpectedly has one is refused. Only "neither
+    /// side has a Team ID" is the hash route.
     enum DigestOnlyIdentity: Equatable {
         case teamGate
         case teamAppeared(String)
@@ -287,7 +288,13 @@ public enum SignatureVerifier {
         return .adHoc
     }
 
-    /// Gates 3 and 4 for an app with no Team ID on either side. The signed
+    /// Gates 3 and 4 for the digest-only and MyGo routes. An installed copy with a
+    /// Team ID takes the `.developerID` gates unchanged — 3, 3b
+    /// (`verifySignedLikeInstalledCopy`) and 4 — since a published digest or a
+    /// MyGo signature says nothing about who signed the bundle, and without 3b a
+    /// self-signed certificate naming the Team passes 3 and 4.
+    ///
+    /// Otherwise, for an app with no Team ID on either side: the signed
     /// identifier cannot carry gate 4 here — a linker-signed ad-hoc build reports
     /// `Electron` (MarkText 0.20.0, measured 2026-10-02) — so the bundle's own
     /// `CFBundleIdentifier` is compared on both sides and against the rule's, and
@@ -304,6 +311,7 @@ public enum SignatureVerifier {
         case .teamGate:
             try verifyTeamIdentifierMatch(installedApp: installedApp, downloadedApp: downloadedApp)
             try verifyBundleIdentifierMatch(installedApp: installedApp, downloadedApp: downloadedApp)
+            try verifySignedLikeInstalledCopy(installedApp: installedApp, downloadedApp: downloadedApp)
             return
         case .teamAppeared(let team):
             throw VerifyError.teamIdentifierAppeared(downloaded: team)
@@ -341,7 +349,8 @@ public enum SignatureVerifier {
     /// would not have been handed by the same key holder:
     ///
     /// - Signing never changes kind. Both Team IDs are read again here (throwing,
-    ///   never a "no Team" guess); an installed Team ID takes gate 3 as usual, and
+    ///   never a "no Team" guess); an installed Team ID takes gates 3, 3b and 4
+    ///   exactly as on `.developerID`, and
     ///   a Team ID that appears only on the download is refused, as on the
     ///   digest-only route. An ad-hoc copy takes only an ad-hoc download. A copy
     ///   signed with its own certificate takes only a download that satisfies
@@ -369,6 +378,7 @@ public enum SignatureVerifier {
         case .teamGate:
             try verifyTeamIdentifierMatch(installedApp: installedApp, downloadedApp: downloadedApp)
             try verifyBundleIdentifierMatch(installedApp: installedApp, downloadedApp: downloadedApp)
+            try verifySignedLikeInstalledCopy(installedApp: installedApp, downloadedApp: downloadedApp)
             return
         case .teamAppeared(let team):
             throw VerifyError.teamIdentifierAppeared(downloaded: team)

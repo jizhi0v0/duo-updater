@@ -150,12 +150,18 @@ public enum InputMethodDataBackup {
         let entries = (try? fm.contentsOfDirectory(atPath: prefs.path)) ?? []
         for entry in entries where entry.hasSuffix(".plist") {
             let stem = String(entry.dropLast(".plist".count))
-            let matchesID = bundleID.map { stem == $0 || stem.hasPrefix($0 + ".") } ?? false
-            let matchesName = names.contains { stem.localizedCaseInsensitiveContains($0) }
-            guard matchesID || matchesName else { continue }
+            guard preferencesMatch(stem: stem, names: names, bundleID: bundleID) else { continue }
             add(prefs.appendingPathComponent(entry))
         }
         return found
+    }
+
+    /// Whether a preferences file named `stem` belongs to this input method:
+    /// the rule `locations` captures by, and `restore` holds a manifest to.
+    private static func preferencesMatch(stem: String, names: [String], bundleID: String?) -> Bool {
+        let matchesID = bundleID.map { stem == $0 || stem.hasPrefix($0 + ".") } ?? false
+        let matchesName = names.contains { stem.localizedCaseInsensitiveContains($0) }
+        return matchesID || matchesName
     }
 
     /// Extra names an input method's user data is filed under, for an app where
@@ -371,8 +377,36 @@ public enum InputMethodDataBackup {
     /// manifest, same exchange — only the source differs, and taking it as a
     /// parameter is what keeps a destination rollback from silently reading the
     /// outbox path, which by then holds nothing at all.
+    ///
+    /// Without the app's names, every entry is still held to the three library
+    /// directories `locations` captures from; see the overload that takes them
+    /// for the full check.
     @discardableResult
     public static func restore(forKey key: String, from dir: URL) async throws -> [Location] {
+        try await restore(forKey: key, from: dir, owner: nil)
+    }
+
+    /// `restore(forKey:from:)` for the input method whose bundle is named
+    /// `bundleName` (without `.app`) with bundle id `bundleID`: an entry is put
+    /// back only where `locations(bundleName:bundleID:)` could have captured it
+    /// from.
+    ///
+    /// The manifest says where each item goes, and the manifest is a file in a
+    /// backup store — on a backup disk, a file anyone who can write that disk
+    /// wrote. Taken as given, an entry could name any path this user can write
+    /// and have it replaced, with a stored name of `../x` reading from outside
+    /// the snapshot. An entry that fails is skipped and logged, not fatal:
+    /// restoring user data is best-effort, and the bundle is already back.
+    @discardableResult
+    public static func restore(
+        forKey key: String, from dir: URL, bundleName: String, bundleID: String?
+    ) async throws -> [Location] {
+        try await restore(forKey: key, from: dir, owner: (bundleName, bundleID))
+    }
+
+    private static func restore(
+        forKey key: String, from dir: URL, owner: (name: String, id: String?)?
+    ) async throws -> [Location] {
         let fm = FileManager.default
         guard let data = try? Data(contentsOf: dir.appendingPathComponent("userdata.json")),
               let manifest = try? JSONDecoder().decode(Manifest.self, from: data)
@@ -380,8 +414,12 @@ public enum InputMethodDataBackup {
 
         var restored: [Location] = []
         for entry in manifest.entries {
+            guard let target = allowedTarget(for: entry, owner: owner) else {
+                Log.install.error(
+                    "user data: the snapshot for \(key, privacy: .public) names \(entry.storedName, privacy: .public) at a place it could not have been taken from — not restoring it")
+                continue
+            }
             let source = dir.appendingPathComponent(entry.storedName)
-            let target = URL(fileURLWithPath: entry.originalPath)
             guard fm.fileExists(atPath: source.path) else { continue }
             // Copy out of the store first: the exchange consumes what it is handed,
             // and what it is handed must not be the stored snapshot itself. The key
@@ -398,6 +436,50 @@ public enum InputMethodDataBackup {
             }
         }
         return restored
+    }
+
+    /// Where `entry` may be restored to, or nil when it names a place `save`
+    /// could not have captured it from.
+    ///
+    /// Always: no `.`/`..` anywhere, a stored name that is exactly what
+    /// `storedName(for:)` makes of the target, and a parent that is — symlinks
+    /// resolved — one of `Application Support`, `Containers` or `Preferences`
+    /// in this user's `Library`. With an `owner`, the leaf must also be one
+    /// `locations` would pick for that app: a name of it under `Application
+    /// Support`, its bundle id under `Containers`, a matching `.plist` under
+    /// `Preferences`.
+    private static func allowedTarget(
+        for entry: Manifest.Entry, owner: (name: String, id: String?)?
+    ) -> URL? {
+        let path = entry.originalPath
+        guard path.hasPrefix("/"),
+              !path.split(separator: "/").contains(where: { $0 == ".." || $0 == "." }),
+              !path.contains("\0")
+        else { return nil }
+        let target = URL(fileURLWithPath: path)
+        guard entry.storedName == storedName(for: target) else { return nil }
+        let leaf = target.lastPathComponent
+        let library = home.appendingPathComponent("Library", isDirectory: true)
+        func isParent(_ name: String) -> Bool {
+            target.deletingLastPathComponent().resolvingSymlinksInPath().path
+                == library.appendingPathComponent(name, isDirectory: true)
+                    .resolvingSymlinksInPath().path
+        }
+        let names = owner.map { [$0.name] + ($0.id.flatMap { declaredDataNames[$0] } ?? []) }
+        if isParent("Application Support") {
+            guard names?.contains(leaf) ?? true else { return nil }
+        } else if isParent("Containers") {
+            if let owner { guard let id = owner.id, leaf == id else { return nil } }
+        } else if isParent("Preferences") {
+            guard leaf.hasSuffix(".plist"), leaf != ".plist" else { return nil }
+            if let owner, let names {
+                let stem = String(leaf.dropLast(".plist".count))
+                guard preferencesMatch(stem: stem, names: names, bundleID: owner.id) else { return nil }
+            }
+        } else {
+            return nil
+        }
+        return target
     }
 
     /// One manifest entry of `restore`: stage it out of the store into `scratch`,

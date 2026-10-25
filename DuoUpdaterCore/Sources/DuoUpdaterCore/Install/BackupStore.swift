@@ -1776,10 +1776,36 @@ public enum BackupStore {
         return !VersionComparator.isSame(installed, as: backup)
     }
 
+    /// The sidecar in `dir`, or nil when there is none — or when it names its
+    /// payload in a way `save` never writes.
+    ///
+    /// The names are joined onto store and scratch directories, so a sidecar
+    /// someone else wrote must not be able to point them anywhere else: a
+    /// `bundleName` of `../../x/Other.app` unpacked a destination archive
+    /// outside the restore's scratch, and that happened before any integrity
+    /// check could refuse it. `save` always writes `appPath.lastPathComponent`
+    /// and derives both archive names from it, so a sidecar that disagrees is
+    /// not one of ours, and "not a backup" is what nil already means here.
     private static func readMeta(in dir: URL) -> Meta? {
-        guard let data = try? Data(contentsOf: dir.appendingPathComponent("backup.json"))
+        guard let data = try? Data(contentsOf: dir.appendingPathComponent("backup.json")),
+              let meta = try? JSONDecoder().decode(Meta.self, from: data)
         else { return nil }
-        return try? JSONDecoder().decode(Meta.self, from: data)
+        guard isSingleBundleName(meta.bundleName) else { return nil }
+        if let name = meta.archiveName, name != archiveName(forBundle: meta.bundleName) {
+            return nil
+        }
+        if let name = meta.userDataArchiveName,
+           name != userDataArchiveName(forBundle: meta.bundleName) {
+            return nil
+        }
+        return meta
+    }
+
+    /// One path component naming an app bundle: what `save` records.
+    static func isSingleBundleName(_ name: String) -> Bool {
+        !name.isEmpty && name != "." && name != ".."
+            && !name.contains("/") && !name.contains("\0")
+            && name.hasSuffix(".app") && name != ".app"
     }
 
     /// The backup for `key` held in a specific store.
@@ -1796,7 +1822,14 @@ public enum BackupStore {
             guard let archiveName = meta.archiveName else { return nil }
             payload = dir.appendingPathComponent(archiveName)
         }
-        guard FileManager.default.fileExists(atPath: payload.path) else { return nil }
+        // Not followed: a payload that is a symlink is not something `save` or a
+        // transfer writes, and following it would restore whatever it points at.
+        guard let type = (try? FileManager.default.attributesOfItem(atPath: payload.path))?[.type]
+                as? FileAttributeType else { return nil }
+        switch store.location {
+        case .outbox: guard type == .typeDirectory else { return nil }
+        case .destination: guard type == .typeRegular else { return nil }
+        }
         return Backup(
             key: key, version: meta.version, buildVersion: meta.buildVersion,
             bundlePath: payload, store: store, savedAt: meta.savedAt,
@@ -2057,6 +2090,7 @@ public enum BackupStore {
         // Blocking Security calls when the ids differ, so off the pool.
         try await offCooperativePool(qos: .userInitiated) {
             try verifyRestoreIdentity(staged: staged, over: target)
+            try verifyRestoreAuthenticity(staged: staged, over: target)
         }
         // The restore's point of no return (`InstallCommit`): a cancel before it
         // leaves the live app as it is and the scratch copy to the `defer`; one
@@ -2096,8 +2130,13 @@ public enum BackupStore {
                 return RestoreOutcome(version: backup.version, userData: .noSnapshot)
             }
             do {
+                // Held to where this app's data can live, by the names of the
+                // bundle now in place: the snapshot's manifest is a file in the
+                // store, and names its own targets.
                 let restored = try await InputMethodDataBackup.restore(
-                    forKey: key, from: snapshotDirectory)
+                    forKey: key, from: snapshotDirectory,
+                    bundleName: target.deletingPathExtension().lastPathComponent,
+                    bundleID: SignatureVerifier.infoPlist(of: target)["CFBundleIdentifier"] as? String)
                 // Said plainly because the files on disk are only half of it: a
                 // running input method holds its preferences and its mmkv/dictionary
                 // files open, so what it is using is not what was just restored
@@ -2147,7 +2186,7 @@ public enum BackupStore {
                 backup: backupID, installed: installedID,
                 backupVersion: backup["CFBundleShortVersionString"] as? String,
                 installedVersion: installed["CFBundleShortVersionString"] as? String,
-                backupTeam: try? SignatureVerifier.teamIdentifier(at: staged),
+                backupTeam: validatedTeamIdentifier(at: staged),
                 installedTeam: try? SignatureVerifier.teamIdentifier(at: target),
                 in: migrations) != nil
         else {
@@ -2155,6 +2194,165 @@ public enum BackupStore {
                 "rollback: the backup is \(backupID ?? "?", privacy: .public) and the installed copy is \(installedID ?? "?", privacy: .public), and no registered rename with a matching Team pairs them — refusing to restore")
             throw BackupError.identityMismatch(backup: backupID ?? "?", installed: installedID ?? "?")
         }
+    }
+
+    /// Refuse to put a backup back over a certificate-signed app unless the
+    /// backup satisfies the installed copy's designated requirement.
+    ///
+    /// The integrity gate cannot answer this: the manifest it compares against
+    /// sits in the same store as the copy, so whoever can rewrite one can
+    /// rewrite both, and the hash takes no key. The installed copy's signature
+    /// is the one reference the store does not hold.
+    ///
+    /// - Only when the installed copy has a certificate chain. An ad-hoc copy's
+    ///   designated requirement is its own cdhash, which no other build meets,
+    ///   so applying it would refuse every legitimate rollback of that app; an
+    ///   unsigned copy has nothing to compare with. A target that is gone or
+    ///   emptied has no signature either — both pass unchanged, as before.
+    /// - The installed copy's own designated requirement, Team or no Team. It
+    ///   is what already binds the app to its developer across certificate
+    ///   renewals, and it carries both the Developer ID and the App Store
+    ///   branch. A requirement pinned on `certificate leaf[subject.OU]` alone
+    ///   refuses every App Store app: their leaf is Apple's certificate and the
+    ///   Team is only in the code directory (measured 2026-10-25 on AndroMeld,
+    ///   Developer and Microsoft Word, all from the App Store).
+    /// - A backup signed as a different identifier — a `BundleIDMigration`
+    ///   rollback, which `verifyRestoreIdentity` has already admitted — is held
+    ///   to the same requirement with only its `identifier` clause re-aimed.
+    /// - `kSecCSDoNotValidateResources`: apps that write inside their own
+    ///   bundle (ToDesk, EasyConnect — see `BackupManifest`) break their
+    ///   resource seal, and a faithful copy of one must still roll back. The
+    ///   code directory and main executable are still checked.
+    static func verifyRestoreAuthenticity(staged: URL, over target: URL) throws {
+        guard let installed = staticCode(at: target),
+              let info = signingInformation(installed),
+              let certificates = info[kSecCodeInfoCertificates as String] as? [SecCertificate],
+              !certificates.isEmpty
+        else { return }
+        var designated: SecRequirement?
+        var designatedText: CFString?
+        let backup = staticCode(at: staged)
+        var requirement: SecRequirement?
+        if SecCodeCopyDesignatedRequirement(installed, [], &designated) == errSecSuccess,
+           let designated,
+           SecRequirementCopyString(designated, [], &designatedText) == errSecSuccess,
+           let designatedText,
+           let text = restoreRequirementText(
+               installedDR: designatedText as String,
+               installedIdentifier: info[kSecCodeInfoIdentifier as String] as? String,
+               backupIdentifier: backup.flatMap(signingInformation)?[kSecCodeInfoIdentifier as String]
+                   as? String) {
+            _ = SecRequirementCreateWithString(text as CFString, [], &requirement)
+        }
+        let status: OSStatus
+        if let requirement, let backup {
+            status = checkValidity(backup, requirement)
+        } else {
+            status = errSecCSReqFailed
+        }
+        guard status == errSecSuccess else {
+            Log.install.error(
+                "rollback: the backup of \(target.lastPathComponent, privacy: .public) does not satisfy the installed copy's designated requirement (status \(status, privacy: .public)) — refusing to restore")
+            throw BackupError.signerMismatch(target.lastPathComponent)
+        }
+    }
+
+    /// The requirement text a backup is held to: the installed copy's
+    /// designated requirement, with its `identifier` clause re-aimed at the
+    /// backup's signed identifier when the two differ. Nil — refuse — when the
+    /// clause is not there exactly once to re-aim, or the identifier is not one
+    /// that can be spliced into requirement text safely.
+    ///
+    /// Duplicates `SignatureVerifier.requirement(_:reaimedFrom:to:)` from #1661,
+    /// which is a separate PR this one must not depend on; once both are on
+    /// main this can call that instead.
+    static func restoreRequirementText(
+        installedDR: String, installedIdentifier: String?, backupIdentifier: String?
+    ) -> String? {
+        guard let backupIdentifier, backupIdentifier != installedIdentifier else { return installedDR }
+        guard let installedIdentifier, isPlainIdentifier(installedIdentifier),
+              isPlainIdentifier(backupIdentifier)
+        else { return nil }
+        let quoted = "identifier \"\(installedIdentifier)\""
+        let quotedCount = installedDR.components(separatedBy: quoted).count - 1
+        if quotedCount == 1 {
+            return installedDR.replacingOccurrences(
+                of: quoted, with: "identifier \"\(backupIdentifier)\"")
+        }
+        guard quotedCount == 0 else { return nil }
+        // `SecRequirementCopyString` may leave a plain identifier unquoted.
+        let pattern = "identifier " + NSRegularExpression.escapedPattern(for: installedIdentifier)
+            + "(?=$|[\\s)])"
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return nil }
+        let range = NSRange(installedDR.startIndex..., in: installedDR)
+        guard regex.numberOfMatches(in: installedDR, range: range) == 1 else { return nil }
+        return regex.stringByReplacingMatches(
+            in: installedDR, range: range,
+            withTemplate: NSRegularExpression.escapedTemplate(for: "identifier \"\(backupIdentifier)\""))
+    }
+
+    /// Characters a signing identifier is made of, and nothing that could end
+    /// a quoted string in requirement text.
+    private static func isPlainIdentifier(_ identifier: String) -> Bool {
+        !identifier.isEmpty && identifier.allSatisfy {
+            $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "." || $0 == "-" || $0 == "_")
+        }
+    }
+
+    /// The Team ID `bundle` is signed with, only if its signature actually
+    /// holds for that Team. `teamIdentifier(at:)` reports what a signature
+    /// claims without checking it, which is not enough to vouch for a backup.
+    ///
+    /// Two ways a Team holds: a Developer ID signature, whose leaf certificate
+    /// carries the Team as its OU; or an App Store signature, whose leaf is
+    /// Apple's (`1.2.840.113635.100.6.1.9`) — Apple signed the code directory
+    /// the Team is read from, so it is Apple's word for it.
+    static func validatedTeamIdentifier(at bundle: URL) -> String? {
+        guard let team = try? SignatureVerifier.teamIdentifier(at: bundle),
+              let developerID = teamRequirement(team),
+              let code = staticCode(at: bundle)
+        else { return nil }
+        if checkValidity(code, developerID) == errSecSuccess { return team }
+        var appStore: SecRequirement?
+        let text = "anchor apple generic and certificate leaf[field.1.2.840.113635.100.6.1.9] exists"
+        guard SecRequirementCreateWithString(text as CFString, [], &appStore) == errSecSuccess,
+              let appStore, checkValidity(code, appStore) == errSecSuccess
+        else { return nil }
+        return team
+    }
+
+    /// Any certificate Apple issued to `team` as a Developer ID, renewals
+    /// included.
+    static func teamRequirement(_ team: String) -> SecRequirement? {
+        // A Team ID is ten alphanumerics; anything else is not one, and must
+        // not be spliced into requirement text.
+        guard team.count == 10, team.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber) })
+        else { return nil }
+        var requirement: SecRequirement?
+        let text = "anchor apple generic and certificate leaf[subject.OU] = \"\(team)\""
+        guard SecRequirementCreateWithString(text as CFString, [], &requirement) == errSecSuccess
+        else { return nil }
+        return requirement
+    }
+
+    private static func signingInformation(_ code: SecStaticCode) -> [String: Any]? {
+        var info: CFDictionary?
+        guard SecCodeCopySigningInformation(
+                code, SecCSFlags(rawValue: kSecCSSigningInformation), &info) == errSecSuccess
+        else { return nil }
+        return info as? [String: Any]
+    }
+
+    private static func staticCode(at url: URL) -> SecStaticCode? {
+        var code: SecStaticCode?
+        guard SecStaticCodeCreateWithPath(url as CFURL, [], &code) == errSecSuccess else { return nil }
+        return code
+    }
+
+    private static func checkValidity(_ code: SecStaticCode, _ requirement: SecRequirement) -> OSStatus {
+        SecStaticCodeCheckValidity(
+            code, SecCSFlags(rawValue: kSecCSCheckAllArchitectures | kSecCSDoNotValidateResources),
+            requirement)
     }
 
     /// Unpack this generation's user-data snapshot out of the destination into
@@ -2219,7 +2417,10 @@ public enum BackupStore {
             }
         }
 
-        let staged = scratch.appendingPathComponent(meta.bundleName)
+        // The leaf only, as the outbox case takes it: `readMeta` already refuses
+        // a name with a path in it, and this keeps it so if that ever changes.
+        let staged = scratch.appendingPathComponent(
+            (meta.bundleName as NSString).lastPathComponent)
         try await BundleArchive.extract(archive: backup.bundlePath, into: staged)
         return staged
     }
@@ -2439,7 +2640,8 @@ public enum BackupStore {
         let scratch = fm.temporaryDirectory.appendingPathComponent(
             "DuoUpdater-verify-\(UUID().uuidString)", isDirectory: true)
         defer { forceRemove(scratch) }
-        let staged = scratch.appendingPathComponent(meta.bundleName)
+        let staged = scratch.appendingPathComponent(
+            (meta.bundleName as NSString).lastPathComponent)
         do {
             try await BundleArchive.extract(archive: archive, into: staged)
         } catch {
@@ -2838,6 +3040,9 @@ public enum BackupStore {
         case destinationIsADifferentDisk(String)
         case destinationNotWritable(String)
         case identityMismatch(backup: String, installed: String)
+        /// The installed copy is signed with a certificate and the backup is
+        /// not signed by the same developer.
+        case signerMismatch(String)
         /// This Mac is too low on space to hold a copy: either before the copy
         /// (`needed` is what it would have taken) or because it fell under the
         /// floor mid-copy with no older backup left to delete.
@@ -2851,6 +3056,9 @@ public enum BackupStore {
                     + "so no rollback point was stored."
             case .identityMismatch(let backup, let installed):
                 return "The backup is “\(backup)” and the installed app is “\(installed)”, "
+                    + "so it was not restored over it."
+            case .signerMismatch(let name):
+                return "The backup of “\(name)” is not signed by the same developer as the installed app, "
                     + "so it was not restored over it."
             case .destinationUnavailable(let name):
                 return "The backup disk “\(name)” isn’t connected."

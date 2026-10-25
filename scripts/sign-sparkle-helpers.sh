@@ -55,7 +55,9 @@ sign_target "$FRAMEWORK"
 #     Preserve its identifier (com.duoupdater.helper) so the XPC code requirement
 #     the app pins still matches.
 MAS="$APP_PATH/Contents/Resources/mas"
-[ -f "$MAS" ] && codesign --force --sign "$IDENTITY" \
+#     Signed as `com.duoupdater.mas`: the root helper runs it only after checking
+#     a copy against that identifier plus our team (HelperService.stageVerifiedMAS).
+[ -f "$MAS" ] && codesign --force --sign "$IDENTITY" -i com.duoupdater.mas \
     "${timestamp_flag[@]}" --options runtime --generate-entitlement-der "$MAS"
 HELPER="$APP_PATH/Contents/MacOS/DuoUpdaterHelper"
 [ -f "$HELPER" ] && codesign --force --sign "$IDENTITY" \

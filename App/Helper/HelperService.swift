@@ -46,9 +46,22 @@ final class HelperService: NSObject, MASHelperProtocol {
                   Self.isTemporaryDirectory(logDirectory) else {
                 reply(-1, "invalid log path"); return
             }
-            guard let mas = Self.bundledMASPath() else {
+            guard let bundledMAS = Self.bundledMASPath() else {
                 reply(-1, "bundled mas not found"); return
             }
+            // Run a verified private copy, never the bundle's `mas` by path: the
+            // bundle is user-writable, and this runs as root.
+            let staged: StagedMAS
+            do {
+                staged = try Self.stageVerifiedMAS(
+                    at: bundledMAS,
+                    requirement: OwnTeamIdentifier.requirement(bundleIdentifier: Self.masSigningIdentifier),
+                    under: NSTemporaryDirectory())
+            } catch {
+                reply(-1, "bundled mas rejected: \(error.localizedDescription)"); return
+            }
+            defer { staged.remove() }
+            let mas = staged.path
             // Open the log ourselves instead of letting root's shell do `> path`.
             // The lexical checks above cannot make a shell redirect safe: `>` follows
             // symlinks, so a same-user process (which needs no XPC access at all) can
@@ -210,5 +223,119 @@ final class HelperService: NSObject, MASHelperProtocol {
             .appendingPathComponent("Resources/mas")
             .path
         return FileManager.default.isExecutableFile(atPath: mas) ? mas : nil
+    }
+
+    /// The signing identifier `mas` is re-signed with at build time
+    /// (`project.yml` post-build, `scripts/sign-sparkle-helpers.sh`).
+    static let masSigningIdentifier = "com.duoupdater.mas"
+
+    /// A verified private copy of `mas`, and the directory that holds it.
+    struct StagedMAS {
+        let directory: String
+        let path: String
+
+        func remove() {
+            try? FileManager.default.removeItem(atPath: directory)
+        }
+    }
+
+    enum MASStagingError: LocalizedError {
+        case noRequirement
+        case cannotCreateDirectory(Int32)
+        case cannotOpenSource(Int32)
+        case sourceNotARegularFile
+        case sourceTooLarge(Int64)
+        case cannotCopy(Int32)
+        case signatureRejected(OSStatus)
+
+        var errorDescription: String? {
+            switch self {
+            case .noRequirement:                return "no code requirement for mas"
+            case .cannotCreateDirectory(let e): return "cannot create staging directory (errno \(e))"
+            case .cannotOpenSource(let e):      return "cannot open mas (errno \(e))"
+            case .sourceNotARegularFile:        return "mas is not a regular file"
+            case .sourceTooLarge(let n):        return "mas is \(n) bytes, over the limit"
+            case .cannotCopy(let e):            return "cannot copy mas (errno \(e))"
+            case .signatureRejected(let s):     return "mas failed its code requirement (OSStatus \(s))"
+            }
+        }
+    }
+
+    /// Generous for a thinned `mas` (a few MB); bounds what root reads into memory.
+    static let masSizeLimit: Int64 = 64 * 1024 * 1024
+
+    /// Copy `mas` into a fresh `mkdtemp` directory under `parent` (0700, owned by
+    /// this process — root in the helper), check the COPY against `requirement`,
+    /// and return it. Only the returned copy may be run.
+    ///
+    /// Why a copy: `Contents/Resources/mas` sits in a user-owned bundle, so any
+    /// same-user process can replace it. Checking it in place and then running it
+    /// by path leaves a window to swap it between the two (macOS has no
+    /// `fexecve`). Nothing but this process can write into the 0700 directory, so
+    /// what was checked is what runs.
+    ///
+    /// Fails closed: a nil requirement (unsigned or ad-hoc helper, so no team to
+    /// pin) refuses. On any failure the staging directory is removed.
+    static func stageVerifiedMAS(at source: String, requirement: String?,
+                                 under parent: String) throws -> StagedMAS {
+        guard let requirement else { throw MASStagingError.noRequirement }
+        var compiled: SecRequirement?
+        let reqStatus = SecRequirementCreateWithString(requirement as CFString, [], &compiled)
+        guard reqStatus == errSecSuccess, let compiled else {
+            throw MASStagingError.signatureRejected(reqStatus)
+        }
+
+        var template = Array(((parent as NSString).appendingPathComponent("duo-mas.XXXXXX")).utf8CString)
+        guard let made = mkdtemp(&template) else { throw MASStagingError.cannotCreateDirectory(errno) }
+        let directory = String(cString: made)
+        let staged = StagedMAS(directory: directory, path: (directory as NSString).appendingPathComponent("mas"))
+        do {
+            try copyRegularFile(from: source, to: staged.path)
+            var code: SecStaticCode?
+            let createStatus = SecStaticCodeCreateWithPath(URL(fileURLWithPath: staged.path) as CFURL, [], &code)
+            guard createStatus == errSecSuccess, let code else {
+                throw MASStagingError.signatureRejected(createStatus)
+            }
+            let flags = SecCSFlags(rawValue: kSecCSStrictValidate | kSecCSCheckAllArchitectures)
+            let status = SecStaticCodeCheckValidityWithErrors(code, flags, compiled, nil)
+            guard status == errSecSuccess else { throw MASStagingError.signatureRejected(status) }
+            return staged
+        } catch {
+            staged.remove()
+            throw error
+        }
+    }
+
+    /// `O_NOFOLLOW` on the source (a symlinked `mas` is refused), a regular file
+    /// under the size limit, written with `O_EXCL` into the private directory and
+    /// left 0500.
+    private static func copyRegularFile(from source: String, to destination: String) throws {
+        let input = open(source, O_RDONLY | O_NOFOLLOW)
+        guard input >= 0 else { throw MASStagingError.cannotOpenSource(errno) }
+        defer { close(input) }
+        var st = stat()
+        guard fstat(input, &st) == 0 else { throw MASStagingError.cannotOpenSource(errno) }
+        guard (st.st_mode & S_IFMT) == S_IFREG else { throw MASStagingError.sourceNotARegularFile }
+        guard Int64(st.st_size) <= masSizeLimit else { throw MASStagingError.sourceTooLarge(Int64(st.st_size)) }
+
+        let output = open(destination, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0o700)
+        guard output >= 0 else { throw MASStagingError.cannotCopy(errno) }
+        defer { close(output) }
+        var buffer = [UInt8](repeating: 0, count: 1 << 16)
+        var total: Int64 = 0
+        while true {
+            let n = read(input, &buffer, buffer.count)
+            if n < 0 { throw MASStagingError.cannotCopy(errno) }
+            if n == 0 { break }
+            total += Int64(n)
+            guard total <= masSizeLimit else { throw MASStagingError.sourceTooLarge(total) }
+            var written = 0
+            while written < n {
+                let w = buffer.withUnsafeBytes { write(output, $0.baseAddress! + written, n - written) }
+                if w < 0 { throw MASStagingError.cannotCopy(errno) }
+                written += w
+            }
+        }
+        guard fchmod(output, 0o500) == 0 else { throw MASStagingError.cannotCopy(errno) }
     }
 }

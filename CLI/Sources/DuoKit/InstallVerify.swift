@@ -60,7 +60,13 @@ public enum InstallVerify {
         public var bundleID: String
         public var probeHost: String
         public var version: String?
+        /// Scheme, host and path of the download URL — never its query, fragment
+        /// or userinfo, which is where a signature or token sits (`displayURL`).
+        /// The report is uploaded as a 90-day artifact from a public repository.
         public var url: String?
+        /// SHA-256 of the whole URL (`InstallIdentities.digest(ofURL:)`): what
+        /// the identity store keeps in its place, and what a later run compares.
+        public var urlSHA256: String?
         public var finalHost: String?
         public var kind: String?
         public var status: Status
@@ -127,13 +133,27 @@ public enum InstallVerify {
     /// The full pass owed every `fullPassInterval` (or forced with `--full`) is
     /// what still catches an installer replaced under an unchanged version and
     /// URL.
-    static func skipsDownload(version: String?, url: String, previous: Previous) -> Bool {
+    static func skipsDownload(version: String?, urlSHA256: String, previous: Previous) -> Bool {
         guard let recorded = previous.recorded, let entry = previous.baseline,
               let version, recorded.lastSeenVersion == version,
-              recorded.lastSeenURL == url
+              recorded.lastSeenURLSHA256 == urlSHA256
         else { return false }
         let issueOpen = entry.issueNumber != nil && entry.closedAt == nil
         return entry.consecutiveActionable == 0 && entry.consecutiveInfra == 0 && !issueOpen
+    }
+
+    /// `url` as the report shows it: scheme, host and path. A download URL can
+    /// carry a presigned signature or a token in its query (Raycast's R2 link,
+    /// NetEase, QQ Music, WhatsApp did), or credentials in its userinfo.
+    static func displayURL(_ url: URL) -> String {
+        guard var parts = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+            return url.host ?? "-"
+        }
+        parts.query = nil
+        parts.fragment = nil
+        parts.user = nil
+        parts.password = nil
+        return parts.string ?? url.host ?? "-"
     }
 
     /// How long incremental runs may go without a full pass.
@@ -346,9 +366,11 @@ public enum InstallVerify {
             item.detail = said.isEmpty ? "the probe resolved no installer" : said.joined(separator: "; ")
             return item
         }
-        item.url = url.absoluteString
+        item.url = displayURL(url)
+        item.urlSHA256 = InstallIdentities.digest(ofURL: url.absoluteString)
         if let previous = target.previous,
-           skipsDownload(version: item.version, url: url.absoluteString, previous: previous) {
+           skipsDownload(version: item.version, urlSHA256: InstallIdentities.digest(ofURL: url.absoluteString),
+                         previous: previous) {
             item.status = .skipped
             item.detail = "unchanged since "
                 + (previous.recorded?.lastSeenAt.formatted(.iso8601.year().month().day()) ?? "?")
@@ -480,7 +502,7 @@ public enum InstallVerify {
         guard item.status == .ok || item.status == .warn,
               let observed = InstallIdentities.observed(
                   identity: item.identity, packageTeamIdentifier: item.packageTeamIdentifier,
-                  version: item.version, url: item.url, at: date)
+                  version: item.version, urlSHA256: item.urlSHA256, at: date)
         else { return }
         let changes = store.record(item.recipeID, observed)
         guard !changes.isEmpty else { return }

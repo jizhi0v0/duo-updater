@@ -23,8 +23,10 @@ import Foundation
 /// when the download stops. A finished file is never kept — that would be an
 /// installer cache, a much bigger thing than this.
 ///
-/// **On disk**, per URL: `<key>.partial` (the bytes) and `<key>.json` (URL,
-/// validator, bytes written, app id, created time). The sidecar is written and
+/// **On disk**, per URL: `<key>.partial` (the bytes) and `<key>.json` (the URL's
+/// SHA-256, validator, bytes written, app id, created time). Never the URL
+/// itself: it can carry a signature or token, and a download stopped when the
+/// process died stays on disk, world-readable, until the next sweep. The sidecar is written and
 /// fsync'ed as soon as a response's headers arrive, so a `kill -9` mid-transfer
 /// still leaves something the next process can resume from.
 ///
@@ -92,10 +94,11 @@ public enum ResumableDownloadStore {
     }
 
     /// What the sidecar records about one partial.
-    struct Meta: Codable, Equatable, Sendable {
-        /// The exact request URL, query included — the key's preimage, kept so
-        /// a hash collision can never splice two downloads.
-        var url: String
+    struct Meta: Equatable, Sendable {
+        /// SHA-256 of the exact request URL, query included, as lowercase hex
+        /// (``digest(of:)``). It is the same digest the file names carry, so a
+        /// sidecar copied or renamed under another URL's key is still refused.
+        var urlSHA256: String
         /// The strong validator the partial was started under, sent back as
         /// `If-Range`.
         var validator: String
@@ -104,14 +107,19 @@ public enum ResumableDownloadStore {
         var createdAt: Date
     }
 
+    /// The lowercase-hex SHA-256 of `url`'s exact text — the key of its two
+    /// files and what its sidecar records.
+    static func digest(of url: String) -> String {
+        SHA256.hash(data: Data(url.utf8)).map { String(format: "%02x", $0) }.joined()
+    }
+
     /// The two files of one URL's partial.
     struct Entry: Sendable, Equatable {
         let partial: URL
         let sidecar: URL
 
         init(url: URL, root: URL) {
-            let digest = SHA256.hash(data: Data(url.absoluteString.utf8))
-            let key = digest.map { String(format: "%02x", $0) }.joined()
+            let key = ResumableDownloadStore.digest(of: url.absoluteString)
             partial = root.appendingPathComponent("\(key).partial", isDirectory: false)
             sidecar = root.appendingPathComponent("\(key).json", isDirectory: false)
         }
@@ -193,7 +201,7 @@ public enum ResumableDownloadStore {
         }
 
         let size = fileSize(entry.partial)
-        if let meta = readMeta(entry), meta.url == url.absoluteString, !meta.validator.isEmpty,
+        if let meta = readMeta(entry), meta.urlSHA256 == digest(of: url.absoluteString), !meta.validator.isEmpty,
            size > 0, !isExpired(entry, at: now) {
             Log.install.notice("resumable download: resuming from \(size, privacy: .public) bytes kept by an earlier attempt")
             return Lease(entry: entry, url: url, appID: appID, createdAt: meta.createdAt,
@@ -216,7 +224,7 @@ public enum ResumableDownloadStore {
             try? FileManager.default.removeItem(at: lease.entry.sidecar)
             return
         }
-        let meta = Meta(url: lease.url.absoluteString, validator: validator,
+        let meta = Meta(urlSHA256: digest(of: lease.url.absoluteString), validator: validator,
                         bytesWritten: bytesWritten, appID: lease.appID, createdAt: lease.createdAt)
         do {
             try writeMeta(meta, to: lease.entry)
@@ -387,5 +395,39 @@ public enum ResumableDownloadStore {
             try? FileManager.default.removeItem(at: tmp)
             throw error
         }
+    }
+}
+
+extension ResumableDownloadStore.Meta: Codable {
+    private enum CodingKeys: String, CodingKey {
+        case urlSHA256, validator, bytesWritten, appID, createdAt
+        /// What a sidecar written before the digest held: the URL itself.
+        case legacyURL = "url"
+    }
+
+    /// Reads both formats. A sidecar from before the digest names the full URL;
+    /// it is hashed on the way in rather than dropped, so a download stopped
+    /// just before an update still resumes — and the next write (`close`)
+    /// replaces the file with one that no longer holds the URL.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        if let digest = try c.decodeIfPresent(String.self, forKey: .urlSHA256) {
+            urlSHA256 = digest
+        } else {
+            urlSHA256 = ResumableDownloadStore.digest(of: try c.decode(String.self, forKey: .legacyURL))
+        }
+        validator = try c.decode(String.self, forKey: .validator)
+        bytesWritten = try c.decode(Int64.self, forKey: .bytesWritten)
+        appID = try c.decodeIfPresent(String.self, forKey: .appID)
+        createdAt = try c.decode(Date.self, forKey: .createdAt)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(urlSHA256, forKey: .urlSHA256)
+        try c.encode(validator, forKey: .validator)
+        try c.encode(bytesWritten, forKey: .bytesWritten)
+        try c.encodeIfPresent(appID, forKey: .appID)
+        try c.encode(createdAt, forKey: .createdAt)
     }
 }

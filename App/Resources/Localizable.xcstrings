@@ -65745,67 +65745,67 @@
         }
       }
     },
-    "DuoUpdater stores your Apple Developer sign-in session — the same one developer.apple.com already keeps in a cookie — so it can download Xcode betas and release candidates on your behalf. It's kept in the Keychain on this Mac, never synced to iCloud or anywhere else, and only ever sent to *.apple.com — Apple's developer, sign-in, and download servers.": {
+    "DuoUpdater stores your Apple Developer sign-in session — the same one developer.apple.com already keeps in a cookie — so it can download Xcode betas and release candidates on your behalf. It's kept in the Keychain on this Mac, never synced to iCloud or anywhere else. The sign-in web view also keeps its own copy of Apple's cookies and site data in a private WebKit store in ~/Library/WebKit on this Mac. The session is only ever sent to *.apple.com — Apple's developer, sign-in, and download servers. Sign Out and Clear… erases both.": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "DuoUpdater speichert deine Apple-Developer-Anmeldesitzung – dieselbe, die developer.apple.com ohnehin schon in einem Cookie hält –, damit es Xcode-Betas und Release Candidates für dich herunterladen kann. Sie wird im Schlüsselbund auf diesem Mac gespeichert, nie mit iCloud oder anderswo synchronisiert und ausschließlich an *.apple.com gesendet – an Apples Entwickler-, Anmelde- und Download-Server."
+            "value": "DuoUpdater speichert deine Apple-Developer-Anmeldesitzung – dieselbe, die developer.apple.com ohnehin schon in einem Cookie hält –, damit es Xcode-Betas und Release Candidates für dich herunterladen kann. Sie wird im Schlüsselbund auf diesem Mac gespeichert und nie mit iCloud oder anderswo synchronisiert. Die Anmelde-Webansicht behält außerdem eine eigene Kopie der Cookies und Websitedaten von Apple in einem privaten WebKit-Speicher unter ~/Library/WebKit auf diesem Mac. Die Sitzung wird ausschließlich an *.apple.com gesendet – an Apples Entwickler-, Anmelde- und Download-Server. „Abmelden und löschen …“ entfernt beides."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "DuoUpdater guarda tu sesión de inicio de sesión de Apple Developer —la misma que developer.apple.com ya mantiene en una cookie— para poder descargar betas y versiones candidatas de Xcode en tu nombre. Se guarda en el Llavero de este Mac, nunca se sincroniza con iCloud ni con ningún otro sitio, y solo se envía a *.apple.com: los servidores de desarrollador, inicio de sesión y descargas de Apple."
+            "value": "DuoUpdater guarda tu sesión de inicio de sesión de Apple Developer —la misma que developer.apple.com ya mantiene en una cookie— para poder descargar betas y versiones candidatas de Xcode en tu nombre. Se guarda en el Llavero de este Mac y nunca se sincroniza con iCloud ni con ningún otro sitio. La vista web de inicio de sesión también conserva su propia copia de las cookies y los datos del sitio de Apple en un almacén privado de WebKit, en ~/Library/WebKit de este Mac. La sesión solo se envía a *.apple.com: los servidores de desarrollador, inicio de sesión y descargas de Apple. «Cerrar sesión y borrar…» elimina ambas cosas."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "DuoUpdater enregistre votre session de connexion Apple Developer — la même que developer.apple.com conserve déjà dans un cookie — afin de pouvoir télécharger les bêtas et versions candidates de Xcode en votre nom. Elle est conservée dans le Trousseau de ce Mac, jamais synchronisée avec iCloud ni ailleurs, et n'est envoyée qu'à *.apple.com — les serveurs de développement, de connexion et de téléchargement d'Apple."
+            "value": "DuoUpdater enregistre votre session de connexion Apple Developer — la même que developer.apple.com conserve déjà dans un cookie — afin de pouvoir télécharger les bêtas et versions candidates de Xcode en votre nom. Elle est conservée dans le Trousseau de ce Mac, jamais synchronisée avec iCloud ni ailleurs. La vue web de connexion garde aussi sa propre copie des cookies et des données de site d'Apple dans un stockage WebKit privé, dans ~/Library/WebKit sur ce Mac. La session n'est envoyée qu'à *.apple.com — les serveurs de développement, de connexion et de téléchargement d'Apple. « Se déconnecter et effacer… » supprime les deux."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "DuoUpdater conserva la tua sessione di accesso ad Apple Developer, la stessa che developer.apple.com tiene già in un cookie, per poter scaricare per tuo conto le beta e le release candidate di Xcode. È salvata nel Portachiavi di questo Mac, non viene mai sincronizzata su iCloud o altrove e viene inviata solo a *.apple.com: i server Apple per sviluppatori, di accesso e di download."
+            "value": "DuoUpdater conserva la tua sessione di accesso ad Apple Developer, la stessa che developer.apple.com tiene già in un cookie, per poter scaricare per tuo conto le beta e le release candidate di Xcode. È salvata nel Portachiavi di questo Mac e non viene mai sincronizzata su iCloud o altrove. La vista web di accesso conserva inoltre una propria copia dei cookie e dei dati del sito di Apple in un archivio WebKit privato, in ~/Library/WebKit su questo Mac. La sessione viene inviata solo a *.apple.com: i server Apple per sviluppatori, di accesso e di download. «Esci e cancella…» elimina entrambe le copie."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "DuoUpdaterは、developer.apple.comがすでにCookieとして保持しているのと同じApple Developerサインインセッションを保存し、あなたに代わってXcodeのベータ版やリリース候補版をダウンロードできるようにします。このセッションはこのMacのキーチェーンに保存され、iCloudなど他の場所と同期されることはなく、送信先も*.apple.com——Appleのデベロッパー、サインイン、ダウンロード用サーバーに限られます。"
+            "value": "DuoUpdaterは、developer.apple.comがすでにCookieとして保持しているのと同じApple Developerサインインセッションを保存し、あなたに代わってXcodeのベータ版やリリース候補版をダウンロードできるようにします。このセッションはこのMacのキーチェーンに保存され、iCloudなど他の場所と同期されることはありません。また、サインイン用のWebビューは、AppleのCookieとサイトデータの独自のコピーを、このMacの~/Library/WebKit内にあるプライベートなWebKitストレージにも保持します。セッションの送信先は*.apple.com——Appleのデベロッパー、サインイン、ダウンロード用サーバーに限られます。「サインアウトして消去…」を実行すると、両方が削除されます。"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "O DuoUpdater guarda sua sessão do Apple Developer — a mesma que developer.apple.com já mantém num cookie — para poder baixar betas e release candidates do Xcode em seu nome. Ela fica nas Chaves deste Mac, nunca é sincronizada com o iCloud nem com outro lugar, e só é enviada para *.apple.com — os servidores de desenvolvedor, login e download da Apple."
+            "value": "O DuoUpdater guarda sua sessão do Apple Developer — a mesma que developer.apple.com já mantém num cookie — para poder baixar betas e release candidates do Xcode em seu nome. Ela fica nas Chaves deste Mac e nunca é sincronizada com o iCloud nem com outro lugar. A visualização web de login também mantém uma cópia própria dos cookies e dos dados do site da Apple em um armazenamento privado do WebKit, em ~/Library/WebKit neste Mac. A sessão só é enviada para *.apple.com — os servidores de desenvolvedor, login e download da Apple. “Encerrar Sessão e Apagar…” remove as duas cópias."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "DuoUpdater сохраняет сеанс входа Apple Developer — тот же, что developer.apple.com уже хранит в cookie, — чтобы загружать бета-версии и релиз-кандидаты Xcode от вашего имени. Он хранится в Связке ключей на этом Mac, никогда не синхронизируется с iCloud или где-либо ещё и отправляется только на *.apple.com — серверы Apple для разработчиков, входа и загрузок."
+            "value": "DuoUpdater сохраняет сеанс входа Apple Developer — тот же, что developer.apple.com уже хранит в cookie, — чтобы загружать бета-версии и релиз-кандидаты Xcode от вашего имени. Он хранится в Связке ключей на этом Mac и никогда не синхронизируется с iCloud или где-либо ещё. Веб-представление для входа также хранит собственную копию cookie и данных сайта Apple в закрытом хранилище WebKit в ~/Library/WebKit на этом Mac. Сеанс отправляется только на *.apple.com — серверы Apple для разработчиков, входа и загрузок. «Выйти и очистить…» удаляет обе копии."
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "DuoUpdater, Apple Developer oturumunuzu saklar — developer.apple.com’un zaten bir çerezde tuttuğu oturumun aynısını — böylece Xcode betalarını ve sürüm adaylarını sizin adınıza indirebilir. Oturum bu Mac’teki Anahtar Zinciri’nde tutulur, asla iCloud’a veya başka bir yere eşzamanlanmaz ve yalnızca *.apple.com adreslerine — Apple’ın geliştirici, oturum açma ve indirme sunucularına — gönderilir."
+            "value": "DuoUpdater, Apple Developer oturumunuzu saklar — developer.apple.com’un zaten bir çerezde tuttuğu oturumun aynısını — böylece Xcode betalarını ve sürüm adaylarını sizin adınıza indirebilir. Oturum bu Mac’teki Anahtar Zinciri’nde tutulur ve asla iCloud’a veya başka bir yere eşzamanlanmaz. Oturum açma web görünümü ayrıca Apple’ın çerezlerinin ve site verilerinin kendi kopyasını bu Mac’te ~/Library/WebKit altındaki özel bir WebKit deposunda tutar. Oturum yalnızca *.apple.com adreslerine — Apple’ın geliştirici, oturum açma ve indirme sunucularına — gönderilir. “Oturumu Kapat ve Temizle…” ikisini de siler."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "DuoUpdater 会保存你的 Apple Developer 登录会话——就是 developer.apple.com 本身已经保存在 Cookie 里的那个会话——以便代表你下载 Xcode 测试版和候选发布版。该会话保存在这台 Mac 的钥匙串中，绝不会同步到 iCloud 或其他任何地方，也只会发送给 *.apple.com——即 Apple 的开发者、登录和下载服务器。"
+            "value": "DuoUpdater 会保存你的 Apple Developer 登录会话——就是 developer.apple.com 本身已经保存在 Cookie 里的那个会话——以便代表你下载 Xcode 测试版和候选发布版。该会话保存在这台 Mac 的钥匙串中，绝不会同步到 iCloud 或其他任何地方。登录用的网页视图还会在这台 Mac 的 ~/Library/WebKit 中，把 Apple 的 Cookie 和网站数据另存一份在 WebKit 私有存储里。会话只会发送给 *.apple.com——即 Apple 的开发者、登录和下载服务器。点击“退出登录并清除…”会同时删除这两处。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "DuoUpdater 會儲存你的 Apple Developer 登入工作階段——也就是 developer.apple.com 已經存放在 Cookie 中的那一個——以便代你下載 Xcode Beta 版和候選版。它會保存在這台 Mac 的鑰匙圈中，絕不會同步到 iCloud 或其他任何地方，而且只會傳送到 *.apple.com——Apple 的開發者、登入和下載伺服器。"
+            "value": "DuoUpdater 會儲存你的 Apple Developer 登入工作階段——也就是 developer.apple.com 已經存放在 Cookie 中的那一個——以便代你下載 Xcode Beta 版和候選版。它會保存在這台 Mac 的鑰匙圈中，絕不會同步到 iCloud 或其他任何地方。登入用的網頁檢視也會在這台 Mac 的 ~/Library/WebKit 中，把 Apple 的 Cookie 和網站資料另存一份在 WebKit 私有儲存空間裡。工作階段只會傳送到 *.apple.com——Apple 的開發者、登入和下載伺服器。點按「登出並清除…」會同時刪除這兩處。"
           }
         }
       }

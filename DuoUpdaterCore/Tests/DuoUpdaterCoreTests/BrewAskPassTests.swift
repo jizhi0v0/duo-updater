@@ -290,7 +290,7 @@ import os
         d=$(dirname "$0")
         printf '%s|%s\n' "$*" "${SUDO_ASKPASS:+set}${SUDO_ASKPASS:-unset}" | sed 's/|set.*/|set/' >> "$d/calls"
         case "$*" in
-          "upgrade --cask zzfixture-jdk zzfixture-cli") /usr/bin/time "$SUDO_ASKPASS" Password: > "$d/got" ;;
+          "upgrade --cask -- zzfixture-jdk zzfixture-cli") /usr/bin/time "$SUDO_ASKPASS" Password: > "$d/got" ;;
         esac
         exit 0
         """#.utf8).write(to: brew)
@@ -306,7 +306,7 @@ import os
             password: { asked.record($0); return "s3cret" }) { _ in }
         let calls = try String(contentsOf: dir.appendingPathComponent("calls"), encoding: .utf8)
             .split(separator: "\n").map(String.init)
-        #expect(calls.filter { $0.hasSuffix("|set") } == ["upgrade --cask zzfixture-jdk zzfixture-cli|set"])
+        #expect(calls.filter { $0.hasSuffix("|set") } == ["upgrade --cask -- zzfixture-jdk zzfixture-cli|set"])
         #expect(calls.contains("upgrade --formula|unset"))
         #expect(try String(contentsOf: dir.appendingPathComponent("got"), encoding: .utf8) == "s3cret\n")
         #expect(asked.all == [SudoPasswordRequest(packages: ["zzfixture-jdk"], attempt: 1)])

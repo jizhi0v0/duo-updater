@@ -24,9 +24,9 @@ import Foundation
         defer { brew.remove() }
         try await brew.service.upgrade(formula: "zzfixture-node") { _ in }
         #expect(brew.calls == [
-            "upgrade --formula zzfixture-node --dry-run|\(Self.hostNoAutoUpdate)",
+            "upgrade --formula --dry-run -- zzfixture-node|\(Self.hostNoAutoUpdate)",
             "fetch --formula -- zzfixture-simdjson zzfixture-node|1",
-            "upgrade --formula zzfixture-node|1",
+            "upgrade --formula -- zzfixture-node|1",
         ])
     }
 
@@ -39,8 +39,8 @@ import Foundation
         defer { brew.remove() }
         try await brew.service.upgrade(formula: "zzfixture-node") { _ in }
         #expect(brew.calls == [
-            "upgrade --formula zzfixture-node --dry-run|\(Self.hostNoAutoUpdate)",
-            "upgrade --formula zzfixture-node|1",
+            "upgrade --formula --dry-run -- zzfixture-node|\(Self.hostNoAutoUpdate)",
+            "upgrade --formula -- zzfixture-node|1",
         ])
     }
 
@@ -52,7 +52,25 @@ import Foundation
         defer { brew.remove() }
         try await brew.service.upgrade(formula: "zzfixture-node") { _ in }
         #expect(brew.calls.count == 3)
-        #expect(brew.calls.last == "upgrade --formula zzfixture-node|1")
+        #expect(brew.calls.last == "upgrade --formula -- zzfixture-node|1")
+    }
+
+    /// A token that begins with a dash is a name to brew here, not an option:
+    /// `--` goes before every name, in the dry run (whose `--dry-run` therefore
+    /// goes before it) and in the upgrade. Measured 2026-10-25, Homebrew 7.0.10:
+    /// `brew upgrade --cask --dry-run -- --greedy` answers "Cask '--greedy' is
+    /// unavailable", where without the `--` it takes `--greedy` for the flag.
+    ///
+    /// Mutation: drop the `--` from `runCaskUpgrade` → the last line has none.
+    @Test func aCaskUpgradeNamesItsTokenAfterDoubleDash() async throws {
+        let brew = try FakeBrew()
+        defer { brew.remove() }
+        try await brew.service.upgrade(cask: "-zzfixture-cask", password: nil) { _ in }
+        #expect(brew.calls == [
+            "upgrade --cask --dry-run -- -zzfixture-cask|\(Self.hostNoAutoUpdate)",
+            "fetch --cask -- zzfixture-simdjson zzfixture-node|1",
+            "upgrade --cask -- -zzfixture-cask|1",
+        ])
     }
 
     /// Upgrade All: the formulae's dry run and fetch, the named casks' fetch,
@@ -68,7 +86,7 @@ import Foundation
             "fetch --formula -- zzfixture-simdjson zzfixture-node|1",
             "fetch --cask -- zzfixture-cask|1",
             "upgrade --formula|1",
-            "upgrade --cask zzfixture-cask|1",
+            "upgrade --cask -- zzfixture-cask|1",
         ])
     }
 
@@ -112,7 +130,7 @@ import Foundation
         #expect(throws: CancellationError.self) { try result.get() }
         #expect(stopped)
         #expect(brew.exists("fetch.interrupted"), "the fetch ran its own SIGINT handler")
-        #expect(!brew.calls.contains { $0.hasPrefix("upgrade --formula zzfixture-node|") })
+        #expect(!brew.calls.contains { $0.hasPrefix("upgrade --formula -- zzfixture-node|") })
     }
 
     /// Upgrade All cancelled while brew fetches: the fetch runs its own SIGINT
@@ -168,7 +186,7 @@ import Foundation
         watchdog.cancel()
         #expect(answer.value == .tooLate(committing: "brew upgrade"))
         #expect(throws: Never.self) { try result.get() }
-        #expect(brew.calls.last == "upgrade --formula zzfixture-node|1")
+        #expect(brew.calls.last == "upgrade --formula -- zzfixture-node|1")
     }
 
     /// An upgrade that ran and failed may still have poured some of what it was

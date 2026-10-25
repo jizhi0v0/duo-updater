@@ -248,6 +248,25 @@ struct PackageArchitectureProbeTests {
         #expect(try result.get() == .universal("arm64,x86_64"))
     }
 
+    /// A package's TOC and members are a vendor's bytes: DEFLATE turns a few KB
+    /// into gigabytes (a 4 MiB member is 4 GiB at the ratio measured on
+    /// 2026-10-25), so `Inflate.zlib` answers nil once the output passes `limit`
+    /// rather than materialising it. Both branches — the bare-DEFLATE attempt and
+    /// the one that skips a zlib header — are bounded.
+    /// Mutation: pass `Int.max` to the inflate in `Inflate.zlib` → the 4 MiB output
+    /// comes back and the first expectation fails.
+    @Test func inflateRefusesOutputPastItsLimit() throws {
+        let bomb = try (Data(count: 4 << 20) as NSData).compressed(using: .zlib) as Data
+        #expect(bomb.count < 64 << 10, "a bomb: \(bomb.count) bytes on the wire")
+        #expect(Inflate.zlib(bomb, limit: 64 << 10) == nil)
+        #expect(Inflate.zlib(Data([0x78, 0x9C]) + bomb + Data(count: 4), limit: 64 << 10) == nil)
+
+        // The limit is on the output, inclusive: exactly that many bytes still pass.
+        #expect(Inflate.zlib(bomb, limit: 4 << 20)?.count == 4 << 20)
+        #expect(Inflate.zlib(Data([0x78, 0x9C]) + bomb + Data(count: 4), limit: 4 << 20)?.count == 4 << 20)
+        #expect(Inflate.zlib(bomb, limit: (4 << 20) - 1) == nil)
+    }
+
     /// Mutation: try `PackageInfo` before `Distribution` and this goes red. On a
     /// product archive the Distribution is the file that carries the declaration,
     /// and a component `PackageInfo` beside it may say something narrower.

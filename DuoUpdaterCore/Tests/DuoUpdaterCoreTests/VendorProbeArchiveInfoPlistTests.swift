@@ -347,6 +347,58 @@ struct VendorProbeArchiveInfoPlistTests {
         }
     }
 
+    /// A zip whose `Info.plist` entry deflates `inflatedBytes` zeros (a few KB on
+    /// the wire) while its central-directory record declares `declaredSize` — a
+    /// small number, so the entry passes the `maxEntryBytes` check and only the
+    /// inflate itself can notice the lie. The CRC-32 is left as `zip` wrote it.
+    static func bombArchive(inflatedBytes: Int, declaredSize: Int) async throws -> Data {
+        let fm = FileManager.default
+        let dir = fm.temporaryDirectory
+            .appendingPathComponent("ZZFixture-archivebomb-\(UUID().uuidString)", isDirectory: true)
+        defer { try? fm.removeItem(at: dir) }
+        let contents = dir.appendingPathComponent("ZZStub.app/Contents", isDirectory: true)
+        try fm.createDirectory(at: contents, withIntermediateDirectories: true)
+        try Data(count: inflatedBytes).write(to: contents.appendingPathComponent("Info.plist"))
+        let made = try await ChildProcess.run(
+            "/usr/bin/zip", ["-q", "-r", "-X", "bomb.zip", "ZZStub.app"],
+            workingDirectory: dir, onCancel: .runToCompletion)
+        #expect(made.succeeded)
+        var zip = try Data(contentsOf: dir.appendingPathComponent("bomb.zip"))
+
+        // Rewrite the uncompressed size (offset 24) in the entry's directory record.
+        let name = Data(entry.utf8)
+        var patched = false
+        var at = 0
+        while at + 46 <= zip.count {
+            if zip[at] == 0x50, zip[at + 1] == 0x4B, zip[at + 2] == 0x01, zip[at + 3] == 0x02 {
+                let nameLength = Int(zip[at + 28]) | Int(zip[at + 29]) << 8
+                if zip.subdata(in: at + 46 ..< at + 46 + nameLength) == name {
+                    for i in 0..<4 { zip[at + 24 + i] = UInt8(truncatingIfNeeded: declaredSize >> (8 * i)) }
+                    patched = true
+                    break
+                }
+            }
+            at += 1
+        }
+        #expect(patched, "the fixture must find its own directory record")
+        return zip
+    }
+
+    /// A 4 MiB inflate behind a declared size of 100. The two ways to refuse it
+    /// word themselves differently, and only one of them is a bound: inflating
+    /// everything and then comparing sizes ("does not match its directory record")
+    /// has already paid for the output.
+    /// Mutation: pass `Int.max` as the inflate limit → the entry is inflated whole
+    /// and refused by the size check instead, so the detail below does not match.
+    @Test func anEntryInflatingPastItsDeclaredSizeIsRefusedWhileInflating() async throws {
+        let zip = try await Self.bombArchive(inflatedBytes: 4 << 20, declaredSize: 100)
+        #expect(zip.count < 64 << 10, "a bomb: \(zip.count) bytes on the wire")
+        await #expect(throws: RemoteZipEntry.Unreadable(
+            detail: "'\(Self.entry)' does not inflate within its declared size of 100 bytes")) {
+            _ = try await RemoteZipEntry.read(Self.entry, fetch: Self.fetch(zip))
+        }
+    }
+
     /// Mutation: delete the size/CRC-32 check → the corrupted archive is read as
     /// build 2357, a version the vendor never published.
     @Test func aCorruptedEntryIsRefusedNotMisread() async throws {

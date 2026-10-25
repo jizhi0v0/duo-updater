@@ -63,6 +63,30 @@ enum RemoteZipEntry {
     /// `Info.plist`, not a payload.
     static let maxEntryBytes = 1 << 20
 
+    /// A `Fetch` over an archive already in memory, for a caller that downloaded
+    /// the whole file and wants the same bounded entry read. Ranges the archive
+    /// cannot satisfy answer empty, which `read` reports as an unreadable archive
+    /// rather than trapping on a bad slice.
+    static func fetch(from archive: Data) -> Fetch {
+        { range in
+            let total = archive.count
+            let start: Int
+            let end: Int // exclusive
+            switch range {
+            case .suffix(let count):
+                start = max(0, total - max(0, count))
+                end = total
+            case .span(let first, let last):
+                start = first
+                end = min(last, total - 1) + 1
+            }
+            let slice = start >= 0 && start < end && end <= total
+                ? archive.subdata(in: archive.startIndex + start ..< archive.startIndex + end)
+                : Data()
+            return Chunk(data: slice, totalLength: total, identity: "in-memory")
+        }
+    }
+
     private static let endOfDirectorySignature: UInt32 = 0x0605_4B50
     private static let directoryRecordSignature: UInt32 = 0x0201_4B50
     private static let localHeaderSignature: UInt32 = 0x0403_4B50
@@ -177,8 +201,15 @@ enum RemoteZipEntry {
         if record.method == 8 {
             // `.zlib` is raw DEFLATE (RFC 1951), which is what a zip entry holds —
             // see `Inflate.zlib` in `PackageArchitectureProbe` for the naming trap.
-            guard let inflated = try? (stored as NSData).decompressed(using: .zlib) as Data else {
-                throw Unreadable(detail: "'\(name)' does not inflate")
+            //
+            // Bounded by the size the directory declares, not by what the stream
+            // says: DEFLATE turns 65 KB into 64 MiB (measured 2026-10-25), and the
+            // size/CRC check below runs after the output exists. `record.size` is
+            // already <= `maxEntryBytes`. An entry that inflates past it — or does
+            // not inflate at all — is refused here, with the bytes it produced
+            // capped at the declared size plus one decoder chunk.
+            guard let inflated = GzipDecode.inflateRaw(stored, limit: record.size) else {
+                throw Unreadable(detail: "'\(name)' does not inflate within its declared size of \(record.size) bytes")
             }
             bytes = inflated
         } else {

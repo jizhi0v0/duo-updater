@@ -281,10 +281,25 @@ enum Inflate {
     /// Not verbatim-verified against Apple's documentation (those pages render as
     /// SPA shells); rests on Apple's Archive-format docs plus developer-forums
     /// thread 712115, and on the round-trip the unit tests exercise both ways.
-    static func zlib(_ data: Data) -> Data? {
-        if let out = try? (data as NSData).decompressed(using: .zlib) as Data { return out }
-        if data.count > 2, let out = try? (data.dropFirst(2) as NSData)
-            .decompressed(using: .zlib) as Data { return out }
-        return nil
+    ///
+    /// Bounded: nil once the output would pass `limit`, because DEFLATE turns a
+    /// few KB into gigabytes and `maxMemberBytes` only caps the input (a 4 MiB
+    /// member is ~4 GiB at the ratio measured 2026-10-25).
+    ///
+    /// The header-skipping retry is gated on the bytes really being an RFC 1950
+    /// header (method 8, `(CMF << 8 | FLG) % 31 == 0`). Without the gate, a raw
+    /// stream refused for being over `limit` would be retried two bytes in, which
+    /// decodes to *something* and hands the bomb back as an answer.
+    static func zlib(_ data: Data, limit: Int = maxInflatedBytes) -> Data? {
+        if let out = BoundedInflate.rawDeflate(data, limit: limit) { return out }
+        guard data.count > 2,
+              data[data.startIndex] & 0x0F == 8,
+              (Int(data[data.startIndex]) << 8 | Int(data[data.startIndex + 1])) % 31 == 0
+        else { return nil }
+        return BoundedInflate.rawDeflate(data.dropFirst(2), limit: limit)
     }
+
+    /// What a TOC or member may inflate to. Real ones are KB (Edge's Distribution
+    /// is 716 bytes); a TOC for a very large package runs to a few MB.
+    static let maxInflatedBytes = 32 << 20
 }

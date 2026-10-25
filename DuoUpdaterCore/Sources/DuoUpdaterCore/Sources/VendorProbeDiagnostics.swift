@@ -49,8 +49,8 @@ public enum ProbeFailure: Error, Sendable, Equatable {
     case redirectMissingLocation
     /// The resolved location/final URL couldn't be parsed.
     case malformedResolvedURL(String)
-    /// `.zipEntryPlist`: the archive downloaded but `unzip` couldn't produce the
-    /// entry (vendor changed the stub installer's layout).
+    /// `.zipEntryPlist`: the archive downloaded but the entry could not be read
+    /// out of it (vendor changed the stub installer's layout).
     /// `.redirectArchiveInfoPlist`: the archive or its `Info.plist` could not be
     /// read by range, or holds another app.
     case archiveExtractionFailed(String)

@@ -67,6 +67,7 @@ test-scripts: check-python
 	$(PYTHON) scripts/test_sunset_sweep.py
 	$(PYTHON) scripts/test_site_floor.py
 	$(PYTHON) scripts/test_ci_route.py
+	$(PYTHON) scripts/test_recipe_autofix_check.py
 	$(PYTHON) scripts/test_runner_hook.py
 	$(PYTHON) scripts/test_ci_build_cache.py
 	$(PYTHON) scripts/test_check_prose_claims.py

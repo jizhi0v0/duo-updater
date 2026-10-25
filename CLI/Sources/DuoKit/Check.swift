@@ -688,7 +688,10 @@ public enum Check {
             if row.hidden { tags.append("hidden") }
             if !tags.isEmpty { line += "  [\(tags.joined(separator: ", "))]" }
             if let failure = failure(row) { line += "  — check failed: \(failure)" }
-            print(line)
+            // The version, build and failure text come off the vendor's feed;
+            // scrub terminal escapes before they reach the TTY (as `duo verify`
+            // does via `Report`). Our own labels/tags carry none.
+            print(TerminalText.printable(line))
             if let channel = row.replacesChannel { print("      note: \(channelReminder(channel))") }
             if let sunset = row.sunset { print("      note: \(sunsetNote(sunset))") }
         }

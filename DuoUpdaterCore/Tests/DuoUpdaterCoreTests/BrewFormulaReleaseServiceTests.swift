@@ -75,6 +75,27 @@ struct BrewFormulaReleaseServiceTests {
         }
     }
 
+    /// A formula's notes go to disk through the same filter as the recipe
+    /// changelog cache: a signed image URL, as a block or inline, is not written.
+    ///
+    /// Mutation: encode `release` instead of `onDisk` in `persist` → red.
+    @Test func signedImageURLsAreNotWrittenToDisk() async throws {
+        try await withScratchDirectory { dir in
+            let signed = URL(string: "https://cdn.example.com/b.png?X-Signature=s3cr3t-token")!
+            let release = FormulaRelease(
+                changelog: Changelog(entries: [Changelog.Entry(
+                    version: "1.0", date: nil,
+                    items: ["Faster ![x](https://cdn.example.com/c.png?sig=s3cr3t-token) sync"],
+                    content: [.note("Faster sync"), .image(signed)])]),
+                pageURL: URL(string: "https://github.com/example/example/releases/tag/v1.0"))
+            await BrewFormulaReleaseService(cacheDirectory: dir).persist(release, name: "azure-cli", version: "1.0")
+
+            let raw = try String(contentsOf: onDiskFileURL(in: dir), encoding: .utf8)
+            #expect(!raw.contains("s3cr3t-token"), "the token reached the file")
+            #expect(raw.contains("Faster"))
+        }
+    }
+
     // MARK: - Older generation on disk: miss
 
     /// An entry written at generation N-1 must be a miss at generation N. There is

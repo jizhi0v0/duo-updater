@@ -238,20 +238,60 @@ public actor ChangelogDiskCache {
     /// mirror keeps it) but not from the file after a relaunch. None of the 51
     /// `<img>` URLs on the Capy, Longbridge and Raycast changelog pages had one
     /// (fetched 2026-10-25), so this drops nothing there today.
+    ///
+    /// The same URL can reach disk inside an entry's `markdown` body or a flat
+    /// `items` line as inline image syntax (`![alt](url)`), which the renderer
+    /// fetches exactly like a `.image` block — Sparkle notes keep their Markdown
+    /// verbatim and `items` keeps the raw line. Those inline images are dropped
+    /// too, by the same query/fragment test; a plain inline image stays, and so
+    /// does the surrounding text. An inline LINK (`[text](url)`) is left as the
+    /// vendor wrote it: it is not auto-fetched and removing it would break the
+    /// user's click-through.
     static func persisted(_ changelog: Changelog) -> Changelog {
         func keeps(_ block: Changelog.Entry.Block) -> Bool {
             guard case .image(let url) = block else { return true }
             return url.query == nil && url.fragment == nil
         }
-        guard changelog.entries.contains(where: { $0.content.contains { !keeps($0) } })
-        else { return changelog }
+        func scrubbed(_ entry: Changelog.Entry) -> Changelog.Entry {
+            Changelog.Entry(
+                title: entry.title, version: entry.version, date: entry.date,
+                items: entry.items.map(scrubbingSignedInlineImages(from:)),
+                content: entry.content.filter(keeps),
+                markdown: entry.markdown.map(scrubbingSignedInlineImages(from:)))
+        }
+        let needsChange = changelog.entries.contains { entry in
+            entry.content.contains { !keeps($0) }
+                || entry.items.contains { scrubbingSignedInlineImages(from: $0) != $0 }
+                || (entry.markdown.map { scrubbingSignedInlineImages(from: $0) != $0 } ?? false)
+        }
+        guard needsChange else { return changelog }
         return Changelog(
-            entries: changelog.entries.map {
-                Changelog.Entry(
-                    title: $0.title, version: $0.version, date: $0.date, items: $0.items,
-                    content: $0.content.filter(keeps), markdown: $0.markdown)
-            },
+            entries: changelog.entries.map(scrubbed),
             itemSyntax: changelog.itemSyntax)
+    }
+
+    /// `text` with every inline Markdown image whose URL carries a query or a
+    /// fragment removed — the `![alt](url)` (optionally `… "title"`) reference
+    /// taken out whole, leaving the words around it. The signed-token concern is
+    /// the one `persisted` documents; here the URL is embedded in text the
+    /// renderer parses rather than a structured `.image`. A URL with neither a
+    /// query nor a fragment is kept, so this is a no-op for ordinary notes.
+    private static func scrubbingSignedInlineImages(from text: String) -> String {
+        guard text.contains("![") else { return text }
+        let pattern = #"!\[[^\]]*\]\(\s*<?([^)\s>]+)>?(?:\s+"[^"]*")?\s*\)"#
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return text }
+        var result = text
+        // Back to front, so each replacement leaves earlier ranges valid.
+        let matches = regex.matches(
+            in: text, range: NSRange(text.startIndex..., in: text)).reversed()
+        for match in matches {
+            guard let whole = Range(match.range, in: result),
+                  let urlRange = Range(match.range(at: 1), in: result) else { continue }
+            let url = URLComponents(string: String(result[urlRange]))
+            guard url?.query != nil || url?.fragment != nil else { continue }
+            result.replaceSubrange(whole, with: "")
+        }
+        return result
     }
 
     /// Delete on-disk entries that share `key`'s app+channel prefix but a different

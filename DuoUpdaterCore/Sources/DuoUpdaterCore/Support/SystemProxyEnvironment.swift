@@ -58,8 +58,19 @@ enum SystemProxyEnvironment {
         return env
     }
 
-    /// The variables the GitHub CLI reads a token from.
-    static let gitHubTokenVariables: Set = ["GH_TOKEN", "GITHUB_TOKEN"]
+    /// The variables a GitHub credential the user exported for their own tools
+    /// rides in: the four the GitHub CLI reads a token from (`gh help
+    /// environment`: `GH_TOKEN`/`GITHUB_TOKEN` for github.com, the two
+    /// `*_ENTERPRISE_TOKEN` for a GHE host) and the two Homebrew reads
+    /// (`brew(1)` ENVIRONMENT: `HOMEBREW_GITHUB_API_TOKEN`, and the Packages
+    /// registry token). A vendor's installer script has no business receiving
+    /// any of them — the tools that want one are handed the app's own under
+    /// `CLIToolGitHubToken`. A tool's OWN token variable (`GITHUB_ACCESS_TOKEN`,
+    /// `UV_GITHUB_TOKEN`, `MISE_GITHUB_TOKEN`) is deliberately left in place.
+    static let gitHubTokenVariables: Set = [
+        "GH_TOKEN", "GITHUB_TOKEN", "GH_ENTERPRISE_TOKEN", "GITHUB_ENTERPRISE_TOKEN",
+        "HOMEBREW_GITHUB_API_TOKEN", "HOMEBREW_GITHUB_PACKAGES_TOKEN",
+    ]
 
     /// `env` without `gitHubTokenVariables`.
     static func withoutGitHubTokens(_ env: [String: String]) -> [String: String] {

@@ -773,9 +773,11 @@ public enum Install {
         if !plan.isEmpty || !tools.isEmpty {
             print("\nWill install:")
             for item in plan {
-                print("  \(item.result.app.name)  \(item.result.app.shortVersion ?? "?")"
+                // `displayVersion` is the vendor's offered string; scrub escapes.
+                print(TerminalText.printable(
+                    "  \(item.result.app.name)  \(item.result.app.shortVersion ?? "?")"
                     + "  →  \(item.result.remote?.displayVersion ?? "?")"
-                    + "  [\(item.route.rawValue)]")
+                    + "  [\(item.route.rawValue)]"))
                 if let channel = item.result.replacesChannelWithStable {
                     print("      note: \(Check.channelReminder(channel.rawValue))")
                 }

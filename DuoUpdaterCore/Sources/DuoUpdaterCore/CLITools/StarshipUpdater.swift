@@ -22,8 +22,10 @@ import Foundation
 ///
 /// In root's `/usr/local/bin` (`CLIToolStatus.needsAdministrator`) the same
 /// gates are asked, the directory must still be root's, and then
-/// `StarshipCheck.rootCommand` runs as root through the administrator panel
-/// (`CLIToolAdministratorRun`), the script fetched by root's own `curl`. The
+/// `StarshipCheck.rootCommand`, pinned to the release read now, runs as root
+/// through the administrator panel (`CLIToolAdministratorRun`), the script
+/// fetched by root's own `curl`. The status must carry exactly that command;
+/// one built from a release that has since been superseded is refused. The
 /// same check of what it left follows.
 public struct StarshipUpdater: Sendable {
 
@@ -57,7 +59,7 @@ public struct StarshipUpdater: Sendable {
             scanner: StarshipScanner(),
             check: StarshipCheck(),
             verifier: StarshipVerifier(),
-            environment: { ProcessInfo.processInfo.environmentWithSystemProxy },
+            environment: { ProcessInfo.processInfo.childEnvironmentWithSystemProxy },
             fetchScript: { try await JunieUpdater.download($0) })
     }
 
@@ -101,8 +103,7 @@ public struct StarshipUpdater: Sendable {
         }
         if status.needsAdministrator {
             let check = self.check
-            guard status.oneClick == StarshipCheck.rootCommand, !now.writable,
-                  await offCooperativePool({ check.rootDirectory(now) })
+            guard !now.writable, await offCooperativePool({ check.rootDirectory(now) })
             else {
                 return .failed(message: "not run: \(install.directory) is no longer root’s directory", output: "")
             }
@@ -122,6 +123,19 @@ public struct StarshipUpdater: Sendable {
             return .failed(message: "not run: could not read Starship's latest release: \(error)", output: "")
         }
 
+        // What would run as root is built from the release read just now, and
+        // the status must already stand for exactly that: a release that moved
+        // since the check, or a version that is not plain digits, runs nothing.
+        var rootCommand: CLIToolCommand?
+        if status.needsAdministrator {
+            guard let command = StarshipCheck.rootCommand(version: newest), status.oneClick == command else {
+                return .failed(
+                    message: "not run: Starship's latest release is now \(newest), which is not the version that was checked",
+                    output: "")
+            }
+            rootCommand = command
+        }
+
         progress("Checking \(binary) against starship \(before) as published…")
         switch await verifier.verify(binary: binary, version: before, target: target) {
         case .matches:
@@ -132,8 +146,8 @@ public struct StarshipUpdater: Sendable {
         if let running = await offCooperativePool({ busy() }) {
             return .busy(running.description)
         }
-        if status.needsAdministrator {
-            switch await runAsRoot(StarshipCheck.rootCommand.display, progress) {
+        if let rootCommand {
+            switch await runAsRoot(rootCommand.display, progress) {
             case .declined:
                 return .declined
             case .refused(let reason):

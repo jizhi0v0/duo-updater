@@ -67,9 +67,15 @@ import Foundation
     /// The app's GitHub token reaches `bun upgrade` as `GITHUB_ACCESS_TOKEN`, the
     /// name every bun from 1.0.0 reads, so its release lookup is not held to the
     /// anonymous 60 an hour. No token, no variable; a `GITHUB_TOKEN` or
-    /// `GITHUB_ACCESS_TOKEN` the user exported wins.
+    /// `GITHUB_ACCESS_TOKEN` already in the environment wins.
+    ///
+    /// The third case is an injected environment only: the one `BunUpdater()`
+    /// builds (`childEnvironmentWithSystemProxy`) has had `GH_TOKEN` and
+    /// `GITHUB_TOKEN` taken out, so a token exported for `gh` never reaches
+    /// `bun upgrade` by that name, and the app's own arrives as
+    /// `GITHUB_ACCESS_TOKEN`. The check on `GITHUB_TOKEN` is left in place.
     /// Kills: not setting it; setting it from a nil token; overwriting either of
-    /// the user's.
+    /// the ones already there.
     @Test func theAppsGitHubTokenReachesBunUpgrade() async throws {
         for (token, exported, expected) in [
             ("ZZFixture-token", [:], ["GITHUB_ACCESS_TOKEN": "ZZFixture-token"]),

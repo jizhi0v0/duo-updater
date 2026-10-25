@@ -53,7 +53,7 @@ public struct VitePlusUpdater: Sendable {
             verifier: VitePlusVerifier(),
             // `vp` and the pnpm it runs read the proxy variables, which a GUI app
             // launched by launchd does not have. See `SystemProxyEnvironment`.
-            environment: { ProcessInfo.processInfo.environmentWithSystemProxy })
+            environment: { ProcessInfo.processInfo.childEnvironmentWithSystemProxy })
     }
 
     init(

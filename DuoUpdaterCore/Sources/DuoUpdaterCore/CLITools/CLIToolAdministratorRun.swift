@@ -76,10 +76,27 @@ import Foundation
 /// a vendor installer's progress and is readable by other accounts on the Mac
 /// while it lingers, as it would be on a shared terminal.
 ///
-/// The command is a constant of the tool's check (`HelmCheck.rootCommand`,
-/// `StarshipCheck.rootCommand`) — never a string from a status, a file or the
-/// network — so nothing outside this code chooses what runs as root.
+/// The command is built by the tool's check (`HelmCheck.rootCommand(installer:version:)`,
+/// `StarshipCheck.rootCommand(version:)`) from constants and one version, which
+/// must be ASCII digits and dots (`isPlainVersion`) and goes in quoted. The
+/// click builds it again from the version it reads then and runs nothing unless
+/// the status it was handed carries that same command — never a string from a
+/// status, a file or the network as it stands — so nothing outside this code
+/// chooses what runs as root.
 enum CLIToolAdministratorRun {
+
+    /// Whether `version` may go into a shell line run as root: ASCII digits in
+    /// groups split by single dots, and nothing else. The tools' own
+    /// `isVersion` is a regular expression whose `\d` takes any script's
+    /// digits, and which also lets a prerelease's `-rc.1` through; neither
+    /// belongs in a root shell line.
+    static func isPlainVersion(_ version: String) -> Bool {
+        let groups = version.split(separator: ".", omittingEmptySubsequences: false)
+        return !groups.isEmpty && groups.allSatisfy { group in
+            !group.isEmpty && group.utf8.allSatisfy { (0x30...0x39).contains($0) }
+        }
+    }
+
 
     enum Result: Sendable {
         /// The user dismissed the panel: nothing ran.

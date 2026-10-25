@@ -44,7 +44,7 @@ public struct BubUpdater: Sendable {
             // them: through an unresolvable `https_proxy` the sync failed on
             // `https://pypi.org/simple/bub/` with "dns error" (measured
             // 2026-10-01), so it does use them. See `SystemProxyEnvironment`.
-            environment: { ProcessInfo.processInfo.environmentWithSystemProxy })
+            environment: { ProcessInfo.processInfo.childEnvironmentWithSystemProxy })
     }
 
     init(

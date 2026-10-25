@@ -50,7 +50,7 @@ public struct AmpUpdater: Sendable {
             check: AmpCheck(),
             // The installer runs curl, which reads `https_proxy`; a GUI app has
             // none. See `SystemProxyEnvironment`.
-            environment: { ProcessInfo.processInfo.environmentWithSystemProxy },
+            environment: { ProcessInfo.processInfo.childEnvironmentWithSystemProxy },
             settings: { AmpSettings.read(home: scanner.home) },
             fetchScript: { try await AmpUpdater.download($0) })
     }

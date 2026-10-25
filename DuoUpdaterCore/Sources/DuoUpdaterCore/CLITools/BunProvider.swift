@@ -75,7 +75,7 @@ public struct BunProvider: CLIToolProvider {
                 busy: { BunActivity.busy($0, processes: NpmActivity.runningProcesses()) },
                 trustsNode: { NpmUpdater.nodeIsTrustedNow($0) },
                 trustsBun: { NpmUpdater.bunIsTrustedNow($0) },
-                environment: { ProcessInfo.processInfo.environmentWithSystemProxy }
+                environment: { ProcessInfo.processInfo.childEnvironmentWithSystemProxy }
             ).update(status, progress: progress)
         default:
             return .notOffered

@@ -33,10 +33,13 @@ import Foundation
 ///
 /// In root's `/usr/local/bin` (`CLIToolStatus.needsAdministrator`) the same
 /// gates are asked, the directory must still be root's, and then Helm's
-/// documented command (`HelmCheck.documentedCommand`) runs as root through the
-/// administrator panel (`CLIToolAdministratorRun`): the script fetched by root's
-/// own `curl`, its defaults (`/usr/local/bin`, `USE_SUDO`, which is moot as
-/// root) left as the vendor set them. The same check of what it left follows.
+/// documented command, pinned to the version the line names now
+/// (`HelmCheck.rootCommand`), runs as root through the administrator panel
+/// (`CLIToolAdministratorRun`): the script fetched by root's own `curl`, its
+/// defaults (`/usr/local/bin`, `USE_SUDO`, which is moot as root) left as the
+/// vendor set them. The status must carry exactly that command; one built from
+/// a version the pointer has since left is refused. The same check of what it
+/// left follows.
 public struct HelmUpdater: Sendable {
 
     typealias BusyCheck = @Sendable () -> HelmActivity.Busy?
@@ -75,7 +78,7 @@ public struct HelmUpdater: Sendable {
             scanner: HelmScanner(),
             check: HelmCheck(),
             verifier: HelmVerifier(),
-            environment: { ProcessInfo.processInfo.environmentWithSystemProxy },
+            environment: { ProcessInfo.processInfo.childEnvironmentWithSystemProxy },
             fetchScript: { try await JunieUpdater.download($0) })
     }
 
@@ -119,11 +122,9 @@ public struct HelmUpdater: Sendable {
         else {
             return .failed(message: "not run: \(install.path) is no longer the helm that was checked", output: "")
         }
-        let rootCommand = HelmCheck.documentedCommand(installer: installer)
         if status.needsAdministrator {
             let check = self.check
-            guard status.oneClick == rootCommand, !now.writable,
-                  await offCooperativePool({ check.rootDirectory(now) })
+            guard !now.writable, await offCooperativePool({ check.rootDirectory(now) })
             else {
                 return .failed(message: "not run: \(install.directory) is no longer root’s directory", output: "")
             }
@@ -147,6 +148,21 @@ public struct HelmUpdater: Sendable {
             return .failed(message: "not run: could not read helm\(major)-latest-version: \(error)", output: "")
         }
 
+        // What would run as root is built from the version read just now, and
+        // the status must already stand for exactly that: a pointer that moved
+        // since the check, or a version that is not plain digits, runs nothing.
+        var rootCommand: CLIToolCommand?
+        if status.needsAdministrator {
+            guard let command = HelmCheck.rootCommand(installer: installer, version: newest),
+                  status.oneClick == command
+            else {
+                return .failed(
+                    message: "not run: helm\(major)-latest-version now names \(newest), which is not the version that was checked",
+                    output: "")
+            }
+            rootCommand = command
+        }
+
         progress("Checking \(binary) against helm \(before) as the Helm project published it…")
         switch await verifier.verify(binary: binary, version: before, target: target) {
         case .matches:
@@ -157,7 +173,7 @@ public struct HelmUpdater: Sendable {
         if let running = await offCooperativePool({ busy() }) {
             return .busy(running.description)
         }
-        if status.needsAdministrator {
+        if let rootCommand {
             switch await runAsRoot(rootCommand.display, progress) {
             case .declined:
                 return .declined

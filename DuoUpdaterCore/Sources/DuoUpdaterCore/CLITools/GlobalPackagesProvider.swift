@@ -65,7 +65,7 @@ public struct GlobalPackagesProvider: CLIToolProvider {
             busy: { GlobalPackageActivity.busy($0, processes: NpmActivity.runningProcesses()) },
             trustsNode: { NpmUpdater.nodeIsTrustedNow($0) },
             trustsManager: { NpmUpdater.managerIsTrustedNow($0) },
-            environment: { ProcessInfo.processInfo.environmentWithSystemProxy }
+            environment: { ProcessInfo.processInfo.childEnvironmentWithSystemProxy }
         ).update(status, progress: progress)
     }
 

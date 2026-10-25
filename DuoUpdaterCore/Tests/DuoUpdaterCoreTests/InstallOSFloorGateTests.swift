@@ -666,4 +666,58 @@ import Foundation
         // would take the extraction with it.
         #expect(PackageInstaller.scratchMember(named: ".", under: scratch) == nil)
     }
+
+    /// Test 12: member names come out of the package, and `xar -xf pkg name` reads
+    /// a name that starts with `-` as an option. `-d<path>` is `--dump-toc`: it
+    /// makes `xar` write the archive's table of contents to a path the package
+    /// chose, ending in whatever the member is called. All three extractions
+    /// (`PackageInfo`, `Bom`, `Payload`) therefore pass `--` before the name.
+    ///
+    /// The package is built with `xar` itself, since `pkgbuild` will not emit a
+    /// member called `-d…`. Its members are `-d<victim>/PackageInfo`, `…/Bom` and
+    /// `…/Payload`; unfixed, extracting each one dumps the TOC to
+    /// `<victim>/PackageInfo`, `<victim>/Bom` and `<victim>/Payload`.
+    @Test func aMemberNamedLikeAnXarOptionIsExtractedNotObeyed() async throws {
+        try await withPkgTempDir { dir in
+            let fm = FileManager.default
+            let victim = dir.appendingPathComponent("victim", isDirectory: true)
+            try fm.createDirectory(at: victim, withIntermediateDirectories: true)
+            let source = dir.appendingPathComponent("src", isDirectory: true)
+            let memberDirectory = "-d" + victim.path
+            try fm.createDirectory(
+                at: source.appendingPathComponent(memberDirectory, isDirectory: true),
+                withIntermediateDirectories: true)
+            let members = ["PackageInfo", "Bom", "Payload"].map { "\(memberDirectory)/\($0)" }
+            for member in members {
+                try Data("<pkg-info/>".utf8).write(to: source.appendingPathComponent(member))
+            }
+            let pkg = dir.appendingPathComponent("ZZFixtureOption.pkg")
+            let built = try await ChildProcess.run(
+                "/usr/bin/xar", ["-cf", pkg.path, "--"] + members,
+                workingDirectory: source, onCancel: .runToCompletion)
+            try #require(built.succeeded, "\(String(decoding: built.standardError, as: UTF8.self))")
+            let listing = try await ChildProcess.run(
+                "/usr/bin/xar", ["-tf", pkg.path], onCancel: .runToCompletion)
+            try #require(String(decoding: listing.standardOutput, as: UTF8.self)
+                .split(separator: "\n").map(String.init).contains(members[0]),
+                "the fixture must really contain a member called -d…/PackageInfo")
+
+            // `PackageInfo` and `Bom`, in `readComponents`.
+            let components = await PackageInstaller.readComponents(pkg)
+            #expect(components.map(\.directory) == [memberDirectory])
+
+            // `Payload`, in `readFloor`.
+            let floor = await PackageInstaller.payloadMinimumSystemVersion(
+                pkg,
+                components: [PackageInstaller.Component(
+                    directory: memberDirectory, installLocation: "/",
+                    payloadPaths: ["./Applications/ZZFixture Suite.app/Contents/Info.plist"],
+                    destinations: [])],
+                appName: "ZZFixture Suite")
+            #expect(floor == .unreadablePayload)
+
+            let leaked = try fm.contentsOfDirectory(atPath: victim.path)
+            #expect(leaked.isEmpty, "xar obeyed a member name as an option and wrote \(leaked)")
+        }
+    }
 }

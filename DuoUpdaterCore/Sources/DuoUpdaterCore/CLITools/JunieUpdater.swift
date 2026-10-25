@@ -62,7 +62,7 @@ public struct JunieUpdater: Sendable {
             scanner: JunieScanner(),
             // The installer runs curl, which reads `https_proxy`; a GUI app launched
             // by launchd has none. See `SystemProxyEnvironment`.
-            environment: { ProcessInfo.processInfo.environmentWithSystemProxy },
+            environment: { ProcessInfo.processInfo.childEnvironmentWithSystemProxy },
             settings: { JunieSettings.read() },
             fetchScript: { try await JunieUpdater.download($0) })
     }

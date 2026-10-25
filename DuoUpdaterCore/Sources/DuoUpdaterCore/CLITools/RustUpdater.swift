@@ -47,7 +47,7 @@ public struct RustUpdater: Sendable {
         self.init(
             scanner: scanner, release: RustRelease(),
             busy: { RustActivity.busy(processes: ClaudeCodeActivity.runningProcesses()) },
-            environment: { ProcessInfo.processInfo.environmentWithSystemProxy },
+            environment: { ProcessInfo.processInfo.childEnvironmentWithSystemProxy },
             settings: { RustupSettings.read(rustupHome: scanner.rustupHome) })
     }
 

@@ -87,7 +87,7 @@ public struct RustProvider: CLIToolProvider {
         return await RustUpdater(
             scanner: scanner, release: release,
             busy: { RustActivity.busy(processes: processes()) },
-            environment: { ProcessInfo.processInfo.environmentWithSystemProxy },
+            environment: { ProcessInfo.processInfo.childEnvironmentWithSystemProxy },
             settings: { RustupSettings.read(rustupHome: scanner.rustupHome) }
         ).update(status, progress: progress)
     }

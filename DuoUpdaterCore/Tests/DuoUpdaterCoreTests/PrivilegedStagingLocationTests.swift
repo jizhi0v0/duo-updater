@@ -1,4 +1,5 @@
 import Foundation
+import OSLog
 import Testing
 @testable import DuoUpdaterCore
 
@@ -174,6 +175,7 @@ import Testing
     /// directory alone and keep the parked copy.
     ///
     /// Mutation: drop `landedCheck` from the chain → the swap reports success.
+    /// Drop `foreignTarget` from `replace` → its log says the update is live.
     @Test func aDirectoryPutAtTheTargetBetweenTheRenamesIsNotTakenForTheUpdate() async throws {
         let fm = FileManager.default
         let dir = try DigestOnlyInstallTests.scratch("stage-planted")
@@ -189,6 +191,7 @@ import Testing
         let calls = Calls()
         let stderr = Calls()
         chmod(apps.path, 0o555)
+        let start = Date().addingTimeInterval(-1)
         await InPlaceSwap.$elevatedShellOverride.withValue({ shell in
             calls.add(shell)
             chmod(apps.path, 0o755)
@@ -215,6 +218,43 @@ import Testing
             .appendingPathComponent("\(Self.appName).duoupdater-old")
         #expect(marker(of: parked) == "old")
         #expect(message.contains("It is at \(parked.path)."), "\(message)")
+
+        // What `replace` logs: the update was NOT put in place, not "REPLACED
+        // anyway" — the target's identity changed, to the planted directory.
+        // By name: the backstop's line carries the bundle's name, not its path.
+        // No other test in this suite makes `replace` say "REPLACED anyway".
+        let lines = try await Self.installLogLines(containing: target.lastPathComponent, since: start)
+        #expect(lines.contains { $0.contains("swap did NOT put the update in place") && $0.contains(parked.path) },
+                "\(lines)")
+        #expect(!lines.contains { $0.contains("REPLACED anyway") }, "\(lines)")
+    }
+
+    /// This process's install-log lines since `start` that mention `needle`,
+    /// read back once a sentinel written after them is in. Cancels the test
+    /// when the sentinel never arrives: logd can stop recording a process
+    /// that logs heavily (see `aCleanupFailureReasonReachesTheInstallLog`).
+    static func installLogLines(containing needle: String, since start: Date) async throws -> [String] {
+        let sentinel = "log sentinel: \(needle)"
+        Logger(subsystem: Log.subsystem, category: "test").notice("\(sentinel, privacy: .public)")
+        let lines = try await offCooperativePool { () throws -> [String] in
+            let store = try OSLogStore(scope: .currentProcessIdentifier)
+            let position = store.position(date: start)
+            let predicate = NSPredicate(
+                format: "subsystem == %@ AND category IN %@", Log.subsystem, ["install", "test"])
+            var lines: [String] = []
+            for _ in 0..<20 {
+                lines = try store.getEntries(at: position, matching: predicate)
+                    .compactMap { ($0 as? OSLogEntryLog)?.composedMessage }
+                    .filter { $0.contains(needle) }
+                if lines.contains(sentinel) { break }
+                Thread.sleep(forTimeInterval: 0.1)
+            }
+            return lines
+        }
+        if !lines.contains(sentinel) {
+            try Test.cancel("the unified log stopped recording this process — \(lines)")
+        }
+        return lines
     }
 
     /// The in-band put-back renames into the same empty target. Here the user

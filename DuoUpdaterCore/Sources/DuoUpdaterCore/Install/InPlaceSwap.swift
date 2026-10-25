@@ -395,6 +395,11 @@ public enum InPlaceSwap {
             : target
         let identityBefore = inode(of: identityTarget)
         var cleanupFailure: String?
+        // The privileged shell's account when a rename into the target did not
+        // land AT it (`landedCheck`). The target's identity has changed then
+        // too — to a directory someone else put there — so the comparison
+        // below would read it as an update that landed.
+        var foreignTarget: String?
         Log.install.notice(
             "swap start: \(target.lastPathComponent, privacy: .public) elevated=\(elevated, privacy: .public)")
         defer {
@@ -405,6 +410,9 @@ public enum InPlaceSwap {
                 } else {
                     Log.install.notice("swap done: \(target.lastPathComponent, privacy: .public)")
                 }
+            } else if let foreignTarget {
+                Log.install.error(
+                    "swap did NOT put the update in place: something else was put at \(target.lastPathComponent, privacy: .public) while it was being replaced, and it was left alone — \(foreignTarget, privacy: .public)")
             } else if FileManager.default.fileExists(atPath: identityTarget.path) {
                 switch Self.classifySwapFailure(
                     targetExists: true,
@@ -412,8 +420,11 @@ public enum InPlaceSwap {
                     identityAfter: inode(of: identityTarget)) {
                 case .replacedThenCleanupFailed:
                     // A backstop, and deliberately kept as one. All three exchange
-                    // paths now classify themselves and RETURN on this outcome, so
-                    // nothing throws its way here today — but a future throw added
+                    // paths now classify themselves and RETURN on this outcome, and
+                    // the one elevated failure that also changes the identity —
+                    // something else put at the target — is told apart above
+                    // (`foreignTarget`), so nothing throws its way here today — but a
+                    // future throw added
                     // after an exchange would otherwise be logged as "the app on
                     // disk is unchanged", which is the untrue half of the pair this
                     // whole comparison exists to separate.
@@ -477,8 +488,14 @@ public enum InPlaceSwap {
         if refuseElevationWithoutCheck, stagedCheck == nil {
             throw UnverifiableRestoreError(targetPath: target.path)
         }
-        let elevatedOutcome = try await privilegedReplace(
-            newApp: newApp, target: target, stagedCheck: stagedCheck)
+        let elevatedOutcome: SwapOutcome
+        do {
+            elevatedOutcome = try await privilegedReplace(
+                newApp: newApp, target: target, stagedCheck: stagedCheck)
+        } catch let SwapError.notReplaceable(msg) where msg.contains(foreignTargetMarker) {
+            foreignTarget = msg
+            throw SwapError.notReplaceable(msg)
+        }
         replaced = true
         if case .replacedButCleanupFailed(let reason) = elevatedOutcome { cleanupFailure = reason }
         return elevatedOutcome

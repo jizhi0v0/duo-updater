@@ -821,6 +821,53 @@ public enum UpdatePolicy {
         return settled
     }
 
+    /// A restore that failed: the text it wrote into `installErrors`, and the
+    /// installed version it failed on. See `settledRowIDs`.
+    public struct FailedRestore: Sendable, Equatable {
+        public let message: String
+        public let failedOn: VersionSide
+
+        public init(message: String, failedOn: VersionSide) {
+            self.message = message
+            self.failedOn = failedOn
+        }
+    }
+
+    /// One pass of `AppListModel.pruneSettledInstallErrors`: take down the
+    /// errors `settledRowIDs` counts as settled, and keep `failedRestores` to
+    /// the holds whose own text is still the error on screen.
+    ///
+    /// - Parameters:
+    ///   - errors: `installErrors`, pruned in place.
+    ///   - failedRestores: the failed restores' holds, pruned in place.
+    ///   - exempt: ids with a retraction of their own, left alone here.
+    public static func pruneInstallErrors(
+        _ errors: inout [String: String],
+        failedRestores: inout [String: FailedRestore],
+        exempt: Set<String>,
+        results: [UpdateResult],
+        installing: Set<String>
+    ) {
+        // A hold lives exactly as long as its own text is the error on screen.
+        // Checked on every pass, empty `errors` included: an action that cleared
+        // the last error leaves nothing else to end it. And checked again after
+        // settling, so an error this pass took down takes its hold with it. A
+        // hold that outlived its error would adopt the next error with the same
+        // text — the machine-lock refusal reads the same for an install — and
+        // judge it by the old restore's version.
+        func live() { failedRestores = failedRestores.filter { errors[$0.key] == $0.value.message } }
+        live()
+        guard !errors.isEmpty else { return }
+        for id in settledRowIDs(
+            errors.keys.filter { !exempt.contains($0) },
+            results: results, installing: installing,
+            failedRestores: failedRestores.mapValues(\.failedOn)
+        ) {
+            errors[id] = nil
+        }
+        live()
+    }
+
     /// Which of the row notes this app wrote to describe *an action still in
     /// progress* should now be retracted.
     ///

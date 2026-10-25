@@ -225,6 +225,12 @@ targets:
             # inside a hardened-runtime bundle is refused by notarization.
             codesign --force $rt --sign "$EXPANDED_CODE_SIGN_IDENTITY" \
               "$APP/Contents/MacOS/BinaryDelta"
+            # The root helper runs `mas` only if a copy of it satisfies
+            # `identifier "com.duoupdater.mas"` plus our team
+            # (HelperService.stageVerifiedMAS). It arrives ad-hoc signed, so an
+            # unsigned-by-us `mas` would make every App Store install fail.
+            codesign --force $rt -i com.duoupdater.mas --sign "$EXPANDED_CODE_SIGN_IDENTITY" \
+              "$APP/Contents/Resources/mas"
             codesign --force $rt --sign "$EXPANDED_CODE_SIGN_IDENTITY" "$APP"
           fi
     settings:

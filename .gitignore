@@ -3,8 +3,11 @@
 
 # Swift Package Manager
 .build/
-# Package.resolved is tracked: it is what pins the Sparkle / swift-subprocess /
-# swift-system revisions, so a moved tag cannot change what gets built or signed.
+# Package.resolved is tracked: it pins the Sparkle / swift-subprocess /
+# swift-system revisions. The release path (scripts/notarize.sh, and the resolve
+# behind generate_appcast in scripts/publish-release.sh) installs App's copy into
+# the generated project and refuses to resolve away from it. `make install` does
+# not, so a local dev build still follows the tags.
 
 # Xcode build output
 App/build/

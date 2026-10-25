@@ -56,10 +56,23 @@ rm -rf "$STAGE_APP" "$SUBMIT_ZIP" "$RESULT_JSON" "$LOG_JSON" "$FINAL_ZIP" "$DSYM
 say "Generating Xcode project from App/project.yml"
 ( cd "$APP_DIR" && xcodegen generate >/dev/null )
 
+# What gets signed and shipped must be built from the dependency revisions in
+# App/Package.resolved, not from wherever the Sparkle / swift-subprocess /
+# swift-system tags point today. Xcode reads its pins from the workspace inside
+# the generated project, which xcodegen recreates without them (the project is
+# gitignored) — so install the committed file there and forbid moving off it.
+[ -f "$APP_DIR/Package.resolved" ] \
+    || die "App/Package.resolved is missing — it pins the dependency revisions this build compiles and signs"
+pins_dir="$APP_DIR/DuoUpdater.xcodeproj/project.xcworkspace/xcshareddata/swiftpm"
+mkdir -p "$pins_dir" \
+    && cp "$APP_DIR/Package.resolved" "$pins_dir/Package.resolved" \
+    || die "could not install App/Package.resolved into the generated project"
+
 say "Building Release (Developer ID + hardened runtime)"
 xcodebuild -project "$APP_DIR/DuoUpdater.xcodeproj" \
            -scheme DuoUpdater -configuration Release \
-           -derivedDataPath "$DD" build >/dev/null
+           -derivedDataPath "$DD" \
+           -onlyUsePackageVersionsFromResolvedFile build >/dev/null
 
 [ -d "$BUILD_APP" ] || die "build produced no app at $BUILD_APP"
 

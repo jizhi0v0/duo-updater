@@ -41,10 +41,13 @@ BUNDLE_ID="com.duoupdater.app"
 say() { printf '\033[1;34m→ %s\033[0m\n' "$*"; }
 die() { printf '\033[1;31m✗ %s\033[0m\n' "$*" >&2; exit 1; }
 
-command -v xcodegen >/dev/null || die "xcodegen not found — brew install xcodegen"
+# The pinned, hash-verified XcodeGen, not whatever `xcodegen` is on PATH: the
+# project it writes is built and signed below with the Developer ID identity.
+XCODEGEN="$("$REPO/scripts/pinned-xcodegen.sh")" \
+    || die "could not get the pinned xcodegen (see scripts/pinned-xcodegen.sh)"
 
 say "Generating Xcode project from App/project.yml"
-( cd "$APP_DIR" && xcodegen generate >/dev/null )
+( cd "$APP_DIR" && "$XCODEGEN" generate >/dev/null )
 
 say "Building Release (Developer ID signing)"
 # To a file rather than to /dev/null. xcodebuild prints compile errors on

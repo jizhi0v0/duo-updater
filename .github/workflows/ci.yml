@@ -321,9 +321,15 @@ jobs:
       # App/DuoUpdater.xcodeproj is gitignored — the spec in App/project.yml is the
       # source of truth and scripts/app-tests.sh regenerates it when missing.
       # The mini has it already, and `brew install` there would auto-update brew.
+      # Pinned and hash-checked (scripts/pinned-xcodegen.sh) rather than brew's
+      # current formula, for the same one definition of "which XcodeGen" the
+      # signing scripts use.
       - name: Install XcodeGen
         if: runner.environment == 'github-hosted'
-        run: brew install xcodegen
+        run: |
+          set -euo pipefail
+          xcodegen="$(scripts/pinned-xcodegen.sh)"
+          dirname "$xcodegen" >> "$GITHUB_PATH"
 
       - name: make test-scripts
         run: make test-scripts

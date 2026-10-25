@@ -32,13 +32,20 @@ jobs:
     # macOS 27 + Xcode 27. See ci.yml for why the label is not `macos-27`.
     runs-on: xcode-27
     # The Apple secrets live in this environment, NOT at repository level, and the
-    # environment admits only `main` and `v*`. That distinction is the whole
-    # protection: `workflow_dispatch` runs the workflow file as it exists on the
-    # dispatched ref, so with repository-level secrets anyone able to push a branch
-    # could push a rewritten copy of THIS file, dispatch it there, and be handed the
-    # Developer ID key. With the secrets held here instead, that branch has two
-    # options and neither works — keep this line and fail the branch rule, or delete
-    # it and inherit nothing.
+    # environment admits only `main`. That distinction is the whole protection:
+    # `workflow_dispatch` runs the workflow file as it exists on the dispatched
+    # ref, so with repository-level secrets anyone able to push a branch could push
+    # a rewritten copy of THIS file, dispatch it there, and be handed the Developer
+    # ID key. With the secrets held here instead, that branch has two options and
+    # neither works — keep this line and fail the branch rule, or delete it and
+    # inherit nothing.
+    #
+    # `v*` tags are deliberately NOT admitted. A tag can be created by anyone with
+    # write access, and the tag ruleset only forbids deleting or moving one, not
+    # creating one — so a tag rule would let such a person point a new tag at a
+    # rewritten copy of this file and dispatch it. `main` is the only ref that is
+    # protected against that. (Checked 2026-10-25: dispatching on a branch and on
+    # a tag is refused by the environment, main is admitted.)
     environment: release
     timeout-minutes: 90
     steps:
@@ -48,24 +55,15 @@ jobs:
       # Pinned and hash-checked, not `brew install xcodegen`. XcodeGen's output
       # (the .xcodeproj) is itself a build input, and `notarize.sh` runs it AFTER
       # the signing certificate is imported below, so installing it earlier does
-      # not isolate it from the key; only fixing the bytes does. 2.46.0 is what
-      # `brew install` resolved to when this was pinned (the latest GitHub
-      # release); the digest is the one GitHub publishes for that release asset.
-      # Bumping it means changing both values below together.
+      # not isolate it from the key; only fixing the bytes does. The version and
+      # digest live in scripts/pinned-xcodegen.sh and nowhere else (notarize.sh
+      # calls the same script, so this step is the early fetch and a smoke test).
       - name: Install XcodeGen (pinned)
-        env:
-          XCODEGEN_VERSION: "2.46.0"
-          XCODEGEN_SHA256: "4d9e34b62172d645eed6457cac13fc222569974098ef4ee9c3368bedf0196806"
         run: |
           set -euo pipefail
-          zip="$RUNNER_TEMP/xcodegen.zip"
-          curl -fsSL --retry 3 -o "$zip" \
-            "https://github.com/yonaskolb/XcodeGen/releases/download/${XCODEGEN_VERSION}/xcodegen.zip"
-          echo "${XCODEGEN_SHA256}  ${zip}" | shasum -a 256 -c -
-          unzip -q "$zip" -d "$RUNNER_TEMP"
-          rm -f "$zip"
-          "$RUNNER_TEMP/xcodegen/bin/xcodegen" --version
-          echo "$RUNNER_TEMP/xcodegen/bin" >> "$GITHUB_PATH"
+          xcodegen="$(scripts/pinned-xcodegen.sh)"
+          "$xcodegen" --version
+          dirname "$xcodegen" >> "$GITHUB_PATH"
 
       # A throwaway keychain, made the default so `notarytool --keychain-profile`
       # and `codesign` both find what they need without either being told about

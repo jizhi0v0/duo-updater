@@ -154,8 +154,10 @@ ensure_generate_appcast() {
     # Checked here rather than with the other `command -v` calls at the top: the
     # CI_RUN_ID path has no other use for xcodegen, and demanding it up front
     # would fail runs that never need it.
-    command -v xcodegen >/dev/null \
-        || die "xcodegen not found — brew install xcodegen (needed to resolve Sparkle into $DERIVED_DATA)"
+    # The pinned, hash-verified XcodeGen rather than the one on PATH: this resolve
+    # feeds the binary that runs next with the Sparkle EdDSA key in reach.
+    XCODEGEN="$("$REPO_ROOT/scripts/pinned-xcodegen.sh")" \
+        || die "could not get the pinned xcodegen (needed to resolve Sparkle into $DERIVED_DATA)"
     command -v xcodebuild >/dev/null \
         || die "xcodebuild not found (needed to resolve Sparkle into $DERIVED_DATA)"
     # Exported before xcodegen for the reason install.sh, notarize.sh and
@@ -163,7 +165,7 @@ ensure_generate_appcast() {
     # EMPTY DEVELOPMENT_TEAM, which does not fail here — it fails the next
     # `make install`, somewhere else entirely.
     export DUO_TEAM_ID="${DUO_TEAM_ID:-RS59HDH7Y3}"
-    ( cd "$REPO_ROOT/App" && xcodegen generate >/dev/null ) \
+    ( cd "$REPO_ROOT/App" && "$XCODEGEN" generate >/dev/null ) \
         || die "xcodegen generate failed — cannot resolve Sparkle into $DERIVED_DATA"
     # This binary is run next with the Sparkle EdDSA key in reach (`--account`
     # below), so it must come from the revision recorded in App/Package.resolved,

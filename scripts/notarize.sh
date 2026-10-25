@@ -43,7 +43,10 @@ PROFILE="${NOTARYTOOL_PROFILE:-${NOTARY_PROFILE:-}}"
 say() { printf '\033[1;34m→ %s\033[0m\n' "$*"; }
 die() { printf '\033[1;31m✗ %s\033[0m\n' "$*" >&2; exit 1; }
 
-command -v xcodegen >/dev/null || die "xcodegen not found — brew install xcodegen"
+# The pinned, hash-verified XcodeGen, not whatever `xcodegen` is on PATH: the
+# project it writes is built and signed below with the Developer ID identity.
+XCODEGEN="$("$REPO/scripts/pinned-xcodegen.sh")" \
+    || die "could not get the pinned xcodegen (see scripts/pinned-xcodegen.sh)"
 command -v python3 >/dev/null || die "python3 not found"
 xcrun notarytool --help >/dev/null 2>&1 || die "xcrun notarytool unavailable"
 xcrun --find stapler >/dev/null 2>&1 || die "xcrun stapler unavailable"
@@ -54,7 +57,7 @@ mkdir -p "$STAGE_DIR" "$(dirname "$FINAL_ZIP")"
 rm -rf "$STAGE_APP" "$SUBMIT_ZIP" "$RESULT_JSON" "$LOG_JSON" "$FINAL_ZIP" "$DSYM_ZIP"
 
 say "Generating Xcode project from App/project.yml"
-( cd "$APP_DIR" && xcodegen generate >/dev/null )
+( cd "$APP_DIR" && "$XCODEGEN" generate >/dev/null )
 
 # What gets signed and shipped must be built from the dependency revisions in
 # App/Package.resolved, not from wherever the Sparkle / swift-subprocess /

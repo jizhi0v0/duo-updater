@@ -1,5 +1,12 @@
 .PHONY: install cli build test test-scripts test-swift test-app test-release gallery notarize release check-python
 
+# Build and test only the dependency revisions committed in each package's
+# Package.resolved. Without it SwiftPM re-resolves whenever a manifest's range
+# allows something newer, and rewrites the lockfile, so what a local build or
+# `make test` compiles can differ from what was reviewed. With it, a stale
+# lockfile is an error instead of a silent update.
+RESOLVED_ONLY := --force-resolved-versions
+
 # Build with a stable Developer ID signature and deploy the canonical copy to
 # /Applications. See scripts/install.sh for why the identity matters (TCC grants).
 install:
@@ -13,7 +20,7 @@ cli:
 # Compile the Core package. Nothing is executed — `make test` is the one that
 # runs anything, and it runs more than this package.
 build:
-	cd DuoUpdaterCore && swift build
+	cd DuoUpdaterCore && swift build $(RESOLVED_ONLY)
 
 # CLI and application-test both depend on DuoUpdaterCore by path. Each would
 # compile all of Core again into its own .build, so they share Core's .build
@@ -55,6 +62,7 @@ test-scripts: check-python
 	$(PYTHON) scripts/test_appcast_edit.py
 	$(PYTHON) scripts/test_publish_release.py
 	$(PYTHON) scripts/test_notarize_pins.py
+	$(PYTHON) scripts/test_pinned_xcodegen.py
 	$(PYTHON) scripts/test_homebrew_tap.py
 	$(PYTHON) scripts/test_sunset_sweep.py
 	$(PYTHON) scripts/test_site_floor.py
@@ -96,9 +104,9 @@ CORE_TEST_FLAGS ?=
 
 # The two SwiftPM packages, plus the application-test harness built against them.
 test-swift:
-	cd DuoUpdaterCore && swift test $(CORE_TEST_FLAGS)
-	swift test --package-path CLI --scratch-path DuoUpdaterCore/.build
-	swift build --package-path application-test --scratch-path DuoUpdaterCore/.build
+	cd DuoUpdaterCore && swift test $(RESOLVED_ONLY) $(CORE_TEST_FLAGS)
+	swift test --package-path CLI --scratch-path DuoUpdaterCore/.build $(RESOLVED_ONLY)
+	swift build --package-path application-test --scratch-path DuoUpdaterCore/.build $(RESOLVED_ONLY)
 
 # App/Sources through xcodebuild. check_localizable_keys.py builds the app again
 # with loc-string emission on, and reads the .xcodeproj app-tests.sh generates.
@@ -110,7 +118,7 @@ test-app: check-python
 # part of `make test`. The native build system is required, not a preference:
 # see the test target in DuoUpdaterCore/Package.swift.
 test-release:
-	swift test --package-path DuoUpdaterCore -c release --build-system native $(CORE_TEST_FLAGS)
+	swift test --package-path DuoUpdaterCore -c release --build-system native $(RESOLVED_ONLY) $(CORE_TEST_FLAGS)
 
 # Render every row state to verify/row-states/<surface>/*.png. The images are
 # committed:

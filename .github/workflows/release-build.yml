@@ -45,8 +45,27 @@ jobs:
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Install XcodeGen
-        run: brew install xcodegen
+      # Pinned and hash-checked, not `brew install xcodegen`. XcodeGen's output
+      # (the .xcodeproj) is itself a build input, and `notarize.sh` runs it AFTER
+      # the signing certificate is imported below, so installing it earlier does
+      # not isolate it from the key; only fixing the bytes does. 2.46.0 is what
+      # `brew install` resolved to when this was pinned (the latest GitHub
+      # release); the digest is the one GitHub publishes for that release asset.
+      # Bumping it means changing both values below together.
+      - name: Install XcodeGen (pinned)
+        env:
+          XCODEGEN_VERSION: "2.46.0"
+          XCODEGEN_SHA256: "4d9e34b62172d645eed6457cac13fc222569974098ef4ee9c3368bedf0196806"
+        run: |
+          set -euo pipefail
+          zip="$RUNNER_TEMP/xcodegen.zip"
+          curl -fsSL --retry 3 -o "$zip" \
+            "https://github.com/yonaskolb/XcodeGen/releases/download/${XCODEGEN_VERSION}/xcodegen.zip"
+          echo "${XCODEGEN_SHA256}  ${zip}" | shasum -a 256 -c -
+          unzip -q "$zip" -d "$RUNNER_TEMP"
+          rm -f "$zip"
+          "$RUNNER_TEMP/xcodegen/bin/xcodegen" --version
+          echo "$RUNNER_TEMP/xcodegen/bin" >> "$GITHUB_PATH"
 
       # A throwaway keychain, made the default so `notarytool --keychain-profile`
       # and `codesign` both find what they need without either being told about

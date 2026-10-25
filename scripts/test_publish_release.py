@@ -70,6 +70,10 @@ class SparkleToolLookup(unittest.TestCase):
         # wrong reason and stop measuring the check at all.
         self.spec = self.repo / "App" / "project.yml"
         self.spec.write_text("name: DuoUpdater\n")
+        # The pin file the resolve step installs into the generated project.
+        # Content is irrelevant to the stubs; its presence is what is checked.
+        self.pins = self.repo / "App" / "Package.resolved"
+        self.pins.write_text("{}\n")
         self.bin = self.tmp / "bin"
         self.bin.mkdir()
         self.log = self.tmp / "calls.log"
@@ -163,6 +167,29 @@ class SparkleToolLookup(unittest.TestCase):
         self.assertEqual(run.returncode, 0, run.stderr)
         self.assertIn("xcodegen team=[", self.calls())
         self.assertNotIn("xcodegen team=[]", self.calls())
+
+    # Mutation: drop `-onlyUsePackageVersionsFromResolvedFile` and the tool that
+    # runs next to the Sparkle signing key is resolved from a movable tag again.
+    def test_resolve_is_confined_to_the_committed_pins(self):
+        self.stub_xcodegen()
+        self.stub_xcodebuild(creates=True)
+        run = self.run_driver()
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertIn("-onlyUsePackageVersionsFromResolvedFile", self.calls())
+        installed = (self.repo / "App" / "DuoUpdater.xcodeproj" / "project.xcworkspace"
+                     / "xcshareddata" / "swiftpm" / "Package.resolved")
+        self.assertEqual(installed.read_text(), self.pins.read_text())
+
+    # Mutation: drop the existence check and a missing pin file silently turns
+    # back into a live resolve (or a confusing xcodebuild failure).
+    def test_a_missing_pin_file_is_refused_before_resolving(self):
+        self.pins.unlink()
+        self.stub_xcodegen()
+        self.stub_xcodebuild(creates=True)
+        run = self.run_driver()
+        self.assertEqual(run.returncode, 3, run.stdout)
+        self.assertIn("App/Package.resolved is missing", run.stderr)
+        self.assertNotIn("xcodebuild", self.calls())
 
     # Mutation: `[ -x ]` -> `[ -e ]` and this passes a file that cannot be run.
     def test_a_non_executable_candidate_does_not_count_as_the_tool(self):

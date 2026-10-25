@@ -175,6 +175,23 @@ final class CrossHostCredentialStripper: NSObject, URLSessionDataDelegate, @unch
             completionHandler(nil)
             return
         }
+        // A 307/308 keeps the method and the body, so a POST would be re-sent in
+        // full to the other host (Alcove's POSTs carry the licence key). The body
+        // cannot be inspected here — it is `httpBodyStream`, and `httpBody` is nil
+        // — so the method decides: only a request that carries no body (GET, HEAD)
+        // crosses hosts. A 301/302/303 has already become a GET by this point.
+        let crossesHost = request.url?.host?.lowercased()
+            != task.originalRequest?.url?.host?.lowercased()
+        if crossesHost, !["GET", "HEAD"].contains(request.httpMethod?.uppercased() ?? "GET") {
+            completionHandler(nil)
+            return
+        }
+        // A changelog fetch (`ChangelogURLPolicy.confine`) keeps to what the
+        // changelog web view may load, across redirects too.
+        if !ChangelogURLPolicy.allowsRedirect(of: task.originalRequest, to: request.url) {
+            completionHandler(nil)
+            return
+        }
         var forwarded = request
         if request.url?.host != task.originalRequest?.url?.host {
             for field in ["Authorization", "Cookie", "Proxy-Authorization"] {

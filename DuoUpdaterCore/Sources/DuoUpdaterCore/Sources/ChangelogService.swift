@@ -626,6 +626,10 @@ public enum ChangelogService {
     private static func fetch(
         _ url: URL, recipe: ChangelogRecipe? = nil, session: URLSession
     ) async -> (body: String?, status: Int?) {
+        // The same gate the web view applies to a changelog URL. The URL here can
+        // come from a recipe, from a link scraped off an index page, or from a
+        // template, and the app has no ATS exception to catch what it names.
+        guard ChangelogURLPolicy.isDisplayable(url) else { return (nil, nil) }
         var request = URLRequest(url: url)
         request.timeoutInterval = 15
         // Same reason as a version feed: a changelog *index* page gains its newest
@@ -656,7 +660,10 @@ public enum ChangelogService {
                 request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
             }
         }
-        guard let (data, response) = try? await session.countedData(for: request, purpose: .changelog)
+        // And across redirects: the session's delegate returns the 3xx rather than
+        // follow it to a URL the policy refuses.
+        guard let (data, response) = try? await session.countedData(
+            for: ChangelogURLPolicy.confine(request), purpose: .changelog)
         else {
             return (nil, nil)
         }

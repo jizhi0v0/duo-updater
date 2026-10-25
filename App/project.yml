@@ -110,6 +110,9 @@ targets:
       # The install table and the ownership a local rescan reads from it.
       # Foundation and Core only.
       - path: Sources/InstallTable.swift
+      # The changelog image store, so a test can ask whether a URL the changelog
+      # policy refuses is requested. Foundation, AppKit and Core only.
+      - path: Sources/ChangelogImageStore.swift
     dependencies:
       - package: DuoUpdaterCore
         product: DuoUpdaterCore

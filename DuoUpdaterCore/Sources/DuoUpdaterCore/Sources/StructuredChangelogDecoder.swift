@@ -1372,6 +1372,12 @@ public enum StructuredChangelogDecoder {
         let content: String?
     }
 
+    /// The most the `compressedData` payload may inflate to. The page is vendor
+    /// controlled and DEFLATE turns a few hundred kilobytes into hundreds of
+    /// megabytes (261 KB -> 256 MiB measured in the 2026-10-25 review). The real
+    /// payload is 22 KB inflated (measured 2026-10-25), so this is ~700x headroom.
+    static let typelessInflatedLimit = 16 * 1024 * 1024
+
     static func decodeTypeless(_ body: String, maxEntries: Int?) -> Changelog? {
         // 1. Pull the __NEXT_DATA__ blob, navigate to the compressed payload, and
         //    inflate it. JSONSerialization (not Decodable) for the navigation — the
@@ -1382,7 +1388,7 @@ public enum StructuredChangelogDecoder {
               let pageProps = props["pageProps"] as? [String: Any],
               let compressed = pageProps["compressedData"] as? String,
               let gz = Data(base64Encoded: compressed),
-              let json = GzipDecode.decompress(gz),
+              let json = GzipDecode.decompress(gz, limit: typelessInflatedLimit),
               let notes = typelessNotes(from: json)
         else { return nil }
 

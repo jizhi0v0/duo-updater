@@ -3909,6 +3909,7 @@ struct ChangelogEntriesView: View {
                 multipleBody
             }
         }
+        .releaseNoteLinks()
         // New changelog (app switch) → select the newest entry again, and
         // re-measure the rail (its width depends only on the changelog).
         .onChange(of: changelog) {
@@ -4948,6 +4949,25 @@ private extension View {
 
 // MARK: - Inline release notes
 
+extension View {
+    /// What a click on a link inside rendered release notes does: a web page or a
+    /// mail address opens, anything else is dropped (`ReleaseNoteLinkPolicy`). Put
+    /// on the root of every view that draws notes, so the nested rows inherit it:
+    /// `ChangelogEntriesView` (structured notes, and the Markdown rows in them) and
+    /// `ReleaseNotesText` (inline notes). Without it SwiftUI hands any scheme in
+    /// the vendor's text (`smb:`, `ssh:`, `shortcuts:`) to `NSWorkspace`.
+    ///
+    /// `NSWorkspace` rather than SwiftUI's own `openURL`, which errors -50 in this
+    /// app's windows (see `AlcoveSettingsPage`).
+    fileprivate func releaseNoteLinks() -> some View {
+        environment(\.openURL, OpenURLAction { url in
+            guard ReleaseNoteLinkPolicy.allows(url) else { return .discarded }
+            NSWorkspace.shared.open(url)
+            return .handled
+        })
+    }
+}
+
 /// Renders inline notes. The wire format differs by source: GitHub bodies are
 /// GitHub-flavored markdown, Sparkle `<description>` blocks are HTML, and the App
 /// Store's `releaseNotes` is plain text whose newlines carry the layout.
@@ -5006,6 +5026,7 @@ private struct ReleaseNotesText: View {
         }
         .textSelection(.enabled)
         .tint(.accentColor)
+        .releaseNoteLinks()
         .task(id: text) { chunks = Self.parsedChunks(text, format: format) }
     }
 

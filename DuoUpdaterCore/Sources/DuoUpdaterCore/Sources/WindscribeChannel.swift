@@ -147,6 +147,11 @@ enum WindscribeChannel {
         return ~crc
     }
 
+    /// The most a compressed `engineSettings` blob may inflate to. The real one is
+    /// 537 bytes (measured), and a preferences file is not a place a megabyte of
+    /// settings lives.
+    static let inflatedLimit = 1 << 20
+
     /// Reverse `SimpleCrypt::encryptToByteArray`. Returns nil unless the version
     /// byte is 3, the checksum (when the flags claim one) matches, and any
     /// compression unpacks.
@@ -190,7 +195,7 @@ enum WindscribeChannel {
             // decompressed, measured) and the inflater grows past it on its own.
             let declared = Int(be32(payload, at: payload.startIndex))
             return GzipDecode.decompressZlib(
-                Data(payload.dropFirst(4)), hint: min(declared, 8 << 20))
+                Data(payload.dropFirst(4)), hint: min(declared, 8 << 20), limit: inflatedLimit)
         }
         return payload
     }

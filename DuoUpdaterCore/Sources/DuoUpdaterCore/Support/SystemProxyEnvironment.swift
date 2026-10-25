@@ -58,6 +58,14 @@ enum SystemProxyEnvironment {
         return env
     }
 
+    /// The variables the GitHub CLI reads a token from.
+    static let gitHubTokenVariables: Set = ["GH_TOKEN", "GITHUB_TOKEN"]
+
+    /// `env` without `gitHubTokenVariables`.
+    static func withoutGitHubTokens(_ env: [String: String]) -> [String: String] {
+        env.filter { !gitHubTokenVariables.contains($0.key) }
+    }
+
     /// The live system proxy configuration, or nil when it can't be read.
     static func currentSettings() -> [String: Any]? {
         CFNetworkCopySystemProxySettings()?.takeRetainedValue() as? [String: Any]
@@ -128,5 +136,15 @@ extension ProcessInfo {
     /// `SystemProxyEnvironment` for why a GUI app has to do this by hand.
     var environmentWithSystemProxy: [String: String] {
         SystemProxyEnvironment.applied(to: environment)
+    }
+
+    /// `environmentWithSystemProxy` without the GitHub token variables, for the
+    /// vendor commands the command-line-tool updaters run. Those run a vendor's
+    /// script or binary, and a token the user exported for `gh` has no business
+    /// reaching it: the tools that want one are handed the app's own under their
+    /// own variable name (`CLIToolGitHubToken`). `brew` filters its environment
+    /// itself and `gh` is meant to read the token, so neither uses this.
+    var childEnvironmentWithSystemProxy: [String: String] {
+        SystemProxyEnvironment.withoutGitHubTokens(environmentWithSystemProxy)
     }
 }

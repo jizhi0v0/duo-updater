@@ -50,7 +50,7 @@ public struct AtuinUpdater: Sendable {
             // axoupdater and the installer's curl both read the proxy variables,
             // which a GUI app launched by launchd does not have. See
             // `SystemProxyEnvironment`.
-            environment: { ProcessInfo.processInfo.environmentWithSystemProxy })
+            environment: { ProcessInfo.processInfo.childEnvironmentWithSystemProxy })
     }
 
     init(

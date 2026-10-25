@@ -12,7 +12,8 @@ import Foundation
 ///    default `/usr/local/bin` is root's on most Macs; there — the directory the
 ///    script defaults to and escalates for, and root's — the one-click is the
 ///    documented command with the script's own `-y` (its one question reads
-///    `/dev/tty`, which a run behind the panel has not got) run as root behind
+///    `/dev/tty`, which a run behind the panel has not got), pinned to the
+///    checked version and fetched over HTTPS only (`rootCommand`), run as root behind
 ///    the administrator panel (`CLIToolAdministratorRun`), after the same gates.
 ///    No "root's alone" gate as Helm's (`HelmCheck`): the script never runs the
 ///    installed binary — its `starship init` lines are printed, not run — and
@@ -116,7 +117,15 @@ public struct StarshipCheck: Sendable {
             return verdict(state, latest: newest, note: busy.description, withheld: .busy)
         }
         if asRoot {
-            return verdict(state, latest: newest, oneClick: Self.rootCommand,
+            // The version goes into a shell line run as root: only plain ASCII
+            // digits do (`CLIToolAdministratorRun.isPlainVersion`). Otherwise the
+            // user is left the command to run themselves.
+            guard let command = Self.rootCommand(version: newest) else {
+                return verdict(state, latest: newest,
+                               note: "Starship's latest release is \(newest), which is not a plain version number: not run as root",
+                               withheld: .unverified, manualCommand: Self.documentedCommand)
+            }
+            return verdict(state, latest: newest, oneClick: command,
                            note: "runs as root after an administrator password: \(install.directory) is root's",
                            manualCommand: Self.documentedCommand, needsAdministrator: true)
         }
@@ -129,10 +138,20 @@ public struct StarshipCheck: Sendable {
         executable: "curl", arguments: ["-sS", installer.absoluteString, "|", "sh"], pathPrefix: nil)
 
     /// What runs as root in root's `/usr/local/bin`: the documented command with
-    /// the script's `-y`, and nothing else — its `BIN_DIR` default is that
-    /// directory.
-    static let rootCommand = CLIToolCommand(
-        executable: "curl", arguments: ["-sS", installer.absoluteString, "|", "sh", "-s", "--", "-y"], pathPrefix: nil)
+    /// the script's `-y`, pinned to `version` (the script would otherwise choose
+    /// the newest itself, a moment after the check named one), fetched over
+    /// HTTPS only, with `-f` so an HTTP error page is not handed to `sh`. Its
+    /// `BIN_DIR` default is that directory. Nil unless `version` is plain ASCII
+    /// digits and dots: it goes into a shell line run as root, quoted, and
+    /// `StarshipRelease.isVersion` is looser.
+    static func rootCommand(version: String) -> CLIToolCommand? {
+        guard CLIToolAdministratorRun.isPlainVersion(version) else { return nil }
+        return CLIToolCommand(
+            executable: "curl",
+            arguments: ["-fsS", "--proto", CLIToolAdministratorRun.quote("=https"), installer.absoluteString, "|",
+                        "sh", "-s", "--", "-y", "-v", CLIToolAdministratorRun.quote("v\(version)")],
+            pathPrefix: nil)
+    }
 
     /// What the one-click stands for; `StarshipUpdater` runs its equivalent from
     /// a fetched file, never this text.

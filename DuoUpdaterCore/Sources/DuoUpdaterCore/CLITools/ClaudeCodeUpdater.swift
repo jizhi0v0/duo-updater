@@ -56,7 +56,7 @@ public struct ClaudeCodeUpdater: Sendable {
             // `https-proxy` is unset (npm 11's `config.md`), and
             // `claude update` followed a dead `https_proxy` straight into
             // ECONNREFUSED (measured 2026-09-30). See `SystemProxyEnvironment`.
-            environment: { ProcessInfo.processInfo.environmentWithSystemProxy })
+            environment: { ProcessInfo.processInfo.childEnvironmentWithSystemProxy })
     }
 
     init(

@@ -52,7 +52,7 @@ public struct BoatUpdater: Sendable {
             check: BoatCheck(),
             // Boat's HTTP client reads the proxy variables, which a GUI app
             // launched by launchd does not have. See `SystemProxyEnvironment`.
-            environment: { ProcessInfo.processInfo.environmentWithSystemProxy })
+            environment: { ProcessInfo.processInfo.childEnvironmentWithSystemProxy })
     }
 
     init(

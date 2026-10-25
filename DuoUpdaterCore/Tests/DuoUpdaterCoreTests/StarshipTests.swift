@@ -164,8 +164,15 @@ import CryptoKit
 
     // MARK: - As root
 
-    /// In root's `/usr/local/bin`: the documented command with `-y`, run as
-    /// root, the documented command itself kept for a terminal; what it left is
+    /// What runs as root, pinned to the version the check named: HTTPS only,
+    /// failing on an HTTP error page, the version quoted.
+    static func rootCommand(_ version: String) -> String {
+        "curl -fsS --proto '=https' https://starship.rs/install.sh | sh -s -- -y -v 'v\(version)'"
+    }
+
+    /// In root's `/usr/local/bin`: the documented command with `-y`, pinned to
+    /// the checked version and HTTPS-only, run as root, the documented command
+    /// itself kept for a terminal; what it left is
     /// checked; a dismissed panel is not a failure; the click asks again whether
     /// the directory is still root's. Mutations: drop `asRoot`'s `rootDirectory`;
     /// drop `-y`; drop the click's `rootDirectory` test.
@@ -181,7 +188,7 @@ import CryptoKit
         let status = try await box.status()
         #expect(status.needsAdministrator)
         #expect(status.withheld == nil)
-        #expect(status.oneClick?.display == "curl -sS https://starship.rs/install.sh | sh -s -- -y")
+        #expect(status.oneClick?.display == Self.rootCommand("1.26.0"))
         #expect(status.manualCommand?.display == "curl -sS https://starship.rs/install.sh | sh")
 
         #expect(await box.updater(asRoot: { .declined }).update(status) == .declined)
@@ -189,7 +196,7 @@ import CryptoKit
         guard case .failed = await box.updater(asRoot: { box.rootRun(to: "1.26.0") }).update(status) else {
             Issue.record("ran outside root's directory"); return
         }
-        #expect(box.ranAsRoot == ["curl -sS https://starship.rs/install.sh | sh -s -- -y"])
+        #expect(box.ranAsRoot == [Self.rootCommand("1.26.0")])
         box.isRootsDirectory = true
 
         let failed = await box.updater(asRoot: {
@@ -201,6 +208,60 @@ import CryptoKit
 
         #expect(await box.updater(asRoot: { box.rootRun(to: "1.26.0") }).update(status) == .updated(version: "1.26.0"))
         #expect(box.read("ARGS") == nil)
+    }
+
+    /// The command that went through the panel was built from the version the
+    /// check named. If GitHub's latest release moved between that check and the
+    /// click, the status in hand no longer stands for what would run, and
+    /// nothing runs as root. Mutation: drop the equality between the status's
+    /// command and the one built from the release read at the click.
+    @Test func aReleaseThatMovedSinceTheCheckRunsNothingAsRoot() async throws {
+        let box = try Sandbox()
+        try box.install(version: "1.25.1")
+        try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: box.bin.path)
+        box.isRootsDirectory = true
+        let status = try await box.status()
+        #expect(status.oneClick?.display == Self.rootCommand("1.26.0"))
+
+        let moved = await box.updater(latest: "1.27.0", asRoot: { box.rootRun(to: "1.27.0") }).update(status)
+        guard case .failed(let message, _) = moved else { Issue.record("ran after the release moved: \(moved)"); return }
+        #expect(message.contains("1.27.0"))
+        #expect(box.ranAsRoot.isEmpty)
+        #expect(box.scanner.scan().first?.version == "1.25.1")
+
+        #expect(await box.updater(asRoot: { box.rootRun(to: "1.26.0") }).update(status) == .updated(version: "1.26.0"))
+        #expect(box.ranAsRoot == [Self.rootCommand("1.26.0")])
+    }
+
+    /// A version goes into a root shell line only as ASCII digits and dots. The
+    /// release check's own `isVersion` takes Arabic-Indic digits (`\d` is any
+    /// script's) and a prerelease tail, so a release that names one is not
+    /// offered as root's one-click — at the check, and at the click. The user is
+    /// left the documented command.
+    /// Mutations: accept any version in `rootCommand`; test `isVersion` instead
+    /// of `isPlainVersion`.
+    @Test func aVersionThatIsNotPlainASCIIDigitsIsNeverRunAsRoot() async throws {
+        #expect(StarshipRelease.isVersion("١.٢٦.٠"))
+        for version in ["١.٢٦.٠", "1.26.0-rc.1", "1.26.0'; id; '", "1.26.0 ", "1..0", "", "v1.26.0", "1.26.٠"] {
+            #expect(StarshipCheck.rootCommand(version: version) == nil, "\(version)")
+        }
+        #expect(StarshipCheck.rootCommand(version: "1.26.0")?.display == Self.rootCommand("1.26.0"))
+
+        let box = try Sandbox()
+        try box.install(version: "1.25.1")
+        try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: box.bin.path)
+        box.isRootsDirectory = true
+        let status = await box.check(latest: "١.٢٦.٠").status(of: try #require(box.scanner.scan().first), busy: nil)
+        #expect(status.state == .updateAvailable)
+        #expect(status.oneClick == nil)
+        #expect(!status.needsAdministrator)
+        #expect(status.withheld != nil)
+        #expect(status.manualCommand?.display == "curl -sS https://starship.rs/install.sh | sh")
+
+        let checked = try await box.status()
+        let outcome = await box.updater(latest: "١.٢٦.٠", asRoot: { box.rootRun(to: "1.26.0") }).update(checked)
+        guard case .failed = outcome else { Issue.record("ran as root: \(outcome)"); return }
+        #expect(box.ranAsRoot.isEmpty)
     }
 
     /// Mutation: accept disagreeing `pkg_version:` literals.

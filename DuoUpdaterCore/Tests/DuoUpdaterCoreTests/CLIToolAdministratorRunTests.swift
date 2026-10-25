@@ -468,14 +468,31 @@ import Foundation
         #expect(CLIToolAdministratorRun.quote("it's") == #"'it'\''s'"#)
         #expect(CLIToolAdministratorRun.appleScript(for: #"echo "a\b""#)
             == #"do shell script "echo \"a\\b\"" with administrator privileges"#)
+        // The command Starship's root run really sends, quotes and all.
+        let command = StarshipCheck.rootCommand(version: "1.26.0")?.display ?? ""
+        #expect(command == "curl -fsS --proto '=https' https://starship.rs/install.sh | sh -s -- -y -v 'v1.26.0'")
         let line = CLIToolAdministratorRun.shell(
-            command: "curl -sS https://starship.rs/install.sh | sh -s -- -y", workRoot: "/tmp/ZZFixture dir",
+            command: command, workRoot: "/tmp/ZZFixture dir",
             linger: 60, proxies: ["https_proxy": "http://h:1"])
         #expect(line.hasPrefix("cd / || exit 1; umask 022; d=$(/usr/bin/mktemp -d '/tmp/ZZFixture dir/duoupdater-admin.XXXXXXXX') || exit 1; "))
         #expect(line.contains("( /usr/bin/env -i HOME=/var/root "))
-        #expect(line.contains(" https_proxy='http://h:1' /bin/sh -c 'curl -sS https://starship.rs/install.sh | sh -s -- -y' "))
+        #expect(line.contains(" https_proxy='http://h:1' /bin/sh -c "
+            + #"'curl -fsS --proto '\''=https'\'' https://starship.rs/install.sh | sh -s -- -y -v '\''v1.26.0'\''' "#))
         #expect(line.contains(#"> "$d/log" 2>&1; echo $? > "$d/status"; /bin/sleep 60; /bin/rm -rf "$d" )"#))
         #expect(line.hasSuffix(#"< /dev/null > /dev/null 2>&1 & echo "$d""#))
+    }
+
+    /// A version goes into the line root runs only as ASCII digits in groups
+    /// split by single dots. Mutations: `isNumber` or `\d` instead of the byte
+    /// range; allow an empty group; allow a prerelease tail.
+    @Test func onlyPlainVersionsGoIntoARootLine() {
+        for good in ["3.22.0", "1.26.0", "10.0", "7"] {
+            #expect(CLIToolAdministratorRun.isPlainVersion(good), "\(good)")
+        }
+        for bad in ["", ".", "3.", ".3", "3..0", "3.22.0-rc.1", "v3.22.0", " 3.22.0", "3.22.0\n", "3.22.0;id", "$(id)",
+                    "٣.٢٢.٠", "３.２２.０", "3.22.0\u{200B}"] {
+            #expect(!CLIToolAdministratorRun.isPlainVersion(bad), "\(bad.debugDescription)")
+        }
     }
 
     /// Only `/usr/local/bin` itself can be root's default; never a fixture or a

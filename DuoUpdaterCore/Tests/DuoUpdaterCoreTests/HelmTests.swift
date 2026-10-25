@@ -386,8 +386,16 @@ import CryptoKit
 
     static let documented = "curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash"
 
-    /// In root's `/usr/local/bin` the documented command is the one-click, run
-    /// as root, with the same command still offered for a terminal; elsewhere
+    /// What runs as root, pinned to the version the check named: HTTPS only,
+    /// failing on an HTTP error page, the version quoted.
+    static func rootCommand(_ version: String) -> String {
+        "curl -fsSL --proto '=https' --proto-redir '=https' "
+            + "https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash -s -- --version 'v\(version)'"
+    }
+
+    /// In root's `/usr/local/bin` the documented command, pinned to the checked
+    /// version and HTTPS-only, is the one-click, run as root, with the
+    /// documented command itself still offered for a terminal; elsewhere
     /// read-only stays a copy-command (`aReadOnlyInstallGetsTheDocumentedCommand`).
     /// The gates before it still hold. Mutations: drop `asRoot`'s
     /// `rootDirectory`; skip the gates for a root run.
@@ -398,7 +406,7 @@ import CryptoKit
         let status = try await box.status()
         #expect(status.needsAdministrator)
         #expect(status.withheld == nil)
-        #expect(status.oneClick?.display == Self.documented)
+        #expect(status.oneClick?.display == Self.rootCommand("3.22.0"))
         #expect(status.manualCommand?.display == Self.documented)
         #expect(try await box.status(busy: .download(3)).withheld == .busy)
         box.publish("3.21.4", "not this file")
@@ -495,9 +503,9 @@ import CryptoKit
         #expect(acl_set_file(path, ACL_TYPE_EXTENDED, acl) == 0)
     }
 
-    /// The click runs exactly the documented command as root, and what it left
+    /// The click runs exactly the pinned command as root, and what it left
     /// is checked like any update's. Mutation: run another command than
-    /// `HelmCheck.documentedCommand`.
+    /// `HelmCheck.rootCommand`.
     @Test func updatesAsRoot() async throws {
         let box = try Sandbox()
         try box.install(version: "3.21.4")
@@ -505,8 +513,67 @@ import CryptoKit
         let status = try await box.status()
         let outcome = await box.updater(asRoot: { box.rootRun(to: "3.22.0") }).update(status)
         #expect(outcome == .updated(version: "3.22.0"))
-        #expect(box.ranAsRoot == [Self.documented])
+        #expect(box.ranAsRoot == [Self.rootCommand("3.22.0")])
         #expect(box.read("ARGS") == nil)
+    }
+
+    /// The command that went through the panel was built from the version the
+    /// check named. If the line's pointer moved between that check and the click
+    /// (to a newer version, or to anything else), the status in hand no longer
+    /// stands for what would run, and nothing runs as root.
+    /// Mutation: drop the equality between the status's command and the one
+    /// built from the pointer read at the click.
+    @Test func aPointerThatMovedSinceTheCheckRunsNothingAsRoot() async throws {
+        let box = try Sandbox()
+        try box.install(version: "3.21.4")
+        try box.makeRoots()
+        let status = try await box.status()
+        #expect(status.oneClick?.display == Self.rootCommand("3.22.0"))
+
+        let moved = await box.updater(latest: [3: "3.23.0"], asRoot: { box.rootRun(to: "3.23.0") }).update(status)
+        guard case .failed(let message, _) = moved else { Issue.record("ran after the pointer moved: \(moved)"); return }
+        #expect(message.contains("3.23.0"))
+        #expect(box.ranAsRoot.isEmpty)
+        #expect(box.scanner.scan().first?.version == "3.21.4")
+
+        // A pointer that still names the checked version runs it.
+        #expect(await box.updater(asRoot: { box.rootRun(to: "3.22.0") }).update(status) == .updated(version: "3.22.0"))
+        #expect(box.ranAsRoot == [Self.rootCommand("3.22.0")])
+    }
+
+    /// A version goes into a root shell line only as ASCII digits and dots. The
+    /// release check's own `isVersion` takes Arabic-Indic digits (`\d` is any
+    /// script's) and a prerelease tail, so a pointer that names one is not
+    /// offered as root's one-click — at the check, and at the click, where the
+    /// status could have been built by anything. The user is left the
+    /// documented command.
+    /// Mutations: accept any version in `rootCommand`; test `isVersion`
+    /// instead of `isPlainVersion`.
+    @Test func aVersionThatIsNotPlainASCIIDigitsIsNeverRunAsRoot() async throws {
+        #expect(HelmRelease.isVersion("٣.٢٢.٠"))
+        let installer = try #require(HelmRelease.installer(major: 3))
+        for version in ["٣.٢٢.٠", "3.22.0-rc.1", "3.22.0'; id; '", "3.22.0 ", "3..0", "", "v3.22.0", "3.22.٠"] {
+            #expect(HelmCheck.rootCommand(installer: installer, version: version) == nil, "\(version)")
+        }
+        #expect(HelmCheck.rootCommand(installer: installer, version: "3.22.0")?.display == Self.rootCommand("3.22.0"))
+
+        let box = try Sandbox()
+        try box.install(version: "3.21.4")
+        try box.makeRoots()
+        let latest: [Int: String] = [3: "٣.٢٢.٠"]
+        let status = await box.check(latest: latest).status(of: try #require(box.scanner.scan().first), busy: nil)
+        #expect(status.state == .updateAvailable)
+        #expect(status.oneClick == nil)
+        #expect(!status.needsAdministrator)
+        #expect(status.withheld != nil)
+        #expect(status.manualCommand?.display == Self.documented)
+
+        // The click, handed the one-click of the plain version while the pointer
+        // names the other.
+        let checked = try await box.status()
+        let outcome = await box.updater(latest: latest, asRoot: { box.rootRun(to: "3.22.0") }).update(checked)
+        guard case .failed = outcome else { Issue.record("ran as root: \(outcome)"); return }
+        #expect(box.ranAsRoot.isEmpty)
     }
 
     /// What a root run left must be a newer published build, as any update's.

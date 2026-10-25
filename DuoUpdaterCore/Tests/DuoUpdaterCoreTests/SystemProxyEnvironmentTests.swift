@@ -105,4 +105,46 @@ import Foundation
         let env = SystemProxyEnvironment.applied(to: ["PATH": "/usr/bin"], settings: nil)
         #expect(env == ["PATH": "/usr/bin"])
     }
+
+    // MARK: - What a command-line-tool updater's child inherits
+
+    /// A token exported for `gh` must not ride into a vendor's installer script.
+    /// Kills: leaving either name in; dropping other variables with them.
+    @Test func theChildEnvironmentDropsOnlyTheGitHubTokens() {
+        let env = SystemProxyEnvironment.withoutGitHubTokens([
+            "GH_TOKEN": "ZZFixture-gh", "GITHUB_TOKEN": "ZZFixture-github",
+            "PATH": "/usr/bin", "https_proxy": "http://127.0.0.1:6152",
+            "GITHUB_ACCESS_TOKEN": "ZZFixture-bun-own", "UV_GITHUB_TOKEN": "ZZFixture-uv-own",
+        ])
+        #expect(env == [
+            "PATH": "/usr/bin", "https_proxy": "http://127.0.0.1:6152",
+            "GITHUB_ACCESS_TOKEN": "ZZFixture-bun-own", "UV_GITHUB_TOKEN": "ZZFixture-uv-own",
+        ])
+    }
+
+    /// No updater or provider under `CLITools` builds its child's environment from
+    /// the full one. Source-level because the 31 default closures are not
+    /// reachable from a test without running a vendor's tool; the one exception is
+    /// the administrator runner, whose script takes the proxy variables by name
+    /// (`CLIToolAdministratorRun.proxies`) and nothing else.
+    /// Kills: a new updater copying the old line; reverting one of the 31.
+    @Test func noCLIToolChildInheritsTheFullEnvironment() throws {
+        let tools = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Sources/DuoUpdaterCore/CLITools", isDirectory: true)
+        let files = try #require(FileManager.default.enumerator(
+            at: tools, includingPropertiesForKeys: nil))
+            .compactMap { $0 as? URL }
+            .filter { $0.pathExtension == "swift" }
+        try #require(files.count > 100, "the CLITools sources were not found at \(tools.path)")
+        var inheriting: [String] = []
+        var scrubbed = 0
+        for file in files {
+            let text = try String(contentsOf: file, encoding: .utf8)
+            if text.contains("childEnvironmentWithSystemProxy") { scrubbed += 1 }
+            if text.contains("processInfo.environmentWithSystemProxy") { inheriting.append(file.lastPathComponent) }
+        }
+        #expect(inheriting == ["CLIToolAdministratorRun.swift"], "\(inheriting)")
+        #expect(scrubbed == 31)
+    }
 }

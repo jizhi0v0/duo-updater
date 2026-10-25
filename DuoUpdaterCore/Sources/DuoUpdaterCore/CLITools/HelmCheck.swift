@@ -13,7 +13,8 @@ import Foundation
 ///    this user may overwrite the file without `sudo` — the default
 ///    `/usr/local/bin` is root's on most Macs. There — the directory the script
 ///    defaults to and escalates for, and root's — the one-click is that
-///    documented command run as root behind the administrator panel
+///    documented command, pinned to the checked version and fetched over HTTPS
+///    only (`rootCommand`), run as root behind the administrator panel
 ///    (`CLIToolAdministratorRun`), after the same gates — but only for a file
 ///    that, like its directory, is root's alone (`HelmInstall.changeable`): the
 ///    script runs the installed `helm version` as root, and a file anyone else
@@ -128,10 +129,17 @@ public struct HelmCheck: Sendable {
             return verdict(state, latest: newest, note: busy.description, withheld: .busy)
         }
         if asRoot {
-            let command = Self.documentedCommand(installer: installer)
+            // The version goes into a shell line run as root: only plain ASCII
+            // digits do (`CLIToolAdministratorRun.isPlainVersion`). Otherwise the
+            // user is left the command to run themselves.
+            guard let command = Self.rootCommand(installer: installer, version: newest) else {
+                return verdict(state, latest: newest,
+                               note: "helm\(major)-latest-version names \(newest), which is not a plain version number: not run as root",
+                               withheld: .unverified, manualCommand: Self.documentedCommand(installer: installer))
+            }
             return verdict(state, latest: newest, oneClick: command,
                            note: "runs as root after an administrator password: \(install.directory) is root's",
-                           manualCommand: command, needsAdministrator: true)
+                           manualCommand: Self.documentedCommand(installer: installer), needsAdministrator: true)
         }
         return verdict(state, latest: newest,
                        oneClick: Self.updateCommand(installer: installer, directory: install.directory, version: newest))
@@ -141,6 +149,23 @@ public struct HelmCheck: Sendable {
     /// where the script's `sudo` can ask for a password.
     static func documentedCommand(installer: URL) -> CLIToolCommand {
         CLIToolCommand(executable: "curl", arguments: ["-fsSL", installer.absoluteString, "|", "bash"], pathPrefix: nil)
+    }
+
+    /// What runs as root in root's `/usr/local/bin`: the documented command,
+    /// pinned to `version` (the script would otherwise choose the newest itself,
+    /// a moment after the check named one), fetched over HTTPS only, with `-f`
+    /// so an HTTP error page is not handed to `bash`. The script's own defaults
+    /// (`/usr/local/bin`; `USE_SUDO` is moot as root) are left as the vendor set
+    /// them. Nil unless `version` is plain ASCII digits and dots: it goes into a
+    /// shell line run as root, quoted, and `HelmRelease.isVersion` is looser.
+    static func rootCommand(installer: URL, version: String) -> CLIToolCommand? {
+        guard CLIToolAdministratorRun.isPlainVersion(version) else { return nil }
+        let https = CLIToolAdministratorRun.quote("=https")
+        return CLIToolCommand(
+            executable: "curl",
+            arguments: ["-fsSL", "--proto", https, "--proto-redir", https, installer.absoluteString, "|",
+                        "bash", "-s", "--", "--version", CLIToolAdministratorRun.quote("v\(version)")],
+            pathPrefix: nil)
     }
 
     /// What the one-click stands for, spelled as a shell would run it.

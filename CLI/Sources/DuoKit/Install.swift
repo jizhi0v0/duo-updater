@@ -1277,12 +1277,16 @@ public enum Install {
     /// What to hand `duo restart` for an app this run updated. Its name, unless
     /// the update renamed the app (`BundleIDMigration`): the bundle at that path
     /// now reads under the new name, so the old one matches nothing and the path
-    /// is the only argument that still finds it.
+    /// is the only argument that still finds it. Either way it is printed for the
+    /// user to paste into a shell, and the name is the bundle's own
+    /// `CFBundleDisplayName`, so it goes out as one quoted shell word.
     static func restartArgument(
         name: String, path: URL, bundleIDBefore: String?, bundleIDNow: String?
     ) -> String {
-        guard let bundleIDBefore, let bundleIDNow, bundleIDBefore != bundleIDNow else { return name }
-        return "'" + path.path.replacingOccurrences(of: "'", with: "'\\''") + "'"
+        guard let bundleIDBefore, let bundleIDNow, bundleIDBefore != bundleIDNow else {
+            return Backups.shellQuoted(name)
+        }
+        return Backups.shellQuoted(path.path)
     }
 
     /// The text-mode summary line, pulled out as a pure function so its exact

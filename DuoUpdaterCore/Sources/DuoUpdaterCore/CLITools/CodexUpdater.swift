@@ -80,7 +80,7 @@ public struct CodexUpdater: Sendable {
             check: CodexCheck(),
             // The installer runs curl, which reads `https_proxy`; a GUI app
             // launched by launchd has none. See `SystemProxyEnvironment`.
-            environment: { ProcessInfo.processInfo.environmentWithSystemProxy },
+            environment: { ProcessInfo.processInfo.childEnvironmentWithSystemProxy },
             settings: { CodexSettings.read(home: scanner.home) },
             fetchScript: { try await CodexUpdater.download($0) })
     }

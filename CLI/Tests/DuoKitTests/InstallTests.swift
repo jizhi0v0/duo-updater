@@ -1314,6 +1314,36 @@ import DuoUpdaterCore
         #expect(Install.restartArgument(name: "X", path: path, bundleIDBefore: nil, bundleIDNow: "a") == "X")
         #expect(Install.restartArgument(name: "X", path: path, bundleIDBefore: "a", bundleIDNow: nil) == "X")
     }
+
+    /// What `/bin/sh` hands `duo restart` when the user pastes `argument` after it.
+    private func shellWords(_ argument: String) async throws -> [String] {
+        let outcome = try await ChildProcess.run(
+            "/bin/sh", ["-c", "for word in \(argument); do printf '%s\\n' \"$word\"; done"],
+            onCancel: .runToCompletion)
+        let text = String(decoding: outcome.standardOutput, as: UTF8.self)
+        return text.isEmpty ? [] : text.dropLast().split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+    }
+
+    @Test func aNameWithASpaceIsOneShellWord() async throws {
+        let argument = Install.restartArgument(name: "Google Chrome", path: path,
+                                               bundleIDBefore: "a.b", bundleIDNow: "a.b")
+        #expect(argument == "'Google Chrome'")
+        #expect(try await shellWords(argument) == ["Google Chrome"])
+    }
+
+    @Test func aNameWithShellMetacharactersComesBackVerbatim() async throws {
+        for name in ["Evil; echo pwned", "Evil $(echo pwned)", "Evil `echo pwned`", "It's | & > x"] {
+            let argument = Install.restartArgument(name: name, path: path,
+                                                   bundleIDBefore: "a.b", bundleIDNow: "a.b")
+            #expect(try await shellWords(argument) == [name], "\(name) must survive the shell as one word")
+        }
+    }
+
+    @Test func aQuotedPathComesBackVerbatim() async throws {
+        let argument = Install.restartArgument(name: "PrintCraft", path: path,
+                                               bundleIDBefore: "a", bundleIDNow: "b")
+        #expect(try await shellWords(argument) == [path.path])
+    }
 }
 
 /// `duo check` and `duo install` must build their stack with the shared cohort

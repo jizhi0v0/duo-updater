@@ -65,7 +65,7 @@ public struct NpmUpdater: Sendable {
             // A GUI app launched by launchd has no proxy variables; npm honours
             // `https_proxy` & co. when its own `https-proxy` is unset (npm 11's
             // `config.md`). See `SystemProxyEnvironment`.
-            environment: { ProcessInfo.processInfo.environmentWithSystemProxy })
+            environment: { ProcessInfo.processInfo.childEnvironmentWithSystemProxy })
     }
 
     init(

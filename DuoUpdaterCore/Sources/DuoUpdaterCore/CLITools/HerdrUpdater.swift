@@ -47,7 +47,7 @@ public struct HerdrUpdater: Sendable {
         // herdr's curl reads the proxy variables, which a GUI app launched by
         // launchd does not have. See `SystemProxyEnvironment`. The scanner reads
         // the config path from the same environment the child gets.
-        let environment = ProcessInfo.processInfo.environmentWithSystemProxy
+        let environment = ProcessInfo.processInfo.childEnvironmentWithSystemProxy
         self.init(
             busy: { HerdrActivity.busy(directory: $0, processes: ClaudeCodeActivity.runningProcesses()) },
             scanner: HerdrScanner(environment: environment),

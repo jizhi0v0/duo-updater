@@ -52,7 +52,7 @@ public struct CursorAgentUpdater: Sendable {
             release: CursorAgentRelease(),
             // The installer runs curl, which reads `https_proxy`; a GUI app has
             // none. See `SystemProxyEnvironment`.
-            environment: { ProcessInfo.processInfo.environmentWithSystemProxy },
+            environment: { ProcessInfo.processInfo.childEnvironmentWithSystemProxy },
             settings: { CursorAgentSettings.read(home: scanner.home) })
     }
 

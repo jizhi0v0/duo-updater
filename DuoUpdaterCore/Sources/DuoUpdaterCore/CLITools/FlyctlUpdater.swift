@@ -55,7 +55,7 @@ public struct FlyctlUpdater: Sendable {
             scanner: FlyctlScanner(),
             check: FlyctlCheck(),
             verifier: FlyctlVerifier(),
-            environment: { ProcessInfo.processInfo.environmentWithSystemProxy })
+            environment: { ProcessInfo.processInfo.childEnvironmentWithSystemProxy })
     }
 
     init(

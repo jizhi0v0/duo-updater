@@ -876,7 +876,7 @@ public actor PackageInstaller {
             return .unreadablePayload
         }
         guard await Self.runCapturing(
-            "/usr/bin/xar", ["-xf", pkg.path, name], cwd: scratch).code == 0
+            "/usr/bin/xar", ["-xf", pkg.path, "--", name], cwd: scratch).code == 0
         else { return .unreadablePayload }
 
         let body = await Self.runCapturingBytes(
@@ -1025,7 +1025,7 @@ public actor PackageInstaller {
         var out: [Component] = []
         for name in infos {
             guard await Self.runCapturing(
-                "/usr/bin/xar", ["-xf", pkg.path, name], cwd: scratch).code == 0,
+                "/usr/bin/xar", ["-xf", pkg.path, "--", name], cwd: scratch).code == 0,
                 let body = try? String(
                     contentsOf: scratch.appendingPathComponent(name), encoding: .utf8)
             else { continue }
@@ -1042,7 +1042,7 @@ public actor PackageInstaller {
             let bom = directory.isEmpty ? "Bom" : directory + "/Bom"
             var payloadPaths: [String] = []
             if await Self.runCapturing(
-                "/usr/bin/xar", ["-xf", pkg.path, bom], cwd: scratch).code == 0 {
+                "/usr/bin/xar", ["-xf", pkg.path, "--", bom], cwd: scratch).code == 0 {
                 let bomListing = await Self.runCapturing(
                     "/usr/bin/lsbom", ["-s", scratch.appendingPathComponent(bom).path])
                 if bomListing.code == 0 {

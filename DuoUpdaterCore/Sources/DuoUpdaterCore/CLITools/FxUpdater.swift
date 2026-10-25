@@ -87,7 +87,7 @@ public struct FxUpdater: Sendable {
             // system proxy changes nothing for it today; passed the same way as
             // to every other updater, so a later fx that reads `https_proxy` sees
             // what a terminal would.
-            environment: { ProcessInfo.processInfo.environmentWithSystemProxy },
+            environment: { ProcessInfo.processInfo.childEnvironmentWithSystemProxy },
             settings: { FxSettings.read() })
     }
 

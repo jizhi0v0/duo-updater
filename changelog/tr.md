@@ -2,6 +2,20 @@
 
 Bu, `CHANGELOG.md` dosyasının Türkçe çevirisidir. Geçerli olan İngilizce sürümdür; burada yer almayan eski sürümler otomatik olarak İngilizce gösterilir.
 
+## 0.5.15
+
+**Güncelleme satırı çalışan sürümü gösteriyor.** Bir uygulama diske henüz yeniden başlatmadığınız daha yeni bir kopya koyduğunda satır o kopyayla başlıyordu; artık çalışanla başlıyor ve imleçle üzerine gelince hangi sürümün kurulu olduğu yazıyor.
+
+**Başarısız bir geri yükleme hatasını satırında tutuyor.** Önceden liste yenilenir yenilenmez kayboluyor, geri yüklemenin yapılmadığına dair hiçbir iz kalmıyordu.
+
+**Smartsheet’in masaüstü uygulaması kullanımdan kalkıyor olarak işaretleniyor.** Smartsheet onu 6 Ocak 2027’de veya sonrasında kaldırıyor; çalışma alanı duyuruya bağlantı veriyor.
+
+**Parolanızı gerektiren güncellemeler ve geri yüklemeler daha sıkı denetleniyor.** Kurulu kopyasında geliştirici imzası olmayan bir uygulama artık yönetici parolasıyla değiştirilmiyor: DuoUpdater bunu söylüyor ve güncellemeyi elle yapmanıza bırakıyor.
+
+**`duo`, “GitHub CLI oturumunu kullan” ayarına ve Ayarlar’a yapıştırdığınız jetona uyuyor.** Önceden bunları kapatmış olsanız da `GH_TOKEN` ve `gh` okuyordu.
+
+**Perde arkasında.** Bir güvenlik incelemesinin ardından indirmeler, ayrıcalıklı yardımcı, parola isteyen güncellemeler ve geri yüklemeler, sürüm notlarındaki bağlantılar ve görseller ile DuoUpdater’ın kendi derleme ve yayın süreci güçlendirildi. İmzalı indirme bağlantıları artık diskte tutulmuyor ve `duo` bir sağlayıcının yanıtındaki denetim kodlarını artık yazdırmıyor.
+
 ## 0.5.14
 
 **mise araçları destekleniyor.** mise’ın genel yapılandırmasındaki her araç, istediğiniz sürüm içinde güncelleme denetimi ve tek tıkla güncelleme alıyor; sabitlenmiş bir araç, sabitlemenin ötesinde ne olduğunu ve oraya geçmek için komutu gösteriyor. Çalışma alanının CLI sekmesinde Homebrew’un altında yer alıyorlar.

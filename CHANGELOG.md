@@ -19,6 +19,20 @@ release note is debugging our code:
 
 Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
+## 0.5.15
+
+**The update line names the version that is running.** When an app has put a newer copy on disk that you have not relaunched yet, the line used to start from that copy; it now starts from the one that is running, and the hover says which version is installed.
+
+**A failed restore keeps its error on the row.** It used to disappear as soon as the list refreshed, with no sign that the restore had not happened.
+
+**Smartsheet's desktop app is marked as retiring.** Smartsheet retires it on or after January 6, 2027; the workbench links to the announcement.
+
+**Updates and restores that need your password are checked more strictly.** An app whose installed copy has no developer signature is no longer replaced with an administrator password: DuoUpdater says so and leaves it for you to update by hand.
+
+**`duo` follows the "Use the GitHub CLI’s sign-in" setting and the token you pasted in Settings.** It used to read `GH_TOKEN` and `gh` even when you had turned them off.
+
+**Under the hood.** A security review hardened downloads, the privileged helper, updates and restores that need your password, release-note links and images, and DuoUpdater's own build and release. Signed download links are no longer kept on disk, and `duo` no longer prints control codes a vendor's response carries.
+
 ## 0.5.14
 
 **mise tools are supported.** Each tool in mise's global config gets an update check and a one-click update within the version you asked for; a pinned tool shows what lies beyond the pin, with the command to move to it. They sit under Homebrew in the workbench's CLI tab.

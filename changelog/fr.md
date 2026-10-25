@@ -2,6 +2,20 @@
 
 Ceci est la traduction de `CHANGELOG.md`. La version anglaise fait autorité. Les versions non énumérées ici reviennent automatiquement à l’anglais.
 
+## 0.5.15
+
+**La ligne de mise à jour indique la version en cours d’exécution.** Quand une app a déjà déposé sur le disque une copie plus récente que vous n’avez pas encore relancée, la ligne partait de cette copie ; elle part maintenant de celle qui tourne, et l’info-bulle indique quelle version est installée.
+
+**Une restauration échouée garde son erreur sur sa ligne.** L’erreur disparaissait dès que la liste se rafraîchissait, sans aucun signe que la restauration n’avait pas eu lieu.
+
+**L’app de bureau de Smartsheet est signalée comme en fin de vie.** Smartsheet la retire le 6 janvier 2027 ou après ; l’atelier renvoie vers l’annonce.
+
+**Les mises à jour et restaurations qui demandent votre mot de passe sont vérifiées plus strictement.** Une app dont la copie installée n’a pas de signature de développeur n’est plus remplacée avec un mot de passe administrateur : DuoUpdater le signale et vous laisse la mettre à jour à la main.
+
+**`duo` suit le réglage « Utiliser la connexion de GitHub CLI » et le jeton collé dans les Réglages.** Il lisait `GH_TOKEN` et `gh` même quand vous les aviez désactivés.
+
+**Sous le capot.** Une revue de sécurité a renforcé les téléchargements, l’assistant privilégié, les mises à jour et restaurations qui demandent un mot de passe, les liens et images des notes de version, ainsi que la compilation et la publication de DuoUpdater lui-même. Les liens de téléchargement signés ne sont plus conservés sur le disque, et `duo` n’affiche plus les codes de contrôle que contient la réponse d’un éditeur.
+
 ## 0.5.14
 
 **Les outils mise sont pris en charge.** Chaque outil de la configuration globale de mise bénéficie de la vérification des mises à jour et d’une mise à jour en un clic dans la version demandée ; un outil épinglé montre ce qui existe au-delà de l’épinglage, avec la commande pour y passer. Ils figurent sous Homebrew dans l’onglet CLI de l’atelier.

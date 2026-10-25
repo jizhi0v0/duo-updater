@@ -2,6 +2,20 @@
 
 Esta es la traducción al español del archivo CHANGELOG.md. La versión en inglés es la autoridad en caso de discrepancias. Los números de versión no incluidos aquí se mostrarán automáticamente en inglés en la ventana de Novedades.
 
+## 0.5.15
+
+**La línea de actualización nombra la versión que se está ejecutando.** Cuando una app ya ha dejado en el disco una copia más reciente que aún no has vuelto a abrir, la línea empezaba por esa copia; ahora empieza por la que se está ejecutando, y la descripción emergente indica qué versión está instalada.
+
+**Una restauración fallida conserva su error en la fila.** Antes desaparecía en cuanto se actualizaba la lista, sin ninguna señal de que la restauración no se había hecho.
+
+**La app de escritorio de Smartsheet aparece marcada como en retirada.** Smartsheet la retira el 6 de enero de 2027 o después; el banco de trabajo enlaza el anuncio.
+
+**Las actualizaciones y restauraciones que necesitan tu contraseña se comprueban con más rigor.** Una app cuya copia instalada no tiene firma de desarrollador ya no se reemplaza con una contraseña de administrador: DuoUpdater lo indica y te deja actualizarla a mano.
+
+**`duo` respeta el ajuste «Usar la sesión de GitHub CLI» y el token que pegaste en Ajustes.** Antes leía `GH_TOKEN` y `gh` aunque los hubieras desactivado.
+
+**Por dentro.** Tras una revisión de seguridad se reforzaron las descargas, el asistente con privilegios, las actualizaciones y restauraciones que piden contraseña, los enlaces e imágenes de las notas de la versión, y la compilación y publicación del propio DuoUpdater. Los enlaces de descarga firmados ya no se guardan en el disco, y `duo` ya no muestra los códigos de control que trae la respuesta de un proveedor.
+
 ## 0.5.14
 
 **Se admiten las herramientas de mise.** Cada herramienta de la configuración global de mise recibe comprobación de actualizaciones y actualización con un clic dentro de la versión que pediste; una herramienta fijada muestra lo que hay más allá de la fijación, con el comando para pasar a ello. Aparecen bajo Homebrew en la pestaña CLI del banco de trabajo.

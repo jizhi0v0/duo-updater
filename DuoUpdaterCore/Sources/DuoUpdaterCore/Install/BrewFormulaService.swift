@@ -1291,7 +1291,7 @@ public actor BrewFormulaService {
         password: SudoPasswordPrompt?,
         onOutput: @Sendable @escaping (String) -> Void
     ) async throws {
-        try await prefetch(["upgrade", "--cask", token], kind: "--cask", onOutput: onOutput)
+        try await prefetch(["upgrade", "--cask"], operands: [token], kind: "--cask", onOutput: onOutput)
         try await InstallCommit.run("brew upgrade") {
             try await self.runCaskUpgrade([token], password: password, onOutput: onOutput)
         }
@@ -1313,7 +1313,7 @@ public actor BrewFormulaService {
             packages: sudoTokens.isEmpty ? tokens : sudoTokens, prompt: password, isSudo: askpassIsSudo
         ) { askpass in
             try await self.run(
-                ["upgrade", "--cask"] + tokens,
+                ["upgrade", "--cask", "--"] + tokens,
                 environment: askpass.merging(["HOMEBREW_NO_AUTO_UPDATE": "1"]) { a, _ in a },
                 onOutput: onOutput)
         }
@@ -1333,10 +1333,10 @@ public actor BrewFormulaService {
         formula name: String,
         onOutput: @Sendable @escaping (String) -> Void
     ) async throws {
-        let upgrade = ["upgrade", "--formula", name]
-        try await prefetch(upgrade, kind: "--formula", onOutput: onOutput)
+        let upgrade = ["upgrade", "--formula"]
+        try await prefetch(upgrade, operands: [name], kind: "--formula", onOutput: onOutput)
         try await InstallCommit.run("brew upgrade") {
-            try await self.run(upgrade, environment: ["HOMEBREW_NO_AUTO_UPDATE": "1"], onOutput: onOutput)
+            try await self.run(upgrade + ["--", name], environment: ["HOMEBREW_NO_AUTO_UPDATE": "1"], onOutput: onOutput)
         }
     }
 
@@ -1361,11 +1361,15 @@ public actor BrewFormulaService {
     /// always did. Only a cancel ends it, by throwing `CancellationError`.
     private func prefetch(
         _ upgrade: [String],
+        operands: [String] = [],
         kind: String,
         onOutput: @Sendable @escaping (String) -> Void
     ) async throws {
+        // `--dry-run` goes before the `--` that keeps the names from being read as
+        // options; after it, brew takes it for a name.
         let (plan, planText) = try await launch(
-            upgrade + ["--dry-run"], onCancel: .interruptChild, onOutput: onOutput)
+            upgrade + ["--dry-run"] + (operands.isEmpty ? [] : ["--"] + operands),
+            onCancel: .interruptChild, onOutput: onOutput)
         guard plan.succeeded else {
             Log.install.notice("brew \(upgrade.joined(separator: " "), privacy: .public) --dry-run exited \(plan.terminationStatus, privacy: .public): nothing downloaded ahead")
             return

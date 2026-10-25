@@ -421,6 +421,7 @@ if CommandLine.arguments.dropFirst().contains(where: { $0 == "--help" || $0 == "
 // Before anything parses an argument: the backup store has to be pointed at the
 // disk the user chose in the app, and this is the one place no command can skip.
 Settings.configureBackupStore()
+Settings.configureGitHubSignIn()
 
 guard let args = Args(CommandLine.arguments) else {
     print(usage)

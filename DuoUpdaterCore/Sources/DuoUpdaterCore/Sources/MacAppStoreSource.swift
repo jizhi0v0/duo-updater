@@ -327,10 +327,10 @@ public struct MacAppStoreSource: UpdateSource {
         return RemoteVersion(
             shortVersion: version,
             version: nil,
-            downloadURL: result.trackViewUrl.flatMap { URL(string: $0) },
+            downloadURL: Self.storePageURL(result.trackViewUrl),
             // The App Store product page — for MAS the "download URL" already is
             // a page, so both fields point at it.
-            pageURL: result.trackViewUrl.flatMap { URL(string: $0) },
+            pageURL: Self.storePageURL(result.trackViewUrl),
             sourceName: name,
             appStore: availability,
             releaseNotesHTML: (cleanNotes?.isEmpty == false) ? cleanNotes : nil,
@@ -384,7 +384,7 @@ public struct MacAppStoreSource: UpdateSource {
         return RemoteVersion(
             shortVersion: info.version,
             version: nil,
-            downloadURL: lookupResult.trackViewUrl.flatMap { URL(string: $0) },
+            downloadURL: Self.storePageURL(lookupResult.trackViewUrl),
             // Use the Mac-specific product page constructed and unwrapped above.
             pageURL: pageURL,
             sourceName: name,
@@ -422,14 +422,24 @@ public struct MacAppStoreSource: UpdateSource {
         var compatibility: MacCompatibilityReading
     }
 
+    /// The scheme/host half of that check, for what only opens the page: a
+    /// `trackViewUrl` that is not `https://apps.apple.com/…` becomes nil rather than
+    /// a link the row's "open" action would hand to the system (`pageURL`) or to
+    /// the app (`downloadURL`). Not the id/platform half, which an iOS listing's
+    /// URL (`…/id389801252?uo=4`, no `mt`) does not satisfy and is not meant to.
+    static func storePageURL(_ trackViewUrl: String?) -> URL? {
+        guard let trackViewUrl, let url = URL(string: trackViewUrl),
+              url.scheme == "https", url.host == "apps.apple.com" else { return nil }
+        return url
+    }
+
     /// Validate a network-sourced product-page URL (`LookupResult.trackViewUrl`)
     /// before trusting it for a scrape. `trackViewUrl` comes off the wire, so a
     /// scheme/host check guards against following it somewhere unexpected;
     /// anything that fails returns nil so the caller falls back to the URL it
     /// would have built itself.
     private func validatedProductPageURL(_ trackViewUrl: String?, trackId: Int, region: String) -> URL? {
-        guard let trackViewUrl, let url = URL(string: trackViewUrl),
-              url.scheme == "https", url.host == "apps.apple.com" else { return nil }
+        guard let url = Self.storePageURL(trackViewUrl) else { return nil }
         // The host check alone is not enough, and the gap is not theoretical:
         // scraping the wrong listing puts an uninstallable version on the row
         // and `AppStorePageCache` then holds it for an hour, because
@@ -848,10 +858,10 @@ public struct MacAppStoreSource: UpdateSource {
         return RemoteVersion(
             shortVersion: version,
             version: nil,
-            downloadURL: result.trackViewUrl.flatMap { URL(string: $0) },
+            downloadURL: Self.storePageURL(result.trackViewUrl),
             // The App Store product page — for MAS the "download URL" already is
             // a page, so both fields point at it.
-            pageURL: result.trackViewUrl.flatMap { URL(string: $0) },
+            pageURL: Self.storePageURL(result.trackViewUrl),
             sourceName: name,
             appStore: availability,
             releaseNotesHTML: (notes?.isEmpty == false) ? notes : nil

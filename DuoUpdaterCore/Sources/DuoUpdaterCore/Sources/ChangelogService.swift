@@ -446,8 +446,8 @@ public enum ChangelogService {
     /// in the Keychain, where only `Preferences` can reach it. Resolving without
     /// an explicit value therefore came back nil for exactly the users who
     /// configured a token the supported way, leaving the whole Authorization path
-    /// dead while Settings showed the token verified green. The CLI has no
-    /// Settings, so it keeps the env/`gh` path and nothing is set here.
+    /// dead while Settings showed the token verified green. `duo` has no Settings
+    /// pane; it reads the same Keychain item in `Settings.load()` and sets it here.
     private nonisolated(unsafe) static var explicitToken: String?
 
     /// Hand the Settings token to the changelog fetcher. Called on load and from

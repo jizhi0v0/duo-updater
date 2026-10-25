@@ -214,7 +214,8 @@ public actor ChangelogDiskCache {
             try FileManager.default.createDirectory(
                 at: directory, withIntermediateDirectories: true)
             let data = try JSONEncoder().encode(
-                Stored(changelog: changelog, fetchedAt: .now, parserGeneration: Changelog.parserGeneration))
+                Stored(changelog: Self.persisted(changelog), fetchedAt: .now,
+                       parserGeneration: Changelog.parserGeneration))
             try data.write(to: fileURL(for: key), options: .atomic)
             pruneSiblings(of: key)
         } catch {
@@ -223,6 +224,35 @@ public actor ChangelogDiskCache {
     }
 
     // MARK: - Internals
+
+    /// `changelog` as it is written to disk: without the image blocks whose URL
+    /// carries a query or a fragment.
+    ///
+    /// An image URL comes off a vendor's page and may carry a signed token or a
+    /// session id after the `?`, which would then sit in this directory for as long
+    /// as the version is the newest. The query is not noise to drop instead: the
+    /// byte cache keys by the whole URL (`ImageStore`), and a query can be what
+    /// selects the picture (`?size=80`, an image-resizing endpoint) or authorises
+    /// it, so a stripped URL is a different or a failing request. Such an image is
+    /// left out of the file, and shows in the session that fetched it (the memory
+    /// mirror keeps it) but not from the file after a relaunch. None of the 51
+    /// `<img>` URLs on the Capy, Longbridge and Raycast changelog pages had one
+    /// (fetched 2026-10-25), so this drops nothing there today.
+    static func persisted(_ changelog: Changelog) -> Changelog {
+        func keeps(_ block: Changelog.Entry.Block) -> Bool {
+            guard case .image(let url) = block else { return true }
+            return url.query == nil && url.fragment == nil
+        }
+        guard changelog.entries.contains(where: { $0.content.contains { !keeps($0) } })
+        else { return changelog }
+        return Changelog(
+            entries: changelog.entries.map {
+                Changelog.Entry(
+                    title: $0.title, version: $0.version, date: $0.date, items: $0.items,
+                    content: $0.content.filter(keeps), markdown: $0.markdown)
+            },
+            itemSyntax: changelog.itemSyntax)
+    }
 
     /// Delete on-disk entries that share `key`'s app+channel prefix but a different
     /// version, and forget them in memory. Keeps the cache to ~one file per channel.

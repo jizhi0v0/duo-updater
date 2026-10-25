@@ -69,7 +69,6 @@ final class Preferences {
     typealias TestFlightDetection = DuoUpdaterCore.TestFlightDetection
 
     private enum Key {
-        static let githubToken = "GitHubToken"   // legacy plaintext key — migration-only (read once, then removed; token now lives in the Keychain)
         static let githubTokenAccount = "GitHubTokenAccount"   // login the token verified as
         static let checkFrequency = "CheckFrequency"
         static let launchAtLogin = "LaunchAtLogin"
@@ -124,7 +123,7 @@ final class Preferences {
 
     /// Keychain account under which the GitHub token is stored. The token is a live
     /// credential, so it lives in the Keychain — never in the plaintext defaults plist.
-    static let githubTokenKeychainAccount = "github-token"
+    static let githubTokenKeychainAccount = GitHubToken.keychainAccount
 
     /// Keychain accounts for Alcove's licensed-update credentials. Alcove pushes new
     /// builds to its licensed API channel before any public mirror, so the only
@@ -596,14 +595,10 @@ final class Preferences {
 
     /// Read the GitHub token, migrating a pre-existing plaintext copy out of
     /// UserDefaults into the Keychain on the first launch after this upgrade (then
-    /// scrubbing the plist so the secret no longer sits there in the clear).
+    /// scrubbing the plist so the secret no longer sits there in the clear). The
+    /// move is `GitHubToken.storedToken`, which `duo` runs too.
     private static func loadGitHubToken(defaults: UserDefaults) -> String {
-        if let legacy = defaults.string(forKey: Key.githubToken), !legacy.isEmpty {
-            Keychain.set(legacy, account: githubTokenKeychainAccount)
-            defaults.removeObject(forKey: Key.githubToken)
-            return legacy
-        }
-        return Keychain.string(account: githubTokenKeychainAccount) ?? ""
+        GitHubToken.storedToken(defaults: defaults) ?? ""
     }
 
     init(defaults: UserDefaults = .standard) {

@@ -15,15 +15,23 @@ reclaiming the dead ones trades a confusing failure for a full disk. Each
 directory carries an `origin` marker naming the checkout it belongs to; a
 directory whose checkout no longer exists is deleted.
 
+Why private: `/tmp` is shared and the name is a function of the checkout path
+alone, so any other account on the Mac can create it first. What is built there
+is later run (`generate_appcast`, which signs the appcast, is found under the
+notary one) and signed over, so a directory someone else owns is refused, not
+adopted.
+
 Pruning is deliberately fail-closed: it only ever removes a directory that
 matches `duo-<name>-<8 hex>` AND carries a readable `origin` marker pointing
 somewhere that is gone. The unmarked caches an operator made by hand
 (`/tmp/duo-dd-292`, `/tmp/duo-pr240-dd`, …) are never touched.
 """
 import hashlib
+import os
 import pathlib
 import re
 import shutil
+import stat
 import subprocess
 import sys
 
@@ -40,6 +48,30 @@ def repo_root(argv: list[str]) -> pathlib.Path:
     if out.returncode != 0:
         raise SystemExit("derived_data_path: not inside a git checkout")
     return pathlib.Path(out.stdout.strip()).resolve()
+
+
+def private_dir(path: pathlib.Path) -> None:
+    """Create `path` with mode 700 if it is absent, then refuse it unless it is a
+    directory this user owns, that is not a symlink, and that group and others
+    cannot write to. The same rule as `check_private_dir` in
+    `pinned-xcodegen.sh`. `os.mkdir` fails on an existing name instead of
+    following it, and `lstat` is read after, so a symlink put there in between
+    is seen too."""
+    try:
+        os.mkdir(path, 0o700)
+    except FileExistsError:
+        pass
+    info = os.lstat(path)
+    if stat.S_ISLNK(info.st_mode):
+        raise SystemExit(f"derived_data_path: {path} is a symlink")
+    if not stat.S_ISDIR(info.st_mode):
+        raise SystemExit(f"derived_data_path: {path} is not a directory")
+    if info.st_uid != os.geteuid():
+        raise SystemExit(f"derived_data_path: {path} is not owned by you")
+    if info.st_mode & 0o022:
+        raise SystemExit(
+            f"derived_data_path: {path} is writable by group or others "
+            f"(mode {stat.S_IMODE(info.st_mode):o})")
 
 
 def prune(name: str, keep: pathlib.Path) -> None:
@@ -64,7 +96,7 @@ def main() -> int:
     root = repo_root(sys.argv)
     digest = hashlib.sha256(str(root).encode()).hexdigest()[:8]
     path = BASE / f"duo-{name}-{digest}"
-    path.mkdir(parents=True, exist_ok=True)
+    private_dir(path)
     (path / MARKER).write_text(f"{root}\n", encoding="utf-8")
     prune(name, keep=path)
     print(path)

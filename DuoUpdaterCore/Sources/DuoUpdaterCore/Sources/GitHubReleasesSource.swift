@@ -1895,6 +1895,15 @@ public struct GitHubReleasesSource: UpdateSource {
         return hex
     }
 
+    /// `html_url` as a link to open: https and github.com, or nil. It comes off the
+    /// wire and ends up as a row's page and changelog link, which the app hands
+    /// to the system; the row then falls back to the repo's releases page.
+    static func releasePageURL(_ value: Any?) -> URL? {
+        guard let text = value as? String, let url = URL(string: text),
+              url.scheme == "https", url.host == "github.com" else { return nil }
+        return url
+    }
+
     /// Extract releases from either a single release object or a list.
     static func releases(from data: Data, list: Bool) -> [Release] {
         guard let json = try? JSONSerialization.jsonObject(with: data) else { return [] }
@@ -1923,7 +1932,7 @@ public struct GitHubReleasesSource: UpdateSource {
             return Release(
                 tag: tag,
                 body: obj["body"] as? String,
-                htmlURL: (obj["html_url"] as? String).flatMap { URL(string: $0) },
+                htmlURL: releasePageURL(obj["html_url"]),
                 publishedAt: obj["published_at"] as? String,
                 assets: assets,
                 assetDigests: digests,

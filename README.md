@@ -281,7 +281,12 @@ outside our own container:
   only to `legit.maketheweb.io`, is never logged, and is excluded from the HTTP
   disk cache.
 - **TablePlus** — its `IsReceiveBetaBuild` preference is read so we detect on the
-  same channel the app itself is set to.
+  same channel the app itself is set to. If a licence file (`.licensemac`) is
+  there — only its existence is checked — a temporary copy of TablePlus's URL
+  cache (`Cache.db`) is read for its cached `licenses/devices` response, and only
+  the "updates available until" date is taken from it, to leave out builds the
+  licence no longer covers. The response also holds a device id, which is not
+  used or kept. Nothing read there leaves the Mac.
 - **GitHub** — to raise the API rate limit from 60/hour to 5000/hour, a token is
   taken from `GITHUB_TOKEN`/`GH_TOKEN` or, failing that, from `gh auth token`.
   It is sent only to `api.github.com`, and is stripped from any redirect that

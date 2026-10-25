@@ -45,6 +45,51 @@ struct ChangelogDiskCacheTests {
         }
     }
 
+    // MARK: - Image URLs with a query or fragment are not written
+
+    /// A signed or session-bearing image URL must not be persisted. The image is
+    /// left out of the file; one without a query or fragment is kept, and so is
+    /// everything else in the entry. Read through a second instance over the same
+    /// directory, so the answer is the file's and not the first instance's mirror.
+    ///
+    /// Mutation: have `persisted` return its argument → the token is in the file.
+    @Test func imageBlocksWithAQueryOrFragmentAreNotWrittenToDisk() async throws {
+        try await withScratchDirectory { dir in
+            let plain = URL(string: "https://cdn.example.com/a.png")!
+            let signed = URL(string: "https://cdn.example.com/b.png?X-Signature=s3cr3t-token")!
+            let fragment = URL(string: "https://cdn.example.com/c.png#session=s3cr3t-token")!
+            let changelog = Changelog(entries: [Changelog.Entry(
+                title: "Title", version: "1.0", date: "2026-01-01", items: ["one", "two"],
+                content: [.heading("New"), .note("one"), .image(plain), .image(signed),
+                          .note("two"), .image(fragment)],
+                markdown: nil)])
+            let cache = ChangelogDiskCache(directory: dir)
+            await cache.set(changelog, for: Self.key)
+
+            let raw = try String(contentsOf: onDiskFileURL(in: dir), encoding: .utf8)
+            #expect(!raw.contains("s3cr3t-token"), "the token reached the file")
+            #expect(raw.contains("a.png") && !raw.contains("b.png") && !raw.contains("c.png"))
+
+            let fromFile = try #require(await ChangelogDiskCache(directory: dir).get(for: Self.key))
+            let entry = try #require(fromFile.entries.first)
+            #expect(entry.content == [.heading("New"), .note("one"), .image(plain), .note("two")])
+            #expect(entry.items == ["one", "two"])
+            #expect(entry.title == "Title" && entry.version == "1.0" && entry.date == "2026-01-01")
+            #expect(fromFile.itemSyntax == changelog.itemSyntax)
+        }
+    }
+
+    /// A changelog with nothing to drop is written exactly as it was.
+    @Test func aChangelogWithNoQueriedImagesIsWrittenUnchanged() async throws {
+        try await withScratchDirectory { dir in
+            let image = URL(string: "https://cdn.example.com/a.png")!
+            let changelog = Changelog(entries: [Changelog.Entry(
+                version: "1.0", date: nil, items: ["one"], content: [.note("one"), .image(image)])])
+            await ChangelogDiskCache(directory: dir).set(changelog, for: Self.key)
+            #expect(await ChangelogDiskCache(directory: dir).get(for: Self.key) == changelog)
+        }
+    }
+
     // MARK: - Older generation on disk: miss, not poisoned
 
     /// An entry written at generation N-1 must be a miss at generation N. There is

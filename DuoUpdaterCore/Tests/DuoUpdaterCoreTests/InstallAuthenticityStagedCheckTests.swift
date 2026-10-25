@@ -62,7 +62,7 @@ import Testing
         try await DigestOnlyInstallTests.makeApp(at: source, build: "2", signing: .sealed(identifier: nil))
         let check = try #require(
             await InstallAuthenticityDRTests.digestGate(source, over: target, in: dir))
-        #expect(check.text == nil && check.pinnedCdhash != nil, "an ad-hoc install takes the cdhash form")
+        #expect(check.text.hasPrefix("cdhash H\""), "an ad-hoc install takes the cdhash form")
 
         for substitute in [DigestOnlyInstallTests.Signing.sealed(identifier: nil), .unsigned] {
             try fm.removeItem(at: source)
@@ -74,14 +74,14 @@ import Testing
         }
     }
 
-    /// A universal ad-hoc build that was gated lands. Its cdhash names one
-    /// slice, and `codesign --verify` checks every slice unless told otherwise,
-    /// so a `cdhash H"…"` requirement refused every universal build — measured
-    /// on the Developer ID form with Rectangle 2.0.4 (2026-10-25).
+    /// A universal ad-hoc build is refused by root, even the one gate 2 passed:
+    /// its cdhash names one slice and the requirement is checked on every
+    /// slice. Fail-closed on purpose — pinning only the native slice would let
+    /// any other slice be anything ad-hoc signed (`stagedCopyRequirement`).
     ///
-    /// Mutation: give the ad-hoc form back `text: "cdhash H\"…\""` → build 2
-    /// does not land.
-    @Test func aUniversalAdHocBuildThatWasGatedLands() async throws {
+    /// Mutation: pin only the native slice (the `codesign -d` comparison the
+    /// Developer ID form uses, with no requirement) → build 2 lands.
+    @Test func aUniversalAdHocBuildIsRefusedByRoot() async throws {
         let fm = FileManager.default
         let dir = try DigestOnlyInstallTests.scratch("gate-universal")
         defer { try? fm.removeItem(at: dir) }
@@ -100,7 +100,7 @@ import Testing
             await InstallAuthenticityDRTests.digestGate(source, over: target, in: dir))
         let shell = InPlaceSwap.privilegedReplacementShell(newApp: source, target: target, requirement: check)
 
-        #expect(try await SelfSignedCodeSigner.shell(shell) == 0)
-        #expect(SignatureVerifier.infoPlist(of: target)["CFBundleVersion"] as? String == "2")
+        #expect(try await SelfSignedCodeSigner.shell(shell) != 0)
+        #expect(SignatureVerifier.infoPlist(of: target)["CFBundleVersion"] as? String == "1")
     }
 }

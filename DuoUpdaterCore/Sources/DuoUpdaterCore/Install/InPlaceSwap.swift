@@ -762,10 +762,11 @@ public enum InPlaceSwap {
     /// (`stagedCopyRequirement`), for an install, and by
     /// `BackupStore.verifyRestoreAuthenticity` for a restore.
     struct StagedCopyRequirement: Equatable, Sendable {
-        /// A designated requirement, checked on every slice. Nil for an ad-hoc
-        /// or unsigned installed copy, which has none another build could meet:
-        /// `pinnedCdhash` alone then names the build.
-        let text: String?
+        /// Checked on every slice (codesign(1): verification defaults to
+        /// --all-architectures). The ad-hoc form, `cdhash H"…"`, names one
+        /// slice, so it refuses every universal build: fail-closed on purpose
+        /// (`stagedCopyRequirement`).
+        let text: String
         /// False for a restore: the check `verifyRestoreAuthenticity` made,
         /// without resources (`stagedCopyCheck`).
         let validatesResources: Bool
@@ -773,7 +774,7 @@ public enum InPlaceSwap {
         /// signer, and every build that signer ever shipped meets it.
         let pinnedCdhash: String?
 
-        init(text: String?, validatesResources: Bool = true, pinnedCdhash: String? = nil) {
+        init(text: String, validatesResources: Bool = true, pinnedCdhash: String? = nil) {
             self.text = text
             self.validatesResources = validatesResources
             self.pinnedCdhash = pinnedCdhash
@@ -793,7 +794,13 @@ public enum InPlaceSwap {
     ///   cdhash, or an unsigned one): `gatedCdhash`, which gate 2 read off the
     ///   `SecStaticCode` it had just validated
     ///   (`verifyCodeSignatureCapturingCdhash`) — so the staged copy must carry
-    ///   the code directory that passed gate 2.
+    ///   the code directory that passed gate 2. As a requirement, on every
+    ///   slice, so a universal build fails it. That is kept: pinning only the
+    ///   native slice let any other slice be anything ad-hoc signed (a grafted
+    ///   x86_64 slice runs under "Open using Rosetta"), and pinning each slice
+    ///   would not help either — an ad-hoc signature says nothing about who
+    ///   made the bytes, so gate 2 would pin whatever the scratch copy held
+    ///   when it ran. Such an origin should not be elevated at all.
     /// - Neither (gate 2 reported no cdhash): nil, and the shell checks
     ///   nothing. Gate 2 refuses an unsigned download, so this is not expected
     ///   on an install; it is a residual, not a guarantee.
@@ -809,7 +816,7 @@ public enum InPlaceSwap {
             return StagedCopyRequirement(text: text, pinnedCdhash: gatedCdhash)
         }
         guard let gatedCdhash else { return nil }
-        return StagedCopyRequirement(text: nil, pinnedCdhash: gatedCdhash)
+        return StagedCopyRequirement(text: "cdhash H\"\(gatedCdhash)\"")
     }
 
     /// The `codesign` clause for `quotedPath`, `&&`-terminated, or empty when
@@ -829,7 +836,7 @@ public enum InPlaceSwap {
     /// bundle in, the main executable is whatever that outside file becomes.
     static func stagedCopyCheck(_ quotedPath: String, _ requirement: StagedCopyRequirement?) -> String {
         guard let requirement else { return "" }
-        let req = requirement.text.map { "-R \(shellQuote("=" + $0)) " } ?? ""
+        let req = "-R \(shellQuote("=" + requirement.text)) "
         guard requirement.validatesResources else {
             return "/bin/test ! -L \(quotedPath)/Contents && /bin/test ! -L \(quotedPath)/Contents/MacOS && "
                 + "/usr/bin/codesign --verify --ignore-resources --all-architectures \(req)\(quotedPath) && "

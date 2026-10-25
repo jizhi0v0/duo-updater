@@ -47,34 +47,6 @@ import Testing
         #expect(ids == [987654321])
     }
 
-    /// The vendor probe's `unzip`. Mutation: `.terminateChild` in
-    /// `VendorProbeSource.extractZipEntry` → `archiveExtractionFailed`, which the
-    /// diagnostics file as a recipe fault.
-    @Test func aCancelledZipEntryReadStillAnswers() async throws {
-        let fm = FileManager.default
-        let dir = fm.temporaryDirectory
-            .appendingPathComponent("ZZFixture-zipread-\(UUID().uuidString)", isDirectory: true)
-        let stub = dir.appendingPathComponent("ZZStub.app/Contents", isDirectory: true)
-        try fm.createDirectory(at: stub, withIntermediateDirectories: true)
-        defer { try? fm.removeItem(at: dir) }
-        try Data("zzfixture-payload".utf8).write(to: stub.appendingPathComponent("Info.plist"))
-        let zip = dir.appendingPathComponent("stub.zip")
-        let made = try await ChildProcess.run(
-            "/usr/bin/ditto",
-            ["-c", "-k", "--keepParent", dir.appendingPathComponent("ZZStub.app").path, zip.path],
-            onCancel: .runToCompletion)
-        #expect(made.succeeded)
-
-        let result = await Self.cancelledBeforeStart {
-            await VendorProbeSource.extractZipEntry(archive: zip, entry: "ZZStub.app/Contents/Info.plist")
-        }
-        guard case .success(let data) = result else {
-            Issue.record("expected the entry, got \(result)")
-            return
-        }
-        #expect(String(decoding: data, as: UTF8.self) == "zzfixture-payload")
-    }
-
     // MARK: - Helpers
 
     private static func cancelledBeforeStart<T: Sendable>(

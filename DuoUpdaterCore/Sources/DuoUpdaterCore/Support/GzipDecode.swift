@@ -193,3 +193,14 @@ enum GzipDecode {
         return ok ? output : nil
     }
 }
+
+/// `GzipDecode.inflateRaw` for targets outside this package (the `duo` CLI's
+/// package reader), which cannot see the internal `GzipDecode`. One bounded entry
+/// rather than a second inflate loop to keep in step with this one.
+public enum BoundedInflate {
+    /// Raw DEFLATE (RFC 1951) — what Apple's `NSData` `.zlib` algorithm reads —
+    /// or nil when the stream is malformed or its output would pass `limit` bytes.
+    public static func rawDeflate(_ data: Data, limit: Int) -> Data? {
+        GzipDecode.inflateRaw(data, limit: limit)
+    }
+}

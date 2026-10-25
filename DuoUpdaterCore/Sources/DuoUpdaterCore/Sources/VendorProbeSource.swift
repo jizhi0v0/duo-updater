@@ -1702,33 +1702,6 @@ public struct VendorProbeSource: UpdateSource {
         }
     }
 
-    /// `unzip -p <archive> <entry>`: the entry's bytes, or the failure.
-    ///
-    /// Awaited, not parked: this runs on every check and every `duo verify`.
-    /// Runs to completion if the caller is cancelled: a killed `unzip` surfaced as
-    /// `archiveExtractionFailed`, which the diagnostics classify as a recipe fault —
-    /// "a human needs to look" — for what was only a cancelled check. The archive
-    /// is a small stub read from a temp file, so there is nothing to save by
-    /// killing it.
-    static func extractZipEntry(archive: URL, entry: String) async -> Result<Data, ProbeFailure> {
-        let extracted: ChildProcess.Outcome
-        do {
-            extracted = try await ChildProcess.run(
-                "/usr/bin/unzip", ["-p", archive.path, entry],
-                standardError: .discard, onCancel: .runToCompletion)
-        } catch {
-            return .failure(.archiveExtractionFailed("cannot run unzip: \(error.localizedDescription)"))
-        }
-        guard extracted.terminationStatus == 0 else {
-            return .failure(.archiveExtractionFailed(
-                "unzip exited \(extracted.terminationStatus) extracting '\(entry)'"))
-        }
-        guard !extracted.standardOutput.isEmpty else {
-            return .failure(.archiveExtractionFailed("'\(entry)' extracted empty"))
-        }
-        return .success(extracted.standardOutput)
-    }
-
     /// Download a (small) zip and read one property-list entry's string value —
     /// the runtime behind `Mode.zipEntryPlist`. Used for vendors (Spotify) whose
     /// only cheap version surface is a stub-installer archive whose bundled app's
@@ -1753,23 +1726,17 @@ public struct VendorProbeSource: UpdateSource {
             return .failure(.httpStatus(http.statusCode))
         }
 
-        // `unzip` needs a seekable file (the zip's central directory lives at the
-        // end), so stage the archive in a temp file and extract just the one entry
-        // to stdout.
-        let tmp = FileManager.default.temporaryDirectory
-            .appendingPathComponent("vendorprobe-\(UUID().uuidString).zip")
-        do { try data.write(to: tmp) }
-        catch { return .failure(.archiveExtractionFailed("cannot stage archive: \(error.localizedDescription)")) }
-        // A synchronous removal in a `defer` on purpose, unlike the bundle-sized
-        // ones elsewhere: this is one file of a stub installer's size (it was
-        // downloaded into memory just above), so unlinking it costs nothing a hop
-        // would save.
-        defer { try? FileManager.default.removeItem(at: tmp) }
-
+        // The archive is already in memory, so read the entry the way the
+        // `Range`-based mode does: through `RemoteZipEntry`, with the same bounds —
+        // an entry larger than `maxEntryBytes`, or that inflates past the size its
+        // directory declares, is refused rather than extracted.
         let plistData: Data
-        switch await Self.extractZipEntry(archive: tmp, entry: entry) {
-        case .success(let data): plistData = data
-        case .failure(let failure): return .failure(failure)
+        do {
+            plistData = try await RemoteZipEntry.read(entry, fetch: RemoteZipEntry.fetch(from: data))
+        } catch let error as RemoteZipEntry.Unreadable {
+            return .failure(.archiveExtractionFailed(error.detail))
+        } catch {
+            return .failure(.archiveExtractionFailed("cannot read '\(entry)': \(error.localizedDescription)"))
         }
 
         // Parse as a property list (Spotify's is a binary plist, `bplist00`) and

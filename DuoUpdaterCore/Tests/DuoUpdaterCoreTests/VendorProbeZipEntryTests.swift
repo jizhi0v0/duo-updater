@@ -3,12 +3,12 @@ import Testing
 @testable import DuoUpdaterCore
 
 /// `.zipEntryPlist` end to end, offline: a zip built here with `ditto`, served by
-/// an in-process `URLProtocol`, read by the real `unzip` through `ChildProcess`.
-/// The recipe and app are invented; nothing on the network or the host is asked.
+/// an in-process `URLProtocol`, read in memory by `RemoteZipEntry`. The recipe and
+/// app are invented; nothing on the network or the host is asked.
 ///
-/// These pin the two things the `unzip` call site owns: the entry comes back on
-/// stdout (stderr is discarded), and a non-zero exit is reported with its status
-/// as "unzip exited N extracting '…'".
+/// These pin what the call site owns: the entry's plist value becomes the remote
+/// version, a missing entry is reported by name, and an entry that inflates past
+/// its declared size is refused.
 @Suite(.serialized)
 struct VendorProbeZipEntryTests {
 
@@ -72,9 +72,9 @@ struct VendorProbeZipEntryTests {
         return try Data(contentsOf: zip)
     }
 
-    /// Mutation: in `zipEntryPlistValue`, read `extracted.standardError` as the
-    /// plist data → "'…' extracted empty", no version.
-    @Test func theEntryIsReadFromUnzipsStandardOutput() async throws {
+    /// Mutation: in `zipEntryPlistValue`, parse the whole archive instead of the
+    /// entry's bytes → "'…' is not a property list", no version.
+    @Test func theEntryIsReadFromTheArchive() async throws {
         ZipServer.serve(try await Self.stubZip())
         let source = VendorProbeSource(
             recipes: [Self.recipe(entry: "ZZStub.app/Contents/Info.plist")],
@@ -84,9 +84,27 @@ struct VendorProbeZipEntryTests {
         #expect(outcome.remote?.shortVersion == "7.8.9")
     }
 
-    /// Mutation: build the message from `extracted.standardError.count` instead of
-    /// `extracted.terminationStatus` → it says "exited 0".
-    @Test func aMissingEntryReportsUnzipsExitStatus() async throws {
+    /// The downloaded archive is a vendor's bytes: an entry that declares 100 bytes
+    /// and deflates 4 MiB must be refused while it inflates, not extracted whole
+    /// and weighed afterwards.
+    /// Mutation: extract the entry without a size bound (the old `unzip -p`, or
+    /// `Int.max` as the inflate limit) → no "does not inflate within" failure.
+    @Test func anEntryInflatingPastItsDeclaredSizeIsRefused() async throws {
+        ZipServer.serve(try await VendorProbeArchiveInfoPlistTests.bombArchive(
+            inflatedBytes: 4 << 20, declaredSize: 100))
+        let source = VendorProbeSource(
+            recipes: [Self.recipe(entry: "ZZStub.app/Contents/Info.plist")],
+            session: ZipServer.session())
+        let outcome = await source.probeDiagnostic(for: Self.app)
+        #expect(outcome?.remote == nil)
+        #expect(outcome?.failure?.kind == "archiveExtractionFailed")
+        #expect(outcome?.failure?.detail
+            == "'ZZStub.app/Contents/Info.plist' does not inflate within its declared size of 100 bytes")
+    }
+
+    /// Mutation: drop the `RemoteZipEntry.Unreadable` catch in `zipEntryPlistValue`
+    /// → the failure reads "cannot read '…'" instead of naming what is missing.
+    @Test func aMissingEntryIsReportedByName() async throws {
         ZipServer.serve(try await Self.stubZip())
         let source = VendorProbeSource(
             recipes: [Self.recipe(entry: "ZZStub.app/Contents/Nope.plist")],
@@ -94,6 +112,6 @@ struct VendorProbeZipEntryTests {
         let outcome = await source.probeDiagnostic(for: Self.app)
         #expect(outcome?.failure?.kind == "archiveExtractionFailed")
         #expect(outcome?.failure?.detail
-            == "unzip exited 11 extracting 'ZZStub.app/Contents/Nope.plist'")
+            == "'ZZStub.app/Contents/Nope.plist' is not in the archive's central directory")
     }
 }

@@ -785,19 +785,22 @@ public enum Install {
             // A tool's route is its own update command: the one its row's
             // Update button runs.
             for status in tools {
-                print("  \(status.name ?? status.kind.displayName)  \(status.installedVersion ?? "?")"
+                // `latestVersion` is the vendor's release string, as in `CLIToolRows`.
+                print(TerminalText.printable(
+                    "  \(status.name ?? status.kind.displayName)  \(status.installedVersion ?? "?")"
                     + "  →  \(status.latestVersion ?? "?")  \(status.path)"
-                    + "  [\(status.oneClick?.display ?? "?")]")
+                    + "  [\(status.oneClick?.display ?? "?")]"))
             }
         }
         if !refusals.isEmpty || !toolRefusals.isEmpty {
             print("\nSkipping:")
             for (result, why, _) in refusals {
-                print("  \(result.app.name)  —  \(why)")
+                print(TerminalText.printable("  \(result.app.name)  —  \(why)"))
             }
             for (status, why, command) in toolRefusals {
-                print("  \(status.name ?? status.kind.displayName)  \(status.installedVersion ?? "?")"
-                    + "  →  \(status.latestVersion ?? "?")  \(status.path)  —  \(why)")
+                print(TerminalText.printable(
+                    "  \(status.name ?? status.kind.displayName)  \(status.installedVersion ?? "?")"
+                    + "  →  \(status.latestVersion ?? "?")  \(status.path)  —  \(why)"))
                 if let command { print("      to update it yourself: \(command)") }
             }
         }
@@ -1007,10 +1010,12 @@ public enum Install {
                 // `.answerRegressed` always did; every other ending prints to
                 // stdout only when `!json`, matching what `.notRequested`,
                 // `.skip`, and `.unreadable` always did.
+                // `console` can quote the source's offered version (the
+                // regressed-answer ending), so it is scrubbed like the plan lines.
                 if end.outcome == .failed {
-                    FileHandle.standardError.write(Data("   \(end.console)\n".utf8))
+                    FileHandle.standardError.write(Data("   \(TerminalText.printable(end.console))\n".utf8))
                 } else if !json {
-                    print("   \(end.console)")
+                    print("   \(TerminalText.printable(end.console))")
                 }
                 emitSkipped(name: name, route: end.route, reason: end.reason,
                             outcome: end.outcome, json: json)

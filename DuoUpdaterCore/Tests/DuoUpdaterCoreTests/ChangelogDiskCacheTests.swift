@@ -93,9 +93,15 @@ struct ChangelogDiskCacheTests {
                 - Logo ![logo](https://cdn.example.com/a.png) kept
                 - See [notes](https://example.com/notes?ref=app)
                 """
+            // A rich entry carries each line twice — in `items` and as a `.note`
+            // (`GitHubMarkdownParser`); the second copy must be scrubbed too. The
+            // `<…>` URL has a space and a `|`, which `URLComponents` cannot parse.
+            let line = "Faster ![shot](<https://cdn.example.com/c d.png?a|b=s3cr3t-token>) sync"
             let changelog = Changelog(entries: [Changelog.Entry(
                 version: "1.0", date: nil,
-                items: ["Faster ![shot](<https://cdn.example.com/c.png#session=s3cr3t-token>) sync", "Plain"],
+                items: [line, "Plain"],
+                content: [.heading("Added ![i](https://cdn.example.com/h.png#s3cr3t-token)"),
+                          .note(line), .note("Plain")],
                 markdown: markdown)])
             await ChangelogDiskCache(directory: dir).set(changelog, for: Self.key)
 
@@ -104,6 +110,7 @@ struct ChangelogDiskCacheTests {
 
             let entry = try #require(await ChangelogDiskCache(directory: dir).get(for: Self.key)?.entries.first)
             #expect(entry.items == ["Faster  sync", "Plain"])
+            #expect(entry.content == [.heading("Added "), .note("Faster  sync"), .note("Plain")])
             let kept = try #require(entry.markdown)
             #expect(kept.contains("- Faster  sync"))
             #expect(kept.contains("![logo](https://cdn.example.com/a.png)"))

@@ -63,4 +63,19 @@ import DuoUpdaterCore
         #expect(line.contains("Demo  1.0  →  2.0  [homebrew]"), "\(line)")
         Self.clean(lines)
     }
+
+    /// The tool lines under "Will install" and "Skipping" carry the same vendor
+    /// release string the CLI-tool rows print.
+    ///
+    /// Mutation: print either tool line raw again in `Install.describe`.
+    @Test func duoInstallScrubsTheToolReleaseString() throws {
+        let planned = CLIToolRowsTests.status(.uv, "/ZZFixture-home/.local/bin/uv", latest: "0.9.9\(Self.cursor)")
+        let refused = CLIToolRowsTests.status(.codex, "/ZZFixture-home/.local/bin/codex", latest: "2.0\(Self.clipboard)")
+        var lines: [String] = []
+        Install.describe([], refusals: [], tools: [planned],
+                         toolRefusals: [(refused, "needs a newer Node", nil)], print: { lines.append($0) })
+        #expect(lines.contains { $0.contains("→  0.9.9  /ZZFixture-home/.local/bin/uv") }, "\(lines)")
+        #expect(lines.contains { $0.contains("→  2.0  /ZZFixture-home/.local/bin/codex  —  needs a newer Node") }, "\(lines)")
+        Self.clean(lines)
+    }
 }

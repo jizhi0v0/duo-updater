@@ -239,46 +239,50 @@ public actor ChangelogDiskCache {
     /// `<img>` URLs on the Capy, Longbridge and Raycast changelog pages had one
     /// (fetched 2026-10-25), so this drops nothing there today.
     ///
-    /// The same URL can reach disk inside an entry's `markdown` body or a flat
-    /// `items` line as inline image syntax (`![alt](url)`), which the renderer
-    /// fetches exactly like a `.image` block — Sparkle notes keep their Markdown
-    /// verbatim and `items` keeps the raw line. Those inline images are dropped
-    /// too, by the same query/fragment test; a plain inline image stays, and so
-    /// does the surrounding text. An inline LINK (`[text](url)`) is left as the
-    /// vendor wrote it: it is not auto-fetched and removing it would break the
-    /// user's click-through.
+    /// The same URL can reach disk as inline image syntax (`![alt](url)`) in an
+    /// entry's text: its `markdown` body (Sparkle notes keep their Markdown
+    /// verbatim), its flat `items` lines, and the `.note`/`.heading` blocks of
+    /// `content`, which carry the same lines again for a rich entry
+    /// (`GitHubMarkdownParser` appends each cleaned line to both). Whether a
+    /// renderer fetches it or not, the token is in the file, so those inline
+    /// images are dropped from every one of these by the same query/fragment
+    /// test; a plain inline image stays, and so does the surrounding text. An
+    /// inline LINK (`[text](url)`) is left as the vendor wrote it: removing it
+    /// would break the user's click-through.
     static func persisted(_ changelog: Changelog) -> Changelog {
-        func keeps(_ block: Changelog.Entry.Block) -> Bool {
-            guard case .image(let url) = block else { return true }
-            return url.query == nil && url.fragment == nil
+        func scrubbed(_ block: Changelog.Entry.Block) -> Changelog.Entry.Block? {
+            switch block {
+            case .image(let url):
+                return url.query == nil && url.fragment == nil ? block : nil
+            case .note(let text):
+                return .note(scrubbingSignedInlineImages(from: text))
+            case .heading(let text):
+                return .heading(scrubbingSignedInlineImages(from: text))
+            }
         }
         func scrubbed(_ entry: Changelog.Entry) -> Changelog.Entry {
             Changelog.Entry(
                 title: entry.title, version: entry.version, date: entry.date,
                 items: entry.items.map(scrubbingSignedInlineImages(from:)),
-                content: entry.content.filter(keeps),
+                content: entry.content.compactMap(scrubbed),
                 markdown: entry.markdown.map(scrubbingSignedInlineImages(from:)))
         }
-        let needsChange = changelog.entries.contains { entry in
-            entry.content.contains { !keeps($0) }
-                || entry.items.contains { scrubbingSignedInlineImages(from: $0) != $0 }
-                || (entry.markdown.map { scrubbingSignedInlineImages(from: $0) != $0 } ?? false)
-        }
-        guard needsChange else { return changelog }
-        return Changelog(
-            entries: changelog.entries.map(scrubbed),
-            itemSyntax: changelog.itemSyntax)
+        let rewritten = changelog.entries.map(scrubbed)
+        guard rewritten != changelog.entries else { return changelog }
+        return Changelog(entries: rewritten, itemSyntax: changelog.itemSyntax)
     }
 
     /// `text` with every inline Markdown image whose URL carries a query or a
     /// fragment removed — the `![alt](url)` (optionally `… "title"`) reference
     /// taken out whole, leaving the words around it. The signed-token concern is
-    /// the one `persisted` documents; here the URL is embedded in text the
-    /// renderer parses rather than a structured `.image`. A URL with neither a
-    /// query nor a fragment is kept, so this is a no-op for ordinary notes.
+    /// the one `persisted` documents. The test is on the raw URL text (a `?` or
+    /// a `#` anywhere in it), not on a parse: a vendor URL `URLComponents`
+    /// cannot parse (an unencoded `|`, a space inside `<…>`) would otherwise
+    /// read as having no query and keep its token. A URL with neither is kept,
+    /// so this is a no-op for ordinary notes.
     private static func scrubbingSignedInlineImages(from text: String) -> String {
         guard text.contains("![") else { return text }
-        let pattern = #"!\[[^\]]*\]\(\s*<?([^)\s>]+)>?(?:\s+"[^"]*")?\s*\)"#
+        let pattern = #"!\[[^\]]*\]\(\s*(<[^>]*>|[^)\s]+)(?:\s+"[^"]*")?\s*\)"#
         guard let regex = try? NSRegularExpression(pattern: pattern) else { return text }
         var result = text
         // Back to front, so each replacement leaves earlier ranges valid.
@@ -287,8 +291,8 @@ public actor ChangelogDiskCache {
         for match in matches {
             guard let whole = Range(match.range, in: result),
                   let urlRange = Range(match.range(at: 1), in: result) else { continue }
-            let url = URLComponents(string: String(result[urlRange]))
-            guard url?.query != nil || url?.fragment != nil else { continue }
+            let url = result[urlRange]
+            guard url.contains("?") || url.contains("#") else { continue }
             result.replaceSubrange(whole, with: "")
         }
         return result

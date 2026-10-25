@@ -82,11 +82,14 @@ struct BrewFormulaReleaseServiceTests {
     @Test func signedImageURLsAreNotWrittenToDisk() async throws {
         try await withScratchDirectory { dir in
             let signed = URL(string: "https://cdn.example.com/b.png?X-Signature=s3cr3t-token")!
+            // The line as `GitHubMarkdownParser` stores it for a rich entry: in
+            // `items` and again as a `.note`.
+            let line = "Faster ![x](https://cdn.example.com/c.png?sig=s3cr3t-token) sync"
             let release = FormulaRelease(
                 changelog: Changelog(entries: [Changelog.Entry(
                     version: "1.0", date: nil,
-                    items: ["Faster ![x](https://cdn.example.com/c.png?sig=s3cr3t-token) sync"],
-                    content: [.note("Faster sync"), .image(signed)])]),
+                    items: [line],
+                    content: [.heading("Added"), .note(line), .image(signed)])]),
                 pageURL: URL(string: "https://github.com/example/example/releases/tag/v1.0"))
             await BrewFormulaReleaseService(cacheDirectory: dir).persist(release, name: "azure-cli", version: "1.0")
 

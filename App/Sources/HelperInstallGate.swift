@@ -7,9 +7,10 @@ import Foundation
 /// `HelperService.stageVerifiedMAS` runs `Contents/Resources/mas` straight out of
 /// the app bundle, which a process of this user can overwrite — so the app must
 /// not send it the request, however it came to be the one answering (an in-place
-/// update leaves the previous process holding launchd's slot for up to its idle
-/// window, and for good on builds that predate `IdleExit`). Foundation and Core
-/// only so the test bundle can run it without XPC.
+/// update can leave the previous process holding launchd's slot until it idles
+/// out, and for good on builds that predate `IdleExit`). On a refusal the caller
+/// drops its connection, so that idle exit can happen. Foundation and Core only
+/// so the test bundle can run it without XPC.
 enum HelperInstallGate {
     /// Throws `helperOutdated` unless `versionReply` declares a helper that
     /// verifies `mas` first. An unreadable reply reads as revision 1, so it can

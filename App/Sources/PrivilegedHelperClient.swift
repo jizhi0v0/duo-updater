@@ -366,18 +366,26 @@ final class HelperShellRunner: PrivilegedMASRunner, @unchecked Sendable {
     /// root without verifying it first (`HelperInstallGate`). Both install attempts
     /// go through here, and nothing else sends `installMASApp`.
     private func ensureReadyToInstall() async throws {
-        let versionReply = try await ensureReachable()
+        let (versionReply, conn) = try await ensureReachable()
         do {
             try HelperInstallGate.require(versionReply: versionReply)
         } catch {
+            // Drop and invalidate the connection, as for a silent helper. The helper
+            // only arms its idle exit once its last connection closes
+            // (`IdleExit.connectionClosed`), so a connection kept open to the old
+            // process would hold it in launchd's slot for as long as this app runs,
+            // and every later attempt would reach it and be refused again.
+            clearConnection()
+            conn.invalidate()
             log.error("helper \(versionReply, privacy: .public) predates verified mas — refusing to send it the install")
             throw error
         }
     }
 
-    /// The `helperVersion` reply of the helper that answered.
+    /// The `helperVersion` reply of the helper that answered, and the connection
+    /// it answered on.
     @discardableResult
-    private func ensureReachable() async throws -> String {
+    private func ensureReachable() async throws -> (versionReply: String, connection: NSXPCConnection) {
         // A deadline and a probe raced through ONE continuation — not a task group
         // with a timeout child. This used to be
         // `withThrowingTaskGroup { probe; sleep; first = await group.next() }`, and
@@ -417,7 +425,7 @@ final class HelperShellRunner: PrivilegedMASRunner, @unchecked Sendable {
             log.error("helper did not answer within \(Self.reachabilityTimeout, privacy: .public) — treating as unavailable")
             throw MASInstaller.MASError.helperUnresponsive
         }
-        return versionReply
+        return (versionReply, conn)
     }
 
     /// The two ways an XPC call fails when the peer never came up: Cocoa's

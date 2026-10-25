@@ -165,9 +165,21 @@ ensure_generate_appcast() {
     export DUO_TEAM_ID="${DUO_TEAM_ID:-RS59HDH7Y3}"
     ( cd "$REPO_ROOT/App" && xcodegen generate >/dev/null ) \
         || die "xcodegen generate failed — cannot resolve Sparkle into $DERIVED_DATA"
+    # This binary is run next with the Sparkle EdDSA key in reach (`--account`
+    # below), so it must come from the revision recorded in App/Package.resolved,
+    # not from wherever the Sparkle tag points today. Xcode reads the pins from
+    # the workspace inside the generated project, which xcodegen just recreated
+    # without them — put the committed file there, and refuse to move off it.
+    [ -f "$REPO_ROOT/App/Package.resolved" ] \
+        || die "App/Package.resolved is missing — it pins the Sparkle revision generate_appcast comes from"
+    resolved_dir="$REPO_ROOT/App/DuoUpdater.xcodeproj/project.xcworkspace/xcshareddata/swiftpm"
+    mkdir -p "$resolved_dir" \
+        && cp "$REPO_ROOT/App/Package.resolved" "$resolved_dir/Package.resolved" \
+        || die "could not install App/Package.resolved into the generated project"
     xcodebuild -project "$REPO_ROOT/App/DuoUpdater.xcodeproj" \
                -scheme DuoUpdater \
                -derivedDataPath "$DERIVED_DATA" \
+               -onlyUsePackageVersionsFromResolvedFile \
                -resolvePackageDependencies >/dev/null \
         || die "could not resolve package dependencies into $DERIVED_DATA"
 

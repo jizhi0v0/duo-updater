@@ -3,7 +3,8 @@
 
 # Swift Package Manager
 .build/
-Package.resolved
+# Package.resolved is tracked: it is what pins the Sparkle / swift-subprocess /
+# swift-system revisions, so a moved tag cannot change what gets built or signed.
 
 # Xcode build output
 App/build/

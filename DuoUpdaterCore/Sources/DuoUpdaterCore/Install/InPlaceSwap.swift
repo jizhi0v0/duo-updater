@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import Security
 
@@ -105,7 +106,9 @@ public enum InPlaceSwap {
     /// `-staged` (and present-app `.duoupdater-old`) leftovers, and try the root-owned
     /// `.duoupdater-stage.*` directories a privileged shell left. Best-effort; safe to
     /// run on every launch. Only the non-admin / read-only-parent install path can
-    /// leave these behind (the common admin path is a truly atomic `replaceItemAt`).
+    /// leave these behind (the common admin path is a truly atomic `replaceItemAt`),
+    /// and only builds from before it staged in root's own directory under
+    /// `/private/var/tmp` (`privilegedStagingRoot`), which this sweep does not reach.
     ///
     /// Takes the machine-wide install lock first, like every other path that
     /// replaces a bundle. Without it this sweep is not recovery but interference:
@@ -425,10 +428,11 @@ public enum InPlaceSwap {
                 // bundle in, and restores it if that fails. If the restore ALSO
                 // fails the app is missing from disk — and this is the one moment
                 // the line is load-bearing, so it must not claim the opposite.
-                // `recoverInterruptedSwaps` promotes the `.duoupdater-old` copy
-                // back on the next launch.
+                // The pre-swap copy is parked in root's staging directory, which
+                // the shell then keeps and names on stderr; the launch sweep
+                // cannot reach it there (`privilegedStagingPrologue`).
                 Log.install.error(
-                    "swap did NOT complete and \(target.lastPathComponent, privacy: .public) is MISSING from disk — its pre-swap copy should be recovered on next launch")
+                    "swap did NOT complete and \(target.lastPathComponent, privacy: .public) is MISSING from disk — its pre-swap copy was kept in root's staging folder under \(privilegedStagingRoot, privacy: .public)")
             }
         }
 
@@ -616,30 +620,81 @@ public enum InPlaceSwap {
 
     // MARK: - Privileged staging
 
-    /// Names a privileged shell's staging directory: `<App>.app` + this +
-    /// `mktemp`'s six random characters. The launch sweep recognises it.
+    /// What builds before root staged in `privilegedStagingRoot` named their
+    /// staging directory: `<App>.app` + this + `mktemp`'s six random characters,
+    /// beside the target. The launch sweep and the prologue still clear them.
     static let privilegedStagingInfix = ".duoupdater-stage."
 
-    /// What every privileged shell opens with. A fixed sibling such as
-    /// `<App>.app.duoupdater-new` is a name anyone who can write the folder (any
-    /// admin process, in `/Applications`) can place a symlink at between root's
-    /// `rm` and its `ditto`, which follows it. `mktemp -d` makes a directory
-    /// that did not exist, mode 0700 and owned by root, on the same volume as
-    /// the target so the final `mv` stays a rename. The trap removes it on
-    /// every exit, success included; the leading `rm` clears any a killed shell
-    /// left (root-owned, so the unprivileged launch sweep cannot). `rm` acts on
-    /// a symlink itself, never its target.
+    /// Where root stages. Not beside the target: `/Applications` is
+    /// `root:admin` 775 and not sticky, so the user can rename root's own 0700
+    /// directory there and put one of its own at that name — measured
+    /// 2026-10-25, macOS 27.2: `mv` of a root 0700 directory in `/Applications`
+    /// as the admin user, status 0, then `mkdir` at the old name, status 0.
+    /// Root's `ditto`, `codesign` and `mv` all go by that name, so the bytes it
+    /// checked and the bytes it moved in could come from a directory the user
+    /// writes. `/private/var/tmp` is `root:wheel` 1777: sticky, so an entry
+    /// root made can be renamed or removed by root alone.
+    static let privilegedStagingRoot = "/private/var/tmp"
+
+    /// The name root's staging directories for `target` start with in
+    /// `privilegedStagingRoot`, before `mktemp`'s six characters. Per target, so
+    /// a shell clears what an earlier one for the same app left without
+    /// touching another install's; hashed, so nothing in a path reaches a
+    /// `find -name` pattern.
+    static func privilegedStagingPrefix(for target: URL) -> String {
+        let digest = SHA256.hash(data: Data(target.path.utf8))
+        return "duoupdater-stage." + digest.prefix(8).map { String(format: "%02x", $0) }.joined() + "."
+    }
+
+    /// What every privileged shell opens with. A fixed name is one the user can
+    /// place a symlink or a directory of its own at between root's `rm` and its
+    /// `ditto`; `mktemp -d` makes a directory that did not exist, mode 0700 and
+    /// owned by root, in `privilegedStagingRoot`, where it stays root's.
+    ///
+    /// The final `mv` into place has to be a rename — across volumes `mv` falls
+    /// back to copying, and the app would be half there while it does — so a
+    /// target whose folder is on another volume is refused here, before
+    /// anything is copied or moved. (Same device on the development machine
+    /// for `/Applications`, `~/Applications` and `/private/var/tmp`, 16777229,
+    /// measured 2026-10-25: all on the Data volume.)
+    ///
+    /// The trap removes the directory on every exit, success included — unless
+    /// the target is missing and the bundle it displaced is parked in it
+    /// (`stagedOldPath`): then it is the only copy of the app, and stays where
+    /// only root can reach it rather than being deleted; the shell says where
+    /// on stderr. The `find` clears what a killed shell left for this target,
+    /// root-owned ones only, and only when the target is there, for the same
+    /// reason. The leading `rm` clears the beside-target names older builds
+    /// used. `rm` acts on a symlink itself, never its target.
     static func privilegedStagingPrologue(target: URL, alsoRemoving extra: String = "") -> String {
         let tgt = shellQuote(target.path)
+        let parent = shellQuote(target.deletingLastPathComponent().path)
+        let root = privilegedStagingRoot
+        let prefix = privilegedStagingPrefix(for: target)
         return "/bin/rm -rf \(extra)\(tgt)\(privilegedStagingInfix)*; "
-            + "S=$(/usr/bin/mktemp -d \(tgt)\(privilegedStagingInfix)XXXXXX) || exit 1; "
-            + "trap '/bin/rm -rf \"$S\"' EXIT; "
+            + "/bin/test -e \(tgt) && /usr/bin/find \(root) -maxdepth 1 -name '\(prefix)*' -type d -user 0 "
+            + "-exec /bin/rm -rf {} +; "
+            + "S=$(/usr/bin/mktemp -d \(root)/\(prefix)XXXXXX) || exit 1; "
+            + "T=\(tgt); O=\(stagedOldPath(for: target)); "
+            + "trap 'if /bin/test -e \"$T\" || /bin/test ! -e \"$O\"; then /bin/rm -rf \"$S\"; "
+            + "else echo \"The app was moved aside and could not be put back. It is at $O.\" >&2; fi' EXIT; "
+            + "/bin/test \"$(/usr/bin/stat -f %d \"$S\")\" = \"$(/usr/bin/stat -f %d \(parent))\" || "
+            + "{ echo \"The app's folder is not on the same disk as \(root), where DuoUpdater stages an "
+            + "administrator install. Nothing was changed.\" >&2; exit 1; }; "
     }
 
     /// The staged copy's path inside the prologue's directory, for the shell.
     static func stagedPath(for target: URL, appending component: String? = nil) -> String {
         let name = component.map { target.lastPathComponent + "/" + $0 } ?? target.lastPathComponent
         return "\"$S\"/" + shellQuote(name)
+    }
+
+    /// Where a privileged swap parks the bundle it displaces: inside the
+    /// prologue's directory, for the reason the staged copy is there. A fixed
+    /// `<App>.app.duoupdater-old` beside the target is a name the user can put
+    /// a directory at, and `mv` onto a directory moves INTO it.
+    static func stagedOldPath(for target: URL) -> String {
+        "\"$S\"/" + shellQuote(target.lastPathComponent + ".duoupdater-old")
     }
 
     /// What a staged copy must still satisfy when root is about to rename it in.
@@ -656,20 +711,31 @@ public enum InPlaceSwap {
         /// False for a restore: the check `verifyRestoreAuthenticity` made,
         /// without resources (`stagedCopyCheck`).
         let validatesResources: Bool
+        /// An install's gate-2 cdhash beside a `text` that is a designated
+        /// requirement, checked as well: the requirement names a signer, and
+        /// every build that signer ever shipped meets it.
+        let pinnedCdhash: String?
 
-        init(text: String, allArchitectures: Bool, validatesResources: Bool = true) {
+        init(
+            text: String, allArchitectures: Bool, validatesResources: Bool = true,
+            pinnedCdhash: String? = nil
+        ) {
             self.text = text
             self.allArchitectures = allArchitectures
             self.validatesResources = validatesResources
+            self.pinnedCdhash = pinnedCdhash
         }
     }
 
     /// Decided at the gate, from what the gate saw:
     /// - An installed copy signed with a certificate: its designated
     ///   requirement, re-aimed at the download's identifier on a rename — gate
-    ///   3b's rule (`SignatureVerifier.verifySignedLikeInstalledCopy`). Read off
-    ///   paths, but a substitute put in the download's place later cannot meet
-    ///   the installed copy's requirement, so when it is read does not matter.
+    ///   3b's rule (`SignatureVerifier.verifySignedLikeInstalledCopy`) — AND
+    ///   `gatedCdhash`. The requirement alone keeps out another signer, not
+    ///   another build of this one: an older, vulnerable release of the same
+    ///   app meets it just as well, and could be put in the download's place
+    ///   while the administrator panel is up. The cdhash names the build gate
+    ///   2 passed.
     /// - Otherwise (an ad-hoc installed copy, whose requirement is its own
     ///   cdhash, or an unsigned one): `gatedCdhash`, which gate 2 read off the
     ///   `SecStaticCode` it had just validated
@@ -687,7 +753,7 @@ public enum InPlaceSwap {
            !summary.authorities.isEmpty, !summary.flags.contains("adhoc"),
            let text = try? SignatureVerifier.installedSignerRequirement(
                installedApp: installed, downloadedApp: downloaded) {
-            return StagedCopyRequirement(text: text, allArchitectures: true)
+            return StagedCopyRequirement(text: text, allArchitectures: true, pinnedCdhash: gatedCdhash)
         }
         guard let gatedCdhash else { return nil }
         return StagedCopyRequirement(text: "cdhash H\"\(gatedCdhash)\"", allArchitectures: false)
@@ -716,7 +782,14 @@ public enum InPlaceSwap {
             return "/bin/test ! -L \(quotedPath)/Contents && /bin/test ! -L \(quotedPath)/Contents/MacOS && "
                 + "/usr/bin/codesign --verify --ignore-resources \(archs)-R \(req) \(quotedPath) && "
         }
-        return "/usr/bin/codesign --verify --deep --strict \(archs)-R \(req) \(quotedPath) && "
+        // The pin is this Mac's slice only (a cdhash names one), and without
+        // resources: the clause before it has just validated them, on every
+        // slice, in a directory only root can write, and the code directory the
+        // cdhash names seals them. Asking again would hash a whole Xcode twice.
+        let pin = requirement.pinnedCdhash.map {
+            "/usr/bin/codesign --verify --ignore-resources -R \(shellQuote("=cdhash H\"\($0)\"")) \(quotedPath) && "
+        } ?? ""
+        return "/usr/bin/codesign --verify --deep --strict \(archs)-R \(req) \(quotedPath) && " + pin
     }
 
     /// The unprivileged whole-bundle exchange — `replace`'s non-elevated route,
@@ -1356,18 +1429,19 @@ public enum InPlaceSwap {
         // replacement exists on disk: a `rm -rf target && ditto` would, if the
         // process were killed (or power lost) in the gap, leave the user with a
         // destroyed app and no recovery — contradicting this module's atomicity
-        // guarantee. The copy goes into a root-owned `mktemp -d` directory, not a
-        // fixed sibling, and an install's copy is re-checked there before it moves
-        // (`privilegedStagingPrologue`, `stagedCopyRequirement`). With this ordering:
+        // guarantee. The copy goes into a root-owned `mktemp -d` directory under
+        // `/private/var/tmp`, not beside the target, and an install's copy is
+        // re-checked there before it moves (`privilegedStagingPrologue`,
+        // `stagedCopyRequirement`). With this ordering:
         //   • killed after ditto, before the renames → original intact, staging
-        //     directory leftover (cleared by the leading `rm -rf` on the next attempt);
-        //   • killed between the two renames → original is at `.duo-old`,
-        //     recoverable, and the trailing `||` restores it in-band.
+        //     directory leftover (cleared by the prologue's `find` on the next attempt);
+        //   • killed between the two renames → original is at `.duoupdater-old`
+        //     in that directory, and the trailing `||` restores it in-band.
         // Each `mv` of a directory on the same volume is an atomic rename, so the
         // only missing-app window is the microscopic gap between two renames, and
-        // even that is recoverable via `.duo-old`.
+        // even that leaves the original whole, in root's staging directory.
         let new = stagedPath(for: target)
-        let old = shellQuote(target.path + ".duoupdater-old")
+        let old = stagedOldPath(for: target)
         let tgt = shellQuote(target.path)
         let src = shellQuote(newApp.path)
         let newContents = stagedPath(for: target, appending: "Contents")
@@ -1434,7 +1508,7 @@ public enum InPlaceSwap {
             return "/usr/sbin/chown -R \(uid):\(gid) \(tgt); "
         }()
         let shell = """
-        \(privilegedStagingPrologue(target: target, alsoRemoving: old + " "))\
+        \(privilegedStagingPrologue(target: target, alsoRemoving: shellQuote(target.path + ".duoupdater-old") + " "))\
         /usr/bin/ditto \(src) \(new) && \
         \(stagedCopyCheck(new, requirement))\
         \(preserveModes)/bin/mv \(tgt) \(old) && \

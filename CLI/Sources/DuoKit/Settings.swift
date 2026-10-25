@@ -8,7 +8,9 @@ import DuoUpdaterCore
 /// writes it back on `didSet`, so a value the CLI writes is overwritten the next
 /// time the app touches anything — a CLI that appeared to work and silently
 /// didn't. Writes (`duo ignore`, `duo skip`) need a change-notification
-/// handshake with the app and are deliberately not here yet.
+/// handshake with the app and are deliberately not here yet. (The one exception
+/// is the GitHub token's old plaintext copy, which ``load()`` moves to the
+/// Keychain; the app has nothing in memory for that key to overwrite.)
 ///
 /// Key *names* are duplicated from `Preferences.Key` for everything except the
 /// two the policy consults, which are shared through `UpdateSettings`. That is
@@ -96,9 +98,39 @@ public struct Settings: Sendable {
             .flatMap(TestFlightDetection.init(rawValue:)) ?? .off
     }
 
-    public static func load() async -> Settings {
-        let defaults = UserDefaults(suiteName: suiteName) ?? .standard
+    /// The "Use the GitHub CLI's sign-in" switch as the app has it; absent reads
+    /// as on, as there.
+    static func usesGitHubCLI(from defaults: UserDefaults) -> Bool {
+        defaults.object(forKey: GitHubToken.usesCLIKey) as? Bool ?? true
+    }
 
+    /// Hand the switch to this process's `GitHubToken`, as `Preferences` does at
+    /// launch. Called once from `main`, for the same reason as
+    /// ``configureBackupStore()``: `GitHubToken.resolve()` follows the process
+    /// global, which is on until somebody says otherwise, so a command that never
+    /// calls ``load()`` (`duo verify`, `duo verify-install`) would read
+    /// `GH_TOKEN` and run `gh` for a user who turned both off. Only the defaults
+    /// are read here, not the Keychain: those commands stay clear of it.
+    public static func configureGitHubSignIn() {
+        configureGitHubSignIn(defaults: UserDefaults(suiteName: suiteName) ?? .standard)
+    }
+
+    static func configureGitHubSignIn(defaults: UserDefaults) {
+        GitHubToken.setUsesCLI(usesGitHubCLI(from: defaults))
+    }
+
+    public static func load() async -> Settings {
+        await load(defaults: UserDefaults(suiteName: suiteName) ?? .standard,
+                   keychain: { Keychain.string(account: $0) },
+                   store: { Keychain.set($0, account: $1) })
+    }
+
+    /// `load()` with the preferences domain and the Keychain (read, and write as
+    /// value then account) injected for tests. `store` has no default: a test that
+    /// forgot it would write the user's real Keychain.
+    static func load(
+        defaults: UserDefaults, keychain: (String) -> String?, store: (String, String) -> Void
+    ) async -> Settings {
         let strategy = defaults.string(forKey: UpdateSettings.appStoreUpdateStrategyKey)
             .flatMap(AppStoreUpdateStrategy.init(rawValue:)) ?? .full
         let vendorPolicy = defaults.string(forKey: UpdateSettings.vendorInstallPolicyKey)
@@ -108,11 +140,18 @@ public struct Settings: Sendable {
         // environment, else whatever `gh` is logged in as — or the entered token
         // alone, if the user turned the GitHub CLI's sign-in off in Settings
         // (absent reads as on, as there).
-        let githubToken = await GitHubToken.resolve(
-            explicit: Keychain.string(account: "github-token"),
-            usesCLI: defaults.object(forKey: GitHubToken.usesCLIKey) as? Bool ?? true)
-        let licenseKey = Keychain.string(account: "alcove-license-key") ?? ""
-        let instanceID = Keychain.string(account: "alcove-instance-id") ?? ""
+        // An old plaintext copy in the defaults is moved to the Keychain here, as
+        // the app does at launch: the one write `duo` makes to these settings.
+        let explicit = GitHubToken.storedToken(defaults: defaults, read: keychain, write: store)
+        let usesCLI = usesGitHubCLI(from: defaults)
+        // And the same two values to the Core globals the app sets from
+        // `Preferences`: `ChangelogService.gitHubToken()` — what the uv, bun and
+        // mise token hand-off asks — resolves from them, not from this call.
+        GitHubToken.setUsesCLI(usesCLI)
+        ChangelogService.setExplicitGitHubToken(explicit)
+        let githubToken = await GitHubToken.resolve(explicit: explicit, usesCLI: usesCLI)
+        let licenseKey = keychain("alcove-license-key") ?? ""
+        let instanceID = keychain("alcove-instance-id") ?? ""
 
         return Settings(
             updateSettings: UpdateSettings(

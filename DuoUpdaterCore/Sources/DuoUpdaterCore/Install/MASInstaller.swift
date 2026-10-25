@@ -76,6 +76,11 @@ public actor MASInstaller {
         /// `helperNotApproved` because the guidance is the opposite: sending the user
         /// to Login Items is a dead end — the item is already on there.
         case helperUnresponsive
+        /// Answering, but built before the helper verified the `mas` it runs as root.
+        /// Not an approval problem and not silence, so it gets its own case; the
+        /// remedy is the same one `helperUnresponsive` names, because restarting
+        /// is what replaces the old process with the copy in the current bundle.
+        case helperOutdated
         case failed(code: Int32, output: String)
 
         public var errorDescription: String? {
@@ -88,6 +93,8 @@ public actor MASInstaller {
                 return "App Store updates need DuoUpdater's background helper. \(MASError.helperApprovalHint)"
             case .helperUnresponsive:
                 return "DuoUpdater's background helper is switched on but isn’t answering — a leftover copy is still holding its slot after DuoUpdater updated itself. \(MASError.helperRestartHint)"
+            case .helperOutdated:
+                return "DuoUpdater's background helper is a copy from before DuoUpdater updated itself, and it can’t be trusted with App Store updates. \(MASError.helperRestartHint)"
             case .failed(let code, let output):
                 // A known dead end on recent macOS: mas downloads the app fully, then
                 // CommerceKit refuses the final receipt import ("Failed to find receipt

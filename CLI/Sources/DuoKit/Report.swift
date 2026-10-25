@@ -41,19 +41,19 @@ public enum Report {
                 print("      pattern   /\(pattern)/")
             }
             if let kind = finding.failureKind, let detail = finding.failureDetail {
-                print("      failure   \(kind) — \(detail)")
+                print("      failure   \(kind) — \(TerminalText.printable(detail))")
             }
             if let version = finding.version {
-                print("      resolved  \(version)")
+                print("      resolved  \(TerminalText.printable(version))")
             }
             for warning in finding.warnings
             where !warning.hasPrefix(Finding.machineNotePrefix) {
-                print("      warning   \(warning)")
+                print("      warning   \(TerminalText.printable(warning))")
             }
             if showSamples, let sample = finding.bodySample {
                 print("      ── body sample ──")
                 for line in sample.split(separator: "\n", omittingEmptySubsequences: false).prefix(40) {
-                    print("      | \(line.prefix(160))")
+                    print("      | \(String(TerminalText.printable(String(line)).prefix(160)))")
                 }
             }
         }
@@ -116,7 +116,7 @@ public enum Report {
                 } else {
                     note = ""
                 }
-                print("      \(finding.recipeID) — \(finding.failureDetail ?? "?") "
+                print("      \(finding.recipeID) — \(finding.failureDetail.map(TerminalText.printable) ?? "?") "
                     + "(\(finding.attempts) attempt\(finding.attempts == 1 ? "" : "s"))\(note)")
             }
         }
@@ -124,7 +124,7 @@ public enum Report {
         if !skipped.isEmpty {
             print("\n  - SKIPPED")
             for finding in skipped {
-                print("      \(finding.recipeID) — \(finding.failureDetail ?? "not applicable")")
+                print("      \(finding.recipeID) — \(finding.failureDetail.map(TerminalText.printable) ?? "not applicable")")
             }
         }
 

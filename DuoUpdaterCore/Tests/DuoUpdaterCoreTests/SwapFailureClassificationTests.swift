@@ -118,11 +118,19 @@ import Testing
     @Test func anElevatedSwapWhoseCleanupFailsHasAlreadyPutTheNewBundleLive() async throws {
         let fm = FileManager.default
         let scratch = try scratch()
+        let target = scratch.appendingPathComponent("ZZFixture-Elevated.app")
         defer {
             clearUserImmutable(under: scratch)
             try? fm.removeItem(at: scratch)
+            // The displaced bundle, `uchg` file and all, is parked in the
+            // shell's staging directory, which its trap could not remove either.
+            let root = URL(fileURLWithPath: InPlaceSwap.privilegedStagingRoot)
+            let prefix = InPlaceSwap.privilegedStagingPrefix(for: target)
+            for name in (try? fm.contentsOfDirectory(atPath: root.path)) ?? [] where name.hasPrefix(prefix) {
+                clearUserImmutable(under: root.appendingPathComponent(name))
+                try? fm.removeItem(at: root.appendingPathComponent(name))
+            }
         }
-        let target = scratch.appendingPathComponent("ZZFixture-Elevated.app")
         let incoming = scratch.appendingPathComponent("ZZFixture-Incoming.app")
         for (bundle, marker) in [(target, "old"), (incoming, "new")] {
             try fm.createDirectory(

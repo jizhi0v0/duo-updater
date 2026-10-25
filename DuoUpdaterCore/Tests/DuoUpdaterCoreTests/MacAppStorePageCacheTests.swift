@@ -391,6 +391,82 @@ struct MacAppStorePageCacheTests {
                 "after invalidateAll the page must be fetched again")
     }
 
+    // MARK: - The links a row opens
+
+    /// `trackViewUrl` is network-sourced and becomes the row's `pageURL` (opened by
+    /// the app) and `downloadURL`. Whatever scheme or host the response names, the
+    /// three branches that used it raw (`nativeMacVersion`, `iosOnMacVersion`,
+    /// `remoteVersion`) now offer it only as `https://apps.apple.com/…`.
+    ///
+    /// Mutation run: reverting `Self.storePageURL(…)` to `URL(string:)` at any one
+    /// of the five call sites turns that branch's case red.
+    @Test(arguments: [
+        "javascript:alert(1)", "file:///etc/passwd", "myapp://open?x=1",
+        "http://apps.apple.com/us/app/demo/id4501", "https://evil.example.com/us/app/demo/id4501",
+    ])
+    func aTrackViewUrlOffAppsAppleComIsNotOfferedAsALink(trackViewURL: String) async throws {
+        for (kind, isiOSAppOnMac) in [("mac-software", false), ("software", false), ("software", true)] {
+            ScriptedHTTP.reset()
+            let trackId = 4501
+            let constructedURL = "https://apps.apple.com/us/app/-/id\(trackId)?platform=mac"
+            ScriptedHTTP.serve { request in
+                guard let url = request.url else { return nil }
+                if url.host == "itunes.apple.com" {
+                    return (200, Self.lookupJSON(
+                        version: "1.5.0", trackId: trackId, trackViewUrl: trackViewURL, kind: kind))
+                }
+                if url.absoluteString == constructedURL { return (200, Data(Self.versionPageHTML.utf8)) }
+                return (404, Data())
+            }
+            let source = MacAppStoreSource(session: ScriptedHTTP.session(), region: "us",
+                                           pageCache: AppStorePageCache())
+            let app = InstalledApp(
+                name: "Demo", bundleID: "com.example.links.\(kind).\(isiOSAppOnMac)",
+                shortVersion: "1.0.0", buildVersion: "100",
+                path: URL(fileURLWithPath: "/Applications/Demo.app"),
+                isMASApp: true, isiOSAppOnMac: isiOSAppOnMac, sparkleFeedURL: nil)
+
+            let remote = try #require(try await source.latestVersion(for: app), "\(kind) \(isiOSAppOnMac)")
+            #expect(remote.downloadURL == nil, "\(kind) \(isiOSAppOnMac): \(String(describing: remote.downloadURL))")
+            // Only the branch that builds its own page URL has one to offer.
+            let own = kind == "software" && !isiOSAppOnMac ? URL(string: constructedURL) : nil
+            #expect(remote.pageURL == own, "\(kind) \(isiOSAppOnMac): \(String(describing: remote.pageURL))")
+        }
+    }
+
+    /// The same three branches keep the real thing: the URL Apple's lookup returns,
+    /// `mt=12` for a Mac listing and `uo=4` for an iOS one.
+    @Test func anAppsAppleComTrackViewUrlIsStillTheRowsLink() async throws {
+        for (kind, isiOSAppOnMac, suffix) in [
+            ("mac-software", false, "?mt=12&uo=4"), ("software", false, "?uo=4"), ("software", true, "?uo=4"),
+        ] {
+            ScriptedHTTP.reset()
+            let trackId = 4601
+            let trackViewURL = "https://apps.apple.com/us/app/demo/id\(trackId)\(suffix)"
+            ScriptedHTTP.serve { request in
+                guard let url = request.url else { return nil }
+                if url.host == "itunes.apple.com" {
+                    return (200, Self.lookupJSON(
+                        version: "1.5.0", trackId: trackId, trackViewUrl: trackViewURL, kind: kind))
+                }
+                if url.host == "apps.apple.com" { return (200, Data(Self.versionPageHTML.utf8)) }
+                return (404, Data())
+            }
+            let source = MacAppStoreSource(session: ScriptedHTTP.session(), region: "us",
+                                           pageCache: AppStorePageCache())
+            let app = InstalledApp(
+                name: "Demo", bundleID: "com.example.reallinks.\(kind).\(isiOSAppOnMac)",
+                shortVersion: "1.0.0", buildVersion: "100",
+                path: URL(fileURLWithPath: "/Applications/Demo.app"),
+                isMASApp: true, isiOSAppOnMac: isiOSAppOnMac, sparkleFeedURL: nil)
+
+            let remote = try #require(try await source.latestVersion(for: app), "\(kind) \(isiOSAppOnMac)")
+            #expect(remote.downloadURL?.absoluteString == trackViewURL, "\(kind) \(isiOSAppOnMac)")
+            if kind == "software" && !isiOSAppOnMac { continue }  // builds its own page URL
+            #expect(remote.pageURL?.absoluteString == trackViewURL, "\(kind) \(isiOSAppOnMac)")
+        }
+    }
+
     // MARK: - #546 / #545's second half: compat + floor reachable off every branch
     //
     // Before `MacPageFacts`, only `remoteVersion(checkMacCompat:)` (branch 2,

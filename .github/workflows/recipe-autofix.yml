@@ -243,11 +243,14 @@ jobs:
         run: |
           set -euo pipefail
           git apply --index "$RUNNER_TEMP/autofix/change.patch"
-          git diff --cached --name-only > "$RUNNER_TEMP/changed.txt"
+          # --no-renames: a rename's source would otherwise not be listed at all.
+          git diff --cached --no-renames --name-status > "$RUNNER_TEMP/changed.txt"
           python3 - "$RUNNER_TEMP/autofix/pr.json" "$RUNNER_TEMP/changed.txt" <<'PY'
           import json, os, re, sys
           plan = json.load(open(sys.argv[1]))
-          changed = sorted(line for line in open(sys.argv[2]).read().split("\n") if line)
+          entries = [line.split("\t") for line in open(sys.argv[2]).read().split("\n") if line]
+          assert all(len(e) == 2 and e[0] in ("A", "M") for e in entries), entries
+          changed = sorted(e[1] for e in entries)
           assert plan["branch"] == f"recipe-autofix/issue-{os.environ['ISSUE']}", plan["branch"]
           assert changed == sorted(plan["paths"]), (changed, plan["paths"])
           families = [m.group(1) for p in changed

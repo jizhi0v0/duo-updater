@@ -1208,6 +1208,28 @@ private func matches(
     #expect(GitHubReleasesSource.stableOnly(all).map(\.tag) == ["v1.0.0"])
 }
 
+/// `html_url` becomes the row's page and changelog link, which the app opens. It
+/// is kept only as `https://github.com/…`; anything else reads as absent, and the
+/// row falls back to the repo's releases page.
+///
+/// Mutation: make `releasePageURL` return `URL(string:)` for any string.
+@Test func aReleaseLinkOffGitHubIsDropped() {
+    func link(_ value: String) -> URL? {
+        let json = #"[{"tag_name":"v1","html_url":"\#(value)","assets":[]}]"#.data(using: .utf8)!
+        return GitHubReleasesSource.releases(from: json, list: true).first?.htmlURL
+    }
+    #expect(link("https://github.com/owner/repo/releases/tag/v1")?.absoluteString
+            == "https://github.com/owner/repo/releases/tag/v1")
+    for bad in ["javascript:alert(1)", "file:///etc/passwd", "myapp://open",
+                "http://github.com/owner/repo/releases/tag/v1",
+                "https://github.com.evil.example/owner/repo/releases/tag/v1",
+                "https://evil.example/owner/repo/releases/tag/v1", ""] {
+        #expect(link(bad) == nil, "\(bad)")
+    }
+    let missing = #"[{"tag_name":"v1","assets":[]}]"#.data(using: .utf8)!
+    #expect(GitHubReleasesSource.releases(from: missing, list: true).first?.htmlURL == nil)
+}
+
 /// Discovery has no principled tiebreak between two candidate rules, and the
 /// runtime path degrades to the locally detected channel rather than dropping
 /// the app — so this is where a second one has to be caught.

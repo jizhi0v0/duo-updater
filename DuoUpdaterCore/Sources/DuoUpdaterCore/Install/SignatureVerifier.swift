@@ -269,6 +269,25 @@ public enum SignatureVerifier {
         }
     }
 
+    /// Whether the only thing saying the downloaded bundle is the vendor's is a
+    /// digest or an update signature over the archive, with no developer
+    /// certificate on `installedApp` to hold the bundle to: any route but
+    /// `.developerID`, over a copy that is ad-hoc signed or unsigned. Where that
+    /// is true, a privileged swap has nothing root can check for itself —
+    /// `InPlaceSwap.stagedCopyRequirement` falls back to the cdhash gate 2 read off
+    /// a bundle in this user's temporary directory — so the swap must not take the
+    /// elevated route (`InPlaceSwap.replace`'s `refuseElevation`).
+    ///
+    /// An installed copy signed with a certificate of its own (no Team ID) is not
+    /// this case: root checks the staged copy against that certificate's
+    /// designated requirement. Unreadable signing info counts as no certificate.
+    /// Blocking Security calls; callers stay off the cooperative pool.
+    static func originRestsOnArchiveAlone(trust: ArtifactTrust, installedApp: URL) -> Bool {
+        if case .developerID = trust { return false }
+        guard let summary = signingSummary(at: installedApp) else { return true }
+        return summary.authorities.isEmpty || summary.flags.contains("adhoc")
+    }
+
     // MARK: Gates 3 + 4, digest-only route
 
     /// Which identity gate a digest-only swap may take, from the two Team IDs
@@ -294,14 +313,18 @@ public enum SignatureVerifier {
     /// MyGo signature says nothing about who signed the bundle, and without 3b a
     /// self-signed certificate naming the Team passes 3 and 4.
     ///
+    /// Either way the bundle must be the release that was offered
+    /// (`verifyOfferedVersion`): the archive was checked at its path and unpacked
+    /// from it afterwards, so a build of another release signed by the same
+    /// signer could have taken its place, and the Team-ID gates alone would pass it.
+    ///
     /// Otherwise, for an app with no Team ID on either side: the signed
     /// identifier cannot carry gate 4 here — a linker-signed ad-hoc build reports
     /// `Electron` (MarkText 0.20.0, measured 2026-10-02) — so the bundle's own
     /// `CFBundleIdentifier` is compared on both sides and against the rule's, and
     /// the download's signed identifier must also equal it. Gate 2 has already
-    /// verified the seal, which covers `Info.plist`. The version gate pins the
-    /// bundle to the release whose digest was checked; the Team-ID route has no
-    /// such gate because a Developer ID signature does not need one.
+    /// verified the seal, which covers `Info.plist`, so the version it reads is
+    /// the one the signer sealed.
     static func verifyDigestOnlyIdentity(
         installedApp: URL, downloadedApp: URL, bundleID: String, version: String
     ) throws {
@@ -312,6 +335,7 @@ public enum SignatureVerifier {
             try verifyTeamIdentifierMatch(installedApp: installedApp, downloadedApp: downloadedApp)
             try verifyBundleIdentifierMatch(installedApp: installedApp, downloadedApp: downloadedApp)
             try verifySignedLikeInstalledCopy(installedApp: installedApp, downloadedApp: downloadedApp)
+            try verifyOfferedVersion(downloadedApp: downloadedApp, offered: version)
             return
         case .teamAppeared(let team):
             throw VerifyError.teamIdentifierAppeared(downloaded: team)
@@ -333,10 +357,22 @@ public enum SignatureVerifier {
                 expected: bundleID, installed: installedID,
                 downloaded: signedID == downloadedID ? downloadedID : "\(downloadedID) (signed as \(signedID ?? "nothing"))")
         }
-        let downloadedVersion = (downloadedPlist["CFBundleShortVersionString"] as? String)?
+        try verifyOfferedVersion(downloadedApp: downloadedApp, offered: version)
+    }
+
+    /// The downloaded bundle's `CFBundleShortVersionString` is the release the
+    /// proof of origin was checked for. A Developer ID signature does not say
+    /// which release a build is, and an older build by the same signer passes
+    /// every other gate on these routes (gate 7 is Sparkle's alone). An empty
+    /// `offered` — the callers pass `shortVersion ?? ""` — is refused rather than
+    /// compared: there is nothing to pin to, and a download with no version of its
+    /// own would otherwise equal it. The MyGo source refuses an empty version
+    /// itself and the GitHub source sets it from the tag, so this is a backstop.
+    static func verifyOfferedVersion(downloadedApp: URL, offered: String) throws {
+        let downloaded = (infoPlist(of: downloadedApp)["CFBundleShortVersionString"] as? String)?
             .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        guard downloadedVersion == version else {
-            throw VerifyError.infoPlistVersionMismatch(expected: version, downloaded: downloadedVersion)
+        guard !offered.isEmpty, downloaded == offered else {
+            throw VerifyError.infoPlistVersionMismatch(expected: offered, downloaded: downloaded)
         }
     }
 

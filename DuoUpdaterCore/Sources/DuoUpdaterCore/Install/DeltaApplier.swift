@@ -290,6 +290,9 @@ public enum DeltaApplier {
 /// it through.
 public func deltaRouteFailureIsWorthRetrying(_ error: Error) -> Bool {
     if error is CancellationError { return false }
+    // The installed copy's signing and who owns it, not the patch: the full
+    // archive meets the same refusal at the same swap.
+    if error is UnanchoredElevatedInstallError { return false }
     guard let verify = error as? SignatureVerifier.VerifyError else { return true }
     switch verify {
     case .unsupportedSystemVersion, .unrunnableArchitecture, .architectureDowngrade:

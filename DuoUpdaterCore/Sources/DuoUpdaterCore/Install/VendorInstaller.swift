@@ -300,8 +300,9 @@ public actor VendorInstaller {
     ) async throws {
         let newApp: URL
         let stagedCheck: InPlaceSwap.StagedCopyRequirement?
+        let refuseElevation: Bool
         do {
-            (newApp, stagedCheck) = try await verifiedBundle(
+            (newApp, stagedCheck, refuseElevation) = try await verifiedBundle(
                 result, download: download, digestOnlyAllowed: digestOnlyAllowed, onStage: onStage)
         } catch where download.localStash != nil && localStashFailureIsWorthRetrying(error) {
             // The stash is another updater's container, not the route's artifact,
@@ -317,19 +318,22 @@ public actor VendorInstaller {
         // caller surfaces a "Restart" prompt). We never force a quit — that would
         // skip the app's own save-on-quit flow.
         onStage(.installing)
-        try await installApp(newApp, over: result.app.path, stagedCheck: stagedCheck)
+        try await installApp(
+            newApp, over: result.app.path, stagedCheck: stagedCheck, refuseElevation: refuseElevation)
 
         onStage(.done)
     }
 
     /// Steps 1–4 of `applyVerified`: every gate, and the bundle that passed them
-    /// with what its privileged swap re-checks (`verifyInstallArtifact`).
+    /// with what its privileged swap re-checks (`verifyInstallArtifact`), and
+    /// whether that swap may not be privileged at all
+    /// (`SignatureVerifier.originRestsOnArchiveAlone`).
     private func verifiedBundle(
         _ result: UpdateResult,
         download: DownloadedUpdate,
         digestOnlyAllowed: Bool,
         onStage: @Sendable @escaping (InstallStage) -> Void
-    ) async throws -> (URL, InPlaceSwap.StagedCopyRequirement?) {
+    ) async throws -> (URL, InPlaceSwap.StagedCopyRequirement?, Bool) {
         guard let remote = result.remote else {
             throw InstallError.notVendorUpdate
         }
@@ -447,7 +451,11 @@ public actor VendorInstaller {
             installedApp: result.app.path,
             trust: trust
         )
-        return (newApp, stagedCheck)
+        let installedApp = result.app.path, finalTrust = trust
+        let archiveAlone = await offCooperativePool {
+            SignatureVerifier.originRestsOnArchiveAlone(trust: finalTrust, installedApp: installedApp)
+        }
+        return (newApp, stagedCheck, archiveAlone)
     }
 
     /// Gate 1 and unpacking for a full archive: the published digests and MyGo
@@ -717,7 +725,8 @@ public actor VendorInstaller {
     /// Validation, quarantine removal, atomic same-volume swap, and the privileged
     /// fallback all live in `InPlaceSwap`, shared with `SparkleInstaller`.
     private func installApp(
-        _ newApp: URL, over target: URL, stagedCheck: InPlaceSwap.StagedCopyRequirement?
+        _ newApp: URL, over target: URL, stagedCheck: InPlaceSwap.StagedCopyRequirement?,
+        refuseElevation: Bool
     ) async throws {
         // Awaited in place: the swap's child processes (including the privileged
         // `osascript` that waits on the administrator panel) go through
@@ -733,7 +742,9 @@ public actor VendorInstaller {
         // logged by `replace` itself, in its `defer` —
         // `aCleanupFailureReasonReachesTheInstallLog` reads it back.
         _ = try await InstallCommit.run("swap") {
-            try await InPlaceSwap.replace(newApp: newApp, over: target, stagedCheck: stagedCheck)
+            try await InPlaceSwap.replace(
+                newApp: newApp, over: target, stagedCheck: stagedCheck,
+                refuseElevation: refuseElevation)
         }
     }
 }

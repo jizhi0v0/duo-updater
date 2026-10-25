@@ -45,6 +45,21 @@ public struct UnverifiableRestoreError: LocalizedError {
     }
 }
 
+/// Thrown, before any administrator prompt, when an update would need one and the
+/// only proof the download is the vendor's is a digest or an update signature over
+/// the archive, with no developer certificate on the installed copy to hold the
+/// bundle to. The archive sits in this user's temporary directory, so anything
+/// running as this user could have swapped it for another build after that check,
+/// and root would put whichever one it was into a place this user cannot write.
+public struct UnanchoredElevatedInstallError: LocalizedError {
+    public let targetPath: String
+
+    public var errorDescription: String? {
+        let name = URL(fileURLWithPath: targetPath).deletingPathExtension().lastPathComponent
+        return String(localized: "Updating \(name) needs an administrator, and the installed copy has no developer signature to check the download against. It was not updated. Update it by hand — once you have installed it yourself, later updates need no administrator.")
+    }
+}
+
 /// The final, destructive step shared by `SparkleInstaller` and `VendorInstaller`:
 /// replace the verified `newApp` bundle over the installed `target` bundle.
 ///
@@ -357,10 +372,17 @@ public enum InPlaceSwap {
     /// elevated route throws `UnverifiableRestoreError` before any panel. Asked
     /// here, where the route is decided, not by the caller beforehand: making a
     /// bundle this user owns read-only would otherwise turn the answer.
+    ///
+    /// `refuseElevation`: an install whose proof of origin is the archive alone
+    /// (`SignatureVerifier.originRestsOnArchiveAlone`). Its `stagedCheck` only
+    /// names the bytes the Swift gates saw, which root cannot tell from a
+    /// substitute, so the elevated route throws `UnanchoredElevatedInstallError`
+    /// before any panel. Asked here, where the route is decided, for the reason
+    /// above.
     @discardableResult
     static func replace(
         newApp: URL, over target: URL, stagedCheck: StagedCopyRequirement? = nil,
-        refuseElevationWithoutCheck: Bool = false
+        refuseElevationWithoutCheck: Bool = false, refuseElevation: Bool = false
     ) async throws -> SwapOutcome {
         try validateTarget(target)
         await stripQuarantine(newApp)
@@ -461,6 +483,9 @@ public enum InPlaceSwap {
 
         if refuseElevationWithoutCheck, stagedCheck == nil {
             throw UnverifiableRestoreError(targetPath: target.path)
+        }
+        if refuseElevation {
+            throw UnanchoredElevatedInstallError(targetPath: target.path)
         }
         let elevatedOutcome = try await privilegedReplace(
             newApp: newApp, target: target, stagedCheck: stagedCheck)

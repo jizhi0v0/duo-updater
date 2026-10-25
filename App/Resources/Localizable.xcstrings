@@ -54480,6 +54480,71 @@
         }
       }
     },
+    "Updating %@ needs an administrator, and the installed copy has no developer signature to check the download against. It was not updated. Update it by hand — once you have installed it yourself, later updates need no administrator.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zum Aktualisieren von %@ ist ein Administrator nötig, und die installierte Kopie hat keine Entwicklersignatur, mit der sich der Download prüfen ließe. Es wurde nicht aktualisiert. Aktualisiere die App von Hand – hast du sie einmal selbst installiert, brauchen spätere Updates keinen Administrator mehr."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Actualizar %@ requiere un administrador, y la copia instalada no tiene firma de desarrollador con la que comprobar la descarga. No se ha actualizado. Actualízala a mano: una vez que la hayas instalado tú, las siguientes actualizaciones no necesitarán un administrador."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La mise à jour de %@ nécessite un administrateur, et la copie installée n’a pas de signature de développeur à laquelle comparer le téléchargement. Elle n’a pas été mise à jour. Mettez-la à jour à la main : une fois que vous l’aurez installée vous-même, les mises à jour suivantes ne demanderont plus d’administrateur."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "L’aggiornamento di %@ richiede un amministratore, e la copia installata non ha una firma dello sviluppatore con cui verificare il download. Non è stata aggiornata. Aggiornala a mano: dopo che l’avrai installata tu, gli aggiornamenti successivi non richiederanno un amministratore."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ の更新には管理者権限が必要ですが、インストール済みのコピーにはダウンロードを照合できる開発元の署名がありません。更新しませんでした。手動で更新してください。ご自身でインストールし直すと、以降の更新には管理者権限が不要になります。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Atualizar %@ exige um administrador, e a cópia instalada não tem assinatura de desenvolvedor para conferir o download. Ela não foi atualizada. Atualize-a manualmente: depois que você mesmo a instalar, as próximas atualizações não vão precisar de administrador."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Для обновления %@ нужны права администратора, а у установленной копии нет подписи разработчика, с которой можно сверить загрузку. Обновление не выполнено. Обновите приложение вручную: после того как вы установите его сами, последующим обновлениям администратор не понадобится."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ uygulamasını güncellemek için yönetici gerekiyor; yüklü kopyada indirmeyi karşılaştırabilecek bir geliştirici imzası yok. Güncellenmedi. Elle güncelleyin; uygulamayı bir kez kendiniz yükledikten sonra sonraki güncellemeler yönetici gerektirmez."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新 %@ 需要管理员权限，而已安装的副本没有可用来核对下载内容的开发者签名，所以没有更新。请手动更新；由你自己安装一次之后，以后的更新就不再需要管理员权限。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新 %@ 需要管理者權限，而已安裝的副本沒有可用來核對下載內容的開發者簽署，所以沒有更新。請手動更新；由你自己安裝一次之後，之後的更新就不再需要管理者權限。"
+          }
+        }
+      }
+    },
     "Updating command-line tools": {
       "extractionState": "manual",
       "localizations": {

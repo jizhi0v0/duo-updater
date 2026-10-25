@@ -33,7 +33,8 @@ FINAL_ZIP="${FINAL_ZIP:-$DIST_DIR/DuoUpdater-notarized.zip}"
 # Where notarize.sh leaves the dSYM of the build it zipped. Exported so the two
 # scripts agree on it when this one runs notarize.sh.
 export DSYM_ZIP="${DSYM_ZIP:-$(dirname "$FINAL_ZIP")/DuoUpdater-dSYM.zip}"
-DERIVED_DATA="${DERIVED_DATA:-/tmp/duo-notary-dd}"
+# Per checkout and private, as in notarize.sh (which must resolve the same path).
+DERIVED_DATA="${DERIVED_DATA:-$(python3 "$REPO_ROOT/scripts/derived_data_path.py" notary "$REPO_ROOT")}"
 SKIP_NOTARIZE="${SKIP_NOTARIZE:-0}"
 RELEASE_NOTES_FILE="${RELEASE_NOTES_FILE:-}"
 DRAFT_RELEASE="${DRAFT_RELEASE:-0}"

@@ -15,7 +15,9 @@ set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 APP_DIR="$REPO/App"
-DD="${DERIVED_DATA:-/tmp/duo-notary-dd}"
+# Per checkout and private, not a fixed /tmp name another account could create
+# first: see scripts/derived_data_path.py.
+DD="${DERIVED_DATA:-$(python3 "$REPO/scripts/derived_data_path.py" notary "$REPO")}"
 # Exported so verify-localizations.sh can name this directory in the one message
 # whose whole content is "delete the derived-data directory" — the release path
 # uses a different one from `make install`, and a remedy naming the wrong

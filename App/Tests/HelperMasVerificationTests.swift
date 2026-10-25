@@ -79,8 +79,8 @@ import Testing
         #expect(try fx.stagingEntries().isEmpty)
     }
 
-    /// The copy is what runs: it lives in a fresh 0700 directory of ours, is
-    /// 0500, matches the source byte for byte at staging time — and replacing the
+    /// The copy is what runs: it lives in a fresh 0711 directory of ours, is
+    /// 0555, matches the source byte for byte at staging time — and replacing the
     /// source afterwards changes nothing about it.
     @Test func onlyTheVerifiedPrivateCopyIsRun() throws {
         let fx = try Fixture()
@@ -94,10 +94,10 @@ import Testing
         #expect((staged.directory as NSString).deletingLastPathComponent == fx.stagingParent)
         #expect((staged.path as NSString).deletingLastPathComponent == staged.directory)
         let dirAttrs = try FileManager.default.attributesOfItem(atPath: staged.directory)
-        #expect((dirAttrs[.posixPermissions] as? Int) == 0o700)
+        #expect((dirAttrs[.posixPermissions] as? Int) == 0o711)
         #expect((dirAttrs[.ownerAccountID] as? Int) == Int(geteuid()))
         let fileAttrs = try FileManager.default.attributesOfItem(atPath: staged.path)
-        #expect((fileAttrs[.posixPermissions] as? Int) == 0o500)
+        #expect((fileAttrs[.posixPermissions] as? Int) == 0o555)
         #expect((fileAttrs[.ownerAccountID] as? Int) == Int(geteuid()))
         #expect(try Data(contentsOf: URL(fileURLWithPath: staged.path)) == original)
 
@@ -116,6 +116,32 @@ import Testing
         staged.remove()
         #expect(!FileManager.default.fileExists(atPath: staged.directory))
         #expect(try fx.stagingEntries().isEmpty)
+    }
+
+    /// `mas` drops to the requesting user (`SUDO_UID`) and then opens its own
+    /// path; under a 0700 root directory that is EACCES and it dies (exit 11,
+    /// seen on a real Mac 2026-10-25). So with the production parent, every
+    /// ancestor of the copy must be searchable by others and the copy readable.
+    @Test func theStagedCopyIsReachableAfterMasDropsPrivileges() throws {
+        let fx = try Fixture()
+        defer { fx.cleanUp() }
+        let source = try fx.copyOfTrue()
+
+        let staged = try HelperService.stageVerifiedMAS(
+            at: source, requirement: "anchor apple", under: HelperService.masStagingParent)
+        defer { staged.remove() }
+
+        var ancestor = (staged.path as NSString).deletingLastPathComponent
+        while true {
+            var st = stat()
+            #expect(stat(ancestor, &st) == 0)
+            #expect(st.st_mode & S_IXOTH != 0, "\(ancestor) is not searchable by others: \(String(st.st_mode & 0o7777, radix: 8))")
+            if ancestor == "/" { break }
+            ancestor = (ancestor as NSString).deletingLastPathComponent
+        }
+        var st = stat()
+        #expect(stat(staged.path, &st) == 0)
+        #expect(st.st_mode & S_IROTH != 0, "copy is not readable by others: \(String(st.st_mode & 0o7777, radix: 8))")
     }
 
     // MARK: fixtures

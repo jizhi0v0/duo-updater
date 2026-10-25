@@ -56,7 +56,7 @@ final class HelperService: NSObject, MASHelperProtocol {
                 staged = try Self.stageVerifiedMAS(
                     at: bundledMAS,
                     requirement: OwnTeamIdentifier.requirement(bundleIdentifier: Self.masSigningIdentifier),
-                    under: NSTemporaryDirectory())
+                    under: Self.masStagingParent)
             } catch {
                 reply(-1, "bundled mas rejected: \(error.localizedDescription)"); return
             }
@@ -264,15 +264,31 @@ final class HelperService: NSObject, MASHelperProtocol {
     /// Generous for a thinned `mas` (a few MB); bounds what root reads into memory.
     static let masSizeLimit: Int64 = 64 * 1024 * 1024
 
-    /// Copy `mas` into a fresh `mkdtemp` directory under `parent` (0700, owned by
+    /// Where root stages `mas`. NOT `NSTemporaryDirectory()`: for root that is a
+    /// 0700 directory, and `mas` drops to the requesting user (`SUDO_UID`) and
+    /// then opens its own path — EACCES, exit 11 (real Mac, 2026-10-25).
+    ///
+    /// `/private/var/tmp` is `drwxrwxrwt root wheel`. Safe to stage in because:
+    ///   • `mkdtemp` is a `mkdir` of a random name that fails if the name exists
+    ///     and does not follow symlinks, so nothing can be planted in its place;
+    ///   • the parent's sticky bit means a user cannot delete or rename the
+    ///     directory root created there.
+    static let masStagingParent = "/private/var/tmp"
+
+    /// Copy `mas` into a fresh `mkdtemp` directory under `parent` (0711, owned by
     /// this process — root in the helper), check the COPY against `requirement`,
     /// and return it. Only the returned copy may be run.
     ///
     /// Why a copy: `Contents/Resources/mas` sits in a user-owned bundle, so any
     /// same-user process can replace it. Checking it in place and then running it
     /// by path leaves a window to swap it between the two (macOS has no
-    /// `fexecve`). Nothing but this process can write into the 0700 directory, so
-    /// what was checked is what runs.
+    /// `fexecve`). Nothing but this process can write into the directory or the
+    /// copy, so what was checked once, here, is what runs.
+    ///
+    /// Why 0711 / 0555 and not 0700 / 0500: `mas` drops to the requesting user
+    /// and then opens its own path, so that user must be able to traverse to the
+    /// copy and read it. 0711 lets others pass through without listing or
+    /// writing; 0555 lets them read and execute, never write.
     ///
     /// Fails closed: a nil requirement (unsigned or ad-hoc helper, so no team to
     /// pin) refuses. On any failure the staging directory is removed.
@@ -290,6 +306,7 @@ final class HelperService: NSObject, MASHelperProtocol {
         let directory = String(cString: made)
         let staged = StagedMAS(directory: directory, path: (directory as NSString).appendingPathComponent("mas"))
         do {
+            guard chmod(directory, 0o711) == 0 else { throw MASStagingError.cannotCreateDirectory(errno) }
             try copyRegularFile(from: source, to: staged.path)
             var code: SecStaticCode?
             let createStatus = SecStaticCodeCreateWithPath(URL(fileURLWithPath: staged.path) as CFURL, [], &code)
@@ -308,7 +325,7 @@ final class HelperService: NSObject, MASHelperProtocol {
 
     /// `O_NOFOLLOW` on the source (a symlinked `mas` is refused), a regular file
     /// under the size limit, written with `O_EXCL` into the private directory and
-    /// left 0500.
+    /// left 0555.
     private static func copyRegularFile(from source: String, to destination: String) throws {
         let input = open(source, O_RDONLY | O_NOFOLLOW)
         guard input >= 0 else { throw MASStagingError.cannotOpenSource(errno) }
@@ -336,6 +353,6 @@ final class HelperService: NSObject, MASHelperProtocol {
                 written += w
             }
         }
-        guard fchmod(output, 0o500) == 0 else { throw MASStagingError.cannotCopy(errno) }
+        guard fchmod(output, 0o555) == 0 else { throw MASStagingError.cannotCopy(errno) }
     }
 }

@@ -299,8 +299,9 @@ public actor VendorInstaller {
         onStage: @Sendable @escaping (InstallStage) -> Void
     ) async throws {
         let newApp: URL
+        let stagedCheck: InPlaceSwap.StagedCopyRequirement?
         do {
-            newApp = try await verifiedBundle(
+            (newApp, stagedCheck) = try await verifiedBundle(
                 result, download: download, digestOnlyAllowed: digestOnlyAllowed, onStage: onStage)
         } catch where download.localStash != nil && localStashFailureIsWorthRetrying(error) {
             // The stash is another updater's container, not the route's artifact,
@@ -316,18 +317,19 @@ public actor VendorInstaller {
         // caller surfaces a "Restart" prompt). We never force a quit — that would
         // skip the app's own save-on-quit flow.
         onStage(.installing)
-        try await installApp(newApp, over: result.app.path)
+        try await installApp(newApp, over: result.app.path, stagedCheck: stagedCheck)
 
         onStage(.done)
     }
 
-    /// Steps 1–4 of `applyVerified`: every gate, and the bundle that passed them.
+    /// Steps 1–4 of `applyVerified`: every gate, and the bundle that passed them
+    /// with what its privileged swap re-checks (`verifyInstallArtifact`).
     private func verifiedBundle(
         _ result: UpdateResult,
         download: DownloadedUpdate,
         digestOnlyAllowed: Bool,
         onStage: @Sendable @escaping (InstallStage) -> Void
-    ) async throws -> URL {
+    ) async throws -> (URL, InPlaceSwap.StagedCopyRequirement?) {
         guard let remote = result.remote else {
             throw InstallError.notVendorUpdate
         }
@@ -440,12 +442,12 @@ public actor VendorInstaller {
 
         // 4. Validate the final app, whether unpacked or reconstructed from a delta.
         onStage(.verifyingCodeSignature)
-        try await SignatureVerifier.verifyInstallArtifact(
+        let stagedCheck = try await SignatureVerifier.verifyInstallArtifact(
             downloadedApp: newApp,
             installedApp: result.app.path,
             trust: trust
         )
-        return newApp
+        return (newApp, stagedCheck)
     }
 
     /// Gate 1 and unpacking for a full archive: the published digests and MyGo
@@ -557,13 +559,19 @@ public actor VendorInstaller {
         return newApp
     }
 
-    /// Production's `vetStub`: the stub's seal verifies and its Team is the
-    /// installed copy's. Built here, outside any `async` body, because it only
-    /// ever runs inside `unpackVerified`'s `offCooperativePool` hop.
-    private static func stubSignedByTeam(of installed: URL) -> @Sendable (URL) throws -> Void {
+    /// Production's `vetStub`: the stub's seal verifies, its Team is the
+    /// installed copy's, and it is signed the way the installed copy's
+    /// designated requirement says — a Team string alone is only what a
+    /// certificate claims (`verifySignedLikeInstalledCopy`). The stub's own
+    /// identifier differs from the app's, so the requirement is re-aimed at it.
+    /// Built here, outside any `async` body, because it only ever runs inside
+    /// `unpackVerified`'s `offCooperativePool` hop.
+    static func stubSignedByTeam(of installed: URL) -> @Sendable (URL) throws -> Void {
         { stub in
             try SignatureVerifier.verifyCodeSignature(appAt: stub)
             try SignatureVerifier.verifyTeamIdentifierMatch(
+                installedApp: installed, downloadedApp: stub)
+            try SignatureVerifier.verifySignedLikeInstalledCopy(
                 installedApp: installed, downloadedApp: stub)
         }
     }
@@ -708,7 +716,9 @@ public actor VendorInstaller {
 
     /// Validation, quarantine removal, atomic same-volume swap, and the privileged
     /// fallback all live in `InPlaceSwap`, shared with `SparkleInstaller`.
-    private func installApp(_ newApp: URL, over target: URL) async throws {
+    private func installApp(
+        _ newApp: URL, over target: URL, stagedCheck: InPlaceSwap.StagedCopyRequirement?
+    ) async throws {
         // Awaited in place: the swap's child processes (including the privileged
         // `osascript` that waits on the administrator panel) go through
         // `ChildProcess`, and the swap runs to completion if this task is
@@ -723,7 +733,7 @@ public actor VendorInstaller {
         // logged by `replace` itself, in its `defer` —
         // `aCleanupFailureReasonReachesTheInstallLog` reads it back.
         _ = try await InstallCommit.run("swap") {
-            try await InPlaceSwap.replace(newApp: newApp, over: target)
+            try await InPlaceSwap.replace(newApp: newApp, over: target, stagedCheck: stagedCheck)
         }
     }
 }

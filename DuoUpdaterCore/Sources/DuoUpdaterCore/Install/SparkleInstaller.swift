@@ -298,7 +298,7 @@ public actor SparkleInstaller {
 
         // 4. Validate the final app, whether unpacked or reconstructed from a delta.
         onStage(.verifyingCodeSignature)
-        try await SignatureVerifier.verifyInstallArtifact(
+        let stagedCheck = try await SignatureVerifier.verifyInstallArtifact(
             downloadedApp: newApp,
             installedApp: result.app.path
         )
@@ -313,7 +313,7 @@ public actor SparkleInstaller {
         // caller surfaces a "Restart" prompt). We never force a quit — that would
         // skip the app's own save-on-quit flow.
         onStage(.installing)
-        try await installApp(newApp, over: result.app.path)
+        try await installApp(newApp, over: result.app.path, stagedCheck: stagedCheck)
 
         onStage(.done)
     }
@@ -371,7 +371,7 @@ public actor SparkleInstaller {
         }
 
         onStage(.verifyingCodeSignature)
-        try await SignatureVerifier.verifyInstallArtifact(
+        let stagedCheck = try await SignatureVerifier.verifyInstallArtifact(
             downloadedApp: newApp,
             installedApp: installedApp,
             trust: .sparkleSignature(proof)
@@ -380,7 +380,7 @@ public actor SparkleInstaller {
             installedApp: installedApp, downloadedApp: newApp)
 
         onStage(.installing)
-        try await installApp(newApp, over: installedApp)
+        try await installApp(newApp, over: installedApp, stagedCheck: stagedCheck)
         onStage(.done)
     }
 
@@ -389,7 +389,9 @@ public actor SparkleInstaller {
     /// Replace the bundle at `target` with `newApp`. Validation, quarantine
     /// removal, atomic same-volume swap, and the privileged fallback all live in
     /// `InPlaceSwap`, shared with `VendorInstaller`.
-    private func installApp(_ newApp: URL, over target: URL) async throws {
+    private func installApp(
+        _ newApp: URL, over target: URL, stagedCheck: InPlaceSwap.StagedCopyRequirement?
+    ) async throws {
         // Awaited in place: the swap's child processes (including the privileged
         // `osascript` that waits on the administrator panel) go through
         // `ChildProcess`, and the swap runs to completion if this task is
@@ -404,7 +406,7 @@ public actor SparkleInstaller {
         // logged by `replace` itself, in its `defer` —
         // `aCleanupFailureReasonReachesTheInstallLog` reads it back.
         _ = try await InstallCommit.run("swap") {
-            try await InPlaceSwap.replace(newApp: newApp, over: target)
+            try await InPlaceSwap.replace(newApp: newApp, over: target, stagedCheck: stagedCheck)
         }
     }
 }

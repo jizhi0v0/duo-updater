@@ -163,7 +163,7 @@ public enum XcodeInstaller {
 
         // (e) The gates every swap runs, against the copy being replaced.
         onStage(.verifyingCodeSignature)
-        try await SignatureVerifier.verifyInstallArtifact(
+        let stagedCheck = try await SignatureVerifier.verifyInstallArtifact(
             downloadedApp: newApp, installedApp: result.app.path)
 
         // (f) Replace in place, at the installed path — unless this Xcode was
@@ -172,7 +172,10 @@ public enum XcodeInstaller {
         onStage(.installing)
         try await Self.swapUnlessRunning(
             over: result.app.path, runningExecutables: runningExecutables,
-            swap: { _ = try await InPlaceSwap.replace(newApp: newApp, over: result.app.path) })
+            swap: {
+                _ = try await InPlaceSwap.replace(
+                    newApp: newApp, over: result.app.path, stagedCheck: stagedCheck)
+            })
         onStage(.done)
     }
 

@@ -97,6 +97,8 @@ targets:
       # PrivilegedHelperClient.swift.
       - path: Helper/StagedSparkleVersions.swift
       - path: Sources/HelperStagedVersionReader.swift
+      # Whether the helper that answered may be handed an install. Foundation + Core.
+      - path: Sources/HelperInstallGate.swift
       - path: Shared/OwnTeamIdentifier.swift
       - path: Shared/MASHelperProtocol.swift
       # The install gates' semaphore and its cancellable wait. Foundation only.

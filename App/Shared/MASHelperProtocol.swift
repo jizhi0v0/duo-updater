@@ -15,7 +15,8 @@ import Foundation
     /// re-associated into the calling user's GUI session (so `storedownloadd`
     /// actually transfers). The helper locates the `mas` binary relative to its
     /// own bundled location (`…/Contents/Resources/mas`) — no path is trusted from
-    /// the client. `mas` output is written to `logPath` (which the app tails for
+    /// the client — and since revision 3 runs only a copy it verified. The app
+    /// therefore asks `helperVersion` first and never sends this to an older one. `mas` output is written to `logPath` (which the app tails for
     /// live progress); the reply carries `mas`'s exit status and a stderr tail.
     func installMASApp(adamID: Int,
                        uid: Int,
@@ -60,12 +61,21 @@ import Foundation
 /// side, so the app asks for the revision first and never sends a selector the
 /// peer did not declare.
 ///
-/// Bump `current` whenever a selector is added to `MASHelperProtocol`.
+/// Bump `current` whenever a selector is added to `MASHelperProtocol`, or a
+/// selector starts doing something the app must be able to rely on before it
+/// sends it (revision 3).
 enum HelperProtocolRevision {
     /// This build's revision.
-    static let current = 2
+    static let current = 3
     /// The first revision that implements `stagedSparkleBundleVersions`.
     static let stagedSparkleBundleVersions = 2
+    /// The first revision whose `installMASApp` runs only a verified private copy
+    /// of `mas` (`HelperService.stageVerifiedMAS`). Every earlier helper executes
+    /// `Contents/Resources/mas` out of the app bundle as root, and that bundle is
+    /// user-writable. Revision 2 shipped (v0.5.14) without it, so the number had
+    /// to move: the bundle version only changes at release time, and the first
+    /// build that carries the verification is the first one that reports 3.
+    static let verifiedMASInstall = 3
 
     private static let marker = " protocol/"
 
@@ -74,6 +84,14 @@ enum HelperProtocolRevision {
     /// any reply at all (`HelperShellRunner.ensureReachable`), reads it the same.
     static func versionReply(bundleVersion: String) -> String {
         bundleVersion + marker + String(current)
+    }
+
+    /// Whether the helper that sent `versionReply` may be handed `installMASApp`:
+    /// it runs `mas` as root, so only a helper that verifies the binary first
+    /// (`verifiedMASInstall`) is asked. False for every helper built before it,
+    /// including one left holding launchd's slot after an in-place update.
+    static func supportsVerifiedMASInstall(versionReply: String) -> Bool {
+        revision(ofVersionReply: versionReply) >= verifiedMASInstall
     }
 
     /// Whether the helper that sent `versionReply` implements

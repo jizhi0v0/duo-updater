@@ -10,9 +10,10 @@ swift-system from their (movable) tags. The script therefore has to install
 
     python3 scripts/test_notarize_pins.py
 
-The real script runs in a temp checkout with `xcodegen`, `xcodebuild` and
-`xcrun` stubbed, so nothing builds, signs or reaches the keychain. It stops at
-"build produced no app", which is after the step under test.
+The real script runs in a temp checkout with `scripts/pinned-xcodegen.sh`,
+`xcodebuild` and `xcrun` stubbed, so nothing builds, signs, downloads or reaches
+the keychain. It stops at "build produced no app", which is after the step under
+test. (The real pinned script is tested in test_pinned_xcodegen.py.)
 """
 
 import os
@@ -39,7 +40,20 @@ class NotarizePins(unittest.TestCase):
         self.bin = self.tmp / "bin"
         self.bin.mkdir()
         self.log = self.tmp / "calls.log"
-        self.stub("xcodegen", 'mkdir -p DuoUpdater.xcodeproj')
+        # The pinned XcodeGen is what notarize.sh must run; `xcodegen` on PATH is
+        # a decoy that records itself, to prove it is never the one used.
+        self.xcodegen_log = self.tmp / "xcodegen.log"
+        pinned_dir = self.tmp / "pinned"
+        pinned_dir.mkdir()
+        pinned_bin = pinned_dir / "xcodegen"
+        pinned_bin.write_text(
+            f'#!/bin/sh\necho pinned >> "{self.xcodegen_log}"\nmkdir -p DuoUpdater.xcodeproj\n')
+        pinned_bin.chmod(0o755)
+        pinned_script = self.repo / "scripts" / "pinned-xcodegen.sh"
+        pinned_script.write_text(f'#!/bin/sh\necho "{pinned_bin}"\n')
+        pinned_script.chmod(0o755)
+        self.stub("xcodegen",
+                  f'echo PATH-DECOY >> "{self.xcodegen_log}"\nmkdir -p DuoUpdater.xcodeproj')
         self.stub("xcodebuild",
                   f'printf "%s\\n" "$*" >> "{self.log}"')
         self.stub("xcrun", "exit 0")
@@ -75,6 +89,21 @@ class NotarizePins(unittest.TestCase):
         installed = (self.repo / "App" / "DuoUpdater.xcodeproj" / "project.xcworkspace"
                      / "xcshareddata" / "swiftpm" / "Package.resolved")
         self.assertEqual(installed.read_text(), PINS)
+
+    # Mutation: go back to `command -v xcodegen` / a bare `xcodegen generate` and
+    # the decoy on PATH runs, with the signing identity in reach.
+    def test_the_project_is_generated_by_the_pinned_xcodegen_not_path(self):
+        self.run_script()
+        self.assertEqual(self.xcodegen_log.read_text().split(), ["pinned"])
+
+    # Mutation: ignore the pinned script's failure and the build goes on with
+    # whatever was found instead.
+    def test_a_failing_pinned_xcodegen_stops_the_build(self):
+        (self.repo / "scripts" / "pinned-xcodegen.sh").write_text("#!/bin/sh\nexit 1\n")
+        run = self.run_script()
+        self.assertNotEqual(run.returncode, 0)
+        self.assertIn("pinned xcodegen", run.stderr)
+        self.assertEqual(self.calls(), "", "xcodebuild ran without the pinned xcodegen")
 
     # Mutation: drop the existence check and a missing pin file turns back into
     # a live resolve of every dependency, with the signing identity in reach.

@@ -142,8 +142,13 @@ jobs:
           swift --version
           node --version
 
+      # Pinned and hash-checked (scripts/pinned-xcodegen.sh), not brew's current
+      # formula: this job goes on to hold the model's token.
       - name: Install XcodeGen
-        run: brew install xcodegen
+        run: |
+          set -euo pipefail
+          xcodegen="$(scripts/pinned-xcodegen.sh)"
+          dirname "$xcodegen" >> "$GITHUB_PATH"
 
       # Pinned: CLI/Sources/DuoKit/ClaudeCLI.swift was checked against this
       # version's flags, and the sandbox depends on every one of them.

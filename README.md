@@ -485,7 +485,11 @@ requirement only — it does not raise the deployment target. Swift 6 language m
 throughout (`swift-tools-version: 6.0`, `SWIFT_VERSION: 6.0`).
 
 `xcodegen` is needed **only for the app** — `App/DuoUpdater.xcodeproj` is
-generated from `App/project.yml` and not checked in. `DuoUpdaterCore/` and `CLI/`
+generated from `App/project.yml` and not checked in. The scripts that sign
+(`install.sh`, `build-cli.sh`, `notarize.sh`, `publish-release.sh`) do not use
+the one on your PATH: they fetch a pinned, SHA-256-checked XcodeGen into
+`~/Library/Caches/duo-updater` through `scripts/pinned-xcodegen.sh` (network the
+first time). `DuoUpdaterCore/` and `CLI/`
 are plain Swift packages: `swift build` and `swift test` need nothing extra
 beyond network access the first time, to fetch swift-subprocess (whose manifest
 needs Swift 6.2 or later — the Swift 6.4 requirement above already implies it).

@@ -87,8 +87,23 @@ class SparkleToolLookup(unittest.TestCase):
         # Records the team id it was generated with, which is the whole reason
         # the export exists: an empty DEVELOPMENT_TEAM does not fail here, it
         # fails the next `make install`.
-        self.stub("xcodegen",
-                  f'printf "xcodegen team=[$DUO_TEAM_ID]\\n" >> "{self.log}"')
+        #
+        # The script must run the PINNED xcodegen (scripts/pinned-xcodegen.sh),
+        # so that is what is stubbed under REPO_ROOT; `xcodegen` on PATH is a
+        # decoy that would show up in the log as "PATH-DECOY".
+        pinned = self.tmp / "pinned-xcodegen"
+        pinned.write_text("#!/bin/sh\n"
+                          f'printf "xcodegen team=[$DUO_TEAM_ID]\\n" >> "{self.log}"\n')
+        pinned.chmod(0o755)
+        self.stub_pinned_script(f'echo "{pinned}"')
+        self.stub("xcodegen", f'echo PATH-DECOY >> "{self.log}"')
+
+    def stub_pinned_script(self, body):
+        scripts = self.repo / "scripts"
+        scripts.mkdir(exist_ok=True)
+        path = scripts / "pinned-xcodegen.sh"
+        path.write_text("#!/bin/sh\n" + body + "\n")
+        path.chmod(0o755)
 
     def stub_xcodebuild(self, *, creates):
         make = (f'mkdir -p "$(dirname "{self.dd}/{ARTIFACT}")" && '
@@ -210,13 +225,24 @@ class SparkleToolLookup(unittest.TestCase):
         self.assertIn("resolving package dependencies", run.stderr)
         self.assertNotIn("SKIP_NOTARIZE", run.stderr)
 
-    # Mutation: drop the `command -v xcodegen` check and the failure becomes
-    # xcodegen's own "not found", from inside a subshell, with no remedy.
-    def test_a_missing_xcodegen_is_named(self):
-        self.stub_xcodebuild(creates=True)  # no xcodegen stub
+    # Mutation: drop the `|| die` after the pinned script and the failure becomes
+    # a bare `generate` of an empty command, from inside a subshell, with no remedy.
+    def test_a_pinned_xcodegen_that_cannot_be_had_is_named(self):
+        self.stub_xcodebuild(creates=True)
+        self.stub_pinned_script("exit 1")
         run = self.run_driver()
         self.assertEqual(run.returncode, 3, run.stdout)
-        self.assertIn("xcodegen not found", run.stderr)
+        self.assertIn("pinned xcodegen", run.stderr)
+
+    # Mutation: call bare `xcodegen` again and the decoy on PATH runs, in the step
+    # whose product is run next with the Sparkle EdDSA key in reach.
+    def test_xcodegen_is_the_pinned_one_not_the_one_on_path(self):
+        self.stub_xcodegen()
+        self.stub_xcodebuild(creates=True)
+        run = self.run_driver()
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertIn("xcodegen team=[", self.calls())
+        self.assertNotIn("PATH-DECOY", self.calls())
 
 
 def extract_function(name):

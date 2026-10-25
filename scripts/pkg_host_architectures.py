@@ -41,6 +41,10 @@ UA = "duo-updater pkg_host_architectures (+https://github.com/jizhi0v0/duo-updat
 # Enough for any Distribution seen in this registry; Edge's is 716 bytes. Caps a
 # hostile or broken endpoint rather than streaming whatever it offers.
 MAX_MEMBER = 4 << 20
+# What a TOC or a member may inflate to: `maxInflatedBytes` in
+# PackageArchitectureProbe.swift. The compressed sizes above are bounded, but a
+# few hundred KB of zlib can name gigabytes.
+MAX_INFLATED = 32 << 20
 
 
 class Fetcher:
@@ -62,14 +66,27 @@ class Fetcher:
         return data
 
 
+def _bounded_inflate(raw, wbits):
+    """zlib.decompress with a ceiling: zlib.error on bad input as before, and
+    ValueError when the stream inflates past MAX_INFLATED (one byte more is read
+    to tell "exactly the limit" from "over it")."""
+    inflater = zlib.decompressobj(wbits)
+    out = inflater.decompress(raw, MAX_INFLATED + 1)
+    if len(out) > MAX_INFLATED or inflater.unconsumed_tail:
+        raise ValueError(f"inflates past {MAX_INFLATED} bytes")
+    if not inflater.eof:   # zlib.decompress raises on a truncated stream; so does this
+        raise zlib.error("incomplete or truncated stream")
+    return out
+
+
 def _inflate(raw, style):
     if not style or ("gzip" not in style and "zlib" not in style and "bzip2" not in style):
         return raw
     try:
-        return zlib.decompress(raw)
+        return _bounded_inflate(raw, zlib.MAX_WBITS)
     except zlib.error:
         try:
-            return zlib.decompressobj(-15).decompress(raw)   # raw deflate
+            return _bounded_inflate(raw, -15)                 # raw deflate
         except zlib.error:
             return raw                                        # leave it; regex just misses
 
@@ -106,7 +123,8 @@ def host_architectures(url, fetch):
     # two implementations agreeing here is load-bearing, not cosmetic.
     if toc_compressed <= 0 or toc_compressed > MAX_MEMBER:
         return "NOT-XAR", f"toc={toc_compressed}"
-    toc = zlib.decompress(fetch.range(url, header_size, header_size + toc_compressed - 1))
+    toc = _bounded_inflate(fetch.range(url, header_size, header_size + toc_compressed - 1),
+                           zlib.MAX_WBITS)
     root = ET.fromstring(toc)
     heap = header_size + toc_compressed
 

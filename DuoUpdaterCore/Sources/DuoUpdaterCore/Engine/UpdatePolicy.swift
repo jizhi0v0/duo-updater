@@ -781,10 +781,19 @@ public enum UpdatePolicy {
     /// fix, with the update still not installed.
     ///
     /// An id with no row at all is settled too — that app is no longer installed.
+    ///
+    /// `failedRestores` is the one kind of error the verdict says nothing about:
+    /// a restore that failed, by id, with the installed version it failed on. A
+    /// restore usually starts from an up-to-date row (it puts back an older copy
+    /// over the newest one) and a failed one leaves it there, so `.upToDate`
+    /// would take the error down on the very next write to the row list — which
+    /// is how a failed Backdrop restore showed nothing anywhere. These settle
+    /// only when the app is gone or its installed version is no longer that one.
     public static func settledRowIDs(
         _ ids: some Sequence<String>,
         results: [UpdateResult],
-        installing: Set<String>
+        installing: Set<String>,
+        failedRestores: [String: VersionSide] = [:]
     ) -> Set<String> {
         // No rows at all is the pre-first-scan state, not "every app vanished".
         guard !results.isEmpty else { return [] }
@@ -793,6 +802,10 @@ public enum UpdatePolicy {
         for id in ids where !installing.contains(id) {
             guard let row = byID[id] else {
                 settled.insert(id)   // the app is gone from disk
+                continue
+            }
+            if let failedOn = failedRestores[id] {
+                if row.app.versionSide != failedOn { settled.insert(id) }
                 continue
             }
             // Written out rather than `!hasUpdate` so a new status has to be

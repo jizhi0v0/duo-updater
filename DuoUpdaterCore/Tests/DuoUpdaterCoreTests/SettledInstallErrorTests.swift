@@ -187,3 +187,56 @@ struct RetractableNoteTests {
         #expect(ids.isEmpty)
     }
 }
+
+/// A failed restore is the case where `.upToDate` is not evidence of anything.
+///
+/// Regression for Backdrop 2.10.4 → 2.10.2 (2026-10-25): the restore failed at
+/// the privileged swap, `rollback` wrote the error, and the next write to the
+/// row list pruned it — the row was up to date, which is simply the state a
+/// restore over the newest version starts from and stays in when it fails. The
+/// Restore tab row and the detail pane showed nothing at all.
+///
+/// So a failed restore's line comes down only on something that says it is no
+/// longer true: the app is gone, or its installed version is no longer the one
+/// the restore failed on (it landed some other way — `duo backups restore`, a
+/// vendor updater). The user acting on the row again replaces the text, which is
+/// the caller's half (`AppListModel.failedRestores` drops an entry whose text is
+/// no longer on screen).
+@Suite("A failed restore's error outlasts an up-to-date row")
+struct FailedRestoreErrorTests {
+
+    private static let newest = VersionSide(marketing: "1.0", build: "1")
+
+    @Test func anUpToDateRowKeepsItsFailedRestore() {
+        let settled = UpdatePolicy.settledRowIDs(
+            [noTunes], results: [row(noTunes, .upToDate)], installing: [],
+            failedRestores: [noTunes: Self.newest])
+        #expect(settled.isEmpty)
+    }
+
+    /// The restore landed after all, by some other route: the row on disk is no
+    /// longer the version the failure was about.
+    @Test func aRowWhoseVersionMovedRetractsIt() {
+        let settled = UpdatePolicy.settledRowIDs(
+            [noTunes], results: [row(noTunes, .upToDate)], installing: [],
+            failedRestores: [noTunes: VersionSide(marketing: "1.1", build: "2")])
+        #expect(settled == [noTunes])
+    }
+
+    @Test func anAppThatIsNoLongerInstalledRetractsIt() {
+        let settled = UpdatePolicy.settledRowIDs(
+            [noTunes], results: [row(other, .upToDate)], installing: [],
+            failedRestores: [noTunes: Self.newest])
+        #expect(settled == [noTunes])
+    }
+
+    /// Only the restore's own id is held; another row's install error still
+    /// settles by the ordinary rule beside it.
+    @Test func anotherRowsErrorStillSettles() {
+        let settled = UpdatePolicy.settledRowIDs(
+            [noTunes, other],
+            results: [row(noTunes, .upToDate), row(other, .upToDate)], installing: [],
+            failedRestores: [noTunes: Self.newest])
+        #expect(settled == [other])
+    }
+}

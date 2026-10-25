@@ -92,9 +92,13 @@ final class AppListModel {
         let ownRetraction = installErrors.keys.filter {
             stagedRelaunchFailures[$0]?.message == installErrors[$0]
         }
+        // Only while its text is still the one on screen: any action on the row
+        // replaces or clears it, and with it the hold.
+        failedRestores = failedRestores.filter { installErrors[$0.key] == $0.value.message }
         for id in UpdatePolicy.settledRowIDs(
             installErrors.keys.filter { !ownRetraction.contains($0) },
-            results: results, installing: Set(installing.keys)
+            results: results, installing: Set(installing.keys),
+            failedRestores: failedRestores.mapValues(\.failedOn)
         ) {
             installErrors[id] = nil
         }
@@ -526,6 +530,12 @@ final class AppListModel {
     /// bundle moves past that version, and by the next Relaunch attempt; see
     /// `StagedRelaunchFailure` for why the generic settle rule is kept off it.
     @ObservationIgnored private var stagedRelaunchFailures: [String: StagedRelaunchFailure] = [:]
+    /// id → the red line a failed `rollback` wrote into `installErrors`, with the
+    /// installed version it failed on. Held out of the `.upToDate` settle rule —
+    /// the state a restore over the newest version starts from and, failing,
+    /// stays in — so the line stays until the row is acted on again, the app is
+    /// gone, or its version moves (`UpdatePolicy.settledRowIDs`).
+    @ObservationIgnored private var failedRestores: [String: (message: String, failedOn: VersionSide)] = [:]
     /// The notes this model wrote to describe an action still in progress *whose
     /// row will tell us when it ended* — the self-updater hand-off, the re-opened
     /// installer, and the App Store quit prompt — keyed by id, holding the exact
@@ -9117,8 +9127,10 @@ final class AppListModel {
             try await ProcessInstallLock.shared.claim()
         } catch {
             Log.install.error("rollback blocked by the machine install lock: \(result.app.name, privacy: .public)")
-            installErrors[id] = (error as? LocalizedError)?.errorDescription
+            let message = (error as? LocalizedError)?.errorDescription
                 ?? String(describing: error)
+            installErrors[id] = message
+            failedRestores[id] = (message, result.app.versionSide)
             installing[id] = nil
             return
         }
@@ -9197,6 +9209,7 @@ final class AppListModel {
             await ProcessInstallLock.shared.release()
             Log.install.error("rollback failed: \(result.app.name, privacy: .public): \(error.localizedDescription, privacy: .public)")
             installErrors[id] = error.localizedDescription
+            failedRestores[id] = (error.localizedDescription, result.app.versionSide)
             installing[id] = nil
         }
     }

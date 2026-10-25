@@ -3187,11 +3187,16 @@ private struct DetailHeader: View {
                 // note: this window is resizable and much wider than 370pt, so the
                 // reason fits without costing a row its height. The tooltip is here
                 // anyway so both windows answer a hover the same way.
+                // The width floor is `BrewUncheckedDetailPane.minTextWidth`'s:
+                // without it the window's minimum-size pass lays this out a few
+                // points wide, and a failed restore's line held the Workbench at
+                // 1,486 pt on a 1,083 pt screen (measured 2026-10-25).
                 Text(error)
                     .font(.caption)
                     .foregroundStyle(.red)
                     .help(error)
                     .fixedSize(horizontal: false, vertical: true)
+                    .frame(minWidth: BrewUncheckedDetailPane.minTextWidth, alignment: .leading)
                 if model.showsAppStoreUpdatesFallback(result.id) {
                     Button("Open App Store") { model.openAppStoreUpdatesPage() }
                         .font(.caption)

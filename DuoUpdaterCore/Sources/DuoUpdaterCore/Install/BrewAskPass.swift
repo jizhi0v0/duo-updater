@@ -59,6 +59,23 @@ public typealias SudoPasswordPrompt = @Sendable (SudoPasswordRequest) async -> S
 /// (sudo 1.9.17p2 `tgetpass.c` `sudo_askpass`, `pam.c` `converse`, read in the
 /// upstream source; Apple's build can't be inspected). After a decline every
 /// later ask in the run is answered that way without asking.
+///
+/// What the ancestry check does not stop, accepted on purpose (security review
+/// 2026-10-25, item E): another process of this same user rewriting the script.
+/// The directory is 0700, but this user owns it, so such a process can find it
+/// (`duo-askpass.*` in the per-user temporary directory) and replace `askpass`
+/// with one that also keeps the line it reads. sudo runs whatever is at the
+/// path — it checks no owner or mode on an askpass program (sudo(8), and
+/// `sudo_askpass` in upstream `tgetpass.c`) — so the replacement is sudo's child
+/// and passes the check, and the person sees one ordinary panel. Measured: a
+/// sibling process polling every 5 ms swapped the script within 0.065 s of the
+/// channel opening and received the password. Not fixed because it adds almost
+/// nothing for that attacker: brew itself is in the trusted chain and its tree
+/// under `/opt/homebrew` is writable by the same user, so a modified brew can
+/// run `sudo -A` with any command and get this same, genuine panel, with no
+/// race to win. A signed askpass inside the bundle checked through the peer's
+/// audit token would close only the rewrite, not that. Closing both means not
+/// handing the administrator password to a chain that runs user-writable code.
 enum BrewAskPass {
     /// Whether a program, by the path `proc_pidpath` gives for it, is sudo.
     typealias IsSudo = @Sendable (_ executablePath: String) -> Bool

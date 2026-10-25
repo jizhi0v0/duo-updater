@@ -14,6 +14,7 @@ Nothing here touches the network: the download tests point the script at a
 """
 
 import hashlib
+import http.server
 import os
 import pathlib
 import re
@@ -21,6 +22,7 @@ import shutil
 import stat
 import subprocess
 import tempfile
+import threading
 import unittest
 import zipfile
 
@@ -133,13 +135,36 @@ class PinnedScript(unittest.TestCase):
                      if p.name.endswith(".zip") or p.name == "xcodegen"]
         self.assertEqual(leftovers, [], "unverified bytes were kept in the cache")
 
-    # Mutation: pass `-s` without `-f` to curl and an HTTP error page is saved
-    # as the zip; the hash check still catches it, but this pins the message.
+    # Mutation: drop `-f` from curl and the 404 page is saved as the zip, so the
+    # failure becomes a hash mismatch; delete `|| fail "could not download"` and
+    # the script dies on curl's own status with no message. Either turns this red.
+    # A loopback server, not a missing file:// path: curl exits non-zero on that
+    # with or without `-f`, so it would not reach either branch.
     def test_a_failed_download_is_an_error_not_an_empty_path(self):
-        run = self.run_script(PINNED, (self.tmp / "missing.zip").as_uri())
+        class NotFound(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):
+                body = b"<html><body>Not Found</body></html>"
+                self.send_response(404)
+                self.send_header("Content-Type", "text/html")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+            def log_message(self, *args):
+                pass
+
+        server = http.server.HTTPServer(("127.0.0.1", 0), NotFound)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        self.addCleanup(thread.join, 5)
+        self.addCleanup(server.server_close)
+        self.addCleanup(server.shutdown)
+        run = self.run_script(PINNED, f"http://127.0.0.1:{server.server_port}/xcodegen.zip")
         self.assertNotEqual(run.returncode, 0)
         self.assertEqual(run.stdout, "")
-        self.assertIn("download", run.stderr)
+        self.assertIn("could not download", run.stderr)
+        self.assertNotIn("SHA-256", run.stderr)
+        self.assertEqual(list(self.cache.rglob("*.zip")), [], "an error page was kept as the zip")
 
     def test_a_good_zip_yields_a_working_binary_path(self):
         script = self.script_with_hash(self.good_sha)
@@ -169,6 +194,7 @@ class PinnedScript(unittest.TestCase):
         refused = self.run_script(script, (self.tmp / "gone.zip").as_uri())
         self.assertNotEqual(refused.returncode, 0, refused.stdout)
         self.assertEqual(refused.stdout, "")
+        self.assertIn("does not match the pinned SHA-256", refused.stderr)
         # Download available: replaced by the verified one.
         healed = self.run_script(script, self.good.as_uri())
         self.assertEqual(healed.returncode, 0, healed.stderr)
@@ -196,7 +222,25 @@ class PinnedScript(unittest.TestCase):
         script = self.script_with_hash(self.good_sha)
         run = self.run_script(script, self.good.as_uri())
         self.assertNotEqual(run.returncode, 0, run.stdout)
+        self.assertIn("is a symlink", run.stderr)
         self.assertEqual(list(target.iterdir()), [], "wrote through the symlink")
+
+    # Mutation: drop the ownership check and a directory someone else made (and
+    # so can write to whatever its mode says) is trusted. Another owner cannot be
+    # created without root, so `stat` is shadowed to report one for `%u` only.
+    def test_a_cache_directory_owned_by_someone_else_is_refused(self):
+        bindir = self.tmp / "bin"
+        bindir.mkdir()
+        fake = bindir / "stat"
+        fake.write_text('#!/bin/sh\n'
+                        'case "$*" in *%u*) echo $(( $(id -u) + 1 )); exit 0;; esac\n'
+                        'exec /usr/bin/stat "$@"\n')
+        fake.chmod(0o755)
+        script = self.script_with_hash(self.good_sha)
+        run = self.run_script(script, self.good.as_uri(),
+                              PATH=f"{bindir}:/usr/bin:/bin")
+        self.assertNotEqual(run.returncode, 0, run.stdout)
+        self.assertIn("not owned by you", run.stderr)
 
     # Mutation: drop the write-bit check and another local user can swap the zip.
     def test_a_group_writable_cache_directory_is_refused(self):
@@ -205,6 +249,7 @@ class PinnedScript(unittest.TestCase):
         script = self.script_with_hash(self.good_sha)
         run = self.run_script(script, self.good.as_uri())
         self.assertNotEqual(run.returncode, 0, run.stdout)
+        self.assertIn("writable by group or others", run.stderr)
 
 
 if __name__ == "__main__":

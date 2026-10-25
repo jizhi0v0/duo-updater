@@ -88,7 +88,12 @@ jobs:
     # EdDSA signature is generate_appcast's, which a reviewer here cannot check
     # either. And the PR auto-merges on `test` alone, so a review would only land
     # after the feed is live.
+    # `triggering_actor` is who caused this run (a push, a re-run), which can be
+    # someone else than the PR's author once the repository has another
+    # collaborator with write access; only the maintainer's actions reach the
+    # model token.
     if: >-
+      github.triggering_actor == 'jizhi0v0' &&
       github.event.pull_request.user.login == 'jizhi0v0' &&
       github.event.pull_request.head.repo.full_name == github.repository &&
       !startsWith(github.event.pull_request.head.ref, 'verify/baseline-') &&

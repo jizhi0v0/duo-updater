@@ -176,6 +176,115 @@ struct BackupRestoreAuthenticityTests {
         #expect(BackupStore.teamRequirement("SHORT") == nil)
     }
 
+    /// AndroMeld's designated requirement as `codesign -dr -` printed it
+    /// (2026-10-25): the App Store branch first, the Developer ID branch second,
+    /// the Team only on the second.
+    static let appStoreDR = """
+        (anchor apple generic and certificate leaf[field.1.2.840.113635.100.6.1.9] /* exists */ \
+        or anchor apple generic and certificate 1[field.1.2.840.113635.100.6.2.6] /* exists */ \
+        and certificate leaf[field.1.2.840.113635.100.6.1.13] /* exists */ \
+        and certificate leaf[subject.OU] = "5F8W8RDSU8") and identifier "com.catchingnow.andfiles"
+        """
+
+    /// The restore is held to the installed copy's own requirement — not to a
+    /// Team pinned on the leaf, which an App Store app never satisfies. The
+    /// conditional `anAppStoreAppRestoresOverItself` checks the same thing
+    /// against a real App Store signature where the machine has one.
+    @Test func theRestoreRequirementIsTheInstalledCopysOwn() throws {
+        let same = BackupStore.restoreRequirementText(
+            installedDR: Self.appStoreDR, installedIdentifier: "com.catchingnow.andfiles",
+            backupIdentifier: "com.catchingnow.andfiles")
+        #expect(same == Self.appStoreDR)
+        var requirement: SecRequirement?
+        #expect(SecRequirementCreateWithString(try #require(same) as CFString, [], &requirement)
+            == errSecSuccess)
+
+        // A migration rollback: only the identifier clause changes.
+        let reaimed = try #require(BackupStore.restoreRequirementText(
+            installedDR: Self.appStoreDR, installedIdentifier: "com.catchingnow.andfiles",
+            backupIdentifier: "com.catchingnow.oldfiles"))
+        #expect(reaimed == Self.appStoreDR.replacingOccurrences(
+            of: "identifier \"com.catchingnow.andfiles\"", with: "identifier \"com.catchingnow.oldfiles\""))
+        #expect(reaimed.contains("leaf[field.1.2.840.113635.100.6.1.9]"))
+        #expect(reaimed.contains("leaf[subject.OU] = \"5F8W8RDSU8\""))
+
+        // Unquoted, as a plain identifier may be printed.
+        #expect(BackupStore.restoreRequirementText(
+            installedDR: "anchor apple and identifier com.apple.Stickies",
+            installedIdentifier: "com.apple.Stickies", backupIdentifier: "com.apple.Notes")
+            == "anchor apple and identifier \"com.apple.Notes\"")
+        // A longer identifier sharing the prefix is not the clause.
+        #expect(BackupStore.restoreRequirementText(
+            installedDR: "anchor apple and identifier com.apple.Stickies2",
+            installedIdentifier: "com.apple.Stickies", backupIdentifier: "com.apple.Notes") == nil)
+        // Nothing to re-aim, or nothing safe to splice in: refuse.
+        #expect(BackupStore.restoreRequirementText(
+            installedDR: "anchor apple generic", installedIdentifier: "a.b",
+            backupIdentifier: "c.d") == nil)
+        #expect(BackupStore.restoreRequirementText(
+            installedDR: Self.appStoreDR, installedIdentifier: "com.catchingnow.andfiles",
+            backupIdentifier: "x\" or anchor apple or identifier \"y") == nil)
+    }
+
+    /// The first App Store app in `/Applications` small enough to copy, or nil.
+    /// Its leaf certificate is Apple's, not the developer's, so a Team pinned on
+    /// the leaf's OU never matches it (measured 2026-10-25 on AndroMeld, Developer,
+    /// Microsoft Word). A hosted runner has none, which is why this is conditional.
+    static let appStoreApp: URL? = {
+        let fm = FileManager.default
+        let apps = (try? fm.contentsOfDirectory(
+            at: URL(fileURLWithPath: "/Applications"), includingPropertiesForKeys: nil)) ?? []
+        let cap: Int64 = 64 << 20
+        func fits(_ app: URL) -> Bool {
+            guard let walker = fm.enumerator(
+                at: app, includingPropertiesForKeys: [.fileSizeKey], options: []) else { return false }
+            var total: Int64 = 0
+            for case let item as URL in walker {
+                total += Int64((try? item.resourceValues(forKeys: [.fileSizeKey]))?.fileSize ?? 0)
+                if total > cap { return false }
+            }
+            return true
+        }
+        return apps
+            .filter { $0.pathExtension == "app" }
+            .sorted { $0.lastPathComponent < $1.lastPathComponent }
+            .first {
+                fm.fileExists(atPath: $0.appendingPathComponent("Contents/_MASReceipt").path) && fits($0)
+            }
+    }()
+
+    /// An App Store app's own copy goes back over it, and its Team is read as
+    /// valid — the rollback a `leaf[subject.OU]` requirement refused.
+    @Test(.enabled(if: appStoreApp != nil, "no App Store app in /Applications to copy"))
+    func anAppStoreAppRestoresOverItself() async throws {
+        let original = try #require(Self.appStoreApp)
+        try await withScratch { base in
+            let installed = base.appendingPathComponent("Installed.app")
+            let staged = base.appendingPathComponent("Staged.app")
+            for copy in [installed, staged] {
+                let copied = try await run("/bin/cp", ["-R", original.path, copy.path])
+                try #require(copied, "copying \(original.lastPathComponent) failed")
+            }
+            // Blocking Security calls, so in one hop off the cooperative pool.
+            let (certificates, team, refusal, validated) = await offCooperativePool {
+                () -> (Int, String?, String?, String?) in
+                var refusal: String?
+                do {
+                    try BackupStore.verifyRestoreAuthenticity(staged: staged, over: installed)
+                } catch {
+                    refusal = "\(error)"
+                }
+                return (certificateCount(installed),
+                        try? SignatureVerifier.teamIdentifier(at: installed),
+                        refusal, BackupStore.validatedTeamIdentifier(at: staged))
+            }
+            try #require(certificates > 0)
+            try #require(team != nil, "\(original.lastPathComponent) has no Team ID")
+            #expect(refusal == nil, "\(original.lastPathComponent)")
+            #expect(validated == team, "\(original.lastPathComponent)")
+        }
+    }
+
     // MARK: - Report item 4: bundleName is a name
 
     private func makeApp(named name: String, in dir: URL) throws -> URL {

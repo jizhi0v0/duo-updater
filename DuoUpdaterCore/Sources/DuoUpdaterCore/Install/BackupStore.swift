@@ -2197,7 +2197,7 @@ public enum BackupStore {
     }
 
     /// Refuse to put a backup back over a certificate-signed app unless the
-    /// backup is signed by the same signer.
+    /// backup satisfies the installed copy's designated requirement.
     ///
     /// The integrity gate cannot answer this: the manifest it compares against
     /// sits in the same store as the copy, so whoever can rewrite one can
@@ -2209,58 +2209,120 @@ public enum BackupStore {
     ///   so applying it would refuse every legitimate rollback of that app; an
     ///   unsigned copy has nothing to compare with. A target that is gone or
     ///   emptied has no signature either — both pass unchanged, as before.
-    /// - A Team ID is pinned by Team rather than by the copy's own designated
-    ///   requirement, so a backup signed under an earlier certificate of the
-    ///   same Team still restores. No Team (Apple's own signing) uses the
-    ///   installed copy's designated requirement.
+    /// - The installed copy's own designated requirement, Team or no Team. It
+    ///   is what already binds the app to its developer across certificate
+    ///   renewals, and it carries both the Developer ID and the App Store
+    ///   branch. A requirement pinned on `certificate leaf[subject.OU]` alone
+    ///   refuses every App Store app: their leaf is Apple's certificate and the
+    ///   Team is only in the code directory (measured 2026-10-25 on AndroMeld,
+    ///   Developer and Microsoft Word, all from the App Store).
+    /// - A backup signed as a different identifier — a `BundleIDMigration`
+    ///   rollback, which `verifyRestoreIdentity` has already admitted — is held
+    ///   to the same requirement with only its `identifier` clause re-aimed.
     /// - `kSecCSDoNotValidateResources`: apps that write inside their own
     ///   bundle (ToDesk, EasyConnect — see `BackupManifest`) break their
     ///   resource seal, and a faithful copy of one must still roll back. The
     ///   code directory and main executable are still checked.
     static func verifyRestoreAuthenticity(staged: URL, over target: URL) throws {
-        guard let installed = staticCode(at: target) else { return }
-        var info: CFDictionary?
-        guard SecCodeCopySigningInformation(
-                installed, SecCSFlags(rawValue: kSecCSSigningInformation), &info) == errSecSuccess,
-              let info = info as? [String: Any],
+        guard let installed = staticCode(at: target),
+              let info = signingInformation(installed),
               let certificates = info[kSecCodeInfoCertificates as String] as? [SecCertificate],
               !certificates.isEmpty
         else { return }
-        let team = info[kSecCodeInfoTeamIdentifier as String] as? String
-        let requirement: SecRequirement?
-        if let team {
-            requirement = teamRequirement(team)
-        } else {
-            var designated: SecRequirement?
-            requirement = SecCodeCopyDesignatedRequirement(installed, [], &designated)
-                == errSecSuccess ? designated : nil
+        var designated: SecRequirement?
+        var designatedText: CFString?
+        let backup = staticCode(at: staged)
+        var requirement: SecRequirement?
+        if SecCodeCopyDesignatedRequirement(installed, [], &designated) == errSecSuccess,
+           let designated,
+           SecRequirementCopyString(designated, [], &designatedText) == errSecSuccess,
+           let designatedText,
+           let text = restoreRequirementText(
+               installedDR: designatedText as String,
+               installedIdentifier: info[kSecCodeInfoIdentifier as String] as? String,
+               backupIdentifier: backup.flatMap(signingInformation)?[kSecCodeInfoIdentifier as String]
+                   as? String) {
+            _ = SecRequirementCreateWithString(text as CFString, [], &requirement)
         }
         let status: OSStatus
-        if let requirement, let backup = staticCode(at: staged) {
+        if let requirement, let backup {
             status = checkValidity(backup, requirement)
         } else {
             status = errSecCSReqFailed
         }
         guard status == errSecSuccess else {
             Log.install.error(
-                "rollback: the backup of \(target.lastPathComponent, privacy: .public) is not signed by \(team ?? "the installed copy's signer", privacy: .public) (status \(status, privacy: .public)) — refusing to restore")
+                "rollback: the backup of \(target.lastPathComponent, privacy: .public) does not satisfy the installed copy's designated requirement (status \(status, privacy: .public)) — refusing to restore")
             throw BackupError.signerMismatch(target.lastPathComponent)
+        }
+    }
+
+    /// The requirement text a backup is held to: the installed copy's
+    /// designated requirement, with its `identifier` clause re-aimed at the
+    /// backup's signed identifier when the two differ. Nil — refuse — when the
+    /// clause is not there exactly once to re-aim, or the identifier is not one
+    /// that can be spliced into requirement text safely.
+    ///
+    /// Duplicates `SignatureVerifier.requirement(_:reaimedFrom:to:)` from #1661,
+    /// which is a separate PR this one must not depend on; once both are on
+    /// main this can call that instead.
+    static func restoreRequirementText(
+        installedDR: String, installedIdentifier: String?, backupIdentifier: String?
+    ) -> String? {
+        guard let backupIdentifier, backupIdentifier != installedIdentifier else { return installedDR }
+        guard let installedIdentifier, isPlainIdentifier(installedIdentifier),
+              isPlainIdentifier(backupIdentifier)
+        else { return nil }
+        let quoted = "identifier \"\(installedIdentifier)\""
+        let quotedCount = installedDR.components(separatedBy: quoted).count - 1
+        if quotedCount == 1 {
+            return installedDR.replacingOccurrences(
+                of: quoted, with: "identifier \"\(backupIdentifier)\"")
+        }
+        guard quotedCount == 0 else { return nil }
+        // `SecRequirementCopyString` may leave a plain identifier unquoted.
+        let pattern = "identifier " + NSRegularExpression.escapedPattern(for: installedIdentifier)
+            + "(?=$|[\\s)])"
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return nil }
+        let range = NSRange(installedDR.startIndex..., in: installedDR)
+        guard regex.numberOfMatches(in: installedDR, range: range) == 1 else { return nil }
+        return regex.stringByReplacingMatches(
+            in: installedDR, range: range,
+            withTemplate: NSRegularExpression.escapedTemplate(for: "identifier \"\(backupIdentifier)\""))
+    }
+
+    /// Characters a signing identifier is made of, and nothing that could end
+    /// a quoted string in requirement text.
+    private static func isPlainIdentifier(_ identifier: String) -> Bool {
+        !identifier.isEmpty && identifier.allSatisfy {
+            $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "." || $0 == "-" || $0 == "_")
         }
     }
 
     /// The Team ID `bundle` is signed with, only if its signature actually
     /// holds for that Team. `teamIdentifier(at:)` reports what a signature
     /// claims without checking it, which is not enough to vouch for a backup.
+    ///
+    /// Two ways a Team holds: a Developer ID signature, whose leaf certificate
+    /// carries the Team as its OU; or an App Store signature, whose leaf is
+    /// Apple's (`1.2.840.113635.100.6.1.9`) — Apple signed the code directory
+    /// the Team is read from, so it is Apple's word for it.
     static func validatedTeamIdentifier(at bundle: URL) -> String? {
         guard let team = try? SignatureVerifier.teamIdentifier(at: bundle),
-              let requirement = teamRequirement(team),
-              let code = staticCode(at: bundle),
-              checkValidity(code, requirement) == errSecSuccess
+              let developerID = teamRequirement(team),
+              let code = staticCode(at: bundle)
+        else { return nil }
+        if checkValidity(code, developerID) == errSecSuccess { return team }
+        var appStore: SecRequirement?
+        let text = "anchor apple generic and certificate leaf[field.1.2.840.113635.100.6.1.9] exists"
+        guard SecRequirementCreateWithString(text as CFString, [], &appStore) == errSecSuccess,
+              let appStore, checkValidity(code, appStore) == errSecSuccess
         else { return nil }
         return team
     }
 
-    /// Any certificate Apple issued to `team`, renewals included.
+    /// Any certificate Apple issued to `team` as a Developer ID, renewals
+    /// included.
     static func teamRequirement(_ team: String) -> SecRequirement? {
         // A Team ID is ten alphanumerics; anything else is not one, and must
         // not be spliced into requirement text.
@@ -2271,6 +2333,14 @@ public enum BackupStore {
         guard SecRequirementCreateWithString(text as CFString, [], &requirement) == errSecSuccess
         else { return nil }
         return requirement
+    }
+
+    private static func signingInformation(_ code: SecStaticCode) -> [String: Any]? {
+        var info: CFDictionary?
+        guard SecCodeCopySigningInformation(
+                code, SecCSFlags(rawValue: kSecCSSigningInformation), &info) == errSecSuccess
+        else { return nil }
+        return info as? [String: Any]
     }
 
     private static func staticCode(at url: URL) -> SecStaticCode? {

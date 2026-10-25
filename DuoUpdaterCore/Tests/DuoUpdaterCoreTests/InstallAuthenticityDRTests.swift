@@ -228,7 +228,7 @@ import Testing
             at: source, identifier: identifier, build: "2", team: team, with: vendor)
         let honestCheck = try #require(
             await SignatureVerifier.verifyInstallArtifact(downloadedApp: source, installedApp: target))
-        #expect(honestCheck.allArchitectures, "a certificate-signed install takes the DR form")
+        #expect(honestCheck.pinnedCdhash != nil, "a certificate-signed install takes the DR form")
         let honest = InPlaceSwap.privilegedReplacementShell(
             newApp: source, target: target, requirement: honestCheck)
         #expect(try await SelfSignedCodeSigner.shell(honest) == 0)

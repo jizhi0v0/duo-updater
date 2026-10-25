@@ -73,4 +73,34 @@ import Testing
             #expect(SignatureVerifier.infoPlist(of: target)["CFBundleVersion"] as? String == "1")
         }
     }
+
+    /// A universal ad-hoc build is refused by root, even the one gate 2 passed:
+    /// its cdhash names one slice and the requirement is checked on every
+    /// slice. Fail-closed on purpose — pinning only the native slice would let
+    /// any other slice be anything ad-hoc signed (`stagedCopyRequirement`).
+    ///
+    /// Mutation: pin only the native slice (the `codesign -d` comparison the
+    /// Developer ID form uses, with no requirement) → build 2 lands.
+    @Test func aUniversalAdHocBuildIsRefusedByRoot() async throws {
+        let fm = FileManager.default
+        let dir = try DigestOnlyInstallTests.scratch("gate-universal")
+        defer { try? fm.removeItem(at: dir) }
+        let target = try await DigestOnlyInstallTests.makeApp(
+            at: dir.appendingPathComponent("ZZFixture.app"), version: "1.0.0", build: "1",
+            signing: .sealed(identifier: nil))
+        let source = dir.appendingPathComponent("src/ZZFixture.app")
+        try await DigestOnlyInstallTests.makeApp(at: source, build: "2", signing: .unsigned)
+        let main = dir.appendingPathComponent("main.c")
+        try Data("int main(void) { return 0; }\n".utf8).write(to: main)
+        try await SelfSignedCodeSigner.run([
+            "/usr/bin/xcrun", "clang", "-arch", "arm64", "-arch", "x86_64", "-o",
+            source.appendingPathComponent("Contents/MacOS/zz").path, main.path])
+        try await SelfSignedCodeSigner.run(["/usr/bin/codesign", "--force", "--sign", "-", source.path])
+        let check = try #require(
+            await InstallAuthenticityDRTests.digestGate(source, over: target, in: dir))
+        let shell = InPlaceSwap.privilegedReplacementShell(newApp: source, target: target, requirement: check)
+
+        #expect(try await SelfSignedCodeSigner.shell(shell) != 0)
+        #expect(SignatureVerifier.infoPlist(of: target)["CFBundleVersion"] as? String == "1")
+    }
 }

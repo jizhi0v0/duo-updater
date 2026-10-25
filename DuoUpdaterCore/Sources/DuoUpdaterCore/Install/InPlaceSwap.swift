@@ -787,24 +787,20 @@ public enum InPlaceSwap {
     /// (`stagedCopyRequirement`), for an install, and by
     /// `BackupStore.verifyRestoreAuthenticity` for a restore.
     struct StagedCopyRequirement: Equatable, Sendable {
+        /// Checked on every slice (codesign(1): verification defaults to
+        /// --all-architectures). The ad-hoc form, `cdhash H"…"`, names one
+        /// slice, so it refuses every universal build: fail-closed on purpose
+        /// (`stagedCopyRequirement`).
         let text: String
-        /// Check every slice. A cdhash names one slice's signature, so that
-        /// form is checked on this Mac's slice only.
-        let allArchitectures: Bool
         /// False for a restore: the check `verifyRestoreAuthenticity` made,
         /// without resources (`stagedCopyCheck`).
         let validatesResources: Bool
-        /// An install's gate-2 cdhash beside a `text` that is a designated
-        /// requirement, checked as well: the requirement names a signer, and
-        /// every build that signer ever shipped meets it.
+        /// An install's gate-2 cdhash, checked as well: a requirement names a
+        /// signer, and every build that signer ever shipped meets it.
         let pinnedCdhash: String?
 
-        init(
-            text: String, allArchitectures: Bool, validatesResources: Bool = true,
-            pinnedCdhash: String? = nil
-        ) {
+        init(text: String, validatesResources: Bool = true, pinnedCdhash: String? = nil) {
             self.text = text
-            self.allArchitectures = allArchitectures
             self.validatesResources = validatesResources
             self.pinnedCdhash = pinnedCdhash
         }
@@ -823,7 +819,13 @@ public enum InPlaceSwap {
     ///   cdhash, or an unsigned one): `gatedCdhash`, which gate 2 read off the
     ///   `SecStaticCode` it had just validated
     ///   (`verifyCodeSignatureCapturingCdhash`) — so the staged copy must carry
-    ///   the code directory that passed gate 2.
+    ///   the code directory that passed gate 2. As a requirement, on every
+    ///   slice, so a universal build fails it. That is kept: pinning only the
+    ///   native slice let any other slice be anything ad-hoc signed (a grafted
+    ///   x86_64 slice runs under "Open using Rosetta"), and pinning each slice
+    ///   would not help either — an ad-hoc signature says nothing about who
+    ///   made the bytes, so gate 2 would pin whatever the scratch copy held
+    ///   when it ran. Such an origin should not be elevated at all.
     /// - Neither (gate 2 reported no cdhash): nil, and the shell checks
     ///   nothing. Gate 2 refuses an unsigned download, so this is not expected
     ///   on an install; it is a residual, not a guarantee.
@@ -836,10 +838,10 @@ public enum InPlaceSwap {
            !summary.authorities.isEmpty, !summary.flags.contains("adhoc"),
            let text = try? SignatureVerifier.installedSignerRequirement(
                installedApp: installed, downloadedApp: downloaded) {
-            return StagedCopyRequirement(text: text, allArchitectures: true, pinnedCdhash: gatedCdhash)
+            return StagedCopyRequirement(text: text, pinnedCdhash: gatedCdhash)
         }
         guard let gatedCdhash else { return nil }
-        return StagedCopyRequirement(text: "cdhash H\"\(gatedCdhash)\"", allArchitectures: false)
+        return StagedCopyRequirement(text: "cdhash H\"\(gatedCdhash)\"")
     }
 
     /// The `codesign` clause for `quotedPath`, `&&`-terminated, or empty when
@@ -859,11 +861,10 @@ public enum InPlaceSwap {
     /// bundle in, the main executable is whatever that outside file becomes.
     static func stagedCopyCheck(_ quotedPath: String, _ requirement: StagedCopyRequirement?) -> String {
         guard let requirement else { return "" }
-        let archs = requirement.allArchitectures ? "--all-architectures " : ""
-        let req = shellQuote("=" + requirement.text)
+        let req = "-R \(shellQuote("=" + requirement.text)) "
         guard requirement.validatesResources else {
             return "/bin/test ! -L \(quotedPath)/Contents && /bin/test ! -L \(quotedPath)/Contents/MacOS && "
-                + "/usr/bin/codesign --verify --ignore-resources \(archs)-R \(req) \(quotedPath) && "
+                + "/usr/bin/codesign --verify --ignore-resources --all-architectures \(req)\(quotedPath) && "
         }
         // The pin compares the cdhash `codesign -d` reports, not a `cdhash H"…"`
         // requirement: verification defaults to every slice (codesign(1)), and
@@ -877,7 +878,7 @@ public enum InPlaceSwap {
             "{ /bin/test \"$(/usr/bin/codesign -d --verbose=3 \(quotedPath) 2>&1 | /usr/bin/sed -n 's/^CDHash=//p')\" = \(shellQuote($0)) "
                 + "|| { echo \"the staged copy is not the build that was checked\" >&2; false; }; } && "
         } ?? ""
-        return "/usr/bin/codesign --verify --deep --strict \(archs)-R \(req) \(quotedPath) && " + pin
+        return "/usr/bin/codesign --verify --deep --strict --all-architectures \(req)\(quotedPath) && " + pin
     }
 
     /// The unprivileged whole-bundle exchange — `replace`'s non-elevated route,

@@ -2291,7 +2291,7 @@ public enum BackupStore {
             throw BackupError.signerMismatch(target.lastPathComponent)
         }
         return InPlaceSwap.StagedCopyRequirement(
-            text: requirementText, allArchitectures: true, validatesResources: false)
+            text: requirementText, validatesResources: false)
     }
 
     /// The requirement text a backup is held to: the installed copy's

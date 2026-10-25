@@ -36,12 +36,22 @@ public typealias SudoPasswordPrompt = @Sendable (SudoPasswordRequest) async -> S
 ///
 /// The program is a shell script in a directory only this user can open
 /// (`mkdtemp` under the per-user temporary directory), made for the run and
-/// removed after it, next to two FIFOs. It writes `ask <its pid> <sudo's pid>`
-/// to `request` and reads `response` for the line addressed to its own pid:
-/// `<pid> <password>`, or a bare `<pid>` for no password. A line meant for an
-/// earlier script that died before reading it is skipped, never taken as an
-/// answer. The password passes through the FIFO and the script's standard
-/// output into sudo, and is kept nowhere.
+/// removed after it, next to a Unix-domain socket `s`. It connects with
+/// `/usr/bin/nc -U`, sends `ask <its pid> <sudo's pid>`, and prints the line it
+/// gets back: the password, or nothing when the connection closes without one.
+/// The password passes through the socket and the script's standard output
+/// into sudo, and is kept nowhere.
+///
+/// Who asks is checked, not taken from the line: any process of this user can
+/// connect. The kernel names the asking process (`LOCAL_PEERPID`), and the ask
+/// counts only when that process's ancestry, walked up through the kernel's
+/// parent records, reaches this process through a sudo — askpass → sudo →
+/// brew → this app, as brew runs it: our child `bin/brew` execs `brew.sh`,
+/// which execs Ruby, which spawns `/usr/bin/sudo` straight from
+/// `SystemCommand` (`Process.spawn`), privileged cask steps included
+/// (`install_steps.rb` runs them in the parent, not in its sandbox child; all
+/// read in Homebrew 7.0.10). Anything else is closed unanswered, with no panel.
+/// That sudo, not the pid in the line, is the one the attempt is counted for.
 ///
 /// No password — declined, unusable, or the run over — is the script printing
 /// nothing. sudo reads only the output (it doesn't look at the exit status),
@@ -50,6 +60,10 @@ public typealias SudoPasswordPrompt = @Sendable (SudoPasswordRequest) async -> S
 /// upstream source; Apple's build can't be inspected). After a decline every
 /// later ask in the run is answered that way without asking.
 enum BrewAskPass {
+    /// Whether a program, by the path `proc_pidpath` gives for it, is sudo.
+    typealias IsSudo = @Sendable (_ executablePath: String) -> Bool
+    static let isSudo: IsSudo = { $0 == "/usr/bin/sudo" }
+
     /// Run `body` with the environment that points brew's sudo at a fresh
     /// askpass program, answering it with `prompt`. With no prompt — or when
     /// the program can't be made — `body` runs with no environment, and a sudo
@@ -58,13 +72,14 @@ enum BrewAskPass {
         packages: [String],
         prompt: SudoPasswordPrompt?,
         temporaryDirectory: URL = FileManager.default.temporaryDirectory,
+        isSudo: @escaping IsSudo = BrewAskPass.isSudo,
         isolation: isolated (any Actor)? = #isolation,
         _ body: (_ environment: [String: String]) async throws -> T
     ) async throws -> T {
         guard let prompt else { return try await body([:]) }
         let channel: Channel
         do {
-            channel = try Channel(packages: packages, prompt: prompt, in: temporaryDirectory)
+            channel = try Channel(packages: packages, prompt: prompt, isSudo: isSudo, in: temporaryDirectory)
         } catch {
             Log.install.error("brew sudo: no askpass program (\(String(describing: error), privacy: .public)); a sudo in this run fails")
             return try await body([:])
@@ -86,15 +101,9 @@ enum BrewAskPass {
         return """
         #!/bin/sh
         d=\(quoted)
-        id=$$
-        printf 'ask %s %s\\n' "$id" "$PPID" > "$d/request" || exit 1
-        while IFS= read -r line; do
-          case "$line" in
-            "$id "*) printf '%s\\n' "${line#"$id "}"; exit 0 ;;
-            "$id") exit 1 ;;
-          esac
-        done < "$d/response"
-        exit 1
+        r=$(printf 'ask %s %s\\n' "$$" "$PPID" | /usr/bin/nc -U "$d/s") || exit 1
+        [ -n "$r" ] || exit 1
+        printf '%s\\n' "$r"
 
         """
     }
@@ -115,80 +124,146 @@ enum BrewAskPass {
         return (String(script), String(sudo))
     }
 
+    /// How many parents up from the asker the walk looks for this process.
+    static let maxAncestry = 32
+
+    /// The sudo `asker` asks under: the nearest ancestor `isSudo` takes for
+    /// sudo, when the asker's ancestry reaches `root` (this process) above it.
+    /// nil when no sudo stands between the two, when the walk leaves `root`'s
+    /// descendants — an ancestor gone, or launchd reached, as a double-forked
+    /// process's is — or when it is longer than `maxAncestry`.
+    static func sudoAncestor(of asker: pid_t, isSudo: IsSudo, root: pid_t = getpid()) -> pid_t? {
+        var pid = asker
+        var sudo: pid_t?
+        for _ in 0..<maxAncestry {
+            guard let parent = parentPID(of: pid) else { return nil }
+            if parent == root { return sudo }
+            guard parent > 1 else { return nil }
+            if sudo == nil, let path = executablePath(of: parent), isSudo(path) { sudo = parent }
+            pid = parent
+        }
+        return nil
+    }
+
+    /// The kernel's parent record. `PROC_PIDT_SHORTBSDINFO`, not
+    /// `PROC_PIDTBSDINFO`: the latter fails for a process running as root,
+    /// which sudo is (measured on macOS 27.2 against root daemons and a setuid
+    /// one; the short form answers for them).
+    static func parentPID(of pid: pid_t) -> pid_t? {
+        var info = proc_bsdshortinfo()
+        let size = Int32(MemoryLayout<proc_bsdshortinfo>.size)
+        guard proc_pidinfo(pid, PROC_PIDT_SHORTBSDINFO, 0, &info, size) == size else { return nil }
+        return pid_t(bitPattern: info.pbsi_ppid)
+    }
+
+    static func executablePath(of pid: pid_t) -> String? {
+        var buffer = [UInt8](repeating: 0, count: 4 * Int(MAXPATHLEN))
+        let length = Int(proc_pidpath(pid, &buffer, UInt32(buffer.count)))
+        guard length > 0 else { return nil }
+        return String(decoding: buffer.prefix(length), as: UTF8.self)
+    }
+
+    /// The process at the other end of a connection, as the kernel has it.
+    static func peerPID(_ connection: Int32) -> pid_t? {
+        var pid: pid_t = 0
+        var length = socklen_t(MemoryLayout<pid_t>.size)
+        guard getsockopt(connection, SOL_LOCAL, LOCAL_PEERPID, &pid, &length) == 0, pid > 0 else { return nil }
+        return pid
+    }
+
     enum ChannelError: Error {
         case setup(String)
     }
 
-    /// The directory, its FIFOs held open by this side, and the reader that
-    /// answers requests in order.
+    /// One accepted ask: its connection, which this side closes, and the sudo
+    /// it came from.
+    struct Ask: Sendable {
+        let connection: Int32
+        let sudo: pid_t
+    }
+
+    /// The accepted connections still open. A connection is closed by
+    /// whoever takes it out — the answer, or `closeAll` — so never twice, and
+    /// none is let in once the channel is closing.
+    final class Connections: Sendable {
+        private let state = OSAllocatedUnfairLock(initialState: (closing: false, open: Set<Int32>()))
+
+        func admit(_ connection: Int32) -> Bool {
+            state.withLock { state in
+                guard !state.closing else { return false }
+                state.open.insert(connection)
+                return true
+            }
+        }
+
+        func close(_ connection: Int32) {
+            if state.withLock({ $0.open.remove(connection) }) != nil { Darwin.close(connection) }
+        }
+
+        func closeAll() {
+            let open = state.withLock { state in
+                state.closing = true
+                defer { state.open = [] }
+                return state.open
+            }
+            open.forEach { Darwin.close($0) }
+        }
+    }
+
+    /// The directory, the socket this side listens on, and the task that
+    /// answers accepted asks in order.
     final class Channel: @unchecked Sendable {
         let directory: URL
         let program: URL
-        /// Set by `close`: a request still queued then is answered with no
+        /// Set by `close`: an ask still queued then is answered with no
         /// password, not asked — the run it came from is over.
         private let closing = OSAllocatedUnfairLock(initialState: false)
-        private let requestFD: Int32
-        private let responseFD: Int32
+        private let connections = Connections()
         private let source: DispatchSourceRead
         private let answering: Task<Void, Never>
-        private let requests: AsyncStream<(script: String, sudo: String)>.Continuation
+        private let requests: AsyncStream<Ask>.Continuation
 
-        init(packages: [String], prompt: @escaping SudoPasswordPrompt, in parent: URL) throws {
+        init(packages: [String], prompt: @escaping SudoPasswordPrompt, isSudo: @escaping IsSudo, in parent: URL) throws {
             var template = Array(parent.appendingPathComponent("duo-askpass.XXXXXX").path.utf8CString)
             guard let made = mkdtemp(&template) else { throw ChannelError.setup("mkdtemp: \(errno)") }
             directory = URL(fileURLWithPath: String(cString: made), isDirectory: true)
             program = directory.appendingPathComponent("askpass")
-            let request = directory.appendingPathComponent("request").path
-            let response = directory.appendingPathComponent("response").path
+            let listener: Int32
             do {
-                guard mkfifo(request, 0o600) == 0, mkfifo(response, 0o600) == 0 else {
-                    throw ChannelError.setup("mkfifo: \(errno)")
+                listener = try Self.listen(at: directory.appendingPathComponent("s").path)
+                do {
+                    try Data(BrewAskPass.script(directory: directory.path).utf8).write(to: program)
+                    guard chmod(program.path, 0o700) == 0 else { throw ChannelError.setup("chmod: \(errno)") }
+                } catch {
+                    Darwin.close(listener)
+                    throw error
                 }
-                try Data(BrewAskPass.script(directory: directory.path).utf8).write(to: program)
-                guard chmod(program.path, 0o700) == 0 else { throw ChannelError.setup("chmod: \(errno)") }
             } catch {
                 try? FileManager.default.removeItem(at: directory)
                 throw error
             }
-            // Read-write, so neither open waits for the script's end and neither
-            // FIFO reads as closed while the run lasts; a reply written before
-            // its script opens `response` waits there for it. Non-blocking: the
-            // reader drains what is there and the replies are a line each.
-            requestFD = open(request, O_RDWR | O_NONBLOCK | O_CLOEXEC)
-            responseFD = open(response, O_RDWR | O_NONBLOCK | O_CLOEXEC)
-            guard requestFD >= 0, responseFD >= 0 else {
-                if requestFD >= 0 { Darwin.close(requestFD) }
-                if responseFD >= 0 { Darwin.close(responseFD) }
-                try? FileManager.default.removeItem(at: directory)
-                throw ChannelError.setup("open: \(errno)")
-            }
 
-            let (stream, continuation) = AsyncStream<(script: String, sudo: String)>.makeStream()
+            let (stream, continuation) = AsyncStream<Ask>.makeStream()
             requests = continuation
-            let fd = requestFD
-            source = DispatchSource.makeReadSource(fileDescriptor: fd, queue: DispatchQueue(label: "duo.askpass"))
-            source.setCancelHandler { Darwin.close(fd) }
-            // Only touched on the source's serial queue.
-            var pending = [UInt8]()
+            let connections = connections
+            source = DispatchSource.makeReadSource(fileDescriptor: listener, queue: DispatchQueue(label: "duo.askpass"))
+            source.setCancelHandler { Darwin.close(listener) }
             source.setEventHandler {
-                var buffer = [UInt8](repeating: 0, count: 256)
                 while true {
-                    let count = read(fd, &buffer, buffer.count)
-                    guard count > 0 else { break }
-                    pending += buffer[0..<count]
-                }
-                while let newline = pending.firstIndex(of: UInt8(ascii: "\n")) {
-                    let line = String(decoding: pending[..<newline], as: UTF8.self)
-                    pending.removeSubrange(...newline)
-                    if let ask = BrewAskPass.parseRequest(Substring(line)) { continuation.yield(ask) }
+                    let connection = accept(listener, nil, nil)
+                    guard connection >= 0 else { break }
+                    if let ask = Self.authenticate(connection, isSudo: isSudo), connections.admit(connection) {
+                        continuation.yield(ask)
+                    } else {
+                        Darwin.close(connection)
+                    }
                 }
             }
             source.resume()
 
-            let reply = responseFD
             let closing = closing
             answering = Task {
-                var asks: [String: Int] = [:]
+                var asks: [pid_t: Int] = [:]
                 var declined = false
                 for await ask in stream {
                     asks[ask.sudo, default: 0] += 1
@@ -201,16 +276,87 @@ enum BrewAskPass {
                             declined = true
                         }
                     }
-                    let line = Array((answer.map { "\(ask.script) \($0)" } ?? ask.script).utf8) + [UInt8(ascii: "\n")]
-                    _ = line.withUnsafeBytes { write(reply, $0.baseAddress, $0.count) }
+                    if let answer { Self.send(answer + "\n", to: ask.connection) }
+                    connections.close(ask.connection)
                 }
             }
         }
 
+        /// A listening socket at `path`, non-blocking for the accept loop.
+        /// The path has to fit `sun_path` whole: cut short, the socket would
+        /// be bound where the script never looks.
+        private static func listen(at path: String) throws -> Int32 {
+            var address = sockaddr_un()
+            let bytes = Array(path.utf8)
+            let capacity = MemoryLayout.size(ofValue: address.sun_path)
+            guard bytes.count < capacity else {
+                throw ChannelError.setup("socket path is \(bytes.count) bytes, sun_path holds \(capacity - 1)")
+            }
+            address.sun_family = sa_family_t(AF_UNIX)
+            address.sun_len = UInt8(MemoryLayout<sockaddr_un>.size)
+            withUnsafeMutableBytes(of: &address.sun_path) { $0.copyBytes(from: bytes.prefix(capacity - 1)) }
+            let fd = socket(AF_UNIX, SOCK_STREAM, 0)
+            guard fd >= 0 else { throw ChannelError.setup("socket: \(errno)") }
+            let bound = withUnsafePointer(to: &address) {
+                $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                    bind(fd, $0, socklen_t(MemoryLayout<sockaddr_un>.size))
+                }
+            }
+            guard bound == 0, Darwin.listen(fd, 8) == 0,
+                  fcntl(fd, F_SETFD, FD_CLOEXEC) == 0,
+                  fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) | O_NONBLOCK) == 0
+            else {
+                let error = errno
+                Darwin.close(fd)
+                throw ChannelError.setup("bind/listen: \(error)")
+            }
+            return fd
+        }
+
+        /// The ask on a fresh connection, when it comes from under this run's
+        /// sudo (`sudoAncestor`) and reads `ask <pid> <pid>`; nil otherwise,
+        /// and nothing is read from a connection that isn't. The read waits at
+        /// most 5 s, so a connection that never sends can't hold the queue.
+        private static func authenticate(_ connection: Int32, isSudo: IsSudo) -> Ask? {
+            _ = fcntl(connection, F_SETFD, FD_CLOEXEC)
+            guard let asker = BrewAskPass.peerPID(connection),
+                  let sudo = BrewAskPass.sudoAncestor(of: asker, isSudo: isSudo)
+            else {
+                Log.install.notice("brew sudo: an ask from outside this run's sudo, closed unanswered")
+                return nil
+            }
+            var on: Int32 = 1
+            var timeout = timeval(tv_sec: 5, tv_usec: 0)
+            guard fcntl(connection, F_SETFL, fcntl(connection, F_GETFL) & ~O_NONBLOCK) == 0,
+                  setsockopt(connection, SOL_SOCKET, SO_NOSIGPIPE, &on, socklen_t(MemoryLayout<Int32>.size)) == 0,
+                  setsockopt(connection, SOL_SOCKET, SO_RCVTIMEO, &timeout, socklen_t(MemoryLayout<timeval>.size)) == 0
+            else { return nil }
+            var line = [UInt8]()
+            var byte: UInt8 = 0
+            while line.count < 64 {
+                guard read(connection, &byte, 1) == 1 else { return nil }
+                if byte == UInt8(ascii: "\n") {
+                    guard BrewAskPass.parseRequest(Substring(decoding: line, as: UTF8.self)) != nil else { return nil }
+                    return Ask(connection: connection, sudo: sudo)
+                }
+                line.append(byte)
+            }
+            return nil
+        }
+
+        private static func send(_ text: String, to connection: Int32) {
+            var bytes = Array(text.utf8)[...]
+            while !bytes.isEmpty {
+                let written = bytes.withUnsafeBytes { write(connection, $0.baseAddress, $0.count) }
+                guard written > 0 else { return }
+                bytes = bytes.dropFirst(written)
+            }
+        }
+
         /// Stop answering — a panel still up is closed by the cancel, and its
-        /// sudo gets no password — unblock a script still reading (its `read`
-        /// sees the FIFO's last writer gone), and remove the directory. Waits
-        /// for the answering task first, so no reply is written to a
+        /// sudo gets no password — close every connection still open (its
+        /// script sees the end with nothing read), and remove the directory.
+        /// Waits for the answering task first, so no reply is written to a
         /// descriptor number already closed and reused.
         func close() async {
             closing.withLock { $0 = true }
@@ -218,7 +364,7 @@ enum BrewAskPass {
             requests.finish()
             await answering.value
             source.cancel()
-            Darwin.close(responseFD)
+            connections.closeAll()
             try? FileManager.default.removeItem(at: directory)
         }
     }

@@ -366,12 +366,16 @@ public actor BrewFormulaService {
     /// Where `run` finds brew for the upgrades and `brew update`. A seam for the
     /// same reason as `Executor`: a test hands in a script, never the host's brew.
     private let brewPath: @Sendable () -> String?
+    /// Which ancestor of an askpass is brew's sudo (`BrewAskPass`). A seam so
+    /// a test can stand a program in for sudo, which it can't run.
+    private let askpassIsSudo: BrewAskPass.IsSudo
 
     public init() {
         self.executor = Self.executor(brewPath: HomebrewInstaller.brewPath)
         self.caskReceiptTap = { Self.realCaskReceiptTap($0) }
         self.caskFacts = { await Self.caskFacts(caskToken: $0, appTargets: $1, extraFolders: $2) }
         self.brewPath = HomebrewInstaller.brewPath
+        self.askpassIsSudo = BrewAskPass.isSudo
     }
 
     /// Test seam — not public, this is a harness detail. `BrewFormulaServiceTests`
@@ -382,12 +386,14 @@ public actor BrewFormulaService {
         executor: @escaping Executor,
         caskReceiptTap: @escaping CaskReceiptTap = { _ in nil },
         caskFacts: @escaping CaskFactsReader = { _, _, _ in CaskFacts(installsAnApp: false, needsSudo: false) },
-        brewPath: @escaping @Sendable () -> String? = { nil }
+        brewPath: @escaping @Sendable () -> String? = { nil },
+        askpassIsSudo: @escaping BrewAskPass.IsSudo = BrewAskPass.isSudo
     ) {
         self.executor = executor
         self.caskReceiptTap = caskReceiptTap
         self.caskFacts = caskFacts
         self.brewPath = brewPath
+        self.askpassIsSudo = askpassIsSudo
     }
 
     public enum BrewError: LocalizedError {
@@ -1304,7 +1310,7 @@ public actor BrewFormulaService {
             for token in tokens where await caskFacts(token, nil, []).needsSudo { sudoTokens.append(token) }
         }
         try await BrewAskPass.withChannel(
-            packages: sudoTokens.isEmpty ? tokens : sudoTokens, prompt: password
+            packages: sudoTokens.isEmpty ? tokens : sudoTokens, prompt: password, isSudo: askpassIsSudo
         ) { askpass in
             try await self.run(
                 ["upgrade", "--cask"] + tokens,

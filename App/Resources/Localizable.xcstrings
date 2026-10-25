@@ -15358,6 +15358,71 @@
         }
       }
     },
+    "Restoring %@ needs an administrator, and the installed copy has no developer signature to check the backup against — or there is no installed copy. It was not restored. Copy it back by hand from the backup, or reinstall it.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zum Wiederherstellen von %@ ist ein Administrator nötig, und die installierte Kopie hat keine Entwicklersignatur, mit der sich das Backup prüfen ließe – oder es gibt keine installierte Kopie. Es wurde nicht wiederhergestellt. Kopiere die App von Hand aus dem Backup zurück oder installiere sie neu."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restaurar %@ requiere un administrador, y la copia instalada no tiene firma de desarrollador con la que comprobar la copia de seguridad, o no hay ninguna copia instalada. No se ha restaurado. Cópiala a mano desde la copia de seguridad o vuelve a instalarla."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La restauration de %@ nécessite un administrateur, et la copie installée n’a pas de signature de développeur à laquelle comparer la sauvegarde — ou il n’y a pas de copie installée. Elle n’a pas été restaurée. Recopiez-la à la main depuis la sauvegarde, ou réinstallez-la."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Il ripristino di %@ richiede un amministratore, e la copia installata non ha una firma dello sviluppatore con cui verificare il backup, oppure non c’è nessuna copia installata. Non è stata ripristinata. Ricopiala a mano dal backup o reinstallala."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ の復元には管理者権限が必要ですが、インストール済みのコピーにはバックアップを照合できる開発元の署名がないか、インストール済みのコピーがありません。復元しませんでした。バックアップから手動でコピーし直すか、再インストールしてください。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restaurar %@ exige um administrador, e a cópia instalada não tem assinatura de desenvolvedor para conferir o backup — ou não há cópia instalada. Ela não foi restaurada. Copie-a de volta manualmente a partir do backup ou reinstale-a."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Для восстановления %@ нужны права администратора, а у установленной копии нет подписи разработчика, с которой можно сверить резервную копию, — или установленной копии нет. Восстановление не выполнено. Скопируйте приложение из резервной копии вручную или переустановите его."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ uygulamasını geri yüklemek için yönetici gerekiyor; yüklü kopyada yedeği karşılaştırabilecek bir geliştirici imzası yok ya da yüklü bir kopya yok. Geri yüklenmedi. Yedekten elle geri kopyalayın veya uygulamayı yeniden yükleyin."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "恢复 %@ 需要管理员权限，而已安装的副本没有可用来核对这份备份的开发者签名，或者根本没有已安装的副本，所以没有恢复。请从备份中手动拷回，或重新安装它。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "還原 %@ 需要管理者權限，而已安裝的副本沒有可用來核對這份備份的開發者簽署，或者根本沒有已安裝的副本，所以沒有還原。請從備份手動拷回，或重新安裝它。"
+          }
+        }
+      }
+    },
     "Review the report, then open a GitHub issue or an email with it.": {
       "extractionState": "manual",
       "localizations": {

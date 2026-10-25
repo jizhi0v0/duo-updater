@@ -30,8 +30,13 @@ enum GzipDecode {
         min(max(hint, 64 * 1024), maxChunkBytes)
     }
 
-    /// Decompress a complete gzip member. Returns nil on any malformation.
-    static func decompress(_ data: Data) -> Data? {
+    /// Decompress a complete gzip member. Returns nil on any malformation, and nil
+    /// once the output would pass `limit` bytes.
+    ///
+    /// `limit` is required: the input is a vendor's response, and DEFLATE turns a
+    /// 261 KB body into 256 MiB (measured in the 2026-10-25 review), so each caller
+    /// has to say how much it can expect rather than inherit "everything".
+    static func decompress(_ data: Data, limit: Int) -> Data? {
         let bytes = [UInt8](data)
         // Header is at least 10 bytes; trailer (CRC32 + ISIZE) is 8.
         guard bytes.count >= 18,
@@ -75,7 +80,7 @@ enum GzipDecode {
             | (Int(bytes[bytes.count - 2]) << 16)
             | (Int(bytes[bytes.count - 1]) << 24)
 
-        return inflate(Array(deflate), hint: max(isize, 64 * 1024))
+        return inflate(Array(deflate), hint: min(max(isize, 64 * 1024), limit), limit: limit)
     }
 
     /// Decompress a zlib stream (RFC 1950) — a 2-byte header, the same raw
@@ -96,7 +101,9 @@ enum GzipDecode {
     /// preset dictionary (FDICT) is refused rather than mis-parsed — nothing
     /// that reaches here uses one, and guessing would hand the inflater a
     /// dictionary id as if it were compressed data.
-    static func decompressZlib(_ data: Data, hint: Int) -> Data? {
+    ///
+    /// `limit` caps the output exactly as in `decompress`; nil once exceeded.
+    static func decompressZlib(_ data: Data, hint: Int, limit: Int) -> Data? {
         let bytes = [UInt8](data)
         guard bytes.count >= 6 else { return nil }
         let cmf = bytes[0], flg = bytes[1]
@@ -108,7 +115,7 @@ enum GzipDecode {
         // nor tolerates.
         let end = bytes.count - 4
         guard 2 < end else { return nil }
-        return inflate(Array(bytes[2..<end]), hint: max(hint, 64 * 1024))
+        return inflate(Array(bytes[2..<end]), hint: min(max(hint, 64 * 1024), limit), limit: limit)
     }
 
     /// Decompress bare raw DEFLATE (RFC 1951) — what Go's `compress/flate`
@@ -123,7 +130,7 @@ enum GzipDecode {
     }
 
     /// Stream raw DEFLATE bytes through `compression_stream` until done.
-    private static func inflate(_ deflate: [UInt8], hint: Int, limit: Int? = nil) -> Data? {
+    private static func inflate(_ deflate: [UInt8], hint: Int, limit: Int) -> Data? {
         // Both pointers are placeholders that `compression_stream_init` requires
         // to be non-null and never reads: the real `src_ptr`/`dst_ptr` are set
         // inside the loop below, before the first `_process`. `dst_ptr` used to
@@ -166,15 +173,14 @@ enum GzipDecode {
                 case COMPRESSION_STATUS_OK, COMPRESSION_STATUS_END:
                     let produced = chunk - stream.dst_size
                     output.append(dstBuffer, count: produced)
-                    if let limit, output.count > limit {
+                    if output.count > limit {
                         ok = false
                         return
                     }
                     if status == COMPRESSION_STATUS_END { return }
                     // A truncated stream: input used up, nothing more coming out,
-                    // and no end. Checked on the capped path only, which reads
-                    // downloaded files; the gzip callers are left as they were.
-                    if limit != nil, produced == 0, stream.src_size == 0 {
+                    // and no end.
+                    if produced == 0, stream.src_size == 0 {
                         ok = false
                         return
                     }

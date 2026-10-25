@@ -68,6 +68,12 @@ actor ImageStore {
     ///   are the largest thing the changelog pulls (6.5 MB on one Raycast note),
     ///   and an unattributed row that size is the one people ask about.
     func data(for url: URL, appID: String? = nil) async -> Data? {
+        // Before the disk and the network both: the URL comes out of a vendor's
+        // page and is fetched with nobody having clicked anything, so it is held
+        // to the policy the changelog web view applies (https, a real name, no
+        // credentials, port 443). `request` below is confined too, so a redirect
+        // cannot take the fetch somewhere this check would have refused.
+        guard ChangelogURLPolicy.isDisplayable(url) else { return nil }
         if let onDisk = try? Data(contentsOf: fileURL(for: url)) { return onDisk }
         if let task = inflight[url] { return await task.value }
         let task = Task<Data?, Never> { [directory] in
@@ -75,7 +81,7 @@ actor ImageStore {
             request.timeoutInterval = 15
             guard let (data, response) = try? await RequestAttribution.withApp(appID, operation: {
                     try await URLSession.updates.countedData(
-                        for: request, purpose: .changelogImage)
+                        for: ChangelogURLPolicy.confine(request), purpose: .changelogImage)
                   }),
                   let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode),
                   NSImage(data: data) != nil   // only cache things that actually decode

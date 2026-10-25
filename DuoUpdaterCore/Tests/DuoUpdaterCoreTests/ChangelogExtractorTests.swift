@@ -2796,7 +2796,7 @@ private let typelessFixture = """
 @Test func gzipDecodeRoundTrips() throws {
     // GzipDecode handles the real base64+gzip member the page ships.
     let gz = try #require(Data(base64Encoded: typelessB64))
-    let inflated = try #require(GzipDecode.decompress(gz))
+    let inflated = try #require(GzipDecode.decompress(gz, limit: 16 << 20))
     let json = try #require(String(data: inflated, encoding: .utf8))
     #expect(json.contains("\"1.10.0\""))
     #expect(json.contains("Ten paragraph"))
@@ -2815,11 +2815,11 @@ private let typelessFixture = """
     #expect(GzipDecode.chunkSize(hint: 0xFFFF_FFFF) == GzipDecode.maxChunkBytes)
 
     let honest = try #require(Data(base64Encoded: typelessB64))
-    let expected = try #require(GzipDecode.decompress(honest))
+    let expected = try #require(GzipDecode.decompress(honest, limit: 16 << 20))
 
     var hostile = honest
     hostile.replaceSubrange(hostile.count - 4..<hostile.count, with: [0xFF, 0xFF, 0xFF, 0xFF])
-    #expect(GzipDecode.decompress(hostile) == expected)
+    #expect(GzipDecode.decompress(hostile, limit: 16 << 20) == expected)
 }
 
 @Test func decodesTypelessSortedNewestFirstWithImages() throws {

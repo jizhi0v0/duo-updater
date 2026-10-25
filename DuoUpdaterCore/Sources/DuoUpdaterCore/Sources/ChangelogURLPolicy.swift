@@ -213,3 +213,38 @@ extension ChangelogURLPolicy {
             .replacingOccurrences(of: "'", with: "&#39;")
     }
 }
+
+// MARK: - Fetches
+
+extension ChangelogURLPolicy {
+
+    /// Marks `request` so the update session (`CrossHostCredentialStripper`) holds
+    /// every redirect it is sent on to `isDisplayable`, and returns the 3xx instead
+    /// of following it to somewhere this policy refuses.
+    ///
+    /// The fetch has to apply the policy to the URL it starts from as well — a mark
+    /// only covers the hops. A `URLProtocol` property, like `SameSite.confine`: it
+    /// lives on the request object in this process and is never sent. A mark of
+    /// its own rather than a rule on the whole session, because the session also
+    /// carries version feeds and installer downloads, whose redirects are not ours
+    /// to restrict to what a web view may show. And not `SameSite`: vendors do move
+    /// notes between their own domains, so a redirect that passes this policy is
+    /// followed wherever it goes.
+    public static func confine(_ request: URLRequest) -> URLRequest {
+        guard let mutable = (request as NSURLRequest).mutableCopy() as? NSMutableURLRequest
+        else { return request }
+        URLProtocol.setProperty(true, forKey: confineKey, in: mutable)
+        return mutable as URLRequest
+    }
+
+    private static let confineKey = "com.duoupdater.changelogURLPolicyOnly"
+
+    /// Whether a redirect of `original` to `target` may be followed: always for an
+    /// unmarked request, and for a marked one only when `target` is displayable.
+    static func allowsRedirect(of original: URLRequest?, to target: URL?) -> Bool {
+        guard let original, URLProtocol.property(forKey: confineKey, in: original) as? Bool == true
+        else { return true }
+        guard let target else { return false }
+        return isDisplayable(target)
+    }
+}

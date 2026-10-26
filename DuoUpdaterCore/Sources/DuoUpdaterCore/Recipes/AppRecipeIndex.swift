@@ -300,6 +300,7 @@ public enum AppRecipeIndex {
         net_sourceforge_grandperspectiv.set,
         net_sourceforge_sqlitebrowser.set,
         net_whatsapp_WhatsApp.set,
+        netdcy_FlowVision.set,
         notion_id.set,
         now_typeless_desktop.set,
         onebadidea_Swift_Quit.set,

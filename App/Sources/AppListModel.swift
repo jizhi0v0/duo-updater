@@ -7381,7 +7381,7 @@ final class AppListModel {
             needsRestart.remove(result.id)
             pendingBatchRestart[result.id] = nil
             settlePackageRestart(result.id)
-        case .stillRunning:
+        case .stillRunning(let holdup):
             // Still up (likely a save prompt) — leave the badge, and hand the quit
             // off to the terminate observer. The new build is already on disk (the
             // install finished long before this), so the only thing left is the
@@ -7407,8 +7407,13 @@ final class AppListModel {
             // the quit — AppKit refuses to honour it while a modal window or sheet
             // is up, and that window is the app's, not ours. "A window waiting for
             // you" rather than "unsaved work": the case in hand was Eudic's login
-            // sheet, which has nothing to save.
-            let note = String(localized: "\(result.app.name) didn’t quit — it has a window waiting for you (a save prompt, a sign-in sheet, a dialog). Switch to it, deal with that window, then quit it or click Relaunch again. Nothing was changed and the new version is already installed.")
+            // sheet, which has nothing to save. With no window of its own on
+            // screen there is nothing to switch to: it declined the quit and kept
+            // running in the menu bar (Witsy 3.5.1, 2026-10-26), so send the user
+            // to its menu instead (`QuitHoldup`, `duo restart`'s line too).
+            let note = holdup == .nothingOnScreen
+                ? String(localized: "\(result.app.name) didn’t quit, and no window of it is on screen — it may keep running in the menu bar. Quit it from its menu there, or click Relaunch again. Nothing was changed and the new version is already installed.")
+                : String(localized: "\(result.app.name) didn’t quit — it has a window waiting for you (a save prompt, a sign-in sheet, a dialog). Switch to it, deal with that window, then quit it or click Relaunch again. Nothing was changed and the new version is already installed.")
             installNotes[result.id] = note
             restartWontQuitNotes[result.id] = note
         case .awaitingOpenConfirmation:

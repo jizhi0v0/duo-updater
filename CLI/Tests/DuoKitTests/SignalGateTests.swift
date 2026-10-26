@@ -440,7 +440,7 @@ import Foundation
                         if ContinuousClock.now >= quitAt { return .relaunched(true) }
                         try? await Task.sleep(for: .milliseconds(10))
                     }
-                    return .stillRunning
+                    return .stillRunning(.windowUp)
                 })
         }
         await inQuitWait.wait()
@@ -584,7 +584,7 @@ import Foundation
         #expect(ending.outcome == .wontQuit)
         #expect(ticks.value == 40)
         #expect(Restart.describe(ending, staged: "2.0", disk: old).text
-            == "still running — likely a save prompt, left 2.0 staged")
+            == "still running — no window of it is on screen; it may keep running in the menu bar (quit it from its menu), left 2.0 staged")
     }
 
     /// A signal that arrives before the slow-quit point — during the rollback

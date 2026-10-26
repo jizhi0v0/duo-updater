@@ -140,6 +140,18 @@ enum CLIToolPresentation {
         }
     }
 
+    /// The managers' groups among `groups`, in registry order (D12): a level
+    /// keeps its place when its last update lands, instead of following the
+    /// statuses' order, which lists the outdated first.
+    static func managerGroups(_ groups: [Group]) -> [Group] {
+        let order = ManagerRegistry.adapters.map(\.descriptor.id)
+        return groups.filter { $0.manager != nil }.enumerated().sorted { a, b in
+            let x = a.element.manager.flatMap { order.firstIndex(of: $0) } ?? order.count
+            let y = b.element.manager.flatMap { order.firstIndex(of: $0) } ?? order.count
+            return (x, a.offset) < (y, b.offset)
+        }.map(\.element)
+    }
+
     /// Which prefix an npm group is, for its header: the version manager that
     /// keeps it ("nvm", "fnm"), else its path with the home directory as `~`
     /// ("/opt/homebrew", "~/.npm-global").

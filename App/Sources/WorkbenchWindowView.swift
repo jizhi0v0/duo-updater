@@ -966,7 +966,7 @@ struct WorkbenchWindowView: View {
     /// its many packages, with its own counts and its own Update All. In the
     /// order the groups are drawn (`CLIToolPresentation.groups`), from `statuses`.
     private func managerLevels(_ statuses: [CLIToolStatus]) -> [CLIToolPresentation.Group] {
-        CLIToolPresentation.groups(statuses).filter { $0.manager != nil }
+        CLIToolPresentation.managerGroups(CLIToolPresentation.groups(statuses))
     }
 
     /// The whole level's copies, not the search's: what its counts and its

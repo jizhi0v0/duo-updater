@@ -1065,7 +1065,7 @@ struct ToolsPage: View {
         // above "Other tools" (owner, 2026-10-24): one manager and its many
         // packages, as Homebrew is.
         let groups = CLIToolPresentation.groups(tools.statuses)
-        let ordered = groups.filter { $0.manager != nil } + groups.filter { $0.manager == nil }
+        let ordered = CLIToolPresentation.managerGroups(groups) + groups.filter { $0.manager == nil }
         let entries: [Entry] = ordered.compactMap { group in
             let scope = Set(group.statuses.map(\.toolID))
             let snapshot = tools.rowSnapshot(in: scope)

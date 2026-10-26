@@ -100,8 +100,10 @@ public struct PythonDistribution: Sendable, Equatable {
 /// §4.2's rule (UV-27): labels tried in the order Changelog, Repository,
 /// Source, Source Code, GitHub, Homepage, then any other; the URL must be
 /// `github.com/<owner>/<repo>`, and owner or repo must be the project's own
-/// name — a sampled project (ansible) points its URLs at another's
-/// repository, and a wrong repository's notes are worse than none.
+/// name, or the repo that name with a Python affix (`cowsay-python`,
+/// `python-dotenv`, `pyyaml`, `requests-py`) — a sampled project (ansible)
+/// points its URLs at another's repository, and a wrong repository's notes
+/// are worse than none.
 public enum ProjectURLRepo {
 
     static let labelOrder = ["changelog", "repository", "source", "source code", "github", "homepage"]
@@ -123,7 +125,8 @@ public enum ProjectURLRepo {
             var repo = parts[1]
             if repo.hasSuffix(".git") { repo.removeLast(4) }
             guard !owner.isEmpty, !repo.isEmpty else { continue }
-            if squash(repo) == wanted || squash(owner) == wanted { return (owner, repo) }
+            let affixed = [wanted, wanted + "python", "python" + wanted, "py" + wanted, wanted + "py"]
+            if affixed.contains(squash(repo)) || squash(owner) == wanted { return (owner, repo) }
         }
         return nil
     }

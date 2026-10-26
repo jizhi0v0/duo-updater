@@ -83,6 +83,11 @@ struct PythonPackageTests {
             [("Documentation", "https://black.readthedocs.io/"), ("Changelog", "https://github.com/psf/black/blob/main/CHANGES.md")],
             project: "black")! == ("psf", "black"))
         #expect(ProjectURLRepo.repository([("Source", "https://github.com/ansible/ansible-documentation")], project: "ansible-core") == nil)
+        // cowsay's only URL (Home-page), measured on the Mac: its repository
+        // carries a Python affix, and tags v6.0, v6.1.
+        #expect(ProjectURLRepo.repository([("Homepage", "https://github.com/VaasuDevanS/cowsay-python")], project: "cowsay")!
+            == ("VaasuDevanS", "cowsay-python"))
+        #expect(ProjectURLRepo.repository([("Source", "https://github.com/someone/cowsay-tools")], project: "cowsay") == nil)
         #expect(ProjectURLRepo.repository(
             [("Source", "https://github.com/python/typing_extensions.git")], project: "typing-extensions")! == ("python", "typing_extensions"))
     }

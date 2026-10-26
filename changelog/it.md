@@ -2,6 +2,20 @@
 
 Questa è la traduzione di `CHANGELOG.md`. In caso di differenze fa fede la versione inglese. Le versioni non elencate qui vengono mostrate automaticamente in inglese.
 
+## 0.5.15
+
+**La riga di aggiornamento indica la versione in esecuzione.** Quando un’app ha già messo sul disco una copia più recente che non hai ancora riavviato, la riga partiva da quella copia; ora parte da quella in esecuzione, e il suggerimento al passaggio del mouse dice quale versione è installata.
+
+**Un ripristino non riuscito mantiene il suo errore sulla riga.** Prima spariva appena l’elenco si aggiornava, senza alcun segno che il ripristino non fosse avvenuto.
+
+**L’app desktop di Smartsheet è segnalata come in dismissione.** Smartsheet la ritira il 6 gennaio 2027 o dopo; il banco di lavoro rimanda all’annuncio.
+
+**Gli aggiornamenti e i ripristini che chiedono la password vengono controllati più rigorosamente.** Un’app la cui copia installata non ha una firma dello sviluppatore non viene più sostituita con una password da amministratore: DuoUpdater lo dice e lascia a te l’aggiornamento manuale.
+
+**`duo` segue l’impostazione «Usa l’accesso della CLI GitHub» e il token incollato nelle Impostazioni.** Prima leggeva `GH_TOKEN` e `gh` anche se li avevi disattivati.
+
+**Dietro le quinte.** Una revisione di sicurezza ha rafforzato i download, l’helper con privilegi, gli aggiornamenti e i ripristini che chiedono la password, i link e le immagini delle note di rilascio, e la build e la pubblicazione di DuoUpdater stesso. I link di download firmati non vengono più salvati sul disco, e `duo` non stampa più i codici di controllo contenuti nella risposta di un fornitore.
+
 ## 0.5.14
 
 **Sono supportati gli strumenti di mise.** Ogni strumento della configurazione globale di mise ottiene il controllo degli aggiornamenti e l’aggiornamento con un clic entro la versione richiesta; uno strumento fissato mostra cosa c’è oltre il vincolo, con il comando per passarci. Si trovano sotto Homebrew nella scheda CLI del banco di lavoro.

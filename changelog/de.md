@@ -2,6 +2,20 @@
 
 Dies ist eine deutsche Übersetzung von `CHANGELOG.md`. Die englische Fassung ist maßgeblich; frühere Versionen, die hier nicht aufgeführt sind, fallen automatisch auf Englisch zurück.
 
+## 0.5.15
+
+**Die Update-Zeile nennt die Version, die gerade läuft.** Hat eine App schon eine neuere Kopie auf die Festplatte gelegt, die du noch nicht neu gestartet hast, begann die Zeile bisher mit dieser Kopie; jetzt beginnt sie mit der laufenden, und der Tooltip sagt, welche Version installiert ist.
+
+**Eine fehlgeschlagene Wiederherstellung behält ihren Fehler in der Zeile.** Er verschwand bisher, sobald die Liste aktualisiert wurde, und nichts zeigte, dass die Wiederherstellung nicht stattgefunden hatte.
+
+**Die Desktop-App von Smartsheet ist als auslaufend markiert.** Smartsheet stellt sie am oder nach dem 6. Januar 2027 ein; die Werkbank verlinkt die Ankündigung.
+
+**Updates und Wiederherstellungen, die dein Passwort brauchen, werden strenger geprüft.** Eine App, deren installierte Kopie keine Entwicklersignatur hat, wird nicht mehr mit einem Administratorpasswort ersetzt: DuoUpdater sagt das und überlässt dir das Update von Hand.
+
+**`duo` folgt der Einstellung „Anmeldung der GitHub CLI verwenden“ und dem Token, den du in den Einstellungen eingefügt hast.** Bisher las es `GH_TOKEN` und `gh`, auch wenn du sie ausgeschaltet hattest.
+
+**Unter der Haube.** Nach einer Sicherheitsprüfung wurden Downloads, das privilegierte Hilfsprogramm, Updates und Wiederherstellungen mit Passwort, Links und Bilder in Versionshinweisen sowie DuoUpdaters eigener Build und Release gehärtet. Signierte Download-Links werden nicht mehr auf der Festplatte gespeichert, und `duo` gibt keine Steuerzeichen mehr aus, die die Antwort eines Herstellers mitbringt.
+
 ## 0.5.14
 
 **mise-Tools werden unterstützt.** Jedes Tool aus der globalen Konfiguration von mise erhält eine Update-Prüfung und ein Update per Klick innerhalb der gewünschten Version; ein festgelegtes Tool zeigt, was jenseits der Festlegung liegt, samt dem Befehl, um dorthin zu wechseln. Sie stehen im CLI-Tab der Werkbank unter Homebrew.

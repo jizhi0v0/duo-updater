@@ -2,6 +2,20 @@
 
 Esta é a tradução para o português do Brasil do arquivo CHANGELOG.md. A versão em inglês prevalece em caso de divergência. Os números de versão que não aparecem aqui são mostrados automaticamente em inglês na janela Novidades.
 
+## 0.5.15
+
+**A linha de atualização mostra a versão que está em execução.** Quando um app já colocou no disco uma cópia mais nova que você ainda não reabriu, a linha começava por essa cópia; agora começa pela que está em execução, e a dica ao passar o mouse diz qual versão está instalada.
+
+**Uma restauração que falhou mantém o erro na linha.** Antes ele sumia assim que a lista era atualizada, sem nenhum sinal de que a restauração não tinha acontecido.
+
+**O app de desktop do Smartsheet aparece marcado como em descontinuação.** O Smartsheet o descontinua em 6 de janeiro de 2027 ou depois; a bancada leva ao anúncio.
+
+**Atualizações e restaurações que pedem sua senha são verificadas com mais rigor.** Um app cuja cópia instalada não tem assinatura de desenvolvedor não é mais substituído com uma senha de administrador: o DuoUpdater avisa e deixa a atualização para você fazer manualmente.
+
+**O `duo` segue o ajuste “Usar o login do GitHub CLI” e o token que você colou nos Ajustes.** Antes ele lia `GH_TOKEN` e `gh` mesmo quando você os tinha desativado.
+
+**Nos bastidores.** Uma revisão de segurança reforçou os downloads, o auxiliar com privilégios, as atualizações e restaurações que pedem senha, os links e imagens das notas de versão, e a compilação e publicação do próprio DuoUpdater. Links de download assinados não ficam mais guardados no disco, e o `duo` não imprime mais códigos de controle que venham na resposta de um fornecedor.
+
 ## 0.5.14
 
 **As ferramentas do mise são compatíveis.** Cada ferramenta da configuração global do mise ganha verificação de atualizações e atualização com um clique dentro da versão que você pediu; uma ferramenta fixada mostra o que existe além da fixação, com o comando para passar a ela. Elas ficam abaixo do Homebrew na aba CLI da bancada.

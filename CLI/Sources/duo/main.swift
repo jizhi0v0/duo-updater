@@ -120,6 +120,10 @@ install options:
 
   App Store updates are refused, not attempted: that route needs the privileged
   helper or the Accessibility API, neither of which a standalone binary has.
+  An update that replaces the app with the vendor's rewrite, or a major version
+  that may need a new license, is left out of --all and --yes, as the app
+  leaves it out of Update All: name the app without --yes, and duo asks before
+  installing it.
   Holds a machine-wide lock, so it exits rather than swapping a bundle while the
   menu-bar app is installing.
 

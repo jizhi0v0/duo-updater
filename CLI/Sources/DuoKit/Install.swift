@@ -206,7 +206,14 @@ public enum Install {
                 // Narrowed, not refused: an app excluded by --route was never
                 // asked for, so listing it under "Skipping" would be noise.
                 guard options.routes.isEmpty || options.routes.contains(route) else { continue }
-                plan.append(Planned(result: result, route: route))
+                switch confirmationStep(for: result, named: !options.queries.isEmpty, assumeYes: options.assumeYes) {
+                case .notNeeded:
+                    plan.append(Planned(result: result, route: route))
+                case .ask(let gate):
+                    plan.append(Planned(result: result, route: route, confirmation: gate))
+                case .refuse(let why):
+                    refusals.append((result, why, route))
+                }
             case .refuse(let why, let route):
                 refusals.append((result, why, route))
             }
@@ -250,6 +257,26 @@ public enum Install {
             }
             return 0
         }
+
+        // The app's popover, one app at a time: a yes to the plan above is not a
+        // yes to crossing a rewrite or a licence boundary. Only named apps get
+        // here, and only without `--yes` (`confirmationStep`), so there is a
+        // terminal to ask on — `confirm` just required one.
+        var notConfirmed: Set<URL> = []
+        for planned in plan {
+            guard let gate = planned.confirmation,
+                  !confirmCrossing(planned.result, gate: gate, json: options.json) else { continue }
+            notConfirmed.insert(planned.result.app.path)
+            let why = "not confirmed: \(confirmationText(gate, for: planned.result))"
+            if options.json {
+                NDJSON.emit(skippedPayload(
+                    name: planned.result.app.name, route: planned.route, reason: why, outcome: .declined))
+            } else {
+                print(TerminalText.printable("Skipping \(planned.result.app.name): \(why)."))
+            }
+        }
+        plan.removeAll { notConfirmed.contains($0.result.app.path) }
+        guard !plan.isEmpty || !toolPlan.isEmpty else { return 0 }
 
         // `confirm` blocks on stdin, so the running-app snapshot taken before the
         // plan was printed may be arbitrarily old by now — and under
@@ -394,6 +421,49 @@ public enum Install {
     struct Planned: Sendable {
         let result: UpdateResult
         let route: InstallCoordinator.Route
+        /// What the user is asked, for this app alone, before it installs — and,
+        /// once they said yes, the one crossing `reconsider` lets through.
+        var confirmation: UpdatePolicy.InstallConfirmation? = nil
+    }
+
+    /// What `install` does with an update that needs its own confirmation
+    /// (`UpdatePolicy.installConfirmation`).
+    enum ConfirmationStep: Equatable {
+        case notNeeded
+        case ask(UpdatePolicy.InstallConfirmation)
+        /// Left out, with the reason and the command that installs it on purpose.
+        case refuse(String)
+    }
+
+    /// The app leaves these rows out of Update All and asks on the row itself;
+    /// `--all` is Update All, and `--yes` is a promise that nobody is asked. So
+    /// only an app named without `--yes` is asked, and every other run skips it.
+    static func confirmationStep(for result: UpdateResult, named: Bool, assumeYes: Bool) -> ConfirmationStep {
+        guard let gate = UpdatePolicy.installConfirmation(for: result) else { return .notNeeded }
+        let command = "duo install \(Backups.shellQuoted(result.app.path.path))"
+        if !named {
+            return .refuse("\(confirmationText(gate, for: result)) — not part of --all; "
+                + "install it on its own: \(command)")
+        }
+        if assumeYes {
+            return .refuse("\(confirmationText(gate, for: result)) — --yes does not cover it; "
+                + "run \(command) without --yes to confirm it")
+        }
+        return .ask(gate)
+    }
+
+    /// The app's confirmation popover in one line, after "Skipping <name>: ".
+    static func confirmationText(_ gate: UpdatePolicy.InstallConfirmation, for result: UpdateResult) -> String {
+        let sides = result.remote?.displayVersion.map { result.updateLineText(latest: $0) }
+            ?? (installed: result.app.shortVersion ?? "?", offered: "?")
+        switch gate {
+        case .vendorRewrite:
+            return "\(sides.installed) → \(sides.offered) replaces this app with the vendor's rewrite, "
+                + "whose features and settings may differ"
+        case .licenseBoundary:
+            return "\(sides.installed) → \(sides.offered) is a major new version, "
+                + "which a commercial app may need a new license for"
+        }
     }
 
     enum Decision {
@@ -614,7 +684,8 @@ public enum Install {
     /// during which another item's install can start or finish.
     static func reconsider(
         offered: UpdateResult, confirmed: UpdateResult?, settings: Settings,
-        environment: InstallEnvironment, routes: Set<InstallCoordinator.Route>
+        environment: InstallEnvironment, routes: Set<InstallCoordinator.Route>,
+        approved: UpdatePolicy.InstallConfirmation? = nil
     ) -> ReconsiderOutcome {
         let decision = PreInstallGate.decision(offered: offered, confirmed: confirmed)
         // `decision == .unreadable` exactly when `confirmed == nil` (see
@@ -633,6 +704,13 @@ public enum Install {
             switch classify(confirmed, settings: settings, environment: environment) {
             case .install(let route):
                 guard routes.isEmpty || routes.contains(route) else { return .notRequested(route) }
+                // The fresh answer may need a confirmation the plan's did not, or
+                // another one than the user gave (`approved`).
+                if let gate = UpdatePolicy.installConfirmation(for: confirmed), gate != approved {
+                    return .skip("\(confirmationText(gate, for: confirmed)) — found on the re-check, "
+                        + "not confirmed; install it on its own: "
+                        + "duo install \(Backups.shellQuoted(confirmed.app.path.path))", route)
+                }
                 return .proceed(confirmed, route)
             case .refuse(let why, let route):
                 return .skip(why, route)
@@ -781,6 +859,10 @@ public enum Install {
                 if let channel = item.result.replacesChannelWithStable {
                     print("      note: \(Check.channelReminder(channel.rawValue))")
                 }
+                if let gate = item.confirmation {
+                    print(TerminalText.printable(
+                        "      note: asks before installing — \(confirmationText(gate, for: item.result))"))
+                }
             }
             // A tool's route is its own update command: the one its row's
             // Update button runs.
@@ -816,7 +898,20 @@ public enum Install {
                 "duo: not a terminal — pass --yes to install without confirmation\n".utf8))
             return false
         }
-        let prompt = "Install \(count) update\(count == 1 ? "" : "s")? [y/N] "
+        return ask("Install \(count) update\(count == 1 ? "" : "s")? [y/N] ", json: json)
+    }
+
+    /// The per-app question after the plan's, for an update `confirmationStep`
+    /// said to ask about.
+    static func confirmCrossing(
+        _ result: UpdateResult, gate: UpdatePolicy.InstallConfirmation, json: Bool
+    ) -> Bool {
+        ask(TerminalText.printable(
+            "\(result.app.name) \(confirmationText(gate, for: result)). Install it anyway? [y/N] "),
+            json: json)
+    }
+
+    private static func ask(_ prompt: String, json: Bool) -> Bool {
         // To stderr in `--json` mode — stdout stays the NDJSON stream alone.
         if json {
             FileHandle.standardError.write(Data(prompt.utf8))
@@ -992,7 +1087,7 @@ public enum Install {
                 for: confirmed ?? item.result, plannedElevation: elevationRequiredPaths)
             let reconsidered = reconsider(
                 offered: item.result, confirmed: confirmed, settings: settings,
-                environment: live, routes: routes)
+                environment: live, routes: routes, approved: item.confirmation)
             let outcome = itemPlan(for: reconsidered, offered: item.result, confirmed: confirmed)
 
             let toInstall: UpdateResult

@@ -1124,6 +1124,26 @@ public enum UpdatePolicy {
     /// the Ignored tag: hidden in the app, still nagging in Notification Center.
     /// Ignore and skip both mean "stop telling me about this", so both are gates
     /// here, not just on the updates-available path.
+    /// What the user must confirm, one app at a time, before this update installs.
+    ///
+    /// The app asks in a popover on the row (`.majorUpgrade` route) and leaves the
+    /// row out of Update All; `duo install` leaves it out of `--all` and `--yes`
+    /// and asks per app at a terminal. One answer for both, so neither host can
+    /// install across one of these silently while the other asks.
+    public enum InstallConfirmation: Sendable, Equatable {
+        /// The update replaces this app with the vendor's rewrite
+        /// (`UpdateResult.isVendorRewrite`).
+        case vendorRewrite
+        /// A major version that may need a new license (`UpdateResult.isMajorUpgrade`).
+        case licenseBoundary
+    }
+
+    /// nil when the update needs no confirmation of its own.
+    public static func installConfirmation(for result: UpdateResult) -> InstallConfirmation? {
+        guard result.isMajorUpgrade else { return nil }
+        return result.isVendorRewrite ? .vendorRewrite : .licenseBoundary
+    }
+
     /// A pending update the user hasn't ignored or skipped — what the badge counts
     /// and what "Update All" acts on.
     public static func isActionableUpdate(

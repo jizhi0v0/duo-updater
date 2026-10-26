@@ -186,7 +186,6 @@ public enum AppRecipeIndex {
         com_raspberrypi_rpi_imager.set,
         com_raycast_macos.set,
         com_readdle_PDFExpert_Mac.set,
-        com_reqable_macosx.set,
         com_robinebers_openusage.set,
         com_runningwithcrayons_Alfred.set,
         com_ScooterSoftware_BeyondCompare.set,

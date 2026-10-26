@@ -131,6 +131,7 @@ public enum AppRecipeIndex {
         com_longbridge_app_desktop.set,
         com_lwouis_alt_tab_macos.set,
         com_macpaw_site_theunarchiver.set,
+        com_mailspring_mailspring.set,
         com_mak5er_aircard.set,
         com_maxgoedjen_Secretive_Host.set,
         com_meetily_ai.set,

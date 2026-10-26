@@ -1,0 +1,80 @@
+// Generated from AppRecipeIndex.all by RecipeGoldenTests. Do not edit by hand.
+// Regenerate: DUO_RECORD_RECIPE_GOLDENS=1 swift test --package-path DuoUpdaterCore --filter RecipeGoldenTests
+
+family = "netdcy-FlowVision"
+
+probes = Array(count: 0)
+
+changelogs = Array(count: 0)
+
+githubRules = Array(count: 2)
+githubRules[0] = struct GitHubReleaseRule
+githubRules[0].bundleID = "netdcy.FlowVision"
+githubRules[0].owner = "netdcy"
+githubRules[0].repo = "FlowVision"
+githubRules[0].usePrereleases = false
+githubRules[0].listPageSize = 20
+githubRules[0].versionPattern = "^([0-9]+(?:\\.[0-9]+)+)$"
+githubRules[0].candidateScope = .newest
+githubRules[0].probesNewestFirst = true
+githubRules[0].installedTagPrefix = nil
+githubRules[0].channel = .stable
+githubRules[0].installAssetPattern? = "^FlowVision\\.[0-9]+(?:\\.[0-9]+)+\\.zip$"
+githubRules[0].installerKind? = .zip
+githubRules[0].installTrust = .developerID
+githubRules[0].variant = nil
+githubRules[0].architectureRequirement = nil
+githubRules[0].tagRefPrefix = nil
+githubRules[0].installedExecutableMarker = nil
+githubRules[1] = struct GitHubReleaseRule
+githubRules[1].bundleID = "netdcy.FlowVision"
+githubRules[1].owner = "netdcy"
+githubRules[1].repo = "FlowVision"
+githubRules[1].usePrereleases = false
+githubRules[1].listPageSize = 20
+githubRules[1].versionPattern = "^([0-9]+(?:\\.[0-9]+)+)$"
+githubRules[1].candidateScope = .newest
+githubRules[1].probesNewestFirst = true
+githubRules[1].installedTagPrefix = nil
+githubRules[1].channel = .stable
+githubRules[1].installAssetPattern? = "^FlowVision\\.[0-9]+(?:\\.[0-9]+)+\\.Xcode26\\.zip$"
+githubRules[1].installerKind? = .zip
+githubRules[1].installTrust = .developerID
+githubRules[1].variant? = "xcode26"
+githubRules[1].architectureRequirement = nil
+githubRules[1].tagRefPrefix = nil
+githubRules[1].installedExecutableMarker? = "swift_coroFrameAlloc"
+
+appStoreCases = Array(count: 0)
+
+channelProofs = Dictionary(count: 0)
+
+githubChannelProofs = Dictionary(count: 0)
+
+bindingProofs = Dictionary(count: 0)
+
+sparkleFeeds = Dictionary(count: 0)
+
+supersededFeeds = Dictionary(count: 0)
+
+loginWalls = Dictionary(count: 0)
+
+changelogPages = Dictionary(count: 0)
+
+oneClickGates = Array(count: 2)
+oneClickGates[0] = struct OneClickGate
+oneClickGates[0].bundleID = "netdcy.FlowVision"
+oneClickGates[0].requirement = .executableLacks(marker:)
+oneClickGates[0].requirement.marker = "swift_coroFrameAlloc"
+oneClickGates[0].reason = "this copy is FlowVision's Xcode 26 build and the update is the Xcode 16 build; download the Xcode26 zip from its GitHub release"
+oneClickGates[0].offering? = "^(?:GitHub:FlowVision\\.[0-9]+(?:\\.[0-9]+)+\\.zip|Homebrew:flowvision)$"
+oneClickGates[1] = struct OneClickGate
+oneClickGates[1].bundleID = "netdcy.FlowVision"
+oneClickGates[1].requirement = .executableContains(marker:)
+oneClickGates[1].requirement.marker = "swift_coroFrameAlloc"
+oneClickGates[1].reason = "this copy is not FlowVision's Xcode 26 build and the update is; download the plain zip from its GitHub release"
+oneClickGates[1].offering? = "^GitHub:FlowVision\\.[0-9]+(?:\\.[0-9]+)+\\.Xcode26\\.zip$"
+
+loginItemAgentRestarts = Dictionary(count: 0)
+
+sunsets = Dictionary(count: 0)

@@ -41,18 +41,18 @@ class Lag(unittest.TestCase):
 class CurrentText(unittest.TestCase):
     def test_a_reopen_is_judged_on_the_sweeps_newest_comment(self):
         reopened = CORK.replace("2.0.3", "2.1.4").replace("2.1.0", "2.2.0")
-        comments = [{"author": {"login": "jizhi0v0"}, "body": reopened},
-                    {"author": {"login": "github-actions"}, "body": t.MARKER + CORK},
-                    {"author": {"login": "jizhi0v0"}, "body": "Self-healed: no marker here."}]
+        comments = [{"user": {"login": "jizhi0v0"}, "body": reopened},
+                    {"user": {"login": "github-actions"}, "body": t.MARKER + CORK},
+                    {"user": {"login": "jizhi0v0"}, "body": "Self-healed: no marker here."}]
         self.assertEqual(t.lag(t.current_text(CORK, comments))[3], "2.2")
 
     def test_someone_elses_comment_is_never_the_failure(self):
-        comments = [{"author": {"login": "someone"}, "body": CORK.replace("2.1.0", "9.9.0")}]
+        comments = [{"user": {"login": "someone"}, "body": CORK.replace("2.1.0", "9.9.0")}]
         self.assertEqual(t.current_text(CORK, comments), CORK)
 
     def test_a_reopen_for_another_failure_is_not_a_trail(self):
         other = "<!-- duo-verify-id: changelog:eu.davidbures.cork:- -->\n| failure | `noEntriesExtracted` |"
-        self.assertIsNone(t.review(t.current_text(CORK, [{"author": {"login": "jizhi0v0"}, "body": other}])))
+        self.assertIsNone(t.review(t.current_text(CORK, [{"user": {"login": "jizhi0v0"}, "body": other}])))
 
 
 class Fetch(unittest.TestCase):

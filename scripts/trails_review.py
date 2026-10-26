@@ -65,7 +65,7 @@ def current_text(body: str, comments: list[dict]) -> str:
     that carries the recipe marker. A reopen leaves the body as it was and posts the
     new failure as a comment (`GitHub.reopen`)."""
     texts = [body] + [c.get("body") or "" for c in comments
-                      if (c.get("author") or {}).get("login") == SWEEP_LOGIN
+                      if (c.get("user") or {}).get("login") == SWEEP_LOGIN
                       and VERIFY_MARKER in (c.get("body") or "")]
     return texts[-1]
 
@@ -296,10 +296,16 @@ def main() -> int:
     parser.add_argument("--dry-run", action="store_true", help="print the comment, change nothing")
     args = parser.parse_args()
     issue = json.loads(subprocess.run(
-        ["gh", "issue", "view", str(args.issue), "--json", "body,labels,comments"],
+        ["gh", "issue", "view", str(args.issue), "--json", "body,labels"],
         check=True, capture_output=True, text=True).stdout)
+    # Every page, oldest first, as recipe-autofix.yml reads them: `--slurp` makes one
+    # array of pages whatever the gh version.
+    pages = json.loads(subprocess.run(
+        ["gh", "api", "--paginate", "--slurp", f"repos/{{owner}}/{{repo}}/issues/{args.issue}/comments"],
+        check=True, capture_output=True, text=True).stdout)
+    comments = [c for page in pages for c in page]
     labelled = any(l.get("name") == LABEL for l in issue.get("labels") or [])
-    result = review(current_text(issue.get("body") or "", issue.get("comments") or []))
+    result = review(current_text(issue.get("body") or "", comments))
     if result is None:
         if not labelled:
             print(f"#{args.issue}: the sweep's latest failure is not a changelog trail; nothing to do.")

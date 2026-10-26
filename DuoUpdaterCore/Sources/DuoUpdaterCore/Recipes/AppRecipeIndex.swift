@@ -126,6 +126,7 @@ public enum AppRecipeIndex {
         com_logseq_logseq.set,
         com_lokii_app.set,
         com_longbridge_app_desktop.set,
+        com_lwouis_alt_tab_macos.set,
         com_macpaw_site_theunarchiver.set,
         com_mak5er_aircard.set,
         com_maxgoedjen_Secretive_Host.set,

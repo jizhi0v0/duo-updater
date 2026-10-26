@@ -1,0 +1,101 @@
+// Generated from AppRecipeIndex.all by RecipeGoldenTests. Do not edit by hand.
+// Regenerate: DUO_RECORD_RECIPE_GOLDENS=1 swift test --package-path DuoUpdaterCore --filter RecipeGoldenTests
+
+family = "com-nabocorp-witsy"
+
+probes = Array(count: 0)
+
+changelogs = Array(count: 1)
+changelogs[0] = struct ChangelogRecipe
+changelogs[0].bundleID = "com.nabocorp.witsy"
+changelogs[0].source = URL("https://raw.githubusercontent.com/Kochava-Studios/witsy/main/CHANGELOG.md")
+changelogs[0].sourceTemplate = nil
+changelogs[0].versionFromTemplate = false
+changelogs[0].mode = .html
+changelogs[0].entryPattern = "(?:^|\\n)##\\s+\\[(?<version>[0-9]+(?:\\.[0-9]+)+)\\]\\s*-\\s*(?<date>[0-9]{4}-[0-9]{2}-[0-9]{2})[ \\t]*\\n(?<body>.*?)(?=\\n##\\s|\\z)"
+changelogs[0].itemPatterns = Array(count: 1)
+changelogs[0].itemPatterns[0] = "\\n-\\s+(?!N/A[ \\t]*(?:\\n|\\z))(?<item>.+?)(?=\\n-\\s|\\n###\\s|\\n##\\s|\\n\\[|\\z)"
+changelogs[0].stripTags = true
+changelogs[0].decodeEntities = true
+changelogs[0].escapedMarkup = false
+changelogs[0].markdownSource = true
+changelogs[0].maxEntries? = 40
+changelogs[0].minItemLength = 1
+changelogs[0].newestLast = false
+changelogs[0].indexLinkPattern = nil
+changelogs[0].feedPagePattern = nil
+changelogs[0].channel = nil
+changelogs[0].includesPromotedStable = false
+changelogs[0].ordersByPublishedDate = false
+changelogs[0].excludedChannels = Array(count: 0)
+changelogs[0].imagePattern = nil
+changelogs[0].headingPattern? = "\\n###\\s+(?<heading>[^\\n]+)(?=\\n+-\\s+(?!N/A[ \\t]*(?:\\n|\\z)))"
+changelogs[0].minimumAppVersion = nil
+changelogs[0].belowAppVersion = nil
+changelogs[0].carriesOtherTrainEntries = false
+changelogs[0].acknowledgedStaleEntry = nil
+changelogs[0].structuredFormat = nil
+changelogs[0].httpMethod = .get
+changelogs[0].requestBody = nil
+changelogs[0].skipSections = Array(count: 0)
+changelogs[0].tagPattern = nil
+
+githubRules = Array(count: 2)
+githubRules[0] = struct GitHubReleaseRule
+githubRules[0].bundleID = "com.nabocorp.witsy"
+githubRules[0].owner = "Kochava-Studios"
+githubRules[0].repo = "witsy"
+githubRules[0].usePrereleases = false
+githubRules[0].listPageSize = 20
+githubRules[0].versionPattern = "^v([0-9]+(?:\\.[0-9]+)+)$"
+githubRules[0].candidateScope = .newest
+githubRules[0].probesNewestFirst = true
+githubRules[0].installedTagPrefix = nil
+githubRules[0].channel = .stable
+githubRules[0].installAssetPattern? = "^Witsy-[0-9]+(?:\\.[0-9]+)+-darwin-arm64\\.dmg$"
+githubRules[0].installerKind? = .dmg
+githubRules[0].installTrust = .developerID
+githubRules[0].variant = nil
+githubRules[0].architectureRequirement = nil
+githubRules[0].tagRefPrefix = nil
+githubRules[0].installedExecutableMarker = nil
+githubRules[1] = struct GitHubReleaseRule
+githubRules[1].bundleID = "com.nabocorp.witsy"
+githubRules[1].owner = "Kochava-Studios"
+githubRules[1].repo = "witsy"
+githubRules[1].usePrereleases = false
+githubRules[1].listPageSize = 20
+githubRules[1].versionPattern = "^v([0-9]+(?:\\.[0-9]+)+)$"
+githubRules[1].candidateScope = .newest
+githubRules[1].probesNewestFirst = true
+githubRules[1].installedTagPrefix = nil
+githubRules[1].channel = .beta
+githubRules[1].installAssetPattern = nil
+githubRules[1].installerKind = nil
+githubRules[1].installTrust = .developerID
+githubRules[1].variant = nil
+githubRules[1].architectureRequirement = nil
+githubRules[1].tagRefPrefix = nil
+githubRules[1].installedExecutableMarker = nil
+
+appStoreCases = Array(count: 0)
+
+channelProofs = Dictionary(count: 0)
+
+githubChannelProofs = Dictionary(count: 0)
+
+bindingProofs = Dictionary(count: 0)
+
+sparkleFeeds = Dictionary(count: 0)
+
+supersededFeeds = Dictionary(count: 0)
+
+loginWalls = Dictionary(count: 0)
+
+changelogPages = Dictionary(count: 0)
+
+oneClickGates = Array(count: 0)
+
+loginItemAgentRestarts = Dictionary(count: 0)
+
+sunsets = Dictionary(count: 0)

@@ -107,6 +107,7 @@
 - 阻塞: 无
 
 ## 已知问题
+- 登录项: 2026-10-26 运行中一轮（1.26.1 启动、`duo restart` 后 1.26.2 再启动）之后，系统登录项里多了「Mailspring」（这台 Mac 之前没装过 Mailspring）；它是在首次启动还是重启时加的、走的哪条代码没查。和「只有用户在偏好设置里打开才加」的读码结论不一致。测试后经用户同意已删掉这条登录项
 - 首次从 `/Applications` 启动（`addedToDock` 没设过）时，`oneTimeAddToDock` 会执行 `defaults write com.apple.dock persistent-apps -array-add …` 然后 `pkill Dock`，往用户的 Dock 里加一个图标；不在 `/Applications` 时则弹「Move to Applications?」框（`askedAboutAppMove` 只问一次）。这是 app 自己的行为，与一键安装无关，但真机验证前要先备份 Dock 设置
 - `mailspring:` URL scheme 由 app 启动时注册为默认处理者（`setAsDefaultProtocolClient('mailspring')`）；`mailto:` 只在用户在偏好设置里选了才设
 - 内置 MCP server（`internal_packages/mcp-server`）只有用户在偏好设置里点「Add to Claude Desktop」才写 `~/Library/Application Support/Claude/claude_desktop_config.json`；启动时只会刷新已存在、且是它自己写的那一项（而且 app 要在 `/Applications`）。不写 `~/.claude`

@@ -27,6 +27,7 @@ public enum AppRecipeIndex {
         app_lorca.set,
         app_macdown_macdown3000.set,
         app_monitorcontrol_MonitorControl.set,
+        app_responsively.set,
         app_shift.set,
         app_trellisui_trelliswm.set,
         app_yaak_desktop.set,

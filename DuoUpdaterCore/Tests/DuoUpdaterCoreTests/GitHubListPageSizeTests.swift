@@ -139,6 +139,12 @@ struct GitHubListPageSizeTests {
         // gap 12 (v2026.7.24-canary.947 → v2026.6.17-canary.1033, across the
         // 0.27 beta/stable cycle), so 13. The rule keeps the default 20.
         "pro.affine.canary/canary": 13,
+        // Responsively beta: the rule takes plain tags as well as `-beta.N`
+        // ones (electron-updater's GitHub provider gives a beta copy the newest
+        // release of either kind). All 28 releases on 2026-10-26 match
+        // (v2.0.0-beta.0, v1.18.0 … v1.0.1, v1.0.0-beta.6), first hit at index
+        // 0, gap 0, so 1. The rule keeps the default 20.
+        "app.responsively/beta": 1,
     ]
 
     private static func key(_ rule: GitHubReleaseRule) -> String {

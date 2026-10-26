@@ -16,9 +16,9 @@ import PackageDescription
 // behaving correctly.
 //
 // No external dependencies of its own — argument parsing is hand-rolled in
-// `ArgParser.swift`. It does inherit the core package's one: swift-subprocess
-// (and swift-system under it), which every child process goes through — see
-// `ChildProcess` in the core package.
+// `ArgParser.swift`. It does inherit the core package's one: swift-subprocess,
+// which every child process goes through — see `ChildProcess` in the core
+// package.
 let package = Package(
     name: "duo",
     platforms: [.macOS(.v15)],

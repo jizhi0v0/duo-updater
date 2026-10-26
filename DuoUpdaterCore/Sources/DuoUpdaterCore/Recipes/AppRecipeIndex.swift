@@ -274,6 +274,7 @@ public enum AppRecipeIndex {
         io_hoppscotch_desktop.set,
         io_lapce.set,
         io_masscode_app.set,
+        io_museeks_app.set,
         io_nekohasekai_screensharing.set,
         io_podmandesktop_PodmanDesktop.set,
         io_rancherdesktop_app.set,

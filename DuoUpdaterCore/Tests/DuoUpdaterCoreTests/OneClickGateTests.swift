@@ -4,7 +4,7 @@ import Testing
 
 /// `OneClickGate`: a recipe family names which installed copies may take the
 /// one-click; everything else keeps detection only. Exercised through the
-/// gates registered today (MuseScore, Memoh, Hyper, Readest and massCode by installed version, GitKraken
+/// gates registered today (MuseScore, Memoh, Hyper, Readest, massCode and Museeks by installed version, GitKraken
 /// by an asar entry, Hoppscotch by both a version and an executable marker) and
 /// through both places that enforce them.
 struct OneClickGateTests {
@@ -85,7 +85,7 @@ struct OneClickGateTests {
     @Test func theRegisteredGatesAreTheMeasuredCases() {
         #expect(Set(OneClickGateRegistry.gates.map(\.bundleID))
             == ["org.musescore.MuseScore", "com.axosoft.gitkraken", "ai.memoh.desktop", "io.hoppscotch.desktop",
-                "co.zeit.hyper", "com.bilingify.readest", "io.masscode.app"])
+                "co.zeit.hyper", "com.bilingify.readest", "io.masscode.app", "io.museeks.app"])
     }
 
     /// Versions of the real bundles: stable 3.4.1, 3.4.0, 3.0.2 and the canary
@@ -645,6 +645,20 @@ struct OneClickGateTests {
             #expect(OneClickGateRegistry.withholding(app("io.masscode.app", version), offering: nil) != nil, "\(version)")
         }
         #expect(OneClickGateRegistry.withholding(app("io.masscode.app", nil), offering: nil) != nil)
+    }
+
+    /// Versions of the real bundles: the Tauri dmgs 0.23.4, 0.23.3, 0.22.0
+    /// and the Electron dmg 0.13.1, all `io.museeks.app`, Team YK6MWU3892.
+    /// The Tauri app (0.20.0 on) does not read the Electron app's library or
+    /// playlists (the vendor's 0.20.0 notes).
+    @Test func museeksOneClickIsForTauriCopiesOnly() {
+        for version in ["0.23.4", "0.23.3", "0.22.0", "0.21.1", "0.20.0", "0.100.0", "1.0", "1.0.0"] {
+            #expect(OneClickGateRegistry.withholding(app("io.museeks.app", version), offering: nil) == nil, "\(version)")
+        }
+        for version in ["0.13.1", "0.11.5", "0.10.1", "0.9.4", "0.1.0", "0.2", "0.23.4-beta.1"] {
+            #expect(OneClickGateRegistry.withholding(app("io.museeks.app", version), offering: nil) != nil, "\(version)")
+        }
+        #expect(OneClickGateRegistry.withholding(app("io.museeks.app", nil), offering: nil) != nil)
     }
 
     @Test func gitKrakenOneClickIsForAProvenNormalEditionOnly() throws {

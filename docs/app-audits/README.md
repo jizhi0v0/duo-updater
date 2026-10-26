@@ -337,6 +337,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [ ] [**TimeScribe**](de-amplussoftware-timescribe.md) · `de.amplussoftware.timescribe` — G (one-click arm64 dmg) · NativePHP（Electron）· electron-updater（provider github，自动下载、退出即装，无窗口时 5 分钟内自己 quitAndInstall） · 真包 1.17.0/1.17.1 channel-verify ✓（1.17.0 → 1.17.1、1.17.1 up to date） · 2025-05 的 `-beta.N` 副本读成 beta，只检测的 `.beta` rule 给最新稳定版（真包 1.2.0-beta.3 ✓） · changelog 结构化 ✓（多分类正文保留标题） · 一键端到端待主会话 · 2026-10-26
 - [ ] [**DHS**](com-objective-see-DHS.md) · `com.objective-see.DHS` — G (one-click universal zip) · 无自更新器（不读 products.json，官网 JSON 停在 1.4.1，产品页链 GitHub 1.6.0） · 真包 1.4.1/1.5.0/1.5.1/1.6.0 channel-verify ✓（旧三版 → 1.6.0，1.6.0 up to date），四版同 Team · 资产名 1.5.x 下划线、1.6.0 点分，pattern 两种都收 · changelog 结构化 ✓（2 条，无小标题） · 一键端到端 待主会话 · 2026-10-26
 - [ ] [**KextViewr**](com-objective-see-KextViewr.md) · `com.objective-see.KextViewr` — G (one-click universal zip) · 无自更新器（不读 products.json；官网 JSON 和产品页都是 2.0.0，与 GitHub 一致） · 真包 1.1.0/2.0.0 channel-verify ✓（1.1.0 → 2.0.0，2.0.0 up to date），两版同 Team · 1.1.0 是产品页给旧 macOS 的「Older Version」（bitbucket，x86_64、10.7），不另开轨 · changelog 结构化 ✓（2 条，无小标题） · 一键端到端 待主会话 · 2026-10-26
+- [ ] [**Museeks**](io-museeks-app.md) · `io.museeks.app` — G (one-click dmg，Electron 副本 ≤0.13.1 被 gate 挡) · 真包 0.23.4 / 0.23.3 核对 ✓ · 一键端到端待主会话 · changelog ✓（结构化，无标题） · 旧 id `Museeks`（0.20.0–0.21.1）未覆盖 · 2026-10-26
 
 ## Changelog-only (detection via Sparkle or Homebrew)
 

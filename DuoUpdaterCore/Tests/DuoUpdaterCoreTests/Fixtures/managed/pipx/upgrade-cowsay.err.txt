@@ -1,0 +1,1 @@
+Not upgrading pinned package cowsay. Run `pipx unpin cowsay` to unpin it.

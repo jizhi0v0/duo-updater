@@ -125,14 +125,20 @@ public struct CLIToolCommand: Sendable, Equatable, Codable {
     /// Put first on the child's `PATH`, so a `#!/usr/bin/env node` script finds
     /// the node of *this* prefix and not whichever one the GUI sees.
     public let pathPrefix: String?
+    /// The command as a shell line to paste, when the words joined by spaces
+    /// would not be one: a run through `/usr/bin/env NAME=value` whose value
+    /// holds a space ("Application Support"). Nil for the usual command,
+    /// whose `display` is its words.
+    public let shellLine: String?
 
-    public init(executable: String, arguments: [String], pathPrefix: String?) {
+    public init(executable: String, arguments: [String], pathPrefix: String?, shellLine: String? = nil) {
         self.executable = executable
         self.arguments = arguments
         self.pathPrefix = pathPrefix
+        self.shellLine = shellLine
     }
 
-    public var display: String { ([executable] + arguments).joined(separator: " ") }
+    public var display: String { shellLine ?? ([executable] + arguments).joined(separator: " ") }
 }
 
 public enum CLIToolState: String, Sendable, Codable {

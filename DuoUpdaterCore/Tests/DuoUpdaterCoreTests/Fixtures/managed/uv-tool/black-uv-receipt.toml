@@ -1,0 +1,6 @@
+[tool]
+requirements = [{ name = "black", specifier = ">=23,<24" }]
+entrypoints = [
+    { name = "black", install-path = "/ZZFixture-home/.local/bin/black", from = "black" },
+    { name = "blackd", install-path = "/ZZFixture-home/.local/bin/blackd", from = "black" },
+]

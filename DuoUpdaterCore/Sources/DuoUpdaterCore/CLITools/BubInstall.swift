@@ -138,15 +138,12 @@ public struct BubScanner: Sendable {
     /// first click (not measured how their own project then behaves).
     var project: URL { home.appendingPathComponent(".bub/bub-project") }
 
-    /// Each conventional venv with the method that put it there, in the order
-    /// they are listed.
+    /// The venv this row covers, with the method that put it there. bub in a
+    /// `uv tool` or pipx venv is that manager's row, like any other package it
+    /// keeps (`UvToolAdapter`, `PipxAdapter`; the design's D-C), so only the
+    /// official installer's venv is looked for here.
     var candidates: [(URL, BubInstall.Method)] {
-        [
-            (installerVenv, .installer),
-            (home.appendingPathComponent(".local/share/uv/tools/bub"), .uvTool),
-            (home.appendingPathComponent("Library/Application Support/pipx/venvs/bub"), .pipx),
-            (home.appendingPathComponent(".local/pipx/venvs/bub"), .pipx),
-        ]
+        [(installerVenv, .installer)]
     }
 
     /// Every install found, each venv at most once. Blocking file-system work:

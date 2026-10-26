@@ -30,6 +30,24 @@ public struct ManagerDescriptor: Sendable, Equatable {
     /// that compiles (pyenv, rbenv, cargo), `MiseUpdater.defaultDeadline`'s ten
     /// for the others.
     public let deadline: ChildProcess.Deadline
+    /// How the manager's versions are ordered by the shared rules
+    /// (`ManagedCheck`): Python packages by PEP 440, where `1.0.post1` is
+    /// newer than `1.0` — `VersionComparator` reads it as older.
+    public let versionOrder: VersionOrder
+
+    public enum VersionOrder: Sendable, Equatable {
+        case generic
+        case pep440
+
+        func compare(_ a: String, _ b: String) -> ComparisonResult {
+            if self == .pep440, let x = PythonVersion(a), let y = PythonVersion(b) { return PythonVersion.compare(x, y) }
+            return VersionComparator.compare(a, b)
+        }
+
+        func isNewer(_ candidate: String, than current: String) -> Bool {
+            compare(candidate, current) == .orderedDescending
+        }
+    }
 
     public enum Tint: Sendable, Equatable {
         /// The label colour: a black brand, which would sink into a dark sidebar.
@@ -41,7 +59,7 @@ public struct ManagerDescriptor: Sendable, Equatable {
     public init(
         id: ManagerID, displayName: String, signer: String?, logo: String?, tint: Tint, lane: String,
         updaterSpendsGitHubAPI: CLIToolKind.UpdaterGitHubAPI? = nil,
-        deadline: ChildProcess.Deadline = ManagerDescriptor.defaultDeadline
+        deadline: ChildProcess.Deadline = ManagerDescriptor.defaultDeadline, versionOrder: VersionOrder = .generic
     ) {
         self.id = id
         self.displayName = displayName
@@ -51,6 +69,7 @@ public struct ManagerDescriptor: Sendable, Equatable {
         self.lane = lane
         self.updaterSpendsGitHubAPI = updaterSpendsGitHubAPI
         self.deadline = deadline
+        self.versionOrder = versionOrder
     }
 
     /// `MiseUpdater.defaultDeadline`'s: ten minutes, half a minute's grace.

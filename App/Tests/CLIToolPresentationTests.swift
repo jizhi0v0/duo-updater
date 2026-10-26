@@ -503,6 +503,23 @@ struct CLIToolPayloadPresentationTests {
         #expect(CLIToolPresentation.title(of: rows[0], home: Self.home) == "node")
     }
 
+    /// The managers' levels go in registry order (D12) whatever order the
+    /// statuses come in — outdated first — so a level does not jump when its
+    /// last update lands. Mutation: keep the statuses' order.
+    @Test func managerGroupsKeepRegistryOrder() {
+        func row(_ descriptor: ManagerDescriptor, state: CLIToolState) -> CLIToolStatus {
+            let item = ManagedItem(descriptor: descriptor, root: "/Users/ann/" + descriptor.id.rawValue, key: "x", name: "x",
+                                   installPath: "/Users/ann/x", shape: .package, installed: "1.0", latestWithinRequest: "2.0")
+            return CLIToolStatus(kind: .managed, path: item.installPath, identity: item.identity, installedVersion: "1.0",
+                                 latestVersion: "2.0", channel: nil, state: state, oneClick: nil, withheld: nil,
+                                 note: nil, name: "x", detail: .managed(item))
+        }
+        let rows = [row(PipxAdapter.descriptor, state: .updateAvailable), row(UvToolAdapter.descriptor, state: .updateAvailable),
+                    row(MiseToolsAdapter.descriptor, state: .upToDate), F.uv()]
+        #expect(CLIToolPresentation.managerGroups(CLIToolPresentation.groups(rows)).map(\.manager)
+            == [MiseToolsAdapter.id, UvToolAdapter.id, PipxAdapter.id])
+    }
+
     /// A managed row's pane: the request and backend, the adapter's facts,
     /// what lies beyond a range held at its top (D2), and what the update
     /// does (D6/D7/D8); a `dropsSpecifier` effect is the row's orange caption

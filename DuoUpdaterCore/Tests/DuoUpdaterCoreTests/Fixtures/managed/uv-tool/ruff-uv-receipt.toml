@@ -1,0 +1,5 @@
+[tool]
+requirements = [{ name = "ruff", specifier = "==0.6.0" }]
+entrypoints = [
+    { name = "ruff", install-path = "/ZZFixture-home/.local/bin/ruff", from = "ruff" },
+]

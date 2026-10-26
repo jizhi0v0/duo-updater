@@ -1,0 +1,5 @@
+[tool]
+requirements = [{ name = "cowsay"}]
+entrypoints = [
+    { name = "cowsay", install-path = "/ZZFixture-home/.local/bin/cowsay", from = "cowsay" },
+]

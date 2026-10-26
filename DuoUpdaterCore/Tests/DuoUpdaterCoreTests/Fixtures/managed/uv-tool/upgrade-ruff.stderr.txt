@@ -1,0 +1,3 @@
+Nothing to upgrade
+
+hint: `ruff` is pinned to `0.6.0` (installed with an exact version pin); reinstall with `uv tool install ruff@latest` to upgrade to a new version.

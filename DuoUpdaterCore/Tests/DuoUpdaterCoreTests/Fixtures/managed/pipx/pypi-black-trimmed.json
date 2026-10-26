@@ -1,0 +1,99 @@
+{
+ "info": {
+  "name": "black",
+  "version": "26.10.1",
+  "requires_python": ">=3.10",
+  "project_urls": {
+   "Changelog": "https://github.com/psf/black/blob/main/CHANGES.md",
+   "Documentation": "https://black.readthedocs.io/",
+   "Issues": "https://github.com/psf/black/issues",
+   "Repository": "https://github.com/psf/black"
+  }
+ },
+ "releases": {
+  "23.12.1": [
+   {
+    "filename": "black-23.12.1-cp310-cp310-macosx_10_9_x86_64.whl",
+    "requires_python": ">=3.8",
+    "upload_time_iso_8601": "2023-12-22T23:18:20.555335Z",
+    "yanked": false
+   },
+   {
+    "filename": "black-23.12.1-cp310-cp310-macosx_11_0_arm64.whl",
+    "requires_python": ">=3.8",
+    "upload_time_iso_8601": "2023-12-22T23:17:46.425038Z",
+    "yanked": false
+   }
+  ],
+  "24.10.0": [
+   {
+    "filename": "black-24.10.0-cp310-cp310-macosx_10_9_x86_64.whl",
+    "requires_python": ">=3.9",
+    "upload_time_iso_8601": "2024-10-07T19:26:12.430410Z",
+    "yanked": false
+   },
+   {
+    "filename": "black-24.10.0-cp310-cp310-macosx_11_0_arm64.whl",
+    "requires_python": ">=3.9",
+    "upload_time_iso_8601": "2024-10-07T19:25:06.453354Z",
+    "yanked": false
+   }
+  ],
+  "25.1.0": [
+   {
+    "filename": "black-25.1.0-cp310-cp310-macosx_10_9_x86_64.whl",
+    "requires_python": ">=3.9",
+    "upload_time_iso_8601": "2025-01-29T05:37:06.642874Z",
+    "yanked": false
+   },
+   {
+    "filename": "black-25.1.0-cp310-cp310-macosx_11_0_arm64.whl",
+    "requires_python": ">=3.9",
+    "upload_time_iso_8601": "2025-01-29T05:37:09.321794Z",
+    "yanked": false
+   }
+  ],
+  "25.11.0": [
+   {
+    "filename": "black-25.11.0-cp310-cp310-macosx_10_9_x86_64.whl",
+    "requires_python": ">=3.9",
+    "upload_time_iso_8601": "2025-11-10T01:59:06.202612Z",
+    "yanked": false
+   },
+   {
+    "filename": "black-25.11.0-cp310-cp310-macosx_11_0_arm64.whl",
+    "requires_python": ">=3.9",
+    "upload_time_iso_8601": "2025-11-10T01:57:58.633583Z",
+    "yanked": false
+   }
+  ],
+  "26.1.0": [
+   {
+    "filename": "black-26.1.0-cp310-cp310-macosx_10_9_x86_64.whl",
+    "requires_python": ">=3.10",
+    "upload_time_iso_8601": "2026-01-18T04:59:12.425365Z",
+    "yanked": false
+   },
+   {
+    "filename": "black-26.1.0-cp310-cp310-macosx_11_0_arm64.whl",
+    "requires_python": ">=3.10",
+    "upload_time_iso_8601": "2026-01-18T04:59:13.993006Z",
+    "yanked": false
+   }
+  ],
+  "26.10.1": [
+   {
+    "filename": "black-26.10.1-cp310-cp310-macosx_10_9_x86_64.whl",
+    "requires_python": ">=3.10",
+    "upload_time_iso_8601": "2026-10-10T04:18:26.873938Z",
+    "yanked": false
+   },
+   {
+    "filename": "black-26.10.1-cp310-cp310-macosx_11_0_arm64.whl",
+    "requires_python": ">=3.10",
+    "upload_time_iso_8601": "2026-10-10T04:18:29.124945Z",
+    "yanked": false
+   }
+  ]
+ }
+}

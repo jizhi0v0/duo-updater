@@ -108,5 +108,5 @@ curl -s 'https://itunes.apple.com/lookup?id=6800061488&entity=macSoftware'      
 ```
 
 ## 建议下一步
-1. 决定 Sequoia 版副本的去向: 维持现状（一律换成 `Textream.dmg`，同 Homebrew 官方 cask），或者按「按架构 / 按 OS 分轨」末段的两条规则方案让它们留在 `-macos15` 构建。有 macOS 15 主机时先在上面跑一次 Tahoe 版构建。
+1. Sequoia 版副本的去向已定（用户，2026-10-26）: 维持现状，一律换成 `Textream.dmg`，同 Homebrew 官方 cask。按构建分轨的方案不做；它需要的区分标记还没找到（`Glass` 字符串两种构建都有，11 次对 7 次）。有 macOS 15 主机时，在上面跑一次 Tahoe 版构建，确认能正常用
 2. 下一个正式版出来后，复查 `/releases/latest`、资产名仍是 `Textream.dmg`、Team 仍是 `RJA7656U34`。

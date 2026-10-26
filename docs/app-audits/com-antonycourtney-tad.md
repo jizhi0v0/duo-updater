@@ -73,7 +73,7 @@
 | | 客户端会停放吗 | 本次实际停放了什么 | 我们能否直接拿来装 |
 |---|---|---|---|
 | 结论 | 会（短暂：下完立即 `quitAndInstall`） | 真机（2026-10-26）：0.13.0 运行中什么也没停放（自带更新器只在菜单里手动检查） | 不能：`SelfUpdaterStash` 只读 `~/Library/Caches/`，看不到 4.x 的目录 |
-| 证据 | electron-updater 4.6.5（`app.asar` 内）：缓存目录 `~/Library/Application Support/Caches/<updaterCacheDirName>/pending/`（0.14.0 的 `app.asar` 里 `getAppCacheDir` 是 `"Library", "Application Support", "Caches"`；electron-updater 5 起才改成 `~/Library/Caches`），下载完成后写 `update-info.json` | — | `SelfUpdaterStash` 的 `.electronUpdater` 布局只在 `~/Library/Caches/<updaterCacheDirName>/` 下找（`SelfUpdaterStash.swift` Gate 3），所以 Tad 停放的包它不会用 |
+| 证据 | electron-updater 4.6.5（`app.asar` 内）：缓存目录 `~/Library/Application Support/Caches/<updaterCacheDirName>/pending/`（0.14.0 的 `app.asar` 里 `getAppCacheDir` 是 `"Library", "Application Support", "Caches"`；electron-updater 6.0.0 起才改成 `~/Library/Caches`，5.x 仍是旧路径），下载完成后写 `update-info.json` | — | `SelfUpdaterStash` 的 `.electronUpdater` 布局只在 `~/Library/Caches/<updaterCacheDirName>/` 下找（`SelfUpdaterStash.swift` Gate 3），所以 Tad 停放的包它不会用 |
 
 - 记录文件与字段: `pending/update-info.json`（`fileName`、`sha512` base64，下载完成后才写）
 - 容器: zip（electron-updater 在 Mac 上只下 zip），包根是 `Tad.app`

@@ -8,7 +8,7 @@ enum com_antonycourtney_tad {
         // updater is electron-updater 4.6.5 with the GitHub provider, run only
         // from the "Check for Updates" menu item: it asks, downloads the zip
         // into ~/Library/Application Support/Caches/tad-updater/pending (the
-        // pre-5 electron-updater path, which `SelfUpdaterStash` does not read),
+        // pre-6 electron-updater path, which `SelfUpdaterStash` does not read),
         // then quits and lets
         // Squirrel.Mac swap the bundle. No automatic check, no login item; the
         // four nested `Tad Helper*.app`s are Electron's own child processes.

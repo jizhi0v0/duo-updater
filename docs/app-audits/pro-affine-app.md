@@ -24,7 +24,7 @@
 ## 覆盖清单
 - 各版本的 bundle id / Team（读真包，`check-bundle.sh`）:
   - v0.27.4、v0.27.3、v0.23.2、v0.12.3、v0.6.0: 都是 `pro.affine.app`，Team 73YMMDVT2M，Notarized，`CFBundleShortVersionString` = `CFBundleVersion` = tag 去掉 `v`（0.12.3 及更早资产名不带版本号：`affine-stable-macos-arm64.dmg`）
-  - v0.5.2（release 名 "AFFiNE Desktop App Preview"，2023-04）: **`com.electron.affine`**，Team 相同，`CFBundleShortVersionString` 0.0.0，资产 `affine-darwin-arm64.dmg`。见「已知问题」的缺口
+  - v0.5.2（release 名 "AFFiNE Desktop App Preview"，2023-04）: **`com.electron.affine`**，Team 相同，`CFBundleShortVersionString` 0.0.0，资产 `affine-darwin-arm64.dmg`。经 `BundleIDMigration` 按 `pro.affine.app` 检测，见「已知问题」
   - beta 0.27.5-beta.0 / .1: `pro.affine.beta`，`CFBundleName` AFFiNE-beta，Team 相同
   - canary 2026.10.23-canary.908 / 2026.10.25-canary.907: `pro.affine.canary`，`CFBundleName` AFFiNE-canary，Team 相同
   - Team 从 0.5.2 到 0.27.4 没换过，上一版 0.27.3 的副本一键不会被 Team 闸拒
@@ -114,7 +114,7 @@
   - 自更新器只在用户点重启时才交给 Squirrel，所以第二轮"让它暂存一个比 latest 旧的版本"需要它的 feed 先给出一个旧版本；当前 stable feed 为空，无从暂存
 
 ## 已知问题
-- **`com.electron.affine`（0.5.x 预览版）经 `BundleIDMigration` 接上**: 0.5.2 的真包是 `com.electron.affine`、版本 0.0.0、同 Team；0.6.0 起才是 `pro.affine.app`。`BundleIDMigration.all` 有一条 `com.electron.affine → pro.affine.app`（Team 73YMMDVT2M，`lastFromVersion` 0.5.3，`firstToVersion` 0.6.0；v0.5.3 prerelease 真包也是 `com.electron.affine`、版本 0.5.3、同 Team，2026-10-26 实测），预览版副本按 `pro.affine.app` 检测、被提供最新稳定版。这个 id 是 Electron 工具链的通用形状（`com.electron.<name>`）：Team 只约束换包和回滚（Gate 4、`restoreMigration`），检测阶段不看 Team，任何 0.6.0 以下的 `com.electron.affine` 副本都会被当成 AFFiNE 检测；别的 Team 签的副本在安装的 Team 闸被拒、原副本不动，ad-hoc 副本只检测不一键。`covers` 只比 `firstToVersion` 这一个界。标成 `isRewrite`：一键前先让用户确认，因为预览版的工作区能否带到 0.27 没验证。`BundleIDMigrationTests.affinePreviewCopyIsFiledUnderTheStableApp` 钉住这条
+- **`com.electron.affine`（0.5.x 预览版）经 `BundleIDMigration` 接上**: 0.5.2 的真包是 `com.electron.affine`、版本 0.0.0、同 Team；0.6.0 起才是 `pro.affine.app`。`BundleIDMigration.all` 有一条 `com.electron.affine → pro.affine.app`（Team 73YMMDVT2M，`lastFromVersion` 0.5.3，`firstToVersion` 0.6.0；v0.5.3 prerelease 真包也是 `com.electron.affine`、版本 0.5.3、同 Team，2026-10-26 实测），预览版副本按 `pro.affine.app` 检测、被提供最新稳定版。这个 id 是 Electron 工具链的通用形状（`com.electron.<name>`）：Team 只约束换包和回滚（Gate 4、`restoreMigration`），检测阶段不看 Team，任何 0.6.0 以下的 `com.electron.affine` 副本都会被当成 AFFiNE 检测；别的 Team 签的副本在安装的 Team 闸被拒、原副本不动，ad-hoc 副本只检测不一键。`covers` 只比 `firstToVersion` 这一个界。标成 `isRewrite`：一键前先让用户确认，因为预览版的工作区能否带到 0.27 没验证。`BundleIDMigrationTests.affinePreviewCopyIsFiledUnderTheStableApp` 钉住这条。真机（2026-10-26，本分支 `make cli` 的 duo）: 装真包 v0.5.2（`com.electron.affine`、0.0.0、Team 73YMMDVT2M）→ `duo check` 给 `0.0.0 → 0.27.4 [GitHub, in-place]` → `duo install --yes`: verifyingSignature、verifyingCodeSignature、installed → 盘上 `pro.affine.app` 0.27.4、Team 不变、`codesign` 0、Notarized。CLI 没有像 GUI 那样先要确认（CLI 不读 `isVendorRewrite`，已有缺口，另开任务）。回滚点这次没在 `duo backups` 里看到（备份盘没连），回滚没验证；预览版副本没启动过，工作区能否沿用也没验证
 - AFFiNE 的 stable 自更新器眼下拿不到版本（worker 只看列表前 30 个，0.27.4 已被 canary / beta 挤出去），这是厂商侧的问题；它不影响我们的检测，反而意味着此刻没有自更新器和我们抢
 - beta 轨从 2026-08-26 起没有新版本；如果 canary 持续发而 beta 长期不发，beta 会滑出 50 条的页，beta 行变 unknown（不是错版本）。厂商自己的 beta 更新器在第 30 条外就已经读不到了
 

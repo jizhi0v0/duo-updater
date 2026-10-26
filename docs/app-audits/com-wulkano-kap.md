@@ -67,7 +67,7 @@
 | | 客户端会停放吗 | 本次实际停放了什么 | 我们能否直接拿来装 |
 |---|---|---|---|
 | 结论 | 会 | 真机实测（2026-10-26）：3.5.5 运行约 30 s 内 Squirrel/ShipIt 已暂存 3.6.0；electron-updater 的 pending 目录在 `~/Library/Application Support/Caches/kap-updater/pending`，不是 `~/Library/Caches/kap-updater` | 第二轮 `duo install` 认出「它自己的更新器已暂存 3.6.0」而跳过，没有出现 `local stash hit` |
-| 证据 | electron-updater 4.6.1 `DownloadedUpdateHelper`（`app.asar` 里核过）：`cacheDirForPendingUpdate` = `<cacheDir>/pending`，`setDownloadedFile` 在下载完成后写 `update-info.json`（`fileName`、`sha512`、`isAdminRightsRequired`）；`cacheDir` = `~/Library/Application Support/Caches/` + `app-update.yml` 的 `updaterCacheDirName`（`kap-updater`；4.x 的路径，5 起才改成 `~/Library/Caches/`，真机实测见上一行）。随后由本地 HTTP 代理喂给 Squirrel.Mac，ShipIt 在退出时装 | — | 不能：`SelfUpdaterStash` 的 electron-updater 布局只在 `~/Library/Caches/<updaterCacheDirName>/` 下找，看不到 Kap 的 4.x 目录；运行中一轮 duo 是靠 ShipIt 暂存判断让路的 |
+| 证据 | electron-updater 4.6.1 `DownloadedUpdateHelper`（`app.asar` 里核过）：`cacheDirForPendingUpdate` = `<cacheDir>/pending`，`setDownloadedFile` 在下载完成后写 `update-info.json`（`fileName`、`sha512`、`isAdminRightsRequired`）；`cacheDir` = `~/Library/Application Support/Caches/` + `app-update.yml` 的 `updaterCacheDirName`（`kap-updater`；electron-updater 6.0.0 之前（含 5.x）的路径，6.0.0 起才改成 `~/Library/Caches/`，见 electron-builder `packages/electron-updater/src/AppAdapter.ts` 在 `electron-updater@5.3.0` 与 `@6.0.0` 两个 tag 的 `getAppCacheDir`，真机实测见上一行）。随后由本地 HTTP 代理喂给 Squirrel.Mac，ShipIt 在退出时装 | — | 不能：`SelfUpdaterStash` 的 electron-updater 布局只在 `~/Library/Caches/<updaterCacheDirName>/` 下找，看不到 Kap 的 4.x 目录；运行中一轮 duo 是靠 ShipIt 暂存判断让路的 |
 
 - 记录文件与字段: `update-info.json`，下载完成并核过 sha512 后才写；`sha512` 是 base64 SHA-512（electron-builder 格式），描述的是 zip
 - 容器: zip（`Kap-<v>-arm64-mac.zip`），包根是 `Kap.app`
@@ -138,6 +138,6 @@ channel-verify 原始输出（2026-10-26）:
 ```
 
 ## 建议下一步
-1. （可选）`SelfUpdaterStash` 只读 electron-updater 5 起的 `~/Library/Caches/` 目录；Kap、Tad 这类 4.x 应用停放在 `~/Library/Application Support/Caches/`，要复用就得多看这个位置（引擎改动）。现在 duo 靠 ShipIt 暂存判断让路，不会重复安装
+1. （可选）`SelfUpdaterStash` 只读 electron-updater 6 起的 `~/Library/Caches/` 目录；Kap、Tad 这类 6 以前（4.x、5.x）的应用停放在 `~/Library/Application Support/Caches/`，要复用就得多看这个位置（引擎改动）。现在 duo 靠 ShipIt 暂存判断让路，不会重复安装
 2. Kap Beta 副本：按「待用户决定」里的选择处理
 3. （引擎，可选）让 GitHub rule 读 release 里的 `latest-mac.yml` sha512，给没有 GitHub digest 的老 Electron release 补上摘要校验

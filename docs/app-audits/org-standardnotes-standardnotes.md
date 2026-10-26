@@ -43,7 +43,7 @@
 - 这些 prerelease 和正式版是同一条版本线、同一个 id、纯数字版本，不是 beta。Standard Notes 自己的更新器也不提供它们：electron-updater 的 `allowPrerelease` 默认等于「当前版本有没有 semver prerelease 段」（包内 asar 里的 `allowPrerelease = hasPrereleaseComponents(currentVersion)`），app 没改它，所以纯数字版本只读 `/releases/latest`
 - 手动下载了 prerelease 的副本：比最新正式版新的（如 3.202.11）显示 up to date；比它旧的（如 3.202.9）被提供更新的正式版，这是正常升级，不需要 gate
 - 有些未转正的 release 资产不全（3.202.11 发布时 18 个资产，没有 Windows 包；3.202.6 0 个）。`/releases/latest` 不会落到它们上
-- 2020–2022 年 `standardnotes/desktop` 还发过 `v3.x.y-beta.N` 这种 semver 测试版（最后是 v3.15.0-beta.4，2022-05）。现在的 monorepo 没再发过，厂商那边这条轨已经停了。这样的副本 `ReleaseChannel.detect` 读成 beta，稳定版 rule 不收：2026-10-26 在真包 3.15.0-beta.4（arm64 dmg，`org.standardnotes.standardnotes`，Team HKF9BXSN95，Notarized）上 channel-verify 读 `winning source <none>`、`status unknown (no source answered)`。所以另加了一条只检测的 `.beta` rule（同 Ferdium 旧 beta 的做法），读同一个 `/releases/latest`，beta 副本被提供当前正式版；不做一键（非 stable 安装要渠道证明）
+- 2020–2022 年 `standardnotes/desktop` 还发过 `v3.x.y-beta.N` 这种 semver 测试版（最后是 v3.15.0-beta.4，2022-05）。现在的 monorepo 没再发过，厂商那边这条轨已经停了。这样的副本 `ReleaseChannel.detect` 读成 beta，稳定版 rule 不收：2026-10-26 在真包 3.15.0-beta.4（arm64 dmg，`org.standardnotes.standardnotes`，Team HKF9BXSN95，Notarized）上 channel-verify 读 `winning source <none>`、`status unknown (no source answered)`。所以另加了一条只检测的 `.beta` rule（同 Ferdium 旧 beta 的做法），读同一个 `/releases/latest`，beta 副本被提供当前正式版；不做一键（非 stable 安装要渠道证明）。真机（2026-10-26）: 装 3.15.0-beta.4 真包 → `duo check` 给 `3.15.0-beta.4 → 3.202.10 [GitHub]`，`duo install` 跳过并说 `detection only — this source publishes no installable artefact`，副本没动
 
 ## 更新检测
 - 源: `standardnotes/app` GitHub Releases，`/releases/latest`

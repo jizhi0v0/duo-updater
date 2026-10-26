@@ -1029,7 +1029,7 @@ final class AppListModel {
             isToolboxManaged: result.remote?.sourceName == "Toolbox" || result.app.isToolboxManaged,
             isTestFlight: result.remote?.sourceName == "TestFlight",
             defersToSelfUpdater: defersToSelfUpdater(result),
-            isMajorUpgrade: result.isMajorUpgrade,
+            isMajorUpgrade: UpdatePolicy.installConfirmation(for: result) != nil,
             canAutoInstall: canAutoInstall(result),
             requiresInstaller: requiresInstaller,
             stagedFileName: requiresInstaller ? stagedPackage(for: result)?.url.lastPathComponent : nil,
@@ -9323,7 +9323,7 @@ final class AppListModel {
                 // last (see its phase ordering).
                 && (canAutoInstall(result) || requiresInstaller(result))
                 && !defersToSelfUpdater(result)
-                && !result.isMajorUpgrade
+                && UpdatePolicy.installConfirmation(for: result) == nil
                 // The row offers Relaunch, not Update (`RowAction.state`), and
                 // `runInstall` would refuse it after queueing it anyway. The
                 // versioned staged case is already out via `canAutoInstall`.

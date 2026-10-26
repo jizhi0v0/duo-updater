@@ -145,3 +145,21 @@ private func offer(_ version: String, source: String = "Vendor") -> RemoteVersio
     #expect(BundleIDMigration.rewrite(
         installed: "com.example.old", installedVersion: "1.0", in: [unmarked]) == nil)
 }
+
+/// The one answer the app's Update All and `duo install` both read: the rewrite
+/// is asked as a rewrite, a license-boundary major as that, anything else not at
+/// all. Mutation: return nil from `UpdatePolicy.installConfirmation` → red.
+@Test func theRewriteAndALicenseBoundaryEachNeedTheirOwnConfirmation() {
+    let rewrite = UpdateResult(
+        app: workbench(id: "com.oracle.workbench.MySQLWorkbench", version: "8.0.47.CE"),
+        remote: offer("26.7.0"), status: .updateAvailable(latest: "26.7.0"))
+    #expect(UpdatePolicy.installConfirmation(for: rewrite) == .vendorRewrite)
+    let major = UpdateResult(
+        app: workbench(id: "com.oracle.mysqlworkbench", version: "26.7.0"),
+        remote: offer("27.0.0", source: "Homebrew"), status: .updateAvailable(latest: "27.0.0"))
+    #expect(UpdatePolicy.installConfirmation(for: major) == .licenseBoundary)
+    let minor = UpdateResult(
+        app: workbench(id: "com.oracle.mysqlworkbench", version: "26.7.0"),
+        remote: offer("26.8.0", source: "Homebrew"), status: .updateAvailable(latest: "26.8.0"))
+    #expect(UpdatePolicy.installConfirmation(for: minor) == nil)
+}

@@ -320,7 +320,7 @@ public struct RouteInputs {
     /// `UpdatePolicy.defersToSelfUpdater(...)` — a running self-updating app under
     /// the "defer while running" policy.
     public var defersToSelfUpdater: Bool
-    /// `UpdateResult.isMajorUpgrade`.
+    /// `UpdatePolicy.installConfirmation(for:) != nil`.
     public var isMajorUpgrade: Bool
     /// `UpdatePolicy.canAutoInstall(...)`.
     public var canAutoInstall: Bool

@@ -61,7 +61,7 @@
 
 | | 客户端会停放吗 | 本次实际停放了什么 | 我们能否直接拿来装 |
 |---|---|---|---|
-| 结论 | 不会 | 没查（真机第二轮待主会话） | 不需要 |
+| 结论 | 不会 | 无（没有更新器；2026-10-26 运行中一轮正常完成，见一键安装） | 不需要 |
 | 证据 | 没有更新器，不下载 | — | — |
 
 ## Changelog
@@ -74,7 +74,9 @@
 
 ## 一键安装
 - 状态: **支持（只对 Developer ID 的 6.0 及以后的副本）**
-- 端到端: 待主会话（真机从 6.0 装到 7.0）
+- 端到端（2026-10-26，本分支 `make cli` 的 duo，6.0 → 7.0 两轮都通过）:
+  - 第一轮（不运行）和第二轮（运行中）: 都装到 7.0，`TeamIdentifier=ANWX99972B`、`codesign` 退出 0、Notarized Developer ID；运行中一轮的 `duo restart` 重新拉起后是 7.0
+  - 终态: 7.0，未运行
 - 格式: dmg（`hdiutil imageinfo` 退出 0），根目录 `Equinox.app` + `Applications` 链接 + `.background`
 - 签名: 7.0、6.0 `TeamIdentifier=ANWX99972B`、Notarized Developer ID、hardened runtime（`flags=0x10000(runtime)`），带 `embedded.provisionprofile`；entitlements 两版相同（sandbox、user-selected read-write、location、`com.apple.developer.team-identifier`）
 - 校验: GitHub 给 v5.0 起的资产发了 `digest`。v7.0 `sha256:26b2fae0…7f747127`、v6.0 `sha256:1271dfb0…bd24261`，与下载文件的 `shasum -a 256` 相同；GitHub rule 自动传给安装器，不需要逐 rule 配置

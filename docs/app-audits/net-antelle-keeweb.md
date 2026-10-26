@@ -72,7 +72,7 @@ settled from source（`v1.18.7`）:
 
 | | 客户端会停放吗 | 本次实际停放了什么 | 我们能否直接拿来装 |
 |---|---|---|---|
-| 结论 | 会（自动下载，等用户点安装） | 没查（真机第二轮由主会话做） | ○（`SelfUpdaterStash` 没有这个布局） |
+| 结论 | 会（自动下载，等用户点安装） | 没查（运行中一轮没做，见一键安装） | ○（`SelfUpdaterStash` 没有这个布局） |
 | 证据 | 目录 `$TMPDIR/KeeWeb/`；文件 `KeeWeb-<ver>.mac.<arch>.dmg` + `KeeWeb-<ver>.mac.<arch>.dmg.sign`（整份 `Verify.sign.sha256` 文本，RSA 签名，不是摘要）。没有完成记录：`transport.js` 直接写到最终文件名，`UpdateModel.save` 把 `update*` 字段（含 `updateStatus: 'ready'`）剔掉不落盘；下到一半的文件与完整文件只能靠核对 release 的 `Verify.sha256` 区分 | — | 要用就得新加一个布局：按文件名取版本，用 release 的 `Verify.sha256`（hex SHA-256，已核与真包一致）校验整包。没做 |
 
 ## Changelog
@@ -84,7 +84,10 @@ settled from source（`v1.18.7`）:
 
 ## 一键安装
 - 状态: **支持**（arm64 dmg，任何架构的已装副本）
-- 端到端: **未跑**。真机（装上一版 → `duo install`）由主会话做
+- 端到端（2026-10-26，本分支 `make cli` 的 duo；**只做了第一轮**）:
+  - 第一轮（不运行）: 1.18.6 → `duo install` → 1.18.7，Team `3LE7JZ657W`（没有 GitHub digest）✓；bundle 属主仍是 `bobby:staff`（没有被改成 root）
+  - 第二轮（运行中）: **没做**。首次启动会弹窗要管理员密码，把 bundle `chown` 给 root（见上面的「root 拥有的 bundle」）；待 owner 决定
+  - 终态: 1.18.7，从没启动过
 - 格式: dmg（`hdiutil imageinfo` 退出 0），根目录 `KeeWeb.app` + `Applications` 软链 + `.background`、`.VolumeIcon.icns`
 - 嵌套: `Contents/Frameworks/KeeWeb Helper*.app`（Electron 的 GPU/Plugin/Renderer helper，随主进程起落）；`Contents/Installer/KeeWeb Installer.app`（上面说的 JXA 安装 applet，只在更新或首启权限修复时被调用，不常驻）；`Contents/MacOS/util/keeweb-native-messaging-host`（arm64，Team 3LE7JZ657W）。没有 LoginItems、LaunchAgent、`SMAppService`
 - 浏览器 native messaging: 用户在设置里开浏览器集成后，KeeWeb 往 `~/Library/Application Support/{Google/Chrome,Mozilla,Microsoft Edge}/NativeMessagingHosts/` 写 `net.antelle.keeweb.keeweb_connect.json`（以及 KeePassXC-Browser 兼容的 `org.keepassxc.keepassxc_browser.json`），`path` 是 bundle 内的绝对路径 `…/KeeWeb.app/Contents/MacOS/util/keeweb-native-messaging-host`（`desktop/scripts/util/browser-extension-installer.js`）。原地换包后这个路径仍然有效，指向新版。host 由浏览器拉起，连 `~/Library/Group Containers/3LE7JZ657W.keeweb/conn.sock`，KeeWeb 退出、socket EOF 时它自己退出（`keeweb-connect` 仓库 `native-messaging-host/src/native-messaging-host.cpp` 的 `close_keeweb_pipe` / `quit_on_error`）。所以换包后不会有指向旧代码的常驻 host（读源码得出，未在真机上看）
@@ -93,7 +96,7 @@ settled from source（`v1.18.7`）:
 - 校验: GitHub 资产没有 `digest`（2021 年上传）。release 自带 `Verify.sha256`：`KeeWeb-1.18.7.mac.arm64.dmg` 为 `6e4870b1660b91e735eaf30e7d751c7bb8dfae623d5b6c47899bd4d5ab1e6cae`，与下载文件 `shasum -a 256` 相同，大小 85807370 字节等于资产大小。GitHubReleaseRule 没有读校验文件的字段，没接
 - **读的是**: 人人可手动下载的 GA（`/releases/latest`；KeeWeb 自己的更新器读的 `update.json` 也是这一版）
 - 阻塞: 无
-- 主会话真机要注意（来自源码 / 包内容，均未在真机上观察）:
+- 真机前的注意点（来自源码 / 包内容，均未在真机上观察；第二轮没做，见上面的端到端）:
   - 首启若 bundle 不是 root 拥有，会弹「app rights」提示并立刻要管理员密码（`chown -R root`）。可以点不再询问（`skipFolderRightsWarning`）或取消；取消后 bundle 保持用户拥有
   - 首启约 0.5 s 后检查更新，1.18.6 会自动把 1.18.7 dmg 下到 `$TMPDIR/KeeWeb/`（约 86 MB）+ `.sign`；装完要提示「Restart and update」，不要点
   - 首启会建 `~/Library/Group Containers/3LE7JZ657W.keeweb/`（`conn.sock`，推断）和 `~/Library/Application Support/KeeWeb/`
@@ -139,5 +142,5 @@ channel-verify 原始输出（2026-10-26）:
 ```
 
 ## 建议下一步
-1. 主会话真机两轮（上一版 1.18.6 → 1.18.7），结果写回「一键安装」并把 README 行改成 ✓；顺带看 root 拥有的副本走提权路径后仍是 root 拥有
+1. 第一轮已做（2026-10-26，见「一键安装」）；运行中一轮没做（首次启动要管理员密码），等 owner 决定；root 拥有的副本走提权路径后是否仍是 root 拥有，也还没在真机上看
 2. 若厂商恢复发 Mac 包，复核 Team ID 和资产名

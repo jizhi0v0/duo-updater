@@ -76,16 +76,18 @@
 
 ## 一键安装
 - 状态: **支持（Tauri 副本 0.20 及以上）**；Electron 副本（≤0.13.1）被 `OneClickGate` 挡，只检测；旧 id `Museeks` 的副本经 `BundleIDMigration` 检测和一键（真机 0.21.1 → 0.23.4 ✓，见下）
-- 端到端: 待主会话（真机从 0.23.3 装到 0.23.4）
+- 端到端（2026-10-26，本分支 `make cli` 的 duo）:
+  - 0.23.3 → 0.23.4，不运行和运行中两轮都通过，Team `YK6MWU3892` ✓。换包前后 mp3 / m4a / aac / wav / flac / ogg 的默认打开方式没有变化。终态: 0.23.4，未运行
+  - 旧 id: 0.21.1（`CFBundleIdentifier` 是 `Museeks`）→ `duo check` 经 `BundleIDMigration` 给出 0.23.4 [GitHub] → `duo install`（verifyingSignature、verifyingCodeSignature、installed）→ `io.museeks.app` 0.23.4，Team `YK6MWU3892`、`codesign` 退出 0 ✓（没有启动，曲库没看）
 - 格式: dmg（`hdiutil imageinfo`: `UDZO`），根目录 `Museeks.app` + `Applications` 软链 + `.VolumeIcon.icns`
 - 嵌套 / 常驻组件: 无。0.23.4 的 `Contents/` 下只有 `Info.plist`、`MacOS/museeks`、`Resources/icon.icns`、`Resources/icons/icon.png`、`_CodeSignature`、`CodeResources`；没有 Frameworks、Helpers、LoginItems、LaunchAgent。可执行文件 strings 里 `SMAppService`、`LaunchAgents`、`LoginItems`、`/.claude`、`/.agents`、`/.codex` 计数都是 0
 - 签名: 0.20.0、0.21.1、0.22.0、0.23.3、0.23.4 都是 Team `YK6MWU3892`、Notarized Developer ID；Electron 0.13.1 同 Team，未公证。Team 没换过
 - 校验: GitHub digest `sha256:ff8b3053fefdabb99c54868e74b4857087ac501bf91a026df60776bded2befb7`，与下载的包一致（8946394 字节），也与厂商自己的 `.sha256` 资产一致；0.23.3 dmg `5322dfbbb3791b9efc3c103908bfefea26dda335ee06abacc615e122776112ef` 同样与 `.sha256` 资产一致
 - **读的是**: 人人可手动下载的 GA（`/releases/latest`）
 - 网络类 app 检查: 不是代理 / VPN / 抓包工具，不改系统代理、不装根证书或 Network Extension（strings `networksetup`、`SystemConfiguration`、`NEVPN`、`NETunnel` 计数 0）。它有一个本机流媒体服务（`src-tauri/src/plugins/stream_server.rs`）：配置 `audio_stream_server` 打开时在 `127.0.0.1` 的随机端口上起 axum，给自己的播放器读本地音频文件，0.23.3 正文说是为 Linux 加的
-- 主会话真机要注意（来自源码 / 包内容，均未在真机上观察）:
+- 真机前的注意点（来自源码 / 包内容，除下面说明的以外均未在真机上观察）:
   - 首启会请求 `api.github.com/repos/martpie/museeks/releases`，从 0.23.3 启动会弹一个「Museeks 0.23.4 is available」toast，只是提示
-  - Info.plist 为 aac / mp3 / m4a / 3gp / wav / ogg / flac / weba 声明文档类型，`LSHandlerRank` 是 **`Default`**（不是 Alternate）；没装过别的播放器时，LaunchServices 可能把这些类型的默认打开方式交给它。URL scheme `museeks`
+  - Info.plist 为 aac / mp3 / m4a / 3gp / wav / ogg / flac / weba 声明文档类型，`LSHandlerRank` 是 **`Default`**（不是 Alternate）；没装过别的播放器时，LaunchServices 可能把这些类型的默认打开方式交给它（2026-10-26 真机实测，mp3 / m4a / aac / wav / flac / ogg 的默认打开方式在 0.23.3 → 0.23.4 前后没变）。URL scheme `museeks`
   - 数据写在 `~/Library/Application Support/museeks/`（`config.toml`、`museeks.db`）；本机若有旧的 Electron 版数据也在同一目录（大小写不敏感）
   - `NSCameraUsageDescription` / `NSMicrophoneUsageDescription` 声明了（WebRTC 模板），正常使用不应触发
 
@@ -118,5 +120,5 @@ channel-verify 原始输出（2026-10-26）:
 ```
 
 ## 建议下一步
-1. 主会话真机（0.23.3 → 0.23.4），结果写回「一键安装」并把 README 行改成 ✓
+1. （已做，2026-10-26）真机 0.23.3 → 0.23.4 两轮和旧 id 0.21.1 → 0.23.4 见「一键安装」
 2. 在真机上从 0.21.1 启动一次再更新，确认曲库在换包后仍在（换包本身已验证）

@@ -70,7 +70,7 @@
 
 | | 客户端会停放吗 | 本次实际停放了什么 | 我们能否直接拿来装 |
 |---|---|---|---|
-| 结论 | 会（Squirrel.Mac），但已发布版本的 feed 404，现在不会下载 | 没查（第二轮真机跑归主会话） | ○ |
+| 结论 | 会（Squirrel.Mac），但已发布版本的 feed 404，现在不会下载 | 2026-10-26 运行中一轮没有记录到停放（该轮结果里没有 ShipIt 目录的观察） | ○ |
 | 证据 | `autoupdate.ts`: `update-available` 后自动下载，`update-downloaded` 只亮托盘图标；Squirrel.Mac 停放在 `~/Library/Caches/com.nabocorp.witsy.ShipIt/`（Squirrel.Mac 的通用布局，未在本 app 上实测） | — | `SelfUpdaterStash` 目前只读 electron-updater 和 Cindy 两种布局，不读 ShipIt |
 
 - 记录文件与字段: Squirrel.Mac 的 `ShipItState.plist`（未在本 app 上实测）
@@ -86,18 +86,22 @@
 
 ## 一键安装
 - 状态: 支持（arm64 dmg）
-- 端到端: 待主会话真机跑（从 3.5.1 装到 3.5.2）
+- 端到端（2026-10-26，本分支 `make cli` 的 duo）:
+  - 第一轮（不运行）: 3.5.1 → `duo install` → 3.5.2，Team `TP8BYQ64C4` ✓
+  - 第二轮（运行中）: 换包在位完成 ✓；`duo restart` → `still running — likely a save prompt`，**这个提示在此处不对**：真因是 Witsy 的 `keepRunning` 默认（`before-quit` 里 `preventDefault()`），没有窗口也没有提示框。它还忽略了 SIGTERM，测试进程最后用 SIGKILL 结束
+  - `/usr/local/bin` 不可写，所以没有建 `witsy` 软链；kill 之后本机端口 8090 已释放
+  - 终态: 3.5.2，未运行
 - 格式: .dmg（`hdiutil imageinfo` 退出码 0）
 - 嵌套 / 常驻组件: `Contents/Frameworks/Witsy Helper{, (GPU), (Plugin), (Renderer)}.app`，都是 Electron 子进程宿主（`com.nabocorp.witsy.helper`，`LSUIElement`），随主进程退出；没有 LoginItems / LaunchAgents / 系统扩展
 - 校验: GitHub digest `sha256:e9c8e371362c43b41812b17f7280807a5feb3cb9a4829ca0909824639ca23205`，与下载的 3.5.2 arm64 dmg 一致；3.5.1 arm64 dmg `fc13389287a09e17970a24ec72467e926f4001acc65d96af08e53706eadc7e4c` 也与 digest 一致
 - Team: 1.4.2、1.35.1、3.5.1、3.5.2 都是 TP8BYQ64C4，Team 闸不会拒旧副本
 - 跨大版本: Witsy 自己的更新器（搬仓库前）就是 update.electronjs.org 给的最新版，不分大版本，一键与之一致；没有加 `OneClickGate`
 - **读的是**: 人人可手动下载的 GA（`/releases/latest`）
-- 退出: 默认 `general.keepRunning = true`（`defaults/settings.json` @ v3.5.2），`before-quit` 里 `preventDefault()`，只关窗口、留在托盘。普通的「退出」请求不会让它退出（源码推断，未在真机上测）
+- 退出: 默认 `general.keepRunning = true`（`defaults/settings.json` @ v3.5.2），`before-quit` 里 `preventDefault()`，只关窗口、留在托盘。真机（2026-10-26）上 `duo restart` 没能让它退出，SIGTERM 也被忽略，最后用 SIGKILL
 
 ## 已知问题
 - 已发布版本的自更新器指向 `nbonamy/witsy`，update.electronjs.org 回 404；下一版（源码已改名）发布前，现有副本靠不了自己更新
-- 默认「关窗不退出」（`keepRunning`），见一键安装节；运行中的一键需要看 duo 的退出路径能不能让它退出
+- 默认「关窗不退出」（`keepRunning`）：2026-10-26 真机上 `duo restart` 让不动它，只报 `still running — likely a save prompt, left it alone`。这句话对 keep-running 的 app 有误导（没有保存提示，是 app 自己拒绝退出）；SIGTERM 也被忽略，只有 SIGKILL 能结束
 - 首次启动会碰的、在自己 Application Support 之外的东西（读 3.5.2 包内 sourcemap 的 `src/main.ts` 等，未运行验证）:
   - `/usr/local/bin/witsy`: 每次启动 `checkAndInstallCLI(false)` 尝试把它软链到 `Witsy.app/Contents/Resources/cli/bin/witsy`；目录不可写就静默放弃（不提权、不弹框）。若该路径已有别的文件且目录可写，会先 `unlink` 再建链接。提权版只在设置里手动「重试」时走（`osascript ... with administrator privileges`）
   - 全局快捷键（`globalShortcut`，默认值来自 `defaults/settings.json`）: ⌃Space、⌃⌥Space、⌘⇧P、⌃⇧⌥Space、⌃⌥⌘Space、⌘⌥N；⌃Space 是系统默认的输入法切换键
@@ -124,5 +128,5 @@ curl -sS -w '\n%{http_code}\n' https://update.electronjs.org/nbonamy/witsy/darwi
 - 2.0.0-rc1（同上）: `inferred stable`，`download .../v3.5.2/Witsy-3.5.2-darwin-arm64.dmg`，`status UPDATE → 3.5.2`
 
 ## 建议下一步
-1. 真机一键: 3.5.1 → 3.5.2，不运行一轮；运行中一轮看 `keepRunning` 下 duo 能否让它退出
+1. （已做，2026-10-26）真机一键两轮见「一键安装」；`keepRunning` 下 duo 让不动它，`likely a save prompt` 的措辞对这类 app 不准，是否改待定
 2. 下一版（feed 改成 Kochava-Studios）发布后，复查运行中一轮: Squirrel.Mac 会自己下载并在退出时换包，看会不会和 duo 抢

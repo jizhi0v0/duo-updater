@@ -70,7 +70,7 @@
 
 | | 客户端会停放吗 | 本次实际停放了什么 | 我们能否直接拿来装 |
 |---|---|---|---|
-| 结论 | 只在用户点了「Yes!」之后（`autoDownload = false`） | 没跑（真机轮次留给主会话） | 引擎通用的 `SelfUpdaterStash` `.electronUpdater` 布局按 `app-update.yml` 的 `updaterCacheDirName` 读 `~/Library/Caches/@lunataskelectron-updater/pending/update-info.json`，不需要 recipe 写什么 |
+| 结论 | 只在用户点了「Yes!」之后（`autoDownload = false`） | 2026-10-26 运行中一轮没有记录到停放（那一轮没点过「Yes!」） | 引擎通用的 `SelfUpdaterStash` `.electronUpdater` 布局按 `app-update.yml` 的 `updaterCacheDirName` 读 `~/Library/Caches/@lunataskelectron-updater/pending/update-info.json`，不需要 recipe 写什么 |
 | 证据 | `AutoUpdater.js`（2.1.29 asar） | — | `Sources/SelfUpdaterStash.swift:81`、`Sources/ElectronManifest.swift:41` |
 
 ## Changelog
@@ -82,7 +82,10 @@
 
 ## 一键安装
 - 状态: 支持
-- 端到端: 待主会话
+- 端到端（2026-10-26，本分支 `make cli` 的 duo）:
+  - 第一轮（不运行）: 2.1.28 → `duo install` → 2.1.29，Team `24KNYM7WQY` ✓
+  - 第二轮（运行中）: 换包在位完成 ✓；`duo restart` 没动它：Lunatask 自己的「new update available… Yes! / No, remind me later」对话框挡住了退出（duo 的处理是对的，和 Joplin、Textream 一样）。SIGTERM 被忽略，测试进程最后用 SIGKILL 结束
+  - 终态: 2.1.29，未运行
 - 格式: dmg，`Lunatask.app` 在根目录；pattern `^Lunatask-[0-9]+(?:\.[0-9]+)+-universal\.dmg$`，kind `.dmg`
 - 签名: Team `24KNYM7WQY`，Notarized Developer ID；v0.4.0 起同 Team
 - 校验: GitHub digest `sha256:93dedebb249e12250c798738d50599b60a14d1adcc60a2cf0714ef2d6c1ec2e9`，与下载的 2.1.29 dmg 一致（2.1.28 的 `sha256:907439536974ffd7a414d0855db163766fb3697cf7841c2b1bb37f7755f44b4e` 也一致）
@@ -90,7 +93,7 @@
 - 嵌套 / 常驻组件: 只有 Electron 自己的四个 helper（`Contents/Frameworks/Lunatask Helper{, (GPU), (Renderer), (Plugin)}.app`，`LSUIElement=true`），随主进程退出；没有 `Contents/Library/LoginItems`、没有 LaunchAgent / daemon。「登录时打开」是设置项，经 `app.setLoginItemSettings({openAtLogin})` 注册的是主 app 本身（`IPC.js`）
 - 和自更新器的碰撞: 只有用户点过「Yes!」、自更新器已经下好或正在下时才有可能。下好以后它会立刻弹框然后 `quitAndInstall()`；electron-updater 默认 `autoInstallOnAppQuit = true`，`AutoUpdater.js` 没改它（**按 electron-updater 默认值推断，未验证**），所以已暂存的那版在退出时也会被 ShipIt 装上。引擎对 electron-updater 暂存的通用处理（同版本让路 / 读暂存）不需要 recipe 配置
 
-### 真机注意事项（从 2.1.29 的 `app.asar` 读出）
+### 真机注意事项（从 2.1.29 的 `app.asar` 读出；2026-10-26 的实测见上面的「端到端」）
 - **不在 /Applications 就弹「Move to Applications folder?」**（`utils.js` 的 `enforceMacOSAppLocation`，`app.isInApplicationsFolder()` 为假时 `showMessageBoxSync`，选 Quit 就退出）。真机轮次要装在 `/Applications`；`~/Applications` 是否算数取决于 Electron 的 `isInApplicationsFolder` 实现，**未验证**
 - **关窗口只隐藏、不退出**: `mainWindow.on('close')` 在 `allowQuitting === false` 时 `preventDefault`；`before-quit` 把它置 true，所以 Cmd-Q / 正常的退出请求能退
 - 启动即查更新（有新版就弹「Lunatask Found Updates」框）。从 2.1.28 启动会弹这个框，真机上要么点「No, remind me later」，要么就是第二轮要的暂存
@@ -100,6 +103,7 @@
 
 ## 已知问题
 - Changelog 不结构化（release 正文只有链接），见 Changelog
+- 运行中遇到它自己的更新对话框时，对话框会挡住退出（`duo restart` 让路，SIGTERM 也被忽略）；这是 app 的行为，不是 duo 的 bug
 - 商店副本的检测走 `MacAppStoreSource`：`entity=macSoftware` 的 lookup 对这个 id 回的是 iOS 构建（`kind software`、2.36.1），Mac 构建是 2.1.29。代码走「iOS-on-Mac 但 Mac 构建另有版本线」的分支去抓商品页（`Sources/MacAppStoreSource.swift:207-211`），能不能读出 2.1.29 **没有实测**；读错的话商店副本会看到假的 2.36.1 更新。不影响这条 GitHub rule
 
 ## 如何复验
@@ -115,6 +119,6 @@ curl -s 'https://itunes.apple.com/lookup?bundleId=com.mikekreeki.tasks&entity=ma
 ```
 
 ## 建议下一步
-1. 真机一键（主会话）：从 2.1.28 装到 2.1.29，不运行一轮 + 运行中一轮（运行中那轮注意上面的「Move to Applications」和更新提示框）
+1. （已做，2026-10-26）真机一键两轮见「一键安装」
 2. 另开：`lunatask.app/releases/<v>` 的 ChangelogRecipe
 3. 另开：有商店副本时核 `MacAppStoreSource` 对这个 universal purchase 读出的版本

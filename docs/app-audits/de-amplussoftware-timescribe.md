@@ -72,7 +72,7 @@
 
 | | 客户端会停放吗 | 本次实际停放了什么 | 我们能否直接拿来装 |
 |---|---|---|---|
-| 结论 | 会（默认自动下载） | 没查（真机第二轮待主会话） | 能（布局已接，未端到端） |
+| 结论 | 会（默认自动下载） | 2026-10-26 运行中一轮：约 37 s 内停放了 `TimeScribe-1.17.1-arm64.zip`（`~/Library/Caches/timescribe-updater/pending/`） | 能，且 duo 让路（见一键安装） |
 | 证据 | electron-updater 默认 `autoDownload = true`；`app-update.yml` `updaterCacheDirName: timescribe-updater` | — | `SelfUpdaterStash.parkingSpot` 对任何带 `app-update.yml` 的 app 用 `.electronUpdater(cacheDirectoryName:)`，读 `~/Library/Caches/timescribe-updater/pending/update-info.json` |
 
 - 记录文件与字段: electron-updater 的 `pending/update-info.json`（下载完成并校验 `sha512` 后才写）
@@ -92,15 +92,19 @@
 
 ## 一键安装
 - 状态: **支持（stable 副本）**；beta 副本只检测
-- 端到端: 待主会话（真机从上一版装到最新版）
+- 端到端（2026-10-26，本分支 `make cli` 的 duo）:
+  - 第一轮（不运行）: 1.17.0 → `duo install` → 1.17.1，Team `69A277BV6W` ✓
+  - 第二轮（运行中）: 它的 electron-updater 约 37 s 内在 `~/Library/Caches/timescribe-updater/pending/` 停放了 `TimeScribe-1.17.1-arm64.zip`；`duo install` 跳过（`own updater already has 1.17.1 staged`）✓；`duo restart` → `quit — its own updater applied 1.17.1` ✓
+  - 发现: 每次启动都会留下一个孤儿的内置 PHP 进程 `artisan nightwatch:agent --listen-on=127.0.0.1:8100`（PPID 1），一直打开着 `~/Library/Application Support/timescribe/database/database.sqlite`；见「已知问题」
+  - 终态: 1.17.1，未运行
 - 格式: dmg（`hdiutil imageinfo` 退出 0），根目录 `TimeScribe.app` + `Applications` 软链。模式 `^TimeScribe-[0-9]+(?:\.[0-9]+)+-arm64\.dmg$`，kind `.dmg`
-- 嵌套: 只有 `Contents/Frameworks` 下四个 Electron helper（`LSUIElement=true`，随主进程退出）和 `Squirrel.framework` / `Mantle.framework` / `ReactiveObjC.framework`；没有 `Contents/Library/LoginItems`、`Contents/Helpers`、LaunchAgent。包内 PHP 是 app 进程的子进程，不常驻
+- 嵌套: 只有 `Contents/Frameworks` 下四个 Electron helper（`LSUIElement=true`，随主进程退出）和 `Squirrel.framework` / `Mantle.framework` / `ReactiveObjC.framework`；没有 `Contents/Library/LoginItems`、`Contents/Helpers`、LaunchAgent。包内 PHP 本以为是 app 进程的子进程、不常驻——真机上不是，退出后会留下孤儿进程（见「已知问题」）
 - 签名: 1.17.1、1.17.0、1.2.0-beta.3 都是 Team `69A277BV6W`、Notarized Developer ID；0.1.0 同 Team。上一版没换 Team，不存在换 Team 拒装
 - 校验: GitHub 资产 `digest`。v1.17.1 dmg `sha256:c7f6a78bb7fb0f4db547997970ffe21de106ed1a73a0abe54603577ad6f8de72`、v1.17.0 dmg `sha256:4df3910fbf73bbf0ad4e166fbf5e41fbca47bd510a625f00aed6b3d0256aa925`，与下载文件的 `shasum -a 256` 相同。`latest-mac.yml` 的 `sha512` 不接（GitHub rule 已带 digest）。2025-06 之前上传的资产没有 `digest`（v1.2.0-beta.3 的 API `digest` 为空）
 - **读的是**: 人人可手动下载的 GA
 - 阻塞: 无
 
-### 启动副作用（来自源码与包内容，均未在真机上观察）
+### 启动副作用（来自源码与包内容，未在真机上观察；真机上见到的孤儿 PHP 进程见「已知问题」）
 - 数据目录：Electron `userData` 下（NativePHP 把 Laravel 的 storage 和 SQLite 放在那里）。cask `zap` 写的是 `~/Library/Application Support/timescribe`（小写），具体大小写以真机为准；另有 `~/Library/Caches/timescribe-updater`（更新缓存）及 Electron 常规的 `~/Library/{Caches,HTTPStorages,Preferences}/de.amplussoftware.timescribe*`
 - 首启：没完成向导时打开 Welcome 窗口；向导里有「登录时打开」一步，**由用户选**，选了才调 `app.setLoginItemSettings({openAtLogin})`（`WelcomeController::update`）；设置页同样。首启本身不注册登录项
 - Dock：菜单栏 app，`showDockIcon(false)`；有窗口时 `Dock::show()`，关窗后 `Dock::hide()`。不改 Dock 的持久配置
@@ -112,14 +116,15 @@
 - 不写 `~/.claude` / `~/.agents`：`config/nativephp.php` 里的 `.agents` / `.codex` 是打包时**排除**的目录名，不是运行时路径
 - 本地 HTTP：PHP 内置服务器只为 Electron 服务（Info.plist ATS 例外仅 `127.0.0.1` / `localhost`）
 
-### 主会话真机要注意
+### 真机前的注意点（2026-10-26 的实测见「一键安装」的端到端）
 - **自更新器不等用户退出**：从 1.17.0 启动后会自己下 1.17.1 到 `~/Library/Caches/timescribe-updater/pending/`；若没有打开的窗口，最多 5 分钟后 `app:check-can-install` 自己 `quitAndInstall()`（ShipIt 换包）。想在第二轮看到「停放后 duo 介入」，需要在下载完成后、5 分钟内动手，或保持一个窗口开着（菜单栏面板算不算 `Window::all()` 没核）
 - 下载完成会弹系统通知（`checkForUpdatesAndNotify`）
 - 首启有 Welcome 向导窗口，别勾「登录时打开」
 - 启动和解锁会自动弹菜单栏面板
 
 ## 已知问题
-- 厂商自更新器默认自动下载、退出即装，且无窗口时自己 quitAndInstall；一键与它的碰撞要在真机第二轮看（见上）
+- 厂商自更新器默认自动下载、退出即装，且无窗口时自己 quitAndInstall；真机第二轮（2026-10-26）它在 37 s 内停放了 1.17.1，`duo install` 让路、`duo restart` 由它自己换包，没有碰撞
+- 每次启动都留下孤儿的内置 PHP 进程 `artisan nightwatch:agent --listen-on=127.0.0.1:8100`（PPID 1），一直打开着 `~/Library/Application Support/timescribe/database/database.sqlite`。它在 app 退出后和厂商自己的更新后都还活着（1.17.0 留下的那个仍在跑旧代码）。真机测试留下的孤儿已用 SIGTERM 结束
 - 1.17.1 这类只有一个分类标题的正文，面板不显示标题（解析器的 ≥2 阈值）
 
 ## 如何复验
@@ -160,4 +165,4 @@ TimeScribe-1.2.0-beta.3-arm64.dmg --expect beta
 ```
 
 ## 建议下一步
-1. 真机两轮一键（主会话），第二轮注意自更新器 5 分钟内自己 quitAndInstall
+1. （已做，2026-10-26）真机两轮一键见「一键安装」；孤儿 PHP 进程（见「已知问题」）是否要处理待定

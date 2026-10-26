@@ -72,7 +72,10 @@
 
 ## 一键安装
 - 状态: 支持（同 Team `VBG97UB4TA` 的全部已知副本）
-- 端到端: 待主会话
+- 端到端（2026-10-26，本分支 `make cli` 的 duo；**只做了第一轮**）:
+  - 第一轮（不运行）: 1.1.0（x86_64）→ `duo install` → 2.0.0（universal），Team `VBG97UB4TA` ✓
+  - 第二轮（运行中）: **没做**。1.1.0 只有 x86_64，运行需要 Rosetta，而且启动时会调 VirusTotal API；GitHub 上也没有别的旧版构建可用。待 owner 决定
+  - 终态: 2.0.0，从没启动过
 - 格式: zip，根目录就是 `KextViewr.app`；pattern `^KextViewr_[0-9]+(?:[._][0-9]+)+\.zip$`，kind `.zip`
 - 签名: 2.0.0 `TeamIdentifier=VBG97UB4TA`、Notarized Developer ID（已 staple）、hardened runtime（`flags=0x10000(runtime)`）
 - 嵌套 / 常驻组件: 无。bundle 里只有 `MacOS/KextViewr` 和资源文件：没有嵌套 app、framework、XPC、kext、`Library/LoginItems`、`Library/LaunchServices`；源码里没有 `SMAppService` / `SMJobBless` / LaunchAgent
@@ -82,7 +85,7 @@
 ### 真机注意事项（从 v2.0.0 源码读出）
 - 启动即枚举 kext（`applicationDidFinishLaunching` → `enumKexts`，执行 `/usr/bin/kmutil`），关窗即退出；没有首次启动标记、没有偏好写入，只有用户点「保存」时才把结果写到用户选的文件
 - 不改网络 / 代理 / DNS / 系统安全设置：源码里没有 `SCPreferences`、PAC、hosts、Network Extension、root CA、`AuthorizationCreate`；它只读 kext 列表
-- 1.1.0 副本启动时会向 VirusTotal 发请求（每个 kext 的哈希）；真机从 1.1.0 起跑一键时不需要启动它
+- 1.1.0 副本启动时会向 VirusTotal 发请求（每个 kext 的哈希）；真机第一轮不需要启动它，第二轮因此没做（见「一键安装」的端到端）
 
 ## 已知问题
 - GitHub 上只有一个 release，没有上一版 GitHub 资产可比；上一版取自产品页的 bitbucket 链接（1.1.0）
@@ -101,3 +104,4 @@ curl -s https://objective-see.org/products/kextviewr.html | grep -o 'releases/do
 
 ## 建议下一步
 1. 厂商发下一个 release 时复查：Team 是否仍是 `VBG97UB4TA`、资产名是否仍匹配 `KextViewr_<ver>.zip`、tag 仍是 `v<x.y.z>`。
+2. 运行中一轮没做（见「一键安装」），要不要补、怎么补（Rosetta + VirusTotal 请求）等 owner 决定。

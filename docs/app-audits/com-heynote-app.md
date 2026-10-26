@@ -72,7 +72,7 @@
 
 | | 客户端会停放吗 | 本次实际停放了什么 | 我们能否直接拿来装 |
 |---|---|---|---|
-| 结论 | 会 | 没查（真机第二轮待主会话） | 能（已接，electron-updater 布局是通用的） |
+| 结论 | 会 | 2026-10-26 运行中一轮：2.9.0 启动后约 36 s（21:20:06 起运行，21:20:42 前）它的 electron-updater 在 `~/Library/Caches/heynote-updater/pending/` 停放了 `Heynote_2.9.1_arm64.zip` 和 `update-info.json` | 能，且 duo 让路（见一键安装） |
 | 证据 | 默认 `autoInstallUpdates` true → `autoDownload` 和 `autoInstallOnAppQuit` 都开；下载落在 `~/Library/Caches/heynote-updater/pending/`，完成后写 `update-info.json`，再交给 Squirrel.Mac（ShipIt）退出时装 | — | `SelfUpdaterStash` 读 `app-update.yml` 的 `updaterCacheDirName`（这里是 `heynote-updater`）下的 `pending/update-info.json`，不需要按 app 加东西 |
 
 - 记录文件与字段: `update-info.json`（electron-updater 的 `DownloadedUpdateHelper.setDownloadedFile`，下载完成后才写；摘要是 sha512 base64，读自 2.9.1 `app.asar` 里打包的代码）
@@ -89,16 +89,19 @@
 - Recipe 状态: 不需要
 
 ## 一键安装
-- 状态: **支持**（stable 副本，和 `-beta.N` 副本）
-- 端到端: 「待主会话」（真机从上一版 2.9.0 装到 2.9.1）
+- 状态: **支持**（stable 副本，和 `-beta.N` 副本）；stable 副本真机两轮通过（2026-10-26，本分支 `make cli` 的 duo）
+- 端到端（stable 副本；`-beta.N` 副本没在真机上跑）:
+  - 第一轮（不运行，2.9.0 从没启动过）: 2.9.0 universal → `duo install` → 2.9.1 universal（x86_64 arm64）、`TeamIdentifier=VY5Y3H438S`、`codesign` 退出 0、`spctl` Notarized Developer ID
+  - 第二轮（运行中）: 2.9.0 从 21:20:06 起运行，它的 electron-updater 在 21:20:42 前停放了 `Heynote_2.9.1_arm64.zip` 和 `update-info.json`。`duo install` → `Skipping: Heynote — its own updater already has 2.9.1 staged`（不重复安装）；`duo restart Heynote` → `quit — its own updater applied 2.9.1`，盘上 2.9.1、`codesign` 0，21:21:01 重新拉起。注意换完的 2.9.1 只剩 arm64（厂商更新器下的是 arm64 zip），不再是 universal
+  - 终态: 2.9.1（arm64），未运行
 - 格式: dmg（`hdiutil imageinfo` 退出码 0），根目录 `Heynote.app`
 - 嵌套: `Contents/Frameworks/Heynote Helper.app`、`Heynote Helper (GPU).app`、`(Plugin).app`、`(Renderer).app`，都是 Electron 自己的子进程（`LSUIElement`），随主进程退出；没有 `Contents/Library/LoginItems`、LaunchAgent、root helper、系统扩展
 - 签名: 1.0.2、2.9.0、2.9.0-beta.6、2.9.1-beta、2.9.1 都是 Team `VY5Y3H438S`、Notarized Developer ID，Team 没换过
 - 校验: GitHub 资产 `digest`。v2.9.1 universal dmg `sha256:4b7525892769a2710fec66d95c96d3eb082634fb139d6df0f744d3347a65d23f`，下载文件 `shasum -a 256` 相同，215742574 字节等于资产大小
 - **读的是**: 人人可手动下载的 GA（stable rule 读 `/releases/latest`）；beta rule 读的是 release 列表里最新的一个，即厂商开着 beta 开关时自己会装的那一版，同样人人可从 releases 页手动下载
 - 阻塞: 无
-- 主会话真机要注意（来自源码 / 包内容，均未在真机上观察）:
-  - 首启就检查更新（`settings.autoUpdate` 默认 true，立即一次，之后每 8 h），默认**自动下载、退出时安装**。从 2.9.0 启动后会很快往 `~/Library/Caches/heynote-updater/pending/` 下 2.9.1 的 zip，并交给 ShipIt；退出时 ShipIt 会把 2.9.1 装进去。所以第一轮（不运行）要在 2.9.0 从没启动过的状态下做，第二轮会撞上它自己的暂存（同版本，`duo install` 应 `local stash hit`）
+- 真机前的注意点（来自源码 / 包内容；除第一条的暂存部分外均未在真机上观察，暂存部分 2026-10-26 实测见上面的「端到端」）:
+  - 首启就检查更新（`settings.autoUpdate` 默认 true，立即一次，之后每 8 h），默认**自动下载、退出时安装**。从 2.9.0 启动后会很快往 `~/Library/Caches/heynote-updater/pending/` 下 2.9.1 的 zip，并交给 ShipIt；退出时 ShipIt 会把 2.9.1 装进去。所以第一轮（不运行）要在 2.9.0 从没启动过的状态下做，第二轮会撞上它自己的暂存（同版本；实测 `duo install` 报的是 `Skipping … already has 2.9.1 staged`，不是预想的 `local stash hit`）
   - `allowDowngrade` 是 true：开着 beta 开关的副本关掉开关后，厂商会把它降到 `/releases/latest`；关着开关的 beta 副本同理
   - 首启会调 `app.setLoginItemSettings({openAtLogin: false})`（`settings.openAtLogin` 默认 false，`ready` 时总会调一次），不会加登录项；Dock 图标默认显示（`showInDock` true，关掉时 `app.dock.hide()`）；全局快捷键默认关（`enableGlobalHotkey` false）；菜单栏图标默认关
   - Info.plist 没有 `CFBundleURLTypes`、`CFBundleDocumentTypes`，不抢默认打开方式、不注册 URL scheme
@@ -136,6 +139,6 @@ channel-verify 原始输出（2026-10-26）:
 ```
 
 ## 建议下一步
-1. 主会话真机两轮（上一版 2.9.0 → 2.9.1），结果写回「一键安装」并把 README 行改成 ✓。注意第一轮前不要启动 2.9.0（它会自动下载并在退出时装上 2.9.1）
+1. （已做，2026-10-26，两轮结果见「一键安装」）
 2. 不带编号的 `-beta` 副本: `ReleaseChannel.detect` 按 bundle id `com.heynote.app` 认 `[0-9]+(\.[0-9]+)+-beta(\.[0-9]+)?` 为 beta（CotEditor 0.9 的形状），之后 beta rule 自然接上（引擎改动，需要决定）
 3. 开着 beta 开关的正式版副本: `ChannelBinding` 读 `userData/config.json` 的 `settings.allowBetaVersions`（先在真机上拨开关确认文件路径和写法，引擎改动，需要决定）

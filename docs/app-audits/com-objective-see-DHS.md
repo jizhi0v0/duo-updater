@@ -73,7 +73,9 @@
 
 ## 一键安装
 - 状态: 支持（同 Team `VBG97UB4TA` 的全部已知副本）
-- 端到端: 待主会话
+- 端到端（2026-10-26，本分支 `make cli` 的 duo，1.5.1 → 1.6.0 两轮都通过）:
+  - 第一轮（不运行）和第二轮（运行中）: 都装到 1.6.0，Team `VBG97UB4TA`
+  - 终态: 1.6.0，未运行
 - 格式: zip，根目录就是 `DHS.app`；pattern `^DHS_[0-9]+(?:[._][0-9]+)+\.zip$`，kind `.zip`
 - 签名: 1.6.0 `TeamIdentifier=VBG97UB4TA`、Notarized Developer ID、hardened runtime（`flags=0x10000(runtime)`），无 entitlements
 - 嵌套 / 常驻组件: 无。bundle 里只有 `MacOS/DHS` 和资源文件：没有嵌套 app、framework、XPC、`Library/LoginItems`、`Library/LaunchServices`；源码里没有 `SMAppService` / `SMJobBless` / LaunchAgent

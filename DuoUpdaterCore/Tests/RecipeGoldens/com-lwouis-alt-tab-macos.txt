@@ -1,0 +1,50 @@
+// Generated from AppRecipeIndex.all by RecipeGoldenTests. Do not edit by hand.
+// Regenerate: DUO_RECORD_RECIPE_GOLDENS=1 swift test --package-path DuoUpdaterCore --filter RecipeGoldenTests
+
+family = "com-lwouis-alt-tab-macos"
+
+probes = Array(count: 0)
+
+changelogs = Array(count: 0)
+
+githubRules = Array(count: 1)
+githubRules[0] = struct GitHubReleaseRule
+githubRules[0].bundleID = "com.lwouis.alt-tab-macos"
+githubRules[0].owner = "lwouis"
+githubRules[0].repo = "alt-tab-macos"
+githubRules[0].usePrereleases = false
+githubRules[0].listPageSize = 20
+githubRules[0].versionPattern = "^v([0-9]+(?:\\.[0-9]+)+)$"
+githubRules[0].candidateScope = .newest
+githubRules[0].probesNewestFirst = true
+githubRules[0].installedTagPrefix = nil
+githubRules[0].channel = .stable
+githubRules[0].installAssetPattern? = "^AltTab-[0-9]+(?:\\.[0-9]+)+\\.zip$"
+githubRules[0].installerKind? = .zip
+githubRules[0].installTrust = .developerID
+githubRules[0].variant = nil
+githubRules[0].architectureRequirement = nil
+githubRules[0].tagRefPrefix = nil
+githubRules[0].installedExecutableMarker = nil
+
+appStoreCases = Array(count: 0)
+
+channelProofs = Dictionary(count: 0)
+
+githubChannelProofs = Dictionary(count: 0)
+
+bindingProofs = Dictionary(count: 0)
+
+sparkleFeeds = Dictionary(count: 0)
+
+supersededFeeds = Dictionary(count: 0)
+
+loginWalls = Dictionary(count: 0)
+
+changelogPages = Dictionary(count: 0)
+
+oneClickGates = Array(count: 0)
+
+loginItemAgentRestarts = Dictionary(count: 0)
+
+sunsets = Dictionary(count: 0)

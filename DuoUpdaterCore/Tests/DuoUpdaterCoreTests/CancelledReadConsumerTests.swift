@@ -68,8 +68,10 @@ import Testing
     /// likely cause, not confirmed from the runner's log, is that wait outrunning
     /// its 20 s deadline. A second exec of the same path skips the scan: on the
     /// idle mini (macOS 26.7, 2026-10-26) a fresh script's first exec took 0.27 s
-    /// and the next two 0.011 s, five scripts out of five. So the cancelled read
-    /// under test only times the script itself.
+    /// and the next two 0.011 s, five scripts out of five. Under load it holds too:
+    /// with 80 fresh scripts queued, an already-run script took 0.007–0.014 s
+    /// while one more fresh script took 59.5 s. So the cancelled read under test
+    /// only times the script itself.
     private static func script(_ body: String) async throws -> URL {
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent("ZZFixture-tool-\(UUID().uuidString)", isDirectory: true)

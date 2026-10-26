@@ -96,6 +96,60 @@ import DuoUpdaterCore
         }
     }
 
+    /// `--all` at a terminal is still Update All: skipped, not asked.
+    @Test func allWithoutYesSkipsToo() {
+        guard case .refuse = Install.confirmationStep(
+            for: offer(to: "26.7.0"), named: false, assumeYes: false) else {
+            Issue.record("expected a refusal")
+            return
+        }
+    }
+
+    /// A yes to a licence question is not a yes to a rewrite.
+    @Test func aYesToOneQuestionDoesNotCoverAnother() {
+        let outcome = Install.reconsider(
+            offered: offer(to: "26.7.0"), confirmed: offer(to: "26.7.0"),
+            settings: settings(), environment: environment(), routes: [],
+            approved: .licenseBoundary)
+        guard case .skip = outcome else {
+            Issue.record("expected a skip, got \(outcome)")
+            return
+        }
+    }
+
+    /// A yes covers the versions it named: a newer offer on the re-check is skipped.
+    @Test func aYesDoesNotCoverANewerVersionFromTheRecheck() {
+        let outcome = Install.reconsider(
+            offered: offer(to: "26.7.0"), confirmed: offer(to: "26.10.0"),
+            settings: settings(), environment: environment(), routes: [],
+            approved: .vendorRewrite)
+        guard case .skip = outcome else {
+            Issue.record("expected a skip, got \(outcome)")
+            return
+        }
+    }
+
+    /// Only the updates that need it are asked; a no drops that one update alone.
+    /// Mutation: keep every planned item whatever the answer → red.
+    @Test func eachCrossingIsAskedAndANoDropsOnlyThatOne() {
+        let ordinary = Install.Planned(result: offer(from: "8.0.46.CE", to: "8.0.47"), route: .vendor)
+        let rewrite = Install.Planned(
+            result: offer(to: "26.7.0"), route: .vendor, confirmation: .vendorRewrite)
+        var asked: [String] = []
+        let declinedSplit = Install.askCrossings([ordinary, rewrite]) { planned, gate in
+            asked.append("\(planned.result.app.shortVersion ?? "?") \(gate)")
+            return false
+        }
+        #expect(asked == ["8.0.47.CE vendorRewrite"])
+        #expect(declinedSplit.kept.map(\.result.app.shortVersion) == ["8.0.46.CE"])
+        #expect(declinedSplit.declined.map(\.1) == [
+            "not confirmed: 8.0.47.CE → 26.7.0 replaces this app with the vendor's rewrite, "
+                + "whose features and settings may differ"])
+        let acceptedSplit = Install.askCrossings([ordinary, rewrite]) { _, _ in true }
+        #expect(acceptedSplit.kept.count == 2)
+        #expect(acceptedSplit.declined.isEmpty)
+    }
+
     /// The plan names the question before the plan's own prompt.
     @Test func thePlanNotesTheQuestion() {
         var lines: [String] = []

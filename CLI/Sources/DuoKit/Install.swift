@@ -262,20 +262,19 @@ public enum Install {
         // yes to crossing a rewrite or a licence boundary. Only named apps get
         // here, and only without `--yes` (`confirmationStep`), so there is a
         // terminal to ask on — `confirm` just required one.
-        var notConfirmed: Set<URL> = []
-        for planned in plan {
-            guard let gate = planned.confirmation,
-                  !confirmCrossing(planned.result, gate: gate, json: options.json) else { continue }
-            notConfirmed.insert(planned.result.app.path)
-            let why = "not confirmed: \(confirmationText(gate, for: planned.result))"
+        let crossings = askCrossings(plan) {
+            confirmCrossing($0.result, gate: $1, json: options.json)
+        }
+        for (planned, why) in crossings.declined {
             if options.json {
                 NDJSON.emit(skippedPayload(
                     name: planned.result.app.name, route: planned.route, reason: why, outcome: .declined))
             } else {
-                print(TerminalText.printable("Skipping \(planned.result.app.name): \(why)."))
+                print(TerminalText.printable(
+                    "Skipping \(planned.result.app.name) at \(planned.result.app.path.path): \(why)."))
             }
         }
-        plan.removeAll { notConfirmed.contains($0.result.app.path) }
+        plan = crossings.kept
         guard !plan.isEmpty || !toolPlan.isEmpty else { return 0 }
 
         // `confirm` blocks on stdin, so the running-app snapshot taken before the
@@ -450,6 +449,24 @@ public enum Install {
                 + "run \(command) without --yes to confirm it")
         }
         return .ask(gate)
+    }
+
+    /// Puts `ask` to every planned update that needs its own confirmation, in
+    /// plan order, and splits the plan by the answers. Updates that need none
+    /// are kept without asking.
+    static func askCrossings(
+        _ plan: [Planned], ask: (Planned, UpdatePolicy.InstallConfirmation) -> Bool
+    ) -> (kept: [Planned], declined: [(Planned, String)]) {
+        var kept: [Planned] = []
+        var declined: [(Planned, String)] = []
+        for planned in plan {
+            guard let gate = planned.confirmation, !ask(planned, gate) else {
+                kept.append(planned)
+                continue
+            }
+            declined.append((planned, "not confirmed: \(confirmationText(gate, for: planned.result))"))
+        }
+        return (kept, declined)
     }
 
     /// The app's confirmation popover in one line, after "Skipping <name>: ".
@@ -706,7 +723,10 @@ public enum Install {
                 guard routes.isEmpty || routes.contains(route) else { return .notRequested(route) }
                 // The fresh answer may need a confirmation the plan's did not, or
                 // another one than the user gave (`approved`).
-                if let gate = UpdatePolicy.installConfirmation(for: confirmed), gate != approved {
+                // A yes covers the versions it was asked about, not a newer major
+                // the source answered since.
+                if let gate = UpdatePolicy.installConfirmation(for: confirmed),
+                   gate != approved || confirmed.remote?.displayVersion != offered.remote?.displayVersion {
                     return .skip("\(confirmationText(gate, for: confirmed)) — found on the re-check, "
                         + "not confirmed; install it on its own: "
                         + "duo install \(Backups.shellQuoted(confirmed.app.path.path))", route)
@@ -907,7 +927,8 @@ public enum Install {
         _ result: UpdateResult, gate: UpdatePolicy.InstallConfirmation, json: Bool
     ) -> Bool {
         ask(TerminalText.printable(
-            "\(result.app.name) \(confirmationText(gate, for: result)). Install it anyway? [y/N] "),
+            "\(result.app.name) at \(result.app.path.path): \(confirmationText(gate, for: result)). "
+                + "Install it anyway? [y/N] "),
             json: json)
     }
 

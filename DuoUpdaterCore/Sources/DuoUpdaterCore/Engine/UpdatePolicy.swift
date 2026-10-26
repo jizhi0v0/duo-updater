@@ -1115,15 +1115,6 @@ public enum UpdatePolicy {
         return staged
     }
 
-    /// A staged self-update the user still wants to hear about.
-    ///
-    /// `actionableStaged` answers one question — is the staged build the latest?
-    /// — and knows nothing about the user's own verdict on the app. The periodic
-    /// "Relaunch to apply it" reminder used it directly, so an **ignored** app
-    /// kept posting a banner every reminder tick while its row showed nothing but
-    /// the Ignored tag: hidden in the app, still nagging in Notification Center.
-    /// Ignore and skip both mean "stop telling me about this", so both are gates
-    /// here, not just on the updates-available path.
     /// What the user must confirm, one app at a time, before this update installs.
     ///
     /// The app asks in a popover on the row (`.majorUpgrade` route) and leaves the
@@ -1144,6 +1135,15 @@ public enum UpdatePolicy {
         return result.isVendorRewrite ? .vendorRewrite : .licenseBoundary
     }
 
+    /// A staged self-update the user still wants to hear about.
+    ///
+    /// `actionableStaged` answers one question — is the staged build the latest?
+    /// — and knows nothing about the user's own verdict on the app. The periodic
+    /// "Relaunch to apply it" reminder used it directly, so an **ignored** app
+    /// kept posting a banner every reminder tick while its row showed nothing but
+    /// the Ignored tag: hidden in the app, still nagging in Notification Center.
+    /// Ignore and skip both mean "stop telling me about this", so both are gates
+    /// here, not just on the updates-available path.
     /// A pending update the user hasn't ignored or skipped — what the badge counts
     /// and what "Update All" acts on.
     public static func isActionableUpdate(

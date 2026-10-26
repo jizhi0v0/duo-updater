@@ -71,7 +71,7 @@
 
 | | 客户端会停放吗 | 本次实际停放了什么 | 我们能否直接拿来装 |
 |---|---|---|---|
-| 结论 | 会（Sparkle 的标准行为，我的推断，未在本包上实测） | 没查（第二轮真机由主会话跑） | ○ |
+| 结论 | 会（Sparkle 的标准行为，我的推断，未在本包上实测） | 真机（2026-10-26）：3.3.4 运行 15 s 内没有出现 Sparkle 缓存，也没有停放的更新 | ○ |
 | 证据 | Sparkle 2 用户选了自动下载 / 下载后「安装并重启」之外的「退出时安装」时，会把更新包放在 app 的缓存目录里等退出。Info.plist 没有 `SUAutomaticallyUpdate`；`App.framework` 里没有 `automaticallyDownloadsUpdates` 字符串，默认是弹窗问用户 | — | `SelfUpdaterStash` 现在只读 electron-updater 和 Cindy 两种布局，不读 Sparkle 的 |
 
 - 记录文件与字段: Sparkle 自己的暂存布局，未在本包上核
@@ -88,8 +88,11 @@
 - Recipe 状态: 不需要（结构化、按版本分条）
 
 ## 一键安装
-- 状态: **支持**（Developer ID、Team DXY5A5J7C4、Notarized、dmg）
-- 端到端: 待主会话真机跑（本分支没有跑 `duo`，按分工）
+- 状态: **支持，真机两轮通过（2026-10-26，本分支 `make cli` 的 duo）**（Developer ID、Team DXY5A5J7C4、Notarized、dmg）
+- 端到端（2026-10-26，本分支 `make cli` 的 duo）:
+  - 第一轮（不运行）: 3.3.4 → `duo install` → 3.3.5、`TeamIdentifier=DXY5A5J7C4`、`codesign` 退出 0、`spctl` Notarized Developer ID
+  - 第二轮（运行中）: 3.3.4 从 19:14:36 起运行，15 s 内没有 Sparkle 缓存、没有停放的更新；`duo install` 就地装好，提示 `Still running the old code`；`duo restart Reqable` → `restarted`，19:15:08 起的新进程是 3.3.5，`codesign` 0
+  - proxy helper 与根证书没装（没有回答任何管理员提示），`/Library/Application Support/Reqable` 不存在，所以「换包前后 `proxy-helper` 是否被动过」这次没法比。终态: 3.3.5，未运行
 - 格式: dmg（`hdiutil imageinfo` 退出 0），根目录 `Reqable.app` + `Applications` 软链 + 背景图
 - 签名: 1.1.5、2.21.2、3.3.4、3.3.5（arm64 / x86_64）都是 Team DXY5A5J7C4、Notarized，Team 没换过，Team 闸不会拒旧副本
 - 校验: GitHub 资产 `digest`。3.3.5 arm64 `sha256:650e4650506f8baf73e91dee01fa0533bdf4b2585bd52bc5d5146c866d44b057`、3.3.4 arm64 `sha256:d81c2d20f8aae2f42721671537e8bd582ada53d458cfd964551aabad1430cb81`，都与下载文件的 `shasum -a 256` 相同；3.3.5 的值也与 cask 的 arm `sha256` 相同
@@ -141,5 +144,4 @@ channel-verify 原始输出（2026-10-26）:
 ```
 
 ## 建议下一步
-1. 真机一键（主会话）: 3.3.4 → 3.3.5 两轮。第二轮注意：Reqable 首启可能弹 Sparkle 的检查更新授权框和它自己的更新窗口，不要在里面点安装；app 若提示安装 proxy helper 或根证书，会要管理员密码 / 钥匙串授权，跳过；看 `/Library/Application Support/Reqable/proxy-helper` 换包前后是否被动过；`.har` / `.chls` / `.chlsj` 文档类型与一个 Google 登录用的 URL scheme 会注册
-2. 若要用厂商 feed 的累计 macOS 说明或让通用 Sparkle 源接管：需要引擎支持按已装副本的 build 号 / arch / locale 拼 feed 参数（`SparkleFeedCatalog` 现在是固定地址），本次不做
+1. 若要用厂商 feed 的累计 macOS 说明或让通用 Sparkle 源接管：需要引擎支持按已装副本的 build 号 / arch / locale 拼 feed 参数（`SparkleFeedCatalog` 现在是固定地址），本次不做

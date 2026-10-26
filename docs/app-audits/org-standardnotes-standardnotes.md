@@ -67,7 +67,7 @@
 
 | | 客户端会停放吗 | 本次实际停放了什么 | 我们能否直接拿来装 |
 |---|---|---|---|
-| 结论 | 会（自动更新开着时） | 没查（真机待主会话） | 通用 `SelfUpdaterStash` 应能读（未在本 app 上验证） |
+| 结论 | 会（自动更新开着时） | 真机（2026-10-26）：3.202.7 从 20:36:49 起运行，20:37:21 前已把 `standard-notes-3.202.10-mac-arm64.zip` 和 `update-info.json` 停放进 `~/Library/Caches/@standardnotesinner-desktop-updater/pending` | 第二轮 `duo install` 看到「它自己的更新器已暂存 3.202.10」而跳过 |
 | 证据 | electron-updater 默认 `autoDownload = true`；`enableAutoUpdates` 默认 true（`createSanitizedStoreData.ts`）。下完放在 `~/Library/Caches/@standardnotesinner-desktop-updater/pending/`（`update-info.json` + arm64 zip），再交给 Squirrel，暂存在 `~/Library/Caches/org.standardnotes.standardnotes.ShipIt/`（cask 的 zap 也列了这个目录） | — | `SelfUpdaterStash` 按包内 `updaterCacheDirName` 找 `pending/update-info.json`；ShipIt 暂存由通用 `SelfUpdaterStaging` 识别 |
 
 ## Changelog
@@ -79,8 +79,11 @@
 - Recipe 状态: 不需要
 
 ## 一键安装
-- 状态: 支持
-- 端到端: 待主会话（真机从 3.202.7 装到 3.202.10）
+- 状态: **支持，真机两轮通过（2026-10-26，本分支 `make cli` 的 duo）**
+- 端到端:
+  - 第一轮（不运行）: 3.202.7 → `duo install` → 3.202.10、`TeamIdentifier=HKF9BXSN95`、`codesign` 退出 0、`spctl` Notarized Developer ID
+  - 第二轮（运行中）: 3.202.7 从 20:36:49 起运行，它的 electron-updater 在 20:37:21 前停放了 `standard-notes-3.202.10-mac-arm64.zip` 和 `update-info.json`。第一次 `duo install` 报 `app scan did not finish within 20.0 seconds`（当时负载 320）；重试 → `Skipping: Standard Notes — its own updater already has 3.202.10 staged`。`duo restart "Standard Notes"` → `quit — its own updater applied 3.202.10`，磁盘 3.202.10、`codesign` 0，20:38:13 重新拉起
+  - 终态: 3.202.10，未运行
 - 格式: dmg（`hdiutil imageinfo` 退出 0），根目录 `Standard Notes.app` + `Applications` 软链
 - 嵌套: `Contents/Frameworks/` 下 Electron 的四个 helper（`Standard Notes Helper.app`、`(GPU)`、`(Renderer)`、`(Plugin)`，id `org.standardnotes.standardnotes.helper[.GPU|.Renderer|.Plugin]`，都是 `LSUIElement`）。没有 `Contents/Library`、LoginItems、LaunchAgent；`app.asar` strings 里 `setLoginItemSettings` / `openAtLogin` / `SMAppService` / `LaunchAgents` 都是 0 次
 - `app.asar.unpacked/node_modules`: `keytar`、`sqlite3`、`microtime`、`cbor-extract` 原生模块，随 bundle 一起换
@@ -89,7 +92,7 @@
 - **读的是**: 人人可手动下载的 GA（`/releases/latest`；Standard Notes 自己的更新器读的也是这一版）
 - 阻塞: 无
 - 自更新器会不会抢（settled from source: `packages/desktop/app/javascripts/Main/UpdateManager.ts` on `main`）: 启动时 `enableAutoUpdates`（默认 true）开着就调 `autoUpdater.checkForUpdates()`；`autoDownload` / `autoInstallOnAppQuit` 用 electron-updater 默认的 true，下完弹「更新已就绪」框（「稍后安装」/「退出并安装」），**用户不点也会在正常退出时由 Squirrel/ShipIt 换包**。所以 app 运行着、已经下完新版时，我们为装包让它退出，也会触发 ShipIt。暂存的版本和我们装的一样时无害；两者不一样的情况由通用的 `SelfUpdaterStaging` / `ParkedInstallerProbe` 处理，不是这条 recipe 独有的问题。`enableAutoUpdates` 关掉时启动不检查，只在用户手动「检查更新」时才查
-- 主会话真机要注意（来自源码 / 包内容，未在真机上观察）:
+- 真机前的注意点（来自源码 / 包内容；2026-10-26 实测见上面的「端到端」）:
   - 从 3.202.7 启动就会去 `/releases/latest` 检查并在后台下 3.202.10 arm64 zip（约 154 MB）到 `~/Library/Caches/@standardnotesinner-desktop-updater/`，然后弹更新框。退出时 ShipIt 会自己装，想测我们的路径就别在它下完后正常退出，或先在偏好里关掉自动更新
   - 每次启动都会注册成 `standardnotes://` 的默认处理程序（`setAsDefaultProtocolClient`，asar 里 3 处）
   - `minimizeToTray`（默认 false）开着时关窗口不退出，进程留在菜单栏
@@ -128,5 +131,4 @@ channel-verify 原始输出（2026-10-26）:
 ```
 
 ## 建议下一步
-1. 主会话真机两轮（3.202.7 → 3.202.10：不运行；运行中且自更新器已下完），结果写回「一键安装」并把 README 行改成 ✓
-2. 如果要补 changelog 缺口：让 GitHub 历史把同一版本线上没转正的 prerelease 正文也算进来（引擎改动，需先定）
+1. 如果要补 changelog 缺口：让 GitHub 历史把同一版本线上没转正的 prerelease 正文也算进来（引擎改动，需先定）

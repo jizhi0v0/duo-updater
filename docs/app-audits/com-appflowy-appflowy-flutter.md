@@ -72,7 +72,7 @@
 
 | | 客户端会停放吗 | 本次实际停放了什么 | 我们能否直接拿来装 |
 |---|---|---|---|
-| 结论 | 0.14.10 起不会；0.14.8 及更早只在用户点「Update」后由 Sparkle 下载 | 没查（真机第二轮由主会话做） | 不需要 / ○ |
+| 结论 | 0.14.10 起不会；0.14.8 及更早只在用户点「Update」后由 Sparkle 下载 | 真机（2026-10-26）：0.14.10 运行中没有停放任何东西（0.14.10+ 没有自更新器） | 不需要 / ○ |
 | 证据 | 新版只打开下载链接（`downloadInstructions` 文案、`_openDownload`），安装包由浏览器下到用户的下载目录；旧版 Sparkle 定时检查被关（`setScheduledCheckInterval(0)`），且 feed 目前 404 | — | `SelfUpdaterStash` 只读 electron-updater 与 Cindy 的布局，不读 Sparkle 缓存；旧版 feed 404，眼下也不会有暂存 |
 
 ## Changelog
@@ -84,15 +84,18 @@
 - Recipe 状态: 不需要
 
 ## 一键安装
-- 状态: **支持**（Team VHB67HRSZG 的副本，即 0.3.0 及以后）
-- 端到端: **待主会话**（真机从上一版装到最新版）
+- 状态: **支持，真机两轮通过（2026-10-26，本分支 `make cli` 的 duo）**（Team VHB67HRSZG 的副本，即 0.3.0 及以后）
+- 端到端:
+  - 第一轮（不运行）: 0.14.10 → `duo install` → 0.14.11、`TeamIdentifier=VHB67HRSZG`、`codesign` 退出 0、`spctl` Notarized Developer ID
+  - 第二轮（运行中）: 0.14.10 运行中，没有自更新器、什么都没停放；`duo install` 就地装好，提示 `Still running the old code`；`duo restart AppFlowy` → `restarted`，20:11:11 起的新进程是 0.14.11，`codesign` 0。重启后的 app 弹了 TCC 框「AppFlowy.app would like to access files in your Documents folder」，留给用户；AppleEvent 退出返回 -128，但进程退出了
+  - 终态: 0.14.11，未运行。副作用: `~/Library/Application Support/com.appflowy.appflowy.flutter`
 - 格式: dmg（`hdiutil imageinfo`: `UDZO`），根目录 `AppFlowy.app` + `Applications` 软链 + `.background`
 - 嵌套 / 常驻组件: 无。`Contents/` 下只有 `Frameworks`（Flutter 插件、Firebase、mpv 等 `.framework`，没有 `.app`）、`MacOS/AppFlowy`、`Resources`、`_CodeSignature`；没有 LoginItems / Helpers / XPCServices / LaunchAgent / 系统扩展；可执行文件里没有 `SMAppService`、`LaunchAgents`、`.claude/`、`.agents/`、`.codex/` 字符串（`grep -c` = 0）
 - 签名: 0.3.0 → 0.14.11 读过的包都是 Team `VHB67HRSZG`、Notarized，Team 没换过；0.2.x 及更早是 ad-hoc（见覆盖清单）
 - 校验: GitHub 资产 `digest`。0.14.11 arm64 dmg `sha256:968d6859adba1ea8720edd57b1cff7cd705d691ba1c265d1f6599f2b15514ea5`（116110311 字节）、universal dmg `sha256:50da706a87bdbd44a128001ab4cc1bba96fa6e105ff299cdf9fd248869fb9774`（225569716 字节）；0.14.10 arm64 dmg `sha256:21f98db612c735b84fcf315b8fb5f4cb6460c7558eca1b73fe407bfab638e286`、universal `sha256:817548f9eab169db155fb0ea978f9d896d74e84d3f5805fb7fcea5444a371711`。四个下载文件的 `shasum -a 256` 与之相同
 - **读的是**: 人人可手动下载的 GA（`/releases/latest`）
 - 阻塞: 无
-- 主会话真机要注意（来自包内容与源码，均未在真机上观察）:
+- 真机前的注意点（来自包内容与源码；2026-10-26 实测见上面的「端到端」）:
   - entitlements: 非沙盒，`files.absolute-path.read-write` 临时例外 `/`、麦克风、屏幕录制、`network.server`。首启可能请求通知权限（`flutter_local_notifications`、Firebase Messaging）；会议转写功能才要麦克风 / 屏幕录制，不点就不弹
   - 首启大概率先出登录 / 选本地或云端工作区的界面（推断，未验证）；不要登录。数据在 `~/Library/Application Support/com.appflowy.appflowy.flutter`（cask `zap` 列出的路径）
   - URL scheme `appflowy-flutter`、`appflowy-picker`
@@ -135,6 +138,5 @@ channel-verify 原始输出（2026-10-26，节选）:
 ```
 
 ## 建议下一步
-1. 真机一键（主会话）: 装 0.14.10 → `duo install`，看换成 0.14.11 arm64、Team 不变、`codesign` / `spctl` 通过
-2. 自托管服务器的版本绑定要不要管（待用户决定）: 要像厂商那样「服务器太旧就不推」，得读 AppFlowy 本地存的当前服务器地址并问它的 `/api/server-info`，是引擎改动（新的 scan-time 读取或 `OneClickGate` 条件），本次没做
-3. 若厂商以后在 release 里恢复 `appcast-macos-*.xml`，0.14.8 及更早副本的 Sparkle 会重新可用；那仍是用户点了才装，不影响本规则
+1. 自托管服务器的版本绑定要不要管（待用户决定）: 要像厂商那样「服务器太旧就不推」，得读 AppFlowy 本地存的当前服务器地址并问它的 `/api/server-info`，是引擎改动（新的 scan-time 读取或 `OneClickGate` 条件），本次没做
+2. 若厂商以后在 release 里恢复 `appcast-macos-*.xml`，0.14.8 及更早副本的 Sparkle 会重新可用；那仍是用户点了才装，不影响本规则

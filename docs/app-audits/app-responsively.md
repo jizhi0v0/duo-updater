@@ -78,7 +78,7 @@
 
 | | 客户端会停放吗 | 本次实际停放了什么 | 我们能否直接拿来装 |
 |---|---|---|---|
-| 结论 | 会（`autoDownload` 默认开） | 没查（真机第二轮待主会话） | 没查（布局 `SelfUpdaterStash` 已读） |
+| 结论 | 会（`autoDownload` 默认开） | 真机（2026-10-26）：1.17.1 运行 `open -g` 起 20:08:20，20:08:52 前已把 `ResponsivelyApp-1.18.0-arm64-mac.zip` 和 `update-info.json` 停放进 `~/Library/Caches/responsivelyapp-updater/pending`（ShipIt 目录 `app.responsively.ShipIt` 同时建好） | 第二轮 `duo install` 看到「它自己的更新器已暂存 1.18.0」而跳过 |
 | 证据 | `app-updater.ts` 只调 `checkForUpdatesAndNotify()`；`app-update.yml` `updaterCacheDirName: responsivelyapp-updater` | — | `SelfUpdaterStash` 的 `.electronUpdater(cacheDirectoryName:)` 从包内 `app-update.yml` 读目录名，读 `~/Library/Caches/responsivelyapp-updater/pending/update-info.json` |
 
 - 记录文件与字段: electron-updater 的 `pending/update-info.json`（下载完成并校验 `sha512` 后写）
@@ -96,15 +96,19 @@
 
 ## 一键安装
 - 状态: **支持**（stable 副本，含 0.x；beta 副本经 `recipeAnchor` proof）
-- 端到端: 待主会话
+- 端到端（2026-10-26，本分支 `make cli` 的 duo，两轮通过）:
+  - 第一轮（不运行）: 1.17.1 → `duo install` → 1.18.0、`TeamIdentifier=M4H33HFC4K`、`codesign` 退出 0、`spctl` Notarized Developer ID
+  - 第二轮（运行中）: 1.17.1 用 `open -g` 启动（20:08:20），它的 electron-updater 在 20:08:52 前停放了 1.18.0 的 zip。`duo install` → `Skipping: ResponsivelyApp — its own updater already has 1.18.0 staged — quit it to apply, or duo restart`（没有重复安装）；`duo restart ResponsivelyApp` → `quit — its own updater applied 1.18.0`，磁盘 1.18.0、`codesign` 0，20:09:17 重新拉起
+  - beta 轨: 检测只有 channel-verify，没有真机运行
+  - 终态: 1.18.0，未运行。副作用: `~/Library/Caches/responsivelyapp-updater`、`~/Library/Caches/app.responsively.ShipIt`、`~/Library/Application Support/ResponsivelyApp`
 - 格式: dmg（`hdiutil imageinfo` 退出 0），根目录 `ResponsivelyApp.app` + `Applications` 软链
 - 嵌套: 只有 `Contents/Frameworks` 下四个 Electron helper（`LSUIElement`）和 `Squirrel.framework`、`Mantle.framework`、`ReactiveObjC.framework`；没有 `Contents/Library/LoginItems`、`Contents/Helpers`。1.18.0 和 2.0.0-beta.0 的 `app.asar` 里 `setLoginItemSettings`、`openAtLogin`、`LaunchAgents`、`SMAppService` 都是 0 次
 - 签名: 0.19.1、1.0.1、1.17.1、1.18.0、2.0.0-beta.0 都是 Team `M4H33HFC4K`、Notarized Developer ID；Team 没换过，上一版不会被闸拒
 - 校验: GitHub 资产 `digest`。v1.18.0 arm64 dmg `sha256:870ef97ae7b23758411841f0c35058ddd36ba2dce51b1f8a48063664dc12d92b`、v1.17.1 `sha256:e7f0e6127182c5a749c6cde485d13258bb75062aad940b4ae3bdd69c90e09549`、v2.0.0-beta.0 `sha256:c32f1d6808e143af056ed342f947a18448cd1b281d7945ec3a6f7d8d9fcb1260`，都与下载文件的 `shasum -a 256` 相同。v1.16.0（2025-01）的资产没有 `digest`（GitHub 2025-06 才开始给），它不是安装目标。`latest-mac.yml` 的 `sha512` 不接
 - **读的是**: 人人可手动下载的 GA（stable）；beta 副本读最新的公开 release（正式版或 beta），和厂商更新器一致
 - 阻塞: 无
-- 主会话真机要注意（来自源码 / 包内容，均未在真机上观察）:
-  - 启动即检查更新并**自动下载**，退出时由 Squirrel ShipIt 安装。从 1.17.1 启动会在 `~/Library/Caches/responsivelyapp-updater/pending/` 停放 1.18.0 的 arm64 zip；第二轮可期望 `local stash hit`（同版本），或 duo 让路给已暂存的同版本（massCode 的同形）
+- 真机前的注意点（来自源码 / 包内容；2026-10-26 实测见上面的「端到端」）:
+  - 启动即检查更新并**自动下载**，退出时由 Squirrel ShipIt 安装。从 1.17.1 启动会在 `~/Library/Caches/responsivelyapp-updater/pending/` 停放 1.18.0 的 arm64 zip；实测第二轮走的是 duo 让路给已暂存的同版本（massCode 的同形），不是 `local stash hit`
   - 1.x 首次启动调 `installExtensions()`（`electron-devtools-assembler`），从 Chrome 扩展商店下载 React/Redux/Vue 等开发者工具扩展到 app 的 userData；数据目录 `~/Library/Application Support/ResponsivelyApp`、偏好 `~/Library/Preferences/app.responsively.plist`（cask `zap`）
   - 注册 `responsively://` URL scheme（`setAsDefaultProtocolClient`，v1.18.0 与 `main` 都有）
   - 2.0.0-beta.0 起默认在本机端口起一个 MCP HTTP 服务（`userPreferences.mcpEnabled` 未设为 false 时），并往 userData 写 beacon 文件；往 `~/.claude.json`、`claude_desktop_config.json`、`~/.cursor/mcp.json`、`~/.codex`、VS Code 的 `mcp.json` 写配置只在设置页点了添加时发生（`ipcMain.handle(MCP_SET_TOOL)` → `setToolEntry`）。1.18.0 的 `app.asar` 里没有 `.claude` 字符串
@@ -144,5 +148,4 @@ channel-verify 原始输出（2026-10-26）:
 ```
 
 ## 建议下一步
-1. 主会话真机两轮（上一版 1.17.1 → 1.18.0），结果写回「一键安装」并把 README 行改成 ✓；第二轮记下 `responsivelyapp-updater/pending/` 停放的那份
-2. 2.0.0 正式版发布时读它的 release notes，看 1.x → 2.0 有没有要求先迁移数据；厂商更新器会自动把 1.x 正式版副本升上去，若有破坏性迁移再考虑 `OneClickGate`
+1. 2.0.0 正式版发布时读它的 release notes，看 1.x → 2.0 有没有要求先迁移数据；厂商更新器会自动把 1.x 正式版副本升上去，若有破坏性迁移再考虑 `OneClickGate`

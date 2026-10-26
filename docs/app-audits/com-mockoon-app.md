@@ -62,7 +62,7 @@
 
 | | 客户端会停放吗 | 本次实际停放了什么 | 我们能否直接拿来装 |
 |---|---|---|---|
-| 结论 | 不会（macOS） | 没查（真机第二轮待主会话） | 不需要 |
+| 结论 | 不会（macOS） | 真机（2026-10-26）：第二轮 `duo install` 就地换包，没有出现暂存/跳过提示；没单独查目录 | 不需要 |
 | 证据 | `update.ts`：只有 `process.platform === 'win32'` 且非 portable 时才把 `mockoon.setup.<v>.exe` 下到 `userData`；macOS 分支只通知 | — | — |
 
 ## Changelog
@@ -75,14 +75,16 @@
 
 ## 一键安装
 - 状态: 支持
-- 端到端: 待主会话
+- 端到端（2026-10-26，本分支 `make cli` 的 duo，两轮通过）:
+  - 第一轮（不运行）: 9.8.0 → `duo install` → 9.9.0、`TeamIdentifier=8443RQQKK6`、`codesign` 退出 0、`spctl` Notarized Developer ID
+  - 第二轮（运行中）: 9.8.0 从 19:12:07 起运行，`duo install` 就地装好，提示 `Still running the old code`；`duo restart Mockoon` → `restarted`，19:13:17 起的新进程是 9.9.0，`codesign` 0。终态: 9.9.0，未运行
 - 格式: dmg（`hdiutil imageinfo`: `UDZO`），根目录 `Mockoon.app` + `Applications` 软链
 - 嵌套 / 常驻组件: `Contents/Frameworks/Mockoon Helper.app`、`Helper (GPU)`、`Helper (Plugin)`、`Helper (Renderer)`（`LSUIElement=true`），是 Electron 的子进程，随主进程退出，不常驻。没有 LoginItems / LaunchAgent / Helpers；`app.asar` 里没有 `setLoginItemSettings`、`LaunchAgents`、`.claude/`、`.agents/` 字符串
 - 签名: 9.5.0、9.8.0、9.9.0 都是 Team `8443RQQKK6`、Notarized Developer ID；9.4.0 及更早读不到包（见覆盖清单）
 - 校验: GitHub 资产 `digest`。v9.9.0 universal dmg `sha256:984a167e9b31e6725f2decabd575189fb4e61f185660b392f8856876e68632f1`，下载文件 `shasum -a 256` 相同、241247016 字节；v9.8.0 universal dmg `sha256:aa00ed3e5cbec89077fa674d0eab338a0342bc5ddca35ae28adbbe3e560bcc10` 同样相符。`stable.json` 的 `digest` 是 Windows exe 的，不能用
 - **读的是**: 人人可手动下载的 GA（`/releases/latest`；官网下载页和 cask 指向同一批 GitHub 资产）
 - 阻塞: 无
-- 主会话真机要注意（来自源码 / 包内容，均未在真机上观察）:
+- 真机前的注意点（来自源码 / 包内容；2026-10-26 实测见上面的「端到端」）:
   - 从 9.8.0 启动会检查 `stable.json`，界面上出现更新提示；点它只会打开浏览器到 mockoon.com/download，不会换包，和我们不抢
   - 换到新版后再启动，会因版本变高弹出更新说明窗口（读 `desktop-changelogs-markdown/<版本>.md`）
   - 注册 URL scheme `mockoon`（`setAsDefaultProtocolClient("mockoon")`，Info.plist `CFBundleURLTypes`）
@@ -114,5 +116,4 @@ channel-verify 原始输出（2026-10-26）:
 ```
 
 ## 建议下一步
-1. 主会话真机两轮（上一版 9.8.0 → 9.9.0），结果写回「一键安装」并把 README 行改成 ✓
-2. changelog: `/fragile-recipe Mockoon`（ChangelogRecipe，source `https://mockoon.com/desktop-changelogs-markdown/<版本>.md`，按 `## ` 分节，`date` 取 front matter；「Support us!」节要丢掉）
+1. changelog: `/fragile-recipe Mockoon`（ChangelogRecipe，source `https://mockoon.com/desktop-changelogs-markdown/<版本>.md`，按 `## ` 分节，`date` 取 front matter；「Support us!」节要丢掉）

@@ -72,7 +72,7 @@
 
 | | 客户端会停放吗 | 本次实际停放了什么 | 我们能否直接拿来装 |
 |---|---|---|---|
-| 结论 | 会（短暂：下完立即 `quitAndInstall`） | 没查（真机第二轮待主会话） | 布局已接（通用 electron-updater 布局），但见已知问题 |
+| 结论 | 会（短暂：下完立即 `quitAndInstall`） | 真机（2026-10-26）：0.13.0 运行中什么也没停放（自带更新器只在菜单里手动检查） | 布局已接（通用 electron-updater 布局），但见已知问题 |
 | 证据 | electron-updater 4.6.5（`app.asar` 内）：缓存目录 `~/Library/Caches/<updaterCacheDirName>/pending/`，下载完成后写 `update-info.json` | — | `SelfUpdaterStash` 的 `.electronUpdater(cacheDirectoryName:)` 从 `app-update.yml` 读 `tad-updater` |
 
 - 记录文件与字段: `pending/update-info.json`（`fileName`、`sha512` base64，下载完成后才写）
@@ -87,15 +87,18 @@
 - Recipe 状态: 不需要
 
 ## 一键安装
-- 状态: 支持
-- 端到端: 待主会话（真机从 0.13.0 装到 0.14.0）
+- 状态: **支持，真机两轮通过（2026-10-26，本分支 `make cli` 的 duo）**
+- 端到端:
+  - 第一轮（不运行）: 0.13.0 → `duo install`（没有 `verifyingSignature` 阶段: 资产 digest 为 null）→ 0.14.0（arm64）、`TeamIdentifier=VPS8BQAV8D`、`codesign` 退出 0、`spctl` Notarized Developer ID
+  - 第二轮（运行中）: 0.13.0 运行中，`duo install` 就地装好；`duo restart Tad` → `restarted`，20:35:17 起的新进程是 0.14.0。Tad 自己的更新器只有菜单项，什么都没停放
+  - 终态: 0.14.0，未运行
 - 格式: dmg（`hdiutil imageinfo`: `UDZO`），根目录 `Tad.app` + `Applications` 软链
 - 嵌套: `Contents/Frameworks/` 下 `Tad Helper.app`、`Tad Helper (GPU).app`、`Tad Helper (Plugin).app`、`Tad Helper (Renderer).app`（`LSUIElement`），是 Electron 主进程起的子进程，随主进程退出，不常驻；另有 `Squirrel.framework`、`Mantle.framework`、`ReactiveObjC.framework`（Squirrel.Mac 用）。没有 `Contents/Library`、LoginItems、LaunchAgent。`app.asar` 里 `setLoginItemSettings`、`SMAppService` 只是孤立字符串，主进程 bundle 里没有调用点
 - 签名: 0.6.4、0.9.0、0.11.0、0.13.0、0.14.0 都是 Team `VPS8BQAV8D`，Team 没换过；0.9.0 起 spctl 都是 Notarized Developer ID
 - 校验: GitHub 资产 `digest` 为 null（资产 2024-06-21 上传，早于 GitHub 加 digest），只靠 Team ID 闸。`latest-mac.yml` 的 sha512 只描述 x86_64 的 zip/dmg，与本 rule 装的 arm64 dmg 不是同一个文件，不接
 - **读的是**: 人人可手动下载的 GA（`/releases/latest`；Tad 自己的更新器读的也是这一版）
 - 阻塞: 无
-- 主会话真机要注意（来自源码 / 包内容，均未在真机上观察）:
+- 真机前的注意点（来自源码 / 包内容；2026-10-26 实测见上面的「端到端」）:
   - 首启（每个新版本第一次启动）在 `~/Library/Application Support/Tad/` 写 `install-marker-<版本>.txt`，打包版第一次运行会弹 Quick Start 窗口
   - 不会自动检查更新；第二轮要造「已停放」只能在菜单里点「Check for Updates」并同意，而它下完会立即退出换包，而且下的是 x86_64 zip（见已知问题）
   - Info.plist 为 csv / tsv / parquet / sqlite / duckdb 等声明文档类型，`LSHandlerRank` 是 `Default`：装上并启动后，LaunchServices 可能把这些扩展名的默认打开方式交给 Tad（推断，未验证）
@@ -104,7 +107,7 @@
 
 ## 已知问题
 - **Tad 自己的更新器在 Apple 芯片上装的是 x86_64 版**（源码 + `latest-mac.yml` 推出，未在真机上观察）: electron-updater 4.6.5 `MacUpdater.doDownloadUpdate` 只有在 `latest-mac.yml` 里有带 `arm64` 的文件时才挑 arm64，否则挑不带 `arm64` 的；Tad 的 `latest-mac.yml` 只列 x86_64 的 `Tad-0.14.0-mac.zip`。所以 arm64 副本用菜单更新后变成同版本的 Intel 版（走 Rosetta）。这份 0.14.0 Intel 副本在我们这里是 up to date，duo 不会把它换回 arm64
-- 同一原因，如果 `pending/` 里停放着这份 x86_64 的 0.14.0 zip，而本机副本还是更旧的版本（Tad 自己换包失败时才会这样），`SelfUpdaterStash` 会命中它：包内 bundle id、版本、sha512 都对得上，它不检查架构，duo 装上的会是 x86_64 版而不是 arm64 dmg。这条需要引擎改动（stash 按架构核对），本次没做，见「建议下一步」
+- 同一原因，如果 `pending/` 里停放着这份 x86_64 的 0.14.0 zip，而本机副本还是更旧的版本（Tad 自己换包失败时才会这样），`SelfUpdaterStash` 会命中它：包内 bundle id、版本、sha512 都对得上，它自己不检查架构。但装不上 Intel 版: stash 的包和其他安装包一样走 `SignatureVerifier.verifyInstallArtifact`，其中 Gate 5b `verifyNoArchitectureDowngrade`（`SignatureVerifier.swift:263` 调用）发现已装的是 arm64、下载的只有 x86_64 就拒装（`architectureDowngrade`）。所以最坏是这次安装被拒，不是装上 Intel 版（读源码核过；没在真机上造出这种 stash）
 - 最新 release 是 2024-06-21 的 v0.14.0，此后 28 个月没有新版；检测对已是 0.14.0 的副本只会一直显示 up to date
 
 ## 如何复验
@@ -129,5 +132,4 @@ channel-verify 原始输出（2026-10-26）:
 ```
 
 ## 建议下一步
-1. 主会话真机两轮（上一版 0.13.0 → 0.14.0），结果写回「一键安装」并把 README 行改成 ✓
-2. 是否给 `SelfUpdaterStash` 加架构核对（停放 zip 里主可执行文件的架构要能在本机原生运行，或与要装的资产一致），挡掉 Tad 这类 `latest-mac.yml` 只发 x86_64 的 electron-updater 应用把 Intel 版经 stash 装到 Apple 芯片上。引擎改动，需要用户决定
+1. （可选）是否给 `SelfUpdaterStash` 加架构核对（停放 zip 里主可执行文件的架构要能在本机原生运行，或与要装的资产一致），让 Tad 这类 `latest-mac.yml` 只发 x86_64 的 electron-updater 应用在 stash 是 x86_64 时直接不命中，免得这次安装被 Gate 5b 拒掉。现在不会装上 Intel 版（见「已知问题」）。引擎改动，需要用户决定

@@ -76,8 +76,13 @@
 - Recipe 状态: 不需要
 
 ## 一键安装
-- 状态: 支持（两种构建各装各的 zip）
-- 端到端: 待主会话
+- 状态: 支持（两种构建各装各的 zip）；真机第一轮两种构建都通过，第二轮被系统的网络卷权限框挡住（2026-10-26）
+- 端到端（2026-10-26，本分支 `make cli` 的 duo）:
+  - 第一轮，普通（Xcode 16）构建，不运行: 1.7.5 → `duo install`（`downloading` `verifyingSignature` `extracting` `verifyingCodeSignature` `installing` `installed`）→ 1.7.6、`TeamIdentifier=M9PR3WG2FN`、`codesign` 退出 0、`spctl` Notarized Developer ID；`DTXcode` 1640、`swift_coroFrameAlloc` 计数 0，装前装后不变（构建保持）
+  - 第一轮，Xcode 26 构建，不运行: 1.7.5（`DTXcode` 2620、标记 7）→ 1.7.6，`DTXcode` 2620、标记 7（构建保持），Team、`codesign`、Notarized 同上
+  - 第二轮，Xcode 26 构建运行中（`open -g` 19:44:22）: `duo install` 就地装好，提示 `Still running the old code`；`duo restart FlowVision` → `still running — likely a save prompt, left it alone`。截图显示原因是 FlowVision 首启触发的系统 TCC 框「FlowVision.app would like to access files on a network volume」，不是 FlowVision 自己的提示。磁盘上是 1.7.6 的 Xcode 26 构建、`codesign` 0；测试进程最后 `kill -TERM`。这个 TCC 框留给用户，没回答
+  - 跨构建的 offer 没在真机上走（规则选包从不给跨构建的 offer），由 `OneClickGateTests.flowVisionOneClickIsPerBuild` 覆盖
+  - 终态: 1.7.6（Xcode 26 构建），未运行
 - 格式: .zip（`ditto -x -k` 解出来根目录就是 `FlowVision.app`）
 - 嵌套 / 常驻组件: 无（`Contents/Frameworks` 下只有 ffmpeg 的 8 个 framework，没有 app / xpc / LoginItems）
 - 校验: GitHub digest `sha256:be9d3f34592ee279ccb59d8b25c637ed1665c7c59699a197c3bc93bb8cd981b9`（`FlowVision.1.7.6.zip`），与下载的包一致
@@ -113,7 +118,7 @@ channel-verify 实测（2026-10-26，各包解压后的 `.app`）:
 | `FlowVision.1.0.2.zip`（包内 `1.0`） | ad-hoc | GitHub, UPDATE → 1.7.6 | `…/1.7.6/FlowVision.1.7.6.zip`（一键被 Team 闸拒） |
 
 ## 建议下一步
-1. 真机一键：从 1.7.5（两种构建各一次）装到 1.7.6，确认装上的是同一种构建（`DTXcode` 不变、`swift_coroFrameAlloc` 计数不变）。
+1. 运行中一轮要等用户回答网络卷的 TCC 框后再跑（普通构建的运行中一轮也没跑）。
 2. 若 `OneClickGate` 以后加了读 Info.plist 键的要求类型，把标记换成 `DTXcode`。
 
 ## 历史与实测

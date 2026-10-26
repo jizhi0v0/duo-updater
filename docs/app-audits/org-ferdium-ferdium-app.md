@@ -86,7 +86,7 @@
 
 | | 客户端会停放吗 | 本次实际停放了什么 | 我们能否直接拿来装 |
 |---|---|---|---|
-| 结论 | 会（`automaticUpdates` 默认开、`autoDownload` 开） | 没查（真机第二轮待主会话） | ○（布局已有，端到端待主会话） |
+| 结论 | 会（`automaticUpdates` 默认开、`autoDownload` 开） | 真机（2026-10-26）：7.2.2 运行中，19:48:35 前 electron-updater 已把 `Ferdium-mac-bundle-7.2.3-arm64.zip` 和 `update-info.json` 下到 `~/Library/Caches/ferdium-updater/pending` | 能：`duo install` 日志 `local stash hit: Ferdium 7.2.3 already downloaded by its own updater — 160221326 B not fetched` |
 | 证据 | `autoUpdate.ts`；`app-update.yml` `updaterCacheDirName: ferdium-updater`；shipped asar 的 `getAppCacheDir()` 在 darwin 返回 `~/Library/Caches` | — | `SelfUpdaterStash` 的 `.electronUpdater(cacheDirectoryName:)` 读 `~/Library/Caches/<updaterCacheDirName>/pending/update-info.json` |
 
 - 记录文件与字段: electron-updater 的 `pending/update-info.json`（下载完成后写，`sha512` base64，见 `SelfUpdaterStash` 注释；shipped asar 里有 `"update-info.json"`）
@@ -103,19 +103,23 @@
 
 ## 一键安装
 - 状态: **支持（stable 副本）**；nightly / beta 副本被 `OneClickGate` 挡，只检测
-- 端到端: 待主会话
+- 端到端（2026-10-26，本分支 `make cli` 的 duo，两轮通过）:
+  - 第一轮（不运行）: 7.2.2 → `duo install` → 7.2.3、`TeamIdentifier=55E9FPJ93P`、`codesign` 退出 0、`spctl` Notarized Developer ID
+  - 第二轮（运行中）: 7.2.2 从 19:47:33 起运行，Ferdium 自己的更新器在 19:48:35 前把 7.2.3 的 zip 和 `update-info.json` 下进 `~/Library/Caches/ferdium-updater/pending`。`duo install` 日志 `local stash hit: Ferdium 7.2.3 already downloaded by its own updater — 160221326 B not fetched`，就地装好；`duo restart Ferdium` → `restarted`，19:49:33 起的新进程是 7.2.3，`codesign` 0
+  - 首启弹了 TCC 自动化框「Ferdium.app wants access to control System Events.app」（原先以为只有开了开机启动才会弹，不对）；留给用户，没回答
+  - 终态: 7.2.3，未运行。副作用: `~/Library/Caches/ferdium-updater`（pending 里还有 7.2.3 的 zip）、`~/Library/Application Support/Ferdium`
 - 格式: dmg（`hdiutil imageinfo`: `Format: UDZO`），根目录 `Ferdium.app` + `Applications` 软链
 - 嵌套: 只有 `Contents/Frameworks` 下四个 Electron helper（`LSUIElement=true`，随主进程退出）；没有 `Contents/Library`（无 LoginItems / LaunchServices）、没有 `Contents/Helpers`。`app.asar` 里没有 `setLoginItemSettings` / `openAtLogin` / `SMAppService`
 - 签名: 6.0.0、6.4.1-beta.2、7.2.2、7.2.3-nightly.3、7.2.3、7.2.4-nightly.3 都是 Team `55E9FPJ93P`、Notarized Developer ID；上一版与最新版同 Team，不存在换 Team 拒装
 - 校验: GitHub 资产 `digest`。v7.2.3 arm64 dmg `sha256:478842403c103837b3ba3bae4b9b86df1fb4f8f1da41dc642440ac1fdd51b5b0`，下载文件 `shasum -a 256` 相同、167567454 字节等于资产大小（与 cask `sha256` 也相同）。v7.2.2 及更早的正式版资产 GitHub 不给 digest（v6.x 是 `null`），装旧版不涉及。`latest-mac.yml` 的 `sha512` 不接（GitHub rule 已带 digest）
 - **读的是**: 人人可手动下载的 GA
 - 阻塞: 无
-- 主会话真机要注意（来自源码 / 包内容，均未在真机上观察）:
+- 真机前的注意点（来自源码 / 包内容；2026-10-26 实测见上面的「端到端」）:
   - 启动 30 s 后自己查更新并自动下载到 `~/Library/Caches/ferdium-updater/pending/`；从 7.2.2 启动会下 7.2.3 的 zip。不点 Ferdium 里的安装按钮就不会装（退出也不装），所以第二轮可以期望 `duo install` 读到同版本的停放包（`local stash hit`、`bytesDownloaded: 0`）
   - 碰撞只在用户点 Ferdium 自己的安装时可能发生：duo 换包后，还在跑的旧进程若点了安装，会把 `pending/` 里那份交给 Squirrel（ShipIt）装上；若那份比 duo 装的旧就是降级。第二轮要专门看 duo 换包后、旧进程退出前的这段
   - 首启应会出现登录 / 无账号使用的欢迎界面（推断，未核），不要登录
   - 注册 `ferdium://` URL scheme（启动时 `setAsDefaultProtocolClient`）
-  - 「开机启动」偏好 `autoLaunchOnStart` 默认关；开了会通过 `auto-launch` 包用 AppleScript 让 System Events 加登录项（可能弹「自动化」授权框），不要开
+  - 「开机启动」偏好 `autoLaunchOnStart` 默认关；开了会通过 `auto-launch` 包用 AppleScript 让 System Events 加登录项（可能弹「自动化」授权框，不要开）；实测不开它首启也弹了同一个 System Events 自动化框
   - 数据目录（cask `zap`）: `~/Library/Application Support/Ferdium`、`~/Library/Logs/Ferdium`、`~/Library/Caches/ferdium-updater`、`org.ferdium.ferdium-app.ShipIt` 等
   - 不写 `~/.claude` / `~/.agents`（asar strings 无，推断）
 
@@ -155,5 +159,4 @@ channel-verify 原始输出（2026-10-26）:
 ```
 
 ## 建议下一步
-1. 主会话真机两轮（上一版 7.2.2 → 7.2.3），结果写回「一键安装」和「已停放整包」第 2 栏，并把 README 行改成 ✓
-2. nightly 轨（需要决定是否做引擎改动）: `ReleaseChannel.detect` 认点号计数的 `-nightly.N`（会改变所有这种版本号副本的判定，需按该处注释的方法重放 baseline），或 `ChannelBinding` 读 Ferdium 的 `beta` 偏好；再加 `.nightly` GitHub rule（`usePrereleases`，tag `^v([0-9]+(?:\.[0-9]+)+-nightly\.[0-9]+)$`，资产 `Ferdium-mac-<v>-nightly.<N>-arm64.dmg`）和 `ChannelProofRegistry` 条目
+1. nightly 轨（需要决定是否做引擎改动）: `ReleaseChannel.detect` 认点号计数的 `-nightly.N`（会改变所有这种版本号副本的判定，需按该处注释的方法重放 baseline），或 `ChannelBinding` 读 Ferdium 的 `beta` 偏好；再加 `.nightly` GitHub rule（`usePrereleases`，tag `^v([0-9]+(?:\.[0-9]+)+-nightly\.[0-9]+)$`，资产 `Ferdium-mac-<v>-nightly.<N>-arm64.dmg`）和 `ChannelProofRegistry` 条目

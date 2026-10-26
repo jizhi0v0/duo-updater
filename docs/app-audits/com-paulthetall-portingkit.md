@@ -74,7 +74,7 @@
 
 | | 客户端会停放吗 | 本次实际停放了什么 | 我们能否直接拿来装 |
 |---|---|---|---|
-| 结论 | 会 | 没查（真机第二轮待主会话） | 能（已接，electron-updater 布局） |
+| 结论 | 会 | 没查：运行中一轮没做（上一版 6.6.3 在 macOS 27.2 上启动即崩） | 能（已接，electron-updater 布局） |
 | 证据 | electron-updater 默认 `autoDownload`，`app-update.yml` `updaterCacheDirName: portingkit-updater` → `~/Library/Caches/portingkit-updater/pending/` | — | `SelfUpdaterStash.electronUpdater` 读 `updaterCacheDirName`，zip 暂存也能给 dmg 路由用 |
 
 - 记录文件与字段: `pending/update-info.json`（`fileName`、`sha512` base64、`isAdminRightsRequired`），下载完成后才写（electron-updater `setDownloadedFile`）
@@ -91,15 +91,19 @@
 - Recipe 状态: 已有（本次新增）
 
 ## 一键安装
-- 状态: 支持（端到端待主会话）
-- 端到端: 待主会话（真机从上一版装到最新版）
+- 状态: 支持；真机第一轮通过（2026-10-26），运行中一轮没做（旧版在 macOS 27.2 上启动即崩）
+- 端到端（2026-10-26，本分支 `make cli` 的 duo）:
+  - 上一版副本: 6.6.3 arm64，来自 `porting-kit-releases-dev`（稳定仓库的 6.5.0 只有 x86_64）
+  - 第一轮（不运行）: 6.6.3 → `duo install` → 6.7.0、`TeamIdentifier=45WEPZ3433`、`codesign` 退出 0、`spctl` Notarized Developer ID（跑了两次）
+  - 第二轮（运行中）: **没做**。6.6.3 在 macOS 27.2 上启动即崩（`DiagnosticReports/Porting Kit-2026-10-26-191656.ips`: Electron Framework 里 V8 的 `EXC_BREAKPOINT` / `SIGTRAP`），起不来就没有「运行中的旧版」。6.7.0 能正常启动（20 s 后进程还在）并响应 AppleEvent 退出
+  - 终态: 6.7.0，未运行
 - 格式: dmg（`hdiutil imageinfo` 退出 0），根目录 `Porting Kit.app`
 - 嵌套: `Contents/Frameworks/Porting Kit Helper.app`、`Helper (GPU)`、`Helper (Renderer)`、`Helper (Plugin)`，都是 Electron 的子进程（`LSUIElement=true`），随主进程退出；没有 `Contents/Library/LoginItems`、`Helpers`、LaunchAgent / LaunchDaemon；`maino.js` 里没有 `setLoginItemSettings`、`SMAppService`、`LaunchAgents`、`with administrator privileges`、`.claude`
 - 签名: 4.1.6、6.5.0、6.6.3（实验仓库）、6.7.0 都是 Team `45WEPZ3433`、Notarized Developer ID，Team 没换过
 - 校验: GitHub 资产 `digest`。v6.7.0 arm64 dmg `sha256:7e33b70e326c7e5a99c531b65b678b605c44aaa107f51688777ad5dd9e5fbf5a`，下载文件 `shasum -a 256` 相同、142767508 字节等于资产大小
 - **读的是**: 人人可手动下载的 GA（`/releases/latest`；Porting Kit 默认偏好下自己的更新器读的也是这个仓库）
 - 阻塞: 无
-- 主会话真机要注意（来自包内容与 `app.asar`，均未在真机上观察）:
+- 真机前的注意点（来自包内容与 `app.asar`；2026-10-26 实测见上面的「端到端」）:
   - 上一版 6.5.0 是 x86_64，没装 Rosetta 的机器上启动它会弹系统的 Rosetta 安装框；要原生的上一版可用实验仓库的 `Porting-Kit-6.6.3-arm64.dmg`（同 id、同 Team、Notarized，channel-verify → 6.7.0）
   - 首启有启动向导（4.x/6.4 changelog：麦克风权限说明页、Antivirus 窗口、分析选项），可能触发麦克风 TCC 框（`NSMicrophoneUsageDescription` 写着用来「explicit deny」）
   - 启动后会检查更新并自动下载；从 6.5.0 起这次下载按推断会 404 失败；弹「Software Update」窗口时不要点安装。若真下完了，退出 app 会由 ShipIt 装上它暂存的版本
@@ -142,5 +146,5 @@ channel-verify 原始输出（2026-10-26）:
 ```
 
 ## 建议下一步
-1. 主会话真机两轮（上一版 → 6.7.0），结果写回「一键安装」并把 README 行改成 ✓
+1. 运行中一轮待补: 6.6.3 在 macOS 27.2 上启动即崩，要补得有一份能在这台机器上启动的旧版
 2. 实验轨（需要决定是否做引擎改动）: `ChannelBinding` 读 `~/Library/Application Support/portingkit/userData.json` 的 `experimentalFeatures`（== 1 → beta，先在真机上拨一次开关核对文件和取值），再加一个 `.beta` `GitHubReleaseRule` 读 `vitor251093/porting-kit-releases-dev`（同 pattern；该仓库 release 都没标 prerelease，规则需按 stable 方式读 `/releases/latest`）

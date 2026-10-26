@@ -74,7 +74,7 @@
 
 | | 客户端会停放吗 | 本次实际停放了什么 | 我们能否直接拿来装 |
 |---|---|---|---|
-| 结论 | 不会（macOS） | 没查（真机第二轮待主会话） | 不需要 |
+| 结论 | 不会（macOS） | 真机（2026-10-26）：3.7.18 运行中什么也没停放，自带检查只弹对话框 | 不需要 |
 | 证据 | macOS 上只有提示型检查在跑，点 Download 是交给浏览器下载；electron-updater（缓存目录名 `@joplinapp-desktop-updater`）被 `app.ts` 关掉 | — | — |
 
 ## Changelog
@@ -87,14 +87,17 @@
 
 ## 一键安装
 - 状态: **支持**
-- 端到端: 待主会话（真机：装上一版 → `duo install`）
+- 端到端（2026-10-26，本分支 `make cli` 的 duo）:
+  - 第一轮（不运行）: 3.7.18 → `duo install`（`extracting` `verifyingCodeSignature` `installing` `installed`）→ 3.7.21、`TeamIdentifier=A9BXAFS6CT`、`codesign` 退出 0、`spctl` Notarized Developer ID。资产名是大写 `.DMG`，规则照常选中
+  - 第二轮（运行中）: 3.7.18 用 `open -g` 启动（19:04:19；首启仍抢了前台），`duo install` 就地装好，提示 `Still running the old code: Joplin`。`duo restart Joplin` → `still running — likely a save prompt, left it alone`。截图: Joplin 自己的模态框「An update is available, do you want to download it now? 3.7.18 → 3.7.21」挡着退出，duo 不动它是对的；测试进程最后 `kill -TERM` 结束。Joplin 自带的检查只开对话框，没有暂存
+  - 终态: 3.7.21，未运行。副作用: 建了 `~/.config/joplin-desktop`
 - 格式: dmg（`hdiutil imageinfo`: `UDZO`），根目录 `Joplin.app` + `Applications` 软链
 - 嵌套: `Contents/Frameworks/` 下 4 个 Electron helper（`Joplin Helper.app`、`(GPU)`、`(Plugin)`、`(Renderer)`，`LSUIElement=true`），是主进程的子进程，随主程序退出；另有 `Electron Framework`、`Mantle`、`ReactiveObjC`、`Squirrel` 四个 framework。没有 `Contents/Library`（无 LoginItems / LaunchAgent / 特权 helper）；`app.asar` 里没有 `setLoginItemSettings`、`SMAppService`、`LaunchAgents` 字符串
 - 签名: 0.10.19、2.12.15、3.7.14、3.7.18、3.7.21 都是 Team `A9BXAFS6CT`，Team 没换过；2.12.15 起 Notarized
 - 校验: GitHub 资产 `digest`。v3.7.21 `Joplin-3.7.21-arm64.DMG` `sha256:7e58db4346240de4cc7b7794d603be06b1a10b981bc5c22e0792080f28e856b7`，下载文件 `shasum -a 256` 相同、208484343 字节等于资产大小；v3.7.18 `sha256:103c9bc884108bc31593060008005411a45c1b2b530eeffca4d5ad262306c6e6`、208470992 字节，同样相符
 - **读的是**: 人人可手动下载的 GA（`/releases/latest`；Joplin 自己的稳定版检查给的也是这一版）
 - 阻塞: 无
-- 主会话真机要注意（来自源码 / 包内容，均未在真机上观察）:
+- 真机前的注意点（来自源码 / 包内容；2026-10-26 实测见上面的「端到端」）:
   - 启动 5 s 后会自动检查更新；从 3.7.18 启动会弹「An update is available」对话框。不要点 Download（只是开浏览器）
   - URL scheme `joplin`（`org.joplinapp.x-callback-url`）
   - 首启在 `~/.config/joplin-desktop` 建 profile（数据库、`settings.json`、插件目录），cask 的 zap 另列 `~/Library/Application Support/Joplin`
@@ -147,4 +150,3 @@ channel-verify 原始输出（2026-10-26）:
 ## 建议下一步
 1. 预发布轨（待用户决定）：`ChannelBinding` 读 `~/.config/joplin-desktop/settings.json` 的 `autoUpdate.includePreReleases`（先在真机上开关一次，看 true / false / 缺省各写成什么），true → `.beta`；再加一条 `usePrereleases: true`、`channel: .beta` 的 `GitHubReleaseRule`，pattern 与稳定规则相同
 2. 跨小版本 changelog：`/fragile-recipe Joplin`（ChangelogRecipe，源 `https://joplinapp.org/help/about/changelog/desktop`），让 3.6 → 3.7 这类升级看到预发布里的改动
-3. 一键端到端（主会话）：真机装 3.7.18 → `duo install`，两轮

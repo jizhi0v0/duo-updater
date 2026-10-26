@@ -66,7 +66,7 @@
 
 | | 客户端会停放吗 | 本次实际停放了什么 | 我们能否直接拿来装 |
 |---|---|---|---|
-| 结论 | 会 | 没查（真机第二轮待主会话） | 能（已接，待真机确认 `local stash hit`） |
+| 结论 | 会 | 真机实测（2026-10-26）：3.5.5 运行约 30 s 内 Squirrel/ShipIt 已暂存 3.6.0；electron-updater 的 pending 目录在 `~/Library/Application Support/Caches/kap-updater/pending`，不是 `~/Library/Caches/kap-updater` | 第二轮 `duo install` 认出「它自己的更新器已暂存 3.6.0」而跳过，没有出现 `local stash hit` |
 | 证据 | electron-updater 4.6.1 `DownloadedUpdateHelper`（`app.asar` 里核过）：`cacheDirForPendingUpdate` = `<cacheDir>/pending`，`setDownloadedFile` 在下载完成后写 `update-info.json`（`fileName`、`sha512`、`isAdminRightsRequired`）；`cacheDir` = `~/Library/Caches/` + `app-update.yml` 的 `updaterCacheDirName`（`kap-updater`）。随后由本地 HTTP 代理喂给 Squirrel.Mac，ShipIt 在退出时装 | — | `SelfUpdaterStash` 的 electron-updater 布局（`~/Library/Caches/<updaterCacheDirName>/pending/update-info.json`）正是这一种，按 bundle 的 `updaterCacheDirName` 定位，不需要 per-app 配置 |
 
 - 记录文件与字段: `update-info.json`，下载完成并核过 sha512 后才写；`sha512` 是 base64 SHA-512（electron-builder 格式），描述的是 zip
@@ -81,16 +81,20 @@
 - Recipe 状态: 不需要
 
 ## 一键安装
-- 状态: **支持**
-- 端到端: 待主会话（真机从 3.5.5 装到 3.6.0）
+- 状态: **支持，真机两轮通过（2026-10-26，本分支 `make cli` 的 duo）**
+- 端到端:
+  - 第一轮（不运行）: 3.5.5 → `duo install com.wulkano.kap --yes`（`downloading` `extracting` `verifyingCodeSignature` `installing` `installed`）→ 3.6.0、`TeamIdentifier=2KEEHXF6R6`、`codesign --verify --deep --strict` 退出 0、`spctl` accepted（Notarized Developer ID）
+  - 第二轮（运行中）: 3.5.5 用 `open -g` 启动（18:43:24），约 30 s 内 Kap 自己的 Squirrel/ShipIt 已暂存 3.6.0（ShipIt 18:43:56 `Detected this as an install request`；`ShipItState` 的 `updateBundleURL` 指向 `~/Library/Caches/com.wulkano.kap.ShipIt/update.v07HMdr/Kap.app`；electron-updater 的 pending 在 `~/Library/Application Support/Caches/kap-updater/pending`，不是原先推断的 `~/Library/Caches/kap-updater`）。`duo install` → `Skipping: Kap — its own updater already has 3.6.0 staged — quit it to apply, or duo restart`（没有重复安装）。`duo restart`（非 TTY，宽限约 5 s）→ `still running — likely a save prompt, left 3.6.0 staged`：Kap 5 s 内没退出，屏幕上也没有提示框（截图）。手动发 AppleEvent 退出后 Kap 退出，ShipIt 18:49:15 `Installation completed successfully`，磁盘 3.6.0、Team 不变、`codesign` 0
+  - Kap 的退出处理不稳定（菜单栏 Electron app）: 18:50:17 起的另一个进程上，第二次 AppleEvent 退出 60 s 内被忽略，最后 `kill -TERM`；谁在 18:50:17 把 Kap 重新拉起来的没查清（CLI 已退出，日志没留）
+  - 终态: 3.6.0，未运行。副作用: `~/Library/Application Support/Kap`（Crashpad、Sentry）、`~/Library/Caches/com.wulkano.kap`（含 `.ShipIt`）、`~/Library/Application Support/Caches/kap-updater`；3.5.5 运行时系统弹过「App Update Required … component that will not open in macOS 28」通知
 - 格式: dmg（`hdiutil imageinfo`: `UDZO`），根目录 `Kap.app` + `Applications` 软链
 - 嵌套 / 常驻组件: `Contents/Frameworks/Kap Helper.app`、`Kap Helper (GPU).app`、`Kap Helper (Renderer).app`、`Kap Helper (Plugin).app`，都是 `LSUIElement=true` 的 Electron 子进程，随主进程退出；没有 `Contents/Library`（LoginItems / LaunchServices）、没有 LaunchAgent / daemon。另有 `Squirrel.framework`、`Mantle.framework`、`ReactiveObjC.framework`（Squirrel.Mac 及其依赖）
 - 签名: 0.1.0、2.2.0、3.5.5、3.6.0 都是 Team `2KEEHXF6R6`，Team 没换过
 - 校验: GitHub 资产 `digest` 为 null（2022 年上传，早于 GitHub 加 digest），规则没有摘要可用，只靠 Team 闸。`latest-mac.yml` 里的 sha512 与真实下载相符：`Kap-3.6.0-arm64.dmg`（124651995 字节）的 base64 SHA-512 = `PoOY2UerBPN0qD7FPXZUEWtYHYsfJHByTJXc6wC6TPWzx+zTbNsQdxhbO+eDD9RPS+fs72ZFSGXF7Rw5Dgp2fA==`，`Kap-3.5.5-arm64.dmg` = `m0AGWdm6hVV3+CH75CpIiccWa+z7r8zCgrkiPcaRcf4XZVtJi6bIMiuiRUqdfGg7DN4l578x2jHDJIvTojO2Qw==`，都等于 yml 里对应 dmg 的值。`GitHubReleaseRule` 不读 `latest-mac.yml`，接上它是引擎改动，本次没做
 - **读的是**: 人人可手动下载的 GA（`/releases/latest`，也是官网下载链接指向的那一版）
 - 阻塞: 无
-- 主会话真机要注意（来自源码 / 包内容，均未在真机上观察）:
-  - 启动即查更新且自动下载：从 3.5.5 启动后，它会把 `Kap-3.6.0-arm64-mac.zip`（119687412 字节）下到 `~/Library/Caches/kap-updater/pending/`，写 `update-info.json`，再交给 Squirrel（ShipIt 缓存），**退出时自己装**。第二轮要在这之后跑 `duo install`，应看到 `local stash hit`；ShipIt 退出时装的也是 3.6.0，同版本覆盖
+- 真机前的注意点（来自源码 / 包内容；2026-10-26 实测见上面的「端到端」，与此不符处以实测为准）:
+  - 启动即查更新且自动下载：从 3.5.5 启动后，它会把 `Kap-3.6.0-arm64-mac.zip`（119687412 字节）下好，再交给 Squirrel（ShipIt 缓存），**退出时自己装**。实测 pending 目录是 `~/Library/Application Support/Caches/kap-updater/pending`，第二轮 `duo install` 走的是「已暂存、跳过」分支；ShipIt 退出时装的也是 3.6.0，同版本覆盖
   - 想造「暂存了一个比 latest 旧的版本」：没有比 3.6.0 新的 release，Kap 只会暂存 3.6.0；electron-updater 4.6.1 的 `ElectronAppAdapter.appUpdateConfigPath` 在打包后的 app 里只读 `Contents/Resources/app-update.yml`（`dev-app-update.yml` 只在未打包时读，`app.asar` 里核过），Kap 也没调 `setFeedURL`，改 yml 会破签名，所以在发布包上没有现成钩子能造出更旧的暂存
   - `electron-util` 的 `enforceMacOSAppLocation()`：不在 `/Applications` 时弹框要求挪过去，装在 `/Applications` 不会弹
   - 首启 `ensureScreenCapturePermissions()` 会触发录屏权限（TCC）；`recordAudio` 开着时还要麦克风
@@ -134,6 +138,6 @@ channel-verify 原始输出（2026-10-26）:
 ```
 
 ## 建议下一步
-1. 主会话真机两轮（3.5.5 → 3.6.0），结果写回「一键安装」并把 README 行改成 ✓；第二轮确认 Kap 自己暂存的 arm64 zip 被 `SelfUpdaterStash` 读到（`local stash hit`）
+1. 核 `SelfUpdaterStash` 的 electron-updater 目录假设（`~/Library/Caches/<updaterCacheDirName>/pending`）：Kap 的 pending 实测在 `~/Library/Application Support/Caches/kap-updater/pending`，第二轮靠的是 ShipIt 暂存的判断才跳过，没有 `local stash hit`
 2. Kap Beta 副本：按「待用户决定」里的选择处理
 3. （引擎，可选）让 GitHub rule 读 release 里的 `latest-mac.yml` sha512，给没有 GitHub digest 的老 Electron release 补上摘要校验

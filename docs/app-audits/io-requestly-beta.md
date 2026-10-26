@@ -58,7 +58,7 @@
 
 | | 客户端会停放吗 | 本次实际停放了什么 | 我们能否直接拿来装 |
 |---|---|---|---|
-| 结论 | 会 | 没查（真机第二轮待主会话） | 能（通用 electron-updater 布局，已接） |
+| 结论 | 会 | 没查：运行中一轮没做（启动 Requestly 会接管系统代理，等用户点头） | 能（通用 electron-updater 布局，已接） |
 | 证据 | 26.6.29 `app.asar` `dist/main/main.js`：`autoDownload=!0`、`autoInstallOnAppQuit=!0`（库默认值，`src/lib/autoupdate/index.js` 没改）；`cacheDirForPendingUpdate` = `<cacheDir>/pending`、`update-info.json` | — | `SelfUpdaterStash.electronCacheDirectoryName` 读 `app-update.yml` 的 `updaterCacheDirName` |
 
 - 记录文件: `~/Library/Caches/requestly-updater/pending/update-info.json`（下载完成后写，见 `SelfUpdaterStash` 注释）
@@ -80,8 +80,12 @@ settled from source（`master`，与 26.6.29 `app.asar` 的 `dist/renderer/rende
 - Recipe 状态: 不需要
 
 ## 一键安装
-- 状态: 支持（Team `YQ5FZQ855D` 的副本，即 25.6.27 起）
-- 端到端: 待主会话
+- 状态: 支持（Team `YQ5FZQ855D` 的副本，即 25.6.27 起）；真机第一轮和 Team 闸通过（2026-10-26），运行中一轮没做，等用户点头
+- 端到端（2026-10-26，本分支 `make cli` 的 duo）:
+  - 第一轮（不运行）: 26.6.26 → `duo install` → 26.6.29、`TeamIdentifier=YQ5FZQ855D`、`codesign` 退出 0、`spctl` Notarized Developer ID。系统代理装前装后都是 Surge 的 `127.0.0.1:6152`，没动
+  - Team 闸: 25.6.25（Team `AFBT5Z9V94`）→ `Team Identifier mismatch: installed “AFBT5Z9V94” vs downloaded “YQ5FZQ855D”. Refusing to install.`，副本没动（仍是 25.6.25、`AFBT5Z9V94`、`codesign` 0），与设计一致
+  - 第二轮（运行中）: **没做**。Requestly 运行时会把系统 Web 代理指向自己、退出时清掉；这台 Mac 的系统代理是 Surge（`127.0.0.1:6152`），启动它可能让 Surge 掉出系统代理，要用户点头
+  - 终态: 测试副本在废纸篓里，没有装着
 - 格式: dmg（`hdiutil imageinfo` Format `UDZO`）
 - 校验: GitHub 资产 `digest` `sha256:e8eebb6db725b079306973f74a453c2b707924d8a44c641b3a531eac83758bfc`，下载文件 `shasum -a 256` 相同、155160056 字节
 - **读的是**: 人人可手动下载的 GA（`/releases/latest`）
@@ -106,4 +110,4 @@ swift test --package-path DuoUpdaterCore --filter RequestlyChannelTests
 ```
 
 ## 建议下一步
-1. 主会话真机两轮（26.6.26 → 26.6.29），并按「真机要盯」核系统代理与钥匙串
+1. 运行中一轮待用户点头（会接管系统代理，这台 Mac 的是 Surge），再按「真机要盯」核系统代理与钥匙串

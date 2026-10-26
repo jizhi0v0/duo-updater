@@ -73,7 +73,7 @@
 
 | | 客户端会停放吗 | 本次实际停放了什么 | 我们能否直接拿来装 |
 |---|---|---|---|
-| 结论 | 会 | 没查（待主会话真机第二轮） | ○ |
+| 结论 | 会 | 没查：运行中一轮没做（首次启动会改用户的 Dock，等用户点头） | ○ |
 | 证据 | `autoupdate-manager.js`：启动和每 30 分钟 `checkForUpdates()`，Electron 文档说有更新就自动下载；`update-downloaded` 后进入 `update-available` 状态等用户点安装或下次启动 | — | `SelfUpdaterStaging` 按通用的 `~/Library/Caches/<bundleID>.ShipIt/` 布局认出「已暂存」并改成提示重启；`SelfUpdaterStash` 读的布局里没有 Squirrel.Mac 原生 autoUpdater 这种（它只认 electron-updater 的 `pending/` 和 Cindy 的 hotfix） |
 
 - 记录文件与字段: 按引擎对 Squirrel.Mac 的已知布局（`SelfUpdaterDownload` 注释），应是 `~/Library/Caches/com.mailspring.mailspring.ShipIt/ShipItState.plist` + `update.<随机>/Mailspring.app`；Mailspring 上没实测（未验证）
@@ -88,8 +88,11 @@
 - Recipe 状态: 不需要（列表是正文的主体；丢掉的段落在 changelog 链接 `releases/tag/1.26.2` 里能看到）
 
 ## 一键安装
-- 状态: 支持
-- 端到端: 待主会话真机跑（从 1.26.1 装到 1.26.2）
+- 状态: 支持；真机第一轮通过（2026-10-26），运行中一轮没做，等用户点头
+- 端到端（2026-10-26，本分支 `make cli` 的 duo）:
+  - 第一轮（不运行）: 1.26.1 → `duo install` → 1.26.2、`TeamIdentifier=X9RJ36K9D4`、`codesign` 退出 0、`spctl` Notarized Developer ID。全程没启动过 Mailspring
+  - 第二轮（运行中）: **没做**。从 `/Applications` 首次启动会执行 `defaults write com.apple.dock persistent-apps -array-add …` 再 `pkill Dock`（见下面「已知问题」，读源码得出），会改用户的 Dock，要用户点头
+  - 终态: 1.26.2 已装，从未启动
 - 格式: .zip（`ditto -x -k` 后根目录就是 `Mailspring.app`）
 - 签名: 1.0.12、1.10.3、1.26.1、1.26.2（arm64 和 x86_64）都是 Team `X9RJ36K9D4`，Team 没换过；1.26.1 / 1.26.2 spctl `Notarized Developer ID`
 - 嵌套 / 常驻组件:
@@ -99,7 +102,7 @@
   - 登录项: 「开机启动」用 `app.setLoginItemSettings({openAtLogin})`，登录项就是主 app 本身（`src/system-start-service.js`，顺手删旧的 `~/Library/LaunchAgents/com.mailspring.plist`）；换包后路径不变
 - 校验: GitHub 资产 `digest`。1.26.2 `sha256:4ca6a0d995e51583c2dc4c43bdccfb4a96ed61867f0e8e18486954ba55f83dce`，与下载的包一致（180022208 字节）；1.26.1 `sha256:de4491669a6d13aab36428c21021335b1a3f0d8fa82e77a5540960f7a2dd0c1f`，`shasum -a 256` 相同（180004093 字节）
 - **读的是**: 人人可手动下载的 GA（`/releases/latest`），也是厂商更新服务器给 anonymous 请求的同一个资产
-- 自更新器会不会和我们抢: 会。运行中的副本每 30 分钟自己下载新版，下次启动（或用户点了更新）时 ShipIt 换包。引擎对 ShipIt 有通用处理（`SelfUpdaterStaging`、`StagedRelaunch` 的 `.shipIt`）。和 massCode 一样，真机第二轮要看：duo 换包后 ShipIt 会不会把它自己暂存的旧版装回去
+- 自更新器会不会和我们抢: 会。运行中的副本每 30 分钟自己下载新版，下次启动（或用户点了更新）时 ShipIt 换包。引擎对 ShipIt 有通用处理（`SelfUpdaterStaging`、`StagedRelaunch` 的 `.shipIt`）。和 massCode 一样，真机第二轮要看：duo 换包后 ShipIt 会不会把它自己暂存的旧版装回去（运行中一轮没做，这条还没验）
 - 阻塞: 无
 
 ## 已知问题
@@ -123,5 +126,5 @@ curl -sS https://updates.getmailspring.com/check/darwin/arm64/1.26.1/anonymous/s
 - `feed-discover` 1.26.2: `no Sparkle, no electron-builder update config and no MyGo feed`
 
 ## 建议下一步
-1. 主会话真机跑一键（1.26.1 → 1.26.2）两轮；先备份 `com.apple.dock` 偏好（见已知问题），第二轮记 `~/Library/Caches/com.mailspring.mailspring.ShipIt/` 的内容填「已停放整包」第 2 栏
+1. 运行中一轮待用户点头；先备份 `com.apple.dock` 偏好（见已知问题），跑的时候记 `~/Library/Caches/com.mailspring.mailspring.ShipIt/` 的内容填「已停放整包」第 2 栏
 2. 如果真机看到 ShipIt 停放了整包且 duo 没有复用，`SelfUpdaterStash` 可以加 Squirrel.Mac 原生 autoUpdater 的布局（Swift 改动，不是 recipe 字段）

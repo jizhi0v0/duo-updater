@@ -75,7 +75,7 @@
 
 | | 客户端会停放吗 | 本次实际停放了什么 | 我们能否直接拿来装 |
 |---|---|---|---|
-| 结论 | 会（仅当用户把更新策略设为自动安装） | 没查（真机轮待主会话） | 不能（○） |
+| 结论 | 会（仅当用户把更新策略设为自动安装） | 真机（2026-10-26）：按默认策略 `autoCheck` 运行 11.10.0，什么都没停放 | 不能（○） |
 | 证据 | 源码：默认 `updatePolicy` = `autoCheck`（每周检查、弹框问）；选「自动安装」时 `automaticallyDownloadsUpdates = true`，Sparkle 下载后停放、退出时装（`src/events/PreferencesEvents.swift`） | — | `SelfUpdaterStash` 只读 electron-updater 和 Cindy 的布局，没有 Sparkle 的；`SelfUpdaterStaging.sparkleStagedBundle` 会发现停放的 Sparkle 安装器（app 带 `Sparkle.framework` 即可，不看 `SUFeedURL`） |
 
 - 记录文件与字段: Sparkle 2 自身的缓存布局（`~/Library/Caches/com.lwouis.alt-tab-macos/org.sparkle-project.Sparkle/`），未在真机上看
@@ -93,7 +93,10 @@
 
 ## 一键安装
 - 状态: 支持（11.x 副本经 GitHub rule；3.0.0–10.12.0 副本经通用 Sparkle 源，EdDSA + 同一 Team；1.x–2.x 的 ad-hoc 副本被 Team 闸拒）
-- 端到端: 待主会话（真机从 11.10.0 装到 11.10.1，不运行 + 运行中两轮）
+- 端到端（2026-10-26，本分支 `make cli` 的 duo，两轮通过）:
+  - 第一轮（不运行）: 11.10.0 → `duo install`（`extracting` `verifyingCodeSignature` `installing` `installed`）→ 11.10.1、`TeamIdentifier=QXD7GW8FHY`、`codesign` 退出 0、`spctl` Notarized Developer ID
+  - 第二轮（运行中）: 11.10.0 用 `open -g` 启动（19:01:19），Sparkle 默认 `autoCheck`、没有停放任何东西。第一次 `duo install` 报 `the app scan did not finish within 20.0 seconds and was abandoned`（当时负载 160，三个 agent 在跑 `make test`）；重试 → 运行中就地装好，提示 `Still running the old code: AltTab — duo restart AltTab`。`duo restart AltTab` → `AltTab restarted`，新进程 19:02:28 起，磁盘 11.10.1，`codesign` 0
+  - 这一轮没有写 `~/Library/LaunchAgents/com.lwouis.alt-tab-macos.plist`（`~/Library/LaunchAgents` 里没有 alt-tab 的 plist）。终态: 11.10.1，未运行
 - 格式: .zip，根目录就是 `AltTab.app`
 - 嵌套 / 常驻组件: 无 helper、无 LoginItems、无 XPC 服务；`Contents/Frameworks` 里只有 `Sparkle.framework`（自带 `Updater.app`、`Autoupdate`）和 `CrashReporter.framework`
 - 校验: GitHub digest `sha256:aa353197537ccfd378dd4a7ff43030561ce7c62267dd0b31b385691b0e7f594c`，与下载的包一致（`shasum -a 256`）；上一版 11.10.0 的 Team 也是 `QXD7GW8FHY`
@@ -137,6 +140,6 @@ gh api "repos/lwouis/alt-tab-macos/contents/Info.plist?ref=v11.0.0" -q .content 
 ```
 
 ## 建议下一步
-1. 真机一键（主会话）: 11.10.0 → 11.10.1，不运行 + 运行中两轮；运行中那轮把 AltTab 的更新策略设成自动安装，看 Sparkle 停放的包和我们的换包会不会互相覆盖
+1. （可选）把 AltTab 的更新策略设成自动安装再跑运行中一轮，看 Sparkle 停放的包和我们的换包会不会互相覆盖；2026-10-26 那轮用的是默认 `autoCheck`，没造出这种情形
 2. 待用户决定: ≤10.12.0 副本的 changelog 要不要结构化。做法是加一个读 `api.github.com/repos/lwouis/alt-tab-macos/releases` 的 `ChangelogRecipe`（`mode: .json`、`structuredFormat: .gitHubReleases`，CotEditor 的写法）。它会排在 pane 的第一位，11.x 副本也会改成看它
 3. v12 发布时按「已知问题」第一条重审

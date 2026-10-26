@@ -75,7 +75,7 @@
 
 | | 客户端会停放吗 | 本次实际停放了什么 | 我们能否直接拿来装 |
 |---|---|---|---|
-| 结论 | 会 | 没查（真机第二轮由主会话做） | ○ |
+| 结论 | 会 | 真机（2026-10-26）：0.27.3 运行约 40 s，它自己的更新器没有停放任何东西（stable 的厂商 feed 返回 `[]`） | ○ |
 | 证据 | electron-updater 6.8.9 `DownloadedUpdateHelper` / `AppUpdater.getOrCreateDownloadHelper`（包内 asar 读的） | — | `SelfUpdaterStash` 的 electron-updater 读法要求包里 `app-update.yml` 写 `updaterCacheDirName`；AFFiNE 的只有 owner / repo / provider / private，于是返回 nil |
 
 - 目录: `~/Library/Caches/<app.name>/pending/`。`updaterCacheDirName` 缺省时 electron-updater 用 `app.name`（会记一条 error 日志），stable 即 `~/Library/Caches/AFFiNE/pending/`，beta / canary 是 `AFFiNE-beta` / `AFFiNE-canary`（推断自源码，未在真机上看到）
@@ -93,15 +93,19 @@
 - Recipe 状态: 不需要
 
 ## 一键安装
-- 状态: **支持（三轨）**；端到端待主会话
-- 端到端: 未跑。真机（装上一版 0.27.3 → `duo install`）由主会话做
+- 状态: **支持（三轨）**；stable 真机两轮通过（2026-10-26），beta / canary 只做过 channel-verify，没在真机上跑
+- 端到端（2026-10-26，本分支 `make cli` 的 duo，stable）:
+  - 第一轮（不运行）: 0.27.3 → `duo install` → 0.27.4、`TeamIdentifier=73YMMDVT2M`、`codesign` 退出 0、`spctl` Notarized Developer ID
+  - 第二轮（运行中）: 0.27.3 用 `open -g` 启动，约 40 s 后它自己的更新器没停放任何东西（厂商 feed 对 stable 返回 `[]`）；`duo install` 就地装好，提示 `Still running the old code`；`duo restart AFFiNE` → `restarted`，20:00:43 起的新进程是 0.27.4，`codesign` 0
+  - beta / canary 轨: 检测只有 channel-verify，没有真机运行
+  - 终态: 0.27.4，未运行。副作用: `~/Library/Application Support/AFFiNE`
 - 格式: dmg（`hdiutil imageinfo` exit 0），根目录 `AFFiNE.app` + `/Applications` 软链（forge `maker-dmg`）
 - 嵌套: `Contents/Frameworks/` 下四个标准 Electron Helper（`AFFiNE Helper.app`、`(GPU)`、`(Plugin)`、`(Renderer)`，id `pro.affine.app.helper`，`LSUIElement`）——主进程的子进程，随主程序退出；另有 `Squirrel.framework`、`Mantle.framework`、`ReactiveObjC.framework`（Squirrel.Mac 及其依赖）。没有 `Contents/Library/LoginItems`、LaunchAgent / LaunchDaemon；`dist/main.js` 里没有 `setLoginItemSettings` / `openAtLogin` / `SMAppService`
 - 签名: 0.5.2、0.6.0、0.12.3、0.23.2、0.27.3、0.27.4 及 beta / canary 都是 Team 73YMMDVT2M、Notarized Developer ID
 - 校验: GitHub 资产 `digest`。v0.27.4 arm64 dmg `sha256:4bbb5def9e377f513be0fa05f1cc29ec2738e2d5432029df3f02c91f5ffadfea`，下载的文件 `shasum -a 256` 相同、158774537 字节等于资产大小；v0.27.3 dmg 9f726ef6…、0.27.5-beta.1 dmg 79582d5f…、2026.10.25-canary.907 dmg 350e6e37… 同样由 GitHub `digest` 覆盖
 - **读的是**: 人人可手动下载的 GA（stable `/releases/latest`）；beta / canary 读本轨最新的公开 prerelease，就是厂商自己的 beta / canary 更新器会给的那一版
 - 阻塞: 无
-- 主会话真机要注意（来自源码和包内容，均未在真机上观察）:
+- 真机前的注意点（来自源码和包内容；2026-10-26 实测见上面的「端到端」）:
   - 首启会检查更新；stable 的 feed 眼下是空数组，应只在日志里报错、不弹窗；若 feed 恢复，`autoDownloadUpdate` 默认开，会把 arm64 zip 下到 `~/Library/Caches/AFFiNE/pending/`，界面出现「重启更新」，不要点（点了就是 Squirrel 自己换包）
   - 注册 URL scheme `affine`（`setAsDefaultProtocolClient`）
   - 数据在 `~/Library/Application Support/AFFiNE`（`userData`），日志 `~/Library/Logs/AFFiNE`
@@ -155,6 +159,5 @@ channel-verify 原始输出（2026-10-26，节选）:
 ```
 
 ## 建议下一步
-1. 主会话真机两轮（stable 0.27.3 → 0.27.4），结果写回「一键安装」并把 README 行改成结果
-2. 待用户决定: 是否为 0.5.x 预览版加 `BundleIDMigration`（`com.electron.affine` → `pro.affine.app`，Team 73YMMDVT2M，`lastFromVersion` 0.0.0，`firstToVersion` 0.6.0），要改引擎表，并先确认通用形状的 id 不会误收别的 app
-3. 若想用自更新器已下好的 zip: `SelfUpdaterStash` 需要在 `updaterCacheDirName` 缺省时按 `app.name`（= `CFBundleName`）回退，这是引擎改动；回退的风险写在那个属性的注释里
+1. 待用户决定: 是否为 0.5.x 预览版加 `BundleIDMigration`（`com.electron.affine` → `pro.affine.app`，Team 73YMMDVT2M，`lastFromVersion` 0.0.0，`firstToVersion` 0.6.0），要改引擎表，并先确认通用形状的 id 不会误收别的 app
+2. 若想用自更新器已下好的 zip: `SelfUpdaterStash` 需要在 `updaterCacheDirName` 缺省时按 `app.name`（= `CFBundleName`）回退，这是引擎改动；回退的风险写在那个属性的注释里

@@ -147,6 +147,16 @@ public struct BundleIDMigration: Sendable, Equatable {
         BundleIDMigration(
             from: "com.objective-see.TaskExplorer", to: "com.objective-see.taskexplorer",
             teamID: "VBG97UB4TA", lastFromVersion: "2.1.0", firstToVersion: "3.0.0"),
+        // Museeks' first two Tauri releases shipped with the bare bundle id
+        // `Museeks` (0.20.0 and 0.21.1); 0.22.0 went back to `io.museeks.app`,
+        // the id the Electron builds had. All three are Team YK6MWU3892 and
+        // notarized (measured on the real universal dmgs). A rename, not a
+        // rewrite: the Tauri app keeps its data in the same
+        // `~/Library/Application Support/museeks` folder across it.
+        // History: docs/app-audits/io-museeks-app.md#已知问题
+        BundleIDMigration(
+            from: "Museeks", to: "io.museeks.app",
+            teamID: "YK6MWU3892", lastFromVersion: "0.21.1", firstToVersion: "0.22.0"),
     ]
 
     /// Whether an installed copy signed as `from` at `version` is this rename.

@@ -34,6 +34,18 @@ struct BundleIDMigrationTests {
         #expect(Set(froms).count == froms.count, "one old id, one rename")
     }
 
+    /// Museeks 0.20.0 / 0.21.1 copies (bundle id `Museeks`) are checked as
+    /// `io.museeks.app`; 0.22.0 and later are already on the new id. Mutation:
+    /// drop the Museeks entry from `BundleIDMigration.all` → the first
+    /// expectation fails.
+    @Test func museeksBareIdCopyIsFiledUnderTheCurrentId() {
+        #expect(BundleIDMigration.recipeBundleID(
+            for: "Museeks", installedVersion: "0.21.1") == "io.museeks.app")
+        #expect(BundleIDMigration.all.first { $0.from == "Museeks" }?.isRewrite == false)
+        #expect(BundleIDMigration.recipeBundleID(
+            for: "Museeks", installedVersion: "0.22.0") == "Museeks")
+    }
+
     // MARK: - recipe lookup
 
     @Test func anOldIdBelowTheBoundIsFiledUnderTheNewId() {

@@ -28,7 +28,7 @@
   - 0.20.0: **`Museeks`**，同 Team，Notarized，`CFBundleVersion` 是时间戳 `20250101.204903`（只比 short version，不影响）
   - 0.13.1（Electron 最后一版，`museeks-arm64.dmg`）: `io.museeks.app`，Team YK6MWU3892，spctl `source=Developer ID`（没有公证票据），arm64 单架构；带四个 `io.museeks.app.helper*` 嵌套 helper（Electron 标准）
   - 源码佐证: Electron 的 `electron-builder.yml` `appId: io.museeks.app`（tag 0.13.1）；`src-tauri/tauri.conf.json` `identifier` 在 0.20.0、0.20.9、0.21.0、0.21.1 是 `Museeks`，0.22.0、0.22.3、0.23.0 起是 `io.museeks.app`
-- **旧 id `Museeks`（0.20.0–0.21.1）: 缺口，未覆盖。** 现有机制是 `BundleIDMigration`，条目应为 `BundleIDMigration(from: "Museeks", to: "io.museeks.app", teamID: "YK6MWU3892", lastFromVersion: "0.21.1", firstToVersion: "0.22.0")`（边界都读自真包）。它是改名不是重写：Tauri 的存储目录是 `dirs::config_dir()/museeks`（`src-tauri/src/plugins/config.rs` `get_storage_dir`），macOS 上即 `~/Library/Application Support/museeks`；0.20/0.21 用的是 `…/Museeks`，0.22.0 的 `libs/init.rs` 只在旧目录存在而新目录不存在时 rename，默认的大小写不敏感 APFS 上两者是同一目录，数据原样沿用（推断自源码，未在真机上跑 0.21.1→0.23.4）。`BundleIDMigration.swift` 在 `Models/`，属于本次 brief 禁止改动的引擎文件，所以没有加，交主会话决定。不加时，这些副本 channel-verify 实测 `winning source <none>`、`status unknown (no source answered)`；它们自己的 toast 仍会提示新版
+- **旧 id `Museeks`（0.20.0–0.21.1）: 经 `BundleIDMigration` 接上。** 条目 `BundleIDMigration(from: "Museeks", to: "io.museeks.app", teamID: "YK6MWU3892", lastFromVersion: "0.21.1", firstToVersion: "0.22.0")`，边界读自真包（2026-10-26 主会话复测 0.20.0、0.21.1 是 `Museeks`、0.22.0 是 `io.museeks.app`，三者同 Team、Notarized）。它是改名不是重写：Tauri 的存储目录是 `dirs::config_dir()/museeks`（`src-tauri/src/plugins/config.rs` `get_storage_dir`），macOS 上即 `~/Library/Application Support/museeks`；0.20/0.21 用的是 `…/Museeks`，0.22.0 的 `libs/init.rs` 只在旧目录存在而新目录不存在时 rename，默认的大小写不敏感 APFS 上两者是同一目录，数据原样沿用（推断自源码，真机只验了换包、没启动看曲库）。`BundleIDMigrationTests.museeksBareIdCopyIsFiledUnderTheCurrentId` 钉住这条
 - **Electron 副本（≤0.13.1，同 id 同 Team）: 检测 ✓，一键被 `OneClickGate` 挡。** 厂商 0.20.0 正文: 存储层不向后兼容（tracks、playlists、config），要从 app 里重新导入曲库，且应在装 0.20 **之前**先导出播放列表。一键原地换包后，用户手上就没有能导出播放列表的旧 app 了。所以 gate 只放行 0.20 及以上（`.installedVersion`，`^(?:0\.(?:[2-9][0-9]|[1-9][0-9]{2,})|[1-9][0-9]*)(?:\.[0-9]+)*$`）。Electron 与 Tauri 版的包标记（实测）: Electron 0.13.1 有 `Contents/Frameworks/` 和四个 `Museeks Helper*.app`，`Resources/app-update.yml`；Tauri 0.23.4 的 `Contents/` 只有 `Info.plist`、`MacOS/museeks`、`Resources/{icon.icns,icons/icon.png}`、`_CodeSignature`、`CodeResources`。两条产品线按版本号严格分界（0.13.1 → 0.20.0，中间没有 release），所以 gate 用版本号就够
 - 其他轨: 无。53 个 release 没有一个 `prerelease` 或 draft；源码里没有 beta/nightly 开关（`Config` 类型没有 channel 字段）。`.github/workflows/build.yml` 在每次 push 到 `master`、PR 和手动触发时构建，并把 universal dmg 作为 workflow artifact 上传（`actions/upload-artifact`，要登录 GitHub 才能下、有保留期）；这不是发布的轨，版本号就是 `tauri.conf.json` 里的当期版本，装了这种构建的人会被当成那个版本（没有实测这种 artifact 的签名）。tag 里有远古的 `0.4.0-rc1`、`0.4.0-rc2`，没有 release，`versionPattern` 锚定不读它们
 - 版本范围: 53 个 release 的 tag 全是 `数字(.数字)+`，`versionPattern` 都读得出（含两段式）；下个大版本 `1.0.0` 也读得出。0.20.0 起每个 release 恰好一个 `Museeks_<version>_universal.dmg`。Electron 时代的 mac 资产名是 `museeks-arm64.dmg` / `museeks-x64.dmg`（0.13.x）、`museeks.dmg`（0.11.5 等），都不匹配安装模式，也不需要匹配（只会装最新版）。0.1.0 是最老的 release，没有 mac 资产
@@ -75,7 +75,7 @@
 - Recipe 状态: 不需要
 
 ## 一键安装
-- 状态: **支持（Tauri 副本 0.20 及以上）**；Electron 副本（≤0.13.1）被 `OneClickGate` 挡，只检测；旧 id `Museeks` 的副本目前连检测都没有（见「覆盖清单」）
+- 状态: **支持（Tauri 副本 0.20 及以上）**；Electron 副本（≤0.13.1）被 `OneClickGate` 挡，只检测；旧 id `Museeks` 的副本经 `BundleIDMigration` 检测和一键（真机 0.21.1 → 0.23.4 ✓，见下）
 - 端到端: 待主会话（真机从 0.23.3 装到 0.23.4）
 - 格式: dmg（`hdiutil imageinfo`: `UDZO`），根目录 `Museeks.app` + `Applications` 软链 + `.VolumeIcon.icns`
 - 嵌套 / 常驻组件: 无。0.23.4 的 `Contents/` 下只有 `Info.plist`、`MacOS/museeks`、`Resources/icon.icns`、`Resources/icons/icon.png`、`_CodeSignature`、`CodeResources`；没有 Frameworks、Helpers、LoginItems、LaunchAgent。可执行文件 strings 里 `SMAppService`、`LaunchAgents`、`LoginItems`、`/.claude`、`/.agents`、`/.codex` 计数都是 0
@@ -90,7 +90,7 @@
   - `NSCameraUsageDescription` / `NSMicrophoneUsageDescription` 声明了（WebRTC 模板），正常使用不应触发
 
 ## 已知问题
-- 旧 id `Museeks`（0.20.0–0.21.1）的副本没有检测，需要在 `BundleIDMigration.all` 加一条（见「覆盖清单」），引擎文件，本次没改
+- 旧 id `Museeks`（0.20.0–0.21.1）的副本换包后曲库能否沿用，只读了源码、没在真机上启动验证
 - Electron 副本检测会提示 0.23.4，但一键被挡；理由是厂商写明的数据不兼容，不是签名问题
 
 ## 如何复验
@@ -119,4 +119,4 @@ channel-verify 原始输出（2026-10-26）:
 
 ## 建议下一步
 1. 主会话真机（0.23.3 → 0.23.4），结果写回「一键安装」并把 README 行改成 ✓
-2. 决定是否在 `BundleIDMigration.all` 加 `Museeks` → `io.museeks.app`（Team YK6MWU3892，0.21.1 / 0.22.0），再在真机上从 0.21.1 跑一次，确认曲库沿用
+2. 在真机上从 0.21.1 启动一次再更新，确认曲库在换包后仍在（换包本身已验证）

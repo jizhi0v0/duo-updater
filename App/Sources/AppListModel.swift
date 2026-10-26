@@ -9966,9 +9966,11 @@ final class AppListModel {
                 let deferral = CheckSchedule.tickDeferral(path: path, canRefresh: self.canRefresh)
                 if deferral == nil {
                     Log.app.info("scheduler: tick — running background check")
-                    // Checks are running again: the "suspended" banner, if this run
-                    // posted one, is no longer true.
-                    if self.announcedCheckDeferral { UpdateNotifier.clearChecksSuspended() }
+                    // Checks are running again: a "suspended" banner is no longer
+                    // true. Not only this run's — one posted before a quit or a
+                    // restart would otherwise outlive the run that could withdraw it.
+                    // Withdrawing a banner that is not there is a no-op.
+                    UpdateNotifier.clearChecksSuspended()
                     await self.backgroundRefresh()
                     isFirstCheck = false
                 } else {

@@ -1,5 +1,6 @@
 import Foundation
 import UserNotifications
+import DuoUpdaterCore
 
 /// Best-effort macOS user notifications for finished updates.
 ///
@@ -106,6 +107,37 @@ enum UpdateNotifier {
              identifier: "quitconfirm:\(rowID)",
              userInfo: [NotificationController.ID.appIDKey: rowID])
     }
+
+    /// The first scheduled check this run that the network deferred
+    /// (`CheckSchedule.announcesDeferral`): says once that background checks are
+    /// held back and why, with Check Now. Without it a user who never opens the
+    /// menu only finds out from an "N ago" that keeps growing.
+    /// Shorter than the paused mark's tip: the title already says what happened,
+    /// so the body is the reason and the way around it.
+    static func checksSuspended(_ reason: NetworkPathState.Restriction) {
+        let body: String
+        switch reason {
+        case .expensive:
+            body = String(localized: "Saving data on this Personal Hotspot or cellular connection. Checking by hand still works.")
+        case .lowDataMode:
+            body = String(localized: "This network is in Low Data Mode. Checking by hand still works.")
+        case .offline:
+            return  // never announced (`CheckSchedule.announcesDeferral`)
+        }
+        post(title: String(localized: "Automatic update checks suspended"), body: body,
+             categoryID: NotificationController.ID.checksSuspendedCategory,
+             identifier: checksSuspendedID)
+    }
+
+    /// Withdraw that banner once a scheduled check runs again, so Notification
+    /// Center does not keep saying checks are suspended after they have resumed.
+    static func clearChecksSuspended() {
+        let center = UNUserNotificationCenter.current()
+        center.removePendingNotificationRequests(withIdentifiers: [checksSuspendedID])
+        center.removeDeliveredNotifications(withIdentifiers: [checksSuspendedID])
+    }
+
+    private static let checksSuspendedID = "checks-suspended"
 
     /// Drop the "Relaunch to finish installing" banner once the prompt is answered
     /// (either way), so a delivered copy can't sit in Notification Center offering

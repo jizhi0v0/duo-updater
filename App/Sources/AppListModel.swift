@@ -1582,6 +1582,10 @@ final class AppListModel {
 
     /// Background auto-check loop; nil when the frequency is "manual".
     private var scheduler: Task<Void, Never>?
+    /// Whether this run has already posted the "automatic update checks
+    /// suspended" notification (`CheckSchedule.announcesDeferral`). In memory
+    /// only: once per app run.
+    @ObservationIgnored private var announcedCheckDeferral = false
 
     /// Held while the auto-check loop is armed so macOS App Nap can't suspend it.
     /// Without this, a menu-bar (accessory) app with no open window gets napped when
@@ -9958,15 +9962,28 @@ final class AppListModel {
                 // returns the next tick (≤60s away) runs the check immediately.
                 // A path in Low Data Mode or an expensive one (a hotspot) defers
                 // the same way (#898): this check is discretionary work.
-                let deferral = CheckSchedule.tickDeferral(
-                    path: NetworkMonitor.shared.path, canRefresh: self.canRefresh)
+                let path = NetworkMonitor.shared.path
+                let deferral = CheckSchedule.tickDeferral(path: path, canRefresh: self.canRefresh)
                 if deferral == nil {
                     Log.app.info("scheduler: tick — running background check")
+                    // Checks are running again: the "suspended" banner, if this run
+                    // posted one, is no longer true.
+                    if self.announcedCheckDeferral { UpdateNotifier.clearChecksSuspended() }
                     await self.backgroundRefresh()
                     isFirstCheck = false
                 } else {
                     let why = deferral ?? "busy"
                     Log.app.info("scheduler: tick deferred (\(why, privacy: .public)) — retrying in 60s")
+                    // Said once per run, at the first tick that was due and did not
+                    // run — the user's own interval is the debounce. Same switch as
+                    // the updates banner: it is a background notice they did not ask for.
+                    if CheckSchedule.announcesDeferral(
+                        of: path.restriction, alreadyAnnounced: self.announcedCheckDeferral),
+                       self.prefs.notifyOnUpdates, let reason = path.restriction {
+                        self.announcedCheckDeferral = true
+                        Log.app.info("scheduler: notified that checks are suspended (\(why, privacy: .public))")
+                        UpdateNotifier.checksSuspended(reason)
+                    }
                     // The only back-off on this path, and the condition that reaches it
                     // is decided elsewhere: `CheckSchedule.nextWait` returns 0 for a cold
                     // launch with an empty list, and a deferred tick leaves both

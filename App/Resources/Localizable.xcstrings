@@ -7510,6 +7510,70 @@
         }
       }
     },
+    "Automatic update checks suspended": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Automatische Update-Prüfungen ausgesetzt"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Comprobaciones automáticas de actualizaciones suspendidas"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vérifications automatiques des mises à jour suspendues"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Controlli automatici degli aggiornamenti sospesi"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アップデートの自動確認を停止中"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verificações automáticas de atualizações suspensas"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Автоматические проверки обновлений приостановлены"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Otomatik güncelleme denetimleri askıya alındı"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已暂停自动检查更新"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已暫停自動檢查更新"
+          }
+        }
+      }
+    },
     "Check Now": {
       "localizations": {
         "de": {
@@ -15808,6 +15872,70 @@
         }
       }
     },
+    "Saving data on this Personal Hotspot or cellular connection. Checking by hand still works.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spart Daten auf diesem persönlichen Hotspot bzw. dieser Mobilfunkverbindung. Manuell prüfen geht weiterhin."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Para ahorrar datos en este punto de acceso personal o conexión móvil. Comprobar a mano sigue funcionando."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pour économiser les données de ce partage de connexion ou réseau cellulaire. La vérification manuelle reste possible."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Per risparmiare i dati di questo hotspot personale o rete cellulare. Il controllo manuale funziona comunque."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "インターネット共有またはモバイル通信のデータ通信量を節約しています。手動での確認はいつでもできます。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Para poupar os dados deste Acesso Pessoal ou rede celular. Verificar manualmente continua funcionando."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Чтобы не расходовать трафик режима модема или сотовой сети. Проверить вручную можно и сейчас."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kişisel Erişim Noktası veya hücresel bağlantının verisini harcamamak için. Elle denetlemek yine de mümkün."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "为节省个人热点或蜂窝网络的流量。手动检查仍然可用。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "為節省個人熱點或行動網路的數據用量。手動檢查仍可使用。"
+          }
+        }
+      }
+    },
     "Ships %@.": {
       "comment": "Detail line: which UI technologies the app's bundle ships beside its runtime, e.g. “Qt Widgets, Qt Quick and CEF”. The names stay Latin.",
       "extractionState": "manual",
@@ -17047,6 +17175,70 @@
           "stringUnit": {
             "state": "translated",
             "value": "這份 %1$@ 是 %2$@ 版。透過 Homebrew 更新到 %3$@ 會用穩定版 cask 覆蓋它，你會離開 %4$@ 頻道。有些 app 每個頻道的設定是分開存的。"
+          }
+        }
+      }
+    },
+    "This network is in Low Data Mode. Checking by hand still works.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dieses Netzwerk ist im Datensparmodus. Manuell prüfen geht weiterhin."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta red está en modo de datos reducidos. Comprobar a mano sigue funcionando."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ce réseau est en mode Faibles données. La vérification manuelle reste possible."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Per questa rete è attivo Consumo limitato di dati. Il controllo manuale funziona comunque."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このネットワークは省データモードです。手動での確認はいつでもできます。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta rede está no Modo de economia de dados. Verificar manualmente continua funcionando."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "В этой сети включена «Экономия данных». Проверить вручную можно и сейчас."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu ağ Düşük veri modunda. Elle denetlemek yine de mümkün."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "当前网络处于低数据模式。手动检查仍然可用。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "目前網路處於低數據模式。手動檢查仍可使用。"
           }
         }
       }

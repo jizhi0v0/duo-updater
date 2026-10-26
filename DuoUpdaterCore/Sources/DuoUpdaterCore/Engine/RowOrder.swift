@@ -196,4 +196,16 @@ extension CheckSchedule {
     public static func pause(path: NetworkPathState, scheduledChecksOn: Bool) -> NetworkPathState.Restriction? {
         scheduledChecksOn ? path.restriction : nil
     }
+
+    /// Whether a scheduled tick the path just deferred is the one to tell the user
+    /// about with a notification: once per app run, at the first tick that was
+    /// actually due. Waiting for a due tick is the debounce — a hotspot that comes
+    /// and goes between ticks never costs the user anything, so it is not worth a
+    /// banner. Offline never qualifies: every sleep goes through it.
+    public static func announcesDeferral(
+        of restriction: NetworkPathState.Restriction?, alreadyAnnounced: Bool
+    ) -> Bool {
+        guard !alreadyAnnounced, let restriction else { return false }
+        return restriction != .offline
+    }
 }

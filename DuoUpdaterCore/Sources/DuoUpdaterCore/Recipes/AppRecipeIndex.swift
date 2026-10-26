@@ -345,6 +345,7 @@ public enum AppRecipeIndex {
         org_zaproxy_zap_ZAP.set,
         org_zotero_zotero.set,
         pl_maketheweb_cleanshotx.set,
+        pro_affine_app.set,
         pro_betterdisplay_BetterDisplay.set,
         rocks_spotifast_Spotifast.set,
         ru_starmel_OpenSuperWhisper.set,

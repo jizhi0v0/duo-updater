@@ -1,0 +1,90 @@
+// Generated from AppRecipeIndex.all by RecipeGoldenTests. Do not edit by hand.
+// Regenerate: DUO_RECORD_RECIPE_GOLDENS=1 swift test --package-path DuoUpdaterCore --filter RecipeGoldenTests
+
+family = "pro-affine-app"
+
+probes = Array(count: 0)
+
+changelogs = Array(count: 0)
+
+githubRules = Array(count: 3)
+githubRules[0] = struct GitHubReleaseRule
+githubRules[0].bundleID = "pro.affine.app"
+githubRules[0].owner = "toeverything"
+githubRules[0].repo = "AFFiNE"
+githubRules[0].usePrereleases = false
+githubRules[0].listPageSize = 20
+githubRules[0].versionPattern = "^v([0-9]+(?:\\.[0-9]+)+)$"
+githubRules[0].candidateScope = .newest
+githubRules[0].probesNewestFirst = true
+githubRules[0].installedTagPrefix = nil
+githubRules[0].channel = .stable
+githubRules[0].installAssetPattern? = "^affine-[0-9]+(?:\\.[0-9]+)+-stable-macos-arm64\\.dmg$"
+githubRules[0].installerKind? = .dmg
+githubRules[0].installTrust = .developerID
+githubRules[0].variant = nil
+githubRules[0].architectureRequirement = nil
+githubRules[0].tagRefPrefix = nil
+githubRules[0].installedExecutableMarker = nil
+githubRules[1] = struct GitHubReleaseRule
+githubRules[1].bundleID = "pro.affine.beta"
+githubRules[1].owner = "toeverything"
+githubRules[1].repo = "AFFiNE"
+githubRules[1].usePrereleases = true
+githubRules[1].listPageSize = 50
+githubRules[1].versionPattern = "^v?([0-9]+(?:\\.[0-9]+)+-beta\\.[0-9]+)$"
+githubRules[1].candidateScope = .newest
+githubRules[1].probesNewestFirst = true
+githubRules[1].installedTagPrefix = nil
+githubRules[1].channel = .beta
+githubRules[1].installAssetPattern? = "^affine-[0-9]+(?:\\.[0-9]+)+-beta\\.[0-9]+-beta-macos-arm64\\.dmg$"
+githubRules[1].installerKind? = .dmg
+githubRules[1].installTrust = .developerID
+githubRules[1].variant = nil
+githubRules[1].architectureRequirement = nil
+githubRules[1].tagRefPrefix = nil
+githubRules[1].installedExecutableMarker = nil
+githubRules[2] = struct GitHubReleaseRule
+githubRules[2].bundleID = "pro.affine.canary"
+githubRules[2].owner = "toeverything"
+githubRules[2].repo = "AFFiNE"
+githubRules[2].usePrereleases = true
+githubRules[2].listPageSize = 20
+githubRules[2].versionPattern = "^v?([0-9]+(?:\\.[0-9]+)+-canary\\.[0-9]+)$"
+githubRules[2].candidateScope = .newest
+githubRules[2].probesNewestFirst = true
+githubRules[2].installedTagPrefix = nil
+githubRules[2].channel = .canary
+githubRules[2].installAssetPattern? = "^affine-[0-9]+(?:\\.[0-9]+)+-canary\\.[0-9]+-canary-macos-arm64\\.dmg$"
+githubRules[2].installerKind? = .dmg
+githubRules[2].installTrust = .developerID
+githubRules[2].variant = nil
+githubRules[2].architectureRequirement = nil
+githubRules[2].tagRefPrefix = nil
+githubRules[2].installedExecutableMarker = nil
+
+appStoreCases = Array(count: 0)
+
+channelProofs = Dictionary(count: 0)
+
+githubChannelProofs = Dictionary(count: 2)
+githubChannelProofs[ChannelProofKey(bundleID: "pro.affine.beta", channel: .beta)] = .artifact(_:)
+githubChannelProofs[ChannelProofKey(bundleID: "pro.affine.beta", channel: .beta)].0 = "/download/v?[0-9.]+-beta\\.[0-9]+/affine-[0-9.]+-beta\\.[0-9]+-beta-macos-arm64\\.dmg$"
+githubChannelProofs[ChannelProofKey(bundleID: "pro.affine.canary", channel: .canary)] = .artifact(_:)
+githubChannelProofs[ChannelProofKey(bundleID: "pro.affine.canary", channel: .canary)].0 = "/download/v?[0-9.]+-canary\\.[0-9]+/affine-[0-9.]+-canary\\.[0-9]+-canary-macos-arm64\\.dmg$"
+
+bindingProofs = Dictionary(count: 0)
+
+sparkleFeeds = Dictionary(count: 0)
+
+supersededFeeds = Dictionary(count: 0)
+
+loginWalls = Dictionary(count: 0)
+
+changelogPages = Dictionary(count: 0)
+
+oneClickGates = Array(count: 0)
+
+loginItemAgentRestarts = Dictionary(count: 0)
+
+sunsets = Dictionary(count: 0)

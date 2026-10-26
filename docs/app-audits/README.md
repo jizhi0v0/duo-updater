@@ -121,6 +121,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**UTM**](com-utmapp-UTM.md) · `com.utmapp.UTM` — G(stable+beta，一键) C + MAS/TestFlight 通用托管 · 包内无 channel 标记；用观测版本的 exact GitHub release `prerelease` 位判轨（判"这份拷贝是什么"），候选则按 `max(装机大版本线, 最新正式版)` 取 —— **UTM 的预览是每条线的前半段、会转正，不是平行轨** · 双渠道 changelog 隔离，beta 侧含转正条目 · 真实 v5.0.5 DMG 签名/公证验证 ✓ · 2026-09-03
 - [x] [**Mac Mouse Fix**](com-nuebling-mac-mouse-fix.md) · `com.nuebling.mac-mouse-fix` — B(stable/beta) · 2 channels, shared ID + feed-swap ChannelBinding · **stable 端到端本机验证 ✓**（`channel-verify --check` 走生产 AppScanner→ChannelBinding→Sparkle，实时命中 stable feed，判定 up to date）· beta 侧 resolver 映射与真实 preview bundle 已核对，未在本机翻转该 app 自身的偏好文件 · 2026-09-12
 - [x] [**HyperFrames**](dev-hyperframes-desktop.md) · `dev.hyperframes.desktop` — P(stable/canary) C(stable/canary) · 2 channels, independent bundle IDs · 版本只在 `HFBuildLabel`（两个版本键恒为 `0.1.0`），vendor 命名空间比较 · **两 channel 一键 zip + sha256 ✓**（真实拷贝 b270→b271、Canary b271→b272）· npm CLI 走通用 npm provider · 2026-10-06
+- [ ] [**AFFiNE**](pro-affine-app.md) · `pro.affine.app` — G(stable+beta+canary，三轨一键 arm64 dmg) · 3 channels, independent bundle IDs（beta=`pro.affine.beta`、canary=`pro.affine.canary`）· 真包 0.27.3/0.27.4、0.27.5-beta.0/.1、2026.10.23/25 canary channel-verify ✓ · 一键端到端待主会话 · changelog: stable 结构化（分节保留），beta/canary 厂商不写说明 · 2026-10-26
 
 ## Microsoft Office family
 

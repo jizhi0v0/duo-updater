@@ -244,6 +244,7 @@ public enum AppRecipeIndex {
         company_thebrowser_Browser.set,
         dev_chekusu_yomado.set,
         dev_commandline_waveterm.set,
+        dev_fka_textream.set,
         dev_hyperframes_desktop.set,
         dev_kdrag0n_MacVirt.set,
         dev_kiro_desktop.set,

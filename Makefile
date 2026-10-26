@@ -67,6 +67,7 @@ test-scripts: check-python
 	$(PYTHON) scripts/test_pkg_host_architectures.py
 	$(PYTHON) scripts/test_homebrew_tap.py
 	$(PYTHON) scripts/test_sunset_sweep.py
+	$(PYTHON) scripts/test_trails_review.py
 	$(PYTHON) scripts/test_site_floor.py
 	$(PYTHON) scripts/test_ci_route.py
 	$(PYTHON) scripts/test_recipe_autofix_check.py

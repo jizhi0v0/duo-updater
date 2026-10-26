@@ -34,13 +34,15 @@ struct BundleIDMigrationTests {
         #expect(Set(froms).count == froms.count, "one old id, one rename")
     }
 
-    /// AFFiNE's 0.5.2 preview copy (`com.electron.affine`, version 0.0.0) is
+    /// AFFiNE's preview copies (`com.electron.affine`: 0.5.2 says 0.0.0, 0.5.3 says 0.5.3) are
     /// checked as `pro.affine.app` and, being a rewrite, confirmed before the
     /// swap. Mutation: drop the AFFiNE entry from `BundleIDMigration.all` → the
     /// first expectation fails.
     @Test func affinePreviewCopyIsFiledUnderTheStableApp() {
         #expect(BundleIDMigration.recipeBundleID(
             for: "com.electron.affine", installedVersion: "0.0.0") == "pro.affine.app")
+        #expect(BundleIDMigration.recipeBundleID(
+            for: "com.electron.affine", installedVersion: "0.5.3") == "pro.affine.app")
         #expect(BundleIDMigration.all.first { $0.from == "com.electron.affine" }?.isRewrite == true)
         #expect(BundleIDMigration.recipeBundleID(
             for: "com.electron.affine", installedVersion: "0.6.0") == "com.electron.affine")

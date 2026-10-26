@@ -334,6 +334,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [ ] [**Kap**](com-wulkano-kap.md) · `com.wulkano.kap` — G (one-click arm64 dmg) · electron-updater（provider github，启动+每小时查、自动下载、退出即装） · 真包 3.5.5/3.6.0 channel-verify ✓（3.5.5 → 3.6.0、3.6.0 up to date） · **发版停滞**（最后 release 2022-10-27） · `com.wulkano.kap-beta`（Kap Beta，2019 年停发）未接 · 一键端到端待主会话 · changelog 结构化 ✓（1 条，正文无标题） · 2026-10-26
 - [ ] [**AltTab**](com-lwouis-alt-tab-macos.md) · `com.lwouis.alt-tab-macos` — G (one-click universal zip) · Sparkle 2，11.0.0 起 feed 在代码里设（无 `SUFeedURL`），≤10.12.0 的副本仍声明 feed、由通用 Sparkle 源回答 · 不加 `sparkleFeeds` 补位：appcast 与 GitHub 同版本同资产，补位只会把 changelog 变成网页 · 真包 11.10.0/11.10.1 channel-verify ✓（11.10.0 → 11.10.1，11.10.1 up to date） · changelog 结构化 ✓（11.x）；≤10.12.0 是网页 · 一键端到端未跑 · 2026-10-26
 - [ ] [**Joplin**](net-cozic-joplin-desktop.md) · `net.cozic.joplin-desktop` — G (one-click arm64 dmg) · 自带检查只提示、开浏览器下载（electron-updater 在 Mac 上被它自己关掉） · 真包 3.7.18/3.7.21 channel-verify ✓（3.7.18 → 3.7.21、3.7.21 up to date） · **预发布同 id 未接**（设置 `autoUpdate.includePreReleases`，需 ChannelBinding） · 一键端到端待主会话 · changelog 结构化 ✓（正文无标题；跨小版本只见最新稳定版正文） · 2026-10-26
+- [ ] [**Mockoon**](com-mockoon-app.md) · `com.mockoon.app` — G (one-click universal dmg) · 自研更新检查，macOS 上只打开下载页（`app-update.yml` 没人用） · monorepo，只有桌面 app 建 GitHub release · 真包 9.8.0/9.9.0 channel-verify ✓（9.8.0 → 9.9.0、9.9.0 up to date） · 一键端到端待主会话 · **changelog 不结构化**（release 正文只有一条官网链接；官网有逐版 Markdown，待 ChangelogRecipe） · 2026-10-26
 
 ## Changelog-only (detection via Sparkle or Homebrew)
 

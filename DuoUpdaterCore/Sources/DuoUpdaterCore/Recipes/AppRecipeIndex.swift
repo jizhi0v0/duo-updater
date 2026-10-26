@@ -339,7 +339,6 @@ public enum AppRecipeIndex {
         org_xquartz_X11.set,
         org_zaproxy_zap_ZAP.set,
         org_zotero_zotero.set,
-        phpstudy_xpfme_com.set,
         pl_maketheweb_cleanshotx.set,
         pro_betterdisplay_BetterDisplay.set,
         rocks_spotifast_Spotifast.set,

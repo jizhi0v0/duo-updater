@@ -70,8 +70,8 @@
 
 | | 客户端会停放吗 | 本次实际停放了什么 | 我们能否直接拿来装 |
 |---|---|---|---|
-| 结论 | 只在用户点了「Yes!」之后（`autoDownload = false`） | 2026-10-26 运行中一轮没有记录到停放（那一轮没点过「Yes!」） | 引擎通用的 `SelfUpdaterStash` `.electronUpdater` 布局按 `app-update.yml` 的 `updaterCacheDirName` 读 `~/Library/Caches/@lunataskelectron-updater/pending/update-info.json`，不需要 recipe 写什么 |
-| 证据 | `AutoUpdater.js`（2.1.29 asar） | — | `Sources/SelfUpdaterStash.swift:81`、`Sources/ElectronManifest.swift:41` |
+| 结论 | 只在用户点了「Yes!」之后（`autoDownload = false`） | 2026-10-26 运行中一轮没有记录到停放（那一轮没点过「Yes!」） | 不能：2.1.29 的 `app.asar` 里 electron-updater 的 `getAppCacheDir` 是 `homedir, "Library", "Application Support", "Caches"`（6.0.0 以前的路径，2026-10-26 实测），所以下载停在 `~/Library/Application Support/Caches/@lunataskelectron-updater/pending/`；`SelfUpdaterStash` 只在 `~/Library/Caches/<updaterCacheDirName>/` 下找（Gate 3），看不到 |
+| 证据 | `AutoUpdater.js`（2.1.29 asar） | — | `Sources/SelfUpdaterStash.swift` Gate 3；electron-builder `AppAdapter.ts` 在 `electron-updater@5.3.0`（旧路径）与 `@6.0.0`（`~/Library/Caches`）两个 tag |
 
 ## Changelog
 - 来源: GitHub Release body，经 `GitHubReleasesSource`

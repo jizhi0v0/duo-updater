@@ -75,8 +75,8 @@
 
 | | 客户端会停放吗 | 本次实际停放了什么 | 我们能否直接拿来装 |
 |---|---|---|---|
-| 结论 | 会（同大版本、`autoUpdate` 默认开） | 没查（运行中一轮没做，见一键安装） | ○（`SelfUpdaterStash` 有 electron-updater 布局，没对 Rambox 端到端验） |
-| 证据 | 2.7.2 asar: `autoDownload=!1` 后由自己的代码在 `willDownload` 时调 `downloadUpdate()`；设置 `autoUpdate` 默认 `!0`；electron-updater `autoInstallOnAppQuit=!0` | — | `SelfUpdaterStash` 按 `app-update.yml` 的 `updaterCacheDirName` 读 `~/Library/Caches/rambox-updater/pending/` |
+| 结论 | 会（同大版本、`autoUpdate` 默认开） | 没查（运行中一轮没做，见一键安装） | 不能：2.7.2 的 `app.asar` 里 electron-updater 用的是 6.0.0 以前的 `~/Library/Application Support/Caches`（实测 `e.join(n,"Library","Application Support","Caches")`），`SelfUpdaterStash` 只看 `~/Library/Caches/`，找不到 |
+| 证据 | 2.7.2 asar: `autoDownload=!1` 后由自己的代码在 `willDownload` 时调 `downloadUpdate()`；设置 `autoUpdate` 默认 `!0`；electron-updater `autoInstallOnAppQuit=!0` | — | 停放位置应是 `~/Library/Application Support/Caches/rambox-updater/pending/`；`SelfUpdaterStash.swift` Gate 3 只读 `~/Library/Caches/<updaterCacheDirName>/` |
 
 - 记录文件与字段: electron-updater 的 `pending/update-info.json`（未对 Rambox 实测）
 - 容器: electron-updater 在 Mac 上下 `-mac.zip`，包根是 `Rambox.app`

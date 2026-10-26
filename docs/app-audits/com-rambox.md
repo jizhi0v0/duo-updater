@@ -75,7 +75,7 @@
 
 | | 客户端会停放吗 | 本次实际停放了什么 | 我们能否直接拿来装 |
 |---|---|---|---|
-| 结论 | 会（同大版本、`autoUpdate` 默认开） | 没查（运行中一轮没做，见一键安装） | 不能：2.7.2 的 `app.asar` 里 electron-updater 用的是 6.0.0 以前的 `~/Library/Application Support/Caches`（实测 `e.join(n,"Library","Application Support","Caches")`），`SelfUpdaterStash` 只看 `~/Library/Caches/`，找不到 |
+| 结论 | 会（同大版本、`autoUpdate` 默认开） | 2026-10-26 运行中一轮实测: 启动约 90 s 内下好 `Rambox-2.7.2-mac.zip` + `update-info.json`，放在 `~/Library/Application Support/Caches/rambox-updater/pending/`（6.0 以前的 electron-updater 路径），并由 ShipIt 暂存到 `~/Library/Caches/com.rambox.ShipIt/update.*/Rambox.app` | 不能：2.7.2 的 `app.asar` 里 electron-updater 用的是 6.0.0 以前的 `~/Library/Application Support/Caches`（实测 `e.join(n,"Library","Application Support","Caches")`），`SelfUpdaterStash` 只看 `~/Library/Caches/`，找不到 |
 | 证据 | 2.7.2 asar: `autoDownload=!1` 后由自己的代码在 `willDownload` 时调 `downloadUpdate()`；设置 `autoUpdate` 默认 `!0`；electron-updater `autoInstallOnAppQuit=!0` | — | 停放位置应是 `~/Library/Application Support/Caches/rambox-updater/pending/`；`SelfUpdaterStash.swift` Gate 3 只读 `~/Library/Caches/<updaterCacheDirName>/` |
 
 - 记录文件与字段: electron-updater 的 `pending/update-info.json`（未对 Rambox 实测）
@@ -94,7 +94,8 @@
 - 端到端（2026-10-26，本分支 `make cli` 的 duo；**只做了第一轮**）:
   - 第一轮（不运行）: 2.7.1 → `duo install` → 2.7.2，Team `7F292FPD69` ✓（2.x → 2.x 的门放行）
   - 3.1.2 副本: 读到 `latest 2.7.2`，0 个更新，`duo install` 报 `Nothing to install` ✓（没有降级）。2 → 3 的门本身没法在真机上走：GitHub 没有给出 3.x 的报价，只有 `OneClickGateTests` 覆盖
-  - 第二轮（运行中）: **没做**。首次启动会通过 System Events 加登录项（弹自动化授权框）；待 owner 决定
+  - 第二轮（运行中，用户在场）: 2.7.1 运行中，它自己的更新器下载并经 ShipIt 暂存了 2.7.2 → `duo install` → "Skipping: Rambox — its own updater already has 2.7.2 staged" ✓ → `duo restart Rambox` → "quit — its own updater applied 2.7.2"，重启后跑 2.7.2、Team 7F292FPD69、`codesign` 0 ✓
+  - 登录项: 首次启动后登录项没变；`duo restart` 重新启动后多了一个「Rambox」登录项（`openAuto` 默认开），屏幕上没看到自动化授权框。测试后已退出 Rambox 并删掉这条登录项，登录项恢复到测试前
   - 终态: 测试副本在废纸篓
 - 格式: .dmg（`hdiutil imageinfo` 退出 0），根目录 `Rambox.app`
 - 嵌套 / 常驻组件（2.7.2 包；3.1.2 包同样没有 `Contents/Library`）: 只有 `Contents/Frameworks` 下四个 Electron helper（`Rambox Helper.app`、`(GPU)`、`(Plugin)`、`(Renderer)`）和 `Squirrel.framework`、`Mantle.framework`、`ReactiveObjC.framework`；没有 `Contents/Library`（无 LoginItems / LaunchServices / SystemExtensions）
@@ -107,7 +108,7 @@
   - 测试 `OneClickGateTests.ramboxOneClickNeverCrossesFromTwoToThree`；变异检查: 3.x 门的 requirement 放成 `.` → 12 条失败，2.x 门放成 `.` → 3 条失败，恢复后通过
 - **读的是**: 人人可手动下载的 GA（`/releases/latest`，即厂商自己的下载默认值 2.7.2）
 
-### 启动副作用（读包，未启动；第二轮没做，所以仍未在真机上观察）
+### 启动副作用（读包；登录项一条已在 2026-10-26 真机上看到，其余未观察）
 - 开机自启: 设置 `openAuto` 默认 `"yes"`，用 node auto-launch 的 AppleScript 路线（`tell application "System Events" to …` 增删 login item）→ 首次启动会弹「控制 System Events」的自动化（Automation）授权框，并加一个登录项
 - URL scheme: Info.plist 注册 `rambox://`
 - 代理: 只有 Electron 的会话级 `session.setProxy`（每个服务一个 partition 的代理设置），asar 里没有 `networksetup`、`add-trusted-cert`、`/etc/hosts`、Network Extension，不改系统代理/证书/DNS
@@ -132,5 +133,5 @@ swift test --package-path DuoUpdaterCore --filter OneClickGateTests
 ```
 
 ## 建议下一步
-1. 第一轮已做（2026-10-26，见「一键安装」）；运行中一轮没做（首次启动加登录项），等 owner 决定；另确认 2.7.2 副本面对 3.x 报价被门拒（需要让 GitHub 报 3.x，例如 `GitHub API` 模拟钩子）
+1. 两轮已做（2026-10-26，见「一键安装」）；另确认 2.7.2 副本面对 3.x 报价被门拒（需要让 GitHub 报 3.x，例如 `GitHub API` 模拟钩子）
 2. 厂商把 `/releases/latest` 挪到 3.x 后，复核 3.x 副本的检测和 changelog

@@ -72,7 +72,7 @@ settled from source（`v1.18.7`）:
 
 | | 客户端会停放吗 | 本次实际停放了什么 | 我们能否直接拿来装 |
 |---|---|---|---|
-| 结论 | 会（自动下载，等用户点安装） | 没查（运行中一轮没做，见一键安装） | ○（`SelfUpdaterStash` 没有这个布局） |
+| 结论 | 会（自动下载，等用户点安装） | 2026-10-26 运行中一轮（约 1 分钟）没看到 `$TMPDIR/KeeWeb/` 出现 | ○（`SelfUpdaterStash` 没有这个布局） |
 | 证据 | 目录 `$TMPDIR/KeeWeb/`；文件 `KeeWeb-<ver>.mac.<arch>.dmg` + `KeeWeb-<ver>.mac.<arch>.dmg.sign`（整份 `Verify.sign.sha256` 文本，RSA 签名，不是摘要）。没有完成记录：`transport.js` 直接写到最终文件名，`UpdateModel.save` 把 `update*` 字段（含 `updateStatus: 'ready'`）剔掉不落盘；下到一半的文件与完整文件只能靠核对 release 的 `Verify.sha256` 区分 | — | 要用就得新加一个布局：按文件名取版本，用 release 的 `Verify.sha256`（hex SHA-256，已核与真包一致）校验整包。没做 |
 
 ## Changelog
@@ -86,7 +86,7 @@ settled from source（`v1.18.7`）:
 - 状态: **支持**（arm64 dmg，任何架构的已装副本）
 - 端到端（2026-10-26，本分支 `make cli` 的 duo；**只做了第一轮**）:
   - 第一轮（不运行）: 1.18.6 → `duo install` → 1.18.7，Team `3LE7JZ657W`（没有 GitHub digest）✓；bundle 属主仍是 `bobby:staff`（没有被改成 root）
-  - 第二轮（运行中）: **没做**。首次启动会弹窗要管理员密码，把 bundle `chown` 给 root（见上面的「root 拥有的 bundle」）；待 owner 决定
+  - 第二轮（运行中，用户在场）: 1.18.6 运行中 → `duo install` 就地换包、"Still running the old code" → `duo restart KeeWeb` → "restarted"，新进程跑 1.18.7、Team 3LE7JZ657W、`codesign` 0 ✓。bundle 全程是用户所有（`bobby:staff`）：1.18.6 启动时要求 root 的那次授权没有生效，1.18.7 重启后 3 s `KeeWeb Installer.app/Contents/MacOS/applet --install` 又弹「Allow administrator access for "KeeWeb Installer"」，用户处理后 bundle 仍是 `bobby:staff`。所以这轮测的是用户所有的 bundle；root 拥有的副本走提权换包没测（要先把旧版放进 root 拥有的目录，需要管理员）
   - 终态: 1.18.7，从没启动过
 - 格式: dmg（`hdiutil imageinfo` 退出 0），根目录 `KeeWeb.app` + `Applications` 软链 + `.background`、`.VolumeIcon.icns`
 - 嵌套: `Contents/Frameworks/KeeWeb Helper*.app`（Electron 的 GPU/Plugin/Renderer helper，随主进程起落）；`Contents/Installer/KeeWeb Installer.app`（上面说的 JXA 安装 applet，只在更新或首启权限修复时被调用，不常驻）；`Contents/MacOS/util/keeweb-native-messaging-host`（arm64，Team 3LE7JZ657W）。没有 LoginItems、LaunchAgent、`SMAppService`
@@ -142,5 +142,5 @@ channel-verify 原始输出（2026-10-26）:
 ```
 
 ## 建议下一步
-1. 第一轮已做（2026-10-26，见「一键安装」）；运行中一轮没做（首次启动要管理员密码），等 owner 决定；root 拥有的副本走提权路径后是否仍是 root 拥有，也还没在真机上看
+1. 两轮已做（2026-10-26，见「一键安装」，用户所有的 bundle）；root 拥有的副本走提权换包、换完是否仍是 root 拥有，还没在真机上看
 2. 若厂商恢复发 Mac 包，复核 Team ID 和资产名

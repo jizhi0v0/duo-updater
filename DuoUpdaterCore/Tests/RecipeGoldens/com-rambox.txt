@@ -1,0 +1,62 @@
+// Generated from AppRecipeIndex.all by RecipeGoldenTests. Do not edit by hand.
+// Regenerate: DUO_RECORD_RECIPE_GOLDENS=1 swift test --package-path DuoUpdaterCore --filter RecipeGoldenTests
+
+family = "com-rambox"
+
+probes = Array(count: 0)
+
+changelogs = Array(count: 0)
+
+githubRules = Array(count: 1)
+githubRules[0] = struct GitHubReleaseRule
+githubRules[0].bundleID = "com.rambox"
+githubRules[0].owner = "ramboxapp"
+githubRules[0].repo = "download"
+githubRules[0].usePrereleases = false
+githubRules[0].listPageSize = 20
+githubRules[0].versionPattern = "^v([0-9]+(?:\\.[0-9]+)+)$"
+githubRules[0].candidateScope = .newest
+githubRules[0].probesNewestFirst = true
+githubRules[0].installedTagPrefix = nil
+githubRules[0].channel = .stable
+githubRules[0].installAssetPattern? = "^Rambox-[0-9]+(?:\\.[0-9]+)+-mac\\.dmg$"
+githubRules[0].installerKind? = .dmg
+githubRules[0].installTrust = .developerID
+githubRules[0].variant = nil
+githubRules[0].architectureRequirement = nil
+githubRules[0].tagRefPrefix = nil
+githubRules[0].installedExecutableMarker = nil
+
+appStoreCases = Array(count: 0)
+
+channelProofs = Dictionary(count: 0)
+
+githubChannelProofs = Dictionary(count: 0)
+
+bindingProofs = Dictionary(count: 0)
+
+sparkleFeeds = Dictionary(count: 0)
+
+supersededFeeds = Dictionary(count: 0)
+
+loginWalls = Dictionary(count: 0)
+
+changelogPages = Dictionary(count: 0)
+
+oneClickGates = Array(count: 2)
+oneClickGates[0] = struct OneClickGate
+oneClickGates[0].bundleID = "com.rambox"
+oneClickGates[0].requirement = .installedVersion(pattern:)
+oneClickGates[0].requirement.pattern = "^(?:[3-9]|[1-9][0-9]+)\\."
+oneClickGates[0].reason = "this is Rambox 2 and the update is Rambox 3, which moves your account one way; install Rambox 3 yourself when you are ready to switch"
+oneClickGates[0].offering? = "^GitHub:Rambox-(?:[3-9]|[1-9][0-9]+)\\."
+oneClickGates[1] = struct OneClickGate
+oneClickGates[1].bundleID = "com.rambox"
+oneClickGates[1].requirement = .installedVersion(pattern:)
+oneClickGates[1].requirement.pattern = "^2\\."
+oneClickGates[1].reason = "this copy is not Rambox 2 and the update is a Rambox 2 build; update it from Rambox's own updater"
+oneClickGates[1].offering? = "^GitHub:Rambox-2\\."
+
+loginItemAgentRestarts = Dictionary(count: 0)
+
+sunsets = Dictionary(count: 0)

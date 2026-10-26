@@ -1,0 +1,73 @@
+// Generated from AppRecipeIndex.all by RecipeGoldenTests. Do not edit by hand.
+// Regenerate: DUO_RECORD_RECIPE_GOLDENS=1 swift test --package-path DuoUpdaterCore --filter RecipeGoldenTests
+
+family = "com-heynote-app"
+
+probes = Array(count: 0)
+
+changelogs = Array(count: 0)
+
+githubRules = Array(count: 2)
+githubRules[0] = struct GitHubReleaseRule
+githubRules[0].bundleID = "com.heynote.app"
+githubRules[0].owner = "heyman"
+githubRules[0].repo = "heynote"
+githubRules[0].usePrereleases = false
+githubRules[0].listPageSize = 20
+githubRules[0].versionPattern = "^v([0-9]+(?:\\.[0-9]+)+)$"
+githubRules[0].candidateScope = .newest
+githubRules[0].probesNewestFirst = true
+githubRules[0].installedTagPrefix = nil
+githubRules[0].channel = .stable
+githubRules[0].installAssetPattern? = "^Heynote_[0-9]+(?:\\.[0-9]+)+_universal\\.dmg$"
+githubRules[0].installerKind? = .dmg
+githubRules[0].installTrust = .developerID
+githubRules[0].variant = nil
+githubRules[0].architectureRequirement = nil
+githubRules[0].tagRefPrefix = nil
+githubRules[0].installedExecutableMarker = nil
+githubRules[1] = struct GitHubReleaseRule
+githubRules[1].bundleID = "com.heynote.app"
+githubRules[1].owner = "heyman"
+githubRules[1].repo = "heynote"
+githubRules[1].usePrereleases = true
+githubRules[1].listPageSize = 20
+githubRules[1].versionPattern = "^v([0-9]+\\.[0-9]+\\.[0-9]+(?:-beta(?:\\.[0-9]+)?)?)$"
+githubRules[1].candidateScope = .newest
+githubRules[1].probesNewestFirst = true
+githubRules[1].installedTagPrefix = nil
+githubRules[1].channel = .beta
+githubRules[1].installAssetPattern? = "^Heynote_[0-9]+\\.[0-9]+\\.[0-9]+(?:-beta(?:\\.[0-9]+)?)?_universal\\.dmg$"
+githubRules[1].installerKind? = .dmg
+githubRules[1].installTrust = .developerID
+githubRules[1].variant = nil
+githubRules[1].architectureRequirement = nil
+githubRules[1].tagRefPrefix = nil
+githubRules[1].installedExecutableMarker = nil
+
+appStoreCases = Array(count: 0)
+
+channelProofs = Dictionary(count: 0)
+
+githubChannelProofs = Dictionary(count: 1)
+githubChannelProofs[ChannelProofKey(bundleID: "com.heynote.app", channel: .beta)] = .recipeAnchor(_:in:)
+githubChannelProofs[ChannelProofKey(bundleID: "com.heynote.app", channel: .beta)].0 = "^true$|\\(\\?:-beta"
+githubChannelProofs[ChannelProofKey(bundleID: "com.heynote.app", channel: .beta)].in = Set(count: 2)
+githubChannelProofs[ChannelProofKey(bundleID: "com.heynote.app", channel: .beta)].in{0} = "usePrereleases"
+githubChannelProofs[ChannelProofKey(bundleID: "com.heynote.app", channel: .beta)].in{1} = "versionPattern"
+
+bindingProofs = Dictionary(count: 0)
+
+sparkleFeeds = Dictionary(count: 0)
+
+supersededFeeds = Dictionary(count: 0)
+
+loginWalls = Dictionary(count: 0)
+
+changelogPages = Dictionary(count: 0)
+
+oneClickGates = Array(count: 0)
+
+loginItemAgentRestarts = Dictionary(count: 0)
+
+sunsets = Dictionary(count: 0)

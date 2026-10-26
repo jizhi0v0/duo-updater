@@ -117,6 +117,11 @@ struct GitHubListPageSizeTests {
         // newest releases on 2026-10-16 match (v4.8.0 … v4.0.0-beta.5 … v3.4.4),
         // first hit at index 0, gap 0, so 1.
         "com.zettlr.app/beta": 1,
+        // Heynote: the beta rule takes plain tags as well as `-beta[.N]` ones
+        // (graduation, the Zettlr shape). All 109 releases on 2026-10-26 match
+        // (53 `vX.Y.Z`, 56 `vX.Y.Z-beta[.N]`), first hit at index 0, gap 0, so
+        // 1. The rule keeps the default 20.
+        "com.heynote.app/beta": 1,
         // Mullvad Browser Alpha: newest 100 releases on 2026-10-16, 43 alpha
         // tags interleaved with stable ones; first at index 1, worst gap 6
         // (15.0a1 → 14.5a6, across the 15.0 stable cycle), so 7. The rule keeps

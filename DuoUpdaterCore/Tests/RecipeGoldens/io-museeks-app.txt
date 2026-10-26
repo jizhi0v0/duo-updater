@@ -1,0 +1,56 @@
+// Generated from AppRecipeIndex.all by RecipeGoldenTests. Do not edit by hand.
+// Regenerate: DUO_RECORD_RECIPE_GOLDENS=1 swift test --package-path DuoUpdaterCore --filter RecipeGoldenTests
+
+family = "io-museeks-app"
+
+probes = Array(count: 0)
+
+changelogs = Array(count: 0)
+
+githubRules = Array(count: 1)
+githubRules[0] = struct GitHubReleaseRule
+githubRules[0].bundleID = "io.museeks.app"
+githubRules[0].owner = "martpie"
+githubRules[0].repo = "museeks"
+githubRules[0].usePrereleases = false
+githubRules[0].listPageSize = 20
+githubRules[0].versionPattern = "^([0-9]+(?:\\.[0-9]+)+)$"
+githubRules[0].candidateScope = .newest
+githubRules[0].probesNewestFirst = true
+githubRules[0].installedTagPrefix = nil
+githubRules[0].channel = .stable
+githubRules[0].installAssetPattern? = "^Museeks_[0-9]+(?:\\.[0-9]+)+_universal\\.dmg$"
+githubRules[0].installerKind? = .dmg
+githubRules[0].installTrust = .developerID
+githubRules[0].variant = nil
+githubRules[0].architectureRequirement = nil
+githubRules[0].tagRefPrefix = nil
+githubRules[0].installedExecutableMarker = nil
+
+appStoreCases = Array(count: 0)
+
+channelProofs = Dictionary(count: 0)
+
+githubChannelProofs = Dictionary(count: 0)
+
+bindingProofs = Dictionary(count: 0)
+
+sparkleFeeds = Dictionary(count: 0)
+
+supersededFeeds = Dictionary(count: 0)
+
+loginWalls = Dictionary(count: 0)
+
+changelogPages = Dictionary(count: 0)
+
+oneClickGates = Array(count: 1)
+oneClickGates[0] = struct OneClickGate
+oneClickGates[0].bundleID = "io.museeks.app"
+oneClickGates[0].requirement = .installedVersion(pattern:)
+oneClickGates[0].requirement.pattern = "^(?:0\\.(?:[2-9][0-9]|[1-9][0-9]{2,})|[1-9][0-9]*)(?:\\.[0-9]+)*$"
+oneClickGates[0].reason = "Museeks 0.20 replaced the Electron app with a rewrite whose library and playlists do not carry over; export playlists first, then install it from museeks.io"
+oneClickGates[0].offering = nil
+
+loginItemAgentRestarts = Dictionary(count: 0)
+
+sunsets = Dictionary(count: 0)

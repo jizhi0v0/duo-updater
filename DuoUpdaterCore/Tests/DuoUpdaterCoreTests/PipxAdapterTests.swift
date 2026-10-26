@@ -32,6 +32,7 @@ struct PipxAdapterTests {
         /// Where each link ends; a path not here is not there.
         var links: [String: String] = [:]
         var quarantined: Set<String> = []
+        var verifiedUv: String?
         var pypi: [String: Data] = [:]
         private var _fetches: [String] = []
         var fetches: [String] { lock.withLock { _fetches } }
@@ -64,7 +65,8 @@ struct PipxAdapterTests {
                         guard let data = self.pypi[project] else { throw PyPIProject.Failure.http(404) }
                         return data
                     }
-                })
+                },
+                verifiedUv: { self.lock.withLock { self.verifiedUv } })
         }
     }
 
@@ -126,9 +128,10 @@ struct PipxAdapterTests {
         let httpie = try #require(Self.status(report, "httpie"))
         #expect(httpie.state == .updateAvailable)
         #expect(httpie.latestVersion == "3.2.4")
+        // Its backend is pip: nothing on PATH but the system's — never
+        // `~/.local/bin`, whose uv pipx would run unverified.
         #expect(httpie.oneClick == CLIToolCommand(
-            executable: "/ZZFixture-brew/bin/pipx", arguments: ["upgrade", "httpie"],
-            pathPrefix: "/ZZFixture-home/.local/bin:/ZZFixture-brew/bin"))
+            executable: "/ZZFixture-brew/bin/pipx", arguments: ["upgrade", "httpie"], pathPrefix: nil))
 
         let cowsay = try #require(Self.status(report, "cowsay"))
         #expect(cowsay.state == .pinned)
@@ -170,9 +173,11 @@ struct PipxAdapterTests {
     }
 
     /// A venv in the root this pipx would not pick by itself is upgraded with
-    /// `PIPX_HOME` naming it: with `~/.local/pipx` there, pipx ≥1.15.1 keeps
-    /// using it, and `pipx upgrade` of an Application Support venv would say
-    /// "not installed". Mutation: never set `PIPX_HOME`; always set it.
+    /// `PIPX_HOME` naming it, written into the command — the copy handed out
+    /// acts on the same venv: with `~/.local/pipx` there, pipx ≥1.15.1 keeps
+    /// using it, and a bare `pipx upgrade` of an Application Support venv
+    /// says "not installed" (or moves the legacy one of that name).
+    /// Mutation: never name the root; name it in the environment only.
     @Test func pipxHomeNamesARootPipxWouldNotPick() async throws {
         let host = try FakeHost()
         host.directories[Self.legacy] = ["venvs"]
@@ -182,15 +187,86 @@ struct PipxAdapterTests {
         let scan = await adapter.scan()
         for item in scan.items where item.key == "ruff" {
             let root = try #require(scan.root(of: item))
-            let environment = try #require(adapter.upgrade(item, root: root)).environment
-            #expect(environment == (item.root == Self.legacy ? [:] : ["PIPX_HOME": Self.modern]))
+            let upgrade = try #require(adapter.upgrade(item, root: root))
+            #expect(upgrade.environment == [:])
+            if item.root == Self.legacy {
+                #expect(upgrade.command.executable == "/ZZFixture-brew/bin/pipx")
+            } else {
+                #expect(upgrade.command.executable == "/usr/bin/env")
+                #expect(upgrade.command.arguments == ["PIPX_HOME=" + Self.modern, "/ZZFixture-brew/bin/pipx", "upgrade", "ruff"])
+            }
         }
         // No legacy root: a 1.18 pipx's own default, nothing to name.
         let plain = try FakeHost()
         let plainAdapter = Self.adapter(plain)
         let plainScan = await plainAdapter.scan()
         let httpie = try #require(plainScan.items.first { $0.key == "httpie" })
-        #expect(plainAdapter.upgrade(httpie, root: try #require(plainScan.root(of: httpie)))?.environment == [:])
+        #expect(plainAdapter.upgrade(httpie, root: try #require(plainScan.root(of: httpie)))?.command.executable
+            == "/ZZFixture-brew/bin/pipx")
+    }
+
+    /// A venv on pipx's uv backend finds uv on `PATH`: only a uv that may run
+    /// is put there. Mutation: put `~/.local/bin` on PATH; use an unverified uv.
+    @Test func aUvBackendVenvGetsOnlyAVerifiedUv() async throws {
+        let host = try FakeHost()
+        let venv = Self.modern + "/venvs/httpie/pipx_metadata.json"
+        let original = try #require(host.files[venv])
+        var json = try #require(JSONSerialization.jsonObject(with: original) as? [String: Any])
+        json["backend"] = "uv"
+        host.files[venv] = try JSONSerialization.data(withJSONObject: json)
+        host.verifiedUv = "/ZZFixture-home/.local/bin/uv"
+        let withUv = Self.adapter(host)
+        var scan = await withUv.scan()
+        var item = try #require(scan.items.first { $0.key == "httpie" })
+        #expect(withUv.upgrade(item, root: try #require(scan.root(of: item)))?.command.pathPrefix == "/ZZFixture-home/.local/bin")
+        host.verifiedUv = nil
+        scan = await withUv.scan()
+        item = try #require(scan.items.first { $0.key == "httpie" })
+        #expect(withUv.upgrade(item, root: try #require(scan.root(of: item)))?.command.pathPrefix == nil)
+    }
+
+    /// pipx's own rules beyond the pin, from 1.16–1.18's metadata: a venv
+    /// from a lock file is left alone ("Not upgrading locked package"), one
+    /// with its own index options is not asked of PyPI, a `--suffix` venv is
+    /// asked by its package's name, and a cooldown holds the newest back.
+    /// Mutation: ignore `lock_file`, `pip_args`, `package`, `cooldown_days`.
+    @Test func lockIndexSuffixAndCooldownAreFollowed() async throws {
+        let host = try FakeHost()
+        let venvs = Self.modern + "/venvs"
+        func edit(_ name: String, into target: String? = nil, _ change: (inout [String: Any]) -> Void) throws {
+            let original = try #require(host.files[venvs + "/\(name)/pipx_metadata.json"])
+            var json = try #require(JSONSerialization.jsonObject(with: original) as? [String: Any])
+            var main = try #require(json["main_package"] as? [String: Any])
+            change(&main)
+            json["main_package"] = main
+            host.files[venvs + "/\(target ?? name)/pipx_metadata.json"] = try JSONSerialization.data(withJSONObject: json)
+        }
+        try edit("ruff") { $0["lock_file"] = ["path": "/ZZFixture-home/pylock.toml"] }
+        try edit("httpie") { $0["pip_args"] = ["--index-url", "https://pypi.example.invalid/simple"] }
+        try edit("cowsay", into: "cowsay-b") { $0["pinned"] = false; $0["package_or_url"] = "cowsay"; $0["cooldown_days"] = 1150 }
+        host.directories[venvs] = ["cowsay-b", "httpie", "ruff"]
+        var clocked = host.host
+        clocked.now = { ISO8601DateFormatter().date(from: "2026-10-27T00:00:00Z")! }
+        let report = await ManagedProvider(
+            PipxAdapter(home: Self.home, host: clocked, homebrewRoots: ["/ZZFixture-brew"]), home: Self.home,
+            proxyEnvironment: { [:] }, processes: { [] }, token: { nil },
+            runner: { _, _, _, _, _ in ManagedProvider.RunResult(succeeded: true, failureMessage: nil, lines: []) }).check()
+        #expect(Self.status(report, "ruff")?.state == .unknown)
+        #expect(Self.status(report, "ruff")?.withheld == .unsupportedInstaller)
+        #expect(Self.status(report, "httpie")?.state == .unknown)
+        let suffixed = try #require(Self.status(report, "cowsay-b"))
+        // cowsay 5.0 was uploaded 2022-06-22, 6.0 2023-09-08: 1150 days back
+        // from 2026-10-27 is 2023-09-03, before 6.0.
+        #expect(suffixed.state == .upToDate)
+        #expect(suffixed.latestVersion == "5.0")
+        #expect(host.fetches == ["cowsay"])
+    }
+
+    /// Only the keg's own `bin/pipx` is a keg: any other file under it is not.
+    @Test func theKegRuleIsExactlyBinPipx() throws {
+        let host = try FakeHost()
+        host.links["/ZZFixture-brew/bin/pipx"] = Self.keg + "/libexec/bin/pipx"
+        #expect(Self.adapter(host).locateBinary() == nil)
     }
 
     /// A quarantined keg is not run.

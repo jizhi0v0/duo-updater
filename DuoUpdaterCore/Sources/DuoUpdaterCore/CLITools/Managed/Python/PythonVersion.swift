@@ -2,8 +2,9 @@ import Foundation
 
 /// A Python package version as PEP 440 orders it — what PyPI's releases and a
 /// venv's dist-info carry. `VersionComparator` splits on digits and letters,
-/// which puts `1.0rc1` above `1.0` and `1.0.post1` beside it; the managed
-/// Python rows (uv tool, pipx) choose the newest release by this order instead.
+/// which puts `1.0.post1` below `1.0` and `1.0.dev0` beside `1.0a1`; the
+/// managed Python rows (uv tool, pipx) order by this instead
+/// (`ManagerDescriptor.VersionOrder.pep440`).
 ///
 /// Parsed: epoch (`1!`), release (`1.2.3`), pre-release (`a`/`b`/`rc` and the
 /// spellings PEP 440 normalizes to them), post (`.post1`, `-1`), dev (`.dev0`).

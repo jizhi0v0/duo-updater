@@ -40,7 +40,7 @@ public struct UvToolAdapter: ManagerAdapter {
         tint: .rgb(red: 0xDE / 255, green: 0x5F / 255, blue: 0xE9 / 255),
         // `uv self update` replaces the binary these rows' commands run, and
         // uv's own `.lock` serialises list, install and upgrade (UV-19).
-        lane: "uv")
+        lane: "uv", versionOrder: .pep440)
 
     public var descriptor: ManagerDescriptor { Self.descriptor }
 
@@ -98,11 +98,11 @@ public struct UvToolAdapter: ManagerAdapter {
                     guard let outcome = try? await ChildProcess.run(
                         executable, arguments, environment: environment,
                         workingDirectory: URL(fileURLWithPath: "/"), standardInput: Data(),
-                        standardOutput: .capture, standardError: .discard,
+                        standardOutput: .capture, standardError: .capture,
                         deadline: UvToolAdapter.checkDeadline, onCancel: .terminateChild),
                           !outcome.timedOut, !outcome.uncaughtSignal
                     else { return nil }
-                    return Output(stdout: outcome.standardOutput, exitStatus: outcome.terminationStatus)
+                    return Output(stdout: outcome.standardOutput, stderr: outcome.standardError, exitStatus: outcome.terminationStatus)
                 },
                 pypi: { try await PyPIProject.fetch($0) },
                 proxyEnvironment: { SystemProxyEnvironment.applied(to: [:]) },
@@ -112,10 +112,14 @@ public struct UvToolAdapter: ManagerAdapter {
 
     public struct Output: Sendable {
         public var stdout: Data
+        /// Where uv says why it left a tool out (`list.rs`: a missing
+        /// environment, an unreadable receipt), exit 0 all the same.
+        public var stderr: Data
         public var exitStatus: Int32
 
-        public init(stdout: Data, exitStatus: Int32 = 0) {
+        public init(stdout: Data, stderr: Data = Data(), exitStatus: Int32 = 0) {
             self.stdout = stdout
+            self.stderr = stderr
             self.exitStatus = exitStatus
         }
     }
@@ -173,7 +177,7 @@ public struct UvToolAdapter: ManagerAdapter {
                 var facts: [ManagedItem.Fact] = []
                 if let python { facts.append(.python(python)) }
                 if let excludeNewer = receipt?.excludeNewer { facts.append(.note("exclude-newer \(excludeNewer)")) }
-                if let source = distribution?.directSource { facts.append(.note("installed from \(source)")) }
+                if let source = receipt?.source ?? distribution?.directSource { facts.append(.note("installed from \(source)")) }
                 let item = ManagedItem(
                     descriptor: descriptor, root: root, key: name, name: name, installPath: directory,
                     shape: .package, request: receipt?.request, installed: distribution?.version,
@@ -221,15 +225,38 @@ public struct UvToolAdapter: ManagerAdapter {
                 }
             }
             let outdated = UvToolOutdated.parse(output.stdout)
+            let warnings = String(decoding: output.stderr, as: UTF8.self).split(whereSeparator: \.isNewline).map(String.init)
+            let offline = Self.configuredOffline(host.contents(home.path + "/.config/uv/uv.toml"))
             for item in scan.items {
                 guard let installed = item.installed else { continue }
-                let entry = outdated[PythonDistribution.normalize(item.name)]
-                latest[item.identity] = .latest(entry?.latest ?? installed)
+                if let entry = outdated[PythonDistribution.normalize(item.name)] {
+                    latest[item.identity] = .latest(entry.latest)
+                    continue
+                }
+                // Left out is current only when uv had no other reason to
+                // leave it out (`list.rs`, `latest.rs` at 0.13.4): no warning
+                // naming it, not a pre-release (never a "latest" there), and
+                // not told to stay offline, where an empty list is all it says.
+                if let warning = warnings.first(where: { $0.contains("`\(item.name)`") }) {
+                    latest[item.identity] = .blocked(.channelUnreadable(warning))
+                } else if PythonVersion(installed)?.isPrerelease == true {
+                    latest[item.identity] = .blocked(.notRequested("uv tool list --outdated does not look at pre-releases"))
+                } else if offline {
+                    latest[item.identity] = .blocked(.channelUnreadable("uv is set to offline in ~/.config/uv/uv.toml"))
+                } else {
+                    latest[item.identity] = .latest(installed)
+                }
             }
         } else {
             latest = await pypiLatest(scan.items)
         }
 
+        // From a path, a URL, git or an editable checkout: no index names its
+        // releases, and `uv tool upgrade` rebuilds it from where it came
+        // ("Nothing to upgrade") whatever `--outdated` printed.
+        for item in scan.items {
+            if let reason = Self.notIndexed(item) { latest[item.identity] = .blocked(.notIndexed(reason)) }
+        }
         let processes = host.processes
         let binaryPath = root.binary?.path
         let answers = latest
@@ -349,6 +376,26 @@ public struct UvToolAdapter: ManagerAdapter {
             }
             return results
         }
+    }
+
+    /// Why a tool's releases cannot be read from an index, from its scan.
+    static func notIndexed(_ item: ManagedItem) -> String? {
+        for case .note(let text) in item.facts where text.hasPrefix("installed from ") {
+            return "\(item.name) was \(text)"
+        }
+        return nil
+    }
+
+    /// `offline = true` at the top of uv's user config.
+    static func configuredOffline(_ data: Data?) -> Bool {
+        guard let data else { return false }
+        for raw in String(decoding: data, as: UTF8.self).split(whereSeparator: \.isNewline) {
+            let line = raw.trimmingCharacters(in: .whitespaces)
+            if line.hasPrefix("[") { return false }
+            let parts = line.split(separator: "=", maxSplits: 1).map { $0.trimmingCharacters(in: .whitespaces) }
+            if parts.count == 2, parts[0] == "offline" { return parts[1].hasPrefix("true") }
+        }
+        return false
     }
 
     static func isExcludeNewer(_ fact: ManagedItem.Fact) -> Bool {

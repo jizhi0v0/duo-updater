@@ -23,10 +23,19 @@ struct UvToolReceipt: Sendable, Equatable {
     /// (honoured by `--outdated` from 0.11.0, UV-14c).
     let excludeNewer: String?
     let python: String?
+    /// Where the tool came from when not an index: "a local path", "git", "a
+    /// URL" — a requirement table with `path`, `directory`, `git` or `url`
+    /// (uv 0.13.4 wrote `{ name = "cowsay", path = "….whl" }` for a wheel).
+    var source: String? = nil
+    /// `constraints`/`overrides` naming the tool (`uv tool install -c`):
+    /// `uv tool upgrade` resolves inside them (`upgrade.rs`), so they narrow
+    /// the request like a specifier does.
+    var narrowedBy: String? = nil
 
     static func == (a: UvToolReceipt, b: UvToolReceipt) -> Bool {
         a.requirement.name == b.requirement.name && a.requirement.specifier == b.requirement.specifier
-            && a.excludeNewer == b.excludeNewer && a.python == b.python
+            && a.excludeNewer == b.excludeNewer && a.python == b.python && a.source == b.source
+            && a.narrowedBy == b.narrowedBy
     }
 
     /// The receipt of the tool in directory `tool` (its name); nil when it
@@ -35,12 +44,30 @@ struct UvToolReceipt: Sendable, Equatable {
         let text = String(decoding: data, as: UTF8.self)
         let requirements = inlineTables(after: "requirements", in: text)
         let wanted = PythonDistribution.normalize(tool)
-        let tables = requirements.compactMap { table -> (String, String?)? in
+        var tables = requirements.compactMap { table -> (String, String?, String?)? in
             guard let name = value("name", in: table) else { return nil }
-            return (name, value("specifier", in: table))
+            let source: String?
+            if value("git", in: table) != nil { source = "git" }
+            else if value("url", in: table) != nil { source = "a URL" }
+            else if value("path", in: table) != nil || value("directory", in: table) != nil { source = "a local path" }
+            else { source = nil }
+            return (name, value("specifier", in: table), source)
+        }
+        // uv 0.2.20–0.2.31 wrote PEP 508 strings (`["cowsay==5.0"]`), which
+        // 0.13.4 still reads.
+        if tables.isEmpty {
+            tables = quotedStrings(after: "requirements", in: text).compactMap { requirement in
+                guard let name = PipxMetadata.requirementName(requirement) else { return nil }
+                if requirement.contains("@") || requirement.contains("://") { return (name, nil, "a URL") }
+                let specifier = requirement.dropFirst(name.count).trimmingCharacters(in: .whitespaces)
+                return (name, specifier.isEmpty ? nil : specifier, nil)
+            }
         }
         guard let requirement = tables.first(where: { PythonDistribution.normalize($0.0) == wanted }) ?? tables.first
         else { return nil }
+        let narrowing = (inlineTables(after: "constraints", in: text) + inlineTables(after: "overrides", in: text))
+            .filter { value("name", in: $0).map(PythonDistribution.normalize) == PythonDistribution.normalize(requirement.0) }
+            .compactMap { value("specifier", in: $0) }
         var section = ""
         var excludeNewer: String?
         var python: String?
@@ -52,7 +79,25 @@ struct UvToolReceipt: Sendable, Equatable {
         }
         return UvToolReceipt(
             requirement: (requirement.0, requirement.1.flatMap { $0.isEmpty ? nil : $0 }),
-            excludeNewer: excludeNewer, python: python)
+            excludeNewer: excludeNewer, python: python, source: requirement.2,
+            narrowedBy: narrowing.isEmpty ? nil : narrowing.joined(separator: ","))
+    }
+
+    /// The quoted strings of the array `key = [ … ]`.
+    static func quotedStrings(after key: String, in text: String) -> [String] {
+        guard let start = text.range(of: #"(?m)^\s*"# + key + #"\s*=\s*\["#, options: .regularExpression) else { return [] }
+        var strings: [String] = []
+        var current: String?
+        for character in text[start.upperBound...] {
+            if character == "\"" {
+                if let done = current { strings.append(done); current = nil } else { current = "" }
+            } else if current != nil {
+                current?.append(character)
+            } else if character == "]" {
+                break
+            }
+        }
+        return strings
     }
 
     /// The `{ … }` tables of the array `key = [ … ]`, which may span lines.
@@ -93,6 +138,10 @@ struct UvToolReceipt: Sendable, Equatable {
     /// anything else that narrows (`>=23,<24`, `~=1.2`, `==1.*`) is a range;
     /// no specifier, nothing to follow but the newest.
     var request: ManagedItem.Request? {
+        if let narrowedBy {
+            let spelled = [requirement.specifier, narrowedBy].compactMap { $0 }.joined(separator: ",")
+            return ManagedItem.Request(kind: .range, spelled: spelled)
+        }
         guard let specifier = requirement.specifier else { return nil }
         let clauses = specifier.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
         if clauses.count == 1, let clause = clauses.first, clause.hasPrefix("==") || clause.hasPrefix("==="),
@@ -107,7 +156,10 @@ struct UvToolReceipt: Sendable, Equatable {
     var excludeNewerDate: Date? { excludeNewer.flatMap(Self.date(excludeNewer:)) }
 
     static func date(excludeNewer: String) -> Date? {
-        if let instant = ISO8601DateFormatter().date(from: excludeNewer) { return instant }
+        // `--exclude-newer P1100D` wrote "2023-10-22T17:16:21.688846Z"; the
+        // formatter reads no fraction, and seconds are all a cut-off needs.
+        let whole = excludeNewer.replacingOccurrences(of: #"\.\d+"#, with: "", options: .regularExpression)
+        if let instant = ISO8601DateFormatter().date(from: whole) { return instant }
         let day = DateFormatter()
         day.locale = Locale(identifier: "en_US_POSIX")
         day.timeZone = TimeZone(identifier: "UTC")

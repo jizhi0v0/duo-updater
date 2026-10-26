@@ -150,10 +150,14 @@ struct UvToolAdapterTests {
     /// §10's "no `ChildProcess` in any adapter's scan", read from the source.
     /// Mutation: call `host.run`, `host.version` or `ChildProcess` from `scan()`.
     @Test func theScanSourceNamesNoSpawn() throws {
-        for file in ["Uv/UvToolAdapter.swift", "Pipx/PipxAdapter.swift"] {
+        for (file, function) in [
+            ("Uv/UvToolAdapter.swift", "public func scan() async -> ManagedScan {"),
+            ("Pipx/PipxAdapter.swift", "public func scan() async -> ManagedScan {"),
+            ("Pipx/PipxAdapter.swift", "func locateBinary() -> ManagedRoot.Binary? {"),
+        ] {
             let source = try String(contentsOf: URL(fileURLWithPath: #filePath).deletingLastPathComponent()
                 .appendingPathComponent("../../Sources/DuoUpdaterCore/CLITools/Managed/\(file)"), encoding: .utf8)
-            let start = try #require(source.range(of: "public func scan() async -> ManagedScan {"))
+            let start = try #require(source.range(of: function))
             var depth = 0
             var end = start.upperBound
             for index in source[start.lowerBound...].indices {
@@ -166,9 +170,17 @@ struct UvToolAdapterTests {
             let body = source[start.upperBound..<end]
             #expect(!body.isEmpty)
             for spawn in ["ChildProcess", "host.run", "host.version", "runVersion", "Process(", "host.pypi"] {
-                #expect(!body.contains(spawn), "\(file): scan() names \(spawn)")
+                #expect(!body.contains(spawn), "\(file): \(function) names \(spawn)")
             }
         }
+        // The scan's binaries are read with no version run: `UvScanner`'s
+        // default reader spawns `uv --version`.
+        let uv = try String(contentsOf: URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+            .appendingPathComponent("../../Sources/DuoUpdaterCore/CLITools/Managed/Uv/UvToolAdapter.swift"), encoding: .utf8)
+        #expect(uv.contains("binary: { await UvScanner(home: home, readVersion: { _ in nil }).scan().first }"))
+        let pipx = try String(contentsOf: URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+            .appendingPathComponent("../../Sources/DuoUpdaterCore/CLITools/Managed/Pipx/PipxAdapter.swift"), encoding: .utf8)
+        #expect(pipx.contains("UvScanner(home: home, readVersion: { _ in nil }).locate()"))
     }
 
     // MARK: check
@@ -231,7 +243,8 @@ struct UvToolAdapterTests {
         }
     }
 
-    /// A tool `--outdated` leaves out is current at its installed version.
+    /// A tool `--outdated` leaves out with nothing said about it is current at
+    /// its installed version.
     @Test func aToolOutdatedLeavesOutIsCurrent() async throws {
         let host = try FakeHost()
         host.outdated = UvToolAdapter.Output(stdout: Data("ruff v0.6.0 [latest: 0.17.2]\n- ruff\n".utf8))
@@ -239,6 +252,75 @@ struct UvToolAdapterTests {
         let cowsay = try #require(Self.status(report, "cowsay"))
         #expect(cowsay.state == .upToDate)
         #expect(cowsay.latestVersion == "5.0")
+    }
+
+    /// uv also leaves a tool out when it could not read it — "Tool `cowsay`
+    /// environment not found" on stderr, exit 0 (its interpreter gone) — when
+    /// its version is a pre-release (`latest.rs` takes none), and when its
+    /// config says `offline = true` (an empty list, exit 0). None of those is
+    /// current. Mutation: read every left-out tool as current.
+    @Test func aToolLeftOutForAReasonIsNotCurrent() async throws {
+        let host = try FakeHost()
+        host.outdated = UvToolAdapter.Output(
+            stdout: Data("ruff v0.6.0 [latest: 0.17.2]\n- ruff\n".utf8),
+            stderr: Data("warning: Tool `cowsay` environment not found (run `uv tool install cowsay --reinstall` to reinstall)\n".utf8))
+        var report = await Self.provider(host).check()
+        #expect(Self.status(report, "cowsay")?.state == .unknown)
+        #expect(Self.status(report, "cowsay")?.withheld == .channelUnreadable)
+
+        host.outdated = UvToolAdapter.Output(stdout: Data())
+        host.files["/ZZFixture-home/.config/uv/uv.toml"] = Data("offline = true\n".utf8)
+        report = await Self.provider(host).check()
+        #expect(report.statuses.allSatisfy { $0.state == .unknown })
+
+        host.files["/ZZFixture-home/.config/uv/uv.toml"] = nil
+        host.upgrade("cowsay", from: "5.0", to: "6.2b1")
+        report = await Self.provider(host).check()
+        #expect(Self.status(report, "cowsay")?.state == .unknown)
+        #expect(Self.status(report, "ruff")?.state == .upToDate)
+    }
+
+    /// A tool from a local wheel, a directory, a URL or git: its receipt
+    /// names the source and `--outdated` still prints PyPI's latest for the
+    /// name, but `uv tool upgrade` rebuilds from the source ("Nothing to
+    /// upgrade"). Reported, never offered. Mutation: offer PyPI's latest.
+    @Test func aToolFromALocalSourceIsNotOnAnIndex() async throws {
+        let host = try FakeHost()
+        host.files[Self.tools + "/cowsay/uv-receipt.toml"] = Data(
+            "[tool]\nrequirements = [{ name = \"cowsay\", path = \"/ZZFixture-home/cowsay-0.0.1-py3-none-any.whl\" }]\n".utf8)
+        let report = await Self.provider(host).check()
+        let cowsay = try #require(Self.status(report, "cowsay"))
+        #expect(cowsay.state == .unknown)
+        #expect(cowsay.oneClick == nil)
+        #expect(cowsay.withheld == .unsupportedInstaller)
+    }
+
+    /// `uv tool install cowsay -c c.txt` (`cowsay<6`): `uv tool upgrade`
+    /// resolves inside the constraint, so the tool is held like a range (D9).
+    /// Mutation: read `requirements` alone.
+    @Test func aConstraintNarrowsTheRequest() async throws {
+        let host = try FakeHost()
+        host.files[Self.tools + "/cowsay/uv-receipt.toml"] = Data("""
+            [tool]
+            requirements = [{ name = "cowsay" }]
+            constraints = [{ name = "cowsay", specifier = "<6" }]
+            """.utf8)
+        let report = await Self.provider(host).check()
+        let cowsay = try #require(Self.status(report, "cowsay"))
+        #expect(cowsay.managedItem?.request == ManagedItem.Request(kind: .range, spelled: "<6"))
+        #expect(cowsay.oneClick == nil)
+    }
+
+    /// A pin held below a post-release is pinned, not ahead: PEP 440 has
+    /// `1.0.post1` above `1.0`, which `VersionComparator` reads the other way.
+    /// Mutation: order the managed Python rows with `VersionComparator`.
+    @Test func aPostReleaseIsNewerThanThePin() async throws {
+        let host = try FakeHost()
+        host.files[Self.tools + "/ruff/uv-receipt.toml"] = Data("[tool]\nrequirements = [{ name = \"ruff\", specifier = \"==0.6.0\" }]\n".utf8)
+        host.outdated = UvToolAdapter.Output(stdout: Data("ruff v0.6.0 [latest: 0.6.0.post1]\n- ruff\n".utf8))
+        let report = await Self.provider(host).check()
+        #expect(Self.status(report, "ruff")?.state == .pinned)
+        #expect(Self.status(report, "ruff")?.latestVersion == "0.6.0.post1")
     }
 
     /// Below 0.10.10 there is no `--outdated`: each tool is asked of PyPI for
@@ -350,5 +432,11 @@ struct UvToolAdapterTests {
         #expect(receipt.excludeNewerDate == ISO8601DateFormatter().date(from: "2024-03-25T23:59:59Z"))
         #expect(UvToolReceipt.parse(Data("[tool]\nrequirements = [{ name = \"ruff\", specifier = \"==1.*\" }]".utf8), tool: "ruff")?
             .request?.kind == .range)
+        // uv 0.2.20–0.2.31's PEP 508 strings, which 0.13.4 still reads.
+        let old = try #require(UvToolReceipt.parse(Data("[tool]\nrequirements = [\"cowsay==5.0\"]\n".utf8), tool: "cowsay"))
+        #expect(old.request == ManagedItem.Request(kind: .exact, spelled: "==5.0"))
+        // `--exclude-newer P1100D` writes fractional seconds.
+        #expect(UvToolReceipt.date(excludeNewer: "2023-10-22T17:16:21.688846Z")
+            == ISO8601DateFormatter().date(from: "2023-10-22T17:16:21Z"))
     }
 }

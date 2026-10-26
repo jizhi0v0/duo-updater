@@ -51,6 +51,21 @@ struct PythonPackageTests {
         #expect(PyPIProject.newest(in: document, python: "3.9.6", uploadedBefore: upload.addingTimeInterval(-1)) == "25.1.0")
     }
 
+    /// An unknown Python cannot be told a requirement's answer: nil, not the
+    /// newest release that states none. A latest that is all yanked is not
+    /// installable. Mutation: skip a release whose answer is unknown; trust
+    /// `info.version` as it is.
+    @Test func unknownsAndYanksAreNotGuessedPast() throws {
+        let cowsay = try #require(PyPIProject.parse(try Self.fixture("pypi-cowsay.json")))
+        #expect(PyPIProject.newest(in: cowsay, python: nil) == nil)
+        let yanked = PyPIProject.Document(
+            latest: "2.0", latestRequiresPython: nil,
+            releases: [.init(version: "1.0", requiresPython: nil, uploaded: nil, yanked: false),
+                       .init(version: "2.0", requiresPython: nil, uploaded: nil, yanked: true)],
+            projectURLs: [])
+        #expect(PyPIProject.newest(in: yanked, python: "3.12.0") == "1.0")
+    }
+
     @Test func aFullDocumentIsRead() throws {
         let document = try #require(PyPIProject.parse(try Self.fixture("pypi-httpie.json")))
         #expect(document.latest == "3.2.4")

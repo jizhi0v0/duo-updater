@@ -38,7 +38,8 @@ public struct PipxAdapter: ManagerAdapter {
     public static let descriptor = ManagerDescriptor(
         id: id, displayName: "pipx", signer: nil, logo: "cli-pipx",
         // The teal of the X in pipx's own logo (pypa/pipx `logo.svg`).
-        tint: .rgb(red: 0x00 / 255, green: 0xCB / 255, blue: 0xA3 / 255), lane: "pipx")
+        tint: .rgb(red: 0x00 / 255, green: 0xCB / 255, blue: 0xA3 / 255), lane: "pipx",
+        versionOrder: .pep440)
 
     public var descriptor: ManagerDescriptor { Self.descriptor }
 
@@ -55,6 +56,13 @@ public struct PipxAdapter: ManagerAdapter {
         public var isQuarantined: @Sendable (String) -> Bool
         /// PyPI's JSON document for a project; throws when it did not answer.
         public var pypi: @Sendable (String) async throws -> Data
+        /// The uv a venv with pipx's uv backend may be upgraded with: `UvScanner`'s
+        /// standalone uv when Astral signed it (or its published hash matched)
+        /// and it is not quarantined. Nil when there is none. Blocking; reads
+        /// signatures, runs nothing.
+        public var verifiedUv: @Sendable () -> String?
+        /// The clock a cooldown counts back from.
+        public var now: @Sendable () -> Date = { Date() }
 
         public init(
             contents: @escaping @Sendable (String) -> Data?,
@@ -62,7 +70,8 @@ public struct PipxAdapter: ManagerAdapter {
             modified: @escaping @Sendable (String) -> Date?,
             resolve: @escaping @Sendable (String) -> String?,
             isQuarantined: @escaping @Sendable (String) -> Bool,
-            pypi: @escaping @Sendable (String) async throws -> Data
+            pypi: @escaping @Sendable (String) async throws -> Data,
+            verifiedUv: @escaping @Sendable () -> String? = { nil }
         ) {
             self.contents = contents
             self.directories = directories
@@ -70,9 +79,21 @@ public struct PipxAdapter: ManagerAdapter {
             self.resolve = resolve
             self.isQuarantined = isQuarantined
             self.pypi = pypi
+            self.verifiedUv = verifiedUv
         }
 
-        public static let live = Host(
+        public static func live(home: URL) -> Host {
+            var host = Host.files
+            host.verifiedUv = {
+                UvScanner(home: home, readVersion: { _ in nil }).locate().first { install in
+                    install.problem == nil && !install.quarantined
+                        && (install.isVendorSigned || install.hashVerdict == .matches)
+                }?.path
+            }
+            return host
+        }
+
+        static let files = Host(
             contents: { FileManager.default.contents(atPath: $0) },
             directories: { try? FileManager.default.contentsOfDirectory(atPath: $0) },
             modified: { (try? FileManager.default.attributesOfItem(atPath: $0))?[.modificationDate] as? Date },
@@ -89,7 +110,7 @@ public struct PipxAdapter: ManagerAdapter {
     let homebrewRoots: [String]
 
     public init(home: URL = FileManager.default.homeDirectoryForCurrentUser) {
-        self.init(home: home, host: .live)
+        self.init(home: home, host: .live(home: home))
     }
 
     public init(home: URL, host: Host, homebrewRoots: [String] = ["/opt/homebrew", "/usr/local"]) {
@@ -116,7 +137,10 @@ public struct PipxAdapter: ManagerAdapter {
         let descriptor = self.descriptor
         let candidates = [applicationSupportRoot, legacyRoot]
         let found: [(root: String, items: [ManagedItem], states: [String: String])] = await offCooperativePool {
-            candidates.compactMap { root -> (String, [ManagedItem], [String: String])? in
+            // Read only when a venv needs it (its backend is uv), once.
+            var uvLooked = false
+            var uv: String?
+            return candidates.compactMap { root -> (String, [ManagedItem], [String: String])? in
                 let venvs = root + "/venvs"
                 guard let names = host.directories(venvs) else { return nil }
                 var items: [ManagedItem] = []
@@ -127,9 +151,10 @@ public struct PipxAdapter: ManagerAdapter {
                     guard let data = host.contents(metadataPath), let metadata = PipxMetadata.parse(data) else { continue }
                     let distribution = PythonDistribution.read(
                         metadata.package, venv: venv, contents: host.contents, directories: host.directories)
+                    if metadata.backend == "uv", !uvLooked { uv = host.verifiedUv(); uvLooked = true }
                     let item = Self.item(
                         venv: name, path: venv, root: root, metadata: metadata, distribution: distribution,
-                        descriptor: descriptor)
+                        descriptor: descriptor, uv: metadata.backend == "uv" ? uv : nil)
                     items.append(item)
                     let stamp = host.modified(metadataPath).map { String(Int($0.timeIntervalSince1970)) } ?? "-"
                     states[item.identity] = [metadata.packageOrURL, metadata.version ?? "-", metadata.pinned ? "pinned" : "-", stamp]
@@ -149,11 +174,17 @@ public struct PipxAdapter: ManagerAdapter {
 
     public func check(_ scan: ManagedScan) async -> [ManagedVerdict] {
         let fetch = host.pypi
+        let now = host.now
         var blocked: [ManagedVerdict] = []
         var asked: [ManagedItem] = []
         for item in scan.items {
             if let reason = Self.notIndexed(item) {
                 blocked.append(ManagedVerdict(item: item, vendorWouldUpgrade: nil, blocker: .notIndexed(reason)))
+            } else if item.facts.contains(.note(Self.lockedNote)) {
+                // pipx 1.16+: "Not upgrading locked package …", exit 0.
+                blocked.append(ManagedVerdict(
+                    item: item, vendorWouldUpgrade: nil,
+                    blocker: .notRequested("pipx upgrade leaves a venv installed from a lock file")))
             } else if item.installed == nil {
                 blocked.append(ManagedVerdict(item: item, vendorWouldUpgrade: nil))
             } else {
@@ -166,11 +197,12 @@ public struct PipxAdapter: ManagerAdapter {
             func start(_ item: ManagedItem) {
                 group.addTask {
                     let python = Self.python(of: item)
+                    let cutoff = Self.cooldownDays(of: item).map { now().addingTimeInterval(-Double($0) * 24 * 60 * 60) }
                     let blocker: ManagedVerdict.Blocker
                     do {
                         let data = try await fetch(Self.package(of: item))
                         if let document = PyPIProject.parse(data),
-                           let newest = PyPIProject.newest(in: document, python: python) {
+                           let newest = PyPIProject.newest(in: document, python: python, uploadedBefore: cutoff) {
                             let answered = item.with(latestOverall: newest)
                             return ManagedVerdict(item: answered, vendorWouldUpgrade: Self.wouldUpgrade(answered))
                         }
@@ -192,23 +224,31 @@ public struct PipxAdapter: ManagerAdapter {
         return scan.items.compactMap { answers[$0.identity] ?? blockedByIdentity[$0.identity] }
     }
 
-    /// `pipx upgrade <venv>`, with `PIPX_HOME` when the venv is in the root
-    /// this pipx would not pick by itself (or its version is unknown).
+    /// `pipx upgrade <venv>`. A venv in the root this pipx would not pick by
+    /// itself (or whose pipx's version is unknown) is named by `PIPX_HOME` in
+    /// the command itself, so the copy handed out acts on the same venv
+    /// (`/usr/bin/env PIPX_HOME=… pipx upgrade …`). Nothing on `PATH` but the
+    /// system's and, for a venv on pipx's uv backend — which looks uv up on
+    /// `PATH` — the directory of a uv that may run (`Host.verifiedUv`);
+    /// without one pipx says it found no uv, which the row shows.
     public func upgrade(_ item: ManagedItem, root: ManagedRoot) -> (command: CLIToolCommand, environment: [String: String])? {
         guard let binary = root.binary else { return nil }
-        var environment: [String: String] = [:]
-        if defaultRoot(of: binary.version) != root.path { environment["PIPX_HOME"] = root.path }
-        // `~/.local/bin` first: a venv whose backend is uv finds that uv there.
-        let command = CLIToolCommand(
-            executable: binary.path, arguments: ["upgrade", item.key],
-            pathPrefix: home.path + "/.local/bin:" + (binary.path as NSString).deletingLastPathComponent)
-        return (command, environment)
+        let uv = Self.uv(of: item).map { ($0 as NSString).deletingLastPathComponent }
+        return (command(binary: binary, root: root, arguments: ["upgrade", item.key], pathPrefix: uv), [:])
     }
 
     /// `pipx unpin <venv>`: the only pin pipx keeps (PX-15). Copied, never run.
     public func unpin(_ item: ManagedItem, root: ManagedRoot) -> CLIToolCommand? {
         guard let binary = root.binary, item.request?.kind == .exact else { return nil }
-        return CLIToolCommand(executable: binary.path, arguments: ["unpin", item.key], pathPrefix: nil)
+        return command(binary: binary, root: root, arguments: ["unpin", item.key], pathPrefix: nil)
+    }
+
+    func command(binary: ManagedRoot.Binary, root: ManagedRoot, arguments: [String], pathPrefix: String?) -> CLIToolCommand {
+        guard defaultRoot(of: binary.version) != root.path else {
+            return CLIToolCommand(executable: binary.path, arguments: arguments, pathPrefix: pathPrefix)
+        }
+        return CLIToolCommand(
+            executable: "/usr/bin/env", arguments: ["PIPX_HOME=" + root.path, binary.path] + arguments, pathPrefix: pathPrefix)
     }
 
     public func reread(_ item: ManagedItem) async -> String? {
@@ -239,7 +279,8 @@ public struct PipxAdapter: ManagerAdapter {
     func locateBinary() -> ManagedRoot.Binary? {
         for prefix in homebrewRoots {
             let link = prefix + "/bin/pipx"
-            guard let resolved = host.resolve(link), let version = kegVersion(resolved, prefix: prefix) else { continue }
+            guard let resolved = host.resolve(link), let version = kegVersion(resolved, prefix: prefix, formula: "pipx")
+            else { continue }
             let trust: ManagedRoot.Trust = host.isQuarantined(resolved) ? .quarantined : .homebrewKeg
             return ManagedRoot.Binary(path: link, version: version, trust: trust)
         }
@@ -252,12 +293,14 @@ public struct PipxAdapter: ManagerAdapter {
     }
 
     /// `<prefix>/Cellar/pipx/1.8.0_1/bin/pipx` with the keg's
-    /// `INSTALL_RECEIPT.json` → "1.8.0" (`NodePrefixes.homebrewKeg`'s rule).
-    func kegVersion(_ resolved: String, prefix: String) -> String? {
+    /// `INSTALL_RECEIPT.json` → "1.8.0": exactly the keg's `bin/<formula>`, as
+    /// `NodePrefixes.homebrewKeg` requires of node.
+    func kegVersion(_ resolved: String, prefix: String, formula: String) -> String? {
         let root = URL(fileURLWithPath: prefix).pathComponents
         let components = URL(fileURLWithPath: resolved).pathComponents
-        guard components.count >= root.count + 4, Array(components.prefix(root.count)) == root,
-              components[root.count] == "Cellar", components[root.count + 1] == "pipx"
+        guard components.count == root.count + 5, Array(components.prefix(root.count)) == root,
+              components[root.count] == "Cellar", components[root.count + 1] == formula,
+              components.suffix(2) == ["bin", formula]
         else { return nil }
         let keg = NSString.path(withComponents: Array(components.prefix(root.count + 3)))
         guard host.contents(keg + "/INSTALL_RECEIPT.json") != nil else { return nil }
@@ -268,13 +311,25 @@ public struct PipxAdapter: ManagerAdapter {
         return version
     }
 
+    static let lockedNote = "installed from a lock file"
+
     static func item(
         venv: String, path: String, root: String, metadata: PipxMetadata, distribution: PythonDistribution?,
-        descriptor: ManagerDescriptor
+        descriptor: ManagerDescriptor, uv: String? = nil
     ) -> ManagedItem {
         var facts: [ManagedItem.Fact] = []
         if let python = metadata.python { facts.append(.python(python)) }
+        // A `--suffix` venv (`cowsay-b`) holds a package of another name.
+        if PythonDistribution.normalize(metadata.package) != PythonDistribution.normalize(venv) {
+            facts.append(.note("package \(metadata.package)"))
+        }
         if metadata.packageOrURL != metadata.package { facts.append(.note("installed from \(metadata.packageOrURL)")) }
+        if metadata.locked { facts.append(.note(lockedNote)) }
+        if !metadata.indexArguments.isEmpty {
+            facts.append(.note("pip arguments \(metadata.indexArguments.joined(separator: " "))"))
+        }
+        if let days = metadata.cooldownDays { facts.append(.note("cooldown \(days) days")) }
+        if let uv { facts.append(.note("uv \(uv)")) }
         var effects: [ManagedItem.Effect] = [.oldRemoved]
         // pipx drops the recorded specifier on upgrade (D7): said before the click.
         if PipxMetadata.carriesSpecifier(metadata.packageOrURL, package: metadata.package) {
@@ -299,24 +354,35 @@ public struct PipxAdapter: ManagerAdapter {
     /// The PyPI project a venv was installed from: its package, which the
     /// key (the venv's name, maybe with a `--suffix`) may not be.
     static func package(of item: ManagedItem) -> String {
-        for fact in item.facts {
-            if case .note(let text) = fact, text.hasPrefix("installed from ") {
-                let spec = String(text.dropFirst("installed from ".count))
-                return PipxMetadata.requirementName(spec) ?? item.name
-            }
-        }
-        return item.name
+        note(of: item, after: "package ") ?? item.name
     }
 
-    /// Why a venv's release cannot be asked of an index: it came from a path,
-    /// a URL or a checkout (`package_or_url`, PX-10 — pipx skips these too).
+    /// Why a venv's release cannot be asked of PyPI: it came from a path, a
+    /// URL or a checkout (`package_or_url`, PX-10 — pipx skips these too), or
+    /// it was installed with index options of its own that `pipx upgrade`
+    /// reuses (`pip_args`: another index, `--pre`).
     static func notIndexed(_ item: ManagedItem) -> String? {
-        for fact in item.facts {
-            if case .note(let text) = fact, text.hasPrefix("installed from "),
-               !PipxMetadata.isIndexRequirement(String(text.dropFirst("installed from ".count))) {
-                return "\(item.name) was installed from \(text.dropFirst("installed from ".count))"
-            }
+        if let from = note(of: item, after: "installed from "), from != "a lock file",
+           !PipxMetadata.isIndexRequirement(from) {
+            return "\(item.name) was installed from \(from)"
         }
+        if let arguments = note(of: item, after: "pip arguments ") {
+            return "\(item.name) was installed with \(arguments), which pipx upgrade reuses"
+        }
+        return nil
+    }
+
+    static func cooldownDays(of item: ManagedItem) -> Int? {
+        note(of: item, after: "cooldown ").flatMap { Int($0.prefix { $0.isNumber }) }
+    }
+
+    static func uv(of item: ManagedItem) -> String? {
+        note(of: item, after: "uv ")
+    }
+
+    /// The text after `prefix` of the item's first note that starts with it.
+    static func note(of item: ManagedItem, after prefix: String) -> String? {
+        for case .note(let text) in item.facts where text.hasPrefix(prefix) { return String(text.dropFirst(prefix.count)) }
         return nil
     }
 
@@ -343,6 +409,18 @@ struct PipxMetadata: Sendable, Equatable {
     /// "3.12.15", from "Python 3.12.15".
     let python: String?
     let backend: String?
+    /// Installed from a PEP 751 lock file (`main_package.lock_file`, pipx
+    /// 1.16+), which `pipx upgrade` leaves alone.
+    var locked = false
+    /// `main_package.cooldown_days`: `pipx upgrade` passes on
+    /// `--uploaded-prior-to P<N>D` (`--exclude-newer` on uv), so nothing newer
+    /// than that is what it moves to.
+    var cooldownDays: Int? = nil
+    /// The recorded `pip_args` that choose where releases come from or which
+    /// ones count; `pipx upgrade` reuses them.
+    var indexArguments: [String] = []
+
+    static let indexOptions = ["-i", "--index-url", "--extra-index-url", "-f", "--find-links", "--no-index", "--pre"]
 
     static func parse(_ data: Data) -> PipxMetadata? {
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -352,11 +430,19 @@ struct PipxMetadata: Sendable, Equatable {
         let python = (json["python_version"] as? String).map {
             $0.hasPrefix("Python ") ? String($0.dropFirst("Python ".count)) : $0
         }
+        let pipArguments = main["pip_args"] as? [String] ?? []
+        let lock = main["lock_file"]
         return PipxMetadata(
             package: package, packageOrURL: main["package_or_url"] as? String ?? package,
             version: (main["package_version"] as? String).flatMap { $0.isEmpty ? nil : $0 },
             pinned: main["pinned"] as? Bool ?? false, python: python.flatMap { $0.isEmpty ? nil : $0 },
-            backend: json["backend"] as? String)
+            backend: json["backend"] as? String,
+            locked: lock != nil && !(lock is NSNull),
+            cooldownDays: (main["cooldown_days"] as? NSNumber)?.intValue,
+            indexArguments: pipArguments.filter { argument in
+                indexOptions.contains { argument == $0 || argument.hasPrefix($0 + "=") }
+                    || (argument.hasPrefix("-i") && argument.count > 2 && !argument.hasPrefix("--"))
+            })
     }
 
     /// A PEP 508 requirement on an index — `ruff`, `httpie==3.2.1`,

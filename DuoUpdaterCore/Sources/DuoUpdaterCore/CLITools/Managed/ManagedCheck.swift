@@ -59,12 +59,12 @@ public enum ManagedCheck {
                 note = "\(item.descriptor.displayName) documents no command that moves \(item.key)"
             }
         } else if let installed, let overall = item.latestOverall, item.request?.kind == .exact,
-                  VersionComparator.isNewer(overall, than: installed) {
+                  item.descriptor.versionOrder.isNewer(overall, than: installed) {
             state = .pinned
             latest = overall
             manual = unpin
         } else if let installed, let newest {
-            switch VersionComparator.compare(installed, newest) {
+            switch item.descriptor.versionOrder.compare(installed, newest) {
             case .orderedAscending:
                 // Below the newest known, and the vendor would not move it (or
                 // could not say): reported as current, with the gap in the pane.
@@ -106,7 +106,7 @@ public enum ManagedCheck {
         // the command that lifts the request rides along for the pane's and
         // `duo`'s "beyond the request" line.
         if state == .upToDate, manual == nil, let installed, let overall = item.latestOverall,
-           VersionComparator.isNewer(overall, than: installed) {
+           item.descriptor.versionOrder.isNewer(overall, than: installed) {
             manual = unpin
         }
 
@@ -154,7 +154,7 @@ public enum ManagedCheck {
     public static func beyondRequest(_ status: CLIToolStatus) -> String? {
         guard status.state == .upToDate, case .managed(let item) = status.detail,
               let installed = item.installed, let overall = item.latestOverall,
-              VersionComparator.isNewer(overall, than: installed) else { return nil }
+              item.descriptor.versionOrder.isNewer(overall, than: installed) else { return nil }
         return overall
     }
 }

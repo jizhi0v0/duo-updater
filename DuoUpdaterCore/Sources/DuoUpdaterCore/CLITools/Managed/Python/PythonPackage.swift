@@ -217,9 +217,11 @@ public enum PyPIProject {
             guard let interpreter else { return nil }
             return specifier.allows(interpreter)
         }
-        let latestRelease = document.releases.first { $0.version == document.latest }
-        if admits(document.latestRequiresPython ?? latestRelease?.requiresPython) == true,
-           uploadedBefore == nil || (latestRelease?.uploaded).map({ $0 <= uploadedBefore! }) == true {
+        // `info.version` only as a release with files that are not all
+        // yanked: PyPI names a yanked one when every release is.
+        if let latestRelease = document.releases.first(where: { $0.version == document.latest }), !latestRelease.yanked,
+           admits(document.latestRequiresPython ?? latestRelease.requiresPython) == true,
+           uploadedBefore == nil || latestRelease.uploaded.map({ $0 <= uploadedBefore! }) == true {
             return document.latest
         }
         let candidates = document.releases.compactMap { release -> (PythonVersion, Document.Release)? in
@@ -227,7 +229,10 @@ public enum PyPIProject {
             return (version, release)
         }.sorted { $0.0 > $1.0 }
         for (_, release) in candidates {
-            guard admits(release.requiresPython) == true else { continue }
+            // An unknown Python cannot be told a requirement's answer: nil,
+            // never an older release that merely states none.
+            guard let admitted = admits(release.requiresPython) else { return nil }
+            guard admitted else { continue }
             if let cutoff = uploadedBefore, let uploaded = release.uploaded, uploaded > cutoff { continue }
             return release.version
         }

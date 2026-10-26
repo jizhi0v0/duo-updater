@@ -58,9 +58,9 @@ enum com_nabocorp_witsy {
         // `ReleaseChannel.detect` reads as beta, and the stable rule refuses it.
         // (`v2.0.0-rc1` reports `2.0.0-rc1`, which `detect` has no shape for: it
         // reads as stable, so the stable rule above serves it, one-click
-        // included; channel-verify on the real rc1 dmg read `inferred stable`.)
-        // No beta has shipped since
-        // (2.0.0 was stable a week later), so such a copy moves to the newest
+        // included; channel-verify on the real Info.plist from the rc1 release
+        // zip read `inferred stable`.) No beta has shipped since (2.0.0 was
+        // stable a week later), so such a copy moves to the newest
         // stable release: same tags as the stable rule. Detection-only: a
         // non-stable install needs a channel proof, and only the installed
         // version tells the tracks apart.

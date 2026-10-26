@@ -446,8 +446,9 @@ Sunset notices need a vendor's announcement, and apps nobody has onboarded get n
 audit to find one. `.github/workflows/sunset-sweep.yml` runs `scripts/sunset_sweep.py`
 daily: it reads Homebrew's `discontinued`-style cask marks and newly archived GitHub
 repositories across every cask, has Haiku search the week's news, and files a
-`sunset-lead` issue for each new match. A lead is checked on the vendor's own page
-before any `sunsets` entry is written.
+`sunset-lead` issue for each new match. Haiku first reads each lead's vendor page; a
+lead it finds no end date for is labelled `sunset-lead-undated` too. A lead is checked
+on the vendor's own page before any `sunsets` entry is written.
 
 ## Project layout
 

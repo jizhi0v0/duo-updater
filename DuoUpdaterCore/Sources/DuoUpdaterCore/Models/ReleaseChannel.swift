@@ -108,6 +108,9 @@ public enum ReleaseChannel: String, Codable, Sendable, Hashable, CaseIterable {
     ///   0.99. A tenth bundle-id-scoped rule — Secretive, whose nightly stamps
     ///      `0.0.0_nightly-<date>` (underscore, so step 4 misses it). See the
     ///      block comment on the check.
+    ///   0.997. An eleventh bundle-id-scoped rule — Requestly, whose STABLE
+    ///      releases ship under `io.requestly.beta`, so step 2's suffix match
+    ///      would call every copy beta. See the block comment on the check.
     ///   1. Chrome/Keystone's explicit `KSChannelID` plist key (the cleanest
     ///      signal — empty/`extended` mean stable; `beta`/`dev`/`canary` are
     ///      authoritative).
@@ -387,6 +390,22 @@ public enum ReleaseChannel: String, Codable, Sendable, Hashable, CaseIterable {
            let version = version?.trimmingCharacters(in: .whitespacesAndNewlines),
            version.hasPrefix("🧪") {
             return .dev
+        }
+
+        // 0.997 Requestly — the vendor's STABLE app ships as `io.requestly.beta`;
+        //     "beta" is a historical name, not a track. Measured 2026-10-26: real
+        //     packages from 1.4.0 (the oldest release) through 26.6.29 all carry
+        //     this id, and all 92 releases of requestly/http-interceptor-desktop-app
+        //     are non-prerelease with no beta/nightly assets — there is no separate
+        //     beta product. Without this, step 2's `.beta` suffix match read every
+        //     copy as beta and the stable GitHub rule never answered (channel-verify
+        //     on the real 26.6.26 dmg: `status unknown (no source answered)`).
+        //
+        //     Exactly this id. The Setapp build's `io.requestly.beta-setapp` (from
+        //     the vendor's `electron-builder-setapp.json`) is unmeasured and keeps
+        //     the generic suffix handling.
+        if bundleID == "io.requestly.beta" {
+            return .stable
         }
 
         // 1. Keystone's own channel id — authoritative when present.

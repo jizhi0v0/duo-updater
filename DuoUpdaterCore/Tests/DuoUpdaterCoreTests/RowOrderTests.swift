@@ -309,4 +309,23 @@ struct CheckScheduleNetworkPathTests {
     @Test func theSeedStateAllowsTheCheck() {
         #expect(NetworkPathState.assumedUsable == clean)
     }
+
+    /// The popover's paused mark names the same reason the tick defers for.
+    ///
+    /// Mutation: return `path.restriction` regardless of `scheduledChecksOn`.
+    @Test func thePauseFollowsThePathOnlyWhileChecksAreScheduled() {
+        #expect(CheckSchedule.pause(path: hotspot, scheduledChecksOn: true) == .expensive)
+        #expect(CheckSchedule.pause(path: lowDataMode, scheduledChecksOn: true) == .lowDataMode)
+        #expect(CheckSchedule.pause(path: offline, scheduledChecksOn: true) == .offline)
+        #expect(CheckSchedule.pause(path: clean, scheduledChecksOn: true) == nil)
+        // Manual checks: nothing is scheduled, so nothing is paused.
+        #expect(CheckSchedule.pause(path: hotspot, scheduledChecksOn: false) == nil)
+    }
+
+    /// Low Data Mode on a hotspot is named as Low Data Mode, the reason the user
+    /// set themselves.
+    @Test func lowDataModeIsNamedAheadOfExpensive() {
+        let both = NetworkPathState(isSatisfied: true, isConstrained: true, isExpensive: true)
+        #expect(both.restriction == .lowDataMode)
+    }
 }

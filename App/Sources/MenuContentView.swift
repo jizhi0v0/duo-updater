@@ -701,6 +701,14 @@ struct MenuContentView: View {
                 .padding(.top, 2)
                 Spacer()
                 HStack(spacing: 8) {
+                    if let pause = CheckSchedule.pause(
+                        path: NetworkMonitor.shared.path,
+                        scheduledChecksOn: model.prefs.checkFrequency.interval != nil) {
+                        ChecksPausedMark(reason: pause, canCheckNow: model.canRefresh) {
+                            Task { await model.refreshes.handle(.manual) }
+                        }
+                        .padding(.top, 5)
+                    }
                     Button {
                         Task { await model.refreshes.handle(.manual) }
                     } label: {
@@ -1539,6 +1547,70 @@ private struct StillRunningMark: View {
                             showInWindow()
                         }
                         .controlSize(.small)
+                    }
+                }
+                .padding(12)
+                .frame(width: 260, alignment: .leading)
+            }
+    }
+}
+
+/// Beside Refresh while the network keeps scheduled checks from running
+/// (`CheckSchedule.pause`, #898). Without it a deferred check looks like a stale
+/// one: the header's "N ago" just keeps growing. Clicking says why and offers the
+/// check the user can still start, which the deferral never applies to.
+private struct ChecksPausedMark: View {
+    let reason: NetworkPathState.Restriction
+    let canCheckNow: Bool
+    let checkNow: () -> Void
+
+    @State private var showTip = false
+
+    private var summary: String { String(localized: "Automatic checks suspended — click for why") }
+
+    private var why: String {
+        switch reason {
+        case .expensive:
+            String(localized: "DuoUpdater has suspended automatic update checks while this Mac is online through a Personal Hotspot or cellular connection, to save that connection’s data.")
+        case .lowDataMode:
+            String(localized: "DuoUpdater has suspended automatic update checks while this network is in Low Data Mode.")
+        case .offline:
+            String(localized: "DuoUpdater has suspended automatic update checks while this Mac is offline.")
+        }
+    }
+
+    var body: some View {
+        Image(systemName: "pause.circle")
+            .foregroundStyle(.orange)
+            .contentShape(Rectangle())
+            .onTapGesture { showTip = true }
+            .help(summary)
+            .accessibilityLabel(summary)
+            .accessibilityAddTraits(.isButton)
+            .accessibilityAction { showTip = true }
+            .popover(isPresented: $showTip, arrowEdge: .bottom) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(why)
+                        .font(.callout)
+                        .foregroundStyle(.primary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    // Offline, a check by hand fails like the scheduled one would.
+                    Text(reason == .offline
+                         ? String(localized: "They resume on their own once that changes.")
+                         : String(localized: "They resume on their own once that changes. Checking by hand still works."))
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if reason != .offline {
+                        HStack {
+                            Spacer()
+                            Button(String(localized: "Check Now")) {
+                                showTip = false
+                                checkNow()
+                            }
+                            .controlSize(.small)
+                            .disabled(!canCheckNow)
+                        }
                     }
                 }
                 .padding(12)

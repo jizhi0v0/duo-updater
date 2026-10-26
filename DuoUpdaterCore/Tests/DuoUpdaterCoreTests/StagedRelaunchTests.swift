@@ -193,7 +193,23 @@ import Testing
         let ending = await run(w, staged(.shipIt))
         #expect(ending.outcome == .wontQuit)
         #expect(ending.everQuit == false)
+        #expect(ending.holdup == .windowUp)
         #expect(w.now == StagedRelaunch.quitGraceTicks + 1)
+        #expect(w.launches.isEmpty)
+    }
+
+    /// Witsy 3.5.1, 2026-10-26: asked to quit, it stayed up in the menu bar with
+    /// no window on screen before or after. Still `.wontQuit` (at the slow-quit
+    /// bound), but the ending says nothing was on screen, so no line sends the
+    /// user looking for a save prompt. Mutation: sample `.windowUp` regardless
+    /// (the old "likely a save prompt") → red.
+    @Test func anAppThatStaysUpWithNothingOnScreenSaysSo() async {
+        let w = World(disk: old, new: new)
+        w.windows = { _ in [] }
+        w.quitsAt = nil
+        let ending = await run(w, staged(.shipIt))
+        #expect(ending.outcome == .wontQuit)
+        #expect(ending.holdup == .nothingOnScreen)
         #expect(w.launches.isEmpty)
     }
 
@@ -300,6 +316,7 @@ import Testing
         w.quitsAt = nil
         let ending = await run(w, staged(.sparkle))
         #expect(ending.outcome == .wontQuit)
+        #expect(ending.holdup == .nothingOnScreen)
         #expect(w.now == StagedRelaunch.slowQuitTicks + 1)
         #expect(w.launches.isEmpty)
     }
@@ -327,6 +344,23 @@ import Testing
         #expect(!StagedRelaunch.showsNoPrompt(atQuit: [Self.window], now: [Self.sheet]))
         #expect(!StagedRelaunch.showsNoPrompt(atQuit: [], now: [Self.window]))
         #expect(!StagedRelaunch.showsNoPrompt(atQuit: [Self.alert], now: [Self.alert]))
+    }
+
+    /// Any window of its own on screen is "a window is up"; none is "nothing
+    /// on screen". Mutation: `windows.isEmpty` inverted, or a constant → red.
+    @Test func quitHoldupReadsWhatIsOnScreen() {
+        #expect(StagedRelaunch.QuitHoldup(windows: []) == .nothingOnScreen)
+        #expect(StagedRelaunch.QuitHoldup(windows: [Self.window]) == .windowUp)
+        #expect(StagedRelaunch.QuitHoldup(windows: [Self.alert]) == .windowUp)
+    }
+
+    /// The other endings carry no holdup.
+    @Test func onlyAWontQuitEndingCarriesAHoldup() async {
+        let w = World(disk: old, new: new)
+        w.landsAt = 3
+        let ending = await run(w, staged(.shipIt))
+        #expect(ending.outcome == .applied)
+        #expect(ending.holdup == nil)
     }
 
     /// ShipIt: back up on the old bundle means the swap was called off — stop
@@ -389,12 +423,15 @@ import Testing
 
     // MARK: - QuitPatience (`duo restart` in a terminal)
 
-    private final class Calls: @unchecked Sendable { var count = 0 }
+    private final class Calls: @unchecked Sendable {
+        var count = 0
+        var holdups: [StagedRelaunch.QuitHoldup] = []
+    }
 
     private func runPatient(_ w: World, _ calls: Calls) async -> StagedRelaunch.Ending {
         await StagedRelaunch.quitAndAwait(
             app, staged: staged(.shipIt), old: old, wasFrontmost: false,
-            quitPatience: .handoff(onSlowQuit: { calls.count += 1 }), system: system(w))
+            quitPatience: .handoff(onSlowQuit: { calls.count += 1; calls.holdups.append($0) }), system: system(w))
     }
 
     /// The save prompt is answered a minute in: the quit lands late, ShipIt
@@ -421,9 +458,25 @@ import Testing
         let calls = Calls()
         let ending = await runPatient(w, calls)
         #expect(ending.outcome == .wontQuit)
+        #expect(ending.holdup == .windowUp)
         #expect(w.now == Int(StagedRelaunch.quitHandoffMaxAge * 5) + 1)
         #expect(w.launches.isEmpty)
         #expect(calls.count == 1)
+        #expect(calls.holdups == [.windowUp])
+    }
+
+    /// The menu-bar shape in a terminal: nothing on screen, so the slow-quit
+    /// line is said at `slowQuitTicks` (not the grace) and is told nothing is
+    /// on screen. Mutation: pass `.windowUp` to `onSlowQuit` regardless → red.
+    @Test func aWindowlessHoldTellsTheSlowQuitLineSo() async {
+        let w = World(disk: old, new: new)
+        w.windows = { _ in [] }
+        w.quitsAt = nil
+        let calls = Calls()
+        let ending = await runPatient(w, calls)
+        #expect(ending.outcome == .wontQuit)
+        #expect(ending.holdup == .nothingOnScreen)
+        #expect(calls.holdups == [.nothingOnScreen])
     }
 
     /// A late quit still gets the swap wait it would have had from the grace on,
@@ -460,7 +513,7 @@ import Testing
         w.quitsAt = nil
         let ending = await StagedRelaunch.quitAndAwait(
             app, staged: staged(.shipIt), old: old, wasFrontmost: false,
-            quitPatience: .handoff(onSlowQuit: {}, stopWaiting: { w.now >= 50 }), system: system(w))
+            quitPatience: .handoff(onSlowQuit: { _ in }, stopWaiting: { w.now >= 50 }), system: system(w))
         #expect(ending.outcome == .wontQuit)
         #expect(ending.everQuit == false)
         #expect(w.now == 50)
@@ -479,7 +532,7 @@ import Testing
         w.updaterRelaunches = false
         let ending = await StagedRelaunch.quitAndAwait(
             app, staged: staged(.shipIt), old: old, wasFrontmost: false,
-            quitPatience: .handoff(onSlowQuit: {}, stopWaiting: { w.now >= 2 }), system: system(w))
+            quitPatience: .handoff(onSlowQuit: { _ in }, stopWaiting: { w.now >= 2 }), system: system(w))
         #expect(ending.outcome == .applied)
         #expect(w.landedAt == 40)
         #expect(w.launches == [40])
@@ -499,7 +552,7 @@ import Testing
         let calls = Calls()
         let ending = await StagedRelaunch.quitAndAwait(
             app, staged: staged(.shipIt), old: old, wasFrontmost: false,
-            quitPatience: .handoff(onSlowQuit: { calls.count += 1 }, stopWaiting: { true }),
+            quitPatience: .handoff(onSlowQuit: { calls.count += 1; calls.holdups.append($0) }, stopWaiting: { true }),
             system: system(w))
         #expect(ending.outcome == .applied)
         #expect(ending.everQuit)
@@ -519,7 +572,7 @@ import Testing
         let calls = Calls()
         let ending = await StagedRelaunch.quitAndAwait(
             app, staged: staged(.shipIt), old: old, wasFrontmost: false,
-            quitPatience: .handoff(onSlowQuit: { calls.count += 1 }, stopWaiting: { true }),
+            quitPatience: .handoff(onSlowQuit: { calls.count += 1; calls.holdups.append($0) }, stopWaiting: { true }),
             system: system(w))
         #expect(ending.outcome == .wontQuit)
         #expect(ending.everQuit == false)

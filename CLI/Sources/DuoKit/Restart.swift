@@ -212,11 +212,35 @@ public enum Restart {
     ) -> StagedRelaunch.QuitPatience {
         let minutes = Int(StagedRelaunch.quitHandoffMaxAge / 60)
         return waitsForAnswer
-            ? .handoff(onSlowQuit: {
-                print("\(app.name)  hasn't quit yet — likely a save prompt. Answer it and its own updater applies \(to); waiting up to \(minutes) min (Ctrl-C to stop waiting)")
+            ? .handoff(onSlowQuit: { holdup in
+                print("\(app.name)  \(slowQuitLine(holdup, to: to, minutes: minutes))")
                 fflush(stdout)
             }, stopWaiting: stopWaiting)
             : .grace
+    }
+
+    /// The line printed when a terminal's wait goes on past the grace.
+    static func slowQuitLine(_ holdup: StagedRelaunch.QuitHoldup, to: String, minutes: Int) -> String {
+        let why = switch holdup {
+        case .windowUp:
+            "a window of it is up, likely a save or update prompt. Answer it"
+        case .nothingOnScreen:
+            "no window of it is on screen; it may keep running in the menu bar. Quit it from its menu"
+        }
+        return "hasn't quit yet — \(why) and its own updater applies \(to); waiting up to \(minutes) min (Ctrl-C to stop waiting)"
+    }
+
+    /// Why an app is still running after the quit, for the line that says so
+    /// (`QuitHoldup`); nil when no quit was sent.
+    static func stillRunningReason(_ holdup: StagedRelaunch.QuitHoldup?) -> String {
+        switch holdup {
+        case .windowUp:
+            "a window of it is up (likely a save or update prompt)"
+        case .nothingOnScreen:
+            "no window of it is on screen; it may keep running in the menu bar (quit it from its menu)"
+        case nil:
+            "stopped before it was asked to quit"
+        }
     }
 
     /// The line printed for a staged relaunch, and whether it fails the run.
@@ -229,7 +253,7 @@ public enum Restart {
             let now = disk.isEmpty ? to : disk.text(withBuild: true)
             return ("quit — its own updater applied \(now)\(reopen)", ending.reopenFailed)
         case .wontQuit:
-            return ("still running — likely a save prompt, left \(to) staged", true)
+            return ("still running — \(stillRunningReason(ending.holdup)), left \(to) staged", true)
         case .swapDidNotLand:
             return ("quit, but its own updater didn't apply \(to) in time\(reopen)", true)
         case .restartedWithoutUpdate:
@@ -282,7 +306,7 @@ public enum Restart {
         switch outcome {
         case .noBundleID:        return "skipped — no bundle identifier to match against"
         case .notRunning:        return "not running — nothing to restart"
-        case .stillRunning:      return "still running — likely a save prompt, left it alone"
+        case .stillRunning(let holdup): return "still running — \(stillRunningReason(holdup)), left it alone"
         case .awaitingOpenConfirmation: return awaitingOpenConfirmation
         case .relaunched(true):  return "restarted"
         case .relaunched(false): return "quit, but the relaunch failed"

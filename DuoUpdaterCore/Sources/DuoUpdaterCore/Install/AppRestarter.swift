@@ -22,8 +22,10 @@ public enum AppRestarter {
         /// No running instance was found — there was nothing to quit or relaunch.
         case notRunning
         /// Quit was requested but the app never actually exited within the
-        /// timeout — almost always a save prompt. Left running, untouched.
-        case stillRunning
+        /// timeout — a save prompt, or an app that keeps running in the menu
+        /// bar; what it had on screen then tells them apart (`QuitHoldup`).
+        /// Nil when no quit was sent. Left running, untouched.
+        case stillRunning(StagedRelaunch.QuitHoldup?)
         /// An instance had not finished launching and owned no window — held
         /// at macOS's first-open prompt, likely (`OpenConfirmationHold`).
         /// Nothing was quit: decided before the quit request, not after the wait.
@@ -102,7 +104,7 @@ public enum AppRestarter {
                 app, main: main, running: running, frontmostPath: frontmostPath,
                 parentPath: parentPath, nestedBundles: nestedBundles)
         }
-        return outcome ?? .stillRunning
+        return outcome ?? .stillRunning(nil)
     }
 
     /// `restart`'s answer before anything is quit, or nil to go on to the quit.
@@ -138,10 +140,13 @@ public enum AppRestarter {
             // cancel-ok: runs inside InstallCommit.run ("restart"), whose body no cancel reaches
             try? await Task.sleep(for: .milliseconds(200))
         }
-        guard allRunningInstances(of: app).isEmpty else {
+        let left = allRunningInstances(of: app)
+        guard left.isEmpty else {
+            let holdup = StagedRelaunch.QuitHoldup(
+                windows: StagedRelaunch.onScreenWindows(pids: Set(left.map(\.processIdentifier))))
             Log.install.error(
-                "app-restarter: \(app.name, privacy: .public) won't quit (likely a save prompt) — leaving it running")
-            return .stillRunning
+                "app-restarter: \(app.name, privacy: .public) won't quit (\(String(describing: holdup), privacy: .public)) — leaving it running")
+            return .stillRunning(holdup)
         }
         // Only if it was running. Without this the emptiness guard above — which
         // now passes on a nested app alone — would *start* an app the user had

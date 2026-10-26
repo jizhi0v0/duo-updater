@@ -68,7 +68,7 @@
 - app 启动时调用 `AXIsProcessTrustedWithOptions`，`kAXTrustedCheckOptionPrompt` 为 YES：没被信任时系统会弹出辅助功能授权框，菜单显示「需要授权」模式
 - 换包会不会丢授权: 三个包的 designated requirement（`codesign -d -r-`）逐字相同：
   `anchor apple generic and identifier "net.archagon.sensible-side-buttons" and (certificate leaf[field.1.2.840.113635.100.6.1.9] /* exists */ or certificate 1[field.1.2.840.113635.100.6.2.6] /* exists */ and certificate leaf[field.1.2.840.113635.100.6.1.13] /* exists */ and certificate leaf[subject.OU] = R4MX2B96J2)`（1.0.6、1.0.7、1.0.9 实测）
-- Apple TN2206 说系统靠 DR 识别「同一个程序的新版本」（钥匙串等按 DR 跟踪）：https://developer.apple.com/library/archive/technotes/tn2206/_index.html 。该文档没有提到 TCC。所以「DR 不变、换包后辅助功能授权保留」是推断，未验证，要在真机一键时确认（换包后 app 菜单不进入授权模式、系统设置里的开关仍开着）。2026-10-26 真机第一轮量到的 DR 与上面相同，但 app 一次都没启动、没授过权，所以授权保留这条仍未验证
+- Apple TN2206 说系统靠 DR 识别「同一个程序的新版本」（钥匙串等按 DR 跟踪）：https://developer.apple.com/library/archive/technotes/tn2206/_index.html 。该文档没有提到 TCC。所以「DR 不变、换包后辅助功能授权保留」原本是推断；2026-10-26 运行中一轮实测保留（见一键安装）。判据是 app 自己的菜单：每次打开菜单都调 `AXIsProcessTrustedWithOptions`，没被信任就显示 "Uh-oh! … not included in the Accessibility allowlist" 和 "Open Accessibility Allowlist"（`AppDelegate.m` 的 `MenuModeAccessibility`）。源码注释说条目被从列表里删掉时这个调用也返回 YES，所以判据只在条目存在、开关开着时成立；这次两者都满足
 
 ## Changelog
 - 来源: GitHub release 正文（`GitHubReleasesSource`）
@@ -78,11 +78,12 @@
 - Recipe 状态: 不需要
 
 ## 一键安装
-- 状态: 支持（Developer ID、Team R4MX2B96J2、Notarized，dmg）；真机第一轮通过（2026-10-26），运行中一轮和辅助功能授权保留没做，等用户给授权
+- 状态: 支持（Developer ID、Team R4MX2B96J2、Notarized，dmg）；真机两轮通过，辅助功能授权换包后保留（2026-10-26）
 - 端到端（2026-10-26，本分支 `make cli` 的 duo）:
   - 第一轮（不运行）: 1.0.6（x86_64）→ `duo install` → 1.0.7（x86_64 + arm64）、`TeamIdentifier=R4MX2B96J2`、`codesign` 退出 0、`spctl` Notarized Developer ID；designated requirement 与上面量到的相同
-  - 第二轮和「辅助功能授权换包后是否保留」: **没做**。要先给它辅助功能授权（系统安全设置），得用户自己给
-  - 终态: 1.0.7 已装，从未启动
+  - 第二轮（运行中，辅助功能授权由用户在系统设置里给）: 1.0.6 运行、开关打开，菜单是正常模式（Enabled / Trigger on Mouse Down …，没有 "Uh-oh!"）。`duo install` → 就地换包，"Still running the old code"；`duo restart SensibleSideButtons` → "restarted"，新进程跑 1.0.7（x86_64 + arm64）、`codesign` 0，没有再弹授权框；用户再打开菜单，显示 "SensibleSideButtons 1.0.7" 的正常菜单，系统设置里开关仍开着。结论: 换包后授权保留 ✓
+  - 插曲: 第一次换包后按「侧键能不能用」判断，结果「不能」；原因是这台 Mac 用的是触摸板、没有侧键，菜单里 "Enabled" 也没勾，这个判据不成立，改用上面的菜单判据。1.0.6 → 1.0.7 的换包因此做了两次，两次都在运行中
+  - 终态: 1.0.7 已装，未运行；系统设置「辅助功能」里留着它的条目（用户的设置，没动）
 - 格式: .dmg（`hdiutil imageinfo` 退出码 0），包内 `SensibleSideButtons.app` 和指向 /Applications 的链接
 - 嵌套 / 常驻组件: 无（没有 LoginItems、Helpers、XPC、launchd plist）
 - 校验: GitHub digest `sha256:fb823f17eeedf367c7af5f969d9a569a6e432440baacdc2de23d26577459e27d`，与下载的包一致；1.0.6 及更早的资产上传于 GitHub 加 digest 之前，没有 digest（不影响，安装的是最新版）
@@ -111,5 +112,4 @@ codesign -d -r- <mount>/SensibleSideButtons.app
 - 三者 `changelog pane` 同上
 
 ## 建议下一步
-1. 用户给辅助功能授权后补跑运行中一轮，确认授权在换包后仍有效
-2. 预发布副本是否单独接一个 prerelease 规则，待用户决定
+1. 预发布副本是否单独接一个 prerelease 规则，待用户决定

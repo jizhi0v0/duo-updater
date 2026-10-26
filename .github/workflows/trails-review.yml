@@ -5,10 +5,13 @@
 # nightly sweep on the mini still closes the issue once the notes appear.
 #
 # Runs when an issue is opened or reopened with `recipe-broken` already on it,
-# which is how the sweep files (`gh issue create --label`). Anyone can open an
-# issue titled like one, but only a collaborator can label it at creation, so the
-# label is the gate on spending the token. The title and body only ever reach the
-# script through `gh`, never through an expression in `run:`.
+# which is how the sweep files (`gh issue create --label`). As in
+# recipe-autofix.yml, the issue must also be the maintainer's: the sweep files as
+# them, and only someone with triage access can set a label, so an issue anyone
+# else opens with the right title never spends the token. The title and body only
+# ever reach the script through `gh`, never through an expression in `run:`. A
+# reopen's current failure is in the sweep's newest comment, which is what the
+# script reads.
 #
 # The Haiku step uses CLAUDE_CODE_OAUTH_TOKEN, as sunset-sweep.yml does, with
 # WebSearch and WebFetch only and no GitHub token in its environment.
@@ -43,7 +46,8 @@ jobs:
   review:
     if: >-
       github.event_name == 'workflow_dispatch' ||
-      (contains(github.event.issue.labels.*.name, 'recipe-broken') &&
+      (github.event.issue.user.login == 'jizhi0v0' &&
+       contains(github.event.issue.labels.*.name, 'recipe-broken') &&
        contains(github.event.issue.title, 'trails the detected version'))
     runs-on: ubuntu-latest
     timeout-minutes: 20

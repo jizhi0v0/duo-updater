@@ -30,6 +30,7 @@ by itself once the notes appear (`Reconcile`), so the label needs no cleanup.
 from __future__ import annotations
 
 import argparse
+import gzip
 import html
 import json
 import os
@@ -37,12 +38,20 @@ import re
 import subprocess
 import sys
 import urllib.request
+import zlib
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 RECIPES = REPO_ROOT / "DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes"
 LABEL = "vendor-lag"
 MARKER = "<!-- trails-review -->"
+# The sweep files and comments as the maintainer (`recipe-autofix.yml` reads it the same way).
+SWEEP_LOGIN = "jizhi0v0"
+VERIFY_MARKER = "<!-- duo-verify-id: "
+# `ChangelogService.userAgent`: what the sweep and the app send, so the page read
+# here is the page they read ("some vendor sites reject unfamiliar agents").
+USER_AGENT = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 "
+              "(KHTML, like Gecko) Version/17.0 Safari/605.1.15")
 
 # `Verify.changelogLagComplaint`'s two wordings.
 WARNING_RE = re.compile(
@@ -51,18 +60,30 @@ WARNING_RE = re.compile(
 RECIPE_ID_RE = re.compile(r"<!-- duo-verify-id: (changelog:[^ ]+) -->")
 
 
-def lag(body: str) -> tuple[str, str, str] | None:
-    """(recipe id, detected version, the release to look for) from an issue body.
+def current_text(body: str, comments: list[dict]) -> str:
+    """The sweep's latest word on the issue: the body, or the newest of its own comments
+    that carries the recipe marker. A reopen leaves the body as it was and posts the
+    new failure as a comment (`GitHub.reopen`)."""
+    texts = [body] + [c.get("body") or "" for c in comments
+                      if (c.get("author") or {}).get("login") == SWEEP_LOGIN
+                      and VERIFY_MARKER in (c.get("body") or "")]
+    return texts[-1]
 
-    The warning compares at major.minor, so that is what a page must mention; a
-    date-encoded scheme (Codex's `YY.MDD`) compares in days, so there it is the
-    whole version."""
+
+def lag(body: str) -> tuple[str, str, str, str] | None:
+    """(recipe id, newest entry, detected version, the release to look for) from the
+    sweep's text, or None when it isn't a trails warning.
+
+    The warning compares at major.minor, so that is what a page must mention. The
+    release is None for a date-encoded scheme (Codex's `YY.MDD`, compared in days):
+    its builds carry a suffix the notes never print and ship more often than notes,
+    so "the page doesn't mention it" says nothing there."""
     recipe, warning = RECIPE_ID_RE.search(body), WARNING_RE.search(body)
     if not recipe or not warning:
         return None
     detected = warning["detected"]
-    release = detected if warning["by"] != "a whole release" else ".".join(detected.split(".")[:2])
-    return recipe[1], detected, release
+    release = ".".join(detected.split(".")[:2]) if warning["by"] == "a whole release" else None
+    return recipe[1], warning["entry"], detected, release
 
 
 def recipe_calls(source: str) -> list[str]:
@@ -98,8 +119,10 @@ def recipe_page(recipe_id: str, recipes: Path = RECIPES) -> str | None:
     another recipe's page; a POST or request body (Notion's `loadPageChunk`) answers
     a GET with something else; an index or feed-page pattern puts the notes one
     page further on. Any of those returns None, and the issue keeps no label: a
-    wrong page would make "it isn't on the page" mean nothing. Measured
-    2026-10-26: 98 of the 198 changelog recipes in `verify/baseline.json` resolve."""
+    wrong page would make "it isn't on the page" mean nothing. So does a
+    `structuredFormat` page whose notes are encoded (Typeless: base64+gzip inside
+    `__NEXT_DATA__`). Measured 2026-10-26: 74 of the 198 changelog recipes in
+    `verify/baseline.json` resolve."""
     parts = recipe_id.split(":")
     if len(parts) != 3 or parts[2] != "-":
         return None
@@ -111,7 +134,7 @@ def recipe_page(recipe_id: str, recipes: Path = RECIPES) -> str | None:
         return None
     call = calls[0]
     if re.search(r"\b(channel|minimumAppVersion|belowAppVersion|sourceTemplate|versionFromTemplate"
-                 r"|httpMethod|requestBody|indexLinkPattern|feedPagePattern):", call):
+                 r"|httpMethod|requestBody|indexLinkPattern|feedPagePattern|structuredFormat):", call):
         return None
     source = re.search(r'\bsource:\s*URL\(string:\s*"([^"{}]+)"\)!', call)
     return source[1] if source else None
@@ -123,9 +146,18 @@ def mentions(page: str, release: str) -> int:
 
 
 def fetch(url: str) -> str:
-    request = urllib.request.Request(url, headers={"User-Agent": "duo-updater-trails-review"})
+    """The decoded page. Some hosts answer gzip even for `Accept-Encoding: identity`
+    (Antigravity's changelog), and counting the compressed bytes finds nothing."""
+    request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "Accept-Encoding": "identity"})
     with urllib.request.urlopen(request, timeout=30) as response:
-        return response.read().decode("utf-8", "replace")
+        raw, encoding = response.read(), (response.headers.get("Content-Encoding") or "").lower()
+    if encoding == "gzip":
+        raw = gzip.decompress(raw)
+    elif encoding == "deflate":
+        raw = zlib.decompress(raw)
+    elif encoding not in ("", "identity"):
+        raise RuntimeError(f"Content-Encoding {encoding} not decoded")
+    return raw.decode("utf-8", "replace")
 
 
 def normalize_text(text: str) -> str:
@@ -204,20 +236,29 @@ def defuse(text: str) -> str:
 
 
 def review(body: str, bundle_page=recipe_page, get=fetch, ask=ask_haiku) -> tuple[bool, list[str]] | None:
-    """(label it `vendor-lag`, the comment's lines), or None when this isn't a trails issue."""
+    """(label it `vendor-lag`, the comment's lines), or None when `body` isn't a trails warning."""
     found = lag(body)
     if found is None:
         return None
-    recipe_id, detected, release = found
-    entry = WARNING_RE.search(body)["entry"]
+    recipe_id, entry, detected, release = found
+    if release is None:
+        return False, [f"`{recipe_id}` numbers by date and is compared in days; a page search can't "
+                       "tell vendor lag there, so nothing was checked."]
     page_url = bundle_page(recipe_id)
     if page_url is None:
         return False, [f"Could not tell which page `{recipe_id}` reads from its source alone "
                        "(a channel, version window or URL template), so nothing was checked."]
     try:
-        hits = mentions(get(page_url), release)
+        page = get(page_url)
     except Exception as error:  # noqa: BLE001 — unchecked, so no label
         return False, [f"Could not fetch {page_url} ({str(error)[:120]}), so nothing was checked."]
+    # The page must show what the sweep read off it. If even the newest entry isn't
+    # there, this is not that page (a challenge, an encoded payload, another
+    # response), and its silence about the new release means nothing.
+    if not mentions(page, entry):
+        return False, [f"{page_url} as fetched here doesn't mention `{entry}`, the entry the sweep read "
+                       "off it, so it isn't the page the sweep saw. Nothing was concluded."]
+    hits = mentions(page, release)
     lines = [f"{page_url} mentions `{release}` {hits} time{'s' if hits != 1 else ''}."]
     if hits:
         return False, lines + ["", "The notes look published there, so the entry pattern is likely missing "
@@ -255,19 +296,23 @@ def main() -> int:
     parser.add_argument("--dry-run", action="store_true", help="print the comment, change nothing")
     args = parser.parse_args()
     issue = json.loads(subprocess.run(
-        ["gh", "issue", "view", str(args.issue), "--json", "body,labels"],
+        ["gh", "issue", "view", str(args.issue), "--json", "body,labels,comments"],
         check=True, capture_output=True, text=True).stdout)
-    result = review(issue.get("body") or "")
+    labelled = any(l.get("name") == LABEL for l in issue.get("labels") or [])
+    result = review(current_text(issue.get("body") or "", issue.get("comments") or []))
     if result is None:
-        print(f"#{args.issue} is not a changelog-trails issue; nothing to do.")
-        return 0
+        if not labelled:
+            print(f"#{args.issue}: the sweep's latest failure is not a changelog trail; nothing to do.")
+            return 0
+        # Reopened for something else: the old verdict no longer describes it.
+        result = False, [f"The sweep's latest failure here is no longer a changelog trail, so `{LABEL}` "
+                         "no longer applies."]
     label, lines = result
     comment = "\n".join([MARKER, "**Vendor-lag check**", ""] + lines)
     print(comment)
     if args.dry_run:
         return 0
     subprocess.run(["gh", "issue", "comment", str(args.issue), "--body", comment], check=True)
-    labelled = any(l.get("name") == LABEL for l in issue.get("labels") or [])
     if label != labelled:  # a reopened issue gets the label it now deserves
         flag = "--add-label" if label else "--remove-label"
         subprocess.run(["gh", "issue", "edit", str(args.issue), flag, LABEL], check=True)

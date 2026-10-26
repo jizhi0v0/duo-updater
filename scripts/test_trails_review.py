@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Tests for trails_review: which trails issues get `vendor-lag`, and every way one doesn't."""
 
+import gzip
 import sys
 import tempfile
 import unittest
@@ -21,16 +22,70 @@ FEED = "<item><title>Cork 2.0.3 is out</title></item><item><title>Cork 2.0.2</ti
 
 class Lag(unittest.TestCase):
     def test_whole_release_looks_for_major_minor(self):
-        self.assertEqual(t.lag(CORK), ("changelog:eu.davidbures.cork:-", "2.1.0", "2.1"))
+        self.assertEqual(t.lag(CORK), ("changelog:eu.davidbures.cork:-", "2.0.3", "2.1.0", "2.1"))
 
-    def test_days_look_for_the_whole_version(self):
+    def test_a_date_encoded_scheme_is_not_checked(self):
+        # Codex: builds carry a suffix its notes never print (`26.1021.31345` vs `26.1015`).
         body = ("<!-- duo-verify-id: changelog:com.openai.codex:- -->\n- newest changelog entry (26.803) "
-                "trails the detected version (26.1014) by 72 days — the entry pattern may be reading a stale section")
-        self.assertEqual(t.lag(body)[2], "26.1014")
+                "trails the detected version (26.1021.31345) by 79 days — the entry pattern may be reading a stale section")
+        self.assertIsNone(t.lag(body)[3])
+        label, lines = t.review(body, bundle_page=lambda r: self.fail("no page lookup"), get=None, ask=None)
+        self.assertFalse(label)
+        self.assertIn("compared in days", lines[0])
 
     def test_other_issues_are_not_trails(self):
         self.assertIsNone(t.lag("<!-- duo-verify-id: changelog:x:- -->\n- noEntriesExtracted"))
         self.assertIsNone(t.lag(CORK.replace("changelog:eu", "vendor:eu")))
+
+
+class CurrentText(unittest.TestCase):
+    def test_a_reopen_is_judged_on_the_sweeps_newest_comment(self):
+        reopened = CORK.replace("2.0.3", "2.1.4").replace("2.1.0", "2.2.0")
+        comments = [{"author": {"login": "jizhi0v0"}, "body": reopened},
+                    {"author": {"login": "github-actions"}, "body": t.MARKER + CORK},
+                    {"author": {"login": "jizhi0v0"}, "body": "Self-healed: no marker here."}]
+        self.assertEqual(t.lag(t.current_text(CORK, comments))[3], "2.2")
+
+    def test_someone_elses_comment_is_never_the_failure(self):
+        comments = [{"author": {"login": "someone"}, "body": CORK.replace("2.1.0", "9.9.0")}]
+        self.assertEqual(t.current_text(CORK, comments), CORK)
+
+    def test_a_reopen_for_another_failure_is_not_a_trail(self):
+        other = "<!-- duo-verify-id: changelog:eu.davidbures.cork:- -->\n| failure | `noEntriesExtracted` |"
+        self.assertIsNone(t.review(t.current_text(CORK, [{"author": {"login": "jizhi0v0"}, "body": other}])))
+
+
+class Fetch(unittest.TestCase):
+    def fetch_with(self, raw, encoding):
+        class Response:
+            headers = {"Content-Encoding": encoding} if encoding else {}
+
+            def read(self):
+                return raw
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+        seen = []
+        original = t.urllib.request.urlopen
+        t.urllib.request.urlopen = lambda req, timeout: seen.append(req) or Response()
+        try:
+            return t.fetch("https://antigravity.example/changelog"), seen[0]
+        finally:
+            t.urllib.request.urlopen = original
+
+    def test_gzip_sent_unasked_is_decoded(self):
+        # Antigravity's changelog answers gzip even for `Accept-Encoding: identity`.
+        page, request = self.fetch_with(gzip.compress(b"<h2>2.20.1</h2>"), "gzip")
+        self.assertEqual(t.mentions(page, "2.20"), 1)
+        self.assertIn("Safari", request.get_header("User-agent"))
+
+    def test_an_encoding_it_cannot_decode_is_an_error(self):
+        with self.assertRaises(RuntimeError):
+            self.fetch_with(b"\x00", "br")
 
 
 class RecipePage(unittest.TestCase):
@@ -54,7 +109,8 @@ class RecipePage(unittest.TestCase):
         self.assertEqual(t.recipe_page("changelog:a.b:-", self.recipes(plain)), "https://a.example/n")
         for extra in ("channel: .beta", "minimumAppVersion: \"2\"", "sourceTemplate: \"x\"",
                       "httpMethod: .post", "requestBody: Data()", "indexLinkPattern: #\"a\"#",
-                      "feedPagePattern: #\"a\"#", "versionFromTemplate: true"):
+                      "feedPagePattern: #\"a\"#", "versionFromTemplate: true",
+                      "structuredFormat: .typelessReleaseNotes"):
             folder = self.recipes(plain.replace("entryPattern", f"{extra}, entryPattern"))
             self.assertIsNone(t.recipe_page("changelog:a.b:-", folder), extra)
         self.assertIsNone(t.recipe_page("changelog:a.b:-", self.recipes(plain, plain)))  # two recipes
@@ -94,6 +150,14 @@ class Review(unittest.TestCase):
         self.assertTrue(label)
         self.assertIn("mentions `2.1` 0 times", lines[0])
         self.assertIn("2.1.0", asked[0])
+
+    def test_a_page_without_the_sweeps_own_entry_is_not_that_page(self):
+        # A challenge page, or notes encoded where a text search can't see them.
+        (label, lines), asked = self.run_review(page="<html>Just a moment...</html>",
+                                                answer={"verdict": "unpublished", "url": "", "quote": ""})
+        self.assertFalse(label)
+        self.assertEqual(asked, [])
+        self.assertIn("isn't the page the sweep saw", lines[0])
 
     def test_page_with_the_release_is_left_alone_without_asking(self):
         (label, lines), asked = self.run_review(page=FEED + "<title>Cork 2.1.0 is out</title>")

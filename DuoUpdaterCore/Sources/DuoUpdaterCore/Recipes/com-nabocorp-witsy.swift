@@ -54,9 +54,12 @@ enum com_nabocorp_witsy {
             versionPattern: #"^v([0-9]+(?:\.[0-9]+)+)$"#,
             installAssetPattern: #"^Witsy-[0-9]+(?:\.[0-9]+)+-darwin-arm64\.dmg$"#,
             installerKind: .dmg),
-        // A copy of `v2.0.0-beta1` or `v2.0.0-rc1` (2025-03) reports
-        // `2.0.0-beta1` / `2.0.0-rc1`, which `ReleaseChannel.detect` reads as
-        // non-stable, and the stable rule refuses it. No beta has shipped since
+        // A copy of `v2.0.0-beta1` (2025-03) reports `2.0.0-beta1`, which
+        // `ReleaseChannel.detect` reads as beta, and the stable rule refuses it.
+        // (`v2.0.0-rc1` reports `2.0.0-rc1`, which `detect` has no shape for: it
+        // reads as stable, so the stable rule above serves it, one-click
+        // included; channel-verify on the real rc1 dmg read `inferred stable`.)
+        // No beta has shipped since
         // (2.0.0 was stable a week later), so such a copy moves to the newest
         // stable release: same tags as the stable rule. Detection-only: a
         // non-stable install needs a channel proof, and only the installed

@@ -91,7 +91,7 @@
 
 ## 一键安装
 - 状态: 支持（同大版本内）；2.x → 3.x 由 `OneClickGate` 挡住
-- 端到端（2026-10-26，本分支 `make cli` 的 duo；**只做了第一轮**）:
+- 端到端（2026-10-26，本分支 `make cli` 的 duo；两轮都做了）:
   - 第一轮（不运行）: 2.7.1 → `duo install` → 2.7.2，Team `7F292FPD69` ✓（2.x → 2.x 的门放行）
   - 3.1.2 副本: 读到 `latest 2.7.2`，0 个更新，`duo install` 报 `Nothing to install` ✓（没有降级）。2 → 3 的门本身没法在真机上走：GitHub 没有给出 3.x 的报价，只有 `OneClickGateTests` 覆盖
   - 第二轮（运行中，用户在场）: 2.7.1 运行中，它自己的更新器下载并经 ShipIt 暂存了 2.7.2 → `duo install` → "Skipping: Rambox — its own updater already has 2.7.2 staged" ✓ → `duo restart Rambox` → "quit — its own updater applied 2.7.2"，重启后跑 2.7.2、Team 7F292FPD69、`codesign` 0 ✓
@@ -117,7 +117,7 @@
 ## 已知问题
 - 3.x 副本今天读到 2.7.2、显示 up to date，看不到 3.1.x 的更新，直到厂商挪 `/releases/latest`。这是跟随厂商的决定（3.x 由它自己的更新器负责）
 - beta 副本（`-beta.N`）没有 rule，见覆盖清单
-- 运行中一键: 自更新器同大版本会自己下载、退出时由 Squirrel 安装；duo 换包后退出 app 时，若它已暂存了更旧的同大版本，可能装回去（未实测；运行中一轮 2026-10-26 没做，原因见「一键安装」）
+- 运行中一键: 自更新器同大版本会自己下载、退出时由 Squirrel 安装；duo 换包后退出 app 时，若它已暂存了更旧的同大版本，可能装回去（未实测：2026-10-26 运行中一轮里它暂存的就是 2.7.2，duo 跳过了换包，这种情况没出现）
 - 真机上 3.1.2 副本读到 `latest 2.7.2`、没有更新、不降级（`Nothing to install`）；2 → 3 的门在真机上没走过，只有 `OneClickGateTests`
 
 ## 如何复验

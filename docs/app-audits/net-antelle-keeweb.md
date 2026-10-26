@@ -84,10 +84,10 @@ settled from source（`v1.18.7`）:
 
 ## 一键安装
 - 状态: **支持**（arm64 dmg，任何架构的已装副本）
-- 端到端（2026-10-26，本分支 `make cli` 的 duo；**只做了第一轮**）:
+- 端到端（2026-10-26，本分支 `make cli` 的 duo；两轮都做了）:
   - 第一轮（不运行）: 1.18.6 → `duo install` → 1.18.7，Team `3LE7JZ657W`（没有 GitHub digest）✓；bundle 属主仍是 `bobby:staff`（没有被改成 root）
   - 第二轮（运行中，用户在场）: 1.18.6 运行中 → `duo install` 就地换包、"Still running the old code" → `duo restart KeeWeb` → "restarted"，新进程跑 1.18.7、Team 3LE7JZ657W、`codesign` 0 ✓。bundle 全程是用户所有（`bobby:staff`）：1.18.6 启动时要求 root 的那次授权没有生效，1.18.7 重启后 3 s `KeeWeb Installer.app/Contents/MacOS/applet --install` 又弹「Allow administrator access for "KeeWeb Installer"」，用户处理后 bundle 仍是 `bobby:staff`。所以这轮测的是用户所有的 bundle；root 拥有的副本走提权换包没测（要先把旧版放进 root 拥有的目录，需要管理员）
-  - 终态: 1.18.7，从没启动过
+  - 终态: 1.18.7（第二轮 `duo restart` 后启动过，见上）
 - 格式: dmg（`hdiutil imageinfo` 退出 0），根目录 `KeeWeb.app` + `Applications` 软链 + `.background`、`.VolumeIcon.icns`
 - 嵌套: `Contents/Frameworks/KeeWeb Helper*.app`（Electron 的 GPU/Plugin/Renderer helper，随主进程起落）；`Contents/Installer/KeeWeb Installer.app`（上面说的 JXA 安装 applet，只在更新或首启权限修复时被调用，不常驻）；`Contents/MacOS/util/keeweb-native-messaging-host`（arm64，Team 3LE7JZ657W）。没有 LoginItems、LaunchAgent、`SMAppService`
 - 浏览器 native messaging: 用户在设置里开浏览器集成后，KeeWeb 往 `~/Library/Application Support/{Google/Chrome,Mozilla,Microsoft Edge}/NativeMessagingHosts/` 写 `net.antelle.keeweb.keeweb_connect.json`（以及 KeePassXC-Browser 兼容的 `org.keepassxc.keepassxc_browser.json`），`path` 是 bundle 内的绝对路径 `…/KeeWeb.app/Contents/MacOS/util/keeweb-native-messaging-host`（`desktop/scripts/util/browser-extension-installer.js`）。原地换包后这个路径仍然有效，指向新版。host 由浏览器拉起，连 `~/Library/Group Containers/3LE7JZ657W.keeweb/conn.sock`，KeeWeb 退出、socket EOF 时它自己退出（`keeweb-connect` 仓库 `native-messaging-host/src/native-messaging-host.cpp` 的 `close_keeweb_pipe` / `quit_on_error`）。所以换包后不会有指向旧代码的常驻 host（读源码得出，未在真机上看）
@@ -96,13 +96,13 @@ settled from source（`v1.18.7`）:
 - 校验: GitHub 资产没有 `digest`（2021 年上传）。release 自带 `Verify.sha256`：`KeeWeb-1.18.7.mac.arm64.dmg` 为 `6e4870b1660b91e735eaf30e7d751c7bb8dfae623d5b6c47899bd4d5ab1e6cae`，与下载文件 `shasum -a 256` 相同，大小 85807370 字节等于资产大小。GitHubReleaseRule 没有读校验文件的字段，没接
 - **读的是**: 人人可手动下载的 GA（`/releases/latest`；KeeWeb 自己的更新器读的 `update.json` 也是这一版）
 - 阻塞: 无
-- 真机前的注意点（来自源码 / 包内容，均未在真机上观察；第二轮没做，见上面的端到端）:
+- 真机前的注意点（来自源码 / 包内容，第二轮真机上只看到了下面第一条的管理员授权框，其余未观察）:
   - 首启若 bundle 不是 root 拥有，会弹「app rights」提示并立刻要管理员密码（`chown -R root`）。可以点不再询问（`skipFolderRightsWarning`）或取消；取消后 bundle 保持用户拥有
   - 首启约 0.5 s 后检查更新，1.18.6 会自动把 1.18.7 dmg 下到 `$TMPDIR/KeeWeb/`（约 86 MB）+ `.sign`；装完要提示「Restart and update」，不要点
   - 首启会建 `~/Library/Group Containers/3LE7JZ657W.keeweb/`（`conn.sock`，推断）和 `~/Library/Application Support/KeeWeb/`
   - Info.plist 声明 `kdbx` 文档类型（Editor，未写 `LSHandlerRank`），没有 URL scheme
   - 没有登录项、LaunchAgent、root helper
-  - 1.18.7 是 Electron 12（2021 年），在当前 macOS 上能否正常启动没验证
+  - 1.18.7 是 Electron 12（2021 年）；2026-10-26 第二轮在本机（macOS 27）上 `duo restart` 后进程跑 1.18.7，功能没逐项试
 
 ## 已知问题
 - 项目事实上停在 1.18.7：五年没有新的 Mac 构建。2026 年的 prerelease 是新维护者发的，没有 macOS 包；仓库里的 `build-run.yaml` 仍有 darwin 任务（用 `APPLE_CERTIFICATE` 等 secrets 签名），将来若出 Mac 包，Team 是否还是 3LE7JZ657W 不知道——换了 Team 的话所有旧副本的一键会被 Team 闸拒（检测不受影响）

@@ -4,7 +4,7 @@ import Testing
 
 /// `OneClickGate`: a recipe family names which installed copies may take the
 /// one-click; everything else keeps detection only. Exercised through the
-/// gates registered today (MuseScore, Memoh, Hyper, Readest, massCode and Museeks by installed version, GitKraken
+/// gates registered today (MuseScore, Memoh, Hyper, Readest, massCode and Museeks by installed version, Rambox by installed and offered major, GitKraken
 /// by an asar entry, Hoppscotch by both a version and an executable marker) and
 /// through both places that enforce them.
 struct OneClickGateTests {
@@ -85,7 +85,7 @@ struct OneClickGateTests {
     @Test func theRegisteredGatesAreTheMeasuredCases() {
         #expect(Set(OneClickGateRegistry.gates.map(\.bundleID))
             == ["org.musescore.MuseScore", "com.axosoft.gitkraken", "ai.memoh.desktop", "io.hoppscotch.desktop",
-                "co.zeit.hyper", "com.bilingify.readest", "io.masscode.app", "io.museeks.app"])
+                "co.zeit.hyper", "com.bilingify.readest", "io.masscode.app", "io.museeks.app", "com.rambox"])
     }
 
     /// Versions of the real bundles: stable 3.4.1, 3.4.0, 3.0.2 and the canary
@@ -111,6 +111,37 @@ struct OneClickGateTests {
         for version in ["0.12.16-2026102206", "0.11.4-2026061406"] {
             #expect(OneClickGateRegistry.withholding(app("com.bilingify.readest", version), offering: nil) != nil, "\(version)")
         }
+    }
+
+    /// Rambox 2 and 3 share `com.rambox` and Team 7F292FPD69 (real dmgs 2.7.2
+    /// and 3.1.2, `Rambox-<version>-mac.dmg`); signing in to 3 moves the
+    /// account one way. A 3.x-or-later dmg goes only to a 3.x-or-later copy, a
+    /// 2.x dmg only to a 2.x copy, and any other package to neither.
+    @Test func ramboxOneClickNeverCrossesFromTwoToThree() {
+        let later = ["Rambox-3.1.2-mac.dmg", "Rambox-3.0.0-mac.dmg", "Rambox-4.0.0-mac.dmg", "Rambox-10.0.0-mac.dmg"]
+        for version in ["2.7.2", "2.7.1", "2.0.1"] {
+            for package in later {
+                #expect(OneClickGateRegistry.withholding(
+                    app("com.rambox", version), offering: remote(package: package)) != nil, "\(version) ← \(package)")
+            }
+            #expect(OneClickGateRegistry.withholding(
+                app("com.rambox", version), offering: remote(package: "Rambox-2.7.2-mac.dmg")) == nil, "\(version)")
+        }
+        for version in ["3.1.2", "3.0.0", "4.0.0"] {
+            for package in later.dropLast(2) {
+                #expect(OneClickGateRegistry.withholding(
+                    app("com.rambox", version), offering: remote(package: package)) == nil, "\(version) ← \(package)")
+            }
+            #expect(OneClickGateRegistry.withholding(
+                app("com.rambox", version), offering: remote(package: "Rambox-2.7.2-mac.dmg")) != nil, "\(version)")
+        }
+        #expect(OneClickGateRegistry.withholding(
+            app("com.rambox", "10.0.0"), offering: remote(package: "Rambox-10.0.0-mac.dmg")) == nil)
+        for package in ["Rambox-3.1.2-mac.dmg", "Rambox-2.7.2-mac.dmg"] {
+            #expect(OneClickGateRegistry.withholding(app("com.rambox", nil), offering: remote(package: package)) != nil)
+        }
+        #expect(OneClickGateRegistry.withholding(
+            app("com.rambox", "2.7.1"), offering: remote(package: "RamboxPro-1.5.1.dmg")) != nil)
     }
 
     /// A bundle at a fresh path whose Info.plist is `plist` and whose

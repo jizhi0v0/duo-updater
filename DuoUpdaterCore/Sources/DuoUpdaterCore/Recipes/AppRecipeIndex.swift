@@ -169,6 +169,7 @@ public enum AppRecipeIndex {
         com_oracle_mysqlworkbench.set,
         com_oray_sunlogin_macclient.set,
         com_pais_handy.set,
+        com_paulthetall_portingkit.set,
         com_philandro_anydesk.set,
         com_plexo_app.set,
         com_postmanlabs_mac.set,

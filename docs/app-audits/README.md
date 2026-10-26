@@ -336,6 +336,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [ ] [**Joplin**](net-cozic-joplin-desktop.md) · `net.cozic.joplin-desktop` — G (one-click arm64 dmg) · 自带检查只提示、开浏览器下载（electron-updater 在 Mac 上被它自己关掉） · 真包 3.7.18/3.7.21 channel-verify ✓（3.7.18 → 3.7.21、3.7.21 up to date） · **预发布同 id 未接**（设置 `autoUpdate.includePreReleases`，需 ChannelBinding） · 一键端到端待主会话 · changelog 结构化 ✓（正文无标题；跨小版本只见最新稳定版正文） · 2026-10-26
 - [ ] [**Mockoon**](com-mockoon-app.md) · `com.mockoon.app` — G (one-click universal dmg) · 自研更新检查，macOS 上只打开下载页（`app-update.yml` 没人用） · monorepo，只有桌面 app 建 GitHub release · 真包 9.8.0/9.9.0 channel-verify ✓（9.8.0 → 9.9.0、9.9.0 up to date） · 一键端到端待主会话 · **changelog 不结构化**（release 正文只有一条官网链接；官网有逐版 Markdown，待 ChangelogRecipe） · 2026-10-26
 - [ ] [**Reqable**](com-reqable-macosx.md) · `com.reqable.macosx` — G (one-click arm64 dmg) · 自带 Sparkle 2.8（feed 在代码里、带参数，发的就是 GitHub 资产） · 包内 setuid proxy-helper（一次性；2.21.2、3.3.4、3.3.5 字节相同）与 stdio mcp-server，无常驻组件 · 真包 3.3.4/3.3.5 channel-verify ✓（3.3.4 → 3.3.5，3.3.5 up to date） · changelog 结构化（单个平台标题不保留） · 一键端到端待主会话 · 2026-10-26
+- [ ] [**Porting Kit**](com-paulthetall-portingkit.md) · `com.paulthetall.portingkit` — G (one-click arm64 dmg) · electron-updater（默认读本仓库，偏好 `experimentalFeatures` 开时读 `porting-kit-releases-dev`） · 真包 4.1.6/6.5.0/6.7.0 channel-verify ✓（4.1.6、6.5.0 → 6.7.0，6.7.0 up to date） · **实验轨只按 stable 检测**（同 id，偏好切仓库，需 `ChannelBinding`） · 一键端到端待主会话 · changelog 结构化 ✓（recipe 读 release 资产 `changelog.html`） · 2026-10-26
 
 ## Changelog-only (detection via Sparkle or Homebrew)
 

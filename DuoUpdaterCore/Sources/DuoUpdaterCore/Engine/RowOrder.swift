@@ -150,13 +150,30 @@ public struct NetworkPathState: Sendable, Equatable {
         deferralReason == nil
     }
 
+    /// What about this path puts discretionary work off, in the order the
+    /// reasons are named; nil when nothing does.
+    public enum Restriction: Sendable, Equatable {
+        case offline
+        case lowDataMode
+        case expensive
+    }
+
+    public var restriction: Restriction? {
+        if !isSatisfied { return .offline }
+        if isConstrained { return .lowDataMode }
+        if isExpensive { return .expensive }
+        return nil
+    }
+
     /// Why discretionary work is put off on this path, for the log; nil when it
     /// is not.
     public var deferralReason: String? {
-        if !isSatisfied { return "offline" }
-        if isConstrained { return "Low Data Mode" }
-        if isExpensive { return "expensive network" }
-        return nil
+        switch restriction {
+        case .offline: "offline"
+        case .lowDataMode: "Low Data Mode"
+        case .expensive: "expensive network"
+        case nil: nil
+        }
     }
 }
 
@@ -170,5 +187,13 @@ extension CheckSchedule {
     public static func tickDeferral(path: NetworkPathState, canRefresh: Bool) -> String? {
         if let reason = path.deferralReason { return reason }
         return canRefresh ? nil : "busy"
+    }
+
+    /// Why scheduled checks are paused right now, for the popover's mark; nil
+    /// when they are not, including when there are none to pause (checks are
+    /// manual). Only the path: "busy" is not a pause the user needs telling
+    /// about, it ends with the work they can already see.
+    public static func pause(path: NetworkPathState, scheduledChecksOn: Bool) -> NetworkPathState.Restriction? {
+        scheduledChecksOn ? path.restriction : nil
     }
 }

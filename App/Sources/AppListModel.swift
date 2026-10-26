@@ -10896,7 +10896,8 @@ final class AppListModel {
     ///
     /// The retry goes through `retryFailedChecks`, never a refresh, so it cannot
     /// reach `recordCheckOutcomes` and advance a chronic streak. It inherits that
-    /// method's busy/installing guards, and it is dropped if the Mac is offline
+    /// method's busy/installing guards, and it is dropped if the path would defer a
+    /// scheduled tick (offline, Low Data Mode, a hotspot)
     /// when it fires, rather than failing the same rows a second time. Dropped
     /// means dropped: the next round has those rows.
     private func scheduleAutomaticRetry(afterRound checked: [UpdateResult], intent: RefreshIntent) {
@@ -10909,8 +10910,10 @@ final class AppListModel {
             try? await Task.sleep(for: delay)
             guard !Task.isCancelled, let self else { return }
             self.automaticRetryTask = nil
-            guard NetworkMonitor.shared.path.isSatisfied else {
-                Log.app.info("retry failed: automatic retry dropped — offline")
+            // The same gate as the scheduled tick: this retry is just as
+            // unasked-for, so a hotspot or Low Data Mode drops it too.
+            if let why = NetworkMonitor.shared.path.deferralReason {
+                Log.app.info("retry failed: automatic retry dropped — \(why, privacy: .public)")
                 return
             }
             await self.retryFailedChecks(only: targets)

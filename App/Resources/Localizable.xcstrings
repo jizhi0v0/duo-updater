@@ -7446,6 +7446,326 @@
         }
       }
     },
+    "Automatic checks paused — click for why": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Automatische Prüfungen pausiert – klicken für den Grund"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Comprobaciones automáticas en pausa: haz clic para saber por qué"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vérifications automatiques en pause — cliquez pour savoir pourquoi"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Controlli automatici in pausa — fai clic per sapere perché"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自動確認を一時停止中。クリックすると理由を表示します"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verificações automáticas pausadas — clique para saber por quê"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Автопроверки приостановлены — нажмите, чтобы узнать почему"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Otomatik denetimler duraklatıldı — nedenini görmek için tıklayın"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自动检查已暂停 — 点按查看原因"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自動檢查已暫停 — 按一下查看原因"
+          }
+        }
+      }
+    },
+    "Automatic update checks are paused while this Mac is offline.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Automatische Update-Prüfungen sind pausiert, solange dieser Mac offline ist."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las comprobaciones automáticas de actualizaciones están en pausa mientras este Mac no tenga conexión."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les vérifications automatiques des mises à jour sont en pause tant que ce Mac est hors ligne."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "I controlli automatici degli aggiornamenti sono in pausa mentre questo Mac è offline."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "この Mac がオフラインの間、アップデートの自動確認を一時停止しています。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "As verificações automáticas de atualizações ficam pausadas enquanto este Mac estiver offline."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Автоматические проверки обновлений приостановлены, пока этот Mac не в сети."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu Mac çevrimdışıyken otomatik güncelleme denetimleri duraklatılır."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这台 Mac 离线时，自动检查更新会暂停。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這台 Mac 離線時，自動檢查更新會暫停。"
+          }
+        }
+      }
+    },
+    "Automatic update checks are paused while this Mac is online through a Personal Hotspot or cellular connection.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Automatische Update-Prüfungen sind pausiert, solange dieser Mac über einen persönlichen Hotspot oder eine Mobilfunkverbindung online ist."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las comprobaciones automáticas de actualizaciones están en pausa mientras este Mac se conecta a través de Compartir Internet o de una conexión móvil."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les vérifications automatiques des mises à jour sont en pause tant que ce Mac est connecté via un partage de connexion ou un réseau cellulaire."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "I controlli automatici degli aggiornamenti sono in pausa mentre questo Mac è connesso tramite hotspot personale o rete cellulare."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "この Mac がインターネット共有またはモバイル通信で接続している間、アップデートの自動確認を一時停止しています。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "As verificações automáticas de atualizações ficam pausadas enquanto este Mac estiver conectado por Acesso Pessoal ou rede celular."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Автоматические проверки обновлений приостановлены, пока этот Mac подключён через режим модема или сотовую сеть."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu Mac Kişisel Erişim Noktası veya hücresel bağlantı üzerinden çevrimiçiyken otomatik güncelleme denetimleri duraklatılır."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这台 Mac 通过个人热点或蜂窝网络联网时，自动检查更新会暂停。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這台 Mac 透過個人熱點或行動網路連線時，自動檢查更新會暫停。"
+          }
+        }
+      }
+    },
+    "Automatic update checks are paused while this network is in Low Data Mode.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Automatische Update-Prüfungen sind pausiert, solange dieses Netzwerk im Datensparmodus ist."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las comprobaciones automáticas de actualizaciones están en pausa mientras esta red esté en modo de datos reducidos."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les vérifications automatiques des mises à jour sont en pause tant que ce réseau est en mode données faibles."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "I controlli automatici degli aggiornamenti sono in pausa mentre questa rete è in modalità dati ridotti."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このネットワークで省データモードがオンの間、アップデートの自動確認を一時停止しています。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "As verificações automáticas de atualizações ficam pausadas enquanto esta rede estiver no Modo de Dados Reduzidos."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Автоматические проверки обновлений приостановлены, пока в этой сети включён режим экономии данных."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu ağ Düşük Veri Modu’ndayken otomatik güncelleme denetimleri duraklatılır."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "当前网络处于低数据模式时，自动检查更新会暂停。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "目前網路處於低數據模式時，自動檢查更新會暫停。"
+          }
+        }
+      }
+    },
+    "Check Now": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jetzt prüfen"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Comprobar ahora"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vérifier maintenant"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Controlla ora"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "今すぐ確認"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verificar Agora"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Проверить сейчас"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Şimdi Denetle"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "立即检查"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "立即檢查"
+          }
+        }
+      }
+    },
     "Don’t ask again": {
       "extractionState": "manual",
       "localizations": {
@@ -16534,6 +16854,134 @@
           "stringUnit": {
             "state": "translated",
             "value": "下載的檔案與已安裝的副本不是用同一張憑證簽署的。不會安裝。"
+          }
+        }
+      }
+    },
+    "They resume on their own once that changes.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sie werden fortgesetzt, sobald sich das ändert."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se reanudan solas en cuanto eso cambie."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Elles reprennent d’elles-mêmes dès que cela change."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Riprendono da soli appena la situazione cambia."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "状況が変われば自動的に再開します。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Elas voltam sozinhas assim que isso mudar."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Они возобновятся сами, как только это изменится."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu durum değişince kendiliğinden devam eder."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "情况变化后会自动恢复。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "情況改變後會自動恢復。"
+          }
+        }
+      }
+    },
+    "They resume on their own once that changes. Checking by hand still works.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sie werden fortgesetzt, sobald sich das ändert. Manuell prüfen geht weiterhin."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se reanudan solas en cuanto eso cambie. Comprobar a mano sigue funcionando."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Elles reprennent d’elles-mêmes dès que cela change. La vérification manuelle reste possible."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Riprendono da soli appena la situazione cambia. Il controllo manuale funziona comunque."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "状況が変われば自動的に再開します。手動での確認はいつでもできます。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Elas voltam sozinhas assim que isso mudar. Verificar manualmente continua funcionando."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Они возобновятся сами, как только это изменится. Проверить вручную можно и сейчас."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu durum değişince kendiliğinden devam eder. Elle denetlemek yine de mümkün."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "情况变化后会自动恢复。手动检查仍然可用。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "情況改變後會自動恢復。手動檢查仍可使用。"
           }
         }
       }

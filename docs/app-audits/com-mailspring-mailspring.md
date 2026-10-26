@@ -76,8 +76,8 @@
 | 结论 | 会 | 2026-10-26 运行中一轮：启动约 45 s 内 ShipIt 停放了完整的 1.26.2 `Mailspring.app`（`~/Library/Caches/com.mailspring.mailspring.ShipIt/update.*/`，`ShipItState.plist` 指向 `/Applications/Mailspring.app`） | ○（duo 不复用，改为让路，见一键安装） |
 | 证据 | `autoupdate-manager.js`：启动和每 30 分钟 `checkForUpdates()`，Electron 文档说有更新就自动下载；`update-downloaded` 后进入 `update-available` 状态等用户点安装或下次启动 | — | `SelfUpdaterStaging` 按通用的 `~/Library/Caches/<bundleID>.ShipIt/` 布局认出「已暂存」并改成提示重启；`SelfUpdaterStash` 读的布局里没有 Squirrel.Mac 原生 autoUpdater 这种（它只认 electron-updater 的 `pending/` 和 Cindy 的 hotfix） |
 
-- 记录文件与字段: 按引擎对 Squirrel.Mac 的已知布局（`SelfUpdaterDownload` 注释），应是 `~/Library/Caches/com.mailspring.mailspring.ShipIt/ShipItState.plist` + `update.<随机>/Mailspring.app`；Mailspring 上没实测（未验证）
-- 容器: 解开的 `.app`（Squirrel.Mac 下载 zip 后解包）；未实测
+- 记录文件与字段: 按引擎对 Squirrel.Mac 的已知布局（`SelfUpdaterDownload` 注释），应是 `~/Library/Caches/com.mailspring.mailspring.ShipIt/ShipItState.plist` + `update.<随机>/Mailspring.app`；2026-10-26 运行中一轮实测如此（`update.SYmMU7m/Mailspring.app`，`ShipItState.plist` 的 `targetBundleURL` 是 `/Applications/Mailspring.app/`）
+- 容器: 解开的 `.app`（Squirrel.Mac 下载 zip 后解包）；2026-10-26 实测是完整的 1.26.2 `Mailspring.app`
 - 两份副本会不会共用这个目录: 会，目录按 bundle id 命名
 
 ## Changelog
@@ -103,7 +103,7 @@
   - 登录项: 「开机启动」用 `app.setLoginItemSettings({openAtLogin})`，登录项就是主 app 本身（`src/system-start-service.js`，顺手删旧的 `~/Library/LaunchAgents/com.mailspring.plist`）；换包后路径不变
 - 校验: GitHub 资产 `digest`。1.26.2 `sha256:4ca6a0d995e51583c2dc4c43bdccfb4a96ed61867f0e8e18486954ba55f83dce`，与下载的包一致（180022208 字节）；1.26.1 `sha256:de4491669a6d13aab36428c21021335b1a3f0d8fa82e77a5540960f7a2dd0c1f`，`shasum -a 256` 相同（180004093 字节）
 - **读的是**: 人人可手动下载的 GA（`/releases/latest`），也是厂商更新服务器给 anonymous 请求的同一个资产
-- 自更新器会不会和我们抢: 会。运行中的副本每 30 分钟自己下载新版，下次启动（或用户点了更新）时 ShipIt 换包。引擎对 ShipIt 有通用处理（`SelfUpdaterStaging`、`StagedRelaunch` 的 `.shipIt`）。和 massCode 一样，真机第二轮要看：duo 换包后 ShipIt 会不会把它自己暂存的旧版装回去（运行中一轮没做，这条还没验）
+- 自更新器会不会和我们抢: 会。运行中的副本每 30 分钟自己下载新版，下次启动（或用户点了更新）时 ShipIt 换包。引擎对 ShipIt 有通用处理（`SelfUpdaterStaging`、`StagedRelaunch` 的 `.shipIt`）。和 massCode 一样，duo 换包后 ShipIt 会不会把它自己暂存的旧版装回去，这条还没验：2026-10-26 运行中一轮 ShipIt 暂存的就是最新版，duo 让路、没有换包，所以这种情况没出现
 - 阻塞: 无
 
 ## 已知问题

@@ -144,6 +144,7 @@ public enum AppRecipeIndex {
         com_microsoft_teams2.set,
         com_microsoft_VSCode.set,
         com_microsoft_Word.set,
+        com_mikekreeki_tasks.set,
         com_mitchellh_ghostty.set,
         com_molunerfinn_picgo.set,
         com_mongodb_compass.set,

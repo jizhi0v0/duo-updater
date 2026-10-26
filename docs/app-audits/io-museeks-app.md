@@ -92,6 +92,8 @@
   - `NSCameraUsageDescription` / `NSMicrophoneUsageDescription` 声明了（WebRTC 模板），正常使用不应触发
 
 ## 已知问题
+- `BundleIDMigration` 的 Team 只约束换包和回滚：检测阶段任何 bundle id 恰好是 `Museeks`、版本低于 0.22.0 的副本都会被当成 Museeks 检测（区分大小写，`museeks` 不算），别的 Team 签的副本在安装的 Team 闸被拒、原副本不动
+- 这条迁移让回滚跨了 Electron 和 Tauri: 同一路径下，Electron 的 `io.museeks.app`（≤0.13.1）副本和 Tauri 的 `Museeks`（0.20/0.21）备份之间，用户手动选回滚时现在能互相还原（同 Team；之前会被 `identityMismatch` 拒）。只在用户自己挑这个备份时发生，更新和一键路径不受影响（adversary 审查读代码得出，未在真机上造）
 - 旧 id `Museeks`（0.20.0–0.21.1）的副本换包后曲库能否沿用，只读了源码、没在真机上启动验证
 - Electron 副本检测会提示 0.23.4，但一键被挡；理由是厂商写明的数据不兼容，不是签名问题
 
@@ -104,7 +106,7 @@ gh release download 0.13.1 --repo martpie/museeks --pattern 'museeks-arm64.dmg'
 .claude/skills/coverage-discovery/scripts/check-bundle.sh Museeks_0.23.4_universal.dmg Museeks_0.21.1_universal.dmg museeks-arm64.dmg
 swift run --package-path application-test channel-verify Museeks_0.23.3_universal.dmg --expect stable   # GitHub, UPDATE → 0.23.4
 swift run --package-path application-test channel-verify Museeks_0.23.4_universal.dmg --expect stable   # up to date
-swift run --package-path application-test channel-verify Museeks_0.21.1_universal.dmg --expect stable   # 旧 id: unknown
+swift run --package-path application-test channel-verify Museeks_0.21.1_universal.dmg --expect stable   # 旧 id: 经 BundleIDMigration，GitHub, UPDATE → 0.23.4
 swift run --package-path application-test channel-verify museeks-arm64.dmg --expect stable              # Electron: UPDATE → 0.23.4（一键被 gate 挡）
 swift test --package-path DuoUpdaterCore --filter museeksOneClickIsForTauriCopiesOnly
 ```
@@ -115,7 +117,8 @@ channel-verify 原始输出（2026-10-26）:
   download https://github.com/martpie/museeks/releases/download/0.23.4/Museeks_0.23.4_universal.dmg;
   changelog pane source structured: 1 entries; newest 0.23.4: 1 items, headings []; status UPDATE → 0.23.4
 0.23.4 dmg: winning source GitHub; latest 0.23.4; status up to date
-0.21.1 dmg (bundle id Museeks): winning source <none>; status unknown (no source answered)
+0.21.1 dmg (bundle id Museeks)，加迁移之前: winning source <none>; status unknown (no source answered)
+0.21.1 dmg (bundle id Museeks)，加迁移之后（主会话复测）: bundle id Museeks; detected channel → stable; winning source GitHub; latest 0.23.4; status UPDATE → 0.23.4
 0.13.1 dmg (Electron): winning source GitHub; latest 0.23.4; status UPDATE → 0.23.4
 ```
 

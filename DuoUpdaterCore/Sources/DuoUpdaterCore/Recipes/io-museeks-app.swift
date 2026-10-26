@@ -13,8 +13,9 @@ enum io_museeks_app {
         // Tags read `0.23.4`; the bundle says 0.23.4. Every Tauri release
         // carries one `Museeks_<version>_universal.dmg`; 0.22.0 through 0.23.4
         // are io.museeks.app, Team YK6MWU3892, notarized. 0.20.0–0.21.1 were
-        // signed as `Museeks` (same Team), which this rule does not reach; the
-        // Electron builds (0.13.1 and older) were io.museeks.app again. No
+        // signed as `Museeks` (same Team); `BundleIDMigration` files those copies
+        // under io.museeks.app so this rule answers them too. The Electron
+        // builds (0.13.1 and older) were io.museeks.app again. No
         // release is flagged prerelease.
         GitHubReleaseRule(
             bundleID: "io.museeks.app",

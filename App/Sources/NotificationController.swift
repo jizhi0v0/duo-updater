@@ -33,6 +33,10 @@ final class NotificationController: NSObject, UNUserNotificationCenterDelegate, 
         /// whose action answers a prompt the installer is actively suspended on.
         static let quitConfirmCategory = "QUIT_TO_INSTALL"
         static let confirmQuit = "CONFIRM_QUIT"
+        /// "Automatic update checks suspended" (`UpdateNotifier.checksSuspended`),
+        /// with the check the user can still start.
+        static let checksSuspendedCategory = "CHECKS_SUSPENDED"
+        static let checkNow = "CHECK_NOW"
         /// userInfo key carrying the target row's id (its on-disk path) so the
         /// Relaunch action knows which app to restart.
         static let appIDKey = "appID"
@@ -93,7 +97,17 @@ final class NotificationController: NSObject, UNUserNotificationCenterDelegate, 
             actions: [confirmQuit],
             intentIdentifiers: [],
             options: [])
-        center.setNotificationCategories([category, viewOnly, selfUpdate, quitToInstall])
+        // "Check Now" runs the check the network deferred, as the Refresh button
+        // would. No `.foreground`: the result lands in the menu and, if anything
+        // is new, in the usual updates banner.
+        let checkNow = UNNotificationAction(
+            identifier: ID.checkNow, title: String(localized: "Check Now"), options: [])
+        let checksSuspended = UNNotificationCategory(
+            identifier: ID.checksSuspendedCategory,
+            actions: [checkNow],
+            intentIdentifiers: [],
+            options: [])
+        center.setNotificationCategories([category, viewOnly, selfUpdate, quitToInstall, checksSuspended])
 
         // `.badge` is required even though we never badge via UNUserNotificationCenter:
         // requesting authorization WITHOUT it makes the system deny badge permission for
@@ -137,6 +151,8 @@ final class NotificationController: NSObject, UNUserNotificationCenterDelegate, 
             if let id = response.notification.request.content.userInfo[ID.appIDKey] as? String {
                 Task { @MainActor in model?.confirmQuit(id, proceed: true) }
             }
+        case ID.checkNow:
+            Task { @MainActor in await model?.refreshes.handle(.manual) }
         case ID.view, UNNotificationDefaultActionIdentifier:
             Task { @MainActor in
                 NSApp.activate(ignoringOtherApps: true)

@@ -322,6 +322,18 @@ struct CheckScheduleNetworkPathTests {
         #expect(CheckSchedule.pause(path: hotspot, scheduledChecksOn: false) == nil)
     }
 
+    /// One notification per run, for a hotspot or Low Data Mode only.
+    ///
+    /// Mutations: drop the `alreadyAnnounced` guard; drop the `.offline` exclusion.
+    @Test func aDeferredTickIsAnnouncedOncePerRunAndNeverForOffline() {
+        #expect(CheckSchedule.announcesDeferral(of: .expensive, alreadyAnnounced: false))
+        #expect(CheckSchedule.announcesDeferral(of: .lowDataMode, alreadyAnnounced: false))
+        #expect(!CheckSchedule.announcesDeferral(of: .expensive, alreadyAnnounced: true))
+        #expect(!CheckSchedule.announcesDeferral(of: .offline, alreadyAnnounced: false))
+        // Deferred for being busy, not for the path.
+        #expect(!CheckSchedule.announcesDeferral(of: nil, alreadyAnnounced: false))
+    }
+
     /// Low Data Mode on a hotspot is named as Low Data Mode, the reason the user
     /// set themselves.
     @Test func lowDataModeIsNamedAheadOfExpensive() {

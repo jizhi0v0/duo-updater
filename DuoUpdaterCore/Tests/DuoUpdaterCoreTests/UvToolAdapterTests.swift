@@ -323,14 +323,15 @@ struct UvToolAdapterTests {
         #expect(Self.status(report, "ruff")?.latestVersion == "0.6.0.post1")
     }
 
-    /// Below 0.10.10 there is no `--outdated`: each tool is asked of PyPI for
+    /// Below 0.11.0 `--outdated` is not read — 0.10.10–0.10.12 had it, but
+    /// asked for no Python of the tool's — so each tool is asked of PyPI for
     /// its venv's Python. black's newest is 26.10.1, which needs Python ≥3.10;
     /// on 3.9.6 the newest it can get is 25.11.0 — what uv's own `--outdated`
     /// printed too. Mutation: take `info.version` without its
     /// `requires_python`; spawn uv anyway.
     @Test func anOldUvIsAnsweredFromPyPIForTheVenvsPython() async throws {
         let host = try FakeHost()
-        host.binaryVersion = "0.10.9"
+        host.binaryVersion = "0.10.12"
         host.pypi = [
             "black": try Self.pipxFixture("pypi-black-trimmed.json"),
             "cowsay": try Self.pipxFixture("pypi-cowsay.json"),

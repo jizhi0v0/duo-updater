@@ -10,14 +10,14 @@ import Foundation
 /// - **Scan, disk only**: each tool directory's `uv-receipt.toml`
 ///   (`UvToolReceipt`) for the request, the venv's dist-info for the installed
 ///   version, `pyvenv.cfg`'s `version_info` for its Python.
-/// - **Check**: `uv tool list --outdated` (uv ≥0.10.10; `UvToolOutdated`),
+/// - **Check**: `uv tool list --outdated` (uv ≥0.11.0; `UvToolOutdated`),
 ///   cwd `/`, the environment built from scratch — `UV_*` from a terminal-run
 ///   `duo` would change what it reads. It asks PyPI's simple index, never
 ///   api.github.com. Offline it exits 2 with nothing on stdout, so its rows
-///   read "channel unreadable", never current. Below 0.10.10 — and on 0.10.x
-///   for a tool whose receipt has `exclude-newer`, which `--outdated` ignored
-///   before 0.11.0 (UV-14c) — and whenever this uv may not be run, each tool
-///   is asked of PyPI's JSON instead (`PyPIProject`), for its venv's Python.
+///   read "channel unreadable", never current. Below 0.11.0 — 0.10.x's
+///   `--outdated` asked for no Python, index or `exclude-newer` of the tool's
+///   (`outdatedSince`) — and whenever this uv may not be run, each tool is
+///   asked of PyPI's JSON instead (`PyPIProject`), for its venv's Python.
 /// - **What `uv tool upgrade` does, by request** (§12 item 14): no specifier
 ///   → moves to the newest ("Updated cowsay v5.0 -> v6.1", on stderr, exit 0);
 ///   `==0.6.0` → "Nothing to upgrade" plus a hint to run `uv tool install
@@ -140,10 +140,13 @@ public struct UvToolAdapter: ManagerAdapter {
     /// Offline, uv gave up after its three retries in 6.7 s.
     static let checkDeadline = ChildProcess.Deadline(terminateAfter: .seconds(15), killAfter: .seconds(16))
 
-    /// The first uv with `uv tool list --outdated` (UV-10).
-    static let outdatedSince = "0.10.10"
-    /// The first whose `--outdated` honours a receipt's `exclude-newer` (UV-14c).
-    static let excludeNewerSince = "0.11.0"
+    /// The first uv whose `uv tool list --outdated` asks for the tool's own
+    /// Python and options: 0.10.10 added the flag, but up to 0.10.12 it built
+    /// its client with `requires_python: None`, no index locations and no
+    /// `exclude-newer` (`crates/uv/src/commands/tool/list.rs` at 0.10.12 and
+    /// 0.11.0, read 2026-10-27) — black on Python 3.9 would read 26.10.1,
+    /// which `uv tool upgrade` cannot install there.
+    static let outdatedSince = "0.11.0"
     /// At most this many PyPI documents at once, as pipx asks (PX-12).
     static let parallelFetches = 8
 
@@ -213,9 +216,7 @@ public struct UvToolAdapter: ManagerAdapter {
         guard let root = scan.roots.first else { return [] }
         var latest: [String: Answer] = [:]
         if let binary = root.binary, root.runnable, let version = binary.version,
-           !VersionComparator.isNewer(Self.outdatedSince, than: version),
-           !(VersionComparator.isNewer(Self.excludeNewerSince, than: version)
-             && scan.items.contains { $0.facts.contains(where: Self.isExcludeNewer) }) {
+           !VersionComparator.isNewer(Self.outdatedSince, than: version) {
             guard let output = await host.run(binary.path, ["tool", "list", "--outdated"], commandEnvironment(binary: binary.path)),
                   output.exitStatus == 0
             else {
@@ -395,11 +396,6 @@ public struct UvToolAdapter: ManagerAdapter {
             let parts = line.split(separator: "=", maxSplits: 1).map { $0.trimmingCharacters(in: .whitespaces) }
             if parts.count == 2, parts[0] == "offline" { return parts[1].hasPrefix("true") }
         }
-        return false
-    }
-
-    static func isExcludeNewer(_ fact: ManagedItem.Fact) -> Bool {
-        if case .note(let text) = fact { return text.hasPrefix("exclude-newer ") }
         return false
     }
 

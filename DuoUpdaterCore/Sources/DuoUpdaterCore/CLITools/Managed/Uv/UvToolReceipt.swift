@@ -168,7 +168,7 @@ struct UvToolReceipt: Sendable, Equatable {
     }
 }
 
-/// `uv tool list --outdated` (uv ≥0.10.10): `name vX [latest: Y]` for each
+/// `uv tool list --outdated` (read from uv ≥0.11.0): `name vX [latest: Y]` for each
 /// outdated tool, each followed by `- <executable>` lines; a current tool is
 /// not listed. Measured on uv 0.13.4, 2026-10-27, three tools on Python 3.9:
 ///

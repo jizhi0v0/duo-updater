@@ -226,8 +226,9 @@ public struct PipxAdapter: ManagerAdapter {
 
     /// `pipx upgrade <venv>`. A venv in the root this pipx would not pick by
     /// itself (or whose pipx's version is unknown) is named by `PIPX_HOME` in
-    /// the command itself, so the copy handed out acts on the same venv
-    /// (`/usr/bin/env PIPX_HOME=… pipx upgrade …`). Nothing on `PATH` but the
+    /// the command itself — run as `/usr/bin/env PIPX_HOME=… pipx upgrade …`,
+    /// handed out as `PIPX_HOME='…' pipx upgrade …` — so the copy acts on the
+    /// same venv. Nothing on `PATH` but the
     /// system's and, for a venv on pipx's uv backend — which looks uv up on
     /// `PATH` — the directory of a uv that may run (`Host.verifiedUv`);
     /// without one pipx says it found no uv, which the row shows.
@@ -247,8 +248,14 @@ public struct PipxAdapter: ManagerAdapter {
         guard defaultRoot(of: binary.version) != root.path else {
             return CLIToolCommand(executable: binary.path, arguments: arguments, pathPrefix: pathPrefix)
         }
+        // Run as argv; pasted as `PIPX_HOME='…' pipx …`, the root quoted —
+        // "Application Support" would split the line at its space.
+        let line = (["PIPX_HOME=" + NvmCheck.shellQuoted(root.path), binary.path] + arguments)
+            .map { $0.contains(" ") && !$0.hasPrefix("PIPX_HOME=") ? NvmCheck.shellQuoted($0) : $0 }
+            .joined(separator: " ")
         return CLIToolCommand(
-            executable: "/usr/bin/env", arguments: ["PIPX_HOME=" + root.path, binary.path] + arguments, pathPrefix: pathPrefix)
+            executable: "/usr/bin/env", arguments: ["PIPX_HOME=" + root.path, binary.path] + arguments, pathPrefix: pathPrefix,
+            shellLine: line)
     }
 
     public func reread(_ item: ManagedItem) async -> String? {

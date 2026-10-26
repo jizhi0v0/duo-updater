@@ -194,6 +194,11 @@ struct PipxAdapterTests {
             } else {
                 #expect(upgrade.command.executable == "/usr/bin/env")
                 #expect(upgrade.command.arguments == ["PIPX_HOME=" + Self.modern, "/ZZFixture-brew/bin/pipx", "upgrade", "ruff"])
+                // What Copy and `duo` hand out is one shell line: the root's
+                // space quoted (round 1 of the review: unquoted, `env` ran
+                // "Support/pipx"). Mutation: display the words as they are.
+                #expect(upgrade.command.display
+                    == "PIPX_HOME='/ZZFixture-home/Library/Application Support/pipx' /ZZFixture-brew/bin/pipx upgrade ruff")
             }
         }
         // No legacy root: a 1.18 pipx's own default, nothing to name.

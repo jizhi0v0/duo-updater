@@ -107,6 +107,7 @@ public enum AppRecipeIndex {
         com_googlecode_iterm2.set,
         com_granola_app.set,
         com_henrikruscon_Alcove.set,
+        com_heynote_app.set,
         com_hnc_Discord.set,
         com_insomnia_app.set,
         com_intelliscapesolutions_caffeine.set,

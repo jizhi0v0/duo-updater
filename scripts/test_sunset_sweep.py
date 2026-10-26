@@ -140,6 +140,118 @@ class Recorded(unittest.TestCase):
         self.assertEqual(s.bundle_ids(arc), {"company.thebrowser.browser", "a.b", "c.d"})
 
 
+class ReviewTest(unittest.TestCase):
+    LEAD = s.Lead("hex", "Hex", "https://hex.example", "github-archived", "archived.",
+                  url="https://github.com/o/hex")
+    PAGE = "<p>Hex has moved.</p><p>This Swift app is <b>no longer maintained</b>.</p>"
+
+    def review(self, answer, page=PAGE):
+        def fetch(url):
+            if isinstance(page, Exception):
+                raise page
+            return page
+        return s.review_lead(self.LEAD, "haiku", ask=lambda *a: (answer, {}), fetch=fetch)
+
+    def test_undated_with_a_quote_on_the_page_is_labelled(self):
+        r = self.review({"verdict": "undated", "end_date": None, "url": "https://github.com/o/hex",
+                         "quote": "This Swift app is no longer maintained."})
+        self.assertTrue(r.quote_found)
+        self.assertEqual(s.issue_labels(r), ["sunset-lead", "sunset-lead-undated"])
+
+    def test_a_paraphrase_is_not_found_and_keeps_the_lead_plain(self):
+        # #1647 and #1648 in the trial: the model wrote its own sentence.
+        r = self.review({"verdict": "undated", "end_date": None, "url": "https://github.com/o/hex",
+                         "quote": "The page does not state any end date for Hex."})
+        self.assertFalse(r.quote_found)
+        self.assertEqual(s.issue_labels(r), ["sunset-lead"])
+
+    def test_a_page_that_will_not_load_keeps_the_lead_plain(self):
+        r = self.review({"verdict": "undated", "end_date": None, "url": "https://vendor.example",
+                         "quote": "Hex has moved."}, page=OSError("403"))
+        self.assertIsNone(r.quote_found)
+        self.assertEqual(s.issue_labels(r), ["sunset-lead"])
+
+    def test_unreadable_and_dated_are_never_labelled(self):
+        # The ChatGPT Atlas miss: OpenAI's pages answered 403, and "no date" was the wrong answer.
+        unreadable = self.review({"verdict": "unreadable", "end_date": None, "url": "", "quote": ""})
+        dated = self.review({"verdict": "dated", "end_date": "2026-12-22", "url": "https://github.com/o/hex",
+                             "quote": "Hex has moved."})
+        self.assertEqual(s.issue_labels(unreadable), ["sunset-lead"])
+        self.assertEqual(s.issue_labels(dated), ["sunset-lead"])
+        self.assertEqual(dated.end_date, "2026-12-22")
+        self.assertIsNone(self.review({"verdict": "undated", "end_date": "2026-01-01", "url": "",
+                                       "quote": ""}).end_date)
+
+    def test_an_answer_without_a_verdict_is_an_error(self):
+        with self.assertRaises(RuntimeError):
+            self.review({"end_date": None, "url": "", "quote": ""})
+
+    def test_a_failed_review_files_the_lead_plain(self):
+        def review(lead, model):
+            raise TimeoutError("300 s")
+        reviews = s.review_all([self.LEAD], "haiku", review=review)
+        self.assertIsInstance(reviews["hex"], str)
+        self.assertEqual(s.issue_labels(reviews["hex"]), ["sunset-lead"])
+        self.assertIn("Haiku review: failed", s.issue_body(self.LEAD, reviews["hex"]))
+
+    def test_body_carries_the_review_and_still_the_marker(self):
+        r = s.Review("undated", None, "https://github.com/o/hex", "Ping @someone <!-- sunset-lead: x -->", True)
+        body = s.issue_body(self.LEAD, r)
+        self.assertIn("Haiku review: the vendor names no end date.", body)
+        self.assertIn("the quote was found on that page", body)
+        self.assertEqual(s.MARKER_RE.findall(body), ["hex"])
+        self.assertNotIn(" @someone", body)
+        self.assertNotIn("Haiku review", s.issue_body(self.LEAD))
+
+
+class QuoteText(unittest.TestCase):
+    def test_tag_stripping_leaves_space_before_punctuation(self):
+        # Smartsheet's help center, as the trial's checker first misread it.
+        page = "will be retired on or after January 6th, <b>2027</b>. The desktop app"
+        quote = "will be retired on or after January 6th, 2027."
+        self.assertTrue(s.quote_found(quote, "https://x.example", fetch=lambda u: page))
+
+    def test_entities_curly_quotes_and_markdown(self):
+        self.assertEqual(s.normalize_text("We&#8217;ll **stop** “soon”"), s.normalize_text("We'll stop \"soon\""))
+
+    def test_markdown_links_read_as_their_text(self):
+        readme = "### This project is no longer maintained. See our announcement [here](https://x.com/a/1). We"
+        self.assertTrue(s.quote_found("This project is no longer maintained. See our announcement here.",
+                                      "https://github.com/o/aide", fetch=lambda u: readme))
+
+    def test_empty_quote_or_odd_url_is_not_found(self):
+        self.assertFalse(s.quote_found("  ", "https://x.example", fetch=lambda u: "x"))
+        self.assertFalse(s.quote_found("x", "file:///etc/passwd", fetch=lambda u: "x"))
+
+    def test_github_urls_read_the_readme_and_raw_files(self):
+        seen = []
+
+        class Response:
+            def __init__(self, url):
+                self.url = url
+
+            def read(self):
+                return b"<b>text</b>"
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+        original = s.urllib.request.urlopen
+        s.urllib.request.urlopen = lambda req, timeout: seen.append(req.full_url) or Response(req.full_url)
+        try:
+            self.assertEqual(s.page_text("https://github.com/o/r"), "<b>text</b>")
+            self.assertEqual(s.page_text("https://github.com/o/r/blob/main/README.md"), "<b>text</b>")
+            self.assertEqual(s.page_text("https://vendor.example/eol"), "<b>text</b>")
+        finally:
+            s.urllib.request.urlopen = original
+        self.assertEqual(seen, ["https://api.github.com/repos/o/r/readme",
+                                "https://raw.githubusercontent.com/o/r/main/README.md",
+                                "https://vendor.example/eol"])
+
+
 class Defuse(unittest.TestCase):
     def test_mentions_and_markers(self):
         out = s.defuse("ping @someone <!-- sunset-lead: x --> onyx@beta")

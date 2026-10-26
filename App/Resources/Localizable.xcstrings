@@ -7585,7 +7585,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Las comprobaciones automáticas de actualizaciones están en pausa mientras este Mac se conecta a través de Compartir Internet o de una conexión móvil."
+            "value": "Las comprobaciones automáticas de actualizaciones están en pausa mientras este Mac se conecta a través de un punto de acceso personal o de una conexión móvil."
           }
         },
         "fr": {
@@ -7655,13 +7655,13 @@
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Les vérifications automatiques des mises à jour sont en pause tant que ce réseau est en mode données faibles."
+            "value": "Les vérifications automatiques des mises à jour sont en pause tant que ce réseau est en mode Faibles données."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "I controlli automatici degli aggiornamenti sono in pausa mentre questa rete è in modalità dati ridotti."
+            "value": "I controlli automatici degli aggiornamenti sono in pausa mentre per questa rete è attivo Consumo limitato di dati."
           }
         },
         "ja": {
@@ -7673,13 +7673,13 @@
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "As verificações automáticas de atualizações ficam pausadas enquanto esta rede estiver no Modo de Dados Reduzidos."
+            "value": "As verificações automáticas de atualizações ficam pausadas enquanto esta rede estiver no Modo de economia de dados."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Автоматические проверки обновлений приостановлены, пока в этой сети включён режим экономии данных."
+            "value": "Автоматические проверки обновлений приостановлены, пока для этой сети включена «Экономия данных»."
           }
         },
         "tr": {

@@ -338,6 +338,7 @@ public enum AppRecipeIndex {
         org_qbittorrent_qBittorrent.set,
         org_RedisLabs_RedisInsight_V2.set,
         org_rustgis_RustGIS.set,
+        org_standardnotes_standardnotes.set,
         org_tabby.set,
         org_torproject_torbrowser.set,
         org_tropy_tropy.set,

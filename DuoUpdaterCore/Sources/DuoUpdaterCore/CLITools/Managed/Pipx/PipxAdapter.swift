@@ -292,15 +292,18 @@ public struct PipxAdapter: ManagerAdapter {
         return ManagedRoot.Binary(path: userBinary, version: version, trust: trust)
     }
 
-    /// `<prefix>/Cellar/pipx/1.8.0_1/bin/pipx` with the keg's
-    /// `INSTALL_RECEIPT.json` → "1.8.0": exactly the keg's `bin/<formula>`, as
-    /// `NodePrefixes.homebrewKeg` requires of node.
+    /// `<prefix>/Cellar/pipx/1.18.4_1/…/pipx` with the keg's
+    /// `INSTALL_RECEIPT.json` → "1.18.4": the keg's `bin/<formula>` or, where
+    /// that is a link into the keg's own venv, `libexec/bin/<formula>` —
+    /// Homebrew's pipx 1.18.4 is `bin/pipx -> ../libexec/bin/pipx`, a script
+    /// whose shebang names `libexec/bin/python` (measured 2026-10-27). No
+    /// other file under the keg counts.
     func kegVersion(_ resolved: String, prefix: String, formula: String) -> String? {
         let root = URL(fileURLWithPath: prefix).pathComponents
         let components = URL(fileURLWithPath: resolved).pathComponents
-        guard components.count == root.count + 5, Array(components.prefix(root.count)) == root,
+        guard components.count > root.count + 3, Array(components.prefix(root.count)) == root,
               components[root.count] == "Cellar", components[root.count + 1] == formula,
-              components.suffix(2) == ["bin", formula]
+              [["bin", formula], ["libexec", "bin", formula]].contains(Array(components.dropFirst(root.count + 3)))
         else { return nil }
         let keg = NSString.path(withComponents: Array(components.prefix(root.count + 3)))
         guard host.contents(keg + "/INSTALL_RECEIPT.json") != nil else { return nil }

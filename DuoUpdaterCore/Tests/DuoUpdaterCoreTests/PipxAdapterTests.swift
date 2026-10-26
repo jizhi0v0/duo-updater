@@ -262,10 +262,14 @@ struct PipxAdapterTests {
         #expect(host.fetches == ["cowsay"])
     }
 
-    /// Only the keg's own `bin/pipx` is a keg: any other file under it is not.
-    @Test func theKegRuleIsExactlyBinPipx() throws {
+    /// The keg's `bin/pipx`, or the `libexec/bin/pipx` Homebrew's links it to,
+    /// is a keg; any other file under it is not. Mutation: accept any depth;
+    /// accept `bin/pipx` alone (Homebrew's real pipx resolves to `libexec`).
+    @Test func theKegRuleIsTheKegsOwnPipx() throws {
         let host = try FakeHost()
         host.links["/ZZFixture-brew/bin/pipx"] = Self.keg + "/libexec/bin/pipx"
+        #expect(Self.adapter(host).locateBinary()?.trust == .homebrewKeg)
+        host.links["/ZZFixture-brew/bin/pipx"] = Self.keg + "/share/tools/pipx"
         #expect(Self.adapter(host).locateBinary() == nil)
     }
 

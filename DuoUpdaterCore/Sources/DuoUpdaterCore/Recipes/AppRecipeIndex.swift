@@ -281,7 +281,6 @@ public enum AppRecipeIndex {
         io_nekohasekai_screensharing.set,
         io_podmandesktop_PodmanDesktop.set,
         io_rancherdesktop_app.set,
-        io_requestly_beta.set,
         io_tailscale_ipn_macsys.set,
         is_follow.set,
         jan_ai_app.set,

@@ -63,11 +63,13 @@ import Testing
     /// An executable `/bin/sh` script in a fresh scratch directory, run once
     /// before it is handed back. The first exec of a freshly written script waits
     /// for Gatekeeper's first-launch scan, which syspolicyd does one at a time for
-    /// the whole machine; on a busy runner that wait outran `outdatedAdamIDs`'s
-    /// 20 s deadline, the script was killed before its first line and the read
-    /// came back nil (mini, 2026-10-26, twice in a row). A second exec of the
-    /// same path skips the scan (mini, 2026-10-11), so the cancelled read under
-    /// test only ever times the script itself.
+    /// the whole machine (see `HerdrUpdaterTests`). On the busy minis 2026-10-26,
+    /// `outdatedAdamIDs` came back nil twice in a row after 52 s and 62 s; the
+    /// likely cause, not confirmed from the runner's log, is that wait outrunning
+    /// its 20 s deadline. A second exec of the same path skips the scan: on the
+    /// idle mini (macOS 26.7, 2026-10-26) a fresh script's first exec took 0.27 s
+    /// and the next two 0.011 s, five scripts out of five. So the cancelled read
+    /// under test only times the script itself.
     private static func script(_ body: String) async throws -> URL {
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent("ZZFixture-tool-\(UUID().uuidString)", isDirectory: true)

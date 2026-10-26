@@ -61,7 +61,7 @@ import Foundation
 /// SIGPIPE is ignored in these commands for the same reason: `duo install | tee`
 /// whose `tee` has died would otherwise kill `duo` on its next `print`. Children
 /// do not inherit it — swift-subprocess spawns with `POSIX_SPAWN_SETSIGDEF` over
-/// a full signal set and an empty mask (Subprocess+Darwin.swift, `spawnAttributes`),
+/// a full signal set and an empty mask (Subprocess+Spawn.swift, `withSpawnAttributes`),
 /// so brew gets default dispositions back (`SignalGateTests`).
 ///
 /// Not covered: a `FileHandle.standardError.write` into a stderr PIPE whose

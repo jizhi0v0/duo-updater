@@ -12,22 +12,21 @@ let package = Package(
     // swift-subprocess runs every child process (`Support/ChildProcess.swift`):
     // it waits on kqueue instead of parking a thread in `waitUntilExit()`.
     //
-    // Both pinned exactly, like Sparkle in `App/project.yml` — `Package.resolved`
-    // is gitignored, so a pin is the only thing that says which code ships.
-    // swift-system is listed so the transitive `from: "1.5.0"` in
-    // swift-subprocess's manifest cannot float; it is named as a target
-    // dependency below only because SwiftPM warns about an unused one on every
-    // build otherwise. Subprocess links it anyway.
+    // Pinned exactly, like Sparkle in `App/project.yml`.
+    //
+    // swift-system is not listed. On macOS swift-subprocess imports the OS's own
+    // `System` (macOS 11+), and since 1.0.1 its manifest asks for `SystemPackage`
+    // only on non-Apple platforms, so naming it here was the one thing still
+    // compiling it into `duo`. SwiftPM still fetches it, because that manifest
+    // declares the package unconditionally; `Package.resolved` pins its revision.
     dependencies: [
-        .package(url: "https://github.com/swiftlang/swift-subprocess", exact: "1.0.0"),
-        .package(url: "https://github.com/apple/swift-system", exact: "1.8.1"),
+        .package(url: "https://github.com/swiftlang/swift-subprocess", exact: "1.0.2"),
     ],
     targets: [
         .target(
             name: "DuoUpdaterCore",
             dependencies: [
                 .product(name: "Subprocess", package: "swift-subprocess"),
-                .product(name: "SystemPackage", package: "swift-system"),
             ]
         ),
         .testTarget(

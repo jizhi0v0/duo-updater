@@ -1,10 +1,6 @@
 import Foundation
 internal import Subprocess
-#if canImport(System)
 internal import System
-#else
-internal import SystemPackage
-#endif
 
 /// Launch a child process and wait for it **without parking a thread**.
 ///

@@ -67,7 +67,7 @@ set +e
 # SWIFT_COMPILATION_MODE=incremental: the app's own targets compile per file
 # instead of as one whole module, still at -O. Measured 2026-10-16 on a 14-core
 # Mac, editing one file under App/Sources: 49 s -> 12 s. It does NOT reach the
-# SwiftPM packages: DuoUpdaterCore (and Subprocess, SystemPackage) still compile
+# SwiftPM packages: DuoUpdaterCore (and Subprocess) still compile
 # with -whole-module-optimization, checked in the build log, so a Core edit costs
 # the same ~100 s either way. The release build (notarize.sh) does not set this,
 # so what ships is whole-module throughout. A Release-only miscompile in Core —

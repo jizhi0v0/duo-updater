@@ -2,7 +2,7 @@
 
 Design for jizhi0v0/duo-updater, branch `runtime-composition-detail`, HEAD `cbc6bcc1`. Repo paths: `C/` = `DuoUpdaterCore/Sources/DuoUpdaterCore/CLITools/`. Evidence IDs refer to the twelve research files; review verdicts override reports (corrections are applied inline and marked "corrected"). Anything not in that set is in §12.
 
-**Status (2026-10-24): §0, P0 and P1 (mise tools) done — green on CI, through the Mac acceptance, and landed with PR #1613; the owner kept P1's four decisions; owed: §12 item 5 (needs a mise release under 24 h old). Next: P2 (uv tool, pipx).** The owner took every recommended option (§11), and later revised D12 and the UI (§5). §0's survey is `plans/cli-managers-int-on-main.md` (committed beside this file); the status log at the end of this file says what is in and what is not. Before each phase, read §13 (cancel, which every adapter must measure for real) and §8.1's note on where real-machine runs happen.
+**Status (2026-10-27): §0, P0, P1 (mise tools, PR #1613) and P2 (uv tools, pipx, branch `cli-managers-p2`) written and through the Mac acceptance; P2 decisions taken while writing are in the status log for the owner. Owed: §12 item 5 (needs a mise release under 24 h old); P2's C2 could not be held on the Mac (status log). Next: P3 (version lines).** The owner took every recommended option (§11), and later revised D12 and the UI (§5). §0's survey is `plans/cli-managers-int-on-main.md` (committed beside this file); the status log at the end of this file says what is in and what is not. Before each phase, read §13 (cancel, which every adapter must measure for real) and §8.1's note on where real-machine runs happen.
 
 The research files (six reports, six reviews) stay on the owner's Mac, because they hold that machine's inventory. Every fact this design relies on is restated in §2 with its claim ID. Treat an ID as a pointer, not as something you can open from a cloud session. When a fact matters for your phase and you doubt it, re-verify it yourself the way §12 does: in an isolated home, with the command and its raw output.
 
@@ -645,3 +645,40 @@ Until then, (a) holds everywhere.
 - Cleanup: cache restored from its copy, ripgrep uninstalled (and its three dangling alias links removed), fixtures reset, config sha256 `23fa2ec4…` unchanged throughout.
 
 **Still owed:** item 5 (`minimum_release_age`); nothing else. The aqua case above is done: the owner chose "not updated" over "no update available", and a run that exits 0 with the version unmoved is now `.failed` ("not updated: jq is still 1.6; …"), the row keeping its update and button (`a46d0b30`, unit-tested; not reproduced in the app).
+
+### 2026-10-27 — P2 written and on the Mac (uv tools, pipx; branch `cli-managers-p2`)
+
+**In:**
+
+- `C/Managed/Uv/`: `UvToolAdapter` (receipts and dist-info on disk; `uv tool list --outdated` for uv ≥0.10.10, PyPI below it or for a uv that may not run; `uv tool upgrade <name>`; `uv tool install <name>@latest` to copy for a pin), `UvToolReceipt`, `UvToolOutdated`.
+- `C/Managed/Pipx/PipxAdapter`: both roots; PyPI per venv (≤8 at once); `pipx upgrade <venv>` one-click only through a Homebrew keg (D5.1), the command handed out to copy for a pip/uv-installed pipx (D5.2, worded "pipx is a script, with no signature to check"); `pipx unpin` to copy; D7's warning.
+- `C/Managed/Python/`: `PythonVersion` (PEP 440 order), `PythonSpecifier` (`Requires-Python`), `PythonDistribution` (dist-info), `PyPIProject` (the JSON document, revalidated every time), `ProjectURLRepo` (§4.2's rule). `C/Managed/ManagedNotes` (GitHub releases, or a PyPI project's repository — mise's `pipx:` tools use it too, the P1 leftover).
+- Shared: `ManagerDescriptor.versionOrder` (`.pep440` for the Python managers: `VersionComparator` reads `1.0.post1` as older than `1.0`); `ManagedCheck` withholds an offered row as `.updaterMissing` when the root has no binary (pipx's check needs none). D-C: bub's uv-tool/pipx venvs are those managers' rows; `BubScanner` looks at the installer's venv only.
+- App: `cli-pipx` logo (the X of pipx's MIT `logo.svg`, as a template, tinted #00CBA3); managers' levels and the popover's tool groups in registry order (`CLIToolPresentation.managerGroups`) — with three managers they had followed the statuses' order, outdated first. One new catalog key with ten translations.
+
+**Measured (uv 0.13.4, pipx 1.11.1/1.18.4; isolated homes unless said):**
+
+- `uv tool list --outdated`: `name vX [latest: Y]` plus `- exe` lines; current tools left out; offline → exit 2, nothing on stdout (6.7 s, three retries). 0.39–0.46 s for three tools in the real home. Its latest is for the venv's Python (black 25.11.0 on 3.9, PyPI's 26.10.1 needs ≥3.10).
+- §12 item 14: `uv tool upgrade` → "Nothing to upgrade" (exit 0, stderr) both for `>=23,<24` at its top and for `==0.6.0` (plus the `@latest` hint); an unpinned tool "Updated cowsay v5.0 -> v6.1"; an unknown one exit 1. Receipts unchanged by a no-op.
+- §12 item 11: PyPI's JSON is `max-age=900` with an ETag; a conditional GET answers 304. Sizes: cowsay 14 KB, black 922 KB, ruff 6.2 MB (1.1 MB gzipped) — over the in-memory cache's ~2 MB item limit, so ruff's is fetched whole each check.
+- pipx: `upgrade` drops `==` (`httpie==3.2.1` → `httpie`, 3.2.4), keeps a `pipx pin` ("Not upgrading pinned package"), leaves a path install alone (exit 0), exit 1 for an unknown venv. ≥1.15.1 keeps venvs in Application Support, 1.11.1 in `~/.local/pipx`.
+- §12 items 7/17 (real home): Homebrew's `/opt/homebrew/bin/pipx -> ../Cellar/pipx/1.18.4/bin/pipx -> ../libexec/bin/pipx`, a script (`#!/opt/homebrew/Cellar/pipx/1.18.4/libexec/bin/python`), "not signed at all"; the keg has its `INSTALL_RECEIPT.json`. So the keg rule is a path rule: the keg's `bin/pipx` or `libexec/bin/pipx`, nothing else. Every venv it installed with uv on `PATH` recorded `backend: uv`.
+- §13.3 (D15 input), SIGINT and SIGTERM to the process group:
+
+| Manager | Stage | Exit | Old version | Left behind | Next plain run |
+|---|---|---|---|---|---|
+| uv tool upgrade (ruff, 9 MB) | resolve/download (0.5–2.6 s) | −2 / −15 | runs (0.6.0), receipt as before | nothing seen | completes it |
+| uv tool upgrade | install (after "Downloaded", <50 ms) | not hit | — | — | — |
+| pipx 1.18.4 upgrade (black, 4.2 s) | 0.3–1.5 s | 1 | runs (23.12.1), metadata as before | `pipx_unfinished` in the venv | "was left half changed by an interrupted pipx run; reinstalling it first", completes |
+
+  (An earlier pipx run read as "breaks the venv" was the fixture: httpie 3.2.1 does not import with urllib3 2.8 before any signal.) Both stay (a) until the owner rules.
+
+**Adversarial review (two Opus reviewers, one risk each) and what changed:**
+
+- Fixed: a tool `--outdated` leaves out is current only when no stderr warning names it, it is not a pre-release and `~/.config/uv/uv.toml` does not say `offline = true` (uv also leaves out a tool whose environment is gone, exit 0); uv tools from a path, URL or git are not on an index; receipt `constraints`/`overrides` narrow the request (report-only, D9); uv 0.2.x string receipts and fractional `exclude-newer`; pipx `lock_file` (pipx won't upgrade), `pip_args` with index options or `--pre` (not asked of PyPI), `cooldown_days` (the cut-off), `--suffix` venvs (asked by package name); `PIPX_HOME` rides in the command (`/usr/bin/env PIPX_HOME=… pipx …`), so the copied command acts on the same venv; for pipx's uv backend only a uv `UvScanner` trusts goes on `PATH` — never `~/.local/bin` as such, whose uv pipx would have run unverified; PEP 440 order in `ManagedCheck`; PyPI's newest is nil for an unknown Python and skips an all-yanked `info.version`.
+- Not changed, for the owner (same-user changes to the user's own files are out of the threat model, 2026-10-25): `uv tool list --outdated` runs each tool venv's `bin/python` to read the interpreter on every check (the design's §4.2 chose it; the PyPI path avoids it at the cost of uv's own index options); the binaries are trust-checked on the resolved file and run by their link (P1's shape too); `UvVerifiedFiles` identifies a file without ctime; the from-scratch environment re-links pipx/uv apps in the default bin dir when a user installed with `PIPX_BIN_DIR`/`UV_TOOL_BIN_DIR`.
+
+**Mac acceptance (real home, 2026-10-27, app + duo from this branch):** fixtures ruff `==0.6.0`, black `>=23,<24`, cowsay 5.0 unpinned (receipt edited) as uv tools; `brew install pipx` (1.18.4) with isort `==5.12.0`, pyflakes 3.0.0 `pipx pin`ned, a local-path package — all removed after, `brew uninstall pipx`. Rows in the app and `duo check --all` agreed: cowsay and isort offered (isort with D7's orange warning), ruff and pyflakes pinned with their copy commands, black "not checked" (D9), duolocal "not on an index". One-click in the app: cowsay 5.0 → 6.1, isort 5.12.0 → 9.0.2 through Homebrew's pipx with the uv backend. C1 ✓, C3 ✓, C4 ✓ (one running, two queued; no "N cancelled" count, as in P1), C5 ✓, C6 ✓; **C2 not run**: before the vendor command these adapters only read the disk (rescan, trust, busy gate) — no child to hold, and stopping DuoUpdater itself crashes it. Windows were held by an outside process holding uv's `tools/.lock` or pipx's `venvs/.<name>.lock` with `flock`, not by stopping our children.
+
+**Decisions taken while writing (owner to confirm or reverse):** Homebrew's pipx is preferred over `~/.local/bin/pipx` when both exist (only the keg gets the one-click); the uv tool check falls back to PyPI for a uv that may not run, so rows still show what is newer; the project-URL rule also accepts a repository named with a Python affix (`cowsay-python`, `python-x`, `pyx`, `x-py`); a pipx row with `pip_args` index options is "not on an index" rather than asked of PyPI.
+

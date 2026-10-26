@@ -335,6 +335,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [ ] [**Equinox**](com-rlxone-equinox.md) · `com.rlxone.equinox` — G (one-click universal dmg) · 无自更新器 · Mac App Store 版同 id（商店副本不走 GitHub rule） · 真包 4.0/6.0/7.0 channel-verify ✓（4.0、6.0 → 7.0，7.0 up to date） · 5.0 及更早是 ad-hoc，一键被 Team 闸拒（手动换一次） · changelog 结构化 ✓ · 一键端到端待主会话 · 2026-10-26
 - [ ] [**Witsy**](com-nabocorp-witsy.md) · `com.nabocorp.witsy` — G (one-click arm64 dmg) · Squirrel.Mac + update.electronjs.org，已发布版本指向旧仓库名 `nbonamy/witsy`，404，不再自更新 · 真包 3.5.1/3.5.2 channel-verify ✓（3.5.1 → 3.5.2，3.5.2 up to date）· `2.0.0-beta1` 副本由只检测的 `.beta` rule 给最新稳定版 · changelog 结构化 ✓（CHANGELOG.md recipe，分节保留）· 一键端到端待主会话 · 2026-10-26
 - [ ] [**TimeScribe**](de-amplussoftware-timescribe.md) · `de.amplussoftware.timescribe` — G (one-click arm64 dmg) · NativePHP（Electron）· electron-updater（provider github，自动下载、退出即装，无窗口时 5 分钟内自己 quitAndInstall） · 真包 1.17.0/1.17.1 channel-verify ✓（1.17.0 → 1.17.1、1.17.1 up to date） · 2025-05 的 `-beta.N` 副本读成 beta，只检测的 `.beta` rule 给最新稳定版（真包 1.2.0-beta.3 ✓） · changelog 结构化 ✓（多分类正文保留标题） · 一键端到端待主会话 · 2026-10-26
+- [ ] [**DHS**](com-objective-see-DHS.md) · `com.objective-see.DHS` — G (one-click universal zip) · 无自更新器（不读 products.json，官网 JSON 停在 1.4.1，产品页链 GitHub 1.6.0） · 真包 1.4.1/1.5.0/1.5.1/1.6.0 channel-verify ✓（旧三版 → 1.6.0，1.6.0 up to date），四版同 Team · 资产名 1.5.x 下划线、1.6.0 点分，pattern 两种都收 · changelog 结构化 ✓（2 条，无小标题） · 一键端到端 待主会话 · 2026-10-26
 
 ## Changelog-only (detection via Sparkle or Homebrew)
 

@@ -8,7 +8,9 @@ enum com_wulkano_kap {
         // itself with electron-updater 4.6.1 (`provider: github`, which
         // `ElectronManifestSource` does not construct an address for): a check
         // at launch and every hour, the arm64 zip downloaded unasked into
-        // `~/Library/Caches/kap-updater/pending/`, handed to Squirrel.Mac and
+        // `~/Library/Application Support/Caches/kap-updater/pending/` (the
+        // pre-5 electron-updater path, measured; `SelfUpdaterStash` does not
+        // read it), handed to Squirrel.Mac and
         // installed when Kap quits. The bundle carries only Electron's four
         // `Kap Helper*` child processes in `Contents/Frameworks`, which exit
         // with the app; no login item, LaunchAgent or daemon.

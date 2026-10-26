@@ -147,6 +147,18 @@ public struct BundleIDMigration: Sendable, Equatable {
         BundleIDMigration(
             from: "com.objective-see.TaskExplorer", to: "com.objective-see.taskexplorer",
             teamID: "VBG97UB4TA", lastFromVersion: "2.1.0", firstToVersion: "3.0.0"),
+        // AFFiNE's 2023 desktop preview (v0.5.2, "AFFiNE Desktop App Preview")
+        // shipped as `com.electron.affine` with CFBundleShortVersionString 0.0.0;
+        // v0.6.0 and every release since is `pro.affine.app`, the same Team
+        // (both measured on the real arm64 dmgs). The old id is Electron's
+        // default shape, but the Team bound keeps any other app off this entry.
+        // Marked a rewrite so the swap is confirmed first: whether a preview
+        // workspace carries over to 0.27 was not checked.
+        // History: docs/app-audits/pro-affine-app.md#已知问题
+        BundleIDMigration(
+            from: "com.electron.affine", to: "pro.affine.app",
+            teamID: "73YMMDVT2M", lastFromVersion: "0.0.0", firstToVersion: "0.6.0",
+            isRewrite: true),
     ]
 
     /// Whether an installed copy signed as `from` at `version` is this rename.

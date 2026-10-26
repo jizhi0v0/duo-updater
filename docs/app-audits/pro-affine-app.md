@@ -114,7 +114,7 @@
   - 自更新器只在用户点重启时才交给 Squirrel，所以第二轮"让它暂存一个比 latest 旧的版本"需要它的 feed 先给出一个旧版本；当前 stable feed 为空，无从暂存
 
 ## 已知问题
-- **`com.electron.affine`（0.5.x 预览版）没有接**: 0.5.2 的真包是 `com.electron.affine`、版本 0.0.0、同 Team；0.6.0 起才是 `pro.affine.app`。接它要在 `BundleIDMigration.all`（`Models/BundleIDMigration.swift`，引擎代码）加一条 `com.electron.affine → pro.affine.app`，本次的范围不允许改引擎。还有两点要先定: 这个 id 是 Electron 工具链的通用形状（`com.electron.<name>`），而包内版本恒为 0.0.0，`lastFromVersion` 只能写 0.0.0。最坏情况: 这份 2023 年的预览副本没有任何源应答，行上是 unknown，不会被推错版本。列入「建议下一步」待用户决定
+- **`com.electron.affine`（0.5.x 预览版）经 `BundleIDMigration` 接上**: 0.5.2 的真包是 `com.electron.affine`、版本 0.0.0、同 Team；0.6.0 起才是 `pro.affine.app`。`BundleIDMigration.all` 有一条 `com.electron.affine → pro.affine.app`（Team 73YMMDVT2M，`lastFromVersion` 0.0.0，`firstToVersion` 0.6.0），预览版副本按 `pro.affine.app` 检测、被提供最新稳定版。这个 id 是 Electron 工具链的通用形状（`com.electron.<name>`），但迁移只对同 Team 生效，别的 app 不会被误收；版本 0.0.0 小于 0.6.0，`covers` 只比这一个界。标成 `isRewrite`：一键前先让用户确认，因为预览版的工作区能否带到 0.27 没验证。`BundleIDMigrationTests.affinePreviewCopyIsFiledUnderTheStableApp` 钉住这条
 - AFFiNE 的 stable 自更新器眼下拿不到版本（worker 只看列表前 30 个，0.27.4 已被 canary / beta 挤出去），这是厂商侧的问题；它不影响我们的检测，反而意味着此刻没有自更新器和我们抢
 - beta 轨从 2026-08-26 起没有新版本；如果 canary 持续发而 beta 长期不发，beta 会滑出 50 条的页，beta 行变 unknown（不是错版本）。厂商自己的 beta 更新器在第 30 条外就已经读不到了
 
@@ -159,5 +159,4 @@ channel-verify 原始输出（2026-10-26，节选）:
 ```
 
 ## 建议下一步
-1. 待用户决定: 是否为 0.5.x 预览版加 `BundleIDMigration`（`com.electron.affine` → `pro.affine.app`，Team 73YMMDVT2M，`lastFromVersion` 0.0.0，`firstToVersion` 0.6.0），要改引擎表，并先确认通用形状的 id 不会误收别的 app
-2. 若想用自更新器已下好的 zip: `SelfUpdaterStash` 需要在 `updaterCacheDirName` 缺省时按 `app.name`（= `CFBundleName`）回退，这是引擎改动；回退的风险写在那个属性的注释里
+1. 若想用自更新器已下好的 zip: `SelfUpdaterStash` 需要在 `updaterCacheDirName` 缺省时按 `app.name`（= `CFBundleName`）回退，这是引擎改动；回退的风险写在那个属性的注释里

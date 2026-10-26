@@ -36,5 +36,19 @@ enum org_standardnotes_standardnotes {
             versionPattern: #"^@standardnotes/desktop@([0-9]+(?:\.[0-9]+)+)$"#,
             installAssetPattern: #"^standard-notes-[0-9]+(?:\.[0-9]+)+-mac-arm64\.dmg$"#,
             installerKind: .dmg),
+
+        // A copy of one of the 2020–2022 `standardnotes/desktop` betas
+        // (`3.10.0-beta.1` … `3.15.0-beta.4`, older `3.7.0-beta01`): same bundle
+        // id and Team, but `ReleaseChannel.detect` reads the `-beta` suffix as
+        // beta and the stable rule refuses it (channel-verify on the real
+        // 3.15.0-beta.4 arm64 dmg read "no source answered" before this rule).
+        // The beta track stopped with that repo, so a beta copy is shown the
+        // newest stable release. Detection-only: a non-stable install needs a
+        // channel proof, and only the installed version tells the tracks apart.
+        GitHubReleaseRule(
+            bundleID: "org.standardnotes.standardnotes",
+            owner: "standardnotes", repo: "app",
+            versionPattern: #"^@standardnotes/desktop@([0-9]+(?:\.[0-9]+)+)$"#,
+            channel: .beta),
         ])
 }

@@ -72,12 +72,12 @@
 
 | | 客户端会停放吗 | 本次实际停放了什么 | 我们能否直接拿来装 |
 |---|---|---|---|
-| 结论 | 会（短暂：下完立即 `quitAndInstall`） | 真机（2026-10-26）：0.13.0 运行中什么也没停放（自带更新器只在菜单里手动检查） | 布局已接（通用 electron-updater 布局），但见已知问题 |
-| 证据 | electron-updater 4.6.5（`app.asar` 内）：缓存目录 `~/Library/Caches/<updaterCacheDirName>/pending/`，下载完成后写 `update-info.json` | — | `SelfUpdaterStash` 的 `.electronUpdater(cacheDirectoryName:)` 从 `app-update.yml` 读 `tad-updater` |
+| 结论 | 会（短暂：下完立即 `quitAndInstall`） | 真机（2026-10-26）：0.13.0 运行中什么也没停放（自带更新器只在菜单里手动检查） | 不能：`SelfUpdaterStash` 只读 `~/Library/Caches/`，看不到 4.x 的目录 |
+| 证据 | electron-updater 4.6.5（`app.asar` 内）：缓存目录 `~/Library/Application Support/Caches/<updaterCacheDirName>/pending/`（0.14.0 的 `app.asar` 里 `getAppCacheDir` 是 `"Library", "Application Support", "Caches"`；electron-updater 5 起才改成 `~/Library/Caches`），下载完成后写 `update-info.json` | — | `SelfUpdaterStash` 的 `.electronUpdater` 布局只在 `~/Library/Caches/<updaterCacheDirName>/` 下找（`SelfUpdaterStash.swift` Gate 3），所以 Tad 停放的包它不会用 |
 
 - 记录文件与字段: `pending/update-info.json`（`fileName`、`sha512` base64，下载完成后才写）
 - 容器: zip（electron-updater 在 Mac 上只下 zip），包根是 `Tad.app`
-- 两份副本会不会共用这个目录: 会，目录名只按 `updaterCacheDirName`；`SelfUpdaterStash` 的归属闸处理
+- 两份副本会不会共用这个目录: 会，目录名只按 `updaterCacheDirName`；duo 不读这个目录，所以不涉及
 
 ## Changelog
 - 来源: GitHub release 正文，经 `GitHubMarkdownParser`
@@ -107,7 +107,7 @@
 
 ## 已知问题
 - **Tad 自己的更新器在 Apple 芯片上装的是 x86_64 版**（源码 + `latest-mac.yml` 推出，未在真机上观察）: electron-updater 4.6.5 `MacUpdater.doDownloadUpdate` 只有在 `latest-mac.yml` 里有带 `arm64` 的文件时才挑 arm64，否则挑不带 `arm64` 的；Tad 的 `latest-mac.yml` 只列 x86_64 的 `Tad-0.14.0-mac.zip`。所以 arm64 副本用菜单更新后变成同版本的 Intel 版（走 Rosetta）。这份 0.14.0 Intel 副本在我们这里是 up to date，duo 不会把它换回 arm64
-- 同一原因，如果 `pending/` 里停放着这份 x86_64 的 0.14.0 zip，而本机副本还是更旧的版本（Tad 自己换包失败时才会这样），`SelfUpdaterStash` 会命中它：包内 bundle id、版本、sha512 都对得上，它自己不检查架构。但装不上 Intel 版: stash 的包和其他安装包一样走 `SignatureVerifier.verifyInstallArtifact`，其中 Gate 5b `verifyNoArchitectureDowngrade`（`SignatureVerifier.swift:263` 调用）发现已装的是 arm64、下载的只有 x86_64 就拒装（`architectureDowngrade`）。所以最坏是这次安装被拒，不是装上 Intel 版（读源码核过；没在真机上造出这种 stash）
+- 同一原因，Tad 自己的更新器可能在 `~/Library/Application Support/Caches/tad-updater/pending/` 停放 x86_64 的 zip。duo 不读这个目录（`SelfUpdaterStash` 只看 `~/Library/Caches/`），所以不会拿它来装；duo 装的始终是 arm64 dmg。即使哪天 stash 读到了 x86_64 包，Gate 5b `verifyNoArchitectureDowngrade`（`SignatureVerifier.swift:263`）也会在已装 arm64 时拒装
 - 最新 release 是 2024-06-21 的 v0.14.0，此后 28 个月没有新版；检测对已是 0.14.0 的副本只会一直显示 up to date
 
 ## 如何复验
@@ -132,4 +132,3 @@ channel-verify 原始输出（2026-10-26）:
 ```
 
 ## 建议下一步
-1. （可选）是否给 `SelfUpdaterStash` 加架构核对（停放 zip 里主可执行文件的架构要能在本机原生运行，或与要装的资产一致），让 Tad 这类 `latest-mac.yml` 只发 x86_64 的 electron-updater 应用在 stash 是 x86_64 时直接不命中，免得这次安装被 Gate 5b 拒掉。现在不会装上 Intel 版（见「已知问题」）。引擎改动，需要用户决定

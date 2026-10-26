@@ -7,7 +7,7 @@ probes = Array(count: 0)
 
 changelogs = Array(count: 0)
 
-githubRules = Array(count: 1)
+githubRules = Array(count: 2)
 githubRules[0] = struct GitHubReleaseRule
 githubRules[0].bundleID = "org.standardnotes.standardnotes"
 githubRules[0].owner = "standardnotes"
@@ -26,6 +26,24 @@ githubRules[0].variant = nil
 githubRules[0].architectureRequirement = nil
 githubRules[0].tagRefPrefix = nil
 githubRules[0].installedExecutableMarker = nil
+githubRules[1] = struct GitHubReleaseRule
+githubRules[1].bundleID = "org.standardnotes.standardnotes"
+githubRules[1].owner = "standardnotes"
+githubRules[1].repo = "app"
+githubRules[1].usePrereleases = false
+githubRules[1].listPageSize = 20
+githubRules[1].versionPattern = "^@standardnotes/desktop@([0-9]+(?:\\.[0-9]+)+)$"
+githubRules[1].candidateScope = .newest
+githubRules[1].probesNewestFirst = true
+githubRules[1].installedTagPrefix = nil
+githubRules[1].channel = .beta
+githubRules[1].installAssetPattern = nil
+githubRules[1].installerKind = nil
+githubRules[1].installTrust = .developerID
+githubRules[1].variant = nil
+githubRules[1].architectureRequirement = nil
+githubRules[1].tagRefPrefix = nil
+githubRules[1].installedExecutableMarker = nil
 
 appStoreCases = Array(count: 0)
 

@@ -127,7 +127,7 @@ private func offer(_ version: String, source: String = "Vendor") -> RemoteVersio
 /// major from a license-neutral source, is not flagged.
 @Test func anUnmarkedMigrationIsNotARewrite() {
     #expect(BundleIDMigration.all.filter(\.isRewrite).map(\.from)
-        == ["com.oracle.workbench.MySQLWorkbench"])
+        == ["com.oracle.workbench.MySQLWorkbench", "com.electron.affine"])
     let renamed = InstalledApp(
         name: "WhatCable", bundleID: "com.bitmoor.whatcable", shortVersion: "0.5.14",
         buildVersion: "1", path: URL(fileURLWithPath: "/Applications/ZZFixture-WhatCable.app"),

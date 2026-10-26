@@ -128,6 +128,23 @@ struct GitHubListPageSizeTests {
         // `v4.2.0-beta` and `v4.1.2-beta`, one each between two matches, so gap
         // 1, +1. The rule keeps the default 20.
         "net.oldj.switchhosts/beta": 2,
+        // AFFiNE beta: a LEADING-run floor, like T3 Code nightly. Newest 100
+        // releases on 2026-10-26, 44 beta tags; no beta since 2026-08-26, so
+        // the first sat at index 25 under 25 daily canaries, so 26. The worst
+        // gap between two betas in that window is 7 (v0.27.0-beta.0 →
+        // v0.26.3-beta.4). The rule takes 50: the leading run grows with every
+        // canary until the next beta.
+        "pro.affine.beta/beta": 26,
+        // AFFiNE canary: same window, 41 canary tags, first at index 0; worst
+        // gap 12 (v2026.7.24-canary.947 → v2026.6.17-canary.1033, across the
+        // 0.27 beta/stable cycle), so 13. The rule keeps the default 20.
+        "pro.affine.canary/canary": 13,
+        // Responsively beta: the rule takes plain tags as well as `-beta.N`
+        // ones (electron-updater's GitHub provider gives a beta copy the newest
+        // release of either kind). All 28 releases on 2026-10-26 match
+        // (v2.0.0-beta.0, v1.18.0 … v1.0.1, v1.0.0-beta.6), first hit at index
+        // 0, gap 0, so 1. The rule keeps the default 20.
+        "app.responsively/beta": 1,
     ]
 
     private static func key(_ rule: GitHubReleaseRule) -> String {

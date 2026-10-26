@@ -846,6 +846,71 @@
         }
       }
     },
+    "%@ didn’t quit, and no window of it is on screen — it may keep running in the menu bar. Quit it from its menu there, or click Relaunch again. Nothing was changed and the new version is already installed.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ wurde nicht beendet, und kein Fenster der App ist auf dem Bildschirm – sie läuft womöglich in der Menüleiste weiter. Beende sie dort über ihr Menü oder klicke erneut auf „Neu starten“. Es wurde nichts verändert, und die neue Version ist bereits installiert."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ no se cerró y no tiene ninguna ventana en pantalla: puede que siga abierta en la barra de menús. Ciérrala desde su menú allí o vuelve a pulsar «Reabrir». No se ha cambiado nada y la versión nueva ya está instalada."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ n’a pas quitté et n’a aucune fenêtre à l’écran — elle reste peut-être active dans la barre des menus. Quittez-la depuis son menu là-haut, ou recliquez sur « Relancer ». Rien n’a été modifié et la nouvelle version est déjà installée."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ non si è chiusa e non ha finestre sullo schermo: potrebbe restare attiva nella barra dei menu. Chiudila dal suo menu lì, oppure fai di nuovo clic su Riapri. Non è stato modificato nulla e la nuova versione è già installata."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ は終了しませんでした。画面上にこのアプリのウインドウはありません。メニューバーで動き続けている可能性があります。メニューバーのメニューから終了するか、もう一度「再起動」をクリックしてください。何も変更しておらず、新しいバージョンはすでにインストール済みです。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ não encerrou e não tem nenhuma janela na tela — talvez continue rodando na barra de menus. Encerre-o pelo menu dele lá ou clique em Reabrir de novo. Nada foi alterado e a nova versão já está instalada."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ не закрылось, и на экране нет ни одного его окна — возможно, оно продолжает работать в строке меню. Закройте его через его меню там или нажмите «Перезапустить» ещё раз. Ничего не изменено, новая версия уже установлена."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ kapanmadı ve ekranda hiç penceresi yok — menü çubuğunda çalışmaya devam ediyor olabilir. Oradaki menüsünden çıkın veya tekrar Yeniden Başlat’a tıklayın. Hiçbir şey değiştirilmedi ve yeni sürüm zaten yüklü."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 没有退出，屏幕上也没有它的窗口 —— 它可能会一直留在菜单栏里运行。从它在菜单栏的菜单里退出它，或者再点一次「重新启动」。什么都没有改动，新版本已经装好了。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 沒有結束，螢幕上也沒有它的視窗——它可能會一直留在選單列中執行。請從它在選單列的選單結束它，或再按一次「重新開啟」。沒有做任何變更，新版本已經安裝好了。"
+          }
+        }
+      }
+    },
     "%@ didn’t quit — it has a window waiting for you (a save prompt, a sign-in sheet, a dialog). Switch to it, deal with that window, then quit it or click Relaunch again. Nothing was changed and the new version is already installed.": {
       "extractionState": "manual",
       "localizations": {

@@ -27,7 +27,19 @@ import DuoUpdaterCore
     /// An app that wouldn't quit (a save prompt) is left exactly as it was, but
     /// still counts as "didn't do what was asked" for the exit code.
     @Test func stillRunningIsAFailure() {
-        #expect(Restart.isFailure(.stillRunning))
+        #expect(Restart.isFailure(.stillRunning(.windowUp)))
+        #expect(Restart.isFailure(.stillRunning(.nothingOnScreen)))
+        #expect(Restart.isFailure(.stillRunning(nil)))
+    }
+
+    /// A window of its own up reads as a prompt; nothing on screen (Witsy 3.5.1,
+    /// 2026-10-26, kept running in the menu bar) does not. Mutation: one line
+    /// for both, as "likely a save prompt" was → red.
+    @Test func stillRunningSaysWhatWasOnScreen() {
+        #expect(Restart.describe(.stillRunning(.windowUp))
+            == "still running — a window of it is up (likely a save or update prompt), left it alone")
+        #expect(Restart.describe(.stillRunning(.nothingOnScreen))
+            == "still running — no window of it is on screen; it may keep running in the menu bar (quit it from its menu), left it alone")
     }
 
     /// Held at macOS's first-open prompt: not "likely a save prompt", and the
@@ -114,6 +126,24 @@ import DuoUpdaterCore
         #expect(Restart.path(for: Self.gitKraken, staged: Self.staged("12.6.0", .mozilla)) == .plain)
     }
 
+    /// The staged path's `.wontQuit` line, from the ending's holdup, and its
+    /// terminal slow-quit line. Mutation: one wording for both → red.
+    @Test func stagedWontQuitSaysWhatWasOnScreen() {
+        func line(_ holdup: StagedRelaunch.QuitHoldup) -> String {
+            Restart.describe(
+                StagedRelaunch.Ending(outcome: .wontQuit, everQuit: false, reopenFailed: false, holdup: holdup),
+                staged: "12.6.0", disk: VersionSide()).text
+        }
+        #expect(line(.windowUp)
+            == "still running — a window of it is up (likely a save or update prompt), left 12.6.0 staged")
+        #expect(line(.nothingOnScreen)
+            == "still running — no window of it is on screen; it may keep running in the menu bar (quit it from its menu), left 12.6.0 staged")
+        #expect(Restart.slowQuitLine(.windowUp, to: "12.6.0", minutes: 10)
+            == "hasn't quit yet — a window of it is up, likely a save or update prompt. Answer it and its own updater applies 12.6.0; waiting up to 10 min (Ctrl-C to stop waiting)")
+        #expect(Restart.slowQuitLine(.nothingOnScreen, to: "12.6.0", minutes: 10)
+            == "hasn't quit yet — no window of it is on screen; it may keep running in the menu bar. Quit it from its menu and its own updater applies 12.6.0; waiting up to 10 min (Ctrl-C to stop waiting)")
+    }
+
     /// What gets printed, and which endings fail the run.
     @Test func stagedEndingsDescribeWhatHappened() {
         func line(_ o: StagedRelaunchOutcome, reopenFailed: Bool = false) -> (text: String, failed: Bool) {
@@ -124,7 +154,6 @@ import DuoUpdaterCore
         #expect(line(.applied).text == "quit — its own updater applied 12.6.0")
         #expect(!line(.applied).failed)
         #expect(line(.applied, reopenFailed: true).failed)
-        #expect(line(.wontQuit).text == "still running — likely a save prompt, left 12.6.0 staged")
         #expect(line(.wontQuit).failed)
         #expect(line(.swapDidNotLand).text == "quit, but its own updater didn't apply 12.6.0 in time")
         #expect(line(.swapDidNotLand).failed)

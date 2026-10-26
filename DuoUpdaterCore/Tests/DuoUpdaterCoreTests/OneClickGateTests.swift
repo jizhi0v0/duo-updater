@@ -4,8 +4,9 @@ import Testing
 
 /// `OneClickGate`: a recipe family names which installed copies may take the
 /// one-click; everything else keeps detection only. Exercised through the
-/// gates registered today (MuseScore, Memoh, Hyper, Readest and massCode by installed version, GitKraken
-/// by an asar entry, Hoppscotch by both a version and an executable marker) and
+/// gates registered today (MuseScore, Memoh, Hyper, Readest, massCode and Ferdium by installed version, GitKraken
+/// by an asar entry, Hoppscotch by both a version and an executable marker,
+/// FlowVision by an executable marker) and
 /// through both places that enforce them.
 struct OneClickGateTests {
     /// A bundle at a fresh path whose `app.asar` packs `files` (path → contents),
@@ -85,7 +86,19 @@ struct OneClickGateTests {
     @Test func theRegisteredGatesAreTheMeasuredCases() {
         #expect(Set(OneClickGateRegistry.gates.map(\.bundleID))
             == ["org.musescore.MuseScore", "com.axosoft.gitkraken", "ai.memoh.desktop", "io.hoppscotch.desktop",
-                "co.zeit.hyper", "com.bilingify.readest", "io.masscode.app"])
+                "co.zeit.hyper", "com.bilingify.readest", "io.masscode.app", "netdcy.FlowVision", "org.ferdium.ferdium-app"])
+    }
+
+    /// Versions of the real bundles: stable 7.2.3, 7.2.2, 6.0.0, the nightlies
+    /// 7.2.4-nightly.3 and 7.2.3-nightly.3, and the beta 6.4.1-beta.2, all
+    /// `org.ferdium.ferdium-app`, Team 55E9FPJ93P.
+    @Test func ferdiumOneClickIsForStableCopiesOnly() {
+        for version in ["7.2.3", "7.2.2", "6.0.0", "8.0.0"] {
+            #expect(OneClickGateRegistry.withholding(app("org.ferdium.ferdium-app", version), offering: nil) == nil, "\(version)")
+        }
+        for version in ["7.2.4-nightly.3", "7.2.3-nightly.3", "6.4.1-beta.2"] {
+            #expect(OneClickGateRegistry.withholding(app("org.ferdium.ferdium-app", version), offering: nil) != nil, "\(version)")
+        }
     }
 
     /// Versions of the real bundles: stable 3.4.1, 3.4.0, 3.0.2 and the canary
@@ -304,11 +317,53 @@ struct OneClickGateTests {
             offering: remote(source: "Homebrew", package: "hoppscotch")) != nil)
     }
 
+    /// A FlowVision copy whose executable holds `symbols` between filler, as
+    /// the real builds do: the Xcode 26 builds import `_swift_coroFrameAlloc`,
+    /// the Xcode 16 ones don't.
+    private func flowVision(_ symbols: String) throws -> InstalledApp {
+        app("netdcy.FlowVision", "1.7.5", at: try tauriBundle(
+            plist: ["CFBundleExecutable": "FlowVision"],
+            executable: Data(repeating: 0xAB, count: 4096) + Data(symbols.utf8)
+                + Data(repeating: 0xCD, count: 4096),
+            named: "FlowVision"))
+    }
+
+    /// FlowVision's Xcode 16 and Xcode 26 builds share id, Team, version and
+    /// every plist key a gate reads: each build's zip goes to that build's
+    /// copies only, the cask (the Xcode 16 zip) to the Xcode 16 copies only,
+    /// and the copy's build picks the rule.
+    ///
+    /// Mutation (run): the Xcode 16 gate removed from the recipe → the plain
+    /// zip and the cask admit the Xcode 26 copy, red.
+    @Test func flowVisionOneClickIsPerBuild() async throws {
+        let xcode16 = try flowVision("_$sSS5IndexVMn _swift_FORCE_LOAD_$_swiftDataDetection")
+        let xcode26 = try flowVision("_NSToolbarSpaceItemIdentifier _swift_coroFrameAlloc")
+        let plain = remote(package: "FlowVision.1.7.6.zip")
+        let glass = remote(package: "FlowVision.1.7.6.Xcode26.zip")
+        let cask = remote(source: "Homebrew", package: "flowvision")
+        #expect(OneClickGateRegistry.withholding(xcode16, offering: plain) == nil)
+        #expect(OneClickGateRegistry.withholding(xcode16, offering: cask) == nil)
+        #expect(OneClickGateRegistry.withholding(xcode26, offering: glass) == nil)
+        #expect(OneClickGateRegistry.withholding(xcode16, offering: glass) != nil)
+        #expect(OneClickGateRegistry.withholding(xcode26, offering: plain) != nil)
+        #expect(OneClickGateRegistry.withholding(xcode26, offering: cask) != nil)
+        for offer in [remote(package: "FlowVision.1.7.6.dmg"),
+                      remote(source: "Homebrew", package: "flowvision@beta"), nil] {
+            for copy in [xcode16, xcode26] {
+                #expect(OneClickGateRegistry.withholding(copy, offering: offer)?.reason
+                        == OneClickGate.unnamedOfferReason)
+            }
+        }
+        let rules = GitHubReleaseRegistry.rules.filter { $0.bundleID == "netdcy.FlowVision" }
+        #expect(await GitHubReleasesSource.rule(forEditionOf: xcode16, among: rules)?.variant == nil)
+        #expect(await GitHubReleasesSource.rule(forEditionOf: xcode26, among: rules)?.variant == "xcode26")
+    }
+
     /// Offers a scoped gate may name although their route never consults
     /// `packageMarkers`: brew fetches and swaps the package itself, so only
     /// the gate on the copy stands before the swap.
     static let offeringsWithoutAPackageCheck: Set<String> = [
-        "Homebrew:hoppscotch", "Homebrew:hoppscotch-selfhost",
+        "Homebrew:hoppscotch", "Homebrew:hoppscotch-selfhost", "Homebrew:flowvision",
     ]
 
     /// The package check (`VendorInstaller` step 3c) runs on the `.vendor`

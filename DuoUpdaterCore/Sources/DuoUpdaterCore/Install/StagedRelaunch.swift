@@ -110,6 +110,32 @@ public enum StagedRelaunch {
         now.isSubset(of: atQuit) && !now.contains(where: \.isModalPanel)
     }
 
+    /// What the app had on screen when a quit was given up on — for the line
+    /// that says why it is still running. Only what is reported depends on it.
+    ///
+    /// "Likely a save prompt" was said for both, and is wrong for the second:
+    /// Witsy 3.5.1, 2026-10-26, refused the quit (`general.keepRunning`, on by
+    /// default) with no window and no prompt on screen, and the user was sent
+    /// looking for a dialog that did not exist. Joplin, Lunatask (its own
+    /// "update available" dialog) and Textream had one up.
+    public enum QuitHoldup: Sendable, Equatable {
+        /// A window of the app's own is on screen: a save or update prompt, a
+        /// sign-in sheet — or just its main window, holding a prompt drawn
+        /// inside it.
+        case windowUp
+        /// None of its own: it declined the quit with nothing to show, as an
+        /// app that keeps running in the menu bar does. Also what a prompt on
+        /// another Space, or a macOS prompt about the app (owned by a system
+        /// process, FlowVision's TCC prompt on 2026-10-26), reads as — hence
+        /// "may" in every line that says this.
+        case nothingOnScreen
+
+        /// From `onScreenWindows(pids:)`, which leaves out menu-bar extras.
+        public init(windows: Set<OnScreenWindow>) {
+            self = windows.isEmpty ? .nothingOnScreen : .windowUp
+        }
+    }
+
     /// How long a quit we asked for may still be answered. The menu-bar app's
     /// quit hand-off stays armed this long after `.wontQuit`; `duo restart` in a
     /// terminal keeps waiting this long instead (`QuitPatience`). Generous enough
@@ -123,8 +149,9 @@ public enum StagedRelaunch {
         public let ticks: Int
         /// Called once, at `quitGraceTicks`, if the app is still up then and
         /// `ticks` goes past it — the moment the menu-bar app would have given
-        /// up, so a caller that waits on can say why.
-        public let onSlowQuit: (@Sendable () -> Void)?
+        /// up, so a caller that waits on can say why — from what is on screen
+        /// then (`QuitHoldup`).
+        public let onSlowQuit: (@Sendable (QuitHoldup) -> Void)?
         /// Asked each tick while the app has not quit yet, from `quitGraceTicks`
         /// on, and only then: true ends the wait the way an exhausted patience
         /// does (`.wontQuit`, the staged build left to its own updater).
@@ -145,7 +172,7 @@ public enum StagedRelaunch {
         public let stopWaiting: @Sendable () -> Bool
 
         public init(
-            ticks: Int, onSlowQuit: (@Sendable () -> Void)? = nil,
+            ticks: Int, onSlowQuit: (@Sendable (QuitHoldup) -> Void)? = nil,
             stopWaiting: @escaping @Sendable () -> Bool = { false }
         ) {
             self.ticks = max(ticks, StagedRelaunch.quitGraceTicks)
@@ -160,7 +187,7 @@ public enum StagedRelaunch {
         /// menu-bar app's terminate observer, so it stays and waits for the
         /// answer itself, for as long as that hand-off would have stayed armed.
         public static func handoff(
-            onSlowQuit: @escaping @Sendable () -> Void,
+            onSlowQuit: @escaping @Sendable (QuitHoldup) -> Void,
             stopWaiting: @escaping @Sendable () -> Bool = { false }
         ) -> QuitPatience {
             QuitPatience(ticks: Int(quitHandoffMaxAge * 5), onSlowQuit: onSlowQuit, stopWaiting: stopWaiting)
@@ -175,11 +202,17 @@ public enum StagedRelaunch {
         /// Whether the fallback launch at the end was needed and failed — the
         /// app is left closed.
         public let reopenFailed: Bool
+        /// For `.wontQuit`: what the app had on screen when the wait gave up.
+        /// Nil otherwise, and when the wait never sent the quit.
+        public let holdup: QuitHoldup?
 
-        public init(outcome: StagedRelaunchOutcome, everQuit: Bool, reopenFailed: Bool) {
+        public init(
+            outcome: StagedRelaunchOutcome, everQuit: Bool, reopenFailed: Bool, holdup: QuitHoldup? = nil
+        ) {
             self.outcome = outcome
             self.everQuit = everQuit
             self.reopenFailed = reopenFailed
+            self.holdup = holdup
         }
     }
 
@@ -325,6 +358,7 @@ public enum StagedRelaunch {
         var swapDeadline = maxTicks
         var slowQuitLogged = false
         var slowQuitNoted = false
+        var holdup: QuitHoldup?
         var tick = -1
         while true {
             tick += 1
@@ -369,13 +403,16 @@ public enum StagedRelaunch {
                 // Never quit → a save prompt (or similar) is keeping it up; the swap
                 // can't start, so don't block the long window on it. The caller
                 // decides what to arm for a quit that completes later.
-                Log.app.notice("relaunch-staged: \(app.name, privacy: .public) won't quit (likely a save prompt) — leaving it staged")
+                let held = QuitHoldup(windows: system.onScreenWindows())
+                holdup = held
+                Log.app.notice("relaunch-staged: \(app.name, privacy: .public) won't quit (\(String(describing: held), privacy: .public)) — leaving it staged")
                 break
             } else if !everQuit && tick >= quitGraceTicks && !slowQuitNoted,
                       let onSlowQuit = quitPatience.onSlowQuit {
                 slowQuitNoted = true
-                Log.app.notice("relaunch-staged: \(app.name, privacy: .public) hasn't quit after the grace (likely a save prompt) — waiting up to \(quitPatience.ticks, privacy: .public) ticks for it")
-                onSlowQuit()
+                let held = QuitHoldup(windows: system.onScreenWindows())
+                Log.app.notice("relaunch-staged: \(app.name, privacy: .public) hasn't quit after the grace (\(String(describing: held), privacy: .public)) — waiting up to \(quitPatience.ticks, privacy: .public) ticks for it")
+                onSlowQuit(held)
             }
             if reappearance.observe(tick: tick, running: runningNow, everQuit: everQuit) {
                 Log.app.notice("relaunch-staged: \(app.name, privacy: .public) is running again on \(old.text(withBuild: true), privacy: .public) — its updater didn't swap; not waiting further")
@@ -417,7 +454,9 @@ public enum StagedRelaunch {
             landed: applied, everQuit: everQuit,
             reappearedWithoutLanding: reappearedWithoutLanding)
         Log.app.notice("relaunch-staged: \(app.name, privacy: .public) applied=\(applied, privacy: .public) outcome=\(String(describing: outcome), privacy: .public)")
-        return Ending(outcome: outcome, everQuit: everQuit, reopenFailed: reopenFailed)
+        return Ending(
+            outcome: outcome, everQuit: everQuit, reopenFailed: reopenFailed,
+            holdup: outcome == .wontQuit ? holdup : nil)
     }
 
     /// Windows on screen owned by `pids`, below the status-bar level: normal

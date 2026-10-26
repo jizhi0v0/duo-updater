@@ -293,6 +293,7 @@ public enum AppRecipeIndex {
         MeowingCat_MacsyZones.set,
         MstyStudio.set,
         net_ankiweb_anki.set,
+        net_archagon_sensible_side_buttons.set,
         net_cozic_joplin_desktop.set,
         net_freemacsoft_AppCleaner.set,
         net_imput_helium.set,

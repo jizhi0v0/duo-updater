@@ -1,5 +1,18 @@
 {
   "entries" : {
+    "github:AppFlowy-IO\/AppFlowy:stable" : {
+      "architectures" : [
+        "arm64"
+      ],
+      "bundleIdentifier" : "com.appflowy.appflowy.flutter",
+      "firstSeenAt" : "2026-10-26T17:44:32Z",
+      "firstSeenVersion" : "0.14.11",
+      "lastSeenAt" : "2026-10-26T17:44:32Z",
+      "lastSeenURLSHA256" : "c7fefe943b05e2c5f19b83b6ad3d611a9c26773dbdb416d01d4e1bdd3fb9ee88",
+      "lastSeenVersion" : "0.14.11",
+      "signedIdentifier" : "com.appflowy.appflowy.flutter",
+      "teamIdentifier" : "VHB67HRSZG"
+    },
     "github:AprilNEA\/OpenLogi:stable" : {
       "architectures" : [
         "arm64"
@@ -79,6 +92,19 @@
       "signedIdentifier" : "org.tabby",
       "teamIdentifier" : "V4JSMC46SY"
     },
+    "github:Foundry376\/Mailspring:stable" : {
+      "architectures" : [
+        "arm64"
+      ],
+      "bundleIdentifier" : "com.mailspring.mailspring",
+      "firstSeenAt" : "2026-10-26T17:44:32Z",
+      "firstSeenVersion" : "1.26.2",
+      "lastSeenAt" : "2026-10-26T17:44:32Z",
+      "lastSeenURLSHA256" : "892fa551476ece9ddd7b089abf13dae69366ae8455bbb71bcdd155030463d53a",
+      "lastSeenVersion" : "1.26.2",
+      "signedIdentifier" : "com.mailspring.mailspring",
+      "teamIdentifier" : "X9RJ36K9D4"
+    },
     "github:IntelliScape\/caffeine:stable" : {
       "architectures" : [
         "arm64",
@@ -106,6 +132,19 @@
       "lastSeenVersion" : "2.3.9",
       "signedIdentifier" : "wang.jianing.app.OpenInTerminal",
       "teamIdentifier" : "C8VX3ZLX5U"
+    },
+    "github:Kochava-Studios\/witsy:stable" : {
+      "architectures" : [
+        "arm64"
+      ],
+      "bundleIdentifier" : "com.nabocorp.witsy",
+      "firstSeenAt" : "2026-10-26T17:44:32Z",
+      "firstSeenVersion" : "3.5.2",
+      "lastSeenAt" : "2026-10-26T17:44:32Z",
+      "lastSeenURLSHA256" : "30e95f564c64a13da34ad485f35e17f4df9fc2351a4d07b1ecfe0874b8a67e07",
+      "lastSeenVersion" : "3.5.2",
+      "signedIdentifier" : "com.nabocorp.witsy",
+      "teamIdentifier" : "TP8BYQ64C4"
     },
     "github:Kong\/insomnia:stable" : {
       "architectures" : [
@@ -325,6 +364,19 @@
       "signedIdentifier" : "com.vscodium",
       "teamIdentifier" : "VC39D2VNQ7"
     },
+    "github:WINBIGFOX\/TimeScribe:stable" : {
+      "architectures" : [
+        "arm64"
+      ],
+      "bundleIdentifier" : "de.amplussoftware.timescribe",
+      "firstSeenAt" : "2026-10-26T17:44:32Z",
+      "firstSeenVersion" : "1.17.1",
+      "lastSeenAt" : "2026-10-26T17:44:32Z",
+      "lastSeenURLSHA256" : "56f2f16e377f24ba7be75e90fc426e2a4861fbf2a636a1aeaf52d94a7592d21b",
+      "lastSeenVersion" : "1.17.1",
+      "signedIdentifier" : "de.amplussoftware.timescribe",
+      "teamIdentifier" : "69A277BV6W"
+    },
     "github:XQuartz\/XQuartz:stable" : {
       "architectures" : [
 
@@ -508,6 +560,19 @@
       "signedIdentifier" : "ai.opencode.desktop",
       "teamIdentifier" : "5NZ4Q7NXJ4"
     },
+    "github:antonycourtney\/tad:stable" : {
+      "architectures" : [
+        "arm64"
+      ],
+      "bundleIdentifier" : "com.antonycourtney.tad",
+      "firstSeenAt" : "2026-10-26T17:44:32Z",
+      "firstSeenVersion" : "0.14.0",
+      "lastSeenAt" : "2026-10-26T17:44:32Z",
+      "lastSeenURLSHA256" : "788da727739194fd60b54be9e534146b6aa6706048f9a1d2ef6d809dd3d7bfbb",
+      "lastSeenVersion" : "0.14.0",
+      "signedIdentifier" : "com.antonycourtney.tad",
+      "teamIdentifier" : "VPS8BQAV8D"
+    },
     "github:anxndsgn\/git-switch:stable" : {
       "architectures" : [
         "arm64"
@@ -547,6 +612,20 @@
       "lastSeenVersion" : "2.0.18",
       "signedIdentifier" : "ai.deepseek.dsh.desktop",
       "teamIdentifier" : "UM3Z9G5DNH"
+    },
+    "github:archagon\/sensible-side-buttons:stable" : {
+      "architectures" : [
+        "arm64",
+        "x86_64"
+      ],
+      "bundleIdentifier" : "net.archagon.sensible-side-buttons",
+      "firstSeenAt" : "2026-10-26T17:44:32Z",
+      "firstSeenVersion" : "1.0.7",
+      "lastSeenAt" : "2026-10-26T17:44:32Z",
+      "lastSeenURLSHA256" : "c229305164e333adb78914f8e10c227f531b21677fb1f588bc8b8be7b28dbb07",
+      "lastSeenVersion" : "1.0.7",
+      "signedIdentifier" : "net.archagon.sensible-side-buttons",
+      "teamIdentifier" : "R4MX2B96J2"
     },
     "github:artginzburg\/MiddleClick:stable" : {
       "architectures" : [
@@ -689,9 +768,9 @@
       "bundleIdentifier" : "com.claudoscope.app",
       "firstSeenAt" : "2026-10-22T10:43:03Z",
       "firstSeenVersion" : "1.4.0",
-      "lastSeenAt" : "2026-10-22T10:43:03Z",
-      "lastSeenURLSHA256" : "bada85b771479f439392f3714697251c6ff1d5c96c2e3cbf1b0c1ac2ad45a250",
-      "lastSeenVersion" : "1.4.0",
+      "lastSeenAt" : "2026-10-26T17:44:32Z",
+      "lastSeenURLSHA256" : "e50d7fbe6b73fa8ff9794a47a9f28f830ed4252e4376447a5c9c8a2abf34ea8d",
+      "lastSeenVersion" : "1.4.1",
       "signedIdentifier" : "com.claudoscope.app",
       "teamIdentifier" : "DN8M2CQ4D2"
     },
@@ -840,9 +919,9 @@
       "bundleIdentifier" : "com.github.GitHubClient",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "3.6.7-beta3",
-      "lastSeenAt" : "2026-10-24T02:00:57Z",
-      "lastSeenURLSHA256" : "6fbb3bfe453987f26ca64e7a7492f75a0f4563dfe106ce13a0bd54283e2823a4",
-      "lastSeenVersion" : "3.6.9-beta1",
+      "lastSeenAt" : "2026-10-26T17:44:32Z",
+      "lastSeenURLSHA256" : "32cb33e66fa810b5b7456286f1beaa9d0f8c0262d64429f1380ad25f608666f8",
+      "lastSeenVersion" : "3.6.10-beta1",
       "signedIdentifier" : "com.github.GitHubClient",
       "teamIdentifier" : "VEKTX9H2N7"
     },
@@ -879,9 +958,9 @@
       "bundleIdentifier" : "com.dominikmartn.Harp",
       "firstSeenAt" : "2026-10-20T15:55:48Z",
       "firstSeenVersion" : "0.1.1",
-      "lastSeenAt" : "2026-10-21T10:40:09Z",
-      "lastSeenURLSHA256" : "2670f396ed9d34487de54d04659b465f88ec00408f83a23816e0556d553d35fb",
-      "lastSeenVersion" : "0.1.3",
+      "lastSeenAt" : "2026-10-26T17:44:32Z",
+      "lastSeenURLSHA256" : "53058dcb9b79f89c4710a45dedab1a2f617b0610be4b5fef16902907c15a4e43",
+      "lastSeenVersion" : "0.1.5",
       "signedIdentifier" : "com.dominikmartn.Harp",
       "teamIdentifier" : "423S87ZC86"
     },
@@ -940,6 +1019,20 @@
       "signedIdentifier" : "eu.exelban.Stats",
       "teamIdentifier" : "RP2S87B72W"
     },
+    "github:f\/textream:stable" : {
+      "architectures" : [
+        "arm64",
+        "x86_64"
+      ],
+      "bundleIdentifier" : "dev.fka.textream",
+      "firstSeenAt" : "2026-10-26T17:44:32Z",
+      "firstSeenVersion" : "1.7.1",
+      "lastSeenAt" : "2026-10-26T17:44:32Z",
+      "lastSeenURLSHA256" : "5cf611508e49edc5e8bfb75e9635859425279613a5295e866de396ad6be92bdb",
+      "lastSeenVersion" : "1.7.1",
+      "signedIdentifier" : "dev.fka.textream",
+      "teamIdentifier" : "RJA7656U34"
+    },
     "github:farion1231\/cc-switch:stable" : {
       "architectures" : [
         "arm64",
@@ -948,11 +1041,24 @@
       "bundleIdentifier" : "com.ccswitch.desktop",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "4.0.5",
-      "lastSeenAt" : "2026-10-24T19:49:59Z",
-      "lastSeenURLSHA256" : "2b074d356c21a5ee53c418b1a9b6fca7de0213fc153cbb4ae4d3f608c2600e62",
-      "lastSeenVersion" : "4.0.20",
+      "lastSeenAt" : "2026-10-26T17:44:32Z",
+      "lastSeenURLSHA256" : "6e1996e8ce611710aad732b66156395b5b92ca75d15f9d2b0d037cf2670e472d",
+      "lastSeenVersion" : "4.0.21",
       "signedIdentifier" : "com.ccswitch.desktop",
       "teamIdentifier" : "R8UR22V2F9"
+    },
+    "github:ferdium\/ferdium-app:stable" : {
+      "architectures" : [
+        "arm64"
+      ],
+      "bundleIdentifier" : "org.ferdium.ferdium-app",
+      "firstSeenAt" : "2026-10-26T17:44:32Z",
+      "firstSeenVersion" : "7.2.3",
+      "lastSeenAt" : "2026-10-26T17:44:32Z",
+      "lastSeenURLSHA256" : "26013b51e79b5bb03491d691a52c0413a81a22e28cb50c077dc87df9c16998d7",
+      "lastSeenVersion" : "7.2.3",
+      "signedIdentifier" : "org.ferdium.ferdium-app",
+      "teamIdentifier" : "55E9FPJ93P"
     },
     "github:flameshot-org\/flameshot:stable" : {
       "architectures" : [
@@ -999,9 +1105,9 @@
       "bundleIdentifier" : "sh.paseo.desktop",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "0.11.1",
-      "lastSeenAt" : "2026-10-26T11:49:23Z",
-      "lastSeenURLSHA256" : "34a7e7e990edf8a0562c4b07b53b3d2b6d728f837c668b1f8c3906b1020d1ddb",
-      "lastSeenVersion" : "0.13.1",
+      "lastSeenAt" : "2026-10-26T17:44:32Z",
+      "lastSeenURLSHA256" : "1b95f24d14d8bc62c20353fc420d788638528a72ad31b72bd24966b4b533305c",
+      "lastSeenVersion" : "0.13.2",
       "signedIdentifier" : "sh.paseo.desktop",
       "teamIdentifier" : "99ZMJMKU9Y"
     },
@@ -1059,6 +1165,34 @@
       "lastSeenVersion" : "4.7.2",
       "signedIdentifier" : "org.godotengine.godot",
       "teamIdentifier" : "6K46PWY5DM"
+    },
+    "github:heyman\/heynote:beta" : {
+      "architectures" : [
+        "arm64",
+        "x86_64"
+      ],
+      "bundleIdentifier" : "com.heynote.app",
+      "firstSeenAt" : "2026-10-26T17:44:32Z",
+      "firstSeenVersion" : "2.9.1",
+      "lastSeenAt" : "2026-10-26T17:44:32Z",
+      "lastSeenURLSHA256" : "e7bc69cc2f41b3dccb599daf5cecd8bfac87c1a8a5d3bcdc7c5339996fe4e6c3",
+      "lastSeenVersion" : "2.9.1",
+      "signedIdentifier" : "com.heynote.app",
+      "teamIdentifier" : "VY5Y3H438S"
+    },
+    "github:heyman\/heynote:stable" : {
+      "architectures" : [
+        "arm64",
+        "x86_64"
+      ],
+      "bundleIdentifier" : "com.heynote.app",
+      "firstSeenAt" : "2026-10-26T17:44:32Z",
+      "firstSeenVersion" : "2.9.1",
+      "lastSeenAt" : "2026-10-26T17:44:32Z",
+      "lastSeenURLSHA256" : "e7bc69cc2f41b3dccb599daf5cecd8bfac87c1a8a5d3bcdc7c5339996fe4e6c3",
+      "lastSeenVersion" : "2.9.1",
+      "signedIdentifier" : "com.heynote.app",
+      "teamIdentifier" : "VY5Y3H438S"
     },
     "github:hoppscotch\/releases:stable" : {
       "architectures" : [
@@ -1194,6 +1328,19 @@
       "signedIdentifier" : "org.keepassxc.keepassxc",
       "teamIdentifier" : "G2S7P7J672"
     },
+    "github:keeweb\/keeweb:stable" : {
+      "architectures" : [
+        "arm64"
+      ],
+      "bundleIdentifier" : "net.antelle.keeweb",
+      "firstSeenAt" : "2026-10-26T17:44:32Z",
+      "firstSeenVersion" : "1.18.7",
+      "lastSeenAt" : "2026-10-26T17:44:32Z",
+      "lastSeenURLSHA256" : "7fb55100c6f4475f513621a408fb181be76f07d1c31ad6f88a2990b504dbb229",
+      "lastSeenVersion" : "1.18.7",
+      "signedIdentifier" : "net.antelle.keeweb",
+      "teamIdentifier" : "3LE7JZ657W"
+    },
     "github:kenn-io\/agentsview:stable" : {
       "architectures" : [
         "arm64"
@@ -1262,6 +1409,19 @@
       "signedIdentifier" : "io.lapce",
       "teamIdentifier" : "CYSGAZFR8D"
     },
+    "github:laurent22\/joplin:stable" : {
+      "architectures" : [
+        "arm64"
+      ],
+      "bundleIdentifier" : "net.cozic.joplin-desktop",
+      "firstSeenAt" : "2026-10-26T17:44:32Z",
+      "firstSeenVersion" : "3.7.21",
+      "lastSeenAt" : "2026-10-26T17:44:32Z",
+      "lastSeenURLSHA256" : "027ed5f33f68555cd56f56b2049d62158b0304a585eca27f87621cc40f1aaf53",
+      "lastSeenVersion" : "3.7.21",
+      "signedIdentifier" : "net.cozic.joplin-desktop",
+      "teamIdentifier" : "A9BXAFS6CT"
+    },
     "github:leits\/MeetingBar:stable" : {
       "architectures" : [
         "arm64",
@@ -1302,6 +1462,35 @@
       "lastSeenVersion" : "2.0.2",
       "signedIdentifier" : "com.logseq.logseq",
       "teamIdentifier" : "K378MFWK59"
+    },
+    "github:lunatask\/lunatask:stable" : {
+      "architectures" : [
+        "arm64",
+        "x86_64"
+      ],
+      "bundleIdentifier" : "com.mikekreeki.tasks",
+      "firstSeenAt" : "2026-10-26T17:44:32Z",
+      "firstSeenVersion" : "2.1.29",
+      "lastSeenAt" : "2026-10-26T17:44:32Z",
+      "lastSeenURLSHA256" : "72e5ebb62bd13a683b001519f3599421c3673974aba436af2d6eb4934ebe22d8",
+      "lastSeenVersion" : "2.1.29",
+      "signedIdentifier" : "com.mikekreeki.tasks",
+      "teamIdentifier" : "24KNYM7WQY"
+    },
+    "github:lwouis\/alt-tab-macos:stable" : {
+      "architectures" : [
+        "arm64",
+        "x86_64"
+      ],
+      "bundleIdentifier" : "com.lwouis.alt-tab-macos",
+      "firstSeenAt" : "2026-10-26T17:44:32Z",
+      "firstSeenVersion" : "11.10.1",
+      "lastSeenAt" : "2026-10-26T17:44:32Z",
+      "lastSeenURLSHA256" : "24c3f797faa2dcdaeb11b77e4e0c64ff10a5c6f5e7bb464663eaf8fac520f0b2",
+      "lastSeenVersion" : "11.10.1",
+      "signedIdentifier" : "com.lwouis.alt-tab-macos",
+      "sparklePublicKey" : "2e9SQOBoaKElchSa\/4QDli\/nvYkyuDNfynfzBF6vJK4=",
+      "teamIdentifier" : "QXD7GW8FHY"
     },
     "github:m1ckc3s\/claude-status-bar:stable" : {
       "architectures" : [
@@ -1368,6 +1557,20 @@
       "lastSeenVersion" : "0.1.115",
       "signedIdentifier" : "com.xd.cindy",
       "teamIdentifier" : "SX9RG894L5"
+    },
+    "github:martpie\/museeks:stable" : {
+      "architectures" : [
+        "arm64",
+        "x86_64"
+      ],
+      "bundleIdentifier" : "io.museeks.app",
+      "firstSeenAt" : "2026-10-26T17:44:32Z",
+      "firstSeenVersion" : "0.23.4",
+      "lastSeenAt" : "2026-10-26T17:44:32Z",
+      "lastSeenURLSHA256" : "c67ce75ded4317a371bed1be69a84f09e69ad2edaf29735997873e46f51053ae",
+      "lastSeenVersion" : "0.23.4",
+      "signedIdentifier" : "io.museeks.app",
+      "teamIdentifier" : "YK6MWU3892"
     },
     "github:massCodeIO\/massCode:stable" : {
       "architectures" : [
@@ -1436,6 +1639,20 @@
       "signedIdentifier" : "org.musicbrainz.Picard",
       "teamIdentifier" : "8D89TSJ88H"
     },
+    "github:mockoon\/mockoon:stable" : {
+      "architectures" : [
+        "arm64",
+        "x86_64"
+      ],
+      "bundleIdentifier" : "com.mockoon.app",
+      "firstSeenAt" : "2026-10-26T17:44:32Z",
+      "firstSeenVersion" : "9.9.0",
+      "lastSeenAt" : "2026-10-26T17:44:32Z",
+      "lastSeenURLSHA256" : "c676834c68aff861bb8062182779f3c0809802baed1177341b4bcb452a599826",
+      "lastSeenVersion" : "9.9.0",
+      "signedIdentifier" : "com.mockoon.app",
+      "teamIdentifier" : "8443RQQKK6"
+    },
     "github:momenbasel\/PureMac:stable" : {
       "architectures" : [
         "arm64",
@@ -1471,9 +1688,9 @@
       "bundleIdentifier" : "app.yaak.desktop",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "2026.9.0-beta.4",
-      "lastSeenAt" : "2026-10-11T17:17:49Z",
-      "lastSeenURLSHA256" : "9fb3db20f80f96c30189b9988af88761ef491cd3fabeb85ced9d23980e0f89ec",
-      "lastSeenVersion" : "2026.9.0-beta.4",
+      "lastSeenAt" : "2026-10-26T17:44:32Z",
+      "lastSeenURLSHA256" : "edbba581db3bf1874372a22b67c28062d73c03b81fc31c20b0d5916f94a85508",
+      "lastSeenVersion" : "2026.10.0-beta.1",
       "signedIdentifier" : "app.yaak.desktop",
       "teamIdentifier" : "7PU3P6ELJ8"
     },
@@ -1540,9 +1757,9 @@
       "bundleIdentifier" : "org.musescore.MuseScore",
       "firstSeenAt" : "2026-10-16T10:20:06Z",
       "firstSeenVersion" : "4.7.5",
-      "lastSeenAt" : "2026-10-16T10:20:06Z",
-      "lastSeenURLSHA256" : "1131c4967de925b60224db89e282d786cd22167499418f991775c396aa32fdd1",
-      "lastSeenVersion" : "4.7.5",
+      "lastSeenAt" : "2026-10-26T17:44:32Z",
+      "lastSeenURLSHA256" : "feea965191beb6ff60262f26d6505df21c302a4b2c080f59666f617005c2a5df",
+      "lastSeenVersion" : "4.7.6",
       "signedIdentifier" : "org.musescore.MuseScore",
       "teamIdentifier" : "6EPAF2X3PR"
     },
@@ -1552,9 +1769,9 @@
       ],
       "firstSeenAt" : "2026-10-17T09:49:39Z",
       "firstSeenVersion" : "1.0.1",
-      "lastSeenAt" : "2026-10-22T01:55:36Z",
-      "lastSeenURLSHA256" : "0dd904b2ee2b5980a1b01ac5a48860b46f183e9c7abbad16e9668a105030df77",
-      "lastSeenVersion" : "1.0.3",
+      "lastSeenAt" : "2026-10-26T17:44:32Z",
+      "lastSeenURLSHA256" : "3dd97c64f617042d0dff2040c0c4b3d91848f6110e02330ef6efeb71a058115d",
+      "lastSeenVersion" : "1.0.4",
       "packageTeamIdentifier" : "P8XK3KHB48"
     },
     "github:neovide\/neovide:stable" : {
@@ -1569,6 +1786,34 @@
       "lastSeenVersion" : "0.16.2",
       "signedIdentifier" : "com.neovide.neovide",
       "teamIdentifier" : "X8CNW77992"
+    },
+    "github:netdcy\/FlowVision:stable" : {
+      "architectures" : [
+        "arm64",
+        "x86_64"
+      ],
+      "bundleIdentifier" : "netdcy.FlowVision",
+      "firstSeenAt" : "2026-10-26T17:44:32Z",
+      "firstSeenVersion" : "1.7.6",
+      "lastSeenAt" : "2026-10-26T17:44:32Z",
+      "lastSeenURLSHA256" : "dd185257c03c549391eaf3d5270e8100548700bf595af36c1b9e0eb41bed3057",
+      "lastSeenVersion" : "1.7.6",
+      "signedIdentifier" : "netdcy.FlowVision",
+      "teamIdentifier" : "M9PR3WG2FN"
+    },
+    "github:netdcy\/FlowVision:stable:xcode26" : {
+      "architectures" : [
+        "arm64",
+        "x86_64"
+      ],
+      "bundleIdentifier" : "netdcy.FlowVision",
+      "firstSeenAt" : "2026-10-26T17:44:32Z",
+      "firstSeenVersion" : "1.7.6",
+      "lastSeenAt" : "2026-10-26T17:44:32Z",
+      "lastSeenURLSHA256" : "3f99f81bb638dac6d42545905d2a7909e1a872d253833eedc3de509236cec535",
+      "lastSeenVersion" : "1.7.6",
+      "signedIdentifier" : "netdcy.FlowVision",
+      "teamIdentifier" : "M9PR3WG2FN"
     },
     "github:newmarcel\/KeepingYouAwake:stable" : {
       "architectures" : [
@@ -1624,6 +1869,34 @@
       "lastSeenURLSHA256" : "bbb9b7b17df8e77aa9bcbdecd27779d3ee2e2acbe5e1450d5de01a319474cf9d",
       "lastSeenVersion" : "0.17.1",
       "signedIdentifier" : "io.github.obelus-editor.obelus"
+    },
+    "github:objective-see\/DylibHijackScanner:stable" : {
+      "architectures" : [
+        "arm64",
+        "x86_64"
+      ],
+      "bundleIdentifier" : "com.objective-see.DHS",
+      "firstSeenAt" : "2026-10-26T17:44:32Z",
+      "firstSeenVersion" : "1.6.0",
+      "lastSeenAt" : "2026-10-26T17:44:32Z",
+      "lastSeenURLSHA256" : "a9dceb67b4564cd9b3560b9e3bdbfa24806dd8b97fab936131c57ab34402f402",
+      "lastSeenVersion" : "1.6.0",
+      "signedIdentifier" : "com.objective-see.DHS",
+      "teamIdentifier" : "VBG97UB4TA"
+    },
+    "github:objective-see\/KextViewr:stable" : {
+      "architectures" : [
+        "arm64",
+        "x86_64"
+      ],
+      "bundleIdentifier" : "com.objective-see.KextViewr",
+      "firstSeenAt" : "2026-10-26T17:44:32Z",
+      "firstSeenVersion" : "2.0.0",
+      "lastSeenAt" : "2026-10-26T17:44:32Z",
+      "lastSeenURLSHA256" : "a7dc03997abc4dd888abe49cef59603caf63bdcd1a465977b2a75fd1cdad7a0e",
+      "lastSeenVersion" : "2.0.0",
+      "signedIdentifier" : "com.objective-see.KextViewr",
+      "teamIdentifier" : "VBG97UB4TA"
     },
     "github:objective-see\/KnockKnock:stable" : {
       "architectures" : [
@@ -1796,9 +2069,9 @@
       "bundleIdentifier" : "com.t3tools.t3code",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "0.0.46-nightly.20261008.2849",
-      "lastSeenAt" : "2026-10-26T11:49:23Z",
-      "lastSeenURLSHA256" : "d362c6f2fa569291c367b09cffc52d56e720b356332143833f8229b698b175a3",
-      "lastSeenVersion" : "0.1.3-nightly.20261026.3717",
+      "lastSeenAt" : "2026-10-26T17:44:32Z",
+      "lastSeenURLSHA256" : "a5ac7b069aecb329a2ea312dadc78e6f591b37ab367fc895ed0d06d8d99807c0",
+      "lastSeenVersion" : "0.1.3-nightly.20261026.3726",
       "signedIdentifier" : "com.t3tools.t3code",
       "teamIdentifier" : "ARK85ZXQ4Z"
     },
@@ -1827,6 +2100,20 @@
       "lastSeenVersion" : "1.7.4",
       "signedIdentifier" : "me.qii404.another-redis-desktop-manager",
       "teamIdentifier" : "68JN8DV835"
+    },
+    "github:ramboxapp\/download:stable" : {
+      "architectures" : [
+        "arm64",
+        "x86_64"
+      ],
+      "bundleIdentifier" : "com.rambox",
+      "firstSeenAt" : "2026-10-26T17:44:32Z",
+      "firstSeenVersion" : "2.7.2",
+      "lastSeenAt" : "2026-10-26T17:44:32Z",
+      "lastSeenURLSHA256" : "655d3186062535d21668fdf73b754a730a40ddb0699b86bd527c92908dcbd874",
+      "lastSeenVersion" : "2.7.2",
+      "signedIdentifier" : "com.rambox",
+      "teamIdentifier" : "7F292FPD69"
     },
     "github:rancher-sandbox\/rancher-desktop:stable" : {
       "architectures" : [
@@ -1882,6 +2169,32 @@
       "signedIdentifier" : "org.RedisLabs.RedisInsight-V2",
       "teamIdentifier" : "UUK47G4BAZ"
     },
+    "github:responsively-org\/responsively-app-releases:beta" : {
+      "architectures" : [
+        "arm64"
+      ],
+      "bundleIdentifier" : "app.responsively",
+      "firstSeenAt" : "2026-10-26T17:44:32Z",
+      "firstSeenVersion" : "2.0.0-beta.0",
+      "lastSeenAt" : "2026-10-26T17:44:32Z",
+      "lastSeenURLSHA256" : "005c76a2280b409a7e3f7bb2d852af3f9e452d024eea80c9ecedb828bada51e9",
+      "lastSeenVersion" : "2.0.0-beta.0",
+      "signedIdentifier" : "app.responsively",
+      "teamIdentifier" : "M4H33HFC4K"
+    },
+    "github:responsively-org\/responsively-app-releases:stable" : {
+      "architectures" : [
+        "arm64"
+      ],
+      "bundleIdentifier" : "app.responsively",
+      "firstSeenAt" : "2026-10-26T17:44:32Z",
+      "firstSeenVersion" : "1.18.0",
+      "lastSeenAt" : "2026-10-26T17:44:32Z",
+      "lastSeenURLSHA256" : "1503e618306a8833f5a2c282e24e2f7d80c9f1e70ab55b6f1963bbfb4671f316",
+      "lastSeenVersion" : "1.18.0",
+      "signedIdentifier" : "app.responsively",
+      "teamIdentifier" : "M4H33HFC4K"
+    },
     "github:reviu-dev\/reviu:stable" : {
       "architectures" : [
         "arm64"
@@ -1894,6 +2207,20 @@
       "lastSeenVersion" : "1.7.0",
       "signedIdentifier" : "com.jorisgallot.reviu",
       "teamIdentifier" : "V3N3ZQ3643"
+    },
+    "github:rlxone\/Equinox:stable" : {
+      "architectures" : [
+        "arm64",
+        "x86_64"
+      ],
+      "bundleIdentifier" : "com.rlxone.equinox",
+      "firstSeenAt" : "2026-10-26T17:44:32Z",
+      "firstSeenVersion" : "7.0",
+      "lastSeenAt" : "2026-10-26T17:44:32Z",
+      "lastSeenURLSHA256" : "6cfed6c20f6d7d8e91d0262b0e8bdc023f69744194f35bf89be58cd851385055",
+      "lastSeenVersion" : "7.0",
+      "signedIdentifier" : "com.rlxone.equinox",
+      "teamIdentifier" : "ANWX99972B"
     },
     "github:rohanrhu\/MacsyZones:stable" : {
       "architectures" : [
@@ -1949,6 +2276,19 @@
       "lastSeenVersion" : "3.13.1",
       "signedIdentifier" : "net.sourceforge.sqlitebrowser",
       "teamIdentifier" : "C34AV33YLK"
+    },
+    "github:standardnotes\/app:stable" : {
+      "architectures" : [
+        "arm64"
+      ],
+      "bundleIdentifier" : "org.standardnotes.standardnotes",
+      "firstSeenAt" : "2026-10-26T17:44:32Z",
+      "firstSeenVersion" : "3.202.10",
+      "lastSeenAt" : "2026-10-26T17:44:32Z",
+      "lastSeenURLSHA256" : "f35d6bd373b1641a4388595f153e47fc3c60fe138902bc4d9dc9f2b6b60e35f5",
+      "lastSeenVersion" : "3.202.10",
+      "signedIdentifier" : "org.standardnotes.standardnotes",
+      "teamIdentifier" : "HKF9BXSN95"
     },
     "github:starmel\/OpenSuperWhisper:stable" : {
       "architectures" : [
@@ -2101,6 +2441,45 @@
       "lastSeenVersion" : "0.11.0",
       "signedIdentifier" : "io.github.tobi.disktree"
     },
+    "github:toeverything\/AFFiNE:beta" : {
+      "architectures" : [
+        "arm64"
+      ],
+      "bundleIdentifier" : "pro.affine.beta",
+      "firstSeenAt" : "2026-10-26T17:44:32Z",
+      "firstSeenVersion" : "0.27.5-beta.1",
+      "lastSeenAt" : "2026-10-26T17:44:32Z",
+      "lastSeenURLSHA256" : "e27cb6c22d1c069b3e0461c288480a1b2581b2b1ecc881dd335d7c80e6628496",
+      "lastSeenVersion" : "0.27.5-beta.1",
+      "signedIdentifier" : "pro.affine.beta",
+      "teamIdentifier" : "73YMMDVT2M"
+    },
+    "github:toeverything\/AFFiNE:canary" : {
+      "architectures" : [
+        "arm64"
+      ],
+      "bundleIdentifier" : "pro.affine.canary",
+      "firstSeenAt" : "2026-10-26T17:44:32Z",
+      "firstSeenVersion" : "2026.10.26-canary.915",
+      "lastSeenAt" : "2026-10-26T17:44:32Z",
+      "lastSeenURLSHA256" : "edb3bc0c1cf970db923f8650a2f1d3dbe9cc0a34eac36a1f21ee3c32d7b923c9",
+      "lastSeenVersion" : "2026.10.26-canary.915",
+      "signedIdentifier" : "pro.affine.canary",
+      "teamIdentifier" : "73YMMDVT2M"
+    },
+    "github:toeverything\/AFFiNE:stable" : {
+      "architectures" : [
+        "arm64"
+      ],
+      "bundleIdentifier" : "pro.affine.app",
+      "firstSeenAt" : "2026-10-26T17:44:32Z",
+      "firstSeenVersion" : "0.27.4",
+      "lastSeenAt" : "2026-10-26T17:44:32Z",
+      "lastSeenURLSHA256" : "1462d10b2dc23a87f7ea9f5bae5e34b922090573198e65e69657231621f425ab",
+      "lastSeenVersion" : "0.27.4",
+      "signedIdentifier" : "pro.affine.app",
+      "teamIdentifier" : "73YMMDVT2M"
+    },
     "github:tombonez\/noTunes:stable" : {
       "architectures" : [
         "arm64",
@@ -2237,6 +2616,19 @@
       "signedIdentifier" : "co.zeit.hyper",
       "teamIdentifier" : "JW6Y669B67"
     },
+    "github:vitor251093\/porting-kit-releases:stable" : {
+      "architectures" : [
+        "arm64"
+      ],
+      "bundleIdentifier" : "com.paulthetall.portingkit",
+      "firstSeenAt" : "2026-10-26T17:44:32Z",
+      "firstSeenVersion" : "6.7.0",
+      "lastSeenAt" : "2026-10-26T17:44:32Z",
+      "lastSeenURLSHA256" : "9d22df6f6145c319a8851ebe800dd745c1bd7297eb9c5a6025fafb9fd646c6c8",
+      "lastSeenVersion" : "6.7.0",
+      "signedIdentifier" : "com.paulthetall.portingkit",
+      "teamIdentifier" : "45WEPZ3433"
+    },
     "github:vorssaint\/vorssaint-utils:beta" : {
       "architectures" : [
         "arm64"
@@ -2277,6 +2669,19 @@
       "signedIdentifier" : "io.github.wickenico.wailbrew",
       "teamIdentifier" : "2MC8SWF35Z"
     },
+    "github:wulkano\/kap:stable" : {
+      "architectures" : [
+        "arm64"
+      ],
+      "bundleIdentifier" : "com.wulkano.kap",
+      "firstSeenAt" : "2026-10-26T17:44:32Z",
+      "firstSeenVersion" : "3.6.0",
+      "lastSeenAt" : "2026-10-26T17:44:32Z",
+      "lastSeenURLSHA256" : "90226abed695e2f6307fddd4417a17dc24085029550974f47f4c1d9fc3383885",
+      "lastSeenVersion" : "3.6.0",
+      "signedIdentifier" : "com.wulkano.kap",
+      "teamIdentifier" : "2KEEHXF6R6"
+    },
     "github:yetone\/magpie-releases:stable" : {
       "architectures" : [
         "arm64"
@@ -2284,9 +2689,9 @@
       "bundleIdentifier" : "com.yetone.magpie",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "0.1.1133",
-      "lastSeenAt" : "2026-10-26T11:49:23Z",
-      "lastSeenURLSHA256" : "8fa18c9d73527f7226de1a9ac95b2f7ef03c141e80df7ca1c10302c374f63da0",
-      "lastSeenVersion" : "0.1.1597",
+      "lastSeenAt" : "2026-10-26T17:44:32Z",
+      "lastSeenURLSHA256" : "f0289c153ab2fddbb339890d95c50e3b8f4d3d8697355f0ec24927808fcd079c",
+      "lastSeenVersion" : "0.1.1623",
       "signedIdentifier" : "com.yetone.magpie",
       "teamIdentifier" : "LY7MVTUDZG"
     },
@@ -2576,9 +2981,9 @@
       "bundleIdentifier" : "com.anythingllm",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "1.17.0",
-      "lastSeenAt" : "2026-10-13T22:04:25Z",
+      "lastSeenAt" : "2026-10-26T17:44:32Z",
       "lastSeenURLSHA256" : "d49c340e8f84ed5d62dff365ffb16e42fd01a688ea5cf57562f33dae72ef6699",
-      "lastSeenVersion" : "1.18.0",
+      "lastSeenVersion" : "1.19.0",
       "signedIdentifier" : "com.anythingllm",
       "teamIdentifier" : "35S2NMU3G4"
     },
@@ -2779,9 +3184,9 @@
       "bundleIdentifier" : "com.figma.Desktop",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "126.9.13",
-      "lastSeenAt" : "2026-10-20T20:56:03Z",
-      "lastSeenURLSHA256" : "04406937808a736040701b976f7f537fc4717ab0f1e877ce11d68dce67d6aed4",
-      "lastSeenVersion" : "126.9.16",
+      "lastSeenAt" : "2026-10-26T17:44:32Z",
+      "lastSeenURLSHA256" : "b2bd997ab67a127e016c8278c08f1737fede2050cebc969dddfcbb246551114d",
+      "lastSeenVersion" : "126.10.13",
       "signedIdentifier" : "com.figma.Desktop",
       "teamIdentifier" : "T8RA8NE3B7"
     },
@@ -3244,9 +3649,9 @@
       ],
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "16.109.26053122",
-      "lastSeenAt" : "2026-10-22T16:05:56Z",
-      "lastSeenURLSHA256" : "cb44e60d2b8a181b8f3013bfe4dc879e726b210c090072bfc9c9a4bc6a5b09e4",
-      "lastSeenVersion" : "16.114.26102031",
+      "lastSeenAt" : "2026-10-26T17:44:32Z",
+      "lastSeenURLSHA256" : "1b564a5590f1ae3a5350373944418ff2af0e347521210727d6a14a5e7b0a8b5b",
+      "lastSeenVersion" : "16.114.26102345",
       "packageTeamIdentifier" : "UBF8T346G9"
     },
     "vendor:com.microsoft.teams2:stable" : {
@@ -3279,8 +3684,8 @@
       ],
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "4.42.0",
-      "lastSeenAt" : "2026-10-26T11:49:23Z",
-      "lastSeenURLSHA256" : "e41dcbe800c3716444a6567e7fa46373c3f1e5bb1c4fc60c5d318cb5ad71c047",
+      "lastSeenAt" : "2026-10-26T17:44:32Z",
+      "lastSeenURLSHA256" : "ddeafb32168695d73158f1e032b827f44b26751c3c8e6d98263dfbd9330e2ee0",
       "lastSeenVersion" : "4.44.0",
       "packageTeamIdentifier" : "PU9BNSBJW7"
     },
@@ -3386,8 +3791,8 @@
       "bundleIdentifier" : "com.raycast.macos",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "1.104.31",
-      "lastSeenAt" : "2026-10-26T11:49:23Z",
-      "lastSeenURLSHA256" : "3317ce993525bb8bb59005aa93eba4f86a5e5df1796edbf744e549e5f556d97a",
+      "lastSeenAt" : "2026-10-26T17:44:32Z",
+      "lastSeenURLSHA256" : "f67c446dd5c2dd8d141a8f32963f0989a68ce65ffec47bc2cb3f0a20b823d559",
       "lastSeenVersion" : "1.104.32",
       "signedIdentifier" : "com.raycast.macos",
       "teamIdentifier" : "SY64MV22J9"
@@ -3441,8 +3846,8 @@
       "bundleIdentifier" : "com.sogou.inputmethod.sogou",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "6.25.1.11973",
-      "lastSeenAt" : "2026-10-25T19:59:23Z",
-      "lastSeenURLSHA256" : "4fc576a56bf8d4c387b903494d118bf38d71e2f9f9f301533edb74fa2cdf04ba",
+      "lastSeenAt" : "2026-10-26T17:44:32Z",
+      "lastSeenURLSHA256" : "3d48acf3515f599546cdeaf75920913a56458e63e387d32efb6d9f65477f0871",
       "lastSeenVersion" : "6.25.3.12004",
       "signedIdentifier" : "com.sogou.inputmethod.sogou",
       "teamIdentifier" : "DFD88F82SU"
@@ -3854,9 +4259,9 @@
       "bundleIdentifier" : "dev.hyperframes.desktop.canary",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "b292",
-      "lastSeenAt" : "2026-10-26T11:49:23Z",
-      "lastSeenURLSHA256" : "17fd5b150b0e0fcbbbd2846fca28f634e1a0bc615ece94f08a7c08453ab93091",
-      "lastSeenVersion" : "b489",
+      "lastSeenAt" : "2026-10-26T17:44:32Z",
+      "lastSeenURLSHA256" : "981a68c760765dc4130f1fad68613733406c29053033816d89fd368be9c559cb",
+      "lastSeenVersion" : "b490",
       "signedIdentifier" : "dev.hyperframes.desktop.canary",
       "teamIdentifier" : "2VW993BDT8"
     },
@@ -3868,9 +4273,9 @@
       "bundleIdentifier" : "dev.hyperframes.desktop",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "b290",
-      "lastSeenAt" : "2026-10-26T11:49:23Z",
-      "lastSeenURLSHA256" : "06a6e43eae3f080aaaec75cae493bb391c58f0ac0de835dbfc0dcd662c7d3a6a",
-      "lastSeenVersion" : "b489",
+      "lastSeenAt" : "2026-10-26T17:44:32Z",
+      "lastSeenURLSHA256" : "9d83edc314e845b98e60cade8aff537bd319e73895cb05669594f9897344977b",
+      "lastSeenVersion" : "b490",
       "signedIdentifier" : "dev.hyperframes.desktop",
       "teamIdentifier" : "2VW993BDT8"
     },
@@ -4006,9 +4411,9 @@
       "bundleIdentifier" : "io.dcloud.HBuilderX",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "5.26.2026091802",
-      "lastSeenAt" : "2026-10-11T17:17:49Z",
-      "lastSeenURLSHA256" : "0a14280c37422d2a9a9d3c550ff945850c5008bff7e3fc8e304d5c553efdf93c",
-      "lastSeenVersion" : "5.26.2026091802",
+      "lastSeenAt" : "2026-10-26T17:44:32Z",
+      "lastSeenURLSHA256" : "7ea448add9ab6fee11cbb84d1ecca31eff7584516e704ebe3718900aeef250e2",
+      "lastSeenVersion" : "5.33.2026102401",
       "signedIdentifier" : "io.dcloud.HBuilderX",
       "teamIdentifier" : "YQM5H857L5"
     },
@@ -4031,9 +4436,9 @@
       ],
       "firstSeenAt" : "2026-10-17T09:49:39Z",
       "firstSeenVersion" : "1.0.1",
-      "lastSeenAt" : "2026-10-22T01:55:36Z",
+      "lastSeenAt" : "2026-10-26T17:44:32Z",
       "lastSeenURLSHA256" : "45e26d114cd5db602ce1b0c46b5e285a08448892bd91b0f42496e45c5a7f2b97",
-      "lastSeenVersion" : "1.0.3",
+      "lastSeenVersion" : "1.0.4",
       "packageTeamIdentifier" : "P8XK3KHB48"
     },
     "vendor:io.tailscale.ipn.macsys:rc" : {
@@ -4162,8 +4567,8 @@
       "bundleIdentifier" : "net.whatsapp.WhatsApp",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "26.40.20",
-      "lastSeenAt" : "2026-10-26T11:49:23Z",
-      "lastSeenURLSHA256" : "aef18a4bb99c88966e3daed672c9117a47f26e54b5b132539c2fcbd15e3a2d13",
+      "lastSeenAt" : "2026-10-26T17:44:32Z",
+      "lastSeenURLSHA256" : "dc5e6e755f19cccc1fe21e494a325b35451d94fd34fdede9d769ad8e948e1284",
       "lastSeenVersion" : "26.42.19",
       "signedIdentifier" : "net.whatsapp.WhatsApp",
       "sparklePublicKey" : "2jE1ZmLwrfk0yprKc8DTdt5YlKRGI7lGmnf3EJqBA5A=",
@@ -4489,9 +4894,9 @@
       "bundleIdentifier" : "org.mozilla.thunderbirdbeta",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "158.0b5",
-      "lastSeenAt" : "2026-10-22T16:05:56Z",
-      "lastSeenURLSHA256" : "2945405a0ebda91ffac0b8e2582f767a04ecc2da953cd3e0c4bbcaeb6679c297",
-      "lastSeenVersion" : "159.0b5",
+      "lastSeenAt" : "2026-10-26T17:44:32Z",
+      "lastSeenURLSHA256" : "c34bf906a018fe92679aab908278f5bd48c5c5108c6535c384e3ec75ad34f095",
+      "lastSeenVersion" : "160.0b1",
       "signedIdentifier" : "org.mozilla.thunderbirdbeta",
       "teamIdentifier" : "43AQ936H96"
     },

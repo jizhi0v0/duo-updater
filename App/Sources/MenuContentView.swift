@@ -1566,16 +1566,16 @@ private struct ChecksPausedMark: View {
 
     @State private var showTip = false
 
-    private var summary: String { String(localized: "Automatic checks paused — click for why") }
+    private var summary: String { String(localized: "Automatic checks suspended — click for why") }
 
     private var why: String {
         switch reason {
         case .expensive:
-            String(localized: "Automatic update checks are paused while this Mac is online through a Personal Hotspot or cellular connection.")
+            String(localized: "DuoUpdater has suspended automatic update checks while this Mac is online through a Personal Hotspot or cellular connection, to save that connection’s data.")
         case .lowDataMode:
-            String(localized: "Automatic update checks are paused while this network is in Low Data Mode.")
+            String(localized: "DuoUpdater has suspended automatic update checks while this network is in Low Data Mode.")
         case .offline:
-            String(localized: "Automatic update checks are paused while this Mac is offline.")
+            String(localized: "DuoUpdater has suspended automatic update checks while this Mac is offline.")
         }
     }
 

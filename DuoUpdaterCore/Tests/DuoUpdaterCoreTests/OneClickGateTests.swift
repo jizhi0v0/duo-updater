@@ -4,7 +4,7 @@ import Testing
 
 /// `OneClickGate`: a recipe family names which installed copies may take the
 /// one-click; everything else keeps detection only. Exercised through the
-/// gates registered today (MuseScore, Memoh, Hyper, Readest and massCode by installed version, GitKraken
+/// gates registered today (MuseScore, Memoh, Hyper, Readest, massCode and Ferdium by installed version, GitKraken
 /// by an asar entry, Hoppscotch by both a version and an executable marker,
 /// FlowVision by an executable marker) and
 /// through both places that enforce them.
@@ -86,7 +86,19 @@ struct OneClickGateTests {
     @Test func theRegisteredGatesAreTheMeasuredCases() {
         #expect(Set(OneClickGateRegistry.gates.map(\.bundleID))
             == ["org.musescore.MuseScore", "com.axosoft.gitkraken", "ai.memoh.desktop", "io.hoppscotch.desktop",
-                "co.zeit.hyper", "com.bilingify.readest", "io.masscode.app", "netdcy.FlowVision"])
+                "co.zeit.hyper", "com.bilingify.readest", "io.masscode.app", "netdcy.FlowVision", "org.ferdium.ferdium-app"])
+    }
+
+    /// Versions of the real bundles: stable 7.2.3, 7.2.2, 6.0.0, the nightlies
+    /// 7.2.4-nightly.3 and 7.2.3-nightly.3, and the beta 6.4.1-beta.2, all
+    /// `org.ferdium.ferdium-app`, Team 55E9FPJ93P.
+    @Test func ferdiumOneClickIsForStableCopiesOnly() {
+        for version in ["7.2.3", "7.2.2", "6.0.0", "8.0.0"] {
+            #expect(OneClickGateRegistry.withholding(app("org.ferdium.ferdium-app", version), offering: nil) == nil, "\(version)")
+        }
+        for version in ["7.2.4-nightly.3", "7.2.3-nightly.3", "6.4.1-beta.2"] {
+            #expect(OneClickGateRegistry.withholding(app("org.ferdium.ferdium-app", version), offering: nil) != nil, "\(version)")
+        }
     }
 
     /// Versions of the real bundles: stable 3.4.1, 3.4.0, 3.0.2 and the canary

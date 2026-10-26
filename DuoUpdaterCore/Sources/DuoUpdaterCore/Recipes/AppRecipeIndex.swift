@@ -311,6 +311,7 @@ public enum AppRecipeIndex {
         org_cindori_TrimEnabler4.set,
         org_cryptomator.set,
         org_darktable.set,
+        org_ferdium_ferdium_app.set,
         org_flameshot_Flameshot.set,
         org_gimp_gimp.set,
         org_gnome_Meld.set,

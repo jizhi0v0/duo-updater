@@ -52,6 +52,7 @@ public enum AppRecipeIndex {
         com_anysphere_sand.set,
         com_anythingllm.set,
         com_aone_keka.set,
+        com_appflowy_appflowy_flutter.set,
         com_apple_dt_Xcode.set,
         com_astrlink_desktop.set,
         com_axosoft_gitkraken.set,

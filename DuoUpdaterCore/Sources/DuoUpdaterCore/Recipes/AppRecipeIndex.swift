@@ -49,6 +49,7 @@ public enum AppRecipeIndex {
         com_ameba_SwiftBar.set,
         com_amunx_rockxy_community.set,
         com_anthropic_claudefordesktop.set,
+        com_antonycourtney_tad.set,
         com_anysphere_sand.set,
         com_anythingllm.set,
         com_aone_keka.set,

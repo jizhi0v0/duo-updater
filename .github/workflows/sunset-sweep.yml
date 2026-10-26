@@ -16,6 +16,11 @@
 # text of an issue. Without the secret the search is skipped and the signals are
 # still filed. One run measured 2026-10-24: 15 turns, 38 s, $0.16.
 #
+# The same token reviews each new lead (`--review`): Haiku reads the vendor's
+# page, and a lead it finds undated gets `sunset-lead-undated` as well, so
+# `-label:sunset-lead-undated` hides the noise. About $0.024 and usually 15–60 s
+# a lead, four at once, 600 s at most each (trial, 2026-10-26).
+#
 # Otherwise ci.yml's rules: hosted runner, actions pinned by SHA.
 name: Sunset sweep
 
@@ -42,7 +47,8 @@ concurrency:
 jobs:
   sweep:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # News up to 20 min, then at most 15 reviews in four rounds of up to 10 min.
+    timeout-minutes: 65
     env:
       HAS_CLAUDE_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
     steps:
@@ -69,6 +75,8 @@ jobs:
         run: |
           gh label create sunset-lead --repo "$GITHUB_REPOSITORY" --force \
             --color c5def5 --description "An app's end may be announced; check the vendor's page"
+          gh label create sunset-lead-undated --repo "$GITHUB_REPOSITORY" --force \
+            --color ededed --description "Haiku found no end date on the vendor's page; still a lead"
 
       - name: Sweep
         env:
@@ -78,6 +86,6 @@ jobs:
           DRY_RUN: ${{ inputs.dry_run == true }}
         run: |
           args=()
-          if [ "$HAS_CLAUDE_TOKEN" = "true" ]; then args+=(--news); fi
+          if [ "$HAS_CLAUDE_TOKEN" = "true" ]; then args+=(--news --review); fi
           if [ "$DRY_RUN" = "true" ]; then args+=(--dry-run); fi
           python3 scripts/sunset_sweep.py "${args[@]}"

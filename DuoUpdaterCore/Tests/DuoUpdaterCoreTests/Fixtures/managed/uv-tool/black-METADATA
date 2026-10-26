@@ -1,0 +1,44 @@
+Metadata-Version: 2.1
+Name: black
+Version: 23.12.1
+Summary: The uncompromising code formatter.
+Project-URL: Changelog, https://github.com/psf/black/blob/main/CHANGES.md
+Project-URL: Homepage, https://github.com/psf/black
+Author-email: Łukasz Langa <lukasz@langa.pl>
+License: MIT
+License-File: AUTHORS.md
+License-File: LICENSE
+Keywords: automation,autopep8,formatter,gofmt,pyfmt,rustfmt,yapf
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Environment :: Console
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python
+Classifier: Programming Language :: Python :: 3 :: Only
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Topic :: Software Development :: Quality Assurance
+Requires-Python: >=3.8
+Requires-Dist: click>=8.0.0
+Requires-Dist: mypy-extensions>=0.4.3
+Requires-Dist: packaging>=22.0
+Requires-Dist: pathspec>=0.9.0
+Requires-Dist: platformdirs>=2
+Requires-Dist: tomli>=1.1.0; python_version < '3.11'
+Requires-Dist: typing-extensions>=4.0.1; python_version < '3.11'
+Provides-Extra: colorama
+Requires-Dist: colorama>=0.4.3; extra == 'colorama'
+Provides-Extra: d
+Requires-Dist: aiohttp!=3.9.0,>=3.7.4; (sys_platform == 'win32' and implementation_name == 'pypy') and extra == 'd'
+Requires-Dist: aiohttp>=3.7.4; (sys_platform != 'win32' or implementation_name != 'pypy') and extra == 'd'
+Provides-Extra: jupyter
+Requires-Dist: ipython>=7.8.0; extra == 'jupyter'
+Requires-Dist: tokenize-rt>=3.2.0; extra == 'jupyter'
+Provides-Extra: uvloop
+Requires-Dist: uvloop>=0.15.2; extra == 'uvloop'
+Description-Content-Type: text/markdown

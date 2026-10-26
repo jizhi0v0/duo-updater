@@ -327,6 +327,12 @@ public enum CLIToolWording {
         // vendor's (`ManagedRoot.Trust.quarantined`), as for every other kind.
         case (.unverified, .managed(let item)) where item.binaryTrust == .quarantined:
             return quarantined
+        // A manager that is a script in a venv (pipx from pip or `uv tool`,
+        // D5.2): nothing about it can be checked, which is not the same as
+        // another build than its developer's.
+        case (.unverified, .managed(let item)) where item.binaryTrust == .untrusted(nil):
+            let manager = item.descriptor.displayName
+            return String(localized: "\(manager) is a script, with no signature to check")
         case (.unverified, .managed(let item)):
             guard let signer = item.descriptor.signer else {
                 return String(localized: "Not the build its developer published")

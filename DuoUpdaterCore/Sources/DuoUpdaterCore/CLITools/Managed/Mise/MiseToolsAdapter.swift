@@ -325,14 +325,7 @@ public struct MiseToolsAdapter: ManagerAdapter {
     }
 
     public func releaseNotes(for item: ManagedItem, force: Bool) async throws -> Changelog {
-        guard case .gitHubReleases(let owner, let repo, let tagPrefix) = item.notes else { return Changelog(entries: []) }
-        let source = URL(string: "https://api.github.com/repos/\(owner)/\(repo)/releases?per_page=30")!
-        let pattern = tagPrefix.isEmpty ? nil : "^" + NSRegularExpression.escapedPattern(for: tagPrefix) + "v?(\\d.*)$"
-        return try await DenoChangelog.gitHubReleases(source, force: force, session: .updates) { data in
-            StructuredChangelogDecoder.decode(
-                String(decoding: data, as: UTF8.self), format: .gitHubReleases, channel: nil, maxEntries: nil,
-                tagPattern: pattern)
-        }
+        try await ManagedNotes.fetch(item.notes, force: force)
     }
 
     /// `MiseUpdater`'s handoff (2026.10.5's words when mise found no token of
@@ -435,10 +428,11 @@ public struct MiseToolsAdapter: ManagerAdapter {
 
     /// Where a row's notes are (MISE-46 corrected, MISE-49): the GitHub release
     /// mise names, else a `github:`/`aqua:`/`ubi:` backend's repository, else an
-    /// `npm:` package's own `repository`. Nothing for `core:node` (its notes
-    /// are Node's `CHANGELOG_V<major>.md`, whose parser is P3's), `pipx:`
-    /// (PyPI's project URLs, P2's), `cargo:`, `go:` or `asdf:` — an asdf id
-    /// names the plugin's repository, not the tool's.
+    /// `npm:` package's own `repository`, else a `pipx:` package's PyPI project
+    /// URLs (`ProjectURLRepo`, read when the notes are). Nothing for
+    /// `core:node` (its notes are Node's `CHANGELOG_V<major>.md`, whose parser
+    /// is P3's), `cargo:`, `go:` or `asdf:` — an asdf id names the plugin's
+    /// repository, not the tool's.
     static func notes(
         releaseURL: String?, newest: String?, backend: String?, tool: String, installPath: String,
         contents: (String) -> Data?
@@ -462,6 +456,15 @@ public struct MiseToolsAdapter: ManagerAdapter {
             let raw = json["repository"] as? String ?? (json["repository"] as? [String: Any])?["url"] as? String
             guard let repository = NpmChangelog.gitHubRepository(raw) else { return nil }
             return .gitHubReleases(owner: repository.owner, repo: repository.name, tagPrefix: "")
+        }
+        if backend.hasPrefix("pipx:") {
+            // `pipx:black`, `pipx:psf/black` (a GitHub shorthand), `pipx:black[extras=d]`.
+            let id = String(backend.dropFirst("pipx:".count).prefix { $0 != "[" && $0 != "@" })
+            if id.contains("/"), let repository = NpmChangelog.gitHubRepository(id) {
+                return .gitHubReleases(owner: repository.owner, repo: repository.name, tagPrefix: "")
+            }
+            guard !id.isEmpty, PipxMetadata.isIndexRequirement(id) else { return nil }
+            return .pypiProject(id)
         }
         return nil
     }

@@ -1,0 +1,46 @@
+{
+    "backend": "pip",
+    "environment": "duolocal",
+    "exposure_enabled": true,
+    "injected_packages": {},
+    "main_package": {
+        "app_paths": [
+            {
+                "__Path__": "/ZZFixture-home/Library/Application Support/pipx/venvs/duolocal/bin/duolocal",
+                "__type__": "Path"
+            }
+        ],
+        "app_paths_of_dependencies": {},
+        "apps": [
+            "duolocal"
+        ],
+        "apps_of_dependencies": [],
+        "completion_paths": [],
+        "completion_paths_of_dependencies": {},
+        "completions": [],
+        "completions_of_dependencies": [],
+        "cooldown_days": null,
+        "expected_apps": [],
+        "include_apps": true,
+        "include_dependencies": false,
+        "include_resources_from": [],
+        "lock_file": null,
+        "man_pages": [],
+        "man_pages_of_dependencies": [],
+        "man_paths": [],
+        "man_paths_of_dependencies": {},
+        "package": "duolocal",
+        "package_or_url": "/ZZFixture-home/src/duolocal",
+        "package_version": "0.1.0",
+        "pinned": false,
+        "pip_args": [],
+        "suffix": ""
+    },
+    "pipx_metadata_version": "0.12",
+    "python_version": "Python 3.12.15",
+    "source_interpreter": {
+        "__Path__": "/ZZFixture-home/.local/share/uv/python/cpython-3.12.15-macos-aarch64-none/bin/python3.12",
+        "__type__": "Path"
+    },
+    "venv_args": []
+}

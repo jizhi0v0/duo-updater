@@ -101,15 +101,14 @@ final class BubSandbox {
         #expect(box.scanner.scan().first?.version == "0.3.9")
     }
 
-    @Test func uvToolAndBothPipxHomesAreFoundWithTheirMethods() throws {
+    /// bub in a `uv tool` or pipx venv is that manager's row (`UvToolAdapter`,
+    /// `PipxAdapter`; D-C), not a second bub row. Mutation: scan those venvs here.
+    @Test func uvToolAndPipxVenvsAreTheirManagersRows() throws {
         let box = try BubSandbox()
         try box.venv("home/.local/share/uv/tools/bub", version: "0.4.4")
         try box.venv("home/Library/Application Support/pipx/venvs/bub", version: "0.4.3")
         try box.venv("home/.local/pipx/venvs/bub", version: "0.4.2")
-        let found = box.scanner.scan()
-        #expect(found.map(\.method) == [.uvTool, .pipx, .pipx])
-        #expect(found.map(\.version) == ["0.4.4", "0.4.3", "0.4.2"])
-        #expect(found.allSatisfy { $0.project == nil })
+        #expect(box.scanner.scan().isEmpty)
     }
 
     @Test func aDirectoryThatIsNotAVenvIsNothing() throws {
@@ -185,7 +184,6 @@ final class BubSandbox {
     @Test func theProjectIsReadForTheInstallersVenvOnly() throws {
         let box = try BubSandbox()
         try box.venv(box.installerVenv)
-        try box.venv("home/.local/share/uv/tools/bub")
         try box.write("home/.bub/bub-project/pyproject.toml", """
             [project]
             name = "bub-project"
@@ -196,7 +194,7 @@ final class BubSandbox {
                 "bub-web-search>=0.0.2",
             ]
             """)
-        #expect(box.scanner.scan().map(\.project) == [.listsBub, nil])
+        #expect(box.scanner.scan().map(\.project) == [.listsBub])
     }
 
     /// What an interrupted first `bub update` leaves (measured 2026-10-01): `uv

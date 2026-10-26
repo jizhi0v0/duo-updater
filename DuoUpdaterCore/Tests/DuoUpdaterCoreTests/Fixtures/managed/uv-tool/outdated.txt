@@ -1,0 +1,7 @@
+black v23.12.1 [latest: 25.11.0]
+- black
+- blackd
+cowsay v5.0 [latest: 6.1]
+- cowsay
+ruff v0.6.0 [latest: 0.17.2]
+- ruff

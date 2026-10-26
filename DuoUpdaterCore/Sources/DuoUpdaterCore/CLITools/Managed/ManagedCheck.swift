@@ -49,7 +49,12 @@ public enum ManagedCheck {
             state = .updateAvailable
             latest = newest
             oneClick = upgrade
-            if upgrade == nil {
+            if upgrade == nil, let root, root.binary == nil {
+                // A check that needs no binary (pipx's, from PyPI) still found
+                // the update; the program that would run it is not there.
+                withheld = .updaterMissing
+                note = "\(item.descriptor.displayName)'s program was not found under \(item.root)"
+            } else if upgrade == nil {
                 withheld = .unsupportedInstaller
                 note = "\(item.descriptor.displayName) documents no command that moves \(item.key)"
             }

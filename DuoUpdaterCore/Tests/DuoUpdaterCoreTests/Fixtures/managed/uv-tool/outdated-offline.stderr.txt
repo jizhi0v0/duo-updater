@@ -1,0 +1,10 @@
+error: Request failed after 3 retries in 6.7s
+  cause: Failed to fetch: https://pypi.org/simple/ruff/
+  cause: error sending request for url (https://pypi.org/simple/ruff/)
+  cause: client error (Connect)
+  cause: tunnel error: failed to create underlying connection
+  cause: tcp connect error
+  cause: Connection refused (os error 61)
+real 6.91
+user 0.14
+sys 0.02

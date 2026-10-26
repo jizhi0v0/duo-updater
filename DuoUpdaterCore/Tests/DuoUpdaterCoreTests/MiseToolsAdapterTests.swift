@@ -575,19 +575,26 @@ struct MiseToolsAdapterTests {
             == .gitHubReleases(owner: "BurntSushi", repo: "ripgrep", tagPrefix: ""))
         #expect(MiseToolsAdapter.notes(releaseURL: nil, newest: nil, backend: "asdf:mise-plugins/mise-poetry",
                                        tool: "poetry", installPath: "/z", contents: none) == nil)
+        // `pipx:` packages: PyPI's project URLs, read with the notes (P2's rule).
+        #expect(MiseToolsAdapter.notes(releaseURL: nil, newest: nil, backend: "pipx:black[extras=d]",
+                                       tool: "pipx:black", installPath: "/z", contents: none) == .pypiProject("black"))
+        #expect(MiseToolsAdapter.notes(releaseURL: nil, newest: nil, backend: "pipx:psf/black",
+                                       tool: "pipx:psf/black", installPath: "/z", contents: none)
+            == .gitHubReleases(owner: "psf", repo: "black", tagPrefix: ""))
         #expect(MiseToolsAdapter.gitHubRelease("https://github.com/cli/cli/releases/tag/v2.80.0", version: "2.80.0")
             == .gitHubReleases(owner: "cli", repo: "cli", tagPrefix: ""))
         #expect(MiseToolsAdapter.gitHubRelease("https://example.com/x/y/releases/tag/1.0", version: "1.0") == nil)
     }
 
-    /// The manager is registered, last of all providers, in its own lane with
-    /// mise's self-update, and pauses with GitHub's budget (D12, §3.4).
-    /// Mutation: leave the registry empty; give the rows a lane of their own.
+    /// The manager is registered, first of the managers and after every
+    /// standalone provider, in its own lane with mise's self-update, and pauses
+    /// with GitHub's budget (D12, §3.4). Mutation: leave the registry empty;
+    /// give the rows a lane of their own.
     @Test func miseToolsAreRegistered() {
-        #expect(ManagerRegistry.adapters.map(\.descriptor.id) == [MiseToolsAdapter.id])
+        #expect(ManagerRegistry.adapters.map(\.descriptor.id) == [MiseToolsAdapter.id, UvToolAdapter.id, PipxAdapter.id])
         #expect(MiseToolsAdapter.descriptor.lane == "mise")
         #expect(MiseToolsAdapter.descriptor.updaterSpendsGitHubAPI == .ourTokenIfAny)
         #expect(MiseToolsAdapter.descriptor.providerID == "managed:mise")
-        #expect(CLITools.providers().last?.id == "managed:mise")
+        #expect(CLITools.providers().suffix(3).map(\.id) == ["managed:mise", "managed:uv-tool", "managed:pipx"])
     }
 }

@@ -1,0 +1,45 @@
+{
+  "command": [
+    "list"
+  ],
+  "data": {
+    "packages": [
+      {
+        "environment": "cowsay",
+        "injected": false,
+        "latest_version": "6.1",
+        "package": "cowsay",
+        "pinned": true,
+        "version": "5.0"
+      },
+      {
+        "environment": "httpie",
+        "injected": false,
+        "latest_version": "3.2.4",
+        "package": "httpie",
+        "pinned": false,
+        "version": "3.2.1"
+      },
+      {
+        "environment": "ruff",
+        "injected": false,
+        "latest_version": "0.17.2",
+        "package": "ruff",
+        "pinned": false,
+        "version": "0.6.0"
+      }
+    ],
+    "packages_checked": 3,
+    "skipped": [
+      {
+        "environment": "duolocal",
+        "package": "duolocal",
+        "reason": "non-index"
+      }
+    ]
+  },
+  "errors": [],
+  "exit_code": 0,
+  "pipx_result_version": "1",
+  "status": "success"
+}

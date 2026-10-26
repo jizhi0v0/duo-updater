@@ -1,0 +1,5 @@
+Updated cowsay v5.0 -> v6.1
+ - cowsay==5.0
+ + cowsay==6.1
+Installed 1 executable: cowsay
+warning: `/ZZFixture-home/.local/bin` is not on your PATH. To use installed tools, add the directory to your PATH.

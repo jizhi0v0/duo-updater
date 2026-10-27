@@ -315,14 +315,15 @@ public struct MiseToolsAdapter: ManagerAdapter {
               let slug = item.installPath.dropFirst(installs.count + 1).split(separator: "/").first.map(String.init)
         else { return nil }
         let state = home.path + "/.local/state/mise"
-        // A python upgrade then reinstalls every `pipx:` tool against the new
-        // Python (`PIPXBackend::reinstall_all`, mise `src/cli/upgrade.rs`
-        // at v2026.10.19, found in review), into their own installs — and
-        // every `pypi:` one: the same backend (`backend_type.rs`), kept under
-        // its own spelling, `installs/pypi-*` (review round 6).
-        let names = (try? FileManager.default.contentsOfDirectory(atPath: installs)) ?? []
-        let pipxTools = slug == "python"
-            ? names.filter { $0.hasPrefix("pipx-") || $0.hasPrefix("pypi-") }.sorted().map { installs + "/" + $0 } : []
+        // A python upgrade then reinstalls every tool whose backend is pipx
+        // against the new Python (`PIPXBackend::reinstall_all`, mise
+        // `src/cli/upgrade.rs` at v2026.10.19, found in review), into its own
+        // installs. mise picks them by resolved backend, not by name:
+        // `pipx:x`, `pypi:x` (`backend_type.rs`), and a registry shorthand
+        // whose backend is pipx, `yamllint` in `installs/yamllint` (review
+        // rounds 6–7). The installs index records each directory's resolved
+        // backend (`full`); a directory it does not account for is taken too.
+        let pipxTools = slug == "python" ? Self.pipxInstalls(in: installs).filter { $0 != slug }.map { installs + "/" + $0 } : []
         // And rewrites the global lockfile when lockfiles are on ("Also
         // updates mise.lock", `mise upgrade --help`): `mise.lock` beside the
         // global config, `mise.<env>.lock` under `MISE_ENV`
@@ -336,6 +337,30 @@ public struct MiseToolsAdapter: ManagerAdapter {
             installs + "/" + slug, installs + "/.mise-installs.toml", dataDirectory + "/downloads/" + slug,
             dataDirectory + "/shims", state + "/tool-purgatory.json", state + "/incomplete-installs",
         ], created: [ManagedSnapshot.NewEntries(directory: config, namePrefix: ".mise.lock.")])
+    }
+
+    /// The directories of `installs` a python upgrade may reinstall: those
+    /// `.mise-installs.toml` records with a `pipx:` or `pypi:` backend, those
+    /// spelled so, and those it records no backend for (or all, when it
+    /// cannot be read): one taken needlessly costs a clone, one missed is
+    /// left half done.
+    static func pipxInstalls(in installs: String) -> [String] {
+        let names = ((try? FileManager.default.contentsOfDirectory(atPath: installs)) ?? []).filter { !$0.hasPrefix(".") }
+        let index = (try? String(contentsOfFile: installs + "/.mise-installs.toml", encoding: .utf8)) ?? ""
+        var backends: [String: String] = [:]
+        var section: String?
+        for line in index.split(separator: "\n").map({ $0.trimmingCharacters(in: .whitespaces) }) {
+            if line.hasPrefix("["), line.hasSuffix("]") {
+                section = String(line.dropFirst().dropLast()).trimmingCharacters(in: CharacterSet(charactersIn: "\"' "))
+            } else if let section, line.hasPrefix("full"), let equals = line.firstIndex(of: "=") {
+                backends[section] = line[line.index(after: equals)...].trimmingCharacters(in: CharacterSet(charactersIn: "\"' "))
+            }
+        }
+        return names.filter { name in
+            if name.hasPrefix("pipx-") || name.hasPrefix("pypi-") { return true }
+            guard let full = backends[name] else { return true }
+            return full.hasPrefix("pipx:") || full.hasPrefix("pypi:")
+        }.sorted()
     }
 
     public func busy(_ item: ManagedItem, root: ManagedRoot, processes: [NpmActivity.Process]) -> String? {

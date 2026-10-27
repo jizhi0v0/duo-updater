@@ -281,21 +281,60 @@ struct ManagedInterruptionTests {
         }
     }
 
-    /// mise, upgrading python: then it reinstalls every `pipx:` and `pypi:`
-    /// tool against the new Python (`PIPXBackend::reinstall_all`; `pypi:` is
-    /// the same backend, in `installs/pypi-*`), and may rewrite the
+    /// mise, upgrading python: then it reinstalls every tool whose backend is
+    /// pipx against the new Python (`PIPXBackend::reinstall_all`): `pipx:`,
+    /// `pypi:`, and a registry shorthand such as `yamllint`, whose resolved
+    /// backend only the installs index records — and may rewrite the
     /// global lockfiles — `mise.lock`, and `mise.<env>.lock` under `MISE_ENV`
     /// — through a `.mise.lock.<random>` temp file beside them. A stop in
     /// that step leaves them half done. Mutations: no `pypi-` (its tool keeps
-    /// the new text), no `mise.<env>.lock`
+    /// the new text), the index not read (`yamllint` keeps it), no `mise.<env>.lock`
     /// (it keeps the new text), no `.mise.lock.` rule (the temp file stays).
+    /// Which installs a python upgrade may reinstall: by the backend the
+    /// index records, by spelling, and every directory the index does not
+    /// account for; not a tool of another backend. Mutations: unrecorded
+    /// directories left out (`mystery`), every directory taken (`node`).
+    @Test func misePipxInstallsComeFromTheIndex() throws {
+        let installs = home + "/.local/share/mise/installs"
+        for name in ["node", "yamllint", "pipx-black", "mystery"] {
+            try write(".local/share/mise/installs/\(name)/1/bin/x", name)
+        }
+        try write(".local/share/mise/installs/.mise-installs.toml", """
+            [node]
+            short = "node"
+            full = "core:node"
+
+            [yamllint]
+            short = "yamllint"
+            full = "pypi:yamllint"
+
+            [pipx-black]
+            short = "pipx:black"
+            full = "pipx:black"
+
+            """)
+        #expect(MiseToolsAdapter.pipxInstalls(in: installs) == ["mystery", "pipx-black", "yamllint"])
+    }
+
     @Test func misePythonPutsThePipxToolsAndLockfileBack() throws {
         let installs = home + "/.local/share/mise/installs"
         try write(".local/share/mise/installs/python/3.12.5/bin/python3", "3.12.5")
         try write(".local/share/mise/installs/pipx-black/23.12.1/bin/black", "on 3.12.5")
         try write(".local/share/mise/installs/pypi-ruff/0.15.2/bin/ruff", "on 3.12.5")
-        try write(".local/share/mise/installs/.mise-installs.toml", "python 3.12.5")
-        try write(".config/mise/config.toml", "[tools]\npython = \"3.12\"\n")
+        try write(".local/share/mise/installs/yamllint/1.37.1/bin/yamllint", "on 3.12.5")
+        try write(".local/share/mise/installs/.mise-installs.toml", """
+            [python]
+            short = "python"
+            full = "core:python"
+            explicit_backend = true
+
+            [yamllint]
+            short = "yamllint"
+            full = "pypi:yamllint"
+            explicit_backend = false
+
+            """)
+        try write(".config/mise/config.toml", "[tools]\npython = \"3.12\"\nyamllint = \"latest\"\n")
         try write(".config/mise/mise.work.lock", "python 3.12.5")
         let adapter = MiseToolsAdapter(home: homeURL)
         let plan = adapter.interruption(
@@ -305,6 +344,7 @@ struct ManagedInterruptionTests {
             try write(".local/share/mise/installs/python/3.12.15/bin/python3", "3.12.15")
             try write(".local/share/mise/installs/pipx-black/23.12.1/bin/black", "on 3.12.15")
             try write(".local/share/mise/installs/pypi-ruff/0.15.2/bin/ruff", "on 3.12.15")
+            try write(".local/share/mise/installs/yamllint/1.37.1/bin/yamllint", "on 3.12.15")
             try write(".config/mise/mise.lock", "python 3.12.15")
             try write(".config/mise/mise.work.lock", "python 3.12.15")
             try write(".config/mise/.mise.lock.Xk3q9a", "python 3.12.15")

@@ -592,12 +592,12 @@ struct MiseToolsAdapterTests {
     /// give the rows a lane of their own.
     @Test func miseToolsAreRegistered() {
         #expect(ManagerRegistry.adapters.map(\.descriptor.id) == [MiseToolsAdapter.id, UvToolAdapter.id, UvPythonAdapter.id, PipxAdapter.id, NvmNodeAdapter.id, FnmNodeAdapter.id,
-                                                                    PyenvAdapter.id, RbenvAdapter.id])
+                                                                    PyenvAdapter.id, RbenvAdapter.id, CargoAdapter.id, GoAdapter.id])
         #expect(MiseToolsAdapter.descriptor.lane == "mise")
         #expect(MiseToolsAdapter.descriptor.updaterSpendsGitHubAPI == .ourTokenIfAny)
         #expect(MiseToolsAdapter.descriptor.providerID == "managed:mise")
-        #expect(CLITools.providers().suffix(8).map(\.id)
+        #expect(CLITools.providers().suffix(10).map(\.id)
             == ["managed:mise", "managed:uv-tool", "managed:uv-python", "managed:pipx", "managed:nvm-node", "managed:fnm-node",
-                "managed:pyenv", "managed:rbenv"])
+                "managed:pyenv", "managed:rbenv", "managed:cargo", "managed:go"])
     }
 }

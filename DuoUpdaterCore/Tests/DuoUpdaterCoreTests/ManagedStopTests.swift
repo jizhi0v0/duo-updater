@@ -109,9 +109,12 @@ struct ManagedStopTests {
     // MARK: ManagedStop
 
     /// A cancelled run sends SIGINT to the whole group and returns only once
-    /// every member has gone — the background `sleep` too, which a signal to
-    /// the shell alone would leave running. Mutations: `kill` instead of
-    /// `killpg` in `interrupt`; `waitUntilGone` returning at once.
+    /// every member has gone — the inner `sleep` too, which a signal to the
+    /// shell alone would leave running. The ladder's SIGTERM and SIGKILL are
+    /// put out of reach, so only the SIGINT can end it; a 20 s deadline is
+    /// the backstop, and its own message tells it apart: no clock is read.
+    /// Mutations: `kill` instead of `killpg` in `interrupt` (the run gives up,
+    /// not stopped); `waitUntilGone` returning at once (the sleep is alive).
     @Test func aCancelledRunStopsItsWholeGroup() async throws {
         let root = try scratch()
         defer { try? FileManager.default.removeItem(atPath: root) }
@@ -121,49 +124,51 @@ struct ManagedStopTests {
         // group, which a signal to the outer shell alone would leave running.
         // Not `&`: a non-interactive shell starts those ignoring SIGINT, and
         // only the ladder's SIGTERM ends them (`theLadderEnds…`).
-        let inner = "echo $$ > \(marker).child; touch \(marker); exec sleep 30"
+        let inner = "echo $$ > \(marker).child; touch \(marker); exec sleep 600"
         let command = CLIToolCommand(
             executable: "/bin/sh", arguments: ["-c", "sh -c '\(inner)' | cat"], pathPrefix: nil)
         let task = Task {
-            await ManagedProvider.interruptibleRunner(
+            await ManagedProvider.stoppableRunner(termAfter: .seconds(600), killAfter: .seconds(600), giveUpAfter: .seconds(20))(
                 command, ["PATH": "/usr/bin:/bin"], URL(fileURLWithPath: "/"),
-                .init(terminateAfter: .seconds(60), killAfter: .seconds(65)), { _ in })
+                .init(terminateAfter: .seconds(20), killAfter: .seconds(25)), { _ in })
         }
         while !FileManager.default.fileExists(atPath: marker) {
             // cancel-ok: test polling for the child's start, bounded by the child's own 30 s
             try? await Task.sleep(for: .milliseconds(20))
         }
         let child = pid_t(read(marker + ".child")?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "") ?? 0
-        let clock = ContinuousClock()
-        let began = clock.now
         task.cancel()
         let result = await task.value
         #expect(result.stopped)
         #expect(!result.succeeded)
-        #expect(clock.now - began < .seconds(10))
+        // Ended by the stop, not by the deadline's backstop.
+        #expect(result.failureMessage == "stopped")
         #expect(child > 0)
         #expect(kill(child, 0) != 0)
     }
 
     /// What mise does: on the interrupt, start a process in a group of its
     /// own, then exit. The run returns only once that one has gone too, and
-    /// it was interrupted, not left to finish (it would write `late` after
-    /// 2 s). Mutation: `track` not started (the grandchild outlives the
-    /// return), or `signalOthers` a no-op (the run waits out the ladder).
+    /// was stopped: it sleeps 600 s, so only the SIGINT ends it before the run
+    /// gives up at 20 s (the ladder's SIGTERM and SIGKILL are out of reach).
+    /// No clock is read. Mutation: the child not in a session of its own (the
+    /// grandchild is not found, and outlives the return), or `waitUntilGone`
+    /// not sending SIGINT to a group that started after the stop (the run
+    /// gives up: stuck, not stopped).
     @Test func aDescendantInAGroupOfItsOwnIsStoppedAndWaitedFor() async throws {
         let root = try scratch()
         defer { try? FileManager.default.removeItem(atPath: root) }
         try write(root + "/grandchild.pl", """
             $SIG{INT} = 'DEFAULT'; setpgrp(0, 0);
             open(P, '>\(root)/pid'); print P $$; close P;
-            sleep 2; open(F, '>\(root)/late'); close F;
+            sleep 600;
             """)
         let script = "trap 'perl \(root)/grandchild.pl & sleep 0.3; exit 130' INT; touch \(root)/started; sleep 30"
         let command = CLIToolCommand(executable: "/bin/sh", arguments: ["-c", script], pathPrefix: nil)
         let task = Task {
-            await ManagedProvider.interruptibleRunner(
+            await ManagedProvider.stoppableRunner(termAfter: .seconds(600), killAfter: .seconds(600), giveUpAfter: .seconds(20))(
                 command, ["PATH": "/usr/bin:/bin"], URL(fileURLWithPath: "/"),
-                .init(terminateAfter: .seconds(60), killAfter: .seconds(65)), { _ in })
+                .init(terminateAfter: .seconds(900), killAfter: .seconds(905)), { _ in })
         }
         while !FileManager.default.fileExists(atPath: root + "/started") {
             // cancel-ok: test polling for the child's start
@@ -171,36 +176,41 @@ struct ManagedStopTests {
         }
         // cancel-ok: let the tracker list the child before the stop
         try? await Task.sleep(for: .milliseconds(200))
-        let clock = ContinuousClock()
-        let began = clock.now
         task.cancel()
         let result = await task.value
-        let elapsed = clock.now - began
         #expect(result.stopped)
-        #expect(elapsed < .seconds(10))
         let pid = pid_t(read(root + "/pid") ?? "") ?? 0
         #expect(pid > 0)
         #expect(kill(pid, 0) != 0, "the grandchild outlived the run")
-        // cancel-ok: give a surviving grandchild time to write
-        try? await Task.sleep(for: .seconds(2.5))
-        #expect(!FileManager.default.fileExists(atPath: root + "/late"))
+        if kill(pid, 0) == 0 { kill(pid, SIGKILL) }
     }
 
-    /// A group member that ignores SIGINT is sent SIGTERM, then SIGKILL, up
-    /// the ladder. Mutation: no SIGKILL step (the `trap ''` on TERM outlasts
-    /// it, and `waitUntilGone` gives up).
-    @Test func theLadderEndsAMemberThatIgnoresTheInterrupt() async throws {
-        let stop = ManagedStop(termAfter: .milliseconds(300), killAfter: .milliseconds(600), giveUpAfter: .seconds(10))
-        let outcome = Task {
-            try await ChildProcess.run(
-                "/bin/sh", ["-c", "trap '' INT TERM; sleep 30 & wait; wait"], standardOutput: .discard, standardError: .discard,
-                onCancel: .runToCompletion, onLaunch: { stop.launched($0) })
+    /// A command whose own process ignores SIGINT and SIGTERM — and its
+    /// `sleep`, which inherits that — is ended by the ladder's SIGKILL, run
+    /// through the runner as production runs it: the ladder starts at the
+    /// stop, not once the command has exited. Mutations: no SIGKILL step, or
+    /// the ladder started only after the command returns (the run gives up,
+    /// not stopped).
+    @Test func theLadderEndsACommandThatIgnoresTheInterrupt() async throws {
+        let root = try scratch()
+        defer { try? FileManager.default.removeItem(atPath: root) }
+        let command = CLIToolCommand(
+            executable: "/bin/sh", arguments: ["-c", "trap '' INT TERM; touch \(root)/started; sleep 600"], pathPrefix: nil)
+        let task = Task {
+            await ManagedProvider.stoppableRunner(termAfter: .milliseconds(300), killAfter: .milliseconds(600), giveUpAfter: .seconds(20))(
+                command, ["PATH": "/usr/bin:/bin"], URL(fileURLWithPath: "/"),
+                .init(terminateAfter: .seconds(20), killAfter: .seconds(25)), { _ in })
         }
-        // cancel-ok: test waiting for the spawn
-        try? await Task.sleep(for: .milliseconds(300))
-        stop.interrupt()
-        #expect(await stop.waitUntilGone())
-        _ = try? await outcome.value
+        while !FileManager.default.fileExists(atPath: root + "/started") {
+            // cancel-ok: test polling for the child's start
+            try? await Task.sleep(for: .milliseconds(20))
+        }
+        task.cancel()
+        let result = await task.value
+        #expect(result.stopped)
+        #expect(!result.stuck)
+        // Ended by the ladder, not by the deadline's backstop.
+        #expect(result.failureMessage == "stopped")
     }
 
     // MARK: ManagedProvider
@@ -268,6 +278,31 @@ struct ManagedStopTests {
         }
         #expect(!complete)
         #expect(message.contains("could not put back: \(root)/bin/new"))
+    }
+
+    /// A stop that left processes running puts nothing back under them,
+    /// keeps the snapshot and names it, and is a failure. Mutation: the
+    /// snapshot discarded; `complete: true`.
+    @Test func aStuckStopKeepsTheSnapshotAndSaysWhere() async throws {
+        let root = try scratch()
+        defer { try? FileManager.default.removeItem(atPath: root) }
+        try write(root + "/venv/receipt", "1.0")
+        let adapter = ManagedModelTests.FakeAdapter()
+        adapter.interruptionPlan = ManagedInterruption(paths: [root + "/venv"])
+        let outcome = await provider(adapter) { _, _, _, _, _ in
+            try? self.write(root + "/venv/receipt", "2.0")
+            return ManagedProvider.RunResult(
+                succeeded: false, failureMessage: "stopped; some of its processes are still running", lines: [], stuck: true)
+        }.update(ManagedModelTests.status(), progress: { _ in })
+        guard case .stopped(let message, _, let complete) = outcome else {
+            Issue.record("expected .stopped, got \(outcome)")
+            return
+        }
+        #expect(!complete)
+        #expect(read(root + "/venv/receipt") == "2.0")
+        let kept = try #require(message.components(separatedBy: "kept in ").last)
+        defer { try? FileManager.default.removeItem(atPath: kept) }
+        #expect(read(kept + "/0/receipt") == "1.0")
     }
 
     /// A run that finished keeps what it wrote. Mutation: `discard` replaced

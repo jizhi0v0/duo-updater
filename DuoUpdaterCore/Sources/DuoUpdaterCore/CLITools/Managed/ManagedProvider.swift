@@ -38,12 +38,16 @@ public struct ManagedProvider: CLIToolProvider {
         /// deadline — and no process of it is left: what it changed may be
         /// put back.
         public let stopped: Bool
+        /// The command was stopped, but some of its processes outlived the
+        /// ladder: nothing may be put back under them.
+        public let stuck: Bool
 
-        public init(succeeded: Bool, failureMessage: String?, lines: [String], stopped: Bool = false) {
+        public init(succeeded: Bool, failureMessage: String?, lines: [String], stopped: Bool = false, stuck: Bool = false) {
             self.succeeded = succeeded
             self.failureMessage = failureMessage
             self.lines = lines
             self.stopped = stopped
+            self.stuck = stuck
         }
     }
 
@@ -95,9 +99,15 @@ public struct ManagedProvider: CLIToolProvider {
     /// terminal's Ctrl-C (`ManagedStop`); the run returns once no process of
     /// that group is left — never before, since the snapshot is put back
     /// under it. A deadline stops it the same way.
-    static let interruptibleRunner: Runner = { command, environment, workingDirectory, deadline, progress in
+    static let interruptibleRunner: Runner = stoppableRunner()
+
+    /// `interruptibleRunner` with the ladder's steps given: for a test.
+    static func stoppableRunner(
+        termAfter: Duration = ManagedStop.termAfter, killAfter: Duration = ManagedStop.killAfter,
+        giveUpAfter: Duration = ManagedStop.giveUpAfter
+    ) -> Runner { { command, environment, workingDirectory, deadline, progress in
         let log = CLIToolCommandRunner.OutputLog(onLine: progress)
-        let stop = ManagedStop()
+        let stop = ManagedStop(termAfter: termAfter, killAfter: killAfter, giveUpAfter: giveUpAfter)
         guard !Task.isCancelled else {
             return RunResult(succeeded: false, failureMessage: "not run: cancelled", lines: [])
         }
@@ -105,24 +115,23 @@ public struct ManagedProvider: CLIToolProvider {
         do {
             outcome = try await withTaskCancellationHandler {
                 // `.runToCompletion`: the stop is ours (`ManagedStop`), sent to
-                // the whole group, and the call returns only once the child
-                // has exited, cancelled caller or not.
+                // every group of the child's session, and the call returns
+                // only once the child has exited, cancelled caller or not.
                 try await ChildProcess.run(
                     command.executable, command.arguments, environment: environment,
                     workingDirectory: workingDirectory, standardOutput: .discard, standardError: .mergeIntoOutput,
                     deadline: deadline, onCancel: .runToCompletion,
-                    onOutputChunk: { log.append($0) }, onLaunch: { stop.launched($0) })
+                    onOutputChunk: { log.append($0) }, onLaunch: { stop.launched($0) }, newSession: true)
             } onCancel: {
                 stop.interrupt()
             }
         } catch {
             log.finish()
-            stop.finish()
             return RunResult(succeeded: false, failureMessage: "could not run \(command.executable): \(error)", lines: log.lines)
         }
         log.finish()
         CLIToolExit.report(command, outcome)
-        guard stop.wasInterrupted || outcome.timedOut else { stop.finish(); return Self.result(outcome, log.lines, deadline) }
+        guard stop.wasInterrupted || outcome.timedOut else { return Self.result(outcome, log.lines, deadline) }
         // A deadline's SIGTERM reached the child alone; its group goes too.
         if outcome.timedOut { stop.interrupt() }
         let gone = await stop.waitUntilGone()
@@ -131,8 +140,8 @@ public struct ManagedProvider: CLIToolProvider {
         return RunResult(
             succeeded: false,
             failureMessage: gone ? reason : "\(reason); some of its processes are still running",
-            lines: log.lines, stopped: gone)
-    }
+            lines: log.lines, stopped: gone, stuck: !gone)
+    } }
 
     /// A run that ended by itself, as `commandRunner` words it.
     private static func result(_ outcome: ChildProcess.Outcome, _ lines: [String], _ deadline: ChildProcess.Deadline) -> RunResult {
@@ -228,8 +237,11 @@ public struct ManagedProvider: CLIToolProvider {
                 }
             }
         }
+        // Kept when a stop could not end every process: the state before the
+        // update is then the user's only way back, and the row names it.
+        var keepSnapshot = false
         defer {
-            snapshot?.discard()
+            if !keepSnapshot { snapshot?.discard() }
             if let scratch { try? FileManager.default.removeItem(atPath: scratch) }
         }
         let run = { [runner, stoppableRunner] (environment: [String: String]) async -> RunResult in
@@ -251,6 +263,13 @@ public struct ManagedProvider: CLIToolProvider {
         }
         if result.stopped, let snapshot {
             return Self.putBack(snapshot, result, manager: adapter.descriptor.displayName, identity: item.identity)
+        }
+        if result.stuck, let snapshot {
+            keepSnapshot = true
+            let message = "\(result.failureMessage ?? "stopped"), so nothing was put back; "
+                + "what was there before is kept in \(snapshot.directory)"
+            Log.install.error("managed \(item.identity, privacy: .public): \(message, privacy: .public)")
+            return .stopped(message: message, output: result.lines.joined(separator: "\n"), complete: false)
         }
         guard result.succeeded else {
             return .failed(message: result.failureMessage ?? "\(adapter.descriptor.displayName): the update failed",

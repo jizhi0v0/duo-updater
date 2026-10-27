@@ -10,7 +10,9 @@ import Testing
 /// home. Nothing runs a vendor's command here; the writes are the ones the
 /// measurement saw, by path.
 ///
-/// Mutation for each: drop any one path or `created` rule from the plan.
+/// Mutation for each: drop any one path or `created` rule from the plan —
+/// every one of them is written by its test's mid-run state, so each such
+/// drop fails (round 1 of #1722's review found six that did not).
 struct ManagedInterruptionTests {
 
     private let home: String
@@ -139,7 +141,7 @@ struct ManagedInterruptionTests {
             try write(".local/share/uv/tools/ruff/bin/ruff", "0.17.3")
             try remove(".local/share/uv/tools/ruff/lib/python3.12/site-packages/ruff-0.6.0.dist-info")
             try write(".local/share/uv/tools/ruff/lib/python3.12/site-packages/ruff-0.17.3.dist-info/.tmpXYZ", "")
-            try link(".local/bin/ruff", to: venv + "/bin/ruff")
+            try link(".local/bin/ruff", to: venv + "/bin/ruff-0.17.3")
             try link(".local/bin/ruff-lsp", to: venv + "/bin/ruff-lsp")
         }
     }
@@ -161,6 +163,7 @@ struct ManagedInterruptionTests {
             try write(".local/share/uv/python/cpython-3.12.15-macos-aarch64-none/bin/python3.12", "3.12.15")
             try link(".local/share/uv/python/cpython-3.12-macos-aarch64-none", to: dir + "/cpython-3.12.15-macos-aarch64-none")
             try link(".local/bin/python3.12", to: dir + "/cpython-3.12.15-macos-aarch64-none/bin/python3.12")
+            try link(".local/bin/python", to: dir + "/cpython-3.12.15-macos-aarch64-none/bin/python3.12")
         }
     }
 
@@ -177,6 +180,7 @@ struct ManagedInterruptionTests {
             root: root(adapter.descriptor.id, home + "/.local/pipx"))
         try expectPutBack(plan) {
             try write(".local/pipx/venvs/black/pipx_unfinished", "")
+            try remove(".local/bin/black")
             try write(".local/pipx/venvs/black/bin/black", "26.10.1")
             try link(".local/bin/blackd", to: venv + "/bin/blackd")
         }
@@ -245,6 +249,7 @@ struct ManagedInterruptionTests {
         try expectPutBack(plan) {
             try write(fnm + "/node-versions/.downloads/.tmpBsqfdi/node/bin/node", "partial")
             try write(fnm + "/node-versions/v22.23.4/installation/bin/node", "22.23.4")
+            try link(fnm + "/aliases/default", to: home + "/" + fnm + "/node-versions/v22.23.4/installation")
         }
     }
 
@@ -266,6 +271,7 @@ struct ManagedInterruptionTests {
             try write(dir + "/versions/3.12.16/bin/python3", "new")
             try write(dir + "/shims/" + lock, "")
             try write(dir + "/shims/python3.12", "shim")
+            try write(dir + "/version", "3.12.16")
         }
     }
 }

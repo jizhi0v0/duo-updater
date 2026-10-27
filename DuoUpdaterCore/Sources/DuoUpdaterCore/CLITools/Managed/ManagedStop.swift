@@ -5,23 +5,26 @@ import Foundation
 /// nothing of it is left running — what `ManagedSnapshot.restore` waits for,
 /// since a build's `rustc` or `make` children outlive their parent's exit.
 ///
-/// The child is its own process group's leader (`ChildProcess`: pgid = its
-/// pid), and most of its children stay in that group. While any member lives,
-/// no new process can be given that number as its pid or group, so signalling
-/// the group never reaches anyone else.
+/// The child runs in a session of its own (`ChildProcess`'s `newSession`),
+/// which makes it the leader of a new group too. A process group is not
+/// enough to find everything it started: mise starts the `node` it has just
+/// installed in a group of its own, and did so after the SIGINT had reached
+/// mise (2026-10-27, on the Mac: `…/installs/node/20.20.2/bin/node`, pgid its
+/// own pid, ppid 1 once mise had exited). A first fix listed the child's
+/// descendants by parent link every 20 ms; under a loaded test pool the list
+/// came too late, the parent was gone, and so was the link. A session id is
+/// kept by every descendant that does not call `setsid` itself, whichever
+/// group it starts and whoever its parent becomes, so the members are read
+/// from the process table by session (`members`) whenever they are needed.
+/// Each is also checked to have started no earlier than the child: a pid is
+/// never taken for a member it merely shares a number with.
 ///
-/// Not all of them: mise starts the `node` it has just installed in a group of
-/// its own, and it did so after the SIGINT had reached mise (2026-10-27, on
-/// the Mac: `…/installs/node/20.20.2/bin/node`, pgid its own pid, ppid 1 once
-/// mise had exited). Such a process is out of the group's reach and, once its
-/// parent has gone, out of its tree too. So the child's descendants are
-/// listed while it runs (`track`), each kept by pid and start time; one that
-/// leads a group of its own is signalled there too, and waited for.
-///
-/// The ladder: SIGINT at once — the vendor's own interrupt handling (pipx's
+/// The ladder, from the moment of the stop, to every group a member leads or
+/// sits in: SIGINT at once — the vendor's own interrupt handling (pipx's
 /// `pipx_unfinished` mark, python-build's removal of the half-built version)
 /// runs, and the snapshot puts back whatever it left — SIGTERM after
-/// `termAfter`, SIGKILL after `killAfter`.
+/// `termAfter`, SIGKILL after `killAfter`, whether or not the child itself has
+/// exited yet; `waitUntilGone` gives up `giveUpAfter` after the stop.
 final class ManagedStop: @unchecked Sendable {
     static let termAfter: Duration = .seconds(30)
     static let killAfter: Duration = .seconds(45)
@@ -29,7 +32,7 @@ final class ManagedStop: @unchecked Sendable {
     /// under them.
     static let giveUpAfter: Duration = .seconds(60)
 
-    /// A process, by pid and start time: a pid alone may be reused.
+    /// A process of the session, by pid, group and start time.
     struct Member: Hashable, Sendable {
         let pid: pid_t
         let pgid: pid_t
@@ -41,11 +44,13 @@ final class ManagedStop: @unchecked Sendable {
     private let giveUpAfter: Duration
     private let lock = NSLock()
     private var pid: pid_t?
+    /// The child's start time (`Member.started`'s units), read at launch.
+    private var launchedAt: UInt64 = 0
     private var requested = false
-    private var finished = false
-    /// Descendants seen in groups other than the child's, and whether each
-    /// group has had its SIGINT.
-    private var others: [Member: Bool] = [:]
+    private var stoppedAt: ContinuousClock.Instant?
+    /// Groups sent their SIGINT: one each, as one Ctrl-C — a second could cut
+    /// the vendor's own clean-up short.
+    private var interrupted: Set<pid_t> = []
 
     init(termAfter: Duration = ManagedStop.termAfter, killAfter: Duration = ManagedStop.killAfter,
          giveUpAfter: Duration = ManagedStop.giveUpAfter) {
@@ -54,59 +59,52 @@ final class ManagedStop: @unchecked Sendable {
         self.giveUpAfter = giveUpAfter
     }
 
-    /// The child started: a stop asked for before this lands now, and its
-    /// descendants are watched until `finish`.
+    /// The child started (its session's id is its pid): a stop asked for
+    /// before this lands now.
     func launched(_ pid: pid_t) {
+        let started = Self.bsdInfo(pid).map(Self.start) ?? 0
         let stopNow = lock.withLock { () -> Bool in
             self.pid = pid
+            launchedAt = started
             return requested
         }
-        if stopNow { _ = killpg(pid, SIGINT) }
-        track(pid)
+        if stopNow { signal(SIGINT) }
     }
 
-    /// The caller was cancelled: SIGINT to the group, and to every other group
-    /// a descendant leads, once each.
+    /// The caller was cancelled: SIGINT to every group of the session, then
+    /// the rest of the ladder.
     func interrupt() {
-        let pid = lock.withLock { () -> pid_t? in
-            guard !requested else { return nil }
+        let first = lock.withLock { () -> Bool in
+            guard !requested else { return false }
             requested = true
-            return self.pid
+            stoppedAt = ContinuousClock.now
+            return true
         }
-        if let pid { _ = killpg(pid, SIGINT) }
-        signalOthers()
-    }
-
-    /// The run is over and nothing is being waited for: stop watching.
-    func finish() {
-        lock.withLock { finished = true }
+        guard first else { return }
+        signal(SIGINT)
+        climb()
     }
 
     var wasInterrupted: Bool { lock.withLock { requested } }
     var didLaunch: Bool { lock.withLock { pid != nil } }
 
-    /// The descendants of `root` now, by the process table's parent links.
-    static func descendants(of root: pid_t) -> [Member] {
+    /// The session's processes now: every process whose session id is the
+    /// child's pid and that started no earlier than the child.
+    func members() -> [Member] {
+        guard let (pid, since) = lock.withLock({ self.pid.map { ($0, launchedAt) } }) else { return [] }
+        return Self.processes().filter { getsid($0.pid) == pid && $0.started >= since }
+    }
+
+    static func processes() -> [Member] {
         let capacity = Int(proc_listallpids(nil, 0)) + 64
         guard capacity > 64 else { return [] }
         var pids = [pid_t](repeating: 0, count: capacity)
         let count = Int(pids.withUnsafeMutableBytes { proc_listallpids($0.baseAddress, Int32($0.count)) })
         guard count > 0 else { return [] }
-        var children: [pid_t: [(Member)]] = [:]
-        for pid in pids.prefix(min(count, capacity)) where pid > 0 {
-            guard let info = bsdInfo(pid) else { continue }
-            children[pid_t(info.pbi_ppid), default: []].append(
-                Member(pid: pid, pgid: pid_t(info.pbi_pgid), started: start(info)))
+        return pids.prefix(min(count, capacity)).compactMap { pid in
+            guard pid > 0, let info = bsdInfo(pid) else { return nil }
+            return Member(pid: pid, pgid: pid_t(info.pbi_pgid), started: start(info))
         }
-        var found: [Member] = []
-        var queue = [root]
-        while let next = queue.popLast() {
-            for child in children[next] ?? [] where !found.contains(child) {
-                found.append(child)
-                queue.append(child.pid)
-            }
-        }
-        return found
     }
 
     static func bsdInfo(_ pid: pid_t) -> proc_bsdinfo? {
@@ -119,71 +117,58 @@ final class ManagedStop: @unchecked Sendable {
         info.pbi_start_tvsec &* 1_000_000 &+ info.pbi_start_tvusec
     }
 
-    /// `member` still running: its pid now names a process started when it was.
-    static func running(_ member: Member) -> Bool {
-        guard let info = bsdInfo(member.pid) else { return false }
-        return start(info) == member.started
+    /// `signal` to every group a member of the session sits in, the child's
+    /// own included while it lives.
+    private func signal(_ signal: Int32) {
+        var groups = Set(members().map(\.pgid))
+        if let pid = lock.withLock({ self.pid }) { groups.insert(pid) }
+        if signal == SIGINT {
+            groups = lock.withLock { groups.filter { interrupted.insert($0).inserted } }
+        }
+        for group in groups { _ = killpg(group, signal) }
     }
 
-    /// Every 100 ms while the child runs, 20 ms once a stop is asked for:
-    /// a descendant in another group is recorded, and signalled if the stop
-    /// has been asked for.
-    private func track(_ root: pid_t) {
+    /// SIGTERM, then SIGKILL, to whatever is left, at `termAfter` and
+    /// `killAfter` after the stop — the child included, which a vendor that
+    /// ignores SIGINT keeps alive.
+    private func climb() {
+        let (termAfter, killAfter) = (self.termAfter, self.killAfter)
         Task.detached { [self] in
-            while !lock.withLock({ finished }) {
-                for member in Self.descendants(of: root) where member.pgid != root {
-                    lock.withLock { if others[member] == nil { others[member] = false } }
-                }
-                let stopping = lock.withLock { requested }
-                if stopping { signalOthers() }
-                // cancel-ok: a detached task no cancel reaches; ends with `finish`
-                try? await Task.sleep(for: .milliseconds(stopping ? 20 : 100))
+            for (after, signal) in [(termAfter, SIGTERM), (killAfter, SIGKILL)] {
+                guard let start = lock.withLock({ stoppedAt }) else { return }
+                // cancel-ok: a detached task no cancel reaches; two steps, then done
+                try? await Task.sleep(until: start + after, clock: .continuous)
+                guard alive() else { return }
+                self.signal(signal)
             }
         }
     }
 
-    private func signalOthers() {
-        let due = lock.withLock { () -> [Member] in
-            guard requested else { return [] }
-            let due = others.filter { !$0.value }.map(\.key)
-            for member in due { others[member] = true }
-            return due
-        }
-        for member in due where Self.running(member) { _ = killpg(member.pgid, SIGINT) }
+    /// Any member of the session left, the child itself included.
+    private func alive() -> Bool {
+        guard let pid = lock.withLock({ self.pid }) else { return false }
+        return Self.alive(pid) || !members().isEmpty
     }
 
-    /// Signal the group, and the other groups seen, up the ladder until no
-    /// member of any is left; true when none is, false when some outlived
-    /// `giveUpAfter`. For a run that was interrupted, or stopped by its
-    /// deadline (whose SIGTERM reaches only the child itself).
+    /// Wait, after a stop (`interrupt`), until no member of the session is
+    /// left; true when none is, false when some outlived `giveUpAfter` from
+    /// the stop. The ladder (`climb`) does the signalling; a group found now
+    /// that missed the SIGINT (it started after it) is sent one.
     func waitUntilGone() async -> Bool {
-        guard let pid = lock.withLock({ self.pid }) else { finish(); return true }
-        let (termAfter, killAfter, giveUpAfter) = (self.termAfter, self.killAfter, self.giveUpAfter)
+        guard lock.withLock({ self.pid }) != nil else { return true }
+        let giveUpAfter = self.giveUpAfter
         // Unstructured: the caller is usually cancelled — that is why it
         // stopped the command — and a cancelled task's sleep returns at once.
-        let gone = await Task { [self] in
-            let clock = ContinuousClock()
-            let start = clock.now
-            var sentTerm = false
-            var sentKill = false
+        return await Task { [self] in
+            let start = lock.withLock { stoppedAt } ?? .now
             while true {
-                let others = lock.withLock { Array(self.others.keys) }.filter(Self.running)
-                guard Self.alive(pid) || !others.isEmpty else { return true }
-                let elapsed = clock.now - start
-                if elapsed >= giveUpAfter { return false }
-                let signal: Int32? = elapsed >= killAfter && !sentKill ? SIGKILL
-                    : elapsed >= termAfter && !sentTerm ? SIGTERM : nil
-                if let signal {
-                    if signal == SIGKILL { sentKill = true } else { sentTerm = true }
-                    _ = killpg(pid, signal)
-                    for member in others { _ = killpg(member.pgid, signal) }
-                }
+                guard alive() else { return true }
+                signal(SIGINT)
+                if ContinuousClock.now - start >= giveUpAfter { return false }
                 // cancel-ok: an unstructured task no cancel reaches; bounded by giveUpAfter
                 try? await Task.sleep(for: .milliseconds(100))
             }
         }.value
-        finish()
-        return gone
     }
 
     /// Any member of group `pid` left (EPERM: one is, and not ours to signal).

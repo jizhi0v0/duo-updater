@@ -212,14 +212,15 @@ public enum ChildProcess {
         deadline: Deadline? = nil,
         onCancel: Cancellation,
         onOutputChunk: (@Sendable (Data) -> Void)? = nil,
-        onLaunch: (@Sendable (pid_t) -> Void)? = nil
+        onLaunch: (@Sendable (pid_t) -> Void)? = nil,
+        newSession: Bool = false
     ) async throws -> Outcome {
         try await run(
             executablePath, arguments, environment: environment,
             workingDirectory: workingDirectory, standardInput: standardInput,
             standardOutput: standardOutput, standardError: standardError,
             deadline: deadline, onCancel: onCancel, onOutputChunk: onOutputChunk,
-            onLaunch: onLaunch, beforeSpawn: nil)
+            onLaunch: onLaunch, newSession: newSession, beforeSpawn: nil)
     }
 
     /// The read end of a pipe already holding `bytes`, write end closed — or
@@ -278,6 +279,7 @@ public enum ChildProcess {
         onCancel: Cancellation,
         onOutputChunk: (@Sendable (Data) -> Void)? = nil,
         onLaunch: (@Sendable (pid_t) -> Void)? = nil,
+        newSession: Bool = false,
         beforeSpawn: (@Sendable () async -> Void)?,
         deadlineSleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
     ) async throws -> Outcome {
@@ -286,7 +288,7 @@ public enum ChildProcess {
             environment: environment, workingDirectory: workingDirectory,
             standardInput: standardInput, standardOutput: standardOutput,
             standardError: standardError, deadline: deadline,
-            onOutputChunk: onOutputChunk, onLaunch: onLaunch,
+            onOutputChunk: onOutputChunk, onLaunch: onLaunch, newSession: newSession,
             beforeSpawn: beforeSpawn, deadlineSleep: deadlineSleep)
         switch onCancel {
         case .runToCompletion:
@@ -367,6 +369,11 @@ public enum ChildProcess {
         let deadline: Deadline?
         let onOutputChunk: (@Sendable (Data) -> Void)?
         let onLaunch: (@Sendable (pid_t) -> Void)?
+        /// A session of its own (`setsid`), which also makes it its group's
+        /// leader: every descendant keeps the session's id — even one that
+        /// starts a group of its own, even once its parent is gone — so a
+        /// caller can find all of them (`ManagedStop`).
+        let newSession: Bool
         let beforeSpawn: (@Sendable () async -> Void)?
         let deadlineSleep: @Sendable (Duration) async throws -> Void
 
@@ -437,7 +444,9 @@ public enum ChildProcess {
             // `osascript` halfway through a swap. Teardown signals the pid alone, so
             // nothing else changes — except `.interruptChild`'s, which signals this
             // group, the child's own and never ours.
-            options.processGroupID = 0
+            // A new session leads a new group too; asking for both makes
+            // swift-subprocess fork first (`PlatformOptions.preSpawnProcessConfigurator`).
+            if newSession { options.createSession = true } else { options.processGroupID = 0 }
             let env: Subprocess.Environment
             if let environment {
                 let spawnable = ChildProcess.spawnableEnvironment(environment)

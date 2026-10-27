@@ -64,7 +64,7 @@ public struct RbenvAdapter: ManagerAdapter {
             guard let names = host.directories(root + "/versions") else { return .empty }
             let found = locate()
             let items = DefinitionLines.items(
-                names: names, root: root, title: "Ruby", interpreter: "bin/ruby",
+                names: names, root: root, title: "Ruby", interpreters: ["bin/ruby"],
                 definitions: found.definitions, knownBy: found.rubyBuild.map { "ruby-build \($0)" },
                 global: DefinitionLines.global(host.contents(root + "/version")), descriptor: descriptor,
                 exists: host.exists)

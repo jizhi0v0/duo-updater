@@ -47,10 +47,11 @@ enum DefinitionLines {
     /// One item per line among `names` (the entries of `<root>/versions`), at
     /// its newest patch, with the newest definition as `latestOverall` — read
     /// here, from disk, so the click's command names the same version the
-    /// check did. A directory without its interpreter (`interpreter`, below
-    /// the version's directory) is one a build is still writing: unreadable.
+    /// check did. A directory without any of its interpreters (`interpreters`,
+    /// below the version's directory) is one a build is still writing:
+    /// unreadable.
     static func items(
-        names: [String], root: String, title: String, interpreter: String,
+        names: [String], root: String, title: String, interpreters: [String],
         definitions: [String]?, knownBy: String?, global: String?, descriptor: ManagerDescriptor,
         exists: (String) -> Bool
     ) -> [ManagedItem] {
@@ -71,7 +72,7 @@ enum DefinitionLines {
             if let knownBy { facts.append(.asKnownBy(knownBy)) }
             return ManagedItem(
                 descriptor: descriptor, root: root, key: line, name: "\(title) \(line)", installPath: directory,
-                shape: .line, installed: exists(directory + "/" + interpreter) ? newest.version : nil,
+                shape: .line, installed: interpreters.contains { exists(directory + "/" + $0) } ? newest.version : nil,
                 latestOverall: latest?[line]?.version, alsoInstalled: older,
                 effects: [.compilesFromSource, .oldKept(for: nil), .cannotBeCancelledOnceStarted], facts: facts)
         }

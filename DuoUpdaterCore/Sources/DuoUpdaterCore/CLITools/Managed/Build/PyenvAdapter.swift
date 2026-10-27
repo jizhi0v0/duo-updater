@@ -22,7 +22,8 @@ import Foundation
 ///   it whole. The compile and `make install` stages were not hit apart.
 ///
 /// pyenv is bash. Homebrew's keg is run (D5.1); a git checkout (`~/.pyenv/bin/
-/// pyenv`) has nothing to verify and its command is handed out to copy (D5.2).
+/// pyenv`, or a python-build under the root's plugins, which even the keg
+/// runs) has nothing to verify and its command is handed out to copy (D5.2).
 /// A keg keeps python-build's definitions as the repository does,
 /// `<keg>/plugins/python-build/share/python-build` (`brew install pyenv`
 /// 2.8.14: `bin/pyenv -> ../libexec/pyenv`, 1,148 definitions).
@@ -96,9 +97,10 @@ public struct PyenvAdapter: ManagerAdapter {
             let binary = locate()
             guard let names = host.directories(root + "/versions") else { return .empty }
             let definitions = binary.map { Self.definitions(repository: $0.repository, root: root, host: host) } ?? nil
+            // CPython 2.x installs `python` and `python2`, never `python3`.
             let items = DefinitionLines.items(
-                names: names, root: root, title: "Python", interpreter: "bin/python3",
-                definitions: definitions, knownBy: binary?.binary.version.map { "pyenv \($0)" },
+                names: names, root: root, title: "Python", interpreters: ["bin/python3", "bin/python"],
+                definitions: definitions, knownBy: binary?.knownBy.map { "pyenv \($0)" },
                 global: DefinitionLines.global(host.contents(root + "/version")), descriptor: descriptor,
                 exists: host.exists)
             guard !items.isEmpty else { return .empty }
@@ -130,10 +132,21 @@ public struct PyenvAdapter: ManagerAdapter {
 
     // MARK: - The parts
 
-    /// The pyenv that runs the root's commands, and the repository it reads
-    /// python-build from: Homebrew's keg first (it may run), then the
+    /// The pyenv that runs the root's commands, the repository it reads
+    /// python-build from (nil: only the root's plugins), and the version that
+    /// knows the definitions: Homebrew's keg first (it may run), then the
     /// root's own checkout. Blocking.
-    func locate() -> (binary: ManagedRoot.Binary, repository: String)? {
+    ///
+    /// A `pyenv-install` among the root's plugins (a git install kept as the
+    /// root beside `brew install pyenv`) is what even the keg runs — pyenv
+    /// puts `$PYENV_ROOT/plugins/*/bin` first on `PATH` — and it reads only
+    /// its own definitions and the root's plugins'. The keg's are then not the
+    /// ones that count, and the code that runs is a checkout: handed out (D5.2).
+    func locate() -> (binary: ManagedRoot.Binary, repository: String?, knownBy: String?)? {
+        let checkoutInstalls = (host.directories(root + "/plugins") ?? []).contains {
+            host.exists(root + "/plugins/\($0)/bin/pyenv-install")
+        }
+        let checkoutVersion = DefinitionLines.scriptVersion(host.contents(root + "/libexec/pyenv---version"))
         for prefix in homebrewRoots {
             let link = prefix + "/bin/pyenv"
             guard let resolved = host.resolve(link),
@@ -141,15 +154,21 @@ public struct PyenvAdapter: ManagerAdapter {
                     of: resolved, prefix: prefix, formula: "pyenv", paths: [["libexec", "pyenv"], ["bin", "pyenv"]],
                     contents: host.contents)
             else { continue }
-            let keg = Self.repository(of: resolved)
-            return (ManagedRoot.Binary(path: link, version: version, trust: host.isQuarantined(resolved) ? .quarantined : .homebrewKeg), keg)
+            let trust: ManagedRoot.Trust
+            if host.isQuarantined(resolved) {
+                trust = .quarantined
+            } else {
+                trust = checkoutInstalls ? .untrusted(nil) : .homebrewKeg
+            }
+            let binary = ManagedRoot.Binary(path: link, version: version, trust: trust)
+            return checkoutInstalls ? (binary, nil, checkoutVersion) : (binary, Self.repository(of: resolved), version)
         }
         let own = root + "/bin/pyenv"
         guard let resolved = host.resolve(own) else { return nil }
         let repository = Self.repository(of: resolved)
         let version = DefinitionLines.scriptVersion(host.contents(repository + "/libexec/pyenv---version"))
         return (ManagedRoot.Binary(path: own, version: version, trust: host.isQuarantined(resolved) ? .quarantined : .untrusted(nil)),
-                repository)
+                repository, version)
     }
 
     /// `<repo>/libexec/pyenv` or `<repo>/bin/pyenv` → `<repo>`.
@@ -157,10 +176,10 @@ public struct PyenvAdapter: ManagerAdapter {
         ((resolved as NSString).deletingLastPathComponent as NSString).deletingLastPathComponent
     }
 
-    /// python-build's definitions and every plugin's under the root; nil when
-    /// there are none. Blocking.
-    static func definitions(repository: String, root: String, host: Host) -> [String]? {
-        var names = host.directories(repository + "/plugins/python-build/share/python-build") ?? []
+    /// python-build's definitions in `repository` and every plugin's under
+    /// the root; nil when there are none. Blocking.
+    static func definitions(repository: String?, root: String, host: Host) -> [String]? {
+        var names = repository.flatMap { host.directories($0 + "/plugins/python-build/share/python-build") } ?? []
         for plugin in host.directories(root + "/plugins") ?? [] {
             names += host.directories(root + "/plugins/\(plugin)/share/python-build") ?? []
         }

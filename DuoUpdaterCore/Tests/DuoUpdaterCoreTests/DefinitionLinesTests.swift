@@ -58,6 +58,7 @@ struct DefinitionLinesTests {
             let root = DefinitionLinesTests.pyenvRoot
             host.directories[root + "/plugins/python-build/share/python-build"] = try DefinitionLinesTests.names("python-build-2.8.14.txt")
             host.directories[root + "/plugins"] = ["python-build"]
+            host.existing.insert(root + "/plugins/python-build/bin/pyenv-install")
             host.links[root + "/bin/pyenv"] = root + "/libexec/pyenv"
             host.files[root + "/libexec/pyenv"] = Data()
             host.files[root + "/libexec/pyenv---version"] = Data("#!/usr/bin/env bash\n\nversion=\"2.8.14\"\n".utf8)
@@ -146,11 +147,7 @@ struct DefinitionLinesTests {
     /// and reads the line's newest back. Mutation: install the line (`3.12`),
     /// which prompts when its newest is there; leave Homebrew off `PATH`.
     @Test func homebrewsPyenvInstallsTheNewestPatch() async throws {
-        let host = try FakeHost.pyenvCheckout()
-        host.links["/opt/homebrew/bin/pyenv"] = "/opt/homebrew/Cellar/pyenv/2.8.14/libexec/pyenv"
-        host.files["/opt/homebrew/Cellar/pyenv/2.8.14/INSTALL_RECEIPT.json"] = Data("{}".utf8)
-        host.directories["/opt/homebrew/Cellar/pyenv/2.8.14/plugins/python-build/share/python-build"] =
-            try Self.names("python-build-2.8.14.txt")
+        let host = try Self.homebrewsPyenv()
         let runs = Runs()
         let provider = Self.provider(PyenvAdapter(home: Self.home, host: host.host), runs: runs) {
             host.add(version: "3.12.16", root: Self.pyenvRoot, interpreter: "bin/python3")
@@ -161,6 +158,55 @@ struct DefinitionLinesTests {
         #expect(await provider.update(py312) { _ in } == .updated(version: "3.12.16"))
         #expect(await runs.commands.first?.pathPrefix == "/opt/homebrew/bin:/usr/local/bin")
         #expect(await runs.environments.first?["PYENV_ROOT"] == Self.pyenvRoot)
+    }
+
+    /// `pyenvCheckout()`'s root with Homebrew's pyenv in place of the
+    /// checkout: `~/.pyenv` holds only versions.
+    static func homebrewsPyenv() throws -> FakeHost {
+        let host = try FakeHost.pyenvCheckout()
+        host.directories[Self.pyenvRoot + "/plugins/python-build/share/python-build"] = nil
+        host.directories[Self.pyenvRoot + "/plugins"] = nil
+        host.existing.remove(Self.pyenvRoot + "/plugins/python-build/bin/pyenv-install")
+        host.links[Self.pyenvRoot + "/bin/pyenv"] = nil
+        host.files[Self.pyenvRoot + "/libexec/pyenv"] = nil
+        host.files[Self.pyenvRoot + "/libexec/pyenv---version"] = nil
+        host.links["/opt/homebrew/bin/pyenv"] = "/opt/homebrew/Cellar/pyenv/2.8.14/libexec/pyenv"
+        host.files["/opt/homebrew/Cellar/pyenv/2.8.14/INSTALL_RECEIPT.json"] = Data("{}".utf8)
+        host.directories["/opt/homebrew/Cellar/pyenv/2.8.14/plugins/python-build/share/python-build"] =
+            try Self.names("python-build-2.8.14.txt")
+        return host
+    }
+
+    /// A python-build checkout under the root beside Homebrew's pyenv is what
+    /// the keg runs (the root's plugins come first on its `PATH`), and it
+    /// reads only its own definitions: the command is handed out, and the
+    /// newest is the checkout's. Mutation: trust the keg alone; read the
+    /// keg's definitions too.
+    @Test func aPythonBuildCheckoutUnderTheRootTakesTheClickAway() async throws {
+        let host = try Self.homebrewsPyenv()
+        host.directories[Self.pyenvRoot + "/plugins"] = ["python-build"]
+        host.existing.insert(Self.pyenvRoot + "/plugins/python-build/bin/pyenv-install")
+        host.directories[Self.pyenvRoot + "/plugins/python-build/share/python-build"] =
+            try Self.names("python-build-2.8.14.txt").filter { $0 != "3.12.16" }
+        let scan = await PyenvAdapter(home: Self.home, host: host.host).scan()
+        #expect(scan.items.last?.latestOverall == "3.12.15")
+        host.directories[Self.pyenvRoot + "/plugins/python-build/share/python-build"] = try Self.names("python-build-2.8.14.txt")
+        let report = await Self.provider(PyenvAdapter(home: Self.home, host: host.host)).check()
+        let py312 = try #require(Self.status(report, "3.12"))
+        #expect(py312.oneClick == nil)
+        #expect(py312.withheld == .unverified)
+        #expect(py312.manualCommand?.display == "pyenv install 3.12.16")
+    }
+
+    /// CPython 2.x installs `python` and `python2`, never `python3`: its line
+    /// reads its version. Mutation: require `bin/python3`.
+    @Test func aPython2LineReadsItsVersion() async throws {
+        let host = try FakeHost.pyenvCheckout()
+        host.add(version: "2.7.18", root: Self.pyenvRoot, interpreter: "bin/python")
+        let report = await Self.provider(PyenvAdapter(home: Self.home, host: host.host)).check()
+        let py27 = try #require(Self.status(report, "2.7"))
+        #expect(py27.managedItem?.installed == "2.7.18")
+        #expect(py27.state == .upToDate)
     }
 
     /// A version directory without its interpreter is a build still writing:

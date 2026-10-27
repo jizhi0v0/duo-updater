@@ -317,9 +317,12 @@ public struct MiseToolsAdapter: ManagerAdapter {
         let state = home.path + "/.local/state/mise"
         // A python upgrade then reinstalls every `pipx:` tool against the new
         // Python (`PIPXBackend::reinstall_all`, mise `src/cli/upgrade.rs`
-        // at v2026.10.19, found in review), into their own installs.
+        // at v2026.10.19, found in review), into their own installs — and
+        // every `pypi:` one: the same backend (`backend_type.rs`), kept under
+        // its own spelling, `installs/pypi-*` (review round 6).
         let names = (try? FileManager.default.contentsOfDirectory(atPath: installs)) ?? []
-        let pipxTools = slug == "python" ? names.filter { $0.hasPrefix("pipx-") }.sorted().map { installs + "/" + $0 } : []
+        let pipxTools = slug == "python"
+            ? names.filter { $0.hasPrefix("pipx-") || $0.hasPrefix("pypi-") }.sorted().map { installs + "/" + $0 } : []
         // And rewrites the global lockfile when lockfiles are on ("Also
         // updates mise.lock", `mise upgrade --help`): `mise.lock` beside the
         // global config, `mise.<env>.lock` under `MISE_ENV`

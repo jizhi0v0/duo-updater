@@ -203,8 +203,11 @@ struct GoAdapterTests {
     /// A go that is found but may not run — the pkg installer's
     /// `/usr/local/go`, whose signature is not measured, or a quarantined keg
     /// — is never asked anything: the root has a binary, and the check's
-    /// trust guard is what keeps it from running. Its rows say why, with the
-    /// command to copy. Mutation: drop `root.runnable` from `check`'s guard
+    /// trust guard is what keeps it from running. With nothing asked, no
+    /// newer version is known: the rows are not checked, say which go was
+    /// not run and why, and hand no command out (one appears only when the
+    /// guard is gone and the row turns offered). Mutation: drop
+    /// `root.runnable` from `check`'s guard
     /// (review round 1: the old fixture left no go at all, so the guard was
     /// never reached).
     @Test(arguments: ["pkg", "quarantined keg"])
@@ -231,8 +234,12 @@ struct GoAdapterTests {
             runner: { _, _, _, _, _ in ManagedProvider.RunResult(succeeded: true, failureMessage: nil, lines: []) }
         ).check()
         let gofumpt = try #require(Self.status(report, "mvdan.cc/gofumpt"))
+        #expect(gofumpt.state == .unknown)
         #expect(gofumpt.oneClick == nil)
         #expect(gofumpt.withheld == .unverified)
+        #expect(gofumpt.commandToCopy == nil)
+        #expect(gofumpt.note?.hasPrefix(binary.path + " is ") == true)
+        #expect(gofumpt.note?.hasSuffix(", so nothing of it is run") == true)
         #expect(host.runs.isEmpty)
     }
 

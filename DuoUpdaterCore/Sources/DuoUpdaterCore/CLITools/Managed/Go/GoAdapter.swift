@@ -22,12 +22,18 @@ import Foundation
 /// `GOTOOLCHAIN=local`: a release whose `go.mod` asks for a newer Go than
 /// this one is reported (`.runtimeTooOld`), never fetched. go is run only from
 /// Homebrew's keg (D5.1; `brew install go` 1.27.3: `bin/go -> ../libexec/bin/go`,
-/// ad hoc signed — the keg is the proof). The pkg installer's
-/// `/usr/local/go/bin/go` is found but not run: its signature was not
-/// measured (§12 item 7).
+/// ad hoc signed — the keg is the proof), else the pkg installer's
+/// `/usr/local/go/bin/go` when Google signed it (§12 item 7, measured
+/// 2026-10-27 on go.dev's `go1.27.3.darwin-arm64.pkg`: "Developer ID
+/// Application: Google LLC (EQHXZ8M8AV)", hardened runtime, `codesign
+/// --verify --strict` valid; the toolchain it runs, `pkg/tool/darwin_arm64/
+/// compile`, `link`, `asm`, the same Team).
 public struct GoAdapter: ManagerAdapter {
 
     public static let id = ManagerID("go")
+
+    /// Google's Team, which signs go.dev's macOS installer and the `go` in it.
+    public static let teamIdentifier = "EQHXZ8M8AV"
 
     public static let descriptor = ManagerDescriptor(
         id: id, displayName: "go install", signer: nil, logo: nil, tint: .label, lane: "go")
@@ -49,6 +55,8 @@ public struct GoAdapter: ManagerAdapter {
         public var run: @Sendable (_ executable: String, _ arguments: [String], _ environment: [String: String]) async -> Data?
         public var proxyEnvironment: @Sendable () -> [String: String]
         public var processes: @Sendable () -> [NpmActivity.Process]
+        /// The file's signature against Google's Team (`CLIToolTrust.signature`). Blocking.
+        public var signature: @Sendable (String) -> CLIToolTrust.Signature
 
         public init(
             contents: @escaping @Sendable (String) -> Data?,
@@ -58,7 +66,10 @@ public struct GoAdapter: ManagerAdapter {
             buildInfo: @escaping @Sendable (String) -> GoBuildInfo?,
             run: @escaping @Sendable (String, [String], [String: String]) async -> Data?,
             proxyEnvironment: @escaping @Sendable () -> [String: String],
-            processes: @escaping @Sendable () -> [NpmActivity.Process]
+            processes: @escaping @Sendable () -> [NpmActivity.Process],
+            signature: @escaping @Sendable (String) -> CLIToolTrust.Signature = {
+                CLIToolTrust.signature(of: URL(fileURLWithPath: $0), teamIdentifier: GoAdapter.teamIdentifier)
+            }
         ) {
             self.contents = contents
             self.directories = directories
@@ -68,6 +79,7 @@ public struct GoAdapter: ManagerAdapter {
             self.run = run
             self.proxyEnvironment = proxyEnvironment
             self.processes = processes
+            self.signature = signature
         }
 
         public static let live = Host(
@@ -231,8 +243,8 @@ public struct GoAdapter: ManagerAdapter {
         return environment
     }
 
-    /// Homebrew's keg (D5.1), then the pkg installer's `/usr/local/go`, which
-    /// is not run. Blocking.
+    /// Homebrew's keg (D5.1), then the pkg installer's `/usr/local/go`, run
+    /// only when Google's signature holds. Blocking.
     func locate() -> ManagedRoot.Binary? {
         for prefix in homebrewRoots {
             let link = prefix + "/bin/go"
@@ -248,7 +260,14 @@ public struct GoAdapter: ManagerAdapter {
         let version = host.contents("/usr/local/go/VERSION").flatMap {
             String(decoding: $0, as: UTF8.self).split(whereSeparator: \.isNewline).first
         }.map { String($0.hasPrefix("go") ? $0.dropFirst(2) : $0) }
-        return ManagedRoot.Binary(path: pkg, version: version, trust: .untrusted(nil))
+        let trust: ManagedRoot.Trust
+        if host.isQuarantined(pkg) {
+            trust = .quarantined
+        } else {
+            let signature = host.signature(pkg)
+            trust = signature == .vendor ? .vendorSigned(team: Self.teamIdentifier) : .untrusted(signature)
+        }
+        return ManagedRoot.Binary(path: pkg, version: version, trust: trust)
     }
 
     /// One binary. Its key is the package `go install` builds — unique in the

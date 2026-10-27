@@ -561,6 +561,29 @@ The final link/purgatory write was not hit separately (the whole install took ~3
 
 Until then, (a) holds everywhere.
 
+**Ruled 2026-10-27, and neither:** the owner's words, "可以终止，用户如果命令行同样可以，要保证在可终止处终止，而不会损坏 anything" — stop it as a terminal would, but never leave anything damaged. Stages read from the vendor's output cannot promise that: the line arrives after the vendor has moved on, and the gap is a race. Freezing the group to look (SIGSTOP) crashes the app (`swift-subprocess` traps on a stopped child, 2026-10-23). §13.4 makes every stage safe instead.
+
+### 13.4 D15 as built: snapshot, Ctrl-C, put back
+
+- **Before the command** (`ManagedProvider.update`, only for an adapter whose `interruption` names its writes): `ManagedSnapshot.take` clones each named path with `clonefile(2)` (`CLONE_NOFOLLOW`; a directory in one call, metadata only) into an `itemReplacementDirectory` on its volume, records the paths that do not exist yet and their nearest existing ancestor, and lists each `NewEntries` rule's directory (entries a run names itself: cargo's `bin/cargo-install<random>/`, a new version's extra entry-point links, uv's new patch directory). A path that cannot be cloned (another volume) → no snapshot → the command runs to completion as before. Variables in `scratchVariables` (`TMPDIR`) point at a directory of ours, removed after the run.
+- **The command** runs outside any commit (`interruptibleRunner`), so the row's Cancel stays live. A cancel sends SIGINT to its process group (`ManagedStop`; the child leads its own group, its compilers and `make`s are members) — the vendor's own interrupt handling runs — then SIGTERM after 30 s, SIGKILL after 45 s, and the run returns only once no member is left (60 s: give up, report the members still running, put nothing back under them). A deadline stops it the same way.
+- **After a stop**: `restore` swaps each clone back in with `renamex_np(RENAME_SWAP)` (the path is never missing), removes each path that did not exist and the empty directories the run made above it, and removes each new entry a `NewEntries` rule matches. The row says "stopped; <manager>'s changes were put back" (`CLIToolUpdateOutcome.stopped`), or what could not be put back.
+- **After it finished**: the clones are dropped and the result is taken inside `InstallCommit` (the Cancel greys). A cancel that lands between the exit and that commit is refused by the commit and puts the update back like a stop: a cancel means "not updated" whenever it is answered.
+- **What it does not cover**: a write by something else into the same shared files while a run is stopped — another `cargo install` into the same `CARGO_HOME`, another mise or Python install, a user's own `pipx install` linking into `~/.local/bin` the same second — is undone with it. The app runs one CLI update at a time; this is about runs outside the app.
+
+Measured (2026-10-27, isolated homes, the adapters' own argv and environment; 41 SIGINTs across early, download, build/extract and the final write/link, each followed by the snapshot's restore and a byte-for-byte comparison of the state):
+
+| Manager | What `interruption` names | Stops that left state changed (before restore) | After restore |
+|---|---|---|---|
+| go install | `<GOBIN>/<name>`; `TMPDIR` ours | k3: new binary already renamed in (exit −2) | identical |
+| cargo install | the package's `bin/<each>`, `.crates.toml`, `.crates2.json`; new entries of `bin/`; `TMPDIR` ours | c6, 0.03 s after "Finished": `bin/cargo-installH2vysO/tokei` | identical once new `bin/` entries are removed (the first plan, without that rule, left it) |
+| uv tool upgrade | the venv whole; its links in `~/.local/bin`, and new ones into it | u3: new `bin/ruff`, old dist-info gone, `.tmp` in the new one | identical |
+| uv python upgrade | the directory's links (minor links), `.temp`, links in `~/.local/bin` into it; new `cpython-*` entries and new links | p4/p5/p7: new patch renamed in, neither link moved | identical |
+| pipx upgrade | the venv whole (metadata and `pipx_unfinished` inside); its apps' links | x4/x5: half-changed venv, old metadata, marked unfinished | identical (`logs/cmd_<time>.log` stays, a log) |
+| mise upgrade | `installs/<tool>`, `installs/.mise-installs.toml`, `downloads/<tool>`, `shims`, `state/tool-purgatory.json`, `state/incomplete-installs` | m5: "✓ installed" printed after the SIGINT, exit 130; m7: old version in purgatory for removal in 24 h | identical |
+
+Every process group was empty 0.05–0.16 s after the SIGINT (mise mid-extract 1.06 s); none needed SIGTERM. Nothing was written outside the isolated roots (`~/.rustup` unchanged). Cloning mise's node installs took ~1 s per update. Exit codes do not say whether anything changed (go −2 with the new binary in place; mise 130 after "installed"; pipx −2 fully upgraded), which is why the snapshot, not the status, decides. `ManagedInterruptionTests` replays each row's measured mid-run writes against the adapter's plan; dropping any one path or rule from a plan fails it.
+
 ---
 
 ## 14. Status log

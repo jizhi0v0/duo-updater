@@ -1346,10 +1346,10 @@ final class CLIToolsModel {
     /// anything else changed, or may have, what the tool's check says.
     nonisolated private static func needsRecheck(_ outcome: CLIToolUpdateOutcome) -> Bool {
         switch outcome {
-        case .failed, .declined: return false
-        // Put back, so nothing should have changed; the re-check says so, or
-        // shows what could not be put back.
-        case .updated, .busy, .notOffered, .stopped: return true
+        // A stop by its deadline is said on the row like a failure, and was
+        // put back.
+        case .failed, .declined, .stopped: return false
+        case .updated, .busy, .notOffered: return true
         }
     }
 
@@ -1665,7 +1665,7 @@ final class CLIToolsModel {
             switch outcome {
             case .updated(let version): result = .updated(before: status.installedVersion, reported: version)
             case .busy, .notOffered: result = .ranNothing
-            case .failed, .declined: result = .nothingToCheck
+            case .failed, .declined, .stopped: result = .nothingToCheck
             }
             send(.laneCommandEnded(status.toolID, result))
         }

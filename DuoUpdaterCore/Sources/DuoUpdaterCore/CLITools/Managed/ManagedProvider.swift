@@ -162,7 +162,7 @@ public struct ManagedProvider: CLIToolProvider {
         guard !outcome.succeeded else { return RunResult(succeeded: true, failureMessage: nil, lines: lines, leftovers: leftovers) }
         let reason = CLIToolCommandRunner.failureMessage(lines, outcome, deadline: deadline)
         let message = outcome.uncaughtSignal ? reason : "\(reason) (exit \(outcome.terminationStatus))"
-        return RunResult(succeeded: false, failureMessage: message, lines: lines)
+        return RunResult(succeeded: false, failureMessage: message, lines: lines, leftovers: leftovers)
     }
 
     // MARK: - CLIToolProvider
@@ -265,7 +265,9 @@ public struct ManagedProvider: CLIToolProvider {
         // mise's handoff, shared (`ManagedTokenRetry`): once more with the
         // app's token, only after the vendor said it found none of its own.
         // Not after a stop of any kind: a stuck one's snapshot is the way back.
-        if !result.stopped, !result.stuck, let retry = adapter.tokenRetry, retry.applies(failed: !result.succeeded, lines: result.lines) {
+        // Not while the first run's processes still run either: a stop of
+        // the second would put back under them (local adversarial review).
+        if !result.stopped, !result.stuck, !result.leftovers, let retry = adapter.tokenRetry, retry.applies(failed: !result.succeeded, lines: result.lines) {
             if let token = await token() {
                 environment[retry.variable] = token
                 result = await run(environment)

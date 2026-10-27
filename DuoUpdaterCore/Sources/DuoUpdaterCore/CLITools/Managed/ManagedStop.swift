@@ -64,21 +64,29 @@ final class ManagedStop: @unchecked Sendable {
     /// (`fanout.stop_process_group`). Measured 2026-10-27: pipx's `uv` had
     /// `sid == pid`, outside pipx's session. Those sessions are followed by
     /// id from the moment they are seen, whoever their parent becomes.
-    /// A session leaves this set the first scan that finds none of its
-    /// members, and is never looked for again: while it has a member the
-    /// kernel gives its id to no one (XNU skips a pid still used by a process,
-    /// a group or a session, `bsd/kern/kern_fork.c`), but once it is empty the
-    /// id is free, and a scan by number could find a stranger (review: the
-    /// ladder's SIGTERM at 30 s reached a session that reused the id).
+    /// A session leaves this set once two scans in a row find none of its
+    /// members and none of its groups is left (`misses`, `groups`), and is
+    /// never looked for again: while it has a member the kernel gives its id
+    /// to no one (XNU skips a pid still used by a process, a group or a
+    /// session, `bsd/kern/kern_fork.c`), but once it is empty the id is free,
+    /// and a scan by number could find a stranger (review: the ladder's
+    /// SIGTERM at 30 s reached a session that reused the id).
     private var sessions: Set<pid_t> = []
+    /// Scans in a row that found none of a session's members. One is not
+    /// enough: a fork-and-exit chain can be missed by one, and a session
+    /// dropped then is not looked for when its survivor moves to a group of
+    /// its own — local adversarial review: it then ran on, writing, through
+    /// the put-back (5 in 5 with a 2 ms relay).
+    private var misses: [pid_t: Int] = [:]
     /// Every process group a member was seen in, until the group is empty.
     /// Reading the table and then each entry's session is not atomic: a
     /// process that forks and exits between the two leaves its child
     /// unlisted, and the scan reads empty (review: a fork-and-exit relay made
     /// `waitUntilGone` return with it running, 6 times in 6). The child stays
     /// in its parent's group, and `killpg(group, 0)` asks the kernel about the
-    /// whole group at once.
-    private var groups: Set<pid_t> = []
+    /// whole group at once. Each with the session it belongs to (a group is
+    /// in one session): a session keeps its place while a group of it is left.
+    private var groups: [pid_t: pid_t] = [:]
     /// Every session and group is gone: nothing more is signalled or waited
     /// for.
     private var gone = false
@@ -182,17 +190,21 @@ final class ManagedStop: @unchecked Sendable {
             return tracked.contains(sid) ? (member, sid) : nil
         }
         let live = Set(found.map(\.1))
-        let seen = lock.withLock { () -> Set<pid_t> in
+        let seen = lock.withLock { () -> [pid_t] in
+            if !gone { for (member, sid) in found { groups[member.pgid] = sid } }
             // Only the sessions this scan looked for: one added meanwhile
             // has not been looked for yet.
-            sessions.subtract(tracked.subtracting(live))
-            if !gone { groups.formUnion(found.map(\.0.pgid)) }
-            return groups
+            for session in tracked { misses[session] = live.contains(session) ? 0 : misses[session, default: 0] + 1 }
+            return Array(groups.keys)
         }
         // EPERM: a member is there, not ours to signal, or only zombies.
         let empty = seen.filter { killpg($0, 0) != 0 && errno == ESRCH }
         lock.withLock {
-            groups.subtract(empty)
+            for group in empty { groups[group] = nil }
+            let held = Set(groups.values)
+            let drop = tracked.filter { misses[$0, default: 0] >= 2 && !held.contains($0) }
+            sessions.subtract(drop)
+            for session in drop { misses[session] = nil }
             if sessions.isEmpty && groups.isEmpty { gone = true }
         }
         return (all, found.map(\.0))
@@ -254,7 +266,7 @@ final class ManagedStop: @unchecked Sendable {
         var groups = Set(reached.map(\.pgid))
         // SIGTERM and SIGKILL also reach the groups seen before and not yet
         // empty: what a fork-and-exit chain left unlisted in this scan.
-        if signal != SIGINT { groups.formUnion(lock.withLock { self.groups }) }
+        if signal != SIGINT { groups.formUnion(lock.withLock { self.groups.keys }) }
         if signal == SIGINT {
             groups = lock.withLock { groups.filter { interrupted.insert($0).inserted } }
         }

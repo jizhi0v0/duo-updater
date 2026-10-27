@@ -271,6 +271,57 @@ struct ManagedStopTests {
         #expect(result.failureMessage == "stopped")
     }
 
+    /// A relay (fork, parent exits, every 2 ms, ignoring SIGINT and SIGTERM)
+    /// that, 1.5 s in, moves into a group of its own and keeps writing. One
+    /// scan can miss every link of it (the listed one gone, the new one not
+    /// listed yet); a session dropped then was never looked for again, and
+    /// the survivor's new group was never found — it ran on through the
+    /// put-back, 5 in 5 (local adversarial review, 2026-10-27). The run must
+    /// end it (the ladder's SIGKILL at 2 s) before it says stopped. No clock
+    /// is read. Mutation: drop a session on its first empty scan.
+    @Test func aRelayThatMovesToAGroupOfItsOwnIsStillStopped() async throws {
+        for round in 0..<3 {
+            let root = try scratch()
+            defer { try? FileManager.default.removeItem(atPath: root) }
+            try write(root + "/relay.pl", """
+                use Time::HiRes qw(time);
+                $SIG{INT} = 'IGNORE'; $SIG{TERM} = 'IGNORE';
+                open(G, '>\(root)/group'); close G;
+                my $start = time;
+                while (time - $start < 1.5) {
+                    my $p = fork(); die "fork: $!" unless defined $p;
+                    if ($p) { exit 0 }
+                    select(undef, undef, undef, 0.002);
+                }
+                setpgrp(0, 0);
+                open(P, '>\(root)/pid.tmp'); print P $$; close P; rename('\(root)/pid.tmp', '\(root)/pid');
+                my $until = time + 60;
+                while (time < $until) { select(undef, undef, undef, 0.05); }
+                """)
+            let command = CLIToolCommand(
+                executable: "/bin/sh", arguments: ["-c", "perl \(root)/relay.pl >/dev/null 2>&1 & sleep 600; wait"],
+                pathPrefix: nil)
+            let task = Task {
+                await ManagedProvider.stoppableRunner(termAfter: .milliseconds(300), killAfter: .seconds(2), giveUpAfter: .seconds(20))(
+                    command, ["PATH": "/usr/bin:/bin"], URL(fileURLWithPath: "/"),
+                    .init(terminateAfter: .seconds(30), killAfter: .seconds(35)), { _ in })
+            }
+            while !FileManager.default.fileExists(atPath: root + "/group") {
+                // cancel-ok: test polling for the relay's start
+                try? await Task.sleep(for: .milliseconds(20))
+            }
+            // cancel-ok: let the relay hand over a few times
+            try? await Task.sleep(for: .milliseconds(200))
+            task.cancel()
+            let result = await task.value
+            let pid = pid_t(read(root + "/pid")?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "") ?? 0
+            let alive = pid > 0 && kill(pid, 0) == 0
+            if alive { kill(pid, SIGKILL) }
+            #expect(result.stopped, "round \(round)")
+            #expect(!alive, "round \(round): the relay ran on in a group of its own after the run said stopped")
+        }
+    }
+
     /// Once a stop finds nothing left, nothing is followed any more: an empty
     /// session's id is free for the kernel to hand out, and the ladder's
     /// later steps must not find a stranger under it. Mutation: no pruning of
@@ -324,6 +375,54 @@ struct ManagedStopTests {
         #expect(stop.members() == [])
         #expect(reads.value == 0)
         stop.finish()
+    }
+
+    /// One scan that finds none of a session is not enough to drop it: a
+    /// fork-and-exit chain can be missed by one. Two in a row are. No tracker
+    /// runs (`finish` first), so only these scans count. Mutation: drop on
+    /// the first empty scan.
+    @Test func oneEmptyScanDropsNoSession() {
+        let stop = ManagedStop(table: { [] })
+        stop.finish()
+        stop.launched(99_998)
+        _ = stop.members()
+        #expect(stop.trackedSessions == [99_998])
+        _ = stop.members()
+        #expect(stop.trackedSessions.isEmpty)
+    }
+
+    /// A session keeps its place while a group of it is left, however many
+    /// scans miss its members: the group is in that session and nowhere
+    /// else, and `killpg(group, 0)` asks the kernel about all of it at once.
+    /// Here the table lists the member once, then never again, while it
+    /// lives. Mutation: drop a session whose group is still there.
+    @Test func aSessionWithAGroupLeftIsKept() async throws {
+        let started = Locked<pid_t>(0)
+        let run = Task {
+            try await ChildProcess.run(
+                "/bin/sleep", ["30"], standardOutput: .discard, standardError: .discard,
+                onCancel: .runToCompletion, onLaunch: { started.set($0) }, newSession: true)
+        }
+        while started.value == 0 {
+            // cancel-ok: test polling for the launch
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+        let pid = started.value
+        let listed = Locked(true)
+        let stop = ManagedStop(table: {
+            defer { listed.set(false) }
+            return listed.value ? [ManagedStop.Member(pid: pid, ppid: getpid(), pgid: pid, started: 0)] : []
+        })
+        stop.finish()
+        stop.launched(pid)
+        for _ in 0..<4 { _ = stop.members() }
+        #expect(stop.trackedSessions == [pid])
+        kill(pid, SIGKILL)
+        _ = try? await run.value
+        _ = stop.members()
+        _ = stop.members()
+        #expect(stop.trackedSessions.isEmpty)
+        #expect(!stop.alive())
     }
 
     /// A process table that cannot be read is never "nothing left": the run
@@ -624,6 +723,53 @@ struct ManagedStopTests {
             return
         }
         if let kept = message.components(separatedBy: "kept in ").last { try? FileManager.default.removeItem(atPath: kept) }
+    }
+
+    /// A run that fails by itself while a process it started still runs is
+    /// not retried: a stop of the retry would put back under that process
+    /// (local adversarial review: the receipt was rewritten after the
+    /// put-back). The runner's own `leftovers` is what says so. Mutations:
+    /// `leftovers` read as false in `stoppableRunner`, or dropped from a
+    /// failed result, or the retry not checking it (each: two runs).
+    @Test func aFailedRunWithProcessesLeftIsNotRetried() async throws {
+        let root = try scratch()
+        defer { try? FileManager.default.removeItem(atPath: root) }
+        try write(root + "/venv/receipt", "1.0")
+        let script = """
+            if [ -z "$ZZ_TOKEN" ]; then
+              echo "No GitHub token was found"
+              sh -c 'echo $$ > \(root)/writer; trap "" INT TERM; sleep 30' >/dev/null 2>&1 &
+              while [ ! -s \(root)/writer ]; do sleep 0.01; done
+              exit 1
+            fi
+            touch \(root)/second
+            """
+        let real = CLIToolCommand(executable: "/bin/sh", arguments: ["-c", script], pathPrefix: nil)
+        let adapter = ManagedModelTests.FakeAdapter()
+        adapter.interruptionPlan = ManagedInterruption(paths: [root + "/venv"])
+        adapter.tokenRetry = ManagedTokenRetry(variable: "ZZ_TOKEN", marker: "No GitHub token was found")
+        let inner = ManagedProvider.stoppableRunner(termAfter: .seconds(600), killAfter: .seconds(600), giveUpAfter: .seconds(20))
+        let runs = Locked(0)
+        let provider = ManagedProvider(
+            adapter, home: ManagedModelTests.home,
+            proxyEnvironment: { [:] }, processes: { [] }, token: { "zz-token" },
+            runner: { _, _, _, _, _ in ManagedProvider.RunResult(succeeded: false, failureMessage: "unused", lines: []) },
+            stoppableRunner: { _, environment, _, deadline, progress in
+                runs.set(runs.value + 1)
+                var env = environment
+                env["PATH"] = "/usr/bin:/bin"
+                return await inner(real, env, URL(fileURLWithPath: "/"), deadline, progress)
+            })
+        let outcome = await provider.update(ManagedModelTests.status(), progress: { _ in })
+        let writer = pid_t(read(root + "/writer")?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "") ?? 0
+        if writer > 0 { kill(writer, SIGKILL) }
+        #expect(writer > 0)
+        #expect(runs.value == 1)
+        #expect(!FileManager.default.fileExists(atPath: root + "/second"))
+        guard case .failed = outcome else {
+            Issue.record("expected .failed, got \(outcome)")
+            return
+        }
     }
 
     /// An adapter that names no paths runs to completion, as before D15.

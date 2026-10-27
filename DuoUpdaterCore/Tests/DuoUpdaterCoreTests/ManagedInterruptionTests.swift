@@ -208,4 +208,61 @@ struct ManagedInterruptionTests {
             try write(".local/state/mise/incomplete-installs/node-20.20.2", "")
         }
     }
+
+    /// nvm: the new version moved in without the old globals (i4/i5, the
+    /// latter exit 0), its download's lock left behind (i3), `lts/*` rewritten.
+    @Test func nvmPutsTheVersionAliasesAndLockBack() throws {
+        try write(".nvm/versions/node/v22.21.1/bin/node", "22.21.1")
+        try write(".nvm/versions/node/v22.21.1/lib/node_modules/cowsay/package.json", "cowsay")
+        try write(".nvm/alias/default", "22.21.1")
+        try write(".nvm/alias/lts/jod", "v22.21.1")
+        try write(".nvm/nvm.sh", "nvm")
+        let adapter = NvmNodeAdapter(home: homeURL)
+        let plan = adapter.interruption(
+            item(adapter.descriptor, root: home + "/.nvm", key: "v22", installPath: home + "/.nvm/versions/node/v22.21.1"),
+            root: root(adapter.descriptor.id, home + "/.nvm"))
+        #expect(plan?.scratchVariables == ["TMPDIR"])
+        try expectPutBack(plan) {
+            try write(".nvm/.cache/locks/v22.23.4", "")
+            try write(".nvm/versions/node/v22.23.4/bin/node", "22.23.4")
+            try write(".nvm/alias/lts/jod", "v22.23.4")
+        }
+    }
+
+    /// fnm: the download left in `.downloads/.tmp<random>` (i3/i4/i7), or the
+    /// version renamed in whole (i6).
+    @Test func fnmPutsTheVersionAndDownloadsBack() throws {
+        let fnm = ".local/share/fnm"
+        try write(fnm + "/node-versions/v22.21.1/installation/bin/node", "22.21.1")
+        try link(fnm + "/aliases/default", to: home + "/" + fnm + "/node-versions/v22.21.1/installation")
+        let adapter = FnmNodeAdapter(home: homeURL)
+        let plan = adapter.interruption(
+            item(adapter.descriptor, root: home + "/" + fnm, key: "v22", installPath: home + "/" + fnm + "/node-versions/v22.21.1"),
+            root: root(adapter.descriptor.id, home + "/" + fnm))
+        try expectPutBack(plan) {
+            try write(fnm + "/node-versions/.downloads/.tmpBsqfdi/node/bin/node", "partial")
+            try write(fnm + "/node-versions/v22.23.4/installation/bin/node", "22.23.4")
+        }
+    }
+
+    /// pyenv and rbenv: the new version, the shims rehashed with the lock
+    /// still there, the global `version` (rehash i6/i5).
+    @Test(arguments: ["pyenv", "rbenv"])
+    func buildManagersPutTheVersionShimsAndLockBack(_ manager: String) throws {
+        let dir = manager == "pyenv" ? ".pyenv" : ".rbenv"
+        let lock = manager == "pyenv" ? ".pyenv-shim" : ".rbenv-shim"
+        try write(dir + "/versions/3.12.15/bin/python3", "old")
+        try write(dir + "/shims/python3", "shim")
+        try write(dir + "/version", "3.12.15")
+        let adapter: any ManagerAdapter = manager == "pyenv" ? PyenvAdapter(home: homeURL) : RbenvAdapter(home: homeURL)
+        let plan = adapter.interruption(
+            item(adapter.descriptor, root: home + "/" + dir, key: "3.12", installPath: home + "/" + dir + "/versions/3.12.15"),
+            root: root(adapter.descriptor.id, home + "/" + dir))
+        #expect(plan?.scratchVariables == ["TMPDIR"])
+        try expectPutBack(plan) {
+            try write(dir + "/versions/3.12.16/bin/python3", "new")
+            try write(dir + "/shims/" + lock, "")
+            try write(dir + "/shims/python3.12", "shim")
+        }
+    }
 }

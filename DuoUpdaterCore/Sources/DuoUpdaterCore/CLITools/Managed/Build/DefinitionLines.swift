@@ -74,7 +74,7 @@ enum DefinitionLines {
                 descriptor: descriptor, root: root, key: line, name: "\(title) \(line)", installPath: directory,
                 shape: .line, installed: interpreters.contains { exists(directory + "/" + $0) } ? newest.version : nil,
                 latestOverall: latest?[line]?.version, alsoInstalled: older,
-                effects: [.compilesFromSource, .oldKept(for: nil), .cannotBeCancelledOnceStarted], facts: facts)
+                effects: [.compilesFromSource, .oldKept(for: nil)], facts: facts)
         }
     }
 

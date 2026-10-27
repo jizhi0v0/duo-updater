@@ -23,9 +23,9 @@ import Foundation
 ///
 /// pyenv is bash. Homebrew's keg is run (D5.1); a git checkout (`~/.pyenv/bin/
 /// pyenv`) has nothing to verify and its command is handed out to copy (D5.2).
-/// Where a keg keeps its python-build definitions is read from the keg itself
-/// (`<keg>/plugins/python-build/share/python-build`, the repository's own
-/// layout) — not yet seen on a `brew install pyenv` (§12 item 6).
+/// A keg keeps python-build's definitions as the repository does,
+/// `<keg>/plugins/python-build/share/python-build` (`brew install pyenv`
+/// 2.8.14: `bin/pyenv -> ../libexec/pyenv`, 1,148 definitions).
 public struct PyenvAdapter: ManagerAdapter {
 
     public static let id = ManagerID("pyenv")

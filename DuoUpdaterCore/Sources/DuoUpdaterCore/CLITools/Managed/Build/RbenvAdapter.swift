@@ -4,8 +4,8 @@ import Foundation
 /// per minor (D1), moved by `rbenv install <x.y.z>` through ruby-build
 /// (design §4.8).
 ///
-/// Read 2026-10-27 from rbenv 1.3.2 and ruby-build 20261023 cloned into an
-/// isolated `RBENV_ROOT` (files only — no build was run, see below):
+/// Measured 2026-10-27 with rbenv 1.3.2 and ruby-build 20261023, cloned into
+/// an isolated `RBENV_ROOT` and from Homebrew in the real home:
 /// - **Newest, no network, no spawn**: the file names under ruby-build's
 ///   `share/ruby-build` (703); CRuby is the bare `x.y.z` names, so `-dev`,
 ///   `-preview`, `-rc` and the other implementations (`jruby-…`, `truffleruby-…`)
@@ -13,11 +13,17 @@ import Foundation
 ///   checkout) or Homebrew's own keg, `opt/ruby-build` (RB-03/04).
 /// - **The command**: `rbenv install <x.y.z>` with `PATH` holding Homebrew's
 ///   `bin`, without which Homebrew's rbenv cannot find `install` (review fact
-///   1). Pins are exact names and never move (RB-12/19). **Not built here**:
-///   the build's duration, what an interrupted one leaves (§13.3) and the
-///   Homebrew layout of rbenv's keg are owed to the Mac acceptance.
+///   1). Pins are exact names and never move (RB-12/19). Homebrew's rbenv
+///   built 3.4.12 beside 3.4.11 in 2:00 (download, configure, `make`,
+///   `make install`); a checkout built 3.4.11 in 3:41.
+/// - **Interrupted** (§13.3): while downloading, exit 130/1/143 with no
+///   `versions/<x.y.z>` left, the old Ruby running; each run left its
+///   half-downloaded source and log under `/tmp/ruby-build.*`. The build and
+///   install stages were not hit apart.
 ///
-/// rbenv and ruby-build are bash. One-click needs both from Homebrew (D5.1)
+/// rbenv and ruby-build are bash, unsigned (`codesign -dv`: "not signed at
+/// all"). Homebrew's are `Cellar/rbenv/<v>/libexec/rbenv` and
+/// `Cellar/ruby-build/<v>/share/ruby-build`. One-click needs both from Homebrew (D5.1)
 /// and no ruby-build checkout under the root that rbenv would run instead; a
 /// checkout is handed out to copy (D5.2).
 public struct RbenvAdapter: ManagerAdapter {

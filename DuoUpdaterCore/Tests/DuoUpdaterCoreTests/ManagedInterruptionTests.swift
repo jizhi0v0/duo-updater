@@ -184,7 +184,10 @@ struct ManagedInterruptionTests {
 
     /// mise: the new version and its links, the index, a download, the shims,
     /// and the purgatory scheduling the old version's removal (m7).
-    @Test func misePutsInstallsShimsAndStateBack() throws {
+    /// Both shapes the item comes in: the scan's (the tool's directory) and
+    /// the click's (`current`, from `mise ls`: the installed version's).
+    @Test(arguments: ["node", "node/20.10.0"])
+    func misePutsInstallsShimsAndStateBack(_ installPath: String) throws {
         let installs = home + "/.local/share/mise/installs"
         try write(".local/share/mise/installs/node/20.10.0/bin/node", "20.10.0")
         try link(".local/share/mise/installs/node/20", to: "./20.10.0")
@@ -195,7 +198,7 @@ struct ManagedInterruptionTests {
         try write(".local/state/mise/tool-purgatory.json", "{}")
         let adapter = MiseToolsAdapter(home: homeURL)
         let plan = adapter.interruption(
-            item(adapter.descriptor, root: home + "/.local/share/mise", key: "node", installPath: installs + "/node"),
+            item(adapter.descriptor, root: home + "/.local/share/mise", key: "node", installPath: installs + "/" + installPath),
             root: root(adapter.descriptor.id, home + "/.local/share/mise"))
         try expectPutBack(plan) {
             try write(".local/share/mise/downloads/node/20.20.2/node.tar.xz", "partial")

@@ -1309,6 +1309,13 @@ final class CLIToolsModel {
         // tool's other lanes, and nothing is checking meanwhile.
         let ended = send(.commandEnded(id, needsRecheck: Self.needsRecheck(outcome), cancelStopped: cancelStopped))
         if ended.contains(.stoppedBeforeCommand(id)) {
+            // Stopped partway and not all of it put back: the cancel is no
+            // excuse for silence — the row says what is left (D15).
+            if case .stopped(let message, let output, complete: false) = outcome {
+                Log.app.error("\(status.kind.rawValue, privacy: .public) update at \(id.path, privacy: .public): \(message, privacy: .public)")
+                send(.commandFailed(id, message: message, log: output))
+                return nil
+            }
             Log.app.notice("\(status.kind.rawValue, privacy: .public) update at \(id.path, privacy: .public): cancelled before its command started")
             return nil
         }
@@ -1333,7 +1340,7 @@ final class CLIToolsModel {
             // failure, so no red line — the row goes back to its Update, as an
             // app's declined panel leaves no error (`AppListModel`).
             Log.app.notice("\(status.kind.rawValue, privacy: .public) update at \(id.path, privacy: .public): administrator panel dismissed, nothing ran")
-        case .stopped(let message, let output):
+        case .stopped(let message, let output, _):
             // Stopped by its deadline (a Cancel's stop returned above): the
             // row says so like a failure, and that its changes were put back.
             Log.app.info("\(status.kind.rawValue, privacy: .public) update stopped at \(id.path, privacy: .public): \(message, privacy: .public)")

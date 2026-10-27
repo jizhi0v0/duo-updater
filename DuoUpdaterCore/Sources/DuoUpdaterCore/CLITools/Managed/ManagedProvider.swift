@@ -117,25 +117,29 @@ public struct ManagedProvider: CLIToolProvider {
             }
         } catch {
             log.finish()
+            stop.finish()
             return RunResult(succeeded: false, failureMessage: "could not run \(command.executable): \(error)", lines: log.lines)
         }
         log.finish()
         CLIToolExit.report(command, outcome)
-        if stop.wasInterrupted || outcome.timedOut {
-            // A deadline's SIGTERM reached the child alone; its group goes too.
-            if outcome.timedOut { stop.interrupt() }
-            let gone = await stop.waitUntilGone()
-            let reason = outcome.timedOut
-                ? CLIToolCommandRunner.failureMessage(log.lines, outcome, deadline: deadline) : "stopped"
-            return RunResult(
-                succeeded: false,
-                failureMessage: gone ? reason : "\(reason); some of its processes are still running",
-                lines: log.lines, stopped: gone)
-        }
-        guard !outcome.succeeded else { return RunResult(succeeded: true, failureMessage: nil, lines: log.lines) }
-        let reason = CLIToolCommandRunner.failureMessage(log.lines, outcome, deadline: deadline)
+        guard stop.wasInterrupted || outcome.timedOut else { stop.finish(); return Self.result(outcome, log.lines, deadline) }
+        // A deadline's SIGTERM reached the child alone; its group goes too.
+        if outcome.timedOut { stop.interrupt() }
+        let gone = await stop.waitUntilGone()
+        let reason = outcome.timedOut
+            ? CLIToolCommandRunner.failureMessage(log.lines, outcome, deadline: deadline) : "stopped"
+        return RunResult(
+            succeeded: false,
+            failureMessage: gone ? reason : "\(reason); some of its processes are still running",
+            lines: log.lines, stopped: gone)
+    }
+
+    /// A run that ended by itself, as `commandRunner` words it.
+    private static func result(_ outcome: ChildProcess.Outcome, _ lines: [String], _ deadline: ChildProcess.Deadline) -> RunResult {
+        guard !outcome.succeeded else { return RunResult(succeeded: true, failureMessage: nil, lines: lines) }
+        let reason = CLIToolCommandRunner.failureMessage(lines, outcome, deadline: deadline)
         let message = outcome.uncaughtSignal ? reason : "\(reason) (exit \(outcome.terminationStatus))"
-        return RunResult(succeeded: false, failureMessage: message, lines: log.lines)
+        return RunResult(succeeded: false, failureMessage: message, lines: lines)
     }
 
     // MARK: - CLIToolProvider
@@ -206,8 +210,16 @@ public struct ManagedProvider: CLIToolProvider {
         // latter, as before D15.
         var snapshot: ManagedSnapshot?
         var scratch: String?
-        if let plan = adapter.interruption(item, root: root), let taken = try? ManagedSnapshot.take(plan.paths, created: plan.created) {
-            snapshot = taken
+        let plan = adapter.interruption(item, root: root)
+        if let plan {
+            do {
+                snapshot = try ManagedSnapshot.take(plan.paths, created: plan.created)
+            } catch {
+                Log.install.notice("managed \(item.identity, privacy: .public): no snapshot (\(String(describing: error), privacy: .public)); runs to completion")
+            }
+        }
+        if let taken = snapshot, let plan {
+            Log.install.info("managed \(item.identity, privacy: .public): snapshot of \(taken.entries.count, privacy: .public) paths in \(taken.directory, privacy: .public)")
             if !plan.scratchVariables.isEmpty {
                 let directory = NSTemporaryDirectory() + "duo-managed-" + UUID().uuidString
                 if (try? FileManager.default.createDirectory(atPath: directory, withIntermediateDirectories: true)) != nil {
@@ -238,7 +250,7 @@ public struct ManagedProvider: CLIToolProvider {
             }
         }
         if result.stopped, let snapshot {
-            return Self.putBack(snapshot, result, manager: adapter.descriptor.displayName)
+            return Self.putBack(snapshot, result, manager: adapter.descriptor.displayName, identity: item.identity)
         }
         guard result.succeeded else {
             return .failed(message: result.failureMessage ?? "\(adapter.descriptor.displayName): the update failed",
@@ -254,20 +266,23 @@ public struct ManagedProvider: CLIToolProvider {
                     await self.settled(item, result)
                 }
             } catch {
-                return Self.putBack(snapshot, result, manager: adapter.descriptor.displayName)
+                return Self.putBack(snapshot, result, manager: adapter.descriptor.displayName, identity: item.identity)
             }
         }
         return await settled(item, result)
     }
 
     /// The stopped command's changes put back (`ManagedSnapshot.restore`).
-    static func putBack(_ snapshot: ManagedSnapshot, _ result: RunResult, manager: String) -> CLIToolUpdateOutcome {
+    static func putBack(
+        _ snapshot: ManagedSnapshot, _ result: RunResult, manager: String, identity: String
+    ) -> CLIToolUpdateOutcome {
         let failed = snapshot.restore()
         let reason = result.failureMessage ?? "stopped"
         let message = failed.isEmpty
             ? "\(reason); \(manager)'s changes were put back"
             : "\(reason); could not put back: \(failed.joined(separator: "; "))"
-        return .stopped(message: message, output: result.lines.joined(separator: "\n"))
+        Log.install.notice("managed \(identity, privacy: .public): \(message, privacy: .public)")
+        return .stopped(message: message, output: result.lines.joined(separator: "\n"), complete: failed.isEmpty)
     }
 
     /// What the command left, re-read: the updater's own verdict.

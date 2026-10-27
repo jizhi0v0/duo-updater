@@ -451,7 +451,7 @@ enum CLIToolRows {
             return Result(outcome: .failed, reason: message, exit: exit)
         case .declined:
             return Result(outcome: .declined, reason: "administrator access was declined")
-        case .stopped(let message, _):
+        case .stopped(let message, _, _):
             return Result(outcome: .failed, reason: message, exit: exit)
         }
     }
@@ -540,12 +540,15 @@ enum CLIToolRows {
             // A cancel accepted only after the command had run and failed, with
             // nothing left to start, stopped nothing, and that failure is the
             // result.
-            if cancelStopped {
+            // Stopped and not all of it put back: a failure, whoever stopped it (D15).
+            var incomplete = false
+            if case .stopped(_, _, complete: false) = outcome { incomplete = true }
+            if cancelStopped && !incomplete {
                 if json {
                     var row = payload(status, Result(outcome: .cancelled))
                     row["stage"] = InstallStage.runningCommand("").name
                     NDJSON.emit(row)
-                } else if case .stopped(let message, _) = outcome {
+                } else if case .stopped(let message, _, _) = outcome {
                     // Stopped partway and put back (D15).
                     out("   \(message) — not updated")
                 } else {

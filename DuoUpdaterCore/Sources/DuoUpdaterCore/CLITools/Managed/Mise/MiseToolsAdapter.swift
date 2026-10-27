@@ -305,11 +305,18 @@ public struct MiseToolsAdapter: ManagerAdapter {
     /// shared by every mise tool, so another mise run while this one is
     /// stopped would be undone with it. Cloning the node installs took
     /// ~1 s.
+    ///
+    /// The tool's directory is the one under `installs`: the scan's item
+    /// names it, the click's (`current`, from `mise ls`) names the version
+    /// inside it — snapshotting that missed the new version beside it
+    /// (2026-10-27, on the Mac).
     public func interruption(_ item: ManagedItem, root: ManagedRoot) -> ManagedInterruption? {
-        let slug = (item.installPath as NSString).lastPathComponent
+        guard item.installPath.hasPrefix(installs + "/"),
+              let slug = item.installPath.dropFirst(installs.count + 1).split(separator: "/").first.map(String.init)
+        else { return nil }
         let state = home.path + "/.local/state/mise"
         return ManagedInterruption(paths: [
-            item.installPath, installs + "/.mise-installs.toml", dataDirectory + "/downloads/" + slug,
+            installs + "/" + slug, installs + "/.mise-installs.toml", dataDirectory + "/downloads/" + slug,
             dataDirectory + "/shims", state + "/tool-purgatory.json", state + "/incomplete-installs",
         ])
     }

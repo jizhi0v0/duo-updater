@@ -397,6 +397,101 @@ struct ManagedStopTests {
         #expect(stop.trackedSessions.isEmpty)
     }
 
+    /// `alive` looks until the session is found or dropped, not a fixed
+    /// number of times: its own two looks miss the member, and another scan
+    /// (the tracker, the ladder, `waitUntilGone`) finds it between them, so
+    /// its second look counts only one miss — the session is still followed
+    /// and its member runs. No clock is read: the other scan runs, and ends,
+    /// inside `alive`'s second table read. Local adversarial review 3.
+    /// Mutation: `alive` giving up after two empty looks.
+    @Test func aliveLooksUntilTheSessionIsFoundOrDropped() async throws {
+        let started = Locked<pid_t>(0)
+        let run = Task {
+            try await ChildProcess.run(
+                "/bin/sleep", ["30"], standardOutput: .discard, standardError: .discard,
+                onCancel: .runToCompletion, onLaunch: { started.set($0) }, newSession: true)
+        }
+        while started.value == 0 {
+            // cancel-ok: test polling for the launch
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+        let pid = started.value
+        defer { kill(pid, SIGKILL) }
+        var ghost: pid_t = 99_990
+        while kill(ghost, 0) == 0 || errno != ESRCH { ghost -= 1 }
+        let group = ghost
+        let (answered, alive, found) = await offCooperativePool { () -> (Bool, Bool, [pid_t]) in
+            let looks = Locked(0)
+            let otherFound = Locked<[pid_t]>([])
+            let box = Locked<ManagedStop?>(nil)
+            let stop = ManagedStop(table: {
+                if Thread.current.name == "other scan" {
+                    return [ManagedStop.Member(pid: pid, ppid: getpid(), pgid: group, started: 0)]
+                }
+                let look = looks.value
+                looks.set(look + 1)
+                switch look {
+                case 0: return []
+                case 1:
+                    let done = DispatchSemaphore(value: 0)
+                    let other = Thread { otherFound.set((box.value?.members() ?? []).map(\.pid)); done.signal() }
+                    other.name = "other scan"
+                    other.start()
+                    done.wait()
+                    return []
+                default: return ManagedStop.processes()
+                }
+            })
+            box.set(stop)
+            stop.finish()
+            stop.launched(pid)
+            let answered = DispatchSemaphore(value: 0)
+            let result = Locked(false)
+            Thread { result.set(stop.alive()); answered.signal() }.start()
+            return (answered.wait(timeout: .now() + 5) == .success, result.value, otherFound.value)
+        }
+        #expect(found == [pid])
+        #expect(answered)
+        #expect(alive, "alive() said none left while \(pid) of a followed session ran")
+        kill(pid, SIGKILL)
+        _ = try? await run.value
+    }
+
+    /// The read that counted a miss — its end, not its start — is what the
+    /// next must begin `missGap` after: a counting read held open past the
+    /// gap (a preempted scan), and one begun while it was open, count one
+    /// miss. `overlappingScansCountOneMiss` holds the other order (the
+    /// later-begun read ends first). Local adversarial review 3. Mutation:
+    /// `missedAt` set to the counting read's start.
+    @Test func aReadBegunDuringACountingReadCountsNoSecondMiss() async {
+        let tracked = await offCooperativePool { () -> Set<pid_t> in
+            let aEntered = DispatchSemaphore(value: 0), aRelease = DispatchSemaphore(value: 0)
+            let bEntered = DispatchSemaphore(value: 0), bRelease = DispatchSemaphore(value: 0)
+            let calls = Locked(0)
+            let stop = ManagedStop(missGap: .milliseconds(50), table: {
+                let call = calls.value
+                calls.set(call + 1)
+                if call == 0 { aEntered.signal(); aRelease.wait() }
+                if call == 1 { bEntered.signal(); bRelease.wait() }
+                return []
+            })
+            stop.finish()
+            stop.launched(99_995)
+            let aDone = DispatchSemaphore(value: 0), bDone = DispatchSemaphore(value: 0)
+            Thread { _ = stop.members(); aDone.signal() }.start()
+            aEntered.wait()
+            usleep(80_000)
+            Thread { _ = stop.members(); bDone.signal() }.start()
+            bEntered.wait()
+            aRelease.signal()
+            aDone.wait()
+            bRelease.signal()
+            bDone.wait()
+            return stop.trackedSessions
+        }
+        #expect(tracked == [99_995])
+    }
+
     /// Before the launch nothing is followed: `alive` answers none at once.
     /// It looks again while a scan finds nothing and drops nothing, and
     /// before the launch every scan is such — a stop asked for then whose

@@ -310,10 +310,20 @@ public struct MiseToolsAdapter: ManagerAdapter {
     /// names it, the click's (`current`, from `mise ls`) names the version
     /// inside it — snapshotting that missed the new version beside it
     /// (2026-10-27, on the Mac).
+    ///
+    /// Not stoppable where mise writes outside these by the user's settings
+    /// (local adversarial review 3): the identity layout
+    /// (`install_layout = "identity"`: hashed install directories, the
+    /// catalog in `installs/.mise`), a `shims_dir` of its own,
+    /// `shared_install_dirs`, or a global lockfile that is a link — mise
+    /// rewrites its target (`lockfile.rs`), wherever that is. The update
+    /// then runs to completion, as before D15.
     public func interruption(_ item: ManagedItem, root: ManagedRoot) -> ManagedInterruption? {
         guard item.installPath.hasPrefix(installs + "/"),
               let slug = item.installPath.dropFirst(installs.count + 1).split(separator: "/").first.map(String.init)
         else { return nil }
+        let config = home.path + "/.config/mise"
+        guard !Self.settingsMoveWrites(in: [config, "/etc/mise"]) else { return nil }
         let state = home.path + "/.local/state/mise"
         // A python upgrade then reinstalls every tool whose backend is pipx
         // against the new Python (`PIPXBackend::reinstall_all`, mise
@@ -322,25 +332,55 @@ public struct MiseToolsAdapter: ManagerAdapter {
         // `pipx:x`, `pypi:x` (`backend_type.rs`), and a registry shorthand
         // whose backend is pipx, `yamllint` in `installs/yamllint` (review
         // rounds 6–7). The installs index records each directory's resolved
-        // backend (`full`); a directory it does not account for is taken too.
+        // backend (`full`); a directory it does not account for is taken too,
+        // and so is one whose backend mise resolves again at the upgrade
+        // (`explicit_backend = false`: the registry's current one first,
+        // `backend_arg.rs`; review 3).
         let pipxTools = slug == "python" ? Self.pipxInstalls(in: installs).filter { $0 != slug }.map { installs + "/" + $0 } : []
         // And rewrites the global lockfile when lockfiles are on ("Also
         // updates mise.lock", `mise upgrade --help`): `mise.lock` beside the
         // global config, `mise.<env>.lock` under `MISE_ENV`
         // (`lockfile_path_for_config`, mise `src/lockfile.rs` at v2026.10.19);
         // an absent one costs nothing. It writes `.mise.lock.<random>` in the
-        // same directory and renames it over (review round 5).
-        let config = home.path + "/.config/mise"
+        // same directory and renames it over (review round 5), and keeps a
+        // lockfile's dependency graphs in `locks/` beside it, pruning the old
+        // version's once the new lockfile is saved (`graph.rs`
+        // `sidecar_root`, `lockfile.rs` `publish`; review 3).
         let locks = Set(((try? FileManager.default.contentsOfDirectory(atPath: config)) ?? [])
             .filter { $0.hasPrefix("mise") && $0.hasSuffix(".lock") }.map { config + "/" + $0 } + [config + "/mise.lock"])
+        guard !locks.contains(where: { (try? FileManager.default.destinationOfSymbolicLink(atPath: $0)) != nil }) else { return nil }
+        // The command wrappers mise syncs with the shims (`shims.rs`).
         return ManagedInterruption(paths: pipxTools + locks.sorted() + [
-            installs + "/" + slug, installs + "/.mise-installs.toml", dataDirectory + "/downloads/" + slug,
-            dataDirectory + "/shims", state + "/tool-purgatory.json", state + "/incomplete-installs",
+            config + "/locks", installs + "/" + slug, installs + "/.mise-installs.toml", dataDirectory + "/downloads/" + slug,
+            dataDirectory + "/shims", dataDirectory + "/command-wrappers", state + "/tool-purgatory.json",
+            state + "/incomplete-installs",
         ], created: [ManagedSnapshot.NewEntries(directory: config, namePrefix: ".mise.lock.")])
     }
 
+    /// A setting that moves mise's writes out of what `interruption` takes:
+    /// `install_layout = "identity"`, `shims_dir`, `shared_install_dirs`, in
+    /// any TOML under the global and system config directories (a key under
+    /// `[settings]` or dotted). Read loosely: a match that is not a setting
+    /// only costs the stop.
+    static func settingsMoveWrites(in directories: [String]) -> Bool {
+        let pattern = try! NSRegularExpression(
+            pattern: #"(^|[\s.])(install_layout\s*=\s*["']identity|shims_dir\s*=|shared_install_dirs\s*=)"#,
+            options: [.anchorsMatchLines])
+        for directory in directories {
+            let enumerator = FileManager.default.enumerator(atPath: directory)
+            while let relative = enumerator?.nextObject() as? String {
+                guard relative.hasSuffix(".toml"),
+                      let text = try? String(contentsOfFile: directory + "/" + relative, encoding: .utf8)
+                else { continue }
+                if pattern.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)) != nil { return true }
+            }
+        }
+        return false
+    }
+
     /// The directories of `installs` a python upgrade may reinstall: those
-    /// `.mise-installs.toml` records with a `pipx:` or `pypi:` backend, and
+    /// `.mise-installs.toml` records with a `pipx:` or `pypi:` backend, those
+    /// whose backend mise resolves again (not `explicit_backend = true`), and
     /// those it records no backend for (or all, when it cannot be read): one
     /// taken needlessly costs a clone, one missed is left half done. A
     /// `pipx-`/`pypi-` directory needs no rule of its own: mise names it from
@@ -349,16 +389,19 @@ public struct MiseToolsAdapter: ManagerAdapter {
         let names = ((try? FileManager.default.contentsOfDirectory(atPath: installs)) ?? []).filter { !$0.hasPrefix(".") }
         let index = (try? String(contentsOfFile: installs + "/.mise-installs.toml", encoding: .utf8)) ?? ""
         var backends: [String: String] = [:]
+        var explicit: Set<String> = []
         var section: String?
         for line in index.split(separator: "\n").map({ $0.trimmingCharacters(in: .whitespaces) }) {
             if line.hasPrefix("["), line.hasSuffix("]") {
                 section = String(line.dropFirst().dropLast()).trimmingCharacters(in: CharacterSet(charactersIn: "\"' "))
             } else if let section, line.hasPrefix("full"), let equals = line.firstIndex(of: "=") {
                 backends[section] = line[line.index(after: equals)...].trimmingCharacters(in: CharacterSet(charactersIn: "\"' "))
+            } else if let section, line.hasPrefix("explicit_backend"), line.hasSuffix("true") {
+                explicit.insert(section)
             }
         }
         return names.filter { name in
-            guard let full = backends[name] else { return true }
+            guard let full = backends[name], explicit.contains(name) else { return true }
             return full.hasPrefix("pipx:") || full.hasPrefix("pypi:")
         }.sorted()
     }

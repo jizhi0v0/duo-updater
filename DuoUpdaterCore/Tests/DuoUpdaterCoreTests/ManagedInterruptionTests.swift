@@ -209,6 +209,9 @@ struct ManagedInterruptionTests {
         try write(".local/share/mise/installs/jq/1.6/bin/jq", "1.6")
         try write(".local/share/mise/shims/node", "shim")
         try write(".local/state/mise/tool-purgatory.json", "{}")
+        try write(".config/mise/mise.lock", "node 20.10.0")
+        try write(".config/mise/locks/npm-prettier/3.6.0/aube-lock.yaml", "3.6.0")
+        try write(".local/share/mise/command-wrappers/bin/npx", "wrapper")
         let adapter = MiseToolsAdapter(home: homeURL)
         let plan = adapter.interruption(
             item(adapter.descriptor, root: home + "/.local/share/mise", key: "node", installPath: installs + "/" + installPath),
@@ -222,7 +225,48 @@ struct ManagedInterruptionTests {
             try write(".local/share/mise/shims/npx", "shim")
             try write(".local/state/mise/tool-purgatory.json", #"{"node@20.10.0":"2026-10-28"}"#)
             try write(".local/state/mise/incomplete-installs/node-20.20.2", "")
+            try write(".config/mise/mise.lock", "node 20.20.2")
+            try write(".config/mise/locks/npm-prettier/3.7.0/aube-lock.yaml", "3.7.0")
+            try remove(".config/mise/locks/npm-prettier/3.6.0")
+            try write(".local/share/mise/command-wrappers/bin/npx", "wrapper 2")
         }
+    }
+
+    /// No stop where mise writes outside the plan by the user's settings: the
+    /// identity layout, a `shims_dir` of its own, `shared_install_dirs`, or
+    /// a global lockfile that is a link (mise rewrites its target) — local
+    /// adversarial review 3. A setting's name in a comment-free TOML elsewhere
+    /// is not one. Mutations: each check removed.
+    @Test(arguments: [
+        ("config.toml", "[settings]\nexperimental = true\ninstall_layout = \"identity\"\n"),
+        ("conf.d/shims.toml", "[settings]\nshims_dir = \"~/bin/mise-shims\"\n"),
+        ("config.toml", "settings.shared_install_dirs = [\"/opt/mise\"]\n"),
+    ])
+    func miseIsNotStoppedWhereItsSettingsMoveItsWrites(_ file: String, _ text: String) throws {
+        defer { try? FileManager.default.removeItem(atPath: home) }
+        let installs = home + "/.local/share/mise/installs"
+        try write(".local/share/mise/installs/node/20.10.0/bin/node", "20.10.0")
+        try write(".config/mise/config.toml", "[tools]\nnode = \"20\"\n")
+        let adapter = MiseToolsAdapter(home: homeURL)
+        let node = item(adapter.descriptor, root: home + "/.local/share/mise", key: "node", installPath: installs + "/node")
+        let miseRoot = root(adapter.descriptor.id, home + "/.local/share/mise")
+        #expect(adapter.interruption(node, root: miseRoot) != nil)
+        try write(".config/mise/" + file, text)
+        #expect(adapter.interruption(node, root: miseRoot) == nil)
+    }
+
+    @Test func miseIsNotStoppedWhenItsLockfileIsALink() throws {
+        defer { try? FileManager.default.removeItem(atPath: home) }
+        let installs = home + "/.local/share/mise/installs"
+        try write(".local/share/mise/installs/node/20.10.0/bin/node", "20.10.0")
+        try write("dotfiles/mise.lock", "node 20.10.0")
+        try write(".config/mise/mise.lock", "node 20.10.0")
+        let adapter = MiseToolsAdapter(home: homeURL)
+        let node = item(adapter.descriptor, root: home + "/.local/share/mise", key: "node", installPath: installs + "/node")
+        let miseRoot = root(adapter.descriptor.id, home + "/.local/share/mise")
+        #expect(adapter.interruption(node, root: miseRoot) != nil)
+        try link(".config/mise/mise.lock", to: home + "/dotfiles/mise.lock")
+        #expect(adapter.interruption(node, root: miseRoot) == nil)
     }
 
     /// nvm: the new version moved in without the old globals (i4/i5, the
@@ -285,30 +329,41 @@ struct ManagedInterruptionTests {
     }
 
     /// Which installs a python upgrade may reinstall: by the backend the
-    /// index records, and every directory the index does not account for;
-    /// not a tool of another backend. Mutations: unrecorded directories left
-    /// out (`mystery`), every directory taken (`node`), `pypi:` not read as
-    /// pipx (`yamllint`).
+    /// index records, every directory the index does not account for, and
+    /// one whose backend mise resolves again at the upgrade (`jq`,
+    /// `explicit_backend = false`: the registry may say pipx by then); not a
+    /// tool of another backend fixed by name (`node`). Mutations: unrecorded
+    /// directories left out (`mystery`), every directory taken (`node`),
+    /// `pypi:` not read as pipx (`yamllint`, recorded explicit here),
+    /// `explicit_backend` not read (`jq`).
     @Test func misePipxInstallsComeFromTheIndex() throws {
         let installs = home + "/.local/share/mise/installs"
-        for name in ["node", "yamllint", "pipx-black", "mystery"] {
+        for name in ["node", "yamllint", "pipx-black", "mystery", "jq"] {
             try write(".local/share/mise/installs/\(name)/1/bin/x", name)
         }
         try write(".local/share/mise/installs/.mise-installs.toml", """
             [node]
             short = "node"
             full = "core:node"
+            explicit_backend = true
 
             [yamllint]
             short = "yamllint"
             full = "pypi:yamllint"
+            explicit_backend = true
 
             [pipx-black]
             short = "pipx:black"
             full = "pipx:black"
+            explicit_backend = true
+
+            [jq]
+            short = "jq"
+            full = "aqua:jqlang/jq"
+            explicit_backend = false
 
             """)
-        #expect(MiseToolsAdapter.pipxInstalls(in: installs) == ["mystery", "pipx-black", "yamllint"])
+        #expect(MiseToolsAdapter.pipxInstalls(in: installs) == ["jq", "mystery", "pipx-black", "yamllint"])
     }
 
     /// mise, upgrading python: then it reinstalls every tool whose backend is

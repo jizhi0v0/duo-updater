@@ -341,6 +341,8 @@ final class ManagedStop: @unchecked Sendable {
         while !lock.withLock({ gone }) {
             guard let members = members() else { return true }
             if !members.isEmpty || !lock.withLock({ groups.isEmpty }) { return true }
+            // That look may have dropped the last session: no wait then.
+            guard !lock.withLock({ gone }) else { break }
             usleep(useconds_t(missGap / .microseconds(1)))
         }
         return false

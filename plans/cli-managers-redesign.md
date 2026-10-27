@@ -2,7 +2,7 @@
 
 Design for jizhi0v0/duo-updater, branch `runtime-composition-detail`, HEAD `cbc6bcc1`. Repo paths: `C/` = `DuoUpdaterCore/Sources/DuoUpdaterCore/CLITools/`. Evidence IDs refer to the twelve research files; review verdicts override reports (corrections are applied inline and marked "corrected"). Anything not in that set is in §12.
 
-**Status (2026-10-27): §0, P0, P1 (mise tools, PR #1613) and P2 (uv tools, pipx, PR #1712, merged 2026-10-26) written and through the Mac acceptance; P2 decisions taken while writing are in the status log for the owner. P3 (uv Python, nvm Node, fnm Node, pyenv, rbenv; branch `cli-managers-p3`) written and through the Mac acceptance (real home, C1/C3–C6; C2 not holdable, as in P2); the P3 decisions taken while writing are in the status log for the owner. Owed: §12 item 5 (needs a mise release under 24 h old); P2's and P3's C2 could not be held on the Mac (status log). P4 (cargo install, go install; branch `cli-managers-p4`) written and through the Mac acceptance (real home, C1/C3–C6; C2 not holdable); its decisions are in the status log for the owner. Every phase P0–P4 is written.** The owner took every recommended option (§11), and later revised D12 and the UI (§5). §0's survey is `plans/cli-managers-int-on-main.md` (committed beside this file); the status log at the end of this file says what is in and what is not. Before each phase, read §13 (cancel, which every adapter must measure for real) and §8.1's note on where real-machine runs happen.
+**Status (2026-10-27): §0, P0, P1 (mise tools, PR #1613) and P2 (uv tools, pipx, PR #1712, merged 2026-10-26) written and through the Mac acceptance; P2 decisions taken while writing are in the status log for the owner. P3 (uv Python, nvm Node, fnm Node, pyenv, rbenv; PR #1715, merged 2026-10-27) written and through the Mac acceptance (real home, C1/C3–C6; C2 not holdable, as in P2); the P3 decisions taken while writing are in the status log for the owner. Owed: §12 item 5 (needs a mise release under 24 h old); §12 item 16 (scan time after P3, not measured yet); P2's and P3's C2 could not be held on the Mac (status log). P3's fixtures (`~/.pyenv`, `~/.rbenv`, Homebrew pyenv/rbenv/ruby-build) stay on the Mac for long-term verification, by the owner's choice. P4 (cargo install, go install; branch `cli-managers-p4`) written and through the Mac acceptance (real home, C1/C3–C6; C2 not holdable); its decisions are in the status log for the owner, and its fixtures (tokei, hexyl, gofumpt) stay on the Mac too. Every phase P0–P4 is written.** The owner took every recommended option (§11), and later revised D12 and the UI (§5). §0's survey is `plans/cli-managers-int-on-main.md` (committed beside this file); the status log at the end of this file says what is in and what is not. Before each phase, read §13 (cancel, which every adapter must measure for real) and §8.1's note on where real-machine runs happen.
 
 The research files (six reports, six reviews) stay on the owner's Mac, because they hold that machine's inventory. Every fact this design relies on is restated in §2 with its claim ID. Treat an ID as a pointer, not as something you can open from a cloud session. When a fact matters for your phase and you doubt it, re-verify it yourself the way §12 does: in an isolated home, with the command and its raw output.
 
@@ -683,7 +683,7 @@ Until then, (a) holds everywhere.
 **Decisions taken while writing (owner to confirm or reverse):** Homebrew's pipx is preferred over `~/.local/bin/pipx` when both exist (only the keg gets the one-click); the uv tool check falls back to PyPI for a uv that may not run, so rows still show what is newer; the project-URL rule also accepts a repository named with a Python affix (`cowsay-python`, `python-x`, `pyx`, `x-py`); a pipx row with `pip_args` index options is "not on an index" rather than asked of PyPI.
 
 
-### 2026-10-27 — P3 written (uv Python, nvm Node, fnm Node, pyenv, rbenv; branch `cli-managers-p3`)
+### 2026-10-27 — P3 written (uv Python, nvm Node, fnm Node, pyenv, rbenv; PR #1715, merged 2026-10-27)
 
 **In:**
 
@@ -731,7 +731,13 @@ Until then, (a) holds everywhere.
 
 **Not done:** logos — fnm, pyenv and rbenv publish no vector logo (fnm's `docs/fnm.svg` is an animated terminal recording; pyenv's repo has a terminal screenshot; rbenv's none; Simple Icons has none of the three), so their rows keep the terminal glyph; rbenv notes (`ruby/ruby` tags `v3_4_12`: the shared decoder's tag rule not checked, so no notes yet).
 
-**Decisions taken while writing (owner to confirm or reverse):** D6's `nvm alias default <new>` (and fnm's `fnm default <new>`) is a pane fact ("to move default afterwards: …"), not a copy glyph — managed rows have one `manualCommand` slot; Homebrew's pyenv/rbenv/fnm preferred over a checkout or installer binary when both exist; pyenv/rbenv install the exact newest (`3.12.16`), not the line (`3.12` would prompt when present); uv Python makes rows for CPython final releases only.
+**Decisions taken while writing (owner to confirm or reverse):** D6's `nvm alias default <new>` (and fnm's `fnm default <new>`) is a pane fact ("to move default afterwards: …"), not a copy glyph — managed rows have one `manualCommand` slot; Homebrew's pyenv/rbenv/fnm preferred over a checkout or installer binary when both exist — except that a ruby-build or python-build checkout under the root is what even the keg runs, so that root's command is handed out (rbenv from the start; pyenv from review round 1); pyenv/rbenv install the exact newest (`3.12.16`), not the line (`3.12` would prompt when present); uv Python makes rows for CPython final releases only.
+
+**Review (PR #1715):** round 1 found two blocking issues, both in pyenv, and both were fixed in `b47b8d6f`:
+- Homebrew's pyenv was trusted, and offered the newest from the keg's definitions, even when a python-build checkout under `$PYENV_ROOT` was the `pyenv-install` it runs, because pyenv puts the root's `plugins/*/bin` first on `PATH`. Such a root now hands the command out, takes its newest only from the root's plugins, and names the checkout's version.
+- Python 2.x lines never read their version, because CPython 2.x installs no `bin/python3`. `bin/python` now counts too.
+
+Round 2: 0 blocking. Neither layout exists on this Mac, so both have unit tests only, and each new guard was mutation-checked.
 
 
 ### 2026-10-27 — P4 written (cargo install, go install; branch `cli-managers-p4`)

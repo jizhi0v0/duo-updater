@@ -185,6 +185,41 @@ struct ManagedStopTests {
         if kill(pid, 0) == 0 { kill(pid, SIGKILL) }
     }
 
+    /// A member running as another user — `/usr/bin/top` is setuid root —
+    /// is still a member, and the stop still ends it: the process table is
+    /// read through `sysctl`, which `proc_pidinfo` is not for such a process
+    /// (EPERM). Mutation: read members with `proc_pidinfo` (`top` is not
+    /// found; the run returns while it runs).
+    @Test func aMemberRunningAsAnotherUserIsSeenAndStopped() async throws {
+        let root = try scratch()
+        defer { try? FileManager.default.removeItem(atPath: root) }
+        let stop = ManagedStop(termAfter: .seconds(600), killAfter: .seconds(600), giveUpAfter: .seconds(20))
+        let leader = Locked<pid_t>(0)
+        let run = Task {
+            try await ChildProcess.run(
+                "/bin/sh", ["-c", "/usr/bin/top -l 600 -s 1 > /dev/null & echo $! > \(root)/top; wait"],
+                standardOutput: .discard, standardError: .discard, onCancel: .runToCompletion,
+                onLaunch: { stop.launched($0); leader.set($0) }, newSession: true)
+        }
+        while !FileManager.default.fileExists(atPath: root + "/top") {
+            // cancel-ok: test polling for the child's start
+            try? await Task.sleep(for: .milliseconds(20))
+        }
+        let top = pid_t(read(root + "/top")?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "") ?? 0
+        var info = proc_bsdinfo()
+        // The premise: as this user, proc_pidinfo cannot read it.
+        #expect(proc_pidinfo(top, PROC_PIDTBSDINFO, 0, &info, Int32(MemoryLayout<proc_bsdinfo>.size)) <= 0)
+        #expect(stop.members().contains { $0.pid == top })
+        stop.interrupt()
+        // `top` started in the background ignores SIGINT; the ladder is out
+        // of reach, so end it by hand once it is seen, as SIGTERM would.
+        kill(top, SIGTERM)
+        #expect(await stop.waitUntilGone())
+        #expect(kill(top, 0) != 0)
+        _ = try? await run.value
+        _ = leader.value
+    }
+
     /// A command whose own process ignores SIGINT and SIGTERM — and its
     /// `sleep`, which inherits that — is ended by the ladder's SIGKILL, run
     /// through the runner as production runs it: the ladder starts at the

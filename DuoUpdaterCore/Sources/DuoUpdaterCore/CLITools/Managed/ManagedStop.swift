@@ -67,7 +67,7 @@ final class ManagedStop: @unchecked Sendable {
     /// The child started (its session's id is its pid): a stop asked for
     /// before this lands now.
     func launched(_ pid: pid_t) {
-        let started = Self.bsdInfo(pid).map(Self.start) ?? 0
+        let started = Self.process(pid)?.started ?? 0
         let stopNow = lock.withLock { () -> Bool in
             self.pid = pid
             launchedAt = started
@@ -100,26 +100,43 @@ final class ManagedStop: @unchecked Sendable {
         return Self.processes().filter { getsid($0.pid) == pid && $0.started >= since }
     }
 
+    /// Every process, from the kernel's process table (`KERN_PROC_ALL`, what
+    /// `ps` reads). Not `proc_pidinfo`: for a process of another user — a
+    /// setuid program such as `/usr/bin/top` or `/bin/ps` a vendor runs — it
+    /// fails with EPERM (measured 2026-10-27 as uid 501 on launchd, syslogd,
+    /// cfprefsd), and that member would go unseen; the sysctl answers for
+    /// every process (review round 3).
     static func processes() -> [Member] {
-        let capacity = Int(proc_listallpids(nil, 0)) + 64
-        guard capacity > 64 else { return [] }
-        var pids = [pid_t](repeating: 0, count: capacity)
-        let count = Int(pids.withUnsafeMutableBytes { proc_listallpids($0.baseAddress, Int32($0.count)) })
-        guard count > 0 else { return [] }
-        return pids.prefix(min(count, capacity)).compactMap { pid in
-            guard pid > 0, let info = bsdInfo(pid) else { return nil }
-            return Member(pid: pid, pgid: pid_t(info.pbi_pgid), started: start(info))
+        var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_ALL, 0]
+        for _ in 0..<3 {
+            var size = 0
+            guard sysctl(&mib, 4, nil, &size, nil, 0) == 0, size > 0 else { return [] }
+            // Room for processes started between the two calls.
+            size += size / 8
+            var table = [kinfo_proc](repeating: kinfo_proc(), count: size / MemoryLayout<kinfo_proc>.stride)
+            var used = table.count * MemoryLayout<kinfo_proc>.stride
+            if sysctl(&mib, 4, &table, &used, nil, 0) == 0 {
+                return table.prefix(used / MemoryLayout<kinfo_proc>.stride).map(member)
+            }
+            guard errno == ENOMEM else { return [] }
         }
+        return []
     }
 
-    static func bsdInfo(_ pid: pid_t) -> proc_bsdinfo? {
-        var info = proc_bsdinfo()
-        let size = Int32(MemoryLayout<proc_bsdinfo>.size)
-        return proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, size) == size ? info : nil
+    /// One process, as `processes` reads it; nil when there is none.
+    static func process(_ pid: pid_t) -> Member? {
+        var info = kinfo_proc()
+        var size = MemoryLayout<kinfo_proc>.stride
+        var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_PID, pid]
+        guard sysctl(&mib, 4, &info, &size, nil, 0) == 0, size > 0 else { return nil }
+        return member(info)
     }
 
-    static func start(_ info: proc_bsdinfo) -> UInt64 {
-        info.pbi_start_tvsec &* 1_000_000 &+ info.pbi_start_tvusec
+    private static func member(_ info: kinfo_proc) -> Member {
+        let start = info.kp_proc.p_starttime
+        return Member(
+            pid: info.kp_proc.p_pid, pgid: info.kp_eproc.e_pgid,
+            started: UInt64(start.tv_sec) &* 1_000_000 &+ UInt64(start.tv_usec))
     }
 
     /// `signal` to every group a member of the session sits in (the child is

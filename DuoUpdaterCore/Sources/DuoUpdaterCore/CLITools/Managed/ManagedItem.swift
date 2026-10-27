@@ -162,7 +162,11 @@ public struct ManagedItem: Sendable, Equatable {
         /// `CHANGELOG_V<major>.md`).
         case rawMarkdown(URL)
         case pypiProject(String)
+        /// A crates.io crate: the GitHub repository its `repository` names.
         case crate(String)
+        /// A Go module off GitHub (`mvdan.cc/gofumpt`): the repository
+        /// proxy.golang.org's `@latest` names as its `Origin` (`GoModule`).
+        case goModule(String)
     }
 
     public enum Effect: Sendable, Equatable {

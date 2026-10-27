@@ -37,6 +37,12 @@ final class ManagedStop: @unchecked Sendable {
     /// Past this, members still alive are reported, and nothing is put back
     /// under them.
     static let giveUpAfter: Duration = .seconds(60)
+    /// The least time between two looks that each find none of a session
+    /// for both to count (`misses`). Two looks a millisecond apart can both
+    /// fall inside a relay's hops: with back-to-back looks a relay changing
+    /// group every 2 ms got through 2 times in 20 (local adversarial review
+    /// 2's probe).
+    static let missGap: Duration = .milliseconds(50)
 
     /// A process of the session, by pid, parent, group and start time.
     struct Member: Hashable, Sendable {
@@ -49,6 +55,7 @@ final class ManagedStop: @unchecked Sendable {
     private let termAfter: Duration
     private let killAfter: Duration
     private let giveUpAfter: Duration
+    private let missGap: Duration
     private let lock = NSLock()
     private var pid: pid_t?
     private var requested = false
@@ -78,6 +85,12 @@ final class ManagedStop: @unchecked Sendable {
     /// its own — local adversarial review: it then ran on, writing, through
     /// the put-back (5 in 5 with a 2 ms relay).
     private var misses: [pid_t: Int] = [:]
+    /// When the read that last counted a miss of each session was taken in:
+    /// a miss counts only from a read begun `missGap` after it. Two scans
+    /// reading at once (the tracker, the ladder, `waitUntilGone`) see the
+    /// same moment, and would count one gap twice (local adversarial
+    /// review 2).
+    private var missedAt: [pid_t: ContinuousClock.Instant] = [:]
     /// Every process group a member was seen in, until the group is empty.
     /// Reading the table and then each entry's session is not atomic: a
     /// process that forks and exits between the two leaves its child
@@ -96,11 +109,12 @@ final class ManagedStop: @unchecked Sendable {
     private let table: @Sendable () -> [Member]?
 
     init(termAfter: Duration = ManagedStop.termAfter, killAfter: Duration = ManagedStop.killAfter,
-         giveUpAfter: Duration = ManagedStop.giveUpAfter,
+         giveUpAfter: Duration = ManagedStop.giveUpAfter, missGap: Duration = ManagedStop.missGap,
          table: @escaping @Sendable () -> [Member]? = { ManagedStop.processes() }) {
         self.termAfter = termAfter
         self.killAfter = killAfter
         self.giveUpAfter = giveUpAfter
+        self.missGap = missGap
         self.table = table
     }
 
@@ -184,6 +198,7 @@ final class ManagedStop: @unchecked Sendable {
     private func scan() -> (all: [Member], members: [Member])? {
         let (tracked, launched) = lock.withLock { (sessions, pid != nil) }
         guard launched else { return ([], []) }
+        let before = ContinuousClock.now
         guard let all = table() else { return nil }
         let found = all.compactMap { member -> (Member, pid_t)? in
             let sid = getsid(member.pid)
@@ -191,10 +206,18 @@ final class ManagedStop: @unchecked Sendable {
         }
         let live = Set(found.map(\.1))
         let seen = lock.withLock { () -> [pid_t] in
+            let now = ContinuousClock.now
             if !gone { for (member, sid) in found { groups[member.pgid] = sid } }
             // Only the sessions this scan looked for: one added meanwhile
             // has not been looked for yet.
-            for session in tracked { misses[session] = live.contains(session) ? 0 : misses[session, default: 0] + 1 }
+            for session in tracked {
+                if live.contains(session) {
+                    misses[session] = 0
+                } else if missedAt[session].map({ before >= $0 + missGap }) ?? true {
+                    misses[session, default: 0] += 1
+                    missedAt[session] = now
+                }
+            }
             return Array(groups.keys)
         }
         // EPERM: a member is there, not ours to signal, or only zombies.
@@ -204,7 +227,7 @@ final class ManagedStop: @unchecked Sendable {
             let held = Set(groups.values)
             let drop = tracked.filter { misses[$0, default: 0] >= 2 && !held.contains($0) }
             sessions.subtract(drop)
-            for session in drop { misses[session] = nil }
+            for session in drop { misses[session] = nil; missedAt[session] = nil }
             if sessions.isEmpty && groups.isEmpty { gone = true }
         }
         return (all, found.map(\.0))
@@ -305,11 +328,22 @@ final class ManagedStop: @unchecked Sendable {
     }
 
     /// Any member of the sessions left, the child itself included; an
-    /// unreadable process table counts as yes.
+    /// unreadable process table counts as yes. A scan that finds nothing
+    /// while a session is still followed is no verdict — a relay's link can
+    /// leave its successor unlisted, in a group never seen — so it looks
+    /// again, `missGap` later, until the session is found or dropped
+    /// (`misses`). Local adversarial review 2: one empty scan said none
+    /// left, and the run put back under the survivor (2 in 10 with a relay
+    /// changing group on every hop). Before the launch nothing is followed:
+    /// none.
     func alive() -> Bool {
-        guard !lock.withLock({ gone }) else { return false }
-        guard let members = members() else { return true }
-        return !members.isEmpty || !lock.withLock({ groups.isEmpty })
+        guard lock.withLock({ pid != nil }) else { return false }
+        while !lock.withLock({ gone }) {
+            guard let members = members() else { return true }
+            if !members.isEmpty || !lock.withLock({ groups.isEmpty }) { return true }
+            usleep(useconds_t(missGap / .microseconds(1)))
+        }
+        return false
     }
 
     /// Wait, after a stop (`interrupt`), until no member of the session is

@@ -278,7 +278,10 @@ struct ManagedStopTests {
     /// the survivor's new group was never found — it ran on through the
     /// put-back, 5 in 5 (local adversarial review, 2026-10-27). The run must
     /// end it (the ladder's SIGKILL at 2 s) before it says stopped. No clock
-    /// is read. Mutation: drop a session on its first empty scan.
+    /// is read. Mutation: the old drop rule (a session dropped on its first
+    /// empty scan, its groups not counted); either half alone it survives —
+    /// `oneEmptyScanDropsNoSession` and `aSessionWithAGroupLeftIsKept` pin
+    /// those (local adversarial review 2).
     @Test func aRelayThatMovesToAGroupOfItsOwnIsStillStopped() async throws {
         for round in 0..<3 {
             let root = try scratch()
@@ -377,12 +380,44 @@ struct ManagedStopTests {
         stop.finish()
     }
 
+    /// Two looks that each find none of a session count as two only
+    /// `missGap` apart: two back to back can both fall inside a relay's hops
+    /// (local adversarial review 2's probe: 2 in 20 got through with
+    /// back-to-back looks). Mutation: no gap.
+    @Test func missesCountOnlyAGapApart() {
+        let stop = ManagedStop(missGap: .milliseconds(200), table: { [] })
+        stop.finish()
+        stop.launched(99_996)
+        _ = stop.members()
+        _ = stop.members()
+        #expect(stop.trackedSessions == [99_996])
+        usleep(250_000)
+        _ = stop.members()
+        #expect(stop.trackedSessions.isEmpty)
+    }
+
+    /// Before the launch nothing is followed: `alive` answers none at once.
+    /// It looks again while a scan finds nothing and drops nothing, and
+    /// before the launch every scan is such — a stop asked for then whose
+    /// launch never comes would keep the ladder's thread looking forever.
+    /// Waited for on a thread of its own, with a bound. Mutation: no launch
+    /// check.
+    @Test func nothingIsAliveBeforeTheLaunch() {
+        let stop = ManagedStop(table: { [] })
+        stop.finish()
+        let answered = DispatchSemaphore(value: 0)
+        let alive = Locked(true)
+        Thread { alive.set(stop.alive()); answered.signal() }.start()
+        #expect(answered.wait(timeout: .now() + 5) == .success)
+        #expect(!alive.value)
+    }
+
     /// One scan that finds none of a session is not enough to drop it: a
     /// fork-and-exit chain can be missed by one. Two in a row are. No tracker
-    /// runs (`finish` first), so only these scans count. Mutation: drop on
-    /// the first empty scan.
+    /// runs (`finish` first), so only these scans count; no gap is asked
+    /// between them. Mutation: drop on the first empty scan.
     @Test func oneEmptyScanDropsNoSession() {
-        let stop = ManagedStop(table: { [] })
+        let stop = ManagedStop(missGap: .zero, table: { [] })
         stop.finish()
         stop.launched(99_998)
         _ = stop.members()
@@ -409,7 +444,7 @@ struct ManagedStopTests {
         }
         let pid = started.value
         let listed = Locked(true)
-        let stop = ManagedStop(table: {
+        let stop = ManagedStop(missGap: .zero, table: {
             defer { listed.set(false) }
             return listed.value ? [ManagedStop.Member(pid: pid, ppid: getpid(), pgid: pid, started: 0)] : []
         })
@@ -423,6 +458,79 @@ struct ManagedStopTests {
         _ = stop.members()
         #expect(stop.trackedSessions.isEmpty)
         #expect(!stop.alive())
+    }
+
+    /// One empty scan is no verdict while a session is still followed. A
+    /// member that left for a group of its own (`setpgrp`) is in no group
+    /// recorded, and a scan that missed it — here the table leaves it out
+    /// once, as a relay's hop can — said none left: the run put back under
+    /// it (local adversarial review 2, 2 in 10 with a relay changing group
+    /// on every hop). `alive` looks again. Mutation: `alive` trusting one
+    /// scan.
+    @Test func oneEmptyScanIsNoVerdictWhileASessionIsFollowed() async throws {
+        let root = try scratch()
+        defer { try? FileManager.default.removeItem(atPath: root) }
+        let started = Locked<pid_t>(0)
+        let run = Task {
+            try await ChildProcess.run(
+                "/bin/sh", ["-c", "perl -e 'setpgrp(0, 0); open(P, \">\(root)/m.tmp\"); print P $$; close P; rename(\"\(root)/m.tmp\", \"\(root)/m\"); sleep 30' & wait"],
+                standardOutput: .discard, standardError: .discard,
+                onCancel: .runToCompletion, onLaunch: { started.set($0) }, newSession: true)
+        }
+        while started.value == 0 || read(root + "/m") == nil {
+            // cancel-ok: test polling for the launch
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+        let leader = started.value
+        let member = pid_t(read(root + "/m")?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "") ?? 0
+        defer { if member > 0 { kill(member, SIGKILL) } }
+        #expect(member > 0 && getsid(member) == leader && getpgid(member) == member)
+        // The leader alone, then nothing once, then the real table.
+        let calls = Locked(0)
+        let stop = ManagedStop(table: {
+            let call = calls.value
+            calls.set(call + 1)
+            switch call {
+            case 0: return [ManagedStop.Member(pid: leader, ppid: getpid(), pgid: leader, started: 0)]
+            case 1: return []
+            default: return ManagedStop.processes()
+            }
+        })
+        stop.finish()
+        stop.launched(leader)
+        _ = stop.members()
+        kill(leader, SIGKILL)
+        _ = try? await run.value
+        #expect(stop.alive(), "one empty scan read as none left while \(member) ran")
+    }
+
+    /// Two scans reading the table at once see the same moment: their two
+    /// misses are one look, not two in a row, and drop nothing. Here one
+    /// read is held open while another runs to its end. No tracker runs
+    /// (`finish` first); no gap is asked. Mutation: every miss counted.
+    @Test func overlappingScansCountOneMiss() {
+        let entered = DispatchSemaphore(value: 0)
+        let release = DispatchSemaphore(value: 0)
+        let first = Locked(true)
+        let stop = ManagedStop(missGap: .zero, table: {
+            if first.value {
+                first.set(false)
+                entered.signal()
+                release.wait()
+            }
+            return []
+        })
+        stop.finish()
+        stop.launched(99_997)
+        let done = DispatchSemaphore(value: 0)
+        Thread { _ = stop.members(); done.signal() }.start()
+        entered.wait()
+        _ = stop.members()
+        release.signal()
+        done.wait()
+        #expect(stop.trackedSessions == [99_997])
+        _ = stop.members()
+        #expect(stop.trackedSessions.isEmpty)
     }
 
     /// A process table that cannot be read is never "nothing left": the run

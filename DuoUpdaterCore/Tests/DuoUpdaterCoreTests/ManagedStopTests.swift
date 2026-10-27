@@ -759,6 +759,7 @@ struct ManagedStopTests {
         #expect(!result.stuck)
         // Ended by the ladder, not by the deadline's backstop.
         #expect(result.failureMessage == "stopped")
+        #expect(!result.timedOut)
     }
 
     // MARK: ManagedProvider
@@ -853,23 +854,29 @@ struct ManagedStopTests {
         #expect(read(kept + "/0/receipt") == "1.0")
     }
 
-    /// A failure keeps the scratch: the vendor's log is in it, and its
-    /// message names it (ruby-build: "See the full build log at …"); so do a
-    /// deadline's stop, a stuck stop, and a run that left processes. A run
-    /// that ends with none left drops it. It is the user's alone (0700), and
-    /// short enough for sccache's `sccacheXXXXXX/sock` under it (`sun_path`,
-    /// 104 bytes). Local adversarial reviews 3–4. Mutations: removed on every
-    /// end; kept after a clean run; a deadline's or a stuck stop dropping it;
-    /// the old `duo-managed-<UUID>` name.
+    /// Only a cancel's stop takes the scratch whole (`aStoppedUpgradeIsPutBack`).
+    /// Any other end keeps one with something in it — a failure's log, which
+    /// its message names (ruby-build: "See the full build log at …"); a
+    /// deadline's or a stuck stop's; a daemon's files after a clean run
+    /// (sccache) — and with processes left keeps it even empty: one may make
+    /// a file there later. A clean or failed run with none left takes an
+    /// empty one. It is the user's alone (0700), and short enough for
+    /// sccache's `sccacheXXXXXX/sock` under it (`sun_path`, 104 bytes). Local
+    /// adversarial reviews 3–5. Mutations: removed on every end; a clean
+    /// run's removed whole; an empty one removed with processes left, or
+    /// after a stuck stop; a deadline's stop removing it; the old
+    /// `duo-managed-<UUID>` name.
     @Test func aFailedOrLeftBehindRunKeepsItsScratch() async throws {
         let root = try scratch()
         defer { try? FileManager.default.removeItem(atPath: root) }
         try write(root + "/venv/receipt", "1.0")
-        let ends: [(Bool, Bool, Bool, Bool, Bool)] = [  // succeeded, leftovers, timed out, stuck, kept
-            (false, false, false, false, true), (true, true, false, false, true), (true, false, false, false, false),
-            (false, false, true, false, true), (false, false, false, true, true),
+        let ends: [(Bool, Bool, Bool, Bool, Bool, Bool)] = [  // succeeded, leftovers, timed out, stuck, writes, kept
+            (false, false, false, false, true, true), (true, true, false, false, true, true),
+            (true, true, false, false, false, true), (true, false, false, false, true, true),
+            (true, false, false, false, false, false), (false, false, true, false, true, true),
+            (false, false, false, true, false, true),
         ]
-        for (succeeded, leftovers, timedOut, stuck, kept) in ends {
+        for (succeeded, leftovers, timedOut, stuck, writes, kept) in ends {
             let adapter = ManagedModelTests.FakeAdapter()
             adapter.interruptionPlan = ManagedInterruption(paths: [root + "/venv"], scratchVariables: ["TMPDIR"])
             let tmp = Locked<String?>(nil)
@@ -878,15 +885,16 @@ struct ManagedStopTests {
                 tmp.set(environment["TMPDIR"])
                 let attributes = try? FileManager.default.attributesOfItem(atPath: environment["TMPDIR"] ?? "/")
                 mode.set((attributes?[.posixPermissions] as? NSNumber)?.intValue)
-                try? self.write((environment["TMPDIR"] ?? root) + "/ruby-build.log", "BUILD FAILED")
+                if writes { try? self.write((environment["TMPDIR"] ?? root) + "/ruby-build.log", "BUILD FAILED") }
                 return ManagedProvider.RunResult(
                     succeeded: succeeded, failureMessage: succeeded ? nil : "See the full build log", lines: [],
                     stopped: timedOut, stuck: stuck, leftovers: leftovers, timedOut: timedOut)
             }.update(ManagedModelTests.status(), progress: { _ in })
             let directory = try #require(tmp.value)
             defer { try? FileManager.default.removeItem(atPath: directory) }
-            let label = "succeeded \(succeeded), leftovers \(leftovers), timed out \(timedOut), stuck \(stuck)"
-            #expect((read(directory + "/ruby-build.log") != nil) == kept, "\(label)")
+            let label = "succeeded \(succeeded), leftovers \(leftovers), timed out \(timedOut), stuck \(stuck), writes \(writes)"
+            #expect(FileManager.default.fileExists(atPath: directory) == kept, "\(label)")
+            if writes && kept { #expect(read(directory + "/ruby-build.log") != nil, "\(label)") }
             #expect(mode.value == 0o700, "\(label)")
             #expect((directory + "/sccacheAbC123/sock").utf8.count < 104)
         }

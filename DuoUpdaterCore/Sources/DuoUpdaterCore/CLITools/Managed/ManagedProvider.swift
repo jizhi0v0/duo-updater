@@ -275,20 +275,24 @@ public struct ManagedProvider: CLIToolProvider {
         // Kept when a stop could not end every process: the state before the
         // update is then the user's only way back, and the row names it.
         var keepSnapshot = false
-        // The scratch goes once nothing of the command can use it: after a
-        // cancel's stop, or a run that ended with none of it left. A failure
-        // keeps it — a deadline's stop too — as the vendor's log is in it, and
-        // its message names it (ruby-build: "See the full build log at …"),
-        // as it stayed in /tmp before D15; so does a run that left processes
-        // (local adversarial reviews 3–4). An empty one goes whatever the end
-        // (a run that never started).
+        // The scratch goes, whole, after a cancel's stop: nothing of the
+        // command is left, and what it was building is what the stop throws
+        // away. After any other end with none of it left, only if empty: a
+        // failure's — a deadline's stop too — holds the vendor's log, which
+        // its message names (ruby-build: "See the full build log at …"), as
+        // it stayed in /tmp before D15; and a daemon the run started may be
+        // using it though no scan saw it stay (sccache through cargo's
+        // `rustc-wrapper` detaches at once). With processes left it stays,
+        // empty or not: one may make a temporary file in it later (local
+        // adversarial reviews 3–5).
         var dropScratch = false
+        var tidyScratch = false
         defer {
             if !keepSnapshot { snapshot?.discard() }
             if let scratch {
                 if dropScratch {
                     try? FileManager.default.removeItem(atPath: scratch)
-                } else if rmdir(scratch) != 0 {
+                } else if !tidyScratch || rmdir(scratch) != 0 {
                     Log.install.info("managed \(item.identity, privacy: .public): kept \(scratch, privacy: .public)")
                 }
             }
@@ -313,7 +317,8 @@ public struct ManagedProvider: CLIToolProvider {
                 InstallJobs.noteRefusedCommit(InstallJobs.currentID)
             }
         }
-        dropScratch = (result.stopped && !result.timedOut) || (result.succeeded && !result.leftovers)
+        dropScratch = result.stopped && !result.timedOut
+        tidyScratch = !result.leftovers && !result.stuck
         if result.stopped, let snapshot {
             return Self.putBack(snapshot, result, manager: adapter.descriptor.displayName, identity: item.identity)
         }

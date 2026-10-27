@@ -310,6 +310,22 @@ struct ManagedStopTests {
         stop.finish()
     }
 
+    /// No process table is read before the launch: one read then cannot list
+    /// the child, and if the launch lands before that scan takes the lock, the
+    /// scan drops the child's session and latches "gone" — the round-4 outcome
+    /// by another path (review round 5). Mutation: the table read before the
+    /// launch check (`interrupt` reads it once).
+    @Test func noTableIsReadBeforeTheLaunch() {
+        let reads = Locked(0)
+        // The ladder looks at 50 ms, finds nothing launched, and ends.
+        let stop = ManagedStop(termAfter: .milliseconds(50), killAfter: .seconds(600), giveUpAfter: .seconds(20),
+                               table: { reads.set(reads.value + 1); return [] })
+        stop.interrupt()
+        #expect(stop.members() == [])
+        #expect(reads.value == 0)
+        stop.finish()
+    }
+
     /// A process table that cannot be read is never "nothing left": the run
     /// waits, and gives up rather than put anything back. Mutation:
     /// `processes` answering [] on failure, or `alive` taking nil for none.

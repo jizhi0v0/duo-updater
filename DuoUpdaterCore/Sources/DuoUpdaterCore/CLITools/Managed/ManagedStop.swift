@@ -132,7 +132,7 @@ final class ManagedStop: @unchecked Sendable {
     }
 
     private func adoptSessions() {
-        guard let all = table(), let known = members(of: all) else { return }
+        guard let (all, known) = scan() else { return }
         let pids = Set(known.map(\.pid))
         let new = all.filter { pids.contains($0.ppid) && getsid($0.pid) == $0.pid }.map(\.pid)
         guard !new.isEmpty else { return }
@@ -160,18 +160,23 @@ final class ManagedStop: @unchecked Sendable {
     /// child's or one a member started (`sessions`). Nil when the process
     /// table could not be read — which never reads as "none left".
     func members() -> [Member]? {
-        table().flatMap(members(of:))
+        scan().map(\.members)
     }
 
-    /// `all`'s members, dropping each session none is left in (see
-    /// `sessions`); `gone` once none is left at all. Before the launch there
-    /// is nothing to look for, and nothing is dropped or latched: a stop
-    /// asked for then (Cancel between the runner's check and the spawn) must
-    /// still reach the child (review round 4: a scan then latched `gone`, the
-    /// child got no SIGINT and ran to its end, and the put-back ran at once).
-    private func members(of all: [Member]) -> [Member]? {
+    /// The table and the sessions' members in it, dropping each session none
+    /// is left in (see `sessions`); `gone` once none is left at all. Before
+    /// the launch there is nothing to look for, and nothing is read, dropped
+    /// or latched: a stop asked for then (Cancel between the runner's check
+    /// and the spawn) must still reach the child (review round 4: a scan then
+    /// latched `gone`, the child got no SIGINT and ran to its end, and the
+    /// put-back ran at once). The followed sessions are read before the
+    /// table, never after: a table read before a session was added (the
+    /// launch, `adoptSessions`) does not list it, and would drop it (review
+    /// round 5).
+    private func scan() -> (all: [Member], members: [Member])? {
         let (tracked, launched) = lock.withLock { (sessions, pid != nil) }
-        guard launched else { return [] }
+        guard launched else { return ([], []) }
+        guard let all = table() else { return nil }
         let found = all.compactMap { member -> (Member, pid_t)? in
             let sid = getsid(member.pid)
             return tracked.contains(sid) ? (member, sid) : nil
@@ -179,7 +184,7 @@ final class ManagedStop: @unchecked Sendable {
         let live = Set(found.map(\.1))
         let seen = lock.withLock { () -> Set<pid_t> in
             // Only the sessions this scan looked for: one added meanwhile
-            // (`adoptSessions`) has not been looked for yet.
+            // has not been looked for yet.
             sessions.subtract(tracked.subtracting(live))
             if !gone { groups.formUnion(found.map(\.0.pgid)) }
             return groups
@@ -190,7 +195,7 @@ final class ManagedStop: @unchecked Sendable {
             groups.subtract(empty)
             if sessions.isEmpty && groups.isEmpty { gone = true }
         }
-        return found.map(\.0)
+        return (all, found.map(\.0))
     }
 
     /// Every process, from the kernel's process table (`KERN_PROC_ALL`, what

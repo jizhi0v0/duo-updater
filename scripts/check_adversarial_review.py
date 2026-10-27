@@ -28,10 +28,12 @@ pass, as in the real-machine check.
 
 A high-risk PR's description must have one of:
 
-  (a) a section whose heading says `Adversarial review` (or 对抗审查), with a
-      date (YYYY-MM-DD) and the commit it reviewed (7–40 hex digits) in the
-      heading or body, at least one result line (list item, table row or code
-      block line), and each risk the PR raises named in it;
+  (a) a section whose heading says `Adversarial review` (or 对抗审查) and
+      names the commit it reviewed (7–40 hex digits; only the heading's
+      count, so a fix commit the body mentions is never taken for it), with a
+      date (YYYY-MM-DD) in the heading or body, at least one result line
+      (list item, table row or code block line), and each risk the PR raises
+      named in it as a word;
 
   (b) a line, for a match that is not a risk (a pattern hit in a comment, a
       renamed constant):
@@ -45,7 +47,11 @@ may be high-risk: a fix pushed after the review needs a review of its own
 ## What it cannot see
 
 Whether the review was any good, or the opt-out's reason true; REVIEW.md asks
-the review bot to judge both. The patterns are a net, not a proof: a risky
+the review bot to judge both. GitHub's limits (docs.github.com/en/rest,
+2026-10-27): a PR's file list holds at most 3000 files and a compare at most
+300 — past either, the rest counts as unread; a diff with no `patch` (binary,
+or one the API leaves out) counts as unread. Whether the API can also cut a
+`patch` short is not documented; a line past such a cut would be missed. The patterns are a net, not a proof: a risky
 change that matches none passes, and a harmless one that matches some needs
 the opt-out line.
 """
@@ -221,8 +227,13 @@ def record_sections(body):
             elif not fenced and RESULT_LINE.match(body_line) and not TABLE_RULE.match(body_line):
                 results += 1
         joined = "\n".join(text)
-        sections.append((title, _has_date(joined), SHA.findall(joined), results, joined))
+        sections.append((title, _has_date(joined), SHA.findall(title), results, joined))
     return sections
+
+
+def _names(text, risk):
+    """`risk` as a word of `text`: "trust" is not named by "untrusted-input"."""
+    return re.search(r"(?<![\w-])%s(?![\w-])" % re.escape(risk), text, re.IGNORECASE) is not None
 
 
 def _show(found):
@@ -268,10 +279,10 @@ def evaluate(body, head_ref, files, compare):
         if not dated:
             missing.append("a date (YYYY-MM-DD)")
         if not shas:
-            missing.append("the commit it reviewed")
+            missing.append("the commit it reviewed, in its heading")
         if not results:
             missing.append("a result line")
-        unnamed = [r for r in sorted(found) if r != "unread-diff" and r not in text.lower()]
+        unnamed = [r for r in sorted(found) if r != "unread-diff" and not _names(text, r)]
         if unnamed:
             missing.append("the risk(s) %s named" % ", ".join(unnamed))
         if missing:
@@ -311,7 +322,8 @@ def fetch(repo, pr):
     ]).strip().replace("\n", ",") + "]")
     files = _pairs(pages)
     if len(files) != data["changed_files"]:
-        # The files endpoint lists at most 3000: the rest is unread.
+        # The files endpoint lists at most 3000 ("Responses include a maximum
+        # of 3000 files"): the rest is unread.
         files.append(("DuoUpdaterCore/Sources/(files beyond the API's list)", None))
     head_sha = data["head"]["sha"]
 
@@ -323,6 +335,9 @@ def fetch(repo, pr):
         if c.get("status") not in ("ahead", "identical"):
             return None
         later = _pairs(c.get("files") or [])
+        # A compare lists at most 300 changed files: the rest is unread.
+        # Short shas resolve (measured: `808bbd8b` → "ahead"); an unknown one
+        # makes `gh` exit non-zero.
         if c.get("ahead_by", 0) and len(later) >= 300:
             later.append(("DuoUpdaterCore/Sources/(files beyond the compare list)", None))
         return later

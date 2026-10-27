@@ -105,6 +105,22 @@ class RecordTests(unittest.TestCase):
         harmless = lambda sha: files(("plans/x.md", "@@\n+ killpg"))  # noqa: E731
         self.assertTrue(check(RECORD, compare=harmless))
 
+    def test_only_the_heading_names_the_reviewed_commit(self):
+        # Reviewed at 1a2b3c4d; the race it found was fixed in f00dfeed, a
+        # high-risk change nobody reviewed. Naming the fix in the body must
+        # not make it the reviewed commit.
+        fix = lambda sha: (files((STOP, "@@\n+ gone = true")) if sha == REVIEWED  # noqa: E731
+                           else [] if sha == "f00dfeed" else None)
+        body = RECORD + "- process-control: found a race, fixed in f00dfeed.\n"
+        self.assertFalse(check(body, compare=fix))
+        self.assertTrue(check(body.replace("2026-10-27, 1a2b3c4d", "2026-10-27, f00dfeed"), compare=fix))
+
+    def test_a_risk_is_named_as_a_word(self):
+        both = files((UPDATER, "@@\n+ let ok = codesign(path)\n+ let dir = NSTemporaryDirectory()"))
+        only_input = RECORD.replace("process-control", "untrusted-input")
+        self.assertFalse(check(only_input, changed=both))
+        self.assertTrue(check(only_input + "- trust: the digest is pinned; probed with a swapped file.\n", changed=both))
+
     def test_a_commit_not_in_the_history_fails(self):
         self.assertFalse(check(RECORD, compare=lambda sha: None))
 

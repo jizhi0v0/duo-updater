@@ -451,6 +451,8 @@ enum CLIToolRows {
             return Result(outcome: .failed, reason: message, exit: exit)
         case .declined:
             return Result(outcome: .declined, reason: "administrator access was declined")
+        case .stopped(let message, _):
+            return Result(outcome: .failed, reason: message, exit: exit)
         }
     }
 
@@ -543,6 +545,9 @@ enum CLIToolRows {
                     var row = payload(status, Result(outcome: .cancelled))
                     row["stage"] = InstallStage.runningCommand("").name
                     NDJSON.emit(row)
+                } else if case .stopped(let message, _) = outcome {
+                    // Stopped partway and put back (D15).
+                    out("   \(message) — not updated")
                 } else {
                     // A command that ran reported its exit (`CLIToolExit`).
                     out(exit == nil

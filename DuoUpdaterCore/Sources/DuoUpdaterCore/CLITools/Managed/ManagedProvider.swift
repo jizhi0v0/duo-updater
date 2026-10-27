@@ -18,6 +18,9 @@ public struct ManagedProvider: CLIToolProvider {
     let processes: @Sendable () -> [NpmActivity.Process]
     let token: CLIToolGitHubToken.Source
     let runner: Runner
+    /// How the vendor's command is run when it may be stopped (D15,
+    /// `ManagerAdapter.interruption`). Production: `interruptibleRunner`.
+    let stoppableRunner: Runner
 
     /// How the vendor's command is run. Production: `CLIToolCommandRunner.run`,
     /// with its commit point; a test's double answers without spawning.
@@ -31,11 +34,16 @@ public struct ManagedProvider: CLIToolProvider {
         /// The row's line when it failed (`CLIToolCommandRunner.failureMessage`'s rule).
         public let failureMessage: String?
         public let lines: [String]
+        /// The command started and was stopped — by the caller's cancel or its
+        /// deadline — and no process of it is left: what it changed may be
+        /// put back.
+        public let stopped: Bool
 
-        public init(succeeded: Bool, failureMessage: String?, lines: [String]) {
+        public init(succeeded: Bool, failureMessage: String?, lines: [String], stopped: Bool = false) {
             self.succeeded = succeeded
             self.failureMessage = failureMessage
             self.lines = lines
+            self.stopped = stopped
         }
     }
 
@@ -45,7 +53,7 @@ public struct ManagedProvider: CLIToolProvider {
             proxyEnvironment: { SystemProxyEnvironment.applied(to: [:]) },
             processes: { NpmActivity.runningProcesses() },
             token: CLIToolGitHubToken.app,
-            runner: Self.commandRunner)
+            runner: Self.commandRunner, stoppableRunner: Self.interruptibleRunner)
     }
 
     /// Every seam injected: what a test drives.
@@ -54,7 +62,8 @@ public struct ManagedProvider: CLIToolProvider {
         proxyEnvironment: @escaping @Sendable () -> [String: String],
         processes: @escaping @Sendable () -> [NpmActivity.Process],
         token: @escaping @Sendable () async -> String?,
-        runner: @escaping Runner
+        runner: @escaping Runner,
+        stoppableRunner: Runner? = nil
     ) {
         self.adapter = adapter
         self.home = home
@@ -62,6 +71,7 @@ public struct ManagedProvider: CLIToolProvider {
         self.processes = processes
         self.token = token
         self.runner = runner
+        self.stoppableRunner = stoppableRunner ?? runner
     }
 
     /// `CLIToolCommandRunner.run`: stdout and stderr merged, the command's
@@ -78,6 +88,54 @@ public struct ManagedProvider: CLIToolProvider {
             let message = outcome.timedOut || outcome.uncaughtSignal ? reason : "\(reason) (exit \(outcome.terminationStatus))"
             return RunResult(succeeded: false, failureMessage: message, lines: run.lines)
         }
+    }
+
+    /// D15: the vendor's command outside any commit, so a Cancel reaches it
+    /// while it runs. A cancel sends SIGINT to its process group, as a
+    /// terminal's Ctrl-C (`ManagedStop`); the run returns once no process of
+    /// that group is left — never before, since the snapshot is put back
+    /// under it. A deadline stops it the same way.
+    static let interruptibleRunner: Runner = { command, environment, workingDirectory, deadline, progress in
+        let log = CLIToolCommandRunner.OutputLog(onLine: progress)
+        let stop = ManagedStop()
+        guard !Task.isCancelled else {
+            return RunResult(succeeded: false, failureMessage: "not run: cancelled", lines: [])
+        }
+        let outcome: ChildProcess.Outcome
+        do {
+            outcome = try await withTaskCancellationHandler {
+                // `.runToCompletion`: the stop is ours (`ManagedStop`), sent to
+                // the whole group, and the call returns only once the child
+                // has exited, cancelled caller or not.
+                try await ChildProcess.run(
+                    command.executable, command.arguments, environment: environment,
+                    workingDirectory: workingDirectory, standardOutput: .discard, standardError: .mergeIntoOutput,
+                    deadline: deadline, onCancel: .runToCompletion,
+                    onOutputChunk: { log.append($0) }, onLaunch: { stop.launched($0) })
+            } onCancel: {
+                stop.interrupt()
+            }
+        } catch {
+            log.finish()
+            return RunResult(succeeded: false, failureMessage: "could not run \(command.executable): \(error)", lines: log.lines)
+        }
+        log.finish()
+        CLIToolExit.report(command, outcome)
+        if stop.wasInterrupted || outcome.timedOut {
+            // A deadline's SIGTERM reached the child alone; its group goes too.
+            if outcome.timedOut { stop.interrupt() }
+            let gone = await stop.waitUntilGone()
+            let reason = outcome.timedOut
+                ? CLIToolCommandRunner.failureMessage(log.lines, outcome, deadline: deadline) : "stopped"
+            return RunResult(
+                succeeded: false,
+                failureMessage: gone ? reason : "\(reason); some of its processes are still running",
+                lines: log.lines, stopped: gone)
+        }
+        guard !outcome.succeeded else { return RunResult(succeeded: true, failureMessage: nil, lines: log.lines) }
+        let reason = CLIToolCommandRunner.failureMessage(log.lines, outcome, deadline: deadline)
+        let message = outcome.uncaughtSignal ? reason : "\(reason) (exit \(outcome.terminationStatus))"
+        return RunResult(succeeded: false, failureMessage: message, lines: log.lines)
     }
 
     // MARK: - CLIToolProvider
@@ -142,13 +200,36 @@ public struct ManagedProvider: CLIToolProvider {
         for (key, value) in upgrade.environment { environment[key] = value }
         let deadline = adapter.descriptor.deadline
         let directory = adapter.workingDirectory(home: home)
-        var run = await runner(command, environment, directory, deadline, progress)
+        // D15: an upgrade whose writes are known runs where a Cancel reaches
+        // it, over a snapshot of them; any other runs to completion. A
+        // snapshot that cannot be taken (no clones on that volume) means the
+        // latter, as before D15.
+        var snapshot: ManagedSnapshot?
+        var scratch: String?
+        if let plan = adapter.interruption(item, root: root), let taken = try? ManagedSnapshot.take(plan.paths) {
+            snapshot = taken
+            if !plan.scratchVariables.isEmpty {
+                let directory = NSTemporaryDirectory() + "duo-managed-" + UUID().uuidString
+                if (try? FileManager.default.createDirectory(atPath: directory, withIntermediateDirectories: true)) != nil {
+                    scratch = directory
+                    for variable in plan.scratchVariables { environment[variable] = directory }
+                }
+            }
+        }
+        defer {
+            snapshot?.discard()
+            if let scratch { try? FileManager.default.removeItem(atPath: scratch) }
+        }
+        let run = { [runner, stoppableRunner] (environment: [String: String]) async -> RunResult in
+            await (snapshot == nil ? runner : stoppableRunner)(command, environment, directory, deadline, progress)
+        }
+        var result = await run(environment)
         // mise's handoff, shared (`ManagedTokenRetry`): once more with the
         // app's token, only after the vendor said it found none of its own.
-        if let retry = adapter.tokenRetry, retry.applies(failed: !run.succeeded, lines: run.lines) {
+        if !result.stopped, let retry = adapter.tokenRetry, retry.applies(failed: !result.succeeded, lines: result.lines) {
             if let token = await token() {
                 environment[retry.variable] = token
-                run = await runner(command, environment, directory, deadline, progress)
+                result = await run(environment)
             } else if Task.isCancelled {
                 // The row's Cancel cut the token lookup short: the retry it
                 // would have started is what the click stopped
@@ -156,10 +237,41 @@ public struct ManagedProvider: CLIToolProvider {
                 InstallJobs.noteRefusedCommit(InstallJobs.currentID)
             }
         }
-        guard run.succeeded else {
-            return .failed(message: run.failureMessage ?? "\(adapter.descriptor.displayName): the update failed",
-                           output: run.lines.joined(separator: "\n"))
+        if result.stopped, let snapshot {
+            return Self.putBack(snapshot, result, manager: adapter.descriptor.displayName)
         }
+        guard result.succeeded else {
+            return .failed(message: result.failureMessage ?? "\(adapter.descriptor.displayName): the update failed",
+                           output: result.lines.joined(separator: "\n"))
+        }
+        if let snapshot {
+            let result = result
+            // Done: from here the update is the result (`InstallCommit`), and
+            // the row's Cancel greys. A cancel that came first still applies,
+            // and puts it back like a stop.
+            do {
+                return try await InstallCommit.run("\(adapter.descriptor.displayName) update") {
+                    await self.settled(item, result)
+                }
+            } catch {
+                return Self.putBack(snapshot, result, manager: adapter.descriptor.displayName)
+            }
+        }
+        return await settled(item, result)
+    }
+
+    /// The stopped command's changes put back (`ManagedSnapshot.restore`).
+    static func putBack(_ snapshot: ManagedSnapshot, _ result: RunResult, manager: String) -> CLIToolUpdateOutcome {
+        let failed = snapshot.restore()
+        let reason = result.failureMessage ?? "stopped"
+        let message = failed.isEmpty
+            ? "\(reason); \(manager)'s changes were put back"
+            : "\(reason); could not put back: \(failed.joined(separator: "; "))"
+        return .stopped(message: message, output: result.lines.joined(separator: "\n"))
+    }
+
+    /// What the command left, re-read: the updater's own verdict.
+    private func settled(_ item: ManagedItem, _ run: RunResult) async -> CLIToolUpdateOutcome {
         let version = await adapter.reread(item)
         // A run that ended well but moved nothing is not an update: mise, with
         // its versions host off and GitHub refusing, printed "All tools are up

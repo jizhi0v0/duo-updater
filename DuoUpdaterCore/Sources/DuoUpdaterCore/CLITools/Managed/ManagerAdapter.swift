@@ -67,6 +67,26 @@ public protocol ManagerAdapter: Sendable {
     /// failed for want of one (mise's rule, `MiseUpdater`); nil for a manager
     /// whose upgrade never asks api.github.com.
     var tokenRetry: ManagedTokenRetry? { get }
+
+    /// What `item`'s upgrade may write, so it can be stopped partway and put
+    /// back (D15, `ManagedSnapshot`); nil when it must run to completion.
+    /// Measured per manager (plans/cli-managers-redesign.md §13.4): a path
+    /// left out is one a stop could leave changed.
+    func interruption(_ item: ManagedItem, root: ManagedRoot) -> ManagedInterruption?
+}
+
+/// An upgrade that may be stopped: every path it may write, and the
+/// environment variables pointed at a scratch directory of ours for the run
+/// (`TMPDIR`: what a stopped `cargo install` or `ruby-build` leaves there is
+/// removed with the directory).
+public struct ManagedInterruption: Sendable, Equatable {
+    public let paths: [String]
+    public let scratchVariables: [String]
+
+    public init(paths: [String], scratchVariables: [String] = []) {
+        self.paths = paths
+        self.scratchVariables = scratchVariables
+    }
 }
 
 extension ManagerAdapter {
@@ -79,6 +99,7 @@ extension ManagerAdapter {
     public func busy(_ item: ManagedItem, root: ManagedRoot, processes: [NpmActivity.Process]) -> String? { nil }
     public func releaseNotes(for item: ManagedItem, force: Bool) async throws -> Changelog { Changelog(entries: []) }
     public var tokenRetry: ManagedTokenRetry? { nil }
+    public func interruption(_ item: ManagedItem, root: ManagedRoot) -> ManagedInterruption? { nil }
 }
 
 /// mise's token handoff (`MiseUpdater.update`), shared: the vendor's command is

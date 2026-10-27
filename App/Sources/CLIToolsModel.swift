@@ -1333,6 +1333,11 @@ final class CLIToolsModel {
             // failure, so no red line — the row goes back to its Update, as an
             // app's declined panel leaves no error (`AppListModel`).
             Log.app.notice("\(status.kind.rawValue, privacy: .public) update at \(id.path, privacy: .public): administrator panel dismissed, nothing ran")
+        case .stopped(let message, let output):
+            // Stopped by its deadline (a Cancel's stop returned above): the
+            // row says so like a failure, and that its changes were put back.
+            Log.app.info("\(status.kind.rawValue, privacy: .public) update stopped at \(id.path, privacy: .public): \(message, privacy: .public)")
+            send(.commandFailed(id, message: message, log: output))
         }
         return outcome
     }
@@ -1342,7 +1347,9 @@ final class CLIToolsModel {
     nonisolated private static func needsRecheck(_ outcome: CLIToolUpdateOutcome) -> Bool {
         switch outcome {
         case .failed, .declined: return false
-        case .updated, .busy, .notOffered: return true
+        // Put back, so nothing should have changed; the re-check says so, or
+        // shows what could not be put back.
+        case .updated, .busy, .notOffered, .stopped: return true
         }
     }
 

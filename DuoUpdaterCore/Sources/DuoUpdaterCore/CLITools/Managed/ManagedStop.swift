@@ -17,7 +17,12 @@ import Foundation
 /// group it starts and whoever its parent becomes, so the members are read
 /// from the process table by session (`members`) whenever they are needed.
 /// Each is also checked to have started no earlier than the child: a pid is
-/// never taken for a member it merely shares a number with.
+/// never taken for a member it merely shares a number with. Signals go only
+/// to the groups of members found that way — never to the child's pid as a
+/// number, which once the child is gone could name someone else's group
+/// (review round 2). `getsid` answers for a process of another session on
+/// macOS: `aDescendantInAGroupOfItsOwnIsStoppedAndWaitedFor` finds its
+/// grandchild only through it, and fails with the session taken away.
 ///
 /// The ladder, from the moment of the stop, to every group a member leads or
 /// sits in: SIGINT at once — the vendor's own interrupt handling (pipx's
@@ -117,11 +122,10 @@ final class ManagedStop: @unchecked Sendable {
         info.pbi_start_tvsec &* 1_000_000 &+ info.pbi_start_tvusec
     }
 
-    /// `signal` to every group a member of the session sits in, the child's
-    /// own included while it lives.
+    /// `signal` to every group a member of the session sits in (the child is
+    /// a member while it lives).
     private func signal(_ signal: Int32) {
         var groups = Set(members().map(\.pgid))
-        if let pid = lock.withLock({ self.pid }) { groups.insert(pid) }
         if signal == SIGINT {
             groups = lock.withLock { groups.filter { interrupted.insert($0).inserted } }
         }
@@ -146,8 +150,7 @@ final class ManagedStop: @unchecked Sendable {
 
     /// Any member of the session left, the child itself included.
     private func alive() -> Bool {
-        guard let pid = lock.withLock({ self.pid }) else { return false }
-        return Self.alive(pid) || !members().isEmpty
+        !members().isEmpty
     }
 
     /// Wait, after a stop (`interrupt`), until no member of the session is
@@ -171,9 +174,4 @@ final class ManagedStop: @unchecked Sendable {
         }.value
     }
 
-    /// Any member of group `pid` left (EPERM: one is, and not ours to signal).
-    static func alive(_ pid: pid_t) -> Bool {
-        if killpg(pid, 0) == 0 { return true }
-        return errno == EPERM
-    }
 }

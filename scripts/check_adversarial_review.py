@@ -321,9 +321,10 @@ def fetch(repo, pr):
         "api", "--paginate", "repos/%s/pulls/%s/files" % (repo, pr), "--jq", ".[] | tojson",
     ]).strip().replace("\n", ",") + "]")
     files = _pairs(pages)
-    if len(files) != data["changed_files"]:
+    if len(files) >= 3000 or len(files) != data["changed_files"]:
         # The files endpoint lists at most 3000 ("Responses include a maximum
-        # of 3000 files"): the rest is unread.
+        # of 3000 files"): the rest is unread. The docs do not say whether
+        # `changed_files` is capped too, so a full list counts on its own.
         files.append(("DuoUpdaterCore/Sources/(files beyond the API's list)", None))
     head_sha = data["head"]["sha"]
 

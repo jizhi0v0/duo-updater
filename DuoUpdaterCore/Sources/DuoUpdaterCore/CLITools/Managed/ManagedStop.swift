@@ -164,16 +164,23 @@ final class ManagedStop: @unchecked Sendable {
     }
 
     /// `all`'s members, dropping each session none is left in (see
-    /// `sessions`); `gone` once none is left at all.
+    /// `sessions`); `gone` once none is left at all. Before the launch there
+    /// is nothing to look for, and nothing is dropped or latched: a stop
+    /// asked for then (Cancel between the runner's check and the spawn) must
+    /// still reach the child (review round 4: a scan then latched `gone`, the
+    /// child got no SIGINT and ran to its end, and the put-back ran at once).
     private func members(of all: [Member]) -> [Member]? {
-        let tracked = lock.withLock { sessions }
+        let (tracked, launched) = lock.withLock { (sessions, pid != nil) }
+        guard launched else { return [] }
         let found = all.compactMap { member -> (Member, pid_t)? in
             let sid = getsid(member.pid)
             return tracked.contains(sid) ? (member, sid) : nil
         }
         let live = Set(found.map(\.1))
         let seen = lock.withLock { () -> Set<pid_t> in
-            sessions.formIntersection(live)
+            // Only the sessions this scan looked for: one added meanwhile
+            // (`adoptSessions`) has not been looked for yet.
+            sessions.subtract(tracked.subtracting(live))
             if !gone { groups.formUnion(found.map(\.0.pgid)) }
             return groups
         }

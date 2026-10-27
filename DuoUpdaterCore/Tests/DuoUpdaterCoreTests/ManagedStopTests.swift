@@ -294,6 +294,22 @@ struct ManagedStopTests {
         #expect(!stop.alive())
     }
 
+    /// A stop asked for before the child starts — Cancel between the runner's
+    /// own check and the spawn — reaches it as it starts: it dies of the
+    /// SIGINT, not at its 20 s, and the wait sees it go. Mutation: a scan
+    /// before the launch latching `gone` (review round 4: the child got no
+    /// signal and ran to its end).
+    @Test func aStopAskedForBeforeTheLaunchReachesTheChild() async throws {
+        let stop = ManagedStop(termAfter: .seconds(600), killAfter: .seconds(600), giveUpAfter: .seconds(20))
+        stop.interrupt()
+        let outcome = try await ChildProcess.run(
+            "/bin/sleep", ["20"], standardOutput: .discard, standardError: .discard,
+            onCancel: .runToCompletion, onLaunch: { stop.launched($0) }, newSession: true)
+        #expect(outcome.uncaughtSignal && outcome.terminationStatus == SIGINT, "the child ran to its end")
+        #expect(await stop.waitUntilGone())
+        stop.finish()
+    }
+
     /// A process table that cannot be read is never "nothing left": the run
     /// waits, and gives up rather than put anything back. Mutation:
     /// `processes` answering [] on failure, or `alive` taking nil for none.

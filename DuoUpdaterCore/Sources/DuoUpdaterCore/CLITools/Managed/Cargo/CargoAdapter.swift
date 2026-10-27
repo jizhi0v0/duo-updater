@@ -202,23 +202,25 @@ public struct CargoAdapter: ManagerAdapter {
                 ["CARGO_HOME": root.path, "RUSTUP_HOME": rustupHome, "RUSTC": root.path + "/bin/rustc"])
     }
 
-    /// The package's binaries and cargo's two records, and the
-    /// `bin/cargo-install<random>/` directory cargo stages them in for a few
-    /// milliseconds (§13.4: a stop 0.03 s after "Finished" left it holding the
-    /// new `tokei`). `TMPDIR` is ours, so the stopped build's `cargo-install*`
-    /// target (up to ~480 MB) goes with it. Another `cargo install` into this
-    /// home during the run would have its record undone with it: the records
-    /// are shared (its binary stays).
+    /// The package's binaries and cargo's two records; a new binary the newer
+    /// version adds, and the `bin/cargo-install<random>/` directory cargo
+    /// stages them in for a few milliseconds (§13.4: a stop 0.03 s after
+    /// "Finished" left it holding the new `tokei`). `TMPDIR` is ours, so the
+    /// stopped build's `cargo-install*` target (up to ~480 MB) goes with it.
+    /// Another `cargo install` (or rustup proxy) into this home during the
+    /// run would be undone with it: the records are shared.
     public func interruption(_ item: ManagedItem, root: ManagedRoot) -> ManagedInterruption? {
         guard let build = package(item) else { return nil }
         let bin = root.path + "/bin"
         return ManagedInterruption(
             paths: build.bins.map { bin + "/" + $0 } + [root.path + "/.crates.toml", root.path + "/.crates2.json"],
-            // Only cargo's staging directories: any other new entry of `bin`
-            // may be another install the user ran meanwhile (review). A new
-            // binary name the newer version adds is left behind by a stop —
-            // a stray file beside the old version, not a change to it.
-            created: [ManagedSnapshot.NewEntries(directory: bin, namePrefix: "cargo-install")],
+            // Every new entry of `bin`, not only the staging directories: a
+            // new binary name left behind once the records are put back is
+            // claimed by no package, and cargo then refuses every later
+            // `cargo install` of it ("binary `X` already exists in
+            // destination … Add --force to overwrite",
+            // `src/ops/common_for_install_and_uninstall.rs`; review round 4).
+            created: [ManagedSnapshot.NewEntries(directory: bin, any: true)],
             scratchVariables: ["TMPDIR"])
     }
 

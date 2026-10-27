@@ -101,8 +101,11 @@ struct ManagedInterruptionTests {
         }
     }
 
-    /// cargo: the binary and both records rewritten, and the staging
-    /// directory left holding the new binary (c6: 0.03 s after "Finished").
+    /// cargo: the binary and both records rewritten, the staging directory
+    /// left holding the new binary (c6: 0.03 s after "Finished"), and a
+    /// binary name the newer version adds (left behind, no package would
+    /// claim it, and cargo would refuse every later install of tokei).
+    /// Mutation: only `cargo-install*` new entries (`bin/tokei-extra` stays).
     @Test func cargoPutsTheBinariesRecordsAndStagingBack() throws {
         try write(".cargo/.crates.toml", """
             [v1]
@@ -119,6 +122,7 @@ struct ManagedInterruptionTests {
         try expectPutBack(plan) {
             try write(".cargo/bin/cargo-installH2vysO/tokei", "15.0.0")
             try write(".cargo/bin/tokei", "15.0.0")
+            try write(".cargo/bin/tokei-extra", "15.0.0")
             try write(".cargo/.crates.toml", "[v1]\n\"tokei 15.0.0 (…)\" = [\"tokei\"]\n")
             try write(".cargo/.crates2.json", "{}")
         }

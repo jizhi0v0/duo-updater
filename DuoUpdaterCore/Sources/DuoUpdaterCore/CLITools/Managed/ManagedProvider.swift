@@ -48,10 +48,13 @@ public struct ManagedProvider: CLIToolProvider {
         /// The command exited by itself and some process it started is still
         /// running: a later cancel may not put anything back under it.
         public let leftovers: Bool
+        /// Stopped by its deadline, not by a cancel: a failure, whose log the
+        /// scratch keeps.
+        public let timedOut: Bool
 
         public init(
             succeeded: Bool, failureMessage: String?, lines: [String], stopped: Bool = false, stuck: Bool = false,
-            leftovers: Bool = false
+            leftovers: Bool = false, timedOut: Bool = false
         ) {
             self.succeeded = succeeded
             self.failureMessage = failureMessage
@@ -59,6 +62,7 @@ public struct ManagedProvider: CLIToolProvider {
             self.stopped = stopped
             self.stuck = stuck
             self.leftovers = leftovers
+            self.timedOut = timedOut
         }
     }
 
@@ -158,7 +162,7 @@ public struct ManagedProvider: CLIToolProvider {
         return RunResult(
             succeeded: false,
             failureMessage: gone ? reason : "\(reason); some of its processes are still running",
-            lines: log.lines, stopped: gone, stuck: !gone)
+            lines: log.lines, stopped: gone, stuck: !gone, timedOut: outcome.timedOut)
     } }
 
     /// A run that ended by itself, as `commandRunner` words it.
@@ -258,7 +262,7 @@ public struct ManagedProvider: CLIToolProvider {
                 // a snapshot — a stop would leave the tool's temporary files.
                 var template = Array(((temporaryDirectory as NSString).appendingPathComponent("duo.XXXXXX")).utf8CString)
                 if mkdtemp(&template) != nil {
-                    let directory = String(cString: template)
+                    let directory = String(decoding: template.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self)
                     scratch = directory
                     for variable in plan.scratchVariables { environment[variable] = directory }
                 } else {
@@ -272,17 +276,19 @@ public struct ManagedProvider: CLIToolProvider {
         // update is then the user's only way back, and the row names it.
         var keepSnapshot = false
         // The scratch goes once nothing of the command can use it: after a
-        // stop, or a run that ended with none of it left. A failure keeps it
-        // — the vendor's log is in it, and its message names it (ruby-build:
-        // "See the full build log at …"), as it stayed in /tmp before D15 —
-        // and so does a run that left processes (local adversarial review 3).
+        // cancel's stop, or a run that ended with none of it left. A failure
+        // keeps it — a deadline's stop too — as the vendor's log is in it, and
+        // its message names it (ruby-build: "See the full build log at …"),
+        // as it stayed in /tmp before D15; so does a run that left processes
+        // (local adversarial reviews 3–4). An empty one goes whatever the end
+        // (a run that never started).
         var dropScratch = false
         defer {
             if !keepSnapshot { snapshot?.discard() }
             if let scratch {
                 if dropScratch {
                     try? FileManager.default.removeItem(atPath: scratch)
-                } else {
+                } else if rmdir(scratch) != 0 {
                     Log.install.info("managed \(item.identity, privacy: .public): kept \(scratch, privacy: .public)")
                 }
             }
@@ -307,7 +313,7 @@ public struct ManagedProvider: CLIToolProvider {
                 InstallJobs.noteRefusedCommit(InstallJobs.currentID)
             }
         }
-        dropScratch = result.stopped || (result.succeeded && !result.leftovers)
+        dropScratch = (result.stopped && !result.timedOut) || (result.succeeded && !result.leftovers)
         if result.stopped, let snapshot {
             return Self.putBack(snapshot, result, manager: adapter.descriptor.displayName, identity: item.identity)
         }

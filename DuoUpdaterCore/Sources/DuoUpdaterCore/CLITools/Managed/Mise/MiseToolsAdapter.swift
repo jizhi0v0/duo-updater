@@ -316,12 +316,15 @@ public struct MiseToolsAdapter: ManagerAdapter {
     /// (`install_layout = "identity"`: hashed install directories, the
     /// catalog in `installs/.mise`), a `shims_dir` of its own,
     /// `shared_install_dirs`, or a global lockfile that is a link — mise
-    /// rewrites its target (`lockfile.rs`), wherever that is. The update
-    /// then runs to completion, as before D15.
+    /// rewrites its target (`lockfile.rs`), wherever that is. Nor rust and
+    /// dotnet, which install into the shared rustup/cargo homes and
+    /// `DOTNET_ROOT` by default (`install_layout/resolver.rs`; review 4). The
+    /// update then runs to completion, as before D15.
     public func interruption(_ item: ManagedItem, root: ManagedRoot) -> ManagedInterruption? {
         guard item.installPath.hasPrefix(installs + "/"),
               let slug = item.installPath.dropFirst(installs.count + 1).split(separator: "/").first.map(String.init)
         else { return nil }
+        guard slug != "rust", slug != "dotnet" else { return nil }
         let config = home.path + "/.config/mise"
         guard !Self.settingsMoveWrites(in: [config, "/etc/mise"]) else { return nil }
         let state = home.path + "/.local/state/mise"

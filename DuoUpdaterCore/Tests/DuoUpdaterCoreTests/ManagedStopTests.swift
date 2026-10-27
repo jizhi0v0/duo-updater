@@ -401,9 +401,11 @@ struct ManagedStopTests {
     /// number of times: its own two looks miss the member, and another scan
     /// (the tracker, the ladder, `waitUntilGone`) finds it between them, so
     /// its second look counts only one miss — the session is still followed
-    /// and its member runs. No clock is read: the other scan runs, and ends,
-    /// inside `alive`'s second table read. Local adversarial review 3.
-    /// Mutation: `alive` giving up after two empty looks.
+    /// and its member runs. The other scan runs, and ends, inside `alive`'s
+    /// second table read; `alive` sleeps `missGap` between its looks, but
+    /// either timing leaves one miss at most, and the third look finds the
+    /// member (20 in 20 at load 104–142, review 4). Local adversarial
+    /// review 3. Mutation: `alive` giving up after two empty looks.
     @Test func aliveLooksUntilTheSessionIsFoundOrDropped() async throws {
         let started = Locked<pid_t>(0)
         let run = Task {
@@ -716,6 +718,20 @@ struct ManagedStopTests {
         _ = try? await run.value
         _ = leader.value
     }
+    /// A run its deadline stopped says so: a failure, not a cancel — its
+    /// scratch, and the vendor's log in it, are kept (local adversarial
+    /// review 4: a timed-out build's log went with the scratch). Mutation:
+    /// the runner not passing `timedOut` on.
+    @Test func aDeadlinesStopIsTimedOut() async throws {
+        let command = CLIToolCommand(executable: "/bin/sh", arguments: ["-c", "sleep 600"], pathPrefix: nil)
+        let result = await ManagedProvider.stoppableRunner(termAfter: .seconds(600), killAfter: .seconds(600), giveUpAfter: .seconds(20))(
+            command, ["PATH": "/usr/bin:/bin"], URL(fileURLWithPath: "/"),
+            .init(terminateAfter: .milliseconds(300), killAfter: .seconds(25)), { _ in })
+        #expect(result.stopped)
+        #expect(result.timedOut)
+        #expect(!result.succeeded)
+    }
+
 
     /// A command whose own process ignores SIGINT and SIGTERM — and its
     /// `sleep`, which inherits that — is ended by the ladder's SIGKILL, run
@@ -838,17 +854,22 @@ struct ManagedStopTests {
     }
 
     /// A failure keeps the scratch: the vendor's log is in it, and its
-    /// message names it (ruby-build: "See the full build log at …"); so does
-    /// a run that left processes. A run that ends with none left drops it.
-    /// It is the user's alone (0700), and short enough for a socket bound
-    /// under it (`sun_path`, 104 bytes). Local adversarial review 3.
-    /// Mutations: removed on every end; kept after a clean run; the old
-    /// `duo-managed-<UUID>` name.
+    /// message names it (ruby-build: "See the full build log at …"); so do a
+    /// deadline's stop, a stuck stop, and a run that left processes. A run
+    /// that ends with none left drops it. It is the user's alone (0700), and
+    /// short enough for sccache's `sccacheXXXXXX/sock` under it (`sun_path`,
+    /// 104 bytes). Local adversarial reviews 3–4. Mutations: removed on every
+    /// end; kept after a clean run; a deadline's or a stuck stop dropping it;
+    /// the old `duo-managed-<UUID>` name.
     @Test func aFailedOrLeftBehindRunKeepsItsScratch() async throws {
         let root = try scratch()
         defer { try? FileManager.default.removeItem(atPath: root) }
         try write(root + "/venv/receipt", "1.0")
-        for (succeeded, leftovers, kept) in [(false, false, true), (true, true, true), (true, false, false)] {
+        let ends: [(Bool, Bool, Bool, Bool, Bool)] = [  // succeeded, leftovers, timed out, stuck, kept
+            (false, false, false, false, true), (true, true, false, false, true), (true, false, false, false, false),
+            (false, false, true, false, true), (false, false, false, true, true),
+        ]
+        for (succeeded, leftovers, timedOut, stuck, kept) in ends {
             let adapter = ManagedModelTests.FakeAdapter()
             adapter.interruptionPlan = ManagedInterruption(paths: [root + "/venv"], scratchVariables: ["TMPDIR"])
             let tmp = Locked<String?>(nil)
@@ -859,14 +880,15 @@ struct ManagedStopTests {
                 mode.set((attributes?[.posixPermissions] as? NSNumber)?.intValue)
                 try? self.write((environment["TMPDIR"] ?? root) + "/ruby-build.log", "BUILD FAILED")
                 return ManagedProvider.RunResult(
-                    succeeded: succeeded, failureMessage: succeeded ? nil : "See the full build log", lines: [], leftovers: leftovers)
+                    succeeded: succeeded, failureMessage: succeeded ? nil : "See the full build log", lines: [],
+                    stopped: timedOut, stuck: stuck, leftovers: leftovers, timedOut: timedOut)
             }.update(ManagedModelTests.status(), progress: { _ in })
             let directory = try #require(tmp.value)
             defer { try? FileManager.default.removeItem(atPath: directory) }
-            let label = "succeeded \(succeeded), leftovers \(leftovers)"
+            let label = "succeeded \(succeeded), leftovers \(leftovers), timed out \(timedOut), stuck \(stuck)"
             #expect((read(directory + "/ruby-build.log") != nil) == kept, "\(label)")
             #expect(mode.value == 0o700, "\(label)")
-            #expect(directory.utf8.count <= ((NSTemporaryDirectory() as NSString).appendingPathComponent("duo.XXXXXX")).utf8.count)
+            #expect((directory + "/sccacheAbC123/sock").utf8.count < 104)
         }
     }
 
@@ -896,6 +918,25 @@ struct ManagedStopTests {
         ).update(ManagedModelTests.status(), progress: { _ in })
         #expect(outcome == .updated(version: "20.20.2"))
         #expect(used.value == "to completion, TMPDIR unset")
+    }
+
+    /// A run that never started leaves no scratch behind, empty as it is
+    /// (local adversarial review 4). Mutation: an empty scratch kept.
+    @Test func anEmptyScratchIsNotKept() async throws {
+        let root = try scratch()
+        defer { try? FileManager.default.removeItem(atPath: root) }
+        try write(root + "/venv/receipt", "1.0")
+        try FileManager.default.createDirectory(atPath: root + "/tmp", withIntermediateDirectories: true)
+        let adapter = ManagedModelTests.FakeAdapter()
+        adapter.interruptionPlan = ManagedInterruption(paths: [root + "/venv"], scratchVariables: ["TMPDIR"])
+        _ = await ManagedProvider(
+            adapter, home: ManagedModelTests.home,
+            proxyEnvironment: { [:] }, processes: { [] }, token: { nil },
+            runner: { _, _, _, _, _ in ManagedProvider.RunResult(succeeded: false, failureMessage: "wrong runner", lines: []) },
+            stoppableRunner: { _, _, _, _, _ in ManagedProvider.RunResult(succeeded: false, failureMessage: "not run: cancelled", lines: []) },
+            temporaryDirectory: root + "/tmp"
+        ).update(ManagedModelTests.status(), progress: { _ in })
+        #expect(try FileManager.default.contentsOfDirectory(atPath: root + "/tmp") == [])
     }
 
     /// A run that finished keeps what it wrote. Mutation: `discard` replaced

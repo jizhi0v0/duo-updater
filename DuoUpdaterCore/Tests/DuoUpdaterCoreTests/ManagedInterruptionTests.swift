@@ -235,8 +235,9 @@ struct ManagedInterruptionTests {
     /// No stop where mise writes outside the plan by the user's settings: the
     /// identity layout, a `shims_dir` of its own, `shared_install_dirs`, or
     /// a global lockfile that is a link (mise rewrites its target) — local
-    /// adversarial review 3. A setting's name in a comment-free TOML elsewhere
-    /// is not one. Mutations: each check removed.
+    /// adversarial review 3 — and rust or dotnet, which write to shared homes
+    /// (review 4). Mutations: each setting's check removed. `/etc/mise` is
+    /// read on the host and cannot be put in a test home: not tested.
     @Test(arguments: [
         ("config.toml", "[settings]\nexperimental = true\ninstall_layout = \"identity\"\n"),
         ("conf.d/shims.toml", "[settings]\nshims_dir = \"~/bin/mise-shims\"\n"),
@@ -253,6 +254,17 @@ struct ManagedInterruptionTests {
         #expect(adapter.interruption(node, root: miseRoot) != nil)
         try write(".config/mise/" + file, text)
         #expect(adapter.interruption(node, root: miseRoot) == nil)
+    }
+
+    @Test(arguments: ["rust", "dotnet"])
+    func miseRustAndDotnetAreNotStopped(_ tool: String) throws {
+        defer { try? FileManager.default.removeItem(atPath: home) }
+        let installs = home + "/.local/share/mise/installs"
+        try write(".local/share/mise/installs/\(tool)/1/bin/x", tool)
+        let adapter = MiseToolsAdapter(home: homeURL)
+        let miseRoot = root(adapter.descriptor.id, home + "/.local/share/mise")
+        #expect(adapter.interruption(item(adapter.descriptor, root: home + "/.local/share/mise", key: tool, installPath: installs + "/" + tool), root: miseRoot) == nil)
+        #expect(adapter.interruption(item(adapter.descriptor, root: home + "/.local/share/mise", key: "node", installPath: installs + "/node"), root: miseRoot) != nil)
     }
 
     @Test func miseIsNotStoppedWhenItsLockfileIsALink() throws {
@@ -373,9 +385,9 @@ struct ManagedInterruptionTests {
     /// global lockfiles — `mise.lock`, and `mise.<env>.lock` under `MISE_ENV`
     /// — through a `.mise.lock.<random>` temp file beside them. A stop in
     /// that step leaves them half done. Mutations: no pipx tools (each keeps
-    /// the new text), a recorded `pypi:` backend not taken (`yamllint` keeps
-    /// it), no `mise.<env>.lock` (it keeps the new text), no `.mise.lock.`
-    /// rule (the temp file stays).
+    /// the new text), no `mise.<env>.lock` (it keeps the new text), no
+    /// `.mise.lock.` rule (the temp file stays). Which tools are taken is
+    /// `misePipxInstallsComeFromTheIndex`'s.
     @Test func misePythonPutsThePipxToolsAndLockfileBack() throws {
         let installs = home + "/.local/share/mise/installs"
         try write(".local/share/mise/installs/python/3.12.5/bin/python3", "3.12.5")

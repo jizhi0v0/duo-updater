@@ -327,14 +327,14 @@
       "sweepsSinceComment" : 0
     },
     "install:github:chekusu\/yomado:stable" : {
-      "consecutiveActionable" : 31,
+      "consecutiveActionable" : 32,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 1489,
       "lastCommentedAt" : "2026-10-26T22:00:20Z",
       "lastSignature" : "identityChanged: Sparkle key none → knah",
       "previousSignature" : "identityChanged: Sparkle key none → knah",
-      "sweepsSinceComment" : 0
+      "sweepsSinceComment" : 1
     },
     "install:github:cjpais\/Handy:stable" : {
       "consecutiveActionable" : 0,
@@ -2294,5 +2294,5 @@
     }
   },
   "schemaVersion" : 1,
-  "updatedAt" : "2026-10-26T22:00:20Z"
+  "updatedAt" : "2026-10-27T02:29:29Z"
 }

@@ -55,10 +55,22 @@ public struct GoBuildInfo: Sendable, Equatable {
 
     /// The Go release that linked the binary — `go1.27.1`.
     public let goVersion: String
+    /// The `main` package's import path — the `path` line, what `go install
+    /// <path>@latest` names (`golang.org/x/vuln/cmd/govulncheck`, or
+    /// `command-line-arguments` for a build of loose files). Nil when there is
+    /// no such line.
+    public let packagePath: String?
     /// The module the `main` package belongs to — the app's own. Nil where the
     /// binary was built outside module mode.
     public let main: Module?
     public let dependencies: [Module]
+
+    public init(goVersion: String, packagePath: String? = nil, main: Module?, dependencies: [Module]) {
+        self.goVersion = goVersion
+        self.packagePath = packagePath
+        self.main = main
+        self.dependencies = dependencies
+    }
 
     /// The main module or the dependency with this module path.
     public func module(_ path: String) -> Module? {
@@ -125,10 +137,11 @@ public struct GoBuildInfo: Sendable, Equatable {
 
     /// The module lines, as `runtime/debug.ParseBuildInfo` reads them: one record
     /// per newline-*terminated* line, tab-separated, an `=>` line replacing the
-    /// module on the line before it. `path` and `build` lines carry nothing asked
-    /// of this type and are skipped, as is anything malformed — one bad line does
-    /// not cost the rest.
+    /// module on the line before it. `path` names the main package; `build`
+    /// lines carry nothing asked of this type and are skipped, as is anything
+    /// malformed — one bad line does not cost the rest.
     static func parse(goVersion: String, modinfo: String) -> GoBuildInfo {
+        var packagePath: String?
         var main: Module?
         var dependencies: [Module] = []
         // Which module an `=>` line applies to, so it can be rebuilt with it.
@@ -140,6 +153,9 @@ public struct GoBuildInfo: Sendable, Equatable {
         for line in lines {
             let fields = line.components(separatedBy: "\t")
             switch fields.first {
+            case "path" where fields.count == 2:
+                packagePath = fields[1]
+                last = .none
             case "mod" where fields.count == 3 || fields.count == 4:
                 main = Module(path: fields[1], version: fields[2], replacement: nil)
                 last = .main
@@ -163,7 +179,7 @@ public struct GoBuildInfo: Sendable, Equatable {
                 last = .none
             }
         }
-        return GoBuildInfo(goVersion: goVersion, main: main, dependencies: dependencies)
+        return GoBuildInfo(goVersion: goVersion, packagePath: packagePath, main: main, dependencies: dependencies)
     }
 
     /// A uvarint length and that many bytes, as `debug/buildinfo.decodeString`.

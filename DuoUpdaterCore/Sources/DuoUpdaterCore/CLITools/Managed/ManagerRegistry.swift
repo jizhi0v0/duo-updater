@@ -4,12 +4,13 @@ import Foundation
 /// in the CLI tab, after every standalone kind (D12).
 ///
 /// P1 (plans/cli-managers-redesign.md §8.1) registered mise's tools, P2 uv's
-/// tools and pipx; P3 adds the version lines, P4 cargo and go.
+/// tools and pipx, P3 the version lines, P4 cargo's and go's installs.
 public enum ManagerRegistry {
     /// Every manager, reading `home`.
     public static func all(home: URL) -> [any ManagerAdapter] {
         [MiseToolsAdapter(home: home), UvToolAdapter(home: home), UvPythonAdapter(home: home), PipxAdapter(home: home),
-         NvmNodeAdapter(home: home), FnmNodeAdapter(home: home), PyenvAdapter(home: home), RbenvAdapter(home: home)]
+         NvmNodeAdapter(home: home), FnmNodeAdapter(home: home), PyenvAdapter(home: home), RbenvAdapter(home: home),
+         CargoAdapter(home: home), GoAdapter(home: home)]
     }
 
     /// Every manager, reading this user's home.

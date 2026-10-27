@@ -2,7 +2,8 @@ import Foundation
 
 /// A managed row's release notes, read from where its adapter said they are
 /// (`ManagedItem.NotesSource`): a repository's GitHub Releases, or a PyPI
-/// project whose project URLs name one (`ProjectURLRepo`).
+/// project, crate or Go module that names one (`ProjectURLRepo`, `CratesIO`,
+/// `GoModule`).
 enum ManagedNotes {
 
     static func fetch(_ notes: ManagedItem.NotesSource?, force: Bool) async throws -> Changelog {
@@ -15,6 +16,14 @@ enum ManagedNotes {
                   let repository = ProjectURLRepo.repository(document.projectURLs, project: project)
             else { return Changelog(entries: []) }
             return try await gitHubReleases(owner: repository.owner, repo: repository.repo, tagPrefix: "", force: force)
+        case .crate(let crate)?:
+            guard let url = try await CratesIO.shared.repository(of: crate),
+                  let repository = CratesIO.gitHub(url)
+            else { return Changelog(entries: []) }
+            return try await gitHubReleases(owner: repository.owner, repo: repository.repo, tagPrefix: "", force: force)
+        case .goModule(let module)?:
+            guard let origin = try await GoModule.origin(of: module) else { return Changelog(entries: []) }
+            return try await gitHubReleases(owner: origin.owner, repo: origin.repo, tagPrefix: origin.tagPrefix, force: force)
         case .rawMarkdown(let url)?:
             // Node's `CHANGELOG_V<major>.md`, the one manager whose notes are
             // one Markdown document (`NodeChangelog`).

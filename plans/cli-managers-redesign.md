@@ -2,7 +2,7 @@
 
 Design for jizhi0v0/duo-updater, branch `runtime-composition-detail`, HEAD `cbc6bcc1`. Repo paths: `C/` = `DuoUpdaterCore/Sources/DuoUpdaterCore/CLITools/`. Evidence IDs refer to the twelve research files; review verdicts override reports (corrections are applied inline and marked "corrected"). Anything not in that set is in §12.
 
-**Status (2026-10-27): §0, P0, P1 (mise tools, PR #1613) and P2 (uv tools, pipx, PR #1712, merged 2026-10-26) written and through the Mac acceptance; P2 decisions taken while writing are in the status log for the owner. P3 (uv Python, nvm Node, fnm Node, pyenv, rbenv; PR #1715, merged 2026-10-27) written and through the Mac acceptance (real home, C1/C3–C6; C2 not holdable, as in P2); the P3 decisions taken while writing are in the status log for the owner. Owed: §12 item 5 (needs a mise release under 24 h old); §12 item 16 (scan time after P3, not measured yet); P2's and P3's C2 could not be held on the Mac (status log). P3's fixtures (`~/.pyenv`, `~/.rbenv`, Homebrew pyenv/rbenv/ruby-build) stay on the Mac for long-term verification, by the owner's choice. Next: P4 (cargo, go).** The owner took every recommended option (§11), and later revised D12 and the UI (§5). §0's survey is `plans/cli-managers-int-on-main.md` (committed beside this file); the status log at the end of this file says what is in and what is not. Before each phase, read §13 (cancel, which every adapter must measure for real) and §8.1's note on where real-machine runs happen.
+**Status (2026-10-27): §0, P0, P1 (mise tools, PR #1613) and P2 (uv tools, pipx, PR #1712, merged 2026-10-26) written and through the Mac acceptance; P2 decisions taken while writing are in the status log for the owner. P3 (uv Python, nvm Node, fnm Node, pyenv, rbenv; PR #1715, merged 2026-10-27) written and through the Mac acceptance (real home, C1/C3–C6; C2 not holdable, as in P2); the P3 decisions taken while writing are in the status log for the owner. Owed: §12 item 5 (needs a mise release under 24 h old); §12 item 16 (scan time after P3, not measured yet); P2's and P3's C2 could not be held on the Mac (status log). P3's fixtures (`~/.pyenv`, `~/.rbenv`, Homebrew pyenv/rbenv/ruby-build) stay on the Mac for long-term verification, by the owner's choice. P4 (cargo install, go install; branch `cli-managers-p4`) written and through the Mac acceptance (real home, C1/C3–C6; C2 not holdable); its decisions are in the status log for the owner, and its fixtures (tokei, hexyl, gofumpt) stay on the Mac too. Every phase P0–P4 is written.** The owner took every recommended option (§11), and later revised D12 and the UI (§5). §0's survey is `plans/cli-managers-int-on-main.md` (committed beside this file); the status log at the end of this file says what is in and what is not. Before each phase, read §13 (cancel, which every adapter must measure for real) and §8.1's note on where real-machine runs happen.
 
 The research files (six reports, six reviews) stay on the owner's Mac, because they hold that machine's inventory. Every fact this design relies on is restated in §2 with its claim ID. Treat an ID as a pointer, not as something you can open from a cloud session. When a fact matters for your phase and you doubt it, re-verify it yourself the way §12 does: in an isolated home, with the command and its raw output.
 
@@ -738,3 +738,50 @@ Until then, (a) holds everywhere.
 - Python 2.x lines never read their version, because CPython 2.x installs no `bin/python3`. `bin/python` now counts too.
 
 Round 2: 0 blocking. Neither layout exists on this Mac, so both have unit tests only, and each new guard was mutation-checked.
+
+
+### 2026-10-27 — P4 written (cargo install, go install; branch `cli-managers-p4`)
+
+**In:**
+
+- `C/Managed/Cargo/`: `CrateTracker` (`.crates.toml` + `.crates2.json`), `SparseIndex` (crates.io's index; newest by version, not by line — rand's tail is in publish order), `CratesIO` (`repository`, `User-Agent`, one request a second, kept per crate), `RustupProof`, `CargoAdapter`: one row per package; crates.io's offered, git/path/other-registry reported; `<root>/bin/cargo install <name>` plus the recorded `--features`/`--all-features`/`--no-default-features` (D8), `CARGO_HOME`, `RUSTUP_HOME` and **`RUSTC=<root>/bin/rustc`**; lane "rust", 30 min. cargo runs only as rustup's proxy (`bin/cargo` and `bin/rustc` both links to `bin/rustup`) whose bytes `resolve` proved against rust-lang's published hash; the proof is kept by sha256 for the process, so the click's disk-only scan sees it.
+- `C/Managed/Go/`: `GoAdapter` (`GOBIN`, else `GOPATH`'s first `bin`, else `~/go/bin`, from `go env -w`'s file; one row per Go binary keyed by its package; pseudo-versions, `(devel)`, `+dirty`, loose files, renamed copies reported; `go list -m -json <module>@latest` ≤4 at once; `go install <package>@latest` with `GOTOOLCHAIN=local GOFLAGS=-mod=mod GOBIN=<root>`; a newest whose `GoVersion` is above this go is `.runtimeTooOld`), `GoModule` (notes: GitHub off the path, else proxy.golang.org's `Origin`, `Subdir` as the tag prefix). `GoBuildInfo` keeps the `path` line.
+- `ManagedItem.NotesSource.goModule`; `ManagedNotes` reads `.crate` and `.goModule`.
+
+**Measured (2026-10-27; cargo 1.99.1 via rustup 1.29.x, Homebrew go 1.27.3):**
+
+- §12 item 9: `env -i HOME CARGO_HOME=<iso> RUSTUP_HOME PATH=<system> ~/.cargo/bin/cargo install …` → `could not execute process rustc -vV (never executed)`, exit 101: the proxy does not put rustc on `PATH`. With `RUSTC=~/.cargo/bin/rustc`: built (51 s cold). `install --list` works without it.
+- §12 item 10: `cargo install tokei --features yaml` over 14.0.0 (`--version 14.0.0 --features yaml`) → 15.0.0 in 17 s, `.crates2.json` `features: ["yaml"]`, `version_req` `=14.0.0` → null; `tokei --version`: "json, yaml".
+- §12 item 13: `env -i HOME GOTOOLCHAIN=local GOFLAGS=-mod=mod go list -m -json mvdan.cc/gofumpt@latest` from `/`: every `-x` GET went to goproxy.cn (the env file's `GOPROXY`), 0.27 s for `golang.org/x/vuln`; answer has `GoVersion`, no `Origin`.
+- §12 item 7 (go): Homebrew's `bin/go -> ../Cellar/go/1.27.3/bin/go -> ../libexec/bin/go`, `Signature=adhoc`, no Team: the keg rule. `/usr/local/go` is not on this Mac — its signature is **not measured**, so that go is found but never run.
+- go upgrade: `go install mvdan.cc/gofumpt@latest` v0.9.1 → v0.12.0, exit 0, new inode; again exit 0, inode and mtime unchanged.
+- Sparse index: `etag` + `cache-control: public,max-age=600`.
+- §13.3 (D15 input), SIGINT/SIGTERM to the process group:
+
+| Manager | Stage | Exit | Old version | Left behind | Next plain run |
+|---|---|---|---|---|---|
+| cargo install (tokei 14→15) | index/resolve (1.5 s) | −2 / −15 | runs, `.crates.toml`/`.crates2.json` unchanged | an empty `$TMPDIR/cargo-install*` | completes |
+| cargo install | compile (12 s) | −2 / −15 | runs, records unchanged | **`$TMPDIR/cargo-install*` of ~440–450 MB each**, never removed | completes (builds anew) |
+| cargo install | final replace | not hit apart | — | — | — |
+| go install (gofumpt, own `GOMODCACHE`) | download/build (0.6 s, 3 s) | −2 / −15 | runs (v0.9.1) | partial module cache only | completes |
+| go install | write of the binary | not hit (done in 2.9 s) | — | — | — |
+
+  Both stay (a) until the owner rules; cargo's leftovers are a D15 cost to weigh.
+
+**Mac acceptance (real home, 2026-10-27, `make install` + `make cli` from this branch; app driven by AX):** fixtures added with the owner's OK: `cargo install tokei --version 14.0.0 --features yaml`, `cargo install --git https://github.com/sharkdp/hexyl hexyl` (0.17.0), `go install mvdan.cc/gofumpt@v0.9.1`. The user's own cargo-zigbuild 0.23.0 (0.24.0 out) and govulncheck v1.3.0 (v1.9.0 out) were backed up and never clicked; byte-identical after.
+
+- Rows: `duo check --all --json` and the workbench agreed — cargo-zigbuild 0.23.0→0.24.0 and tokei 14.0.0→15.0.0 offered (`cargo install tokei --features yaml`, "drops the recorded specifier =14.0.0"), cross/rustlings current, hexyl "not on an index: installed from git", the three path crates reported; gofumpt 0.9.1→0.12.0 and govulncheck 1.3.0→1.9.0 offered. Headers "2 updates, 4 not checked, cargo 1.99.1 · ~/.cargo", "go 1.27.3 · ~/go/bin".
+- One-click in the app: tokei → 15.0.0 **with yaml** (`features: ["yaml"]`, D8); gofumpt → v0.12.0.
+- **C3**: tokei's Cancel grey "Installing — can't cancel now" from the click; the build ran through to "15.0.0".
+- **C1**: with tokei building, gofumpt "Queued" (one global CLI queue); its Cancel put it back to Update, no red line, binary inode/mtime unchanged.
+- **C4**: the popover's "Updating cargo install" row with one queued (gofumpt): "Cancel queued update" dropped it; the button turned grey "Installing — can't cancel now" and tokei completed. No "N cancelled" count, as in P1–P3.
+- **C2 not run**: the pre-command stage is disk only (rescan, rustup hash, trust, busy gate).
+- **C5** (`duo install go/mvdan.cc/gofumpt --yes`, its process group signalled as a terminal's Ctrl-C would): SIGINT 6.25 s in (after the 6.4 s check, before go) → "cancelled before it started — not updated", "0 installed, 0 failed, 1 cancelled", exit 130, no go child, binary unchanged; SIGINT 0.4 s after `go install` started → "updated: 0.9.1 → 0.12.0", "1 installed, 0 failed", exit 130.
+- **C6**: after a rescan the app and `duo check --json` agreed on all six rows.
+- Notes in the pane: tokei's from crates.io → `XAMPPRocky/tokei` releases (15.0.0, 2026-09-06); gofumpt's through proxy.golang.org's `Origin` → `mvdan/gofumpt` (0.12.0, 2026-09-07).
+
+**Not done:** cargo-binstall's "installed by binstall" fact (its `binstall/crates-v1.json` format was not measured here); a Go logo (no asset in the repo; rows keep the terminal glyph); `/usr/local/go`'s signature (§12 item 7).
+
+**Decisions taken while writing (owner to confirm or reverse):** a crate whose newest needs a newer rustc than the default toolchain is reported (`.runtimeTooOld`), not offered at an older compatible version — `cargo install <name>` stops on it (measured in review round 1, toolchain 1.95.0: "cannot install package `hyperfine 2.0.0`, it requires rustc 1.97.0 or newer … `hyperfine 1.20.0` supports rustc 1.88.0", exit 101, nothing installed), and naming `--version` would record a pin; `--all-features` is passed again like `--features` (D8 named features and `no_default_features`); the build `PATH` is the system's only (a crate whose build script needs Homebrew's cmake fails with cmake's own message); go rows are keyed by package path, and a renamed copy is reported because `go install` would write the other name; group titles "cargo install" and "go install".
+
+**Review (PR #1717):** round 1 found one blocking issue: `aGoOutsideTheKegIsNotRun` removed the keg's receipt and so left no go at all, so `check`'s `root.runnable` guard was never reached and could be deleted with the suite green. Replaced by `aGoThatMayNotRunIsNotRun`, run for the pkg installer's `/usr/local/go` (`.untrusted(nil)`) and for a quarantined keg: the root has a binary that may not run, nothing is spawned, the row is `.unverified` with no one-click. Deleting `root.runnable` turns both red (10 issues). The round's one unmeasured claim — that `cargo install` stops rather than pick an older crate for an old rustc — was measured (decisions above).

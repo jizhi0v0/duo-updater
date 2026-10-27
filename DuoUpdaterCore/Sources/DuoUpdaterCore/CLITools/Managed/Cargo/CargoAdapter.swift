@@ -271,7 +271,11 @@ public struct CargoAdapter: ManagerAdapter {
 
     /// The newest crates.io release against the installed one. A newest that
     /// declares a `rust-version` above the default toolchain is not offered:
-    /// `cargo install <name>` would stop on it ("requires rustc …", CARGO-15).
+    /// `cargo install <name>` stops on it rather than pick an older one —
+    /// measured 2026-10-27 with toolchain 1.95.0: "cannot install package
+    /// `hyperfine 2.0.0`, it requires rustc 1.97.0 or newer, while the
+    /// currently active rustc version is 1.95.0 / `hyperfine 1.20.0` supports
+    /// rustc 1.88.0", exit 101, nothing installed.
     static func verdict(_ item: ManagedItem, releases: [SparseIndex.Release], rustc: String?) -> ManagedVerdict {
         guard let newest = SparseIndex.newest(releases) else {
             return ManagedVerdict(

@@ -48,6 +48,7 @@ struct GoAdapterTests {
             "golang.org/x/vuln": Data(#"{"Path":"golang.org/x/vuln","Version":"v1.3.0","GoVersion":"1.22.0"}"#.utf8),
         ]
         var processes: [NpmActivity.Process] = []
+        var quarantined: Set<String> = []
         private var _runs: [(arguments: [String], environment: [String: String])] = []
         var runs: [(arguments: [String], environment: [String: String])] { lock.withLock { _runs } }
 
@@ -64,7 +65,7 @@ struct GoAdapterTests {
                         return nil
                     }
                 },
-                isQuarantined: { _ in false },
+                isQuarantined: { path in self.lock.withLock { self.quarantined.contains(path) } },
                 buildInfo: { path in self.lock.withLock { self.binaries[(path as NSString).lastPathComponent] } },
                 run: { executable, arguments, environment in
                     #expect(executable == GoAdapterTests.go)
@@ -199,14 +200,40 @@ struct GoAdapterTests {
         #expect(gofumpt.blocker == .runtimeTooOld("go 1.28.0"))
     }
 
-    /// A go not from Homebrew's keg is not run: nothing is asked of it, and
-    /// its command is handed out. Mutation: run any go found.
-    @Test func aGoOutsideTheKegIsNotRun() async throws {
+    /// A go that is found but may not run — the pkg installer's
+    /// `/usr/local/go`, whose signature is not measured, or a quarantined keg
+    /// — is never asked anything: the root has a binary, and the check's
+    /// trust guard is what keeps it from running. Its rows say why, with the
+    /// command to copy. Mutation: drop `root.runnable` from `check`'s guard
+    /// (review round 1: the old fixture left no go at all, so the guard was
+    /// never reached).
+    @Test(arguments: ["pkg", "quarantined keg"])
+    func aGoThatMayNotRunIsNotRun(_ which: String) async throws {
         let host = FakeHost()
-        host.files["/ZZbrew/Cellar/go/1.27.3/INSTALL_RECEIPT.json"] = nil
-        let verdicts = await Self.adapter(host).check(await Self.adapter(host).scan())
+        let pkg = "/usr/local/go/bin/go"
+        if which == "pkg" {
+            host.files["/ZZbrew/Cellar/go/1.27.3/INSTALL_RECEIPT.json"] = nil
+            host.links[pkg] = pkg
+            host.files["/usr/local/go/VERSION"] = Data("go1.27.3\ntime 2026-10-01T00:00:00Z\n".utf8)
+        } else {
+            host.quarantined = ["/ZZbrew/Cellar/go/1.27.3/libexec/bin/go"]
+        }
+        let scan = await Self.adapter(host).scan()
+        let binary = try #require(scan.roots.first?.binary)
+        #expect(binary == ManagedRoot.Binary(
+            path: which == "pkg" ? pkg : Self.go, version: "1.27.3",
+            trust: which == "pkg" ? .untrusted(nil) : .quarantined))
+        let verdicts = await Self.adapter(host).check(scan)
         #expect(host.runs.isEmpty)
         #expect(verdicts.first { $0.item.key == "mvdan.cc/gofumpt" }?.vendorWouldUpgrade == nil)
+        let report = await ManagedProvider(
+            Self.adapter(host), home: Self.home, proxyEnvironment: { [:] }, processes: { [] }, token: { nil },
+            runner: { _, _, _, _, _ in ManagedProvider.RunResult(succeeded: true, failureMessage: nil, lines: []) }
+        ).check()
+        let gofumpt = try #require(Self.status(report, "mvdan.cc/gofumpt"))
+        #expect(gofumpt.oneClick == nil)
+        #expect(gofumpt.withheld == .unverified)
+        #expect(host.runs.isEmpty)
     }
 
     /// A `go install` of this package running. Mutation: match any `go install`.

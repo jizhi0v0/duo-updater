@@ -8,7 +8,7 @@ import Foundation
 public enum ManagerRegistry {
     /// Every manager, reading `home`.
     public static func all(home: URL) -> [any ManagerAdapter] {
-        [MiseToolsAdapter(home: home), UvToolAdapter(home: home), PipxAdapter(home: home)]
+        [MiseToolsAdapter(home: home), UvToolAdapter(home: home), UvPythonAdapter(home: home), PipxAdapter(home: home)]
     }
 
     /// Every manager, reading this user's home.

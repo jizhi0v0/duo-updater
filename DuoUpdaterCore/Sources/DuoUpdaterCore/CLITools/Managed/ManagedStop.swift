@@ -37,9 +37,10 @@ final class ManagedStop: @unchecked Sendable {
     /// under them.
     static let giveUpAfter: Duration = .seconds(60)
 
-    /// A process of the session, by pid, group and start time.
+    /// A process of the session, by pid, parent, group and start time.
     struct Member: Hashable, Sendable {
         let pid: pid_t
+        let ppid: pid_t
         let pgid: pid_t
         let started: UInt64
     }
@@ -56,6 +57,16 @@ final class ManagedStop: @unchecked Sendable {
     /// Groups sent their SIGINT: one each, as one Ctrl-C — a second could cut
     /// the vendor's own clean-up short.
     private var interrupted: Set<pid_t> = []
+    /// The child's session, then every session a member started of its own
+    /// (`track`): pipx 1.18.4 starts its uv or pip in a new session
+    /// (`start_new_session=True`, `pipx/util.py`), so that a terminal's
+    /// Ctrl-C reaches pipx alone and pipx stops that group itself — and its
+    /// own comment says a grandchild can outlive the group's leader
+    /// (`fanout.stop_process_group`). Measured 2026-10-27: pipx's `uv` had
+    /// `sid == pid`, outside pipx's session. Those sessions are followed by
+    /// id from the moment they are seen, whoever their parent becomes.
+    private var sessions: Set<pid_t> = []
+    private var finished = false
 
     init(termAfter: Duration = ManagedStop.termAfter, killAfter: Duration = ManagedStop.killAfter,
          giveUpAfter: Duration = ManagedStop.giveUpAfter) {
@@ -71,9 +82,40 @@ final class ManagedStop: @unchecked Sendable {
         let stopNow = lock.withLock { () -> Bool in
             self.pid = pid
             launchedAt = started
+            sessions = [pid]
             return requested
         }
         if stopNow { signal(SIGINT) }
+        track()
+    }
+
+    /// The run has ended and nothing is being waited for: stop following.
+    func finish() {
+        lock.withLock { finished = true }
+    }
+
+    /// Every 100 ms while the command runs (20 ms once stopping): a process
+    /// whose parent is a member and that leads a session of its own adds that
+    /// session. Seen while its parent waits on it — pipx waits on its uv for
+    /// the whole upgrade — and followed by id from then on.
+    private func track() {
+        Task.detached { [self] in
+            while !lock.withLock({ finished }) {
+                adoptSessions()
+                let stopping = lock.withLock { requested }
+                // cancel-ok: a detached task no cancel reaches; ends with `finish`
+                try? await Task.sleep(for: .milliseconds(stopping ? 20 : 100))
+            }
+        }
+    }
+
+    private func adoptSessions() {
+        let all = Self.processes()
+        let known = Set(members(of: all).map(\.pid))
+        let since = lock.withLock { launchedAt }
+        let new = all.filter { known.contains($0.ppid) && $0.started >= since && getsid($0.pid) == $0.pid }.map(\.pid)
+        guard !new.isEmpty else { return }
+        lock.withLock { sessions.formUnion(new) }
     }
 
     /// The caller was cancelled: SIGINT to every group of the session, then
@@ -93,11 +135,17 @@ final class ManagedStop: @unchecked Sendable {
     var wasInterrupted: Bool { lock.withLock { requested } }
     var didLaunch: Bool { lock.withLock { pid != nil } }
 
-    /// The session's processes now: every process whose session id is the
-    /// child's pid and that started no earlier than the child.
+    /// The sessions' processes now: every process whose session is the
+    /// child's or one a member started (`sessions`), and that started no
+    /// earlier than the child.
     func members() -> [Member] {
-        guard let (pid, since) = lock.withLock({ self.pid.map { ($0, launchedAt) } }) else { return [] }
-        return Self.processes().filter { getsid($0.pid) == pid && $0.started >= since }
+        members(of: Self.processes())
+    }
+
+    private func members(of all: [Member]) -> [Member] {
+        let (sessions, since) = lock.withLock { (self.sessions, launchedAt) }
+        guard !sessions.isEmpty else { return [] }
+        return all.filter { $0.started >= since && sessions.contains(getsid($0.pid)) }
     }
 
     /// Every process, from the kernel's process table (`KERN_PROC_ALL`, what
@@ -135,14 +183,19 @@ final class ManagedStop: @unchecked Sendable {
     private static func member(_ info: kinfo_proc) -> Member {
         let start = info.kp_proc.p_starttime
         return Member(
-            pid: info.kp_proc.p_pid, pgid: info.kp_eproc.e_pgid,
+            pid: info.kp_proc.p_pid, ppid: info.kp_eproc.e_ppid, pgid: info.kp_eproc.e_pgid,
             started: UInt64(start.tv_sec) &* 1_000_000 &+ UInt64(start.tv_usec))
     }
 
-    /// `signal` to every group a member of the session sits in (the child is
-    /// a member while it lives).
+    /// `signal` to every group a member sits in (the child is a member while
+    /// it lives). SIGINT goes to the child's own session only, as a
+    /// terminal's Ctrl-C would: a session a member started of its own is that
+    /// member's to stop (pipx stops its uv itself), and gets only the
+    /// ladder's SIGTERM and SIGKILL.
     private func signal(_ signal: Int32) {
-        var groups = Set(members().map(\.pgid))
+        let own = lock.withLock { pid }
+        let reached = members().filter { signal != SIGINT || getsid($0.pid) == own }
+        var groups = Set(reached.map(\.pgid))
         if signal == SIGINT {
             groups = lock.withLock { groups.filter { interrupted.insert($0).inserted } }
         }
@@ -179,9 +232,10 @@ final class ManagedStop: @unchecked Sendable {
         let giveUpAfter = self.giveUpAfter
         // Unstructured: the caller is usually cancelled — that is why it
         // stopped the command — and a cancelled task's sleep returns at once.
-        return await Task { [self] in
+        let gone = await Task { [self] in
             let start = lock.withLock { stoppedAt } ?? .now
             while true {
+                adoptSessions()
                 guard alive() else { return true }
                 signal(SIGINT)
                 if ContinuousClock.now - start >= giveUpAfter { return false }
@@ -189,6 +243,8 @@ final class ManagedStop: @unchecked Sendable {
                 try? await Task.sleep(for: .milliseconds(100))
             }
         }.value
+        finish()
+        return gone
     }
 
 }

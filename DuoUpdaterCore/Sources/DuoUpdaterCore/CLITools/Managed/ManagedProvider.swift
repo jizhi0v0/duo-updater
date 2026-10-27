@@ -127,11 +127,12 @@ public struct ManagedProvider: CLIToolProvider {
             }
         } catch {
             log.finish()
+            stop.finish()
             return RunResult(succeeded: false, failureMessage: "could not run \(command.executable): \(error)", lines: log.lines)
         }
         log.finish()
         CLIToolExit.report(command, outcome)
-        guard stop.wasInterrupted || outcome.timedOut else { return Self.result(outcome, log.lines, deadline) }
+        guard stop.wasInterrupted || outcome.timedOut else { stop.finish(); return Self.result(outcome, log.lines, deadline) }
         // A deadline's SIGTERM reached the child alone; its group goes too.
         if outcome.timedOut { stop.interrupt() }
         let gone = await stop.waitUntilGone()

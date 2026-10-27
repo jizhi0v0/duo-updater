@@ -185,6 +185,47 @@ struct ManagedStopTests {
         if kill(pid, 0) == 0 { kill(pid, SIGKILL) }
     }
 
+    /// What pipx does: start its backend in a session of its own, and on the
+    /// interrupt stop it — but a grandchild can outlive that. Here the child
+    /// starts a grandchild in a new session (`POSIX::setsid`), and on SIGINT
+    /// leaves it running and exits. The run returns only once the grandchild
+    /// has gone, ended by the ladder's SIGTERM (it is not sent the SIGINT:
+    /// that session is the member's to stop). Mutation: no `adoptSessions`
+    /// (the grandchild outlives the return); SIGINT to every session (it
+    /// writes `sigint`).
+    @Test func aDescendantInASessionOfItsOwnIsFollowedAndStopped() async throws {
+        let root = try scratch()
+        defer { try? FileManager.default.removeItem(atPath: root) }
+        try write(root + "/grandchild.pl", """
+            use POSIX (); POSIX::setsid();
+            $SIG{INT} = sub { open(F, '>\(root)/sigint'); close F; exit 130 };
+            open(P, '>\(root)/pid'); print P $$; close P;
+            sleep 600;
+            """)
+        let script = "trap 'sleep 0.5; exit 130' INT; perl \(root)/grandchild.pl & touch \(root)/started; wait; wait"
+        let command = CLIToolCommand(executable: "/bin/sh", arguments: ["-c", script], pathPrefix: nil)
+        let task = Task {
+            await ManagedProvider.stoppableRunner(termAfter: .milliseconds(300), killAfter: .seconds(600), giveUpAfter: .seconds(20))(
+                command, ["PATH": "/usr/bin:/bin"], URL(fileURLWithPath: "/"),
+                .init(terminateAfter: .seconds(20), killAfter: .seconds(25)), { _ in })
+        }
+        while !FileManager.default.fileExists(atPath: root + "/pid") {
+            // cancel-ok: test polling for the grandchild's start
+            try? await Task.sleep(for: .milliseconds(20))
+        }
+        // cancel-ok: let the tracker see the new session while its parent lives
+        try? await Task.sleep(for: .milliseconds(300))
+        let pid = pid_t(read(root + "/pid") ?? "") ?? 0
+        #expect(pid > 0)
+        #expect(getsid(pid) == pid)
+        task.cancel()
+        let result = await task.value
+        #expect(result.stopped)
+        #expect(kill(pid, 0) != 0, "the grandchild in its own session outlived the run")
+        #expect(!FileManager.default.fileExists(atPath: root + "/sigint"), "its session was sent the SIGINT")
+        if kill(pid, 0) == 0 { kill(pid, SIGKILL) }
+    }
+
     /// A member running as another user — `/usr/bin/top` is setuid root —
     /// is still a member, and the stop still ends it: the process table is
     /// read through `sysctl`, which `proc_pidinfo` is not for such a process
@@ -207,15 +248,31 @@ struct ManagedStopTests {
         }
         let top = pid_t(read(root + "/top")?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "") ?? 0
         var info = proc_bsdinfo()
-        // The premise: as this user, proc_pidinfo cannot read it.
-        #expect(proc_pidinfo(top, PROC_PIDTBSDINFO, 0, &info, Int32(MemoryLayout<proc_bsdinfo>.size)) <= 0)
+        // The premise: as this user, proc_pidinfo cannot read it — once the
+        // forked shell has exec'd the setuid `top` (the pid is written before).
+        var readable = true
+        for _ in 0..<250 where readable {
+            readable = proc_pidinfo(top, PROC_PIDTBSDINFO, 0, &info, Int32(MemoryLayout<proc_bsdinfo>.size)) > 0
+            // cancel-ok: test polling for the exec
+            if readable { try? await Task.sleep(for: .milliseconds(20)) }
+        }
+        #expect(!readable)
         #expect(stop.members().contains { $0.pid == top })
         stop.interrupt()
         // `top` started in the background ignores SIGINT; the ladder is out
         // of reach, so end it by hand once it is seen, as SIGTERM would.
         kill(top, SIGTERM)
         #expect(await stop.waitUntilGone())
-        #expect(kill(top, 0) != 0)
+        // Gone may still be a zombie for launchd to reap (orphaned once the
+        // shell died of the SIGINT): it runs nothing, and `members` rightly
+        // no longer counts it (`getsid` answers ESRCH).
+        var reaped = false
+        for _ in 0..<250 where !reaped {
+            reaped = kill(top, 0) != 0
+            // cancel-ok: test polling for launchd's reap
+            if !reaped { try? await Task.sleep(for: .milliseconds(20)) }
+        }
+        #expect(reaped)
         _ = try? await run.value
         _ = leader.value
     }

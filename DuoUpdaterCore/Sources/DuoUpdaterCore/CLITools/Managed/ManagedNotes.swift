@@ -15,6 +15,10 @@ enum ManagedNotes {
                   let repository = ProjectURLRepo.repository(document.projectURLs, project: project)
             else { return Changelog(entries: []) }
             return try await gitHubReleases(owner: repository.owner, repo: repository.repo, tagPrefix: "", force: force)
+        case .rawMarkdown(let url)?:
+            // Node's `CHANGELOG_V<major>.md`, the one manager whose notes are
+            // one Markdown document (`NodeChangelog`).
+            return try await NodeChangelog.fetch(url, force: force)
         default:
             return Changelog(entries: [])
         }

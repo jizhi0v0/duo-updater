@@ -591,10 +591,11 @@ struct MiseToolsAdapterTests {
     /// with GitHub's budget (D12, §3.4). Mutation: leave the registry empty;
     /// give the rows a lane of their own.
     @Test func miseToolsAreRegistered() {
-        #expect(ManagerRegistry.adapters.map(\.descriptor.id) == [MiseToolsAdapter.id, UvToolAdapter.id, UvPythonAdapter.id, PipxAdapter.id])
+        #expect(ManagerRegistry.adapters.map(\.descriptor.id) == [MiseToolsAdapter.id, UvToolAdapter.id, UvPythonAdapter.id, PipxAdapter.id, NvmNodeAdapter.id, FnmNodeAdapter.id])
         #expect(MiseToolsAdapter.descriptor.lane == "mise")
         #expect(MiseToolsAdapter.descriptor.updaterSpendsGitHubAPI == .ourTokenIfAny)
         #expect(MiseToolsAdapter.descriptor.providerID == "managed:mise")
-        #expect(CLITools.providers().suffix(3).map(\.id) == ["managed:mise", "managed:uv-tool", "managed:pipx"])
+        #expect(CLITools.providers().suffix(6).map(\.id)
+            == ["managed:mise", "managed:uv-tool", "managed:uv-python", "managed:pipx", "managed:nvm-node", "managed:fnm-node"])
     }
 }

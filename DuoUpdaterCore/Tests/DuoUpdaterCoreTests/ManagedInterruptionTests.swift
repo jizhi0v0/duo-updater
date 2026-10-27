@@ -105,7 +105,9 @@ struct ManagedInterruptionTests {
     /// left holding the new binary (c6: 0.03 s after "Finished"), and a
     /// binary name the newer version adds (left behind, no package would
     /// claim it, and cargo would refuse every later install of tokei).
-    /// Mutation: only `cargo-install*` new entries (`bin/tokei-extra` stays).
+    /// Its build gets a scratch `TMPDIR`. Mutations: only `cargo-install*`
+    /// new entries (`bin/tokei-extra` stays); no scratch (local adversarial
+    /// review 3: no test pinned it).
     @Test func cargoPutsTheBinariesRecordsAndStagingBack() throws {
         try write(".cargo/.crates.toml", """
             [v1]
@@ -119,6 +121,7 @@ struct ManagedInterruptionTests {
         let plan = adapter.interruption(
             item(adapter.descriptor, root: home + "/.cargo", key: "tokei", installPath: home + "/.cargo/bin/tokei"),
             root: root(adapter.descriptor.id, home + "/.cargo"))
+        #expect(plan?.scratchVariables == ["TMPDIR"])
         try expectPutBack(plan) {
             try write(".cargo/bin/cargo-installH2vysO/tokei", "15.0.0")
             try write(".cargo/bin/tokei", "15.0.0")

@@ -384,14 +384,15 @@ struct ManagedStopTests {
     /// `missGap` apart: two back to back can both fall inside a relay's hops
     /// (local adversarial review 2's probe: 2 in 20 got through with
     /// back-to-back looks). Mutation: no gap.
-    @Test func missesCountOnlyAGapApart() {
+    @Test func missesCountOnlyAGapApart() async {
         let stop = ManagedStop(missGap: .milliseconds(200), table: { [] })
         stop.finish()
         stop.launched(99_996)
         _ = stop.members()
         _ = stop.members()
         #expect(stop.trackedSessions == [99_996])
-        usleep(250_000)
+        // cancel-ok: a test waiting out the gap
+        try? await Task.sleep(for: .milliseconds(250))
         _ = stop.members()
         #expect(stop.trackedSessions.isEmpty)
     }
@@ -400,15 +401,18 @@ struct ManagedStopTests {
     /// It looks again while a scan finds nothing and drops nothing, and
     /// before the launch every scan is such — a stop asked for then whose
     /// launch never comes would keep the ladder's thread looking forever.
-    /// Waited for on a thread of its own, with a bound. Mutation: no launch
-    /// check.
-    @Test func nothingIsAliveBeforeTheLaunch() {
+    /// Waited for on a thread of its own, with a bound, off the cooperative
+    /// pool. Mutation: no launch check.
+    @Test func nothingIsAliveBeforeTheLaunch() async {
         let stop = ManagedStop(table: { [] })
         stop.finish()
-        let answered = DispatchSemaphore(value: 0)
         let alive = Locked(true)
-        Thread { alive.set(stop.alive()); answered.signal() }.start()
-        #expect(answered.wait(timeout: .now() + 5) == .success)
+        let answered = await offCooperativePool {
+            let answered = DispatchSemaphore(value: 0)
+            Thread { alive.set(stop.alive()); answered.signal() }.start()
+            return answered.wait(timeout: .now() + 5) == .success
+        }
+        #expect(answered)
         #expect(!alive.value)
     }
 
@@ -501,36 +505,42 @@ struct ManagedStopTests {
         _ = stop.members()
         kill(leader, SIGKILL)
         _ = try? await run.value
-        #expect(stop.alive(), "one empty scan read as none left while \(member) ran")
+        let alive = await offCooperativePool { stop.alive() }
+        #expect(alive, "one empty scan read as none left while \(member) ran")
     }
 
     /// Two scans reading the table at once see the same moment: their two
     /// misses are one look, not two in a row, and drop nothing. Here one
     /// read is held open while another runs to its end. No tracker runs
-    /// (`finish` first); no gap is asked. Mutation: every miss counted.
-    @Test func overlappingScansCountOneMiss() {
-        let entered = DispatchSemaphore(value: 0)
-        let release = DispatchSemaphore(value: 0)
-        let first = Locked(true)
-        let stop = ManagedStop(missGap: .zero, table: {
-            if first.value {
-                first.set(false)
-                entered.signal()
-                release.wait()
-            }
-            return []
-        })
-        stop.finish()
-        stop.launched(99_997)
-        let done = DispatchSemaphore(value: 0)
-        Thread { _ = stop.members(); done.signal() }.start()
-        entered.wait()
-        _ = stop.members()
-        release.signal()
-        done.wait()
-        #expect(stop.trackedSessions == [99_997])
-        _ = stop.members()
-        #expect(stop.trackedSessions.isEmpty)
+    /// (`finish` first); no gap is asked. Off the cooperative pool: the
+    /// reads are held with semaphores. Mutation: every miss counted.
+    @Test func overlappingScansCountOneMiss() async {
+        let (kept, dropped) = await offCooperativePool { () -> (Set<pid_t>, Set<pid_t>) in
+            let entered = DispatchSemaphore(value: 0)
+            let release = DispatchSemaphore(value: 0)
+            let first = Locked(true)
+            let stop = ManagedStop(missGap: .zero, table: {
+                if first.value {
+                    first.set(false)
+                    entered.signal()
+                    release.wait()
+                }
+                return []
+            })
+            stop.finish()
+            stop.launched(99_997)
+            let done = DispatchSemaphore(value: 0)
+            Thread { _ = stop.members(); done.signal() }.start()
+            entered.wait()
+            _ = stop.members()
+            release.signal()
+            done.wait()
+            let kept = stop.trackedSessions
+            _ = stop.members()
+            return (kept, stop.trackedSessions)
+        }
+        #expect(kept == [99_997])
+        #expect(dropped.isEmpty)
     }
 
     /// A process table that cannot be read is never "nothing left": the run
@@ -730,6 +740,67 @@ struct ManagedStopTests {
         let kept = try #require(message.components(separatedBy: "kept in ").last)
         defer { try? FileManager.default.removeItem(atPath: kept) }
         #expect(read(kept + "/0/receipt") == "1.0")
+    }
+
+    /// A failure keeps the scratch: the vendor's log is in it, and its
+    /// message names it (ruby-build: "See the full build log at …"); so does
+    /// a run that left processes. A run that ends with none left drops it.
+    /// It is the user's alone (0700), and short enough for a socket bound
+    /// under it (`sun_path`, 104 bytes). Local adversarial review 3.
+    /// Mutations: removed on every end; kept after a clean run; the old
+    /// `duo-managed-<UUID>` name.
+    @Test func aFailedOrLeftBehindRunKeepsItsScratch() async throws {
+        let root = try scratch()
+        defer { try? FileManager.default.removeItem(atPath: root) }
+        try write(root + "/venv/receipt", "1.0")
+        for (succeeded, leftovers, kept) in [(false, false, true), (true, true, true), (true, false, false)] {
+            let adapter = ManagedModelTests.FakeAdapter()
+            adapter.interruptionPlan = ManagedInterruption(paths: [root + "/venv"], scratchVariables: ["TMPDIR"])
+            let tmp = Locked<String?>(nil)
+            let mode = Locked<Int?>(nil)
+            _ = await provider(adapter) { _, environment, _, _, _ in
+                tmp.set(environment["TMPDIR"])
+                let attributes = try? FileManager.default.attributesOfItem(atPath: environment["TMPDIR"] ?? "/")
+                mode.set((attributes?[.posixPermissions] as? NSNumber)?.intValue)
+                try? self.write((environment["TMPDIR"] ?? root) + "/ruby-build.log", "BUILD FAILED")
+                return ManagedProvider.RunResult(
+                    succeeded: succeeded, failureMessage: succeeded ? nil : "See the full build log", lines: [], leftovers: leftovers)
+            }.update(ManagedModelTests.status(), progress: { _ in })
+            let directory = try #require(tmp.value)
+            defer { try? FileManager.default.removeItem(atPath: directory) }
+            let label = "succeeded \(succeeded), leftovers \(leftovers)"
+            #expect((read(directory + "/ruby-build.log") != nil) == kept, "\(label)")
+            #expect(mode.value == 0o700, "\(label)")
+            #expect(directory.utf8.count <= ((NSTemporaryDirectory() as NSString).appendingPathComponent("duo.XXXXXX")).utf8.count)
+        }
+    }
+
+    /// No scratch directory can be made: the upgrade is not stopped, it runs
+    /// to completion as one without a snapshot — a stop would leave the
+    /// tool's temporary files where it was not looking (local adversarial
+    /// review 3). Mutation: run it stoppable without one.
+    @Test func noScratchDirectoryMeansNoStop() async throws {
+        let root = try scratch()
+        defer { try? FileManager.default.removeItem(atPath: root) }
+        try write(root + "/venv/receipt", "1.0")
+        let adapter = ManagedModelTests.FakeAdapter()
+        adapter.interruptionPlan = ManagedInterruption(paths: [root + "/venv"], scratchVariables: ["TMPDIR"])
+        let used = Locked<String?>(nil)
+        let outcome = await ManagedProvider(
+            adapter, home: ManagedModelTests.home,
+            proxyEnvironment: { [:] }, processes: { [] }, token: { nil },
+            runner: { _, environment, _, _, _ in
+                used.set("to completion, TMPDIR \(environment["TMPDIR"] ?? "unset")")
+                return ManagedProvider.RunResult(succeeded: true, failureMessage: nil, lines: ["Updated"])
+            },
+            stoppableRunner: { _, _, _, _, _ in
+                used.set("stoppable")
+                return ManagedProvider.RunResult(succeeded: true, failureMessage: nil, lines: ["Updated"])
+            },
+            temporaryDirectory: root + "/missing"
+        ).update(ManagedModelTests.status(), progress: { _ in })
+        #expect(outcome == .updated(version: "20.20.2"))
+        #expect(used.value == "to completion, TMPDIR unset")
     }
 
     /// A run that finished keeps what it wrote. Mutation: `discard` replaced

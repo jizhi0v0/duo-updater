@@ -335,7 +335,7 @@ final class ManagedStop: @unchecked Sendable {
     /// (`misses`). Local adversarial review 2: one empty scan said none
     /// left, and the run put back under the survivor (2 in 10 with a relay
     /// changing group on every hop). Before the launch nothing is followed:
-    /// none.
+    /// none. It blocks while it looks: call it off the cooperative pool.
     func alive() -> Bool {
         guard lock.withLock({ pid != nil }) else { return false }
         while !lock.withLock({ gone }) {
@@ -359,7 +359,8 @@ final class ManagedStop: @unchecked Sendable {
             let start = lock.withLock { stoppedAt } ?? .now
             while true {
                 adoptSessions()
-                guard alive() else { return true }
+                // `alive` may sleep between looks (`missGap`): off the pool.
+                guard await offCooperativePool({ self.alive() }) else { return true }
                 signal(SIGINT)
                 let elapsed = ContinuousClock.now - start
                 // Past the ladder's SIGKILL, again on every pass, in case one

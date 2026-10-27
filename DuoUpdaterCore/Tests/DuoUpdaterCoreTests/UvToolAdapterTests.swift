@@ -152,6 +152,7 @@ struct UvToolAdapterTests {
     @Test func theScanSourceNamesNoSpawn() throws {
         for (file, function) in [
             ("Uv/UvToolAdapter.swift", "public func scan() async -> ManagedScan {"),
+            ("Uv/UvPythonAdapter.swift", "public func scan() async -> ManagedScan {"),
             ("Pipx/PipxAdapter.swift", "public func scan() async -> ManagedScan {"),
             ("Pipx/PipxAdapter.swift", "func locateBinary() -> ManagedRoot.Binary? {"),
         ] {

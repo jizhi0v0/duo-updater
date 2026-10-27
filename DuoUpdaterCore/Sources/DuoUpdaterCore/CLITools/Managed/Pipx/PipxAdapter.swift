@@ -306,19 +306,9 @@ public struct PipxAdapter: ManagerAdapter {
     /// whose shebang names `libexec/bin/python` (measured 2026-10-27). No
     /// other file under the keg counts.
     func kegVersion(_ resolved: String, prefix: String, formula: String) -> String? {
-        let root = URL(fileURLWithPath: prefix).pathComponents
-        let components = URL(fileURLWithPath: resolved).pathComponents
-        guard components.count > root.count + 3, Array(components.prefix(root.count)) == root,
-              components[root.count] == "Cellar", components[root.count + 1] == formula,
-              [["bin", formula], ["libexec", "bin", formula]].contains(Array(components.dropFirst(root.count + 3)))
-        else { return nil }
-        let keg = NSString.path(withComponents: Array(components.prefix(root.count + 3)))
-        guard host.contents(keg + "/INSTALL_RECEIPT.json") != nil else { return nil }
-        var version = components[root.count + 2]
-        if let underscore = version.lastIndex(of: "_"), version[version.index(after: underscore)...].allSatisfy(\.isNumber) {
-            version = String(version[..<underscore])
-        }
-        return version
+        HomebrewKeg.version(
+            of: resolved, prefix: prefix, formula: formula, paths: [["bin", formula], ["libexec", "bin", formula]],
+            contents: host.contents)
     }
 
     static let lockedNote = "installed from a lock file"

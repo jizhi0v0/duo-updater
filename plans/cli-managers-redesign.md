@@ -2,7 +2,7 @@
 
 Design for jizhi0v0/duo-updater, branch `runtime-composition-detail`, HEAD `cbc6bcc1`. Repo paths: `C/` = `DuoUpdaterCore/Sources/DuoUpdaterCore/CLITools/`. Evidence IDs refer to the twelve research files; review verdicts override reports (corrections are applied inline and marked "corrected"). Anything not in that set is in §12.
 
-**Status (2026-10-27): §0, P0, P1 (mise tools, PR #1613) and P2 (uv tools, pipx, branch `cli-managers-p2`) written and through the Mac acceptance; P2 decisions taken while writing are in the status log for the owner. Owed: §12 item 5 (needs a mise release under 24 h old); P2's C2 could not be held on the Mac (status log). Next: P3 (version lines).** The owner took every recommended option (§11), and later revised D12 and the UI (§5). §0's survey is `plans/cli-managers-int-on-main.md` (committed beside this file); the status log at the end of this file says what is in and what is not. Before each phase, read §13 (cancel, which every adapter must measure for real) and §8.1's note on where real-machine runs happen.
+**Status (2026-10-27): §0, P0, P1 (mise tools, PR #1613) and P2 (uv tools, pipx, PR #1712, merged 2026-10-26) written and through the Mac acceptance; P2 decisions taken while writing are in the status log for the owner. P3 (uv Python, nvm Node, fnm Node, pyenv, rbenv; branch `cli-managers-p3`) written and through the Mac acceptance (real home, C1/C3–C6; C2 not holdable, as in P2); the P3 decisions taken while writing are in the status log for the owner. Owed: §12 item 5 (needs a mise release under 24 h old); P2's and P3's C2 could not be held on the Mac (status log). Next: P4 (cargo, go).** The owner took every recommended option (§11), and later revised D12 and the UI (§5). §0's survey is `plans/cli-managers-int-on-main.md` (committed beside this file); the status log at the end of this file says what is in and what is not. Before each phase, read §13 (cancel, which every adapter must measure for real) and §8.1's note on where real-machine runs happen.
 
 The research files (six reports, six reviews) stay on the owner's Mac, because they hold that machine's inventory. Every fact this design relies on is restated in §2 with its claim ID. Treat an ID as a pointer, not as something you can open from a cloud session. When a fact matters for your phase and you doubt it, re-verify it yourself the way §12 does: in an isolated home, with the command and its raw output.
 
@@ -682,3 +682,53 @@ Until then, (a) holds everywhere.
 
 **Decisions taken while writing (owner to confirm or reverse):** Homebrew's pipx is preferred over `~/.local/bin/pipx` when both exist (only the keg gets the one-click); the uv tool check falls back to PyPI for a uv that may not run, so rows still show what is newer; the project-URL rule also accepts a repository named with a Python affix (`cowsay-python`, `python-x`, `pyx`, `x-py`); a pipx row with `pip_args` index options is "not on an index" rather than asked of PyPI.
 
+
+### 2026-10-27 — P3 written (uv Python, nvm Node, fnm Node, pyenv, rbenv; branch `cli-managers-p3`)
+
+**In:**
+
+- `C/Managed/Uv/UvPythonAdapter`: one row per CPython line under `~/.local/share/uv/python` (key = the minor's link name, `cpython-3.12-macos-aarch64-none`; free-threaded its own line), newest from `uv python list <line> --only-downloads --output-format json`, `uv python upgrade <line>` (uv ≥0.7.14). Pre-releases and PyPy/GraalPy make no row.
+- `C/Managed/Node/`: `NodeDistIndex` (nodejs.org's `index.json`, revalidated; a release without this Mac's `osx-arm64-tar`/`osx-x64-tar` is never offered), `NodeLines` (one row per major), `NodeChangelog` (`CHANGELOG_V<major>.md`, §12 item 12 done: `## <date>, Version <x.y.z> 'Jod' (LTS), @…` per release). `NvmNodeAdapter`: `~/.nvm` and `~/.config/nvm`, `/bin/bash -c '. "$1" --no-use; nvm install "$2" --reinstall-packages-from="$3"'` with `NVM_DIR` the root; the root's own `nvm.sh` exempt (rule 4), a link into Homebrew's nvm keg (this Mac: `~/.nvm/nvm.sh -> /opt/homebrew/opt/nvm/libexec/nvm.sh`) `.homebrewKeg`, no file → Homebrew's `opt/nvm/nvm.sh`. `FnmNodeAdapter`: the three roots, `fnm --fnm-dir <root> install <major>`, Homebrew's keg run, the installer's binary handed out.
+- `C/Managed/Build/`: `DefinitionLines`, `PyenvAdapter`, `RbenvAdapter`: newest from the definition files on disk, computed in the scan so the click names the same `x.y.z`; `<manager> install <x.y.z>` with `*_ROOT` and Homebrew's `bin` on `PATH`; effects compiles / old kept / can't be cancelled once started; 20 min deadline.
+- `C/Managed/HomebrewKeg` (pipx's keg rule, shared; pipx unchanged).
+- §12 item 15: this Mac's `~/.config/nvm` is a git checkout of nvm with no `versions/` — nvm's own row, no Node rows.
+
+**Measured (isolated roots; commands as the adapters build them):**
+
+- uv 0.13.4: `uv python install 3.12.5`, then `uv python upgrade cpython-3.12-macos-aarch64-none` → "Installed Python 3.12.15", exit 0, 3.12.5 kept, the minor's link repointed; again → "… is already on the latest supported patch release", exit 0. `--only-downloads` answered in 30 ms, the same bytes with `--offline`.
+- nvm 0.40.8 (Homebrew's `nvm.sh`): `nvm install 22 --reinstall-packages-from=22.21.1` → v22.23.4 beside v22.21.1 in 29 s, cowsay carried, `alias/default` (`22.21.1`) unchanged. The exact argv with `PATH=/usr/bin:/bin:/usr/sbin:/sbin` → exit 0.
+- fnm 1.39.0: `fnm --fnm-dir <iso> install 22` → v22.23.4 in 7 s, `aliases/default` unchanged; again → "warning: Version already installed", exit 0. `codesign -dv /opt/homebrew/bin/fnm`: `Signature=adhoc`, no Team (§12 item 7, fnm).
+- pyenv 2.8.14 (checkout): `env -i HOME PYENV_ROOT PATH=/opt/homebrew/bin:<system> pyenv install 3.12.15` → 1:58, `ssl`/`sqlite3`/`lzma` import (§12 item 8); `pyenv latest -k` 3.12 → 3.12.16, 3.13t → 3.13.18t, 3.14 → 3.14.10 — what the definitions rule here reads. 1,161 definitions.
+- ruby-build 20261023 (checkout): 703 definitions, 3.4 line's newest 3.4.12; `rbenv install 3.4.11` from a bare env with Homebrew's `bin` built in 3:41.
+- §12 items 6/7 (`brew install pyenv rbenv ruby-build`, 2026-10-27): `/opt/homebrew/bin/pyenv -> ../Cellar/pyenv/2.8.14/bin/pyenv` → `libexec/pyenv`, definitions in the keg's own `plugins/python-build/share/python-build` (1,148 — the 2.8.14 release; the checkout of `master` had 1,161); `rbenv` → `Cellar/rbenv/1.3.2/libexec/rbenv`; `opt/ruby-build/share/ruby-build` → `Cellar/ruby-build/20261023/share/ruby-build` (703). `codesign -dv`: pyenv and rbenv "not signed at all" (bash scripts); the keg rule is what makes them runnable.
+- §13.3 (D15 input), SIGINT/SIGTERM to the process group:
+
+| Manager | Stage | Exit | Old version | Left behind | Next plain run |
+|---|---|---|---|---|---|
+| uv python upgrade | download (1.5 s) | 130 / 143 | runs, link unmoved | nothing seen | completes |
+| uv python upgrade | install | not hit (done by 7.6 s) | — | — | — |
+| nvm install | before output (4 s) | 130 / 143 | runs | nothing | completes |
+| nvm install | version dir present (extract or the packages' reinstall) | 130 / 143 | runs | v22.23.4 runnable, listed by `nvm ls`, **without the old globals**; the row would read current | reinstalls the globals, completes |
+| fnm install | download (1 s) | 130 / 143 | runs | `node-versions/.downloads/.tmp…` | completes |
+| fnm install | rename into place | not hit (exit 0 when the dir appears) | — | — | — |
+| pyenv install | download (3 s) / configure (45 s, 90 s) | 130 / 1 / 143 | runs | nothing (`versions/3.12.16` removed) | builds it whole |
+| pyenv install | compile, `make install` | not hit apart | — | — | — |
+| rbenv install | download (3 s, 60 s, 150 s on a slow line) | 130 / 1 / 143 / 130 | runs | no `versions/3.4.12`; each run left `/tmp/ruby-build.<time>.<pid>.<rand>` (the half-downloaded source, 14–22 MB) and its `.log` | not run after (a plain run downloads anew) |
+| rbenv install | configure, `make`, `make install` | not hit apart | — | — | — |
+
+  All stay (a) until the owner rules.
+
+**Mac acceptance (real home, 2026-10-27, app + `duo` from this branch, `make install` + `make cli`):** fixtures: the user's own uv Pythons (3.11.14, 3.12.12, 3.13.11), nvm v24.13.0 (`alias/default` `lts/*`), fnm v22.21.1 + v24.12.0 (`default` → v24.12.0); added for the run with the owner's OK: Homebrew pyenv/rbenv/ruby-build, `~/.pyenv` 3.12.15, `~/.rbenv` 3.4.11. Driven by AX (`AXPress` on the workbench's buttons; the popover opened by a synthetic click on its status item).
+
+- Rows before: `duo check --all --json` and the workbench agreed — uv Python 3.11.14→3.11.17, 3.12.12→3.12.15, 3.13.11→3.13.16; nvm Node 24 24.13.0→24.22.1 (`nvm install 24 --reinstall-packages-from=24.13.0`); fnm Node 24 24.12.0→24.22.1, Node 22 22.21.1→22.23.4 (orange "does not carry global packages over"); pyenv Python 3.12 3.12.15→3.12.16; rbenv Ruby 3.4 3.4.11→3.4.12. Headers "N updates, <manager> <version> · <root>".
+- **C3** (pyenv, then rbenv): the row's Cancel is grey "Installing — can't cancel now" from the click (no pre-command wait to hold) through the build; it ran through: pyenv 3.12.16 in the app, rbenv 3.4.12 in 120 s (download, `./configure`, `make -j 14`, `make install` shown on the row's line), then "Updated to …" and Up to date.
+- **C1**: with pyenv building, Update All on uv Python, nvm Node and fnm Node queued six rows ("Queued" — one global CLI queue, as in P2); Cancel on the queued Python 3.11 row put it back to its Update button, no red line.
+- **C4**: the popover's "Other tools — Updating pyenv" row offered "Cancel 5 queued updates"; pressed: the five were dropped, the running pyenv build stayed with its grey "Installing — can't cancel now" and completed. `stat` of the uv/nvm/fnm roots before/after identical (only `~/.pyenv/versions/3.12.16` new). No "N cancelled" count was shown, as in P1/P2.
+- **C2 not run**, as in P2: these adapters' pre-command stage is disk only (rescan, trust, busy gate), nothing to hold.
+- One-click, each group's Update All: uv Python 3.11.17, 3.12.15, 3.13.16 one after another (each "Downloading …", "Installed Python … in 8 s"; minor links repointed, old patches kept); nvm 24.22.1 ("Reinstalling global packages from v24.13.0…", "added 414 packages in 23s"; the nine globals present in v24.22.1); fnm 24.22.1 and 22.23.4 (`default` still v24.12.0). nvm and fnm ran one after the other although their lanes differ: the global queue.
+- **C5** (`duo install fnm-node/v22 --yes`, Node 22 put back with `fnm uninstall 22.23.4` first): SIGINT to duo's process group 2.2 s in (after its check, before fnm): "cancelled before it started — not updated", "0 installed, 0 failed, 1 cancelled", exit 130, no fnm child, root unchanged. 0.3 s in (still checking) it printed "Nothing to install." and exit 130 — the interrupted check reads as nothing found; duo's, not this branch's. SIGINT 0.5 s after fnm started: "updated: 22.21.1 → 22.23.4", "1 installed, 0 failed", exit 130.
+- **C6**: after a rescan, the five headers read "Up to date, …" and `duo check --all --json` gave the eight rows `upToDate` at the same versions.
+
+**Not done:** logos — fnm, pyenv and rbenv publish no vector logo (fnm's `docs/fnm.svg` is an animated terminal recording; pyenv's repo has a terminal screenshot; rbenv's none; Simple Icons has none of the three), so their rows keep the terminal glyph; rbenv notes (`ruby/ruby` tags `v3_4_12`: the shared decoder's tag rule not checked, so no notes yet).
+
+**Decisions taken while writing (owner to confirm or reverse):** D6's `nvm alias default <new>` (and fnm's `fnm default <new>`) is a pane fact ("to move default afterwards: …"), not a copy glyph — managed rows have one `manualCommand` slot; Homebrew's pyenv/rbenv/fnm preferred over a checkout or installer binary when both exist; pyenv/rbenv install the exact newest (`3.12.16`), not the line (`3.12` would prompt when present); uv Python makes rows for CPython final releases only.

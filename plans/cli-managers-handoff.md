@@ -29,7 +29,7 @@ The three plan edits (#1719, #1722, this) each touch `plans/cli-managers-redesig
 ## 4. P5: where to start
 
 1. Read §15 whole, then §13.4. §15 was written before D15 and the owner's principle; §15's own text is otherwise unchanged and its line numbers were read at `03331828` — re-read the code before trusting any `file:line`.
-2. **P5.0** (model extensions, nothing visible): §15.1 "Lacks" L1–L7 and the ledger aliases (§15.2). Land green with P1–P4's tests unchanged.
+2. **P5.0** (model extensions, nothing visible): §15.1 "Lacks" L1–L8 and the ledger aliases (§15.2). Land green with P1–P4's tests unchanged.
 3. Measure the four managers' write sets for D15 *before* writing their adapters: npm's in-place replace of `<prefix>/lib/node_modules/<name>` and its `.<name>-<hash>` staging (`C/NpmInstall.swift`), bun's global install, pnpm's `global/5` and `global/v11/<hash>` projects plus the store, Yarn 1's global dir. Same method as §13.4.
 4. Then P5.1 (adapters unregistered, parity test) and P5.2 (the switch, one PR), P5.3 (real Mac, C1–C6, dead code) as §15.3 says. Never register an adapter beside the old provider (two `npm -g` in one prefix at once).
 5. Check the principle on the result: after P5.2, the workbench's "Other tools" must hold no group at all.

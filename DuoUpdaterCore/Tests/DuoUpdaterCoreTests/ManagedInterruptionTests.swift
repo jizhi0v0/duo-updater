@@ -283,13 +283,17 @@ struct ManagedInterruptionTests {
 
     /// mise, upgrading python: then it reinstalls every `pipx:` tool against
     /// the new Python (`PIPXBackend::reinstall_all`), and may rewrite the
-    /// global lockfile. A stop in that step leaves both half done.
+    /// global lockfiles — `mise.lock`, and `mise.<env>.lock` under `MISE_ENV`
+    /// — through a `.mise.lock.<random>` temp file beside them. A stop in
+    /// that step leaves them half done. Mutations: no `mise.<env>.lock`
+    /// (it keeps the new text), no `.mise.lock.` rule (the temp file stays).
     @Test func misePythonPutsThePipxToolsAndLockfileBack() throws {
         let installs = home + "/.local/share/mise/installs"
         try write(".local/share/mise/installs/python/3.12.5/bin/python3", "3.12.5")
         try write(".local/share/mise/installs/pipx-black/23.12.1/bin/black", "on 3.12.5")
         try write(".local/share/mise/installs/.mise-installs.toml", "python 3.12.5")
         try write(".config/mise/config.toml", "[tools]\npython = \"3.12\"\n")
+        try write(".config/mise/mise.work.lock", "python 3.12.5")
         let adapter = MiseToolsAdapter(home: homeURL)
         let plan = adapter.interruption(
             item(adapter.descriptor, root: home + "/.local/share/mise", key: "python", installPath: installs + "/python/3.12.5"),
@@ -298,6 +302,8 @@ struct ManagedInterruptionTests {
             try write(".local/share/mise/installs/python/3.12.15/bin/python3", "3.12.15")
             try write(".local/share/mise/installs/pipx-black/23.12.1/bin/black", "on 3.12.15")
             try write(".config/mise/mise.lock", "python 3.12.15")
+            try write(".config/mise/mise.work.lock", "python 3.12.15")
+            try write(".config/mise/.mise.lock.Xk3q9a", "python 3.12.15")
         }
     }
 }

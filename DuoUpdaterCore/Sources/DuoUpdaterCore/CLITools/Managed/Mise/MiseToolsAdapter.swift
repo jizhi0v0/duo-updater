@@ -321,12 +321,18 @@ public struct MiseToolsAdapter: ManagerAdapter {
         let names = (try? FileManager.default.contentsOfDirectory(atPath: installs)) ?? []
         let pipxTools = slug == "python" ? names.filter { $0.hasPrefix("pipx-") }.sorted().map { installs + "/" + $0 } : []
         // And rewrites the global lockfile when lockfiles are on ("Also
-        // updates mise.lock", `mise upgrade --help`); absent ones cost nothing.
+        // updates mise.lock", `mise upgrade --help`): `mise.lock` beside the
+        // global config, `mise.<env>.lock` under `MISE_ENV`
+        // (`lockfile_path_for_config`, mise `src/lockfile.rs` at v2026.10.19);
+        // an absent one costs nothing. It writes `.mise.lock.<random>` in the
+        // same directory and renames it over (review round 5).
         let config = home.path + "/.config/mise"
-        return ManagedInterruption(paths: pipxTools + [config + "/mise.lock", config + "/config.lock"] + [
+        let locks = Set(((try? FileManager.default.contentsOfDirectory(atPath: config)) ?? [])
+            .filter { $0.hasPrefix("mise") && $0.hasSuffix(".lock") }.map { config + "/" + $0 } + [config + "/mise.lock"])
+        return ManagedInterruption(paths: pipxTools + locks.sorted() + [
             installs + "/" + slug, installs + "/.mise-installs.toml", dataDirectory + "/downloads/" + slug,
             dataDirectory + "/shims", state + "/tool-purgatory.json", state + "/incomplete-installs",
-        ])
+        ], created: [ManagedSnapshot.NewEntries(directory: config, namePrefix: ".mise.lock.")])
     }
 
     public func busy(_ item: ManagedItem, root: ManagedRoot, processes: [NpmActivity.Process]) -> String? {

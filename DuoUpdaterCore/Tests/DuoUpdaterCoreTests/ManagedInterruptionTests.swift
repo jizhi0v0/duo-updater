@@ -173,6 +173,7 @@ struct ManagedInterruptionTests {
         let venv = home + "/.local/pipx/venvs/black"
         try write(".local/pipx/venvs/black/pipx_metadata.json", #"{"main_package":{"package_version":"23.12.1"}}"#)
         try write(".local/pipx/venvs/black/bin/black", "23.12.1")
+        try write(".local/pipx/shared/lib/python3.12/site-packages/pip/__init__.py", "24.0")
         try link(".local/bin/black", to: venv + "/bin/black")
         let adapter = PipxAdapter(home: homeURL)
         let plan = adapter.interruption(
@@ -180,6 +181,7 @@ struct ManagedInterruptionTests {
             root: root(adapter.descriptor.id, home + "/.local/pipx"))
         try expectPutBack(plan) {
             try write(".local/pipx/venvs/black/pipx_unfinished", "")
+            try write(".local/pipx/shared/lib/python3.12/site-packages/pip/__init__.py", "26.1")
             try remove(".local/bin/black")
             try write(".local/pipx/venvs/black/bin/black", "26.10.1")
             try link(".local/bin/blackd", to: venv + "/bin/blackd")
@@ -272,6 +274,26 @@ struct ManagedInterruptionTests {
             try write(dir + "/shims/" + lock, "")
             try write(dir + "/shims/python3.12", "shim")
             try write(dir + "/version", "3.12.16")
+        }
+    }
+
+    /// mise, upgrading python: then it reinstalls every `pipx:` tool against
+    /// the new Python (`PIPXBackend::reinstall_all`), and may rewrite the
+    /// global lockfile. A stop in that step leaves both half done.
+    @Test func misePythonPutsThePipxToolsAndLockfileBack() throws {
+        let installs = home + "/.local/share/mise/installs"
+        try write(".local/share/mise/installs/python/3.12.5/bin/python3", "3.12.5")
+        try write(".local/share/mise/installs/pipx-black/23.12.1/bin/black", "on 3.12.5")
+        try write(".local/share/mise/installs/.mise-installs.toml", "python 3.12.5")
+        try write(".config/mise/config.toml", "[tools]\npython = \"3.12\"\n")
+        let adapter = MiseToolsAdapter(home: homeURL)
+        let plan = adapter.interruption(
+            item(adapter.descriptor, root: home + "/.local/share/mise", key: "python", installPath: installs + "/python/3.12.5"),
+            root: root(adapter.descriptor.id, home + "/.local/share/mise"))
+        try expectPutBack(plan) {
+            try write(".local/share/mise/installs/python/3.12.15/bin/python3", "3.12.15")
+            try write(".local/share/mise/installs/pipx-black/23.12.1/bin/black", "on 3.12.15")
+            try write(".config/mise/mise.lock", "python 3.12.15")
         }
     }
 }

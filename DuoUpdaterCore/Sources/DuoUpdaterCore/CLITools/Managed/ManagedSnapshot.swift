@@ -129,6 +129,12 @@ public struct ManagedSnapshot: Sendable {
             }
             entries.append(Entry(path: path, clone: clone))
         }
+        // What each clone was, for whoever finds a snapshot kept after a stop
+        // that could not put it back.
+        let manifest = entries.enumerated().map { index, entry in
+            entry.clone == nil ? "-\t\(entry.path) (absent)" : "\(index)\t\(entry.path)"
+        }.joined(separator: "\n") + "\n"
+        try? Data(manifest.utf8).write(to: URL(fileURLWithPath: directory + "/paths.txt"))
         return ManagedSnapshot(directory: directory, entries: entries)
     }
 

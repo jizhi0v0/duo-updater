@@ -315,7 +315,15 @@ public struct MiseToolsAdapter: ManagerAdapter {
               let slug = item.installPath.dropFirst(installs.count + 1).split(separator: "/").first.map(String.init)
         else { return nil }
         let state = home.path + "/.local/state/mise"
-        return ManagedInterruption(paths: [
+        // A python upgrade then reinstalls every `pipx:` tool against the new
+        // Python (`PIPXBackend::reinstall_all`, mise `src/cli/upgrade.rs`
+        // at v2026.10.19, found in review), into their own installs.
+        let names = (try? FileManager.default.contentsOfDirectory(atPath: installs)) ?? []
+        let pipxTools = slug == "python" ? names.filter { $0.hasPrefix("pipx-") }.sorted().map { installs + "/" + $0 } : []
+        // And rewrites the global lockfile when lockfiles are on ("Also
+        // updates mise.lock", `mise upgrade --help`); absent ones cost nothing.
+        let config = home.path + "/.config/mise"
+        return ManagedInterruption(paths: pipxTools + [config + "/mise.lock", config + "/config.lock"] + [
             installs + "/" + slug, installs + "/.mise-installs.toml", dataDirectory + "/downloads/" + slug,
             dataDirectory + "/shims", state + "/tool-purgatory.json", state + "/incomplete-installs",
         ])

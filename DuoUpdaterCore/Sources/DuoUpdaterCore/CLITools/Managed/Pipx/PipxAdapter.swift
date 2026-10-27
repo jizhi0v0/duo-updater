@@ -264,8 +264,11 @@ public struct PipxAdapter: ManagerAdapter {
     /// `logs/cmd_<time>.log` stays: a log, not state.
     public func interruption(_ item: ManagedItem, root: ManagedRoot) -> ManagedInterruption? {
         let bin = home.path + "/.local/bin"
+        // And pipx's shared libraries, which an upgrade refreshes when they are
+        // over 30 days old (`check_upgrade_shared_libs`, pipx 1.18.4
+        // `commands/upgrade.py`; found in review).
         return ManagedInterruption(
-            paths: [item.installPath] + ManagedInterruption.links(in: bin, into: item.installPath),
+            paths: [item.installPath, root.path + "/shared"] + ManagedInterruption.links(in: bin, into: item.installPath),
             created: [ManagedSnapshot.NewEntries(directory: bin, linkingInto: item.installPath)])
     }
 

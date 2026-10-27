@@ -41,13 +41,20 @@ public struct ManagedProvider: CLIToolProvider {
         /// The command was stopped, but some of its processes outlived the
         /// ladder: nothing may be put back under them.
         public let stuck: Bool
+        /// The command exited by itself and some process it started is still
+        /// running: a later cancel may not put anything back under it.
+        public let leftovers: Bool
 
-        public init(succeeded: Bool, failureMessage: String?, lines: [String], stopped: Bool = false, stuck: Bool = false) {
+        public init(
+            succeeded: Bool, failureMessage: String?, lines: [String], stopped: Bool = false, stuck: Bool = false,
+            leftovers: Bool = false
+        ) {
             self.succeeded = succeeded
             self.failureMessage = failureMessage
             self.lines = lines
             self.stopped = stopped
             self.stuck = stuck
+            self.leftovers = leftovers
         }
     }
 
@@ -132,7 +139,11 @@ public struct ManagedProvider: CLIToolProvider {
         }
         log.finish()
         CLIToolExit.report(command, outcome)
-        guard stop.wasInterrupted || outcome.timedOut else { stop.finish(); return Self.result(outcome, log.lines, deadline) }
+        guard stop.wasInterrupted || outcome.timedOut else {
+            let leftovers = stop.alive()
+            stop.finish()
+            return Self.result(outcome, log.lines, deadline, leftovers: leftovers)
+        }
         // A deadline's SIGTERM reached the child alone; its group goes too.
         if outcome.timedOut { stop.interrupt() }
         let gone = await stop.waitUntilGone()
@@ -145,8 +156,10 @@ public struct ManagedProvider: CLIToolProvider {
     } }
 
     /// A run that ended by itself, as `commandRunner` words it.
-    private static func result(_ outcome: ChildProcess.Outcome, _ lines: [String], _ deadline: ChildProcess.Deadline) -> RunResult {
-        guard !outcome.succeeded else { return RunResult(succeeded: true, failureMessage: nil, lines: lines) }
+    private static func result(
+        _ outcome: ChildProcess.Outcome, _ lines: [String], _ deadline: ChildProcess.Deadline, leftovers: Bool
+    ) -> RunResult {
+        guard !outcome.succeeded else { return RunResult(succeeded: true, failureMessage: nil, lines: lines, leftovers: leftovers) }
         let reason = CLIToolCommandRunner.failureMessage(lines, outcome, deadline: deadline)
         let message = outcome.uncaughtSignal ? reason : "\(reason) (exit \(outcome.terminationStatus))"
         return RunResult(succeeded: false, failureMessage: message, lines: lines)
@@ -251,7 +264,8 @@ public struct ManagedProvider: CLIToolProvider {
         var result = await run(environment)
         // mise's handoff, shared (`ManagedTokenRetry`): once more with the
         // app's token, only after the vendor said it found none of its own.
-        if !result.stopped, let retry = adapter.tokenRetry, retry.applies(failed: !result.succeeded, lines: result.lines) {
+        // Not after a stop of any kind: a stuck one's snapshot is the way back.
+        if !result.stopped, !result.stuck, let retry = adapter.tokenRetry, retry.applies(failed: !result.succeeded, lines: result.lines) {
             if let token = await token() {
                 environment[retry.variable] = token
                 result = await run(environment)
@@ -286,6 +300,17 @@ public struct ManagedProvider: CLIToolProvider {
                     await self.settled(item, result)
                 }
             } catch {
+                // A cancel that came before the result was taken. Put back —
+                // unless something the command started still runs, which could
+                // write under the put-back (review): then the update stands,
+                // the snapshot is kept, and the row says so.
+                if result.leftovers {
+                    keepSnapshot = true
+                    let message = "\(adapter.descriptor.displayName) had finished and some of its processes were still running, "
+                        + "so nothing was put back; what was there before is kept in \(snapshot.directory)"
+                    Log.install.error("managed \(item.identity, privacy: .public): \(message, privacy: .public)")
+                    return .stopped(message: message, output: result.lines.joined(separator: "\n"), complete: false)
+                }
                 return Self.putBack(snapshot, result, manager: adapter.descriptor.displayName, identity: item.identity)
             }
         }

@@ -226,6 +226,87 @@ struct ManagedStopTests {
         if kill(pid, 0) == 0 { kill(pid, SIGKILL) }
     }
 
+    /// A process that hands over to a fresh child and exits, again and again,
+    /// ignoring SIGINT and SIGTERM: one of it is alive at every instant, but
+    /// a table read followed by each entry's `getsid` can miss all of them.
+    /// The group it stays in is asked about at once (`killpg(group, 0)`),
+    /// and the ladder's SIGKILL ends it; the run returns only then, as
+    /// stopped. Mutation: no `groups` (the scan reads empty; `waitUntilGone`
+    /// returns with the relay running — seen 6 times in 6 in review).
+    @Test func aForkAndExitRelayIsWaitedForAndKilled() async throws {
+        let root = try scratch()
+        defer { try? FileManager.default.removeItem(atPath: root) }
+        try write(root + "/relay.pl", """
+            $SIG{INT} = 'IGNORE'; $SIG{TERM} = 'IGNORE';
+            open(G, '>\(root)/group'); print G getpgrp(); close G;
+            my $until = time + 600;
+            while (time < $until) {
+                my $p = fork(); die "fork: $!" unless defined $p;
+                if ($p) { exit 0 }
+                select(undef, undef, undef, 0.002);
+            }
+            open(F, '>\(root)/ended'); close F;
+            """)
+        let command = CLIToolCommand(
+            executable: "/bin/sh", arguments: ["-c", "perl \(root)/relay.pl & sleep 600; wait"], pathPrefix: nil)
+        let task = Task {
+            await ManagedProvider.stoppableRunner(termAfter: .milliseconds(300), killAfter: .seconds(2), giveUpAfter: .seconds(20))(
+                command, ["PATH": "/usr/bin:/bin"], URL(fileURLWithPath: "/"),
+                .init(terminateAfter: .seconds(20), killAfter: .seconds(25)), { _ in })
+        }
+        while !FileManager.default.fileExists(atPath: root + "/group") {
+            // cancel-ok: test polling for the relay's start
+            try? await Task.sleep(for: .milliseconds(20))
+        }
+        // cancel-ok: let the relay hand over a few times
+        try? await Task.sleep(for: .milliseconds(200))
+        task.cancel()
+        let result = await task.value
+        let group = pid_t(read(root + "/group")?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "") ?? 0
+        #expect(group > 0)
+        let left = killpg(group, 0) == 0
+        #expect(!left, "the relay's group still had a process when the run returned")
+        if left { killpg(group, SIGKILL) }
+        #expect(result.stopped)
+        #expect(result.failureMessage == "stopped")
+    }
+
+    /// Once a stop finds nothing left, nothing is followed any more: an empty
+    /// session's id is free for the kernel to hand out, and the ladder's
+    /// later steps must not find a stranger under it. Mutation: no pruning of
+    /// `sessions` (an emptied session stays tracked).
+    @Test func aStopThatFindsNothingLeftFollowsNothingMore() async throws {
+        let stop = ManagedStop(termAfter: .seconds(600), killAfter: .seconds(600), giveUpAfter: .seconds(20))
+        let run = Task {
+            try await ChildProcess.run(
+                "/bin/sh", ["-c", "sleep 30"], standardOutput: .discard, standardError: .discard,
+                onCancel: .runToCompletion, onLaunch: { stop.launched($0) }, newSession: true)
+        }
+        while stop.trackedSessions.isEmpty {
+            // cancel-ok: test polling for the launch
+            try? await Task.sleep(for: .milliseconds(20))
+        }
+        stop.interrupt()
+        _ = try? await run.value
+        #expect(await stop.waitUntilGone())
+        #expect(stop.trackedSessions.isEmpty)
+        #expect(stop.members() == [])
+        #expect(!stop.alive())
+    }
+
+    /// A process table that cannot be read is never "nothing left": the run
+    /// waits, and gives up rather than put anything back. Mutation:
+    /// `processes` answering [] on failure, or `alive` taking nil for none.
+    @Test func anUnreadableProcessTableIsNotNothingLeft() async throws {
+        let stop = ManagedStop(termAfter: .seconds(600), killAfter: .seconds(600), giveUpAfter: .milliseconds(300),
+                               table: { nil })
+        stop.launched(getpid())
+        #expect(stop.alive())
+        stop.interrupt()
+        #expect(await stop.waitUntilGone() == false)
+        stop.finish()
+    }
+
     /// A member running as another user — `/usr/bin/top` is setuid root —
     /// is still a member, and the stop still ends it: the process table is
     /// read through `sysctl`, which `proc_pidinfo` is not for such a process
@@ -238,7 +319,7 @@ struct ManagedStopTests {
         let leader = Locked<pid_t>(0)
         let run = Task {
             try await ChildProcess.run(
-                "/bin/sh", ["-c", "/usr/bin/top -l 600 -s 1 > /dev/null & echo $! > \(root)/top; wait"],
+                "/bin/sh", ["-c", "/usr/bin/top -l 600 -s 1 > /dev/null 2> \(root)/top.err & echo $! > \(root)/top; wait"],
                 standardOutput: .discard, standardError: .discard, onCancel: .runToCompletion,
                 onLaunch: { stop.launched($0); leader.set($0) }, newSession: true)
         }
@@ -247,17 +328,32 @@ struct ManagedStopTests {
             try? await Task.sleep(for: .milliseconds(20))
         }
         let top = pid_t(read(root + "/top")?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "") ?? 0
-        var info = proc_bsdinfo()
-        // The premise: as this user, proc_pidinfo cannot read it — once the
-        // forked shell has exec'd the setuid `top` (the pid is written before).
-        var readable = true
-        for _ in 0..<250 where readable {
-            readable = proc_pidinfo(top, PROC_PIDTBSDINFO, 0, &info, Int32(MemoryLayout<proc_bsdinfo>.size)) > 0
+        // Wait for the forked shell to have exec'd the setuid `top` (the pid
+        // is written before): the kernel's table shows it running as root.
+        var asRoot = false
+        for _ in 0..<500 where !asRoot {
+            var kinfo = kinfo_proc()
+            var size = MemoryLayout<kinfo_proc>.stride
+            var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_PID, top]
+            asRoot = sysctl(&mib, 4, &kinfo, &size, nil, 0) == 0 && size > 0 && kinfo.kp_eproc.e_ucred.cr_uid == 0
             // cancel-ok: test polling for the exec
-            if readable { try? await Task.sleep(for: .milliseconds(20)) }
+            if !asRoot { try? await Task.sleep(for: .milliseconds(20)) }
         }
-        #expect(!readable)
-        #expect(stop.members().contains { $0.pid == top })
+        try #require(asRoot, "top never ran as root: \(read(root + "/top.err") ?? "")")
+        // The premise: as this user, proc_pidinfo cannot read it.
+        var info = proc_bsdinfo()
+        #expect(proc_pidinfo(top, PROC_PIDTBSDINFO, 0, &info, Int32(MemoryLayout<proc_bsdinfo>.size)) <= 0)
+        // The launch callback can come after the child has already run on a
+        // loaded machine: wait for it, then for a scan that lists `top`.
+        var seen: [ManagedStop.Member]?
+        for _ in 0..<250 {
+            seen = stop.members()
+            if leader.value != 0, seen?.contains(where: { $0.pid == top }) == true { break }
+            // cancel-ok: test polling for the launch callback
+            try? await Task.sleep(for: .milliseconds(20))
+        }
+        #expect(seen?.contains { $0.pid == top } == true,
+                "members \(seen.map { $0.map(\.pid) } ?? []), tracked \(stop.trackedSessions), leader \(leader.value) sid \(getsid(leader.value)), top sid \(getsid(top)) pgid \(getpgid(top))")
         stop.interrupt()
         // `top` started in the background ignores SIGINT; the ladder is out
         // of reach, so end it by hand once it is seen, as SIGTERM would.
@@ -438,6 +534,64 @@ struct ManagedStopTests {
         }
         #expect(stopped)
         #expect(read(root + "/venv/receipt") == "1.0")
+    }
+
+    /// A cancel that lands after the command finished, while something it
+    /// started still runs, puts nothing back: the update stands, the snapshot
+    /// is kept, and the row fails saying so. Mutation: ignore `leftovers`
+    /// (the put-back runs under the live process).
+    @Test func aLateCancelWithProcessesLeftPutsNothingBack() async throws {
+        let root = try scratch()
+        defer { try? FileManager.default.removeItem(atPath: root) }
+        try write(root + "/venv/receipt", "1.0")
+        let adapter = ManagedModelTests.FakeAdapter()
+        adapter.interruptionPlan = ManagedInterruption(paths: [root + "/venv"])
+        let jobID = "managed-stop-test:\(UUID().uuidString)"
+        let provider = provider(adapter) { _, _, _, _, _ in
+            try? self.write(root + "/venv/receipt", "2.0")
+            #expect(InstallJobs.cancel(jobID) == .cancelled)
+            return ManagedProvider.RunResult(succeeded: true, failureMessage: nil, lines: ["Updated"], leftovers: true)
+        }
+        let outcome = await InstallJobs.run(jobID) { await provider.update(ManagedModelTests.status(), progress: { _ in }) }
+        guard case .stopped(let message, _, let complete) = outcome else {
+            Issue.record("expected .stopped, got \(outcome)")
+            return
+        }
+        #expect(!complete)
+        #expect(read(root + "/venv/receipt") == "2.0")
+        let kept = try #require(message.components(separatedBy: "kept in ").last)
+        defer { try? FileManager.default.removeItem(atPath: kept) }
+        #expect(read(kept + "/0/receipt") == "1.0")
+    }
+
+    /// A stop that could not end every process starts nothing more — not
+    /// mise's token retry, whose run would also discard the kept snapshot.
+    /// Mutation: retry on `stuck` too.
+    @Test func aStuckStopIsNotRetried() async throws {
+        let root = try scratch()
+        defer { try? FileManager.default.removeItem(atPath: root) }
+        try write(root + "/venv/receipt", "1.0")
+        let adapter = ManagedModelTests.FakeAdapter()
+        adapter.interruptionPlan = ManagedInterruption(paths: [root + "/venv"])
+        adapter.tokenRetry = ManagedTokenRetry(variable: "ZZ_TOKEN", marker: "No GitHub token was found")
+        let runs = Locked(0)
+        let provider = ManagedProvider(
+            adapter, home: ManagedModelTests.home,
+            proxyEnvironment: { [:] }, processes: { [] }, token: { "zz-token" },
+            runner: { _, _, _, _, _ in ManagedProvider.RunResult(succeeded: false, failureMessage: "unused", lines: []) },
+            stoppableRunner: { _, _, _, _, _ in
+                runs.set(runs.value + 1)
+                return ManagedProvider.RunResult(
+                    succeeded: false, failureMessage: "stopped; some of its processes are still running",
+                    lines: ["No GitHub token was found"], stuck: true)
+            })
+        let outcome = await provider.update(ManagedModelTests.status(), progress: { _ in })
+        #expect(runs.value == 1)
+        guard case .stopped(let message, _, false) = outcome else {
+            Issue.record("expected an incomplete .stopped, got \(outcome)")
+            return
+        }
+        if let kept = message.components(separatedBy: "kept in ").last { try? FileManager.default.removeItem(atPath: kept) }
     }
 
     /// An adapter that names no paths runs to completion, as before D15.

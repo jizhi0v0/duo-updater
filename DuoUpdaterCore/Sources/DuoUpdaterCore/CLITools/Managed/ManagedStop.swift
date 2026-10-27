@@ -16,13 +16,14 @@ import Foundation
 /// kept by every descendant that does not call `setsid` itself, whichever
 /// group it starts and whoever its parent becomes, so the members are read
 /// from the process table by session (`members`) whenever they are needed.
-/// Each is also checked to have started no earlier than the child: a pid is
-/// never taken for a member it merely shares a number with. Signals go only
-/// to the groups of members found that way — never to the child's pid as a
-/// number, which once the child is gone could name someone else's group
-/// (review round 2). `getsid` answers for a process of another session on
-/// macOS: `aDescendantInAGroupOfItsOwnIsStoppedAndWaitedFor` finds its
-/// grandchild only through it, and fails with the session taken away.
+/// Signals go only to the groups of members found that way. `getsid`
+/// answers for a process of another session on macOS:
+/// `aDescendantInAGroupOfItsOwnIsStoppedAndWaitedFor` finds its grandchild
+/// only through it, and fails with the session taken away. A session's id is
+/// looked for only while it has members (`sessions`), so a number the kernel
+/// has handed to someone else is never signalled; no start-time filter is
+/// needed for that, and none is used (a wall clock stepped back would have
+/// hidden real members — review).
 ///
 /// The ladder, from the moment of the stop, to every group a member leads or
 /// sits in: SIGINT at once — the vendor's own interrupt handling (pipx's
@@ -50,8 +51,6 @@ final class ManagedStop: @unchecked Sendable {
     private let giveUpAfter: Duration
     private let lock = NSLock()
     private var pid: pid_t?
-    /// The child's start time (`Member.started`'s units), read at launch.
-    private var launchedAt: UInt64 = 0
     private var requested = false
     private var stoppedAt: ContinuousClock.Instant?
     /// Groups sent their SIGINT: one each, as one Ctrl-C — a second could cut
@@ -65,23 +64,46 @@ final class ManagedStop: @unchecked Sendable {
     /// (`fanout.stop_process_group`). Measured 2026-10-27: pipx's `uv` had
     /// `sid == pid`, outside pipx's session. Those sessions are followed by
     /// id from the moment they are seen, whoever their parent becomes.
+    /// A session leaves this set the first scan that finds none of its
+    /// members, and is never looked for again: while it has a member the
+    /// kernel gives its id to no one (XNU skips a pid still used by a process,
+    /// a group or a session, `bsd/kern/kern_fork.c`), but once it is empty the
+    /// id is free, and a scan by number could find a stranger (review: the
+    /// ladder's SIGTERM at 30 s reached a session that reused the id).
     private var sessions: Set<pid_t> = []
+    /// Every process group a member was seen in, until the group is empty.
+    /// Reading the table and then each entry's session is not atomic: a
+    /// process that forks and exits between the two leaves its child
+    /// unlisted, and the scan reads empty (review: a fork-and-exit relay made
+    /// `waitUntilGone` return with it running, 6 times in 6). The child stays
+    /// in its parent's group, and `killpg(group, 0)` asks the kernel about the
+    /// whole group at once.
+    private var groups: Set<pid_t> = []
+    /// Every session and group is gone: nothing more is signalled or waited
+    /// for.
+    private var gone = false
     private var finished = false
 
+    /// The process table's reader: `processes`; a test's stands in for it.
+    private let table: @Sendable () -> [Member]?
+
     init(termAfter: Duration = ManagedStop.termAfter, killAfter: Duration = ManagedStop.killAfter,
-         giveUpAfter: Duration = ManagedStop.giveUpAfter) {
+         giveUpAfter: Duration = ManagedStop.giveUpAfter,
+         table: @escaping @Sendable () -> [Member]? = { ManagedStop.processes() }) {
         self.termAfter = termAfter
         self.killAfter = killAfter
         self.giveUpAfter = giveUpAfter
+        self.table = table
     }
+
+    /// The sessions still followed: for a test.
+    var trackedSessions: Set<pid_t> { lock.withLock { sessions } }
 
     /// The child started (its session's id is its pid): a stop asked for
     /// before this lands now.
     func launched(_ pid: pid_t) {
-        let started = Self.process(pid)?.started ?? 0
         let stopNow = lock.withLock { () -> Bool in
             self.pid = pid
-            launchedAt = started
             sessions = [pid]
             return requested
         }
@@ -110,12 +132,11 @@ final class ManagedStop: @unchecked Sendable {
     }
 
     private func adoptSessions() {
-        let all = Self.processes()
-        let known = Set(members(of: all).map(\.pid))
-        let since = lock.withLock { launchedAt }
-        let new = all.filter { known.contains($0.ppid) && $0.started >= since && getsid($0.pid) == $0.pid }.map(\.pid)
+        guard let all = table(), let known = members(of: all) else { return }
+        let pids = Set(known.map(\.pid))
+        let new = all.filter { pids.contains($0.ppid) && getsid($0.pid) == $0.pid }.map(\.pid)
         guard !new.isEmpty else { return }
-        lock.withLock { sessions.formUnion(new) }
+        lock.withLock { if !gone { sessions.formUnion(new) } }
     }
 
     /// The caller was cancelled: SIGINT to every group of the session, then
@@ -136,16 +157,33 @@ final class ManagedStop: @unchecked Sendable {
     var didLaunch: Bool { lock.withLock { pid != nil } }
 
     /// The sessions' processes now: every process whose session is the
-    /// child's or one a member started (`sessions`), and that started no
-    /// earlier than the child.
-    func members() -> [Member] {
-        members(of: Self.processes())
+    /// child's or one a member started (`sessions`). Nil when the process
+    /// table could not be read — which never reads as "none left".
+    func members() -> [Member]? {
+        table().flatMap(members(of:))
     }
 
-    private func members(of all: [Member]) -> [Member] {
-        let (sessions, since) = lock.withLock { (self.sessions, launchedAt) }
-        guard !sessions.isEmpty else { return [] }
-        return all.filter { $0.started >= since && sessions.contains(getsid($0.pid)) }
+    /// `all`'s members, dropping each session none is left in (see
+    /// `sessions`); `gone` once none is left at all.
+    private func members(of all: [Member]) -> [Member]? {
+        let tracked = lock.withLock { sessions }
+        let found = all.compactMap { member -> (Member, pid_t)? in
+            let sid = getsid(member.pid)
+            return tracked.contains(sid) ? (member, sid) : nil
+        }
+        let live = Set(found.map(\.1))
+        let seen = lock.withLock { () -> Set<pid_t> in
+            sessions.formIntersection(live)
+            if !gone { groups.formUnion(found.map(\.0.pgid)) }
+            return groups
+        }
+        // EPERM: a member is there, not ours to signal, or only zombies.
+        let empty = seen.filter { killpg($0, 0) != 0 && errno == ESRCH }
+        lock.withLock {
+            groups.subtract(empty)
+            if sessions.isEmpty && groups.isEmpty { gone = true }
+        }
+        return found.map(\.0)
     }
 
     /// Every process, from the kernel's process table (`KERN_PROC_ALL`, what
@@ -154,21 +192,23 @@ final class ManagedStop: @unchecked Sendable {
     /// fails with EPERM (measured 2026-10-27 as uid 501 on launchd, syslogd,
     /// cfprefsd), and that member would go unseen; the sysctl answers for
     /// every process (review round 3).
-    static func processes() -> [Member] {
+    /// Nil when it cannot be read: a caller must not take that for an empty
+    /// table (review: it read as "nothing left", and the put-back ran).
+    static func processes() -> [Member]? {
         var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_ALL, 0]
-        for _ in 0..<3 {
+        for attempt in 0..<8 {
             var size = 0
-            guard sysctl(&mib, 4, nil, &size, nil, 0) == 0, size > 0 else { return [] }
-            // Room for processes started between the two calls.
-            size += size / 8
+            guard sysctl(&mib, 4, nil, &size, nil, 0) == 0, size > 0 else { return nil }
+            // Room for processes started between the two calls, more each time.
+            size += size / 8 * (attempt + 1)
             var table = [kinfo_proc](repeating: kinfo_proc(), count: size / MemoryLayout<kinfo_proc>.stride)
             var used = table.count * MemoryLayout<kinfo_proc>.stride
             if sysctl(&mib, 4, &table, &used, nil, 0) == 0 {
                 return table.prefix(used / MemoryLayout<kinfo_proc>.stride).map(member)
             }
-            guard errno == ENOMEM else { return [] }
+            guard errno == ENOMEM else { return nil }
         }
-        return []
+        return nil
     }
 
     /// One process, as `processes` reads it; nil when there is none.
@@ -194,8 +234,15 @@ final class ManagedStop: @unchecked Sendable {
     /// ladder's SIGTERM and SIGKILL.
     private func signal(_ signal: Int32) {
         let own = lock.withLock { pid }
-        let reached = members().filter { signal != SIGINT || getsid($0.pid) == own }
+        guard !lock.withLock({ gone }) else { return }
+        // An unreadable table: SIGTERM and SIGKILL still reach the groups
+        // already seen (their ids are not reused while they hold anyone).
+        let members = self.members() ?? []
+        let reached = members.filter { signal != SIGINT || getsid($0.pid) == own }
         var groups = Set(reached.map(\.pgid))
+        // SIGTERM and SIGKILL also reach the groups seen before and not yet
+        // empty: what a fork-and-exit chain left unlisted in this scan.
+        if signal != SIGINT { groups.formUnion(lock.withLock { self.groups }) }
         if signal == SIGINT {
             groups = lock.withLock { groups.filter { interrupted.insert($0).inserted } }
         }
@@ -206,21 +253,39 @@ final class ManagedStop: @unchecked Sendable {
     /// `killAfter` after the stop — the child included, which a vendor that
     /// ignores SIGINT keeps alive.
     private func climb() {
-        let (termAfter, killAfter) = (self.termAfter, self.killAfter)
-        Task.detached { [self] in
-            for (after, signal) in [(termAfter, SIGTERM), (killAfter, SIGKILL)] {
-                guard let start = lock.withLock({ stoppedAt }) else { return }
-                // cancel-ok: a detached task no cancel reaches; two steps, then done
-                try? await Task.sleep(until: start + after, clock: .continuous)
-                guard alive() else { return }
-                self.signal(signal)
+        let (termAfter, killAfter, giveUpAfter) = (self.termAfter, self.killAfter, self.giveUpAfter)
+        guard let start = lock.withLock({ stoppedAt }) else { return }
+        // A thread of its own, not a task: a loaded cooperative pool can hold
+        // a `Task.sleep` far past its deadline (a loaded test pool once ran a
+        // SIGINT- and SIGTERM-proof command on to its 20 s deadline), and the
+        // ladder is what ends such a command.
+        let thread = Thread { [self] in
+            let clock = ContinuousClock()
+            func wait(until deadline: ContinuousClock.Instant) {
+                while clock.now < deadline, !lock.withLock({ gone }) { usleep(20_000) }
+            }
+            wait(until: start + termAfter)
+            guard !lock.withLock({ gone }), alive() else { return }
+            signal(SIGTERM)
+            wait(until: start + killAfter)
+            // SIGKILL until nothing is left, every 100 ms: one can be lost to a
+            // table that could not be read, or miss a child forked while it is
+            // delivered.
+            while !lock.withLock({ gone }), alive(), clock.now - start < giveUpAfter {
+                signal(SIGKILL)
+                usleep(100_000)
             }
         }
+        thread.name = "ManagedStop ladder"
+        thread.start()
     }
 
-    /// Any member of the session left, the child itself included.
-    private func alive() -> Bool {
-        !members().isEmpty
+    /// Any member of the sessions left, the child itself included; an
+    /// unreadable process table counts as yes.
+    func alive() -> Bool {
+        guard !lock.withLock({ gone }) else { return false }
+        guard let members = members() else { return true }
+        return !members.isEmpty || !lock.withLock({ groups.isEmpty })
     }
 
     /// Wait, after a stop (`interrupt`), until no member of the session is
@@ -229,7 +294,7 @@ final class ManagedStop: @unchecked Sendable {
     /// that missed the SIGINT (it started after it) is sent one.
     func waitUntilGone() async -> Bool {
         guard lock.withLock({ self.pid }) != nil else { return true }
-        let giveUpAfter = self.giveUpAfter
+        let (giveUpAfter, killAfter) = (self.giveUpAfter, self.killAfter)
         // Unstructured: the caller is usually cancelled — that is why it
         // stopped the command — and a cancelled task's sleep returns at once.
         let gone = await Task { [self] in
@@ -238,7 +303,12 @@ final class ManagedStop: @unchecked Sendable {
                 adoptSessions()
                 guard alive() else { return true }
                 signal(SIGINT)
-                if ContinuousClock.now - start >= giveUpAfter { return false }
+                let elapsed = ContinuousClock.now - start
+                // Past the ladder's SIGKILL, again on every pass, in case one
+                // misses a child forked while it is delivered — not seen to be
+                // needed (the fork-and-exit relay test passes without it).
+                if elapsed >= killAfter { signal(SIGKILL) }
+                if elapsed >= giveUpAfter { return false }
                 // cancel-ok: an unstructured task no cancel reaches; bounded by giveUpAfter
                 try? await Task.sleep(for: .milliseconds(100))
             }

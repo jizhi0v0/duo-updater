@@ -14,13 +14,52 @@ import Foundation
 ///
 /// The paths are the adapter's (`ManagerAdapter.interruption`), measured per
 /// manager: plans/cli-managers-redesign.md §13.4.
-struct ManagedSnapshot: Sendable {
+public struct ManagedSnapshot: Sendable {
     /// One path the command may write: cloned when it existed, else only
     /// remembered as absent, so `restore` removes what the command made there.
     struct Entry: Sendable, Equatable {
         let path: String
         /// The clone, nil when the path did not exist.
         let clone: String?
+        /// For a path that did not exist: its nearest ancestor that did. The
+        /// directories between, made by the run, go with it when empty.
+        var existingAncestor: String? = nil
+    }
+
+    /// Entries of `directory` a run may add under names it picks itself —
+    /// cargo's `bin/cargo-install<random>/` staging directory, a new version's
+    /// extra entry-point links in a shared `bin` — told apart from the
+    /// directory's other entries by a name prefix or by where a link points.
+    /// After a stop, every entry that is new since the snapshot and matches
+    /// is removed; entries that were there are left to `paths`.
+    public struct NewEntries: Sendable, Equatable {
+        public let directory: String
+        /// The entry's name starts with this.
+        public let namePrefix: String?
+        /// The entry is a link whose target is inside this directory.
+        public let linkingInto: String?
+        /// Every new entry, whatever its name: a `bin` only the manager writes.
+        public let any: Bool
+
+        public init(directory: String, namePrefix: String? = nil, linkingInto: String? = nil, any: Bool = false) {
+            self.directory = directory
+            self.namePrefix = namePrefix
+            self.linkingInto = linkingInto
+            self.any = any
+        }
+
+        func matches(_ name: String, in directory: String) -> Bool {
+            if any { return true }
+            if let namePrefix, !name.hasPrefix(namePrefix) { return false }
+            if let linkingInto {
+                guard let target = try? FileManager.default.destinationOfSymbolicLink(atPath: directory + "/" + name)
+                else { return false }
+                let absolute = target.hasPrefix("/") ? target : directory + "/" + target
+                let normal = (absolute as NSString).standardizingPath
+                return normal.hasPrefix((linkingInto as NSString).standardizingPath + "/")
+            }
+            return namePrefix != nil
+        }
     }
 
     enum Failure: Error, Equatable {
@@ -34,10 +73,21 @@ struct ManagedSnapshot: Sendable {
 
     let directory: String
     let entries: [Entry]
+    /// Each `NewEntries` rule with the names its directory held at the snapshot.
+    var created: [(rule: NewEntries, before: Set<String>)] = []
 
     /// Clone each of `paths` that exists into a scratch directory on its
-    /// volume. Throws, having removed what it cloned, when any one cannot be.
-    static func take(_ paths: [String]) throws -> ManagedSnapshot {
+    /// volume, and list each `created` rule's directory. Throws, having
+    /// removed what it cloned, when any one cannot be.
+    static func take(_ paths: [String], created: [NewEntries] = []) throws -> ManagedSnapshot {
+        var snapshot = try take(paths)
+        snapshot.created = created.map { rule in
+            (rule, Set((try? FileManager.default.contentsOfDirectory(atPath: rule.directory)) ?? []))
+        }
+        return snapshot
+    }
+
+    private static func take(_ paths: [String]) throws -> ManagedSnapshot {
         let paths = paths.map { ($0 as NSString).standardizingPath }
         for a in paths {
             for b in paths where a != b && b.hasPrefix(a + "/") {
@@ -48,9 +98,15 @@ struct ManagedSnapshot: Sendable {
         let directory: String
         do {
             // On the volume of the paths: a clone cannot cross volumes.
+            // The nearest ancestor that exists: a path the run will make
+            // (a new version's directory) names no volume yet.
+            var anchor = first
+            while anchor != "/", !FileManager.default.fileExists(atPath: anchor) {
+                anchor = (anchor as NSString).deletingLastPathComponent
+            }
             directory = try FileManager.default.url(
                 for: .itemReplacementDirectory, in: .userDomainMask,
-                appropriateFor: URL(fileURLWithPath: first), create: true).path
+                appropriateFor: URL(fileURLWithPath: anchor), create: true).path
         } catch {
             throw Failure.noScratch("\(error)")
         }
@@ -58,7 +114,11 @@ struct ManagedSnapshot: Sendable {
         for (index, path) in paths.enumerated() {
             var info = stat()
             guard lstat(path, &info) == 0 else {
-                entries.append(Entry(path: path, clone: nil))
+                var ancestor = (path as NSString).deletingLastPathComponent
+                while ancestor != "/", lstat(ancestor, &info) != 0 {
+                    ancestor = (ancestor as NSString).deletingLastPathComponent
+                }
+                entries.append(Entry(path: path, clone: nil, existingAncestor: ancestor))
                 continue
             }
             let clone = directory + "/\(index)"
@@ -84,6 +144,13 @@ struct ManagedSnapshot: Sendable {
                 if now, (try? FileManager.default.removeItem(atPath: entry.path)) == nil {
                     failed.append("\(entry.path): could not remove what the stopped command made")
                 }
+                if let ancestor = entry.existingAncestor {
+                    var directory = (entry.path as NSString).deletingLastPathComponent
+                    // `rmdir` removes only an empty directory.
+                    while directory.count > ancestor.count, directory.hasPrefix(ancestor + "/"), rmdir(directory) == 0 {
+                        directory = (directory as NSString).deletingLastPathComponent
+                    }
+                }
                 continue
             }
             if now {
@@ -100,6 +167,15 @@ struct ManagedSnapshot: Sendable {
                 try? FileManager.default.createDirectory(atPath: parent, withIntermediateDirectories: true)
                 if rename(clone, entry.path) != 0 {
                     failed.append("\(entry.path): \(String(cString: strerror(errno)))")
+                }
+            }
+        }
+        for (rule, before) in created {
+            let now = (try? FileManager.default.contentsOfDirectory(atPath: rule.directory)) ?? []
+            for name in now where !before.contains(name) && rule.matches(name, in: rule.directory) {
+                let path = rule.directory + "/" + name
+                if (try? FileManager.default.removeItem(atPath: path)) == nil {
+                    failed.append("\(path): could not remove what the stopped command made")
                 }
             }
         }

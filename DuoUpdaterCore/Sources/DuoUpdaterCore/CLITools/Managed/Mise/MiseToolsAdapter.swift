@@ -298,6 +298,22 @@ public struct MiseToolsAdapter: ManagerAdapter {
         return CLIToolCommand(executable: binary.path, arguments: ["upgrade", "--bump", item.name], pathPrefix: nil)
     }
 
+    /// The tool's installs (versions and their links), its downloads, the
+    /// installs index, the shims, and the state mise keeps across tools: the
+    /// purgatory (§13.4: a stop after the links' move left the old version
+    /// due for removal in 24 h) and the incomplete-install marks. Those are
+    /// shared by every mise tool, so another mise run while this one is
+    /// stopped would be undone with it. Cloning the node installs took
+    /// ~1 s.
+    public func interruption(_ item: ManagedItem, root: ManagedRoot) -> ManagedInterruption? {
+        let slug = (item.installPath as NSString).lastPathComponent
+        let state = home.path + "/.local/state/mise"
+        return ManagedInterruption(paths: [
+            item.installPath, installs + "/.mise-installs.toml", dataDirectory + "/downloads/" + slug,
+            dataDirectory + "/shims", state + "/tool-purgatory.json", state + "/incomplete-installs",
+        ])
+    }
+
     public func busy(_ item: ManagedItem, root: ManagedRoot, processes: [NpmActivity.Process]) -> String? {
         guard let binary = root.binary else { return nil }
         return ManagedActivity.running(binary: binary.path, subcommands: Self.busySubcommands, processes: processes)

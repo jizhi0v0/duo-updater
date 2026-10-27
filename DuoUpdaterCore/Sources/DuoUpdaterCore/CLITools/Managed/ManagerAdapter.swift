@@ -81,11 +81,23 @@ public protocol ManagerAdapter: Sendable {
 /// removed with the directory).
 public struct ManagedInterruption: Sendable, Equatable {
     public let paths: [String]
+    /// Entries a run may add whose names are not known before it: removed
+    /// after a stop when new since the snapshot.
+    public let created: [ManagedSnapshot.NewEntries]
     public let scratchVariables: [String]
 
-    public init(paths: [String], scratchVariables: [String] = []) {
+    public init(paths: [String], created: [ManagedSnapshot.NewEntries] = [], scratchVariables: [String] = []) {
         self.paths = paths
+        self.created = created
         self.scratchVariables = scratchVariables
+    }
+
+    /// The links in `directory` whose target is inside `target`: a tool's
+    /// entry points in a shared `bin`, which an upgrade rewrites.
+    public static func links(in directory: String, into target: String) -> [String] {
+        let names = (try? FileManager.default.contentsOfDirectory(atPath: directory)) ?? []
+        let rule = ManagedSnapshot.NewEntries(directory: directory, linkingInto: target)
+        return names.sorted().filter { rule.matches($0, in: directory) }.map { directory + "/" + $0 }
     }
 }
 

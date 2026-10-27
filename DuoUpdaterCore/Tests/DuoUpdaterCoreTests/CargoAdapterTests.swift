@@ -180,7 +180,7 @@ struct CargoAdapterTests {
             path: Self.root + "/bin/cargo", version: "1.99.1", trust: .untrusted(.adHoc)))
         #expect(host.identified == 0)
         let tokei = try #require(scan.items.last)
-        #expect(tokei.effects == [.compilesFromSource, .oldRemoved, .cannotBeCancelledOnceStarted, .dropsSpecifier("=14.0.0")])
+        #expect(tokei.effects == [.compilesFromSource, .oldRemoved, .dropsSpecifier("=14.0.0")])
         #expect(tokei.notes == .crate("tokei"))
         #expect(CargoAdapter.notIndexed(scan.items[1]) == "installed from a local path (file:///Users/x/duo-email)")
         #expect(CargoAdapter.notIndexed(scan.items[2]) == "installed from git (https://github.com/sharkdp/hexyl#5e5ce4c9)")

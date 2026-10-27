@@ -1,0 +1,211 @@
+import Foundation
+import Testing
+@testable import DuoUpdaterCore
+
+/// Each adapter's D15 plan (`ManagerAdapter.interruption`) against the writes
+/// its vendor's command was measured making when stopped partway
+/// (plans/cli-managers-redesign.md §13.4, 2026-10-27): a scratch home is laid
+/// out as before the run, the plan's snapshot taken, the measured mid-run
+/// state written over it, and `restore` must give back every byte of the
+/// home. Nothing runs a vendor's command here; the writes are the ones the
+/// measurement saw, by path.
+///
+/// Mutation for each: drop any one path or `created` rule from the plan.
+struct ManagedInterruptionTests {
+
+    private let home: String
+
+    init() throws {
+        let base = NSTemporaryDirectory() + "managed-interruption-\(UUID().uuidString)"
+        try FileManager.default.createDirectory(atPath: base, withIntermediateDirectories: true)
+        home = (base as NSString).resolvingSymlinksInPath
+    }
+
+    private var homeURL: URL { URL(fileURLWithPath: home) }
+
+    private func write(_ relative: String, _ text: String) throws {
+        let path = home + "/" + relative
+        try FileManager.default.createDirectory(
+            atPath: (path as NSString).deletingLastPathComponent, withIntermediateDirectories: true)
+        try? FileManager.default.removeItem(atPath: path)
+        try Data(text.utf8).write(to: URL(fileURLWithPath: path))
+    }
+
+    private func link(_ relative: String, to target: String) throws {
+        let path = home + "/" + relative
+        try FileManager.default.createDirectory(
+            atPath: (path as NSString).deletingLastPathComponent, withIntermediateDirectories: true)
+        try? FileManager.default.removeItem(atPath: path)
+        try FileManager.default.createSymbolicLink(atPath: path, withDestinationPath: target)
+    }
+
+    private func remove(_ relative: String) throws {
+        try FileManager.default.removeItem(atPath: home + "/" + relative)
+    }
+
+    private func listing() -> [String: String] {
+        var out: [String: String] = [:]
+        let enumerator = FileManager.default.enumerator(atPath: home)
+        while let relative = enumerator?.nextObject() as? String {
+            let path = home + "/" + relative
+            if let target = try? FileManager.default.destinationOfSymbolicLink(atPath: path) {
+                out[relative] = "-> " + target
+            } else if let data = FileManager.default.contents(atPath: path) {
+                out[relative] = String(decoding: data, as: UTF8.self)
+            } else {
+                out[relative] = "dir"
+            }
+        }
+        return out
+    }
+
+    /// Snapshot by `plan`, apply `midRun`, restore: the home as it was.
+    private func expectPutBack(
+        _ plan: ManagedInterruption?, sourceLocation: SourceLocation = #_sourceLocation, midRun: () throws -> Void
+    ) throws {
+        defer { try? FileManager.default.removeItem(atPath: home) }
+        let plan = try #require(plan, sourceLocation: sourceLocation)
+        let before = listing()
+        let snapshot = try ManagedSnapshot.take(plan.paths, created: plan.created)
+        try midRun()
+        #expect(listing() != before, "the mid-run writes changed nothing", sourceLocation: sourceLocation)
+        #expect(snapshot.restore() == [], sourceLocation: sourceLocation)
+        snapshot.discard()
+        let after = listing()
+        for key in Set(before.keys).union(after.keys) where before[key] != after[key] {
+            Issue.record("\(key): \(before[key] ?? "absent") before, \(after[key] ?? "absent") after", sourceLocation: sourceLocation)
+        }
+    }
+
+    private func item(_ descriptor: ManagerDescriptor, root: String, key: String, installPath: String) -> ManagedItem {
+        ManagedItem(descriptor: descriptor, root: root, key: key, name: key, installPath: installPath, shape: .package, installed: "1")
+    }
+
+    private func root(_ manager: ManagerID, _ path: String) -> ManagedRoot {
+        ManagedRoot(manager: manager, path: path, binary: nil)
+    }
+
+    /// go: the binary renamed into `GOBIN` (k3: stopped after the rename).
+    @Test func goPutsTheBinaryBack() throws {
+        try write("go/bin/gofumpt", "v0.9.1")
+        try write("go/bin/govulncheck", "v1.3.0")
+        let adapter = GoAdapter(home: homeURL)
+        let plan = adapter.interruption(
+            item(adapter.descriptor, root: home + "/go/bin", key: "mvdan.cc/gofumpt", installPath: home + "/go/bin/gofumpt"),
+            root: root(adapter.descriptor.id, home + "/go/bin"))
+        #expect(plan?.scratchVariables == ["TMPDIR"])
+        try expectPutBack(plan) {
+            try write("go/bin/gofumpt", "v0.12.0")
+        }
+    }
+
+    /// cargo: the binary and both records rewritten, and the staging
+    /// directory left holding the new binary (c6: 0.03 s after "Finished").
+    @Test func cargoPutsTheBinariesRecordsAndStagingBack() throws {
+        try write(".cargo/.crates.toml", """
+            [v1]
+            "tokei 14.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = ["tokei"]
+
+            """)
+        try write(".cargo/.crates2.json", #"{"installs":{"tokei 14.0.0 (registry+https://github.com/rust-lang/crates.io-index)":{"version_req":"=14.0.0","bins":["tokei"],"features":["yaml"],"all_features":false,"no_default_features":false,"profile":"release","target":"aarch64-apple-darwin","rustc":"rustc 1.99.1"}}}"#)
+        try write(".cargo/bin/tokei", "14.0.0")
+        try link(".cargo/bin/cargo", to: "rustup")
+        let adapter = CargoAdapter(home: homeURL)
+        let plan = adapter.interruption(
+            item(adapter.descriptor, root: home + "/.cargo", key: "tokei", installPath: home + "/.cargo/bin/tokei"),
+            root: root(adapter.descriptor.id, home + "/.cargo"))
+        try expectPutBack(plan) {
+            try write(".cargo/bin/cargo-installH2vysO/tokei", "15.0.0")
+            try write(".cargo/bin/tokei", "15.0.0")
+            try write(".cargo/.crates.toml", "[v1]\n\"tokei 15.0.0 (…)\" = [\"tokei\"]\n")
+            try write(".cargo/.crates2.json", "{}")
+        }
+    }
+
+    /// uv tool: the venv changed in place (u3: new `bin/ruff`, the old
+    /// dist-info gone, a `.tmp` in the new one) and a new entry point linked.
+    @Test func uvToolPutsTheVenvAndItsLinksBack() throws {
+        let venv = home + "/.local/share/uv/tools/ruff"
+        try write(".local/share/uv/tools/ruff/uv-receipt.toml", "ruff 0.6.0")
+        try write(".local/share/uv/tools/ruff/bin/ruff", "0.6.0")
+        try write(".local/share/uv/tools/ruff/lib/python3.12/site-packages/ruff-0.6.0.dist-info/METADATA", "0.6.0")
+        try link(".local/bin/ruff", to: venv + "/bin/ruff")
+        try write(".local/bin/other", "someone else's")
+        let adapter = UvToolAdapter(home: homeURL)
+        let plan = adapter.interruption(
+            item(adapter.descriptor, root: home + "/.local/share/uv/tools", key: "ruff", installPath: venv),
+            root: root(adapter.descriptor.id, home + "/.local/share/uv/tools"))
+        try expectPutBack(plan) {
+            try write(".local/share/uv/tools/ruff/bin/ruff", "0.17.3")
+            try remove(".local/share/uv/tools/ruff/lib/python3.12/site-packages/ruff-0.6.0.dist-info")
+            try write(".local/share/uv/tools/ruff/lib/python3.12/site-packages/ruff-0.17.3.dist-info/.tmpXYZ", "")
+            try link(".local/bin/ruff", to: venv + "/bin/ruff")
+            try link(".local/bin/ruff-lsp", to: venv + "/bin/ruff-lsp")
+        }
+    }
+
+    /// uv python: the new patch renamed into place before either link moved
+    /// (p4/p5/p7), then both links moved, and a partial download in `.temp`.
+    @Test func uvPythonPutsThePatchAndLinksBack() throws {
+        let dir = home + "/.local/share/uv/python"
+        try write(".local/share/uv/python/cpython-3.12.5-macos-aarch64-none/bin/python3.12", "3.12.5")
+        try link(".local/share/uv/python/cpython-3.12-macos-aarch64-none", to: dir + "/cpython-3.12.5-macos-aarch64-none")
+        try write(".local/share/uv/python/.lock", "")
+        try link(".local/bin/python3.12", to: dir + "/cpython-3.12-macos-aarch64-none/bin/python3.12")
+        let adapter = UvPythonAdapter(home: homeURL)
+        let plan = adapter.interruption(
+            item(adapter.descriptor, root: dir, key: "3.12", installPath: dir + "/cpython-3.12.5-macos-aarch64-none"),
+            root: root(adapter.descriptor.id, dir))
+        try expectPutBack(plan) {
+            try write(".local/share/uv/python/.temp/.tmpAbc/python.tar.gz", "partial")
+            try write(".local/share/uv/python/cpython-3.12.15-macos-aarch64-none/bin/python3.12", "3.12.15")
+            try link(".local/share/uv/python/cpython-3.12-macos-aarch64-none", to: dir + "/cpython-3.12.15-macos-aarch64-none")
+            try link(".local/bin/python3.12", to: dir + "/cpython-3.12.15-macos-aarch64-none/bin/python3.12")
+        }
+    }
+
+    /// pipx: a half-changed venv marked unfinished, with the old metadata
+    /// (x4/x5).
+    @Test func pipxPutsTheVenvAndItsAppsBack() throws {
+        let venv = home + "/.local/pipx/venvs/black"
+        try write(".local/pipx/venvs/black/pipx_metadata.json", #"{"main_package":{"package_version":"23.12.1"}}"#)
+        try write(".local/pipx/venvs/black/bin/black", "23.12.1")
+        try link(".local/bin/black", to: venv + "/bin/black")
+        let adapter = PipxAdapter(home: homeURL)
+        let plan = adapter.interruption(
+            item(adapter.descriptor, root: home + "/.local/pipx", key: "black", installPath: venv),
+            root: root(adapter.descriptor.id, home + "/.local/pipx"))
+        try expectPutBack(plan) {
+            try write(".local/pipx/venvs/black/pipx_unfinished", "")
+            try write(".local/pipx/venvs/black/bin/black", "26.10.1")
+            try link(".local/bin/blackd", to: venv + "/bin/blackd")
+        }
+    }
+
+    /// mise: the new version and its links, the index, a download, the shims,
+    /// and the purgatory scheduling the old version's removal (m7).
+    @Test func misePutsInstallsShimsAndStateBack() throws {
+        let installs = home + "/.local/share/mise/installs"
+        try write(".local/share/mise/installs/node/20.10.0/bin/node", "20.10.0")
+        try link(".local/share/mise/installs/node/20", to: "./20.10.0")
+        try write(".local/share/mise/installs/node/.mise.backend.toml", "core:node")
+        try write(".local/share/mise/installs/.mise-installs.toml", "node 20.10.0")
+        try write(".local/share/mise/installs/jq/1.6/bin/jq", "1.6")
+        try write(".local/share/mise/shims/node", "shim")
+        try write(".local/state/mise/tool-purgatory.json", "{}")
+        let adapter = MiseToolsAdapter(home: homeURL)
+        let plan = adapter.interruption(
+            item(adapter.descriptor, root: home + "/.local/share/mise", key: "node", installPath: installs + "/node"),
+            root: root(adapter.descriptor.id, home + "/.local/share/mise"))
+        try expectPutBack(plan) {
+            try write(".local/share/mise/downloads/node/20.20.2/node.tar.xz", "partial")
+            try write(".local/share/mise/installs/node/20.20.2/bin/node", "20.20.2")
+            try link(".local/share/mise/installs/node/20", to: "./20.20.2")
+            try link(".local/share/mise/installs/node/20.20", to: "./20.20.2")
+            try write(".local/share/mise/installs/.mise-installs.toml", "node 20.20.2")
+            try write(".local/share/mise/shims/npx", "shim")
+            try write(".local/state/mise/tool-purgatory.json", #"{"node@20.10.0":"2026-10-28"}"#)
+            try write(".local/state/mise/incomplete-installs/node-20.20.2", "")
+        }
+    }
+}

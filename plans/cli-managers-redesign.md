@@ -450,7 +450,7 @@ Every real-machine step: before/after `stat` proof attached to the PR (project r
 | D-B | duo JSON: **schema stays 2**, `tool: "managed"` + new `manager` key | schema 3 |
 | D-C | bub's uv-tool/pipx venvs **fold into the managed rows in P2**; `BubProvider` keeps only bub's own installer method | keep `BubProvider` as is |
 
-Open, to be decided from §13's measurements: **D15**, whether any manager's command may be stopped once it has started.
+**D15 (owner, 2026-10-27): stop it, as a terminal's Ctrl-C would, but only where nothing can be damaged.** Built as §13.4: the command's writes are cloned before it starts and put back after a stop, so every stage is a safe one for a manager whose writes are measured; one whose writes cannot be covered keeps running to completion.
 
 ## 12. Needs verification before implementation
 
@@ -474,6 +474,7 @@ Each: the check to run, in an isolated home.
 14. **`uv tool upgrade` for a range at its top** prints exactly "Nothing to upgrade", rc 0, stderr only (UV-24 observed once) — the parser's no-op signal; and `uv tool upgrade` of an unpinned tool with a receipt `exclude-newer` keeps the receipt byte-identical when no flag is passed (UV-17 inverse).
 15. **nvm `~/.config/nvm/versions/node` real layout** on this Mac (`ls ~/.config/nvm`) — the second root the scan will read.
 16. **Scan cost**: measure `scanAll` wall time before P1 and after P3 with `log stream --predicate 'subsystem == "…"'` on the "cli-tools" lane; target: no measurable change on a popover open (≤ a few ms).
+   **Done 2026-10-27** (after P4, real home, release build, a throwaway Swift Testing probe calling `CLITools.inProviderOrder(…) { $0.scan() }` as `scanAll` does; 30 alternating rounds, warm): the 30 standalone providers alone median 2521 ms (p90 3425, 2192–3844); with the 10 managed providers too, median 2716 ms (p90 3978, 1986–6645) — the two ranges overlap, the difference is within the noise. Alone (15 rounds each): mise 369 ms, uv Python 71, cargo 13, pyenv 6, rbenv 4, the rest under 1 ms. mise's is `MiseScanner`'s signature check of the 138 MB `~/.local/bin/mise`, which the standalone mise row's scan also does; they run side by side, so it is not on the critical path. The 2.5 s floor is the standalone tools' own (not looked into here). Every popover open runs this scan (`CLIToolsModel.onOpen`), off the main actor.
 17. **`pipx` binary target**: `readlink -f ~/.local/bin/pipx` and the shebang's interpreter signature — input to D5(b).
 
 ---

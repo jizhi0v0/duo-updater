@@ -206,7 +206,7 @@ public struct ManagedProvider: CLIToolProvider {
         // latter, as before D15.
         var snapshot: ManagedSnapshot?
         var scratch: String?
-        if let plan = adapter.interruption(item, root: root), let taken = try? ManagedSnapshot.take(plan.paths) {
+        if let plan = adapter.interruption(item, root: root), let taken = try? ManagedSnapshot.take(plan.paths, created: plan.created) {
             snapshot = taken
             if !plan.scratchVariables.isEmpty {
                 let directory = NSTemporaryDirectory() + "duo-managed-" + UUID().uuidString

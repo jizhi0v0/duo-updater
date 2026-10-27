@@ -340,10 +340,11 @@ public struct MiseToolsAdapter: ManagerAdapter {
     }
 
     /// The directories of `installs` a python upgrade may reinstall: those
-    /// `.mise-installs.toml` records with a `pipx:` or `pypi:` backend, those
-    /// spelled so, and those it records no backend for (or all, when it
-    /// cannot be read): one taken needlessly costs a clone, one missed is
-    /// left half done.
+    /// `.mise-installs.toml` records with a `pipx:` or `pypi:` backend, and
+    /// those it records no backend for (or all, when it cannot be read): one
+    /// taken needlessly costs a clone, one missed is left half done. A
+    /// `pipx-`/`pypi-` directory needs no rule of its own: mise names it from
+    /// that backend, so the index records it so or not at all.
     static func pipxInstalls(in installs: String) -> [String] {
         let names = ((try? FileManager.default.contentsOfDirectory(atPath: installs)) ?? []).filter { !$0.hasPrefix(".") }
         let index = (try? String(contentsOfFile: installs + "/.mise-installs.toml", encoding: .utf8)) ?? ""
@@ -357,7 +358,6 @@ public struct MiseToolsAdapter: ManagerAdapter {
             }
         }
         return names.filter { name in
-            if name.hasPrefix("pipx-") || name.hasPrefix("pypi-") { return true }
             guard let full = backends[name] else { return true }
             return full.hasPrefix("pipx:") || full.hasPrefix("pypi:")
         }.sorted()

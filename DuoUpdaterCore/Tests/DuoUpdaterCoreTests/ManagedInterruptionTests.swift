@@ -281,19 +281,11 @@ struct ManagedInterruptionTests {
         }
     }
 
-    /// mise, upgrading python: then it reinstalls every tool whose backend is
-    /// pipx against the new Python (`PIPXBackend::reinstall_all`): `pipx:`,
-    /// `pypi:`, and a registry shorthand such as `yamllint`, whose resolved
-    /// backend only the installs index records — and may rewrite the
-    /// global lockfiles — `mise.lock`, and `mise.<env>.lock` under `MISE_ENV`
-    /// — through a `.mise.lock.<random>` temp file beside them. A stop in
-    /// that step leaves them half done. Mutations: no `pypi-` (its tool keeps
-    /// the new text), the index not read (`yamllint` keeps it), no `mise.<env>.lock`
-    /// (it keeps the new text), no `.mise.lock.` rule (the temp file stays).
     /// Which installs a python upgrade may reinstall: by the backend the
-    /// index records, by spelling, and every directory the index does not
-    /// account for; not a tool of another backend. Mutations: unrecorded
-    /// directories left out (`mystery`), every directory taken (`node`).
+    /// index records, and every directory the index does not account for;
+    /// not a tool of another backend. Mutations: unrecorded directories left
+    /// out (`mystery`), every directory taken (`node`), `pypi:` not read as
+    /// pipx (`yamllint`).
     @Test func misePipxInstallsComeFromTheIndex() throws {
         let installs = home + "/.local/share/mise/installs"
         for name in ["node", "yamllint", "pipx-black", "mystery"] {
@@ -316,6 +308,16 @@ struct ManagedInterruptionTests {
         #expect(MiseToolsAdapter.pipxInstalls(in: installs) == ["mystery", "pipx-black", "yamllint"])
     }
 
+    /// mise, upgrading python: then it reinstalls every tool whose backend is
+    /// pipx against the new Python (`PIPXBackend::reinstall_all`): `pipx:`,
+    /// `pypi:`, and a registry shorthand such as `yamllint`, whose resolved
+    /// backend only the installs index records — and may rewrite the
+    /// global lockfiles — `mise.lock`, and `mise.<env>.lock` under `MISE_ENV`
+    /// — through a `.mise.lock.<random>` temp file beside them. A stop in
+    /// that step leaves them half done. Mutations: no pipx tools (each keeps
+    /// the new text), a recorded `pypi:` backend not taken (`yamllint` keeps
+    /// it), no `mise.<env>.lock` (it keeps the new text), no `.mise.lock.`
+    /// rule (the temp file stays).
     @Test func misePythonPutsThePipxToolsAndLockfileBack() throws {
         let installs = home + "/.local/share/mise/installs"
         try write(".local/share/mise/installs/python/3.12.5/bin/python3", "3.12.5")

@@ -914,8 +914,8 @@ Proposed managers (D-P5-2): `npm`, `bun`, `pnpm`, `yarn` — four `ManagerID`s, 
 - **L4 notes key + note text**: `ManagerAdapter.releaseNotesKey(_:)` (default today's); npm adapters return `NpmChangelog.releaseNotesKey`. `Blocker.notIndexed` note stays generic unless the adapter passes `.unknownVersionForm`/a new `.reportedOnly(String)` whose note is the reason as written.
 - **L5 stdin**: `ManagerAdapter.standardInput: Data?` (default nil) passed to the runner; npm adapters return `Data()`.
 - **L6 run hooks**: `ManagerAdapter.prepare(_ item) async -> Prepared?` (read the specifier) and `finish(_ item, prepared, run) async -> CLIToolUpdateOutcome?` (exact-version check, pnpm link-following re-read, specifier restore, `failureMessage` with npm's/openclaw's reason). Defaults keep P1–P4 unchanged.
-- **L7 lane**: `ManagerAdapter.lane(of item) -> String` (default `descriptor.lane`); `CLIToolsModel.lane(of:)` asks it through the item.
-- **L8 current-row note**: `ManagedVerdict.note: String?` → `CLIToolStatus.note` on a row `ManagedCheck` makes `.upToDate` (K12: the tag's prerelease or deprecated version; today `C/NpmCheck.swift:169`), so the row and `duo`'s `note` stay as they are. Default nil: P1–P4 unchanged. npm returns `"node:" + canonical(root)`, today's spelling, so Claude Code's npm row and the prefix's packages share again.
+- **L7 lane**: `ManagerAdapter.lane(of item) -> String` (default `descriptor.lane`); `CLIToolsModel.lane(of:)` asks it through the item. npm returns `"node:" + canonical(root)`, today's spelling, so Claude Code's npm row and the prefix's packages share again.
+- **L8 current-row note**: `ManagedVerdict.note: String?` → `CLIToolStatus.note` on a row `ManagedCheck` makes `.upToDate` (K12: the tag's prerelease or deprecated version; today `C/NpmCheck.swift:169`), so the row and `duo`'s `note` stay as they are. Default nil: P1–P4 unchanged.
 
 ---
 

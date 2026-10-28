@@ -105,9 +105,10 @@ public enum InPlaceSwap {
     /// `NestedAppGuard`'s refusal: its own check before the apply is followed
     /// by verification, extraction and maybe a wait for another install's
     /// administrator panel, and a VM can start in that time. A throw here
-    /// leaves the target as it was. Run last before each exchange: before the
-    /// rotation, before `replaceItemAt`, and on the elevated route after the
-    /// panel lock is taken, just before `osascript` shows the panel. A
+    /// leaves the target as it was. Run last before each exchange begins:
+    /// before the rotation stages `Contents`, before the unprivileged exchange
+    /// stages its copy, and on the elevated route after the panel lock is
+    /// taken, just before `osascript` shows the panel. A
     /// task-local for the reason `elevatedShellOverride` is one: it reaches
     /// through the installers and `InstallCommit`'s inheriting `Task { }`
     /// without a parameter on each. Unset for a restore (`BackupStore`).

@@ -383,7 +383,8 @@ import Testing
     }
 
     /// Refused inside a patch-route apply: not wrapped for the full-archive
-    /// retry, which would download it only to be refused at the same swap.
+    /// retry, so the refusal is reported as itself. (A retry would be refused
+    /// again by `fetchThenSwap`'s first check, before downloading anything.)
     /// Mutation: drop the `NestedAppRunningError` line in
     /// `deltaRouteFailureIsWorthRetrying` → red.
     @Test func aRefusalInsideThePatchRouteIsNotRetriedWithTheFullArchive() {

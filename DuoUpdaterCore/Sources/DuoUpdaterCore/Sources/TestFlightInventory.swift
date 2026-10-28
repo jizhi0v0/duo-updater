@@ -133,8 +133,8 @@ public struct TestFlightInventory: Sendable {
     }
 
     /// Per bundle id: which app the store thinks it is, and the newest build id it
-    /// has ever recorded for it. Empty when the frontier query did not prepare,
-    /// which costs this signal and nothing else.
+    /// has ever recorded for it. Empty when the frontier query did not prepare or
+    /// did not finish, which costs this signal and nothing else.
     private let frontierByBundleID: [String: Frontier]
 
     /// Bundles the signed-in account is testing, or nil when the tester query did
@@ -472,9 +472,8 @@ public struct TestFlightInventory: Sendable {
     /// How long a query waits on a lock someone else holds. Without it a lock
     /// answers `SQLITE_BUSY` at once. Held while the schema loads, at the first
     /// prepare, `openAndRead` reports that as every query failing to prepare; held
-    /// past this wait at a later `sqlite3_step`, a row loop ends early and the read
-    /// still says `rowsReadable` — that form is not handled here. 200ms, as this
-    /// package's other read-only opens use.
+    /// past this wait at a later `sqlite3_step`, that query reads as it would had it
+    /// not prepared (see `read`). 200ms, as this package's other read-only opens use.
     ///
     /// ⚠️ Not shown to be what failed in the field. The running app logged two such
     /// reads on 2026-10-28 with no TestFlight running. On that store (`PRAGMA
@@ -483,8 +482,8 @@ public struct TestFlightInventory: Sendable {
     /// came back unreadable while 8 of those Python readers contended — 0 in 3,000
     /// with the timeout, and without it 0 in 3,000 alone and 0 in 20,000 with 4 of
     /// these readers in parallel. Those counts are of unreadable reads only; a
-    /// step-time BUSY, which reads as `rowsReadable`, would not have been counted.
-    /// What the timeout is proven to do is the fixture
+    /// step-time BUSY, which then read as `rowsReadable`, would not have been
+    /// counted. What the timeout is proven to do is the fixture
     /// case: wait on a lock held at prepare rather than give up at once. The
     /// `sqlite3_errmsg` in the prepare-failure logs is what tells the next one apart.
     static let busyTimeoutMilliseconds: Int32 = 200
@@ -543,7 +542,13 @@ public struct TestFlightInventory: Sendable {
         }
         defer { sqlite3_close(db) }
         sqlite3_busy_timeout(db, busyTimeoutMilliseconds)
+        return read(db)
+    }
 
+    /// Every query, on a connection `openAndRead` opened. Its own function so a test
+    /// can hold a lock between the schema loading and the first `sqlite3_step`,
+    /// which nothing outside the connection can otherwise time.
+    static func read(_ db: OpaquePointer?) -> Reading {
         // Two queries, tried in order, because a prepare failure is total: it
         // returns an empty inventory that still reports `opened`, so every
         // TestFlight app silently loses its build and no native-Mac beta is
@@ -618,7 +623,9 @@ public struct TestFlightInventory: Sendable {
         }
         defer { sqlite3_finalize(stmt) }
         var out: [String: Frontier] = [:]
-        while sqlite3_step(stmt) == SQLITE_ROW {
+        var result = sqlite3_step(stmt)
+        while result == SQLITE_ROW {
+            defer { result = sqlite3_step(stmt) }
             guard let raw = sqlite3_column_text(stmt, 0) else { continue }
             let bundleID = String(cString: raw)
             let frontier = Frontier(
@@ -627,6 +634,12 @@ public struct TestFlightInventory: Sendable {
             // store ever carries two, since this is an "at least this new" bound.
             if let existing = out[bundleID], existing.maxBuildID >= frontier.maxBuildID { continue }
             out[bundleID] = frontier
+        }
+        // Anything but DONE read part of the map or none of it: the same no-signal
+        // answer as a query that did not prepare.
+        guard result == SQLITE_DONE else {
+            logStepFailure(db, "frontier query", "announcement witness is off")
+            return [:]
         }
         return out
     }
@@ -660,7 +673,8 @@ public struct TestFlightInventory: Sendable {
     /// accident of what a placeholder happens to omit.
     ///
     /// **Its own query, and its own failure**, like the frontier: nil means it did
-    /// not prepare, which switches this signal off and changes no verdict.
+    /// not prepare or did not finish, which switches this signal off and changes no
+    /// verdict.
     private static func readTesters(_ db: OpaquePointer?) -> Set<String>? {
         var stmt: OpaquePointer?
         guard sqlite3_prepare_v2(db, Self.testerSQL, -1, &stmt, nil) == SQLITE_OK else {
@@ -670,8 +684,16 @@ public struct TestFlightInventory: Sendable {
         }
         defer { sqlite3_finalize(stmt) }
         var out: Set<String> = []
-        while sqlite3_step(stmt) == SQLITE_ROW {
+        var result = sqlite3_step(stmt)
+        while result == SQLITE_ROW {
             if let raw = sqlite3_column_text(stmt, 0) { out.insert(String(cString: raw)) }
+            result = sqlite3_step(stmt)
+        }
+        // Not `out`: a step cut short would say the account tests nothing, or less
+        // than it does — a claim the read never made.
+        guard result == SQLITE_DONE else {
+            logStepFailure(db, "tester query", "the signed-in account's betas are unknown for this read")
+            return nil
         }
         return out
     }
@@ -709,7 +731,9 @@ public struct TestFlightInventory: Sendable {
         var macInstalledRows: [Row] = []
         var iosRows: [Row] = []
         var iosAvailableRows: [Row] = []
-        while sqlite3_step(stmt) == SQLITE_ROW {
+        var result = sqlite3_step(stmt)
+        while result == SQLITE_ROW {
+            defer { result = sqlite3_step(stmt) }
             guard let bundleC = sqlite3_column_text(stmt, 0),
                   let buildC = sqlite3_column_text(stmt, 2) else { continue }
             let bundleID = String(cString: bundleC)
@@ -751,6 +775,15 @@ public struct TestFlightInventory: Sendable {
                 break
             }
         }
+        // Anything but DONE — a lock that outlasted the busy timeout once the schema
+        // had loaded answers here, not at prepare — read some of the rows or none, and
+        // either would pass for the whole store. It reads as unreadable instead, the
+        // answer both queries failing to prepare gives. Not nil: that sends
+        // `openAndRead` to the fallback query, which is for a schema missing a column.
+        guard result == SQLITE_DONE else {
+            logStepFailure(db, "row query", "its rows are unreadable for this read")
+            return ([], nil, [], [], [:], nil, false, false, true)
+        }
         // Frontiers are filled in by `openAndRead`, from its own query.
         // `hasInstallStatus == false` means the status column was never selected,
         // so "installed here" is unknown for mac rows, not empty.
@@ -771,8 +804,22 @@ public struct TestFlightInventory: Sendable {
             return false
         }
         defer { sqlite3_finalize(stmt) }
-        guard sqlite3_step(stmt) == SQLITE_ROW else { return false }
+        // One row, always: the SELECT is a single expression. Anything else is a step
+        // that failed, and `false` is already this query's no-signal answer.
+        guard sqlite3_step(stmt) == SQLITE_ROW else {
+            logStepFailure(db, "rebuild query", "a store read mid-rebuild will not be recognized")
+            return false
+        }
         return sqlite3_column_int64(stmt, 0) == 1
+    }
+
+    /// A query that prepared and then failed at `sqlite3_step`, worded like the
+    /// prepare-failure lines so the two read together and tell apart.
+    private static func logStepFailure(_ db: OpaquePointer?, _ query: String, _ consequence: String) {
+        Log.scan.error("""
+            TestFlight DB \(query, privacy: .public) step failed (\(String(cString: sqlite3_errmsg(db)), privacy: .public)) \
+            — \(consequence, privacy: .public)
+            """)
     }
 
     /// A store TestFlight has started rebuilding and not finished: the account is

@@ -339,6 +339,71 @@ struct PackageInstallerTests {
                     == [result.packageURL.deletingLastPathComponent().lastPathComponent])
     }
 
+    /// A folder the zip stores as 0444 (or 0100) has no search bit once `ditto`
+    /// restores it: `u+w` alone left the package unfindable and the work directory
+    /// unremovable. `ditto -c` cannot read such a folder to archive it, so the zip
+    /// is written by hand.
+    @Test func anUnsearchableFolderInTheZipStillOpens() async throws {
+        let fm = FileManager.default
+        let zip = fm.temporaryDirectory
+            .appendingPathComponent("ZZUnsearchable-\(UUID().uuidString).zip")
+        try Self.storedZip(entries: [
+            ("exports/", 0o040444), ("exports/ZZFixture.pkg", 0o100444),
+        ]).write(to: zip)
+        defer { try? fm.removeItem(at: zip) }
+
+        let uniqueApp = "ZZUnsearchable-\(UUID().uuidString)"
+        let installer = PackageInstaller(opener: { _ in }, packageGate: { _, _ in })
+        let outcome = await Result {
+            try await installer.downloadAndOpen(
+                url: zip,
+                installedApp: URL(fileURLWithPath: "/Applications/\(uniqueApp).app"),
+                onStage: { _ in },
+                verifyDownload: { try PackageInstaller.contentFingerprint(of: $0) })
+        }
+        let leftovers = try fm.contentsOfDirectory(
+            at: fm.temporaryDirectory, includingPropertiesForKeys: nil)
+            .filter { $0.lastPathComponent.hasPrefix("DuoUpdater-pkg-\(uniqueApp)-") }
+        for leftover in leftovers {
+            _ = try? await ChildProcess.run(
+                "/bin/chmod", ["-R", "u+rwX", leftover.path], onCancel: .runToCompletion)
+            try? fm.removeItem(at: leftover)
+        }
+
+        #expect(try outcome.get().packageURL.lastPathComponent == "ZZFixture.pkg")
+    }
+
+    /// A zip of empty, stored entries with the given Unix modes. Empty entries have
+    /// CRC 0, so nothing needs computing.
+    private static func storedZip(entries: [(name: String, mode: UInt32)]) -> Data {
+        var local = Data(), central = Data()
+        func le16(_ v: Int, into d: inout Data) { d.append(contentsOf: [UInt8(v & 0xFF), UInt8(v >> 8 & 0xFF)]) }
+        func le32(_ v: UInt32, into d: inout Data) { for i in 0..<4 { d.append(UInt8(v >> (8 * UInt32(i)) & 0xFF)) } }
+        for entry in entries {
+            let name = Data(entry.name.utf8)
+            let offset = UInt32(local.count)
+            le32(0x0403_4b50, into: &local)
+            for v in [10, 0, 0, 0, 0x21] { le16(v, into: &local) }   // version, flags, stored, time, date
+            for _ in 0..<3 { le32(0, into: &local) }                  // crc, sizes
+            le16(name.count, into: &local); le16(0, into: &local)
+            local.append(name)
+            le32(0x0201_4b50, into: &central)
+            for v in [0x031E, 10, 0, 0, 0, 0x21] { le16(v, into: &central) } // made by Unix
+            for _ in 0..<3 { le32(0, into: &central) }
+            for v in [name.count, 0, 0, 0, 0] { le16(v, into: &central) }
+            le32(entry.mode << 16 | (entry.name.hasSuffix("/") ? 0x10 : 0), into: &central)
+            le32(offset, into: &central)
+            central.append(name)
+        }
+        var end = Data()
+        le32(0x0605_4b50, into: &end)
+        for v in [0, 0, entries.count, entries.count] { le16(v, into: &end) }
+        le32(UInt32(central.count), into: &end)
+        le32(UInt32(local.count), into: &end)
+        le16(0, into: &end)
+        return local + central + end
+    }
+
     private static func zip(_ folder: URL, to zip: URL) async throws {
         let made = try await ChildProcess.run(
             "/usr/bin/ditto", ["-c", "-k", folder.path, zip.path], onCancel: .runToCompletion)

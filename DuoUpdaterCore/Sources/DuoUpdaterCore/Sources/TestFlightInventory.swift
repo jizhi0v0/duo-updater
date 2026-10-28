@@ -470,8 +470,10 @@ public struct TestFlightInventory: Sendable {
     static let openTimeout: TimeInterval = 5
 
     /// How long a query waits on a lock someone else holds. Without it a lock
-    /// answers `SQLITE_BUSY` at once, and `openAndRead` reports that as every query
-    /// failing to prepare. 200ms, as this package's other read-only opens use.
+    /// answers `SQLITE_BUSY` at once. Held while the schema loads, at the first
+    /// prepare, `openAndRead` reports that as every query failing to prepare; held
+    /// past this wait at a later `sqlite3_step`, that query reads as it would had it
+    /// not prepared (see `read`). 200ms, as this package's other read-only opens use.
     ///
     /// ⚠️ Not shown to be what failed in the field. The running app logged two such
     /// reads on 2026-10-28 with no TestFlight running. On that store (`PRAGMA
@@ -479,7 +481,9 @@ public struct TestFlightInventory: Sendable {
     /// `database is locked` 2 times in ~51,000 reads two at a time; this reader never
     /// came back unreadable while 8 of those Python readers contended — 0 in 3,000
     /// with the timeout, and without it 0 in 3,000 alone and 0 in 20,000 with 4 of
-    /// these readers in parallel. What the timeout is proven to do is the fixture
+    /// these readers in parallel. Those counts are of unreadable reads only; a
+    /// step-time BUSY, which then read as `rowsReadable`, would not have been
+    /// counted. What the timeout is proven to do is the fixture
     /// case: wait on a lock held at prepare rather than give up at once. The
     /// `sqlite3_errmsg` in the prepare-failure logs is what tells the next one apart.
     static let busyTimeoutMilliseconds: Int32 = 200

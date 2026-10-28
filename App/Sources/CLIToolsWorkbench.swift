@@ -49,8 +49,10 @@ struct LogoTile<Mark: View>: View {
 /// dot-line-dot mark without its tile; Biome is Simple Icons 16.34.0's (CC0,
 /// from biomejs/resources' `icon-light-mono.svg`); Atuin's turtle (atuin.sh's brand assets) and
 /// zoxide's keycap (`contrib/logo-{light,dark}.svg`) keep their own colours,
-/// since one colour would leave a blob and a blank square. bub and Lorca publish
-/// only a PNG, so they stand in with an SF Symbol.
+/// since one colour would leave a blob and a blank square. go install's Go logo
+/// is go.dev/brand's `go-logo-blue.svg`, unmodified and in its own colour, used
+/// with the Go team's approval (trademark@golang.org, 2026-10-28). bub and Lorca
+/// publish only a PNG, so they stand in with an SF Symbol.
 struct CLIToolIcon: View {
     let kind: CLIToolKind
     let size: CGFloat

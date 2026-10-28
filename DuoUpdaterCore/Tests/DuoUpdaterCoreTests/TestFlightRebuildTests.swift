@@ -113,10 +113,9 @@ struct TestFlightRebuildTests {
     /// `openAndRead` reports a `SQLITE_BUSY` at prepare, while the schema loads:
     /// every query failing to prepare, an opened store with no rows. Only that form:
     /// a BUSY that outlasts the timeout at `sqlite3_step`, once the schema is loaded,
-    /// ends a row loop early and still reads as `rowsReadable`, and this does not
-    /// pin it. Whether either is what the app logged twice on 2026-10-28 is not
-    /// established (`TestFlightInventory.busyTimeoutMilliseconds` says why); this
-    /// pins the behaviour, not the field cause.
+    /// is the next test's. Whether either is what the app logged twice on
+    /// 2026-10-28 is not established (`TestFlightInventory.busyTimeoutMilliseconds`
+    /// says why); this pins the behaviour, not the field cause.
     ///
     /// The lock is held for the whole read and the wait is what is asserted, so a
     /// loaded machine can only make it longer. Releasing the lock part-way through
@@ -153,6 +152,62 @@ struct TestFlightRebuildTests {
         let released = TestFlightInventory(databaseURL: url)
         #expect(released.rowsReadable)
         #expect(released.latestIOS(forBundleID: "zz.fixture.beta")?.latestBuild == "91")
+    }
+
+    /// The other form: the schema is already loaded, so every query prepares, and
+    /// the lock that outlasts the timeout answers `SQLITE_BUSY` at `sqlite3_step`
+    /// instead. Each query reads as it would had it not prepared — rows unreadable,
+    /// testers unknown, no frontier, no rebuild signal — rather than as a store that
+    /// holds nothing, which for the testers is "the account tests nothing".
+    ///
+    /// Taken from a reader the test opened itself, because only it can put the lock
+    /// between the schema loading and the first step. The lock is then held for the
+    /// whole read, like the test above and for the same reason.
+    ///
+    /// Not observed in the field: on the real (WAL) store this reader never came
+    /// back busy (`TestFlightInventory.busyTimeoutMilliseconds`).
+    ///
+    /// Mutations: a row loop that ends on any non-`SQLITE_ROW` reads `rowsReadable`;
+    /// a tester loop that does reads `[]`. The frontier and rebuild answers cannot
+    /// tell here — a BUSY arrives at the first step, before any row, and their
+    /// partial answer is their no-signal one.
+    @Test func aLockAtStepReadsAsUnreadableNotEmpty() throws {
+        let root = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("ZZFixture-busy-step-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let url = root.appendingPathComponent("TestFlight.sqlite")
+        var writer: OpaquePointer?
+        #expect(sqlite3_open(url.path, &writer) == SQLITE_OK)
+        defer { sqlite3_close(writer) }
+        #expect(sqlite3_exec(writer, Self.complete, nil, nil, nil) == SQLITE_OK, "fixture schema did not apply")
+
+        var reader: OpaquePointer?
+        #expect(sqlite3_open_v2(url.path, &reader, SQLITE_OPEN_READONLY, nil) == SQLITE_OK)
+        defer { sqlite3_close(reader) }
+        sqlite3_busy_timeout(reader, TestFlightInventory.busyTimeoutMilliseconds)
+        // Naming a table is what loads the schema; finalized, the reader holds no lock.
+        var stmt: OpaquePointer?
+        #expect(sqlite3_prepare_v2(reader, "SELECT 1 FROM ZTFAPPMODEL;", -1, &stmt, nil) == SQLITE_OK)
+        sqlite3_finalize(stmt)
+
+        // Rollback journal, so this shuts the reader out, as in the test above.
+        #expect(sqlite3_exec(writer, "BEGIN EXCLUSIVE;", nil, nil, nil) == SQLITE_OK)
+        let locked = TestFlightInventory.read(reader)
+        #expect(sqlite3_exec(writer, "COMMIT;", nil, nil, nil) == SQLITE_OK)
+
+        #expect(locked.opened)
+        #expect(!locked.rowsReadable, "a step that answered BUSY read as rows")
+        #expect(locked.rows.isEmpty && locked.iosAvailableRows.isEmpty)
+        #expect(locked.testers == nil, "a step that answered BUSY read as an account testing nothing")
+        #expect(locked.frontiers.isEmpty)
+        #expect(!locked.rebuilding)
+
+        // The same connection, unlocked, reads in full: the schema it loaded is good.
+        let released = TestFlightInventory.read(reader)
+        #expect(released.rowsReadable)
+        #expect(released.testers?.contains("zz.fixture.beta") == true)
+        #expect(!released.frontiers.isEmpty)
     }
 
     /// An invented path, so the host's disk cannot change the answer.

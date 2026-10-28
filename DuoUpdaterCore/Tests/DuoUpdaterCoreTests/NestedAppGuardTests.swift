@@ -340,6 +340,58 @@ import Testing
         #expect(fixture.targetIsUntouched)
     }
 
+    /// The other two exchanges ask too: the elevated route before its shell
+    /// (no administrator panel for a swap that would be refused), and the
+    /// `Contents` rotation input methods take. Mutation: drop the
+    /// `preExchangeCheck` call before `runElevated` → the shell runs; drop the
+    /// one before `rotateContents` → the rotation lands.
+    @Test func theElevatedAndRotationExchangesAskBeforeTheyMoveAnything() async throws {
+        let refusal = NestedAppRunningError(
+            appName: "ZZFixtureVM", blockers: [.init(name: "ZZFixtureMachine", pid: 700)])
+        let refuse: @Sendable () throws -> Void = { throw refusal }
+
+        let elevated = try SwapFixture()
+        defer {
+            chmod(elevated.root.path, 0o755)
+            elevated.remove()
+        }
+        chmod(elevated.root.path, 0o555)
+        #expect(InPlaceSwap.needsElevatedReplace(target: elevated.target), "fixture must take the elevated route")
+        let shells = Counter()
+        await #expect(throws: NestedAppRunningError.self) {
+            try await InPlaceSwap.$elevatedShellOverride.withValue({ _ in
+                shells.bump()
+                return try await ChildProcess.run("/usr/bin/true", [], onCancel: .runToCompletion)
+            }) {
+                try await InPlaceSwap.$preExchangeCheck.withValue(refuse) {
+                    try await InPlaceSwap.replace(newApp: elevated.incoming, over: elevated.target)
+                }
+            }
+        }
+        #expect(shells.value == 0)
+        #expect(elevated.targetIsUntouched)
+
+        let rotation = try SwapFixture(directory: "Library/Input Methods")
+        defer { rotation.remove() }
+        #expect(InPlaceSwap.usesContentsRotation(target: rotation.target), "fixture must take the rotation path")
+        await #expect(throws: NestedAppRunningError.self) {
+            try await InPlaceSwap.$preExchangeCheck.withValue(refuse) {
+                try await InPlaceSwap.replace(newApp: rotation.incoming, over: rotation.target)
+            }
+        }
+        #expect(rotation.targetIsUntouched)
+    }
+
+    /// Refused inside a patch-route apply: not wrapped for the full-archive
+    /// retry, which would download it only to be refused at the same swap.
+    /// Mutation: drop the `NestedAppRunningError` line in
+    /// `deltaRouteFailureIsWorthRetrying` → red.
+    @Test func aRefusalInsideThePatchRouteIsNotRetriedWithTheFullArchive() {
+        let refusal = NestedAppRunningError(
+            appName: "ZZFixtureVM", blockers: [.init(name: "ZZFixtureMachine", pid: 700)])
+        #expect(!deltaRouteFailureIsWorthRetrying(refusal))
+    }
+
     /// A swap outside an install (`InPlaceSwap.replace` with no check set, as a
     /// restore runs it) is not refused by this guard.
     @Test func aSwapWithNoCheckSetGoesAhead() async throws {
@@ -465,7 +517,7 @@ import Testing
     }
 
     /// A real installed `ZZFixtureVM.app` (marked `Contents/old`) and an
-    /// incoming bundle (marked `Contents/new`) in a fresh temporary directory,
+    /// incoming bundle (marked `Contents/new`), each in a fresh temporary directory,
     /// and the VM process a nested app in the installed one would be.
     private struct SwapFixture {
         let root: URL
@@ -474,12 +526,16 @@ import Testing
         let work: URL
         let machine: NestedAppGuard.RunningProcess
 
-        init() throws {
+        /// `directory` is where under `root` the installed bundle sits.
+        init(directory: String? = nil) throws {
             let fm = FileManager.default
             root = fm.temporaryDirectory
                 .appendingPathComponent("ZZFixture-swap-\(UUID().uuidString)", isDirectory: true)
-            target = root.appendingPathComponent("ZZFixtureVM.app", isDirectory: true)
-            work = root.appendingPathComponent("work", isDirectory: true)
+            let root = root
+            let parent = directory.map { root.appendingPathComponent($0, isDirectory: true) } ?? root
+            target = parent.appendingPathComponent("ZZFixtureVM.app", isDirectory: true)
+            work = fm.temporaryDirectory
+                .appendingPathComponent("ZZFixture-swap-work-\(UUID().uuidString)", isDirectory: true)
             incoming = work.appendingPathComponent("ZZFixtureVM.app", isDirectory: true)
             for (bundle, marker) in [(target, "old"), (incoming, "new")] {
                 try fm.createDirectory(
@@ -498,7 +554,10 @@ import Testing
                 && !FileManager.default.fileExists(atPath: target.appendingPathComponent("Contents/new").path)
         }
 
-        func remove() { try? FileManager.default.removeItem(at: root) }
+        func remove() {
+            try? FileManager.default.removeItem(at: root)
+            try? FileManager.default.removeItem(at: work)
+        }
     }
 }
 

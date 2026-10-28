@@ -1732,6 +1732,28 @@ struct CLIToolsModelTests {
         await second.value
     }
 
+    /// A session left on the old binary is how the app first learns a tool
+    /// updated itself — `claude` swapping its symlink while it runs, measured
+    /// 2026-10-28: the row said "update available" until the next open, then
+    /// for the 5 s that check took. The process watch hands that to the focus
+    /// rule: checked when the scan has moved, nothing asked when it has not.
+    ///
+    /// Mutation: `.diskChanged` skipped again in `decide`.
+    @Test func aCopyLeftOnTheOldBinaryRechecksAMovedScan() async {
+        let status = Self.status(Self.native)
+        let found = ScanResult([status])
+        let check = FakeCheck([(Self.report(status), nil)])
+        let model = Self.model(check: check, scan: { found.sightings })
+        await model.refreshOnOpen()
+
+        await model.refreshOnInstallMoved()
+        #expect(await check.calls == 1)
+
+        found.set([Self.status(Self.native, version: "2.1.285")])
+        await model.refreshOnInstallMoved()
+        #expect(await check.calls == 2)
+    }
+
     // MARK: the background schedule
 
     /// Answers whether a GitHub token resolves, and counts how often it was asked.

@@ -42,12 +42,14 @@ Read by the Claude review workflow (`.github/workflows/claude-review.yml`) and b
 - **Conditional update endpoints answer a "no update" sentinel for the current version.** A probe or test that only replays "I'm on the latest" proves nothing; it must go from an old version to a new one.
 - **Probe scripts must decode the body before concluding anything.** Servers can send gzip regardless of `Accept-Encoding`; `URLSession` decodes it and Python's `urllib` does not. "The page has no version string" drawn from compressed bytes is wrong.
 
-## Recipes and onboarding
-
-DuoUpdater runs only on Apple Silicon Macs with macOS 15 or later (`App/project.yml`). Copies that exist only on an Intel Mac or on an older macOS are not a group of users, and a gap that only shows on those hosts is not a finding.
+## Records in the PR description
 
 - **A behaviour change needs a real-machine record in the PR description, and it must cover what the PR changed.** A PR touching `DuoUpdaterCore/Sources/`, `App/Sources/`, `App/Helper/`, `App/Shared/` or `CLI/Sources/` needs a dated `## Real-machine result (YYYY-MM-DD)` section with its results, or `Real-machine: not needed — <reason>` whose reason holds (refactor, test-only, internal plumbing); a missing record, one for another change, or an opt-out on a change users would see is blocking (`scripts/check_real_machine_record.py` checks only that one is there).
 
 - **A high-risk change needs a local adversarial review on record, and it must cover the risks the PR raises.** `scripts/check_adversarial_review.py` lists them (process-control, data-loss, privilege, trust, secrets, untrusted-input) and checks that a dated `## Adversarial review (YYYY-MM-DD, <sha>)` names each one, at a commit after which nothing high-risk changed, or an `Adversarial review: not needed (<sha>) — <reason>` line. It cannot tell whether the review was real or the reason holds: a section that names a risk without saying what was attacked and what came of it, or an opt-out on a real risk (a new `sudo`, a token passed to a child, a deletion), is blocking.
+
+## Recipes and onboarding
+
+DuoUpdater runs only on Apple Silicon Macs with macOS 15 or later (`App/project.yml`). Copies that exist only on an Intel Mac or on an older macOS are not a group of users, and a gap that only shows on those hosts is not a finding.
 
 - **A recorded gap counts only when its reason holds.** Check the audit's stated reason against the vendor's source or releases (a claim like "their own updater already moves them to the latest" must be true at that version). When the repository already has the mechanism for the group (`BundleIDMigration` for old bundle IDs, `OneClickGate` to keep detection but withhold one-click from another edition or major, `.publishedDigestOnly` for ad-hoc builds), the audit must say why it doesn't apply. A group the rule would offer a wrong version or replace with another edition is never a valid gap. Without a reason that holds, treat the group as neither covered nor recorded, whatever its worst case. A group the audit says it didn't check is neither covered nor recorded only if, for a plausible state of those copies, the rule would offer them the wrong version, one-click would replace them with another edition, or they would silently get no detection. A group, unrecorded or unchecked, whose worst case is a refused install (the Team-ID gate refusing a different signer) is not a finding.

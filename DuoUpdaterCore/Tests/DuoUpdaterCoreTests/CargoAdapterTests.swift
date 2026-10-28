@@ -186,6 +186,29 @@ struct CargoAdapterTests {
         #expect(CargoAdapter.notIndexed(scan.items[2]) == "installed from git (https://github.com/sharkdp/hexyl#5e5ce4c9)")
     }
 
+    /// cargo-binstall's record, as cargo-binstall 1.26.1 wrote it on this Mac
+    /// (2026-10-27): objects back to back, no newline. A package binstall
+    /// recorded at the version `.crates.toml` has says so; one cargo has
+    /// since replaced (the record stays at the old version) does not.
+    /// Mutation: match by name alone; split the record on newlines.
+    @Test func aPackageCargoBinstallInstalledSaysSo() async throws {
+        let record = try Self.fixture("binstall-crates-v1.json")
+        #expect(!record.contains(0x0A))
+        #expect(CrateTracker.binstalled(record) == ["hyperfine 1.18.0", "ripgrep 15.2.0"])
+        let host = try FakeHost()
+        host.files[Self.root + "/.crates.toml"] = Data("""
+            [v1]
+            "hyperfine 2.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = ["hyperfine"]
+            "ripgrep 15.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = ["rg"]
+            """.utf8)
+        host.files[Self.root + "/binstall/crates-v1.json"] = record
+        let items = await Self.adapter(host).scan().items
+        let note = ManagedItem.Fact.note("installed by cargo-binstall; the update builds it with cargo install")
+        #expect(items.map(\.key) == ["hyperfine", "ripgrep"])
+        #expect(!items[0].facts.contains(note))
+        #expect(items[1].facts.contains(note))
+    }
+
     /// A `bin/cargo` that is not rustup's proxy — or a `bin/rustc` that is
     /// not, which the command names as `RUSTC` — is never proved or run.
     /// Mutation: check only `cargo`'s link.

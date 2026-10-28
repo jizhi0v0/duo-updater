@@ -110,13 +110,16 @@ public struct CargoAdapter: ManagerAdapter {
                 v1: String(decoding: v1, as: UTF8.self), v2: host.contents(root + "/.crates2.json"))
             guard !packages.isEmpty else { return .empty }
             let binary = Self.binary(root: root, rustupHome: rustupHome, host: host, proof: proof)
+            let binstalled = host.contents(root + "/binstall/crates-v1.json").map(CrateTracker.binstalled) ?? []
             var items: [ManagedItem] = []
             var states: [String: String] = [:]
             for package in packages {
-                let item = Self.item(package, root: root, descriptor: descriptor)
+                let byBinstall = binstalled.contains("\(package.name) \(package.version)")
+                let item = Self.item(package, root: root, descriptor: descriptor, byBinstall: byBinstall)
                 items.append(item)
                 states[item.identity] = [package.version, package.source, package.features.joined(separator: "+"),
-                                         package.allFeatures ? "all" : "-", package.noDefaultFeatures ? "nodefault" : "-"]
+                                         package.allFeatures ? "all" : "-", package.noDefaultFeatures ? "nodefault" : "-",
+                                         byBinstall ? "binstall" : "-"]
                     .joined(separator: ",")
             }
             return ManagedScan(roots: [ManagedRoot(manager: Self.id, path: root, binary: binary)], items: items, states: states)
@@ -253,7 +256,13 @@ public struct CargoAdapter: ManagerAdapter {
         return ManagedRoot.Binary(path: cargo, version: version, trust: proved ? .verifiedHash : .untrusted(.adHoc))
     }
 
-    static func item(_ package: CrateTracker.Package, root: String, descriptor: ManagerDescriptor) -> ManagedItem {
+    /// `byBinstall`: cargo-binstall's own record names this package at this
+    /// version (`CrateTracker.binstalled`) — a prebuilt binary, most likely,
+    /// which the one-click replaces by building from source, as the other
+    /// facts here say how a package was built.
+    static func item(
+        _ package: CrateTracker.Package, root: String, descriptor: ManagerDescriptor, byBinstall: Bool = false
+    ) -> ManagedItem {
         var facts: [ManagedItem.Fact] = [.backend(package.source)]
         var built: [String] = []
         if !package.features.isEmpty { built.append("features \(package.features.joined(separator: ","))") }
@@ -261,6 +270,7 @@ public struct CargoAdapter: ManagerAdapter {
         if package.noDefaultFeatures { built.append("--no-default-features") }
         if !built.isEmpty { facts.append(.note("built with \(built.joined(separator: ", ")), which the update passes again")) }
         if let rustc = package.rustc { facts.append(.note("built by rustc \(rustc)")) }
+        if byBinstall { facts.append(.note("installed by cargo-binstall; the update builds it with cargo install")) }
         var effects: [ManagedItem.Effect] = [.compilesFromSource, .oldRemoved]
         if let request = package.versionRequest { effects.append(.dropsSpecifier(request)) }
         return ManagedItem(

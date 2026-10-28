@@ -49,6 +49,11 @@ struct GoAdapterTests {
         ]
         var processes: [NpmActivity.Process] = []
         var quarantined: Set<String> = []
+        /// `/usr/local/go/bin/go`'s signature against Google's Team; any
+        /// other path's is `.otherSigner`, so the file checked is the one run.
+        var signature: CLIToolTrust.Signature = .otherSigner
+        /// The go the check runs: the keg's, or the pkg's.
+        var go = GoAdapterTests.go
         private var _runs: [(arguments: [String], environment: [String: String])] = []
         var runs: [(arguments: [String], environment: [String: String])] { lock.withLock { _runs } }
 
@@ -68,14 +73,17 @@ struct GoAdapterTests {
                 isQuarantined: { path in self.lock.withLock { self.quarantined.contains(path) } },
                 buildInfo: { path in self.lock.withLock { self.binaries[(path as NSString).lastPathComponent] } },
                 run: { executable, arguments, environment in
-                    #expect(executable == GoAdapterTests.go)
+                    #expect(executable == self.lock.withLock { self.go })
                     return self.lock.withLock {
                         self._runs.append((arguments, environment))
                         return self.latest[String(arguments[3].dropLast("@latest".count))]
                     }
                 },
                 proxyEnvironment: { ["https_proxy": "http://zz.invalid:3128"] },
-                processes: { self.lock.withLock { self.processes } })
+                processes: { self.lock.withLock { self.processes } },
+                signature: { path in
+                    self.lock.withLock { path == "/usr/local/go/bin/go" ? self.signature : .otherSigner }
+                })
         }
     }
 
@@ -201,31 +209,36 @@ struct GoAdapterTests {
     }
 
     /// A go that is found but may not run — the pkg installer's
-    /// `/usr/local/go`, whose signature is not measured, or a quarantined keg
-    /// — is never asked anything: the root has a binary, and the check's
+    /// `/usr/local/go` not signed by Google's Team or quarantined though
+    /// Google-signed, or a quarantined keg — is never asked anything: the root has a binary, and the check's
     /// trust guard is what keeps it from running. With nothing asked, no
     /// newer version is known: the rows are not checked, say which go was
     /// not run and why, and hand no command out (one appears only when the
     /// guard is gone and the row turns offered). Mutation: drop
     /// `root.runnable` from `check`'s guard
     /// (review round 1: the old fixture left no go at all, so the guard was
-    /// never reached).
-    @Test(arguments: ["pkg", "quarantined keg"])
+    /// never reached), or drop the pkg's quarantine check (local
+    /// adversarial review, 2026-10-28: no case reached it).
+    @Test(arguments: ["pkg", "quarantined pkg", "quarantined keg"])
     func aGoThatMayNotRunIsNotRun(_ which: String) async throws {
         let host = FakeHost()
         let pkg = "/usr/local/go/bin/go"
-        if which == "pkg" {
+        if which != "quarantined keg" {
             host.files["/ZZbrew/Cellar/go/1.27.3/INSTALL_RECEIPT.json"] = nil
             host.links[pkg] = pkg
             host.files["/usr/local/go/VERSION"] = Data("go1.27.3\ntime 2026-10-01T00:00:00Z\n".utf8)
-        } else {
+        }
+        if which == "quarantined pkg" {
+            host.signature = .vendor
+            host.quarantined = [pkg]
+        } else if which == "quarantined keg" {
             host.quarantined = ["/ZZbrew/Cellar/go/1.27.3/libexec/bin/go"]
         }
         let scan = await Self.adapter(host).scan()
         let binary = try #require(scan.roots.first?.binary)
         #expect(binary == ManagedRoot.Binary(
-            path: which == "pkg" ? pkg : Self.go, version: "1.27.3",
-            trust: which == "pkg" ? .untrusted(nil) : .quarantined))
+            path: which == "quarantined keg" ? Self.go : pkg, version: "1.27.3",
+            trust: which == "pkg" ? .untrusted(.otherSigner) : .quarantined))
         let verdicts = await Self.adapter(host).check(scan)
         #expect(host.runs.isEmpty)
         #expect(verdicts.first { $0.item.key == "mvdan.cc/gofumpt" }?.vendorWouldUpgrade == nil)
@@ -236,11 +249,47 @@ struct GoAdapterTests {
         let gofumpt = try #require(Self.status(report, "mvdan.cc/gofumpt"))
         #expect(gofumpt.state == .unknown)
         #expect(gofumpt.oneClick == nil)
-        #expect(gofumpt.withheld == .unverified)
+        #expect(gofumpt.withheld == (which == "pkg" ? .wrongSigner : .unverified))
         #expect(gofumpt.commandToCopy == nil)
         #expect(gofumpt.note?.hasPrefix(binary.path + " is ") == true)
         #expect(gofumpt.note?.hasSuffix(", so nothing of it is run") == true)
         #expect(host.runs.isEmpty)
+    }
+
+    /// go.dev's pkg installer's go, Google-signed, with no Homebrew keg: it is
+    /// run — the check asks it, and the row is offered with its command
+    /// (§12 item 7, measured: Developer ID Application: Google LLC
+    /// (EQHXZ8M8AV)). Mutation: trust `/usr/local/go` whatever its signature
+    /// (`aGoThatMayNotRunIsNotRun` fails), or never (this fails).
+    @Test func goDevsSignedGoIsRun() async throws {
+        let host = FakeHost()
+        let pkg = "/usr/local/go/bin/go"
+        host.files["/ZZbrew/Cellar/go/1.27.3/INSTALL_RECEIPT.json"] = nil
+        host.links[pkg] = pkg
+        host.files["/usr/local/go/VERSION"] = Data("go1.27.3\ntime 2026-10-19T22:20:36Z\n".utf8)
+        host.signature = .vendor
+        host.go = pkg
+        let scan = await Self.adapter(host).scan()
+        #expect(scan.roots.first?.binary == ManagedRoot.Binary(
+            path: pkg, version: "1.27.3", trust: .vendorSigned(team: "EQHXZ8M8AV")))
+        let verdicts = await Self.adapter(host).check(scan)
+        #expect(!host.runs.isEmpty)
+        #expect(verdicts.first { $0.item.key == "mvdan.cc/gofumpt" }?.vendorWouldUpgrade == true)
+        let root = try #require(scan.roots.first)
+        let item = try #require(scan.items.first { $0.key == "mvdan.cc/gofumpt" })
+        #expect(Self.adapter(host).upgrade(item, root: root)?.command.executable == pkg)
+    }
+
+    /// Homebrew's keg is run even when a Google-signed `/usr/local/go` is
+    /// there too (D5.1; local adversarial review, 2026-10-28: no test had
+    /// both). Mutation: look at `/usr/local/go` first.
+    @Test func theKegIsPreferredToGoDevsGo() async throws {
+        let host = FakeHost()
+        host.links["/usr/local/go/bin/go"] = "/usr/local/go/bin/go"
+        host.files["/usr/local/go/VERSION"] = Data("go1.27.2\n".utf8)
+        host.signature = .vendor
+        let scan = await Self.adapter(host).scan()
+        #expect(scan.roots.first?.binary == ManagedRoot.Binary(path: Self.go, version: "1.27.3", trust: .homebrewKeg))
     }
 
     /// A `go install` of this package running. Mutation: match any `go install`.

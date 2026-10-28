@@ -189,14 +189,21 @@ reason that holds. "Not checked" is not a recorded gap.
   each doesn't apply: `BundleIDMigration` for an old bundle id; `OneClickGate`
   (`.installedVersion(pattern:)`, `.asarEntry`) for another edition or major
   version on the same id, which keeps detection and withholds only one-click;
-  `.publishedDigestOnly` for ad-hoc builds; a bundle-id-scoped branch in
+  `.publishedDigestOnly` for ad-hoc builds; a detection-only
+  `GitHubReleaseRule` with `channel: .beta` and no `installAssetPattern` for
+  beta copies on the stable bundle id that `ReleaseChannel.detect` reads as
+  `.beta` (the stable rule refuses them, so without it they silently get no
+  detection; Tropy, PicGo, Folo, massCode and Standard Notes all needed it);
+  a bundle-id-scoped branch in
   `ReleaseChannel.detect` when only that bundle tells its tracks apart; a
   scan-time read of the executable (`Scan/BlenderBuildInfo.swift`) when only
   the binary does, its Info.plist being identical across tracks. A copy
   the rule would offer a wrong version, or one-click would replace with
   another edition, is never a gap: gate it first. Check every vendor fact in
   a gap's reason ("their own updater already moves them to the latest") in
-  that version's source or release.
+  that version's source or release. "Needs an engine change" and "out of this
+  PR's scope" are not reasons: the rule above needs none, and a
+  `BundleIDMigration` entry is a table row (AFFiNE's `com.electron.affine`).
 - **The version pattern must read the next release.** Run it on every
   non-prerelease tag the vendor has published (two-part ones too), on the next
   major version, and on an rc/beta tag the vendor forgets to flag. Anchor it

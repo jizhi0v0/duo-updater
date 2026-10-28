@@ -55,6 +55,46 @@ enum CrateTracker {
         case path(String)
     }
 
+    /// The packages cargo-binstall installed, as `"<name> <version>"`, from
+    /// its own record `<root>/binstall/crates-v1.json`: JSON objects one after
+    /// another with nothing between them — not one per line ("It is _not_
+    /// NLJSON", binstalk-manifests' `binstall_crates_v1.rs`) — one per crate,
+    /// replaced when binstall upgrades it, never pruned when cargo replaces it.
+    /// So a name counts only at the version it was recorded at; a later
+    /// `cargo install` over it leaves the old record behind (measured
+    /// 2026-10-27, cargo-binstall 1.26.1: hyperfine's record stayed at
+    /// 1.18.0 after cargo installed 2.0.0).
+    static func binstalled(_ data: Data) -> Set<String> {
+        var found: Set<String> = []
+        var depth = 0
+        var inString = false
+        var escaped = false
+        var start: Int?
+        let bytes = [UInt8](data)
+        for (index, byte) in bytes.enumerated() {
+            if inString {
+                if escaped { escaped = false } else if byte == 0x5C { escaped = true } else if byte == 0x22 { inString = false }
+                continue
+            }
+            switch byte {
+            case 0x22: inString = true
+            case 0x7B:
+                if depth == 0 { start = index }
+                depth += 1
+            case 0x7D:
+                depth -= 1
+                if depth == 0, let begin = start,
+                   let object = try? JSONSerialization.jsonObject(with: Data(bytes[begin...index])) as? [String: Any],
+                   let name = object["name"] as? String, let version = object["current_version"] as? String {
+                    found.insert("\(name) \(version)")
+                }
+                if depth < 0 { return found }
+            default: break
+            }
+        }
+        return found
+    }
+
     /// Every package in `v1`, with `v2`'s build facts where it has the key.
     static func packages(v1: String, v2: Data?) -> [Package] {
         let builds = v2.flatMap { try? JSONDecoder().decode(V2.self, from: $0) }?.installs ?? [:]

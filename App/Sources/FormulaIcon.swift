@@ -106,7 +106,7 @@ struct FormulaLogo {
         "ffmpeg":      ("brew-ffmpeg", 0x007808),
         "git":         ("brew-git", 0xF03C2E),  // CC-BY-3.0
         "cmake":       ("brew-cmake", 0x064F8C),
-        "go":          ("brew-go", 0x00ADD8),
+        "go":          ("brew-go", 0x00ADD8),  // go.dev/brand's logo, as published; approved 2026-10-28
         "python":      ("brew-python", 0x3776AB),
         "docker":      ("brew-docker", 0x2496ED),
         "openssl":     ("brew-openssl", 0x721412),

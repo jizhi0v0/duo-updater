@@ -888,7 +888,7 @@ Round 2: 0 blocking. Neither layout exists on this Mac, so both have unit tests 
 - **C6**: after a rescan the app and `duo check --json` agreed on all six rows.
 - Notes in the pane: tokei's from crates.io → `XAMPPRocky/tokei` releases (15.0.0, 2026-09-06); gofumpt's through proxy.golang.org's `Origin` → `mvdan/gofumpt` (0.12.0, 2026-09-07).
 
-**Not done:** cargo-binstall's "installed by binstall" fact (its `binstall/crates-v1.json` format was not measured here); a Go logo (no asset in the repo; rows keep the terminal glyph); `/usr/local/go`'s signature (§12 item 7).
+**Not done:** cargo-binstall's "installed by binstall" fact (its `binstall/crates-v1.json` format was not measured here); a Go logo (no asset in the repo; rows keep the terminal glyph — done 2026-10-28, see the Go logo entry below); `/usr/local/go`'s signature (§12 item 7).
 
 **Decisions taken while writing (owner to confirm or reverse):** a crate whose newest needs a newer rustc than the default toolchain is reported (`.runtimeTooOld`), not offered at an older compatible version — `cargo install <name>` stops on it (measured in review round 1, toolchain 1.95.0: "cannot install package `hyperfine 2.0.0`, it requires rustc 1.97.0 or newer … `hyperfine 1.20.0` supports rustc 1.88.0", exit 101, nothing installed), and naming `--version` would record a pin; `--all-features` is passed again like `--features` (D8 named features and `no_default_features`); the build `PATH` is the system's only (a crate whose build script needs Homebrew's cmake fails with cmake's own message); go rows are keyed by package path, and a renamed copy is reported because `go install` would write the other name; group titles "cargo install" and "go install".
 
@@ -1141,3 +1141,8 @@ Acceptance: `make test` exit 0; `CLIToolsTests.everyKindHasOneProviderInKindOrde
 - **The downgrade and two-install behaviour on a real Mac**: reasoned from `UpdateAnnouncementLedger.pass` and `NotifiedUpdateVersions.prune`, not run.
 - **Scan cost**: today's npm scan already computes code signatures per prefix node in `scan()` (`C/NpmInstall.swift:388`); moving it under `ManagedProvider` should not change the cost, but §12 item 16 (scan time) is still owed for P3 and was not measured for this either.
 - Nothing was compiled or tested; every "Has" above is from reading signatures and call sites, not from running a fake adapter through them.
+
+### 2026-10-28 — Go logo
+
+The Go team approved our use of the Go logo for the go install level and the Homebrew go formula (reply to the request to trademark@golang.org, 2026-10-28: "This use case is fine by us"). Both now show go.dev/brand's `go-logo-blue.svg`, unmodified and drawn in its own colour: `cli-go` for the go install level (`GoAdapter.descriptor`, tile in Go Blue #00ADD8) and `brew-go` for the formula, which was Simple Icons' copy until now. Checked in the app (dark appearance): the Homebrew go row, the gofumpt and govulncheck rows, and gofumpt's detail header.
+

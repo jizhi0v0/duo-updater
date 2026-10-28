@@ -33,8 +33,10 @@ xcodebuild -project App/DuoUpdater.xcodeproj \
 rm -rf "$REPO/verify/row-states"
 
 # Pin what the picture depends on besides the code. `ImageRenderer` renders in the
-# host's appearance and language, so a run in dark mode or a non-English locale
-# rewrites all 60 files with a diff that says nothing about the change under review.
+# host's language, so a run in a non-English locale rewrites every file with a diff
+# that says nothing about the change under review. The appearance needs no pin: with
+# the Mac in dark mode the gallery draws light, and an `-AppleInterfaceStyle Light`
+# argument, passed here until 2026-10-28, changed none of its 116 files.
 export AppleLanguages='(en)'
 export AppleLocale='en_US'
-"$DD/Build/Products/Debug/RowStateGallery" -AppleInterfaceStyle Light
+"$DD/Build/Products/Debug/RowStateGallery"

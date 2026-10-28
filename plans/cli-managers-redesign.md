@@ -888,7 +888,7 @@ Round 2: 0 blocking. Neither layout exists on this Mac, so both have unit tests 
 - **C6**: after a rescan the app and `duo check --json` agreed on all six rows.
 - Notes in the pane: tokei's from crates.io → `XAMPPRocky/tokei` releases (15.0.0, 2026-09-06); gofumpt's through proxy.golang.org's `Origin` → `mvdan/gofumpt` (0.12.0, 2026-09-07).
 
-**Not done:** cargo-binstall's "installed by binstall" fact (its `binstall/crates-v1.json` format was not measured here); a Go logo (no asset in the repo; rows keep the terminal glyph); `/usr/local/go`'s signature (§12 item 7).
+**Not done:** cargo-binstall's "installed by binstall" fact (its `binstall/crates-v1.json` format was not measured here); a Go logo (no asset in the repo; rows keep the terminal glyph — done 2026-10-28, see the Go logo entry below); `/usr/local/go`'s signature (§12 item 7).
 
 **Follow-up (2026-10-27, branch `cli-p4-leftovers`):**
 
@@ -907,6 +907,10 @@ Round 2 (`5c21356`): 0 new blocking; finding 1 "partly fixed" — the new test's
 ### 2026-10-27 — §12 item 5 measured (mise `minimum_release_age`)
 
 mise's default 24 h age holds a release back from `outdated`, `latest` and `upgrade` alike, and the mise tools adapter inherits it with no code of its own; record and commands under §12 item 5. P1's last owed item is closed.
+
+### 2026-10-28 — Go logo
+
+The Go team approved our use of the Go logo for the go install level and the Homebrew go formula (reply to the request to trademark@golang.org, 2026-10-28: "This use case is fine by us"). Both now show go.dev/brand's `go-logo-blue.svg`, unmodified and drawn in its own colour: `cli-go` for the go install level (`GoAdapter.descriptor`, tile in Go Blue #00ADD8) and `brew-go` for the formula, which was Simple Icons' copy until now. Checked in the app (dark appearance): the Homebrew go row, the gofumpt and govulncheck rows, and gofumpt's detail header.
 
 ---
 

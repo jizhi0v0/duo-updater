@@ -35,8 +35,12 @@ public struct GoAdapter: ManagerAdapter {
     /// Google's Team, which signs go.dev's macOS installer and the `go` in it.
     public static let teamIdentifier = "EQHXZ8M8AV"
 
+    /// go.dev's own logo (go.dev/brand, `go-logo-blue.svg`, unmodified),
+    /// with the Go team's approval of this use (trademark@golang.org,
+    /// 2026-10-28); the tile takes its Go Blue.
     public static let descriptor = ManagerDescriptor(
-        id: id, displayName: "go install", signer: nil, logo: nil, tint: .label, lane: "go")
+        id: id, displayName: "go install", signer: nil, logo: "cli-go",
+        tint: .rgb(red: 0x00 / 255, green: 0xAD / 255, blue: 0xD8 / 255), lane: "go")
 
     public var descriptor: ManagerDescriptor { Self.descriptor }
 

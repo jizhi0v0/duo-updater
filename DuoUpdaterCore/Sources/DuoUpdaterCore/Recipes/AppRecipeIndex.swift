@@ -191,6 +191,7 @@ public enum AppRecipeIndex {
         com_rambox.set,
         com_raspberrypi_rpi_imager.set,
         com_raycast_macos.set,
+        com_rclone_ui.set,
         com_readdle_PDFExpert_Mac.set,
         com_rlxone_equinox.set,
         com_robinebers_openusage.set,

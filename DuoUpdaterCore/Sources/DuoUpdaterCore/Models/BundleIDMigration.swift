@@ -173,6 +173,16 @@ public struct BundleIDMigration: Sendable, Equatable {
         BundleIDMigration(
             from: "Museeks", to: "io.museeks.app",
             teamID: "YK6MWU3892", lastFromVersion: "0.21.1", firstToVersion: "0.22.0"),
+        // Rclone UI: the 1.0.2, 1.4.0, 1.9.0 and 1.9.3 dmgs are `com.stray.app`,
+        // the 2.0.0 dmg and every release read since are `com.rclone.ui`, the
+        // same Team, all notarized. 1.9.3's own Tauri updater reads the same
+        // `latest.json` that now names 3.x, so the vendor offers 2.x to 1.x
+        // copies as an ordinary update; its 2.0.0 notes call the id change
+        // breaking and ask users to back up their config first.
+        // See docs/app-audits/com-rclone-ui.md, 旧 bundle id.
+        BundleIDMigration(
+            from: "com.stray.app", to: "com.rclone.ui",
+            teamID: "8FT82R3S6A", lastFromVersion: "1.9.3", firstToVersion: "2.0.0"),
     ]
 
     /// Whether an installed copy signed as `from` at `version` is this rename.

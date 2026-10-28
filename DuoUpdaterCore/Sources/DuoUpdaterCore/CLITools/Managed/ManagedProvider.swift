@@ -21,10 +21,6 @@ public struct ManagedProvider: CLIToolProvider {
     /// How the vendor's command is run when it may be stopped (D15,
     /// `ManagerAdapter.interruption`). Production: `interruptibleRunner`.
     let stoppableRunner: Runner
-    /// Where a stoppable run's scratch directory is made
-    /// (`ManagedInterruption.scratchVariables`). Production:
-    /// `NSTemporaryDirectory()`, the user's own (mode 0700).
-    let temporaryDirectory: String
 
     /// How the vendor's command is run. Production: `CLIToolCommandRunner.run`,
     /// with its commit point; a test's double answers without spawning.
@@ -48,13 +44,10 @@ public struct ManagedProvider: CLIToolProvider {
         /// The command exited by itself and some process it started is still
         /// running: a later cancel may not put anything back under it.
         public let leftovers: Bool
-        /// Stopped by its deadline, not by a cancel: a failure, whose log the
-        /// scratch keeps.
-        public let timedOut: Bool
 
         public init(
             succeeded: Bool, failureMessage: String?, lines: [String], stopped: Bool = false, stuck: Bool = false,
-            leftovers: Bool = false, timedOut: Bool = false
+            leftovers: Bool = false
         ) {
             self.succeeded = succeeded
             self.failureMessage = failureMessage
@@ -62,7 +55,6 @@ public struct ManagedProvider: CLIToolProvider {
             self.stopped = stopped
             self.stuck = stuck
             self.leftovers = leftovers
-            self.timedOut = timedOut
         }
     }
 
@@ -82,8 +74,7 @@ public struct ManagedProvider: CLIToolProvider {
         processes: @escaping @Sendable () -> [NpmActivity.Process],
         token: @escaping @Sendable () async -> String?,
         runner: @escaping Runner,
-        stoppableRunner: Runner? = nil,
-        temporaryDirectory: String = NSTemporaryDirectory()
+        stoppableRunner: Runner? = nil
     ) {
         self.adapter = adapter
         self.home = home
@@ -92,7 +83,6 @@ public struct ManagedProvider: CLIToolProvider {
         self.token = token
         self.runner = runner
         self.stoppableRunner = stoppableRunner ?? runner
-        self.temporaryDirectory = temporaryDirectory
     }
 
     /// `CLIToolCommandRunner.run`: stdout and stderr merged, the command's
@@ -162,7 +152,7 @@ public struct ManagedProvider: CLIToolProvider {
         return RunResult(
             succeeded: false,
             failureMessage: gone ? reason : "\(reason); some of its processes are still running",
-            lines: log.lines, stopped: gone, stuck: !gone, timedOut: outcome.timedOut)
+            lines: log.lines, stopped: gone, stuck: !gone)
     } }
 
     /// A run that ended by itself, as `commandRunner` words it.
@@ -242,7 +232,6 @@ public struct ManagedProvider: CLIToolProvider {
         // snapshot that cannot be taken (no clones on that volume) means the
         // latter, as before D15.
         var snapshot: ManagedSnapshot?
-        var scratch: String?
         let plan = adapter.interruption(item, root: root)
         if let plan {
             do {
@@ -251,52 +240,13 @@ public struct ManagedProvider: CLIToolProvider {
                 Log.install.notice("managed \(item.identity, privacy: .public): no snapshot (\(String(describing: error), privacy: .public)); runs to completion")
             }
         }
-        if let taken = snapshot, let plan {
+        if let taken = snapshot {
             Log.install.info("managed \(item.identity, privacy: .public): snapshot of \(taken.entries.count, privacy: .public) paths in \(taken.directory, privacy: .public)")
-            if !plan.scratchVariables.isEmpty {
-                // `mkdtemp`: a new directory, mode 0700, never one already
-                // there. Short: a socket a tool binds under it must fit
-                // `sun_path` (104 bytes) — sccache's `sccacheXXXXXX/sock`
-                // did not under `duo-managed-<UUID>` (local adversarial
-                // review 3). None made: the run is not stoppable, as without
-                // a snapshot — a stop would leave the tool's temporary files.
-                var template = Array(((temporaryDirectory as NSString).appendingPathComponent("duo.XXXXXX")).utf8CString)
-                if mkdtemp(&template) != nil {
-                    let directory = String(decoding: template.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self)
-                    scratch = directory
-                    for variable in plan.scratchVariables { environment[variable] = directory }
-                } else {
-                    Log.install.notice("managed \(item.identity, privacy: .public): no scratch directory (errno \(errno, privacy: .public)); runs to completion")
-                    taken.discard()
-                    snapshot = nil
-                }
-            }
         }
         // Kept when a stop could not end every process: the state before the
         // update is then the user's only way back, and the row names it.
         var keepSnapshot = false
-        // The scratch goes, whole, after a cancel's stop: nothing of the
-        // command is left, and what it was building is what the stop throws
-        // away. After any other end with none of it left, only if empty: a
-        // failure's — a deadline's stop too — holds the vendor's log, which
-        // its message names (ruby-build: "See the full build log at …"), as
-        // it stayed in /tmp before D15; and a daemon the run started may be
-        // using it though no scan saw it stay (sccache through cargo's
-        // `rustc-wrapper` detaches at once). With processes left it stays,
-        // empty or not: one may make a temporary file in it later (local
-        // adversarial reviews 3–5).
-        var dropScratch = false
-        var tidyScratch = false
-        defer {
-            if !keepSnapshot { snapshot?.discard() }
-            if let scratch {
-                if dropScratch {
-                    try? FileManager.default.removeItem(atPath: scratch)
-                } else if !tidyScratch || rmdir(scratch) != 0 {
-                    Log.install.info("managed \(item.identity, privacy: .public): kept \(scratch, privacy: .public)")
-                }
-            }
-        }
+        defer { if !keepSnapshot { snapshot?.discard() } }
         let run = { [runner, stoppableRunner] (environment: [String: String]) async -> RunResult in
             await (snapshot == nil ? runner : stoppableRunner)(command, environment, directory, deadline, progress)
         }
@@ -317,8 +267,6 @@ public struct ManagedProvider: CLIToolProvider {
                 InstallJobs.noteRefusedCommit(InstallJobs.currentID)
             }
         }
-        dropScratch = result.stopped && !result.timedOut
-        tidyScratch = !result.leftovers && !result.stuck
         if result.stopped, let snapshot {
             return Self.putBack(snapshot, result, manager: adapter.descriptor.displayName, identity: item.identity)
         }

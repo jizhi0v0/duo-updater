@@ -75,21 +75,16 @@ public protocol ManagerAdapter: Sendable {
     func interruption(_ item: ManagedItem, root: ManagedRoot) -> ManagedInterruption?
 }
 
-/// An upgrade that may be stopped: every path it may write, and the
-/// environment variables pointed at a scratch directory of ours for the run
-/// (`TMPDIR`: what a stopped `cargo install` or `ruby-build` leaves there is
-/// removed with the directory).
+/// An upgrade that may be stopped: every path it may write.
 public struct ManagedInterruption: Sendable, Equatable {
     public let paths: [String]
     /// Entries a run may add whose names are not known before it: removed
     /// after a stop when new since the snapshot.
     public let created: [ManagedSnapshot.NewEntries]
-    public let scratchVariables: [String]
 
-    public init(paths: [String], created: [ManagedSnapshot.NewEntries] = [], scratchVariables: [String] = []) {
+    public init(paths: [String], created: [ManagedSnapshot.NewEntries] = []) {
         self.paths = paths
         self.created = created
-        self.scratchVariables = scratchVariables
     }
 
     /// The links in `directory` whose target is inside `target`: a tool's

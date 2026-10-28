@@ -206,10 +206,9 @@ public struct GoAdapter: ManagerAdapter {
 
     /// The binary alone: `go install` builds under `TMPDIR` and renames the
     /// result into `GOBIN` (§13.4: a stop after the rename left the new
-    /// binary, exit −2; put back, identical). `TMPDIR` is ours, so the
-    /// stopped build's `go-build*` goes with it.
+    /// binary, exit −2; put back, identical).
     public func interruption(_ item: ManagedItem, root: ManagedRoot) -> ManagedInterruption? {
-        ManagedInterruption(paths: [item.installPath], scratchVariables: ["TMPDIR"])
+        ManagedInterruption(paths: [item.installPath])
     }
 
     public func busy(_ item: ManagedItem, root: ManagedRoot, processes: [NpmActivity.Process]) -> String? {

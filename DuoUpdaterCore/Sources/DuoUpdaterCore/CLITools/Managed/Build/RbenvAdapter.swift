@@ -87,13 +87,11 @@ public struct RbenvAdapter: ManagerAdapter {
     /// rehash lock — one left behind never expires) and the global
     /// `version` file (§13.4). The build's own trap removes a half-built
     /// version on SIGINT; a stop during the closing rehash deletes even a
-    /// finished one, which is still "not updated". `TMPDIR` is ours: the
-    /// build directory (110–150 MB) and its log land there, not in `/tmp`.
+    /// finished one, which is still "not updated".
     public func interruption(_ item: ManagedItem, root: ManagedRoot) -> ManagedInterruption? {
         ManagedInterruption(
             paths: [root.path + "/shims", root.path + "/version"],
-            created: [ManagedSnapshot.NewEntries(directory: root.path + "/versions", any: true)],
-            scratchVariables: ["TMPDIR"])
+            created: [ManagedSnapshot.NewEntries(directory: root.path + "/versions", any: true)])
     }
 
     /// `rbenv install <newest of the line>`, `RBENV_ROOT` the root.

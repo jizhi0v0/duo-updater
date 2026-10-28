@@ -205,9 +205,7 @@ public struct CargoAdapter: ManagerAdapter {
     /// The package's binaries and cargo's two records; a new binary the newer
     /// version adds, and the `bin/cargo-install<random>/` directory cargo
     /// stages them in for a few milliseconds (§13.4: a stop 0.03 s after
-    /// "Finished" left it holding the new `tokei`). `TMPDIR` is ours, so the
-    /// stopped build's `cargo-install*` target (up to ~480 MB) goes with it.
-    /// Another `cargo install` (or rustup proxy) into this home during the
+    /// "Finished" left it holding the new `tokei`). Another `cargo install` (or rustup proxy) into this home during the
     /// run would be undone with it: the records are shared.
     public func interruption(_ item: ManagedItem, root: ManagedRoot) -> ManagedInterruption? {
         guard let build = package(item) else { return nil }
@@ -220,8 +218,7 @@ public struct CargoAdapter: ManagerAdapter {
             // `cargo install` of it ("binary `X` already exists in
             // destination … Add --force to overwrite",
             // `src/ops/common_for_install_and_uninstall.rs`; review round 4).
-            created: [ManagedSnapshot.NewEntries(directory: bin, any: true)],
-            scratchVariables: ["TMPDIR"])
+            created: [ManagedSnapshot.NewEntries(directory: bin, any: true)])
     }
 
     public func busy(_ item: ManagedItem, root: ManagedRoot, processes: [NpmActivity.Process]) -> String? {

@@ -718,17 +718,15 @@ struct ManagedStopTests {
         _ = try? await run.value
         _ = leader.value
     }
-    /// A run its deadline stopped says so: a failure, not a cancel — its
-    /// scratch, and the vendor's log in it, are kept (local adversarial
-    /// review 4: a timed-out build's log went with the scratch). Mutation:
-    /// the runner not passing `timedOut` on.
-    @Test func aDeadlinesStopIsTimedOut() async throws {
+    /// A run its deadline stopped says so: a failure, not a cancel.
+    /// Mutation: the runner's reason always "stopped".
+    @Test func aDeadlinesStopIsAFailureNotACancel() async throws {
         let command = CLIToolCommand(executable: "/bin/sh", arguments: ["-c", "sleep 600"], pathPrefix: nil)
         let result = await ManagedProvider.stoppableRunner(termAfter: .seconds(600), killAfter: .seconds(600), giveUpAfter: .seconds(20))(
             command, ["PATH": "/usr/bin:/bin"], URL(fileURLWithPath: "/"),
             .init(terminateAfter: .milliseconds(300), killAfter: .seconds(25)), { _ in })
         #expect(result.stopped)
-        #expect(result.timedOut)
+        #expect(result.failureMessage != "stopped")
         #expect(!result.succeeded)
     }
 
@@ -759,7 +757,6 @@ struct ManagedStopTests {
         #expect(!result.stuck)
         // Ended by the ladder, not by the deadline's backstop.
         #expect(result.failureMessage == "stopped")
-        #expect(!result.timedOut)
     }
 
     // MARK: ManagedProvider
@@ -775,21 +772,21 @@ struct ManagedStopTests {
             stoppableRunner: stoppable)
     }
 
-    /// A stopped run's changes are put back, the row says so, and the scratch
-    /// `TMPDIR` the command was given is gone. Mutations: `update` ignoring
-    /// `stopped`; `putBack` not calling `restore`; the scratch directory not
-    /// removed.
+    /// A stopped run's changes are put back and the row says so. The command
+    /// gets no `TMPDIR` of ours: its temporary files go where they went
+    /// before D15 (a scratch of ours lost a daemon's files under it, local
+    /// adversarial review 5). Mutations: `update` ignoring `stopped`;
+    /// `putBack` not calling `restore`; a `TMPDIR` set for the run.
     @Test func aStoppedUpgradeIsPutBack() async throws {
         let root = try scratch()
         defer { try? FileManager.default.removeItem(atPath: root) }
         try write(root + "/venv/receipt", "1.0")
         let adapter = ManagedModelTests.FakeAdapter()
-        adapter.interruptionPlan = ManagedInterruption(paths: [root + "/venv"], scratchVariables: ["TMPDIR"])
+        adapter.interruptionPlan = ManagedInterruption(paths: [root + "/venv"])
         let tmp = Locked<String?>(nil)
         let outcome = await provider(adapter) { _, environment, _, _, _ in
             tmp.set(environment["TMPDIR"])
             try? self.write(root + "/venv/receipt", "2.0")
-            try? self.write((environment["TMPDIR"] ?? root) + "/cargo-install123/big", "x")
             return ManagedProvider.RunResult(succeeded: false, failureMessage: "stopped", lines: ["Compiling"], stopped: true)
         }.update(ManagedModelTests.status(), progress: { _ in })
         guard case .stopped(let message, _, let complete) = outcome else {
@@ -799,8 +796,7 @@ struct ManagedStopTests {
         #expect(message == "stopped; ZZ Fake tools's changes were put back")
         #expect(complete)
         #expect(read(root + "/venv/receipt") == "1.0")
-        #expect(tmp.value != nil)
-        #expect(!FileManager.default.fileExists(atPath: tmp.value ?? "/"))
+        #expect(tmp.value == nil)
     }
 
     /// What cannot be put back is said, and makes the outcome incomplete —
@@ -852,99 +848,6 @@ struct ManagedStopTests {
         let kept = try #require(message.components(separatedBy: "kept in ").last)
         defer { try? FileManager.default.removeItem(atPath: kept) }
         #expect(read(kept + "/0/receipt") == "1.0")
-    }
-
-    /// Only a cancel's stop takes the scratch whole (`aStoppedUpgradeIsPutBack`).
-    /// Any other end keeps one with something in it — a failure's log, which
-    /// its message names (ruby-build: "See the full build log at …"); a
-    /// deadline's or a stuck stop's; a daemon's files after a clean run
-    /// (sccache) — and with processes left keeps it even empty: one may make
-    /// a file there later. A clean or failed run with none left takes an
-    /// empty one. It is the user's alone (0700), and short enough for
-    /// sccache's `sccacheXXXXXX/sock` under it (`sun_path`, 104 bytes). Local
-    /// adversarial reviews 3–5. Mutations: removed on every end; a clean
-    /// run's removed whole; an empty one removed with processes left, or
-    /// after a stuck stop; a deadline's stop removing it; the old
-    /// `duo-managed-<UUID>` name.
-    @Test func aFailedOrLeftBehindRunKeepsItsScratch() async throws {
-        let root = try scratch()
-        defer { try? FileManager.default.removeItem(atPath: root) }
-        try write(root + "/venv/receipt", "1.0")
-        let ends: [(Bool, Bool, Bool, Bool, Bool, Bool)] = [  // succeeded, leftovers, timed out, stuck, writes, kept
-            (false, false, false, false, true, true), (true, true, false, false, true, true),
-            (true, true, false, false, false, true), (true, false, false, false, true, true),
-            (true, false, false, false, false, false), (false, false, true, false, true, true),
-            (false, false, false, true, false, true),
-        ]
-        for (succeeded, leftovers, timedOut, stuck, writes, kept) in ends {
-            let adapter = ManagedModelTests.FakeAdapter()
-            adapter.interruptionPlan = ManagedInterruption(paths: [root + "/venv"], scratchVariables: ["TMPDIR"])
-            let tmp = Locked<String?>(nil)
-            let mode = Locked<Int?>(nil)
-            _ = await provider(adapter) { _, environment, _, _, _ in
-                tmp.set(environment["TMPDIR"])
-                let attributes = try? FileManager.default.attributesOfItem(atPath: environment["TMPDIR"] ?? "/")
-                mode.set((attributes?[.posixPermissions] as? NSNumber)?.intValue)
-                if writes { try? self.write((environment["TMPDIR"] ?? root) + "/ruby-build.log", "BUILD FAILED") }
-                return ManagedProvider.RunResult(
-                    succeeded: succeeded, failureMessage: succeeded ? nil : "See the full build log", lines: [],
-                    stopped: timedOut, stuck: stuck, leftovers: leftovers, timedOut: timedOut)
-            }.update(ManagedModelTests.status(), progress: { _ in })
-            let directory = try #require(tmp.value)
-            defer { try? FileManager.default.removeItem(atPath: directory) }
-            let label = "succeeded \(succeeded), leftovers \(leftovers), timed out \(timedOut), stuck \(stuck), writes \(writes)"
-            #expect(FileManager.default.fileExists(atPath: directory) == kept, "\(label)")
-            if writes && kept { #expect(read(directory + "/ruby-build.log") != nil, "\(label)") }
-            #expect(mode.value == 0o700, "\(label)")
-            #expect((directory + "/sccacheAbC123/sock").utf8.count < 104)
-        }
-    }
-
-    /// No scratch directory can be made: the upgrade is not stopped, it runs
-    /// to completion as one without a snapshot — a stop would leave the
-    /// tool's temporary files where it was not looking (local adversarial
-    /// review 3). Mutation: run it stoppable without one.
-    @Test func noScratchDirectoryMeansNoStop() async throws {
-        let root = try scratch()
-        defer { try? FileManager.default.removeItem(atPath: root) }
-        try write(root + "/venv/receipt", "1.0")
-        let adapter = ManagedModelTests.FakeAdapter()
-        adapter.interruptionPlan = ManagedInterruption(paths: [root + "/venv"], scratchVariables: ["TMPDIR"])
-        let used = Locked<String?>(nil)
-        let outcome = await ManagedProvider(
-            adapter, home: ManagedModelTests.home,
-            proxyEnvironment: { [:] }, processes: { [] }, token: { nil },
-            runner: { _, environment, _, _, _ in
-                used.set("to completion, TMPDIR \(environment["TMPDIR"] ?? "unset")")
-                return ManagedProvider.RunResult(succeeded: true, failureMessage: nil, lines: ["Updated"])
-            },
-            stoppableRunner: { _, _, _, _, _ in
-                used.set("stoppable")
-                return ManagedProvider.RunResult(succeeded: true, failureMessage: nil, lines: ["Updated"])
-            },
-            temporaryDirectory: root + "/missing"
-        ).update(ManagedModelTests.status(), progress: { _ in })
-        #expect(outcome == .updated(version: "20.20.2"))
-        #expect(used.value == "to completion, TMPDIR unset")
-    }
-
-    /// A run that never started leaves no scratch behind, empty as it is
-    /// (local adversarial review 4). Mutation: an empty scratch kept.
-    @Test func anEmptyScratchIsNotKept() async throws {
-        let root = try scratch()
-        defer { try? FileManager.default.removeItem(atPath: root) }
-        try write(root + "/venv/receipt", "1.0")
-        try FileManager.default.createDirectory(atPath: root + "/tmp", withIntermediateDirectories: true)
-        let adapter = ManagedModelTests.FakeAdapter()
-        adapter.interruptionPlan = ManagedInterruption(paths: [root + "/venv"], scratchVariables: ["TMPDIR"])
-        _ = await ManagedProvider(
-            adapter, home: ManagedModelTests.home,
-            proxyEnvironment: { [:] }, processes: { [] }, token: { nil },
-            runner: { _, _, _, _, _ in ManagedProvider.RunResult(succeeded: false, failureMessage: "wrong runner", lines: []) },
-            stoppableRunner: { _, _, _, _, _ in ManagedProvider.RunResult(succeeded: false, failureMessage: "not run: cancelled", lines: []) },
-            temporaryDirectory: root + "/tmp"
-        ).update(ManagedModelTests.status(), progress: { _ in })
-        #expect(try FileManager.default.contentsOfDirectory(atPath: root + "/tmp") == [])
     }
 
     /// A run that finished keeps what it wrote. Mutation: `discard` replaced

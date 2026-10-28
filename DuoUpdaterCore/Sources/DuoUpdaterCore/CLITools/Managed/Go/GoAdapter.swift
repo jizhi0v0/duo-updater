@@ -204,6 +204,13 @@ public struct GoAdapter: ManagerAdapter {
         return (CLIToolCommand(executable: binary.path, arguments: ["install", item.key + "@latest"], pathPrefix: nil), environment)
     }
 
+    /// The binary alone: `go install` builds under `TMPDIR` and renames the
+    /// result into `GOBIN` (§13.4: a stop after the rename left the new
+    /// binary, exit −2; put back, identical).
+    public func interruption(_ item: ManagedItem, root: ManagedRoot) -> ManagedInterruption? {
+        ManagedInterruption(paths: [item.installPath])
+    }
+
     public func busy(_ item: ManagedItem, root: ManagedRoot, processes: [NpmActivity.Process]) -> String? {
         Self.busy(package: item.key, processes: processes)
     }
@@ -267,7 +274,7 @@ public struct GoAdapter: ManagerAdapter {
             descriptor: descriptor, root: root, key: key, name: name, installPath: root + "/" + name, shape: .package,
             installed: version.map { $0.hasPrefix("v") ? String($0.dropFirst()) : $0 }, backend: info.main?.path,
             notes: info.main.map { .goModule($0.path) },
-            effects: [.oldRemoved, .cannotBeCancelledOnceStarted], facts: facts)
+            effects: [.oldRemoved], facts: facts)
     }
 
     /// The file name `go install` gives a package: its last element, or the

@@ -219,6 +219,23 @@ public struct UvPythonAdapter: ManagerAdapter {
             pathPrefix: (binary.path as NSString).deletingLastPathComponent), [:])
     }
 
+    /// The new patch's directory (named by uv), the minor links beside it
+    /// and in `~/.local/bin`, and uv's `.temp` downloads (§13.4: stops landed
+    /// between the rename into place and the links' move). Another Python
+    /// installed into this directory while the run is stopped would be
+    /// removed with it.
+    public func interruption(_ item: ManagedItem, root: ManagedRoot) -> ManagedInterruption? {
+        let bin = home.path + "/.local/bin"
+        let names = (try? FileManager.default.contentsOfDirectory(atPath: root.path)) ?? []
+        let links = names.sorted().map { root.path + "/" + $0 }.filter {
+            (try? FileManager.default.destinationOfSymbolicLink(atPath: $0)) != nil
+        }
+        return ManagedInterruption(
+            paths: links + [root.path + "/.temp"] + ManagedInterruption.links(in: bin, into: root.path),
+            created: [ManagedSnapshot.NewEntries(directory: root.path, namePrefix: "cpython-"),
+                      ManagedSnapshot.NewEntries(directory: bin, linkingInto: root.path)])
+    }
+
     public func busy(_ item: ManagedItem, root: ManagedRoot, processes: [NpmActivity.Process]) -> String? {
         guard let binary = root.binary else { return nil }
         return Self.busy(binary: binary.path, processes: processes)

@@ -258,6 +258,20 @@ public struct PipxAdapter: ManagerAdapter {
             shellLine: line)
     }
 
+    /// The venv whole, its `pipx_metadata.json` and `pipx_unfinished` mark
+    /// included (§13.4: a stop left the old metadata over a half-changed
+    /// venv, marked), and its apps in `~/.local/bin`. pipx's own
+    /// `logs/cmd_<time>.log` stays: a log, not state.
+    public func interruption(_ item: ManagedItem, root: ManagedRoot) -> ManagedInterruption? {
+        let bin = home.path + "/.local/bin"
+        // And pipx's shared libraries, which an upgrade refreshes when they are
+        // over 30 days old (`check_upgrade_shared_libs`, pipx 1.18.4
+        // `commands/upgrade.py`; found in review).
+        return ManagedInterruption(
+            paths: [item.installPath, root.path + "/shared"] + ManagedInterruption.links(in: bin, into: item.installPath),
+            created: [ManagedSnapshot.NewEntries(directory: bin, linkingInto: item.installPath)])
+    }
+
     public func reread(_ item: ManagedItem) async -> String? {
         let host = self.host
         let path = item.installPath

@@ -69,6 +69,7 @@ struct ManagedModelTests {
         var rereadVersion: String? = "20.20.2"
         var tokenRetry: ManagedTokenRetry?
         var environment = ["ZZ_DATA_DIR": ManagedModelTests.rootPath]
+        var interruptionPlan: ManagedInterruption?
         private(set) var scans = 0
 
         func scan() async -> ManagedScan { scans += 1; return scanResult }
@@ -79,6 +80,7 @@ struct ManagedModelTests {
         func unpin(_ item: ManagedItem, root: ManagedRoot) -> CLIToolCommand? { ManagedModelTests.unpin(item) }
         func busy(_ item: ManagedItem, root: ManagedRoot, processes: [NpmActivity.Process]) -> String? { busyLine }
         func reread(_ item: ManagedItem) async -> String? { rereadVersion }
+        func interruption(_ item: ManagedItem, root: ManagedRoot) -> ManagedInterruption? { interruptionPlan }
     }
 
     /// What the provider asked the runner to run, in order.

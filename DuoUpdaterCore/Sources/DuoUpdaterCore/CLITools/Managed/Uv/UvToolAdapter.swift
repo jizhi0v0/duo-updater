@@ -294,6 +294,16 @@ public struct UvToolAdapter: ManagerAdapter {
         return CLIToolCommand(executable: binary.path, arguments: ["tool", "install", item.name + "@latest"], pathPrefix: nil)
     }
 
+    /// The tool's venv whole — uv rewrites it in place (§13.4: a stop left
+    /// the new `bin/ruff` beside the old dist-info's removal) — and its entry
+    /// points in `~/.local/bin`, those there now and any the new version adds.
+    public func interruption(_ item: ManagedItem, root: ManagedRoot) -> ManagedInterruption? {
+        let bin = home.path + "/.local/bin"
+        return ManagedInterruption(
+            paths: [item.installPath] + ManagedInterruption.links(in: bin, into: item.installPath),
+            created: [ManagedSnapshot.NewEntries(directory: bin, linkingInto: item.installPath)])
+    }
+
     public func busy(_ item: ManagedItem, root: ManagedRoot, processes: [NpmActivity.Process]) -> String? {
         guard let binary = root.binary else { return nil }
         return Self.busy(binary: binary.path, processes: processes)

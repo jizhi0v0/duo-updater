@@ -202,6 +202,26 @@ public struct CargoAdapter: ManagerAdapter {
                 ["CARGO_HOME": root.path, "RUSTUP_HOME": rustupHome, "RUSTC": root.path + "/bin/rustc"])
     }
 
+    /// The package's binaries and cargo's two records; a new binary the newer
+    /// version adds, and the `bin/cargo-install<random>/` directory cargo
+    /// stages them in for a few milliseconds (§13.4: a stop 0.03 s after
+    /// "Finished" left it holding the new `tokei`). Another `cargo install`
+    /// (or rustup proxy) into this home during the run would be undone with
+    /// it: the records are shared.
+    public func interruption(_ item: ManagedItem, root: ManagedRoot) -> ManagedInterruption? {
+        guard let build = package(item) else { return nil }
+        let bin = root.path + "/bin"
+        return ManagedInterruption(
+            paths: build.bins.map { bin + "/" + $0 } + [root.path + "/.crates.toml", root.path + "/.crates2.json"],
+            // Every new entry of `bin`, not only the staging directories: a
+            // new binary name left behind once the records are put back is
+            // claimed by no package, and cargo then refuses every later
+            // `cargo install` of it ("binary `X` already exists in
+            // destination … Add --force to overwrite",
+            // `src/ops/common_for_install_and_uninstall.rs`; review round 4).
+            created: [ManagedSnapshot.NewEntries(directory: bin, any: true)])
+    }
+
     public func busy(_ item: ManagedItem, root: ManagedRoot, processes: [NpmActivity.Process]) -> String? {
         Self.busy(crate: item.key, processes: processes)
     }
@@ -241,7 +261,7 @@ public struct CargoAdapter: ManagerAdapter {
         if package.noDefaultFeatures { built.append("--no-default-features") }
         if !built.isEmpty { facts.append(.note("built with \(built.joined(separator: ", ")), which the update passes again")) }
         if let rustc = package.rustc { facts.append(.note("built by rustc \(rustc)")) }
-        var effects: [ManagedItem.Effect] = [.compilesFromSource, .oldRemoved, .cannotBeCancelledOnceStarted]
+        var effects: [ManagedItem.Effect] = [.compilesFromSource, .oldRemoved]
         if let request = package.versionRequest { effects.append(.dropsSpecifier(request)) }
         return ManagedItem(
             descriptor: descriptor, root: root, key: package.name, name: package.name,

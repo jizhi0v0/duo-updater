@@ -67,6 +67,33 @@ public protocol ManagerAdapter: Sendable {
     /// failed for want of one (mise's rule, `MiseUpdater`); nil for a manager
     /// whose upgrade never asks api.github.com.
     var tokenRetry: ManagedTokenRetry? { get }
+
+    /// What `item`'s upgrade may write, so it can be stopped partway and put
+    /// back (D15, `ManagedSnapshot`); nil when it must run to completion.
+    /// Measured per manager (plans/cli-managers-redesign.md §13.4): a path
+    /// left out is one a stop could leave changed.
+    func interruption(_ item: ManagedItem, root: ManagedRoot) -> ManagedInterruption?
+}
+
+/// An upgrade that may be stopped: every path it may write.
+public struct ManagedInterruption: Sendable, Equatable {
+    public let paths: [String]
+    /// Entries a run may add whose names are not known before it: removed
+    /// after a stop when new since the snapshot.
+    public let created: [ManagedSnapshot.NewEntries]
+
+    public init(paths: [String], created: [ManagedSnapshot.NewEntries] = []) {
+        self.paths = paths
+        self.created = created
+    }
+
+    /// The links in `directory` whose target is inside `target`: a tool's
+    /// entry points in a shared `bin`, which an upgrade rewrites.
+    public static func links(in directory: String, into target: String) -> [String] {
+        let names = (try? FileManager.default.contentsOfDirectory(atPath: directory)) ?? []
+        let rule = ManagedSnapshot.NewEntries(directory: directory, linkingInto: target)
+        return names.sorted().filter { rule.matches($0, in: directory) }.map { directory + "/" + $0 }
+    }
 }
 
 extension ManagerAdapter {
@@ -79,6 +106,7 @@ extension ManagerAdapter {
     public func busy(_ item: ManagedItem, root: ManagedRoot, processes: [NpmActivity.Process]) -> String? { nil }
     public func releaseNotes(for item: ManagedItem, force: Bool) async throws -> Changelog { Changelog(entries: []) }
     public var tokenRetry: ManagedTokenRetry? { nil }
+    public func interruption(_ item: ManagedItem, root: ManagedRoot) -> ManagedInterruption? { nil }
 }
 
 /// mise's token handoff (`MiseUpdater.update`), shared: the vendor's command is

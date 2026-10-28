@@ -125,7 +125,7 @@ struct DefinitionLinesTests {
         #expect(py312.facts.contains(.asKnownBy("pyenv 2.8.14")))
         #expect(py312.facts.contains(.defaultAlias("3.12.15")))
         #expect(py312.effects.contains(.compilesFromSource))
-        #expect(py312.effects.contains(.cannotBeCancelledOnceStarted))
+        #expect(!py312.effects.contains(.cannotBeCancelledOnceStarted))
         #expect(scan.items.first?.latestOverall == "3.13.18t")
     }
 

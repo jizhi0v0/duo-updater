@@ -474,11 +474,13 @@ public struct TestFlightInventory: Sendable {
     /// failing to prepare. 200ms, as this package's other read-only opens use.
     ///
     /// ⚠️ Not shown to be what failed in the field. The running app logged two such
-    /// reads on 2026-10-28 with no TestFlight running; on that WAL store, Python
-    /// `sqlite3` readers with no timeout got `database is locked` 2 times in ~51,000
-    /// reads two at a time, but this reader, with or without the timeout, failed 0
-    /// times in 20,000 under the same contention. What the timeout is proven to do is
-    /// the fixture case: wait on a held lock rather than give up at once. The
+    /// reads on 2026-10-28 with no TestFlight running. On that store (`PRAGMA
+    /// journal_mode` read `wal`), Python `sqlite3` readers with no timeout got
+    /// `database is locked` 2 times in ~51,000 reads two at a time; this reader never
+    /// came back unreadable while 8 of those Python readers contended — 0 in 3,000
+    /// with the timeout, and without it 0 in 3,000 alone and 0 in 20,000 with 4 of
+    /// these readers in parallel. What the timeout is proven to do is the fixture
+    /// case: wait on a lock held at prepare rather than give up at once. The
     /// `sqlite3_errmsg` in the prepare-failure logs is what tells the next one apart.
     static let busyTimeoutMilliseconds: Int32 = 200
 

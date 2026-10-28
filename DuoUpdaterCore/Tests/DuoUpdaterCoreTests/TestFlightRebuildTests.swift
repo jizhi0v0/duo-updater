@@ -108,10 +108,13 @@ struct TestFlightRebuildTests {
         return inventory
     }
 
-    /// A lock someone else holds is waited on before the read gives up, rather than
-    /// read at once as a store whose rows will not query — which is how `openAndRead`
-    /// reports any `SQLITE_BUSY`: every query failing to prepare, an opened store
-    /// with no rows. Whether that is what the app logged twice on 2026-10-28 is not
+    /// A lock held across the read is waited on before the read gives up, rather
+    /// than read at once as a store whose rows will not query — which is how
+    /// `openAndRead` reports a `SQLITE_BUSY` at prepare, while the schema loads:
+    /// every query failing to prepare, an opened store with no rows. Only that form:
+    /// a BUSY that outlasts the timeout at `sqlite3_step`, once the schema is loaded,
+    /// ends a row loop early and still reads as `rowsReadable`, and this does not
+    /// pin it. Whether either is what the app logged twice on 2026-10-28 is not
     /// established (`TestFlightInventory.busyTimeoutMilliseconds` says why); this
     /// pins the behaviour, not the field cause.
     ///
@@ -132,8 +135,9 @@ struct TestFlightRebuildTests {
         defer { sqlite3_close(db) }
         #expect(sqlite3_exec(db, Self.complete, nil, nil, nil) == SQLITE_OK, "fixture schema did not apply")
         // A rollback-journal store, so an exclusive lock shuts readers out with
-        // `SQLITE_BUSY`. TestFlight's real store is WAL; this does not reproduce
-        // how it would answer busy, only what the reader does once it is.
+        // `SQLITE_BUSY`. TestFlight's real store is WAL (`PRAGMA journal_mode` read
+        // `wal` on 2026-10-28); this does not reproduce how it would answer busy,
+        // only what the reader does once it is.
         #expect(sqlite3_exec(db, "BEGIN EXCLUSIVE;", nil, nil, nil) == SQLITE_OK)
 
         let started = Date()

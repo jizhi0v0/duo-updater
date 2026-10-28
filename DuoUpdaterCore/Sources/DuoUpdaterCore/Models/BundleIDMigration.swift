@@ -178,11 +178,16 @@ public struct BundleIDMigration: Sendable, Equatable {
         // same Team, all notarized. 1.9.3's own Tauri updater reads the same
         // `latest.json` that now names 3.x, so the vendor offers 2.x to 1.x
         // copies as an ordinary update; its 2.0.0 notes call the id change
-        // breaking and ask users to back up their config first.
+        // breaking and ask users to back up their config first. Marked a
+        // rewrite so the swap is confirmed first: the configs made in the app,
+        // the license key and the scheduled tasks stay in
+        // `~/Library/Application Support/com.stray.app`, which 2.x never reads
+        // (v1.9.3 source, `getConfigPath` and `lib/store.ts`).
         // See docs/app-audits/com-rclone-ui.md, 旧 bundle id.
         BundleIDMigration(
             from: "com.stray.app", to: "com.rclone.ui",
-            teamID: "8FT82R3S6A", lastFromVersion: "1.9.3", firstToVersion: "2.0.0"),
+            teamID: "8FT82R3S6A", lastFromVersion: "1.9.3", firstToVersion: "2.0.0",
+            isRewrite: true),
     ]
 
     /// Whether an installed copy signed as `from` at `version` is this rename.

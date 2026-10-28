@@ -38,6 +38,20 @@ import Testing
         #expect(try await source.latestVersion(for: Self.installed("com.stray.app", "2.0.0")) == nil)
     }
 
+    /// The swap off a 1.x copy waits for the user's confirmation: the configs,
+    /// license key and scheduled tasks 1.x kept under `com.stray.app` are not
+    /// read by 2.x. Mutation: drop `isRewrite: true` from the Rclone UI entry
+    /// → both expectations fail.
+    @Test func aPreRenameCopyIsConfirmedBeforeTheSwap() {
+        let result = UpdateResult(
+            app: Self.installed("com.stray.app", "1.9.3"),
+            remote: RemoteVersion(
+                shortVersion: "3.7.5", version: nil, downloadURL: nil, sourceName: "GitHub"),
+            status: .updateAvailable(latest: "3.7.5"))
+        #expect(result.isVendorRewrite)
+        #expect(UpdatePolicy.installConfirmation(for: result) == .vendorRewrite)
+    }
+
     private static func installed(_ id: String, _ version: String) -> InstalledApp {
         InstalledApp(
             name: "Rclone UI", bundleID: id, shortVersion: version, buildVersion: version,

@@ -28,7 +28,7 @@
 - 主机下限: 资产只取 `aarch64`，和 `App/project.yml` 的 arm64 一致；`LSMinimumSystemVersion` 10.13，低于我们的下限
 
 ## 旧 bundle id
-1.0.2、1.4.0、1.9.0、1.9.3 的 dmg 都是 `com.stray.app`，2.0.0 起是 `com.rclone.ui`，同一个 Team。1.9.3 自带的 Tauri 更新器读的是现在指向 3.x 的同一份 `latest.json`，所以厂商自己就把 1.x 当普通更新升到 2.x 以上。2.0.0 的发布说明把改 id 列为 breaking，提醒先备份配置。Tauri 的数据目录跟着 id 走（`~/Library/Application Support/com.stray.app/`），2.0.0 起的代码里没有迁移旧目录的逻辑（v1.9.3 源码 `lib/rclone/common.ts` `getConfigPath`、`lib/store.ts`）。留在旧目录、换包后看不到的有：应用里新建的配置（`configs/<id>/rclone.conf`，含 remote 的凭据）、`store.json` 里的 license key、定时任务、加密配置的密码。只有「Default config」在 rclone 自己的默认路径，不受影响。文件不会被删，只是 3.x 不读。厂商自己的 1.9.3 更新器弹框也没有任何提醒。WhatCable、Cork 改名时设置也会重置，按普通改名登记；这里目前同样登记为：`BundleIDMigration(from: "com.stray.app", to: "com.rclone.ui", lastFromVersion: "1.9.3", firstToVersion: "2.0.0")`，不标 `isRewrite`。
+1.0.2、1.4.0、1.9.0、1.9.3 的 dmg 都是 `com.stray.app`，2.0.0 起是 `com.rclone.ui`，同一个 Team。1.9.3 自带的 Tauri 更新器读的是现在指向 3.x 的同一份 `latest.json`，所以厂商自己就把 1.x 当普通更新升到 2.x 以上。2.0.0 的发布说明把改 id 列为 breaking，提醒先备份配置。Tauri 的数据目录跟着 id 走（`~/Library/Application Support/com.stray.app/`），2.0.0 起的代码里没有迁移旧目录的逻辑（v1.9.3 源码 `lib/rclone/common.ts` `getConfigPath`、`lib/store.ts`）。留在旧目录、换包后看不到的有：应用里新建的配置（`configs/<id>/rclone.conf`，含 remote 的凭据）、`store.json` 里的 license key、定时任务、加密配置的密码。只有「Default config」在 rclone 自己的默认路径，不受影响。文件不会被删，只是 3.x 不读。厂商自己的 1.9.3 更新器弹框也没有任何提醒。所以登记为 `BundleIDMigration(from: "com.stray.app", to: "com.rclone.ui", lastFromVersion: "1.9.3", firstToVersion: "2.0.0", isRewrite: true)`：0.9.x / 1.x 副本照常检测，一键要用户先确认，不进「全部更新」和 `--all --yes`。和 WhatCable、Cork 不同，那两个只是设置重置；这里丢的是用户自己建的配置（含凭据）和 license。2026-10-28 owner 定。
 
 ## Channel 详情
 
@@ -76,6 +76,7 @@
 - 状态: 支持
 - 端到端（2026-10-28，macOS 27.2 虚拟机里，用本分支构建的 `duo`）:
   - 第一轮（不运行）: 3.7.4 → `duo install 'Rclone UI' --yes --json` → `outcome installed`，`bytesDownloaded 23926396`，10.6 s；装完 3.7.5，inode 变了，`codesign --verify --deep --strict` 通过，`spctl` accepted（Notarized Developer ID，8FT82R3S6A），和厂商 dmg 里的 bundle `diff -r` 相同，`duo check` 显示 up to date
+  - 旧 id（2026-10-28，同一虚拟机，用本分支构建的 `duo`）: 真包 1.9.3（`com.stray.app`，sha256 与 GitHub digest 一致）→ `duo check` 给出 `1.9.3 → 3.7.5`；`duo install … --yes` 和 `--all --yes` 都跳过并说明是厂商重写版；不带 `--yes` 时先问「Install 1 update?」，再问「replaces this app with the vendor's rewrite… Install it anyway?」，两次都答 y 后装成 `com.rclone.ui` 3.7.5，`codesign --verify --deep --strict` 通过，Notarized Developer ID，`duo check` up to date；stdin 不是终端时直接 Cancelled
   - 第二轮（运行中）: 3.7.4 启动后，`duo install` 8 s 装好 3.7.5，`duo restart` 后磁盘上 10 s 内一直是 3.7.5，没有被换回去；但见「已知问题」里 rclone 守护进程那一条
 - 格式: .dmg
 - 嵌套 / 常驻组件: bundle 里没有嵌套 app；运行时会起一个 `rclone rcd`，二进制在 `~/Library/Application Support/com.rclone.ui/rclone-versions/<版本>/rclone`，不在 bundle 里，换 bundle 不影响它的代码

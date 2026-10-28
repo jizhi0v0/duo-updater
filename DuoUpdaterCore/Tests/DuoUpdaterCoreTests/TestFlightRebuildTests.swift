@@ -109,11 +109,11 @@ struct TestFlightRebuildTests {
     }
 
     /// A lock someone else holds is waited on before the read gives up, rather than
-    /// read at once as a store whose rows will not query. Measured 2026-10-28 on the
-    /// real store with no writer at all: two read-only readers at once, no busy
-    /// timeout, and 2 reads in ~51,000 came back `database is locked` — which
-    /// `openAndRead` reported as every query failing to prepare, an opened store
-    /// with no rows.
+    /// read at once as a store whose rows will not query — which is how `openAndRead`
+    /// reports any `SQLITE_BUSY`: every query failing to prepare, an opened store
+    /// with no rows. Whether that is what the app logged twice on 2026-10-28 is not
+    /// established (`TestFlightInventory.busyTimeoutMilliseconds` says why); this
+    /// pins the behaviour, not the field cause.
     ///
     /// The lock is held for the whole read and the wait is what is asserted, so a
     /// loaded machine can only make it longer. Releasing the lock part-way through
@@ -131,8 +131,9 @@ struct TestFlightRebuildTests {
         #expect(sqlite3_open(url.path, &db) == SQLITE_OK)
         defer { sqlite3_close(db) }
         #expect(sqlite3_exec(db, Self.complete, nil, nil, nil) == SQLITE_OK, "fixture schema did not apply")
-        // A rollback-journal store, so an exclusive lock shuts readers out — the
-        // same `SQLITE_BUSY` the WAL store answered two concurrent readers with.
+        // A rollback-journal store, so an exclusive lock shuts readers out with
+        // `SQLITE_BUSY`. TestFlight's real store is WAL; this does not reproduce
+        // how it would answer busy, only what the reader does once it is.
         #expect(sqlite3_exec(db, "BEGIN EXCLUSIVE;", nil, nil, nil) == SQLITE_OK)
 
         let started = Date()

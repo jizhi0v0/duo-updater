@@ -437,11 +437,15 @@ import Testing
         let executable = parent.path + relative
         try FileManager.default.createDirectory(
             atPath: (executable as NSString).deletingLastPathComponent, withIntermediateDirectories: true)
+        // A copy of an Apple binary is killed at exec (launch constraints): it
+        // runs only once signed ad hoc, as its own code.
         try FileManager.default.copyItem(atPath: "/bin/sleep", toPath: executable)
+        let signed = try await ChildProcess.run(
+            "/usr/bin/codesign", ["-s", "-", "-f", executable], onCancel: .terminateChild)
+        try #require(signed.succeeded)
         // Read while the child runs: `onLaunch` comes after the spawn, before
-        // the wait. The child outlives a slow read under a loaded test run and
-        // is ended once read. `proc_pidpath` spells the temporary directory
-        // `/private/var/…`.
+        // the wait, and the child is ended once read. `proc_pidpath` spells the
+        // temporary directory `/private/var/…`.
         let seen = SeenProcess()
         _ = try await ChildProcess.run(executable, ["60"], onCancel: .terminateChild, onLaunch: { pid in
             seen.set(NestedAppGuard.liveProcesses().first { $0.pid == pid })

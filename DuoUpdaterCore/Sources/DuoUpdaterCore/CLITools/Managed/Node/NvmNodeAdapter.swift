@@ -168,6 +168,17 @@ public struct NvmNodeAdapter: ManagerAdapter {
             ["NVM_DIR": root.path])
     }
 
+    /// The new version's directory (nvm names it), the aliases (`lts/*`
+    /// rewritten), and nvm's install locks — §13.4: a lock left by a stop
+    /// makes the next `nvm install` wait 600 s ("Waiting for another install
+    /// of v22.23.4 to finish…"); nvm never takes a stale one. A stop while
+    /// npm reinstalls the globals exits 0 with them missing.
+    public func interruption(_ item: ManagedItem, root: ManagedRoot) -> ManagedInterruption? {
+        ManagedInterruption(
+            paths: [root.path + "/alias", root.path + "/.cache/locks"],
+            created: [ManagedSnapshot.NewEntries(directory: root.path + "/versions/node", any: true)])
+    }
+
     /// The major's newest patch after the command.
     public func reread(_ item: ManagedItem) async -> String? {
         await scan().items.first { $0.identity == item.identity }?.installed

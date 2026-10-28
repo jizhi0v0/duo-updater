@@ -1,0 +1,43 @@
+# A pull request that changes high-risk code (signals and process waits,
+# deletion and restore, root, signatures, tokens, untrusted input) must carry a
+# local adversarial review in its description, at a commit after which nothing
+# high-risk changed, or an `Adversarial review: not needed (<sha>) — <reason>`
+# line. The rule, the risks and what it cannot see:
+# scripts/check_adversarial_review.py.
+#
+# Its own workflow for the same reasons as real-machine.yml: it must run again
+# when the description is edited, without rebuilding anything. Linux, a sparse
+# checkout and a few API reads (the PR, its files, one compare).
+#
+# The script reads the description, the diff and the compare from the API when
+# it runs, not from the event payload, so a re-run sees the current description.
+name: Adversarial review record
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, edited, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: adversarial-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  adversarial-review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: scripts/check_adversarial_review.py
+          sparse-checkout-cone-mode: false
+
+      - name: Description has an adversarial review on record
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: python3 scripts/check_adversarial_review.py --pr "$PR"

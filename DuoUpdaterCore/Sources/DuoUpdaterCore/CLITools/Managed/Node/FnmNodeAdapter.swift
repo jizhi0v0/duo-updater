@@ -119,6 +119,15 @@ public struct FnmNodeAdapter: ManagerAdapter {
             pathPrefix: nil), [:])
     }
 
+    /// The new version's directory (renamed into place whole), fnm's
+    /// downloads (a stop leaves `.downloads/.tmp<random>`, which no later run
+    /// removes) and the aliases (§13.4).
+    public func interruption(_ item: ManagedItem, root: ManagedRoot) -> ManagedInterruption? {
+        ManagedInterruption(
+            paths: [root.path + "/node-versions/.downloads", root.path + "/aliases"],
+            created: [ManagedSnapshot.NewEntries(directory: root.path + "/node-versions", namePrefix: "v")])
+    }
+
     public func reread(_ item: ManagedItem) async -> String? {
         await scan().items.first { $0.identity == item.identity }?.installed
     }

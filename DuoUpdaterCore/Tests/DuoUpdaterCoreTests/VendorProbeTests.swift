@@ -2174,6 +2174,32 @@ private let doubaoImeSuffixedDownloadURLFixture = #"""
     #expect(UpdateChecker.evaluate(installed: app("1.0.2", "1000207"), remote: remote) == .upToDate)
 }
 
+// The same endpoint on 2026-10-28, verbatim (215 bytes): a numeric `_2` segment
+// now sits BETWEEN the code and `_release`. Issue #1704: `v([0-9]+)_release`
+// matched nothing in it.
+private let doubaoImeMidSegmentDownloadURLFixture = #"""
+{"code":0,"data":{"release_date":"2026.10.26","url":"https://lf-wave.doubaocdn.com/obj/doubao-ime/app/macos/DoubaoImeInstaller_v1000302_2_release.zip","version_code":1002014,"version_name":"V1.0.3"},"msg":"success"}
+"""#
+
+/// #1704 through the production path. `1000302` is what the 1.0.3 payload's
+/// `DoubaoIme.app` carries in `Wave Build Version Number` (read 2026-10-28, beside
+/// `Wave Build Version` 1.0.3.2), so the `_2` before `_release` is not part of the
+/// compared code and must never be read as it.
+@Test func doubaoImeReadsTheCodeBeforeANumericSegment() async throws {
+    let recipe = try #require(
+        VendorProbeRegistry.recipes.first { $0.bundleID == "com.bytedance.inputmethod.doubaoime" })
+    let server = try RecipeVerificationTests.StubServer(body: doubaoImeMidSegmentDownloadURLFixture)
+    defer { server.stop() }
+    let outcome = await VendorProbeSource().probeDiagnostic(recipe.with(url: server.url))
+    let remote = try #require(outcome.remote, "failure: \(String(describing: outcome.failure))")
+    #expect(remote.version == "1000302")
+    #expect(remote.shortVersion == "1.0.3")
+    #expect(remote.downloadURL?.absoluteString
+        == "https://lf-wave.doubaocdn.com/obj/doubao-ime/app/macos/"
+        + "DoubaoImeInstaller_v1000302_2_release.zip")
+    #expect(remote.nestedArchivePath == "Contents/Resources/DoubaoIme.zip")
+}
+
 /// Every recipe that declares a nested payload must name a path INSIDE a bundle's
 /// `Contents` — derived from the registry rather than from a list, so the next one
 /// inherits the check. A `..` or an absolute path here would be two steps upstream

@@ -136,3 +136,13 @@ spctl -a -vv -t exec <0.3.3 Yomado.app>   # → accepted, source=Notarized Devel
 - `channel-verify`（本分支构建）：0.3.5 副本 → winning source GitHub、latest 0.3.7、download `…/v0.3.7/Yomado.zip`、`UPDATE → 0.3.7`；
   0.3.7 副本 → winning source Sparkle、latest 0.3.7、`up to date`。一键安装（GitHub zip 路径）没有端到端跑。
 
+
+### 2026-10-28 — #1489：verify-install 报 `identityChanged: Sparkle key none → knahaNLE…`
+
+- 原因：0.3.6 起内嵌 Sparkle，下载包里第一次带 `SUPublicEDKey`；`verify/identities.json` 记录的
+  是 0.3.5（无 key），所以每轮都报 `none → key`（到 10-26 已连续 31 轮）。这是采用 Sparkle，不是换 key。
+- 核对：厂商仓库 `chekusu/yomado` main 分支 `Info.plist` 的 `SUPublicEDKey` 是
+  `knahaNLEg7QIZhGkGZwA3Insu4D+B8SdZPzyPbILgZI=`，与扫描读到的一字不差；该 key 由厂商提交
+  `525184d5`（2026-10-15，"Add signed in-app updates with guarded workspace restart"）引入。
+- 处理：同 Lokii/OpenLogi（#1456），把这个 key 记进 `verify/identities.json` 的
+  `github:chekusu/yomado:stable`，Team `FKSR2JD63B` 不变。

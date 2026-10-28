@@ -32,9 +32,17 @@ xcodebuild -project App/DuoUpdater.xcodeproj \
 # the enum. Renumbering the App Store cases left 8 orphans exactly this way.
 rm -rf "$REPO/verify/row-states"
 
-# Pin what the picture depends on besides the code. `ImageRenderer` renders in the
-# host's appearance and language, so a run in dark mode or a non-English locale
-# rewrites all 60 files with a diff that says nothing about the change under review.
-export AppleLanguages='(en)'
-export AppleLocale='en_US'
-"$DD/Build/Products/Debug/RowStateGallery" -AppleInterfaceStyle Light
+# Pin what the picture depends on besides the code, so a diff says something about
+# the change under review (each measured 2026-10-28):
+# - The language: under another, some tiles draw differently (Chinese changed 11 to
+#   13 of the 116 files, German 7). It goes in as launch arguments, which override
+#   the user's own settings; exported as environment variables, as it was until
+#   then, it left 11 of Chinese's 13 changed.
+# - The time zone: the subscription-hold explanation (tile 54, both surfaces) shows
+#   a time of day. The committed images are drawn in Asia/Shanghai; under UTC or
+#   America/Los_Angeles exactly those two files changed.
+# The appearance needs no pin: with the Mac in dark mode the gallery draws light, and
+# an `-AppleInterfaceStyle Light` argument, passed here until 2026-10-28, changed no
+# file. The two workbench tiles that draw the system's App Store icon are the
+# exception: that icon follows the host's appearance, and the argument did not pin it.
+TZ=Asia/Shanghai "$DD/Build/Products/Debug/RowStateGallery" -AppleLanguages '(en)' -AppleLocale en_US

@@ -101,7 +101,10 @@ import Foundation
                 }
             }
         }
-        let deadline = Date().addingTimeInterval(20)
+        // Generous: on a loaded CI runner the route took over 20 s to reach the
+        // stand-in (2026-10-28, `make test-release` on the mini, where this
+        // suite's 0.3 s test took 61 s). A real hang is the job's hang report's.
+        let deadline = Date().addingTimeInterval(300)
         while !FileManager.default.fileExists(atPath: fetching.path), Date() < deadline {
             try await Task.sleep(for: .milliseconds(20))
         }

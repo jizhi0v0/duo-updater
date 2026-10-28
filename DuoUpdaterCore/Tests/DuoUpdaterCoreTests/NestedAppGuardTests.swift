@@ -154,7 +154,7 @@ import Testing
         ])
         #expect(NestedAppGuard.blockers(bundlePath: bundle, processes: [relay]).isEmpty)
         #expect(NestedAppGuard.blockers(bundlePath: bundle, processes: [relay, vm])
-            == [.init(name: "VMPalMachine", pid: 741)])
+            == [.init(name: "VMPalMachine", pid: 741, vmName: "macOS VM 1")])
         let unread = Self.process(742, program, parent: 9000, bundle: bundle)
         let extra = Self.process(
             743, program, parent: 9000, bundle: bundle, arguments: [path, "--mcp-library", "--machine", "x"])
@@ -167,7 +167,7 @@ import Testing
         // relay outlives the app. Mutation: keep relays in the parent set → red.
         let spawned = Self.process(745, program, parent: 740, bundle: bundle, arguments: [path, "--machine", "x"])
         #expect(NestedAppGuard.blockers(bundlePath: bundle, processes: [relay, spawned])
-            == [.init(name: "VMPalMachine", pid: 745)])
+            == [.init(name: "VMPalMachine", pid: 745, vmName: "x")])
     }
 
     /// The BetterTouchTool shape: `BTTRelaunch.app`, started by launchd, quits
@@ -323,6 +323,48 @@ import Testing
             appName: "ZZFixtureVM",
             blockers: [.init(name: "B", pid: 1), .init(name: "A", pid: 2), .init(name: "B", pid: 3)])
         #expect(two.errorDescription == "A, B are running from inside ZZFixtureVM and would keep running the old version. Quit them, then update again. ZZFixtureVM was not updated.")
+    }
+
+    /// A VMPal VM blocks with its name, read from `--machine <folder>`. The
+    /// relay, another nested app with `--machine`, and a VM whose argv was not
+    /// read carry no name. Mutation: return nil from `vmName` → red.
+    @Test func aVMPalVMBlocksWithItsName() {
+        let bundle = "/Applications/ZZFixtureVMPal.app"
+        let program = "Contents/Helpers/VMPalMachine.app/Contents/MacOS/VMPalMachine"
+        let path = "\(bundle)/\(program)"
+        let vm = Self.process(750, program, bundle: bundle, arguments: [
+            path, "--machine", "/Volumes/VM/macOS VM 1.vmpal", "--base", "/Volumes/VM/macOS VM 1.vmpal",
+            "--by-agent",
+        ])
+        let unread = Self.process(751, program, bundle: bundle)
+        let other = Self.process(
+            752, "Contents/Helpers/Other.app/Contents/MacOS/Other", bundle: bundle,
+            arguments: ["Other", "--machine", "/Volumes/VM/x.vmpal"])
+        #expect(NestedAppGuard.blockers(bundlePath: bundle, processes: [vm, unread, other]) == [
+            .init(name: "VMPalMachine", pid: 750, vmName: "macOS VM 1"),
+            .init(name: "VMPalMachine", pid: 751),
+            .init(name: "Other", pid: 752),
+        ])
+    }
+
+    /// VMPal's VMs get their own advice: shutting a VM down leaves its process
+    /// up until its window is closed (measured 2026-10-28), so "Quit it" is not
+    /// enough. Other blockers keep the general sentence. Mutation: drop the VM
+    /// branch from `errorDescription` → red.
+    @Test func theMessageNamesVMPalVMsAndSaysToCloseTheirWindows() {
+        let one = NestedAppRunningError(
+            appName: "VMPal", blockers: [.init(name: "VMPalMachine", pid: 1, vmName: "macOS VM 1")])
+        #expect(one.errorDescription == "A VM is running in VMPal (“macOS VM 1”). Shut it down and close its window, then update again. VMPal was not updated.")
+        let two = NestedAppRunningError(appName: "VMPal", blockers: [
+            .init(name: "VMPalMachine", pid: 1, vmName: "Win"),
+            .init(name: "VMPalMachine", pid: 2, vmName: "Linux"),
+        ])
+        #expect(two.errorDescription == "VMs are running in VMPal (“Linux”, “Win”). Shut them down and close their windows, then update again. VMPal was not updated.")
+        let mixed = NestedAppRunningError(appName: "VMPal", blockers: [
+            .init(name: "VMPalMachine", pid: 1, vmName: "macOS VM 1"),
+            .init(name: "VMPalDock", pid: 2),
+        ])
+        #expect(mixed.errorDescription == "A VM is running in VMPal (“macOS VM 1”). Shut it down and close its window, then update again. VMPalDock is running from inside VMPal and would keep running the old version. Quit it, then update again. VMPal was not updated.")
     }
 
     // MARK: - The hosts' preflight

@@ -189,6 +189,9 @@ public enum NestedAppGuard {
         /// The nested bundle's name without `.app` ("VMPalMachine").
         public let name: String
         public let pid: pid_t
+        /// The VM it runs, when it is one of VMPal's ("macOS VM 1"). See
+        /// `vmName(of:insideBundle:)`.
+        public var vmName: String? = nil
     }
 
     /// The nested apps that block replacing the bundle at `bundlePath`, in pid
@@ -224,7 +227,7 @@ public enum NestedAppGuard {
                         && exitsWithHost(executablePath: process.executablePath, insideBundle: prefix)),
                       let name = nestedAppName(executablePath: process.executablePath, insideBundle: prefix)
                 else { return nil }
-                return Blocker(name: name, pid: process.pid)
+                return Blocker(name: name, pid: process.pid, vmName: vmName(of: process, insideBundle: prefix))
             }
             .sorted { $0.pid < $1.pid }
     }
@@ -254,6 +257,20 @@ public enum NestedAppGuard {
         return nestedAppInstancesThatNeverBlock.contains {
             relative.hasPrefix($0.app + "/") && argv.dropFirst().elementsEqual($0.arguments)
         }
+    }
+
+    /// The VM a VMPal VM process runs: the folder after `--machine`, without
+    /// `.vmpal` ("/Volumes/VM/macOS VM 1.vmpal" → "macOS VM 1"). Nil for any
+    /// other process, and when its argv was not read. `bundlePrefix` ends in `/`.
+    static func vmName(of process: RunningProcess, insideBundle bundlePrefix: String) -> String? {
+        guard process.executablePath.hasPrefix(bundlePrefix + "Contents/Helpers/VMPalMachine.app/"),
+              let argv = process.arguments,
+              let flag = argv.dropFirst().firstIndex(of: "--machine"), flag + 1 < argv.count
+        else { return nil }
+        let folder = URL(fileURLWithPath: argv[flag + 1])
+        let name = folder.pathExtension == "vmpal"
+            ? folder.deletingPathExtension().lastPathComponent : folder.lastPathComponent
+        return name.isEmpty ? nil : name
     }
 
     /// Whether `executablePath` is code from one of `nestedAppsThatExitWithHost`.
@@ -395,9 +412,23 @@ public struct NestedAppRunningError: LocalizedError, Equatable, Sendable {
     public let blockers: [NestedAppGuard.Blocker]
 
     public var errorDescription: String? {
-        let names = Array(Set(blockers.map(\.name))).sorted()
-        let list = names.joined(separator: ", ")
-        let verb = names.count == 1 ? "is" : "are"
-        return "\(list) \(verb) running from inside \(appName) and would keep running the old version. Quit \(names.count == 1 ? "it" : "them"), then update again. \(appName) was not updated."
+        var sentences: [String] = []
+        // A VMPal VM shut down from inside keeps its process until its window is
+        // closed, so "Quit it" would leave the update refused.
+        let vms = Array(Set(blockers.compactMap(\.vmName))).sorted()
+        if !vms.isEmpty {
+            let list = vms.map { "“\($0)”" }.joined(separator: ", ")
+            sentences.append(vms.count == 1
+                ? "A VM is running in \(appName) (\(list)). Shut it down and close its window, then update again."
+                : "VMs are running in \(appName) (\(list)). Shut them down and close their windows, then update again.")
+        }
+        let names = Array(Set(blockers.filter { $0.vmName == nil }.map(\.name))).sorted()
+        if !names.isEmpty {
+            let list = names.joined(separator: ", ")
+            let verb = names.count == 1 ? "is" : "are"
+            sentences.append("\(list) \(verb) running from inside \(appName) and would keep running the old version. Quit \(names.count == 1 ? "it" : "them"), then update again.")
+        }
+        sentences.append("\(appName) was not updated.")
+        return sentences.joined(separator: " ")
     }
 }

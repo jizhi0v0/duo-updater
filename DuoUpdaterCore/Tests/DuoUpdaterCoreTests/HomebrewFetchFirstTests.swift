@@ -77,8 +77,11 @@ import Foundation
         // as it would end brew's download.
         let fixture = try Fixture(onFetch: "/usr/bin/touch '\(fetching.path)'; exec /bin/sleep 30")
         defer { fixture.remove() }
+        // A ledger of its own and room to spare: on a full disk, or behind other
+        // tests' claims on the shared ledger, the route waits before it gets to brew.
         let coordinator = InstallCoordinator(
-            permits: InstallPermits(downloads: 1, applies: 1), runningProcesses: { [] })
+            permits: InstallPermits(downloads: 1, applies: 1), runningProcesses: { [] },
+            space: DiskSpaceGuard.SpaceLedger())
         let result = UpdateResult(
             app: InstalledApp(
                 name: "Zzfixture", bundleID: "com.example.zzfixture",
@@ -90,10 +93,12 @@ import Foundation
             status: .updateAvailable(latest: "1.1"))
         let brewPath = fixture.brew.path
         let install = Task {
-            try await HomebrewInstaller.$brewPathOverride.withValue(brewPath) {
-                _ = try await coordinator.perform(
-                    result, route: .homebrew, installedPopulation: [], digestOnlyAllowed: false,
-                    progress: { _ in })
+            try await BackupStore.$freeBytesOverride.withValue({ 1 << 50 }) {
+                try await HomebrewInstaller.$brewPathOverride.withValue(brewPath) {
+                    _ = try await coordinator.perform(
+                        result, route: .homebrew, installedPopulation: [], digestOnlyAllowed: false,
+                        progress: { _ in })
+                }
             }
         }
         let deadline = Date().addingTimeInterval(20)

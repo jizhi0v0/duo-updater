@@ -462,17 +462,21 @@ import Testing
             permits: InstallPermits(downloads: 1, applies: 1),
             runningProcesses: {
                 FileManager.default.fileExists(atPath: fetched.path) ? [fixture.machine] : []
-            })
+            },
+            // See `HomebrewFetchFirstTests`: no wait for disk space before brew.
+            space: DiskSpaceGuard.SpaceLedger())
         let result = Self.result(
             at: fixture.target,
             remote: RemoteVersion(
                 shortVersion: "1.1", version: "2", downloadURL: nil, sourceName: "Homebrew",
                 sourceIdentifier: "zzfixture-cask"))
         await #expect(throws: NestedAppRunningError.self) {
-            try await HomebrewInstaller.$brewPathOverride.withValue(brew.path) {
-                _ = try await coordinator.perform(
-                    result, route: .homebrew, installedPopulation: [], digestOnlyAllowed: false,
-                    progress: { _ in })
+            try await BackupStore.$freeBytesOverride.withValue({ 1 << 50 }) {
+                try await HomebrewInstaller.$brewPathOverride.withValue(brew.path) {
+                    _ = try await coordinator.perform(
+                        result, route: .homebrew, installedPopulation: [], digestOnlyAllowed: false,
+                        progress: { _ in })
+                }
             }
         }
         let runs = (try? String(contentsOf: log, encoding: .utf8))?

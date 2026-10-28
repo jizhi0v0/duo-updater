@@ -312,15 +312,31 @@ struct PackageInstallerTests {
         try await Self.zip(staging, to: zip)
         defer { try? fm.removeItem(at: zip) }
 
+        // A name of this run's own, so a failure's leftover is found and removed
+        // here: once `downloadAndOpen` throws, its work directory is not returned,
+        // and a read-only one is beyond the 24-hour sweep.
+        let uniqueApp = "ZZReadOnly-\(UUID().uuidString)"
         let installer = PackageInstaller(opener: { _ in }, packageGate: { _, _ in })
-        let result = try await installer.downloadAndOpen(
-            url: zip,
-            installedApp: URL(fileURLWithPath: "/Applications/ZZFixture.app"),
-            onStage: { _ in },
-            verifyDownload: { try PackageInstaller.contentFingerprint(of: $0) })
-        try #require(result.packageURL.deletingLastPathComponent().lastPathComponent
-            .hasPrefix("DuoUpdater-pkg-ZZFixture-"))
-        #expect(PackageInstaller.discardWorkDirectory(containing: result.packageURL))
+        let outcome = await Result {
+            try await installer.downloadAndOpen(
+                url: zip,
+                installedApp: URL(fileURLWithPath: "/Applications/\(uniqueApp).app"),
+                onStage: { _ in },
+                verifyDownload: { try PackageInstaller.contentFingerprint(of: $0) })
+        }
+        let leftovers = try fm.contentsOfDirectory(
+            at: fm.temporaryDirectory, includingPropertiesForKeys: nil)
+            .filter { $0.lastPathComponent.hasPrefix("DuoUpdater-pkg-\(uniqueApp)-") }
+        for leftover in leftovers {
+            _ = try? await ChildProcess.run(
+                "/bin/chmod", ["-R", "u+rwX", leftover.path], onCancel: .runToCompletion)
+            try? fm.removeItem(at: leftover)
+        }
+
+        let result = try outcome.get()
+        #expect(result.packageURL.lastPathComponent == "ZZFixture.pkg")
+        #expect(leftovers.map(\.lastPathComponent)
+                    == [result.packageURL.deletingLastPathComponent().lastPathComponent])
     }
 
     private static func zip(_ folder: URL, to zip: URL) async throws {

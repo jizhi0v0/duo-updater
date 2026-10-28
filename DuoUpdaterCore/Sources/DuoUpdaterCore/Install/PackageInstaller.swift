@@ -1257,11 +1257,13 @@ public actor PackageInstaller {
         } catch {
             throw PackageError.downloadFailed(error.localizedDescription)
         }
-        // `ditto` keeps the modes the zip stores, and a read-only folder would make
-        // both the move below and every later removal of this work directory fail,
-        // leaking the unpacked package for good. `chmod -R` does not follow links
-        // it meets in the tree (measured on macOS 27).
-        guard try await run("/bin/chmod", ["-R", "u+w", unpacked.path]) == 0 else {
+        // `ditto` keeps the modes the zip stores, and a folder we cannot write or
+        // search (0555, but also 0444 or 0100) would make the search, the move
+        // below and every later removal of this work directory fail, leaking the
+        // unpacked package for good. `u+rwX` covers all of those; `u+w` alone left
+        // 0444 and 0100 folders unsearchable. `chmod -R` does not follow links it
+        // meets in the tree (both measured on macOS 27).
+        guard try await run("/bin/chmod", ["-R", "u+rwX", unpacked.path]) == 0 else {
             throw PackageError.downloadFailed("Could not prepare the unpacked zip.")
         }
         let appName = installedApp.deletingPathExtension().lastPathComponent

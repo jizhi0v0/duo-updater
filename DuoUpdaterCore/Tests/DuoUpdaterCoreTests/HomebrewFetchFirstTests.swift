@@ -58,8 +58,13 @@ import Foundation
             // `unchanged` (see `BundleSnapshot.isUnchanged`).
             try await brew.upgrade(caskToken: "zzfixture-cask", app: fixture.app) { _ in }
         }
+        // The dry run carries the user's own setting: GitHub's hosted images
+        // export HOMEBREW_NO_AUTO_UPDATE=1, and a user who did the same keeps
+        // it off, as the single run before this did. The mutations above show
+        // only where it is unset.
+        let inherited = ProcessInfo.processInfo.environment["HOMEBREW_NO_AUTO_UPDATE"] ?? ""
         #expect(fixture.runs == [
-            "install --cask --force --dry-run -- zzfixture-cask|",
+            "install --cask --force --dry-run -- zzfixture-cask|\(inherited)",
             "fetch --cask -- zzfixture-cask|1",
             "install --cask --force -- zzfixture-cask|1",
         ])

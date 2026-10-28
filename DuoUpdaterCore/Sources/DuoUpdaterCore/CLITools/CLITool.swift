@@ -457,6 +457,12 @@ public enum CLIToolUpdateOutcome: Sendable, Equatable {
     /// The user dismissed the administrator panel (`needsAdministrator`):
     /// nothing ran, and nothing failed.
     case declined
+    /// The command was stopped partway — by its Cancel or its deadline — and
+    /// what it had changed was put back (`ManagedSnapshot`, D15). `message` is
+    /// the line for the row (and says what could not be put back, if
+    /// anything), `output` the command's log so far; `complete` false when
+    /// something could not be put back — a failure, even after a Cancel.
+    case stopped(message: String, output: String, complete: Bool)
 }
 
 public enum CLIToolReleaseNotesError: Error, Equatable {

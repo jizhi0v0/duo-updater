@@ -4,7 +4,8 @@
 > 结论：**检测 + changelog + 一键全部已接入**。一键 2026-08-28 接入，走
 > 输入法专用的 Contents 轮换（原「输入法整类闸」已按安装动作的形状重写）。
 > 2026-10-11（#1178）：下载文件名在 `_release` 后面多了 `_<日期>_<时间>_<id>`，
-> 两条 pattern 放宽为允许这段尾巴，比较的号不变。见「历史与实测」。
+> 两条 pattern 放宽为允许这段尾巴，比较的号不变。2026-10-28（#1704）：`_release` 前又多了
+> `_2` 这样的数字段，同样放宽。见「历史与实测」。
 
 ## 基本信息
 - Bundle ID: `com.bytedance.inputmethod.doubaoime`
@@ -376,3 +377,22 @@ stack (signature, Team, bundle id, architecture) then runs on the real
   生产路径（`probeDiagnostic` 打本地回环上的这份响应）解析出 `version = 1000207`、
   `shortVersion = 1.0.2`、下载 URL 为上面带尾巴的完整 URL、`nestedArchivePath` 不变。
   把 pattern 改回旧值，同一测试报 `versionPatternNoMatch(sampleBytes: 238)`，与夜扫一致。
+
+### 2026-10-28 — #1704：`_release` 前面多了一段数字（`versionPatternNoMatch`）
+
+夜扫 2026-10-26 起报 `versionPatternNoMatch`（215 字节响应），最后一次成功显示 `1.0.2`。
+2026-10-28 复取同一端点 3 次，答案一致：
+
+```json
+{"code":0,"data":{"release_date":"2026.10.26","url":"https://lf-wave.doubaocdn.com/obj/doubao-ime/app/macos/DoubaoImeInstaller_v1000302_2_release.zip","version_code":1002014,"version_name":"V1.0.3"},"msg":"success"}
+```
+
+- 根因：码和 `_release` 之间多了 `_2`，`v([0-9]+)_release` 匹配不上。
+- 号的对应关系没变。下载了这个 zip（180441983 字节），解压后只读 plist、没有运行：
+  安装器壳是 `DoubaoImeInstaller_v1000302.app`（壳名里没有 `_2`），内层 `DoubaoIme.app`
+  的 Info.plist 是 `CFBundleIdentifier = com.bytedance.inputmethod.doubaoime`、
+  `CFBundleShortVersionString = 1.0.3`、`Wave Build Version = 1.0.3.2`、
+  `Wave Build Version Number = 1000302`、`CFBundleVersion = 1`、`WaveTeamId = 96L78H6LMH`。
+  所以比较的仍是 `v` 后那串数字；`_2` 的含义未知（未验证），不参与比较。
+- 修法：两条 pattern 在 `_release` 前加 `(?:_[0-9]+)*`（只收数字段，出现字母段仍会响亮地失败），
+  捕获组不变。三种文件名（`v90602_release`、带日期尾巴、`v1000302_2_release`）都解析出正确的码。

@@ -732,6 +732,7 @@
       "lastSeenURLSHA256" : "fcd0358ccd3c0d9918ac965dab5591d9c73a46324c3fa75556b24baa3e3c8385",
       "lastSeenVersion" : "0.3.5",
       "signedIdentifier" : "dev.chekusu.yomado",
+      "sparklePublicKey" : "knahaNLEg7QIZhGkGZwA3Insu4D+B8SdZPzyPbILgZI=",
       "teamIdentifier" : "FKSR2JD63B"
     },
     "github:cjpais\/Handy:stable" : {

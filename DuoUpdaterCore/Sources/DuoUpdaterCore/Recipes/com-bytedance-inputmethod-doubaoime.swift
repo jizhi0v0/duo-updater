@@ -36,11 +36,14 @@ enum com_bytedance_inputmethod_doubaoime {
         //   * `version_code` (e.g. 1002012) is a THIRD namespace that matches nothing local.
         //     Never compare it.
         //
-        // The filename is `DoubaoImeInstaller_v<code>_release`, then optionally
-        // `_<date>_<time>_<id>`, then `.zip`. This endpoint has served both forms,
-        // and the update feed's `pkg_url` carries the suffix. Both patterns accept
-        // any number of `_<alnum>` segments after `_release`. They never capture
-        // from the suffix, so its date and id digits cannot be read as the code.
+        // The filename is `DoubaoImeInstaller_v<code>`, then optionally numeric
+        // `_<n>` segments (`v1000302_2_release`), then `_release`, then optionally
+        // `_<date>_<time>_<id>`, then `.zip`. This endpoint has served all three
+        // forms, and the update feed's `pkg_url` carries the suffix. Both patterns
+        // accept any number of `_<digits>` segments before `_release` and
+        // `_<alnum>` segments after it. They capture only the digits right after
+        // `v`, so neither the segment before `_release` nor the date and id digits
+        // after it can be read as the code.
         //
         // If the vendor ever drops that Info.plist key, `AppScanner` reports NO build
         // rather than falling back to "1", and `evaluate()` returns to comparing
@@ -78,13 +81,13 @@ enum com_bytedance_inputmethod_doubaoime {
             bundleID: "com.bytedance.inputmethod.doubaoime",
             url: URL(string: "https://ime.doubao.com/api/v1/app/download_url?platform=macos")!,
             mode: .responseBody,
-            versionPattern: #"DoubaoImeInstaller_v([0-9]+)_release(?:_[0-9A-Za-z]+)*\.zip"#,
+            versionPattern: #"DoubaoImeInstaller_v([0-9]+)(?:_[0-9]+)*_release(?:_[0-9A-Za-z]+)*\.zip"#,
             downloadURL: URL(string: "https://shurufa.doubao.com/"),
             versionIsBuild: true,
             displayVersionPattern: #""version_name"\s*:\s*"[Vv]?([0-9]+(?:\.[0-9]+)+)""#,
             install: VendorInstallSpec(
                 urlSource: .bodyPattern(
-                    #""url"\s*:\s*"(https://[^"]+/DoubaoImeInstaller_v[0-9]+_release(?:_[0-9A-Za-z]+)*\.zip)""#),
+                    #""url"\s*:\s*"(https://[^"]+/DoubaoImeInstaller_v[0-9]+(?:_[0-9]+)*_release(?:_[0-9A-Za-z]+)*\.zip)""#),
                 kind: .zip,
                 nestedArchivePath: "Contents/Resources/DoubaoIme.zip")),
         ],

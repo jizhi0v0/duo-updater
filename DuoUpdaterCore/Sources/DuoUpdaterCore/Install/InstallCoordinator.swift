@@ -620,8 +620,8 @@ public actor InstallCoordinator {
             try refuseWhileNestedAppRuns(result)
             progress(.runningCommand("starting brew…"))
             // The whole brew run — auto-update, fetch and install — takes the
-            // apply permit, so no two brews run at once. brew does its own
-            // downloading, so those bytes are never counted rather than estimated.
+            // apply permit. brew does its own downloading, so those bytes are
+            // never counted rather than estimated.
             // Cancelled while queued: throws holding no permit, before brew starts.
             try await permits.waitForApplyOrCancel()
             var applyHeld = true
@@ -637,7 +637,8 @@ public actor InstallCoordinator {
             }
             // …so a nested app started during them is refused before brew's
             // install. The last check this route can make: the install moves the
-            // bundle aside itself, a few seconds after this.
+            // bundle aside itself, once it has checksummed and unpacked the
+            // download.
             try refuseWhileNestedAppRuns(result)
             let agents = snapshotLoginItemAgents(result)
             try await homebrew.upgrade(caskToken: token, app: result.app.path) { line in

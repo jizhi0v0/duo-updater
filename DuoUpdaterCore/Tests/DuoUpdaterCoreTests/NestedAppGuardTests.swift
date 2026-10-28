@@ -13,9 +13,10 @@ import Testing
 
     private static func process(
         _ pid: pid_t, _ relative: String, parent: pid_t = 1, regular: Bool = false,
-        bundle: String = bundle
+        bundle: String = bundle, arguments: [String]? = nil
     ) -> NestedAppGuard.RunningProcess {
-        .init(pid: pid, parentPID: parent, executablePath: "\(bundle)/\(relative)", isRegularApp: regular)
+        .init(pid: pid, parentPID: parent, executablePath: "\(bundle)/\(relative)", isRegularApp: regular,
+              arguments: arguments)
     }
 
     private static let main = process(mainPID, "Contents/MacOS/ZZFixtureVM", regular: true)
@@ -73,25 +74,100 @@ import Testing
         #expect(NestedAppGuard.blockers(bundlePath: Self.bundle, processes: [agent]).isEmpty)
     }
 
-    /// The Backdrop shape: the `BundleProgram` of one of the bundle's own
-    /// LaunchAgents plists, started by launchd, plus a second process running
-    /// the same executable (its `--wallpaper-renderer`). The app's next launch
-    /// re-registers the agent, so neither blocks. A nested app that is not an
-    /// agent still does. Mutation: drop the `launchAgentPrograms` check → red.
-    @Test func aLaunchAgentProgramNeverBlocks() {
+    /// The Backdrop shape: two LaunchAgents plists with the same
+    /// `BundleProgram`, `--wallpaper-agent` and `--wallpaper-renderer`, each
+    /// started by launchd. The app's next launch re-registers them, so neither
+    /// blocks. A nested app that is not an agent still does. `argv[0]` is not
+    /// compared. Mutation: drop the `launchAgents` check → red.
+    @Test func aLaunchAgentInstanceNeverBlocks() {
         let program = "Contents/Resources/ZZFixtureWallpaper.app/Contents/MacOS/ZZFixtureWallpaper"
-        let agent = Self.process(714, program)
-        let renderer = Self.process(715, program)
+        let agent = Self.process(
+            714, program, arguments: ["\(Self.bundle)/\(program)", "--wallpaper-agent"])
+        let renderer = Self.process(715, program, arguments: ["ZZFixtureWallpaper", "--wallpaper-renderer"])
         let machine = Self.process(
             716, "Contents/Helpers/ZZFixtureMachine.app/Contents/MacOS/ZZFixtureMachine")
-        let programs: Set<String> = ["\(Self.bundle)/\(program)"]
+        let agents: [NestedAppGuard.LaunchAgent] = [
+            .init(program: "\(Self.bundle)/\(program)", arguments: ["ZZFixtureWallpaper", "--wallpaper-agent"]),
+            .init(program: "\(Self.bundle)/\(program)", arguments: ["ZZFixtureWallpaper", "--wallpaper-renderer"]),
+        ]
         #expect(NestedAppGuard.blockers(
-            bundlePath: Self.bundle, processes: [agent, renderer], launchAgentPrograms: programs).isEmpty)
+            bundlePath: Self.bundle, processes: [agent, renderer], launchAgents: agents).isEmpty)
         #expect(NestedAppGuard.blockers(
-            bundlePath: Self.bundle, processes: [agent, renderer, machine], launchAgentPrograms: programs)
+            bundlePath: Self.bundle, processes: [agent, renderer, machine], launchAgents: agents)
             == [.init(name: "ZZFixtureMachine", pid: 716)])
         // Without the plist it is an ordinary nested app and blocks.
         #expect(NestedAppGuard.blockers(bundlePath: Self.bundle, processes: [agent]).count == 1)
+    }
+
+    /// The VMPal 0.108 shape, measured 2026-10-28: the Containers agent's
+    /// `BundleProgram` is `VMPalMachine`, the same executable every VM runs in.
+    /// A VM (`--machine <folder>`, parent launchd) must still block; only the
+    /// agent's own instance passes. A process whose argv could not be read
+    /// blocks. Mutation: match the agent by executable path alone → red.
+    @Test func aVMRunningTheLaunchAgentsExecutableStillBlocks() {
+        let program = "Contents/Helpers/ZZFixtureMachine.app/Contents/MacOS/ZZFixtureMachine"
+        let path = "\(Self.bundle)/\(program)"
+        let containers = Self.process(722, program, arguments: ["ZZFixtureMachine", "--containers", "--service"])
+        let vm = Self.process(723, program, arguments: [
+            path, "--machine", "/Volumes/VM/macOS VM 1.vmpal", "--base", "/Volumes/VM/macOS VM 1.vmpal",
+            "--by-agent",
+        ])
+        let unread = Self.process(724, program)
+        let agents: [NestedAppGuard.LaunchAgent] = [
+            .init(program: path, arguments: ["ZZFixtureMachine", "--containers", "--service"]),
+        ]
+        #expect(NestedAppGuard.blockers(
+            bundlePath: Self.bundle, processes: [Self.main, containers, vm], launchAgents: agents)
+            == [.init(name: "ZZFixtureMachine", pid: 723)])
+        #expect(NestedAppGuard.blockers(
+            bundlePath: Self.bundle, processes: [containers], launchAgents: agents).isEmpty)
+        #expect(NestedAppGuard.blockers(
+            bundlePath: Self.bundle, processes: [containers, unread], launchAgents: agents)
+            == [.init(name: "ZZFixtureMachine", pid: 724)])
+        // Extra or missing arguments are not the agent either.
+        let extra = Self.process(
+            725, program, arguments: ["ZZFixtureMachine", "--containers", "--service", "--machine", "x"])
+        let fewer = Self.process(726, program, arguments: ["ZZFixtureMachine", "--containers"])
+        #expect(NestedAppGuard.blockers(
+            bundlePath: Self.bundle, processes: [extra, fewer], launchAgents: agents).map(\.pid) == [725, 726])
+        // What the agent spawns is not the app's helper: the agent outlives the
+        // app. Mutation: keep agent instances in the parent set → red.
+        let spawned = Self.process(727, program, parent: 722, arguments: ["ZZFixtureMachine", "--machine", "x"])
+        #expect(NestedAppGuard.blockers(
+            bundlePath: Self.bundle, processes: [containers, spawned], launchAgents: agents)
+            == [.init(name: "ZZFixtureMachine", pid: 727)])
+    }
+
+    /// VMPal's MCP relays, measured 2026-10-28: `VMPalMachine --mcp-library`,
+    /// started by each coding agent as its child. They pass; a VM from the same
+    /// executable still blocks, and so does a relay-looking process of another
+    /// nested app, one with extra arguments, or one whose argv is unknown.
+    /// Mutation: drop the `neverBlocks` check → red; match by path alone → red.
+    @Test func vmpalMCPRelaysNeverBlockButItsVMsDo() {
+        let bundle = "/Applications/ZZFixtureVMPal.app"
+        let program = "Contents/Helpers/VMPalMachine.app/Contents/MacOS/VMPalMachine"
+        let path = "\(bundle)/\(program)"
+        let relay = Self.process(740, program, parent: 9000, bundle: bundle, arguments: [path, "--mcp-library"])
+        let vm = Self.process(741, program, bundle: bundle, arguments: [
+            path, "--machine", "/Volumes/VM/macOS VM 1.vmpal", "--base", "/Volumes/VM/macOS VM 1.vmpal",
+            "--by-agent",
+        ])
+        #expect(NestedAppGuard.blockers(bundlePath: bundle, processes: [relay]).isEmpty)
+        #expect(NestedAppGuard.blockers(bundlePath: bundle, processes: [relay, vm])
+            == [.init(name: "VMPalMachine", pid: 741, vmName: "macOS VM 1")])
+        let unread = Self.process(742, program, parent: 9000, bundle: bundle)
+        let extra = Self.process(
+            743, program, parent: 9000, bundle: bundle, arguments: [path, "--mcp-library", "--machine", "x"])
+        let other = Self.process(
+            744, "Contents/Helpers/Other.app/Contents/MacOS/Other", parent: 9000, bundle: bundle,
+            arguments: ["Other", "--mcp-library"])
+        #expect(NestedAppGuard.blockers(bundlePath: bundle, processes: [unread, extra, other]).map(\.pid)
+            == [742, 743, 744])
+        // A VM a relay spawned is not let through as the relay's helper: the
+        // relay outlives the app. Mutation: keep relays in the parent set → red.
+        let spawned = Self.process(745, program, parent: 740, bundle: bundle, arguments: [path, "--machine", "x"])
+        #expect(NestedAppGuard.blockers(bundlePath: bundle, processes: [relay, spawned])
+            == [.init(name: "VMPalMachine", pid: 745, vmName: "x")])
     }
 
     /// The BetterTouchTool shape: `BTTRelaunch.app`, started by launchd, quits
@@ -173,22 +249,28 @@ import Testing
 
     // MARK: - LaunchAgents plists on disk
 
-    /// Reads `BundleProgram` from every plist in `Contents/Library/LaunchAgents`
-    /// and resolves symlinks as `proc_pidpath` does. A `Program`-only plist, a
-    /// `BundleProgram` that leaves the bundle and a non-plist file add nothing.
-    /// Mutations: read `Program` too → red; drop the inside-the-bundle check →
-    /// red; drop `resolvingSymlinksInPath` → red.
-    @Test func launchAgentProgramsReadsBundleProgramFromTheBundlesOwnPlists() throws {
+    /// Reads `BundleProgram` and `ProgramArguments` from every plist in
+    /// `Contents/Library/LaunchAgents` and resolves symlinks as `proc_pidpath`
+    /// does. A `Program`-only plist, a `BundleProgram` that leaves the bundle
+    /// and a non-plist file add nothing. Mutations: read `Program` too → red;
+    /// drop the inside-the-bundle check → red; drop `resolvingSymlinksInPath`
+    /// → red; drop `ProgramArguments` → red.
+    @Test func launchAgentsReadsBundleProgramFromTheBundlesOwnPlists() throws {
         let bundle = try Self.fixtureBundle()
         defer { try? FileManager.default.removeItem(atPath: bundle) }
         let agents = bundle + "/Contents/Library/LaunchAgents"
-        try Self.writePlist(["BundleProgram": Self.agentProgram, "Label": "zz.agent"],
+        try Self.writePlist(["BundleProgram": Self.agentProgram, "Label": "zz.agent",
+                             "ProgramArguments": ["ZZFixtureWallpaper", "--wallpaper-agent"]],
                             to: agents + "/zz.agent.plist")
         try Self.writePlist(["BundleProgram": "Contents/Resources/Linked.app/Contents/MacOS/ZZFixtureLinked"],
                             to: agents + "/zz.linked.plist")
         try Self.writePlist(["Program": bundle + "/Contents/Helpers/ZZFixtureMachine.app/Contents/MacOS/ZZFixtureMachine"],
                             to: agents + "/zz.program.plist")
         try Self.writePlist(["BundleProgram": "../ZZFixtureOutside/tool"], to: agents + "/zz.outside.plist")
+        // A `ProgramArguments` with a non-string skips the plist rather than
+        // reading as no arguments. Mutation: `as? [String] ?? []` → red.
+        try Self.writePlist(["BundleProgram": Self.agentProgram, "ProgramArguments": ["ZZFixtureWallpaper", 1]],
+                            to: agents + "/zz.malformed.plist")
         try "not a plist".write(toFile: agents + "/README", atomically: true, encoding: .utf8)
         // `Linked.app` is a symlink to `Real.app`, as `Versions/Current` would be.
         let resources = bundle + "/Contents/Resources"
@@ -196,29 +278,32 @@ import Testing
         try FileManager.default.createSymbolicLink(
             atPath: resources + "/Linked.app", withDestinationPath: resources + "/Real.app")
 
-        #expect(NestedAppGuard.launchAgentPrograms(inBundle: bundle) == [
-            bundle + "/" + Self.agentProgram,
-            resources + "/Real.app/Contents/MacOS/ZZFixtureLinked",
+        #expect(NestedAppGuard.launchAgents(inBundle: bundle) == [
+            .init(program: bundle + "/" + Self.agentProgram,
+                  arguments: ["ZZFixtureWallpaper", "--wallpaper-agent"]),
+            .init(program: resources + "/Real.app/Contents/MacOS/ZZFixtureLinked", arguments: []),
         ])
     }
 
-    @Test func launchAgentProgramsIsEmptyWithoutTheDirectory() throws {
+    @Test func launchAgentsIsEmptyWithoutTheDirectory() throws {
         let bundle = try Self.fixtureBundle()
         defer { try? FileManager.default.removeItem(atPath: bundle) }
         try FileManager.default.removeItem(atPath: bundle + "/Contents/Library")
-        #expect(NestedAppGuard.launchAgentPrograms(inBundle: bundle).isEmpty)
+        #expect(NestedAppGuard.launchAgents(inBundle: bundle).isEmpty)
     }
 
     /// `refusal` reads the installed bundle's plists itself. Mutation: stop
-    /// passing `launchAgentPrograms` from `refusal` → red.
+    /// passing `launchAgents` from `refusal` → red.
     @Test func theRefusalLetsTheBundlesOwnLaunchAgentThrough() throws {
         let bundle = try Self.fixtureBundle()
         defer { try? FileManager.default.removeItem(atPath: bundle) }
-        try Self.writePlist(["BundleProgram": Self.agentProgram],
+        try Self.writePlist(["BundleProgram": Self.agentProgram,
+                             "ProgramArguments": ["ZZFixtureWallpaper", "--wallpaper-agent"]],
                             to: bundle + "/Contents/Library/LaunchAgents/zz.agent.plist")
         let url = URL(fileURLWithPath: bundle)
         let agent = NestedAppGuard.RunningProcess(
-            pid: 730, parentPID: 1, executablePath: bundle + "/" + Self.agentProgram, isRegularApp: false)
+            pid: 730, parentPID: 1, executablePath: bundle + "/" + Self.agentProgram, isRegularApp: false,
+            arguments: ["ZZFixtureWallpaper", "--wallpaper-agent"])
         #expect(NestedAppGuard.refusal(url, appName: "ZZFixtureVM", processes: { [agent] }) == nil)
         let machine = NestedAppGuard.RunningProcess(
             pid: 731, parentPID: 1,
@@ -238,6 +323,48 @@ import Testing
             appName: "ZZFixtureVM",
             blockers: [.init(name: "B", pid: 1), .init(name: "A", pid: 2), .init(name: "B", pid: 3)])
         #expect(two.errorDescription == "A, B are running from inside ZZFixtureVM and would keep running the old version. Quit them, then update again. ZZFixtureVM was not updated.")
+    }
+
+    /// A VMPal VM blocks with its name, read from `--machine <folder>`. The
+    /// relay, another nested app with `--machine`, and a VM whose argv was not
+    /// read carry no name. Mutation: return nil from `vmName` → red.
+    @Test func aVMPalVMBlocksWithItsName() {
+        let bundle = "/Applications/ZZFixtureVMPal.app"
+        let program = "Contents/Helpers/VMPalMachine.app/Contents/MacOS/VMPalMachine"
+        let path = "\(bundle)/\(program)"
+        let vm = Self.process(750, program, bundle: bundle, arguments: [
+            path, "--machine", "/Volumes/VM/macOS VM 1.vmpal", "--base", "/Volumes/VM/macOS VM 1.vmpal",
+            "--by-agent",
+        ])
+        let unread = Self.process(751, program, bundle: bundle)
+        let other = Self.process(
+            752, "Contents/Helpers/Other.app/Contents/MacOS/Other", bundle: bundle,
+            arguments: ["Other", "--machine", "/Volumes/VM/x.vmpal"])
+        #expect(NestedAppGuard.blockers(bundlePath: bundle, processes: [vm, unread, other]) == [
+            .init(name: "VMPalMachine", pid: 750, vmName: "macOS VM 1"),
+            .init(name: "VMPalMachine", pid: 751),
+            .init(name: "Other", pid: 752),
+        ])
+    }
+
+    /// VMPal's VMs get their own advice: shutting a VM down leaves its process
+    /// up until its window is closed (measured 2026-10-28), so "Quit it" is not
+    /// enough. Other blockers keep the general sentence. Mutation: drop the VM
+    /// branch from `errorDescription` → red.
+    @Test func theMessageNamesVMPalVMsAndSaysToCloseTheirWindows() {
+        let one = NestedAppRunningError(
+            appName: "VMPal", blockers: [.init(name: "VMPalMachine", pid: 1, vmName: "macOS VM 1")])
+        #expect(one.errorDescription == "“macOS VM 1” is open in VMPal. Shut it down and close its window, then update again. VMPal was not updated.")
+        let two = NestedAppRunningError(appName: "VMPal", blockers: [
+            .init(name: "VMPalMachine", pid: 1, vmName: "Win"),
+            .init(name: "VMPalMachine", pid: 2, vmName: "Linux"),
+        ])
+        #expect(two.errorDescription == "“Linux”, “Win” are open in VMPal. Shut them down and close their windows, then update again. VMPal was not updated.")
+        let mixed = NestedAppRunningError(appName: "VMPal", blockers: [
+            .init(name: "VMPalMachine", pid: 1, vmName: "macOS VM 1"),
+            .init(name: "VMPalDock", pid: 2),
+        ])
+        #expect(mixed.errorDescription == "“macOS VM 1” is open in VMPal. Shut it down and close its window, then update again. VMPalDock is running from inside VMPal and would keep running the old version. Quit it, then update again. VMPal was not updated.")
     }
 
     // MARK: - The hosts' preflight
@@ -469,6 +596,36 @@ import Testing
         #expect(me?.executablePath.isEmpty == false)
     }
 
+    /// A real process inside a nested `.app` comes back with its argv, which the
+    /// LaunchAgent and relay rules match on. Mutation: pass `arguments: nil`
+    /// in `liveProcesses` → red.
+    @Test func theLiveListReadsTheArgvOfANestedApp() async throws {
+        let parent = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ZZFixture-argv-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: parent) }
+        let relative = "/ZZFixtureVM.app/Contents/Helpers/ZZFixtureMachine.app/Contents/MacOS/ZZFixtureMachine"
+        let executable = parent.path + relative
+        try FileManager.default.createDirectory(
+            atPath: (executable as NSString).deletingLastPathComponent, withIntermediateDirectories: true)
+        // A copy of an Apple binary is killed at exec (launch constraints): it
+        // runs only once signed ad hoc, as its own code.
+        try FileManager.default.copyItem(atPath: "/bin/sleep", toPath: executable)
+        let signed = try await ChildProcess.run(
+            "/usr/bin/codesign", ["-s", "-", "-f", executable], onCancel: .terminateChild)
+        try #require(signed.succeeded)
+        // Read while the child runs: `onLaunch` comes after the spawn, before
+        // the wait, and the child is ended once read. `proc_pidpath` spells the
+        // temporary directory `/private/var/…`.
+        let seen = SeenProcess()
+        _ = try await ChildProcess.run(executable, ["60"], onCancel: .terminateChild, onLaunch: { pid in
+            seen.set(NestedAppGuard.liveProcesses().first { $0.pid == pid })
+            kill(pid, SIGTERM)
+        })
+        let me = seen.value
+        #expect(me?.executablePath.hasSuffix(relative) == true)
+        #expect(me?.arguments?.dropFirst().elementsEqual(["60"]) == true)
+    }
+
     // MARK: - Fixtures
 
     private static let agentProgram =
@@ -567,6 +724,13 @@ private final class Counter: @unchecked Sendable {
     private var count = 0
     func bump() { lock.withLock { count += 1 } }
     var value: Int { lock.withLock { count } }
+}
+
+private final class SeenProcess: @unchecked Sendable {
+    private let lock = NSLock()
+    private var seen: NestedAppGuard.RunningProcess?
+    func set(_ process: NestedAppGuard.RunningProcess?) { lock.withLock { seen = process } }
+    var value: NestedAppGuard.RunningProcess? { lock.withLock { seen } }
 }
 
 private final class Flag: @unchecked Sendable {

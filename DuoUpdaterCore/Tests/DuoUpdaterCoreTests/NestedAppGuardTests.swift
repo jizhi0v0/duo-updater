@@ -311,6 +311,81 @@ import Testing
         #expect(!FileManager.default.fileExists(atPath: workDir.path))
     }
 
+    /// Started after the coordinator's last check, while the apply verified and
+    /// unpacked (or waited on an administrator panel): the swap itself refuses,
+    /// and the installed bundle is untouched. The apply here is the swap alone,
+    /// as `SparkleInstaller` and `VendorInstaller` end in it. Mutation: drop the
+    /// `preExchangeCheck` call in `InPlaceSwap.replace` → the swap lands.
+    @Test func theSwapRefusesWhenTheNestedAppStartsAfterTheCoordinatorsLastCheck() async throws {
+        let fixture = try SwapFixture()
+        defer { fixture.remove() }
+        let started = Flag()
+        let coordinator = InstallCoordinator(
+            permits: InstallPermits(downloads: 1, applies: 1),
+            runningProcesses: { started.value ? [fixture.machine] : [] })
+        await #expect(throws: NestedAppRunningError.self) {
+            _ = try await coordinator.fetchThenSwap(
+                Self.result(at: fixture.target), spaceToApply: 0, progress: { _ in },
+                releaseAfterDownload: {},
+                download: { _, _ in
+                    DownloadedUpdate(
+                        archiveURL: fixture.work.appendingPathComponent("ZZFixture.zip"),
+                        bytesDownloaded: 1, workDir: fixture.work)
+                },
+                apply: { _, _, _ in
+                    started.set()
+                    try await InPlaceSwap.replace(newApp: fixture.incoming, over: fixture.target)
+                })
+        }
+        #expect(fixture.targetIsUntouched)
+    }
+
+    /// A swap outside an install (`InPlaceSwap.replace` with no check set, as a
+    /// restore runs it) is not refused by this guard.
+    @Test func aSwapWithNoCheckSetGoesAhead() async throws {
+        let fixture = try SwapFixture()
+        defer { fixture.remove() }
+        try await InPlaceSwap.replace(newApp: fixture.incoming, over: fixture.target)
+        #expect(FileManager.default.fileExists(
+            atPath: fixture.target.appendingPathComponent("Contents/new").path))
+    }
+
+    /// The Homebrew route: started while the install waited for the apply
+    /// permit, after the check before it. brew must not start. Mutation: drop
+    /// the `refuseWhileNestedAppRuns` after `waitForApplyOrCancel` in the
+    /// `.homebrew` case → the stand-in brew runs.
+    @Test func brewDoesNotStartWhenTheNestedAppStartsWhileWaitingForTheApplyPermit() async throws {
+        let fixture = try SwapFixture()
+        defer { fixture.remove() }
+        let ran = fixture.root.appendingPathComponent("brew-ran")
+        let brew = fixture.root.appendingPathComponent("brew")
+        try Data("#!/bin/sh\n/usr/bin/touch '\(ran.path)'\nexit 0\n".utf8).write(to: brew)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: brew.path)
+        // The first ask is the check before the permit; the nested app is up by
+        // the next one.
+        let asks = Counter()
+        let coordinator = InstallCoordinator(
+            permits: InstallPermits(downloads: 1, applies: 1),
+            runningProcesses: {
+                asks.bump()
+                return asks.value > 1 ? [fixture.machine] : []
+            })
+        let result = Self.result(
+            at: fixture.target,
+            remote: RemoteVersion(
+                shortVersion: "1.1", version: "2", downloadURL: nil, sourceName: "Homebrew",
+                sourceIdentifier: "zzfixture-cask"))
+        await #expect(throws: NestedAppRunningError.self) {
+            try await HomebrewInstaller.$brewPathOverride.withValue(brew.path) {
+                _ = try await coordinator.perform(
+                    result, route: .homebrew, installedPopulation: [], digestOnlyAllowed: false,
+                    progress: { _ in })
+            }
+        }
+        #expect(!FileManager.default.fileExists(atPath: ran.path))
+        #expect(fixture.targetIsUntouched)
+    }
+
     @Test func theCoordinatorGoesAheadWhenNothingBlocks() async throws {
         let workDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("ZZFixture-nested-\(UUID().uuidString)", isDirectory: true)
@@ -375,15 +450,55 @@ import Testing
         process(700, "Contents/Helpers/ZZFixtureMachine.app/Contents/MacOS/ZZFixtureMachine")
     }
 
-    private static func result() -> UpdateResult {
+    private static func result(
+        at path: URL = URL(fileURLWithPath: bundle),
+        remote: RemoteVersion = RemoteVersion(
+            shortVersion: "1.1", version: "2", downloadURL: nil, sourceName: "Vendor")
+    ) -> UpdateResult {
         UpdateResult(
             app: InstalledApp(
                 name: "ZZFixtureVM", bundleID: "com.example.zzfixturevm",
-                shortVersion: "1.0", buildVersion: "1", path: URL(fileURLWithPath: bundle),
+                shortVersion: "1.0", buildVersion: "1", path: path,
                 isMASApp: false, sparkleFeedURL: nil, sparkleEdPublicKey: nil),
-            remote: RemoteVersion(
-                shortVersion: "1.1", version: "2", downloadURL: nil, sourceName: "Vendor"),
+            remote: remote,
             status: .updateAvailable(latest: "1.1"))
+    }
+
+    /// A real installed `ZZFixtureVM.app` (marked `Contents/old`) and an
+    /// incoming bundle (marked `Contents/new`) in a fresh temporary directory,
+    /// and the VM process a nested app in the installed one would be.
+    private struct SwapFixture {
+        let root: URL
+        let target: URL
+        let incoming: URL
+        let work: URL
+        let machine: NestedAppGuard.RunningProcess
+
+        init() throws {
+            let fm = FileManager.default
+            root = fm.temporaryDirectory
+                .appendingPathComponent("ZZFixture-swap-\(UUID().uuidString)", isDirectory: true)
+            target = root.appendingPathComponent("ZZFixtureVM.app", isDirectory: true)
+            work = root.appendingPathComponent("work", isDirectory: true)
+            incoming = work.appendingPathComponent("ZZFixtureVM.app", isDirectory: true)
+            for (bundle, marker) in [(target, "old"), (incoming, "new")] {
+                try fm.createDirectory(
+                    at: bundle.appendingPathComponent("Contents/MacOS"), withIntermediateDirectories: true)
+                try Data("\(marker) binary".utf8)
+                    .write(to: bundle.appendingPathComponent("Contents/MacOS/ZZFixtureVM"))
+                try Data().write(to: bundle.appendingPathComponent("Contents/\(marker)"))
+            }
+            machine = NestedAppGuardTests.process(
+                700, "Contents/Helpers/ZZFixtureMachine.app/Contents/MacOS/ZZFixtureMachine",
+                bundle: target.resolvingSymlinksInPath().path)
+        }
+
+        var targetIsUntouched: Bool {
+            FileManager.default.fileExists(atPath: target.appendingPathComponent("Contents/old").path)
+                && !FileManager.default.fileExists(atPath: target.appendingPathComponent("Contents/new").path)
+        }
+
+        func remove() { try? FileManager.default.removeItem(at: root) }
     }
 }
 

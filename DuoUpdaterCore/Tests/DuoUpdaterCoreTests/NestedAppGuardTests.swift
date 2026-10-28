@@ -130,6 +130,12 @@ import Testing
         let fewer = Self.process(726, program, arguments: ["ZZFixtureMachine", "--containers"])
         #expect(NestedAppGuard.blockers(
             bundlePath: Self.bundle, processes: [extra, fewer], launchAgents: agents).map(\.pid) == [725, 726])
+        // What the agent spawns is not the app's helper: the agent outlives the
+        // app. Mutation: keep agent instances in the parent set → red.
+        let spawned = Self.process(727, program, parent: 722, arguments: ["ZZFixtureMachine", "--machine", "x"])
+        #expect(NestedAppGuard.blockers(
+            bundlePath: Self.bundle, processes: [containers, spawned], launchAgents: agents)
+            == [.init(name: "ZZFixtureMachine", pid: 727)])
     }
 
     /// VMPal's MCP relays, measured 2026-10-28: `VMPalMachine --mcp-library`,
@@ -423,23 +429,24 @@ import Testing
     /// A real process inside a nested `.app` comes back with its argv, which the
     /// LaunchAgent and relay rules match on. Mutation: pass `arguments: nil`
     /// in `liveProcesses` → red.
-    @Test func theLiveListReadsTheArgvOfANestedApp() throws {
+    @Test func theLiveListReadsTheArgvOfANestedApp() async throws {
         let parent = FileManager.default.temporaryDirectory
             .appendingPathComponent("ZZFixture-argv-\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: parent) }
-        let executable = parent.path + "/ZZFixtureVM.app/Contents/Helpers/ZZFixtureMachine.app/Contents/MacOS/ZZFixtureMachine"
+        let relative = "/ZZFixtureVM.app/Contents/Helpers/ZZFixtureMachine.app/Contents/MacOS/ZZFixtureMachine"
+        let executable = parent.path + relative
         try FileManager.default.createDirectory(
             atPath: (executable as NSString).deletingLastPathComponent, withIntermediateDirectories: true)
         try FileManager.default.copyItem(atPath: "/bin/sleep", toPath: executable)
-        let child = Process()
-        child.executableURL = URL(fileURLWithPath: executable)
-        child.arguments = ["30"]
-        try child.run()
-        defer { child.terminate(); child.waitUntilExit() }
-        // `proc_pidpath` spells the temporary directory as `/private/var/…`.
-        let me = NestedAppGuard.liveProcesses().first { $0.pid == child.processIdentifier }
-        #expect(me?.executablePath.hasSuffix(String(executable.dropFirst(parent.path.count))) == true)
-        #expect(me?.arguments?.dropFirst().elementsEqual(["30"]) == true)
+        // Read while the child runs: `onLaunch` comes after the spawn, before
+        // the wait. `proc_pidpath` spells the temporary directory `/private/var/…`.
+        let seen = SeenProcess()
+        _ = try await ChildProcess.run(executable, ["1"], onCancel: .terminateChild, onLaunch: { pid in
+            seen.set(NestedAppGuard.liveProcesses().first { $0.pid == pid })
+        })
+        let me = seen.value
+        #expect(me?.executablePath.hasSuffix(relative) == true)
+        #expect(me?.arguments?.dropFirst().elementsEqual(["1"]) == true)
     }
 
     // MARK: - Fixtures
@@ -493,6 +500,13 @@ private final class Counter: @unchecked Sendable {
     private var count = 0
     func bump() { lock.withLock { count += 1 } }
     var value: Int { lock.withLock { count } }
+}
+
+private final class SeenProcess: @unchecked Sendable {
+    private let lock = NSLock()
+    private var seen: NestedAppGuard.RunningProcess?
+    func set(_ process: NestedAppGuard.RunningProcess?) { lock.withLock { seen = process } }
+    var value: NestedAppGuard.RunningProcess? { lock.withLock { seen } }
 }
 
 private final class Flag: @unchecked Sendable {

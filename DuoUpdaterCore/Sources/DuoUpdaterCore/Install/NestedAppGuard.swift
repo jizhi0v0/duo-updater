@@ -415,10 +415,13 @@ public struct NestedAppRunningError: LocalizedError, Equatable, Sendable {
     static let closeOneVM = "close its window, then update again."
     static let closeVMs = "close their windows, then update again."
 
-    /// Something in every message: the user ends the refusal by quitting the
-    /// app or closing the VM, so `InstallFailureReport.isUserFixable` offers no
-    /// report for it.
-    static let userFixableFragments = [keepsOldVersion, closeOneVM, closeVMs]
+    /// In every message that names a VMPal VM: the user ends that refusal by
+    /// shutting the VM down and closing its window, so
+    /// `InstallFailureReport.isUserFixable` offers no report for it. Any other
+    /// nested app may be a background helper the user cannot quit, and a report
+    /// is how such a case reaches us (BetterTouchTool's watchdog did), so the
+    /// general sentence is not in here.
+    static let userFixableFragments = [closeOneVM, closeVMs]
 
     public var errorDescription: String? {
         var sentences: [String] = []

@@ -293,6 +293,9 @@ public func deltaRouteFailureIsWorthRetrying(_ error: Error) -> Bool {
     // The installed copy's signing and who owns it, not the patch: the full
     // archive meets the same refusal at the same swap.
     if error is UnanchoredElevatedInstallError { return false }
+    // A nested app running from the installed bundle refuses the full archive's
+    // swap just the same (`InPlaceSwap.preExchangeCheck`).
+    if error is NestedAppRunningError { return false }
     guard let verify = error as? SignatureVerifier.VerifyError else { return true }
     switch verify {
     case .unsupportedSystemVersion, .unrunnableArchitecture, .architectureDowngrade:

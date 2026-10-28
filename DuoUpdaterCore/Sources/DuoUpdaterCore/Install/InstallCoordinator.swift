@@ -152,8 +152,9 @@ public actor InstallCoordinator {
     ///
     /// Only the routes whose swap this coordinator performs or starts: `.sparkle`
     /// and `.vendor` (`fetchThenSwap`) and `.homebrew`. `perform` asks again
-    /// before the download and before the apply, for a nested app started in the
-    /// meantime.
+    /// before the download, before the apply and right before the exchange
+    /// (`.homebrew`: once the apply permit is held, before brew starts), for a
+    /// nested app started in the meantime.
     public static func nestedAppRefusal(
         for result: UpdateResult, route: Route,
         processes: () -> [NestedAppGuard.RunningProcess] = NestedAppGuard.liveProcesses
@@ -627,6 +628,10 @@ public actor InstallCoordinator {
             // Still needed: a cancel landing as the permit was handed over
             // returns normally with the permit held (see `waitForDownloadOrCancel`).
             try Task.checkCancellation()
+            // Again, for a nested app started while this waited for the permit.
+            // The last check this route can make: brew downloads and swaps in
+            // one command, so one started during brew's own download is not seen.
+            try refuseWhileNestedAppRuns(result)
             let agents = snapshotLoginItemAgents(result)
             try await homebrew.upgrade(caskToken: token, app: result.app.path) { line in
                 progress(.runningCommand(line))
@@ -864,7 +869,15 @@ public actor InstallCoordinator {
         }
         let agents = snapshotLoginItemAgents(result)
         Log.install.debug("\(label, privacy: .public): applying")
-        try await apply(result, downloaded, progress)
+        // And once more inside the apply, right before the exchange: verifying,
+        // extracting and a wait for the administrator panel all come between
+        // here and there. See `InPlaceSwap.preExchangeCheck`.
+        let processes = runningProcesses
+        try await InPlaceSwap.$preExchangeCheck.withValue({
+            try NestedAppGuard.check(result.app.path, appName: result.app.name, processes: processes)
+        }) {
+            try await apply(result, downloaded, progress)
+        }
         permits.signalApply()
         applyHeld = false
         let agentsNotRestarted = await restartLoginItemAgents(agents)

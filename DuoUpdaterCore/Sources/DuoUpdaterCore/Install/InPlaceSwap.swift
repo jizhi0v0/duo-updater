@@ -100,6 +100,20 @@ public enum InPlaceSwap {
     /// test's `withValue`, `InstallCommit`'s inheriting `Task { }` included.
     @TaskLocal static var elevatedShellOverride: (@Sendable (String) async throws -> ChildProcess.Outcome)?
 
+    /// What must still hold the moment before the exchange, or nil for nothing.
+    /// `InstallCoordinator` sets it around an install's apply to
+    /// `NestedAppGuard`'s refusal: its own check before the apply is followed
+    /// by verification, extraction and maybe a wait for another install's
+    /// administrator panel, and a VM can start in that time. A throw here
+    /// leaves the target as it was. Run last before each exchange begins:
+    /// before the rotation stages `Contents`, before the unprivileged exchange
+    /// stages its copy, and on the elevated route after the panel lock is
+    /// taken, just before `osascript` shows the panel. A
+    /// task-local for the reason `elevatedShellOverride` is one: it reaches
+    /// through the installers and `InstallCommit`'s inheriting `Task { }`
+    /// without a parameter on each. Unset for a restore (`BackupStore`).
+    @TaskLocal static var preExchangeCheck: (@Sendable () throws -> Void)?
+
     /// Run one privileged shell: `osascript`, or the test override.
     ///
     /// `.runToCompletion`: once the shell is running, killing `osascript` could
@@ -484,6 +498,7 @@ public enum InPlaceSwap {
         // see `usesContentsRotation`. Never elevated, and that is not a shortcut:
         // the elevated route cannot do this at all (see `rotateContents`).
         if usesContentsRotation(target: target) {
+            try preExchangeCheck?()
             let outcome = try await rotateContents(newApp: newApp, over: target)
             replaced = true
             if case .replacedButCleanupFailed(let reason) = outcome { cleanupFailure = reason }
@@ -491,6 +506,7 @@ public enum InPlaceSwap {
         }
 
         if !elevated {
+            try preExchangeCheck?()
             // Off the cooperative pool: the exchange is synchronous disk work, and
             // `replaceItemAt` deletes the bundle it displaces — a whole app, which
             // for a large one is seconds of I/O. The hop it used to sit in (every
@@ -1473,8 +1489,13 @@ public enum InPlaceSwap {
         // `.runToCompletion`: once the shell is running, killing `osascript` could
         // land between `mv tgt old` and `mv new tgt`. stdout was inherited before;
         // the shell's commands print nothing on it.
+        //
+        // `preExchangeCheck` inside the lock: the wait for another install's
+        // panel is time a nested app can start in. The panel itself is not
+        // covered — the shell runs as soon as it is answered.
         let outcome = try await elevationPanel.withApplyPermit {
-            try await runElevated(shell)
+            try preExchangeCheck?()
+            return try await runElevated(shell)
         }
         guard outcome.terminationStatus == 0 else {
             let msg = String(data: outcome.standardError, encoding: .utf8) ?? "unknown error"

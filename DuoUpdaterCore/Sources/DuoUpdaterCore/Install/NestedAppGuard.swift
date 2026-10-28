@@ -37,9 +37,10 @@ import Darwin
 /// - It is not under `Contents/Library/LoginItems/`. A login item runs for as
 ///   long as the user is logged in, so refusing on one would block its app's
 ///   updates for good. A stale login item is replaced at the next login.
-/// - Its executable is not the `BundleProgram` of a plist in the bundle's own
-///   `Contents/Library/LaunchAgents/`, the agents `SMAppService` registers.
-///   Those also outlive the app. `SMAppService.h` tells the app to re-register
+/// - It is not the instance of an agent in the bundle's own
+///   `Contents/Library/LaunchAgents/`, the agents `SMAppService` registers: its
+///   executable is the plist's `BundleProgram` and its argv after `argv[0]` is
+///   the plist's `ProgramArguments` after the first. Those also outlive the app. `SMAppService.h` tells the app to re-register
 ///   one after an update, unregistering first when the executable changed,
 ///   which kills the running agent. An app that does so replaces a stale agent
 ///   on its next launch. That is a contract on the vendor, not something
@@ -82,6 +83,26 @@ import Darwin
 /// (`com.cindori.Backdrop.Wallpaper.agent.registration` = the bundle path, its
 /// inode and hashes). That is presumably how it notices the swap; its code was
 /// not traced.
+/// The arguments came into it on 2026-10-28, for VMPal 0.108. Its
+/// `com.tableplus.VMPal.Containers.plist` names `VMPalMachine` as
+/// `BundleProgram` with `ProgramArguments` `VMPalMachine --containers
+/// --service`, the same executable every VM runs in as `--machine <folder>`.
+/// Matching by path alone let a running VM through: the swap went ahead and
+/// the VM kept running from the moved-aside bundle, the case above. launchd
+/// passes `ProgramArguments` as the job's argv (`launchd.plist(5)`), so the
+/// agent's own instance is told apart by its arguments. `argv[0]` is left out
+/// of the comparison, so a plist that spells it differently from the kernel
+/// still matches. Backdrop's two processes are the instances of its two
+/// plists, `--wallpaper-agent` and `--wallpaper-renderer`.
+/// The same day, `nestedAppInstancesThatNeverBlock` came for VMPal's MCP
+/// relays. Each coding agent with VMPal's MCP server configured starts
+/// `VMPalMachine --mcp-library` by its fixed `/Applications` path as its own
+/// child; five ran at once on the dev Mac. They are not VMs. VMPal's own
+/// Sparkle update to 0.107 that day left four of them running from the bundle
+/// it moved into its cache, while its update UI offers only "Pause VMs and
+/// Update". A relay picks up a new version when its agent restarts. Refusing
+/// on them would block VMPal whenever an agent session is open, so they pass,
+/// matched by their exact argv; the VM (`--machine <folder>`) still blocks.
 /// Over the live process list that day (833 processes, 35 bundles with
 /// something running inside), these rules refused two bundles. The exclusion
 /// lets Backdrop through. Gemini, refused by
@@ -125,12 +146,41 @@ public enum NestedAppGuard {
         /// Whether LaunchServices reports it as a `.regular` app. Only asked for
         /// processes inside a nested `.app`; false for everything else.
         public let isRegularApp: Bool
+        /// Its argv, from `KERN_PROCARGS2`. Only read for processes inside a
+        /// nested `.app`; nil for everything else and when it can't be read,
+        /// which matches no LaunchAgent.
+        public let arguments: [String]?
 
-        public init(pid: pid_t, parentPID: pid_t, executablePath: String, isRegularApp: Bool) {
+        public init(
+            pid: pid_t, parentPID: pid_t, executablePath: String, isRegularApp: Bool,
+            arguments: [String]? = nil
+        ) {
             self.pid = pid
             self.parentPID = parentPID
             self.executablePath = executablePath
             self.isRegularApp = isRegularApp
+            self.arguments = arguments
+        }
+    }
+
+    /// One plist in the bundle's own `Contents/Library/LaunchAgents/`.
+    public struct LaunchAgent: Equatable, Sendable {
+        /// `BundleProgram` made absolute, symlinks resolved as `proc_pidpath`
+        /// resolves them.
+        public let program: String
+        /// `ProgramArguments`, empty when the plist has none.
+        public let arguments: [String]
+
+        public init(program: String, arguments: [String]) {
+            self.program = program
+            self.arguments = arguments
+        }
+
+        /// Whether `process` is an instance of this agent: the same executable,
+        /// and the same argv after `argv[0]`.
+        func isInstance(_ process: RunningProcess) -> Bool {
+            guard process.executablePath == program, let argv = process.arguments else { return false }
+            return argv.dropFirst().elementsEqual(arguments.dropFirst())
         }
     }
 
@@ -146,10 +196,10 @@ public enum NestedAppGuard {
     ///
     /// `bundlePath` is the installed bundle as the kernel reports paths, so
     /// symlinks are resolved. Containment is checked by path component, so
-    /// `Foo.app` never claims `Foo.app.old/…`. `launchAgentPrograms` is what
-    /// `launchAgentPrograms(inBundle:)` read from that bundle.
+    /// `Foo.app` never claims `Foo.app.old/…`. `launchAgents` is what
+    /// `launchAgents(inBundle:)` read from that bundle.
     public static func blockers(
-        bundlePath: String, processes: [RunningProcess], launchAgentPrograms: Set<String> = []
+        bundlePath: String, processes: [RunningProcess], launchAgents: [LaunchAgent] = []
     ) -> [Blocker] {
         let root = bundlePath.hasSuffix("/") ? String(bundlePath.dropLast()) : bundlePath
         let prefix = root + "/"
@@ -162,7 +212,8 @@ public enum NestedAppGuard {
         return processes
             .compactMap { process -> Blocker? in
                 guard !process.isRegularApp, !fromThisBundle.contains(process.parentPID),
-                      !launchAgentPrograms.contains(process.executablePath),
+                      !launchAgents.contains(where: { $0.isInstance(process) }),
+                      !neverBlocks(process, insideBundle: prefix),
                       !(hostIsRunning
                         && exitsWithHost(executablePath: process.executablePath, insideBundle: prefix)),
                       let name = nestedAppName(executablePath: process.executablePath, insideBundle: prefix)
@@ -181,6 +232,23 @@ public enum NestedAppGuard {
     static let nestedAppsThatExitWithHost: [String] = [
         "Contents/Resources/BTTRelaunch.app",
     ]
+
+    /// Nested-app processes that never block, as the nested app's path relative
+    /// to the host bundle and the exact argv after `argv[0]`. See VMPal's MCP
+    /// relays in the type's comment.
+    static let nestedAppInstancesThatNeverBlock: [(app: String, arguments: [String])] = [
+        ("Contents/Helpers/VMPalMachine.app", ["--mcp-library"]),
+    ]
+
+    /// Whether `process` is one of `nestedAppInstancesThatNeverBlock`.
+    /// `bundlePrefix` ends in `/`.
+    static func neverBlocks(_ process: RunningProcess, insideBundle bundlePrefix: String) -> Bool {
+        guard process.executablePath.hasPrefix(bundlePrefix), let argv = process.arguments else { return false }
+        let relative = process.executablePath.dropFirst(bundlePrefix.count)
+        return nestedAppInstancesThatNeverBlock.contains {
+            relative.hasPrefix($0.app + "/") && argv.dropFirst().elementsEqual($0.arguments)
+        }
+    }
 
     /// Whether `executablePath` is code from one of `nestedAppsThatExitWithHost`.
     /// `bundlePrefix` ends in `/`.
@@ -222,25 +290,27 @@ public enum NestedAppGuard {
         return nil
     }
 
-    /// The executables the bundle's own `Contents/Library/LaunchAgents/*.plist`
-    /// name as `BundleProgram`, symlinks resolved as `proc_pidpath` resolves
-    /// them. Only those that stay inside the bundle count. Unreadable plists are
-    /// skipped, which leaves their agents refused.
-    public static func launchAgentPrograms(inBundle bundlePath: String) -> Set<String> {
+    /// The agents the bundle's own `Contents/Library/LaunchAgents/*.plist`
+    /// describe with a `BundleProgram`, symlinks resolved as `proc_pidpath`
+    /// resolves them. Only those that stay inside the bundle count. Unreadable
+    /// plists are skipped, which leaves their agents refused.
+    public static func launchAgents(inBundle bundlePath: String) -> [LaunchAgent] {
         let root = bundlePath.hasSuffix("/") ? String(bundlePath.dropLast()) : bundlePath
         let directory = root + "/Contents/Library/LaunchAgents"
         guard let names = try? FileManager.default.contentsOfDirectory(atPath: directory) else { return [] }
-        var programs: Set<String> = []
-        for name in names where name.hasSuffix(".plist") {
+        var agents: [LaunchAgent] = []
+        for name in names.sorted() where name.hasSuffix(".plist") {
             guard let data = FileManager.default.contents(atPath: directory + "/" + name),
                   let plist = try? PropertyListSerialization.propertyList(from: data, format: nil)
                     as? [String: Any],
                   let program = plist["BundleProgram"] as? String
             else { continue }
             let path = URL(fileURLWithPath: root + "/" + program).resolvingSymlinksInPath().path
-            if path.hasPrefix(root + "/") { programs.insert(path) }
+            guard path.hasPrefix(root + "/") else { continue }
+            let arguments = plist["ProgramArguments"] as? [String] ?? []
+            agents.append(LaunchAgent(program: path, arguments: arguments))
         }
-        return programs
+        return agents
     }
 
     /// Every process this user can see, read fresh from the kernel. The
@@ -266,11 +336,14 @@ public enum NestedAppGuard {
             let parent: pid_t = proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, size) == size
                 ? pid_t(info.pbi_ppid) : 0
             // Only a process inside some `.app` below another `.app` can matter,
-            // and asking LaunchServices about every pid would be wasted work.
-            let regular = path.components(separatedBy: ".app/").count > 2
+            // and asking LaunchServices or reading argv for every pid would be
+            // wasted work.
+            let nested = path.components(separatedBy: ".app/").count > 2
+            let regular = nested
                 && NSRunningApplication(processIdentifier: pid)?.activationPolicy == .regular
             processes.append(RunningProcess(
-                pid: pid, parentPID: parent, executablePath: path, isRegularApp: regular))
+                pid: pid, parentPID: parent, executablePath: path, isRegularApp: regular,
+                arguments: nested ? ClaudeCodeActivity.arguments(of: pid) : nil))
         }
         return processes
     }
@@ -282,7 +355,7 @@ public enum NestedAppGuard {
         let path = bundle.resolvingSymlinksInPath().path
         let found = blockers(
             bundlePath: path, processes: processes(),
-            launchAgentPrograms: launchAgentPrograms(inBundle: path))
+            launchAgents: launchAgents(inBundle: path))
         return found.isEmpty ? nil : NestedAppRunningError(appName: appName, blockers: found)
     }
 

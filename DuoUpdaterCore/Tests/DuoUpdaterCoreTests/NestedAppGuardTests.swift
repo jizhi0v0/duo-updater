@@ -439,14 +439,17 @@ import Testing
             atPath: (executable as NSString).deletingLastPathComponent, withIntermediateDirectories: true)
         try FileManager.default.copyItem(atPath: "/bin/sleep", toPath: executable)
         // Read while the child runs: `onLaunch` comes after the spawn, before
-        // the wait. `proc_pidpath` spells the temporary directory `/private/var/…`.
+        // the wait. The child outlives a slow read under a loaded test run and
+        // is ended once read. `proc_pidpath` spells the temporary directory
+        // `/private/var/…`.
         let seen = SeenProcess()
-        _ = try await ChildProcess.run(executable, ["1"], onCancel: .terminateChild, onLaunch: { pid in
+        _ = try await ChildProcess.run(executable, ["60"], onCancel: .terminateChild, onLaunch: { pid in
             seen.set(NestedAppGuard.liveProcesses().first { $0.pid == pid })
+            kill(pid, SIGTERM)
         })
         let me = seen.value
         #expect(me?.executablePath.hasSuffix(relative) == true)
-        #expect(me?.arguments?.dropFirst().elementsEqual(["1"]) == true)
+        #expect(me?.arguments?.dropFirst().elementsEqual(["60"]) == true)
     }
 
     // MARK: - Fixtures

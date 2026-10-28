@@ -98,6 +98,7 @@ test-scripts: check-python
 	$(PYTHON) scripts/test_check_ifchange.py
 	$(PYTHON) scripts/check_ifchange.py
 	$(PYTHON) scripts/test_check_real_machine_record.py
+	$(PYTHON) scripts/test_check_adversarial_review.py
 
 # Extra `swift test` arguments for Core's suite, here and in test-release. Empty by
 # default. ci.yml sets `--skip installPipelineDryRun` on the mini: that test

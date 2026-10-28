@@ -108,6 +108,53 @@ struct TestFlightRebuildTests {
         return inventory
     }
 
+    /// A lock held across the read is waited on before the read gives up, rather
+    /// than read at once as a store whose rows will not query — which is how
+    /// `openAndRead` reports a `SQLITE_BUSY` at prepare, while the schema loads:
+    /// every query failing to prepare, an opened store with no rows. Only that form:
+    /// a BUSY that outlasts the timeout at `sqlite3_step`, once the schema is loaded,
+    /// ends a row loop early and still reads as `rowsReadable`, and this does not
+    /// pin it. Whether either is what the app logged twice on 2026-10-28 is not
+    /// established (`TestFlightInventory.busyTimeoutMilliseconds` says why); this
+    /// pins the behaviour, not the field cause.
+    ///
+    /// The lock is held for the whole read and the wait is what is asserted, so a
+    /// loaded machine can only make it longer. Releasing the lock part-way through
+    /// instead passed alone and failed under `make test`: the release was scheduled
+    /// late and landed after the timeout.
+    ///
+    /// Mutation: drop the `sqlite3_busy_timeout` — the read returns at once.
+    @Test func aLockedStoreIsWaitedOnBeforeTheReadGivesUp() throws {
+        let root = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("ZZFixture-busy-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let url = root.appendingPathComponent("TestFlight.sqlite")
+        var db: OpaquePointer?
+        #expect(sqlite3_open(url.path, &db) == SQLITE_OK)
+        defer { sqlite3_close(db) }
+        #expect(sqlite3_exec(db, Self.complete, nil, nil, nil) == SQLITE_OK, "fixture schema did not apply")
+        // A rollback-journal store, so an exclusive lock shuts readers out with
+        // `SQLITE_BUSY`. TestFlight's real store is WAL (`PRAGMA journal_mode` read
+        // `wal` on 2026-10-28); this does not reproduce how it would answer busy,
+        // only what the reader does once it is.
+        #expect(sqlite3_exec(db, "BEGIN EXCLUSIVE;", nil, nil, nil) == SQLITE_OK)
+
+        let started = Date()
+        let locked = TestFlightInventory(databaseURL: url)
+        let waited = Date().timeIntervalSince(started)
+
+        #expect(!locked.rowsReadable, "the lock was never taken — the fixture proves nothing")
+        #expect(waited >= Double(TestFlightInventory.busyTimeoutMilliseconds) / 1000,
+                "gave up after \(waited)s without waiting on the lock")
+
+        // Released, the same store reads in full: what was lost was only the wait.
+        #expect(sqlite3_exec(db, "COMMIT;", nil, nil, nil) == SQLITE_OK)
+        let released = TestFlightInventory(databaseURL: url)
+        #expect(released.rowsReadable)
+        #expect(released.latestIOS(forBundleID: "zz.fixture.beta")?.latestBuild == "91")
+    }
+
     /// An invented path, so the host's disk cannot change the answer.
     private static func installedBeta() -> InstalledApp {
         InstalledApp(

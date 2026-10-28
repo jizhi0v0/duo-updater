@@ -469,6 +469,26 @@ public struct TestFlightInventory: Sendable {
     /// anything near this is the gate, not slow disk.
     static let openTimeout: TimeInterval = 5
 
+    /// How long a query waits on a lock someone else holds. Without it a lock
+    /// answers `SQLITE_BUSY` at once. Held while the schema loads, at the first
+    /// prepare, `openAndRead` reports that as every query failing to prepare; held
+    /// past this wait at a later `sqlite3_step`, a row loop ends early and the read
+    /// still says `rowsReadable` — that form is not handled here. 200ms, as this
+    /// package's other read-only opens use.
+    ///
+    /// ⚠️ Not shown to be what failed in the field. The running app logged two such
+    /// reads on 2026-10-28 with no TestFlight running. On that store (`PRAGMA
+    /// journal_mode` read `wal`), Python `sqlite3` readers with no timeout got
+    /// `database is locked` 2 times in ~51,000 reads two at a time; this reader never
+    /// came back unreadable while 8 of those Python readers contended — 0 in 3,000
+    /// with the timeout, and without it 0 in 3,000 alone and 0 in 20,000 with 4 of
+    /// these readers in parallel. Those counts are of unreadable reads only; a
+    /// step-time BUSY, which reads as `rowsReadable`, would not have been counted.
+    /// What the timeout is proven to do is the fixture
+    /// case: wait on a lock held at prepare rather than give up at once. The
+    /// `sqlite3_errmsg` in the prepare-failure logs is what tells the next one apart.
+    static let busyTimeoutMilliseconds: Int32 = 200
+
     /// The bound itself, plus the memo of paths whose open never came back. Both
     /// live in `BoundedBlockingWork`, which is this code generalised — see its
     /// doc comment for why the thread is abandoned rather than pooled, and why
@@ -522,6 +542,7 @@ public struct TestFlightInventory: Sendable {
             return ([], nil, [], [], [:], nil, false, false, false)
         }
         defer { sqlite3_close(db) }
+        sqlite3_busy_timeout(db, busyTimeoutMilliseconds)
 
         // Two queries, tried in order, because a prepare failure is total: it
         // returns an empty inventory that still reports `opened`, so every
@@ -540,8 +561,8 @@ public struct TestFlightInventory: Sendable {
             return reading
         }
         Log.scan.error("""
-            TestFlight DB prepare failed with ZINSTALLSTATUSRAW — retrying without it; \
-            wrapped iOS apps lose their install signal for this read
+            TestFlight DB prepare failed with ZINSTALLSTATUSRAW (\(String(cString: sqlite3_errmsg(db)), privacy: .public)) \
+            — retrying without it; wrapped iOS apps lose their install signal for this read
             """)
         if var reading = runRowQuery(db, sql: Self.macRowsOnlySQL, hasInstallStatus: false) {
             reading.frontiers = readFrontiers(db)
@@ -549,7 +570,7 @@ public struct TestFlightInventory: Sendable {
             reading.rebuilding = readRebuilding(db)
             return reading
         }
-        Log.scan.error("TestFlight DB prepare failed")
+        Log.scan.error("TestFlight DB prepare failed (\(String(cString: sqlite3_errmsg(db)), privacy: .public))")
         // Still ask for the frontier. Its two columns live in different tables from
         // the ones above, so a schema that breaks the row queries does not imply this
         // one cannot prepare — and the whole reason the frontier got its own query is

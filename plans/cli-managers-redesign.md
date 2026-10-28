@@ -901,3 +901,243 @@ Round 2 (`5c21356`): 0 new blocking; finding 1 "partly fixed" — the new test's
 ### 2026-10-27 — §12 item 5 measured (mise `minimum_release_age`)
 
 mise's default 24 h age holds a release back from `outdated`, `latest` and `upgrade` alike, and the mise tools adapter inherits it with no code of its own; record and commands under §12 item 5. P1's last owed item is closed.
+
+---
+
+# 15. P5 — npm, bun, pnpm and Yarn global packages as managed items
+
+**Owner, 2026-10-27: do it (D-P5-1), for consistency.** In the owner's words: "其他的我也希望迁移，保持一致性，other tools 始终保持没有分组的，这说明这是用户单独安装的，不归其他 creates 管理" — every package a manager keeps moves to that manager's own level; "Other tools" stays a flat list of what the user installed on its own, with no groups in it. D-P5-2…13 below are recommendations the owner has not ruled on yet; ask before P5.2 (the switch). This section's D15 line is superseded: the owner ruled D15 (§13.4) after it was written, so these adapters get `interruption` plans from their own measurements, like P1–P4's.
+
+Design only; no code. Read on `origin/main` at `03331828` (2026-10-27). Paths: `C/` = `DuoUpdaterCore/Sources/DuoUpdaterCore/CLITools/`, `M/` = `C/Managed/`. Every line number below was read on that tree; nothing was built or run except read-only `ls` and one `defaults export` of the owner's preferences (§15.2).
+
+## 15.0 What P5 is, and what it is not
+
+§8.2 left npm/bun/pnpm/yarn out of P0–P4 "until a migration of `NotifiedCLIToolVersions` keys is designed". P5 replaces `NpmProvider`, `GlobalPackagesProvider(.pnpm/.yarn)` and the package half of `BunProvider` with adapters under `M/Node/Packages/`, and designs that migration.
+
+Two facts shape the whole phase:
+
+- **These rows' paths do not move.** npm replaces a package directory in place (same path, new inode, `C/NpmUpdater.swift:17-20`); bun's, Yarn's and pnpm's package paths stay too (pnpm 11's `global/v11/<hash>` link keeps its path across an update, `C/GlobalPackages.swift:8-11`). The managed identity's reason to exist (§3.3: "a directory that moves") does not apply. What P5 buys is one code path, the managers' own levels in the UI (D12), and `duo install npm/<name>`. What it costs is mostly the model extensions in §15.1's last column. D-P5-1 asks whether that trade is wanted.
+- **The core logic stays.** `NpmCheck`, `NpmPick`, `NpmActivity`, `GlobalPackageActivity`, `BunActivity`, the specifier restore and the scanners are the behaviour; the adapters call them. Only the provider glue (`C/NpmProvider.swift` 112 lines, `C/GlobalPackagesProvider.swift` 79, the package half of `C/BunProvider.swift`) and the App's npm-only special cases go. Of §8.2's "4,000+ lines", 3,484 are `C/Npm*.swift`, `C/GlobalPackage*.swift`, `C/NodePrefixes.swift`, `C/BunProvider.swift` (`wc -l`), and most of that stays.
+
+Proposed managers (D-P5-2): `npm`, `bun`, `pnpm`, `yarn` — four `ManagerID`s, four thin adapters over one shared `NodePackages` core. Provider ids `managed:npm` … (`M/ManagerDescriptor.swift:81-83`), distinct from the kinds `bun` (bun's own row, which stays) and today's `npm`/`pnpm`/`yarn` (which go).
+
+---
+
+## 15.1 Inventory: what today's providers do, and how the managed model says it
+
+"Has" = an existing managed type or hook expresses it; "Lacks" = P5.0 must add it. One row per behaviour that must be preserved.
+
+### Discovery and scan
+
+| # | Behaviour (today) | Where | Managed model |
+|---|---|---|---|
+| S1 | Node prefixes from the layout only, never `PATH`: Homebrew `/opt/homebrew`, `/usr/local`; `~/.nvm/versions/node/*` (links kept); fnm's three roots `…/node-versions/*/installation`; mise `installs/node/*`; asdf `installs/nodejs/*`; `~/.npm-global`; `~/.npmrc` `prefix=` (`~`, `${HOME}` expanded) | `C/NodePrefixes.swift:81-118`, `:124-137` (nvm keeps links, :129), `:187-197` | Has: adapter `scan()` calls `NodePrefixes(home:).discover()`; one `ManagedRoot` per prefix (D-P5-3). |
+| S2 | Each prefix once, by resolved path, first source wins | `C/NpmInstall.swift:295-315` (:299-300) | Has: adapter's scan; root path = the unresolved `prefix.path` (what today's `install.path` starts with, which the alias key needs, §15.2). |
+| S3 | Only packages with a `bin` (`bin` string/map, `directories.bin`); dot entries skipped; `@scope/name` | `C/NpmInstall.swift:320-328`, `:342-344`, `:368-373` | Has (scan logic reused). Item key = install name (`@scope/x` contains no `|`, `M/ManagedItem.swift:246`). |
+| S4 | npm, corepack, `@anthropic-ai/claude-code` excluded (Claude Code has its own group) | `C/NpmInstall.swift:272`, `:335`, `:347` | Has (reused). |
+| S5 | Link (`npm link`, `i -g ./dir`) recorded; pnpm's links into its store are not links | `C/NpmInstall.swift:337-341`, `:359` | Has → verdict blocker `.notIndexed("linked to …")`. Wording differs (S-W below). |
+| S6 | Prefix runtime: `bin/node` executable, `bin/npm` only with node, npm version from `lib/node_modules/npm/package.json`, node signature vs Team `HX7739G8FX`, quarantine, Homebrew keg | `C/NpmInstall.swift:375-392`; trust `:180-187`; keg `C/NodePrefixes.swift:149-163` | Has: `ManagedRoot.Binary` = the prefix's node; `Trust` = `.vendorSigned(team:)` / `.homebrewKeg` / `.untrusted(sig)` / `.quarantined` (`M/ManagedItem.swift:29-37`). Lacks: npm's own version and the npm script path ride in the payload (L1). |
+| S7 | Node version from the layout, else `node --version` of a Node.js-signed unquarantined node, once per node, in the check | `C/NpmProvider.swift:81-111` | Has: `resolve(_:)` is exactly this hook ("what only running the binary can read", `M/ManagerAdapter.swift:22-27`). |
+| S8 | Registry config: `registry`/`@scope:registry` from `~/.npmrc`, prefix `etc/npmrc`, npm's builtin npmrc, in npm's order; bun adds `~/.bunfig.toml` `[install]`/`[install.scopes]`; pnpm/Yarn read `~/.npmrc` | `C/NpmInstall.swift:412-436`; `C/BunInstall.swift:254-306`; `C/GlobalPackages.swift:129-135` | Has (scan logic reused) → blocker `.notIndexed(…custom registry…)`. |
+| S9 | npmrc `prefix=` elsewhere (openclaw's bare `npm i -g` would go there) | `C/NpmInstall.swift:397-404` | Has (payload). |
+| S10 | openclaw settings (`~/.openclaw/openclaw.json` channel/auto, `--tag` documented in both doc spellings); agent-browser marked | `C/NpmInstall.swift:242-256`, `:350-355` | Has (payload). |
+| S11 | bun: `~/.bun/install/global/package.json` `dependencies` = the packages and their specifiers; node = Homebrew's `/opt/homebrew` or `/usr/local` `bin/node` | `C/BunInstall.swift:199-214`, `:218-224`, `:229-247` | Has: root `~/.bun/install/global`, binary = bun (Team Oven). Lacks: a second trust (the node, for engines and openclaw) → payload + gate (L2). |
+| S12 | pnpm: projects `global/<n>` (≤10) and `global/v11/<hash>` links (≥11); per project the pnpm copy that reads its layout (major ≤10 vs ≥11), trusted first, newest first; node = that pnpm's when it is JavaScript, else Homebrew's | `C/NodePrefixes.swift:245-266`; `C/GlobalPackages.swift:42-76` (:54-57); `C/GlobalPackageManager.swift:262-271` | Has: root = pnpm home `~/Library/pnpm` (D-P5-3), key = name. Lacks: the manager per item (projects can need different pnpm copies) → payload; and a second trust (L2). |
+| S13 | pnpm/Yarn copies: npm-installed, corepack (`lastKnownGood.json`), Homebrew keg (receipt), pnpm standalone (never run) | `C/GlobalPackageManager.swift:122-139`, `:144-161`, `:174-188`, `:199-232`, `:246-257`; trust `:69-75` | Has: `ManagedRoot.Binary` per root can carry the picked copy's trust as one `Trust` value. |
+| S14 | Yarn 1 only: `~/.config/yarn/global`, manager major == 1 | `C/GlobalPackages.swift:105-123` (:109) | Has. |
+| S15 | Sighting state: link, manifest name, registry, node signature, quarantine, node and npm versions, own-update settings, specifier, the pnpm/Yarn copy | `C/NpmProvider.swift:28-45` | Has: `ManagedScan.states[identity]` (`M/ManagedItem.swift` `ManagedScan`). Same string. |
+
+### Check (verdict)
+
+| # | Behaviour | Where | Managed model |
+|---|---|---|---|
+| K1 | One packument request per package name per check (cached across prefixes), filed under the package (`RequestAttribution.withApp(name)`) | `C/NpmCheck.swift:53-71` | Has: adapter `check` keeps the cache. |
+| K2 | Registry fetch: `versionFeedCachePolicy`, 15 s, abbreviated packument | `C/NpmRegistry.swift:87-98` | Has (reused). |
+| K3 | No version / not semver → `.unknown` `.versionUnreadable` | `C/NpmCheck.swift:95-97`, `:125-127` | Has: `ManagedCheck` row 1 / `.versionUnreadable` (`M/ManagedCheck.swift:40-47`). |
+| K4 | Linked, alias install (`foo@npm:bar`), custom registry, not on registry, version not in registry → `.unknown` `.unsupportedInstaller` "reported only" | `C/NpmCheck.swift:98-124` | Has: `.notIndexed(reason)` → `.unsupportedInstaller` (`M/ManagedVerdict.swift:23`, `:36`). Note text changes from "…: reported only" to "not on an index: …" unless L4. |
+| K5 | Registry unreadable → `.unknown` `.channelUnreadable` | `C/NpmCheck.swift:117-119`, `:146-147` | Has. |
+| K6 | Track: `latest` for a release; a prerelease follows its word's tag, else the highest tag with that word, else `latest`; openclaw's channel (`dev` → reported only; `beta` unless `latest` newer) | `C/NpmRegistry.swift:137-159`; `C/NpmCheck.swift:131-140` | Has (adapter). Lacks: the tag on the row — `CLIToolStatus.channel` = tag today (`C/NpmCheck.swift:87`), `ManagedCheck` hard-codes `channel: nil` (`M/ManagedCheck.swift:138`) → L3. |
+| K7 | Pick: newest above installed, ≤ the tag's version, not deprecated, `engines.node`/`engines.npm` met by this prefix (npm's `checkEngine` rule), prereleases only on a prerelease track; never a downgrade | `C/NpmRegistry.swift:162-199` | Has: `latestWithinRequest` = offered, `latestOverall` = tag's version. |
+| K8 | Installed == tag → `.upToDate`; above → `.ahead` | `C/NpmCheck.swift:149-151` | Has (`M/ManagedCheck.swift:66-83`). |
+| K9 | Exact specifier (bun/pnpm/Yarn) with newer → `.pinned`, unpin command to copy (`<tool> add -g <name>` / `yarn global add <name>`), checked **before** the runtime gates | `C/NpmCheck.swift:152-156`, `:224-243` | Has: `request: .exact`, `vendorWouldUpgrade: false` → `.pinned` + `unpin` (`M/ManagedCheck.swift:61-65`). Range specifiers → `request: .range` with `vendorWouldUpgrade` true: bun/pnpm/Yarn move past a range when given an exact version, so D2's "held at its top" never applies. |
+| K10 | Newer exists but nothing runs here → `.updateAvailable` withheld `.runtimeTooOld`, `latestVersion` = tag's; counted as held back, not offered | `C/NpmCheck.swift:157-162`; `App/Sources/CLIToolsModel.swift:274-277` | **Lacks.** `.runtimeTooOld` is a `Blocker`, and every blocker makes the row `.unknown` (`M/ManagedCheck.swift:44-47`): the row would leave "held back" and read "not checked". → L2 (a gate that keeps the state). |
+| K11 | Offered **and** a newer one that needs a newer node: note "X needs Node ≥ Y", pane fact "Newer release" | `C/NpmCheck.swift:171`, `:318-320`; `App/Sources/CLIToolPresentation.swift:646-651`; `C/NpmPackage.swift:6-13` | Lacks: `latestOverall > latestWithinRequest` reads as D2's "beyond the request" only on `.upToDate` rows (`M/ManagedCheck.swift:108-111`, `:154-158`), so no wrong line — but the gap itself has no field → payload (`NpmPackage.gap`) or `Fact.note`. |
+| K12 | Tag's version is a prerelease (copy on releases) or deprecated → `.upToDate` with a note and `latestVersion` = the tag's | `C/NpmCheck.swift:163-170` | Has (corrected in review round 1 of #1725): for these rows only, set `latestWithinRequest` = the tag's version, leave `latestOverall` nil and pass `vendorWouldUpgrade: false` — `ManagedCheck` (`M/ManagedCheck.swift:39`, `:66-72`) then gives `.upToDate` with `latest` = the tag's version, as today, and its D2 line (`:108`, which reads only `latestOverall`) does not fire. K7's `latestWithinRequest = offered` mapping must not be applied to them. Lacks the note: `ManagedCheck` sets `note` on a current row only for `vendorWouldUpgrade == nil` (`:71-76`), and `ManagedVerdict` has no note field, so today's note ("latest's 2.0.0-rc.1 is a prerelease, and this copy follows releases", `C/NpmCheck.swift:169`) would vanish from the row and from `duo --json` (`CLI/Sources/DuoKit/CLIToolRows.swift:127`) — **L8** carries it (review round 2 of #1725). With L8, no difference to accept. |
+| K13 | Gates in the order a user can act on them, each keeping `.updateAvailable`: npm — no own node/npm (`.noOwnNpm`), node quarantined (`.unverified`), ad hoc/unsigned non-keg (`.unverified`), other signer/invalid/nil (`.wrongSigner`), node version unreadable (`.versionUnreadable`); bun — no node, bun quarantined, bun not Oven's; pnpm/Yarn — no copy (`.updaterMissing`), standalone pnpm, its node untrusted, not a confirmable keg (`.unverified`), no node (`.versionUnreadable`) | `C/NpmCheck.swift:173-216`, `:259-299` | Partly: the root binary's trust already "takes the click, never the verdict" (`M/ManagedCheck.swift:113-129`). Lacks: every gate that is not the root binary's trust (`.noOwnNpm`, node version, bun's node, pnpm's node) → L2. Differences even where it fits: `.invalid`/`nil` signature maps to `.unverified` in `ManagedRoot.Trust.withheld` (`M/ManagedItem.swift:51-56`) but `.wrongSigner` in npm (`C/NpmCheck.swift:207-210`); and the managed gate hands the command out to copy (`M/ManagedCheck.swift:118-121`), which `commandToCopy` shows for `.unverified` (`C/CLITools.swift:113-120`) — npm rows today hand nothing out for an untrusted node (D-P5-7). |
+| K14 | openclaw `update.auto.enabled: false` → `.updateAvailable` `.autoUpdateOff`, command to copy | `C/NpmCheck.swift:310-314` | Lacks → L2. |
+| K15 | Busy → `.updateAvailable` `.busy`, click removed | `C/NpmCheck.swift:315-317` | Has: `ManagedVerdict.busy` (`M/ManagedCheck.swift:130-134`). |
+| K16 | Order matters: busy is asked only after every other gate passed | `C/NpmCheck.swift:303-321` | Has: `ManagedCheck` asks busy last. |
+
+### Busy gates (three)
+
+| # | Behaviour | Where | Managed model |
+|---|---|---|---|
+| B1 | npm: a process whose executable resolves to this prefix's node and whose argv is npm's title (`npm install x`) or `…/npm install`, any of npm 11's changing commands and aliases; a bare `npm` title counts | `C/NpmActivity.swift:64-106` | Has: `busy(item, root, processes)` (`M/ManagerAdapter.swift:48-51`), asked at check and click (`M/ManagedProvider.swift:134-136`). Needs the `NpmInstall` → payload (L1). |
+| B2 | Own updaters: `openclaw update` / `agent-browser upgrade` by argv; openclaw's titles `openclaw-update`/`-doctor`; openclaw ≥2026.9 by its `update_runs` ledger in `state/openclaw.sqlite` (pid + start time) | `C/NpmActivity.swift:111-218` | Has (same hook). |
+| B3 | bun: `bun add|… -g` by this bun binary, plus openclaw's | `C/BunActivity.swift:50-71` | Has. |
+| B4 | pnpm/Yarn: `pnpm <changing> -g`, `yarn global add|upgrade|upgrade-interactive|remove`, by program or the script after node | `C/GlobalPackageManager.swift:282-316` | Has. |
+
+### Update (the click)
+
+| # | Behaviour | Where | Managed model |
+|---|---|---|---|
+| U1 | npm: `<prefix>/bin/node <prefix>/bin/npm install -g --prefix <prefix> --engine-strict <name>@<offered>`, `bin` first on `PATH` | `C/NpmCheck.swift:380-383` | Has: `upgrade(item, root)` returns it. |
+| U2 | openclaw: `node <pkg>/openclaw.mjs update --tag <v>` when `--tag` documented and no npmrc redirect; else npm with a "why" note; agent-browser always npm | `C/NpmCheck.swift:352-379` | Has (adapter) + note as fact. |
+| U3 | bun: `<bun> add -g <name>@<v>`; openclaw via the found node only when that node is trusted | `C/NpmCheck.swift:413-430` | Has. |
+| U4 | pnpm ≤10 `update -g <spec>`, ≥11 `add -g <spec>`; Yarn `global add <spec>`; JS copies run as `node <script>` | `C/NpmCheck.swift:401-411`; `C/GlobalPackageManager.swift:81-90` | Has. |
+| U5 | Re-asked at the click: busy; bun still Oven's; pnpm/Yarn copy still trusted (keg receipt, files present); node still trusted, when the command runs it | `C/NpmUpdater.swift:94-121`, `:164-174`, `:221-244` | Partly: `ManagedProvider.update` re-scans and re-asks `root.runnable` and busy (`M/ManagedProvider.swift:119-136`). Lacks: the second trust (node under bun/pnpm/Yarn) → L2's gate re-asked at the click (the adapter's `current` returns an item the gate refuses). |
+| U6 | Child environment = inherited minus `npm_config_prefix`, `OPENCLAW_UPDATE_PACKAGE_SPEC`, and (pnpm/Yarn) the global-dir redirects; `PNPM_HOME` + its `bin` on `PATH`; Homebrew Yarn's `PREFIX`; bun's `BUN_INSTALL` | `C/NpmUpdater.swift:187-216`, `:285-288` | Has, stricter: managed builds the environment from scratch (`HOME`, `PATH`, `NO_COLOR`, proxy, `M/ManagedProvider.swift:138-142`), so the redirects cannot leak; the four additions go in `upgrade().environment`. **Not measured**: whether openclaw's `update`/`doctor`/gateway restart needs anything the inherited environment had (`USER`, `TMPDIR`, `LANG`…) — §15.5. |
+| U7 | stdin = an empty pipe (openclaw prompts only on a TTY; `duo` in a terminal would hand it one) | `C/NpmUpdater.swift:246-249`, `:270` | **Lacks**: `ManagedProvider.commandRunner` passes no `standardInput` (`M/ManagedProvider.swift:69-71`), and ChildProcess then inherits stdin (`Support/ChildProcess.swift:32`) → L5. |
+| U8 | Commit point and landed rule (`succeeded || uncaughtSignal || timedOut`), `.runToCompletion` | `C/NpmUpdater.swift:257-274` | Has: same rule in `CLIToolCommandRunner.run` (`C/CLIToolCommandRunner.swift`, `InstallCommit` with the same `landed`). |
+| U9 | Deadline 30 min (openclaw's steps) | `C/NpmUpdater.swift:53-57` | Has: `ManagerDescriptor.deadline` (default 10 min, `M/ManagerDescriptor.swift:76-77`) → set 30 min. |
+| U10 | Success = exit 0 **and** `package.json` reads exactly the offered version (openclaw exits 0 having skipped); pnpm's read follows links | `C/NpmUpdater.swift:139-149`, `:427-433` | Partly: managed fails only when the re-read equals the old version (`M/ManagedProvider.swift:163-172`). Lacks "equals the target" → L6. |
+| U11 | Specifier read before, restored after in the user's style (`^`/`~` move, satisfied ranges stay, else `^v`; exact stays exact), one value edited in place; Yarn's `yarn.lock` key line gets the pattern added, both files or neither | `C/NpmUpdater.swift:123-126`, `:150-156`, `:317-422` | **Lacks**: no pre/post hook around the run → L6. |
+| U12 | Failure line: npm's `npm error` reason, openclaw's `Update Result`/`OpenClaw update failed` reason, else the shared rule | `C/NpmUpdater.swift:438-472` | Lacks: managed uses the shared rule + "(exit n)" (`M/ManagedProvider.swift:76-79`) → L6 (adapter `failureMessage`). |
+| U13 | Lane: an npm prefix is one lane, shared with Claude Code installed by npm in the same prefix (`node:<canonical prefix>`); bun packages share `bun` with bun's own row; pnpm, yarn their own | `App/Sources/CLIToolsModel.swift:1705-1716` | Partly: `ManagerDescriptor.lane` is one string per manager (`:1711-1712`). bun → `"bun"`, pnpm → `"pnpm"`, yarn → `"yarn"` fit. npm needs a lane per root → L7. Without it, two prefixes would serialise (harmless) and **Claude Code's npm update could run beside a package update in its prefix** (a race npm has no lock against, `C/NpmActivity.swift:7-8`). |
+
+### Notes, presentation, `duo`
+
+| # | Behaviour | Where | Managed model |
+|---|---|---|---|
+| N1 | Notes: GitHub releases of `package.json`'s `repository` (many URL forms), versions `pending` (≤10 above installed), follow-ups by tag after a full page, renamed-repo redirect keeps the token | `C/NpmChangelog.swift:48-158`; `C/NpmRegistry.swift:133` | Has: `releaseNotes(for:)` override calls `NpmChangelog.fetch`. Needs `pending` → payload. |
+| N2 | Notes cache key per installed version, `npm:<name>@<installed>` (review #949: one copy's notes hid another prefix's older sections) | `C/NpmChangelog.swift:32-34` | **Lacks**: `ManagedCheck.releaseNotesKey` = `managed:<manager>:<key>` for every manager (`M/ManagedCheck.swift:147-149`) — #949 would come back → L4. |
+| N3 | Breaking hints: npm rows uncapped today | `App/Sources/CLIToolsModel.swift:911-916` | D10's ≤5 cap applies to managed rows with `item.notes != nil` (:913) → D-P5-9. |
+| N4 | Empty notes say "<package>'s release notes have no section…" | `App/Sources/CLIToolsWorkbench.swift:1136-1138` | Lacks: reads `.npm` detail → payload. |
+| P1 | Groups: npm split by prefix, each prefix where its first package stood; bun = bun's row + packages; pnpm, yarn one group each, all under "Other tools" | `App/Sources/CLIToolPresentation.swift:123-145` | Has: `groups` by `manager|root` → each prefix its own **top-level level** (D12, `App/Sources/WorkbenchWindowView.swift:963-978`) → D-P5-3/D-P5-8. |
+| P2 | Prefix header: label (`nvm`/`fnm`/`mise`/`asdf`, else the path) + "node 24.13.0"; pnpm/Yarn header "pnpm 10.33.2 · node 26.10.0" | `App/Sources/WorkbenchWindowView.swift:1251-1260`; `App/Sources/CLIToolPresentation.swift:158-163`, `:746-770` | Partly: managed header = `headerSummary` (binary version · root, `M/ManagerDescriptor.swift:101-111`). With the node as the root's binary: "node 24.13.0 · ~/.nvm/versions/node/v24.13.0". Wording changes; owner to look (D-P5-3). |
+| P3 | Runtime-security mark on the prefix header (node notices once per node, Homebrew keg matched) and its popover's `NodeUpgradeCommand` listing the prefix's packages | `App/Sources/WorkbenchWindowView.swift:1231-1242`; `App/Sources/CLIToolPresentation.swift:417-445`; `C/RuntimeSecurity.swift:669-680` | Lacks: keyed on `Group.prefix` and `.npm` detail → payload, and the managed level header must carry the mark. |
+| P4 | Title twins: one package in two prefixes → "openclaw · node 24", else the full node version, else the prefix | `App/Sources/CLIToolPresentation.swift:29-50` | Lacks: managed title = `status.name` → keep the rule over the payload. |
+| P5 | Pane facts: Prefix, Node (version · signature), Newer release (gap), Linked to, Registry, Version range, Updated with (pnpm/Yarn copy) | `App/Sources/CLIToolPresentation.swift:632-675` | Partly: `ManagedItem.facts` (`.source`, `.note`, …) could carry them, but the App already words them from `NpmPackage` with translations → payload (L1) keeps them. |
+| P6 | openclaw caption "openclaw update also runs openclaw doctor, restarts …" | `App/Sources/CLIToolPresentation.swift:309-310` | Lacks → payload, or an `Effect`. |
+| P7 | Icons/tints: `cli-npm` (#CB3837), `cli-bun` (label), `cli-pnpm` (#F69220), `cli-yarn` (#2C8EBB) | `App/Sources/CLIToolsWorkbench.swift:84-87`, `:129`, `:140`, `:152-153` | Has: `ManagerDescriptor.logo/tint`. |
+| P8 | Wording: ~14 npm-specific reasons with translations (no own npm, runtime too old with the requirement, standalone pnpm, no Yarn 1 found, bun not Oven's, busy "npm is busy in this prefix", the origin of a reported-only package…) | `C/CLIToolWording.swift:77-78`, `:96-99`, `:140-175`, `:234-253`, `:360-372` | Lacks: managed arms are generic (`:316-347`). Keep the existing strings by matching the payload in the `.managed` arm (no new translations) → D-P5-10. |
+| P9 | GitHub pause: bun packages (kind `.bun`) inherit `.ourTokenIfAny`, so they are held while the app's GitHub budget is paused | `C/CLITool.swift:558-563`, `:578-580`, `:593` | Changes: a `bun` descriptor with `updaterSpendsGitHubAPI: nil` stops that. `bun add -g` asks the npm registry, so this looks like an accident today — **not verified**; owner to confirm (D-P5-11). |
+| P10 | Process watch/stale banners: none for packages (path is a directory) | `C/CLIToolProcesses.swift:223-249` (`isRegularFile`) | Has: unchanged as long as `path` stays the package directory. |
+| P11 | Runtime tag (Rust/Go/Bun build of a package's binary) read off `status.path` | `C/CLIRuntime.swift:454-470`; `CLI/Sources/DuoKit/CLIToolRows.swift:53-57` | Has: `installPath` = package directory. |
+| D1 | `duo` rows: `tool` = `npm`/`bun`/`pnpm`/`yarn`, `name` = package, `path` = package dir, `channel` = dist-tag, names = `[name]` | `CLI/Sources/DuoKit/CLIToolRows.swift:114-141`, `:164-171` | Changes: `tool: "managed"`, `manager`, `item`, `root`; names `[key, manager/key, name]` (`duo install npm/cowsay` new; `duo install cowsay` as before; twins across prefixes still refused as ambiguous, `CLI/Sources/DuoKit/Inventory.swift:271`). `channel` lost unless L3. D-P5-6. |
+| D2 | `duo check` lists packages by prefix for the node-upgrade advice (`npmPackage`) | `CLI/Sources/DuoKit/Check.swift:93-101`; `C/RuntimeSecurity.swift:669-680` | Lacks → `npmPackage` reads the payload. |
+| D3 | Job id and breaking key by `kind:identity` | `CLI/Sources/DuoKit/CLIToolRows.swift:237`, `:263`, `:514` | Has (transient, nothing to migrate). |
+
+### Lacks, collected (P5.0's scope)
+
+- **L1 payload**: `ManagedItem` gains one optional, `Equatable`/`Sendable` payload enum with a single case `.nodePackage(NpmPackage)`. The App's npm presentation (P3–P6, N4, P8), `npmPackage` (D2), busy (B1–B4) and notes (N1) read it. This is the one place the shared model learns a manager's type; the alternative (re-wording everything as `Fact`s and re-deriving the install at each hook) redoes translated work and re-scans per call. D-P5-12.
+- **L2 gate**: `ManagedVerdict.hold: (withheld: CLIToolWithheld, note: String, manual: CLIToolCommand?)?` — applied by `ManagedCheck` after the state is decided, only when the row would offer a click: keeps `.updateAvailable`, takes `oneClick`, sets `withheld`/`note`/`manualCommand`. Expresses K10, K13 (non-root gates), K14, and U5's second trust (the adapter's `current` re-derives the hold at the click; a held item → `.failed("not run: …")`). For K10, `latestVersion` = the tag's version (today's).
+- **L3 channel**: `ManagedVerdict.channel: String?` → `CLIToolStatus.channel`.
+- **L4 notes key + note text**: `ManagerAdapter.releaseNotesKey(_:)` (default today's); npm adapters return `NpmChangelog.releaseNotesKey`. `Blocker.notIndexed` note stays generic unless the adapter passes `.unknownVersionForm`/a new `.reportedOnly(String)` whose note is the reason as written.
+- **L5 stdin**: `ManagerAdapter.standardInput: Data?` (default nil) passed to the runner; npm adapters return `Data()`.
+- **L6 run hooks**: `ManagerAdapter.prepare(_ item) async -> Prepared?` (read the specifier) and `finish(_ item, prepared, run) async -> CLIToolUpdateOutcome?` (exact-version check, pnpm link-following re-read, specifier restore, `failureMessage` with npm's/openclaw's reason). Defaults keep P1–P4 unchanged.
+- **L7 lane**: `ManagerAdapter.lane(of item) -> String` (default `descriptor.lane`); `CLIToolsModel.lane(of:)` asks it through the item. npm returns `"node:" + canonical(root)`, today's spelling, so Claude Code's npm row and the prefix's packages share again.
+- **L8 current-row note**: `ManagedVerdict.note: String?` → `CLIToolStatus.note` on a row `ManagedCheck` makes `.upToDate` (K12: the tag's prerelease or deprecated version; today `C/NpmCheck.swift:169`), so the row and `duo`'s `note` stay as they are. Default nil: P1–P4 unchanged.
+
+---
+
+## 15.2 Key migration
+
+### What names these rows today
+
+`CLIToolStatus.identity` defaults to `path` (`C/CLITool.swift:294-301`); the App's key is `CLIToolID.tag` = `"<kind>:<identity>"` (`App/Sources/CLIToolsModel.swift:7-30`).
+
+| Persisted? | Key | Format today | Example (owner's Mac, `defaults export com.duoupdater.app`, 2026-10-27) |
+|---|---|---|---|
+| **Yes**, UserDefaults `NotifiedCLIToolVersions` (`App/Sources/Preferences.swift:102`, `:280-284`, `:631-634`), dictionary tag → up to 8 versions (`Engine/NotifiedUpdateVersions.swift:68`, `:97`) | npm | `npm:<prefix>/lib/node_modules/<name>` | `npm:/Users/bobby/.nvm/versions/node/v24.13.0/lib/node_modules/agent-browser` → `[0.39.0 … 0.39.4]`; `npm:/Users/bobby/.local/share/fnm/node-versions/v24.12.0/installation/lib/node_modules/pnpm` → `[12.10.1 … 12.15.0]` (5 `npm:` keys of 39) |
+| same | bun packages | `bun:<home>/.bun/install/global/node_modules/<name>` (bun's own row `bun:<…>/.bun/bin/bun` keeps its key) | none on this Mac (its `~/.bun/install/global/node_modules` holds only dependencies of a package without `bin`) |
+| same | pnpm | `pnpm:<home>/Library/pnpm/global/5/node_modules/<name>`, `pnpm:<home>/Library/pnpm/global/v11/<hash>/node_modules/<name>` | none (no `~/Library/pnpm/global`) |
+| same | yarn | `yarn:<home>/.config/yarn/global/node_modules/<name>` | none (no `~/.config/yarn/global`) |
+| Yes, `CLIToolNotificationBaselineSeeded` (`Preferences.swift:103`) | — | Bool | stays `true`; no new silent pass |
+| No (in memory) | `justUpdated`, red lines, progress, selection, breaking hints, release-notes cache, popover pages | by `CLIToolID` / tag / `releaseNotesKey` | `App/Sources/CLIToolsModel.swift:164-194`, `:259`, `:379`. P5 ships in an app update, i.e. after a relaunch: nothing to carry |
+| No | skip / ignore | apps only (`UpdateResult` keys, `CLI/Sources/DuoKit/Visibility.swift:94-148`); `grep -n -i 'ignor\|skip' App/Sources/CLIToolsModel.swift` finds none for tools | — |
+| Delivered notifications | `clistale:<tag>` | per install with a process target | none for packages (P10) |
+| `@AppStorage` | `workbenchOtherToolsExpanded`, `workbenchHomebrewExpanded` | not keyed by tool | unaffected; managed levels are "remembered only for the window" (§5) |
+
+### New identity
+
+`"<manager>|<root>|<key>"` (`M/ManagedItem.swift:277-288`), tag `managed:<identity>`, the form the 15 `managed:` keys on this Mac already have (`managed:nvm-node|/Users/bobby/.nvm|v24`).
+
+| Manager | root | key | Example tag |
+|---|---|---|---|
+| `npm` | the prefix as discovered (`/opt/homebrew`, `~/.nvm/versions/node/v24.13.0`, fnm's `…/v24.12.0/installation`, `~/.npm-global`, npmrc's) | install name (`@scope/x` allowed) | `managed:npm|/Users/bobby/.nvm/versions/node/v24.13.0|agent-browser` |
+| `bun` | `~/.bun/install/global` | name | `managed:bun|/Users/x/.bun/install/global|cowsay` |
+| `pnpm` | pnpm home `~/Library/pnpm` | name (collision rule in §15.5) | `managed:pnpm|/Users/x/Library/pnpm|cowsay` |
+| `yarn` | `~/.config/yarn/global` | name | `managed:yarn|/Users/x/.config/yarn/global|cowsay` |
+
+`installPath` = today's package directory, unchanged, so `status.path`, the runtime tag (P11) and duo's `path` keep their meaning.
+
+### The migration: dual keys, no rewrite (recommended, D-P5-4)
+
+The legacy tag is computable from the new row alone: `"<legacy kind>:" + item.installPath`, legacy kind = the manager id (`npm`/`bun`/`pnpm`/`yarn` are today's kind raw values). So:
+
+1. `ManagedItem` (or the payload) carries `aliases: [String]` = `[legacyTag]`, set by the adapter.
+2. `UpdateAnnouncementItem` gains `aliases`. `UpdateAnnouncementLedger.pass` asks `wasAnnounced(side, under: [key] + aliases)` — the plural form already exists for the apps' bundle-id → path migration (`Engine/NotifiedUpdateVersions.swift:142-146`, used at `App/Sources/AppListModel.swift:10570-10579`) — records under the key **and** every alias, and counts aliases in `liveKeys`.
+3. `notifyNewCLIToolUpdates` (`App/Sources/AppListModel.swift:10601-10613`) passes them.
+
+No one-time step runs, so there is no "migrated" flag to get wrong. It is the same redundancy the apps' ledger keeps for older builds (`lastAnnounced`, `Engine/NotifiedUpdateVersions.swift:99-113`).
+
+Failure modes:
+
+| Case | With dual keys | With a one-shot rewrite instead | With nothing |
+|---|---|---|---|
+| First launch of P5 | legacy key found → nothing re-announced; new key recorded beside it | nothing re-announced | **one banner listing every npm/bun/pnpm/Yarn package on offer right now** (`pass`: seeded is already true, the new keys are unknown, `UpdateAnnouncements.swift:49-58`); the 5 `npm:` keys are pruned the same pass |
+| Downgrade to a pre-P5 build | its `npm:` keys are still there → nothing re-announced; it prunes the `managed:npm|…` keys (not live for it); back on P5 the alias finds the legacy key again → nothing | the pre-P5 build finds no `npm:` keys → one banner; its prune deletes the rewritten keys → P5 then announces once more | one banner each way |
+| Two installs on one preference domain (a dev build beside the release, the `lastAnnounced` scenario) | each keeps the other's form alive (P5 records both; the old build prunes only the new form, which P5 restores from the alias) → no ping-pong | ping-pong: one banner per switch | ping-pong |
+| Prefix moved / removed (nvm node replaced, `brew` relinks `node` → same `/opt/homebrew` path) | removed prefix: both forms pruned; a new prefix's packages are new rows, announced once if offered — today's behaviour (§3.3, §10 "a moved root") | same | same |
+| pnpm 11 → 12 replaced the group (`<hash>` changes, `C/NodePrefixes.swift:239-241`) | new identity is unchanged (root = pnpm home, key = name) but the legacy alias changes → no re-announce, the new form already matches | a rewritten key from the old hash path would map to the same identity → fine | today's behaviour already re-announces once here |
+| `notifyOnCLIToolUpdates` off | `pass` records nothing (`UpdateAnnouncements.swift:48`); old keys stay until it is on | the rewrite would still run | — |
+
+Retiring the aliases (D-P5-5): keep them indefinitely — one extra short entry per package; or drop after two releases, accepting one banner on a downgrade across that boundary.
+
+---
+
+## 15.3 Phasing
+
+Never register an adapter beside the provider it replaces: both would list the same package (double counts, double banners) in **different lanes** (`node:<prefix>` vs the manager's), so Update All could run two `npm install -g` into one prefix at once — the race `NpmActivity` exists for (`C/NpmActivity.swift:7-8`). Parity is proven by a test instead, then one commit switches.
+
+**P5.0 — Model extensions, nothing visible.** L1–L8 in `M/`; `ManagedAgreementTests`, new (see P5.2's acceptance), over P1–P4's adapters first; `UpdateAnnouncementItem.aliases` + ledger; `CLIToolsModel.lane(of:)` asks the adapter; `ManagedCheck` applies `hold` and `channel`.
+Acceptance: `make test` exit 0 (judged by exit code, project memory); every P1–P4 adapter test unchanged and green (no fixture edited); new `ManagedCheck` table rows, each with its mutation named: a `hold` on an offered row keeps `.updateAvailable` and removes `oneClick` (mutate: apply `hold` as a blocker → the row turns `.unknown`, red); `hold` ignored on `.pinned`/`.upToDate` rows; channel carried. Ledger tests: legacy-only ledger + item with alias → no announce (mutate: drop aliases from `wasAnnounced` → red); record writes both (mutate: record key only → the downgrade test reads the legacy key absent, red); prune keeps aliases (mutate: liveKeys without aliases → red); a simulated pre-P5 pass over the same `persistable` dictionary announces nothing. Runner test: `standardInput` reaches the double. Lane: a fake adapter's per-item lane reaches `CLIRunLaneCopy` (`App/Sources/CLIToolsModel.swift:1617`).
+
+**P5.1 — Adapters, not registered.** `M/Node/Packages/{NodePackages,NpmPackagesAdapter,BunPackagesAdapter,PnpmPackagesAdapter,YarnPackagesAdapter}.swift`, built on the existing scanners, `NpmCheck`, `NpmActivity`/`BunActivity`/`GlobalPackageActivity`, `NpmUpdater`'s restore and reasons (moved, not copied — project rule: no second copy of production logic).
+Acceptance: **parity test** over the existing fixtures of `NpmTests`, `BunTests`, `GlobalPackagesTests`, `NpmUpdaterTests`, `BunUpdaterTests`: for every fixture install, old provider's status vs `ManagedProvider(adapter)`'s → identical `(state, installedVersion, latestVersion, channel, oneClick argv, withheld, note, commandToCopy)` except the listed, owner-accepted differences (D-P5-7 copy command, D-P5-11 pause); K12 rows are identical, including `latestVersion` and `note` (L8), each asserted explicitly. Update parity with the runner double: argv, environment keys (`PNPM_HOME`, `PREFIX`, `BUN_INSTALL`; no `npm_config_prefix`), stdin empty, exact-version failure, specifier restore for `^6.0.0`→`^7.0.0`, `7.x` at 8.0.0 → `^8.0.0`, exact kept, Yarn lock key line. Mutations: drop `--engine-strict` → argv assertion red; offer a version whose engines exclude the node → red; run `openclaw update` when an npmrc redirects → red; restore over a user's exact pin → red; pnpm 11 `update -g` instead of `add -g` → red; busy ignored at the click → red. Source test: no `ChildProcess` in any `scan()` (§10).
+
+**P5.2 — The switch (one PR).** Register the four adapters (registry order: after `go`? or first — D-P5-3); remove `NpmProvider`, `GlobalPackagesProvider`, `BunProvider`'s package half (bun's own row stays), the `.npm`/`.pnpm`/`.yarn` kinds and their arms (D-P5-13); App: presentation reads the payload (P2–P6, N4), the managed level header carries P3's mark, wording arms keep today's strings (P8); `duo` names, `npmPackage`, schema (D-P5-6).
+Acceptance: `make test` exit 0; `CLIToolsTests.everyKindHasOneProviderInKindOrder` rewritten; `CLIToolPresentationTests` snapshot of `groups` for fixture statuses: one level per prefix, titles and twins as today; `ManagedAgreementTests` run over the four adapters — **it does not exist yet** (§6 proposed it; P1–P4 never wrote it; review round 1 of #1725), so P5.0 builds it: one provider with fixture adapters through both `CLIToolsModel` and `CLIToolRows`, states compared, first over P1–P4's adapters; `duo check --json` row for a fixture package carries `tool`, `manager: "npm"`, `item`, `root`, `channel`, and the chosen `schemaVersion`.
+
+**P5.3 — Mac acceptance (real home, §8.1), then delete dead code.** `make install` + `make cli`. Back up first: `defaults export com.duoupdater.app ~/p5-prefs-before.plist`, and each prefix's packages' versions and the bun/pnpm/Yarn `package.json`/`yarn.lock` (sha256). Fixtures, owner's OK needed (the Mac has no bun packages, no pnpm or Yarn globals today): `npm i -g cowsay@1.5.0` into nvm `v24.22.1`; `bun add -g cowsay@^1.5.0` then pin a second package exactly; `brew install pnpm yarn` (or corepack) with one package each at an old version; the owner's own nvm `v24.13.0` packages and openclaw left as they are, never clicked unless the owner says so.
+- Rows: app and `duo check --all --json` agree (state, versions, held-back reason, copy command) on every package; banner: **none** on the first P5 launch; `NotifiedCLIToolVersions` holds each package under both forms (`defaults export … | plutil -extract NotifiedCLIToolVersions json`); then launch the previous release build: no banner, its `npm:` keys intact; back to P5: no banner.
+- One-click: cowsay (npm) 1.5.0 → newest, `--engine-strict` in the log; bun cowsay → `^<new>` restored in `~/.bun/install/global/package.json`, only that value changed (`diff`); pnpm and Yarn likewise, Yarn's `yarn.lock` key line extended.
+- §13.2: C1 (hold: the P3 pyenv fixture's build in front, as in P3/P4, or a running `npm install` in the prefix for the busy gate); C2 — before the vendor command these adapters read the disk and the process table only (busy, trust, specifier), so as in P2–P4 there is no child to hold; say so with the evidence; C3 (a long `npm install -g` — e.g. a large package — or openclaw if the owner allows its doctor/gateway restart); C4; C5 `duo install npm/cowsay` SIGINT before and during; C6.
+- §13.3 D15 table for npm, bun, pnpm, Yarn: SIGINT/SIGTERM at resolve/download, extract (npm's `.<name>-<hash>` staging, `C/NpmInstall.swift:318`), link/`package.json` write; old version runs? next plain run recovers?
+- Restore: preferences from the backup only if the owner asks (the run should leave them correct); fixtures removed; `brew uninstall` what was added.
+- Then delete what P5.2 left unreachable; `grep -c` each removed type name over `App CLI DuoUpdaterCore` = 0.
+
+---
+
+## 15.4 Decisions for the owner
+
+| # | Decision | Recommendation | Instead of |
+|---|---|---|---|
+| D-P5-1 (**ruled: yes**, owner 2026-10-27) | Do P5 at all, given the identity gains nothing for these rows (paths do not move) | **Do it only if npm/bun/pnpm/Yarn packages should be managers' levels in the UI and `duo install npm/x` is wanted**; otherwise leave them (they work, and P5.0's L1 teaches the shared model one manager's type) | — |
+| D-P5-2 | Managers | **Four (`npm`, `bun`, `pnpm`, `yarn`) over one shared core** — each has its own binary and trust, lane and logo | one `node-packages` manager |
+| D-P5-3 | npm root, and where the levels go | **root = the prefix**: one level per prefix, as today's groups, each with its own Update All; registry order after `fnm-node`, so "nvm Node" sits above "npm · nvm v24.22.1" | one npm level, prefix as a fact |
+| D-P5-4 | Ledger migration | **Dual keys (aliases), no rewrite** | one-shot rewrite at launch; accept one banner |
+| D-P5-5 | Alias lifetime | **Keep indefinitely** | drop after two releases |
+| D-P5-6 | `duo` JSON | **`schemaVersion` 3**: the same rows change `tool` from `npm` to `managed` (K12 rows keep their `latestVersion`, see K12), which NDJSON's own rule counts as repurposed (`CLI/Sources/DuoKit/NDJSON.swift:13-22`); D-B's "stays 2" covered new rows only | stay 2 |
+| D-P5-7 | An untrusted (ad hoc, unsigned, quarantined) prefix node: the managed rule hands the npm command out to copy | **Keep today's: nothing to copy** for a node that failed the trust rule (the copied command runs that node); adapter opts out | managed rule |
+| D-P5-8 | bun's own row stays in "Other tools", its packages move to a "bun global packages" level | **Accept** — the shape of uv / uv tools and mise / mise tools | keep bun's packages under bun's row |
+| D-P5-9 | D10's ≤5 breaking-hint documents per pass now covers npm rows | **Accept** — D10 exists for the GitHub budget, which npm notes spend | npm uncapped |
+| D-P5-10 | Wording | **Keep every npm string as it is** (matched through the payload): no new translations | generic managed wording |
+| D-P5-11 | bun packages stop following the GitHub pause (P9) | **Accept** if the owner agrees today's pause on them is an accident | keep `.ourTokenIfAny` on the bun descriptor |
+| D-P5-12 | L1 payload in the shared model | **Accept, one case** | re-word everything as `Fact`s |
+| D-P5-13 | Remove `CLIToolKind.npm/.pnpm/.yarn` | **Remove in P5.2**; their raw values live on only as alias prefixes | keep empty kinds |
+| D15 | Stopping a started npm/bun/pnpm/Yarn command | ~~(a) `.runToCompletion`~~ **Superseded (owner, 2026-10-27, §13.4 on PR #1722):** stoppable, snapshot and put back; each adapter's `interruption` from its own measured write set, as P1–P4's | — |
+
+---
+
+## 15.5 Could not determine (and what would)
+
+- **pnpm key collisions**: whether one name can sit in two projects at once (`global/5` and a `global/v11/<hash>` after a 10→11 upgrade, or two v11 groups). Not measured; `GlobalPackageHomes.pnpmProjects` comment only says both layouts can exist (`C/NodePrefixes.swift:243-244`). If yes, key = `<name>` for the project the picked pnpm reads and `<name>@<project dir name>` for the other; measure with pnpm 10 then 11 in a scratch home.
+- **From-scratch environment for openclaw**: whether `openclaw update` → `doctor` → gateway restart needs variables the inherited environment had. Needs a real run with the owner's OK (it restarts their gateway).
+- **`NO_COLOR=1`** (added by `ManagedProvider`) changing npm's or openclaw's failure lines that `npmReason`/`openclawReason` parse. Not measured.
+- **Whether bun packages being held by the GitHub pause is intended** (P9): no comment in `C/CLITool.swift:558-563` says so.
+- **Who consumes `duo --json` `tool == "npm"`**: no caller in this repo (`grep -rn '"npm"' CLI/Sources` finds only doc comments); outside users unknown — input to D-P5-6.
+- **The downgrade and two-install behaviour on a real Mac**: reasoned from `UpdateAnnouncementLedger.pass` and `NotifiedUpdateVersions.prune`, not run.
+- **Scan cost**: today's npm scan already computes code signatures per prefix node in `scan()` (`C/NpmInstall.swift:388`); moving it under `ManagedProvider` should not change the cost, but §12 item 16 (scan time) is still owed for P3 and was not measured for this either.
+- Nothing was compiled or tested; every "Has" above is from reading signatures and call sites, not from running a fake adapter through them.

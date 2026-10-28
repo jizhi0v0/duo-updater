@@ -128,6 +128,288 @@ struct PackageInstallerTests {
                     == only.lastPathComponent)
     }
 
+    /// Only a zip's unpacked tree is searched below the top level, one folder deep,
+    /// and never into an app bundle or through a symbolic link.
+    @Test func subfolderSearchLooksOneFolderDownAndNoFurther() throws {
+        let fm = FileManager.default
+        let root = fm.temporaryDirectory
+            .appendingPathComponent("pkg-subfolder-\(UUID().uuidString)", isDirectory: true)
+        try fm.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: root) }
+        func package(_ path: String) throws -> URL {
+            let url = root.appendingPathComponent(path)
+            try fm.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try Data("fixture".utf8).write(to: url)
+            return url
+        }
+
+        let nested = try package("exports/Foo_Sideload.pkg")
+        #expect(PackageInstaller.preferredPackage(in: root, preferring: "Foo") == nil,
+                "a disk image's search stays at the top level")
+        #expect(PackageInstaller.preferredPackage(
+            in: root, preferring: "Foo", searchingSubfolders: true)?.realPath == nested.realPath)
+
+        let top = try package("Foo.pkg")
+        #expect(PackageInstaller.preferredPackage(
+            in: root, preferring: "Foo", searchingSubfolders: true)?.realPath == top.realPath,
+            "a package at the top level is never weighed against nested ones")
+        try fm.removeItem(at: top)
+
+        _ = try package("other/Bar.pkg")
+        #expect(PackageInstaller.preferredPackage(
+            in: root, preferring: "Baz", searchingSubfolders: true) == nil,
+            "two nested packages are as ambiguous as two top-level ones")
+        try fm.removeItem(at: root.appendingPathComponent("other"))
+
+        try fm.removeItem(at: nested)
+        _ = try package("deeper/still/Foo.pkg")
+        _ = try package("Foo.app/Foo.pkg")
+        #expect(PackageInstaller.preferredPackage(
+            in: root, preferring: "Foo", searchingSubfolders: true) == nil,
+            "neither two folders down nor inside an app bundle")
+        try fm.createSymbolicLink(
+            at: root.appendingPathComponent("shortcut"),
+            withDestinationURL: root.appendingPathComponent("deeper/still"))
+        #expect(PackageInstaller.preferredPackage(
+            in: root, preferring: "Foo", searchingSubfolders: true) == nil,
+            "a link to a deeper folder does not bring its package up a level")
+        try fm.removeItem(at: root.appendingPathComponent("shortcut"))
+        let outside = fm.temporaryDirectory
+            .appendingPathComponent("pkg-outside-\(UUID().uuidString)", isDirectory: true)
+        try fm.createDirectory(at: outside, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: outside) }
+        try Data("fixture".utf8).write(to: outside.appendingPathComponent("Foo.pkg"))
+        try fm.createSymbolicLink(
+            at: root.appendingPathComponent("linked"), withDestinationURL: outside)
+        #expect(PackageInstaller.preferredPackage(
+            in: root, preferring: "Foo", searchingSubfolders: true) == nil)
+    }
+
+    /// #1721: NordVPN's Sparkle enclosure is a zip declaring
+    /// `sparkle:installationType="package"`, with its package one folder down.
+    /// Before, the zip itself reached the gate and was refused as "not a pkg".
+    @Test func aPackageZipOpensThePackageInsideIt() async throws {
+        let fm = FileManager.default
+        let staging = fm.temporaryDirectory
+            .appendingPathComponent("zip-staging-\(UUID().uuidString)", isDirectory: true)
+        try fm.createDirectory(
+            at: staging.appendingPathComponent("exports"), withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: staging) }
+        try Data("signed package".utf8).write(
+            to: staging.appendingPathComponent("exports/ZZFixture_Sideload.pkg"))
+        let zip = fm.temporaryDirectory.appendingPathComponent("ZZFixture-\(UUID().uuidString).zip")
+        try await Self.zip(staging, to: zip)
+        defer { try? fm.removeItem(at: zip) }
+
+        let opened = Recorder()
+        let gated = Recorder()
+        let installer = PackageInstaller(
+            opener: { await opened.record($0) },
+            packageGate: { package, _ in await gated.record(package) })
+        let result = try await installer.downloadAndOpen(
+            url: zip,
+            installedApp: URL(fileURLWithPath: "/Applications/ZZFixture.app"),
+            onStage: { _ in },
+            verifyDownload: { try PackageInstaller.contentFingerprint(of: $0) })
+        let workDir = result.packageURL.deletingLastPathComponent()
+
+        #expect(result.packageURL.lastPathComponent == "ZZFixture_Sideload.pkg")
+        try #require(workDir.lastPathComponent.hasPrefix("DuoUpdater-pkg-ZZFixture-"))
+        #expect(!fm.fileExists(atPath: workDir.appendingPathComponent("unzipped").path),
+                "the rest of the unpacked tree is not kept")
+        #expect(await opened.urls == [result.packageURL])
+        #expect(await gated.urls.allSatisfy { $0.pathExtension == "pkg" })
+        // Discard and Supersede reclaim it like a disk image's package. Also the
+        // cleanup: its shape check is what keeps a regression from deleting
+        // whatever directory sits above an unexpected `packageURL`.
+        #expect(PackageInstaller.discardWorkDirectory(containing: result.packageURL))
+    }
+
+    /// Only a zip the source proved is parsed. Without a proof (today only a
+    /// Sparkle EdDSA counts as one) it reaches the gate as a zip and is refused by
+    /// its extension, unopened, as before #1721.
+    @Test func anUnprovenZipIsRefusedWithoutBeingUnpacked() async throws {
+        let fm = FileManager.default
+        let staging = fm.temporaryDirectory
+            .appendingPathComponent("zip-unproven-\(UUID().uuidString)", isDirectory: true)
+        try fm.createDirectory(at: staging, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: staging) }
+        try Data("package".utf8).write(to: staging.appendingPathComponent("ZZFixture.pkg"))
+        let zip = fm.temporaryDirectory.appendingPathComponent("ZZUnproven-\(UUID().uuidString).zip")
+        try await Self.zip(staging, to: zip)
+        defer { try? fm.removeItem(at: zip) }
+
+        let opened = Recorder()
+        let gated = Recorder()
+        let installer = PackageInstaller(
+            opener: { await opened.record($0) },
+            packageGate: { package, _ in
+                await gated.record(package)
+                throw PackageInstaller.PackageError.noInstallablePackage
+            })
+        await #expect(throws: PackageInstaller.PackageError.self) {
+            try await installer.downloadAndOpen(
+                url: zip,
+                installedApp: URL(fileURLWithPath: "/Applications/ZZFixture.app"),
+                onStage: { _ in })
+        }
+        #expect(await gated.urls.map(\.pathExtension) == ["zip"])
+        #expect(await opened.urls.isEmpty)
+    }
+
+    /// The zip is unpacked into a different file, so like a disk image it must
+    /// still be the bytes the source proof covered when it is unpacked.
+    @Test func aZipChangedAfterSourceVerificationIsNotUnpacked() async throws {
+        let fm = FileManager.default
+        let staging = fm.temporaryDirectory
+            .appendingPathComponent("zip-swap-\(UUID().uuidString)", isDirectory: true)
+        try fm.createDirectory(at: staging, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: staging) }
+        try Data("package A".utf8).write(to: staging.appendingPathComponent("ZZFixture.pkg"))
+        let zip = fm.temporaryDirectory.appendingPathComponent("ZZSwap-\(UUID().uuidString).zip")
+        try await Self.zip(staging, to: zip)
+        defer { try? fm.removeItem(at: zip) }
+        try Data("package B".utf8).write(to: staging.appendingPathComponent("ZZFixture.pkg"))
+        let replacement = fm.temporaryDirectory
+            .appendingPathComponent("ZZSwapB-\(UUID().uuidString).zip")
+        try await Self.zip(staging, to: replacement)
+        defer { try? fm.removeItem(at: replacement) }
+
+        let opened = Recorder()
+        let installer = PackageInstaller(
+            opener: { await opened.record($0) },
+            packageGate: { _, _ in })
+        let error = await #expect(throws: PackageInstaller.PackageError.self) {
+            try await installer.downloadAndOpen(
+                url: zip,
+                installedApp: URL(fileURLWithPath: "/Applications/ZZFixture.app"),
+                onStage: { _ in },
+                verifyDownload: { downloaded in
+                    let fingerprint = try PackageInstaller.contentFingerprint(of: downloaded)
+                    try Data(contentsOf: replacement).write(to: downloaded, options: .atomic)
+                    return fingerprint
+                })
+        }
+        #expect(error?.localizedDescription.contains("The download changed after source verification") == true)
+        #expect(await opened.urls.isEmpty)
+    }
+
+    /// `ditto` keeps a zip's stored modes. A read-only folder around the package
+    /// made the move out fail, and then left a work directory nothing could remove.
+    @Test func aReadOnlyFolderInTheZipStillOpensAndCleansUp() async throws {
+        let fm = FileManager.default
+        let staging = fm.temporaryDirectory
+            .appendingPathComponent("zip-readonly-\(UUID().uuidString)", isDirectory: true)
+        let exports = staging.appendingPathComponent("exports")
+        try fm.createDirectory(at: exports, withIntermediateDirectories: true)
+        defer {
+            try? fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: exports.path)
+            try? fm.removeItem(at: staging)
+        }
+        try Data("signed package".utf8).write(to: exports.appendingPathComponent("ZZFixture.pkg"))
+        try fm.setAttributes([.posixPermissions: 0o555], ofItemAtPath: exports.path)
+        let zip = fm.temporaryDirectory.appendingPathComponent("ZZReadOnly-\(UUID().uuidString).zip")
+        try await Self.zip(staging, to: zip)
+        defer { try? fm.removeItem(at: zip) }
+
+        // A name of this run's own, so a failure's leftover is found and removed
+        // here: once `downloadAndOpen` throws, its work directory is not returned,
+        // and a read-only one is beyond the 24-hour sweep.
+        let uniqueApp = "ZZReadOnly-\(UUID().uuidString)"
+        let installer = PackageInstaller(opener: { _ in }, packageGate: { _, _ in })
+        let outcome = await Result {
+            try await installer.downloadAndOpen(
+                url: zip,
+                installedApp: URL(fileURLWithPath: "/Applications/\(uniqueApp).app"),
+                onStage: { _ in },
+                verifyDownload: { try PackageInstaller.contentFingerprint(of: $0) })
+        }
+        let leftovers = try fm.contentsOfDirectory(
+            at: fm.temporaryDirectory, includingPropertiesForKeys: nil)
+            .filter { $0.lastPathComponent.hasPrefix("DuoUpdater-pkg-\(uniqueApp)-") }
+        for leftover in leftovers {
+            _ = try? await ChildProcess.run(
+                "/bin/chmod", ["-R", "u+rwX", leftover.path], onCancel: .runToCompletion)
+            try? fm.removeItem(at: leftover)
+        }
+
+        let result = try outcome.get()
+        #expect(result.packageURL.lastPathComponent == "ZZFixture.pkg")
+        #expect(leftovers.map(\.lastPathComponent)
+                    == [result.packageURL.deletingLastPathComponent().lastPathComponent])
+    }
+
+    /// A folder the zip stores as 0444 (or 0100) has no search bit once `ditto`
+    /// restores it: `u+w` alone left the package unfindable and the work directory
+    /// unremovable. `ditto -c` cannot read such a folder to archive it, so the zip
+    /// is written by hand.
+    @Test func anUnsearchableFolderInTheZipStillOpens() async throws {
+        let fm = FileManager.default
+        let zip = fm.temporaryDirectory
+            .appendingPathComponent("ZZUnsearchable-\(UUID().uuidString).zip")
+        try Self.storedZip(entries: [
+            ("exports/", 0o040444), ("exports/ZZFixture.pkg", 0o100444),
+        ]).write(to: zip)
+        defer { try? fm.removeItem(at: zip) }
+
+        let uniqueApp = "ZZUnsearchable-\(UUID().uuidString)"
+        let installer = PackageInstaller(opener: { _ in }, packageGate: { _, _ in })
+        let outcome = await Result {
+            try await installer.downloadAndOpen(
+                url: zip,
+                installedApp: URL(fileURLWithPath: "/Applications/\(uniqueApp).app"),
+                onStage: { _ in },
+                verifyDownload: { try PackageInstaller.contentFingerprint(of: $0) })
+        }
+        let leftovers = try fm.contentsOfDirectory(
+            at: fm.temporaryDirectory, includingPropertiesForKeys: nil)
+            .filter { $0.lastPathComponent.hasPrefix("DuoUpdater-pkg-\(uniqueApp)-") }
+        for leftover in leftovers {
+            _ = try? await ChildProcess.run(
+                "/bin/chmod", ["-R", "u+rwX", leftover.path], onCancel: .runToCompletion)
+            try? fm.removeItem(at: leftover)
+        }
+
+        #expect(try outcome.get().packageURL.lastPathComponent == "ZZFixture.pkg")
+    }
+
+    /// A zip of empty, stored entries with the given Unix modes. Empty entries have
+    /// CRC 0, so nothing needs computing.
+    private static func storedZip(entries: [(name: String, mode: UInt32)]) -> Data {
+        var local = Data(), central = Data()
+        func le16(_ v: Int, into d: inout Data) { d.append(contentsOf: [UInt8(v & 0xFF), UInt8(v >> 8 & 0xFF)]) }
+        func le32(_ v: UInt32, into d: inout Data) { for i in 0..<4 { d.append(UInt8(v >> (8 * UInt32(i)) & 0xFF)) } }
+        for entry in entries {
+            let name = Data(entry.name.utf8)
+            let offset = UInt32(local.count)
+            le32(0x0403_4b50, into: &local)
+            for v in [10, 0, 0, 0, 0x21] { le16(v, into: &local) }   // version, flags, stored, time, date
+            for _ in 0..<3 { le32(0, into: &local) }                  // crc, sizes
+            le16(name.count, into: &local); le16(0, into: &local)
+            local.append(name)
+            le32(0x0201_4b50, into: &central)
+            for v in [0x031E, 10, 0, 0, 0, 0x21] { le16(v, into: &central) } // made by Unix
+            for _ in 0..<3 { le32(0, into: &central) }
+            for v in [name.count, 0, 0, 0, 0] { le16(v, into: &central) }
+            le32(entry.mode << 16 | (entry.name.hasSuffix("/") ? 0x10 : 0), into: &central)
+            le32(offset, into: &central)
+            central.append(name)
+        }
+        var end = Data()
+        le32(0x0605_4b50, into: &end)
+        for v in [0, 0, entries.count, entries.count] { le16(v, into: &end) }
+        le32(UInt32(central.count), into: &end)
+        le32(UInt32(local.count), into: &end)
+        le16(0, into: &end)
+        return local + central + end
+    }
+
+    private static func zip(_ folder: URL, to zip: URL) async throws {
+        let made = try await ChildProcess.run(
+            "/usr/bin/ditto", ["-c", "-k", folder.path, zip.path], onCancel: .runToCompletion)
+        #expect(made.succeeded)
+    }
+
     /// The hand-over retires the *previous* Installer window for this app, so a
     /// package that fails the Developer-ID/Team-ID gate must not cost the user the
     /// window they already have open — nothing is closed and nothing is opened.
@@ -595,4 +877,8 @@ struct PackageInstallerTests {
         #expect(PackageInstaller.installLocation(
             inPackageInfo: #"<pkg-info install-location="/Applications"/>"#) == "/Applications")
     }
+}
+
+private extension URL {
+    var realPath: String { resolvingSymlinksInPath().standardizedFileURL.path }
 }

@@ -469,6 +469,13 @@ public struct TestFlightInventory: Sendable {
     /// anything near this is the gate, not slow disk.
     static let openTimeout: TimeInterval = 5
 
+    /// How long a query waits on a lock someone else holds. Without it a lock
+    /// answers `SQLITE_BUSY` at once, and `openAndRead` reports that as every query
+    /// failing to prepare. Measured 2026-10-28 on the real store, no writer at all:
+    /// two read-only readers at once was enough for 2 reads in ~51,000. 200ms, as
+    /// this package's other read-only opens use.
+    static let busyTimeoutMilliseconds: Int32 = 200
+
     /// The bound itself, plus the memo of paths whose open never came back. Both
     /// live in `BoundedBlockingWork`, which is this code generalised — see its
     /// doc comment for why the thread is abandoned rather than pooled, and why
@@ -522,6 +529,7 @@ public struct TestFlightInventory: Sendable {
             return ([], nil, [], [], [:], nil, false, false, false)
         }
         defer { sqlite3_close(db) }
+        sqlite3_busy_timeout(db, busyTimeoutMilliseconds)
 
         // Two queries, tried in order, because a prepare failure is total: it
         // returns an empty inventory that still reports `opened`, so every
@@ -540,8 +548,8 @@ public struct TestFlightInventory: Sendable {
             return reading
         }
         Log.scan.error("""
-            TestFlight DB prepare failed with ZINSTALLSTATUSRAW — retrying without it; \
-            wrapped iOS apps lose their install signal for this read
+            TestFlight DB prepare failed with ZINSTALLSTATUSRAW (\(String(cString: sqlite3_errmsg(db)), privacy: .public)) \
+            — retrying without it; wrapped iOS apps lose their install signal for this read
             """)
         if var reading = runRowQuery(db, sql: Self.macRowsOnlySQL, hasInstallStatus: false) {
             reading.frontiers = readFrontiers(db)
@@ -549,7 +557,7 @@ public struct TestFlightInventory: Sendable {
             reading.rebuilding = readRebuilding(db)
             return reading
         }
-        Log.scan.error("TestFlight DB prepare failed")
+        Log.scan.error("TestFlight DB prepare failed (\(String(cString: sqlite3_errmsg(db)), privacy: .public))")
         // Still ask for the frontier. Its two columns live in different tables from
         // the ones above, so a schema that breaks the row queries does not imply this
         // one cannot prepare — and the whole reason the frontier got its own query is

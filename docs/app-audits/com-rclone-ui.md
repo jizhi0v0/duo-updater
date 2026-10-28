@@ -22,13 +22,13 @@
 - 各版本的 bundle id / Team（都读自真包）:
   - v3.7.5、v3.7.4、v2.2.0、v2.0.0: `com.rclone.ui`，Team 8FT82R3S6A，notarized
   - v1.9.3、v1.9.0、v1.4.0、v1.0.2: `com.stray.app`，同一 Team，notarized → `BundleIDMigration`
-  - v0.9.x: 发布里没有 mac 安装包，不覆盖
+  - v0.9.4、v0.9.5 也发了 dmg（`Rclone.UI_0.9.x_aarch64.dmg`）；0.9.5 读过：`com.stray.app`，同一 Team，notarized，同样走 `BundleIDMigration`（0.9.4 没读）
 - 其他轨: 2.7.x 有 6 个 prerelease（v2.7.6–v2.7.24，2025-10-24 至 2025-11-01），同一个 bundle id、同一个资产名；之后再没有 prerelease，稳定版早已超过它们。装着这些 beta 的副本按 stable 检测，会收到更新的稳定版，不会降级
 - 同仓库的另一产品: `cloud-v0.1.0` / `cloud-latest` 是 Rclone Cloud（命令行，没有 dmg），`versionPattern` 读不出它的 tag
 - 主机下限: 资产只取 `aarch64`，和 `App/project.yml` 的 arm64 一致；`LSMinimumSystemVersion` 10.13，低于我们的下限
 
 ## 旧 bundle id
-1.0.2、1.4.0、1.9.0、1.9.3 的 dmg 都是 `com.stray.app`，2.0.0 起是 `com.rclone.ui`，同一个 Team。1.9.3 自带的 Tauri 更新器读的是现在指向 3.x 的同一份 `latest.json`，所以厂商自己就把 1.x 当普通更新升到 2.x 以上。2.0.0 的发布说明把改 id 列为 breaking，提醒先备份配置：Tauri 的数据目录跟着 id 走，应用自己的设置不会带过去（rclone 的配置 `rclone.conf` 不在这个目录里）。WhatCable、Cork 改名时设置也会重置，同样按普通改名登记，这里照此处理：`BundleIDMigration(from: "com.stray.app", to: "com.rclone.ui", lastFromVersion: "1.9.3", firstToVersion: "2.0.0")`，不标 `isRewrite`。
+1.0.2、1.4.0、1.9.0、1.9.3 的 dmg 都是 `com.stray.app`，2.0.0 起是 `com.rclone.ui`，同一个 Team。1.9.3 自带的 Tauri 更新器读的是现在指向 3.x 的同一份 `latest.json`，所以厂商自己就把 1.x 当普通更新升到 2.x 以上。2.0.0 的发布说明把改 id 列为 breaking，提醒先备份配置。Tauri 的数据目录跟着 id 走（`~/Library/Application Support/com.stray.app/`），2.0.0 起的代码里没有迁移旧目录的逻辑（v1.9.3 源码 `lib/rclone/common.ts` `getConfigPath`、`lib/store.ts`）。留在旧目录、换包后看不到的有：应用里新建的配置（`configs/<id>/rclone.conf`，含 remote 的凭据）、`store.json` 里的 license key、定时任务、加密配置的密码。只有「Default config」在 rclone 自己的默认路径，不受影响。文件不会被删，只是 3.x 不读。厂商自己的 1.9.3 更新器弹框也没有任何提醒。WhatCable、Cork 改名时设置也会重置，按普通改名登记；这里目前同样登记为：`BundleIDMigration(from: "com.stray.app", to: "com.rclone.ui", lastFromVersion: "1.9.3", firstToVersion: "2.0.0")`，不标 `isRewrite`。
 
 ## Channel 详情
 
@@ -43,7 +43,7 @@
 - 版本方案: tag `v3.7.5` → `CFBundleShortVersionString` `3.7.5`、`CFBundleVersion` `3.7.5`
 - `versionPattern` `^v([0-9]+(?:\.[0-9]+)+)$`，能读 91 个稳定 tag 里的 89 个，读不出的两个就是 `cloud-…`
 - install pattern `^Rclone\.UI_aarch64\.dmg$`；同一发布里还有 `Rclone.UI_x64.dmg`（Intel）和给 Tauri 更新器用的 `Rclone.UI_aarch64.app.tar.gz`，都不选
-- 1.x 的 dmg 名带版本号（`Rclone.UI_1.9.0_aarch64.dmg`），2.x 起是固定名；规则只读 `/releases/latest`，不需要匹配旧名
+- 1.9.1 及更早的 dmg 名带版本号（`Rclone.UI_1.9.0_aarch64.dmg`），1.9.2 起是固定名；规则只读 `/releases/latest`，不需要匹配旧名
 - channel-verify（2026-10-28）:
   - 3.7.4 dmg: `detected channel → stable`，`winning source GitHub`，`latest 3.7.5`，`status UPDATE → 3.7.5`
   - 3.7.5 dmg: 同上，`status up to date`

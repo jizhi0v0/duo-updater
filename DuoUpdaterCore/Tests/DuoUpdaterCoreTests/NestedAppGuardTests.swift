@@ -157,6 +157,11 @@ import Testing
             arguments: ["Other", "--mcp-library"])
         #expect(NestedAppGuard.blockers(bundlePath: bundle, processes: [unread, extra, other]).map(\.pid)
             == [742, 743, 744])
+        // A VM a relay spawned is not let through as the relay's helper: the
+        // relay outlives the app. Mutation: keep relays in the parent set → red.
+        let spawned = Self.process(745, program, parent: 740, bundle: bundle, arguments: [path, "--machine", "x"])
+        #expect(NestedAppGuard.blockers(bundlePath: bundle, processes: [relay, spawned])
+            == [.init(name: "VMPalMachine", pid: 745)])
     }
 
     /// The BetterTouchTool shape: `BTTRelaunch.app`, started by launchd, quits
@@ -256,6 +261,10 @@ import Testing
         try Self.writePlist(["Program": bundle + "/Contents/Helpers/ZZFixtureMachine.app/Contents/MacOS/ZZFixtureMachine"],
                             to: agents + "/zz.program.plist")
         try Self.writePlist(["BundleProgram": "../ZZFixtureOutside/tool"], to: agents + "/zz.outside.plist")
+        // A `ProgramArguments` with a non-string skips the plist rather than
+        // reading as no arguments. Mutation: `as? [String] ?? []` → red.
+        try Self.writePlist(["BundleProgram": Self.agentProgram, "ProgramArguments": ["ZZFixtureWallpaper", 1]],
+                            to: agents + "/zz.malformed.plist")
         try "not a plist".write(toFile: agents + "/README", atomically: true, encoding: .utf8)
         // `Linked.app` is a symlink to `Real.app`, as `Versions/Current` would be.
         let resources = bundle + "/Contents/Resources"
@@ -409,6 +418,28 @@ import Testing
         #expect(me != nil)
         #expect(me?.parentPID == getppid())
         #expect(me?.executablePath.isEmpty == false)
+    }
+
+    /// A real process inside a nested `.app` comes back with its argv, which the
+    /// LaunchAgent and relay rules match on. Mutation: pass `arguments: nil`
+    /// in `liveProcesses` → red.
+    @Test func theLiveListReadsTheArgvOfANestedApp() throws {
+        let parent = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ZZFixture-argv-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: parent) }
+        let executable = parent.path + "/ZZFixtureVM.app/Contents/Helpers/ZZFixtureMachine.app/Contents/MacOS/ZZFixtureMachine"
+        try FileManager.default.createDirectory(
+            atPath: (executable as NSString).deletingLastPathComponent, withIntermediateDirectories: true)
+        try FileManager.default.copyItem(atPath: "/bin/sleep", toPath: executable)
+        let child = Process()
+        child.executableURL = URL(fileURLWithPath: executable)
+        child.arguments = ["30"]
+        try child.run()
+        defer { child.terminate(); child.waitUntilExit() }
+        // `proc_pidpath` spells the temporary directory as `/private/var/…`.
+        let me = NestedAppGuard.liveProcesses().first { $0.pid == child.processIdentifier }
+        #expect(me?.executablePath.hasSuffix(String(executable.dropFirst(parent.path.count))) == true)
+        #expect(me?.arguments?.dropFirst().elementsEqual(["30"]) == true)
     }
 
     // MARK: - Fixtures

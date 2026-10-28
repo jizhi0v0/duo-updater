@@ -203,8 +203,14 @@ public enum NestedAppGuard {
     ) -> [Blocker] {
         let root = bundlePath.hasSuffix("/") ? String(bundlePath.dropLast()) : bundlePath
         let prefix = root + "/"
+        // An agent instance or a relay outlives the app, so what it spawns does
+        // not go away with the app: it is no parent for the parent rule.
         let fromThisBundle = Set(processes.lazy
             .filter { $0.executablePath.hasPrefix(prefix) }
+            .filter { process in
+                !launchAgents.contains(where: { $0.isInstance(process) })
+                    && !neverBlocks(process, insideBundle: prefix)
+            }
             .map(\.pid))
         let hostIsRunning = processes.contains {
             isMainAppExecutable($0.executablePath, insideBundle: prefix)
@@ -307,7 +313,15 @@ public enum NestedAppGuard {
             else { continue }
             let path = URL(fileURLWithPath: root + "/" + program).resolvingSymlinksInPath().path
             guard path.hasPrefix(root + "/") else { continue }
-            let arguments = plist["ProgramArguments"] as? [String] ?? []
+            // A `ProgramArguments` that is not a list of strings skips the
+            // plist, like any unreadable one; only a missing key means none.
+            let arguments: [String]
+            if let value = plist["ProgramArguments"] {
+                guard let strings = value as? [String] else { continue }
+                arguments = strings
+            } else {
+                arguments = []
+            }
             agents.append(LaunchAgent(program: path, arguments: arguments))
         }
         return agents

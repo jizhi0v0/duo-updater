@@ -436,6 +436,7 @@ final class CLIToolsModel {
         switch trigger {
         case .popoverOpen, .workbenchOpen: return await onOpen()
         case .workbenchFocus: return await onFocus()
+        case .diskChanged: return await onInstallMoved()
         case .backgroundTick(let interval): return await onTick(interval: interval)
         case .afterAction: return .skip(because: "an update re-checks its own tool by itself")
         // The button asks for a fresh answer from everything: every tool, past
@@ -444,7 +445,7 @@ final class CLIToolsModel {
         case .manual:
             guard updating.isEmpty, !updatingAll else { return .skip(because: "an update is running") }
             return .run(Set(providers.indices), because: "the refresh button")
-        case .diskChanged, .backstopTick:
+        case .backstopTick:
             return .skip(because: "the apps lane's; tools are checked on opens, focuses and ticks")
         }
     }
@@ -517,6 +518,40 @@ final class CLIToolsModel {
     /// (which re-checks by itself, and a scan mid-run sees a half-done copy).
     func refreshOnFocus() async {
         await lane.handle(.workbenchFocus)
+    }
+
+    /// What a session newly found on a copy from before an update does
+    /// (`announceStale`): the copy changed under it — a `claude` that updated
+    /// itself — so the row may be out of date. Decided by the focus rule
+    /// (`onFocus`): a scan, and a check only when it disagrees, so an open or a
+    /// focus queued behind it on the lane finds the scan agreeing and asks
+    /// nothing again.
+    func refreshOnInstallMoved() async {
+        await lane.handle(.diskChanged)
+    }
+
+    /// The app's check interval, nil for "Only when I check" — read when no
+    /// window asked for a check (`onInstallMoved`). Nil until the app wires it.
+    @ObservationIgnored var checkInterval: @MainActor () -> TimeInterval? = { nil }
+
+    /// The focus rule, held to what a tick may do: no window asked, so nothing
+    /// on "Only when I check", and a tool reading the GitHub API with no token
+    /// keeps its floor (`isDue`) — review, #1734.
+    private func onInstallMoved() async -> RefreshDecision<Set<Int>> {
+        guard checkInterval() != nil else { return .skip(because: "Only when I check") }
+        let focus = await onFocus()
+        guard case .run(let plan, let why) = focus else { return focus }
+        let now = now()
+        let due = { (token: Bool) in
+            plan.filter { index in
+                Self.isDue(readsGitHubAPI: self.providers[index].readsGitHubAPI,
+                           checkedAt: self.checkedAt[index], now: now, hasGitHubToken: token)
+            }
+        }
+        var indices = due(false)
+        if indices.count < plan.count, await hasGitHubToken() { indices = due(true) }
+        guard !indices.isEmpty else { return .skip(because: "\(why); every tool held to the GitHub floor") }
+        return .run(indices, because: why)
     }
 
     private func onFocus() async -> RefreshDecision<Set<Int>> {
@@ -873,6 +908,7 @@ final class CLIToolsModel {
         }
         guard !newly.isEmpty || !changed.isEmpty || !cleared.isEmpty else { return }
         onStaleProcesses?(newly, changed, cleared)
+        if !newly.isEmpty { Task { await refreshOnInstallMoved() } }
     }
 
     /// Read the release notes of every update row whose range is new, and keep

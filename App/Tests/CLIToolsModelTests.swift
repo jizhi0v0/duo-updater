@@ -1732,6 +1732,69 @@ struct CLIToolsModelTests {
         await second.value
     }
 
+    /// A session left on the old binary is how the app first learns a tool
+    /// updated itself — `claude` swapping its symlink while it runs, measured
+    /// 2026-10-28: the row said "update available" until the next open, then
+    /// for the 5 s that check took. The process watch hands that to the focus
+    /// rule: checked when the scan has moved, nothing asked when it has not.
+    ///
+    /// Mutation: `.diskChanged` skipped again in `decide`.
+    @Test func aCopyLeftOnTheOldBinaryRechecksAMovedScan() async {
+        let status = Self.status(Self.native)
+        let found = ScanResult([status])
+        let check = FakeCheck([(Self.report(status), nil)])
+        let model = Self.model(check: check, scan: { found.sightings })
+        model.checkInterval = { 300 }
+        await model.refreshOnOpen()
+
+        await model.refreshOnInstallMoved()
+        #expect(await check.calls == 1)
+
+        found.set([Self.status(Self.native, version: "2.1.285")])
+        await model.refreshOnInstallMoved()
+        #expect(await check.calls == 2)
+    }
+
+    /// No window asked for it, so it is the schedule's: "Only when I check"
+    /// starts nothing, as a background tick would not (review, #1734).
+    ///
+    /// Mutation: drop the `checkInterval() != nil` guard.
+    @Test func aCopyLeftOnTheOldBinaryAsksNothingOnlyWhenIChecks() async {
+        let status = Self.status(Self.native)
+        let found = ScanResult([status])
+        let check = FakeCheck([(Self.report(status), nil)])
+        let model = Self.model(check: check, scan: { found.sightings })
+        model.checkInterval = { nil }
+        await model.refreshOnOpen()
+
+        found.set([Self.status(Self.native, version: "2.1.285")])
+        await model.refreshOnInstallMoved()
+        #expect(await check.calls == 1)
+    }
+
+    /// Unattended like a tick, so a tool reading the GitHub API with no token
+    /// keeps its floor (`isDue`); the rest are checked (review, #1734).
+    ///
+    /// Mutation: run `onFocus`'s plan unfiltered.
+    @Test func aCopyLeftOnTheOldBinaryKeepsTheGitHubFloor() async {
+        let status = Self.status(Self.native)
+        let found = ScanResult([status])
+        let check = FakeCheck([(Self.report(status), nil)])
+        let helm = Self.status("/usr/local/bin/helm", kind: .helm)
+        let helmCheck = FakeCheck([(Self.report(.helm, [helm]), nil)])
+        let helmFound = ScanResult([helm])
+        var helmProvider = FakeProvider(kind: .helm, checker: helmCheck, scanner: { helmFound.sightings })
+        helmProvider.readsGitHubAPI = true
+        let model = Self.model(check: check, scan: { found.sightings }, others: [helmProvider])
+        model.checkInterval = { 300 }
+        await model.refreshOnOpen()
+
+        found.set([Self.status(Self.native, version: "2.1.285")])
+        await model.refreshOnInstallMoved()
+        #expect(await check.calls == 2)
+        #expect(await helmCheck.calls == 1)
+    }
+
     // MARK: the background schedule
 
     /// Answers whether a GitHub token resolves, and counts how often it was asked.

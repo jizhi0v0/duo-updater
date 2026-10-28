@@ -2331,6 +2331,8 @@ final class AppListModel {
         cliTools.onStaleProcesses = { [weak self] newly, changed, cleared in
             self?.notifyStaleCLIProcesses(newly, changed, cleared)
         }
+        // A session left on an old copy re-checks only on the user's schedule.
+        cliTools.checkInterval = { [weak self] in self?.prefs.checkFrequency.interval }
         cliTools.watchProcesses(isVisible: { Self.anyWindowOnScreen() })
         // A window of ours coming out from under another one: no open or focus
         // says so, and its marks are drawn only from a read made while a

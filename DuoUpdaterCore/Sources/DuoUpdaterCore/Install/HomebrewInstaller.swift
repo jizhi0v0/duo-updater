@@ -112,9 +112,54 @@ public actor HomebrewInstaller {
         return tail.isEmpty ? "brew failed (\(code)): \(error)" : "brew failed (\(code)): \(error) — \(tail)"
     }
 
+    /// What comes before `upgrade`, and a cancel stops: brew's auto-update, then
+    /// the download. Neither changes the installed app, so the caller can ask
+    /// again whether the swap may go ahead once the bytes are down, and a
+    /// cancel here leaves the app as it was.
+    ///
+    /// `brew fetch` does not auto-update (`fetch` is not in `AUTO_UPDATE_COMMANDS`,
+    /// Homebrew 7.0.11 `utils/auto-update.sh`), so the auto-update `upgrade`'s
+    /// own `brew install` used to run comes from `brew install --dry-run` of the
+    /// same arguments: the same command, so the same throttle and tap rules, and
+    /// it installs nothing. Our detection reads the fresh formulae.brew.sh API,
+    /// so the local tap must refresh first or brew might fetch a stale version
+    /// (or think it's already current). The fetch itself runs with
+    /// `HOMEBREW_NO_AUTO_UPDATE`, as does `upgrade`.
+    ///
+    /// Both are interrupted as a terminal's Ctrl-C would (`.interruptChild`; see
+    /// `BrewFormulaService.prefetch` for what brew does with it). Nothing here is
+    /// needed for the upgrade to work: a failure is logged, and `upgrade`
+    /// downloads what is missing itself. Only a cancel ends it, by throwing
+    /// `CancellationError`.
+    public func fetch(
+        caskToken: String,
+        onOutput: @Sendable @escaping (String) -> Void
+    ) async throws {
+        guard let brew = Self.brewPathOverride ?? Self.brewPath() else { throw BrewError.brewNotFound }
+        var env = ProcessInfo.processInfo.environmentWithSystemProxy
+        env["HOMEBREW_NO_ENV_HINTS"] = "1"
+        env["NONINTERACTIVE"] = "1"
+        // `--dry-run` goes before the `--` that keeps the token from being read
+        // as an option.
+        let (plan, _) = try await StreamedLines.run(
+            brew, ["install", "--cask", "--force", "--dry-run", "--", caskToken],
+            environment: env, onCancel: .interruptChild, onOutput: onOutput)
+        if !plan.succeeded {
+            Log.install.notice("brew install --cask --dry-run \(caskToken, privacy: .public) exited \(plan.terminationStatus, privacy: .public): fetching anyway")
+        }
+        env["HOMEBREW_NO_AUTO_UPDATE"] = "1"
+        let (fetch, _) = try await StreamedLines.run(
+            brew, ["fetch", "--cask", "--", caskToken],
+            environment: env, onCancel: .interruptChild, onOutput: onOutput)
+        if !fetch.succeeded {
+            Log.install.notice("brew fetch --cask \(caskToken, privacy: .public) exited \(fetch.terminationStatus, privacy: .public): the install downloads what is missing")
+        }
+    }
+
     /// Run `brew install --cask --force <token>`, streaming output lines, and
     /// throw `BrewError.unchanged` when it exits 0 and `app` is still the
-    /// bundle it was.
+    /// bundle it was. `fetch` comes first: it auto-updates and downloads, so
+    /// this run does neither of the first and reuses the second.
     ///
     /// Exit 0 is not proof of an update. `brew install` hands a cask that is
     /// already installed to its upgrade path, which skips one whose Caskroom
@@ -134,12 +179,12 @@ public actor HomebrewInstaller {
         // `--` terminates option parsing so a token can never be misread as a flag.
         let arguments = ["install", "--cask", "--force", "--", caskToken]
         // Non-interactive so brew never blocks on a prompt we can't answer.
-        // We deliberately allow auto-update here: our detection reads the fresh
-        // formulae.brew.sh API, so the local tap must refresh first or brew
-        // might install a stale version (or think it's already current).
+        // No auto-update: `fetch` ran it, before the download, where a cancel
+        // still stops it.
         var env = ProcessInfo.processInfo.environmentWithSystemProxy
         env["HOMEBREW_NO_ENV_HINTS"] = "1"
         env["NONINTERACTIVE"] = "1"
+        env["HOMEBREW_NO_AUTO_UPDATE"] = "1"
         // Lines, not chunks, and until the output ends, not just the exit — see
         // `StreamedLines`. Runs to completion if the caller is cancelled: this is
         // brew replacing what is installed, and a SIGKILL halfway is worse than
@@ -147,8 +192,8 @@ public actor HomebrewInstaller {
         // cancellable either).
         //
         // The whole brew run is this route's point of no return (`InstallCommit`):
-        // brew's fetch and its swap are one command we cannot split, so a cancel
-        // either stops the install before brew starts or is not seen at all.
+        // a cancel either stops the install before brew starts or is not seen at
+        // all. The download is `fetch`'s, before it, where a cancel is seen.
         // The journal learns brew's pid, so a launch after this process was
         // killed leaves alone what a still-running brew is writing. Read here:
         // `onLaunch` runs in `ChildProcess`'s detached task, which has no

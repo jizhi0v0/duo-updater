@@ -153,8 +153,9 @@ public actor InstallCoordinator {
     /// Only the routes whose swap this coordinator performs or starts: `.sparkle`
     /// and `.vendor` (`fetchThenSwap`) and `.homebrew`. `perform` asks again
     /// before the download, before the apply and right before the exchange
-    /// (`.homebrew`: once the apply permit is held, before brew starts), for a
-    /// nested app started in the meantime.
+    /// (`.homebrew`: once the apply permit is held, before brew starts, and
+    /// after brew's fetch, before its install), for a nested app started in the
+    /// meantime.
     public static func nestedAppRefusal(
         for result: UpdateResult, route: Route,
         processes: () -> [NestedAppGuard.RunningProcess] = NestedAppGuard.liveProcesses
@@ -618,9 +619,9 @@ public actor InstallCoordinator {
             // same refusal, before brew is started.
             try refuseWhileNestedAppRuns(result)
             progress(.runningCommand("starting brew…"))
-            // brew's fetch and swap are one command we cannot split, so the whole
-            // run takes the apply permit — and brew does its own downloading, so
-            // those bytes are never counted rather than estimated.
+            // The whole brew run — auto-update, fetch and install — takes the
+            // apply permit, so no two brews run at once. brew does its own
+            // downloading, so those bytes are never counted rather than estimated.
             // Cancelled while queued: throws holding no permit, before brew starts.
             try await permits.waitForApplyOrCancel()
             var applyHeld = true
@@ -629,8 +630,14 @@ public actor InstallCoordinator {
             // returns normally with the permit held (see `waitForDownloadOrCancel`).
             try Task.checkCancellation()
             // Again, for a nested app started while this waited for the permit.
-            // The last check this route can make: brew downloads and swaps in
-            // one command, so one started during brew's own download is not seen.
+            try refuseWhileNestedAppRuns(result)
+            // Auto-update and download first, where a cancel changes nothing…
+            try await homebrew.fetch(caskToken: token) { line in
+                progress(.runningCommand(line))
+            }
+            // …so a nested app started during them is refused before brew's
+            // install. The last check this route can make: the install moves the
+            // bundle aside itself, a few seconds after this.
             try refuseWhileNestedAppRuns(result)
             let agents = snapshotLoginItemAgents(result)
             try await homebrew.upgrade(caskToken: token, app: result.app.path) { line in

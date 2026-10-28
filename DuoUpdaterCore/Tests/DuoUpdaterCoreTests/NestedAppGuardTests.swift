@@ -439,6 +439,49 @@ import Testing
         #expect(fixture.targetIsUntouched)
     }
 
+    /// The Homebrew route: started while brew downloaded. brew's install must
+    /// not start. The stand-in brew logs each run's arguments, and its `fetch`
+    /// is when the nested app comes up. Mutation: drop the
+    /// `refuseWhileNestedAppRuns` after `homebrew.fetch` in the `.homebrew`
+    /// case → the install runs.
+    @Test func brewDoesNotInstallWhenTheNestedAppStartsDuringTheFetch() async throws {
+        let fixture = try SwapFixture()
+        defer { fixture.remove() }
+        let log = fixture.root.appendingPathComponent("brew-log")
+        let fetched = fixture.root.appendingPathComponent("brew-fetched")
+        let brew = fixture.root.appendingPathComponent("brew")
+        try Data("""
+            #!/bin/sh
+            echo "$*" >> '\(log.path)'
+            [ "$1" = fetch ] && /usr/bin/touch '\(fetched.path)'
+            exit 0
+
+            """.utf8).write(to: brew)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: brew.path)
+        let coordinator = InstallCoordinator(
+            permits: InstallPermits(downloads: 1, applies: 1),
+            runningProcesses: {
+                FileManager.default.fileExists(atPath: fetched.path) ? [fixture.machine] : []
+            })
+        let result = Self.result(
+            at: fixture.target,
+            remote: RemoteVersion(
+                shortVersion: "1.1", version: "2", downloadURL: nil, sourceName: "Homebrew",
+                sourceIdentifier: "zzfixture-cask"))
+        await #expect(throws: NestedAppRunningError.self) {
+            try await HomebrewInstaller.$brewPathOverride.withValue(brew.path) {
+                _ = try await coordinator.perform(
+                    result, route: .homebrew, installedPopulation: [], digestOnlyAllowed: false,
+                    progress: { _ in })
+            }
+        }
+        let runs = (try? String(contentsOf: log, encoding: .utf8))?
+            .split(separator: "\n").map(String.init) ?? []
+        #expect(runs.contains("fetch --cask -- zzfixture-cask"))
+        #expect(!runs.contains("install --cask --force -- zzfixture-cask"))
+        #expect(fixture.targetIsUntouched)
+    }
+
     @Test func theCoordinatorGoesAheadWhenNothingBlocks() async throws {
         let workDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("ZZFixture-nested-\(UUID().uuidString)", isDirectory: true)

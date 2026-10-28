@@ -142,7 +142,7 @@ public actor PackageInstaller {
             case .unsignedPackage:
                 return "The downloaded installer package isn't signed by a valid Developer ID — it may be corrupt or tampered. Nothing was installed."
             case .noInstallablePackage:
-                return "The downloaded disk image did not contain an installer package DuoUpdater could verify. Nothing was opened."
+                return "The download did not contain an installer package DuoUpdater could verify. Nothing was opened."
             case .packageTeamIdentifierMissing:
                 return "Could not read the installer package's Developer ID team. Nothing was opened."
             case .packageDestinationsUnreadable:
@@ -166,7 +166,7 @@ public actor PackageInstaller {
     public struct OpenedPackage: Sendable {
         /// Exact bytes downloaded, for per-app traffic accounting.
         public let bytesDownloaded: Int64
-        /// The `.pkg`/`.mpkg` actually opened (already unwrapped from a `.dmg`).
+        /// The `.pkg`/`.mpkg` actually opened (already unwrapped from a `.dmg` or `.zip`).
         public let packageURL: URL
         /// The host that actually served the bytes after redirects, for the
         /// per-host install gate (see `Downloader.finalHost`).
@@ -232,14 +232,15 @@ public actor PackageInstaller {
         // retains the common pkg gate in `handOver` below — signature, Team ID,
         // destination and gate 6; the header table is the one list of what that is.
         let sourceFingerprint = try verifyDownload(file)
-        // A signed DMG is about to be parsed into a different inner file, so prove
-        // the pathname still holds the exact enclosure whose EdDSA check passed.
+        // A signed DMG or zip is about to be parsed into a different inner file, so
+        // prove the pathname still holds the exact enclosure whose EdDSA check passed.
         // A direct pkg is not re-read here; it carries this proof into `handOver`
         // as `approvedFingerprint`, which is then what the seals there are pinned
         // against. It is NOT an extra full read saved — `handOver` hashes the file
         // whole twice either way, deliberately (see its two-seal comment) — only
-        // one the DMG route pays on a different file.
-        if file.pathExtension.lowercased() == "dmg", let sourceFingerprint {
+        // one the DMG and zip routes pay on a different file.
+        if Self.wrapperExtensions.contains(file.pathExtension.lowercased()),
+           let sourceFingerprint {
             // Hashing hundreds of megabytes is blocking work, and this is reached
             // from an async install. See `offCooperativePool`.
             let seen = try await offCooperativePool { try Self.contentFingerprint(of: file) }
@@ -250,10 +251,12 @@ public actor PackageInstaller {
         }
 
         onStage(.installing)
-        // The DMG route mounts with `DiskImageMount` and copies with `ditto`, awaited
-        // through `ChildProcess` rather than parked on a thread.
+        // The DMG route mounts with `DiskImageMount` and copies with `ditto`, the zip
+        // route unpacks with `ditto`; both awaited through `ChildProcess` rather than
+        // parked on a thread.
         let toOpen = try await resolveInstaller(
-            from: file, workDir: workDir, installedApp: installedApp)
+            from: file, workDir: workDir, installedApp: installedApp,
+            zipIsProven: sourceFingerprint != nil)
         let directSourceFingerprint = toOpen.standardizedFileURL == file.standardizedFileURL
             ? sourceFingerprint : nil
         try await handOver(
@@ -543,7 +546,7 @@ public actor PackageInstaller {
         // (`suggestedFilename`), so a hijacked or misconfigured endpoint could
         // resolve to something else — refuse it rather than open an arbitrary
         // downloaded file (which would sidestep the Developer-ID/Team-ID check
-        // entirely). A `.dmg` is already resolved to its inner pkg by the caller.
+        // entirely). A `.dmg` or `.zip` is already resolved to its inner pkg by the caller.
         let ext = toOpen.pathExtension.lowercased()
         guard ext == "pkg" || ext == "mpkg" else {
             throw PackageError.noInstallablePackage
@@ -1196,13 +1199,28 @@ public actor PackageInstaller {
         return (outcome.terminationStatus, outcome.standardOutput)
     }
 
+    /// What `resolveInstaller` unwraps to reach the package inside, rather than
+    /// handing the download itself to the gate.
+    static let wrapperExtensions: Set<String> = ["dmg", "zip"]
+
     /// Given a downloaded file, return the thing to hand to the system installer.
     /// For a `.dmg` we mount it, copy the contained `.pkg` out (so the installer
-    /// keeps working after we unmount), and return that; otherwise we open the
-    /// file itself (a bare `.pkg`, or the `.dmg`/folder as a fallback).
+    /// keeps working after we unmount), and return that. For a `.zip` whose bytes
+    /// the source proved (`zipIsProven`: `verifyDownload` returned a fingerprint,
+    /// which today only Sparkle's EdDSA does) we unpack it and move the package
+    /// inside up into the work directory.
+    /// Otherwise we return the file itself (a bare `.pkg`), and the gate decides —
+    /// an unproven zip is refused there by its extension without being parsed, as
+    /// every zip was before #1721.
     /// Internal for `InstallChildProcessTests`.
-    nonisolated func resolveInstaller(from file: URL, workDir: URL, installedApp: URL) async throws -> URL {
-        guard file.pathExtension.lowercased() == "dmg" else { return file }
+    nonisolated func resolveInstaller(
+        from file: URL, workDir: URL, installedApp: URL, zipIsProven: Bool = false
+    ) async throws -> URL {
+        let ext = file.pathExtension.lowercased()
+        if ext == "zip", zipIsProven {
+            return try await unzipPackage(file, into: workDir, installedApp: installedApp)
+        }
+        guard ext == "dmg" else { return file }
 
         let mountPoint = workDir.appendingPathComponent("mnt")
         try? FileManager.default.createDirectory(at: mountPoint, withIntermediateDirectories: true)
@@ -1214,6 +1232,51 @@ public actor PackageInstaller {
         defer { await DiskImageMount.detach(mountPoint, image: file) }
         return try await copyPackage(
             outOf: mountPoint, into: workDir, installedApp: installedApp)
+    }
+
+    /// A Sparkle enclosure declaring `sparkle:installationType="package"` may be a
+    /// zip (NordVPN, #1721). Sparkle itself walks the whole unpacked tree for a
+    /// `.pkg` (`SUInstaller.m`), and NordVPN's sits one folder down, at
+    /// `exports/NordVPN_Sideload.pkg`. This looks no deeper than one folder, and
+    /// picks by the same unambiguous rule as a disk image.
+    ///
+    /// The package is then moved (a rename, same volume) to the top of the work
+    /// directory, where a disk image's package is copied to: `discardWorkDirectory`
+    /// only reclaims a package whose parent is one of our `DuoUpdater-pkg-…`
+    /// directories, and the rest of the unpacked tree is dropped here.
+    private nonisolated func unzipPackage(
+        _ zip: URL, into workDir: URL, installedApp: URL
+    ) async throws -> URL {
+        let unpacked = workDir.appendingPathComponent("unzipped")
+        await removeItemOffCooperativePool(at: unpacked)
+        try FileManager.default.createDirectory(at: unpacked, withIntermediateDirectories: true)
+        do {
+            try await ArchiveExtractor.unpack(zip, into: unpacked)
+        } catch let error as CancellationError {
+            throw error
+        } catch {
+            throw PackageError.downloadFailed(error.localizedDescription)
+        }
+        // `ditto` keeps the modes the zip stores, and a read-only folder would make
+        // both the move below and every later removal of this work directory fail,
+        // leaking the unpacked package for good. `chmod -R` does not follow links
+        // it meets in the tree (measured on macOS 27).
+        guard try await run("/bin/chmod", ["-R", "u+w", unpacked.path]) == 0 else {
+            throw PackageError.downloadFailed("Could not prepare the unpacked zip.")
+        }
+        let appName = installedApp.deletingPathExtension().lastPathComponent
+        guard let pkg = Self.preferredPackage(
+            in: unpacked, preferring: appName, searchingSubfolders: true)
+        else { throw PackageError.noInstallablePackage }
+        let dest = workDir.appendingPathComponent(pkg.lastPathComponent)
+        await removeItemOffCooperativePool(at: dest)
+        do {
+            try FileManager.default.moveItem(at: pkg, to: dest)
+        } catch {
+            throw PackageError.downloadFailed("Could not move the installer package out of the zip.")
+        }
+        await removeItemOffCooperativePool(at: unpacked)
+        return dest
     }
 
     private nonisolated func copyPackage(
@@ -1319,16 +1382,36 @@ public actor PackageInstaller {
     /// or a unique product name followed by a numeric version (`Foo-2.0.pkg`); never
     /// let a substring such as `FooHelper.pkg` stand in for `Foo.app`, and never
     /// fall back to whichever unrelated package sorts first.
-    static func preferredPackage(in dir: URL, preferring appName: String) -> URL? {
+    ///
+    /// `searchingSubfolders`: when `dir` itself holds no package, look in its
+    /// immediate subfolders too (not in package or app bundles, not through
+    /// symbolic links), and choose among everything found there by the same rule.
+    static func preferredPackage(
+        in dir: URL, preferring appName: String, searchingSubfolders: Bool = false
+    ) -> URL? {
         let fm = FileManager.default
         let dirBase = dir.resolvingSymlinksInPath().standardizedFileURL.path
-        guard let entries = try? fm.contentsOfDirectory(
-            at: dir,
-            includingPropertiesForKeys: [.isDirectoryKey, .isRegularFileKey, .isSymbolicLinkKey],
-            options: [.skipsHiddenFiles]
-        ) else { return nil }
-        let valid = entries.sorted { $0.lastPathComponent < $1.lastPathComponent }
+        func listing(_ folder: URL) -> [URL]? {
+            try? fm.contentsOfDirectory(
+                at: folder,
+                includingPropertiesForKeys: [.isDirectoryKey, .isRegularFileKey, .isSymbolicLinkKey],
+                options: [.skipsHiddenFiles])
+        }
+        guard let entries = listing(dir) else { return nil }
+        var valid = entries.sorted { $0.lastPathComponent < $1.lastPathComponent }
             .filter { Self.isPackageEntry($0, insideResolvedPath: dirBase) }
+        if valid.isEmpty, searchingSubfolders {
+            // `resourceValues` does not follow a link, so a linked folder is not
+            // a directory here and is not entered (listing one fails too:
+            // `contentsOfDirectory` answers ENOTDIR for a link, measured on macOS 27).
+            let subfolders = entries.filter { entry in
+                (try? entry.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true
+                    && !["pkg", "mpkg", "app"].contains(entry.pathExtension.lowercased())
+            }
+            valid = subfolders.flatMap { listing($0) ?? [] }
+                .filter { Self.isPackageEntry($0, insideResolvedPath: dirBase) }
+                .sorted { $0.path < $1.path }
+        }
         guard valid.count > 1 else { return valid.first }
 
         func normalized(_ value: String) -> String {

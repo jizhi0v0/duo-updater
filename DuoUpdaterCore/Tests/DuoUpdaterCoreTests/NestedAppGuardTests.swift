@@ -354,17 +354,17 @@ import Testing
     @Test func theMessageNamesVMPalVMsAndSaysToCloseTheirWindows() {
         let one = NestedAppRunningError(
             appName: "VMPal", blockers: [.init(name: "VMPalMachine", pid: 1, vmName: "macOS VM 1")])
-        #expect(one.errorDescription == "A VM is running in VMPal (“macOS VM 1”). Shut it down and close its window, then update again. VMPal was not updated.")
+        #expect(one.errorDescription == "“macOS VM 1” is open in VMPal. Shut it down and close its window, then update again. VMPal was not updated.")
         let two = NestedAppRunningError(appName: "VMPal", blockers: [
             .init(name: "VMPalMachine", pid: 1, vmName: "Win"),
             .init(name: "VMPalMachine", pid: 2, vmName: "Linux"),
         ])
-        #expect(two.errorDescription == "VMs are running in VMPal (“Linux”, “Win”). Shut them down and close their windows, then update again. VMPal was not updated.")
+        #expect(two.errorDescription == "“Linux”, “Win” are open in VMPal. Shut them down and close their windows, then update again. VMPal was not updated.")
         let mixed = NestedAppRunningError(appName: "VMPal", blockers: [
             .init(name: "VMPalMachine", pid: 1, vmName: "macOS VM 1"),
             .init(name: "VMPalDock", pid: 2),
         ])
-        #expect(mixed.errorDescription == "A VM is running in VMPal (“macOS VM 1”). Shut it down and close its window, then update again. VMPalDock is running from inside VMPal and would keep running the old version. Quit it, then update again. VMPal was not updated.")
+        #expect(mixed.errorDescription == "“macOS VM 1” is open in VMPal. Shut it down and close its window, then update again. VMPalDock is running from inside VMPal and would keep running the old version. Quit it, then update again. VMPal was not updated.")
     }
 
     // MARK: - The hosts' preflight

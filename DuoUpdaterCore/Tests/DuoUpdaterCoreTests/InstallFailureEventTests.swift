@@ -144,6 +144,16 @@ struct InstallFailureReportSendingTests {
             "The helper isn’t allowed to run. " + MASInstaller.MASError.helperApprovalHint))
         #expect(InstallFailureReport.isUserFixable(
             "not enough disk space to extract the update — free up space and try again"))
+        // A nested app or VMPal VM still open: the user quits or closes it.
+        // Mutation: drop `NestedAppRunningError.userFixableFragments` → red.
+        for blockers: [NestedAppGuard.Blocker] in [
+            [.init(name: "ZZFixtureMachine", pid: 1)],
+            [.init(name: "VMPalMachine", pid: 1, vmName: "macOS VM 1")],
+            [.init(name: "VMPalMachine", pid: 1, vmName: "A"), .init(name: "VMPalMachine", pid: 2, vmName: "B")],
+        ] {
+            #expect(InstallFailureReport.isUserFixable(
+                NestedAppRunningError(appName: "ZZFixtureVM", blockers: blockers).errorDescription!))
+        }
         #expect(!InstallFailureReport.isUserFixable("The download failed."))
         #expect(!InstallFailureReport.isUserFixable("Couldn’t verify the signature."))
     }

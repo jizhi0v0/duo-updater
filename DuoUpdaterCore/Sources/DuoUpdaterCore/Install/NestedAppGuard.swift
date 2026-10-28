@@ -411,22 +411,33 @@ public struct NestedAppRunningError: LocalizedError, Equatable, Sendable {
     public let appName: String
     public let blockers: [NestedAppGuard.Blocker]
 
+    static let keepsOldVersion = "would keep running the old version"
+    static let closeOneVM = "close its window, then update again."
+    static let closeVMs = "close their windows, then update again."
+
+    /// Something in every message: the user ends the refusal by quitting the
+    /// app or closing the VM, so `InstallFailureReport.isUserFixable` offers no
+    /// report for it.
+    static let userFixableFragments = [keepsOldVersion, closeOneVM, closeVMs]
+
     public var errorDescription: String? {
         var sentences: [String] = []
         // A VMPal VM shut down from inside keeps its process until its window is
         // closed, so "Quit it" would leave the update refused.
+        // "Open", not "running": a VM shut down with its window still open
+        // blocks too.
         let vms = Array(Set(blockers.compactMap(\.vmName))).sorted()
         if !vms.isEmpty {
             let list = vms.map { "“\($0)”" }.joined(separator: ", ")
             sentences.append(vms.count == 1
-                ? "A VM is running in \(appName) (\(list)). Shut it down and close its window, then update again."
-                : "VMs are running in \(appName) (\(list)). Shut them down and close their windows, then update again.")
+                ? "\(list) is open in \(appName). Shut it down and \(Self.closeOneVM)"
+                : "\(list) are open in \(appName). Shut them down and \(Self.closeVMs)")
         }
         let names = Array(Set(blockers.filter { $0.vmName == nil }.map(\.name))).sorted()
         if !names.isEmpty {
             let list = names.joined(separator: ", ")
             let verb = names.count == 1 ? "is" : "are"
-            sentences.append("\(list) \(verb) running from inside \(appName) and would keep running the old version. Quit \(names.count == 1 ? "it" : "them"), then update again.")
+            sentences.append("\(list) \(verb) running from inside \(appName) and \(Self.keepsOldVersion). Quit \(names.count == 1 ? "it" : "them"), then update again.")
         }
         sentences.append("\(appName) was not updated.")
         return sentences.joined(separator: " ")

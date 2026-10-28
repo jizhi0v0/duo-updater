@@ -133,7 +133,8 @@ public enum InstallFailureReport {
     }
 
     /// True for an error the user can fix on their own Mac — no disk space,
-    /// Accessibility not granted, the App Store helper's hints — where a report
+    /// Accessibility not granted, the App Store helper's hints, a nested app or
+    /// VMPal VM still open — where a report
     /// would only tell the developer what the row already told the user.
     /// Matches the English text Core produces; the app's own translated copies
     /// of these are its to recognise.
@@ -144,7 +145,7 @@ public enum InstallFailureReport {
             MASInstaller.MASError.appStoreUpdatesHint,
             MASInstaller.MASError.helperApprovalHint,
             MASInstaller.MASError.helperRestartHint,
-        ]
+        ] + NestedAppRunningError.userFixableFragments
         return fragments.contains { !$0.isEmpty && message.localizedCaseInsensitiveContains($0) }
     }
 

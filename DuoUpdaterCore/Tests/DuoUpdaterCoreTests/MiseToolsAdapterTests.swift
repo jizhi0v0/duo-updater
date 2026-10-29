@@ -36,6 +36,8 @@ struct MiseToolsAdapterTests {
         private var _runs: [(arguments: [String], environment: [String: String])] = []
         private var _versionReads = 0
         var install: MiseInstall? = MiseInstall(path: MiseToolsAdapterTests.mise, version: nil)
+        var homebrew: ManagedRoot.Binary?
+        var executable = MiseToolsAdapterTests.mise
         var binaryVersion: String? = "2026.10.7"
         var processes: [NpmActivity.Process] = []
         var files: [String: Data] = [
@@ -80,12 +82,13 @@ struct MiseToolsAdapterTests {
         var host: MiseToolsAdapter.Host {
             MiseToolsAdapter.Host(
                 binary: { self.install },
+                homebrewBinary: { self.homebrew },
                 version: { _ in self.lock.withLock { self._versionReads += 1 }; return self.binaryVersion },
                 contents: { self.files[$0] },
                 directories: { self.directories[$0] },
                 modified: { _ in Date(timeIntervalSince1970: 1_792_750_000) },
                 run: { executable, arguments, environment in
-                    #expect(executable == MiseToolsAdapterTests.mise)
+                    #expect(executable == self.executable)
                     return self.lock.withLock {
                         self._runs.append((arguments, environment))
                         return self._responses[arguments.joined(separator: " ")]
@@ -162,6 +165,28 @@ struct MiseToolsAdapterTests {
         // No installs directory: nothing to list.
         host.directories[Self.installs] = nil
         #expect(await Self.adapter(host).scan() == .empty)
+    }
+
+    /// Homebrew's mise runs the tools when there is no standalone mise, and the
+    /// child's `PATH` gets Homebrew's `bin` for the backends it starts.
+    /// Mutation: keep the binary from `MiseScanner` alone, or drop the keg's
+    /// directory from `PATH`.
+    @Test func aHomebrewMiseRunsTheToolsWhenNoStandaloneMiseExists() async throws {
+        let host = try Self.standard()
+        host.install = nil
+        host.homebrew = ManagedRoot.Binary(
+            path: "/opt/homebrew/bin/mise", version: "2026.10.23", trust: .homebrewKeg)
+        host.executable = "/opt/homebrew/bin/mise"
+        let scan = await Self.adapter(host).scan()
+        #expect(scan.roots.first?.binary?.trust == .homebrewKeg)
+        let report = await Self.provider(host).check()
+        let node = try #require(Self.status(report, "node@20"))
+        #expect(node.state == .updateAvailable)
+        #expect(node.oneClick == CLIToolCommand(
+            executable: "/opt/homebrew/bin/mise", arguments: ["upgrade", "-y", "node"],
+            pathPrefix: Self.data + "/shims:/ZZFixture-home/.local/bin:/opt/homebrew/bin"))
+        #expect(host.runs.first?.environment["PATH"] == Self.data + "/shims:/ZZFixture-home/.local/bin:/opt/homebrew/bin:"
+            + CLIToolCommandRunner.systemPath)
     }
 
     /// The same, read from the source: `scan()` names no spawn at all (design

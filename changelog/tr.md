@@ -10,7 +10,7 @@ Bu, `CHANGELOG.md` dosyasının Türkçe çevirisidir. Geçerli olan İngilizce 
 
 **Bir aracın güncellemesini çalışırken durdurabilirsiniz.** “Vazgeç”, komutu terminaldeki Ctrl-C gibi durdurur ve değiştirdiklerini geri koyar.
 
-**Ağ otomatik denetimleri duraklattığında DuoUpdater bunu söylüyor.** Kişisel Erişim Noktası’nda, Düşük Veri Modu’nda veya çevrimdışıyken “Yenile”nin yanındaki turuncu bir işaret nedenini söylüyor ve çevrimdışı değilseniz “Şimdi Denetle” sunuyor; açılıştan sonra duraklatılan ilk denetim bir bildirim gönderiyor. Önceden “… önce denetlendi” süresi yalnızca uzayıp gidiyordu.
+**Ağ otomatik denetimleri duraklattığında DuoUpdater bunu söylüyor.** Kişisel Erişim Noktası’nda, Düşük Veri Modu’nda veya çevrimdışıyken “Yenile”nin yanındaki turuncu bir işaret nedenini söylüyor. Çevrimdışı değilseniz “Şimdi Denetle” de sunuyor ve açılıştan sonra duraklatılan ilk denetim bir bildirim gönderiyor. Önceden “… önce denetlendi” süresi yalnızca uzayıp gidiyordu.
 
 **İçindeki bir yardımcı çalışırken, örneğin bir VMPal sanal makinesi, uygulama yeniden değiştirilmiyor.** 0.5.15, çalışan bir sanal makinenin altında VMPal’ı güncelleyebiliyordu; DuoUpdater artık değiştirmeden hemen önce bir kez daha denetliyor, Homebrew kurulumları da dahil.
 

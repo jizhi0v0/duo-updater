@@ -10,7 +10,7 @@ Questa è la traduzione di `CHANGELOG.md`. In caso di differenze fa fede la vers
 
 **Puoi fermare l’aggiornamento di uno strumento mentre è in corso.** «Annulla» ferma il comando come farebbe Ctrl-C in un terminale e rimette a posto ciò che aveva cambiato.
 
-**DuoUpdater dice quando la rete ha messo in pausa i controlli automatici.** Con un hotspot personale, in modalità dati ridotti o offline, un segno arancione accanto ad «Aggiorna» spiega il motivo e, se non sei offline, offre «Controlla ora», e il primo controllo in pausa dopo l’avvio invia una notifica. Prima il tempo «controllato … fa» continuava solo a crescere.
+**DuoUpdater dice quando la rete ha messo in pausa i controlli automatici.** Con un hotspot personale, in modalità dati ridotti o offline, un segno arancione accanto ad «Aggiorna» spiega il motivo. Se non sei offline, offre anche «Controlla ora», e il primo controllo in pausa dopo l’avvio invia una notifica. Prima il tempo «controllato … fa» continuava solo a crescere.
 
 **Un’app torna a non essere sostituita mentre un helper al suo interno è in esecuzione, come una macchina virtuale di VMPal.** La 0.5.15 poteva aggiornare VMPal con una VM in funzione; ora DuoUpdater controlla ancora una volta subito prima dello scambio, anche per le installazioni Homebrew.
 

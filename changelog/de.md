@@ -10,7 +10,7 @@ Dies ist eine deutsche Übersetzung von `CHANGELOG.md`. Die englische Fassung is
 
 **Das Update eines Tools lässt sich während der Ausführung stoppen.** „Abbrechen“ stoppt den Befehl wie Ctrl-C im Terminal und stellt wieder her, was er geändert hatte.
 
-**DuoUpdater sagt, wenn das Netzwerk die automatischen Prüfungen pausiert hat.** Im persönlichen Hotspot, im Modus für geringen Datenverbrauch oder offline erklärt eine orange Markierung neben „Aktualisieren“ den Grund und bietet, außer offline, „Jetzt prüfen“ an; die erste pausierte Prüfung nach dem Start sendet eine Mitteilung. Vorher wurde die Zeit „geprüft vor …“ einfach immer länger.
+**DuoUpdater sagt, wenn das Netzwerk die automatischen Prüfungen pausiert hat.** Im persönlichen Hotspot, im Modus für geringen Datenverbrauch oder offline erklärt eine orange Markierung neben „Aktualisieren“ den Grund. Außer offline bietet sie auch „Jetzt prüfen“ an, und die erste pausierte Prüfung nach dem Start sendet eine Mitteilung. Vorher wurde die Zeit „geprüft vor …“ einfach immer länger.
 
 **Eine App wird wieder nicht ersetzt, solange ein Hilfsprogramm darin läuft, etwa eine virtuelle Maschine von VMPal.** 0.5.15 konnte VMPal unter einer laufenden VM aktualisieren; DuoUpdater prüft jetzt direkt vor dem Austausch noch einmal, auch bei Homebrew-Installationen.
 

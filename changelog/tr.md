@@ -2,6 +2,28 @@
 
 Bu, `CHANGELOG.md` dosyasının Türkçe çevirisidir. Geçerli olan İngilizce sürümdür; burada yer almayan eski sürümler otomatik olarak İngilizce gösterilir.
 
+## 0.5.16
+
+**26 uygulama daha destekleniyor.** AFFiNE, AltTab, AppFlowy, DHS, Equinox, Ferdium, FlowVision, Heynote, Joplin, Kap, KeeWeb, KextViewr, Lunatask, Mailspring, Mockoon, Museeks, Porting Kit, Rambox, Rclone UI, Responsively App, SensibleSideButtons, Standard Notes, Tad, Textream, TimeScribe ve Witsy güncelleme denetimi ve tek tıkla güncelleme alıyor. AFFiNE’ın beta ve canary sürümleri her biri kendi yolunda izleniyor. Bir AFFiNE önizlemesine veya Rclone UI 1.x kopyasına güncel uygulama öneriliyor, ancak önce soruluyor; çünkü yeni uygulama eskisinin verilerini taşımıyor.
+
+**Daha fazla komut satırı aracı destekleniyor.** uv veya pipx ile kurulan araçlar, uv veya pyenv’in Python’u, nvm veya fnm’in Node’u, rbenv’in Ruby’si ile cargo install ve go install paketleri artık CLI sekmesinde, menü çubuğundaki “Diğer araçlar” altında ve `duo` içinde güncelleme denetimi alıyor. Her biri kendi yöneticisinin komutuyla güncelleniyor; DuoUpdater yöneticiye kefil olamadığında kopyalamanız için komutu veriyor.
+
+**Bir aracın güncellemesini çalışırken durdurabilirsiniz.** “Vazgeç”, komutu terminaldeki Ctrl-C gibi durdurur ve değiştirdiklerini geri koyar.
+
+**Ağ otomatik denetimleri duraklattığında DuoUpdater bunu söylüyor.** Kişisel Erişim Noktası’nda, Düşük Veri Modu’nda veya çevrimdışıyken “Yenile”nin yanındaki turuncu bir işaret nedenini söylüyor ve “Şimdi Denetle” sunuyor; açılıştan sonra duraklatılan ilk denetim bir bildirim gönderiyor. Önceden “… önce denetlendi” süresi yalnızca uzayıp gidiyordu.
+
+**İçindeki bir yardımcı çalışırken, örneğin bir VMPal sanal makinesi, uygulama yeniden değiştirilmiyor.** 0.5.15, çalışan bir sanal makinenin altında VMPal’ı güncelleyebiliyordu; DuoUpdater artık değiştirmeden hemen önce bir kez daha denetliyor, Homebrew kurulumları da dahil.
+
+**NordVPN güncellemeleri kendi yükleyicisini açıyor.** Önceden indirmede yükleme paketi olmadığını söyleyerek başarısız oluyorlardı.
+
+**`duo install`, uygulamanın yaptığı gibi, sağlayıcının yeniden yazdığı bir sürümden veya yeni lisans gerektirebilecek bir ana sürüm yükseltmesinden önce soruyor.** `--all` ve `--yes` bu güncellemeleri atlıyor ve birini bilerek nasıl kuracağınızı söylüyor.
+
+**Bir uygulama yeniden başlatma için kapanmadığında, DuoUpdater bir penceresinin açık olup olmadığını söylüyor.** Açık değilse uygulama menü çubuğunda kalıyor olabilir; onu kendi menüsünden kapatın. Önceden hep bir kaydetme uyarısını işaret ediyordu.
+
+**Düzeltmeler.** Claude Code veya başka bir komut satırı aracı kendini güncellediğinde, satırı pencereyi bir sonraki açışınızı beklemeden yeni sürümü hemen gösteriyor. Doubao Input Method güncellemeleri yeniden bulunuyor. Homebrew’un go’su ve go install araçları resmî Go logosunu gösteriyor.
+
+**Perde arkasında.** Sparkle 2.10.1. TestFlight verileri okunurken meşgul bir veritabanı boş sayılmak yerine bekleniyor.
+
 ## 0.5.15
 
 **Güncelleme satırı çalışan sürümü gösteriyor.** Bir uygulama diske henüz yeniden başlatmadığınız daha yeni bir kopya koyduğunda satır o kopyayla başlıyordu; artık çalışanla başlıyor ve imleçle üzerine gelince hangi sürümün kurulu olduğu yazıyor.

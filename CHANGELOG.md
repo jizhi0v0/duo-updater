@@ -19,6 +19,28 @@ release note is debugging our code:
 
 Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
+## 0.5.16
+
+**Twenty-six more apps are supported.** AFFiNE, AltTab, AppFlowy, DHS, Equinox, Ferdium, FlowVision, Heynote, Joplin, Kap, KeeWeb, KextViewr, Lunatask, Mailspring, Mockoon, Museeks, Porting Kit, Rambox, Rclone UI, Responsively App, SensibleSideButtons, Standard Notes, Tad, Textream, TimeScribe and Witsy get update checks and one-click updates. AFFiNE's beta and canary are followed on their own tracks. An AFFiNE preview or a Rclone UI 1.x copy is offered the current app but asks first, since the new app does not carry the old one's data over.
+
+**More command-line tools are supported.** Tools installed with uv or pipx, Python from uv or pyenv, Node from nvm or fnm, Ruby from rbenv, and packages from cargo install and go install now get update checks in the CLI tab, under Other tools in the menu bar and in `duo`. Each is updated with its own manager's command; where DuoUpdater can't vouch for the manager, it gives you the command to copy.
+
+**You can stop a tool's update while it runs.** Cancel stops the command the way Ctrl-C in a terminal would, and puts back what it had changed.
+
+**DuoUpdater says when the network has paused automatic checks.** On a Personal Hotspot, in Low Data Mode or offline, an orange mark beside Refresh says why and offers Check Now, and the first paused check after launch posts a notification. Before, the "checked … ago" time just kept growing.
+
+**An app is again not replaced while a helper inside it is running, such as a VMPal virtual machine.** 0.5.15 could update VMPal under a running VM; DuoUpdater now checks once more right before the swap, Homebrew installs included.
+
+**NordVPN updates open its installer.** They used to fail, saying the download did not contain an installer package.
+
+**`duo install` asks before a vendor's rewrite or a major upgrade that may need a new license, as the app does.** `--all` and `--yes` skip those updates and say how to install one on purpose.
+
+**When an app won't quit for a restart, DuoUpdater says whether a window of it is up.** If none is, the app may be staying in the menu bar; quit it from its menu. Before, it always pointed at a save prompt.
+
+**Fixes.** When Claude Code or another CLI tool updates itself, its row shows the new version right away instead of after you next open the window. Doubao Input Method updates are found again. Homebrew's go and go install tools show the official Go logo.
+
+**Under the hood.** Sparkle 2.10.1. Reading TestFlight's data waits out a busy database instead of reading it as empty.
+
 ## 0.5.15
 
 **The update line names the version that is running.** When an app has put a newer copy on disk that you have not relaunched yet, the line used to start from that copy; it now starts from the one that is running, and the hover says which version is installed.

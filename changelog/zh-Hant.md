@@ -2,6 +2,28 @@
 
 本文件是 CHANGELOG.md 的繁體中文翻譯，以英文版為準。本文件中未列出的版本會自動改以英文顯示。
 
+## 0.5.16
+
+**新支援 26 個 App。** AFFiNE, AltTab, AppFlowy, DHS, Equinox, Ferdium, FlowVision, Heynote, Joplin, Kap, KeeWeb, KextViewr, Lunatask, Mailspring, Mockoon, Museeks, Porting Kit, Rambox, Rclone UI, Responsively App, SensibleSideButtons, Standard Notes, Tad, Textream, TimeScribe、Witsy 現在都能檢查更新和一鍵更新。AFFiNE 的 beta 和 canary 版各走各的更新軌道。AFFiNE 預覽版或 Rclone UI 1.x 會收到目前版本的推薦，但會先問你，因為新 App 不會帶走舊 App 的資料。
+
+**支援更多命令列工具。** 用 uv 或 pipx 安裝的工具、uv 或 pyenv 的 Python、nvm 或 fnm 的 Node、rbenv 的 Ruby，以及 cargo install 和 go install 裝的套件，現在都能在 CLI 分頁、選單列的「其他工具」和 `duo` 裡檢查更新。每個都用它自己的管理器指令來更新；DuoUpdater 無法為管理器擔保時，會給出指令讓你拷貝。
+
+**工具更新進行中也可以停下。** 「取消」會像在終端機裡按 Ctrl-C 那樣停止指令，並把它已經改動的東西放回原樣。
+
+**網路讓自動檢查暫停時，DuoUpdater 會告訴你。** 在個人熱點上、低數據模式下或離線時，「重新整理」旁邊會出現一個橘色標記，說明原因並提供「立即檢查」；啟動後第一次被暫停的檢查還會發一則通知。以前「… 前檢查過」的時間只會一直變長。
+
+**App 裡的輔助程式還在執行時（例如 VMPal 虛擬機），DuoUpdater 又會拒絕替換這個 App 了。** 0.5.15 可能在虛擬機執行時更新 VMPal；現在替換前的最後一刻會再檢查一次，Homebrew 安裝也一樣。
+
+**NordVPN 的更新會打開它的安裝程式。** 以前會失敗，說下載裡沒有安裝套件。
+
+**`duo install` 遇到廠商重寫版、或可能需要新授權的大版本時會先問你，和 App 一樣。** `--all` 和 `--yes` 會跳過這些更新，並說明怎樣專門安裝其中一個。
+
+**App 重新啟動時不肯結束，DuoUpdater 會說明它有沒有視窗開著。** 沒有視窗的話，它可能留在選單列裡；請從它的選單結束。以前總是說可能有儲存提示。
+
+**修正。** Claude Code 或其他命令列工具自己更新後，那一行馬上顯示新版本，不必等你下次打開視窗。豆包輸入法的更新又能找到了。Homebrew 的 go 和 go install 裝的工具顯示官方 Go 標誌。
+
+**底層改進。** Sparkle 升到 2.10.1。讀取 TestFlight 資料時，資料庫忙碌會等一等，而不是當成空的。
+
 ## 0.5.15
 
 **更新列會顯示正在執行的版本。** App 已經把較新的副本放到磁碟上、但你還沒重新啟動它時，這一列以前從那個副本開始；現在從正在執行的那個開始，滑鼠懸停會說明裝著的是哪個版本。

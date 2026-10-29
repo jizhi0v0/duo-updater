@@ -2,6 +2,28 @@
 
 Ceci est la traduction de `CHANGELOG.md`. La version anglaise fait autorité. Les versions non énumérées ici reviennent automatiquement à l’anglais.
 
+## 0.5.16
+
+**26 apps de plus sont prises en charge.** AFFiNE, AltTab, AppFlowy, DHS, Equinox, Ferdium, FlowVision, Heynote, Joplin, Kap, KeeWeb, KextViewr, Lunatask, Mailspring, Mockoon, Museeks, Porting Kit, Rambox, Rclone UI, Responsively App, SensibleSideButtons, Standard Notes, Tad, Textream, TimeScribe et Witsy bénéficient de la vérification des mises à jour et de la mise à jour en un clic. La beta et la canary d’AFFiNE sont suivies chacune sur sa propre voie. Une préversion d’AFFiNE ou une copie de Rclone UI 1.x se voit proposer l’app actuelle, mais demande d’abord, car la nouvelle app ne reprend pas les données de l’ancienne.
+
+**Davantage d’outils en ligne de commande sont pris en charge.** Les outils installés avec uv ou pipx, Python via uv ou pyenv, Node via nvm ou fnm, Ruby via rbenv, et les paquets de cargo install et go install sont désormais vérifiés dans l’onglet CLI, sous « Autres outils » dans la barre des menus et dans `duo`. Chacun est mis à jour avec la commande de son propre gestionnaire ; quand DuoUpdater ne peut pas se porter garant du gestionnaire, il vous donne la commande à copier.
+
+**Vous pouvez arrêter la mise à jour d’un outil en cours.** « Annuler » arrête la commande comme le ferait Ctrl-C dans un terminal, et remet en place ce qu’elle avait modifié.
+
+**DuoUpdater indique quand le réseau a mis en pause les vérifications automatiques.** En partage de connexion, en mode données réduites ou hors ligne, une marque orange à côté de « Actualiser » en donne la raison et propose « Vérifier maintenant », et la première vérification mise en pause après le lancement envoie une notification. Avant, le temps « vérifié il y a … » ne faisait que s’allonger.
+
+**Une app n’est de nouveau plus remplacée pendant qu’un assistant qu’elle contient tourne, comme une machine virtuelle VMPal.** 0.5.15 pouvait mettre à jour VMPal sous une VM en marche ; DuoUpdater vérifie maintenant une dernière fois juste avant l’échange, installations Homebrew comprises.
+
+**Les mises à jour de NordVPN ouvrent son programme d’installation.** Elles échouaient en indiquant que le téléchargement ne contenait aucun paquet d’installation.
+
+**`duo install` demande avant une réécriture de l’éditeur ou une mise à niveau majeure qui peut exiger une nouvelle licence, comme l’app.** `--all` et `--yes` ignorent ces mises à jour et indiquent comment en installer une volontairement.
+
+**Quand une app refuse de quitter pour redémarrer, DuoUpdater indique si l’une de ses fenêtres est ouverte.** Si aucune ne l’est, l’app reste peut-être dans la barre des menus ; quittez-la depuis son menu. Avant, il évoquait toujours une demande d’enregistrement.
+
+**Corrections.** Quand Claude Code ou un autre outil en ligne de commande se met à jour tout seul, sa ligne affiche aussitôt la nouvelle version au lieu d’attendre la prochaine ouverture de la fenêtre. Les mises à jour de Doubao Input Method sont de nouveau trouvées. Le go de Homebrew et les outils go install affichent le logo officiel de Go.
+
+**Sous le capot.** Sparkle 2.10.1. En lisant les données de TestFlight, DuoUpdater attend qu’une base de données occupée se libère au lieu de la lire comme vide.
+
 ## 0.5.15
 
 **La ligne de mise à jour indique la version en cours d’exécution.** Quand une app a déjà déposé sur le disque une copie plus récente que vous n’avez pas encore relancée, la ligne partait de cette copie ; elle part maintenant de celle qui tourne, et l’info-bulle indique quelle version est installée.

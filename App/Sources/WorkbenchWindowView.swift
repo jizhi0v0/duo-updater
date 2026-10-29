@@ -1038,10 +1038,12 @@ struct WorkbenchWindowView: View {
     }
 
     /// The same row under a manager's level: its items' counts, and on the
-    /// right what its group header said — "mise 2026.10.15 · ~/.local/share/mise",
-    /// which tells two roots of one manager apart.
+    /// right what its group header said — "mise 2026.10.15", with the root after
+    /// it when the manager has more than one, which tells two roots of one
+    /// manager apart.
     private func managerLevelSummary(_ level: CLIToolPresentation.Group, _ lists: SidebarLists) -> some View {
         toolsSummary(scope: scope(of: level), trailing: cliToolHeaderSummary(level),
+                     info: managedHeaderInfo(level),
                      toggleDisabled: managerLevelSearchHits(level, lists)) {
             toggleManagerLevel(level, lists)
         }
@@ -1049,7 +1051,8 @@ struct WorkbenchWindowView: View {
 
     /// A level's counts over the copies `scope` names.
     private func toolsSummary(
-        scope: Set<CLIToolID>, trailing: String?, toggleDisabled: Bool, toggle: @escaping () -> Void
+        scope: Set<CLIToolID>, trailing: String?, info: ManagedHeaderInfo? = nil, toggleDisabled: Bool,
+        toggle: @escaping () -> Void
     ) -> some View {
         let tools = model.cliTools
         let inScope = { (status: CLIToolStatus) in scope.contains(status.toolID) }
@@ -1059,58 +1062,135 @@ struct WorkbenchWindowView: View {
         let held = tools.heldBack.filter(inScope)
         let unchecked = tools.unchecked.filter(inScope).count
         let sudoCount = tools.adminOffered.filter(inScope).count
-        return Button { inOneFrame(toggle) } label: {
-            HStack(spacing: 8) {
-                if updates > 0 {
-                    Text(String(localized: "\(updates) updates")).foregroundStyle(.tint).lineLimit(1)
-                } else if held.isEmpty && unchecked == 0 {
-                    // Not while a copy went unanswered: that would be a claim
-                    // about it too (`CLIToolsModel.unchecked`).
-                    Text(String(localized: "Up to date")).foregroundStyle(.secondary).lineLimit(1)
-                }
-                if let sudo = CLIToolPresentation.needSudo(sudoCount) {
-                    Text(sudo)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .help(CLIToolPresentation.sudoBadgeHelp)
-                }
-                if !held.isEmpty {
-                    // Why each was held back, on hover: "openclaw 2026.9.8 needs …".
-                    Text(String(localized: "\(held.count) held back"))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .help(held.compactMap { status in
-                            status.withheld.map { CLIToolsModel.reason($0, of: status) }
-                        }.joined(separator: "\n"))
-                }
-                if unchecked > 0 {
-                    let help = String(localized: "\(unchecked) not checked")
-                    Label {
-                        Text(verbatim: "\(unchecked)")
-                    } icon: {
-                        Image(systemName: "questionmark.circle")
+        return HStack(spacing: 8) {
+            Button { inOneFrame(toggle) } label: {
+                HStack(spacing: 8) {
+                    if updates > 0 {
+                        Text(String(localized: "\(updates) updates")).foregroundStyle(.tint).lineLimit(1)
+                    } else if held.isEmpty && unchecked == 0 {
+                        // Not while a copy went unanswered: that would be a claim
+                        // about it too (`CLIToolsModel.unchecked`).
+                        Text(String(localized: "Up to date")).foregroundStyle(.secondary).lineLimit(1)
                     }
-                    .labelStyle(.titleAndIcon)
-                    .foregroundStyle(.orange)
-                    .help(help)
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel(help)
-                    .fixedSize()
+                    if let sudo = CLIToolPresentation.needSudo(sudoCount) {
+                        Text(sudo)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .help(CLIToolPresentation.sudoBadgeHelp)
+                    }
+                    if !held.isEmpty {
+                        // Why each was held back, on hover: "openclaw 2026.9.8 needs …".
+                        Text(String(localized: "\(held.count) held back"))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .help(held.compactMap { status in
+                                status.withheld.map { CLIToolsModel.reason($0, of: status) }
+                            }.joined(separator: "\n"))
+                    }
+                    if unchecked > 0 {
+                        let help = String(localized: "\(unchecked) not checked")
+                        Label {
+                            Text(verbatim: "\(unchecked)")
+                        } icon: {
+                            Image(systemName: "questionmark.circle")
+                        }
+                        .labelStyle(.titleAndIcon)
+                        .foregroundStyle(.orange)
+                        .help(help)
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel(help)
+                        .fixedSize()
+                    }
+                    Spacer(minLength: 0)
+                    if let trailing {
+                        Text(verbatim: trailing)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
+                            .help(trailing)
+                    }
                 }
-                Spacer(minLength: 0)
-                if let trailing {
-                    Text(verbatim: trailing)
-                        .foregroundStyle(.secondary)
+                .font(.caption)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .disabled(toggleDisabled)
+            if let info {
+                ManagedPathsInfoButton(info: info)
+            }
+        }
+    }
+
+    /// The managed group's info affordance: hover shows the abbreviated paths,
+    /// and a click opens the full paths with a copy button for each. It is
+    /// deliberately outside the summary's toggle Button — inside it, a click
+    /// folded the group instead of showing anything.
+    private struct ManagedHeaderInfo {
+        let tooltip: String
+        let paths: [ManagerContext.Paths]
+    }
+
+    private struct ManagedPathsInfoButton: View {
+        let info: ManagedHeaderInfo
+        @State private var showing = false
+
+        var body: some View {
+            Button { showing.toggle() } label: {
+                Image(systemName: "info.circle")
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+            .font(.caption)
+            .help(info.tooltip)
+            .accessibilityLabel(Text(verbatim: "Manager paths"))
+            .popover(isPresented: $showing, arrowEdge: .bottom) {
+                VStack(alignment: .leading, spacing: 10) {
+                    ForEach(Array(info.paths.enumerated()), id: \.offset) { index, paths in
+                        if index > 0 { Divider() }
+                        if let binary = paths.binary {
+                            ManagedPathRow(label: "Binary", path: binary)
+                        }
+                        ManagedPathRow(label: "Data", path: paths.data)
+                    }
+                }
+                .padding(12)
+                .frame(maxWidth: 560, alignment: .leading)
+            }
+        }
+    }
+
+    /// One path in the info popover: selectable text, and a button right after
+    /// it that puts the full path on the pasteboard. The button follows the
+    /// path instead of being pushed to the popover's edge: a short `.nvm` path
+    /// would otherwise leave a hand's width of empty space before it.
+    private struct ManagedPathRow: View {
+        let label: String
+        let path: String
+
+        var body: some View {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(verbatim: label)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text(verbatim: path)
+                        .font(.callout.monospaced())
+                        .textSelection(.enabled)
                         .lineLimit(1)
-                        .minimumScaleFactor(0.8)
-                        .help(trailing)
+                        .truncationMode(.middle)
+                    Button {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(path, forType: .string)
+                    } label: {
+                        Image(systemName: "doc.on.doc")
+                    }
+                    .buttonStyle(.borderless)
+                    .help(Text(verbatim: "Copy path"))
+                    .accessibilityLabel(Text(verbatim: "Copy path"))
                 }
             }
-            .font(.caption)
-            .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
-        .disabled(toggleDisabled)
     }
 
     /// Update All for the tool groups: what the popover's "Other tools" Update
@@ -1222,12 +1302,21 @@ struct WorkbenchWindowView: View {
             Spacer()
             if let summary = cliToolHeaderSummary(group) {
                 // Several languages say "auto-update off" in twice the English width;
-                // shrunk a little, then cut, with the whole line on hover.
+                // shrunk a little, then cut in the middle, with the whole line on
+                // hover. Middle, not tail: a managed group's root comes last, and
+                // that is the part telling two roots of one manager apart.
                 Text(verbatim: summary)
                     .fontWeight(.regular)
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
+                    .truncationMode(.middle)
                     .help(summary)
+            }
+            // Where the manager's binary and data root are: the header keeps
+            // the name, version and (for a multi-root manager) the root, and the
+            // full paths stay out of the way until asked for.
+            if let info = managedHeaderInfo(group) {
+                ManagedPathsInfoButton(info: info)
             }
             // The node an npm prefix runs has notices: one mark for the node,
             // on its group, not one on each package it runs. A click says them.
@@ -1272,12 +1361,31 @@ struct WorkbenchWindowView: View {
             return CLIToolPresentation.headerSummary(
                 kind, statuses: model.cliTools.statuses, context: model.cliTools.contexts[kind])
         case .managed:
-            // The manager's binary and this group's root: "mise 2026.10.7 ·
-            // ~/.local/share/mise" (`ManagerContext.headerSummary`).
+            // "uv 0.13.4", or "fnm 1.39.0 · ~/.local/share/fnm" when the manager
+            // has more than one root (`ManagerContext.headerSummary`). The paths
+            // are behind the group's info icon.
             guard let manager = group.manager else { return nil }
             return model.cliTools.managedContexts[manager]?.headerSummary(
                 home: FileManager.default.homeDirectoryForCurrentUser.path, root: group.root)
         }
+    }
+
+    /// The info icon's data for a managed group: the abbreviated hover text and
+    /// the real paths to copy, when there is a binary to name. Nil for every
+    /// other kind and for a group whose manager was not found (its summary is
+    /// the root alone).
+    private func managedHeaderInfo(_ group: CLIToolPresentation.Group) -> ManagedHeaderInfo? {
+        guard group.kind == .managed, let manager = group.manager,
+              let context = model.cliTools.managedContexts[manager]
+        else { return nil }
+        let root = group.root.flatMap { path in context.roots.first { $0.path == path } }
+            ?? (group.root == nil ? context.roots.first : nil)
+        guard root?.binary != nil else { return nil }
+        let paths = context.headerPaths(root: group.root)
+        guard !paths.isEmpty, let tooltip = context.headerTooltip(
+            home: FileManager.default.homeDirectoryForCurrentUser.path, root: group.root)
+        else { return nil }
+        return ManagedHeaderInfo(tooltip: tooltip, paths: paths)
     }
 
     /// The Apps tab's list.

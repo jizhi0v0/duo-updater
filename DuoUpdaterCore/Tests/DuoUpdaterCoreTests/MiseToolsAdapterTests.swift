@@ -272,7 +272,9 @@ struct MiseToolsAdapterTests {
         }
         #expect(host.versionReads == 1)
         guard case .managed(let context) = report.context else { Issue.record("no managed context"); return }
-        #expect(context.headerSummary(home: "/ZZFixture-home") == "mise 2026.10.7 · ~/.local/share/mise")
+        #expect(context.headerSummary(home: "/ZZFixture-home") == "mise 2026.10.7")
+        #expect(context.headerTooltip(home: "/ZZFixture-home")
+            == "Binary: ~/.local/bin/mise\nData: ~/.local/share/mise")
         // The report's sightings are the scan's, so the next open's scan
         // agrees with it while the disk is unchanged.
         #expect(Set(report.sightings) == Set(await Self.adapter(host).scan().sightings()))

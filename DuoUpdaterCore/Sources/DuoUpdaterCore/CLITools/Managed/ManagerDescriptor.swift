@@ -94,19 +94,80 @@ public struct ManagerContext: Sendable, Equatable {
         self.roots = roots
     }
 
-    /// "mise 2026.10.7 · ~/.local/share/mise": the binary's version and the
-    /// root, `home` written as `~` — the one at `root` when given (a group is
-    /// one root), else every root one after another. Tool names, versions and
-    /// paths: the same in every language.
+    /// "uv 0.13.4", or "fnm 1.39.0 · ~/.local/share/fnm" when the manager has
+    /// more than one root: the binary's name and version, `home` written as `~`.
+    ///
+    /// The binary's path and the data root are in ``headerTooltip(home:root:)``
+    /// instead. A path in the header buried the one thing the header is for —
+    /// which manager and version — and the rows below already name their own
+    /// install paths. The root stays on a multi-root manager's line (pipx, fnm,
+    /// nvm), because two groups of the same binary would otherwise read
+    /// identically and the root is what tells them apart. A group with no binary
+    /// has only its root to name.
     public func headerSummary(home: String, root: String? = nil) -> String? {
         let roots = root.map { path in self.roots.filter { $0.path == path } } ?? self.roots
-        let parts = roots.map { root -> String in
-            var line = ManagedItem.abbreviate(root.path, home: home)
-            if let binary = root.binary, let version = binary.version {
-                line = "\((binary.path as NSString).lastPathComponent) \(version) · " + line
+        let severalRoots = self.roots.count > 1
+        var seen: Set<String> = []
+        var parts: [String] = []
+        for root in roots {
+            let line: String
+            if let binary = root.binary {
+                var summary = binary.version.map {
+                    "\((binary.path as NSString).lastPathComponent) \($0)"
+                } ?? (binary.path as NSString).lastPathComponent
+                if severalRoots { summary += " · " + ManagedItem.abbreviate(root.path, home: home) }
+                line = summary
+            } else {
+                line = ManagedItem.abbreviate(root.path, home: home)
             }
-            return line
+            if seen.insert(line).inserted { parts.append(line) }
         }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
+    /// The hover text behind a managed group's info icon: the binary that runs
+    /// the group and the data root it reads, `home` written as `~` — the one at
+    /// `root` when given, else every root one after another.
+    public func headerTooltip(home: String, root: String? = nil) -> String? {
+        let roots = root.map { path in self.roots.filter { $0.path == path } } ?? self.roots
+        var seen: Set<String> = []
+        var parts: [String] = []
+        for root in roots {
+            var lines: [String] = []
+            if let binary = root.binary {
+                lines.append("Binary: " + ManagedItem.abbreviate(binary.path, home: home))
+            }
+            lines.append("Data: " + ManagedItem.abbreviate(root.path, home: home))
+            let text = lines.joined(separator: "\n")
+            if seen.insert(text).inserted { parts.append(text) }
+        }
+        return parts.isEmpty ? nil : parts.joined(separator: "\n\n")
+    }
+
+    /// One root's real paths, unabbreviated: what the info popover puts on the
+    /// pasteboard. The tooltip abbreviates `home`; a copied path must work as
+    /// typed, so this keeps it whole.
+    public struct Paths: Sendable, Equatable {
+        public let binary: String?
+        public let data: String
+
+        public init(binary: String?, data: String) {
+            self.binary = binary
+            self.data = data
+        }
+    }
+
+    /// The roots' real paths, the one at `root` when given, else every root one
+    /// after another; identical roots are listed once.
+    public func headerPaths(root: String? = nil) -> [Paths] {
+        let roots = root.map { path in self.roots.filter { $0.path == path } } ?? self.roots
+        var seen: Set<String> = []
+        var paths: [Paths] = []
+        for root in roots {
+            let key = (root.binary?.path ?? "") + "\u{0}" + root.path
+            guard seen.insert(key).inserted else { continue }
+            paths.append(Paths(binary: root.binary?.path, data: root.path))
+        }
+        return paths
     }
 }

@@ -10,7 +10,7 @@ Esta é a tradução para o português do Brasil do arquivo CHANGELOG.md. A vers
 
 **Você pode parar a atualização de uma ferramenta enquanto ela roda.** “Cancelar” para o comando como o Ctrl-C faria num terminal e devolve o que ele tinha mudado.
 
-**O DuoUpdater avisa quando a rede pausou as verificações automáticas.** Em um Hotspot Pessoal, no Modo Dados Reduzidos ou offline, uma marca laranja ao lado de “Atualizar” diz o motivo e oferece “Verificar Agora”, e a primeira verificação pausada após a abertura envia uma notificação. Antes, o tempo “verificado há …” só continuava crescendo.
+**O DuoUpdater avisa quando a rede pausou as verificações automáticas.** Em um Hotspot Pessoal, no Modo Dados Reduzidos ou offline, uma marca laranja ao lado de “Atualizar” diz o motivo e, a menos que você esteja offline, oferece “Verificar Agora”, e a primeira verificação pausada após a abertura envia uma notificação. Antes, o tempo “verificado há …” só continuava crescendo.
 
 **Um app volta a não ser substituído enquanto um auxiliar dentro dele está rodando, como uma máquina virtual do VMPal.** A 0.5.15 podia atualizar o VMPal com uma VM rodando; agora o DuoUpdater verifica mais uma vez logo antes da troca, inclusive nas instalações do Homebrew.
 

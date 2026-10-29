@@ -10,7 +10,7 @@ Esta es la traducción al español del archivo CHANGELOG.md. La versión en ingl
 
 **Puedes detener la actualización de una herramienta mientras se ejecuta.** «Cancelar» detiene el comando como lo haría Ctrl-C en un terminal y devuelve a su sitio lo que había cambiado.
 
-**DuoUpdater avisa cuando la red ha pausado las comprobaciones automáticas.** En un punto de acceso personal, en modo de datos reducidos o sin conexión, una marca naranja junto a «Actualizar» explica el motivo y ofrece «Comprobar ahora», y la primera comprobación pausada tras el inicio envía una notificación. Antes, el tiempo «comprobado hace …» simplemente seguía creciendo.
+**DuoUpdater avisa cuando la red ha pausado las comprobaciones automáticas.** En un punto de acceso personal, en modo de datos reducidos o sin conexión, una marca naranja junto a «Actualizar» explica el motivo y, salvo sin conexión, ofrece «Comprobar ahora», y la primera comprobación pausada tras el inicio envía una notificación. Antes, el tiempo «comprobado hace …» simplemente seguía creciendo.
 
 **Una app vuelve a no reemplazarse mientras se ejecuta un asistente que lleva dentro, como una máquina virtual de VMPal.** 0.5.15 podía actualizar VMPal con una máquina virtual en marcha; ahora DuoUpdater vuelve a comprobarlo justo antes del cambio, también en las instalaciones de Homebrew.
 

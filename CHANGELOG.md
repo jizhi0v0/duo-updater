@@ -27,7 +27,7 @@ Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
 **You can stop a tool's update while it runs.** Cancel stops the command the way Ctrl-C in a terminal would, and puts back what it had changed.
 
-**DuoUpdater says when the network has paused automatic checks.** On a Personal Hotspot, in Low Data Mode or offline, an orange mark beside Refresh says why and offers Check Now, and the first paused check after launch posts a notification. Before, the "checked … ago" time just kept growing.
+**DuoUpdater says when the network has paused automatic checks.** On a Personal Hotspot, in Low Data Mode or offline, an orange mark beside Refresh says why and, unless you're offline, offers Check Now, and the first paused check after launch posts a notification. Before, the "checked … ago" time just kept growing.
 
 **An app is again not replaced while a helper inside it is running, such as a VMPal virtual machine.** 0.5.15 could update VMPal under a running VM; DuoUpdater now checks once more right before the swap, Homebrew installs included.
 

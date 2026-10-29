@@ -10,7 +10,7 @@ Ceci est la traduction de `CHANGELOG.md`. La version anglaise fait autorité. Le
 
 **Vous pouvez arrêter la mise à jour d’un outil en cours.** « Annuler » arrête la commande comme le ferait Ctrl-C dans un terminal, et remet en place ce qu’elle avait modifié.
 
-**DuoUpdater indique quand le réseau a mis en pause les vérifications automatiques.** En partage de connexion, en mode données réduites ou hors ligne, une marque orange à côté de « Actualiser » en donne la raison et propose « Vérifier maintenant », et la première vérification mise en pause après le lancement envoie une notification. Avant, le temps « vérifié il y a … » ne faisait que s’allonger.
+**DuoUpdater indique quand le réseau a mis en pause les vérifications automatiques.** En partage de connexion, en mode données réduites ou hors ligne, une marque orange à côté de « Actualiser » en donne la raison et, sauf hors ligne, propose « Vérifier maintenant », et la première vérification mise en pause après le lancement envoie une notification. Avant, le temps « vérifié il y a … » ne faisait que s’allonger.
 
 **Une app n’est de nouveau plus remplacée pendant qu’un assistant qu’elle contient tourne, comme une machine virtuelle VMPal.** 0.5.15 pouvait mettre à jour VMPal sous une VM en marche ; DuoUpdater vérifie maintenant une dernière fois juste avant l’échange, installations Homebrew comprises.
 

@@ -1,0 +1,121 @@
+import Testing
+import Foundation
+@testable import DuoUpdaterCore
+
+/// The Homebrew route downloads before its install (`HomebrewInstaller.fetch`):
+/// brew's auto-update and the download run where a cancel still stops them,
+/// and the install, the commit, does neither. Each case runs the real code
+/// against a stand-in `brew` that logs its arguments and
+/// `HOMEBREW_NO_AUTO_UPDATE`, one line a run.
+@Suite struct HomebrewFetchFirstTests {
+
+    private struct Fixture {
+        let root: URL
+        let app: URL
+        let brew: URL
+        let log: URL
+
+        /// `onFetch` runs in the stand-in when it is asked to `fetch`.
+        init(onFetch: String = "") throws {
+            let fm = FileManager.default
+            root = fm.temporaryDirectory.appendingPathComponent("brew-fetch-first-\(UUID().uuidString)")
+            app = root.appendingPathComponent("Zzfixture.app")
+            brew = root.appendingPathComponent("brew")
+            log = root.appendingPathComponent("brew-log")
+            try fm.createDirectory(
+                at: app.appendingPathComponent("Contents/MacOS"), withIntermediateDirectories: true)
+            try Data("old binary".utf8).write(to: app.appendingPathComponent("Contents/MacOS/Zzfixture"))
+            try Data("""
+                #!/bin/sh
+                echo "$*|${HOMEBREW_NO_AUTO_UPDATE}" >> '\(log.path)'
+                [ "$1" = fetch ] && { \(onFetch.isEmpty ? ":" : onFetch); }
+                exit 0
+
+                """.utf8).write(to: brew)
+            try fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: brew.path)
+        }
+
+        var runs: [String] {
+            ((try? String(contentsOf: log, encoding: .utf8)) ?? "")
+                .split(separator: "\n").map(String.init)
+        }
+
+        func remove() { try? FileManager.default.removeItem(at: root) }
+    }
+
+    /// Only the dry run may auto-update: it is the `brew install` the old single
+    /// run auto-updated in, so the same throttle and tap rules apply. `brew fetch`
+    /// never auto-updates on its own, and an install that did would refresh
+    /// brew's API data inside the commit. Mutations: drop the dry run, set
+    /// `HOMEBREW_NO_AUTO_UPDATE` before it, or drop it from `upgrade` → this fails.
+    @Test func onlyTheDryRunBeforeTheFetchAutoUpdates() async throws {
+        let fixture = try Fixture()
+        defer { fixture.remove() }
+        try await HomebrewInstaller.$brewPathOverride.withValue(fixture.brew.path) {
+            let brew = HomebrewInstaller()
+            try await brew.fetch(caskToken: "zzfixture-cask") { _ in }
+            // The fixture has no Info.plist, so an untouched bundle is not
+            // `unchanged` (see `BundleSnapshot.isUnchanged`).
+            try await brew.upgrade(caskToken: "zzfixture-cask", app: fixture.app) { _ in }
+        }
+        // The dry run carries the user's own setting: GitHub's hosted images
+        // export HOMEBREW_NO_AUTO_UPDATE=1, and a user who did the same keeps
+        // it off, as the single run before this did. The mutations above show
+        // only where it is unset.
+        let inherited = ProcessInfo.processInfo.environment["HOMEBREW_NO_AUTO_UPDATE"] ?? ""
+        #expect(fixture.runs == [
+            "install --cask --force --dry-run -- zzfixture-cask|\(inherited)",
+            "fetch --cask -- zzfixture-cask|1",
+            "install --cask --force -- zzfixture-cask|1",
+        ])
+    }
+
+    /// A cancel while brew downloads stops the route there: `CancellationError`,
+    /// and brew's install never runs. Mutation: `try?` the coordinator's
+    /// `homebrew.fetch` and drop the cancellation check `InstallCommit.run`
+    /// makes → the install runs.
+    @Test func aCancelDuringTheFetchNeverReachesTheInstall() async throws {
+        let fetching = FileManager.default.temporaryDirectory
+            .appendingPathComponent("brew-fetch-first-fetching-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: fetching) }
+        // `exec`, so the SIGINT `.interruptChild` sends ends the stand-in's sleep
+        // as it would end brew's download.
+        let fixture = try Fixture(onFetch: "/usr/bin/touch '\(fetching.path)'; exec /bin/sleep 30")
+        defer { fixture.remove() }
+        // A ledger of its own and room to spare: on a full disk, or behind other
+        // tests' claims on the shared ledger, the route waits before it gets to brew.
+        let coordinator = InstallCoordinator(
+            permits: InstallPermits(downloads: 1, applies: 1), runningProcesses: { [] },
+            space: DiskSpaceGuard.SpaceLedger())
+        let result = UpdateResult(
+            app: InstalledApp(
+                name: "Zzfixture", bundleID: "com.example.zzfixture",
+                shortVersion: "1.0", buildVersion: "1", path: fixture.app,
+                isMASApp: false, sparkleFeedURL: nil, sparkleEdPublicKey: nil),
+            remote: RemoteVersion(
+                shortVersion: "1.1", version: "2", downloadURL: nil, sourceName: "Homebrew",
+                sourceIdentifier: "zzfixture-cask"),
+            status: .updateAvailable(latest: "1.1"))
+        let brewPath = fixture.brew.path
+        let install = Task {
+            try await BackupStore.$freeBytesOverride.withValue({ 1 << 50 }) {
+                try await HomebrewInstaller.$brewPathOverride.withValue(brewPath) {
+                    _ = try await coordinator.perform(
+                        result, route: .homebrew, installedPopulation: [], digestOnlyAllowed: false,
+                        progress: { _ in })
+                }
+            }
+        }
+        // Generous: on a loaded CI runner the route took over 20 s to reach the
+        // stand-in (2026-10-28, `make test-release` on the mini, where this
+        // suite's 0.3 s test took 61 s). A real hang is the job's hang report's.
+        let deadline = Date().addingTimeInterval(300)
+        while !FileManager.default.fileExists(atPath: fetching.path), Date() < deadline {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        #expect(FileManager.default.fileExists(atPath: fetching.path))
+        install.cancel()
+        await #expect(throws: CancellationError.self) { try await install.value }
+        #expect(!fixture.runs.contains("install --cask --force -- zzfixture-cask|1"))
+    }
+}

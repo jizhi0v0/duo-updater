@@ -4,7 +4,7 @@ Dies ist eine deutsche Übersetzung von `CHANGELOG.md`. Die englische Fassung is
 
 ## 0.5.16
 
-**26 weitere Apps werden unterstützt.** AFFiNE, AltTab, AppFlowy, DHS, Equinox, Ferdium, FlowVision, Heynote, Joplin, Kap, KeeWeb, KextViewr, Lunatask, Mailspring, Mockoon, Museeks, Porting Kit, Rambox, Rclone UI, Responsively App, SensibleSideButtons, Standard Notes, Tad, Textream, TimeScribe und Witsy erhalten Update-Prüfungen und Updates per Klick. Beta und Canary von AFFiNE werden jeweils auf eigener Spur verfolgt. Eine AFFiNE-Vorschau oder eine Kopie von Rclone UI 1.x bekommt die aktuelle App angeboten, fragt aber vorher, denn die neue App übernimmt die Daten der alten nicht.
+**26 weitere Apps werden unterstützt.** AFFiNE, AltTab, AppFlowy, DHS, Equinox, Ferdium, FlowVision, Heynote, Joplin, Kap, KeeWeb, KextViewr, Lunatask, Mailspring, Mockoon, Museeks, Porting Kit, Rambox, Rclone UI, Responsively App, SensibleSideButtons, Standard Notes, Tad, Textream, TimeScribe und Witsy erhalten Update-Prüfungen und Updates per Klick. Beta und Canary von AFFiNE werden jeweils auf eigener Spur verfolgt. Eine AFFiNE-Vorschau oder eine Kopie von Rclone UI 1.x bekommt die aktuelle App angeboten, fragt aber vorher, denn die neue App übernimmt die Daten der alten womöglich nicht.
 
 **Mehr Kommandozeilen-Tools werden unterstützt.** Mit uv oder pipx installierte Tools, Python aus uv oder pyenv, Node aus nvm oder fnm, Ruby aus rbenv sowie Pakete aus cargo install und go install erhalten jetzt Update-Prüfungen im CLI-Tab, unter „Andere Tools“ in der Menüleiste und in `duo`. Jedes wird mit dem Befehl seines eigenen Managers aktualisiert; kann DuoUpdater sich für den Manager nicht verbürgen, gibt es dir den Befehl zum Kopieren.
 

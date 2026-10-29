@@ -4,7 +4,7 @@
 
 ## 0.5.16
 
-**26 個の App に新たに対応しました。** AFFiNE, AltTab, AppFlowy, DHS, Equinox, Ferdium, FlowVision, Heynote, Joplin, Kap, KeeWeb, KextViewr, Lunatask, Mailspring, Mockoon, Museeks, Porting Kit, Rambox, Rclone UI, Responsively App, SensibleSideButtons, Standard Notes, Tad, Textream, TimeScribe、Witsy でアップデートの確認とワンクリックアップデートが使えます。AFFiNE の beta と canary はそれぞれ独自のトラックで追跡します。AFFiNE のプレビュー版や Rclone UI 1.x には現行の App が提案されますが、新しい App は古い App のデータを引き継がないため、先に確認します。
+**26 個の App に新たに対応しました。** AFFiNE, AltTab, AppFlowy, DHS, Equinox, Ferdium, FlowVision, Heynote, Joplin, Kap, KeeWeb, KextViewr, Lunatask, Mailspring, Mockoon, Museeks, Porting Kit, Rambox, Rclone UI, Responsively App, SensibleSideButtons, Standard Notes, Tad, Textream, TimeScribe、Witsy でアップデートの確認とワンクリックアップデートが使えます。AFFiNE の beta と canary はそれぞれ独自のトラックで追跡します。AFFiNE のプレビュー版や Rclone UI 1.x には現行の App が提案されますが、新しい App は古い App のデータを引き継がない可能性があるため、先に確認します。
 
 **対応するコマンドラインツールが増えました。** uv や pipx で入れたツール、uv や pyenv の Python、nvm や fnm の Node、rbenv の Ruby、cargo install と go install で入れたパッケージが、CLI タブ、メニューバーの「その他のツール」、`duo` でアップデートを確認できるようになりました。それぞれのマネージャ自身のコマンドでアップデートし、DuoUpdater がマネージャを保証できない場合はコピー用のコマンドを示します。
 

@@ -21,7 +21,7 @@ Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
 ## 0.5.16
 
-**Twenty-six more apps are supported.** AFFiNE, AltTab, AppFlowy, DHS, Equinox, Ferdium, FlowVision, Heynote, Joplin, Kap, KeeWeb, KextViewr, Lunatask, Mailspring, Mockoon, Museeks, Porting Kit, Rambox, Rclone UI, Responsively App, SensibleSideButtons, Standard Notes, Tad, Textream, TimeScribe and Witsy get update checks and one-click updates. AFFiNE's beta and canary are followed on their own tracks. An AFFiNE preview or a Rclone UI 1.x copy is offered the current app but asks first, since the new app does not carry the old one's data over.
+**Twenty-six more apps are supported.** AFFiNE, AltTab, AppFlowy, DHS, Equinox, Ferdium, FlowVision, Heynote, Joplin, Kap, KeeWeb, KextViewr, Lunatask, Mailspring, Mockoon, Museeks, Porting Kit, Rambox, Rclone UI, Responsively App, SensibleSideButtons, Standard Notes, Tad, Textream, TimeScribe and Witsy get update checks and one-click updates. AFFiNE's beta and canary are followed on their own tracks. An AFFiNE preview or a Rclone UI 1.x copy is offered the current app but asks first, since the new app may not carry the old one's data over.
 
 **More command-line tools are supported.** Tools installed with uv or pipx, Python from uv or pyenv, Node from nvm or fnm, Ruby from rbenv, and packages from cargo install and go install now get update checks in the CLI tab, under Other tools in the menu bar and in `duo`. Each is updated with its own manager's command; where DuoUpdater can't vouch for the manager, it gives you the command to copy.
 

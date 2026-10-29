@@ -4,7 +4,7 @@
 
 ## 0.5.16
 
-**新支持 26 个 App。** AFFiNE, AltTab, AppFlowy, DHS, Equinox, Ferdium, FlowVision, Heynote, Joplin, Kap, KeeWeb, KextViewr, Lunatask, Mailspring, Mockoon, Museeks, Porting Kit, Rambox, Rclone UI, Responsively App, SensibleSideButtons, Standard Notes, Tad, Textream, TimeScribe、Witsy 现在都能检查更新和一键更新。AFFiNE 的 beta 和 canary 版各走各的更新轨道。AFFiNE 预览版或 Rclone UI 1.x 会收到当前版本的推荐，但会先问你，因为新 App 不会带走旧 App 的数据。
+**新支持 26 个 App。** AFFiNE, AltTab, AppFlowy, DHS, Equinox, Ferdium, FlowVision, Heynote, Joplin, Kap, KeeWeb, KextViewr, Lunatask, Mailspring, Mockoon, Museeks, Porting Kit, Rambox, Rclone UI, Responsively App, SensibleSideButtons, Standard Notes, Tad, Textream, TimeScribe、Witsy 现在都能检查更新和一键更新。AFFiNE 的 beta 和 canary 版各走各的更新轨道。AFFiNE 预览版或 Rclone UI 1.x 会收到当前版本的推荐，但会先问你，因为新 App 可能不会带走旧 App 的数据。
 
 **支持更多命令行工具。** 用 uv 或 pipx 安装的工具、uv 或 pyenv 的 Python、nvm 或 fnm 的 Node、rbenv 的 Ruby，以及 cargo install 和 go install 装的包，现在都能在 CLI 标签页、菜单栏的“其他工具”和 `duo` 里检查更新。每个都用它自己的管理器命令来更新；DuoUpdater 无法为管理器担保时，会给出命令让你复制。
 

@@ -4,7 +4,7 @@ Bu, `CHANGELOG.md` dosyasının Türkçe çevirisidir. Geçerli olan İngilizce 
 
 ## 0.5.16
 
-**26 uygulama daha destekleniyor.** AFFiNE, AltTab, AppFlowy, DHS, Equinox, Ferdium, FlowVision, Heynote, Joplin, Kap, KeeWeb, KextViewr, Lunatask, Mailspring, Mockoon, Museeks, Porting Kit, Rambox, Rclone UI, Responsively App, SensibleSideButtons, Standard Notes, Tad, Textream, TimeScribe ve Witsy güncelleme denetimi ve tek tıkla güncelleme alıyor. AFFiNE’ın beta ve canary sürümleri her biri kendi yolunda izleniyor. Bir AFFiNE önizlemesine veya Rclone UI 1.x kopyasına güncel uygulama öneriliyor, ancak önce soruluyor; çünkü yeni uygulama eskisinin verilerini taşımıyor.
+**26 uygulama daha destekleniyor.** AFFiNE, AltTab, AppFlowy, DHS, Equinox, Ferdium, FlowVision, Heynote, Joplin, Kap, KeeWeb, KextViewr, Lunatask, Mailspring, Mockoon, Museeks, Porting Kit, Rambox, Rclone UI, Responsively App, SensibleSideButtons, Standard Notes, Tad, Textream, TimeScribe ve Witsy güncelleme denetimi ve tek tıkla güncelleme alıyor. AFFiNE’ın beta ve canary sürümleri her biri kendi yolunda izleniyor. Bir AFFiNE önizlemesine veya Rclone UI 1.x kopyasına güncel uygulama öneriliyor, ancak önce soruluyor; çünkü yeni uygulama eskisinin verilerini taşımayabilir.
 
 **Daha fazla komut satırı aracı destekleniyor.** uv veya pipx ile kurulan araçlar, uv veya pyenv’in Python’u, nvm veya fnm’in Node’u, rbenv’in Ruby’si ile cargo install ve go install paketleri artık CLI sekmesinde, menü çubuğundaki “Diğer araçlar” altında ve `duo` içinde güncelleme denetimi alıyor. Her biri kendi yöneticisinin komutuyla güncelleniyor; DuoUpdater yöneticiye kefil olamadığında kopyalamanız için komutu veriyor.
 

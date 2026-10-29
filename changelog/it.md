@@ -4,7 +4,7 @@ Questa è la traduzione di `CHANGELOG.md`. In caso di differenze fa fede la vers
 
 ## 0.5.16
 
-**Sono supportate 26 app in più.** AFFiNE, AltTab, AppFlowy, DHS, Equinox, Ferdium, FlowVision, Heynote, Joplin, Kap, KeeWeb, KextViewr, Lunatask, Mailspring, Mockoon, Museeks, Porting Kit, Rambox, Rclone UI, Responsively App, SensibleSideButtons, Standard Notes, Tad, Textream, TimeScribe e Witsy ottengono il controllo degli aggiornamenti e l’aggiornamento con un clic. La beta e la canary di AFFiNE sono seguite ciascuna sul proprio binario. Un’anteprima di AFFiNE o una copia di Rclone UI 1.x riceve l’offerta dell’app attuale, ma chiede prima, perché la nuova app non riprende i dati della vecchia.
+**Sono supportate 26 app in più.** AFFiNE, AltTab, AppFlowy, DHS, Equinox, Ferdium, FlowVision, Heynote, Joplin, Kap, KeeWeb, KextViewr, Lunatask, Mailspring, Mockoon, Museeks, Porting Kit, Rambox, Rclone UI, Responsively App, SensibleSideButtons, Standard Notes, Tad, Textream, TimeScribe e Witsy ottengono il controllo degli aggiornamenti e l’aggiornamento con un clic. La beta e la canary di AFFiNE sono seguite ciascuna sul proprio binario. Un’anteprima di AFFiNE o una copia di Rclone UI 1.x riceve l’offerta dell’app attuale, ma chiede prima, perché la nuova app potrebbe non riprendere i dati della vecchia.
 
 **Sono supportati più strumenti da riga di comando.** Gli strumenti installati con uv o pipx, Python da uv o pyenv, Node da nvm o fnm, Ruby da rbenv e i pacchetti di cargo install e go install ora ottengono il controllo degli aggiornamenti nella scheda CLI, in «Altri strumenti» nella barra dei menu e in `duo`. Ognuno si aggiorna con il comando del proprio gestore; quando DuoUpdater non può garantire per il gestore, ti dà il comando da copiare.
 

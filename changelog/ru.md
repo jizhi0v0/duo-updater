@@ -4,7 +4,7 @@
 
 ## 0.5.16
 
-**Поддерживаются ещё 26 приложений.** AFFiNE, AltTab, AppFlowy, DHS, Equinox, Ferdium, FlowVision, Heynote, Joplin, Kap, KeeWeb, KextViewr, Lunatask, Mailspring, Mockoon, Museeks, Porting Kit, Rambox, Rclone UI, Responsively App, SensibleSideButtons, Standard Notes, Tad, Textream, TimeScribe и Witsy получают проверку обновлений и обновление в один клик. Beta и canary AFFiNE отслеживаются каждая на своей дорожке. Предварительной версии AFFiNE или копии Rclone UI 1.x предлагается текущее приложение, но сначала с вопросом: новое приложение не переносит данные старого.
+**Поддерживаются ещё 26 приложений.** AFFiNE, AltTab, AppFlowy, DHS, Equinox, Ferdium, FlowVision, Heynote, Joplin, Kap, KeeWeb, KextViewr, Lunatask, Mailspring, Mockoon, Museeks, Porting Kit, Rambox, Rclone UI, Responsively App, SensibleSideButtons, Standard Notes, Tad, Textream, TimeScribe и Witsy получают проверку обновлений и обновление в один клик. Beta и canary AFFiNE отслеживаются каждая на своей дорожке. Предварительной версии AFFiNE или копии Rclone UI 1.x предлагается текущее приложение, но сначала с вопросом: новое приложение может не перенести данные старого.
 
 **Поддерживается больше инструментов командной строки.** Инструменты, установленные через uv или pipx, Python из uv или pyenv, Node из nvm или fnm, Ruby из rbenv, а также пакеты из cargo install и go install теперь проверяются на вкладке CLI, в «Другие инструменты» в строке меню и в `duo`. Каждый обновляется командой своего менеджера; если DuoUpdater не может поручиться за менеджер, он даёт команду, чтобы её скопировать.
 

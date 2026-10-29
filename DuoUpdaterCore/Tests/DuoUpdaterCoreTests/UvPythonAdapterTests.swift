@@ -28,6 +28,8 @@ struct UvPythonAdapterTests {
         let lock = NSLock()
         var install: UvInstall? = UvInstall(
             path: UvPythonAdapterTests.uv, executable: UvPythonAdapterTests.uv, version: nil, signature: .vendor)
+        var homebrew: ManagedRoot.Binary?
+        var executable = UvPythonAdapterTests.uv
         var binaryVersion: String? = "0.13.4"
         var entries: [String] = [
             ".gitignore", ".lock",
@@ -65,6 +67,7 @@ struct UvPythonAdapterTests {
         var host: UvPythonAdapter.Host {
             UvPythonAdapter.Host(
                 binary: { self.lock.withLock { self.install } },
+                homebrewBinary: { self.lock.withLock { self.homebrew } },
                 version: { _ in self.binaryVersion },
                 directories: { path in
                     self.lock.withLock { path == UvPythonAdapterTests.root ? self.entries : nil }
@@ -78,7 +81,7 @@ struct UvPythonAdapterTests {
                     }
                 },
                 run: { executable, arguments, environment in
-                    #expect(executable == UvPythonAdapterTests.uv)
+                    #expect(executable == self.lock.withLock { self.executable })
                     return self.lock.withLock {
                         self._runs.append((arguments, environment))
                         return arguments.count > 2 ? self.downloads[arguments[2]] : nil
@@ -212,6 +215,53 @@ struct UvPythonAdapterTests {
         #expect(py312.state == .unknown)
         #expect(py312.withheld == .unverified)
         #expect(py312.oneClick == nil)
+    }
+
+    /// Homebrew's uv runs the lines when there is no standalone uv — the
+    /// Homebrew-only Mac that used to see only "program was not found".
+    /// Mutation: keep the binary from `UvScanner` alone.
+    @Test func aHomebrewUvRunsTheLinesWhenNoStandaloneUvExists() async throws {
+        let host = try FakeHost()
+        host.install = nil
+        host.homebrew = ManagedRoot.Binary(
+            path: "/opt/homebrew/bin/uv", version: "0.13.6", trust: .homebrewKeg)
+        host.executable = "/opt/homebrew/bin/uv"
+        let report = await Self.provider(host).check()
+        let py312 = try #require(Self.status(report, Self.line312))
+        #expect(py312.state == .updateAvailable)
+        #expect(py312.oneClick?.executable == "/opt/homebrew/bin/uv")
+        #expect(py312.oneClick?.arguments == ["python", "upgrade", Self.line312])
+        #expect(py312.managedItem?.facts.contains(.asKnownBy("uv 0.13.6")) == true)
+        #expect(host.runs.map(\.arguments) == [
+            ["python", "list", Self.line312, "--only-downloads", "--output-format", "json"],
+            ["python", "list", Self.line313t, "--only-downloads", "--output-format", "json"],
+        ])
+    }
+
+    /// A runnable standalone uv still wins when Homebrew's is also there: it is
+    /// the copy `uv self update` owns. Mutation: prefer Homebrew whenever found.
+    @Test func aRunnableStandaloneUvIsPreferredOverHomebrew() async throws {
+        let host = try FakeHost()
+        host.homebrew = ManagedRoot.Binary(
+            path: "/opt/homebrew/bin/uv", version: "0.13.6", trust: .homebrewKeg)
+        let scan = await UvPythonAdapter(home: Self.home, host: host.host).scan()
+        #expect(scan.roots.first?.binary?.path == Self.uv)
+        #expect(scan.roots.first?.binary?.trust == .vendorSigned(team: UvScanner.teamIdentifier))
+    }
+
+    /// A standalone uv that may not run does not shadow a Homebrew uv that may.
+    /// Mutation: stop at the first `UvScanner` install whatever its trust.
+    @Test func aHomebrewUvRunsWhenTheStandaloneUvCannot() async throws {
+        let host = try FakeHost()
+        host.install = UvInstall(path: Self.uv, executable: Self.uv, version: "0.13.4", signature: .adHoc)
+        host.homebrew = ManagedRoot.Binary(
+            path: "/opt/homebrew/bin/uv", version: "0.13.6", trust: .homebrewKeg)
+        host.executable = "/opt/homebrew/bin/uv"
+        let report = await Self.provider(host).check()
+        let py312 = try #require(Self.status(report, Self.line312))
+        #expect(py312.state == .updateAvailable)
+        #expect(py312.oneClick?.executable == "/opt/homebrew/bin/uv")
+        #expect(host.runs.count == 2)
     }
 
     /// A uv older than 0.7.14 has no `python upgrade`: the newer patch is

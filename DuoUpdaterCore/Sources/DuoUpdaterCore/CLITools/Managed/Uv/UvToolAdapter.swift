@@ -28,8 +28,9 @@ import Foundation
 ///   (UV-17), so none is. The venv is synced in place and the old version is
 ///   gone.
 ///
-/// The binary is `UvScanner`'s: `~/.local/bin/uv` signed by Astral's Team (or
-/// an unsigned one its published hash matched), not quarantined. Its
+/// The binary is `UvManagedBinary`'s: a runnable `UvScanner` install
+/// (`~/.local/bin/uv` signed by Astral's Team, or an unsigned one its published
+/// hash matched, not quarantined), else Homebrew's uv by the keg rule. Its
 /// `--version` waits for the check (`resolve`).
 public struct UvToolAdapter: ManagerAdapter {
 
@@ -49,6 +50,9 @@ public struct UvToolAdapter: ManagerAdapter {
     public struct Host: Sendable {
         /// `UvScanner`'s first install, read from disk only: no `--version`.
         public var binary: @Sendable () async -> UvInstall?
+        /// The uv a Homebrew keg provides, when there is one (`UvManagedBinary`).
+        /// Read from disk only: no `--version`.
+        public var homebrewBinary: @Sendable () async -> ManagedRoot.Binary?
         /// `uv --version` of the binary at this path.
         public var version: @Sendable (String) async -> String?
         /// A file's bytes, nil when there is none. Blocking.
@@ -67,6 +71,7 @@ public struct UvToolAdapter: ManagerAdapter {
 
         public init(
             binary: @escaping @Sendable () async -> UvInstall?,
+            homebrewBinary: @escaping @Sendable () async -> ManagedRoot.Binary? = { nil },
             version: @escaping @Sendable (String) async -> String?,
             contents: @escaping @Sendable (String) -> Data?,
             directories: @escaping @Sendable (String) -> [String]?,
@@ -77,6 +82,7 @@ public struct UvToolAdapter: ManagerAdapter {
             processes: @escaping @Sendable () -> [NpmActivity.Process]
         ) {
             self.binary = binary
+            self.homebrewBinary = homebrewBinary
             self.version = version
             self.contents = contents
             self.directories = directories
@@ -87,9 +93,14 @@ public struct UvToolAdapter: ManagerAdapter {
             self.processes = processes
         }
 
-        public static func live(home: URL) -> Host {
+        public static func live(
+            home: URL, homebrewRoots: [String] = ["/opt/homebrew", "/usr/local"]
+        ) -> Host {
             Host(
                 binary: { await UvScanner(home: home, readVersion: { _ in nil }).scan().first },
+                homebrewBinary: {
+                    await offCooperativePool { UvManagedBinary.homebrew(roots: homebrewRoots) }
+                },
                 version: { path in await UvScanner.runVersion(URL(fileURLWithPath: path).resolvingSymlinksInPath()) },
                 contents: { FileManager.default.contents(atPath: $0) },
                 directories: { try? FileManager.default.contentsOfDirectory(atPath: $0) },
@@ -127,8 +138,11 @@ public struct UvToolAdapter: ManagerAdapter {
     let home: URL
     let host: Host
 
-    public init(home: URL = FileManager.default.homeDirectoryForCurrentUser) {
-        self.init(home: home, host: .live(home: home))
+    public init(
+        home: URL = FileManager.default.homeDirectoryForCurrentUser,
+        homebrewRoots: [String] = ["/opt/homebrew", "/usr/local"]
+    ) {
+        self.init(home: home, host: .live(home: home, homebrewRoots: homebrewRoots))
     }
 
     public init(home: URL, host: Host) {
@@ -194,9 +208,10 @@ public struct UvToolAdapter: ManagerAdapter {
             return (items, states)
         }
         guard let found, !found.items.isEmpty else { return .empty }
-        let install = await host.binary()
+        let binary = UvManagedBinary.resolve(
+            standalone: await host.binary(), homebrew: await host.homebrewBinary())
         return ManagedScan(
-            roots: [ManagedRoot(manager: Self.id, path: root, binary: Self.binary(install))],
+            roots: [ManagedRoot(manager: Self.id, path: root, binary: binary)],
             items: found.items, states: found.states)
     }
 

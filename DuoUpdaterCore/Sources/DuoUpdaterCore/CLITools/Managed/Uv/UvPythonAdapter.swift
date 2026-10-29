@@ -3,7 +3,9 @@ import Foundation
 /// The Pythons `uv python install` keeps (`~/.local/share/uv/python`) as
 /// managed rows, one per line — CPython by minor, free-threaded apart — moved
 /// by uv's own `uv python upgrade <line>` (plans/cli-managers-redesign.md
-/// §4.3). uv the binary keeps its own row (`UvProvider`).
+/// §4.3). uv the binary keeps its own row (`UvProvider`). The command runner
+/// is `UvManagedBinary`'s: a runnable standalone uv, else Homebrew's uv by the
+/// keg rule.
 ///
 /// What was measured, on uv 0.13.4 in an isolated `UV_PYTHON_INSTALL_DIR`
 /// (2026-10-27; the fixtures under `Tests/…/Fixtures/managed/uv-python/` are
@@ -45,6 +47,9 @@ public struct UvPythonAdapter: ManagerAdapter {
     public struct Host: Sendable {
         /// `UvScanner`'s first install, read from disk only: no `--version`.
         public var binary: @Sendable () async -> UvInstall?
+        /// The uv a Homebrew keg provides, when there is one (`UvManagedBinary`).
+        /// Read from disk only: no `--version`.
+        public var homebrewBinary: @Sendable () async -> ManagedRoot.Binary?
         /// `uv --version` of the binary at this path.
         public var version: @Sendable (String) async -> String?
         /// The names in a directory, nil when it cannot be listed. Blocking.
@@ -59,6 +64,7 @@ public struct UvPythonAdapter: ManagerAdapter {
 
         public init(
             binary: @escaping @Sendable () async -> UvInstall?,
+            homebrewBinary: @escaping @Sendable () async -> ManagedRoot.Binary? = { nil },
             version: @escaping @Sendable (String) async -> String?,
             directories: @escaping @Sendable (String) -> [String]?,
             exists: @escaping @Sendable (String) -> Bool,
@@ -67,6 +73,7 @@ public struct UvPythonAdapter: ManagerAdapter {
             processes: @escaping @Sendable () -> [NpmActivity.Process]
         ) {
             self.binary = binary
+            self.homebrewBinary = homebrewBinary
             self.version = version
             self.directories = directories
             self.exists = exists
@@ -75,9 +82,14 @@ public struct UvPythonAdapter: ManagerAdapter {
             self.processes = processes
         }
 
-        public static func live(home: URL) -> Host {
+        public static func live(
+            home: URL, homebrewRoots: [String] = ["/opt/homebrew", "/usr/local"]
+        ) -> Host {
             Host(
                 binary: { await UvScanner(home: home, readVersion: { _ in nil }).scan().first },
+                homebrewBinary: {
+                    await offCooperativePool { UvManagedBinary.homebrew(roots: homebrewRoots) }
+                },
                 version: { path in await UvScanner.runVersion(URL(fileURLWithPath: path).resolvingSymlinksInPath()) },
                 directories: { try? FileManager.default.contentsOfDirectory(atPath: $0) },
                 exists: { FileManager.default.fileExists(atPath: $0) },
@@ -99,8 +111,11 @@ public struct UvPythonAdapter: ManagerAdapter {
     let home: URL
     let host: Host
 
-    public init(home: URL = FileManager.default.homeDirectoryForCurrentUser) {
-        self.init(home: home, host: .live(home: home))
+    public init(
+        home: URL = FileManager.default.homeDirectoryForCurrentUser,
+        homebrewRoots: [String] = ["/opt/homebrew", "/usr/local"]
+    ) {
+        self.init(home: home, host: .live(home: home, homebrewRoots: homebrewRoots))
     }
 
     public init(home: URL, host: Host) {
@@ -155,9 +170,10 @@ public struct UvPythonAdapter: ManagerAdapter {
             return (items, states)
         }
         guard let found, !found.items.isEmpty else { return .empty }
-        let install = await host.binary()
+        let binary = UvManagedBinary.resolve(
+            standalone: await host.binary(), homebrew: await host.homebrewBinary())
         return ManagedScan(
-            roots: [ManagedRoot(manager: Self.id, path: root, binary: UvToolAdapter.binary(install))],
+            roots: [ManagedRoot(manager: Self.id, path: root, binary: binary)],
             items: found.items, states: found.states)
     }
 

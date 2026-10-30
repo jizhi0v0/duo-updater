@@ -2,6 +2,16 @@
 
 Bu, `CHANGELOG.md` dosyasının Türkçe çevirisidir. Geçerli olan İngilizce sürümdür; burada yer almayan eski sürümler otomatik olarak İngilizce gösterilir.
 
+## 0.5.17
+
+**Uygulama listesi artık en yeniye göre sıralanabiliyor.** Pencerenin araç çubuğundaki ve açılır paneldeki «Sırala» menüsü «Ad» ile «Son» arasında geçiş yapıyor. «Son» seçeneği, üreticinin kendisinin belirttiği yayın tarihini kullanır; yani bu hafta yayımlanan bir güncelleme geçen ayınkinden önce gelir. Kaynağında tarih olmayan uygulamalar ada göre sırada kalır.
+
+**DSH NEXT, DSH Desktop’ın yanında destekleniyor.** Topluluk yapımı DSH Desktop istemcisinin ön sürüm hattı ayrı bir uygulama olarak kurulur; böylece iki hat yan yana durabilir ve her biri kendi sürümlerinden güncellenir.
+
+**DeepSeek Harness tek tıkla güncelleniyor.** Resmî akış, indirmeyi DuoUpdater’ın yanlış okuduğu bir biçimde tanımlıyordu; bu yüzden yeni bir sürüm olduğunu söyleyebiliyor ama indirip kurmayı size bırakıyordu. Artık diğer uygulamalar gibi indiriyor, doğruluyor ve kuruyor.
+
+**uv veya mise’in kendisi Homebrew’dan gelse bile uv ve mise araçları bulunuyor.** Ayrıca bir araç grubunun üstündeki başlık artık kısa bir özet; tam yollar tek tıkla açılıyor ve kopyalanmaya hazır.
+
 ## 0.5.16
 
 **26 uygulama daha destekleniyor.** AFFiNE, AltTab, AppFlowy, DHS, Equinox, Ferdium, FlowVision, Heynote, Joplin, Kap, KeeWeb, KextViewr, Lunatask, Mailspring, Mockoon, Museeks, Porting Kit, Rambox, Rclone UI, Responsively App, SensibleSideButtons, Standard Notes, Tad, Textream, TimeScribe ve Witsy güncelleme denetimi ve tek tıkla güncelleme alıyor. AFFiNE’ın beta ve canary sürümleri her biri kendi yolunda izleniyor. Bir AFFiNE önizlemesine veya Rclone UI 1.x kopyasına güncel uygulama öneriliyor, ancak önce soruluyor; çünkü yeni uygulama eskisinin verilerini taşımayabilir.

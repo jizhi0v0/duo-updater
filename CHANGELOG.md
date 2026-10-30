@@ -19,6 +19,16 @@ release note is debugging our code:
 
 Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
+## 0.5.17
+
+**The apps list now sorts by what changed most recently.** A Sort menu in the window's toolbar and in the popover switches between Name and Recent. Recent uses the release date the vendor itself states, so an update published this week comes before one from last month; an app whose source states no date stays in name order.
+
+**DSH NEXT is supported beside DSH Desktop.** The pre-release line of the community DSH Desktop client installs as its own app, so both tracks can sit side by side and each one is updated from its own releases.
+
+**DeepSeek Harness updates in one click.** Its official feed describes the download in a layout DuoUpdater used to misread, so it could say a new version existed but left you to fetch and install it. It now downloads, verifies and installs it like any other app.
+
+**uv and mise tools are found even when uv or mise itself came from Homebrew.** The heading above a group of tools is also a compact summary now; the full paths are one click away, ready to copy.
+
 ## 0.5.16
 
 **Twenty-six more apps are supported.** AFFiNE, AltTab, AppFlowy, DHS, Equinox, Ferdium, FlowVision, Heynote, Joplin, Kap, KeeWeb, KextViewr, Lunatask, Mailspring, Mockoon, Museeks, Porting Kit, Rambox, Rclone UI, Responsively App, SensibleSideButtons, Standard Notes, Tad, Textream, TimeScribe and Witsy get update checks and one-click updates. AFFiNE's beta and canary are followed on their own tracks. An AFFiNE preview or a Rclone UI 1.x copy is offered the current app but asks first, since the new app may not carry the old one's data over.

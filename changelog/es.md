@@ -2,6 +2,16 @@
 
 Esta es la traducción al español del archivo CHANGELOG.md. La versión en inglés es la autoridad en caso de discrepancias. Los números de versión no incluidos aquí se mostrarán automáticamente en inglés en la ventana de Novedades.
 
+## 0.5.17
+
+**La lista de apps ahora se ordena por lo más reciente.** Un menú «Ordenar» en la barra de herramientas de la ventana y en el panel flotante alterna entre «Nombre» y «Recientes». «Recientes» usa la fecha de publicación que indica el propio desarrollador, así que una actualización publicada esta semana aparece antes que una del mes pasado; las apps cuya fuente no indica fecha mantienen el orden alfabético.
+
+**DSH NEXT es compatible junto a DSH Desktop.** La línea preliminar del cliente comunitario DSH Desktop se instala como una app propia, de modo que ambas vías pueden convivir y cada una se actualiza desde sus propias versiones.
+
+**DeepSeek Harness se actualiza con un clic.** Su canal oficial describe la descarga de una forma que DuoUpdater leía mal, así que podía avisarte de que había una versión nueva pero te dejaba descargarla e instalarla. Ahora la descarga, verifica e instala como cualquier otra app.
+
+**Las herramientas de uv y mise se encuentran aunque uv o mise se hayan instalado con Homebrew.** Además, el encabezado sobre un grupo de herramientas ahora es un resumen compacto; las rutas completas están a un clic y listas para copiar.
+
 ## 0.5.16
 
 **Se admiten 26 apps más.** AFFiNE, AltTab, AppFlowy, DHS, Equinox, Ferdium, FlowVision, Heynote, Joplin, Kap, KeeWeb, KextViewr, Lunatask, Mailspring, Mockoon, Museeks, Porting Kit, Rambox, Rclone UI, Responsively App, SensibleSideButtons, Standard Notes, Tad, Textream, TimeScribe y Witsy reciben comprobación de actualizaciones y actualización con un clic. La beta y la canary de AFFiNE se siguen cada una en su propia vía. Una versión preliminar de AFFiNE o una copia de Rclone UI 1.x recibe la oferta de la app actual, pero pregunta antes, porque puede que la app nueva no conserve los datos de la anterior.

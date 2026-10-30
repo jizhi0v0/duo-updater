@@ -2,6 +2,16 @@
 
 Questa è la traduzione di `CHANGELOG.md`. In caso di differenze fa fede la versione inglese. Le versioni non elencate qui vengono mostrate automaticamente in inglese.
 
+## 0.5.17
+
+**L’elenco delle app ora si ordina per novità.** Un menu «Ordina» nella barra degli strumenti della finestra e nel pannello flottante alterna tra «Nome» e «Recenti». «Recenti» usa la data di pubblicazione dichiarata dallo sviluppatore: un aggiornamento uscito questa settimana viene quindi prima di uno del mese scorso; le app la cui fonte non indica una data restano in ordine alfabetico.
+
+**DSH NEXT è supportato accanto a DSH Desktop.** La linea preliminare del client della community DSH Desktop si installa come app a sé, così le due linee possono convivere e ciascuna si aggiorna dalle proprie versioni.
+
+**DeepSeek Harness si aggiorna con un clic.** Il suo canale ufficiale descrive il download in un formato che DuoUpdater leggeva male: poteva dirti che esisteva una nuova versione ma ti lasciava scaricarla e installarla. Ora la scarica, la verifica e la installa come qualsiasi altra app.
+
+**Gli strumenti di uv e mise vengono trovati anche quando uv o mise stesso proviene da Homebrew.** Inoltre l’intestazione sopra un gruppo di strumenti è ora un riepilogo compatto; i percorsi completi sono a un clic e pronti da copiare.
+
 ## 0.5.16
 
 **Sono supportate 26 app in più.** AFFiNE, AltTab, AppFlowy, DHS, Equinox, Ferdium, FlowVision, Heynote, Joplin, Kap, KeeWeb, KextViewr, Lunatask, Mailspring, Mockoon, Museeks, Porting Kit, Rambox, Rclone UI, Responsively App, SensibleSideButtons, Standard Notes, Tad, Textream, TimeScribe e Witsy ottengono il controllo degli aggiornamenti e l’aggiornamento con un clic. La beta e la canary di AFFiNE sono seguite ciascuna sul proprio binario. Un’anteprima di AFFiNE o una copia di Rclone UI 1.x riceve l’offerta dell’app attuale, ma chiede prima, perché la nuova app potrebbe non riprendere i dati della vecchia.

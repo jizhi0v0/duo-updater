@@ -2,6 +2,16 @@
 
 本文件是 CHANGELOG.md 的繁體中文翻譯，以英文版為準。本文件中未列出的版本會自動改以英文顯示。
 
+## 0.5.17
+
+**應用程式列表現在可以依最新變更排序。** 視窗工具列與浮動面板裡的「排序」選單可在「名稱」與「最近」之間切換。「最近」採用廠商自己提供的發佈日期，因此本週發佈的更新會排在月底發佈的前面；來源沒有提供日期的應用程式仍依名稱排列。
+
+**除了 DSH Desktop，現在也支援 DSH NEXT。** 社群版 DSH Desktop 用戶端的預發行版本會以獨立應用程式安裝，兩條線路可以並排使用，各自從自己的版本更新。
+
+**DeepSeek Harness 現在可以一鍵更新。** 它的官方來源用 DuoUpdater 以往會讀錯的寫法描述下載檔，所以只能告訴你有新版本，下載與安裝得由你自己來。現在它和其他應用程式一樣，會下載、驗證並安裝。
+
+**即使 uv 或 mise 本身來自 Homebrew，也能找到由它們安裝的工具了。** 另外，一組工具上方的標題現在是精簡的摘要，完整路徑點一下就能看到並複製。
+
 ## 0.5.16
 
 **新支援 26 個 App。** AFFiNE, AltTab, AppFlowy, DHS, Equinox, Ferdium, FlowVision, Heynote, Joplin, Kap, KeeWeb, KextViewr, Lunatask, Mailspring, Mockoon, Museeks, Porting Kit, Rambox, Rclone UI, Responsively App, SensibleSideButtons, Standard Notes, Tad, Textream, TimeScribe、Witsy 現在都能檢查更新和一鍵更新。AFFiNE 的 beta 和 canary 版各走各的更新軌道。AFFiNE 預覽版或 Rclone UI 1.x 會收到目前版本的推薦，但會先問你，因為新 App 可能不會帶走舊 App 的資料。

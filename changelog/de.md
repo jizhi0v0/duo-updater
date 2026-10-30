@@ -2,6 +2,16 @@
 
 Dies ist eine deutsche Übersetzung von `CHANGELOG.md`. Die englische Fassung ist maßgeblich; frühere Versionen, die hier nicht aufgeführt sind, fallen automatisch auf Englisch zurück.
 
+## 0.5.17
+
+**Die App-Liste lässt sich jetzt nach dem Neuesten sortieren.** Ein Menü „Sortieren“ in der Symbolleiste des Fensters und im Popover wechselt zwischen „Name“ und „Neueste“. „Neueste“ nutzt das Veröffentlichungsdatum, das der Hersteller selbst angibt; ein diese Woche veröffentlichtes Update steht also vor einem vom letzten Monat. Apps, deren Quelle kein Datum nennt, bleiben in Namensreihenfolge.
+
+**DSH NEXT wird neben DSH Desktop unterstützt.** Die Vorabversion des Community-Clients DSH Desktop wird als eigene App installiert, sodass beide Spuren nebeneinander bestehen und jede aus ihren eigenen Releases aktualisiert wird.
+
+**DeepSeek Harness aktualisiert sich mit einem Klick.** Der offizielle Feed beschreibt den Download in einer Form, die DuoUpdater bisher falsch las: Er konnte sagen, dass eine neue Version da ist, ließ dich aber selbst herunterladen und installieren. Jetzt lädt, prüft und installiert er sie wie bei jeder anderen App.
+
+**Werkzeuge von uv und mise werden auch gefunden, wenn uv oder mise selbst aus Homebrew stammt.** Die Überschrift über einer Gruppe von Werkzeugen ist außerdem eine kompakte Zusammenfassung; die vollständigen Pfade sind einen Klick entfernt und lassen sich kopieren.
+
 ## 0.5.16
 
 **26 weitere Apps werden unterstützt.** AFFiNE, AltTab, AppFlowy, DHS, Equinox, Ferdium, FlowVision, Heynote, Joplin, Kap, KeeWeb, KextViewr, Lunatask, Mailspring, Mockoon, Museeks, Porting Kit, Rambox, Rclone UI, Responsively App, SensibleSideButtons, Standard Notes, Tad, Textream, TimeScribe und Witsy erhalten Update-Prüfungen und Updates per Klick. Beta und Canary von AFFiNE werden jeweils auf eigener Spur verfolgt. Eine AFFiNE-Vorschau oder eine Kopie von Rclone UI 1.x bekommt die aktuelle App angeboten, fragt aber vorher, denn die neue App übernimmt die Daten der alten womöglich nicht.

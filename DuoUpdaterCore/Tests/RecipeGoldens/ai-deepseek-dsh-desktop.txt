@@ -7,7 +7,7 @@ probes = Array(count: 0)
 
 changelogs = Array(count: 0)
 
-githubRules = Array(count: 1)
+githubRules = Array(count: 2)
 githubRules[0] = struct GitHubReleaseRule
 githubRules[0].bundleID = "ai.deepseek.dsh.desktop"
 githubRules[0].owner = "anywhere-labs"
@@ -26,6 +26,24 @@ githubRules[0].variant = nil
 githubRules[0].architectureRequirement = nil
 githubRules[0].tagRefPrefix = nil
 githubRules[0].installedExecutableMarker = nil
+githubRules[1] = struct GitHubReleaseRule
+githubRules[1].bundleID = "ai.deepseek.dsh.desktop.next"
+githubRules[1].owner = "anywhere-labs"
+githubRules[1].repo = "dsh-desktop"
+githubRules[1].usePrereleases = false
+githubRules[1].listPageSize = 20
+githubRules[1].versionPattern = "^v([0-9]+(?:\\.[0-9]+)+-next)$"
+githubRules[1].candidateScope = .newest
+githubRules[1].probesNewestFirst = true
+githubRules[1].installedTagPrefix = nil
+githubRules[1].channel = .stable
+githubRules[1].installAssetPattern? = "^DSH-NEXT-[0-9.]+-next-universal\\.dmg$"
+githubRules[1].installerKind? = .dmg
+githubRules[1].installTrust = .developerID
+githubRules[1].variant? = "next"
+githubRules[1].architectureRequirement = nil
+githubRules[1].tagRefPrefix = nil
+githubRules[1].installedExecutableMarker = nil
 
 appStoreCases = Array(count: 0)
 

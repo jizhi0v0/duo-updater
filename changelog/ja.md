@@ -2,6 +2,16 @@
 
 このページは `CHANGELOG.md` の日本語訳です。英語版が権威あるバージョンであり、ここに記載されていないバージョンは自動的に英語版へフォールバックします。
 
+## 0.5.17
+
+**アプリ一覧を新しい順に並べ替えられるようになりました。** ウィンドウのツールバーとポップオーバーの「並べ替え」メニューで、「名前」と「最近」を切り替えられます。「最近」はベンダー自身が示す公開日を使うため、今週公開された更新が先月のものより上に来ます。日付を示さない提供元のアプリは名前順のままです。
+
+**DSH Desktop に加えて DSH NEXT に対応しました。** コミュニティ製 DSH Desktop クライアントのプレリリース版を独立したアプリとしてインストールできるため、両方を並べて使い、それぞれ自分のリリースから更新できます。
+
+**DeepSeek Harness がワンクリックで更新できます。** 公式フィードのダウンロード情報が、これまで DuoUpdater が読み違えていた形式で書かれていたため、新しいバージョンの存在は分かっても、ダウンロードとインストールはご自身で行う必要がありました。ほかのアプリと同じように、ダウンロード・検証・インストールまで行います。
+
+**uv や mise 自体が Homebrew 製でも、それらのツールが見つかります。** また、ツールのグループ上部の見出しがコンパクトな概要になり、完全なパスはワンクリックで表示してコピーできます。
+
 ## 0.5.16
 
 **26 個の App に新たに対応しました。** AFFiNE, AltTab, AppFlowy, DHS, Equinox, Ferdium, FlowVision, Heynote, Joplin, Kap, KeeWeb, KextViewr, Lunatask, Mailspring, Mockoon, Museeks, Porting Kit, Rambox, Rclone UI, Responsively App, SensibleSideButtons, Standard Notes, Tad, Textream, TimeScribe、Witsy でアップデートの確認とワンクリックアップデートが使えます。AFFiNE の beta と canary はそれぞれ独自のトラックで追跡します。AFFiNE のプレビュー版や Rclone UI 1.x には現行の App が提案されますが、新しい App は古い App のデータを引き継がない可能性があるため、先に確認します。

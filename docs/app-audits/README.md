@@ -258,7 +258,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**Cryptomator**](org-cryptomator.md) · `org.cryptomator` — G (one-click arm64 dmg) · 真包 1.19.3 挂载验证 ✓（alpha/beta/rc 是 prerelease 轨，未接入）· 2026-09-29
 - [x] [**Secretive**](com-maxgoedjen-Secretive-Host.md) · `com.maxgoedjen.Secretive.Host` — G + 一键 zip（换包后重启内嵌 SSH agent 登录项，`loginItemAgentRestarts`；不是 launchd 作业的 agent 不动、只报告）· 真机 3.0.4 → 4.0.0 一键后 SSH 签名 ✓（主 app 关着与开着两种） · 2026-10-19
 - [x] [**OpenInTerminal**](wang-jianing-app-OpenInTerminal.md) · `wang.jianing.app.OpenInTerminal` — G (one-click universal zip) · 真包 v2.3.9 解压验证 ✓ · 2026-09-29 · 改名前旧 id `wang.jianing.OpenInTerminal`（≤ 2.0.5）有意不覆盖：`BundleIDMigration` 会连一键一起开，而新版读不到旧 id 域里的设置；只检测规则挡不住同仓库 Lite 的 tag · 2026-10-14
-- [x] [**DSH Desktop**](ai-deepseek-dsh-desktop.md) · `ai.deepseek.dsh.desktop` — G (one-click universal dmg) · 真包 v2.0.17 挂载验证 ✓ · 2026-10-09
+- [x] [**DSH Desktop / DSH NEXT**](ai-deepseek-dsh-desktop.md) · `ai.deepseek.dsh.desktop` / `…desktop.next` — G(stable+next，两条规则，各自 one-click universal dmg) · 真包 v2.0.17 与 v2.0.21-next 挂载验证 ✓ · 2026-10-30
 - [x] [**Meetily**](com-meetily-ai.md) · `com.meetily.ai` — G (one-click arm64 dmg) · 真包 v0.4.0 挂载验证 ✓ · 2026-08-30
 - [x] [**Paseo**](sh-paseo-desktop.md) · `sh.paseo.desktop` — G (one-click arm64 dmg) · 真包 v0.6.1 挂载验证 ✓（beta 是 prerelease 轨，未接入）· 2026-08-30
 - [x] [**OpenSuperWhisper**](ru-starmel-OpenSuperWhisper.md) · `ru.starmel.OpenSuperWhisper` — G (one-click arm64 dmg) · 真包 0.1.0 挂载验证 ✓ · 2026-08-30

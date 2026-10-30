@@ -76,6 +76,34 @@ private func extract(
     #expect(rule("ai.deepseek.dsh.desktop").installerKind == .dmg)
 }
 
+@Test func dshNextRulePinsTheNextUniversalDmg() {
+    // DSH NEXT is a separate app under `ai.deepseek.dsh.desktop.next`, served
+    // by the same repo as DSH Desktop but by its own `-next` tag line. Its
+    // version keeps the suffix the bundle actually carries.
+    #expect(extract("v2.0.21-next", "ai.deepseek.dsh.desktop.next") == "2.0.21-next")
+    #expect(extract("v2.0.21", "ai.deepseek.dsh.desktop.next") == nil)
+    #expect(extract("v2.0.21-beta.1", "ai.deepseek.dsh.desktop.next") == nil)
+
+    let pattern = try! #require(rule("ai.deepseek.dsh.desktop.next").installAssetPattern)
+    #expect("DSH-NEXT-2.0.21-next-universal.dmg".range(of: pattern, options: .regularExpression) != nil)
+    #expect("DSH-NEXT-2.0.21-next-x64-Setup.exe".range(of: pattern, options: .regularExpression) == nil)
+    #expect("DSH-NEXT-2.0.21-next-arm64.deb".range(of: pattern, options: .regularExpression) == nil)
+    #expect("DSH-Desktop-2.0.21-universal.dmg".range(of: pattern, options: .regularExpression) == nil)
+    #expect("DSH-Desktop-Beta-2.0.21-beta.1-universal.dmg".range(of: pattern, options: .regularExpression) == nil)
+
+    let next = rule("ai.deepseek.dsh.desktop.next")
+    #expect(next.slug == "anywhere-labs/dsh-desktop")
+    #expect(next.installerKind == .dmg)
+    #expect(next.channel == .stable)
+    // Same repo and channel as the stable rule: `variant` is what keeps their
+    // health rows and verify baselines apart.
+    #expect(next.variant == "next")
+    #expect(next.recipeID != rule("ai.deepseek.dsh.desktop").recipeID)
+    // The value the pattern captures has to order above the installed bundle's
+    // `2.0.20-next`, or the row would be offered nothing.
+    #expect(VersionComparator.isNewer("2.0.21-next", than: "2.0.20-next"))
+}
+
 @Test func meetilyRulePinsTheAarch64Dmg() {
     #expect(extract("v0.4.0", "com.meetily.ai") == "0.4.0")
     // The legacy bare tag deep in history must not read through the v-anchor.

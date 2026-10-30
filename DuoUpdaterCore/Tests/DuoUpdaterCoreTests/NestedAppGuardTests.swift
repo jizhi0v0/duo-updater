@@ -257,7 +257,7 @@ import Testing
     /// → red; drop `ProgramArguments` → red.
     @Test func launchAgentsReadsBundleProgramFromTheBundlesOwnPlists() throws {
         let bundle = try Self.fixtureBundle()
-        defer { try? FileManager.default.removeItem(atPath: bundle) }
+        defer { Self.removeBundleFixture(bundle) }
         let agents = bundle + "/Contents/Library/LaunchAgents"
         try Self.writePlist(["BundleProgram": Self.agentProgram, "Label": "zz.agent",
                              "ProgramArguments": ["ZZFixtureWallpaper", "--wallpaper-agent"]],
@@ -287,7 +287,7 @@ import Testing
 
     @Test func launchAgentsIsEmptyWithoutTheDirectory() throws {
         let bundle = try Self.fixtureBundle()
-        defer { try? FileManager.default.removeItem(atPath: bundle) }
+        defer { Self.removeBundleFixture(bundle) }
         try FileManager.default.removeItem(atPath: bundle + "/Contents/Library")
         #expect(NestedAppGuard.launchAgents(inBundle: bundle).isEmpty)
     }
@@ -296,7 +296,7 @@ import Testing
     /// passing `launchAgents` from `refusal` → red.
     @Test func theRefusalLetsTheBundlesOwnLaunchAgentThrough() throws {
         let bundle = try Self.fixtureBundle()
-        defer { try? FileManager.default.removeItem(atPath: bundle) }
+        defer { Self.removeBundleFixture(bundle) }
         try Self.writePlist(["BundleProgram": Self.agentProgram,
                              "ProgramArguments": ["ZZFixtureWallpaper", "--wallpaper-agent"]],
                             to: bundle + "/Contents/Library/LaunchAgents/zz.agent.plist")
@@ -690,6 +690,18 @@ import Testing
             withIntermediateDirectories: true)
         try makeExecutable(bundle.path + "/" + agentProgram)
         return bundle.resolvingSymlinksInPath().path
+    }
+
+    /// Removes the `ZZFixture-agents-<UUID>` directory that `fixtureBundle()` made,
+    /// not just the bundle inside it.
+    ///
+    /// The callers used to remove `bundle` alone, which leaves the parent behind:
+    /// one empty directory per test run, 3,621 of them in the mini's temporary
+    /// directory by 2026-10-30. Finder had 40 of these open and sat at 148% CPU
+    /// beside a `fseventsd` at 76%, from the churn of a directory holding 17,006
+    /// such entries.
+    private static func removeBundleFixture(_ bundle: String) {
+        try? FileManager.default.removeItem(atPath: (bundle as NSString).deletingLastPathComponent)
     }
 
     private static func makeExecutable(_ path: String) throws {

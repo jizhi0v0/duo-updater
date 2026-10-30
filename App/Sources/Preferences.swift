@@ -107,6 +107,7 @@ final class Preferences {
         static let stagedPackages = "StagedPackages"
         static let showRuntimeTags = "ShowRuntimeTags"
         static let showCLIRuntimeTags = "ShowCLIRuntimeTags"
+        static let appSortOrder = "AppSortOrder"
         static let renewAppleDeveloperSession = AppleDeveloperSessionRenewal.enabledKey
         static let acknowledgedSpotlights = "AcknowledgedSettingsSpotlights"
         static let offerFailureReports = "OfferFailureReports"
@@ -336,6 +337,16 @@ final class Preferences {
     /// `showRuntimeTags`; `duo` prints the runtime regardless.
     var showCLIRuntimeTags: Bool {
         didSet { defaults.set(showCLIRuntimeTags, forKey: Key.showCLIRuntimeTags) }
+    }
+
+    /// How the apps list orders rows inside a status tier — by name (the long-
+    /// standing behaviour) or by the newest release the vendor has published.
+    ///
+    /// Persisted rather than window state so the popover, the workbench and a
+    /// relaunch all agree. `recent` never falls back to our own detection time;
+    /// see `RowOrder.SortOrder.recent`.
+    var appSortOrder: RowOrder.SortOrder {
+        didSet { defaults.set(appSortOrder.rawValue, forKey: Key.appSortOrder) }
     }
 
     /// When Apple ends the Apple Developer session, try once to get a new one
@@ -640,6 +651,8 @@ final class Preferences {
         self.hideDockIcon = defaults.object(forKey: Key.hideDockIcon) as? Bool ?? true
         self.showRuntimeTags = defaults.object(forKey: Key.showRuntimeTags) as? Bool ?? true
         self.showCLIRuntimeTags = defaults.object(forKey: Key.showCLIRuntimeTags) as? Bool ?? true
+        self.appSortOrder = RowOrder.SortOrder(
+            rawValue: defaults.string(forKey: Key.appSortOrder) ?? "") ?? .name
         self.renewAppleDeveloperSession = AppleDeveloperSessionRenewal.isEnabled(in: defaults)
         self.acknowledgedSpotlights = Set(defaults.stringArray(forKey: Key.acknowledgedSpotlights) ?? [])
         self.offerFailureReports = defaults.object(forKey: Key.offerFailureReports) as? Bool ?? true

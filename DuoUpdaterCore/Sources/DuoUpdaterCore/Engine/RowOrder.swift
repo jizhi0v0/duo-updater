@@ -9,6 +9,26 @@ import Foundation
 /// own gate for exactly this reason.
 public enum RowOrder {
 
+    /// How rows are ordered inside a rank tier.
+    ///
+    /// The tier itself is never configurable: an update waiting on a relaunch is
+    /// still more urgent than one on offer, whatever the reader sorts by. Only
+    /// the order WITHIN a tier moves.
+    public enum SortOrder: String, CaseIterable, Sendable, Identifiable {
+        /// Case-insensitive by app name — the stable order the list has always had.
+        case name
+        /// Newest release first, using only the date the vendor itself stated.
+        ///
+        /// Deliberately not "when we noticed". Our first sighting of a release is
+        /// whatever moment a check happened to run, so a cold launch would stamp
+        /// every long-standing update with the same "now" and shuffle them above
+        /// genuinely new ones. Rows whose source states no date keep name order,
+        /// which is honest about what we do not know.
+        case recent
+
+        public var id: String { rawValue }
+    }
+
     /// - Parameters:
     ///   - list: the rows to order.
     ///   - needsRestart: ids whose update is on disk and waiting on a relaunch.
@@ -22,12 +42,20 @@ public enum RowOrder {
     ///     so a Relaunch row sits where every other Relaunch row does.
     ///   - pinnedOrder: the frozen slot of each row that existed when the order
     ///     was frozen. Empty when the order is live.
+    ///   - sort: the order inside each rank tier. `recent` ranks rows with a
+    ///     vendor-stated date ahead of rows without one.
+    ///   - now: the clock a vendor date is checked against. A date later than this
+    ///     cannot be real — nothing is released before it ships — so it is treated
+    ///     as no date at all rather than allowed to jump the queue. Injected so the
+    ///     rule is testable without a sleep.
     public static func sorted(
         _ list: [UpdateResult],
         needsRestart: Set<String>,
         stagedSelfUpdates: [String: StagedSelfUpdate],
         armedSelfInstallers: Set<String>,
-        pinnedOrder: [String: Int]
+        pinnedOrder: [String: Int],
+        sort: SortOrder = .name,
+        now: Date = Date()
     ) -> [UpdateResult] {
         let relaunchable = Set(list.compactMap { row in
             UpdatePolicy.actionableStaged(row, staged: stagedSelfUpdates[row.id]) != nil
@@ -60,8 +88,58 @@ public enum RowOrder {
             }
             let ra = rank(a), rb = rank(b)
             if ra != rb { return ra < rb }
-            return a.app.name.localizedCaseInsensitiveCompare(b.app.name) == .orderedAscending
+            return precedes(a, b, sort: sort, now: now)
         }
+    }
+
+    /// Whether `a` sorts before `b` when both are in the same rank tier.
+    ///
+    /// A function of its own because a comparator is the one kind of code that
+    /// reorders two clauses without failing anything: the tests pin the name/date
+    /// rule here, and `sorted` above only decides when to consult it.
+    ///
+    /// `recent` uses `publishedAt` (the vendor's real time of day) and then
+    /// `vendorDay` (the vendor's day, no time). No date at all is not a date:
+    /// those rows stay in name order, after the dated ones in the tier, rather
+    /// than being given our own scan time. See `SortOrder.recent`.
+    static func precedes(
+        _ a: UpdateResult, _ b: UpdateResult, sort: SortOrder, now: Date
+    ) -> Bool {
+        switch sort {
+        case .name:
+            break
+        case .recent:
+            switch (releaseMoment(a, now: now), releaseMoment(b, now: now)) {
+            case let (left?, right?):
+                if left != right { return left > right }
+            case (_?, nil):
+                return true
+            case (nil, _?):
+                return false
+            case (nil, nil):
+                break
+            }
+        }
+        let byName = a.app.name.localizedCaseInsensitiveCompare(b.app.name)
+        if byName != .orderedSame { return byName == .orderedAscending }
+        // Two rows can share a display name (a stable and a beta install, two
+        // copies in different folders). Falling through to the path keeps the
+        // comparator a strict weak ordering, so the list cannot twitch between
+        // two valid orders on redraw.
+        return a.id.localizedCaseInsensitiveCompare(b.id) == .orderedAscending
+    }
+
+    /// The moment the vendor says this release appeared, or nil when the source
+    /// stated no date at all or stated one in the future. Never a detection time —
+    /// see `SortOrder.recent`.
+    static func releaseMoment(_ row: UpdateResult, now: Date) -> Date? {
+        guard let remote = row.remote else { return nil }
+        guard let moment = remote.publishedAt ?? remote.vendorDay else { return nil }
+        // A vendor's date later than our own clock cannot be true — the release
+        // was served to us before it supposedly shipped. Some feeds do this
+        // (`ReleaseEvent.publishedAfterDetection` documents TinyWeb and TablePlus),
+        // and trusting it here would put that app above every real release.
+        return moment > now ? nil : moment
     }
 }
 

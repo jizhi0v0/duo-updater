@@ -13,8 +13,8 @@ struct OneClickGateTests {
     /// in Electron's layout: `[4][header pickle size]`, then
     /// `[payload][json length][json]` padded to 4 bytes, then the file bytes.
     private func bundle(_ files: [String: String]?) throws -> URL {
-        let app = FileManager.default.temporaryDirectory
-            .appendingPathComponent("one-click-gate-\(UUID().uuidString)/App.app")
+        let app = TestScratch.directory("one-click-gate")
+            .appendingPathComponent("App.app")
         let resources = app.appendingPathComponent("Contents/Resources")
         try FileManager.default.createDirectory(at: resources, withIntermediateDirectories: true)
         guard let files else { return app }
@@ -162,8 +162,8 @@ struct OneClickGateTests {
     private func tauriBundle(
         plist: [String: Any]?, executable: Data?, named name: String = "hoppscotch-desktop"
     ) throws -> URL {
-        let app = FileManager.default.temporaryDirectory
-            .appendingPathComponent("one-click-gate-\(UUID().uuidString)/Hoppscotch.app")
+        let app = TestScratch.directory("one-click-gate")
+            .appendingPathComponent("Hoppscotch.app")
         let macOS = app.appendingPathComponent("Contents/MacOS")
         try FileManager.default.createDirectory(at: macOS, withIntermediateDirectories: true)
         if let plist {

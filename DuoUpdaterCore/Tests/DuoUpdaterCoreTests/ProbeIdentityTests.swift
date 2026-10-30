@@ -20,8 +20,7 @@ import Testing
     /// Write `contents` to `<tmp>/Claude/ant-did` and hand back the tmp root to
     /// pass as the Application Support directory.
     private func appSupport(withAntDID contents: String?) throws -> URL {
-        let root = URL(fileURLWithPath: NSTemporaryDirectory())
-            .appendingPathComponent("probe-identity-\(UUID().uuidString)", isDirectory: true)
+        let root = TestScratch.directory("probe-identity")
         try FileManager.default.createDirectory(
             at: root.appendingPathComponent("Claude"), withIntermediateDirectories: true)
         if let contents {
@@ -127,8 +126,7 @@ import Testing
 
     /// Write `contents` to `<tmp>/com.openai.codex/production-appcast-bootstrap.json`.
     private func appSupport(withBootstrap contents: String?) throws -> URL {
-        let root = URL(fileURLWithPath: NSTemporaryDirectory())
-            .appendingPathComponent("probe-identity-\(UUID().uuidString)", isDirectory: true)
+        let root = TestScratch.directory("probe-identity")
         try FileManager.default.createDirectory(
             at: root.appendingPathComponent("com.openai.codex"), withIntermediateDirectories: true)
         if let contents {
@@ -201,8 +199,7 @@ import Testing
     /// Write `contents` to `<tmp>/.codex/auth.json` and hand back the tmp root to
     /// pass as the home directory.
     private func home(withAuth contents: String?) throws -> URL {
-        let root = URL(fileURLWithPath: NSTemporaryDirectory())
-            .appendingPathComponent("probe-identity-\(UUID().uuidString)", isDirectory: true)
+        let root = TestScratch.directory("probe-identity")
         try FileManager.default.createDirectory(
             at: root.appendingPathComponent(".codex"), withIntermediateDirectories: true)
         if let contents {
@@ -402,8 +399,7 @@ import Testing
     @Test func everyDeclaredFallbackWouldActuallySubstitute() throws {
         // A directory with nothing in it: every read fails, so what comes out is
         // the fallback or nothing.
-        let empty = URL(fileURLWithPath: NSTemporaryDirectory())
-            .appendingPathComponent("probe-identity-\(UUID().uuidString)", isDirectory: true)
+        let empty = TestScratch.directory("probe-identity")
         try FileManager.default.createDirectory(at: empty, withIntermediateDirectories: true)
 
         for recipe in identityRecipes {

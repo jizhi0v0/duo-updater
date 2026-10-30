@@ -134,8 +134,10 @@ struct WorkbenchWindowView: View {
     /// match the model's own backstop cadence rather than out-polling it 12×.
     private let refreshTimer = Timer.publish(every: 180, on: .main, in: .common).autoconnect()
 
-    /// The sidebar app list. One stable order — pending updates float to the top,
-    /// everything else alphabetical.
+    /// The sidebar app list. `AppListModel` already holds `results` in display
+    /// order (pending updates first, then the user's chosen intra-tier order), so
+    /// this is only the Brew split — re-sorting here would be a second comparator
+    /// that could drift from the popover's.
     ///
     /// Brew-managed casks are excluded here: they live under the Brew tree instead
     /// (the "cask 只在此面板" rule), so they never appear in both places.
@@ -147,13 +149,13 @@ struct WorkbenchWindowView: View {
         return standIns.isEmpty ? sortedResults().apps : standIns + sortedResults().apps
     }
 
-    /// Brew-managed casks, updates first then alphabetical — the cask half of the
-    /// Brew tree. (The formula half is `model.brewFormulae` — all top-level leaves.)
+    /// Brew-managed casks, in the same display order — the cask half of the Brew
+    /// tree. (The formula half is `model.brewFormulae` — all top-level leaves.)
     private var brewCasks: [UpdateResult] { sortedResults().brewCasks }
 
-    /// `apps` and `brewCasks`, sorted once per write to `model.results` rather than
+    /// `apps` and `brewCasks`, split once per write to `model.results` rather than
     /// on every pass of this body: a tab switch, a selection, a download tick each
-    /// re-sorted all 229 apps on the developer's Mac. Handing the Apps list the same
+    /// re-read all 229 apps on the developer's Mac. Handing the Apps list the same
     /// array again also makes its comparison (`WorkbenchAppsList`) a check of one
     /// buffer instead of every app.
     private final class SortedResults {
@@ -169,12 +171,8 @@ struct WorkbenchWindowView: View {
         let results = model.results
         let cache = sortedResultsCache
         guard cache.generation != model.resultsGeneration else { return cache }
-        let order: (UpdateResult, UpdateResult) -> Bool = { lhs, rhs in
-            if lhs.hasUpdate != rhs.hasUpdate { return lhs.hasUpdate }
-            return lhs.app.name.localizedCaseInsensitiveCompare(rhs.app.name) == .orderedAscending
-        }
-        cache.apps = results.filter { $0.remote?.sourceName != "Homebrew" }.sorted(by: order)
-        cache.brewCasks = model.brewCaskResults.sorted(by: order)
+        cache.apps = results.filter { $0.remote?.sourceName != "Homebrew" }
+        cache.brewCasks = model.brewCaskResults
         cache.generation = model.resultsGeneration
         return cache
     }
@@ -395,6 +393,13 @@ struct WorkbenchWindowView: View {
         }
         .navigationTitle("DuoUpdater")
         .toolbar {
+            // The order only means something for the Apps list; the CLI and
+            // Rollback tabs keep their own fixed presentation.
+            if sidebarTab == .apps {
+                ToolbarItem(placement: .automatic) {
+                    AppSortMenu(prefs: model.prefs)
+                }
+            }
             // Download traffic has its own window now (NetworkWindowView), so no
             // traffic lens is needed here; the app-row pane is Release Notes or the
             // Bundle Diff, which the detail column switches on its own.
@@ -407,6 +412,13 @@ struct WorkbenchWindowView: View {
                 }
                 .help("Settings")
             }
+        }
+        // The sort is a reading preference, not a scan result: apply it now rather
+        // than waiting for the next check. The popover has the same control and the
+        // same hook, so whichever one is used the model updates once and both
+        // windows redraw from the same `results`.
+        .onChange(of: model.prefs.appSortOrder) { _, _ in
+            model.appSortOrderChanged()
         }
         .task {
             // A "Changelog" deep-link from the menu row lands instantly, before the

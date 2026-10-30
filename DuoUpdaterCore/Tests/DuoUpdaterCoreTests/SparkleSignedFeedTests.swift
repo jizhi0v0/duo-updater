@@ -33,8 +33,8 @@ import CryptoKit
     /// An installed copy on disk with `info` as its Info.plist — the check reads
     /// the plist fresh, as Sparkle does.
     private static func app(_ info: [String: Any], sparkle frameworks: [Framework] = []) throws -> InstalledApp {
-        let bundle = FileManager.default.temporaryDirectory
-            .appendingPathComponent("SparkleSignedFeedTests-\(UUID().uuidString)/Subject.app")
+        let bundle = TestScratch.directory("SparkleSignedFeedTests")
+            .appendingPathComponent("Subject.app")
         let contents = bundle.appendingPathComponent("Contents")
         try FileManager.default.createDirectory(at: contents, withIntermediateDirectories: true)
         let plist = try PropertyListSerialization.data(fromPropertyList: info, format: .xml, options: 0)

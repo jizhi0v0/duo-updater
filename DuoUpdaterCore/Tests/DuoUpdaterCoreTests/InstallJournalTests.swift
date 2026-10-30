@@ -111,12 +111,22 @@ struct InstallJournalTests {
     /// pid, then exits. A child that exits at once can be gone before
     /// `onLaunch` reads it — seen under the full parallel suite, where a
     /// `/usr/bin/true` child no longer answered `proc_pidinfo` by then.
+    ///
+    /// The wait is capped at 30 s. `onCancel: .runToCompletion` means nothing on
+    /// this side reaps the child, so a run killed between the spawn and the `go`
+    /// file would otherwise leave a `sh` stat-ing a path no one will create, for
+    /// as long as the machine is up: on 2026-10-30 the mini had two of them,
+    /// 1 d 19 h old, from cancelled CI jobs. A cap the spawn cannot outlive
+    /// survives even `SIGKILL` of this process, which an `atexit` handler does
+    /// not.
     private func runWaitingChild(_ stamp: @escaping @Sendable (pid_t) -> Void) async throws {
         let go = FileManager.default.temporaryDirectory
             .appendingPathComponent("ZZFixture-journal-go-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: go) }
         _ = try await ChildProcess.run(
-            "/bin/sh", ["-c", "while [ ! -e \"$1\" ]; do sleep 0.01; done", "sh", go.path],
+            "/bin/sh",
+            ["-c", "n=0; while [ ! -e \"$1\" ] && [ $n -lt 3000 ]; do sleep 0.01; n=$((n+1)); done",
+             "sh", go.path],
             standardOutput: .discard, standardError: .discard, onCancel: .runToCompletion,
             onLaunch: { pid in
                 stamp(pid)
@@ -175,6 +185,10 @@ struct InstallJournalTests {
     /// third party it started is still writing into the scratch directory. The
     /// launch must not touch that directory while the child lives; once it has
     /// exited the directory goes, and the app it deleted reads as interrupted.
+    ///
+    /// The child's loop is capped at 300 s for the reason in `runWaitingChild`:
+    /// it writes to a path this process deletes, and nothing reaps it if the run
+    /// is killed first.
     @Test func leftoversWaitForTheOrphanedChildThenGoAndAMissingAppIsInterrupted() async throws {
         try await withScratch { scratch in
             let work = try scratch.workDir("orphan")
@@ -182,7 +196,8 @@ struct InstallJournalTests {
             let pids = AsyncStream<pid_t>.makeStream()
             let child = Task {
                 try await ChildProcess.run(
-                    "/bin/sh", ["-c", "while [ ! -e stop ]; do echo x >> out; sleep 0.05; done"],
+                    "/bin/sh",
+                    ["-c", "n=0; while [ ! -e stop ] && [ $n -lt 6000 ]; do echo x >> out; sleep 0.05; n=$((n+1)); done"],
                     workingDirectory: work, standardOutput: .discard, standardError: .discard,
                     onCancel: .runToCompletion,
                     onLaunch: { pids.continuation.yield($0) })
@@ -649,6 +664,10 @@ struct InstallJournalTests {
 extension InstallJournalTests {
 
     /// A child we started that runs until `stop` is called.
+    ///
+    /// Capped at 180 s, like `runWaitingChild`: `onCancel: .runToCompletion`
+    /// leaves nothing to reap it, so a test that throws before `stop()` would
+    /// otherwise strand a `sh` for the life of the machine.
     final class LoopingChild: @unchecked Sendable {
         let stamp: InstallJournal.ProcessStamp
         private let stopFile: URL
@@ -660,7 +679,9 @@ extension InstallJournalTests {
             let pids = AsyncStream<pid_t>.makeStream()
             task = Task {
                 try await ChildProcess.run(
-                    "/bin/sh", ["-c", "while [ ! -e \"$1\" ]; do sleep 0.02; done", "sh", stopFile.path],
+                    "/bin/sh",
+                    ["-c", "n=0; while [ ! -e \"$1\" ] && [ $n -lt 9000 ]; do sleep 0.02; n=$((n+1)); done",
+                     "sh", stopFile.path],
                     standardOutput: .discard, standardError: .discard, onCancel: .runToCompletion,
                     onLaunch: { pids.continuation.yield($0) })
             }

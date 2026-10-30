@@ -4243,6 +4243,7 @@ final class AppListModel {
         let priorGeneration = resultsGeneration
         let restart = needsRestart, staged = pendingSelfUpdate
         let armed = armedSelfInstallers, pinned = pinnedOrder
+        let sort = prefs.appSortOrder
         // The whole closure off the cooperative pool, not just the TestFlight
         // read: `AppScanner.scan()` is synchronous to the bottom and bounded the
         // same way (see `BoundedBlockingWork`), so a detached task here parks a
@@ -4258,7 +4259,7 @@ final class AppListModel {
                     found, prior: prior, proofs: ResolvedChannelStore.Snapshot())
                 return (found, RowOrder.sorted(
                     merged, needsRestart: restart, stagedSelfUpdates: staged,
-                    armedSelfInstallers: armed, pinnedOrder: pinned))
+                    armedSelfInstallers: armed, pinnedOrder: pinned, sort: sort))
             }
         }
         // The scan takes long enough for any of those to move under it — a check
@@ -4274,7 +4275,8 @@ final class AppListModel {
         // Update — a row clicked on its own whose install lands during Update
         // All's closing rescan.
         if resultsGeneration == priorGeneration, needsRestart == restart,
-           pendingSelfUpdate == staged, armedSelfInstallers == armed, pinnedOrder == pinned {
+           pendingSelfUpdate == staged, armedSelfInstallers == armed, pinnedOrder == pinned,
+           prefs.appSortOrder == sort {
             results = owned.isEmpty ? rows
                 : sorted(InstallOwnership.applying(rows, keeping: owned, from: results))
         } else {
@@ -11240,7 +11242,8 @@ final class AppListModel {
     }
 
     /// Actionable rows first: apps updated-on-disk that still need a restart,
-    /// then pending updates, then everything else — each tier alphabetical.
+    /// then pending updates, then everything else — with the intra-tier order
+    /// chosen by the user (`Preferences.appSortOrder`: name, or newest release).
     /// Needs-restart is the most urgent action (the update already landed and
     /// only a restart stands between the user and the new version), so it sorts
     /// ahead of pending updates rather than sinking below them.
@@ -11253,7 +11256,21 @@ final class AppListModel {
         RowOrder.sorted(
             list, needsRestart: needsRestart,
             stagedSelfUpdates: pendingSelfUpdate,
-            armedSelfInstallers: armedSelfInstallers, pinnedOrder: pinnedOrder)
+            armedSelfInstallers: armedSelfInstallers, pinnedOrder: pinnedOrder,
+            sort: prefs.appSortOrder)
+    }
+
+    /// Re-apply the current sort to the rows already on screen.
+    ///
+    /// The sort order is a reading preference, not a scan result, so changing it
+    /// must not wait for the next check. The workbench calls this from its sort
+    /// menu; a second window reading `results` sees the new order on the same
+    /// write. While a round is frozen the pinned slots still win — the menu is
+    /// not a reason to move a row out from under a click already aimed at it.
+    func appSortOrderChanged() {
+        let next = sorted(results)
+        guard next != results else { return }
+        results = next
     }
 
 

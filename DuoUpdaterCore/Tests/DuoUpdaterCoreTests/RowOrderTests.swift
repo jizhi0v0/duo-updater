@@ -10,7 +10,8 @@ import Testing
 struct RowOrderTests {
 
     private func row(
-        _ name: String, latest: String? = nil, path: String? = nil
+        _ name: String, latest: String? = nil, path: String? = nil,
+        publishedAt: Date? = nil, vendorDay: Date? = nil
     ) -> UpdateResult {
         let id = path ?? "/Applications/\(name).app"
         let app = InstalledApp(
@@ -24,7 +25,8 @@ struct RowOrderTests {
         return UpdateResult(
             app: app,
             remote: RemoteVersion(
-                shortVersion: latest, version: nil, downloadURL: nil, sourceName: "GitHub"),
+                shortVersion: latest, version: nil, downloadURL: nil,
+                sourceName: "GitHub", publishedAt: publishedAt, vendorDay: vendorDay),
             status: .updateAvailable(latest: latest))
     }
 
@@ -33,11 +35,13 @@ struct RowOrderTests {
         needsRestart: Set<String> = [],
         staged: [String: StagedSelfUpdate] = [:],
         armed: Set<String> = [],
-        pinned: [String: Int] = [:]
+        pinned: [String: Int] = [:],
+        sort: RowOrder.SortOrder = .name,
+        now: Date = Date()
     ) -> [String] {
         RowOrder.sorted(
             list, needsRestart: needsRestart, stagedSelfUpdates: staged,
-            armedSelfInstallers: armed, pinnedOrder: pinned
+            armedSelfInstallers: armed, pinnedOrder: pinned, sort: sort, now: now
         ).map(\.app.name)
     }
 
@@ -169,6 +173,129 @@ struct RowOrderTests {
     /// pole for the frozen ones above, not a guard on that line.
     @Test func anEmptyPinTableSortsNormally() {
         #expect(sorted([row("Zulu"), row("Alpha", latest: "2.0")]) == ["Alpha", "Zulu"])
+    }
+
+    // MARK: the intra-tier order
+
+    /// `recent` puts the vendor's newest release first within a tier.
+    ///
+    /// Mutation: `left > right` → `left < right` in `precedes`.
+    @Test func recentPutsTheNewestReleaseFirst() {
+        let rows = [
+            row("Alpha", latest: "2.0", publishedAt: date(300)),
+            row("Zulu", latest: "2.0", publishedAt: date(100)),
+            row("Yankee", latest: "2.0", publishedAt: date(200)),
+        ]
+
+        #expect(sorted(rows, sort: .recent) == ["Alpha", "Yankee", "Zulu"])
+    }
+
+    /// The rank tiers still come first: a relaunch waiting on disk outranks a
+    /// newer release that has not been installed.
+    ///
+    /// Mutation: replace `rank` with the `recent` comparison (sorting the whole
+    /// list by date), which drops Zulu below Alpha.
+    @Test func recentKeepsTheStatusTiersAheadOfTheDate() {
+        let rows = [
+            row("Alpha", latest: "3.0", publishedAt: date(900)),
+            row("Zulu", latest: "2.0", publishedAt: date(100)),
+        ]
+
+        #expect(sorted(rows, needsRestart: ["/Applications/Zulu.app"], sort: .recent)
+            == ["Zulu", "Alpha"])
+    }
+
+    /// A row whose source states no date is not stamped with our own scan time:
+    /// it sorts after the dated rows, alphabetically among the undated ones.
+    ///
+    /// This is the cold-start case. Giving every undated row "now" would put a
+    /// long-standing update above a release the vendor dated this morning, which
+    /// is exactly the ordering the release log refuses to invent.
+    ///
+    /// Mutation: fall back to `Date()` (or to `detectedAt`) for nil moments.
+    @Test func recentLeavesRowsWithoutAVendorDateInNameOrderAfterTheDatedOnes() {
+        let rows = [
+            row("Zulu", latest: "2.0"),                     // no date
+            row("Bravo", latest: "2.0", publishedAt: date(100)),
+            row("Alpha", latest: "2.0"),                    // no date
+        ]
+
+        #expect(sorted(rows, sort: .recent) == ["Bravo", "Alpha", "Zulu"])
+    }
+
+    /// A vendor day is real vendor information, so it takes part. It just carries
+    /// no time of day.
+    ///
+    /// Mutation: read only `publishedAt` in `releaseMoment`.
+    @Test func recentAcceptsAVendorDay() {
+        let rows = [
+            row("Alpha", latest: "2.0"),
+            row("Zulu", latest: "2.0", vendorDay: date(500)),
+        ]
+
+        #expect(sorted(rows, sort: .recent) == ["Zulu", "Alpha"])
+    }
+
+    /// A vendor date later than our own clock cannot be true, so it is not a date
+    /// this sort may trust. Without the guard, a feed that stamps tomorrow (TinyWeb,
+    /// TablePlus — see `ReleaseEvent.publishedAfterDetection`) would sit above
+    /// every real release.
+    ///
+    /// Mutation: drop `moment > now`.
+    @Test func aFutureDatedReleaseIsTreatedAsUndated() {
+        let now = date(1_000)
+        let rows = [
+            row("Alpha", latest: "2.0", publishedAt: date(2_000)),  // "in the future"
+            row("Zulu", latest: "2.0", publishedAt: date(500)),
+        ]
+
+        #expect(sorted(rows, sort: .recent, now: now) == ["Zulu", "Alpha"])
+    }
+
+    /// Two releases the vendor dated the same moment fall back to name, so the
+    /// order is deterministic rather than whatever the sort's input happened to be.
+    ///
+    /// Mutation: return `false` when the dates are equal without consulting the
+    /// names.
+    @Test func recentBreaksEqualDatesWithName() {
+        let rows = [
+            row("Zulu", latest: "2.0", publishedAt: date(500)),
+            row("Alpha", latest: "2.0", publishedAt: date(500)),
+        ]
+
+        #expect(sorted(rows, sort: .recent) == ["Alpha", "Zulu"])
+        #expect(sorted(rows.reversed(), sort: .recent) == ["Alpha", "Zulu"])
+    }
+
+    /// Name order is the default and ignores dates entirely — switching back from
+    /// Recent must restore the list people already know.
+    ///
+    /// Mutation: make `.name` fall through to `releaseMoment`.
+    @Test func nameOrderIgnoresDates() {
+        let rows = [
+            row("Zulu", latest: "2.0", publishedAt: date(900)),
+            row("Alpha", latest: "2.0", publishedAt: date(100)),
+        ]
+
+        #expect(sorted(rows) == ["Alpha", "Zulu"])
+    }
+
+    /// A frozen order keeps its slots under either sort — the menu is not a reason
+    /// to move a row out from under a click already aimed at it.
+    ///
+    /// Mutation: apply `precedes` before the `pinnedOrder` block.
+    @Test func theFrozenOrderHoldsUnderRecent() {
+        let rows = [
+            row("Alpha", latest: "2.0", publishedAt: date(900)),
+            row("Zulu", latest: "2.0", publishedAt: date(100)),
+        ]
+        let pinned = ["/Applications/Zulu.app": 0, "/Applications/Alpha.app": 1]
+
+        #expect(sorted(rows, pinned: pinned, sort: .recent) == ["Zulu", "Alpha"])
+    }
+
+    private func date(_ seconds: TimeInterval) -> Date {
+        Date(timeIntervalSince1970: seconds)
     }
 }
 

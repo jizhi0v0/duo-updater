@@ -734,7 +734,16 @@ import Testing
             try await DeltaApplier.apply(installedApp: top, patch: top, destination: out, bundle: host)
         }
         // Bounded wait for the stand-in to be running, then cancel mid-work.
-        for _ in 0..<400 where !fm.fileExists(atPath: started.path) {
+        //
+        // 15 s, not the 2 s this started with. CI's release job runs beside the
+        // debug one on the same Mac, and the stand-in's first command is `mktemp`
+        // in a `$TMPDIR` shared with everything else on that machine; on
+        // 2026-10-30 three runs in a row reached the end of a 2 s wait with no
+        // marker, while the patch then finished normally (the destination
+        // assertion passed), so the child had started — just late. A passing run
+        // here takes under a second, so the bound only matters when the machine
+        // is busy.
+        for _ in 0..<3000 where !fm.fileExists(atPath: started.path) {
             try await Task.sleep(for: .milliseconds(5))
         }
         #expect(fm.fileExists(atPath: started.path), "the stand-in never started")

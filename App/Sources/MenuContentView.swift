@@ -232,6 +232,12 @@ struct MenuContentView: View {
             toolsPageOpen = false
             toolsPageHeld = nil
         }
+        // The order is a reading preference, not a check result. Apply it in the
+        // popover too, so switching sort here is visible before the next check (and
+        // without reopening the menu bar).
+        .onChange(of: model.prefs.appSortOrder) { _, _ in
+            model.appSortOrderChanged()
+        }
         .task {
             // Take activation the moment the popover appears, because otherwise the
             // user's first click inside it is spent doing exactly that.
@@ -920,6 +926,8 @@ struct MenuContentView: View {
             Toggle("Show all", isOn: $showAll)
                 .toggleStyle(PopoverCheckboxStyle())
                 .font(.caption)
+            // Same choice as the workbench's toolbar, persisted there and here.
+            AppSortMenu(prefs: model.prefs, compact: true)
             Spacer()
             Button {
                 openWindow(id: ReleaseLogView.windowID)

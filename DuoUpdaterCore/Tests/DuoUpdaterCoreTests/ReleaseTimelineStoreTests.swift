@@ -8,8 +8,7 @@ import Foundation
 /// vendor date, and the JSON round-trips so history survives a relaunch.
 
 private func tempFileURL() -> URL {
-    FileManager.default.temporaryDirectory
-        .appendingPathComponent("releases-test-\(UUID().uuidString)")
+    TestScratch.directory("releases-test")
         .appendingPathComponent("releases.json")
 }
 

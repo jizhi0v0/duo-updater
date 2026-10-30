@@ -11,8 +11,7 @@ struct TauriProofStoreTests {
     /// A fresh, never-before-used path per test, so tests cannot see each
     /// other's writes.
     private func scratchFile() -> URL {
-        FileManager.default.temporaryDirectory
-            .appendingPathComponent("tauri-proof-store-test-\(UUID().uuidString)")
+        TestScratch.directory("tauri-proof-store-test")
             .appendingPathComponent("tauri-proofs.json")
     }
 

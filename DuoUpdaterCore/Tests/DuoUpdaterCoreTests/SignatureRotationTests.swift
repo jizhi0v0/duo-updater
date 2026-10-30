@@ -12,8 +12,7 @@ struct SignatureRotationTests {
 
     /// A throwaway .app bundle carrying (or omitting) an `SUPublicEDKey`.
     private func makeBundle(publicKey: String?) throws -> URL {
-        let root = URL(fileURLWithPath: NSTemporaryDirectory())
-            .appendingPathComponent("SignatureRotationTests-\(UUID().uuidString)")
+        let root = TestScratch.directory("SignatureRotationTests")
         let app = root.appendingPathComponent("Test.app")
         try FileManager.default.createDirectory(
             at: app.appendingPathComponent("Contents"), withIntermediateDirectories: true)

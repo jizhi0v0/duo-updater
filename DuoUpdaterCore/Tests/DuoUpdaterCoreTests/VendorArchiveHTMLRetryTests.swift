@@ -9,8 +9,7 @@ import Testing
 /// extractor.
 struct VendorArchiveHTMLRetryTests {
     private func file(_ bytes: [UInt8]) throws -> URL {
-        let url = FileManager.default.temporaryDirectory
-            .appendingPathComponent("html-retry-\(UUID().uuidString)")
+        let url = TestScratch.file("html-retry")
         try Data(bytes).write(to: url)
         return url
     }

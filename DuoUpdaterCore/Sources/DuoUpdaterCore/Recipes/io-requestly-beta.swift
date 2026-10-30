@@ -3,6 +3,24 @@ import Foundation
 enum io_requestly_beta {
     static let set = AppRecipeSet(
         family: "io-requestly-beta",
+        changelogs: [
+        // Requestly — the release body itself. The repo publishes with
+        // conventional commits through GitHub's own release generator, so every
+        // body is the auto-generated "## What's Changed" list of `* <commit> by
+        // @author in <PR url>` lines followed by "**Full Changelog**: <compare>".
+        // `GitHubMarkdownParser` is the parser for exactly that shape: it strips
+        // the "by @author in URL" suffix and drops the contributor-noise
+        // sections, so `.gitHubReleases` needs no entry/item pattern at all.
+        // Most releases carry only the version bump's own commit (two or three
+        // lines), which is what the vendor wrote — not a parse failure.
+        ChangelogRecipe(
+            bundleID: "io.requestly.beta",
+            source: URL(string: "https://api.github.com/repos/requestly/http-interceptor-desktop-app/releases?per_page=40")!,
+            mode: .json,
+            maxEntries: 20,
+            channel: .stable,
+            structuredFormat: .gitHubReleases),
+        ],
         githubRules: [
         // Requestly — Electron API client, in the repo GitHub now calls
         // `requestly/http-interceptor-desktop-app`. It updates itself with

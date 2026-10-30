@@ -33,10 +33,15 @@
 ## 一键安装
 `installerKind: .zip`。Team 闸 = 已装副本的 `956BZQ2F2P`；GitHub 也为该资产发 `sha256` digest。
 
+## Changelog
+正文是一份写好的 release notes 文档：`# **FlyEnv v4.20.2 Update Release Notes**`，然后 `## **🚀 New Features**` / `## **🛠️ Improvements & Bug Fixes**`，再是编号的 `### **1. <标题>**` 子节加解释性正文，部分子节下面带 `- **要点**：说明` 的条目。`GitHubMarkdownParser` 的手写正文那半正好覆盖：标题不进条目，条目保留 `**…**` 内联语法（`itemSyntax: .markdown`，渲染时是粗体而不是星号）。v4.20.2 整篇解析出 14 条。
+
+注意：**一份文档写全平台**，mac 读者会看到只有 Windows 的条目（Git Bash 集成、Windows PHP 扩展安装器）。按标题切不了平台——`## New Features` 不是平台名——所以保留原样。
+
 ## 已知问题
 - **没有 changelog recipe**：release 正文是发版说明，还没结构化
 - **为什么当初「暂缓」**：它有一个 root helper，用来改 `/etc/hosts` 做本地站点。实测（见下）启动本身不动 hosts
-- `duo restart` 对它没生效：运行中换包后旧 pid 仍在（Requestly/Reqable 都换了新 pid）。未查明原因，列为待办
+- **运行中换包后 `duo restart` 不生效**（复现过一次、不是偶发）：`duo install` 在 FlyEnv 运行时换掉 bundle 之后，`duo restart FlyEnv` 会退出但不换 pid，旧进程继续跑在已被移走的 bundle 上；同一份二进制对刚启动的 FlyEnv 是正常的（pid 13997 → 15292）。`kill -TERM` 对那个进程仍然有效，所以不是进程僵死，而是协作式退出（`AppRestarter` 只发 `terminate()`、从不 force-kill，以免丢失未保存内容）没有落地。按设计 duo 会把它留作 `.stillRunning` 而不是强杀。根因未查明，列为待办
 
 ## 实测（2026-10-30，vmpal「macOS VM 1」）
 - `duo verify --only flyenv` → 1 条 rule ✓

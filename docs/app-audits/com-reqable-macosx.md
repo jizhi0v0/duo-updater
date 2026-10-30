@@ -35,6 +35,11 @@
 ## 一键安装
 `installerKind: .dmg`。Team 闸 = 已装副本的 `DXY5A5J7C4`；GitHub 也为该资产发 `digest`（sha256），下载后先核对 digest 再走 Team 闸。
 
+## Changelog
+正文**按平台分节**：`### windows-macos-linux-android-ios` 是共用说明，后面是各平台单独一节，条目是厂商自己的 `- ❗ [IMP] …` / `- 🐞 [FIX] …` 行，emoji 和标签原样保留。
+
+`skipSections` 去掉 mac 读者用不上的平台节（`windows`、`linux`、`android-ios`、`android`、`ios`）。**共用那一节必须留住**：匹配是整段标题匹配，关键词放宽到能命中 `windows-macos-linux-android-ios` 就会把大部分条目一起删掉。只有 Windows 的 release（3.3.8 的全文就是一个 `### windows` 节）因此解析为空、不显示条目——那本来就没有 mac 包。
+
 ## 已知问题
 - **没有 changelog recipe**：release 正文是发版说明短文，还没有结构化
 - **为什么当初「暂缓」**：它是抓包代理，会改系统代理、装根证书。实测下来这两件事都是**用户主动开启抓包才发生**，不是启动就发生（见下）

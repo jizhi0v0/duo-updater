@@ -287,7 +287,13 @@ import Testing
 
     /// `ZZHost.app` with `Contents/Library/LoginItems/ZZAgent.app` (id
     /// `agentID`) and an undeclared `ZZOther.app` beside it.
-    struct Fixture {
+    ///
+    /// A `deinit` takes the `ZZFixture-agents-<UUID>` root with it rather than a
+    /// `defer` in each of the twenty tests that make one: none of them cleaned up
+    /// at all, which left 12,832 such roots — each a whole `ZZHost.app` — in the
+    /// mini's temporary directory by 2026-10-30. Nothing here keeps a fixture
+    /// alive past the test that made it.
+    final class Fixture {
         let host: URL
         var hostPath: String { host.path }
         var agentPath: String { hostPath + "/Contents/Library/LoginItems/ZZAgent.app" }
@@ -309,6 +315,10 @@ import Testing
             // Spelled as the kernel spells it, now that it exists: `/var/…` →
             // `/private/var/…` (`resolvingSymlinksInPath` would strip it).
             host = URL(fileURLWithPath: LoginItemAgentRestart.kernelPath(created.path), isDirectory: true)
+        }
+
+        deinit {
+            try? FileManager.default.removeItem(at: host.deletingLastPathComponent())
         }
     }
 

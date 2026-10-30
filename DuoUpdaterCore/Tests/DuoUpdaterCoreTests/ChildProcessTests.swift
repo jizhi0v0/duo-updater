@@ -329,9 +329,13 @@ import Testing
 
     /// `.terminateChild`: cancelling the caller tears the child down and throws.
     ///
-    /// Decided by ordering, not by a race against the child: the child never ends
-    /// on its own, so the cancelled call can only return by tearing it down (a
-    /// bare SIGKILL — no deadline, so no SIGTERM rung) or by never returning.
+    /// Decided by ordering, not by a race against the child: the child has no
+    /// reason to end before its 900 s cap — 3× the watchdog, against a passing run
+    /// that takes seconds — so the cancelled call can only return by tearing it
+    /// down (a bare SIGKILL — no deadline, so no SIGTERM rung) or by never
+    /// returning. The cap is what keeps a cancelled CI job from stranding the
+    /// child: a `SIGKILL` of this process runs no `atexit` handler and no
+    /// `DispatchWorkItem`, so only the child can end itself.
     /// A watchdog on a Dispatch timer, off the cooperative pool, turns "never" into
     /// a verdict: 300 s after the cancel it sends the child SIGTERM, which the
     /// child's trap answers by creating the marker. So the marker means "still
@@ -352,7 +356,7 @@ import Testing
         let task = Task {
             try await ChildProcess.run(
                 "/bin/sh",
-                ["-c", "trap \"touch '\(marker.path)'; exit 0\" TERM; echo started; while :; do sleep 1; done"],
+                ["-c", "trap \"touch '\(marker.path)'; exit 0\" TERM; echo started; n=0; while [ $n -lt 900 ]; do sleep 1; n=$((n+1)); done"],
                 onCancel: .terminateChild,
                 onOutputChunk: { chunk in
                     if String(decoding: chunk, as: UTF8.self).contains("started") { started.fire() }
@@ -395,7 +399,8 @@ import Testing
     /// ends). So both markers say the interrupt reached the group and each
     /// process ran its own handler — the shape of brew's download queue
     /// stopping its curl workers. A Dispatch watchdog kills both 300 s after the
-    /// cancel, as in `terminateChildTearsTheChildDownOnCancellation`.
+    /// cancel, as in `terminateChildTearsTheChildDownOnCancellation`; both loops are
+    /// capped at 900 s for the reason given there.
     ///
     /// Mutations: (a) `toProcessGroup: false` in `interruptLadder` → only the
     /// child gets SIGINT, its trap waits on the grandchild, and the ladder's
@@ -408,7 +413,7 @@ import Testing
         let child = dir.appendingPathComponent("child")
         let grandchild = dir.appendingPathComponent("grandchild")
         let grandchildPID = dir.appendingPathComponent("grandchild.pid")
-        let inner = "echo $$ > '\(grandchildPID.path)'; trap \"touch '\(grandchild.path)'; exit 130\" INT; echo started; while :; do sleep 0.2; done"
+        let inner = "echo $$ > '\(grandchildPID.path)'; trap \"touch '\(grandchild.path)'; exit 130\" INT; echo started; n=0; while [ $n -lt 4500 ]; do sleep 0.2; n=$((n+1)); done"
         let started = Signal()
         let pid = PID()
         let task = Task {

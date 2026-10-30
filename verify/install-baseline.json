@@ -278,6 +278,12 @@
       "consecutiveInstallTransient" : 0,
       "sweepsSinceComment" : 0
     },
+    "install:github:anywhere-labs\/dsh-desktop:stable:next" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
     "install:github:archagon\/sensible-side-buttons:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
@@ -2298,5 +2304,5 @@
     }
   },
   "schemaVersion" : 1,
-  "updatedAt" : "2026-10-29T03:05:32Z"
+  "updatedAt" : "2026-10-30T11:48:39Z"
 }

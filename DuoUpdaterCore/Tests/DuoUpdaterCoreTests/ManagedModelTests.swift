@@ -371,12 +371,61 @@ struct ManagedModelTests {
         guard case .managed(let context) = report.context else { Issue.record("not a managed context"); return }
         #expect(context.descriptor == Self.descriptor)
         #expect(context.roots == [Self.root()])
-        #expect(context.headerSummary(home: Self.home.path) == "zz 1.0.0 · ~/.local/share/zz")
+        #expect(context.headerSummary(home: Self.home.path) == "zz 1.0.0")
 
         adapter.scanResult = .empty
         let empty = await provider.check()
         #expect(empty.statuses.isEmpty)
         #expect(empty.sightings.isEmpty)
+    }
+
+    /// The header stays compact — manager and version — and a manager with
+    /// several roots keeps its root so two groups of one binary stay
+    /// distinguishable. The binary and data paths are the info icon's tooltip.
+    /// Mutation: put the binary path back in the header.
+    @Test func theHeaderStaysCompactAndTheTooltipNamesThePaths() {
+        let root = Self.root()
+        let single = ManagerContext(descriptor: Self.descriptor, roots: [root])
+        #expect(single.headerSummary(home: Self.home.path) == "zz 1.0.0")
+        #expect(single.headerTooltip(home: Self.home.path)
+            == "Binary: ~/.local/bin/zz\nData: ~/.local/share/zz")
+        #expect(single.headerPaths() == [ManagerContext.Paths(
+            binary: Self.binaryPath, data: Self.rootPath)])
+
+        let noBinary = ManagerContext(descriptor: Self.descriptor, roots: [Self.root(trust: nil)])
+        #expect(noBinary.headerSummary(home: Self.home.path) == "~/.local/share/zz")
+        #expect(noBinary.headerTooltip(home: Self.home.path) == "Data: ~/.local/share/zz")
+        #expect(noBinary.headerPaths() == [ManagerContext.Paths(
+            binary: nil, data: Self.rootPath)])
+
+        let unversioned = ManagedRoot(
+            manager: Self.descriptor.id, path: Self.rootPath,
+            binary: ManagedRoot.Binary(
+                path: Self.binaryPath, version: nil, trust: .vendorSigned(team: "ZZ123")))
+        #expect(ManagerContext(descriptor: Self.descriptor, roots: [unversioned])
+            .headerSummary(home: Self.home.path) == "zz")
+
+        let duplicate = ManagerContext(descriptor: Self.descriptor, roots: [root, root])
+        #expect(duplicate.headerSummary(home: Self.home.path) == "zz 1.0.0 · ~/.local/share/zz")
+
+        let other = ManagedRoot(
+            manager: Self.descriptor.id, path: Self.rootPath + "2", binary: root.binary)
+        let multi = ManagerContext(descriptor: Self.descriptor, roots: [root, other])
+        #expect(multi.headerSummary(home: Self.home.path)
+            == "zz 1.0.0 · ~/.local/share/zz · zz 1.0.0 · ~/.local/share/zz2")
+        #expect(multi.headerSummary(home: Self.home.path, root: Self.rootPath)
+            == "zz 1.0.0 · ~/.local/share/zz")
+        #expect(multi.headerTooltip(home: Self.home.path, root: Self.rootPath)
+            == "Binary: ~/.local/bin/zz\nData: ~/.local/share/zz")
+        #expect(multi.headerTooltip(home: Self.home.path)
+            == "Binary: ~/.local/bin/zz\nData: ~/.local/share/zz\n\n"
+            + "Binary: ~/.local/bin/zz\nData: ~/.local/share/zz2")
+        #expect(multi.headerPaths(root: Self.rootPath) == [ManagerContext.Paths(
+            binary: Self.binaryPath, data: Self.rootPath)])
+        #expect(multi.headerPaths() == [
+            ManagerContext.Paths(binary: Self.binaryPath, data: Self.rootPath),
+            ManagerContext.Paths(binary: Self.binaryPath, data: Self.rootPath + "2"),
+        ])
     }
 
     /// The update runs the adapter's command in an environment built from

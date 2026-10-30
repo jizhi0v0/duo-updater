@@ -34,7 +34,8 @@ import Foundation
 /// store, cargo's bin, an npm `node_modules` or mise's own installs belongs to
 /// that package manager — the mise docs say such installs update through it —
 /// and is skipped. Homebrew's own link, `/opt/homebrew/bin/mise`, is not
-/// looked at.
+/// looked at **for this row**: `mise self-update` must not replace a keg.
+/// `MiseManagedBinary` may use that keg to run the tools mise installed.
 public struct MiseInstall: Sendable, Equatable, Codable {
 
     public enum Problem: String, Sendable, Codable {

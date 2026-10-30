@@ -34,6 +34,8 @@ struct UvToolAdapterTests {
         let lock = NSLock()
         var install: UvInstall? = UvInstall(
             path: UvToolAdapterTests.uv, executable: UvToolAdapterTests.uv, version: nil, signature: .vendor)
+        var homebrew: ManagedRoot.Binary?
+        var executable = UvToolAdapterTests.uv
         var binaryVersion: String? = "0.13.4"
         var files: [String: Data] = [:]
         var directories: [String: [String]] = [:]
@@ -73,12 +75,13 @@ struct UvToolAdapterTests {
         var host: UvToolAdapter.Host {
             UvToolAdapter.Host(
                 binary: { self.lock.withLock { self.install } },
+                homebrewBinary: { self.lock.withLock { self.homebrew } },
                 version: { _ in self.binaryVersion },
                 contents: { path in self.lock.withLock { self.files[path] } },
                 directories: { path in self.lock.withLock { self.directories[path] } },
                 modified: { _ in Date(timeIntervalSince1970: 1_792_750_000) },
                 run: { executable, arguments, environment in
-                    #expect(executable == UvToolAdapterTests.uv)
+                    #expect(executable == self.lock.withLock { self.executable })
                     return self.lock.withLock {
                         self._runs.append((arguments, environment))
                         return self.outdated
@@ -145,6 +148,25 @@ struct UvToolAdapterTests {
             manager: UvToolAdapter.id, path: Self.tools,
             binary: ManagedRoot.Binary(path: Self.uv, version: nil, trust: .vendorSigned(team: UvScanner.teamIdentifier)))])
         #expect(host.runs.isEmpty)
+    }
+
+    /// Homebrew's uv runs the tools when there is no standalone uv, and the
+    /// one-click names that binary. Mutation: keep the binary from
+    /// `UvScanner` alone.
+    @Test func aHomebrewUvRunsTheToolsWhenNoStandaloneUvExists() async throws {
+        let host = try FakeHost()
+        host.install = nil
+        host.homebrew = ManagedRoot.Binary(
+            path: "/opt/homebrew/bin/uv", version: "0.13.6", trust: .homebrewKeg)
+        host.executable = "/opt/homebrew/bin/uv"
+        let scan = await UvToolAdapter(home: Self.home, host: host.host).scan()
+        #expect(scan.roots.first?.binary?.trust == .homebrewKeg)
+        let report = await Self.provider(host).check()
+        let cowsay = try #require(Self.status(report, "cowsay"))
+        #expect(cowsay.state == .updateAvailable)
+        #expect(cowsay.oneClick?.executable == "/opt/homebrew/bin/uv")
+        #expect(cowsay.oneClick?.arguments == ["tool", "upgrade", "cowsay"])
+        #expect(cowsay.oneClick?.pathPrefix == "/opt/homebrew/bin")
     }
 
     /// §10's "no `ChildProcess` in any adapter's scan", read from the source.

@@ -41,8 +41,9 @@ import Foundation
 ///   nor a node on `PATH`; the shims and `~/.local/bin` lead it anyway, as
 ///   §4.1 says, for the backends that do look (pipx → uv, MISE-76).
 ///
-/// The binary is `MiseScanner`'s — `~/.local/bin/mise`, signed by Jeffrey
-/// Dickey's Team, not quarantined — read here without running it: its
+/// The binary is `MiseManagedBinary`'s — a runnable `MiseScanner` install
+/// (`~/.local/bin/mise`, signed by Jeffrey Dickey's Team, not quarantined), else
+/// Homebrew's keg by the keg rule — read here without running it: its
 /// `--version` waits for the check (`resolve`). With no such binary the
 /// installs are listed from disk and nothing is run.
 public struct MiseToolsAdapter: ManagerAdapter {
@@ -64,6 +65,9 @@ public struct MiseToolsAdapter: ManagerAdapter {
     public struct Host: Sendable {
         /// `MiseScanner`'s install, read from disk only: no `--version`.
         public var binary: @Sendable () async -> MiseInstall?
+        /// The mise a Homebrew keg provides, when there is one (`MiseManagedBinary`).
+        /// Read from disk only: no `--version`.
+        public var homebrewBinary: @Sendable () async -> ManagedRoot.Binary?
         /// `mise --version` of the binary at this path.
         public var version: @Sendable (String) async -> String?
         /// A file's bytes, nil when there is none. Blocking.
@@ -82,6 +86,7 @@ public struct MiseToolsAdapter: ManagerAdapter {
 
         public init(
             binary: @escaping @Sendable () async -> MiseInstall?,
+            homebrewBinary: @escaping @Sendable () async -> ManagedRoot.Binary? = { nil },
             version: @escaping @Sendable (String) async -> String?,
             contents: @escaping @Sendable (String) -> Data?,
             directories: @escaping @Sendable (String) -> [String]?,
@@ -91,6 +96,7 @@ public struct MiseToolsAdapter: ManagerAdapter {
             processes: @escaping @Sendable () -> [NpmActivity.Process]
         ) {
             self.binary = binary
+            self.homebrewBinary = homebrewBinary
             self.version = version
             self.contents = contents
             self.directories = directories
@@ -100,9 +106,14 @@ public struct MiseToolsAdapter: ManagerAdapter {
             self.processes = processes
         }
 
-        public static func live(home: URL) -> Host {
+        public static func live(
+            home: URL, homebrewRoots: [String] = ["/opt/homebrew", "/usr/local"]
+        ) -> Host {
             Host(
                 binary: { await MiseScanner(home: home, readVersion: { _ in nil }).scan() },
+                homebrewBinary: {
+                    await offCooperativePool { MiseManagedBinary.homebrew(roots: homebrewRoots) }
+                },
                 version: { path in
                     let binary = await offCooperativePool { URL(fileURLWithPath: path).resolvingSymlinksInPath() }
                     return await MiseScanner.runVersion(binary)
@@ -153,8 +164,11 @@ public struct MiseToolsAdapter: ManagerAdapter {
     let home: URL
     let host: Host
 
-    public init(home: URL = FileManager.default.homeDirectoryForCurrentUser) {
-        self.init(home: home, host: .live(home: home))
+    public init(
+        home: URL = FileManager.default.homeDirectoryForCurrentUser,
+        homebrewRoots: [String] = ["/opt/homebrew", "/usr/local"]
+    ) {
+        self.init(home: home, host: .live(home: home, homebrewRoots: homebrewRoots))
     }
 
     public init(home: URL, host: Host) {
@@ -176,11 +190,20 @@ public struct MiseToolsAdapter: ManagerAdapter {
 
     var dataDirectory: String { home.path + "/.local/share/mise" }
     var installs: String { dataDirectory + "/installs" }
+    var userBin: String { home.path + "/.local/bin" }
     /// The shims and the installer's bin lead the child's `PATH`, for a backend
     /// that looks for its runtime there (MISE-76).
-    var pathPrefix: String { dataDirectory + "/shims:" + home.path + "/.local/bin" }
+    var pathPrefix: String { pathPrefix(binary: binaryPath) }
+    /// The same, with the running mise's own directory after the user's bin: a
+    /// Homebrew keg's backends (uv, node, pipx) live in `/opt/homebrew/bin`,
+    /// which a GUI process does not inherit. A standalone mise adds nothing.
+    func pathPrefix(binary: String) -> String {
+        let directory = (binary as NSString).deletingLastPathComponent
+        return ([dataDirectory + "/shims", userBin] + (directory == userBin ? [] : [directory]))
+            .joined(separator: ":")
+    }
     /// `MiseScanner.location`: the one binary these commands are run with.
-    var binaryPath: String { home.path + "/.local/bin/mise" }
+    var binaryPath: String { userBin + "/mise" }
 
     /// The global config, the only one read from `/` (see the type's doc).
     var configFiles: [String] {
@@ -224,8 +247,9 @@ public struct MiseToolsAdapter: ManagerAdapter {
             return (items, states)
         }
         guard let found else { return .empty }
-        let install = await host.binary()
-        let rootFound = ManagedRoot(manager: Self.id, path: root, binary: Self.binary(install))
+        let binary = MiseManagedBinary.resolve(
+            standalone: await host.binary(), homebrew: await host.homebrewBinary())
+        let rootFound = ManagedRoot(manager: Self.id, path: root, binary: binary)
         return ManagedScan(roots: [rootFound], items: found.items, states: found.states)
     }
 
@@ -248,7 +272,7 @@ public struct MiseToolsAdapter: ManagerAdapter {
             // (`ManagedCheck`, a check that needs the binary).
             return scan.items.map { ManagedVerdict(item: $0, vendorWouldUpgrade: nil) }
         }
-        let environment = commandEnvironment()
+        let environment = commandEnvironment(binary: binary.path)
         guard let lsOutput = await host.run(binary.path, ["ls", "--json"], environment), lsOutput.succeeded,
               let ls = MiseToolsLs.parse(lsOutput.stdout)
         else {
@@ -288,7 +312,9 @@ public struct MiseToolsAdapter: ManagerAdapter {
     /// prompts; run from `/`, where it trusts nothing (see the type's doc).
     public func upgrade(_ item: ManagedItem, root: ManagedRoot) -> (command: CLIToolCommand, environment: [String: String])? {
         guard let binary = root.binary else { return nil }
-        return (CLIToolCommand(executable: binary.path, arguments: ["upgrade", "-y", item.name], pathPrefix: pathPrefix), [:])
+        return (CLIToolCommand(
+            executable: binary.path, arguments: ["upgrade", "-y", item.name],
+            pathPrefix: pathPrefix(binary: binary.path)), [:])
     }
 
     /// `mise upgrade --bump <tool>`: rewrites the request in the config to
@@ -432,7 +458,8 @@ public struct MiseToolsAdapter: ManagerAdapter {
 
     /// The version `mise ls` lists for the row's request after the upgrade.
     public func reread(_ item: ManagedItem) async -> String? {
-        await row(of: item, binary: binaryPath)?.version
+        guard let binary = await scan().roots.first?.binary?.path else { return nil }
+        return await row(of: item, binary: binary)?.version
     }
 
     public func releaseNotes(for item: ManagedItem, force: Bool) async throws -> Changelog {
@@ -451,17 +478,17 @@ public struct MiseToolsAdapter: ManagerAdapter {
 
     /// Built from scratch, never inherited: mise reads `MISE_*` from its
     /// environment, and a terminal-run `duo` would hand the user's shell's on.
-    func commandEnvironment() -> [String: String] {
+    func commandEnvironment(binary: String) -> [String: String] {
         var environment = host.proxyEnvironment()
         environment["HOME"] = home.path
-        environment["PATH"] = CLIToolCommandRunner.path(prefix: pathPrefix)
+        environment["PATH"] = CLIToolCommandRunner.path(prefix: pathPrefix(binary: binary))
         environment["NO_COLOR"] = "1"
         return environment
     }
 
     /// `checked`'s request as `mise ls` lists it now.
     func row(of checked: ManagedItem, binary: String) async -> MiseToolsLs.Entry? {
-        guard let output = await host.run(binary, ["ls", "--json"], commandEnvironment()), output.succeeded,
+        guard let output = await host.run(binary, ["ls", "--json"], commandEnvironment(binary: binary)), output.succeeded,
               let ls = MiseToolsLs.parse(output.stdout),
               let tool = ls.tools.first(where: { $0.name == checked.name })
         else { return nil }

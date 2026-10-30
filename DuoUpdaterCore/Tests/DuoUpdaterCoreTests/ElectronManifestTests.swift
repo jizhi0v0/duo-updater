@@ -92,6 +92,292 @@ import Foundation
     #expect(ElectronManifest.parse("") == nil)
 }
 
+@Test func foldedBlockScalarsAreReadAsTheirContent() {
+    // DeepSeek Harness 0.2.1-rc.5's nightly feed, as served: the address, the
+    // checksum and `path` are all YAML folded scalars (`>-`). Reading the text
+    // after the colon literally made every one of them the string ">-", which
+    // left a perfectly installable zip as a detection-only row.
+    let manifest = try! #require(ElectronManifest.parse("""
+        version: 0.2.1-rc.5
+        files:
+          - url: >-
+              https://download.deepseek.com/dsh-desk/bin/mac-arm64/deepseek-harness-0.2.1-rc.5-mac-arm64.zip
+            sha512: >-
+              SPXR+TMC5+7v9R544aKgA2CkDrLr2XyNL/35/NuxGBbP5nrSTEGMurNRAi+R1RSlcWZm3KNdySAt0RS8Qizv9g==
+            size: 347767892
+        path: >-
+          https://download.deepseek.com/dsh-desk/bin/mac-arm64/deepseek-harness-0.2.1-rc.5-mac-arm64.zip
+        sha512: >-
+          SPXR+TMC5+7v9R544aKgA2CkDrLr2XyNL/35/NuxGBbP5nrSTEGMurNRAi+R1RSlcWZm3KNdySAt0RS8Qizv9g==
+        releaseDate: '2026-10-29T13:55:07.029Z'
+        """))
+    #expect(manifest.version == "0.2.1-rc.5")
+    #expect(manifest.files.count == 1)
+    #expect(manifest.files[0].size == 347767892)
+    #expect(manifest.files[0].sha512?.hasSuffix("Qizv9g==") == true)
+    #expect(manifest.path?.hasSuffix("-mac-arm64.zip") == true)
+    let file = try! #require(manifest.artifact(forArch: "arm64"))
+    #expect(file.url
+        == "https://download.deepseek.com/dsh-desk/bin/mac-arm64/deepseek-harness-0.2.1-rc.5-mac-arm64.zip")
+    #expect(file.sha512 == manifest.files[0].sha512)
+    #expect(ElectronManifestSource.kind(of: file.url) == .zip)
+}
+
+@Test func aFoldedScalarEndsBeforeItsSiblingKeys() {
+    let manifest = try! #require(ElectronManifest.parse("""
+        version: 2.0.0
+        files:
+          - url: >-
+              App-2.0.0-arm64.zip
+            sha512: >-
+              FILESHA==
+            size: 42
+        """))
+    #expect(manifest.files[0].url == "App-2.0.0-arm64.zip")
+    #expect(manifest.files[0].sha512 == "FILESHA==")
+    #expect(manifest.files[0].size == 42)
+}
+
+@Test func aLiteralBlockScalarKeepsItsSpelling() {
+    let manifest = try! #require(ElectronManifest.parse("""
+        version: 3.0.0
+        path: |
+          App-3.0.0-arm64.zip
+        sha512: SHA==
+        """))
+    #expect(manifest.path == "App-3.0.0-arm64.zip")
+}
+
+@Test func aUTF8BOMDoesNotHideTheVersion() {
+    // Windows-generated YAML may start with a BOM. js-yaml strips it; a reader
+    // that does not ends up with the key `\u{FEFF}version` and no manifest at all.
+    let manifest = ElectronManifest.parse(
+        "\u{FEFF}version: 1.2.3\r\npath: App-1.2.3.zip\r\nsha512: SHA==\r\n")
+    #expect(manifest?.version == "1.2.3")
+    #expect(manifest?.path == "App-1.2.3.zip")
+    #expect(manifest?.artifact()?.url == "App-1.2.3.zip")
+}
+
+@Test func inlineCommentsAreRemovedOutsideQuotes() {
+    let manifest = try! #require(ElectronManifest.parse("""
+        version: 1.2.3  # bumped today
+        files:
+          - url: "https://example.test/App#frag.zip"  # quoted, keep the hash
+            sha512: SHA==  # digest
+            size: 42  # bytes
+        path: https://example.test/App#frag.zip  # no space before the # above
+        """))
+    #expect(manifest.version == "1.2.3")
+    #expect(manifest.files.count == 1)
+    #expect(manifest.files[0].url == "https://example.test/App#frag.zip")
+    #expect(manifest.files[0].sha512 == "SHA==")
+    #expect(manifest.files[0].size == 42)
+    #expect(manifest.path == "https://example.test/App#frag.zip")
+    // Inside quotes a `" # "` is content, not a comment.
+    let quoted = ElectronManifest.parse("""
+        version: 1.2.3
+        path: "App #2.zip"
+        """)
+    #expect(quoted?.path == "App #2.zip")
+}
+
+@Test func yamlNullIsAbsentRatherThanTheStringNull() {
+    let manifest = try! #require(ElectronManifest.parse("""
+        version: 2.0.0
+        files:
+          - url: App-2.0.0-arm64.zip
+            sha512: null
+            size: 42
+        path: App-2.0.0-arm64.zip
+        sha512: ~
+        releaseDate: Null
+        """))
+    #expect(manifest.files[0].sha512 == nil)
+    #expect(manifest.sha512 == nil)
+    #expect(manifest.releaseDate == nil)
+    #expect(manifest.files[0].size == 42)
+    // Quoted, `"null"` is the four-character string it says it is.
+    let quoted = ElectronManifest.parse("""
+        version: 2.0.0
+        path: App.zip
+        sha512: "null"
+        """)
+    #expect(quoted?.sha512 == "null")
+}
+
+@Test func explicitBlockScalarIndicatorsAreAccepted() {
+    let manifest = try! #require(ElectronManifest.parse("""
+        version: 3.0.0
+        files:
+          - url: >2-
+              App-3.0.0-arm64.zip
+            sha512: |2-
+              SHA==
+        path: |-2
+          App-3.0.0-arm64.zip
+        """))
+    #expect(manifest.files[0].url == "App-3.0.0-arm64.zip")
+    #expect(manifest.files[0].sha512 == "SHA==")
+    #expect(manifest.path == "App-3.0.0-arm64.zip")
+}
+
+@Test func flowStyleFilesAreRead() {
+    let manifest = try! #require(ElectronManifest.parse("""
+        version: 4.0.0
+        files: [
+          {url: "App-4.0.0-arm64.zip", sha512: "SHA==", size: 42},
+          {url: App-4.0.0-x64.zip, sha512: X64==, size: 41}
+        ]
+        """))
+    #expect(manifest.files.count == 2)
+    #expect(manifest.files[0].url == "App-4.0.0-arm64.zip")
+    #expect(manifest.files[0].sha512 == "SHA==")
+    #expect(manifest.files[0].size == 42)
+    #expect(manifest.files[1].url == "App-4.0.0-x64.zip")
+    #expect(manifest.artifact()?.url == "App-4.0.0-arm64.zip")
+}
+
+@Test func aFlowMappingIsOneFile() {
+    let single = try! #require(ElectronManifest.parse("""
+        version: 4.0.1
+        files: {url: App-4.0.1-arm64.zip, sha512: SHA==, size: 7}
+        """))
+    #expect(single.files.count == 1)
+    #expect(single.files[0].sha512 == "SHA==")
+
+    let list = try! #require(ElectronManifest.parse("""
+        version: 4.0.2
+        files:
+          - {url: App-4.0.2-arm64.zip, sha512: SHA==, size: 8}
+        """))
+    #expect(list.files.count == 1)
+    #expect(list.files[0].url == "App-4.0.2-arm64.zip")
+}
+
+@Test func scalarAnchorsAndAliasesResolve() {
+    let manifest = try! #require(ElectronManifest.parse("""
+        version: 5.0.0
+        files:
+          - url: &app App-5.0.0-arm64.zip
+            sha512: &digest SHA==
+            size: 42
+        path: *app
+        sha512: *digest
+        """))
+    #expect(manifest.files[0].url == "App-5.0.0-arm64.zip")
+    #expect(manifest.files[0].sha512 == "SHA==")
+    #expect(manifest.path == "App-5.0.0-arm64.zip")
+    #expect(manifest.sha512 == "SHA==")
+
+    let inFlow = try! #require(ElectronManifest.parse("""
+        version: 5.1.0
+        files: &all [{url: &app App-5.1.0-arm64.zip, sha512: &digest SHA==}]
+        path: *app
+        sha512: *digest
+        """))
+    #expect(inFlow.files[0].url == "App-5.1.0-arm64.zip")
+    #expect(inFlow.path == "App-5.1.0-arm64.zip")
+    #expect(inFlow.sha512 == "SHA==")
+}
+
+@Test func aBlockScalarBodyIsNotScannedForCommentsOrBrackets() {
+    let manifest = try! #require(ElectronManifest.parse("""
+        version: 6.0.0
+        releaseNotes: | # notes follow
+          - [link](https://example.test) # not a comment
+          version: 9.9.9
+          files: [{url: fake.zip}]
+        files:
+          - url: App-6.0.0-arm64.zip
+            sha512: SHA==
+        """))
+    #expect(manifest.version == "6.0.0")
+    #expect(manifest.files.count == 1)
+    #expect(manifest.files[0].url == "App-6.0.0-arm64.zip")
+}
+
+@Test func existingVendorShapesAreUnchanged() {
+    // Real bodies kept as a net: each parsed before the YAML hardening above and
+    // must parse identically after it.
+    let notion = try! #require(ElectronManifest.parse("""
+        version: 7.31.3
+        files:
+          - url: Notion-7.31.3.zip
+            sha512: FILESHA==
+            size: 126113061
+        path: Notion-7.31.3.zip
+        sha512: TOPSHA==
+        releaseDate: '2026-08-27T01:59:39.485Z'
+        """))
+    #expect(notion.files[0].url == "Notion-7.31.3.zip")
+    #expect(notion.sha512 == "TOPSHA==")
+    #expect(notion.releaseDate == "2026-08-27T01:59:39.485Z")
+
+    let chatwise = try! #require(ElectronManifest.parse("""
+        version: 26.8.0
+        files:
+          - url: ChatWise-26.8.0-x64.zip
+            sha512: X64SHA==
+            size: 100
+          - url: ChatWise-26.8.0-arm64.zip
+            sha512: ARM64SHA==
+            size: 99
+        path: ChatWise-26.8.0-x64.zip
+        sha512: X64SHA==
+        """))
+    #expect(chatwise.artifact()?.url == "ChatWise-26.8.0-arm64.zip")
+    #expect(chatwise.artifact()?.sha512 == "ARM64SHA==")
+
+    let kimi = try! #require(ElectronManifest.parse("""
+        version: 3.2.23
+        files:
+          - url: Kimi-3.2.23-arm64-mac.zip
+            sha512: SHA==
+            size: 405166938
+        releaseDate: '2026-10-30T05:39:32.645Z'
+        releaseNotes: |-
+          ### 新增
+          - 新增任务中心
+        """))
+    #expect(kimi.version == "3.2.23")
+    #expect(kimi.files[0].size == 405166938)
+    #expect(kimi.releaseDate == "2026-10-30T05:39:32.645Z")
+
+    let qoder = try! #require(ElectronManifest.parse("""
+        version: 0.5.1
+        files:
+          - url: https://download.qoder.example/0.5.1/Qoder-mac-arm64.zip
+            sha512: SHA==
+            sha256: ABC
+            size: 327829991
+        path: Qoder-mac-arm64.zip
+        sha512: SHA==
+        releaseDate: 2026-10-30T05:43:45.104Z
+        differential:
+          blockmapUrl: https://download.qoder.example/Qoder.zip.blockmap
+          size: 341681
+        releaseNotes: {}
+        """))
+    #expect(qoder.version == "0.5.1")
+    #expect(qoder.files[0].url
+        == "https://download.qoder.example/0.5.1/Qoder-mac-arm64.zip")
+    #expect(qoder.files[0].size == 327829991)
+    #expect(qoder.artifactURL(forArch: "arm64",
+        relativeTo: URL(string: "https://download.qoder.example/latest-mac.yml")!)
+        == URL(string: "https://download.qoder.example/0.5.1/Qoder-mac-arm64.zip"))
+}
+
+@Test func anAppUpdateConfigWithBOMAndCommentIsRead() {
+    let cfg = ElectronUpdateConfig.parse("""
+        \u{FEFF}provider: generic  # how it ships
+        url: 'https://example.test/feed'
+        channel: nightly
+        """)
+    #expect(cfg?.provider == "generic")
+    #expect(cfg?.url == "https://example.test/feed")
+    #expect(cfg?.manifestURL == URL(string: "https://example.test/feed/nightly-mac.yml"))
+}
+
 @Test func artifactURLsResolveAgainstTheManifestsOwnDirectory() {
     let manifest = ElectronManifest.parse("""
         version: 2.4.0
@@ -375,6 +661,46 @@ struct ElectronManifestSourceTests {
 
         let entry = await RecipeHealth.shared.snapshot().first { $0.id == bundleID }
         #expect(entry?.isHealthy == true)
+    }
+
+    @Test func aFoldedScalarManifestResolvesEndToEnd() async throws {
+        // DeepSeek Harness 0.2.1-rc.5's nightly feed (2026-10-30, real body): the
+        // address, checksum and `path` are all YAML folded scalars (`>-`). They
+        // must still come out as the three install fields — this is the shape
+        // that used to resolve to a detection-only row.
+        let domain = "https://download.deepseek.example.test/dsh-desk/feeds/mac-arm64"
+        let zip = "https://download.deepseek.com/dsh-desk/bin/mac-arm64"
+            + "/deepseek-harness-0.2.1-rc.5-mac-arm64.zip"
+        let digest = "SPXR+TMC5+7v9R544aKgA2CkDrLr2XyNL/35/NuxGBbP5nrSTEGMurNRAi"
+            + "+R1RSlcWZm3KNdySAt0RS8Qizv9g=="
+        FixtureProtocol.requestedURLs = []
+        FixtureProtocol.routes = [
+            "\(domain)/nightly-mac.yml": .init(status: 200, body: """
+                version: 0.2.1-rc.5
+                files:
+                  - url: >-
+                      \(zip)
+                    sha512: >-
+                      \(digest)
+                    size: 347767892
+                path: >-
+                  \(zip)
+                sha512: >-
+                  \(digest)
+                releaseDate: '2026-10-29T13:55:07.029Z'
+                """, transportFailure: false),
+        ]
+        let bundleID = "com.duoupdater.test.electron.foldedScalars"
+
+        let remote = try #require(await ElectronManifestSource(session: fixtureSession())
+            .latestVersion(for: electronApp(
+                bundleID: bundleID, domain: domain, channel: "nightly")))
+        #expect(remote.shortVersion == "0.2.1-rc.5")
+        #expect(remote.downloadURL == URL(string: zip))
+        #expect(remote.vendorInstallerKind == .zip)
+        #expect(remote.expectedSHA512 == digest)
+        #expect(remote.downloadSize == 347_767_892)
+        #expect(FixtureProtocol.requestedURLs == ["\(domain)/nightly-mac.yml"])
     }
 
     @Test func aNativeArm64FilesEntryResolvesEndToEnd() async throws {

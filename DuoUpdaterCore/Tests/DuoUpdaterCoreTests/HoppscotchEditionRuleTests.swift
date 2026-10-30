@@ -84,8 +84,8 @@ import Testing
     /// A made-up bundle whose executable holds `literal` between filler, as the
     /// real ones hold their feed URL; no executable at all when nil.
     private func copy(_ version: String, literal: String?) throws -> InstalledApp {
-        let bundle = FileManager.default.temporaryDirectory
-            .appendingPathComponent("hoppscotch-edition-\(UUID().uuidString)/Hoppscotch.app")
+        let bundle = TestScratch.directory("hoppscotch-edition")
+            .appendingPathComponent("Hoppscotch.app")
         let macOS = bundle.appendingPathComponent("Contents/MacOS")
         try FileManager.default.createDirectory(at: macOS, withIntermediateDirectories: true)
         try PropertyListSerialization.data(

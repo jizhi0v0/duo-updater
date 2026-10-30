@@ -696,8 +696,7 @@ private let qoderCNIDENotesFixture = #"""
 
     /// `storage.json` as VS Code writes it — the id among unrelated state.
     private func appSupport(_ directory: String, storage: String?) throws -> URL {
-        let root = URL(fileURLWithPath: NSTemporaryDirectory())
-            .appendingPathComponent("qoder-identity-\(UUID().uuidString)", isDirectory: true)
+        let root = TestScratch.directory("qoder-identity")
         let dir = root.appendingPathComponent("\(directory)/User/globalStorage", isDirectory: true)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         if let storage {

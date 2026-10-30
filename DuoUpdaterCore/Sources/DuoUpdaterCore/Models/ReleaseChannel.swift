@@ -389,6 +389,19 @@ public enum ReleaseChannel: String, Codable, Sendable, Hashable, CaseIterable {
             return .dev
         }
 
+        // 0.997 Requestly — ONE release train, shipped as the plain app
+        //     "Requestly" (CFBundleName and CFBundleDisplayName, no "Beta"
+        //     token), whose bundle id nevertheless ends in `.beta`
+        //     (`io.requestly.beta`, from the product's beta-only beginnings).
+        //     The vendor publishes no non-stable artifact at all: its own updater
+        //     config says `releaseType: release`, and every GitHub release is
+        //     `prerelease: false`. So the suffix names no channel here, and
+        //     without this step 2 read the copy as `.beta` — where the stable
+        //     GitHub rule could not answer for it (the app read `unknown`) and a
+        //     `.beta` rule would owe a channel proof that its single artifact
+        //     cannot carry.
+        if bundleID == "io.requestly.beta" { return .stable }
+
         // 1. Keystone's own channel id — authoritative when present.
         if let ks = keystoneChannel?.trimmingCharacters(in: .whitespacesAndNewlines),
            !ks.isEmpty {

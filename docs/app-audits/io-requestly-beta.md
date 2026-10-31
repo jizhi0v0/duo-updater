@@ -39,6 +39,10 @@ release 正文就是变更说明：厂商用 conventional commits 走 GitHub 自
 
 `GitHubMarkdownParser` 正是为这个形状写的（它就是 GitHub 自动生成格式的解析器）：去掉 `by @author in URL` 后缀、丢掉 contributor 噪音段落，所以 `.gitHubReleases` 不需要 `entryPattern`/`itemPatterns`。多数 release 只带版本号自己那一条 commit（两三行），那是厂商写的，不是解析失败。
 
+![DuoUpdater 工作台里 Requestly 的 changelog](screenshots/io-requestly-beta-changelog.png)
+
+Requestly 的 changelog 在 DuoUpdater 自己的窗口里按版本渲染:左侧是版本列，右侧是选中版本的结构化条目。截图里26.6.29 只带版本号自己那一条 commit；`by @author in <PR url>` 后缀和 `**Full Changelog**` 比较链接都被剥掉了。截自 vmpal「macOS VM 1」（2026-10-30）。
+
 ## 已知问题
 - 厂商 `app-update.yml` 里仍是旧 repo slug；厂商哪天把旧名复用，GitHub 的重定向就会断。我们的 rule 已不依赖它，但 app 自己的 electron-updater 仍依赖
 - 没有 changelog recipe：release 正文是模板句，官网有逐版说明，未接

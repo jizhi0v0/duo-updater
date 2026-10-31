@@ -38,6 +38,10 @@
 
 注意：**一份文档写全平台**，mac 读者会看到只有 Windows 的条目（Git Bash 集成、Windows PHP 扩展安装器）。按标题切不了平台——`## New Features` 不是平台名——所以保留原样。
 
+![DuoUpdater 工作台里 FlyEnv 的 changelog](screenshots/phpstudy-xpfme-com-changelog.png)
+
+FlyEnv 的 changelog 在 DuoUpdater 自己的窗口里按版本渲染:左侧是版本列，右侧是选中版本的结构化条目。截图里4.20.2 整篇 14 条，`**要点**：说明` 的粗体前缀按 markdown 渲染；左侧版本列到 4.18.0，条目随选中版本切换。截自 vmpal「macOS VM 1」（2026-10-30）。
+
 ## 已知问题
 - **没有 changelog recipe**：release 正文是发版说明，还没结构化
 - **为什么当初「暂缓」**：它有一个 root helper，用来改 `/etc/hosts` 做本地站点。实测（见下）启动本身不动 hosts

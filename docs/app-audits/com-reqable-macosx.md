@@ -40,6 +40,10 @@
 
 `skipSections` 去掉 mac 读者用不上的平台节（`windows`、`linux`、`android-ios`、`android`、`ios`）。**共用那一节必须留住**：匹配是整段标题匹配，关键词放宽到能命中 `windows-macos-linux-android-ios` 就会把大部分条目一起删掉。只有 Windows 的 release（3.3.8 的全文就是一个 `### windows` 节）因此解析为空、不显示条目——那本来就没有 mac 包。
 
+![DuoUpdater 工作台里 Reqable 的 changelog](screenshots/com-reqable-macosx-changelog.png)
+
+Reqable 的 changelog 在 DuoUpdater 自己的窗口里按版本渲染:左侧是版本列，右侧是选中版本的结构化条目。截图里3.3.9 的三条共用说明都在；版本列从 3.3.9 直接跳到 3.3.7——只有 Windows 的 3.3.8 没有条目，也没有出现在列表里。截自 vmpal「macOS VM 1」（2026-10-30）。
+
 ## 已知问题
 - **没有 changelog recipe**：release 正文是发版说明短文，还没有结构化
 - **为什么当初「暂缓」**：它是抓包代理，会改系统代理、装根证书。实测下来这两件事都是**用户主动开启抓包才发生**，不是启动就发生（见下）

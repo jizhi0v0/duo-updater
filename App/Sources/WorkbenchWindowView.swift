@@ -393,24 +393,41 @@ struct WorkbenchWindowView: View {
         }
         .navigationTitle("DuoUpdater")
         .toolbar {
-            // The order only means something for the Apps list; the CLI and
-            // Rollback tabs keep their own fixed presentation.
-            if sidebarTab == .apps {
-                ToolbarItem(placement: .automatic) {
-                    AppSortMenu(prefs: model.prefs)
-                }
-            }
-            // Download traffic has its own window now (NetworkWindowView), so no
-            // traffic lens is needed here; the app-row pane is Release Notes or the
-            // Bundle Diff, which the detail column switches on its own.
+            // One item holding both controls, not two. Left as two, macOS 26/27
+            // draws them inside a single capsule anyway but pads each item
+            // itself, which put more space between the arrows and the gear than
+            // at either end of the capsule. Grouped here the spacing is this
+            // `HStack`'s, and it is also what lets `AppSortMenu` draw its symbol
+            // in the toolbar at all: a `.borderlessButton` menu laid out by the
+            // toolbar alone is sized to its own menu image, so a label drawn at
+            // a chosen size was clipped by that slot — the arrows came out as a
+            // down arrow and a sliver of the up one.
             ToolbarItem(placement: .primaryAction) {
-                Button {
-                    openWindow(id: SettingsView.windowID)
-                    model.surfaceWindow(sceneID: SettingsView.windowID)
-                } label: {
-                    Image(systemName: "gearshape")
+                // Zero, not a negative that would close the gap further: the
+                // ~6 pt each control keeps inside the capsule is its hover
+                // highlight, so overlapping the two frames (measured: −8 put the
+                // gap at 7.9 pt, level with the capsule's own 6.3/7.5) made one
+                // control's highlight sit under the other's. Adjacent is the
+                // tightest that stays honest; the space that remains between the
+                // glyphs is the two hover zones touching.
+                HStack(spacing: 0) {
+                    // The order only means something for the Apps list; the CLI
+                    // and Rollback tabs keep their own fixed presentation.
+                    if sidebarTab == .apps {
+                        AppSortMenu(prefs: model.prefs)
+                    }
+                    // Download traffic has its own window now
+                    // (NetworkWindowView), so no traffic lens is needed here;
+                    // the app-row pane is Release Notes or the Bundle Diff,
+                    // which the detail column switches on its own.
+                    Button {
+                        openWindow(id: SettingsView.windowID)
+                        model.surfaceWindow(sceneID: SettingsView.windowID)
+                    } label: {
+                        Image(systemName: "gearshape")
+                    }
+                    .help("Settings")
                 }
-                .help("Settings")
             }
         }
         // The sort is a reading preference, not a scan result: apply it now rather
@@ -2298,7 +2315,7 @@ private struct HomebrewSelfUpdateDetailPane: View {
     }
 
     private var header: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 8) {
             Image(systemName: "mug")
                 .font(.system(size: 26))
                 .frame(width: 44, height: 44)
@@ -2456,7 +2473,7 @@ private struct BrewUncheckedDetailPane: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 12) {
+            HStack(spacing: 8) {
                 FormulaIcon(name: package.name, size: 44)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(package.name).font(.title2).fontWeight(.semibold)
@@ -2600,7 +2617,7 @@ private struct FormulaDetailPane: View {
     }
 
     private var header: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 8) {
             FormulaIcon(name: formula.name, size: 44)
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
@@ -2629,7 +2646,7 @@ private struct FormulaDetailPane: View {
     private func headerAction(_ row: BrewFormulaRow) -> some View {
         switch row.slot {
         case .cancel, .spinnerOnly:
-            HStack(spacing: 12) {
+            HStack(spacing: 8) {
                 HStack(spacing: 7) {
                     ProgressView().controlSize(.small)
                     Text((row.progress ?? .updating).text)
@@ -3125,7 +3142,7 @@ private struct BrewLifecycleCaskDetailPane: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 12) {
+            HStack(spacing: 8) {
                 FormulaIcon(name: cask.token, size: 44)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(cask.token).font(.title2).fontWeight(.semibold)
@@ -3233,7 +3250,7 @@ private struct DetailHeader: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 12) {
+            HStack(spacing: 8) {
                 Image(nsImage: AppIconCache.icon(for: result.app.path.path))
                     .resizable().frame(width: 44, height: 44)
                 VStack(alignment: .leading, spacing: 2) {

@@ -1,0 +1,87 @@
+// Generated from AppRecipeIndex.all by RecipeGoldenTests. Do not edit by hand.
+// Regenerate: DUO_RECORD_RECIPE_GOLDENS=1 swift test --package-path DuoUpdaterCore --filter RecipeGoldenTests
+
+family = "com-reqable-macosx"
+
+probes = Array(count: 0)
+
+changelogs = Array(count: 1)
+changelogs[0] = struct ChangelogRecipe
+changelogs[0].bundleID = "com.reqable.macosx"
+changelogs[0].source = URL("https://api.github.com/repos/reqable/reqable-app/releases?per_page=40")
+changelogs[0].sourceTemplate = nil
+changelogs[0].versionFromTemplate = false
+changelogs[0].mode = .json
+changelogs[0].entryPattern = ""
+changelogs[0].itemPatterns = Array(count: 0)
+changelogs[0].stripTags = true
+changelogs[0].decodeEntities = true
+changelogs[0].escapedMarkup = false
+changelogs[0].markdownSource = false
+changelogs[0].maxEntries? = 20
+changelogs[0].minItemLength = 1
+changelogs[0].newestLast = false
+changelogs[0].indexLinkPattern = nil
+changelogs[0].feedPagePattern = nil
+changelogs[0].channel? = .stable
+changelogs[0].includesPromotedStable = false
+changelogs[0].ordersByPublishedDate = false
+changelogs[0].excludedChannels = Array(count: 0)
+changelogs[0].imagePattern = nil
+changelogs[0].headingPattern = nil
+changelogs[0].minimumAppVersion = nil
+changelogs[0].belowAppVersion = nil
+changelogs[0].carriesOtherTrainEntries = false
+changelogs[0].acknowledgedStaleEntry = nil
+changelogs[0].structuredFormat? = .gitHubReleases
+changelogs[0].httpMethod = .get
+changelogs[0].requestBody = nil
+changelogs[0].skipSections = Array(count: 5)
+changelogs[0].skipSections[0] = "windows"
+changelogs[0].skipSections[1] = "linux"
+changelogs[0].skipSections[2] = "android-ios"
+changelogs[0].skipSections[3] = "android"
+changelogs[0].skipSections[4] = "ios"
+changelogs[0].tagPattern = nil
+
+githubRules = Array(count: 1)
+githubRules[0] = struct GitHubReleaseRule
+githubRules[0].bundleID = "com.reqable.macosx"
+githubRules[0].owner = "reqable"
+githubRules[0].repo = "reqable-app"
+githubRules[0].usePrereleases = false
+githubRules[0].listPageSize = 20
+githubRules[0].versionPattern = "^([0-9]+(?:\\.[0-9]+)+)$"
+githubRules[0].candidateScope = .newest
+githubRules[0].probesNewestFirst = true
+githubRules[0].installedTagPrefix = nil
+githubRules[0].channel = .stable
+githubRules[0].installAssetPattern? = "^reqable-app-macos-arm64\\.dmg$"
+githubRules[0].installerKind? = .dmg
+githubRules[0].installTrust = .developerID
+githubRules[0].variant = nil
+githubRules[0].architectureRequirement = nil
+githubRules[0].tagRefPrefix = nil
+githubRules[0].installedExecutableMarker = nil
+
+appStoreCases = Array(count: 0)
+
+channelProofs = Dictionary(count: 0)
+
+githubChannelProofs = Dictionary(count: 0)
+
+bindingProofs = Dictionary(count: 0)
+
+sparkleFeeds = Dictionary(count: 0)
+
+supersededFeeds = Dictionary(count: 0)
+
+loginWalls = Dictionary(count: 0)
+
+changelogPages = Dictionary(count: 0)
+
+oneClickGates = Array(count: 0)
+
+loginItemAgentRestarts = Dictionary(count: 0)
+
+sunsets = Dictionary(count: 0)

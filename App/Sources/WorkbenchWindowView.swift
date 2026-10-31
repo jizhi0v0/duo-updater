@@ -403,7 +403,13 @@ struct WorkbenchWindowView: View {
             // a chosen size was clipped by that slot — the arrows came out as a
             // down arrow and a sliver of the up one.
             ToolbarItem(placement: .primaryAction) {
-                HStack(spacing: 8) {
+                // Negative, and measured: each control keeps about 6 pt of its
+                // own padding inside the capsule, so at a positive spacing the
+                // gap between the arrows and the gear came out 20.5 pt against
+                // 6.3 pt of padding at the left end and 7.5 pt at the right. −8
+                // cancels that inner padding and leaves the two glyphs the same
+                // distance apart as each is from the capsule's edge.
+                HStack(spacing: -8) {
                     // The order only means something for the Apps list; the CLI
                     // and Rollback tabs keep their own fixed presentation.
                     if sidebarTab == .apps {

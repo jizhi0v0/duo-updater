@@ -395,10 +395,24 @@ public struct AppScanner: Sendable {
     }
 
     /// Scan all configured locations and return the apps found, sorted by name.
+    ///
+    /// Each location is read one level deep: the `.app` bundles directly inside
+    /// it, plus the bundles directly inside any plain folder there. Vendor
+    /// installers park suites that way (`/Applications/Adobe Photoshop
+    /// 2025/Adobe Photoshop 2025.app`) and people sort their own apps into
+    /// folders the same way (`/Applications/MyApps/…`). One folder — not a
+    /// recursive walk: `Vendor/Product/App.app` is a second level this
+    /// deliberately does not reach, because a user's own tree below that is what
+    /// a custom scan folder is for, and every extra level multiplies the noise
+    /// from uninstallers and helper bundles. Bundles are never opened: a nested
+    /// helper inside an app is that app's business (see `readApp`).
     public func scan() -> [InstalledApp] {
         let fm = FileManager.default
         var pass = EntryPass()
         var apps: [InstalledApp] = []
+        // A folder that is itself a root is read once, as a root. `/Applications/
+        // Utilities` is both.
+        let roots = Set(locations.map { $0.standardizedFileURL.path })
 
         for dir in locations {
             guard let entries = try? fm.contentsOfDirectory(
@@ -410,13 +424,43 @@ public struct AppScanner: Sendable {
             for entry in entries {
                 if let app = admit(entry, pass: &pass) {
                     apps.append(app)
+                    continue
+                }
+                guard !roots.contains(entry.standardizedFileURL.path),
+                      Self.isPlainFolder(entry),
+                      let nested = try? fm.contentsOfDirectory(
+                        at: entry,
+                        includingPropertiesForKeys: nil,
+                        options: [.skipsHiddenFiles]
+                      )
+                else { continue }
+                for child in nested {
+                    if let app = admit(child, pass: &pass) {
+                        apps.append(app)
+                    }
                 }
             }
         }
 
         apps = finish(apps, pass: pass)
-        Log.scan.info("scanned \(self.locations.count, privacy: .public) locations → \(apps.count, privacy: .public) apps")
+        Log.scan.info("scanned \(self.locations.count, privacy: .public) locations, one folder deep → \(apps.count, privacy: .public) apps")
         return apps
+    }
+
+    /// Whether a location's entry is a folder worth reading one level into: not a
+    /// bundle (`.app` entries were already offered to `admit`), not a symlink
+    /// (following one risks a loop, and a link to `/System` would only produce
+    /// copies `admit` drops), not a `.localized` resources folder (Chrome keeps
+    /// its web-app shims in `~/Applications/Chrome Apps.localized` — they launch
+    /// a browser, they do not update themselves, and listing them is the noise
+    /// #1759 asks to remove, not add), and in fact a directory.
+    static func isPlainFolder(_ url: URL) -> Bool {
+        guard url.pathExtension != "app" else { return false }
+        guard !url.lastPathComponent.hasSuffix(".localized") else { return false }
+        guard let values = try? url.resourceValues(
+            forKeys: [.isDirectoryKey, .isSymbolicLinkKey]
+        ) else { return false }
+        return values.isDirectory == true && values.isSymbolicLink != true
     }
 
     /// Re-read a known set of bundles — the per-row form of `scan()`, for a

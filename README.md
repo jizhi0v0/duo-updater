@@ -84,7 +84,10 @@ already there, and nothing installed is replaced; **Download Only** saves the
 ## How it works
 
 Apps are scanned from `/Applications`, `/Applications/Utilities`, and
-`~/Applications`, then checked against multiple update sources, in priority order:
+`~/Applications` — one folder deep as well, so a vendor's own folder
+(`/Applications/Adobe Photoshop 2025/…`) or yours (`/Applications/MyApps/…`) is
+found, and extra folders can be added in Settings — then checked against
+multiple update sources, in priority order:
 
 1. **Mac App Store** — iTunes lookup API, with storefront/region awareness
    (the lookup's version is only trusted for native `mac-software` listings and

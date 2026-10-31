@@ -7,6 +7,49 @@ import Foundation
     #expect(!apps.isEmpty, "expected to find at least one app in /Applications")
 }
 
+/// Vendor suites and people's own sorted folders put an app one folder below a
+/// scan root; scanning one level deep finds those. Two levels is the line: the
+/// user's deeper tree is what a custom scan folder is for, and walking into it
+/// would only add uninstallers and helper bundles (issue #1759).
+@Test func scanReachesAppsOneFolderDeepButNotTwo() throws {
+    let fm = FileManager.default
+    let root = fm.temporaryDirectory
+        .appendingPathComponent("scanner-depth-\(UUID().uuidString)")
+    defer { try? fm.removeItem(at: root) }
+
+    try writeFixtureApp(at: root.appendingPathComponent("Flat.app"),
+                        id: "com.example.flat", name: "Flat")
+    try writeFixtureApp(at: root.appendingPathComponent("Adobe Photoshop 2025/Adobe Photoshop.app"),
+                        id: "com.example.photoshop", name: "Adobe Photoshop")
+    try writeFixtureApp(at: root.appendingPathComponent("Vendor/Product/Deep.app"),
+                        id: "com.example.deep", name: "Deep")
+    // Chrome's web-app shims live one folder deep in `~/Applications/…localized`;
+    // one level down is exactly the depth that would now reach them.
+    try writeFixtureApp(at: root.appendingPathComponent("Chrome Apps.localized/Gmail.app"),
+                        id: "com.google.Chrome.app.gmail", name: "Gmail")
+
+    let scanner = AppScanner(locations: [root], testflight: TestFlightInventory(macRows: []))
+    #expect(scanner.scan().map(\.name) == ["Adobe Photoshop", "Flat"])
+}
+
+/// A folder that is itself a scan root must not be read twice as a root and as
+/// `/Applications`'s subfolder (`Utilities` is both on every Mac). The path
+/// dedupe already keeps the row single; this pins the count so a future change
+/// that drops the root check cannot double the scan work silently.
+@Test func folderThatIsAlsoARootIsReadOnce() throws {
+    let fm = FileManager.default
+    let root = fm.temporaryDirectory
+        .appendingPathComponent("scanner-root-\(UUID().uuidString)")
+    defer { try? fm.removeItem(at: root) }
+    let utilities = root.appendingPathComponent("Utilities")
+    try writeFixtureApp(at: utilities.appendingPathComponent("Inside.app"),
+                        id: "com.example.inside", name: "Inside")
+
+    let scanner = AppScanner(locations: [root, utilities],
+                             testflight: TestFlightInventory(macRows: []))
+    #expect(scanner.scan().map(\.name) == ["Inside"])
+}
+
 @Test func cleansNoisyJetBrainsEAPVersion() {
     // A JetBrains EAP bundle reports "EAP IU-262.6653.22" as its marketing version;
     // with no Toolbox to supply a clean "2026.2" we reduce it to the bare build.
@@ -232,4 +275,17 @@ private func makeBundleWithNestedSparkle(depth: Int, id: String) throws -> URL {
         .appendingPathComponent("Contents/Frameworks/Host0 Framework.framework/Versions/A/Frameworks/Sparkle.framework")
         .resolvingSymlinksInPath().path
     #expect(homes == [nested])
+}
+
+/// A bundle `readApp` will accept, without the cost of a real app: the only
+/// things it requires are a readable Info.plist and a marketing version.
+private func writeFixtureApp(at bundle: URL, id: String, name: String) throws {
+    let contents = bundle.appendingPathComponent("Contents")
+    try FileManager.default.createDirectory(at: contents, withIntermediateDirectories: true)
+    try PropertyListSerialization
+        .data(fromPropertyList: [
+            "CFBundleIdentifier": id, "CFBundleShortVersionString": "1.0",
+            "CFBundleVersion": "1", "CFBundleName": name,
+        ], format: .xml, options: 0)
+        .write(to: contents.appendingPathComponent("Info.plist"))
 }

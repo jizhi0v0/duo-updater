@@ -36668,6 +36668,12 @@
     "Ignored (row status)": {
       "extractionState": "manual",
       "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ignored"
+          }
+        },
         "de": {
           "stringUnit": {
             "state": "translated",
@@ -50366,6 +50372,12 @@
     "Skipped (row status)": {
       "extractionState": "manual",
       "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Skipped"
+          }
+        },
         "de": {
           "stringUnit": {
             "state": "translated",
@@ -81812,6 +81824,12 @@
     "Interrupted (row status)": {
       "extractionState": "manual",
       "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Interrupted"
+          }
+        },
         "de": {
           "stringUnit": {
             "state": "translated",
@@ -84744,6 +84762,136 @@
           "stringUnit": {
             "state": "translated",
             "value": "開始後無法取消"
+          }
+        }
+      }
+    },
+    "Ignored apps are managed in Settings › Ignored apps.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ignorierte Apps werden unter Einstellungen › Ignorierte Apps verwaltet."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las apps ignoradas se gestionan en Ajustes › Apps ignoradas."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les applications ignorées se gèrent dans Réglages › Applications ignorées."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le app ignorate si gestiscono in Impostazioni › App ignorate."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無視されているアプリは「設定」›「無視されているアプリ」で管理します。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apps ignorados são gerenciados em Ajustes › Apps ignorados."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Игнорируемые приложения управляются в «Настройки» › «Игнорируемые приложения»."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yok sayılan uygulamalar Ayarlar › Yok sayılan uygulamalar bölümünde yönetilir."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已忽略的应用在“设置”›“已忽略的应用”中管理。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已忽略的 App 在「設定」›「已忽略的 App」中管理。"
+          }
+        }
+      }
+    },
+    "Not installed": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nicht installiert"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No instalada"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Non installée"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Non installata"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "インストールされていません"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Não instalado"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не установлено"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yüklü değil"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未安装"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未安裝"
           }
         }
       }

@@ -223,7 +223,7 @@ struct WorkbenchWindowView: View {
     /// The derived lists the sidebar draws, built ONCE per body pass and handed down.
     ///
     /// They used to be computed properties read from the view builders that need
-    /// them — `filteredApps` from three (the section header, the list, its empty
+    /// them — the app rows from three (the section header, the list, its empty
     /// overlay), `rollbackableApps` from four, `brewCasks` from three — so one
     /// pass re-ran every `filter` and every `sort(localizedCaseInsensitiveCompare)`
     /// three or four times over. And the pass is not rare: the body reads
@@ -233,7 +233,14 @@ struct WorkbenchWindowView: View {
     /// rows always agree. `hasCLI` is not: a search that matches no CLI row must
     /// not make the CLI tab disappear from under the reader.
     struct SidebarLists {
+        /// The app rows the Apps list draws: the ones still tracked, or — while a
+        /// search is typed — every app it matches, ignored ones included. Ignored
+        /// apps are managed in Settings, so browsing leaves them out; a search is
+        /// a question about a specific app, so it may answer with one.
         let filteredApps: [UpdateResult]
+        /// How many installed apps are ignored, which is what the Apps list says
+        /// when a search finds nothing: they are somewhere, just not here.
+        let ignoredAppCount: Int
         /// The CLI tab's tool groups after Homebrew's, every tool's installs in
         /// `CLIToolKind.allCases` order and npm's by prefix — the order the groups
         /// are drawn in (`CLIToolPresentation.groups`).
@@ -266,9 +273,27 @@ struct WorkbenchWindowView: View {
             CLIToolPresentation.updatesFirst(model.cliTools.statuses), to: heldCLIOrder, id: \.toolID.tag)
         let formulae = CLIToolPresentation.holding(
             CLIToolPresentation.outdatedFirst(model.brewFormulae, \.hasUpdate), to: heldCLIOrder, id: Self.formulaTag)
+        // Unfiltered, the same array as the last pass (`sortedResults`). Read
+        // once per row: `isIgnored` is the defaults-backed set, and this read is
+        // also what makes the list drop a row the moment it is ignored
+        // (`Preferences` is `@Observable`).
+        // Counted over every app, not just the ones the search admits: the Apps
+        // list's empty state has to say ignored apps exist even when none matches
+        // the query.
+        var ignoredCount = 0
+        var rows: [UpdateResult] = []
+        rows.reserveCapacity(allApps.count)
+        for row in allApps {
+            let ignored = model.prefs.isIgnored(row.app)
+            if ignored { ignoredCount += 1 }
+            // While searching, an ignored app is a match like any other; while
+            // browsing it is managed in Settings and does not appear.
+            guard searchQuery.isEmpty ? !ignored : matchesSearch(row) else { continue }
+            rows.append(row)
+        }
         return SidebarLists(
-            // Unfiltered, the same array as the last pass (`sortedResults`).
-            filteredApps: searchQuery.isEmpty ? allApps : allApps.filter(matchesSearch),
+            filteredApps: rows,
+            ignoredAppCount: ignoredCount,
             cliTools: CLIToolPresentation.groups(cliTools.filter(matchesSearch)).flatMap(\.statuses),
             brewCasks: allCasks.filter(matchesSearch),
             brewFormulae: formulae.filter { matchesSearch($0.name) },
@@ -544,6 +569,15 @@ struct WorkbenchWindowView: View {
                 guard !Task.isCancelled else { return }
                 detailSelection = newValue
             }
+        }
+        // A row can leave the list without the keyboard touching it: ignoring the
+        // selected app takes it out (Settings manages it now), and a search can stop
+        // matching it. Move to the first row still drawn, or the detail pane would
+        // keep describing an app the list does not show.
+        .onChange(of: lists.filteredApps.map(\.id)) { _, ids in
+            guard shownTab(lists) == .apps, let current = selection,
+                  !ids.contains(current) else { return }
+            selection = ids.first
         }
         // A "Changelog" deep-link arriving while the window is already open — the
         // `.task` above only fires on a fresh open, so catch the in-flight case here.
@@ -1417,10 +1451,14 @@ struct WorkbenchWindowView: View {
         return ManagedHeaderInfo(tooltip: tooltip, paths: paths)
     }
 
-    /// The Apps tab's list.
+    /// The Apps tab's list. Ignored apps are not drawn here: they are managed in
+    /// Settings › Ignored apps, the one place the hidden things live. A search
+    /// still reads them (typing a name answers "where did it go" without a trip to
+    /// Settings), and the row's menu still offers Stop ignoring.
     private func appsListView(_ lists: SidebarLists, isShown: Bool) -> some View {
         WorkbenchAppsList(
-            apps: lists.filteredApps, searchText: searchText, isShown: isShown,
+            apps: lists.filteredApps, ignoredAppCount: lists.ignoredAppCount,
+            searchText: searchText, isShown: isShown,
             model: model, selection: $selection, focus: $listFocus)
             .equatable()
     }
@@ -1675,7 +1713,11 @@ extension View {
 /// The selection is not compared: each row's `sidebarRow` reads the binding
 /// itself, and a change to it updates those rows alone.
 private struct WorkbenchAppsList: View, @MainActor Equatable {
+    /// The rows to draw: everything the search admits that is not ignored.
     let apps: [UpdateResult]
+    /// How many installed apps are ignored. Only read when the list is empty, to
+    /// say where they went — an app that vanishes without a word reads as a bug.
+    let ignoredAppCount: Int
     let searchText: String
     let isShown: Bool
     let model: AppListModel
@@ -1683,7 +1725,8 @@ private struct WorkbenchAppsList: View, @MainActor Equatable {
     var focus: FocusState<WorkbenchWindowView.SidebarTab?>.Binding
 
     static func == (lhs: Self, rhs: Self) -> Bool {
-        lhs.apps == rhs.apps && lhs.searchText == rhs.searchText && lhs.isShown == rhs.isShown
+        lhs.apps == rhs.apps && lhs.ignoredAppCount == rhs.ignoredAppCount
+            && lhs.searchText == rhs.searchText && lhs.isShown == rhs.isShown
             && lhs.model === rhs.model
     }
 
@@ -1699,7 +1742,22 @@ private struct WorkbenchAppsList: View, @MainActor Equatable {
         }
         .overlay {
             if apps.isEmpty {
-                ContentUnavailableView.search(text: searchText)
+                VStack(spacing: 6) {
+                    // With every app ignored there is no query to "no results"
+                    // about; the hint below is the whole explanation.
+                    if searchText.isEmpty {
+                        ContentUnavailableView("No apps yet", systemImage: "square.grid.2x2")
+                    } else {
+                        ContentUnavailableView.search(text: searchText)
+                    }
+                    if ignoredAppCount > 0 {
+                        Text("Ignored apps are managed in Settings › Ignored apps.")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 16)
+                    }
+                }
             }
         }
     }

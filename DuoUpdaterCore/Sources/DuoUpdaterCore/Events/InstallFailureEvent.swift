@@ -134,7 +134,7 @@ public enum InstallFailureReport {
 
     /// True for an error the user can fix on their own Mac — no disk space,
     /// Accessibility not granted, the App Store helper's hints, a VMPal VM still
-    /// open — where a report
+    /// open, a helper only the host's next launch clears — where a report
     /// would only tell the developer what the row already told the user.
     /// Matches the English text Core produces; the app's own translated copies
     /// of these are its to recognise.

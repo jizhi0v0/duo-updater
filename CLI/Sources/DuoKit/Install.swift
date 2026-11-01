@@ -1304,8 +1304,9 @@ public enum Install {
                 tally.record(.cancelled)
             } catch let refused as NestedAppRunningError {
                 // The nested app started after the check above, during the
-                // download. Still a refusal waiting on the user to quit a process,
-                // so it is counted and emitted as a skip, not as a failure. The
+                // download. Still a refusal waiting on the user — quit the
+                // process, or open the app whose launch replaces it — so it is
+                // counted and emitted as a skip, not as a failure. The
                 // rollback point may already have been replaced by then, which is
                 // why the message says the app was not updated rather than that
                 // nothing changed.

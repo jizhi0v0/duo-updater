@@ -3,7 +3,10 @@ import Darwin
 
 /// Refuses to replace a bundle while an app nested inside it is running on its
 /// own — a process that will keep running the old code after the swap, and that
-/// the restart afterwards can neither quit safely nor bring back.
+/// the restart afterwards can neither quit safely nor bring back. Two exemptions
+/// are gated on the host's main app running, both listed under "What counts": a
+/// nested app that quits with its host, and one the host replaces on its next
+/// launch.
 ///
 /// The case that motivated it is VMPal. Each virtual machine runs in
 /// `VMPal.app/Contents/Helpers/VMPalMachine.app`, launched by LaunchServices
@@ -48,7 +51,16 @@ import Darwin
 ///   (below), and an app that skips it keeps running the old agent. The bet is
 ///   the same one the login-item exclusion makes.
 /// - Its parent is not a process running from the same bundle. A helper the app
-///   spawned goes away with the app.
+///   spawned goes away with the app — except a helper the host replaces at launch,
+///   which outlives it: that one is no parent for this rule, and its own subtree
+///   is covered by the exemption below.
+/// - It is not a helper the host rebuilds at every launch, while the host's
+///   main app is running — Gemini's launcher (below). Gemini terminates any
+///   instance and starts a fresh one from its own bundle on every launch, so the
+///   restart after the swap replaces it. The gate is there because that helper
+///   is also the vendor's updater, and it defers its own install only while the
+///   main app runs: with the host quit the lone launcher is exactly when its
+///   installer would go ahead, so it blocks.
 /// - It is not a `.regular` app. That one already has a path: `AppRestarter`
 ///   quits and reopens it along with the main app (Surge's Dashboard).
 ///
@@ -66,8 +78,8 @@ import Darwin
 /// - Gemini, by `GeminiAppLauncher.app`.
 ///
 /// VMPal was not in that list only because no VM was running at the time.
-/// The two `Contents/Helpers` apps stay refused for as long as they run. That is
-/// the agreed cost.
+/// AweSun's `AweSun_Desktop.app` stays refused for as long as it runs — that is
+/// the agreed cost — and Gemini's launcher did too until 2026-11-01 (below).
 ///
 /// The LaunchAgents exclusion came on 2026-10-12, for Backdrop. Its
 /// `Contents/Resources/BackdropWallpaper.app` is the `BundleProgram` of
@@ -107,7 +119,8 @@ import Darwin
 /// something running inside), these rules refused two bundles. The exclusion
 /// lets Backdrop through. Gemini, refused by
 /// `Contents/Helpers/GeminiAppLauncher.app`, has no LaunchAgents plist and
-/// stays refused. Of the nine installed bundles that ship
+/// stays refused — until `nestedAppsTheHostReplacesOnLaunch` (below). Of the
+/// nine installed bundles that ship
 /// `Contents/Library/LaunchAgents/`, Backdrop's was the only agent the other
 /// rules did not already pass (the rest run from `LoginItems`, `Frameworks`,
 /// `Contents/MacOS` or outside any nested `.app`).
@@ -135,6 +148,51 @@ import Darwin
 ///   the watchdog running. A swap then leaves the old watchdog running beside
 ///   the new BTT, because nothing quits it. That is why the exception needs the
 ///   host's main app running.
+///
+/// `nestedAppsTheHostReplacesOnLaunch` came on 2026-11-01, for Gemini, after a
+/// user report (#1764) of a refused 1.135.1.1291 → 1.138.0.1315 update.
+/// `Contents/Helpers/GeminiAppLauncher.app` is `LSUIElement` and sits in the menu
+/// bar with Gemini's global shortcuts; it is also Gemini's own Omaha updater
+/// ("Checking for update…", then "Deferring update 1.138.0.1315 — main app is
+/// running"). Gemini starts it through LaunchServices about two seconds after it
+/// comes up, so its parent is launchd and the parent rule never let it through.
+/// It can also be registered as a login item — macOS announced "Login Item
+/// Added: GeminiAppLauncher" in the VM on 2026-11-01 — so it can be up with
+/// Gemini quit; it lives in `Contents/Helpers`, not `Contents/Library/LoginItems`,
+/// so the login-item exclusion never covered it either.
+/// It was the only reason the 2026-10-06 survey refused Gemini, and a one-click
+/// update with Gemini open hit it every time.
+///
+/// Measured in VMPal's macOS VM (macOS 27.2) on 2026-11-01, Gemini 1.107.3.828
+/// → 1.138.0.1315; the launcher replacement alone was also measured on the dev
+/// Mac (27.2, 31504 → 54005):
+///
+/// - With Gemini and the launcher running, the swap went through, and
+///   `duo restart` replaced the launcher with the new bundle's (pid 91219,
+///   1.107 code → 91558, 1.138.00.0). Nothing was left running from the old
+///   bundle. The app does that itself: its log says "Terminating existing
+///   helper app instance(s)", then "Helper app launched successfully", on every
+///   launch.
+/// - Quitting Gemini leaves the launcher up only while it is busy: it went
+///   2 s after a quit while idle, and stayed for the minutes it spent
+///   downloading 1.138 with the main app running. So the lone launcher is the
+///   state in which Google's installer is free to go ahead on its own — which is
+///   why the exemption needs the host's main app running, though for the
+///   opposite reason to BetterTouchTool's: here it is the host that would let the
+///   helper's own install run, not the host that quits it.
+///
+/// The launcher is let through only while Gemini runs, so the reported case (the
+/// user is using Gemini, its launcher is up and deferring) updates. When Gemini
+/// is quit and the launcher is still up, the refusal asks for Gemini to be opened
+/// (`Blocker.needsHostRunning`), not for the launcher to be quit: opening Gemini
+/// is what replaces the launcher, and the user has no icon of that name to look
+/// for. A swap that goes ahead leaves the old launcher running beside the swapped
+/// bundle until the next launch — or until the restart duo offers, if the user
+/// takes it — the same bet the login-item
+/// exclusion makes. Its own updater may then install a build from a different
+/// Omaha cohort than the one duo installed: that is the price of installing
+/// during a staged rollout at all (the cohort echo, #1621), not something the
+/// guard can settle.
 public enum NestedAppGuard {
 
     /// One process, as much as this guard needs to know about it.
@@ -192,6 +250,11 @@ public enum NestedAppGuard {
         /// The VM it runs, when it is one of VMPal's ("macOS VM 1"). See
         /// `vmName(of:insideBundle:)`.
         public var vmName: String? = nil
+        /// Whether starting the host's main app is what clears it: a helper the
+        /// host replaces at launch, refused only while the host is not running.
+        /// The advice is then to open the app, not to quit the helper. See
+        /// `nestedAppsTheHostReplacesOnLaunch`.
+        public var needsHostRunning: Bool = false
     }
 
     /// The nested apps that block replacing the bundle at `bundlePath`, in pid
@@ -207,12 +270,15 @@ public enum NestedAppGuard {
         let root = bundlePath.hasSuffix("/") ? String(bundlePath.dropLast()) : bundlePath
         let prefix = root + "/"
         // An agent instance or a relay outlives the app, so what it spawns does
-        // not go away with the app: it is no parent for the parent rule.
+        // not go away with the app: it is no parent for the parent rule. The
+        // same goes for a helper the host replaces at launch — measured to
+        // outlive it — whose own subtree the exemption already covers.
         let fromThisBundle = Set(processes.lazy
             .filter { $0.executablePath.hasPrefix(prefix) }
             .filter { process in
                 !launchAgents.contains(where: { $0.isInstance(process) })
                     && !neverBlocks(process, insideBundle: prefix)
+                    && !replacedOnLaunch(executablePath: process.executablePath, insideBundle: prefix)
             }
             .map(\.pid))
         let hostIsRunning = processes.contains {
@@ -225,9 +291,15 @@ public enum NestedAppGuard {
                       !neverBlocks(process, insideBundle: prefix),
                       !(hostIsRunning
                         && exitsWithHost(executablePath: process.executablePath, insideBundle: prefix)),
+                      !(hostIsRunning
+                        && replacedOnLaunch(executablePath: process.executablePath, insideBundle: prefix)),
                       let name = nestedAppName(executablePath: process.executablePath, insideBundle: prefix)
                 else { return nil }
-                return Blocker(name: name, pid: process.pid, vmName: vmName(of: process, insideBundle: prefix))
+                return Blocker(
+                    name: name, pid: process.pid,
+                    vmName: vmName(of: process, insideBundle: prefix),
+                    needsHostRunning: replacedOnLaunch(
+                        executablePath: process.executablePath, insideBundle: prefix))
             }
             .sorted { $0.pid < $1.pid }
     }
@@ -240,6 +312,18 @@ public enum NestedAppGuard {
     /// comment.
     static let nestedAppsThatExitWithHost: [String] = [
         "Contents/Resources/BTTRelaunch.app",
+    ]
+
+    /// Nested apps the host itself terminates and starts again from its own
+    /// bundle every time it launches, as paths relative to the host bundle.
+    /// Nothing in them has to be quit before the swap: whatever still runs is
+    /// replaced at the host's next launch. Let through only while the host's main
+    /// app runs — such a helper is usually the vendor's updater, which defers its
+    /// own install only while that app does. See Gemini's launcher in the type's
+    /// comment. The name has to stay vendor-unique: matching is by path, and what
+    /// makes the exemption safe is the vendor's own launch behaviour.
+    static let nestedAppsTheHostReplacesOnLaunch: [String] = [
+        "Contents/Helpers/GeminiAppLauncher.app",
     ]
 
     /// Nested-app processes that never block, as the nested app's path relative
@@ -279,6 +363,14 @@ public enum NestedAppGuard {
         guard executablePath.hasPrefix(bundlePrefix) else { return false }
         let relative = executablePath.dropFirst(bundlePrefix.count)
         return nestedAppsThatExitWithHost.contains { relative.hasPrefix($0 + "/") }
+    }
+
+    /// Whether `executablePath` is code from one of
+    /// `nestedAppsTheHostReplacesOnLaunch`. `bundlePrefix` ends in `/`.
+    static func replacedOnLaunch(executablePath: String, insideBundle bundlePrefix: String) -> Bool {
+        guard executablePath.hasPrefix(bundlePrefix) else { return false }
+        let relative = executablePath.dropFirst(bundlePrefix.count)
+        return nestedAppsTheHostReplacesOnLaunch.contains { relative.hasPrefix($0 + "/") }
     }
 
     /// Whether `executablePath` is directly in the bundle's own `Contents/MacOS/`.
@@ -414,14 +506,19 @@ public struct NestedAppRunningError: LocalizedError, Equatable, Sendable {
     static let keepsOldVersion = "would keep running the old version"
     static let closeOneVM = "close its window, then update again."
     static let closeVMs = "close their windows, then update again."
+    /// The fixed tail of the sentence for `Blocker.needsHostRunning`: the app's
+    /// name sits between the two halves, so the fragment stops where it starts.
+    static let openTheHost = keepsOldVersion + ". Open "
 
     /// In every message that names a VMPal VM: the user ends that refusal by
     /// shutting the VM down and closing its window, so
-    /// `InstallFailureReport.isUserFixable` offers no report for it. Any other
-    /// nested app may be a background helper the user cannot quit, and a report
-    /// is how such a case reaches us (BetterTouchTool's watchdog did), so the
-    /// general sentence is not in here.
-    static let userFixableFragments = [closeOneVM, closeVMs]
+    /// `InstallFailureReport.isUserFixable` offers no report for it. The same
+    /// for a helper only the host's next launch clears — the row already says
+    /// to open the app, and this state is transient by nature. Any other nested
+    /// app may be a background helper the user cannot quit, and a report is how
+    /// such a case reaches us (BetterTouchTool's watchdog did), so the general
+    /// sentence is not in here.
+    static let userFixableFragments = [closeOneVM, closeVMs, openTheHost]
 
     public var errorDescription: String? {
         var sentences: [String] = []
@@ -436,11 +533,25 @@ public struct NestedAppRunningError: LocalizedError, Equatable, Sendable {
                 ? "\(list) is open in \(appName). Shut it down and \(Self.closeOneVM)"
                 : "\(list) are open in \(appName). Shut them down and \(Self.closeVMs)")
         }
-        let names = Array(Set(blockers.filter { $0.vmName == nil }.map(\.name))).sorted()
-        if !names.isEmpty {
+        // Two kinds of advice, because they end differently: quit the helper, or
+        // start the host so that its next launch replaces the helper. A name in
+        // both is named once, in the sentence whose advice clears it. A refusal
+        // mixing the kinds cannot happen with today's two lists — one match path
+        // each, and no bundle ships both — and would need one combined sentence
+        // rather than these two if it ever could.
+        let hostNames = Set(blockers.filter { $0.vmName == nil && $0.needsHostRunning }.map(\.name))
+        for needsHostRunning in [false, true] {
+            let names = Array(Set(blockers
+                .filter { $0.vmName == nil && $0.needsHostRunning == needsHostRunning }
+                .map(\.name))
+                .subtracting(needsHostRunning ? Set<String>() : hostNames)).sorted()
+            guard !names.isEmpty else { continue }
             let list = names.joined(separator: ", ")
             let verb = names.count == 1 ? "is" : "are"
-            sentences.append("\(list) \(verb) running from inside \(appName) and \(Self.keepsOldVersion). Quit \(names.count == 1 ? "it" : "them"), then update again.")
+            let advice = needsHostRunning
+                ? "Open \(appName), then update again."
+                : "Quit \(names.count == 1 ? "it" : "them"), then update again."
+            sentences.append("\(list) \(verb) running from inside \(appName) and \(Self.keepsOldVersion). \(advice)")
         }
         sentences.append("\(appName) was not updated.")
         return sentences.joined(separator: " ")

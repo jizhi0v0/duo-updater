@@ -202,6 +202,54 @@ import Testing
             == [.init(name: "BTTRelaunch", pid: 719)])
     }
 
+    /// The Gemini shape, measured 2026-11-01 in VMPal's macOS VM:
+    /// `GeminiAppLauncher.app` is started by the host through LaunchServices, so
+    /// its parent is launchd and the parent rule never sees it. While the host
+    /// runs it passes: the host terminates any instance and starts a fresh one
+    /// from its own bundle at every launch, and that is also the only state in
+    /// which the helper's own installer defers. With the host quit the lone
+    /// launcher blocks — it can be mid-download, and nothing would then stop it
+    /// from installing over the swapped bundle. A sibling helper in
+    /// `Contents/Helpers` still blocks, and so does a same-named copy outside it.
+    /// Mutation: drop the `replacedOnLaunch` check → red; drop its
+    /// `hostIsRunning` gate → red; keep the launcher in the parent set → red;
+    /// drop the message split → red.
+    @Test func aNestedAppTheHostReplacesOnLaunchPassesOnlyWhileTheHostRuns() {
+        let launcher = Self.process(
+            725, "Contents/Helpers/GeminiAppLauncher.app/Contents/MacOS/GeminiAppLauncher")
+        let machine = Self.process(
+            726, "Contents/Helpers/ZZFixtureMachine.app/Contents/MacOS/ZZFixtureMachine")
+        let elsewhere = Self.process(
+            727, "Contents/Resources/GeminiAppLauncher.app/Contents/MacOS/GeminiAppLauncher")
+        #expect(NestedAppGuard.blockers(bundlePath: Self.bundle, processes: [Self.main, launcher]).isEmpty)
+        #expect(NestedAppGuard.blockers(bundlePath: Self.bundle, processes: [Self.main, launcher, machine])
+            == [.init(name: "ZZFixtureMachine", pid: 726)])
+        // Gemini quit while its launcher is still downloading, the state that
+        // would let Google's installer go ahead on its own.
+        #expect(NestedAppGuard.blockers(bundlePath: Self.bundle, processes: [launcher])
+            == [.init(name: "GeminiAppLauncher", pid: 725, needsHostRunning: true)])
+        // And the way out is to open Gemini, which replaces the launcher, not to
+        // hunt for it in the menu bar.
+        #expect(NestedAppGuard.refusal(
+            URL(fileURLWithPath: Self.bundle), appName: "Gemini", processes: { [launcher] })?
+            .errorDescription
+            == "GeminiAppLauncher is running from inside Gemini and would keep running the old version. Open Gemini, then update again. Gemini was not updated.")
+        // The list entry is a path: the same name anywhere else is another
+        // nested app.
+        #expect(NestedAppGuard.blockers(bundlePath: Self.bundle, processes: [Self.main, elsewhere])
+            == [.init(name: "GeminiAppLauncher", pid: 727)])
+        // And it cannot vouch for what it spawned: it outlives the host, so it is
+        // no parent for the parent rule (with the host running the subtree is
+        // exempt through `replacedOnLaunch` instead).
+        let spawned = Self.process(
+            728, "Contents/Helpers/GeminiAppLauncher.app/Contents/Resources/ZZFixtureInner.app/Contents/MacOS/ZZFixtureInner",
+            parent: 725)
+        #expect(NestedAppGuard.blockers(bundlePath: Self.bundle, processes: [Self.main, launcher, spawned]).isEmpty)
+        #expect(NestedAppGuard.blockers(bundlePath: Self.bundle, processes: [launcher, spawned])
+            == [.init(name: "GeminiAppLauncher", pid: 725, needsHostRunning: true),
+                .init(name: "GeminiAppLauncher", pid: 728, needsHostRunning: true)])
+    }
+
     /// A bare executable that is not part of any nested `.app` (an XPC service,
     /// a command-line helper) is out of scope.
     @Test func codeOutsideANestedAppNeverBlocks() {
@@ -323,6 +371,17 @@ import Testing
             appName: "ZZFixtureVM",
             blockers: [.init(name: "B", pid: 1), .init(name: "A", pid: 2), .init(name: "B", pid: 3)])
         #expect(two.errorDescription == "A, B are running from inside ZZFixtureVM and would keep running the old version. Quit them, then update again. ZZFixtureVM was not updated.")
+    }
+
+    /// A name that is in both kinds is named once, in the sentence whose advice
+    /// clears it — otherwise the row would say both "Quit it" and "Open Gemini".
+    /// Mutation: drop the host-bucket subtraction → red.
+    @Test func aNameInBothKindsIsNamedOnce() {
+        let both = NestedAppRunningError(appName: "Gemini", blockers: [
+            .init(name: "GeminiAppLauncher", pid: 1, needsHostRunning: true),
+            .init(name: "GeminiAppLauncher", pid: 2),
+        ])
+        #expect(both.errorDescription == "GeminiAppLauncher is running from inside Gemini and would keep running the old version. Open Gemini, then update again. Gemini was not updated.")
     }
 
     /// A VMPal VM blocks with its name, read from `--machine <folder>`. The

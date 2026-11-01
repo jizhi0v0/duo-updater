@@ -153,6 +153,12 @@ struct InstallFailureReportSendingTests {
             #expect(InstallFailureReport.isUserFixable(
                 NestedAppRunningError(appName: "ZZFixtureVM", blockers: blockers).errorDescription!))
         }
+        // A helper the host replaces on its next launch: the row says to open the
+        // app, and opening it is what clears the helper.
+        // Mutation: drop `NestedAppRunningError.openTheHost` → red.
+        #expect(InstallFailureReport.isUserFixable(NestedAppRunningError(
+            appName: "Gemini",
+            blockers: [.init(name: "GeminiAppLauncher", pid: 1, needsHostRunning: true)]).errorDescription!))
         // Any other nested app may be one the user cannot quit (a background
         // helper), and a report is how such a case reaches us (BetterTouchTool's
         // watchdog did). Mutation: count the general sentence as fixable → red.

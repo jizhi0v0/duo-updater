@@ -61,6 +61,15 @@ struct SparkleProbeDowngradeTests {
         // executes that.
         "com.brave.Browser.beta": "one feed per channel; feed marketing string is not the bundle's",
         "com.brave.Browser.nightly": "one feed per channel; feed marketing string is not the bundle's",
+        // Gemini 2 (MacPaw, DevMate): the newest item publishes the BUILD in
+        // `sparkle:shortVersionString` too ("407"), while that package's own
+        // `CFBundleShortVersionString` is 2.10.2 — so the marketing witness the
+        // #368 guard wants cannot be supplied: comparing "407" with "2.10.2"
+        // either offers a permanent phantom update or reads the real one as a
+        // downgrade. The feed is one channel, newest first, and its
+        // `sparkle:version` matches the bundle's `CFBundleVersion` on both
+        // packages inspected (406, 407), so builds are the comparable pair.
+        "com.macpaw.site.Gemini2": "newest item's marketing string IS the build; builds are the only comparable pair",
     ]
 
     /// Mutation: add `versionIsBuild: true` to any other appcast recipe — which

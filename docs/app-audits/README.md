@@ -167,6 +167,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] **Alfred** · `com.runningwithcrayons.Alfred` — P · ✓ src=Vendor
 - [x] **Shottr** · `cc.ffitch.shottr` — P · ✓ src=Vendor
 - [x] **The Unarchiver** · `com.macpaw.site.theunarchiver` — P · ✓ src=Vendor
+- [x] [**Gemini 2**](com-macpaw-site-Gemini2.md) · `com.macpaw.site.Gemini2` — P (one-click zip, versionIsBuild) · ✓ src=Vendor · DevMate feed，最新一条把 build 写进 `sparkle:shortVersionString`（407）而包内是 2.10.2 → 比 build（406 → 407）· 一键 2.10.1 → 2.10.2 真机 ✓（未运行 / 运行中两轮）· changelog 无法结构化（acknowledged）· 2026-11-01
 - [x] [**Trim Enabler**](org-cindori-TrimEnabler4.md) · `org.cindori.TrimEnabler4` — P (one-click zip) · ✓ src=Vendor · DevMate feed，产品冻结在 4.3.6，x86_64 only · changelog 网页（无法结构化）· 2026-10-12
 - [x] **Orion** · `com.kagi.kagimacOS` — P · ✓ src=Vendor
 - [x] [**Dropbox**](com-getdropbox-dropbox.md) · `com.getdropbox.dropbox` — P (one-click dmg) · ✓ src=Vendor · **一键改取 `arch=arm64` 包**：不带参数的 dmg 是 x86_64-only，Apple silicon 上被架构闸拒 · 2026-09-14

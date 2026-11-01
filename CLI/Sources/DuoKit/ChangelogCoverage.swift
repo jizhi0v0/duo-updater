@@ -54,6 +54,8 @@ enum ChangelogCoverage {
             "blog posts keyed by date, with no client version per entry (discord.com/blog)",
         "com.jetbrains.intellij-EAP":
             "EAP whatsnew in the releases API only links a YouTrack issue table",
+        "com.macpaw.site.Gemini2":
+            "one DevMate page per build, and the newest section names the release by build only (its marketing version is nowhere on the page); older sections are labelled with marketing versions, so a recipe would list every release except the one the probe offers",
         "com.macpaw.site.theunarchiver":
             "feasible but low value: regex on the DevMate notes page; the app has not shipped since 4.3.9",
         "com.microsoft.teams2":

@@ -120,6 +120,11 @@ final class Preferences {
     /// released, and a released observer that is still registered crashes.
     private var externalObserver: DefaultsKeyObserver?
 
+    /// Told the install keys another process just removed from the ignore list
+    /// (`duo unignore`), so the app can re-check the rows it made visible again.
+    /// Set by `AppListModel`; nil in the CLI and in tests.
+    var onExternallyUnignored: ((Set<String>) -> Void)?
+
     // MARK: - Stored settings
 
     /// Keychain account under which the GitHub token is stored. The token is a live
@@ -831,8 +836,15 @@ final class Preferences {
     private func reloadVisibilityLists() {
         let freshIgnored = Set(defaults.stringArray(forKey: Key.ignoredKeys) ?? [])
         if freshIgnored != ignoredKeys {
+            let removed = ignoredKeys.subtracting(freshIgnored)
             ignoredKeys = freshIgnored
             Log.app.info("prefs: ignore list changed externally — \(freshIgnored.count, privacy: .public) entries")
+            // A copy hidden while it was ignored was never checked, so its row
+            // comes back with no verdict — the popover has nothing to draw and
+            // drops it until the next scheduled check. The row's own un-ignore
+            // re-checks (`AppListModel.recheckAfterUnignore`); the CLI's cannot,
+            // so the model is told which keys to look at.
+            if !removed.isEmpty { onExternallyUnignored?(removed) }
         }
         let freshSkipped =
             defaults.dictionary(forKey: Key.skippedVersions) as? [String: String] ?? [:]

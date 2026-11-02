@@ -87,15 +87,47 @@ jobs:
     env:
       HAS_PR_TOKEN: ${{ secrets.INSTALL_VERIFY_PR_TOKEN != '' }}
     steps:
+      # One `gh pr list` is one request, and a transient failure on it decides
+      # nothing — but here it decided the whole run. On 2026-10-31 02:42 the
+      # poll at attempt 29/30 answered `error connecting to api.github.com`,
+      # and the step's `bash -e` ended the step and the run with it: 29 minutes
+      # of waiting thrown away one poll short of the verdict that had already
+      # been reachable. The poll is now asked up to four times, 5 s apart, and
+      # a poll that still cannot answer counts as "not clear" — the wait goes
+      # on, and a run that ends without an answer commits nothing, as it would
+      # have if the pull request had stayed open.
       - name: Wait for the previous run's state to land
         id: previous
         if: env.HAS_PR_TOKEN == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # Prints the number of open `verify/install-` pull requests. The
+          # first ask plus three retries: a blip of ~15 s is absorbed, and a
+          # lasting outage returns non-zero rather than a wrong count.
+          #
+          # The retry note goes to stderr on purpose: the caller captures this
+          # function's stdout into `$open`, so a note printed there would
+          # become part of the count and a clear answer would read as not-clear.
+          count_open() {
+            for try in $(seq 1 4); do
+              if out=$(gh pr list --repo "$GITHUB_REPOSITORY" --state open --limit 200 --json headRefName \
+                         -q '[.[] | select(.headRefName | startswith("verify/install-"))] | length'); then
+                printf '%s\n' "$out"
+                return 0
+              fi
+              echo "gh pr list failed (try $try/4, retrying)" >&2
+              sleep 5
+            done
+            return 1
+          }
+
           for attempt in $(seq 1 30); do
-            open=$(gh pr list --repo "$GITHUB_REPOSITORY" --state open --limit 200 --json headRefName \
-                     -q '[.[] | select(.headRefName | startswith("verify/install-"))] | length')
+            if ! open=$(count_open); then
+              echo "::warning::Could not list pull requests after four tries ($attempt/30); still waiting."
+              sleep 60
+              continue
+            fi
             if [ "$open" = "0" ]; then
               echo "clear=true" >> "$GITHUB_OUTPUT"
               exit 0

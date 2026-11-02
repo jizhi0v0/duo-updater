@@ -152,6 +152,11 @@ struct InstallFailureReportSendingTests {
         ] {
             #expect(InstallFailureReport.isUserFixable(
                 NestedAppRunningError(appName: "ZZFixtureVM", blockers: blockers).errorDescription!))
+            // Same refusal, worded for Relaunch (`errorDescription(nextStep:)`).
+            // Mutation: list only the `.update` tails → red.
+            #expect(InstallFailureReport.isUserFixable(
+                NestedAppRunningError(appName: "ZZFixtureVM", blockers: blockers)
+                    .errorDescription(nextStep: .relaunch)))
         }
         // A helper the host replaces on its next launch: the row says to open the
         // app, and opening it is what clears the helper.

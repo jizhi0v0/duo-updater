@@ -7720,6 +7720,28 @@ final class AppListModel {
             return
         }
 
+        // The same rule `install` enforces, and for the same reason: a helper
+        // running from inside the bundle on its own would keep running the old
+        // code after the swap (VMPal's VM processes; see `NestedAppGuard`). A
+        // Relaunch is a quit, and the app's own updater swaps on that quit, so
+        // this is exactly the swap the install path refuses. Checked before the
+        // rollback copy, which is this path's expensive part, and before the
+        // quit: an app that insists on its own update flow answers an external
+        // quit with a silent refusal instead — VMPal 0.113, 2026-11-02, answers
+        // `applicationShouldTerminate:` with `NSTerminateCancel` while its
+        // "0.114 is ready to install" window is up, so the click did nothing at
+        // all and the console said so (`replyToApplicationShouldTerminate:NO`).
+        if let refusal = NestedAppGuard.refusal(
+            result.app.path, appName: result.app.name, processes: NestedAppGuard.liveProcesses) {
+            let message = refusal.errorDescription(nextStep: .relaunch)
+            Log.app.notice("relaunch-staged: refused \(result.app.name, privacy: .public) — \(refusal.blockers.map { "\($0.name) pid \($0.pid)" }.joined(separator: ", "), privacy: .public) running from inside it")
+            installErrors[result.id] = message
+            stagedRelaunchFailures[result.id] = StagedRelaunchFailure(
+                message: message, old: result.app.versionSide,
+                buildIsDerived: AppScanner.buildVersionIsOverridden(bundleID: result.app.bundleID))
+            return
+        }
+
         // A rollback point, as `install` takes before every route — here, while the
         // bundle on disk is still the build that is running, because the quit below
         // is what lets the app's updater replace it. Without one, an update applied
@@ -7772,6 +7794,20 @@ final class AppListModel {
                 // next relaunch or install to drain.
                 installerWindowPendingIds.insert(result.id)
             }
+            // Say it. Without this the row is indistinguishable from a click that
+            // did nothing: a minute of spinner, then the same button back. Measured
+            // on VMPal 2026-11-02 — its own "0.114 is ready to install" window was
+            // up and its delegate answered `NSTerminateCancel`, so the app stayed
+            // running and the row said nothing. The sentence has to send the user
+            // to the app, because nothing here can clear what is holding the quit
+            // up. Written into `restartWontQuitNotes` exactly as the restart path's
+            // is, so the next Relaunch click, a finished hand-off, a rollback and an
+            // install all retract it.
+            let note = ending.holdup == .nothingOnScreen
+                ? String(localized: "\(result.app.name) didn’t quit, and no window of it is on screen — it may keep running in the menu bar. Quit it from its menu there, or click Relaunch again. Nothing was changed; the update is still downloaded and waiting.")
+                : String(localized: "\(result.app.name) didn’t quit — it has a window waiting for you (a save or update prompt). Switch to it, deal with that window, then quit it or click Relaunch again. Nothing was changed; the update is still downloaded and waiting.")
+            installNotes[result.id] = note
+            restartWontQuitNotes[result.id] = note
         }
         let failureMessage: String? = switch outcome {
         // `.awaitingOpenConfirmation` is decided above, before the backup;

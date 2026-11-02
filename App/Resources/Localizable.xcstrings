@@ -1,6 +1,136 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "%@ didn’t quit — it has a window waiting for you (a save or update prompt). Switch to it, deal with that window, then quit it or click Relaunch again. Nothing was changed; the update is still downloaded and waiting.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ wurde nicht beendet – es hat ein Fenster offen, das auf dich wartet (eine Sicherungs- oder Update-Abfrage). Wechsle dorthin, erledige dieses Fenster und beende die App dann selbst oder klicke erneut auf „Neu starten“. Es wurde nichts verändert; das Update ist weiterhin heruntergeladen und wartet."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ no se cerró: tiene una ventana esperándote (un aviso para guardar o actualizar). Ve a la app, resuelve esa ventana y luego ciérrala o vuelve a pulsar «Reabrir». No se ha cambiado nada; la actualización sigue descargada y en espera."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ n’a pas quitté — une fenêtre y attend votre réponse (une demande d’enregistrement ou de mise à jour). Passez à l’app, réglez cette fenêtre, puis quittez-la ou recliquez sur « Relancer ». Rien n’a été modifié ; la mise à jour est toujours téléchargée et en attente."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ non si è chiusa: ha una finestra in attesa (una richiesta di salvataggio o di aggiornamento). Passa all’app, gestisci quella finestra, poi chiudila o fai di nuovo clic su Riapri. Non è stato modificato nulla; l’aggiornamento è ancora scaricato e in attesa."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ は終了しませんでした。操作を待っているウインドウがあります（保存やアップデートの確認）。アプリに切り替えてそのウインドウを片付けてから、自分で終了するか、もう一度「再起動」をクリックしてください。何も変更していません。アップデートはダウンロード済みのまま待っています。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ não encerrou — há uma janela esperando por você (um pedido para salvar ou atualizar). Vá até o app, resolva essa janela e depois encerre-o ou clique em Reabrir de novo. Nada foi alterado; a atualização continua baixada e esperando."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ не закрылось — в нём открыто окно, которое ждёт вас (запрос на сохранение или обновление). Переключитесь на приложение, разберитесь с этим окном, а затем закройте его сами или нажмите «Перезапустить» ещё раз. Ничего не изменено; обновление по-прежнему загружено и ждёт."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ kapanmadı — sizi bekleyen bir penceresi var (kaydetme veya güncelleme sorusu). Uygulamaya geçip o pencereyle ilgilenin, ardından uygulamadan çıkın veya tekrar Yeniden Başlat’a tıklayın. Hiçbir şey değiştirilmedi; güncelleme indirilmiş olarak bekliyor."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 没有退出 —— 它有一个窗口在等你处理（保存或更新提示）。切过去把那个窗口处理掉，然后自己退出它，或者再点一次「重新启动」。什么都没有改动；更新已经下载好，还在等着。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 沒有結束——它有一個視窗在等你處理（儲存或更新提示）。請切換過去處理完那個視窗，然後結束它，或再按一次「重新開啟」。沒有做任何變更；更新已經下載好，還在等著。"
+          }
+        }
+      }
+    },
+    "%@ didn’t quit, and no window of it is on screen — it may keep running in the menu bar. Quit it from its menu there, or click Relaunch again. Nothing was changed; the update is still downloaded and waiting.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ wurde nicht beendet, und kein Fenster der App ist auf dem Bildschirm – sie läuft möglicherweise in der Menüleiste weiter. Beende sie dort über ihr Menü oder klicke erneut auf „Neu starten“. Es wurde nichts verändert; das Update ist weiterhin heruntergeladen und wartet."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ no se cerró y no tiene ninguna ventana en pantalla: puede que siga abierta en la barra de menús. Ciérrala desde su menú allí o vuelve a pulsar «Reabrir». No se ha cambiado nada; la actualización sigue descargada y en espera."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ n’a pas quitté et aucune fenêtre n’est à l’écran — il tourne peut-être encore dans la barre des menus. Quittez-le depuis son menu, ou recliquez sur « Relancer ». Rien n’a été modifié ; la mise à jour est toujours téléchargée et en attente."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ non si è chiusa e non ha finestre sullo schermo: potrebbe restare in esecuzione nella barra dei menu. Chiudila dal suo menu lì, oppure fai di nuovo clic su Riapri. Non è stato modificato nulla; l’aggiornamento è ancora scaricato e in attesa."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ は終了せず、画面にウインドウもありません。メニューバーで動き続けている可能性があります。そちらのメニューから終了するか、もう一度「再起動」をクリックしてください。何も変更していません。アップデートはダウンロード済みのまま待っています。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ não encerrou e não tem nenhuma janela na tela — pode continuar rodando na barra de menus. Encerre-o pelo menu dele ali ou clique em Reabrir de novo. Nada foi alterado; a atualização continua baixada e esperando."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ не закрылось, и на экране нет ни одного его окна — возможно, оно продолжает работать в строке меню. Закройте его через его меню там или нажмите «Перезапустить» ещё раз. Ничего не изменено; обновление по-прежнему загружено и ждёт."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ kapanmadı ve ekranda hiçbir penceresi yok — menü çubuğunda çalışmaya devam ediyor olabilir. Oradaki menüsünden kapatın veya tekrar Yeniden Başlat’a tıklayın. Hiçbir şey değiştirilmedi; güncelleme indirilmiş olarak bekliyor."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 没有退出，屏幕上也没有它的窗口 —— 它可能还在菜单栏里跑。从那里的菜单退出它，或者再点一次「重新启动」。什么都没有改动；更新已经下载好，还在等着。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 沒有結束，螢幕上也沒有它的視窗——它可能還在選單列裡執行。從那裡的選單結束它，或再按一次「重新開啟」。沒有做任何變更；更新已經下載好，還在等著。"
+          }
+        }
+      }
+    },
     " — latest %@": {
       "extractionState": "manual",
       "localizations": {

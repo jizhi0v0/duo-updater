@@ -86,9 +86,14 @@ enum com_google_antigravity {
         // and the pattern stops at the `-`, so the build id does not ride along —
         // the exact trap the sibling recipe documents for the hub feed.
         //
-        // Detection only for now: the artifact is a zip on Google's edgedl CDN with
-        // a `sha256hash` beside it, so an install spec is plausible, but it has not
-        // been downloaded and signature-checked yet, and the URL is arm64-specific.
+        // ONE-CLICK: the same response names the finished `.zip` on Google's edgedl
+        // CDN (`url`) and its `sha256hash`, so the URL and the digest come out of
+        // one document — nothing to template and nothing to re-resolve at click
+        // time. The archive's root is `Antigravity IDE.app`, and the build is
+        // Developer ID, Team EQHXZ8M8AV — the installed copy's Team, which is what
+        // the swap gate checks. The URL is arm64-specific, and so is this app
+        // (`App/project.yml` builds arm64 only), so there is no second choice for
+        // an install spec to make. Verified end to end; History has the run.
         VendorProbeRecipe(
             bundleID: "com.google.antigravity-ide",
             url: URL(string: "https://antigravity-ide-auto-updater-974169037036"
@@ -96,16 +101,20 @@ enum com_google_antigravity {
                 + "0000000000000000000000000000000000000000/no_hostname")!,
             mode: .responseBody,
             versionPattern: #"/antigravity/stable/([0-9][0-9.]*)-"#,
-            // Detection-only rows have no install action, so the page link is the
-            // only thing the row can offer — a recipe without one is a dead end
-            // (`PageURLTests.detectionOnlyRecipesCarryAPage` enforces it, and
-            // caught this omission).
+            // The page link stays: it is where the vendor sends a person, and it is
+            // what a row can still offer when this copy cannot be swapped (an old
+            // build on a Team that no longer matches, say).
             //
             // No `changelogURL`, and no `ChangelogCatalog` entry either, so
             // `ChangelogRecipeSelection.fallbackPage` has no web page to offer for
             // this app; its notes come from the IDE `ChangelogRecipe` below, which
             // reads the `ide` panel of `antigravity.google/docs/changelog`.
-            downloadURL: URL(string: "https://antigravity.google/download")),
+            downloadURL: URL(string: "https://antigravity.google/download"),
+            install: VendorInstallSpec(
+                urlSource: .bodyPattern(#""url"\s*:\s*"(https://[^"]+\.zip)""#),
+                kind: .zip,
+                checksumPattern: #""sha256hash"\s*:\s*"([0-9a-f]{64})""#,
+                checksumFormat: .sha256Hex)),
         ],
         changelogs: [
         // History: docs/app-audits/com-google-antigravity.md#历史与实测

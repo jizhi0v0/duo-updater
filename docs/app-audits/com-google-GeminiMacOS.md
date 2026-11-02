@@ -67,3 +67,19 @@ the version on this row.
 灰度结束：07:00Z 起原请求体（无 cohort）20/20 `1.135.1.1291`，`cohort` `1:3j3x:`、"Prod"。官网的不带版本号地址 `dl.google.com/release2/j33ro/release/Gemini.dmg` HEAD 10 次一致：`content-length` 256237111（等于 1.135.1.1291 包的 `size`），`last-modified` 05:49:16Z——它跟的是全量版，灰度期间停在旧版。同一时刻 Chrome（同一服务）在灰度：不带 cohort 20 次 11 Stable / 5 "156.0.8078.47 Rollout" / 4 Control；回显 Rollout、Stable 各 10/10 不变。服务端回的 cohort 可以与送去的不同（送 `1:1y5/3wo9:3vo3@0.0,3wol@0.5,3w59@0.0`，回 `1:1y5/3wo9:3wol@0.5`），所以每次回复都要重新存。
 
 改法：请求体加 `"cohort":"__COHORT__"`，填上次回复分配的值（`RequestBody.EchoedField`，存在 `EchoedFieldStore`，菜单栏与 `duo` 共用一个文件）；什么都没存时填空串，等于改动前的请求（协议文档写请求的 `cohort` "Default: \"\""；回复的 `cohort` "The client should update the cohort of this application to the new value"——<https://chromium.googlesource.com/chromium/src/+/main/docs/updater/protocol_3_1.md>，2026-10-24 用 curl 取原文核对）。检查拿到的 cohort 被复查原样送回，两次由同一组回答。代价：灰度期间 duo 可能比本机 Gemini 自己的更新器先看到新版（同一个官方签名包）。
+
+### NestedAppGuard — 放行 `GeminiAppLauncher.app`（2026-11-01，#1764）
+
+#1764 报的一键更新失败是**另一条闸**，与上面的灰度无关：`GeminiAppLauncher is running from inside Gemini and would keep running the old version. Quit it, then update again.` 来自 `NestedAppGuard`——2026-10-06 的台账里就写着 Gemini 被 `Contents/Helpers/GeminiAppLauncher.app` 拒、而且当时把「两个 `Contents/Helpers` app 一直拒」当成既定成本。
+
+量到的事实（VMPal 里的 macOS 虚拟机，macOS 27.2，1.107.3.828 → 1.138.0.1315；开发机 27.2 同现象）：
+
+- launcher 由 Gemini 启动（`NSWorkspace`/LaunchServices），父进程是 launchd，所以「父进程跑在同一 bundle 里」那条豁免不成立；只要 Gemini 开着，它就一直在，一键就必被拒。
+- 它还会被注册成登录项（虚拟机 2026-11-01 的系统通知：`Login Item Added — GeminiAppLauncher will open automatically when you log in`），所以 Gemini 关着时也可能有它；但它放在 `Contents/Helpers/`、不在 `Contents/Library/LoginItems/`，那条「登录项不拦」的豁免一直没覆盖到它。
+- Gemini 每次启动都会先 `Terminating existing helper app instance(s)`，再用自己 bundle 里的新实例覆盖它：虚拟机 91219（1.107.00.0）→ 91558（1.138.00.0），开发机 31504 → 54005。
+- Gemini 退出时它空闲 2 s 就自己退了（8 s 内查不到）；但它同时是 Gemini 自带的 Omaha 更新器（`Checking for update…`、`Deferring update 1.138.0.1315 … Main app is running`），下载新版的那几分钟里会一直留着——有新版本（包括灰度）时它恰好最常被看到。
+- 放行条件带主机：只有 Gemini 主程序在跑时才放行。一键更新成功，`duo restart` 把 launcher 换成新 bundle 的（1.138.00.0），没有进程继续跑旧 bundle 里的代码。
+- 反过来，Gemini 已退出、只剩 launcher 时仍然拒。原因不是「换不掉」，而是那正是 Google 自己的安装器能动手的时刻：它只在主程序不运行时装（本机 2026-10-31 12:21 的 `install_*.log`：`Gemini is NOT running` → 备份、rsync、`Update successful`），它和 duo 用的 cohort 还可能不同（见上面的灰度）。这时放行等于让两个安装器抢同一个 bundle。这一版的拒绝文案因此是「Open Gemini, then update again.」（`Blocker.needsHostRunning`）——打开 Gemini 就会换掉这个 launcher，用户在菜单栏里找不到叫这个名字的图标；这一档也不再弹「报告问题」（`InstallFailureReport.isUserFixable` 认这句，见 `NestedAppRunningError.openTheHost`）。
+- 代价：换包后到下次启动之间，旧 launcher 仍会带着菜单栏图标跑旧代码（和登录项那条同一个赌）；它自己的更新器之后再装一遍时，装的可能是另一个 cohort 的版本。
+
+改法：`NestedAppGuard.nestedAppsTheHostReplacesOnLaunch`（`Contents/Helpers/GeminiAppLauncher.app`），和 `nestedAppsThatExitWithHost` 一样只在主机主程序在跑时生效。

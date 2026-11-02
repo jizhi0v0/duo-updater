@@ -490,7 +490,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [ ] [**GitHub Desktop**](com-github-GitHubClient.md) · `com.github.GitHubClient` — 仅迁出历史：两轨 zip 的签名核对、beta `listPageSize` 的测量
 - [ ] [**Android Studio**](com-google-android-studio.md) · `com.google.android.studio` — 仅迁出历史：预览渠道旧实现的错误、按发布日期排序的实例
 - [ ] [**Antigravity / Antigravity IDE**](com-google-antigravity.md) · `com.google.antigravity` / `com.google.antigravity-ide` — 仅迁出历史：端点的发现、IDE 端点的哨兵测量、changelog 页的 gzip 误读
-- [ ] [**Gemini**](com-google-GeminiMacOS.md) · `com.google.GeminiMacOS` — 仅迁出历史：Omaha 版本方案核对、release-notes 页不对应
+- [ ] [**Gemini**](com-google-GeminiMacOS.md) · `com.google.GeminiMacOS` — 仅迁出历史：Omaha 版本方案核对、release-notes 页不对应、`NestedAppGuard` 放行 `GeminiAppLauncher`（#1764）
 - [ ] [**Alcove**](com-henrikruscon-Alcove.md) · `com.henrikruscon.Alcove` — 仅迁出历史：旧端点 NXDOMAIN、公开 trial 包滞后、changelog 网页的旧形态 · 另记 `minimum_system_version`（公开端点 2026-09-15 实测为 `15 Sequoia`）
 - [ ] [**IntelliJ IDEA**](com-jetbrains-intellij.md) · `com.jetbrains.intellij` — 仅迁出历史：版本段数被钉死时的故障
 - [ ] [**Orion**](com-kagi-kagimacOS.md) · `com.kagi.kagimacOS` — 仅迁出历史：release notes 页从冻结的 cdn 副本改到 orionbrowser.com、changelog recipe 的实测

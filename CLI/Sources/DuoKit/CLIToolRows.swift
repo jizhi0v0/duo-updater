@@ -367,6 +367,10 @@ enum CLIToolRows {
         } else if row.oneClick == nil {
             lines.append("held back: \(row.reason ?? row.note ?? "no one-click update")")
         }
+        // The verdict's own sentence, when it says more than the reason does —
+        // which version the receipt disagrees with, which symlink is missing, and
+        // where OpenCode 2's migration guide lives.
+        if let note = row.note, note != row.reason { lines.append(note) }
         if let command = row.command { lines.append("to update it yourself: \(command)") }
         return lines
     }

@@ -1,39 +1,41 @@
 import Foundation
 
-/// What the installer would install, and OpenCode's release notes.
+/// OpenCode's two release lines — where each one's newest version is — and the
+/// notes both publish.
 ///
-/// **Latest.** For a curl install OpenCode itself asks
-/// `api.github.com/repos/anomalyco/opencode/releases/latest` (`Installation.latest`,
-/// `v1.18.34`), as the installer does without `--version`; the version is
-/// `tag_name` without its `v`. On 2026-10-04 it named `v1.18.34` (published
-/// 2026-09-30), with `opencode-darwin-arm64.zip` (45,538,151 bytes) among its
-/// assets. The repository moved from `sst/opencode`, which redirects.
+/// **OpenCode 1's channel** is the `latest` dist-tag of the `opencode-ai` npm
+/// package, what `curl -fsSL https://opencode.ai/install | bash` installs when it
+/// is given no `--version`. Its script says why npm and not GitHub: "The
+/// opencode-ai npm package only contains OpenCode 1 (OpenCode 2 ships as
+/// @opencode/cli). npm is published before the GitHub release, so fall back to
+/// the newest v1 entry in GitHub's release list until its assets exist. GitHub's
+/// Latest release may be OpenCode 2, so it's never used" (read 2026-10-31; that
+/// day's answer was `1.19.5`).
 ///
-/// **Notes.** Each release's body is Markdown — `## Core`, `### Bugfixes`, a few
-/// bullets — closed by a `**Thank you to N community contributors:**` paragraph
-/// listing pull requests per author, which is credits, not notes. Releases are
-/// patch-sized and frequent (1.18.15 → 1.18.34 in eight weeks), with no
-/// prereleases among the newest, so one page of the list holds a reader's window.
+/// **OpenCode 2's channel** is the endpoint its own installer reads,
+/// `https://opencode.ai/update/api/latest/cli/npm`, which answers
+/// `{"channel":"latest","name":"cli","distribution":"npm","version":"2.2.5",…}`
+/// (2026-10-31) — the `@opencode/cli` release that installer then fetches from npm.
+///
+/// **Notes.** Both lines publish into the one GitHub repository, whose release
+/// bodies are Markdown — `## Core`, `### Bugfixes`, a few bullets — closed by a
+/// `**Thank you to N community contributors:**` paragraph listing pull requests
+/// per author, which is credits, not notes. The repository also tags components
+/// with their own scheme (`process-daemon-v0.4.0`), which `isVersion` rejects.
 public struct OpencodeRelease: Sendable {
 
-    public static let latestURL = URL(string: "https://api.github.com/repos/anomalyco/opencode/releases/latest")!
+    public static let latestURL = URL(string: "https://registry.npmjs.org/opencode-ai/latest")!
+    public static let secondURL = URL(string: "https://opencode.ai/update/api/latest/cli/npm")!
     public static let listURL = URL(string: "https://api.github.com/repos/anomalyco/opencode/releases?per_page=30")!
 
     public enum Failure: Error, Equatable, CustomStringConvertible {
         case http(Int)
-        /// GitHub's API rate limit (`GitHubReleasesSource.isRateLimited`).
-        case rateLimited(Int)
         case unreadable
-        /// The release has no build for this Mac.
-        case noBuild(String)
 
         public var description: String {
             switch self {
             case .http(let status): return "HTTP \(status)"
-            case .rateLimited(let status):
-                return GitHubReleasesSource.GitHubError.rateLimited(status).errorDescription ?? "HTTP \(status)"
             case .unreadable: return "the answer could not be read"
-            case .noBuild(let asset): return "the release has no \(asset)"
             }
         }
     }
@@ -48,12 +50,17 @@ public struct OpencodeRelease: Sendable {
             var request = URLRequest(url: url)
             request.cachePolicy = force ? .reloadIgnoringLocalCacheData : URLRequest.versionFeedCachePolicy
             request.timeoutInterval = 15
-            request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
-            request.setValue("2022-11-28", forHTTPHeaderField: "X-GitHub-Api-Version")
-            if let token = await ChangelogService.gitHubToken() {
-                request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            // Two hosts answer here: npm's registry and opencode.ai for the two
+            // channels, GitHub for the notes. Only GitHub wants its media type, its
+            // API version and a token.
+            if url.host == "api.github.com" {
+                request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+                request.setValue("2022-11-28", forHTTPHeaderField: "X-GitHub-Api-Version")
+                if let token = await ChangelogService.gitHubToken() {
+                    request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+                }
             }
-            let purpose: RequestPurpose = url == OpencodeRelease.latestURL ? .versionCheck : .changelog
+            let purpose: RequestPurpose = Self.readsVersion(url) ? .versionCheck : .changelog
             let (data, response) = try await session.countedData(for: request, purpose: purpose)
             let http = response as? HTTPURLResponse
             return (data, http?.statusCode ?? 0, http?.value(forHTTPHeaderField: "X-RateLimit-Remaining"))
@@ -65,30 +72,46 @@ public struct OpencodeRelease: Sendable {
         self.fetch = fetch
     }
 
-    /// The installer's asset for an architecture: `opencode-darwin-arm64.zip`,
-    /// `opencode-darwin-x64.zip` (the installer takes `-baseline` on an x64 CPU
-    /// without AVX2; either has the same version).
-    static func asset(architecture: String) -> String {
-        "opencode-darwin-\(architecture).zip"
+    /// Whether `url` is one of the channels rather than the note list: the
+    /// request log files the two apart.
+    static func readsVersion(_ url: URL) -> Bool {
+        url == latestURL || url == secondURL
     }
 
-    public func latest(architecture: String) async throws -> String {
-        let (data, status, remaining) = try await fetch(Self.latestURL, false)
-        guard status == 200 else {
-            throw GitHubReleasesSource.isRateLimited(status, rateLimitRemaining: remaining)
-                ? Failure.rateLimited(status) : Failure.http(status)
-        }
-        return try await offCooperativePool { try Self.parseLatest(data, asset: Self.asset(architecture: architecture)) }
+    /// OpenCode 1's newest: the `latest` dist-tag document of `opencode-ai`.
+    public func latest() async throws -> String {
+        let (data, status, _) = try await fetch(Self.latestURL, false)
+        guard status == 200 else { throw Failure.http(status) }
+        return try await offCooperativePool { try Self.parseLatest(data) }
     }
 
-    static func parseLatest(_ data: Data, asset: String) throws -> String {
+    /// `{"name":"opencode-ai","version":"1.19.5",…}`, the registry's dist-tag
+    /// document. Only a 1.x version is OpenCode 1's channel: a 2.x published under
+    /// this name would be the other line, and this read must not offer it.
+    static func parseLatest(_ data: Data) throws -> String {
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let tag = json["tag_name"] as? String, tag.hasPrefix("v")
+              let version = json["version"] as? String, isVersion(version), major(of: version) == 1
         else { throw Failure.unreadable }
-        let version = String(tag.dropFirst())
-        guard isVersion(version) else { throw Failure.unreadable }
-        let names = ((json["assets"] as? [[String: Any]]) ?? []).compactMap { $0["name"] as? String }
-        guard names.contains(asset) else { throw Failure.noBuild(asset) }
+        return version
+    }
+
+    /// OpenCode 2's newest, or nil when its channel cannot be read or names
+    /// something that is not OpenCode 2. Best-effort by design: this is a notice
+    /// beside the 1.x verdict, and a channel that is down must not turn a current
+    /// install into "unknown" (`OpencodeCheck`).
+    public func second() async -> String? {
+        guard let (data, status, _) = try? await fetch(Self.secondURL, false), status == 200 else { return nil }
+        return await offCooperativePool { Self.parseSecond(data) }
+    }
+
+    /// The vendor's update document: `channel`, `name` ("cli"), `distribution`
+    /// ("npm"), `version`. Anchored on all three so a change in what the endpoint
+    /// serves degrades to "no OpenCode 2 seen" instead of to a made-up version.
+    static func parseSecond(_ data: Data) -> String? {
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let version = json["version"] as? String, isVersion(version), major(of: version) >= 2,
+              json["distribution"] as? String == "npm", json["name"] as? String == "cli"
+        else { return nil }
         return version
     }
 
@@ -131,6 +154,12 @@ public struct OpencodeRelease: Sendable {
     /// alphanumeric suffix. Also what makes a version safe in a URL or an argument.
     static func isVersion(_ s: String) -> Bool {
         BunRelease.isVersion(s)
+    }
+
+    /// `1.19.5` → 1: which line a version belongs to. Only a version `isVersion`
+    /// let through reaches here, so 0 never enters a comparison.
+    static func major(of version: String) -> Int {
+        Int(version.prefix { $0 != "." }) ?? 0
     }
 
     static func compare(_ a: String, _ b: String) -> ComparisonResult {

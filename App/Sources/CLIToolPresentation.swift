@@ -334,7 +334,7 @@ enum CLIToolPresentation {
         case .npm(let package): return facts(of: package, withheld: status.withheld, home: home)
         case .codex(let codex): return facts(of: codex)
         case .bun(let bun): return facts(of: bun)
-        case .opencode(let opencode): return facts(of: opencode)
+        case .opencode(let opencode): return facts(of: opencode, status: status)
         case .amp(let amp): return facts(of: amp)
         case .managed(let item): return facts(of: item, status: status, home: home)
         case .claudeCode, .bub, .fx, .boat, .cursorAgent, .vitePlus, .herdr, .luvus, .lorca, .zoxide, .nvm, .atuin, .ghcup, .flyctl, .helm, .starship, .deno, .mise, .obelus, .biome: return []
@@ -596,11 +596,20 @@ enum CLIToolPresentation {
     }
 
     /// Informational: OpenCode is never run, and builds before 1.18.34 are ad hoc.
-    private static func facts(of opencode: OpencodeInstall) -> [Fact] {
+    /// An OpenCode 1 install offered the OpenCode 2 upgrade also carries the
+    /// vendor's migration guide: the notice names a breaking major, and the guide
+    /// is where its three breaking changes are written down.
+    private static func facts(of opencode: OpencodeInstall, status: CLIToolStatus) -> [Fact] {
         guard opencode.problem == nil else { return [] }
         let signer = "Anomaly Innovations, Inc."
-        return [Fact(label: String(localized: "Signature"),
-                     value: signature(opencode.signature, signer: signer, team: OpencodeScanner.teamIdentifier))]
+        var facts = [Fact(label: String(localized: "Signature"),
+                          value: signature(opencode.signature, signer: signer, team: OpencodeScanner.teamIdentifier))]
+        if status.withheld == .ownUpgrade, let installed = opencode.version,
+           !OpencodeCheck.isOpenCodeTwo(installed) {
+            facts.append(Fact(label: String(localized: "Migration guide"),
+                              value: OpencodeCheck.migrationGuide.absoluteString))
+        }
+        return facts
     }
 
     /// The release Amp's installer left: its Developer ID, checked after every update.

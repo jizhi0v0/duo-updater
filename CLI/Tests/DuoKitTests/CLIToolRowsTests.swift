@@ -11,12 +11,12 @@ import DuoUpdaterCore
     static func status(
         _ kind: CLIToolKind, _ path: String, name: String? = nil, installed: String? = "1.0.0",
         latest: String? = "1.1.0", state: CLIToolState = .updateAvailable, oneClick: Bool = true,
-        withheld: CLIToolWithheld? = nil, manual: String? = nil, administrator: Bool = false
+        withheld: CLIToolWithheld? = nil, manual: String? = nil, administrator: Bool = false, note: String? = nil
     ) -> CLIToolStatus {
         CLIToolStatus(
             kind: kind, path: path, installedVersion: installed, latestVersion: latest, channel: nil, state: state,
             oneClick: oneClick ? CLIToolCommand(executable: path, arguments: ["update"], pathPrefix: nil) : nil,
-            withheld: withheld, note: nil,
+            withheld: withheld, note: note,
             manualCommand: manual.map { CLIToolCommand(executable: $0, arguments: [], pathPrefix: nil) },
             name: name, detail: .fx(FxInstall(path: path, version: installed)), needsAdministrator: administrator)
     }
@@ -551,6 +551,28 @@ import DuoUpdaterCore
         #expect(listed.manager == "zz-fake")
         #expect(listed.item == "node@20")
         #expect(listed.names == row.names)
+    }
+
+    /// The verdict's own note is printed under a held-back row when it says more
+    /// than the reason does: OpenCode 2's carries the migration guide's URL there
+    /// and nowhere else in `duo`. Mutation: print every note (the reasons below
+    /// would double), or none.
+    @Test func aNoteThatSaysMoreThanTheReasonIsPrinted() {
+        let migration = "OpenCode 2 is a separate major release with breaking changes — migration guide: "
+            + "https://opencode.ai/v2/docs/migrate-v1/"
+        let status = Self.status(
+            .opencode, "/ZZFixture-home/.opencode/bin/opencode", installed: "1.19.5", latest: "2.2.5", oneClick: false,
+            withheld: .ownUpgrade, manual: "opencode upgrade --major", note: migration)
+        let row = CLIToolRows.Row(status)
+        #expect(CLIToolRows.details(row) == [
+            "held back: \(CLIToolWording.reason(.ownUpgrade, of: status))",
+            migration,
+            "to update it yourself: opencode upgrade --major",
+        ])
+        // A note the reason already says is not printed twice.
+        let busy = CLIToolWording.reason(.busy, of: .uv)
+        let same = Self.status(.uv, "/ZZFixture-home/.local/bin/uv", oneClick: false, withheld: .busy, note: busy)
+        #expect(CLIToolRows.details(CLIToolRows.Row(same)) == ["held back: \(busy)"])
     }
 
     /// The text under a managed row: what the update does, and under a current

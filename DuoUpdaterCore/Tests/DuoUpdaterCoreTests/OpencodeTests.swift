@@ -42,21 +42,33 @@ final class OpencodeSandbox {
         "#!/bin/sh\n# --user-agent=opencode/\(version) --use-system-ca --\n# SIGNER:\(signer)\necho opencode \(version)\ntouch \"$HOME/RAN\"\n"
     }
 
+    /// OpenCode 2's literal: channel, version, product (2.2.5's darwin-arm64
+    /// build, 2026-10-31).
+    static func secondScript(version: String, signer: String = "adhoc") -> String {
+        "#!/bin/sh\n# --user-agent=opencode/latest/\(version)/cli --use-system-ca --\n# SIGNER:\(signer)\necho opencode \(version)\ntouch \"$HOME/RAN\"\n"
+    }
+
+    /// What each line's binary carries, by the version asked for.
     func install(_ version: String = "1.18.33", signer: String = "adhoc") throws {
-        try write(binary, Self.script(version: version, signer: signer), executable: true)
+        let script = version.hasPrefix("2.")
+            ? Self.secondScript(version: version, signer: signer)
+            : Self.script(version: version, signer: signer)
+        try write(binary, script, executable: true)
     }
 }
 
 @Suite struct OpencodeTests {
 
-    static func check(_ latest: String = "1.18.34") -> OpencodeCheck { OpencodeCheck(latest: { _ in latest }) }
+    static func check(_ latest: String = "1.18.34", two: String? = nil) -> OpencodeCheck {
+        OpencodeCheck(latest: { latest }, second: { two })
+    }
 
     static func status(
-        _ box: OpencodeSandbox, latest: String = "1.18.34", settings: OpencodeSettings = OpencodeSettings(),
-        busy: OpencodeActivity.Busy? = nil
+        _ box: OpencodeSandbox, latest: String = "1.18.34", two: String? = nil,
+        settings: OpencodeSettings = OpencodeSettings(), busy: OpencodeActivity.Busy? = nil
     ) async throws -> CLIToolStatus {
         let install = try #require(box.scanner.scan().map(box.scanner.withSignature))
-        return await check(latest).status(of: install, settings: settings, busy: busy)
+        return await check(latest, two: two).status(of: install, settings: settings, busy: busy)
     }
 
     // MARK: - Scanner
@@ -74,6 +86,16 @@ final class OpencodeSandbox {
         #expect(!FileManager.default.fileExists(atPath: box.home.appendingPathComponent("RAN").path))
     }
 
+    /// A copy of OpenCode 2 reads too, off its own literal.
+    @Test func readsOpenCodeTwosVersionWithoutRunningIt() throws {
+        let box = try OpencodeSandbox()
+        try box.install("2.2.5")
+        let install = try #require(box.scanner.scan())
+        #expect(install.version == "2.2.5")
+        #expect(install.problem == nil)
+        #expect(!FileManager.default.fileExists(atPath: box.home.appendingPathComponent("RAN").path))
+    }
+
     /// Mutations: accept literals that disagree; read past the space.
     @Test func compiledVersionShapes() {
         func read(_ text: String) -> String? { OpencodeScanner.compiledVersion(in: Data(text.utf8)) }
@@ -83,6 +105,12 @@ final class OpencodeSandbox {
         #expect(read("--user-agent=opencode/1.18.34 a --user-agent=opencode/1.18.33 b") == nil)
         #expect(read("--user-agent=opencode/garbage x") == nil)
         #expect(read("no literal") == nil)
+        // OpenCode 2's: channel, version, product — anchored on "cli", so a path
+        // or another product's literal is not read as a version.
+        #expect(read("--user-agent=opencode/latest/2.2.5/cli --use-system-ca") == "2.2.5")
+        #expect(read("--user-agent=opencode/latest/2.2.5/cli a --user-agent=opencode/1.19.5 b") == nil)
+        #expect(read("--user-agent=opencode/latest/x/cli x") == nil)
+        #expect(read("--user-agent=opencode/latest/2.2.5/desktop x") == nil)
     }
 
     @Test func nothingAndBroken() throws {
@@ -118,28 +146,61 @@ final class OpencodeSandbox {
 
     // MARK: - Release
 
-    static func latestAnswer(tag: String = "v1.18.34", assets: [String] = ["opencode-darwin-arm64.zip"]) -> Data {
-        try! JSONSerialization.data(withJSONObject: ["tag_name": tag, "assets": assets.map { ["name": $0] }])
+    /// The registry's dist-tag document, as `registry.npmjs.org/opencode-ai/latest`
+    /// answers it (2026-10-31).
+    static func latestAnswer(version: String = "1.19.5") -> Data {
+        try! JSONSerialization.data(withJSONObject: [
+            "name": "opencode-ai", "version": version, "dist-tags": ["latest": version],
+        ])
     }
 
-    @Test func latestIsTheReleaseWithThisMacsZip() async throws {
+    @Test func latestIsOpenCodeOnesDistTag() async throws {
         let release = OpencodeRelease(fetch: { url, _ in
             #expect(url == OpencodeRelease.latestURL)
             return (Self.latestAnswer(), 200, nil)
         })
-        #expect(try await release.latest(architecture: "arm64") == "1.18.34")
-        await #expect(throws: OpencodeRelease.Failure.noBuild("opencode-darwin-x64.zip")) {
-            try await release.latest(architecture: "x64")
+        #expect(try await release.latest() == "1.19.5")
+        // Only OpenCode 1's line: a 2.x under this name is the other product, and
+        // must not be offered through the 1.x installer, which refuses it.
+        await #expect(throws: OpencodeRelease.Failure.unreadable) {
+            try await OpencodeRelease(fetch: { _, _ in (Self.latestAnswer(version: "2.2.5"), 200, nil) }).latest()
         }
         await #expect(throws: OpencodeRelease.Failure.unreadable) {
-            try await OpencodeRelease(fetch: { _, _ in (Self.latestAnswer(tag: "1.18.34"), 200, nil) }).latest(architecture: "arm64")
+            try await OpencodeRelease(fetch: { _, _ in (Data("{}".utf8), 200, nil) }).latest()
         }
-        // A 403 with budget left is not the rate limit; one with none is.
-        await #expect(throws: OpencodeRelease.Failure.http(403)) {
-            try await OpencodeRelease(fetch: { _, _ in (Data(), 403, "12") }).latest(architecture: "arm64")
+        await #expect(throws: OpencodeRelease.Failure.http(502)) {
+            try await OpencodeRelease(fetch: { _, _ in (Data(), 502, nil) }).latest()
         }
-        await #expect(throws: OpencodeRelease.Failure.rateLimited(403)) {
-            try await OpencodeRelease(fetch: { _, _ in (Data(), 403, "0") }).latest(architecture: "arm64")
+    }
+
+    /// `opencode.ai/update/api/latest/cli/npm`, as OpenCode 2's installer reads it.
+    /// Mutations: drop a field from the anchor; turn a failure into a version.
+    static func secondAnswer(
+        version: String = "2.2.5", name: String = "cli", distribution: String = "npm"
+    ) -> Data {
+        try! JSONSerialization.data(withJSONObject: [
+            "channel": "latest", "name": name, "distribution": distribution, "version": version, "active": true,
+        ])
+    }
+
+    @Test func secondLineIsTheVendorsOwnUpdateDocument() async throws {
+        let release = OpencodeRelease(fetch: { url, _ in
+            #expect(url == OpencodeRelease.secondURL)
+            return (Self.secondAnswer(), 200, nil)
+        })
+        #expect(await release.second() == "2.2.5")
+        // Best-effort: anything but a 2.x answer from this endpoint is "no 2.x",
+        // never a version the notice would name.
+        #expect(await OpencodeRelease(fetch: { _, _ in (Self.secondAnswer(), 500, nil) }).second() == nil)
+        #expect(await OpencodeRelease(fetch: { _, _ in throw OpencodeRelease.Failure.http(502) }).second() == nil)
+        #expect(await OpencodeRelease(fetch: { _, _ in (Data("{}".utf8), 200, nil) }).second() == nil)
+        for stale in [
+            Self.secondAnswer(version: "1.19.5"),
+            Self.secondAnswer(name: "desktop"),
+            Self.secondAnswer(distribution: "github"),
+            Self.secondAnswer(version: "latest"),
+        ] {
+            #expect(await OpencodeRelease(fetch: { _, _ in (stale, 200, nil) }).second() == nil)
         }
     }
 
@@ -200,14 +261,84 @@ final class OpencodeSandbox {
             == "curl -fsSL https://opencode.ai/install | bash -s -- --version 1.18.34 --no-modify-path")
         #expect(try await Self.status(box, busy: .download(3)).withheld == .busy)
         let install = try #require(box.scanner.scan())
-        let unreadable = await OpencodeCheck(latest: { _ in throw OpencodeRelease.Failure.http(502) })
+        let unreadable = await OpencodeCheck(latest: { throw OpencodeRelease.Failure.http(502) })
             .status(of: install, settings: OpencodeSettings(), busy: nil)
         #expect(unreadable.withheld == .channelUnreadable)
-        // Mutation: make GitHub's rate limit `.channelUnreadable` too.
-        let limited = await OpencodeCheck(latest: { _ in throw OpencodeRelease.Failure.rateLimited(429) })
-            .status(of: install, settings: OpencodeSettings(), busy: nil)
-        #expect(limited.withheld == .rateLimited && limited.isRateLimitError)
-        #expect(limited.note?.contains("rate limit") == true)
+        #expect(unreadable.state == .unknown)
+    }
+
+    // MARK: - OpenCode 2
+
+    /// 2026-10-31, this machine: 1.19.5 installed, the 1.x channel current, and
+    /// OpenCode 2 out — the case the notice exists for. Mutation: give it a
+    /// one-click (the 1.x installer exits 1 on a 2.x version).
+    @Test func openCodeTwoIsReportedAndNeverClicked() async throws {
+        let box = try OpencodeSandbox()
+        try box.install("1.19.5")
+        let status = try await Self.status(box, latest: "1.19.5", two: "2.2.5")
+        #expect(status.state == .updateAvailable)
+        #expect(status.latestVersion == "2.2.5")
+        #expect(status.installedVersion == "1.19.5")
+        #expect(status.oneClick == nil)
+        #expect(status.withheld == .ownUpgrade)
+        #expect(status.manualCommand?.display == "opencode upgrade --major")
+        #expect(status.commandToCopy?.display == "opencode upgrade --major")
+        #expect(status.note?.contains("https://opencode.ai/v2/docs/migrate-v1/") == true)
+        #expect(!status.joinsUpdateAll)
+        // Nothing on the 2.x channel: the row stays what it was.
+        let none = try await Self.status(box, latest: "1.19.5")
+        #expect(none.state == .upToDate)
+        #expect(none.withheld == nil)
+    }
+
+    /// A 1.x release is the row's update while one is pending: it is what the
+    /// channel and the one-click install.
+    @Test func aPendingOneXReleaseComesFirst() async throws {
+        let box = try OpencodeSandbox()
+        try box.install("1.19.4")
+        let status = try await Self.status(box, latest: "1.19.5", two: "2.2.5")
+        #expect(status.latestVersion == "1.19.5")
+        #expect(status.oneClick != nil)
+        #expect(status.withheld == nil)
+    }
+
+    /// `"autoupdate": false` turns the vendor's own notice off: the major is
+    /// reported with the command, never as a click — every check's rule.
+    @Test func autoupdateOffReportsTheMajorOnly() async throws {
+        let box = try OpencodeSandbox()
+        try box.install("1.19.5")
+        let status = try await Self.status(box, latest: "1.19.5", two: "2.2.5",
+                                           settings: OpencodeSettings(autoUpdate: false))
+        #expect(status.state == .updateAvailable)
+        #expect(status.withheld == .autoUpdateOff)
+        #expect(status.manualCommand?.display == "opencode upgrade --major")
+        #expect(status.oneClick == nil)
+    }
+
+    /// Once on OpenCode 2, the row follows 2.x's channel: the 1.x one would read
+    /// as "ahead" forever, and its installer cannot carry a 2.x install.
+    @Test func anInstallOnOpenCodeTwoFollowsItsOwnChannel() async throws {
+        let box = try OpencodeSandbox()
+        try box.install("2.2.4")
+        let status = try await Self.status(box, latest: "1.19.5", two: "2.2.5")
+        #expect(status.installedVersion == "2.2.4")
+        #expect(status.state == .updateAvailable)
+        #expect(status.latestVersion == "2.2.5")
+        #expect(status.withheld == .ownUpgrade)
+        #expect(status.manualCommand?.display == "opencode upgrade")
+        #expect(status.oneClick == nil)
+        // The reason and the command say it: no second sentence repeating them.
+        #expect(status.note == nil)
+
+        try box.install("2.2.5")
+        #expect(try await Self.status(box, latest: "1.19.5", two: "2.2.5").state == .upToDate)
+
+        // 2.x's channel unreadable: unknown, not "ahead" of a line it is not on.
+        let install = try #require(box.scanner.scan())
+        let unreadable = await OpencodeCheck(latest: { "1.19.5" }).status(
+            of: install, settings: OpencodeSettings(), busy: nil)
+        #expect(unreadable.state == .unknown)
+        #expect(unreadable.withheld == .channelUnreadable)
     }
 
     // MARK: - Activity

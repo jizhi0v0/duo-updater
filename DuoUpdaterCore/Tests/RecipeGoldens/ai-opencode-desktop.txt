@@ -3,7 +3,45 @@
 
 family = "ai-opencode-desktop"
 
-probes = Array(count: 0)
+probes = Array(count: 1)
+probes[0] = struct VendorProbeRecipe
+probes[0].bundleID = "ai.opencode.desktop"
+probes[0].channel = .stable
+probes[0].variant = nil
+probes[0].hostRequirement = nil
+probes[0].installedVersionPattern = nil
+probes[0].buildLineage = nil
+probes[0].headBuildPattern = nil
+probes[0].url = URL("https://opencode.ai/update/api/latest/desktop/opencode/latest-mac.yml")
+probes[0].identities = Array(count: 0)
+probes[0].track = nil
+probes[0].mode = .responseBody
+probes[0].versionPattern = "(?m)^version:\\s*([0-9]+(?:\\.[0-9]+)+)\\s*$"
+probes[0].transientBodyPattern = nil
+probes[0].trackClosedPattern = nil
+probes[0].downloadURL? = URL("https://opencode.ai/download")
+probes[0].changelogURL = nil
+probes[0].selectHighest = false
+probes[0].versionIsBuild = false
+probes[0].buildNamespace = .bundle
+probes[0].displayVersionPattern = nil
+probes[0].publishedAtPattern = nil
+probes[0].minimumSystemVersionPattern = nil
+probes[0].maximumSystemVersionPattern = nil
+probes[0].entryStartPattern = nil
+probes[0].install? = struct VendorInstallSpec
+probes[0].install?.urlSource = .bodyPattern(_:)
+probes[0].install?.urlSource.0 = "(?m)^\\s*- url: (https://opencode\\.ai/files/bin/[0-9]+(?:\\.[0-9]+)+\\/opencode-desktop-mac-arm64\\.dmg)$"
+probes[0].install?.kind = .dmg
+probes[0].install?.checksumPattern? = "(?m)^\\s*- url: https://opencode\\.ai/files/bin/[0-9]+(?:\\.[0-9]+)+\\/opencode-desktop-mac-arm64\\.dmg\\n\\s*sha512: ([A-Za-z0-9+/=]+)$"
+probes[0].install?.checksumFormat = .sha512Base64
+probes[0].install?.requestHeaders = Dictionary(count: 0)
+probes[0].install?.nestedArchivePath = nil
+probes[0].install?.contentsArchivePattern = nil
+probes[0].install?.myGoPublicKey = nil
+probes[0].requestBody = nil
+probes[0].followRedirects = true
+probes[0].requestHeaders = Dictionary(count: 0)
 
 changelogs = Array(count: 1)
 changelogs[0] = struct ChangelogRecipe
@@ -39,25 +77,7 @@ changelogs[0].requestBody = nil
 changelogs[0].skipSections = Array(count: 0)
 changelogs[0].tagPattern = nil
 
-githubRules = Array(count: 1)
-githubRules[0] = struct GitHubReleaseRule
-githubRules[0].bundleID = "ai.opencode.desktop"
-githubRules[0].owner = "anomalyco"
-githubRules[0].repo = "opencode"
-githubRules[0].usePrereleases = false
-githubRules[0].listPageSize = 20
-githubRules[0].versionPattern = "^v([0-9]+(?:\\.[0-9]+)+)$"
-githubRules[0].candidateScope = .newest
-githubRules[0].probesNewestFirst = true
-githubRules[0].installedTagPrefix = nil
-githubRules[0].channel = .stable
-githubRules[0].installAssetPattern? = "^opencode-desktop-mac-(?:arm64|x64)\\.dmg$"
-githubRules[0].installerKind? = .dmg
-githubRules[0].installTrust = .developerID
-githubRules[0].variant = nil
-githubRules[0].architectureRequirement = nil
-githubRules[0].tagRefPrefix = nil
-githubRules[0].installedExecutableMarker = nil
+githubRules = Array(count: 0)
 
 appStoreCases = Array(count: 0)
 

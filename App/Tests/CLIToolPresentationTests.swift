@@ -389,6 +389,24 @@ enum CLIToolFixtures {
                       version: "1.18.15", latest: "1.18.34", channel: "latest")
     }
 
+    /// The OpenCode 2 notice: a 1.x install offered the new major (`major`), or a
+    /// 2.x install offered a newer 2.x — the two cases its reason and its fact
+    /// are told apart by.
+    static func opencodeTwo(
+        installed: String = "1.19.5", latest: String = "2.2.5", major: Bool = true,
+        signature: CLIToolTrust.Signature? = .vendor
+    ) -> CLIToolStatus {
+        let path = "/Users/ann/.opencode/bin/opencode"
+        let install = OpencodeInstall(path: path, version: installed, signature: signature)
+        let command = CLIToolCommand(
+            executable: "opencode", arguments: major ? ["upgrade", "--major"] : ["upgrade"], pathPrefix: nil)
+        return CLIToolStatus(
+            kind: .opencode, path: path, installedVersion: installed, latestVersion: latest, channel: "latest",
+            state: .updateAvailable, oneClick: nil, withheld: .ownUpgrade,
+            note: "OpenCode 2 is a separate major release with breaking changes",
+            manualCommand: command, detail: .opencode(install))
+    }
+
     static func nvm(_ node: String) -> NodePrefix {
         NodePrefix(path: "/Users/ann/.nvm/versions/node/v\(node)", source: .nvm, layoutNodeVersion: node)
     }
@@ -924,6 +942,29 @@ struct CLIToolPayloadPresentationTests {
         #expect(CLIToolPresentation.headerSummary(
             .opencode, statuses: [F.opencode()], context: .opencode(OpencodeSettings(autoUpdate: false)))
             == "latest · auto-update off")
+    }
+
+    /// OpenCode 2: the row says the tool has its own upgrade command, the
+    /// command to copy is the vendor's, and a 1.x install being offered the
+    /// major carries the migration guide. A 2.x install's own update has no
+    /// guide to show.
+    ///
+    /// Mutations: word `.ownUpgrade` as "no one-click"; show the guide for a 2.x
+    /// install, or for a withheld reason that is not `.ownUpgrade`.
+    @Test func openCodeTwoNamesItsOwnCommandAndTheGuide() {
+        #expect(CLIToolsModel.reason(.ownUpgrade, of: .opencode) == "OpenCode has its own upgrade command")
+        let oneX = F.opencodeTwo()
+        #expect(CLIToolsModel.reason(.ownUpgrade, of: oneX) == "OpenCode has its own upgrade command")
+        #expect(CLIToolPresentation.manualCommand(oneX) == "opencode upgrade --major")
+        #expect(CLIToolPresentation.facts(of: oneX, home: "/Users/ann").last
+            == .init(label: "Migration guide", value: "https://opencode.ai/v2/docs/migrate-v1/"))
+
+        let two = F.opencodeTwo(installed: "2.2.4", latest: "2.2.5", major: false)
+        #expect(CLIToolPresentation.manualCommand(two) == "opencode upgrade")
+        #expect(!CLIToolPresentation.facts(of: two, home: "/Users/ann").contains { $0.label == "Migration guide" })
+        // Any other gate on the same install keeps the guide off the pane too.
+        #expect(!CLIToolPresentation.facts(of: F.opencode(signature: .vendor), home: "/Users/ann")
+            .contains { $0.label == "Migration guide" })
     }
 
     /// Bun's reasons, facts and header: Oven by name; a package's reasons are

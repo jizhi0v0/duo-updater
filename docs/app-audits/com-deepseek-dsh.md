@@ -35,11 +35,12 @@
 
 > ✓ = 已接入  ○ = 可接入(未实现)  ✗ = 已调查不可行  — = 不适用
 
-| | Sparkle | Homebrew | MAS | GitHub | VendorProbe | Electron |
-|---|---|---|---|---|---|---|
-| **nightly** | — | ✗（cask `auto_updates`） | — | ✗（无 asset） | — | ✓ |
+| | Sparkle | Homebrew | MAS | GitHub | VendorProbe | Electron | Changelog |
+|---|---|---|---|---|---|---|---|
+| **nightly** | — | ✗（cask `auto_updates`） | — | ✗（无 asset） | — | ✓ | ✓ |
 
-当前生效源：**Electron**（`ElectronManifestSource`）。没有 recipe。
+当前生效源：**Electron**（`ElectronManifestSource`）检测 + 一键；说明走 `ChangelogRecipe`
+（`.gitHubReleases`，读上游仓库的 Releases 正文）。
 
 ## Channel 详情
 
@@ -48,7 +49,14 @@
 | nightly | `com.deepseek.dsh` | 单一渠道 | — | bundle 自己的 `app-update.yml` | ✓ |
 
 `app-update.yml` 写 `channel: nightly`，读的是 `nightly-mac.yml`；同目录的 `latest-mac.yml`
-是 404（2026-10-30），没有第二条轨。
+是 404（2026-10-30；`alpha-` / `beta-` / `canary-` 三个同形状的名字 2026-11-02 复测也是 404），
+没有第二条轨。
+
+⚠️ 这是**厂商 feed 的渠道名**，不是 `ReleaseChannel.detect` 的判定：bundle 的
+`0.2.1-rc.5` 不匹配任何版本规则，名字/文件名的规则也都不命中，所以这份拷贝在 duo 里读作
+`.stable`。装着的就是 nightly 轨的构建这一点没变——Electron 源本来就读 bundle 自己的
+`app-update.yml`。changelog recipe 因此标 `channel: .nightly` 却要靠查表的最后一步命中，
+见下面「Changelog」。
 
 ## 更新检测
 
@@ -74,7 +82,23 @@
 
 ## Changelog
 
-- 未接。feed 不带 `releaseNotes`；上游 GitHub Releases 只有 tag、正文为空，没有可结构的发布说明。
+- 源: `ChangelogRecipe`（`structuredFormat: .gitHubReleases`），读
+  `api.github.com/repos/deepseek-ai/deepseek-harness/releases?per_page=40`
+- 为什么不读 feed：`nightly-mac.yml` 没有 `releaseNotes`；上游 Releases 的正文就是厂商写的
+  发布说明（中文在前、英文在后）
+- 轨: feed 只发 `-rc.N`（`nightly-mac.yml` 现在是 `0.2.1-rc.5`）。同一份 Releases 里并排跑着
+  `-alpha.N`（`0.2.2-alpha.2` 比 feed 的版本还新，但桌面端拿不到），所以 `tagPattern` 只收
+  `-rc.N` 和转正后的纯版本号
+- 渠道: recipe 标 `channel: .nightly`——`.gitHubReleases` 的 stable 过滤只收
+  `prerelease: false`，而这个仓库每条都是 prerelease。这份拷贝读作 `.stable`（见上），
+  所以 `recipe(forBundleID:channel:)` 走到最后一步；**再给这个 bundle id 加第二条 recipe 会盖过它**
+- 转正: rc 是同编号转正的（`0.2.1-rc.5` → `0.2.1`），`includesPromotedStable` 让 GitHub
+  不再标 prerelease 的那条继续出现
+- 双语: 同一条变更会出现两次（中文、英文各一次）。厂商没有按语言拆开的正文，
+  `GitHubMarkdownParser.firstLanguage` 只认 `<!-- lang:xx -->` 标记，这些正文没有
+- 日期: 取 `published_at`，按本地日（`isoDay`）
+- `duo verify --only deepseek` 读的是生产链（API 走 `gh auth token`）。注意它没有
+  `:nightly` 的版本可对，所以滞后检查在这条上不跑——抓取和解析仍然会被检查
 
 ## 一键安装
 
@@ -102,6 +126,10 @@
 - 上游 GitHub Releases 没有 asset —— 不要为省事加一条 `GitHubReleaseRule`，那条规则只会
   检到版本、拿不到可安装的包。
 - cask 是 `auto_updates: true`，brew 装的副本同样由 Electron 源应答，不是 Homebrew 源。
+- changelog 的 `tagPattern` 收的是 `-rc.N` 和纯版本号：厂商把夜间轨换成别的后缀（`-nightly.N`、
+  `-beta.N`）时它会一条都收不到。`duo verify` 会以"no entries"报出来，不会静默——那时要改 pattern，
+  不要删掉过滤去收全部 prerelease，那会把装机拿不到的 alpha 轨放进面板。
+- 面板里同一条变更会出现两次（中文一次、英文一次）。这是厂商正文的形状，不是解析错误。
 
 ## 如何复验
 
@@ -118,9 +146,30 @@ openssl dgst -sha512 -binary deepseek-harness-<version>-mac-arm64.zip | base64
 ditto -x -k deepseek-harness-<version>-mac-arm64.zip out
 codesign -dv out/DeepSeek\ Harness.app 2>&1 | grep TeamIdentifier
 spctl -a -vvv out/DeepSeek\ Harness.app
+
+# 4. changelog（生产链；API 用 gh 的 token）
+make cli && duo verify --only com.deepseek.dsh
 ```
 
 ## 建议下一步
 
 - 跑一次真机端到端（`0.2.1-rc.3` → `0.2.1-rc.5`，`electron-verify com.deepseek.dsh --install`），
   顺带覆盖副本正在运行时的退出/重启路径。
+
+## 历史与实测
+
+### Recipes/com-deepseek-dsh.swift — changelog（2026-11-02）
+
+- 2026-10-30 的审计写的是「无 changelog：feed 不带 notes，上游 GitHub Releases 无 asset」。前半句
+  仍成立（`nightly-mac.yml` 依旧没有 `releaseNotes`）；后半句把「没有 asset」读成了「没有正文」，
+  是错的：`releases?per_page=100` 返回 35 条发布，全部 `prerelease: true`，每条都有正文
+  （`0.2.1-rc.5` 418 B，`0.2.2-alpha.2` 24,804 B），中文在前、英文在后。
+- 两条轨并行：`0.2.2-alpha.2`（2026-10-28）排在 `0.2.1-rc.5`（2026-10-30）之上，而 feed 只发后者；
+  `alpha-` / `beta-` / `canary-` / `latest-` 四个同目录 feed 名字都是 404（2026-11-02 复测），
+  所以桌面端只有一条轨。
+- 按 recipe 解码（`tagPattern` = `-rc.N` 或纯版本号、`channel: .nightly`、
+  `includesPromotedStable: true`）：16 条，`0.2.1-rc.5` → `0.1.0-rc.7`，共 866 条 item（中英各半）；
+  `0.2.1-rc.5` 2 条、`0.2.1-rc.3` 6 条、`0.2.1-rc.1` 约 200 条。
+- 现成的列表里没有纯版本号的发布，「转正后仍收」用构造的数组钉在
+  `DeepSeekHarnessKeepsAGraduatedRelease` 上，不是厂商字节。
+- 未跑：`make install` 之后在面板里的观感；`duo verify` 见「如何复验」第 4 步。

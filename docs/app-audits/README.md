@@ -167,6 +167,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] **Alfred** · `com.runningwithcrayons.Alfred` — P · ✓ src=Vendor
 - [x] **Shottr** · `cc.ffitch.shottr` — P · ✓ src=Vendor
 - [x] **The Unarchiver** · `com.macpaw.site.theunarchiver` — P · ✓ src=Vendor
+- [x] [**CleanMyMac 5**](com-macpaw-CleanMyMac5.md) · `com.macpaw.CleanMyMac5` — P C (one-click zip) · ✓ src=Vendor · **厂商自己的 Sparkle 主机**（`updates.cleanmymac.com`；devmate 那份停在 5.3.1，不能用）· 一键 5.7.2 → 5.7.3 真机 ✓（未运行 / 运行中两轮）· changelog 结构化 ✓（what's-new 页，`<li>` 优先、`<p>` 兜底）· 2026-11-01
 - [x] [**Gemini 2**](com-macpaw-site-Gemini2.md) · `com.macpaw.site.Gemini2` — P (one-click zip, versionIsBuild) · ✓ src=Vendor · DevMate feed，最新一条把 build 写进 `sparkle:shortVersionString`（407）而包内是 2.10.2 → 比 build（406 → 407）· 一键 2.10.1 → 2.10.2 真机 ✓（未运行 / 运行中两轮）· changelog 无法结构化（acknowledged）· 2026-11-01
 - [x] [**Trim Enabler**](org-cindori-TrimEnabler4.md) · `org.cindori.TrimEnabler4` — P (one-click zip) · ✓ src=Vendor · DevMate feed，产品冻结在 4.3.6，x86_64 only · changelog 网页（无法结构化）· 2026-10-12
 - [x] **Orion** · `com.kagi.kagimacOS` — P · ✓ src=Vendor

@@ -665,6 +665,29 @@ public enum UpdatePolicy {
         return environment.runningAppPaths.contains(environment.runtimeKey(for: result.app.path))
     }
 
+    /// Whether this result may join "Update All".
+    ///
+    /// Every source may, except Xcode Releases: its `.xip` comes from
+    /// developer.apple.com through the host's signed-in web view
+    /// (`XcodeArchiveDownloading`), so it can join only while that session is
+    /// valid — and never while a copy of it is running, because `XcodeInstaller`
+    /// refuses a running Xcode rather than quitting it (`runningRefusal`). Both
+    /// are read at the click: a copy that fails either is left out of the batch
+    /// and still offers its own Update, so quitting Xcode or signing in and
+    /// clicking again works without a batch that fails on it.
+    ///
+    /// The CLI has no downloader at all and refuses the `.xcode` route itself
+    /// (`InstallCoordinator`), so this decides the app's batch only.
+    public static func joinsUpdateAll(
+        _ result: UpdateResult,
+        environment: InstallEnvironment,
+        appleSignIn: AppleSignInNeed?
+    ) -> Bool {
+        guard result.remote?.sourceName == XcodeReleasesSource.sourceName else { return true }
+        guard appleSignIn == nil else { return false }
+        return !isRunning(result, environment: environment)
+    }
+
     /// The vendor's advertised version when it is strictly *older* than what is
     /// installed — the muted "you're ahead, nothing to do" note. Returns the older
     /// version to show, or nil when there is nothing to say.

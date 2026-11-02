@@ -248,6 +248,28 @@ import Foundation
         #expect(InstallCoordinator.wantsBackup(.xcode))
     }
 
+    /// "Update All" takes Xcode only with a valid session and while it is not
+    /// running: the archive needs that session, and the installer refuses a
+    /// running Xcode instead of quitting it. Every other source is unaffected.
+    @Test func onlySignedInAndNotRunningXcodeJoinsUpdateAll() {
+        func joins(_ r: UpdateResult, running: [String] = [], signIn: AppleSignInNeed? = nil) -> Bool {
+            UpdatePolicy.joinsUpdateAll(
+                r,
+                environment: InstallEnvironment(
+                    isHelperEnabled: false, runningAppPaths: Set(running), stagedSelfUpdates: [:]),
+                appleSignIn: signIn)
+        }
+        // Not Xcode: the sign-in state is not even consulted.
+        #expect(joins(Self.result(source: "Sparkle"), signIn: .expired))
+        // Xcode, signed in, not running.
+        #expect(joins(Self.result()))
+        // Xcode, no session or an ended one.
+        #expect(!joins(Self.result(), signIn: .notSignedIn))
+        #expect(!joins(Self.result(), signIn: .expired))
+        // Xcode, running: the installer would refuse it, so it is not queued.
+        #expect(!joins(Self.result(), running: ["/ZZFixture/Xcode-beta.app"]))
+    }
+
     /// The CLI's case: no downloader, so the route refuses — before any download
     /// or scratch directory — with a reason a user can act on.
     @Test func theCoordinatorRefusesXcodeWithoutADownloader() async {

@@ -9336,10 +9336,15 @@ final class AppListModel {
                 // which is the user's to click; nothing restores by itself.
                 && interruptedByPath[result.id] == nil
                 && installing[result.id] == nil
-                // Xcode is one row at a time, by the user: a multi-gigabyte
-                // download that may open an Apple sign-in window mid-batch, and a
-                // swap of the toolchain they build with.
-                && result.remote?.sourceName != "Xcode Releases"
+                // Xcode joins only with a valid Apple Developer session and with
+                // no copy of it running: the archive is fetched through that
+                // session, and the installer refuses a running Xcode instead of
+                // quitting it. It still runs last and alone (serial, by size) —
+                // a multi-gigabyte download and a swap of the toolchain they
+                // build with.
+                && UpdatePolicy.joinsUpdateAll(
+                    result, environment: policyEnvironment,
+                    appleSignIn: isXcodeRow(result) ? AppleDeveloperSession.shared.signInNeed : nil)
         }
     }
 

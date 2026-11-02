@@ -248,6 +248,31 @@ import Foundation
         #expect(InstallCoordinator.wantsBackup(.xcode))
     }
 
+    /// Only the copies this type named after a version are renamed when that
+    /// version moves on; a name somebody chose is never touched.
+    @Test(arguments: [
+        // Our name, stale → renamed.
+        ("/Applications/Xcode-27.2-beta-3.app", "27.2 (27B52)", "/Applications/Xcode-27.2.app"),
+        ("/Applications/Xcode-27.0-rc-1.app", "27.0 (27A266a)", "/Applications/Xcode-27.0.app"),
+        // Our name, already right → nothing.
+        ("/Applications/Xcode-27.2.app", "27.2 (27B52)", nil),
+        ("/Applications/Xcode-27.2-beta-3.app", "27.2 beta 3 (27B5038j)", nil),
+        // Not our shape → nothing.
+        ("/Applications/Xcode-beta.app", "27.2 (27B52)", nil),
+        ("/Applications/Xcode.app", "27.2 (27B52)", nil),
+        ("/Applications/Xcode-work.app", "27.2 (27B52)", nil),
+        ("/Applications/Xcode-27-nightly.app", "27.2 (27B52)", nil),
+        // Nothing to go on.
+        ("/Applications/Xcode-27.2-beta-3.app", nil, nil),
+    ])
+    func onlyOurVersionNamedCopiesAreRenamed(
+        _ path: String, _ version: String?, _ expected: String?
+    ) {
+        let renamed = XcodeSideBySideInstaller.staleName(
+            installedAt: URL(fileURLWithPath: path), version: version)
+        #expect(renamed?.path == expected)
+    }
+
     /// "Update All" takes Xcode only with a valid session and while it is not
     /// running: the archive needs that session, and the installer refuses a
     /// running Xcode instead of quitting it. Every other source is unaffected.

@@ -931,6 +931,23 @@ final class Preferences {
         }
     }
 
+    /// Carry an install's preferences from one path to another, for a bundle
+    /// renamed in place (`XcodeSideBySideInstaller.staleName`). The same install
+    /// at a new name must keep its ignore, its skipped version and its declined
+    /// prompt — losing them would silently make it nag again.
+    ///
+    /// The notification baselines are deliberately not moved: they only decide
+    /// whether a banner was already posted, and a duplicate banner for a rename
+    /// is harmless, where a half-migrated set of keys is not.
+    func migrateInstallPreferences(fromPath old: String, toPath new: String) {
+        let oldKey = InstallPreferenceKey.preferenceKey(old)
+        let newKey = InstallPreferenceKey.preferenceKey(new)
+        guard oldKey != newKey else { return }
+        if ignoredKeys.remove(oldKey) != nil { ignoredKeys.insert(newKey) }
+        if let skipped = skippedVersions.removeValue(forKey: oldKey) { skippedVersions[newKey] = skipped }
+        if declinedElevationKeys.remove(oldKey) != nil { declinedElevationKeys.insert(newKey) }
+    }
+
     /// Ignore whatever app will be at `path`, before it exists — Settings →
     /// Xcode's side-by-side install marks its new copy so it is never offered an
     /// update. Returns whether the key was newly added, so a failed install

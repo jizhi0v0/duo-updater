@@ -1159,17 +1159,27 @@ struct ToolsPage: View {
         let target = entry.snapshot.tools.first(where: {
             $0.phase != .idle || $0.error != nil || $0.state == .updateAvailable
         })?.id.tag ?? entry.statuses.first?.toolID.tag
-        // A left click does nothing, as on an app row: the row looks like one,
-        // and its Update sits beside it, so a click a little off it opened the
-        // workbench and closed the popover (owner, 2026-10-24). The workbench
-        // is on its right-click menu.
+        // The row itself is not a target: a click a little off its Update opened
+        // the workbench and closed the popover (owner, 2026-10-24). The NAME is —
+        // it opens the workbench on this copy, as the app rows' names do.
         return HStack(spacing: 10) {
             if let first = entry.statuses.first {
                 CLIToolIcon(kind: first.kind, size: 30, managed: first.managedItem?.descriptor)
                     .frame(width: 30)
             }
             VStack(alignment: .leading, spacing: 1) {
-                Text(verbatim: entry.title).lineLimit(1)
+                // The name is the way into the workbench: it opens on this copy,
+                // selected and scrolled to, where the row says why it is held back
+                // and what to run. Only the text is a target — the row's own click
+                // stays inert (2026-10-24: a click a little off the Update button
+                // opened the workbench and closed the popover).
+                if let target {
+                    Button { show(target) } label: { Text(verbatim: entry.title).lineLimit(1) }
+                        .buttonStyle(.plain)
+                        .help(String(localized: "Show in Window"))
+                } else {
+                    Text(verbatim: entry.title).lineLimit(1)
+                }
                 line(entry, popover).font(.caption).foregroundStyle(.secondary).lineLimit(1)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -1768,6 +1778,14 @@ private struct AppRow: View {
     @Bindable var model: AppListModel
     @Environment(\.openWindow) private var openWindow
 
+    /// Opens the workbench on this app, selected and scrolled to — the row's
+    /// name does it, as a tool's name does on the popover's groups page.
+    private func openInWorkbench() {
+        model.requestedWorkbenchAppID = result.id
+        openWindow(id: WorkbenchWindowView.windowID)
+        model.surfaceWindow(sceneID: WorkbenchWindowView.windowID)
+    }
+
     private var stage: InstallStage? { model.installRows.stages[result.id] }
     private var installError: String? { model.installErrorText(for: result) }
 
@@ -1841,7 +1859,9 @@ private struct AppRow: View {
 
     private func nameLine(tagged runtime: AppRuntime?) -> some View {
         HStack(spacing: 6) {
-            Text(result.app.name).font(.body)
+            Button(action: openInWorkbench) { Text(result.app.name).font(.body) }
+                .buttonStyle(.plain)
+                .help(String(localized: "Show in Window"))
             if model.isRunning(result) {
                 RunningIndicator(size: 6).offset(y: RunningIndicator.opticalNudge)
             }

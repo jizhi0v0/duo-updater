@@ -486,6 +486,7 @@ public actor InstallCoordinator {
         route: Route,
         installedPopulation: [InstalledApp]?,
         digestOnlyAllowed: Bool,
+        quitPrompt: QuitPromptChannel = .none,
         progress: @Sendable @escaping (InstallStage) -> Void,
         releaseAfterDownload: @Sendable () async -> Void = {},
         beforeInstallerOpen: @Sendable () async -> Void = {}
@@ -516,6 +517,7 @@ public actor InstallCoordinator {
                     try await performRoute(
                         result, route: route, installedPopulation: installedPopulation,
                         digestOnlyAllowed: digestOnlyAllowed,
+                        quitPrompt: quitPrompt,
                         spaceToApply: toApply,
                         progress: progress,
                         releaseAfterDownload: releaseAfterDownload,
@@ -570,6 +572,7 @@ public actor InstallCoordinator {
         route: Route,
         installedPopulation: [InstalledApp]?,
         digestOnlyAllowed: Bool,
+        quitPrompt: QuitPromptChannel,
         spaceToApply: Int64,
         progress: @Sendable @escaping (InstallStage) -> Void,
         releaseAfterDownload: @Sendable () async -> Void,
@@ -587,7 +590,10 @@ public actor InstallCoordinator {
                 result, spaceToApply: 0,
                 progress: progress, releaseAfterDownload: releaseAfterDownload,
                 download: { try await XcodeInstaller.download($0, using: downloader, onStage: $1) },
-                apply: { try await XcodeInstaller.apply($0, download: $1, onStage: $2) })
+                apply: {
+                    try await XcodeInstaller.apply(
+                        $0, download: $1, quitPrompt: quitPrompt, onStage: $2)
+                })
 
         case .installer:
             progress(.downloading(fraction: 0))

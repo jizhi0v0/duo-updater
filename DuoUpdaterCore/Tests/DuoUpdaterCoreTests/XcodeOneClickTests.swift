@@ -395,20 +395,53 @@ import Foundation
             == "Xcode-beta is running. Quit it, then click Update again. Nothing was changed.")
     }
 
-    /// Checked before a byte moves: the downloader is never called and no scratch
-    /// directory is made.
-    @Test func aRunningCopyIsRefusedBeforeTheDownload() async throws {
+    /// A running copy no longer stops the download: the bytes and the expansion
+    /// are spent first, and the quit is asked for at apply time (see
+    /// `aDeclinedQuitLeavesEverythingAlone`).
+    @Test func aRunningCopyStillDownloads() async throws {
         let root = try Self.scratchRoot()
         defer { try? FileManager.default.removeItem(at: root) }
         let fake = FakeDownloader(mode: .succeed)
-        await #expect(throws: XcodeInstaller.InstallError.xcodeRunning(name: "Xcode-beta")) {
-            _ = try await XcodeInstaller.download(
-                Self.result(), using: fake, scratchRoot: root,
+        _ = try await XcodeInstaller.download(
+            Self.result(), using: fake, scratchRoot: root,
+            runningExecutables: { ["/ZZFixture/Xcode-beta.app/Contents/MacOS/Xcode"] },
+            onStage: { _ in })
+        #expect(fake.directory != nil)
+    }
+
+    /// The quit question is asked only once there is nothing left but the swap,
+    /// and a decline changes nothing.
+    @Test func aDeclinedQuitLeavesEverythingAlone() async throws {
+        let asked = RunningBox([])
+        let channel = QuitPromptChannel(
+            request: { asked.append($0) },
+            answer: { .declined },
+            withdraw: {})
+        await #expect(throws: XcodeInstaller.InstallError.quitDeclined(name: "Xcode-beta")) {
+            try await XcodeInstaller.askToQuit(
+                Self.result().app, name: "Xcode-beta", quitPrompt: channel,
                 runningExecutables: { ["/ZZFixture/Xcode-beta.app/Contents/MacOS/Xcode"] },
-                onStage: { _ in })
+                pollInterval: .milliseconds(1))
         }
-        #expect(fake.directory == nil)
-        #expect(try FileManager.default.contentsOfDirectory(atPath: root.path).isEmpty)
+        #expect(asked.paths == ["Xcode-beta"])
+    }
+
+    /// An app that is quit by hand while the question is up needs no answer:
+    /// there is nothing left to quit, so the swap proceeds.
+    @Test func aCopyQuitByHandProceedsWithoutAnAnswer() async throws {
+        let running = RunningBox(["/ZZFixture/Xcode-beta.app/Contents/MacOS/Xcode"])
+        // `askToQuit` checks the process table before it reads an answer; this
+        // channel would refuse if it were ever asked.
+        let channel = QuitPromptChannel(
+            request: { _ in }, answer: { .declined }, withdraw: {})
+        let quit = Task {
+            // The app disappears between the request and the first look.
+            running.clear()
+            try await XcodeInstaller.askToQuit(
+                Self.result().app, name: "Xcode-beta", quitPrompt: channel,
+                runningExecutables: { running.paths }, pollInterval: .milliseconds(1))
+        }
+        await #expect(throws: Never.self) { try await quit.value }
     }
 
     /// Checked again right before the swap: opened during the download means no
@@ -600,6 +633,17 @@ private final class StageLog: @unchecked Sendable {
     private var stages: [InstallStage] = []
     func append(_ stage: InstallStage) { lock.withLock { stages.append(stage) } }
     var all: [InstallStage] { lock.withLock { stages } }
+}
+
+/// A process table a test can change under the installer: the same shape as the
+/// live `runningExecutables` closure, but mutable — an app that quits itself.
+private final class RunningBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var stored: [String]
+    init(_ paths: [String]) { stored = paths }
+    var paths: [String] { lock.withLock { stored } }
+    func append(_ path: String) { lock.withLock { stored.append(path) } }
+    func clear() { lock.withLock { stored = [] } }
 }
 
 private final class FakeDownloader: XcodeArchiveDownloading, @unchecked Sendable {

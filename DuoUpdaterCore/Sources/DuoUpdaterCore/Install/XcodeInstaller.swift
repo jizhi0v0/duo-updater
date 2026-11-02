@@ -52,6 +52,9 @@ public enum XcodeInstaller {
         case unexpectedArchiveContents(String)
         /// `name` is the installed bundle's name ("Xcode-beta").
         case xcodeRunning(name: String)
+        /// The user was asked to quit it and said no: nothing was touched, and
+        /// the downloaded archive goes with the scratch dir.
+        case quitDeclined(name: String)
 
         public var errorDescription: String? {
             switch self {
@@ -73,6 +76,8 @@ public enum XcodeInstaller {
                 return "The Xcode archive did not contain one app: \(why). Nothing was changed."
             case .xcodeRunning(let name):
                 return "\(name) is running. Quit it, then click Update again. Nothing was changed."
+            case .quitDeclined(let name):
+                return "\(name) was left open, so nothing was changed."
             }
         }
     }
@@ -86,7 +91,10 @@ public enum XcodeInstaller {
     /// `pkgutil`'s output in particular, which echoes the file name — depends on
     /// a name the download chose. On any failure the directory is removed here.
     ///
-    /// Refused up front, before any byte moves, when this Xcode is running.
+    /// A running copy does NOT stop the download: the bytes and the expansion
+    /// are spent first, and the quit is asked for in `apply` — where only a
+    /// rename is left to do, so the app is closed for seconds rather than for
+    /// the whole install.
     ///
     /// `scratchRoot` and `runningExecutables` are seams for tests; production
     /// uses the temporary directory, like the other routes, and the live process
@@ -102,11 +110,6 @@ public enum XcodeInstaller {
             throw InstallError.notXcodeUpdate
         }
         guard let url = remote.downloadURL else { throw InstallError.noDownloadURL }
-        if let refusal = Self.runningRefusal(
-            installedAt: Self.processPath(of: result.app.path),
-            runningExecutables: runningExecutables()) {
-            throw refusal
-        }
 
         // `displayVersion` goes through `filesystemSafeToken` for the reason
         // `VendorInstaller.download` gives: it must stay ONE path component.
@@ -152,9 +155,17 @@ public enum XcodeInstaller {
 
     /// Phase 2: verify, expand, gate and swap. Throws on the first failure, with
     /// the installed copy untouched.
+    ///
+    /// A copy that is running when the swap comes is **asked to quit** through
+    /// `quitPrompt` — the row turns into its Relaunch control, the same one the
+    /// App Store route raises — and only then terminated (graceful
+    /// `terminate()`, so Xcode's own save sheets still appear). Nothing is
+    /// closed until the bytes are downloaded, verified and expanded: the window
+    /// the app is shut for is the rename, seconds, not the install.
     static func apply(
         _ result: UpdateResult,
         download: DownloadedUpdate,
+        quitPrompt: QuitPromptChannel = .none,
         runningExecutables: @Sendable @escaping () -> [String] = AppRestarter.runningExecutablePaths,
         onStage: @Sendable @escaping (InstallStage) -> Void
     ) async throws {
@@ -170,6 +181,18 @@ public enum XcodeInstaller {
         // opened while we downloaded (g). Quarantine (h) is stripped inside
         // `replace`.
         onStage(.installing)
+        // A copy running now has to be quit; ask first (the row shows its
+        // Relaunch control), then close it. Declining leaves everything as it
+        // was — the download is discarded with the scratch dir.
+        if let refusal = Self.runningRefusal(
+            installedAt: Self.processPath(of: result.app.path),
+            runningExecutables: runningExecutables()) {
+            let name = result.app.path.deletingPathExtension().lastPathComponent
+            _ = refusal
+            try await Self.askToQuit(
+                result.app, name: name, quitPrompt: quitPrompt,
+                runningExecutables: runningExecutables)
+        }
         try await Self.swapUnlessRunning(
             over: result.app.path, runningExecutables: runningExecutables,
             swap: {
@@ -177,6 +200,70 @@ public enum XcodeInstaller {
                     newApp: newApp, over: result.app.path, stagedCheck: stagedCheck)
             })
         onStage(.done)
+    }
+
+    /// Put the quit question on screen and wait for an answer, then close the
+    /// copy if the user agreed. `.settledElsewhere` (the app went away anyway)
+    /// proceeds; a decline throws `quitDeclined` with nothing changed.
+    static func askToQuit(
+        _ app: InstalledApp,
+        name: String,
+        quitPrompt: QuitPromptChannel,
+        runningExecutables: @Sendable () -> [String],
+        pollInterval: Duration = .milliseconds(500),
+        deadline: Duration = .seconds(30)
+    ) async throws {
+        quitPrompt.request(name)
+        defer { quitPrompt.withdraw() }
+        var outcome = QuitPromptOutcome.keepWaiting
+        while true {
+            try Task.checkCancellation()
+            // Quit by hand while the question is up: nothing left to ask, and
+            // nothing left to quit — go straight to the swap.
+            let stillUp = runningRefusal(
+                installedAt: processPath(of: app.path), runningExecutables: runningExecutables()) != nil
+            if !stillUp { return }
+            let answer = await quitPrompt.answer()
+            outcome = QuitPrompt.decide(
+                answer: answer, sheetPresent: true, versionChanged: false, appRunning: stillUp)
+            if outcome != .keepWaiting { break }
+            try await Task.sleep(for: pollInterval)
+        }
+        switch outcome {
+        case .cancelled:
+            throw InstallError.quitDeclined(name: name)
+        case .settledElsewhere:
+            return
+        case .keepWaiting:
+            return
+        case .quitTheApp:
+            let quit = await quitRunning(
+                app, runningExecutables: runningExecutables, deadline: deadline)
+            guard quit else { throw InstallError.xcodeRunning(name: name) }
+        }
+    }
+
+    /// Graceful `terminate()` on every instance, then wait until nothing runs
+    /// from this bundle's `Contents/MacOS`. False when one is still up after
+    /// `deadline` — a save sheet holding the quit, or a hung app.
+    static func quitRunning(
+        _ app: InstalledApp,
+        runningExecutables: @Sendable () -> [String],
+        deadline: Duration = .seconds(30)
+    ) async -> Bool {
+        for instance in AppRestarter.runningInstances(of: app) { instance.terminate() }
+        let appDir = URL(fileURLWithPath: processPath(of: app.path))
+            .appendingPathComponent("Contents/MacOS").path
+        func stillUp() -> Bool {
+            runningExecutables().contains { AppRestarter.isExecutable($0, insideBundlePath: appDir) }
+        }
+        let start = ContinuousClock.now
+        while ContinuousClock.now - start < deadline {
+            if !stillUp() { return true }
+            if Task.isCancelled { return false }
+            try? await Task.sleep(for: .milliseconds(250))
+        }
+        return !stillUp()
     }
 
     /// Steps (a)–(d) of `apply`, shared with `XcodeSideBySideInstaller`: room to

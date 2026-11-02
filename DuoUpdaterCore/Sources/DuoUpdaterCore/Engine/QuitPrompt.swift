@@ -74,3 +74,31 @@ public enum QuitPrompt {
         }
     }
 }
+
+/// How an installer asks the host "may I quit this app to finish the update?"
+/// and reads the answer back. One value rather than three escaping closures, so
+/// a route that needs the question (Xcode) can take it without every caller
+/// listing the parts, and the default — nobody to ask — answers `declined`.
+public struct QuitPromptChannel: Sendable {
+    /// Put the question on screen for `appName`.
+    public var request: @Sendable (String) -> Void
+    /// What the user has said so far. `pending` until they act.
+    public var answer: @Sendable () async -> QuitPromptAnswer
+    /// Take the question back down when it no longer has an answer to give.
+    public var withdraw: @Sendable () -> Void
+
+    public init(
+        request: @escaping @Sendable (String) -> Void,
+        answer: @escaping @Sendable () async -> QuitPromptAnswer,
+        withdraw: @escaping @Sendable () -> Void
+    ) {
+        self.request = request
+        self.answer = answer
+        self.withdraw = withdraw
+    }
+
+    /// Nobody can answer: a host with no rows (`duo`), or a test.
+    public static let none = QuitPromptChannel(
+        request: { _ in }, answer: { .declined }, withdraw: {})
+}
+

@@ -5836,6 +5836,19 @@ final class AppListModel {
                     // Read now, after the re-check: the row's offer may predate
                     // the user turning this off.
                     digestOnlyAllowed: prefs.allowsDigestOnlyInstalls,
+                    // Xcode asks before it quits a running copy — the row turns
+                    // into the same Relaunch control the App Store route raises,
+                    // and `confirmQuit`'s `reopenAfterQuit` reopens it after.
+                    quitPrompt: QuitPromptChannel(
+                        request: { [weak self] appName in
+                            Task { @MainActor in self?.requestQuit(id: id, appName: appName) }
+                        },
+                        answer: { [weak self] in
+                            await MainActor.run { self?.quitAnswer(id: id) ?? .pending }
+                        },
+                        withdraw: { [weak self] in
+                            Task { @MainActor in self?.withdrawQuit(id: id) }
+                        }),
                     progress: stages.recording { stage in Task { @MainActor in self.setStage(id, stage) } },
                     releaseAfterDownload: { await releaseAfterDownload?.release() },
                     beforeInstallerOpen: { await self.retireStagedPackage(for: id) })

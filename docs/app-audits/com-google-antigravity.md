@@ -83,3 +83,28 @@ the exact version that recipe detects.
 - 同时 hub probe（不带 `x-user-staging-id`）连续 6 次答 `version: 2.19.1`，IDE probe 答 2.5.5，两边与 changelog 最新条目一致。
 
 #822 的 "reads AHEAD" 不是 probe 卡住。转引 #822 的 2026-09-23 triage：manifest 带 `vary: x-user-staging-id, x-app-version` 和 `cache-control: no-store`；不带 staging header 42/42 次答 2.15.1，而 changelog 已列 2.16.0；带随机 staging id 10/60（另一轮 2/30）拿到 2.16.0，同一个 id 拿到后会一直拿到，即按 id 分桶；2.16.0 的 zip 真实存在（181,548,704 字节）。这和上面 2026-09-14 的复测方向相反：那次不带 header 读到的是 `stagingPercentage: 10` 的 2.13.0，即 probe **领先**于灰度（原注释 "would be offered here before the app itself takes it" 描述的情形）。两种行为都实测过，哪个都不是规律。recipe 注释已改为同时记下两种：落后时 changelog 从第一天就列出新版本，`duo verify` 报 changelog 领先，feed 追上后自愈；领先时已装的 app 可能被提示一个它自己的 feed 还没给它的版本。遇到任何一种，先看实时 feed，再判断是不是灰度。
+
+### 2026-11-02 — IDE 探针补一键（`com.google.antigravity-ide`）
+
+只读 GET 同一个端点（全零 commit + `no_hostname`）：HTTP 200，`url` 是
+`…/antigravity/stable/2.6.0-5526304964083712/darwin-arm/Antigravity IDE.zip`，`sha256hash` 是
+`56fe0853adb76cb6f0e77df5e6bcc739216eb0bfc290b605b5576a1b335d4a47`
+（`displayName`: "macOS for Apple Silicon (.zip)"）。zip 的 `Content-Length` 是 205,144,101，
+根条目是 `Antigravity IDE.app/`，不是安装器套壳。
+
+摘要是同一份文件的摘要，不是旁边的别的下载：2.5.5 的 zip（245,761,286 字节）下下来后
+`shasum -a 256` 正是它自己 body 里的 `33338ced839cb00fcc779ab96e4cdc79e06c894bc21cdb02249715286700c648`。
+2.6.0 的一键下载由 `VendorInstaller` 在解包前核对同一 body 的 `sha256hash`。
+
+bundle：`CFBundleShortVersionString` 2.6.0；`codesign --verify --deep --strict` 通过，
+Authority 是 `Developer ID Application: Google LLC (EQHXZ8M8AV)`；`spctl -a -vv` 判为
+`Notarized Developer ID`。
+
+于是 recipe 挂上 `install`：`.bodyPattern` 取同一 body 的 `url`，`checksumPattern` 取
+`sha256hash`（`.sha256Hex`），`kind: .zip`。原注释里的两条理由：arm64 专用的 URL 不再是障碍
+（`App/project.yml` 的 `ARCHS` 只有 arm64，臂展与产物一致，Devin Desktop 的 recipe 用的是同一理由）；
+签名与公证由上面的实测补上。
+
+端到端：在 vmpal 的 macOS 27.2 虚拟机里，把 2.5.5 放进 `/Applications` 后跑 `duo install`，
+磁盘上的副本变成 2.6.0，`codesign --verify --deep --strict` 与 `spctl -a` 仍通过，Team 仍为
+EQHXZ8M8AV，app 能启动；`duo check` 随后报已是最新。

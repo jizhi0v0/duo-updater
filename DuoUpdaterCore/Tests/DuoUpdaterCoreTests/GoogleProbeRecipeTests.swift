@@ -214,9 +214,57 @@ struct GoogleProbeRecipeTests {
     // live commit would return nothing to compare against.
     #expect(ide.url.absoluteString.contains("/0000000000000000000000000000000000000000/"))
 
-    // Detection only: the artifact has not been signature-checked and the URL is
-    // arm64-specific.
-    #expect(ide.install == nil)
+    // One-click: the body it already reads names the finished zip and the digest
+    // beside it, so the swap has an artifact to check.
+    let spec = try #require(ide.install, "the IDE lost its one-click")
+    #expect(spec.kind == .zip)
+    #expect(spec.checksumFormat == .sha256Hex)
+}
+
+/// Antigravity IDE's answer for 2.6.0, verbatim (2026-11-02). One thing in it
+/// matters for the install spec: the file name carries a space
+/// (`Antigravity IDE.zip`), and `URL(string:)` percent-encodes it — so the
+/// pattern can capture the vendor's own string and still resolve to a URL.
+private let antigravityIDEUpdateFixture = #"""
+{"timestamp":1793043048,"supportsFastUpdate":true,"version":"9e3a5da5d6731effd57d47d88bbe5df14ac6ccdd","ideVersion":"Antigravity IDE","productVersion":"1.107.0","name":"1.107.0","hash":"510eae8ba160a13d2ff5bbc16f0af6bf11bc919e","sha256hash":"56fe0853adb76cb6f0e77df5e6bcc739216eb0bfc290b605b5576a1b335d4a47","url":"https://edgedl.me.gvt1.com/edgedl/release2/j0qc3/antigravity/stable/2.6.0-5526304964083712/darwin-arm/Antigravity IDE.zip","displayName":"macOS for Apple Silicon (.zip)"}
+"""#
+
+/// The install URL and the digest both come out of the one body the probe reads,
+/// resolved the way `VendorProbeSource.resolveInstall` resolves them. That is the
+/// property that keeps a click from downloading a different build than the digest
+/// the check saw — the same reason VS Code's recipe takes its `url` from the body
+/// instead of a `/latest` redirect.
+@Test func antigravityIDEOneClickTakesTheZipAndDigestTheBodyNames() throws {
+    let recipe = try #require(googleRecipe("com.google.antigravity-ide"))
+    let spec = try #require(recipe.install)
+
+    guard case .bodyPattern(let urlPattern) = spec.urlSource else {
+        Issue.record("the IDE's install URL must come from the probe body")
+        return
+    }
+    let raw = try #require(
+        VendorProbeRecipe.extractVersion(
+            from: antigravityIDEUpdateFixture, pattern: urlPattern),
+        "the install pattern matched nothing in the body it is paired with")
+    #expect(raw == "https://edgedl.me.gvt1.com/edgedl/release2/j0qc3/antigravity/"
+        + "stable/2.6.0-5526304964083712/darwin-arm/Antigravity IDE.zip")
+    // What the downloader will actually request once the space is encoded.
+    #expect(URL(string: raw)?.absoluteString
+        == "https://edgedl.me.gvt1.com/edgedl/release2/j0qc3/antigravity/"
+        + "stable/2.6.0-5526304964083712/darwin-arm/Antigravity%20IDE.zip")
+
+    let checksum = try #require(
+        spec.checksumPattern.flatMap {
+            VendorProbeRecipe.extractVersion(
+                from: antigravityIDEUpdateFixture, pattern: $0)
+        },
+        "the digest pattern matched nothing in the body it is paired with")
+    #expect(checksum == "56fe0853adb76cb6f0e77df5e6bcc739216eb0bfc290b605b5576a1b335d4a47")
+
+    // The version and the artifact come from the same body, so a rollout cannot
+    // pair this release's number with another build's file.
+    #expect(VendorProbeRecipe.extractVersion(
+        from: antigravityIDEUpdateFixture, pattern: recipe.versionPattern) == "2.6.0")
 }
 
 /// The real response, verbatim (2026-08-22). Three traps in one body: the version

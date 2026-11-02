@@ -4309,34 +4309,52 @@ final class AppListModel {
     /// After a rescan, not during an install: the rename changes the row's id
     /// (the path), and an install's reopen/relaunch logic is holding the old
     /// one.
+    ///
+    /// The folders are read directly rather than through `results`: a copy
+    /// holding the same build as another is folded by
+    /// `AppScanner.dedupeIdenticalInstalls`, and the one that loses is exactly
+    /// the stale-named one (`Xcode-27.2-beta-3.app` beside `Xcode.app` after the
+    /// beta was updated to the release), so the list never mentions it.
     private func repairStaleXcodeCopyNames() async {
         guard !isRepairingXcodeNames else { return }
         isRepairingXcodeNames = true
         defer { isRepairingXcodeNames = false }
         var renamed = false
-        for result in results {
-            let app = result.app
-            guard app.bundleID == AppScanner.xcodeBundleID else { continue }
-            guard let destination = XcodeSideBySideInstaller.staleName(
-                installedAt: app.path, version: app.shortVersion) else { continue }
-            // Nothing runs from a bundle being renamed, and nothing is
-            // overwritten.
-            guard !isRunning(result) else { continue }
-            guard !FileManager.default.fileExists(atPath: destination.path) else {
-                Log.install.notice(
-                    "rename: \(app.path.lastPathComponent, privacy: .public) left as it is — \(destination.lastPathComponent, privacy: .public) already exists")
-                continue
-            }
-            do {
-                try FileManager.default.moveItem(at: app.path, to: destination)
-                prefs.migrateInstallPreferences(
-                    fromPath: app.path.path, toPath: destination.path)
-                Log.install.notice(
-                    "rename: \(app.path.lastPathComponent, privacy: .public) → \(destination.lastPathComponent, privacy: .public)")
-                renamed = true
-            } catch {
-                Log.install.error(
-                    "rename failed: \(app.path.lastPathComponent, privacy: .public) — \(error.localizedDescription, privacy: .public)")
+        let folders = [
+            URL(fileURLWithPath: "/Applications", isDirectory: true),
+            URL(fileURLWithPath: NSHomeDirectory() + "/Applications", isDirectory: true),
+        ]
+        for folder in folders {
+            let entries = (try? FileManager.default.contentsOfDirectory(
+                at: folder, includingPropertiesForKeys: nil)) ?? []
+            for path in entries where path.pathExtension == "app"
+                && path.lastPathComponent.hasPrefix("Xcode-") {
+                guard let bundle = Bundle(url: path),
+                      bundle.bundleIdentifier == AppScanner.xcodeBundleID,
+                      let version = bundle.object(
+                          forInfoDictionaryKey: "CFBundleShortVersionString") as? String,
+                      let destination = XcodeSideBySideInstaller.staleName(
+                          installedAt: path, version: version)
+                else { continue }
+                // Nothing runs from a bundle being renamed, and nothing is
+                // overwritten.
+                guard !runningAppPaths.contains(UpdatePolicy.runtimeBundlePath(path)) else { continue }
+                guard !FileManager.default.fileExists(atPath: destination.path) else {
+                    Log.install.notice(
+                        "rename: \(path.lastPathComponent, privacy: .public) left as it is — \(destination.lastPathComponent, privacy: .public) already exists")
+                    continue
+                }
+                do {
+                    try FileManager.default.moveItem(at: path, to: destination)
+                    prefs.migrateInstallPreferences(
+                        fromPath: path.path, toPath: destination.path)
+                    Log.install.notice(
+                        "rename: \(path.lastPathComponent, privacy: .public) → \(destination.lastPathComponent, privacy: .public)")
+                    renamed = true
+                } catch {
+                    Log.install.error(
+                        "rename failed: \(path.lastPathComponent, privacy: .public) — \(error.localizedDescription, privacy: .public)")
+                }
             }
         }
         if renamed { await performLocalRescan(unattended: false) }

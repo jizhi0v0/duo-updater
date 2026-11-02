@@ -2263,6 +2263,12 @@ final class AppListModel {
         GitHubRateLimitGate.activate()
         self.prefs = prefs
         defer { watchGitHubGate() }
+        // A `duo unignore` from another process (KVO in `Preferences`) has to
+        // re-check what it just made visible: the copy was never checked while
+        // ignored, so its row would otherwise come back with no verdict.
+        prefs.onExternallyUnignored = { [weak self] keys in
+            Task { @MainActor in await self?.recheckExternallyUnignored(keys) }
+        }
         // Restore when we last checked so the scheduler can pick up where it left
         // off across relaunches instead of restarting the interval from zero.
         self.lastCheck = prefs.lastCheckDate
@@ -9828,6 +9834,19 @@ final class AppListModel {
         // it, and the withdrawal above has already run.)
         notifyStagedRelaunches()
         Log.app.info("\(nowIgnored ? "ignore" : "unignore", privacy: .public): \(result.app.name, privacy: .public)")
+    }
+
+    /// A `duo unignore` from another process made rows visible again: re-check
+    /// the copies it names, exactly as the row's own un-ignore does. A key that
+    /// matches no row names a copy installed while it was hidden, which no scan
+    /// has listed yet — rescan first, then look again.
+    private func recheckExternallyUnignored(_ keys: Set<String>) async {
+        var affected = results.filter { keys.contains(InstallPreferenceKey.key(for: $0.app)) }
+        if affected.isEmpty {
+            await performLocalRescan(unattended: false)
+            affected = results.filter { keys.contains(InstallPreferenceKey.key(for: $0.app)) }
+        }
+        for result in affected { await recheckAfterUnignore(result) }
     }
 
     /// Re-check one app the moment it stops being ignored, so the row it comes back

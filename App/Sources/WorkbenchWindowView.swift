@@ -88,6 +88,12 @@ struct WorkbenchWindowView: View {
     /// Homebrew above the list's top.
     @State private var cliRevealRequest = 0
     @State private var cliRevealHandled = 0
+    /// Bumped by each "Show in Window" from the popover's app list or its groups
+    /// page: the list scrolls that row into the middle, so a name clicked there
+    /// lands on screen rather than only selected (`applyRequestedApp`).
+    @State private var appRevealRequest = 0
+    @State private var appRevealHandled = 0
+    @State private var appRevealTarget: String?
     /// The header the latest request scrolls to.
     @State private var cliRevealTarget = Self.homebrewHeaderID
     /// Where that target lands: a header at the list's top, a tool's row in its
@@ -629,6 +635,10 @@ struct WorkbenchWindowView: View {
         if isCask { homebrewRevealing = true }
         selection = id
         detailSelection = id
+        // Selected is not the same as seen: the row may be below the fold, or on
+        // the tab the request just left.
+        appRevealTarget = id
+        appRevealRequest += 1
     }
 
     /// Honor a pending "Show in Window" from the popover's unchecked-brew tip:
@@ -1640,6 +1650,16 @@ struct WorkbenchWindowView: View {
             // for ~100 ms before the jump (recorded at 60 fps, 2026-10-20) — and
             // once more a frame later, for a list laid out after the first. Marked
             // handled only by a task that was not cancelled, for the reason above.
+            // A row a popover name asked for: to the middle, twice, for the
+            // reason the level headers are scrolled twice above.
+            .task(id: appRevealRequest) {
+                guard appRevealRequest != appRevealHandled, let target = appRevealTarget else { return }
+                proxy.scrollTo(target, anchor: .center)
+                try? await Task.sleep(for: .milliseconds(16))
+                guard !Task.isCancelled else { return }
+                appRevealHandled = appRevealRequest
+                proxy.scrollTo(target, anchor: .center)
+            }
             .task(id: cliRevealRequest) {
                 guard cliRevealRequest != cliRevealHandled else { return }
                 proxy.scrollTo(cliRevealTarget, anchor: cliRevealAnchor)

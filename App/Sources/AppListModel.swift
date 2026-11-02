@@ -188,6 +188,9 @@ final class AppListModel {
     /// True while "Update All" is running. Blocks a second batch from being
     /// started while the first one still has queued work.
     private(set) var isInstallingAll = false
+    /// True while `repairStaleXcodeCopyNames` runs, so the rescan it triggers
+    /// after a rename cannot re-enter it.
+    private var isRepairingXcodeNames = false
     /// From an "Update All" click until it has claimed its batch or let it go
     /// (`ListActivity.isStartingInstallAll`): the helper-status read it waits
     /// for first.
@@ -4293,6 +4296,50 @@ final class AppListModel {
         await computeSelfUpdateStaging()
         await refreshBackupIndex()
         syncDockBadge()
+        await repairStaleXcodeCopyNames()
+    }
+
+    /// A side-by-side Xcode copy keeps the name it was installed under, and an
+    /// in-place update keeps the path: `Xcode-27.2-beta-3.app` that updated to
+    /// the 27.2 release still says "beta 3" in Finder and in the download
+    /// centre. Rename the copies **DuoUpdater itself named** and carry their
+    /// preferences across; a name somebody chose is never touched
+    /// (`XcodeSideBySideInstaller.staleName`).
+    ///
+    /// After a rescan, not during an install: the rename changes the row's id
+    /// (the path), and an install's reopen/relaunch logic is holding the old
+    /// one.
+    private func repairStaleXcodeCopyNames() async {
+        guard !isRepairingXcodeNames else { return }
+        isRepairingXcodeNames = true
+        defer { isRepairingXcodeNames = false }
+        var renamed = false
+        for result in results {
+            let app = result.app
+            guard app.bundleID == AppScanner.xcodeBundleID else { continue }
+            guard let destination = XcodeSideBySideInstaller.staleName(
+                installedAt: app.path, version: app.shortVersion) else { continue }
+            // Nothing runs from a bundle being renamed, and nothing is
+            // overwritten.
+            guard !isRunning(result) else { continue }
+            guard !FileManager.default.fileExists(atPath: destination.path) else {
+                Log.install.notice(
+                    "rename: \(app.path.lastPathComponent, privacy: .public) left as it is — \(destination.lastPathComponent, privacy: .public) already exists")
+                continue
+            }
+            do {
+                try FileManager.default.moveItem(at: app.path, to: destination)
+                prefs.migrateInstallPreferences(
+                    fromPath: app.path.path, toPath: destination.path)
+                Log.install.notice(
+                    "rename: \(app.path.lastPathComponent, privacy: .public) → \(destination.lastPathComponent, privacy: .public)")
+                renamed = true
+            } catch {
+                Log.install.error(
+                    "rename failed: \(app.path.lastPathComponent, privacy: .public) — \(error.localizedDescription, privacy: .public)")
+            }
+        }
+        if renamed { await performLocalRescan(unattended: false) }
     }
 
     /// Re-read a single app from disk and re-derive its row plus the restart/staging

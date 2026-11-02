@@ -54,6 +54,35 @@ public enum XcodeSideBySideInstaller {
         return "Xcode-\(words.filesystemSafeToken).app"
     }
 
+    /// Where a copy named by `bundleName(forVersion:)` should live now that its
+    /// version has moved on — or nil when the name is not one this type gave it.
+    ///
+    /// A side-by-side copy is named after the version it was installed as, and
+    /// an in-place update keeps the path: `Xcode-27.2-beta-3.app` that updates
+    /// to the 27.2 release still says "beta 3" in Finder and in the download
+    /// centre. This is the rule for renaming it — narrow on purpose:
+    ///
+    /// - the current name must start with `Xcode-` and be followed by a digit
+    ///   (`Xcode-27.2-beta-3.app`); a name somebody chose (`Xcode-beta.app`,
+    ///   `Xcode-work.app`, `Xcode-27-thing.app`) is never touched;
+    /// - the name must differ from what this version produces now;
+    /// - the caller checks the destination is free and that nothing runs from it.
+    public static func staleName(installedAt path: URL, version: String?) -> URL? {
+        guard let version, !version.isEmpty else { return nil }
+        let current = path.lastPathComponent
+        let expected = bundleName(forVersion: version)
+        guard current != expected else { return nil }
+        let stem = path.deletingPathExtension().lastPathComponent
+        guard stem.hasPrefix("Xcode-") else { return nil }
+        let versionPart = stem.dropFirst("Xcode-".count)
+        // Exactly the shapes `bundleName` produces for a version: "27.2",
+        // "27.2-beta-3", "27.0-rc-1". Anything else is a name somebody chose,
+        // even when it starts with a digit ("Xcode-27-nightly.app").
+        let shape = #"^[0-9][0-9.]*(-(beta|rc|alpha)(-[0-9]+)?)?$"#
+        guard versionPart.range(of: shape, options: .regularExpression) != nil else { return nil }
+        return path.deletingLastPathComponent().appendingPathComponent(expected, isDirectory: true)
+    }
+
     /// Verify and expand `archive` inside `workDir`, gate the bundle, then move it
     /// to `directory/name`. `willMove` runs after every check has passed and
     /// right before the move — the caller records anything that must already be

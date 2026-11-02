@@ -261,7 +261,9 @@ public enum XcodeInstaller {
         while ContinuousClock.now - start < deadline {
             if !stillUp() { return true }
             if Task.isCancelled { return false }
-            try? await Task.sleep(for: .milliseconds(250))
+            // Cancellation only makes this loop leave: it is checked above on
+            // every pass, so a swallowed sleep cannot spin here.
+            try? await Task.sleep(for: .milliseconds(250))  // cancel-ok: checked above each pass
         }
         return !stillUp()
     }

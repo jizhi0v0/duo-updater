@@ -52,9 +52,10 @@ private func aiGitHubRule(_ bundleID: String) throws -> GitHubReleaseRule {
 }
 
 @Test func aiDesktopGitHubRulesMatchStableTagsAndOnlyMacApps() throws {
+    // OpenCode Desktop is not here: 2.0 moved it to the vendor's own update
+    // channel, and its GitHub rule is gone so a probe can answer instead
+    // (`OpenCodeDesktopProbeTests`).
     let cases: [(String, String, String, [String])] = [
-        ("ai.opencode.desktop", "v1.18.18", "opencode-desktop-mac-arm64.dmg",
-         ["opencode-desktop-mac-arm64.zip", "opencode-desktop-win-arm64.exe"]),
         ("dev.openchamber.desktop", "v1.18.4", "OpenChamber-1.18.4-mac-arm64.dmg",
          ["OpenChamber-1.18.4-mac-arm64.zip", "OpenChamber-1.18.4-win-arm64.exe"]),
         ("jan.ai.app", "v0.8.4", "jan-mac-universal-0.8.4.zip",
@@ -77,21 +78,21 @@ private func aiGitHubRule(_ bundleID: String) throws -> GitHubReleaseRule {
 }
 
 @Test func aiDesktopGitHubRulesChooseTheNativeArchitecture() throws {
-    for bundleID in ["ai.opencode.desktop", "dev.openchamber.desktop"] {
-        let rule = try aiGitHubRule(bundleID)
-        let pattern = try #require(rule.installAssetPattern)
-        let prefix = bundleID == "ai.opencode.desktop"
-            ? "opencode-desktop-mac-" : "OpenChamber-1.18.4-mac-"
-        let assets = ["\(prefix)x64.dmg", "\(prefix)arm64.dmg"].map {
-            (name: $0, url: URL(string: "https://example.invalid/\($0)")!, size: Int64?.none)
-        }
-        #expect(GitHubReleaseRule.installableAsset(
-            from: assets, matching: pattern, preferring: .arm64)?.url.lastPathComponent
-            == "\(prefix)arm64.dmg")
-        #expect(GitHubReleaseRule.installableAsset(
-            from: assets, matching: pattern, preferring: .x86_64)?.url.lastPathComponent
-            == "\(prefix)x64.dmg")
+    // OpenChamber is the one left with a per-architecture asset list: OpenCode
+    // Desktop's rule went with the move to its own channel
+    // (`OpenCodeDesktopProbeTests`).
+    let rule = try aiGitHubRule("dev.openchamber.desktop")
+    let pattern = try #require(rule.installAssetPattern)
+    let prefix = "OpenChamber-1.18.4-mac-"
+    let assets = ["\(prefix)x64.dmg", "\(prefix)arm64.dmg"].map {
+        (name: $0, url: URL(string: "https://example.invalid/\($0)")!, size: Int64?.none)
     }
+    #expect(GitHubReleaseRule.installableAsset(
+        from: assets, matching: pattern, preferring: .arm64)?.url.lastPathComponent
+        == "\(prefix)arm64.dmg")
+    #expect(GitHubReleaseRule.installableAsset(
+        from: assets, matching: pattern, preferring: .x86_64)?.url.lastPathComponent
+        == "\(prefix)x64.dmg")
 }
 
 // MARK: - One-click, wired 2026-08-29

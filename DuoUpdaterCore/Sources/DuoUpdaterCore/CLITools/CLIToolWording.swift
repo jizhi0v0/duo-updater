@@ -74,6 +74,10 @@ public enum CLIToolWording {
             return String(localized: "Can’t confirm which version is installed")
         case .unsupportedInstaller:
             return String(localized: "No one-click update for this kind of install")
+        case .ownUpgrade:
+            // OpenCode 2: the vendor's `opencode upgrade`, which the detail pane
+            // hands over to copy (`CLIToolStatus.commandToCopy`).
+            return String(localized: "\(tool) has its own upgrade command")
         case .noOwnNpm:
             return String(localized: "Can’t tell which npm installed it")
         case .updaterMissing:

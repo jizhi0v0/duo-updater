@@ -205,6 +205,12 @@ public enum CLIToolWithheld: String, Sendable, Codable {
     /// The tool has already downloaded the update and installs it itself the next
     /// time it starts (Junie's `pending-update.json`).
     case staged
+    /// The update is the vendor's own upgrade command — `opencode upgrade` for
+    /// OpenCode 2, and `opencode upgrade --major` across from OpenCode 1. It runs
+    /// the installed binary and, across the major line, removes the old one, so
+    /// the row reports the version and hands the command over instead
+    /// (`OpencodeCheck`).
+    case ownUpgrade
 }
 
 /// One install of one tool and its verdict: what every surface reads the same way

@@ -106,7 +106,7 @@ public struct OpencodeUpdater: Sendable {
         // The version the installer is told to install is the channel's now.
         let target: String
         do {
-            target = try await check.latest(architecture)
+            target = try await check.latest()
         } catch {
             return .failed(message: "not run: could not read OpenCode's latest release: \(error)", output: "")
         }

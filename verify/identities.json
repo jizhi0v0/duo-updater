@@ -547,19 +547,6 @@
       "signedIdentifier" : "com.plexo.app",
       "teamIdentifier" : "8YNW6SHRQ8"
     },
-    "github:anomalyco\/opencode:stable" : {
-      "architectures" : [
-        "arm64"
-      ],
-      "bundleIdentifier" : "ai.opencode.desktop",
-      "firstSeenAt" : "2026-10-09T05:20:43Z",
-      "firstSeenVersion" : "1.18.35",
-      "lastSeenAt" : "2026-10-29T03:05:28Z",
-      "lastSeenURLSHA256" : "5ba68ca1850ab6f3862521057f56533a87bd03cf7de5cd028c953a64250d82fd",
-      "lastSeenVersion" : "1.19.5",
-      "signedIdentifier" : "ai.opencode.desktop",
-      "teamIdentifier" : "5NZ4Q7NXJ4"
-    },
     "github:antonycourtney\/tad:stable" : {
       "architectures" : [
         "arm64"
@@ -2815,6 +2802,19 @@
       "lastSeenVersion" : "2026.10.27-1",
       "signedIdentifier" : "ai.memoh.desktop",
       "teamIdentifier" : "P9R669C27U"
+    },
+    "vendor:ai.opencode.desktop:stable" : {
+      "architectures" : [
+        "arm64"
+      ],
+      "bundleIdentifier" : "ai.opencode.desktop",
+      "firstSeenAt" : "2026-11-02T12:14:47Z",
+      "firstSeenVersion" : "2.2.5",
+      "lastSeenAt" : "2026-11-02T12:14:47Z",
+      "lastSeenURLSHA256" : "8cf63adf008fbce0bb2932f8bd9795d30a3b43ebb8d5939bb8656a731f58c035",
+      "lastSeenVersion" : "2.2.5",
+      "signedIdentifier" : "ai.opencode.desktop",
+      "teamIdentifier" : "5NZ4Q7NXJ4"
     },
     "vendor:ai.perplexity.comet:stable" : {
       "architectures" : [

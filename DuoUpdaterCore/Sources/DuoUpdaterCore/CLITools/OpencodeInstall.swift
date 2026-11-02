@@ -62,11 +62,11 @@ public struct OpencodeInstall: Sendable, Equatable, Codable {
 /// OpenCode's own setting that decides an offer: `autoupdate` in its global
 /// config.
 ///
-/// From `cli/upgrade.ts` at `v1.18.34` (read 2026-10-04): at startup OpenCode
-/// checks its channel unless `autoupdate` is `false` (or
-/// `OPENCODE_DISABLE_AUTOUPDATE` is set); it installs a newer **patch** release
-/// itself — through the same installer, for a curl install — and only announces
-/// a minor or major one, or any one when `autoupdate` is `"notify"`. So `false`
+/// From the `autoupdate` field's own description in the config schema at
+/// `v1.19.5` (read 2026-10-31): it checks "for new versions and show[s] an
+/// update notice. Updates are never installed automatically; run /update or
+/// `opencode upgrade` … Set to false to disable update checks. true and 'notify'
+/// behave the same" (`OPENCODE_DISABLE_AUTOUPDATE` also turns it off). So `false`
 /// is the user's choice to take updates some other way: reported with the
 /// command, never run — Claude Code's rule. `"notify"` and the default leave the
 /// click.
@@ -175,6 +175,10 @@ public struct OpencodeScanner: Sendable {
 
     /// The version after the file's one `--user-agent=opencode/` literal, up to
     /// the space that ends it; nil when there is none, or several that disagree.
+    ///
+    /// Two shapes, one per line: OpenCode 1 sends `--user-agent=opencode/1.19.5`,
+    /// OpenCode 2 sends `--user-agent=opencode/latest/2.2.5/cli` — channel,
+    /// version, product (read off the 2.2.5 darwin-arm64 build, 2026-10-31).
     static func compiledVersion(in data: Data) -> String? {
         var found: Set<String> = []
         var start = data.startIndex
@@ -183,10 +187,22 @@ public struct OpencodeScanner: Sendable {
             while end < data.endIndex, end - range.upperBound < 40, data[end] != 0x20, data[end] != 0x22, data[end] != 0 {
                 end += 1
             }
-            found.insert(String(decoding: data[range.upperBound..<end], as: UTF8.self))
+            if let version = Self.version(inLiteral: String(decoding: data[range.upperBound..<end], as: UTF8.self)) {
+                found.insert(version)
+            }
             start = range.upperBound
         }
-        guard found.count == 1, let version = found.first, OpencodeRelease.isVersion(version) else { return nil }
+        guard found.count == 1, let version = found.first else { return nil }
         return version
+    }
+
+    /// A literal's version: `1.18.34` alone, or 2.x's `latest/2.2.5/cli`. The
+    /// second is anchored on its trailing product name so a token that merely
+    /// holds a version (a path, a URL) is not read as one.
+    static func version(inLiteral literal: String) -> String? {
+        let parts = literal.split(separator: "/", omittingEmptySubsequences: false)
+        if parts.count == 1 { return OpencodeRelease.isVersion(literal) ? literal : nil }
+        guard parts.count == 3, parts[2] == "cli", OpencodeRelease.isVersion(String(parts[1])) else { return nil }
+        return String(parts[1])
     }
 }

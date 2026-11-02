@@ -102,8 +102,10 @@ extension CLIToolStatus {
     /// zoxide, Helm and Starship when their directory needs `sudo` (`NvmCheck`,
     /// `ZoxideCheck`, `HelmCheck`, `StarshipCheck`); zoxide when what its
     /// installer leaves could not be checked; flyctl on the `pre` channel
-    /// (`FlyctlCheck`). A check sets the command only then — never beside a
-    /// running update — so here the gate only has to rule out the others.
+    /// (`FlyctlCheck`); OpenCode 2, whose own `opencode upgrade` is the only way
+    /// across or along its major line (`OpencodeCheck`). A check sets the command
+    /// only then — never beside a running update — so here the gate only has to
+    /// rule out the others.
     ///
     /// Beside an update that asks for an administrator password: the same
     /// command, for a terminal, as the way to take it without DuoUpdater.
@@ -114,7 +116,7 @@ extension CLIToolStatus {
         if state == .pinned { return manualCommand }
         guard state == .updateAvailable else { return nil }
         if needsAdministrator { return manualCommand }
-        guard let withheld, [.autoUpdateOff, .unsupportedInstaller, .unverified].contains(withheld)
+        guard let withheld, [.autoUpdateOff, .unsupportedInstaller, .unverified, .ownUpgrade].contains(withheld)
         else { return nil }
         return manualCommand
     }

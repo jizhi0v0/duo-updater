@@ -46,6 +46,8 @@ PTB 无 `<sparkle:channel>`/版本后缀，靠名称中独立词 `"PTB"` 触发 
   ptb `ptb.dl2.discordapp.net`、canary `canary.dl2.discordapp.net`），版本用 probe 解析出来的那个。
   不用 `discord.com/api/download…` 重定向：2026-11-03 起它对 `format=dmg` 回 400，不带这个参数时
   stable 还会落在比 manifest 旧一版的包上（历史里有测量）。
+  stable 的 dmg host 是 recipe 里唯一写死 host 的地方：manifest 自己的 url 在 `dl.` 与 `stable.dl2.`
+  之间来回换，两个都在服务（历史里有测量），写哪个只决定「读同一棵树的哪台」，不携带渠道/版本信息。
 - Squirrel/Electron 应用另有一层保护：`SelfUpdaterStaging` 读
   `~/Library/Caches/<bundleID>.ShipIt/`，若 app 自己已把新版下载解包、只等重启交换，
   `UpdatePolicy.canAutoInstall` 返回 false 让位给 Relaunch —— 既不重复下载，也不会撞上
@@ -132,8 +134,13 @@ is the bug `MacCompatibilityReading` exists to fix.
   ptb `ptb.dl2.discordapp.net/distro/app/ptb/osx/universal/0.0.269/DiscordPTB.dmg`（234,414,020）；
   canary `canary.dl2.discordapp.net/distro/app/canary/osx/universal/0.0.1460/DiscordCanary.dmg`（234,325,000）。
 - `/apps/osx/<ver>/<App>.dmg` 只有 stable 与 ptb 还在（stable 的 `dl.` 与 `stable.dl2.` 都可），
-  canary 自 0.0.1459 起 403 —— 它只剩 `/distro/…` 这条路。三 channel 统一改成 `.versionTemplate`
-  拼 `/distro/app/<channel>/osx/universal/<ver>/<App>.dmg` 就是这么定下来的。
+  canary 的已经 403（0.0.1420 还能取，0.0.1430、0.0.1441、0.0.1459 实测 403）—— 它只剩 `/distro/…`
+  这条路。三 channel 统一改成 `.versionTemplate` 拼 `/distro/app/<channel>/osx/universal/<ver>/<App>.dmg`
+  就是这么定下来的。
+- stable 的 dmg host 在 manifest 自己的 url 里来回换：2026-11-03 11:20 那 36 条全在 `dl.discordapp.net`，
+  12:02 同一端点全在 `stable.dl2.discordapp.net`；同一时刻两个 host 对 0.0.421 都 Range 206。
+  所以 recipe 里写死的那个 host 只是「读同一棵 distro 树的哪台」，既不是渠道信号也不是版本信号；
+  哪天 403/404，先看 manifest 现在写哪个 host、两个是否都还在服务。
 - 2026-11-03 之前那版注释写的「install uses Discord's SEPARATE public download endpoint —
   `discord.com/api/download?platform=osx&format=dmg` — which 302s to the same version's
   `…/apps/osx/<ver>/Discord.dmg`」由此作废；上面「一键安装」写的是现在的契约。

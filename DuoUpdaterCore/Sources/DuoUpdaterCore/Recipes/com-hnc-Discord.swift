@@ -21,12 +21,18 @@ enum com_hnc_Discord {
         // beside the manifest's own `full.distro` url —
         // `<distro host>/distro/app/<channel>/osx/universal/<ver>/<App>.dmg` — so
         // the install is pinned to the version this probe reported, not to
-        // whatever "latest" a redirect answers with at download time. Stable's
-        // host is `dl.discordapp.net` (the one this manifest's urls name; History
-        // has the times it moved). NOT `discord.com/api/download?…&format=dmg`:
-        // that redirect now lands on a Linux-only `installers/latest` endpoint,
-        // which answers `format=dmg` with HTTP 400 — and without the parameter it
-        // serves a build behind the manifest. History has the measurements.
+        // whatever "latest" a redirect answers with at download time. NOT
+        // `discord.com/api/download?…&format=dmg`: that redirect now lands on a
+        // Linux-only `installers/latest` endpoint, which answers `format=dmg` with
+        // HTTP 400 — and without the parameter it serves a build behind the
+        // manifest. History has the measurements.
+        //
+        // That dmg url is the one place a host is written down, and stable has two
+        // of them (`dl.` and `stable.dl2.`), which the manifest's own urls
+        // alternate between (checked 2026-11-03; both served the reported version
+        // then). The host only decides where the same distro tree is read: when a
+        // download 403s or 404s, read which host the manifest names now, confirm
+        // both still carry `…/<version>/…dmg`, then change this one line.
         //
         // The patterns do not name the CDN HOST, which Discord has changed before
         // (History has the break it caused). The channel lives in the URL PATH

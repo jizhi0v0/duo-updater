@@ -398,6 +398,15 @@ private func orbStackVersionPattern(_ channel: ReleaseChannel) -> String {
     """#
     #expect(VendorProbeRecipe.extractVersion(from: movedHost, pattern: stable.versionPattern)
         == "0.0.408")
+
+    // The install spec builds its dmg from that same string, so the version the
+    // row reports is the version in the URL it downloads (the redirect this
+    // replaced could answer a release behind).
+    guard let install = stable.install, case let .versionTemplate(template) = install.urlSource else {
+        Issue.record("Discord: expected a versionTemplate install"); return
+    }
+    #expect(template.replacingOccurrences(of: "{version}", with: "0.0.393")
+        == "https://dl.discordapp.net/distro/app/stable/osx/universal/0.0.393/Discord.dmg")
 }
 
 @Test func discordPTBAndCanaryProbesExtractTheirOwnChannelVersion() {
@@ -414,6 +423,17 @@ private func orbStackVersionPattern(_ channel: ReleaseChannel) -> String {
     let canary = registryRecipe("com.hnc.DiscordCanary")
     #expect(canary.channel == .canary)
     #expect(VendorProbeRecipe.extractVersion(from: canaryBody, pattern: canary.versionPattern) == "0.0.1136")
+
+    // Each channel's dmg is built on its own host from its own resolved version.
+    guard let ptbInstall = ptb.install, case let .versionTemplate(ptbTemplate) = ptbInstall.urlSource,
+          let canaryInstall = canary.install,
+          case let .versionTemplate(canaryTemplate) = canaryInstall.urlSource else {
+        Issue.record("PTB/Canary: expected versionTemplate installs"); return
+    }
+    #expect(ptbTemplate.replacingOccurrences(of: "{version}", with: "0.0.237")
+        == "https://ptb.dl2.discordapp.net/distro/app/ptb/osx/universal/0.0.237/DiscordPTB.dmg")
+    #expect(canaryTemplate.replacingOccurrences(of: "{version}", with: "0.0.1136")
+        == "https://canary.dl2.discordapp.net/distro/app/canary/osx/universal/0.0.1136/DiscordCanary.dmg")
 
     // Cross-channel containment: the PTB pattern must NOT match a canary body.
     #expect(VendorProbeRecipe.extractVersion(from: canaryBody, pattern: ptb.versionPattern) == nil)

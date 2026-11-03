@@ -1852,12 +1852,29 @@ private let weChatFeed = #"""
     #expect(VendorProbeRecipe.extractVersion(from: orionBody, pattern: orionPat)
         == "https://browser.kagi.com/updates/14_0/126.zip")
 
-    // Slack + Discord stable use .redirect; just assert kind + that they're wired.
+    // Slack uses .redirect; just assert kind + that it's wired.
     if case .redirect = try #require(try recipe("com.tinyspeck.slackmacgap").install).urlSource {} else {
         Issue.record("Slack: expected redirect")
     }
-    if case .redirect = try #require(try recipe("com.hnc.Discord").install).urlSource {} else {
-        Issue.record("Discord: expected redirect")
+    // Discord's three channels install from their own distro host, pinned to the
+    // version the probe resolved — NOT from `discord.com/api/download…`, whose
+    // redirect answers `format=dmg` with HTTP 400 and, without it, served a
+    // build a release behind the manifest on 2026-11-03 (History has the
+    // measurements). Each URL's host is also what its channel proof keys on.
+    let discordTemplates: [(bundleID: String, channel: ReleaseChannel, template: String)] = [
+        ("com.hnc.Discord", .stable,
+         "https://dl.discordapp.net/distro/app/stable/osx/universal/{version}/Discord.dmg"),
+        ("com.hnc.DiscordPTB", .ptb,
+         "https://ptb.dl2.discordapp.net/distro/app/ptb/osx/universal/{version}/DiscordPTB.dmg"),
+        ("com.hnc.DiscordCanary", .canary,
+         "https://canary.dl2.discordapp.net/distro/app/canary/osx/universal/{version}/DiscordCanary.dmg"),
+    ]
+    for (bundleID, channel, template) in discordTemplates {
+        guard case let .versionTemplate(actual) =
+            try #require(try recipe(bundleID, channel: channel).install).urlSource else {
+            Issue.record("\(bundleID): expected versionTemplate"); continue
+        }
+        #expect(actual == template)
     }
     #expect(try recipe("im.riot.nightly", channel: .nightly).install != nil)
 }

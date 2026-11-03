@@ -19,6 +19,32 @@ release note is debugging our code:
 
 Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
+## 0.5.18
+
+**Nine more apps are supported.** CleanMyMac 5, Gemini 2, LosslessCut, Super Productivity, ActivityWatch, GitUp, Requestly, Reqable and FlyEnv get update checks, release notes and one-click updates.
+
+**Discord updates install again.** Stable Discord's one-click had begun failing at the download, and the address it used could hand you an older build than the version on the row; it now takes the file published with that exact version.
+
+**Xcode updates finish instead of stopping at a refusal.** A running Xcode downloads and verifies the update while it stays open, then asks you to relaunch it. Update All takes Xcode along when you are signed in to an Apple Developer account and no copy is running, and a side-by-side copy named after its version is renamed to match the version it now is.
+
+**Antigravity IDE now updates in one click.** It could tell you a new version was out and only offer to open the app.
+
+**A staged update no longer relaunches an app that has a helper running inside it, such as VMPal with a virtual machine open.** Relaunch makes the same check install does, and an app that refuses to quit now says so on its row instead of leaving it spinning.
+
+**Gemini updates in one click while its launcher is running.** The launcher restarts from the new bundle at every launch anyway, so being asked to quit it first was needless.
+
+**Apps kept in a folder inside Applications are found.** A vendor's own folder such as `/Applications/Adobe Photoshop 2025/` no longer hides what is inside it. Settings › Ignored apps shows each app's icon, name and folder, so two copies with the same name can be told apart, and one that is no longer installed says so.
+
+**Clicking an app's or a tool's name in the popover opens it in the workbench.** A row that says why something was held back now leads to the place where you can act on it.
+
+**OpenCode 2 is reported instead of "up to date".** The CLI row sees the 2.0 line and hands you its own upgrade command, and the desktop app follows the vendor's new channel.
+
+**VS Code's release notes are read again.** DeepSeek Harness's release notes now show in DuoUpdater too.
+
+**Fixes.** The English row tags read "Ignored" instead of "Ignored (row status)", and `duo unignore` gives the row it brings back a verdict straight away.
+
+**Under the hood.** The check that keeps an app from being replaced under a running helper keeps working after the app's files have been swapped.
+
 ## 0.5.17
 
 **The apps list now sorts by what changed most recently.** A Sort menu in the window's toolbar and in the popover switches between Name and Recent. Recent uses the release date the vendor itself states, so an update published this week comes before one from last month; an app whose source states no date stays in name order.

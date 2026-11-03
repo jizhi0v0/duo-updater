@@ -70,14 +70,9 @@ public enum DetectionOnlyAffordance: Sendable, Equatable {
     /// Setapp ships into one of two documented roots, depending on the account:
     /// `/Applications/Setapp.app` for an admin account, `~/Applications` for a
     /// standard one ([Fixing permissions errors](https://support.setapp.com/hc/en-us/articles/360010208439-Fixing-permissions-errors-in-Setapp)).
-    static func setappClientURL() -> URL? {
-        let candidates = [
-            URL(fileURLWithPath: "/Applications/Setapp.app"),
-            FileManager.default.homeDirectoryForCurrentUser
-                .appendingPathComponent("Applications/Setapp.app"),
-        ]
-        return candidates.first { FileManager.default.fileExists(atPath: $0.path) }
-    }
+    /// Kept as a name here because callers reach for it through this type;
+    /// `SetappAutomation` is where the lookup lives.
+    static func setappClientURL() -> URL? { SetappAutomation.clientURL() }
 
     /// Localized title for the `.revealInFinder` case only. The page cases have
     /// no shared title on purpose — see the type doc.

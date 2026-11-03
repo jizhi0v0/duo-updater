@@ -260,6 +260,25 @@ struct SetappCatalogSourceTests {
         #expect(DetectionOnlyAffordance.resolve(pageURL: page, setappClient: nil) == .openPage(page))
     }
 
+    // MARK: - Background updates
+
+    @Test func readsSetappsPerCustomerAutoInstallFlag() {
+        let suite = "setapp-auto-\(UUID().uuidString)"
+        let defaults = try! #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        // Absent means Setapp's "Install automatically" is on.
+        #expect(!SetappAutomation.isAutoRefreshForbidden(defaults: defaults))
+        #expect(SetappAutomation.canUpdateInBackground(userEnabled: true, defaults: defaults))
+
+        // The prefix is the account's hash, so the key is matched by suffix.
+        defaults.set(1, forKey: "4766321432293575660-ForbiddenAutomaticAppsRefresh")
+        #expect(SetappAutomation.isAutoRefreshForbidden(defaults: defaults))
+        #expect(!SetappAutomation.canUpdateInBackground(userEnabled: true, defaults: defaults))
+        // The user's own switch still wins over Setapp's.
+        #expect(!SetappAutomation.canUpdateInBackground(userEnabled: false, defaults: nil))
+    }
+
     // MARK: - Subscription
 
     @Test func readsTheTrialDatesTheClientWrites() throws {

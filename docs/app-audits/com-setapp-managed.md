@@ -102,6 +102,38 @@ gracePeriodExpirationDate    <date>
 - 因此 DuoUpdater 对 Setapp 副本只做两件事：报 Setapp 渠道的版本（有效时），
   给一个打开页面/启动的入口。**不做一键更新**，也不假装有进度或取消。
 
+## 后台触发与自动更新开关
+
+- 静默拉起能触发检查：Setapp 退出、把一个被管理的 app 改成低于目录版本，然后
+  `open -g -a /Applications/Setapp.app`（不抢焦点）——15 秒内该 app 被替换。
+- 同一操作在 Setapp 的「Install automatically」关闭时**什么都不做**（版本不变）。
+- 开关存在自己的偏好里，键按账号哈希前缀：
+
+```
+defaults read com.setapp.DesktopClient
+"<hash>-ForbiddenAutomaticAppsRefresh" = 1    ← 关闭
+（键不存在）                                    ← 开启
+```
+
+  agent 每次检查也会打 `automaticAllowed=0/1`。
+
+## Beta
+
+- 「Beta」是**客户端级**开关，不是 per-app：Settings → Updates 的原文是
+  「Get beta versions of Setapp and installed apps」，「This setting will apply to future
+  updates of Setapp and installed apps」，存成 `AllowBetaInternalUpdates`（0/1）。
+- **公开目录里没有 beta**：`versions[].attributes` 只有
+  `archive_url / build_number / marketing_version / min_os_version / release_date / size /
+  supported_apple_silicon / supported_architectures / supported_languages`；给
+  `store/api/v8/en` 加 `?beta=1`、`?include_beta=true` 或 `X-Setapp-Beta` 之类的猜测都返回
+  同一份稳定目录。
+- Beta 版确实存在，而且只有客户端在开关打开时才取到：清掉 `Apps.sqlite` 后重新拉取，
+  关 Beta = 1073 行里 0 行 `ZISBETA=1`；开 Beta = 15 行 beta，例如
+  Bartender 7.0.3 (700010) / 7.1.0 (700013)、Dropshare 6.16、Soulver 4.0、AirBuddy 3.1、
+  PopClip 2023.7.0、Usage 2.16.4、BetterTouchTool 6.557。
+- 所以 DuoUpdater 读公开目录时永远只看到稳定版：Beta 用户如果 Setapp 里已有更新的 beta，
+  我们读不到——这是刻意的（不把 beta 当稳定版塞给所有人），要写进结果里。
+
 ## 如何复验
 
 ```bash

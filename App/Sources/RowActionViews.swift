@@ -246,7 +246,22 @@ func openDetectionOnly(_ affordance: DetectionOnlyAffordance, app: URL) {
         // LaunchServices, not `withApplicationAt`: the scheme is registered by
         // the other app's agent, and handing the URL to the client by path only
         // activates it (measured on Setapp, 2026-11-03).
-        NSWorkspace.shared.open(url)
+        //
+        // Setapp is the one scheme where a background launch is worth more than
+        // the page: the client's launch check installs what it finds when its own
+        // "Install automatically" is on (measured, same day). If either switch
+        // says no, open the page instead.
+        let backgroundEnabled = (UserDefaults.standard.object(
+            forKey: SetappAutomation.backgroundUpdatesPreference) as? Bool) ?? true
+        if url.scheme == "setapp", backgroundEnabled,
+           SetappAutomation.canUpdateInBackground(userEnabled: true),
+           let client = SetappAutomation.clientURL() {
+            let configuration = NSWorkspace.OpenConfiguration()
+            configuration.activates = false
+            NSWorkspace.shared.openApplication(at: client, configuration: configuration)
+        } else {
+            NSWorkspace.shared.open(url)
+        }
     case .revealInFinder:
         NSWorkspace.shared.activateFileViewerSelecting([app])
     }

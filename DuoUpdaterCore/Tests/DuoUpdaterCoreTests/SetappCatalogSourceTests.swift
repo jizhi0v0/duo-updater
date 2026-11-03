@@ -87,6 +87,39 @@ struct SetappCatalogSourceTests {
         #expect(release.newestCompatible(osVersion: "10.0") == nil)
     }
 
+    @Test func ranksByVersionNotPublicationDate() throws {
+        // A maintenance release on an older branch published AFTER the newer
+        // major must not shadow it for a Mac that can run both.
+        let json = """
+        {"data":{"relationships":{"vendors":{"data":[
+          {"relationships":{"applications":{"data":[
+            {"attributes":{"bundle_id":"com.example.thing-setapp","name":"Thing","public_id":"AAAA","slugs":[]},
+             "relationships":{"versions":{"data":[
+               {"attributes":{"marketing_version":"1.9.1","build_number":"191","release_date":1700300000,"min_os_version":"11.0"}},
+               {"attributes":{"marketing_version":"2.1","build_number":"210","release_date":1700100000,"min_os_version":"11.0"}}
+             ]}}}
+          ]}}}
+        ]}}}}
+        """
+        let release = try #require(try SetappCatalog.parse(Data(json.utf8))["com.example.thing-setapp"])
+        #expect(release.newestCompatible(osVersion: "15.0")?.shortVersion == "2.1")
+    }
+
+    @Test func aBetaEnabledChannelCannotClaimUpToDate() async throws {
+        let source = SetappCatalogSource(
+            releases: { Self.releases },
+            subscription: {
+                self.state(expires: "2099-01-01 00:00:00 +0000", grace: "2099-01-15 00:00:00 +0000")
+            },
+            now: { Date() },
+            betaUpdatesEnabled: { true })
+        // Installed 1.3.0 = the stable catalogue's newest, but Setapp's beta
+        // switch is on and the public catalogue carries no betas at all.
+        await #expect(throws: (any Error).self) {
+            _ = try await source.latestVersion(for: app(id: "com.example.thing-setapp", short: "1.3.0", build: "130"))
+        }
+    }
+
     @Test func offersTheNewestReleaseThatRunsHereNotTheNewestStanding() async throws {
         let json = """
         {"data":{"relationships":{"vendors":{"data":[
@@ -162,9 +195,17 @@ struct SetappCatalogSourceTests {
             shortVersion: "3.14.7", buildVersion: "3147",
             path: URL(fileURLWithPath: "/Applications/Setapp/Permute.app"),
             isMASApp: false, sparkleFeedURL: nil)
-        let answer = try #require(try await source.latestVersion(for: installed))
-        #expect(answer.shortVersion == "3.14.7")
-        #expect(answer.subscriptionHold == nil)
+        await #expect(throws: OSWindowRefused.self) {
+            _ = try await source.latestVersion(for: installed)
+        }
+
+        // The checker reports it as a refused macOS floor, not a checkmark.
+        let checker = UpdateChecker(sources: [source, SparkleSpy()])
+        let result = try #require(await checker.check([installed]).first)
+        guard case .outsideOSWindow = result.status else {
+            Issue.record("expected .outsideOSWindow, got \(result.status)")
+            return
+        }
     }
 
     @Test func rejectsAPayloadThatIsNotTheCatalogue() {

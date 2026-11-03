@@ -70,13 +70,32 @@ public struct SetappRelease: Sendable, Equatable {
     /// The newest release this Mac can run, by the same OS-window predicate every
     /// other source uses (`OSWindowRefusal`, whose floor is
     /// `SignatureVerifier.canRun` — #640). nil when no published release runs here.
+    ///
+    /// "Newest" is the VERSION, not the publication date: a maintenance release
+    /// on an older branch can be published after a newer major (1.9.1 after 2.1),
+    /// and taking the first row by date would shadow the major for a Mac that can
+    /// run both. Date is only the tie-break.
     public func newestCompatible(osVersion: String) -> SetappVersion? {
-        versions.first { version in
+        let compatible = versions.filter { version in
             OSWindowRefusal.evaluate(
                 minimum: version.minimumSystemVersion, maximum: nil,
                 osVersion: osVersion,
                 version: version.shortVersion ?? version.build ?? "") == nil
         }
+        return compatible.max { Self.isOlder($0, than: $1) }
+    }
+
+    /// Version first (marketing, then build), publication date as the tie-break.
+    static func isOlder(_ lhs: SetappVersion, than rhs: SetappVersion) -> Bool {
+        if let left = lhs.shortVersion, let right = rhs.shortVersion {
+            let order = VersionComparator.compare(left, right)
+            if order != .orderedSame { return order == .orderedAscending }
+        }
+        if let left = lhs.build, let right = rhs.build {
+            let order = VersionComparator.compare(left, right)
+            if order != .orderedSame { return order == .orderedAscending }
+        }
+        return (lhs.releaseDate ?? .distantPast) < (rhs.releaseDate ?? .distantPast)
     }
 }
 
@@ -117,6 +136,12 @@ public enum SetappCatalog {
         try await cache.releases(session: session, now: now)
     }
 
+    /// Make the next `releases()` ask Setapp again. Backs `invalidateMemo`, so a
+    /// per-row recheck can see a release published inside the TTL.
+    public static func revalidate() async {
+        await cache.revalidate()
+    }
+
     private static let cache = Cache()
 
     /// One in-memory copy shared by every row of a check. `UpdateChecker` fans out
@@ -127,6 +152,13 @@ public enum SetappCatalog {
         private var fetchedAt: Date?
         private var etag: String?
         private var inFlight: Task<(Data?, String?, Int), Error>?
+
+        /// Expire the TTL but keep the parsed copy and its ETag, so the next
+        /// check revalidates (304 costs headers) instead of waiting out six
+        /// hours. This is what an explicit recheck means.
+        func revalidate() {
+            fetchedAt = nil
+        }
 
         func releases(session: URLSession, now: Date) async throws -> [String: SetappRelease] {
             if let value, let fetchedAt, now.timeIntervalSince(fetchedAt) < SetappCatalog.defaultTTL {

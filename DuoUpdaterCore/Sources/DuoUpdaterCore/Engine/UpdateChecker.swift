@@ -370,6 +370,11 @@ public struct UpdateChecker: Sendable {
                     Log.check.info("\(label, privacy: .public): Setapp → \(remote.displayVersion ?? "?", privacy: .public) [\(String(describing: status), privacy: .public)]")
                     return UpdateResult(app: app, remote: remote, status: status)
                 }
+            } catch let refused as OSWindowRefused {
+                // Not a failure: Setapp read its own answer and every release it
+                // publishes needs a newer macOS. Say that, don't show a checkmark.
+                Log.check.info("\(label, privacy: .public): Setapp refused for this macOS: \(refused.refusal.logDescription, privacy: .public)")
+                return UpdateResult(app: app, remote: nil, status: .outsideOSWindow(refused.refusal))
             } catch {
                 Log.check.error("\(label, privacy: .public): Setapp catalogue failed: \(error.localizedDescription, privacy: .public)")
                 var failed = UpdateResult(app: app, remote: nil, status: .error(error.localizedDescription))

@@ -66,6 +66,15 @@ public enum SetappSubscription {
         return state(from: customers)
     }
 
+    /// Setapp's "Beta: Get beta versions of Setapp and installed apps" switch.
+    /// Client-wide, not per app; the public catalogue we read carries no betas at
+    /// all, so when this is on our stable answer cannot claim to be current.
+    public static func isBetaUpdatesEnabled(
+        defaults: UserDefaults? = UserDefaults(suiteName: defaultsDomain)
+    ) -> Bool {
+        (defaults?.object(forKey: "AllowBetaInternalUpdates") as? NSNumber)?.boolValue ?? false
+    }
+
     /// Pick the customer that lasts longest — a machine can carry more than one
     /// signed-in customer, and the row should describe the access the apps
     /// actually have.

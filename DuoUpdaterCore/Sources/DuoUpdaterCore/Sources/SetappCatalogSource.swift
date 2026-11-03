@@ -36,6 +36,8 @@ public struct SetappCatalogSource: UpdateSource {
     /// The macOS the compatibility check runs against. Injected so a test can
     /// put this Mac below a release's floor without owning a second Mac.
     let osVersion: @Sendable () -> String
+    /// Setapp's beta switch, injected for the same reason.
+    let betaUpdatesEnabled: @Sendable () -> Bool
 
     public init(
         releases: @escaping @Sendable () async throws -> [String: SetappRelease] = {
@@ -45,12 +47,16 @@ public struct SetappCatalogSource: UpdateSource {
             SetappSubscription.current()
         },
         now: @escaping @Sendable () -> Date = { Date() },
-        osVersion: @escaping @Sendable () -> String = { HostOS.numericVersion() }
+        osVersion: @escaping @Sendable () -> String = { HostOS.numericVersion() },
+        betaUpdatesEnabled: @escaping @Sendable () -> Bool = {
+            SetappSubscription.isBetaUpdatesEnabled()
+        }
     ) {
         self.releases = releases
         self.subscription = subscription
         self.now = now
         self.osVersion = osVersion
+        self.betaUpdatesEnabled = betaUpdatesEnabled
     }
 
     public func latestVersion(for app: InstalledApp) async throws -> RemoteVersion? {
@@ -67,9 +73,27 @@ public struct SetappCatalogSource: UpdateSource {
             guard let version = release.newestCompatible(osVersion: osVersion()) else {
                 // Every published release needs a newer macOS than this one. Still
                 // a Setapp copy, still not the vendor's to answer for.
+                // Every published release needs a newer macOS. That is not "up to
+                // date": surface the refusal the way every other source does, so
+                // the row explains the OS floor instead of showing a checkmark.
+                let newest = release.newest
+                if let newest, let floor = newest.minimumSystemVersion {
+                    let refusal = OSWindowRefusal(
+                        bound: .floor(minimum: floor),
+                        version: newest.shortVersion ?? newest.build ?? "?",
+                        hostOS: osVersion())
+                    throw OSWindowRefused(refusal, release: Self.offer(release, version: newest))
+                }
                 Log.source.notice(
                     "setapp: \(bundleID, privacy: .public) — no published release runs on macOS \(osVersion(), privacy: .public); answering as installed")
                 return Self.asInstalled(app, name: name)
+            }
+            // The public catalogue has no betas (measured: beta off = 0 rows with
+            // ZISBETA=1, on = 15 — Bartender 7.1.0 among them). With Setapp's beta
+            // switch on, a stable answer that is not newer cannot be called "up to
+            // date": say the channel could not be fully checked instead.
+            if betaUpdatesEnabled(), !Self.isNewer(version, than: app) {
+                throw SetappError.betaChannelUnverifiable
             }
             return answer(for: app, release: release, version: version)
         }
@@ -134,14 +158,36 @@ public struct SetappCatalogSource: UpdateSource {
     /// (measured on AlDente Pro 1.40.1: both 1.40.1), which is what lets the
     /// checker refuse a build that would walk the marketing number backwards.
     private func offer(_ release: SetappRelease, version: SetappVersion) -> RemoteVersion {
+        Self.offer(release, version: version, name: name)
+    }
+
+    static func offer(
+        _ release: SetappRelease, version: SetappVersion, name: String = "Setapp"
+    ) -> RemoteVersion {
         RemoteVersion(
             shortVersion: version.shortVersion,
             version: version.build,
             marketingMatchesBundle: true,
             downloadURL: nil,
-            pageURL: Self.deepLink(for: release) ?? release.pageURL,
+            pageURL: deepLink(for: release) ?? release.pageURL,
             minimumSystemVersion: version.minimumSystemVersion,
             sourceName: name)
+    }
+
+    /// Memo invalidation: a per-row recheck (`UpdateChecker.check(…, freshening:
+    /// true)`) can be asked the same app twice within the catalogue's six-hour
+    /// TTL. Revalidate there so a release published in between is seen.
+    public func invalidateMemo(for apps: [InstalledApp]) async {
+        guard apps.contains(where: Self.plausiblySetapp) else { return }
+        await SetappCatalog.revalidate()
+    }
+
+    enum SetappError: LocalizedError {
+        case betaChannelUnverifiable
+
+        var errorDescription: String? {
+            String(localized: "Setapp’s beta updates are on, and DuoUpdater reads only Setapp’s stable catalogue. Open Setapp to check for a beta.")
+        }
     }
 
     /// `setapp://install?app_id=<public_id>` — the uuid form is the one the

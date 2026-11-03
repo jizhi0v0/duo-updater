@@ -479,6 +479,79 @@ appcast_pr_merged() {
     return 1
 }
 
+# main's push CI for the appcast merge starts AFTER the feed is live, so it can
+# never gate the release — but a red one means main is broken, and until this
+# existed nothing said so: on 2026-11-03 the 0.5.18 appcast merge went red
+# (`CLIToolProcessOriginTests.readsALiveChild`, a read of a live child that came
+# back empty on a loaded runner) and this script still finished green.
+#
+# It waits for the run rather than sampling it, because "still running" printed
+# at the end of the script is the same silence this exists to end. Bounded, so a
+# wedged run costs a line rather than a script that never returns:
+# POST_MERGE_CI_TIMEOUT=<seconds> moves the bound (0 looks once and leaves),
+# SKIP_POST_MERGE_CI=1 skips the check entirely.
+report_post_merge_ci() {
+    local pr="$1"
+    if [ "${SKIP_POST_MERGE_CI:-0}" = "1" ]; then
+        say "SKIP_POST_MERGE_CI=1 — not checking main's CI for the merge"
+        return 0
+    fi
+    local sha
+    sha="$(gh pr view "$pr" --repo "$RELEASE_REPO" --json mergeCommit \
+               -q '.mergeCommit.oid // ""' 2>/dev/null || true)"
+    if [ -z "$sha" ]; then
+        say "  main CI  : could not read the merge commit — check the Actions page"
+        return 0
+    fi
+    local limit="${POST_MERGE_CI_TIMEOUT:-900}" waited=0
+    case "$limit" in ''|*[!0-9]*) limit=900 ;; esac
+    say "Waiting for main's CI on the appcast merge (up to $((limit / 60)) min; SKIP_POST_MERGE_CI=1 to skip)"
+    local line id status conclusion url
+    while :; do
+        line="$(gh run list --repo "$RELEASE_REPO" --commit "$sha" --workflow ci.yml --limit 1 \
+                    --json databaseId,status,conclusion,url \
+                    -q '.[0] | "\(.databaseId) \(.status) \(.conclusion) \(.url)"' 2>/dev/null || true)"
+        id=""; status=""; conclusion=""; url=""
+        read -r id status conclusion url <<<"$line" || true
+        if [ -n "$id" ] && [ "$status" = "completed" ]; then
+            if [ "$conclusion" = "success" ]; then
+                printf '\033[1;32m   main CI  : green (%s)\033[0m\n' "$url"
+            else
+                local failed
+                failed="$(gh run view "$id" --repo "$RELEASE_REPO" --json jobs \
+                    -q '[.jobs[] | select(.conclusion == "failure") | .name] | join(", ")' 2>/dev/null || true)"
+                cat <<EOF
+
+$(printf '\033[1;33m! main CI on the appcast merge is %s.\033[0m' "${conclusion:-red}") ${url}
+  Failed: ${failed:-unknown}
+
+  The release and the feed are already live, so nothing here is blocked — but
+  main is broken and no other step says so. Rerun the failed jobs:
+
+    gh run rerun $id --failed --repo $RELEASE_REPO
+EOF
+            fi
+            return 0
+        fi
+        # A run that has not appeared within a minute is a gh failure or a
+        # missing push trigger, not a slow queue: waiting the whole bound for it
+        # would turn this check into the delay it was added to avoid.
+        if [ -z "$id" ] && [ "$waited" -ge 60 ]; then
+            say "  main CI  : no run found for $sha after ${waited}s — check the Actions page"
+            return 0
+        fi
+        if [ "$waited" -ge "$limit" ]; then break; fi
+        if [ "$waited" -gt 0 ] && [ $((waited % 60)) -eq 0 ]; then
+            say "  main CI  : ${status:-no run yet} after ${waited}s"
+        fi
+        sleep 20
+        waited=$((waited + 20))
+    done
+    say "  main CI  : still running after $((limit / 60)) min — ${url:-no run found for $sha}"
+    say "  check it when it finishes: red there is a main problem, not a release one."
+    return 0
+}
+
 push_sparkle_appcast() {
     # The branch the appcast lives on, read from the clone rather than assumed —
     # `gh repo clone` checks out the remote's default branch, whatever it is.
@@ -527,6 +600,9 @@ push_sparkle_appcast() {
                     # ever say so. The whole point of the die below is that this
                     # failure is loud; it cannot be loud from a promise.
                     if appcast_pr_merged "$pr_num"; then
+                        # Read at the end of the script: the merge starts a push
+                        # run that this function is too early to judge.
+                        MERGED_APPCAST_PR="$pr_num"
                         return 0
                     fi
                     # A pending or rejected check is not repaired by opening a
@@ -1180,4 +1256,10 @@ $(printf '\033[1;33m! Could not check duoupdater.app.\033[0m') No git checkout a
   version until someone syncs it. Point DUO_SITE_REPO at the checkout, or sync by
   hand — see the steps in this script beside this message.
 EOF
+fi
+
+# Last, and only after a feed update actually merged: the push run it starts is
+# the one CI on this release that nothing else looks at (see the function).
+if [ -n "${MERGED_APPCAST_PR:-}" ]; then
+    report_post_merge_ci "$MERGED_APPCAST_PR"
 fi

@@ -7,10 +7,11 @@
       "sweepsSinceComment" : 0
     },
     "install:github:AppFlowy-IO\/AppFlowy:stable" : {
-      "consecutiveActionable" : 0,
+      "consecutiveActionable" : 1,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "sweepsSinceComment" : 0
+      "lastSignature" : "identityChanged: Sparkle key none → Bs++",
+      "sweepsSinceComment" : 1
     },
     "install:github:AprilNEA\/OpenLogi:stable" : {
       "closedAt" : "2026-10-19T11:23:39Z",
@@ -468,10 +469,9 @@
     },
     "install:github:f\/textream:stable" : {
       "consecutiveActionable" : 0,
-      "consecutiveInfra" : 1,
+      "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "infraSince" : "2026-11-02T14:26:21Z",
-      "sweepsSinceComment" : 1
+      "sweepsSinceComment" : 0
     },
     "install:github:farion1231\/cc-switch:stable" : {
       "consecutiveActionable" : 0,
@@ -1046,11 +1046,14 @@
       "sweepsSinceComment" : 0
     },
     "install:github:schuyler\/macdown3000:stable" : {
-      "consecutiveActionable" : 1,
+      "consecutiveActionable" : 2,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
+      "issueNumber" : 1799,
+      "lastCommentedAt" : "2026-11-03T13:08:24Z",
       "lastSignature" : "identityChanged: Sparkle key none → dYc+",
-      "sweepsSinceComment" : 1
+      "previousSignature" : "identityChanged: Sparkle key none → dYc+",
+      "sweepsSinceComment" : 0
     },
     "install:github:sqlitebrowser\/sqlitebrowser:stable" : {
       "consecutiveActionable" : 0,
@@ -2366,5 +2369,5 @@
     }
   },
   "schemaVersion" : 1,
-  "updatedAt" : "2026-11-02T14:26:25Z"
+  "updatedAt" : "2026-11-03T13:08:24Z"
 }

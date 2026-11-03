@@ -49,29 +49,34 @@ public struct SetappCatalogSource: UpdateSource {
     }
 
     public func latestVersion(for app: InstalledApp) async throws -> RemoteVersion? {
-        // Setapp mandates the `-setapp` suffix for the editions it ships
-        // (docs.setapp.com/docs/set-an-app-bundle-id), so the identifier is the
-        // one fact every one of its copies carries.
-        guard let bundleID = app.bundleID?.lowercased(), bundleID.hasSuffix("-setapp") else {
-            return nil
-        }
+        guard Self.plausiblySetapp(app) else { return nil }
 
+        let bundleID = app.bundleID?.lowercased()
         let catalogue = try await releases()
-        guard let release = catalogue[bundleID] else {
-            // A Setapp copy the catalogue no longer lists (pulled from the store)
-            // or has never listed. Answer "as installed" rather than nil: nil
-            // hands the row to `SparkleAppcastSource`, which is exactly the
-            // wrong-channel offer this source exists to stop.
-            Log.source.notice(
-                "setapp: \(bundleID, privacy: .public) is not in the catalogue; answering as installed so the vendor feed cannot step in")
-            return RemoteVersion(
-                shortVersion: app.shortVersion,
-                version: app.buildVersion,
-                marketingMatchesBundle: true,
-                downloadURL: nil,
-                sourceName: name)
+
+        if let bundleID, let release = catalogue[bundleID] {
+            return answer(for: app, release: release)
         }
 
+        // Not in the catalogue. A `-setapp` copy still answers — as installed —
+        // rather than nil: nil hands the row to `SparkleAppcastSource`, which is
+        // exactly the wrong-channel offer this source exists to stop. A copy
+        // that is only *plausibly* Setapp (folder or public key) and not in the
+        // catalogue falls through to the other sources.
+        guard let bundleID, bundleID.hasSuffix("-setapp") else { return nil }
+        Log.source.notice(
+            "setapp: \(bundleID, privacy: .public) is not in the catalogue; answering as installed so the vendor feed cannot step in")
+        return RemoteVersion(
+            shortVersion: app.shortVersion,
+            version: app.buildVersion,
+            marketingMatchesBundle: true,
+            downloadURL: nil,
+            sourceName: name)
+    }
+
+    /// One app against one catalogue release: an offer when the subscription
+    /// holds, a named-but-locked hold when it does not.
+    private func answer(for app: InstalledApp, release: SetappRelease) -> RemoteVersion {
         let newer = Self.isNewer(release, than: app)
         let state = subscription()
         let active = state?.isActive(now: now()) ?? false
@@ -81,18 +86,9 @@ public struct SetappCatalogSource: UpdateSource {
             // subscription ends Setapp stops delivering (and the apps stop
             // opening), so an Update button would promise something nothing can
             // keep. Surge and TablePlus use the same hold for the same reason.
-            guard newer else {
-                return RemoteVersion(
-                    shortVersion: release.shortVersion,
-                    version: release.build,
-                    marketingMatchesBundle: true,
-                    downloadURL: nil,
-                    pageURL: release.pageURL,
-                    minimumSystemVersion: release.minimumSystemVersion,
-                    sourceName: name)
-            }
+            guard newer else { return offer(release) }
             Log.source.notice(
-                "setapp: \(bundleID, privacy: .public) — \(release.shortVersion ?? "?", privacy: .public) withheld: the subscription is not active")
+                "setapp: \(release.bundleID, privacy: .public) — \(release.shortVersion ?? "?", privacy: .public) withheld: the subscription is not active")
             return RemoteVersion(
                 shortVersion: app.shortVersion,
                 version: app.buildVersion,
@@ -105,11 +101,15 @@ public struct SetappCatalogSource: UpdateSource {
                     coveredBefore: state?.expiresAt))
         }
 
-        // `marketingMatchesBundle` is stated because the catalogue's
-        // `marketing_version` IS the Setapp build's `CFBundleShortVersionString`
-        // (measured on AlDente Pro 1.40.1: both 1.40.1), which is what lets the
-        // checker refuse a build that would walk the marketing number backwards.
-        return RemoteVersion(
+        return offer(release)
+    }
+
+    /// `marketingMatchesBundle` is stated because the catalogue's
+    /// `marketing_version` IS the Setapp build's `CFBundleShortVersionString`
+    /// (measured on AlDente Pro 1.40.1: both 1.40.1), which is what lets the
+    /// checker refuse a build that would walk the marketing number backwards.
+    private func offer(_ release: SetappRelease) -> RemoteVersion {
+        RemoteVersion(
             shortVersion: release.shortVersion,
             version: release.build,
             marketingMatchesBundle: true,
@@ -117,6 +117,23 @@ public struct SetappCatalogSource: UpdateSource {
             pageURL: release.pageURL,
             minimumSystemVersion: release.minimumSystemVersion,
             sourceName: name)
+    }
+
+    /// Whether this copy could be one of Setapp's, without reading the catalogue.
+    ///
+    /// The identifier suffix is the documented mark (Setapp mandates
+    /// `…-setapp`), but it is not the only evidence a copy can carry: the
+    /// install root (`/Applications/Setapp`, `~/Applications/Setapp`) and the
+    /// framework's own `setappPublicKey.pem` inside the bundle both say the same
+    /// thing, and either can outlive a vendor that ignores the convention. The
+    /// point of the gate is only to avoid fetching a 3 MB catalogue for every app
+    /// on a Mac that has no Setapp at all; the catalogue lookup itself is the
+    /// authority.
+    static func plausiblySetapp(_ app: InstalledApp) -> Bool {
+        if let id = app.bundleID?.lowercased(), id.hasSuffix("-setapp") { return true }
+        if app.path.path.contains("/Setapp/") { return true }
+        let publicKey = app.path.appendingPathComponent("Contents/Resources/setappPublicKey.pem")
+        return FileManager.default.fileExists(atPath: publicKey.path)
     }
 
     /// Whether the catalogue's release is newer than the copy on disk. Build

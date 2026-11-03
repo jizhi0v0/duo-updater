@@ -156,7 +156,9 @@ public enum SetappCatalog {
     // MARK: - Parsing
 
     /// The catalogue as `[bundleID: release]`, keeping only the newest version row
-    /// of each app.
+    /// of each app. Every id in the payload is indexed — not just the `-setapp`
+    /// ones: the suffix is a convention Setapp mandates today (all 468 entries on
+    /// 2026-11-03 carry it), and matching must not fall over the day one does not.
     ///
     /// Shape (JSON:API, trimmed to what is used):
     ///
@@ -185,7 +187,6 @@ public enum SetappCatalog {
             for app in appRows {
                 guard let attributes = app["attributes"] as? [String: Any],
                       let bundleID = attributes["bundle_id"] as? String,
-                      bundleID.lowercased().hasSuffix("-setapp"),
                       let release = release(from: app, attributes: attributes, bundleID: bundleID)
                 else { continue }
                 releases[bundleID.lowercased()] = release

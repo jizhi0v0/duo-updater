@@ -72,14 +72,14 @@ public enum SetappSubscription {
     static func state(from customers: [[String: Any]]) -> State? {
         customers
             .compactMap { customer -> State? in
-                let expires = parseDate(customer["subscriptionExpirationDate"] as? String)
-                let grace = parseDate(customer["gracePeriodExpirationDate"] as? String)
+                let expires = dateValue(customer["subscriptionExpirationDate"])
+                let grace = dateValue(customer["gracePeriodExpirationDate"])
                 guard expires != nil || grace != nil else { return nil }
                 return State(
                     rawState: customer["subscriptionState"] as? String ?? "unknown",
                     expiresAt: expires,
                     graceEndsAt: grace,
-                    startedAt: parseDate(customer["subscriptionStartDate"] as? String))
+                    startedAt: dateValue(customer["subscriptionStartDate"]))
             }
             .max { lhs, rhs in
                 (lhs.graceEndsAt ?? lhs.expiresAt ?? .distantPast)
@@ -87,9 +87,22 @@ public enum SetappSubscription {
             }
     }
 
-    /// `2026-11-09 23:59:59 +0000` — the format the client writes, with the offset
-    /// in the string. Parsed as written rather than converted: the value IS UTC
-    /// midnight-ish, and re-reading it in the local zone would move the boundary.
+    /// One date from a `known_customers` entry.
+    ///
+    /// The client has written this both ways across versions: as an `NSDate`
+    /// (what 3.58.0 does — `plutil -p` shows `2026-11-09 23:59:59 +0000` with no
+    /// quotes) and, in older payloads, as a string in the same shape. `defaults
+    /// read` shows the Date form quoted, which is what made an earlier version of
+    /// this parser read only strings and treat a live trial as expired.
+    static func dateValue(_ value: Any?) -> Date? {
+        if let date = value as? Date { return date }
+        if let string = value as? String { return parseDate(string) }
+        return nil
+    }
+
+    /// `2026-11-09 23:59:59 +0000` — the string form, with the offset in the text.
+    /// Parsed as written rather than converted: the value IS UTC midnight-ish, and
+    /// re-reading it in the local zone would move the boundary.
     static func parseDate(_ text: String?) -> Date? {
         guard let text, text.isEmpty == false else { return nil }
         let formatter = DateFormatter()

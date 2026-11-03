@@ -50,17 +50,18 @@ struct SetappCatalogSourceTests {
 
     // MARK: - Parsing
 
-    @Test func parsesOnlySetappEditionsAtTheNewestRelease() throws {
+    @Test func parsesEveryCatalogueEntryAtTheNewestRelease() throws {
         let releases = try SetappCatalog.parse(Data(Self.catalogueJSON.utf8))
-        #expect(releases.count == 1)
+        // Every id is indexed, suffixed or not: the catalogue IS the set of
+        // editions Setapp ships, and matching must not hinge on the convention.
+        #expect(releases.count == 2)
         let thing = try #require(releases["com.example.thing-setapp"])
         #expect(thing.shortVersion == "1.3.0")
         #expect(thing.build == "130")
         #expect(thing.minimumSystemVersion == "13.0")
         #expect(thing.publicID == "AAAA-1111")
         #expect(thing.pageURL == URL(string: "https://setapp.com/apps/thing"))
-        // The direct edition is not Setapp's to answer for.
-        #expect(releases["com.example.direct"] == nil)
+        #expect(releases["com.example.direct"]?.shortVersion == "9.9.9")
     }
 
     @Test func rejectsAPayloadThatIsNotTheCatalogue() {
@@ -74,9 +75,33 @@ struct SetappCatalogSourceTests {
     @Test func ignoresAppsThatAreNotSetappEditions() async throws {
         let source = SetappCatalogSource(
             releases: { Self.releases }, subscription: { nil }, now: { .init() })
-        let answer = try await source.latestVersion(
-            for: app(id: "com.example.direct", short: "1.0", build: "100"))
-        #expect(answer == nil)
+        // No `-setapp`, not in a Setapp folder, no public key: none of the three
+        // signals says this copy is Setapp's, so the source stays out of the way.
+        let plain = InstalledApp(
+            name: "Direct", bundleID: "com.example.direct",
+            shortVersion: "1.0", buildVersion: "100",
+            path: URL(fileURLWithPath: "/Applications/Direct.app"),
+            isMASApp: false, sparkleFeedURL: nil)
+        #expect(try await source.latestVersion(for: plain) == nil)
+    }
+
+    @Test func answersACatalogueEntryThatBreaksTheNamingConvention() async throws {
+        let source = SetappCatalogSource(
+            releases: { Self.releases },
+            subscription: {
+                self.state(expires: "2099-01-01 00:00:00 +0000", grace: "2099-01-15 00:00:00 +0000")
+            },
+            now: { Date(timeIntervalSince1970: 1_700_000_000) })
+        // Same id as the plain copy above, but installed where Setapp puts its
+        // apps: the catalogue is the authority, and it lists this id.
+        let inSetappFolder = InstalledApp(
+            name: "Direct", bundleID: "com.example.direct",
+            shortVersion: "1.0", buildVersion: "100",
+            path: URL(fileURLWithPath: "/Applications/Setapp/Direct.app"),
+            isMASApp: false, sparkleFeedURL: nil)
+        let answer = try #require(try await source.latestVersion(for: inSetappFolder))
+        #expect(answer.shortVersion == "9.9.9")
+        #expect(answer.sourceName == "Setapp")
     }
 
     @Test func offersTheCatalogueReleaseWhenTheSubscriptionIsActive() async throws {
@@ -139,6 +164,22 @@ struct SetappCatalogSourceTests {
         // Grace keeps it covering until its own end.
         #expect(state.isActive(now: expiry.addingTimeInterval(60 * 60)))
         #expect(!state.isActive(now: state.graceEndsAt!.addingTimeInterval(1)))
+    }
+
+    @Test func readsTheDateFormTheCurrentClientWrites() throws {
+        // 3.58.0 stores these as NSDate, not strings: `plutil -p` shows
+        // `2026-11-09 23:59:59 +0000` unquoted, while `defaults read` quotes it —
+        // which is how an earlier parser read only strings and called a live
+        // trial expired.
+        let expiry = try #require(SetappSubscription.parseDate("2026-11-09 23:59:59 +0000"))
+        let grace = try #require(SetappSubscription.parseDate("2026-11-14 23:59:59 +0000"))
+        let state = try #require(SetappSubscription.state(from: [[
+            "subscriptionState": "trial",
+            "subscriptionExpirationDate": expiry,
+            "gracePeriodExpirationDate": grace,
+        ]]))
+        #expect(state.expiresAt == expiry)
+        #expect(state.isActive(now: Date(timeIntervalSince1970: 1_793_000_000)))
     }
 
     @Test func noReadableCustomerMeansNoState() {

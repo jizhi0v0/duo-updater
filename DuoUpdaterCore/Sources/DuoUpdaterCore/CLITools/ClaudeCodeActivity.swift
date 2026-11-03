@@ -142,14 +142,28 @@ public enum ClaudeCodeActivity {
         argumentsAndEnvironment(of: pid)?.arguments
     }
 
+    /// The path `execve` was given, as the kernel saved it at exec — not the
+    /// path the vnode has now. That copy survives the executable being unlinked,
+    /// when `proc_pidpath` answers `ENOENT` for a process still running (see
+    /// `NestedAppGuard.liveProcesses`, #1783). As `execve` was given it, so
+    /// symlinks are not resolved. Nil when the process is gone, is another
+    /// user's, or the kernel kept no copy.
+    ///
+    /// This is the first string of the `KERN_PROCARGS2` block, not `argv[0]`:
+    /// both read the same in the case the guard needs, but `argv[0]` is a copy
+    /// the program itself can rewrite.
+    static func executablePathSavedAtExec(of pid: pid_t) -> String? {
+        guard let buffer = procargs(of: pid) else { return nil }
+        let start = MemoryLayout<Int32>.size
+        guard let end = buffer[start...].firstIndex(of: 0), end > start else { return nil }
+        return String(decoding: buffer[start..<end], as: UTF8.self)
+    }
+
     /// `argv` and the environment the process was started with, from the
     /// same `KERN_PROCARGS2` read (the environment follows `argv`).
     static func argumentsAndEnvironment(of pid: pid_t) -> (arguments: [String], environment: [String])? {
-        var mib: [Int32] = [CTL_KERN, KERN_PROCARGS2, pid]
-        var size = 0
-        guard sysctl(&mib, 3, nil, &size, nil, 0) == 0, size > MemoryLayout<Int32>.size else { return nil }
-        var buffer = [UInt8](repeating: 0, count: size)
-        guard sysctl(&mib, 3, &buffer, &size, nil, 0) == 0 else { return nil }
+        guard let buffer = procargs(of: pid) else { return nil }
+        let size = buffer.count
         let argc = buffer.withUnsafeBytes { $0.loadUnaligned(as: Int32.self) }
         var index = MemoryLayout<Int32>.size
         while index < size, buffer[index] != 0 { index += 1 }  // executable path
@@ -169,5 +183,16 @@ public enum ClaudeCodeActivity {
             index += 1
         }
         return (arguments, environment)
+    }
+
+    /// The `KERN_PROCARGS2` block: `argc`, the exec path, NUL padding, `argv`,
+    /// then the environment. Nil when the kernel will not answer for `pid`.
+    private static func procargs(of pid: pid_t) -> [UInt8]? {
+        var mib: [Int32] = [CTL_KERN, KERN_PROCARGS2, pid]
+        var size = 0
+        guard sysctl(&mib, 3, nil, &size, nil, 0) == 0, size > MemoryLayout<Int32>.size else { return nil }
+        var buffer = [UInt8](repeating: 0, count: size)
+        guard sysctl(&mib, 3, &buffer, &size, nil, 0) == 0 else { return nil }
+        return Array(buffer.prefix(size))
     }
 }

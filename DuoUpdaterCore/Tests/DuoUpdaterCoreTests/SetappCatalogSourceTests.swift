@@ -1,0 +1,148 @@
+import Foundation
+import Testing
+
+@testable import DuoUpdaterCore
+
+/// The public catalogue, the subscription state beside it, and the source that
+/// joins them. The values here are the real shapes measured on 2026-11-03 (see
+/// `SetappCatalog`'s doc comment), trimmed to what these tests need.
+struct SetappCatalogSourceTests {
+
+    // MARK: - Fixtures
+
+    private static let catalogueJSON = """
+    {"data":{"relationships":{"vendors":{"data":[
+      {"relationships":{"applications":{"data":[
+        {"attributes":{"bundle_id":"com.example.thing-setapp","name":"Thing","public_id":"AAAA-1111","slugs":[{"slug":"thing","primary":true}]},
+         "relationships":{"versions":{"data":[
+           {"attributes":{"marketing_version":"1.2.0","build_number":"120","release_date":1700000000,"min_os_version":"12.0"}},
+           {"attributes":{"marketing_version":"1.3.0","build_number":"130","release_date":1700100000,"min_os_version":"13.0"}}
+         ]}}},
+        {"attributes":{"bundle_id":"com.example.direct","name":"Direct","public_id":"BBBB-2222","slugs":[{"slug":"direct","primary":true}]},
+         "relationships":{"versions":{"data":[
+           {"attributes":{"marketing_version":"9.9.9","build_number":"999","release_date":1700200000}}
+         ]}}}
+      ]}}}
+    ]}}}}
+    """
+
+    private static let releases: [String: SetappRelease] = (try? SetappCatalog.parse(
+        Data(catalogueJSON.utf8))) ?? [:]
+
+    private func app(
+        id: String = "com.example.thing-setapp", short: String = "1.0", build: String = "100"
+    ) -> InstalledApp {
+        InstalledApp(
+            name: "Thing", bundleID: id,
+            shortVersion: short, buildVersion: build,
+            path: URL(fileURLWithPath: "/Applications/Setapp/Thing.app"),
+            isMASApp: false,
+            sparkleFeedURL: nil)
+    }
+
+    private func state(expires: String, grace: String) -> SetappSubscription.State {
+        SetappSubscription.State(
+            rawState: "paid",
+            expiresAt: SetappSubscription.parseDate(expires),
+            graceEndsAt: SetappSubscription.parseDate(grace),
+            startedAt: nil)
+    }
+
+    // MARK: - Parsing
+
+    @Test func parsesOnlySetappEditionsAtTheNewestRelease() throws {
+        let releases = try SetappCatalog.parse(Data(Self.catalogueJSON.utf8))
+        #expect(releases.count == 1)
+        let thing = try #require(releases["com.example.thing-setapp"])
+        #expect(thing.shortVersion == "1.3.0")
+        #expect(thing.build == "130")
+        #expect(thing.minimumSystemVersion == "13.0")
+        #expect(thing.publicID == "AAAA-1111")
+        #expect(thing.pageURL == URL(string: "https://setapp.com/apps/thing"))
+        // The direct edition is not Setapp's to answer for.
+        #expect(releases["com.example.direct"] == nil)
+    }
+
+    @Test func rejectsAPayloadThatIsNotTheCatalogue() {
+        #expect(throws: (any Error).self) {
+            try SetappCatalog.parse(Data("{\"nope\":true}".utf8))
+        }
+    }
+
+    // MARK: - Source
+
+    @Test func ignoresAppsThatAreNotSetappEditions() async throws {
+        let source = SetappCatalogSource(
+            releases: { Self.releases }, subscription: { nil }, now: { .init() })
+        let answer = try await source.latestVersion(
+            for: app(id: "com.example.direct", short: "1.0", build: "100"))
+        #expect(answer == nil)
+    }
+
+    @Test func offersTheCatalogueReleaseWhenTheSubscriptionIsActive() async throws {
+        let source = SetappCatalogSource(
+            releases: { Self.releases },
+            subscription: {
+                self.state(expires: "2099-01-01 00:00:00 +0000", grace: "2099-01-15 00:00:00 +0000")
+            },
+            now: { Date(timeIntervalSince1970: 1_700_000_000) })
+
+        let answer = try #require(try await source.latestVersion(for: app()))
+        #expect(answer.shortVersion == "1.3.0")
+        #expect(answer.version == "130")
+        #expect(answer.downloadURL == nil)
+        #expect(answer.pageURL == URL(string: "https://setapp.com/apps/thing"))
+        #expect(answer.sourceName == "Setapp")
+        #expect(answer.subscriptionHold == nil)
+    }
+
+    @Test func withholdsTheVersionOnceTheSubscriptionHasLapsed() async throws {
+        let source = SetappCatalogSource(
+            releases: { Self.releases },
+            subscription: {
+                self.state(expires: "2027-01-30 23:59:59 +0000", grace: "2027-02-13 23:59:59 +0000")
+            },
+            now: { Date(timeIntervalSince1970: 1_804_000_000) })  // 2027-03-01, past the grace too
+
+        let answer = try #require(try await source.latestVersion(for: app()))
+        // An answer, not nil: the row keeps its identity and shows the hold.
+        #expect(answer.shortVersion == "1.0")
+        #expect(answer.subscriptionHold?.version == "1.3.0")
+        #expect(answer.subscriptionHold?.coveredBefore == SetappSubscription.parseDate("2027-01-30 23:59:59 +0000"))
+    }
+
+    @Test func stillAnsweredAsInstalledWhenTheCatalogueDoesNotListIt() async throws {
+        let source = SetappCatalogSource(
+            releases: { [:] },
+            subscription: { nil },
+            now: { Date() })
+        // Never nil for a `-setapp` copy: nil would hand the row to the vendor's
+        // Sparkle feed, which is the mismatch this source exists to stop.
+        let answer = try #require(try await source.latestVersion(for: app(id: "com.example.gone-setapp")))
+        #expect(answer.shortVersion == "1.0")
+        #expect(answer.pageURL == nil)
+        #expect(answer.subscriptionHold == nil)
+    }
+
+    // MARK: - Subscription
+
+    @Test func readsTheTrialDatesTheClientWrites() throws {
+        let state = try #require(SetappSubscription.state(from: [[
+            "subscriptionState": "trial",
+            "subscriptionStartDate": "2026-11-03 08:42:25 +0000",
+            "subscriptionExpirationDate": "2026-11-09 23:59:59 +0000",
+            "gracePeriodExpirationDate": "2026-11-14 23:59:59 +0000",
+        ]]))
+        let expiry = try #require(state.expiresAt)
+        #expect(state.rawState == "trial")
+        #expect(state.isActive(now: expiry.addingTimeInterval(-1)))
+        // Grace keeps it covering until its own end.
+        #expect(state.isActive(now: expiry.addingTimeInterval(60 * 60)))
+        #expect(!state.isActive(now: state.graceEndsAt!.addingTimeInterval(1)))
+    }
+
+    @Test func noReadableCustomerMeansNoState() {
+        #expect(SetappSubscription.state(from: []) == nil)
+        #expect(SetappSubscription.state(from: [["subscriptionState": "paid"]]) == nil)
+    }
+}

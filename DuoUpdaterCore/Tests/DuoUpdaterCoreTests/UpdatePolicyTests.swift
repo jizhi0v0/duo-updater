@@ -680,6 +680,10 @@ private func storeAvailability(
         "Toolbox": "Toolbox manages the app itself",
         // Apple's TestFlight app owns the install.
         "TestFlight": "TestFlight manages the app itself",
+        // Setapp's agent owns the install: it swaps the bundle with its own
+        // progress and cancel, against the account's entitlement. The source
+        // only names the catalogue version and the app's page.
+        "Setapp": "Setapp manages the install itself",
     ]
 
     let stackNames = Set(SourceStack.make(githubToken: nil).map(\.name))

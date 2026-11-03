@@ -1,0 +1,137 @@
+import Foundation
+
+/// Answers for a copy Setapp manages, from Setapp's own catalogue instead of the
+/// vendor's feed.
+///
+/// **The bug this closes.** Setapp builds keep the vendor's `SUFeedURL` even
+/// though they ship no Sparkle at all (measured: AlDente Pro 1.40.1 from Setapp
+/// has no `Sparkle.framework`, no `SPUUpdater` symbols, and a dead `SUFeedURL`
+/// pointing at the vendor's direct appcast). `SparkleAppcastSource` reads that
+/// key, offered the direct 1.40.1 DMG, and the install refused at gate 4 with
+/// "Bundle identifier mismatch: installed …aldente-pro-setapp vs downloaded
+/// …aldente-pro". Before 0.5.18 Setapp copies were invisible; the one-folder-deep
+/// scan (#1763) made `/Applications/Setapp/…` visible and the mismatch reachable.
+///
+/// Answering for every `…-setapp` copy — including ones the catalogue does not
+/// list — is the point: the vendor's feed must never be the fallback for an app
+/// whose channel is Setapp.
+///
+/// **What it deliberately does not do is install.** Setapp owns that flow: its
+/// agent downloads and swaps the bundle, shows its own progress and cancel, and
+/// asks for the account's entitlement. Measured 2026-11-03: `setapp://install/<uid>`
+/// is rejected by the agent ("URL is not a valid install-from-URL link"); the
+/// valid uuid form (`setapp://install?app_id=<public_id>`) opens the app's page and,
+/// for an installed copy, only offers to open it. So the row offers the page, and
+/// the MCP `install_app` tool that could trigger an install is behind a GrowthBook
+/// flag (`PLATECO-12287`, false in production) we cannot rely on.
+public struct SetappCatalogSource: UpdateSource {
+
+    public var name: String { "Setapp" }
+
+    public var answersAppStoreCopies: Bool { false }
+
+    let releases: @Sendable () async throws -> [String: SetappRelease]
+    let subscription: @Sendable () -> SetappSubscription.State?
+    let now: @Sendable () -> Date
+
+    public init(
+        releases: @escaping @Sendable () async throws -> [String: SetappRelease] = {
+            try await SetappCatalog.releases()
+        },
+        subscription: @escaping @Sendable () -> SetappSubscription.State? = {
+            SetappSubscription.current()
+        },
+        now: @escaping @Sendable () -> Date = { Date() }
+    ) {
+        self.releases = releases
+        self.subscription = subscription
+        self.now = now
+    }
+
+    public func latestVersion(for app: InstalledApp) async throws -> RemoteVersion? {
+        // Setapp mandates the `-setapp` suffix for the editions it ships
+        // (docs.setapp.com/docs/set-an-app-bundle-id), so the identifier is the
+        // one fact every one of its copies carries.
+        guard let bundleID = app.bundleID?.lowercased(), bundleID.hasSuffix("-setapp") else {
+            return nil
+        }
+
+        let catalogue = try await releases()
+        guard let release = catalogue[bundleID] else {
+            // A Setapp copy the catalogue no longer lists (pulled from the store)
+            // or has never listed. Answer "as installed" rather than nil: nil
+            // hands the row to `SparkleAppcastSource`, which is exactly the
+            // wrong-channel offer this source exists to stop.
+            Log.source.notice(
+                "setapp: \(bundleID, privacy: .public) is not in the catalogue; answering as installed so the vendor feed cannot step in")
+            return RemoteVersion(
+                shortVersion: app.shortVersion,
+                version: app.buildVersion,
+                marketingMatchesBundle: true,
+                downloadURL: nil,
+                sourceName: name)
+        }
+
+        let newer = Self.isNewer(release, than: app)
+        let state = subscription()
+        let active = state?.isActive(now: now()) ?? false
+
+        guard active else {
+            // Show the version Setapp ships, but not as an offer: after the
+            // subscription ends Setapp stops delivering (and the apps stop
+            // opening), so an Update button would promise something nothing can
+            // keep. Surge and TablePlus use the same hold for the same reason.
+            guard newer else {
+                return RemoteVersion(
+                    shortVersion: release.shortVersion,
+                    version: release.build,
+                    marketingMatchesBundle: true,
+                    downloadURL: nil,
+                    pageURL: release.pageURL,
+                    minimumSystemVersion: release.minimumSystemVersion,
+                    sourceName: name)
+            }
+            Log.source.notice(
+                "setapp: \(bundleID, privacy: .public) — \(release.shortVersion ?? "?", privacy: .public) withheld: the subscription is not active")
+            return RemoteVersion(
+                shortVersion: app.shortVersion,
+                version: app.buildVersion,
+                marketingMatchesBundle: true,
+                downloadURL: nil,
+                pageURL: release.pageURL,
+                sourceName: name,
+                subscriptionHold: SubscriptionHold(
+                    version: release.shortVersion ?? release.build ?? "?",
+                    coveredBefore: state?.expiresAt))
+        }
+
+        // `marketingMatchesBundle` is stated because the catalogue's
+        // `marketing_version` IS the Setapp build's `CFBundleShortVersionString`
+        // (measured on AlDente Pro 1.40.1: both 1.40.1), which is what lets the
+        // checker refuse a build that would walk the marketing number backwards.
+        return RemoteVersion(
+            shortVersion: release.shortVersion,
+            version: release.build,
+            marketingMatchesBundle: true,
+            downloadURL: nil,
+            pageURL: release.pageURL,
+            minimumSystemVersion: release.minimumSystemVersion,
+            sourceName: name)
+    }
+
+    /// Whether the catalogue's release is newer than the copy on disk. Build
+    /// first — Setapp publishes both, and the build is the field its own client
+    /// orders on — then the marketing string, then "no version at all counts as
+    /// newer", the safe side every other source takes.
+    static func isNewer(_ release: SetappRelease, than app: InstalledApp) -> Bool {
+        if let build = release.build, let installed = app.buildVersion,
+           VersionComparator.compare(build, installed) == .orderedDescending {
+            return true
+        }
+        if let short = release.shortVersion, let installed = app.shortVersion,
+           VersionComparator.compare(short, installed) == .orderedDescending {
+            return true
+        }
+        return app.buildVersion == nil && app.shortVersion == nil
+    }
+}

@@ -74,30 +74,34 @@ enum com_microsoft_VSCode {
         //   …<details class="release-downloads">…<dl>…</dl></details>…
         //   <section class="release-highlights" …><h2>…</h2><p>…</p>
         //   <ul><li><p><a …>…</a>: …</p></li>…</ul>
+        //   [<p>Read all about this…</p>]                    ← 1.144 onward
         //   </section>
+        // The 1.144 page also reworded the metadata to
+        // `<span>Release date: October 28, 2026</span>` — the same fact in the
+        // same element, so the date anchor accepts either word.
         //
         // In both, the highlights <ul> is the first list after the date (layout
         // 2's download links are a <dl>, not a list), and the close anchor pins
-        // it: `</section>` in layout 2, "Happy Coding!" in layout 1. In layout 1,
+        // it: `</section>` in layout 2, "Happy Coding!" in layout 1. In both,
         // between `</ul>` and the close anchor the page puts zero or more asides
         // — a <blockquote> (an event plug, e.g. "VS Code Live at Build") or a
-        // plain <p> note (the Copilot disclaimer, #697) — matched as a run of
-        // either, so one appearing, disappearing or swapping for the other
-        // doesn't break the close anchor. A <p> aside may not contain a <ul>,
-        // which keeps it a paragraph and not a way round the "first list"
-        // anchor. We intentionally parse the latest release only; the page
-        // itself is the vendor's stable "what changed now" surface.
+        // plain <p> note (the Copilot disclaimer, #697; layout 2's "Read all
+        // about this" from 1.144) — matched as a run of either, so one appearing,
+        // disappearing or swapping for the other doesn't break the close anchor.
+        // A <p> aside may not contain a <ul>, which keeps it a paragraph and not
+        // a way round the "first list" anchor. We intentionally parse the latest
+        // release only; the page itself is the vendor's stable "what changed
+        // now" surface.
         ChangelogRecipe(
             bundleID: "com.microsoft.VSCode",
             source: URL(string: "https://code.visualstudio.com/updates")!,
             entryPattern:
                 #"<h1>Visual Studio Code (?<version>[0-9.]+)</h1>\s*"#
-                + #".*?(?:<p class="release-metadata"><span>Released|<p><em>Release date:)"#
+                + #".*?(?:<p class="release-metadata"><span>(?:Released|Release date:)|<p><em>Release date:)"#
                 + #"\s*(?<date>[^<]+)<"#
                 + #".*?<ul>(?<body>.*?)</ul>\s*"#
-                + #"(?:</section>"#
-                + #"|(?:(?:<blockquote>.*?</blockquote>|<p>(?:(?!</p>|<ul>).)*</p>)\s*)*"#
-                + #"<p>Happy Coding!</p>)"#,
+                + #"(?:(?:<blockquote>.*?</blockquote>|<p>(?:(?!</p>|<ul>).)*</p>)\s*)*"#
+                + #"(?:</section>|<p>Happy Coding!</p>)"#,
             itemPatterns: [#"<li>\s*(?:<p>)?(?<item>.*?)(?:</p>)?\s*</li>"#],
             maxEntries: 1),
 

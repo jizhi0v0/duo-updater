@@ -624,6 +624,15 @@ import Foundation
         #expect(arguments.first == CommandLine.arguments.first)
     }
 
+    /// The first string of the same block is the path `execve` was given — the
+    /// identity `NestedAppGuard` keeps when a swap unlinks a running helper's
+    /// executable and `proc_pidpath` answers `ENOENT` (#1783). Mutation: take the
+    /// string after the padding (the first argument) → red.
+    @Test func theExecPathSavedAtExecOfThisProcessIsReadable() throws {
+        let path = try #require(ClaudeCodeActivity.executablePathSavedAtExec(of: getpid()))
+        #expect(path == CommandLine.arguments.first)
+    }
+
     // MARK: - Check
 
     /// `manifest` maps a platform key to the size its entry gives.

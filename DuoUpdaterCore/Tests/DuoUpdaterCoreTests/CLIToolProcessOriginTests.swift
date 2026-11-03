@@ -158,19 +158,33 @@ struct CLIToolProcessOriginTests {
 
     /// On this machine: a child of the test process has the test process as
     /// its parent, and launchd names a coalition for it.
+    ///
+    /// Two things here are about surviving a loaded runner rather than about
+    /// what is being asserted. The child sleeps for two minutes, not the few
+    /// seconds the read needs: on 2026-11-03 this test took 49 s in the release
+    /// job of a post-merge run, and a 30 s child can be gone by the time the
+    /// read happens. And the read is retried, because `Origin.read` is a single
+    /// `proc_pidinfo` that came back nil for a child that was provably alive in
+    /// that same run — one scheduling hiccup is not "the process exited".
     @Test func readsALiveChild() async throws {
         let (pids, continuation) = AsyncStream.makeStream(of: pid_t.self)
         let child = Task {
-            try await ChildProcess.run("/bin/sleep", ["30"], standardOutput: .discard, standardError: .discard,
+            try await ChildProcess.run("/bin/sleep", ["120"], standardOutput: .discard, standardError: .discard,
                                        onCancel: .terminateChild, onLaunch: { continuation.yield($0) })
         }
         defer { child.cancel() }
         var iterator = pids.makeAsyncIterator()
         let pid = try #require(await iterator.next())
         let coalition = await Origin.readCoalition(of: pid)
-        let o = try #require(await offCooperativePool { Origin.read(pid: pid, coalition: coalition) })
+        var origin: Origin?
+        for attempt in 1...10 {
+            origin = await offCooperativePool { Origin.read(pid: pid, coalition: coalition) }
+            if origin != nil { break }
+            if attempt < 10 { try? await Task.sleep(for: .milliseconds(200)) }
+        }
+        let o = try #require(origin)
         #expect(o.executable == "/bin/sleep")
-        #expect(o.arguments == ["/bin/sleep", "30"])
+        #expect(o.arguments == ["/bin/sleep", "120"])
         #expect(o.ancestors.first?.pid == getpid())
         #expect(o.ancestors.last?.pid == 1)
         #expect(o.coalition != nil)

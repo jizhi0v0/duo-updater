@@ -53,6 +53,25 @@ public enum SetappAutomation {
         userEnabled && !isAutoRefreshForbidden(defaults: defaults)
     }
 
+    /// The client's bundle identifier — what `NSRunningApplication` is asked
+    /// about before deciding a background launch is worth anything.
+    public static let clientBundleIdentifier = "com.setapp.DesktopClient"
+
+    /// Whether a click on the row's Setapp action should launch the client in
+    /// the background rather than open the page.
+    ///
+    /// All three have to agree: the user's preference, the client not already
+    /// running (a launch is what runs the check; a running client only gets
+    /// activated, and the deep link is lost on that path), and Setapp's own
+    /// "Install automatically" switch.
+    public static func routesThroughBackground(
+        userEnabled: Bool,
+        clientRunning: Bool,
+        defaults: UserDefaults? = UserDefaults(suiteName: SetappSubscription.defaultsDomain)
+    ) -> Bool {
+        userEnabled && !clientRunning && !isAutoRefreshForbidden(defaults: defaults)
+    }
+
     /// Setapp's client, from the two documented install roots.
     public static func clientURL(home: URL = FileManager.default.homeDirectoryForCurrentUser) -> URL? {
         let candidates = [

@@ -63,6 +63,9 @@ struct SourceStorePolicyTests {
             "cross-distribution installs — the WhatsApp case above"),
         "ElectronManifestSource": (false,
             "an electron-builder feed is the vendor's own distribution, not the store's"),
+        "SetappCatalogSource": (false,
+            "answers only the editions Setapp ships, from Setapp's catalogue — a store copy is "
+            + "the store's, and this source's own action hands the app to Setapp"),
         "MyGoUpdateSource": (false,
             "a MyGo feed linked into the binary is the vendor's own distribution: its archive "
             + "would replace a store copy, receipt and sandbox entitlements included"),

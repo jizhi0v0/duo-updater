@@ -287,6 +287,25 @@ struct SetappCatalogSourceTests {
         #expect(!SetappAutomation.canUpdateInBackground(userEnabled: false, defaults: nil))
     }
 
+    @Test func aRunningClientTakesThePageRoute() {
+        let suite = "setapp-route-\(UUID().uuidString)"
+        let defaults = try! #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        // Background only when the user allows it, the client is not running and
+        // Setapp would install what its launch check finds.
+        #expect(SetappAutomation.routesThroughBackground(
+            userEnabled: true, clientRunning: false, defaults: defaults))
+        #expect(!SetappAutomation.routesThroughBackground(
+            userEnabled: true, clientRunning: true, defaults: defaults))
+        #expect(!SetappAutomation.routesThroughBackground(
+            userEnabled: false, clientRunning: false, defaults: defaults))
+
+        defaults.set(1, forKey: "4766321432293575660-ForbiddenAutomaticAppsRefresh")
+        #expect(!SetappAutomation.routesThroughBackground(
+            userEnabled: true, clientRunning: false, defaults: defaults))
+    }
+
     // MARK: - Subscription
 
     @Test func readsTheTrialDatesTheClientWrites() throws {

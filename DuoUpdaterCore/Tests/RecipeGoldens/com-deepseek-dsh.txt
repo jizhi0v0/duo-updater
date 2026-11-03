@@ -3,9 +3,48 @@
 
 family = "com-deepseek-dsh"
 
-probes = Array(count: 0)
+probes = Array(count: 1)
+probes[0] = struct VendorProbeRecipe
+probes[0].bundleID = "com.deepseek.dsh"
+probes[0].channel = .alpha
+probes[0].variant = nil
+probes[0].hostRequirement = nil
+probes[0].installedVersionPattern = nil
+probes[0].buildLineage = nil
+probes[0].headBuildPattern = nil
+probes[0].url = URL("https://github.com/deepseek-ai/deepseek-harness/releases.atom")
+probes[0].identities = Array(count: 0)
+probes[0].track = nil
+probes[0].mode = .responseBody
+probes[0].versionPattern = "<title>v([0-9]+(?:\\.[0-9]+)+(?:-(?:alpha|rc)\\.[0-9]+)?)</title>"
+probes[0].transientBodyPattern = nil
+probes[0].trackClosedPattern = nil
+probes[0].downloadURL = nil
+probes[0].changelogURL = nil
+probes[0].selectHighest = true
+probes[0].selectsHighestPublishedBuild = true
+probes[0].versionIsBuild = false
+probes[0].buildNamespace = .bundle
+probes[0].displayVersionPattern = nil
+probes[0].publishedAtPattern = nil
+probes[0].minimumSystemVersionPattern = nil
+probes[0].maximumSystemVersionPattern = nil
+probes[0].entryStartPattern = nil
+probes[0].install? = struct VendorInstallSpec
+probes[0].install?.urlSource = .versionTemplate(_:)
+probes[0].install?.urlSource.0 = "https://download.deepseek.com/dsh-desk/bin/mac-arm64/deepseek-harness-{version}-mac-arm64.dmg"
+probes[0].install?.kind = .dmg
+probes[0].install?.checksumPattern = nil
+probes[0].install?.checksumFormat = .sha512Base64
+probes[0].install?.requestHeaders = Dictionary(count: 0)
+probes[0].install?.nestedArchivePath = nil
+probes[0].install?.contentsArchivePattern = nil
+probes[0].install?.myGoPublicKey = nil
+probes[0].requestBody = nil
+probes[0].followRedirects = true
+probes[0].requestHeaders = Dictionary(count: 0)
 
-changelogs = Array(count: 1)
+changelogs = Array(count: 2)
 changelogs[0] = struct ChangelogRecipe
 changelogs[0].bundleID = "com.deepseek.dsh"
 changelogs[0].source = URL("https://api.github.com/repos/deepseek-ai/deepseek-harness/releases?per_page=40")
@@ -38,12 +77,49 @@ changelogs[0].httpMethod = .get
 changelogs[0].requestBody = nil
 changelogs[0].skipSections = Array(count: 0)
 changelogs[0].tagPattern? = "^dsh-v([0-9]+(?:\\.[0-9]+)+(?:-rc\\.[0-9]+)?)$"
+changelogs[1] = struct ChangelogRecipe
+changelogs[1].bundleID = "com.deepseek.dsh"
+changelogs[1].source = URL("https://api.github.com/repos/deepseek-ai/deepseek-harness/releases?per_page=40")
+changelogs[1].sourceTemplate = nil
+changelogs[1].versionFromTemplate = false
+changelogs[1].mode = .json
+changelogs[1].entryPattern = ""
+changelogs[1].itemPatterns = Array(count: 0)
+changelogs[1].stripTags = true
+changelogs[1].decodeEntities = true
+changelogs[1].escapedMarkup = false
+changelogs[1].markdownSource = false
+changelogs[1].maxEntries? = 20
+changelogs[1].minItemLength = 1
+changelogs[1].newestLast = false
+changelogs[1].indexLinkPattern = nil
+changelogs[1].feedPagePattern = nil
+changelogs[1].channel? = .alpha
+changelogs[1].includesPromotedStable = true
+changelogs[1].ordersByPublishedDate = false
+changelogs[1].excludedChannels = Array(count: 0)
+changelogs[1].imagePattern = nil
+changelogs[1].headingPattern = nil
+changelogs[1].minimumAppVersion = nil
+changelogs[1].belowAppVersion = nil
+changelogs[1].carriesOtherTrainEntries = false
+changelogs[1].acknowledgedStaleEntry = nil
+changelogs[1].structuredFormat? = .gitHubReleases
+changelogs[1].httpMethod = .get
+changelogs[1].requestBody = nil
+changelogs[1].skipSections = Array(count: 0)
+changelogs[1].tagPattern? = "^dsh-v([0-9]+(?:\\.[0-9]+)+(?:-(?:alpha|rc)\\.[0-9]+)?)$"
 
 githubRules = Array(count: 0)
 
 appStoreCases = Array(count: 0)
 
-channelProofs = Dictionary(count: 0)
+channelProofs = Dictionary(count: 1)
+channelProofs[ChannelProofKey(bundleID: "com.deepseek.dsh", channel: .alpha)] = .recipeAnchor(_:in:)
+channelProofs[ChannelProofKey(bundleID: "com.deepseek.dsh", channel: .alpha)].0 = "deepseek-harness"
+channelProofs[ChannelProofKey(bundleID: "com.deepseek.dsh", channel: .alpha)].in = Set(count: 2)
+channelProofs[ChannelProofKey(bundleID: "com.deepseek.dsh", channel: .alpha)].in{0} = "install"
+channelProofs[ChannelProofKey(bundleID: "com.deepseek.dsh", channel: .alpha)].in{1} = "url"
 
 githubChannelProofs = Dictionary(count: 0)
 

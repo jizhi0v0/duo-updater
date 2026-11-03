@@ -16,7 +16,8 @@ extension VendorProbeRecipe: Codable {
         case bundleID, channel, variant, hostRequirement, installedVersionPattern
         case buildLineage, headBuildPattern, url, identities, track, mode, versionPattern
         case transientBodyPattern, trackClosedPattern, downloadURL, changelogURL
-        case selectHighest, versionIsBuild, buildNamespace, displayVersionPattern
+        case selectHighest, selectsHighestPublishedBuild, versionIsBuild, buildNamespace,
+             displayVersionPattern
         case publishedAtPattern, minimumSystemVersionPattern, maximumSystemVersionPattern
         case entryStartPattern, install, requestBody
         case followRedirects, requestHeaders
@@ -44,6 +45,9 @@ extension VendorProbeRecipe: Codable {
             changelogURL: try c.decodeOptional(
                 URL.self, forKey: .changelogURL, default: d.changelogURL),
             selectHighest: try c.decode(Bool.self, forKey: .selectHighest, default: d.selectHighest),
+            selectsHighestPublishedBuild: try c.decode(
+                Bool.self, forKey: .selectsHighestPublishedBuild,
+                default: d.selectsHighestPublishedBuild),
             versionIsBuild: try c.decode(
                 Bool.self, forKey: .versionIsBuild, default: d.versionIsBuild),
             buildNamespace: try c.decode(
@@ -109,6 +113,7 @@ extension VendorProbeRecipe: Codable {
         try c.encodeOptional(downloadURL, forKey: .downloadURL, defaultIsNil: d.downloadURL == nil)
         try c.encodeOptional(changelogURL, forKey: .changelogURL, defaultIsNil: d.changelogURL == nil)
         try c.encode(selectHighest, forKey: .selectHighest)
+        try c.encode(selectsHighestPublishedBuild, forKey: .selectsHighestPublishedBuild)
         try c.encode(versionIsBuild, forKey: .versionIsBuild)
         try c.encode(buildNamespace, forKey: .buildNamespace)
         try c.encodeOptional(

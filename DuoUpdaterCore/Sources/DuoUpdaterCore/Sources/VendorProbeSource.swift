@@ -643,6 +643,13 @@ public struct VendorProbeSource: UpdateSource {
     /// not the old best-effort nil: only `.notApplicable` still degrades to nil
     /// (the silent "—"), and every other classification is thrown and rendered as
     /// a retryable `.error` row. See ``ProbeFailure``.
+    /// How many candidate builds `selectsHighestPublishedBuild` may ask about
+    /// before giving up on one-click. Three is enough for a vendor that has not
+    /// yet packed the newest build (the gap this was written for was one build
+    /// wide) and small enough that a mis-set flag cannot turn a periodic check
+    /// into a download-site crawl.
+    static let publishedWalkLimit = 3
+
     func probeOutcome(
         _ recipe: VendorProbeRecipe,
         allowInstall: Bool = true,
@@ -711,7 +718,7 @@ public struct VendorProbeSource: UpdateSource {
         let extractor = recipe.selectHighest
             ? VendorProbeRecipe.highestVersion
             : VendorProbeRecipe.extractVersion
-        guard let version = extractor(scope, recipe.versionPattern) else {
+        guard var version = extractor(scope, recipe.versionPattern) else {
             // Before accusing the recipe: is this the vendor's own error envelope?
             // A body that says "I could not compute your answer" is not a schema
             // change, and reporting it as one puts a red Failed row on every
@@ -847,6 +854,69 @@ public struct VendorProbeSource: UpdateSource {
                   publishedFields.publishedAt == nil, publishedFields.vendorDay == nil {
             warnings.append(.publishedAtUnreadable(publishedAtValue))
         }
+        // A vendor can write release notes for a build it never packaged. The
+        // version `versionPattern` just read is then the newest build IN NAME
+        // ONLY, and offering it is a phantom update whose install 404s — the
+        // failure `duo verify` catches a week later, if at all. For a recipe that
+        // opts in, confirm against the artifact before reporting:
+        // walk DOWN from the highest version (bounded) and take the first whose
+        // URL answers. A lower published build is the honest answer for a copy
+        // that is behind; none at all leaves detection intact and drops only
+        // one-click.
+        //
+        // The extra HEAD per check is the price of that certainty, and only a
+        // recipe that declares `selectsHighestPublishedBuild` pays it.
+        // The walk stops at the first TRANSIENT answer rather than stepping over
+        // it: "gone" is a fact about that one build (the vendor never packed it,
+        // walked past), while a 5xx or a dead connection is a fact about the
+        // vendor RIGHT NOW. Stepping over it would (a) offer an older build with
+        // no sign that the newest went unchecked, and (b) — worse — let a later
+        // 404 overwrite the 503 in `lastReachability`, so the sweep would file
+        // "the vendor deleted this artifact" against what is actually an outage.
+        // So: `.ok` selects, `.gone` continues, `.transient` stops with the
+        // version we read and one-click off.
+        var artifactUnreachable = false
+        if allowInstall, recipe.selectsHighestPublishedBuild, let spec = recipe.install,
+           case .versionTemplate = spec.urlSource {
+            let candidates = VendorProbeRecipe.versions(in: scope, pattern: recipe.versionPattern)
+            var chosen: String?
+            var lastGone: (reachability: InstallURLReachability, host: String?)?
+            var stop: (reachability: InstallURLReachability, host: String?)?
+            for candidate in candidates.prefix(Self.publishedWalkLimit) {
+                guard let plan = try? await resolveInstall(spec, body: scope, version: candidate)
+                else { continue }
+                let reachability = await installURLReachability(plan.url, spec: spec)
+                switch reachability {
+                case .ok:
+                    chosen = candidate
+                case .gone:
+                    lastGone = (reachability, plan.url.host)
+                case .transient:
+                    stop = (reachability, plan.url.host)
+                }
+                if chosen != nil || stop != nil { break }
+            }
+            if let chosen {
+                if chosen != version {
+                    Log.source.notice(
+                        "vendor probe \(recipe.bundleID, privacy: .public) [\(recipe.channel.rawValue, privacy: .public)]: \(version, privacy: .public) has no published artifact; offering \(chosen, privacy: .public) instead")
+                    version = chosen
+                }
+            } else {
+                // Nothing in the walk could be used. Keep the version — detection
+                // still reads, and the row is honest about what the vendor wrote —
+                // but install nothing: a row that says "up to date" is a bug report
+                // about a missing button, while a row whose Update button 404s is
+                // a bug report about us. The warning names which of the two
+                // happened: an outage (transient) or builds nobody packed (gone).
+                artifactUnreachable = true
+                if let reported = stop ?? lastGone,
+                   let warning = Self.warning(for: reported.reachability, host: reported.host) {
+                    warnings.append(warning)
+                }
+            }
+        }
+
         // The OS window the vendor states for THIS release, from the same scope
         // (so it belongs to the entry `versionPattern` matched, never a sibling
         // entry's). Read after the version resolved, so a dead version endpoint
@@ -956,7 +1026,7 @@ public struct VendorProbeSource: UpdateSource {
         // version to (so a `.bodyPattern` install URL can't resolve against a
         // different entry than the version it's paired with). A failure here
         // just falls back to detection-only; it never blocks the version.
-        if allowInstall, let spec = recipe.install {
+        if allowInstall, !artifactUnreachable, let spec = recipe.install {
             var resolved: (url: URL, checksum: String?)?
             var transient: TransientInstallURL?
             do {

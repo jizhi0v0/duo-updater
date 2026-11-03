@@ -27,7 +27,7 @@ stable endpoint you want.
 ## The recipe fields
 
 > ⚠️ **The initializer is the reference; this page is a tour of the common half.**
-> `VendorProbeRecipe.init` currently takes **28** parameters. Read it before you
+> `VendorProbeRecipe.init` currently takes **29** parameters. Read it before you
 > conclude a situation is unsupported — a recipe that "can't express this" is far
 > more often a field nobody has read than a real limit.
 > `DuoUpdaterCore/Sources/DuoUpdaterCore/Sources/VendorProbeRecipe.swift`
@@ -43,6 +43,7 @@ VendorProbeRecipe(
     downloadURL: URL? = nil,   // where to send the user to download by hand
     changelogURL: URL? = nil,  // human-readable notes page (NOT the download)
     selectHighest: Bool = false,
+    selectsHighestPublishedBuild: Bool = false,  // HEAD-walk to the newest build that EXISTS
     install: VendorInstallSpec? = nil,  // omit for detection-only (the safe default)
     followRedirects: Bool = true)
 ```
@@ -97,6 +98,14 @@ The rest, by the problem they solve — go to the source for the exact semantics
   ascending-ordered feeds whose pattern matches *nothing but* app versions; with a
   body that also holds version-shaped noise, "first match" (the app's own field,
   listed first) is correct and "highest" would grab a bigger unrelated number.
+- **`selectsHighestPublishedBuild`** — for a vendor that writes release notes for
+  builds it never packaged (DeepSeek Harness's `-alpha.N` tags: notes yes, DMG 404).
+  With `selectHighest` + a `.versionTemplate` install, the probe HEADs the highest
+  candidate and walks down (bounded by `VendorProbeSource.publishedWalkLimit`) to
+  the newest build that actually exists: `.ok` selects it, `.gone` walks past it,
+  a `.transient` 5xx STOPS the walk (keeps the detected version, drops one-click,
+  raises `installURLTransient`) so an outage is never reported as a deleted
+  artifact. Costs one HEAD per check; a recipe that opts in must say why.
 - **`followRedirects: false`** — for an endpoint that 302s to a *large binary*;
   reads the small 3xx body/`Location` instead of downloading the whole installer
   to read a version.

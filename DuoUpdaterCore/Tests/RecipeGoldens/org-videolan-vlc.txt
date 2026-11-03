@@ -22,6 +22,7 @@ probes[0].trackClosedPattern = nil
 probes[0].downloadURL = nil
 probes[0].changelogURL? = URL("https://www.videolan.org/vlc/releases/")
 probes[0].selectHighest = true
+probes[0].selectsHighestPublishedBuild = false
 probes[0].versionIsBuild = false
 probes[0].buildNamespace = .bundle
 probes[0].displayVersionPattern = nil

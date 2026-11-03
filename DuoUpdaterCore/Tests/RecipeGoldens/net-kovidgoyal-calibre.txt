@@ -24,6 +24,7 @@ probes[0].trackClosedPattern = nil
 probes[0].downloadURL? = URL("https://calibre-ebook.com/download_osx")
 probes[0].changelogURL? = URL("https://calibre-ebook.com/whats-new")
 probes[0].selectHighest = false
+probes[0].selectsHighestPublishedBuild = false
 probes[0].versionIsBuild = false
 probes[0].buildNamespace = .bundle
 probes[0].displayVersionPattern = nil

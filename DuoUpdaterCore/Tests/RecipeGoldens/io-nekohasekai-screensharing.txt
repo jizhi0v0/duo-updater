@@ -22,6 +22,7 @@ probes[0].trackClosedPattern = nil
 probes[0].downloadURL? = URL("https://github.com/nekohasekai/open-screen-sharing/releases/tag/nightly")
 probes[0].changelogURL? = URL("https://github.com/nekohasekai/open-screen-sharing/releases/tag/nightly")
 probes[0].selectHighest = false
+probes[0].selectsHighestPublishedBuild = false
 probes[0].versionIsBuild = true
 probes[0].buildNamespace = .bundle
 probes[0].displayVersionPattern? = "\"version\"\\s*:\\s*\"([0-9]+(?:\\.[0-9]+)+)\""

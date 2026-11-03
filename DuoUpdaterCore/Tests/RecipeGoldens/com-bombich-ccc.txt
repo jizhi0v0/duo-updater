@@ -24,6 +24,7 @@ probes[0].trackClosedPattern = nil
 probes[0].downloadURL? = URL("https://bombich.com/software/download_ccc.php?v=ccc7")
 probes[0].changelogURL? = URL("https://bombich.com/software/updates/ccc7_rn.html")
 probes[0].selectHighest = false
+probes[0].selectsHighestPublishedBuild = false
 probes[0].versionIsBuild = false
 probes[0].buildNamespace = .bundle
 probes[0].displayVersionPattern = nil
@@ -55,6 +56,7 @@ probes[1].trackClosedPattern = nil
 probes[1].downloadURL? = URL("https://bombich.com/software/download_ccc.php?v=latestbeta")
 probes[1].changelogURL? = URL("https://bombich.com/software/updates/ccc7_rn_beta.html")
 probes[1].selectHighest = false
+probes[1].selectsHighestPublishedBuild = false
 probes[1].versionIsBuild = false
 probes[1].buildNamespace = .bundle
 probes[1].displayVersionPattern = nil
@@ -86,6 +88,7 @@ probes[2].trackClosedPattern = nil
 probes[2].downloadURL? = URL("https://bombich.com/software/download_ccc.php?v=ccc6")
 probes[2].changelogURL? = URL("https://bombich.com/en/kb/ccc/6/release-notes")
 probes[2].selectHighest = false
+probes[2].selectsHighestPublishedBuild = false
 probes[2].versionIsBuild = false
 probes[2].buildNamespace = .bundle
 probes[2].displayVersionPattern = nil
@@ -117,6 +120,7 @@ probes[3].trackClosedPattern = nil
 probes[3].downloadURL? = URL("https://bombich.com/software/download_ccc.php?v=ccc5")
 probes[3].changelogURL? = URL("https://bombich.com/en/kb/ccc/5/release-notes")
 probes[3].selectHighest = false
+probes[3].selectsHighestPublishedBuild = false
 probes[3].versionIsBuild = false
 probes[3].buildNamespace = .bundle
 probes[3].displayVersionPattern = nil

@@ -22,6 +22,7 @@ probes[0].trackClosedPattern = nil
 probes[0].downloadURL = nil
 probes[0].changelogURL? = URL("https://vivaldi.com/blog/desktop/")
 probes[0].selectHighest = false
+probes[0].selectsHighestPublishedBuild = false
 probes[0].versionIsBuild = false
 probes[0].buildNamespace = .bundle
 probes[0].displayVersionPattern = nil

@@ -57,19 +57,11 @@ public struct SetappCatalogSource: UpdateSource {
         guard Self.plausiblySetapp(app) else { return nil }
 
         let bundleID = app.bundleID?.lowercased()
-        let catalogue: [String: SetappRelease]
-        do {
-            catalogue = try await releases()
-        } catch {
-            // Ownership does not depend on the catalogue answering. Throwing here
-            // would let the checker fall through to `SparkleAppcastSource`, which
-            // reads the dead vendor feed and re-offers the direct-edition
-            // download — the mismatch this source exists to prevent. Answer as
-            // installed instead; a later check retries the catalogue.
-            Log.source.notice(
-                "setapp: catalogue unavailable for \(bundleID ?? "?", privacy: .public) — answering as installed rather than letting the vendor feed answer: \(error.localizedDescription, privacy: .public)")
-            return Self.asInstalled(app, name: name)
-        }
+        // Throws on a real failure. Ownership is what keeps this from falling
+        // through to the vendor feed: `UpdateChecker` asks this source alone for
+        // a `…-setapp` copy, so the failure becomes the row's error (and a
+        // retryable one) rather than Sparkle's answer.
+        let catalogue = try await releases()
 
         if let bundleID, let release = catalogue[bundleID] {
             guard let version = release.newestCompatible(osVersion: osVersion()) else {
@@ -130,7 +122,8 @@ public struct SetappCatalogSource: UpdateSource {
                 sourceName: name,
                 subscriptionHold: SubscriptionHold(
                     version: version.shortVersion ?? version.build ?? "?",
-                    coveredBefore: state?.expiresAt))
+                    coveredBefore: state?.expiresAt,
+                    recovery: .setappAccount))
         }
 
         return offer(release, version: version)

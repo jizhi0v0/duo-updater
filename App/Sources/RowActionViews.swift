@@ -120,14 +120,20 @@ struct SubscriptionHoldPanel: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Label(SubscriptionHoldWording.title, systemImage: "lock.fill")
+            Label(SubscriptionHoldWording.title(hold), systemImage: "lock.fill")
                 .font(.headline)
             Text(SubscriptionHoldWording.explanation(hold, appName: result.app.name))
                 .font(.callout)
                 .fixedSize(horizontal: false, vertical: true)
-            Text("You can keep using the installed version (\(result.app.shortVersion ?? String(localized: "current"))) until then.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            if hold.recovery == .releaseWindow {
+                Text("You can keep using the installed version (\(result.app.shortVersion ?? String(localized: "current"))) until then.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            if hold.recovery == .setappAccount, let url = result.remote?.pageURL, url.scheme == "setapp" {
+                Button("Open Setapp") { NSWorkspace.shared.open(url) }
+                    .buttonStyle(.borderless)
+            }
         }
         .padding(12)
         .frame(width: 290)
@@ -181,9 +187,20 @@ struct ChannelSwitchPanel: View {
 
 /// The words for a `.subscriptionHold` row, shared by both windows.
 enum SubscriptionHoldWording {
-    static var title: String { String(localized: "Not covered by your subscription") }
+    static func title(_ hold: SubscriptionHold) -> String {
+        hold.recovery == .setappAccount
+            ? String(localized: "Setapp subscription isn’t active")
+            : String(localized: "Not covered by your subscription")
+    }
 
     static func explanation(_ hold: SubscriptionHold, appName: String) -> String {
+        if hold.recovery == .setappAccount {
+            if let before = hold.coveredBefore {
+                let date = before.formatted(date: .abbreviated, time: .shortened)
+                return String(localized: "\(appName) \(hold.version) isn’t offered: your Setapp subscription ended on \(date). Setapp stops delivering updates then, and its apps stop opening, so renew or sign in to Setapp to update.")
+            }
+            return String(localized: "\(appName) \(hold.version) isn’t offered: your Setapp subscription isn’t active. Open Setapp to renew or sign in, then check again.")
+        }
         guard let before = hold.coveredBefore else {
             return String(localized: "\(appName) \(hold.version) isn’t offered: \(appName)’s subscription status couldn’t be read. Check for updates in \(appName).")
         }
@@ -251,10 +268,7 @@ func openDetectionOnly(_ affordance: DetectionOnlyAffordance, app: URL) {
         // the page: the client's launch check installs what it finds when its own
         // "Install automatically" is on (measured, same day). If either switch
         // says no, open the page instead.
-        let backgroundEnabled = (UserDefaults.standard.object(
-            forKey: SetappAutomation.backgroundUpdatesPreference) as? Bool) ?? true
-        if url.scheme == "setapp", backgroundEnabled,
-           SetappAutomation.canUpdateInBackground(userEnabled: true),
+        if url.scheme == "setapp", setappBackgroundUpdateEnabled(),
            let client = SetappAutomation.clientURL() {
             let configuration = NSWorkspace.OpenConfiguration()
             configuration.activates = false
@@ -267,12 +281,25 @@ func openDetectionOnly(_ affordance: DetectionOnlyAffordance, app: URL) {
     }
 }
 
+/// Whether a Setapp deep link will be run as a background update or just opened.
+/// Both switches must agree: the user's preference in Settings, and Setapp's own
+/// "Install automatically". When either says no, opening the page is the honest
+/// offer — and the button says so.
+func setappBackgroundUpdateEnabled() -> Bool {
+    let enabled = (UserDefaults.standard.object(
+        forKey: SetappAutomation.backgroundUpdatesPreference) as? Bool) ?? true
+    return enabled && SetappAutomation.canUpdateInBackground(userEnabled: true)
+}
+
 /// A detection-only button's tooltip, shared by both windows.
 func detectionOnlyHelp(_ affordance: DetectionOnlyAffordance, appName: String) -> String {
     switch affordance {
     case .openPage: return String(localized: "Open the official download page")
     case .openInApp: return String(localized: "Open \(appName)’s built-in updater (it updates itself)")
-    case .openDeepLink: return String(localized: "Open this app in Setapp")
+    case .openDeepLink:
+        return setappBackgroundUpdateEnabled()
+            ? String(localized: "Starts Setapp in the background; it installs its own updates, which may update every outdated Setapp app.")
+            : String(localized: "Open this app in Setapp")
     case .revealInFinder: return String(localized: "Reveal in Finder")
     }
 }
@@ -737,7 +764,7 @@ struct WorkbenchRowAction: View {
             // Where a current row's checkmark would be. A button, like
             // `.orphanedStoreCopy` above: it opens the panel the popover's lock does.
             Button { showSubscriptionHint = true } label: {
-                Label(SubscriptionHoldWording.title, systemImage: "lock.fill")
+                Label(SubscriptionHoldWording.title(hold), systemImage: "lock.fill")
                     .font(.callout).foregroundStyle(.orange)
                     .lineLimit(1).minimumScaleFactor(0.7)
             }
@@ -1024,7 +1051,10 @@ struct WorkbenchRowAction: View {
         switch affordance {
         case .openPage: return String(localized: "Open page")
         case .openInApp: return String(localized: "Open")
-        case .openDeepLink: return String(localized: "Open in Setapp")
+        case .openDeepLink:
+            return setappBackgroundUpdateEnabled()
+                ? String(localized: "Update via Setapp")
+                : String(localized: "Open in Setapp")
         case .revealInFinder: return DetectionOnlyAffordance.revealInFinderTitle
         }
     }

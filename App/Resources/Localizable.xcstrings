@@ -43502,6 +43502,71 @@
         }
       }
     },
+    "Open Setapp": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Setapp öffnen"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abrir Setapp"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ouvrir Setapp"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apri Setapp"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Setappを開く"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abrir o Setapp"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Открыть Setapp"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Setapp'i aç"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开 Setapp"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開啟 Setapp"
+          }
+        }
+      }
+    },
     "Open Settings": {
       "extractionState": "manual",
       "localizations": {
@@ -50168,6 +50233,71 @@
         }
       }
     },
+    "Setapp subscription isn’t active": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Setapp-Abo nicht aktiv"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La suscripción de Setapp no está activa"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "L’abonnement Setapp n’est pas actif"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "L’abbonamento Setapp non è attivo"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Setappのサブスクリプションが有効ではありません"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A assinatura do Setapp não está ativa"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Подписка Setapp не активна"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Setapp aboneliği etkin değil"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Setapp 订阅未生效"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Setapp 訂閱未生效"
+          }
+        }
+      }
+    },
     "Settings": {
       "extractionState": "manual",
       "localizations": {
@@ -55394,6 +55524,71 @@
           "stringUnit": {
             "state": "translated",
             "value": "已可更新至 %@。重新開啟即可套用。"
+          }
+        }
+      }
+    },
+    "Update via Setapp": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Über Setapp aktualisieren"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Actualizar con Setapp"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mettre à jour via Setapp"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aggiorna tramite Setapp"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Setappで更新"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Atualizar pelo Setapp"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Обновить через Setapp"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Setapp ile güncelle"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "通过 Setapp 更新"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "透過 Setapp 更新"
           }
         }
       }
@@ -65553,6 +65748,71 @@
           "stringUnit": {
             "state": "translated",
             "value": "留在這台 Mac 上"
+          }
+        }
+      }
+    },
+    "Starts Setapp in the background; it installs its own updates, which may update every outdated Setapp app.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Startet Setapp im Hintergrund; es installiert seine eigenen Updates und aktualisiert dabei möglicherweise alle veralteten Setapp-Apps."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inicia Setapp en segundo plano; instala sus propias actualizaciones y puede actualizar todas las apps de Setapp desactualizadas."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lance Setapp en arrière-plan ; il installe ses propres mises à jour et peut mettre à jour toutes les apps Setapp obsolètes."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Avvia Setapp in background; installa i propri aggiornamenti e può aggiornare tutte le app Setapp obsolete."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Setappをバックグラウンドで起動します。Setapp自身の更新をインストールし、古いSetappアプリをまとめて更新することがあります。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inicia o Setapp em segundo plano; ele instala as próprias atualizações e pode atualizar todos os apps do Setapp desatualizados."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Запускает Setapp в фоне; он устанавливает свои обновления и может обновить все устаревшие приложения Setapp."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Setapp'i arka planda başlatır; kendi güncellemelerini yükler ve güncel olmayan tüm Setapp uygulamalarını güncelleyebilir."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在后台启动 Setapp；它会安装自己的更新，可能一并更新所有过期的 Setapp 应用。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在背景啟動 Setapp；它會安裝自己的更新，可能一併更新所有過期的 Setapp 應用程式。"
           }
         }
       }
@@ -80772,6 +81032,136 @@
           "stringUnit": {
             "state": "translated",
             "value": "不提供 %1$@ %2$@：無法讀取 %3$@ 的訂閱狀態。請在 %4$@ 中檢查更新。"
+          }
+        }
+      }
+    },
+    "%@ %@ isn’t offered: your Setapp subscription ended on %@. Setapp stops delivering updates then, and its apps stop opening, so renew or sign in to Setapp to update.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ %@ wird nicht angeboten: Dein Setapp-Abo ist am %@ ausgelaufen. Danach liefert Setapp keine Updates mehr und die Apps lassen sich nicht mehr öffnen — verlängere das Abo oder melde dich in Setapp an."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ %@ no se ofrece: tu suscripción de Setapp terminó el %@. Desde entonces Setapp deja de entregar actualizaciones y sus apps dejan de abrirse, así que renueva o inicia sesión en Setapp."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ %@ n’est pas proposé : votre abonnement Setapp a pris fin le %@. Setapp cesse alors de livrer des mises à jour et ses apps ne s’ouvrent plus ; renouvelez ou connectez-vous à Setapp."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ %@ non è proposto: l’abbonamento Setapp è terminato il %@. Da quel momento Setapp non distribuisce più aggiornamenti e le sue app non si aprono più: rinnova o accedi a Setapp."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ %@ は提供されません: Setappのサブスクリプションは %@ に終了しました。以降Setappは更新を配信せず、アプリも開けなくなります。Setappで更新するには更新またはサインインしてください。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ %@ não é oferecido: sua assinatura do Setapp terminou em %@. A partir daí o Setapp deixa de entregar atualizações e os apps param de abrir; renove ou entre no Setapp."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ %@ не предлагается: подписка Setapp закончилась %@. После этого Setapp перестаёт доставлять обновления, а его приложения не открываются — продлите подписку или войдите в Setapp."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ %@ sunulmuyor: Setapp aboneliğiniz %@ tarihinde sona erdi. Sonrasında Setapp güncelleme dağıtmaz ve uygulamaları açılmaz; yenileyin veya Setapp'e giriş yapın."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ %@ 未提供：你的 Setapp 订阅已于 %@ 结束。之后 Setapp 不再下发更新，其应用也无法打开，请续订或登录 Setapp。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ %@ 未提供：你的 Setapp 訂閱已於 %@ 結束。之後 Setapp 不再下發更新，其應用程式也無法開啟，請續訂或登入 Setapp。"
+          }
+        }
+      }
+    },
+    "%@ %@ isn’t offered: your Setapp subscription isn’t active. Open Setapp to renew or sign in, then check again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ %@ wird nicht angeboten: Dein Setapp-Abo ist nicht aktiv. Öffne Setapp, um zu verlängern oder dich anzumelden, und prüfe dann erneut."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ %@ no se ofrece: tu suscripción de Setapp no está activa. Abre Setapp para renovar o iniciar sesión y vuelve a comprobar."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ %@ n’est pas proposé : votre abonnement Setapp n’est pas actif. Ouvrez Setapp pour renouveler ou vous connecter, puis vérifiez à nouveau."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ %@ non è proposto: l’abbonamento Setapp non è attivo. Apri Setapp per rinnovare o accedere, poi controlla di nuovo."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ %@ は提供されません: Setappのサブスクリプションが有効ではありません。Setappを開いて更新またはサインインし、もう一度確認してください。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ %@ não é oferecido: sua assinatura do Setapp não está ativa. Abra o Setapp para renovar ou entrar e verifique novamente."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ %@ не предлагается: подписка Setapp не активна. Откройте Setapp, чтобы продлить или войти, затем проверьте снова."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ %@ sunulmuyor: Setapp aboneliğiniz etkin değil. Yenilemek veya giriş yapmak için Setapp'i açın, sonra tekrar denetleyin."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ %@ 未提供：你的 Setapp 订阅未生效。打开 Setapp 续订或登录后再检查。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ %@ 未提供：你的 Setapp 訂閱未生效。開啟 Setapp 續訂或登入後再檢查。"
           }
         }
       }

@@ -353,6 +353,31 @@ public struct UpdateChecker: Sendable {
             return UpdateResult(app: app, remote: nil, status: .testFlightManaged)
         }
 
+        // Setapp owns the copies its catalogue names, the way Toolbox and
+        // TestFlight own theirs: Setapp's client is the installer, and the
+        // `SUFeedURL` such a build still carries is dead configuration (the
+        // bundle ships no Sparkle at all — measured 2026-11-03). So only the
+        // Setapp source is asked, and its failure is this row's failed check —
+        // not a miss that hands the row to Sparkle and re-offers the vendor's
+        // direct-edition download. Returning before the loop is what makes that
+        // terminal; reporting `.error` (with its transient flag) is what keeps
+        // the failure visible and retryable instead of reading "up to date".
+        if SetappCatalogSource.plausiblySetapp(app),
+           let setapp = sources.compactMap({ $0 as? SetappCatalogSource }).first {
+            do {
+                if let remote = try await setapp.latestVersion(for: app) {
+                    let status = Self.evaluate(installed: app, remote: remote)
+                    Log.check.info("\(label, privacy: .public): Setapp → \(remote.displayVersion ?? "?", privacy: .public) [\(String(describing: status), privacy: .public)]")
+                    return UpdateResult(app: app, remote: remote, status: status)
+                }
+            } catch {
+                Log.check.error("\(label, privacy: .public): Setapp catalogue failed: \(error.localizedDescription, privacy: .public)")
+                var failed = UpdateResult(app: app, remote: nil, status: .error(error.localizedDescription))
+                failed.failureIsTransient = CheckFailureRules.isTransientNetworkError(error)
+                return failed
+            }
+        }
+
         var lastError: String?
         // Whether ANY source failed transiently, not just the last one: a feed that
         // timed out may answer on a retry even when a later source's 404 is the

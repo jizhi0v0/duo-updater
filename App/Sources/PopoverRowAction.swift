@@ -177,7 +177,7 @@ struct PopoverRowAction: View {
                     .foregroundStyle(.orange)
             }
             .buttonStyle(.borderless)
-            .help(SubscriptionHoldWording.title)
+            .help(SubscriptionHoldWording.title(hold))
             .popover(isPresented: $showSubscriptionHint, arrowEdge: .bottom) {
                 subscriptionHintPopover(hold)
             }

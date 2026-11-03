@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import os
 
 @testable import DuoUpdaterCore
 
@@ -116,18 +117,25 @@ struct SetappCatalogSourceTests {
         #expect(answer.version == "3148")
     }
 
-    @Test func aCatalogFailureDoesNotHandTheRowToTheVendorFeed() async throws {
+    @Test func aCatalogueFailureIsATerminalRetryableCheckFailure() async throws {
         let source = SetappCatalogSource(
             releases: { throw URLError(.timedOut) },
             subscription: { nil },
             now: { Date() })
-        // Not a throw: a throw lets the checker fall through to Sparkle, which
-        // reads the dead vendor feed — the direct-edition offer this source is
-        // here to stop.
-        let answer = try #require(try await source.latestVersion(for: app()))
-        #expect(answer.shortVersion == "1.0")
-        #expect(answer.downloadURL == nil)
-        #expect(answer.sourceName == "Setapp")
+        let spy = SparkleSpy()
+        let checker = UpdateChecker(sources: [source, spy])
+        let results = await checker.check([app()])
+
+        // Sparkle reads the dead vendor feed and would offer the direct edition.
+        #expect(spy.calls == 0)
+        let result = try #require(results.first)
+        guard case .error = result.status else {
+            Issue.record("expected .error, got \(result.status)")
+            return
+        }
+        // A timeout is retryable, so CheckFailureRules keeps the row in the retry
+        // path instead of treating it as a settled "up to date".
+        #expect(result.failureIsTransient)
     }
 
     @Test func noReleaseThatRunsHereIsStillAnAnswer() async throws {
@@ -315,5 +323,24 @@ struct SetappCatalogSourceTests {
     @Test func noReadableCustomerMeansNoState() {
         #expect(SetappSubscription.state(from: []) == nil)
         #expect(SetappSubscription.state(from: [["subscriptionState": "paid"]]) == nil)
+    }
+}
+
+
+/// A source that would answer if it were asked. The point of the Setapp tests is
+/// that the checker never asks it.
+private final class SparkleSpy: UpdateSource, @unchecked Sendable {
+    let name = "Sparkle"
+    var answersAppStoreCopies: Bool { false }
+
+    private let counter = OSAllocatedUnfairLock(initialState: 0)
+    var calls: Int { counter.withLock { $0 } }
+
+    func latestVersion(for app: InstalledApp) async throws -> RemoteVersion? {
+        counter.withLock { $0 += 1 }
+        return RemoteVersion(
+            shortVersion: "9.9.9", version: "999",
+            downloadURL: URL(string: "https://example.com/direct.dmg"),
+            sourceName: name)
     }
 }

@@ -105,6 +105,54 @@ struct SetappCatalogSourceTests {
         #expect(release.newestCompatible(osVersion: "15.0")?.shortVersion == "2.1")
     }
 
+    @Test func aCopyAheadOfTheStableCatalogueIsNotADowngrade() async throws {
+        // A beta left installed after the switch went off: the stable catalogue is
+        // behind it, and answering with that release drew "7.1.0 ↓ 6.6.2".
+        let json = """
+        {"data":{"relationships":{"vendors":{"data":[
+          {"relationships":{"applications":{"data":[
+            {"attributes":{"bundle_id":"com.surteesstudios.Bartender-setapp","name":"Bartender","public_id":"BBBB","slugs":[]},
+             "relationships":{"versions":{"data":[
+               {"attributes":{"marketing_version":"6.6.2","build_number":"662000","release_date":1700300000,"min_os_version":"14.0"}}
+             ]}}}
+          ]}}}
+        ]}}}}
+        """
+        let releases = try SetappCatalog.parse(Data(json.utf8))
+        let source = SetappCatalogSource(
+            releases: { releases },
+            subscription: {
+                self.state(expires: "2099-01-01 00:00:00 +0000", grace: "2099-01-15 00:00:00 +0000")
+            },
+            now: { Date() },
+            betaUpdatesEnabled: { false })
+        let installed = InstalledApp(
+            name: "Bartender", bundleID: "com.surteesstudios.Bartender-setapp",
+            shortVersion: "7.1.0", buildVersion: "700013",
+            path: URL(fileURLWithPath: "/Applications/Setapp/Bartender 7 Setapp.app"),
+            isMASApp: false, sparkleFeedURL: nil)
+        let answer = try #require(try await source.latestVersion(for: installed))
+        #expect(answer.shortVersion == "7.1.0")
+        // The installed build, not the catalogue's 662000.
+        #expect(answer.version == "700013")
+        let checker = UpdateChecker(sources: [source, SparkleSpy()])
+        let result = try #require(await checker.check([installed]).first)
+        #expect(result.status == .upToDate)
+    }
+
+    @Test func aSetappEditionUsesTheBaseAppsReleaseNotes() {
+        // Setapp ships its own id; the vendor's release notes are keyed by the
+        // base one. Without the fallback the notes pane was empty.
+        let edition = InstalledApp(
+            name: "Moshi", bundleID: "app.getmoshi.desktop-setapp",
+            shortVersion: "0.5.13", buildVersion: "0.5.13",
+            path: URL(fileURLWithPath: "/Applications/Setapp/Moshi.app"),
+            isMASApp: false, sparkleFeedURL: nil)
+        let result = UpdateResult(app: edition, remote: nil, status: .upToDate)
+        let recipe = try? #require(ChangelogRecipeSelection.recipe(for: result))
+        #expect(recipe?.bundleID == "app.getmoshi.desktop")
+    }
+
     @Test func aBuildOnlyReleaseIsStillAnUpdate() async throws {
         // Same marketing version, newer build: the build must survive, otherwise
         // the checker's marketing fallback calls it current.

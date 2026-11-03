@@ -96,6 +96,16 @@ public struct SetappCatalogSource: UpdateSource {
             if betaUpdatesEnabled(), !Self.isNewer(version, than: app) {
                 throw SetappError.betaChannelUnverifiable
             }
+            // The installed copy is AHEAD of Setapp's stable catalogue (a beta
+            // left in place after the switch went off, most often). Answering
+            // with the older stable release draws "7.1.0 ↓ 6.6.2", which reads
+            // as a downgrade offer we cannot and must not make. Answer as
+            // installed instead: there is nothing to install from this channel.
+            if Self.isOlder(version, than: app) {
+                Log.source.notice(
+                    "setapp: \(bundleID, privacy: .public) installed \(app.shortVersion ?? "?", privacy: .public) is ahead of the stable catalogue's \(version.shortVersion ?? "?", privacy: .public); answering as installed rather than drawing a downgrade")
+                return Self.asInstalled(app, name: name)
+            }
             return answer(for: app, release: release, version: version)
         }
 
@@ -181,6 +191,22 @@ public struct SetappCatalogSource: UpdateSource {
             pageURL: Self.deepLink(for: release) ?? release.pageURL,
             minimumSystemVersion: version.minimumSystemVersion,
             sourceName: name)
+    }
+
+    /// Whether the catalogue's release is OLDER than the copy on disk.
+    static func isOlder(_ version: SetappVersion, than app: InstalledApp) -> Bool {
+        if let short = version.shortVersion, let installed = app.shortVersion {
+            let order = VersionComparator.compare(short, installed)
+            if order != .orderedSame { return order == .orderedAscending }
+            if let build = version.build, let installedBuild = app.buildVersion {
+                return VersionComparator.compare(build, installedBuild) == .orderedAscending
+            }
+            return false
+        }
+        if let build = version.build, let installed = app.buildVersion {
+            return VersionComparator.compare(build, installed) == .orderedAscending
+        }
+        return false
     }
 
     /// The build to state on an answer: the catalogue's, but only when the

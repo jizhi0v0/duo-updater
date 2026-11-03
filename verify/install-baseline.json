@@ -7,11 +7,14 @@
       "sweepsSinceComment" : 0
     },
     "install:github:AppFlowy-IO\/AppFlowy:stable" : {
-      "consecutiveActionable" : 1,
+      "consecutiveActionable" : 2,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
+      "issueNumber" : 1812,
+      "lastCommentedAt" : "2026-11-03T22:35:56Z",
       "lastSignature" : "identityChanged: Sparkle key none → Bs++",
-      "sweepsSinceComment" : 1
+      "previousSignature" : "identityChanged: Sparkle key none → Bs++",
+      "sweepsSinceComment" : 0
     },
     "install:github:AprilNEA\/OpenLogi:stable" : {
       "closedAt" : "2026-10-19T11:23:39Z",
@@ -1046,14 +1049,14 @@
       "sweepsSinceComment" : 0
     },
     "install:github:schuyler\/macdown3000:stable" : {
-      "consecutiveActionable" : 2,
+      "consecutiveActionable" : 3,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 1799,
       "lastCommentedAt" : "2026-11-03T13:08:24Z",
       "lastSignature" : "identityChanged: Sparkle key none → dYc+",
       "previousSignature" : "identityChanged: Sparkle key none → dYc+",
-      "sweepsSinceComment" : 0
+      "sweepsSinceComment" : 1
     },
     "install:github:sqlitebrowser\/sqlitebrowser:stable" : {
       "consecutiveActionable" : 0,
@@ -1468,6 +1471,12 @@
       "sweepsSinceComment" : 0
     },
     "install:vendor:com.cu4uc.mounty:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
+    "install:vendor:com.deepseek.dsh:alpha" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
@@ -2369,5 +2378,5 @@
     }
   },
   "schemaVersion" : 1,
-  "updatedAt" : "2026-11-03T13:08:24Z"
+  "updatedAt" : "2026-11-03T22:35:56Z"
 }

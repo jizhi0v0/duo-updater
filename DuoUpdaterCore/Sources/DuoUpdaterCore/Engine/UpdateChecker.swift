@@ -362,7 +362,7 @@ public struct UpdateChecker: Sendable {
         // direct-edition download. Returning before the loop is what makes that
         // terminal; reporting `.error` (with its transient flag) is what keeps
         // the failure visible and retryable instead of reading "up to date".
-        if SetappCatalogSource.plausiblySetapp(app),
+        if SetappCatalogSource.owns(app),
            let setapp = sources.compactMap({ $0 as? SetappCatalogSource }).first {
             do {
                 if let remote = try await setapp.latestVersion(for: app) {

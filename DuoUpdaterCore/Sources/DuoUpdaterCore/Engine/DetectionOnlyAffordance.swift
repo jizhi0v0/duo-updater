@@ -32,17 +32,49 @@ public enum DetectionOnlyAffordance: Sendable, Equatable {
     /// choice of app to whatever claims the scheme, which need not be this copy,
     /// or anything. Same hand-off `AppListModel.openSelfUpdater` makes.
     case openInApp(URL)
+    /// A deep link owned by ANOTHER app, handed to that app by path. Setapp's
+    /// `setapp://install?app_id=…` is the case: the copy on the row is the app
+    /// Setapp manages, not the app that owns the scheme, so `openInApp` would
+    /// hand it to the wrong bundle. Measured 2026-11-03: the link opens Setapp on
+    /// the app's page (an installed copy gets "already installed — open it?"),
+    /// it does not itself install.
+    case openWithApp(URL, app: URL)
     /// No page at all. The only honest offer left is showing the user where the
     /// app lives, so they can deal with it by hand — every host renders this the
     /// same way, so its copy lives here.
     case revealInFinder
 
     public static func resolve(pageURL: URL?) -> Self {
+        resolve(pageURL: pageURL, setappClient: setappClientURL())
+    }
+
+    /// The decision with the client lookup already done, so a test can speak for
+    /// both a Mac with Setapp and one without.
+    static func resolve(pageURL: URL?, setappClient: URL?) -> Self {
         guard let pageURL else { return .revealInFinder }
+        if pageURL.scheme == "setapp" {
+            // Setapp's scheme is registered by its agent, and the client is the
+            // app that services it. Without the client installed there is no one
+            // to hand it to, and a `setapp://` URL opened by LaunchServices would
+            // at best be a no-op — reveal the copy instead of pretending.
+            return setappClient.map { .openWithApp(pageURL, app: $0) } ?? .revealInFinder
+        }
         if let scheme = pageURL.scheme, scheme != "http", scheme != "https" {
             return .openInApp(pageURL)
         }
         return .openPage(pageURL)
+    }
+
+    /// Setapp ships into one of two documented roots, depending on the account:
+    /// `/Applications/Setapp.app` for an admin account, `~/Applications` for a
+    /// standard one ([Fixing permissions errors](https://support.setapp.com/hc/en-us/articles/360010208439-Fixing-permissions-errors-in-Setapp)).
+    static func setappClientURL() -> URL? {
+        let candidates = [
+            URL(fileURLWithPath: "/Applications/Setapp.app"),
+            FileManager.default.homeDirectoryForCurrentUser
+                .appendingPathComponent("Applications/Setapp.app"),
+        ]
+        return candidates.first { FileManager.default.fileExists(atPath: $0.path) }
     }
 
     /// Localized title for the `.revealInFinder` case only. The page cases have

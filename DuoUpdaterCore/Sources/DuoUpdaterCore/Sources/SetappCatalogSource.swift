@@ -94,7 +94,7 @@ public struct SetappCatalogSource: UpdateSource {
                 version: app.buildVersion,
                 marketingMatchesBundle: true,
                 downloadURL: nil,
-                pageURL: release.pageURL,
+                pageURL: Self.deepLink(for: release) ?? release.pageURL,
                 sourceName: name,
                 subscriptionHold: SubscriptionHold(
                     version: release.shortVersion ?? release.build ?? "?",
@@ -114,9 +114,21 @@ public struct SetappCatalogSource: UpdateSource {
             version: release.build,
             marketingMatchesBundle: true,
             downloadURL: nil,
-            pageURL: release.pageURL,
+            pageURL: Self.deepLink(for: release) ?? release.pageURL,
             minimumSystemVersion: release.minimumSystemVersion,
             sourceName: name)
+    }
+
+    /// `setapp://install?app_id=<public_id>` — the uuid form is the one the
+    /// agent accepts (the numeric id is rejected: "URL is not a valid
+    /// install-from-URL link", measured 2026-11-03). It opens the app's page in
+    /// Setapp; it does not install by itself.
+    static func deepLink(for release: SetappRelease) -> URL? {
+        var components = URLComponents()
+        components.scheme = "setapp"
+        components.host = "install"
+        components.queryItems = [URLQueryItem(name: "app_id", value: release.publicID)]
+        return components.url
     }
 
     /// Whether this copy could be one of Setapp's, without reading the catalogue.

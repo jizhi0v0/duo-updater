@@ -683,6 +683,7 @@ struct PopoverRowAction: View {
     private func openButtonTitle(_ affordance: DetectionOnlyAffordance) -> String {
         switch affordance {
         case .openPage, .openInApp: return String(localized: "Open")
+        case .openWithApp: return String(localized: "Open in Setapp")
         case .revealInFinder: return DetectionOnlyAffordance.revealInFinderTitle
         }
     }

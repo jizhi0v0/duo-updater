@@ -116,7 +116,7 @@ struct SetappCatalogSourceTests {
         #expect(answer.shortVersion == "1.3.0")
         #expect(answer.version == "130")
         #expect(answer.downloadURL == nil)
-        #expect(answer.pageURL == URL(string: "https://setapp.com/apps/thing"))
+        #expect(answer.pageURL == URL(string: "setapp://install?app_id=AAAA-1111"))
         #expect(answer.sourceName == "Setapp")
         #expect(answer.subscriptionHold == nil)
     }
@@ -147,6 +147,22 @@ struct SetappCatalogSourceTests {
         #expect(answer.shortVersion == "1.0")
         #expect(answer.pageURL == nil)
         #expect(answer.subscriptionHold == nil)
+    }
+
+    // MARK: - Affordance
+
+    @Test func theSetappDeepLinkIsHandedToTheSetappClient() {
+        let link = try! #require(URL(string: "setapp://install?app_id=AAAA-1111"))
+        let client = URL(fileURLWithPath: "/Applications/Setapp.app")
+        #expect(DetectionOnlyAffordance.resolve(pageURL: link, setappClient: client)
+            == .openWithApp(link, app: client))
+        // No client: do not pretend. Revealing the copy is the honest offer.
+        #expect(DetectionOnlyAffordance.resolve(pageURL: link, setappClient: nil) == .revealInFinder)
+        // Every other custom scheme still belongs to the app on the row.
+        let chrome = try! #require(URL(string: "chrome://settings/help"))
+        #expect(DetectionOnlyAffordance.resolve(pageURL: chrome, setappClient: nil) == .openInApp(chrome))
+        let page = try! #require(URL(string: "https://setapp.com/apps/thing"))
+        #expect(DetectionOnlyAffordance.resolve(pageURL: page, setappClient: nil) == .openPage(page))
     }
 
     // MARK: - Subscription

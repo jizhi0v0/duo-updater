@@ -67,7 +67,12 @@ INDEX = os.path.join(AUD, "README.md")
 
 # Docs in this directory that are not per-app audits. Keep this short: anything
 # added here is a doc the bundle-id check can no longer protect.
-NON_APP = {"README.md", "issue-111-appcast-channel-population.md"}
+NON_APP = {
+    "README.md",
+    "issue-111-appcast-channel-population.md",
+    # A channel, not an app: Setapp editions of many apps share one audit.
+    "com-setapp-managed.md",
+}
 
 # Phrases that describe the machine rather than the app. Each is a shape that
 # actually appeared here, not a guess at what might.

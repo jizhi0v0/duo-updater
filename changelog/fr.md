@@ -2,6 +2,32 @@
 
 Ceci est la traduction de `CHANGELOG.md`. La version anglaise fait autorité. Les versions non énumérées ici reviennent automatiquement à l’anglais.
 
+## 0.5.18
+
+**Neuf apps de plus sont prises en charge.** CleanMyMac 5, Gemini 2, LosslessCut, Super Productivity, ActivityWatch, GitUp, Requestly, Reqable et FlyEnv ont droit à la vérification des mises à jour, aux notes de version et à la mise à jour en un clic.
+
+**Les mises à jour de Discord s’installent de nouveau.** La mise à jour en un clic de Discord stable s’était mise à échouer au téléchargement, et l’adresse utilisée pouvait livrer une compilation plus ancienne que la version affichée ; elle récupère maintenant le fichier publié avec cette version précise.
+
+**Les mises à jour de Xcode vont au bout au lieu de s’arrêter sur un refus.** Un Xcode en cours d’exécution télécharge et vérifie la mise à jour en restant ouvert, puis vous demande de le relancer. « Tout mettre à jour » inclut Xcode lorsque vous êtes connecté à un compte Apple Developer et qu’aucune copie ne tourne, et une copie parallèle nommée d’après sa version est renommée pour correspondre à la version qu’elle est devenue.
+
+**Antigravity IDE se met à jour en un clic.** Il pouvait vous signaler une nouvelle version et ne proposer que d’ouvrir l’app.
+
+**Une mise à jour préparée ne relance plus une app qui a un assistant en cours d’exécution, comme VMPal avec une machine virtuelle ouverte.** « Relancer » fait désormais la même vérification que l’installation, et une app qui refuse de quitter l’indique sur sa ligne au lieu de la laisser tourner.
+
+**Gemini se met à jour en un clic même quand son lanceur tourne.** Le lanceur redémarre de toute façon depuis le nouveau paquet à chaque lancement : vous demander de le quitter d’abord était inutile.
+
+**Les apps rangées dans un dossier à l’intérieur de Applications sont trouvées.** Un dossier propre à l’éditeur, comme `/Applications/Adobe Photoshop 2025/`, ne cache plus son contenu. Réglages › Applications ignorées affiche l’icône, le nom et le dossier de chaque app, pour distinguer deux copies de même nom, et une app qui n’est plus installée le dit.
+
+**Cliquer sur le nom d’une app ou d’un outil dans le panneau flottant l’ouvre dans l’atelier.** Une ligne qui explique pourquoi quelque chose a été retenu mène maintenant à l’endroit où agir.
+
+**OpenCode 2 est signalé au lieu d’afficher « à jour ».** La ligne de la CLI voit la branche 2.0 et vous donne sa propre commande de mise à niveau, et l’app de bureau suit le nouveau canal de l’éditeur.
+
+**Les notes de version de VS Code sont de nouveau lues.** Celles de DeepSeek Harness s’affichent désormais aussi dans DuoUpdater.
+
+**Corrections.** Les étiquettes de ligne en anglais affichent « Ignored » au lieu de « Ignored (row status) », et `duo unignore` donne tout de suite un verdict à la ligne qu’il fait réapparaître.
+
+**Sous le capot.** La vérification qui empêche de remplacer une app pendant qu’un assistant tourne continue de fonctionner après l’échange des fichiers de l’app.
+
 ## 0.5.17
 
 **La liste des apps se trie désormais par nouveauté.** Un menu « Trier » dans la barre d’outils de la fenêtre et dans le panneau flottant bascule entre « Nom » et « Récent ». « Récent » utilise la date de publication indiquée par l’éditeur : une mise à jour parue cette semaine passe donc avant celle du mois dernier ; les apps dont la source ne donne pas de date restent dans l’ordre alphabétique.

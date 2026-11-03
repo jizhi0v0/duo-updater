@@ -2,6 +2,32 @@
 
 Esta es la traducción al español del archivo CHANGELOG.md. La versión en inglés es la autoridad en caso de discrepancias. Los números de versión no incluidos aquí se mostrarán automáticamente en inglés en la ventana de Novedades.
 
+## 0.5.18
+
+**Nueve apps más son compatibles.** CleanMyMac 5, Gemini 2, LosslessCut, Super Productivity, ActivityWatch, GitUp, Requestly, Reqable y FlyEnv ya tienen comprobación de actualizaciones, notas de versión y actualización con un clic.
+
+**Las actualizaciones de Discord vuelven a instalarse.** La actualización con un clic de Discord estable había empezado a fallar en la descarga, y la dirección que usaba podía darte una compilación más antigua que la versión de la fila; ahora toma el archivo publicado con esa versión exacta.
+
+**Las actualizaciones de Xcode terminan en vez de detenerse con un rechazo.** Un Xcode en ejecución descarga y verifica la actualización mientras sigue abierto, y luego te pide reiniciarlo. «Actualizar todo» incluye Xcode cuando has iniciado sesión en una cuenta de Apple Developer y no hay ninguna copia en ejecución, y una copia paralela con nombre de versión se renombra para coincidir con la versión que ahora es.
+
+**Antigravity IDE ya se actualiza con un clic.** Antes podía avisarte de que había una versión nueva y solo ofrecía abrir la app.
+
+**Una actualización preparada ya no reinicia una app que tiene un asistente en ejecución dentro, como VMPal con una máquina virtual abierta.** «Reiniciar» hace la misma comprobación que la instalación, y una app que se niega a cerrarse lo dice en su fila en vez de dejarla girando.
+
+**Gemini se actualiza con un clic aunque su lanzador esté en ejecución.** El lanzador se reinicia desde el paquete nuevo en cada inicio de todos modos, así que pedirte que lo cerraras antes era innecesario.
+
+**Se encuentran las apps guardadas en una carpeta dentro de Aplicaciones.** Una carpeta del propio desarrollador, como `/Applications/Adobe Photoshop 2025/`, ya no oculta lo que hay dentro. Ajustes › Apps ignoradas muestra el icono, el nombre y la carpeta de cada app, para distinguir dos copias con el mismo nombre, y una que ya no está instalada lo indica.
+
+**Hacer clic en el nombre de una app o de una herramienta en el panel flotante la abre en el banco de trabajo.** Una fila que explica por qué se retuvo algo ahora lleva al lugar donde puedes actuar.
+
+**OpenCode 2 se notifica en vez de decir «actualizado».** La fila de la CLI ve la línea 2.0 y te da su propio comando de actualización, y la app de escritorio sigue el nuevo canal del desarrollador.
+
+**Las notas de versión de VS Code se leen de nuevo.** Las de DeepSeek Harness también aparecen ahora en DuoUpdater.
+
+**Correcciones.** Las etiquetas de fila en inglés dicen «Ignored» en vez de «Ignored (row status)», y `duo unignore` da veredicto de inmediato a la fila que vuelve a mostrar.
+
+**Bajo el capó.** La comprobación que impide reemplazar una app con un asistente en ejecución sigue funcionando después de que se hayan intercambiado los archivos de la app.
+
 ## 0.5.17
 
 **La lista de apps ahora se ordena por lo más reciente.** Un menú «Ordenar» en la barra de herramientas de la ventana y en el panel flotante alterna entre «Nombre» y «Recientes». «Recientes» usa la fecha de publicación que indica el propio desarrollador, así que una actualización publicada esta semana aparece antes que una del mes pasado; las apps cuya fuente no indica fecha mantienen el orden alfabético.

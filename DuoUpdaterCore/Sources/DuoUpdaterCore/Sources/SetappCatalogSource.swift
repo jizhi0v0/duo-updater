@@ -166,7 +166,11 @@ public struct SetappCatalogSource: UpdateSource {
     ) -> RemoteVersion {
         RemoteVersion(
             shortVersion: version.shortVersion,
-            version: version.build,
+            // No build: `evaluate` prefers builds when both sides state one, and
+            // Setapp's builds are per-branch (4.1/410 against 3.14.8/3148), so a
+            // build comparison would call a new major older. The marketing string
+            // IS the bundle's own, so the checker's marketing fallback is exact.
+            version: nil,
             marketingMatchesBundle: true,
             downloadURL: nil,
             pageURL: deepLink(for: release) ?? release.pageURL,
@@ -236,13 +240,15 @@ public struct SetappCatalogSource: UpdateSource {
     /// orders on — then the marketing string, then "no version at all counts as
     /// newer", the safe side every other source takes.
     static func isNewer(_ version: SetappVersion, than app: InstalledApp) -> Bool {
-        if let build = version.build, let installed = app.buildVersion,
-           VersionComparator.compare(build, installed) == .orderedDescending {
-            return true
+        // Marketing first, deliberately. Setapp numbers builds per branch, and a
+        // branch's build has no order against another branch's: 4.1 is build 410
+        // while 3.14.8 is 3148, so a build-first answer calls the new major older
+        // than the copy it replaces.
+        if let short = version.shortVersion, let installed = app.shortVersion {
+            return VersionComparator.compare(short, installed) == .orderedDescending
         }
-        if let short = version.shortVersion, let installed = app.shortVersion,
-           VersionComparator.compare(short, installed) == .orderedDescending {
-            return true
+        if let build = version.build, let installed = app.buildVersion {
+            return VersionComparator.compare(build, installed) == .orderedDescending
         }
         return app.buildVersion == nil && app.shortVersion == nil
     }

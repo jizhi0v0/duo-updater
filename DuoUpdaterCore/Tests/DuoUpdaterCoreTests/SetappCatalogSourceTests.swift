@@ -147,7 +147,29 @@ struct SetappCatalogSourceTests {
             isMASApp: false, sparkleFeedURL: nil)
         let answer = try #require(try await source.latestVersion(for: installed))
         #expect(answer.shortVersion == "3.14.8")
-        #expect(answer.version == "3148")
+        #expect(answer.version == nil)
+
+        // And on a Mac that can run the major, the checker must see it: build 410
+        // is numerically below 3148, so a stated build would have suppressed it.
+        let modern = SetappCatalogSource(
+            releases: { releases },
+            subscription: {
+                self.state(expires: "2099-01-01 00:00:00 +0000", grace: "2099-01-15 00:00:00 +0000")
+            },
+            now: { Date() },
+            osVersion: { "27.0" })
+        let checker = UpdateChecker(sources: [modern, SparkleSpy()])
+        let major = InstalledApp(
+            name: "Permute", bundleID: "com.example.permute-setapp",
+            shortVersion: "3.14.8", buildVersion: "3148",
+            path: URL(fileURLWithPath: "/Applications/Setapp/Permute.app"),
+            isMASApp: false, sparkleFeedURL: nil)
+        let result = try #require(await checker.check([major]).first)
+        guard case .updateAvailable(let latest) = result.status else {
+            Issue.record("expected the 4.1 major to be offered, got \(result.status)")
+            return
+        }
+        #expect(latest == "4.1")
     }
 
     @Test func aCatalogueFailureIsATerminalRetryableCheckFailure() async throws {
@@ -258,7 +280,9 @@ struct SetappCatalogSourceTests {
 
         let answer = try #require(try await source.latestVersion(for: app()))
         #expect(answer.shortVersion == "1.3.0")
-        #expect(answer.version == "130")
+        // No build is stated: Setapp numbers builds per branch, and the checker
+        // prefers builds when both sides have one (see `offer`).
+        #expect(answer.version == nil)
         #expect(answer.downloadURL == nil)
         #expect(answer.pageURL == URL(string: "setapp://install?app_id=AAAA-1111"))
         #expect(answer.sourceName == "Setapp")

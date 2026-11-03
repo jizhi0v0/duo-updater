@@ -62,6 +62,101 @@ struct SetappCatalogSourceTests {
         #expect(thing.publicID == "AAAA-1111")
         #expect(thing.pageURL == URL(string: "https://setapp.com/apps/thing"))
         #expect(releases["com.example.direct"]?.shortVersion == "9.9.9")
+        #expect(thing.versions.count == 2)
+    }
+
+    @Test func picksTheNewestReleaseThisMacCanRun() throws {
+        // The catalogue keeps an older branch alive for older macOS: the newest
+        // row may need a system this Mac does not run (Permute ships 4.1 for
+        // macOS 26 beside 3.14.8 for 11+).
+        let json = """
+        {"data":{"relationships":{"vendors":{"data":[
+          {"relationships":{"applications":{"data":[
+            {"attributes":{"bundle_id":"com.example.permute-setapp","name":"Permute","public_id":"CCCC-3333","slugs":[{"slug":"permute","primary":true}]},
+             "relationships":{"versions":{"data":[
+               {"attributes":{"marketing_version":"4.1","build_number":"410","release_date":1700200000,"min_os_version":"26.0"}},
+               {"attributes":{"marketing_version":"3.14.8","build_number":"3148","release_date":1700100000,"min_os_version":"11.0"}}
+             ]}}}
+          ]}}}
+        ]}}}}
+        """
+        let release = try #require(try SetappCatalog.parse(Data(json.utf8))["com.example.permute-setapp"])
+        #expect(release.newestCompatible(osVersion: "15.0")?.shortVersion == "3.14.8")
+        #expect(release.newestCompatible(osVersion: "27.0")?.shortVersion == "4.1")
+        #expect(release.newestCompatible(osVersion: "10.0") == nil)
+    }
+
+    @Test func offersTheNewestReleaseThatRunsHereNotTheNewestStanding() async throws {
+        let json = """
+        {"data":{"relationships":{"vendors":{"data":[
+          {"relationships":{"applications":{"data":[
+            {"attributes":{"bundle_id":"com.example.permute-setapp","name":"Permute","public_id":"CCCC-3333","slugs":[]},
+             "relationships":{"versions":{"data":[
+               {"attributes":{"marketing_version":"4.1","build_number":"410","release_date":1700200000,"min_os_version":"26.0"}},
+               {"attributes":{"marketing_version":"3.14.8","build_number":"3148","release_date":1700100000,"min_os_version":"11.0"}}
+             ]}}}
+          ]}}}
+        ]}}}}
+        """
+        let releases = try SetappCatalog.parse(Data(json.utf8))
+        let source = SetappCatalogSource(
+            releases: { releases },
+            subscription: {
+                self.state(expires: "2099-01-01 00:00:00 +0000", grace: "2099-01-15 00:00:00 +0000")
+            },
+            now: { Date(timeIntervalSince1970: 1_700_000_000) },
+            osVersion: { "15.0" })
+        let installed = InstalledApp(
+            name: "Permute", bundleID: "com.example.permute-setapp",
+            shortVersion: "3.14.7", buildVersion: "3147",
+            path: URL(fileURLWithPath: "/Applications/Setapp/Permute.app"),
+            isMASApp: false, sparkleFeedURL: nil)
+        let answer = try #require(try await source.latestVersion(for: installed))
+        #expect(answer.shortVersion == "3.14.8")
+        #expect(answer.version == "3148")
+    }
+
+    @Test func aCatalogFailureDoesNotHandTheRowToTheVendorFeed() async throws {
+        let source = SetappCatalogSource(
+            releases: { throw URLError(.timedOut) },
+            subscription: { nil },
+            now: { Date() })
+        // Not a throw: a throw lets the checker fall through to Sparkle, which
+        // reads the dead vendor feed — the direct-edition offer this source is
+        // here to stop.
+        let answer = try #require(try await source.latestVersion(for: app()))
+        #expect(answer.shortVersion == "1.0")
+        #expect(answer.downloadURL == nil)
+        #expect(answer.sourceName == "Setapp")
+    }
+
+    @Test func noReleaseThatRunsHereIsStillAnAnswer() async throws {
+        let json = """
+        {"data":{"relationships":{"vendors":{"data":[
+          {"relationships":{"applications":{"data":[
+            {"attributes":{"bundle_id":"com.example.permute-setapp","name":"Permute","public_id":"CCCC-3333","slugs":[]},
+             "relationships":{"versions":{"data":[
+               {"attributes":{"marketing_version":"4.1","build_number":"410","release_date":1700200000,"min_os_version":"26.0"}}
+             ]}}}
+          ]}}}
+        ]}}}}
+        """
+        let releases = try SetappCatalog.parse(Data(json.utf8))
+        let source = SetappCatalogSource(
+            releases: { releases },
+            subscription: {
+                self.state(expires: "2099-01-01 00:00:00 +0000", grace: "2099-01-15 00:00:00 +0000")
+            },
+            now: { Date() },
+            osVersion: { "15.0" })
+        let installed = InstalledApp(
+            name: "Permute", bundleID: "com.example.permute-setapp",
+            shortVersion: "3.14.7", buildVersion: "3147",
+            path: URL(fileURLWithPath: "/Applications/Setapp/Permute.app"),
+            isMASApp: false, sparkleFeedURL: nil)
+        let answer = try #require(try await source.latestVersion(for: installed))
+        #expect(answer.shortVersion == "3.14.7")
+        #expect(answer.subscriptionHold == nil)
     }
 
     @Test func rejectsAPayloadThatIsNotTheCatalogue() {

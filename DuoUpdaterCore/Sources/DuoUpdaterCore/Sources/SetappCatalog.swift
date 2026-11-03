@@ -20,6 +20,20 @@ import Foundation
 /// `release_date`, `min_os_version` and `public_id` (the uuid the client's
 /// `setapp://install?app_id=…` deep link takes; the numeric `ZIDENTIFIER` in the
 /// client's CoreData store is NOT that id).
+public struct SetappVersion: Sendable, Equatable {
+    public let shortVersion: String?
+    public let build: String?
+    public let releaseDate: Date?
+    public let minimumSystemVersion: String?
+
+    public init(shortVersion: String?, build: String?, releaseDate: Date?, minimumSystemVersion: String?) {
+        self.shortVersion = shortVersion
+        self.build = build
+        self.releaseDate = releaseDate
+        self.minimumSystemVersion = minimumSystemVersion
+    }
+}
+
 public struct SetappRelease: Sendable, Equatable {
     /// The Setapp edition's signed bundle identifier — always `…-setapp` for an
     /// app Setapp publishes, because Setapp mandates the suffix.
@@ -27,28 +41,42 @@ public struct SetappRelease: Sendable, Equatable {
     public let name: String
     /// The uuid Setapp's deep links address this app by.
     public let publicID: String
-    public let shortVersion: String?
-    public let build: String?
-    public let releaseDate: Date?
-    public let minimumSystemVersion: String?
-    /// The human page for this app. This — not the `setapp://` deep link — is what
-    /// a row can open today: the deep link validates only in its uuid form and,
-    /// for an installed app, merely offers to open it (measured 2026-11-03).
+    /// Every release the channel publishes for this app, newest first. More than
+    /// one matters because Setapp keeps an older branch alive for older macOS:
+    /// the newest row can be a major that needs a newer system than this Mac runs.
+    public let versions: [SetappVersion]
+    /// The human page for this app, when the catalogue names a slug.
     public let pageURL: URL?
+
+    /// The newest release, whatever it requires. For display and for tests; the
+    /// source asks `newestCompatible(osVersion:)` before offering anything.
+    public var newest: SetappVersion? { versions.first }
+    public var shortVersion: String? { newest?.shortVersion }
+    public var build: String? { newest?.build }
+    public var releaseDate: Date? { newest?.releaseDate }
+    public var minimumSystemVersion: String? { newest?.minimumSystemVersion }
 
     public init(
         bundleID: String, name: String, publicID: String,
-        shortVersion: String?, build: String?, releaseDate: Date?,
-        minimumSystemVersion: String?, pageURL: URL?
+        versions: [SetappVersion], pageURL: URL?
     ) {
         self.bundleID = bundleID
         self.name = name
         self.publicID = publicID
-        self.shortVersion = shortVersion
-        self.build = build
-        self.releaseDate = releaseDate
-        self.minimumSystemVersion = minimumSystemVersion
+        self.versions = versions
         self.pageURL = pageURL
+    }
+
+    /// The newest release this Mac can run, by the same OS-window predicate every
+    /// other source uses (`OSWindowRefusal`, whose floor is
+    /// `SignatureVerifier.canRun` — #640). nil when no published release runs here.
+    public func newestCompatible(osVersion: String) -> SetappVersion? {
+        versions.first { version in
+            OSWindowRefusal.evaluate(
+                minimum: version.minimumSystemVersion, maximum: nil,
+                osVersion: osVersion,
+                version: version.shortVersion ?? version.build ?? "") == nil
+        }
     }
 }
 
@@ -205,18 +233,20 @@ public enum SetappCatalog {
         let relationships = app["relationships"] as? [String: Any]
         let versions = (relationships?["versions"] as? [String: Any])?["data"] as? [[String: Any]] ?? []
 
-        let rows: [(build: String?, short: String?, date: Date, minOS: String?)] = versions.compactMap { row in
+        let rows: [SetappVersion] = versions.compactMap { row in
             guard let attributes = row["attributes"] as? [String: Any] else { return nil }
             let epoch = (attributes["release_date"] as? NSNumber)?.doubleValue
-            return (
-                attributes["build_number"] as? String,
-                attributes["marketing_version"] as? String,
-                epoch.map { Date(timeIntervalSince1970: $0) } ?? .distantPast,
-                attributes["min_os_version"] as? String)
+            return SetappVersion(
+                shortVersion: attributes["marketing_version"] as? String,
+                build: attributes["build_number"] as? String,
+                releaseDate: epoch.map { Date(timeIntervalSince1970: $0) },
+                minimumSystemVersion: attributes["min_os_version"] as? String)
         }
-        let newest = rows.max { lhs, rhs in
-            if lhs.date != rhs.date { return lhs.date < rhs.date }
-            return VersionComparator.compare(lhs.short ?? "", rhs.short ?? "") == .orderedAscending
+        let ordered = rows.sorted { lhs, rhs in
+            let l = lhs.releaseDate ?? .distantPast
+            let r = rhs.releaseDate ?? .distantPast
+            if l != r { return l > r }
+            return VersionComparator.compare(lhs.shortVersion ?? "", rhs.shortVersion ?? "") == .orderedDescending
         }
 
         let slugs = attributes["slugs"] as? [[String: Any]] ?? []
@@ -227,10 +257,7 @@ public enum SetappCatalog {
             bundleID: bundleID,
             name: name,
             publicID: publicID,
-            shortVersion: newest?.short,
-            build: newest?.build,
-            releaseDate: newest.map { $0.date },
-            minimumSystemVersion: newest?.minOS,
+            versions: ordered,
             pageURL: slug.flatMap { URL(string: "https://setapp.com/apps/\($0)") })
     }
 }

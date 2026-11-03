@@ -33,6 +33,9 @@ public struct SetappCatalogSource: UpdateSource {
     let releases: @Sendable () async throws -> [String: SetappRelease]
     let subscription: @Sendable () -> SetappSubscription.State?
     let now: @Sendable () -> Date
+    /// The macOS the compatibility check runs against. Injected so a test can
+    /// put this Mac below a release's floor without owning a second Mac.
+    let osVersion: @Sendable () -> String
 
     public init(
         releases: @escaping @Sendable () async throws -> [String: SetappRelease] = {
@@ -41,21 +44,42 @@ public struct SetappCatalogSource: UpdateSource {
         subscription: @escaping @Sendable () -> SetappSubscription.State? = {
             SetappSubscription.current()
         },
-        now: @escaping @Sendable () -> Date = { Date() }
+        now: @escaping @Sendable () -> Date = { Date() },
+        osVersion: @escaping @Sendable () -> String = { HostOS.numericVersion() }
     ) {
         self.releases = releases
         self.subscription = subscription
         self.now = now
+        self.osVersion = osVersion
     }
 
     public func latestVersion(for app: InstalledApp) async throws -> RemoteVersion? {
         guard Self.plausiblySetapp(app) else { return nil }
 
         let bundleID = app.bundleID?.lowercased()
-        let catalogue = try await releases()
+        let catalogue: [String: SetappRelease]
+        do {
+            catalogue = try await releases()
+        } catch {
+            // Ownership does not depend on the catalogue answering. Throwing here
+            // would let the checker fall through to `SparkleAppcastSource`, which
+            // reads the dead vendor feed and re-offers the direct-edition
+            // download — the mismatch this source exists to prevent. Answer as
+            // installed instead; a later check retries the catalogue.
+            Log.source.notice(
+                "setapp: catalogue unavailable for \(bundleID ?? "?", privacy: .public) — answering as installed rather than letting the vendor feed answer: \(error.localizedDescription, privacy: .public)")
+            return Self.asInstalled(app, name: name)
+        }
 
         if let bundleID, let release = catalogue[bundleID] {
-            return answer(for: app, release: release)
+            guard let version = release.newestCompatible(osVersion: osVersion()) else {
+                // Every published release needs a newer macOS than this one. Still
+                // a Setapp copy, still not the vendor's to answer for.
+                Log.source.notice(
+                    "setapp: \(bundleID, privacy: .public) — no published release runs on macOS \(osVersion(), privacy: .public); answering as installed")
+                return Self.asInstalled(app, name: name)
+            }
+            return answer(for: app, release: release, version: version)
         }
 
         // Not in the catalogue. A `-setapp` copy still answers — as installed —
@@ -66,7 +90,13 @@ public struct SetappCatalogSource: UpdateSource {
         guard let bundleID, bundleID.hasSuffix("-setapp") else { return nil }
         Log.source.notice(
             "setapp: \(bundleID, privacy: .public) is not in the catalogue; answering as installed so the vendor feed cannot step in")
-        return RemoteVersion(
+        return Self.asInstalled(app, name: name)
+    }
+
+    /// The answer that stops the chain without offering anything: the copy is
+    /// Setapp's, the channel cannot say a newer version runs here.
+    static func asInstalled(_ app: InstalledApp, name: String) -> RemoteVersion {
+        RemoteVersion(
             shortVersion: app.shortVersion,
             version: app.buildVersion,
             marketingMatchesBundle: true,
@@ -76,8 +106,10 @@ public struct SetappCatalogSource: UpdateSource {
 
     /// One app against one catalogue release: an offer when the subscription
     /// holds, a named-but-locked hold when it does not.
-    private func answer(for app: InstalledApp, release: SetappRelease) -> RemoteVersion {
-        let newer = Self.isNewer(release, than: app)
+    private func answer(
+        for app: InstalledApp, release: SetappRelease, version: SetappVersion
+    ) -> RemoteVersion {
+        let newer = Self.isNewer(version, than: app)
         let state = subscription()
         let active = state?.isActive(now: now()) ?? false
 
@@ -86,9 +118,9 @@ public struct SetappCatalogSource: UpdateSource {
             // subscription ends Setapp stops delivering (and the apps stop
             // opening), so an Update button would promise something nothing can
             // keep. Surge and TablePlus use the same hold for the same reason.
-            guard newer else { return offer(release) }
+            guard newer else { return offer(release, version: version) }
             Log.source.notice(
-                "setapp: \(release.bundleID, privacy: .public) — \(release.shortVersion ?? "?", privacy: .public) withheld: the subscription is not active")
+                "setapp: \(release.bundleID, privacy: .public) — \(version.shortVersion ?? "?", privacy: .public) withheld: the subscription is not active")
             return RemoteVersion(
                 shortVersion: app.shortVersion,
                 version: app.buildVersion,
@@ -97,25 +129,25 @@ public struct SetappCatalogSource: UpdateSource {
                 pageURL: Self.deepLink(for: release) ?? release.pageURL,
                 sourceName: name,
                 subscriptionHold: SubscriptionHold(
-                    version: release.shortVersion ?? release.build ?? "?",
+                    version: version.shortVersion ?? version.build ?? "?",
                     coveredBefore: state?.expiresAt))
         }
 
-        return offer(release)
+        return offer(release, version: version)
     }
 
     /// `marketingMatchesBundle` is stated because the catalogue's
     /// `marketing_version` IS the Setapp build's `CFBundleShortVersionString`
     /// (measured on AlDente Pro 1.40.1: both 1.40.1), which is what lets the
     /// checker refuse a build that would walk the marketing number backwards.
-    private func offer(_ release: SetappRelease) -> RemoteVersion {
+    private func offer(_ release: SetappRelease, version: SetappVersion) -> RemoteVersion {
         RemoteVersion(
-            shortVersion: release.shortVersion,
-            version: release.build,
+            shortVersion: version.shortVersion,
+            version: version.build,
             marketingMatchesBundle: true,
             downloadURL: nil,
             pageURL: Self.deepLink(for: release) ?? release.pageURL,
-            minimumSystemVersion: release.minimumSystemVersion,
+            minimumSystemVersion: version.minimumSystemVersion,
             sourceName: name)
     }
 
@@ -152,12 +184,12 @@ public struct SetappCatalogSource: UpdateSource {
     /// first — Setapp publishes both, and the build is the field its own client
     /// orders on — then the marketing string, then "no version at all counts as
     /// newer", the safe side every other source takes.
-    static func isNewer(_ release: SetappRelease, than app: InstalledApp) -> Bool {
-        if let build = release.build, let installed = app.buildVersion,
+    static func isNewer(_ version: SetappVersion, than app: InstalledApp) -> Bool {
+        if let build = version.build, let installed = app.buildVersion,
            VersionComparator.compare(build, installed) == .orderedDescending {
             return true
         }
-        if let short = release.shortVersion, let installed = app.shortVersion,
+        if let short = version.shortVersion, let installed = app.shortVersion,
            VersionComparator.compare(short, installed) == .orderedDescending {
             return true
         }

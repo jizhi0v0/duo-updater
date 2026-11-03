@@ -19,6 +19,14 @@ release note is debugging our code:
 
 Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
+## 0.5.19
+
+**Setapp apps get update checks that match where they came from.** Apps installed through Setapp used to be offered the vendor's direct download and then refused, because that edition carries its own bundle identifier. DuoUpdater now reads Setapp's own catalogue: it shows the version Setapp ships, and Update starts Setapp in the background when its automatic installs are on — otherwise it opens Setapp, where the update and its progress live.
+
+**A Setapp subscription that has lapsed says so.** The row still names the version Setapp offers, but no longer offers to install it; a button opens Setapp to renew or sign in. Once the subscription ends, its apps stop opening too.
+
+**Setapp's beta channel is named, not guessed.** Its public catalogue lists stable releases only, so when Setapp's beta switch is on the row says the channel could not be fully checked instead of claiming the app is current.
+
 ## 0.5.18
 
 **Nine more apps are supported.** CleanMyMac 5, Gemini 2, LosslessCut, Super Productivity, ActivityWatch, GitUp, Requestly, Reqable and FlyEnv get update checks, release notes and one-click updates.

@@ -2,6 +2,14 @@
 
 Esta é a tradução para o português do Brasil do arquivo CHANGELOG.md. A versão em inglês prevalece em caso de divergência. Os números de versão que não aparecem aqui são mostrados automaticamente em inglês na janela Novidades.
 
+## 0.5.19
+
+**Apps do Setapp são verificados no próprio canal.** As instaladas pelo Setapp recebiam o download direto do desenvolvedor e eram recusadas, porque essa edição tem identificador próprio. Agora o DuoUpdater lê o catálogo do Setapp: mostra a versão que o Setapp distribui e, com as instalações automáticas do Setapp ligadas, “Atualizar” inicia o Setapp em segundo plano; caso contrário, abre o Setapp, onde ficam a atualização e o progresso.
+
+**Uma assinatura do Setapp vencida agora é explicada.** A linha continua mostrando a versão oferecida pelo Setapp, mas não oferece mais instalá-la; um botão abre o Setapp para renovar ou entrar. Quando a assinatura termina, os apps também param de abrir.
+
+**O canal beta do Setapp é nomeado, não adivinhado.** O catálogo público lista apenas versões estáveis, então com a opção beta do Setapp ligada a linha diz que o canal não pôde ser verificado por completo em vez de afirmar que o app está atualizado.
+
 ## 0.5.18
 
 **Nove apps a mais são compatíveis.** CleanMyMac 5, Gemini 2, LosslessCut, Super Productivity, ActivityWatch, GitUp, Requestly, Reqable e FlyEnv agora têm verificação de atualizações, notas da versão e atualização com um clique.

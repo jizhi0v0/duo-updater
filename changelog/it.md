@@ -2,6 +2,14 @@
 
 Questa è la traduzione di `CHANGELOG.md`. In caso di differenze fa fede la versione inglese. Le versioni non elencate qui vengono mostrate automaticamente in inglese.
 
+## 0.5.20
+
+**Gli aggiornamenti beta di Setapp vengono riportati con onestà.** DuoUpdater può leggere solo il catalogo stabile di Setapp. Se hai attivato gli aggiornamenti beta di Setapp, un’app che non può essere verificata ora lo dice — con una nota che rimanda a Setapp — invece di essere dichiarata aggiornata.
+
+**Una copia Setapp più recente del catalogo stabile viene nominata, non «retrocessa».** Se hai provato una beta Setapp, la riga mostrava la versione stabile precedente dopo una freccia verso il basso, come se fosse proposto un downgrade. Ora dice «(beta Setapp)» quando il registro di Setapp conosce ancora quella build, e «(più recente delle versioni stabili di Setapp)» altrimenti; non viene proposto nulla da installare.
+
+**Le edizioni Setapp mostrano le note dell’app.** Dove DuoUpdater legge già le note dello sviluppatore, la copia Setapp della stessa app le usa anch’essa invece di un pannello vuoto. Bartender 7 è l’eccezione: le nostre note coprono solo Bartender 6.
+
 ## 0.5.19
 
 **Le app di Setapp vengono controllate sul loro canale.** A quelle installate con Setapp veniva proposto il download diretto dello sviluppatore e poi rifiutato, perché quell’edizione ha un identificatore proprio. Ora DuoUpdater legge il catalogo di Setapp: mostra la versione distribuita da Setapp e, con le installazioni automatiche di Setapp attive, «Aggiorna» avvia Setapp in background; altrimenti apre Setapp, dove si trovano l’aggiornamento e il suo avanzamento.

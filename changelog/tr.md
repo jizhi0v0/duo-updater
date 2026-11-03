@@ -2,6 +2,14 @@
 
 Bu, `CHANGELOG.md` dosyasının Türkçe çevirisidir. Geçerli olan İngilizce sürümdür; burada yer almayan eski sürümler otomatik olarak İngilizce gösterilir.
 
+## 0.5.20
+
+**Setapp beta güncellemeleri artık dürüstçe bildiriliyor.** DuoUpdater yalnızca Setapp'in kararlı kataloğunu okuyabilir. Setapp'in beta güncellemeleri açıksa, denetlenemeyen bir uygulama artık güncel sayılmak yerine bunu söylüyor — Setapp'i işaret eden bir notla.
+
+**Kararlı kataloğun önündeki bir Setapp kopyası adlandırılır, “sürüm düşürme” olarak gösterilmez.** Setapp betasını denediyseniz satır, bir düşürme teklif ediliyormuş gibi aşağı okun ardından eski kararlı sürümü gösteriyordu. Artık Setapp'in kaydı o derlemeyi hâlâ biliyorsa “(Setapp Beta)”, bilmiyorsa “(Setapp'in kararlı sürümlerinden yeni)” yazıyor; kurulum için bir şey önerilmiyor.
+
+**Setapp sürümleri uygulamanın sürüm notlarını gösteriyor.** DuoUpdater'ın geliştirici notlarını zaten okuduğu yerlerde, aynı uygulamanın Setapp kopyası da boş bir panel yerine bu notları kullanıyor. Bartender 7 istisna: notlarımız yalnızca Bartender 6'yı kapsıyor.
+
 ## 0.5.19
 
 **Setapp uygulamaları kendi kanalından denetlenir.** Setapp ile kurulanlara geliştiricinin doğrudan indirmesi öneriliyor, sonra paket kimliği farklı olduğu için reddediliyordu. DuoUpdater artık Setapp'in kendi kataloğunu okur: Setapp'in dağıttığı sürümü gösterir ve Setapp'in otomatik kurulumları açıksa “Güncelle” Setapp'i arka planda başlatır; değilse Setapp'i açar, güncelleme ve ilerleme oradadır.

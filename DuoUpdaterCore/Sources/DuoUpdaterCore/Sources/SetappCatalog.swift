@@ -151,7 +151,8 @@ public enum SetappCatalog {
         private var value: [String: SetappRelease]?
         private var fetchedAt: Date?
         private var etag: String?
-        private var inFlight: Task<(Data?, String?, Int), Error>?
+        private var inFlight: Task<[String: SetappRelease], Error>?
+        private var inFlightToken: UUID?
 
         /// Expire the TTL but keep the parsed copy and its ETag, so the next
         /// check revalidates (304 costs headers) instead of waiting out six
@@ -164,30 +165,49 @@ public enum SetappCatalog {
             if let value, let fetchedAt, now.timeIntervalSince(fetchedAt) < SetappCatalog.defaultTTL {
                 return value
             }
-            let task: Task<(Data?, String?, Int), Error>
-            if let inFlight {
-                task = inFlight
-            } else {
-                let request = SetappCatalog.request(etag: etag)
-                task = Task {
-                    let (data, response) = try await session.data(for: request)
-                    guard let http = response as? HTTPURLResponse else {
-                        throw SetappCatalogError.notAFeed
-                    }
-                    return (data, http.value(forHTTPHeaderField: "ETag"), http.statusCode)
+            // Join the fetch already under way, if any. A joiner does not own the
+            // slot: only the caller that created the task clears it, and only
+            // while the slot still holds that task (the token). A joiner that
+            // cleared it after a failure could otherwise free the slot of the
+            // replacement somebody else started.
+            if let inFlight { return try await inFlight.value }
+
+            let request = SetappCatalog.request(etag: etag)
+            let token = UUID()
+            let task = Task<[String: SetappRelease], Error> {
+                let (data, response) = try await session.data(for: request)
+                guard let http = response as? HTTPURLResponse else {
+                    throw SetappCatalogError.notAFeed
                 }
-                inFlight = task
+                if http.statusCode == 304 {
+                    return try await self.unchanged(now: now)
+                }
+                guard http.statusCode == 200 else {
+                    throw SetappCatalogError.httpStatus(http.statusCode)
+                }
+                return try await self.commit(
+                    data: data, responseETag: http.value(forHTTPHeaderField: "ETag"), now: now)
             }
-            defer { inFlight = nil }
-            let (data, responseETag, status) = try await task.value
-            // Not modified: the copy this process already holds is still current.
-            if status == 304, let value {
-                fetchedAt = now
-                return value
+            inFlight = task
+            inFlightToken = token
+            defer {
+                if inFlightToken == token {
+                    inFlight = nil
+                    inFlightToken = nil
+                }
             }
-            guard status == 200, let data else {
-                throw SetappCatalogError.httpStatus(status)
-            }
+            return try await task.value
+        }
+
+        private func unchanged(now: Date) throws -> [String: SetappRelease] {
+            guard let value else { throw SetappCatalogError.unparseable }
+            fetchedAt = now
+            return value
+        }
+
+        private func commit(
+            data: Data, responseETag: String?, now: Date
+        ) throws -> [String: SetappRelease] {
             let releases = try SetappCatalog.parse(data)
             value = releases
             fetchedAt = now

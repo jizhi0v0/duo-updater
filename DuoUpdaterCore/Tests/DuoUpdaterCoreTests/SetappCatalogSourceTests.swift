@@ -105,6 +105,61 @@ struct SetappCatalogSourceTests {
         #expect(release.newestCompatible(osVersion: "15.0")?.shortVersion == "2.1")
     }
 
+    @Test func aBuildOnlyReleaseIsStillAnUpdate() async throws {
+        // Same marketing version, newer build: the build must survive, otherwise
+        // the checker's marketing fallback calls it current.
+        let json = """
+        {"data":{"relationships":{"vendors":{"data":[
+          {"relationships":{"applications":{"data":[
+            {"attributes":{"bundle_id":"com.example.thing-setapp","name":"Thing","public_id":"AAAA","slugs":[]},
+             "relationships":{"versions":{"data":[
+               {"attributes":{"marketing_version":"1.3.0","build_number":"131","release_date":1700300000,"min_os_version":"11.0"}}
+             ]}}}
+          ]}}}
+        ]}}}}
+        """
+        let releases = try SetappCatalog.parse(Data(json.utf8))
+        let source = SetappCatalogSource(
+            releases: { releases },
+            subscription: {
+                self.state(expires: "2099-01-01 00:00:00 +0000", grace: "2099-01-15 00:00:00 +0000")
+            },
+            now: { Date() })
+        let checker = UpdateChecker(sources: [source, SparkleSpy()])
+        let result = try #require(await checker.check([app(short: "1.3.0", build: "130")]).first)
+        guard case .updateAvailable = result.status else {
+            Issue.record("expected a build-only update, got \(result.status)")
+            return
+        }
+        #expect(result.remote?.version == "131")
+    }
+
+    @Test func aPublicKeyOwnedCopyNeverFallsThroughToTheVendorFeed() async throws {
+        // No `-setapp` suffix, not in the catalogue: only the framework's public
+        // key says this is Setapp's. The answer must still be "as installed" —
+        // nil would hand the row to Sparkle's direct-edition offer.
+        let bundle = FileManager.default.temporaryDirectory
+            .appendingPathComponent("thing-\(UUID().uuidString).app", isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: bundle.appendingPathComponent("Contents/Resources"), withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: bundle) }
+        FileManager.default.createFile(
+            atPath: bundle.appendingPathComponent("Contents/Resources/setappPublicKey.pem").path,
+            contents: Data("key".utf8))
+
+        let owned = InstalledApp(
+            name: "Thing", bundleID: "com.example.thing",
+            shortVersion: "1.0", buildVersion: "100",
+            path: bundle, isMASApp: false, sparkleFeedURL: nil)
+        let spy = SparkleSpy()
+        let source = SetappCatalogSource(
+            releases: { [:] }, subscription: { nil }, now: { Date() })
+        let checker = UpdateChecker(sources: [source, spy])
+        let result = try #require(await checker.check([owned]).first)
+        #expect(spy.calls == 0)
+        #expect(result.remote?.shortVersion == "1.0")
+    }
+
     @Test func aBetaEnabledChannelCannotClaimUpToDate() async throws {
         let source = SetappCatalogSource(
             releases: { Self.releases },

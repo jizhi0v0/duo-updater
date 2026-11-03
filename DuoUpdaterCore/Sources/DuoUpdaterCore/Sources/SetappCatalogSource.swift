@@ -82,7 +82,8 @@ public struct SetappCatalogSource: UpdateSource {
                         bound: .floor(minimum: floor),
                         version: newest.shortVersion ?? newest.build ?? "?",
                         hostOS: osVersion())
-                    throw OSWindowRefused(refusal, release: Self.offer(release, version: newest))
+                    throw OSWindowRefused(
+                        refusal, release: Self.offer(release, version: newest, app: app))
                 }
                 Log.source.notice(
                     "setapp: \(bundleID, privacy: .public) — no published release runs on macOS \(osVersion(), privacy: .public); answering as installed")
@@ -103,9 +104,9 @@ public struct SetappCatalogSource: UpdateSource {
         // exactly the wrong-channel offer this source exists to stop. A copy
         // that is only *plausibly* Setapp (folder or public key) and not in the
         // catalogue falls through to the other sources.
-        guard let bundleID, bundleID.hasSuffix("-setapp") else { return nil }
+        guard bundleID != nil, Self.owns(app) else { return nil }
         Log.source.notice(
-            "setapp: \(bundleID, privacy: .public) is not in the catalogue; answering as installed so the vendor feed cannot step in")
+            "setapp: \(bundleID ?? "?", privacy: .public) is not in the catalogue; answering as installed so the vendor feed cannot step in")
         return Self.asInstalled(app, name: name)
     }
 
@@ -134,7 +135,7 @@ public struct SetappCatalogSource: UpdateSource {
             // subscription ends Setapp stops delivering (and the apps stop
             // opening), so an Update button would promise something nothing can
             // keep. Surge and TablePlus use the same hold for the same reason.
-            guard newer else { return offer(release, version: version) }
+            guard newer else { return offer(release, version: version, app: app) }
             Log.source.notice(
                 "setapp: \(release.bundleID, privacy: .public) — \(version.shortVersion ?? "?", privacy: .public) withheld: the subscription is not active")
             return RemoteVersion(
@@ -150,32 +151,45 @@ public struct SetappCatalogSource: UpdateSource {
                     recovery: .setappAccount))
         }
 
-        return offer(release, version: version)
+        return offer(release, version: version, app: app)
     }
 
     /// `marketingMatchesBundle` is stated because the catalogue's
     /// `marketing_version` IS the Setapp build's `CFBundleShortVersionString`
     /// (measured on AlDente Pro 1.40.1: both 1.40.1), which is what lets the
     /// checker refuse a build that would walk the marketing number backwards.
-    private func offer(_ release: SetappRelease, version: SetappVersion) -> RemoteVersion {
-        Self.offer(release, version: version, name: name)
+    private func offer(
+        _ release: SetappRelease, version: SetappVersion, app: InstalledApp
+    ) -> RemoteVersion {
+        Self.offer(release, version: version, app: app, name: name)
     }
 
     static func offer(
-        _ release: SetappRelease, version: SetappVersion, name: String = "Setapp"
+        _ release: SetappRelease, version: SetappVersion, app: InstalledApp,
+        name: String = "Setapp"
     ) -> RemoteVersion {
         RemoteVersion(
             shortVersion: version.shortVersion,
-            // No build: `evaluate` prefers builds when both sides state one, and
-            // Setapp's builds are per-branch (4.1/410 against 3.14.8/3148), so a
-            // build comparison would call a new major older. The marketing string
-            // IS the bundle's own, so the checker's marketing fallback is exact.
-            version: nil,
+            // The build is stated only when the marketing versions tie. Setapp
+            // numbers builds per branch (4.1 is 410 beside 3.14.8's 3148), so a
+            // stated build lets the checker's build-first comparison call a new
+            // major older; with the marketing versions equal, the build is the
+            // only thing that can say "this release moved".
+            version: remoteBuild(version, than: app),
             marketingMatchesBundle: true,
             downloadURL: nil,
-            pageURL: deepLink(for: release) ?? release.pageURL,
+            pageURL: Self.deepLink(for: release) ?? release.pageURL,
             minimumSystemVersion: version.minimumSystemVersion,
             sourceName: name)
+    }
+
+    /// The build to state on an answer: the catalogue's, but only when the
+    /// marketing version is the installed one. See `offer`.
+    static func remoteBuild(_ version: SetappVersion, than app: InstalledApp) -> String? {
+        guard let offered = version.shortVersion, let installed = app.shortVersion else {
+            return version.build
+        }
+        return VersionComparator.compare(offered, installed) == .orderedSame ? version.build : nil
     }
 
     /// Memo invalidation: a per-row recheck (`UpdateChecker.check(…, freshening:
@@ -245,7 +259,13 @@ public struct SetappCatalogSource: UpdateSource {
         // while 3.14.8 is 3148, so a build-first answer calls the new major older
         // than the copy it replaces.
         if let short = version.shortVersion, let installed = app.shortVersion {
-            return VersionComparator.compare(short, installed) == .orderedDescending
+            let order = VersionComparator.compare(short, installed)
+            if order != .orderedSame { return order == .orderedDescending }
+            // Same marketing version: the build is the only signal left.
+            if let build = version.build, let installedBuild = app.buildVersion {
+                return VersionComparator.compare(build, installedBuild) == .orderedDescending
+            }
+            return false
         }
         if let build = version.build, let installed = app.buildVersion {
             return VersionComparator.compare(build, installed) == .orderedDescending

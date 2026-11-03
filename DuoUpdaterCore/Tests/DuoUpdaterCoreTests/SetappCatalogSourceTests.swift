@@ -144,6 +144,36 @@ struct SetappCatalogSourceTests {
         #expect(result.status == .upToDate)
     }
 
+    @Test func anAheadCopyWithBetaOnIsStillAnIncompleteCheck() async throws {
+        // Ahead of stable while Setapp may offer betas: the "ahead" label would
+        // still travel with `.upToDate`, so this stays a failed check.
+        let releases = try SetappCatalog.parse(Data("""
+        {"data":{"relationships":{"vendors":{"data":[
+          {"relationships":{"applications":{"data":[
+            {"attributes":{"bundle_id":"com.example.thing-setapp","name":"Thing","public_id":"AAAA","slugs":[]},
+             "relationships":{"versions":{"data":[
+               {"attributes":{"marketing_version":"1.3.0","build_number":"130","release_date":1700300000,"min_os_version":"11.0"}}
+             ]}}}
+          ]}}}
+        ]}}}}
+        """.utf8))
+        let source = SetappCatalogSource(
+            releases: { releases },
+            subscription: {
+                self.state(expires: "2099-01-01 00:00:00 +0000", grace: "2099-01-15 00:00:00 +0000")
+            },
+            now: { Date() },
+            betaUpdatesEnabled: { true },
+            installedIsBeta: { _ in true })
+        let ahead = app(id: "com.example.thing-setapp", short: "1.5.0", build: "150")
+        let checker = UpdateChecker(sources: [source, SparkleSpy()])
+        let result = try #require(await checker.check([ahead]).first)
+        guard case .error = result.status else {
+            Issue.record("expected .error, got \(result.status)")
+            return
+        }
+    }
+
     @Test func aBetaRecordedByTheClientNamesTheChannel() async throws {
         let json = """
         {"data":{"relationships":{"vendors":{"data":[
@@ -162,16 +192,15 @@ struct SetappCatalogSourceTests {
                 self.state(expires: "2099-01-01 00:00:00 +0000", grace: "2099-01-15 00:00:00 +0000")
             },
             now: { Date() },
-            betaUpdatesEnabled: { true },
+            betaUpdatesEnabled: { false },
             installedIsBeta: { _ in true })
         let installed = InstalledApp(
             name: "Bartender", bundleID: "com.surteesstudios.Bartender-setapp",
             shortVersion: "7.1.0", buildVersion: "700013",
             path: URL(fileURLWithPath: "/Applications/Setapp/Bartender.app"),
             isMASApp: false, sparkleFeedURL: nil)
-        // Beta switch on + catalogue behind: the row cannot be called current,
-        // but this copy is a beta the client itself recorded — answer with that
-        // label instead of the "cannot fully check" error.
+        // Beta switch off + catalogue behind: Setapp is not offering betas, and
+        // the client's catalogue records this build as one — name it.
         let answer = try #require(try await source.latestVersion(for: installed))
         #expect(answer.installedDisplayVersion == "7.1.0 (Setapp Beta)")
     }
@@ -288,13 +317,18 @@ struct SetappCatalogSourceTests {
             betaUpdatesEnabled: { true },
             installedIsBeta: { _ in false })
         // Installed 1.3.0 = the stable catalogue's newest, but Setapp's beta
-        // switch is on and the public catalogue carries no betas at all. Not an
-        // error row (that made every Setapp app "could not be checked"); a label
-        // saying what is not known.
-        let answer = try #require(try await source.latestVersion(
-            for: app(id: "com.example.thing-setapp", short: "1.3.0", build: "130")))
-        #expect(answer.installedDisplayVersion == "1.3.0 (Setapp Beta channel — not checked)")
-        #expect(answer.subscriptionHold == nil)
+        // switch is on and the public catalogue carries no betas at all: the
+        // check cannot be completed, and saying "current" would hide a beta.
+        let installed = app(id: "com.example.thing-setapp", short: "1.3.0", build: "130")
+        await #expect(throws: (any Error).self) {
+            _ = try await source.latestVersion(for: installed)
+        }
+        let checker = UpdateChecker(sources: [source, SparkleSpy()])
+        let result = try #require(await checker.check([installed]).first)
+        guard case .error = result.status else {
+            Issue.record("expected .error, got \(result.status)")
+            return
+        }
     }
 
     @Test func offersTheNewestReleaseThatRunsHereNotTheNewestStanding() async throws {

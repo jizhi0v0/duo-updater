@@ -102,13 +102,19 @@ public struct SetappCatalogSource: UpdateSource {
             // ZISBETA=1, on = 15 — Bartender 7.1.0 among them). With Setapp's beta
             // switch on, a stable answer that is not newer cannot be called "up to
             // date": say the channel could not be fully checked instead.
+            if betaUpdatesEnabled(), !Self.isNewer(version, than: app) {
+                // There may be a beta we cannot see; the stable answer must not
+                // become "up to date". This is an explicit failed check with a
+                // message, not a version label: a label still travels with
+                // `.upToDate`, which the CLI and the window render as current.
+                throw SetappError.betaChannelUnverifiable
+            }
             // The installed copy is AHEAD of Setapp's stable catalogue (a beta
-            // left in place, most often). Answering with the older stable release
-            // draws "7.1.0 ↓ 6.6.2", which reads as a downgrade offer we cannot
-            // and must not make. Answer as installed instead — and name the beta
-            // when the client's own catalogue still records this build as one.
-            // This runs before the beta-switch gate: being ahead is a fact, and
-            // the label is the honest answer for it whatever the switch says.
+            // left in place after the switch went off, most often). Answering
+            // with the older stable release draws "7.1.0 ↓ 6.6.2", which reads
+            // as a downgrade offer we cannot and must not make. Answer as
+            // installed instead — and name the beta when the client's own
+            // catalogue still records this build as one.
             if Self.isOlder(version, than: app) {
                 Log.source.notice(
                     "setapp: \(bundleID, privacy: .public) installed \(app.shortVersion ?? "?", privacy: .public) is ahead of the stable catalogue's \(version.shortVersion ?? "?", privacy: .public); answering as installed rather than drawing a downgrade")
@@ -118,21 +124,6 @@ public struct SetappCatalogSource: UpdateSource {
                     marketingMatchesBundle: true,
                     downloadURL: nil,
                     installedDisplayVersion: Self.aheadOfStableLabel(app, isBeta: installedIsBeta(app)),
-                    sourceName: name)
-            }
-            if betaUpdatesEnabled(), !Self.isNewer(version, than: app) {
-                // Equal to the stable catalogue with beta on: there may be a beta
-                // we cannot see. Not an error row — that turned every Setapp app
-                // into "could not be checked" with a Retry that can never help
-                // (measured: six rows). It is a label on the version instead, so
-                // the row still reads, and says what is not known.
-                return RemoteVersion(
-                    shortVersion: app.shortVersion,
-                    version: app.buildVersion,
-                    marketingMatchesBundle: true,
-                    downloadURL: nil,
-                    pageURL: Self.deepLink(for: release) ?? release.pageURL,
-                    installedDisplayVersion: Self.betaChannelLabel(app),
                     sourceName: name)
             }
             return answer(for: app, release: release, version: version)
@@ -222,13 +213,6 @@ public struct SetappCatalogSource: UpdateSource {
             sourceName: name)
     }
 
-    /// What to call a copy that matches the stable catalogue while Setapp's beta
-    /// switch is on: its beta channel is not visible to us.
-    static func betaChannelLabel(_ app: InstalledApp) -> String? {
-        guard let installed = app.shortVersion else { return nil }
-        return String(localized: "\(installed) (Setapp Beta channel — not checked)")
-    }
-
     /// What to call a copy that is ahead of Setapp's stable catalogue: "beta"
     /// only when the client's own catalogue still records that exact build as a
     /// beta; otherwise the one thing we can prove.
@@ -236,6 +220,14 @@ public struct SetappCatalogSource: UpdateSource {
         guard let installed = app.shortVersion else { return nil }
         if isBeta { return String(localized: "\(installed) (Setapp Beta)") }
         return String(localized: "\(installed) (ahead of Setapp’s stable releases)")
+    }
+
+    enum SetappError: LocalizedError {
+        case betaChannelUnverifiable
+
+        var errorDescription: String? {
+            String(localized: "Setapp’s beta updates are on, and DuoUpdater reads only Setapp’s stable catalogue. Open Setapp to check for a beta.")
+        }
     }
 
     /// Whether the catalogue's release is OLDER than the copy on disk.

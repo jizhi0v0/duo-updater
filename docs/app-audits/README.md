@@ -551,3 +551,6 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 
 - [Issue #111 — Sparkle appcast channel population](issue-111-appcast-channel-population.md) ·
   一次性测量任务的产出，不是 app 审计。留在此目录是历史原因。
+- [Setapp editions](com-setapp-managed.md) ·
+  `-setapp` 副本这一类渠道的观测记录：包里没有 Sparkle、Setapp 公开目录、
+  订阅状态、深链与 MCP。不是单个 app 的审计。

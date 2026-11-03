@@ -3539,6 +3539,11 @@ final class AppListModel {
             // invalidates just its own rows. Both ways of getting that wrong have
             // happened — `docs/engine-notes/app-store-page-cache.md` §4.
             await AppStorePageCache.shared.invalidateAll()
+            // Setapp's catalogue keeps a six-hour TTL for scheduled checks. A
+            // user-present refresh is a live answer request, so it asks Setapp
+            // again instead of waiting the TTL out (`SetappCatalogSource`'s
+            // per-row `invalidateMemo` covers the single-app recheck).
+            await SetappCatalog.revalidate()
         }
         for (key, state) in changelogState
         where intent.dropsChangelogEntry(failed: state.owesPrewarm) {

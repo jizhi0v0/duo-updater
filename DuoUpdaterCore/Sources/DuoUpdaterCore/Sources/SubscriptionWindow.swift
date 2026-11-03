@@ -57,10 +57,27 @@ public struct SubscriptionHold: Sendable, Hashable {
     /// `coveredBefore` is a calendar day (UTC midnight), not a moment.
     public let dayOnly: Bool
 
-    public init(version: String, coveredBefore: Date?, dayOnly: Bool = false) {
+    /// What the user can do about it. The release-window hold (Surge, TablePlus)
+    /// is "this release is newer than your licence's window; renew to get it" —
+    /// the installed copy keeps working. Setapp's is different: once the
+    /// subscription ends, Setapp stops delivering updates AND its apps stop
+    /// opening, so "keep using the installed version" and "renew in the app" are
+    /// both wrong there.
+    public enum Recovery: Sendable, Hashable {
+        case releaseWindow
+        case setappAccount
+    }
+
+    public let recovery: Recovery
+
+    public init(
+        version: String, coveredBefore: Date?, dayOnly: Bool = false,
+        recovery: Recovery = .releaseWindow
+    ) {
         self.version = version
         self.coveredBefore = coveredBefore
         self.dayOnly = dayOnly
+        self.recovery = recovery
     }
 
     /// One line for logs and `duo` output; the UI words this itself.

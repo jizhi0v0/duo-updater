@@ -177,7 +177,7 @@ struct PopoverRowAction: View {
                     .foregroundStyle(.orange)
             }
             .buttonStyle(.borderless)
-            .help(SubscriptionHoldWording.title)
+            .help(SubscriptionHoldWording.title(hold))
             .popover(isPresented: $showSubscriptionHint, arrowEdge: .bottom) {
                 subscriptionHintPopover(hold)
             }
@@ -683,6 +683,10 @@ struct PopoverRowAction: View {
     private func openButtonTitle(_ affordance: DetectionOnlyAffordance) -> String {
         switch affordance {
         case .openPage, .openInApp: return String(localized: "Open")
+        case .openDeepLink:
+            return setappBackgroundUpdateWillRun()
+                ? String(localized: "Update via Setapp")
+                : String(localized: "Open in Setapp")
         case .revealInFinder: return DetectionOnlyAffordance.revealInFinderTitle
         }
     }

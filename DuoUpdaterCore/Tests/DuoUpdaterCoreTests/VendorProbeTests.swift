@@ -378,7 +378,7 @@ private func orbStackVersionPattern(_ channel: ReleaseChannel) -> String {
         from: filename, pattern: #"^Slack-([0-9]+\.[0-9]+\.[0-9]+)-macOS\.dmg$"#) == "4.50.128")
 }
 
-@Test func discordProbeExtractsVersionFromDistroURL() {
+@Test func discordProbeExtractsVersionFromDistroURL() throws {
     // Trimmed slice of the real stable manifest JSON. host_version is an array
     // (unusable — single capture group), so the version comes from the distro url
     // path; the 0.0.392 delta SOURCE must not be captured.
@@ -402,14 +402,16 @@ private func orbStackVersionPattern(_ channel: ReleaseChannel) -> String {
     // The install spec builds its dmg from that same string, so the version the
     // row reports is the version in the URL it downloads (the redirect this
     // replaced could answer a release behind).
+    let reported = try #require(
+        VendorProbeRecipe.extractVersion(from: fixture, pattern: stable.versionPattern))
     guard let install = stable.install, case let .versionTemplate(template) = install.urlSource else {
         Issue.record("Discord: expected a versionTemplate install"); return
     }
-    #expect(template.replacingOccurrences(of: "{version}", with: "0.0.393")
+    #expect(template.replacingOccurrences(of: "{version}", with: reported)
         == "https://dl.discordapp.net/distro/app/stable/osx/universal/0.0.393/Discord.dmg")
 }
 
-@Test func discordPTBAndCanaryProbesExtractTheirOwnChannelVersion() {
+@Test func discordPTBAndCanaryProbesExtractTheirOwnChannelVersion() throws {
     // PTB / Canary mirror Stable: same manifest shape, the version lives in the
     // per-channel distro url path. Each recipe's pattern is anchored to its OWN
     // channel literal so it can't grab a neighbour's number, and its `channel`
@@ -430,9 +432,12 @@ private func orbStackVersionPattern(_ channel: ReleaseChannel) -> String {
           case let .versionTemplate(canaryTemplate) = canaryInstall.urlSource else {
         Issue.record("PTB/Canary: expected versionTemplate installs"); return
     }
-    #expect(ptbTemplate.replacingOccurrences(of: "{version}", with: "0.0.237")
+    let ptbReported = try #require(VendorProbeRecipe.extractVersion(from: ptbBody, pattern: ptb.versionPattern))
+    let canaryReported = try #require(
+        VendorProbeRecipe.extractVersion(from: canaryBody, pattern: canary.versionPattern))
+    #expect(ptbTemplate.replacingOccurrences(of: "{version}", with: ptbReported)
         == "https://ptb.dl2.discordapp.net/distro/app/ptb/osx/universal/0.0.237/DiscordPTB.dmg")
-    #expect(canaryTemplate.replacingOccurrences(of: "{version}", with: "0.0.1136")
+    #expect(canaryTemplate.replacingOccurrences(of: "{version}", with: canaryReported)
         == "https://canary.dl2.discordapp.net/distro/app/canary/osx/universal/0.0.1136/DiscordCanary.dmg")
 
     // Cross-channel containment: the PTB pattern must NOT match a canary body.

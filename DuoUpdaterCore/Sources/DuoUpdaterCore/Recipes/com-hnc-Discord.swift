@@ -27,12 +27,13 @@ enum com_hnc_Discord {
         // HTTP 400 — and without the parameter it serves a build behind the
         // manifest. History has the measurements.
         //
-        // That dmg url is the one place a host is written down, and stable has two
-        // of them (`dl.` and `stable.dl2.`), which the manifest's own urls
-        // alternate between (checked 2026-11-03; both served the reported version
-        // then). The host only decides where the same distro tree is read: when a
-        // download 403s or 404s, read which host the manifest names now, confirm
-        // both still carry `…/<version>/…dmg`, then change this one line.
+        // Each install url names its CDN host, written here, one per channel; the
+        // same distro tree answers to more than one name (stable's dmg came from
+        // `dl.`, `stable.dl2.` and `dl2.` — same bytes, checked 2026-11-03), and
+        // the manifest's own urls alternate between the first two over time. So
+        // the host here only decides where the tree is read: when a download 403s
+        // or 404s, check that this host and the one the manifest names now both
+        // still carry `…/<version>/…dmg`, then update this line.
         //
         // The patterns do not name the CDN HOST, which Discord has changed before
         // (History has the break it caused). The channel lives in the URL PATH

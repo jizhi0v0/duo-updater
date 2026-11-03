@@ -87,6 +87,11 @@ gracePeriodExpirationDate    <date>
   | `setapp://launch/<数字 id>` | 已装则启动，未装则打开它的页面 |
 
   没有触发更新的深链。
+- 打开方式有讲究（2026-11-03 实测）：把同一个链接用
+  `NSWorkspace.open(_:withApplicationAt: /Applications/Setapp.app)` 交给客户端，只会把 Setapp
+  激活到首页；换成普通的 `NSWorkspace.open(url)`（交给 LaunchServices、由注册了 scheme 的
+  agent 处理），才会落到该 app。点「Open App」时会去启动目标 app——若包的签名被改过
+  （例如手改了版本号），这一步会报 `The application "…" can't be opened.`。
 - MCP（`SetappMCPServer.framework`，stdio bridge + 本机 HTTP 端点）有一整套工具：
   `list_available_apps`、`find_apps`、`get_app_offer`、`open_purchase`、`check_access`、
   `install_app`、`launch_app`、`get_app_guide`。其中 `install_app` 的描述是

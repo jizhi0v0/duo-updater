@@ -30,8 +30,8 @@ probes[0].minimumSystemVersionPattern = nil
 probes[0].maximumSystemVersionPattern = nil
 probes[0].entryStartPattern = nil
 probes[0].install? = struct VendorInstallSpec
-probes[0].install?.urlSource = .redirect(_:)
-probes[0].install?.urlSource.0 = URL("https://discord.com/api/download?platform=osx&format=dmg")
+probes[0].install?.urlSource = .versionTemplate(_:)
+probes[0].install?.urlSource.0 = "https://dl.discordapp.net/distro/app/stable/osx/universal/{version}/Discord.dmg"
 probes[0].install?.kind = .dmg
 probes[0].install?.checksumPattern = nil
 probes[0].install?.checksumFormat = .sha512Base64
@@ -68,8 +68,8 @@ probes[1].minimumSystemVersionPattern = nil
 probes[1].maximumSystemVersionPattern = nil
 probes[1].entryStartPattern = nil
 probes[1].install? = struct VendorInstallSpec
-probes[1].install?.urlSource = .redirect(_:)
-probes[1].install?.urlSource.0 = URL("https://discord.com/api/download/ptb?platform=osx")
+probes[1].install?.urlSource = .versionTemplate(_:)
+probes[1].install?.urlSource.0 = "https://ptb.dl2.discordapp.net/distro/app/ptb/osx/universal/{version}/DiscordPTB.dmg"
 probes[1].install?.kind = .dmg
 probes[1].install?.checksumPattern = nil
 probes[1].install?.checksumFormat = .sha512Base64
@@ -106,8 +106,8 @@ probes[2].minimumSystemVersionPattern = nil
 probes[2].maximumSystemVersionPattern = nil
 probes[2].entryStartPattern = nil
 probes[2].install? = struct VendorInstallSpec
-probes[2].install?.urlSource = .redirect(_:)
-probes[2].install?.urlSource.0 = URL("https://discord.com/api/download/canary?platform=osx")
+probes[2].install?.urlSource = .versionTemplate(_:)
+probes[2].install?.urlSource.0 = "https://canary.dl2.discordapp.net/distro/app/canary/osx/universal/{version}/DiscordCanary.dmg"
 probes[2].install?.kind = .dmg
 probes[2].install?.checksumPattern = nil
 probes[2].install?.checksumFormat = .sha512Base64

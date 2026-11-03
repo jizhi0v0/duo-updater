@@ -2,6 +2,14 @@
 
 Bu, `CHANGELOG.md` dosyasının Türkçe çevirisidir. Geçerli olan İngilizce sürümdür; burada yer almayan eski sürümler otomatik olarak İngilizce gösterilir.
 
+## 0.5.19
+
+**Setapp uygulamaları kendi kanalından denetlenir.** Setapp ile kurulanlara geliştiricinin doğrudan indirmesi öneriliyor, sonra paket kimliği farklı olduğu için reddediliyordu. DuoUpdater artık Setapp'in kendi kataloğunu okur: Setapp'in dağıttığı sürümü gösterir ve Setapp'in otomatik kurulumları açıksa “Güncelle” Setapp'i arka planda başlatır; değilse Setapp'i açar, güncelleme ve ilerleme oradadır.
+
+**Süresi dolmuş Setapp aboneliği artık açıklanıyor.** Satır Setapp'in sunduğu sürümü göstermeye devam eder ama kurmayı önermez; bir düğme yenilemek veya giriş yapmak için Setapp'i açar. Abonelik bitince uygulamaları da açılmaz.
+
+**Setapp'in beta kanalı tahmin edilmez, söylenir.** Genel katalog yalnızca kararlı sürümleri listeler; Setapp'in beta anahtarı açıkken satır, uygulamanın güncel olduğunu iddia etmek yerine kanalın tam olarak denetlenemediğini söyler.
+
 ## 0.5.18
 
 **Dokuz uygulama daha destekleniyor.** CleanMyMac 5, Gemini 2, LosslessCut, Super Productivity, ActivityWatch, GitUp, Requestly, Reqable ve FlyEnv artık güncelleme denetimi, sürüm notları ve tek tıkla güncelleme alıyor.

@@ -2,6 +2,14 @@
 
 本文件是 CHANGELOG.md 的繁體中文翻譯，以英文版為準。本文件中未列出的版本會自動改以英文顯示。
 
+## 0.5.19
+
+**Setapp 安裝的 App 現在會依它自己的管道檢查更新。** 以前這些副本會被報出廠商的直營下載，安裝時又因為套件識別碼不同而被拒絕。現在會讀取 Setapp 自己的目錄：顯示 Setapp 管道的版本；開啟 Setapp 自動安裝時，「更新」會在背景啟動 Setapp，否則開啟 Setapp，更新和進度都在那裡。
+
+**Setapp 訂閱失效時現在會說明。** 這一列仍顯示 Setapp 提供的版本，但不再提供安裝；按鈕會開啟 Setapp 續訂或登入。訂閱結束後，這些 App 也會停止開啟。
+
+**Setapp 的 Beta 管道會如實標註。** 公開目錄只列出穩定版，所以開啟 Setapp 的 Beta 開關後，這一列會說明該管道無法完整檢查，而不是聲稱已是最新。
+
 ## 0.5.18
 
 **新增支援九款 App。** CleanMyMac 5、Gemini 2、LosslessCut、Super Productivity、ActivityWatch、GitUp、Requestly、Reqable 和 FlyEnv 現在都能檢查更新、查看版本說明並一鍵更新。

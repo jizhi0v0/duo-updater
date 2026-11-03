@@ -2,6 +2,14 @@
 
 本文档是 CHANGELOG.md 的简体中文翻译。英文版本是权威参考。未在本文档中列出的版本将自动回退至英文显示。
 
+## 0.5.19
+
+**Setapp 安装的 App 现在按它自己的渠道检查更新。** 以前这些副本会被报出厂商的直营下载，安装时又因为包标识不同被拒绝。现在读取 Setapp 自己的目录：显示 Setapp 渠道的版本；开启 Setapp 自动安装时，“更新”会在后台启动 Setapp，否则打开 Setapp，更新和进度都在那里。
+
+**Setapp 订阅失效时现在会说明。** 这一行仍显示 Setapp 提供的版本，但不再提供安装；按钮会打开 Setapp 续订或登录。订阅结束后，这些 App 也会停止打开。
+
+**Setapp 的 Beta 渠道会如实标注。** 公开目录只列稳定版，所以开启 Setapp 的 Beta 开关后，这一行会说明该渠道无法完整检查，而不是声称已是最新。
+
 ## 0.5.18
 
 **新增支持九款 App。** CleanMyMac 5、Gemini 2、LosslessCut、Super Productivity、ActivityWatch、GitUp、Requestly、Reqable 和 FlyEnv 现在都能检查更新、查看发布说明并一键更新。

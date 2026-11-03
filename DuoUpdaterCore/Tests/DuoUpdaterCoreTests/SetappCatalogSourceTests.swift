@@ -155,7 +155,7 @@ struct SetappCatalogSourceTests {
         let link = try! #require(URL(string: "setapp://install?app_id=AAAA-1111"))
         let client = URL(fileURLWithPath: "/Applications/Setapp.app")
         #expect(DetectionOnlyAffordance.resolve(pageURL: link, setappClient: client)
-            == .openWithApp(link, app: client))
+            == .openDeepLink(link))
         // No client: do not pretend. Revealing the copy is the honest offer.
         #expect(DetectionOnlyAffordance.resolve(pageURL: link, setappClient: nil) == .revealInFinder)
         // Every other custom scheme still belongs to the app on the row.

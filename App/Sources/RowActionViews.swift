@@ -242,11 +242,11 @@ func openDetectionOnly(_ affordance: DetectionOnlyAffordance, app: URL) {
         // own update channel — see `DetectionOnlyAffordance.openInApp`.
         NSWorkspace.shared.open(
             [url], withApplicationAt: app, configuration: NSWorkspace.OpenConfiguration())
-    case .openWithApp(let url, let owner):
-        // The scheme belongs to another app (Setapp), not to the copy on the
-        // row — hand it to the app that owns it by path.
-        NSWorkspace.shared.open(
-            [url], withApplicationAt: owner, configuration: NSWorkspace.OpenConfiguration())
+    case .openDeepLink(let url):
+        // LaunchServices, not `withApplicationAt`: the scheme is registered by
+        // the other app's agent, and handing the URL to the client by path only
+        // activates it (measured on Setapp, 2026-11-03).
+        NSWorkspace.shared.open(url)
     case .revealInFinder:
         NSWorkspace.shared.activateFileViewerSelecting([app])
     }
@@ -257,7 +257,7 @@ func detectionOnlyHelp(_ affordance: DetectionOnlyAffordance, appName: String) -
     switch affordance {
     case .openPage: return String(localized: "Open the official download page")
     case .openInApp: return String(localized: "Open \(appName)’s built-in updater (it updates itself)")
-    case .openWithApp: return String(localized: "Open this app in Setapp")
+    case .openDeepLink: return String(localized: "Open this app in Setapp")
     case .revealInFinder: return String(localized: "Reveal in Finder")
     }
 }
@@ -1009,7 +1009,7 @@ struct WorkbenchRowAction: View {
         switch affordance {
         case .openPage: return String(localized: "Open page")
         case .openInApp: return String(localized: "Open")
-        case .openWithApp: return String(localized: "Open in Setapp")
+        case .openDeepLink: return String(localized: "Open in Setapp")
         case .revealInFinder: return DetectionOnlyAffordance.revealInFinderTitle
         }
     }

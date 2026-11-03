@@ -32,13 +32,15 @@ public enum DetectionOnlyAffordance: Sendable, Equatable {
     /// choice of app to whatever claims the scheme, which need not be this copy,
     /// or anything. Same hand-off `AppListModel.openSelfUpdater` makes.
     case openInApp(URL)
-    /// A deep link owned by ANOTHER app, handed to that app by path. Setapp's
-    /// `setapp://install?app_id=…` is the case: the copy on the row is the app
-    /// Setapp manages, not the app that owns the scheme, so `openInApp` would
-    /// hand it to the wrong bundle. Measured 2026-11-03: the link opens Setapp on
-    /// the app's page (an installed copy gets "already installed — open it?"),
-    /// it does not itself install.
-    case openWithApp(URL, app: URL)
+    /// A deep link owned by ANOTHER app, opened through LaunchServices so the
+    /// scheme's registered handler takes it. Setapp's
+    /// `setapp://install?app_id=…` is the case, and the distinction is measured:
+    /// handing the same URL to the client by path
+    /// (`open(_:withApplicationAt:)`) only activates Setapp on its home page,
+    /// while a plain `open` reaches the agent that owns the scheme and lands on
+    /// the app's page ("App is Already Installed — open it?" for a copy that is
+    /// there). It does not install.
+    case openDeepLink(URL)
     /// No page at all. The only honest offer left is showing the user where the
     /// app lives, so they can deal with it by hand — every host renders this the
     /// same way, so its copy lives here.
@@ -57,7 +59,7 @@ public enum DetectionOnlyAffordance: Sendable, Equatable {
             // app that services it. Without the client installed there is no one
             // to hand it to, and a `setapp://` URL opened by LaunchServices would
             // at best be a no-op — reveal the copy instead of pretending.
-            return setappClient.map { .openWithApp(pageURL, app: $0) } ?? .revealInFinder
+            return setappClient != nil ? .openDeepLink(pageURL) : .revealInFinder
         }
         if let scheme = pageURL.scheme, scheme != "http", scheme != "https" {
             return .openInApp(pageURL)

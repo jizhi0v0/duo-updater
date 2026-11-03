@@ -1,5 +1,18 @@
 {
   "entries" : {
+    "github:ActivityWatch\/activitywatch:stable" : {
+      "architectures" : [
+        "arm64"
+      ],
+      "bundleIdentifier" : "net.activitywatch.ActivityWatch",
+      "firstSeenAt" : "2026-11-02T14:26:21Z",
+      "firstSeenVersion" : "0.14.1",
+      "lastSeenAt" : "2026-11-02T14:26:21Z",
+      "lastSeenURLSHA256" : "be942a6d1ef0934a8fc5cc086677fe18ebef89a20924936ef56a175bb6f49740",
+      "lastSeenVersion" : "0.14.1",
+      "signedIdentifier" : "net.activitywatch.ActivityWatch",
+      "teamIdentifier" : "XM9GC3SUL2"
+    },
     "github:AppFlowy-IO\/AppFlowy:stable" : {
       "architectures" : [
         "arm64"
@@ -20,9 +33,9 @@
       "bundleIdentifier" : "org.openlogi.openlogi",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "0.8.11",
-      "lastSeenAt" : "2026-10-30T11:48:38Z",
-      "lastSeenURLSHA256" : "15fdfd776a505fca3da172af591b6c745b921f401f1f717d2f43aee85283adfa",
-      "lastSeenVersion" : "0.8.19",
+      "lastSeenAt" : "2026-11-02T14:26:21Z",
+      "lastSeenURLSHA256" : "52a107c07890db4234d1242d966eea96cb3dbe5651de7b283a1c557a79d18946",
+      "lastSeenVersion" : "0.8.20",
       "signedIdentifier" : "org.openlogi.openlogi",
       "sparklePublicKey" : "dwOe6ZzIDrpl1SpM+iAu1my3EquhGspSGlWBlq1zkdI=",
       "teamIdentifier" : "8U3ZJ258K9"
@@ -60,9 +73,9 @@
       "bundleIdentifier" : "com.kangfenmao.CherryStudio",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "2.1.4",
-      "lastSeenAt" : "2026-10-30T17:14:47Z",
-      "lastSeenURLSHA256" : "37c480aa18465c2eb220b632eb8afb6fb7a9d5c07057a7e16309c787911503c5",
-      "lastSeenVersion" : "2.1.9",
+      "lastSeenAt" : "2026-11-02T14:26:21Z",
+      "lastSeenURLSHA256" : "01792db3db6b7b0f678ccd6723008df7b48e9aec528ad34d7482bbe0b48b1543",
+      "lastSeenVersion" : "2.1.10",
       "signedIdentifier" : "com.kangfenmao.CherryStudio",
       "teamIdentifier" : "87242QY66T"
     },
@@ -181,9 +194,9 @@
       "bundleIdentifier" : "com.xingyuzhong.deepseekgui",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "0.3.12",
-      "lastSeenAt" : "2026-10-27T11:07:58Z",
-      "lastSeenURLSHA256" : "20c21cf67c5b0d27dac0c2bed40760db0b0719c5372410a9858848bfc2542123",
-      "lastSeenVersion" : "0.4.3",
+      "lastSeenAt" : "2026-11-02T14:26:21Z",
+      "lastSeenURLSHA256" : "b84967eadebe77a8ef6adc17b897034c8cbd308e5617a30491d7e9e70edfe3ed",
+      "lastSeenVersion" : "0.4.4",
       "signedIdentifier" : "com.xingyuzhong.deepseekgui",
       "teamIdentifier" : "YBR76S5LNP"
     },
@@ -290,9 +303,9 @@
       "bundleIdentifier" : "is.follow",
       "firstSeenAt" : "2026-10-22T10:43:03Z",
       "firstSeenVersion" : "1.16.0",
-      "lastSeenAt" : "2026-10-22T10:43:03Z",
-      "lastSeenURLSHA256" : "ec6ebf1505b31d00105b6ae270f8c7b01ec520cd0392f9414c3e4f650e14f1ed",
-      "lastSeenVersion" : "1.16.0",
+      "lastSeenAt" : "2026-11-02T14:26:21Z",
+      "lastSeenURLSHA256" : "d28dbfb25662e2c07cb1212bbd1cf329fe99aa7a23fe10a6b947711f4994bc0d",
+      "lastSeenVersion" : "1.17.0",
       "signedIdentifier" : "is.follow",
       "teamIdentifier" : "492J8Q67PF"
     },
@@ -662,9 +675,9 @@
       "bundleIdentifier" : "org.audacityteam.audacity4",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "4.0.1",
-      "lastSeenAt" : "2026-10-11T17:17:49Z",
-      "lastSeenURLSHA256" : "74d53058d57584136e84ef502138ce8281645df42f7c64c9c277305db6d806d3",
-      "lastSeenVersion" : "4.0.1",
+      "lastSeenAt" : "2026-11-02T14:26:21Z",
+      "lastSeenURLSHA256" : "4a1c4cc8a4f25932b840b5b1ae8327c465e70fd434fa7d1d1e1cc2fa2e93fb5d",
+      "lastSeenVersion" : "4.0.2",
       "signedIdentifier" : "org.audacityteam.audacity4",
       "teamIdentifier" : "6EPAF2X3PR"
     },
@@ -743,9 +756,9 @@
       "bundleIdentifier" : "com.pais.handy",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "0.9.8",
-      "lastSeenAt" : "2026-10-11T17:17:49Z",
-      "lastSeenURLSHA256" : "c033e153a9092f63ac65f0881a66c4682f49c23bcb64dc3a8d8c5f3455b8b75f",
-      "lastSeenVersion" : "0.9.8",
+      "lastSeenAt" : "2026-11-02T14:26:21Z",
+      "lastSeenURLSHA256" : "da753885287248c289a9c7bd5bd350148813ec857bef14d4dc569ee5e613eb2e",
+      "lastSeenVersion" : "0.10.0",
       "signedIdentifier" : "com.pais.handy",
       "teamIdentifier" : "UWFLB4GC25"
     },
@@ -756,9 +769,9 @@
       "bundleIdentifier" : "io.github.clash-verge-rev.clash-verge-rev",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "2.5.8",
-      "lastSeenAt" : "2026-10-11T17:17:49Z",
-      "lastSeenURLSHA256" : "c74c8ea061f9ce99a03911a4709a85eace15b9e864dd7a3b02281e077186dab1",
-      "lastSeenVersion" : "2.5.8",
+      "lastSeenAt" : "2026-11-02T14:26:21Z",
+      "lastSeenURLSHA256" : "2369caf505077497b7d82ea30342c4a1796b3cad14603332f4552b5ecf9e113b",
+      "lastSeenVersion" : "2.5.9",
       "signedIdentifier" : "io.github.clash-verge-rev.clash-verge-rev",
       "teamIdentifier" : "JPH3Z7PPBB"
     },
@@ -828,9 +841,9 @@
       "bundleIdentifier" : "rocks.spotifast.Spotifast",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "0.12.0",
-      "lastSeenAt" : "2026-10-26T11:49:23Z",
-      "lastSeenURLSHA256" : "0763b55859a028a109f3675c586bbc61eb2ea15a0e70326d9dd25ccac19e1bb0",
-      "lastSeenVersion" : "0.14.2",
+      "lastSeenAt" : "2026-11-02T14:26:21Z",
+      "lastSeenURLSHA256" : "47cfaf703a56f024b1f6093eaadc67578cbdfae94a5ff254f313b361edf7fa2c",
+      "lastSeenVersion" : "0.16.0",
       "signedIdentifier" : "rocks.spotifast.Spotifast",
       "teamIdentifier" : "JPL7999US3"
     },
@@ -908,9 +921,9 @@
       "bundleIdentifier" : "org.jkiss.dbeaver.core.product",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "26.2.2",
-      "lastSeenAt" : "2026-10-18T20:23:00Z",
-      "lastSeenURLSHA256" : "3f8730069c2ffdd2206eeacc0621c2c29df06b5127e20fa13a51f6ebac49535c",
-      "lastSeenVersion" : "26.2.3",
+      "lastSeenAt" : "2026-11-02T14:26:21Z",
+      "lastSeenURLSHA256" : "a468fab41d308343fe87c3dff00da30e0ac350be48bcb8db0b6db9fa5924c31d",
+      "lastSeenVersion" : "26.2.4",
       "signedIdentifier" : "org.jkiss.dbeaver.core.product",
       "teamIdentifier" : "42B6MDKMW8"
     },
@@ -973,9 +986,9 @@
       "bundleIdentifier" : "com.officecommun.search",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "1.0.4",
-      "lastSeenAt" : "2026-10-25T19:59:23Z",
-      "lastSeenURLSHA256" : "02a9fe138a36c97f473c2ca1b3619c5753e10c6c3316a52330835e90d608175d",
-      "lastSeenVersion" : "1.0.7",
+      "lastSeenAt" : "2026-11-02T14:26:21Z",
+      "lastSeenURLSHA256" : "abfa24656351026d42a125da7bc9881a7fd030fbb5c08f148c7860c48c8ef704",
+      "lastSeenVersion" : "1.0.8",
       "signedIdentifier" : "com.officecommun.search",
       "teamIdentifier" : "7BYKA895MC"
     },
@@ -1015,9 +1028,9 @@
       "bundleIdentifier" : "eu.exelban.Stats",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "3.0.20",
-      "lastSeenAt" : "2026-10-25T15:05:33Z",
-      "lastSeenURLSHA256" : "9236ef27dc1bd623857fd1e6043f97352a7c2eec58a61c1179b3f00504534ddf",
-      "lastSeenVersion" : "3.0.23",
+      "lastSeenAt" : "2026-11-02T14:26:21Z",
+      "lastSeenURLSHA256" : "0c9e2edfa7bdcff88d26c6ccc96906b42ab088bf8e9eea7149100001bf03994e",
+      "lastSeenVersion" : "3.0.24",
       "signedIdentifier" : "eu.exelban.Stats",
       "teamIdentifier" : "RP2S87B72W"
     },
@@ -1043,9 +1056,9 @@
       "bundleIdentifier" : "com.ccswitch.desktop",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "4.0.5",
-      "lastSeenAt" : "2026-10-30T11:48:38Z",
-      "lastSeenURLSHA256" : "8a1ea7e05210ce06cd1e29b32a99f317063700da781040bafad7026ce7c4dc01",
-      "lastSeenVersion" : "4.0.22",
+      "lastSeenAt" : "2026-11-02T14:26:21Z",
+      "lastSeenURLSHA256" : "3cec16a8f9b3e4fccc67e76b58538e4e6f82fd38d198c89bd8f7367ff05bd368",
+      "lastSeenVersion" : "4.0.24",
       "signedIdentifier" : "com.ccswitch.desktop",
       "teamIdentifier" : "R8UR22V2F9"
     },
@@ -1121,11 +1134,26 @@
       "bundleIdentifier" : "com.extraheadroom.headroom",
       "firstSeenAt" : "2026-10-22T10:43:03Z",
       "firstSeenVersion" : "0.9.46",
-      "lastSeenAt" : "2026-10-30T11:48:38Z",
-      "lastSeenURLSHA256" : "32f17ec50455c04f1cb5ab57d35e93c677c3924eaf07c8d572856a6d7510f94f",
-      "lastSeenVersion" : "0.9.53",
+      "lastSeenAt" : "2026-11-02T14:26:21Z",
+      "lastSeenURLSHA256" : "25598f787aa33b589dd2473d5dbf9c10f335b63157f20cacb111c4143a4d195b",
+      "lastSeenVersion" : "0.9.54",
       "signedIdentifier" : "com.extraheadroom.headroom",
       "teamIdentifier" : "ZA6LNF9PF9"
+    },
+    "github:git-up\/GitUp:stable" : {
+      "architectures" : [
+        "arm64",
+        "x86_64"
+      ],
+      "bundleIdentifier" : "co.gitup.mac",
+      "firstSeenAt" : "2026-11-02T14:26:21Z",
+      "firstSeenVersion" : "1.5.0",
+      "lastSeenAt" : "2026-11-02T14:26:21Z",
+      "lastSeenURLSHA256" : "6f44ff21302d6e21b8c0b4bebfbda4142ea9061f2fbf9ff5a3647e9d7c1881fd",
+      "lastSeenVersion" : "1.5.0",
+      "signedIdentifier" : "co.gitup.mac",
+      "sparklePublicKey" : "l8+r2Uqcjd\/9bj7mROr1DRLQ2nacFKiLZNaxyU9qFFA=",
+      "teamIdentifier" : "FP44AY6HHW"
     },
     "github:github\/app:stable" : {
       "architectures" : [
@@ -1148,9 +1176,9 @@
       "bundleIdentifier" : "co.fluder.FSNotes",
       "firstSeenAt" : "2026-10-22T10:43:03Z",
       "firstSeenVersion" : "7.3.6",
-      "lastSeenAt" : "2026-10-27T02:29:25Z",
-      "lastSeenURLSHA256" : "0c6c3cb44c5fee6cc79de962216fee6a4442bfc86fb57409e85e0ade90a60145",
-      "lastSeenVersion" : "7.4.0",
+      "lastSeenAt" : "2026-11-02T14:26:21Z",
+      "lastSeenURLSHA256" : "44645064b05e7533494986a73109e5d92119988ba4eb15818dc9bae306d93e00",
+      "lastSeenVersion" : "7.5.0",
       "signedIdentifier" : "co.fluder.FSNotes",
       "teamIdentifier" : "866P6MTE92"
     },
@@ -1229,9 +1257,9 @@
       "bundleIdentifier" : "com.lokii.app",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "0.1.1",
-      "lastSeenAt" : "2026-10-27T11:07:58Z",
-      "lastSeenURLSHA256" : "fcdeeec61c1087aba62e5a96b87e58817c64ad051c3ca6d661a1584f46311b0c",
-      "lastSeenVersion" : "0.1.7",
+      "lastSeenAt" : "2026-11-02T14:26:21Z",
+      "lastSeenURLSHA256" : "da84743692e3bad0103589115709d8fe001389638196902e7ff6c30ac0ba0e57",
+      "lastSeenVersion" : "0.1.8",
       "signedIdentifier" : "com.lokii.app",
       "sparklePublicKey" : "pxrsUMDmDnkDlrD0UqaLGc8tIGwWuY7xmmVT2G3SXtE="
     },
@@ -1242,9 +1270,9 @@
       "bundleIdentifier" : "net.imput.helium",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "0.18.3.1",
-      "lastSeenAt" : "2026-10-29T03:05:28Z",
-      "lastSeenURLSHA256" : "18b65f69ab2564dcc64e466cedddde82c25b553ddcd298edbd07c832c1d9b691",
-      "lastSeenVersion" : "0.20.2.1",
+      "lastSeenAt" : "2026-11-02T14:26:21Z",
+      "lastSeenURLSHA256" : "dba0e8785e0467ca27b7aa18d38e727a95ea7f46fdce0d3513600eacb9a961c1",
+      "lastSeenVersion" : "0.20.3.1",
       "signedIdentifier" : "net.imput.helium",
       "sparklePublicKey" : "AkeaXa5rNXUpFKsj\/+tWgBUhcBTX\/15d4TkvrckgUPQ=",
       "teamIdentifier" : "S4Q33XPHB4"
@@ -1297,9 +1325,9 @@
       "bundleIdentifier" : "glass.kagerou.adrafinil",
       "firstSeenAt" : "2026-10-22T10:43:03Z",
       "firstSeenVersion" : "1.13.1",
-      "lastSeenAt" : "2026-10-22T10:43:03Z",
-      "lastSeenURLSHA256" : "bad129ebafe3fb6f6f4da833c82d83631fddd7461a34e644c15a291c96c18396",
-      "lastSeenVersion" : "1.13.1",
+      "lastSeenAt" : "2026-11-02T14:26:21Z",
+      "lastSeenURLSHA256" : "2325805b1ccaf0ab9e5fb66f9b1cce263b60d001dfa781c0d6533585215952f8",
+      "lastSeenVersion" : "1.14.0",
       "signedIdentifier" : "glass.kagerou.adrafinil",
       "teamIdentifier" : "52K336H235"
     },
@@ -1515,9 +1543,9 @@
       "bundleIdentifier" : "com.xd.cindycn",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "0.1.101",
-      "lastSeenAt" : "2026-10-30T11:48:38Z",
-      "lastSeenURLSHA256" : "d647bf24696d817ab7a0c96ff0caaf751f12c95ee86d24b46333134c80e2da1e",
-      "lastSeenVersion" : "0.1.121",
+      "lastSeenAt" : "2026-11-02T14:26:21Z",
+      "lastSeenURLSHA256" : "9ff9d2344484b6f0658c6f4a94d945999e51754363b80fea8b88ab780c3de224",
+      "lastSeenVersion" : "0.1.122",
       "signedIdentifier" : "com.xd.cindycn",
       "teamIdentifier" : "NTC4BJ542G"
     },
@@ -1528,9 +1556,9 @@
       "bundleIdentifier" : "com.xd.cindy",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "0.1.101",
-      "lastSeenAt" : "2026-10-30T11:48:38Z",
-      "lastSeenURLSHA256" : "c5141802127c588fd0c4934b6d0b6d6cc575379b99e896f1755f198871b5f844",
-      "lastSeenVersion" : "0.1.121",
+      "lastSeenAt" : "2026-11-02T14:26:21Z",
+      "lastSeenURLSHA256" : "a29c1388e4cf22cd5eb08615025222b98a77b35e87e4ab55b481d6691cca1472",
+      "lastSeenVersion" : "0.1.122",
       "signedIdentifier" : "com.xd.cindy",
       "teamIdentifier" : "SX9RG894L5"
     },
@@ -1635,11 +1663,24 @@
       "bundleIdentifier" : "org.musicbrainz.Picard",
       "firstSeenAt" : "2026-10-16T10:20:06Z",
       "firstSeenVersion" : "3.0.2",
-      "lastSeenAt" : "2026-10-30T11:48:38Z",
-      "lastSeenURLSHA256" : "4f6ec40a2bb61cd6adfec7790cc17c1969f89aabb1e101aad5e87f1f5c6ec69b",
-      "lastSeenVersion" : "3.0.3",
+      "lastSeenAt" : "2026-11-02T14:26:21Z",
+      "lastSeenURLSHA256" : "7bce45ec03341c6f7534a3bb81af47c936cfb885f9e7e8e40ba4b1211f77b0d5",
+      "lastSeenVersion" : "3.0.4",
       "signedIdentifier" : "org.musicbrainz.Picard",
       "teamIdentifier" : "8D89TSJ88H"
+    },
+    "github:mifi\/lossless-cut:stable" : {
+      "architectures" : [
+        "arm64"
+      ],
+      "bundleIdentifier" : "no.mifi.losslesscut-mac",
+      "firstSeenAt" : "2026-11-02T14:26:21Z",
+      "firstSeenVersion" : "3.70.2",
+      "lastSeenAt" : "2026-11-02T14:26:21Z",
+      "lastSeenURLSHA256" : "8505ed5f43d096988befdaf978dee3e0805d670586fccc10c3e101436932aea6",
+      "lastSeenVersion" : "3.70.2",
+      "signedIdentifier" : "no.mifi.losslesscut-mac",
+      "teamIdentifier" : "46F6T3M669"
     },
     "github:mockoon\/mockoon:stable" : {
       "architectures" : [
@@ -1690,9 +1731,9 @@
       "bundleIdentifier" : "app.yaak.desktop",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "2026.9.0-beta.4",
-      "lastSeenAt" : "2026-10-26T17:44:32Z",
-      "lastSeenURLSHA256" : "edbba581db3bf1874372a22b67c28062d73c03b81fc31c20b0d5916f94a85508",
-      "lastSeenVersion" : "2026.10.0-beta.1",
+      "lastSeenAt" : "2026-11-02T14:26:21Z",
+      "lastSeenURLSHA256" : "87c7302b9664fc6a8486b0e72c1b7381d3a90ffe315ec4012d124c466ed7b6f0",
+      "lastSeenVersion" : "2026.10.0-beta.2",
       "signedIdentifier" : "app.yaak.desktop",
       "teamIdentifier" : "7PU3P6ELJ8"
     },
@@ -1703,9 +1744,9 @@
       "bundleIdentifier" : "app.yaak.desktop",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "2026.8.1",
-      "lastSeenAt" : "2026-10-11T17:17:49Z",
-      "lastSeenURLSHA256" : "ca2376b4096d7f85a08fc3b5bf8547c7994a06f79c344fd25bd8892887c7b105",
-      "lastSeenVersion" : "2026.9.0",
+      "lastSeenAt" : "2026-11-02T14:26:21Z",
+      "lastSeenURLSHA256" : "e3fd04eee456d215e58bc902d124da92b0c58510fd36addca91a72c5f78cf3be",
+      "lastSeenVersion" : "2026.9.1",
       "signedIdentifier" : "app.yaak.desktop",
       "teamIdentifier" : "7PU3P6ELJ8"
     },
@@ -1783,9 +1824,9 @@
       "bundleIdentifier" : "com.neovide.neovide",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "0.16.2",
-      "lastSeenAt" : "2026-10-11T17:17:49Z",
-      "lastSeenURLSHA256" : "fe0575e04bb8f91e3325c2cfceef144821cb249fe474efdfe04822634e905c6f",
-      "lastSeenVersion" : "0.16.2",
+      "lastSeenAt" : "2026-11-02T14:26:21Z",
+      "lastSeenURLSHA256" : "c5c0b0242ec947c78b93c8c4a2efe2ab11933de94dee1738e62e585e567a0c1d",
+      "lastSeenVersion" : "0.17.1",
       "signedIdentifier" : "com.neovide.neovide",
       "teamIdentifier" : "X8CNW77992"
     },
@@ -1867,9 +1908,9 @@
       "bundleIdentifier" : "io.github.obelus-editor.obelus",
       "firstSeenAt" : "2026-10-19T17:53:50Z",
       "firstSeenVersion" : "0.16.0",
-      "lastSeenAt" : "2026-10-29T03:05:28Z",
-      "lastSeenURLSHA256" : "370e656b80259b2a88b55ba4e39438452dfd15e9a20c20f5c791b435cff3a29a",
-      "lastSeenVersion" : "0.18.0",
+      "lastSeenAt" : "2026-11-02T14:26:21Z",
+      "lastSeenURLSHA256" : "68b816f5c05091ca17ecf25533bece5230c3c050010f0931080ef343485964de",
+      "lastSeenVersion" : "0.19.0",
       "signedIdentifier" : "io.github.obelus-editor.obelus"
     },
     "github:objective-see\/DylibHijackScanner:stable" : {
@@ -1922,9 +1963,9 @@
       "bundleIdentifier" : "com.objective-see.lulu.app",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "4.5.1",
-      "lastSeenAt" : "2026-10-30T11:48:38Z",
-      "lastSeenURLSHA256" : "c3e112603536f595d96285c5d3d45b0693a50cf68930e238eac3e510c7fdec59",
-      "lastSeenVersion" : "4.5.5",
+      "lastSeenAt" : "2026-11-02T14:26:21Z",
+      "lastSeenURLSHA256" : "dec23ab3827f0830745cf03a54d8d0a23063cab8782088c153ec9ef3522ece18",
+      "lastSeenVersion" : "4.5.7",
       "signedIdentifier" : "com.objective-see.lulu.app",
       "teamIdentifier" : "VBG97UB4TA"
     },
@@ -2005,9 +2046,9 @@
       "bundleIdentifier" : "dev.openchamber.desktop",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "2.2.0",
-      "lastSeenAt" : "2026-10-29T03:05:28Z",
-      "lastSeenURLSHA256" : "35bbf87ca2b5c6a5b3c0c174ebde4544929cd76c087d51a1f5dd1f843a5643c0",
-      "lastSeenVersion" : "2.5.3",
+      "lastSeenAt" : "2026-11-02T14:26:21Z",
+      "lastSeenURLSHA256" : "c24a596754ffcb93a77e549e8cfcb435832124991e90987dc8d933e12d8c82e9",
+      "lastSeenVersion" : "2.6.0",
       "signedIdentifier" : "dev.openchamber.desktop",
       "teamIdentifier" : "5J7WJGPA2Q"
     },
@@ -2018,9 +2059,9 @@
       "bundleIdentifier" : "dev.openchamber.desktop",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "2.2.0",
-      "lastSeenAt" : "2026-10-29T03:05:28Z",
-      "lastSeenURLSHA256" : "35bbf87ca2b5c6a5b3c0c174ebde4544929cd76c087d51a1f5dd1f843a5643c0",
-      "lastSeenVersion" : "2.5.3",
+      "lastSeenAt" : "2026-11-02T14:26:21Z",
+      "lastSeenURLSHA256" : "c24a596754ffcb93a77e549e8cfcb435832124991e90987dc8d933e12d8c82e9",
+      "lastSeenVersion" : "2.6.0",
       "signedIdentifier" : "dev.openchamber.desktop",
       "teamIdentifier" : "5J7WJGPA2Q"
     },
@@ -2031,9 +2072,9 @@
       "bundleIdentifier" : "org.rustgis.RustGIS",
       "firstSeenAt" : "2026-10-13T13:02:05Z",
       "firstSeenVersion" : "0.2.0",
-      "lastSeenAt" : "2026-10-25T01:40:36Z",
-      "lastSeenURLSHA256" : "8a82e3114f4bbeb8f5781eb6e95facb88ae2d236b109d9297c0e8c9033edd35a",
-      "lastSeenVersion" : "0.4.0",
+      "lastSeenAt" : "2026-11-02T14:26:21Z",
+      "lastSeenURLSHA256" : "8af8a0d1e9432857a87782ec2a66d66a94b794003b88c17a03c42937b7cfda53",
+      "lastSeenVersion" : "0.5.0",
       "signedIdentifier" : "org.rustgis.RustGIS",
       "teamIdentifier" : "Z6ABKZWLA7"
     },
@@ -2058,9 +2099,9 @@
       "bundleIdentifier" : "com.t3tools.t3code",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "0.0.45",
-      "lastSeenAt" : "2026-10-30T11:48:38Z",
-      "lastSeenURLSHA256" : "d66bdbd50bfc81b83b2b620d9df7579c20015de511161da94692391dbfeaa2e5",
-      "lastSeenVersion" : "0.1.5",
+      "lastSeenAt" : "2026-11-02T14:26:21Z",
+      "lastSeenURLSHA256" : "a18d6524649f247272314ecce2e1ff270520a244123479c2fc5862b8da309b05",
+      "lastSeenVersion" : "0.1.6",
       "signedIdentifier" : "com.t3tools.t3code",
       "teamIdentifier" : "ARK85ZXQ4Z"
     },
@@ -2071,9 +2112,9 @@
       "bundleIdentifier" : "com.t3tools.t3code",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "0.0.46-nightly.20261008.2849",
-      "lastSeenAt" : "2026-10-30T21:45:57Z",
-      "lastSeenURLSHA256" : "5d1af2c421a8adf333455b4f2977707c5be3f0574c33abc85a72765e5d7e9365",
-      "lastSeenVersion" : "0.1.6-nightly.20261030.3940",
+      "lastSeenAt" : "2026-11-02T14:26:21Z",
+      "lastSeenURLSHA256" : "a1b8f9a1b065b8d12136602a086abcdcdb08ff1fb5b906b3d2619f911ea2ad28",
+      "lastSeenVersion" : "0.1.7-nightly.20261102.4080",
       "signedIdentifier" : "com.t3tools.t3code",
       "teamIdentifier" : "ARK85ZXQ4Z"
     },
@@ -2184,6 +2225,33 @@
       "signedIdentifier" : "org.RedisLabs.RedisInsight-V2",
       "teamIdentifier" : "UUK47G4BAZ"
     },
+    "github:reqable\/reqable-app:stable" : {
+      "architectures" : [
+        "arm64"
+      ],
+      "bundleIdentifier" : "com.reqable.macosx",
+      "firstSeenAt" : "2026-11-02T14:26:21Z",
+      "firstSeenVersion" : "3.3.9",
+      "lastSeenAt" : "2026-11-02T14:26:21Z",
+      "lastSeenURLSHA256" : "07709f3234ad6493279c25ac004075bcc46bd7d8969e026ac79ae1ebec37b998",
+      "lastSeenVersion" : "3.3.9",
+      "signedIdentifier" : "com.reqable.macosx",
+      "sparklePublicKey" : "Mn4mBlAEfJbDZPXfP16roWEm6n6zMkJRar0q4gM9mSk=",
+      "teamIdentifier" : "DXY5A5J7C4"
+    },
+    "github:requestly\/http-interceptor-desktop-app:stable" : {
+      "architectures" : [
+        "arm64"
+      ],
+      "bundleIdentifier" : "io.requestly.beta",
+      "firstSeenAt" : "2026-11-02T14:26:21Z",
+      "firstSeenVersion" : "26.6.29",
+      "lastSeenAt" : "2026-11-02T14:26:21Z",
+      "lastSeenURLSHA256" : "8a3c64ec66c89bc97ef2c81dcfcfb2524ab0bb4d0d93152e4c0286c72f00e873",
+      "lastSeenVersion" : "26.6.29",
+      "signedIdentifier" : "io.requestly.beta",
+      "teamIdentifier" : "YQ5FZQ855D"
+    },
     "github:responsively-org\/responsively-app-releases:beta" : {
       "architectures" : [
         "arm64"
@@ -2258,9 +2326,9 @@
       "bundleIdentifier" : "com.carriez.rustdesk",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "1.5.0",
-      "lastSeenAt" : "2026-10-11T17:17:49Z",
-      "lastSeenURLSHA256" : "a9fc9ea4c446f49906202729167ca7166d7ab535a63c3b1df7a9d9fba8de4b61",
-      "lastSeenVersion" : "1.5.0",
+      "lastSeenAt" : "2026-11-02T14:26:21Z",
+      "lastSeenURLSHA256" : "4868c409636dcd44f2b51a19bb0741bb1892fcf5d1e435fe4a9e6248872c8036",
+      "lastSeenVersion" : "1.5.1",
       "signedIdentifier" : "com.carriez.rustdesk",
       "teamIdentifier" : "HZF9JMC8YN"
     },
@@ -2326,9 +2394,9 @@
       "bundleIdentifier" : "ai.storyteller.designcraft",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "0.4.0",
-      "lastSeenAt" : "2026-10-29T03:05:28Z",
-      "lastSeenURLSHA256" : "b4db08be8dbe98130b06274dd0f1998205d255d5b9cd73c0155001d7a4098ec3",
-      "lastSeenVersion" : "0.14.0",
+      "lastSeenAt" : "2026-11-02T14:26:21Z",
+      "lastSeenURLSHA256" : "6b0bb9780cc5af0ae31176dcfe407fb52fb9f8d1f1ff498ccd44bce61b2e563d",
+      "lastSeenVersion" : "0.16.0",
       "signedIdentifier" : "ai.storyteller.designcraft",
       "teamIdentifier" : "DJ6XS33FX8"
     },
@@ -2340,9 +2408,9 @@
       "bundleIdentifier" : "ai.storyteller.effectcraft",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "0.6.0",
-      "lastSeenAt" : "2026-10-29T03:05:28Z",
-      "lastSeenURLSHA256" : "065063a2a9de9dee4ff3f39b9376c5688694a82e7f6dac452e5033937ccde4a9",
-      "lastSeenVersion" : "0.18.0",
+      "lastSeenAt" : "2026-11-02T14:26:21Z",
+      "lastSeenURLSHA256" : "0a7536b65620a48e671b6126e966ef45a5d599e1ac3599fd22430767da4af4e5",
+      "lastSeenVersion" : "0.20.0",
       "signedIdentifier" : "ai.storyteller.effectcraft",
       "teamIdentifier" : "DJ6XS33FX8"
     },
@@ -2354,9 +2422,9 @@
       "bundleIdentifier" : "ai.storyteller.filmcraft",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "0.4.0",
-      "lastSeenAt" : "2026-10-29T03:05:28Z",
-      "lastSeenURLSHA256" : "03318c1c950556772eba852b3e97909925f8fb1cc3d7d6cded0695731680ece4",
-      "lastSeenVersion" : "0.14.0",
+      "lastSeenAt" : "2026-11-02T14:26:21Z",
+      "lastSeenURLSHA256" : "0ef1c3229dfce59aeabb7f3e4740fbbffb0216d0b4e08ff25a411dbdfe96e856",
+      "lastSeenVersion" : "0.16.0",
       "signedIdentifier" : "ai.storyteller.filmcraft",
       "teamIdentifier" : "DJ6XS33FX8"
     },
@@ -2368,9 +2436,9 @@
       "bundleIdentifier" : "ai.storyteller.lightcraft",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "0.4.0",
-      "lastSeenAt" : "2026-10-29T03:05:28Z",
-      "lastSeenURLSHA256" : "106a802c6c46287775f96999e039bf44d32cb41a23b257ee31c88775fe5e2fc2",
-      "lastSeenVersion" : "0.15.0",
+      "lastSeenAt" : "2026-11-02T14:26:21Z",
+      "lastSeenURLSHA256" : "e4f1292937cffcda6f620840694eb41d0832d87c8c0a3bd769fd9c18385ec8f7",
+      "lastSeenVersion" : "0.17.0",
       "signedIdentifier" : "ai.storyteller.lightcraft",
       "teamIdentifier" : "DJ6XS33FX8"
     },
@@ -2382,9 +2450,9 @@
       "bundleIdentifier" : "ai.storyteller.pdfcraft",
       "firstSeenAt" : "2026-10-09T12:37:52Z",
       "firstSeenVersion" : "0.4.0",
-      "lastSeenAt" : "2026-10-29T03:05:28Z",
-      "lastSeenURLSHA256" : "8d1b0752bdcc36e43c0078954a6197e35eae257b2eeb55ec05fe3c5f299171b2",
-      "lastSeenVersion" : "0.15.0",
+      "lastSeenAt" : "2026-11-02T14:26:21Z",
+      "lastSeenURLSHA256" : "0a3a0416ab17281615d3fd8077df848891fd369c8d57fb7761d9851e6e45bf7d",
+      "lastSeenVersion" : "0.17.0",
       "signedIdentifier" : "ai.storyteller.pdfcraft",
       "teamIdentifier" : "DJ6XS33FX8"
     },
@@ -2396,9 +2464,9 @@
       "bundleIdentifier" : "ai.storyteller.photocraft",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "0.5.0",
-      "lastSeenAt" : "2026-10-29T03:05:28Z",
-      "lastSeenURLSHA256" : "0a51051273b77fa1009d846fd962f0938e0e1668d494c26cba4f265b75bc7dbe",
-      "lastSeenVersion" : "0.17.0",
+      "lastSeenAt" : "2026-11-02T14:26:21Z",
+      "lastSeenURLSHA256" : "c8c6a643779712bba4d9f347719169f9a747a9b2ef7d16cf46351b74f8aeaabb",
+      "lastSeenVersion" : "0.19.0",
       "signedIdentifier" : "ai.storyteller.photocraft",
       "teamIdentifier" : "DJ6XS33FX8"
     },
@@ -2410,11 +2478,24 @@
       "bundleIdentifier" : "ai.storyteller.vectorcraft",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "0.7.0",
-      "lastSeenAt" : "2026-10-29T03:05:28Z",
-      "lastSeenURLSHA256" : "f28f952d5204f193fb43d57a3674a886809eb24c1a038c7dedcca22dd33745ba",
-      "lastSeenVersion" : "0.18.0",
+      "lastSeenAt" : "2026-11-02T14:26:21Z",
+      "lastSeenURLSHA256" : "62669ab7d4aeaa2b4d9d3a8305ad61d46f68092792b65efd9d1b54ef46879215",
+      "lastSeenVersion" : "0.20.0",
       "signedIdentifier" : "ai.storyteller.vectorcraft",
       "teamIdentifier" : "DJ6XS33FX8"
+    },
+    "github:super-productivity\/super-productivity:stable" : {
+      "architectures" : [
+        "arm64"
+      ],
+      "bundleIdentifier" : "com.super-productivity.app",
+      "firstSeenAt" : "2026-11-02T14:26:21Z",
+      "firstSeenVersion" : "19.3.1",
+      "lastSeenAt" : "2026-11-02T14:26:21Z",
+      "lastSeenURLSHA256" : "982bca7c4ff7e6c2bd0be31931f5452d58a1afed18cd3ad9dbd05e582403d0ad",
+      "lastSeenVersion" : "19.3.1",
+      "signedIdentifier" : "com.super-productivity.app",
+      "teamIdentifier" : "363FAFK383"
     },
     "github:swiftbar\/SwiftBar:stable" : {
       "architectures" : [
@@ -2543,8 +2624,8 @@
       "bundleIdentifier" : "com.trycua.driver",
       "firstSeenAt" : "2026-10-09T12:37:52Z",
       "firstSeenVersion" : "0.30.5",
-      "lastSeenAt" : "2026-10-30T11:48:38Z",
-      "lastSeenURLSHA256" : "d974fd25edbbd8aa03448cd2dffc47925377b0667ab32ca844d7500b8db7c301",
+      "lastSeenAt" : "2026-11-02T14:26:21Z",
+      "lastSeenURLSHA256" : "aa95c81d2384419878dfd0f125056230256d803bae8dd818b4dc566051531ec6",
       "lastSeenVersion" : "0.38.1",
       "signedIdentifier" : "com.trycua.driver",
       "teamIdentifier" : "YCK386LBJ7"
@@ -2697,6 +2778,19 @@
       "signedIdentifier" : "com.wulkano.kap",
       "teamIdentifier" : "2KEEHXF6R6"
     },
+    "github:xpf0000\/FlyEnv:stable" : {
+      "architectures" : [
+        "arm64"
+      ],
+      "bundleIdentifier" : "phpstudy.xpfme.com",
+      "firstSeenAt" : "2026-11-02T14:26:21Z",
+      "firstSeenVersion" : "4.20.2",
+      "lastSeenAt" : "2026-11-02T14:26:21Z",
+      "lastSeenURLSHA256" : "1ac99471cbe7e84b124d483a5af2a00ef6d0742205549702572e8bc463e1ca76",
+      "lastSeenVersion" : "4.20.2",
+      "signedIdentifier" : "phpstudy.xpfme.com",
+      "teamIdentifier" : "956BZQ2F2P"
+    },
     "github:yetone\/magpie-releases:stable" : {
       "architectures" : [
         "arm64"
@@ -2704,9 +2798,9 @@
       "bundleIdentifier" : "com.yetone.magpie",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "0.1.1133",
-      "lastSeenAt" : "2026-10-30T21:45:57Z",
-      "lastSeenURLSHA256" : "1570f2a2b1ca085efedd4fbd7b945c08aa99968b098677dc1a7bcb4d77779d4e",
-      "lastSeenVersion" : "0.1.2277",
+      "lastSeenAt" : "2026-11-02T14:26:21Z",
+      "lastSeenURLSHA256" : "4c022d721184bb9d981f62ed7750b35f30b38d6c3d1e732e421ea6361f84a4f1",
+      "lastSeenVersion" : "0.1.2733",
       "signedIdentifier" : "com.yetone.magpie",
       "teamIdentifier" : "LY7MVTUDZG"
     },
@@ -2784,9 +2878,9 @@
       "bundleIdentifier" : "ai.elementlabs.lmstudio",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "0.4.26",
-      "lastSeenAt" : "2026-10-30T11:48:38Z",
-      "lastSeenURLSHA256" : "898a9b685a8dc33bdcbee96c21575f713bb6fa66aa8f0eb9873232077e909f0c",
-      "lastSeenVersion" : "0.4.27",
+      "lastSeenAt" : "2026-11-02T14:26:21Z",
+      "lastSeenURLSHA256" : "b8cc87f857497181f3526226f9b5189cf745556e577a60c430b6ccd5116e61a7",
+      "lastSeenVersion" : "0.4.28",
       "signedIdentifier" : "ai.elementlabs.lmstudio",
       "teamIdentifier" : "D65G88RHWN"
     },
@@ -2797,9 +2891,9 @@
       "bundleIdentifier" : "ai.memoh.desktop",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "2026.10.5-1",
-      "lastSeenAt" : "2026-10-27T02:29:25Z",
-      "lastSeenURLSHA256" : "a40dd8dab6fc7bcff19c194687fa9e731550cad45b8935792ed4e4f4d67129cb",
-      "lastSeenVersion" : "2026.10.27-1",
+      "lastSeenAt" : "2026-11-02T14:26:21Z",
+      "lastSeenURLSHA256" : "296649d9289c0ea59cb52cc886884e72846dd09e2bf1f7b563ce4290c671c2f4",
+      "lastSeenVersion" : "2026.11.2-1",
       "signedIdentifier" : "ai.memoh.desktop",
       "teamIdentifier" : "P9R669C27U"
     },
@@ -2850,9 +2944,9 @@
       "bundleIdentifier" : "app.getmoshi.desktop",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "0.5.10",
-      "lastSeenAt" : "2026-10-29T03:05:28Z",
-      "lastSeenURLSHA256" : "d4a6d8f94b0f41ed6ee6e94cd9f623f385b3732ab534967b45d367620d9129b1",
-      "lastSeenVersion" : "0.5.30",
+      "lastSeenAt" : "2026-11-02T14:26:21Z",
+      "lastSeenURLSHA256" : "8307c5408c7e7d69ed8814a661a2d2d527211d13f98eb88521d845ec17733974",
+      "lastSeenVersion" : "0.5.33",
       "signedIdentifier" : "app.getmoshi.desktop",
       "teamIdentifier" : "FL442366Y7"
     },
@@ -3199,9 +3293,9 @@
       "bundleIdentifier" : "com.exafunction.windsurf",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "3.10.48",
-      "lastSeenAt" : "2026-10-30T11:48:38Z",
-      "lastSeenURLSHA256" : "6f656d3114960deaa21f20c6bb7a7ffe5a6e4c356b50160785e495a28973bd87",
-      "lastSeenVersion" : "3.11.234",
+      "lastSeenAt" : "2026-11-02T14:26:21Z",
+      "lastSeenURLSHA256" : "70c7f05f81608e3c77a23546a5a35624a07822e3b00e45a56891a0795f5b8037",
+      "lastSeenVersion" : "3.11.238",
       "signedIdentifier" : "com.exafunction.windsurf",
       "teamIdentifier" : "83Z2LHX6XW"
     },
@@ -3266,9 +3360,9 @@
       "bundleIdentifier" : "com.google.Chrome.canary",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "157.0.8093.0",
-      "lastSeenAt" : "2026-10-30T21:45:57Z",
+      "lastSeenAt" : "2026-11-02T14:26:21Z",
       "lastSeenURLSHA256" : "11a232feff09fd1bca2fb1115f23af0ac3f3c39d1b12976b737b88bf3244a989",
-      "lastSeenVersion" : "159.0.8133.0",
+      "lastSeenVersion" : "159.0.8138.0",
       "signedIdentifier" : "com.google.Chrome.canary",
       "teamIdentifier" : "EQHXZ8M8AV"
     },
@@ -3307,9 +3401,9 @@
       "bundleIdentifier" : "com.google.GeminiMacOS",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "1.128.6.1047",
-      "lastSeenAt" : "2026-10-24T09:49:55Z",
-      "lastSeenURLSHA256" : "858a7bbd578b98c8546e41a9b9354539f2840d008c50bc69985b799cff58429b",
-      "lastSeenVersion" : "1.135.1.1291",
+      "lastSeenAt" : "2026-11-02T14:26:21Z",
+      "lastSeenURLSHA256" : "ccd500d1806d4db6408e7331e44e979f9a2c316510c21b2bd9e4d1b78a314845",
+      "lastSeenVersion" : "1.138.0.1315",
       "signedIdentifier" : "com.google.GeminiMacOS",
       "teamIdentifier" : "EQHXZ8M8AV"
     },
@@ -3355,6 +3449,19 @@
       "signedIdentifier" : "com.google.android.studio",
       "teamIdentifier" : "EQHXZ8M8AV"
     },
+    "vendor:com.google.antigravity-ide:stable" : {
+      "architectures" : [
+        "arm64"
+      ],
+      "bundleIdentifier" : "com.google.antigravity-ide",
+      "firstSeenAt" : "2026-11-02T14:26:21Z",
+      "firstSeenVersion" : "2.6.0",
+      "lastSeenAt" : "2026-11-02T14:26:21Z",
+      "lastSeenURLSHA256" : "487bccd52d2b9e06e32805e0612796e0c9fdd16259acbbcf070824fb277ac4e4",
+      "lastSeenVersion" : "2.6.0",
+      "signedIdentifier" : "com.google.antigravity-ide",
+      "teamIdentifier" : "EQHXZ8M8AV"
+    },
     "vendor:com.google.antigravity:stable" : {
       "architectures" : [
         "arm64"
@@ -3376,9 +3483,9 @@
       "bundleIdentifier" : "com.granola.app",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "7.637.0",
-      "lastSeenAt" : "2026-10-30T11:48:38Z",
-      "lastSeenURLSHA256" : "149384b16883f0cd3a1de2e4d6e53b807b6ed220c08830e15dd94397dabe0bcb",
-      "lastSeenVersion" : "7.722.0",
+      "lastSeenAt" : "2026-11-02T14:26:21Z",
+      "lastSeenURLSHA256" : "85f2931cddb421a156134fdcb973e5d72f30c4182397c58824de83e280dcbfe4",
+      "lastSeenVersion" : "7.722.1",
       "signedIdentifier" : "com.granola.app",
       "teamIdentifier" : "QZ7DHHLN25"
     },
@@ -3404,9 +3511,9 @@
       "bundleIdentifier" : "com.hnc.DiscordCanary",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "0.0.1366",
-      "lastSeenAt" : "2026-10-30T21:45:57Z",
+      "lastSeenAt" : "2026-11-02T14:26:21Z",
       "lastSeenURLSHA256" : "f29277b5b5160ed08672b84e6e103474a283e846352c78186cb56f7caee94340",
-      "lastSeenVersion" : "0.0.1441",
+      "lastSeenVersion" : "0.0.1449",
       "signedIdentifier" : "com.hnc.DiscordCanary",
       "teamIdentifier" : "53Q6R32WPB"
     },
@@ -3486,9 +3593,9 @@
       "bundleIdentifier" : "com.lemon.lvoverseas",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "9.5.5-beta1",
-      "lastSeenAt" : "2026-10-27T11:07:58Z",
-      "lastSeenURLSHA256" : "fcd9561def82cc2b9e393b6ebf839dacdc57002a4be796442f6cc51ba4de6b69",
-      "lastSeenVersion" : "9.7.5-beta2",
+      "lastSeenAt" : "2026-11-02T14:26:21Z",
+      "lastSeenURLSHA256" : "2dfa90a088c03033ee775a73bbad48ff56fc853839a42a508c32abbf835b573b",
+      "lastSeenVersion" : "9.8.0-beta1",
       "signedIdentifier" : "com.lemon.lvoverseas",
       "teamIdentifier" : "22MMUN2RN5"
     },
@@ -3531,6 +3638,35 @@
       "lastSeenVersion" : "1.1.0",
       "signedIdentifier" : "com.longbridge.app.desktop",
       "teamIdentifier" : "45NG8MW7WK"
+    },
+    "vendor:com.macpaw.CleanMyMac5:stable" : {
+      "architectures" : [
+        "arm64",
+        "x86_64"
+      ],
+      "bundleIdentifier" : "com.macpaw.CleanMyMac5",
+      "firstSeenAt" : "2026-11-02T14:26:21Z",
+      "firstSeenVersion" : "5.7.3",
+      "lastSeenAt" : "2026-11-02T14:26:21Z",
+      "lastSeenURLSHA256" : "4bac82dfdf8f9f40c58697a6380d34a575d3988901c84552e027b91175073a9d",
+      "lastSeenVersion" : "5.7.3",
+      "signedIdentifier" : "com.macpaw.CleanMyMac5",
+      "sparklePublicKey" : "LRBFxMk0ffg8IjeFrAJzwQuy7AKWSQcYbaGdcVaXh8U=",
+      "teamIdentifier" : "S8EX82NJP6"
+    },
+    "vendor:com.macpaw.site.Gemini2:stable" : {
+      "architectures" : [
+        "arm64",
+        "x86_64"
+      ],
+      "bundleIdentifier" : "com.macpaw.site.Gemini2",
+      "firstSeenAt" : "2026-11-02T14:26:21Z",
+      "firstSeenVersion" : "407",
+      "lastSeenAt" : "2026-11-02T14:26:21Z",
+      "lastSeenURLSHA256" : "8f5c050bc8b4631cda021567ce60183eac7bfc5418ec400706a2e3b069383553",
+      "lastSeenVersion" : "407",
+      "signedIdentifier" : "com.macpaw.site.Gemini2",
+      "teamIdentifier" : "S8EX82NJP6"
     },
     "vendor:com.macpaw.site.theunarchiver:stable" : {
       "architectures" : [
@@ -3610,8 +3746,8 @@
       "bundleIdentifier" : "com.microsoft.VSCodeInsiders",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "1.142.0-insider",
-      "lastSeenAt" : "2026-10-30T21:45:57Z",
-      "lastSeenURLSHA256" : "2f65fda9c7207148e5a6aeb188d5e8f68b187b01a1575244a396cad9cd0591b7",
+      "lastSeenAt" : "2026-11-02T14:26:21Z",
+      "lastSeenURLSHA256" : "d68b61829cbca195e51f9420fc82c2e4177fa7de052ecee820c96551fc9d771d",
       "lastSeenVersion" : "1.145.0-insider",
       "signedIdentifier" : "com.microsoft.VSCodeInsiders",
       "teamIdentifier" : "UBF8T346G9"
@@ -3633,9 +3769,9 @@
       ],
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "156.0.4314.8",
-      "lastSeenAt" : "2026-10-23T20:44:47Z",
-      "lastSeenURLSHA256" : "bd86398c58a77258f8ab14af12d9d81c0cf35c1616a389dbd442daa9d18a316e",
-      "lastSeenVersion" : "157.0.4341.16",
+      "lastSeenAt" : "2026-11-02T14:26:21Z",
+      "lastSeenURLSHA256" : "2ec373dfe863be3cea4af7dca65d484281d5abdfce8a9b92e4db241daca94f05",
+      "lastSeenVersion" : "157.0.4341.30",
       "packageTeamIdentifier" : "UBF8T346G9"
     },
     "vendor:com.microsoft.edgemac.Dev:dev" : {
@@ -3712,8 +3848,8 @@
       ],
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "4.42.0",
-      "lastSeenAt" : "2026-10-30T21:45:57Z",
-      "lastSeenURLSHA256" : "d502286d9311077d5bfcfb1e3efde6e5757f35ddef041d62da7611fd5b5a24ce",
+      "lastSeenAt" : "2026-11-02T14:26:21Z",
+      "lastSeenURLSHA256" : "8cba4bf521c4e03cc165d6416bb70c072481ee0b27554e12d23c19dc2bd12c2b",
       "lastSeenVersion" : "4.45.0",
       "packageTeamIdentifier" : "PU9BNSBJW7"
     },
@@ -3792,9 +3928,9 @@
       "bundleIdentifier" : "com.qoder.app",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "0.4.3",
-      "lastSeenAt" : "2026-10-30T11:48:38Z",
-      "lastSeenURLSHA256" : "a43932a062f828560e49ec7400f13873d5aec8abde7b07f28b622437f848821b",
-      "lastSeenVersion" : "0.5.1",
+      "lastSeenAt" : "2026-11-02T14:26:21Z",
+      "lastSeenURLSHA256" : "596735097c79c8a6cf7799990785cb3f70f71785a2184eeb4eb765deceaa8313",
+      "lastSeenVersion" : "0.5.2",
       "signedIdentifier" : "com.qoder.app",
       "teamIdentifier" : "B6U242QL73"
     },
@@ -3819,8 +3955,8 @@
       "bundleIdentifier" : "com.raycast.macos",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "1.104.31",
-      "lastSeenAt" : "2026-10-30T21:45:57Z",
-      "lastSeenURLSHA256" : "35d8ca6b482c86081dae8fde90b905b96b391fc248636cead9d4934d4b589fa2",
+      "lastSeenAt" : "2026-11-02T14:26:21Z",
+      "lastSeenURLSHA256" : "4b3adbff8c778b7c1541f9462b2378a2d5e9710a44fb8ca757fb214281674c8a",
       "lastSeenVersion" : "1.104.32",
       "signedIdentifier" : "com.raycast.macos",
       "teamIdentifier" : "SY64MV22J9"
@@ -4071,8 +4207,8 @@
       "bundleIdentifier" : "com.tencent.xinWeChat",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "4.1.15",
-      "lastSeenAt" : "2026-10-29T03:05:28Z",
-      "lastSeenURLSHA256" : "c6701d8eb38bd9bfb113a4ad0e02c31cd3f86fd28affdb12af26937405afa74d",
+      "lastSeenAt" : "2026-11-02T14:26:21Z",
+      "lastSeenURLSHA256" : "1675e2906b55da1b07ca0fcf073fe15c426db3b76d18a8a3f93ab388a357fefd",
       "lastSeenVersion" : "4.2.0",
       "signedIdentifier" : "com.tencent.xinWeChat",
       "sparklePublicKey" : "yr6\/VpmTuhSKN2jtfVUCCA+eKHB9MjarlK9ibNRikeA=",
@@ -4153,9 +4289,9 @@
       "bundleIdentifier" : "com.trae.app",
       "firstSeenAt" : "2026-10-09T12:37:52Z",
       "firstSeenVersion" : "3.6.1",
-      "lastSeenAt" : "2026-10-19T11:23:35Z",
-      "lastSeenURLSHA256" : "07cf42dc86f49f1345edeb9d89ae0f371dce8a397589e274cf9342fea1c1b80c",
-      "lastSeenVersion" : "3.6.4",
+      "lastSeenAt" : "2026-11-02T14:26:21Z",
+      "lastSeenURLSHA256" : "6383ca2c788f7ea7e5d3b3f0de04fa2acc701e734e23dd313a3f3f050df2fa71",
+      "lastSeenVersion" : "3.6.13",
       "signedIdentifier" : "com.trae.app",
       "teamIdentifier" : "79M8227NKH"
     },
@@ -4166,9 +4302,9 @@
       "bundleIdentifier" : "com.trae.app",
       "firstSeenAt" : "2026-10-09T12:37:52Z",
       "firstSeenVersion" : "3.6.1",
-      "lastSeenAt" : "2026-10-19T11:23:35Z",
-      "lastSeenURLSHA256" : "ad48b450820282f293613d455bd6aa51e224f1469725a46eb5bd07e97c938b41",
-      "lastSeenVersion" : "3.6.4",
+      "lastSeenAt" : "2026-11-02T14:26:21Z",
+      "lastSeenURLSHA256" : "b2c1583ecf0a39779ca863af49f99f71ca36a08a2d84b9ad6e983b8c69f18ccd",
+      "lastSeenVersion" : "3.6.13",
       "signedIdentifier" : "com.trae.app",
       "teamIdentifier" : "79M8227NKH"
     },
@@ -4193,9 +4329,9 @@
       "bundleIdentifier" : "com.vivaldi.Vivaldi.snapshot",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "8.3.4185.3",
-      "lastSeenAt" : "2026-10-30T21:45:57Z",
-      "lastSeenURLSHA256" : "99492ba5780d21cacbff785ee3f92d1f6606eca55446d8e97f412e6582139841",
-      "lastSeenVersion" : "8.3.4191.10",
+      "lastSeenAt" : "2026-11-02T14:26:21Z",
+      "lastSeenURLSHA256" : "0650894dc377f63d80493adfc125568d89635f8a0530e43ada9b6f2462e6d5aa",
+      "lastSeenVersion" : "8.3.4191.15",
       "signedIdentifier" : "com.vivaldi.Vivaldi.snapshot",
       "sparklePublicKey" : "3tFhu3zD\/nVxTY+R4nH1ISgcWa5Jk7yxLuq3aQQOIgY=",
       "teamIdentifier" : "4XF3XNRN6Y"
@@ -4260,9 +4396,9 @@
       "bundleIdentifier" : "com.zarifpour.superconductor",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "49cdc780",
-      "lastSeenAt" : "2026-10-30T11:48:38Z",
-      "lastSeenURLSHA256" : "d61175cfebbd3c8b14660559178acbe1be69bad99df34f98f9717775b915f467",
-      "lastSeenVersion" : "c0f9eaa7",
+      "lastSeenAt" : "2026-11-02T14:26:21Z",
+      "lastSeenURLSHA256" : "1dfdce21d604f6b36062ce5e87b234ad8231cbb5070c87c58882c60ff7de7dc6",
+      "lastSeenVersion" : "2fa0a3be",
       "signedIdentifier" : "com.zarifpour.superconductor",
       "teamIdentifier" : "MR38E36N26"
     },
@@ -4287,9 +4423,9 @@
       "bundleIdentifier" : "dev.hyperframes.desktop.canary",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "b292",
-      "lastSeenAt" : "2026-10-30T21:45:57Z",
-      "lastSeenURLSHA256" : "081ec2eaa59d14f5c1b47d25aa64a5b02bb270b6a1dc2038126d5fa84bdbc897",
-      "lastSeenVersion" : "b579",
+      "lastSeenAt" : "2026-11-02T14:26:21Z",
+      "lastSeenURLSHA256" : "9523df03678f9cc1d4d9aaf15b0293d12f4cfc3ebb8972b0f4e3ea02d2887c0c",
+      "lastSeenVersion" : "b671",
       "signedIdentifier" : "dev.hyperframes.desktop.canary",
       "teamIdentifier" : "2VW993BDT8"
     },
@@ -4301,9 +4437,9 @@
       "bundleIdentifier" : "dev.hyperframes.desktop",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "b290",
-      "lastSeenAt" : "2026-10-30T17:14:47Z",
-      "lastSeenURLSHA256" : "24e249a09de3816886ac026f82b6708a717ccff0263ee49e1bda9d6c5a6f21ad",
-      "lastSeenVersion" : "b576",
+      "lastSeenAt" : "2026-11-02T14:26:21Z",
+      "lastSeenURLSHA256" : "fca39f05b6876957b05d54e64aee72b16e233ced8d5105e20e5ab7ca7687d82e",
+      "lastSeenVersion" : "b667",
       "signedIdentifier" : "dev.hyperframes.desktop",
       "teamIdentifier" : "2VW993BDT8"
     },
@@ -4426,9 +4562,9 @@
       "bundleIdentifier" : "im.riot.nightly",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "2026100801",
-      "lastSeenAt" : "2026-10-30T11:48:38Z",
-      "lastSeenURLSHA256" : "8b16d07221eb305d0211a4350118bbd6871b87e41944665fad426b1348a2c0e3",
-      "lastSeenVersion" : "2026103001",
+      "lastSeenAt" : "2026-11-02T14:26:21Z",
+      "lastSeenURLSHA256" : "a3fcaccdfbef443474f62dc4cadd310a07fdc2b4e6140b28e917bfbcf7c20117",
+      "lastSeenVersion" : "2026110201",
       "signedIdentifier" : "im.riot.nightly",
       "teamIdentifier" : "7J4U792NQT"
     },
@@ -4497,9 +4633,9 @@
       ],
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "1.103.375",
-      "lastSeenAt" : "2026-10-29T03:05:28Z",
-      "lastSeenURLSHA256" : "0f98622e7c909932bb013bc5a916c086cc5cba3a7e0d5f358f0c3ea647377bed",
-      "lastSeenVersion" : "1.105.140",
+      "lastSeenAt" : "2026-11-02T14:26:21Z",
+      "lastSeenURLSHA256" : "56c6f9c6608a42e8658f0e55cbf16d0ba72d0826c498bfc7e247b94e8462745b",
+      "lastSeenVersion" : "1.105.158",
       "packageTeamIdentifier" : "W5364U7YZB"
     },
     "vendor:jan-nightly.ai.app:nightly:arm64" : {
@@ -4595,9 +4731,9 @@
       "bundleIdentifier" : "net.whatsapp.WhatsApp",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "26.40.20",
-      "lastSeenAt" : "2026-10-30T21:45:57Z",
-      "lastSeenURLSHA256" : "92f2b87bea25920127d9c7c2af05da0462939ddd720c8cf587908767adb23d52",
-      "lastSeenVersion" : "26.43.27",
+      "lastSeenAt" : "2026-11-02T14:26:21Z",
+      "lastSeenURLSHA256" : "c34cb4e476f87f7d922cb3e57e0dec1a63cbcd07a32b684866415c675a93a8c9",
+      "lastSeenVersion" : "26.44.12",
       "signedIdentifier" : "net.whatsapp.WhatsApp",
       "sparklePublicKey" : "2jE1ZmLwrfk0yprKc8DTdt5YlKRGI7lGmnf3EJqBA5A=",
       "teamIdentifier" : "57T9237FN3"
@@ -5038,6 +5174,6 @@
       "teamIdentifier" : "YJ5GSB3AMW"
     }
   },
-  "lastFullPassAt" : "2026-10-26T02:13:04Z",
+  "lastFullPassAt" : "2026-11-02T14:26:21Z",
   "schemaVersion" : 1
 }

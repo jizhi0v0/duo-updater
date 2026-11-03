@@ -390,5 +390,88 @@ class HomebrewTapGate(unittest.TestCase):
         self.assertIn("AFTER", run.stdout)
 
 
+POST_MERGE_DRIVER = """
+set -euo pipefail
+say() {{ printf 'SAY %s\\n' "$*" >&2; }}
+RELEASE_REPO="owner/repo"
+{function}
+report_post_merge_ci 7
+printf 'AFTER\\n'
+"""
+
+
+class PostMergeCI(unittest.TestCase):
+    """`report_post_merge_ci`, against a stub `gh`.
+
+    The appcast merge's push run is the only CI on a release that no gate looks
+    at: it starts after the feed is live. On 2026-11-03 (0.5.18) it went red and
+    the release script still finished green, so the check has to shout — and it
+    has to shout without failing the script, which is what `AFTER` pins.
+    """
+
+    def setUp(self):
+        self.root = pathlib.Path(tempfile.mkdtemp(prefix="duo-postmerge-"))
+        self.addCleanup(shutil.rmtree, self.root, True)
+        self.bin = self.root / "bin"
+        self.bin.mkdir()
+        self.log = self.root / "calls"
+
+    def stub_gh(self, run_line, jobs=""):
+        (self.bin / "gh").write_text(
+            "#!/bin/sh\n"
+            f'printf "%s\\n" "$1 $2" >> "{self.log}"\n'
+            'case "$1 $2" in\n'
+            '  "pr view") echo "deadbeefcafe";;\n'
+            f'  "run list") printf "%s\\n" "{run_line}";;\n'
+            f'  "run view") printf "%s\\n" "{jobs}";;\n'
+            "esac\n")
+        (self.bin / "gh").chmod(0o755)
+
+    def run_check(self, env=None):
+        script = POST_MERGE_DRIVER.format(function=extract_function("report_post_merge_ci"))
+        return subprocess.run(
+            ["bash", "-c", script], capture_output=True, text=True,
+            env={**os.environ, "PATH": f"{self.bin}:/usr/bin:/bin", **(env or {})})
+
+    def calls(self):
+        return self.log.read_text().splitlines() if self.log.exists() else []
+
+    # Mutation: return non-zero on a red run and `set -e` ends the script after
+    # a live release, skipping the translation and site notes printed below it.
+    def test_a_red_run_is_reported_and_does_not_fail_the_script(self):
+        self.stub_gh("42 completed failure https://example.test/run/42", jobs="release")
+        run = self.run_check()
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertIn("main CI on the appcast merge is failure", run.stdout)
+        self.assertIn("https://example.test/run/42", run.stdout)
+        self.assertIn("Failed: release", run.stdout)
+        self.assertIn("gh run rerun 42 --failed", run.stdout)
+        self.assertIn("AFTER", run.stdout)
+
+    def test_a_green_run_is_reported_quietly(self):
+        self.stub_gh("42 completed success https://example.test/run/42")
+        run = self.run_check()
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertIn("main CI  : green", run.stdout)
+        self.assertNotIn("Rerun", run.stdout)
+        self.assertIn("AFTER", run.stdout)
+
+    # The bound exists so a run that never reports cannot hold the release
+    # script open; POST_MERGE_CI_TIMEOUT=0 is the same path without the wait.
+    def test_a_run_that_never_reports_does_not_hang(self):
+        self.stub_gh("42 in_progress null https://example.test/run/42")
+        run = self.run_check({"POST_MERGE_CI_TIMEOUT": "0"})
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertIn("still running", run.stderr)
+        self.assertIn("AFTER", run.stdout)
+
+    def test_skipping_leaves_gh_alone(self):
+        self.stub_gh("42 completed failure https://example.test/run/42", jobs="release")
+        run = self.run_check({"SKIP_POST_MERGE_CI": "1"})
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertEqual(self.calls(), [])
+        self.assertIn("AFTER", run.stdout)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

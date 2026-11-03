@@ -122,8 +122,18 @@ public struct SetappCatalogSource: UpdateSource {
             }
             if betaUpdatesEnabled(), !Self.isNewer(version, than: app) {
                 // Equal to the stable catalogue with beta on: there may be a beta
-                // we cannot see, so this row cannot be called current.
-                throw SetappError.betaChannelUnverifiable
+                // we cannot see. Not an error row — that turned every Setapp app
+                // into "could not be checked" with a Retry that can never help
+                // (measured: six rows). It is a label on the version instead, so
+                // the row still reads, and says what is not known.
+                return RemoteVersion(
+                    shortVersion: app.shortVersion,
+                    version: app.buildVersion,
+                    marketingMatchesBundle: true,
+                    downloadURL: nil,
+                    pageURL: Self.deepLink(for: release) ?? release.pageURL,
+                    installedDisplayVersion: Self.betaChannelLabel(app),
+                    sourceName: name)
             }
             return answer(for: app, release: release, version: version)
         }
@@ -212,6 +222,13 @@ public struct SetappCatalogSource: UpdateSource {
             sourceName: name)
     }
 
+    /// What to call a copy that matches the stable catalogue while Setapp's beta
+    /// switch is on: its beta channel is not visible to us.
+    static func betaChannelLabel(_ app: InstalledApp) -> String? {
+        guard let installed = app.shortVersion else { return nil }
+        return String(localized: "\(installed) (Setapp Beta channel — not checked)")
+    }
+
     /// What to call a copy that is ahead of Setapp's stable catalogue: "beta"
     /// only when the client's own catalogue still records that exact build as a
     /// beta; otherwise the one thing we can prove.
@@ -254,13 +271,7 @@ public struct SetappCatalogSource: UpdateSource {
         await SetappCatalog.revalidate()
     }
 
-    enum SetappError: LocalizedError {
-        case betaChannelUnverifiable
 
-        var errorDescription: String? {
-            String(localized: "Setapp’s beta updates are on, and DuoUpdater reads only Setapp’s stable catalogue. Open Setapp to check for a beta.")
-        }
-    }
 
     /// `setapp://install?app_id=<public_id>` — the uuid form is the one the
     /// agent accepts (the numeric id is rejected: "URL is not a valid

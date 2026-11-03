@@ -288,10 +288,13 @@ struct SetappCatalogSourceTests {
             betaUpdatesEnabled: { true },
             installedIsBeta: { _ in false })
         // Installed 1.3.0 = the stable catalogue's newest, but Setapp's beta
-        // switch is on and the public catalogue carries no betas at all.
-        await #expect(throws: (any Error).self) {
-            _ = try await source.latestVersion(for: app(id: "com.example.thing-setapp", short: "1.3.0", build: "130"))
-        }
+        // switch is on and the public catalogue carries no betas at all. Not an
+        // error row (that made every Setapp app "could not be checked"); a label
+        // saying what is not known.
+        let answer = try #require(try await source.latestVersion(
+            for: app(id: "com.example.thing-setapp", short: "1.3.0", build: "130")))
+        #expect(answer.installedDisplayVersion == "1.3.0 (Setapp Beta channel — not checked)")
+        #expect(answer.subscriptionHold == nil)
     }
 
     @Test func offersTheNewestReleaseThatRunsHereNotTheNewestStanding() async throws {

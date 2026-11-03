@@ -126,6 +126,30 @@ import DuoUpdaterCore
         #expect(Restart.path(for: Self.gitKraken, staged: Self.staged("12.6.0", .mozilla)) == .plain)
     }
 
+    /// A helper running from inside the bundle blocks the staged quit, exactly
+    /// as it blocks `duo install`'s swap: the vendor would replace the bundle
+    /// under it and the old copy keeps running (VMPal's VMs). The wording is the
+    /// Relaunch one — `duo restart` is what the user ran. Mutation: drop the
+    /// guard → red.
+    @Test func aHelperRunningFromInsideRefusesTheStagedQuit() {
+        let app = Self.gitKraken
+        #expect(Restart.nestedAppRefusalLine(app, processes: { [] }) == nil)
+        let vm = NestedAppGuard.RunningProcess(
+            pid: 42, parentPID: 1,
+            executablePath: app.path.path
+                + "/Contents/Helpers/VMPalMachine.app/Contents/MacOS/VMPalMachine",
+            // Not a `.regular` app: a Dock-less helper, as VMPalMachine is.
+            isRegularApp: false,
+            arguments: [
+                "VMPalMachine", "--machine", "/Volumes/VM/macOS VM 1.vmpal",
+                "--base", "/Volumes/VM/macOS VM 1.vmpal",
+            ])
+        let line = Restart.nestedAppRefusalLine(app, processes: { [vm] })
+        #expect(line?.failed == true)
+        #expect(line?.text
+            == "not quit — “macOS VM 1” is open in GitKraken. Shut it down and close its window, then relaunch again. GitKraken was not updated.")
+    }
+
     /// The staged path's `.wontQuit` line, from the ending's holdup, and its
     /// terminal slow-quit line. Mutation: one wording for both → red.
     @Test func stagedWontQuitSaysWhatWasOnScreen() {

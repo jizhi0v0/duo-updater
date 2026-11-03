@@ -503,9 +503,26 @@ public struct NestedAppRunningError: LocalizedError, Equatable, Sendable {
     public let appName: String
     public let blockers: [NestedAppGuard.Blocker]
 
+    /// The button this refusal answers. A staged build is applied by the app's
+    /// own updater when the app quits, so `relaunchStagedUpdate` asks the same
+    /// question the install path does — and gets the same answer, because the
+    /// nested app would keep running the old code either way. Only the closing
+    /// clause differs: what the user clicks next.
+    public enum NextStep: Sendable, Equatable, CaseIterable {
+        case update
+        case relaunch
+
+        var tail: String {
+            switch self {
+            case .update: "then update again."
+            case .relaunch: "then relaunch again."
+            }
+        }
+    }
+
     static let keepsOldVersion = "would keep running the old version"
-    static let closeOneVM = "close its window, then update again."
-    static let closeVMs = "close their windows, then update again."
+    static func closeWindow(_ step: NextStep) -> String { "close its window, \(step.tail)" }
+    static func closeWindows(_ step: NextStep) -> String { "close their windows, \(step.tail)" }
     /// The fixed tail of the sentence for `Blocker.needsHostRunning`: the app's
     /// name sits between the two halves, so the fragment stops where it starts.
     static let openTheHost = keepsOldVersion + ". Open "
@@ -518,9 +535,17 @@ public struct NestedAppRunningError: LocalizedError, Equatable, Sendable {
     /// app may be a background helper the user cannot quit, and a report is how
     /// such a case reaches us (BetterTouchTool's watchdog did), so the general
     /// sentence is not in here.
-    static let userFixableFragments = [closeOneVM, closeVMs, openTheHost]
+    static var userFixableFragments: [String] {
+        NextStep.allCases.flatMap { [closeWindow($0), closeWindows($0)] } + [openTheHost]
+    }
 
-    public var errorDescription: String? {
+    public var errorDescription: String? { errorDescription(nextStep: .update) }
+
+    /// The same refusal worded for `step`: `.update` for our own Update button,
+    /// `.relaunch` for a Relaunch that only quits the app so its own updater
+    /// applies the build it staged. The fix is the user's either way, so the
+    /// sentences differ only in what they are told to click afterwards.
+    public func errorDescription(nextStep step: NextStep) -> String {
         var sentences: [String] = []
         // A VMPal VM shut down from inside keeps its process until its window is
         // closed, so "Quit it" would leave the update refused.
@@ -530,8 +555,8 @@ public struct NestedAppRunningError: LocalizedError, Equatable, Sendable {
         if !vms.isEmpty {
             let list = vms.map { "“\($0)”" }.joined(separator: ", ")
             sentences.append(vms.count == 1
-                ? "\(list) is open in \(appName). Shut it down and \(Self.closeOneVM)"
-                : "\(list) are open in \(appName). Shut them down and \(Self.closeVMs)")
+                ? "\(list) is open in \(appName). Shut it down and \(Self.closeWindow(step))"
+                : "\(list) are open in \(appName). Shut them down and \(Self.closeWindows(step))")
         }
         // Two kinds of advice, because they end differently: quit the helper, or
         // start the host so that its next launch replaces the helper. A name in
@@ -549,8 +574,8 @@ public struct NestedAppRunningError: LocalizedError, Equatable, Sendable {
             let list = names.joined(separator: ", ")
             let verb = names.count == 1 ? "is" : "are"
             let advice = needsHostRunning
-                ? "Open \(appName), then update again."
-                : "Quit \(names.count == 1 ? "it" : "them"), then update again."
+                ? "Open \(appName), \(step.tail)"
+                : "Quit \(names.count == 1 ? "it" : "them"), \(step.tail)"
             sentences.append("\(list) \(verb) running from inside \(appName) and \(Self.keepsOldVersion). \(advice)")
         }
         sentences.append("\(appName) was not updated.")

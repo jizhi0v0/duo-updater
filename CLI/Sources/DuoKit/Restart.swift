@@ -130,6 +130,22 @@ public enum Restart {
         return .staged(build)
     }
 
+    /// The staged path's refusal for an app whose bundle has a helper running on
+    /// its own: the same rule `duo install` applies to that swap, since the quit
+    /// `duo restart` asks for is what lets the vendor replace the bundle under
+    /// it. Nil when the quit can go ahead.
+    ///
+    /// Split out from `applyStaged` so the wording is testable without a running
+    /// app: the guard only reads the process list and the bundle path.
+    static func nestedAppRefusalLine(
+        _ app: InstalledApp,
+        processes: () -> [NestedAppGuard.RunningProcess] = NestedAppGuard.liveProcesses
+    ) -> (text: String, failed: Bool)? {
+        guard let refusal = NestedAppGuard.refusal(
+            app.path, appName: app.name, processes: processes) else { return nil }
+        return ("not quit — \(refusal.errorDescription(nextStep: .relaunch))", true)
+    }
+
     /// Run the staged relaunch for one app and say what happened. Progress
     /// lines (the rollback point, a quit held up by a prompt) are printed as it
     /// goes; the returned line is the last.
@@ -143,6 +159,12 @@ public enum Restart {
             // apply it now — the GUI's Relaunch stands down here too.
             return ("not running — nothing to restart; its own updater has \(to) staged", false)
         }
+        // The rule `duo install` applies to the same swap, and the menu-bar app's
+        // Relaunch now applies it too: a helper running from inside the bundle
+        // would keep running the old code once the vendor swaps it (VMPal's VM
+        // processes; see `NestedAppGuard`). Refused before the rollback copy and
+        // before the quit, which is what performs the swap.
+        if let refused = nestedAppRefusalLine(app) { return refused }
         // Before the rollback copy: an app held at macOS's first-open prompt is
         // not quit, so there is nothing to roll back from and no "backed up" line.
         if await OpenConfirmationHold.isHeld(running) {

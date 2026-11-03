@@ -426,6 +426,32 @@ import Testing
         #expect(mixed.errorDescription == "“macOS VM 1” is open in VMPal. Shut it down and close its window, then update again. VMPalDock is running from inside VMPal and would keep running the old version. Quit it, then update again. VMPal was not updated.")
     }
 
+    /// A Relaunch only quits the app so its own updater applies the build it
+    /// staged — refused for the same reason an install is, and it has to send
+    /// the user back to the Relaunch button, not the Update one that is not on
+    /// the row. Mutation: ignore `nextStep` → red.
+    @Test func theRelaunchWordingSendsTheUserBackToRelaunch() {
+        let one = NestedAppRunningError(
+            appName: "VMPal", blockers: [.init(name: "VMPalMachine", pid: 1, vmName: "macOS VM 1")])
+        #expect(one.errorDescription(nextStep: .relaunch)
+            == "“macOS VM 1” is open in VMPal. Shut it down and close its window, then relaunch again. VMPal was not updated.")
+        let two = NestedAppRunningError(appName: "VMPal", blockers: [
+            .init(name: "VMPalMachine", pid: 1, vmName: "Win"),
+            .init(name: "VMPalMachine", pid: 2, vmName: "Linux"),
+        ])
+        #expect(two.errorDescription(nextStep: .relaunch)
+            == "“Linux”, “Win” are open in VMPal. Shut them down and close their windows, then relaunch again. VMPal was not updated.")
+        // Both sentences, the helper one and the host one, follow the step too.
+        let mixed = NestedAppRunningError(appName: "VMPal", blockers: [
+            .init(name: "VMPalMachine", pid: 1, vmName: "macOS VM 1"),
+            .init(name: "VMPalDock", pid: 2),
+            .init(name: "VMPalLauncher", pid: 3, needsHostRunning: true),
+        ])
+        #expect(mixed.errorDescription(nextStep: .relaunch)
+            == "“macOS VM 1” is open in VMPal. Shut it down and close its window, then relaunch again. VMPalDock is running from inside VMPal and would keep running the old version. Quit it, then relaunch again. VMPalLauncher is running from inside VMPal and would keep running the old version. Open VMPal, then relaunch again. VMPal was not updated.")
+        #expect(one.errorDescription == one.errorDescription(nextStep: .update))
+    }
+
     // MARK: - The hosts' preflight
 
     /// What both hosts ask before clearing a staged update or taking a rollback

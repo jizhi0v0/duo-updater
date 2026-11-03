@@ -402,6 +402,38 @@ public enum ReleaseChannel: String, Codable, Sendable, Hashable, CaseIterable {
         //     cannot carry.
         if bundleID == "io.requestly.beta" { return .stable }
 
+        // 0.999 DeepSeek Harness (official) — `com.deepseek.dsh` runs TWO trains
+        //     behind ONE bundle id, one Team (NAN929V4UM) and one display name:
+        //     the `-rc.N`/plain builds its electron-updater feed serves, and a
+        //     parallel `-alpha.N` preview train the vendor hands out as DMGs. An
+        //     alpha build carries no channel field either — its own
+        //     `app-update.yml` still says `channel: nightly`, read off the real
+        //     2026-11-03 `0.2.2-alpha.3` DMG (268,883,910 B, the same object as
+        //     `…/dsh-desk/bin/mac-arm64/deepseek-harness-0.2.2-alpha.3-mac-arm64.dmg`)
+        //     — so the version string is the only local signal, exactly as it is
+        //     for CotEditor and Secretive above.
+        //
+        //     Scoped rather than widened into step 4's `versionTailChannelWords`
+        //     table: `-alpha.N` is a generic semver shape, and a new word there
+        //     re-labels EVERY installed app whose version ends that way — most of
+        //     which have no `.alpha` recipe, so they would drop to `unknown`
+        //     instead of being offered the stable build they are on.
+        //     `verify/baseline.json` carries no `<numbers>-alpha.<n>` version at all
+        //     (measured 2026-11-03), so no covered app changes classification.
+        //
+        //     What the value BUYS: `Recipes/com-deepseek-dsh.swift` declares an
+        //     `.alpha` probe and an `.alpha` changelog recipe; `VendorProbeSource`
+        //     refuses a recipe whose channel differs from the install's, so the
+        //     stable/`-rc.N` copies keep reading `.stable` and keep being answered
+        //     by `ElectronManifestSource`'s feed. Without this rule an alpha
+        //     install read `.stable` and was handed the feed's older `-rc.N`
+        //     build's notes.
+        if bundleID == "com.deepseek.dsh",
+           let version = version?.trimmingCharacters(in: .whitespacesAndNewlines),
+           fullyMatches(#"[0-9]+(\.[0-9]+)+-alpha\.[0-9]+"#, version.lowercased()) {
+            return .alpha
+        }
+
         // 1. Keystone's own channel id — authoritative when present.
         if let ks = keystoneChannel?.trimmingCharacters(in: .whitespacesAndNewlines),
            !ks.isEmpty {

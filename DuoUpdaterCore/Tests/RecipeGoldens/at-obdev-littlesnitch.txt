@@ -22,6 +22,7 @@ probes[0].trackClosedPattern = nil
 probes[0].downloadURL? = URL("https://obdev.at/littlesnitch/download.html")
 probes[0].changelogURL? = URL("https://obdev.at/products/littlesnitch/releasenotes6.html")
 probes[0].selectHighest = false
+probes[0].selectsHighestPublishedBuild = false
 probes[0].versionIsBuild = true
 probes[0].buildNamespace = .bundle
 probes[0].displayVersionPattern? = "<key>ReleaseLifecycle</key>\\s*<string>final</string>[\\s\\S]*?<key>BundleShortVersionString</key>\\s*<string>([^<]+)</string>"
@@ -51,6 +52,7 @@ probes[1].trackClosedPattern? = "(?s)\\A(?=.*<key>ReleaseLifecycle</key>\\s*<str
 probes[1].downloadURL? = URL("https://obdev.at/littlesnitch/download-nightly.html")
 probes[1].changelogURL = nil
 probes[1].selectHighest = false
+probes[1].selectsHighestPublishedBuild = false
 probes[1].versionIsBuild = true
 probes[1].buildNamespace = .bundle
 probes[1].displayVersionPattern? = "<key>ReleaseLifecycle</key>\\s*<string>nightly</string>[\\s\\S]*?<key>BundleShortVersionString</key>\\s*<string>([^<]+)</string>"

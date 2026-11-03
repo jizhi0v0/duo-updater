@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 import os
+import SQLite3
 
 @testable import DuoUpdaterCore
 
@@ -105,6 +106,152 @@ struct SetappCatalogSourceTests {
         #expect(release.newestCompatible(osVersion: "15.0")?.shortVersion == "2.1")
     }
 
+    @Test func aCopyAheadOfTheStableCatalogueIsNotADowngrade() async throws {
+        // A beta left installed after the switch went off: the stable catalogue is
+        // behind it, and answering with that release drew "7.1.0 ↓ 6.6.2".
+        let json = """
+        {"data":{"relationships":{"vendors":{"data":[
+          {"relationships":{"applications":{"data":[
+            {"attributes":{"bundle_id":"com.surteesstudios.Bartender-setapp","name":"Bartender","public_id":"BBBB","slugs":[]},
+             "relationships":{"versions":{"data":[
+               {"attributes":{"marketing_version":"6.6.2","build_number":"662000","release_date":1700300000,"min_os_version":"14.0"}}
+             ]}}}
+          ]}}}
+        ]}}}}
+        """
+        let releases = try SetappCatalog.parse(Data(json.utf8))
+        let source = SetappCatalogSource(
+            releases: { releases },
+            subscription: {
+                self.state(expires: "2099-01-01 00:00:00 +0000", grace: "2099-01-15 00:00:00 +0000")
+            },
+            now: { Date() },
+            betaUpdatesEnabled: { false },
+            installedIsBeta: { _ in false })
+        let installed = InstalledApp(
+            name: "Bartender", bundleID: "com.surteesstudios.Bartender-setapp",
+            shortVersion: "7.1.0", buildVersion: "700013",
+            path: URL(fileURLWithPath: "/Applications/Setapp/Bartender 7 Setapp.app"),
+            isMASApp: false, sparkleFeedURL: nil)
+        let answer = try #require(try await source.latestVersion(for: installed))
+        #expect(answer.shortVersion == "7.1.0")
+        // The installed build, not the catalogue's 662000.
+        #expect(answer.version == "700013")
+        // No beta record available: the one thing we can prove.
+        #expect(answer.installedDisplayVersion == "7.1.0 (ahead of Setapp’s stable releases)")
+        let checker = UpdateChecker(sources: [source, SparkleSpy()])
+        let result = try #require(await checker.check([installed]).first)
+        #expect(result.status == .upToDate)
+    }
+
+    @Test func anAheadCopyWithBetaOnIsStillAnIncompleteCheck() async throws {
+        // Ahead of stable while Setapp may offer betas: the "ahead" label would
+        // still travel with `.upToDate`, so this stays a failed check.
+        let releases = try SetappCatalog.parse(Data("""
+        {"data":{"relationships":{"vendors":{"data":[
+          {"relationships":{"applications":{"data":[
+            {"attributes":{"bundle_id":"com.example.thing-setapp","name":"Thing","public_id":"AAAA","slugs":[]},
+             "relationships":{"versions":{"data":[
+               {"attributes":{"marketing_version":"1.3.0","build_number":"130","release_date":1700300000,"min_os_version":"11.0"}}
+             ]}}}
+          ]}}}
+        ]}}}}
+        """.utf8))
+        let source = SetappCatalogSource(
+            releases: { releases },
+            subscription: {
+                self.state(expires: "2099-01-01 00:00:00 +0000", grace: "2099-01-15 00:00:00 +0000")
+            },
+            now: { Date() },
+            betaUpdatesEnabled: { true },
+            installedIsBeta: { _ in true })
+        let ahead = app(id: "com.example.thing-setapp", short: "1.5.0", build: "150")
+        let checker = UpdateChecker(sources: [source, SparkleSpy()])
+        let result = try #require(await checker.check([ahead]).first)
+        guard case .error = result.status else {
+            Issue.record("expected .error, got \(result.status)")
+            return
+        }
+    }
+
+    @Test func aBetaRecordedByTheClientNamesTheChannel() async throws {
+        let json = """
+        {"data":{"relationships":{"vendors":{"data":[
+          {"relationships":{"applications":{"data":[
+            {"attributes":{"bundle_id":"com.surteesstudios.Bartender-setapp","name":"Bartender","public_id":"BBBB","slugs":[]},
+             "relationships":{"versions":{"data":[
+               {"attributes":{"marketing_version":"6.6.2","build_number":"662000","release_date":1700300000,"min_os_version":"14.0"}}
+             ]}}}
+          ]}}}
+        ]}}}}
+        """
+        let releases = try SetappCatalog.parse(Data(json.utf8))
+        let source = SetappCatalogSource(
+            releases: { releases },
+            subscription: {
+                self.state(expires: "2099-01-01 00:00:00 +0000", grace: "2099-01-15 00:00:00 +0000")
+            },
+            now: { Date() },
+            betaUpdatesEnabled: { false },
+            installedIsBeta: { _ in true })
+        let installed = InstalledApp(
+            name: "Bartender", bundleID: "com.surteesstudios.Bartender-setapp",
+            shortVersion: "7.1.0", buildVersion: "700013",
+            path: URL(fileURLWithPath: "/Applications/Setapp/Bartender.app"),
+            isMASApp: false, sparkleFeedURL: nil)
+        // Beta switch off + catalogue behind: Setapp is not offering betas, and
+        // the client's catalogue records this build as one — name it.
+        let answer = try #require(try await source.latestVersion(for: installed))
+        #expect(answer.installedDisplayVersion == "7.1.0 (Setapp Beta)")
+    }
+
+    @Test func readsBetaRowsFromTheClientsCatalogue() throws {
+        let db = FileManager.default.temporaryDirectory
+            .appendingPathComponent("catalogue-\(UUID().uuidString).sqlite")
+        defer { try? FileManager.default.removeItem(at: db) }
+        var handle: OpaquePointer?
+        #expect(sqlite3_open(db.path, &handle) == SQLITE_OK)
+        defer { sqlite3_close(handle) }
+        let schema = """
+            CREATE TABLE ZAPP (Z_PK INTEGER PRIMARY KEY, ZBUNDLEIDENTIFIER VARCHAR);
+            CREATE TABLE ZAPPVERSION (Z_PK INTEGER PRIMARY KEY, ZAPP INTEGER, ZISBETA INTEGER,
+                                      ZMARKETINGVERSION VARCHAR, ZBUILDNUMBER VARCHAR);
+            INSERT INTO ZAPP VALUES (1, 'com.example.thing-setapp');
+            INSERT INTO ZAPPVERSION VALUES (1, 1, 1, '7.1.0', '700013');
+            INSERT INTO ZAPPVERSION VALUES (2, 1, 0, '6.6.2', '662000');
+            """
+        #expect(sqlite3_exec(handle, schema, nil, nil, nil) == SQLITE_OK)
+
+        #expect(SetappBetaChannel.installedCopyIsBeta(
+            bundleID: "com.example.thing-setapp", shortVersion: "7.1.0",
+            build: "700013", database: db))
+        // A stable row is not a beta…
+        #expect(!SetappBetaChannel.installedCopyIsBeta(
+            bundleID: "com.example.thing-setapp", shortVersion: "6.6.2",
+            build: "662000", database: db))
+        // …and an exact build is required.
+        #expect(!SetappBetaChannel.installedCopyIsBeta(
+            bundleID: "com.example.thing-setapp", shortVersion: "7.1.0",
+            build: "700014", database: db))
+        // A missing catalogue answers no rather than throwing.
+        #expect(!SetappBetaChannel.installedCopyIsBeta(
+            bundleID: "com.example.thing-setapp", shortVersion: "7.1.0",
+            build: "700013", database: URL(fileURLWithPath: "/nonexistent/Apps.sqlite")))
+    }
+
+    @Test func aSetappEditionUsesTheBaseAppsReleaseNotes() {
+        // Setapp ships its own id; the vendor's release notes are keyed by the
+        // base one. Without the fallback the notes pane was empty.
+        let edition = InstalledApp(
+            name: "Moshi", bundleID: "app.getmoshi.desktop-setapp",
+            shortVersion: "0.5.13", buildVersion: "0.5.13",
+            path: URL(fileURLWithPath: "/Applications/Setapp/Moshi.app"),
+            isMASApp: false, sparkleFeedURL: nil)
+        let result = UpdateResult(app: edition, remote: nil, status: .upToDate)
+        let recipe = try? #require(ChangelogRecipeSelection.recipe(for: result))
+        #expect(recipe?.bundleID == "app.getmoshi.desktop")
+    }
+
     @Test func aBuildOnlyReleaseIsStillAnUpdate() async throws {
         // Same marketing version, newer build: the build must survive, otherwise
         // the checker's marketing fallback calls it current.
@@ -167,11 +314,20 @@ struct SetappCatalogSourceTests {
                 self.state(expires: "2099-01-01 00:00:00 +0000", grace: "2099-01-15 00:00:00 +0000")
             },
             now: { Date() },
-            betaUpdatesEnabled: { true })
+            betaUpdatesEnabled: { true },
+            installedIsBeta: { _ in false })
         // Installed 1.3.0 = the stable catalogue's newest, but Setapp's beta
-        // switch is on and the public catalogue carries no betas at all.
+        // switch is on and the public catalogue carries no betas at all: the
+        // check cannot be completed, and saying "current" would hide a beta.
+        let installed = app(id: "com.example.thing-setapp", short: "1.3.0", build: "130")
         await #expect(throws: (any Error).self) {
-            _ = try await source.latestVersion(for: app(id: "com.example.thing-setapp", short: "1.3.0", build: "130"))
+            _ = try await source.latestVersion(for: installed)
+        }
+        let checker = UpdateChecker(sources: [source, SparkleSpy()])
+        let result = try #require(await checker.check([installed]).first)
+        guard case .error = result.status else {
+            Issue.record("expected .error, got \(result.status)")
+            return
         }
     }
 

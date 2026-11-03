@@ -19,6 +19,14 @@ release note is debugging our code:
 
 Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
+## 0.5.20
+
+**Setapp beta updates are reported honestly.** DuoUpdater can only read Setapp's stable catalogue. If you have Setapp's beta updates switched on, an app that cannot be checked now says so — with a note pointing at Setapp — instead of being called current.
+
+**A Setapp copy that is ahead of the stable catalogue is named, not “downgraded”.** If you tried a Setapp beta, its row used to show the older stable version after a down arrow, as if a downgrade were on offer. It now reads “(Setapp Beta)” when Setapp's own record still knows that build, and “(ahead of Setapp's stable releases)” otherwise; nothing is offered to install.
+
+**Setapp editions show the app's release notes.** Where DuoUpdater already reads the vendor's notes, the Setapp copy of the same app now uses them too instead of an empty pane. Bartender 7 is the exception: our notes cover Bartender 6 only.
+
 ## 0.5.19
 
 **Setapp apps get update checks that match where they came from.** Apps installed through Setapp used to be offered the vendor's direct download and then refused, because that edition carries its own bundle identifier. DuoUpdater now reads Setapp's own catalogue: it shows the version Setapp ships, and Update starts Setapp in the background when its automatic installs are on — otherwise it opens Setapp, where the update and its progress live.

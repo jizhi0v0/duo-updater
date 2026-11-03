@@ -2,6 +2,14 @@
 
 Dies ist eine deutsche Übersetzung von `CHANGELOG.md`. Die englische Fassung ist maßgeblich; frühere Versionen, die hier nicht aufgeführt sind, fallen automatisch auf Englisch zurück.
 
+## 0.5.20
+
+**Setapp-Beta-Updates werden ehrlich gemeldet.** DuoUpdater kann nur Setapps stabilen Katalog lesen. Ist Setapps Beta-Schalter an, sagt eine App, die nicht geprüft werden kann, das jetzt auch — mit einem Hinweis auf Setapp — statt als aktuell zu gelten.
+
+**Eine Setapp-Kopie, die dem stabilen Katalog voraus ist, wird benannt statt „herabgestuft“.** Wer eine Setapp-Beta probiert hat, sah in der Zeile die ältere stabile Version hinter einem Pfeil nach unten, als würde ein Downgrade angeboten. Jetzt steht dort „(Setapp Beta)“, wenn Setapps eigener Stand diesen Build noch kennt, sonst „(neuer als Setapps stabile Versionen)“; zum Installieren wird nichts angeboten.
+
+**Setapp-Editionen zeigen die Versionshinweise der App.** Wo DuoUpdater die Hinweise des Herstellers ohnehin liest, nutzt die Setapp-Kopie derselben App sie jetzt ebenfalls, statt eines leeren Bereichs. Bartender 7 ist die Ausnahme: Unsere Hinweise decken nur Bartender 6 ab.
+
 ## 0.5.19
 
 **Setapp-Apps werden jetzt über ihren eigenen Kanal geprüft.** Für über Setapp installierte Apps wurde der Direkt-Download des Herstellers angeboten und dann abgelehnt, weil diese Edition eine eigene Bundle-ID trägt. DuoUpdater liest jetzt Setapps eigenen Katalog: Er zeigt die Version, die Setapp ausliefert, und „Aktualisieren“ startet Setapp im Hintergrund, wenn dessen automatische Installationen an sind — sonst öffnet es Setapp, wo Update und Fortschritt liegen.

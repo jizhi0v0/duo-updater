@@ -12,10 +12,27 @@ struct GitHubRateLimitBannerTests {
 
     func detail(
         _ spent: GitHubRateLimitBanner.Spent, until: Date? = nil,
+        cause: GitHubRateLimitBanner.Cause = .exhausted,
         hasToken: Bool = true, count: Int = 60
     ) -> String {
         GitHubRateLimitBanner.detail(
-            count: count, spent: spent, until: until, hasToken: hasToken, time: { _ in "11:31" })
+            count: count, spent: spent, until: until, cause: cause, hasToken: hasToken,
+            time: { _ in "11:31" })
+    }
+
+    /// A secondary limit refuses with the budget still having room. Said as a
+    /// spent budget it would contradict the budget card and send the reader
+    /// looking for quota that is not gone.
+    ///
+    /// Mutation: word every closure as a spent budget.
+    @Test func aSecondaryThrottleIsNotASpentBudget() {
+        for spent in [GitHubRateLimitBanner.Spent.token, .anonymous, .both] {
+            let line = detail(spent, until: tokenUntil, cause: .throttled)
+            #expect(line.contains("throttling requests"), "\(spent)")
+            #expect(!line.contains("budget is spent"), "\(spent)")
+        }
+        #expect(detail(.anonymous, until: anonymousUntil, cause: .throttled, hasToken: false)
+            .contains("throttling"))
     }
 
     /// The two budgets are said apart. Measured 2026-11-04: the banner said

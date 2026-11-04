@@ -494,7 +494,8 @@ struct MenuContentView: View {
     /// the generic banner below would offer a Retry that cannot be sent. The
     /// anonymous budget counts here too: with a token in use it is still the
     /// one a redirected request spends, and its closure stops those rows
-    /// without touching the token's.
+    /// without touching the token's. When that other budget is the closed one,
+    /// the generic banner is shown as well — its Retry can work.
     private var showRateLimitBanner: Bool {
         if rateLimitSpent != .none, rateLimitedCount >= 1 { return true }
         return !model.gitHubTokenRejected && !model.hasGitHubToken && rateLimitedCount >= 2
@@ -513,15 +514,21 @@ struct MenuContentView: View {
     /// what this was meant to prevent.
     private var showCheckFailureBanner: Bool {
         guard model.failedCheckCount > 0, !model.isRefreshing else { return false }
-        // Never stack with the rate-limit banner. That one is the more specific
-        // answer to the same rows (add a token) and wears the same orange triangle
-        // and tint; two of them would state one problem twice, with two different
-        // numbers, and the generic subtitle would just echo the rate-limit message
+        // Never stack with the rate-limit banner while that one names the budget
+        // the rows themselves spend. It is the more specific answer to the same
+        // rows (add a token) and wears the same orange triangle and tint; two of
+        // them would state one problem twice, with two different numbers, and the
+        // generic subtitle would just echo the rate-limit message
         // (`failedCheckSummary` reports the modal error, which is that one whenever
         // rate-limits dominate). Deliberately not the `==` it used to be: a cluster of
         // rate-limits plus one unrelated DNS failure is the common case, not the
         // exception, and it is the one where they doubled up.
-        if showRateLimitBanner { return false }
+        //
+        // The exception is the other budget: anonymous spent while a token is in
+        // use. A Retry then works — it sends the token — and the rate-limit banner
+        // has no button of its own, so hiding this one would tell the reader to
+        // wait with quota in hand (the state a token was just added to).
+        if showRateLimitBanner, model.gitHubPausedUntil != nil { return false }
         return true
     }
 
@@ -646,16 +653,20 @@ struct MenuContentView: View {
             spent: rateLimitSpent,
             until: GitHubRateLimitBanner.until(
                 token: model.gitHubPause[.token], anonymous: model.gitHubPause[.anonymous]),
+            cause: model.gitHubThrottled.isEmpty ? .exhausted : .throttled,
             hasToken: model.hasGitHubToken,
             time: { $0.formatted(date: .omitted, time: .shortened) })
     }
 
     /// The token card when a token is the fix. The budget card when the
-    /// anonymous budget is the only one spent and a token is already in use:
-    /// adding or replacing a token buys none of that shared 60/hour back, and
-    /// the card is where that budget is shown.
+    /// anonymous budget is the only one spent and requests already carry a
+    /// token: adding or replacing a token buys none of that shared 60/hour back,
+    /// and the card is where that budget is shown. `hasGitHubToken` is not that
+    /// test — a token GitHub rejected still resolves, and its requests go
+    /// anonymously for the round (`gitHubRequestsCarryToken`), where the fix is
+    /// to replace it.
     private var rateLimitBannerAnchor: SettingsAnchor {
-        rateLimitSpent == .anonymous && model.hasGitHubToken ? .githubBudget : .githubToken
+        rateLimitSpent == .anonymous && model.gitHubRequestsCarryToken ? .githubBudget : .githubToken
     }
 
     private var rateLimitBanner: some View {

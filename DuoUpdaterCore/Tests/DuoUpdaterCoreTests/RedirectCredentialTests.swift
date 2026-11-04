@@ -131,9 +131,11 @@ struct RedirectCredentialTests {
     }
 
     /// What counts as the same origin: host, port and scheme. A port change or
-    /// an https → http downgrade is not the origin the credential was meant for.
+    /// an https → http downgrade is not the origin the credential was meant for;
+    /// an unspelled default port is the port it means (`URL.port` is nil for
+    /// `https://host/…` and 443 for `https://host:443/…`).
     ///
-    /// Mutation: compare hosts alone.
+    /// Mutation: compare hosts alone; compare `URL.port` raw.
     @Test func theOriginIsHostPortAndScheme() {
         func same(_ from: String?, _ to: String?) -> Bool {
             CrossHostCredentialStripper.sameOrigin(
@@ -141,6 +143,8 @@ struct RedirectCredentialTests {
         }
         #expect(same("https://api.github.com/a", "https://api.github.com/b"))
         #expect(same("https://api.github.com/a", "https://API.GITHUB.COM/b"))
+        #expect(same("https://api.github.com/a", "https://api.github.com:443/b"))
+        #expect(same("http://127.0.0.1:8080/a", "http://127.0.0.1:8080/b"))
         #expect(!same("https://api.github.com/a", "https://api.github.com:8443/b"))
         #expect(!same("https://api.github.com/a", "http://api.github.com/b"))
         #expect(!same("https://api.github.com/a", "https://env.github.com/b"))

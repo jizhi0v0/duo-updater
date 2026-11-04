@@ -19,10 +19,10 @@ import Foundation
 /// maintenance lines out of version order (`v2026.8.33` between `v2026.9.7` and
 /// `v2026.9.6`); vercel-labs/agent-browser `v0.38.1`; pnpm/pnpm `v12.8.2`.
 /// geelen/mcp-remote is a renamed repository: `api.github.com/repos/geelen/…`
-/// answers 301 to `/repositories/951601187/…`, and `URLSession` drops the
-/// `Authorization` header following it, so that list is fetched with the
-/// anonymous rate limit. The follow-up requests below go to the address the
-/// redirect named, so they keep the token.
+/// answers 301 to `/repositories/951601187/…`. The redirect stays on the same
+/// origin, so the token stays on it (`CrossHostCredentialStripper` puts
+/// `Authorization` back where the platform took it off), and the follow-up
+/// requests below go to the address the redirect named — same token.
 public enum NpmChangelog {
 
     /// The app's cache key for one copy's notes (`CLIToolStatus.releaseNotesKey`):

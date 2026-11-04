@@ -23,8 +23,9 @@ import Foundation
 /// answers of 403 in half an hour.
 ///
 /// **Per credential.** A token's budget and the anonymous one are apart, so one
-/// spent leaves the other open. A token replaced is a new budget
-/// (`reopen(_:)`).
+/// spent leaves the other open. A token replaced is another Authorization
+/// identity, and the gate starts it over when its first request arrives
+/// (`current(_:_:)`).
 ///
 /// **Credited to the budget that answered.** They are not always the one the
 /// request was sent with: `URLSession` drops `Authorization` while following a
@@ -415,9 +416,19 @@ public enum GitHubRateLimitGate {
 
         /// Until when each credential is closed now; one absent is open.
         public func pause() -> [Credential: Date] {
-            var pause: [Credential: Date] = [:]
-            for credential in Credential.allCases { pause[credential] = closure(credential)?.until }
-            return pause
+            closures().mapValues(\.until)
+        }
+
+        /// The closures in force, per credential, with the reason each closed.
+        /// `pause()` alone cannot tell a spent hourly budget from a secondary
+        /// limit that refuses while thousands remain, and a banner that said
+        /// "budget is spent" for the second would contradict the budget card.
+        public func closures() -> [Credential: Closure] {
+            var closed: [Credential: Closure] = [:]
+            for credential in Credential.allCases {
+                if let closure = closure(credential) { closed[credential] = closure }
+            }
+            return closed
         }
 
         /// Whether either credential is closed now.

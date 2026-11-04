@@ -26,6 +26,15 @@ public enum GitHubRateLimitBanner {
         case both
     }
 
+    /// Why they are closed. A secondary limit refuses for a while with the
+    /// budget still having room (`GitHubRateLimitGate.Reason.secondary`), so a
+    /// banner that named a spent budget for it would contradict the budget card
+    /// — and send the reader looking for quota that is not gone.
+    public enum Cause: Equatable, Sendable {
+        case exhausted
+        case throttled
+    }
+
     /// `token` and `anonymous` are `GitHubRateLimitGate.Store.pause()`'s two
     /// entries: until when each budget is closed, or nil for one that is open.
     public static func spent(token: Date?, anonymous: Date?) -> Spent {
@@ -51,16 +60,20 @@ public enum GitHubRateLimitBanner {
     ///
     /// * No closure (a burst of 403s that closed nothing): the nudge to add a
     ///   token, as before.
+    /// * A secondary throttle: said as throttling, never as a spent budget.
     /// * No token: "or add a token" — the anonymous budget is the one in play.
     /// * A token: name the budget that is spent. "both" is said as both rather
     ///   than as the later of the two, because the two fixes differ.
     public static func detail(
-        count: Int, spent: Spent, until: Date?, hasToken: Bool, time: (Date) -> String
+        count: Int, spent: Spent, until: Date?, cause: Cause, hasToken: Bool, time: (Date) -> String
     ) -> String {
         guard spent != .none, let until else {
             return String(localized: "\(count) items couldn’t be checked — add a token")
         }
         let when = time(until)
+        if cause == .throttled {
+            return String(localized: "\(count) items wait until \(when) — GitHub is throttling requests")
+        }
         guard hasToken else {
             return String(localized: "\(count) items wait until \(when) — or add a token")
         }

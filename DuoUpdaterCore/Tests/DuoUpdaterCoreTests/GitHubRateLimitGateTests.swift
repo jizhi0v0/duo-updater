@@ -322,6 +322,24 @@ struct GitHubRateLimitGateTests {
         #expect(await other.closure(.anonymous) == nil)
     }
 
+    /// The reason travels with the closure, not only its moment: a banner must
+    /// say "throttling" for a secondary limit and name a spent budget only for
+    /// an exhausted one.
+    ///
+    /// Mutation: `closures()` keeping dates alone, or `pause()` not agreeing.
+    @Test func aClosureKeepsItsReason() async {
+        let world = World()
+        world.answer = .init(remaining: 100, reset: world.now.addingTimeInterval(600))
+        let store = store(world)
+        _ = await admit(store, world)
+        await store.complete(.token, generation: 1, canary: true, status: 200, headers: [:], body: nil)
+        let body = Data(#"{"message":"You have exceeded a secondary rate limit."}"#.utf8)
+        await store.complete(.token, generation: 1, canary: false, status: 403, headers: [:], body: body)
+        #expect(await store.closures()[.token]?.reason == .secondary(strike: 1))
+        #expect(await store.pause()[.token] == world.now.addingTimeInterval(60))
+        #expect(await store.closures()[.anonymous] == nil)
+    }
+
     /// A rejected token's requests go out anonymously, so the anonymous budget
     /// is the one in use — whatever a token resolved to.
     ///

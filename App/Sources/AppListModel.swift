@@ -3909,6 +3909,8 @@ final class AppListModel {
             checked, changedSince: roundBaseline, live: results))
         let automaticSetappUpdates = SetappAutomation.automaticUpdateCandidates(
             in: results,
+            ignoredApps: ignored,
+            hasStoredSkip: prefs.hasSkippedVersion,
             isVersionSkipped: { result in
                 prefs.isVersionSkipped(result.app, version: result.remote?.versionSide)
             })

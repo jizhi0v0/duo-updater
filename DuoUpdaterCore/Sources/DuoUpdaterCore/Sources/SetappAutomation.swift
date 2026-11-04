@@ -74,8 +74,19 @@ public enum SetappAutomation {
     /// The user can still open Setapp manually.
     public static func automaticUpdateCandidates(
         in results: [UpdateResult],
+        ignoredApps: [InstalledApp] = [],
+        hasStoredSkip: (InstalledApp) -> Bool = { _ in false },
         isVersionSkipped: (UpdateResult) -> Bool
     ) -> [UpdateResult] {
+        // Ignored rows intentionally are not checked and therefore carry no
+        // remote offer after a refresh. A stored skip on one of those Setapp-owned
+        // copies is still an explicit veto: the global client launch could install
+        // it as collateral, and without checking the row we cannot prove the
+        // skipped release is no longer current.
+        guard !ignoredApps.contains(where: {
+            SetappCatalogSource.owns($0) && hasStoredSkip($0)
+        }) else { return [] }
+
         let updates = availableUpdates(in: results)
         guard !updates.contains(where: isVersionSkipped) else { return [] }
         return updates

@@ -737,6 +737,30 @@ struct SetappCatalogSourceTests {
         #expect(allowed.count == 2)
     }
 
+    @Test func anIgnoredSetappCopyWithAStoredSkipVetoesTheGlobalLaunch() {
+        let remote = RemoteVersion(
+            shortVersion: "1.2", version: nil, downloadURL: nil, sourceName: "Setapp")
+        let actionable = UpdateResult(
+            app: app(id: "com.example.actionable-setapp"), remote: remote,
+            status: .updateAvailable(latest: "1.2"))
+        let ignored = app(id: "com.example.ignored-setapp")
+
+        #expect(SetappAutomation.automaticUpdateCandidates(
+            in: [actionable],
+            ignoredApps: [ignored],
+            hasStoredSkip: { $0.bundleID == "com.example.ignored-setapp" },
+            isVersionSkipped: { _ in false }).isEmpty)
+
+        // A skipped ignored copy from another distribution cannot be collateral
+        // in Setapp's global refresh and must not suppress Setapp updates.
+        let direct = app(id: "com.example.direct")
+        #expect(SetappAutomation.automaticUpdateCandidates(
+            in: [actionable],
+            ignoredApps: [direct],
+            hasStoredSkip: { _ in true },
+            isVersionSkipped: { _ in false }).count == 1)
+    }
+
     @Test func aSkippedDirectOfferDoesNotVetoSetappUpdates() {
         let setapp = UpdateResult(app: app(), remote: RemoteVersion(
             shortVersion: "2.0", version: "200", downloadURL: nil, sourceName: "Setapp"),

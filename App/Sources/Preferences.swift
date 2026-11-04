@@ -985,6 +985,14 @@ final class Preferences {
         skippedVersions[key(for: app)] = VisibilityRules.skipKey(version)
     }
 
+    /// Whether any skip is stored for this exact installed copy. Used when an
+    /// ignored row was deliberately not checked and therefore has no remote
+    /// version to compare, but a global Setapp launch could still update it.
+    func hasSkippedVersion(_ app: InstalledApp) -> Bool {
+        skippedVersions[key(for: app)] != nil
+            || skippedVersions[legacyKey(for: app)] != nil
+    }
+
     func clearSkip(_ app: InstalledApp) {
         skippedVersions[key(for: app)] = nil
         skippedVersions[legacyKey(for: app)] = nil

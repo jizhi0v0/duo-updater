@@ -134,6 +134,16 @@ class CloudWakeup(unittest.TestCase):
             _, post = self.run_with([{**run, "path": ".github/workflows/unrelated.yml"}])
             post.assert_not_called()
 
+    def test_ref_qualified_paths_publish_for_each_supported_workflow(self):
+        for path, label in notify.WORKFLOW_LABELS.items():
+            run = {**(GATE_RUN if path == notify.GATE_PATH else RUN),
+                   "path": path + "@refs/heads/main", "pull_requests": [{"number": 7}],
+                   "display_title": f"Codex review gate PR #7 @{HEAD}"}
+            _, post = self.run_with([run, PR, []])
+            self.assertEqual(post.call_count, 1)
+            body = json.loads(post.call_args.kwargs["input"])["body"]
+            self.assertIn(f"{label} attempt 1 completed", body)
+
 
 if __name__ == "__main__":
     unittest.main()

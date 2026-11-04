@@ -22,12 +22,17 @@ GATE_PATH = ".github/workflows/codex-review-gate.yml"
 WORKFLOW_LABELS = {**PR_WORKFLOWS, GATE_PATH: "Codex review gate"}
 
 
+def workflow_path(run):
+    # GitHub returns both bare paths and paths qualified with @workflow-ref.
+    return (run.get("path") or "").split("@", 1)[0]
+
+
 def is_pr_completion(run):
     return (run.get("status") == "completed"
             and ((run.get("event") == "pull_request"
-                  and run.get("path") in PR_WORKFLOWS)
+                  and workflow_path(run) in PR_WORKFLOWS)
                  or (run.get("event") == "pull_request_target"
-                     and run.get("path") == GATE_PATH)))
+                     and workflow_path(run) == GATE_PATH)))
 
 
 def targets(run, associated=None):
@@ -89,7 +94,7 @@ def main():
         if any(c.get("user", {}).get("login") == "github-actions[bot]"
                and c.get("body", "").startswith(marker) for c in comments):
             continue
-        body = (f"{marker}\n{WORKFLOW_LABELS[run['path']]} attempt {attempt} completed for `{head}`: "
+        body = (f"{marker}\n{WORKFLOW_LABELS[workflow_path(run)]} attempt {attempt} completed for `{head}`: "
                 f"**{run.get('conclusion', 'unknown')}**.\n\n"
                 f"[Workflow run](https://github.com/{args.repo}/actions/runs/{args.run}). "
                 "The cloud PR handler must re-read current review, CI and real-machine "

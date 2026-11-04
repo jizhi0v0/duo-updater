@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Decides what the Claude review job does for this push and writes its prompt.
-# See .github/workflows/claude-review.yml for the round model.
+# Legacy Claude review preparation; retained with the onboarding replay inputs.
+# Live PR reviews now use the official Codex integration (.github/codex-review.md).
 #
 # Inputs (env): REPO PR HEAD_SHA BASE_REF PR_AUTHOR WORK
 #   PR_TITLE PR_BODY  from the event payload; written to a file for the reviewer

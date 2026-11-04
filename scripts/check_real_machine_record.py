@@ -72,8 +72,8 @@ COVERED = (
     "CLI/Sources/",
 )
 
-# The prefixes claude-review.yml skips, plus `release/` (version bump and
-# changelog, already verified in the PRs it releases).
+# Generated/automated branches exempt from this record check, plus `release/`
+# (version bump and changelog, already verified in the PRs it releases).
 EXEMPT_BRANCHES = (
     "release/",
     "appcast/",

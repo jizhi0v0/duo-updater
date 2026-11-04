@@ -45,10 +45,12 @@ The `main` ruleset requires:
   rerun this workflow after a same-head review retry. No model token is used.
   Its `pull_request_target` workflow and verifier come from the protected default
   branch and target `main`. It never checks out PR code, downloads artifacts, invokes a model or
-  reads a model secret. Its only write permission is `statuses: write`, used to
-  publish a commit status explicitly on the PR head (target runs otherwise belong
-  to the base SHA). A PR job with the same name cannot replace this commit
-  status; GitHub requires both when a check and a status share a name. Workflow changes take effect only after being merged.
+  reads a model secret. Its read-only `GITHUB_TOKEN` reads metadata; a separate
+  GitHub App installation token publishes the commit status explicitly on the
+  PR head (target runs otherwise belong to the base SHA). The required status
+  must be bound to that App's numeric ID, not GitHub Actions (15368) or any
+  source. PR-controlled Actions credentials cannot publish as this App.
+  Workflow changes take effect only after being merged.
 
   First deployment must precede enforcing this new required status:
   `pull_request_target` cannot run until this workflow exists on `main`.
@@ -57,6 +59,31 @@ The `main` ruleset requires:
   Enable the required `codex-review` status immediately after deployment;
   do not treat a PR-controlled predecessor as the trusted gate.
 - `real-machine` and `adversarial-review`: the existing evidence-record gates.
+
+### Isolated status publisher setup
+
+The owner-only App manifest is [codex-review-app.json](codex-review-app.json).
+It requests only **Commit statuses: write**, plus GitHub's implicit metadata
+read permission. Install it only on this repository. It does not change source,
+merge PRs, invoke a model or receive webhooks.
+
+Before storing its key, configure environment `codex-review-publisher` with a
+custom deployment policy allowing exactly the `main` **branch**, with no tag or
+PR-merge-ref patterns. Store `CODEX_REVIEW_APP_PRIVATE_KEY` only as an environment
+secret, never a repository/organization secret. Set environment variable
+`CODEX_REVIEW_APP_CLIENT_ID` to the App client ID. This keeps the key unavailable
+to PR-controlled workflows even when they request broader GITHUB_TOKEN scopes.
+
+The token action is pinned, limited to this repository and status writes, and
+revokes its token when the job finishes. Status writes have bounded retries.
+Even if the initial pending write fails, the failure path attempts to invalidate
+an earlier success before exiting. If publication is unavailable, inspect the
+failed controller run; the cloud handler must still verify the current official
+receipt and holds, rather than treating an old successful status as approval.
+
+After deployment, require `codex-review` from the App's **numeric App ID** in the
+main ruleset (not the client ID or installation ID). Keep the existing required
+checks and review-thread resolution. No OpenAI API key is needed for this App.
 
 The `needs-real-machine` label also blocks `codex-review`. Apply it when actual
 installation, permissions, restart, rollback or another necessary real-machine

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """The review gate must never accept a spoofed, stale or incomplete review."""
 import json
+import subprocess
 import unittest
 from unittest.mock import patch
 
@@ -102,6 +103,42 @@ class ReviewGate(unittest.TestCase):
             with self.assertRaises(ValueError):
                 gate.main()
         self.assertEqual(write.call_args_list[-1].args[1]["state"], "failure")
+
+    def test_pending_write_retries_before_reading_review_metadata(self):
+        error = subprocess.CalledProcessError(1, ["gh", "api"])
+        with patch("sys.argv", self.publish_args()), \
+                patch.object(gate, "write_api", side_effect=[error, {}, {}]) as write, \
+                patch.object(gate.time, "sleep"), \
+                patch.object(gate, "wait_for_review", return_value=0):
+            self.assertEqual(gate.main(), 0)
+        self.assertEqual([c.args[1]["state"] for c in write.call_args_list],
+                         ["pending", "pending", "success"])
+
+    def test_exhausted_pending_writes_still_attempt_to_invalidate_old_success(self):
+        error = subprocess.CalledProcessError(1, ["gh", "api"])
+        with patch("sys.argv", self.publish_args()), \
+                patch.object(gate, "write_api", side_effect=[error, error, error, {}]) as write, \
+                patch.object(gate.time, "sleep"), \
+                patch.object(gate, "wait_for_review") as wait:
+            with self.assertRaises(subprocess.CalledProcessError):
+                gate.main()
+        wait.assert_not_called()
+        self.assertEqual(write.call_args_list[-1].args[1]["state"], "failure")
+
+    def test_status_writes_use_only_the_isolated_app_token(self):
+        with patch.dict(gate.os.environ, {"GH_TOKEN": "read-token",
+                                        "CODEX_REVIEW_STATUS_TOKEN": "publisher-token"}), \
+                patch.object(gate.subprocess, "run") as run:
+            run.return_value.stdout = "{}"
+            gate.write_api("repos/o/r/statuses/" + HEAD, {"state": "pending"})
+        self.assertEqual(run.call_args.kwargs["env"]["GH_TOKEN"], "publisher-token")
+
+    def test_missing_publisher_token_never_falls_back_to_actions_token(self):
+        with patch.dict(gate.os.environ, {"GH_TOKEN": "read-token"}, clear=True), \
+                patch.object(gate.subprocess, "run") as run:
+            with self.assertRaises(ValueError):
+                gate.write_api("repos/o/r/statuses/" + HEAD, {"state": "success"})
+        run.assert_not_called()
 
     def test_a_foreign_run_url_cannot_be_published_as_a_gate(self):
         with patch("sys.argv", self.publish_args()[:-1] + ["https://example.com"]), \

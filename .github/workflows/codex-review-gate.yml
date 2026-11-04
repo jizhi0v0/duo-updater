@@ -1,6 +1,6 @@
 # A clean review of the CURRENT head is required in addition to compilation.
-# Runs trusted default-branch code on a hosted Linux runner. The only write scope
-# publishes a check on the PR head; no PR code, model or secret is executed.
+# Runs trusted default-branch code. A separate App publishes the status;
+# PR-controlled GITHUB_TOKEN credentials cannot impersonate that publisher.
 name: Codex review gate
 run-name: 'Codex review gate PR #${{ github.event.pull_request.number }} @${{ github.event.pull_request.head.sha }}'
 
@@ -12,7 +12,6 @@ on:
 permissions:
   contents: read
   pull-requests: read
-  statuses: write
 
 concurrency:
   group: codex-review-gate-${{ github.event.pull_request.number }}
@@ -20,6 +19,9 @@ concurrency:
 
 jobs:
   review-controller:
+    # Configure this environment to allow only the main BRANCH, not tags or
+    # pull-request merge refs. Keep the App key out of repository secrets.
+    environment: codex-review-publisher
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -30,9 +32,19 @@ jobs:
           persist-credentials: false
           sparse-checkout: scripts/check_codex_review.py
           sparse-checkout-cone-mode: false
+      - name: Create isolated status publisher token
+        id: publisher
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ vars.CODEX_REVIEW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.CODEX_REVIEW_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-statuses: write
       - name: Wait for a clean Codex review of this head
         env:
           GH_TOKEN: ${{ github.token }}
+          CODEX_REVIEW_STATUS_TOKEN: ${{ steps.publisher.outputs.token }}
           PR: ${{ github.event.pull_request.number }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}

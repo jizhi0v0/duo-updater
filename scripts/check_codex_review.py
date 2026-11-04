@@ -3,7 +3,7 @@
 
 The required `codex-review` check holds ordinary auto-merge while the cloud
 review is running. A trusted pull_request_target workflow publishes the check
-on the PR head; its token can write commit statuses, but no PR code or model runs.
+on the PR head through a separate status-publisher App. No PR code or model runs.
 An unavailable or malformed receipt never passes. After a same-commit review
 retry, rerun this check; a pushed fix starts a new check automatically.
 """
@@ -57,9 +57,13 @@ def api(path):
 
 
 def write_api(path, payload, method="POST"):
+    token = os.environ.get("CODEX_REVIEW_STATUS_TOKEN")
+    if not token:
+        raise ValueError("isolated publisher token is required")
     result = subprocess.run(["gh", "api", "--method", method, path, "--input", "-"],
                             input=json.dumps(payload), check=True,
-                            capture_output=True, text=True)
+                            capture_output=True, text=True,
+                            env={**os.environ, "GH_TOKEN": token})
     return json.loads(result.stdout)
 
 
@@ -68,9 +72,16 @@ def publish_status(args, state):
     description = {"pending": "Waiting for official Codex review",
                    "success": "Official Codex review is clean for this head",
                    "failure": "Review not approved; see the trusted gate run"}[state]
-    write_api(f"repos/{args.repo}/statuses/{args.head}",
-              {"context": "codex-review", "state": state,
-               "target_url": args.run_url, "description": description})
+    for attempt in range(3):
+        try:
+            write_api(f"repos/{args.repo}/statuses/{args.head}",
+                      {"context": "codex-review", "state": state,
+                       "target_url": args.run_url, "description": description})
+            return
+        except subprocess.CalledProcessError:
+            if attempt == 2:
+                raise
+            time.sleep(2 ** attempt)
 
 
 def wait_for_review(args):
@@ -122,9 +133,9 @@ def main():
         parser.error("publishing a check requires this repository's workflow run URL")
     if not args.publish_check:
         return wait_for_review(args)
-    publish_status(args, "pending")
     result = 1
     try:
+        publish_status(args, "pending")
         result = wait_for_review(args)
     finally:
         # API errors remain failure; never leave an earlier clean result in

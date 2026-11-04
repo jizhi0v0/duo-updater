@@ -28,7 +28,7 @@ STEP = "Apply and check the change"
 RECIPE = "DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/Foo.swift"
 GOLDEN = "DuoUpdaterCore/Tests/RecipeGoldens/Foo.txt"
 FIXTURE ="DuoUpdaterCore/Tests/DuoUpdaterCoreTests/Fixtures/changelog-autofix/x.txt"
-WORKFLOW_IN_REPO = ".github/workflows/claude-review.yml"
+WORKFLOW_IN_REPO = ".github/workflows/ci.yml"
 
 
 def step_script():

@@ -8,13 +8,14 @@ including an edit to the description. Also runs by hand against any PR:
 
 ## What this is for
 
-The review bot (`claude-review.yml`) reads the diff with no network and no Mac
-to run anything on. It finds logic slips; it did not find the security holes
+The former Claude review bot read the diff with no Mac to run anything on.
+It found logic slips; it did not find the security holes
 fixed in #1659–#1683 (tokens handed to tool children, root running a file the
 user could change, unpinned `curl | sh`), and it found the D15 stop's races
 only one per round, two of them made by the previous round's fix (#1722). Those
 need a review aimed at one risk, by someone who can read vendor source and run
-a probe: a local adversarial review. This check makes sure one was done, and
+a probe: a local adversarial review. Codex code review now replaces that bot;
+it does not replace this local evidence. This check makes sure one was done, and
 that no high-risk change landed after it.
 
 ## The rule

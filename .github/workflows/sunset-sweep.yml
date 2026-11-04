@@ -10,8 +10,8 @@
 # already names, so a run GitHub starts hours late, or not at all, loses nothing
 # and files nothing twice. It keeps no state, so it commits nothing.
 #
-# The news search uses CLAUDE_CODE_OAUTH_TOKEN (the one recipe-autofix.yml and
-# claude-review.yml use). Haiku gets WebSearch and WebFetch only, and the script
+# The news search uses CLAUDE_CODE_OAUTH_TOKEN (also used by recipe-autofix.yml
+# and trails-review.yml). Haiku gets WebSearch and WebFetch only, and the script
 # strips GH_TOKEN from its environment; what it reports only ever becomes the
 # text of an issue. Without the secret the search is skipped and the signals are
 # still filed. One run measured 2026-10-24: 15 turns, 38 s, $0.16.

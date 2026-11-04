@@ -54,7 +54,7 @@ struct UpdatesSettingsPage: View {
             }
 
             SettingsCard(
-                footer: "When a check finds updates, starts Setapp if it is not running and automatic installation is enabled. Quits it after 30 seconds idle, unless you use it. A window may appear behind other apps."
+                footer: "When a check finds updates, starts Setapp if it is not running and automatic installation is enabled. Quits it after 30 seconds idle only when update activity can be safely verified and you have not used it; otherwise leaves it running. A window may appear behind other apps."
             ) {
                 SettingsToggle(
                     "Update Setapp apps in the background",

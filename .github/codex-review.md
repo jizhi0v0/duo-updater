@@ -40,22 +40,22 @@ The `main` ruleset requires:
   This compiles both shipping schemes in Release with signing disabled and
   committed dependency pins. It does not install, sign or notarize a release.
 - `codex-review`: an explicit clean official Codex receipt for the current PR
-  head. The read-only Linux job waits for that receipt and fails closed on
+  head. The trusted Linux job waits for that receipt and fails closed on
   missing, stale, malformed or non-clean results. A pushed fix starts a new run;
   rerun this workflow after a same-head review retry. No model token is used.
-  The workflow uses `pull_request_target`, so GitHub loads the job definition
-  from the default branch rather than the PR. It never checks out or executes
-  the PR ref. The job then checks out immutable commit
-  `4f295669abfad4861fc4d7bc7add096a1491f327` for the verifier script.
-  Changes to either trust boundary require review before they land on the
-  default branch.
+  Its `pull_request_target` workflow and verifier come from the protected default
+  branch and target `main`. It never checks out PR code, downloads artifacts, invokes a model or
+  reads a model secret. Its only write permission is `statuses: write`, used to
+  publish a commit status explicitly on the PR head (target runs otherwise belong
+  to the base SHA). A PR job with the same name cannot replace this commit
+  status; GitHub requires both when a check and a status share a name. Workflow changes take effect only after being merged.
 
-  The first merge that introduces this workflow is a bootstrap boundary:
-  `pull_request_target` cannot run a workflow that is not yet present on the
-  default branch. Do not treat the PR-controlled predecessor as equivalent.
-  Bootstrap the trusted workflow through repository administration or another
-  already-trusted required workflow; after it exists on `main`, future PRs
-  cannot replace the required gate with a successful no-op.
+  First deployment must precede enforcing this new required status:
+  `pull_request_target` cannot run until this workflow exists on `main`.
+  Bootstrap the introducing PR through repository administration after an
+  independently verified clean official review and all Mac CI/evidence gates.
+  Enable the required `codex-review` status immediately after deployment;
+  do not treat a PR-controlled predecessor as the trusted gate.
 - `real-machine` and `adversarial-review`: the existing evidence-record gates.
 
 The `needs-real-machine` label also blocks `codex-review`. Apply it when actual

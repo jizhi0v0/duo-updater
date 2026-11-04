@@ -80,6 +80,24 @@ class CloudWakeup(unittest.TestCase):
         ]:
             self.assertEqual(notify.targets(run, [{"number": 7}]), [])
 
+    def test_target_gate_uses_its_trusted_title_not_the_base_run_sha(self):
+        run = {**RUN, "name": "Codex review gate", "event": "pull_request_target",
+               "head_sha": "b" * 40,
+               "display_title": f"Codex review gate PR #7 @{HEAD}"}
+        api, post = self.run_with([run, PR, []])
+        self.assertEqual(api.call_args_list[1].args[0], "repos/o/r/pulls/7")
+        self.assertIn(HEAD, json.loads(post.call_args.kwargs["input"])["body"])
+
+    def test_target_gate_with_an_unrecognizable_title_cannot_guess_a_pr(self):
+        run = {**RUN, "name": "Codex review gate", "event": "pull_request_target",
+               "display_title": "PR #7 from an untrusted title"}
+        with patch("sys.argv", ["notify", "--repo", "o/r", "--run", "123"]), \
+                patch.object(notify, "api", return_value=run), \
+                patch.object(notify.subprocess, "run") as post:
+            with self.assertRaises(ValueError):
+                notify.main()
+        post.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

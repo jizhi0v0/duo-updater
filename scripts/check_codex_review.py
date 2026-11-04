@@ -2,7 +2,8 @@
 """Wait for the official Codex bot's clean review of this PR's current head.
 
 The required `codex-review` check holds ordinary auto-merge while the cloud
-review is running. No model, API key or write token runs in this workflow.
+review is running. A trusted pull_request_target workflow publishes the check
+on the PR head; its token can write commit statuses, but no PR code or model runs.
 An unavailable or malformed receipt never passes. After a same-commit review
 retry, rerun this check; a pushed fix starts a new check automatically.
 """
@@ -55,18 +56,24 @@ def api(path):
     return pages[0]
 
 
-def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--repo", default=os.environ.get("GITHUB_REPOSITORY"))
-    parser.add_argument("--pr", type=int, required=True)
-    parser.add_argument("--head", required=True)
-    parser.add_argument("--timeout", type=int, default=1500)
-    parser.add_argument("--interval", type=int, default=20)
-    args = parser.parse_args()
-    if (not args.repo or not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", args.repo)
-            or args.pr < 1 or not re.fullmatch(r"[0-9a-f]{40}", args.head)
-            or args.timeout < 0 or args.interval < 1):
-        parser.error("valid repo, PR, head SHA and polling bounds are required")
+def write_api(path, payload, method="POST"):
+    result = subprocess.run(["gh", "api", "--method", method, path, "--input", "-"],
+                            input=json.dumps(payload), check=True,
+                            capture_output=True, text=True)
+    return json.loads(result.stdout)
+
+
+def publish_status(args, state):
+    """A commit status is distinct from a PR-controlled job with the same name."""
+    description = {"pending": "Waiting for official Codex review",
+                   "success": "Official Codex review is clean for this head",
+                   "failure": "Review not approved; see the trusted gate run"}[state]
+    write_api(f"repos/{args.repo}/statuses/{args.head}",
+              {"context": "codex-review", "state": state,
+               "target_url": args.run_url, "description": description})
+
+
+def wait_for_review(args):
     deadline = time.monotonic() + args.timeout
     while True:
         pr = api(f"repos/{args.repo}/pulls/{args.pr}")
@@ -83,7 +90,8 @@ def main():
         print(reason, flush=True)
         if state == "success":
             # A review result read during a concurrent push must not approve
-            # a different head. GitHub also binds this check to its run's SHA.
+            # a different head. Publication uses args.head explicitly, never
+            # the target workflow's base SHA.
             current = api(f"repos/{args.repo}/pulls/{args.pr}")
             return 0 if (current["state"] == "open" and not current.get("draft")
                          and current["head"]["sha"] == args.head
@@ -92,6 +100,37 @@ def main():
         if state == "failure" or time.monotonic() >= deadline:
             return 1
         time.sleep(min(args.interval, max(0, deadline - time.monotonic())))
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--repo", default=os.environ.get("GITHUB_REPOSITORY"))
+    parser.add_argument("--pr", type=int, required=True)
+    parser.add_argument("--head", required=True)
+    parser.add_argument("--timeout", type=int, default=1500)
+    parser.add_argument("--interval", type=int, default=20)
+    parser.add_argument("--publish-check", action="store_true")
+    parser.add_argument("--run-url")
+    args = parser.parse_args()
+    if (not args.repo or not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", args.repo)
+            or args.pr < 1 or not re.fullmatch(r"[0-9a-f]{40}", args.head)
+            or args.timeout < 0 or args.interval < 1):
+        parser.error("valid repo, PR, head SHA and polling bounds are required")
+    if args.publish_check and not re.fullmatch(
+            rf"https://github\.com/{re.escape(args.repo)}/actions/runs/[1-9][0-9]*",
+            args.run_url or ""):
+        parser.error("publishing a check requires this repository's workflow run URL")
+    if not args.publish_check:
+        return wait_for_review(args)
+    publish_status(args, "pending")
+    result = 1
+    try:
+        result = wait_for_review(args)
+    finally:
+        # API errors remain failure; never leave an earlier clean result in
+        # place while validating a same-head retry.
+        publish_status(args, "success" if result == 0 else "failure")
+    return result
 
 
 if __name__ == "__main__":

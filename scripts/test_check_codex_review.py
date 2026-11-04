@@ -62,6 +62,54 @@ class ReviewGate(unittest.TestCase):
             self.assertEqual(gate.main(), 1)
             self.assertEqual(api.call_count, 1)
 
+    def publish_args(self):
+        return ["check", "--repo", "o/r", "--pr", "1", "--head", HEAD,
+                "--publish-check", "--run-url", "https://github.com/o/r/actions/runs/123"]
+
+    def test_published_check_is_bound_to_the_pr_head_and_actual_verdict(self):
+        with patch("sys.argv", self.publish_args()), \
+                patch.object(gate, "write_api", return_value={}) as write, \
+                patch.object(gate, "wait_for_review", return_value=0):
+            self.assertEqual(gate.main(), 0)
+        start, end = write.call_args_list
+        self.assertEqual(start.args[0], f"repos/o/r/statuses/{HEAD}")
+        self.assertEqual(start.args[1]["state"], "pending")
+        self.assertEqual(end.args[0], f"repos/o/r/statuses/{HEAD}")
+        self.assertEqual(end.args[1]["state"], "success")
+
+    def test_a_same_head_retry_clears_an_earlier_success_before_reading_metadata(self):
+        status = {"state": "success"}
+
+        def write(path, payload):
+            self.assertEqual(path, f"repos/o/r/statuses/{HEAD}")
+            status.update(payload)
+            return {}
+
+        def wait(args):
+            self.assertEqual(status["state"], "pending")
+            return 1
+
+        with patch("sys.argv", self.publish_args()), \
+                patch.object(gate, "write_api", side_effect=write), \
+                patch.object(gate, "wait_for_review", side_effect=wait):
+            self.assertEqual(gate.main(), 1)
+        self.assertEqual(status["state"], "failure")
+
+    def test_a_metadata_error_publishes_failure_instead_of_an_old_clean_result(self):
+        with patch("sys.argv", self.publish_args()), \
+                patch.object(gate, "write_api", return_value={}) as write, \
+                patch.object(gate, "wait_for_review", side_effect=ValueError):
+            with self.assertRaises(ValueError):
+                gate.main()
+        self.assertEqual(write.call_args_list[-1].args[1]["state"], "failure")
+
+    def test_a_foreign_run_url_cannot_be_published_as_a_gate(self):
+        with patch("sys.argv", self.publish_args()[:-1] + ["https://example.com"]), \
+                patch("sys.stderr"), patch.object(gate, "write_api") as write:
+            with self.assertRaises(SystemExit):
+                gate.main()
+        write.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

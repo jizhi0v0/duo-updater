@@ -15,11 +15,10 @@ from check_codex_review import api
 
 
 def is_pr_completion(run):
-    if run.get("status") != "completed":
-        return False
-    name, event = run.get("name"), run.get("event")
-    return ((name == "CI" and event == "pull_request")
-            or (name == "Codex review gate" and event == "pull_request_target"))
+    return (run.get("status") == "completed"
+            and ((run.get("event") == "pull_request" and run.get("name") == "CI")
+                 or (run.get("event") == "pull_request_target"
+                     and run.get("name") == "Codex review gate")))
 
 
 def targets(run, associated=None):
@@ -38,19 +37,30 @@ def main():
             or args.run < 1):
         parser.error("valid repository and workflow run ID required")
     run = api(f"repos/{args.repo}/actions/runs/{args.run}")
+    if not is_pr_completion(run):
+        return
     head = run.get("head_sha", "")
+    if run["event"] == "pull_request_target":
+        # A target run's head_sha is the BASE commit. Its trusted workflow
+        # supplies the PR number/head in run-name using event fields only.
+        match = re.fullmatch(r"Codex review gate PR #([1-9][0-9]*) @([0-9a-f]{40})",
+                             run.get("display_title", ""))
+        if not match:
+            raise ValueError("invalid trusted review run title")
+        numbers, head = [int(match[1])], match[2]
+    else:
+        numbers = targets(run)
     if not re.fullmatch(r"[0-9a-f]{40}", head):
         raise ValueError("invalid workflow head")
     marker = f"<!-- cloud-pr-wakeup:v1 run={args.run} -->"
-    numbers = targets(run)
     # GitHub can leave workflow_run.pull_requests empty even for this repo's
     # own PR runs. Resolve the exact head's associated PRs rather than losing
     # the completion event. Each candidate is checked live below.
-    if not numbers and is_pr_completion(run):
+    if not numbers and run["event"] == "pull_request":
         numbers = targets(run, api(f"repos/{args.repo}/commits/{head}/pulls"))
     # Fork commits need not have an association in the base repository.
     # Match all three fields; a same-named branch in another fork is unrelated.
-    if not numbers and is_pr_completion(run):
+    if not numbers and run["event"] == "pull_request":
         run_repo = (run.get("head_repository") or {}).get("full_name")
         run_branch = run.get("head_branch")
         if run_repo and run_branch:

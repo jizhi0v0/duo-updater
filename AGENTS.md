@@ -46,6 +46,8 @@ adversarial-review records remain separate requirements.
   add an untrue opt-out. Remove the hold only after the required evidence exists.
 - A same-head Codex retry does not push code: rerun the PR's `codex-review`
   workflow after the clean retry so its required check reflects that receipt.
+  Follow the check's details/run URL to `review-controller`; this trusted
+  `pull_request_target` run uses the base SHA, not the PR head, as its run SHA.
 - Completion comments from `Cloud PR wakeup` are wakeups, not approvals.
   Re-read current state, deduplicate work and avoid reacting to your own status
   replies in a loop. Respect drafts and explicit author holds.

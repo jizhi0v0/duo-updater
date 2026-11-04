@@ -354,7 +354,12 @@ jobs:
       # unsigned Release builds before this job (and the required `test`) passes.
       - name: App and CLI unsigned Release builds
         timeout-minutes: 20
-        run: make test-release-build
+        run: |
+          # This runner keeps /tmp between runs. Release products are large;
+          # leave room for Core's 10 GiB disk-space guard on subsequent jobs.
+          dd="$(python3 scripts/derived_data_path.py unsigned-release "$PWD")"
+          trap 'rm -rf -- "$dd"' EXIT
+          UNSIGNED_RELEASE_DD="$dd" make test-release-build
 
       # scripts/app-tests.sh prints only an excerpt and leaves the full xcodebuild
       # output in the derived-data dir, which dies with the runner. Two first

@@ -68,6 +68,19 @@ public enum SetappAutomation {
         }
     }
 
+    /// Setapp's launch-time refresh is global: it may install every outdated
+    /// managed app, not only the row that made the launch worthwhile. Therefore
+    /// one explicitly skipped Setapp version vetoes the whole automatic launch.
+    /// The user can still open Setapp manually.
+    public static func automaticUpdateCandidates(
+        in results: [UpdateResult],
+        isVersionSkipped: (UpdateResult) -> Bool
+    ) -> [UpdateResult] {
+        let updates = availableUpdates(in: results)
+        guard !updates.contains(where: isVersionSkipped) else { return [] }
+        return updates
+    }
+
     /// The client's bundle identifier — what `NSRunningApplication` is asked
     /// about before deciding a background launch is worth anything.
     public static let clientBundleIdentifier = "com.setapp.DesktopClient"

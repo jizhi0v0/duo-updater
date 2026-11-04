@@ -708,6 +708,28 @@ struct SetappCatalogSourceTests {
         #expect(!SetappAutomation.hasAvailableUpdate(in: []))
     }
 
+    /// A Setapp cold launch refreshes the whole catalogue, so an actionable
+    /// row must not make a second row's explicitly skipped version collateral.
+    @Test func oneSkippedOfferVetoesTheGlobalAutomaticLaunch() {
+        let remote = RemoteVersion(
+            shortVersion: "1.2", version: nil, downloadURL: nil, sourceName: "Setapp")
+        let actionable = UpdateResult(
+            app: app(id: "com.example.actionable-setapp"), remote: remote,
+            status: .updateAvailable(latest: "1.2"))
+        let skipped = UpdateResult(
+            app: app(id: "com.example.skipped-setapp"), remote: remote,
+            status: .updateAvailable(latest: "1.2"))
+
+        let blocked = SetappAutomation.automaticUpdateCandidates(
+            in: [actionable, skipped],
+            isVersionSkipped: { $0.app.bundleID == "com.example.skipped-setapp" })
+        #expect(blocked.isEmpty)
+
+        let allowed = SetappAutomation.automaticUpdateCandidates(
+            in: [actionable, skipped], isVersionSkipped: { _ in false })
+        #expect(allowed.count == 2)
+    }
+
     @Test func readsSetappsPerCustomerAutoInstallFlag() {
         let suite = "setapp-auto-\(UUID().uuidString)"
         let defaults = try! #require(UserDefaults(suiteName: suite))

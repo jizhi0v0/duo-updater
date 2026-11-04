@@ -14,9 +14,13 @@ import subprocess
 from check_codex_review import api
 
 
+def is_pr_completion(run):
+    return (run.get("event") == "pull_request" and run.get("status") == "completed"
+            and run.get("name") in {"CI", "Codex review gate"})
+
+
 def targets(run, associated=None):
-    if (run.get("event") != "pull_request" or run.get("status") != "completed"
-            or run.get("name") not in {"CI", "Codex review gate"}):
+    if not is_pr_completion(run):
         return []
     return [p["number"] for p in (associated if associated is not None else run.get("pull_requests", []))
             if isinstance(p.get("number"), int) and p["number"] > 0]
@@ -39,8 +43,19 @@ def main():
     # GitHub can leave workflow_run.pull_requests empty even for this repo's
     # own PR runs. Resolve the exact head's associated PRs rather than losing
     # the completion event. Each candidate is checked live below.
-    if not numbers and run.get("event") == "pull_request":
+    if not numbers and is_pr_completion(run):
         numbers = targets(run, api(f"repos/{args.repo}/commits/{head}/pulls"))
+    # Fork commits need not have an association in the base repository.
+    # Match all three fields; a same-named branch in another fork is unrelated.
+    if not numbers and is_pr_completion(run):
+        run_repo = (run.get("head_repository") or {}).get("full_name")
+        run_branch = run.get("head_branch")
+        if run_repo and run_branch:
+            candidates = api(f"repos/{args.repo}/pulls?state=open&per_page=100")
+            numbers = [p["number"] for p in candidates
+                       if p.get("head", {}).get("sha") == head
+                       and p["head"].get("ref") == run_branch
+                       and (p["head"].get("repo") or {}).get("full_name") == run_repo]
     for number in numbers:
         pr = api(f"repos/{args.repo}/pulls/{number}")
         if pr["state"] != "open" or pr.get("draft") or pr["head"]["sha"] != head:

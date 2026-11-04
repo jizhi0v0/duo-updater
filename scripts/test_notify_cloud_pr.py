@@ -41,6 +41,26 @@ class CloudWakeup(unittest.TestCase):
         _, post = self.run_with([RUN, [{"number": 7}], PR, [comment]])
         post.assert_not_called()
 
+    def test_fork_run_without_commit_association_matches_repository_branch_and_sha(self):
+        run = {**RUN, "head_repository": {"full_name": "fork/r"}, "head_branch": "fix"}
+        exact = {**PR, "number": 7,
+                 "head": {"sha": HEAD, "ref": "fix", "repo": {"full_name": "fork/r"}}}
+        unrelated = [
+            {**exact, "number": 8, "head": {**exact["head"], "ref": "other"}},
+            {**exact, "number": 9, "head": {**exact["head"], "sha": "b" * 40}},
+            {**exact, "number": 10, "head": {**exact["head"], "repo": {"full_name": "other/r"}}},
+            {**exact, "number": 11, "head": {**exact["head"], "repo": None}},
+        ]
+        api, post = self.run_with([run, [], unrelated + [exact], exact, []])
+        self.assertIn("repos/o/r/pulls?state=open&per_page=100",
+                      [c.args[0] for c in api.call_args_list])
+        self.assertEqual(post.call_count, 1)
+        self.assertIn("repos/o/r/issues/7/comments", post.call_args.args[0])
+
+    def test_unidentifiable_fork_run_does_not_notify_unrelated_prs(self):
+        _, post = self.run_with([RUN, []])
+        post.assert_not_called()
+
     def test_a_user_cannot_suppress_a_wakeup_with_a_copied_marker(self):
         comment = {"user": {"login": "contributor"},
                    "body": "<!-- cloud-pr-wakeup:v1 run=123 -->"}

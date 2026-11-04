@@ -23,6 +23,9 @@ jobs:
       - name: Check out review gate
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          # Reviewed, immutable gate logic; PR changes to the script cannot
+          # change the verdict. Update this pin only after reviewing the gate.
+          ref: 4f295669abfad4861fc4d7bc7add096a1491f327
           persist-credentials: false
           sparse-checkout: scripts/check_codex_review.py
           sparse-checkout-cone-mode: false

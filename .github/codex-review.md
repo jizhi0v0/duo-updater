@@ -43,6 +43,9 @@ The `main` ruleset requires:
   head. The read-only Linux job waits for that receipt and fails closed on
   missing, stale, malformed or non-clean results. A pushed fix starts a new run;
   rerun this workflow after a same-head review retry. No model token is used.
+  The gate checks out immutable commit `4f295669abfad4861fc4d7bc7add096a1491f327`
+  rather than the PR's script. Changes to gate logic require a separately
+  reviewed update of that pin in the workflow.
 - `real-machine` and `adversarial-review`: the existing evidence-record gates.
 
 The `needs-real-machine` label also blocks `codex-review`. Apply it when actual

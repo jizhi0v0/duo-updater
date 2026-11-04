@@ -52,7 +52,10 @@ def main():
         numbers = targets(run)
     if not re.fullmatch(r"[0-9a-f]{40}", head):
         raise ValueError("invalid workflow head")
-    marker = f"<!-- cloud-pr-wakeup:v1 run={args.run} -->"
+    attempt = run.get("run_attempt")
+    if type(attempt) is not int or attempt < 1:
+        raise ValueError("invalid workflow attempt")
+    marker = f"<!-- cloud-pr-wakeup:v2 run={args.run} attempt={attempt} -->"
     # GitHub can leave workflow_run.pull_requests empty even for this repo's
     # own PR runs. Resolve the exact head's associated PRs rather than losing
     # the completion event. Each candidate is checked live below.
@@ -77,7 +80,7 @@ def main():
         if any(c.get("user", {}).get("login") == "github-actions[bot]"
                and c.get("body", "").startswith(marker) for c in comments):
             continue
-        body = (f"{marker}\n{run['name']} completed for `{head}`: "
+        body = (f"{marker}\n{run['name']} attempt {attempt} completed for `{head}`: "
                 f"**{run.get('conclusion', 'unknown')}**.\n\n"
                 f"[Workflow run](https://github.com/{args.repo}/actions/runs/{args.run}). "
                 "The cloud PR handler must re-read current review, CI and real-machine "

@@ -13,7 +13,7 @@ permissions:
   pull-requests: write
 
 concurrency:
-  group: cloud-pr-wakeup-${{ github.event.workflow_run.id }}
+  group: cloud-pr-wakeup-${{ github.event.workflow_run.id }}-${{ github.event.workflow_run.run_attempt }}
   cancel-in-progress: false
 
 jobs:

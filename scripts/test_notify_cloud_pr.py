@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Completion wakeups must target an open PR's current head, once per run."""
+"""Wakeups target an open PR's current head, once per run attempt."""
 import json
 import unittest
 from unittest.mock import patch
@@ -8,7 +8,7 @@ import notify_cloud_pr as notify
 
 HEAD = "a" * 40
 RUN = {"name": "CI", "event": "pull_request", "status": "completed",
-       "head_sha": HEAD, "conclusion": "success", "pull_requests": []}
+       "head_sha": HEAD, "conclusion": "success", "pull_requests": [], "run_attempt": 1}
 GATE_RUN = {**RUN, "name": "Codex review gate", "event": "pull_request_target"}
 PR = {"state": "open", "draft": False, "head": {"sha": HEAD}}
 
@@ -38,9 +38,27 @@ class CloudWakeup(unittest.TestCase):
 
     def test_a_replayed_completion_does_not_post_twice(self):
         comment = {"user": {"login": "github-actions[bot]"},
-                   "body": "<!-- cloud-pr-wakeup:v1 run=123 -->\nCI complete"}
+                   "body": "<!-- cloud-pr-wakeup:v2 run=123 attempt=1 -->\nCI complete"}
         _, post = self.run_with([RUN, [{"number": 7}], PR, [comment]])
         post.assert_not_called()
+
+    def test_a_successful_rerun_wakes_after_the_first_attempts_failure(self):
+        first = {"user": {"login": "github-actions[bot]"},
+                 "body": "<!-- cloud-pr-wakeup:v2 run=123 attempt=1 -->\nCI failed"}
+        run = {**RUN, "run_attempt": 2}
+        _, post = self.run_with([run, [{"number": 7}], PR, [first]])
+        self.assertEqual(post.call_count, 1)
+        body = json.loads(post.call_args.kwargs["input"])["body"]
+        self.assertIn("run=123 attempt=2", body)
+        self.assertIn("**success**", body)
+        second = {**first, "body": body}
+        _, replay = self.run_with([run, [{"number": 7}], PR, [first, second]])
+        replay.assert_not_called()
+
+    def test_invalid_attempts_do_not_publish_ambiguous_markers(self):
+        for attempt in [None, 0, -1, True, "2"]:
+            with self.assertRaises(ValueError):
+                self.run_with([{**RUN, "run_attempt": attempt}])
 
     def test_fork_run_without_commit_association_matches_repository_branch_and_sha(self):
         run = {**RUN, "head_repository": {"full_name": "fork/r"}, "head_branch": "fix"}
@@ -64,7 +82,7 @@ class CloudWakeup(unittest.TestCase):
 
     def test_a_user_cannot_suppress_a_wakeup_with_a_copied_marker(self):
         comment = {"user": {"login": "contributor"},
-                   "body": "<!-- cloud-pr-wakeup:v1 run=123 -->"}
+                   "body": "<!-- cloud-pr-wakeup:v2 run=123 attempt=1 -->"}
         _, post = self.run_with([RUN, [{"number": 7}], PR, [comment]])
         self.assertEqual(post.call_count, 1)
 

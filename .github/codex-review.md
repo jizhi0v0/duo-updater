@@ -68,6 +68,8 @@ so the cloud event task can resume without a local polling job. It runs trusted
 default-branch code, checks the live PR head and never checks out PR code or
 executes an artifact with its comment-write token. Wakeup comments are not
 merge approval; the cloud handler rechecks all gates and the exact head SHA.
+Wakeups are deduplicated per workflow run **and attempt**; a successful rerun
+can wake the handler even if the same run previously reported failure.
 
 Official setup and review-rule documentation:
 [Review GitHub pull requests with Codex](https://learn.chatgpt.com/docs/third-party/github).

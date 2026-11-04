@@ -1,4 +1,4 @@
-.PHONY: install cli build test test-scripts test-swift test-app test-release gallery notarize release check-python
+.PHONY: install cli build test test-scripts test-swift test-app test-release test-release-build gallery notarize release check-python
 
 # Build and test only the dependency revisions committed in each package's
 # Package.resolved. Without it SwiftPM re-resolves whenever a manifest's range
@@ -99,6 +99,8 @@ test-scripts: check-python
 	$(PYTHON) scripts/check_ifchange.py
 	$(PYTHON) scripts/test_check_real_machine_record.py
 	$(PYTHON) scripts/test_check_adversarial_review.py
+	$(PYTHON) scripts/test_check_codex_review.py
+	$(PYTHON) scripts/test_notify_cloud_pr.py
 
 # Extra `swift test` arguments for Core's suite, here and in test-release. Empty by
 # default. ci.yml sets `--skip installPipelineDryRun` on the mini: that test
@@ -124,6 +126,11 @@ test-app: check-python
 # see the test target in DuoUpdaterCore/Package.swift.
 test-release:
 	swift test --package-path DuoUpdaterCore -c release --build-system native $(RESOLVED_ONLY) $(CORE_TEST_FLAGS)
+
+# Compile the complete shipping schemes too; test-release only optimizes Core.
+# No signing identity, notarization credentials or installation is needed.
+test-release-build: check-python
+	@bash scripts/unsigned-release-build.sh
 
 # Render every row state to verify/row-states/<surface>/*.png. The images are
 # committed:

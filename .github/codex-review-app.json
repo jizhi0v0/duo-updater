@@ -1,0 +1,14 @@
+{
+  "name": "DuoUpdater Review Gate jizhi0v0",
+  "url": "https://github.com/jizhi0v0/duo-updater",
+  "description": "Publish the trusted codex-review commit status; no source changes or merges.",
+  "public": false,
+  "hook_attributes": {
+    "url": "https://github.com/jizhi0v0/duo-updater",
+    "active": false
+  },
+  "default_permissions": {
+    "statuses": "write"
+  },
+  "default_events": []
+}

@@ -3907,6 +3907,15 @@ final class AppListModel {
         let checked = checkedRows + ScanRowAssembly.unchecked(ignored, proofs: provenNow)
         results = sorted(CheckRoundWriteBack.publishing(
             checked, changedSince: roundBaseline, live: results))
+        let automaticSetappUpdates = SetappAutomation.automaticUpdateCandidates(
+            in: results,
+            ignoredApps: ignored,
+            hasStoredSkip: prefs.hasSkippedVersion,
+            isVersionSkipped: { result in
+                prefs.isVersionSkipped(result.app, version: result.remote?.versionSide)
+            })
+        await startSetappBackgroundUpdatesIfNeeded(
+            for: automaticSetappUpdates.filter(isActionableUpdate))
         // Pre-warm the disk changelog cache for anything pending, so opening its
         // notes is instant (and a no-op network-wise for versions already cached).
         prewarmChangelogs(for: checked)

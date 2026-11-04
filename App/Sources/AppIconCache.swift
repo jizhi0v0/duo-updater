@@ -12,14 +12,17 @@ import Observation
 enum AppIconCache {
     // NSCache (vs a plain dict): it evicts under memory pressure on its own, so a
     // large library's worth of cached icons can't grow unbounded.
-    private static let cache: NSCache<NSString, Entry> = {
+    // Serialized cache tests replace this with retaining storage: an eviction
+    // between their mutation and assertion is valid NSCache behavior, not a
+    // failed revalidation. The shipping app always uses this NSCache.
+    static var cache: NSCache<NSString, Entry> = {
         let cache = NSCache<NSString, Entry>()
         cache.countLimit = 512
         return cache
     }()
 
     /// An icon and the stamp of the bundle it was read from.
-    private final class Entry {
+    final class Entry: NSObject {
         let image: NSImage
         let stamp: BundleStamp?
         init(image: NSImage, stamp: BundleStamp?) { self.image = image; self.stamp = stamp }

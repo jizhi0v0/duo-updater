@@ -684,6 +684,97 @@ struct SetappCatalogSourceTests {
 
     // MARK: - Background updates
 
+    @Test func onlyActionableSetappOffersTriggerBackgroundUpdates() {
+        let stable = RemoteVersion(
+            shortVersion: "1.2", version: nil, downloadURL: nil, sourceName: "Setapp")
+        let beta = RemoteVersion(
+            shortVersion: "1.3b1", version: nil, downloadURL: nil, sourceName: "Setapp", releaseChannel: .beta)
+        for remote in [stable, beta] {
+            #expect(SetappAutomation.hasAvailableUpdate(in: [UpdateResult(
+                app: app(), remote: remote, status: .updateAvailable(latest: "1.2"))]))
+            #expect(!SetappAutomation.hasAvailableUpdate(in: [UpdateResult(
+                app: app(), remote: remote, status: .upToDate)]))
+            #expect(!SetappAutomation.hasAvailableUpdate(in: [UpdateResult(
+                app: app(), remote: remote, status: .error("offline"))]))
+        }
+        let direct = RemoteVersion(shortVersion: "2", version: nil, downloadURL: nil, sourceName: "Sparkle")
+        #expect(!SetappAutomation.hasAvailableUpdate(in: [UpdateResult(
+            app: app(), remote: direct, status: .updateAvailable(latest: "2"))]))
+        let held = RemoteVersion(
+            shortVersion: "1.2", version: nil, downloadURL: nil, sourceName: "Setapp",
+            subscriptionHold: SubscriptionHold(version: "2", coveredBefore: nil, recovery: .setappAccount))
+        #expect(!SetappAutomation.hasAvailableUpdate(in: [UpdateResult(
+            app: app(), remote: held, status: .upToDate)]))
+        #expect(!SetappAutomation.hasAvailableUpdate(in: []))
+    }
+
+    /// A Setapp cold launch refreshes the whole catalogue, so an actionable
+    /// row must not make a second row's explicitly skipped version collateral.
+    @Test func oneSkippedOfferVetoesTheGlobalAutomaticLaunch() {
+        let remote = RemoteVersion(
+            shortVersion: "1.2", version: nil, downloadURL: nil, sourceName: "Setapp")
+        let actionable = UpdateResult(
+            app: app(id: "com.example.actionable-setapp"), remote: remote,
+            status: .updateAvailable(latest: "1.2"))
+        let skipped = UpdateResult(
+            app: app(id: "com.example.skipped-setapp"), remote: remote,
+            status: .updateAvailable(latest: "1.2"))
+
+        let blocked = SetappAutomation.automaticUpdateCandidates(
+            in: [actionable, skipped],
+            isVersionSkipped: { $0.app.bundleID == "com.example.skipped-setapp" })
+        #expect(blocked.isEmpty)
+        #expect(SetappAutomation.automaticUpdateCandidates(
+            in: [skipped, actionable],
+            isVersionSkipped: { $0.app.bundleID == "com.example.skipped-setapp" }).isEmpty)
+        #expect(SetappAutomation.automaticUpdateCandidates(
+            in: [skipped], isVersionSkipped: { _ in true }).isEmpty)
+        #expect(SetappAutomation.automaticUpdateCandidates(
+            in: [], isVersionSkipped: { _ in false }).isEmpty)
+
+        let allowed = SetappAutomation.automaticUpdateCandidates(
+            in: [actionable, skipped], isVersionSkipped: { _ in false })
+        #expect(allowed.count == 2)
+    }
+
+    @Test func anIgnoredSetappCopyWithAStoredSkipVetoesTheGlobalLaunch() {
+        let remote = RemoteVersion(
+            shortVersion: "1.2", version: nil, downloadURL: nil, sourceName: "Setapp")
+        let actionable = UpdateResult(
+            app: app(id: "com.example.actionable-setapp"), remote: remote,
+            status: .updateAvailable(latest: "1.2"))
+        let ignored = app(id: "com.example.ignored-setapp")
+
+        #expect(SetappAutomation.automaticUpdateCandidates(
+            in: [actionable],
+            ignoredApps: [ignored],
+            hasStoredSkip: { $0.bundleID == "com.example.ignored-setapp" },
+            isVersionSkipped: { _ in false }).isEmpty)
+
+        // A skipped ignored copy from another distribution cannot be collateral
+        // in Setapp's global refresh and must not suppress Setapp updates.
+        let direct = app(id: "com.example.direct")
+        #expect(SetappAutomation.automaticUpdateCandidates(
+            in: [actionable],
+            ignoredApps: [direct],
+            hasStoredSkip: { _ in true },
+            isVersionSkipped: { _ in false }).count == 1)
+    }
+
+    @Test func aSkippedDirectOfferDoesNotVetoSetappUpdates() {
+        let setapp = UpdateResult(app: app(), remote: RemoteVersion(
+            shortVersion: "2.0", version: "200", downloadURL: nil, sourceName: "Setapp"),
+            status: .updateAvailable(latest: "2.0"))
+        let direct = UpdateResult(app: app(id: "com.example.direct"), remote: RemoteVersion(
+            shortVersion: "2.0", version: "200", downloadURL: nil, sourceName: "Sparkle"),
+            status: .updateAvailable(latest: "2.0"))
+        let updates = SetappAutomation.automaticUpdateCandidates(in: [direct, setapp]) {
+            $0.remote?.sourceName == "Sparkle"
+        }
+        #expect(updates.count == 1)
+        #expect(updates.first?.remote?.sourceName == "Setapp")
+    }
+
     @Test func readsSetappsPerCustomerAutoInstallFlag() {
         let suite = "setapp-auto-\(UUID().uuidString)"
         let defaults = try! #require(UserDefaults(suiteName: suite))

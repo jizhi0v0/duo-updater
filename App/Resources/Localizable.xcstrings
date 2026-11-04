@@ -62800,67 +62800,67 @@
         }
       }
     },
-    "Setapp installs its own updates. With this on, the row starts Setapp in the background; Setapp’s own “Install automatically” still decides whether anything is installed.": {
+    "When a check finds updates, starts Setapp if it is not running and automatic installation is enabled. Quits it after 30 seconds idle only when update activity can be safely verified and you have not used it; otherwise leaves it running. A window may appear behind other apps.": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Setapp installiert seine Updates selbst. Wenn dies an ist, startet die Zeile Setapp im Hintergrund; ob wirklich installiert wird, entscheidet weiterhin „Automatisch installieren“ in Setapp."
+            "value": "Wenn eine Prüfung Updates findet, wird Setapp gestartet, sofern es nicht läuft und die automatische Installation aktiviert ist. Es wird nach 30 Sekunden ohne Aktivität nur beendet, wenn die Update-Aktivität sicher überprüft werden kann und du es nicht verwendet hast; andernfalls läuft es weiter. Ein Fenster kann hinter anderen Apps erscheinen."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Setapp instala sus propias actualizaciones. Con esto activado, la fila inicia Setapp en segundo plano; «Instalar automáticamente» en Setapp sigue decidiendo si se instala algo."
+            "value": "Cuando se detectan actualizaciones, inicia Setapp si no está abierto y la instalación automática está activada. Solo lo cierra tras 30 segundos de inactividad si puede verificar de forma segura la actividad de actualización y no lo has usado; de lo contrario, lo deja abierto. Puede aparecer una ventana detrás de otras apps."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Setapp installe ses propres mises à jour. Activé, la ligne lance Setapp en arrière-plan ; « Installer automatiquement » dans Setapp décide toujours si quelque chose est installé."
+            "value": "Si des mises à jour sont trouvées, lance Setapp s’il est fermé et que l’installation automatique est activée. Le quitte après 30 secondes d’inactivité uniquement si l’activité de mise à jour peut être vérifiée de manière sûre et que vous ne l’avez pas utilisé ; sinon, le laisse ouvert. Une fenêtre peut apparaître derrière les autres apps."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Setapp installa i propri aggiornamenti. Con questa opzione attiva, la riga avvia Setapp in background; «Installa automaticamente» in Setapp decide comunque se installare."
+            "value": "Se vengono trovati aggiornamenti, avvia Setapp se non è in esecuzione e l’installazione automatica è attiva. Lo chiude dopo 30 secondi di inattività solo se l’attività di aggiornamento può essere verificata in modo sicuro e non lo hai usato; altrimenti lo lascia in esecuzione. Una finestra potrebbe apparire dietro le altre app."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Setappは自身の更新をインストールします。オンにすると、行はSetappをバックグラウンドで起動します。実際にインストールするかはSetappの「自動的にインストール」が決めます。"
+            "value": "更新が見つかり、Setappが未起動で自動インストールが有効な場合に起動します。更新処理の状態を安全に確認でき、ユーザーが使用していない場合に限り、処理が止まってから30秒後に終了します。それ以外の場合は起動したままにします。ほかのアプリの背後にウインドウが表示されることがあります。"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "O Setapp instala as próprias atualizações. Com isto ligado, a linha inicia o Setapp em segundo plano; “Instalar automaticamente” no Setapp continua decidindo se algo é instalado."
+            "value": "Quando encontra atualizações, inicia o Setapp se ele não estiver aberto e a instalação automática estiver ativada. Só encerra após 30 segundos de inatividade se a atividade de atualização puder ser verificada com segurança e você não o tiver usado; caso contrário, continua aberto. Uma janela pode aparecer atrás de outros apps."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Setapp сам устанавливает свои обновления. Если включено, строка запускает Setapp в фоне; устанавливать ли что-то, по-прежнему решает «Устанавливать автоматически» в Setapp."
+            "value": "При обнаружении обновлений запускает Setapp, если он ещё не запущен и автоматическая установка включена. Закрывает его после 30 секунд бездействия, только если состояние обновления можно безопасно проверить и вы им не пользовались; иначе оставляет работающим. Окно может появиться позади других приложений."
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Setapp kendi güncellemelerini yükler. Bu açıkken satır Setapp'i arka planda başlatır; bir şeyin yüklenip yüklenmeyeceğine yine Setapp'teki «Otomatik olarak yükle» karar verir."
+            "value": "Güncelleme bulunduğunda, Setapp çalışmıyorsa ve otomatik yükleme açıksa başlatır. Yalnızca güncelleme etkinliği güvenli biçimde doğrulanabiliyorsa ve uygulamayı kullanmadıysanız 30 saniye boşta kaldıktan sonra kapatır; aksi halde çalışır durumda bırakır. Diğer uygulamaların arkasında bir pencere görünebilir."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Setapp 自己安装更新。开启后，这一行会在后台启动 Setapp；是否真的安装仍由 Setapp 里的“自动安装”决定。"
+            "value": "检查发现更新时，若 Setapp 未运行且已开启自动安装，就在后台启动它。仅在能安全确认更新活动状态且你未使用它时，空闲 30 秒后退出；否则保留运行。窗口可能出现在其他应用后方。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "Setapp 自己安裝更新。開啟後，這一列會在背景啟動 Setapp；是否真的安裝仍由 Setapp 裡的「自動安裝」決定。"
+            "value": "檢查發現更新時，若 Setapp 未執行且已開啟自動安裝，就在背景啟動它。僅在能安全確認更新活動狀態且你未使用它時，閒置 30 秒後結束；否則保持執行。視窗可能出現在其他 App 後方。"
           }
         }
       }

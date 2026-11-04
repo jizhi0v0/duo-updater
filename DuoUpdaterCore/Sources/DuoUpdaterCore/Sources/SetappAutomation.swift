@@ -1,6 +1,6 @@
 import Foundation
 
-/// Whether a Setapp update can be kicked off without showing Setapp, and how to
+/// Whether a Setapp update can be kicked off without activating Setapp, and how to
 /// do it.
 ///
 /// Measured 2026-11-03 in the vmpal VM, both directions:
@@ -51,6 +51,45 @@ public enum SetappAutomation {
         defaults: UserDefaults? = UserDefaults(suiteName: SetappSubscription.defaultsDomain)
     ) -> Bool {
         userEnabled && !isAutoRefreshForbidden(defaults: defaults)
+    }
+
+    /// Only an actionable Setapp offer can start its installer. The source has
+    /// already applied subscription, OS and stable/beta channel checks.
+    public static func hasAvailableUpdate(in results: [UpdateResult]) -> Bool {
+        !availableUpdates(in: results).isEmpty
+    }
+
+    public static func availableUpdates(in results: [UpdateResult]) -> [UpdateResult] {
+        results.filter { result in
+            guard result.remote?.sourceName == "Setapp",
+                  result.remote?.subscriptionHold == nil,
+                  case .updateAvailable = result.status else { return false }
+            return true
+        }
+    }
+
+    /// Setapp's launch-time refresh is global: it may install every outdated
+    /// managed app, not only the row that made the launch worthwhile. Therefore
+    /// one explicitly skipped Setapp version vetoes the whole automatic launch.
+    /// The user can still open Setapp manually.
+    public static func automaticUpdateCandidates(
+        in results: [UpdateResult],
+        ignoredApps: [InstalledApp] = [],
+        hasStoredSkip: (InstalledApp) -> Bool = { _ in false },
+        isVersionSkipped: (UpdateResult) -> Bool
+    ) -> [UpdateResult] {
+        // Ignored rows intentionally are not checked and therefore carry no
+        // remote offer after a refresh. A stored skip on one of those Setapp-owned
+        // copies is still an explicit veto: the global client launch could install
+        // it as collateral, and without checking the row we cannot prove the
+        // skipped release is no longer current.
+        guard !ignoredApps.contains(where: {
+            SetappCatalogSource.owns($0) && hasStoredSkip($0)
+        }) else { return [] }
+
+        let updates = availableUpdates(in: results)
+        guard !updates.contains(where: isVersionSkipped) else { return [] }
+        return updates
     }
 
     /// The client's bundle identifier — what `NSRunningApplication` is asked

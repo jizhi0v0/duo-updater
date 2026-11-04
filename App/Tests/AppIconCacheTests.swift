@@ -13,6 +13,16 @@ import Testing
 @Suite(.serialized)
 struct AppIconCacheTests {
 
+    init() {
+        // NSCache may evict a fixture even while the test retains its NSImage.
+        // A miss after the swap loads the new stamp before revalidatePass, which
+        // makes both image-identity and redraw assertions meaningless. Keep
+        // entries until the code under test explicitly invalidates them.
+        let cache = RetainingIconCache()
+        cache.countLimit = 512
+        AppIconCache.cache = cache
+    }
+
     /// A minimal `.app` in `dir`; returns the bundle path.
     private static func makeBundle(in dir: URL, version: String) throws -> String {
         let bundle = dir.appendingPathComponent("Probe.app")
@@ -216,6 +226,33 @@ struct AppIconCacheTests {
             if gate.entered > 0 { return true }
         }
         return false
+    }
+}
+
+/// Deterministic storage for this serialized suite; the shipping NSCache keeps
+/// its normal eviction policy. Explicit removals still exercise invalidation.
+private final class RetainingIconCache: NSCache<NSString, AppIconCache.Entry>, @unchecked Sendable {
+    private let lock = NSLock()
+    private var entries: [NSString: AppIconCache.Entry] = [:]
+
+    override func object(forKey key: NSString) -> AppIconCache.Entry? {
+        lock.withLock { entries[key] }
+    }
+
+    override func setObject(_ obj: AppIconCache.Entry, forKey key: NSString) {
+        lock.withLock { entries[key] = obj }
+    }
+
+    override func setObject(_ obj: AppIconCache.Entry, forKey key: NSString, cost: Int) {
+        lock.withLock { entries[key] = obj }
+    }
+
+    override func removeObject(forKey key: NSString) {
+        _ = lock.withLock { entries.removeValue(forKey: key) }
+    }
+
+    override func removeAllObjects() {
+        lock.withLock { entries.removeAll() }
     }
 }
 

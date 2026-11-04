@@ -117,6 +117,208 @@ defaults read com.setapp.DesktopClient
 
   agent 每次检查也会打 `automaticAllowed=0/1`。
 
+### Refresh 时触发的复验（2026-11-04）
+
+在 vmpal「macOS VM 1」、Setapp 3.58.0 (163) 上复验，目标是 refresh 时读取
+Setapp 自己的「Install automatically」，开启才后台启动，让 Setapp 安装。
+
+- 真实待更新副本 Paste 7.0.4；没有改 Info.plist 模拟旧版本。
+- 界面开关已勾选，`ForbiddenAutomaticAppsRefresh` 键不存在，但最初 agent 日志仍报
+  `automaticAllowed=0`、`update was not allowed`，Paste 未更新。这说明仅从客户端
+  偏好推断 agent 当下会安装，并非充分保证；这次不一致的原因尚未确定。
+- 在界面将自动安装关闭再开启，确认关闭时写入 `<hash>-ForbiddenAutomaticAppsRefresh=1`，
+  开启时删除该键；最终恢复为开启。随后退出主客户端并执行
+  `open -g -a /Applications/Setapp.app`，约 8 秒内 Paste 变为 7.0.5 / 29895801，
+  日志为 `automaticAllowed=1`；Downie 也有 `Successfully updated app`。
+  **冷启动触发安装成立，不需要先跳转 Updates 页面。** `-g` 不抢焦点，但窗口仍可能在后方显示。
+- `setapp://updates` 经默认 scheme handler 交给 agent，被明确拒绝为
+  `URL is not a valid install-from-URL link`。显式交给主客户端也没有切换页面。
+- 主客户端注册的是 `setappDiscovery` scheme。
+  `setappDiscovery://updates`、`setappDiscovery://check-for-updates` 均有客户端接收日志，
+  但没有观察到新的更新检查；后一条调用后 `LastAppsRefreshDate` 仍是上次冷启动的时间。
+  这些候选不能当成可用的更新入口，也不能据此断言所有可能的 Updates 深链都不存在。
+- 产品代码已接入 refresh：完成检查后，存在未忽略、状态为 `updateAvailable` 的 Setapp
+  offer，且 DuoUpdater 和 Setapp 两个开关都允许时，后台启动尚未运行的客户端。
+  稳定版和 Beta 均使用源已完成的渠道、订阅和系统兼容性判断；不会因锁定版本或检查错误启动。
+  popover 按钮固定显示 `Setapp`。客户端已经运行时，如何主动触发检查仍待验证，故跳过。
+- 使用与产品相同的 `NSWorkspace.openApplication` 参数在 VM 复验：
+  `activates=false` 时，`frontBefore=com.apple.Terminal`、`active=false`、
+  `frontAfter=com.apple.Terminal`。**不要设置 `hides=true`**：同一探针反而得到
+  `active=true`、`frontAfter=com.setapp.DesktopClient`。此处后台指不抢焦点，窗口可能在后方显示。
+- 检查 3.58.0 主客户端实际 URL handler 的 12 个 host：`launch`、`install`、
+  `system/sign_in`、`renew_subscription`、`start_trial`、`open_preferences`、
+  `open_collection`、`open_whats_new_setapp`、`open_whats_new_one_app`、
+  `open_whats_new_all_apps`、`open_blog_article`、`open`，没有 Updates host。
+  Agent 的 URL handler 依次尝试 install、launch、sign-in、renew-subscription。
+  `refreshApps` 则是其内部 proactor 动作名，不能据此拼成可用深链。
+
+### 可见窗口复验：不等于完全静默（2026-11-04）
+
+用户完全退出主客户端后，确认只剩 Agent、Launcher、Assistant 等后台进程。
+保持 Terminal 非全屏，启动前后都截图，不用前台窗口遮住整个桌面：
+
+- 先备份完整的 Paste.app（原版 7.0.5），将测试副本 Info.plist 改为
+  `CFBundleShortVersionString=7.0.4`、`CFBundleVersion=1`，不启动改过签名的副本。
+- VM 当地时间 05:33:29，使用与当前产品相同的 `NSWorkspace.openApplication`、
+  `activates=false`（不设 `hides`）启动 Setapp。
+- 探针输出 `frontBefore=com.apple.Terminal`、`hidden=false active=false`、
+  `frontAfter=com.apple.Terminal`。启动后截图**明确出现 Setapp 主窗口，位于 Terminal 后方**。
+- 05:33:48 读取 Paste 为 7.0.5 / 29895801，`codesign --verify` 成功：
+  Setapp 已用官方包替换测试副本，无须把修改过 Info.plist 的包留在安装位置。
+
+结论：**后台启动可自动更新，也不抢焦点，但会显示主窗口，不能称作“完全静默”**。
+此前前台应用保持不变的探针只证明焦点，不能作为“没有显示窗口”的证据。
+当前自动 refresh 实现也有这个限制；尚未验证出无窗口、无闪现的启动方式。
+
+### TestFlight 的独立隐藏实例参数复验（2026-11-04）
+
+同一 VM、Setapp 3.58.0 (163)，用与 `AppRestarter.launchSeparateInstance` 相同的整组参数：
+`activates=false`、`hides=true`、`createsNewApplicationInstance=true`、
+`addsToRecentItems=false`。每轮把已备份的 Paste 测试副本重新标为 7.0.4 / 1，
+测试后均由 Setapp 更新回官方 7.0.5 / 29895801，`codesign --verify` 通过。
+
+| 场景 | 进程与界面结果 | 更新结果 |
+|---|---|---|
+| 主客户端未运行 | 启动 PID 61891，`hidden=false active=true`；窗口可见，前台从 Finder 变为 Setapp | 成功 |
+| 主客户端 PID 61891 已运行 | 确实创建 PID 61972；新实例 `hidden=false active=true`，抢到前台；原 PID 61891 存活、变为 inactive | 成功 |
+
+探针从调用启动之前开始，循环采样前台进程和新实例的屏幕普通层窗口，等待 20 秒。
+第一轮 309 次采样，295 次前台属于 Setapp、294 次检测到新实例可见窗口；
+第二轮 315 次采样，302 次前台属于新实例、302 次检测到新实例可见窗口。
+调用前后的截图也能看到主窗口，第二轮 Dock 出现两个 Setapp 图标。
+
+**结论：Setapp 可以启动独立实例并触发更新，但不遵守这组隐藏/不激活参数的预期效果；
+不能把 TestFlight 的完全静默机制直接套用到 Setapp。** 原实例没有被退出或替换，
+但丢失了前台焦点。探针按 TestFlight 同类的“可见或 active 则不退出”规则留下测试实例，
+没有以 bundle ID 批量退出客户端。此次仅验证和记录，没有将这组参数接入产品。
+
+### 自有静默参数、安装入口与延迟隐藏复验（2026-11-04）
+
+继续在同一 VM 使用 Setapp 3.58.0 (163)，并用 DuoShot 录制整个 VM 窗口。
+Terminal 保持非全屏，观察其后方的 Setapp 窗口；每轮把 Paste 的版本标为
+7.0.4 / 1，不启动该测试副本，以恢复至 7.0.5 / 29895801 且签名有效作为更新成功标准。
+这些实验未接入产品。
+
+| 方法 | 界面结果 | 更新结果 |
+|---|---|---|
+| TestFlight 整组启动参数，再加 Setapp 自有 `-silentLaunch` | 未观察到主窗口；主进程快速退出，日志为 `Did silent launch` | 未更新 |
+| `-silentLaunch -userInteractionForbidden -installApps 98` | 未观察到主窗口，快速退出 | 未更新 |
+| 去掉 `-silentLaunch`，用 `-userInteractionForbidden -installApps` | 未观察到主窗口；确实进入 vendor 的 CommandLineService | 分别传数字 ID、bundle ID、公开 UUID 均未更新；前两者返回 `com.setapp.default-error-domain` / `-401003` |
+| 普通不激活启动，仅加 `-userInteractionForbidden` | 主窗口仍显示在 Terminal 后方 | 成功 |
+| 普通不激活启动，返回后立即 `NSRunningApplication.hide()` | 返回 false，主窗口随后显示 | 成功 |
+| 普通不激活启动，返回后等 1 秒再 `hide()` | 窗口短暂出现后隐藏 | 成功 |
+
+`-silentLaunch` 与 `-userInteractionForbidden` 是从 Setapp 自己的
+SetappInterface.framework 导出的启动常量读取的参数。前者不是普通 GUI 启动的
+“隐藏窗口”修饰符：本次执行直接走静默启动分支并退出，没有触发普通启动的应用更新。
+后者在入口处用于控制安装后台组件时是否允许交互，不能据此推断整个 GUI 都不显示。
+`-installApps` 的失败只说明这些调用未成功，不能证明该内部入口在所有条件下不可用。
+
+延迟隐藏的有效录屏 `/tmp/setapp-hidelater-valid.mp4`：
+2.487 秒的帧明确显示 Terminal 后方出现 Setapp 主窗口，2.995 秒的帧已隐藏；
+菜单栏一直显示 Terminal。探针 344 次采样中 15 次检测到新实例可见窗口，
+随后持续 hidden，20 秒观察结束时只退出本次启动且仍隐藏的 PID 62706。
+测试后 Paste 为官方 7.0.5 / 29895801，`codesign --verify` 成功；Setapp 主客户端已退出。
+另一次延迟隐藏录屏碰上锁屏，排除其界面结论。解锁后探针报告的前台进程仍为
+loginwindow，与录屏上的 Terminal 菜单栏不一致，因此本轮焦点判断以录屏为准。
+
+其他本地证据：`/tmp/setapp-silentlaunch-cold.mp4`、
+`/tmp/setapp-nointeraction-valid.mp4`，以及同名前缀的探针日志。
+
+**结论：本次没有验证出“无窗口且能自动更新”的启动方式。延迟隐藏可更新但有闪窗；
+普通后台启动可更新但窗口会留在后方。这是当前 Setapp 版本在这些入口下的实测行为，
+不能归因成某个 UI 框架必然不支持，也不能断言不存在其他可用机制。**
+产品仍采用已有的普通后台启动路径，遇到用户已经运行 Setapp 时跳过；
+未加入独立实例、延迟隐藏或退出用户现有进程的行为。
+
+### 检测更新忙碌状态：活动会话，而非数据库时间（2026-11-04）
+
+为确定退出时机，使用独立 Swift 探针监听跨进程通知，每 250 ms 读取数据库文件属性、
+Paste 的实际版本；第二个探针还只读 Setapp 偏好中包含 `ActiveRefreshSession_` 的键。
+以下记录接入自动退出前的调查；最终实现与验证见后面的“自动 refresh 生命周期”。
+
+- `Apps.sqlite` 是目录数据，没有下载/安装任务进度表；另查
+  `SetappVersions.sqlite`（客户端发版）、`apollo_db.sqlite`（Apollo records）、
+  Agent 的 `Cache.db`（URL cache），均未找到可直接使用的任务表。
+- 无需更新的对照：Paste 已为官方 7.0.5 / 29895801，后台启动后未发生安装，
+  `Apps.sqlite-wal` 仍由 32768 字节变为 2286632 字节并更新 mtime；主 SQLite 文件 mtime
+  保持不变。**主文件 mtime、WAL mtime/大小均不能作为安装忙碌或完成的判断。**
+- SetappInterface 的 `AFXAppsRefreshSynchronizer` 用偏好保存活动会话：
+  `ActiveRefreshSession_-reason_internal<UUID>`（前面还可能带环境/账号前缀），
+  值为开始日期；结束时删除。外部 `UserDefaults(suiteName: "com.setapp.DesktopClient")`
+  可实际读到从空 → 一个 → 两个 → 一个 → 空的变化，无需加载厂商 framework。
+- 同时收到分布式通知 `com.setapp.apps-refresh-will-start` 与
+  `com.setapp.apps-refresh-did-end`；`userInfo` 中
+  `com.setapp.apps-refresh-process-id` 是**会话 UUID，不是操作系统 PID**。
+  启动前开始监听并按 UUID 维护集合，不能收到任意一次 did-end 就认为整个更新结束。
+- 去掉 Paste 专属下载缓存、再次触发自动更新的时间线（探针起点为 0 秒）：
+  3.883 秒第一个会话开始，4.348 秒第二个开始，5.961 秒第一个结束；
+  7.905 秒实际版本恢复官方 7.0.5 / 29895801，7.916 秒收到
+  `com.setapp.app-vendor-instances-installed`，7.929 秒第二个会话结束，
+  8.136 秒偏好中的活动会话归零。安装成功且签名有效。
+  另一轮无下载缓存也得到同样的“第二个会话在安装完成后结束”的顺序。
+- 会话包括检查目录、下载和安装，所以它是保守的“Setapp 正忙”信号，
+  不是单个应用的百分比进度，也不能证明 did-end 就一定更新成功（失败也会结束）。
+  应以应用包版本达到预期作为成功依据。
+- 二进制中有旧的 `com.setapp.app-updater.progress-status` 通知及 `appID`、
+  `progress`、`status` 字段；但本次缓存更新和两轮无缓存自动更新均未收到该通知，
+  不能凭符号存在就采用它。现代 Agent 的日志确有
+  `ApplicationManagementInterface.ProgressInfo(progressValue:state:appInstance:)`
+  经 IPCCore `UpdateEntityRequest(storageKey: "AppKey", key: "appsData", ...)` 发送，
+  尚未验证外部进程可读取该 IPC 状态；不将其描述成现成可用的进度接口。
+- 厂商自身会把超过 300 秒的会话日期视为过期（`activeRefreshSessionsWithReason:`），
+  所以“键消失/过期”不能单独证明一次很慢的下载已完成。这些也是厂商内部协议，
+  后续版本变动或漏通知时须保守处理，不能直接强制结束客户端。
+
+建议退出策略：已知无更新则不启动；只管理本次启动的客户端，用户使用后放弃自动退出；
+活动会话未结束时不按 30 秒强行退出，全部会话结束后等待 30 秒无新活动再正常请求退出。
+应用实际更新完成可以重置这段空闲时间，同一应用同一目标只记一次；
+若观察始终不收敛，停止自动管理并保留客户端，避免无限计时或误杀下载。
+接入时还会记住偏好快照里见过的会话：没有匹配的结束通知，即使偏好标记被厂商清除，
+也不将其当作完成；延迟到达的旧偏好不会重新激活已收到结束通知的 UUID。
+
+本地证据：`/tmp/setapp-progress-control.log`、`/tmp/setapp-progress-update.log`、
+`/tmp/setapp-progress-download.log`、`/tmp/setapp-progress-sessions.log`；
+探针源文件 `/tmp/setapp-progress-probe.swift`、`/tmp/setapp-progress-sessions-probe.swift`。
+
+### 自动 refresh 生命周期（2026-11-04）
+
+`SetappBackgroundUpdates` 已接入检查结束的自动触发路径，手动点击行按钮仍属于用户操作。
+DuoUpdater 开关默认开启，但关闭任一侧自动更新开关、不存在可用 offer、已忽略、订阅 hold、
+客户端已运行，均不自动启动；启动前再次读取应用包版本，避免旧结果触发多余启动。
+Beta/stable 检测继续读取 Setapp 的 beta 开关所选目录。
+
+- 普通不激活启动，不传 `hides`、不创建第二实例、不跳转未验证的 Updates 深链。
+- 启动前注册会话和工作区监听；绑定返回的 `NSRunningApplication`、PID、启动日期和路径。
+  若启动日期早于请求或身份不确定，保留客户端。
+- 同时读取活动会话日期并按 UUID 配对通知；全部会话结束后空闲 30 秒才正常请求退出。
+  目标版本实际落盘会重新计时，每个路径只计一次，反复读到同一版本不会无限延期。
+- 用户激活会永久结束本轮管理；原进程退出、更换 PID/启动时间或出现其他客户端实例，
+  立即放弃管理，不把计时器转交给新进程。退出前还会再次验证身份和使用状态。
+- 无会话证据且目标未完成时，30 秒后只停止管理；状态不可读、格式异常、过期会话，
+  或总观察时间达到 10 分钟，同样保留客户端。不强制退出，不重试被拒绝的退出请求，
+  不退出 SetappAgent、Launcher 或 Assistant。
+
+验证使用直接链接当前 Core 库的原生测试程序执行生产控制器，普通退出轮：
+VM Setapp 3.58.0 (163)，Paste 从测试标记 7.0.4 / 1 更新回官方 7.0.5 / 29895801；
+PID 63303 于上海时间 22:37:52 启动管理，22:38:26 正常退出请求成功，后续进程列表为空。
+无更新轮直接返回 `managing=false`，没有启动客户端。
+补上漏通知保护后，最终 Core 控制器再次完成更新和自动退出，观察结束时无主客户端进程，
+Paste 签名验证成功；日志 `/tmp/setapp-lifecycle-final-gui-host.log`。
+
+用户接手轮使用 LaunchServices 启动同一 Core 测试程序进入桌面会话：第 8 秒模拟打开
+Setapp，第 9 秒 `front=com.setapp.DesktopClient`、PID 63524 active=true、管理已停止；
+第 10 秒切回 Terminal 后至第 45 秒，仍是同一 PID 且未被关闭。
+退出重开轮：原 PID 63577 在第 8 秒正常退出，第 9 秒管理停止；第 10 秒重新打开
+得到 PID 63604，至第 45 秒仍保持运行，计时器没有转交给它。
+先前锁屏下的激活尝试没有实际激活客户端，不计为用户接手验证。
+
+43 项 Setapp Core 测试与 326 项应用测试通过，Debug 应用构建通过；
+本地化键/占位符、off-pool、版本比较、macOS 15 back-deployment 检查通过。
+本地证据包括 `/tmp/setapp-lifecycle-normal.log`、
+`/tmp/setapp-lifecycle-adopt-gui-host.log`、`/tmp/setapp-lifecycle-replace-gui-host.log`、
+`/tmp/setapp-lifecycle-no-update.log` 与 `/tmp/setapp-lifecycle-existing-pending.log`。
+
 ## Beta
 
 - 「Beta」是**客户端级**开关，不是 per-app：Settings → Updates 的原文是

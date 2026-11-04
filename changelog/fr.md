@@ -2,6 +2,16 @@
 
 Ceci est la traduction de `CHANGELOG.md`. La version anglaise fait autorité. Les versions non énumérées ici reviennent automatiquement à l’anglais.
 
+## 0.5.22
+
+**Setapp peut désormais mettre ses apps à jour automatiquement après une actualisation de la liste.** Si les mises à jour automatiques sont activées dans les deux apps, une mise à jour disponible lance Setapp en arrière-plan ; DuoUpdater ne quitte que l’instance qu’il a lancée, lorsqu’il peut confirmer sans risque que les mises à jour sont terminées et que vous n’avez pas commencé à l’utiliser.
+
+**CompressO, LaunchNext et Thock bénéficient désormais de la recherche de mises à jour et des notes de version.**
+
+**Les notes de version sont désormais disponibles pour Brave stable, SmartClose, OpenScreen et Radial.**
+
+**Les mises à jour bêta de FluidVoice suivent désormais le canal bêta.** Les copies bêta recherchent la dernière bêta et affichent ses notes de version, au lieu d’un état inconnu ou d’une bêta plus ancienne.
+
 ## 0.5.21
 
 **Le canal bêta de Setapp est désormais vérifié depuis Setapp lui-même.** Lorsque les mises à jour bêta de Setapp sont activées, une version bêta est vérifiée et proposée comme n’importe quelle autre mise à jour, et sa ligne porte l’étiquette BETA ; auparavant, ces lignes indiquaient qu’elles ne pouvaient pas être vérifiées.

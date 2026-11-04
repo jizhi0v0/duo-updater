@@ -4,7 +4,7 @@ name: Cloud PR wakeup
 
 on:
   workflow_run:
-    workflows: [CI, Codex review gate]
+    workflows: [CI, Codex review gate, Real-machine record, Adversarial review record]
     types: [completed]
 
 permissions:
@@ -19,7 +19,7 @@ concurrency:
 jobs:
   notify:
     if: >-
-      (github.event.workflow_run.name == 'CI' &&
+      (contains(fromJSON('["CI","Real-machine record","Adversarial review record"]'), github.event.workflow_run.name) &&
        github.event.workflow_run.event == 'pull_request') ||
       (github.event.workflow_run.name == 'Codex review gate' &&
        github.event.workflow_run.event == 'pull_request_target')

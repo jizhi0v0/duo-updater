@@ -98,6 +98,17 @@ class CloudWakeup(unittest.TestCase):
         ]:
             self.assertEqual(notify.targets(run, [{"number": 7}]), [])
 
+    def test_each_required_pr_workflows_failure_wakes_the_handler(self):
+        for name in ["CI", "Real-machine record", "Adversarial review record"]:
+            run = {**RUN, "name": name, "conclusion": "failure",
+                   "pull_requests": [{"number": 7}]}
+            _, post = self.run_with([run, PR, []])
+            self.assertEqual(post.call_count, 1)
+            body = json.loads(post.call_args.kwargs["input"])["body"]
+            self.assertIn(name, body)
+            self.assertIn("**failure**", body)
+            self.assertEqual(notify.targets({**run, "event": "pull_request_target"}), [])
+
     def test_target_gate_uses_its_trusted_title_not_the_base_run_sha(self):
         run = {**RUN, "name": "Codex review gate", "event": "pull_request_target",
                "head_sha": "b" * 40,

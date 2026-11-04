@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Wake the GitHub-event cloud handler after CI or the review gate finishes.
+"""Wake the cloud handler after CI, review or required evidence checks finish.
 
 This runs from the default branch on workflow_run, never from PR code or an
 artifact. It only publishes run metadata for an open PR with the same head.
@@ -16,7 +16,8 @@ from check_codex_review import api
 
 def is_pr_completion(run):
     return (run.get("status") == "completed"
-            and ((run.get("event") == "pull_request" and run.get("name") == "CI")
+            and ((run.get("event") == "pull_request"
+                  and run.get("name") in {"CI", "Real-machine record", "Adversarial review record"})
                  or (run.get("event") == "pull_request_target"
                      and run.get("name") == "Codex review gate")))
 

@@ -215,7 +215,8 @@ struct SetappCatalogSourceTests {
         let checker = UpdateChecker(sources: [source, SparkleSpy()])
         let result = try #require(await checker.check([installed]).first)
         #expect(result.status == UpdateStatus.upToDate)
-        #expect(result.remote?.installedDisplayVersion == "7.1.0 (Setapp Beta)")
+        #expect(result.remote?.releaseChannel == .beta)
+        #expect(result.remote?.installedDisplayVersion == nil)
     }
 
     @Test func anAheadCopyWithBetaOnNamesTheBetaChannel() async throws {
@@ -271,7 +272,10 @@ struct SetappCatalogSourceTests {
         let checker = UpdateChecker(sources: [source, SparkleSpy()])
         let result = try #require(await checker.check([installed]).first)
         #expect(result.status == .upToDate)
-        #expect(result.remote?.installedDisplayVersion == "1.4.0 (Setapp Beta)")
+        // A channel, not a parenthetical suffix: the row's existing ChannelTag
+        // draws BETA beside the name.
+        #expect(result.remote?.releaseChannel == .beta)
+        #expect(result.remote?.installedDisplayVersion == nil)
     }
     @Test func parsesTheBetaFlag() throws {
         let release = try #require(try SetappCatalog.parse(Data("""
@@ -316,7 +320,8 @@ struct SetappCatalogSourceTests {
         // Beta switch off + catalogue behind: Setapp is not offering betas, and
         // the client's catalogue records this build as one — name it.
         let answer = try #require(try await source.latestVersion(for: installed))
-        #expect(answer.installedDisplayVersion == "7.1.0 (Setapp Beta)")
+        #expect(answer.releaseChannel == .beta)
+        #expect(answer.installedDisplayVersion == nil)
     }
 
     @Test func readsBetaRowsFromTheClientsCatalogue() throws {
@@ -461,6 +466,7 @@ struct SetappCatalogSourceTests {
             return
         }
         #expect(latest == "1.4.0")
+        #expect(result.remote?.releaseChannel == .beta)
     }
 
     @Test func offersTheNewestReleaseThatRunsHereNotTheNewestStanding() async throws {

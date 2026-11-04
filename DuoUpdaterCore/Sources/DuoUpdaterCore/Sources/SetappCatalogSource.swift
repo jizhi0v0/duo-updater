@@ -132,11 +132,9 @@ public struct SetappCatalogSource: UpdateSource {
                     version: app.buildVersion,
                     marketingMatchesBundle: true,
                     downloadURL: nil,
-                    installedDisplayVersion: Self.aheadOfStableLabel(
-                        app,
-                        isBeta: isBeta,
-                        channel: channel),
-                    sourceName: name)
+                    installedDisplayVersion: isBeta ? nil : Self.aheadLabel(app, channel: channel),
+                    sourceName: name,
+                    releaseChannel: isBeta ? .beta : nil)
             }
             var remote = answer(for: app, release: release, version: version)
             if version.isBeta, !Self.isNewer(version, than: app),
@@ -148,9 +146,9 @@ public struct SetappCatalogSource: UpdateSource {
                     marketingMatchesBundle: remote.marketingMatchesBundle,
                     downloadURL: remote.downloadURL,
                     pageURL: remote.pageURL,
-                    installedDisplayVersion: String(localized: "\(installed) (Setapp Beta)"),
                     downloadSize: remote.downloadSize,
                     sourceName: remote.sourceName,
+                    releaseChannel: .beta,
                     subscriptionHold: remote.subscriptionHold)
             }
             return remote
@@ -237,17 +235,17 @@ public struct SetappCatalogSource: UpdateSource {
             downloadURL: nil,
             pageURL: Self.deepLink(for: release) ?? release.pageURL,
             minimumSystemVersion: version.minimumSystemVersion,
-            sourceName: name)
+            sourceName: name,
+            releaseChannel: version.isBeta ? .beta : nil)
     }
 
     /// What to call a copy that is ahead of Setapp's stable catalogue: "beta"
     /// only when the client's own catalogue still records that exact build as a
     /// beta; otherwise the one thing we can prove.
-    static func aheadOfStableLabel(
-        _ app: InstalledApp, isBeta: Bool, channel: SetappCatalog.Channel = .stable
+    static func aheadLabel(
+        _ app: InstalledApp, channel: SetappCatalog.Channel = .stable
     ) -> String? {
         guard let installed = app.shortVersion else { return nil }
-        if isBeta { return String(localized: "\(installed) (Setapp Beta)") }
         return channel == .beta
             ? String(localized: "\(installed) (ahead of Setapp’s beta releases)")
             : String(localized: "\(installed) (ahead of Setapp’s stable releases)")

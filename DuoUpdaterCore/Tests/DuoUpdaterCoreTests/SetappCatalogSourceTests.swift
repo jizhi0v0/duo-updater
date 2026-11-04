@@ -121,7 +121,7 @@ struct SetappCatalogSourceTests {
         """
         let releases = try SetappCatalog.parse(Data(json.utf8))
         let source = SetappCatalogSource(
-            releases: { releases },
+            releases: { _ in releases },
             subscription: {
                 self.state(expires: "2099-01-01 00:00:00 +0000", grace: "2099-01-15 00:00:00 +0000")
             },
@@ -144,36 +144,154 @@ struct SetappCatalogSourceTests {
         #expect(result.status == .upToDate)
     }
 
-    @Test func anAheadCopyWithBetaOnIsStillAnIncompleteCheck() async throws {
-        // Ahead of stable while Setapp may offer betas: the "ahead" label would
-        // still travel with `.upToDate`, so this stays a failed check.
-        let releases = try SetappCatalog.parse(Data("""
+    @Test func aMissingBuildIsNotABetaMatch() async throws {
+        // Same marketing version as a beta, but the installed bundle states no
+        // build: nothing proves this copy is that beta.
+        let beta = try SetappCatalog.parse(Data("""
         {"data":{"relationships":{"vendors":{"data":[
           {"relationships":{"applications":{"data":[
             {"attributes":{"bundle_id":"com.example.thing-setapp","name":"Thing","public_id":"AAAA","slugs":[]},
              "relationships":{"versions":{"data":[
-               {"attributes":{"marketing_version":"1.3.0","build_number":"130","release_date":1700300000,"min_os_version":"11.0"}}
+               {"attributes":{"marketing_version":"1.4.0","build_number":"140","release_date":1700300000,"min_os_version":"11.0","beta":true}}
              ]}}}
           ]}}}
         ]}}}}
         """.utf8))
         let source = SetappCatalogSource(
-            releases: { releases },
+            releases: { _ in beta },
             subscription: {
                 self.state(expires: "2099-01-01 00:00:00 +0000", grace: "2099-01-15 00:00:00 +0000")
             },
             now: { Date() },
             betaUpdatesEnabled: { true },
-            installedIsBeta: { _ in true })
-        let ahead = app(id: "com.example.thing-setapp", short: "1.5.0", build: "150")
+            installedIsBeta: { _ in false })
+        // Built directly: the shared fixture always states a build, and the
+        // absence of one is exactly this test's subject.
+        let installed = InstalledApp(
+            name: "Thing", bundleID: "com.example.thing-setapp",
+            shortVersion: "1.4.0", buildVersion: nil,
+            path: URL(fileURLWithPath: "/Applications/Setapp/Thing.app"),
+            isMASApp: false, sparkleFeedURL: nil)
         let checker = UpdateChecker(sources: [source, SparkleSpy()])
-        let result = try #require(await checker.check([ahead]).first)
-        guard case .error = result.status else {
-            Issue.record("expected .error, got \(result.status)")
-            return
-        }
+        let result = try #require(await checker.check([installed]).first)
+        #expect(result.status == UpdateStatus.upToDate)
+        #expect(result.remote?.installedDisplayVersion == nil)
     }
 
+    @Test func anInstalledBetaIsStillNamedAfterTheSwitchGoesOff() async throws {
+        // The client's database forgets its beta rows on the next stable refresh;
+        // the public beta catalogue does not. A copy installed from beta must keep
+        // its name after the switch is turned back off.
+        let stable = try SetappCatalog.parse(Data("""
+        {"data":{"relationships":{"vendors":{"data":[
+          {"relationships":{"applications":{"data":[
+            {"attributes":{"bundle_id":"com.example.thing-setapp","name":"Thing","public_id":"AAAA","slugs":[]},
+             "relationships":{"versions":{"data":[
+               {"attributes":{"marketing_version":"6.6.2","build_number":"662000","release_date":1700300000,"min_os_version":"11.0","beta":false}}
+             ]}}}
+          ]}}}
+        ]}}}}
+        """.utf8))
+        let beta = try SetappCatalog.parse(Data("""
+        {"data":{"relationships":{"vendors":{"data":[
+          {"relationships":{"applications":{"data":[
+            {"attributes":{"bundle_id":"com.example.thing-setapp","name":"Thing","public_id":"AAAA","slugs":[]},
+             "relationships":{"versions":{"data":[
+               {"attributes":{"marketing_version":"6.6.2","build_number":"662000","release_date":1700300000,"min_os_version":"11.0","beta":false}},
+               {"attributes":{"marketing_version":"7.1.0","build_number":"700013","release_date":1700200000,"min_os_version":"11.0","beta":true}}
+             ]}}}
+          ]}}}
+        ]}}}}
+        """.utf8))
+        let source = SetappCatalogSource(
+            releases: { channel in channel == .beta ? beta : stable },
+            subscription: {
+                self.state(expires: "2099-01-01 00:00:00 +0000", grace: "2099-01-15 00:00:00 +0000")
+            },
+            now: { Date() },
+            betaUpdatesEnabled: { false },
+            installedIsBeta: { _ in false })
+        let installed = app(short: "7.1.0", build: "700013")
+        let checker = UpdateChecker(sources: [source, SparkleSpy()])
+        let result = try #require(await checker.check([installed]).first)
+        #expect(result.status == UpdateStatus.upToDate)
+        #expect(result.remote?.releaseChannel == .beta)
+        #expect(result.remote?.installedDisplayVersion == nil)
+    }
+
+    @Test func anAheadCopyWithBetaOnNamesTheBetaChannel() async throws {
+        // Ahead of even the beta catalogue: not an error, and not a downgrade —
+        // name the channel it is ahead of.
+        let beta = try SetappCatalog.parse(Data("""
+        {"data":{"relationships":{"vendors":{"data":[
+          {"relationships":{"applications":{"data":[
+            {"attributes":{"bundle_id":"com.example.thing-setapp","name":"Thing","public_id":"AAAA","slugs":[]},
+             "relationships":{"versions":{"data":[
+               {"attributes":{"marketing_version":"1.3.0","build_number":"130","release_date":1700300000,"min_os_version":"11.0","beta":true}}
+             ]}}}
+          ]}}}
+        ]}}}}
+        """.utf8))
+        let source = SetappCatalogSource(
+            releases: { _ in beta },
+            subscription: {
+                self.state(expires: "2099-01-01 00:00:00 +0000", grace: "2099-01-15 00:00:00 +0000")
+            },
+            now: { Date() },
+            betaUpdatesEnabled: { true },
+            installedIsBeta: { _ in false })
+        let ahead = app(short: "1.5.0", build: "150")
+        let checker = UpdateChecker(sources: [source, SparkleSpy()])
+        let result = try #require(await checker.check([ahead]).first)
+        #expect(result.status == .upToDate)
+        #expect(result.remote?.installedDisplayVersion == "1.5.0 (ahead of Setapp’s beta releases)")
+    }
+
+    @Test func anInstalledBetaIsNamedFromTheCatalogue() async throws {
+        // Installed copy IS the catalogue's beta: say so without the client's
+        // database, and without calling it merely "up to date".
+        let beta = try SetappCatalog.parse(Data("""
+        {"data":{"relationships":{"vendors":{"data":[
+          {"relationships":{"applications":{"data":[
+            {"attributes":{"bundle_id":"com.example.thing-setapp","name":"Thing","public_id":"AAAA","slugs":[]},
+             "relationships":{"versions":{"data":[
+               {"attributes":{"marketing_version":"1.4.0","build_number":"140","release_date":1700300000,"min_os_version":"11.0","beta":true}}
+             ]}}}
+          ]}}}
+        ]}}}}
+        """.utf8))
+        let source = SetappCatalogSource(
+            releases: { _ in beta },
+            subscription: {
+                self.state(expires: "2099-01-01 00:00:00 +0000", grace: "2099-01-15 00:00:00 +0000")
+            },
+            now: { Date() },
+            betaUpdatesEnabled: { true },
+            installedIsBeta: { _ in false })
+        let installed = app(short: "1.4.0", build: "140")
+        let checker = UpdateChecker(sources: [source, SparkleSpy()])
+        let result = try #require(await checker.check([installed]).first)
+        #expect(result.status == .upToDate)
+        // A channel, not a parenthetical suffix: the row's existing ChannelTag
+        // draws BETA beside the name.
+        #expect(result.remote?.releaseChannel == .beta)
+        #expect(result.remote?.installedDisplayVersion == nil)
+    }
+    @Test func parsesTheBetaFlag() throws {
+        let release = try #require(try SetappCatalog.parse(Data("""
+        {"data":{"relationships":{"vendors":{"data":[
+          {"relationships":{"applications":{"data":[
+            {"attributes":{"bundle_id":"com.example.thing-setapp","name":"Thing","public_id":"AAAA","slugs":[]},
+             "relationships":{"versions":{"data":[
+               {"attributes":{"marketing_version":"1.3.0","build_number":"130","release_date":1700300000,"min_os_version":"11.0","beta":false}},
+               {"attributes":{"marketing_version":"1.4.0","build_number":"140","release_date":1700200000,"min_os_version":"11.0","beta":true}}
+             ]}}}
+          ]}}}
+        ]}}}}
+        """.utf8))["com.example.thing-setapp"])
+        #expect(release.versions.first { $0.shortVersion == "1.3.0" }?.isBeta == false)
+        #expect(release.versions.first { $0.shortVersion == "1.4.0" }?.isBeta == true)
+    }
     @Test func aBetaRecordedByTheClientNamesTheChannel() async throws {
         let json = """
         {"data":{"relationships":{"vendors":{"data":[
@@ -187,7 +305,7 @@ struct SetappCatalogSourceTests {
         """
         let releases = try SetappCatalog.parse(Data(json.utf8))
         let source = SetappCatalogSource(
-            releases: { releases },
+            releases: { _ in releases },
             subscription: {
                 self.state(expires: "2099-01-01 00:00:00 +0000", grace: "2099-01-15 00:00:00 +0000")
             },
@@ -202,7 +320,8 @@ struct SetappCatalogSourceTests {
         // Beta switch off + catalogue behind: Setapp is not offering betas, and
         // the client's catalogue records this build as one — name it.
         let answer = try #require(try await source.latestVersion(for: installed))
-        #expect(answer.installedDisplayVersion == "7.1.0 (Setapp Beta)")
+        #expect(answer.releaseChannel == .beta)
+        #expect(answer.installedDisplayVersion == nil)
     }
 
     @Test func readsBetaRowsFromTheClientsCatalogue() throws {
@@ -267,7 +386,7 @@ struct SetappCatalogSourceTests {
         """
         let releases = try SetappCatalog.parse(Data(json.utf8))
         let source = SetappCatalogSource(
-            releases: { releases },
+            releases: { _ in releases },
             subscription: {
                 self.state(expires: "2099-01-01 00:00:00 +0000", grace: "2099-01-15 00:00:00 +0000")
             },
@@ -300,35 +419,54 @@ struct SetappCatalogSourceTests {
             path: bundle, isMASApp: false, sparkleFeedURL: nil)
         let spy = SparkleSpy()
         let source = SetappCatalogSource(
-            releases: { [:] }, subscription: { nil }, now: { Date() })
+            releases: { _ in [:] }, subscription: { nil }, now: { Date() })
         let checker = UpdateChecker(sources: [source, spy])
         let result = try #require(await checker.check([owned]).first)
         #expect(spy.calls == 0)
         #expect(result.remote?.shortVersion == "1.0")
     }
 
-    @Test func aBetaEnabledChannelCannotClaimUpToDate() async throws {
+    @Test func aBetaEnabledCheckReadsTheBetaCatalogue() async throws {
+        // With Setapp's beta switch on we read /store/api/v8/beta/en, which is the
+        // same public catalogue plus `beta: true` rows. A newer beta is an update,
+        // not "cannot be checked".
+        let stable = try SetappCatalog.parse(Data("""
+        {"data":{"relationships":{"vendors":{"data":[
+          {"relationships":{"applications":{"data":[
+            {"attributes":{"bundle_id":"com.example.thing-setapp","name":"Thing","public_id":"AAAA","slugs":[]},
+             "relationships":{"versions":{"data":[
+               {"attributes":{"marketing_version":"1.3.0","build_number":"130","release_date":1700300000,"min_os_version":"11.0","beta":false}}
+             ]}}}
+          ]}}}
+        ]}}}}
+        """.utf8))
+        let beta = try SetappCatalog.parse(Data("""
+        {"data":{"relationships":{"vendors":{"data":[
+          {"relationships":{"applications":{"data":[
+            {"attributes":{"bundle_id":"com.example.thing-setapp","name":"Thing","public_id":"AAAA","slugs":[]},
+             "relationships":{"versions":{"data":[
+               {"attributes":{"marketing_version":"1.3.0","build_number":"130","release_date":1700300000,"min_os_version":"11.0","beta":false}},
+               {"attributes":{"marketing_version":"1.4.0","build_number":"140","release_date":1700200000,"min_os_version":"11.0","beta":true}}
+             ]}}}
+          ]}}}
+        ]}}}}
+        """.utf8))
         let source = SetappCatalogSource(
-            releases: { Self.releases },
+            releases: { channel in channel == .beta ? beta : stable },
             subscription: {
                 self.state(expires: "2099-01-01 00:00:00 +0000", grace: "2099-01-15 00:00:00 +0000")
             },
             now: { Date() },
             betaUpdatesEnabled: { true },
             installedIsBeta: { _ in false })
-        // Installed 1.3.0 = the stable catalogue's newest, but Setapp's beta
-        // switch is on and the public catalogue carries no betas at all: the
-        // check cannot be completed, and saying "current" would hide a beta.
-        let installed = app(id: "com.example.thing-setapp", short: "1.3.0", build: "130")
-        await #expect(throws: (any Error).self) {
-            _ = try await source.latestVersion(for: installed)
-        }
         let checker = UpdateChecker(sources: [source, SparkleSpy()])
-        let result = try #require(await checker.check([installed]).first)
-        guard case .error = result.status else {
-            Issue.record("expected .error, got \(result.status)")
+        let result = try #require(await checker.check([app(short: "1.3.0", build: "130")]).first)
+        guard case .updateAvailable(let latest) = result.status else {
+            Issue.record("expected the beta to be offered, got \(result.status)")
             return
         }
+        #expect(latest == "1.4.0")
+        #expect(result.remote?.releaseChannel == .beta)
     }
 
     @Test func offersTheNewestReleaseThatRunsHereNotTheNewestStanding() async throws {
@@ -345,7 +483,7 @@ struct SetappCatalogSourceTests {
         """
         let releases = try SetappCatalog.parse(Data(json.utf8))
         let source = SetappCatalogSource(
-            releases: { releases },
+            releases: { _ in releases },
             subscription: {
                 self.state(expires: "2099-01-01 00:00:00 +0000", grace: "2099-01-15 00:00:00 +0000")
             },
@@ -363,7 +501,7 @@ struct SetappCatalogSourceTests {
         // And on a Mac that can run the major, the checker must see it: build 410
         // is numerically below 3148, so a stated build would have suppressed it.
         let modern = SetappCatalogSource(
-            releases: { releases },
+            releases: { _ in releases },
             subscription: {
                 self.state(expires: "2099-01-01 00:00:00 +0000", grace: "2099-01-15 00:00:00 +0000")
             },
@@ -385,7 +523,7 @@ struct SetappCatalogSourceTests {
 
     @Test func aCatalogueFailureIsATerminalRetryableCheckFailure() async throws {
         let source = SetappCatalogSource(
-            releases: { throw URLError(.timedOut) },
+            releases: { _ in throw URLError(.timedOut) },
             subscription: { nil },
             now: { Date() })
         let spy = SparkleSpy()
@@ -417,7 +555,7 @@ struct SetappCatalogSourceTests {
         """
         let releases = try SetappCatalog.parse(Data(json.utf8))
         let source = SetappCatalogSource(
-            releases: { releases },
+            releases: { _ in releases },
             subscription: {
                 self.state(expires: "2099-01-01 00:00:00 +0000", grace: "2099-01-15 00:00:00 +0000")
             },
@@ -451,7 +589,7 @@ struct SetappCatalogSourceTests {
 
     @Test func ignoresAppsThatAreNotSetappEditions() async throws {
         let source = SetappCatalogSource(
-            releases: { Self.releases }, subscription: { nil }, now: { .init() })
+            releases: { _ in Self.releases }, subscription: { nil }, now: { .init() })
         // No `-setapp`, not in a Setapp folder, no public key: none of the three
         // signals says this copy is Setapp's, so the source stays out of the way.
         let plain = InstalledApp(
@@ -464,7 +602,7 @@ struct SetappCatalogSourceTests {
 
     @Test func answersACatalogueEntryThatBreaksTheNamingConvention() async throws {
         let source = SetappCatalogSource(
-            releases: { Self.releases },
+            releases: { _ in Self.releases },
             subscription: {
                 self.state(expires: "2099-01-01 00:00:00 +0000", grace: "2099-01-15 00:00:00 +0000")
             },
@@ -483,7 +621,7 @@ struct SetappCatalogSourceTests {
 
     @Test func offersTheCatalogueReleaseWhenTheSubscriptionIsActive() async throws {
         let source = SetappCatalogSource(
-            releases: { Self.releases },
+            releases: { _ in Self.releases },
             subscription: {
                 self.state(expires: "2099-01-01 00:00:00 +0000", grace: "2099-01-15 00:00:00 +0000")
             },
@@ -502,7 +640,7 @@ struct SetappCatalogSourceTests {
 
     @Test func withholdsTheVersionOnceTheSubscriptionHasLapsed() async throws {
         let source = SetappCatalogSource(
-            releases: { Self.releases },
+            releases: { _ in Self.releases },
             subscription: {
                 self.state(expires: "2027-01-30 23:59:59 +0000", grace: "2027-02-13 23:59:59 +0000")
             },
@@ -517,7 +655,7 @@ struct SetappCatalogSourceTests {
 
     @Test func stillAnsweredAsInstalledWhenTheCatalogueDoesNotListIt() async throws {
         let source = SetappCatalogSource(
-            releases: { [:] },
+            releases: { _ in [:] },
             subscription: { nil },
             now: { Date() })
         // Never nil for a `-setapp` copy: nil would hand the row to the vendor's

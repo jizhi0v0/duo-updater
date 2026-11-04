@@ -26,15 +26,19 @@
 | Channel | Bundle ID | 独立/共享 | 检测信号 | 门控方式 | 状态 |
 |---------|-----------|----------|---------|---------|------|
 | stable  | `com.FluidApp.app` | 共享 | 版本串无后缀 | tag 完整匹配 `vX.Y.Z` | ✓ |
-| beta    | `com.FluidApp.app` | 共享 | 版本串 `-beta.N`（`ReleaseChannel.detect`） | 独立 `.beta` 规则，读 `usePrereleases` 列表 | ✓ |
+| beta    | `com.FluidApp.app` | 共享 | 版本串 `-beta.N`（`ReleaseChannel.detect`） | 独立 `.beta` 规则，按 tag 版本排序后精确读取 release | ✓ |
 
 同一仓库还发 `vX.Y.Z-beta.N`（macOS prerelease）和 `windows-vX.Y.Z`（Windows）。
 没有独立 bundle id；通道由安装版本的版本串判定（`1.6.13-beta.2` → `.beta`），
 两条规则各带 `channel:`，`windows-v*` 两边都排除。
 
 ## 更新检测
-- 源: `GitHubReleasesSource`，`altic-dev/FluidVoice`，`/releases/latest`
-- Tag pattern: `^v([0-9]+(?:\.[0-9]+)+)$`
+- 源: `GitHubReleasesSource`，`altic-dev/FluidVoice`；stable 读 `/releases/latest`，
+  beta 读 `/git/matching-refs/tags/v`，对匹配 tag 按版本倒序，再用
+  `/releases/tags/<tag>` 读取对应 release。
+- Stable tag pattern: `^v([0-9]+(?:\.[0-9]+)+)$`
+- Beta tag pattern: `^v([0-9]+(?:\.[0-9]+)+-beta\.[0-9]+)$`；
+  tag-ref 路径避免依赖 releases 列表顺序或固定页深，stable / Windows tag 不参与选择。
 - 版本方案: tag `v1.6.9` → `1.6.9` == 包的 `CFBundleShortVersionString`。
   **不是** `CFBundleVersion`（小计数器 `20`）。short 是三段，folded-build
   fallback 会拼出 `1.6.9.20`，与三段的远程版本对不上，所以不会把 build
@@ -55,7 +59,7 @@
 
 ## Changelog
 - 来源: GitHub Release body（`GitHubReleasesSource` 原生带回）
-- 跟随 channel: 是 — stable 读 `/releases/latest`，beta 读 prerelease 列表
+- 跟随 channel: 是 — stable 读 `/releases/latest`，beta 读按版本选中的 `-beta.N` release
 - Recipe 状态: 不需要单独 `ChangelogRecipe`
 
 ## 一键安装
@@ -103,3 +107,24 @@
 
 ## 建议下一步
 无。检测 + 一键 + changelog 均已覆盖。
+
+## 历史与实测
+
+### 2026-11-04：beta 改为按 tag 版本选择（#1824 的 Codex review）
+
+- #1824 新增 beta 规则时使用 releases 列表，65 条 release 中 beta 之间最长间隔为
+  30 条，因而设 `listPageSize: 32`。这只能防止匹配项被挤出页面，不能保证首个
+  匹配项就是版本最高者；首行探针同样会接受一个被排到前面的旧 beta。
+- 重新读取真实 `git/matching-refs/tags/v` 响应，完整 beta pattern 命中 14 个 tag。
+  按数字版本排序，前三个为 `1.6.13-beta.2`、`1.6.13-beta.1`、`1.6.12-beta.1`。
+  精确读取 `releases/tags/v1.6.13-beta.2`：非 draft，资产含
+  `Fluid-oss-1.6.13-beta.2.dmg`，与原安装 pattern 一致。
+- 改用现有 `tagRefPrefix: "v"` 路径；稳定版规则、beta 的版本及资产 pattern、
+  通道 proof 均不变。页深不再参与 beta 选择，相应的列表深度测量从测试表中移除。
+- 回归夹具覆盖 tag 正序、逆序和 `beta.10` / `beta.2`，并把旧版放到列表首行，
+  证明移除 tag-ref 路径会返回旧版。stable 与 Windows tag 作为干扰项排除。
+- 新回归在修复前返回 `1.6.12-beta.1` 并失败，修复后全部通过；完整 `make test`
+  的脚本、Swift/CLI 与 App 三部分均通过。
+- `make cli` 构建并签名后，在本机执行
+  `duo verify --github --only FluidApp --no-installed`：两条规则 `✓ 2 ⚠ 0 ✗ 0`。
+  本轮未安装 beta 副本，未执行 UI 或一键替换；验证覆盖改动的远程版本选择路径。

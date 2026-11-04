@@ -211,6 +211,53 @@ struct GitHubTagRefResolutionTests {
         ])
     }
 
+    // MARK: - FluidVoice beta (#1824)
+
+    /// The registry rule must select by numeric tag order, even if a release
+    /// list's first row is an older beta. Stable and Windows tags share the repo.
+    @Test(arguments: [
+        ["v1.6.13-beta.1", "v1.6.13-beta.2"],
+        ["v1.6.13-beta.2", "v1.6.13-beta.1"],
+        ["v1.6.13-beta.10", "v1.6.13-beta.2"],
+    ])
+    func fluidVoiceBetaSelectsTheNewestTag(_ betaTags: [String]) async throws {
+        let rule = try #require(GitHubReleaseRegistry.rules.first {
+            $0.bundleID == "com.FluidApp.app" && $0.channel == .beta
+        })
+        let newest = betaTags.contains("v1.6.13-beta.10")
+            ? "v1.6.13-beta.10" : "v1.6.13-beta.2"
+        let version = String(newest.dropFirst())
+        let root = "https://api.github.com/repos/altic-dev/FluidVoice"
+        let refsURL = root + "/git/matching-refs/tags/v"
+        let releaseURL = root + "/releases/tags/" + newest
+        func betaRelease(_ tag: String) -> String {
+            let version = String(tag.dropFirst())
+            return """
+            {"tag_name":"\(tag)","prerelease":true,"draft":false,
+             "body":"- Fixed beta dictation.",
+             "assets":[{"name":"Fluid-oss-\(version).dmg",
+              "browser_download_url":"https://github.com/altic-dev/FluidVoice/releases/download/\(tag)/Fluid-oss-\(version).dmg"}]}
+            """
+        }
+        // These list responses reproduce the old rule's stale first-match
+        // answer. Removing tagRefPrefix must fail on the version, not just URL.
+        let staleList = "[" + betaRelease("v1.6.12-beta.1") + "]"
+        ByURLProtocol.script.load([
+            refsURL: Self.refs(["v9.0.0", "windows-v99.0.0"] + betaTags),
+            releaseURL: betaRelease(newest),
+            root + "/releases?per_page=1": staleList,
+            root + "/releases?per_page=\(rule.listPageSize)": staleList,
+        ])
+        let source = GitHubReleasesSource(rules: [rule], session: Self.session())
+        let outcome = await source.resolveDiagnostic(
+            rule, preferring: .arm64, allowingIntelTranslation: false)
+
+        #expect(outcome.failure == nil)
+        #expect(outcome.remote?.shortVersion == version)
+        #expect(outcome.remote?.downloadURL?.lastPathComponent == "Fluid-oss-\(version).dmg")
+        #expect(ByURLProtocol.script.urls == [refsURL, releaseURL])
+    }
+
     // MARK: - Registry invariants
 
     /// The tag-ref path replaces only the `.newest` list walk. A line-anchored

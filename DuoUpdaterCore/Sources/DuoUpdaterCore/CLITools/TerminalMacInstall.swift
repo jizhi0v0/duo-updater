@@ -128,8 +128,13 @@ public struct TerminalMacScanner: Sendable {
         // The launcher `install.sh` leaves is `$prefix/bin/terminal-mac`, a
         // symlink into `$prefix/lib/terminal-mac/<version>-<build>-<digest>/`.
         // Anything else — a plain file, a link elsewhere — is some other copy,
-        // and the installer would refuse to touch it.
-        guard linked, let layout = Self.layout(of: binary), path == layout.prefix + "/bin/terminal-mac" else {
+        // and the installer would refuse to touch it. `layout` was read through
+        // `realpath`, so the launcher's directory is compared canonically too:
+        // a `~/.local` that is itself a symlink still holds the installer's copy.
+        let launcherDirectory = LuvusScanner.canonicalPath((path as NSString).deletingLastPathComponent)
+        guard linked, let layout = Self.layout(of: binary),
+              launcherDirectory == layout.prefix + "/bin"
+        else {
             return TerminalMacInstall(path: path, binary: binary, version: nil, build: nil, linked: linked,
                                       problem: .notInstallerLayout)
         }

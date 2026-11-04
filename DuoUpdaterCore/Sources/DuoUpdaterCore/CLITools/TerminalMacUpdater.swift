@@ -215,15 +215,22 @@ public struct TerminalMacUpdater: Sendable {
     static func prepare(archive: Data, named name: String, tools: [String: String]) throws -> URL {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("duo-terminal-mac-\(UUID().uuidString)", isDirectory: true)
-        let bin = directory.appendingPathComponent("bin", isDirectory: true)
-        try FileManager.default.createDirectory(at: bin, withIntermediateDirectories: true,
-                                                attributes: [.posixPermissions: 0o700])
-        for (tool, target) in tools {
-            try FileManager.default.createSymbolicLink(atPath: bin.appendingPathComponent(tool).path,
-                                                       withDestinationPath: target)
+        do {
+            let bin = directory.appendingPathComponent("bin", isDirectory: true)
+            try FileManager.default.createDirectory(at: bin, withIntermediateDirectories: true,
+                                                    attributes: [.posixPermissions: 0o700])
+            for (tool, target) in tools {
+                try FileManager.default.createSymbolicLink(atPath: bin.appendingPathComponent(tool).path,
+                                                           withDestinationPath: target)
+            }
+            try archive.write(to: directory.appendingPathComponent(name), options: .atomic)
+            return directory
+        } catch {
+            // The caller's `defer` is registered only after this returns: a
+            // partial directory, and every link already made in it, is ours.
+            try? FileManager.default.removeItem(at: directory)
+            throw error
         }
-        try archive.write(to: directory.appendingPathComponent(name), options: .atomic)
-        return directory
     }
 
     /// `ditto -x -k`: the archive was written by `ditto`/`zip` on the vendor's

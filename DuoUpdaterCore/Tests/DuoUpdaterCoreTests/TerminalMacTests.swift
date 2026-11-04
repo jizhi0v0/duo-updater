@@ -223,6 +223,23 @@ import CryptoKit
         #expect(box.scanner.scan().first?.problem == .notInstallerLayout)
     }
 
+    /// `~/.local` can be a symlink (a home on a volume, a linked directory);
+    /// the launcher is still the installer's. Mutation: compare the scanned
+    /// path's spelling with the realpath-derived prefix.
+    @Test func aSymlinkedLocalDirectoryStillFindsTheCopy() throws {
+        let box = try Sandbox()
+        let real = box.root.appendingPathComponent("real-local")
+        try FileManager.default.createDirectory(at: real, withIntermediateDirectories: true)
+        try FileManager.default.removeItem(at: box.home.appendingPathComponent(".local"))
+        try FileManager.default.createSymbolicLink(
+            atPath: box.home.appendingPathComponent(".local").path, withDestinationPath: real.path)
+        try FileManager.default.createDirectory(at: box.bin, withIntermediateDirectories: true)
+        try box.install("0.2.0", build: "6")
+        let install = try #require(box.scanner.scan().first)
+        #expect(install.problem == nil)
+        #expect(install.build == "6")
+    }
+
     @Test func aDanglingLauncherIsBroken() throws {
         let box = try Sandbox()
         try FileManager.default.createSymbolicLink(

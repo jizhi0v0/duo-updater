@@ -55,6 +55,34 @@ enum com_brave_Browser {
                 kind: .dmg),
             channel: .nightly),
         ],
+        changelogs: [
+        // Brave Browser (stable) — the Sparkle item's `<description>` is only a
+        // link to this file ("Release notes at <a …CHANGELOG_DESKTOP.md>"), so
+        // `releaseNotesHTML` rendered a bare URL and the pane looked empty. The
+        // repo's `CHANGELOG_DESKTOP.md` is the vendor's own stable changelog:
+        //   ## [1.98.63](…/releases/tag/v1.98.63)
+        //    - Upgraded Chromium to … ([#60306](…)) ([Changelog for …](…))
+        //    ### Leo
+        //    - Added passages …
+        // newest first. `markdownSource` unwraps the inline issue/commit links in
+        // the bullets, and `headingPattern` keeps the `###` categories (Leo, Web3,
+        // …) as sections instead of flattening them into the bullet list.
+        //
+        // Keyed to the stable bundle id on purpose: the Beta and Nightly probes
+        // below keep their own `changelogURL` (brave.com/latest, channel versions
+        // only), so this recipe cannot answer for those channels.
+        ChangelogRecipe(
+            bundleID: "com.brave.Browser",
+            source: URL(
+                string:
+                    "https://raw.githubusercontent.com/brave/brave-browser/master/CHANGELOG_DESKTOP.md")!,
+            entryPattern:
+                #"(?:^|\n)##\s+\[(?<version>[0-9]+(?:\.[0-9]+){1,3})\]\([^)\n]*\)\n(?<body>.*?)(?=\n##\s|\z)"#,
+            itemPatterns: [#"\n\s*-\s+(?<item>[^\n]+)"#],
+            markdownSource: true,
+            maxEntries: 20,
+            headingPattern: #"\n###\s+(?<heading>[^\n]+)"#),
+        ],
         channelProofs: [
         ChannelProofKey("com.brave.Browser.beta", .beta): .artifact(#"beta-arm64/.*Brave-Browser-Beta"#),
         ChannelProofKey("com.brave.Browser.nightly", .nightly): .artifact(#"nightly-arm64/.*Brave-Browser-Nightly"#),

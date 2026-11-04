@@ -113,6 +113,18 @@ public struct SetappCatalogSource: UpdateSource {
             // installed instead — and name the beta when the client's own
             // catalogue still records this build as one.
             if Self.isOlder(version, than: app) {
+                // "Is this copy a beta?" must survive the switch being turned
+                // back OFF: the client's database loses its beta rows on the next
+                // stable refresh (measured: 15 rows -> 0), but the public beta
+                // catalogue always lists them. Ask it only here — a copy ahead of
+                // stable is rare, and the answer is cached with the same 6h TTL.
+                var isBeta = Self.installedIsCatalogueBeta(app, release: release)
+                if !isBeta, channel == .stable,
+                   let betaCatalogue = try? await releases(.beta),
+                   let betaRelease = betaCatalogue[bundleID] {
+                    isBeta = Self.installedIsCatalogueBeta(app, release: betaRelease)
+                }
+                isBeta = isBeta || installedIsBeta(app)
                 Log.source.notice(
                     "setapp: \(bundleID, privacy: .public) installed \(app.shortVersion ?? "?", privacy: .public) is ahead of the stable catalogue's \(version.shortVersion ?? "?", privacy: .public); answering as installed rather than drawing a downgrade")
                 return RemoteVersion(
@@ -122,7 +134,7 @@ public struct SetappCatalogSource: UpdateSource {
                     downloadURL: nil,
                     installedDisplayVersion: Self.aheadOfStableLabel(
                         app,
-                        isBeta: Self.installedIsCatalogueBeta(app, release: release) || installedIsBeta(app),
+                        isBeta: isBeta,
                         channel: channel),
                     sourceName: name)
             }
@@ -244,10 +256,15 @@ public struct SetappCatalogSource: UpdateSource {
     /// Whether the catalogue lists the installed version as one of its betas, by
     /// version and build.
     static func installedIsCatalogueBeta(_ app: InstalledApp, release: SetappRelease) -> Bool {
-        guard let short = app.shortVersion else { return false }
+        // Version AND build: without the build, a stable copy whose bundle has no
+        // CFBundleVersion would match any beta row with the same marketing string
+        // and be called a beta it never installed (the client-database check next
+        // door has always required an exact build for the same reason).
+        guard let short = app.shortVersion,
+              let installedBuild = app.buildVersion, installedBuild.isEmpty == false
+        else { return false }
         return release.versions.contains { version in
-            version.isBeta && version.shortVersion == short
-                && (app.buildVersion == nil || version.build == app.buildVersion)
+            version.isBeta && version.shortVersion == short && version.build == installedBuild
         }
     }
 

@@ -2,6 +2,16 @@
 
 Ceci est la traduction de `CHANGELOG.md`. La version anglaise fait autorité. Les versions non énumérées ici reviennent automatiquement à l’anglais.
 
+## 0.5.21
+
+**Le canal bêta de Setapp est désormais vérifié depuis Setapp lui-même.** Lorsque les mises à jour bêta de Setapp sont activées, une version bêta est vérifiée et proposée comme n’importe quelle autre mise à jour, et sa ligne porte l’étiquette BETA ; auparavant, ces lignes indiquaient qu’elles ne pouvaient pas être vérifiées.
+
+**Une app Setapp installée depuis une bêta affiche toujours BETA après la désactivation des bêtas.** Elle est comparée au catalogue bêta propre à Setapp, de sorte qu’elle ne ressemble plus à une rétrogradation ni à une copie sans nom de la version stable.
+
+**terminal-mac est pris en charge comme outil en ligne de commande.** La copie déposée par son installeur bénéficie de la vérification des mises à jour et de la mise à jour en un clic ; il ne publie pas de notes de version, et la ligne l’indique.
+
+**Quand GitHub refuse des requêtes, le panneau flottant nomme la limite atteinte et propose la solution qui s’applique.** Une requête envoyée avec votre jeton pouvait être comptée dans la limite anonyme alors que l’avis mettait en cause les réglages de votre jeton ; une requête que GitHub ne fait que limiter l’indique désormais.
+
 ## 0.5.20
 
 **Les mises à jour bêta de Setapp sont signalées honnêtement.** DuoUpdater ne lit que le catalogue stable de Setapp. Si vous avez activé les mises à jour bêta de Setapp, une app qui ne peut pas être vérifiée le dit désormais — avec une note qui renvoie à Setapp — au lieu d’être déclarée à jour.

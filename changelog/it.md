@@ -2,6 +2,16 @@
 
 Questa è la traduzione di `CHANGELOG.md`. In caso di differenze fa fede la versione inglese. Le versioni non elencate qui vengono mostrate automaticamente in inglese.
 
+## 0.5.21
+
+**Il canale beta di Setapp ora viene controllato da Setapp stesso.** Con gli aggiornamenti beta di Setapp attivi, una versione beta viene verificata e proposta come qualsiasi altro aggiornamento e la sua riga porta un’etichetta BETA; prima quelle righe dicevano che non potevano essere verificate.
+
+**Un’app Setapp installata da una beta continua a riportare BETA dopo che disattivi la beta.** Viene confrontata con il catalogo beta di Setapp stesso, quindi non sembra più un downgrade né una copia senza nome della versione stabile.
+
+**terminal-mac è supportato come strumento da riga di comando.** La copia installata dal suo installer riceve il controllo degli aggiornamenti e l’aggiornamento con un clic; non pubblica note di rilascio, quindi la riga lo dice.
+
+**Quando GitHub rifiuta le richieste, il popover nomina il limite raggiunto e offre la correzione adatta.** Una richiesta inviata con il tuo token poteva essere conteggiata sul limite anonimo mentre l’avviso dava la colpa alle impostazioni del tuo token; una richiesta che GitHub sta soltanto rallentando ora lo dice invece.
+
 ## 0.5.20
 
 **Gli aggiornamenti beta di Setapp vengono riportati con onestà.** DuoUpdater può leggere solo il catalogo stabile di Setapp. Se hai attivato gli aggiornamenti beta di Setapp, un’app che non può essere verificata ora lo dice — con una nota che rimanda a Setapp — invece di essere dichiarata aggiornata.

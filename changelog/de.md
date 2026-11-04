@@ -2,6 +2,16 @@
 
 Dies ist eine deutsche Übersetzung von `CHANGELOG.md`. Die englische Fassung ist maßgeblich; frühere Versionen, die hier nicht aufgeführt sind, fallen automatisch auf Englisch zurück.
 
+## 0.5.21
+
+**Der Beta-Kanal von Setapp wird jetzt aus Setapp selbst geprüft.** Ist Setapps Beta-Update eingeschaltet, wird eine Beta-Version wie jedes andere Update geprüft und angeboten, und ihre Zeile trägt das Tag BETA; bisher stand in solchen Zeilen, sie ließen sich nicht prüfen.
+
+**Eine aus einer Beta installierte Setapp-App zeigt weiterhin BETA, nachdem du Beta ausgeschaltet hast.** Sie wird gegen Setapps eigenen Beta-Katalog abgeglichen, sodass sie nicht mehr wie ein Downgrade oder eine namenlose Kopie der stabilen Version aussieht.
+
+**terminal-mac wird als Kommandozeilen-Tool unterstützt.** Die vom Installer angelegte Kopie erhält Update-Prüfungen und Updates mit einem Klick; das Tool veröffentlicht keine Versionshinweise, und die Zeile sagt das auch.
+
+**Wenn GitHub Anfragen ablehnt, nennt das Popover das erreichte Limit und bietet die passende Lösung an.** Eine mit deinem Token gesendete Anfrage konnte gegen das anonyme Limit gezählt werden, während der Hinweis deine Token-Einstellungen beschuldigte; eine Anfrage, die GitHub lediglich drosselt, sagt das jetzt stattdessen.
+
 ## 0.5.20
 
 **Setapp-Beta-Updates werden ehrlich gemeldet.** DuoUpdater kann nur Setapps stabilen Katalog lesen. Ist Setapps Beta-Schalter an, sagt eine App, die nicht geprüft werden kann, das jetzt auch — mit einem Hinweis auf Setapp — statt als aktuell zu gelten.

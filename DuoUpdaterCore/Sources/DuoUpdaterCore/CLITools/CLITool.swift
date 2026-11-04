@@ -5,7 +5,7 @@ import Foundation
 /// Each one has its own rules — where its installers put it, how its version is
 /// read, which command updates it and when that may run — so each keeps its own
 /// detection and update code (`ClaudeCode*`, `Bub*`, `Fx*`, `Uv*`, `Junie*`,
-/// `Rust*`, `Npm*`, `Boat*`, `Codex*`, `Bun*`, `Opencode*`, `CursorAgent*`, `Amp*`, `VitePlus*`, `Herdr*`, `Luvus*`, `Lorca*`, `Zoxide*`, `Nvm*`, `Atuin*`, `Ghcup*`, `Flyctl*`, `Helm*`, `Starship*`, `Deno*`, `Mise*`, `Obelus*`, `Biome*`). What they share is
+/// `Rust*`, `Npm*`, `Boat*`, `Codex*`, `Bun*`, `Opencode*`, `CursorAgent*`, `Amp*`, `VitePlus*`, `Herdr*`, `Luvus*`, `Lorca*`, `Zoxide*`, `Nvm*`, `Atuin*`, `Ghcup*`, `Flyctl*`, `Helm*`, `Starship*`, `Deno*`, `Mise*`, `Obelus*`, `Biome*`, `TerminalMac*`). What they share is
 /// how the app lists them, sums them up and runs their updates: `CLIToolStatus`,
 /// `CLIToolReport` and `CLIToolProvider` below. A later tool is a new provider and
 /// a new `Kind`; the popover row and the workbench's CLI tab read it the same way.
@@ -69,6 +69,9 @@ public enum CLIToolKind: String, Sendable, Codable, CaseIterable {
     /// Biome, the JS/TS linter and formatter, as its installer leaves it,
     /// `~/.local/bin/biome`.
     case biome
+    /// terminal-mac, govijr's separate macOS desktop for computer-use agents,
+    /// as its installer leaves it, `~/.local/bin/terminal-mac`.
+    case terminalMac = "terminal-mac"
     /// Every item any manager keeps — mise's tools, uv's tools and Pythons,
     /// pipx venvs, nvm's and fnm's Nodes, pyenv's and rbenv's lines, cargo's
     /// and go's installs (`CLITools/Managed/`). Which manager is a value on
@@ -109,6 +112,7 @@ public enum CLIToolKind: String, Sendable, Codable, CaseIterable {
         case .mise: return "mise"
         case .obelus: return "Obelus"
         case .biome: return "Biome"
+        case .terminalMac: return "terminal-mac"
         case .pnpm: return "pnpm"
         case .yarn: return "Yarn"
         // Never a row's title: a managed row is named by its item, its group
@@ -292,6 +296,7 @@ public struct CLIToolStatus: Sendable, Equatable {
         case mise(MiseInstall)
         case obelus(ObelusInstall)
         case biome(BiomeInstall)
+        case terminalMac(TerminalMacInstall)
         /// Any manager's item (`CLITools/Managed/`).
         case managed(ManagedItem)
     }
@@ -393,6 +398,7 @@ public struct CLIToolReport: Sendable, Equatable {
         case mise
         case obelus
         case biome
+        case terminalMac
         case pnpm
         case yarn
         /// A manager and the installs of it the check found (`ManagedProvider`).

@@ -25,12 +25,20 @@ public struct SetappVersion: Sendable, Equatable {
     public let build: String?
     public let releaseDate: Date?
     public let minimumSystemVersion: String?
+    /// The catalogue's `beta` flag. Only the beta channel carries one (measured
+    /// 2026-11-04: 15 of 1076 versions on `/store/api/v8/beta/en`, none on
+    /// `/store/api/v8/en`).
+    public let isBeta: Bool
 
-    public init(shortVersion: String?, build: String?, releaseDate: Date?, minimumSystemVersion: String?) {
+    public init(
+        shortVersion: String?, build: String?, releaseDate: Date?,
+        minimumSystemVersion: String?, isBeta: Bool = false
+    ) {
         self.shortVersion = shortVersion
         self.build = build
         self.releaseDate = releaseDate
         self.minimumSystemVersion = minimumSystemVersion
+        self.isBeta = isBeta
     }
 }
 
@@ -110,7 +118,33 @@ public struct SetappRelease: Sendable, Equatable {
 /// opened Setapp. This endpoint is not.
 public enum SetappCatalog {
 
-    public static let catalogURL = URL(string: "https://store.setapp.com/store/api/v8/en")!
+    /// Which catalogue to read. The beta one is public and unauthenticated —
+    /// measured 2026-11-04: `GET /store/api/v8/beta/en` with only the JSON:API
+    /// `Accept` header returns 3.06 MB and 15 versions flagged `beta: true`
+    /// (Bartender 7.1.0/700013 among them), the same rows the client showed after
+    /// its beta switch went on.
+    ///
+    /// **Not a superset.** Measured the same day against `/store/api/v8/en`:
+    /// 1074 versions stable against 1076 beta — 14 beta-only rows, but also **12
+    /// stable-only** rows. For an app with a beta, the beta catalogue lists the
+    /// beta INSTEAD of that app's current stable row (WiFi Signal 4.4.8 → 4.4.9
+    /// beta, Dropshare 6.15 → 6.16 beta, KeyKey 3.0 → 3.0.3 beta). So a stable
+    /// reader cannot just read the beta catalogue and filter; it would lose those
+    /// stable versions. Each switch position reads its own channel, and the beta
+    /// catalogue is consulted on the side only to name a copy that is already
+    /// ahead of stable.
+    public enum Channel: Sendable, Hashable {
+        case stable
+        case beta
+
+        var path: String { self == .beta ? "beta/en" : "en" }
+
+        public var catalogURL: URL {
+            URL(string: "https://store.setapp.com/store/api/v8/\(path)")!
+        }
+    }
+
+    public static let catalogURL = Channel.stable.catalogURL
 
     /// How long a parsed catalogue is reused. The endpoint honours an ETag
     /// (measured 304), so revalidation costs headers rather than 3 MB; hours is
@@ -118,8 +152,8 @@ public enum SetappCatalog {
     static let defaultTTL: TimeInterval = 6 * 60 * 60
 
     /// The app's own request shape: `application/vnd.api+json`, no credentials.
-    static func request(etag: String? = nil) -> URLRequest {
-        var request = URLRequest(url: catalogURL)
+    static func request(channel: Channel = .stable, etag: String? = nil) -> URLRequest {
+        var request = URLRequest(url: channel.catalogURL)
         request.cachePolicy = URLRequest.versionFeedCachePolicy
         request.setValue("application/vnd.api+json", forHTTPHeaderField: "Accept")
         if let etag { request.setValue(etag, forHTTPHeaderField: "If-None-Match") }
@@ -131,23 +165,32 @@ public enum SetappCatalog {
     /// Throws on a real failure (network, non-200, unparseable). Callers decide
     /// whether that is a row the user sees.
     public static func releases(
-        session: URLSession = .updates, now: Date = Date()
+        channel: Channel = .stable, session: URLSession = .updates, now: Date = Date()
     ) async throws -> [String: SetappRelease] {
-        try await cache.releases(session: session, now: now)
+        try await cache(for: channel).releases(session: session, now: now)
+    }
+
+    private static func cache(for channel: Channel) -> Cache {
+        channel == .beta ? betaCache : stableCache
     }
 
     /// Make the next `releases()` ask Setapp again. Backs `invalidateMemo`, so a
     /// per-row recheck can see a release published inside the TTL.
     public static func revalidate() async {
-        await cache.revalidate()
+        await stableCache.revalidate()
+        await betaCache.revalidate()
     }
 
-    private static let cache = Cache()
+    private static let stableCache = Cache(channel: .stable)
+    private static let betaCache = Cache(channel: .beta)
 
     /// One in-memory copy shared by every row of a check. `UpdateChecker` fans out
     /// across apps, so without this a scan of N Setapp apps would fetch 3 MB N
     /// times.
     actor Cache {
+        let channel: Channel
+        init(channel: Channel) { self.channel = channel }
+
         private var value: [String: SetappRelease]?
         private var fetchedAt: Date?
         private var etag: String?
@@ -172,7 +215,7 @@ public enum SetappCatalog {
             // replacement somebody else started.
             if let inFlight { return try await inFlight.value }
 
-            let request = SetappCatalog.request(etag: etag)
+            let request = SetappCatalog.request(channel: channel, etag: etag)
             let token = UUID()
             let task = Task<[String: SetappRelease], Error> {
                 let (data, response) = try await session.data(for: request)
@@ -247,6 +290,14 @@ public enum SetappCatalog {
     ///       relationships.versions[]: marketing_version, build_number,
     ///                                 release_date (epoch), min_os_version
     ///
+    /// JSON:API booleans arrive as `true`/`false` (`NSNumber` once parsed); accept
+    /// a numeric 1/0 too, since that is what a hand-written fixture tends to use.
+    static func flag(_ value: Any?) -> Bool {
+        if let number = value as? NSNumber { return number.boolValue }
+        if let bool = value as? Bool { return bool }
+        return false
+    }
+
     /// Newest is `release_date` descending, the only ordering field the payload
     /// carries; a row without one sorts last, never first.
     public static func parse(_ data: Data) throws -> [String: SetappRelease] {
@@ -292,7 +343,8 @@ public enum SetappCatalog {
                 shortVersion: attributes["marketing_version"] as? String,
                 build: attributes["build_number"] as? String,
                 releaseDate: epoch.map { Date(timeIntervalSince1970: $0) },
-                minimumSystemVersion: attributes["min_os_version"] as? String)
+                minimumSystemVersion: attributes["min_os_version"] as? String,
+                isBeta: Self.flag(attributes["beta"]))
         }
         let ordered = rows.sorted { lhs, rhs in
             let l = lhs.releaseDate ?? .distantPast

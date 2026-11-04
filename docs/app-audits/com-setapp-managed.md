@@ -122,17 +122,27 @@ defaults read com.setapp.DesktopClient
 - 「Beta」是**客户端级**开关，不是 per-app：Settings → Updates 的原文是
   「Get beta versions of Setapp and installed apps」，「This setting will apply to future
   updates of Setapp and installed apps」，存成 `AllowBetaInternalUpdates`（0/1）。
-- **公开目录里没有 beta**：`versions[].attributes` 只有
-  `archive_url / build_number / marketing_version / min_os_version / release_date / size /
-  supported_apple_silicon / supported_architectures / supported_languages`；给
-  `store/api/v8/en` 加 `?beta=1`、`?include_beta=true` 或 `X-Setapp-Beta` 之类的猜测都返回
-  同一份稳定目录。
-- Beta 版确实存在，而且只有客户端在开关打开时才取到：清掉 `Apps.sqlite` 后重新拉取，
-  关 Beta = 1073 行里 0 行 `ZISBETA=1`；开 Beta = 15 行 beta，例如
-  Bartender 7.0.3 (700010) / 7.1.0 (700013)、Dropshare 6.16、Soulver 4.0、AirBuddy 3.1、
-  PopClip 2023.7.0、Usage 2.16.4、BetterTouchTool 6.557。
-- 所以 DuoUpdater 读公开目录时永远只看到稳定版：Beta 用户如果 Setapp 里已有更新的 beta，
-  我们读不到——这是刻意的（不把 beta 当稳定版塞给所有人），要写进结果里。
+- **beta 是第二个公开目录，不是参数**（2026-11-04 实测）：客户端（`SetappAgent`）自己的
+  URL 缓存里有两个请求——
+  `https://store.setapp.com/store/api/v8/en` 和 `https://store.setapp.com/store/api/v8/beta/en`。
+  后一个**无需任何凭据**（只带 `accept: application/vnd.api+json`）就返回 3.06 MB：
+  325 个 vendor、1076 条版本，其中 15 条带 `beta: true`（Bartender 7.0.3/700010、
+  7.1.0/700013、Dropshare 6.16、Soulver 4.0、AirBuddy 3.1、PopClip 2023.7.0、Usage 2.16.4、
+  BetterTouchTool 6.557 等）。
+- ⚠️ **beta 目录不是稳定目录的超集**（同一天按 bundle id + 版本 + 构建逐条比对：
+  stable 1074 条、beta 1076 条；beta-only 14 条，**stable-only 也有 12 条**）。有 beta 的
+  app，beta 目录用 beta 行**替换**它当前的稳定行：WiFi Signal 4.4.8 (49) → 4.4.9 (50) beta、
+  Dropshare 6.15 (6266) → 6.16 (6282) beta、KeyKey 3.0 (131) → 3.0.3 (137) beta。
+  所以**不能总是读 beta 再过滤 beta 行**：Beta 关的用户会因此看不到这 12 个稳定版
+  （Dropshare 6.15 会从有更新变成查无此版本）。开关关读 `/en`、开读 `/beta/en`，
+  两个目录各自缓存；beta 目录只在「已装副本比稳定目录新」时旁读一次，用来认领
+  「这是 beta 副本」。
+- 之前的「公开目录里没有 beta」只对 `/store/api/v8/en` 成立；`?beta=1`、`?include_beta=true`、
+  `X-Setapp-Beta` 这些猜测当然都无效——路径本身才是开关。
+- 客户端的行为与此一致：开关关时只拉稳定目录（`Apps.sqlite` 里 1073 行、0 行
+  `ZISBETA=1`）；开关开时拉 beta 目录（15 行 `ZISBETA=1`）。
+- 所以 DuoUpdater 在开关打开时读 beta 目录、关时读稳定目录：beta 用户可以正常比较版本，
+  稳定用户永远不会被塞 beta。版本行用 `(Setapp Beta)` 标出目录里 `beta: true` 的已装版。
 
 ## 如何复验
 

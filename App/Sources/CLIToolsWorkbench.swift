@@ -110,7 +110,7 @@ struct CLIToolIcon: View {
         case .flyctl: "cli-flyctl"
         case .obelus: "cli-obelus"
         case .biome: "cli-biome"
-        case .bub, .lorca: nil
+        case .bub, .lorca, .terminalMac: nil
         case .managed: managed?.logo
         }
     }
@@ -118,6 +118,9 @@ struct CLIToolIcon: View {
     private var symbol: String {
         switch kind {
         case .bub: "bubbles.and.sparkles.fill"
+        // terminal-mac is a whole separate Mac in a terminal, not a terminal
+        // emulator itself; the window-in-a-window reads closer than "terminal".
+        case .terminalMac: "macwindow.on.rectangle"
         default: "terminal"
         }
     }
@@ -139,7 +142,7 @@ struct CLIToolIcon: View {
                 ? NSColor(srgbRed: 0xDB / 255, green: 0xC6 / 255, blue: 0x6F / 255, alpha: 1)
                 : NSColor(srgbRed: 0x9C / 255, green: 0x82 / 255, blue: 0x26 / 255, alpha: 1)
         })
-        case .bun, .cursorAgent, .opencode, .rust, .fx, .boat, .herdr, .lorca, .zoxide, .nvm, .deno, .mise: Color(nsColor: .labelColor)
+        case .bun, .cursorAgent, .opencode, .rust, .fx, .boat, .herdr, .lorca, .zoxide, .nvm, .deno, .mise, .terminalMac: Color(nsColor: .labelColor)
         // Obelus's brass (`obelus.svg`'s gradient): its #C9A227 in the dark,
         // the gradient's darker #8C6F33 on a light sidebar.
         case .obelus: Color(nsColor: NSColor(name: nil) { appearance in

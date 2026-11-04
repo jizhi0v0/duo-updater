@@ -72,6 +72,7 @@ struct CLIToolsModelTests {
         case .mise: detail = .mise(MiseInstall(path: path, version: version))
         case .obelus: detail = .obelus(ObelusInstall(path: path, version: version))
         case .biome: detail = .biome(BiomeInstall(path: path, version: version))
+        case .terminalMac: detail = .terminalMac(TerminalMacInstall(path: path, version: version, build: "1"))
         case .managed:
             // A managed row by its path alone: its key is the directory's name,
             // its root the directory above. `managed(…)` builds one whose
@@ -124,6 +125,7 @@ struct CLIToolsModelTests {
         case .mise: context = .mise
         case .obelus: context = .obelus
         case .biome: context = .biome
+        case .terminalMac: context = .terminalMac
         case .pnpm: context = .pnpm
         case .yarn: context = .yarn
         case .managed: context = .managed(ManagerContext(descriptor: Self.fakeManager, roots: []))

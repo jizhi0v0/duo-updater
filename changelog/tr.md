@@ -2,6 +2,16 @@
 
 Bu, `CHANGELOG.md` dosyasının Türkçe çevirisidir. Geçerli olan İngilizce sürümdür; burada yer almayan eski sürümler otomatik olarak İngilizce gösterilir.
 
+## 0.5.21
+
+**Setapp'in beta kanalı artık Setapp'in kendisinden denetleniyor.** Setapp'in beta güncellemeleri açıkken bir beta sürüm, diğer güncellemeler gibi denetleniyor ve öneriliyor; satırı BETA etiketi taşıyor, oysa bu satırlar eskiden denetlenemediklerini söylüyordu.
+
+**Betadan kurulmuş bir Setapp uygulaması, beta kapalıyken de BETA olarak görünüyor.** Setapp'in kendi beta kataloğuyla eşleştirildiği için artık ne sürüm düşürme ne de kararlı sürümün adsız bir kopyası gibi görünüyor.
+
+**terminal-mac bir komut satırı aracı olarak destekleniyor.** Kurucusunun kopyası güncelleme denetimi ve tek tıkla güncelleme alıyor; sürüm notu yayımlamadığı için satır bunu söylüyor.
+
+**GitHub istekleri reddettiğinde, açılır panel ulaşılan sınırı adlandırıyor ve geçerli düzeltmeyi öneriyor.** Belirtecinizle gönderilen bir istek anonim sınıra sayılabiliyor ve bildirim belirteç ayarlarınızı suçluyordu; GitHub'ın yalnızca hız sınırladığı bir istek ise artık bunu söylüyor.
+
 ## 0.5.20
 
 **Setapp beta güncellemeleri artık dürüstçe bildiriliyor.** DuoUpdater yalnızca Setapp'in kararlı kataloğunu okuyabilir. Setapp'in beta güncellemeleri açıksa, denetlenemeyen bir uygulama artık güncel sayılmak yerine bunu söylüyor — Setapp'i işaret eden bir notla.

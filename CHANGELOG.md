@@ -19,6 +19,16 @@ release note is debugging our code:
 
 Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
+## 0.5.21
+
+**Setapp's beta channel is now checked from Setapp itself.** With Setapp's beta updates switched on, a beta release is checked and offered like any other update and its row carries a BETA tag; those rows used to say they could not be checked.
+
+**A Setapp app installed from a beta still reads BETA after you switch beta off.** It is matched against Setapp's own beta catalogue, so it no longer looks like a downgrade or an unnamed copy of the stable version.
+
+**terminal-mac is supported as a command-line tool.** Its installer's copy gets update checks and one-click updates; it publishes no release notes, so the row says so.
+
+**When GitHub refuses requests, the popover names the limit that was reached and offers the fix that applies.** A request sent with your token could be counted against the anonymous limit while the notice blamed your token settings; a request GitHub is merely throttling now says so instead.
+
 ## 0.5.20
 
 **Setapp beta updates are reported honestly.** DuoUpdater can only read Setapp's stable catalogue. If you have Setapp's beta updates switched on, an app that cannot be checked now says so — with a note pointing at Setapp — instead of being called current.

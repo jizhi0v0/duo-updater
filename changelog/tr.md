@@ -2,6 +2,16 @@
 
 Bu, `CHANGELOG.md` dosyasının Türkçe çevirisidir. Geçerli olan İngilizce sürümdür; burada yer almayan eski sürümler otomatik olarak İngilizce gösterilir.
 
+## 0.5.22
+
+**Setapp artık liste yenilendikten sonra uygulamalarını otomatik olarak güncelleyebilir.** Her iki uygulamada da otomatik güncellemeler açıksa kullanılabilir bir güncelleme Setapp’i arka planda başlatır; DuoUpdater yalnızca kendi başlattığı örneği, güncellemelerin bittiğini güvenle doğrulayabildiğinde ve siz uygulamayı kullanmaya başlamadıysanız kapatır.
+
+**CompressO, LaunchNext ve Thock artık güncelleme denetimlerini ve sürüm notlarını destekliyor.**
+
+**Brave kararlı sürümü, SmartClose, OpenScreen ve Radial için sürüm notları artık kullanılabilir.**
+
+**FluidVoice beta güncellemeleri artık beta kanalını izliyor.** Beta kopyaları, bilinmeyen bir durum veya eski bir beta göstermek yerine en son betayı denetliyor ve ilgili sürüm notlarını gösteriyor.
+
 ## 0.5.21
 
 **Setapp'in beta kanalı artık Setapp'in kendisinden denetleniyor.** Setapp'in beta güncellemeleri açıkken bir beta sürüm, diğer güncellemeler gibi denetleniyor ve öneriliyor; satırı BETA etiketi taşıyor, oysa bu satırlar eskiden denetlenemediklerini söylüyordu.

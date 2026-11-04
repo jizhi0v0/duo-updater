@@ -2,6 +2,16 @@
 
 本文档是 CHANGELOG.md 的简体中文翻译。英文版本是权威参考。未在本文档中列出的版本将自动回退至英文显示。
 
+## 0.5.22
+
+**Setapp 现在能随刷新自动更新它的 App。** 在两边都开启自动更新后，发现可用更新会在后台启动 Setapp；仅在能安全确认更新已结束、且你没有开始使用它时，DuoUpdater 才会退出自己启动的那个实例。
+
+**CompressO、LaunchNext 和 Thock 现在支持更新检查和发布说明。**
+
+**Brave 稳定版、SmartClose、OpenScreen 和 Radial 现在能查看发布说明。**
+
+**FluidVoice 的 Beta 更新现在会跟随 Beta 渠道。** Beta 副本会检查最新 Beta 并显示对应发布说明，不再显示未知状态或较旧的 Beta。
+
 ## 0.5.21
 
 **Setapp 的 Beta 渠道现在直接从 Setapp 本身检查。** 开启 Setapp 的 Beta 更新后，Beta 版本会像其他更新一样被检查并提供，它那一行会带上 BETA 标签；以前这些行会说自己无法检查。

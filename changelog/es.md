@@ -2,6 +2,16 @@
 
 Esta es la traducción al español del archivo CHANGELOG.md. La versión en inglés es la autoridad en caso de discrepancias. Los números de versión no incluidos aquí se mostrarán automáticamente en inglés en la ventana de Novedades.
 
+## 0.5.22
+
+**Setapp ahora puede actualizar sus apps automáticamente después de refrescar la lista.** Con las actualizaciones automáticas activadas en ambas apps, una actualización disponible inicia Setapp en segundo plano; DuoUpdater solo cierra la instancia que inició cuando puede confirmar con seguridad que las actualizaciones han terminado y no has empezado a usarla.
+
+**CompressO, LaunchNext y Thock ahora tienen comprobaciones de actualizaciones y notas de versión.**
+
+**Las notas de versión ya están disponibles para Brave estable, SmartClose, OpenScreen y Radial.**
+
+**Las actualizaciones beta de FluidVoice ahora siguen el canal beta.** Las copias beta comprueban la última beta y muestran sus notas de versión, en lugar de un estado desconocido o una beta anterior.
+
 ## 0.5.21
 
 **El canal beta de Setapp ahora se comprueba desde el propio Setapp.** Con las actualizaciones beta de Setapp activadas, una versión beta se comprueba y se ofrece como cualquier otra actualización, y su fila lleva la etiqueta BETA; antes esas filas decían que no se podían comprobar.

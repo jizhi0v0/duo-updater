@@ -19,6 +19,16 @@ release note is debugging our code:
 
 Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
+## 0.5.22
+
+**Setapp can now update its apps automatically after a refresh.** With automatic updates enabled in both apps, an available update starts Setapp in the background; DuoUpdater only quits the instance it started when it can safely confirm updates have finished and you have not begun using it.
+
+**CompressO, LaunchNext and Thock now get update checks and release notes.**
+
+**Release notes are now available for Brave stable, SmartClose, OpenScreen and Radial.**
+
+**FluidVoice beta updates now follow the beta channel.** Beta copies get update checks and release notes for the latest beta instead of showing an unknown status or an older beta.
+
 ## 0.5.21
 
 **Setapp's beta channel is now checked from Setapp itself.** With Setapp's beta updates switched on, a beta release is checked and offered like any other update and its row carries a BETA tag; those rows used to say they could not be checked.

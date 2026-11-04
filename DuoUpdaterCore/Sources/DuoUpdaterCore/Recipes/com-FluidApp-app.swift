@@ -28,5 +28,36 @@ enum com_FluidApp_app {
             versionPattern: #"^v([0-9]+(?:\.[0-9]+)+)$"#,
             installAssetPattern: #"^Fluid-oss-[0-9.]+\.dmg$"#,
             installerKind: .dmg),
+        // FluidVoice Beta — same bundle id, but the installed version string says
+        // which train it is on (`1.6.13-beta.2`), and `ReleaseChannel.detect` reads
+        // that into `.beta`. Without a `.beta` rule the channel gate filters the
+        // stable rule out, nothing answers, and the row is `.unknown` — which is
+        // what a beta install showed: no version, no notes, while a stable copy of
+        // the same app had both.
+        //
+        // `usePrereleases` is what makes the beta tags visible at all: the stable
+        // rule reads `/releases/latest`, which never returns a prerelease. The
+        // pattern is the stable one plus the `-beta.N` suffix, anchored on both
+        // ends so `windows-v*` and plain stable tags stay out of this channel.
+        // The asset carries the same suffix (`Fluid-oss-1.6.13-beta.2.dmg`), so a
+        // stable dmg can never be offered to a beta install or the reverse.
+        GitHubReleaseRule(
+            bundleID: "com.FluidApp.app",
+            owner: "altic-dev", repo: "FluidVoice",
+            usePrereleases: true,
+            // 32 rows, not the 20 default: the beta train is sparse — over the 65
+            // releases on the list the longest run between two beta tags is 30 —
+            // so a shorter page could end between two betas and read as "no
+            // update". The newest beta is row 0, so this is headroom for the gap,
+            // not for the leading run.
+            listPageSize: 32,
+            versionPattern: #"^v([0-9]+(?:\.[0-9]+)+-beta\.[0-9]+)$"#,
+            installAssetPattern: #"^Fluid-oss-[0-9.]+-beta\.[0-9]+\.dmg$"#,
+            installerKind: .dmg,
+            channel: .beta),
+        ],
+        githubChannelProofs: [
+        ChannelProofKey("com.FluidApp.app", .beta):
+            .artifact(#"/download/v[0-9.]+-beta\.[0-9]+/"#),
         ])
 }

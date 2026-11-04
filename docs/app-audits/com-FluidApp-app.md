@@ -14,6 +14,7 @@
 |            | Sparkle | Homebrew | MAS | GitHub | VendorProbe |
 |------------|---------|----------|-----|--------|-------------|
 | **stable** | —       | — (`auto_updates`) | — | ✓      | —           |
+| **beta**   | —       | — (`auto_updates`) | — | ✓      | —           |
 
 当前生效源（`UpdateChecker` 优先链中第一个应答的）: **GitHub**。
 
@@ -24,10 +25,12 @@
 
 | Channel | Bundle ID | 独立/共享 | 检测信号 | 门控方式 | 状态 |
 |---------|-----------|----------|---------|---------|------|
-| stable  | `com.FluidApp.app` | 单一渠道 | — | tag 必须完整匹配 `vX.Y.Z` | ✓ |
+| stable  | `com.FluidApp.app` | 共享 | 版本串无后缀 | tag 完整匹配 `vX.Y.Z` | ✓ |
+| beta    | `com.FluidApp.app` | 共享 | 版本串 `-beta.N`（`ReleaseChannel.detect`） | 独立 `.beta` 规则，读 `usePrereleases` 列表 | ✓ |
 
 同一仓库还发 `vX.Y.Z-beta.N`（macOS prerelease）和 `windows-vX.Y.Z`（Windows）。
-没有独立 bundle id，也没有本机可读的 channel 偏好；beta 靠 tag 锚拒绝，不单独建轨。
+没有独立 bundle id；通道由安装版本的版本串判定（`1.6.13-beta.2` → `.beta`），
+两条规则各带 `channel:`，`windows-v*` 两边都排除。
 
 ## 更新检测
 - 源: `GitHubReleasesSource`，`altic-dev/FluidVoice`，`/releases/latest`
@@ -52,7 +55,7 @@
 
 ## Changelog
 - 来源: GitHub Release body（`GitHubReleasesSource` 原生带回）
-- 跟随 channel: 是，仅 stable release
+- 跟随 channel: 是 — stable 读 `/releases/latest`，beta 读 prerelease 列表
 - Recipe 状态: 不需要单独 `ChangelogRecipe`
 
 ## 一键安装

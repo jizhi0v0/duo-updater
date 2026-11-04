@@ -334,6 +334,15 @@ private func matches(_ name: String, _ bundleID: String) -> Bool {
     #expect(!matches("FluidVoice_0.0.9_x64-setup.exe", "com.FluidApp.app"))
     #expect(rule("com.FluidApp.app").slug == "altic-dev/FluidVoice")
     #expect(rule("com.FluidApp.app").installerKind == .dmg)
+
+    // The beta train has its own rule: `ReleaseChannel.detect` reads
+    // `1.6.13-beta.2` out of the installed version string, and without a `.beta`
+    // rule the channel gate leaves the row `.unknown` (no version, no notes).
+    #expect(extract("v1.6.13-beta.2", "com.FluidApp.app", channel: .beta) == "1.6.13-beta.2")
+    #expect(extract("v1.6.12", "com.FluidApp.app", channel: .beta) == nil)
+    #expect(matches("Fluid-oss-1.6.13-beta.2.dmg", "com.FluidApp.app", channel: .beta))
+    #expect(!matches("Fluid-oss-1.6.12.dmg", "com.FluidApp.app", channel: .beta))
+    #expect(rule("com.FluidApp.app", channel: .beta).usePrereleases)
 }
 
 @Test func ccSwitchRulePicksTheMacDmg() {
@@ -1283,5 +1292,17 @@ private func matches(
             #expect(rule.usePrereleases,
                     "\(rule.bundleID) [\(rule.channel.rawValue)] identifies installs by exact tag, but reads /releases/latest — where the releases it exists to see are invisible")
         }
+    }
+}
+
+/// CompressO, LaunchNext and Thock publish bare tags (no `v`) and are
+/// detection-only: none of their installers was mounted to confirm a Team ID, so
+/// the rule must not offer an in-place install.
+@Test func bareTagRulesExtractTheirVersionAndStayDetectionOnly() {
+    #expect(extract("4.1.0", "com.compresso.app") == "4.1.0")
+    #expect(extract("2.4.2", "com.roversx.launchnext") == "2.4.2")
+    #expect(extract("1.23.0", "dev.kamillobinski.Thock") == "1.23.0")
+    for bundleID in ["com.compresso.app", "com.roversx.launchnext", "dev.kamillobinski.Thock"] {
+        #expect(rule(bundleID).installAssetPattern == nil)
     }
 }

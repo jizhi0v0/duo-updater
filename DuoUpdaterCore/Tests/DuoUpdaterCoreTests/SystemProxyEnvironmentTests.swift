@@ -131,7 +131,7 @@ import Foundation
     /// reachable from a test without running a vendor's tool; the one exception is
     /// the administrator runner, whose script takes the proxy variables by name
     /// (`CLIToolAdministratorRun.proxies`) and nothing else.
-    /// Kills: a new updater copying the old line; reverting one of the 31.
+    /// Kills: a new updater copying the old line; reverting one of the 32.
     @Test func noCLIToolChildInheritsTheFullEnvironment() throws {
         let tools = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
@@ -149,6 +149,6 @@ import Foundation
             if text.contains("processInfo.environmentWithSystemProxy") { inheriting.append(file.lastPathComponent) }
         }
         #expect(inheriting == ["CLIToolAdministratorRun.swift"], "\(inheriting)")
-        #expect(scrubbed == 31)
+        #expect(scrubbed == 32)
     }
 }

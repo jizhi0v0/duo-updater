@@ -34,7 +34,7 @@ public enum CLIToolWording {
         case .deno: return "Deno Land"
         case .mise: return "Jeffrey Dickey"
         case .bub, .rust, .npm, .boat, .vitePlus, .herdr, .luvus, .lorca, .zoxide, .nvm, .atuin, .ghcup, .flyctl, .helm, .starship,
-             .obelus, .biome, .pnpm, .yarn: return nil
+             .obelus, .biome, .terminalMac, .pnpm, .yarn: return nil
         // A managed row's signer is its manager's (`ManagerDescriptor.signer`),
         // read from the status in `reason(_:of status:)`.
         case .managed: return nil
@@ -293,6 +293,12 @@ public enum CLIToolWording {
             if !biome.linked, !biome.writable { return String(localized: "Updating it needs administrator rights") }
         case (.unverified, .biome(let biome)) where biome.version != nil:
             return String(localized: "The new release can’t be checked against a published digest")
+        // terminal-mac's installer needs to write the prefix; a layout it would
+        // refuse keeps the generic wording, since fixing the folder would not
+        // give that copy a click.
+        case (.unsupportedInstaller, .terminalMac(let terminalMac))
+            where terminalMac.problem == nil && !terminalMac.writable:
+            return String(localized: "Updating it needs administrator rights")
         case (.unsupportedInstaller, .atuin(let atuin)) where atuin.problem == nil && !atuin.writable:
             return String(localized: "Updating it needs administrator rights")
         case (.unsupportedInstaller, .ghcup(let ghcup)) where ghcup.problem == nil && !ghcup.writable:

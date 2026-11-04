@@ -8,8 +8,10 @@ import notify_cloud_pr as notify
 
 HEAD = "a" * 40
 RUN = {"name": "CI", "event": "pull_request", "status": "completed",
+       "path": ".github/workflows/ci.yml",
        "head_sha": HEAD, "conclusion": "success", "pull_requests": [], "run_attempt": 1}
-GATE_RUN = {**RUN, "name": "Codex review gate", "event": "pull_request_target"}
+GATE_RUN = {**RUN, "name": f"Codex review gate PR #7 @{HEAD}",
+            "path": ".github/workflows/codex-review-gate.yml", "event": "pull_request_target"}
 PR = {"state": "open", "draft": False, "head": {"sha": HEAD}}
 
 
@@ -91,16 +93,16 @@ class CloudWakeup(unittest.TestCase):
         self.assertEqual(notify.targets(GATE_RUN, [{"number": 7}]), [7])
         for run in [
             {**RUN, "event": "push"},
-            {**RUN, "name": "Cloud PR wakeup"},
+            {**RUN, "path": ".github/workflows/cloud-pr-wakeup.yml"},
             {**RUN, "status": "in_progress"},
-            {**RUN, "name": "Codex review gate"},
-            {**GATE_RUN, "name": "CI"},
+            {**RUN, "event": "pull_request_target"},
+            {**GATE_RUN, "event": "pull_request"},
         ]:
             self.assertEqual(notify.targets(run, [{"number": 7}]), [])
 
     def test_each_required_pr_workflows_failure_wakes_the_handler(self):
-        for name in ["CI", "Real-machine record", "Adversarial review record"]:
-            run = {**RUN, "name": name, "conclusion": "failure",
+        for path, name in notify.PR_WORKFLOWS.items():
+            run = {**RUN, "name": name, "path": path, "conclusion": "failure",
                    "pull_requests": [{"number": 7}]}
             _, post = self.run_with([run, PR, []])
             self.assertEqual(post.call_count, 1)
@@ -109,8 +111,8 @@ class CloudWakeup(unittest.TestCase):
             self.assertIn("**failure**", body)
             self.assertEqual(notify.targets({**run, "event": "pull_request_target"}), [])
 
-    def test_target_gate_uses_its_trusted_title_not_the_base_run_sha(self):
-        run = {**RUN, "name": "Codex review gate", "event": "pull_request_target",
+    def test_target_gate_with_dynamic_name_uses_its_trusted_title(self):
+        run = {**GATE_RUN,
                "head_sha": "b" * 40,
                "display_title": f"Codex review gate PR #7 @{HEAD}"}
         api, post = self.run_with([run, PR, []])
@@ -118,7 +120,7 @@ class CloudWakeup(unittest.TestCase):
         self.assertIn(HEAD, json.loads(post.call_args.kwargs["input"])["body"])
 
     def test_target_gate_with_an_unrecognizable_title_cannot_guess_a_pr(self):
-        run = {**RUN, "name": "Codex review gate", "event": "pull_request_target",
+        run = {**GATE_RUN,
                "display_title": "PR #7 from an untrusted title"}
         with patch("sys.argv", ["notify", "--repo", "o/r", "--run", "123"]), \
                 patch.object(notify, "api", return_value=run), \
@@ -126,6 +128,21 @@ class CloudWakeup(unittest.TestCase):
             with self.assertRaises(ValueError):
                 notify.main()
         post.assert_not_called()
+
+    def test_workflow_name_cannot_disguise_an_unrelated_path(self):
+        for run in [RUN, GATE_RUN]:
+            _, post = self.run_with([{**run, "path": ".github/workflows/unrelated.yml"}])
+            post.assert_not_called()
+
+    def test_ref_qualified_paths_publish_for_each_supported_workflow(self):
+        for path, label in notify.WORKFLOW_LABELS.items():
+            run = {**(GATE_RUN if path == notify.GATE_PATH else RUN),
+                   "path": path + "@refs/heads/main", "pull_requests": [{"number": 7}],
+                   "display_title": f"Codex review gate PR #7 @{HEAD}"}
+            _, post = self.run_with([run, PR, []])
+            self.assertEqual(post.call_count, 1)
+            body = json.loads(post.call_args.kwargs["input"])["body"]
+            self.assertIn(f"{label} attempt 1 completed", body)
 
 
 if __name__ == "__main__":

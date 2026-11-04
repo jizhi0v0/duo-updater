@@ -46,8 +46,8 @@ The `main` ruleset requires:
   Its `pull_request_target` workflow and verifier come from the protected default
   branch and target `main`. It never checks out PR code, downloads artifacts, invokes a model or
   reads a model secret. Its read-only `GITHUB_TOKEN` reads metadata; a separate
-  GitHub App installation token publishes the commit status explicitly on the
-  PR head (target runs otherwise belong to the base SHA). The required status
+  GitHub App installation token publishes the commit status on the explicit
+  PR head rather than inferring it from the workflow SHA. The required status
   must be bound to that App's numeric ID, not GitHub Actions (15368) or any
   source. PR-controlled Actions credentials cannot publish as this App.
   Workflow changes take effect only after being merged.

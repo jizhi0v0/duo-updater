@@ -3907,7 +3907,7 @@ final class AppListModel {
         let checked = checkedRows + ScanRowAssembly.unchecked(ignored, proofs: provenNow)
         results = sorted(CheckRoundWriteBack.publishing(
             checked, changedSince: roundBaseline, live: results))
-        await startSetappBackgroundUpdatesIfNeeded(for: results.filter { !prefs.isIgnored($0.app) })
+        await startSetappBackgroundUpdatesIfNeeded(for: results.filter(isActionableUpdate))
         // Pre-warm the disk changelog cache for anything pending, so opening its
         // notes is instant (and a no-op network-wise for versions already cached).
         prewarmChangelogs(for: checked)

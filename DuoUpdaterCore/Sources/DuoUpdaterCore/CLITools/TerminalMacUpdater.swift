@@ -120,9 +120,18 @@ public struct TerminalMacUpdater: Sendable {
         } catch {
             return .failed(message: "not run: could not read terminal-mac's latest release: \(error)", output: "")
         }
-        guard VersionComparator.isNewer(published.side, than: now.side) else {
+        // The row offered one release, and the command beside it names that
+        // tag. A newer latest between the check and the click is not that offer:
+        // install what was shown, or nothing.
+        guard published.displayVersion == status.latestVersion else {
             return .failed(
                 message: "not run: terminal-mac's latest release is now \(published.displayVersion), "
+                    + "not \(status.latestVersion ?? "the version the check offered")",
+                output: "")
+        }
+        guard VersionComparator.isNewer(published.side, than: now.side) else {
+            return .failed(
+                message: "not run: terminal-mac's latest release is \(published.displayVersion), "
                     + "not newer than \(now.displayVersion)",
                 output: "")
         }

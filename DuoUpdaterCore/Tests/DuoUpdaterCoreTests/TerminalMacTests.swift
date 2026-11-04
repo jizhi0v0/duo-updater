@@ -268,7 +268,18 @@ import CryptoKit
         let status = await box.check(build: "6").status(of: install, busy: nil)
         #expect(status.oneClick?.display
             == "curl -fsSL https://github.com/govijr/terminal-mac/releases/download/v0.2.0-6/get.sh"
-            + " | bash -s -- --prefix \(box.home.path + "/.local")")
+            + " | bash -s -- --prefix '\(box.home.path + "/.local")'")
+    }
+
+    /// A prefix can hold a space or a quote; the arguments are passed as one,
+    /// and the line a person copies is quoted for a shell. Mutation: drop
+    /// `shellLine`.
+    @Test func quotesAPrefixWithSpaces() throws {
+        let box = try Sandbox()
+        let published = try box.published(build: "6")
+        let command = TerminalMacCheck.installCommand(published: published,
+                                                      prefix: "/Users/Test User/Sam's/.local")
+        #expect(command.display.contains("--prefix '/Users/Test User/Sam'\\''s/.local'"))
     }
 
     /// Mutations: drop the busy or writable gate, or report a version that could
@@ -348,6 +359,34 @@ import CryptoKit
         // The vendor's installer leaves the old copy where it was.
         #expect(FileManager.default.fileExists(atPath: box.library
             .appendingPathComponent("0.2.0-5-\(Self.digest)").path))
+    }
+
+    /// The row offered 0.2.0 (6); by the click, latest is 0.2.0 (7). The
+    /// updater must not install a release the row never showed. Mutation: use
+    /// the fresh latest as the target.
+    @Test func aMovedReleaseIsNotInstalled() async throws {
+        let box = try Sandbox()
+        try box.install("0.2.0", build: "5")
+        let offered = try box.published(build: "6")
+        let status = await TerminalMacCheck(latest: { offered }).status(
+            of: try #require(box.scanner.scan().first), busy: nil)
+
+        final class Downloads: @unchecked Sendable {
+            private let lock = NSLock()
+            private var count = 0
+            var value: Int { lock.withLock { count } }
+            func bump() { lock.withLock { count += 1 } }
+        }
+        let downloads = Downloads()
+        let updater = TerminalMacUpdater(
+            busy: { _ in nil }, scanner: box.scanner,
+            release: TerminalMacRelease(fetch: { _ in (box.release(build: "7"), 200) }),
+            download: { _ in downloads.bump(); return Data() }, environment: { [:] })
+        let outcome = await updater.update(status)
+        guard case .failed(let message, _) = outcome else { Issue.record("expected failed, got \(outcome)"); return }
+        #expect(message.contains("is now 0.2.0 (7), not 0.2.0 (6)"))
+        #expect(downloads.value == 0)
+        #expect(box.scanner.scan().first?.build == "5")
     }
 
     @Test func refusesAnArchiveGitHubDidNotPublish() async throws {

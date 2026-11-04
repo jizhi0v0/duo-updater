@@ -121,10 +121,14 @@ public struct TerminalMacCheck: Sendable {
     /// The command the row shows and hands over: the release's own `get.sh`,
     /// pinned to the tag checked, passed the prefix the install is under.
     static func installCommand(published: TerminalMacRelease.Published, prefix: String) -> CLIToolCommand {
-        CLIToolCommand(
+        let script = TerminalMacRelease.getScriptURL(tag: published.tag).absoluteString
+        return CLIToolCommand(
             executable: "curl",
-            arguments: ["-fsSL", TerminalMacRelease.getScriptURL(tag: published.tag).absoluteString,
-                        "|", "bash", "-s", "--", "--prefix", prefix],
-            pathPrefix: nil)
+            arguments: ["-fsSL", script, "|", "bash", "-s", "--", "--prefix", prefix],
+            pathPrefix: nil,
+            // `display` joins arguments with spaces; a prefix can hold one, or a
+            // quote. The updater passes the prefix as one argument and needs no
+            // quoting, but the command a person copies is a shell line.
+            shellLine: "curl -fsSL \(script) | bash -s -- --prefix \(NvmCheck.shellQuoted(prefix))")
     }
 }

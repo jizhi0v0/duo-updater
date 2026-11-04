@@ -20,10 +20,11 @@ struct CLIToolGitHubAPITests {
             VitePlusProvider(), HerdrProvider(), LuvusProvider(), LorcaProvider(), ZoxideProvider(), NvmProvider(),
             AtuinProvider(), GhcupProvider(),
             FlyctlProvider(), HelmProvider(), StarshipProvider(),
-            DenoProvider(), MiseProvider(), ObelusProvider(), BiomeProvider(), GlobalPackagesProvider(.pnpm), GlobalPackagesProvider(.yarn),
+            DenoProvider(), MiseProvider(), ObelusProvider(), BiomeProvider(), TerminalMacProvider(),
+            GlobalPackagesProvider(.pnpm), GlobalPackagesProvider(.yarn),
         ]
         #expect(Set(providers.map(\.kind)) == Set(CLIToolKind.allCases).subtracting([.managed]))
-        #expect(Set(providers.filter(\.readsGitHubAPI).map(\.kind)) == [.bun, .opencode, .herdr, .zoxide, .nvm])
+        #expect(Set(providers.filter(\.readsGitHubAPI).map(\.kind)) == [.bun, .opencode, .herdr, .zoxide, .nvm, .terminalMac])
     }
 
     /// No manager's check asks api.github.com from our process (design §3.4):

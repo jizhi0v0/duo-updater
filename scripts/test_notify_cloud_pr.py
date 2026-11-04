@@ -9,6 +9,7 @@ import notify_cloud_pr as notify
 HEAD = "a" * 40
 RUN = {"name": "CI", "event": "pull_request", "status": "completed",
        "head_sha": HEAD, "conclusion": "success", "pull_requests": []}
+GATE_RUN = {**RUN, "name": "Codex review gate", "event": "pull_request_target"}
 PR = {"state": "open", "draft": False, "head": {"sha": HEAD}}
 
 
@@ -67,9 +68,16 @@ class CloudWakeup(unittest.TestCase):
         _, post = self.run_with([RUN, [{"number": 7}], PR, [comment]])
         self.assertEqual(post.call_count, 1)
 
-    def test_push_runs_and_unrelated_workflows_are_not_pr_notifications(self):
-        for run in [{**RUN, "event": "push"}, {**RUN, "name": "Cloud PR wakeup"},
-                    {**RUN, "status": "in_progress"}]:
+    def test_only_each_workflows_trusted_pr_event_is_accepted(self):
+        self.assertEqual(notify.targets(RUN, [{"number": 7}]), [7])
+        self.assertEqual(notify.targets(GATE_RUN, [{"number": 7}]), [7])
+        for run in [
+            {**RUN, "event": "push"},
+            {**RUN, "name": "Cloud PR wakeup"},
+            {**RUN, "status": "in_progress"},
+            {**RUN, "name": "Codex review gate"},
+            {**GATE_RUN, "name": "CI"},
+        ]:
             self.assertEqual(notify.targets(run, [{"number": 7}]), [])
 
 

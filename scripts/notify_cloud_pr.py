@@ -15,8 +15,11 @@ from check_codex_review import api
 
 
 def is_pr_completion(run):
-    return (run.get("event") == "pull_request" and run.get("status") == "completed"
-            and run.get("name") in {"CI", "Codex review gate"})
+    if run.get("status") != "completed":
+        return False
+    name, event = run.get("name"), run.get("event")
+    return ((name == "CI" and event == "pull_request")
+            or (name == "Codex review gate" and event == "pull_request_target"))
 
 
 def targets(run, associated=None):

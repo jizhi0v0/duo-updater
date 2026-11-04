@@ -474,18 +474,29 @@ struct MenuContentView: View {
             + model.cliTools.statuses.filter(\.isRateLimitError).count
     }
 
+    /// Which budgets are closed now: the token's, the anonymous one, or both
+    /// (`GitHubRateLimitBanner`). A rate-limited row can be explained by either —
+    /// a request whose redirect dropped the token spends the anonymous budget.
+    private var rateLimitSpent: GitHubRateLimitBanner.Spent {
+        GitHubRateLimitBanner.spent(
+            token: model.gitHubPause[.token], anonymous: model.gitHubPause[.anonymous])
+    }
+
     /// Show the aggregate nudge only when several apps are rate-limited at once
     /// and no token is configured. A single transient stays a per-row retry, but
     /// a cluster means the unauthenticated 60/hour cap is biting and a token is
     /// the real fix. Not while GitHub is rejecting the token there is: that
     /// banner is the fix to make first.
     ///
-    /// And whenever GitHub's budget is closed with a row it stopped, token or
-    /// not: then nothing is asked until it reopens (`GitHubRateLimitGate`), and
-    /// the banner says when — where the generic banner below would offer a
-    /// Retry that cannot be sent.
+    /// And whenever a GitHub budget is closed with a row it stopped, token or
+    /// not: then nothing on that budget is asked until it reopens
+    /// (`GitHubRateLimitGate`), and the banner says which one and when — where
+    /// the generic banner below would offer a Retry that cannot be sent. The
+    /// anonymous budget counts here too: with a token in use it is still the
+    /// one a redirected request spends, and its closure stops those rows
+    /// without touching the token's.
     private var showRateLimitBanner: Bool {
-        if model.gitHubPausedUntil != nil, rateLimitedCount >= 1 { return true }
+        if rateLimitSpent != .none, rateLimitedCount >= 1 { return true }
         return !model.gitHubTokenRejected && !model.hasGitHubToken && rateLimitedCount >= 2
     }
 
@@ -626,23 +637,31 @@ struct MenuContentView: View {
     }
 
     /// Aggregate counterpart to the per-row "Rate-limited" badge: one tap
-    /// deep-links to Settings → GitHub to add a token (60/hour → 5000/hour).
-    /// With the budget closed, when checking resumes — and the token to add
-    /// when there is none; otherwise the token to add.
+    /// deep-links to Settings to add a token (60/hour → 5000/hour), or to the
+    /// budget card when the anonymous budget is the spent one — the wording and
+    /// that choice are `GitHubRateLimitBanner`'s and this view's only.
     private var rateLimitBannerDetail: String {
-        guard let until = model.gitHubPausedUntil else {
-            return String(localized: "\(rateLimitedCount) items couldn’t be checked — add a token")
-        }
-        let time = until.formatted(date: .omitted, time: .shortened)
-        return model.hasGitHubToken
-            ? String(localized: "\(rateLimitedCount) items wait until \(time), when GitHub takes requests again")
-            : String(localized: "\(rateLimitedCount) items wait until \(time) — or add a token")
+        GitHubRateLimitBanner.detail(
+            count: rateLimitedCount,
+            spent: rateLimitSpent,
+            until: GitHubRateLimitBanner.until(
+                token: model.gitHubPause[.token], anonymous: model.gitHubPause[.anonymous]),
+            hasToken: model.hasGitHubToken,
+            time: { $0.formatted(date: .omitted, time: .shortened) })
+    }
+
+    /// The token card when a token is the fix. The budget card when the
+    /// anonymous budget is the only one spent and a token is already in use:
+    /// adding or replacing a token buys none of that shared 60/hour back, and
+    /// the card is where that budget is shown.
+    private var rateLimitBannerAnchor: SettingsAnchor {
+        rateLimitSpent == .anonymous && model.hasGitHubToken ? .githubBudget : .githubToken
     }
 
     private var rateLimitBanner: some View {
         Button {
             model.requestedSettingsSection = .github
-            model.requestedSettingsAnchor = .githubToken
+            model.requestedSettingsAnchor = rateLimitBannerAnchor
             openWindow(id: SettingsView.windowID)
             model.surfaceWindow(sceneID: SettingsView.windowID)
         } label: {

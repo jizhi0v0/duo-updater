@@ -4,6 +4,7 @@ enum so_pen_herdr_gpui {
     static let set = AppRecipeSet(
         family: "so-pen-herdr-gpui",
         githubRules: [
+        // History: docs/app-audits/so-pen-herdr-gpui.md#历史与实测
         // Herdr (herdr-gpui) — the Rust/GPUI desktop client for the Herdr
         // daemon. Homebrew's `herdr` is that daemon (a formula), not this app;
         // there is no cask. No Sparkle; its own updater reads `/releases/latest`
@@ -19,9 +20,18 @@ enum so_pen_herdr_gpui {
         // `herdr-gpui-<ver>-macos-universal.app.tar.gz`, and Linux/Windows
         // builds. The pattern takes the dmg alone.
         // One-click: so.pen.herdr-gpui, Team VJAHQVZ96V, notarized.
+        //
+        // Slug: the repo is `sheprd-labs/sheprd` now; GitHub answers the old
+        // `penso/herdr-gpui` with a 301 to `/repositories/1377952273/…`
+        // (checked 2026-11-04). Pinning the canonical name is not tidiness:
+        // URLSession drops `Authorization` while following that redirect
+        // (`GitHubEndpointAudit`), so every check of the old slug went out on
+        // the shared 60/hour anonymous budget whatever token was configured,
+        // and once that was spent the row failed with a 403. Tags and assets
+        // did not change with the move.
         GitHubReleaseRule(
             bundleID: "so.pen.herdr-gpui",
-            owner: "penso", repo: "herdr-gpui",
+            owner: "sheprd-labs", repo: "sheprd",
             versionPattern: #"^v([0-9]{8}\.[0-9]+)$"#,
             installAssetPattern: #"^Herdr-[0-9]{8}\.[0-9]+-universal-apple-darwin\.dmg$"#,
             installerKind: .dmg),

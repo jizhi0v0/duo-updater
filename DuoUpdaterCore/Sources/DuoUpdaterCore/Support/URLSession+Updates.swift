@@ -143,6 +143,17 @@ public extension URLSession {
 /// redirect unchanged. Holds only immutable data, so safe to share across the
 /// session's tasks.
 ///
+/// **Same host: `Authorization` goes back.** `URLSession` hands every followed
+/// redirect a request without the header, same host included — measured
+/// 2026-11-04 against `api.github.com/repos/penso/herdr-gpui/releases/latest`,
+/// which 301s to `/repositories/1377952273/releases/latest`: sent with a Bearer,
+/// the answer said `x-ratelimit-limit: 60`, GitHub's anonymous ceiling. That cost
+/// a request its token, spent the shared 60/hour, and on a spent anonymous budget
+/// failed a row for a repo that was merely renamed (`GitHubEndpointAudit`, #135).
+/// So when the redirect keeps the same origin — host, port and scheme, so an
+/// https downgrade to http never carries it — the original header is put back:
+/// the host it was meant for is the host asking.
+///
 /// One exception: a redirect declared as a login wall
 /// (`SparkleFeedCatalog.LoginWall`) is not followed, and the task returns the 3xx.
 /// The check is here, in the session delegate, beside the stripping, so no
@@ -193,12 +204,27 @@ final class CrossHostCredentialStripper: NSObject, URLSessionDataDelegate, @unch
             return
         }
         var forwarded = request
-        if request.url?.host != task.originalRequest?.url?.host {
+        if !Self.sameOrigin(task.originalRequest?.url, forwarded.url) {
             for field in ["Authorization", "Cookie", "Proxy-Authorization"] {
                 forwarded.setValue(nil, forHTTPHeaderField: field)
             }
+        } else if let authorization = task.originalRequest?.value(forHTTPHeaderField: "Authorization"),
+                  forwarded.value(forHTTPHeaderField: "Authorization") == nil {
+            // The platform took it off; this redirect never left the origin the
+            // token was meant for. See the type's doc.
+            forwarded.setValue(authorization, forHTTPHeaderField: "Authorization")
         }
         completionHandler(forwarded)
+    }
+
+    /// Same host, port and scheme. The scheme half is load-bearing: a redirect
+    /// from https to http must not put a token on the wire in the clear, even to
+    /// the same host.
+    static func sameOrigin(_ from: URL?, _ to: URL?) -> Bool {
+        guard let from, let to,
+              let a = from.host?.lowercased(), let b = to.host?.lowercased(),
+              a == b, from.port == to.port else { return false }
+        return from.scheme?.lowercased() == to.scheme?.lowercased()
     }
 
     /// Backstop only — **this is not what keeps credentials out of the cache.**

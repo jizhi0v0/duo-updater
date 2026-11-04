@@ -26,6 +26,14 @@ import Foundation
 /// spent leaves the other open. A token replaced is a new budget
 /// (`reopen(_:)`).
 ///
+/// **Credited to the budget that answered.** They are not always the one the
+/// request was sent with: `URLSession` drops `Authorization` while following a
+/// redirect (`GitHubEndpointAudit`), so a token's request can be counted — and
+/// refused — anonymously. The answer's ceiling says which budget it was
+/// (`answered(_:headers:)`), and that is the one a closure belongs to: closing
+/// the token on an anonymous 403 paused 5,000 requests for the anonymous
+/// window's hour.
+///
 /// **Conservative.** A token's requests can be counted against two hourly
 /// windows at once (`GitHubRateBudget`); any answer that says one is spent
 /// closes the credential until that answer's reset. Better to wait out a
@@ -108,6 +116,22 @@ public enum GitHubRateLimitGate {
         let strike = strikesBefore + 1
         let wait = min(secondaryFloor * pow(2, Double(strike - 1)), secondaryCeiling)
         return Closure(until: now.addingTimeInterval(wait), reason: .secondary(strike: strike))
+    }
+
+    /// The budget an answer was counted against, which is not always the one the
+    /// request was sent with: `x-ratelimit-limit` says whose budget answered —
+    /// 60 is GitHub's anonymous ceiling, 5,000 a token's (15,000 for some
+    /// Enterprise Cloud apps), and a redirect can take `Authorization` off a
+    /// request mid-flight (`GitHubEndpointAudit`). Only a downgrade happens: an
+    /// answer that states a token's ceiling cannot have been anonymous, and a
+    /// request sent anonymously has no token to credit. Without the header the
+    /// sent credential stands, which is the conservative answer for a response
+    /// that never reached GitHub.
+    static func answered(_ sent: Credential, headers: [String: String]) -> Credential {
+        guard let value = headers.first(where: {
+            $0.key.caseInsensitiveCompare("x-ratelimit-limit") == .orderedSame
+        })?.value.trimmingCharacters(in: .whitespaces), let ceiling = Int(value) else { return sent }
+        return ceiling <= 60 ? .anonymous : sent
     }
 
     /// A request held back by the gate, never sent. Its description keeps the
@@ -337,12 +361,23 @@ public enum GitHubRateLimitGate {
         /// Tell the gate how a request it let through went: its status,
         /// headers and body, or nil for each when no answer came (offline,
         /// cancelled).
+        ///
+        /// **The budget that answered, not the one asked.** Normally they are
+        /// the same, but `URLSession` drops `Authorization` while following a
+        /// redirect (`GitHubEndpointAudit`), so a request sent with a token can
+        /// be answered — and counted — on the anonymous budget. Crediting that
+        /// answer to the token closed 5,000 requests' budget for the anonymous
+        /// window's reset instead of the anonymous one
+        /// (`answered(_:headers:)`). The canary stays the sent credential's,
+        /// since it is that credential's probe which admitted the request.
         public func complete(
             _ credential: Credential, generation: Int, canary: Bool,
             status: Int?, headers: [String: String], body: Data?
         ) {
-            var entry = current(credential, generation)
             let at = now()
+            let answering = GitHubRateLimitGate.answered(credential, headers: headers)
+            let answeringGeneration: Int = answering == .anonymous ? 0 : generation
+            var entry = current(answering, answeringGeneration)
             if let status {
                 // A refusal while already closed answers a request that was in
                 // flight when it closed, not a retry after waiting: the same
@@ -353,18 +388,29 @@ public enum GitHubRateLimitGate {
                 if let closure = GitHubRateLimitGate.closure(
                     status: status, headers: headers, body: body, strikesBefore: before, now: at) {
                     if case .secondary(let strike) = closure.reason { entry.strikes = strike }
-                    close(&entry, closure, credential, status: status)
+                    close(&entry, closure, answering, status: status)
                 } else if (200..<400).contains(status) {
                     entry.strikes = 0
                 }
             }
             // The canary's answer — or its failure to get one — releases the
             // others; open unless that answer closed the gate.
-            if canary, case .canary(let id?) = entry.phase {
-                entry.phase = .open
-                release(id)
+            if canary {
+                if answering == credential {
+                    if case .canary(let id?) = entry.phase {
+                        entry.phase = .open
+                        release(id)
+                    }
+                } else {
+                    var sent = current(credential, generation)
+                    if case .canary(let id?) = sent.phase {
+                        sent.phase = .open
+                        release(id)
+                    }
+                    entries[credential] = sent
+                }
             }
-            entries[credential] = entry
+            entries[answering] = entry
         }
 
         /// Until when each credential is closed now; one absent is open.

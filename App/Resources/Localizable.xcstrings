@@ -9652,7 +9652,7 @@
         }
       }
     },
-    "%lld items wait until %@, when GitHub takes requests again": {
+    "%lld items wait until %@ — your token’s budget is spent": {
       "extractionState": "manual",
       "localizations": {
         "de": {
@@ -9661,13 +9661,13 @@
               "one": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "%lld Eintrag wartet bis %@, dann nimmt GitHub wieder Anfragen an"
+                  "value": "%lld Eintrag wartet bis %@ – das Kontingent deines Tokens ist aufgebraucht"
                 }
               },
               "other": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "%lld Einträge warten bis %@, dann nimmt GitHub wieder Anfragen an"
+                  "value": "%lld Einträge warten bis %@ – das Kontingent deines Tokens ist aufgebraucht"
                 }
               }
             }
@@ -9679,13 +9679,13 @@
               "one": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "%lld item waits until %@, when GitHub takes requests again"
+                  "value": "%lld item waits until %@ — your token’s budget is spent"
                 }
               },
               "other": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "%lld items wait until %@, when GitHub takes requests again"
+                  "value": "%lld items wait until %@ — your token’s budget is spent"
                 }
               }
             }
@@ -9697,13 +9697,13 @@
               "one": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "%lld elemento espera hasta las %@, cuando GitHub vuelva a aceptar solicitudes"
+                  "value": "%lld elemento espera hasta %@ — el cupo de tu token está agotado"
                 }
               },
               "other": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "%lld elementos esperan hasta las %@, cuando GitHub vuelva a aceptar solicitudes"
+                  "value": "%lld elementos esperan hasta %@ — el cupo de tu token está agotado"
                 }
               }
             }
@@ -9715,13 +9715,13 @@
               "one": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "%lld élément attend jusqu'à %@, quand GitHub acceptera de nouveau les requêtes"
+                  "value": "%lld élément attend jusqu’à %@ — le quota de votre jeton est épuisé"
                 }
               },
               "other": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "%lld éléments attendent jusqu'à %@, quand GitHub acceptera de nouveau les requêtes"
+                  "value": "%lld éléments attendent jusqu’à %@ — le quota de votre jeton est épuisé"
                 }
               }
             }
@@ -9733,13 +9733,13 @@
               "one": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "%lld elemento attende fino alle %@, quando GitHub accetterà di nuovo le richieste"
+                  "value": "%lld elemento attende fino alle %@ — la quota del tuo token è esaurita"
                 }
               },
               "other": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "%lld elementi attendono fino alle %@, quando GitHub accetterà di nuovo le richieste"
+                  "value": "%lld elementi attendono fino alle %@ — la quota del tuo token è esaurita"
                 }
               }
             }
@@ -9751,7 +9751,7 @@
               "other": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "%lld 件の項目は %@ まで待機します（GitHub がリクエストを再び受け付ける時刻）"
+                  "value": "%lld 件が %@ まで待機します — トークンの上限に達しました"
                 }
               }
             }
@@ -9763,13 +9763,13 @@
               "one": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "%lld item aguarda até %@, quando o GitHub voltar a aceitar requisições"
+                  "value": "%lld item aguarda até %@ — a cota do seu token foi esgotada"
                 }
               },
               "other": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "%lld itens aguardam até %@, quando o GitHub voltar a aceitar requisições"
+                  "value": "%lld itens aguardam até %@ — a cota do seu token foi esgotada"
                 }
               }
             }
@@ -9781,25 +9781,25 @@
               "few": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "%lld элемента ждут до %@, когда GitHub снова начнёт принимать запросы"
+                  "value": "%lld элемента ждут до %@ — лимит токена исчерпан"
                 }
               },
               "many": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "%lld элементов ждут до %@, когда GitHub снова начнёт принимать запросы"
+                  "value": "%lld элементов ждут до %@ — лимит токена исчерпан"
                 }
               },
               "one": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "%lld элемент ждёт до %@, когда GitHub снова начнёт принимать запросы"
+                  "value": "%lld элемент ждёт до %@ — лимит токена исчерпан"
                 }
               },
               "other": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "%lld элемента ждут до %@, когда GitHub снова начнёт принимать запросы"
+                  "value": "%lld элемента ждут до %@ — лимит токена исчерпан"
                 }
               }
             }
@@ -9811,13 +9811,13 @@
               "one": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "%lld öğe, GitHub istekleri yeniden kabul edene kadar %@ saatine dek bekliyor"
+                  "value": "%lld öğe %@ saatine kadar bekliyor — token kotanız doldu"
                 }
               },
               "other": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "%lld öğe, GitHub istekleri yeniden kabul edene kadar %@ saatine dek bekliyor"
+                  "value": "%lld öğe %@ saatine kadar bekliyor — token kotanız doldu"
                 }
               }
             }
@@ -9829,7 +9829,7 @@
               "other": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "%lld 个项目将等到 %@，届时 GitHub 恢复接受请求"
+                  "value": "%lld 个项目将等到 %@ — 令牌额度已用完"
                 }
               }
             }
@@ -9841,7 +9841,401 @@
               "other": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "%lld 個項目將等到 %@，屆時 GitHub 恢復接受請求"
+                  "value": "%lld 個項目將等到 %@ — 權杖額度已用完"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld items wait until %@ — GitHub’s anonymous budget is spent": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld Eintrag wartet bis %@ – das anonyme Kontingent von GitHub ist aufgebraucht"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld Einträge warten bis %@ – das anonyme Kontingent von GitHub ist aufgebraucht"
+                }
+              }
+            }
+          }
+        },
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld item waits until %@ — GitHub’s anonymous budget is spent"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld items wait until %@ — GitHub’s anonymous budget is spent"
+                }
+              }
+            }
+          }
+        },
+        "es": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld elemento espera hasta %@ — el cupo anónimo de GitHub está agotado"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld elementos esperan hasta %@ — el cupo anónimo de GitHub está agotado"
+                }
+              }
+            }
+          }
+        },
+        "fr": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld élément attend jusqu’à %@ — le quota anonyme de GitHub est épuisé"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld éléments attendent jusqu’à %@ — le quota anonyme de GitHub est épuisé"
+                }
+              }
+            }
+          }
+        },
+        "it": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld elemento attende fino alle %@ — la quota anonima di GitHub è esaurita"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld elementi attendono fino alle %@ — la quota anonima di GitHub è esaurita"
+                }
+              }
+            }
+          }
+        },
+        "ja": {
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld 件が %@ まで待機します — GitHub の匿名枠が上限に達しました"
+                }
+              }
+            }
+          }
+        },
+        "pt-BR": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld item aguarda até %@ — a cota anônima do GitHub foi esgotada"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld itens aguardam até %@ — a cota anônima do GitHub foi esgotada"
+                }
+              }
+            }
+          }
+        },
+        "ru": {
+          "variations": {
+            "plural": {
+              "few": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld элемента ждут до %@ — анонимный лимит GitHub исчерпан"
+                }
+              },
+              "many": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld элементов ждут до %@ — анонимный лимит GitHub исчерпан"
+                }
+              },
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld элемент ждёт до %@ — анонимный лимит GitHub исчерпан"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld элемента ждут до %@ — анонимный лимит GitHub исчерпан"
+                }
+              }
+            }
+          }
+        },
+        "tr": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld öğe %@ saatine kadar bekliyor — GitHub'ın anonim kotası doldu"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld öğe %@ saatine kadar bekliyor — GitHub'ın anonim kotası doldu"
+                }
+              }
+            }
+          }
+        },
+        "zh-Hans": {
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld 个项目将等到 %@ — GitHub 的匿名额度已用完"
+                }
+              }
+            }
+          }
+        },
+        "zh-Hant": {
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld 個項目將等到 %@ — GitHub 的匿名額度已用完"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld items wait until %@ — both GitHub budgets are spent": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld Eintrag wartet bis %@ – beide GitHub-Kontingente sind aufgebraucht"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld Einträge warten bis %@ – beide GitHub-Kontingente sind aufgebraucht"
+                }
+              }
+            }
+          }
+        },
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld item waits until %@ — both GitHub budgets are spent"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld items wait until %@ — both GitHub budgets are spent"
+                }
+              }
+            }
+          }
+        },
+        "es": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld elemento espera hasta %@ — ambos cupos de GitHub están agotados"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld elementos esperan hasta %@ — ambos cupos de GitHub están agotados"
+                }
+              }
+            }
+          }
+        },
+        "fr": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld élément attend jusqu’à %@ — les deux quotas GitHub sont épuisés"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld éléments attendent jusqu’à %@ — les deux quotas GitHub sont épuisés"
+                }
+              }
+            }
+          }
+        },
+        "it": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld elemento attende fino alle %@ — entrambe le quote di GitHub sono esaurite"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld elementi attendono fino alle %@ — entrambe le quote di GitHub sono esaurite"
+                }
+              }
+            }
+          }
+        },
+        "ja": {
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld 件が %@ まで待機します — GitHub の両方の枠が上限に達しました"
+                }
+              }
+            }
+          }
+        },
+        "pt-BR": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld item aguarda até %@ — ambas as cotas do GitHub foram esgotadas"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld itens aguardam até %@ — ambas as cotas do GitHub foram esgotadas"
+                }
+              }
+            }
+          }
+        },
+        "ru": {
+          "variations": {
+            "plural": {
+              "few": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld элемента ждут до %@ — оба лимита GitHub исчерпаны"
+                }
+              },
+              "many": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld элементов ждут до %@ — оба лимита GitHub исчерпаны"
+                }
+              },
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld элемент ждёт до %@ — оба лимита GitHub исчерпаны"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld элемента ждут до %@ — оба лимита GitHub исчерпаны"
+                }
+              }
+            }
+          }
+        },
+        "tr": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld öğe %@ saatine kadar bekliyor — iki GitHub kotası da doldu"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld öğe %@ saatine kadar bekliyor — iki GitHub kotası da doldu"
+                }
+              }
+            }
+          }
+        },
+        "zh-Hans": {
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld 个项目将等到 %@ — GitHub 的两个额度都已用完"
+                }
+              }
+            }
+          }
+        },
+        "zh-Hant": {
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld 個項目將等到 %@ — GitHub 的兩個額度都已用完"
                 }
               }
             }

@@ -336,6 +336,10 @@ struct GitHubSettingsPage: View {
                 try? await Task.sleep(for: .seconds(60))
             }
         }
+        // The menu's banner lands here when the anonymous budget is the spent
+        // one: this is where it is shown, and the token card below the fold is
+        // not the fix for it.
+        .settingsAnchor(.githubBudget)
     }
 
     /// One window: its bar, then what is left under the bar's left end, in the

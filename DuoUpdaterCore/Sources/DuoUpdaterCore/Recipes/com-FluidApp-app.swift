@@ -35,9 +35,12 @@ enum com_FluidApp_app {
         // what a beta install showed: no version, no notes, while a stable copy of
         // the same app had both.
         //
-        // `usePrereleases` is what makes the beta tags visible at all: the stable
-        // rule reads `/releases/latest`, which never returns a prerelease. The
-        // pattern is the stable one plus the `-beta.N` suffix, anchored on both
+        // The stable rule reads `/releases/latest`, which never returns a
+        // prerelease. The beta rule finds all `v` tags and orders matching ones
+        // numerically before fetching the exact release: a releases-list row
+        // (including its one-row probe) can put an older beta before the newest.
+        // History: docs/app-audits/com-FluidApp-app.md#历史与实测
+        // The pattern is the stable one plus the `-beta.N` suffix, anchored on both
         // ends so `windows-v*` and plain stable tags stay out of this channel.
         // The asset carries the same suffix (`Fluid-oss-1.6.13-beta.2.dmg`), so a
         // stable dmg can never be offered to a beta install or the reverse.
@@ -45,16 +48,11 @@ enum com_FluidApp_app {
             bundleID: "com.FluidApp.app",
             owner: "altic-dev", repo: "FluidVoice",
             usePrereleases: true,
-            // 32 rows, not the 20 default: the beta train is sparse — over the 65
-            // releases on the list the longest run between two beta tags is 30 —
-            // so a shorter page could end between two betas and read as "no
-            // update". The newest beta is row 0, so this is headroom for the gap,
-            // not for the leading run.
-            listPageSize: 32,
             versionPattern: #"^v([0-9]+(?:\.[0-9]+)+-beta\.[0-9]+)$"#,
             installAssetPattern: #"^Fluid-oss-[0-9.]+-beta\.[0-9]+\.dmg$"#,
             installerKind: .dmg,
-            channel: .beta),
+            channel: .beta,
+            tagRefPrefix: "v"),
         ],
         githubChannelProofs: [
         ChannelProofKey("com.FluidApp.app", .beta):

@@ -100,10 +100,8 @@ struct GitHubListPageSizeTests {
         // takes `-rc` as well as `-beta`), and this floor is UNCHANGED by that
         // rather than unreviewed: widening an accept-set can only move the first
         // hit earlier, and 1 is already the bottom.
-        // FluidVoice Beta: newest 65 releases on 2026-11-04, 14 beta tags; worst
-        // gap 30 (index 6 → 36), first hit at index 0, so 31. The rule carries
-        // 32, the gap plus one row of headroom.
-        "com.FluidApp.app/beta": 31,
+        // FluidVoice beta uses tagRefPrefix too: its version order is selected
+        // independently of both the releases list's order and its page depth.
         "com.coteditor.CotEditor/beta": 1,
         // Cindy, both editions: the beta rule takes plain tags as well as
         // `-beta` ones (the app's beta manifest serves whichever is newer), and

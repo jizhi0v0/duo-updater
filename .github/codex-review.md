@@ -27,5 +27,34 @@ configuration have been removed. `.github/claude-review/` remains as historical
 input to the Claude onboarding replay benchmark and its regression checks.
 Other Claude-powered automation uses its existing credentials independently.
 
+## Cloud fixes and merge gates
+
+The cloud task **DuoUpdater PR 云端修复与合并** receives this repository's PR,
+review, comment (including bot reviews) and commit-update events. It checks
+findings, pushes fixes and reads the Mac CI results. It follows `AGENTS.md`
+and leaves changes requiring missing real-machine evidence open.
+
+The `main` ruleset requires:
+
+- `test`: the existing test jobs, plus `make test-release-build` in the App job.
+  This compiles both shipping schemes in Release with signing disabled and
+  committed dependency pins. It does not install, sign or notarize a release.
+- `codex-review`: an explicit clean official Codex receipt for the current PR
+  head. The read-only Linux job waits for that receipt and fails closed on
+  missing, stale, malformed or non-clean results. A pushed fix starts a new run;
+  rerun this workflow after a same-head review retry. No model token is used.
+- `real-machine` and `adversarial-review`: the existing evidence-record gates.
+
+The `needs-real-machine` label also blocks `codex-review`. Apply it when actual
+installation, permissions, restart, rollback or another necessary real-machine
+check remains unverified. Remove it only after evidence is supplied. A passing
+record parser does not prove that an opt-out is true or covers the change.
+
+`Cloud PR wakeup` posts completion metadata when CI or the review gate finishes,
+so the cloud event task can resume without a local polling job. It runs trusted
+default-branch code, checks the live PR head and never checks out PR code or
+executes an artifact with its comment-write token. Wakeup comments are not
+merge approval; the cloud handler rechecks all gates and the exact head SHA.
+
 Official setup and review-rule documentation:
 [Review GitHub pull requests with Codex](https://learn.chatgpt.com/docs/third-party/github).

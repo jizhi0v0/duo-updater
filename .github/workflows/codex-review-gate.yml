@@ -1,0 +1,34 @@
+# A clean review of the CURRENT head is required in addition to compilation.
+# Runs only metadata reads on a hosted Linux runner, with no model secrets and
+# no GitHub write permissions. A pushed fix cancels the previous head's wait.
+name: Codex review gate
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review, converted_to_draft, labeled, unlabeled, edited]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: codex-review-gate-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  codex-review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out review gate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: scripts/check_codex_review.py
+          sparse-checkout-cone-mode: false
+      - name: Wait for a clean Codex review of this head
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: python3 scripts/check_codex_review.py --pr "$PR" --head "$HEAD_SHA"

@@ -67,6 +67,20 @@ struct GitHubRateLimitGateTests {
         #expect(closure(404, headers()) == nil)
     }
 
+    /// The budget that answered, not the one asked: a redirect can take
+    /// `Authorization` off a request (`GitHubEndpointAudit`), and the answer's
+    /// ceiling is the proof of whose budget paid for it.
+    ///
+    /// Mutations: credit every answer to the sent credential; call 5,000 a
+    /// token's and anything else anonymous.
+    @Test func anAnswerIsCreditedToTheBudgetItsCeilingNames() {
+        #expect(GitHubRateLimitGate.answered(.token, headers: ["x-ratelimit-limit": "60"]) == .anonymous)
+        #expect(GitHubRateLimitGate.answered(.token, headers: ["X-RateLimit-Limit": "5000"]) == .token)
+        #expect(GitHubRateLimitGate.answered(.token, headers: ["x-ratelimit-limit": "15000"]) == .token)
+        #expect(GitHubRateLimitGate.answered(.anonymous, headers: ["x-ratelimit-limit": "60"]) == .anonymous)
+        #expect(GitHubRateLimitGate.answered(.token, headers: [:]) == .token)
+    }
+
     // MARK: the store
 
     /// A settable clock and a scripted probe that counts its calls and can be
@@ -267,6 +281,63 @@ struct GitHubRateLimitGateTests {
         await store.complete(.token, generation: 1, canary: false, status: 200, headers: [:], body: nil)
         await store.complete(.token, generation: 1, canary: false, status: 403, headers: [:], body: body)
         #expect(await store.closure(.token)?.until == world.now.addingTimeInterval(60))
+    }
+
+    /// The closure belongs to the budget that answered: an anonymous 403
+    /// (`x-ratelimit-limit: 60`) answering a request sent with a token closes
+    /// the anonymous budget until *its* reset, and the token goes on. Before
+    /// this, 4,853 of a user's 5,000 were paused for the anonymous window's
+    /// hour (2026-11-04).
+    ///
+    /// Mutations: close the sent credential whatever the ceiling says; close
+    /// both; leave the canary unreleased.
+    @Test func anAnonymous403LeavesTheTokenOpen() async {
+        let world = World()
+        world.answer = .init(remaining: 100, reset: world.now.addingTimeInterval(600))
+        let gate = store(world)
+        #expect(await admit(gate, world) == .go(canary: true))
+        let reset = world.now.addingTimeInterval(1500)
+        await gate.complete(.token, generation: 1, canary: true, status: 403,
+                            headers: ["x-ratelimit-limit": "60",
+                                      "x-ratelimit-remaining": "0",
+                                      "x-ratelimit-reset": String(Int(reset.timeIntervalSince1970))],
+                            body: nil)
+        #expect(await gate.closure(.anonymous) == .init(until: reset, reason: .exhausted))
+        #expect(await gate.closure(.token) == nil)
+        // The token's gate is open, so the next request goes without a probe.
+        #expect(await admit(gate, world) == .go(canary: false))
+        #expect(world.probes == 1)
+
+        // Control: the same 403 under a token's ceiling closes the token.
+        let spent = World()
+        spent.answer = .init(remaining: 100, reset: spent.now.addingTimeInterval(600))
+        let other = store(spent)
+        #expect(await admit(other, spent) == .go(canary: true))
+        await other.complete(.token, generation: 1, canary: true, status: 403,
+                             headers: ["x-ratelimit-limit": "5000",
+                                       "x-ratelimit-remaining": "0",
+                                       "x-ratelimit-reset": String(Int(reset.timeIntervalSince1970))],
+                             body: nil)
+        #expect(await other.closure(.token) == .init(until: reset, reason: .exhausted))
+        #expect(await other.closure(.anonymous) == nil)
+    }
+
+    /// The reason travels with the closure, not only its moment: a banner must
+    /// say "throttling" for a secondary limit and name a spent budget only for
+    /// an exhausted one.
+    ///
+    /// Mutation: `closures()` keeping dates alone, or `pause()` not agreeing.
+    @Test func aClosureKeepsItsReason() async {
+        let world = World()
+        world.answer = .init(remaining: 100, reset: world.now.addingTimeInterval(600))
+        let store = store(world)
+        _ = await admit(store, world)
+        await store.complete(.token, generation: 1, canary: true, status: 200, headers: [:], body: nil)
+        let body = Data(#"{"message":"You have exceeded a secondary rate limit."}"#.utf8)
+        await store.complete(.token, generation: 1, canary: false, status: 403, headers: [:], body: body)
+        #expect(await store.closures()[.token]?.reason == .secondary(strike: 1))
+        #expect(await store.pause()[.token] == world.now.addingTimeInterval(60))
+        #expect(await store.closures()[.anonymous] == nil)
     }
 
     /// A rejected token's requests go out anonymously, so the anonymous budget

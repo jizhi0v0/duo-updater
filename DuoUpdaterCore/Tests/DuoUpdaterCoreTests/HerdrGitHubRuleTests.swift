@@ -9,7 +9,7 @@ import Testing
 
     @Test func ruleReadsTheDateTagAndTheDmgOnly() throws {
         let rule = try #require(GitHubReleaseRegistry.rules.first { $0.bundleID == "so.pen.herdr-gpui" })
-        #expect(rule.owner == "penso" && rule.repo == "herdr-gpui")
+        #expect(rule.owner == "sheprd-labs" && rule.repo == "sheprd")
         #expect(rule.channel == .stable && !rule.usePrereleases)
         #expect(rule.installerKind == .dmg)
         let pattern = try #require(rule.installAssetPattern)

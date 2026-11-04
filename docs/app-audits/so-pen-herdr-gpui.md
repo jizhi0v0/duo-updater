@@ -3,7 +3,7 @@
 ## 基本信息
 - App: Herdr — Herdr 守护进程的 Rust/GPUI 桌面客户端（终端会话、workspace、worktree、agent 活动）
 - Bundle ID: `so.pen.herdr-gpui`
-- 仓库: `penso/herdr-gpui`
+- 仓库: `sheprd-labs/sheprd`（旧名 `penso/herdr-gpui`；GitHub 301 到 `/repositories/1377952273/…`）
 - Team ID: `VJAHQVZ96V`（Fabien Penso），Developer ID + 公证
 - 观测版本: 20261007.2（2026-10-07）；观测日期: 2026-10-07
 - 自更新机制: 自带。读 `api.github.com/repos/penso/herdr-gpui/releases/latest` 和 release 里签名的
@@ -23,7 +23,7 @@
 当前生效源: **GitHub**（channel-verify 实测）。
 
 ## 更新检测
-- 源: `penso/herdr-gpui` GitHub Releases，`/releases/latest`
+- 源: `sheprd-labs/sheprd` GitHub Releases，`/releases/latest`
 - 版本方案: 日期版本，tag `vYYYYMMDD.N`；short == build == tag 去掉 `v`（20261007.1 / 20261007.2 真包）。
   一天可以发好几版（20260921 有 .1–.4），`VersionComparator` 按数字比较第二段（`20261007.10` > `.9`，有测试）
 - 34 个 release 全部是这个形状，没有 prerelease；tag 锚 `^v([0-9]{8}\.[0-9]+)$` 是后备
@@ -59,3 +59,10 @@
 swift run --package-path application-test channel-verify Herdr-20261007.2-universal-apple-darwin.dmg   # → up to date
 swift run --package-path application-test channel-verify Herdr-20261007.1-universal-apple-darwin.dmg   # → UPDATE → 20261007.2
 ```
+
+## 历史与实测
+
+- 2026-11-04: 仓库改名 `penso/herdr-gpui` → `sheprd-labs/sheprd`（GitHub 301 到
+  `/repositories/1377952273/…`；tag 与 assets 未变，最新 v20261103.1）。旧 slug 每轮检查都吃一次
+  301，而 URLSession 跟随时会丢掉 `Authorization`，那一跳按匿名预算计（本机事件库 24h 内只有这条
+  规则还在重定向）。匿名 60/h 耗尽后该行 403；规则已 pin 到新 slug。

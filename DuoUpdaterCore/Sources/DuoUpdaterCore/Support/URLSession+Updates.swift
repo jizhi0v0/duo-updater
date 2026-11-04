@@ -143,6 +143,17 @@ public extension URLSession {
 /// redirect unchanged. Holds only immutable data, so safe to share across the
 /// session's tasks.
 ///
+/// **Same host: `Authorization` goes back.** `URLSession` hands every followed
+/// redirect a request without the header, same host included — measured
+/// 2026-11-04 against `api.github.com/repos/penso/herdr-gpui/releases/latest`,
+/// which 301s to `/repositories/1377952273/releases/latest`: sent with a Bearer,
+/// the answer said `x-ratelimit-limit: 60`, GitHub's anonymous ceiling. That cost
+/// a request its token, spent the shared 60/hour, and on a spent anonymous budget
+/// failed a row for a repo that was merely renamed (`GitHubEndpointAudit`, #135).
+/// So when the redirect keeps the same origin — host, port and scheme, so an
+/// https downgrade to http never carries it — the original header is put back:
+/// the host it was meant for is the host asking.
+///
 /// One exception: a redirect declared as a login wall
 /// (`SparkleFeedCatalog.LoginWall`) is not followed, and the task returns the 3xx.
 /// The check is here, in the session delegate, beside the stripping, so no
@@ -176,13 +187,14 @@ final class CrossHostCredentialStripper: NSObject, URLSessionDataDelegate, @unch
             return
         }
         // A 307/308 keeps the method and the body, so a POST would be re-sent in
-        // full to the other host (Alcove's POSTs carry the licence key). The body
+        // full to another origin (Alcove's POSTs carry the licence key). The body
         // cannot be inspected here — it is `httpBodyStream`, and `httpBody` is nil
         // — so the method decides: only a request that carries no body (GET, HEAD)
-        // crosses hosts. A 301/302/303 has already become a GET by this point.
-        let crossesHost = request.url?.host?.lowercased()
-            != task.originalRequest?.url?.host?.lowercased()
-        if crossesHost, !["GET", "HEAD"].contains(request.httpMethod?.uppercased() ?? "GET") {
+        // leaves its origin. A 301/302/303 has already become a GET by this point.
+        // Origin, not host: another port is another origin, and the body would be
+        // re-sent there with its credential.
+        let keepsOrigin = Self.sameOrigin(task.originalRequest?.url, request.url)
+        if !keepsOrigin, !["GET", "HEAD"].contains(request.httpMethod?.uppercased() ?? "GET") {
             completionHandler(nil)
             return
         }
@@ -193,12 +205,39 @@ final class CrossHostCredentialStripper: NSObject, URLSessionDataDelegate, @unch
             return
         }
         var forwarded = request
-        if request.url?.host != task.originalRequest?.url?.host {
+        if !keepsOrigin {
             for field in ["Authorization", "Cookie", "Proxy-Authorization"] {
                 forwarded.setValue(nil, forHTTPHeaderField: field)
             }
+        } else if let authorization = task.originalRequest?.value(forHTTPHeaderField: "Authorization"),
+                  forwarded.value(forHTTPHeaderField: "Authorization") == nil {
+            // The platform took it off; this redirect never left the origin the
+            // token was meant for. See the type's doc.
+            forwarded.setValue(authorization, forHTTPHeaderField: "Authorization")
         }
         completionHandler(forwarded)
+    }
+
+    /// Same host, port and scheme. The scheme half is load-bearing: a redirect
+    /// from https to http must not put a token on the wire in the clear, even to
+    /// the same host. An unspelled port is the scheme's default, so
+    /// `https://host/…` and `https://host:443/…` are one origin — `URL.port` is
+    /// nil for the first and 443 for the second.
+    static func sameOrigin(_ from: URL?, _ to: URL?) -> Bool {
+        guard let from, let to,
+              let a = from.host?.lowercased(), let b = to.host?.lowercased(),
+              a == b, from.scheme?.lowercased() == to.scheme?.lowercased() else { return false }
+        let scheme = from.scheme?.lowercased()
+        return (from.port ?? Self.defaultPort(of: scheme)) == (to.port ?? Self.defaultPort(of: scheme))
+    }
+
+    /// The port an unspelled scheme means; nil for a scheme with no default.
+    static func defaultPort(of scheme: String?) -> Int? {
+        switch scheme {
+        case "https": return 443
+        case "http": return 80
+        default: return nil
+        }
     }
 
     /// Backstop only — **this is not what keeps credentials out of the cache.**

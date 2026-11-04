@@ -1500,9 +1500,20 @@ final class AppListModel {
     /// request on it goes out before then, a retry included. Read from the gate
     /// whenever it changes (`watchGitHubGate`), and dropped at its time.
     private(set) var gitHubPause: [GitHubRateLimitGate.Credential: Date] = [:]
+    /// Which of the closed budgets are closed for a secondary limit rather than
+    /// a spent one: the banner says GitHub is throttling for those, and only
+    /// names a spent budget when it really is spent (`closures()`).
+    private(set) var gitHubThrottled: Set<GitHubRateLimitGate.Credential> = []
     /// The pause on the budget the app's GitHub rows spend: the token's while
     /// requests carry it (`gitHubRequestsCarryToken`), else the anonymous one.
     /// Nil when that budget is open.
+    ///
+    /// Not the later of both budgets. An answer can be credited to the other one
+    /// (`GitHubRateLimitGate.answered`), and taking the later deadline would
+    /// then hold every retry for that hour while the token has room — including
+    /// the retry a user runs right after adding one. A row retried against a
+    /// budget that cannot answer fails exactly as its check did; the banner is
+    /// where both budgets are named and timed.
     var gitHubPausedUntil: Date? {
         gitHubPause[gitHubRequestsCarryToken ? .token : .anonymous]
     }
@@ -1522,11 +1533,15 @@ final class AppListModel {
     }
 
     private func readGitHubPause(from gate: GitHubRateLimitGate.Store) async {
-        let pause = await gate.pause()
-        gitHubPause = pause
+        let closures = await gate.closures()
+        gitHubPause = closures.mapValues(\.until)
+        gitHubThrottled = Set(closures.filter {
+            if case .secondary = $0.value.reason { return true }
+            return false
+        }.keys)
         syncCLIToolsGitHubBudget()
         gitHubPauseExpiry?.cancel()
-        guard let next = pause.values.min() else { return }
+        guard let next = gitHubPause.values.min() else { return }
         gitHubPauseExpiry = Task { @MainActor [weak self] in
             try? await Task.sleep(for: .seconds(max(next.timeIntervalSinceNow, 0) + 1))
             guard !Task.isCancelled, let self else { return }

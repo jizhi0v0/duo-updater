@@ -336,6 +336,10 @@ struct GitHubSettingsPage: View {
                 try? await Task.sleep(for: .seconds(60))
             }
         }
+        // The menu's banner lands here when the anonymous budget is the spent
+        // one: this is where it is shown, and the token card below the fold is
+        // not the fix for it.
+        .settingsAnchor(.githubBudget)
     }
 
     /// One window: its bar, then what is left under the bar's left end, in the
@@ -386,13 +390,22 @@ struct GitHubSettingsPage: View {
     /// Verify the draft against GitHub; persist only on success, then collapse
     /// back to the masked summary.
     private func verifyAndSave() async {
+        guard !verifying else { return }
+        // The field stays editable while GitHub answers, so save the value that
+        // was verified: verifying A and pasting B before the answer landed used
+        // to save B with A's account name, and a second Return could overlap
+        // the first.
+        let submitted = trimmedDraft
         verifying = true
         verification = nil
-        let result = await GitHubToken.verify(trimmedDraft)
+        let result = await GitHubToken.verify(submitted)
         verifying = false
+        // The answer is for a token the field no longer holds: leave it
+        // unverified rather than attach this result — or this token — to B.
+        guard trimmedDraft == submitted else { return }
         verification = result
         if case .valid(let username, _) = result {
-            prefs.githubToken = trimmedDraft   // commit only when confirmed
+            prefs.githubToken = submitted   // commit only when confirmed
             prefs.githubTokenAccount = username
             model.gitHubCredentialsChanged()
             draft = ""

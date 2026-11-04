@@ -39,6 +39,9 @@ enum SettingsAnchor: Hashable, Sendable {
     /// Linked from the menu's rate-limit banner and from the welcome window's
     /// "Set Up…", both of which are about the token specifically.
     case githubToken
+    /// Linked from the menu's rate-limit banner when the anonymous budget is the
+    /// spent one: the card that shows it, and where a token would not help.
+    case githubBudget
     /// Linked from the workbench's empty Rollback tab when backups are off.
     case backups
 
@@ -80,7 +83,7 @@ enum SettingsAnchor: Hashable, Sendable {
         case .storageCaches, .storageAppData, .storageSystem: .storage
         case .scanFolders, .builtInFolders: .folders
         case .selfUpdateCheck, .silentSelfUpdate: .updates
-        case .githubToken, .githubCLI: .github
+        case .githubToken, .githubBudget, .githubCLI: .github
         case .alcoveLicense: .alcove
         case .appleDeveloperSignIn, .renewAppleSession, .downloadXcode: .xcode
         case .ignoredApps, .skippedVersions, .ignoredApp, .skippedVersion: .ignored
@@ -94,7 +97,7 @@ enum SettingsAnchor: Hashable, Sendable {
     /// border; a wash behind a whole card would read as the card changing colour.
     var isCard: Bool {
         switch self {
-        case .testFlightDetection, .githubToken, .backups, .backupLocation,
+        case .testFlightDetection, .githubToken, .githubBudget, .backups, .backupLocation,
              .storageCaches, .storageAppData, .storageSystem,
              .scanFolders, .builtInFolders, .alcoveLicense, .appleDeveloperSignIn,
              .downloadXcode, .ignoredApps, .skippedVersions, .recentFailures, .recipes:

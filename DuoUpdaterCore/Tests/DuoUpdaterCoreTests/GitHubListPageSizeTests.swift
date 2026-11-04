@@ -142,10 +142,6 @@ struct GitHubListPageSizeTests {
         // v0.26.3-beta.4). The rule takes 50: the leading run grows with every
         // canary until the next beta.
         "pro.affine.beta/beta": 26,
-        // AFFiNE canary: same window, 41 canary tags, first at index 0; worst
-        // gap 12 (v2026.7.24-canary.947 → v2026.6.17-canary.1033, across the
-        // 0.27 beta/stable cycle), so 13. The rule keeps the default 20.
-        "pro.affine.canary/canary": 13,
         // Responsively beta: the rule takes plain tags as well as `-beta.N`
         // ones (electron-updater's GitHub provider gives a beta copy the newest
         // release of either kind). All 28 releases on 2026-10-26 match

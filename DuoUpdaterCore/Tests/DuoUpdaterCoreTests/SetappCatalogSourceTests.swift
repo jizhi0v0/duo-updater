@@ -724,10 +724,31 @@ struct SetappCatalogSourceTests {
             in: [actionable, skipped],
             isVersionSkipped: { $0.app.bundleID == "com.example.skipped-setapp" })
         #expect(blocked.isEmpty)
+        #expect(SetappAutomation.automaticUpdateCandidates(
+            in: [skipped, actionable],
+            isVersionSkipped: { $0.app.bundleID == "com.example.skipped-setapp" }).isEmpty)
+        #expect(SetappAutomation.automaticUpdateCandidates(
+            in: [skipped], isVersionSkipped: { _ in true }).isEmpty)
+        #expect(SetappAutomation.automaticUpdateCandidates(
+            in: [], isVersionSkipped: { _ in false }).isEmpty)
 
         let allowed = SetappAutomation.automaticUpdateCandidates(
             in: [actionable, skipped], isVersionSkipped: { _ in false })
         #expect(allowed.count == 2)
+    }
+
+    @Test func aSkippedDirectOfferDoesNotVetoSetappUpdates() {
+        let setapp = UpdateResult(app: app(), remote: RemoteVersion(
+            shortVersion: "2.0", version: "200", downloadURL: nil, sourceName: "Setapp"),
+            status: .updateAvailable(latest: "2.0"))
+        let direct = UpdateResult(app: app(id: "com.example.direct"), remote: RemoteVersion(
+            shortVersion: "2.0", version: "200", downloadURL: nil, sourceName: "Sparkle"),
+            status: .updateAvailable(latest: "2.0"))
+        let updates = SetappAutomation.automaticUpdateCandidates(in: [direct, setapp]) {
+            $0.remote?.sourceName == "Sparkle"
+        }
+        #expect(updates.count == 1)
+        #expect(updates.first?.remote?.sourceName == "Setapp")
     }
 
     @Test func readsSetappsPerCustomerAutoInstallFlag() {

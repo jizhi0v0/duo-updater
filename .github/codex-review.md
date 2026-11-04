@@ -43,9 +43,19 @@ The `main` ruleset requires:
   head. The read-only Linux job waits for that receipt and fails closed on
   missing, stale, malformed or non-clean results. A pushed fix starts a new run;
   rerun this workflow after a same-head review retry. No model token is used.
-  The gate checks out immutable commit `4f295669abfad4861fc4d7bc7add096a1491f327`
-  rather than the PR's script. Changes to gate logic require a separately
-  reviewed update of that pin in the workflow.
+  The workflow uses `pull_request_target`, so GitHub loads the job definition
+  from the default branch rather than the PR. It never checks out or executes
+  the PR ref. The job then checks out immutable commit
+  `4f295669abfad4861fc4d7bc7add096a1491f327` for the verifier script.
+  Changes to either trust boundary require review before they land on the
+  default branch.
+
+  The first merge that introduces this workflow is a bootstrap boundary:
+  `pull_request_target` cannot run a workflow that is not yet present on the
+  default branch. Do not treat the PR-controlled predecessor as equivalent.
+  Bootstrap the trusted workflow through repository administration or another
+  already-trusted required workflow; after it exists on `main`, future PRs
+  cannot replace the required gate with a successful no-op.
 - `real-machine` and `adversarial-review`: the existing evidence-record gates.
 
 The `needs-real-machine` label also blocks `codex-review`. Apply it when actual

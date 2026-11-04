@@ -1,10 +1,11 @@
 # A clean review of the CURRENT head is required in addition to compilation.
-# Runs only metadata reads on a hosted Linux runner, with no model secrets and
-# no GitHub write permissions. A pushed fix cancels the previous head's wait.
+# pull_request_target is deliberate: GitHub loads this definition from the
+# default branch, so PR code cannot replace the required job with a no-op.
+# The job reads only metadata and never checks out or executes the PR ref.
 name: Codex review gate
 
 on:
-  pull_request:
+  pull_request_target:
     types: [opened, reopened, synchronize, ready_for_review, converted_to_draft, labeled, unlabeled, edited]
 
 permissions:

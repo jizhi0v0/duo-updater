@@ -122,8 +122,17 @@ public enum SetappCatalog {
     /// measured 2026-11-04: `GET /store/api/v8/beta/en` with only the JSON:API
     /// `Accept` header returns 3.06 MB and 15 versions flagged `beta: true`
     /// (Bartender 7.1.0/700013 among them), the same rows the client showed after
-    /// its beta switch went on. It is the same catalogue plus those betas, so the
-    /// beta channel is a superset of the stable one.
+    /// its beta switch went on.
+    ///
+    /// **Not a superset.** Measured the same day against `/store/api/v8/en`:
+    /// 1074 versions stable against 1076 beta — 14 beta-only rows, but also **12
+    /// stable-only** rows. For an app with a beta, the beta catalogue lists the
+    /// beta INSTEAD of that app's current stable row (WiFi Signal 4.4.8 → 4.4.9
+    /// beta, Dropshare 6.15 → 6.16 beta, KeyKey 3.0 → 3.0.3 beta). So a stable
+    /// reader cannot just read the beta catalogue and filter; it would lose those
+    /// stable versions. Each switch position reads its own channel, and the beta
+    /// catalogue is consulted on the side only to name a copy that is already
+    /// ahead of stable.
     public enum Channel: Sendable, Hashable {
         case stable
         case beta

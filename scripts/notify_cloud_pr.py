@@ -13,13 +13,21 @@ import subprocess
 
 from check_codex_review import api
 
+PR_WORKFLOWS = {
+    ".github/workflows/ci.yml": "CI",
+    ".github/workflows/real-machine.yml": "Real-machine record",
+    ".github/workflows/adversarial-review.yml": "Adversarial review record",
+}
+GATE_PATH = ".github/workflows/codex-review-gate.yml"
+WORKFLOW_LABELS = {**PR_WORKFLOWS, GATE_PATH: "Codex review gate"}
+
 
 def is_pr_completion(run):
     return (run.get("status") == "completed"
             and ((run.get("event") == "pull_request"
-                  and run.get("name") in {"CI", "Real-machine record", "Adversarial review record"})
+                  and run.get("path") in PR_WORKFLOWS)
                  or (run.get("event") == "pull_request_target"
-                     and run.get("name") == "Codex review gate")))
+                     and run.get("path") == GATE_PATH)))
 
 
 def targets(run, associated=None):
@@ -42,8 +50,8 @@ def main():
         return
     head = run.get("head_sha", "")
     if run["event"] == "pull_request_target":
-        # A target run's head_sha is the BASE commit. Its trusted workflow
-        # supplies the PR number/head in run-name using event fields only.
+        # The trusted workflow supplies the PR number/head in its fixed title.
+        # Do not infer either from the mutable name or workflow SHA semantics.
         match = re.fullmatch(r"Codex review gate PR #([1-9][0-9]*) @([0-9a-f]{40})",
                              run.get("display_title", ""))
         if not match:
@@ -81,7 +89,7 @@ def main():
         if any(c.get("user", {}).get("login") == "github-actions[bot]"
                and c.get("body", "").startswith(marker) for c in comments):
             continue
-        body = (f"{marker}\n{run['name']} attempt {attempt} completed for `{head}`: "
+        body = (f"{marker}\n{WORKFLOW_LABELS[run['path']]} attempt {attempt} completed for `{head}`: "
                 f"**{run.get('conclusion', 'unknown')}**.\n\n"
                 f"[Workflow run](https://github.com/{args.repo}/actions/runs/{args.run}). "
                 "The cloud PR handler must re-read current review, CI and real-machine "

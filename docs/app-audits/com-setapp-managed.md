@@ -274,6 +274,8 @@ Paste 的实际版本；第二个探针还只读 Setapp 偏好中包含 `ActiveR
 活动会话未结束时不按 30 秒强行退出，全部会话结束后等待 30 秒无新活动再正常请求退出。
 应用实际更新完成可以重置这段空闲时间，同一应用同一目标只记一次；
 若观察始终不收敛，停止自动管理并保留客户端，避免无限计时或误杀下载。
+接入时还会记住偏好快照里见过的会话：没有匹配的结束通知，即使偏好标记被厂商清除，
+也不将其当作完成；延迟到达的旧偏好不会重新激活已收到结束通知的 UUID。
 
 本地证据：`/tmp/setapp-progress-control.log`、`/tmp/setapp-progress-update.log`、
 `/tmp/setapp-progress-download.log`、`/tmp/setapp-progress-sessions.log`；
@@ -301,6 +303,8 @@ Beta/stable 检测继续读取 Setapp 的 beta 开关所选目录。
 VM Setapp 3.58.0 (163)，Paste 从测试标记 7.0.4 / 1 更新回官方 7.0.5 / 29895801；
 PID 63303 于上海时间 22:37:52 启动管理，22:38:26 正常退出请求成功，后续进程列表为空。
 无更新轮直接返回 `managing=false`，没有启动客户端。
+补上漏通知保护后，最终 Core 控制器再次完成更新和自动退出，观察结束时无主客户端进程，
+Paste 签名验证成功；日志 `/tmp/setapp-lifecycle-final-gui-host.log`。
 
 用户接手轮使用 LaunchServices 启动同一 Core 测试程序进入桌面会话：第 8 秒模拟打开
 Setapp，第 9 秒 `front=com.setapp.DesktopClient`、PID 63524 active=true、管理已停止；
@@ -309,7 +313,7 @@ Setapp，第 9 秒 `front=com.setapp.DesktopClient`、PID 63524 active=true、�
 得到 PID 63604，至第 45 秒仍保持运行，计时器没有转交给它。
 先前锁屏下的激活尝试没有实际激活客户端，不计为用户接手验证。
 
-40 项 Setapp Core 测试与 326 项应用测试通过，Debug 应用构建通过；
+43 项 Setapp Core 测试与 326 项应用测试通过，Debug 应用构建通过；
 本地化键/占位符、off-pool、版本比较、macOS 15 back-deployment 检查通过。
 本地证据包括 `/tmp/setapp-lifecycle-normal.log`、
 `/tmp/setapp-lifecycle-adopt-gui-host.log`、`/tmp/setapp-lifecycle-replace-gui-host.log`、

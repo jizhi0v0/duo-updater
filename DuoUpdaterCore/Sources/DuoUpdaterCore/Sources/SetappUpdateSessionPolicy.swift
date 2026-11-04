@@ -40,6 +40,31 @@ struct SetappProcessIdentity: Equatable, Hashable {
     let launchedAt: Date
 }
 
+/// Remember every observed session until its matching end notification. A
+/// preference disappearing can be Setapp expiring an old marker mid-download.
+struct SetappRefreshActivity {
+    private(set) var active: Set<String> = []
+    private(set) var witnessedSession = false
+    private var ended: Set<String> = []
+
+    mutating func begin(_ id: String) {
+        witnessedSession = true
+        ended.remove(id)
+        active.insert(id)
+    }
+
+    mutating func end(_ id: String) {
+        ended.insert(id)
+        active.remove(id)
+    }
+
+    mutating func include(snapshot: Set<String>) {
+        witnessedSession = witnessedSession || !snapshot.isEmpty
+        // A delayed preference read must not resurrect an already-ended UUID.
+        active.formUnion(snapshot.subtracting(ended))
+    }
+}
+
 /// The framework stores dates under environment-prefixed keys. An old or
 /// malformed marker is uncertainty, not permission to quit: Setapp itself
 /// expires markers after 300 seconds, even if work might still be running.

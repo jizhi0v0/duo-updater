@@ -64,6 +64,7 @@ public final class SetappBackgroundUpdates {
             let prefs = UserDefaults(suiteName: SetappSubscription.defaultsDomain)?
                 .persistentDomain(forName: SetappSubscription.defaultsDomain)
             let sessions = SetappActiveSessions.read(prefs, now: Date())
+            if let sessions { observation.activity.include(snapshot: sessions) }
             let current = NSRunningApplication(processIdentifier: identity.pid)
             let sameInstance = !app.isTerminated && current.flatMap(Self.identity) == identity
                 && !observation.terminated.contains(identity.pid)
@@ -81,8 +82,8 @@ public final class SetappBackgroundUpdates {
             let decision = policy.sample(
                 at: started.duration(to: clock.now), sameInstance: sameInstance, adopted: adopted,
                 observationValid: sessions != nil && observation.valid,
-                busy: !(sessions ?? []).isEmpty || !observation.active.isEmpty,
-                witnessedSession: observation.witnessedSession || !(sessions ?? []).isEmpty,
+                busy: !(sessions ?? []).isEmpty || !observation.activity.active.isEmpty,
+                witnessedSession: observation.activity.witnessedSession,
                 activity: activity, completed: completed)
             switch decision {
             case .wait:
@@ -125,8 +126,7 @@ public final class SetappBackgroundUpdates {
     private final class Observation {
         var activated: Set<Int32> = []
         var terminated: Set<Int32> = []
-        var active: Set<String> = []
-        var witnessedSession = false
+        var activity = SetappRefreshActivity()
         var valid = true
         var generation = 0
         private var workspaceTokens: [NSObjectProtocol] = []
@@ -156,9 +156,8 @@ public final class SetappBackgroundUpdates {
                         guard let raw, let id = UUID(uuidString: raw)?.uuidString else { self.valid = false; return }
                         self.generation += 1
                         if name.hasSuffix("will-start") {
-                            self.witnessedSession = true
-                            self.active.insert(id)
-                        } else { self.active.remove(id) }
+                            self.activity.begin(id)
+                        } else { self.activity.end(id) }
                     }
                 })
             }

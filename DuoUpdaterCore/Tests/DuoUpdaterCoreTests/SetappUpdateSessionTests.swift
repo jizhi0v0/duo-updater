@@ -75,6 +75,32 @@ struct SetappUpdateSessionTests {
         #expect(first != replacement)
     }
 
+    @Test func disappearingPreferencesDoNotMeanAMissedSessionEnded() {
+        var activity = SetappRefreshActivity()
+        activity.include(snapshot: ["download"])
+        activity.include(snapshot: [])
+        #expect(activity.active == ["download"])
+        #expect(activity.witnessedSession)
+        activity.end("download")
+        #expect(activity.active.isEmpty)
+    }
+
+    @Test func delayedPreferencesCannotResurrectAnEndedSession() {
+        var activity = SetappRefreshActivity()
+        activity.begin("first")
+        activity.end("first")
+        activity.include(snapshot: ["first"])
+        #expect(activity.active.isEmpty)
+    }
+
+    @Test func endingOneSessionDoesNotEndAnother() {
+        var activity = SetappRefreshActivity()
+        activity.begin("first")
+        activity.begin("second")
+        activity.end("first")
+        #expect(activity.active == ["second"])
+    }
+
     @Test func activeMarkersAreReadBySessionIDAndOldMarkersAreUnknown() {
         let now = Date(timeIntervalSince1970: 1000)
         let first = "F06FA5D5-F1D6-40BC-9C3C-D65ECA8609F6"

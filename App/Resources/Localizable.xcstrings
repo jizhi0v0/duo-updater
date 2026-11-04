@@ -62800,67 +62800,67 @@
         }
       }
     },
-    "Setapp installs its own updates. With this on, the row starts Setapp in the background; Setapp’s own “Install automatically” still decides whether anything is installed.": {
+    "When a check finds updates, starts Setapp if it is not running and automatic installation is enabled. Quits it after 30 seconds idle, unless you use it. A window may appear behind other apps.": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Setapp installiert seine Updates selbst. Wenn dies an ist, startet die Zeile Setapp im Hintergrund; ob wirklich installiert wird, entscheidet weiterhin „Automatisch installieren“ in Setapp."
+            "value": "Wenn eine Prüfung Updates findet, wird Setapp gestartet, sofern es nicht läuft und die automatische Installation aktiviert ist. Nach 30 Sekunden ohne Aktivität wird es beendet, außer du verwendest es. Ein Fenster kann hinter anderen Apps erscheinen."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Setapp instala sus propias actualizaciones. Con esto activado, la fila inicia Setapp en segundo plano; «Instalar automáticamente» en Setapp sigue decidiendo si se instala algo."
+            "value": "Cuando se detectan actualizaciones, inicia Setapp si no está abierto y la instalación automática está activada. Lo cierra tras 30 segundos de inactividad, salvo que lo uses. Puede aparecer una ventana detrás de otras apps."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Setapp installe ses propres mises à jour. Activé, la ligne lance Setapp en arrière-plan ; « Installer automatiquement » dans Setapp décide toujours si quelque chose est installé."
+            "value": "Si des mises à jour sont trouvées, lance Setapp s’il est fermé et que l’installation automatique est activée. Le quitte après 30 secondes d’inactivité, sauf si vous l’utilisez. Une fenêtre peut apparaître derrière les autres apps."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Setapp installa i propri aggiornamenti. Con questa opzione attiva, la riga avvia Setapp in background; «Installa automaticamente» in Setapp decide comunque se installare."
+            "value": "Se vengono trovati aggiornamenti, avvia Setapp se non è in esecuzione e l’installazione automatica è attiva. Lo chiude dopo 30 secondi di inattività, a meno che tu non lo usi. Una finestra potrebbe apparire dietro le altre app."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Setappは自身の更新をインストールします。オンにすると、行はSetappをバックグラウンドで起動します。実際にインストールするかはSetappの「自動的にインストール」が決めます。"
+            "value": "更新が見つかり、Setappが未起動で自動インストールが有効な場合に起動します。処理が止まってから30秒後に終了しますが、ユーザーが使用した場合は終了しません。ほかのアプリの背後にウインドウが表示されることがあります。"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "O Setapp instala as próprias atualizações. Com isto ligado, a linha inicia o Setapp em segundo plano; “Instalar automaticamente” no Setapp continua decidindo se algo é instalado."
+            "value": "Quando encontra atualizações, inicia o Setapp se ele não estiver aberto e a instalação automática estiver ativada. Encerra após 30 segundos de inatividade, a menos que você o use. Uma janela pode aparecer atrás de outros apps."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Setapp сам устанавливает свои обновления. Если включено, строка запускает Setapp в фоне; устанавливать ли что-то, по-прежнему решает «Устанавливать автоматически» в Setapp."
+            "value": "При обнаружении обновлений запускает Setapp, если он ещё не запущен и автоматическая установка включена. Закрывает его после 30 секунд бездействия, если вы им не пользуетесь. Окно может появиться позади других приложений."
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Setapp kendi güncellemelerini yükler. Bu açıkken satır Setapp'i arka planda başlatır; bir şeyin yüklenip yüklenmeyeceğine yine Setapp'teki «Otomatik olarak yükle» karar verir."
+            "value": "Güncelleme bulunduğunda, Setapp çalışmıyorsa ve otomatik yükleme açıksa başlatır. Kullanmadığınız sürece 30 saniyelik boşta kalma süresinden sonra kapatır. Diğer uygulamaların arkasında bir pencere görünebilir."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Setapp 自己安装更新。开启后，这一行会在后台启动 Setapp；是否真的安装仍由 Setapp 里的“自动安装”决定。"
+            "value": "检查发现更新时，若 Setapp 未运行且已开启自动安装，就在后台启动它。空闲 30 秒后退出；如果你开始使用它，则保留运行。窗口可能出现在其他应用后方。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "Setapp 自己安裝更新。開啟後，這一列會在背景啟動 Setapp；是否真的安裝仍由 Setapp 裡的「自動安裝」決定。"
+            "value": "檢查發現更新時，若 Setapp 未執行且已開啟自動安裝，就在背景啟動它。閒置 30 秒後結束；如果你開始使用它，則保持執行。視窗可能出現在其他 App 後方。"
           }
         }
       }

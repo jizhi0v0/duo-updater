@@ -300,14 +300,28 @@ func setappClientIsRunning() -> Bool {
         withBundleIdentifier: SetappAutomation.clientBundleIdentifier).isEmpty
 }
 
-/// The decision both the button's word and its action use, so they cannot
-/// disagree: "Update via Setapp" only when a background launch will actually
-/// happen.
+/// Shared eligibility for the automatic trigger and the row action. The button
+/// is always titled "Setapp"; its tooltip describes the action that will run.
 func setappBackgroundUpdateWillRun() -> Bool {
     let enabled = (UserDefaults.standard.object(
         forKey: SetappAutomation.backgroundUpdatesPreference) as? Bool) ?? true
     return SetappAutomation.routesThroughBackground(
         userEnabled: enabled, clientRunning: setappClientIsRunning())
+}
+
+/// Once per completed check, after Setapp's catalogue has established an
+/// actionable offer. Launching the client runs its own check and installer;
+/// opening an already-running client does not request another check.
+@MainActor
+func startSetappBackgroundUpdatesIfNeeded(for results: [UpdateResult]) async {
+    guard SetappAutomation.hasAvailableUpdate(in: results),
+          setappBackgroundUpdateWillRun(),
+          let client = SetappAutomation.clientURL() else { return }
+    var targets: [URL: VersionSide] = [:]
+    for result in SetappAutomation.availableUpdates(in: results) {
+        if let version = result.remote?.versionSide { targets[result.app.path] = version }
+    }
+    SetappBackgroundUpdates.shared.start(client: client, targets: targets)
 }
 
 /// A detection-only button's tooltip, shared by both windows.

@@ -684,6 +684,30 @@ struct SetappCatalogSourceTests {
 
     // MARK: - Background updates
 
+    @Test func onlyActionableSetappOffersTriggerBackgroundUpdates() {
+        let stable = RemoteVersion(
+            shortVersion: "1.2", version: nil, downloadURL: nil, sourceName: "Setapp")
+        let beta = RemoteVersion(
+            shortVersion: "1.3b1", version: nil, downloadURL: nil, sourceName: "Setapp", releaseChannel: .beta)
+        for remote in [stable, beta] {
+            #expect(SetappAutomation.hasAvailableUpdate(in: [UpdateResult(
+                app: app(), remote: remote, status: .updateAvailable(latest: "1.2"))]))
+            #expect(!SetappAutomation.hasAvailableUpdate(in: [UpdateResult(
+                app: app(), remote: remote, status: .upToDate)]))
+            #expect(!SetappAutomation.hasAvailableUpdate(in: [UpdateResult(
+                app: app(), remote: remote, status: .error("offline"))]))
+        }
+        let direct = RemoteVersion(shortVersion: "2", version: nil, downloadURL: nil, sourceName: "Sparkle")
+        #expect(!SetappAutomation.hasAvailableUpdate(in: [UpdateResult(
+            app: app(), remote: direct, status: .updateAvailable(latest: "2"))]))
+        let held = RemoteVersion(
+            shortVersion: "1.2", version: nil, downloadURL: nil, sourceName: "Setapp",
+            subscriptionHold: SubscriptionHold(version: "2", coveredBefore: nil, recovery: .setappAccount))
+        #expect(!SetappAutomation.hasAvailableUpdate(in: [UpdateResult(
+            app: app(), remote: held, status: .upToDate)]))
+        #expect(!SetappAutomation.hasAvailableUpdate(in: []))
+    }
+
     @Test func readsSetappsPerCustomerAutoInstallFlag() {
         let suite = "setapp-auto-\(UUID().uuidString)"
         let defaults = try! #require(UserDefaults(suiteName: suite))

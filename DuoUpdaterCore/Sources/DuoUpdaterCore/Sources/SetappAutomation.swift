@@ -1,6 +1,6 @@
 import Foundation
 
-/// Whether a Setapp update can be kicked off without showing Setapp, and how to
+/// Whether a Setapp update can be kicked off without activating Setapp, and how to
 /// do it.
 ///
 /// Measured 2026-11-03 in the vmpal VM, both directions:
@@ -51,6 +51,21 @@ public enum SetappAutomation {
         defaults: UserDefaults? = UserDefaults(suiteName: SetappSubscription.defaultsDomain)
     ) -> Bool {
         userEnabled && !isAutoRefreshForbidden(defaults: defaults)
+    }
+
+    /// Only an actionable Setapp offer can start its installer. The source has
+    /// already applied subscription, OS and stable/beta channel checks.
+    public static func hasAvailableUpdate(in results: [UpdateResult]) -> Bool {
+        !availableUpdates(in: results).isEmpty
+    }
+
+    public static func availableUpdates(in results: [UpdateResult]) -> [UpdateResult] {
+        results.filter { result in
+            guard result.remote?.sourceName == "Setapp",
+                  result.remote?.subscriptionHold == nil,
+                  case .updateAvailable = result.status else { return false }
+            return true
+        }
     }
 
     /// The client's bundle identifier — what `NSRunningApplication` is asked

@@ -8,6 +8,7 @@ public enum ChangelogRecipeSelection {
               let recipe = ChangelogRecipeRegistry.recipe(
                 forBundleID: result.app.recipeBundleID, channel: result.effectiveReleaseChannel,
                 version: targetVersion(for: result))
+                ?? editionRecipe(for: result)
         else { return nil }
         // A recipe that starts from the feed-resolved page has nothing to parse
         // without one — no answer yet, a failed check, or a link that is not
@@ -18,6 +19,24 @@ public enum ChangelogRecipeSelection {
             return nil
         }
         return recipe
+    }
+
+    /// A recipe for the app this build is an edition of.
+    ///
+    /// Setapp ships its own editions under a `-setapp` bundle identifier (Setapp
+    /// mandates the suffix). Registries are keyed by the vendor's id, so without
+    /// this a Setapp copy of an onboarded app had no release notes at all — the
+    /// row knew the app but the pane was empty. The notes are the vendor's, which
+    /// is what such a reader wants; a build that only exists on Setapp simply
+    /// finds nothing and keeps the fallback.
+    private static func editionRecipe(for result: UpdateResult) -> ChangelogRecipe? {
+        guard let id = result.app.recipeBundleID, id.lowercased().hasSuffix("-setapp") else {
+            return nil
+        }
+        let base = String(id.dropLast("-setapp".count))
+        return ChangelogRecipeRegistry.recipe(
+            forBundleID: base, channel: result.effectiveReleaseChannel,
+            version: targetVersion(for: result))
     }
 
     /// The feed-resolved page `recipe` starts from, or nil — always nil for a

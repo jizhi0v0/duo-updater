@@ -540,7 +540,11 @@ private func committedLastGoodDates() -> [String: Date] {
     // is a bad proof, not a tautological one, and a proof must name the fields it
     // relies on anyway (#110). Useless as an anchor, harmless in the surface,
     // same as every other Bool here.
-    #expect(labels.count == 28,
+    //
+    // 29 since `selectsHighestPublishedBuild` (2026-11-03). It stays IN: a Bool
+    // that names no channel token — same class as `selectHighest` beside it, and
+    // useless-not-tautological as an anchor.
+    #expect(labels.count == 29,
             "VendorProbeRecipe gained or lost a field (now \(labels.count): \(labels.sorted())) — decide whether it belongs in the .recipeAnchor surface or in nonAnchorFields, then update this count")
     // A renamed field would turn its exclusion into a silent no-op, quietly
     // widening the surface instead of narrowing it. Same class of bug, other

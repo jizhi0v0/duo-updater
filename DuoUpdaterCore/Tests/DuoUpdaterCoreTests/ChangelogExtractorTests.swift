@@ -547,6 +547,59 @@ Navigation End -->
     #expect(changelog.entries[0].items[2] == "Editor experience: Identify wrapped lines at a glance and avoid duplicate closing brackets as you type.")
 }
 
+// Trimmed real markup from code.visualstudio.com/updates/v1_144, where the
+// redesign moved on again: the date is now labelled `Release date:` (it was
+// `Released` on 1.139–1.143), and a `<p>` "Read all about this…" sits between
+// the highlights `</ul>` and `</section>`. The old anchor wanted `</section>`
+// right after the list and accepted only the `Released` wording, so this page
+// extracted nothing. The commented-out TOC after the section still carries a
+// `<ul>` of its own, which the close anchor must keep out of the body.
+private let vscodeReleaseDateLayoutFixture = """
+<h1>Visual Studio Code 1.144</h1>
+<p class="release-metadata"><span>Release date: October 28, 2026</span> <span class="release-channel">Stable</span></p>
+<details class="release-downloads" aria-labelledby="release-downloads-heading"><summary><h2 id="release-downloads-heading">Downloads for 1.144.0</h2></summary><dl><div class="release-downloads-platform"><dt>macOS</dt><dd><a href="https://update.code.visualstudio.com/1.144.0/darwin-universal-dmg/stable" aria-label="Download VS Code 1.144.0 Universal for macOS">Universal</a></dd></div></dl></details>
+<p class="release-update-guidance">Already installed? Use <strong>Check for Updates</strong> in VS Code. For upcoming features, use the <a href="https://code.visualstudio.com/insiders">Insiders build</a>.</p>
+<section class="release-highlights" aria-labelledby="_release-highlights">
+<h2 id="_release-highlights" data-needslink="_release-highlights">Release highlights</h2>
+<p>This release adds shared canvases for agent workflows, lets you move chats without losing context, expands the Markdown editor, and gives administrators more control over agent permissions.</p>
+<ul>
+<li>
+<p>Remember when agent sessions would stop as soon as you closed your client? We built the <a href="https://code.visualstudio.com/docs/agents/concepts/agent-host">Agent Host</a>, a separate process that keeps your agents running, on your local machine or remotely.</p>
+</li>
+<li>
+<p>With language servers in mind, we designed the <a href="https://microsoft.github.io/agent-host-protocol/" class="external-link" target="_blank">Agent Host Protocol (AHP)</a> to allow any client to interact with agent sessions.</p>
+</li>
+<li>
+<p>And if you didn't notice, we also <a href="https://code.visualstudio.com/blogs/2026/10/15/modern-ui">refreshed the overall look and feel of VS Code</a>, so it looks fresh and beautiful in light and dark themes.</p>
+</li>
+</ul>
+<p>Read all about this, and more, in our <a href="https://code.visualstudio.com/blogs/2026/10/28/vscode-wrapped">VS Code Wrapped blog post</a>.</p>
+</section>
+<!-- TOC
+<div class="toc-nav-layout">
+  <nav id="toc-nav">
+    <div>In this update</div>
+    <ul>
+      <li><a href="#release-highlights">Release highlights</a></li>
+      <li><a href="#agents">Agents</a></li>
+    </ul>
+  </nav>
+Navigation End -->
+<hr class="release-section-divider" aria-hidden="true"><h2 id="_agents" data-needslink="_agents">Agents</h2>
+"""
+
+@Test func extractsVSCodeHighlightsFromTheReleaseDateLayout() throws {
+    let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "com.microsoft.VSCode"))
+    let changelog = try #require(ChangelogExtractor.extract(from: vscodeReleaseDateLayoutFixture, using: recipe))
+
+    #expect(changelog.entries.count == 1)
+    #expect(changelog.entries[0].version == "1.144")
+    #expect(changelog.entries[0].date == "October 28, 2026")
+    #expect(changelog.entries[0].items.count == 3)
+    #expect(changelog.entries[0].items[0] == "Remember when agent sessions would stop as soon as you closed your client? We built the Agent Host, a separate process that keeps your agents running, on your local machine or remotely.")
+    #expect(changelog.entries[0].items[2] == "And if you didn't notice, we also refreshed the overall look and feel of VS Code, so it looks fresh and beautiful in light and dark themes.")
+}
+
 @Test func extractsCodexAppEntriesAndSkipsGeneralAndCLIReleases() throws {
     let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "com.openai.codex"))
     let changelog = try #require(ChangelogExtractor.extract(from: codexFixture, using: recipe))

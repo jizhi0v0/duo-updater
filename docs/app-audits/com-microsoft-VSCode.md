@@ -57,3 +57,17 @@ webview fallback.
 空白窗口（来自 `microsoft/vscode-docs` 的提交时间，`gh api`）：`VS Code release 1.141` 2026-10-06 23:17 UTC；`Initialize Insiders release notes`（新建 `v1_142.md`）2026-10-07 07:51 UTC，这一版有标题与 "Last updated"，没有任何 `## <日期>` 小节；第一条内容 `Update Insiders release notes` 2026-10-07 20:46 UTC。在这期间 recipe 解析为空，pane 退回嵌入网页。1.141 发布到 v1_142 建页之间的几小时里，侧栏 Insiders 项指向哪里没有观测到。stable 现在约每周一版（1.139 9-23、1.140 9-29、1.141 10-06），所以 Insiders 页一般只有一到几天的小节，新到旧。
 
 生产解析器（`ChangelogService.loadDiagnostic`，临时测试，跑完删除）读线上地址：detail 页 `/updates/v1_142`，1 条；`1.142` / October 7, 2026 / 1 条。条目版本是页面的 `1.142`，不是探针的 `1.142.0-insider`（与 stable recipe 一样只到 major.minor）；带设置名的条目会把页面下拉菜单的 "Open in VS Code Open in VS Code Insiders" 文字留在句中。
+
+### Recipes/com-microsoft-VSCode.swift — stable ChangelogRecipe：1.144 版式改动（2026-11-03）
+
+复测（2026-11-03，只读 GET，跟随 `/updates` 的重定向）：落到 `/updates/v1_144`。相比 1.139 那版，页面又动了两处：日期改成 `<p class="release-metadata"><span>Release date: October 28, 2026</span>`（1.139–1.143 是 `Released`），要点 `</ul>` 与 `</section>` 之间多了一段 `<p>Read all about this, and more, in our … VS Code Wrapped blog post</p>`。旧 pattern 的日期前缀只认 `Released`，close anchor 又要求 `</ul>` 后面紧跟 `</section>`，所以整页 0 条：`duo verify --changelog --only com.microsoft.VSCode` 报 `noEntriesExtracted`（#1318 那条 issue 的 recipe id）。
+
+同一轮里还有两个观测：
+
+- `/updates/v1_143`（1.144 之前那一版）**整页没有日期行**：`<h1>` 后面直接是 "Follow us on …" → `<hr>` → "Welcome to the 1.143 release of Visual Studio Code."，没有 `release-metadata` 也没有 `Release date:`。新旧 pattern 在它上面都是 0 条——1.143 那一周 recipe 本来就不出条目，1.144 恢复。日期锚没有改成可选：把整段日期前缀做成 `(?:…)?` 之后，老版式（`<p><em>Release date:` 在 `<hr>` 之后）会因为前面那个 `.*?` 先满足而永远跳过日期组，1.138 / 1.130 / 1.123 的日期全部变空——实测确认，所以保持必选。
+- 同日 `/updates/v1_142`、`v1_139`、`v1_138`、`v1_130`、`v1_123` 都还能正常访问，用来对照新 pattern 没有放宽过头。
+
+修复：日期锚写成 `Released|Release date:` 二选一；aside 串（一个或多个 `<blockquote>` 或不含 `<ul>` 的 `<p>`）挪到 close anchor 前面，两种版式共用，这样 `</ul>` 到 `</section>` 之间多一段 `<p>` 不会再断。
+
+验证（Python `re.S|re.I` 移植，线上页面）：v1_144 抽出 `1.144` / October 28, 2026 / 11 条；v1_142 `1.142` / October 14, 2026 / 5 条；v1_139 3 条；v1_138 3 条；v1_130 4 条；v1_123 5 条——后四页与修复前的版本、日期、条数逐页相同。生产解析器（`duo verify --changelog --only com.microsoft.VSCode --samples`）修复后：`1.144` / 11 条，无 warning。
+

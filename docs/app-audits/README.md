@@ -394,7 +394,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**Shift**](app-shift.md) · `app.shift` / `app.shift.nightly` — C（Release Please `CHANGELOG.md`）· 2 channels（独立 bundle id）· 检测与 zip 一键走 ElectronManifestSource · Nightly 端到端 ✓ · 2026-10-04
 - [x] [**Douchat**](ai-thinkany-douchat.md) · `ai.thinkany.douchat` — 检测与 zip 一键走 ElectronManifestSource（`cdn.douchat.ai` 的 `latest-mac.yml`）· 真包 0.1.8 挂载 + zip 解包验证 ✓（Team `JU9K7W6T6W`）· 无 changelog · 2026-09-22
 - [x] [**Ducoro**](ai-ducoro-desktop.md) · `ai.ducoro.desktop` — 检测与 zip 一键走 ElectronManifestSource（`static.ducoro.ai/desktop` 的 `latest-mac.yml`）· 真包 2026.1002.354 挂载 + zip 解包验证 ✓（Team `6YU2PK44KX`）· `release.json` 的 `channel: alpha` 是成熟度标签不是另一条轨 · 无结构化 changelog：What's New 只按日期、无版本号 · 包内常驻 `ducoro-cli` daemon，行为同厂商自更新 · 2026-10-04
-- [x] [**DeepSeek Harness（官方）**](com-deepseek-dsh.md) · `com.deepseek.dsh` — 检测与 zip 一键走 ElectronManifestSource（`download.deepseek.com` 的 `nightly-mac.yml`，`channel: nightly`）· feed 的 `url`/`sha512`/`path` 是 YAML folded scalar（`>-`），解析器补了 block scalar 支持 · 真包 0.2.1-rc.5 解包 + sha512 验证 ✓（Team `NAN929V4UM`，notarized）· 与社区 `ai.deepseek.dsh.desktop` / `.next` 是两个产品 · C（上游 `deepseek-ai/deepseek-harness` 的 Releases 正文，只收 `-rc.N` 轨；中英双语各一遍）· 2026-11-02
+- [x] [**DeepSeek Harness（官方）**](com-deepseek-dsh.md) · `com.deepseek.dsh` — 检测与 zip 一键走 ElectronManifestSource（`download.deepseek.com` 的 `nightly-mac.yml`，`channel: nightly`）· feed 的 `url`/`sha512`/`path` 是 YAML folded scalar（`>-`），解析器补了 block scalar 支持 · 真包 0.2.1-rc.5 解包 + sha512 验证 ✓（Team `NAN929V4UM`，notarized）· 与社区 `ai.deepseek.dsh.desktop` / `.next` 是两个产品 · C（上游 `deepseek-ai/deepseek-harness` 的 Releases 正文，只收 `-rc.N` 轨；中英双语各一遍）· alpha 轨（2026-11-03）：装机按 `-alpha.N` 认成 Alpha，probe 读 Releases 的 atom feed 取最高版本、再拼版本化 DMG 一键（`…/bin/mac-arm64/deepseek-harness-<version>-mac-arm64.dmg`），changelog 走第二条 recipe（整条 alpha/rc/纯版本轨）；两轨靠 channel 分流 · 2026-11-03
 
 ## MyGo-covered (auto-detected via the feed and key linked into the binary, no version recipe)
 
@@ -551,3 +551,6 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 
 - [Issue #111 — Sparkle appcast channel population](issue-111-appcast-channel-population.md) ·
   一次性测量任务的产出，不是 app 审计。留在此目录是历史原因。
+- [Setapp editions](com-setapp-managed.md) ·
+  `-setapp` 副本这一类渠道的观测记录：包里没有 Sparkle、Setapp 公开目录、
+  订阅状态、深链与 MCP。不是单个 app 的审计。

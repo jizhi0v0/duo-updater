@@ -15,12 +15,25 @@ enum com_hnc_Discord {
         // match is correct; the delta SOURCE (e.g. 0.0.392) never appears as a
         // /universal/<v>/ segment. Discord self-updates via its own host updater.
         // ptb/canary ship as separate bundle ids with their own channel=ptb|canary
-        // endpoints — their dedicated recipes follow below. One-click NOTE: the
-        // manifest carries only `.distro` module files, not an app dmg, so the
-        // install uses Discord's SEPARATE public download endpoint —
-        // `discord.com/api/download?platform=osx&format=dmg` — which 302s to the same
-        // version's `…/apps/osx/<ver>/Discord.dmg`. ptb/canary install the same way
-        // from their own download redirects (below).
+        // endpoints — their dedicated recipes follow below.
+        //
+        // One-click: Discord's distro tree carries each version's app dmg right
+        // beside the manifest's own `full.distro` url —
+        // `<distro host>/distro/app/<channel>/osx/universal/<ver>/<App>.dmg` — so
+        // the install is pinned to the version this probe reported, not to
+        // whatever "latest" a redirect answers with at download time. NOT
+        // `discord.com/api/download?…&format=dmg`: that redirect now lands on a
+        // Linux-only `installers/latest` endpoint, which answers `format=dmg` with
+        // HTTP 400 — and without the parameter it serves a build behind the
+        // manifest. History has the measurements.
+        //
+        // Each install url names its CDN host, written here, one per channel; the
+        // same distro tree answers to more than one name (stable's dmg came from
+        // `dl.`, `stable.dl2.` and `dl2.` — same bytes, checked 2026-11-03), and
+        // the manifest's own urls alternate between the first two over time. So
+        // the host here only decides where the tree is read: when a download 403s
+        // or 404s, check that this host and the one the manifest names now both
+        // still carry `…/<version>/…dmg`, then update this line.
         //
         // The patterns do not name the CDN HOST, which Discord has changed before
         // (History has the break it caused). The channel lives in the URL PATH
@@ -34,8 +47,8 @@ enum com_hnc_Discord {
             downloadURL: URL(string: "https://discord.com/download"),
             changelogURL: URL(string: "https://discord.com/blog"),
             install: VendorInstallSpec(
-                urlSource: .redirect(
-                    URL(string: "https://discord.com/api/download?platform=osx&format=dmg")!),
+                urlSource: .versionTemplate(
+                    "https://dl.discordapp.net/distro/app/stable/osx/universal/{version}/Discord.dmg"),
                 kind: .dmg)),
 
         // Discord PTB / Canary — same manifest endpoint as Stable, just a different
@@ -52,14 +65,14 @@ enum com_hnc_Discord {
             mode: .responseBody,
             versionPattern: #"discordapp\.net/distro/app/ptb/osx/universal/([0-9]+(?:\.[0-9]+){1,3})/"#,
             changelogURL: URL(string: "https://discord.com/blog"),
-            // One-click: `https://discord.com/api/download/ptb` 302s to a versioned
-            // `…/apps/osx/<ver>/DiscordPTB.dmg`, holding `Discord PTB.app` — bundle id
-            // com.hnc.DiscordPTB, Team 53Q6R32WPB, accepted by spctl.
-            // The stable "latest" redirect is what to install from: the manifest URL
-            // above points at a `.dis` distro blob, not an app.
+            // One-click: PTB's own distro host, pinned to the version the probe
+            // resolved — `ptb.dl2.discordapp.net/distro/app/ptb/osx/universal/
+            // <ver>/DiscordPTB.dmg`, holding `Discord PTB.app` — bundle id
+            // com.hnc.DiscordPTB, Team 53Q6R32WPB, accepted by spctl. The `ptb.`
+            // host is also what the channel proof matches.
             install: VendorInstallSpec(
-                urlSource: .redirect(
-                    URL(string: "https://discord.com/api/download/ptb?platform=osx")!),
+                urlSource: .versionTemplate(
+                    "https://ptb.dl2.discordapp.net/distro/app/ptb/osx/universal/{version}/DiscordPTB.dmg"),
                 kind: .dmg),
             channel: .ptb),
         VendorProbeRecipe(
@@ -68,14 +81,16 @@ enum com_hnc_Discord {
             mode: .responseBody,
             versionPattern: #"discordapp\.net/distro/app/canary/osx/universal/([0-9]+(?:\.[0-9]+){1,3})/"#,
             changelogURL: URL(string: "https://discord.com/blog"),
-            // Same stable "latest" redirect as PTB, on the canary track (the
-            // manifest URL points at a `.dis` distro blob, not an app). Verified
-            // separately rather than assumed from PTB: 0.0.1255 →
+            // One-click: the canary track's distro path, pinned to the resolved
+            // version. Canary publishes its dmg ONLY under `/distro/…` — its
+            // `/apps/osx/<ver>/DiscordCanary.dmg` answers 403 — so the distro path
+            // is the versioned address for it, not a "latest" redirect.
             // `Discord Canary.app`, bundle id com.hnc.DiscordCanary, Team
-            // 53Q6R32WPB, accepted by spctl.
+            // 53Q6R32WPB, accepted by spctl; the `canary.` host is what the channel
+            // proof matches.
             install: VendorInstallSpec(
-                urlSource: .redirect(
-                    URL(string: "https://discord.com/api/download/canary?platform=osx")!),
+                urlSource: .versionTemplate(
+                    "https://canary.dl2.discordapp.net/distro/app/canary/osx/universal/{version}/DiscordCanary.dmg"),
                 kind: .dmg),
             channel: .canary),
         ],

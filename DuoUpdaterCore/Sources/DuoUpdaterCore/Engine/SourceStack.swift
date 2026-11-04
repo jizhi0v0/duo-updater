@@ -39,6 +39,12 @@ public enum SourceStack {
             // answers for casks brew keeps current — not `auto_updates`, not an app
             // brew did not install — so everything else still reaches Sparkle.
             HomebrewCaskSource(),
+            // Setapp ahead of Sparkle: a Setapp build keeps the vendor's direct
+            // `SUFeedURL` but ships no Sparkle, so the generic source would offer
+            // the vendor's DMG and gate 4 would refuse it (bundle id `…-setapp`).
+            // This source answers for every `…-setapp` copy, from Setapp's own
+            // catalogue — see `SetappCatalogSource`.
+            SetappCatalogSource(),
             SparkleAppcastSource(),
             // MyGo apps, by the feed and key linked into their binary — the address
             // their own updater reads, so it stands where a `SUFeedURL` does, ahead

@@ -2,6 +2,48 @@
 
 Bu, `CHANGELOG.md` dosyasının Türkçe çevirisidir. Geçerli olan İngilizce sürümdür; burada yer almayan eski sürümler otomatik olarak İngilizce gösterilir.
 
+## 0.5.20
+
+**Setapp beta güncellemeleri artık dürüstçe bildiriliyor.** DuoUpdater yalnızca Setapp'in kararlı kataloğunu okuyabilir. Setapp'in beta güncellemeleri açıksa, denetlenemeyen bir uygulama artık güncel sayılmak yerine bunu söylüyor — Setapp'i işaret eden bir notla.
+
+**Kararlı kataloğun önündeki bir Setapp kopyası adlandırılır, “sürüm düşürme” olarak gösterilmez.** Setapp betasını denediyseniz satır, bir düşürme teklif ediliyormuş gibi aşağı okun ardından eski kararlı sürümü gösteriyordu. Artık Setapp'in kaydı o derlemeyi hâlâ biliyorsa “(Setapp Beta)”, bilmiyorsa “(Setapp'in kararlı sürümlerinden yeni)” yazıyor; kurulum için bir şey önerilmiyor.
+
+**Setapp sürümleri uygulamanın sürüm notlarını gösteriyor.** DuoUpdater'ın geliştirici notlarını zaten okuduğu yerlerde, aynı uygulamanın Setapp kopyası da boş bir panel yerine bu notları kullanıyor. Bartender 7 istisna: notlarımız yalnızca Bartender 6'yı kapsıyor.
+
+## 0.5.19
+
+**Setapp uygulamaları kendi kanalından denetlenir.** Setapp ile kurulanlara geliştiricinin doğrudan indirmesi öneriliyor, sonra paket kimliği farklı olduğu için reddediliyordu. DuoUpdater artık Setapp'in kendi kataloğunu okur: Setapp'in dağıttığı sürümü gösterir ve Setapp'in otomatik kurulumları açıksa “Güncelle” Setapp'i arka planda başlatır; değilse Setapp'i açar, güncelleme ve ilerleme oradadır.
+
+**Süresi dolmuş Setapp aboneliği artık açıklanıyor.** Satır Setapp'in sunduğu sürümü göstermeye devam eder ama kurmayı önermez; bir düğme yenilemek veya giriş yapmak için Setapp'i açar. Abonelik bitince uygulamaları da açılmaz.
+
+**Setapp'in beta kanalı tahmin edilmez, söylenir.** Genel katalog yalnızca kararlı sürümleri listeler; Setapp'in beta anahtarı açıkken satır, uygulamanın güncel olduğunu iddia etmek yerine kanalın tam olarak denetlenemediğini söyler.
+
+## 0.5.18
+
+**Dokuz uygulama daha destekleniyor.** CleanMyMac 5, Gemini 2, LosslessCut, Super Productivity, ActivityWatch, GitUp, Requestly, Reqable ve FlyEnv artık güncelleme denetimi, sürüm notları ve tek tıkla güncelleme alıyor.
+
+**Discord güncellemeleri yeniden kuruluyor.** Discord kararlı sürümünün tek tıkla güncellemesi son zamanlarda indirme aşamasında başarısız olmaya başlamıştı ve kullandığı adres, satırdaki sürümden daha eski bir derleme verebiliyordu; artık tam o sürümle yayımlanan dosyayı alıyor.
+
+**Xcode güncellemeleri bir retle durmak yerine sonuna kadar gidiyor.** Çalışan Xcode, açık kalırken güncellemeyi indirip doğruluyor ve ardından yeniden başlatmanızı istiyor. «Tümünü güncelle», bir Apple Developer hesabına giriş yapmışsanız ve çalışan kopya yoksa Xcode’u da dahil ediyor; sürüm adı taşıyan yan kopya ise artık olduğu sürüme göre yeniden adlandırılıyor.
+
+**Antigravity IDE artık tek tıkla güncelleniyor.** Önceden yeni bir sürüm olduğunu söyleyip yalnızca uygulamayı açmayı öneriyordu.
+
+**Hazırlanan güncelleme, içinde yardımcı bir süreç çalışan uygulamayı (örneğin sanal makinesi açık VMPal’ı) artık yeniden başlatmıyor.** «Yeniden başlat» kurulumla aynı denetimi yapıyor ve kapanmayı reddeden uygulama, satırı dönüp durmak yerine bunu söylüyor.
+
+**Gemini, başlatıcısı çalışırken de tek tıkla güncelleniyor.** Başlatıcı zaten her açılışta yeni paketten yeniden başlıyor, önce kapatmanızı istemek gereksizdi.
+
+**Uygulamalar klasöründeki bir alt klasörde duran uygulamalar artık bulunuyor.** `/Applications/Adobe Photoshop 2025/` gibi üreticinin kendi klasörü içindekini gizlemiyor. Ayarlar › Yok sayılan uygulamalar her uygulamanın simgesini, adını ve klasörünü gösteriyor; böylece aynı adlı iki kopya ayırt edilebiliyor ve artık kurulu olmayan bunu söylüyor.
+
+**Açılır panelde bir uygulamanın veya aracın adına tıklamak onu çalışma alanında açıyor.** Bir şeyin neden bekletildiğini söyleyen satır artık harekete geçebileceğiniz yere götürüyor.
+
+**OpenCode 2, «güncel» demek yerine bildiriliyor.** CLI satırı 2.0 hattını görüyor ve kendi yükseltme komutunu veriyor; masaüstü uygulaması üreticinin yeni kanalını izliyor.
+
+**VS Code’un sürüm notları yeniden okunuyor.** DeepSeek Harness’ın sürüm notları da artık DuoUpdater’da görünüyor.
+
+**Düzeltmeler.** İngilizce satır etiketleri «Ignored (row status)» yerine «Ignored» diyor ve `duo unignore`, geri getirdiği satıra hemen bir sonuç veriyor.
+
+**Perde arkasında.** Bir uygulamanın, çalışan bir yardımcı süreç varken değiştirilmesini önleyen denetim, uygulamanın dosyaları değiştirildikten sonra da çalışmaya devam ediyor.
+
 ## 0.5.17
 
 **Uygulama listesi artık en yeniye göre sıralanabiliyor.** Pencerenin araç çubuğundaki ve açılır paneldeki «Sırala» menüsü «Ad» ile «Son» arasında geçiş yapıyor. «Son» seçeneği, üreticinin kendisinin belirttiği yayın tarihini kullanır; yani bu hafta yayımlanan bir güncelleme geçen ayınkinden önce gelir. Kaynağında tarih olmayan uygulamalar ada göre sırada kalır.

@@ -31,7 +31,7 @@ PTB 无 `<sparkle:channel>`/版本后缀，靠名称中独立词 `"PTB"` 触发 
 ## 更新检测
 - 源: VendorProbe（`mode: .responseBody`）
 - 端点: `https://updates.discord.com/distributions/app/manifests/latest?channel={stable|ptb|canary}&platform=osx&arch=x64`
-- version 从 distro url 路径段提取（`stable.dl2.discordapp.net/.../osx/universal/<X.Y.Z>/` 等）
+- version 从 distro url 路径段提取（`…/distro/app/<channel>/osx/universal/<X.Y.Z>/…`，host 不写进 pattern）
 - JSON 中 `host_version:[0,0,393]` 三元组无法直接用（三个 capture group 问题），URL 路径是唯一可靠来源
 
 ## Changelog
@@ -41,6 +41,14 @@ PTB 无 `<sparkle:channel>`/版本后缀，靠名称中独立词 `"PTB"` 触发 
 ## 一键安装
 - 状态: **已接入**（三 channel）。此前记为「仅检测」，是旧策略的残留。
   「绝不碰自更新器」那条绝对规则已由用户设置 `vendorInstallPolicy` 取代：默认 `.deferWhenRunning` —— app 正在运行就交回它自己的更新器，没在运行才就地替换；选 `.alwaysOverwrite` 才总是由我们装。见 `UpdatePolicy.defersToSelfUpdater`。
+- 下载地址: 每个 channel 的 distro 树上、该版本的 app dmg —
+  `<distro host>/distro/app/<channel>/osx/universal/<ver>/<App>.dmg`（stable `dl.discordapp.net`、
+  ptb `ptb.dl2.discordapp.net`、canary `canary.dl2.discordapp.net`），版本用 probe 解析出来的那个。
+  不用 `discord.com/api/download…` 重定向：2026-11-03 起它对 `format=dmg` 回 400，不带这个参数时
+  stable 还会落在比 manifest 旧一版的包上（历史里有测量）。
+  三个 channel 各写死一个 host；同一份树还挂在别的名字下（stable 的 0.0.421 dmg 在 `dl.`、`stable.dl2.`
+  与 `dl2.` 上是同一串字节，历史里有测量），manifest 自己的 url 还会在 `dl.` 与 `stable.dl2.` 之间历时切换。
+  写哪个只决定「读同一棵树的哪台」，不携带渠道/版本信息。
 - Squirrel/Electron 应用另有一层保护：`SelfUpdaterStaging` 读
   `~/Library/Caches/<bundleID>.ShipIt/`，若 app 自己已把新版下载解包、只等重启交换，
   `UpdatePolicy.canAutoInstall` 返回 false 让位给 Relaunch —— 既不重复下载，也不会撞上
@@ -107,3 +115,34 @@ direct download, off-store), and had it been true the verdict would
 have been backwards — a native Mac build is precisely the shape that
 makes `isIOSBinaryMacOSCompatible == false` mean "supported", which
 is the bug `MacCompatibilityReading` exists to fix.
+
+### Recipes/com-hnc-Discord.swift — 三 channel 的一键下载地址（download 重定向失效）
+
+2026-11-03 实测（CST 11:2x，本机直连，Range `bytes=0-1023`）：
+
+- 旧地址 `https://discord.com/api/download?platform=osx&format=dmg` 现在 302 到
+  `https://discord.com/api/downloads/distributions/app/installers/latest?arch=arm64&channel=stable&platform=osx&format=dmg`，
+  该端点对 `format` 只认 `deb / pkg.tar.zst / rpm / tar.gz`，回
+  `400 {"format": ["Value must be one of ('deb', 'pkg.tar.zst', 'rpm', 'tar.gz')."]}`。
+  DuoUpdater 于是报 "The server returned HTTP 400 instead of the file."；同一天 10:57:14 的
+  `events.sqlite` 里是 install 302 → install 400 → failure `0.0.420 → 0.0.421` 这条链。
+- ptb/canary 加上 `format=dmg` 也一样 400，只是它们的 recipe 从来不带这个参数，所以当时没暴露。
+- 去掉 `format` 后 redirect 能出包，但 **stable 落后一版**：manifest `host_version` 是 0.0.421，
+  redirect 最终落在 `…/distro/app/stable/osx/universal/0.0.420/Discord.dmg`（234,062,085 字节）。
+  ptb 0.0.269 / canary 0.0.1460 当时与各自 manifest 一致。所以这条重定向不能用来钉版本。
+- 每个 channel 的 manifest `full.url` 旁边就放着该版本的 app dmg，三 channel 实测 206：
+  stable `dl.discordapp.net/distro/app/stable/osx/universal/0.0.421/Discord.dmg`（234,045,145）；
+  ptb `ptb.dl2.discordapp.net/distro/app/ptb/osx/universal/0.0.269/DiscordPTB.dmg`（234,414,020）；
+  canary `canary.dl2.discordapp.net/distro/app/canary/osx/universal/0.0.1460/DiscordCanary.dmg`（234,325,000）。
+- `/apps/osx/<ver>/<App>.dmg` 只有 stable 与 ptb 还在（stable 的 `dl.` 与 `stable.dl2.` 都可），
+  canary 的已经 403（0.0.1420 还能取，0.0.1430、0.0.1441、0.0.1459 实测 403）—— 它只剩 `/distro/…`
+  这条路。三 channel 统一改成 `.versionTemplate` 拼 `/distro/app/<channel>/osx/universal/<ver>/<App>.dmg`
+  就是这么定下来的。
+- stable 的 dmg host：2026-11-03 11:20 看 manifest 的 `full.url` 在 `dl.discordapp.net`；12:02 同一端点
+  36 条 url 全在 `stable.dl2.discordapp.net`（历时行为，不是每次请求轮换）。`dl.`、`stable.dl2.` 与
+  `dl2.discordapp.net` 对 0.0.421 返回同一份 dmg（234,045,145 字节，头/中/尾三段哈希一致，都 Range 206）。
+  所以 recipe 里写死的那个 host 只是「读同一棵 distro 树的哪台」，既不是渠道信号也不是版本信号；
+  哪天 403/404，先看 manifest 现在写哪个 host、两个是否都还在服务。
+- 2026-11-03 之前那版注释写的「install uses Discord's SEPARATE public download endpoint —
+  `discord.com/api/download?platform=osx&format=dmg` — which 302s to the same version's
+  `…/apps/osx/<ver>/Discord.dmg`」由此作废；上面「一键安装」写的是现在的契约。

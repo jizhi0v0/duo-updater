@@ -31,6 +31,7 @@ probes[0].trackClosedPattern = nil
 probes[0].downloadURL? = URL("https://qoder.cn/download")
 probes[0].changelogURL? = URL("https://docs.qoder.cn/product-overview/qoder-cn-ide-update-log")
 probes[0].selectHighest = false
+probes[0].selectsHighestPublishedBuild = false
 probes[0].versionIsBuild = false
 probes[0].buildNamespace = .bundle
 probes[0].displayVersionPattern = nil

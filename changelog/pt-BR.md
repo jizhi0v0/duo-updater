@@ -2,6 +2,48 @@
 
 Esta é a tradução para o português do Brasil do arquivo CHANGELOG.md. A versão em inglês prevalece em caso de divergência. Os números de versão que não aparecem aqui são mostrados automaticamente em inglês na janela Novidades.
 
+## 0.5.20
+
+**As atualizações beta do Setapp são informadas com honestidade.** O DuoUpdater só consegue ler o catálogo estável do Setapp. Se você ativou as atualizações beta do Setapp, um app que não pode ser verificado agora diz isso — com uma nota apontando para o Setapp — em vez de ser chamado de atualizado.
+
+**Uma cópia do Setapp à frente do catálogo estável é nomeada, não “rebaixada”.** Se você testou uma beta do Setapp, a linha mostrava a versão estável anterior atrás de uma seta para baixo, como se um downgrade estivesse sendo oferecido. Agora mostra “(beta do Setapp)” quando o registro do Setapp ainda conhece essa compilação, e “(à frente das versões estáveis do Setapp)” caso contrário; nada é oferecido para instalar.
+
+**As edições do Setapp mostram as notas do app.** Onde o DuoUpdater já lê as notas do desenvolvedor, a cópia do Setapp do mesmo app também as usa em vez de um painel vazio. Bartender 7 é a exceção: nossas notas cobrem apenas o Bartender 6.
+
+## 0.5.19
+
+**Apps do Setapp são verificados no próprio canal.** As instaladas pelo Setapp recebiam o download direto do desenvolvedor e eram recusadas, porque essa edição tem identificador próprio. Agora o DuoUpdater lê o catálogo do Setapp: mostra a versão que o Setapp distribui e, com as instalações automáticas do Setapp ligadas, “Atualizar” inicia o Setapp em segundo plano; caso contrário, abre o Setapp, onde ficam a atualização e o progresso.
+
+**Uma assinatura do Setapp vencida agora é explicada.** A linha continua mostrando a versão oferecida pelo Setapp, mas não oferece mais instalá-la; um botão abre o Setapp para renovar ou entrar. Quando a assinatura termina, os apps também param de abrir.
+
+**O canal beta do Setapp é nomeado, não adivinhado.** O catálogo público lista apenas versões estáveis, então com a opção beta do Setapp ligada a linha diz que o canal não pôde ser verificado por completo em vez de afirmar que o app está atualizado.
+
+## 0.5.18
+
+**Nove apps a mais são compatíveis.** CleanMyMac 5, Gemini 2, LosslessCut, Super Productivity, ActivityWatch, GitUp, Requestly, Reqable e FlyEnv agora têm verificação de atualizações, notas da versão e atualização com um clique.
+
+**As atualizações do Discord voltam a instalar.** A atualização com um clique do Discord estável tinha começado a falhar no download, e o endereço usado podia entregar uma build mais antiga que a versão na linha; agora ele pega o arquivo publicado com essa versão exata.
+
+**As atualizações do Xcode vão até o fim em vez de parar num recusar.** Um Xcode em execução baixa e verifica a atualização enquanto continua aberto, e então pede para você reiniciá-lo. «Atualizar tudo» inclui o Xcode quando você está conectado a uma conta Apple Developer e nenhuma cópia está em execução, e uma cópia lado a lado com o nome da versão é renomeada para corresponder à versão que ela é agora.
+
+**O Antigravity IDE agora atualiza com um clique.** Antes ele só conseguia avisar que havia uma versão nova e oferecer abrir o app.
+
+**Uma atualização preparada não reinicia mais um app que tem um auxiliar em execução dentro, como o VMPal com uma máquina virtual aberta.** «Reiniciar» faz agora a mesma verificação da instalação, e um app que se recusa a fechar diz isso na própria linha em vez de deixá-la girando.
+
+**O Gemini atualiza com um clique mesmo com o launcher em execução.** O launcher reinicia do novo pacote a cada abertura de qualquer forma, então pedir para você fechá-lo antes era desnecessário.
+
+**Apps guardados numa pasta dentro de Aplicativos são encontrados.** Uma pasta do próprio fornecedor, como `/Applications/Adobe Photoshop 2025/`, não esconde mais o que está dentro. Ajustes › Apps ignorados mostra o ícone, o nome e a pasta de cada app, para distinguir duas cópias com o mesmo nome, e uma que não está mais instalada avisa.
+
+**Clicar no nome de um app ou de uma ferramenta no popover abre-o na bancada.** Uma linha que explica por que algo foi retido agora leva ao lugar onde você pode agir.
+
+**O OpenCode 2 é reportado em vez de dizer «atualizado».** A linha da CLI vê a linha 2.0 e entrega o próprio comando de atualização, e o app de desktop segue o novo canal do fornecedor.
+
+**As notas da versão do VS Code voltam a ser lidas.** As do DeepSeek Harness também aparecem agora no DuoUpdater.
+
+**Correções.** As etiquetas de linha em inglês dizem «Ignored» em vez de «Ignored (row status)», e `duo unignore` dá veredicto imediato à linha que volta a mostrar.
+
+**Nos bastidores.** A verificação que impede substituir um app enquanto um auxiliar está em execução continua valendo depois que os arquivos do app são trocados.
+
 ## 0.5.17
 
 **A lista de apps agora ordena pelo que mudou mais recentemente.** Um menu «Ordenar» na barra de ferramentas da janela e no popover alterna entre «Nome» e «Recentes». «Recentes» usa a data de publicação informada pelo próprio fornecedor, então uma atualização lançada nesta semana fica acima de uma do mês passado; apps cuja fonte não informa data continuam em ordem alfabética.

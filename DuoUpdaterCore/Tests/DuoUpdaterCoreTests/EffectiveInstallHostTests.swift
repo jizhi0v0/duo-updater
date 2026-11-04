@@ -7,9 +7,10 @@ import Foundation
 ///
 /// The property that matters is the one #671 broke and shipped without a test
 /// for: apps whose feeds share an entry host (six Microsoft specs share
-/// `go.microsoft.com`, three Discord specs share `discord.com`) must not
-/// inherit each other's CDN once one of them has downloaded — that host never
-/// sends the others a byte, and throttling against it defeats the cap.
+/// `go.microsoft.com`; Discord's three channels shared one `discord.com`
+/// download host until each moved to its own distro host) must not inherit
+/// each other's CDN once one of them has downloaded — that host never sends
+/// the others a byte, and throttling against it defeats the cap.
 ///
 /// Fixture hosts use the `.example` TLD (reserved for documentation by RFC
 /// 2606, never resolvable) and fixture app ids are invented bundle-id-shaped

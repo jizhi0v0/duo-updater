@@ -1,4 +1,5 @@
 import SwiftUI
+import DuoUpdaterCore
 
 /// DuoUpdater's own version and self-update check — separate from the managed
 /// app list, which is what the rest of the window is about.
@@ -8,6 +9,11 @@ struct UpdatesSettingsPage: View {
     /// main-actor updater, and written straight back on change — Sparkle keeps the
     /// stored value, so this state is only ever a view of it.
     @State private var installsAutomatically = false
+
+    /// Setapp's client is also an installer: launched in the background it runs
+    /// its check, and installs what it finds when its own "Install automatically"
+    /// is on. This is the user's permission for that, not Setapp's.
+    @AppStorage(SetappAutomation.backgroundUpdatesPreference) private var setappBackgroundUpdates = true
 
     private static let sourceURL = URL(string: "https://github.com/jizhi0v0/duo-updater")!
 
@@ -45,6 +51,15 @@ struct UpdatesSettingsPage: View {
                     info: "DuoUpdater checks for its own updates every hour. A quiet moment means nothing is being checked or installed, and you’re either working in another app or haven’t touched the keyboard or mouse for a minute. Open DuoUpdater windows come back after the relaunch. Until a quiet moment comes it waits — and installs when you quit DuoUpdater anyway.",
                     isOn: $installsAutomatically)
                     .settingsAnchor(.silentSelfUpdate)
+            }
+
+            SettingsCard(
+                footer: "Setapp installs its own updates. With this on, the row starts Setapp in the background; Setapp’s own “Install automatically” still decides whether anything is installed."
+            ) {
+                SettingsToggle(
+                    "Update Setapp apps in the background",
+                    detail: "Launch Setapp quietly so it installs its updates.",
+                    isOn: $setappBackgroundUpdates)
             }
         }
         .task { installsAutomatically = AppUpdater.shared.installsUpdatesAutomatically }

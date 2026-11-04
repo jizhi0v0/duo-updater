@@ -40,6 +40,31 @@ import Testing
         #expect(NestedAppGuard.blockers(bundlePath: Self.bundle, processes: [Self.main]).isEmpty)
     }
 
+    /// The #1783 state as a value: the kernel has no path for the process
+    /// (`executablePath` nil — a swap unlinked the executable), and the path
+    /// `execve` was given still places it inside the bundle. It must block, with
+    /// the VM named from its argv, and the same path has to decide the
+    /// exemptions: a relay launched the same way stays out, and a path outside
+    /// the bundle claims nothing. Mutation: match on `executablePath` alone
+    /// (drop the `launchedPath` fallback) → the first expectation is `[]`.
+    @Test func aProcessTheKernelCannotNameBlocksByWhereItWasLaunched() {
+        let relative = "Contents/Helpers/VMPalMachine.app/Contents/MacOS/VMPalMachine"
+        let path = "\(Self.bundle)/\(relative)"
+        let vm = NestedAppGuard.RunningProcess(
+            pid: 762, parentPID: 1, executablePath: nil, launchedPath: path, isRegularApp: false,
+            arguments: [path, "--machine", "/Volumes/VM/macOS VM 1.vmpal"])
+        #expect(NestedAppGuard.blockers(bundlePath: Self.bundle, processes: [vm])
+            == [.init(name: "VMPalMachine", pid: 762, vmName: "macOS VM 1")])
+        let relay = NestedAppGuard.RunningProcess(
+            pid: 763, parentPID: 1, executablePath: nil, launchedPath: path, isRegularApp: false,
+            arguments: [path, "--mcp-library"])
+        #expect(NestedAppGuard.blockers(bundlePath: Self.bundle, processes: [relay]).isEmpty)
+        let sibling = NestedAppGuard.RunningProcess(
+            pid: 764, parentPID: 1, executablePath: nil,
+            launchedPath: "\(Self.bundle).old/\(relative)", isRegularApp: false)
+        #expect(NestedAppGuard.blockers(bundlePath: Self.bundle, processes: [sibling]).isEmpty)
+    }
+
     /// Chromium helpers, Sparkle's `Updater.app`, crashpad handlers: anything
     /// under `Contents/Frameworks` belongs to the app's machinery. Mutation: drop
     /// the `Contents/Frameworks/` check → red.
@@ -725,7 +750,7 @@ import Testing
         let me = NestedAppGuard.liveProcesses().first { $0.pid == getpid() }
         #expect(me != nil)
         #expect(me?.parentPID == getppid())
-        #expect(me?.executablePath.isEmpty == false)
+        #expect(me?.executablePath?.isEmpty == false)
     }
 
     /// A real process inside a nested `.app` comes back with its argv, which the
@@ -754,8 +779,71 @@ import Testing
             kill(pid, SIGTERM)
         })
         let me = seen.value
-        #expect(me?.executablePath.hasSuffix(relative) == true)
+        #expect(me?.executablePath?.hasSuffix(relative) == true)
         #expect(me?.arguments?.dropFirst().elementsEqual(["60"]) == true)
+    }
+
+    /// #1783, the shape measured on VMPal 2026-11-02: a swap replaces the bundle
+    /// and unlinks the executable a nested helper is still running from. The
+    /// process is alive — `proc_pidinfo(PROC_PIDTBSDINFO)` answers 136 bytes —
+    /// but `proc_pidpath` answers 0/`ENOENT`, so the live list used to drop it
+    /// and `blockers` came back empty while the VM kept running. The identity
+    /// that survives is the path `execve` was given, which `KERN_PROCARGS2`
+    /// keeps for the life of the process (measured 2026-11-03: still the original
+    /// path after the executable was unlinked). Mutation: drop the
+    /// `KERN_PROCARGS2` fallback from `liveProcesses` → the process never reaches
+    /// `blockers` and this fails on the empty list.
+    @Test func theLiveListSeesAHelperWhoseExecutableTheSwapUnlinked() async throws {
+        let parent = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ZZFixture-unlinked-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: parent) }
+        let relative = "/ZZFixtureVM.app/Contents/Helpers/ZZFixtureMachine.app/Contents/MacOS/ZZFixtureMachine"
+        let executable = parent.path + relative
+        try FileManager.default.createDirectory(
+            atPath: (executable as NSString).deletingLastPathComponent, withIntermediateDirectories: true)
+        // A copy of an Apple binary is killed at exec (launch constraints): it
+        // runs only once signed ad hoc, as its own code.
+        try FileManager.default.copyItem(atPath: "/bin/sleep", toPath: executable)
+        let signed = try await ChildProcess.run(
+            "/usr/bin/codesign", ["-s", "-", "-f", executable], onCancel: .terminateChild)
+        try #require(signed.succeeded)
+        // The path as `refusal` resolves it (`/var` stays `/var` under
+        // Foundation), which is what the saved exec path has to be brought to.
+        let resolvedParent = parent.resolvingSymlinksInPath().path
+        let bundle = resolvedParent + "/ZZFixtureVM.app"
+        let seen = SeenProcess()
+        _ = try await ChildProcess.run(executable, ["60"], onCancel: .terminateChild, onLaunch: { pid in
+            // The swap: the executable is gone from disk, the process is not.
+            try? FileManager.default.removeItem(atPath: executable)
+            seen.set(NestedAppGuard.liveProcesses().first { $0.pid == pid })
+            kill(pid, SIGTERM)
+        })
+        let me = try #require(seen.value)
+        // The kernel names no path now, and the saved exec path is what places
+        // it.
+        #expect(me.executablePath == nil)
+        #expect(me.launchedPath == resolvedParent + relative)
+        #expect(NestedAppGuard.blockers(bundlePath: bundle, processes: [me])
+            == [.init(name: "ZZFixtureMachine", pid: me.pid)])
+    }
+
+    /// A saved exec path whose executable no longer exists still has the
+    /// symlinks above it resolved, as `proc_pidpath` spells paths. Foundation's
+    /// `resolvingSymlinksInPath` returns such a path unchanged, and the bundle
+    /// path `refusal` compares against is resolved, so without this an app
+    /// installed through a symlinked directory would never match. Mutation: use
+    /// `resolvingSymlinksInPath` alone → the `Linked.app` spelling comes back →
+    /// red.
+    @Test func aSavedExecPathWhoseExecutableIsGoneStillResolvesTheSymlinksAboveIt() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ZZFixture-resolve-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let real = root.path + "/Real.app/Contents/MacOS"
+        try FileManager.default.createDirectory(atPath: real, withIntermediateDirectories: true)
+        try FileManager.default.createSymbolicLink(
+            atPath: root.path + "/Linked.app", withDestinationPath: root.path + "/Real.app")
+        let gone = root.path + "/Linked.app/Contents/MacOS/ZZFixtureMachine"
+        #expect(NestedAppGuard.resolvedPath(gone) == real + "/ZZFixtureMachine")
     }
 
     // MARK: - Fixtures

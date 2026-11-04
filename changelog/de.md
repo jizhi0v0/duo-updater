@@ -2,6 +2,48 @@
 
 Dies ist eine deutsche Übersetzung von `CHANGELOG.md`. Die englische Fassung ist maßgeblich; frühere Versionen, die hier nicht aufgeführt sind, fallen automatisch auf Englisch zurück.
 
+## 0.5.20
+
+**Setapp-Beta-Updates werden ehrlich gemeldet.** DuoUpdater kann nur Setapps stabilen Katalog lesen. Ist Setapps Beta-Schalter an, sagt eine App, die nicht geprüft werden kann, das jetzt auch — mit einem Hinweis auf Setapp — statt als aktuell zu gelten.
+
+**Eine Setapp-Kopie, die dem stabilen Katalog voraus ist, wird benannt statt „herabgestuft“.** Wer eine Setapp-Beta probiert hat, sah in der Zeile die ältere stabile Version hinter einem Pfeil nach unten, als würde ein Downgrade angeboten. Jetzt steht dort „(Setapp Beta)“, wenn Setapps eigener Stand diesen Build noch kennt, sonst „(neuer als Setapps stabile Versionen)“; zum Installieren wird nichts angeboten.
+
+**Setapp-Editionen zeigen die Versionshinweise der App.** Wo DuoUpdater die Hinweise des Herstellers ohnehin liest, nutzt die Setapp-Kopie derselben App sie jetzt ebenfalls, statt eines leeren Bereichs. Bartender 7 ist die Ausnahme: Unsere Hinweise decken nur Bartender 6 ab.
+
+## 0.5.19
+
+**Setapp-Apps werden jetzt über ihren eigenen Kanal geprüft.** Für über Setapp installierte Apps wurde der Direkt-Download des Herstellers angeboten und dann abgelehnt, weil diese Edition eine eigene Bundle-ID trägt. DuoUpdater liest jetzt Setapps eigenen Katalog: Er zeigt die Version, die Setapp ausliefert, und „Aktualisieren“ startet Setapp im Hintergrund, wenn dessen automatische Installationen an sind — sonst öffnet es Setapp, wo Update und Fortschritt liegen.
+
+**Ein abgelaufenes Setapp-Abo wird jetzt benannt.** Die Zeile nennt weiterhin die Version, die Setapp anbietet, bietet die Installation aber nicht mehr an; eine Schaltfläche öffnet Setapp zum Verlängern oder Anmelden. Nach dem Ende des Abos öffnen sich die Apps nicht mehr.
+
+**Der Beta-Kanal von Setapp wird benannt, nicht geraten.** Der öffentliche Katalog listet nur stabile Versionen; ist Setapps Beta-Schalter an, sagt die Zeile, dass der Kanal nicht vollständig geprüft werden konnte, statt die App als aktuell auszugeben.
+
+## 0.5.18
+
+**Neun weitere Apps werden unterstützt.** CleanMyMac 5, Gemini 2, LosslessCut, Super Productivity, ActivityWatch, GitUp, Requestly, Reqable und FlyEnv erhalten Update-Prüfungen, Versionshinweise und Ein-Klick-Updates.
+
+**Discord-Updates lassen sich wieder installieren.** Das Ein-Klick-Update von Discord Stable scheiterte zuletzt beim Download, und die verwendete Adresse konnte dir einen älteren Build liefern als die auf der Zeile genannte Version; jetzt wird die Datei geladen, die zu genau dieser Version veröffentlicht wurde.
+
+**Xcode-Updates laufen durch, statt an einer Ablehnung zu enden.** Ein laufendes Xcode lädt und prüft das Update, während es geöffnet bleibt, und bittet dich dann, es neu zu starten. „Alle aktualisieren“ nimmt Xcode mit, wenn du bei einem Apple-Developer-Konto angemeldet bist und keine Kopie läuft, und eine danebenliegende Kopie, die nach ihrer Version benannt ist, wird passend zur jetzigen Version umbenannt.
+
+**Antigravity IDE aktualisiert sich jetzt mit einem Klick.** Bisher konnte es dir nur sagen, dass eine neue Version da ist, und bot nur das Öffnen der App an.
+
+**Ein gestaffeltes Update startet eine App nicht mehr neu, in der ein Hilfsprozess läuft, etwa VMPal mit einer offenen virtuellen Maschine.** „Neu starten“ prüft jetzt dasselbe wie die Installation, und eine App, die das Beenden verweigert, sagt das auf ihrer Zeile, statt sie drehen zu lassen.
+
+**Gemini aktualisiert sich mit einem Klick, auch wenn sein Launcher läuft.** Der Launcher startet bei jedem Start ohnehin aus dem neuen Bundle; die Aufforderung, ihn vorher zu beenden, war unnötig.
+
+**Apps in einem Unterordner von „Programme“ werden gefunden.** Ein herstellereigener Ordner wie `/Applications/Adobe Photoshop 2025/` verdeckt seinen Inhalt nicht mehr. Einstellungen › Ignorierte Apps zeigt Symbol, Namen und Ordner jeder App, sodass zwei Kopien mit gleichem Namen unterscheidbar sind und eine nicht mehr installierte das auch sagt.
+
+**Ein Klick auf den Namen einer App oder eines Werkzeugs im Popover öffnet sie in der Werkbank.** Eine Zeile, die erklärt, warum etwas zurückgehalten wurde, führt jetzt dorthin, wo du etwas tun kannst.
+
+**OpenCode 2 wird gemeldet, statt „auf dem neuesten Stand“ zu lauten.** Die CLI-Zeile sieht die 2.0-Linie und gibt dir ihren eigenen Upgrade-Befehl; die Desktop-App folgt dem neuen Kanal des Herstellers.
+
+**Die Versionshinweise von VS Code werden wieder gelesen.** Auch die von DeepSeek Harness erscheinen jetzt in DuoUpdater.
+
+**Korrekturen.** Die englischen Zeilen-Tags lauten „Ignored“ statt „Ignored (row status)“, und `duo unignore` gibt der zurückgeholten Zeile sofort ein Urteil.
+
+**Unter der Haube.** Die Prüfung, die eine App davor bewahrt, unter einem laufenden Hilfsprozess ersetzt zu werden, funktioniert auch weiter, nachdem die Dateien der App ausgetauscht wurden.
+
 ## 0.5.17
 
 **Die App-Liste lässt sich jetzt nach dem Neuesten sortieren.** Ein Menü „Sortieren“ in der Symbolleiste des Fensters und im Popover wechselt zwischen „Name“ und „Neueste“. „Neueste“ nutzt das Veröffentlichungsdatum, das der Hersteller selbst angibt; ein diese Woche veröffentlichtes Update steht also vor einem vom letzten Monat. Apps, deren Quelle kein Datum nennt, bleiben in Namensreihenfolge.

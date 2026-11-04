@@ -634,6 +634,32 @@ public struct VendorProbeRecipe: Sendable {
     /// "highest" would wrongly grab a bigger unrelated number.
     public let selectHighest: Bool
 
+    /// When true (with `selectHighest` and a `.versionTemplate` install), the
+    /// probe only OFFERS a build whose artifact it has confirmed: it walks the
+    /// versions it extracted, highest first, bounded by
+    /// `VendorProbeSource.publishedWalkLimit`, and takes the first whose URL
+    /// answers. When none answers the version still reads but one-click is
+    /// dropped, so the row never advertises an Update button that 404s.
+    ///
+    /// Exists for one measured shape: a vendor that writes release notes for
+    /// builds it never packages. DeepSeek Harness's alpha tags are that —
+    /// `0.2.2-alpha.2` and `0.2.1-alpha.5` have full bilingual notes and no DMG
+    /// (404, checked 2026-11-03), while the neighbouring builds do. Without this
+    /// the probe reports the highest NOTE it can see, which is the newest build
+    /// in name only; the note-vs-binary gap has to be resolved against the
+    /// artifact, and nothing in the response says which builds have one.
+    ///
+    /// Opt-in rather than the default because it costs a HEAD per check, and the
+    /// registry's rule is that an ordinary check does not pay that per app (see
+    /// `ProbeWarning.installURLNotFound`). A recipe that opts in must say why in
+    /// its comment, as this one does.
+    ///
+    /// It walks DOWN rather than failing, because the honest answer when the
+    /// newest build has no binary is the newest build that has one — not "no
+    /// update" for a copy that is genuinely behind a published build, and not a
+    /// phantom offer for the packaged one.
+    public let selectsHighestPublishedBuild: Bool
+
     /// When true, the version this recipe extracts is the vendor's *build* number
     /// (the app's `CFBundleVersion`), NOT its marketing `CFBundleShortVersionString`.
     /// The source then routes it into `RemoteVersion.version` so the engine compares
@@ -935,6 +961,7 @@ public struct VendorProbeRecipe: Sendable {
         downloadURL: URL? = nil,
         changelogURL: URL? = nil,
         selectHighest: Bool = false,
+        selectsHighestPublishedBuild: Bool = false,
         versionIsBuild: Bool = false,
         buildNamespace: InstalledApp.BuildNamespace = .bundle,
         displayVersionPattern: String? = nil,
@@ -972,6 +999,7 @@ public struct VendorProbeRecipe: Sendable {
         self.downloadURL = downloadURL
         self.changelogURL = changelogURL
         self.selectHighest = selectHighest
+        self.selectsHighestPublishedBuild = selectsHighestPublishedBuild
         self.versionIsBuild = versionIsBuild
         self.buildNamespace = buildNamespace
         self.displayVersionPattern = displayVersionPattern
@@ -1141,6 +1169,26 @@ public struct VendorProbeRecipe: Sendable {
         return best
     }
 
+    /// Every distinct version `pattern` captures in `text`, highest first.
+    ///
+    /// The candidate list `selectsHighestPublishedBuild` walks. Distinct because a
+    /// feed can name one release on several lines (a title plus a compare link),
+    /// and highest-first because the walk's first answer is the version the probe
+    /// would otherwise report.
+    public static func versions(in text: String, pattern: String) -> [String] {
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return [] }
+        let range = NSRange(text.startIndex..., in: text)
+        var seen: Set<String> = []
+        var found: [String] = []
+        for match in regex.matches(in: text, options: [], range: range) {
+            guard let candidate = version(of: match, in: text),
+                  seen.insert(candidate).inserted
+            else { continue }
+            found.append(candidate)
+        }
+        return found.sorted { VersionComparator.compare($0, $1) == .orderedDescending }
+    }
+
     /// The runtime behind `entryStartPattern`: slice `text` into entries at every
     /// match of `entryStartPattern` (one match's start to the next match's
     /// start, the last entry running to the end of `text`), keep the entries
@@ -1254,6 +1302,7 @@ public struct VendorProbeRecipe: Sendable {
             bundleID: bundleID, url: url ?? self.url, mode: mode, versionPattern: versionPattern,
             transientBodyPattern: transientBodyPattern, trackClosedPattern: trackClosedPattern,
             downloadURL: downloadURL, changelogURL: changelogURL, selectHighest: selectHighest,
+            selectsHighestPublishedBuild: selectsHighestPublishedBuild,
             versionIsBuild: versionIsBuild, buildNamespace: buildNamespace,
             displayVersionPattern: displayVersionPattern,
             publishedAtPattern: publishedAtPattern,

@@ -193,14 +193,47 @@ import Darwin
 /// Omaha cohort than the one duo installed: that is the price of installing
 /// during a staged rollout at all (the cohort echo, #1621), not something the
 /// guard can settle.
+///
+/// `RunningProcess.launchedPath` came on 2026-11-03, for #1783. A swap replaces
+/// the bundle while a nested helper is still running from it, and the copy the
+/// installer moved aside is deleted afterwards, so the helper's executable inode
+/// is unlinked. `proc_pidpath` then answers `ENOENT` for a process that is still
+/// there, the live list dropped it, and `blockers` came back empty while the VM
+/// ran: `duo restart VMPal` took the staged path, the guard saw nothing and sent
+/// the quit. The swap that put VMPal in that state was the first one; every
+/// later one was blind until the helper exited.
+/// Measured 2026-11-02 on this Mac with VMPal 0.113 → 0.114 force-installed over
+/// a running VM (pid 8631 still up): `proc_pidpath` 0/`ENOENT`,
+/// `proc_pidinfo(PROC_PIDTBSDINFO)` 136 bytes with uid 501 and ppid 1, and
+/// `blockers(bundlePath: "/Applications/VMPal.app", …)` `[]`. `lsof` still named
+/// the executable at the Sparkle staging path, the copy that had been deleted.
+/// After the VM was restarted (a new pid from `/Applications/VMPal.app`) the
+/// path resolved again and the guard refused as designed. Measured 2026-11-03
+/// with a launchd-spawned child (ppid 1) whose copied executable was unlinked
+/// while it ran: `proc_pidpath` 0/`ENOENT`, while `KERN_PROCARGS2` still spelled
+/// the path `execve` was given — the bundle path the swap replaced, not the
+/// staging path — so that is the identity the live list keeps. `argv[0]` read
+/// the same, but it is a copy the program can rewrite and the exec path is not.
+/// Three other live processes were already in that state when this was measured
+/// (Rex Beta, Sogou's `SogouServices`, a ChatGPT-for-Chrome extension host), so
+/// it is not only VMPal's staging path.
 public enum NestedAppGuard {
 
     /// One process, as much as this guard needs to know about it.
     public struct RunningProcess: Equatable, Sendable {
         public let pid: pid_t
         public let parentPID: pid_t
-        /// As `proc_pidpath` spells it: symlinks resolved.
-        public let executablePath: String
+        /// As `proc_pidpath` spells it: symlinks resolved. Nil when the kernel
+        /// cannot name the executable any more — the swap unlinked it (#1783) —
+        /// which does not mean the process is gone: see `launchedPath`.
+        public let executablePath: String?
+        /// The path `execve` was given, from the argv block the kernel saved at
+        /// exec, symlinks resolved like `executablePath`. Only read when the
+        /// kernel names nothing, and then it is the identity that survives: a
+        /// helper still running from the bundle a swap replaced is placed inside
+        /// that bundle by this path. Nil for every other process, and when the
+        /// kernel kept no copy (another user's, or gone).
+        public let launchedPath: String?
         /// Whether LaunchServices reports it as a `.regular` app. Only asked for
         /// processes inside a nested `.app`; false for everything else.
         public let isRegularApp: Bool
@@ -210,15 +243,21 @@ public enum NestedAppGuard {
         public let arguments: [String]?
 
         public init(
-            pid: pid_t, parentPID: pid_t, executablePath: String, isRegularApp: Bool,
-            arguments: [String]? = nil
+            pid: pid_t, parentPID: pid_t, executablePath: String?, launchedPath: String? = nil,
+            isRegularApp: Bool, arguments: [String]? = nil
         ) {
             self.pid = pid
             self.parentPID = parentPID
             self.executablePath = executablePath
+            self.launchedPath = launchedPath
             self.isRegularApp = isRegularApp
             self.arguments = arguments
         }
+
+        /// The path this guard places the process by: what the kernel names now,
+        /// or — when it names nothing — where the process was launched from.
+        /// Empty when neither, which no bundle claims.
+        var path: String { executablePath ?? launchedPath ?? "" }
     }
 
     /// One plist in the bundle's own `Contents/Library/LaunchAgents/`.
@@ -237,7 +276,7 @@ public enum NestedAppGuard {
         /// Whether `process` is an instance of this agent: the same executable,
         /// and the same argv after `argv[0]`.
         func isInstance(_ process: RunningProcess) -> Bool {
-            guard process.executablePath == program, let argv = process.arguments else { return false }
+            guard process.path == program, let argv = process.arguments else { return false }
             return argv.dropFirst().elementsEqual(arguments.dropFirst())
         }
     }
@@ -274,32 +313,30 @@ public enum NestedAppGuard {
         // same goes for a helper the host replaces at launch — measured to
         // outlive it — whose own subtree the exemption already covers.
         let fromThisBundle = Set(processes.lazy
-            .filter { $0.executablePath.hasPrefix(prefix) }
+            .filter { $0.path.hasPrefix(prefix) }
             .filter { process in
                 !launchAgents.contains(where: { $0.isInstance(process) })
                     && !neverBlocks(process, insideBundle: prefix)
-                    && !replacedOnLaunch(executablePath: process.executablePath, insideBundle: prefix)
+                    && !replacedOnLaunch(executablePath: process.path, insideBundle: prefix)
             }
             .map(\.pid))
         let hostIsRunning = processes.contains {
-            isMainAppExecutable($0.executablePath, insideBundle: prefix)
+            isMainAppExecutable($0.path, insideBundle: prefix)
         }
         return processes
             .compactMap { process -> Blocker? in
+                let path = process.path
                 guard !process.isRegularApp, !fromThisBundle.contains(process.parentPID),
                       !launchAgents.contains(where: { $0.isInstance(process) }),
                       !neverBlocks(process, insideBundle: prefix),
-                      !(hostIsRunning
-                        && exitsWithHost(executablePath: process.executablePath, insideBundle: prefix)),
-                      !(hostIsRunning
-                        && replacedOnLaunch(executablePath: process.executablePath, insideBundle: prefix)),
-                      let name = nestedAppName(executablePath: process.executablePath, insideBundle: prefix)
+                      !(hostIsRunning && exitsWithHost(executablePath: path, insideBundle: prefix)),
+                      !(hostIsRunning && replacedOnLaunch(executablePath: path, insideBundle: prefix)),
+                      let name = nestedAppName(executablePath: path, insideBundle: prefix)
                 else { return nil }
                 return Blocker(
                     name: name, pid: process.pid,
                     vmName: vmName(of: process, insideBundle: prefix),
-                    needsHostRunning: replacedOnLaunch(
-                        executablePath: process.executablePath, insideBundle: prefix))
+                    needsHostRunning: replacedOnLaunch(executablePath: path, insideBundle: prefix))
             }
             .sorted { $0.pid < $1.pid }
     }
@@ -336,8 +373,9 @@ public enum NestedAppGuard {
     /// Whether `process` is one of `nestedAppInstancesThatNeverBlock`.
     /// `bundlePrefix` ends in `/`.
     static func neverBlocks(_ process: RunningProcess, insideBundle bundlePrefix: String) -> Bool {
-        guard process.executablePath.hasPrefix(bundlePrefix), let argv = process.arguments else { return false }
-        let relative = process.executablePath.dropFirst(bundlePrefix.count)
+        let path = process.path
+        guard path.hasPrefix(bundlePrefix), let argv = process.arguments else { return false }
+        let relative = path.dropFirst(bundlePrefix.count)
         return nestedAppInstancesThatNeverBlock.contains {
             relative.hasPrefix($0.app + "/") && argv.dropFirst().elementsEqual($0.arguments)
         }
@@ -347,7 +385,7 @@ public enum NestedAppGuard {
     /// `.vmpal` ("/Volumes/VM/macOS VM 1.vmpal" → "macOS VM 1"). Nil for any
     /// other process, and when its argv was not read. `bundlePrefix` ends in `/`.
     static func vmName(of process: RunningProcess, insideBundle bundlePrefix: String) -> String? {
-        guard process.executablePath.hasPrefix(bundlePrefix + "Contents/Helpers/VMPalMachine.app/"),
+        guard process.path.hasPrefix(bundlePrefix + "Contents/Helpers/VMPalMachine.app/"),
               let argv = process.arguments,
               let flag = argv.dropFirst().firstIndex(of: "--machine"), flag + 1 < argv.count
         else { return nil }
@@ -440,6 +478,13 @@ public enum NestedAppGuard {
     /// activation policy comes from a NEW `NSRunningApplication` per pid, which
     /// reads the current value; the shared `NSWorkspace.runningApplications`
     /// snapshot goes stale in a process with no run loop, such as the CLI.
+    ///
+    /// A process whose executable `proc_pidpath` cannot name is not dropped: the
+    /// kernel's answer is `ENOENT` once a swap has unlinked the executable a
+    /// helper is still running from (#1783), so `launchedPath` falls back to the
+    /// path `execve` was given, which `KERN_PROCARGS2` saved. Only a process the
+    /// kernel will not name either — another user's, which no read can reach —
+    /// is skipped, and that is on the record rather than silent.
     public static func liveProcesses() -> [RunningProcess] {
         let capacity = Int(proc_listallpids(nil, 0)) + 64
         guard capacity > 64 else { return [] }
@@ -452,12 +497,29 @@ public enum NestedAppGuard {
         var processes: [RunningProcess] = []
         for pid in pids.prefix(min(count, capacity)) where pid > 0 {
             let length = Int(proc_pidpath(pid, &buffer, UInt32(buffer.count)))
-            guard length > 0 else { continue }
-            let path = String(decoding: buffer.prefix(length).map { UInt8(bitPattern: $0) }, as: UTF8.self)
+            let kernelPath = length > 0
+                ? String(decoding: buffer.prefix(length).map { UInt8(bitPattern: $0) }, as: UTF8.self)
+                : nil
             var info = proc_bsdinfo()
             let size = Int32(MemoryLayout<proc_bsdinfo>.size)
-            let parent: pid_t = proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, size) == size
-                ? pid_t(info.pbi_ppid) : 0
+            let answered = proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, size) == size
+            let parent = answered ? pid_t(info.pbi_ppid) : 0
+            // The executable is unlinked and the kernel has no path for it; the
+            // path execve was given lives on in the argv block. See #1783.
+            var launchedPath: String?
+            if kernelPath == nil, let saved = ClaudeCodeActivity.executablePathSavedAtExec(of: pid),
+               !saved.isEmpty {
+                launchedPath = resolvedPath(saved)
+            }
+            guard let path = kernelPath ?? launchedPath else {
+                // Alive and unnamable is exactly the state the guard used to miss
+                // silently; it cannot be placed in a bundle, so it is not a
+                // blocker and there is nothing else to do with it.
+                if answered {
+                    Log.install.notice("nested-guard: pid \(pid, privacy: .public) is running but neither proc_pidpath nor KERN_PROCARGS2 names its executable")
+                }
+                continue
+            }
             // Only a process inside some `.app` below another `.app` can matter,
             // and asking LaunchServices or reading argv for every pid would be
             // wasted work.
@@ -465,10 +527,33 @@ public enum NestedAppGuard {
             let regular = nested
                 && NSRunningApplication(processIdentifier: pid)?.activationPolicy == .regular
             processes.append(RunningProcess(
-                pid: pid, parentPID: parent, executablePath: path, isRegularApp: regular,
+                pid: pid, parentPID: parent, executablePath: kernelPath, launchedPath: launchedPath,
+                isRegularApp: regular,
                 arguments: nested ? ClaudeCodeActivity.arguments(of: pid) : nil))
         }
         return processes
+    }
+
+    /// `path` with the symlinks above its last component resolved, as far as
+    /// they exist. `proc_pidpath` resolves whole paths; the executable of a
+    /// process a swap unlinked no longer exists, and Foundation's
+    /// `resolvingSymlinksInPath` then returns such a path unchanged — so an app
+    /// installed through a symlinked directory (`~/Applications` pointing
+    /// elsewhere, say) would not match the bundle path `refusal` resolved.
+    /// Resolving the deepest existing parent and appending the rest keeps the
+    /// two spellings equal for exactly the process this guard has to place.
+    static func resolvedPath(_ path: String) -> String {
+        var ancestor = path
+        var tail: [String] = []
+        while !ancestor.isEmpty, !FileManager.default.fileExists(atPath: ancestor) {
+            tail.append((ancestor as NSString).lastPathComponent)
+            ancestor = (ancestor as NSString).deletingLastPathComponent
+        }
+        guard !ancestor.isEmpty else { return path }
+        var resolved = URL(fileURLWithPath: ancestor).resolvingSymlinksInPath().path
+        if resolved.count > 1, resolved.hasSuffix("/") { resolved = String(resolved.dropLast()) }
+        for component in tail.reversed() { resolved += "/" + component }
+        return resolved
     }
 
     /// Why `bundle` cannot be replaced right now, or nil when it can.

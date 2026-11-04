@@ -1,0 +1,51 @@
+# A clean review of the CURRENT head is required in addition to compilation.
+# Runs trusted default-branch code. A separate App publishes the status;
+# PR-controlled GITHUB_TOKEN credentials cannot impersonate that publisher.
+name: Codex review gate
+run-name: 'Codex review gate PR #${{ github.event.pull_request.number }} @${{ github.event.pull_request.head.sha }}'
+
+on:
+  pull_request_target:
+    branches: [main]
+    types: [opened, reopened, synchronize, ready_for_review, converted_to_draft, labeled, unlabeled, edited]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: codex-review-gate-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review-controller:
+    # Configure this environment to allow only the main BRANCH, not tags or
+    # pull-request merge refs. Keep the App key out of repository secrets.
+    environment: codex-review-publisher
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out trusted default-branch review gate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+          sparse-checkout: scripts/check_codex_review.py
+          sparse-checkout-cone-mode: false
+      - name: Create isolated status publisher token
+        id: publisher
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ vars.CODEX_REVIEW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.CODEX_REVIEW_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-statuses: write
+      - name: Wait for a clean Codex review of this head
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CODEX_REVIEW_STATUS_TOKEN: ${{ steps.publisher.outputs.token }}
+          PR: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: python3 scripts/check_codex_review.py --pr "$PR" --head "$HEAD_SHA" --publish-check --run-url "$RUN_URL"

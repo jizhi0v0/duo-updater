@@ -31,3 +31,23 @@
 Codex's official GitHub integration runs reviews; see
 [the setup notes](.github/codex-review.md). CI and the real-machine and local
 adversarial-review records remain separate requirements.
+
+## Automated PR fixes and merges
+
+- Cloud PR handling is driven by GitHub events. Read the current PR head,
+  official Codex receipt, unresolved review threads and CI before acting.
+  Evidence for an older head never approves a newer one.
+- Use normal pushes and SHA-bound merges, respecting branch protection.
+  Require a clean current-head Codex re-review, `test` (including App and CLI
+  unsigned Release builds), `real-machine` and `adversarial-review` to pass.
+  Do not enable auto-merge early while review or validation is outstanding.
+- When necessary real-machine validation is missing, apply `needs-real-machine`,
+  explain the missing evidence and leave the PR open. Do not invent results or
+  add an untrue opt-out. Remove the hold only after the required evidence exists.
+- A same-head Codex retry does not push code: rerun the PR's `codex-review`
+  workflow after the clean retry so its required check reflects that receipt.
+  Follow the check's details/run URL to `review-controller`; this trusted
+  `pull_request_target` run uses the base SHA, not the PR head, as its run SHA.
+- Completion comments from `Cloud PR wakeup` are wakeups, not approvals.
+  Re-read current state, deduplicate work and avoid reacting to your own status
+  replies in a loop. Respect drafts and explicit author holds.

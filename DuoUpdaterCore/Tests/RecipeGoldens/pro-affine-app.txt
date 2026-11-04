@@ -60,7 +60,7 @@ githubRules[2].installerKind? = .dmg
 githubRules[2].installTrust = .developerID
 githubRules[2].variant = nil
 githubRules[2].architectureRequirement = nil
-githubRules[2].tagRefPrefix = nil
+githubRules[2].tagRefPrefix? = "v"
 githubRules[2].installedExecutableMarker = nil
 
 appStoreCases = Array(count: 0)

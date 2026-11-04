@@ -258,6 +258,51 @@ struct GitHubTagRefResolutionTests {
         #expect(ByURLProtocol.script.urls == [refsURL, releaseURL])
     }
 
+
+    // MARK: - AFFiNE canary (#1838)
+
+    /// GitHub's release list returned .907 ahead of the already-observed .909.
+    /// The registry rule must order matching tags numerically and fetch the
+    /// greatest canary by exact tag, independent of refs or list order.
+    @Test(arguments: [
+        ["v2026.10.25-canary.907", "v2026.10.27-canary.909"],
+        ["v2026.10.27-canary.909", "v2026.10.25-canary.907"],
+    ])
+    func affineCanarySelectsTheGreatestMatchingTag(_ canaryTags: [String]) async throws {
+        let rule = try #require(GitHubReleaseRegistry.rules.first {
+            $0.bundleID == "pro.affine.canary" && $0.channel == .canary
+        })
+        let newest = "v2026.10.27-canary.909"
+        let version = String(newest.dropFirst())
+        let root = "https://api.github.com/repos/toeverything/AFFiNE"
+        let refsURL = root + "/git/matching-refs/tags/v"
+        let releaseURL = root + "/releases/tags/" + newest
+        func canaryRelease(_ tag: String) -> String {
+            let version = String(tag.dropFirst())
+            return """
+            {"tag_name":"\(tag)","prerelease":true,"draft":false,
+             "assets":[{"name":"affine-\(version)-canary-macos-arm64.dmg",
+              "browser_download_url":"https://github.com/toeverything/AFFiNE/releases/download/\(tag)/affine-\(version)-canary-macos-arm64.dmg"}]}
+            """
+        }
+        let staleList = "[" + canaryRelease("v2026.10.25-canary.907") + "]"
+        ByURLProtocol.script.load([
+            refsURL: Self.refs(["v0.27.4", "v0.27.5-beta.1"] + canaryTags),
+            releaseURL: canaryRelease(newest),
+            root + "/releases?per_page=1": staleList,
+            root + "/releases?per_page=\(rule.listPageSize)": staleList,
+        ])
+        let source = GitHubReleasesSource(rules: [rule], session: Self.session())
+        let outcome = await source.resolveDiagnostic(
+            rule, preferring: .arm64, allowingIntelTranslation: false)
+
+        #expect(outcome.failure == nil)
+        #expect(outcome.remote?.shortVersion == version)
+        #expect(outcome.remote?.downloadURL?.lastPathComponent
+                == "affine-\(version)-canary-macos-arm64.dmg")
+        #expect(ByURLProtocol.script.urls == [refsURL, releaseURL])
+    }
+
     // MARK: - Registry invariants
 
     /// The tag-ref path replaces only the `.newest` list walk. A line-anchored

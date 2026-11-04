@@ -2571,9 +2571,9 @@
       "bundleIdentifier" : "pro.affine.canary",
       "firstSeenAt" : "2026-10-26T17:44:32Z",
       "firstSeenVersion" : "2026.10.26-canary.915",
-      "lastSeenAt" : "2026-11-04T23:00:53Z",
-      "lastSeenURLSHA256" : "4ba8cb8da825a1e2f22b88af6c4be78e67bfa924c1a35472a90b6f525413b573",
-      "lastSeenVersion" : "2026.10.25-canary.907",
+      "lastSeenAt" : "2026-10-27T11:07:58Z",
+      "lastSeenURLSHA256" : "33b231691d77cfeb440f9058d6c484330316ca6e437a493332eb2569af1c4d0a",
+      "lastSeenVersion" : "2026.10.27-canary.909",
       "signedIdentifier" : "pro.affine.canary",
       "teamIdentifier" : "73YMMDVT2M"
     },

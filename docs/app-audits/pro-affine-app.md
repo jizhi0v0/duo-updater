@@ -39,16 +39,16 @@
 |---------|-----------|----------|---------|---------|------|
 | stable  | `pro.affine.app` | 独立 | — | GitHub `/releases/latest` | ✓ |
 | beta    | `pro.affine.beta` | 独立 | bundle id 后缀 `.beta`（`ReleaseChannel.detect` 实测 `inferred beta`） | GitHub 列表取第一个 `-beta.N` tag | ✓ |
-| canary  | `pro.affine.canary` | 独立 | bundle id 后缀 `.canary`（实测 `inferred canary`） | GitHub 列表取第一个 `-canary.N` tag | ✓ |
+| canary  | `pro.affine.canary` | 独立 | bundle id 后缀 `.canary`（实测 `inferred canary`） | GitHub tag refs 按版本排序后精确读取最大的 `-canary.N` tag | ✓ |
 
 - 三轨怎么出包（settled from source: `scripts/make-env.ts`、`forge.config.mjs` on `canary`）: `BUILD_TYPE` 决定 `productName`（stable `AFFiNE`，其余 `AFFiNE-<buildType>`）和 `appBundleId`；数据目录随 `productName` 分开（源码注释 "so stable and canary will not share the same app data"）
 - 版本串: beta / canary 的包内版本就是 tag 去掉 `v`（`0.27.5-beta.1`、`2026.10.25-canary.907`），rule 的捕获组保留后缀，跟包内版本逐字相等
 - 厂商的 beta 更新器只给 beta 构建（`allowPrerelease = buildType !== 'stable'`，feed 按 `channel=beta` 过滤），我们的 beta rule 也只读 `-beta.N` tag，不会给 beta 副本推 stable
-- `listPageSize`: canary 几乎总是列表第一个，两个日期 canary 之间最多隔 12 个别的 release，默认 20 够。beta 在 2026-10-26 排第 26（8-26 之后只有 canary）；2025 年以来两个 beta 最多相隔 14 位。取 50。超过这一页时 rule 读不到 beta，行上是 unknown，不会给错版本
+- `listPageSize`: beta 在 2026-10-26 排第 26（8-26 之后只有 canary）；2025 年以来两个 beta 最多相隔 14 位，取 50。超过这一页时 beta rule 读不到版本，行上是 unknown，不会给错版本。canary 不再依赖列表深度：`tagRefPrefix: "v"` 获取 tag refs，过滤后按 `VersionComparator` 降序并精确读取最大版本
 - 一键: 非 stable 轨有 `githubChannelProofs`，要求安装 URL 的 tag 和文件名都带本轨的词（`/download/v…-beta.N/affine-…-beta.N-beta-macos-arm64.dmg`、canary 同形）
 
 ## 更新检测
-- 源: `toeverything/AFFiNE` GitHub Releases。stable 读 `/releases/latest`；beta / canary 读列表（`usePrereleases`）
+- 源: `toeverything/AFFiNE` GitHub Releases。stable 读 `/releases/latest`；beta 读列表（`usePrereleases`）；canary 读 `git/matching-refs/tags/v`，按版本排序后精确读取最大匹配 tag
 - `versionPattern`: stable `^v([0-9]+(?:\.[0-9]+)+)$`；beta `^v?([0-9]+(?:\.[0-9]+)+-beta\.[0-9]+)$`；canary `^v?([0-9]+(?:\.[0-9]+)+-canary\.[0-9]+)$`
 - install pattern: `^affine-[0-9]+(?:\.[0-9]+)+-stable-macos-arm64\.dmg$`（beta / canary 把 `-stable` 换成 `-beta\.[0-9]+-beta` / `-canary\.[0-9]+-canary`）。同一个 release 里的 x64 dmg、两个 zip、Linux / Windows 包、yml 都不匹配
 - **AFFiNE 自己的更新器**（settled from source: `src/main/updater/electron-updater.ts`、`affine-update-provider.ts` on `canary`；包内 `app.asar` 的 `node_modules/electron-updater` 是 6.8.9）:
@@ -114,6 +114,7 @@
   - 自更新器只在用户点重启时才交给 Squirrel，所以第二轮"让它暂存一个比 latest 旧的版本"需要它的 feed 先给出一个旧版本；当前 stable feed 为空，无从暂存
 
 ## 已知问题
+- 2026-11-04 的 verify-install sweep 暴露出 release 列表顺序回退：已知 `2026.10.27-canary.909` 之后解析成 `2026.10.25-canary.907`。GitHub 列表顺序不是版本顺序；canary rule 已改用 tag refs + `VersionComparator`，并用乱序 .907/.909 的 exact-tag 回归测试钉住，错误的 .907 identity 观测没有被接受
 - **`com.electron.affine`（0.5.x 预览版）经 `BundleIDMigration` 接上**: 0.5.2 的真包是 `com.electron.affine`、版本 0.0.0、同 Team；0.6.0 起才是 `pro.affine.app`。`BundleIDMigration.all` 有一条 `com.electron.affine → pro.affine.app`（Team 73YMMDVT2M，`lastFromVersion` 0.5.3，`firstToVersion` 0.6.0；v0.5.3 prerelease 真包也是 `com.electron.affine`、版本 0.5.3、同 Team，2026-10-26 实测），预览版副本按 `pro.affine.app` 检测、被提供最新稳定版。这个 id 是 Electron 工具链的通用形状（`com.electron.<name>`）：Team 只约束换包和回滚（Gate 4、`restoreMigration`），检测阶段不看 Team，任何 0.6.0 以下的 `com.electron.affine` 副本都会被当成 AFFiNE 检测；别的 Team 签的副本在安装的 Team 闸被拒、原副本不动，ad-hoc 副本只检测不一键。`covers` 只比 `firstToVersion` 这一个界。标成 `isRewrite`：一键前先让用户确认，因为预览版的工作区能否带到 0.27 没验证。`BundleIDMigrationTests.affinePreviewCopyIsFiledUnderTheStableApp` 钉住这条。真机（2026-10-26，本分支 `make cli` 的 duo）: 装真包 v0.5.2（`com.electron.affine`、0.0.0、Team 73YMMDVT2M）→ `duo check` 给 `0.0.0 → 0.27.4 [GitHub, in-place]` → `duo install --yes`: verifyingSignature、verifyingCodeSignature、installed → 盘上 `pro.affine.app` 0.27.4、Team 不变、`codesign` 0、Notarized。CLI 没有像 GUI 那样先要确认（CLI 不读 `isVendorRewrite`，已有缺口，另开任务）。回滚点这次没在 `duo backups` 里看到（备份盘没连），回滚没验证；预览版副本没启动过，工作区能否沿用也没验证
 - AFFiNE 的 stable 自更新器眼下拿不到版本（worker 只看列表前 30 个，0.27.4 已被 canary / beta 挤出去），这是厂商侧的问题；它不影响我们的检测，反而意味着此刻没有自更新器和我们抢
 - beta 轨从 2026-08-26 起没有新版本；如果 canary 持续发而 beta 长期不发，beta 会滑出 50 条的页，beta 行变 unknown（不是错版本）。厂商自己的 beta 更新器在第 30 条外就已经读不到了

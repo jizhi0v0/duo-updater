@@ -781,6 +781,71 @@
         }
       }
     },
+    "%@ (ahead of Setapp’s beta releases)": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ (neuer als Setapps Beta-Versionen)"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ (más reciente que las versiones beta de Setapp)"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ (plus récent que les versions bêta de Setapp)"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ (più recente delle versioni beta di Setapp)"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@（Setappのベータ版より新しい）"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ (à frente das versões beta do Setapp)"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ (новее бета-версий Setapp)"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ (Setapp'in beta sürümlerinden yeni)"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@（比 Setapp Beta 版更新）"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@（比 Setapp Beta 版更新）"
+          }
+        }
+      }
+    },
     "%@ (ahead of Setapp’s stable releases)": {
       "extractionState": "manual",
       "localizations": {
@@ -62335,71 +62400,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Setapp 訂閱未生效"
-          }
-        }
-      }
-    },
-    "Setapp’s beta updates are on, and DuoUpdater reads only Setapp’s stable catalogue. Open Setapp to check for a beta.": {
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Setapps Beta-Updates sind aktiviert, und DuoUpdater liest nur Setapps stabilen Katalog. Öffne Setapp, um nach einer Beta zu suchen."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Las actualizaciones beta de Setapp están activadas y DuoUpdater solo lee el catálogo estable de Setapp. Abre Setapp para buscar una beta."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Les mises à jour bêta de Setapp sont activées et DuoUpdater ne lit que le catalogue stable de Setapp. Ouvrez Setapp pour chercher une bêta."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Gli aggiornamenti beta di Setapp sono attivi e DuoUpdater legge solo il catalogo stabile di Setapp. Apri Setapp per cercare una beta."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Setappのベータ更新が有効ですが、DuoUpdaterはSetappの安定版カタログしか読みません。ベータを確認するにはSetappを開いてください。"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "As atualizações beta do Setapp estão ativas e o DuoUpdater lê apenas o catálogo estável do Setapp. Abra o Setapp para procurar uma beta."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Бета-обновления Setapp включены, а DuoUpdater читает только стабильный каталог Setapp. Откройте Setapp, чтобы проверить бету."
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Setapp beta güncellemeleri açık ve DuoUpdater yalnızca Setapp'in kararlı kataloğunu okur. Beta sürümü denetlemek için Setapp'i açın."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Setapp 的 Beta 更新已开启，而 DuoUpdater 只读取 Setapp 的稳定目录。请打开 Setapp 检查是否有 Beta 版。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Setapp 的 Beta 更新已開啟，而 DuoUpdater 只讀取 Setapp 的穩定目錄。請開啟 Setapp 檢查是否有 Beta 版。"
           }
         }
       }

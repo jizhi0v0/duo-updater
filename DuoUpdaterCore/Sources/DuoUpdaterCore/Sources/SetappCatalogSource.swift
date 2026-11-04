@@ -30,7 +30,7 @@ public struct SetappCatalogSource: UpdateSource {
 
     public var answersAppStoreCopies: Bool { false }
 
-    let releases: @Sendable () async throws -> [String: SetappRelease]
+    let releases: @Sendable (SetappCatalog.Channel) async throws -> [String: SetappRelease]
     let subscription: @Sendable () -> SetappSubscription.State?
     let now: @Sendable () -> Date
     /// The macOS the compatibility check runs against. Injected so a test can
@@ -43,8 +43,8 @@ public struct SetappCatalogSource: UpdateSource {
     let installedIsBeta: @Sendable (InstalledApp) -> Bool
 
     public init(
-        releases: @escaping @Sendable () async throws -> [String: SetappRelease] = {
-            try await SetappCatalog.releases()
+        releases: @escaping @Sendable (SetappCatalog.Channel) async throws -> [String: SetappRelease] = {
+            try await SetappCatalog.releases(channel: $0)
         },
         subscription: @escaping @Sendable () -> SetappSubscription.State? = {
             SetappSubscription.current()
@@ -76,7 +76,11 @@ public struct SetappCatalogSource: UpdateSource {
         // through to the vendor feed: `UpdateChecker` asks this source alone for
         // a `…-setapp` copy, so the failure becomes the row's error (and a
         // retryable one) rather than Sparkle's answer.
-        let catalogue = try await releases()
+        // Which catalogue to read is the user's beta switch: the beta endpoint is
+        // the same public catalogue plus the versions it flags `beta`, so reading
+        // it when the switch is on is exactly what the client itself does.
+        let channel: SetappCatalog.Channel = betaUpdatesEnabled() ? .beta : .stable
+        let catalogue = try await releases(channel)
 
         if let bundleID, let release = catalogue[bundleID] {
             guard let version = release.newestCompatible(osVersion: osVersion()) else {
@@ -102,13 +106,6 @@ public struct SetappCatalogSource: UpdateSource {
             // ZISBETA=1, on = 15 — Bartender 7.1.0 among them). With Setapp's beta
             // switch on, a stable answer that is not newer cannot be called "up to
             // date": say the channel could not be fully checked instead.
-            if betaUpdatesEnabled(), !Self.isNewer(version, than: app) {
-                // There may be a beta we cannot see; the stable answer must not
-                // become "up to date". This is an explicit failed check with a
-                // message, not a version label: a label still travels with
-                // `.upToDate`, which the CLI and the window render as current.
-                throw SetappError.betaChannelUnverifiable
-            }
             // The installed copy is AHEAD of Setapp's stable catalogue (a beta
             // left in place after the switch went off, most often). Answering
             // with the older stable release draws "7.1.0 ↓ 6.6.2", which reads
@@ -123,10 +120,28 @@ public struct SetappCatalogSource: UpdateSource {
                     version: app.buildVersion,
                     marketingMatchesBundle: true,
                     downloadURL: nil,
-                    installedDisplayVersion: Self.aheadOfStableLabel(app, isBeta: installedIsBeta(app)),
+                    installedDisplayVersion: Self.aheadOfStableLabel(
+                        app,
+                        isBeta: Self.installedIsCatalogueBeta(app, release: release) || installedIsBeta(app),
+                        channel: channel),
                     sourceName: name)
             }
-            return answer(for: app, release: release, version: version)
+            var remote = answer(for: app, release: release, version: version)
+            if version.isBeta, !Self.isNewer(version, than: app),
+               Self.installedIsCatalogueBeta(app, release: release),
+               let installed = app.shortVersion {
+                remote = RemoteVersion(
+                    shortVersion: remote.shortVersion,
+                    version: remote.version,
+                    marketingMatchesBundle: remote.marketingMatchesBundle,
+                    downloadURL: remote.downloadURL,
+                    pageURL: remote.pageURL,
+                    installedDisplayVersion: String(localized: "\(installed) (Setapp Beta)"),
+                    downloadSize: remote.downloadSize,
+                    sourceName: remote.sourceName,
+                    subscriptionHold: remote.subscriptionHold)
+            }
+            return remote
         }
 
         // Not in the catalogue. A `-setapp` copy still answers — as installed —
@@ -216,17 +231,23 @@ public struct SetappCatalogSource: UpdateSource {
     /// What to call a copy that is ahead of Setapp's stable catalogue: "beta"
     /// only when the client's own catalogue still records that exact build as a
     /// beta; otherwise the one thing we can prove.
-    static func aheadOfStableLabel(_ app: InstalledApp, isBeta: Bool) -> String? {
+    static func aheadOfStableLabel(
+        _ app: InstalledApp, isBeta: Bool, channel: SetappCatalog.Channel = .stable
+    ) -> String? {
         guard let installed = app.shortVersion else { return nil }
         if isBeta { return String(localized: "\(installed) (Setapp Beta)") }
-        return String(localized: "\(installed) (ahead of Setapp’s stable releases)")
+        return channel == .beta
+            ? String(localized: "\(installed) (ahead of Setapp’s beta releases)")
+            : String(localized: "\(installed) (ahead of Setapp’s stable releases)")
     }
 
-    enum SetappError: LocalizedError {
-        case betaChannelUnverifiable
-
-        var errorDescription: String? {
-            String(localized: "Setapp’s beta updates are on, and DuoUpdater reads only Setapp’s stable catalogue. Open Setapp to check for a beta.")
+    /// Whether the catalogue lists the installed version as one of its betas, by
+    /// version and build.
+    static func installedIsCatalogueBeta(_ app: InstalledApp, release: SetappRelease) -> Bool {
+        guard let short = app.shortVersion else { return false }
+        return release.versions.contains { version in
+            version.isBeta && version.shortVersion == short
+                && (app.buildVersion == nil || version.build == app.buildVersion)
         }
     }
 

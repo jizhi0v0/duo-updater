@@ -130,11 +130,13 @@ defaults read com.setapp.DesktopClient
   7.1.0/700013、Dropshare 6.16、Soulver 4.0、AirBuddy 3.1、PopClip 2023.7.0、Usage 2.16.4、
   BetterTouchTool 6.557 等）。
 - ⚠️ **beta 目录不是稳定目录的超集**（同一天按 bundle id + 版本 + 构建逐条比对：
-  stable 1074 条、beta 1076 条；beta-only 14 条，**stable-only 也有 12 条**）。有 beta 的
-  app，beta 目录用 beta 行**替换**它当前的稳定行：WiFi Signal 4.4.8 (49) → 4.4.9 (50) beta、
-  Dropshare 6.15 (6266) → 6.16 (6282) beta、KeyKey 3.0 (131) → 3.0.3 (137) beta。
-  所以**不能总是读 beta 再过滤 beta 行**：Beta 关的用户会因此看不到这 12 个稳定版
-  （Dropshare 6.15 会从有更新变成查无此版本）。开关关读 `/en`、开读 `/beta/en`，
+  stable 1074 条、beta 1076 条；beta-only 14 条，**stable-only 也有 12 条**）。beta 目录会
+  **丢掉一部分稳定行、换成 beta 行，通常丢的是旧的兼容分支而不是当前版本**：
+  WiFi Signal 仍保留当前稳定行 4.5.3 (62)，但旧的 4.4.8 (49)（macOS 10.13 分支）在 beta
+  目录里没有，换成了 4.4.9 (50) beta；Bartender 也同时保留 6.6.2 (662000) 与 7.1.0 beta。
+  Dropshare 6.15 (6266) → 6.16 (6282) beta、KeyKey 3.0 (131) → 3.0.3 (137) beta 同理。
+  所以**不能总是读 beta 再过滤 beta 行**：Beta 关的用户会因此丢掉这 12 条稳定行，
+  包括老系统分支（例如 10.13 上的 WiFi Signal 4.4.8）。开关关读 `/en`、开读 `/beta/en`，
   两个目录各自缓存；beta 目录只在「已装副本比稳定目录新」时旁读一次，用来认领
   「这是 beta 副本」。
 - 之前的「公开目录里没有 beta」只对 `/store/api/v8/en` 成立；`?beta=1`、`?include_beta=true`、

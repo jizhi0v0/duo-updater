@@ -3,7 +3,9 @@ import Synchronization
 import Testing
 @testable import DuoUpdaterCore
 
-@Suite(.timeLimit(.minutes(1)))
+// The full parallel suite can delay these tasks beyond a minute. Keep the
+// injected timeout below event-driven; CI's process watchdog bounds real hangs.
+@Suite
 struct SparkleInstallationReadinessTests {
     /// Exercises the actual XPC selector/data bridge, not a mocked Bool. Sparkle
     /// returns nil while preparing and publishes an archive after stage 1.

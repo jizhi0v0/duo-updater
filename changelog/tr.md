@@ -2,6 +2,16 @@
 
 Bu, `CHANGELOG.md` dosyasının Türkçe çevirisidir. Geçerli olan İngilizce sürümdür; burada yer almayan eski sürümler otomatik olarak İngilizce gösterilir.
 
+## 0.5.23
+
+**Ayarlardan Beta güncellemelerini seçerek gelecek sürümlerin test edilmesine yardımcı olun.** Sorun bildirmek için Güncellemeler panelinden GitHub’da bir issue da açabilirsiniz.
+
+**Sparkle güncellemeleri, uygulamayı yeniden başlatmadan önce hazırlığın tamamlanmasını bekler.** Güncelleme hâlâ hazırlanırken uygulamalardan çıkmaları istenmez.
+
+**NSH daha güvenilir biçimde tanınır ve simgesi güncellendi.**
+
+**AFFiNE Canary artık GitHub eski bir sürümü ilk sırada gösterse bile en son sürümü bulur.**
+
 ## 0.5.22
 
 **Setapp artık liste yenilendikten sonra uygulamalarını otomatik olarak güncelleyebilir.** Her iki uygulamada da otomatik güncellemeler açıksa kullanılabilir bir güncelleme Setapp’i arka planda başlatır; DuoUpdater yalnızca kendi başlattığı örneği, güncellemelerin bittiğini güvenle doğrulayabildiğinde ve siz uygulamayı kullanmaya başlamadıysanız kapatır.

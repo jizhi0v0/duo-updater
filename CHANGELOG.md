@@ -19,6 +19,16 @@ release note is debugging our code:
 
 Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
+## 0.5.23
+
+**Choose Beta updates in Settings and help test upcoming releases.** You can also open a GitHub issue from the Updates pane to report a problem.
+
+**Sparkle updates wait until the app is ready before relaunching.** Apps are no longer asked to quit while their update is still being prepared.
+
+**NSH is recognized more reliably and has an updated icon.**
+
+**AFFiNE Canary now finds the latest version even when GitHub lists an older release first.**
+
 ## 0.5.22
 
 **Setapp can now update its apps automatically after a refresh.** With automatic updates enabled in both apps, an available update starts Setapp in the background; DuoUpdater only quits the instance it started when it can safely confirm updates have finished and you have not begun using it.

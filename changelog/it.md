@@ -2,6 +2,16 @@
 
 Questa è la traduzione di `CHANGELOG.md`. In caso di differenze fa fede la versione inglese. Le versioni non elencate qui vengono mostrate automaticamente in inglese.
 
+## 0.5.23
+
+**Scegli gli aggiornamenti Beta nelle impostazioni e aiuta a provare le prossime versioni.** Puoi anche aprire una segnalazione su GitHub dal pannello Aggiornamenti per comunicare un problema.
+
+**Gli aggiornamenti Sparkle attendono di essere pronti prima di riavviare l’app.** Alle app non viene più chiesto di chiudersi mentre l’aggiornamento è ancora in preparazione.
+
+**NSH viene riconosciuto in modo più affidabile e ha un’icona aggiornata.**
+
+**AFFiNE Canary ora trova la versione più recente anche quando GitHub elenca prima una pubblicazione precedente.**
+
 ## 0.5.22
 
 **Setapp ora può aggiornare automaticamente le sue app dopo un aggiornamento dell’elenco.** Con gli aggiornamenti automatici attivi in entrambe le app, un aggiornamento disponibile avvia Setapp in background; DuoUpdater chiude solo l’istanza che ha avviato quando può confermare con sicurezza che gli aggiornamenti sono terminati e non hai iniziato a usarla.

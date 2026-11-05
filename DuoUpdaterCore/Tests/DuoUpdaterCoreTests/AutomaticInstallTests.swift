@@ -60,4 +60,57 @@ struct AutomaticInstallTests {
             }
         }
     }
+
+    @Test func permissionWithdrawnAfterEntryBlocksTheWholeBundleExchange() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let target = root.appendingPathComponent("Target.app")
+        let incoming = root.appendingPathComponent("Incoming.app")
+        try FileManager.default.createDirectory(at: target, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: incoming, withIntermediateDirectories: true)
+        let marker = target.appendingPathComponent("original")
+        try Data("old".utf8).write(to: marker)
+        let permission = AutomaticInstall.PermissionSnapshot()
+        permission.set(true)
+        await AutomaticInstall.$active.withValue(true) {
+            await AutomaticInstall.$permission.withValue({ true }) {
+                await AutomaticInstall.$commitPermission.withValue({ permission.allowed }) {
+                    await InPlaceSwap.$preExchangeCheck.withValue({
+                        // Entry's process guard passes, then policy changes before Dispatch.
+                        permission.set(false)
+                    }) {
+                        await #expect(throws: AutomaticInstall.Deferred.self) {
+                            try await InPlaceSwap.replace(newApp: incoming, over: target)
+                        }
+                    }
+                }
+            }
+        }
+        #expect(try Data(contentsOf: marker) == Data("old".utf8))
+    }
+
+    @Test func rotationChecksProcessesAfterStagingAndBeforeExchangingContents() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let target = root.appendingPathComponent("Target.app")
+        let incoming = root.appendingPathComponent("Incoming.app")
+        for app in [target, incoming] {
+            try FileManager.default.createDirectory(
+                at: app.appendingPathComponent("Contents"), withIntermediateDirectories: true)
+        }
+        let marker = target.appendingPathComponent("Contents/original")
+        try Data("old".utf8).write(to: marker)
+        await InPlaceSwap.$preExchangeCheck.withValue({
+            // Source moved: this guard must run after staging, not at replace entry.
+            #expect(!FileManager.default.fileExists(
+                atPath: incoming.appendingPathComponent("Contents").path))
+            throw AutomaticInstall.Deferred("A helper started while staging.")
+        }) {
+            await #expect(throws: AutomaticInstall.Deferred.self) {
+                try await InPlaceSwap.rotateContents(newApp: incoming, over: target)
+            }
+        }
+        #expect(try Data(contentsOf: marker) == Data("old".utf8))
+    }
+
 }

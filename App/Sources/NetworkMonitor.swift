@@ -29,6 +29,7 @@ final class NetworkMonitor {
     /// the first real update corrects it.
     private(set) var path = NetworkPathState.assumedUsable
     private(set) var hasObservedPath = false
+    nonisolated let automaticTrafficSnapshot = AutomaticInstall.PermissionSnapshot()
 
     private let monitor = NWPathMonitor()
     private let queue = DispatchQueue(label: "com.duoupdater.network-monitor")
@@ -46,6 +47,7 @@ final class NetworkMonitor {
     }
 
     private func apply(_ state: NetworkPathState) {
+        automaticTrafficSnapshot.set(state.allowsDiscretionaryTraffic)
         hasObservedPath = true
         guard state != path else { return }
         path = state

@@ -6,6 +6,25 @@ public enum AutomaticInstall {
     @TaskLocal public static var active = false
     @TaskLocal public static var permission: (@Sendable () async -> Bool)?
 
+    /// Synchronous policy read at the filesystem exchange, after staging and dispatch.
+    @TaskLocal public static var commitPermission: (@Sendable () -> Bool)?
+
+    public final class PermissionSnapshot: @unchecked Sendable {
+        private let lock = NSLock()
+        private var value = false
+        public init() {}
+        public func set(_ value: Bool) {
+            lock.lock()
+            defer { lock.unlock() }
+            self.value = value
+        }
+        public var allowed: Bool {
+            lock.lock()
+            defer { lock.unlock() }
+            return value
+        }
+    }
+
     public static func checkPermission() async throws {
         guard active else { return }
         guard let permission, await permission() else {

@@ -106,13 +106,26 @@ public enum InPlaceSwap {
     /// by verification, extraction and maybe a wait for another install's
     /// administrator panel, and a VM can start in that time. A throw here
     /// leaves the target as it was. Run last before each exchange begins:
-    /// before the rotation stages `Contents`, before the unprivileged exchange
-    /// stages its copy, and on the elevated route after the panel lock is
+    /// after the rotation stages `Contents` and applies its modes, after the
+    /// unprivileged route stages its copy, and on the elevated route after the panel lock is
     /// taken, just before `osascript` shows the panel. A
     /// task-local for the reason `elevatedShellOverride` is one: it reaches
     /// through the installers and `InstallCommit`'s inheriting `Task { }`
     /// without a parameter on each. Unset for a restore (`BackupStore`).
     @TaskLocal static var preExchangeCheck: (@Sendable () throws -> Void)?
+
+    /// Capture task locals before hopping to Dispatch, which does not inherit them.
+    private static func finalExchangeCheck() -> @Sendable () throws -> Void {
+        let automatic = AutomaticInstall.active
+        let permission = AutomaticInstall.commitPermission
+        let processes = preExchangeCheck
+        return {
+            if automatic, permission?() != true {
+                throw AutomaticInstall.Deferred("Automatic updates are paused.")
+            }
+            try processes?()
+        }
+    }
 
     /// Run one privileged shell: `osascript`, or the test override.
     ///
@@ -517,7 +530,7 @@ public enum InPlaceSwap {
             // caller reached `replace` through `offCooperativePool`) is gone now
             // that the child processes around it are awaited, so this segment
             // takes its own. See `offCooperativePool`.
-            let check = preExchangeCheck
+            let check = finalExchangeCheck()
             let outcome = try await offCooperativePool(qos: .userInitiated) {
                 try exchangeUnprivileged(
                     newApp: newApp, over: target,
@@ -1343,8 +1356,15 @@ public enum InPlaceSwap {
             }
         }
 
+        let check = finalExchangeCheck()
         return try await offCooperativePool(qos: .userInitiated) {
-            try finishRotation(staged: staged, over: target)
+            do {
+                try check()
+            } catch {
+                try? FileManager.default.removeItem(at: staged)
+                throw error
+            }
+            return try finishRotation(staged: staged, over: target)
         }
     }
 

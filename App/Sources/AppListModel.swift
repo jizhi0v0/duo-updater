@@ -10273,7 +10273,14 @@ final class AppListModel {
                 await AutomaticInstall.$permission.withValue({ @MainActor [weak self] in
                     self?.automaticUpdatesAllowed == true
                 }) {
-                    await install(result, notify: false, backUpOnce: true)
+                    let enabled = prefs.automaticUpdatesSnapshot
+                    let scheduled = prefs.scheduledChecksSnapshot
+                    let network = NetworkMonitor.shared.automaticTrafficSnapshot
+                    return await AutomaticInstall.$commitPermission.withValue({
+                        enabled.allowed && scheduled.allowed && network.allowed
+                    }) {
+                        await install(result, notify: false, backUpOnce: true)
+                    }
                 }
             }
             await recordAutomaticUpdate(result,

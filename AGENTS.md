@@ -37,9 +37,17 @@ Codex's official GitHub integration runs reviews; see
 [the setup notes](.github/codex-review.md). CI and the real-machine and local
 adversarial-review records remain separate requirements.
 
-## Automated PR fixes and merges
+## Cloud review and local PR follow-through
 
-- Cloud PR handling is driven by GitHub events. Read the current PR head,
+- Cloud tasks only request official reviews and check review status. They must
+  not fix code, push commits, resolve review threads, remove holds or merge PRs.
+  The local agent owns fixes and macOS/VM validation.
+- After submitting a PR, the local agent polls review, CI, unresolved threads
+  and required evidence until the current head meets merge requirements. Fix
+  confirmed defects locally, validate and push, then recheck the new head.
+  Report concrete external blockers; never claim an ended session is still
+  monitoring without an actual durable watcher.
+- Cloud review triggering is driven by GitHub events. Read the current PR head,
   official Codex receipt, unresolved review threads and CI before acting.
   Evidence for an older head never approves a newer one.
 - Actions classifies default-branch-targeting PRs before the cloud model runs.

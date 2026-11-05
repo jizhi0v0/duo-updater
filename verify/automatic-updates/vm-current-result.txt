@@ -1,0 +1,10 @@
+Code: ba72046b6c8289e0e9b16559f7e80ab892f827e0; VMPal macOS 27.2; 2026-11-05
+0
+{"v":1,"id":"D46BC17F-BAD6-4A4E-9BAB-EE257ADAD381","at":"2026-11-05T08:20:47.020Z","client":"app","kind":"automaticUpdate","payload":{"appID":"\/Applications\/Discord Canary.app","appName":"Discord Canary","fromVersion":"0.0.1459","reason":"","status":"started","toVersion":"0.0.1488","trigger":"automatic"}}
+{"v":1,"id":"C342CD41-F1CF-41EC-9267-34DB023D3242","at":"2026-11-05T08:21:35.431Z","client":"app","kind":"automaticUpdate","payload":{"appID":"\/Applications\/Discord Canary.app","appName":"Discord Canary","fromVersion":"0.0.1459","reason":"","status":"installed","toVersion":"0.0.1488","trigger":"automatic"}}
+{"v":1,"id":"3925F678-EA0F-4A35-A0A7-5C9D4A69A8B6","at":"2026-11-05T08:21:35.012Z","client":"app","kind":"install","payload":{"appID":"/Applications/Discord Canary.app","appName":"Discord Canary","applied":true,"automatic":true,"bundleID":"com.hnc.DiscordCanary","bytes":234624152,"downloadKind":"full","fromBuild":"0.0.1459","fromVersion":"0.0.1459","sourceName":"Vendor","toBuild":"0.0.1488","toVersion":"0.0.1488"}}
+{"command":"backups list","schemaVersion":2}
+{"app":"Discord Canary","bundleID":"com.hnc.DiscordCanary","bytes":538662630,"held":false,"key":"com.hnc.DiscordCanary-1077c54d473b35a1","path":"\/Applications\/Discord Canary.app","savedAt":"2026-11-05T08:20:47Z","version":"0.0.1459"}
+0.0.1488
+NOT_RUNNING
+SIGNATURE_OK

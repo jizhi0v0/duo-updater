@@ -30,15 +30,27 @@ configuration have been removed. `.github/claude-review/` remains as historical
 input to the Claude onboarding replay benchmark and its regression checks.
 Other Claude-powered automation uses its existing credentials independently.
 
-## Cloud fixes and merge gates
+## Cloud review, local fixes and merge gates
 
-The cloud task **DuoUpdater PR 云端修复与合并** receives this repository's PR,
+The cloud task **DuoUpdater PR 云端审查** receives this repository's PR,
 review, comment (including bot reviews) and commit-update events only when the
 associated PR has `codex-managed`. Its structured GitHub trigger uses
 `label_match: codex-managed`, filtering before a model run, not by waking a
-model and asking it to exit. It checks
-findings, pushes fixes and reads the Mac CI results. It follows `AGENTS.md`
+model and asking it to exit. It requests official reviews and reads their status. Cloud tasks must not edit
+code, push commits, resolve review threads, remove holds or merge PRs. The local
+agent owns fixes, macOS/VM validation and follow-through. It follows `AGENTS.md`
 and leaves changes requiring missing real-machine evidence open.
+
+After submitting a PR, the local agent polls its current head, official review
+receipt, unresolved threads, required checks and mergeability until that head
+meets the merge requirements. Fix confirmed defects locally, run the relevant
+checks and push without overwriting others; a new head requires fresh review
+and checks. A green CI summary alone is insufficient: retain real-machine holds
+until the actual evidence exists, and refresh the local adversarial record when
+risk-bearing code changes. Do not claim monitoring continues after ending the
+session unless a durable watcher has actually been configured. Report an
+external blocker explicitly instead of weakening checks or retrying endlessly.
+Recheck the exact head and base before declaring the PR ready to merge.
 
 The `cloud-routing` job in the trusted `pull_request_target` review-gate workflow
 classifies the pinned head for PRs targeting `main`. It uses the same scan-file
@@ -142,7 +154,7 @@ The token action is pinned, limited to this repository and status writes, and
 revokes its token when the job finishes. Status writes have bounded retries.
 Even if the initial pending write fails, the failure path attempts to invalidate
 an earlier success before exiting. If publication is unavailable, inspect the
-failed controller run; the cloud handler must still verify the current official
+failed controller run; the local agent must still verify the current official
 receipt and holds, rather than treating an old successful status as approval.
 
 After deployment, require `codex-review` from the App's **numeric App ID** in the
@@ -165,7 +177,7 @@ cleanup is retried on replay without posting another wakeup.
 
 It runs trusted default-branch code, checks the live PR head and never checks
 out PR code or executes an artifact with its comment-write token. Wakeup
-comments are not merge approval; the cloud handler rechecks all gates and the
+comments are not merge approval; the local agent rechecks all gates and the
 exact head SHA.
 
 The status stores each workflow's latest run number and attempt for the current

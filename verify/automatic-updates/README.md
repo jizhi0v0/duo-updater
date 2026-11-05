@@ -1,6 +1,62 @@
 # Automatic update verification — 2026-11-05
 
-Code reviewed and tested: `747febf5251efb523cf0992c776657da134e0c65`.
+Current production code reviewed and tested: `ba72046b6c8289e0e9b16559f7e80ab892f827e0`.
+
+## Current-head validation
+
+- Host: `make test-app` passed 326/326; 1,248 localization keys agree.
+- Host: AutomaticInstall/EventStore/RefreshLane/NestedAppGuard selection passed
+  95/95. Complete App and CLI unsigned Release builds passed.
+- VMPal macOS 27.2: identical production Sources, AutomaticInstall/EventStore/
+  RefreshLane selection passed 56/56. The VM-only manifest selects these suites
+  because Command Line Tools lacks XCTest; Swift Testing macros are loaded
+  explicitly. Production source and test bodies are unchanged.
+- VM scratch filesystem attacks: withdraw permission after entry and before
+  the exchange; start a real ad-hoc-signed helper only after Contents staging.
+  Both refuse the operation and preserve the original marker. The helper test
+  first requires the actual helper to appear, so unrelated unknown PIDs cannot
+  make it pass accidentally.
+- VM cross-user attack: run a copied helper as `nobody`, unlink its executable,
+  then inspect as uid 501. PID 79019 remained alive with both executable and
+  saved argv paths unreadable. The actual snapshot retained it and
+  `AutomaticInstall.checkProcesses` threw `Deferred`. The helper was stopped.
+  This is an actual cross-user process test, not a second GUI login session.
+- Timeout/follow-up callback ordering and skipped-trigger regressions passed.
+- Current Release build in the VM: scheduled Discord Canary 0.0.1459 →
+  0.0.1488 succeeded without an install click. KeepBackups=0 still created a
+  fresh 538,662,630-byte backup. Started/installed events and the durable
+  automatic=true install record agree; the app stayed closed and strict deep
+  signature verification passed. Test auto-update settings were removed.
+- [Current installation output](vm-current-result.txt).
+- [Current raw test excerpts](core-current-tests.txt).
+
+## Current local adversarial review (author-run)
+
+Reviewed the PR diff against its merge base, traced scheduler/watcher callers,
+backup and route gates, task-local propagation and both exchange paths. This
+is an author-run review, not an independent agent review.
+
+- data-loss: attacked permission withdrawal and helper launch after staging in
+  the VM as above; original files remained. Synchronous permission snapshots
+  and the process callback are captured before Dispatch and run after staging.
+- data-loss: attacked incomplete process inspection using a real other-user
+  unlinked helper; the unknown PID is retained and blocks installation.
+- data-loss: inspected mandatory backup outcomes: only `.saved` proceeds;
+  installer/external-manager routes and elevation are refused unattended.
+- data-loss: tested scheduled work finishing after timeout and a follow-up
+  refresh, plus a trigger arriving during installation callback. The lane
+  serializes callbacks and new refreshes; watcher refreshes carry no callback.
+- Install bookkeeping does not await the same app lane from its callback;
+  directory-watcher triggers use separate tasks. No same-lane await cycle found.
+
+Process inspection cannot atomically prevent an external app launch at the
+filesystem exchange instruction. Full-disk backup failure, live Low Data Mode
+switching and Developer ID signing remain unexercised.
+
+## Earlier end-to-end baseline
+
+The following original installation record and screenshots were produced from
+`747febf5251efb523cf0992c776657da134e0c65`; they are not current-head test results.
 
 ## VMPal
 

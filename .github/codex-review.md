@@ -33,9 +33,21 @@ Other Claude-powered automation uses its existing credentials independently.
 ## Cloud fixes and merge gates
 
 The cloud task **DuoUpdater PR 云端修复与合并** receives this repository's PR,
-review, comment (including bot reviews) and commit-update events. It checks
+review, comment (including bot reviews) and commit-update events only when the
+associated PR has `codex-managed`. Its structured GitHub trigger uses
+`label_match: codex-managed`, filtering before a model run, not by waking a
+model and asking it to exit. It checks
 findings, pushes fixes and reads the Mac CI results. It follows `AGENTS.md`
 and leaves changes requiring missing real-machine evidence open.
+
+The `cloud-routing` job in the trusted `pull_request_target` review-gate workflow
+classifies the pinned head for PRs targeting `main`. It uses the same scan-file
+allowlist as the review waiver, then assigns `codex-managed` to other PRs or
+`nightly-data-only` to pure scan state. It changes only those two labels and
+preserves human/real-machine holds. A scan branch gaining code is routed back
+to the cloud. These labels are event routing hints, not approval credentials.
+On first deployment, label the introducing PR and existing ordinary PRs after
+independent classification so the already-filtered task can receive them.
 
 ### Nightly scan state exception
 
@@ -58,8 +70,11 @@ The main push after merging the same scan PR also uses this path, after verifyin
 its merged-PR association and complete before/after diff. Other pushes, dispatches,
 and scan branches with code changes keep full CI. Evidence gates and actual holds
 remain required.
-The cloud task leaves the producer's CI-gated auto-merge alone for these pure
-state PRs and does not convert them to draft or add code fixes to scan data.
+Pure scan-state PRs do not match the cloud trigger. The producer's CI-gated
+GitHub auto-merge completes them without a model; failures stay visible in
+GitHub checks and leave the PR unmerged. `Cloud PR wakeup` also suppresses
+their completion comments. The saved task's scan-state guard is defensive for
+manual or previously queued runs, not the normal classification mechanism.
 
 The official repository settings currently expose no branch exclusion. Keeping
 blanket automatic review on would still start reviews before the task could
@@ -78,12 +93,17 @@ The `main` ruleset requires:
   rerun this workflow after a same-head review retry. No model token is used.
   Its `pull_request_target` workflow and verifier come from the protected default
   branch and target `main`. It never checks out PR code, downloads artifacts, invokes a model or
-  reads a model secret. Its read-only `GITHUB_TOKEN` reads metadata; a separate
+  reads a model secret. The review controller's read-only `GITHUB_TOKEN` reads metadata; a separate
   GitHub App installation token publishes the commit status on the explicit
   PR head rather than inferring it from the workflow SHA. The required status
   must be bound to that App's numeric ID, not GitHub Actions (15368) or any
   source. PR-controlled Actions credentials cannot publish as this App.
   Workflow changes take effect only after being merged.
+
+  A separate routing job has `pull-requests: write` only to maintain the two
+  routing labels. It has no App environment/key and executes no PR code.
+  The review controller runs independently so failed routing cannot prevent
+  it from rechecking holds and invalidating an earlier same-head success.
 
   First deployment must precede enforcing this new required status:
   `pull_request_target` cannot run until this workflow exists on `main`.

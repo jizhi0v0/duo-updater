@@ -12,7 +12,8 @@ RUN = {"name": "CI", "event": "pull_request", "status": "completed",
        "head_sha": HEAD, "conclusion": "success", "pull_requests": [], "run_attempt": 1}
 GATE_RUN = {**RUN, "name": f"Codex review gate PR #7 @{HEAD}",
             "path": ".github/workflows/codex-review-gate.yml", "event": "pull_request_target"}
-PR = {"state": "open", "draft": False, "head": {"sha": HEAD}}
+PR = {"state": "open", "draft": False, "head": {"sha": HEAD},
+      "labels": [{"name": "codex-managed"}]}
 
 
 class CloudWakeup(unittest.TestCase):
@@ -42,6 +43,20 @@ class CloudWakeup(unittest.TestCase):
         comment = {"user": {"login": "github-actions[bot]"},
                    "body": "<!-- cloud-pr-wakeup:v2 run=123 attempt=1 -->\nCI complete"}
         _, post = self.run_with([RUN, [{"number": 7}], PR, [comment]])
+        post.assert_not_called()
+
+    def test_unmanaged_prs_do_not_generate_cloud_wakeup_comments(self):
+        api, post = self.run_with([RUN, [{"number": 7}], {**PR, "labels": []}])
+        self.assertEqual(api.call_count, 3)
+        post.assert_not_called()
+
+    def test_pure_scan_state_with_a_copied_managed_label_still_stays_quiet(self):
+        pr = {**PR, "user": {"login": "o"}, "changed_files": 1,
+              "head": {"sha": HEAD, "ref": "verify/baseline-20261105T010000Z",
+                       "repo": {"full_name": "o/r"}}, "base": {"sha": "b" * 40}}
+        comparison = {"files": [{"filename": "verify/baseline.json", "status": "modified"}]}
+        api, post = self.run_with([RUN, [{"number": 7}], pr, comparison])
+        self.assertIn(f"repos/o/r/compare/{'b' * 40}...{HEAD}", api.call_args_list[-1].args[0])
         post.assert_not_called()
 
     def test_a_successful_rerun_wakes_after_the_first_attempts_failure(self):

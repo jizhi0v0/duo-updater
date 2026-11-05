@@ -40,9 +40,8 @@ public enum AppRuntime: String, Sendable, Hashable, CaseIterable, Codable {
     case gpui
     /// A Rust app drawing its interface with egui, the immediate-mode UI library.
     case egui
-    /// An app packaged by NSH (Native Shell, nsh.dev): TSX modules run by a Rust
-    /// engine and drawn as AppKit views or with GPUI, depending on which of its
-    /// runners was packaged.
+    /// An NSH (Native Shell, nsh.dev) app: a Rust root or TSX modules,
+    /// drawn as AppKit views or with GPUI.
     case nsh
     /// Flutter's macOS embedder.
     case flutter
@@ -205,6 +204,17 @@ public enum AppRuntimeDetector {
         return CLIRuntimeDetector.readBytes(url, section.range.offset, Int(section.range.size))
     }
 
+    /// Rust string literals, including the standalone NSH entry assertion,
+    /// live in __TEXT,__const rather than the C-string table.
+    public typealias ConstantReader = (URL) -> Data?
+
+    public static func constants(at url: URL) -> Data? {
+        guard let commands = MachOImports.loadCommands(at: url),
+              let section = commands.section("__TEXT", "__const"),
+              section.range.offset > 0, section.range.size <= cstringLimit else { return nil }
+        return CLIRuntimeDetector.readBytes(url, section.range.offset, Int(section.range.size))
+    }
+
     /// Everything one read of a bundle can say about how it was built.
     public struct Reading: Sendable, Equatable {
         public let runtime: AppRuntime?
@@ -235,12 +245,13 @@ public enum AppRuntimeDetector {
         linkedLibraries: LibraryReader = { MachOImports.linkedLibraries(at: $0) },
         carriesTauriCrate: TauriProof = RuntimeVersion.carriesTauriCrate(bundleAt:),
         goBuildInfo: GoBuildInfoReader = { GoBuildInfo.read(at: $0) },
-        cstrings: CStringReader = { AppRuntimeDetector.cstrings(at: $0) }
+        cstrings: CStringReader = { AppRuntimeDetector.cstrings(at: $0) },
+        constants: ConstantReader = { AppRuntimeDetector.constants(at: $0) }
     ) -> AppRuntime? {
         read(bundleAt: bundleURL, isiOSAppOnMac: isiOSAppOnMac,
              infoPlist: infoPlist, linkedLibraries: linkedLibraries,
              carriesTauriCrate: carriesTauriCrate, goBuildInfo: goBuildInfo,
-             cstrings: cstrings).runtime
+             cstrings: cstrings, constants: constants).runtime
     }
 
     /// Both facts from a single pass. The executable's load commands are read at
@@ -261,6 +272,7 @@ public enum AppRuntimeDetector {
         carriesTauriCrate: TauriProof = RuntimeVersion.carriesTauriCrate(bundleAt:),
         goBuildInfo: GoBuildInfoReader = { GoBuildInfo.read(at: $0) },
         cstrings: CStringReader = { AppRuntimeDetector.cstrings(at: $0) },
+        constants: ConstantReader = { AppRuntimeDetector.constants(at: $0) },
         followingNestedBundle: Bool = true
     ) -> Reading {
         // A wrapped iOS app has no `Contents/` at all, so every rule below would
@@ -399,7 +411,7 @@ public enum AppRuntimeDetector {
            let nested = nestedInterface(
             in: contents, linkedLibraries: linkedLibraries,
             carriesTauriCrate: carriesTauriCrate, goBuildInfo: goBuildInfo,
-            cstrings: cstrings, fm: fm) {
+            cstrings: cstrings, constants: constants, fm: fm) {
             return nested.reading
         }
 
@@ -464,12 +476,16 @@ public enum AppRuntimeDetector {
             // in the AppKit runner (`crates/nsh-core/src/…`), absolute in the
             // GPUI one and in a runner built from source.
             //
-            // Both are required. The directory alone is a name another app could
-            // use, and the crate alone is also what an app embedding NSH's
-            // `AppView` in its own window links — that app is not built with NSH,
-            // and keeps whatever label its own runtime earns.
+            // A native Rust executable can call NSH's run_app directly without
+            // using its packager (sysmon 0.1.6, OmaSend 0.2.2). Require the
+            // macOS backend and run_app's dedicated panic text in that case.
+            // AppView embedding can link the core and backend too; those paths
+            // alone do not prove use of the standalone entry point. Its Rust
+            // panic text is in __TEXT,__const, read only after the crate checks.
             if Self.containsCratePath(strings, "nsh-core"),
-               fm.fileExists(atPath: contents.appendingPathComponent("Resources/nsh/app.json").path) {
+               (fm.fileExists(atPath: contents.appendingPathComponent("Resources/nsh/app.json").path)
+                || (Self.containsCratePath(strings, "nsh-platform-macos")
+                    && constants(executable)?.range(of: Data("run_app must be called on the main thread".utf8)) != nil)) {
                 return reading(.nsh)
             }
             if Self.containsCratePath(strings, "gpui") { return reading(.gpui) }
@@ -705,6 +721,7 @@ public enum AppRuntimeDetector {
             carriesTauriCrate: RuntimeVersion.carriesTauriCrate(bundleAt:),
             goBuildInfo: { GoBuildInfo.read(at: $0) },
             cstrings: { AppRuntimeDetector.cstrings(at: $0) },
+            constants: { AppRuntimeDetector.constants(at: $0) },
             fm: FileManager.default)
         else { return bundleURL }
         return nested.bundle
@@ -723,6 +740,7 @@ public enum AppRuntimeDetector {
         carriesTauriCrate: TauriProof,
         goBuildInfo: GoBuildInfoReader,
         cstrings: CStringReader,
+        constants: ConstantReader,
         fm: FileManager
     ) -> (bundle: URL, reading: Reading)? {
         // Condition 1, and the one place in this file where "no frameworks" has to
@@ -757,7 +775,7 @@ public enum AppRuntimeDetector {
         let reading = read(
             bundleAt: nested, isiOSAppOnMac: false, infoPlist: plist ?? [:],
             linkedLibraries: linkedLibraries, carriesTauriCrate: carriesTauriCrate,
-            goBuildInfo: goBuildInfo, cstrings: cstrings, followingNestedBundle: false)
+            goBuildInfo: goBuildInfo, cstrings: cstrings, constants: constants, followingNestedBundle: false)
         guard let runtime = reading.runtime, runtime.isBundled else { return nil }
         return (nested, reading)
     }

@@ -99,11 +99,12 @@ private func detect(
     plist: [String: Any] = ["CFBundleExecutable": "Stub"],
     libraries: @escaping AppRuntimeDetector.LibraryReader = { _ in [] },
     tauriProof: @escaping AppRuntimeDetector.TauriProof = { _ in false },
-    cstrings: @escaping AppRuntimeDetector.CStringReader = { _ in nil }
+    cstrings: @escaping AppRuntimeDetector.CStringReader = { _ in nil },
+    constants: @escaping AppRuntimeDetector.ConstantReader = { _ in nil }
 ) -> AppRuntime? {
     AppRuntimeDetector.detect(
         bundleAt: bundle, isiOSAppOnMac: isiOSAppOnMac, infoPlist: plist,
-        linkedLibraries: libraries, carriesTauriCrate: tauriProof, cstrings: cstrings)
+        linkedLibraries: libraries, carriesTauriCrate: tauriProof, cstrings: cstrings, constants: constants)
 }
 
 /// The tauri-bundler plist pair — what admits a bundle to the proof, and on its
@@ -341,10 +342,43 @@ private func nshSourceRunner() -> AppRuntimeDetector.CStringReader {
 }
 
 @Test func aPureRustNSHAppWithoutCompiledTSXIsStillNSH() throws {
-    // A Rust app has no `bundle.nshc`; `app.json` is written for every app.
+    // The NSH packager writes app.json even when it omits compiled TSX.
     let builder = try BundleBuilder(); defer { builder.cleanUp() }
     let bundle = try builder.app("Counter", files: ["Resources/nsh/app.json"])
     #expect(detect(bundle, libraries: reader(appKit), cstrings: nshAppKitRunner()) == .nsh)
+}
+
+// sysmon 0.1.6 and OmaSend 0.2.2 call the standalone Rust run_app API
+// directly. Their release archives contain no Resources/nsh directory.
+@Test func standaloneRustNSHAppsNeedNoPackagerManifest() throws {
+    let builder = try BundleBuilder(); defer { builder.cleanUp() }
+    let bundle = try builder.app("RustApp")
+    let paths = [
+        ("/Users/runner/.cargo/git/checkouts/nsh-9218b667fc8c8325/76fa8a7/crates/nsh-core/src/core/mod.rs",
+         "/Users/runner/.cargo/git/checkouts/nsh-9218b667fc8c8325/76fa8a7/crates/nsh-platform-macos/src/app.rs"),
+        ("/Users/runner/.cargo/registry/src/index/nsh-core-0.4.0/src/core/mod.rs",
+         "/Users/runner/.cargo/registry/src/index/nsh-platform-macos-0.4.0/src/app.rs")
+    ]
+    for (core, platform) in paths {
+        #expect(detect(bundle, libraries: reader(appKit), cstrings: cstrings(
+            core, platform), constants: cstrings("run_app must be called on the main thread")) == .nsh)
+    }
+}
+
+@Test func standaloneNSHProofNeedsTheCorePlatformAndEntryPointTogether() throws {
+    let builder = try BundleBuilder(); defer { builder.cleanUp() }
+    let bundle = try builder.app("Host")
+    let core = "crates/nsh-core/src/core/mod.rs"
+    let platform = "crates/nsh-platform-macos/src/app.rs"
+    let entry = "run_app must be called on the main thread"
+    for evidence in [[core, platform], [core, entry], [platform, entry], [entry]] {
+        #expect(detect(bundle, libraries: reader(appKit), cstrings: { _ in
+            Data((evidence.filter { $0 != entry }.joined(separator: "\0") + "\0").utf8)
+        }, constants: { _ in evidence.contains(entry) ? Data(entry.utf8) : nil }) == .native)
+    }
+    // Merely embedding AppView does not link run_app's panic message.
+    #expect(detect(bundle, libraries: reader(appKit), cstrings: cstrings(
+        core, platform, "crates/gpui/src/scene.rs")) == .gpui)
 }
 
 @Test func nshNeedsBothItsPayloadAndItsCrate() throws {

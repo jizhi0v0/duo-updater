@@ -35,8 +35,9 @@ import Foundation
 ///   thin strokes, and at the row's 12pt it read in light mode as a pink smudge,
 ///   not as anything — so it takes a lettered square like egui's.
 /// - **NSH** is not in Simple Icons. Its own mark — an arch over a dot, from
-///   `website/public/favicon.svg` in its Apache-2.0 repository — is drawn from
-///   geometry in the app, like MyGo's.
+///   the official solid SVG at `nsh.dev/brand` — is drawn from its published
+///   geometry in the app. Use permitted by Jason Lee on 2026-11-05
+///   (see `docs/nsh-logo.md`).
 /// - **Mac Catalyst**, **iOS App** and **Native** are not products with logos.
 public enum RuntimeArtwork {
 

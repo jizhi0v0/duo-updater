@@ -10,7 +10,7 @@ import DuoUpdaterCore
 /// Icons artwork (`RuntimeArtwork`, which says why hand-drawn near-misses were replaced), a
 /// single path in a 24-unit box filled with the runtime's hue. Chromium's disc,
 /// MyGo's ring-in-a-square and NSH's arch-over-a-dot are drawn from geometry
-/// here, because they are nothing but geometry and none has an icon to import. The rest take SF
+/// here from their published geometry. The rest take SF
 /// Symbols: a bolt for GPUI and a lettered square for egui, which have no mark
 /// of their own, and for Wails, whose mark does not survive 12pt; a steaming cup for Java, which has no usable mark; and for the three
 /// Apple-platform cases a device silhouette — a tablet and phone for Catalyst, a
@@ -319,7 +319,7 @@ struct RuntimeTag: View {
         case .wails:     return String(localized: "Built with Wails — a Go app showing its interface in the system WebView.")
         case .gpui:      return String(localized: "Built with GPUI — the Rust framework Zed is built on, drawing every pixel itself on the GPU.")
         case .egui:      return String(localized: "Built with egui — a Rust app drawing its own interface.")
-        case .nsh:       return String(localized: "Built with NSH — an interface written in TSX, run by a Rust engine and drawn with AppKit or GPUI.")
+        case .nsh:       return String(localized: "Built with NSH — an interface written in Rust or TSX, run by a Rust engine and drawn with AppKit or GPUI.")
         case .flutter:   return String(localized: "Built with Flutter.")
         case .qt:        return String(localized: "Built with Qt.")
         case .java:      return String(localized: "A Java app, shipping the runtime it needs.")
@@ -413,30 +413,27 @@ private struct MyGoMark: View {
     }
 }
 
-/// NSH's mark: an arch over a dot, as the favicon of nsh.dev draws it in a
-/// 100-unit box — the arch's centre line rising from (16, 88) to a half circle of
-/// radius 34 about (50, 46) and back down to (84, 88), stroked at 20 with round
-/// ends, and a dot of radius 11 at (50, 64). The favicon paints the arch in a
-/// lime gradient and the dot near-black; here both take the runtime's hue, like
-/// every other mark.
+/// Official solid NSH logo: https://nsh.dev/brand/nsh-logo-solid-black.svg.
+/// Geometry and 128-unit viewBox preserved; the runtime tint replaces the ink.
+/// Jason Lee permitted logo use by email on 2026-11-05; see docs/nsh-logo.md.
 private struct NSHMark: View {
     let size: CGFloat
 
     private static let shape: Path = {
         var arch = Path()
-        arch.move(to: CGPoint(x: 16, y: 88))
-        arch.addLine(to: CGPoint(x: 16, y: 46))
-        arch.addRelativeArc(center: CGPoint(x: 50, y: 46), radius: 34,
+        arch.move(to: CGPoint(x: 30, y: 100))
+        arch.addLine(to: CGPoint(x: 30, y: 58))
+        arch.addRelativeArc(center: CGPoint(x: 64, y: 58), radius: 34,
                             startAngle: .degrees(180), delta: .degrees(180))
-        arch.addLine(to: CGPoint(x: 84, y: 88))
+        arch.addLine(to: CGPoint(x: 98, y: 100))
         var mark = arch.strokedPath(StrokeStyle(lineWidth: 20, lineCap: .round))
-        mark.addEllipse(in: CGRect(x: 39, y: 53, width: 22, height: 22))
+        mark.addEllipse(in: CGRect(x: 53, y: 65, width: 22, height: 22))
         return mark
     }()
 
     var body: some View {
         Self.shape
-            .applying(CGAffineTransform(scaleX: size / 100, y: size / 100))
+            .applying(CGAffineTransform(scaleX: size / 128, y: size / 128))
             .fill(.foreground)
             .frame(width: size, height: size)
     }

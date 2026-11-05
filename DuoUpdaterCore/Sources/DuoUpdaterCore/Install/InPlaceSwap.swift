@@ -958,6 +958,9 @@ public enum InPlaceSwap {
                         "swap: left \(staged.lastPathComponent, privacy: .public) behind in \(parent.path, privacy: .public) — \(error.localizedDescription, privacy: .public)")
                 }
             }
+            // A policy refusal came from the guard, before replaceItemAt ran.
+            // Preserve its type so callers report a deferral, not a swap failure.
+            if error is AutomaticInstall.Deferred { throw error }
             // Which of the two opposite things just happened. `replaceItemAt`
             // can land the new bundle and then throw while removing the one it
             // displaced, and both user-facing shapes below describe a CAUSE for

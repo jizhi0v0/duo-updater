@@ -12,6 +12,7 @@ import re
 import subprocess
 
 from check_codex_review import api
+from route_cloud_pr import MANAGED, is_scan_state, labels
 
 PR_WORKFLOWS = {
     ".github/workflows/ci.yml": "CI",
@@ -89,6 +90,11 @@ def main():
     for number in numbers:
         pr = api(f"repos/{args.repo}/pulls/{number}")
         if pr["state"] != "open" or pr.get("draft") or pr["head"]["sha"] != head:
+            continue
+        # The trigger filters before a model starts. Do not create redundant
+        # wakeup comments for unlabelled PRs or pure scan state (even if a
+        # routing label was copied onto it). CI failures remain visible in GitHub.
+        if MANAGED not in labels(pr) or is_scan_state(pr, args.repo, read=api):
             continue
         comments = api(f"repos/{args.repo}/issues/{number}/comments")
         if any(c.get("user", {}).get("login") == "github-actions[bot]"

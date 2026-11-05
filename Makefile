@@ -100,6 +100,7 @@ test-scripts: check-python
 	$(PYTHON) scripts/test_check_real_machine_record.py
 	$(PYTHON) scripts/test_check_adversarial_review.py
 	$(PYTHON) scripts/test_check_codex_review.py
+	$(PYTHON) scripts/test_route_cloud_pr.py
 	$(PYTHON) scripts/test_check_nightly_data.py
 	$(PYTHON) scripts/test_check_ci_results.py
 	$(PYTHON) scripts/test_notify_cloud_pr.py

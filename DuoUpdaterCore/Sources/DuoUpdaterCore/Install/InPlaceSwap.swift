@@ -931,8 +931,20 @@ public enum InPlaceSwap {
         let staged = parent.appendingPathComponent(".duoupdater-staged-\(target.lastPathComponent)")
         try? fm.removeItem(at: staged)
         try fm.moveItem(at: newApp, to: staged)
+        // The guard runs before the filesystem exchange; its refusal is not a
+        // replaceItemAt failure and must not be diagnosed as one.
         do {
             try check?()
+        } catch {
+            if fm.fileExists(atPath: staged.path) {
+                do { try fm.removeItem(at: staged) } catch {
+                    Log.install.error(
+                        "swap: left \(staged.lastPathComponent, privacy: .public) behind in \(parent.path, privacy: .public) — \(error.localizedDescription, privacy: .public)")
+                }
+            }
+            throw error
+        }
+        do {
             _ = try fm.replaceItemAt(target, withItemAt: staged, backupItemName: nil, options: [])
         } catch {
             // What actually went wrong, before it is folded into one of two
@@ -958,9 +970,6 @@ public enum InPlaceSwap {
                         "swap: left \(staged.lastPathComponent, privacy: .public) behind in \(parent.path, privacy: .public) — \(error.localizedDescription, privacy: .public)")
                 }
             }
-            // A policy refusal came from the guard, before replaceItemAt ran.
-            // Preserve its type so callers report a deferral, not a swap failure.
-            if error is AutomaticInstall.Deferred { throw error }
             // Which of the two opposite things just happened. `replaceItemAt`
             // can land the new bundle and then throw while removing the one it
             // displaced, and both user-facing shapes below describe a CAUSE for

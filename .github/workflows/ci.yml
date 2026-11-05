@@ -106,6 +106,7 @@ jobs:
           persist-credentials: false
           sparse-checkout: |
             scripts/check_nightly_data.py
+            scripts/check_codex_review.py
           sparse-checkout-cone-mode: false
 
       - name: Only nightly scan state changed?
@@ -591,6 +592,7 @@ jobs:
           persist-credentials: false
           sparse-checkout: |
             scripts/check_nightly_data.py
+            scripts/check_codex_review.py
           sparse-checkout-cone-mode: false
       - name: Validate pinned scan data
         env:

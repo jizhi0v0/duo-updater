@@ -154,13 +154,26 @@ struct RetractableNoteTests {
         }
     }
 
-    /// Root/unreadable staging has no versioned entry. The live armed installer
-    /// still offers Relaunch and can return `.preparingUpdate` after the click.
-    @Test func anArmedInstallerWithNoReadableVersionKeepsPreparingFeedback() {
+    /// With no readable staged version and no remote update, RowAction removes
+    /// Relaunch. Its old retry instruction must disappear with that action.
+    @Test func versionlessStagingWithoutARelaunchRetractsPreparingFeedback() {
+        #expect(RowAction.state(for: RowActionFacts(
+            status: .upToDate, hasArmedSelfInstaller: true)) == .upToDate(channel: .none))
         let ids = UpdatePolicy.retractableNoteIDs(
             notes: [noTunes: Self.opened], writtenByUs: [noTunes: Self.opened],
             results: [row(noTunes, .upToDate)], installing: [],
-            stagedSelfUpdates: [:], armedSelfInstallers: [noTunes])
+            stagedSelfUpdates: [:])
+        #expect(ids == [noTunes])
+    }
+
+    @Test func versionlessStagingStillOfferingRelaunchKeepsPreparingFeedback() {
+        #expect(RowAction.state(for: RowActionFacts(
+            status: .updateAvailable(latest: "2.0"), hasArmedSelfInstaller: true))
+            == .relaunchToApplyStaged(to: nil))
+        let ids = UpdatePolicy.retractableNoteIDs(
+            notes: [noTunes: Self.opened], writtenByUs: [noTunes: Self.opened],
+            results: [row(noTunes, .updateAvailable(latest: "2.0"))], installing: [],
+            stagedSelfUpdates: [:])
         #expect(ids.isEmpty)
     }
 

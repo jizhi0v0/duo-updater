@@ -915,8 +915,7 @@ public enum UpdatePolicy {
         writtenByUs inFlight: [String: String],
         results: [UpdateResult],
         installing: Set<String>,
-        stagedSelfUpdates: [String: StagedSelfUpdate] = [:],
-        armedSelfInstallers: Set<String> = []
+        stagedSelfUpdates: [String: StagedSelfUpdate] = [:]
     ) -> Set<String> {
         guard !inFlight.isEmpty else { return [] }
         let settled = settledRowIDs(inFlight.keys, results: results, installing: installing)
@@ -925,9 +924,7 @@ public enum UpdatePolicy {
         let stillStaged = Set(results.compactMap { result in
             actionableStaged(result, staged: stagedSelfUpdates[result.id]) != nil ? result.id : nil
         })
-        return settled.filter {
-            notes[$0] == inFlight[$0] && !stillStaged.contains($0) && !armedSelfInstallers.contains($0)
-        }
+        return settled.filter { notes[$0] == inFlight[$0] && !stillStaged.contains($0) }
     }
 
     /// The staged self-update that makes installing pointless right now, or nil.

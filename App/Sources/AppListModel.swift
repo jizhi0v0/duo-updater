@@ -7797,6 +7797,12 @@ final class AppListModel {
             wasFrontmost: wasFrontmost, system: .live(for: result.app))
         let outcome = ending.outcome
         let applied = outcome == .applied
+        if outcome == .preparingUpdate {
+            let note = String(localized: "The update isn’t ready to install yet. Try Relaunch again shortly.")
+            installNotes[result.id] = note
+            restartWontQuitNotes[result.id] = note
+            inFlightNotes[result.id] = note
+        }
         if outcome == .wontQuit {
             // Giving up on *waiting* must not give up on the *hand-off*: if the user
             // answers that prompt a minute from now, the quit completes, ShipIt
@@ -7841,7 +7847,7 @@ final class AppListModel {
         let failureMessage: String? = switch outcome {
         // `.awaitingOpenConfirmation` is decided above, before the backup;
         // `quitAndAwait` never returns it.
-        case .applied, .wontQuit, .awaitingOpenConfirmation: nil
+        case .applied, .wontQuit, .awaitingOpenConfirmation, .preparingUpdate: nil
         case .swapDidNotLand:
             String(localized: "\(result.app.name) quit, but its own updater didn’t apply the update in time.")
         case .restartedWithoutUpdate:

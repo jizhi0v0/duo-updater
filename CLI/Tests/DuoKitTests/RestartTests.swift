@@ -179,6 +179,9 @@ import DuoUpdaterCore
         #expect(!line(.applied).failed)
         #expect(line(.applied, reopenFailed: true).failed)
         #expect(line(.wontQuit).failed)
+        #expect(line(.preparingUpdate).text
+            == "its own updater is not ready to install yet — try restart again shortly")
+        #expect(line(.preparingUpdate).failed)
         #expect(line(.swapDidNotLand).text == "quit, but its own updater didn't apply 12.6.0 in time")
         #expect(line(.swapDidNotLand).failed)
         #expect(line(.restartedWithoutUpdate).text == "restarted without applying 12.6.0")

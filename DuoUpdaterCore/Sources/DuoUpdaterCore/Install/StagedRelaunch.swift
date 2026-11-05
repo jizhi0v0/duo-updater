@@ -234,6 +234,8 @@ public enum StagedRelaunch {
         public var installer: ParkedInstallerProbe.System
         /// The app's windows on screen now, every instance (`onScreenWindows(pids:)`).
         public var onScreenWindows: @Sendable () -> Set<OnScreenWindow>
+        /// Whether Sparkle has finished preparing, independently of its staged plist.
+        public var sparkleInstallationReady: @Sendable () async -> Bool
 
         public init(
             tick: @escaping @Sendable () async -> Void,
@@ -243,7 +245,8 @@ public enum StagedRelaunch {
             awaitBundleProcessesGone: @escaping @Sendable () async -> Void,
             relaunch: @escaping @Sendable (_ activates: Bool) async -> Bool,
             installer: ParkedInstallerProbe.System,
-            onScreenWindows: @escaping @Sendable () -> Set<OnScreenWindow> = { [] }
+            onScreenWindows: @escaping @Sendable () -> Set<OnScreenWindow> = { [] },
+            sparkleInstallationReady: @escaping @Sendable () async -> Bool = { true }
         ) {
             self.tick = tick
             self.isRunning = isRunning
@@ -253,6 +256,7 @@ public enum StagedRelaunch {
             self.relaunch = relaunch
             self.installer = installer
             self.onScreenWindows = onScreenWindows
+            self.sparkleInstallationReady = sparkleInstallationReady
         }
 
         public static func live(for app: InstalledApp) -> System {
@@ -269,6 +273,10 @@ public enum StagedRelaunch {
                 installer: .live,
                 onScreenWindows: {
                     StagedRelaunch.onScreenWindows(pids: Set(AppRestarter.runningInstances(of: app).map(\.processIdentifier)))
+                },
+                sparkleInstallationReady: {
+                    guard let id = app.bundleID else { return false }
+                    return await SparkleInstallationReadiness.isReady(bundleID: id)
                 })
         }
     }
@@ -297,6 +305,15 @@ public enum StagedRelaunch {
         _ app: InstalledApp, staged: StagedSelfUpdate?, old: VersionSide,
         wasFrontmost: Bool, quitPatience: QuitPatience = .grace, system: System
     ) async -> Ending {
+        // A new staged plist proves a version, not that it is safe to quit.
+        // Ask immediately before the commit/quit, including version-less Sparkle
+        // staging. A missing/failed status read must never interrupt preparation.
+        if staged?.updater == .sparkle || (staged == nil && app.hasSparkleUpdater) {
+            guard await system.sparkleInstallationReady() else {
+                Log.app.notice("relaunch-staged: \(app.name, privacy: .public) has not published ready installation info — not quitting it")
+                return Ending(outcome: .preparingUpdate, everQuit: false, reopenFailed: false)
+            }
+        }
         let buildIsDerived = AppScanner.buildVersionIsOverridden(bundleID: app.bundleID)
         // Spotify only swaps when its old build is opened again; ShipIt/Sparkle
         // swap on quit and must not be reopened early. See `StagedApplyTrigger`.

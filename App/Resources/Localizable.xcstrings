@@ -86591,6 +86591,22 @@
           }
         }
       }
+    },
+    "The update isn’t ready to install yet. Try Relaunch again shortly.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The update isn’t ready to install yet. Try Relaunch again shortly."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新尚未准备就绪，请稍后再次点击“重新启动”。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

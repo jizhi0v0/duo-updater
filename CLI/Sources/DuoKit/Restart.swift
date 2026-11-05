@@ -271,6 +271,8 @@ public enum Restart {
     ) -> (text: String, failed: Bool) {
         let reopen = ending.reopenFailed ? ", but reopening it failed" : ""
         switch ending.outcome {
+        case .preparingUpdate:
+            return ("its own updater is not ready to install yet — try restart again shortly", true)
         case .applied:
             let now = disk.isEmpty ? to : disk.text(withBuild: true)
             return ("quit — its own updater applied \(now)\(reopen)", ending.reopenFailed)

@@ -74,6 +74,19 @@ coordinator catch, nested checks at download/apply/exchange, and delta/stash
 wrapping; no guard was weakened. Actual scheduled GUI install/event evidence is
 still the pinned 97e8d38b record, not a claimed replay of the latest GUI build.
 
+## Confirmed version follow-up
+
+Automatic attempts capture the confirmed pre-install source version/target and
+replace the target with the version read from disk after successful installation.
+The completion event consumes these attempt-local values instead of the scheduled
+refresh's older offer. The started event still records the original offer.
+Entries are cleared before an attempt and consumed afterwards; manual work never
+writes them. Host App tests: 326/326, localization 1,248 keys. Author-run review
+traced the confirmed `result` shadow, the successful `updated` readback, all
+failure exits, and the scheduler's serialized ownership. A vendor publishing a
+new version in that interval was not simulated in the VM; the GUI event-store
+path remains covered by the earlier pinned actual-install record.
+
 ## Safety baseline validation
 
 - Host: `make test-app` passed 326/326; 1,248 localization keys agree.

@@ -5655,6 +5655,9 @@ final class AppListModel {
         }
 
         if AutomaticInstall.active {
+            automaticInstallVersions[id] = (
+                from: result.app.versionSide.text(withBuild: true),
+                to: result.remote?.displayVersion ?? "")
             guard automaticUpdatesAllowed, canAutoInstall(result),
                   UpdatePolicy.installConfirmation(for: result) == nil,
                   AutomaticInstall.supports(InstallCoordinator.route(for: result, requiresInstaller: requiresInstaller(result))),
@@ -6362,6 +6365,11 @@ final class AppListModel {
                 return .notInstalled
             }
 
+            if AutomaticInstall.active {
+                automaticInstallVersions[id] = (
+                    from: result.app.versionSide.text(withBuild: true),
+                    to: updated.app.versionSide.text(withBuild: true))
+            }
             // Tell the user it landed. If the app was running, its live process
             // is still on the old code (so it's in needsRestart) — point them at
             // the Restart action. Otherwise the in-place swap is already fully in
@@ -10267,12 +10275,16 @@ final class AppListModel {
     }
 
     private var automaticSkipReasons: [String: String] = [:]
+    // Attempt-local versions, refreshed by the pre-install recheck and the
+    // successful disk readback. Only the automatic caller owns these entries.
+    private var automaticInstallVersions: [String: (from: String, to: String)] = [:]
 
-    private func recordAutomaticUpdate(_ result: UpdateResult, status: String, reason: String? = nil) async {
+    private func recordAutomaticUpdate(_ result: UpdateResult, status: String, reason: String? = nil,
+                                       versions: (from: String, to: String)? = nil) async {
         let payload: [String: String] = [
             "appID": result.id, "appName": result.app.name,
-            "fromVersion": result.app.shortVersion ?? "",
-            "toVersion": result.remote?.displayVersion ?? "",
+            "fromVersion": versions?.from ?? result.app.shortVersion ?? "",
+            "toVersion": versions?.to ?? result.remote?.displayVersion ?? "",
             "trigger": "automatic", "status": status, "reason": reason ?? ""
         ]
         guard let data = try? JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys]),
@@ -10302,6 +10314,7 @@ final class AppListModel {
             }
             automaticSkipReasons[result.id] = nil
             await recordAutomaticUpdate(result, status: "started")
+            automaticInstallVersions[result.id] = nil
             let outcome = await AutomaticInstall.$active.withValue(true) {
                 await AutomaticInstall.$permission.withValue({ @MainActor [weak self] in
                     self?.automaticUpdatesAllowed == true
@@ -10317,8 +10330,9 @@ final class AppListModel {
                 }
             }
             let event = AutomaticInstall.eventResult(outcome)
+            let versions = automaticInstallVersions.removeValue(forKey: result.id)
             await recordAutomaticUpdate(result, status: event.status,
-                reason: event.reason ?? installErrors[result.id] ?? installNotes[result.id])
+                reason: event.reason ?? installErrors[result.id] ?? installNotes[result.id], versions: versions)
         }
     }
 

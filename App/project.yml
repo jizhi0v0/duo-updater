@@ -65,6 +65,7 @@ targets:
       # How it words an install of any other tool. Foundation only.
       - path: Sources/CLIToolPresentation.swift
       # When the CLI tab's Homebrew group is open. Foundation only.
+      - path: Sources/BuildReleaseChannel.swift
       - path: Sources/HomebrewGroupState.swift
       # Where the workbench sidebars' keys move the selection. Foundation only.
       - path: Sources/SidebarSelection.swift

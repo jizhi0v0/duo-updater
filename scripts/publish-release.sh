@@ -90,6 +90,8 @@ build="$(read_project_setting CURRENT_PROJECT_VERSION)" \
 
 TAG="${TAG:-v$version}"
 TITLE="${TITLE:-DuoUpdater $version}"
+source_channel="$(plutil -extract DuoReleaseChannel raw "$REPO_ROOT/App/Info.plist" 2>/dev/null || true)"
+[ "$source_channel" = "$RELEASE_CHANNEL" ] || die "App/Info.plist DuoReleaseChannel ($source_channel) does not match RELEASE_CHANNEL=$RELEASE_CHANNEL. Commit the intended build channel before building."
 ASSET_ZIP="$DIST_DIR/DuoUpdater-$version-macos.zip"
 DSYM_ASSET="$DIST_DIR/DuoUpdater-$version-dSYM.zip"
 AUTO_NOTES="$DIST_DIR/release-notes-$TAG.md"
@@ -940,6 +942,9 @@ zip_build="$(unzip -p "$FINAL_ZIP" "$zip_info" | plutil -extract CFBundleVersion
     || die "artifact is version $zip_short but this release is $version — stale zip? (rebuild, or unset SKIP_NOTARIZE)"
 [ "$zip_build" = "$build" ] \
     || die "artifact is build $zip_build but this release is build $build — stale zip? (rebuild, or unset SKIP_NOTARIZE)"
+
+zip_channel="$(unzip -p "$FINAL_ZIP" "$zip_info" | plutil -extract DuoReleaseChannel raw - 2>/dev/null || true)"
+[ "$zip_channel" = "$RELEASE_CHANNEL" ] || die "artifact channel $zip_channel does not match $RELEASE_CHANNEL — rebuild the correct channel"
 
 say "Checking the dSYM belongs to this build"
 check_dsym_matches "$FINAL_ZIP" "$DSYM_ZIP"

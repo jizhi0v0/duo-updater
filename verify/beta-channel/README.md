@@ -49,3 +49,26 @@ a claim that the installed DuoUpdater GUI was itself upgraded from a local feed.
 No public GitHub Beta was published. The full production publishing/notarization
 pipeline has not been run for a beta. CI Swift failed with insufficient-space
 errors on the runner; no disk threshold or test was weakened.
+
+## Beta-only automatic updating follow-up — 2026-11-05
+
+The owner requested the next stable release contain only the Sparkle readiness,
+NSH and AFFiNE fixes plus the Beta subscription switch. Automatic updating of
+closed apps is now gated by the signed bundle's `DuoReleaseChannel`, not by the
+subscription preference. Stable hides its toggle and Events tab; both the
+scheduler eligibility and final commit-permission snapshot deny it, including
+when a previous Beta left AutomaticUpdates=true. Unknown/missing build channels
+fail closed. Beta still requires explicit user opt-in.
+
+- App tests 328/328; localization 1,253 keys agree. New tests cover stable,
+  missing/unknown channels and a Beta subscription preference with saved opt-in,
+  plus Beta with/without consent.
+- Publication verifies both source plist and archive channel. Regression tests
+  reject stable→beta, beta→stable and missing-channel artifacts.
+- `make install` succeeded. Installed plist reads `stable`. Cua Driver verified
+  the complete General AX tree has no automatic-update toggle; Updates still
+  shows the Stable/Beta subscription picker. Raw state: stable-general-state.json.
+- Local review traced automaticUpdatesAllowed and both permission-snapshot writes:
+  stable cannot enable either entry permission or final exchange permission.
+- A Beta-marked build's UI has not been rerun after this follow-up; the earlier
+  visible-feature/install evidence and new pure gate tests are separately scoped.

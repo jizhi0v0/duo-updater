@@ -478,5 +478,25 @@ class PostMergeCI(unittest.TestCase):
         self.assertIn("AFTER", run.stdout)
 
 
+class ArtifactChannelGate(unittest.TestCase):
+    def test_signed_archive_channel_must_match_publication(self):
+        import zipfile, plistlib
+        source = SCRIPT.read_text()
+        gate = source[source.index('zip_channel="'):source.index('say "Checking the dSYM belongs to this build"')]
+        with tempfile.TemporaryDirectory() as directory:
+            archive = pathlib.Path(directory) / 'app.zip'
+            for built, publishing, succeeds in [('stable', 'stable', True), ('beta', 'beta', True),
+                                                ('stable', 'beta', False), ('beta', 'stable', False),
+                                                (None, 'stable', False)]:
+                info = {} if built is None else {'DuoReleaseChannel': built}
+                with zipfile.ZipFile(archive, 'w') as output:
+                    output.writestr('Test.app/Contents/Info.plist', plistlib.dumps(info))
+                run = subprocess.run(['bash', '-c', 'die() { echo "$*"; exit 1; }; ' + gate],
+                    env={**os.environ, 'FINAL_ZIP': str(archive),
+                         'zip_info': 'Test.app/Contents/Info.plist', 'RELEASE_CHANNEL': publishing},
+                    capture_output=True, text=True)
+                self.assertEqual(run.returncode == 0, succeeds, (built, publishing, run.stdout))
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

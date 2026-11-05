@@ -154,6 +154,16 @@ struct RetractableNoteTests {
         }
     }
 
+    /// Root/unreadable staging has no versioned entry. The live armed installer
+    /// still offers Relaunch and can return `.preparingUpdate` after the click.
+    @Test func anArmedInstallerWithNoReadableVersionKeepsPreparingFeedback() {
+        let ids = UpdatePolicy.retractableNoteIDs(
+            notes: [noTunes: Self.opened], writtenByUs: [noTunes: Self.opened],
+            results: [row(noTunes, .upToDate)], installing: [],
+            stagedSelfUpdates: [:], armedSelfInstallers: [noTunes])
+        #expect(ids.isEmpty)
+    }
+
     @Test func aNoteNobodyRegisteredIsNeverRetracted() {
         // `backupCurrent`'s warning: no registry entry, so it stands even though
         // the row is as settled as a row gets.

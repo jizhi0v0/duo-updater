@@ -138,13 +138,14 @@ final class AppListModel {
         guard !inFlightNotes.isEmpty else { return }
         // Only a Relaunch note waits on staging. An unrelated installer note
         // must still settle even if the app has staged another update meanwhile.
-        let waitingOnStaging = pendingSelfUpdate.filter { id, _ in
-            guard let note = inFlightNotes[id] else { return false }
-            return restartWontQuitNotes[id] == note
-        }
+        let relaunchNoteIDs = Set(inFlightNotes.compactMap { id, note in
+            restartWontQuitNotes[id] == note ? id : nil
+        })
+        let waitingOnStaging = pendingSelfUpdate.filter { relaunchNoteIDs.contains($0.key) }
         for id in UpdatePolicy.retractableNoteIDs(
             notes: installNotes, writtenByUs: inFlightNotes,
-            results: results, installing: Set(installing.keys), stagedSelfUpdates: waitingOnStaging
+            results: results, installing: Set(installing.keys), stagedSelfUpdates: waitingOnStaging,
+            armedSelfInstallers: armedSelfInstallers.intersection(relaunchNoteIDs)
         ) {
             if let revert = relaunchRevertNotes[id], installNotes[id] == revert.busy.text {
                 // Same moment as the disk, not as the row: one `Info.plist` read,

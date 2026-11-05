@@ -482,5 +482,24 @@ class ArchiveURLTests(unittest.TestCase):
         self.assertEqual(ae.restore_archive_urls(old, new), new)
 
 
+class ReleaseChannels(unittest.TestCase):
+    def test_beta_cannot_enter_stable_and_other_channel_is_preserved(self):
+        stable = '<item><sparkle:version>10</sparkle:version><enclosure sparkle:edSignature="stable" /></item>'
+        beta = '<item><sparkle:version>11</sparkle:version><sparkle:channel>beta</sparkle:channel><enclosure sparkle:edSignature="beta" /></item>'
+        old = '<rss><channel>' + stable + beta + '</channel></rss>'
+        self.assertEqual(ae.channel_feed(old, 'stable'), '<rss><channel>' + stable + '</channel></rss>')
+        generated = '<rss><channel><item><sparkle:version>12</sparkle:version></item></channel></rss>'
+        with self.assertRaises(ValueError):
+            ae.require_channel(generated, 'beta')
+        with self.assertRaises(ValueError):
+            ae.require_channel(old, 'stable')
+        new = ae.merge_channel(old, ae.require_channel(generated.replace('</item>', '<sparkle:channel>beta</sparkle:channel></item>'), 'beta'), 'beta')
+        self.assertIn(stable, new)
+        self.assertNotIn(beta, new)
+        self.assertEqual(ae.channel_feed(new, 'stable'), '<rss><channel>' + stable + '</channel></rss>')
+        stable_release = ae.merge_channel(new, generated, 'stable')
+        self.assertIn(ae.channel_feed(new, 'beta').split('<channel>')[1].split('</channel>')[0], stable_release)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -382,6 +382,11 @@ class HomebrewTapGate(unittest.TestCase):
 
     # Mutation: let the failure propagate and `set -e` ends the script after a
     # live release, skipping the site and translation notes printed below it.
+    def test_beta_feed_publication_does_not_bump_stable_tap(self):
+        run = self.run_gate(publishes="1", env={"is_prerelease": "1"})
+        self.assertEqual(run.returncode, 0)
+        self.assertEqual(self.called_with(), [])
+
     def test_a_failed_bump_only_warns(self):
         self.stub(exit_code=1)
         run = self.run_gate(publishes="1")

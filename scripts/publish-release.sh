@@ -40,6 +40,14 @@ RELEASE_NOTES_FILE="${RELEASE_NOTES_FILE:-}"
 DRAFT_RELEASE="${DRAFT_RELEASE:-0}"
 PRERELEASE="${PRERELEASE:-0}"
 LATEST_RELEASE="${LATEST_RELEASE:-1}"
+# Stable remains the default. A beta is a public GitHub prerelease and an
+# explicitly tagged Sparkle channel item, never an untagged stable update.
+RELEASE_CHANNEL="${RELEASE_CHANNEL:-stable}"
+case "$RELEASE_CHANNEL" in
+    stable) ;;
+    beta) PRERELEASE=1; LATEST_RELEASE=0 ;;
+    *) printf 'Unsupported RELEASE_CHANNEL: %s\n' "$RELEASE_CHANNEL" >&2; exit 1 ;;
+esac
 SPARKLE_KEY_ACCOUNT="${SPARKLE_KEY_ACCOUNT:-ed25519}"
 
 say() { printf '\033[1;34m→ %s\033[0m\n' "$*"; }
@@ -295,8 +303,8 @@ prepare_sparkle_appcast() {
     # Then fill the gaps from the releases themselves. `--maximum-deltas` is 5, so the
     # tool wants the new build plus the five before it; anything older is copied,
     # diffed and then dropped by the cap.
-    tag_list="$(gh release list --repo "$RELEASE_REPO" --limit 8 --json tagName,isDraft,isPrerelease \
-        --jq '.[] | select(.isDraft == false and .isPrerelease == false) | .tagName' 2>/dev/null || true)"
+    tag_list="$(gh release list --repo "$RELEASE_REPO" --limit 50 --json tagName,isDraft,isPrerelease \
+        --jq ".[] | select(.isDraft == false and .isPrerelease == $([ "$RELEASE_CHANNEL" = beta ] && echo true || echo false)) | .tagName" 2>/dev/null || true)"
     # `while read`, not `for tag in $tag_list`: word-splitting an unquoted variable is
     # a shell-dependent behaviour (zsh does not split by default), and this loop going
     # around once with all eight tags glued together fails exactly the way the bug it
@@ -333,7 +341,17 @@ prepare_sparkle_appcast() {
     # block exists to prevent and which is invisible in the feed afterwards. It is
     # only legitimate when there is genuinely nothing to patch from — a first publish
     # into an empty feed. Anything else stops here, before a release is created.
-    if [ "$count" -lt 2 ] && [ -s "$appcast_clone_dir/appcast.xml" ]; then
+    local previous_channel_items
+    previous_channel_items="$(python3 - "$REPO_ROOT" "$appcast_clone_dir/appcast.xml" "$RELEASE_CHANNEL" <<'PYCOUNT'
+import pathlib, sys
+sys.path.insert(0, str(pathlib.Path(sys.argv[1]) / "scripts"))
+import appcast_edit
+path = pathlib.Path(sys.argv[2])
+text = path.read_text() if path.exists() else ""
+print(len(appcast_edit.item_versions(appcast_edit.channel_feed(text, sys.argv[3]))))
+PYCOUNT
+)" || die "could not read previous channel history"
+    if [ "$count" -lt 2 ] && [ "$previous_channel_items" -gt 0 ]; then
         if [ "${ALLOW_NO_DELTAS:-0}" = "1" ]; then
             say "ALLOW_NO_DELTAS=1 — publishing with no binary patches; every user downloads the full archive."
         else
@@ -347,7 +365,7 @@ prepare_sparkle_appcast() {
     if [ -f "$appcast_clone_dir/appcast.xml" ]; then
         cp "$appcast_clone_dir/appcast.xml" "$appcast_archives_dir/appcast.xml"
         REPO_ROOT="$REPO_ROOT" APPCAST="$appcast_archives_dir/appcast.xml" \
-            BUILD="$build" VERSION="$version" \
+            BUILD="$build" VERSION="$version" RELEASE_CHANNEL="$RELEASE_CHANNEL" \
             python3 - <<'PY' || die "could not prepare the published appcast for regeneration"
 import os, pathlib, sys
 sys.path.insert(0, os.path.join(os.environ["REPO_ROOT"], "scripts"))
@@ -366,12 +384,16 @@ if channels > 1:
         f"the published appcast has {channels} channels — this script only handles one.\n"
         "  Scope the item strip to a channel before publishing again.")
 
+text = appcast_edit.channel_feed(text, os.environ["RELEASE_CHANNEL"])
 path.write_text(appcast_edit.strip_item(text, os.environ["BUILD"], os.environ["VERSION"]))
 PY
     fi
 
+    local channel_flags=()
+    [ "$RELEASE_CHANNEL" = "beta" ] && channel_flags=(--channel beta)
     say "Generating Sparkle appcast"
     "$generate_appcast" \
+        "${channel_flags[@]+"${channel_flags[@]}"}" \
         --account "$SPARKLE_KEY_ACCOUNT" \
         --download-url-prefix "$DOWNLOAD_PREFIX" \
         --link "$RELEASE_PAGE_URL" \
@@ -416,7 +438,7 @@ PY
     # per minimum macOS — see `appcast_edit.check_regenerated`.
     OLD_APPCAST="$appcast_clone_dir/appcast.xml" NEW_APPCAST="$appcast_archives_dir/appcast.xml" \
         NEW_VERSION="$version" NEW_BUILD="$build" ASSET_ZIP="$ASSET_ZIP" \
-        MAX_VERSIONS="$APPCAST_MAX_VERSIONS" REPO_ROOT="$REPO_ROOT" \
+        MAX_VERSIONS="$APPCAST_MAX_VERSIONS" REPO_ROOT="$REPO_ROOT" RELEASE_CHANNEL="$RELEASE_CHANNEL" \
         python3 - <<'PY' || die "appcast sanity check failed"
 import os, pathlib, sys
 sys.path.insert(0, os.path.join(os.environ["REPO_ROOT"], "scripts"))
@@ -429,14 +451,17 @@ new_text = new_path.read_text()
 # FileNotFoundError and report it as "appcast sanity check failed", after the
 # release had already been created.
 old_path = pathlib.Path(os.environ["OLD_APPCAST"])
-old_text = old_path.read_text() if old_path.exists() else ""
+all_channels = old_path.read_text() if old_path.exists() else ""
+channel = os.environ["RELEASE_CHANNEL"]
+old_text = appcast_edit.channel_feed(all_channels, channel)
+new_text = appcast_edit.require_channel(new_text, channel)
 
 # `--download-url-prefix` belongs to the release being published, but Sparkle
 # applies it to every archive it regenerates. Keep retained items pointed at the
 # release where their full archive actually lives; their newly cut patch URLs
 # deliberately stay under this release, where the script uploads those patches.
 new_text = appcast_edit.restore_archive_urls(old_text, new_text)
-new_path.write_text(new_text)
+# Write only after validation below.
 
 size = pathlib.Path(os.environ["ASSET_ZIP"]).stat().st_size
 
@@ -449,6 +474,8 @@ if problems:
     sys.exit("\n".join(problems)
              + f"\n  before: {', '.join(old) or '(empty)'}"
              + f"\n  after:  {', '.join(new) or '(empty)'}")
+
+new_path.write_text(appcast_edit.merge_channel(all_channels, new_text, channel))
 
 lost = [v for v in old if v not in new]
 if lost:
@@ -992,7 +1019,9 @@ if gh release view "$TAG" --repo "$RELEASE_REPO" >/dev/null 2>&1; then
     release_exists=1
 fi
 
-# A draft or prerelease is deliberately not for everyone, but the appcast is:
+# A draft is not downloadable; a prerelease only enters the explicit beta channel.
+# The shared appcast is read by every client, but Sparkle filters tagged items.
+# Historically prereleases never entered it at all:
 # every installed copy reads it. Pushing a feed entry for a draft points Sparkle
 # at a download URL that 404s for anyone who is not the author, on every check.
 # Whether the release will be visible to users, read from GITHUB rather than
@@ -1017,7 +1046,7 @@ fi
 [ "$PRERELEASE" = "1" ] && is_prerelease=1
 
 publishes_appcast=1
-if [ "$is_draft" = "1" ] || [ "$is_prerelease" = "1" ]; then
+if [ "$is_draft" = "1" ] || { [ "$is_prerelease" = "1" ] && [ "$RELEASE_CHANNEL" != "beta" ]; }; then
     publishes_appcast=0
 fi
 
@@ -1104,14 +1133,14 @@ EOF
 # Warn-only: the cask is `auto_updates`, so a tap one release behind installs a
 # build that Sparkle updates within the hour. Failing the script here, after the
 # release is live, would only hide the steps printed below.
-# Gated on `publishes_appcast`, exactly like the feed: a draft's assets 404 for
+# Gated on feed publication AND stable status: a draft's assets 404 for
 # everyone but the author, so every `brew install` would fail, and a prerelease
 # would hand brew users a build the stable feed never offered. The cask follows
 # the appcast, never ahead of it.
 # DUO_SKIP_HOMEBREW_TAP=1 skips it, for a release published from a fork.
 # A function so scripts/test_publish_release.py can run it against a stub.
 bump_homebrew_tap() {
-    if [ "$publishes_appcast" != "1" ]; then
+    if [ "$publishes_appcast" != "1" ] || [ "${is_prerelease:-0}" = "1" ]; then
         printf '   tap      : not bumped — a draft or prerelease stays off the Homebrew cask\n'
         return 0
     fi

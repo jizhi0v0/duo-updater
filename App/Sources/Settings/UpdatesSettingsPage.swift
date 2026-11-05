@@ -9,6 +9,7 @@ struct UpdatesSettingsPage: View {
     /// main-actor updater, and written straight back on change — Sparkle keeps the
     /// stored value, so this state is only ever a view of it.
     @State private var installsAutomatically = false
+    @AppStorage("DuoUpdaterBetaChannel") private var betaChannel = false
 
     /// Setapp's client is also an installer: launched in the background it runs
     /// its check, and installs what it finds when its own "Install automatically"
@@ -42,6 +43,19 @@ struct UpdatesSettingsPage: View {
                 footer: "DuoUpdater updates itself separately from the managed app list, through Sparkle-signed direct downloads. The button above forces a check right now, whether or not automatic installs are on."
             ) {
                 versionRow
+                SettingsDivider()
+                Picker("Release channel", selection: $betaChannel) {
+                    Text("Stable").tag(false)
+                    Text("Beta").tag(true)
+                }.settingsRow()
+                Text("Beta receives early updates for testing. Switching to Stable waits for a newer stable release; it does not downgrade or cancel an update already prepared.")
+                    .font(.caption).foregroundStyle(.secondary).settingsRow()
+                Button("Report a problem on GitHub…") {
+                    var url = URLComponents(string: "https://github.com/jizhi0v0/duo-updater/issues/new")!
+                    url.queryItems = [URLQueryItem(name: "body", value:
+                        "DuoUpdater: \(currentVersionLine)\nChannel: \(betaChannel ? "Beta" : "Stable")\nmacOS: \(ProcessInfo.processInfo.operatingSystemVersionString)\n\nSteps to reproduce:\n\nExpected behavior:\n\nActual behavior:\n\nFor installation failures, attach the report from Settings → Diagnostics after reviewing it.")]
+                    if let url = url.url { NSWorkspace.shared.open(url) }
+                }.settingsRow()
             }
 
             SettingsCard {
@@ -62,6 +76,7 @@ struct UpdatesSettingsPage: View {
                     isOn: $setappBackgroundUpdates)
             }
         }
+        .onChange(of: betaChannel) { _, _ in AppUpdater.shared.channelDidChange() }
         .task { installsAutomatically = AppUpdater.shared.installsUpdatesAutomatically }
         .onChange(of: installsAutomatically) { _, on in
             AppUpdater.shared.installsUpdatesAutomatically = on

@@ -1,6 +1,61 @@
 {
   "sourceLanguage": "en",
   "strings": {
+  "Release channel": {
+    "extractionState": "manual",
+    "localizations": {
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "发布通道"
+        }
+      }
+    }
+  },
+  "Stable": {
+    "extractionState": "manual",
+    "localizations": {
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "正式版"
+        }
+      }
+    }
+  },
+  "Beta": {
+    "extractionState": "manual",
+    "localizations": {
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "Beta"
+        }
+      }
+    }
+  },
+  "Beta receives early updates for testing. Switching to Stable waits for a newer stable release; it does not downgrade or cancel an update already prepared.": {
+    "extractionState": "manual",
+    "localizations": {
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "Beta 会提前接收测试更新。切回正式版后将等待更新的正式版本，不会降级或取消已准备好的更新。"
+        }
+      }
+    }
+  },
+  "Report a problem on GitHub…": {
+    "extractionState": "manual",
+    "localizations": {
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "在 GitHub 上反馈问题…"
+        }
+      }
+    }
+  },
   "Activity is kept for 90 days, up to 10,000 records. Showing the latest 200.": {
     "extractionState": "manual",
     "localizations": {

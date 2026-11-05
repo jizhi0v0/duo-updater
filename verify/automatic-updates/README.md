@@ -54,6 +54,26 @@ including all early returns and failure reporting. Current host App tests passed
 the VM event-mapping evidence remains the explicitly pinned record above, not a
 claim that these lock races were reproduced in the VM.
 
+## Fresh policy-gate and retry follow-up
+
+Fresh one-click `Withheld` and late `NestedAppRunningError` refusals now become
+`AutomaticInstall.Deferred` only inside automatic work. Manual errors keep their
+original types. Integrity/I/O failures are not reclassified. The process checks
+before download/apply and the final captured exchange callback all use this
+classification. Delta and local-stash retry classifiers refuse to retry a typed
+deferral, avoiding a second download after a safety refusal.
+
+Current host App: 326/326 and 1,248 keys. Current host Core targeted: 12/12.
+Current VMPal safety/event/scheduler selection: 58/58, identical production files
+and test bodies, with the same VM-only Swift Testing manifest described below.
+The policy regression checks automatic versus manual error types, preserved
+reasons, both retry classifiers, and unchanged signature/I/O failures. Existing
+real-filesystem permission-withdrawal and post-staging helper tests also passed.
+Local author-run adversarial follow-up traced fresh-gate throws before the main
+coordinator catch, nested checks at download/apply/exchange, and delta/stash
+wrapping; no guard was weakened. Actual scheduled GUI install/event evidence is
+still the pinned 97e8d38b record, not a claimed replay of the latest GUI build.
+
 ## Safety baseline validation
 
 - Host: `make test-app` passed 326/326; 1,248 localization keys agree.

@@ -38,6 +38,15 @@ public enum AutomaticInstall {
         public var errorDescription: String? { reason }
     }
 
+    /// Only policy/process refusals are converted; integrity and I/O errors
+    /// remain failures, and manual callers retain their original error types.
+    static func classifiedRefusal(_ error: Error) -> Error {
+        guard active, error is OneClickGateRegistry.Withheld || error is NestedAppRunningError else {
+            return error
+        }
+        return Deferred(error.localizedDescription)
+    }
+
     public static func eventResult(_ outcome: InstallAttemptOutcome) -> (status: String, reason: String?) {
         switch outcome {
         case .installed: return ("installed", nil)

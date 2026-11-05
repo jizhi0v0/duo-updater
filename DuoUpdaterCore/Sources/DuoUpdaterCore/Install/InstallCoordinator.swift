@@ -172,8 +172,10 @@ public actor InstallCoordinator {
     /// Throws `NestedAppRunningError` when an app nested in `result`'s bundle is
     /// running on its own (see `NestedAppGuard`).
     private func refuseWhileNestedAppRuns(_ result: UpdateResult) throws {
-        try NestedAppGuard.check(
-            result.app.path, appName: result.app.name, processes: runningProcesses)
+        do {
+            try NestedAppGuard.check(
+                result.app.path, appName: result.app.name, processes: runningProcesses)
+        } catch { throw AutomaticInstall.classifiedRefusal(error) }
     }
 
     /// The route an update takes.
@@ -511,7 +513,8 @@ public actor InstallCoordinator {
         if let gate = OneClickGateRegistry.withholding(result.app, offering: result.remote, fresh: true) {
             Log.install.notice(
                 "install refused: \(label, privacy: .public) — one-click gate: \(gate.reason, privacy: .public)")
-            throw OneClickGateRegistry.Withheld(appName: result.app.name, reason: gate.reason)
+            throw AutomaticInstall.classifiedRefusal(
+                OneClickGateRegistry.Withheld(appName: result.app.name, reason: gate.reason))
         }
         Log.install.notice(
             "install start: \(label, privacy: .public) \(result.app.shortVersion ?? "?", privacy: .public) → \(result.remote?.displayVersion ?? "?", privacy: .public) via \(String(describing: route), privacy: .public)")
@@ -901,7 +904,11 @@ public actor InstallCoordinator {
         let automatic = AutomaticInstall.active
         try await InPlaceSwap.$preExchangeCheck.withValue({
             try AutomaticInstall.$active.withValue(automatic) { try AutomaticInstall.check(result.app) }
-            try NestedAppGuard.check(result.app.path, appName: result.app.name, processes: processes)
+            try AutomaticInstall.$active.withValue(automatic) {
+                do {
+                    try NestedAppGuard.check(result.app.path, appName: result.app.name, processes: processes)
+                } catch { throw AutomaticInstall.classifiedRefusal(error) }
+            }
         }) {
             try await apply(result, downloaded, progress)
         }

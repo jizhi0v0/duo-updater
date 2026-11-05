@@ -3,6 +3,24 @@ import Testing
 @testable import DuoUpdaterCore
 
 struct AutomaticInstallTests {
+    @Test func policyRefusalsDeferOnlyAutomaticWorkAndNeverRetryDownloads() {
+        let gate = OneClickGateRegistry.Withheld(appName: "Test", reason: "Copy changed")
+        let nested = NestedAppRunningError(appName: "Test", blockers: [])
+        #expect(AutomaticInstall.classifiedRefusal(gate) is OneClickGateRegistry.Withheld)
+        #expect(AutomaticInstall.classifiedRefusal(nested) is NestedAppRunningError)
+        AutomaticInstall.$active.withValue(true) {
+            for error: Error in [gate, nested] {
+                let mapped = AutomaticInstall.classifiedRefusal(error)
+                #expect((mapped as? AutomaticInstall.Deferred)?.reason == error.localizedDescription)
+                #expect(!deltaRouteFailureIsWorthRetrying(mapped))
+                #expect(!localStashFailureIsWorthRetrying(mapped))
+            }
+            #expect(AutomaticInstall.classifiedRefusal(CocoaError(.fileReadNoPermission)) is CocoaError)
+            #expect(AutomaticInstall.classifiedRefusal(SignatureVerifier.VerifyError.edSignatureInvalid)
+                is SignatureVerifier.VerifyError)
+        }
+    }
+
     @Test func safetyDeferralIsNeitherFailureNorSuccessfulInstall() {
         let outcome = InstallAttemptOutcome.deferred(reason: "Helper started before exchange")
         #expect(outcome != .notInstalled)

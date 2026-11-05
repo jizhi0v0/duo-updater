@@ -42,6 +42,13 @@ adversarial-review records remain separate requirements.
 - Cloud PR handling is driven by GitHub events. Read the current PR head,
   official Codex receipt, unresolved review threads and CI before acting.
   Evidence for an older head never approves a newer one.
+- Actions classifies default-branch-targeting PRs before the cloud model runs.
+  Only `codex-managed` PRs match the cloud task's server-side `label_match`.
+  Pure scan state gets `nightly-data-only` instead and uses GitHub CI/auto-merge
+  without a cloud wakeup. Once a PR is managed, routing is sticky because its
+  next synchronize event can arrive before Actions classifies the new head; a
+  producer returning to pure data must open a fresh PR. Labels route events;
+  they never prove review or CI.
 - Use normal pushes and SHA-bound merges, respecting branch protection.
   Require a clean current-head Codex re-review, `test` (including App and CLI
   unsigned Release builds), `real-machine` and `adversarial-review` to pass.

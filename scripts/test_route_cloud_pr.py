@@ -67,7 +67,7 @@ class Routing(unittest.TestCase):
         pr = {**SCAN, "labels": [{"name": router.DATA_ONLY}, {"name": "needs-real-machine"}]}
         current = {**SCAN, "labels": pr["labels"] + [{"name": router.MANAGED}]}
         api, write = self.run_with([pr, DIFF, [], current])
-        self.assertEqual(api.call_count, 3)
+        self.assertEqual(api.call_count, 4)
         self.assertEqual(write.call_count, 1)
         self.assertTrue(write.call_args.args[0][-1].endswith("/labels/" + router.DATA_ONLY))
         self.assertNotIn("needs-real-machine", str(write.call_args_list))
@@ -91,7 +91,7 @@ class Routing(unittest.TestCase):
             _, write = self.run_with([pr])
             write.assert_not_called()
         api, write = self.run_with([SCAN, DIFF, [], {**SCAN, "head": {**SCAN["head"], "sha": BASE}}])
-        self.assertEqual(api.call_count, 3)
+        self.assertEqual(api.call_count, 4)
         write.assert_not_called()
 
     def test_changed_comparison_metadata_prevents_label_writes(self):

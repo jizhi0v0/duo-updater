@@ -10187,8 +10187,7 @@ final class AppListModel {
                     // restart would otherwise outlive the run that could withdraw it.
                     // Withdrawing a banner that is not there is a no-op.
                     UpdateNotifier.clearChecksSuspended()
-                    await self.backgroundRefresh()
-                    await self.automaticallyInstallUpdates()
+                    await self.backgroundRefresh(automaticallyInstall: true)
                     isFirstCheck = false
                 } else {
                     let why = deferral ?? "busy"
@@ -10290,7 +10289,7 @@ final class AppListModel {
         }
     }
 
-    private func backgroundRefresh() async {
+    private func backgroundRefresh(automaticallyInstall: Bool = false) async {
         let interval = prefs.checkFrequency.interval
         let others = [
             Task { @MainActor in
@@ -10300,7 +10299,13 @@ final class AppListModel {
             },
             Task { @MainActor in await self.backgroundRefreshHomebrew(interval: interval) },
         ]
-        await appsLane.handle(.backgroundTick(interval: interval))
+        if automaticallyInstall {
+            await appsLane.handle(.backgroundTick(interval: interval), afterPass: { [weak self] in
+                await self?.automaticallyInstallUpdates()
+            })
+        } else {
+            await appsLane.handle(.backgroundTick(interval: interval))
+        }
         for task in others { await task.value }
     }
 

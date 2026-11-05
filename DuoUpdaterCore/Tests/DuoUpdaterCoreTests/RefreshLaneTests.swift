@@ -286,4 +286,30 @@ struct RefreshLaneTests {
         #expect(a.plans == [["workbench focus"]])
         #expect(b.plans == [["workbench focus"]])
     }
+    @Test func completionWaitsForActualWorkAfterTheCallerTimesOut() async {
+        let record = Record()
+        let gate = Gate()
+        let lane = lane(record, first: gate, passTimeout: .milliseconds(50))
+        let trigger = RefreshTrigger.backgroundTick(interval: 3600)
+        let caller = Task {
+            await lane.handle(trigger, afterPass: { record.events.append("completion") })
+        }
+        await until { record.laneEvents.contains(.passTimedOut(answering: [trigger])) }
+        if !record.laneEvents.contains(.passTimedOut(answering: [trigger])) { await gate.open() }
+        await caller.value
+        #expect(!record.events.contains("completion"))
+        await gate.open()
+        await until { record.events.contains("completion") }
+        #expect(record.events == ["pass 1 start", "pass 1 end", "completion"])
+    }
+
+    @Test func skippedTriggersDoNotRunCompletion() async {
+        let record = Record()
+        record.skip = ["popover open"]
+        let gate = Gate()
+        let lane = lane(record, first: gate)
+        await lane.handle(.popoverOpen, afterPass: { record.events.append("completion") })
+        #expect(record.events.isEmpty)
+    }
+
 }

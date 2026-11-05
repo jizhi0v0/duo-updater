@@ -110,7 +110,7 @@ public final class RefreshLane<Plan: Sendable> {
     /// When the last pass's work finished, late ones included.
     private var lastPassFinished: ContinuousClock.Instant?
     /// Triggers not yet decided.
-    private var queued: [RefreshTrigger] = []
+    private var queued: [(trigger: RefreshTrigger, afterPass: (@MainActor () async -> Void)?)] = []
     /// For tests.
     public var onEvent: (@MainActor (RefreshLaneEvent) -> Void)?
 
@@ -146,7 +146,21 @@ public final class RefreshLane<Plan: Sendable> {
     /// Have the lane decide `trigger`, and run a pass if it says so. Returns
     /// once that is done.
     public func handle(_ trigger: RefreshTrigger) async {
-        queued.append(trigger)
+        await enqueue(trigger, afterPass: nil)
+    }
+
+    /// Runs only after this trigger's actual work completes, even if the caller
+    /// stopped waiting at passTimeout. A skipped trigger runs no callback.
+    public func handle(
+        _ trigger: RefreshTrigger, afterPass: @escaping @MainActor () async -> Void
+    ) async {
+        await enqueue(trigger, afterPass: afterPass)
+    }
+
+    private func enqueue(
+        _ trigger: RefreshTrigger, afterPass: (@MainActor () async -> Void)?
+    ) async {
+        queued.append((trigger, afterPass))
         if let running {
             Log.app.notice("refresh[\(self.name, privacy: .public)] \(trigger.description, privacy: .public) → joins the pass in flight")
             onEvent?(.joined(trigger))
@@ -172,7 +186,9 @@ public final class RefreshLane<Plan: Sendable> {
         queued = []
         var plan: Plan?
         var answering: [RefreshTrigger] = []
-        for trigger in triggers {
+        var completions: [@MainActor () async -> Void] = []
+        for request in triggers {
+            let trigger = request.trigger
             switch await decide(trigger) {
             case .skip(let why):
                 Log.app.notice("refresh[\(self.name, privacy: .public)] \(trigger.description, privacy: .public) → skip: \(why, privacy: .public)")
@@ -182,6 +198,7 @@ public final class RefreshLane<Plan: Sendable> {
                 onEvent?(.decided(trigger, runs: true))
                 plan = plan.map { merge($0, next) } ?? next
                 answering.append(trigger)
+                if let completion = request.afterPass { completions.append(completion) }
             }
         }
         guard let plan else { return }
@@ -190,6 +207,7 @@ public final class RefreshLane<Plan: Sendable> {
         let pass = Task { @MainActor in
             await work(plan)
             lastPassFinished = clock()
+            for completion in completions { await completion() }
         }
         if await Self.finishes(pass, within: passTimeout) {
             let took = Log.seconds(clock() - started)

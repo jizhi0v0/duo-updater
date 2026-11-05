@@ -75,6 +75,11 @@ def main():
             or current.get("changed_files") != pr.get("changed_files")
             or nightly_files(current, args.repo) != nightly_files(pr, args.repo)):
         raise ValueError("PR metadata changed while classifying")
+    # A concurrent routing/manual event may have made this PR managed while
+    # the immutable comparison was in flight. The final live label state wins:
+    # never let a stale data-only verdict remove the sticky managed route.
+    if MANAGED in labels(current):
+        data_only = False
     if args.apply:
         set_route(args.repo, args.pr, current, data_only)
     print(f"cloud_route={'data-only' if data_only else 'managed'}")

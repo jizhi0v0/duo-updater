@@ -51,6 +51,15 @@ class Routing(unittest.TestCase):
         self.assertNotIn("/compare/", str(api.call_args_list))
         write.assert_not_called()
 
+    def test_managed_added_while_classifying_prevents_a_stale_downgrade(self):
+        pr = {**SCAN, "labels": [{"name": router.DATA_ONLY}, {"name": "needs-real-machine"}]}
+        current = {**SCAN, "labels": pr["labels"] + [{"name": router.MANAGED}]}
+        api, write = self.run_with([pr, DIFF, current])
+        self.assertEqual(api.call_count, 3)
+        self.assertEqual(write.call_count, 1)
+        self.assertTrue(write.call_args.args[0][-1].endswith("/labels/" + router.DATA_ONLY))
+        self.assertNotIn("needs-real-machine", str(write.call_args_list))
+
     def test_removing_managed_restores_it_instead_of_downgrading_the_pr(self):
         pr = {**SCAN, "labels": [{"name": "needs-real-machine"}]}
         api, write = self.run_with([pr, pr], removed_label=router.MANAGED)

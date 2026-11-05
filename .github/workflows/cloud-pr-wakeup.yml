@@ -18,11 +18,11 @@ concurrency:
 
 jobs:
   notify:
+    # The API/event name may contain run-name. The script validates the stable
+    # workflow path and its matching event before posting any metadata.
     if: >-
-      (contains(fromJSON('["CI","Real-machine record","Adversarial review record"]'), github.event.workflow_run.name) &&
-       github.event.workflow_run.event == 'pull_request') ||
-      (github.event.workflow_run.name == 'Codex review gate' &&
-       github.event.workflow_run.event == 'pull_request_target')
+      github.event.workflow_run.event == 'pull_request' ||
+      github.event.workflow_run.event == 'pull_request_target'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

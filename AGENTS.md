@@ -47,7 +47,8 @@ adversarial-review records remain separate requirements.
 - A same-head Codex retry does not push code: rerun the PR's `codex-review`
   workflow after the clean retry so its required check reflects that receipt.
   Follow the check's details/run URL to `review-controller`; this trusted
-  `pull_request_target` run uses the base SHA, not the PR head, as its run SHA.
+  `pull_request_target` workflow identifies the PR and head in its fixed run
+  title; do not search only `pull_request` event runs.
 - Completion comments from `Cloud PR wakeup` are wakeups, not approvals.
   Re-read current state, deduplicate work and avoid reacting to your own status
   replies in a loop. Respect drafts and explicit author holds.

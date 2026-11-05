@@ -49,8 +49,10 @@ enum pro_affine_app {
 
         // Canary (`pro.affine.canary`): tags `v2026.10.25-canary.907` since
         // 2026-03 (`v0.23.0-canary.2` before), the bundle says
-        // 2026.10.25-canary.907. A canary is almost always the newest release;
-        // the widest run of betas/stables between two dated canaries was 12.
+        // 2026.10.25-canary.907. On 2026-11-04 GitHub's releases list returned
+        // .907 ahead of the known .909, so list position is not version order.
+        // Read the v-prefixed tag refs, sort them with VersionComparator, and
+        // fetch the greatest matching canary by exact tag.
         GitHubReleaseRule(
             bundleID: "pro.affine.canary",
             owner: "toeverything", repo: "AFFiNE",
@@ -58,7 +60,8 @@ enum pro_affine_app {
             versionPattern: #"^v?([0-9]+(?:\.[0-9]+)+-canary\.[0-9]+)$"#,
             installAssetPattern: #"^affine-[0-9]+(?:\.[0-9]+)+-canary\.[0-9]+-canary-macos-arm64\.dmg$"#,
             installerKind: .dmg,
-            channel: .canary),
+            channel: .canary,
+            tagRefPrefix: "v"),
         ],
         githubChannelProofs: [
         // The tag and the file name both name the track:

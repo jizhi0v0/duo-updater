@@ -3,8 +3,8 @@
 
 This runs from the default branch on workflow_run, never from PR code or an
 artifact. It only publishes run metadata for an open PR with the same head.
-One rolling bot comment is edited for each new completion, preserving comment
-events for the cloud handler without adding conversation replies. It contains
+A replacement status is posted before older bot wakeups are removed, preserving
+the existing comment-created trigger while keeping one status reply. It contains
 no @codex mention and cannot request a duplicate review.
 """
 import argparse
@@ -55,19 +55,19 @@ def positive(value):
 
 
 def rolling_comment(comments):
-    # Only our bot's own comments can be reused. Migrate the newest v2 wakeup
-    # rather than creating one more comment on an already noisy conversation.
+    # Read the newest status; cleanup can have failed after a successful POST.
+    # Only our bot's own marked comments can be read or removed.
     owned = [c for c in comments if c.get("user", {}).get("login") == "github-actions[bot]"
              and positive(c.get("id"))]
     current = [c for c in owned if c.get("body", "").startswith(SUMMARY)]
     legacy = [c for c in owned if c.get("body", "").startswith("<!-- cloud-pr-wakeup:v2 ")]
     if current:
-        return min(current, key=lambda c: c["id"])
+        return max(current, key=lambda c: c["id"])
     return max(legacy, key=lambda c: c["id"]) if legacy else None
 
 
 def read_checks(comment, head):
-    # Invalid/old metadata is repaired in place, never treated as authority to
+    # Invalid/old metadata is replaced, never treated as authority to
     # suppress future wakeups. Four fixed workflow paths bound the stored state.
     if not comment:
         return {}
@@ -95,9 +95,26 @@ def summary_body(repo, head, checks, marker):
             row = checks[path]
             url = f"https://github.com/{repo}/actions/runs/{row['run']}"
             lines.append(f"| {label} | **{row['conclusion']}** | [attempt {row['attempt']}]({url}) |")
-    lines += ["", "This status comment is updated in place to wake the cloud PR handler. "
+    lines += ["", "This status replaces older bot wakeups and wakes the cloud PR handler. "
               "It is not approval; the handler rechecks the current head, review, CI and holds."]
     return "\n".join(lines)
+
+
+def cleanup_wakeups(repo, comments, keep):
+    for comment in comments:
+        if (comment.get("user", {}).get("login") != "github-actions[bot]"
+                or not positive(comment.get("id")) or comment["id"] == keep
+                or not comment.get("body", "").startswith((SUMMARY, "<!-- cloud-pr-wakeup:v2 "))):
+            continue
+        try:
+            subprocess.run(["gh", "api", "--method", "DELETE",
+                            f"repos/{repo}/issues/comments/{comment['id']}"],
+                           check=True, capture_output=True, text=True)
+        except subprocess.CalledProcessError as error:
+            # A previous cleanup may already have removed it. Other failures
+            # must surface; replaying this completion retries cleanup only.
+            if "HTTP 404" not in (error.stderr or ""):
+                raise
 
 
 def main():
@@ -156,24 +173,31 @@ def main():
         if MANAGED not in labels(pr) or is_scan_state(pr, args.repo, read=api):
             continue
         comments = api(f"repos/{args.repo}/issues/{number}/comments")
-        if any(c.get("user", {}).get("login") == "github-actions[bot]"
-               and c.get("body", "").startswith(marker) for c in comments):
-            continue
         comment = rolling_comment(comments)
         checks = read_checks(comment, head)
         path = workflow_path(run)
         previous = checks.get(path)
-        if previous and (previous["number"], previous["attempt"]) >= (run["run_number"], attempt):
+        legacy_replay = any(c.get("user", {}).get("login") == "github-actions[bot]"
+                            and c.get("body", "").startswith(marker) for c in comments)
+        if (legacy_replay or previous and
+                (previous["number"], previous["attempt"]) >= (run["run_number"], attempt)):
+            if comment and comment.get("body", "").startswith(SUMMARY):
+                cleanup_wakeups(args.repo, comments, keep=comment["id"])
             continue
         checks[path] = {"run": args.run, "number": run["run_number"], "attempt": attempt,
                         "conclusion": run["conclusion"]}
         body = summary_body(args.repo, head, checks, marker)
-        method = "PATCH" if comment else "POST"
-        endpoint = (f"repos/{args.repo}/issues/comments/{comment['id']}" if comment
-                    else f"repos/{args.repo}/issues/{number}/comments")
-        subprocess.run(["gh", "api", "--method", method, endpoint, "--input", "-"],
-                       input=json.dumps({"body": body}), text=True,
-                       check=True, capture_output=True)
+        # Do not rely on comment-edited delivery: publish the new wakeup first.
+        # If POST fails, preserve all prior comments. If cleanup fails, the new
+        # status's metadata makes a replay retry DELETE without another POST.
+        posted = subprocess.run(["gh", "api", "--method", "POST",
+                                 f"repos/{args.repo}/issues/{number}/comments", "--input", "-"],
+                                input=json.dumps({"body": body}), text=True,
+                                check=True, capture_output=True)
+        comment_id = json.loads(posted.stdout).get("id")
+        if not positive(comment_id):
+            raise ValueError("invalid created comment id; prior wakeups preserved")
+        cleanup_wakeups(args.repo, comments, keep=comment_id)
         print(f"Updated completion metadata for PR #{number}.")
 
 

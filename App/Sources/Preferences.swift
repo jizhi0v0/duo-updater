@@ -15,6 +15,9 @@ final class Preferences {
 
     static let shared = Preferences()
 
+    nonisolated let automaticUpdatesSnapshot = AutomaticInstall.PermissionSnapshot()
+    nonisolated let scheduledChecksSnapshot = AutomaticInstall.PermissionSnapshot()
+
     /// How often the app checks for updates on its own, in the background.
     enum CheckFrequency: String, CaseIterable, Identifiable, Sendable {
         case manual
@@ -187,7 +190,10 @@ final class Preferences {
     }
 
     var checkFrequency: CheckFrequency {
-        didSet { defaults.set(checkFrequency.rawValue, forKey: Key.checkFrequency) }
+        didSet {
+            scheduledChecksSnapshot.set(checkFrequency.interval != nil)
+            defaults.set(checkFrequency.rawValue, forKey: Key.checkFrequency)
+        }
     }
 
     /// Start DuoUpdater at login. Backed by `SMAppService`; the stored bool is
@@ -303,6 +309,13 @@ final class Preferences {
     /// badge for a second click. Uses the same graceful quit as the manual button
     /// (honors save prompts; a refused/blocked quit just leaves the badge), so it
     /// never force-kills or loses unsaved work. Default ON — an opt-out convenience.
+    var automaticUpdates: Bool {
+        didSet {
+            automaticUpdatesSnapshot.set(automaticUpdates)
+            defaults.set(automaticUpdates, forKey: "AutomaticUpdates")
+        }
+    }
+
     var autoRestartAfterUpdate: Bool {
         didSet { defaults.set(autoRestartAfterUpdate, forKey: Key.autoRestartAfterUpdate) }
     }
@@ -652,6 +665,7 @@ final class Preferences {
             versions: NotifiedUpdateVersions(
                 persisted: defaults.dictionary(forKey: Key.notifiedHomebrewVersions) ?? [:]),
             seeded: defaults.bool(forKey: Key.homebrewNotificationBaselineSeeded))
+        self.automaticUpdates = defaults.bool(forKey: "AutomaticUpdates")
         self.autoRestartAfterUpdate = defaults.object(forKey: Key.autoRestartAfterUpdate) as? Bool ?? true
         self.hideDockIcon = defaults.object(forKey: Key.hideDockIcon) as? Bool ?? true
         self.showRuntimeTags = defaults.object(forKey: Key.showRuntimeTags) as? Bool ?? true
@@ -725,6 +739,8 @@ final class Preferences {
         self.marketingByBuild = defaults.dictionary(forKey: Key.marketingByBuild) as? [String: String] ?? [:]
         self.stagedPackages =
             defaults.dictionary(forKey: Key.stagedPackages) as? [String: [String: String]] ?? [:]
+        automaticUpdatesSnapshot.set(automaticUpdates)
+        scheduledChecksSnapshot.set(checkFrequency.interval != nil)
         observeExternalWrites()
         // `didSet` does not fire for assignments inside `init`, so the token read
         // out of the Keychain a few lines up would otherwise never reach the core

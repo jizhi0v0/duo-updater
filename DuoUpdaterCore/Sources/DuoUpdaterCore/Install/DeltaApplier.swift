@@ -289,7 +289,7 @@ public enum DeltaApplier {
 /// itself, so `InstallCoordinator` (which catches `DeltaRouteFailure` alone) lets
 /// it through.
 public func deltaRouteFailureIsWorthRetrying(_ error: Error) -> Bool {
-    if error is CancellationError { return false }
+    if error is CancellationError || error is AutomaticInstall.Deferred { return false }
     // The installed copy's signing and who owns it, not the patch: the full
     // archive meets the same refusal at the same swap.
     if error is UnanchoredElevatedInstallError { return false }

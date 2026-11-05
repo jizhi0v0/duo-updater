@@ -2632,7 +2632,7 @@ final class AppListModel {
             sourceName: result.remote?.sourceName,
             bytes: bytes,
             downloadKind: usedDelta ? .delta : .full,
-            applied: applied))))
+            applied: applied, automatic: AutomaticInstall.active ? true : nil))))
         await eventStore.flush()
         await refreshTrafficStats()
     }
@@ -5244,7 +5244,11 @@ final class AppListModel {
         // await so whoever sets `.queued` first wins and the loser installs nothing.
         // `installAll` pre-claims all its targets, so a manual click on a queued batch
         // row no-ops here and the row keeps its spinner instead of a live button.
-        guard installing[id] == nil else { return .notInstalled }
+        guard installing[id] == nil else {
+            return AutomaticInstall.active
+                ? .deferred(reason: "Automatic update deferred: another installation is already in progress.")
+                : .notInstalled
+        }
         // Re-initiating clears a prior attempt's error/note right away, so a re-clicked
         // row shows a clean "Queued" spinner — not last failure's red error text
         // sitting beside it. (Otherwise the error only clears later in `performInstall`,
@@ -5414,21 +5418,32 @@ final class AppListModel {
         do {
             try await ProcessInstallLock.shared.claim()
         } catch {
-            Log.install.error("install blocked by the machine install lock: \(result.app.name, privacy: .public)")
-            installErrors[id] = (error as? LocalizedError)?.errorDescription
-                ?? String(describing: error)
+            let reason = (error as? LocalizedError)?.errorDescription ?? String(describing: error)
             installing[id] = nil
             await hostGate.release()
+            if AutomaticInstall.active, let failure = error as? InstallLock.Failure,
+               case .heldByAnother = failure {
+                Log.install.notice("automatic install deferred by the machine install lock: \(result.app.name, privacy: .public)")
+                installNotes[id] = reason
+                return .deferred(reason: reason)
+            }
+            Log.install.error("install blocked by the machine install lock: \(result.app.name, privacy: .public)")
+            installErrors[id] = reason
             return .notInstalled
         }
         // An earlier install of this app still running — an orphaned brew from a
         // killed run, or `duo` — is not raced (`InstallJournal.standing`).
         if case .stillRunning(let pid) = InstallJournal.standing(of: result.app.path) {
             Log.install.notice("install refused: \(result.app.name, privacy: .public) — an earlier install of it is still running (pid \(pid, privacy: .public))")
-            installErrors[id] = String(localized: "An earlier update of \(result.app.name) is still running (process \(Int(pid))). Try again once it has finished.")
+            let reason = String(localized: "An earlier update of \(result.app.name) is still running (process \(Int(pid))). Try again once it has finished.")
             installing[id] = nil
             await ProcessInstallLock.shared.release()
             await hostGate.release()
+            if AutomaticInstall.active {
+                installNotes[id] = reason
+                return .deferred(reason: reason)
+            }
+            installErrors[id] = reason
             return .notInstalled
         }
         // Written under the lock and before anything of the app's is touched,
@@ -5639,6 +5654,26 @@ final class AppListModel {
             return .notInstalled
         }
 
+        if AutomaticInstall.active {
+            automaticInstallVersions[id] = (
+                from: result.app.versionSide.text(withBuild: true),
+                to: result.remote?.displayVersion ?? "")
+            guard automaticUpdatesAllowed, canAutoInstall(result),
+                  UpdatePolicy.installConfirmation(for: result) == nil,
+                  AutomaticInstall.supports(InstallCoordinator.route(for: result, requiresInstaller: requiresInstaller(result))),
+                  isActionableUpdate(result)
+            else {
+                installing[id] = nil
+                return .deferred(reason: "Automatic update eligibility changed before installation.")
+            }
+            do { try AutomaticInstall.check(result.app) }
+            catch {
+                installNotes[id] = error.localizedDescription
+                installing[id] = nil
+                return .deferred(reason: error.localizedDescription)
+            }
+        }
+
         // Install policy: a running self-updating app is handed to its own
         // updater rather than swapped under it — unless the user chose to always
         // overwrite. (Re-checked here, not just in the UI, so any caller honors it.)
@@ -5665,8 +5700,13 @@ final class AppListModel {
             // remaining self-updating app in turn — most easily by switching the
             // policy mid-batch — and activating each one would fight the user for
             // focus repeatedly.
-            openSelfUpdater(result, activating: !deferBookkeeping)
             installing[id] = nil
+            if AutomaticInstall.active {
+                let reason = "Automatic update deferred: the app is running its own updater."
+                installNotes[id] = reason
+                return .deferred(reason: reason)
+            }
+            openSelfUpdater(result, activating: !deferBookkeeping)
             return .notInstalled
         }
 
@@ -5679,8 +5719,13 @@ final class AppListModel {
             for: result,
             route: InstallCoordinator.route(for: result, requiresInstaller: requiresInstaller(result))) {
             Log.install.notice("install refused: \(result.app.name, privacy: .public) — \(refused.blockers.map { "\($0.name) pid \($0.pid)" }.joined(separator: ", "), privacy: .public) running from inside it")
-            installErrors[id] = refused.errorDescription
             installing[id] = nil
+            if AutomaticInstall.active {
+                let reason = refused.localizedDescription
+                installNotes[id] = reason
+                return .deferred(reason: reason)
+            }
+            installErrors[id] = refused.errorDescription
             return .notInstalled
         }
 
@@ -5711,7 +5756,7 @@ final class AppListModel {
             result,
             staged: SelfUpdaterStaging.staged(
                 for: result.app, requireNewerThanInstalled: false))
-        if let staged = blockingStaged, UpdatePolicy.clearsStagedBuild(result, staged: staged) {
+        if !AutomaticInstall.active, let staged = blockingStaged, UpdatePolicy.clearsStagedBuild(result, staged: staged) {
             let outcome = await StagedBuildClearance.clear(for: result.app, staged: staged)
             switch outcome {
             case .cleared:
@@ -5753,7 +5798,7 @@ final class AppListModel {
             // A batch sweeps once after its loop instead.
             if !deferBookkeeping { await computeSelfUpdateStaging() }
             installing[id] = nil
-            return .notInstalled
+            return AutomaticInstall.active ? .deferred(reason: note) : .notInstalled
         }
 
         // An installer parked on this app's quit whose staged build was deleted
@@ -5762,6 +5807,11 @@ final class AppListModel {
         // and while it stays parked the app's own Sparkle never stages again.
         // Removed first; one that will not go yields, like a partial clearance.
         // See `SelfUpdaterStaging.sparkleInstallerOrphaned`.
+        if AutomaticInstall.active, SelfUpdaterStaging.sparkleInstallerOrphaned(for: result.app) {
+            installNotes[id] = "Automatic update deferred: the app’s own installer is active."
+            installing[id] = nil
+            return .deferred(reason: "Automatic update deferred: the app’s own installer is active.")
+        }
         var clearedOrphanedInstaller = false
         if UpdatePolicy.armedInstallerBlocksInstall(
             result, armed: SelfUpdaterStaging.sparkleInstallerOrphaned(for: result.app)) {
@@ -5802,7 +5852,7 @@ final class AppListModel {
             // installer so the row offers its version-less Relaunch.
             if !deferBookkeeping { await computeSelfUpdateStaging() }
             installing[id] = nil
-            return .notInstalled
+            return AutomaticInstall.active ? .deferred(reason: note) : .notInstalled
         }
 
         if let inFlight = SelfUpdaterStaging.inFlightDownload(for: result.app) {
@@ -5811,7 +5861,7 @@ final class AppListModel {
             installNotes[id] = note
             inFlightNotes[id] = note
             installing[id] = nil
-            return .notInstalled
+            return AutomaticInstall.active ? .deferred(reason: note) : .notInstalled
         }
 
         // Back up the current bundle first (when enabled) so this update can be
@@ -5847,7 +5897,12 @@ final class AppListModel {
             if takingUserBackup {
                 stages.enter(.backingUp)
                 installing[id] = .backingUp
-                await backupCurrent(result, route: backupRoute)
+                let backup = await backupCurrent(result, route: backupRoute)
+                if AutomaticInstall.active, !AutomaticInstall.backupPermitsInstall(backup) {
+                    installNotes[id] = "Automatic update deferred: a complete backup could not be created."
+                    installing[id] = nil
+                    return .deferred(reason: "Automatic update deferred: a complete backup could not be created.")
+                }
             } else if InstallCoordinator.wantsInstallRollbackPoint(
                 backupRoute, takingUserBackup: takingUserBackup) {
                 stages.enter(.backingUp)
@@ -5926,6 +5981,7 @@ final class AppListModel {
                 // A missing cask token used to reset the spinner and return
                 // false here; the coordinator throws instead, which the catch
                 // below settles the same way (and now says why).
+                if AutomaticInstall.active && !automaticUpdatesAllowed { throw AutomaticInstall.Deferred("Automatic updates are paused.") }
                 let outcome = try await Self.installCoordinator.perform(
                     result, route: route,
                     // Every scanned app, not just this one — `SelfUpdaterStash`
@@ -6309,6 +6365,11 @@ final class AppListModel {
                 return .notInstalled
             }
 
+            if AutomaticInstall.active {
+                automaticInstallVersions[id] = (
+                    from: result.app.versionSide.text(withBuild: true),
+                    to: updated.app.versionSide.text(withBuild: true))
+            }
             // Tell the user it landed. If the app was running, its live process
             // is still on the old code (so it's in needsRestart) — point them at
             // the Restart action. Otherwise the in-place swap is already fully in
@@ -6349,7 +6410,7 @@ final class AppListModel {
                 // whole set once at the end (so parallel installs don't quit apps out
                 // from under each other mid-run). `restart()` is graceful — it honors
                 // save prompts and leaves the badge if the app won't quit.
-                if prefs.autoRestartAfterUpdate, !deferBookkeeping {
+                if !AutomaticInstall.active, prefs.autoRestartAfterUpdate, !deferBookkeeping {
                     await restart(updated)
                 }
             case .complete:
@@ -6377,13 +6438,21 @@ final class AppListModel {
             installing[id] = nil
             relaunching.remove(id)
             return .cancelled(result.app, at: stages.stage)
+        } catch let deferred as AutomaticInstall.Deferred {
+            Log.install.notice("automatic install deferred: \(result.app.name, privacy: .public): \(deferred.reason, privacy: .public)")
+            installErrors[id] = nil
+            installNotes[id] = deferred.reason
+            reopenAfterQuit[id] = nil
+            installing[id] = nil
+            relaunching.remove(id)
+            return .deferred(reason: deferred.reason)
         } catch let error as AppManagementRequiredError {
             // The swap was blocked by the App Management privacy gate. There's no
             // API to request it, so guide the user to the right Settings pane with
             // the drag-to-authorize panel; the install can be retried once granted.
             Log.install.error("install blocked by App Management: \(result.app.name, privacy: .public)")
             installErrors[id] = error.errorDescription
-            presentAppManagementPermissionFlowForInstallFailure(batchRun: deferBookkeeping)
+            if !AutomaticInstall.active { presentAppManagementPermissionFlowForInstallFailure(batchRun: deferBookkeeping) }
         } catch is AuthorizationDeclinedError {
             // The user dismissed the administrator panel. Nothing failed and nothing
             // was touched, so this leaves no red error — it records the refusal
@@ -8686,7 +8755,7 @@ final class AppListModel {
             installNotes[result.id] = note
         }
         if outcome == .failed {
-            Log.install.error("backup failed: \(result.app.name, privacy: .public) — proceeding without a rollback point")
+            Log.install.error("backup failed: \(result.app.name, privacy: .public) — no complete rollback point was created")
             // Tell the user their safety net is gone for this update, rather than
             // discovering it only when they later try to roll back and find nothing.
             installNotes[result.id] = Self.backupFailedNote
@@ -10159,7 +10228,7 @@ final class AppListModel {
                     // restart would otherwise outlive the run that could withdraw it.
                     // Withdrawing a banner that is not there is a no-op.
                     UpdateNotifier.clearChecksSuspended()
-                    await self.backgroundRefresh()
+                    await self.backgroundRefresh(automaticallyInstall: true)
                     isFirstCheck = false
                 } else {
                     let why = deferral ?? "busy"
@@ -10199,7 +10268,75 @@ final class AppListModel {
     /// Before this they were checked only when the popover or the workbench opened.
     /// Homebrew too: its package list re-read, after a `brew update` when one is
     /// due (`backgroundRefreshHomebrew`).
-    private func backgroundRefresh() async {
+    private var automaticUpdatesAllowed: Bool {
+        prefs.automaticUpdates && prefs.checkFrequency.interval != nil
+            && NetworkMonitor.shared.hasObservedPath
+            && NetworkMonitor.shared.path.allowsDiscretionaryTraffic && !Task.isCancelled
+    }
+
+    private var automaticSkipReasons: [String: String] = [:]
+    // Attempt-local versions, refreshed by the pre-install recheck and the
+    // successful disk readback. Only the automatic caller owns these entries.
+    private var automaticInstallVersions: [String: (from: String, to: String)] = [:]
+
+    private func recordAutomaticUpdate(_ result: UpdateResult, status: String, reason: String? = nil,
+                                       versions: (from: String, to: String)? = nil) async {
+        let payload: [String: String] = [
+            "appID": result.id, "appName": result.app.name,
+            "fromVersion": versions?.from ?? result.app.shortVersion ?? "",
+            "toVersion": versions?.to ?? result.remote?.displayVersion ?? "",
+            "trigger": "automatic", "status": status, "reason": reason ?? ""
+        ]
+        guard let data = try? JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys]),
+              let json = String(data: data, encoding: .utf8) else { return }
+        await eventStore.append(DuoEvent(payload: .unknown(kind: "automaticUpdate", json: json)))
+        await eventStore.flush()
+    }
+
+    private func automaticallyInstallUpdates() async {
+        guard automaticUpdatesAllowed, canRefresh else { return }
+        for result in installAllTargets() {
+            guard automaticUpdatesAllowed else { break }
+            let route = InstallCoordinator.route(for: result, requiresInstaller: requiresInstaller(result))
+            let reason: String?
+            if !AutomaticInstall.supports(route) || !canAutoInstall(result) {
+                reason = "Requires an interactive or externally managed installation."
+            } else if AutomaticInstall.hasRunningProcess(at: result.app.path, processes: NestedAppGuard.liveProcesses()) {
+                reason = "The app or one of its helpers is running."
+            } else { reason = nil }
+            if let reason {
+                let key = "\(result.remote?.displayVersion ?? ""):\(reason)"
+                if automaticSkipReasons[result.id] != key {
+                    automaticSkipReasons[result.id] = key
+                    await recordAutomaticUpdate(result, status: "deferred", reason: reason)
+                }
+                continue
+            }
+            automaticSkipReasons[result.id] = nil
+            await recordAutomaticUpdate(result, status: "started")
+            automaticInstallVersions[result.id] = nil
+            let outcome = await AutomaticInstall.$active.withValue(true) {
+                await AutomaticInstall.$permission.withValue({ @MainActor [weak self] in
+                    self?.automaticUpdatesAllowed == true
+                }) {
+                    let enabled = prefs.automaticUpdatesSnapshot
+                    let scheduled = prefs.scheduledChecksSnapshot
+                    let network = NetworkMonitor.shared.automaticTrafficSnapshot
+                    return await AutomaticInstall.$commitPermission.withValue({
+                        enabled.allowed && scheduled.allowed && network.allowed
+                    }) {
+                        await install(result, notify: false, backUpOnce: true)
+                    }
+                }
+            }
+            let event = AutomaticInstall.eventResult(outcome)
+            let versions = automaticInstallVersions.removeValue(forKey: result.id)
+            await recordAutomaticUpdate(result, status: event.status,
+                reason: event.reason ?? installErrors[result.id] ?? installNotes[result.id], versions: versions)
+        }
+    }
+
+    private func backgroundRefresh(automaticallyInstall: Bool = false) async {
         let interval = prefs.checkFrequency.interval
         let others = [
             Task { @MainActor in
@@ -10209,7 +10346,13 @@ final class AppListModel {
             },
             Task { @MainActor in await self.backgroundRefreshHomebrew(interval: interval) },
         ]
-        await appsLane.handle(.backgroundTick(interval: interval))
+        if automaticallyInstall {
+            await appsLane.handle(.backgroundTick(interval: interval), afterPass: { [weak self] in
+                await self?.automaticallyInstallUpdates()
+            })
+        } else {
+            await appsLane.handle(.backgroundTick(interval: interval))
+        }
         for task in others { await task.value }
     }
 

@@ -32,11 +32,12 @@ struct NetworkWindowView: View {
     @State private var filter = RequestLogFilter()
 
     enum Tab: String, CaseIterable, Identifiable {
-        case downloads, requests
+        case downloads, requests, events
         var id: String { rawValue }
 
         var label: String {
             switch self {
+            case .events: return String(localized: "Events")
             case .downloads: return String(localized: "Downloads")
             case .requests:  return String(localized: "Requests")
             }
@@ -46,6 +47,7 @@ struct NetworkWindowView: View {
     var body: some View {
         Group {
             switch tab {
+            case .events: AutomaticUpdateEventsPane()
             case .downloads: TrafficLedgerPane(model: model)
             case .requests:
                 // Values and closures, not the model: `AppListModel.init`

@@ -785,7 +785,7 @@ public struct LocalStashFailure: LocalizedError {
 ///   - the OS floor — `LSMinimumSystemVersion` belongs to the version, and the
 ///     stash already matched the route's version.
 public func localStashFailureIsWorthRetrying(_ error: Error) -> Bool {
-    if error is CancellationError { return false }
+    if error is CancellationError || error is AutomaticInstall.Deferred { return false }
     if error is DiskSpaceGuard.InsufficientSpace { return false }
     if let cocoa = error as? CocoaError, cocoa.code == .fileWriteOutOfSpace { return false }
     if let posix = error as? POSIXError, posix.code == .ENOSPC { return false }

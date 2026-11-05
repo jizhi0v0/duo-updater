@@ -1,0 +1,13 @@
+2026-11-05 macOS VM 1 (macOS 27.2)
+Build: 747febf5251efb523cf0992c776657da134e0c65, ad-hoc signed test build, executed only in the VM.
+Commands: defaults read com.duoupdater.app KeepBackups; duo events --kind automaticUpdate --since 30m; duo events --kind install --since 30m; duo backups list --json; read bundle version; check running processes; codesign --verify --deep --strict.
+
+0
+{"v":1,"id":"8DAAE004-7268-4E96-89C6-80771BEDAB6E","at":"2026-11-05T06:30:52.418Z","client":"app","kind":"automaticUpdate","payload":{"appID":"\/Applications\/Discord Canary.app","appName":"Discord Canary","fromVersion":"0.0.1459","reason":"","status":"started","toVersion":"0.0.1488","trigger":"automatic"}}
+{"v":1,"id":"0A560064-C22B-437C-8D71-F6C2002C4C4C","at":"2026-11-05T06:31:27.533Z","client":"app","kind":"automaticUpdate","payload":{"appID":"\/Applications\/Discord Canary.app","appName":"Discord Canary","fromVersion":"0.0.1459","reason":"","status":"installed","toVersion":"0.0.1488","trigger":"automatic"}}
+{"v":1,"id":"1E35DC1B-0917-41D5-93A6-1D58AF538E56","at":"2026-11-05T06:31:27.111Z","client":"app","kind":"install","payload":{"appID":"/Applications/Discord Canary.app","appName":"Discord Canary","applied":true,"automatic":true,"bundleID":"com.hnc.DiscordCanary","bytes":234624152,"downloadKind":"full","fromBuild":"0.0.1459","fromVersion":"0.0.1459","sourceName":"Vendor","toBuild":"0.0.1488","toVersion":"0.0.1488"}}
+{"command":"backups list","schemaVersion":2}
+{"app":"Discord Canary","bundleID":"com.hnc.DiscordCanary","bytes":538662630,"held":false,"key":"com.hnc.DiscordCanary-1077c54d473b35a1","path":"\/Applications\/Discord Canary.app","savedAt":"2026-11-05T06:30:52Z","version":"0.0.1459"}
+0.0.1488
+NOT_RUNNING
+SIGNATURE_OK

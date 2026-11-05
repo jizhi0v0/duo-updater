@@ -286,4 +286,74 @@ struct RefreshLaneTests {
         #expect(a.plans == [["workbench focus"]])
         #expect(b.plans == [["workbench focus"]])
     }
+    @Test func completionWaitsForActualWorkAfterTheCallerTimesOut() async {
+        let record = Record()
+        let gate = Gate()
+        let lane = lane(record, first: gate, passTimeout: .milliseconds(50))
+        let trigger = RefreshTrigger.backgroundTick(interval: 3600)
+        let caller = Task {
+            await lane.handle(trigger, afterPass: { record.events.append("completion") })
+        }
+        await until { record.laneEvents.contains(.passTimedOut(answering: [trigger])) }
+        if !record.laneEvents.contains(.passTimedOut(answering: [trigger])) { await gate.open() }
+        await caller.value
+        #expect(!record.events.contains("completion"))
+        await gate.open()
+        await until { record.events.contains("completion") }
+        #expect(record.events == ["pass 1 start", "pass 1 end", "completion"])
+    }
+
+    @Test func skippedTriggersDoNotRunCompletion() async {
+        let record = Record()
+        record.skip = ["popover open"]
+        let gate = Gate()
+        let lane = lane(record, first: gate)
+        await lane.handle(.popoverOpen, afterPass: { record.events.append("completion") })
+        #expect(record.events.isEmpty)
+    }
+
+    @Test func lateCompletionWaitsForFollowUpAndExcludesNewPasses() async {
+        let firstGate = Gate(), followUpGate = Gate(), callbackGate = Gate()
+        let record = Record()
+        let lane = RefreshLane<Void>("late-completion", passTimeout: .milliseconds(50),
+            decide: { _ in .run((), because: "test") },
+            work: {
+                let number = record.plans.count + 1
+                record.plans.append([])
+                record.events.append("pass \(number) start")
+                if number == 1 { await firstGate.wait() }
+                if number == 2 { await followUpGate.wait() }
+                record.events.append("pass \(number) end")
+            })
+        lane.onEvent = { record.laneEvents.append($0) }
+        let scheduled = RefreshTrigger.backgroundTick(interval: 3600)
+        let first = Task {
+            await lane.handle(scheduled, afterPass: {
+                record.events.append("callback start")
+                await callbackGate.wait()
+                record.events.append("callback end")
+            })
+        }
+        await until { record.laneEvents.contains(.passTimedOut(answering: [scheduled])) }
+        if !record.laneEvents.contains(.passTimedOut(answering: [scheduled])) { await firstGate.open() }
+        await first.value
+        let followUp = Task { await lane.handle(.workbenchOpen) }
+        await until { await followUpGate.arrived == 1 }
+        await firstGate.open()
+        await until { record.events.contains("pass 1 end") }
+        #expect(!record.events.contains("callback start"))
+        await followUpGate.open()
+        await until { await callbackGate.arrived == 1 }
+        let next = Task { await lane.handle(.manual) }
+        await until { record.laneEvents.contains(.joined(.manual)) }
+        #expect(record.plans.count == 2)
+        await callbackGate.open()
+        await next.value
+        await followUp.value
+        #expect(record.events == [
+            "pass 1 start", "pass 2 start", "pass 1 end", "pass 2 end",
+            "callback start", "callback end", "pass 3 start", "pass 3 end",
+        ])
+    }
+
 }

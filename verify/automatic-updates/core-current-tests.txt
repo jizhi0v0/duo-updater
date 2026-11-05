@@ -1,0 +1,72 @@
+Code: ba72046b6c8289e0e9b16559f7e80ab892f827e0
+Date: 2026-11-05
+Host apps were not installed or restarted.
+
+
+## duo-auto-local-core-final.log
+◇ Test "A session delegate that refuses redirects still refuses with a recorder attached" started.
+✔ Test "A session delegate that refuses redirects still refuses with a recorder attached" passed after 0.014 seconds.
+◇ Test "A cookie on the request never reaches disk" started.
+✔ Test "A cookie on the request never reaches disk" passed after 0.018 seconds.
+◇ Test "Events are recorded before the fetch that produced them returns" started.
+✔ Test "Events are recorded before the fetch that produced them returns" passed after 0.012 seconds.
+◇ Test "A busy database defers the batch instead of losing it" started.
+✔ Test "A busy database defers the batch instead of losing it" passed after 0.209 seconds.
+◇ Test "A read-only database keeps the batch instead of committing it empty" started.
+✔ Test "A read-only database keeps the batch instead of committing it empty" passed after 0.029 seconds.
+◇ Test "A test process never writes to the real event store" started.
+✔ Test "A test process never writes to the real event store" passed after 0.001 seconds.
+◇ Test theStateDirIsRestoredToUnsetNotLeftDangling() started.
+✔ Test theStateDirIsRestoredToUnsetNotLeftDangling() passed after 0.001 seconds.
+◇ Test "The reported size counts the write-ahead log, not just the database" started.
+✔ Test "The reported size counts the write-ahead log, not just the database" passed after 0.085 seconds.
+✔ Suite EventStoreTests passed after 2.175 seconds.
+✔ Test run with 95 tests in 4 suites passed after 2.176 seconds.
+
+## duo-auto-vm-current-tests.log
+◇ Test "A session delegate that refuses redirects still refuses with a recorder attached" started.
+✔ Test "A session delegate that refuses redirects still refuses with a recorder attached" passed after 0.045 seconds.
+◇ Test "A cookie on the request never reaches disk" started.
+✔ Test "A cookie on the request never reaches disk" passed after 0.048 seconds.
+◇ Test "Events are recorded before the fetch that produced them returns" started.
+✔ Test "Events are recorded before the fetch that produced them returns" passed after 0.048 seconds.
+◇ Test "A busy database defers the batch instead of losing it" started.
+✔ Test "A busy database defers the batch instead of losing it" passed after 1.190 seconds.
+◇ Test "A read-only database keeps the batch instead of committing it empty" started.
+✔ Test "A read-only database keeps the batch instead of committing it empty" passed after 0.079 seconds.
+◇ Test "A test process never writes to the real event store" started.
+✔ Test "A test process never writes to the real event store" passed after 0.001 seconds.
+◇ Test theStateDirIsRestoredToUnsetNotLeftDangling() started.
+✔ Test theStateDirIsRestoredToUnsetNotLeftDangling() passed after 0.001 seconds.
+◇ Test "The reported size counts the write-ahead log, not just the database" started.
+✔ Test "The reported size counts the write-ahead log, not just the database" passed after 0.150 seconds.
+✔ Suite EventStoreTests passed after 8.539 seconds.
+✔ Test run with 56 tests in 3 suites passed after 8.539 seconds.
+
+## duo-auto-vm-other-user.log
+[0;36m1008 |[0;0m         }
+
+[#NoUsage]: <https://docs.swift.org/compiler/documentation/diagnostics/no-usage>
+[82 / 86] DuoUpdaterCoreTests-product/Users/bobby/duo-verify/automatic-updates/core-current/Package.swift: DuoUpdaterCoreTests-product: ld: warning: search path '/Library/Developer/CommandLineTools/Developer/usr/lib' not found
+/Users/bobby/duo-verify/automatic-updates/core-current/Package.swift: DuoUpdaterCoreTests-product: ld: warning: search path '/Library/Developer/CommandLineTools/Developer/Library/Frameworks' not found
+
+[83 / 86] DuoUpdaterCoreTests-product
+[84 / 86] DuoUpdaterCoreTests-product
+Build complete! (27.05 sec)
+◇ Test run started.
+↳ Testing Library Version: 2084
+↳ Target Platform: arm64e-apple-macos14.0
+◇ Suite OtherUserValidationTests started.
+◇ Test otherUsersUnlinkedHelperIsNotOmitted() started.
+live other-user PID=79019 executable=nil argv=nil
+✔ Test otherUsersUnlinkedHelperIsNotOmitted() passed after 0.006 seconds.
+✔ Suite OtherUserValidationTests passed after 0.006 seconds.
+✔ Test run with 1 test in 1 suite passed after 0.007 seconds.
+
+## VM commit-point and scheduler scenarios
+✔ Test unattendedPermissionFailsClosed() passed after 0.002 seconds.
+✔ Test aVisibleProcessDoesNotMakeAnUninspectablePIDSafe() passed after 0.002 seconds.
+✔ Test skippedTriggersDoNotRunCompletion() passed after 0.003 seconds.
+✔ Test aSkippedTriggerRunsNothing() passed after 0.026 seconds.
+✔ Test permissionWithdrawnAfterEntryBlocksTheWholeBundleExchange() passed after 0.033 seconds.
+✔ Test rotationChecksProcessesAfterStagingAndBeforeExchangingContents() passed after 1.926 seconds.

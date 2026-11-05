@@ -264,6 +264,7 @@ public actor EventStore {
     /// it. Nothing in the app passes true today; the parameter exists so that a
     /// future caller that means it has to say so.
     ///
+    /// Automatic activity is also preserved; it has its own reset and retention.
     /// Failure events are kept on the same terms: they are not network activity,
     /// and clearing the Network window should not take away a failure the user
     /// has yet to report. Retention still ages them out.
@@ -279,7 +280,10 @@ public actor EventStore {
         absorbStaged()
         pendingFlush?.cancel()
         pendingFlush = nil
-        buffer = []
+        buffer = includingInstalls ? [] : buffer.filter {
+            ["install", "failure", "automaticUpdate"].contains($0.kind)
+        }
+        commitBuffer()
         guard let db = open() else { return }
         // One transaction, because the doc comment above promises the two are
         // cleared together: as three autocommitted statements, a failure between
@@ -292,7 +296,7 @@ public actor EventStore {
         guard exec(db, "BEGIN IMMEDIATE;") else { return }
         exec(db, includingInstalls
              ? "DELETE FROM events;"
-             : "DELETE FROM events WHERE kind NOT IN ('install', 'failure');")
+             : "DELETE FROM events WHERE kind NOT IN ('install', 'failure', 'automaticUpdate');")
         exec(db, "DELETE FROM totals;")
         if includingInstalls {
             // Forget that the legacy file was imported, so it can be imported
@@ -310,6 +314,16 @@ public actor EventStore {
         exec(db, "PRAGMA incremental_vacuum;")
         exec(db, "PRAGMA wal_checkpoint(TRUNCATE);")
         lastPrune = nil
+    }
+
+    /// Clear only automatic activity; preserve requests, totals and install history.
+    public func resetAutomaticUpdates() {
+        absorbStaged()
+        buffer.removeAll { $0.kind == "automaticUpdate" }
+        guard let db = open() else { return }
+        exec(db, "DELETE FROM events WHERE kind = 'automaticUpdate';")
+        exec(db, "PRAGMA incremental_vacuum;")
+        exec(db, "PRAGMA wal_checkpoint(TRUNCATE);")
     }
 
     /// The most events held in memory while commits keep failing. A database
@@ -511,12 +525,29 @@ public actor EventStore {
             Calendar.current.date(byAdding: .day, value: -retentionDays, to: now())
                 ?? .distantPast)
         if let statement = prepare(db, """
-            DELETE FROM events WHERE at < ? AND kind <> 'install';
+            DELETE FROM events WHERE at < ? AND kind NOT IN ('install', 'automaticUpdate');
             """) {
             sqlite3_bind_int64(statement, 1, cutoff)
             step(db, statement)
             sqlite3_finalize(statement)
         }
+
+        // Automatic activity has its own 90-day / 10,000-row window. Request
+        // traffic must never evict it. The permanent install ledger is separate.
+        let automaticCutoff = Self.micros(now().addingTimeInterval(-90 * 86400))
+        if let statement = prepare(db, """
+            DELETE FROM events WHERE kind = 'automaticUpdate' AND at < ?;
+            """) {
+            sqlite3_bind_int64(statement, 1, automaticCutoff)
+            step(db, statement)
+            sqlite3_finalize(statement)
+        }
+        exec(db, """
+            DELETE FROM events WHERE id IN (
+              SELECT id FROM events WHERE kind = 'automaticUpdate'
+              ORDER BY at DESC, rowid DESC LIMIT -1 OFFSET 10000
+            );
+            """)
 
         // Trim in blocks rather than one row at a time: the file only shrinks
         // when freed pages are handed back, and asking after every row would run
@@ -539,7 +570,7 @@ public actor EventStore {
             let batch = min(remaining - Self.retentionFloor, max(100, remaining / 10))
             if let statement = prepare(db, """
                 DELETE FROM events WHERE id IN (
-                  SELECT id FROM events WHERE kind NOT IN ('install', 'failure')
+                  SELECT id FROM events WHERE kind NOT IN ('install', 'failure', 'automaticUpdate')
                   ORDER BY at ASC, rowid ASC LIMIT ?
                 );
                 """) {
@@ -579,7 +610,7 @@ public actor EventStore {
     /// gone before the user came back to report it. The age pass still ends them
     /// at ``retentionDays``.
     private func eventCount(_ db: OpaquePointer) -> Int {
-        guard let statement = prepare(db, "SELECT count(*) FROM events WHERE kind NOT IN ('install', 'failure');")
+        guard let statement = prepare(db, "SELECT count(*) FROM events WHERE kind NOT IN ('install', 'failure', 'automaticUpdate');")
         else { return 0 }
         defer { sqlite3_finalize(statement) }
         guard sqlite3_step(statement) == SQLITE_ROW else { return 0 }

@@ -134,6 +134,26 @@ It **respects each app's own update channel**:
 | Homebrew app cask | `brew install --cask --force` |
 | Homebrew `pkg` cask | Download the official package and open the system installer |
 
+## Automatic updates
+
+An opt-in switch in General settings updates closed apps after scheduled checks.
+Manual-only checks, offline, Low Data Mode and expensive networks pause automatic
+updates. Only direct vendor/Sparkle bundle installations qualify; Homebrew,
+App Store, Xcode and system-installer handoffs remain manual. Running apps and
+helpers are skipped, and automatic jobs never relaunch apps or request elevation.
+
+Every automatic install requires a complete backup, even when manual-update
+backups are disabled. A backup failure stops the update. Backups protect the app
+bundle, not its documents, settings or databases. Confirmation-gated upgrades,
+ignored apps and skipped versions remain excluded. The Network window's Events
+tab shows automatic starts, deferrals and outcomes; `duo events` exports the same
+records. Activity uses the shared SQLite database but has an independent 90-day,
+10,000-record retention window; request-log clearing and size trimming preserve it.
+The Events tab displays the latest 200 records and can clear activity separately.
+Successful install records also carry `automatic: true` and remain in the permanent
+install ledger. The 64 MiB database target is soft, not a hard limit on that ledger
+or the separately retained automatic activity.
+
 ## Install safety
 
 - **Package architecture limitation**: updates handed to the system installer

@@ -28,6 +28,8 @@ final class NetworkMonitor {
     /// update lands (NWPathMonitor delivers the initial state asynchronously);
     /// the first real update corrects it.
     private(set) var path = NetworkPathState.assumedUsable
+    private(set) var hasObservedPath = false
+    nonisolated let automaticTrafficSnapshot = AutomaticInstall.PermissionSnapshot()
 
     private let monitor = NWPathMonitor()
     private let queue = DispatchQueue(label: "com.duoupdater.network-monitor")
@@ -45,6 +47,8 @@ final class NetworkMonitor {
     }
 
     private func apply(_ state: NetworkPathState) {
+        automaticTrafficSnapshot.set(state.allowsDiscretionaryTraffic)
+        hasObservedPath = true
         guard state != path else { return }
         path = state
         Log.app.info("network: \(state.isSatisfied ? "online" : "offline", privacy: .public) constrained=\(state.isConstrained, privacy: .public) expensive=\(state.isExpensive, privacy: .public)")

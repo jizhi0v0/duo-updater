@@ -1,6 +1,149 @@
 {
   "sourceLanguage": "en",
   "strings": {
+  "Activity is kept for 90 days, up to 10,000 records. Showing the latest 200.": {
+    "extractionState": "manual",
+    "localizations": {
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "活动保留 90 天，最多 10,000 条。当前显示最近 200 条。"
+        }
+      }
+    }
+  },
+  "Clear activity…": {
+    "extractionState": "manual",
+    "localizations": {
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "清空活动…"
+        }
+      }
+    }
+  },
+  "Clear automatic update activity?": {
+    "extractionState": "manual",
+    "localizations": {
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "清空自动更新活动？"
+        }
+      }
+    }
+  },
+  "Clear activity": {
+    "extractionState": "manual",
+    "localizations": {
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "清空活动"
+        }
+      }
+    }
+  },
+  "Request logs and permanent install history will be kept.": {
+    "extractionState": "manual",
+    "localizations": {
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "请求日志和永久安装历史将予以保留。"
+        }
+      }
+    }
+  },
+  "Automatically update closed apps": {
+    "extractionState": "manual",
+    "localizations": {
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "自动更新未运行的应用"
+        }
+      }
+    }
+  },
+  "Requires scheduled checks and an unrestricted network. Apps and helpers must be closed. Each update requires a backup; installers and authorization prompts are skipped. App data is not backed up. Activity is recorded in Events.": {
+    "extractionState": "manual",
+    "localizations": {
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "需要开启定时检查且网络不受限。应用及辅助进程必须已退出。每次更新必须先备份；需要安装器或授权的更新会被跳过。不会备份应用数据。活动会记录在事件中。"
+        }
+      }
+    }
+  },
+  "Events": {
+    "extractionState": "manual",
+    "localizations": {
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "事件"
+        }
+      }
+    }
+  },
+  "No automatic update activity yet.": {
+    "extractionState": "manual",
+    "localizations": {
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "尚无自动更新活动。"
+        }
+      }
+    }
+  },
+  "Automatic update started": {
+    "extractionState": "manual",
+    "localizations": {
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "自动更新已开始"
+        }
+      }
+    }
+  },
+  "Automatically updated": {
+    "extractionState": "manual",
+    "localizations": {
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "已自动更新"
+        }
+      }
+    }
+  },
+  "Automatic update deferred": {
+    "extractionState": "manual",
+    "localizations": {
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "自动更新已暂缓"
+        }
+      }
+    }
+  },
+  "Automatic update did not complete": {
+    "extractionState": "manual",
+    "localizations": {
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "自动更新未完成"
+        }
+      }
+    }
+  },
     " — latest %@": {
       "extractionState": "manual",
       "localizations": {

@@ -241,6 +241,10 @@ final class Downloader: NSObject, URLSessionDataDelegate, @unchecked Sendable {
         // downloads. A plaintext http:// payload is a downgrade vector even with
         // the later signature gates, so we refuse it outright.
         try SecureScheme.requireSecureDownload(url)
+        if AutomaticInstall.active {
+            configuration.allowsConstrainedNetworkAccess = false
+            configuration.allowsExpensiveNetworkAccess = false
+        }
         bytesLock.withLock { _bytesDownloaded = 0 }
         // Read here, in the calling task, and stored for the metrics callback —
         // which runs on the session's delegate queue, outside this task's tree,

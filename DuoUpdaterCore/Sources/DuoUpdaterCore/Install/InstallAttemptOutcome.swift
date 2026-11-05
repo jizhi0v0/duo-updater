@@ -2,7 +2,7 @@ import Foundation
 
 /// What one install attempt actually did to the machine.
 ///
-/// A `Bool` could not say it. Three outcomes reach the caller and only one of
+/// A `Bool` could not say it. Distinct outcomes reach the caller and only one of
 /// them is an app that is now updated:
 ///
 ///   * `installed` — a bundle was replaced (or the store finished an install).
@@ -25,6 +25,8 @@ public enum InstallAttemptOutcome: Equatable, Sendable {
     case installed
     case handedOffToSystemInstaller
     case notInstalled
+    /// A safety guard postponed an unattended update; not an install failure.
+    case deferred(reason: String)
     case cancelled(at: InstallStage)
 
     /// Whether this attempt may be counted into "N apps were updated".

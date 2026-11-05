@@ -52,13 +52,14 @@ public struct InstallEvent: Codable, Sendable, Hashable {
     /// alternative is a field that silently means "false" for a decade of history
     /// that was mostly successful.
     public let applied: Bool?
+    public let automatic: Bool?
 
     public init(
         appID: String, appName: String, bundleID: String?,
         fromVersion: String?, toVersion: String?,
         fromBuild: String? = nil, toBuild: String? = nil,
         sourceName: String?, bytes: Int64,
-        downloadKind: TrafficDownloadKind? = nil, applied: Bool? = nil
+        downloadKind: TrafficDownloadKind? = nil, applied: Bool? = nil, automatic: Bool? = nil
     ) {
         self.appID = appID
         self.appName = appName
@@ -71,6 +72,7 @@ public struct InstallEvent: Codable, Sendable, Hashable {
         self.bytes = bytes
         self.downloadKind = downloadKind
         self.applied = applied
+        self.automatic = automatic
     }
 
     /// The legacy shape, for the parts of the app that still speak it.

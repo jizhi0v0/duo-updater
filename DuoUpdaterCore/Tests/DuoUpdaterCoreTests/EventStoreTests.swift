@@ -51,6 +51,55 @@ struct EventStoreTests {
         }
     }
 
+    private static func automatic(at: Date = Date()) -> DuoEvent {
+        DuoEvent(date: at, client: .app,
+                 payload: .unknown(kind: "automaticUpdate", json: "{\"status\":\"started\"}"))
+    }
+
+    @Test func automaticActivityHasIndependentAgeAndSizeRetention() async {
+        let (store, url) = Self.store(retentionDays: 1, retentionBytes: 1,
+                                     flushEventCount: 20000, pruneInterval: .zero)
+        defer { Self.remove(url) }
+        let recent = Self.automatic(at: Date().addingTimeInterval(-40 * 86400))
+        let expired = Self.automatic(at: Date().addingTimeInterval(-91 * 86400))
+        await store.append(recent)
+        await store.append(expired)
+        for _ in 0..<300 { await store.append(Self.event()) }
+        await store.flush()
+        let activity = await store.events(.init(kind: "automaticUpdate", limit: 20000))
+        #expect(activity.map(\.id) == [recent.id])
+        #expect(await store.events(.init(kind: "request", limit: 20000)).count == EventStore.retentionFloor)
+    }
+
+    @Test func automaticActivityCountLimitKeepsTheNewestRecords() async {
+        let (store, url) = Self.store(flushEventCount: 20000, pruneInterval: .zero)
+        defer { Self.remove(url) }
+        for _ in 0..<10001 { await store.append(Self.automatic()) }
+        let newest = Self.automatic()
+        await store.append(newest)
+        await store.flush()
+        let activity = await store.events(.init(kind: "automaticUpdate", limit: 20000))
+        #expect(activity.count == 10000)
+        #expect(activity.last?.id == newest.id)
+    }
+
+    @Test func requestAndAutomaticResetsAreIndependentIncludingBufferedEvents() async {
+        let (store, url) = Self.store(flushEventCount: 20000)
+        defer { Self.remove(url) }
+        let activity = Self.automatic()
+        await store.append(activity)
+        await store.append(Self.event())
+        await store.reset()
+        #expect(await store.events(.init(kind: "automaticUpdate")).map(\.id) == [activity.id])
+        #expect(await store.events(.init(kind: "request")).isEmpty)
+        await store.append(Self.event())
+        await store.append(Self.automatic())
+        await store.resetAutomaticUpdates()
+        await store.flush()
+        #expect(await store.events(.init(kind: "automaticUpdate")).isEmpty)
+        #expect(await store.events(.init(kind: "request")).count == 1)
+    }
+
     // MARK: - Totals
 
     @Test("Totals split by client, purpose and host — never merged across them")

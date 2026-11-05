@@ -172,8 +172,10 @@ public actor InstallCoordinator {
     /// Throws `NestedAppRunningError` when an app nested in `result`'s bundle is
     /// running on its own (see `NestedAppGuard`).
     private func refuseWhileNestedAppRuns(_ result: UpdateResult) throws {
-        try NestedAppGuard.check(
-            result.app.path, appName: result.app.name, processes: runningProcesses)
+        do {
+            try NestedAppGuard.check(
+                result.app.path, appName: result.app.name, processes: runningProcesses)
+        } catch { throw AutomaticInstall.classifiedRefusal(error) }
     }
 
     /// The route an update takes.
@@ -495,6 +497,13 @@ public actor InstallCoordinator {
         // and nothing changed" impossible to answer after the fact — the only
         // evidence was the app's own mtime. `.notice`, so it is still readable when
         // the report arrives hours later.
+        if AutomaticInstall.active {
+            try await AutomaticInstall.checkPermission()
+            guard AutomaticInstall.supports(route) else {
+                throw AutomaticInstall.Deferred("Automatic update requires an interactive installer.")
+            }
+            try AutomaticInstall.check(result.app)
+        }
         let label = "\(result.app.name) [\(result.app.bundleID ?? "?")]"
         // `canAutoInstall` is the offer; this is the gate, for every route, before
         // anything is touched (`OneClickGate`). Fresh: an `.executableContains`
@@ -504,7 +513,8 @@ public actor InstallCoordinator {
         if let gate = OneClickGateRegistry.withholding(result.app, offering: result.remote, fresh: true) {
             Log.install.notice(
                 "install refused: \(label, privacy: .public) — one-click gate: \(gate.reason, privacy: .public)")
-            throw OneClickGateRegistry.Withheld(appName: result.app.name, reason: gate.reason)
+            throw AutomaticInstall.classifiedRefusal(
+                OneClickGateRegistry.Withheld(appName: result.app.name, reason: gate.reason))
         }
         Log.install.notice(
             "install start: \(label, privacy: .public) \(result.app.shortVersion ?? "?", privacy: .public) → \(result.remote?.displayVersion ?? "?", privacy: .public) via \(String(describing: route), privacy: .public)")
@@ -534,6 +544,10 @@ public actor InstallCoordinator {
             // Not a failure. The host logs `install cancelled at <stage>`
             // (`InstallAttemptOutcome.cancelled`), knowing the stage.
             throw cancelled
+        } catch let deferred as AutomaticInstall.Deferred {
+            // Expected safety refusal, not a failed installation. The host keeps
+            // the typed reason in its automatic-update activity record.
+            throw deferred
         } catch {
             Log.install.error(
                 "install failed: \(label, privacy: .public) via \(String(describing: route), privacy: .public) — \(error.localizedDescription, privacy: .public)")
@@ -887,8 +901,14 @@ public actor InstallCoordinator {
         // extracting and a wait for the administrator panel all come between
         // here and there. See `InPlaceSwap.preExchangeCheck`.
         let processes = runningProcesses
+        let automatic = AutomaticInstall.active
         try await InPlaceSwap.$preExchangeCheck.withValue({
-            try NestedAppGuard.check(result.app.path, appName: result.app.name, processes: processes)
+            try AutomaticInstall.$active.withValue(automatic) { try AutomaticInstall.check(result.app) }
+            try AutomaticInstall.$active.withValue(automatic) {
+                do {
+                    try NestedAppGuard.check(result.app.path, appName: result.app.name, processes: processes)
+                } catch { throw AutomaticInstall.classifiedRefusal(error) }
+            }
         }) {
             try await apply(result, downloaded, progress)
         }
@@ -923,7 +943,7 @@ public actor InstallCoordinator {
     /// it: the swap has happened, and an agent left on the old code is the
     /// state this exists to prevent. Its waits are bounded (about 15 s).
     private func restartLoginItemAgents(_ snapshot: [LoginItemAgentRestart.Agent]) async -> [String] {
-        guard snapshot.contains(where: { !$0.processes.isEmpty }) else { return [] }
+        guard !AutomaticInstall.active, snapshot.contains(where: { !$0.processes.isEmpty }) else { return [] }
         let processes = agentProcesses, signal = signalAgent, jobPID = agentJobPID
         let results = await Task {
             await LoginItemAgentRestart.restart(

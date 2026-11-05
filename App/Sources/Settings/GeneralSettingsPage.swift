@@ -101,6 +101,10 @@ struct GeneralSettingsPage: View {
     private var afterUpdateCard: some View {
         SettingsCard(header: "After an update") {
             SettingsToggle(
+                "Automatically update closed apps",
+                detail: "Requires scheduled checks and an unrestricted network. Apps and helpers must be closed. Each update requires a backup; installers and authorization prompts are skipped. App data is not backed up. Activity is recorded in Events.",
+                isOn: $prefs.automaticUpdates)
+            SettingsToggle(
                 "Relaunch updated apps automatically",
                 detail: "Apps are asked to quit normally, so unsaved-work prompts still appear. One that won’t quit keeps its Relaunch button.",
                 isOn: $prefs.autoRestartAfterUpdate)

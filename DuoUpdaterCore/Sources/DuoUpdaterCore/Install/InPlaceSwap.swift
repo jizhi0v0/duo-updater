@@ -106,13 +106,26 @@ public enum InPlaceSwap {
     /// by verification, extraction and maybe a wait for another install's
     /// administrator panel, and a VM can start in that time. A throw here
     /// leaves the target as it was. Run last before each exchange begins:
-    /// before the rotation stages `Contents`, before the unprivileged exchange
-    /// stages its copy, and on the elevated route after the panel lock is
+    /// after the rotation stages `Contents` and applies its modes, after the
+    /// unprivileged route stages its copy, and on the elevated route after the panel lock is
     /// taken, just before `osascript` shows the panel. A
     /// task-local for the reason `elevatedShellOverride` is one: it reaches
     /// through the installers and `InstallCommit`'s inheriting `Task { }`
     /// without a parameter on each. Unset for a restore (`BackupStore`).
     @TaskLocal static var preExchangeCheck: (@Sendable () throws -> Void)?
+
+    /// Capture task locals before hopping to Dispatch, which does not inherit them.
+    private static func finalExchangeCheck() -> @Sendable () throws -> Void {
+        let automatic = AutomaticInstall.active
+        let permission = AutomaticInstall.commitPermission
+        let processes = preExchangeCheck
+        return {
+            if automatic, permission?() != true {
+                throw AutomaticInstall.Deferred("Automatic updates are paused.")
+            }
+            try processes?()
+        }
+    }
 
     /// Run one privileged shell: `osascript`, or the test override.
     ///
@@ -411,7 +424,11 @@ public enum InPlaceSwap {
         // The completion flag matters: a bare `defer` would announce the same line
         // whether the swap worked or threw, and "it said it finished" that means
         // nothing either way is the exact ambiguity this is here to remove.
+        try await AutomaticInstall.checkPermission()
         let elevated = needsElevatedReplace(target: target)
+        if AutomaticInstall.active && elevated {
+            throw AutomaticInstall.Deferred("Automatic update needs administrator authorization.")
+        }
         var replaced = false
         // The bundle's identity before we touch it. `fileExists` cannot answer the
         // question the failure branch asks: after a successful replacement the path
@@ -513,10 +530,11 @@ public enum InPlaceSwap {
             // caller reached `replace` through `offCooperativePool`) is gone now
             // that the child processes around it are awaited, so this segment
             // takes its own. See `offCooperativePool`.
+            let check = finalExchangeCheck()
             let outcome = try await offCooperativePool(qos: .userInitiated) {
                 try exchangeUnprivileged(
                     newApp: newApp, over: target,
-                    identityTarget: identityTarget, identityBefore: identityBefore)
+                    identityTarget: identityTarget, identityBefore: identityBefore, check: check)
             }
             replaced = true
             if case .replacedButCleanupFailed(let reason) = outcome { cleanupFailure = reason }
@@ -902,7 +920,8 @@ public enum InPlaceSwap {
     /// `.replaced`, or `.replacedButCleanupFailed` when the exchange landed and its
     /// cleanup threw; throws when the bundle on disk is unchanged.
     private static func exchangeUnprivileged(
-        newApp: URL, over target: URL, identityTarget: URL, identityBefore: UInt64?
+        newApp: URL, over target: URL, identityTarget: URL, identityBefore: UInt64?,
+        check: (@Sendable () throws -> Void)?
     ) throws -> SwapOutcome {
         let fm = FileManager.default
         let parent = target.deletingLastPathComponent()
@@ -912,6 +931,19 @@ public enum InPlaceSwap {
         let staged = parent.appendingPathComponent(".duoupdater-staged-\(target.lastPathComponent)")
         try? fm.removeItem(at: staged)
         try fm.moveItem(at: newApp, to: staged)
+        // The guard runs before the filesystem exchange; its refusal is not a
+        // replaceItemAt failure and must not be diagnosed as one.
+        do {
+            try check?()
+        } catch {
+            if fm.fileExists(atPath: staged.path) {
+                do { try fm.removeItem(at: staged) } catch {
+                    Log.install.error(
+                        "swap: left \(staged.lastPathComponent, privacy: .public) behind in \(parent.path, privacy: .public) — \(error.localizedDescription, privacy: .public)")
+                }
+            }
+            throw error
+        }
         do {
             _ = try fm.replaceItemAt(target, withItemAt: staged, backupItemName: nil, options: [])
         } catch {
@@ -1336,8 +1368,15 @@ public enum InPlaceSwap {
             }
         }
 
+        let check = finalExchangeCheck()
         return try await offCooperativePool(qos: .userInitiated) {
-            try finishRotation(staged: staged, over: target)
+            do {
+                try check()
+            } catch {
+                try? FileManager.default.removeItem(at: staged)
+                throw error
+            }
+            return try finishRotation(staged: staged, over: target)
         }
     }
 

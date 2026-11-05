@@ -485,7 +485,13 @@ public enum NestedAppGuard {
     /// path `execve` was given, which `KERN_PROCARGS2` saved. Only a process the
     /// kernel will not name either — another user's, which no read can reach —
     /// is skipped, and that is on the record rather than silent.
+    /// Automatic installs request unknown entries too: an uninspectable live PID
+    /// cannot prove a shared bundle is closed. Manual callers keep their policy.
     public static func liveProcesses() -> [RunningProcess] {
+        liveProcesses(includeUninspectable: false)
+    }
+
+    public static func liveProcesses(includeUninspectable: Bool) -> [RunningProcess] {
         let capacity = Int(proc_listallpids(nil, 0)) + 64
         guard capacity > 64 else { return [] }
         var pids = [pid_t](repeating: 0, count: capacity)
@@ -495,6 +501,11 @@ public enum NestedAppGuard {
         guard count > 0 else { return [] }
         var buffer = [CChar](repeating: 0, count: 4 * Int(MAXPATHLEN))
         var processes: [RunningProcess] = []
+        if includeUninspectable, count >= capacity {
+            // A full enumeration buffer cannot prove every PID was inspected.
+            processes.append(RunningProcess(
+                pid: 0, parentPID: 0, executablePath: nil, isRegularApp: false))
+        }
         for pid in pids.prefix(min(count, capacity)) where pid > 0 {
             let length = Int(proc_pidpath(pid, &buffer, UInt32(buffer.count)))
             let kernelPath = length > 0
@@ -517,6 +528,13 @@ public enum NestedAppGuard {
                 // blocker and there is nothing else to do with it.
                 if answered {
                     Log.install.notice("nested-guard: pid \(pid, privacy: .public) is running but neither proc_pidpath nor KERN_PROCARGS2 names its executable")
+                }
+                if includeUninspectable {
+                    let alive = answered || kill(pid, 0) == 0 || errno == EPERM
+                    if alive {
+                        processes.append(RunningProcess(
+                            pid: pid, parentPID: parent, executablePath: nil, isRegularApp: false))
+                    }
                 }
                 continue
             }

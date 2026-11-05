@@ -1,6 +1,6 @@
 # Review instructions
 
-Read by Codex code review through the root `AGENTS.md`, and by other AI reviewers that look for a root `REVIEW.md`. The official GitHub integration is configured as described in `.github/codex-review.md`. Every check below exists because a pull request in this repository shipped that bug, or nearly did.
+Read by Codex code review through the root `AGENTS.md`, and by other AI reviewers that look for a root `REVIEW.md`. Official GitHub review is optional, as described in `.github/codex-review.md`. Every check below exists because a pull request in this repository shipped that bug, or nearly did.
 
 ## What is blocking
 

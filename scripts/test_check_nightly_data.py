@@ -32,6 +32,50 @@ def identities():
                         "lastSeenVersion": "1.0", "lastSeenURLSHA256": "a" * 64}}}
 
 
+def nightly_pr(kind="baseline"):
+    return {"state": "open", "draft": False, "user": {"login": "o"},
+            "head": {"sha": HEAD, "ref": f"verify/{kind}-20261105T010000Z",
+                     "repo": {"full_name": "o/r"}},
+            "base": {"sha": BASE}, "changed_files": 1}
+
+
+def changed(path, **extra):
+    return {"filename": path, "status": "modified", **extra}
+
+
+class NightlyClassification(unittest.TestCase):
+    def test_only_the_owners_timestamped_same_repo_scan_branches_qualify(self):
+        pr = nightly_pr()
+        self.assertTrue(data.is_nightly_state(pr, "o/r", [changed("verify/baseline.json")]))
+        for candidate in [
+            {**pr, "user": {"login": "someone-else"}},
+            {**pr, "head": {**pr["head"], "repo": {"full_name": "fork/r"}}},
+            {**pr, "head": {**pr["head"], "repo": None}},
+            {**pr, "head": {**pr["head"], "ref": "verify/baseline-custom"}},
+            {**pr, "head": {**pr["head"], "ref": "feature/change"}},
+        ]:
+            self.assertFalse(data.is_nightly_state(candidate, "o/r", [changed("verify/baseline.json")]))
+
+    def test_install_scan_may_change_one_or_both_state_files(self):
+        pr = nightly_pr("install")
+        files = [changed("verify/identities.json"), changed("verify/install-baseline.json")]
+        for subset in [files[:1], files[1:], files]:
+            self.assertTrue(data.is_nightly_state({**pr, "changed_files": len(subset)}, "o/r", subset))
+
+    def test_extra_deleted_renamed_or_incomplete_files_prevent_the_exception(self):
+        pr = nightly_pr()
+        for files, count in [
+            ([], 0),
+            ([changed("verify/baseline.json"), changed("CLI/Sources/Example.swift")], 2),
+            ([changed("verify/identities.json")], 1),
+            ([changed("verify/baseline.json", status="removed")], 1),
+            ([changed("verify/baseline.json", status="renamed", previous_filename="code.swift")], 1),
+            ([changed("verify/baseline.json")], 2),
+            ([changed("verify/baseline.json")], True),
+        ]:
+            self.assertFalse(data.is_nightly_state({**pr, "changed_files": count}, "o/r", files))
+
+
 class Routing(unittest.TestCase):
     def test_pr_plan_uses_the_actual_fixed_head_and_shared_exemption(self):
         event = {"repository": REPO, "number": 7, "pull_request": PR}

@@ -10188,6 +10188,7 @@ final class AppListModel {
                     // Withdrawing a banner that is not there is a no-op.
                     UpdateNotifier.clearChecksSuspended()
                     await self.backgroundRefresh()
+                    await self.automaticallyInstallUpdates()
                     isFirstCheck = false
                 } else {
                     let why = deferral ?? "busy"
@@ -10301,7 +10302,6 @@ final class AppListModel {
         ]
         await appsLane.handle(.backgroundTick(interval: interval))
         for task in others { await task.value }
-        await automaticallyInstallUpdates()
     }
 
     /// Arm the watcher on TestFlight's own store. Called once at launch, network-free,

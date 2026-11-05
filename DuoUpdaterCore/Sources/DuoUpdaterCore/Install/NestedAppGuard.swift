@@ -487,7 +487,11 @@ public enum NestedAppGuard {
     /// is skipped, and that is on the record rather than silent.
     /// Automatic installs request unknown entries too: an uninspectable live PID
     /// cannot prove a shared bundle is closed. Manual callers keep their policy.
-    public static func liveProcesses(includeUninspectable: Bool = false) -> [RunningProcess] {
+    public static func liveProcesses() -> [RunningProcess] {
+        liveProcesses(includeUninspectable: false)
+    }
+
+    public static func liveProcesses(includeUninspectable: Bool) -> [RunningProcess] {
         let capacity = Int(proc_listallpids(nil, 0)) + 64
         guard capacity > 64 else { return [] }
         var pids = [pid_t](repeating: 0, count: capacity)

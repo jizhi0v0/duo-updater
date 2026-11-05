@@ -116,8 +116,11 @@ struct AutomaticInstallTests {
             let process = Process()
             process.executableURL = helper
             process.arguments = ["30"]
+            let exited = DispatchSemaphore(value: 0)
+            process.terminationHandler = { _ in exited.signal() }
             try process.run()
-            defer { process.terminate(); process.waitUntilExit() }
+            // The exchange-side callback runs on Dispatch, not the cooperative pool.
+            defer { process.terminate(); exited.wait() }
             // Process.run can return before exec has made the helper path visible.
             var observed = false
             for _ in 0..<100 {

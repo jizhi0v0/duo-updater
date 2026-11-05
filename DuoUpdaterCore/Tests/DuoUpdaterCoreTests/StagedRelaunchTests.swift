@@ -99,6 +99,77 @@ import Testing
             app, staged: staged, old: old, wasFrontmost: false, system: system(w))
     }
 
+    /// A readable NEW staged version and a live installer are not readiness:
+    /// Sparkle 2.9.1 aborts if the host quits before preparation/registration.
+    @Test func anUnpreparedSparkleUpdateDoesNotQuitTheHost() async {
+        let w = World(disk: old, new: new)
+        var system = system(w)
+        system.sparkleInstallationReady = { false }
+        let ending = await StagedRelaunch.quitAndAwait(
+            app, staged: staged(.sparkle), old: old, wasFrontmost: false, system: system)
+        #expect(!w.terminated)
+        #expect(!ending.everQuit)
+        #expect(w.launches.isEmpty)
+        #expect(ending.outcome == .preparingUpdate)
+    }
+
+    @Test func sparkleReadinessIsReadBeforeSendingQuit() async {
+        let w = World(disk: old, new: new)
+        w.landsAt = 3
+        var system = system(w)
+        system.sparkleInstallationReady = {
+            #expect(!w.terminated)
+            w.jobGoneAt = 100 // observable proof this check was reached
+            return true
+        }
+        let ending = await StagedRelaunch.quitAndAwait(
+            app, staged: staged(.sparkle), old: old, wasFrontmost: false, system: system)
+        #expect(w.jobGoneAt == 100)
+        #expect(w.terminated)
+        #expect(ending.outcome == .applied)
+    }
+
+    @Test func aNonSparkleRelaunchDoesNotAskSparkle() async {
+        let w = World(disk: old, new: new)
+        w.landsAt = 3
+        var system = system(w)
+        system.sparkleInstallationReady = { Issue.record("Squirrel must not ask Sparkle"); return false }
+        let ending = await StagedRelaunch.quitAndAwait(
+            app, staged: staged(.shipIt), old: old, wasFrontmost: false, system: system)
+        #expect(ending.outcome == .applied)
+    }
+
+    @Test func unreadableSparkleStagingStillNeedsPreparation() async {
+        let w = World(disk: old, new: new)
+        var system = system(w)
+        system.sparkleInstallationReady = { false }
+        let sparkleApp = InstalledApp(
+            name: app.name, bundleID: app.bundleID, shortVersion: app.shortVersion,
+            buildVersion: app.buildVersion, path: app.path, isMASApp: false,
+            sparkleFeedURL: nil, hasSparkleUpdater: true)
+        let ending = await StagedRelaunch.quitAndAwait(
+            sparkleApp, staged: nil, old: old, wasFrontmost: false, system: system)
+        #expect(!w.terminated)
+        #expect(ending.outcome == .preparingUpdate)
+    }
+
+    @Test func cancellationDuringPreparationCheckStillQuitsNothing() async {
+        let w = World(disk: old, new: new)
+        var system = system(w)
+        system.sparkleInstallationReady = {
+            withUnsafeCurrentTask { $0?.cancel() }
+            return true
+        }
+        let (app, old, staged, live) = (app, old, staged(.sparkle), system)
+        let ending = await Task {
+            await StagedRelaunch.quitAndAwait(
+                app, staged: staged, old: old, wasFrontmost: false, system: live)
+        }.value
+        #expect(!w.terminated)
+        #expect(!ending.everQuit)
+        #expect(w.launches.isEmpty)
+    }
+
     /// The quit is this route's point of no return (`InstallCommit`): a caller
     /// cancelled before it quits nothing, and the ending says the app never quit.
     /// Mutation: drop the commit → terminated, red.

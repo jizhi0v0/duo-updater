@@ -129,6 +129,54 @@ struct RetractableNoteTests {
         #expect(ids == [noTunes])
     }
 
+    /// A rollout may offer the installed version while Sparkle has already
+    /// unpacked a newer one. The row still offers Relaunch, so its preparing
+    /// feedback must survive the refresh immediately after the click.
+    @Test func aNewerStagedUpdateKeepsPreparingFeedbackDespiteAnUpToDateFeed() {
+        let staged = StagedSelfUpdate(
+            version: "2.0", buildVersion: "2", stagedBundlePath: URL(fileURLWithPath: "/ZZFixture/staged.app"),
+            updater: .sparkle)
+        let ids = UpdatePolicy.retractableNoteIDs(
+            notes: [noTunes: Self.opened], writtenByUs: [noTunes: Self.opened],
+            results: [row(noTunes, .upToDate)], installing: [], stagedSelfUpdates: [noTunes: staged])
+        #expect(ids.isEmpty)
+    }
+
+    @Test func landedOrDisappearedStagingDoesNotKeepPreparingFeedback() {
+        let staged = StagedSelfUpdate(
+            version: "1.0", buildVersion: "1", stagedBundlePath: URL(fileURLWithPath: "/ZZFixture/staged.app"),
+            updater: .sparkle)
+        for staging in [[noTunes: staged], [:]] {
+            let ids = UpdatePolicy.retractableNoteIDs(
+                notes: [noTunes: Self.opened], writtenByUs: [noTunes: Self.opened],
+                results: [row(noTunes, .upToDate)], installing: [], stagedSelfUpdates: staging)
+            #expect(ids == [noTunes])
+        }
+    }
+
+    /// With no readable staged version and no remote update, RowAction removes
+    /// Relaunch. Its old retry instruction must disappear with that action.
+    @Test func versionlessStagingWithoutARelaunchRetractsPreparingFeedback() {
+        #expect(RowAction.state(for: RowActionFacts(
+            status: .upToDate, hasArmedSelfInstaller: true)) == .upToDate(channel: .none))
+        let ids = UpdatePolicy.retractableNoteIDs(
+            notes: [noTunes: Self.opened], writtenByUs: [noTunes: Self.opened],
+            results: [row(noTunes, .upToDate)], installing: [],
+            stagedSelfUpdates: [:])
+        #expect(ids == [noTunes])
+    }
+
+    @Test func versionlessStagingStillOfferingRelaunchKeepsPreparingFeedback() {
+        #expect(RowAction.state(for: RowActionFacts(
+            status: .updateAvailable(latest: "2.0"), hasArmedSelfInstaller: true))
+            == .relaunchToApplyStaged(to: nil))
+        let ids = UpdatePolicy.retractableNoteIDs(
+            notes: [noTunes: Self.opened], writtenByUs: [noTunes: Self.opened],
+            results: [row(noTunes, .updateAvailable(latest: "2.0"))], installing: [],
+            stagedSelfUpdates: [:])
+        #expect(ids.isEmpty)
+    }
+
     @Test func aNoteNobodyRegisteredIsNeverRetracted() {
         // `backupCurrent`'s warning: no registry entry, so it stands even though
         // the row is as settled as a row gets.

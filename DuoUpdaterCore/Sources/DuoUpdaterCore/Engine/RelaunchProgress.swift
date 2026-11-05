@@ -195,6 +195,8 @@ public enum RelaunchProgress {
 /// updater never swapped the bundle is the same kind of failure from where the
 /// user sits (they clicked, their app closed, nothing got newer).
 public enum StagedRelaunchOutcome: Sendable, Equatable {
+    /// Sparkle has not confirmed preparation. No quit was sent; retry later.
+    case preparingUpdate
     /// Disk moved past the version installed when we asked for the quit.
     case applied
     /// The app never went down (a save prompt, a sign-in sheet). Not a failure

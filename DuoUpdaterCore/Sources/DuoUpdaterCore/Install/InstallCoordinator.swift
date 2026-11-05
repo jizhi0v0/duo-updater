@@ -495,6 +495,13 @@ public actor InstallCoordinator {
         // and nothing changed" impossible to answer after the fact — the only
         // evidence was the app's own mtime. `.notice`, so it is still readable when
         // the report arrives hours later.
+        if AutomaticInstall.active {
+            try await AutomaticInstall.checkPermission()
+            guard AutomaticInstall.supports(route) else {
+                throw AutomaticInstall.Deferred("Automatic update requires an interactive installer.")
+            }
+            try AutomaticInstall.check(result.app)
+        }
         let label = "\(result.app.name) [\(result.app.bundleID ?? "?")]"
         // `canAutoInstall` is the offer; this is the gate, for every route, before
         // anything is touched (`OneClickGate`). Fresh: an `.executableContains`
@@ -887,7 +894,9 @@ public actor InstallCoordinator {
         // extracting and a wait for the administrator panel all come between
         // here and there. See `InPlaceSwap.preExchangeCheck`.
         let processes = runningProcesses
+        let automatic = AutomaticInstall.active
         try await InPlaceSwap.$preExchangeCheck.withValue({
+            try AutomaticInstall.$active.withValue(automatic) { try AutomaticInstall.check(result.app) }
             try NestedAppGuard.check(result.app.path, appName: result.app.name, processes: processes)
         }) {
             try await apply(result, downloaded, progress)
@@ -923,7 +932,7 @@ public actor InstallCoordinator {
     /// it: the swap has happened, and an agent left on the old code is the
     /// state this exists to prevent. Its waits are bounded (about 15 s).
     private func restartLoginItemAgents(_ snapshot: [LoginItemAgentRestart.Agent]) async -> [String] {
-        guard snapshot.contains(where: { !$0.processes.isEmpty }) else { return [] }
+        guard !AutomaticInstall.active, snapshot.contains(where: { !$0.processes.isEmpty }) else { return [] }
         let processes = agentProcesses, signal = signalAgent, jobPID = agentJobPID
         let results = await Task {
             await LoginItemAgentRestart.restart(

@@ -303,6 +303,10 @@ final class Preferences {
     /// badge for a second click. Uses the same graceful quit as the manual button
     /// (honors save prompts; a refused/blocked quit just leaves the badge), so it
     /// never force-kills or loses unsaved work. Default ON — an opt-out convenience.
+    var automaticUpdates: Bool {
+        didSet { defaults.set(automaticUpdates, forKey: "AutomaticUpdates") }
+    }
+
     var autoRestartAfterUpdate: Bool {
         didSet { defaults.set(autoRestartAfterUpdate, forKey: Key.autoRestartAfterUpdate) }
     }
@@ -652,6 +656,7 @@ final class Preferences {
             versions: NotifiedUpdateVersions(
                 persisted: defaults.dictionary(forKey: Key.notifiedHomebrewVersions) ?? [:]),
             seeded: defaults.bool(forKey: Key.homebrewNotificationBaselineSeeded))
+        self.automaticUpdates = defaults.bool(forKey: "AutomaticUpdates")
         self.autoRestartAfterUpdate = defaults.object(forKey: Key.autoRestartAfterUpdate) as? Bool ?? true
         self.hideDockIcon = defaults.object(forKey: Key.hideDockIcon) as? Bool ?? true
         self.showRuntimeTags = defaults.object(forKey: Key.showRuntimeTags) as? Bool ?? true

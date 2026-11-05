@@ -411,7 +411,11 @@ public enum InPlaceSwap {
         // The completion flag matters: a bare `defer` would announce the same line
         // whether the swap worked or threw, and "it said it finished" that means
         // nothing either way is the exact ambiguity this is here to remove.
+        try await AutomaticInstall.checkPermission()
         let elevated = needsElevatedReplace(target: target)
+        if AutomaticInstall.active && elevated {
+            throw AutomaticInstall.Deferred("Automatic update needs administrator authorization.")
+        }
         var replaced = false
         // The bundle's identity before we touch it. `fileExists` cannot answer the
         // question the failure branch asks: after a successful replacement the path
@@ -513,10 +517,11 @@ public enum InPlaceSwap {
             // caller reached `replace` through `offCooperativePool`) is gone now
             // that the child processes around it are awaited, so this segment
             // takes its own. See `offCooperativePool`.
+            let check = preExchangeCheck
             let outcome = try await offCooperativePool(qos: .userInitiated) {
                 try exchangeUnprivileged(
                     newApp: newApp, over: target,
-                    identityTarget: identityTarget, identityBefore: identityBefore)
+                    identityTarget: identityTarget, identityBefore: identityBefore, check: check)
             }
             replaced = true
             if case .replacedButCleanupFailed(let reason) = outcome { cleanupFailure = reason }
@@ -902,7 +907,8 @@ public enum InPlaceSwap {
     /// `.replaced`, or `.replacedButCleanupFailed` when the exchange landed and its
     /// cleanup threw; throws when the bundle on disk is unchanged.
     private static func exchangeUnprivileged(
-        newApp: URL, over target: URL, identityTarget: URL, identityBefore: UInt64?
+        newApp: URL, over target: URL, identityTarget: URL, identityBefore: UInt64?,
+        check: (@Sendable () throws -> Void)?
     ) throws -> SwapOutcome {
         let fm = FileManager.default
         let parent = target.deletingLastPathComponent()
@@ -913,6 +919,7 @@ public enum InPlaceSwap {
         try? fm.removeItem(at: staged)
         try fm.moveItem(at: newApp, to: staged)
         do {
+            try check?()
             _ = try fm.replaceItemAt(target, withItemAt: staged, backupItemName: nil, options: [])
         } catch {
             // What actually went wrong, before it is folded into one of two

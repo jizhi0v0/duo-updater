@@ -16,6 +16,14 @@ def labels(pr):
     return {label["name"] for label in pr.get("labels", [])}
 
 
+def was_managed(repo, number, read=None):
+    """Use GitHub's paginated label history as the sticky-route record."""
+    events = (read or api)(f"repos/{repo}/issues/{number}/events?per_page=100")
+    return any(event.get("event") == "labeled"
+               and event.get("label", {}).get("name") == MANAGED
+               for event in events)
+
+
 def is_scan_state(pr, repo, read=None):
     if not nightly_files(pr, repo):
         return False
@@ -32,9 +40,15 @@ def is_scan_state(pr, repo, read=None):
 
 
 def set_route(repo, number, pr, data_only):
-    desired, other = (DATA_ONLY, MANAGED) if data_only else (MANAGED, DATA_ONLY)
     present = labels(pr)
+    # Managed always wins, even if it appeared after the caller's comparison.
+    # A stale data-only verdict must never delete the sticky managed route.
+    if data_only and MANAGED in present:
+        data_only = False
+    desired, other = (DATA_ONLY, MANAGED) if data_only else (MANAGED, DATA_ONLY)
     # Change only our two routing labels, preserving holds and human labels.
+    # On the data-only path MANAGED cannot be in this snapshot, so a later
+    # concurrent addition is left intact rather than deleted.
     if other in present:
         subprocess.run(["gh", "api", "--method", "DELETE",
                         f"repos/{repo}/issues/{number}/labels/{other}"],
@@ -66,6 +80,10 @@ def main():
     # even though the live label is already absent. Restore that route instead
     # of allowing the same PR to downgrade to data-only.
     data_only = args.removed_label != MANAGED and is_scan_state(pr, args.repo)
+    # The unlabeled run can be cancelled by a later event in this workflow's
+    # concurrency group. GitHub's label event history survives that cancellation.
+    if data_only and was_managed(args.repo, args.pr):
+        data_only = False
     current = api(f"repos/{args.repo}/pulls/{args.pr}")
     if current["state"] != "open" or current["head"]["sha"] != args.head:
         print("PR changed while classifying; routing unchanged.")

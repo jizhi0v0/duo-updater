@@ -30,7 +30,7 @@ class Routing(unittest.TestCase):
         self.assertEqual(json.loads(write.call_args.kwargs["input"]), {"labels": [router.MANAGED]})
 
     def test_pure_scan_gets_only_the_informational_data_label(self):
-        api, write = self.run_with([SCAN, DIFF, SCAN])
+        api, write = self.run_with([SCAN, DIFF, [], SCAN])
         self.assertEqual(api.call_args_list[1].args[0], f"repos/o/r/compare/{BASE}...{HEAD}")
         self.assertEqual(write.call_count, 1)
         self.assertEqual(json.loads(write.call_args.kwargs["input"]), {"labels": [router.DATA_ONLY]})
@@ -51,10 +51,22 @@ class Routing(unittest.TestCase):
         self.assertNotIn("/compare/", str(api.call_args_list))
         write.assert_not_called()
 
+    def test_paginated_label_history_survives_a_cancelled_unlabeled_run(self):
+        pr = {**SCAN, "labels": [{"name": router.DATA_ONLY}, {"name": "needs-real-machine"}]}
+        events = [{"event": "labeled", "label": {"name": router.MANAGED}}]
+        api, write = self.run_with([pr, DIFF, events, pr])
+        self.assertEqual(api.call_args_list[2].args[0],
+                         "repos/o/r/issues/7/events?per_page=100")
+        self.assertEqual(write.call_count, 2)
+        self.assertTrue(write.call_args_list[0].args[0][-1].endswith("/labels/" + router.DATA_ONLY))
+        self.assertEqual(json.loads(write.call_args_list[1].kwargs["input"]),
+                         {"labels": [router.MANAGED]})
+        self.assertNotIn("needs-real-machine", str(write.call_args_list))
+
     def test_managed_added_while_classifying_prevents_a_stale_downgrade(self):
         pr = {**SCAN, "labels": [{"name": router.DATA_ONLY}, {"name": "needs-real-machine"}]}
         current = {**SCAN, "labels": pr["labels"] + [{"name": router.MANAGED}]}
-        api, write = self.run_with([pr, DIFF, current])
+        api, write = self.run_with([pr, DIFF, [], current])
         self.assertEqual(api.call_count, 3)
         self.assertEqual(write.call_count, 1)
         self.assertTrue(write.call_args.args[0][-1].endswith("/labels/" + router.DATA_ONLY))
@@ -71,28 +83,28 @@ class Routing(unittest.TestCase):
 
     def test_already_classified_events_do_not_write_labels_again(self):
         pr = {**SCAN, "labels": [{"name": router.DATA_ONLY}]}
-        _, write = self.run_with([pr, DIFF, pr])
+        _, write = self.run_with([pr, DIFF, [], pr])
         write.assert_not_called()
 
     def test_closed_or_superseded_heads_cannot_change_labels(self):
         for pr in [{**PR, "state": "closed"}, {**PR, "head": {**PR["head"], "sha": BASE}}]:
             _, write = self.run_with([pr])
             write.assert_not_called()
-        api, write = self.run_with([SCAN, DIFF, {**SCAN, "head": {**SCAN["head"], "sha": BASE}}])
+        api, write = self.run_with([SCAN, DIFF, [], {**SCAN, "head": {**SCAN["head"], "sha": BASE}}])
         self.assertEqual(api.call_count, 3)
         write.assert_not_called()
 
     def test_changed_comparison_metadata_prevents_label_writes(self):
         with self.assertRaises(ValueError):
-            self.run_with([SCAN, DIFF, {**SCAN, "changed_files": 2}])
+            self.run_with([SCAN, DIFF, [], {**SCAN, "changed_files": 2}])
 
     def test_unrelated_repo_metadata_does_not_invalidate_a_fixed_comparison(self):
         current = {**SCAN, "base": {**SCAN["base"], "repo": {"pushed_at": "now"}}}
-        _, write = self.run_with([SCAN, DIFF, current])
+        _, write = self.run_with([SCAN, DIFF, [], current])
         self.assertEqual(write.call_count, 1)
 
     def test_preview_does_not_apply_labels(self):
-        _, write = self.run_with([SCAN, DIFF, SCAN], apply=False)
+        _, write = self.run_with([SCAN, DIFF, [], SCAN], apply=False)
         write.assert_not_called()
 
 

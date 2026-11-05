@@ -147,7 +147,12 @@ backups are disabled. A backup failure stops the update. Backups protect the app
 bundle, not its documents, settings or databases. Confirmation-gated upgrades,
 ignored apps and skipped versions remain excluded. The Network window's Events
 tab shows automatic starts, deferrals and outcomes; `duo events` exports the same
-records. Successful install records also carry `automatic: true`.
+records. Activity uses the shared SQLite database but has an independent 90-day,
+10,000-record retention window; request-log clearing and size trimming preserve it.
+The Events tab displays the latest 200 records and can clear activity separately.
+Successful install records also carry `automatic: true` and remain in the permanent
+install ledger. The 64 MiB database target is soft, not a hard limit on that ledger
+or the separately retained automatic activity.
 
 ## Install safety
 

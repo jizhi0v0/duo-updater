@@ -3,6 +3,7 @@ import DuoUpdaterCore
 
 struct AutomaticUpdateEventsPane: View {
     @State private var events: [DuoEvent] = []
+    @State private var confirmsClear = false
 
     private func statusLabel(_ status: String?) -> String {
         switch status {
@@ -35,6 +36,24 @@ struct AutomaticUpdateEventsPane: View {
                     .textSelection(.enabled)
                 }
             }
+        }
+        .safeAreaInset(edge: .bottom) {
+            HStack {
+                Text("Activity is kept for 90 days, up to 10,000 records. Showing the latest 200.")
+                    .font(.caption).foregroundStyle(.secondary)
+                Spacer()
+                Button("Clear activity…") { confirmsClear = true }
+            }.padding()
+        }
+        .confirmationDialog("Clear automatic update activity?", isPresented: $confirmsClear) {
+            Button("Clear activity", role: .destructive) {
+                Task {
+                    await EventStore.shared.resetAutomaticUpdates()
+                    events = await EventStore.shared.events(.init(kind: "automaticUpdate", limit: 200))
+                }
+            }
+        } message: {
+            Text("Request logs and permanent install history will be kept.")
         }
         .task {
             while !Task.isCancelled {

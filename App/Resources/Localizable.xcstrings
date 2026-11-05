@@ -1,6 +1,61 @@
 {
   "sourceLanguage": "en",
   "strings": {
+  "Activity is kept for 90 days, up to 10,000 records. Showing the latest 200.": {
+    "extractionState": "manual",
+    "localizations": {
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "活动保留 90 天，最多 10,000 条。当前显示最近 200 条。"
+        }
+      }
+    }
+  },
+  "Clear activity…": {
+    "extractionState": "manual",
+    "localizations": {
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "清空活动…"
+        }
+      }
+    }
+  },
+  "Clear automatic update activity?": {
+    "extractionState": "manual",
+    "localizations": {
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "清空自动更新活动？"
+        }
+      }
+    }
+  },
+  "Clear activity": {
+    "extractionState": "manual",
+    "localizations": {
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "清空活动"
+        }
+      }
+    }
+  },
+  "Request logs and permanent install history will be kept.": {
+    "extractionState": "manual",
+    "localizations": {
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "请求日志和永久安装历史将予以保留。"
+        }
+      }
+    }
+  },
   "Automatically update closed apps": {
     "extractionState": "manual",
     "localizations": {

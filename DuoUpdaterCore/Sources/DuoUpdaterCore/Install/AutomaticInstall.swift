@@ -52,7 +52,7 @@ public enum AutomaticInstall {
         let prefix = bundle.resolvingSymlinksInPath().path + "/"
         return processes.contains {
             [$0.executablePath, $0.launchedPath].compactMap { $0 }.contains {
-                $0.hasPrefix(prefix)
+                NestedAppGuard.resolvedPath($0).hasPrefix(prefix)
             }
         }
     }

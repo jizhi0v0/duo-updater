@@ -100,11 +100,33 @@ struct AutomaticInstallTests {
         }
         let marker = target.appendingPathComponent("Contents/original")
         try Data("old".utf8).write(to: marker)
+        let helper = target.appendingPathComponent("Contents/helper")
+        try FileManager.default.copyItem(at: URL(fileURLWithPath: "/bin/sleep"), to: helper)
+        let signed = try await ChildProcess.run("/usr/bin/codesign", ["--force", "--sign", "-", helper.path],
+                                                standardOutput: .discard, standardError: .discard,
+                                                onCancel: .runToCompletion)
+        try #require(signed.succeeded)
+        let app = InstalledApp(name: "Test", bundleID: nil, shortVersion: nil,
+                               buildVersion: nil, path: target, isMASApp: false, sparkleFeedURL: nil)
+        #expect(!AutomaticInstall.hasRunningProcess(at: target, processes: NestedAppGuard.liveProcesses()))
         await InPlaceSwap.$preExchangeCheck.withValue({
             // Source moved: this guard must run after staging, not at replace entry.
             #expect(!FileManager.default.fileExists(
                 atPath: incoming.appendingPathComponent("Contents").path))
-            throw AutomaticInstall.Deferred("A helper started while staging.")
+            let process = Process()
+            process.executableURL = helper
+            process.arguments = ["30"]
+            try process.run()
+            defer { process.terminate(); process.waitUntilExit() }
+            // Process.run can return before exec has made the helper path visible.
+            var observed = false
+            for _ in 0..<100 {
+                observed = AutomaticInstall.hasRunningProcess(at: target, processes: NestedAppGuard.liveProcesses())
+                if observed { break }
+                Thread.sleep(forTimeInterval: 0.01)
+            }
+            try #require(observed, "The real helper must be visible before testing its guard")
+            try AutomaticInstall.$active.withValue(true) { try AutomaticInstall.check(app) }
         }) {
             await #expect(throws: AutomaticInstall.Deferred.self) {
                 try await InPlaceSwap.rotateContents(newApp: incoming, over: target)

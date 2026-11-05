@@ -107,6 +107,8 @@ public final class RefreshLane<Plan: Sendable> {
     private let passTimeout: Duration
     private let clock: @MainActor () -> ContinuousClock.Instant
     private var running: Task<Void, Never>?
+    private var activePasses = 0
+    private var completedCallbacks: [@MainActor () async -> Void] = []
     /// When the last pass's work finished, late ones included.
     private var lastPassFinished: ContinuousClock.Instant?
     /// Triggers not yet decided.
@@ -149,8 +151,10 @@ public final class RefreshLane<Plan: Sendable> {
         await enqueue(trigger, afterPass: nil)
     }
 
-    /// Runs only after this trigger's actual work completes, even if the caller
-    /// stopped waiting at passTimeout. A skipped trigger runs no callback.
+    /// Runs after actual work completes and all refresh passes/queued triggers
+    /// settle, including passes left running at passTimeout. New triggers queue
+    /// behind callbacks, so a callback may suspend without a refresh overlapping.
+    /// A skipped trigger runs no callback. Callbacks must not await this lane.
     public func handle(
         _ trigger: RefreshTrigger, afterPass: @escaping @MainActor () async -> Void
     ) async {
@@ -167,17 +171,32 @@ public final class RefreshLane<Plan: Sendable> {
             await running.value
             return
         }
+        await startDrainingIfNeeded()?.value
+    }
+
+    /// The same worker owns refresh decisions and idle callbacks. Late work only
+    /// queues callbacks; it cannot execute them beside a follow-up pass.
+    @discardableResult
+    private func startDrainingIfNeeded() -> Task<Void, Never>? {
+        if let running { return running }
+        guard !queued.isEmpty || (activePasses == 0 && !completedCallbacks.isEmpty) else { return nil }
         let task = Task { @MainActor in
-            while !queued.isEmpty {
-                await pass()
+            while true {
+                if !queued.isEmpty {
+                    await pass()
+                } else if activePasses == 0 && !completedCallbacks.isEmpty {
+                    let callbacks = completedCallbacks
+                    completedCallbacks = []
+                    for callback in callbacks { await callback() }
+                } else {
+                    break
+                }
             }
-            // Cleared inside the task, before `value` resolves, and with no
-            // await since the last `queued` check: a trigger can neither find a
-            // finished task here nor slip in between the check and this line.
+            // No suspension between the final queue check and clearing ownership.
             running = nil
         }
         running = task
-        await task.value
+        return task
     }
 
     /// Decide every queued trigger, then run their merged plan if any said run.
@@ -204,10 +223,13 @@ public final class RefreshLane<Plan: Sendable> {
         guard let plan else { return }
         let started = clock()
         let names = answering.map(\.description).joined(separator: ", ")
+        activePasses += 1
         let pass = Task { @MainActor in
             await work(plan)
             lastPassFinished = clock()
-            for completion in completions { await completion() }
+            activePasses -= 1
+            completedCallbacks.append(contentsOf: completions)
+            startDrainingIfNeeded()
         }
         if await Self.finishes(pass, within: passTimeout) {
             let took = Log.seconds(clock() - started)

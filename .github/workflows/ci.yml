@@ -78,6 +78,8 @@ jobs:
   # benchmark's harness and results, which no build or test reads); then the
   # three macOS jobs are skipped and `test` below accepts that. `pull-requests:
   # read` to list the pull request's files.
+  # Pure nightly scan state uses a trusted classifier and Linux data validation
+  # instead, including the protected-main push of the verified merged scan PR.
   route:
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -86,8 +88,9 @@ jobs:
       contents: read
       pull-requests: read
     outputs:
-      runner: ${{ steps.pick.outputs.runner }}
+      runner: ${{ steps.pick.outputs.runner || '"xcode-27"' }}
       bench_only: ${{ steps.bench.outputs.bench_only }}
+      nightly_only: ${{ steps.nightly.outputs.nightly_only }}
     steps:
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -95,8 +98,34 @@ jobs:
           sparse-checkout: scripts/ci_route.py
           sparse-checkout-cone-mode: false
 
+      - name: Check out trusted nightly classifier
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: trusted-nightly
+          persist-credentials: false
+          sparse-checkout: |
+            scripts/check_nightly_data.py
+            scripts/check_codex_review.py
+          sparse-checkout-cone-mode: false
+
+      - name: Only nightly scan state changed?
+        id: nightly
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NIGHTLY_HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: |
+          if [ -f trusted-nightly/scripts/check_nightly_data.py ]; then
+            python3 trusted-nightly/scripts/check_nightly_data.py >> "$GITHUB_OUTPUT"
+          else
+            # The introducing PR must pass full CI before this policy exists
+            # on the protected default branch.
+            echo "nightly_only=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Pick a runner
         id: pick
+        if: steps.nightly.outputs.nightly_only != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           SAME_REPO_PR: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
@@ -106,9 +135,10 @@ jobs:
 
       # Not `paths-ignore`: a workflow skipped by a path filter leaves the
       # required `test` check pending, which blocks the merge. Pull requests
-      # only; a push to main always runs everything.
+      # only. A verified nightly-state push uses the data path separately.
       - name: Only bench/ changed?
         id: bench
+        if: steps.nightly.outputs.nightly_only != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.number }}
@@ -132,7 +162,7 @@ jobs:
   # cost nothing either way; the price is up to three macOS runners per push.
   swift:
     needs: route
-    if: needs.route.outputs.bench_only != 'true'
+    if: needs.route.outputs.bench_only != 'true' && needs.route.outputs.nightly_only != 'true'
     runs-on: ${{ github.event.pull_request.head.repo.full_name != github.repository && 'xcode-27' || fromJSON(needs.route.outputs.runner) }}
     # Core's suite reaches vendor endpoints (the install gates download real
     # packages and verify sha512 + Team ID), so it is slower and less predictable
@@ -294,7 +324,7 @@ jobs:
 
   app:
     needs: route
-    if: needs.route.outputs.bench_only != 'true'
+    if: needs.route.outputs.bench_only != 'true' && needs.route.outputs.nightly_only != 'true'
     runs-on: ${{ github.event.pull_request.head.repo.full_name != github.repository && 'xcode-27' || fromJSON(needs.route.outputs.runner) }}
     timeout-minutes: 45
     steps:
@@ -415,7 +445,7 @@ jobs:
 
   release:
     needs: route
-    if: needs.route.outputs.bench_only != 'true'
+    if: needs.route.outputs.bench_only != 'true' && needs.route.outputs.nightly_only != 'true'
     runs-on: ${{ github.event.pull_request.head.repo.full_name != github.repository && 'xcode-27' || fromJSON(needs.route.outputs.runner) }}
     timeout-minutes: 30
     steps:
@@ -528,6 +558,8 @@ jobs:
   # against. Runs on every event so `test` below never sees it skipped. Linux,
   # so it takes none of the five macOS slots.
   ifchange:
+    needs: route
+    if: needs.route.outputs.nightly_only != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -544,27 +576,54 @@ jobs:
             python3 scripts/check_ifchange.py
           fi
 
-  # The one check the `main` ruleset requires is named `test`, which was this
+  nightly-data:
+    needs: route
+    if: needs.route.outputs.nightly_only == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Check out trusted data validator
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+          sparse-checkout: |
+            scripts/check_nightly_data.py
+            scripts/check_codex_review.py
+          sparse-checkout-cone-mode: false
+      - name: Validate pinned scan data
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NIGHTLY_HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: python3 scripts/check_nightly_data.py --validate
+
+  # The one CI check the `main` ruleset requires is named `test`, which was this
   # workflow's only job. Rather than editing the ruleset, `test` is now the gate
   # over the jobs above. `always()`, not `!cancelled()`: a required check that is
   # SKIPPED counts as passing, so this must run — and fail — whenever any of
-  # them failed, was cancelled or did not run. The one exception is a pull
+  # them failed, was cancelled or did not run. One exception is a pull
   # request that only touches `bench/` (see `route`): there the three macOS
   # jobs are skipped on purpose, and only `route` and `ifchange` must pass.
+  # Pure nightly scan state instead requires route + nightly-data; only its
+  # four unrelated jobs may be skipped. Missing/failed validation never passes.
   test:
-    needs: [route, swift, app, release, ifchange]
+    needs: [route, swift, app, release, ifchange, nightly-data]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      - name: Check out CI result gate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: scripts/check_ci_results.py
+          sparse-checkout-cone-mode: false
       - name: All jobs passed
         env:
-          RESULTS: ${{ join(needs.*.result, ' ') }}
+          NEEDS: ${{ toJSON(needs) }}
           BENCH_ONLY: ${{ needs.route.outputs.bench_only }}
-        run: |
-          echo "route / swift / app / release / ifchange: $RESULTS (bench_only=$BENCH_ONLY)"
-          for r in $RESULTS; do
-            [ "$r" = success ] && continue
-            [ "$BENCH_ONLY" = true ] && [ "$r" = skipped ] && continue
-            exit 1
-          done
+          NIGHTLY_ONLY: ${{ needs.route.outputs.nightly_only }}
+        run: python3 scripts/check_ci_results.py

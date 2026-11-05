@@ -46,8 +46,18 @@ Owner-authored PRs from this same repository with timestamped branches
 review. The trusted gate compares immutable base/head commits, rejects other
 files, deletions, renames and incomplete file lists, then publishes
 `codex-review: success` with **Nightly scan state only; review not required**.
-It does not claim that Codex reviewed that head. CI, evidence gates and actual
-holds remain required. Code changes on a scan branch follow the normal rules.
+It does not claim that Codex reviewed that head. CI uses a Linux-only
+`nightly-data` job: strict JSON/duplicate-key checks, schema and field types,
+timestamps, nonnegative counters, URL digest format and preservation of existing
+installer trust/provenance fields. Data is read from immutable Git blobs without
+checking out or executing PR code. Valid pruning and observed version changes
+are allowed; the check does not re-run vendor probes or judge release ordering.
+The aggregate `test` check requires this validator to pass and allows the three
+Mac jobs and linked-code check to be skipped only for this classified path.
+The main push after merging the same scan PR also uses this path, after verifying
+its merged-PR association and complete before/after diff. Other pushes, dispatches,
+and scan branches with code changes keep full CI. Evidence gates and actual holds
+remain required.
 The cloud task leaves the producer's CI-gated auto-merge alone for these pure
 state PRs and does not convert them to draft or add code fixes to scan data.
 
@@ -57,7 +67,8 @@ classify them; `AGENTS.md` guidance alone cannot prevent that trigger.
 
 The `main` ruleset requires:
 
-- `test`: the existing test jobs, plus `make test-release-build` in the App job.
+- `test`: the lightweight data validator above for pure scan-state updates;
+  otherwise the existing test jobs, plus `make test-release-build` in the App job.
   This compiles both shipping schemes in Release with signing disabled and
   committed dependency pins. It does not install, sign or notarize a release.
 - `codex-review`: a verified nightly-state exemption, or an explicit clean

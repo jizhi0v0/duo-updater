@@ -2,6 +2,11 @@
 
 ## Code Review Rules
 
+- Nightly scan state needs no code review: only owner-authored, same-repository
+  `verify/baseline-<YYYYMMDDTHHMMSSZ>` PRs modifying `verify/baseline.json`, or
+  `verify/install-<YYYYMMDDTHHMMSSZ>` PRs modifying `verify/identities.json`
+  and/or `verify/install-baseline.json`. Any other changed file, deletion or
+  rename follows the normal review rules, even on those branches.
 - Read [REVIEW.md](REVIEW.md) before reviewing. It contains the repository's
   blocking criteria and checks learned from previous defects.
 - Review the pull request's own diff against its merge base. Read surrounding
@@ -41,6 +46,15 @@ adversarial-review records remain separate requirements.
   Require a clean current-head Codex re-review, `test` (including App and CLI
   unsigned Release builds), `real-machine` and `adversarial-review` to pass.
   Do not enable auto-merge early while review or validation is outstanding.
+- For the pure nightly scan-state exception above, do not request a model
+  review, review the generated state, add recipe fixes, disable the producer's
+  auto-merge or convert its PR to draft. The trusted `codex-review` gate
+  publishes an explicit review-not-required status after checking the pinned
+  diff. Keep CI, evidence checks and genuine author/real-machine holds. If a
+  code fix is added, the normal review and merge rules apply again.
+- Official review is requested selectively by the cloud event task on each
+  non-exempt PR head. Check existing current-head receipts and requests first;
+  send `@codex review` once when missing, or once for a necessary retry.
 - When necessary real-machine validation is missing, apply `needs-real-machine`,
   explain the missing evidence and leave the PR open. Do not invent results or
   add an untrue opt-out. Remove the hold only after the required evidence exists.

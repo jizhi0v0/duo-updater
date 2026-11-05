@@ -4,7 +4,9 @@
 The required `codex-review` check holds ordinary auto-merge while the cloud
 review is running. A trusted pull_request_target workflow publishes the check
 on the PR head through a separate status-publisher App. No PR code or model runs.
-An unavailable or malformed receipt never passes. After a same-commit review
+Owner-authored nightly scan PRs changing only their generated state files are
+exempt after a pinned-diff check; their status explicitly says no review is needed.
+Other PRs with an unavailable or malformed receipt never pass. After a same-commit review
 retry, rerun this check; a pushed fix starts a new check automatically.
 """
 
@@ -19,6 +21,28 @@ import time
 BOT = "chatgpt-codex-connector[bot]"
 HEADER = "<!-- codex-pull-request-review-summary -->"
 RECEIPT = re.compile(r"<!-- codex-review-state:v1 (.*?) -->")
+NIGHTLY_FILES = {
+    "baseline": {"verify/baseline.json"},
+    "install": {"verify/identities.json", "verify/install-baseline.json"},
+}
+
+
+def nightly_files(pr, repo):
+    """Only the owner's same-repository, timestamped scan-state branches qualify."""
+    head = pr.get("head", {})
+    match = re.fullmatch(r"verify/(baseline|install)-[0-9]{8}T[0-9]{6}Z", head.get("ref", ""))
+    if (not match or (head.get("repo") or {}).get("full_name") != repo
+            or pr.get("user", {}).get("login") != repo.split("/")[0]):
+        return None
+    return NIGHTLY_FILES[match[1]]
+
+
+def is_nightly_state(pr, repo, files):
+    allowed = nightly_files(pr, repo)
+    return bool(allowed and files and type(pr.get("changed_files")) is int
+                and len(files) == pr["changed_files"]
+                and all(f.get("filename") in allowed and f.get("status") == "modified"
+                        and not f.get("previous_filename") for f in files))
 
 
 def verdict(comments, head):
@@ -72,6 +96,8 @@ def publish_status(args, state):
     description = {"pending": "Waiting for official Codex review",
                    "success": "Official Codex review is clean for this head",
                    "failure": "Review not approved; see the trusted gate run"}[state]
+    if state == "success" and getattr(args, "nightly_exempt", False):
+        description = "Nightly scan state only; review not required"
     for attempt in range(3):
         try:
             write_api(f"repos/{args.repo}/statuses/{args.head}",
@@ -97,7 +123,18 @@ def wait_for_review(args):
         if pr.get("draft"):
             state, reason = "pending", "Draft PRs are not ready for automatic merge."
         else:
-            state, reason = verdict(api(f"repos/{args.repo}/issues/{args.pr}/comments"), args.head)
+            if nightly_files(pr, args.repo):
+                # Bind the diff to immutable commits, not the PR files endpoint
+                # whose head can change while its response is being read.
+                base = pr.get("base", {}).get("sha", "")
+                if not re.fullmatch(r"[0-9a-f]{40}", base):
+                    raise ValueError("invalid nightly comparison base")
+                comparison = api(f"repos/{args.repo}/compare/{base}...{args.head}")
+                args.nightly_exempt = is_nightly_state(pr, args.repo, comparison.get("files", []))
+            if getattr(args, "nightly_exempt", False):
+                state, reason = "success", "Nightly scan state only; owner policy exempts code review."
+            else:
+                state, reason = verdict(api(f"repos/{args.repo}/issues/{args.pr}/comments"), args.head)
         print(reason, flush=True)
         if state == "success":
             # A review result read during a concurrent push must not approve
@@ -106,6 +143,10 @@ def wait_for_review(args):
             current = api(f"repos/{args.repo}/pulls/{args.pr}")
             return 0 if (current["state"] == "open" and not current.get("draft")
                          and current["head"]["sha"] == args.head
+                         and (not getattr(args, "nightly_exempt", False)
+                              or (nightly_files(current, args.repo) == nightly_files(pr, args.repo)
+                                  and current.get("base", {}).get("sha") == pr["base"]["sha"]
+                                  and current.get("changed_files") == pr.get("changed_files")))
                          and not any(label.get("name") == "needs-real-machine"
                                      for label in current.get("labels", []))) else 1
         if state == "failure" or time.monotonic() >= deadline:

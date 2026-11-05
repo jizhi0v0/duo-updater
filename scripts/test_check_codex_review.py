@@ -8,6 +8,18 @@ from unittest.mock import patch
 import check_codex_review as gate
 
 HEAD = "a" * 40
+BASE = "b" * 40
+
+
+def nightly_pr(kind="baseline"):
+    return {"state": "open", "draft": False, "user": {"login": "o"},
+            "head": {"sha": HEAD, "ref": f"verify/{kind}-20261105T010000Z",
+                     "repo": {"full_name": "o/r"}},
+            "base": {"sha": BASE}, "changed_files": 1}
+
+
+def changed(path, **extra):
+    return {"filename": path, "status": "modified", **extra}
 
 
 def receipt(head=HEAD, status="completed", findings=False, unresolved=False, **extra):
@@ -19,6 +31,74 @@ def receipt(head=HEAD, status="completed", findings=False, unresolved=False, **e
 
 
 class ReviewGate(unittest.TestCase):
+    def test_only_the_owners_timestamped_same_repo_scan_branches_qualify(self):
+        pr = nightly_pr()
+        self.assertTrue(gate.is_nightly_state(pr, "o/r", [changed("verify/baseline.json")]))
+        for candidate in [
+            {**pr, "user": {"login": "someone-else"}},
+            {**pr, "head": {**pr["head"], "repo": {"full_name": "fork/r"}}},
+            {**pr, "head": {**pr["head"], "repo": None}},
+            {**pr, "head": {**pr["head"], "ref": "verify/baseline-custom"}},
+            {**pr, "head": {**pr["head"], "ref": "feature/change"}},
+        ]:
+            self.assertFalse(gate.is_nightly_state(candidate, "o/r", [changed("verify/baseline.json")]))
+
+    def test_install_scan_may_change_one_or_both_state_files(self):
+        pr = nightly_pr("install")
+        files = [changed("verify/identities.json"), changed("verify/install-baseline.json")]
+        for subset in [files[:1], files[1:], files]:
+            self.assertTrue(gate.is_nightly_state({**pr, "changed_files": len(subset)}, "o/r", subset))
+
+    def test_extra_deleted_renamed_or_incomplete_files_prevent_the_exception(self):
+        pr = nightly_pr()
+        for files, count in [
+            ([], 0),
+            ([changed("verify/baseline.json"), changed("CLI/Sources/Example.swift")], 2),
+            ([changed("verify/identities.json")], 1),
+            ([changed("verify/baseline.json", status="removed")], 1),
+            ([changed("verify/baseline.json", status="renamed", previous_filename="code.swift")], 1),
+            ([changed("verify/baseline.json")], 2),
+            ([changed("verify/baseline.json")], True),
+        ]:
+            self.assertFalse(gate.is_nightly_state({**pr, "changed_files": count}, "o/r", files))
+
+    def test_scan_exception_uses_a_pinned_diff_without_requesting_a_review_receipt(self):
+        pr = nightly_pr()
+        with patch("sys.argv", self.publish_args()), \
+                patch.object(gate, "api", side_effect=[pr, {"files": [changed("verify/baseline.json")]}, pr]) as api, \
+                patch.object(gate, "write_api", return_value={}) as write:
+            self.assertEqual(gate.main(), 0)
+        self.assertEqual(api.call_args_list[1].args[0], f"repos/o/r/compare/{BASE}...{HEAD}")
+        self.assertEqual(api.call_count, 3)
+        self.assertEqual(write.call_args_list[-1].args[1]["description"],
+                         "Nightly scan state only; review not required")
+
+    def test_scan_exception_is_invalidated_by_a_push_or_changed_pr_metadata(self):
+        pr = nightly_pr()
+        for current in [
+            {**pr, "head": {**pr["head"], "sha": "c" * 40}},
+            {**pr, "base": {"sha": "c" * 40}},
+            {**pr, "changed_files": 2},
+            {**pr, "user": {"login": "someone-else"}},
+            {**pr, "draft": True},
+            {**pr, "labels": [{"name": "needs-real-machine"}]},
+        ]:
+            with patch("sys.argv", self.publish_args()), \
+                    patch.object(gate, "api", side_effect=[pr, {"files": [changed("verify/baseline.json")]}, current]), \
+                    patch.object(gate, "write_api", return_value={}) as write:
+                self.assertEqual(gate.main(), 1)
+            self.assertEqual(write.call_args_list[-1].args[1]["state"], "failure")
+
+    def test_scan_branch_with_code_still_requires_a_clean_review(self):
+        pr = {**nightly_pr(), "changed_files": 2}
+        files = [changed("verify/baseline.json"), changed("CLI/Sources/Example.swift")]
+        with patch("sys.argv", self.publish_args() + ["--timeout", "0"]), \
+                patch.object(gate, "api", side_effect=[pr, {"files": files}, []]) as api, \
+                patch.object(gate, "write_api", return_value={}) as write:
+            self.assertEqual(gate.main(), 1)
+        self.assertIn("issues/1/comments", api.call_args_list[-1].args[0])
+        self.assertEqual(write.call_args_list[-1].args[1]["state"], "failure")
+
     def test_only_an_explicit_clean_current_receipt_passes(self):
         self.assertEqual(gate.verdict([receipt()], HEAD)[0], "success")
         for comment in [receipt(head="b" * 40), receipt(status="running"),

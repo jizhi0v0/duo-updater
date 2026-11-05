@@ -9,9 +9,12 @@ Repository rules are in `AGENTS.md`, which directs reviewers to `REVIEW.md`.
 In [Codex Code Review settings](https://chatgpt.com/settings/code-review), select
 `jizhi0v0/duo-updater` and configure **Review code**:
 
-- Automatic review: on.
-- Review: All PRs, overriding personal preferences for this repository.
-- Trigger: On every push, so fixes receive another review.
+- Automatic review: off for this repository. The cloud event task requests
+  official reviews selectively, so nightly scan data does not consume review
+  quota. The integration remains connected and serves `@codex review` requests.
+- For each non-exempt PR head, the task requests a review once when no matching
+  running/completed receipt or request already exists. Pushed fixes get a new
+  review; the trusted gate still requires a clean current-head receipt.
 
 To request a review manually, comment `@codex review` on a pull request.
 Respond to findings with the fix or evidence for rejecting them before pushing
@@ -34,13 +37,32 @@ review, comment (including bot reviews) and commit-update events. It checks
 findings, pushes fixes and reads the Mac CI results. It follows `AGENTS.md`
 and leaves changes requiring missing real-machine evidence open.
 
+### Nightly scan state exception
+
+Owner-authored PRs from this same repository with timestamped branches
+`verify/baseline-YYYYMMDDTHHMMSSZ` may modify only `verify/baseline.json`;
+`verify/install-YYYYMMDDTHHMMSSZ` may modify only `verify/identities.json` and/or
+`verify/install-baseline.json`. These generated-state updates need no model
+review. The trusted gate compares immutable base/head commits, rejects other
+files, deletions, renames and incomplete file lists, then publishes
+`codex-review: success` with **Nightly scan state only; review not required**.
+It does not claim that Codex reviewed that head. CI, evidence gates and actual
+holds remain required. Code changes on a scan branch follow the normal rules.
+The cloud task leaves the producer's CI-gated auto-merge alone for these pure
+state PRs and does not convert them to draft or add code fixes to scan data.
+
+The official repository settings currently expose no branch exclusion. Keeping
+blanket automatic review on would still start reviews before the task could
+classify them; `AGENTS.md` guidance alone cannot prevent that trigger.
+
 The `main` ruleset requires:
 
 - `test`: the existing test jobs, plus `make test-release-build` in the App job.
   This compiles both shipping schemes in Release with signing disabled and
   committed dependency pins. It does not install, sign or notarize a release.
-- `codex-review`: an explicit clean official Codex receipt for the current PR
-  head. The trusted Linux job waits for that receipt and fails closed on
+- `codex-review`: a verified nightly-state exemption, or an explicit clean
+  official Codex receipt for the current PR head. For other PRs the trusted Linux
+  job waits for that receipt and fails closed on
   missing, stale, malformed or non-clean results. A pushed fix starts a new run;
   rerun this workflow after a same-head review retry. No model token is used.
   Its `pull_request_target` workflow and verifier come from the protected default

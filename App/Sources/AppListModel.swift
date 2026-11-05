@@ -136,9 +136,15 @@ final class AppListModel {
     /// it would let the registry outlive every text in it.
     private func pruneRetractedNotes() {
         guard !inFlightNotes.isEmpty else { return }
+        // Only a Relaunch note waits on staging. An unrelated installer note
+        // must still settle even if the app has staged another update meanwhile.
+        let waitingOnStaging = pendingSelfUpdate.filter { id, _ in
+            guard let note = inFlightNotes[id] else { return false }
+            return restartWontQuitNotes[id] == note
+        }
         for id in UpdatePolicy.retractableNoteIDs(
             notes: installNotes, writtenByUs: inFlightNotes,
-            results: results, installing: Set(installing.keys)
+            results: results, installing: Set(installing.keys), stagedSelfUpdates: waitingOnStaging
         ) {
             if let revert = relaunchRevertNotes[id], installNotes[id] == revert.busy.text {
                 // Same moment as the disk, not as the row: one `Info.plist` read,

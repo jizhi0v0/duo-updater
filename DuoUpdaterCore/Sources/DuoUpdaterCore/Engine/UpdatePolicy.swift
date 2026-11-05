@@ -914,11 +914,17 @@ public enum UpdatePolicy {
         notes: [String: String],
         writtenByUs inFlight: [String: String],
         results: [UpdateResult],
-        installing: Set<String>
+        installing: Set<String>,
+        stagedSelfUpdates: [String: StagedSelfUpdate] = [:]
     ) -> Set<String> {
         guard !inFlight.isEmpty else { return [] }
         let settled = settledRowIDs(inFlight.keys, results: results, installing: installing)
-        return settled.filter { notes[$0] == inFlight[$0] }
+        // The feed can roll back while a newer local build is being prepared.
+        // `.upToDate` then describes the feed, not the staged Relaunch action.
+        let stillStaged = Set(results.compactMap { result in
+            actionableStaged(result, staged: stagedSelfUpdates[result.id]) != nil ? result.id : nil
+        })
+        return settled.filter { notes[$0] == inFlight[$0] && !stillStaged.contains($0) }
     }
 
     /// The staged self-update that makes installing pointless right now, or nil.

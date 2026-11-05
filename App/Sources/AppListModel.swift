@@ -5682,8 +5682,13 @@ final class AppListModel {
             // remaining self-updating app in turn — most easily by switching the
             // policy mid-batch — and activating each one would fight the user for
             // focus repeatedly.
-            if !AutomaticInstall.active { openSelfUpdater(result, activating: !deferBookkeeping) }
             installing[id] = nil
+            if AutomaticInstall.active {
+                let reason = "Automatic update deferred: the app is running its own updater."
+                installNotes[id] = reason
+                return .deferred(reason: reason)
+            }
+            openSelfUpdater(result, activating: !deferBookkeeping)
             return .notInstalled
         }
 
@@ -5696,8 +5701,13 @@ final class AppListModel {
             for: result,
             route: InstallCoordinator.route(for: result, requiresInstaller: requiresInstaller(result))) {
             Log.install.notice("install refused: \(result.app.name, privacy: .public) — \(refused.blockers.map { "\($0.name) pid \($0.pid)" }.joined(separator: ", "), privacy: .public) running from inside it")
-            installErrors[id] = refused.errorDescription
             installing[id] = nil
+            if AutomaticInstall.active {
+                let reason = refused.localizedDescription
+                installNotes[id] = reason
+                return .deferred(reason: reason)
+            }
+            installErrors[id] = refused.errorDescription
             return .notInstalled
         }
 
@@ -5770,7 +5780,7 @@ final class AppListModel {
             // A batch sweeps once after its loop instead.
             if !deferBookkeeping { await computeSelfUpdateStaging() }
             installing[id] = nil
-            return .notInstalled
+            return AutomaticInstall.active ? .deferred(reason: note) : .notInstalled
         }
 
         // An installer parked on this app's quit whose staged build was deleted
@@ -5824,7 +5834,7 @@ final class AppListModel {
             // installer so the row offers its version-less Relaunch.
             if !deferBookkeeping { await computeSelfUpdateStaging() }
             installing[id] = nil
-            return .notInstalled
+            return AutomaticInstall.active ? .deferred(reason: note) : .notInstalled
         }
 
         if let inFlight = SelfUpdaterStaging.inFlightDownload(for: result.app) {
@@ -5833,7 +5843,7 @@ final class AppListModel {
             installNotes[id] = note
             inFlightNotes[id] = note
             installing[id] = nil
-            return .notInstalled
+            return AutomaticInstall.active ? .deferred(reason: note) : .notInstalled
         }
 
         // Back up the current bundle first (when enabled) so this update can be

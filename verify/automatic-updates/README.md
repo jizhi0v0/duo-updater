@@ -2,7 +2,7 @@
 
 Safety baseline production code reviewed and tested: `ba72046b6c8289e0e9b16559f7e80ab892f827e0`.
 
-## Subsequent deferral classification fix
+## Deferral classification fix validated at `97e8d38b`
 
 The subsequent fix keeps `AutomaticInstall.Deferred` distinct through the app's
 install outcome and records `deferred`, retaining its reason. Expected refusals
@@ -16,7 +16,7 @@ eligibility, existing-installer and complete-backup guards use the same outcome.
 - After stopping the test helper, another scheduled check updated 0.0.1459 →
   0.0.1488, with automatic=true and no failure events; strict signature
   verification passed. Test automatic settings were removed afterwards.
-- Final-source VMPal safety/event/scheduler suites: 57/57 passed.
+- VMPal safety/event/scheduler suites at that revision: 57/57 passed.
 - [Raw real-app refusal and recovery results](vm-deferral-result.txt).
 - Local author-run adversarial follow-up: traced every automatic guard return,
   typed error propagation through coordinator and app catches, and the
@@ -24,6 +24,22 @@ eligibility, existing-installer and complete-backup guards use the same outcome.
   cannot be counted as an installed app. No exchange/backup permission was
   relaxed. The real-app probe caught an initially missed early return; that
   attempt was corrected and rerun, not counted as passing.
+
+## Post-preflight refusal follow-up
+
+Review found that the later self-updater/nested-helper refusals still returned
+`notInstalled`. These now return `deferred` with a reason for automatic work;
+manual behavior is preserved. The neighboring staged, unreadable-staging and
+in-flight self-update collision branches now preserve their existing notes as
+deferral reasons as well. These changes only classify already-refused attempts:
+process/backup/permission decisions and exchange code are unchanged.
+
+Host `make test-app`: 326/326, localization 1,248 keys. Local author-run review
+traced both process-refusal branches and all neighboring staging returns, checked
+that automatic branches neither open apps nor populate failure errors, and
+verified the manual returns remain unchanged. The specific launch-between-checks
+race was inspected in code, not reproduced deterministically in the VM; the
+97e8d38b VM record above validates the unchanged deferred outcome/event mapping.
 
 ## Safety baseline validation
 

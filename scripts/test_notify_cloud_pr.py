@@ -351,5 +351,27 @@ class RollingWakeup(unittest.TestCase):
         self.assertTrue(self.comments[0]["body"].startswith(notify.SUMMARY))
 
 
+    def test_a_legacy_new_head_completion_replaces_an_older_head_summary(self):
+        self.complete()
+        self.current_head = "b" * 40
+        legacy = {"id": 800, "user": {"login": "github-actions[bot]"},
+                  "body": "<!-- cloud-pr-wakeup:v2 run=124 attempt=1 -->\nnew head"}
+        self.comments.append(legacy)
+        self.complete(id=124, run_number=11, head_sha=self.current_head)
+        self.assertEqual(len(self.comments), 1)
+        self.assertIn(self.current_head, self.comments[0]["body"])
+        self.assertNotIn(HEAD, self.comments[0]["body"])
+
+    def test_a_legacy_check_missing_from_the_summary_is_folded_in_before_cleanup(self):
+        self.complete()
+        self.comments.append({"id": 800, "user": {"login": "github-actions[bot]"},
+                              "body": "<!-- cloud-pr-wakeup:v2 run=124 attempt=1 -->\nfailed"})
+        self.complete(id=124, run_number=11, conclusion="failure",
+                      path=".github/workflows/real-machine.yml")
+        self.assertEqual(len(self.comments), 1)
+        self.assertIn("Real-machine record", self.comments[0]["body"])
+        self.assertIn("**failure**", self.comments[0]["body"])
+
+
 if __name__ == "__main__":
     unittest.main()

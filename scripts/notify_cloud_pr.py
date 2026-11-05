@@ -179,9 +179,12 @@ def main():
         previous = checks.get(path)
         legacy_replay = any(c.get("user", {}).get("login") == "github-actions[bot]"
                             and c.get("body", "").startswith(marker) for c in comments)
-        if (legacy_replay or previous and
+        has_summary = comment and comment.get("body", "").startswith(SUMMARY)
+        # During deployment an old notifier can still publish v2. Fold its
+        # completion into a current-head summary before removing that wakeup.
+        if (legacy_replay and not has_summary or previous and
                 (previous["number"], previous["attempt"]) >= (run["run_number"], attempt)):
-            if comment and comment.get("body", "").startswith(SUMMARY):
+            if has_summary:
                 cleanup_wakeups(args.repo, comments, keep=comment["id"])
             continue
         checks[path] = {"run": args.run, "number": run["run_number"], "attempt": attempt,

@@ -1,0 +1,23 @@
+Production revision: e6b694df760578c2455a2191fca30fd710b08f99
+VM: macOS VM 1, macOS 27.2 (26B123), user bobby uid 501
+Build: current-source Debug app, ad-hoc signed; no production-source instrumentation
+Scenario: local signed Sparkle feed changes 1.1 (build 2) -> 1.2 (build 3) between scheduled refresh and pre-install recheck. Installed fixture starts at 1.0 (build 1).
+
+FEED request=1 offered=1.1 time=1793870757.95765
+127.0.0.1 - - [05/Nov/2026 01:25:57] "GET /feed.xml HTTP/1.1" 200 -
+FEED request=2 offered=1.2 time=1793870758.305279
+127.0.0.1 - - [05/Nov/2026 01:25:58] "GET /feed.xml HTTP/1.1" 200 -
+127.0.0.1 - - [05/Nov/2026 01:25:58] "GET /v3.zip HTTP/1.1" 200 -
+FEED request=3 offered=1.2 time=1793870758.5159261
+127.0.0.1 - - [05/Nov/2026 01:25:58] "GET /feed.xml HTTP/1.1" 200 -
+1.2
+{"v": 1, "id": "3C6C1A56-AF6F-468C-90A6-8BB0946B2FBB", "at": "2026-11-05T09:25:58.269Z", "client": "app", "kind": "automaticUpdate", "payload": {"appID": "/Applications/VersionProof.app", "appName": "VersionProof", "fromVersion": "1.0", "reason": "", "status": "started", "toVersion": "1.1", "trigger": "automatic"}}
+{"v": 1, "id": "6834702F-E21A-44A9-881E-05F4B794CC52", "at": "2026-11-05T09:25:58.560Z", "client": "app", "kind": "automaticUpdate", "payload": {"appID": "/Applications/VersionProof.app", "appName": "VersionProof", "fromVersion": "1.0 (1)", "reason": "", "status": "installed", "toVersion": "1.2 (3)", "trigger": "automatic"}}
+
+{"v":1,"id":"A3C6C775-D952-4AC1-9546-892139AEE68F","at":"2026-11-05T09:25:58.494Z","client":"app","kind":"install","payload":{"appID":"/Applications/VersionProof.app","appName":"VersionProof","applied":true,"automatic":true,"bundleID":"dev.duoupdater.versionproof","bytes":6824,"downloadKind":"full","fromBuild":"1","fromVersion":"1.0","sourceName":"Sparkle","toBuild":"3","toVersion":"1.2"}}
+STRICT_SIGNATURE_OK
+3
+VersionProof failure events: 0
+
+No VersionProof process was running after installation. Four temporary preference keys restored and fixture server stopped.
+

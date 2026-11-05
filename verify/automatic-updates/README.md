@@ -83,9 +83,32 @@ refresh's older offer. The started event still records the original offer.
 Entries are cleared before an attempt and consumed afterwards; manual work never
 writes them. Host App tests: 326/326, localization 1,248 keys. Author-run review
 traced the confirmed `result` shadow, the successful `updated` readback, all
-failure exits, and the scheduler's serialized ownership. A vendor publishing a
-new version in that interval was not simulated in the VM; the GUI event-store
-path remains covered by the earlier pinned actual-install record.
+failure exits, and the scheduler's serialized ownership.
+
+### Current-head VM publication-between-checks result
+
+Production revision `e6b694df760578c2455a2191fca30fd710b08f99`, current-source Debug
+App, ad-hoc signed, no source instrumentation, in macOS VM 1 (27.2 / 26B123).
+A local HTTP Sparkle fixture used a newly generated Ed25519 key and signed ZIPs.
+The installed fixture was 1.0 (build 1); the server served 1.1 (build 2) on the
+scheduled check and 1.2 (build 3) on the pre-install recheck. The unmodified app
+performed the automatic install without an Update click.
+
+- Feed requests: first 1.1, then 1.2; only the build-3 ZIP was downloaded.
+- Started activity: target 1.1. Completed activity: 1.0 (1) → 1.2 (3).
+- Durable install ledger: fromVersion 1.0/fromBuild 1, toVersion 1.2/toBuild 3,
+  automatic=true and applied=true. Disk plist agreed: version 1.2, build 3.
+- Strict deep code-signature verification passed; zero fixture failure events;
+  fixture app remained closed.
+- An earlier 1.0→2.0 fixture correctly required major-upgrade confirmation and
+  did not install; that was not counted as this scenario passing.
+- Other VM apps were temporarily ignored. IgnoredApps, AutomaticUpdates,
+  CheckFrequency and LastCheckDate were restored from the saved pre-test values;
+  the fixture server was stopped. No host apps were replaced or restarted.
+
+[Raw feed, activity, ledger and disk output](vm-version-publication-result.txt).
+This later run supersedes the earlier limitation for confirmed-version events;
+older real-app records remain labeled with their own revisions.
 
 ## Safety baseline validation
 

@@ -33,55 +33,24 @@
   environment cannot validate the macOS app, installer or real-machine behavior;
   assess the PR's recorded evidence and state any validation limits accurately.
 
-Codex's official GitHub integration runs reviews; see
-[the setup notes](.github/codex-review.md). CI and the real-machine and local
-adversarial-review records remain separate requirements.
+Official GitHub Codex review is optional; see [the policy](.github/codex-review.md).
+CI and the real-machine and local adversarial-review records remain required.
 
-## Cloud review and local PR follow-through
+## PR completion
 
-- Cloud tasks only request official reviews and check review status. They must
-  not fix code, push commits, resolve review threads, remove holds or merge PRs.
-  The local agent owns fixes and macOS/VM validation.
-- After submitting a PR, the local agent polls review, CI, unresolved threads
-  and required evidence until the current head meets merge requirements. Fix
-  confirmed defects locally, validate and push, then recheck the new head.
-  Report concrete external blockers; never claim an ended session is still
-  monitoring without an actual durable watcher.
-- Cloud review triggering is driven by GitHub events. Read the current PR head,
-  official Codex receipt, unresolved review threads and CI before acting.
+- Use normal pushes and SHA-bound merges, respecting branch protection. Read
+  the current head, checks and unresolved review threads before merging.
   Evidence for an older head never approves a newer one.
-- Actions classifies default-branch-targeting PRs before the cloud model runs.
-  Only `codex-managed` PRs match the cloud task's server-side `label_match`.
-  Pure scan state gets `nightly-data-only` instead and uses GitHub CI/auto-merge
-  without a cloud wakeup. Once a PR is managed, routing is sticky because its
-  next synchronize event can arrive before Actions classifies the new head; a
-  producer returning to pure data must open a fresh PR. Labels route events;
-  they never prove review or CI.
-- Use normal pushes and SHA-bound merges, respecting branch protection.
-  Require a clean current-head Codex re-review, `test` (including App and CLI
-  unsigned Release builds), `real-machine` and `adversarial-review` to pass.
-  Do not enable auto-merge early while review or validation is outstanding.
-- For the pure nightly scan-state exception above, do not request a model
-  review, review the generated state, add recipe fixes, disable the producer's
-  auto-merge or convert its PR to draft. The trusted `codex-review` gate
-  publishes an explicit review-not-required status after checking the pinned
-  diff. For these PRs, `test` requires the Linux `nightly-data` check instead
-  of Swift/App/Core Release tests and unsigned builds. That check validates
-  pinned JSON blobs, schema/types, dates, counters, URL digests and preservation
-  of existing installer identity/provenance. The verified merged-state push
-  uses the same light CI path. Keep evidence checks and genuine holds. If a
-  code fix is added, the normal review and merge rules apply again.
-- Official review is requested selectively by the cloud event task on each
-  non-exempt PR head. Check existing current-head receipts and requests first;
-  send `@codex review` once when missing, or once for a necessary retry.
+- Require `test`, `real-machine` and `adversarial-review` to pass. Respect
+  drafts, explicit author holds and confirmed unresolved defects.
+- Do not automatically request official Codex reviews or wait for a clean
+  cloud receipt. Cloud review quota exhaustion does not block merging.
+- For the pure nightly scan-state exception above, `test` uses the Linux
+  `nightly-data` check instead of Swift/App/Core tests and unsigned builds.
+  It validates pinned JSON blobs, schema/types, dates, counters, URL digests
+  and preservation of existing installer identity/provenance. The verified
+  merged-state push uses the same light CI path. Keep evidence checks and
+  genuine holds; changes outside scan state follow normal validation.
 - When necessary real-machine validation is missing, apply `needs-real-machine`,
   explain the missing evidence and leave the PR open. Do not invent results or
   add an untrue opt-out. Remove the hold only after the required evidence exists.
-- A same-head Codex retry does not push code: rerun the PR's `codex-review`
-  workflow after the clean retry so its required check reflects that receipt.
-  Follow the check's details/run URL to `review-controller`; this trusted
-  `pull_request_target` workflow identifies the PR and head in its fixed run
-  title; do not search only `pull_request` event runs.
-- Completion comments from `Cloud PR wakeup` are wakeups, not approvals.
-  Re-read current state, deduplicate work and avoid reacting to your own status
-  replies in a loop. Respect drafts and explicit author holds.

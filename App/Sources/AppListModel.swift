@@ -10269,7 +10269,8 @@ final class AppListModel {
     /// Homebrew too: its package list re-read, after a `brew update` when one is
     /// due (`backgroundRefreshHomebrew`).
     private var automaticUpdatesAllowed: Bool {
-        prefs.automaticUpdates && prefs.checkFrequency.interval != nil
+        BuildReleaseChannel.permitsAutomaticUpdates(enabled: prefs.automaticUpdates)
+            && prefs.checkFrequency.interval != nil
             && NetworkMonitor.shared.hasObservedPath
             && NetworkMonitor.shared.path.allowsDiscretionaryTraffic && !Task.isCancelled
     }

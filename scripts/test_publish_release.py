@@ -382,6 +382,11 @@ class HomebrewTapGate(unittest.TestCase):
 
     # Mutation: let the failure propagate and `set -e` ends the script after a
     # live release, skipping the site and translation notes printed below it.
+    def test_beta_feed_publication_does_not_bump_stable_tap(self):
+        run = self.run_gate(publishes="1", env={"is_prerelease": "1"})
+        self.assertEqual(run.returncode, 0)
+        self.assertEqual(self.called_with(), [])
+
     def test_a_failed_bump_only_warns(self):
         self.stub(exit_code=1)
         run = self.run_gate(publishes="1")
@@ -471,6 +476,26 @@ class PostMergeCI(unittest.TestCase):
         self.assertEqual(run.returncode, 0, run.stderr)
         self.assertEqual(self.calls(), [])
         self.assertIn("AFTER", run.stdout)
+
+
+class ArtifactChannelGate(unittest.TestCase):
+    def test_signed_archive_channel_must_match_publication(self):
+        import zipfile, plistlib
+        source = SCRIPT.read_text()
+        gate = source[source.index('zip_channel="'):source.index('say "Checking the dSYM belongs to this build"')]
+        with tempfile.TemporaryDirectory() as directory:
+            archive = pathlib.Path(directory) / 'app.zip'
+            for built, publishing, succeeds in [('stable', 'stable', True), ('beta', 'beta', True),
+                                                ('stable', 'beta', False), ('beta', 'stable', False),
+                                                (None, 'stable', False)]:
+                info = {} if built is None else {'DuoReleaseChannel': built}
+                with zipfile.ZipFile(archive, 'w') as output:
+                    output.writestr('Test.app/Contents/Info.plist', plistlib.dumps(info))
+                run = subprocess.run(['bash', '-c', 'die() { echo "$*"; exit 1; }; ' + gate],
+                    env={**os.environ, 'FINAL_ZIP': str(archive),
+                         'zip_info': 'Test.app/Contents/Info.plist', 'RELEASE_CHANNEL': publishing},
+                    capture_output=True, text=True)
+                self.assertEqual(run.returncode == 0, succeeds, (built, publishing, run.stdout))
 
 
 if __name__ == "__main__":

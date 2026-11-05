@@ -67,6 +67,10 @@ private final class SelfUpdateInstaller: NSObject, SPUUpdaterDelegate {
     /// by the app once the list model exists; while it is nil the answer is "not
     /// now", which is the safe default — Sparkle still installs a deferred update
     /// when the app quits, so a probe that never says yes costs nothing.
+    func allowedChannels(for updater: SPUUpdater) -> Set<String> {
+        UserDefaults.standard.bool(forKey: "DuoUpdaterBetaChannel") ? ["beta"] : []
+    }
+
     var isIdle: (@MainActor () -> Bool)?
     /// Set the moment we tell Sparkle to install and relaunch: the quit Sparkle
     /// then sends is ours, not the user's (`QuitGuard.Reason.selfUpdate`). Cleared
@@ -188,6 +192,12 @@ final class AppUpdater {
     var installsUpdatesAutomatically: Bool {
         get { controller.updater.automaticallyDownloadsUpdates }
         set { controller.updater.automaticallyDownloadsUpdates = newValue }
+    }
+
+    func channelDidChange() {
+        // Sparkle owns any in-flight update. The new selection applies to the
+        // next check; do not promise to retract an already staged installation.
+        if didStart { controller.updater.resetUpdateCycleAfterShortDelay() }
     }
 
     /// Teach the silent installer what counts as a safe moment to restart. Called

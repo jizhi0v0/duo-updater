@@ -367,3 +367,38 @@ def check_regenerated(old_text, new_text, want, build, asset_size, cap):
 
 def _render(entries):
     return ", ".join(f"{short or '?'} ({build or '?'})" for short, build in entries)
+
+
+def release_channel(item):
+    match = re.search(r'<sparkle:channel>\s*([^<]+?)\s*</sparkle:channel>', _mask_cdata(item))
+    return match.group(1) if match else 'stable'
+
+
+def channel_feed(text, channel):
+    """Keep only one Sparkle release channel, preserving XML and signed bytes."""
+    return _map_items(text, lambda item: item if release_channel(item) == channel else '')
+
+
+def require_channel(text, channel):
+    """Refuse a generator result that would expose beta bytes to stable users."""
+    for match in _ITEM.finditer(_mask_cdata(text)):
+        if release_channel(text[match.start():match.end()]) != channel:
+            raise ValueError('generated appcast contains an unexpected release channel')
+    return text
+
+
+def merge_channel(old, generated, channel):
+    """Replace one channel while retaining every other item byte for byte."""
+    others = ''.join(old[m.start():m.end()] for m in _ITEM.finditer(_mask_cdata(old))
+                     if release_channel(old[m.start():m.end()]) != channel)
+    if generated.count('</channel>') != 1:
+        raise ValueError('expected one RSS channel')
+    return generated.replace('</channel>', others + '</channel>')
+
+
+def _map_items(text, transform):
+    parts, cursor = [], 0
+    for match in _ITEM.finditer(_mask_cdata(text)):
+        parts.extend((text[cursor:match.start()], transform(text[match.start():match.end()])))
+        cursor = match.end()
+    return ''.join(parts) + text[cursor:]

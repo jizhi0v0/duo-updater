@@ -1,0 +1,24 @@
+127.0.0.1 - - [05/Nov/2026 21:43:59] "GET /appcast.xml HTTP/1.1" 200 -
+stable-excludes-beta exit= 4 expected= 4
+No new update available!
+
+127.0.0.1 - - [05/Nov/2026 21:43:59] "GET /appcast.xml HTTP/1.1" 200 -
+beta-finds-beta exit= 0 expected= 0
+Update available!
+Exiting.
+
+127.0.0.1 - - [05/Nov/2026 21:43:59] "GET /appcast.xml HTTP/1.1" 200 -
+exit-beta-no-downgrade exit= 4 expected= 4
+No new update available!
+
+127.0.0.1 - - [05/Nov/2026 21:43:59] "GET /appcast.xml HTTP/1.1" 200 -
+stable-catches-up exit= 0 expected= 0
+Update available!
+Exiting.
+
+127.0.0.1 - - [05/Nov/2026 21:43:59] "GET /appcast.xml HTTP/1.1" 200 -
+beta-also-gets-stable exit= 0 expected= 0
+Update available!
+Exiting.
+
+PASS: 5 real Sparkle channel probes; no installation attempted. Fixture: /var/folders/vr/3fgyyc596c722388795qp2140000gn/T/duo-beta-probe-tdig0itl

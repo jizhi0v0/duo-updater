@@ -136,7 +136,7 @@ It **respects each app's own update channel**:
 
 ## Automatic updates
 
-An opt-in switch in General settings updates closed apps after scheduled checks.
+In Beta builds only, an opt-in switch in General settings updates closed apps after scheduled checks. Stable builds hide this switch and refuse automatic installation, even if an earlier Beta saved the preference as enabled. Selecting the Beta update subscription alone does not enable the feature.
 Manual-only checks, offline, Low Data Mode and expensive networks pause automatic
 updates. Only direct vendor/Sparkle bundle installations qualify; Homebrew,
 App Store, Xcode and system-installer handoffs remain manual. Running apps and
@@ -603,3 +603,22 @@ Useful overrides:
 re-signed with the app's own identity for the privileged helper to invoke it.
 If you would rather not trust a committed binary, build `mas` from source and
 replace the file — `scripts/install.sh` re-signs whatever is there.
+
+### DuoUpdater Beta channel
+
+Choose **Settings → Updates → Release channel → Beta** to receive early test
+builds alongside stable releases. Stable is the default. Switching back waits
+for a newer stable build; it does not downgrade or cancel an already prepared
+update. Use **Report a problem on GitHub…** on the same page to open a draft
+with the app version, selected channel and macOS version. Review it and add
+reproduction steps before submitting; installation reports are available in
+Diagnostics and are not attached automatically.
+
+Maintainers first commit `DuoReleaseChannel = beta` in `App/Info.plist`, then build and publish with `RELEASE_CHANNEL=beta make release`, using a
+distinct marketing version (for example `0.5.23-beta.1`) and a globally increasing
+build number. This creates a GitHub prerelease and tagged Sparkle beta items;
+it does not update the Homebrew cask. Drafts never enter the feed. Stable
+publication keeps the default command and preserves beta entries. Both channels
+retain their own appcast history. The first beta may use a full download.
+
+Before building a stable release, commit `DuoReleaseChannel = stable`. Publication checks both the source and the signed archive channel; changing the publishing flag cannot turn a stable artifact into a beta.

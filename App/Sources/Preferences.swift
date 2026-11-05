@@ -311,7 +311,7 @@ final class Preferences {
     /// never force-kills or loses unsaved work. Default ON — an opt-out convenience.
     var automaticUpdates: Bool {
         didSet {
-            automaticUpdatesSnapshot.set(automaticUpdates)
+            automaticUpdatesSnapshot.set(BuildReleaseChannel.permitsAutomaticUpdates(enabled: automaticUpdates))
             defaults.set(automaticUpdates, forKey: "AutomaticUpdates")
         }
     }
@@ -739,7 +739,7 @@ final class Preferences {
         self.marketingByBuild = defaults.dictionary(forKey: Key.marketingByBuild) as? [String: String] ?? [:]
         self.stagedPackages =
             defaults.dictionary(forKey: Key.stagedPackages) as? [String: [String: String]] ?? [:]
-        automaticUpdatesSnapshot.set(automaticUpdates)
+        automaticUpdatesSnapshot.set(BuildReleaseChannel.permitsAutomaticUpdates(enabled: automaticUpdates))
         scheduledChecksSnapshot.set(checkFrequency.interval != nil)
         observeExternalWrites()
         // `didSet` does not fire for assignments inside `init`, so the token read

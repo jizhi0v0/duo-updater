@@ -59,11 +59,16 @@ public enum AutomaticInstall {
 
     public static func check(_ app: InstalledApp) throws {
         guard active else { return }
-        let processes = NestedAppGuard.liveProcesses()
-        guard !processes.isEmpty else {
-            throw Deferred("Automatic update deferred: running processes could not be checked.")
+        try checkProcesses(at: app.path,
+            processes: NestedAppGuard.liveProcesses(includeUninspectable: true))
+    }
+
+    static func checkProcesses(at bundle: URL, processes: [NestedAppGuard.RunningProcess]) throws {
+        guard !processes.isEmpty,
+              processes.allSatisfy({ $0.executablePath != nil || $0.launchedPath != nil }) else {
+            throw Deferred("Automatic update deferred: running processes could not be checked completely.")
         }
-        guard !hasRunningProcess(at: app.path, processes: processes) else {
+        guard !hasRunningProcess(at: bundle, processes: processes) else {
             throw Deferred("Automatic update deferred: the app or one of its helpers is running.")
         }
     }

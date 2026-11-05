@@ -135,4 +135,25 @@ struct AutomaticInstallTests {
         #expect(try Data(contentsOf: marker) == Data("old".utf8))
     }
 
+    @Test func aVisibleProcessDoesNotMakeAnUninspectablePIDSafe() throws {
+        let bundle = URL(fileURLWithPath: "/Applications/Test.app")
+        let visible = NestedAppGuard.RunningProcess(
+            pid: 1, parentPID: 0, executablePath: "/usr/bin/visible", isRegularApp: false)
+        let unknown = NestedAppGuard.RunningProcess(
+            pid: 2, parentPID: 0, executablePath: nil, isRegularApp: false)
+        #expect(throws: AutomaticInstall.Deferred.self) {
+            try AutomaticInstall.checkProcesses(at: bundle, processes: [visible, unknown])
+        }
+        #expect(throws: AutomaticInstall.Deferred.self) {
+            try AutomaticInstall.checkProcesses(at: bundle, processes: [])
+        }
+        try AutomaticInstall.checkProcesses(at: bundle, processes: [visible])
+        let unlinked = NestedAppGuard.RunningProcess(
+            pid: 3, parentPID: 0, executablePath: nil,
+            launchedPath: "/Applications/Test.app/Contents/MacOS/Test", isRegularApp: false)
+        #expect(throws: AutomaticInstall.Deferred.self) {
+            try AutomaticInstall.checkProcesses(at: bundle, processes: [visible, unlinked])
+        }
+    }
+
 }

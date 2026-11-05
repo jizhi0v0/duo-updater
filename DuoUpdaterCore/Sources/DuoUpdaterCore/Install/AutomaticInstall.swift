@@ -38,6 +38,14 @@ public enum AutomaticInstall {
         public var errorDescription: String? { reason }
     }
 
+    public static func eventResult(_ outcome: InstallAttemptOutcome) -> (status: String, reason: String?) {
+        switch outcome {
+        case .installed: return ("installed", nil)
+        case .deferred(let reason): return ("deferred", reason)
+        default: return ("notInstalled", nil)
+        }
+    }
+
     public static func backupPermitsInstall(_ outcome: InstallCoordinator.BackupOutcome) -> Bool {
         outcome == .saved
     }

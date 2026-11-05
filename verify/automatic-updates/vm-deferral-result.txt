@@ -1,0 +1,19 @@
+2026-11-05: final deferral classification patch; Debug ad-hoc-signed App from the same production source.
+Real nobody-owned unlinked helper blocks the attempt. No app replacement or failure event.
+{"v":1,"id":"66A014AC-BEFA-4448-B66A-F4E2899B36C2","at":"2026-11-05T08:39:34.505Z","client":"app","kind":"automaticUpdate","payload":{"appID":"\/Applications\/Discord Canary.app","appName":"Discord Canary","fromVersion":"0.0.1459","reason":"","status":"started","toVersion":"0.0.1488","trigger":"automatic"}}
+{"v":1,"id":"517D3867-98F4-4688-AEAE-BF1322A3C13E","at":"2026-11-05T08:39:34.862Z","client":"app","kind":"automaticUpdate","payload":{"appID":"\/Applications\/Discord Canary.app","appName":"Discord Canary","fromVersion":"0.0.1459","reason":"Automatic update deferred: running processes could not be checked completely.","status":"deferred","toVersion":"0.0.1488","trigger":"automatic"}}
+failure events:        0
+0.0.1459
+
+After stopping the test helper and running another overdue scheduled check:
+{"v":1,"id":"66A014AC-BEFA-4448-B66A-F4E2899B36C2","at":"2026-11-05T08:39:34.505Z","client":"app","kind":"automaticUpdate","payload":{"appID":"\/Applications\/Discord Canary.app","appName":"Discord Canary","fromVersion":"0.0.1459","reason":"","status":"started","toVersion":"0.0.1488","trigger":"automatic"}}
+{"v":1,"id":"517D3867-98F4-4688-AEAE-BF1322A3C13E","at":"2026-11-05T08:39:34.862Z","client":"app","kind":"automaticUpdate","payload":{"appID":"\/Applications\/Discord Canary.app","appName":"Discord Canary","fromVersion":"0.0.1459","reason":"Automatic update deferred: running processes could not be checked completely.","status":"deferred","toVersion":"0.0.1488","trigger":"automatic"}}
+{"v":1,"id":"B43CAAF1-EA75-4A38-A745-E4741E7FBE17","at":"2026-11-05T08:39:58.696Z","client":"app","kind":"automaticUpdate","payload":{"appID":"\/Applications\/Discord Canary.app","appName":"Discord Canary","fromVersion":"0.0.1459","reason":"","status":"started","toVersion":"0.0.1488","trigger":"automatic"}}
+{"v":1,"id":"170C71EA-58B5-4B4F-A56D-3212285E536F","at":"2026-11-05T08:40:40.515Z","client":"app","kind":"automaticUpdate","payload":{"appID":"\/Applications\/Discord Canary.app","appName":"Discord Canary","fromVersion":"0.0.1459","reason":"","status":"installed","toVersion":"0.0.1488","trigger":"automatic"}}
+{"v":1,"id":"07363AE4-5F00-4BE0-B3A5-4EC4B3016BC1","at":"2026-11-05T08:40:40.118Z","client":"app","kind":"install","payload":{"appID":"/Applications/Discord Canary.app","appName":"Discord Canary","applied":true,"automatic":true,"bundleID":"com.hnc.DiscordCanary","bytes":234624152,"downloadKind":"full","fromBuild":"0.0.1459","fromVersion":"0.0.1459","sourceName":"Vendor","toBuild":"0.0.1488","toVersion":"0.0.1488"}}
+failure events:        0
+0.0.1488
+◇ Test "The reported size counts the write-ahead log, not just the database" started.
+✔ Test "The reported size counts the write-ahead log, not just the database" passed after 0.111 seconds.
+✔ Suite EventStoreTests passed after 7.593 seconds.
+✔ Test run with 57 tests in 3 suites passed after 7.594 seconds.

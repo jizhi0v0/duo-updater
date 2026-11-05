@@ -5646,13 +5646,13 @@ final class AppListModel {
                   isActionableUpdate(result)
             else {
                 installing[id] = nil
-                return .notInstalled
+                return .deferred(reason: "Automatic update eligibility changed before installation.")
             }
             do { try AutomaticInstall.check(result.app) }
             catch {
                 installNotes[id] = error.localizedDescription
                 installing[id] = nil
-                return .notInstalled
+                return .deferred(reason: error.localizedDescription)
             }
         }
 
@@ -5782,7 +5782,7 @@ final class AppListModel {
         if AutomaticInstall.active, SelfUpdaterStaging.sparkleInstallerOrphaned(for: result.app) {
             installNotes[id] = "Automatic update deferred: the app’s own installer is active."
             installing[id] = nil
-            return .notInstalled
+            return .deferred(reason: "Automatic update deferred: the app’s own installer is active.")
         }
         var clearedOrphanedInstaller = false
         if UpdatePolicy.armedInstallerBlocksInstall(
@@ -5873,7 +5873,7 @@ final class AppListModel {
                 if AutomaticInstall.active, !AutomaticInstall.backupPermitsInstall(backup) {
                     installNotes[id] = "Automatic update deferred: a complete backup could not be created."
                     installing[id] = nil
-                    return .notInstalled
+                    return .deferred(reason: "Automatic update deferred: a complete backup could not be created.")
                 }
             } else if InstallCoordinator.wantsInstallRollbackPoint(
                 backupRoute, takingUserBackup: takingUserBackup) {
@@ -6405,6 +6405,14 @@ final class AppListModel {
             installing[id] = nil
             relaunching.remove(id)
             return .cancelled(result.app, at: stages.stage)
+        } catch let deferred as AutomaticInstall.Deferred {
+            Log.install.notice("automatic install deferred: \(result.app.name, privacy: .public): \(deferred.reason, privacy: .public)")
+            installErrors[id] = nil
+            installNotes[id] = deferred.reason
+            reopenAfterQuit[id] = nil
+            installing[id] = nil
+            relaunching.remove(id)
+            return .deferred(reason: deferred.reason)
         } catch let error as AppManagementRequiredError {
             // The swap was blocked by the App Management privacy gate. There's no
             // API to request it, so guide the user to the right Settings pane with
@@ -10283,9 +10291,9 @@ final class AppListModel {
                     }
                 }
             }
-            await recordAutomaticUpdate(result,
-                status: outcome == .installed ? "installed" : "notInstalled",
-                reason: installErrors[result.id] ?? installNotes[result.id])
+            let event = AutomaticInstall.eventResult(outcome)
+            await recordAutomaticUpdate(result, status: event.status,
+                reason: event.reason ?? installErrors[result.id] ?? installNotes[result.id])
         }
     }
 

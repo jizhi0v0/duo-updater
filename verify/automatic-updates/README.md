@@ -1,8 +1,31 @@
 # Automatic update verification — 2026-11-05
 
-Current production code reviewed and tested: `ba72046b6c8289e0e9b16559f7e80ab892f827e0`.
+Safety baseline production code reviewed and tested: `ba72046b6c8289e0e9b16559f7e80ab892f827e0`.
 
-## Current-head validation
+## Subsequent deferral classification fix
+
+The subsequent fix keeps `AutomaticInstall.Deferred` distinct through the app's
+install outcome and records `deferred`, retaining its reason. Expected refusals
+skip generic failure logs and failure-event creation. The early process,
+eligibility, existing-installer and complete-backup guards use the same outcome.
+
+- Host App tests: 326/326; localization 1,248 keys; Core targeted tests 11/11.
+- A real current-source Debug app in VMPal encountered an actual unreadable
+  other-user process: Events recorded started then deferred, failure events
+  remained zero, and Discord Canary stayed at 0.0.1459.
+- After stopping the test helper, another scheduled check updated 0.0.1459 →
+  0.0.1488, with automatic=true and no failure events; strict signature
+  verification passed. Test automatic settings were removed afterwards.
+- Final-source VMPal safety/event/scheduler suites: 57/57 passed.
+- [Raw real-app refusal and recovery results](vm-deferral-result.txt).
+- Local author-run adversarial follow-up: traced every automatic guard return,
+  typed error propagation through coordinator and app catches, and the
+  `.notInstalled`-only failure reporter. Deferral clears the busy state and
+  cannot be counted as an installed app. No exchange/backup permission was
+  relaxed. The real-app probe caught an initially missed early return; that
+  attempt was corrected and rerun, not counted as passing.
+
+## Safety baseline validation
 
 - Host: `make test-app` passed 326/326; 1,248 localization keys agree.
 - Host: AutomaticInstall/EventStore/RefreshLane/NestedAppGuard selection passed

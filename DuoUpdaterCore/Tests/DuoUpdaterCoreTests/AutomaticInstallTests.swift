@@ -3,6 +3,17 @@ import Testing
 @testable import DuoUpdaterCore
 
 struct AutomaticInstallTests {
+    @Test func safetyDeferralIsNeitherFailureNorSuccessfulInstall() {
+        let outcome = InstallAttemptOutcome.deferred(reason: "Helper started before exchange")
+        #expect(outcome != .notInstalled)
+        #expect(!outcome.countsAsUpdatedApp)
+        let event = AutomaticInstall.eventResult(outcome)
+        #expect(event.status == "deferred")
+        #expect(event.reason == "Helper started before exchange")
+        #expect(AutomaticInstall.eventResult(.notInstalled).status == "notInstalled")
+        #expect(AutomaticInstall.eventResult(.installed).status == "installed")
+    }
+
     @Test func unattendedRoutesExcludeInstallersAndExternalManagers() {
         for route in InstallCoordinator.Route.allCases {
             #expect(AutomaticInstall.supports(route) == (route == .vendor || route == .sparkle))

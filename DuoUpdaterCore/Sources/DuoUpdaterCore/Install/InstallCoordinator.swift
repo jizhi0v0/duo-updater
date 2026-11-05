@@ -541,6 +541,10 @@ public actor InstallCoordinator {
             // Not a failure. The host logs `install cancelled at <stage>`
             // (`InstallAttemptOutcome.cancelled`), knowing the stage.
             throw cancelled
+        } catch let deferred as AutomaticInstall.Deferred {
+            // Expected safety refusal, not a failed installation. The host keeps
+            // the typed reason in its automatic-update activity record.
+            throw deferred
         } catch {
             Log.install.error(
                 "install failed: \(label, privacy: .public) via \(String(describing: route), privacy: .public) — \(error.localizedDescription, privacy: .public)")

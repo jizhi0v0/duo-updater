@@ -42,12 +42,12 @@ class Routing(unittest.TestCase):
         self.assertEqual(json.loads(write.call_args_list[1].kwargs["input"]), {"labels": [router.MANAGED]})
         self.assertNotIn("needs-real-machine", str(write.call_args_list))
 
-    def test_pure_data_removes_a_stale_managed_label_without_touching_holds(self):
+    def test_managed_route_is_sticky_across_a_later_pure_data_head(self):
         pr = {**SCAN, "labels": [{"name": router.MANAGED}, {"name": "needs-real-machine"}]}
-        _, write = self.run_with([pr, DIFF, pr])
-        self.assertTrue(write.call_args_list[0].args[0][-1].endswith("/labels/" + router.MANAGED))
-        self.assertEqual(json.loads(write.call_args_list[1].kwargs["input"]), {"labels": [router.DATA_ONLY]})
-        self.assertNotIn("needs-real-machine", str(write.call_args_list))
+        api, write = self.run_with([pr, pr])
+        self.assertEqual(api.call_count, 2)
+        self.assertNotIn("/compare/", str(api.call_args_list))
+        write.assert_not_called()
 
     def test_already_classified_events_do_not_write_labels_again(self):
         pr = {**SCAN, "labels": [{"name": router.DATA_ONLY}]}

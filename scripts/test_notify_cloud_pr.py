@@ -50,14 +50,13 @@ class CloudWakeup(unittest.TestCase):
         self.assertEqual(api.call_count, 3)
         post.assert_not_called()
 
-    def test_pure_scan_state_with_a_copied_managed_label_still_stays_quiet(self):
+    def test_managed_route_remains_wakeable_after_a_later_pure_data_head(self):
         pr = {**PR, "user": {"login": "o"}, "changed_files": 1,
               "head": {"sha": HEAD, "ref": "verify/baseline-20261105T010000Z",
                        "repo": {"full_name": "o/r"}}, "base": {"sha": "b" * 40}}
-        comparison = {"files": [{"filename": "verify/baseline.json", "status": "modified"}]}
-        api, post = self.run_with([RUN, [{"number": 7}], pr, comparison])
-        self.assertIn(f"repos/o/r/compare/{'b' * 40}...{HEAD}", api.call_args_list[-1].args[0])
-        post.assert_not_called()
+        api, post = self.run_with([RUN, [{"number": 7}], pr, []])
+        self.assertNotIn("/compare/", str(api.call_args_list))
+        self.assertEqual(post.call_count, 1)
 
     def test_a_successful_rerun_wakes_after_the_first_attempts_failure(self):
         first = {"user": {"login": "github-actions[bot]"},

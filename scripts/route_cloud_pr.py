@@ -19,6 +19,11 @@ def labels(pr):
 def is_scan_state(pr, repo, read=None):
     if not nightly_files(pr, repo):
         return False
+    # A managed label may already have matched the synchronize webhook before
+    # this trusted job can inspect the new head. Never downgrade the same PR:
+    # a fresh pure-data scan PR is required after any managed head.
+    if MANAGED in labels(pr):
+        return False
     base, head = pr.get("base", {}).get("sha", ""), pr["head"].get("sha", "")
     if not all(isinstance(sha, str) and re.fullmatch(r"[0-9a-f]{40}", sha) for sha in (base, head)):
         raise ValueError("invalid scan comparison")

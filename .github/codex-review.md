@@ -45,9 +45,14 @@ classifies the pinned head for PRs targeting `main`. It uses the same scan-file
 allowlist as the review waiver, then assigns `codex-managed` to other PRs or
 `nightly-data-only` to pure scan state. It changes only those two labels and
 preserves human/real-machine holds. A scan branch gaining code is routed back
-to the cloud. These labels are event routing hints, not approval credentials.
-On first deployment, label the introducing PR and existing ordinary PRs after
-independent classification so the already-filtered task can receive them.
+to the cloud. That managed route is intentionally sticky for the lifetime of
+the PR: a later synchronize event can be delivered before Actions sees its new
+head, so downgrading the same PR would expose a stale managed label to the
+server-side filter. A producer that returns to pure data must close that PR and
+open a fresh scan PR. These labels are event routing hints, not approval
+credentials. On first deployment, label the introducing PR and existing
+ordinary PRs after independent classification so the already-filtered task can
+receive them.
 
 ### Nightly scan state exception
 
@@ -70,9 +75,11 @@ The main push after merging the same scan PR also uses this path, after verifyin
 its merged-PR association and complete before/after diff. Other pushes, dispatches,
 and scan branches with code changes keep full CI. Evidence gates and actual holds
 remain required.
-Pure scan-state PRs do not match the cloud trigger. The producer's CI-gated
-GitHub auto-merge completes them without a model; failures stay visible in
-GitHub checks and leave the PR unmerged. `Cloud PR wakeup` also suppresses
+PRs that are pure scan state from opening and have never entered the managed
+route do not match the cloud trigger. The producer's CI-gated GitHub auto-merge
+completes them without a model; failures stay visible in GitHub checks and
+leave the PR unmerged. A PR that ever carried code remains managed even if a
+later head removes it; the producer must use a fresh PR for pure data again. `Cloud PR wakeup` also suppresses
 their completion comments. The saved task's scan-state guard is defensive for
 manual or previously queued runs, not the normal classification mechanism.
 

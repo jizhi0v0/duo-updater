@@ -41,7 +41,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.number }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: python3 scripts/route_cloud_pr.py --pr "$PR" --head "$HEAD_SHA" --apply
+          REMOVED_LABEL: ${{ github.event.action == 'unlabeled' && github.event.label.name || '' }}
+        run: python3 scripts/route_cloud_pr.py --pr "$PR" --head "$HEAD_SHA" --removed-label "$REMOVED_LABEL" --apply
 
   review-controller:
     # Independent of routing: even if label writes fail, recheck holds and

@@ -48,7 +48,9 @@ preserves human/real-machine holds. A scan branch gaining code is routed back
 to the cloud. That managed route is intentionally sticky for the lifetime of
 the PR: a later synchronize event can be delivered before Actions sees its new
 head, so downgrading the same PR would expose a stale managed label to the
-server-side filter. A producer that returns to pure data must close that PR and
+server-side filter. The workflow's `unlabeled` event passes the removed label
+to the router, so removing `codex-managed` restores it instead of silently
+downgrading the PR. A producer that returns to pure data must close that PR and
 open a fresh scan PR. These labels are event routing hints, not approval
 credentials. On first deployment, label the introducing PR and existing
 ordinary PRs after independent classification so the already-filtered task can

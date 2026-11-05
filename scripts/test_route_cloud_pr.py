@@ -14,8 +14,10 @@ DIFF = {"files": [{"filename": "verify/baseline.json", "status": "modified"}]}
 
 
 class Routing(unittest.TestCase):
-    def run_with(self, answers, apply=True):
+    def run_with(self, answers, apply=True, removed_label=None):
         args = ["route", "--repo", "o/r", "--pr", "7", "--head", HEAD]
+        if removed_label is not None:
+            args += ["--removed-label", removed_label]
         with patch("sys.argv", args + (["--apply"] if apply else [])), \
                 patch.object(router, "api", side_effect=answers) as api, \
                 patch.object(router.subprocess, "run") as write:
@@ -48,6 +50,15 @@ class Routing(unittest.TestCase):
         self.assertEqual(api.call_count, 2)
         self.assertNotIn("/compare/", str(api.call_args_list))
         write.assert_not_called()
+
+    def test_removing_managed_restores_it_instead_of_downgrading_the_pr(self):
+        pr = {**SCAN, "labels": [{"name": "needs-real-machine"}]}
+        api, write = self.run_with([pr, pr], removed_label=router.MANAGED)
+        self.assertEqual(api.call_count, 2)
+        self.assertNotIn("/compare/", str(api.call_args_list))
+        self.assertEqual(write.call_count, 1)
+        self.assertEqual(json.loads(write.call_args.kwargs["input"]), {"labels": [router.MANAGED]})
+        self.assertNotIn("needs-real-machine", str(write.call_args_list))
 
     def test_already_classified_events_do_not_write_labels_again(self):
         pr = {**SCAN, "labels": [{"name": router.DATA_ONLY}]}

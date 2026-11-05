@@ -52,6 +52,7 @@ def main():
     parser.add_argument("--repo", default=os.environ.get("GITHUB_REPOSITORY"))
     parser.add_argument("--pr", type=int, required=True)
     parser.add_argument("--head", required=True)
+    parser.add_argument("--removed-label", default=os.environ.get("REMOVED_LABEL", ""))
     parser.add_argument("--apply", action="store_true")
     args = parser.parse_args()
     if (not args.repo or not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", args.repo)
@@ -61,7 +62,10 @@ def main():
     if pr["state"] != "open" or pr["head"]["sha"] != args.head:
         print("Closed PR or superseded head; routing unchanged.")
         return
-    data_only = is_scan_state(pr, args.repo)
+    # The unlabeled webhook is the durable evidence that this PR was managed
+    # even though the live label is already absent. Restore that route instead
+    # of allowing the same PR to downgrade to data-only.
+    data_only = args.removed_label != MANAGED and is_scan_state(pr, args.repo)
     current = api(f"repos/{args.repo}/pulls/{args.pr}")
     if current["state"] != "open" or current["head"]["sha"] != args.head:
         print("PR changed while classifying; routing unchanged.")

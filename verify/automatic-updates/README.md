@@ -41,6 +41,19 @@ verified the manual returns remain unchanged. The specific launch-between-checks
 race was inspected in code, not reproduced deterministically in the VM; the
 97e8d38b VM record above validates the unchanged deferred outcome/event mapping.
 
+## Installation collision follow-up
+
+Automatic attempts refused by another process holding the install lock, a live
+prior install journal, or this app's already-claimed row now return `deferred`.
+The lock catch distinguishes `heldByAnother` from `unavailable`: filesystem/lock
+errors remain real failures. All permit and lock releases remain paired; no
+collision guard is bypassed and manual outcomes are unchanged. Local author-run
+review traced `install` → `runInstall` → `runInstallJob` → `performInstall`,
+including all early returns and failure reporting. Current host App tests passed
+326/326 with 1,248 localization keys. This is a refusal-classification change;
+the VM event-mapping evidence remains the explicitly pinned record above, not a
+claim that these lock races were reproduced in the VM.
+
 ## Safety baseline validation
 
 - Host: `make test-app` passed 326/326; 1,248 localization keys agree.

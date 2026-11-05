@@ -5244,7 +5244,11 @@ final class AppListModel {
         // await so whoever sets `.queued` first wins and the loser installs nothing.
         // `installAll` pre-claims all its targets, so a manual click on a queued batch
         // row no-ops here and the row keeps its spinner instead of a live button.
-        guard installing[id] == nil else { return .notInstalled }
+        guard installing[id] == nil else {
+            return AutomaticInstall.active
+                ? .deferred(reason: "Automatic update deferred: another installation is already in progress.")
+                : .notInstalled
+        }
         // Re-initiating clears a prior attempt's error/note right away, so a re-clicked
         // row shows a clean "Queued" spinner — not last failure's red error text
         // sitting beside it. (Otherwise the error only clears later in `performInstall`,
@@ -5414,21 +5418,32 @@ final class AppListModel {
         do {
             try await ProcessInstallLock.shared.claim()
         } catch {
-            Log.install.error("install blocked by the machine install lock: \(result.app.name, privacy: .public)")
-            installErrors[id] = (error as? LocalizedError)?.errorDescription
-                ?? String(describing: error)
+            let reason = (error as? LocalizedError)?.errorDescription ?? String(describing: error)
             installing[id] = nil
             await hostGate.release()
+            if AutomaticInstall.active, let failure = error as? InstallLock.Failure,
+               case .heldByAnother = failure {
+                Log.install.notice("automatic install deferred by the machine install lock: \(result.app.name, privacy: .public)")
+                installNotes[id] = reason
+                return .deferred(reason: reason)
+            }
+            Log.install.error("install blocked by the machine install lock: \(result.app.name, privacy: .public)")
+            installErrors[id] = reason
             return .notInstalled
         }
         // An earlier install of this app still running — an orphaned brew from a
         // killed run, or `duo` — is not raced (`InstallJournal.standing`).
         if case .stillRunning(let pid) = InstallJournal.standing(of: result.app.path) {
             Log.install.notice("install refused: \(result.app.name, privacy: .public) — an earlier install of it is still running (pid \(pid, privacy: .public))")
-            installErrors[id] = String(localized: "An earlier update of \(result.app.name) is still running (process \(Int(pid))). Try again once it has finished.")
+            let reason = String(localized: "An earlier update of \(result.app.name) is still running (process \(Int(pid))). Try again once it has finished.")
             installing[id] = nil
             await ProcessInstallLock.shared.release()
             await hostGate.release()
+            if AutomaticInstall.active {
+                installNotes[id] = reason
+                return .deferred(reason: reason)
+            }
+            installErrors[id] = reason
             return .notInstalled
         }
         // Written under the lock and before anything of the app's is touched,

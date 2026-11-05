@@ -1,0 +1,18 @@
+/var/folders/vr/3fgyyc596c722388795qp2140000gn/T/duo-beta-probe-g2_d7wgs/BetaProbe.app: replacing existing signature
+/var/folders/vr/3fgyyc596c722388795qp2140000gn/T/duo-beta-probe-g2_d7wgs/BetaProbe.app: replacing existing signature
+127.0.0.1 - - [05/Nov/2026 21:44:32] "GET /appcast.xml HTTP/1.1" 200 -
+127.0.0.1 - - [05/Nov/2026 21:44:32] "GET /2.zip HTTP/1.1" 200 -
+Checking for Updates...
+Found new update! (1.2)
+Downloading Update...
+Downloading 5791 bytes...
+Downloaded 5791 out of 5791 bytes (100%)
+Extracting Update...
+Extracting Update (100%)
+Installing Update...
+Installation Finished.
+Exiting.
+
+exit 0
+DISK_BUILD 2
+PASS real signed archive beta install /var/folders/vr/3fgyyc596c722388795qp2140000gn/T/duo-beta-probe-g2_d7wgs

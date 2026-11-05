@@ -50,7 +50,11 @@ adversarial-review records remain separate requirements.
   review, review the generated state, add recipe fixes, disable the producer's
   auto-merge or convert its PR to draft. The trusted `codex-review` gate
   publishes an explicit review-not-required status after checking the pinned
-  diff. Keep CI, evidence checks and genuine author/real-machine holds. If a
+  diff. For these PRs, `test` requires the Linux `nightly-data` check instead
+  of Swift/App/Core Release tests and unsigned builds. That check validates
+  pinned JSON blobs, schema/types, dates, counters, URL digests and preservation
+  of existing installer identity/provenance. The verified merged-state push
+  uses the same light CI path. Keep evidence checks and genuine holds. If a
   code fix is added, the normal review and merge rules apply again.
 - Official review is requested selectively by the cloud event task on each
   non-exempt PR head. Check existing current-head receipts and requests first;

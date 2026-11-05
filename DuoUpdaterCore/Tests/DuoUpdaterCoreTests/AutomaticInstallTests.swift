@@ -126,7 +126,8 @@ struct AutomaticInstallTests {
                 Thread.sleep(forTimeInterval: 0.01)
             }
             try #require(observed, "The real helper must be visible before testing its guard")
-            try AutomaticInstall.$active.withValue(true) { try AutomaticInstall.check(app) }
+            try AutomaticInstall.checkProcesses(at: app.path,
+                processes: NestedAppGuard.liveProcesses().filter { $0.pid == process.processIdentifier })
         }) {
             await #expect(throws: AutomaticInstall.Deferred.self) {
                 try await InPlaceSwap.rotateContents(newApp: incoming, over: target)

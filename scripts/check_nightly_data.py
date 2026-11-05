@@ -7,7 +7,39 @@ import os
 import re
 import subprocess
 
-from check_codex_review import api, is_nightly_state, nightly_files
+NIGHTLY_FILES = {
+    "baseline": {"verify/baseline.json"},
+    "install": {"verify/identities.json", "verify/install-baseline.json"},
+}
+
+
+def nightly_files(pr, repo):
+    """Only the owner's same-repository, timestamped scan-state branches qualify."""
+    head = pr.get("head", {})
+    match = re.fullmatch(r"verify/(baseline|install)-[0-9]{8}T[0-9]{6}Z", head.get("ref", ""))
+    if (not match or (head.get("repo") or {}).get("full_name") != repo
+            or pr.get("user", {}).get("login") != repo.split("/")[0]):
+        return None
+    return NIGHTLY_FILES[match[1]]
+
+
+def is_nightly_state(pr, repo, files):
+    allowed = nightly_files(pr, repo)
+    return bool(allowed and files and type(pr.get("changed_files")) is int
+                and len(files) == pr["changed_files"]
+                and all(f.get("filename") in allowed and f.get("status") == "modified"
+                        and not f.get("previous_filename") for f in files))
+
+
+def api(path):
+    result = subprocess.run(["gh", "api", "--paginate", "--slurp", path],
+                            check=True, capture_output=True, text=True)
+    pages = json.loads(result.stdout)
+    if pages and isinstance(pages[0], list):
+        return [item for page in pages for item in page]
+    return pages[0]
+
+
 
 STATE_FILES = {"verify/baseline.json", "verify/identities.json", "verify/install-baseline.json"}
 SHA = re.compile(r"[0-9a-f]{40}")

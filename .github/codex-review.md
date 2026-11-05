@@ -154,17 +154,29 @@ installation, permissions, restart, rollback or another necessary real-machine
 check remains unverified. Remove it only after evidence is supplied. A passing
 record parser does not prove that an opt-out is true or covers the change.
 
-`Cloud PR wakeup` posts completion metadata when CI, the review gate, the
-real-machine record or the adversarial-review record workflow finishes,
-so the cloud event task can resume without a local polling job. It runs trusted
-default-branch code, checks the live PR head and never checks out PR code or
-executes an artifact with its comment-write token. Wakeup comments are not
-merge approval; the cloud handler rechecks all gates and the exact head SHA.
-Wakeups are deduplicated per workflow run **and attempt**; a successful rerun
-can wake the handler even if the same run previously reported failure.
-Success, failure, cancellation and timeout all wake the handler; it reads the
-live checks and failed-job logs before acting. A new independent PR validation
-workflow must be added to the notifier's explicit workflow/event allowlist.
+`Cloud PR wakeup` keeps one current bot status comment per PR when CI, the
+review gate, the real-machine record or the adversarial-review record workflow
+finishes. Each new completion **creates** the replacement comment before removing
+older marked bot wakeups. This preserves the existing comment-created trigger;
+it does not depend on edited-comment delivery by the cloud task. Human comments,
+official reviews and unrelated bot comments are never removed. Workflow-run
+history remains in Actions. A failed POST preserves the old status; a failed
+cleanup is retried on replay without posting another wakeup.
+
+It runs trusted default-branch code, checks the live PR head and never checks
+out PR code or executes an artifact with its comment-write token. Wakeup
+comments are not merge approval; the cloud handler rechecks all gates and the
+exact head SHA.
+
+The status stores each workflow's latest run number and attempt for the current
+head. Replays and late older runs are ignored; a successful rerun still creates
+a wakeup after failure, and a new head resets the displayed check results.
+Success, failure, cancellation and timeout remain wakeups. Old v2 wakeups are
+cleaned up only after the replacement has been successfully published. The
+notifier workflow serializes comment writes with `queue: max` and
+`cancel-in-progress: false`, so simultaneous completions cannot create duplicate
+current statuses or replace each other's recorded checks. A new independent
+validation workflow must be added to the notifier's explicit workflow/event allowlist.
 
 Official setup and review-rule documentation:
 [Review GitHub pull requests with Codex](https://learn.chatgpt.com/docs/third-party/github).

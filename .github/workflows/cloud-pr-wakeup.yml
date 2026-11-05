@@ -13,7 +13,9 @@ permissions:
   pull-requests: write
 
 concurrency:
-  group: cloud-pr-wakeup-${{ github.event.workflow_run.id }}-${{ github.event.workflow_run.run_attempt }}
+  # Serialize read/modify/write of rolling comments; keep pending completions.
+  group: cloud-pr-wakeup
+  queue: max
   cancel-in-progress: false
 
 jobs:

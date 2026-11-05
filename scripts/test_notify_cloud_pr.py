@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """Wakeups target an open PR's current head, once per run attempt."""
 import json
+from pathlib import Path
+from types import SimpleNamespace
+import subprocess
 import unittest
 from unittest.mock import patch
 
@@ -9,7 +12,7 @@ import notify_cloud_pr as notify
 HEAD = "a" * 40
 RUN = {"name": "CI", "event": "pull_request", "status": "completed",
        "path": ".github/workflows/ci.yml",
-       "head_sha": HEAD, "conclusion": "success", "pull_requests": [], "run_attempt": 1}
+       "run_number": 10, "head_sha": HEAD, "conclusion": "success", "pull_requests": [], "run_attempt": 1}
 GATE_RUN = {**RUN, "name": f"Codex review gate PR #7 @{HEAD}",
             "path": ".github/workflows/codex-review-gate.yml", "event": "pull_request_target"}
 PR = {"state": "open", "draft": False, "head": {"sha": HEAD},
@@ -20,7 +23,7 @@ class CloudWakeup(unittest.TestCase):
     def run_with(self, answers):
         with patch("sys.argv", ["notify", "--repo", "o/r", "--run", "123"]), \
                 patch.object(notify, "api", side_effect=answers) as api, \
-                patch.object(notify.subprocess, "run") as post:
+                patch.object(notify.subprocess, "run", return_value=SimpleNamespace(stdout=' {"id":900} ')) as post:
             notify.main()
             return api, post
 
@@ -59,17 +62,31 @@ class CloudWakeup(unittest.TestCase):
         self.assertEqual(post.call_count, 1)
 
     def test_a_successful_rerun_wakes_after_the_first_attempts_failure(self):
-        first = {"user": {"login": "github-actions[bot]"},
+        first = {"id": 80, "user": {"login": "github-actions[bot]"},
                  "body": "<!-- cloud-pr-wakeup:v2 run=123 attempt=1 -->\nCI failed"}
         run = {**RUN, "run_attempt": 2}
         _, post = self.run_with([run, [{"number": 7}], PR, [first]])
-        self.assertEqual(post.call_count, 1)
-        body = json.loads(post.call_args.kwargs["input"])["body"]
+        self.assertEqual(post.call_count, 2)
+        body = json.loads(post.call_args_list[0].kwargs["input"])["body"]
         self.assertIn("run=123 attempt=2", body)
         self.assertIn("**success**", body)
-        second = {**first, "body": body}
-        _, replay = self.run_with([run, [{"number": 7}], PR, [first, second]])
+        second = {**first, "id": 900, "body": body}
+        _, replay = self.run_with([run, [{"number": 7}], PR, [second]])
         replay.assert_not_called()
+
+    def test_rolling_comment_writes_are_serialized_without_replacing_pending_completions(self):
+        workflow = (Path(__file__).resolve().parents[1] /
+                    ".github/workflows/cloud-pr-wakeup.yml").read_text()
+        group = workflow.split("\nconcurrency:", 1)[1].split("\njobs:", 1)[0]
+        self.assertIn("group: cloud-pr-wakeup\n", group)
+        self.assertIn("cancel-in-progress: false", group)
+        self.assertIn("queue: max", group)
+        self.assertNotIn("workflow_run.id", group)
+
+    def test_invalid_run_numbers_cannot_suppress_other_completions(self):
+        for number in [None, 0, -1, True, "10"]:
+            with self.assertRaises(ValueError):
+                self.run_with([{**RUN, "run_number": number}])
 
     def test_invalid_attempts_do_not_publish_ambiguous_markers(self):
         for attempt in [None, 0, -1, True, "2"]:
@@ -138,7 +155,7 @@ class CloudWakeup(unittest.TestCase):
                "display_title": "PR #7 from an untrusted title"}
         with patch("sys.argv", ["notify", "--repo", "o/r", "--run", "123"]), \
                 patch.object(notify, "api", return_value=run), \
-                patch.object(notify.subprocess, "run") as post:
+                patch.object(notify.subprocess, "run", return_value=SimpleNamespace(stdout=' {"id":900} ')) as post:
             with self.assertRaises(ValueError):
                 notify.main()
         post.assert_not_called()
@@ -156,7 +173,204 @@ class CloudWakeup(unittest.TestCase):
             _, post = self.run_with([run, PR, []])
             self.assertEqual(post.call_count, 1)
             body = json.loads(post.call_args.kwargs["input"])["body"]
-            self.assertIn(f"{label} attempt 1 completed", body)
+            self.assertIn(label, body)
+            self.assertIn("attempt 1", body)
+
+
+class RollingWakeup(unittest.TestCase):
+    """Exercise multiple completions against one simulated GitHub conversation."""
+    def setUp(self):
+        self.comments = []
+        self.writes = []
+        self.current_head = HEAD
+        self.run = {**RUN, "id": 123, "pull_requests": [{"number": 7}]}
+
+    def read(self, path):
+        if "/actions/runs/" in path:
+            return self.run
+        if path == "repos/o/r/pulls/7":
+            return {**PR, "head": {"sha": self.current_head}}
+        if path == "repos/o/r/issues/7/comments":
+            # A GET returns a snapshot, not the server's mutable collection.
+            return json.loads(json.dumps(self.comments))
+        self.fail(f"unexpected read: {path}")
+
+    def write(self, command, **kwargs):
+        method = command[command.index("--method") + 1]
+        path = command[command.index(method) + 1]
+        body = json.loads(kwargs["input"])["body"] if "input" in kwargs else None
+        self.writes.append((method, path, body))
+        if method == "POST":
+            self.comments.append({"id": len(self.writes) + 100,
+                                  "user": {"login": "github-actions[bot]"}, "body": body})
+        elif method == "DELETE":
+            self.comments[:] = [c for c in self.comments if not path.endswith(f"/{c['id']}")]
+        else:
+            self.fail(f"unexpected write: {method}")
+        return SimpleNamespace(stdout=json.dumps(self.comments[-1]) if self.comments else "")
+
+    def complete(self, **changes):
+        self.run = {**self.run, **changes}
+        with patch("sys.argv", ["notify", "--repo", "o/r", "--run", str(self.run["id"])]), \
+                patch.object(notify, "api", side_effect=self.read), \
+                patch.object(notify.subprocess, "run", side_effect=self.write):
+            notify.main()
+
+    def test_different_checks_keep_one_comment_and_create_each_wakeup(self):
+        self.complete()
+        self.complete(id=124, run_number=5, path=".github/workflows/real-machine.yml")
+        self.complete(id=125, run_number=7, path=".github/workflows/adversarial-review.yml")
+        self.assertEqual(len(self.comments), 1)
+        self.assertEqual([w[0] for w in self.writes], ["POST", "POST", "DELETE", "POST", "DELETE"])
+        for label in ["CI", "Real-machine record", "Adversarial review record"]:
+            self.assertIn(label, self.comments[0]["body"])
+
+    def test_failure_then_successful_rerun_creates_a_wakeup_then_cleans_old_status(self):
+        self.complete(conclusion="failure")
+        self.complete(run_attempt=2, conclusion="success")
+        self.assertEqual(len(self.comments), 1)
+        self.assertEqual([w[0] for w in self.writes], ["POST", "POST", "DELETE"])
+        self.assertIn("**success**", self.comments[0]["body"])
+        self.complete()
+        self.assertEqual(len(self.writes), 3)
+
+    def test_replayed_earlier_check_cannot_erase_the_later_check(self):
+        self.complete()
+        self.complete(id=124, path=".github/workflows/real-machine.yml")
+        self.complete(id=123, path=".github/workflows/ci.yml")
+        self.assertEqual(len(self.writes), 3)
+        self.assertIn("Real-machine record", self.comments[0]["body"])
+
+    def test_a_late_older_run_cannot_overwrite_a_newer_failure(self):
+        self.complete(id=124, run_number=11, conclusion="failure")
+        self.complete(id=123, run_number=10, conclusion="success")
+        self.assertEqual(len(self.writes), 1)
+        self.assertIn("**failure**", self.comments[0]["body"])
+
+    def test_a_new_head_replaces_the_comment_and_discards_old_check_results(self):
+        self.complete()
+        self.complete(id=124, path=".github/workflows/real-machine.yml")
+        self.current_head = "b" * 40
+        self.complete(id=126, run_number=12, head_sha=self.current_head,
+                      path=".github/workflows/ci.yml")
+        self.assertEqual(len(self.comments), 1)
+        self.assertIn(self.current_head, self.comments[0]["body"])
+        self.assertNotIn("Real-machine record", self.comments[0]["body"])
+        self.complete(id=123, run_number=10, head_sha=HEAD)
+        self.assertEqual(len(self.writes), 5)
+
+    def test_cancellation_still_wakes_but_does_not_add_a_comment(self):
+        self.complete()
+        self.complete(id=124, run_number=11, conclusion="cancelled")
+        self.assertEqual(len(self.comments), 1)
+        self.assertEqual([w[0] for w in self.writes], ["POST", "POST", "DELETE"])
+        self.assertIn("**cancelled**", self.comments[0]["body"])
+
+    def test_legacy_bot_wakeups_are_replaced_without_removing_human_comments(self):
+        old = {"id": 80, "user": {"login": "github-actions[bot]"},
+               "body": "<!-- cloud-pr-wakeup:v2 run=90 attempt=1 -->\nold"}
+        human = {"id": 81, "user": {"login": "contributor"}, "body": old["body"]}
+        self.comments = [old, human]
+        self.complete()
+        self.assertEqual(len(self.comments), 2)
+        self.assertEqual(self.writes[0][0], "POST")
+        self.assertEqual(self.writes[1][:2], ("DELETE", "repos/o/r/issues/comments/80"))
+        self.assertEqual(human["body"], "<!-- cloud-pr-wakeup:v2 run=90 attempt=1 -->\nold")
+
+    def test_damaged_state_is_repaired_before_removing_the_old_status(self):
+        self.comments = [{"id": 80, "user": {"login": "github-actions[bot]"},
+                          "body": '<!-- cloud-pr-wakeup:v3 {"head":null,"checks":[]} -->'}]
+        self.complete()
+        self.assertEqual(len(self.comments), 1)
+        self.assertEqual(self.writes[0][0], "POST")
+        self.assertIn(HEAD, self.comments[0]["body"])
+
+
+    def test_a_failed_new_comment_keeps_the_previous_wakeup(self):
+        self.complete()
+        original = [dict(c) for c in self.comments]
+        with patch.object(self, "write", side_effect=RuntimeError("POST failed")):
+            with self.assertRaises(RuntimeError):
+                self.complete(id=124, run_number=11)
+        self.assertEqual(self.comments, original)
+
+    def test_cleanup_failure_is_retried_without_creating_another_wakeup(self):
+        self.complete()
+        write = self.write
+        def fail_delete(command, **kwargs):
+            if "DELETE" in command:
+                raise subprocess.CalledProcessError(1, command, stderr="HTTP 503")
+            return write(command, **kwargs)
+        with patch.object(self, "write", side_effect=fail_delete):
+            with self.assertRaises(subprocess.CalledProcessError):
+                self.complete(id=124, run_number=11)
+        self.assertEqual(len(self.comments), 2)
+        self.complete()
+        self.assertEqual(len(self.comments), 1)
+        self.assertEqual(sum(w[0] == "POST" for w in self.writes), 2)
+
+    def test_cleanup_leaves_review_and_other_bot_comments_alone(self):
+        untouched = [
+            {"id": 80, "user": {"login": "chatgpt-codex-connector[bot]"},
+             "body": "<!-- cloud-pr-wakeup:v2 run=90 attempt=1 -->"},
+            {"id": 81, "user": {"login": "github-actions[bot]"}, "body": "Other bot result"}]
+        self.comments = [dict(c) for c in untouched]
+        self.complete()
+        self.complete(id=124, run_number=11)
+        self.assertEqual(self.comments[:2], untouched)
+        self.assertEqual(len(self.comments), 3)
+
+
+    def test_invalid_created_id_never_deletes_previous_wakeups(self):
+        self.complete()
+        old_id = self.comments[0]["id"]
+        write = self.write
+        def invalid_reply(command, **kwargs):
+            write(command, **kwargs)
+            return SimpleNamespace(stdout='{"id":false}')
+        with patch.object(self, "write", side_effect=invalid_reply):
+            with self.assertRaises(ValueError):
+                self.complete(id=124, run_number=11)
+        self.assertTrue(any(c["id"] == old_id for c in self.comments))
+        self.assertFalse(any(w[0] == "DELETE" for w in self.writes))
+
+    def test_cleanup_404_does_not_block_other_stale_comment_cleanup(self):
+        self.comments = [{"id": 80, "user": {"login": "github-actions[bot]"},
+                          "body": "<!-- cloud-pr-wakeup:v2 run=80 attempt=1 -->"},
+                         {"id": 81, "user": {"login": "github-actions[bot]"},
+                          "body": "<!-- cloud-pr-wakeup:v2 run=81 attempt=1 -->"}]
+        write = self.write
+        def already_gone(command, **kwargs):
+            if command[-1] == "repos/o/r/issues/comments/80":
+                self.comments[:] = [c for c in self.comments if c["id"] != 80]
+                raise subprocess.CalledProcessError(1, command, stderr="Not Found (HTTP 404)")
+            return write(command, **kwargs)
+        with patch.object(self, "write", side_effect=already_gone):
+            self.complete()
+        self.assertEqual(len(self.comments), 1)
+        self.assertTrue(self.comments[0]["body"].startswith(notify.SUMMARY))
+
+
+    def test_a_legacy_new_head_completion_replaces_an_older_head_summary(self):
+        self.complete()
+        self.current_head = "b" * 40
+        legacy = {"id": 800, "user": {"login": "github-actions[bot]"},
+                  "body": "<!-- cloud-pr-wakeup:v2 run=124 attempt=1 -->\nnew head"}
+        self.comments.append(legacy)
+        self.complete(id=124, run_number=11, head_sha=self.current_head)
+        self.assertEqual(len(self.comments), 1)
+        self.assertIn(self.current_head, self.comments[0]["body"])
+        self.assertNotIn(HEAD, self.comments[0]["body"])
+
+    def test_a_legacy_check_missing_from_the_summary_is_folded_in_before_cleanup(self):
+        self.complete()
+        self.comments.append({"id": 800, "user": {"login": "github-actions[bot]"},
+                              "body": "<!-- cloud-pr-wakeup:v2 run=124 attempt=1 -->\nfailed"})
+        self.complete(id=124, run_number=11, conclusion="failure",
+                      path=".github/workflows/real-machine.yml")
+        self.assertEqual(len(self.comments), 1)
+        self.assertIn("Real-machine record", self.comments[0]["body"])
+        self.assertIn("**failure**", self.comments[0]["body"])
 
 
 if __name__ == "__main__":

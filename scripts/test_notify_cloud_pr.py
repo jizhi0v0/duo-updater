@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Wakeups target an open PR's current head, once per run attempt."""
 import json
+from pathlib import Path
 import unittest
 from unittest.mock import patch
 
@@ -9,7 +10,7 @@ import notify_cloud_pr as notify
 HEAD = "a" * 40
 RUN = {"name": "CI", "event": "pull_request", "status": "completed",
        "path": ".github/workflows/ci.yml",
-       "head_sha": HEAD, "conclusion": "success", "pull_requests": [], "run_attempt": 1}
+       "run_number": 10, "head_sha": HEAD, "conclusion": "success", "pull_requests": [], "run_attempt": 1}
 GATE_RUN = {**RUN, "name": f"Codex review gate PR #7 @{HEAD}",
             "path": ".github/workflows/codex-review-gate.yml", "event": "pull_request_target"}
 PR = {"state": "open", "draft": False, "head": {"sha": HEAD},
@@ -59,7 +60,7 @@ class CloudWakeup(unittest.TestCase):
         self.assertEqual(post.call_count, 1)
 
     def test_a_successful_rerun_wakes_after_the_first_attempts_failure(self):
-        first = {"user": {"login": "github-actions[bot]"},
+        first = {"id": 80, "user": {"login": "github-actions[bot]"},
                  "body": "<!-- cloud-pr-wakeup:v2 run=123 attempt=1 -->\nCI failed"}
         run = {**RUN, "run_attempt": 2}
         _, post = self.run_with([run, [{"number": 7}], PR, [first]])
@@ -70,6 +71,20 @@ class CloudWakeup(unittest.TestCase):
         second = {**first, "body": body}
         _, replay = self.run_with([run, [{"number": 7}], PR, [first, second]])
         replay.assert_not_called()
+
+    def test_rolling_comment_writes_are_serialized_without_replacing_pending_completions(self):
+        workflow = (Path(__file__).resolve().parents[1] /
+                    ".github/workflows/cloud-pr-wakeup.yml").read_text()
+        group = workflow.split("\nconcurrency:", 1)[1].split("\njobs:", 1)[0]
+        self.assertIn("group: cloud-pr-wakeup\n", group)
+        self.assertIn("cancel-in-progress: false", group)
+        self.assertIn("queue: max", group)
+        self.assertNotIn("workflow_run.id", group)
+
+    def test_invalid_run_numbers_cannot_suppress_other_completions(self):
+        for number in [None, 0, -1, True, "10"]:
+            with self.assertRaises(ValueError):
+                self.run_with([{**RUN, "run_number": number}])
 
     def test_invalid_attempts_do_not_publish_ambiguous_markers(self):
         for attempt in [None, 0, -1, True, "2"]:
@@ -156,7 +171,115 @@ class CloudWakeup(unittest.TestCase):
             _, post = self.run_with([run, PR, []])
             self.assertEqual(post.call_count, 1)
             body = json.loads(post.call_args.kwargs["input"])["body"]
-            self.assertIn(f"{label} attempt 1 completed", body)
+            self.assertIn(label, body)
+            self.assertIn("attempt 1", body)
+
+
+class RollingWakeup(unittest.TestCase):
+    """Exercise multiple completions against one simulated GitHub conversation."""
+    def setUp(self):
+        self.comments = []
+        self.writes = []
+        self.current_head = HEAD
+        self.run = {**RUN, "id": 123, "pull_requests": [{"number": 7}]}
+
+    def read(self, path):
+        if "/actions/runs/" in path:
+            return self.run
+        if path == "repos/o/r/pulls/7":
+            return {**PR, "head": {"sha": self.current_head}}
+        if path == "repos/o/r/issues/7/comments":
+            return self.comments
+        self.fail(f"unexpected read: {path}")
+
+    def write(self, command, **kwargs):
+        method = command[command.index("--method") + 1]
+        path = command[command.index(method) + 1]
+        body = json.loads(kwargs["input"])["body"]
+        self.writes.append((method, path, body))
+        if method == "POST":
+            self.comments.append({"id": len(self.comments) + 100,
+                                  "user": {"login": "github-actions[bot]"}, "body": body})
+        elif method == "PATCH":
+            comment = next(c for c in self.comments if path.endswith(f"/{c['id']}"))
+            comment["body"] = body
+        else:
+            self.fail(f"unexpected write: {method}")
+
+    def complete(self, **changes):
+        self.run = {**self.run, **changes}
+        with patch("sys.argv", ["notify", "--repo", "o/r", "--run", str(self.run["id"])]), \
+                patch.object(notify, "api", side_effect=self.read), \
+                patch.object(notify.subprocess, "run", side_effect=self.write):
+            notify.main()
+
+    def test_different_checks_update_one_comment_and_keep_each_wakeup(self):
+        self.complete()
+        self.complete(id=124, run_number=5, path=".github/workflows/real-machine.yml")
+        self.complete(id=125, run_number=7, path=".github/workflows/adversarial-review.yml")
+        self.assertEqual(len(self.comments), 1)
+        self.assertEqual([w[0] for w in self.writes], ["POST", "PATCH", "PATCH"])
+        for label in ["CI", "Real-machine record", "Adversarial review record"]:
+            self.assertIn(label, self.comments[0]["body"])
+
+    def test_failure_then_successful_rerun_updates_and_wakes_without_new_comment(self):
+        self.complete(conclusion="failure")
+        self.complete(run_attempt=2, conclusion="success")
+        self.assertEqual(len(self.comments), 1)
+        self.assertEqual([w[0] for w in self.writes], ["POST", "PATCH"])
+        self.assertIn("**success**", self.comments[0]["body"])
+        self.complete()
+        self.assertEqual(len(self.writes), 2)
+
+    def test_replayed_earlier_check_cannot_erase_the_later_check(self):
+        self.complete()
+        self.complete(id=124, path=".github/workflows/real-machine.yml")
+        self.complete(id=123, path=".github/workflows/ci.yml")
+        self.assertEqual(len(self.writes), 2)
+        self.assertIn("Real-machine record", self.comments[0]["body"])
+
+    def test_a_late_older_run_cannot_overwrite_a_newer_failure(self):
+        self.complete(id=124, run_number=11, conclusion="failure")
+        self.complete(id=123, run_number=10, conclusion="success")
+        self.assertEqual(len(self.writes), 1)
+        self.assertIn("**failure**", self.comments[0]["body"])
+
+    def test_a_new_head_reuses_the_comment_and_discards_old_check_results(self):
+        self.complete()
+        self.complete(id=124, path=".github/workflows/real-machine.yml")
+        self.current_head = "b" * 40
+        self.complete(id=126, run_number=12, head_sha=self.current_head,
+                      path=".github/workflows/ci.yml")
+        self.assertEqual(len(self.comments), 1)
+        self.assertIn(self.current_head, self.comments[0]["body"])
+        self.assertNotIn("Real-machine record", self.comments[0]["body"])
+        self.complete(id=123, run_number=10, head_sha=HEAD)
+        self.assertEqual(len(self.writes), 3)
+
+    def test_cancellation_still_wakes_but_does_not_add_a_comment(self):
+        self.complete()
+        self.complete(id=124, run_number=11, conclusion="cancelled")
+        self.assertEqual(len(self.comments), 1)
+        self.assertEqual([w[0] for w in self.writes], ["POST", "PATCH"])
+        self.assertIn("**cancelled**", self.comments[0]["body"])
+
+    def test_legacy_bot_comment_is_reused_without_editing_human_comments(self):
+        old = {"id": 80, "user": {"login": "github-actions[bot]"},
+               "body": "<!-- cloud-pr-wakeup:v2 run=90 attempt=1 -->\nold"}
+        human = {"id": 81, "user": {"login": "contributor"}, "body": old["body"]}
+        self.comments = [old, human]
+        self.complete()
+        self.assertEqual(len(self.comments), 2)
+        self.assertEqual(self.writes[0][:2], ("PATCH", "repos/o/r/issues/comments/80"))
+        self.assertEqual(human["body"], "<!-- cloud-pr-wakeup:v2 run=90 attempt=1 -->\nold")
+
+    def test_damaged_state_is_repaired_in_the_existing_bot_comment(self):
+        self.comments = [{"id": 80, "user": {"login": "github-actions[bot]"},
+                          "body": '<!-- cloud-pr-wakeup:v3 {"head":null,"checks":[]} -->'}]
+        self.complete()
+        self.assertEqual(len(self.comments), 1)
+        self.assertEqual(self.writes[0][0], "PATCH")
+        self.assertIn(HEAD, self.comments[0]["body"])
 
 
 if __name__ == "__main__":

@@ -154,16 +154,24 @@ installation, permissions, restart, rollback or another necessary real-machine
 check remains unverified. Remove it only after evidence is supplied. A passing
 record parser does not prove that an opt-out is true or covers the change.
 
-`Cloud PR wakeup` posts completion metadata when CI, the review gate, the
-real-machine record or the adversarial-review record workflow finishes,
-so the cloud event task can resume without a local polling job. It runs trusted
-default-branch code, checks the live PR head and never checks out PR code or
-executes an artifact with its comment-write token. Wakeup comments are not
-merge approval; the cloud handler rechecks all gates and the exact head SHA.
-Wakeups are deduplicated per workflow run **and attempt**; a successful rerun
-can wake the handler even if the same run previously reported failure.
-Success, failure, cancellation and timeout all wake the handler; it reads the
-live checks and failed-job logs before acting. A new independent PR validation
+`Cloud PR wakeup` maintains one rolling bot status comment per PR when CI,
+the review gate, the real-machine record or the adversarial-review record
+workflow finishes. The first completion creates the comment; later completions
+edit it, preserving comment events for the cloud task without adding replies.
+The task must continue receiving PR comment events, including edits and bots.
+It runs trusted default-branch code, checks the live PR head and never checks
+out PR code or executes an artifact with its comment-write token. Wakeup
+comments are not merge approval; the cloud handler rechecks all gates and the
+exact head SHA.
+
+The comment stores each workflow's latest run number and attempt for the current
+head. Replays and late older runs are ignored; a successful rerun still edits the
+comment after failure, and a new head resets the displayed check results. Success,
+failure, cancellation and timeout remain wakeups. An existing v2 bot wakeup is
+reused when migrating; old historical comments and human comments are left alone.
+The notifier workflow serializes comment writes with `queue: max` and
+`cancel-in-progress: false`, so simultaneous completions cannot create duplicate
+comments or replace each other's recorded checks. A new independent validation
 workflow must be added to the notifier's explicit workflow/event allowlist.
 
 Official setup and review-rule documentation:

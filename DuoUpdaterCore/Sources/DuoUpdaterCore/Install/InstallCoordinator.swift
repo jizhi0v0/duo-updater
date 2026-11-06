@@ -902,8 +902,11 @@ public actor InstallCoordinator {
         // here and there. See `InPlaceSwap.preExchangeCheck`.
         let processes = runningProcesses
         let automatic = AutomaticInstall.active
+        let diagnostic = AutomaticInstall.diagnostic
         try await InPlaceSwap.$preExchangeCheck.withValue({
-            try AutomaticInstall.$active.withValue(automatic) { try AutomaticInstall.check(result.app) }
+            try AutomaticInstall.$diagnostic.withValue(diagnostic) {
+                try AutomaticInstall.$active.withValue(automatic) { try AutomaticInstall.check(result.app) }
+            }
             try AutomaticInstall.$active.withValue(automatic) {
                 do {
                     try NestedAppGuard.check(result.app.path, appName: result.app.name, processes: processes)

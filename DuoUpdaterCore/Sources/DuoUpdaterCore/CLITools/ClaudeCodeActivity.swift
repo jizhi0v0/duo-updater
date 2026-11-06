@@ -152,8 +152,9 @@ public enum ClaudeCodeActivity {
     /// This is the first string of the `KERN_PROCARGS2` block, not `argv[0]`:
     /// both read the same in the case the guard needs, but `argv[0]` is a copy
     /// the program itself can rewrite.
-    static func executablePathSavedAtExec(of pid: pid_t) -> String? {
-        guard let buffer = procargs(of: pid) else { return nil }
+    static func executablePathSavedAtExec(of pid: pid_t,
+        diagnostic: ((AutomaticProcessDiagnostic.Probe) -> Void)? = nil) -> String? {
+        guard let buffer = procargs(of: pid, diagnostic: diagnostic) else { return nil }
         let start = MemoryLayout<Int32>.size
         guard let end = buffer[start...].firstIndex(of: 0), end > start else { return nil }
         return String(decoding: buffer[start..<end], as: UTF8.self)
@@ -187,12 +188,21 @@ public enum ClaudeCodeActivity {
 
     /// The `KERN_PROCARGS2` block: `argc`, the exec path, NUL padding, `argv`,
     /// then the environment. Nil when the kernel will not answer for `pid`.
-    private static func procargs(of pid: pid_t) -> [UInt8]? {
+    private static func procargs(of pid: pid_t,
+        diagnostic: ((AutomaticProcessDiagnostic.Probe) -> Void)? = nil) -> [UInt8]? {
         var mib: [Int32] = [CTL_KERN, KERN_PROCARGS2, pid]
         var size = 0
-        guard sysctl(&mib, 3, nil, &size, nil, 0) == 0, size > MemoryLayout<Int32>.size else { return nil }
+        errno = 0
+        let sizeResult = sysctl(&mib, 3, nil, &size, nil, 0)
+        let sizeError = errno
+        diagnostic?(.init(.procargsSize, Int(sizeResult), sizeError))
+        guard sizeResult == 0, size > MemoryLayout<Int32>.size else { return nil }
         var buffer = [UInt8](repeating: 0, count: size)
-        guard sysctl(&mib, 3, &buffer, &size, nil, 0) == 0 else { return nil }
+        errno = 0
+        let result = sysctl(&mib, 3, &buffer, &size, nil, 0)
+        let error = errno
+        diagnostic?(.init(.procargs, Int(result), error))
+        guard result == 0 else { return nil }
         return Array(buffer.prefix(size))
     }
 }

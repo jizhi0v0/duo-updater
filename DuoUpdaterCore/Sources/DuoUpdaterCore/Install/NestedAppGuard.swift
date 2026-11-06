@@ -491,34 +491,62 @@ public enum NestedAppGuard {
         liveProcesses(includeUninspectable: false)
     }
 
-    public static func liveProcesses(includeUninspectable: Bool) -> [RunningProcess] {
-        let capacity = Int(proc_listallpids(nil, 0)) + 64
-        guard capacity > 64 else { return [] }
+    @TaskLocal static var listPIDs: @Sendable (UnsafeMutableRawPointer?, Int32) -> Int32 = {
+        proc_listallpids($0, $1)
+    }
+
+    @TaskLocal static var lifecycleInfo: @Sendable (pid_t, UnsafeMutableRawPointer, Int32) -> Int32 = {
+        proc_pidinfo($0, PROC_PIDT_SHORTBSDINFO, 1, $1, $2)
+    }
+
+    public static func liveProcesses(includeUninspectable: Bool,
+        diagnostic: ((AutomaticProcessDiagnostic) -> Void)? = nil) -> [RunningProcess] {
+        errno = 0
+        let sizeResult = Int(listPIDs(nil, 0))
+        let sizeError = errno
+        let capacity = sizeResult + 64
+        guard capacity > 64 else {
+            diagnostic?(.init(kind: .enumerationFailed, probes: [.init(.listSize, sizeResult, sizeError)]))
+            return []
+        }
         var pids = [pid_t](repeating: 0, count: capacity)
+        errno = 0
         let count = Int(pids.withUnsafeMutableBytes {
-            proc_listallpids($0.baseAddress, Int32($0.count))
+            listPIDs($0.baseAddress, Int32($0.count))
         })
-        guard count > 0 else { return [] }
+        let countError = errno
+        guard count > 0 else {
+            diagnostic?(.init(kind: .enumerationFailed, probes: [.init(.listPIDs, count, countError)]))
+            return []
+        }
         var buffer = [CChar](repeating: 0, count: 4 * Int(MAXPATHLEN))
         var processes: [RunningProcess] = []
         if includeUninspectable, count >= capacity {
+            diagnostic?(.init(kind: .enumerationTruncated, probes: [.init(.listPIDs, count, countError)]))
             // A full enumeration buffer cannot prove every PID was inspected.
             processes.append(RunningProcess(
                 pid: 0, parentPID: 0, executablePath: nil, isRegularApp: false))
         }
         for pid in pids.prefix(min(count, capacity)) where pid > 0 {
+            errno = 0
             let length = Int(proc_pidpath(pid, &buffer, UInt32(buffer.count)))
+            let pathError = errno
             let kernelPath = length > 0
                 ? String(decoding: buffer.prefix(length).map { UInt8(bitPattern: $0) }, as: UTF8.self)
                 : nil
             var info = proc_bsdinfo()
             let size = Int32(MemoryLayout<proc_bsdinfo>.size)
-            let answered = proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, size) == size
+            errno = 0
+            let infoResult = proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, size)
+            let infoError = errno
+            let answered = infoResult == size
+            var probes: [AutomaticProcessDiagnostic.Probe] = [
+                .init(.pidPath, length, pathError), .init(.bsdInfo, Int(infoResult), infoError)]
             let parent = answered ? pid_t(info.pbi_ppid) : 0
             // The executable is unlinked and the kernel has no path for it; the
             // path execve was given lives on in the argv block. See #1783.
             var launchedPath: String?
-            if kernelPath == nil, let saved = ClaudeCodeActivity.executablePathSavedAtExec(of: pid),
+            if kernelPath == nil, let saved = ClaudeCodeActivity.executablePathSavedAtExec(of: pid, diagnostic: { probes.append($0) }),
                !saved.isEmpty {
                 launchedPath = resolvedPath(saved)
             }
@@ -526,17 +554,60 @@ public enum NestedAppGuard {
                 // Alive and unnamable is exactly the state the guard used to miss
                 // silently; it cannot be placed in a bundle, so it is not a
                 // blocker and there is nothing else to do with it.
-                if answered {
+                if answered, !(includeUninspectable && diagnostic != nil) {
                     Log.install.notice("nested-guard: pid \(pid, privacy: .public) is running but neither proc_pidpath nor KERN_PROCARGS2 names its executable")
                 }
                 if includeUninspectable {
-                    let alive = answered || kill(pid, 0) == 0 || errno == EPERM
-                    if alive {
+                    // Unknown identity remains a blocker unless a complete lifecycle
+                    // read confirms SZOMB. A failed path lookup alone proves nothing.
+                    var alive = answered
+                    if !answered {
+                        errno = 0
+                        let existence = kill(pid, 0)
+                        let existenceError = errno
+                        probes.append(.init(.existence, Int(existence), existenceError))
+                        alive = existence == 0 || existenceError == EPERM
+                    }
+                    var observedParent = answered ? parent : nil
+                    var observedState = answered ? info.pbi_status : nil
+                    var observedName: String? = answered ? withUnsafeBytes(of: info.pbi_comm) {
+                        String(decoding: $0.prefix(while: { $0 != 0 }), as: UTF8.self)
+                    } : nil
+                    if !answered {
+                        // arg=1 includes zombie records (XNU proc_info.c). This
+                        // read must succeed completely before it can clear a zombie.
+                        var lifecycle = proc_bsdshortinfo()
+                        let lifecycleSize = Int32(MemoryLayout<proc_bsdshortinfo>.size)
+                        errno = 0
+                        let lifecycleResult = lifecycleInfo(pid, &lifecycle, lifecycleSize)
+                        let lifecycleError = errno
+                        probes.append(.init(.lifecycleInfo, Int(lifecycleResult), lifecycleError))
+                        if lifecycleResult == lifecycleSize {
+                            observedParent = pid_t(lifecycle.pbsi_ppid)
+                            observedState = lifecycle.pbsi_status
+                            observedName = withUnsafeBytes(of: lifecycle.pbsi_comm) {
+                                String(decoding: $0.prefix(while: { $0 != 0 }), as: UTF8.self)
+                            }
+                        }
+                    }
+                    let stillPresent = alive || observedState != nil
+                    let kind = AutomaticProcessDiagnostic.unresolvedKind(alive: stillPresent,
+                        lifecycleState: observedState, probes: probes)
+                    diagnostic?(.init(kind: kind, pid: pid, parentPID: observedParent,
+                        lifecycleState: observedState, processName: observedName, probes: probes))
+                    // A later lifecycle read may see a live PID after the
+                    // existence probe observed an exit. Keep that unknown live
+                    // identity blocked too. Diagnostics are optional; policy is not.
+                    if observedState != UInt32(SZOMB), stillPresent {
                         processes.append(RunningProcess(
                             pid: pid, parentPID: parent, executablePath: nil, isRegularApp: false))
                     }
                 }
                 continue
+            }
+            if kernelPath == nil {
+                diagnostic?(.init(kind: .executablePathUnavailable, pid: pid,
+                    parentPID: answered ? parent : nil, lifecycleState: answered ? info.pbi_status : nil, probes: probes))
             }
             // Only a process inside some `.app` below another `.app` can matter,
             // and asking LaunchServices or reading argv for every pid would be

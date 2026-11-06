@@ -247,12 +247,15 @@ public struct BrewRowSnapshot: Equatable, Sendable {
         formulae.first { $0.name == name }?.row(upgradeAll: upgradeAll.phase)
     }
 
-    /// The workbench Brew group's Upgrade All. Only while anything is
-    /// outdated; while it runs, its progress and Cancel over it.
+    /// Offer a batch only when an outdated target has no individual run yet.
+    /// An already claimed batch keeps its own progress and Cancel.
     public var upgradeAllHeader: BrewUpgradeAllHeader {
         guard outdated > 0 else { return .hidden }
-        guard upgradeAll.isClaimed else { return .update }
-        return .running(cancel: upgradeAllCancel, progress: upgradeAllProgress)
+        if upgradeAll.isClaimed {
+            return .running(cancel: upgradeAllCancel, progress: upgradeAllProgress)
+        }
+        let covered = Set(formulae.filter { $0.hasUpdate && $0.run.isClaimed }.map(\.name))
+        return covered.count < outdated ? .update : .hidden
     }
 
     /// The popover's Homebrew row; nil without Homebrew.

@@ -9,7 +9,8 @@ import Foundation
 /// — has no app row and so had no home at all: invisible to the per-app list
 /// because there's no bundle to scan, and invisible here because this service used
 /// to be `--formula` only. Those are included; see `caskFacts(caskToken:)` for
-/// how the line is drawn.
+/// how the line is drawn. Third-party tap casks also stay here: the app source
+/// only reads the official homebrew/cask catalog.
 ///
 /// Upgrades stay explicitly scoped either way — `--formula` for formulae, and
 /// `--cask <token>` naming exactly the tokens listed here. Never a bare
@@ -46,7 +47,8 @@ public struct BrewOutdatedFormula: Sendable, Identifiable, Equatable {
 /// Or an installed cask that puts no app where the scanner looks (`kind ==
 /// .cask`, see `BrewFormulaService.caskFacts`): a CLI, a font, a JDK. It has no
 /// app row, so this tree is its one home, and it takes the formula rows'
-/// version line, Update and Cancel.
+/// version line, Update and Cancel. Third-party GUI casks use the same route,
+/// with a tap-qualified name, until the app source supports their tap.
 public struct BrewInstalledFormula: Sendable, Identifiable, Equatable {
     public var id: String { key }
     /// What the rows, their runs and the selection are keyed by. A cask's token
@@ -538,6 +540,13 @@ public actor BrewFormulaService {
         name.split(separator: "/").last.map(String.init) ?? name
     }
 
+    /// The app source reads only homebrew/cask's catalog. A third-party tap
+    /// must keep its package update route even when its bundle has an app row.
+    static func thirdPartyCaskName(token: String, tap: String?) -> String? {
+        guard let tap, !tap.isEmpty, tap != "homebrew/cask" else { return nil }
+        return "\(tap)/\(shortName(token))"
+    }
+
     /// Installed third-party-tap packages brew did not read from their tap — see
     /// `BrewUncheckedPackage`. Includes dependencies as well as leaves: brew can't
     /// tell which is which without loading the formula, and an unchecked dependency
@@ -570,7 +579,7 @@ public actor BrewFormulaService {
         public var caskLifecycles: [BrewCaskLifecycle] = []
         /// Formulae whose keg in use was built from HEAD, keyed by `full_name`.
         public var headInstalls: [String: BrewHeadInstall] = [:]
-        /// Installed casks with no app row (`appLessCasks`), sorted by token.
+        /// Casks needing a package row (app-less or third-party), sorted by name.
         public var appLessCasks: [BrewInstalledFormula] = []
         /// False when `brew info` failed: `appLessCasks` is empty for want of a
         /// read, and the last ones still stand.
@@ -673,7 +682,7 @@ public actor BrewFormulaService {
         return casks.compactMap { $0["token"] as? String }
     }
 
-    /// The installed casks with no app row (`CaskFacts.installsAnApp` false), as
+    /// Installed app-less casks and third-party GUI casks, as
     /// Brew tree rows: version, Homebrew's deprecation, whether the upgrade needs
     /// sudo. A cask brew read from its Caskroom copy (`"tap": null`, an untrusted
     /// tap) is not one: it is an unchecked row (`uncheckedCandidates`), which
@@ -687,15 +696,17 @@ public actor BrewFormulaService {
             guard
                 !(c["tap"] is NSNull),
                 let token = c["token"] as? String,
-                let fact = facts[token], !fact.installsAnApp
+                let fact = facts[token]
             else { return nil }
+            let tapName = thirdPartyCaskName(token: token, tap: c["tap"] as? String)
+            guard !fact.installsAnApp || tapName != nil else { return nil }
             let manual = ((c["artifacts"] as? [Any]) ?? []).contains { artifact in
                 (((artifact as? [String: Any])?["installer"] as? [Any]) ?? []).contains {
                     ($0 as? [String: Any])?["manual"] != nil
                 }
             }
             return BrewInstalledFormula(
-                name: token,
+                name: tapName ?? token,
                 installedVersion: (c["installed"] as? String) ?? "—",
                 availableVersion: nil,
                 lifecycle: BrewLifecycle.parse(c),
@@ -865,11 +876,15 @@ public actor BrewFormulaService {
         // JSON null when brew fell back to the Caskroom copy. `NSNull` is what a
         // present-but-null key decodes to; an absent key is not that signal.
         //
-        // A cask that installs an app is skipped for the same reason `outdatedCasks()`
-        // skips it: the app has its own row, possibly checked by another source.
+        // Third-party taps retain the unchecked warning even with an app row;
+        // the official app catalog cannot check that tap on their behalf.
         for cask in casks where cask["tap"] is NSNull {
-            guard let token = cask["token"] as? String, !(await caskInstallsAnApp(token)) else { continue }
-            let fullName = caskReceiptTap(token).map { "\($0)/\(token)" } ?? token
+            guard let token = cask["token"] as? String else { continue }
+            let tap = caskReceiptTap(token)
+            let hasApp = await caskInstallsAnApp(token)
+            guard thirdPartyCaskName(token: token, tap: tap) != nil
+                    || !hasApp else { continue }
+            let fullName = tap.map { "\($0)/\(token)" } ?? token
             out.append(BrewUncheckedPackage(
                 fullName: fullName, kind: .cask,
                 installedVersion: (cask["installed"] as? String) ?? "—",
@@ -979,7 +994,7 @@ public actor BrewFormulaService {
         }
     }
 
-    /// Outdated casks that install **no app** — the ones nothing else covers. See
+    /// Outdated app-less casks and third-party GUI casks. See
     /// `BrewOutdatedFormula` for why GUI casks are excluded, and
     /// `caskFacts(caskToken:)` for how that's decided.
     ///
@@ -993,8 +1008,15 @@ public actor BrewFormulaService {
         let output = await runReading(["outdated", "--cask", "--json=v2"])
         guard let data = output.data(using: .utf8) else { return [] }
         var out: [BrewOutdatedFormula] = []
-        for cask in Self.parseCasks(data) where !(await caskFacts(cask.name, nil, extraFolders)).installsAnApp {
-            out.append(cask)
+        for cask in Self.parseCasks(data) {
+            let token = Self.shortName(cask.name)
+            let tapName = Self.thirdPartyCaskName(token: token, tap: caskReceiptTap(token))
+            let facts = await caskFacts(token, nil, extraFolders)
+            if tapName != nil || !facts.installsAnApp {
+                out.append(BrewOutdatedFormula(
+                    name: tapName ?? cask.name, installedVersion: cask.installedVersion,
+                    currentVersion: cask.currentVersion, kind: .cask))
+            }
         }
         return out
     }
@@ -1016,7 +1038,7 @@ public actor BrewFormulaService {
     /// catalog load.
     ///
     /// "Installs an app" means the scanner gives one of the cask's apps a row:
-    /// a bundle that exists, directly inside a folder `AppScanner` lists
+    /// a bundle that exists, directly inside a scan root or one plain subfolder
     /// (`AppScanner.defaultLocations` and the person's own, `extraFolders`), with
     /// a version (`AppScanner.hasRow`). Anything short of that would drop the
     /// cask from the Brew tree with no app row to stand for it — invisible
@@ -1061,9 +1083,18 @@ public actor BrewFormulaService {
         let scanned = Set((scannedFolders + extraFolders).map { URL(fileURLWithPath: $0).standardizedFileURL.path })
         func isShown(_ appPath: String) -> Bool {
             let app = URL(fileURLWithPath: appPath).standardizedFileURL
-            return scanned.contains(app.deletingLastPathComponent().path) && hasRow(app)
+            let parent = app.deletingLastPathComponent()
+            if scanned.contains(parent.path) { return hasRow(app) }
+            // Match scan()'s one-level descent, including its hidden-entry and
+            // plain-folder exclusions. A deeper app still needs a custom root.
+            guard scanned.contains(parent.deletingLastPathComponent().path),
+                  AppScanner.isPlainFolder(parent),
+                  (try? parent.resourceValues(forKeys: [.isHiddenKey]))?.isHidden == false,
+                  (try? app.resourceValues(forKeys: [.isHiddenKey]))?.isHidden == false
+            else { return false }
+            return hasRow(app)
         }
-        let roots = caskroomPaths.map { URL(fileURLWithPath: $0).appendingPathComponent(caskToken) }
+        let roots = caskroomPaths.map { URL(fileURLWithPath: $0).appendingPathComponent(Self.shortName(caskToken)) }
         var visible = appTargets?.contains(where: isShown) ?? false
         var hasPkg = false
         for root in roots {
@@ -1282,7 +1313,7 @@ public actor BrewFormulaService {
         }
     }
 
-    /// Upgrade one app-less cask (`brew upgrade --cask <token>`), the per-row
+    /// Upgrade one package-row cask (`brew upgrade --cask <token>`), the per-row
     /// action for a cask in the workbench Brew list. As `upgrade(formula:)`: a
     /// cancellable download first, then the upgrade as the commit. Its sudo, a
     /// pkg's, asks `password`.

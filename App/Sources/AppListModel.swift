@@ -5056,12 +5056,15 @@ final class AppListModel {
     /// What the popover's Homebrew row and the workbench's Upgrade All draw
     /// from (`BrewRowSnapshot`).
     var brewRowSnapshot: BrewRowSnapshot {
-        .live(
+        let outdatedKeys = Set(brewOutdatedFormulae.map {
+            BrewInstalledFormula.key(kind: $0.kind, name: $0.name)
+        })
+        return .live(
             upgradeAll: brewRun(Self.upgradeAllJobID, upgradeAllPhase),
             upgradeAllDone: brewUpgradeDone, upgradeAllTotal: brewUpgradeTotal, upgradeAllError: brewUpgradeError,
             // The popover row's: those with an upgrade of their own claimed.
             formulae: upgradingFormulae.sorted().map { name in
-                brewFormula(name, hasUpdate: brewFormulae.contains { $0.key == name && $0.canUpgrade })
+                brewFormula(name, hasUpdate: outdatedKeys.contains(name))
             },
             installed: brewInstalled, checked: brewChecked,
             outdated: brewOutdatedFormulae.count, unchecked: brewUnchecked.count,

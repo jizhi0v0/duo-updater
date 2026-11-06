@@ -137,11 +137,18 @@ public struct BrewFallbackPolicy: Sendable, Equatable {
     public struct SigningRefusal: Sendable, Equatable {
         /// The installed copy's `signingStamp(team:)` at the time.
         public var team: String
-        /// The refused release, as `offeredVersion(of:)` spelled it.
+        /// The refused release's marketing version and build ("" when the
+        /// source gave none), compared like the checker compares a release.
         public var version: String
-        public init(team: String, version: String) {
+        public var build: String
+        public init(team: String, version: String, build: String = "") {
             self.team = team
             self.version = version
+            self.build = build
+        }
+        /// The release a source offered and the install refused.
+        public init(team: String, refusing remote: RemoteVersion?) {
+            self.init(team: team, version: remote?.shortVersion ?? "", build: remote?.version ?? "")
         }
     }
 
@@ -177,7 +184,7 @@ public struct BrewFallbackPolicy: Sendable, Equatable {
 
     /// The defaults form of `signingRefusals`: copy key → {team, version}.
     public static func encodeRefusals(_ refusals: [String: SigningRefusal]) -> [String: [String: String]] {
-        refusals.mapValues { ["team": $0.team, "version": $0.version] }
+        refusals.mapValues { ["team": $0.team, "version": $0.version, "build": $0.build] }
     }
 
     /// Write `signingRefusals` where `init(defaults:)` reads it, for the app
@@ -190,7 +197,7 @@ public struct BrewFallbackPolicy: Sendable, Equatable {
         (stored ?? [:]).compactMapValues { value in
             guard let fields = value as? [String: String],
                   let team = fields["team"], let version = fields["version"] else { return nil }
-            return SigningRefusal(team: team, version: version)
+            return SigningRefusal(team: team, version: version, build: fields["build"] ?? "")
         }
     }
 
@@ -245,18 +252,31 @@ public struct BrewFallbackPolicy: Sendable, Equatable {
             && result.remote?.sourceName != "Homebrew"
     }
 
-    /// How a refused release is recorded and compared: its marketing version,
-    /// else its build.
-    public static func offeredVersion(of remote: RemoteVersion?) -> String {
-        remote?.shortVersion ?? remote?.version ?? ""
-    }
-
     /// Whether a recorded refusal still covers what a source offers now: the
-    /// same release or an older one. A newer release gets another try.
+    /// same release or an older one. A newer release gets another try — a newer
+    /// marketing version, or the same one with a newer build (a vendor that
+    /// fixes its signing in a rebuild, an app whose marketing string never moves).
+    /// What cannot be told apart stays covered.
     static func refusalCovers(_ refusal: SigningRefusal, _ remote: RemoteVersion) -> Bool {
-        let offered = offeredVersion(of: remote)
-        guard !offered.isEmpty, !refusal.version.isEmpty else { return true }
-        return VersionComparator.compare(offered, refusal.version) != .orderedDescending
+        let short = remote.shortVersion ?? "", build = remote.version ?? ""
+        if !short.isEmpty, !refusal.version.isEmpty {
+            switch VersionComparator.compare(short, refusal.version) {
+            case .orderedDescending: return false
+            case .orderedAscending: return true
+            case .orderedSame: break
+            }
+        }
+        if !build.isEmpty, !refusal.build.isEmpty {
+            return VersionComparator.compare(build, refusal.build) != .orderedDescending
+        }
+        if short.isEmpty || refusal.version.isEmpty {
+            // One side spells only a build: compare what each side has.
+            let offered = short.isEmpty ? build : short
+            let refused = refusal.version.isEmpty ? refusal.build : refusal.version
+            guard !offered.isEmpty, !refused.isEmpty else { return true }
+            return VersionComparator.compare(offered, refused) != .orderedDescending
+        }
+        return true
     }
 
     /// Whether `remote` is visibly signed another way than the installed copy,

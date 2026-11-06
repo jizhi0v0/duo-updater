@@ -40,8 +40,7 @@ public struct Settings: Sendable {
     /// the menu-bar app reads.
     public static func recordBrewFallbackSigningRefusal(_ result: UpdateResult) async {
         let refusal = BrewFallbackPolicy.SigningRefusal(
-            team: await BrewFallbackPolicy.signingStamp(of: result.app),
-            version: BrewFallbackPolicy.offeredVersion(of: result.remote))
+            team: await BrewFallbackPolicy.signingStamp(of: result.app), refusing: result.remote)
         let defaults = UserDefaults(suiteName: suiteName) ?? .standard
         var refusals = BrewFallbackPolicy(defaults: defaults).signingRefusals
         refusals[InstallPreferenceKey.key(for: result.app)] = refusal

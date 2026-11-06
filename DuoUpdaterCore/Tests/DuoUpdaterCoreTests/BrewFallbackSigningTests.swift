@@ -217,6 +217,63 @@ import Testing
         #expect(!BrewFallbackPolicy().takesChoice(nil, for: key, rowWithheld: false))
     }
 
+    /// Same marketing version, new build: a vendor that fixed its signing in a
+    /// rebuild, or an app whose marketing string never moves. Builds decide
+    /// only when the marketing versions agree; what cannot be told apart stays
+    /// covered.
+    @Test func aRefusalCoversWhatIsNotNewerByVersionOrBuild() {
+        func offered(_ short: String?, _ build: String?) -> RemoteVersion {
+            RemoteVersion(shortVersion: short, version: build, downloadURL: nil, sourceName: "Sparkle")
+        }
+        let atBuild = BrewFallbackPolicy.SigningRefusal(team: "T", version: "2.0", build: "200")
+        #expect(BrewFallbackPolicy.refusalCovers(atBuild, offered("2.0", "200")))
+        #expect(!BrewFallbackPolicy.refusalCovers(atBuild, offered("2.0", "201")))
+        #expect(!BrewFallbackPolicy.refusalCovers(atBuild, offered("2.1", "150")))
+        #expect(BrewFallbackPolicy.refusalCovers(atBuild, offered("1.9", "300")))
+        #expect(BrewFallbackPolicy.refusalCovers(atBuild, offered("2.0", nil)))
+        // Recorded from a source that spells only builds.
+        let buildOnly = BrewFallbackPolicy.SigningRefusal(team: "T", version: "", build: "1234")
+        #expect(!BrewFallbackPolicy.refusalCovers(buildOnly, offered("2.1", "1235")))
+        #expect(BrewFallbackPolicy.refusalCovers(buildOnly, offered(nil, "1234")))
+        #expect(!BrewFallbackPolicy.refusalCovers(buildOnly, offered(nil, "1300")))
+        #expect(BrewFallbackPolicy.SigningRefusal(team: "T", refusing: offered("2.0", "200")) == atBuild)
+    }
+
+    /// A held copy whose next source fails keeps saying why it is on Homebrew.
+    @Test func aHeldCopyKeepsItsNoteWhenALaterSourceFails() async {
+        let policy = BrewFallbackPolicy(
+            checksOtherSourcesByDefault: true, signingRefusals: [key: Self.refused("TEAMBREW01")])
+        let result = await check(policy, team: "TEAMBREW01", sources: [Downstream(), Offline()])
+        guard case .error = result.status else { Issue.record("Expected the later failure, got \(result.status)"); return }
+        #expect(result.brewFallbackWithheldForSigning)
+        #expect(result.homebrewSourceIdentifier == "example")
+    }
+
+    private struct RefusesTheOS: UpdateSource {
+        let name = "Sparkle"
+        let version: String
+        func latestVersion(for app: InstalledApp) async throws -> RemoteVersion? {
+            throw OSWindowRefused(
+                OSWindowRefusal(bound: .floor(minimum: "99.0"), version: version, hostOS: "27.0.0"),
+                release: RemoteVersion(shortVersion: version, version: nil, downloadURL: nil, sourceName: name))
+        }
+    }
+
+    /// "Won't offer 2.0 for this macOS" says nothing new about a release
+    /// already refused for its signature; a newer one is still news.
+    @Test(arguments: [("2.0", false), ("2.1", true)])
+    func anOSWindowRefusalOfTheRefusedReleaseIsNotNews(version: String, isNews: Bool) async {
+        let policy = BrewFallbackPolicy(
+            checksOtherSourcesByDefault: true, signingRefusals: [key: Self.refused("TEAMBREW01")])
+        let result = await check(policy, team: "TEAMBREW01", sources: [RefusesTheOS(version: version)])
+        if isNews {
+            guard case .outsideOSWindow = result.status else { Issue.record("got \(result.status)"); return }
+        } else {
+            #expect(result.remote?.sourceName == "Homebrew")
+            #expect(result.brewFallbackWithheldForSigning)
+        }
+    }
+
     @Test func aRenamedCopyKeepsItsChoiceAndRefusal() {
         var policy = BrewFallbackPolicy(blockedKeys: ["old"], signingRefusals: ["old": Self.refused("TEAMBREW01")])
         policy.migrate(from: "old", to: "new")
@@ -269,8 +326,9 @@ import Testing
         let suite = "brew-fallback-signing-\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
-        BrewFallbackPolicy.storeRefusals([key: Self.refused("TEAMBREW01", at: "1.5.1")], in: defaults)
-        #expect(BrewFallbackPolicy(defaults: defaults).signingRefusals == [key: Self.refused("TEAMBREW01", at: "1.5.1")])
+        let refusal = BrewFallbackPolicy.SigningRefusal(team: "TEAMBREW01", version: "1.5.1", build: "180")
+        BrewFallbackPolicy.storeRefusals([key: refusal], in: defaults)
+        #expect(BrewFallbackPolicy(defaults: defaults).signingRefusals == [key: refusal])
         // Anything else under the key (a malformed entry) is dropped, not trusted.
         defaults.set([key: "TEAMBREW01"], forKey: UpdateSettings.brewFallbackSigningRefusalsKey)
         #expect(BrewFallbackPolicy(defaults: defaults).signingRefusals.isEmpty)

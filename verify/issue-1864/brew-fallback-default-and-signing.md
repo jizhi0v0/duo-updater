@@ -21,9 +21,10 @@ Follow-up to `brew-first-fallback.md`. Three changes:
      ID. Gate 3 would refuse it anyway. Later sources are still asked.
    - At install: gate 3 is unchanged. When it refuses a fallback install for its
      signature (`BrewFallbackPolicy.isSigningRefusal`), the app and `duo install` record
-     the copy with its Team ID and the refused version (`BrewFallbackSigningRefusals`).
-     While the copy still has that Team ID, that release and older ones are skipped; a
-     newer release is offered again, so a vendor's one-off signing mistake does not hold
+     the copy with its Team ID and the refused version and build
+     (`BrewFallbackSigningRefusals`). While the copy still has that Team ID, that release
+     and older ones are skipped (also when a source reports them refused for this macOS);
+     a newer marketing version, or the same one with a newer build, is offered again, so a vendor's one-off signing mistake does not hold
      the copy forever. A copy reinstalled with another signature is checked again; any
      row-menu choice clears it.
    - The row menu says why a row stays on Homebrew (`brewFallbackWithheldForSigning`).
@@ -158,6 +159,14 @@ desktop click to open the menu bar popover). Evidence from the app's own
       with the official `auto_updates`; the tap was removed afterwards. No installed copy
       here comes from a migrated tap, so the source's handling is covered by tests.
     Settings left as found: default on, no per-copy choices, no refusals.
+
+11. Second review round (2026-11-07, on f9a5f3b7), fixed in the next commit: refusals
+    compared only the marketing version, so a rebuild with the same version stayed
+    skipped; a held copy whose later source failed lost its note; an OS-window refusal
+    of the refused release still surfaced. On IINA (installed 1.5.1 build 183, Sparkle
+    1.5.1): a refusal at 1.5.1 build 183 logged `Sparkle skipped — 1.5.1 is not newer
+    than the release refused`; at 1.5.1 build 1 the check went on to `Sparkle → 1.5.1`.
+    Settings left as found.
 
 Not exercised on this host: the detection-time skip for a `.publishedDigestOnly`
 release (no installed brew copy here has such a GitHub rule). It is covered by

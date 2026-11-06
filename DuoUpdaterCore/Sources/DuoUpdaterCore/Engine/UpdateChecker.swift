@@ -503,6 +503,11 @@ public struct UpdateChecker: Sendable {
                     Log.check.debug("\(label, privacy: .public): \(source.name, privacy: .public) refused a release that is not newer than this copy — a miss")
                     continue
                 }
+                // A release already refused for its signature is not news either.
+                if brewAnswer != nil, let held = heldRefusal, BrewFallbackPolicy.refusalCovers(held, refused.release) {
+                    brewAnswer?.brewFallbackWithheldForSigning = true
+                    continue
+                }
                 Log.check.info("\(label, privacy: .public): \(source.name, privacy: .public) refused for this macOS: \(refused.refusal.logDescription, privacy: .public)")
                 if refusal == nil { refusal = refused.refusal }
                 continue
@@ -601,6 +606,7 @@ public struct UpdateChecker: Sendable {
             // for the Settings default's re-check.
             refused.homebrewSourceIdentifier = brewAnswer?.homebrewSourceIdentifier
             refused.homebrewSelfUpdating = brewAnswer?.homebrewSelfUpdating ?? false
+            refused.brewFallbackWithheldForSigning = brewAnswer?.brewFallbackWithheldForSigning ?? false
             return refused
         }
         if let lastError, !app.isToolboxManaged {
@@ -609,6 +615,7 @@ public struct UpdateChecker: Sendable {
             failed.failureIsTransient = failedTransiently
             failed.homebrewSourceIdentifier = brewAnswer?.homebrewSourceIdentifier
             failed.homebrewSelfUpdating = brewAnswer?.homebrewSelfUpdating ?? false
+            failed.brewFallbackWithheldForSigning = brewAnswer?.brewFallbackWithheldForSigning ?? false
             return failed
         }
         if let lastError {

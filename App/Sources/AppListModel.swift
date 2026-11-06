@@ -6543,8 +6543,7 @@ final class AppListModel {
             // answers it from Homebrew (`UpdateChecker`).
             if BrewFallbackPolicy.isFallbackInstall(result), BrewFallbackPolicy.isSigningRefusal(error) {
                 let refusal = BrewFallbackPolicy.SigningRefusal(
-                    team: await BrewFallbackPolicy.signingStamp(of: result.app),
-                    version: BrewFallbackPolicy.offeredVersion(of: result.remote))
+                    team: await BrewFallbackPolicy.signingStamp(of: result.app), refusing: result.remote)
                 prefs.recordBrewFallbackSigningRefusal(for: result.app, refusal: refusal)
                 Log.install.notice("brew fallback: \(result.app.name, privacy: .public) kept on Homebrew — \(result.remote?.sourceName ?? "?", privacy: .public) build refused for its signature")
             }

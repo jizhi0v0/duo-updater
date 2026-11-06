@@ -47,7 +47,7 @@ enum SettingsAnchor: Hashable, Sendable {
 
     // General
     case launchAtLogin, checkFrequency, hideDockIcon, appRuntimeTags, cliRuntimeTags
-    case autoRelaunch, concurrency, appStoreUpdates, selfUpdatingApps, digestOnlyInstalls
+    case automaticUpdates, autoRelaunch, concurrency, appStoreUpdates, selfUpdatingApps, setappBackgroundUpdates, digestOnlyInstalls
     // Notifications
     case notifyApps, notifyCLITools, notifyHomebrew
     // Backups
@@ -57,7 +57,7 @@ enum SettingsAnchor: Hashable, Sendable {
     // Folders
     case scanFolders, builtInFolders
     // Updates
-    case selfUpdateCheck, silentSelfUpdate
+    case selfUpdateCheck, releaseChannel, silentSelfUpdate, reportProblem
     // Accounts
     case githubCLI, alcoveLicense, appleDeveloperSignIn, renewAppleSession, downloadXcode
     // Library
@@ -76,13 +76,13 @@ enum SettingsAnchor: Hashable, Sendable {
     var section: SettingsSection {
         switch self {
         case .testFlightDetection, .launchAtLogin, .checkFrequency, .hideDockIcon,
-             .appRuntimeTags, .cliRuntimeTags, .autoRelaunch, .concurrency,
-             .appStoreUpdates, .selfUpdatingApps, .digestOnlyInstalls: .general
+             .appRuntimeTags, .cliRuntimeTags, .automaticUpdates, .autoRelaunch, .concurrency,
+             .appStoreUpdates, .selfUpdatingApps, .setappBackgroundUpdates, .digestOnlyInstalls: .general
         case .notifyApps, .notifyCLITools, .notifyHomebrew: .notifications
         case .backups, .keepBackups, .pruneOrphanBackups, .backupLocation: .backups
         case .storageCaches, .storageAppData, .storageSystem: .storage
         case .scanFolders, .builtInFolders: .folders
-        case .selfUpdateCheck, .silentSelfUpdate: .updates
+        case .selfUpdateCheck, .releaseChannel, .silentSelfUpdate, .reportProblem: .updates
         case .githubToken, .githubBudget, .githubCLI: .github
         case .alcoveLicense: .alcove
         case .appleDeveloperSignIn, .renewAppleSession, .downloadXcode: .xcode
@@ -524,16 +524,21 @@ struct SettingsField<Trailing: View>: View {
 /// effect or cost that the label alone does not reveal.
 ///
 /// `info` adds an ⓘ after the title for background; see `SettingsInfoButton`.
+/// `channel` adds the same chip an app row uses for a non-stable channel, for a
+/// setting that exists only in a Beta build — so the reader can tell the feature
+/// is still being tested without a sentence in the detail saying so.
 struct SettingsToggle: View {
     let title: LocalizedStringKey
     let detail: LocalizedStringKey
     var info: LocalizedStringKey?
+    var channel: ReleaseChannel?
     @Binding var isOn: Bool
 
-    init(_ title: LocalizedStringKey, detail: LocalizedStringKey, info: LocalizedStringKey? = nil, isOn: Binding<Bool>) {
+    init(_ title: LocalizedStringKey, detail: LocalizedStringKey, info: LocalizedStringKey? = nil, channel: ReleaseChannel? = nil, isOn: Binding<Bool>) {
         self.title = title
         self.detail = detail
         self.info = info
+        self.channel = channel
         self._isOn = isOn
     }
 
@@ -554,6 +559,7 @@ struct SettingsToggle: View {
                     // On the texts, not on this HStack: the ⓘ must not.
                     Text(title)
                         .onTapGesture { isOn.toggle() }
+                    if let channel { ChannelTag(channel: channel) }
                     if let info { SettingsInfoButton(info) }
                 }
                 Text(detail)
@@ -564,6 +570,60 @@ struct SettingsToggle: View {
             }
         }
         .settingsRow()
+    }
+}
+
+/// One caption line under a picker row: what the current choice means.
+struct PickerOptionDetail: View {
+    let text: String
+    init(_ text: String) { self.text = text }
+
+    var body: some View {
+        Text(text)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+// MARK: - Adaptive picker row
+
+/// A settings picker that follows the standard macOS label-left/control-right
+/// row whenever the label and the popup both fit at their natural widths, and
+/// stacks the label above the popup when they do not.
+///
+/// Both halves of the one-line candidate are `fixedSize`, so `ViewThatFits`
+/// only chooses it when the row can show the whole label AND the whole selected
+/// option. That distinction is the point: these options are sentences ("Always
+/// download & replace, then restart"), and a popup handed a squeezed slot does
+/// not stack or shrink — it truncates the current selection. At the 660pt window
+/// minimum that happened in every language we ship, English included
+/// ("Full download (no extra permissi…"), which left the reader unable to see
+/// which route was active without opening the menu.
+///
+/// Ideal widths, so no measurement pass: `Spacer(minLength: 0)` contributes 0 to
+/// the candidate's ideal size, leaving it as label + 12 + popup.
+struct AdaptivePickerRow<Title: View, Content: View>: View {
+    let title: Title
+    @ViewBuilder var picker: Content
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 12) {
+                title
+                    .font(.callout)
+                    .fixedSize(horizontal: true, vertical: false)
+                Spacer(minLength: 0)
+                picker.fixedSize()
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                title.font(.callout)
+                picker
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 

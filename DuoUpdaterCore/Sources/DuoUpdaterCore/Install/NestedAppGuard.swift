@@ -495,6 +495,10 @@ public enum NestedAppGuard {
         proc_listallpids($0, $1)
     }
 
+    @TaskLocal static var lifecycleInfo: @Sendable (pid_t, UnsafeMutableRawPointer, Int32) -> Int32 = {
+        proc_pidinfo($0, PROC_PIDT_SHORTBSDINFO, 1, $1, $2)
+    }
+
     public static func liveProcesses(includeUninspectable: Bool,
         diagnostic: ((AutomaticProcessDiagnostic) -> Void)? = nil) -> [RunningProcess] {
         errno = 0
@@ -554,8 +558,8 @@ public enum NestedAppGuard {
                     Log.install.notice("nested-guard: pid \(pid, privacy: .public) is running but neither proc_pidpath nor KERN_PROCARGS2 names its executable")
                 }
                 if includeUninspectable {
-                    // Preserve the existing safety policy, including zombies. The
-                    // diagnostic describes the observation; it never grants clearance.
+                    // Unknown identity remains a blocker unless a complete lifecycle
+                    // read confirms SZOMB. A failed path lookup alone proves nothing.
                     var alive = answered
                     if !answered {
                         errno = 0
@@ -569,13 +573,13 @@ public enum NestedAppGuard {
                     var observedName: String? = answered ? withUnsafeBytes(of: info.pbi_comm) {
                         String(decoding: $0.prefix(while: { $0 != 0 }), as: UTF8.self)
                     } : nil
-                    if diagnostic != nil, !answered {
+                    if !answered {
                         // arg=1 includes zombie records (XNU proc_info.c). This
-                        // extra observation is diagnostic only, never clearance.
+                        // read must succeed completely before it can clear a zombie.
                         var lifecycle = proc_bsdshortinfo()
                         let lifecycleSize = Int32(MemoryLayout<proc_bsdshortinfo>.size)
                         errno = 0
-                        let lifecycleResult = proc_pidinfo(pid, PROC_PIDT_SHORTBSDINFO, 1, &lifecycle, lifecycleSize)
+                        let lifecycleResult = lifecycleInfo(pid, &lifecycle, lifecycleSize)
                         let lifecycleError = errno
                         probes.append(.init(.lifecycleInfo, Int(lifecycleResult), lifecycleError))
                         if lifecycleResult == lifecycleSize {
@@ -586,11 +590,15 @@ public enum NestedAppGuard {
                             }
                         }
                     }
-                    let kind = AutomaticProcessDiagnostic.unresolvedKind(alive: alive,
+                    let stillPresent = alive || observedState != nil
+                    let kind = AutomaticProcessDiagnostic.unresolvedKind(alive: stillPresent,
                         lifecycleState: observedState, probes: probes)
                     diagnostic?(.init(kind: kind, pid: pid, parentPID: observedParent,
                         lifecycleState: observedState, processName: observedName, probes: probes))
-                    if alive {
+                    // A later lifecycle read may see a live PID after the
+                    // existence probe observed an exit. Keep that unknown live
+                    // identity blocked too. Diagnostics are optional; policy is not.
+                    if observedState != UInt32(SZOMB), stillPresent {
                         processes.append(RunningProcess(
                             pid: pid, parentPID: parent, executablePath: nil, isRegularApp: false))
                     }

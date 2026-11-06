@@ -103,7 +103,32 @@ struct AutomaticUpdateDiagnosticsTests {
         #expect(report.contains("pidPath"))
     }
 
-    @Test func realZombieIsDiagnosedButStillBlocksAutomaticInstall() async throws {
+    @Test func unidentifiedLiveProcessStillPreventsFileExchange() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let target = root.appendingPathComponent("Target.app")
+        let incoming = root.appendingPathComponent("Incoming.app")
+        for bundle in [target, incoming] {
+            try FileManager.default.createDirectory(at: bundle, withIntermediateDirectories: true)
+        }
+        let marker = target.appendingPathComponent("version")
+        try Data("old".utf8).write(to: marker)
+        try Data("new".utf8).write(to: incoming.appendingPathComponent("version"))
+        // The test process is verifiably alive; model both identity probes failing.
+        #expect(kill(getpid(), 0) == 0)
+        let unknown = NestedAppGuard.RunningProcess(pid: getpid(), parentPID: getppid(),
+            executablePath: nil, isRegularApp: false)
+        await InPlaceSwap.$preExchangeCheck.withValue({
+            try AutomaticInstall.checkProcesses(at: target, processes: [unknown])
+        }) {
+            await #expect(throws: AutomaticInstall.Deferred.self) {
+                try await InPlaceSwap.replace(newApp: incoming, over: target)
+            }
+        }
+        #expect(try Data(contentsOf: marker) == Data("old".utf8))
+    }
+
+    @Test func realZombieIsDiagnosedAndDoesNotBlockAutomaticInstall() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
@@ -113,7 +138,7 @@ struct AutomaticUpdateDiagnosticsTests {
         my $p = fork(); die "fork" unless defined $p;
         if (!$p) { exit 0; }
         open(my $f, '>', $ARGV[0]) or die $!; print $f $p; close $f;
-        for (1..1000) { last if -e $ARGV[1]; select(undef, undef, undef, 0.01); }
+        for (1..6000) { last if -e $ARGV[1]; select(undef, undef, undef, 0.01); }
         waitpid($p, 0);
         """
         let child = Task {
@@ -143,7 +168,24 @@ struct AutomaticUpdateDiagnosticsTests {
             #expect(blocker.lifecycleState == UInt32(SZOMB))
             #expect(blocker.probes.contains { $0.name == .pidPath && $0.result == 0 && $0.error != 0 })
             #expect(blocker.probes.contains { $0.name == .procargsSize })
-            _ = try #require(observed.first { $0.pid == zombiePID })
+            #expect(!observed.contains { $0.pid == zombiePID })
+            #expect(kill(zombiePID, 0) == 0, "Fixture must remain unreaped throughout installation")
+            // No diagnostic callback: lifecycle policy must still run. A failed
+            // or partial answer must never treat its buffer as confirmed SZOMB.
+            for partial in [false, true] {
+                NestedAppGuard.$lifecycleInfo.withValue({ _, buffer, size in
+                    buffer.assumingMemoryBound(to: proc_bsdshortinfo.self).pointee.pbsi_status = UInt32(SZOMB)
+                    errno = partial ? 0 : EPERM
+                    return partial ? size - 1 : 0
+                }) {
+                    let unresolved = NestedAppGuard.liveProcesses(includeUninspectable: true)
+                        .filter { $0.pid == zombiePID || $0.pid == getpid() }
+                    #expect(unresolved.contains { $0.pid == zombiePID && $0.executablePath == nil })
+                    #expect(throws: AutomaticInstall.Deferred.self) {
+                        try AutomaticInstall.checkProcesses(at: root, processes: unresolved)
+                    }
+                }
+            }
             let target = root.appendingPathComponent("Target.app")
             let incoming = root.appendingPathComponent("Incoming.app")
             for bundle in [target, incoming] {
@@ -158,20 +200,15 @@ struct AutomaticUpdateDiagnosticsTests {
                     .filter { $0.pid == zombiePID || $0.pid == getpid() }
                 try AutomaticInstall.checkProcesses(at: target, processes: processes)
             }
-            await InPlaceSwap.$preExchangeCheck.withValue(guardFixture) {
-                await #expect(throws: AutomaticInstall.Deferred.self) {
-                    try await InPlaceSwap.replace(newApp: incoming, over: target)
-                }
-            }
-            #expect(try Data(contentsOf: target.appendingPathComponent("version")) == Data("old".utf8))
-            try Data().write(to: release)
-            _ = try await child.value
-            #expect(!NestedAppGuard.liveProcesses(includeUninspectable: true).contains { $0.pid == zombiePID })
             try await InPlaceSwap.$preExchangeCheck.withValue(guardFixture) {
                 try await InPlaceSwap.replace(newApp: incoming, over: target)
             }
+            #expect(kill(zombiePID, 0) == 0, "Success must not depend on reaping the zombie")
+            try Data().write(to: release)
+            _ = try await child.value
+            #expect(!NestedAppGuard.liveProcesses(includeUninspectable: true).contains { $0.pid == zombiePID })
             #expect(try Data(contentsOf: target.appendingPathComponent("version")) == Data("new".utf8))
-            print("1866 live zombie: probes=\(blocker.probes), state=\(blocker.lifecycleState ?? 0); deferred with old content intact, reaped, retry installed new content")
+            print("1866 live zombie: probes=\(blocker.probes), state=\(blocker.lifecycleState ?? 0); installation succeeded while zombie remained unreaped; then reaped")
         } catch {
             try? Data().write(to: release)
             _ = await child.result

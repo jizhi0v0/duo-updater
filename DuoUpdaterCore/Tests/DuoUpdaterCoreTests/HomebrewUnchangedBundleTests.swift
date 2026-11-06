@@ -48,6 +48,30 @@ import Foundation
         func remove() { try? FileManager.default.removeItem(at: root) }
     }
 
+    @Test func appUpgradeSuppliesAndCleansAskPassChannel() async throws {
+        let fixture = try Fixture(brewScript: #"""
+            case "$*" in *--dry-run*|fetch*) exit 0 ;; esac
+            test -x "$SUDO_ASKPASS" || exit 71
+            echo "$SUDO_ASKPASS" > "$(dirname "$0")/askpass-path"
+            /usr/libexec/PlistBuddy -c 'Set :CFBundleShortVersionString 26.9.0' "$(dirname "$0")/Zzfixture.app/Contents/Info.plist"
+            """#)
+        defer { fixture.remove() }
+        try await HomebrewInstaller.$brewPathOverride.withValue(fixture.brew.path) {
+            let app = InstalledApp(name: "Zzfixture", bundleID: "example.fixture", shortVersion: "26.8.2",
+                buildVersion: "26.8.2", path: fixture.app, isMASApp: false, sparkleFeedURL: nil)
+            let remote = RemoteVersion(shortVersion: "26.9.0", version: nil, downloadURL: nil,
+                sourceName: "Homebrew", sourceIdentifier: "example/tap/fixture")
+            let result = UpdateResult(app: app, remote: remote, status: .updateAvailable(latest: "26.9.0"))
+            let outcome = try await InstallCoordinator().perform(result, route: .homebrew,
+                installedPopulation: [app], digestOnlyAllowed: false,
+                brewPassword: { _ in Issue.record("No sudo was invoked"); return nil }, progress: { _ in })
+            #expect(outcome.applied)
+        }
+        let path = try String(contentsOf: fixture.root.appendingPathComponent("askpass-path"), encoding: .utf8)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        #expect(!FileManager.default.fileExists(atPath: path))
+    }
+
     @Test func exitZeroWithTheBundleUntouchedThrowsUnchanged() async throws {
         let fixture = try Fixture(brewScript: """
             echo "Warning: Not upgrading zzfixture-cask, the latest version is already installed" >&2

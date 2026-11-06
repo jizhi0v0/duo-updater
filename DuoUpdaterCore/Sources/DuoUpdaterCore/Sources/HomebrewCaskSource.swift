@@ -12,11 +12,12 @@ import Foundation
 /// Apps that match a cask but weren't brew-installed simply fall through to the
 /// next source (and, lacking one, end up "unknown" until a vendor rule covers
 /// them) rather than being silently adopted by Homebrew.
-public struct HomebrewCaskSource: UpdateSource {
-    public let name = "Homebrew"
+public actor HomebrewCaskSource: UpdateSource {
+    public nonisolated let name = "Homebrew"
 
     private let catalog: HomebrewCaskCatalog
     private let inventory: BrewLocalInventory
+    private var ownershipTask: Task<[ThirdPartyCaskSource.Ownership], Never>?
     /// Injected like `SignatureVerifier`'s `osVersion`, and for the same reason:
     /// the pick below must be testable off whatever Mac the tests run on.
     private let hostOSVersion: String
@@ -31,12 +32,20 @@ public struct HomebrewCaskSource: UpdateSource {
         self.hostOSVersion = hostOSVersion
     }
 
-    /// Only used after a catalogue failure: don't let a known brew copy fall
-    /// through, but don't block unrelated apps because the catalogue is offline.
-    func ownsInstalledPath(_ app: InstalledApp) async -> Bool {
+    public func prewarm(_ apps: [InstalledApp]) async { ownershipTask = nil }
+    public func invalidateMemo(for apps: [InstalledApp]) async { ownershipTask = nil }
+
+    private func owners(of app: InstalledApp) async -> [ThirdPartyCaskSource.Ownership] {
+        if ownershipTask == nil {
+            let roots = inventory.caskroomPaths
+            ownershipTask = Task { await ThirdPartyCaskSource.ownership(in: roots, includeOfficial: true) }
+        }
         let path = app.path.standardizedFileURL.resolvingSymlinksInPath().path
-        return await ThirdPartyCaskSource.ownership(in: inventory.caskroomPaths, includeOfficial: true)
-            .contains { $0.tap == "homebrew/cask" && $0.paths.contains(path) }
+        return await ownershipTask!.value.filter { $0.tap == "homebrew/cask" && $0.paths.contains(path) }
+    }
+
+    func ownsInstalledPath(_ app: InstalledApp) async -> Bool {
+        !(await owners(of: app)).isEmpty
     }
 
     public func latestVersion(for app: InstalledApp) async throws -> RemoteVersion? {
@@ -69,7 +78,15 @@ public struct HomebrewCaskSource: UpdateSource {
         // several installed (not a shape brew allows for one `.app`, but the index
         // cannot know that) the host breaks the tie, via the one shared copy of
         // that rule.
-        let installed = candidates.filter { inventory.isOfficialCandidate(caskToken: $0.token) }
+        // Synthetic token-only inventories are a test seam. Real inventories
+        // must associate this exact copy with the candidate, not just find a
+        // same-named cask somewhere else on the machine.
+        let ownedTokens: Set<String>? = inventory.caskroomPaths.isEmpty
+            ? nil : Set(await owners(of: app).map(\.token))
+        let installed = candidates.filter {
+            inventory.isOfficialCandidate(caskToken: $0.token)
+                && (ownedTokens?.contains($0.token) ?? true)
+        }
         guard let entry = CaskEntry.preferred(among: installed, hostOSVersion: hostOSVersion)
         else { return nil }
 

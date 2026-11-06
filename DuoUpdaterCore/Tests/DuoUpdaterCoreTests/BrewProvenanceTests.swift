@@ -63,12 +63,8 @@ private func appNamed(_ filename: String) -> InstalledApp {
     )
 }
 
-/// A brew-installed cask flagged `auto_updates` must NOT be offered a brew
-/// upgrade: the app self-updates (brew lags it), and `brew install --cask --force`
-/// would re-adopt an app that updates itself. The source defers (nil) → the app
-/// falls through to its real channel / "unknown", never a Homebrew row. This is
-/// the Postman case: vendor-installed, self-updating, wrongly adopted once.
-@Test func homebrewSourceDefersAutoUpdatingCask() async throws {
+/// auto_updates retains brew ownership; optional fallback is the checker's policy.
+@Test func homebrewSourceResolvesAutoUpdatingCask() async throws {
     let entry = CaskEntry(
         token: "postman", version: "12.12.6",
         url: URL(string: "https://dl.pstmn.io/download/version/12.12.6/osx_arm64"),
@@ -79,12 +75,10 @@ private func appNamed(_ filename: String) -> InstalledApp {
         inventory: BrewLocalInventory(installedTokens: ["postman"])
     )
     let remote = try await source.latestVersion(for: appNamed("Postman.app"))
-    #expect(remote == nil)   // self-updating → not classified as Homebrew
+    #expect(remote?.sourceIdentifier == "postman")
 }
 
-/// Control: an installed cask that is NOT auto_updates still resolves to a
-/// Homebrew-managed update — proving the gate above is specific to self-updaters,
-/// not a blanket opt-out.
+/// An installed cask without auto_updates uses the same ownership policy.
 @Test func homebrewSourceResolvesManagedCask() async throws {
     let entry = CaskEntry(
         token: "tableplus", version: "7.1.0",

@@ -115,6 +115,21 @@ import Testing
         #expect(await checker.check(unrelated).remote?.sourceName == "GitHub")
     }
 
+    @Test func officialAutoUpdatingCaskOnlyOwnsItsRecordedPath() async throws {
+        let (root, app) = try fixture(tap: "homebrew/cask")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let json = Data(#"[{"token":"example","version":"2.0","auto_updates":true,"artifacts":[{"app":["Example.app"]}]}]"#.utf8)
+        let source = HomebrewCaskSource(
+            catalog: HomebrewCaskCatalog(testIndex: try HomebrewCaskCatalog.index(fromCatalogJSON: json)),
+            inventory: BrewLocalInventory(caskroomPaths: [root.appendingPathComponent("Caskroom").path]))
+        let copy = InstalledApp(name: "Example", bundleID: "example.app", shortVersion: "0.5", buildVersion: nil,
+            path: root.appendingPathComponent("Manual/Example.app"), isMASApp: false, sparkleFeedURL: nil)
+        #expect(try await source.latestVersion(for: app)?.sourceIdentifier == "example")
+        #expect(try await source.latestVersion(for: copy) == nil)
+        let result = await UpdateChecker(sources: [source, Vendor()]).check(copy)
+        #expect(result.remote?.sourceName == "GitHub")
+    }
+
     @Test func officialReceiptContinuesToOtherSources() async throws {
         let (root, app) = try fixture(tap: "homebrew/cask")
         defer { try? FileManager.default.removeItem(at: root) }

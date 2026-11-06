@@ -180,6 +180,7 @@ public actor HomebrewInstaller {
     public func upgrade(
         caskToken: String,
         app: URL,
+        password: SudoPasswordPrompt? = nil,
         onOutput: @Sendable @escaping (String) -> Void
     ) async throws {
         guard let brew = Self.brewPathOverride ?? Self.brewPath() else { throw BrewError.brewNotFound }
@@ -208,22 +209,25 @@ public actor HomebrewInstaller {
         // task-locals.
         let journal = InstallJournal.current
         let before = BundleSnapshot.read(app)
-        try await InstallCommit.run("brew upgrade") { [env] in
-            let (outcome, output) = try await StreamedLines.run(
-                brew, arguments, environment: env, onOutput: onOutput,
-                onLaunch: { journal?.noteChild($0) })
-            // brew ran: a failure from here may have moved the old app aside
-            // (its rescue does not always put it back), so it is no "nothing
-            // changed". One that could not even start throws above, unmarked.
-            InstallCommit.handedOver()
+        try await BrewAskPass.withChannel(packages: [caskToken], prompt: password) { askpass in
+            let environment = env.merging(askpass) { _, channel in channel }
+            try await InstallCommit.run("brew upgrade") { [environment] in
+                let (outcome, output) = try await StreamedLines.run(
+                    brew, arguments, environment: environment, onOutput: onOutput,
+                    onLaunch: { journal?.noteChild($0) })
+                // brew ran: a failure from here may have moved the old app aside
+                // (its rescue does not always put it back), so it is no "nothing
+                // changed". One that could not even start throws above, unmarked.
+                InstallCommit.handedOver()
 
-            guard outcome.succeeded else {
-                throw BrewError.failed(code: outcome.terminationStatus, output: output)
-            }
-            if before.isUnchanged(BundleSnapshot.read(app)) {
-                throw BrewError.unchanged(
-                    caskToken: caskToken, onDisk: before.version,
-                    caskroomVersion: BrewLocalInventory().installedVersion(caskToken: caskToken))
+                guard outcome.succeeded else {
+                    throw BrewError.failed(code: outcome.terminationStatus, output: output)
+                }
+                if before.isUnchanged(BundleSnapshot.read(app)) {
+                    throw BrewError.unchanged(
+                        caskToken: caskToken, onDisk: before.version,
+                        caskroomVersion: BrewLocalInventory().installedVersion(caskToken: caskToken))
+                }
             }
         }
     }

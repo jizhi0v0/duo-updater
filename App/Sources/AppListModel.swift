@@ -6032,6 +6032,7 @@ final class AppListModel {
                         withdraw: { [weak self] in
                             Task { @MainActor in self?.withdrawQuit(id: id) }
                         }),
+                    brewPassword: AutomaticInstall.active ? nil : BrewSudoPasswordPanel.prompt,
                     progress: stages.recording { stage in Task { @MainActor in self.setStage(id, stage) } },
                     releaseAfterDownload: { await releaseAfterDownload?.release() },
                     beforeInstallerOpen: { await self.retireStagedPackage(for: id) })

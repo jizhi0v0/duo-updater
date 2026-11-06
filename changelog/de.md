@@ -2,6 +2,14 @@
 
 Dies ist eine deutsche Übersetzung von `CHANGELOG.md`. Die englische Fassung ist maßgeblich; frühere Versionen, die hier nicht aufgeführt sind, fallen automatisch auf Englisch zurück.
 
+## 0.5.24-beta.2
+
+**Homebrew-Apps prüfen zuerst ihre ursprüngliche Quelle.** Meldet Homebrew kein Update, kannst du im Menü der App die Prüfung anderer Quellen aktivieren.
+
+**Homebrew-Updates lassen sich leichter verwalten.** In Unterordnern installierte offizielle Casks erscheinen nicht mehr doppelt, und „Alle aktualisieren“ wird ausgeblendet, wenn alle verfügbaren Updates laufen oder in der Warteschlange stehen.
+
+**Automatische Updates werden seltener irrtümlich zurückgestellt.** Unter „Ereignisse“ siehst du den Grund und kannst vor dem Speichern eine Vorschau des Berichts ohne identifizierende Angaben ansehen.
+
 ## 0.5.24-beta.1
 
 **Teste in dieser Beta automatische Updates für geschlossene Apps.** Aktiviere die Option in den Einstellungen, um geeignete Updates nach geplanten Prüfungen mit vorheriger Sicherung zu installieren. Laufende Apps, Installationsprogramme und Updates mit Autorisierungsbedarf werden übersprungen. App-Daten werden nicht gesichert.

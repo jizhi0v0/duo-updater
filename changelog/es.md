@@ -2,6 +2,14 @@
 
 Esta es la traducción al español del archivo CHANGELOG.md. La versión en inglés es la autoridad en caso de discrepancias. Los números de versión no incluidos aquí se mostrarán automáticamente en inglés en la ventana de Novedades.
 
+## 0.5.24-beta.2
+
+**Las apps de Homebrew consultan primero su fuente original.** Si Homebrew indica que no hay actualizaciones, puedes activar la consulta de otras fuentes en el menú de la app.
+
+**Es más fácil gestionar las actualizaciones de Homebrew.** Los casks oficiales instalados en subcarpetas ya no aparecen duplicados y la opción de actualizar todo se oculta cuando todas las actualizaciones disponibles están en curso o en cola.
+
+**Las actualizaciones automáticas se aplazan por error con menos frecuencia.** En Eventos puedes consultar el motivo del aplazamiento y previsualizar un informe sin datos identificativos antes de guardarlo.
+
 ## 0.5.24-beta.1
 
 **Prueba las actualizaciones automáticas de apps cerradas en esta Beta.** Activa la opción en Ajustes para instalar las actualizaciones compatibles tras las comprobaciones programadas, con una copia de seguridad previa. Se omiten las apps abiertas, los instaladores y las actualizaciones que requieren autorización. No se copian los datos de las apps.

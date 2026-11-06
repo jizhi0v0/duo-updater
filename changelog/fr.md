@@ -2,6 +2,14 @@
 
 Ceci est la traduction de `CHANGELOG.md`. La version anglaise fait autorité. Les versions non énumérées ici reviennent automatiquement à l’anglais.
 
+## 0.5.24-beta.2
+
+**Les apps installées via Homebrew consultent d’abord leur source d’origine.** Si Homebrew signale qu’aucune mise à jour n’est disponible, vous pouvez activer la recherche auprès d’autres sources dans le menu de l’app.
+
+**Les mises à jour Homebrew sont plus faciles à gérer.** Les casks officiels installés dans des sous-dossiers ne s’affichent plus en double, et l’option de mise à jour groupée disparaît quand toutes les mises à jour disponibles sont en cours ou en attente.
+
+**Les mises à jour automatiques sont moins souvent reportées par erreur.** Dans Événements, vous pouvez voir le motif du report et prévisualiser un rapport sans données d’identification avant de l’enregistrer.
+
 ## 0.5.24-beta.1
 
 **Essayez les mises à jour automatiques des apps fermées dans cette Beta.** Activez l’option dans les réglages pour installer les mises à jour éligibles après les vérifications planifiées, avec une sauvegarde préalable. Les apps ouvertes, les programmes d’installation et les mises à jour nécessitant une autorisation sont ignorés. Les données des apps ne sont pas sauvegardées.

@@ -2,6 +2,14 @@
 
 Questa è la traduzione di `CHANGELOG.md`. In caso di differenze fa fede la versione inglese. Le versioni non elencate qui vengono mostrate automaticamente in inglese.
 
+## 0.5.24-beta.2
+
+**Le app installate tramite Homebrew controllano prima la fonte originale.** Se Homebrew segnala che non ci sono aggiornamenti, puoi attivare il controllo di altre fonti dal menu dell’app.
+
+**È più facile gestire gli aggiornamenti di Homebrew.** I cask ufficiali installati in sottocartelle non compaiono più due volte e l’opzione per aggiornare tutto si nasconde quando tutti gli aggiornamenti disponibili sono in corso o in coda.
+
+**Gli aggiornamenti automatici vengono rinviati per errore meno spesso.** In Eventi puoi vedere il motivo del rinvio e visualizzare un’anteprima del rapporto privo di dati identificativi prima di salvarlo.
+
 ## 0.5.24-beta.1
 
 **Prova gli aggiornamenti automatici delle app chiuse in questa Beta.** Abilita l’opzione nelle impostazioni per installare gli aggiornamenti idonei dopo i controlli programmati, con un backup prima di ogni aggiornamento. Le app aperte, i programmi di installazione e gli aggiornamenti che richiedono autorizzazione vengono ignorati. I dati delle app non vengono salvati.

@@ -82,3 +82,25 @@ is in the shared Core stack and covered by the Core tests above.
 
 This record omits personal paths, full
 desktop images and unrelated application inventories.
+
+## Rebased PR build confirmation
+
+After the original PR #1870 was found already merged, the retained changes were
+rebased onto main c8e59b83c. Runtime-source commit tested:
+`29f7b816aa30a3ae4da7a40a0b4119870cc99060` (subsequent changes only document these results).
+Core again passed 153 tests in 29 suites; App passed 328/328, and the merged main's
+1265 localization keys agreed. Release build and strict signature checks passed.
+
+The resulting executable matched between host and VM:
+`4168b729df5fd37fe20625adbe57c848d83810a8e752d9da22e5e80afd1be0e9`.
+This build was installed and launched in VMPal. Its actual check log reports:
+
+```text
+CompressO [com.compresso.app] v4.1.0: Homebrew → 4.1.0 [upToDate]
+Handy [com.pais.handy] v0.10.0: GitHub → 0.10.0 [upToDate]
+```
+
+The popover and workbench were reopened to confirm current state and no duplicate
+third-party package entry. This final smoke check is separate from the full
+update/Upgrade All interactions on the earlier hash recorded above; those
+interactions were not repeated after the rebase.

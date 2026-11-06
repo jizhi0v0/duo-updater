@@ -1179,10 +1179,31 @@ final class AppListModel {
     // collide with — or double-count against — the app rows above.
     private let brewFormulaService = BrewFormulaService()
     /// Outdated CLI formulae from the last `brew outdated --formula` read.
-    private(set) var brewOutdatedFormulae: [BrewOutdatedFormula] = []
+    private var brewPackageOutdated: [BrewOutdatedFormula] = []
+    private(set) var brewOutdatedFormulae: [BrewOutdatedFormula] {
+        get {
+            let apps = brewAppCaskNames
+            return brewPackageOutdated.filter { $0.kind != .cask || !apps.contains($0.name) }
+        }
+        set { brewPackageOutdated = newValue }
+    }
     /// Every top-level (`brew leaves`) formula, outdated or current — the workbench
     /// Brew tree's formula half, so it shows all you manage like the Apps tree does.
-    private(set) var brewFormulae: [BrewInstalledFormula] = []
+    private var brewPackageInventory: [BrewInstalledFormula] = []
+    private(set) var brewFormulae: [BrewInstalledFormula] {
+        get {
+            let apps = brewAppCaskNames
+            return brewPackageInventory.filter { $0.kind != .cask || !apps.contains($0.name) }
+        }
+        set { brewPackageInventory = newValue }
+    }
+    /// A proven application route replaces its package fallback, including in
+    /// bulk counts. Failed/unmatched ownership keeps the package entry available.
+    private var brewAppCaskNames: Set<String> {
+        Set(results.compactMap { result in
+            result.remote?.sourceName == "Homebrew" ? result.remote?.sourceIdentifier : nil
+        })
+    }
     /// Installed third-party-tap formulae/casks brew wouldn't read from their tap
     /// (e.g. the tap isn't trusted). No read above can say whether they're outdated,
     /// and brew's own listings drop them silently — see `BrewUncheckedPackage`.
@@ -3279,6 +3300,7 @@ final class AppListModel {
         let checker = UpdateChecker(
             sources: [],
             maxConcurrency: prefs.maxConcurrency,
+            brewFallbackKeys: prefs.brewFallbackKeys,
             testflight: inventory,
             announcements: announcements,
             appStoreSignedIn: signedIn,
@@ -3762,6 +3784,7 @@ final class AppListModel {
         let checker = UpdateChecker(
             sources: makeSources(token: token),
             maxConcurrency: prefs.maxConcurrency,
+            brewFallbackKeys: prefs.brewFallbackKeys,
             toolbox: ToolboxSource(inventory: toolbox),
             testflight: testflight,
             announcements: announcements,
@@ -3894,6 +3917,7 @@ final class AppListModel {
                 let resync = UpdateChecker(
                     sources: makeSources(token: token),
                     maxConcurrency: prefs.maxConcurrency,
+                    brewFallbackKeys: prefs.brewFallbackKeys,
                     toolbox: ToolboxSource(inventory: toolbox),
                     testflight: synced,
                     announcements: syncedAnnouncements,
@@ -6008,6 +6032,7 @@ final class AppListModel {
                         withdraw: { [weak self] in
                             Task { @MainActor in self?.withdrawQuit(id: id) }
                         }),
+                    brewPassword: AutomaticInstall.active ? nil : BrewSudoPasswordPanel.prompt,
                     progress: stages.recording { stage in Task { @MainActor in self.setStage(id, stage) } },
                     releaseAfterDownload: { await releaseAfterDownload?.release() },
                     beforeInstallerOpen: { await self.retireStagedPackage(for: id) })
@@ -10036,6 +10061,13 @@ final class AppListModel {
 
     // MARK: - Ignore / skip
 
+    func setBrewFallback(_ enabled: Bool, for result: UpdateResult) {
+        let key = InstallPreferenceKey.key(for: result.app)
+        if enabled { prefs.brewFallbackKeys.insert(key) }
+        else { prefs.brewFallbackKeys.remove(key) }
+        Task { await retry(result) }
+    }
+
     /// Toggle whether this app is hidden from update checks entirely.
     func toggleIgnore(_ result: UpdateResult) {
         let nowIgnored = !prefs.isIgnored(result.app)
@@ -11139,6 +11171,7 @@ final class AppListModel {
         // drift apart.
         let sources = makeSources(token: githubToken)
         let maxConcurrency = prefs.maxConcurrency
+        let brewFallbackKeys = prefs.brewFallbackKeys
         // Under the generation the token was resolved in, which is what these
         // sources send even after a change in Settings (`GitHubTokenForRecheck`).
         let (rows, kept) = await GitHubCredentials.$pinnedGeneration.withValue(resolved.generation) { await ScanRowAssembly.recheck(
@@ -11164,6 +11197,7 @@ final class AppListModel {
                 let checker = UpdateChecker(
                     sources: sources,
                     maxConcurrency: maxConcurrency,
+                    brewFallbackKeys: brewFallbackKeys,
                     toolbox: ToolboxSource(inventory: toolbox),
                     testflight: testflight,
                     announcements: announcements,

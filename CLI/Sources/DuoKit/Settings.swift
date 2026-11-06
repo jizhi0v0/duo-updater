@@ -61,6 +61,7 @@ public struct Settings: Sendable {
     }
 
     public var updateSettings: UpdateSettings
+    public var brewFallbackKeys: Set<String> = []
     public var ignoredKeys: Set<String>
     /// App preference key → the version the user chose to skip.
     public var skippedVersions: [String: String]
@@ -164,6 +165,7 @@ public struct Settings: Sendable {
                 // Absent reads as false, as in the app.
                 allowsDigestOnlyInstalls: defaults.bool(
                     forKey: UpdateSettings.allowsDigestOnlyInstallsKey)),
+            brewFallbackKeys: Set(defaults.stringArray(forKey: UpdateSettings.brewFallbackKeysKey) ?? []),
             ignoredKeys: Set(defaults.stringArray(forKey: UpdateSettings.ignoredKeysKey) ?? []),
             skippedVersions: defaults.dictionary(forKey: UpdateSettings.skippedVersionsKey)
                 as? [String: String] ?? [:],

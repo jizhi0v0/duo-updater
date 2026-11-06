@@ -453,6 +453,10 @@ final class Preferences {
 
     /// Apps the user has chosen to hide from update checks entirely, keyed by
     /// `key(for:)`.
+    var brewFallbackKeys: Set<String> {
+        didSet { defaults.set(Array(brewFallbackKeys), forKey: UpdateSettings.brewFallbackKeysKey) }
+    }
+
     private(set) var ignoredKeys: Set<String> {
         didSet { defaults.set(Array(ignoredKeys), forKey: Key.ignoredKeys) }
     }
@@ -717,6 +721,7 @@ final class Preferences {
             Log.app.notice("prefs: TestFlight detection not set — starting at \(migrated.rawValue, privacy: .public)")
         }
         self.customScanPaths = defaults.stringArray(forKey: Key.customScanPaths) ?? []
+        self.brewFallbackKeys = Set(defaults.stringArray(forKey: UpdateSettings.brewFallbackKeysKey) ?? [])
         self.ignoredKeys = Set(defaults.stringArray(forKey: Key.ignoredKeys) ?? [])
         self.declinedElevationKeys = Set(defaults.stringArray(forKey: Key.declinedElevationKeys) ?? [])
         self.skippedVersions = defaults.dictionary(forKey: Key.skippedVersions) as? [String: String] ?? [:]
@@ -959,6 +964,7 @@ final class Preferences {
         let oldKey = InstallPreferenceKey.preferenceKey(old)
         let newKey = InstallPreferenceKey.preferenceKey(new)
         guard oldKey != newKey else { return }
+        if brewFallbackKeys.remove(oldKey) != nil { brewFallbackKeys.insert(newKey) }
         if ignoredKeys.remove(oldKey) != nil { ignoredKeys.insert(newKey) }
         if let skipped = skippedVersions.removeValue(forKey: oldKey) { skippedVersions[newKey] = skipped }
         if declinedElevationKeys.remove(oldKey) != nil { declinedElevationKeys.insert(newKey) }

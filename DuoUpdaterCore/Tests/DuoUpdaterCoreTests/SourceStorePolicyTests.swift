@@ -53,6 +53,8 @@ struct SourceStorePolicyTests {
             + "arrangement that produced the Keka sentence"),
         "SparkleAppcastSource": (false,
             "gates on the feed URL only, so any store copy declaring SUFeedURL reached it"),
+        "ThirdPartyCaskSource": (false,
+            "a third-party tap receipt must not take ownership of a store copy"),
         "HomebrewCaskSource": (false,
             "a same-id cask is a different distribution with its own version scheme"),
         "GitHubReleasesSource": (false,

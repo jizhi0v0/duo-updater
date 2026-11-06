@@ -2202,6 +2202,13 @@ private struct AppRow: View {
         // which is also what `retry` itself refuses on.
         Button("Check Again") { Task { await model.retry(result) } }
             .disabled(stage != nil)
+        if result.homebrewSourceIdentifier != nil || result.remote?.sourceName == "Homebrew"
+            || model.prefs.brewFallbackKeys.contains(InstallPreferenceKey.key(for: result.app)) {
+            Toggle("Check other sources when Homebrew has no update", isOn: Binding(
+                get: { model.prefs.brewFallbackKeys.contains(InstallPreferenceKey.key(for: result.app)) },
+                set: { model.setBrewFallback($0, for: result) }))
+                .disabled(stage != nil)
+        }
         Divider()
         if result.hasUpdate {
             let offered = result.offeredDisplay ?? String(localized: "this version")

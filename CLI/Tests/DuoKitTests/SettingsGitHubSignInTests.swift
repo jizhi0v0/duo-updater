@@ -31,6 +31,19 @@ import DuoUpdaterCore
         if let previous { setenv("GH_TOKEN", previous, 1) } else { unsetenv("GH_TOKEN") }
     }
 
+    @Test func brewFallbackPreferenceReachesChecker() async {
+        let scratch = ScratchDefaults("brew-fallback-load")
+        defer { scratch.clear() }
+        scratch.defaults.set(false, forKey: GitHubToken.usesCLIKey)
+        let key = InstallPreferenceKey.preferenceKey("/Applications/Example.app")
+        scratch.defaults.set([key], forKey: UpdateSettings.brewFallbackKeysKey)
+        await withEnvironmentToken(nil) {
+            let settings = await Settings.load(defaults: scratch.defaults, keychain: { _ in nil }, store: { _, _ in })
+            #expect(settings.brewFallbackKeys == [key])
+            #expect(Inventory.checker(settings).brewFallbackKeys == [key])
+        }
+    }
+
     /// Mutation: drop the `GitHubToken.setUsesCLI` call from `load`.
     @Test func loadingSettingsAppliesTheSwitchToTheTokenHandOff() async {
         let scratch = ScratchDefaults("github-sign-in-load")

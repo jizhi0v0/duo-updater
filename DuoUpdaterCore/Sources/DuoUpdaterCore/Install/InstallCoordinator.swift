@@ -489,6 +489,7 @@ public actor InstallCoordinator {
         installedPopulation: [InstalledApp]?,
         digestOnlyAllowed: Bool,
         quitPrompt: QuitPromptChannel = .none,
+        brewPassword: SudoPasswordPrompt? = nil,
         progress: @Sendable @escaping (InstallStage) -> Void,
         releaseAfterDownload: @Sendable () async -> Void = {},
         beforeInstallerOpen: @Sendable () async -> Void = {}
@@ -528,6 +529,7 @@ public actor InstallCoordinator {
                         result, route: route, installedPopulation: installedPopulation,
                         digestOnlyAllowed: digestOnlyAllowed,
                         quitPrompt: quitPrompt,
+                        brewPassword: brewPassword,
                         spaceToApply: toApply,
                         progress: progress,
                         releaseAfterDownload: releaseAfterDownload,
@@ -587,6 +589,7 @@ public actor InstallCoordinator {
         installedPopulation: [InstalledApp]?,
         digestOnlyAllowed: Bool,
         quitPrompt: QuitPromptChannel,
+        brewPassword: SudoPasswordPrompt?,
         spaceToApply: Int64,
         progress: @Sendable @escaping (InstallStage) -> Void,
         releaseAfterDownload: @Sendable () async -> Void,
@@ -661,7 +664,7 @@ public actor InstallCoordinator {
             // download.
             try refuseWhileNestedAppRuns(result)
             let agents = snapshotLoginItemAgents(result)
-            try await homebrew.upgrade(caskToken: token, app: result.app.path) { line in
+            try await homebrew.upgrade(caskToken: token, app: result.app.path, password: brewPassword) { line in
                 progress(.runningCommand(line))
             }
             permits.signalApply()

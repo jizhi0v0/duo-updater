@@ -13,6 +13,7 @@ import Foundation
 /// installed cask token) rather than shelling out to `brew list` — no
 /// subprocess, and it works even if `brew` isn't on PATH.
 public struct BrewLocalInventory: Sendable {
+    let caskroomPaths: [String]
     /// Default Caskroom locations: Apple Silicon, then Intel.
     public static let defaultCaskroomPaths = [
         "/opt/homebrew/Caskroom",
@@ -20,6 +21,7 @@ public struct BrewLocalInventory: Sendable {
     ]
 
     private let installedTokens: Set<String>
+    private let thirdPartyTokens: Set<String>
     /// Token → the version Homebrew records as installed, for the casks where
     /// it records one (see `installedVersion(inCaskDirectory:token:)`).
     private let installedVersions: [String: String]
@@ -27,13 +29,18 @@ public struct BrewLocalInventory: Sendable {
     /// Scans the given Caskroom paths once at construction. Cheap (a directory
     /// listing of a few dozen entries), so it's fine to build per check run.
     public init(caskroomPaths: [String] = BrewLocalInventory.defaultCaskroomPaths) {
+        self.caskroomPaths = caskroomPaths
         let fm = FileManager.default
         var tokens: Set<String> = []
+        var thirdParty: Set<String> = []
         var versions: [String: String] = [:]
         for path in caskroomPaths {
             guard let entries = try? fm.contentsOfDirectory(atPath: path) else { continue }
             for entry in entries where !entry.hasPrefix(".") {
                 tokens.insert(entry.lowercased())
+                if let tap = BrewFormulaService.realCaskReceiptTap(entry, caskroomPaths: [path]), tap != "homebrew/cask" {
+                    thirdParty.insert(entry.lowercased())
+                }
                 let dir = URL(fileURLWithPath: path).appendingPathComponent(entry)
                 if versions[entry.lowercased()] == nil,
                    let version = Self.installedVersion(inCaskDirectory: dir, token: entry) {
@@ -42,13 +49,16 @@ public struct BrewLocalInventory: Sendable {
             }
         }
         self.installedTokens = tokens
+        self.thirdPartyTokens = thirdParty
         self.installedVersions = versions
     }
 
     /// Test seam: build directly from a known token set (and, optionally, the
     /// version Homebrew recorded for some of them).
     public init(installedTokens: Set<String>, installedVersions: [String: String] = [:]) {
+        self.caskroomPaths = []
         self.installedTokens = Set(installedTokens.map { $0.lowercased() })
+        self.thirdPartyTokens = []
         self.installedVersions = Dictionary(
             installedVersions.map { ($0.key.lowercased(), $0.value) },
             uniquingKeysWith: { first, _ in first })
@@ -82,6 +92,12 @@ public struct BrewLocalInventory: Sendable {
     /// True when Homebrew actually installed this cask on this machine.
     public func isInstalled(caskToken: String) -> Bool {
         installedTokens.contains(caskToken.lowercased())
+    }
+
+    /// A third-party receipt must not satisfy the official catalogue's match,
+    /// including when the scanner is looking at another same-named app copy.
+    func isOfficialCandidate(caskToken: String) -> Bool {
+        isInstalled(caskToken: caskToken) && !thirdPartyTokens.contains(caskToken.lowercased())
     }
 
     /// The version Homebrew records as installed for this cask, when it records

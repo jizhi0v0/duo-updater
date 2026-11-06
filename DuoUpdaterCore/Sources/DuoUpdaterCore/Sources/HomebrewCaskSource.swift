@@ -12,11 +12,12 @@ import Foundation
 /// Apps that match a cask but weren't brew-installed simply fall through to the
 /// next source (and, lacking one, end up "unknown" until a vendor rule covers
 /// them) rather than being silently adopted by Homebrew.
-public struct HomebrewCaskSource: UpdateSource {
-    public let name = "Homebrew"
+public actor HomebrewCaskSource: UpdateSource {
+    public nonisolated let name = "Homebrew"
 
     private let catalog: HomebrewCaskCatalog
     private let inventory: BrewLocalInventory
+    private var ownershipTask: Task<[ThirdPartyCaskSource.Ownership], Never>?
     /// Injected like `SignatureVerifier`'s `osVersion`, and for the same reason:
     /// the pick below must be testable off whatever Mac the tests run on.
     private let hostOSVersion: String
@@ -29,6 +30,22 @@ public struct HomebrewCaskSource: UpdateSource {
         self.catalog = catalog
         self.inventory = inventory
         self.hostOSVersion = hostOSVersion
+    }
+
+    public func prewarm(_ apps: [InstalledApp]) async { ownershipTask = nil }
+    public func invalidateMemo(for apps: [InstalledApp]) async { ownershipTask = nil }
+
+    private func owners(of app: InstalledApp) async -> [ThirdPartyCaskSource.Ownership] {
+        if ownershipTask == nil {
+            let roots = inventory.caskroomPaths
+            ownershipTask = Task { await ThirdPartyCaskSource.ownership(in: roots, includeOfficial: true) }
+        }
+        let path = app.path.standardizedFileURL.resolvingSymlinksInPath().path
+        return await ownershipTask!.value.filter { $0.tap == "homebrew/cask" && $0.paths.contains(path) }
+    }
+
+    func ownsInstalledPath(_ app: InstalledApp) async -> Bool {
+        !(await owners(of: app)).isEmpty
     }
 
     public func latestVersion(for app: InstalledApp) async throws -> RemoteVersion? {
@@ -61,22 +78,17 @@ public struct HomebrewCaskSource: UpdateSource {
         // several installed (not a shape brew allows for one `.app`, but the index
         // cannot know that) the host breaks the tie, via the one shared copy of
         // that rule.
-        let installed = candidates.filter { inventory.isInstalled(caskToken: $0.token) }
+        // Synthetic token-only inventories are a test seam. Real inventories
+        // must associate this exact copy with the candidate, not just find a
+        // same-named cask somewhere else on the machine.
+        let ownedTokens: Set<String>? = inventory.caskroomPaths.isEmpty
+            ? nil : Set(await owners(of: app).map(\.token))
+        let installed = candidates.filter {
+            inventory.isOfficialCandidate(caskToken: $0.token)
+                && (ownedTokens?.contains($0.token) ?? true)
+        }
         guard let entry = CaskEntry.preferred(among: installed, hostOSVersion: hostOSVersion)
         else { return nil }
-
-        // Self-updating gate: an `auto_updates` cask delegates updates to the app's
-        // own updater — brew is NOT its update channel, and the cask version
-        // routinely LAGS what the app self-installed (Postman: cask 12.12.6 while
-        // the running app was already 12.12.7). Offering `brew upgrade` here is
-        // wrong twice over: it compares against a stale version, and a
-        // `brew install --cask --force` re-adopts an app that updates itself —
-        // exactly how a vendor-installed Postman got pulled into brew to begin
-        // with. Defer like any self-updater (same spirit as `hasSelfUpdater`):
-        // return nil so the app falls through to its real channel (or "unknown"),
-        // never to a brew-managed row. So a brew-installed-but-self-updating app
-        // is deliberately NOT classified as Homebrew.
-        guard !entry.autoUpdates else { return nil }
 
         // Cask versions are sometimes "version,revision" or "version:build";
         // use the leading marketing portion for comparison/display. Split on BOTH

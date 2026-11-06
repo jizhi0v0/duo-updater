@@ -1,73 +1,641 @@
 {
   "sourceLanguage": "en",
   "strings": {
-    "Check other sources when Homebrew has no update": {
+    "This is the default for apps Homebrew installed. To choose for one app, right-click it and use When Homebrew Has No Update. An app stays on Homebrew by itself when another source’s build is signed by someone else, such as for a re-signed rebuild or a different edition. Choose Homebrew Only to keep any other app on Homebrew.": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Check other sources when Homebrew has no update"
+            "value": "This is the default for apps Homebrew installed. To choose for one app, right-click it and use When Homebrew Has No Update. An app stays on Homebrew by itself when another source’s build is signed by someone else, such as for a re-signed rebuild or a different edition. Choose Homebrew Only to keep any other app on Homebrew."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Homebrew 无更新时检查其他来源"
+            "value": "这是 Homebrew 安装的应用的默认设置。要单独设置某个应用，请右键点按它并使用“Homebrew 无更新时”。如果其他来源的版本由别人签名（例如重新签名的版本或不同版本），应用会自动保持使用 Homebrew。要让其他应用也保持使用 Homebrew，请选择“仅 Homebrew”。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "Homebrew 無更新時檢查其他來源"
+            "value": "這是 Homebrew 安裝的 App 的預設設定。若要單獨設定某個 App，請按右鍵並使用「Homebrew 無更新時」。如果其他來源的版本由別人簽署（例如重新簽署的版本或不同版本），App 會自動維持使用 Homebrew。若要讓其他 App 也維持使用 Homebrew，請選擇「僅 Homebrew」。"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Homebrew に更新がない場合は他の配信元を確認"
+            "value": "Homebrew でインストールしたアプリのデフォルトです。アプリごとに選ぶには、アプリを右クリックして「Homebrew に更新がない場合」を使用します。他の配信元のビルドが別の開発者によって署名されている場合（再署名版や別エディションなど）、そのアプリは自動的に Homebrew のままになります。ほかのアプリを Homebrew のままにするには「Homebrew のみ」を選びます。"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Andere Quellen prüfen, wenn Homebrew kein Update hat"
+            "value": "Dies ist die Voreinstellung für Apps, die Homebrew installiert hat. Für eine einzelne App klicke sie mit der rechten Maustaste an und wähle „Wenn Homebrew kein Update hat“. Ist der Build einer anderen Quelle von jemand anderem signiert, etwa bei einem neu signierten Build oder einer anderen Edition, bleibt die App automatisch bei Homebrew. Wähle „Nur Homebrew“, um jede andere App bei Homebrew zu halten."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vérifier les autres sources si Homebrew n’a pas de mise à jour"
+            "value": "C’est le réglage par défaut des apps installées par Homebrew. Pour choisir pour une app, faites un clic droit dessus et utilisez « Si Homebrew n’a pas de mise à jour ». Une app reste automatiquement sur Homebrew quand la version d’une autre source est signée par quelqu’un d’autre, par exemple une version re-signée ou une autre édition. Choisissez « Homebrew uniquement » pour garder toute autre app sur Homebrew."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Consultar otras fuentes si Homebrew no tiene actualizaciones"
+            "value": "Es el ajuste predeterminado para las apps instaladas con Homebrew. Para elegir en una app concreta, haz clic derecho en ella y usa «Si Homebrew no tiene actualizaciones». Una app se queda en Homebrew por sí sola cuando la compilación de otra fuente está firmada por otra persona, como una versión firmada de nuevo o una edición distinta. Elige «Solo Homebrew» para mantener cualquier otra app en Homebrew."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Controlla altre fonti se Homebrew non ha aggiornamenti"
+            "value": "È l’impostazione predefinita per le app installate con Homebrew. Per scegliere per una singola app, fai clic destro su di essa e usa «Se Homebrew non ha aggiornamenti». Un’app resta su Homebrew da sola quando la build di un’altra fonte è firmata da qualcun altro, come una build firmata di nuovo o un’edizione diversa. Scegli «Solo Homebrew» per tenere su Homebrew qualsiasi altra app."
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Verificar outras fontes quando o Homebrew não tiver atualizações"
+            "value": "Este é o padrão para apps instalados pelo Homebrew. Para escolher para um app, clique nele com o botão direito e use “Quando o Homebrew não tiver atualizações”. Um app continua no Homebrew automaticamente quando a compilação de outra fonte é assinada por outra pessoa, como uma versão reassinada ou uma edição diferente. Escolha “Somente Homebrew” para manter qualquer outro app no Homebrew."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Проверять другие источники, если в Homebrew нет обновлений"
+            "value": "Это значение по умолчанию для приложений, установленных через Homebrew. Чтобы выбрать для одного приложения, нажмите на него правой кнопкой и используйте «Если в Homebrew нет обновлений». Приложение само остаётся на Homebrew, если сборка из другого источника подписана кем-то другим, например переподписанная версия или другая редакция. Выберите «Только Homebrew», чтобы оставить на Homebrew любое другое приложение."
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Homebrew'da güncelleme yoksa diğer kaynakları kontrol et"
+            "value": "Bu, Homebrew'un yüklediği uygulamalar için varsayılandır. Tek bir uygulama için seçmek üzere uygulamaya sağ tıklayın ve “Homebrew'da güncelleme yoksa” seçeneğini kullanın. Başka bir kaynağın derlemesi başka biri tarafından imzalanmışsa, örneğin yeniden imzalanmış bir derleme veya farklı bir sürümse, uygulama kendiliğinden Homebrew'da kalır. Diğer herhangi bir uygulamayı Homebrew'da tutmak için “Yalnızca Homebrew”u seçin."
+          }
+        }
+      }
+    },
+    "Kept on Homebrew: another source’s build is signed differently. Choose an option to check again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kept on Homebrew: another source’s build is signed differently. Choose an option to check again."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保持使用 Homebrew：其他来源的版本签名不同。选择一个选项可重新检查。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "維持使用 Homebrew：其他來源的版本簽署不同。選擇一個選項可重新檢查。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew のまま：他の配信元のビルドは署名が異なります。オプションを選ぶと再確認します。"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bei Homebrew belassen: Der Build einer anderen Quelle ist anders signiert. Wähle eine Option, um erneut zu prüfen."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Conservée sur Homebrew : la version d’une autre source est signée différemment. Choisissez une option pour vérifier à nouveau."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se mantiene en Homebrew: la compilación de otra fuente tiene otra firma. Elige una opción para volver a consultar."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mantenuta su Homebrew: la build di un’altra fonte ha una firma diversa. Scegli un’opzione per ricontrollare."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mantido no Homebrew: a compilação de outra fonte tem outra assinatura. Escolha uma opção para verificar novamente."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Оставлено на Homebrew: сборка из другого источника подписана иначе. Выберите вариант, чтобы проверить снова."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew'da tutuldu: başka bir kaynağın derlemesi farklı imzalanmış. Yeniden kontrol etmek için bir seçenek belirleyin."
+          }
+        }
+      }
+    },
+    "When Homebrew Has No Update": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "When Homebrew Has No Update"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew 无更新时"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew 無更新時"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew に更新がない場合"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wenn Homebrew kein Update hat"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Si Homebrew n’a pas de mise à jour"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Si Homebrew no tiene actualizaciones"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se Homebrew non ha aggiornamenti"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quando o Homebrew não tiver atualizações"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Если в Homebrew нет обновлений"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew'da güncelleme yoksa"
+          }
+        }
+      }
+    },
+    "Use Settings (Check Other Sources)": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Use Settings (Check Other Sources)"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "跟随设置（检查其他来源）"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "跟隨設定（檢查其他來源）"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "設定に従う（他の配信元を確認）"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Einstellungen verwenden (andere Quellen prüfen)"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Utiliser les réglages (vérifier les autres sources)"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Usar los ajustes (consultar otras fuentes)"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Usa impostazioni (controlla altre fonti)"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Usar os Ajustes (verificar outras fontes)"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Как в настройках (проверять другие источники)"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ayarları kullan (diğer kaynakları kontrol et)"
+          }
+        }
+      }
+    },
+    "Use Settings (Homebrew Only)": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Use Settings (Homebrew Only)"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "跟随设置（仅 Homebrew）"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "跟隨設定（僅 Homebrew）"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "設定に従う（Homebrew のみ）"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Einstellungen verwenden (nur Homebrew)"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Utiliser les réglages (Homebrew uniquement)"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Usar los ajustes (solo Homebrew)"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Usa impostazioni (solo Homebrew)"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Usar os Ajustes (somente Homebrew)"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Как в настройках (только Homebrew)"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ayarları kullan (yalnızca Homebrew)"
+          }
+        }
+      }
+    },
+    "Check Other Sources": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Check Other Sources"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "检查其他来源"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "檢查其他來源"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "他の配信元を確認"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Andere Quellen prüfen"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vérifier les autres sources"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Consultar otras fuentes"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Controlla altre fonti"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verificar outras fontes"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Проверять другие источники"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diğer kaynakları kontrol et"
+          }
+        }
+      }
+    },
+    "Homebrew Only": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew Only"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "仅 Homebrew"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "僅 Homebrew"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew のみ"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nur Homebrew"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew uniquement"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Solo Homebrew"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Solo Homebrew"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Somente Homebrew"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Только Homebrew"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yalnızca Homebrew"
+          }
+        }
+      }
+    },
+    "Check other sources for Homebrew apps": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Check other sources for Homebrew apps"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "为 Homebrew 应用检查其他来源"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "為 Homebrew App 檢查其他來源"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew のアプリで他の配信元を確認"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Für Homebrew-Apps andere Quellen prüfen"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vérifier d’autres sources pour les apps Homebrew"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Consultar otras fuentes para apps de Homebrew"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Controlla altre fonti per le app di Homebrew"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verificar outras fontes para apps do Homebrew"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Проверять другие источники для приложений Homebrew"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew uygulamaları için diğer kaynakları kontrol et"
+          }
+        }
+      }
+    },
+    "When Homebrew has no newer version, GitHub and other sources may offer one. A Homebrew update always comes first.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "When Homebrew has no newer version, GitHub and other sources may offer one. A Homebrew update always comes first."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew 没有更新版本时，GitHub 等其他来源可以提供更新。Homebrew 的更新始终优先。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew 沒有更新版本時，GitHub 等其他來源可以提供更新。Homebrew 的更新一律優先。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew に新しいバージョンがない場合、GitHub などの配信元からアップデートを提示できます。Homebrew のアップデートが常に優先されます。"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hat Homebrew keine neuere Version, können GitHub und andere Quellen eine anbieten. Ein Homebrew-Update hat immer Vorrang."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Si Homebrew n’a pas de version plus récente, GitHub et d’autres sources peuvent en proposer une. Une mise à jour Homebrew passe toujours en premier."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Si Homebrew no tiene una versión más reciente, GitHub y otras fuentes pueden ofrecer una. Una actualización de Homebrew siempre tiene prioridad."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se Homebrew non ha una versione più recente, GitHub e altre fonti possono proporne una. Un aggiornamento di Homebrew ha sempre la precedenza."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quando o Homebrew não tiver uma versão mais recente, o GitHub e outras fontes podem oferecer uma. Uma atualização do Homebrew sempre tem prioridade."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Если в Homebrew нет более новой версии, её могут предложить GitHub и другие источники. Обновление из Homebrew всегда в приоритете."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew'da daha yeni bir sürüm yoksa GitHub ve diğer kaynaklar bir sürüm sunabilir. Homebrew güncellemesi her zaman önceliklidir."
           }
         }
       }

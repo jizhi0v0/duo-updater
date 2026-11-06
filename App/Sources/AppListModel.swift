@@ -3300,7 +3300,7 @@ final class AppListModel {
         let checker = UpdateChecker(
             sources: [],
             maxConcurrency: prefs.maxConcurrency,
-            brewFallbackKeys: prefs.brewFallbackKeys,
+            brewFallback: prefs.brewFallback,
             testflight: inventory,
             announcements: announcements,
             appStoreSignedIn: signedIn,
@@ -3784,7 +3784,7 @@ final class AppListModel {
         let checker = UpdateChecker(
             sources: makeSources(token: token),
             maxConcurrency: prefs.maxConcurrency,
-            brewFallbackKeys: prefs.brewFallbackKeys,
+            brewFallback: prefs.brewFallback,
             toolbox: ToolboxSource(inventory: toolbox),
             testflight: testflight,
             announcements: announcements,
@@ -3917,7 +3917,7 @@ final class AppListModel {
                 let resync = UpdateChecker(
                     sources: makeSources(token: token),
                     maxConcurrency: prefs.maxConcurrency,
-                    brewFallbackKeys: prefs.brewFallbackKeys,
+                    brewFallback: prefs.brewFallback,
                     toolbox: ToolboxSource(inventory: toolbox),
                     testflight: synced,
                     announcements: syncedAnnouncements,
@@ -6537,6 +6537,15 @@ final class AppListModel {
                 return .notInstalled
             }
             Log.install.error("install failed: \(result.app.name, privacy: .public): \(error.localizedDescription, privacy: .public)")
+            // A brew copy refused another source's build for its signature: that
+            // repeats on every attempt, so keep the copy on Homebrew from now on.
+            // The error stays on the row so the user sees why; the next check
+            // answers it from Homebrew (`UpdateChecker`).
+            if BrewFallbackPolicy.isFallbackInstall(result), BrewFallbackPolicy.isSigningRefusal(error) {
+                let stamp = await BrewFallbackPolicy.signingStamp(of: result.app)
+                prefs.recordBrewFallbackSigningRefusal(for: result.app, stamp: stamp)
+                Log.install.notice("brew fallback: \(result.app.name, privacy: .public) kept on Homebrew — \(result.remote?.sourceName ?? "?", privacy: .public) build refused for its signature")
+            }
             if let short = error as? DiskSpaceGuard.InsufficientSpace {
                 let free = ByteCountFormatter.string(fromByteCount: short.free, countStyle: .file)
                 let needed = ByteCountFormatter.string(fromByteCount: short.needed, countStyle: .file)
@@ -10061,11 +10070,43 @@ final class AppListModel {
 
     // MARK: - Ignore / skip
 
-    func setBrewFallback(_ enabled: Bool, for result: UpdateResult) {
-        let key = InstallPreferenceKey.key(for: result.app)
-        if enabled { prefs.brewFallbackKeys.insert(key) }
-        else { prefs.brewFallbackKeys.remove(key) }
+    /// Whether a row's menu offers the "When Homebrew has no update" choice:
+    /// brew answered for it, or the copy already carries its own choice.
+    func offersBrewFallbackChoice(_ result: UpdateResult) -> Bool {
+        result.homebrewSourceIdentifier != nil || result.remote?.sourceName == "Homebrew"
+            || prefs.brewFallback.override(for: InstallPreferenceKey.key(for: result.app)) != nil
+    }
+
+    func brewFallbackOverride(for result: UpdateResult) -> BrewFallbackPolicy.Override? {
+        prefs.brewFallback.override(for: InstallPreferenceKey.key(for: result.app))
+    }
+
+    func setBrewFallbackOverride(_ choice: BrewFallbackPolicy.Override?, for result: UpdateResult) {
+        // Re-choosing the current option still counts while a signing refusal
+        // holds the row: it is how the user asks for other sources again.
+        guard choice != brewFallbackOverride(for: result) || result.brewFallbackWithheldForSigning
+        else { return }
+        prefs.setBrewFallbackOverride(choice, for: result.app)
         Task { await retry(result) }
+    }
+
+    /// The Settings default changed: re-check the brew rows that follow it, so
+    /// they move to (or back from) another source now rather than next round.
+    func brewFallbackDefaultChanged() {
+        let targets = results.filter {
+            offersBrewFallbackChoice($0) && brewFallbackOverride(for: $0) == nil
+                && installing[$0.id] == nil && prefs.deservesCheck($0.app)
+        }
+        guard !targets.isEmpty else { return }
+        Task {
+            for target in targets { installing[target.id] = .checking }
+            let updated = await recheckMany(targets)
+            for target in targets where installing[target.id] == .checking {
+                installing[target.id] = nil
+            }
+            for row in updated { replaceRow(row) }
+            Log.app.notice("brew fallback default → \(self.prefs.brewFallbackByDefault, privacy: .public): re-checked \(updated.count, privacy: .public) row(s)")
+        }
     }
 
     /// Toggle whether this app is hidden from update checks entirely.
@@ -11171,7 +11212,7 @@ final class AppListModel {
         // drift apart.
         let sources = makeSources(token: githubToken)
         let maxConcurrency = prefs.maxConcurrency
-        let brewFallbackKeys = prefs.brewFallbackKeys
+        let brewFallback = prefs.brewFallback
         // Under the generation the token was resolved in, which is what these
         // sources send even after a change in Settings (`GitHubTokenForRecheck`).
         let (rows, kept) = await GitHubCredentials.$pinnedGeneration.withValue(resolved.generation) { await ScanRowAssembly.recheck(
@@ -11197,7 +11238,7 @@ final class AppListModel {
                 let checker = UpdateChecker(
                     sources: sources,
                     maxConcurrency: maxConcurrency,
-                    brewFallbackKeys: brewFallbackKeys,
+                    brewFallback: brewFallback,
                     toolbox: ToolboxSource(inventory: toolbox),
                     testflight: testflight,
                     announcements: announcements,

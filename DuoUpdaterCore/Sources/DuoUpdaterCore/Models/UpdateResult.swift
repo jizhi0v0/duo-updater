@@ -918,6 +918,11 @@ public struct UpdateResult: Sendable, Identifiable, Equatable {
     /// Original brew owner, retained when an opted-in downstream source answers.
     public var homebrewSourceIdentifier: String?
 
+    /// Brew answered and other sources were allowed, but this copy stays on
+    /// Homebrew because another source's build is signed by someone else
+    /// (`BrewFallbackPolicy`): seen before download, or refused at install.
+    public var brewFallbackWithheldForSigning = false
+
     /// What a source proved about this copy's channel on some earlier, successful
     /// check — read back from `ResolvedChannelStore` by `UpdateChecker`.
     ///

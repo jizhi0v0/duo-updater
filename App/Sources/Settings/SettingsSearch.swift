@@ -60,6 +60,7 @@ enum SettingsSearch {
             Setting(anchor: .appStoreUpdates, title: String(localized: "App Store updates"), card: routing),
             Setting(anchor: .selfUpdatingApps, title: String(localized: "Self-updating apps"), card: routing),
             Setting(anchor: .setappBackgroundUpdates, title: String(localized: "Update Setapp apps in the background"), card: nil),
+            Setting(anchor: .brewFallback, title: String(localized: "Check other sources for Homebrew apps"), card: nil),
             Setting(anchor: .digestOnlyInstalls, title: String(localized: "Allow one-click updates for apps without a developer signature"), card: nil),
             Setting(anchor: .testFlightDetection, title: String(localized: "TestFlight betas"), card: nil),
 

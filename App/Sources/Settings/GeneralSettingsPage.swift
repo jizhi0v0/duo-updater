@@ -202,6 +202,19 @@ struct GeneralSettingsPage: View {
                     .settingsAnchor(.setappBackgroundUpdates)
             }
 
+            // Also a routing question: which source answers for a brew-installed
+            // copy once brew itself has nothing newer. The row menu's own choice
+            // beats this either way, so it is only the default.
+            SettingsCard {
+                SettingsToggle(
+                    "Check other sources for Homebrew apps",
+                    detail: "When Homebrew has no newer version, GitHub and other sources may offer one. A Homebrew update always comes first.",
+                    info: "This is the default for apps Homebrew installed. To choose for one app, right-click it and use When Homebrew Has No Update. An app stays on Homebrew by itself when another source’s build is signed by someone else, such as for a re-signed rebuild or a different edition. Choose Homebrew Only to keep any other app on Homebrew.",
+                    isOn: $prefs.brewFallbackByDefault)
+                    .settingsAnchor(.brewFallback)
+                    .onChange(of: prefs.brewFallbackByDefault) { model.brewFallbackDefaultChanged() }
+            }
+
             SettingsCard {
                 SettingsToggle(
                     "Allow one-click updates for apps without a developer signature",

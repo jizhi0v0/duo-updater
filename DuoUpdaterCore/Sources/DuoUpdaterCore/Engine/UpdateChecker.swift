@@ -8,7 +8,10 @@ public struct UpdateChecker: Sendable {
 
     public let sources: [any UpdateSource]
     public let maxConcurrency: Int
-    public let brewFallbackKeys: Set<String>
+    public let brewFallback: BrewFallbackPolicy
+    /// Reads an installed copy's Team ID for the brew-fallback signing check.
+    /// A seam for tests; the default is the Security call gate 3 uses.
+    let installedTeam: @Sendable (InstalledApp) async -> String?
     /// When set, Toolbox-managed apps are version-checked (live JetBrains API,
     /// falling back to Toolbox's local cache); the action stays "open Toolbox".
     /// When nil they're simply labelled managed without a version.
@@ -39,14 +42,19 @@ public struct UpdateChecker: Sendable {
     public init(
         sources: [any UpdateSource],
         maxConcurrency: Int = 12,
-        brewFallbackKeys: Set<String> = [],
+        brewFallback: BrewFallbackPolicy = BrewFallbackPolicy(),
         toolbox: ToolboxSource? = nil,
         testflight: TestFlightInventory? = nil,
         announcements: TestFlightAnnouncements? = nil,
         appStoreSignedIn: Bool? = nil,
-        channelStore: ResolvedChannelStore? = nil
+        channelStore: ResolvedChannelStore? = nil,
+        installedTeam: (@Sendable (InstalledApp) async -> String?)? = nil
     ) {
-        self.brewFallbackKeys = brewFallbackKeys
+        self.brewFallback = brewFallback
+        self.installedTeam = installedTeam ?? { app in
+            let path = app.path
+            return await offCooperativePool { try? SignatureVerifier.teamIdentifier(at: path) }
+        }
         self.sources = sources
         self.maxConcurrency = max(1, maxConcurrency)
         self.toolbox = toolbox
@@ -407,7 +415,15 @@ public struct UpdateChecker: Sendable {
             }
         }
 
-        var brewFallback: UpdateResult?
+        var brewAnswer: UpdateResult?
+        // Read once, and only for a brew copy that may check other sources.
+        var team: String??
+        func installedTeamOnce() async -> String? {
+            if let team { return team }
+            let read = await installedTeam(app)
+            team = .some(read)
+            return read
+        }
         for source in sources {
             // A store copy is answered by the store, or by nobody. Source ordering
             // is not enough on its own: this loop falls through on a THROWN error
@@ -424,18 +440,35 @@ public struct UpdateChecker: Sendable {
                     Log.check.debug("\(label, privacy: .public): \(source.name, privacy: .public) miss")
                     continue  // source doesn't apply; try the next one
                 }
+                // Brew already answered "up to date" and other sources were
+                // allowed: one whose build is visibly signed by someone else is
+                // skipped, since gate 3 would refuse it at install.
+                if brewAnswer != nil,
+                   BrewFallbackPolicy.signingDiffers(installedTeam: await installedTeamOnce(), remote: remote) {
+                    Log.check.info("\(label, privacy: .public): \(source.name, privacy: .public) skipped — its build is signed differently from this Homebrew copy")
+                    brewAnswer?.brewFallbackWithheldForSigning = true
+                    continue
+                }
                 let status = Self.evaluate(installed: app, remote: remote)
                 Log.check.info("\(label, privacy: .public): \(source.name, privacy: .public) → \(remote.displayVersion ?? "?", privacy: .public) [\(String(describing: status), privacy: .public)]")
                 if !(source is ElectronManifestSource) {
                     await ElectronManifestSource.supersede(for: app)
                 }
                 var result = UpdateResult(app: app, remote: remote, status: status)
-                result.homebrewSourceIdentifier = brewFallback?.homebrewSourceIdentifier
+                result.homebrewSourceIdentifier = brewAnswer?.homebrewSourceIdentifier
                 if source.name == "Homebrew" {
                     result.homebrewSourceIdentifier = remote.sourceIdentifier
-                    if status == .upToDate,
-                       brewFallbackKeys.contains(InstallPreferenceKey.key(for: app)) {
-                        brewFallback = result
+                    let key = InstallPreferenceKey.key(for: app)
+                    if status == .upToDate, brewFallback.checksOtherSources(key) {
+                        // Refused at install before, and still the same copy:
+                        // stay on Homebrew without asking anyone else.
+                        if let stamp = brewFallback.signingRefusals[key],
+                           stamp == BrewFallbackPolicy.signingStamp(team: await installedTeamOnce()) {
+                            Log.check.info("\(label, privacy: .public): other sources withheld — an earlier install from one was refused for its signature")
+                            result.brewFallbackWithheldForSigning = true
+                            return result
+                        }
+                        brewAnswer = result
                         continue
                     }
                 }
@@ -479,7 +512,7 @@ public struct UpdateChecker: Sendable {
 
         // No downstream source answered: keep the proven brew result, unless
         // an attempted downstream check failed or refused this host.
-        if let brewFallback, lastError == nil, refusal == nil { return brewFallback }
+        if let brewAnswer, lastError == nil, refusal == nil { return brewAnswer }
 
         // A Toolbox-managed row outranks a failed read, and only this one does.
         //

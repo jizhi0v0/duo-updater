@@ -42,8 +42,33 @@ import Testing
         #expect(InstallCoordinator.route(for: result, requiresInstaller: false) == .homebrew)
     }
 
-    @Test(arguments: [false, true], ["0.5", "1.0", "2.0"])
-    func fallbackRequiresOptInAndNoBrewUpdate(enabled: Bool, brewVersion: String) async throws {
+    /// How the copy under test reached its fallback choice.
+    enum FallbackSetup: CaseIterable, Sendable {
+        case off, perCopy, byDefault, byDefaultButHomebrewOnly, perCopyBeatsBlockedDefault
+
+        func policy(_ key: String) -> BrewFallbackPolicy {
+            switch self {
+            case .off: return BrewFallbackPolicy()
+            case .perCopy: return BrewFallbackPolicy(allowedKeys: [key])
+            case .byDefault: return BrewFallbackPolicy(checksOtherSourcesByDefault: true)
+            case .byDefaultButHomebrewOnly:
+                return BrewFallbackPolicy(checksOtherSourcesByDefault: true, blockedKeys: [key])
+            case .perCopyBeatsBlockedDefault:
+                return BrewFallbackPolicy(checksOtherSourcesByDefault: false, allowedKeys: [key])
+            }
+        }
+
+        var enabled: Bool {
+            switch self {
+            case .off, .byDefaultButHomebrewOnly: return false
+            case .perCopy, .byDefault, .perCopyBeatsBlockedDefault: return true
+            }
+        }
+    }
+
+    @Test(arguments: FallbackSetup.allCases, ["0.5", "1.0", "2.0"])
+    func fallbackRequiresOptInAndNoBrewUpdate(setup: FallbackSetup, brewVersion: String) async throws {
+        let enabled = setup.enabled
         for tap in ["example/tap", "homebrew/cask"] {
             let (root, app) = try fixture(tap: tap)
             defer { try? FileManager.default.removeItem(at: root) }
@@ -60,13 +85,20 @@ import Testing
             }
             let downstream = CountingVendor()
             let result = await UpdateChecker(sources: [source, downstream],
-                brewFallbackKeys: enabled ? [InstallPreferenceKey.key(for: app)] : []).check([app])[0]
+                brewFallback: setup.policy(InstallPreferenceKey.key(for: app))).check([app])[0]
             let fallsThrough = enabled && brewVersion != "2.0"
             #expect(result.remote?.sourceName == (fallsThrough ? "GitHub" : "Homebrew"))
             #expect(await downstream.calls == (fallsThrough ? 1 : 0))
             #expect(result.homebrewSourceIdentifier != nil)
             if !fallsThrough && brewVersion != "2.0" { #expect(!result.hasUpdate) }
         }
+    }
+
+    @Test func homebrewOnlyWinsWhenBothChoicesAreRecorded() {
+        let policy = BrewFallbackPolicy(checksOtherSourcesByDefault: true, allowedKeys: ["k"], blockedKeys: ["k"])
+        #expect(policy.override(for: "k") == .homebrewOnly)
+        #expect(!policy.checksOtherSources("k"))
+        #expect(policy.checksOtherSources("other"))
     }
 
     private actor CountingVendor: UpdateSource {
@@ -85,7 +117,7 @@ import Testing
             (0, Data(#"{"casks":[{"token":"example","tap":"example/tap","version":"1.0"}]}"#.utf8))
         }
         let result = await UpdateChecker(sources: [source],
-            brewFallbackKeys: [InstallPreferenceKey.key(for: app)]).check([app])[0]
+            brewFallback: BrewFallbackPolicy(allowedKeys: [InstallPreferenceKey.key(for: app)])).check([app])[0]
         #expect(result.remote?.sourceName == "Homebrew")
         #expect(result.status == .upToDate)
     }
@@ -106,7 +138,7 @@ import Testing
             inventory: BrewLocalInventory(caskroomPaths: [root.appendingPathComponent("Caskroom").path]))
         let downstream = CountingVendor()
         let checker = UpdateChecker(sources: [source, downstream],
-            brewFallbackKeys: [InstallPreferenceKey.key(for: app)])
+            brewFallback: BrewFallbackPolicy(allowedKeys: [InstallPreferenceKey.key(for: app)]))
         let result = await checker.check(app)
         guard case .error = result.status else { Issue.record("Known owner must fail closed"); return }
         #expect(await downstream.calls == 0)
@@ -150,7 +182,7 @@ import Testing
             (0, Data("{\"casks\":[{\"token\":\"example\",\"tap\":\(tap),\"version\":\"2.0\"}]}".utf8))
         }
         let result = await UpdateChecker(sources: [source, Vendor()],
-            brewFallbackKeys: [InstallPreferenceKey.key(for: app)]).check([app])[0]
+            brewFallback: BrewFallbackPolicy(allowedKeys: [InstallPreferenceKey.key(for: app)])).check([app])[0]
         guard case .error = result.status else { Issue.record("Must fail closed, got \(result.status)"); return }
         #expect(result.remote == nil)
     }
@@ -160,7 +192,7 @@ import Testing
         defer { try? FileManager.default.removeItem(at: root) }
         let source = ThirdPartyCaskSource(caskroomPaths: [root.appendingPathComponent("Caskroom").path]) { _ in (1, Data()) }
         let result = await UpdateChecker(sources: [source, Vendor()],
-            brewFallbackKeys: [InstallPreferenceKey.key(for: app)]).check([app])[0]
+            brewFallback: BrewFallbackPolicy(allowedKeys: [InstallPreferenceKey.key(for: app)])).check([app])[0]
         guard case .error = result.status else { Issue.record("Must fail closed"); return }
     }
 

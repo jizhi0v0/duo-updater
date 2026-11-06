@@ -2,6 +2,12 @@
 
 Esta é a tradução para o português do Brasil do arquivo CHANGELOG.md. A versão em inglês prevalece em caso de divergência. Os números de versão que não aparecem aqui são mostrados automaticamente em inglês na janela Novidades.
 
+## 0.5.24-beta.3
+
+**Escolha como os apps do Homebrew consultam outras fontes.** Defina o comportamento padrão nos Ajustes ou escolha usar apenas o Homebrew para um app. Atualizações assinadas por outro desenvolvedor são ignoradas quando essa diferença pode ser detectada.
+
+**Os ajustes de Beta e Setapp estão mais claros.** Seus controles agora seguem o layout dos demais ajustes.
+
 ## 0.5.24-beta.2
 
 **Os apps instalados pelo Homebrew consultam primeiro a fonte original.** Se o Homebrew informar que não há atualização, você pode ativar a consulta a outras fontes no menu do app.

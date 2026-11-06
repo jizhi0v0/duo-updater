@@ -2,6 +2,12 @@
 
 Dies ist eine deutsche Übersetzung von `CHANGELOG.md`. Die englische Fassung ist maßgeblich; frühere Versionen, die hier nicht aufgeführt sind, fallen automatisch auf Englisch zurück.
 
+## 0.5.24-beta.3
+
+**Wählen Sie, wie Homebrew-Apps andere Quellen prüfen.** Legen Sie in den Einstellungen einen Standard fest oder wählen Sie für einzelne Apps nur Homebrew. Updates mit einer anderen Entwicklersignatur werden übersprungen, wenn der Unterschied erkannt werden kann.
+
+**Beta- und Setapp-Einstellungen sind übersichtlicher.** Ihre Bedienelemente folgen jetzt dem Layout der übrigen Einstellungen.
+
 ## 0.5.24-beta.2
 
 **Homebrew-Apps prüfen zuerst ihre ursprüngliche Quelle.** Meldet Homebrew kein Update, kannst du im Menü der App die Prüfung anderer Quellen aktivieren.

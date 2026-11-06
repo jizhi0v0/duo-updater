@@ -19,6 +19,12 @@ release note is debugging our code:
 
 Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
+## 0.5.24-beta.3
+
+**Choose how Homebrew apps check other sources.** Set a default in Settings or choose Homebrew Only for an individual app. Updates signed by a different developer are skipped when that difference can be detected.
+
+**Beta and Setapp settings are easier to read.** Their controls now follow the layout used throughout Settings.
+
 ## 0.5.24-beta.2
 
 **Homebrew apps check their original source first.** If Homebrew reports no update, you can opt in to checking other sources from the app’s menu.

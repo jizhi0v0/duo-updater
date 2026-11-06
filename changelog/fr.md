@@ -2,6 +2,12 @@
 
 Ceci est la traduction de `CHANGELOG.md`. La version anglaise fait autorité. Les versions non énumérées ici reviennent automatiquement à l’anglais.
 
+## 0.5.24-beta.1
+
+**Essayez les mises à jour automatiques des apps fermées dans cette Beta.** Activez l’option dans les réglages pour installer les mises à jour éligibles après les vérifications planifiées, avec une sauvegarde préalable. Les apps ouvertes, les programmes d’installation et les mises à jour nécessitant une autorisation sont ignorés. Les données des apps ne sont pas sauvegardées.
+
+**Aidez à améliorer la Beta en signalant les problèmes.** Ouvrez une issue GitHub depuis Réglages → Mises à jour et joignez les événements correspondants.
+
 ## 0.5.23
 
 **Choisissez les mises à jour Beta dans les réglages pour tester les prochaines versions.** Vous pouvez aussi ouvrir un ticket GitHub depuis le panneau Mises à jour pour signaler un problème.

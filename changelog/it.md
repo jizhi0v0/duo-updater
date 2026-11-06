@@ -2,6 +2,12 @@
 
 Questa è la traduzione di `CHANGELOG.md`. In caso di differenze fa fede la versione inglese. Le versioni non elencate qui vengono mostrate automaticamente in inglese.
 
+## 0.5.24-beta.1
+
+**Prova gli aggiornamenti automatici delle app chiuse in questa Beta.** Abilita l’opzione nelle impostazioni per installare gli aggiornamenti idonei dopo i controlli programmati, con un backup prima di ogni aggiornamento. Le app aperte, i programmi di installazione e gli aggiornamenti che richiedono autorizzazione vengono ignorati. I dati delle app non vengono salvati.
+
+**Aiuta a migliorare la Beta segnalando i problemi.** Apri una issue su GitHub da Impostazioni → Aggiornamenti e includi gli eventi pertinenti.
+
 ## 0.5.23
 
 **Scegli gli aggiornamenti Beta nelle impostazioni e aiuta a provare le prossime versioni.** Puoi anche aprire una segnalazione su GitHub dal pannello Aggiornamenti per comunicare un problema.

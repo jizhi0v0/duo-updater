@@ -2,6 +2,12 @@
 
 Esta é a tradução para o português do Brasil do arquivo CHANGELOG.md. A versão em inglês prevalece em caso de divergência. Os números de versão que não aparecem aqui são mostrados automaticamente em inglês na janela Novidades.
 
+## 0.5.24-beta.1
+
+**Experimente atualizações automáticas de apps fechados nesta Beta.** Ative a opção nos ajustes para instalar atualizações compatíveis após as verificações agendadas, com um backup antes de cada atualização. Apps abertos, instaladores e atualizações que exigem autorização são ignorados. Os dados dos apps não são incluídos no backup.
+
+**Ajude a melhorar a Beta relatando problemas.** Abra uma issue no GitHub em Ajustes → Atualizações e inclua os eventos relacionados.
+
 ## 0.5.23
 
 **Escolha as atualizações Beta nos Ajustes e ajude a testar as próximas versões.** Você também pode abrir uma issue no GitHub pelo painel Atualizações para relatar um problema.

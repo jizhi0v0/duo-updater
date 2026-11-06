@@ -19,6 +19,12 @@ release note is debugging our code:
 
 Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
+## 0.5.24-beta.1
+
+**Try automatic updates for closed apps in this Beta.** Enable the option in Settings to install eligible updates after scheduled checks, with a backup before each update. Running apps, installers, and updates requiring authorization are skipped. App data is not backed up.
+
+**Help improve the Beta by reporting problems.** Open a GitHub issue from Settings → Updates and include the relevant Events entries.
+
 ## 0.5.23
 
 **Choose Beta updates in Settings and help test upcoming releases.** You can also open a GitHub issue from the Updates pane to report a problem.

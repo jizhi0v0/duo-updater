@@ -2,6 +2,12 @@
 
 Bu, `CHANGELOG.md` dosyasının Türkçe çevirisidir. Geçerli olan İngilizce sürümdür; burada yer almayan eski sürümler otomatik olarak İngilizce gösterilir.
 
+## 0.5.24-beta.1
+
+**Bu Beta sürümünde kapalı uygulamalar için otomatik güncellemeleri deneyin.** Zamanlanmış kontrollerden sonra uygun güncellemeleri her güncelleme öncesinde yedek alarak yüklemek için Ayarlar’dan seçeneği etkinleştirin. Çalışan uygulamalar, yükleyiciler ve yetkilendirme gerektiren güncellemeler atlanır. Uygulama verileri yedeklenmez.
+
+**Sorunları bildirerek Beta’yı iyileştirmeye yardımcı olun.** Ayarlar → Güncellemeler bölümünden bir GitHub issue açın ve ilgili olay kayıtlarını ekleyin.
+
 ## 0.5.23
 
 **Ayarlardan Beta güncellemelerini seçerek gelecek sürümlerin test edilmesine yardımcı olun.** Sorun bildirmek için Güncellemeler panelinden GitHub’da bir issue da açabilirsiniz.

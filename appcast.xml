@@ -20,6 +20,26 @@
           private, and are not carried over.
         -->
         <item>
+            <title>0.5.24-beta.2</title>
+            <pubDate>Fri, 06 Nov 2026 18:37:21 +0800</pubDate>
+            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.5.24-beta.2</link>
+            <sparkle:channel>beta</sparkle:channel>
+            <sparkle:version>143</sparkle:version>
+            <sparkle:shortVersionString>0.5.24-beta.2</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[**Homebrew apps check their original source first.** If Homebrew reports no update, you can opt in to checking other sources from the app’s menu.
+
+**Homebrew updates are easier to manage.** Official casks installed in subfolders no longer appear twice, and Upgrade All hides when all available updates are running or queued.
+
+**Automatic updates are less likely to be deferred incorrectly.** In Events, you can see why an update was deferred and preview a report with identifying details removed before saving it.
+]]></description>
+            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.5.24-beta.2/DuoUpdater-0.5.24-beta.2-macos.zip" length="16083795" type="application/octet-stream" sparkle:edSignature="eCiIQQrcEE1MzbwFq/lLtRbr/vw1q0RxCxj1RNi7QHHWIdKS0vtwDBY0DtfWF3QND23Y9sNrn0pQwfrVWnJvBg=="/>
+            <sparkle:deltas>
+                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.5.24-beta.2/DuoUpdater143-142.delta" sparkle:deltaFrom="142" length="1423150" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="468528" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="x/WSHHpBB/F5NT4mFm2rEg+U8bydicBkoaygUC3HXQ/gT+6TblfkGknyyiP/KNtXsuH0LFWHgEuNUz8BMaPyCg=="/>
+            </sparkle:deltas>
+        </item>
+        <item>
             <title>0.5.24-beta.1</title>
             <pubDate>Fri, 06 Nov 2026 08:49:43 +0800</pubDate>
             <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.5.24-beta.1</link>

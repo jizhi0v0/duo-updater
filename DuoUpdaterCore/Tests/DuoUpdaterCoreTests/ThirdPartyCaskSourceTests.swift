@@ -42,6 +42,39 @@ import Testing
         #expect(InstallCoordinator.route(for: result, requiresInstaller: false) == .homebrew)
     }
 
+    /// The tap moved its cask to homebrew/cask through `tap_migrations.json`:
+    /// `brew info --cask example/tap/example` then answers with the official
+    /// cask (checked on brew 5, 2026-11-07, with a local tap migrating `iina`).
+    /// The copy follows the official cask's rules, its `auto_updates` included.
+    @Test(arguments: [true, false])
+    func aTapMigratedToTheOfficialTapFollowsTheOfficialRules(autoUpdates: Bool) async throws {
+        let (root, app) = try fixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let source = ThirdPartyCaskSource(caskroomPaths: [root.appendingPathComponent("Caskroom").path]) { _ in
+            (0, Data("{\"casks\":[{\"token\":\"example\",\"tap\":\"homebrew/cask\",\"version\":\"1.0\",\"auto_updates\":\(autoUpdates)}]}".utf8))
+        }
+        let downstream = CountingVendor()
+        let result = await UpdateChecker(sources: [source, downstream]).check([app])[0]
+        #expect(result.homebrewSelfUpdating == autoUpdates)
+        #expect(result.remote?.sourceName == (autoUpdates ? "GitHub" : "Homebrew"))
+        #expect(result.homebrewSourceIdentifier == "example/tap/example")
+        #expect(await downstream.calls == (autoUpdates ? 1 : 0))
+    }
+
+    /// A move to another third-party tap is someone else's package.
+    @Test func aTapMigratedToAnotherThirdPartyTapFailsClosed() async throws {
+        let (root, app) = try fixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let source = ThirdPartyCaskSource(caskroomPaths: [root.appendingPathComponent("Caskroom").path]) { _ in
+            (0, Data(#"{"casks":[{"token":"example","tap":"someone/else","version":"1.0","auto_updates":true}]}"#.utf8))
+        }
+        let downstream = CountingVendor()
+        let result = await UpdateChecker(sources: [source, downstream],
+            brewFallback: BrewFallbackPolicy(checksOtherSourcesByDefault: true)).check([app])[0]
+        guard case .error = result.status else { Issue.record("Expected a failed check, got \(result.status)"); return }
+        #expect(await downstream.calls == 0)
+    }
+
     /// How the copy under test reached its fallback choice.
     enum FallbackSetup: CaseIterable, Sendable {
         case off, perCopy, byDefault, byDefaultButHomebrewOnly, perCopyBeatsBlockedDefault
@@ -68,11 +101,14 @@ import Testing
 
     @Test(arguments: FallbackSetup.allCases, ["0.5", "1.0", "2.0"])
     func fallbackRequiresOptInAndNoBrewUpdate(setup: FallbackSetup, brewVersion: String) async throws {
-        let enabled = setup.enabled
-        for tap in ["example/tap", "homebrew/cask"] {
+        for tap in ["example/tap", "homebrew/cask"] { for autoUpdates in [true, false] {
+            // Only an official cask's `auto_updates` stands in for the opt-in,
+            // and only for a copy without its own choice.
+            let selfUpdating = tap == "homebrew/cask" && autoUpdates
+            let enabled = setup == .off ? selfUpdating : setup.enabled
             let (root, app) = try fixture(tap: tap)
             defer { try? FileManager.default.removeItem(at: root) }
-            let json = Data("[{\"token\":\"example\",\"tap\":\"\(tap)\",\"version\":\"\(brewVersion)\",\"auto_updates\":true,\"artifacts\":[{\"app\":[\"Example.app\"]}]}]".utf8)
+            let json = Data("[{\"token\":\"example\",\"tap\":\"\(tap)\",\"version\":\"\(brewVersion)\",\"auto_updates\":\(autoUpdates),\"artifacts\":[{\"app\":[\"Example.app\"]}]}]".utf8)
             let source: any UpdateSource
             if tap == "homebrew/cask" {
                 source = HomebrewCaskSource(
@@ -90,15 +126,16 @@ import Testing
             #expect(result.remote?.sourceName == (fallsThrough ? "GitHub" : "Homebrew"))
             #expect(await downstream.calls == (fallsThrough ? 1 : 0))
             #expect(result.homebrewSourceIdentifier != nil)
+            #expect(result.homebrewSelfUpdating == selfUpdating, "\(tap) auto_updates=\(autoUpdates)")
             if !fallsThrough && brewVersion != "2.0" { #expect(!result.hasUpdate) }
-        }
+        } }
     }
 
     @Test func homebrewOnlyWinsWhenBothChoicesAreRecorded() {
         let policy = BrewFallbackPolicy(checksOtherSourcesByDefault: true, allowedKeys: ["k"], blockedKeys: ["k"])
         #expect(policy.override(for: "k") == .homebrewOnly)
-        #expect(!policy.checksOtherSources("k"))
-        #expect(policy.checksOtherSources("other"))
+        #expect(!policy.checksOtherSources("k", selfUpdating: true))
+        #expect(policy.checksOtherSources("other", selfUpdating: false))
     }
 
     private actor CountingVendor: UpdateSource {
@@ -174,7 +211,10 @@ import Testing
         #expect(result.remote?.shortVersion == "99.0")
     }
 
-    @Test(arguments: ["null", #""homebrew/cask""#])
+    /// An official answer is a migration the tap declared, and is followed
+    /// (`aTapMigratedToTheOfficialTapFollowsTheOfficialRules`); any other tap
+    /// is not this copy's package.
+    @Test(arguments: ["null", #""someone/else""#])
     func unreadableOrWrongTapCannotFallThrough(tap: String) async throws {
         let (root, app) = try fixture()
         defer { try? FileManager.default.removeItem(at: root) }

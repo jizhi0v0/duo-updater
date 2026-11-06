@@ -132,6 +132,7 @@ public actor HomebrewCaskSource: UpdateSource {
         // source still answers for a nightly copy, on purpose: the user chose a
         // reminder over a gate, and the cask is what brew updates either way.
         if entry.isStandardStableCask { remote.offeredChannel = .stable }
+        remote.homebrewSelfUpdating = entry.autoUpdates
         return remote
     }
 }

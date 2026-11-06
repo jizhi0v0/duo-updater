@@ -1810,7 +1810,7 @@ private struct WorkbenchAppRow: View, @MainActor Equatable {
             toggleIgnore: { model.toggleIgnore(result) },
             showsBrewFallback: model.offersBrewFallbackChoice(result),
             brewFallbackChoice: model.brewFallbackOverride(for: result),
-            brewFallbackByDefault: model.prefs.brewFallbackByDefault,
+            brewFallbackByDefault: model.brewFallbackChecksByDefault(for: result),
             setBrewFallback: { model.setBrewFallbackOverride($0, for: result) },
             skipVersion: { model.skipThisVersion(result) },
             clearSkip: { model.prefs.clearSkip(result.app) },

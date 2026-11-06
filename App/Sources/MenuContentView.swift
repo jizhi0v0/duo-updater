@@ -2205,7 +2205,7 @@ private struct AppRow: View {
         if model.offersBrewFallbackChoice(result) {
             BrewFallbackMenu(
                 choice: model.brewFallbackOverride(for: result),
-                checksByDefault: model.prefs.brewFallbackByDefault,
+                checksByDefault: model.brewFallbackChecksByDefault(for: result),
                 withheldForSigning: result.brewFallbackWithheldForSigning,
                 set: { model.setBrewFallbackOverride($0, for: result) })
                 .disabled(stage != nil)
@@ -2488,7 +2488,7 @@ struct BrewFallbackMenu: View {
             .labelsHidden()
             if withheldForSigning {
                 Divider()
-                Text("Kept on Homebrew: another source’s build is signed differently. Choose an option to check again.")
+                Text("Kept on Homebrew: another source’s build is signed differently. A newer release is tried again; choose an option to check now.")
             }
         }
     }

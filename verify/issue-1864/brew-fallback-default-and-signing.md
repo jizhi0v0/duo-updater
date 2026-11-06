@@ -4,7 +4,13 @@ Follow-up to `brew-first-fallback.md`. Three changes:
 
 1. **Settings default.** General → Install routing gains "Check other sources for
    Homebrew apps" (off by default, key `BrewFallbackByDefault`). Changing it re-checks
-   the brew rows that follow the default.
+   the brew rows that follow the default. With it off, an official cask marked
+   `auto_updates` still checks other sources (`UpdateResult.homebrewSelfUpdating`): the
+   cask says the app's own updater is its channel and its version only records where
+   brew started — the rule before #1872. A third-party tap's `auto_updates` does not
+   count (such taps often package their own build). With it on, every brew copy checks.
+   A tap that moved its cask to homebrew/cask through its `tap_migrations.json` follows
+   the official cask's rules; a move to another third-party tap still fails closed.
 2. **Per-copy choice in three states.** The row menu's toggle becomes "When Homebrew Has
    No Update": Use Settings / Check Other Sources / Homebrew Only. A per-copy choice beats
    the default both ways; "Homebrew Only" (`BrewFallbackBlockedKeys`) holds when the
@@ -15,9 +21,11 @@ Follow-up to `brew-first-fallback.md`. Three changes:
      ID. Gate 3 would refuse it anyway. Later sources are still asked.
    - At install: gate 3 is unchanged. When it refuses a fallback install for its
      signature (`BrewFallbackPolicy.isSigningRefusal`), the app and `duo install` record
-     the copy with its Team ID (`BrewFallbackSigningRefusals`). While the copy still has
-     that Team ID, later checks keep it on Homebrew without asking other sources. A copy
-     reinstalled with another signature is checked again; any row-menu choice clears it.
+     the copy with its Team ID and the refused version (`BrewFallbackSigningRefusals`).
+     While the copy still has that Team ID, that release and older ones are skipped; a
+     newer release is offered again, so a vendor's one-off signing mistake does not hold
+     the copy forever. A copy reinstalled with another signature is checked again; any
+     row-menu choice clears it.
    - The row menu says why a row stays on Homebrew (`brewFallbackWithheldForSigning`).
 
 Detection cannot compare Team IDs in general: the GitHub API, Sparkle appcasts and vendor
@@ -40,14 +48,19 @@ From the Homebrew cask API (`formulae.brew.sh/api/cask.json`, 7,813 casks, 2026-
 
 ## Automated checks
 
-- Core: `swift test --package-path DuoUpdaterCore --filter 'BrewFallbackSigningTests|ThirdPartyCaskSourceTests|HomebrewCask|SourceStorePolicy|BrewProvenance|HomebrewUnchanged'`
-  — 129 tests / 12 suites passed (after the fixes in item 6 below). The full Core suite ran 7,157 tests; the only two
+- Core: `swift test --package-path DuoUpdaterCore --filter 'BrewFallbackSigningTests|ThirdPartyCaskSourceTests|HomebrewCask|SourceStorePolicy|HomebrewUnchanged'`
+  — 109 tests / 11 suites passed on the final head. The full Core suite ran 7,157 tests; the only two
   failures (`readsALiveChild`, `vendorResolvesInstallPlans`) fail the same way on `main`
   in this environment (process ancestry, live vendor network).
 - Mutations: making `signingDiffers` always false fails
   `digestOnlyReleaseIsSkippedForASignedBrewCopy` and `aSkippedSourceDoesNotHideALaterOne`;
   disabling the recorded-refusal branch fails
-  `recordedRefusalKeepsTheSameCopyOnHomebrewWithoutAsking` (both stamps).
+  `recordedRefusalSkipsThatReleaseForTheSameCopy`; ignoring `auto_updates` in
+  `checksOtherSourcesByDefault` fails `aSelfUpdatingCaskChecksOtherSources…` and
+  `aFailedDownstreamCheckStillNamesTheBrewOwner`; never expiring a refusal fails
+  `aNewerReleaseThanTheRefusedOneIsOfferedAgain`; `HomebrewCaskSource` not setting
+  the flag fails `fallbackRequiresOptInAndNoBrewUpdate`; refusing the official
+  migration fails `aTapMigratedToTheOfficialTapFollowsTheOfficialRules`.
 - CLI: `swift test --package-path CLI --scratch-path DuoUpdaterCore/.build` — 692 tests passed.
 - App: `make test-app` passed; 1,280 localization keys, all reachable.
 
@@ -122,6 +135,29 @@ desktop click to open the menu bar popover). Evidence from the app's own
      last check (`BrewFallbackPolicy.takesChoice`, tested and mutation-checked); the
      Settings help no longer promises an automatic hold for another edition.
    Settings left as found.
+
+10. `auto_updates` rule and refusal expiry (2026-11-07, fresh `make install`, default off):
+    - Official casks without `auto_updates` stopped at Homebrew (ActivityWatch, kitty,
+      LocalSend: `Homebrew → … [upToDate]` only), as did the third-party tap
+      `nikitabobko/tap/aerospace` (whose cask has no flag). Official `auto_updates` casks
+      went on after Homebrew: Maccy and Rectangle to Sparkle, Zed to GitHub, IINA to
+      `Sparkle → 1.5.1`; Transmission's Sparkle feed could not be reached (error row,
+      brew owner kept).
+    - Workbench menus: kitty "Use Settings (Homebrew Only)", Maccy "Use Settings (Check
+      Other Sources)".
+    - Turning the default on logged `re-checked 5 row(s)` — the brew rows without the
+      flag (ActivityWatch, kitty, LocalSend, AeroSpace, WezTerm); kitty, LocalSend and
+      ActivityWatch then reached GitHub.
+    - A refusal written for IINA (Team 67CQ77V27R, matching the copy) at 1.5.1 logged
+      `Sparkle skipped — 1.5.1 is not newer than the release refused for its signature`;
+      at 1.5.0 the check went on to `Sparkle → 1.5.1`. The record was written with
+      `defaults`, not by a refused install (that path, unchanged apart from also
+      storing the version, ran in item 8).
+    - Tap migration: a local tap with `tap_migrations.json` `{"iina": "homebrew/cask"}`
+      made `brew info --cask --json=v2 duotest/migr/iina` answer `tap: homebrew/cask`
+      with the official `auto_updates`; the tap was removed afterwards. No installed copy
+      here comes from a migrated tap, so the source's handling is covered by tests.
+    Settings left as found: default on, no per-copy choices, no refusals.
 
 Not exercised on this host: the detection-time skip for a `.publishedDigestOnly`
 release (no installed brew copy here has such a GitHub rule). It is covered by

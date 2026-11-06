@@ -416,6 +416,8 @@ public struct UpdateChecker: Sendable {
         }
 
         var brewAnswer: UpdateResult?
+        // A refusal recorded against this same copy: what it covers is skipped.
+        var heldRefusal: BrewFallbackPolicy.SigningRefusal?
         // Read once, and only for a brew copy that may check other sources.
         var team: String??
         func installedTeamOnce() async -> String? {
@@ -449,6 +451,14 @@ public struct UpdateChecker: Sendable {
                     brewAnswer?.brewFallbackWithheldForSigning = true
                     continue
                 }
+                // Refused at install before, and still the same copy: that release
+                // (or an older one) is skipped; a newer one gets another try, so a
+                // vendor's one-off signing mistake does not hold the copy forever.
+                if brewAnswer != nil, let held = heldRefusal, BrewFallbackPolicy.refusalCovers(held, remote) {
+                    Log.check.info("\(label, privacy: .public): \(source.name, privacy: .public) skipped — \(remote.displayVersion ?? "?", privacy: .public) is not newer than the release refused for its signature (\(held.version, privacy: .public))")
+                    brewAnswer?.brewFallbackWithheldForSigning = true
+                    continue
+                }
                 let status = Self.evaluate(installed: app, remote: remote)
                 Log.check.info("\(label, privacy: .public): \(source.name, privacy: .public) → \(remote.displayVersion ?? "?", privacy: .public) [\(String(describing: status), privacy: .public)]")
                 if !(source is ElectronManifestSource) {
@@ -456,17 +466,16 @@ public struct UpdateChecker: Sendable {
                 }
                 var result = UpdateResult(app: app, remote: remote, status: status)
                 result.homebrewSourceIdentifier = brewAnswer?.homebrewSourceIdentifier
+                result.homebrewSelfUpdating = brewAnswer?.homebrewSelfUpdating ?? false
                 if source.name == "Homebrew" {
                     result.homebrewSourceIdentifier = remote.sourceIdentifier
+                    result.homebrewSelfUpdating = remote.homebrewSelfUpdating
                     let key = InstallPreferenceKey.key(for: app)
-                    if status == .upToDate, brewFallback.checksOtherSources(key) {
-                        // Refused at install before, and still the same copy:
-                        // stay on Homebrew without asking anyone else.
-                        if let stamp = brewFallback.signingRefusals[key],
-                           stamp == BrewFallbackPolicy.signingStamp(team: await installedTeamOnce()) {
-                            Log.check.info("\(label, privacy: .public): other sources withheld — an earlier install from one was refused for its signature")
-                            result.brewFallbackWithheldForSigning = true
-                            return result
+                    if status == .upToDate,
+                       brewFallback.checksOtherSources(key, selfUpdating: remote.homebrewSelfUpdating) {
+                        if let refusal = brewFallback.signingRefusals[key],
+                           refusal.team == BrewFallbackPolicy.signingStamp(team: await installedTeamOnce()) {
+                            heldRefusal = refusal
                         }
                         brewAnswer = result
                         continue
@@ -591,6 +600,7 @@ public struct UpdateChecker: Sendable {
             // Brew answered first: the row is still a brew copy, for its menu and
             // for the Settings default's re-check.
             refused.homebrewSourceIdentifier = brewAnswer?.homebrewSourceIdentifier
+            refused.homebrewSelfUpdating = brewAnswer?.homebrewSelfUpdating ?? false
             return refused
         }
         if let lastError, !app.isToolboxManaged {
@@ -598,6 +608,7 @@ public struct UpdateChecker: Sendable {
             var failed = UpdateResult(app: app, remote: nil, status: .error(lastError))
             failed.failureIsTransient = failedTransiently
             failed.homebrewSourceIdentifier = brewAnswer?.homebrewSourceIdentifier
+            failed.homebrewSelfUpdating = brewAnswer?.homebrewSelfUpdating ?? false
             return failed
         }
         if let lastError {

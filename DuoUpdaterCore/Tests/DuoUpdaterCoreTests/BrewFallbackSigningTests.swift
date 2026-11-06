@@ -13,13 +13,51 @@ import Testing
 
     private var key: String { InstallPreferenceKey.key(for: app) }
 
+    private static func refused(_ team: String, at version: String = "2.0") -> BrewFallbackPolicy.SigningRefusal {
+        .init(team: team, version: version)
+    }
+
     /// Answers like the brew sources do: up to date, under the cask token.
     private struct Brew: UpdateSource {
         let name = "Homebrew"
+        var selfUpdating = false
         func latestVersion(for app: InstalledApp) async throws -> RemoteVersion? {
-            RemoteVersion(shortVersion: "1.0", version: nil, downloadURL: nil,
-                          sourceName: name, sourceIdentifier: "example")
+            var remote = RemoteVersion(shortVersion: "1.0", version: nil, downloadURL: nil,
+                                       sourceName: name, sourceIdentifier: "example")
+            remote.homebrewSelfUpdating = selfUpdating
+            return remote
         }
+    }
+
+    /// An official cask marked `auto_updates` says the app's own updater is its
+    /// channel: with the Settings default off it still checks other sources, and
+    /// a per-copy "Homebrew Only" still holds it.
+    @Test func aSelfUpdatingCaskChecksOtherSourcesUnlessTheCopySaysHomebrewOnly() async {
+        let downstream = Downstream()
+        let followsDefault = await UpdateChecker(
+            sources: [Brew(selfUpdating: true), downstream], brewFallback: BrewFallbackPolicy(),
+            installedTeam: { _ in "TEAMBREW01" }).check(app)
+        #expect(followsDefault.remote?.sourceName == "GitHub")
+        #expect(followsDefault.homebrewSelfUpdating)
+        #expect(followsDefault.homebrewSourceIdentifier == "example")
+        let held = await UpdateChecker(
+            sources: [Brew(selfUpdating: true), downstream], brewFallback: BrewFallbackPolicy(blockedKeys: [key]),
+            installedTeam: { _ in "TEAMBREW01" }).check(app)
+        #expect(held.remote?.sourceName == "Homebrew")
+        #expect(held.homebrewSelfUpdating)
+        #expect(await downstream.calls == 1)
+        let plain = await UpdateChecker(
+            sources: [Brew(), downstream], brewFallback: BrewFallbackPolicy(),
+            installedTeam: { _ in "TEAMBREW01" }).check(app)
+        #expect(plain.remote?.sourceName == "Homebrew")
+        #expect(!plain.homebrewSelfUpdating)
+        #expect(await downstream.calls == 1)
+    }
+
+    @Test func useSettingsMeansOnForASelfUpdatingCask() {
+        #expect(BrewFallbackPolicy().checksOtherSourcesByDefault(selfUpdating: true))
+        #expect(!BrewFallbackPolicy().checksOtherSourcesByDefault(selfUpdating: false))
+        #expect(BrewFallbackPolicy(checksOtherSourcesByDefault: true).checksOtherSourcesByDefault(selfUpdating: false))
     }
 
     private actor Downstream: UpdateSource {
@@ -79,19 +117,32 @@ import Testing
         #expect(result.hasUpdate)
     }
 
-    @Test(arguments: ["TEAMBREW01", ""])
-    func recordedRefusalKeepsTheSameCopyOnHomebrewWithoutAsking(stamp: String) async {
+    @Test(arguments: ["TEAMBREW01", ""], ["2.0", "3.0"])
+    func recordedRefusalSkipsThatReleaseForTheSameCopy(stamp: String, refusedAt: String) async {
         let downstream = Downstream()
-        let policy = BrewFallbackPolicy(checksOtherSourcesByDefault: true, signingRefusals: [key: stamp])
+        let policy = BrewFallbackPolicy(
+            checksOtherSourcesByDefault: true, signingRefusals: [key: Self.refused(stamp, at: refusedAt)])
         let result = await check(policy, team: stamp.isEmpty ? nil : stamp, sources: [downstream])
         #expect(result.remote?.sourceName == "Homebrew")
         #expect(result.brewFallbackWithheldForSigning)
-        #expect(await downstream.calls == 0)
+        #expect(!result.hasUpdate)
+    }
+
+    /// A vendor's one-off signing mistake: 2.0 was refused, the source now
+    /// offers 2.1, which gets its own try (gate 3 still decides at install).
+    @Test func aNewerReleaseThanTheRefusedOneIsOfferedAgain() async {
+        let downstream = Downstream()
+        let policy = BrewFallbackPolicy(
+            checksOtherSourcesByDefault: true, signingRefusals: [key: Self.refused("TEAMBREW01", at: "1.9")])
+        let result = await check(policy, team: "TEAMBREW01", sources: [downstream])
+        #expect(result.remote?.sourceName == "GitHub")
+        #expect(!result.brewFallbackWithheldForSigning)
+        #expect(result.hasUpdate)
     }
 
     @Test func aDifferentlySignedCopyIsCheckedAgain() async {
         let downstream = Downstream()
-        let policy = BrewFallbackPolicy(allowedKeys: [key], signingRefusals: [key: "TEAMBREW01"])
+        let policy = BrewFallbackPolicy(allowedKeys: [key], signingRefusals: [key: Self.refused("TEAMBREW01")])
         let result = await check(policy, team: "TEAMUPSTRM", sources: [downstream])
         #expect(result.remote?.sourceName == "GitHub")
         #expect(await downstream.calls == 1)
@@ -99,7 +150,7 @@ import Testing
 
     @Test func homebrewOnlyNeitherReadsTheSignatureNorFlagsTheRow() async {
         let downstream = Downstream(trust: .publishedDigestOnly)
-        let policy = BrewFallbackPolicy(blockedKeys: [key], signingRefusals: [key: "TEAMBREW01"])
+        let policy = BrewFallbackPolicy(blockedKeys: [key], signingRefusals: [key: Self.refused("TEAMBREW01")])
         let result = await UpdateChecker(
             sources: [Brew(), downstream], brewFallback: policy,
             installedTeam: { _ in Issue.record("No signature read without a fallback"); return nil }).check(app)
@@ -140,16 +191,16 @@ import Testing
 
     @Test func choosingInTheMenuReplacesTheOtherChoiceAndForgetsARefusal() {
         var policy = BrewFallbackPolicy(
-            checksOtherSourcesByDefault: true, allowedKeys: ["other"], signingRefusals: [key: "TEAMBREW01", "other": ""])
+            checksOtherSourcesByDefault: true, allowedKeys: ["other"], signingRefusals: [key: Self.refused("TEAMBREW01"), "other": Self.refused("")])
         policy.set(.homebrewOnly, for: key)
         #expect(policy.override(for: key) == .homebrewOnly)
-        #expect(policy.signingRefusals == ["other": ""])
+        #expect(policy.signingRefusals == ["other": Self.refused("")])
         policy.set(.checkOtherSources, for: key)
         #expect(policy.override(for: key) == .checkOtherSources)
         #expect(!policy.blockedKeys.contains(key))
         policy.set(nil, for: key)
         #expect(policy.override(for: key) == nil)
-        #expect(policy.checksOtherSources(key))
+        #expect(policy.checksOtherSources(key, selfUpdating: false))
         #expect(policy.allowedKeys == ["other"])
     }
 
@@ -157,7 +208,7 @@ import Testing
     /// earlier check: re-choosing the selected option must clear it then, not
     /// only after the next check puts the flag on the row.
     @Test func reChoosingTheSameOptionCountsOnlyWhileARefusalHolds() {
-        let held = BrewFallbackPolicy(allowedKeys: [key], signingRefusals: [key: "TEAMBREW01"])
+        let held = BrewFallbackPolicy(allowedKeys: [key], signingRefusals: [key: Self.refused("TEAMBREW01")])
         #expect(held.takesChoice(.checkOtherSources, for: key, rowWithheld: false))
         let free = BrewFallbackPolicy(allowedKeys: [key])
         #expect(!free.takesChoice(.checkOtherSources, for: key, rowWithheld: false))
@@ -167,10 +218,10 @@ import Testing
     }
 
     @Test func aRenamedCopyKeepsItsChoiceAndRefusal() {
-        var policy = BrewFallbackPolicy(blockedKeys: ["old"], signingRefusals: ["old": "TEAMBREW01"])
+        var policy = BrewFallbackPolicy(blockedKeys: ["old"], signingRefusals: ["old": Self.refused("TEAMBREW01")])
         policy.migrate(from: "old", to: "new")
         #expect(policy.blockedKeys == ["new"])
-        #expect(policy.signingRefusals == ["new": "TEAMBREW01"])
+        #expect(policy.signingRefusals == ["new": Self.refused("TEAMBREW01")])
         policy.migrate(from: "new", to: "new")
         #expect(policy.blockedKeys == ["new"])
     }
@@ -183,8 +234,10 @@ import Testing
         var row = UpdateResult(app: app, remote: github, status: .updateAvailable(latest: "2.0"))
         row.homebrewSourceIdentifier = "example"
         row.brewFallbackWithheldForSigning = true
+        row.homebrewSelfUpdating = true
         let same = row.carriedForward(onto: app, remote: github, status: row.status, proven: nil)
         #expect(same.homebrewSourceIdentifier == "example")
+        #expect(same.homebrewSelfUpdating)
         #expect(same.brewFallbackWithheldForSigning)
         let moved = InstalledApp(name: app.name, bundleID: app.bundleID, shortVersion: "2.0", buildVersion: nil,
                                  path: app.path, isMASApp: false, sparkleFeedURL: nil)
@@ -204,17 +257,23 @@ import Testing
     /// not connect, and the error row lost the brew owner — so its menu lost the
     /// choice and the Settings default's re-check skipped it.
     @Test func aFailedDownstreamCheckStillNamesTheBrewOwner() async {
-        let result = await check(BrewFallbackPolicy(checksOtherSourcesByDefault: true), team: nil, sources: [Offline()])
+        let result = await UpdateChecker(
+            sources: [Brew(selfUpdating: true), Offline()], brewFallback: BrewFallbackPolicy(),
+            installedTeam: { _ in nil }).check(app)
         guard case .error = result.status else { Issue.record("Expected the downstream failure, got \(result.status)"); return }
         #expect(result.homebrewSourceIdentifier == "example")
+        #expect(result.homebrewSelfUpdating)
     }
 
     @Test func refusalsRoundTripThroughDefaults() throws {
         let suite = "brew-fallback-signing-\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
+        BrewFallbackPolicy.storeRefusals([key: Self.refused("TEAMBREW01", at: "1.5.1")], in: defaults)
+        #expect(BrewFallbackPolicy(defaults: defaults).signingRefusals == [key: Self.refused("TEAMBREW01", at: "1.5.1")])
+        // Anything else under the key (a malformed entry) is dropped, not trusted.
         defaults.set([key: "TEAMBREW01"], forKey: UpdateSettings.brewFallbackSigningRefusalsKey)
-        #expect(BrewFallbackPolicy(defaults: defaults).signingRefusals == [key: "TEAMBREW01"])
+        #expect(BrewFallbackPolicy(defaults: defaults).signingRefusals.isEmpty)
         #expect(BrewFallbackPolicy.signingStamp(team: nil) == "")
     }
 }

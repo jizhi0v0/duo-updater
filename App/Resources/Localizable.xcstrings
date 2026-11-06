@@ -1,144 +1,144 @@
 {
   "sourceLanguage": "en",
   "strings": {
-    "This is the default for apps Homebrew installed. To choose for one app, right-click it and use When Homebrew Has No Update. An app stays on Homebrew by itself once an install from another source is refused for its signature, such as for a re-signed rebuild. For another edition of an app, such as a community build, choose Homebrew Only.": {
+    "This is the default for apps Homebrew installed. Apps whose official Homebrew cask says they update themselves check other sources even when this is off; apps from other taps do not. To choose for one app, right-click it and use When Homebrew Has No Update. An app stays on Homebrew by itself when an install from another source is refused for its signature, until that source offers a newer release. For another edition of an app, such as a community build, choose Homebrew Only.": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "This is the default for apps Homebrew installed. To choose for one app, right-click it and use When Homebrew Has No Update. An app stays on Homebrew by itself once an install from another source is refused for its signature, such as for a re-signed rebuild. For another edition of an app, such as a community build, choose Homebrew Only."
+            "value": "This is the default for apps Homebrew installed. Apps whose official Homebrew cask says they update themselves check other sources even when this is off; apps from other taps do not. To choose for one app, right-click it and use When Homebrew Has No Update. An app stays on Homebrew by itself when an install from another source is refused for its signature, until that source offers a newer release. For another edition of an app, such as a community build, choose Homebrew Only."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "这是 Homebrew 安装的应用的默认设置。要单独设置某个应用，请右键点按它并使用“Homebrew 无更新时”。如果从其他来源安装时因签名被拒绝（例如重新签名的版本），应用会自动保持使用 Homebrew。对于应用的其他版本（例如社区版），请选择“仅 Homebrew”。"
+            "value": "这是 Homebrew 安装的应用的默认设置。官方 Homebrew cask 标明会自行更新的应用，即使关闭此项也会检查其他来源；来自其他 tap 的应用则不会。要单独设置某个应用，请右键点按它并使用“Homebrew 无更新时”。如果从其他来源安装时因签名被拒绝，应用会自动保持使用 Homebrew，直到该来源提供更新的版本。对于应用的其他版本（例如社区版），请选择“仅 Homebrew”。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "這是 Homebrew 安裝的 App 的預設設定。若要單獨設定某個 App，請按右鍵並使用「Homebrew 無更新時」。如果從其他來源安裝時因簽署被拒絕（例如重新簽署的版本），App 會自動維持使用 Homebrew。對於 App 的其他版本（例如社群版），請選擇「僅 Homebrew」。"
+            "value": "這是 Homebrew 安裝的 App 的預設設定。官方 Homebrew cask 標明會自行更新的 App，即使關閉此項也會檢查其他來源；來自其他 tap 的 App 則不會。若要單獨設定某個 App，請按右鍵並使用「Homebrew 無更新時」。如果從其他來源安裝時因簽署被拒絕，App 會自動維持使用 Homebrew，直到該來源提供更新的版本。對於 App 的其他版本（例如社群版），請選擇「僅 Homebrew」。"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Homebrew でインストールしたアプリのデフォルトです。アプリごとに選ぶには、アプリを右クリックして「Homebrew に更新がない場合」を使用します。他の配信元からのインストールが署名を理由に拒否されると（再署名版など）、そのアプリは自動的に Homebrew のままになります。アプリの別エディション（コミュニティ版など）には「Homebrew のみ」を選びます。"
+            "value": "Homebrew でインストールしたアプリのデフォルトです。公式の Homebrew cask で自動アップデートすると示されているアプリは、オフでも他の配信元を確認します。ほかの tap のアプリは確認しません。アプリごとに選ぶには、アプリを右クリックして「Homebrew に更新がない場合」を使用します。他の配信元からのインストールが署名を理由に拒否されると、その配信元が新しいリリースを出すまでアプリは自動的に Homebrew のままになります。アプリの別エディション（コミュニティ版など）には「Homebrew のみ」を選びます。"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Dies ist die Voreinstellung für Apps, die Homebrew installiert hat. Für eine einzelne App klicke sie mit der rechten Maustaste an und wähle „Wenn Homebrew kein Update hat“. Wird eine Installation aus einer anderen Quelle wegen ihrer Signatur abgelehnt, etwa bei einem neu signierten Build, bleibt die App automatisch bei Homebrew. Wähle für eine andere Edition einer App, etwa einen Community-Build, „Nur Homebrew“."
+            "value": "Dies ist die Voreinstellung für Apps, die Homebrew installiert hat. Apps, deren offizieller Homebrew-Cask angibt, dass sie sich selbst aktualisieren, prüfen andere Quellen auch, wenn dies aus ist; Apps aus anderen Taps nicht. Für eine einzelne App klicke sie mit der rechten Maustaste an und wähle „Wenn Homebrew kein Update hat“. Wird eine Installation aus einer anderen Quelle wegen ihrer Signatur abgelehnt, bleibt die App automatisch bei Homebrew, bis diese Quelle eine neuere Version anbietet. Wähle für eine andere Edition einer App, etwa einen Community-Build, „Nur Homebrew“."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "C’est le réglage par défaut des apps installées par Homebrew. Pour choisir pour une app, faites un clic droit dessus et utilisez « Si Homebrew n’a pas de mise à jour ». Une app reste automatiquement sur Homebrew dès qu’une installation depuis une autre source est refusée pour sa signature, par exemple une version re-signée. Pour une autre édition d’une app, comme une version communautaire, choisissez « Homebrew uniquement »."
+            "value": "C’est le réglage par défaut des apps installées par Homebrew. Les apps dont le cask Homebrew officiel indique qu’elles se mettent à jour elles-mêmes vérifient les autres sources même si ce réglage est désactivé ; pas les apps d’autres taps. Pour choisir pour une app, faites un clic droit dessus et utilisez « Si Homebrew n’a pas de mise à jour ». Une app reste automatiquement sur Homebrew quand une installation depuis une autre source est refusée pour sa signature, jusqu’à ce que cette source propose une version plus récente. Pour une autre édition d’une app, comme une version communautaire, choisissez « Homebrew uniquement »."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Es el ajuste predeterminado para las apps instaladas con Homebrew. Para elegir en una app concreta, haz clic derecho en ella y usa «Si Homebrew no tiene actualizaciones». Una app se queda en Homebrew por sí sola cuando una instalación desde otra fuente se rechaza por su firma, como una versión firmada de nuevo. Para otra edición de una app, como una versión de la comunidad, elige «Solo Homebrew»."
+            "value": "Es el ajuste predeterminado para las apps instaladas con Homebrew. Las apps cuyo cask oficial de Homebrew indica que se actualizan solas consultan otras fuentes aunque esto esté desactivado; las de otros taps no. Para elegir en una app concreta, haz clic derecho en ella y usa «Si Homebrew no tiene actualizaciones». Una app se queda en Homebrew por sí sola cuando una instalación desde otra fuente se rechaza por su firma, hasta que esa fuente ofrezca una versión más reciente. Para otra edición de una app, como una versión de la comunidad, elige «Solo Homebrew»."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "È l’impostazione predefinita per le app installate con Homebrew. Per scegliere per una singola app, fai clic destro su di essa e usa «Se Homebrew non ha aggiornamenti». Un’app resta su Homebrew da sola quando un’installazione da un’altra fonte viene rifiutata per la firma, come una build firmata di nuovo. Per un’altra edizione di un’app, come una build della community, scegli «Solo Homebrew»."
+            "value": "È l’impostazione predefinita per le app installate con Homebrew. Le app il cui cask Homebrew ufficiale indica che si aggiornano da sole controllano le altre fonti anche se questa opzione è disattivata; le app di altri tap no. Per scegliere per una singola app, fai clic destro su di essa e usa «Se Homebrew non ha aggiornamenti». Un’app resta su Homebrew da sola quando un’installazione da un’altra fonte viene rifiutata per la firma, finché quella fonte non offre una versione più recente. Per un’altra edizione di un’app, come una build della community, scegli «Solo Homebrew»."
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Este é o padrão para apps instalados pelo Homebrew. Para escolher para um app, clique nele com o botão direito e use “Quando o Homebrew não tiver atualizações”. Um app continua no Homebrew automaticamente quando uma instalação de outra fonte é recusada pela assinatura, como uma versão reassinada. Para outra edição de um app, como uma versão da comunidade, escolha “Somente Homebrew”."
+            "value": "Este é o padrão para apps instalados pelo Homebrew. Apps cujo cask oficial do Homebrew indica que se atualizam sozinhos verificam outras fontes mesmo com isto desativado; apps de outros taps não. Para escolher para um app, clique nele com o botão direito e use “Quando o Homebrew não tiver atualizações”. Um app continua no Homebrew automaticamente quando uma instalação de outra fonte é recusada pela assinatura, até essa fonte oferecer uma versão mais recente. Para outra edição de um app, como uma versão da comunidade, escolha “Somente Homebrew”."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Это значение по умолчанию для приложений, установленных через Homebrew. Чтобы выбрать для одного приложения, нажмите на него правой кнопкой и используйте «Если в Homebrew нет обновлений». Приложение само остаётся на Homebrew, если установка из другого источника была отклонена из-за подписи, например для переподписанной версии. Для другой редакции приложения, например сборки сообщества, выберите «Только Homebrew»."
+            "value": "Это значение по умолчанию для приложений, установленных через Homebrew. Приложения, чей официальный cask Homebrew указывает, что они обновляются сами, проверяют другие источники, даже когда это выключено; приложения из других tap — нет. Чтобы выбрать для одного приложения, нажмите на него правой кнопкой и используйте «Если в Homebrew нет обновлений». Приложение само остаётся на Homebrew, если установка из другого источника была отклонена из-за подписи, пока этот источник не предложит более новую версию. Для другой редакции приложения, например сборки сообщества, выберите «Только Homebrew»."
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bu, Homebrew'un yüklediği uygulamalar için varsayılandır. Tek bir uygulama için seçmek üzere uygulamaya sağ tıklayın ve “Homebrew'da güncelleme yoksa” seçeneğini kullanın. Başka bir kaynaktan yükleme imzası nedeniyle reddedilirse, örneğin yeniden imzalanmış bir derlemede, uygulama kendiliğinden Homebrew'da kalır. Bir uygulamanın başka bir sürümü için, örneğin bir topluluk derlemesinde, “Yalnızca Homebrew”u seçin."
+            "value": "Bu, Homebrew'un yüklediği uygulamalar için varsayılandır. Resmi Homebrew cask'ı kendini güncellediğini belirten uygulamalar bu kapalıyken de diğer kaynakları denetler; diğer tap'lerden gelen uygulamalar denetlemez. Tek bir uygulama için seçmek üzere uygulamaya sağ tıklayın ve “Homebrew'da güncelleme yoksa” seçeneğini kullanın. Başka bir kaynaktan yükleme imzası nedeniyle reddedilirse uygulama, o kaynak daha yeni bir sürüm sunana kadar kendiliğinden Homebrew'da kalır. Bir uygulamanın başka bir sürümü için, örneğin bir topluluk derlemesinde, “Yalnızca Homebrew”u seçin."
           }
         }
       }
     },
-    "Kept on Homebrew: another source’s build is signed differently. Choose an option to check again.": {
+    "Kept on Homebrew: another source’s build is signed differently. A newer release is tried again; choose an option to check now.": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Kept on Homebrew: another source’s build is signed differently. Choose an option to check again."
+            "value": "Kept on Homebrew: another source’s build is signed differently. A newer release is tried again; choose an option to check now."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "保持使用 Homebrew：其他来源的版本签名不同。选择一个选项可重新检查。"
+            "value": "保持使用 Homebrew：其他来源的版本签名不同。有更新的版本时会再试；选择一个选项可立即检查。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "維持使用 Homebrew：其他來源的版本簽署不同。選擇一個選項可重新檢查。"
+            "value": "維持使用 Homebrew：其他來源的版本簽署不同。有更新的版本時會再試；選擇一個選項可立即檢查。"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Homebrew のまま：他の配信元のビルドは署名が異なります。オプションを選ぶと再確認します。"
+            "value": "Homebrew のまま：他の配信元のビルドは署名が異なります。新しいリリースが出ると再試行します。オプションを選ぶとすぐに確認します。"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bei Homebrew belassen: Der Build einer anderen Quelle ist anders signiert. Wähle eine Option, um erneut zu prüfen."
+            "value": "Bei Homebrew belassen: Der Build einer anderen Quelle ist anders signiert. Eine neuere Version wird erneut versucht; wähle eine Option, um jetzt zu prüfen."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Conservée sur Homebrew : la version d’une autre source est signée différemment. Choisissez une option pour vérifier à nouveau."
+            "value": "Conservée sur Homebrew : la version d’une autre source est signée différemment. Une version plus récente sera réessayée ; choisissez une option pour vérifier maintenant."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Se mantiene en Homebrew: la compilación de otra fuente tiene otra firma. Elige una opción para volver a consultar."
+            "value": "Se mantiene en Homebrew: la compilación de otra fuente tiene otra firma. Se volverá a intentar con una versión más reciente; elige una opción para consultar ahora."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Mantenuta su Homebrew: la build di un’altra fonte ha una firma diversa. Scegli un’opzione per ricontrollare."
+            "value": "Mantenuta su Homebrew: la build di un’altra fonte ha una firma diversa. Una versione più recente verrà riprovata; scegli un’opzione per controllare ora."
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Mantido no Homebrew: a compilação de outra fonte tem outra assinatura. Escolha uma opção para verificar novamente."
+            "value": "Mantido no Homebrew: a compilação de outra fonte tem outra assinatura. Uma versão mais recente será tentada de novo; escolha uma opção para verificar agora."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Оставлено на Homebrew: сборка из другого источника подписана иначе. Выберите вариант, чтобы проверить снова."
+            "value": "Оставлено на Homebrew: сборка из другого источника подписана иначе. Более новая версия будет проверена снова; выберите вариант, чтобы проверить сейчас."
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Homebrew'da tutuldu: başka bir kaynağın derlemesi farklı imzalanmış. Yeniden kontrol etmek için bir seçenek belirleyin."
+            "value": "Homebrew'da tutuldu: başka bir kaynağın derlemesi farklı imzalanmış. Daha yeni bir sürüm yeniden denenir; şimdi kontrol etmek için bir seçenek belirleyin."
           }
         }
       }
@@ -569,73 +569,73 @@
         }
       }
     },
-    "When Homebrew has no newer version, GitHub and other sources may offer one. A Homebrew update always comes first.": {
+    "When Homebrew has no newer version, GitHub and other sources may offer one. A Homebrew update always comes first. When off, only apps that update themselves are checked this way.": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "When Homebrew has no newer version, GitHub and other sources may offer one. A Homebrew update always comes first."
+            "value": "When Homebrew has no newer version, GitHub and other sources may offer one. A Homebrew update always comes first. When off, only apps that update themselves are checked this way."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Homebrew 没有更新版本时，GitHub 等其他来源可以提供更新。Homebrew 的更新始终优先。"
+            "value": "Homebrew 没有更新版本时，GitHub 等其他来源可以提供更新。Homebrew 的更新始终优先。关闭时，只有会自行更新的应用这样检查。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "Homebrew 沒有更新版本時，GitHub 等其他來源可以提供更新。Homebrew 的更新一律優先。"
+            "value": "Homebrew 沒有更新版本時，GitHub 等其他來源可以提供更新。Homebrew 的更新一律優先。關閉時，只有會自行更新的 App 這樣檢查。"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Homebrew に新しいバージョンがない場合、GitHub などの配信元からアップデートを提示できます。Homebrew のアップデートが常に優先されます。"
+            "value": "Homebrew に新しいバージョンがない場合、GitHub などの配信元からアップデートを提示できます。Homebrew のアップデートが常に優先されます。オフの場合、この確認を行うのは自動でアップデートするアプリだけです。"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hat Homebrew keine neuere Version, können GitHub und andere Quellen eine anbieten. Ein Homebrew-Update hat immer Vorrang."
+            "value": "Hat Homebrew keine neuere Version, können GitHub und andere Quellen eine anbieten. Ein Homebrew-Update hat immer Vorrang. Ist dies aus, werden nur Apps so geprüft, die sich selbst aktualisieren."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Si Homebrew n’a pas de version plus récente, GitHub et d’autres sources peuvent en proposer une. Une mise à jour Homebrew passe toujours en premier."
+            "value": "Si Homebrew n’a pas de version plus récente, GitHub et d’autres sources peuvent en proposer une. Une mise à jour Homebrew passe toujours en premier. Désactivé, seules les apps qui se mettent à jour elles-mêmes sont vérifiées ainsi."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Si Homebrew no tiene una versión más reciente, GitHub y otras fuentes pueden ofrecer una. Una actualización de Homebrew siempre tiene prioridad."
+            "value": "Si Homebrew no tiene una versión más reciente, GitHub y otras fuentes pueden ofrecer una. Una actualización de Homebrew siempre tiene prioridad. Si está desactivado, solo se consultan así las apps que se actualizan solas."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Se Homebrew non ha una versione più recente, GitHub e altre fonti possono proporne una. Un aggiornamento di Homebrew ha sempre la precedenza."
+            "value": "Se Homebrew non ha una versione più recente, GitHub e altre fonti possono proporne una. Un aggiornamento di Homebrew ha sempre la precedenza. Se disattivato, vengono controllate così solo le app che si aggiornano da sole."
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Quando o Homebrew não tiver uma versão mais recente, o GitHub e outras fontes podem oferecer uma. Uma atualização do Homebrew sempre tem prioridade."
+            "value": "Quando o Homebrew não tiver uma versão mais recente, o GitHub e outras fontes podem oferecer uma. Uma atualização do Homebrew sempre tem prioridade. Quando desativado, só os apps que se atualizam sozinhos são verificados assim."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Если в Homebrew нет более новой версии, её могут предложить GitHub и другие источники. Обновление из Homebrew всегда в приоритете."
+            "value": "Если в Homebrew нет более новой версии, её могут предложить GitHub и другие источники. Обновление из Homebrew всегда в приоритете. Когда выключено, так проверяются только приложения, которые обновляются сами."
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Homebrew'da daha yeni bir sürüm yoksa GitHub ve diğer kaynaklar bir sürüm sunabilir. Homebrew güncellemesi her zaman önceliklidir."
+            "value": "Homebrew'da daha yeni bir sürüm yoksa GitHub ve diğer kaynaklar bir sürüm sunabilir. Homebrew güncellemesi her zaman önceliklidir. Kapalıyken yalnızca kendini güncelleyen uygulamalar bu şekilde denetlenir."
           }
         }
       }

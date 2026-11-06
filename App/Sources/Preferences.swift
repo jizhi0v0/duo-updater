@@ -470,9 +470,9 @@ final class Preferences {
     /// Copies kept on Homebrew after another source's build was refused for its
     /// signature — see `BrewFallbackPolicy.signingRefusals`. Read from defaults
     /// each time, not cached: `duo install` records refusals in the same suite.
-    private var brewFallbackSigningRefusals: [String: String] {
+    private var brewFallbackSigningRefusals: [String: BrewFallbackPolicy.SigningRefusal] {
         get { BrewFallbackPolicy(defaults: defaults).signingRefusals }
-        set { defaults.set(newValue, forKey: UpdateSettings.brewFallbackSigningRefusalsKey) }
+        set { BrewFallbackPolicy.storeRefusals(newValue, in: defaults) }
     }
 
     var brewFallback: BrewFallbackPolicy {
@@ -483,8 +483,8 @@ final class Preferences {
             signingRefusals: brewFallbackSigningRefusals)
     }
 
-    func recordBrewFallbackSigningRefusal(for app: InstalledApp, stamp: String) {
-        brewFallbackSigningRefusals[key(for: app)] = stamp
+    func recordBrewFallbackSigningRefusal(for app: InstalledApp, refusal: BrewFallbackPolicy.SigningRefusal) {
+        brewFallbackSigningRefusals[key(for: app)] = refusal
     }
 
     /// Record one copy's own choice; nil returns it to the Settings default.

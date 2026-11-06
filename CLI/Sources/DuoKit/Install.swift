@@ -1355,11 +1355,11 @@ public enum Install {
                 // A brew copy refused another source's build for its signature:
                 // keep it on Homebrew, as the menu-bar app does for the same copy.
                 if BrewFallbackPolicy.isFallbackInstall(toInstall), BrewFallbackPolicy.isSigningRefusal(error) {
-                    await Settings.recordBrewFallbackSigningRefusal(toInstall.app)
+                    await Settings.recordBrewFallbackSigningRefusal(toInstall)
                     FileHandle.standardError.write(Data("""
-                           \(name) stays on Homebrew from now on: the \(toInstall.remote?.sourceName ?? "other") \
-                        build is signed differently. Choose again under When Homebrew Has No Update in the \
-                        app's row menu to check other sources again.\n
+                           \(name) stays on Homebrew until \(toInstall.remote?.sourceName ?? "the other source") \
+                        offers a newer release: this build is signed differently. Choose again under When \
+                        Homebrew Has No Update in the app's row menu to check other sources now.\n
                         """.utf8))
                 }
                 // The one ending a `--json` consumer most needs to see. Every

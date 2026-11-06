@@ -38,13 +38,14 @@ public struct Settings: Sendable {
     /// Keep a brew copy on Homebrew after another source's build was refused
     /// for its signature (`BrewFallbackPolicy.signingRefusals`), in the suite
     /// the menu-bar app reads.
-    public static func recordBrewFallbackSigningRefusal(_ app: InstalledApp) async {
-        let stamp = await BrewFallbackPolicy.signingStamp(of: app)
+    public static func recordBrewFallbackSigningRefusal(_ result: UpdateResult) async {
+        let refusal = BrewFallbackPolicy.SigningRefusal(
+            team: await BrewFallbackPolicy.signingStamp(of: result.app),
+            version: BrewFallbackPolicy.offeredVersion(of: result.remote))
         let defaults = UserDefaults(suiteName: suiteName) ?? .standard
-        var refusals = defaults.dictionary(forKey: UpdateSettings.brewFallbackSigningRefusalsKey)
-            as? [String: String] ?? [:]
-        refusals[InstallPreferenceKey.key(for: app)] = stamp
-        defaults.set(refusals, forKey: UpdateSettings.brewFallbackSigningRefusalsKey)
+        var refusals = BrewFallbackPolicy(defaults: defaults).signingRefusals
+        refusals[InstallPreferenceKey.key(for: result.app)] = refusal
+        BrewFallbackPolicy.storeRefusals(refusals, in: defaults)
     }
 
     /// Point `BackupStore` at whatever disk the user configured in the app.

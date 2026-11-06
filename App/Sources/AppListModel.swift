@@ -6542,8 +6542,10 @@ final class AppListModel {
             // The error stays on the row so the user sees why; the next check
             // answers it from Homebrew (`UpdateChecker`).
             if BrewFallbackPolicy.isFallbackInstall(result), BrewFallbackPolicy.isSigningRefusal(error) {
-                let stamp = await BrewFallbackPolicy.signingStamp(of: result.app)
-                prefs.recordBrewFallbackSigningRefusal(for: result.app, stamp: stamp)
+                let refusal = BrewFallbackPolicy.SigningRefusal(
+                    team: await BrewFallbackPolicy.signingStamp(of: result.app),
+                    version: BrewFallbackPolicy.offeredVersion(of: result.remote))
+                prefs.recordBrewFallbackSigningRefusal(for: result.app, refusal: refusal)
                 Log.install.notice("brew fallback: \(result.app.name, privacy: .public) kept on Homebrew — \(result.remote?.sourceName ?? "?", privacy: .public) build refused for its signature")
             }
             if let short = error as? DiskSpaceGuard.InsufficientSpace {
@@ -10077,6 +10079,12 @@ final class AppListModel {
             || prefs.brewFallback.override(for: InstallPreferenceKey.key(for: result.app)) != nil
     }
 
+    /// What "Use Settings" means for this row: the Settings default, or on for
+    /// an official cask marked `auto_updates`.
+    func brewFallbackChecksByDefault(for result: UpdateResult) -> Bool {
+        prefs.brewFallback.checksOtherSourcesByDefault(selfUpdating: result.homebrewSelfUpdating)
+    }
+
     func brewFallbackOverride(for result: UpdateResult) -> BrewFallbackPolicy.Override? {
         prefs.brewFallback.override(for: InstallPreferenceKey.key(for: result.app))
     }
@@ -10092,9 +10100,10 @@ final class AppListModel {
 
     /// The Settings default changed: re-check the brew rows that follow it, so
     /// they move to (or back from) another source now rather than next round.
+    /// A self-updating cask's row checks other sources either way.
     func brewFallbackDefaultChanged() {
         let targets = results.filter {
-            offersBrewFallbackChoice($0) && brewFallbackOverride(for: $0) == nil
+            offersBrewFallbackChoice($0) && brewFallbackOverride(for: $0) == nil && !$0.homebrewSelfUpdating
                 && installing[$0.id] == nil && prefs.deservesCheck($0.app)
         }
         guard !targets.isEmpty else { return }

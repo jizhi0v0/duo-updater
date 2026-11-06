@@ -20,6 +20,21 @@
           private, and are not carried over.
         -->
         <item>
+            <title>0.5.24-beta.1</title>
+            <pubDate>Fri, 06 Nov 2026 08:49:43 +0800</pubDate>
+            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.5.24-beta.1</link>
+            <sparkle:channel>beta</sparkle:channel>
+            <sparkle:version>142</sparkle:version>
+            <sparkle:shortVersionString>0.5.24-beta.1</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[**Try automatic updates for closed apps in this Beta.** Enable the option in Settings to install eligible updates after scheduled checks, with a backup before each update. Running apps, installers, and updates requiring authorization are skipped. App data is not backed up.
+
+**Help improve the Beta by reporting problems.** Open a GitHub issue from Settings → Updates and include the relevant Events entries.
+]]></description>
+            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.5.24-beta.1/DuoUpdater-0.5.24-beta.1-macos.zip" length="15999903" type="application/octet-stream" sparkle:edSignature="nhJ9hqUuaTF+JIn6M50tt+syf+B85tpj/2koibYAS4mmjrh3WVvOJMU6eMTp/vfMVlhpT1xlU2SBnjiv3M4mBw=="/>
+        </item>
+    <item>
             <title>0.5.23</title>
             <pubDate>Thu, 05 Nov 2026 23:21:05 +0800</pubDate>
             <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.5.23</link>

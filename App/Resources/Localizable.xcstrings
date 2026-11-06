@@ -1,6 +1,138 @@
 {
   "sourceLanguage": "en",
   "strings": {
+  "Deferral is temporary. Eligible updates are reconsidered on a later scheduled pass; other work or network restrictions may delay it.": {
+    "extractionState": "manual",
+    "localizations": {
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "暂缓是临时状态。符合条件的更新会在后续定时检查中重试；其他任务或网络限制可能使重试延后。"
+        }
+      }
+    }
+  },
+  "Local process diagnostics": {
+    "extractionState": "manual",
+    "localizations": {
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "本地进程诊断"
+        }
+      }
+    }
+  },
+  "Attempt details": {
+    "extractionState": "manual",
+    "localizations": {
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "尝试详情"
+        }
+      }
+    }
+  },
+  "Review sanitized report…": {
+    "extractionState": "manual",
+    "localizations": {
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "预览脱敏报告…"
+        }
+      }
+    }
+  },
+  "Review sanitized report": {
+    "extractionState": "manual",
+    "localizations": {
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "预览脱敏报告"
+        }
+      }
+    }
+  },
+  "Save report…": {
+    "extractionState": "manual",
+    "localizations": {
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "保存报告…"
+        }
+      }
+    }
+  },
+  "A later attempt recovered and installed the update.": {
+    "extractionState": "manual",
+    "localizations": {
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "后续尝试已恢复，并成功安装更新。"
+        }
+      }
+    }
+  },
+  "Contains aggregate outcomes and process probe results from the displayed records. App names, paths, process IDs and activity times are omitted. Nothing is sent automatically.": {
+    "extractionState": "manual",
+    "localizations": {
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "包含当前显示记录的汇总结果和进程探针结果，已去除应用名称、路径、进程编号和活动时间。不会自动发送任何内容。"
+        }
+      }
+    }
+  },
+  "Pass: %@": {
+    "extractionState": "manual",
+    "localizations": {
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "批次：%@"
+        }
+      }
+    }
+  },
+  "Attempt: %@": {
+    "extractionState": "manual",
+    "localizations": {
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "尝试：%@"
+        }
+      }
+    }
+  },
+  "Previous attempt: %@": {
+    "extractionState": "manual",
+    "localizations": {
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "上次尝试：%@"
+        }
+      }
+    }
+  },
+  "Diagnostics: %@": {
+    "extractionState": "manual",
+    "localizations": {
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "诊断：%@"
+        }
+      }
+    }
+  },
   "Release channel": {
     "extractionState": "manual",
     "localizations": {

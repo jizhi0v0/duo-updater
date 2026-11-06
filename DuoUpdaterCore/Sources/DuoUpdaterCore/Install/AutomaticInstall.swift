@@ -4,6 +4,7 @@ import Foundation
 /// commit tasks. Manual updates retain their existing behavior.
 public enum AutomaticInstall {
     @TaskLocal public static var active = false
+    @TaskLocal public static var diagnostic: (@Sendable (AutomaticProcessDiagnostic) -> Void)?
     @TaskLocal public static var permission: (@Sendable () async -> Bool)?
 
     /// Synchronous policy read at the filesystem exchange, after staging and dispatch.
@@ -77,10 +78,13 @@ public enum AutomaticInstall {
     public static func check(_ app: InstalledApp) throws {
         guard active else { return }
         try checkProcesses(at: app.path,
-            processes: NestedAppGuard.liveProcesses(includeUninspectable: true))
+            processes: NestedAppGuard.liveProcesses(includeUninspectable: true, diagnostic: diagnostic))
     }
 
     static func checkProcesses(at bundle: URL, processes: [NestedAppGuard.RunningProcess]) throws {
+        for process in processes where hasRunningProcess(at: bundle, processes: [process]) {
+            diagnostic?(.init(kind: .targetRunning, pid: process.pid, parentPID: process.parentPID))
+        }
         guard !processes.isEmpty,
               processes.allSatisfy({ $0.executablePath != nil || $0.launchedPath != nil }) else {
             throw Deferred("Automatic update deferred: running processes could not be checked completely.")

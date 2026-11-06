@@ -10275,19 +10275,20 @@ final class AppListModel {
             && NetworkMonitor.shared.path.allowsDiscretionaryTraffic && !Task.isCancelled
     }
 
-    private var automaticSkipReasons: [String: String] = [:]
     // Attempt-local versions, refreshed by the pre-install recheck and the
     // successful disk readback. Only the automatic caller owns these entries.
     private var automaticInstallVersions: [String: (from: String, to: String)] = [:]
 
     private func recordAutomaticUpdate(_ result: UpdateResult, status: String, reason: String? = nil,
-                                       versions: (from: String, to: String)? = nil) async {
-        let payload: [String: String] = [
+                                       versions: (from: String, to: String)? = nil,
+                                       correlation: [String: String] = [:]) async {
+        var payload: [String: String] = [
             "appID": result.id, "appName": result.app.name,
             "fromVersion": versions?.from ?? result.app.shortVersion ?? "",
             "toVersion": versions?.to ?? result.remote?.displayVersion ?? "",
             "trigger": "automatic", "status": status, "reason": reason ?? ""
         ]
+        payload.merge(correlation) { _, new in new }
         guard let data = try? JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys]),
               let json = String(data: data, encoding: .utf8) else { return }
         await eventStore.append(DuoEvent(payload: .unknown(kind: "automaticUpdate", json: json)))
@@ -10296,44 +10297,72 @@ final class AppListModel {
 
     private func automaticallyInstallUpdates() async {
         guard automaticUpdatesAllowed, canRefresh else { return }
+        let diagnostics = AutomaticUpdateDiagnostics()
+        // Retained history survives app restarts. New attempts link to the latest
+        // incomplete attempt for the same installed copy and proposed version.
+        let history = await eventStore.events(.init(kind: "automaticUpdate", limit: 10_000))
         for result in installAllTargets() {
             guard automaticUpdatesAllowed else { break }
+            let attemptID = UUID().uuidString
+            let previous = AutomaticUpdateDiagnostics.predecessor(in: history,
+                appID: result.id, version: result.remote?.displayVersion ?? "")
+            var correlation = ["passID": diagnostics.passID, "attemptID": attemptID,
+                "chainID": previous?["chainID"] ?? attemptID,
+                "retryOf": previous?["attemptID"] ?? ""]
+            let capture: @Sendable (AutomaticProcessDiagnostic) -> Void = {
+                diagnostics.record($0, attemptID: attemptID)
+            }
             let route = InstallCoordinator.route(for: result, requiresInstaller: requiresInstaller(result))
             let reason: String?
             if !AutomaticInstall.supports(route) || !canAutoInstall(result) {
                 reason = "Requires an interactive or externally managed installation."
-            } else if AutomaticInstall.hasRunningProcess(at: result.app.path, processes: NestedAppGuard.liveProcesses()) {
-                reason = "The app or one of its helpers is running."
-            } else { reason = nil }
-            if let reason {
-                let key = "\(result.remote?.displayVersion ?? ""):\(reason)"
-                if automaticSkipReasons[result.id] != key {
-                    automaticSkipReasons[result.id] = key
-                    await recordAutomaticUpdate(result, status: "deferred", reason: reason)
+            } else {
+                let processes = NestedAppGuard.liveProcesses()
+                let running = processes.filter { AutomaticInstall.hasRunningProcess(at: result.app.path, processes: [$0]) }
+                for process in running {
+                    capture(.init(kind: .targetRunning, pid: process.pid, parentPID: process.parentPID))
                 }
+                reason = running.isEmpty ? nil : "The app or one of its helpers is running."
+            }
+            if let reason {
+                correlation["diagnosticIDs"] = diagnostics.references(for: attemptID)
+                await recordAutomaticUpdate(result, status: "deferred", reason: reason, correlation: correlation)
                 continue
             }
-            automaticSkipReasons[result.id] = nil
-            await recordAutomaticUpdate(result, status: "started")
+            await recordAutomaticUpdate(result, status: "started", correlation: correlation)
             automaticInstallVersions[result.id] = nil
-            let outcome = await AutomaticInstall.$active.withValue(true) {
-                await AutomaticInstall.$permission.withValue({ @MainActor [weak self] in
-                    self?.automaticUpdatesAllowed == true
-                }) {
-                    let enabled = prefs.automaticUpdatesSnapshot
-                    let scheduled = prefs.scheduledChecksSnapshot
-                    let network = NetworkMonitor.shared.automaticTrafficSnapshot
-                    return await AutomaticInstall.$commitPermission.withValue({
-                        enabled.allowed && scheduled.allowed && network.allowed
+            let outcome = await AutomaticInstall.$diagnostic.withValue(capture) {
+                await AutomaticInstall.$active.withValue(true) {
+                    await AutomaticInstall.$permission.withValue({ @MainActor [weak self] in
+                        self?.automaticUpdatesAllowed == true
                     }) {
-                        await install(result, notify: false, backUpOnce: true)
+                        let enabled = prefs.automaticUpdatesSnapshot
+                        let scheduled = prefs.scheduledChecksSnapshot
+                        let network = NetworkMonitor.shared.automaticTrafficSnapshot
+                        return await AutomaticInstall.$commitPermission.withValue({
+                            enabled.allowed && scheduled.allowed && network.allowed
+                        }) {
+                            await install(result, notify: false, backUpOnce: true)
+                        }
                     }
                 }
             }
             let event = AutomaticInstall.eventResult(outcome)
             let versions = automaticInstallVersions.removeValue(forKey: result.id)
+            correlation["diagnosticIDs"] = diagnostics.references(for: attemptID)
+            if event.status == "installed", let previous {
+                correlation["recoveredFrom"] = previous["attemptID"]
+            }
             await recordAutomaticUpdate(result, status: event.status,
-                reason: event.reason ?? installErrors[result.id] ?? installNotes[result.id], versions: versions)
+                reason: event.reason ?? installErrors[result.id] ?? installNotes[result.id],
+                versions: versions, correlation: correlation)
+        }
+        let summary = ["status": "diagnostics", "passID": diagnostics.passID,
+            "diagnostics": diagnostics.json]
+        if let data = try? JSONEncoder().encode(summary) {
+            await eventStore.append(DuoEvent(payload: .unknown(kind: "automaticUpdate",
+                json: String(decoding: data, as: UTF8.self))))
+            await eventStore.flush()
         }
     }
 

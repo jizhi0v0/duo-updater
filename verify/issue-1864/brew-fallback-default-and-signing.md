@@ -85,8 +85,30 @@ desktop click to open the menu bar popover). Evidence from the app's own
    per-copy keys; IINA followed the default back to Sparkle 1.5.1. Settings were left
    as found: default on, no per-copy choices, no signing refusals.
 
-Not exercised on this host: the signing check. No installed brew copy here has a
-GitHub rule with `.publishedDigestOnly`, and staging a refused install would mean
-replacing a real app; the detection skip, the recorded refusal and its expiry are
-covered by `BrewFallbackSigningTests` (mutation-checked), and gate 3 itself is
-unchanged.
+8. Signing check, with a real app replaced (2026-11-07). IINA 1.5.0 from the
+   official cask (Team 67CQ77V27R; Homebrew at 1.5.0, its Sparkle feed at 1.5.1) was
+   backed up with `ditto` and re-signed ad-hoc (`codesign --force --deep --sign -`),
+   so the installed copy had no Team ID.
+   - Detection could not see the difference (no Team ID on the installed side, the
+     Sparkle release declares none either way): Check Again → `Homebrew → 1.5.0
+     [upToDate]`, then `Sparkle → 1.5.1 [updateAvailable]`, as designed.
+   - Update 1.5.1 in the workbench: delta failed on the changed bytes, full archive
+     downloaded, then gate 3 refused — "The installed copy has no developer
+     signature, but this version is signed by a developer (Team 67CQ77V27R)…". The
+     log then read `brew fallback: IINA kept on Homebrew — Sparkle build refused for
+     its signature`, and `BrewFallbackSigningRefusals = {_Applications_IINA.app = ""}`.
+     IINA on disk was unchanged (1.5.0, ad-hoc).
+   - Check Again → `Homebrew → 1.5.0 [upToDate]`, then `other sources withheld — an
+     earlier install from one was refused for its signature`; Sparkle was not asked.
+     The popover row menu showed "Kept on Homebrew: another source's build is signed
+     differently. Choose an option to check again."
+   - `brew reinstall --cask iina` restored the original (Team 67CQ77V27R,
+     `codesign --verify --deep --strict` passed). Check Again → `Sparkle → 1.5.1
+     [updateAvailable]`: the record no longer matched the copy's signature, so it
+     expired by itself.
+   - Choosing a menu option cleared the record (`BrewFallbackSigningRefusals = {}`).
+     Settings left as found: default on, no per-copy choices, no refusals.
+
+Not exercised on this host: the detection-time skip for a `.publishedDigestOnly`
+release (no installed brew copy here has such a GitHub rule). It is covered by
+`BrewFallbackSigningTests` (mutation-checked).

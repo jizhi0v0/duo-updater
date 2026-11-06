@@ -19,6 +19,14 @@ release note is debugging our code:
 
 Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
+## 0.5.24-beta.2
+
+**Homebrew apps check their original source first.** If Homebrew reports no update, you can opt in to checking other sources from the app’s menu.
+
+**Homebrew updates are easier to manage.** Official casks installed in subfolders no longer appear twice, and Upgrade All hides when all available updates are running or queued.
+
+**Automatic updates are less likely to be deferred incorrectly.** In Events, you can see why an update was deferred and preview a report with identifying details removed before saving it.
+
 ## 0.5.24-beta.1
 
 **Try automatic updates for closed apps in this Beta.** Enable the option in Settings to install eligible updates after scheduled checks, with a backup before each update. Running apps, installers, and updates requiring authorization are skipped. App data is not backed up.

@@ -2,6 +2,14 @@
 
 Bu, `CHANGELOG.md` dosyasının Türkçe çevirisidir. Geçerli olan İngilizce sürümdür; burada yer almayan eski sürümler otomatik olarak İngilizce gösterilir.
 
+## 0.5.24-beta.2
+
+**Homebrew ile yüklenen uygulamalar önce özgün kaynaklarını kontrol eder.** Homebrew güncelleme olmadığını bildirirse uygulamanın menüsünden diğer kaynakların kontrol edilmesini açabilirsiniz.
+
+**Homebrew güncellemelerini yönetmek daha kolay.** Alt klasörlere kurulan resmî cask’ler artık iki kez görünmüyor ve tüm güncellemeler sürerken veya sıradayken toplu güncelleme seçeneği gizleniyor.
+
+**Otomatik güncellemeler yanlışlıkla daha seyrek erteleniyor.** Olaylar bölümünde erteleme nedenini görebilir ve tanımlayıcı bilgilerden arındırılmış raporu kaydetmeden önce önizleyebilirsiniz.
+
 ## 0.5.24-beta.1
 
 **Bu Beta sürümünde kapalı uygulamalar için otomatik güncellemeleri deneyin.** Zamanlanmış kontrollerden sonra uygun güncellemeleri her güncelleme öncesinde yedek alarak yüklemek için Ayarlar’dan seçeneği etkinleştirin. Çalışan uygulamalar, yükleyiciler ve yetkilendirme gerektiren güncellemeler atlanır. Uygulama verileri yedeklenmez.

@@ -10082,9 +10082,9 @@ final class AppListModel {
     }
 
     func setBrewFallbackOverride(_ choice: BrewFallbackPolicy.Override?, for result: UpdateResult) {
-        // Re-choosing the current option still counts while a signing refusal
-        // holds the row: it is how the user asks for other sources again.
-        guard choice != brewFallbackOverride(for: result) || result.brewFallbackWithheldForSigning
+        guard prefs.brewFallback.takesChoice(
+            choice, for: InstallPreferenceKey.key(for: result.app),
+            rowWithheld: result.brewFallbackWithheldForSigning)
         else { return }
         prefs.setBrewFallbackOverride(choice, for: result.app)
         Task { await retry(result) }
@@ -10098,6 +10098,7 @@ final class AppListModel {
                 && installing[$0.id] == nil && prefs.deservesCheck($0.app)
         }
         guard !targets.isEmpty else { return }
+        let checkedWith = prefs.brewFallbackByDefault
         Task {
             for target in targets { installing[target.id] = .checking }
             let updated = await recheckMany(targets)
@@ -10105,7 +10106,10 @@ final class AppListModel {
                 installing[target.id] = nil
             }
             for row in updated { replaceRow(row) }
-            Log.app.notice("brew fallback default → \(self.prefs.brewFallbackByDefault, privacy: .public): re-checked \(updated.count, privacy: .public) row(s)")
+            Log.app.notice("brew fallback default → \(checkedWith, privacy: .public): re-checked \(updated.count, privacy: .public) row(s)")
+            // Flipped back while these rows were checking: that change skipped
+            // them as busy, and they now hold answers for the old default.
+            if prefs.brewFallbackByDefault != checkedWith { brewFallbackDefaultChanged() }
         }
     }
 

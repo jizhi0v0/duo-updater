@@ -209,7 +209,7 @@ struct GeneralSettingsPage: View {
                 SettingsToggle(
                     "Check other sources for Homebrew apps",
                     detail: "When Homebrew has no newer version, GitHub and other sources may offer one. A Homebrew update always comes first.",
-                    info: "This is the default for apps Homebrew installed. To choose for one app, right-click it and use When Homebrew Has No Update. An app stays on Homebrew by itself when another source’s build is signed by someone else, such as for a re-signed rebuild or a different edition. Choose Homebrew Only to keep any other app on Homebrew.",
+                    info: "This is the default for apps Homebrew installed. To choose for one app, right-click it and use When Homebrew Has No Update. An app stays on Homebrew by itself once an install from another source is refused for its signature, such as for a re-signed rebuild. For another edition of an app, such as a community build, choose Homebrew Only.",
                     isOn: $prefs.brewFallbackByDefault)
                     .settingsAnchor(.brewFallback)
                     .onChange(of: prefs.brewFallbackByDefault) { model.brewFallbackDefaultChanged() }

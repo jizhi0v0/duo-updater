@@ -109,6 +109,20 @@ desktop click to open the menu bar popover). Evidence from the app's own
    - Choosing a menu option cleared the record (`BrewFallbackSigningRefusals = {}`).
      Settings left as found: default on, no per-copy choices, no refusals.
 
+9. Review round fixes (2026-11-07, independent review agent), on a fresh `make install`:
+   - Toggling the Settings default off and straight back on (300 ms apart, while the
+     first re-check was on the network) logged `→ false: re-checked 18 row(s)` and then
+     `→ true: re-checked 18 row(s)`. Before the fix the second toggle found every row
+     busy and did nothing, leaving them on the "off" answers.
+   - IINA with its own "Homebrew Only" choice, in the workbench: its menu read
+     "Use Settings (Check Other Sources)"; after turning the default off (IINA itself
+     not re-checked, 18 rows) it read "Use Settings (Homebrew Only)". The workbench
+     row's equality now compares the menu's inputs.
+   - Re-choosing the selected option now clears a refusal recorded since the row's
+     last check (`BrewFallbackPolicy.takesChoice`, tested and mutation-checked); the
+     Settings help no longer promises an automatic hold for another edition.
+   Settings left as found.
+
 Not exercised on this host: the detection-time skip for a `.publishedDigestOnly`
 release (no installed brew copy here has such a GitHub rule). It is covered by
 `BrewFallbackSigningTests` (mutation-checked).

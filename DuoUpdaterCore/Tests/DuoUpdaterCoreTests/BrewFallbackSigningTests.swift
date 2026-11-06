@@ -153,6 +153,19 @@ import Testing
         #expect(policy.allowedKeys == ["other"])
     }
 
+    /// `duo install` recorded a refusal while the app's row still came from an
+    /// earlier check: re-choosing the selected option must clear it then, not
+    /// only after the next check puts the flag on the row.
+    @Test func reChoosingTheSameOptionCountsOnlyWhileARefusalHolds() {
+        let held = BrewFallbackPolicy(allowedKeys: [key], signingRefusals: [key: "TEAMBREW01"])
+        #expect(held.takesChoice(.checkOtherSources, for: key, rowWithheld: false))
+        let free = BrewFallbackPolicy(allowedKeys: [key])
+        #expect(!free.takesChoice(.checkOtherSources, for: key, rowWithheld: false))
+        #expect(free.takesChoice(.checkOtherSources, for: key, rowWithheld: true))
+        #expect(free.takesChoice(.homebrewOnly, for: key, rowWithheld: false))
+        #expect(!BrewFallbackPolicy().takesChoice(nil, for: key, rowWithheld: false))
+    }
+
     @Test func aRenamedCopyKeepsItsChoiceAndRefusal() {
         var policy = BrewFallbackPolicy(blockedKeys: ["old"], signingRefusals: ["old": "TEAMBREW01"])
         policy.migrate(from: "old", to: "new")

@@ -2134,6 +2134,8 @@ extension WorkbenchSidebarRow: @MainActor Equatable {
         lhs.result == rhs.result && lhs.isChecking == rhs.isChecking && lhs.isRunning == rhs.isRunning
             && lhs.versionLineState == rhs.versionLineState && lhs.runningSide == rhs.runningSide
             && lhs.showsRuntime == rhs.showsRuntime
+            && lhs.showsBrewFallback == rhs.showsBrewFallback && lhs.brewFallbackChoice == rhs.brewFallbackChoice
+            && lhs.brewFallbackByDefault == rhs.brewFallbackByDefault
             && lhs.isIgnored == rhs.isIgnored && lhs.isVersionSkipped == rhs.isVersionSkipped
             && lhs.fullDiskAccessNeeds == rhs.fullDiskAccessNeeds && lhs.caskLifecycle == rhs.caskLifecycle
             && lhs.sunsetPhase?.endDate == rhs.sunsetPhase?.endDate && lhs.sunsetPhase?.phase == rhs.sunsetPhase?.phase

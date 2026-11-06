@@ -220,6 +220,15 @@ public struct BrewFallbackPolicy: Sendable, Equatable {
         return nil
     }
 
+    /// Whether a row-menu choice does anything. Re-choosing the current option
+    /// still counts while a signing refusal holds the copy: it is how the user
+    /// asks for other sources again. The stored record decides as well as the
+    /// row's flag, because a refusal just recorded (by the app or `duo install`)
+    /// reaches the row only with its next check.
+    public func takesChoice(_ choice: Override?, for key: String, rowWithheld: Bool) -> Bool {
+        choice != override(for: key) || rowWithheld || signingRefusals[key] != nil
+    }
+
     public func checksOtherSources(_ key: String) -> Bool {
         switch override(for: key) {
         case .checkOtherSources: return true

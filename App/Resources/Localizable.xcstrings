@@ -28,12 +28,6 @@
             "value": "Homebrew に更新がない場合は他の配信元を確認"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Homebrew에 업데이트가 없으면 다른 소스 확인"
-          }
-        },
         "de": {
           "stringUnit": {
             "state": "translated",
@@ -50,6 +44,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Consultar otras fuentes si Homebrew no tiene actualizaciones"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Controlla altre fonti se Homebrew non ha aggiornamenti"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verificar outras fontes quando o Homebrew não tiver atualizações"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Проверять другие источники, если в Homebrew нет обновлений"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew'da güncelleme yoksa diğer kaynakları kontrol et"
           }
         }
       }

@@ -610,6 +610,11 @@ extension UpdateResult {
         // Also about the copy, so also only while it is unchanged. A new copy
         // is read again by the next check.
         row.installedLacksTeamIdentifier = sameCopy && installedLacksTeamIdentifier
+        // Brew's ownership is about the install path, which a rescan keeps; it is
+        // what keeps a row that another source answered in the brew menus and in
+        // the Settings default's re-check. The signing hold is about the copy.
+        row.homebrewSourceIdentifier = homebrewSourceIdentifier
+        row.brewFallbackWithheldForSigning = sameCopy && brewFallbackWithheldForSigning
         return row
     }
 

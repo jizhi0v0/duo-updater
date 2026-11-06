@@ -162,6 +162,40 @@ import Testing
         #expect(policy.blockedKeys == ["new"])
     }
 
+    /// A local rescan rebuilds rows with `carriedForward`. Dropping the brew
+    /// owner there took a row another source answered out of the brew menu and
+    /// out of the Settings default's re-check, until the next network check.
+    @Test func aRescanKeepsTheBrewOwnerAndTheSigningHoldOfTheSameCopy() {
+        let github = RemoteVersion(shortVersion: "2.0", version: nil, downloadURL: nil, sourceName: "GitHub")
+        var row = UpdateResult(app: app, remote: github, status: .updateAvailable(latest: "2.0"))
+        row.homebrewSourceIdentifier = "example"
+        row.brewFallbackWithheldForSigning = true
+        let same = row.carriedForward(onto: app, remote: github, status: row.status, proven: nil)
+        #expect(same.homebrewSourceIdentifier == "example")
+        #expect(same.brewFallbackWithheldForSigning)
+        let moved = InstalledApp(name: app.name, bundleID: app.bundleID, shortVersion: "2.0", buildVersion: nil,
+                                 path: app.path, isMASApp: false, sparkleFeedURL: nil)
+        let next = row.carriedForward(onto: moved, remote: github, status: .upToDate, proven: nil)
+        #expect(next.homebrewSourceIdentifier == "example")
+        #expect(!next.brewFallbackWithheldForSigning)
+    }
+
+    private struct Offline: UpdateSource {
+        let name = "Sparkle"
+        func latestVersion(for app: InstalledApp) async throws -> RemoteVersion? {
+            throw URLError(.cannotConnectToHost)
+        }
+    }
+
+    /// Transmission, 2026-11-07: brew said up to date, the next source could
+    /// not connect, and the error row lost the brew owner — so its menu lost the
+    /// choice and the Settings default's re-check skipped it.
+    @Test func aFailedDownstreamCheckStillNamesTheBrewOwner() async {
+        let result = await check(BrewFallbackPolicy(checksOtherSourcesByDefault: true), team: nil, sources: [Offline()])
+        guard case .error = result.status else { Issue.record("Expected the downstream failure, got \(result.status)"); return }
+        #expect(result.homebrewSourceIdentifier == "example")
+    }
+
     @Test func refusalsRoundTripThroughDefaults() throws {
         let suite = "brew-fallback-signing-\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suite))

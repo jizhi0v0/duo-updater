@@ -41,7 +41,7 @@ From the Homebrew cask API (`formulae.brew.sh/api/cask.json`, 7,813 casks, 2026-
 ## Automated checks
 
 - Core: `swift test --package-path DuoUpdaterCore --filter 'BrewFallbackSigningTests|ThirdPartyCaskSourceTests|HomebrewCask|SourceStorePolicy|BrewProvenance|HomebrewUnchanged'`
-  — 111 tests / 11 suites passed. The full Core suite ran 7,157 tests; the only two
+  — 129 tests / 12 suites passed (after the fixes in item 6 below). The full Core suite ran 7,157 tests; the only two
   failures (`readsALiveChild`, `vendorResolvesInstallPlans`) fail the same way on `main`
   in this environment (process ancestry, live vendor network).
 - Mutations: making `signingDiffers` always false fails
@@ -51,8 +51,42 @@ From the Homebrew cask API (`formulae.brew.sh/api/cask.json`, 7,813 casks, 2026-
 - CLI: `swift test --package-path CLI --scratch-path DuoUpdaterCore/.build` — 692 tests passed.
 - App: `make test-app` passed; 1,280 localization keys, all reachable.
 
-## Not yet validated
+## Real-machine result (2026-11-07)
 
-No real-machine run yet: Settings row, the three-state row menu in the popover and the
-workbench, re-check on a default change, and a refused fallback install keeping the
-row on Homebrew.
+Host: Apple Silicon, macOS 27.2, `make install` Developer ID build of this branch
+(Team RS59HDH7Y3), driven through cua-driver 0.39.0 (accessibility actions; one
+desktop click to open the menu bar popover). Evidence from the app's own
+`com.duoupdater.app` log stream. 19 apps installed by Homebrew casks.
+
+1. Settings → General → Install routing shows "Check other sources for Homebrew apps"
+   with its description; the checkbox reflects `BrewFallbackByDefault`.
+2. Default off: every brew row answered `Homebrew → … [upToDate]` (WezTerm
+   `updateAvailable` from brew, a pre-existing version-format oddity).
+3. Popover row menu (WezTerm): "When Homebrew Has No Update" submenu with
+   "Use Settings (Homebrew Only)", "Check Other Sources", "Homebrew Only". Choosing
+   Check Other Sources wrote `BrewFallbackKeys = [_Applications_WezTerm.app]` and
+   re-checked the row at once (brew still had an update, so it stayed on Homebrew).
+4. Turning the default on logged `brew fallback default → true: re-checked 18 row(s)`
+   (19 minus WezTerm's own choice). Rows moved to Sparkle/GitHub after brew; IINA
+   moved to `Sparkle → 1.5.1 [updateAvailable]` while the cask is at 1.5.0.
+5. Workbench row menu (IINA, now answered by Sparkle) still offered the submenu, with
+   "Use Settings (Check Other Sources)". Choosing Homebrew Only with the default on
+   wrote `BrewFallbackBlockedKeys = [_Applications_IINA.app]`, re-checked to
+   `Homebrew → 1.5.0 [upToDate]`, and the "Update 1.5.1" button went away. After a
+   relaunch with the default still on, IINA was again answered by Homebrew.
+6. Two defects found here and fixed in this PR, each with a test that fails without
+   the fix: a disk rescan (`carriedForward`) dropped the brew owner of rows another
+   source answered, and a row whose downstream check failed (Transmission: brew up
+   to date, then Sparkle "Could not connect to the server") lost it too. Before the
+   second fix the default's re-check counted 16 rows; after both, toggling off and
+   on re-checked 17 rows each way (19 minus the two per-copy choices), Transmission
+   included.
+7. Choosing "Use Settings" in the popover menu for WezTerm and IINA cleared both
+   per-copy keys; IINA followed the default back to Sparkle 1.5.1. Settings were left
+   as found: default on, no per-copy choices, no signing refusals.
+
+Not exercised on this host: the signing check. No installed brew copy here has a
+GitHub rule with `.publishedDigestOnly`, and staging a refused install would mean
+replacing a real app; the detection skip, the recorded refusal and its expiry are
+covered by `BrewFallbackSigningTests` (mutation-checked), and gate 3 itself is
+unchanged.

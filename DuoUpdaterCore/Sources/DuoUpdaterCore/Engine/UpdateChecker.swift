@@ -587,12 +587,17 @@ public struct UpdateChecker: Sendable {
         // have offered the very release the vendor refused.
         if let refusal, !app.isToolboxManaged {
             Log.check.info("\(label, privacy: .public): no source offered a release for this macOS → outsideOSWindow")
-            return UpdateResult(app: app, remote: nil, status: .outsideOSWindow(refusal))
+            var refused = UpdateResult(app: app, remote: nil, status: .outsideOSWindow(refusal))
+            // Brew answered first: the row is still a brew copy, for its menu and
+            // for the Settings default's re-check.
+            refused.homebrewSourceIdentifier = brewAnswer?.homebrewSourceIdentifier
+            return refused
         }
         if let lastError, !app.isToolboxManaged {
             Log.check.error("\(label, privacy: .public): all sources exhausted, last error → .error(\(lastError, privacy: .public))")
             var failed = UpdateResult(app: app, remote: nil, status: .error(lastError))
             failed.failureIsTransient = failedTransiently
+            failed.homebrewSourceIdentifier = brewAnswer?.homebrewSourceIdentifier
             return failed
         }
         if let lastError {

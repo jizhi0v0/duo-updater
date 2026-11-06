@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
 	<key>DuoReleaseChannel</key>
-	<string>stable</string>
+	<string>beta</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleExecutable</key>

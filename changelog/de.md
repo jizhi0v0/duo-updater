@@ -2,6 +2,12 @@
 
 Dies ist eine deutsche Übersetzung von `CHANGELOG.md`. Die englische Fassung ist maßgeblich; frühere Versionen, die hier nicht aufgeführt sind, fallen automatisch auf Englisch zurück.
 
+## 0.5.24-beta.1
+
+**Teste in dieser Beta automatische Updates für geschlossene Apps.** Aktiviere die Option in den Einstellungen, um geeignete Updates nach geplanten Prüfungen mit vorheriger Sicherung zu installieren. Laufende Apps, Installationsprogramme und Updates mit Autorisierungsbedarf werden übersprungen. App-Daten werden nicht gesichert.
+
+**Hilf mit Fehlerberichten, die Beta zu verbessern.** Öffne unter Einstellungen → Updates ein GitHub-Issue und füge die entsprechenden Ereigniseinträge bei.
+
 ## 0.5.23
 
 **Wähle Beta-Updates in den Einstellungen und teste kommende Versionen mit.** Im Bereich Updates kannst du auch ein GitHub-Issue öffnen, um ein Problem zu melden.

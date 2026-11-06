@@ -2,6 +2,12 @@
 
 Esta es la traducción al español del archivo CHANGELOG.md. La versión en inglés es la autoridad en caso de discrepancias. Los números de versión no incluidos aquí se mostrarán automáticamente en inglés en la ventana de Novedades.
 
+## 0.5.24-beta.1
+
+**Prueba las actualizaciones automáticas de apps cerradas en esta Beta.** Activa la opción en Ajustes para instalar las actualizaciones compatibles tras las comprobaciones programadas, con una copia de seguridad previa. Se omiten las apps abiertas, los instaladores y las actualizaciones que requieren autorización. No se copian los datos de las apps.
+
+**Ayuda a mejorar la Beta informando de problemas.** Abre una incidencia de GitHub desde Ajustes → Actualizaciones e incluye los eventos relacionados.
+
 ## 0.5.23
 
 **Elige las actualizaciones Beta en Ajustes y ayuda a probar las próximas versiones.** También puedes abrir una incidencia de GitHub desde el panel Actualizaciones para informar de un problema.

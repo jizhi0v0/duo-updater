@@ -110,16 +110,16 @@ import Foundation
         #expect(result.isEmpty)
     }
 
-    /// Mutation: drop the `caskInstallsAnApp` skip → an app cask, which already has
-    /// its own row, would also be listed (and counted) as a Brew package.
-    @Test func aCaskThatInstallsAnAppIsNotReported() async {
+    /// An untrusted third-party GUI cask must retain its unchecked warning:
+    /// an app row cannot substitute for reading its tap's update metadata.
+    @Test func aThirdPartyCaskWithAnAppStillReportsItsUnreadableTap() async {
         let result = await BrewFormulaService.uncheckedCandidates(
             formulaFullNames: [],
             installedInfo: Self.info(casks: #"{"token":"zzfixture-gui","full_token":"zzfixture-gui","tap":null,"installed":"1.0"}"#),
             formulaVersions: [:],
             caskReceiptTap: { _ in "zzfixture-org/tap" },
             caskInstallsAnApp: { $0 == "zzfixture-gui" })
-        #expect(result.isEmpty)
+        #expect(result.map(\.fullName) == ["zzfixture-org/tap/zzfixture-gui"])
     }
 
     /// Mutation: derive `tap` from the first two components of any name (or label

@@ -10,8 +10,9 @@ import Testing
 /// 373f3d08 (`brewHalf`, `brewBulkUpgrade`, `BrewFormulaSidebarRow`,
 /// `FormulaDetailPane.headerAction`, `BrewUpgradeCancelButton`,
 /// `brewBulkProgressText`, `formulaProgressLine`, `isUpgrading`), written out
-/// again here, not read off the new code. One rung differs on purpose: the
-/// header's accepted Cancel (`intendedHeaderCancel`).
+/// again here, not read off the new code. Intentional differences: the header's
+/// accepted Cancel (`intendedHeaderCancel`), and hiding an idle batch offer
+/// when every outdated target already has an individual run.
 @Suite struct BrewRowViewTests {
 
     typealias Snapshot = BrewRowSnapshot
@@ -169,7 +170,7 @@ import Testing
         if !c.hasUpdate {
             #expect(s.upgradeAllHeader == .hidden)
         } else if c.upgradeAll.phase == .idle {
-            #expect(s.upgradeAllHeader == .update)
+            #expect(s.upgradeAllHeader == (c.jq.phase == .idle ? .update : .hidden))
         } else {
             #expect(s.upgradeAllHeader == .running(cancel: Self.intendedHeaderCancel(c.upgradeAll.cancel),
                                                    progress: Self.oldBulkText(c)))
@@ -193,6 +194,29 @@ import Testing
         }
         #expect(s.popover == BrewPopoverRow(lines: lines, mark: .spinner,
                                             button: button.map(CLIRowState.cancel) ?? .none, isRunning: true))
+    }
+
+    @Test func batchOfferExcludesOnlyAlreadyClaimedOutdatedTargets() {
+        let running = Snapshot.Formula(name: "cask:example/tap/app", run: .init(id: "app", phase: .running, cancel: .committing))
+        let queued = Snapshot.Formula(name: "jq", run: .init(id: "jq", phase: .queued, cancel: .available))
+        var snapshot = Snapshot(formulae: [running], outdated: 2)
+        #expect(snapshot.upgradeAllHeader == .update)
+        #expect(snapshot.popover?.isRunning == true)
+        snapshot.formulae.append(queued)
+        #expect(snapshot.upgradeAllHeader == .hidden)
+        #expect(snapshot.popover?.isRunning == true)
+        #expect(snapshot.popover?.button != .update(admin: false))
+        // Taking the queued update back makes a batch useful again.
+        snapshot.formulae[1].run.phase = .idle
+        #expect(snapshot.upgradeAllHeader == .update)
+        // Duplicate or already-current claims must not cover another target.
+        snapshot.formulae = [running, running]
+        #expect(snapshot.upgradeAllHeader == .update)
+        snapshot.formulae = [running, .init(name: "old", hasUpdate: false, run: queued.run)]
+        #expect(snapshot.upgradeAllHeader == .update)
+        snapshot.formulae = [running, queued]
+        snapshot.upgradeAll = .init(id: Self.all, phase: .queued, cancel: .available)
+        #expect(snapshot.upgradeAllHeader == .running(cancel: snapshot.upgradeAllCancel, progress: .queued))
     }
 
     // MARK: - Replays

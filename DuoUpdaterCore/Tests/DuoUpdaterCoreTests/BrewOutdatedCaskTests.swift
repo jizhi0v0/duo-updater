@@ -135,6 +135,67 @@ import Foundation
         #"{"uninstall_artifacts":[{"uninstall":[{"pkgutil":\#(pkgutil),"quit":"x"}]},{"zap":[{"trash":["~/x"]}]}]}"#
     }
 
+    @Test func nestedCaskVisibilityMatchesScanner() async throws {
+        let disk = try Disk()
+        defer { disk.remove() }
+        let cases: [(String, Bool)] = [
+            ("MyApps/Fixture.app", true),
+            ("MyApps/Deeper/Fixture.app", false),
+            ("Chrome Apps.localized/Fixture.app", false),
+            ("Outer.app/Fixture.app", false),
+            (".Hidden/Fixture.app", false),
+        ]
+        for (index, item) in cases.enumerated() {
+            let (relative, expected) = item
+            let app = disk.scanned.appendingPathComponent(relative)
+            let token = "nested-\(index)"
+            try disk.moved(token, staged: "Fixture.app", to: app.deletingLastPathComponent())
+            let scanned = AppScanner(locations: [disk.scanned]).scan()
+            #expect(scanned.contains { $0.path.path == app.resolvingSymlinksInPath().path } == expected)
+            #expect(await disk.facts(token, targets: [app.path]).installsAnApp == expected)
+            #expect(await disk.facts(token).installsAnApp == expected)
+            // Exercise the receipt path independently of the staged app link.
+            let receiptToken = "receipt-\(index)"
+            try disk.receipt(receiptToken, Self.pkgutilReceipt(#""zz.fixture""#))
+            #expect(await disk.facts(receiptToken, receipts: ["zz.fixture": [app.path]])
+                .installsAnApp == expected)
+            try disk.fm.removeItem(at: app)
+        }
+
+        let linked = disk.scanned.appendingPathComponent("Linked")
+        try disk.app(at: disk.elsewhere.appendingPathComponent("Linked.app"))
+        try disk.fm.createSymbolicLink(at: linked, withDestinationURL: disk.elsewhere)
+        let linkedApp = linked.appendingPathComponent("Linked.app")
+        #expect(await disk.facts("linked", targets: [linkedApp.path]).installsAnApp == false)
+        // An explicitly added root is scanned even when it is a symlink.
+        #expect(await disk.facts("linked", targets: [linkedApp.path], extra: [linked.path])
+            .installsAnApp == true)
+
+        let custom = disk.elsewhere.appendingPathComponent("Suite/Custom.app")
+        try disk.app(at: custom)
+        #expect(await disk.facts("custom", targets: [custom.path], extra: [disk.elsewhere.path])
+            .installsAnApp == true)
+    }
+
+    @Test func thirdPartyGUIRetainsQualifiedUpdateRoute() async throws {
+        let info = Data(#"{"casks":[{"token":"third","tap":"example/tap","installed":"1.0"},{"token":"official","tap":"homebrew/cask","installed":"1.0"}]}"#.utf8)
+        let facts = BrewFormulaService.CaskFacts(installsAnApp: true, needsSudo: true)
+        let rows = BrewFormulaService.appLessCasks(
+            installedInfo: info, facts: ["third": facts, "official": facts])
+        #expect(rows.map(\.name) == ["example/tap/third"])
+        #expect(rows.first?.needsSudo == true)
+        let outdated = Data(#"{"casks":[{"name":"third","installed_versions":["1.0"],"current_version":"2.0"},{"name":"official","installed_versions":["1.0"],"current_version":"2.0"}]}"#.utf8)
+        let service = BrewFormulaService(
+            executor: { _ in (0, outdated) },
+            caskReceiptTap: { $0 == "third" ? "example/tap" : "homebrew/cask" },
+            caskFacts: { _, _, _ in facts })
+        let updates = try await service.outdatedCasks()
+        #expect(updates.map(\.name) == ["example/tap/third"])
+        let merged = BrewFormulaService.merge(rows, outdated: updates)
+        #expect(merged.first?.availableVersion == "2.0")
+        #expect(merged.first?.canUpgrade == true)
+    }
+
     /// The rule is "the scanner shows it" (#1617): an app moved into a scanned
     /// folder is an app; one moved anywhere else, or an installer bundle left in
     /// the Caskroom, is not — those would otherwise be dropped from the Brew tree
@@ -206,6 +267,7 @@ import Foundation
         ]
         let sudo = { (app: Bool) in BrewFormulaService.CaskFacts(installsAnApp: app, needsSudo: true) }
         #expect(await disk.facts("zzfixture-jdk", receipts: receipts) == sudo(false))
+        #expect(await disk.facts("example/tap/zzfixture-jdk", receipts: receipts) == sudo(false))
         #expect(await disk.facts("zzfixture-pkgapp", receipts: receipts) == sudo(true))
         #expect(await disk.facts("zzfixture-atrust", receipts: receipts) == sudo(false))
         #expect(await disk.facts("zzfixture-unread", receipts: receipts) == sudo(false))

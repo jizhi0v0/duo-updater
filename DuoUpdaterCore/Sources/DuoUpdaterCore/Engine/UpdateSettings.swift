@@ -103,6 +103,220 @@ public enum VendorInstallPolicy: String, CaseIterable, Identifiable, Sendable {
     }
 }
 
+/// Whether the checker may ask the sources below Homebrew about a brew-installed
+/// copy once brew has said it has no newer version. A brew update always wins;
+/// this only decides what happens when brew says "up to date".
+///
+/// Without a per-copy choice, an official cask marked `auto_updates` checks
+/// other sources even with the Settings default off: the cask itself says the
+/// app's own updater is its channel, and its version only records where brew
+/// started (Postman's cask at 12.12.6 while the app had moved to 12.12.7). A
+/// third-party tap's `auto_updates` does not count: such a tap often packages
+/// its own build. The Settings default turns this on for every brew copy.
+///
+/// A per-copy choice beats the Settings default in both directions, so a copy
+/// the user marked "Homebrew only" stays that way when the default is turned
+/// on — the case for a cask that ships its own build (SourceGit's cask is a
+/// signed rebuild from a separate repo) or a different edition under the same
+/// bundle id (qBittorrent Enhanced Edition).
+public struct BrewFallbackPolicy: Sendable, Equatable {
+    /// One copy's own choice, if it has one.
+    public enum Override: String, Sendable, Equatable, CaseIterable {
+        case checkOtherSources
+        case homebrewOnly
+    }
+
+    /// The Settings default for copies without their own choice.
+    public var checksOtherSourcesByDefault: Bool
+    /// Copies (`InstallPreferenceKey.key(for:)`) that check other sources.
+    public var allowedKeys: Set<String>
+    /// Copies that never check other sources.
+    public var blockedKeys: Set<String>
+    /// An install from another source refused because the build is signed by
+    /// someone else (`isSigningRefusal`).
+    public struct SigningRefusal: Sendable, Equatable {
+        /// The installed copy's `signingStamp(team:)` at the time.
+        public var team: String
+        /// The refused release's marketing version and build ("" when the
+        /// source gave none), compared like the checker compares a release.
+        public var version: String
+        public var build: String
+        public init(team: String, version: String, build: String = "") {
+            self.team = team
+            self.version = version
+            self.build = build
+        }
+        /// The release a source offered and the install refused.
+        public init(team: String, refusing remote: RemoteVersion?) {
+            self.init(team: team, version: remote?.shortVersion ?? "", build: remote?.version ?? "")
+        }
+    }
+
+    /// Copies whose update from another source was refused for its signature.
+    /// While the copy still carries that stamp, that release and older ones are
+    /// skipped and the copy stays on Homebrew; a newer release is offered again
+    /// (a vendor's one-off signing mistake does not hold the copy forever), and
+    /// a copy replaced by a differently signed build is checked again. Not a
+    /// user choice: any choice in the row menu clears it.
+    public var signingRefusals: [String: SigningRefusal]
+
+    public init(
+        checksOtherSourcesByDefault: Bool = false,
+        allowedKeys: Set<String> = [],
+        blockedKeys: Set<String> = [],
+        signingRefusals: [String: SigningRefusal] = [:]
+    ) {
+        self.checksOtherSourcesByDefault = checksOtherSourcesByDefault
+        self.allowedKeys = allowedKeys
+        self.blockedKeys = blockedKeys
+        self.signingRefusals = signingRefusals
+    }
+
+    /// Read from the keys the app writes, so the CLI follows the same choices.
+    public init(defaults: UserDefaults) {
+        self.init(
+            checksOtherSourcesByDefault: defaults.bool(forKey: UpdateSettings.brewFallbackByDefaultKey),
+            allowedKeys: Set(defaults.stringArray(forKey: UpdateSettings.brewFallbackKeysKey) ?? []),
+            blockedKeys: Set(defaults.stringArray(forKey: UpdateSettings.brewFallbackBlockedKeysKey) ?? []),
+            signingRefusals: Self.decodeRefusals(
+                defaults.dictionary(forKey: UpdateSettings.brewFallbackSigningRefusalsKey)))
+    }
+
+    /// The defaults form of `signingRefusals`: copy key → {team, version}.
+    public static func encodeRefusals(_ refusals: [String: SigningRefusal]) -> [String: [String: String]] {
+        refusals.mapValues { ["team": $0.team, "version": $0.version, "build": $0.build] }
+    }
+
+    /// Write `signingRefusals` where `init(defaults:)` reads it, for the app
+    /// and `duo install` alike.
+    public static func storeRefusals(_ refusals: [String: SigningRefusal], in defaults: UserDefaults) {
+        defaults.set(encodeRefusals(refusals), forKey: UpdateSettings.brewFallbackSigningRefusalsKey)
+    }
+
+    static func decodeRefusals(_ stored: [String: Any]?) -> [String: SigningRefusal] {
+        (stored ?? [:]).compactMapValues { value in
+            guard let fields = value as? [String: String],
+                  let team = fields["team"], let version = fields["version"] else { return nil }
+            return SigningRefusal(team: team, version: version, build: fields["build"] ?? "")
+        }
+    }
+
+    /// Record one copy's own choice; nil returns it to the default. Any choice
+    /// also forgets a recorded signing refusal, so the row menu is the way to
+    /// have that copy checked against other sources again.
+    public mutating func set(_ choice: Override?, for key: String) {
+        signingRefusals.removeValue(forKey: key)
+        if choice == .checkOtherSources { allowedKeys.insert(key) } else { allowedKeys.remove(key) }
+        if choice == .homebrewOnly { blockedKeys.insert(key) } else { blockedKeys.remove(key) }
+    }
+
+    /// Carry one copy's choice and refusal to its new key (a bundle renamed in
+    /// place), as `Preferences.migrateInstallPreferences` does for the rest.
+    public mutating func migrate(from oldKey: String, to newKey: String) {
+        guard oldKey != newKey else { return }
+        if allowedKeys.remove(oldKey) != nil { allowedKeys.insert(newKey) }
+        if blockedKeys.remove(oldKey) != nil { blockedKeys.insert(newKey) }
+        if let refusal = signingRefusals.removeValue(forKey: oldKey) { signingRefusals[newKey] = refusal }
+    }
+
+    /// What a signing refusal is recorded against: the installed copy's Team ID,
+    /// or "" for a copy without one (ad-hoc, self-signed or unreadable).
+    public static func signingStamp(team: String?) -> String { team ?? "" }
+
+    /// The installed copy's stamp, read off the cooperative pool (a Security call).
+    public static func signingStamp(of app: InstalledApp) async -> String {
+        let path = app.path
+        return signingStamp(team: await offCooperativePool { try? SignatureVerifier.teamIdentifier(at: path) })
+    }
+
+    /// Whether an install from another source was refused because the download
+    /// is not signed by whoever signed the installed copy — the shape of a cask
+    /// that ships its own build (a re-signed rebuild, another edition). Those
+    /// refusals repeat on every attempt, unlike a failed download or checksum.
+    public static func isSigningRefusal(_ error: any Error) -> Bool {
+        guard let error = error as? SignatureVerifier.VerifyError else { return false }
+        switch error {
+        case .noTeamIdentifier, .teamIdentifierMismatch, .teamIdentifierAppeared,
+             .notAdHocSigned, .signingKindChanged, .designatedRequirementNotSatisfied,
+             .bundleIdentifierMismatch:
+            return true
+        default:
+            return false
+        }
+    }
+
+    /// Whether this install was a brew copy taking another source's update —
+    /// the only installs a signing refusal is recorded for.
+    public static func isFallbackInstall(_ result: UpdateResult) -> Bool {
+        result.homebrewSourceIdentifier != nil && result.remote != nil
+            && result.remote?.sourceName != "Homebrew"
+    }
+
+    /// Whether a recorded refusal still covers what a source offers now: the
+    /// same release or an older one. A newer release gets another try — a newer
+    /// marketing version, or the same one with a newer build (a vendor that
+    /// fixes its signing in a rebuild, an app whose marketing string never moves).
+    /// What cannot be told apart stays covered.
+    static func refusalCovers(_ refusal: SigningRefusal, _ remote: RemoteVersion) -> Bool {
+        let short = remote.shortVersion ?? "", build = remote.version ?? ""
+        if !short.isEmpty, !refusal.version.isEmpty {
+            switch VersionComparator.compare(short, refusal.version) {
+            case .orderedDescending: return false
+            case .orderedAscending: return true
+            case .orderedSame: break
+            }
+        }
+        if !build.isEmpty, !refusal.build.isEmpty {
+            return VersionComparator.compare(build, refusal.build) != .orderedDescending
+        }
+        if short.isEmpty || refusal.version.isEmpty {
+            // One side spells only a build: compare what each side has.
+            let offered = short.isEmpty ? build : short
+            let refused = refusal.version.isEmpty ? refusal.build : refusal.version
+            guard !offered.isEmpty, !refused.isEmpty else { return true }
+            return VersionComparator.compare(offered, refused) != .orderedDescending
+        }
+        return true
+    }
+
+    /// Whether `remote` is visibly signed another way than the installed copy,
+    /// before anything is downloaded: the copy has a Team ID and the rule says
+    /// the release has none. Gate 3 would refuse it at install anyway.
+    static func signingDiffers(installedTeam: String?, remote: RemoteVersion) -> Bool {
+        installedTeam != nil && remote.installTrust != .developerID
+    }
+
+    public func override(for key: String) -> Override? {
+        // Blocked first: if both sets ever hold a key, the safer answer wins.
+        if blockedKeys.contains(key) { return .homebrewOnly }
+        if allowedKeys.contains(key) { return .checkOtherSources }
+        return nil
+    }
+
+    /// Whether a row-menu choice does anything. Re-choosing the current option
+    /// still counts while a signing refusal holds the copy: it is how the user
+    /// asks for other sources again. The stored record decides as well as the
+    /// row's flag, because a refusal just recorded (by the app or `duo install`)
+    /// reaches the row only with its next check.
+    public func takesChoice(_ choice: Override?, for key: String, rowWithheld: Bool) -> Bool {
+        choice != override(for: key) || rowWithheld || signingRefusals[key] != nil
+    }
+
+    /// What a copy without its own choice does: `selfUpdating` is an official
+    /// cask marked `auto_updates` (`UpdateResult.homebrewSelfUpdating`).
+    public func checksOtherSourcesByDefault(selfUpdating: Bool) -> Bool {
+        checksOtherSourcesByDefault || selfUpdating
+    }
+
+    public func checksOtherSources(_ key: String, selfUpdating: Bool) -> Bool {
+        switch override(for: key) {
+        case .checkOtherSources: return true
+        case .homebrewOnly: return false
+        case nil: return checksOtherSourcesByDefault(selfUpdating: selfUpdating)
+        }
+    }
+}
+
 /// The user preference values `UpdatePolicy` consults when deciding how an
 /// update may be installed. A plain value so the policy stays pure — the
 /// `@MainActor` app reads these out of its settings object and hands them in;
@@ -111,6 +325,13 @@ public enum VendorInstallPolicy: String, CaseIterable, Identifiable, Sendable {
 public struct UpdateSettings: Sendable {
     /// Per-install-path opt-in to check other sources after brew confirms no update.
     public static let brewFallbackKeysKey = "BrewFallbackKeys"
+    /// Per-install-path "Homebrew only", which holds even when the default is on.
+    public static let brewFallbackBlockedKeysKey = "BrewFallbackBlockedKeys"
+    /// The Settings default for brew copies without their own choice. Absent is off.
+    public static let brewFallbackByDefaultKey = "BrewFallbackByDefault"
+    /// Copies kept on Homebrew after another source's build was refused for its
+    /// signature: copy key → {team, version} (`BrewFallbackPolicy.encodeRefusals`).
+    public static let brewFallbackSigningRefusalsKey = "BrewFallbackSigningRefusals"
     /// Which route to use for Mac App Store updates. See `AppStoreUpdateStrategy`.
     public var appStoreUpdateStrategy: AppStoreUpdateStrategy
     /// How to apply self-updating vendor-app updates. See `VendorInstallPolicy`.

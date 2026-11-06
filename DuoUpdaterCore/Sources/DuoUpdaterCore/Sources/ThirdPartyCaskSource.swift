@@ -12,6 +12,8 @@ public actor ThirdPartyCaskSource: UpdateSource {
         var qualifiedName: String { "\(tap)/\(token)" }
     }
 
+    static let officialTap = "homebrew/cask"
+
     struct Unavailable: LocalizedError {
         let cask: String
         var errorDescription: String? {
@@ -68,17 +70,29 @@ public actor ThirdPartyCaskSource: UpdateSource {
         guard let data = await reads[qualified]!.value,
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let casks = json["casks"] as? [[String: Any]],
-              let cask = casks.first(where: { ($0["token"] as? String) == owner.token }),
-              cask["tap"] as? String == owner.tap,
+              let cask = casks.first,
+              let tap = cask["tap"] as? String,
+              // The receipt's tap, or the official one its own `tap_migrations.json`
+              // moved the cask to (brew resolves the old name there itself). A move
+              // to another third-party tap is someone else's package: fail closed.
+              tap == owner.tap || tap == Self.officialTap,
+              tap == Self.officialTap || (cask["token"] as? String) == owner.token,
               let version = cask["version"] as? String, !version.isEmpty, version != "latest"
         else { throw Unavailable(cask: qualified) }
         // The receipt owns the install even when the tap is auto_updates or its
         // current release lags GitHub. The checker owns the explicit fallback policy.
         let marketing = version.split(whereSeparator: { $0 == "," || $0 == ":" }).first.map(String.init)
-        return RemoteVersion(
+        var remote = RemoteVersion(
             shortVersion: marketing, version: nil,
             downloadURL: nil, pageURL: (cask["homepage"] as? String).flatMap(URL.init(string:)),
             sourceName: name, sourceIdentifier: qualified)
+        // Moved to the official tap: it follows the official cask's rules from
+        // here, its `auto_updates` included. Upgrades keep the old qualified
+        // name, which brew follows to the new home and records there.
+        if tap == Self.officialTap {
+            remote.homebrewSelfUpdating = (cask["auto_updates"] as? Bool) ?? false
+        }
+        return remote
     }
 
     static func ownership(in roots: [String], includeOfficial: Bool = false) async -> [Ownership] {

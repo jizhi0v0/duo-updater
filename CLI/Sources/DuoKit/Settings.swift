@@ -35,6 +35,18 @@ public struct Settings: Sendable {
         defaults.set(Array(keys).sorted(), forKey: UpdateSettings.declinedElevationKeysKey)
     }
 
+    /// Keep a brew copy on Homebrew after another source's build was refused
+    /// for its signature (`BrewFallbackPolicy.signingRefusals`), in the suite
+    /// the menu-bar app reads.
+    public static func recordBrewFallbackSigningRefusal(_ result: UpdateResult) async {
+        let refusal = BrewFallbackPolicy.SigningRefusal(
+            team: await BrewFallbackPolicy.signingStamp(of: result.app), refusing: result.remote)
+        let defaults = UserDefaults(suiteName: suiteName) ?? .standard
+        var refusals = BrewFallbackPolicy(defaults: defaults).signingRefusals
+        refusals[InstallPreferenceKey.key(for: result.app)] = refusal
+        BrewFallbackPolicy.storeRefusals(refusals, in: defaults)
+    }
+
     /// Point `BackupStore` at whatever disk the user configured in the app.
     ///
     /// Separate from ``load()`` and called once from `main`, before any command
@@ -61,7 +73,7 @@ public struct Settings: Sendable {
     }
 
     public var updateSettings: UpdateSettings
-    public var brewFallbackKeys: Set<String> = []
+    public var brewFallback = BrewFallbackPolicy()
     public var ignoredKeys: Set<String>
     /// App preference key → the version the user chose to skip.
     public var skippedVersions: [String: String]
@@ -165,7 +177,7 @@ public struct Settings: Sendable {
                 // Absent reads as false, as in the app.
                 allowsDigestOnlyInstalls: defaults.bool(
                     forKey: UpdateSettings.allowsDigestOnlyInstallsKey)),
-            brewFallbackKeys: Set(defaults.stringArray(forKey: UpdateSettings.brewFallbackKeysKey) ?? []),
+            brewFallback: BrewFallbackPolicy(defaults: defaults),
             ignoredKeys: Set(defaults.stringArray(forKey: UpdateSettings.ignoredKeysKey) ?? []),
             skippedVersions: defaults.dictionary(forKey: UpdateSettings.skippedVersionsKey)
                 as? [String: String] ?? [:],

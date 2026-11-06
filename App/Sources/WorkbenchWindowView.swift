@@ -1808,10 +1808,10 @@ private struct WorkbenchAppRow: View, @MainActor Equatable {
             isVersionSkipped: model.prefs.isVersionSkipped(
                 result.app, version: result.remote?.versionSide),
             toggleIgnore: { model.toggleIgnore(result) },
-            showsBrewFallback: result.homebrewSourceIdentifier != nil || result.remote?.sourceName == "Homebrew"
-                || model.prefs.brewFallbackKeys.contains(InstallPreferenceKey.key(for: result.app)),
-            brewFallbackEnabled: model.prefs.brewFallbackKeys.contains(InstallPreferenceKey.key(for: result.app)),
-            setBrewFallback: { model.setBrewFallback($0, for: result) },
+            showsBrewFallback: model.offersBrewFallbackChoice(result),
+            brewFallbackChoice: model.brewFallbackOverride(for: result),
+            brewFallbackByDefault: model.brewFallbackChecksByDefault(for: result),
+            setBrewFallback: { model.setBrewFallbackOverride($0, for: result) },
             skipVersion: { model.skipThisVersion(result) },
             clearSkip: { model.prefs.clearSkip(result.app) },
             fullDiskAccessNeeds: model.fullDiskAccessNeedsAffecting(result),
@@ -1921,8 +1921,9 @@ private struct WorkbenchSidebarRow: View {
     let isVersionSkipped: Bool
     let toggleIgnore: () -> Void
     var showsBrewFallback: Bool = false
-    var brewFallbackEnabled: Bool = false
-    var setBrewFallback: (Bool) -> Void = { _ in }
+    var brewFallbackChoice: BrewFallbackPolicy.Override?
+    var brewFallbackByDefault: Bool = false
+    var setBrewFallback: (BrewFallbackPolicy.Override?) -> Void = { _ in }
     let skipVersion: () -> Void
     let clearSkip: () -> Void
     /// The reads turned away for this app that could change its answer
@@ -2009,8 +2010,11 @@ private struct WorkbenchSidebarRow: View {
             // built from (issue #247).
             Button("Check Again", action: checkAgain).disabled(isChecking)
             if showsBrewFallback {
-                Toggle("Check other sources when Homebrew has no update", isOn: Binding(
-                    get: { brewFallbackEnabled }, set: setBrewFallback))
+                BrewFallbackMenu(
+                    choice: brewFallbackChoice,
+                    checksByDefault: brewFallbackByDefault,
+                    withheldForSigning: result.brewFallbackWithheldForSigning,
+                    set: setBrewFallback)
                     .disabled(isChecking)
             }
             // Skip and Ignore are here because this window SAYS they are: a skipped
@@ -2130,6 +2134,8 @@ extension WorkbenchSidebarRow: @MainActor Equatable {
         lhs.result == rhs.result && lhs.isChecking == rhs.isChecking && lhs.isRunning == rhs.isRunning
             && lhs.versionLineState == rhs.versionLineState && lhs.runningSide == rhs.runningSide
             && lhs.showsRuntime == rhs.showsRuntime
+            && lhs.showsBrewFallback == rhs.showsBrewFallback && lhs.brewFallbackChoice == rhs.brewFallbackChoice
+            && lhs.brewFallbackByDefault == rhs.brewFallbackByDefault
             && lhs.isIgnored == rhs.isIgnored && lhs.isVersionSkipped == rhs.isVersionSkipped
             && lhs.fullDiskAccessNeeds == rhs.fullDiskAccessNeeds && lhs.caskLifecycle == rhs.caskLifecycle
             && lhs.sunsetPhase?.endDate == rhs.sunsetPhase?.endDate && lhs.sunsetPhase?.phase == rhs.sunsetPhase?.phase

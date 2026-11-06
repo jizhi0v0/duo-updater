@@ -47,7 +47,7 @@ enum SettingsAnchor: Hashable, Sendable {
 
     // General
     case launchAtLogin, checkFrequency, hideDockIcon, appRuntimeTags, cliRuntimeTags
-    case automaticUpdates, autoRelaunch, concurrency, appStoreUpdates, selfUpdatingApps, setappBackgroundUpdates, digestOnlyInstalls
+    case automaticUpdates, autoRelaunch, concurrency, appStoreUpdates, selfUpdatingApps, setappBackgroundUpdates, brewFallback, digestOnlyInstalls
     // Notifications
     case notifyApps, notifyCLITools, notifyHomebrew
     // Backups
@@ -77,7 +77,7 @@ enum SettingsAnchor: Hashable, Sendable {
         switch self {
         case .testFlightDetection, .launchAtLogin, .checkFrequency, .hideDockIcon,
              .appRuntimeTags, .cliRuntimeTags, .automaticUpdates, .autoRelaunch, .concurrency,
-             .appStoreUpdates, .selfUpdatingApps, .setappBackgroundUpdates, .digestOnlyInstalls: .general
+             .appStoreUpdates, .selfUpdatingApps, .setappBackgroundUpdates, .brewFallback, .digestOnlyInstalls: .general
         case .notifyApps, .notifyCLITools, .notifyHomebrew: .notifications
         case .backups, .keepBackups, .pruneOrphanBackups, .backupLocation: .backups
         case .storageCaches, .storageAppData, .storageSystem: .storage

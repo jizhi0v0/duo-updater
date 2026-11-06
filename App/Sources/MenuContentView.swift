@@ -2202,11 +2202,12 @@ private struct AppRow: View {
         // which is also what `retry` itself refuses on.
         Button("Check Again") { Task { await model.retry(result) } }
             .disabled(stage != nil)
-        if result.homebrewSourceIdentifier != nil || result.remote?.sourceName == "Homebrew"
-            || model.prefs.brewFallbackKeys.contains(InstallPreferenceKey.key(for: result.app)) {
-            Toggle("Check other sources when Homebrew has no update", isOn: Binding(
-                get: { model.prefs.brewFallbackKeys.contains(InstallPreferenceKey.key(for: result.app)) },
-                set: { model.setBrewFallback($0, for: result) }))
+        if model.offersBrewFallbackChoice(result) {
+            BrewFallbackMenu(
+                choice: model.brewFallbackOverride(for: result),
+                checksByDefault: model.brewFallbackChecksByDefault(for: result),
+                withheldForSigning: result.brewFallbackWithheldForSigning,
+                set: { model.setBrewFallbackOverride($0, for: result) })
                 .disabled(stage != nil)
         }
         Divider()
@@ -2460,4 +2461,35 @@ private struct AppRow: View {
 
 extension UpdateResult {
 
+}
+
+/// A brew row's "When Homebrew has no update" submenu, shared by the popover and
+/// the workbench. Three choices rather than a toggle, so "Homebrew only" can be
+/// recorded and keeps holding when Settings turns the default on.
+struct BrewFallbackMenu: View {
+    let choice: BrewFallbackPolicy.Override?
+    let checksByDefault: Bool
+    /// `UpdateResult.brewFallbackWithheldForSigning`: say why the row is still
+    /// Homebrew's although other sources are allowed.
+    var withheldForSigning = false
+    let set: (BrewFallbackPolicy.Override?) -> Void
+
+    var body: some View {
+        Menu("When Homebrew Has No Update") {
+            Picker("When Homebrew Has No Update", selection: Binding(get: { choice }, set: set)) {
+                Text(checksByDefault
+                    ? "Use Settings (Check Other Sources)"
+                    : "Use Settings (Homebrew Only)")
+                    .tag(BrewFallbackPolicy.Override?.none)
+                Text("Check Other Sources").tag(Optional(BrewFallbackPolicy.Override.checkOtherSources))
+                Text("Homebrew Only").tag(Optional(BrewFallbackPolicy.Override.homebrewOnly))
+            }
+            .pickerStyle(.inline)
+            .labelsHidden()
+            if withheldForSigning {
+                Divider()
+                Text("Kept on Homebrew: another source’s build is signed differently. A newer release is tried again; choose an option to check now.")
+            }
+        }
+    }
 }

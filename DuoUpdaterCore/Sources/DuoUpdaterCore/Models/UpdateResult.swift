@@ -471,6 +471,10 @@ public struct RemoteVersion: Sendable, Hashable {
     /// About the cask, not the copy, so `carriedForward` keeps it across a rescan.
     public var offeredChannel: ReleaseChannel?
 
+    /// An official cask marked `auto_updates` answered: the app's own updater
+    /// is its channel (`BrewFallbackPolicy`). Set by `HomebrewCaskSource` only.
+    public var homebrewSelfUpdating = false
+
     public init(
         shortVersion: String?,
         version: String?,
@@ -610,6 +614,12 @@ extension UpdateResult {
         // Also about the copy, so also only while it is unchanged. A new copy
         // is read again by the next check.
         row.installedLacksTeamIdentifier = sameCopy && installedLacksTeamIdentifier
+        // Brew's ownership is about the install path, which a rescan keeps; it is
+        // what keeps a row that another source answered in the brew menus and in
+        // the Settings default's re-check. The signing hold is about the copy.
+        row.homebrewSourceIdentifier = homebrewSourceIdentifier
+        row.homebrewSelfUpdating = homebrewSelfUpdating
+        row.brewFallbackWithheldForSigning = sameCopy && brewFallbackWithheldForSigning
         return row
     }
 
@@ -917,6 +927,16 @@ public struct UpdateResult: Sendable, Identifiable, Equatable {
 
     /// Original brew owner, retained when an opted-in downstream source answers.
     public var homebrewSourceIdentifier: String?
+
+    /// Brew answered and other sources were allowed, but this copy stays on
+    /// Homebrew because another source's build is signed by someone else
+    /// (`BrewFallbackPolicy`): seen before download, or refused at install.
+    public var brewFallbackWithheldForSigning = false
+
+    /// The brew owner is an official cask marked `auto_updates`, retained like
+    /// `homebrewSourceIdentifier`: without a per-copy choice it checks other
+    /// sources even with the Settings default off.
+    public var homebrewSelfUpdating = false
 
     /// What a source proved about this copy's channel on some earlier, successful
     /// check — read back from `ResolvedChannelStore` by `UpdateChecker`.

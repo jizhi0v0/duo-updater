@@ -451,12 +451,61 @@ final class Preferences {
         didSet { defaults.set(customScanPaths, forKey: Key.customScanPaths) }
     }
 
-    /// Apps the user has chosen to hide from update checks entirely, keyed by
-    /// `key(for:)`.
-    var brewFallbackKeys: Set<String> {
+    /// Settings default: brew-installed apps check other sources once Homebrew
+    /// has no newer version. Per-copy choices below beat it either way.
+    var brewFallbackByDefault: Bool {
+        didSet { defaults.set(brewFallbackByDefault, forKey: UpdateSettings.brewFallbackByDefaultKey) }
+    }
+
+    /// Copies that check other sources whatever the default, keyed by `key(for:)`.
+    private(set) var brewFallbackKeys: Set<String> {
         didSet { defaults.set(Array(brewFallbackKeys), forKey: UpdateSettings.brewFallbackKeysKey) }
     }
 
+    /// Copies that stay "Homebrew only" whatever the default, keyed by `key(for:)`.
+    private(set) var brewFallbackBlockedKeys: Set<String> {
+        didSet { defaults.set(Array(brewFallbackBlockedKeys), forKey: UpdateSettings.brewFallbackBlockedKeysKey) }
+    }
+
+    /// Copies kept on Homebrew after another source's build was refused for its
+    /// signature — see `BrewFallbackPolicy.signingRefusals`. Read from defaults
+    /// each time, not cached: `duo install` records refusals in the same suite.
+    private var brewFallbackSigningRefusals: [String: BrewFallbackPolicy.SigningRefusal] {
+        get { BrewFallbackPolicy(defaults: defaults).signingRefusals }
+        set { BrewFallbackPolicy.storeRefusals(newValue, in: defaults) }
+    }
+
+    var brewFallback: BrewFallbackPolicy {
+        BrewFallbackPolicy(
+            checksOtherSourcesByDefault: brewFallbackByDefault,
+            allowedKeys: brewFallbackKeys,
+            blockedKeys: brewFallbackBlockedKeys,
+            signingRefusals: brewFallbackSigningRefusals)
+    }
+
+    func recordBrewFallbackSigningRefusal(for app: InstalledApp, refusal: BrewFallbackPolicy.SigningRefusal) {
+        brewFallbackSigningRefusals[key(for: app)] = refusal
+    }
+
+    /// Record one copy's own choice; nil returns it to the Settings default.
+    /// Any choice also forgets a recorded signing refusal, so the menu is the
+    /// way to have that copy checked against other sources again.
+    func setBrewFallbackOverride(_ choice: BrewFallbackPolicy.Override?, for app: InstalledApp) {
+        var policy = brewFallback
+        policy.set(choice, for: key(for: app))
+        store(policy)
+    }
+
+    /// Write back what a `BrewFallbackPolicy` mutation changed. The default is
+    /// left alone: only Settings changes it.
+    private func store(_ policy: BrewFallbackPolicy) {
+        if brewFallbackKeys != policy.allowedKeys { brewFallbackKeys = policy.allowedKeys }
+        if brewFallbackBlockedKeys != policy.blockedKeys { brewFallbackBlockedKeys = policy.blockedKeys }
+        if brewFallbackSigningRefusals != policy.signingRefusals { brewFallbackSigningRefusals = policy.signingRefusals }
+    }
+
+    /// Apps the user has chosen to hide from update checks entirely, keyed by
+    /// `key(for:)`.
     private(set) var ignoredKeys: Set<String> {
         didSet { defaults.set(Array(ignoredKeys), forKey: Key.ignoredKeys) }
     }
@@ -721,7 +770,10 @@ final class Preferences {
             Log.app.notice("prefs: TestFlight detection not set — starting at \(migrated.rawValue, privacy: .public)")
         }
         self.customScanPaths = defaults.stringArray(forKey: Key.customScanPaths) ?? []
-        self.brewFallbackKeys = Set(defaults.stringArray(forKey: UpdateSettings.brewFallbackKeysKey) ?? [])
+        let brewFallback = BrewFallbackPolicy(defaults: defaults)
+        self.brewFallbackByDefault = brewFallback.checksOtherSourcesByDefault
+        self.brewFallbackKeys = brewFallback.allowedKeys
+        self.brewFallbackBlockedKeys = brewFallback.blockedKeys
         self.ignoredKeys = Set(defaults.stringArray(forKey: Key.ignoredKeys) ?? [])
         self.declinedElevationKeys = Set(defaults.stringArray(forKey: Key.declinedElevationKeys) ?? [])
         self.skippedVersions = defaults.dictionary(forKey: Key.skippedVersions) as? [String: String] ?? [:]
@@ -964,7 +1016,9 @@ final class Preferences {
         let oldKey = InstallPreferenceKey.preferenceKey(old)
         let newKey = InstallPreferenceKey.preferenceKey(new)
         guard oldKey != newKey else { return }
-        if brewFallbackKeys.remove(oldKey) != nil { brewFallbackKeys.insert(newKey) }
+        var brewPolicy = brewFallback
+        brewPolicy.migrate(from: oldKey, to: newKey)
+        store(brewPolicy)
         if ignoredKeys.remove(oldKey) != nil { ignoredKeys.insert(newKey) }
         if let skipped = skippedVersions.removeValue(forKey: oldKey) { skippedVersions[newKey] = skipped }
         if declinedElevationKeys.remove(oldKey) != nil { declinedElevationKeys.insert(newKey) }

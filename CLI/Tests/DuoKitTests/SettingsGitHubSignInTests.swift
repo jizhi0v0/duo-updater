@@ -36,11 +36,16 @@ import DuoUpdaterCore
         defer { scratch.clear() }
         scratch.defaults.set(false, forKey: GitHubToken.usesCLIKey)
         let key = InstallPreferenceKey.preferenceKey("/Applications/Example.app")
+        let blocked = InstallPreferenceKey.preferenceKey("/Applications/SourceGit.app")
         scratch.defaults.set([key], forKey: UpdateSettings.brewFallbackKeysKey)
+        scratch.defaults.set([blocked], forKey: UpdateSettings.brewFallbackBlockedKeysKey)
+        scratch.defaults.set(true, forKey: UpdateSettings.brewFallbackByDefaultKey)
+        let expected = BrewFallbackPolicy(
+            checksOtherSourcesByDefault: true, allowedKeys: [key], blockedKeys: [blocked])
         await withEnvironmentToken(nil) {
             let settings = await Settings.load(defaults: scratch.defaults, keychain: { _ in nil }, store: { _, _ in })
-            #expect(settings.brewFallbackKeys == [key])
-            #expect(Inventory.checker(settings).brewFallbackKeys == [key])
+            #expect(settings.brewFallback == expected)
+            #expect(Inventory.checker(settings).brewFallback == expected)
         }
     }
 

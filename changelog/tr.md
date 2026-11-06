@@ -2,6 +2,12 @@
 
 Bu, `CHANGELOG.md` dosyasının Türkçe çevirisidir. Geçerli olan İngilizce sürümdür; burada yer almayan eski sürümler otomatik olarak İngilizce gösterilir.
 
+## 0.5.24-beta.3
+
+**Homebrew uygulamalarının diğer kaynakları nasıl kontrol edeceğini seçin.** Ayarlar’dan varsayılan davranışı belirleyin veya tek bir uygulama için yalnızca Homebrew’u seçin. Farklı bir geliştirici tarafından imzalanan güncellemeler, bu fark algılanabildiğinde atlanır.
+
+**Beta ve Setapp ayarları daha okunaklı.** Denetimleri artık diğer ayarlarla aynı düzeni kullanıyor.
+
 ## 0.5.24-beta.2
 
 **Homebrew ile yüklenen uygulamalar önce özgün kaynaklarını kontrol eder.** Homebrew güncelleme olmadığını bildirirse uygulamanın menüsünden diğer kaynakların kontrol edilmesini açabilirsiniz.

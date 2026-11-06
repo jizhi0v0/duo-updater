@@ -2,6 +2,12 @@
 
 Questa è la traduzione di `CHANGELOG.md`. In caso di differenze fa fede la versione inglese. Le versioni non elencate qui vengono mostrate automaticamente in inglese.
 
+## 0.5.24-beta.3
+
+**Scegli come le app Homebrew controllano altre fonti.** Imposta il comportamento predefinito nelle impostazioni oppure scegli solo Homebrew per una singola app. Gli aggiornamenti firmati da uno sviluppatore diverso vengono ignorati quando è possibile rilevare la differenza.
+
+**Le impostazioni Beta e Setapp sono più chiare.** I controlli ora seguono la disposizione delle altre impostazioni.
+
 ## 0.5.24-beta.2
 
 **Le app installate tramite Homebrew controllano prima la fonte originale.** Se Homebrew segnala che non ci sono aggiornamenti, puoi attivare il controllo di altre fonti dal menu dell’app.

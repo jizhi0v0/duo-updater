@@ -3300,6 +3300,7 @@ final class AppListModel {
         let checker = UpdateChecker(
             sources: [],
             maxConcurrency: prefs.maxConcurrency,
+            brewFallbackKeys: prefs.brewFallbackKeys,
             testflight: inventory,
             announcements: announcements,
             appStoreSignedIn: signedIn,
@@ -3783,6 +3784,7 @@ final class AppListModel {
         let checker = UpdateChecker(
             sources: makeSources(token: token),
             maxConcurrency: prefs.maxConcurrency,
+            brewFallbackKeys: prefs.brewFallbackKeys,
             toolbox: ToolboxSource(inventory: toolbox),
             testflight: testflight,
             announcements: announcements,
@@ -3915,6 +3917,7 @@ final class AppListModel {
                 let resync = UpdateChecker(
                     sources: makeSources(token: token),
                     maxConcurrency: prefs.maxConcurrency,
+                    brewFallbackKeys: prefs.brewFallbackKeys,
                     toolbox: ToolboxSource(inventory: toolbox),
                     testflight: synced,
                     announcements: syncedAnnouncements,
@@ -10057,6 +10060,13 @@ final class AppListModel {
 
     // MARK: - Ignore / skip
 
+    func setBrewFallback(_ enabled: Bool, for result: UpdateResult) {
+        let key = InstallPreferenceKey.key(for: result.app)
+        if enabled { prefs.brewFallbackKeys.insert(key) }
+        else { prefs.brewFallbackKeys.remove(key) }
+        Task { await retry(result) }
+    }
+
     /// Toggle whether this app is hidden from update checks entirely.
     func toggleIgnore(_ result: UpdateResult) {
         let nowIgnored = !prefs.isIgnored(result.app)
@@ -11160,6 +11170,7 @@ final class AppListModel {
         // drift apart.
         let sources = makeSources(token: githubToken)
         let maxConcurrency = prefs.maxConcurrency
+        let brewFallbackKeys = prefs.brewFallbackKeys
         // Under the generation the token was resolved in, which is what these
         // sources send even after a change in Settings (`GitHubTokenForRecheck`).
         let (rows, kept) = await GitHubCredentials.$pinnedGeneration.withValue(resolved.generation) { await ScanRowAssembly.recheck(
@@ -11185,6 +11196,7 @@ final class AppListModel {
                 let checker = UpdateChecker(
                     sources: sources,
                     maxConcurrency: maxConcurrency,
+                    brewFallbackKeys: brewFallbackKeys,
                     toolbox: ToolboxSource(inventory: toolbox),
                     testflight: testflight,
                     announcements: announcements,

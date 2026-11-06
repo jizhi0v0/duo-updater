@@ -31,6 +31,14 @@ public struct HomebrewCaskSource: UpdateSource {
         self.hostOSVersion = hostOSVersion
     }
 
+    /// Only used after a catalogue failure: don't let a known brew copy fall
+    /// through, but don't block unrelated apps because the catalogue is offline.
+    func ownsInstalledPath(_ app: InstalledApp) async -> Bool {
+        let path = app.path.standardizedFileURL.resolvingSymlinksInPath().path
+        return await ThirdPartyCaskSource.ownership(in: inventory.caskroomPaths, includeOfficial: true)
+            .contains { $0.tap == "homebrew/cask" && $0.paths.contains(path) }
+    }
+
     public func latestVersion(for app: InstalledApp) async throws -> RemoteVersion? {
         // App Store apps are managed by the store; a same-named/-id cask is a
         // different distribution channel (often with an unrelated version
@@ -64,19 +72,6 @@ public struct HomebrewCaskSource: UpdateSource {
         let installed = candidates.filter { inventory.isOfficialCandidate(caskToken: $0.token) }
         guard let entry = CaskEntry.preferred(among: installed, hostOSVersion: hostOSVersion)
         else { return nil }
-
-        // Self-updating gate: an `auto_updates` cask delegates updates to the app's
-        // own updater — brew is NOT its update channel, and the cask version
-        // routinely LAGS what the app self-installed (Postman: cask 12.12.6 while
-        // the running app was already 12.12.7). Offering `brew upgrade` here is
-        // wrong twice over: it compares against a stale version, and a
-        // `brew install --cask --force` re-adopts an app that updates itself —
-        // exactly how a vendor-installed Postman got pulled into brew to begin
-        // with. Defer like any self-updater (same spirit as `hasSelfUpdater`):
-        // return nil so the app falls through to its real channel (or "unknown"),
-        // never to a brew-managed row. So a brew-installed-but-self-updating app
-        // is deliberately NOT classified as Homebrew.
-        guard !entry.autoUpdates else { return nil }
 
         // Cask versions are sometimes "version,revision" or "version:build";
         // use the leading marketing portion for comparison/display. Split on BOTH

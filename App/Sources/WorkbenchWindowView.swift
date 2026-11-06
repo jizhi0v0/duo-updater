@@ -1808,6 +1808,10 @@ private struct WorkbenchAppRow: View, @MainActor Equatable {
             isVersionSkipped: model.prefs.isVersionSkipped(
                 result.app, version: result.remote?.versionSide),
             toggleIgnore: { model.toggleIgnore(result) },
+            showsBrewFallback: result.homebrewSourceIdentifier != nil || result.remote?.sourceName == "Homebrew"
+                || model.prefs.brewFallbackKeys.contains(InstallPreferenceKey.key(for: result.app)),
+            brewFallbackEnabled: model.prefs.brewFallbackKeys.contains(InstallPreferenceKey.key(for: result.app)),
+            setBrewFallback: { model.setBrewFallback($0, for: result) },
             skipVersion: { model.skipThisVersion(result) },
             clearSkip: { model.prefs.clearSkip(result.app) },
             fullDiskAccessNeeds: model.fullDiskAccessNeedsAffecting(result),
@@ -1916,6 +1920,9 @@ private struct WorkbenchSidebarRow: View {
     let isIgnored: Bool
     let isVersionSkipped: Bool
     let toggleIgnore: () -> Void
+    var showsBrewFallback: Bool = false
+    var brewFallbackEnabled: Bool = false
+    var setBrewFallback: (Bool) -> Void = { _ in }
     let skipVersion: () -> Void
     let clearSkip: () -> Void
     /// The reads turned away for this app that could change its answer
@@ -2001,6 +2008,11 @@ private struct WorkbenchSidebarRow: View {
             // apps never post one of the NSWorkspace notifications that set is
             // built from (issue #247).
             Button("Check Again", action: checkAgain).disabled(isChecking)
+            if showsBrewFallback {
+                Toggle("Check other sources when Homebrew has no update", isOn: Binding(
+                    get: { brewFallbackEnabled }, set: setBrewFallback))
+                    .disabled(isChecking)
+            }
             // Skip and Ignore are here because this window SAYS they are: a skipped
             // or ignored row draws "Skipped"/"Ignored" with the popover's own help
             // text, which tells the user to right-click to undo it. That menu did

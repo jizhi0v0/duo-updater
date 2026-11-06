@@ -1,6 +1,59 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "Check other sources when Homebrew has no update": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Check other sources when Homebrew has no update"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew 无更新时检查其他来源"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew 無更新時檢查其他來源"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew に更新がない場合は他の配信元を確認"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew에 업데이트가 없으면 다른 소스 확인"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Andere Quellen prüfen, wenn Homebrew kein Update hat"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vérifier les autres sources si Homebrew n’a pas de mise à jour"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Consultar otras fuentes si Homebrew no tiene actualizaciones"
+          }
+        }
+      }
+    },
   "Deferral is temporary. Eligible updates are reconsidered on a later scheduled pass; other work or network restrictions may delay it.": {
     "extractionState": "manual",
     "localizations": {

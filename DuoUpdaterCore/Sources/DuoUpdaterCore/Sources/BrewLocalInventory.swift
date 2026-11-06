@@ -13,6 +13,7 @@ import Foundation
 /// installed cask token) rather than shelling out to `brew list` — no
 /// subprocess, and it works even if `brew` isn't on PATH.
 public struct BrewLocalInventory: Sendable {
+    let caskroomPaths: [String]
     /// Default Caskroom locations: Apple Silicon, then Intel.
     public static let defaultCaskroomPaths = [
         "/opt/homebrew/Caskroom",
@@ -28,6 +29,7 @@ public struct BrewLocalInventory: Sendable {
     /// Scans the given Caskroom paths once at construction. Cheap (a directory
     /// listing of a few dozen entries), so it's fine to build per check run.
     public init(caskroomPaths: [String] = BrewLocalInventory.defaultCaskroomPaths) {
+        self.caskroomPaths = caskroomPaths
         let fm = FileManager.default
         var tokens: Set<String> = []
         var thirdParty: Set<String> = []
@@ -54,6 +56,7 @@ public struct BrewLocalInventory: Sendable {
     /// Test seam: build directly from a known token set (and, optionally, the
     /// version Homebrew recorded for some of them).
     public init(installedTokens: Set<String>, installedVersions: [String: String] = [:]) {
+        self.caskroomPaths = []
         self.installedTokens = Set(installedTokens.map { $0.lowercased() })
         self.thirdPartyTokens = []
         self.installedVersions = Dictionary(

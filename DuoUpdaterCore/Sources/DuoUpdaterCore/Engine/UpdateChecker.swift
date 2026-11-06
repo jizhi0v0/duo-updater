@@ -8,6 +8,7 @@ public struct UpdateChecker: Sendable {
 
     public let sources: [any UpdateSource]
     public let maxConcurrency: Int
+    public let brewFallbackKeys: Set<String>
     /// When set, Toolbox-managed apps are version-checked (live JetBrains API,
     /// falling back to Toolbox's local cache); the action stays "open Toolbox".
     /// When nil they're simply labelled managed without a version.
@@ -38,12 +39,14 @@ public struct UpdateChecker: Sendable {
     public init(
         sources: [any UpdateSource],
         maxConcurrency: Int = 12,
+        brewFallbackKeys: Set<String> = [],
         toolbox: ToolboxSource? = nil,
         testflight: TestFlightInventory? = nil,
         announcements: TestFlightAnnouncements? = nil,
         appStoreSignedIn: Bool? = nil,
         channelStore: ResolvedChannelStore? = nil
     ) {
+        self.brewFallbackKeys = brewFallbackKeys
         self.sources = sources
         self.maxConcurrency = max(1, maxConcurrency)
         self.toolbox = toolbox
@@ -404,6 +407,7 @@ public struct UpdateChecker: Sendable {
             }
         }
 
+        var brewFallback: UpdateResult?
         for source in sources {
             // A store copy is answered by the store, or by nobody. Source ordering
             // is not enough on its own: this loop falls through on a THROWN error
@@ -425,7 +429,17 @@ public struct UpdateChecker: Sendable {
                 if !(source is ElectronManifestSource) {
                     await ElectronManifestSource.supersede(for: app)
                 }
-                return UpdateResult(app: app, remote: remote, status: status)
+                var result = UpdateResult(app: app, remote: remote, status: status)
+                result.homebrewSourceIdentifier = brewFallback?.homebrewSourceIdentifier
+                if source.name == "Homebrew" {
+                    result.homebrewSourceIdentifier = remote.sourceIdentifier
+                    if status == .upToDate,
+                       brewFallbackKeys.contains(InstallPreferenceKey.key(for: app)) {
+                        brewFallback = result
+                        continue
+                    }
+                }
+                return result
             } catch let unavailable as ThirdPartyCaskSource.Unavailable {
                 // A known package owner failing is not permission for GitHub or
                 // another feed to replace its installed copy.
@@ -451,12 +465,21 @@ public struct UpdateChecker: Sendable {
                 if refusal == nil { refusal = refused.refusal }
                 continue
             } catch {
+                if let brew = source as? HomebrewCaskSource, await brew.ownsInstalledPath(app) {
+                    var failed = UpdateResult(app: app, remote: nil, status: .error(error.localizedDescription))
+                    failed.failureIsTransient = CheckFailureRules.isTransientNetworkError(error)
+                    return failed
+                }
                 lastError = error.localizedDescription
                 if CheckFailureRules.isTransientNetworkError(error) { failedTransiently = true }
                 Log.check.error("\(label, privacy: .public): \(source.name, privacy: .public) failed: \(error.localizedDescription, privacy: .public)")
                 continue
             }
         }
+
+        // No downstream source answered: keep the proven brew result, unless
+        // an attempted downstream check failed or refused this host.
+        if let brewFallback, lastError == nil, refusal == nil { return brewFallback }
 
         // A Toolbox-managed row outranks a failed read, and only this one does.
         //

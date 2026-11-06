@@ -73,7 +73,7 @@ public actor ThirdPartyCaskSource: UpdateSource {
               let version = cask["version"] as? String, !version.isEmpty, version != "latest"
         else { throw Unavailable(cask: qualified) }
         // The receipt owns the install even when the tap is auto_updates or its
-        // current release lags GitHub. Never borrow a newer vendor installer.
+        // current release lags GitHub. The checker owns the explicit fallback policy.
         let marketing = version.split(whereSeparator: { $0 == "," || $0 == ":" }).first.map(String.init)
         return RemoteVersion(
             shortVersion: marketing, version: nil,
@@ -81,14 +81,14 @@ public actor ThirdPartyCaskSource: UpdateSource {
             sourceName: name, sourceIdentifier: qualified)
     }
 
-    static func ownership(in roots: [String]) async -> [Ownership] {
+    static func ownership(in roots: [String], includeOfficial: Bool = false) async -> [Ownership] {
         let fm = FileManager.default
         var result: [Ownership] = []
         for root in roots {
             guard let tokens = try? fm.contentsOfDirectory(atPath: root) else { continue }
             for token in tokens where !token.hasPrefix(".") {
                 guard let tap = BrewFormulaService.realCaskReceiptTap(token, caskroomPaths: [root]),
-                      tap != "homebrew/cask" else { continue }
+                      includeOfficial || tap != "homebrew/cask" else { continue }
                 let directory = URL(fileURLWithPath: root).appendingPathComponent(token)
                 var paths: Set<String> = []
                 // Walk staged artifacts only, never into an app or arbitrary deep

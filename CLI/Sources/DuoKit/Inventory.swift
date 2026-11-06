@@ -190,6 +190,7 @@ public enum Inventory {
                 channelStore: ResolvedChannelStore.shared,
                 echoedFields: EchoedFieldStore.shared),
             maxConcurrency: settings.maxConcurrency,
+            brewFallbackKeys: settings.brewFallbackKeys,
             toolbox: ToolboxSource(inventory: toolbox),
             testflight: testflight,
             announcements: announcements,

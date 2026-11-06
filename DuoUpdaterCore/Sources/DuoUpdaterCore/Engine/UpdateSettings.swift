@@ -109,6 +109,8 @@ public enum VendorInstallPolicy: String, CaseIterable, Identifiable, Sendable {
 /// a CLI reads the same UserDefaults keys and builds the same value, so both
 /// share one set of rules.
 public struct UpdateSettings: Sendable {
+    /// Per-install-path opt-in to check other sources after brew confirms no update.
+    public static let brewFallbackKeysKey = "BrewFallbackKeys"
     /// Which route to use for Mac App Store updates. See `AppStoreUpdateStrategy`.
     public var appStoreUpdateStrategy: AppStoreUpdateStrategy
     /// How to apply self-updating vendor-app updates. See `VendorInstallPolicy`.

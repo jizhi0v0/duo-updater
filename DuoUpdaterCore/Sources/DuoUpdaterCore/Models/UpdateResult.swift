@@ -915,6 +915,9 @@ public struct UpdateResult: Sendable, Identifiable, Equatable {
     public let remote: RemoteVersion?
     public let status: UpdateStatus
 
+    /// Original brew owner, retained when an opted-in downstream source answers.
+    public var homebrewSourceIdentifier: String?
+
     /// What a source proved about this copy's channel on some earlier, successful
     /// check — read back from `ResolvedChannelStore` by `UpdateChecker`.
     ///

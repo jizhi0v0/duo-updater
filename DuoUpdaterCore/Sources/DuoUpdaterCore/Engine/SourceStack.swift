@@ -38,6 +38,7 @@ public enum SourceStack {
             // `brew upgrade` reinstalls what Sparkle already put there. It only
             // answers for casks brew keeps current — not `auto_updates`, not an app
             // brew did not install — so everything else still reaches Sparkle.
+            ThirdPartyCaskSource(),
             HomebrewCaskSource(),
             // Setapp ahead of Sparkle: a Setapp build keeps the vendor's direct
             // `SUFeedURL` but ships no Sparkle, so the generic source would offer

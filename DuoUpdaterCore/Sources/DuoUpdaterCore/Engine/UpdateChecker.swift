@@ -426,6 +426,10 @@ public struct UpdateChecker: Sendable {
                     await ElectronManifestSource.supersede(for: app)
                 }
                 return UpdateResult(app: app, remote: remote, status: status)
+            } catch let unavailable as ThirdPartyCaskSource.Unavailable {
+                // A known package owner failing is not permission for GitHub or
+                // another feed to replace its installed copy.
+                return UpdateResult(app: app, remote: nil, status: .error(unavailable.localizedDescription))
             } catch let refused as OSWindowRefused {
                 // Not a failure — the source read the vendor's answer. Still a miss
                 // for THIS source, so the next one is asked, exactly as a nil would

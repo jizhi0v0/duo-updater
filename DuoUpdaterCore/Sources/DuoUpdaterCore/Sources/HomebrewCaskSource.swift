@@ -61,7 +61,7 @@ public struct HomebrewCaskSource: UpdateSource {
         // several installed (not a shape brew allows for one `.app`, but the index
         // cannot know that) the host breaks the tie, via the one shared copy of
         // that rule.
-        let installed = candidates.filter { inventory.isInstalled(caskToken: $0.token) }
+        let installed = candidates.filter { inventory.isOfficialCandidate(caskToken: $0.token) }
         guard let entry = CaskEntry.preferred(among: installed, hostOSVersion: hostOSVersion)
         else { return nil }
 

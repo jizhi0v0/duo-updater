@@ -1179,10 +1179,31 @@ final class AppListModel {
     // collide with — or double-count against — the app rows above.
     private let brewFormulaService = BrewFormulaService()
     /// Outdated CLI formulae from the last `brew outdated --formula` read.
-    private(set) var brewOutdatedFormulae: [BrewOutdatedFormula] = []
+    private var brewPackageOutdated: [BrewOutdatedFormula] = []
+    private(set) var brewOutdatedFormulae: [BrewOutdatedFormula] {
+        get {
+            let apps = brewAppCaskNames
+            return brewPackageOutdated.filter { $0.kind != .cask || !apps.contains($0.name) }
+        }
+        set { brewPackageOutdated = newValue }
+    }
     /// Every top-level (`brew leaves`) formula, outdated or current — the workbench
     /// Brew tree's formula half, so it shows all you manage like the Apps tree does.
-    private(set) var brewFormulae: [BrewInstalledFormula] = []
+    private var brewPackageInventory: [BrewInstalledFormula] = []
+    private(set) var brewFormulae: [BrewInstalledFormula] {
+        get {
+            let apps = brewAppCaskNames
+            return brewPackageInventory.filter { $0.kind != .cask || !apps.contains($0.name) }
+        }
+        set { brewPackageInventory = newValue }
+    }
+    /// A proven application route replaces its package fallback, including in
+    /// bulk counts. Failed/unmatched ownership keeps the package entry available.
+    private var brewAppCaskNames: Set<String> {
+        Set(results.compactMap { result in
+            result.remote?.sourceName == "Homebrew" ? result.remote?.sourceIdentifier : nil
+        })
+    }
     /// Installed third-party-tap formulae/casks brew wouldn't read from their tap
     /// (e.g. the tap isn't trusted). No read above can say whether they're outdated,
     /// and brew's own listings drop them silently — see `BrewUncheckedPackage`.

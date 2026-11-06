@@ -9,6 +9,14 @@ public actor HomebrewInstaller {
 
     public init() {}
 
+    static func installArguments(caskToken: String, dryRun: Bool = false) -> [String] {
+        // Qualified names come from an existing third-party receipt. Upgrade
+        // that cask in place, preserving its recorded app directory.
+        let command = caskToken.split(separator: "/").count == 3
+            ? ["upgrade", "--cask", "--greedy"] : ["install", "--cask", "--force"]
+        return command + (dryRun ? ["--dry-run"] : []) + ["--", caskToken]
+    }
+
     public enum BrewError: LocalizedError {
         case brewNotFound
         case failed(code: Int32, output: String)
@@ -142,7 +150,7 @@ public actor HomebrewInstaller {
         // `--dry-run` goes before the `--` that keeps the token from being read
         // as an option.
         let (plan, _) = try await StreamedLines.run(
-            brew, ["install", "--cask", "--force", "--dry-run", "--", caskToken],
+            brew, Self.installArguments(caskToken: caskToken, dryRun: true),
             environment: env, onCancel: .interruptChild, onOutput: onOutput)
         if !plan.succeeded {
             Log.install.notice("brew install --cask --dry-run \(caskToken, privacy: .public) exited \(plan.terminationStatus, privacy: .public): fetching anyway")
@@ -177,7 +185,7 @@ public actor HomebrewInstaller {
         guard let brew = Self.brewPathOverride ?? Self.brewPath() else { throw BrewError.brewNotFound }
 
         // `--` terminates option parsing so a token can never be misread as a flag.
-        let arguments = ["install", "--cask", "--force", "--", caskToken]
+        let arguments = Self.installArguments(caskToken: caskToken)
         // Non-interactive so brew never blocks on a prompt we can't answer.
         // No auto-update: `fetch` ran it, before the download, where a cancel
         // still stops it.

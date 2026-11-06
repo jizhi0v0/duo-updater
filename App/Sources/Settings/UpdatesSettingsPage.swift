@@ -11,12 +11,8 @@ struct UpdatesSettingsPage: View {
     @State private var installsAutomatically = false
     @AppStorage("DuoUpdaterBetaChannel") private var betaChannel = false
 
-    /// Setapp's client is also an installer: launched in the background it runs
-    /// its check, and installs what it finds when its own "Install automatically"
-    /// is on. This is the user's permission for that, not Setapp's.
-    @AppStorage(SetappAutomation.backgroundUpdatesPreference) private var setappBackgroundUpdates = true
-
     private static let sourceURL = URL(string: "https://github.com/jizhi0v0/duo-updater")!
+    private static let newIssueURL = "https://github.com/jizhi0v0/duo-updater/issues/new"
 
     private var currentVersionLine: String {
         let info = Bundle.main.infoDictionary ?? [:]
@@ -44,18 +40,7 @@ struct UpdatesSettingsPage: View {
             ) {
                 versionRow
                 SettingsDivider()
-                Picker("Release channel", selection: $betaChannel) {
-                    Text("Stable").tag(false)
-                    Text("Beta").tag(true)
-                }.settingsRow()
-                Text("Beta receives early updates for testing. Switching to Stable waits for a newer stable release; it does not downgrade or cancel an update already prepared.")
-                    .font(.caption).foregroundStyle(.secondary).settingsRow()
-                Button("Report a problem on GitHub…") {
-                    var url = URLComponents(string: "https://github.com/jizhi0v0/duo-updater/issues/new")!
-                    url.queryItems = [URLQueryItem(name: "body", value:
-                        "DuoUpdater: \(currentVersionLine)\nChannel: \(betaChannel ? "Beta" : "Stable")\nmacOS: \(ProcessInfo.processInfo.operatingSystemVersionString)\n\nSteps to reproduce:\n\nExpected behavior:\n\nActual behavior:\n\nFor installation failures, attach the report from Settings → Diagnostics after reviewing it.")]
-                    if let url = url.url { NSWorkspace.shared.open(url) }
-                }.settingsRow()
+                channelRow
             }
 
             SettingsCard {
@@ -67,13 +52,15 @@ struct UpdatesSettingsPage: View {
                     .settingsAnchor(.silentSelfUpdate)
             }
 
-            SettingsCard(
-                footer: "When a check finds updates, starts Setapp if it is not running and automatic installation is enabled. Quits it after 30 seconds idle only when update activity can be safely verified and you have not used it; otherwise leaves it running. A window may appear behind other apps."
-            ) {
-                SettingsToggle(
-                    "Update Setapp apps in the background",
-                    detail: "Launch Setapp quietly so it installs its updates.",
-                    isOn: $setappBackgroundUpdates)
+            SettingsCard {
+                SettingsField(
+                    title: "Report a problem",
+                    detail: "Opens a new GitHub issue with your DuoUpdater version, release channel and macOS version filled in. Nothing is sent until you submit it."
+                ) {
+                    Button("Open GitHub…", action: openNewIssue)
+                        .settingsGlassButton()
+                }
+                .settingsAnchor(.reportProblem)
             }
         }
         .onChange(of: betaChannel) { _, _ in AppUpdater.shared.channelDidChange() }
@@ -81,6 +68,35 @@ struct UpdatesSettingsPage: View {
         .onChange(of: installsAutomatically) { _, on in
             AppUpdater.shared.installsUpdatesAutomatically = on
         }
+    }
+
+    /// Which feed Sparkle reads. Laid out like the pickers on General — label
+    /// left, popup right, and one line under it saying what the CURRENT choice
+    /// means — so the consequence of switching sits next to the switch.
+    private var channelRow: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            AdaptivePickerRow(title: Text("Release channel")) {
+                Picker("Release channel", selection: $betaChannel) {
+                    Text("Stable").tag(false)
+                    Text("Beta").tag(true)
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+            }
+            PickerOptionDetail(betaChannel
+                ? String(localized: "Receives builds that are still being tested, before they are released to everyone.")
+                : String(localized: "Receives finished releases only. Moving here from Beta waits for the next stable release; it does not downgrade or cancel an update already prepared."))
+        }
+        .settingsRow()
+        .settingsAnchor(.releaseChannel)
+    }
+
+    /// NSWorkspace rather than SwiftUI `openURL`, which errors -50 in this window.
+    private func openNewIssue() {
+        var url = URLComponents(string: Self.newIssueURL)!
+        url.queryItems = [URLQueryItem(name: "body", value:
+            "DuoUpdater: \(currentVersionLine)\nChannel: \(betaChannel ? "Beta" : "Stable")\nmacOS: \(ProcessInfo.processInfo.operatingSystemVersionString)\n\nSteps to reproduce:\n\nExpected behavior:\n\nActual behavior:\n\nFor installation failures, attach the report from Settings → Diagnostics after reviewing it.")]
+        if let url = url.url { NSWorkspace.shared.open(url) }
     }
 
     private var versionRow: some View {

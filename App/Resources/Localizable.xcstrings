@@ -237,28 +237,6 @@
       }
     }
   },
-  "Beta receives early updates for testing. Switching to Stable waits for a newer stable release; it does not downgrade or cancel an update already prepared.": {
-    "extractionState": "manual",
-    "localizations": {
-      "zh-Hans": {
-        "stringUnit": {
-          "state": "translated",
-          "value": "Beta 会提前接收测试更新。切回正式版后将等待更新的正式版本，不会降级或取消已准备好的更新。"
-        }
-      }
-    }
-  },
-  "Report a problem on GitHub…": {
-    "extractionState": "manual",
-    "localizations": {
-      "zh-Hans": {
-        "stringUnit": {
-          "state": "translated",
-          "value": "在 GitHub 上反馈问题…"
-        }
-      }
-    }
-  },
   "Activity is kept for 90 days, up to 10,000 records. Showing the latest 200.": {
     "extractionState": "manual",
     "localizations": {
@@ -321,17 +299,6 @@
         "stringUnit": {
           "state": "translated",
           "value": "自动更新未运行的应用"
-        }
-      }
-    }
-  },
-  "Requires scheduled checks and an unrestricted network. Apps and helpers must be closed. Each update requires a backup; installers and authorization prompts are skipped. App data is not backed up. Activity is recorded in Events.": {
-    "extractionState": "manual",
-    "localizations": {
-      "zh-Hans": {
-        "stringUnit": {
-          "state": "translated",
-          "value": "需要开启定时检查且网络不受限。应用及辅助进程必须已退出。每次更新必须先备份；需要安装器或授权的更新会被跳过。不会备份应用数据。活动会记录在事件中。"
         }
       }
     }
@@ -43790,71 +43757,6 @@
         }
       }
     },
-    "Launch Setapp quietly so it installs its updates.": {
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Setapp im Hintergrund starten, damit es seine Updates installiert."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Abre Setapp discretamente para que instale sus actualizaciones."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Lance Setapp discrètement pour qu’il installe ses mises à jour."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Avvia Setapp in modo discreto perché installi i suoi aggiornamenti."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Setappを静かに起動し、更新をインストールさせます。"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Abre o Setapp discretamente para que ele instale as atualizações."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Тихо запускает Setapp, чтобы он установил свои обновления."
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Setapp'i sessizce başlatır ve güncellemeleri yüklemesini sağlar."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "静默启动 Setapp，让它安装自己的更新。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "靜默啟動 Setapp，讓它安裝自己的更新。"
-          }
-        }
-      }
-    },
     "Launch at login": {
       "extractionState": "manual",
       "localizations": {
@@ -63197,71 +63099,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "設定…"
-          }
-        }
-      }
-    },
-    "When a check finds updates, starts Setapp if it is not running and automatic installation is enabled. Quits it after 30 seconds idle only when update activity can be safely verified and you have not used it; otherwise leaves it running. A window may appear behind other apps.": {
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Wenn eine Prüfung Updates findet, wird Setapp gestartet, sofern es nicht läuft und die automatische Installation aktiviert ist. Es wird nach 30 Sekunden ohne Aktivität nur beendet, wenn die Update-Aktivität sicher überprüft werden kann und du es nicht verwendet hast; andernfalls läuft es weiter. Ein Fenster kann hinter anderen Apps erscheinen."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cuando se detectan actualizaciones, inicia Setapp si no está abierto y la instalación automática está activada. Solo lo cierra tras 30 segundos de inactividad si puede verificar de forma segura la actividad de actualización y no lo has usado; de lo contrario, lo deja abierto. Puede aparecer una ventana detrás de otras apps."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Si des mises à jour sont trouvées, lance Setapp s’il est fermé et que l’installation automatique est activée. Le quitte après 30 secondes d’inactivité uniquement si l’activité de mise à jour peut être vérifiée de manière sûre et que vous ne l’avez pas utilisé ; sinon, le laisse ouvert. Une fenêtre peut apparaître derrière les autres apps."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Se vengono trovati aggiornamenti, avvia Setapp se non è in esecuzione e l’installazione automatica è attiva. Lo chiude dopo 30 secondi di inattività solo se l’attività di aggiornamento può essere verificata in modo sicuro e non lo hai usato; altrimenti lo lascia in esecuzione. Una finestra potrebbe apparire dietro le altre app."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "更新が見つかり、Setappが未起動で自動インストールが有効な場合に起動します。更新処理の状態を安全に確認でき、ユーザーが使用していない場合に限り、処理が止まってから30秒後に終了します。それ以外の場合は起動したままにします。ほかのアプリの背後にウインドウが表示されることがあります。"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Quando encontra atualizações, inicia o Setapp se ele não estiver aberto e a instalação automática estiver ativada. Só encerra após 30 segundos de inatividade se a atividade de atualização puder ser verificada com segurança e você não o tiver usado; caso contrário, continua aberto. Uma janela pode aparecer atrás de outros apps."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "При обнаружении обновлений запускает Setapp, если он ещё не запущен и автоматическая установка включена. Закрывает его после 30 секунд бездействия, только если состояние обновления можно безопасно проверить и вы им не пользовались; иначе оставляет работающим. Окно может появиться позади других приложений."
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Güncelleme bulunduğunda, Setapp çalışmıyorsa ve otomatik yükleme açıksa başlatır. Yalnızca güncelleme etkinliği güvenli biçimde doğrulanabiliyorsa ve uygulamayı kullanmadıysanız 30 saniye boşta kaldıktan sonra kapatır; aksi halde çalışır durumda bırakır. Diğer uygulamaların arkasında bir pencere görünebilir."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "检查发现更新时，若 Setapp 未运行且已开启自动安装，就在后台启动它。仅在能安全确认更新活动状态且你未使用它时，空闲 30 秒后退出；否则保留运行。窗口可能出现在其他应用后方。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "檢查發現更新時，若 Setapp 未執行且已開啟自動安裝，就在背景啟動它。僅在能安全確認更新活動狀態且你未使用它時，閒置 30 秒後結束；否則保持執行。視窗可能出現在其他 App 後方。"
           }
         }
       }
@@ -87005,6 +86842,721 @@
           "stringUnit": {
             "state": "translated",
             "value": "更新尚未准备就绪，请稍后再次点击“重新启动”。"
+          }
+        }
+      }
+    },
+    "Automatic updates": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自动更新"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自動更新"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自動アップデート"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Automatische Updates"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mises à jour automatiques"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Actualizaciones automáticas"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aggiornamenti automatici"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Atualizações automáticas"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Автоматические обновления"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Otomatik güncellemeler"
+          }
+        }
+      }
+    },
+  "Installs eligible updates after each scheduled check, backing up every app first. App data is not backed up.": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每次定时检查后安装符合条件的更新，并先备份每个应用。不会备份应用数据。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每次定時檢查後安裝符合條件的更新，並先備份每個應用程式。不會備份應用程式資料。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "定期チェックのたびに対象のアップデートをインストールし、事前に各アプリをバックアップします。アプリのデータはバックアップされません。"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Installiert passende Updates nach jeder geplanten Prüfung und sichert jede App vorher. App-Daten werden nicht gesichert."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Installe les mises à jour éligibles après chaque vérification planifiée, en sauvegardant d’abord chaque app. Les données des apps ne sont pas sauvegardées."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Instala las actualizaciones aptas tras cada comprobación programada y antes hace una copia de cada app. Los datos de las apps no se copian."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Installa gli aggiornamenti idonei dopo ogni controllo programmato, eseguendo prima il backup di ogni app. I dati delle app non vengono salvati."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Instala as atualizações elegíveis após cada verificação agendada, fazendo antes um backup de cada app. Os dados dos apps não são copiados."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Устанавливает подходящие обновления после каждой плановой проверки, предварительно создавая резервную копию каждого приложения. Данные приложений не копируются."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Her zamanlanmış denetimden sonra uygun güncellemeleri yükler ve önce her uygulamayı yedekler. Uygulama verileri yedeklenmez."
+          }
+        }
+      }
+    },
+  "Runs only after scheduled checks, on a network that is not restricted. An app is skipped while it or one of its helpers is running, and updates that need an installer or an authorization prompt are left for you. Each attempt, and why one was deferred, is listed in the Network window under Events.": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "仅在定时检查后、且网络不受限时运行。应用或其辅助进程正在运行时会跳过该应用；需要安装器或授权提示的更新留给你手动处理。每次尝试及推迟原因都会列在“网络”窗口的“事件”中。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "僅在定時檢查後、且網路不受限時執行。應用程式或其輔助程序正在執行時會略過；需要安裝程式或授權提示的更新留給你手動處理。每次嘗試及延後原因都會列在「網路」視窗的「事件」中。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "定期チェックの後、制限のないネットワークでのみ実行されます。アプリやそのヘルパーが実行中の場合はスキップされ、インストーラや認証の確認が必要なアップデートはあなたに任されます。各試行と延期の理由は「ネットワーク」ウインドウの「イベント」に表示されます。"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Läuft nur nach geplanten Prüfungen und in einem nicht eingeschränkten Netzwerk. Eine App wird übersprungen, solange sie oder eines ihrer Hilfsprogramme läuft; Updates, die ein Installationsprogramm oder eine Autorisierung brauchen, bleiben dir überlassen. Jeder Versuch und der Grund für einen Aufschub stehen im Fenster „Netzwerk“ unter „Ereignisse“."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ne s’exécute qu’après les vérifications planifiées, sur un réseau non restreint. Une app est ignorée tant qu’elle ou l’un de ses assistants est ouvert, et les mises à jour qui demandent un programme d’installation ou une autorisation vous sont laissées. Chaque tentative, et la raison d’un report, figure dans la fenêtre Réseau, sous Événements."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Solo se ejecuta tras las comprobaciones programadas y en una red sin restricciones. Una app se omite mientras ella o alguno de sus asistentes está abierto, y las actualizaciones que requieren un instalador o una autorización quedan en tus manos. Cada intento, y el motivo de un aplazamiento, aparece en la ventana Red, en Eventos."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Viene eseguito solo dopo i controlli programmati, su una rete senza restrizioni. Un’app viene saltata finché essa o uno dei suoi helper è in esecuzione, e gli aggiornamenti che richiedono un programma di installazione o un’autorizzazione restano a te. Ogni tentativo, e il motivo di un rinvio, è elencato nella finestra Rete, sotto Eventi."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Só é executado após verificações agendadas, em uma rede sem restrições. Um app é ignorado enquanto ele ou um de seus auxiliares está aberto, e atualizações que exigem um instalador ou uma autorização ficam com você. Cada tentativa, e o motivo de um adiamento, aparece na janela Rede, em Eventos."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Работает только после плановых проверок и в сети без ограничений. Приложение пропускается, пока запущено оно или один из его помощников, а обновления, требующие установщика или авторизации, остаются вам. Каждая попытка и причина отсрочки видны в окне «Сеть» на вкладке «События»."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yalnızca zamanlanmış denetimlerden sonra ve kısıtlanmamış bir ağda çalışır. Bir uygulama ya da yardımcılarından biri çalışırken atlanır; yükleyici veya yetkilendirme isteyen güncellemeler size bırakılır. Her deneme ve bir ertelemenin nedeni Ağ penceresinde Olaylar altında listelenir."
+          }
+        }
+      }
+    },
+  "Scheduled checks are off, so nothing is updated automatically. Choose how often to check for updates above.": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "定时检查已关闭，因此不会自动更新任何应用。请在上方选择检查更新的频率。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "定時檢查已關閉，因此不會自動更新任何應用程式。請在上方選擇檢查更新的頻率。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "定期チェックがオフのため、自動では何もアップデートされません。上でアップデートを確認する頻度を選んでください。"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Geplante Prüfungen sind aus, daher wird nichts automatisch aktualisiert. Wähle oben, wie oft nach Updates gesucht wird."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les vérifications planifiées sont désactivées : rien n’est mis à jour automatiquement. Choisissez ci-dessus la fréquence de vérification."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las comprobaciones programadas están desactivadas, así que nada se actualiza automáticamente. Elige arriba con qué frecuencia buscar actualizaciones."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "I controlli programmati sono disattivati, quindi nulla viene aggiornato automaticamente. Scegli sopra ogni quanto cercare aggiornamenti."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "As verificações agendadas estão desativadas, então nada é atualizado automaticamente. Escolha acima com que frequência procurar atualizações."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Плановые проверки выключены, поэтому ничего не обновляется автоматически. Выберите выше, как часто проверять обновления."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zamanlanmış denetimler kapalı, bu yüzden hiçbir şey otomatik güncellenmez. Güncellemelerin ne sıklıkla denetleneceğini yukarıdan seçin."
+          }
+        }
+      }
+    },
+  "Starts Setapp when a check finds updates for its apps, so it installs them. A Setapp window may appear behind other apps.": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "检查发现 Setapp 应用有更新时启动 Setapp，由它安装更新。Setapp 窗口可能会出现在其他应用后面。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "檢查發現 Setapp 應用程式有更新時啟動 Setapp，由它安裝更新。Setapp 視窗可能會出現在其他應用程式後面。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "チェックでSetappのアプリにアップデートが見つかるとSetappを起動し、インストールさせます。Setappのウインドウが他のアプリの背後に表示されることがあります。"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Startet Setapp, wenn eine Prüfung Updates für seine Apps findet, damit es sie installiert. Ein Setapp-Fenster kann hinter anderen Apps erscheinen."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ouvre Setapp quand une vérification trouve des mises à jour pour ses apps, afin qu’il les installe. Une fenêtre Setapp peut apparaître derrière d’autres apps."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abre Setapp cuando una comprobación encuentra actualizaciones de sus apps, para que las instale. Puede aparecer una ventana de Setapp detrás de otras apps."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Avvia Setapp quando un controllo trova aggiornamenti per le sue app, così le installa. Una finestra di Setapp può comparire dietro altre app."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abre o Setapp quando uma verificação encontra atualizações para os apps dele, para que ele as instale. Uma janela do Setapp pode aparecer atrás de outros apps."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Запускает Setapp, когда проверка находит обновления для его приложений, чтобы он их установил. Окно Setapp может появиться за другими приложениями."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bir denetim Setapp uygulamaları için güncelleme bulduğunda Setapp’i başlatır ve onları yüklemesini sağlar. Diğer uygulamaların arkasında bir Setapp penceresi görünebilir."
+          }
+        }
+      }
+    },
+  "Only when Setapp’s own automatic installation is on. DuoUpdater quits a Setapp it started after 30 seconds idle, and only when it can confirm the updates have finished and you have not used Setapp; otherwise Setapp keeps running.": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "仅在 Setapp 自身的自动安装开启时生效。由 DuoUpdater 启动的 Setapp 空闲 30 秒后会被退出，前提是能确认更新已完成且你没有使用过 Setapp；否则 Setapp 会继续运行。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "僅在 Setapp 本身的自動安裝開啟時生效。由 DuoUpdater 啟動的 Setapp 閒置 30 秒後會被結束，前提是能確認更新已完成且你沒有使用過 Setapp；否則 Setapp 會繼續執行。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Setapp自体の自動インストールがオンの場合のみです。DuoUpdaterが起動したSetappは、アップデートの完了を確認でき、あなたがSetappを使っていない場合に限り、30秒アイドル後に終了します。それ以外の場合、Setappは実行されたままです。"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nur wenn die automatische Installation in Setapp selbst aktiv ist. DuoUpdater beendet ein von ihm gestartetes Setapp nach 30 Sekunden Leerlauf – und nur, wenn es bestätigen kann, dass die Updates fertig sind und du Setapp nicht benutzt hast; sonst läuft Setapp weiter."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uniquement si l’installation automatique de Setapp lui-même est activée. DuoUpdater quitte un Setapp qu’il a ouvert après 30 secondes d’inactivité, et seulement s’il peut confirmer que les mises à jour sont terminées et que vous n’avez pas utilisé Setapp ; sinon Setapp reste ouvert."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Solo si la instalación automática del propio Setapp está activada. DuoUpdater cierra un Setapp que abrió tras 30 segundos de inactividad, y solo si puede confirmar que las actualizaciones han terminado y que no has usado Setapp; si no, Setapp sigue abierto."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Solo se l’installazione automatica di Setapp stesso è attiva. DuoUpdater chiude un Setapp che ha avviato dopo 30 secondi di inattività, e solo se può confermare che gli aggiornamenti sono terminati e che non hai usato Setapp; altrimenti Setapp resta aperto."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Só quando a instalação automática do próprio Setapp está ativada. O DuoUpdater encerra um Setapp que ele abriu após 30 segundos ocioso, e só quando consegue confirmar que as atualizações terminaram e que você não usou o Setapp; caso contrário, o Setapp continua aberto."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Только если в самом Setapp включена автоматическая установка. DuoUpdater закрывает запущенный им Setapp после 30 секунд простоя и только если может подтвердить, что обновления завершены и вы не пользовались Setapp; иначе Setapp продолжает работать."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yalnızca Setapp’in kendi otomatik yüklemesi açıkken. DuoUpdater, başlattığı Setapp’i 30 saniye boşta kaldıktan sonra ve yalnızca güncellemelerin bittiğini ve Setapp’i kullanmadığınızı doğrulayabildiğinde kapatır; aksi halde Setapp çalışmaya devam eder."
+          }
+        }
+      }
+    },
+  "Report a problem": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "反馈问题"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "回報問題"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "問題を報告"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Problem melden"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Signaler un problème"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Informar de un problema"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Segnala un problema"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Relatar um problema"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сообщить о проблеме"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sorun bildir"
+          }
+        }
+      }
+    },
+  "Open GitHub…": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开 GitHub…"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打開 GitHub…"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GitHubを開く…"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GitHub öffnen …"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ouvrir GitHub…"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abrir GitHub…"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apri GitHub…"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abrir GitHub…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Открыть GitHub…"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GitHub’ı Aç…"
+          }
+        }
+      }
+    },
+  "Opens a new GitHub issue with your DuoUpdater version, release channel and macOS version filled in. Nothing is sent until you submit it.": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新建一个 GitHub issue，并预先填好 DuoUpdater 版本、发布通道和 macOS 版本。在你提交之前不会发送任何内容。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新增一個 GitHub issue，並預先填好 DuoUpdater 版本、發佈通道和 macOS 版本。在你送出之前不會傳送任何內容。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "DuoUpdaterのバージョン、リリースチャンネル、macOSのバージョンを記入した新しいGitHub issueを開きます。送信するまで何も送られません。"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Öffnet ein neues GitHub-Issue mit deiner DuoUpdater-Version, dem Release-Kanal und der macOS-Version. Nichts wird gesendet, bevor du es absendest."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ouvre un nouveau ticket GitHub avec votre version de DuoUpdater, le canal de publication et la version de macOS déjà renseignés. Rien n’est envoyé avant que vous le soumettiez."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abre una nueva incidencia en GitHub con tu versión de DuoUpdater, el canal de publicación y la versión de macOS ya rellenados. No se envía nada hasta que la publiques."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apre una nuova issue su GitHub con la versione di DuoUpdater, il canale di rilascio e la versione di macOS già compilati. Non viene inviato nulla finché non la invii."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abre uma nova issue no GitHub com sua versão do DuoUpdater, o canal de lançamento e a versão do macOS preenchidos. Nada é enviado até você enviá-la."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Открывает новый issue на GitHub с уже указанными версией DuoUpdater, каналом выпусков и версией macOS. Ничего не отправляется, пока вы сами не отправите."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "DuoUpdater sürümünüz, yayın kanalınız ve macOS sürümünüz doldurulmuş yeni bir GitHub issue’su açar. Siz göndermeden hiçbir şey gönderilmez."
+          }
+        }
+      }
+    },
+  "Receives builds that are still being tested, before they are released to everyone.": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "接收仍在测试中的版本，早于向所有人发布。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "接收仍在測試中的版本，早於向所有人發佈。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "すべての人に公開される前の、テスト中のビルドを受け取ります。"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erhält Builds, die noch getestet werden, bevor sie für alle erscheinen."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reçoit des versions encore en test, avant leur publication pour tous."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recibe versiones que aún se están probando, antes de publicarse para todos."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Riceve build ancora in fase di test, prima che vengano rilasciate a tutti."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recebe builds que ainda estão em teste, antes de serem lançados para todos."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Получает сборки, которые ещё тестируются, до их выпуска для всех."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Herkese yayımlanmadan önce, hâlâ test edilen derlemeleri alır."
+          }
+        }
+      }
+    },
+  "Receives finished releases only. Moving here from Beta waits for the next stable release; it does not downgrade or cancel an update already prepared.": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "只接收正式发布的版本。从 Beta 切换过来后会等待下一个正式版本，不会降级，也不会取消已准备好的更新。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "只接收正式發佈的版本。從 Beta 切換過來後會等待下一個正式版本，不會降級，也不會取消已準備好的更新。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正式リリースのみを受け取ります。Betaから切り替えると次の安定版を待ちます。ダウングレードや、準備済みのアップデートの取り消しは行いません。"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erhält nur fertige Versionen. Ein Wechsel von Beta wartet auf die nächste stabile Version; es wird nichts heruntergestuft und kein bereits vorbereitetes Update abgebrochen."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reçoit uniquement les versions finales. Passer ici depuis Bêta attend la prochaine version stable ; cela ne rétrograde pas et n’annule pas une mise à jour déjà préparée."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recibe solo versiones finales. Al cambiar desde Beta se espera a la siguiente versión estable; no se vuelve a una versión anterior ni se cancela una actualización ya preparada."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Riceve solo versioni definitive. Passando qui da Beta si attende la prossima versione stabile; non esegue il downgrade né annulla un aggiornamento già preparato."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recebe apenas versões finais. Ao mudar do Beta, aguarda a próxima versão estável; não faz downgrade nem cancela uma atualização já preparada."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Получает только финальные выпуски. При переходе с Beta ожидается следующий стабильный выпуск; версия не понижается, а уже подготовленное обновление не отменяется."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yalnızca kesinleşmiş sürümleri alır. Beta’dan buraya geçmek bir sonraki kararlı sürümü bekler; sürüm düşürmez ve hazırlanmış bir güncellemeyi iptal etmez."
           }
         }
       }

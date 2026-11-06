@@ -52,10 +52,14 @@ enum SettingsSearch {
             Setting(anchor: .hideDockIcon, title: String(localized: "Hide the Dock icon"), card: nil),
             Setting(anchor: .appRuntimeTags, title: String(localized: "Show what each app is built with"), card: nil),
             Setting(anchor: .cliRuntimeTags, title: String(localized: "Show what each command-line tool is built with"), card: nil),
+            BuildReleaseChannel.isBeta
+                ? Setting(anchor: .automaticUpdates, title: String(localized: "Automatically update closed apps"), card: String(localized: "Automatic updates"))
+                : nil,
             Setting(anchor: .autoRelaunch, title: String(localized: "Relaunch updated apps automatically"), card: String(localized: "After an update")),
             Setting(anchor: .concurrency, title: String(localized: "Check up to \(prefs.maxConcurrency) apps at once"), card: nil),
             Setting(anchor: .appStoreUpdates, title: String(localized: "App Store updates"), card: routing),
             Setting(anchor: .selfUpdatingApps, title: String(localized: "Self-updating apps"), card: routing),
+            Setting(anchor: .setappBackgroundUpdates, title: String(localized: "Update Setapp apps in the background"), card: nil),
             Setting(anchor: .digestOnlyInstalls, title: String(localized: "Allow one-click updates for apps without a developer signature"), card: nil),
             Setting(anchor: .testFlightDetection, title: String(localized: "TestFlight betas"), card: nil),
 
@@ -75,7 +79,9 @@ enum SettingsSearch {
             Setting(anchor: .builtInFolders, title: String(localized: "Always scanned"), card: nil),
 
             Setting(anchor: .selfUpdateCheck, title: String(localized: "Check for Updates…"), card: nil),
+            Setting(anchor: .releaseChannel, title: String(localized: "Release channel"), card: nil),
             Setting(anchor: .silentSelfUpdate, title: String(localized: "Install DuoUpdater's own updates silently"), card: nil),
+            Setting(anchor: .reportProblem, title: String(localized: "Report a problem"), card: nil),
 
             Setting(anchor: .githubCLI, title: String(localized: "Use the GitHub CLI’s sign-in"), card: String(localized: "GitHub CLI integration")),
             Setting(anchor: .githubToken, title: String(localized: "GitHub token", comment: "A Settings search result: the GitHub page's personal access token field"), card: nil),
@@ -93,7 +99,7 @@ enum SettingsSearch {
             Setting(anchor: .lastChecked, title: String(localized: "Last checked"), card: nil),
             Setting(anchor: .recentFailures, title: String(localized: "Recent failures"), card: nil),
             Setting(anchor: .recipes, title: String(localized: "Detection recipes"), card: nil),
-        ]
+        ].compactMap { $0 }
     }
 
     /// Settings whose label, or whose card's header, contains the query. Nothing

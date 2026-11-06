@@ -11,12 +11,18 @@ struct GeneralSettingsPage: View {
     /// rate-limit caution — a developer with `gh` authenticated never sees it.
     @State private var hasGitHubToken: Bool?
 
+    /// Setapp's client is also an installer: launched in the background it runs
+    /// its check, and installs what it finds when its own "Install automatically"
+    /// is on. This is the user's permission for that, not Setapp's.
+    @AppStorage(SetappAutomation.backgroundUpdatesPreference) private var setappBackgroundUpdates = true
+
     /// Settings marked "new" when this page was opened. See `SettingsSpotlights`.
     @State private var spotlit: Set<String> = []
 
     var body: some View {
         SettingsPage(section: .general) {
             scheduleCard
+            if BuildReleaseChannel.isBeta { automaticUpdatesCard }
             afterUpdateCard
             concurrencyCard
             routingCard
@@ -98,14 +104,34 @@ struct GeneralSettingsPage: View {
         }
     }
 
+    /// Beta builds only (`BuildReleaseChannel.permitsAutomaticUpdates`), so the
+    /// card is too — a Stable build would show a switch that does nothing.
+    ///
+    /// Its own card rather than a row under "After an update": this decides
+    /// WHETHER an update is installed, that card what happens once one has been.
+    /// It sits under the schedule because it runs on it, and the footer says so
+    /// when the schedule is Manual — the one setting that silently turns it off.
+    private var automaticUpdatesCard: some View {
+        SettingsCard(header: "Automatic updates") {
+            SettingsToggle(
+                "Automatically update closed apps",
+                detail: "Installs eligible updates after each scheduled check, backing up every app first. App data is not backed up.",
+                info: "Runs only after scheduled checks, on a network that is not restricted. An app is skipped while it or one of its helpers is running, and updates that need an installer or an authorization prompt are left for you. Each attempt, and why one was deferred, is listed in the Network window under Events.",
+                channel: .beta,
+                isOn: $prefs.automaticUpdates)
+                .settingsAnchor(.automaticUpdates)
+        } footer: {
+            if prefs.automaticUpdates && prefs.checkFrequency.interval == nil {
+                Label(
+                    "Scheduled checks are off, so nothing is updated automatically. Choose how often to check for updates above.",
+                    systemImage: "exclamationmark.triangle")
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
     private var afterUpdateCard: some View {
         SettingsCard(header: "After an update") {
-            if BuildReleaseChannel.isBeta {
-                SettingsToggle(
-                    "Automatically update closed apps",
-                    detail: "Requires scheduled checks and an unrestricted network. Apps and helpers must be closed. Each update requires a backup; installers and authorization prompts are skipped. App data is not backed up. Activity is recorded in Events.",
-                    isOn: $prefs.automaticUpdates)
-            }
             SettingsToggle(
                 "Relaunch updated apps automatically",
                 detail: "Apps are asked to quit normally, so unsaved-work prompts still appear. One that won’t quit keeps its Relaunch button.",
@@ -162,6 +188,18 @@ struct GeneralSettingsPage: View {
                 }
                 .settingsRow()
                 .settingsAnchor(.selfUpdatingApps)
+            }
+
+            // Beside "Self-updating apps" because it is the same question for one
+            // more installer: Setapp's client installs its own apps. It used to sit
+            // under Updates, which is about DuoUpdater's own version.
+            SettingsCard {
+                SettingsToggle(
+                    "Update Setapp apps in the background",
+                    detail: "Starts Setapp when a check finds updates for its apps, so it installs them. A Setapp window may appear behind other apps.",
+                    info: "Only when Setapp’s own automatic installation is on. DuoUpdater quits a Setapp it started after 30 seconds idle, and only when it can confirm the updates have finished and you have not used Setapp; otherwise Setapp keeps running.",
+                    isOn: $setappBackgroundUpdates)
+                    .settingsAnchor(.setappBackgroundUpdates)
             }
 
             SettingsCard {
@@ -245,59 +283,5 @@ struct GeneralSettingsPage: View {
         case .keepFresh:
             return String(localized: "Also asks TestFlight on its own — at most once an hour, or when a beta has moved on — starting it in the background for a few seconds (about 0.7 MB). Needs Full Disk Access.")
         }
-    }
-}
-
-/// One caption line under a picker row: what the current choice means.
-private struct PickerOptionDetail: View {
-    let text: String
-    init(_ text: String) { self.text = text }
-
-    var body: some View {
-        Text(text)
-            .font(.caption)
-            .foregroundStyle(.secondary)
-            .fixedSize(horizontal: false, vertical: true)
-            .frame(maxWidth: .infinity, alignment: .leading)
-    }
-}
-
-// MARK: - Adaptive picker row
-
-/// A settings picker that follows the standard macOS label-left/control-right
-/// row whenever the label and the popup both fit at their natural widths, and
-/// stacks the label above the popup when they do not.
-///
-/// Both halves of the one-line candidate are `fixedSize`, so `ViewThatFits`
-/// only chooses it when the row can show the whole label AND the whole selected
-/// option. That distinction is the point: these options are sentences ("Always
-/// download & replace, then restart"), and a popup handed a squeezed slot does
-/// not stack or shrink — it truncates the current selection. At the 660pt window
-/// minimum that happened in every language we ship, English included
-/// ("Full download (no extra permissi…"), which left the reader unable to see
-/// which route was active without opening the menu.
-///
-/// Ideal widths, so no measurement pass: `Spacer(minLength: 0)` contributes 0 to
-/// the candidate's ideal size, leaving it as label + 12 + popup.
-private struct AdaptivePickerRow<Title: View, Content: View>: View {
-    let title: Title
-    @ViewBuilder var picker: Content
-
-    var body: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: 12) {
-                title
-                    .font(.callout)
-                    .fixedSize(horizontal: true, vertical: false)
-                Spacer(minLength: 0)
-                picker.fixedSize()
-            }
-
-            VStack(alignment: .leading, spacing: 4) {
-                title.font(.callout)
-                picker
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }

@@ -48,6 +48,10 @@
             <sparkle:shortVersionString>0.5.24-beta.1</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[**Try automatic updates for closed apps in this Beta.** Enable the option in Settings to install eligible updates after scheduled checks, with a backup before each update. Running apps, installers, and updates requiring authorization are skipped. App data is not backed up.
+
+**Help improve the Beta by reporting problems.** Open a GitHub issue from Settings → Updates and include the relevant Events entries.
+]]></description>
             <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.5.24-beta.1/DuoUpdater-0.5.24-beta.1-macos.zip" length="15999903" type="application/octet-stream" sparkle:edSignature="nhJ9hqUuaTF+JIn6M50tt+syf+B85tpj/2koibYAS4mmjrh3WVvOJMU6eMTp/vfMVlhpT1xlU2SBnjiv3M4mBw=="/>
         </item>
     <item>

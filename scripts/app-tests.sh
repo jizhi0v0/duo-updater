@@ -73,9 +73,14 @@ rm -rf "$RESULT_BUNDLE"
 # for 19–49 minutes. Not a performance bound: the slowest passing case in 129
 # local runs took 32 s, and CI's whole test-app step takes about 5 minutes.
 set +e
+PACKAGE_ARGS=(COMPILER_INDEX_STORE_ENABLE=NO)
+if [ -n "${XCODE_CLONED_SOURCE_PACKAGES:-}" ]; then
+  PACKAGE_ARGS+=(-clonedSourcePackagesDirPath "$XCODE_CLONED_SOURCE_PACKAGES")
+fi
 xcodebuild -project App/DuoUpdater.xcodeproj \
            -scheme DuoUpdaterAppTests -configuration Debug \
            -derivedDataPath "$DD" \
+           "${PACKAGE_ARGS[@]}" \
            -resultBundlePath "$RESULT_BUNDLE" \
            -test-timeouts-enabled YES \
            -default-test-execution-time-allowance 300 \

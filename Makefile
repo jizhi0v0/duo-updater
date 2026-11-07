@@ -72,6 +72,8 @@ test-scripts: check-python
 	$(PYTHON) scripts/test_recipe_autofix_check.py
 	$(PYTHON) scripts/test_runner_hook.py
 	$(PYTHON) scripts/test_ci_build_cache.py
+	$(PYTHON) scripts/test_ci_xcode_cache.py
+	$(PYTHON) scripts/test_unsigned_release_build.py
 	$(PYTHON) scripts/test_check_prose_claims.py
 	$(PYTHON) scripts/test_check_offpool.py
 	$(PYTHON) scripts/test_check_recipe_snapshots.py

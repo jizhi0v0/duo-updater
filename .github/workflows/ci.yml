@@ -312,10 +312,12 @@ jobs:
           path: |
             ${{ steps.xcode-key.outputs.dd }}/Build
             ${{ steps.xcode-key.outputs.dd }}/ModuleCache.noindex
+            ${{ steps.xcode-key.outputs.dd }}/SDKExplicitPrecompiledModules
             ${{ steps.xcode-key.outputs.dd }}/SourcePackages
             ${{ steps.xcode-key.outputs.dd }}/ci-mtimes.json
             ${{ steps.xcode-key.outputs.loc }}/Build
             ${{ steps.xcode-key.outputs.loc }}/SourcePackages
+            ${{ steps.xcode-key.outputs.loc }}/SDKExplicitPrecompiledModules
           key: ${{ steps.xcode-key.outputs.key }}-${{ github.sha }}
           restore-keys: ${{ steps.xcode-key.outputs.key }}-
 
@@ -347,10 +349,12 @@ jobs:
           path: |
             ${{ steps.xcode-key.outputs.dd }}/Build
             ${{ steps.xcode-key.outputs.dd }}/ModuleCache.noindex
+            ${{ steps.xcode-key.outputs.dd }}/SDKExplicitPrecompiledModules
             ${{ steps.xcode-key.outputs.dd }}/SourcePackages
             ${{ steps.xcode-key.outputs.dd }}/ci-mtimes.json
             ${{ steps.xcode-key.outputs.loc }}/Build
             ${{ steps.xcode-key.outputs.loc }}/SourcePackages
+            ${{ steps.xcode-key.outputs.loc }}/SDKExplicitPrecompiledModules
           key: ${{ steps.xcode-key.outputs.key }}-${{ github.sha }}
 
       # scripts/app-tests.sh prints only an excerpt and leaves the full xcodebuild

@@ -7,14 +7,14 @@
       "sweepsSinceComment" : 0
     },
     "install:github:AppFlowy-IO\/AppFlowy:stable" : {
-      "consecutiveActionable" : 11,
+      "consecutiveActionable" : 12,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 1812,
       "lastCommentedAt" : "2026-11-03T22:35:56Z",
       "lastSignature" : "identityChanged: Sparkle key none → Bs++",
       "previousSignature" : "identityChanged: Sparkle key none → Bs++",
-      "sweepsSinceComment" : 9
+      "sweepsSinceComment" : 10
     },
     "install:github:AprilNEA\/OpenLogi:stable" : {
       "closedAt" : "2026-10-19T11:23:39Z",
@@ -1049,14 +1049,14 @@
       "sweepsSinceComment" : 0
     },
     "install:github:schuyler\/macdown3000:stable" : {
-      "consecutiveActionable" : 12,
+      "consecutiveActionable" : 13,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 1799,
       "lastCommentedAt" : "2026-11-03T13:08:24Z",
       "lastSignature" : "identityChanged: Sparkle key none → dYc+",
       "previousSignature" : "identityChanged: Sparkle key none → dYc+",
-      "sweepsSinceComment" : 10
+      "sweepsSinceComment" : 11
     },
     "install:github:sheprd-labs\/sheprd:stable" : {
       "consecutiveActionable" : 0,
@@ -2384,5 +2384,5 @@
     }
   },
   "schemaVersion" : 1,
-  "updatedAt" : "2026-11-06T22:27:22Z"
+  "updatedAt" : "2026-11-07T03:15:36Z"
 }

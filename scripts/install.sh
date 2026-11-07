@@ -64,6 +64,15 @@ set +e
 # stand-in). The release build (notarize.sh) does not set it, and
 # check-no-dev-hooks.sh fails a release that has them.
 #
+# DUO_SPARKLE_ALLOWS_AUTOMATIC_UPDATES=NO: Sparkle still checks the feed and
+# offers a newer release, but never downloads and installs one by itself. With
+# it on, a local build older than the newest beta was replaced by that beta at
+# the next idle moment (2026-11-07, twice in one evening), taking the change
+# under test with it. A higher build number would have stopped that too, and
+# also hidden every real release until it was overtaken. Your saved "install
+# silently" choice is untouched: Sparkle ignores it while this is NO.
+# check-no-dev-hooks.sh refuses a release built this way.
+#
 # SWIFT_COMPILATION_MODE=incremental: the app's own targets compile per file
 # instead of as one whole module, still at -O. Measured 2026-10-16 on a 14-core
 # Mac, editing one file under App/Sources: 49 s -> 12 s. It does NOT reach the
@@ -78,6 +87,7 @@ xcodebuild -project "$APP_DIR/DuoUpdater.xcodeproj" \
            -derivedDataPath "$DD" \
            'SWIFT_ACTIVE_COMPILATION_CONDITIONS=$(inherited) DUO_DEV_HOOKS' \
            SWIFT_COMPILATION_MODE=incremental \
+           DUO_SPARKLE_ALLOWS_AUTOMATIC_UPDATES=NO \
            build > "$LOG" 2>&1
 STATUS=$?
 set -e

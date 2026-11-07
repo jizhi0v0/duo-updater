@@ -12,6 +12,11 @@
 # read those variables, so each marker below must appear in no Mach-O file of
 # what is shipped. Run by `scripts/notarize.sh`
 # on the build it notarizes and by `scripts/publish-release.sh` on a CI artifact.
+#
+# Given an app, it also reads Info.plist's SUAllowsAutomaticUpdates, which
+# `scripts/install.sh` sets to NO so a local build never installs a release over
+# itself. A release that shipped NO would quietly stop installing its own
+# updates for everyone, so anything but YES fails here.
 set -euo pipefail
 
 target="${1:?usage: $0 <DuoUpdater.app | binary>}"
@@ -34,6 +39,16 @@ while IFS= read -r -d '' file; do
     fi
   done
 done < <(find "$target" -type f -print0)
+
+plist="$target/Contents/Info.plist"
+if [ -f "$plist" ]; then
+  allows="$(/usr/libexec/PlistBuddy -c "Print :SUAllowsAutomaticUpdates" "$plist" 2>/dev/null || echo missing)"
+  case "$allows" in
+    YES|true) ;;
+    *) echo "✗ $plist has SUAllowsAutomaticUpdates = $allows, not YES — built by scripts/install.sh?" >&2
+       found=1 ;;
+  esac
+fi
 
 [ "$checked" -gt 0 ] || { echo "✗ no Mach-O file under $target — checked nothing" >&2; exit 1; }
 [ "$found" -eq 0 ] || exit 1

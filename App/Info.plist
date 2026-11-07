@@ -26,6 +26,8 @@
 	<string>$(MACOSX_DEPLOYMENT_TARGET)</string>
 	<key>NSAppleEventsUsageDescription</key>
 	<string>DuoUpdater quits and relaunches an app after updating it, so the new version takes effect.</string>
+	<key>SUAllowsAutomaticUpdates</key>
+	<string>$(DUO_SPARKLE_ALLOWS_AUTOMATIC_UPDATES)</string>
 	<key>SUEnableAutomaticChecks</key>
 	<true/>
 	<key>SUFeedURL</key>

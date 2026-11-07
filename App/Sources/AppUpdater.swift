@@ -194,6 +194,13 @@ final class AppUpdater {
         set { controller.updater.automaticallyDownloadsUpdates = newValue }
     }
 
+    /// False only in this Mac's own build (`scripts/install.sh`): Sparkle still
+    /// checks and offers updates there, but never installs one by itself, and
+    /// ignores ``installsUpdatesAutomatically`` in both directions.
+    var allowsAutomaticUpdates: Bool {
+        controller.updater.allowsAutomaticUpdates
+    }
+
     func channelDidChange() {
         // Sparkle owns any in-flight update. The new selection applies to the
         // next check; do not promise to retract an already staged installation.

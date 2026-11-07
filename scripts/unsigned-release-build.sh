@@ -36,6 +36,7 @@ for scheme in DuoUpdater duo-cli; do
         -derivedDataPath "$DD" \
         "${PACKAGE_ARGS[@]}" \
         -onlyUsePackageVersionsFromResolvedFile \
+        ARCHS=arm64 \
         CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY= \
         build
 done
@@ -44,6 +45,13 @@ for product in "$DD/Build/Products/Release/DuoUpdater.app/Contents/MacOS/DuoUpda
                "$DD/Build/Products/Release/duo-cli"; do
     if [ ! -x "$product" ]; then
         echo "::error::Release build produced no executable at $product" >&2
+        exit 1
+    fi
+    # Project-level ARCHS does not constrain Swift package targets for a generic
+    # macOS destination. The command-line setting above does; these are the two
+    # shipping arm64-only products, not universal dependencies for Intel hosts.
+    if [ "$(lipo -archs "$product")" != arm64 ]; then
+        echo "::error::Release product is not arm64-only: $product" >&2
         exit 1
     fi
 done

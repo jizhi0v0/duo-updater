@@ -36,6 +36,7 @@ if [ "${OMIT_PRODUCTS:-0}" != 1 ]; then
   touch "$UNSIGNED_RELEASE_DD/Build/Products/Release/duo-cli"
   chmod +x "$UNSIGNED_RELEASE_DD/Build/Products/Release/DuoUpdater.app/Contents/MacOS/DuoUpdater" "$UNSIGNED_RELEASE_DD/Build/Products/Release/duo-cli"
 fi''')
+        self.stub("lipo", 'printf "%s\\n" "${FAKE_ARCHS:-arm64}"')
 
     def stub(self, name, body):
         p = self.bin / name
@@ -64,6 +65,7 @@ fi''')
             self.assertIn("-onlyUsePackageVersionsFromResolvedFile", call)
             self.assertIn("-clonedSourcePackagesDirPath", call)
             self.assertIn("CODE_SIGNING_ALLOWED=NO", call)
+            self.assertIn("ARCHS=arm64", call)
             self.assertTrue(call.endswith(" build"))
         pins = project / "project.xcworkspace/xcshareddata/swiftpm/Package.resolved"
         self.assertEqual(pins.read_text(), "committed pins")
@@ -82,6 +84,13 @@ fi''')
         run = self.run_build(OMIT_PRODUCTS="1")
         self.assertNotEqual(run.returncode, 0)
         self.assertIn("no executable", run.stderr)
+
+    def test_intel_and_universal_products_are_rejected(self):
+        for architectures in ("x86_64", "x86_64 arm64"):
+            with self.subTest(architectures=architectures):
+                run = self.run_build(FAKE_ARCHS=architectures)
+                self.assertNotEqual(run.returncode, 0)
+                self.assertIn("not arm64-only", run.stderr)
 
 
 if __name__ == "__main__":

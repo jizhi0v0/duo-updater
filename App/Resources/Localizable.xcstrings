@@ -39692,7 +39692,72 @@
         }
       }
     },
-    "Install DuoUpdater's own updates silently": {
+    "This is a local build: new versions show a prompt instead of installing on their own, so a release never replaces the build you are testing.": {
+    "extractionState": "manual",
+    "localizations": {
+      "de": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "Dies ist ein lokaler Build: Neue Versionen werden angeboten statt von selbst installiert, damit kein Release den Build ersetzt, den du gerade testest."
+        }
+      },
+      "es": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "Esta es una compilación local: las versiones nuevas se ofrecen en lugar de instalarse solas, para que ninguna versión publicada sustituya la compilación que estás probando."
+        }
+      },
+      "fr": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "Ceci est une version compilée localement : les nouvelles versions sont proposées au lieu de s’installer d’elles-mêmes, pour qu’aucune version publiée ne remplace celle que vous testez."
+        }
+      },
+      "it": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "Questa è una build locale: le nuove versioni vengono proposte invece di installarsi da sole, così nessuna release sostituisce la build che stai provando."
+        }
+      },
+      "ja": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "これはローカルビルドです。新しいバージョンは自動ではインストールされず確認が表示されるため、テスト中のビルドがリリース版に置き換わることはありません。"
+        }
+      },
+      "pt-BR": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "Esta é uma compilação local: novas versões são oferecidas em vez de se instalarem sozinhas, para que nenhuma versão publicada substitua a compilação que você está testando."
+        }
+      },
+      "ru": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "Это локальная сборка: новые версии предлагаются, а не устанавливаются сами, поэтому релиз не заменит сборку, которую вы тестируете."
+        }
+      },
+      "tr": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "Bu yerel bir derleme: yeni sürümler kendiliğinden yüklenmek yerine onay ister, böylece hiçbir sürüm test ettiğiniz derlemenin yerini almaz."
+        }
+      },
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "这是本地构建：新版本会弹出提示而不会自动安装，因此发布版不会替换你正在测试的构建。"
+        }
+      },
+      "zh-Hant": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "這是本機建置：新版本會跳出提示而不會自動安裝，因此發行版不會取代你正在測試的建置。"
+        }
+      }
+    }
+  },
+  "Install DuoUpdater's own updates silently": {
       "extractionState": "manual",
       "localizations": {
         "de": {

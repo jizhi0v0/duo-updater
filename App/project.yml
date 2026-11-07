@@ -244,6 +244,12 @@ targets:
         CURRENT_PROJECT_VERSION: "144"
         GENERATE_INFOPLIST_FILE: NO
         INFOPLIST_FILE: Info.plist
+        # Info.plist's SUAllowsAutomaticUpdates. YES for every build made from
+        # this file; only scripts/install.sh passes NO, so this Mac's own build
+        # still finds and offers new releases but never installs one over itself
+        # silently. check-no-dev-hooks.sh refuses a release that says anything
+        # but YES.
+        DUO_SPARKLE_ALLOWS_AUTOMATIC_UPDATES: "YES"
         # Menu-bar-only app: no Dock icon, no main window.
         SWIFT_VERSION: "6.0"
         # Sign with a STABLE identity, not ad-hoc ("-"). macOS keys TCC grants

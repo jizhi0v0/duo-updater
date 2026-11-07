@@ -7,8 +7,10 @@ from pathlib import Path
 import subprocess
 import tempfile
 import unittest
+from unittest import mock
 
 import ci_xcode_cache as cache
+import check_localizable_keys as localize
 
 
 class Compatibility(unittest.TestCase):
@@ -80,6 +82,24 @@ class Compatibility(unittest.TestCase):
         (self.root / "README.md").write_text("documentation")
         self.git("add", "README.md")
         self.assertEqual(self.current(), self.key)
+
+    def test_localization_keeps_its_own_sparkle_artifacts_with_shared_modules(self):
+        project = self.root / "DuoUpdater.xcodeproj"
+        project.mkdir()
+        loc = self.root / "localization-dd"
+        env = {"XCODE_CLONED_SOURCE_PACKAGES": "/other-build/SourcePackages",
+               "XCODE_MODULE_CACHE_PATH": "/shared/ModuleCache.noindex"}
+        with mock.patch.object(localize, "PROJECT", project), \
+             mock.patch.dict(os.environ, env), \
+             mock.patch.object(localize.subprocess, "run", return_value=
+                               subprocess.CompletedProcess([], 0, "", "")) as run:
+            localize.build(loc)
+        args = run.call_args.args[0]
+        self.assertNotIn("-clonedSourcePackagesDirPath", args)
+        self.assertIn(str(loc), args)
+        self.assertIn("CLANG_MODULE_CACHE_PATH=/shared/ModuleCache.noindex", args)
+        self.assertIn("SWIFT_EMIT_LOC_STRINGS=YES", args)
+        self.assertEqual(args[-1], "build")
 
 
 if __name__ == "__main__":

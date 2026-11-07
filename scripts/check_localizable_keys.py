@@ -29,7 +29,7 @@ rebuild on every switch). The first run is a full build; later runs are
 incremental.
 
 Usage:  python3 scripts/check_localizable_keys.py [--derived-data DIR]
-CI can supply LOCALIZABLE_DD and XCODE_CLONED_SOURCE_PACKAGES; local defaults
+CI can supply LOCALIZABLE_DD and XCODE_MODULE_CACHE_PATH; local defaults
 remain separate from the install build.
 Exit:   0 when both sets agree, 1 otherwise.
 """
@@ -86,10 +86,12 @@ def build(derived_data: pathlib.Path) -> None:
             f"✗ {PROJECT} is missing — run `xcodegen generate` in App/ first "
             "(scripts/install.sh does it for you)."
         )
-    package_args = (["-clonedSourcePackagesDirPath", os.environ["XCODE_CLONED_SOURCE_PACKAGES"]]
-                    if os.environ.get("XCODE_CLONED_SOURCE_PACKAGES") else [])
+    # Sparkle's embedding script finds BinaryDelta in this build's own
+    # DerivedData/SourcePackages/artifacts. Keep that layout even when the test
+    # and shipping builds share a different package checkout directory.
+    cache_args = []
     if os.environ.get("XCODE_MODULE_CACHE_PATH"):
-        package_args.append("CLANG_MODULE_CACHE_PATH=" + os.environ["XCODE_MODULE_CACHE_PATH"])
+        cache_args.append("CLANG_MODULE_CACHE_PATH=" + os.environ["XCODE_MODULE_CACHE_PATH"])
     result = subprocess.run(
         [
             "xcodebuild",
@@ -97,7 +99,7 @@ def build(derived_data: pathlib.Path) -> None:
             "-scheme", "DuoUpdater",
             "-configuration", CONFIGURATION,
             "-derivedDataPath", str(derived_data),
-            *package_args,
+            *cache_args,
             "COMPILER_INDEX_STORE_ENABLE=NO",
             "SWIFT_EMIT_LOC_STRINGS=YES",
             "CODE_SIGNING_ALLOWED=NO",

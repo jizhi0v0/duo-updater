@@ -277,7 +277,8 @@ jobs:
 
       # Tests and shipping builds share dependency downloads and DerivedData,
       # with distinct Debug/Release products. Localization's emit-strings build
-      # stays separate so its settings and .stringsdata cannot mix with tests.
+      # stays separate so its settings and .stringsdata cannot mix with tests;
+      # its Sparkle embed also requires artifacts under its own DerivedData.
       - name: Name Xcode's build cache
         id: xcode-key
         run: |
@@ -314,6 +315,7 @@ jobs:
             ${{ steps.xcode-key.outputs.dd }}/SourcePackages
             ${{ steps.xcode-key.outputs.dd }}/ci-mtimes.json
             ${{ steps.xcode-key.outputs.loc }}/Build
+            ${{ steps.xcode-key.outputs.loc }}/SourcePackages
           key: ${{ steps.xcode-key.outputs.key }}-${{ github.sha }}
           restore-keys: ${{ steps.xcode-key.outputs.key }}-
 
@@ -348,6 +350,7 @@ jobs:
             ${{ steps.xcode-key.outputs.dd }}/SourcePackages
             ${{ steps.xcode-key.outputs.dd }}/ci-mtimes.json
             ${{ steps.xcode-key.outputs.loc }}/Build
+            ${{ steps.xcode-key.outputs.loc }}/SourcePackages
           key: ${{ steps.xcode-key.outputs.key }}-${{ github.sha }}
 
       # scripts/app-tests.sh prints only an excerpt and leaves the full xcodebuild

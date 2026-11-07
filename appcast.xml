@@ -20,6 +20,25 @@
           private, and are not carried over.
         -->
         <item>
+            <title>0.5.24-beta.3</title>
+            <pubDate>Sat, 07 Nov 2026 07:40:33 +0800</pubDate>
+            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.5.24-beta.3</link>
+            <sparkle:channel>beta</sparkle:channel>
+            <sparkle:version>144</sparkle:version>
+            <sparkle:shortVersionString>0.5.24-beta.3</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[**Choose how Homebrew apps check other sources.** Set a default in Settings or choose Homebrew Only for an individual app. Updates signed by a different developer are skipped when that difference can be detected.
+
+**Beta and Setapp settings are easier to read.** Their controls now follow the layout used throughout Settings.
+]]></description>
+            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.5.24-beta.3/DuoUpdater-0.5.24-beta.3-macos.zip" length="16133700" type="application/octet-stream" sparkle:edSignature="RXYUMFitOn6vdECSyomWfZJ+iaWSwF0CXlPkWNGqaHIv0RE9Guz0EsVTN3FoW8Ca3jaXl7JHJBPfAfFYxkH/CQ=="/>
+            <sparkle:deltas>
+                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.5.24-beta.3/DuoUpdater144-143.delta" sparkle:deltaFrom="143" length="1357214" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="468528" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="3pn9O43ZhOorl0jo7jB11ADm0t/JSLW0S32oPQiXJPYnOmXtAH5NbuPW/8459rrGlfQLoVBsuieZtKCdQoDrBg=="/>
+                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.5.24-beta.3/DuoUpdater144-142.delta" sparkle:deltaFrom="142" length="1606906" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="468528" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="zy636ZqS8/rCMRwBiP2zpd5J5ZaSYjiwbtdYf0NYN831b45slTLGLSeS4opOYclQkeikVNmnpRs8BleBnMgmBA=="/>
+            </sparkle:deltas>
+        </item>
+        <item>
             <title>0.5.24-beta.2</title>
             <pubDate>Fri, 06 Nov 2026 18:37:21 +0800</pubDate>
             <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.5.24-beta.2</link>
@@ -28,12 +47,6 @@
             <sparkle:shortVersionString>0.5.24-beta.2</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <description sparkle:format="markdown"><![CDATA[**Homebrew apps check their original source first.** If Homebrew reports no update, you can opt in to checking other sources from the app’s menu.
-
-**Homebrew updates are easier to manage.** Official casks installed in subfolders no longer appear twice, and Upgrade All hides when all available updates are running or queued.
-
-**Automatic updates are less likely to be deferred incorrectly.** In Events, you can see why an update was deferred and preview a report with identifying details removed before saving it.
-]]></description>
             <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.5.24-beta.2/DuoUpdater-0.5.24-beta.2-macos.zip" length="16083795" type="application/octet-stream" sparkle:edSignature="eCiIQQrcEE1MzbwFq/lLtRbr/vw1q0RxCxj1RNi7QHHWIdKS0vtwDBY0DtfWF3QND23Y9sNrn0pQwfrVWnJvBg=="/>
             <sparkle:deltas>
                 <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.5.24-beta.2/DuoUpdater143-142.delta" sparkle:deltaFrom="142" length="1423150" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="468528" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="x/WSHHpBB/F5NT4mFm2rEg+U8bydicBkoaygUC3HXQ/gT+6TblfkGknyyiP/KNtXsuH0LFWHgEuNUz8BMaPyCg=="/>
@@ -48,10 +61,6 @@
             <sparkle:shortVersionString>0.5.24-beta.1</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <description sparkle:format="markdown"><![CDATA[**Try automatic updates for closed apps in this Beta.** Enable the option in Settings to install eligible updates after scheduled checks, with a backup before each update. Running apps, installers, and updates requiring authorization are skipped. App data is not backed up.
-
-**Help improve the Beta by reporting problems.** Open a GitHub issue from Settings → Updates and include the relevant Events entries.
-]]></description>
             <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.5.24-beta.1/DuoUpdater-0.5.24-beta.1-macos.zip" length="15999903" type="application/octet-stream" sparkle:edSignature="nhJ9hqUuaTF+JIn6M50tt+syf+B85tpj/2koibYAS4mmjrh3WVvOJMU6eMTp/vfMVlhpT1xlU2SBnjiv3M4mBw=="/>
         </item>
     <item>

@@ -83,6 +83,7 @@ struct SettingsView: View {
     private func page(for section: SettingsSection) -> some View {
         switch section {
         case .general:     GeneralSettingsPage(prefs: prefs, model: model)
+        case .automaticUpdates: AutomaticUpdatesSettingsPage(prefs: prefs, model: model)
         case .notifications: NotificationsSettingsPage(prefs: prefs)
         case .backups:     BackupsSettingsPage(prefs: prefs, model: model)
         case .storage:     StorageSettingsPage(model: model)
@@ -163,7 +164,7 @@ private struct SettingsSidebar: View {
 
     private var groups: [(group: SettingsSection.Group, sections: [SettingsSection])] {
         SettingsSection.Group.allCases.compactMap { group in
-            let matches = SettingsSection.allCases.filter { $0.group == group && $0.matches(query) }
+            let matches = SettingsSection.allCases.filter { $0.group == group && $0.isAvailable && $0.matches(query) }
             return matches.isEmpty ? nil : (group, matches)
         }
     }

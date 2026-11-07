@@ -76,8 +76,9 @@ enum SettingsAnchor: Hashable, Sendable {
     var section: SettingsSection {
         switch self {
         case .testFlightDetection, .launchAtLogin, .checkFrequency, .hideDockIcon,
-             .appRuntimeTags, .cliRuntimeTags, .automaticUpdates, .autoRelaunch, .concurrency,
+             .appRuntimeTags, .cliRuntimeTags, .autoRelaunch, .concurrency,
              .appStoreUpdates, .selfUpdatingApps, .setappBackgroundUpdates, .brewFallback, .digestOnlyInstalls: .general
+        case .automaticUpdates: .automaticUpdates
         case .notifyApps, .notifyCLITools, .notifyHomebrew: .notifications
         case .backups, .keepBackups, .pruneOrphanBackups, .backupLocation: .backups
         case .storageCaches, .storageAppData, .storageSystem: .storage

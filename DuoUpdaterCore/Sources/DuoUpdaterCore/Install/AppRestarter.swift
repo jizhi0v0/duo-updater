@@ -107,6 +107,61 @@ public enum AppRestarter {
         return outcome ?? .stillRunning(nil)
     }
 
+    /// What `quitForUpdate` left behind.
+    public enum QuitForUpdateOutcome: Sendable, Equatable {
+        case notRunning
+        /// Held at macOS's first-open prompt; nothing was sent.
+        case awaitingOpenConfirmation
+        /// A quit was sent and the app is still up — most likely a save prompt.
+        case stillRunning
+        /// Everything quit. `nestedBundles` are the nested apps to reopen with it.
+        case quit(nestedBundles: [URL])
+    }
+
+    /// The quit half of `restart`, for an unattended update that installs while
+    /// the app is closed and then reopens it (`reopenAfterUpdate`). Graceful only,
+    /// with the same ~30 s wait. Once the first quit is sent the wait runs to the
+    /// end even if the caller is cancelled, so the caller always learns whether
+    /// the app is down and has to be reopened.
+    public static func quitForUpdate(_ app: InstalledApp) async -> QuitForUpdateOutcome {
+        guard app.bundleID != nil else { return .stillRunning }
+        let running = runningInstances(of: app) + nestedRunningInstances(of: app)
+        if let early = await preQuitOutcome(running, isHeld: { await OpenConfirmationHold.isHeld($0) }) {
+            return early == .notRunning ? .notRunning : .awaitingOpenConfirmation
+        }
+        let nestedBundles = nestedRunningInstances(of: app).compactMap(\.bundleURL)
+            .map { URL(fileURLWithPath: UpdatePolicy.runtimeBundlePath($0)) }
+        let pids = running.map(\.processIdentifier)
+        // Unstructured so a cancel cannot cut the wait short after the quit is sent.
+        let quit = await Task {
+            for pid in pids { NSRunningApplication(processIdentifier: pid)?.terminate() }
+            for _ in 0..<150 {
+                if allRunningInstances(of: app).isEmpty { break }
+                // cancel-ok: an unstructured task nobody cancels, capped at 150 passes
+                try? await Task.sleep(for: .milliseconds(200))
+            }
+            return allRunningInstances(of: app).isEmpty
+        }.value
+        guard quit else {
+            Log.install.notice("app-restarter: \(app.name, privacy: .public) did not quit for an automatic update — left running")
+            return .stillRunning
+        }
+        await awaitBundleProcessesGone(app)
+        return .quit(nestedBundles: nestedBundles)
+    }
+
+    /// Reopen an app `quitForUpdate` closed, in the background, with retries for
+    /// a bundle that may still be settling. Unstructured, so a cancelled caller
+    /// still puts the app back.
+    @discardableResult
+    public static func reopenAfterUpdate(_ app: InstalledApp, nestedBundles: [URL]) async -> Bool {
+        await Task {
+            let back = await relaunchAfterSwap(app, activates: false)
+            _ = await reopenNestedApps(nestedBundles, frontmostPath: nil)
+            return back
+        }.value
+    }
+
     /// `restart`'s answer before anything is quit, or nil to go on to the quit.
     /// Generic so a test can drive it without a live process.
     ///

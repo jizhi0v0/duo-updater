@@ -23,7 +23,7 @@ target="${1:?usage: $0 <DuoUpdater.app | binary>}"
 [ -e "$target" ] || { echo "✗ $target does not exist" >&2; exit 1; }
 
 # A string only the hooks' code carries — the environment variable each reads.
-markers=(DUO_GITHUB_API_MOCK DUO_SELF_UPDATER_CACHES_DIR)
+markers=(DUO_GITHUB_API_MOCK DUO_SELF_UPDATER_CACHES_DIR DUO_RUNNING_APP_TEST_THRESHOLD)
 
 found=0
 checked=0

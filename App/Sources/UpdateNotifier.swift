@@ -40,6 +40,20 @@ enum UpdateNotifier {
              identifier: "apple-signin-expired")
     }
 
+    /// An automatic update quit an idle app, installed, and reopened it. Said
+    /// every time, so a person who comes back to a relaunched app knows why.
+    static func quitAndUpdated(app: String, version: String?, reopened: Bool, appID: String) {
+        let body: String
+        if reopened {
+            body = version.map { String(localized: "Updated to \($0) while you were away, and reopened.") }
+                ?? String(localized: "Updated while you were away, and reopened.")
+        } else {
+            body = version.map { String(localized: "Updated to \($0) while you were away. It could not be reopened.") }
+                ?? String(localized: "Updated while you were away. It could not be reopened.")
+        }
+        post(title: app, body: body, identifier: "restart:\(appID)")
+    }
+
     /// A not-running app was updated in place — there's nothing left to do.
     static func updated(app: String, version: String?) {
         post(title: app, body: version.map { String(localized: "Updated to \($0).") } ?? String(localized: "Updated."))

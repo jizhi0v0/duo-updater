@@ -17,6 +17,9 @@ final class Preferences {
 
     nonisolated let automaticUpdatesSnapshot = AutomaticInstall.PermissionSnapshot()
     nonisolated let scheduledChecksSnapshot = AutomaticInstall.PermissionSnapshot()
+    /// `automaticUpdatesRunningApps`, readable from the install's commit point
+    /// off the main actor, like the two above.
+    nonisolated let runningAppsSnapshot = AutomaticInstall.PermissionSnapshot()
 
     /// How often the app checks for updates on its own, in the background.
     enum CheckFrequency: String, CaseIterable, Identifiable, Sendable {
@@ -81,6 +84,10 @@ final class Preferences {
         static let backupCompression = UpdateSettings.backupCompressionKey
         static let notifyOnUpdates = "NotifyOnUpdates"
         static let autoRestartAfterUpdate = "AutoRestartAfterUpdate"
+        static let automaticUpdatesRunningApps = "AutomaticUpdatesRunningApps"
+        static let automaticRelaunchKeys = "AutomaticUpdateRelaunchKeys"
+        static let automaticUpdateExcludedKeys = "AutomaticUpdateExcludedKeys"
+        static let runningAppUpdateLedger = "RunningAppAutoUpdateLedger"
         static let hideDockIcon = "HideDockIcon"
         static let appStoreUpdateStrategy = UpdateSettings.appStoreUpdateStrategyKey
         static let vendorInstallPolicy = UpdateSettings.vendorInstallPolicyKey
@@ -319,6 +326,68 @@ final class Preferences {
     var autoRestartAfterUpdate: Bool {
         didSet { defaults.set(autoRestartAfterUpdate, forKey: Key.autoRestartAfterUpdate) }
     }
+
+    /// Let automatic updates quit a running app, install, and reopen it — only
+    /// for apps in `automaticRelaunchKeys`, and only when `RunningAppAutoUpdate`
+    /// says the app and the person both look idle. Off by default.
+    var automaticUpdatesRunningApps: Bool {
+        didSet {
+            runningAppsSnapshot.set(automaticUpdatesRunningApps)
+            defaults.set(automaticUpdatesRunningApps, forKey: Key.automaticUpdatesRunningApps)
+        }
+    }
+
+    /// Installs the user allowed to be quit for an automatic update, by `key(for:)`.
+    private(set) var automaticRelaunchKeys: Set<String> {
+        didSet { defaults.set(Array(automaticRelaunchKeys), forKey: Key.automaticRelaunchKeys) }
+    }
+
+    /// Installs automatic updates never touch, running or not, by `key(for:)`.
+    /// Manual updates are unaffected.
+    private(set) var automaticUpdateExcludedKeys: Set<String> {
+        didSet { defaults.set(Array(automaticUpdateExcludedKeys), forKey: Key.automaticUpdateExcludedKeys) }
+    }
+
+    /// Cooldown, daily cap and give-up state for quitting running apps.
+    var runningAppUpdateLedger: RunningAppAutoUpdate.Ledger {
+        didSet {
+            guard runningAppUpdateLedger != oldValue,
+                  let data = try? JSONEncoder().encode(runningAppUpdateLedger) else { return }
+            defaults.set(data, forKey: Key.runningAppUpdateLedger)
+        }
+    }
+
+    enum AutomaticUpdateMode: Equatable {
+        /// Updated automatically while closed; left alone while running.
+        case whenClosed
+        /// Also quit and reopened for an update when idle.
+        case alsoWhenRunning
+        /// Never updated automatically.
+        case never
+    }
+
+    func automaticUpdateMode(_ app: InstalledApp) -> AutomaticUpdateMode {
+        let keys = [key(for: app), legacyKey(for: app)]
+        if keys.contains(where: automaticUpdateExcludedKeys.contains) { return .never }
+        if keys.contains(where: automaticRelaunchKeys.contains) { return .alsoWhenRunning }
+        return .whenClosed
+    }
+
+    func setAutomaticUpdateMode(_ mode: AutomaticUpdateMode, _ app: InstalledApp) {
+        for key in [key(for: app), legacyKey(for: app)] {
+            automaticRelaunchKeys.remove(key)
+            automaticUpdateExcludedKeys.remove(key)
+        }
+        switch mode {
+        case .whenClosed: break
+        case .alsoWhenRunning: automaticRelaunchKeys.insert(key(for: app))
+        case .never: automaticUpdateExcludedKeys.insert(key(for: app))
+        }
+    }
+
+    /// Key-based removals for the Settings lists.
+    func removeAutomaticRelaunch(key: String) { automaticRelaunchKeys.remove(key) }
+    func removeAutomaticUpdateExclusion(key: String) { automaticUpdateExcludedKeys.remove(key) }
 
     /// Run without a Dock icon — menu bar only. **On by default**: this is a
     /// menu-bar app, and the popover is how it is actually driven, so the Dock
@@ -720,6 +789,11 @@ final class Preferences {
             seeded: defaults.bool(forKey: Key.homebrewNotificationBaselineSeeded))
         self.automaticUpdates = defaults.bool(forKey: "AutomaticUpdates")
         self.autoRestartAfterUpdate = defaults.object(forKey: Key.autoRestartAfterUpdate) as? Bool ?? true
+        self.automaticUpdatesRunningApps = defaults.bool(forKey: Key.automaticUpdatesRunningApps)
+        self.automaticRelaunchKeys = Set(defaults.stringArray(forKey: Key.automaticRelaunchKeys) ?? [])
+        self.automaticUpdateExcludedKeys = Set(defaults.stringArray(forKey: Key.automaticUpdateExcludedKeys) ?? [])
+        self.runningAppUpdateLedger = defaults.data(forKey: Key.runningAppUpdateLedger)
+            .flatMap { try? JSONDecoder().decode(RunningAppAutoUpdate.Ledger.self, from: $0) } ?? .init()
         self.hideDockIcon = defaults.object(forKey: Key.hideDockIcon) as? Bool ?? true
         self.showRuntimeTags = defaults.object(forKey: Key.showRuntimeTags) as? Bool ?? true
         self.showCLIRuntimeTags = defaults.object(forKey: Key.showCLIRuntimeTags) as? Bool ?? true
@@ -798,6 +872,7 @@ final class Preferences {
             defaults.dictionary(forKey: Key.stagedPackages) as? [String: [String: String]] ?? [:]
         automaticUpdatesSnapshot.set(BuildReleaseChannel.permitsAutomaticUpdates(enabled: automaticUpdates))
         scheduledChecksSnapshot.set(checkFrequency.interval != nil)
+        runningAppsSnapshot.set(automaticUpdatesRunningApps)
         observeExternalWrites()
         // `didSet` does not fire for assignments inside `init`, so the token read
         // out of the Keychain a few lines up would otherwise never reach the core
@@ -1022,6 +1097,8 @@ final class Preferences {
         if ignoredKeys.remove(oldKey) != nil { ignoredKeys.insert(newKey) }
         if let skipped = skippedVersions.removeValue(forKey: oldKey) { skippedVersions[newKey] = skipped }
         if declinedElevationKeys.remove(oldKey) != nil { declinedElevationKeys.insert(newKey) }
+        if automaticRelaunchKeys.remove(oldKey) != nil { automaticRelaunchKeys.insert(newKey) }
+        if automaticUpdateExcludedKeys.remove(oldKey) != nil { automaticUpdateExcludedKeys.insert(newKey) }
     }
 
     /// Ignore whatever app will be at `path`, before it exists — Settings →

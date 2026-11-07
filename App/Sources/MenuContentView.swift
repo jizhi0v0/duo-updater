@@ -2219,6 +2219,9 @@ private struct AppRow: View {
                 Button("Skip \(offered)") { model.skipThisVersion(result) }
             }
         }
+        if BuildReleaseChannel.isBeta {
+            AutomaticUpdateModeMenu(prefs: model.prefs, app: result.app)
+        }
         let ignoreLabel = model.prefs.isIgnored(result.app)
             ? String(localized: "Stop ignoring \(result.app.name)")
             : String(localized: "Ignore \(result.app.name)")

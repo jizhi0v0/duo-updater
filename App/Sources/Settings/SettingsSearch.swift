@@ -52,9 +52,6 @@ enum SettingsSearch {
             Setting(anchor: .hideDockIcon, title: String(localized: "Hide the Dock icon"), card: nil),
             Setting(anchor: .appRuntimeTags, title: String(localized: "Show what each app is built with"), card: nil),
             Setting(anchor: .cliRuntimeTags, title: String(localized: "Show what each command-line tool is built with"), card: nil),
-            BuildReleaseChannel.isBeta
-                ? Setting(anchor: .automaticUpdates, title: String(localized: "Automatically update closed apps"), card: String(localized: "Automatic updates"))
-                : nil,
             Setting(anchor: .autoRelaunch, title: String(localized: "Relaunch updated apps automatically"), card: String(localized: "After an update")),
             Setting(anchor: .concurrency, title: String(localized: "Check up to \(prefs.maxConcurrency) apps at once"), card: nil),
             Setting(anchor: .appStoreUpdates, title: String(localized: "App Store updates"), card: routing),
@@ -63,6 +60,10 @@ enum SettingsSearch {
             Setting(anchor: .brewFallback, title: String(localized: "Check other sources for Homebrew apps"), card: nil),
             Setting(anchor: .digestOnlyInstalls, title: String(localized: "Allow one-click updates for apps without a developer signature"), card: nil),
             Setting(anchor: .testFlightDetection, title: String(localized: "TestFlight betas"), card: nil),
+
+            BuildReleaseChannel.isBeta
+                ? Setting(anchor: .automaticUpdates, title: String(localized: "Automatically update closed apps"), card: String(localized: "Automatic updates"))
+                : nil,
 
             Setting(anchor: .notifyApps, title: String(localized: "Apps"), card: notify),
             Setting(anchor: .notifyCLITools, title: String(localized: "Command-line tools"), card: notify),

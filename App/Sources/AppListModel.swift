@@ -1689,6 +1689,11 @@ final class AppListModel {
     /// lifetime (the single model never deallocates), so they stay registered
     /// without explicit teardown.
     @ObservationIgnored private var runningAppObservers: [NSObjectProtocol] = []
+    /// Runtime bundle path → when it last gained or lost the front. Only what this
+    /// process saw: anything before `activityWatchStart` is unknown and counted as
+    /// "just used" (`RunningAppAutoUpdate`).
+    @ObservationIgnored private var lastFrontmostByPath: [String: Date] = [:]
+    @ObservationIgnored private let activityWatchStart = Date()
     /// KVO on `NSWorkspace.runningApplications` — the primary source. Held because
     /// an `NSKeyValueObservation` unregisters itself when it is released, so
     /// dropping this handle would silently switch the running dot back to the
@@ -10389,7 +10394,9 @@ final class AppListModel {
         // Retained history survives app restarts. New attempts link to the latest
         // incomplete attempt for the same installed copy and proposed version.
         let history = await eventStore.events(.init(kind: "automaticUpdate", limit: 10_000))
-        for result in installAllTargets() {
+        let targets = installAllTargets()
+        prefs.runningAppUpdateLedger.retain(keys: Set(targets.map { prefs.key(for: $0.app) }))
+        for result in targets {
             guard automaticUpdatesAllowed else { break }
             let attemptID = UUID().uuidString
             let previous = AutomaticUpdateDiagnostics.predecessor(in: history,
@@ -10400,9 +10407,13 @@ final class AppListModel {
             let capture: @Sendable (AutomaticProcessDiagnostic) -> Void = {
                 diagnostics.record($0, attemptID: attemptID)
             }
-            let route = InstallCoordinator.route(for: result, requiresInstaller: requiresInstaller(result))
             let reason: String?
-            if !AutomaticInstall.supports(route) || !canAutoInstall(result) {
+            // Non-nil once this pass has quit the app: it must be reopened whatever
+            // the install does.
+            var quitNestedBundles: [URL]?
+            if prefs.automaticUpdateMode(result.app) == .never {
+                reason = "Excluded from automatic updates in Settings."
+            } else if installsAutomatically(result) != true {
                 reason = "Requires an interactive or externally managed installation."
             } else {
                 let processes = NestedAppGuard.liveProcesses()
@@ -10410,7 +10421,18 @@ final class AppListModel {
                 for process in running {
                     capture(.init(kind: .targetRunning, pid: process.pid, parentPID: process.parentPID))
                 }
-                reason = running.isEmpty ? nil : "The app or one of its helpers is running."
+                if running.isEmpty {
+                    reason = nil
+                } else {
+                    switch await quitIdleRunningApp(result, processes: processes) {
+                    case .wait(let why):
+                        reason = why
+                    case .quit(let nested):
+                        reason = nil
+                        quitNestedBundles = nested
+                        correlation["quitForUpdate"] = "true"
+                    }
+                }
             }
             if let reason {
                 correlation["diagnosticIDs"] = diagnostics.references(for: attemptID)
@@ -10419,16 +10441,24 @@ final class AppListModel {
             }
             await recordAutomaticUpdate(result, status: "started", correlation: correlation)
             automaticInstallVersions[result.id] = nil
+            // An app this pass quit is installed only while running apps may still
+            // be updated: turning that switch off stops the install at its next
+            // checkpoint, up to the commit, and the app is reopened below.
+            let quitPath = quitNestedBundles != nil
             let outcome = await AutomaticInstall.$diagnostic.withValue(capture) {
                 await AutomaticInstall.$active.withValue(true) {
                     await AutomaticInstall.$permission.withValue({ @MainActor [weak self] in
-                        self?.automaticUpdatesAllowed == true
+                        guard let self else { return false }
+                        return self.automaticUpdatesAllowed
+                            && (!quitPath || self.prefs.automaticUpdatesRunningApps)
                     }) {
                         let enabled = prefs.automaticUpdatesSnapshot
                         let scheduled = prefs.scheduledChecksSnapshot
+                        let running = prefs.runningAppsSnapshot
                         let network = NetworkMonitor.shared.automaticTrafficSnapshot
                         return await AutomaticInstall.$commitPermission.withValue({
                             enabled.allowed && scheduled.allowed && network.allowed
+                                && (!quitPath || running.allowed)
                         }) {
                             await install(result, notify: false, backUpOnce: true)
                         }
@@ -10436,6 +10466,18 @@ final class AppListModel {
                 }
             }
             let event = AutomaticInstall.eventResult(outcome)
+            if let nested = quitNestedBundles {
+                let back = await AppRestarter.reopenAfterUpdate(result.app, nestedBundles: nested)
+                correlation["reopened"] = back ? "true" : "false"
+                if outcome == .installed {
+                    UpdateNotifier.quitAndUpdated(app: result.app.name, version: result.remote?.displayVersion,
+                                                  reopened: back, appID: result.id)
+                } else if automaticUpdatesAllowed && prefs.automaticUpdatesRunningApps {
+                    // Not when the user switched it off meanwhile: that stop is theirs,
+                    // not the app's, and must not count toward giving up on it.
+                    prefs.runningAppUpdateLedger.recordFailure(prefs.key(for: result.app))
+                }
+            }
             let versions = automaticInstallVersions.removeValue(forKey: result.id)
             correlation["diagnosticIDs"] = diagnostics.references(for: attemptID)
             if event.status == "installed", let previous {
@@ -10452,6 +10494,121 @@ final class AppListModel {
                 json: String(decoding: data, as: UTF8.self))))
             await eventStore.flush()
         }
+    }
+
+    /// The route this app's update would take, for the Automatic Updates page:
+    /// only `.vendor` and `.sparkle` are ever installed unattended. Nil before a
+    /// check has said where its latest version comes from.
+    func automaticUpdateRoute(_ result: UpdateResult) -> InstallCoordinator.Route? {
+        guard result.remote != nil else { return nil }
+        return InstallCoordinator.route(for: result, requiresInstaller: requiresInstaller(result))
+    }
+
+    /// Whether an unattended pass would install this app's update itself: the
+    /// one test `automaticallyInstallUpdates` applies, shared so Settings and the
+    /// setup guide never promise what the pass then refuses. Nil before a check.
+    func installsAutomatically(_ result: UpdateResult) -> Bool? {
+        // Xcode is known by its id before any check: its downloads go through an
+        // Apple Developer session, never an unattended pass.
+        if result.app.bundleID == AppScanner.xcodeBundleID { return false }
+        guard let route = automaticUpdateRoute(result) else { return nil }
+        return AutomaticInstall.supports(route) && canAutoInstall(result)
+    }
+
+    private enum RunningAppPreparation {
+        case wait(String)
+        /// Quit; `nestedBundles` are reopened with it.
+        case quit(nestedBundles: [URL])
+    }
+
+    /// Quit a running app for an automatic update when the user allowed it and
+    /// `RunningAppAutoUpdate` finds it and the person idle; otherwise the reason
+    /// it stays up. Never quits DuoUpdater itself, and never an app with no
+    /// running instance of its own (only helpers left): there is nothing to reopen.
+    private func quitIdleRunningApp(
+        _ result: UpdateResult, processes: [NestedAppGuard.RunningProcess]
+    ) async -> RunningAppPreparation {
+        let running = "The app or one of its helpers is running."
+        let instances = AppRestarter.allRunningInstances(of: result.app)
+        guard prefs.automaticUpdatesRunningApps,
+              prefs.automaticUpdateMode(result.app) == .alsoWhenRunning,
+              let bundleID = result.app.bundleID, bundleID != Bundle.main.bundleIdentifier,
+              !instances.isEmpty,
+              let version = result.remote?.displayVersion
+        else { return .wait(running) }
+        let key = prefs.key(for: result.app)
+        let now = Date()
+        let entry = prefs.runningAppUpdateLedger.observe(key, version: version, now: now)
+        var lastUsed = activityWatchStart
+        for instance in instances {
+            if let launched = instance.launchDate { lastUsed = max(lastUsed, launched) }
+            if let url = instance.bundleURL,
+               let front = lastFrontmostByPath[UpdatePolicy.runtimeBundlePath(url)] {
+                lastUsed = max(lastUsed, front)
+            }
+        }
+        let ownPIDs = Set(processes.filter {
+            AutomaticInstall.hasRunningProcess(at: result.app.path, processes: [$0])
+        }.map(\.pid))
+        let signals = RunningAppAutoUpdate.Signals(
+            isFrontmost: AppRestarter.isFrontmost(instances),
+            lastUsed: lastUsed,
+            userIdle: CGEventSource.secondsSinceLastEventType(
+                .combinedSessionState, eventType: .init(rawValue: ~0)!),
+            screenLocked: Self.screenIsLocked(),
+            busyAssertion: RunningAppAutoUpdate.busyAssertion(pids: ownPIDs),
+            hasForeignChild: RunningAppAutoUpdate.hasForeignChild(of: result.app.path, processes: processes))
+        if case .wait(let why) = RunningAppAutoUpdate.decide(entry: entry, signals: signals, now: now) {
+            return .wait(why.message)
+        }
+        // The app's own Sparkle may have an update downloaded and an installer
+        // waiting for exactly this quit (`RestartStandoff`): quitting would start
+        // its swap alongside ours. Stricter than the manual Relaunch, which only
+        // holds back when the staged build differs from the one on disk.
+        if result.app.hasSparkleUpdater {
+            let parked = SelfUpdaterStaging.liveParkedSparkleInstallers()
+            if SelfUpdaterStaging.sparkleStagedBundle(for: result.app, parkedInstallerBundleURLs: parked) != nil
+                || SelfUpdaterStaging.sparkleInstallerArmedWithUnreadableStaging(
+                    for: result.app, parkedInstallerBundleURLs: parked) {
+                return .wait("The app’s own updater has an update waiting for it to quit.")
+            }
+        }
+        Log.app.notice("automatic update: quitting idle \(result.app.name, privacy: .public) for \(version, privacy: .public)")
+        switch await AppRestarter.quitForUpdate(result.app) {
+        case .quit(let nested):
+            prefs.runningAppUpdateLedger.recordQuit(key, now: Date())
+            return .quit(nestedBundles: nested)
+        case .stillRunning:
+            prefs.runningAppUpdateLedger.recordQuit(key, now: Date())
+            prefs.runningAppUpdateLedger.recordQuitRefused(key)
+            reopenIfItQuitsLate(result.app)
+            return .wait("The app did not quit, most likely to ask about unsaved work. It will not be asked again for this version.")
+        case .notRunning, .awaitingOpenConfirmation:
+            return .wait(running)
+        }
+    }
+
+    /// A quit the wait gave up on can still land: a slow app finishing at 35 s, or
+    /// someone answering its save prompt. Then the app is closed and nothing
+    /// installed, so put it back. Ninety seconds, not the manual Relaunch's longer
+    /// hand-off: unattended, a later quit is more likely the person's own.
+    private func reopenIfItQuitsLate(_ app: InstalledApp) {
+        Task { @MainActor in
+            for _ in 0..<90 {
+                // cancel-ok: an unstructured task nobody cancels, capped at 90 passes
+                try? await Task.sleep(for: .seconds(1))
+                guard AppRestarter.allRunningInstances(of: app).isEmpty else { continue }
+                Log.app.notice("automatic update: \(app.name, privacy: .public) quit after the wait — reopening it")
+                await AppRestarter.reopenAfterUpdate(app, nestedBundles: [])
+                return
+            }
+        }
+    }
+
+    /// Whether the login window's lock is up, from the session dictionary.
+    private static func screenIsLocked() -> Bool {
+        guard let session = CGSessionCopyCurrentDictionary() as? [String: Any] else { return false }
+        return session["CGSSessionScreenIsLocked"] as? Bool ?? false
     }
 
     private func backgroundRefresh(automaticallyInstall: Bool = false) async {
@@ -10892,6 +11049,19 @@ final class AppListModel {
                      NSWorkspace.didTerminateApplicationNotification] {
             let observer = center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
                 Task { @MainActor in self?.handleRunningAppsChange() }
+            }
+            runningAppObservers.append(observer)
+        }
+        // When each app was last brought to front or left it, for
+        // `RunningAppAutoUpdate`. Both edges: an app used for two hours since it was
+        // activated was in use until it lost the front, not when it gained it.
+        for name in [NSWorkspace.didActivateApplicationNotification,
+                     NSWorkspace.didDeactivateApplicationNotification] {
+            let observer = center.addObserver(forName: name, object: nil, queue: .main) { [weak self] note in
+                let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
+                guard let url = app?.bundleURL else { return }
+                let path = UpdatePolicy.runtimeBundlePath(url)
+                Task { @MainActor in self?.lastFrontmostByPath[path] = Date() }
             }
             runningAppObservers.append(observer)
         }

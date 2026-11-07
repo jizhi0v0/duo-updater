@@ -216,3 +216,67 @@ struct AutomaticUpdateDiagnosticsTests {
         }
     }
 }
+
+struct AutomaticUpdateActivityTests {
+    private func event(_ fields: [String: String], at seconds: TimeInterval) throws -> DuoEvent {
+        DuoEvent(date: Date(timeIntervalSince1970: seconds), payload: .unknown(kind: "automaticUpdate",
+            json: String(decoding: try JSONEncoder().encode(fields), as: UTF8.self)))
+    }
+
+    private func diagnostics(_ pass: String, attempts: [String], at seconds: TimeInterval) throws -> DuoEvent {
+        let recorder = AutomaticUpdateDiagnostics()
+        for attempt in attempts {
+            recorder.record(.init(kind: .targetRunning, pid: 42), attemptID: attempt, now: Date(timeIntervalSince1970: seconds))
+        }
+        return try event(["passID": pass, "status": "diagnostics", "diagnostics": recorder.json], at: seconds)
+    }
+
+    private func deferral(_ pass: String, _ attempt: String, at seconds: TimeInterval,
+                          reason: String = "running") throws -> DuoEvent {
+        try event(["passID": pass, "attemptID": attempt, "chainID": "chain", "appID": "/Applications/Cua.app",
+                   "fromVersion": "1", "toVersion": "2", "status": "deferred", "reason": reason], at: seconds)
+    }
+
+    @Test func mergesAttemptStatesAndAttachesItsOwnDiagnostics() throws {
+        let rows = AutomaticUpdateActivity.rows(from: try [
+            event(["passID": "p", "attemptID": "a", "appID": "/A.app", "status": "started"], at: 1),
+            deferral("p", "b", at: 2),
+            event(["passID": "p", "attemptID": "a", "appID": "/A.app", "status": "installed"], at: 3),
+            diagnostics("p", attempts: ["b"], at: 4),
+            event(["passID": "q", "status": "diagnostics", "diagnostics": "[]"], at: 5),
+        ].reversed())
+        #expect(rows.map(\.id) == ["a", "b"])
+        #expect(rows[0].status == "installed")
+        #expect(rows[0].first == Date(timeIntervalSince1970: 1))
+        #expect(rows[0].last == Date(timeIntervalSince1970: 3))
+        #expect(rows[0].diagnostics.isEmpty)
+        #expect(rows[1].diagnostics.count == 1)
+    }
+
+    @Test func repeatedDeferralsCollapseUntilSomethingChanges() throws {
+        let rows = AutomaticUpdateActivity.rows(from: try [
+            deferral("p1", "a1", at: 1),
+            deferral("p2", "a2", at: 2),
+            diagnostics("p2", attempts: ["a2"], at: 2.5),
+            deferral("p3", "a3", at: 3),
+            deferral("p4", "a4", at: 4, reason: "other"),
+            deferral("p5", "a5", at: 5),
+        ])
+        #expect(rows.map(\.count) == [1, 1, 3])
+        #expect(rows[2].first == Date(timeIntervalSince1970: 1))
+        #expect(rows[2].last == Date(timeIntervalSince1970: 3))
+        // The latest attempt's diagnostics, not an earlier one's.
+        #expect(rows[2].diagnostics.isEmpty)
+    }
+
+    @Test func installsNeverCollapseAndUndecodableDiagnosticsAreKept() throws {
+        let rows = AutomaticUpdateActivity.rows(from: try [
+            event(["appName": "A", "status": "installed"], at: 1),
+            event(["appName": "A", "status": "installed"], at: 2),
+            event(["passID": "p", "attemptID": "x", "status": "notInstalled"], at: 3),
+            event(["passID": "p", "status": "diagnostics", "diagnostics": "not json"], at: 4),
+        ])
+        #expect(rows.count == 3)
+        #expect(rows[0].undecodedDiagnostics == "not json")
+    }
+}

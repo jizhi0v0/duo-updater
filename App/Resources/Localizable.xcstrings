@@ -651,24 +651,134 @@
       }
     }
   },
-  "Local process diagnostics": {
+  "Local process diagnostics (%lld)": {
     "extractionState": "manual",
     "localizations": {
       "zh-Hans": {
         "stringUnit": {
           "state": "translated",
-          "value": "本地进程诊断"
+          "value": "本地进程诊断（%lld）"
         }
       }
     }
   },
-  "Attempt details": {
+  "Copy attempt details": {
     "extractionState": "manual",
     "localizations": {
       "zh-Hans": {
         "stringUnit": {
           "state": "translated",
-          "value": "尝试详情"
+          "value": "拷贝尝试详情"
+        }
+      }
+    }
+  },
+  "Deferred": {
+    "extractionState": "manual",
+    "localizations": {
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "已暂缓"
+        }
+      }
+    }
+  },
+  "Did not complete": {
+    "extractionState": "manual",
+    "localizations": {
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "未完成"
+        }
+      }
+    }
+  },
+  "App process running": {
+    "extractionState": "manual",
+    "localizations": {
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "应用进程正在运行"
+        }
+      }
+    }
+  },
+  "Zombie process": {
+    "extractionState": "manual",
+    "localizations": {
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "僵尸进程"
+        }
+      }
+    }
+  },
+  "Process exited": {
+    "extractionState": "manual",
+    "localizations": {
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "进程已退出"
+        }
+      }
+    }
+  },
+  "Permission denied": {
+    "extractionState": "manual",
+    "localizations": {
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "权限被拒绝"
+        }
+      }
+    }
+  },
+  "Executable path unavailable": {
+    "extractionState": "manual",
+    "localizations": {
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "无法获取可执行文件路径"
+        }
+      }
+    }
+  },
+  "Unidentified process": {
+    "extractionState": "manual",
+    "localizations": {
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "无法识别的进程"
+        }
+      }
+    }
+  },
+  "Process list unavailable": {
+    "extractionState": "manual",
+    "localizations": {
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "无法获取进程列表"
+        }
+      }
+    }
+  },
+  "Process list incomplete": {
+    "extractionState": "manual",
+    "localizations": {
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "进程列表不完整"
         }
       }
     }

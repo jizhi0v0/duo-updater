@@ -22,7 +22,6 @@ struct GeneralSettingsPage: View {
     var body: some View {
         SettingsPage(section: .general) {
             scheduleCard
-            if BuildReleaseChannel.isBeta { automaticUpdatesCard }
             afterUpdateCard
             concurrencyCard
             routingCard
@@ -98,32 +97,6 @@ struct GeneralSettingsPage: View {
             if prefs.checkFrequency.isHighFrequency && hasGitHubToken == false {
                 Label(
                     "No GitHub token: checking this often can hit GitHub’s rate limit (60/hour) and show errors on GitHub-sourced apps, and command-line tools that read GitHub are checked at most every 15 minutes. Add a token or sign in with the gh CLI under GitHub.",
-                    systemImage: "exclamationmark.triangle")
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-    }
-
-    /// Beta builds only (`BuildReleaseChannel.permitsAutomaticUpdates`), so the
-    /// card is too — a Stable build would show a switch that does nothing.
-    ///
-    /// Its own card rather than a row under "After an update": this decides
-    /// WHETHER an update is installed, that card what happens once one has been.
-    /// It sits under the schedule because it runs on it, and the footer says so
-    /// when the schedule is Manual — the one setting that silently turns it off.
-    private var automaticUpdatesCard: some View {
-        SettingsCard(header: "Automatic updates") {
-            SettingsToggle(
-                "Automatically update closed apps",
-                detail: "Installs eligible updates after each scheduled check, backing up every app first. App data is not backed up.",
-                info: "Runs only after scheduled checks, on a network that is not restricted. An app is skipped while it or one of its helpers is running, and updates that need an installer or an authorization prompt are left for you. Each attempt, and why one was deferred, is listed in the Network window under Events.",
-                channel: .beta,
-                isOn: $prefs.automaticUpdates)
-                .settingsAnchor(.automaticUpdates)
-        } footer: {
-            if prefs.automaticUpdates && prefs.checkFrequency.interval == nil {
-                Label(
-                    "Scheduled checks are off, so nothing is updated automatically. Choose how often to check for updates above.",
                     systemImage: "exclamationmark.triangle")
                     .fixedSize(horizontal: false, vertical: true)
             }

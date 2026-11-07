@@ -1,6 +1,490 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "Paused while “Also update running apps” is off; updated when closed": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“也更新运行中的应用”已关闭，暂停中；未运行时照常更新"
+          }
+        }
+      }
+    },
+    "Input method: quitting it interrupts typing": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "输入法：退出会打断输入"
+          }
+        }
+      }
+    },
+    "Apply": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "应用"
+          }
+        }
+      }
+    },
+    "Apps in the first column are quit only while they and the Mac are idle, then updated and reopened. They still ask before discarding unsaved work. Drag an app to another column, or right-click it.": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "第一栏中的应用只会在它和 Mac 都空闲时被退出，更新后重新打开；丢弃未保存的内容前仍会询问你。把应用拖到其他栏，或右键点按它来移动。"
+          }
+        }
+      }
+    },
+    "Drag apps here": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "把应用拖到这里"
+          }
+        }
+      }
+    },
+    "Move to %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "移到“%@”"
+          }
+        }
+      }
+    },
+    "Also While Running": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "运行中也更新"
+          }
+        }
+      }
+    },
+    "Its update needs you, so not automatically": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新需要你确认，因此不会自动更新"
+          }
+        }
+      }
+    },
+    "These update through Homebrew, the App Store, an installer or a prompt, which automatic updates never use.": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这些应用通过 Homebrew、App Store、安装器或需要确认的方式更新，自动更新不会使用这些方式。"
+          }
+        }
+      }
+    },
+    "Choose apps that may be quit for an update": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选择可以为更新而退出的应用"
+          }
+        }
+      }
+    },
+    "Choose with Suggestions…": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按建议选择…"
+          }
+        }
+      }
+    },
+    "Has windows that may hold your work": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "有窗口，可能有你正在进行的工作"
+          }
+        }
+      }
+    },
+    "Installs a system extension": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "安装了系统扩展"
+          }
+        }
+      }
+    },
+    "Menu bar app": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "菜单栏应用"
+          }
+        }
+      }
+    },
+    "Not updated automatically (%lld)": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不会自动更新（%lld）"
+          }
+        }
+      }
+    },
+    "Runs a VPN, proxy or network filter": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "运行 VPN、代理或网络过滤"
+          }
+        }
+      }
+    },
+    "Syncs files": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "同步文件"
+          }
+        }
+      }
+    },
+    "Tells macOS it can be quit safely": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "声明可以被 macOS 安全退出"
+          }
+        }
+      }
+    },
+    "Automatic updates for %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 的自动更新"
+          }
+        }
+      }
+    },
+    "Filter apps": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "筛选应用"
+          }
+        }
+      }
+    },
+    "Needs an installer, so not automatically": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "需要安装器，因此不会自动更新"
+          }
+        }
+      }
+    },
+    "No apps found yet.": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "尚未找到应用。"
+          }
+        }
+      }
+    },
+    "No apps match.": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有匹配的应用。"
+          }
+        }
+      }
+    },
+    "Quits an allowed app only when it and the Mac have both been idle, installs the update, and reopens it. Choose the apps below.": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "仅在应用和 Mac 都处于空闲时退出已允许的应用，安装更新后重新打开。在下方选择应用。"
+          }
+        }
+      }
+    },
+    "Scheduled checks are off, so nothing is updated automatically. Choose how often to check for updates in General.": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "定时检查已关闭，因此不会自动更新任何应用。请在“通用”中选择检查更新的频率。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "定時檢查已關閉，因此不會自動更新任何應用程式。請在「一般」中選擇檢查更新的頻率。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "定期チェックがオフのため、自動では何もアップデートされません。「一般」でアップデートを確認する頻度を選んでください。"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Geplante Prüfungen sind aus, daher wird nichts automatisch aktualisiert. Wähle unter „Allgemein“, wie oft nach Updates gesucht wird."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les vérifications planifiées sont désactivées : rien n’est mis à jour automatiquement. Choisissez la fréquence de vérification dans Général."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las comprobaciones programadas están desactivadas, así que nada se actualiza automáticamente. Elige en General con qué frecuencia buscar actualizaciones."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "I controlli programmati sono disattivati, quindi nulla viene aggiornato automaticamente. Scegli in Generali ogni quanto cercare aggiornamenti."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "As verificações agendadas estão desativadas, então nada é atualizado automaticamente. Escolha em Geral com que frequência procurar atualizações."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Плановые проверки выключены, поэтому ничего не обновляется автоматически. Выберите в разделе «Основные», как часто проверять обновления."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zamanlanmış denetimler kapalı, bu yüzden hiçbir şey otomatik güncellenmez. Güncellemelerin ne sıklıkla denetleneceğini Genel bölümünden seçin."
+          }
+        }
+      }
+    },
+    "Updated through Homebrew, so not automatically": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "通过 Homebrew 更新，因此不会自动更新"
+          }
+        }
+      }
+    },
+    "Updated through the App Store, so not automatically": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "通过 App Store 更新，因此不会自动更新"
+          }
+        }
+      }
+    },
+    "Which apps are updated without asking, and whether a running app may be quit for it.": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "哪些应用无需询问即可更新，以及是否可以为此退出正在运行的应用。"
+          }
+        }
+      }
+    },
+    "Xcode is not updated automatically": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Xcode 不会自动更新"
+          }
+        }
+      }
+    },
+    "automatic, unattended, running, idle, quit, allow, never, exclude": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自动, 无人值守, 运行中, 空闲, 退出, 允许, 从不, 排除"
+          }
+        }
+      },
+      "comment": "Comma-separated extra search terms for the Automatic Updates settings page"
+    },
+    "Also update running apps you allow": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "也更新你允许的运行中应用"
+          }
+        }
+      }
+    },
+    "An app is quit only if: you allowed it; the update has been known for a day; it has not been in front for an hour; the Mac has had no input for 15 minutes or is locked; it is not keeping the Mac awake (calls, playback, recording, downloads); and it has no shell or other program running. It is asked to quit normally. If it does not quit, it is not asked again for that version, and after three failed updates it waits for the next version. Each app is quit at most once a day.": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "只有同时满足以下条件，应用才会被退出：你允许了它；该更新已发布满一天；它已有一小时未在前台；Mac 已 15 分钟无输入或已锁屏；它没有阻止 Mac 睡眠（通话、播放、录制、下载）；它没有运行 shell 或其他程序。应用会被正常请求退出。如果它没有退出，这个版本不会再次请求；更新失败三次后，会等待下一个版本。每个应用每天最多被退出一次。"
+          }
+        }
+      }
+    },
+    "Automatic Updates": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自动更新"
+          }
+        }
+      }
+    },
+    "Never": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "从不"
+          }
+        }
+      }
+    },
+    "Updated to %@ while you were away, and reopened.": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已在你离开时更新到 %@，并已重新打开。"
+          }
+        }
+      }
+    },
+    "Updated to %@ while you were away. It could not be reopened.": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已在你离开时更新到 %@，但未能重新打开。"
+          }
+        }
+      }
+    },
+    "Updated while you were away, and reopened.": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已在你离开时更新，并已重新打开。"
+          }
+        }
+      }
+    },
+    "Updated while you were away. It could not be reopened.": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已在你离开时更新，但未能重新打开。"
+          }
+        }
+      }
+    },
+    "When Closed": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未运行时更新"
+          }
+        }
+      }
+    },
     "This is the default for apps Homebrew installed. Apps whose official Homebrew cask says they update themselves check other sources even when this is off; apps from other taps do not. To choose for one app, right-click it and use When Homebrew Has No Update. An app stays on Homebrew by itself when an install from another source is refused for its signature, until that source offers a newer release. For another edition of an app, such as a community build, choose Homebrew Only.": {
       "extractionState": "manual",
       "localizations": {
@@ -87780,71 +88264,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Yalnızca zamanlanmış denetimlerden sonra ve kısıtlanmamış bir ağda çalışır. Bir uygulama ya da yardımcılarından biri çalışırken atlanır; yükleyici veya yetkilendirme isteyen güncellemeler size bırakılır. Her deneme ve bir ertelemenin nedeni Ağ penceresinde Olaylar altında listelenir."
-          }
-        }
-      }
-    },
-  "Scheduled checks are off, so nothing is updated automatically. Choose how often to check for updates above.": {
-      "extractionState": "manual",
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "定时检查已关闭，因此不会自动更新任何应用。请在上方选择检查更新的频率。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "定時檢查已關閉，因此不會自動更新任何應用程式。請在上方選擇檢查更新的頻率。"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "定期チェックがオフのため、自動では何もアップデートされません。上でアップデートを確認する頻度を選んでください。"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Geplante Prüfungen sind aus, daher wird nichts automatisch aktualisiert. Wähle oben, wie oft nach Updates gesucht wird."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Les vérifications planifiées sont désactivées : rien n’est mis à jour automatiquement. Choisissez ci-dessus la fréquence de vérification."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Las comprobaciones programadas están desactivadas, así que nada se actualiza automáticamente. Elige arriba con qué frecuencia buscar actualizaciones."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "I controlli programmati sono disattivati, quindi nulla viene aggiornato automaticamente. Scegli sopra ogni quanto cercare aggiornamenti."
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "As verificações agendadas estão desativadas, então nada é atualizado automaticamente. Escolha acima com que frequência procurar atualizações."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Плановые проверки выключены, поэтому ничего не обновляется автоматически. Выберите выше, как часто проверять обновления."
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Zamanlanmış denetimler kapalı, bu yüzden hiçbir şey otomatik güncellenmez. Güncellemelerin ne sıklıkla denetleneceğini yukarıdan seçin."
           }
         }
       }

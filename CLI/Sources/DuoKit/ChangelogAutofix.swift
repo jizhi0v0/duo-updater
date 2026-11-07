@@ -99,9 +99,7 @@ public enum ChangelogAutofix {
         """#
     /// The fixing model's own confidence below which a change waits for a person.
     static let autoMergeConfidence = 0.8
-    /// Also read by `scripts/ci_route.py`, which sends these branches to a
-    /// GitHub-hosted runner, and by the workflow that pushes them. Change all
-    /// three or none.
+    /// Also used by the workflow that pushes these branches; change both together.
     static let branchPrefix = "recipe-autofix/"
 
     /// A committed fixture past this is not reviewable, and the live-page gates

@@ -25,7 +25,7 @@
 # token for this repository (Contents + Pull requests write). A pull request
 # GITHUB_TOKEN opens gets its CI runs only in an approval-required state (GitHub's
 # "GITHUB_TOKEN" docs, checked 2026-10-11), so every draft would wait on a click.
-# Its branch runs CI on a hosted runner (scripts/ci_route.py).
+# Its branch runs CI on GitHub-hosted runners, as do all other CI runs.
 #
 # One attempt per break comes from the trigger: an issue is opened once per
 # break and reopened once per relapse, and any pull request already opened for

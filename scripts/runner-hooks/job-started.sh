@@ -4,19 +4,16 @@
 # request. A non-zero exit makes the runner fail the job before its first step
 # (https://docs.github.com/en/actions/how-tos/manage-runners/self-hosted-runners/run-scripts).
 #
-# Why: a pull request runs the PR's merge commit, so a fork's copy of
-# scripts/ci_route.py can print the mini's labels without touching
-# .github/workflows/ (security review 2026-10-25, item 8). The repository
-# settings (collaborator-only PR creation, approval for every external
-# contributor) are the first gate and the `if:` in ci.yml the second; this is the
-# third, on the machine itself, and the only one a fork's change cannot edit.
+# CI now uses only GitHub-hosted runners. Keep this hook as a defense for any
+# older workflow that still targets the mini: a pull request runs its merge
+# commit and can change its own runner labels. The hook on the machine is
+# outside that checkout and cannot be changed by the pull request.
 #
 # What lets a job through, all of:
 #   • GITHUB_REPOSITORY is exactly jizhi0v0/duo-updater;
-#   • GITHUB_EVENT_NAME is pull_request, push or workflow_dispatch. These are the
-#     only events that reach the mini today: ci.yml is the one workflow with a
-#     self-hosted job (via the `route` job), and it triggers on exactly these.
-#     schedule, issues, pull_request_target and the rest are refused;
+#   • GITHUB_EVENT_NAME is pull_request, push or workflow_dispatch, the events
+#     supported by the former self-hosted CI route. schedule, issues,
+#     pull_request_target and the rest are refused;
 #   • for pull_request, the event payload (GITHUB_EVENT_PATH) names
 #     pull_request.head.repo.full_name and it equals this repository. A missing,
 #     null or non-string field, an unreadable file or invalid JSON refuses the job.

@@ -69,7 +69,6 @@ test-scripts: check-python
 	$(PYTHON) scripts/test_sunset_sweep.py
 	$(PYTHON) scripts/test_trails_review.py
 	$(PYTHON) scripts/test_site_floor.py
-	$(PYTHON) scripts/test_ci_route.py
 	$(PYTHON) scripts/test_recipe_autofix_check.py
 	$(PYTHON) scripts/test_runner_hook.py
 	$(PYTHON) scripts/test_ci_build_cache.py
@@ -102,11 +101,8 @@ test-scripts: check-python
 	$(PYTHON) scripts/test_check_nightly_data.py
 	$(PYTHON) scripts/test_check_ci_results.py
 
-# Extra `swift test` arguments for Core's suite, here and in test-release. Empty by
-# default. ci.yml sets `--skip installPipelineDryRun` on the mini: that test
-# downloads the first installed Sparkle app with a pending update (IINA, 110 MB,
-# twice per run there), and the mini's nightly sweep already runs it over every
-# candidate. A hosted runner has no Sparkle apps, so it skipped itself there anyway.
+# Extra `swift test` arguments for Core's suite, here and in test-release.
+# Empty by default, including on CI's GitHub-hosted runners.
 CORE_TEST_FLAGS ?=
 
 # The two SwiftPM packages, plus the application-test harness built against them.

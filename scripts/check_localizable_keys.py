@@ -29,6 +29,8 @@ rebuild on every switch). The first run is a full build; later runs are
 incremental.
 
 Usage:  python3 scripts/check_localizable_keys.py [--derived-data DIR]
+CI can supply LOCALIZABLE_DD and XCODE_CLONED_SOURCE_PACKAGES; local defaults
+remain separate from the install build.
 Exit:   0 when both sets agree, 1 otherwise.
 """
 
@@ -36,6 +38,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import pathlib
 import re
 import subprocess
@@ -83,6 +86,10 @@ def build(derived_data: pathlib.Path) -> None:
             f"✗ {PROJECT} is missing — run `xcodegen generate` in App/ first "
             "(scripts/install.sh does it for you)."
         )
+    package_args = (["-clonedSourcePackagesDirPath", os.environ["XCODE_CLONED_SOURCE_PACKAGES"]]
+                    if os.environ.get("XCODE_CLONED_SOURCE_PACKAGES") else [])
+    if os.environ.get("XCODE_MODULE_CACHE_PATH"):
+        package_args.append("CLANG_MODULE_CACHE_PATH=" + os.environ["XCODE_MODULE_CACHE_PATH"])
     result = subprocess.run(
         [
             "xcodebuild",
@@ -90,6 +97,8 @@ def build(derived_data: pathlib.Path) -> None:
             "-scheme", "DuoUpdater",
             "-configuration", CONFIGURATION,
             "-derivedDataPath", str(derived_data),
+            *package_args,
+            "COMPILER_INDEX_STORE_ENABLE=NO",
             "SWIFT_EMIT_LOC_STRINGS=YES",
             "CODE_SIGNING_ALLOWED=NO",
             "CODE_SIGNING_REQUIRED=NO",
@@ -153,7 +162,7 @@ def main() -> int:
     # the resulting `database is locked` as something to recognise rather than
     # something to prevent. See scripts/derived_data_path.py.
     derived_data = pathlib.Path(
-        args.derived_data
+        args.derived_data or os.environ.get("LOCALIZABLE_DD")
         or subprocess.run(
             [sys.executable, str(REPO / "scripts" / "derived_data_path.py"),
              "loc-check", str(REPO)],

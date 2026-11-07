@@ -275,16 +275,54 @@ jobs:
           xcodegen="$(scripts/pinned-xcodegen.sh)"
           dirname "$xcodegen" >> "$GITHUB_PATH"
 
+      # Tests and shipping builds share dependency downloads and DerivedData,
+      # with distinct Debug/Release products. Localization's emit-strings build
+      # stays separate so its settings and .stringsdata cannot mix with tests.
+      - name: Name Xcode's build cache
+        id: xcode-key
+        run: |
+          python3 scripts/ci_xcode_cache.py >> "$GITHUB_OUTPUT"
+          dd="$(python3 scripts/derived_data_path.py ci-xcode "$PWD")"
+          loc="$(python3 scripts/derived_data_path.py ci-localizable "$PWD")"
+          echo "dd=$dd" >> "$GITHUB_OUTPUT"
+          echo "loc=$loc" >> "$GITHUB_OUTPUT"
+          echo "APP_TESTS_DD=$dd" >> "$GITHUB_ENV"
+          echo "UNSIGNED_RELEASE_DD=$dd" >> "$GITHUB_ENV"
+          echo "LOCALIZABLE_DD=$loc" >> "$GITHUB_ENV"
+          echo "XCODE_CLONED_SOURCE_PACKAGES=$dd/SourcePackages" >> "$GITHUB_ENV"
+          echo "XCODE_MODULE_CACHE_PATH=$dd/ModuleCache.noindex" >> "$GITHUB_ENV"
+
+      - name: Generate Xcode project with committed pins
+        env:
+          DUO_TEAM_ID: RS59HDH7Y3
+        run: |
+          xcodegen generate --spec App/project.yml --project App
+          pins=App/DuoUpdater.xcodeproj/project.xcworkspace/xcshareddata/swiftpm
+          mkdir -p "$pins"
+          cp App/Package.resolved "$pins/Package.resolved"
+          echo "XCODE_PROJECT_PREGENERATED=1" >> "$GITHUB_ENV"
+
+      # Keep only reusable build data: no test reports, logs, index stores or
+      # SDK stat caches from the old VM. PRs read but never publish these caches.
+      - name: Restore Xcode's build
+        id: xcode-cache
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: |
+            ${{ steps.xcode-key.outputs.dd }}/Build
+            ${{ steps.xcode-key.outputs.dd }}/ModuleCache.noindex
+            ${{ steps.xcode-key.outputs.dd }}/SourcePackages
+            ${{ steps.xcode-key.outputs.dd }}/ci-mtimes.json
+            ${{ steps.xcode-key.outputs.loc }}/Build
+          key: ${{ steps.xcode-key.outputs.key }}-${{ github.sha }}
+          restore-keys: ${{ steps.xcode-key.outputs.key }}-
+
+      - name: Put back the cached Xcode build's source times
+        if: steps.xcode-cache.outputs.cache-matched-key != ''
+        run: python3 scripts/ci_build_cache.py restore "$APP_TESTS_DD"
+
       - name: make test-scripts
         run: make test-scripts
-
-      # Name this job's derived-data dir once so failure artifacts contain only
-      # its own app-tests logs and result bundles.
-      - name: Locate the app-tests directory
-        run: |
-          dd="$(python3 scripts/derived_data_path.py app-tests "$PWD")"
-          echo "APP_TESTS_DD=$dd" >> "$GITHUB_ENV"
-          rm -rf "$dd"/app-tests-*.log "$dd"/app-tests-*.xcresult "$dd"/ci-xcresult
 
       - name: make test-app
         run: scripts/run-with-hang-report.sh 1200 make test-app
@@ -294,11 +332,23 @@ jobs:
       # unsigned Release builds before this job (and the required `test`) passes.
       - name: App and CLI unsigned Release builds
         timeout-minutes: 20
-        run: |
-          # Release products are large; discard them when this step finishes.
-          dd="$(python3 scripts/derived_data_path.py unsigned-release "$PWD")"
-          trap 'rm -rf -- "$dd"' EXIT
-          UNSIGNED_RELEASE_DD="$dd" make test-release-build
+        run: make test-release-build
+
+      - name: Record the Xcode build's source times
+        if: github.event_name != 'pull_request' && steps.xcode-cache.outputs.cache-hit != 'true'
+        run: python3 scripts/ci_build_cache.py stamp "$APP_TESTS_DD"
+
+      - name: Save Xcode's build
+        if: github.event_name != 'pull_request' && steps.xcode-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: |
+            ${{ steps.xcode-key.outputs.dd }}/Build
+            ${{ steps.xcode-key.outputs.dd }}/ModuleCache.noindex
+            ${{ steps.xcode-key.outputs.dd }}/SourcePackages
+            ${{ steps.xcode-key.outputs.dd }}/ci-mtimes.json
+            ${{ steps.xcode-key.outputs.loc }}/Build
+          key: ${{ steps.xcode-key.outputs.key }}-${{ github.sha }}
 
       # scripts/app-tests.sh prints only an excerpt and leaves the full xcodebuild
       # output in the derived-data dir, which dies with the runner. Two first

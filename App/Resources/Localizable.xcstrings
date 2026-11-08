@@ -1,6 +1,402 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "Updates come from a Homebrew cask.": {
+      "comment": "Help for “via Homebrew”: where updates come from",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Updates kommen aus einem Homebrew-Cask."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las actualizaciones vienen de un cask de Homebrew."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les mises à jour proviennent d’un cask Homebrew."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gli aggiornamenti arrivano da un cask di Homebrew."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アップデートは Homebrew の cask から取得します。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "As atualizações vêm de um cask do Homebrew."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Обновления берутся из cask Homebrew."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Güncellemeler bir Homebrew cask’ından gelir."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新来自 Homebrew cask。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新來自 Homebrew cask。"
+          }
+        }
+      }
+    },
+    "Update runs brew for this app only.": {
+      "comment": "Help for “via Homebrew”: what Update does when brew installs the update",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "„Aktualisieren“ führt brew nur für diese App aus."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Actualizar ejecuta brew solo para esta app."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mettre à jour exécute brew pour cette app uniquement."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aggiorna esegue brew solo per questa app."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「更新」はこのアプリだけに brew を実行します。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Atualizar executa o brew apenas para este app."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "«Обновить» запускает brew только для этого приложения."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Güncelle, brew’u yalnızca bu uygulama için çalıştırır."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“更新”只对这个应用运行 brew。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「更新」只對這個 App 執行 brew。"
+          }
+        }
+      }
+    },
+    "New Xcode versions are found through Xcode Releases.": {
+      "comment": "Help for “via Xcode Releases”: where new versions are found",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Neue Xcode-Versionen werden über Xcode Releases gefunden."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las nuevas versiones de Xcode se encuentran a través de Xcode Releases."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les nouvelles versions de Xcode sont trouvées via Xcode Releases."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le nuove versioni di Xcode vengono trovate tramite Xcode Releases."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新しい Xcode は Xcode Releases で見つけます。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Novas versões do Xcode são encontradas pelo Xcode Releases."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Новые версии Xcode находятся через Xcode Releases."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yeni Xcode sürümleri Xcode Releases üzerinden bulunur."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新版 Xcode 通过 Xcode Releases 获知。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新版 Xcode 透過 Xcode Releases 得知。"
+          }
+        }
+      }
+    },
+    "Update downloads and installs the new Xcode.": {
+      "comment": "Help for “via Xcode Releases”: what Update does",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "„Aktualisieren“ lädt das neue Xcode und installiert es."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Actualizar descarga e instala el nuevo Xcode."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mettre à jour télécharge et installe le nouveau Xcode."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aggiorna scarica e installa il nuovo Xcode."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「更新」は新しい Xcode をダウンロードしてインストールします。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Atualizar baixa e instala o novo Xcode."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "«Обновить» загружает и устанавливает новый Xcode."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Güncelle, yeni Xcode’u indirip yükler."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“更新”会下载并安装新的 Xcode。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「更新」會下載並安裝新的 Xcode。"
+          }
+        }
+      }
+    },
+    "Homebrew installed this app but has no newer version.": {
+      "comment": "Help for “no Homebrew update · via …”, before where the update comes from",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew hat diese App installiert, hat aber keine neuere Version."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew instaló esta app pero no tiene una versión más reciente."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew a installé cette app mais n’a pas de version plus récente."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew ha installato questa app ma non ha una versione più recente."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このアプリは Homebrew でインストールされていますが、Homebrew に新しいバージョンはありません。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O Homebrew instalou este app, mas não tem uma versão mais recente."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Это приложение установлено через Homebrew, но в Homebrew нет более новой версии."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu uygulamayı Homebrew yükledi ancak Homebrew’da daha yeni bir sürüm yok."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此 App 由 Homebrew 安装，但 Homebrew 没有更新的版本。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此 App 由 Homebrew 安裝，但 Homebrew 沒有更新的版本。"
+          }
+        }
+      }
+    },
+    "After this update, Homebrew’s record of the app stays at the old version.": {
+      "comment": "Help for “no Homebrew update · via …” when Update installs from the other source",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nach diesem Update führt Homebrew die App weiterhin mit der alten Version."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Después de esta actualización, el registro de Homebrew de la app se queda en la versión anterior."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Après cette mise à jour, Homebrew garde l’ancienne version de l’app dans son registre."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dopo questo aggiornamento, Homebrew continua a registrare la versione precedente dell’app."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "この更新の後も、Homebrew の記録は古いバージョンのままになります。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Depois desta atualização, o registro do Homebrew continua na versão antiga do app."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "После этого обновления в Homebrew останется запись о старой версии приложения."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu güncellemeden sonra Homebrew’un kaydı uygulamanın eski sürümünde kalır."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这次更新后，Homebrew 记录的版本会停留在旧版本。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這次更新後，Homebrew 記錄的版本會停留在舊版本。"
+          }
+        }
+      }
+    },
     "no Homebrew update": {
       "comment": "Before “· via Sparkle”: Homebrew installed the app but has no newer version",
       "extractionState": "manual",
@@ -129,72 +525,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "此 App 由 Homebrew 安裝。Homebrew 和 App 的另一個更新來源都沒有更新的版本。"
-          }
-        }
-      }
-    },
-    "Homebrew installed this app but has no newer version, so Update uses this source. Homebrew’s record of the app stays at the old version.": {
-      "comment": "Help for “no Homebrew update · via …” on a Homebrew-installed app updated from another source",
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Homebrew hat diese App installiert, hat aber keine neuere Version, daher verwendet „Aktualisieren“ diese Quelle. Homebrew führt die App weiterhin mit der alten Version."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Homebrew instaló esta app pero no tiene una versión más reciente, así que Actualizar usa esta fuente. El registro de Homebrew de la app se queda en la versión anterior."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Homebrew a installé cette app mais n’a pas de version plus récente : Mettre à jour utilise donc cette source. Homebrew garde l’ancienne version dans son registre."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Homebrew ha installato questa app ma non ha una versione più recente, quindi Aggiorna usa questa fonte. Homebrew continua a registrare la versione precedente."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "このアプリは Homebrew でインストールされていますが、Homebrew に新しいバージョンがないため、「更新」はこのアップデート元を使います。Homebrew の記録は古いバージョンのままになります。"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "O Homebrew instalou este app, mas não tem uma versão mais recente, então Atualizar usa esta fonte. O registro do Homebrew continua na versão antiga."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Это приложение установлено через Homebrew, но в Homebrew нет более новой версии, поэтому «Обновить» использует этот источник. В Homebrew останется запись о старой версии."
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bu uygulamayı Homebrew yükledi ancak Homebrew’da daha yeni bir sürüm yok, bu yüzden Güncelle bu kaynağı kullanır. Homebrew’un kaydı eski sürümde kalır."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "此 App 由 Homebrew 安装，但 Homebrew 没有更新的版本，所以“更新”会使用这个来源。Homebrew 记录的版本会停留在旧版本。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "此 App 由 Homebrew 安裝，但 Homebrew 沒有更新的版本，所以「更新」會使用這個來源。Homebrew 記錄的版本會停留在舊版本。"
           }
         }
       }
@@ -859,72 +1189,6 @@
         }
       }
     },
-    "Updates come from a Homebrew cask. Update runs brew for this app only.": {
-      "comment": "Help on the update source",
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Updates kommen aus einem Homebrew-Cask. „Aktualisieren“ führt brew nur für diese App aus."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Las actualizaciones vienen de un cask de Homebrew. Actualizar ejecuta brew solo para esta app."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Les mises à jour proviennent d’un cask Homebrew. Mettre à jour exécute brew pour cette app uniquement."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Gli aggiornamenti arrivano da un cask di Homebrew. Aggiorna esegue brew solo per questa app."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "アップデートは Homebrew の cask から取得します。「更新」はこのアプリだけに brew を実行します。"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "As atualizações vêm de um cask do Homebrew. Atualizar executa o brew apenas para este app."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Обновления берутся из cask Homebrew. «Обновить» запускает brew только для этого приложения."
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Güncellemeler bir Homebrew cask’ından gelir. Güncelle, brew’u yalnızca bu uygulama için çalıştırır."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "更新来自 Homebrew cask。“更新”只对这个应用运行 brew。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "更新來自 Homebrew cask。「更新」只對這個 App 執行 brew。"
-          }
-        }
-      }
-    },
     "Updates come from the App Store, which installs them.": {
       "comment": "Help on the update source",
       "extractionState": "manual",
@@ -1185,72 +1449,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "這個 App 的更新由 JetBrains Toolbox 安裝。"
-          }
-        }
-      }
-    },
-    "New Xcode versions are found through Xcode Releases. Update downloads and installs the new Xcode.": {
-      "comment": "Help on the update source",
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Neue Xcode-Versionen werden über Xcode Releases gefunden. „Aktualisieren“ lädt das neue Xcode und installiert es."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Las nuevas versiones de Xcode se encuentran a través de Xcode Releases. Actualizar descarga e instala el nuevo Xcode."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Les nouvelles versions de Xcode sont trouvées via Xcode Releases. Mettre à jour télécharge et installe le nouveau Xcode."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Le nuove versioni di Xcode vengono trovate tramite Xcode Releases. Aggiorna scarica e installa il nuovo Xcode."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "新しい Xcode は Xcode Releases で見つけます。「更新」は新しい Xcode をダウンロードしてインストールします。"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Novas versões do Xcode são encontradas pelo Xcode Releases. Atualizar baixa e instala o novo Xcode."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Новые версии Xcode находятся через Xcode Releases. «Обновить» загружает и устанавливает новый Xcode."
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Yeni Xcode sürümleri Xcode Releases üzerinden bulunur. Güncelle, yeni Xcode’u indirip yükler."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "新版 Xcode 通过 Xcode Releases 获知。“更新”会下载并安装新的 Xcode。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "新版 Xcode 透過 Xcode Releases 得知。「更新」會下載並安裝新的 Xcode。"
           }
         }
       }

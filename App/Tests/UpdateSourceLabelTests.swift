@@ -40,4 +40,28 @@ struct UpdateSourceLabelTests {
         let label = UpdateSourceLabel(row(source: "Homebrew", status: .updateAvailable(latest: "1.3.0"), brewToken: "ghostty"))
         #expect(label?.phrase == "via Homebrew")
     }
+
+    /// Mutation: ignore the action for Homebrew → a cask whose package goes to
+    /// macOS's installer says Update runs brew.
+    @Test func homebrewPackageSaysTheInstallerRuns() {
+        let result = row(source: "Homebrew", status: .updateAvailable(latest: "1.3.0"), brewToken: "ghostty")
+        let detail = UpdateSourceLabel(result, action: .installer)?.detail ?? ""
+        #expect(detail.contains("macOS’s installer"))
+        #expect(!detail.contains("runs brew"))
+        #expect(UpdateSourceLabel(result, action: .install)?.detail.contains("runs brew") == true)
+    }
+
+    /// Mutation: describe the route whatever the action → a detection-only row's
+    /// help promises an install it has no button for.
+    @Test func noActionPromisesNoInstall() {
+        let plain = UpdateSourceLabel(row(source: "GitHub", status: .updateAvailable(latest: "1.3.0"), brewToken: nil))
+        #expect(plain?.detail == "Updates come from the project’s GitHub Releases.")
+        let brewCopy = UpdateSourceLabel(row(source: "GitHub", status: .updateAvailable(latest: "1.3.0"), brewToken: "zed"))
+        #expect(brewCopy?.detail.contains("replaces the app") == false)
+        #expect(brewCopy?.detail.contains("record") == false)
+        let installs = UpdateSourceLabel(
+            row(source: "GitHub", status: .updateAvailable(latest: "1.3.0"), brewToken: "zed"), action: .install)
+        #expect(installs?.detail.contains("replaces the app") == true)
+        #expect(installs?.detail.contains("record") == true)
+    }
 }

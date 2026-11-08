@@ -3499,7 +3499,7 @@ private struct DetailHeader: View {
             HStack(spacing: 0) {
                 statusVersionText
                 // Where updates come from, and in its help what Update will do.
-                if let source = UpdateSourceLabel(result, usesInstaller: model.requiresInstaller(result)) {
+                if let source = UpdateSourceLabel(result, action: sourceAction) {
                     Text(verbatim: " · ")
                     Text(source.phrase)
                         .help(source.detail)
@@ -3509,6 +3509,17 @@ private struct DetailHeader: View {
             .font(.callout).foregroundStyle(.secondary)
             .lineLimit(1).minimumScaleFactor(0.75)
         }
+    }
+
+    /// What Update does for this row, for the source label's help, in the order
+    /// the install takes it (`InstallCoordinator.route`): a running
+    /// self-updating app's own updater first, then macOS's installer, then our
+    /// own route. Anything else has no install here.
+    private var sourceAction: UpdateSourceLabel.Action {
+        if model.defersToSelfUpdater(result) { return .none }
+        if model.requiresInstaller(result) { return .installer }
+        if model.canAutoInstall(result) { return .install }
+        return .none
     }
 
     /// The version line's own words for a row with no relaunch, restart or

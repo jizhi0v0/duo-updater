@@ -4896,14 +4896,10 @@ final class AppListModel {
         // Snapshot the target set so dependency formulae brew pulls in (which also
         // emit a 🍺 line) don't inflate the count past the user-visible total.
         // Keyed as the rows are: a formula and a cask may share a name.
-        // An app cask listed through `BrewAppCask.unclaimed` whose app changed on
-        // disk since the last scan is left out (`BrewAppCask.onDiskAtRecord`).
-        let changed = brewAppCasksChangedOnDisk()
-        let outdated = brewOutdatedFormulae.filter { !($0.kind == .cask && changed.contains($0.name)) }
-        let targets = Set(outdated.map { BrewInstalledFormula.key(kind: $0.kind, name: $0.name) })
+        let targets = Set(brewOutdatedFormulae.map { BrewInstalledFormula.key(kind: $0.kind, name: $0.name) })
         // Cask tokens are upgraded by name in a second pass — never a bare
         // `brew upgrade --cask`, which would reach GUI casks this surface doesn't own.
-        let caskTokens = outdated.filter { $0.kind == .cask }.map(\.name)
+        let listedCasks = brewOutdatedFormulae.filter { $0.kind == .cask }.map(\.name)
         // Taken at its turn, not at the click: a formula's own upgrade queued
         // ahead of it may have upgraded some already.
         guard !targets.isEmpty else { return }
@@ -4928,6 +4924,19 @@ final class AppListModel {
         }) { @MainActor [weak self] () -> ((any Error)?, Bool) in
             guard let self else { return (nil, false) }
             await self.afterBackgroundHomebrewUpdate()
+            // Read at the run, after any wait above: an app cask listed through
+            // `BrewAppCask.unclaimed` whose app changed on disk since the last
+            // scan is left out (`BrewAppCask.onDiskAtRecord`).
+            let changed = self.brewAppCasksChangedOnDisk()
+            let caskTokens = listedCasks.filter { !changed.contains($0) }
+            if caskTokens.count < listedCasks.count {
+                Log.app.notice("brew upgrade (all): left out \(listedCasks.count - caskTokens.count) cask(s) whose app changed on disk since the last check")
+                self.brewUpgradeTotal -= listedCasks.count - caskTokens.count
+                for name in listedCasks where changed.contains(name) {
+                    self.formulaUpgradeErrors[BrewInstalledFormula.key(kind: .cask, name: name)] =
+                        BrewAppCaskChangedOnDisk().errorDescription
+                }
+            }
             var failure: (any Error)?
             do {
                 try await self.brewFormulaService.upgradeAll(

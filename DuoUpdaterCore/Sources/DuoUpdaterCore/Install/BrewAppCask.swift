@@ -73,13 +73,15 @@ public struct BrewAppCask: Sendable, Equatable {
     }
 
     /// `CFBundleShortVersionString` read from the bundle's Info.plist now, not
-    /// through `Bundle`, which caches.
+    /// through `Bundle`, which caches. Found and trimmed as the scanner does
+    /// (`BundleLayout.infoPlistURL`, `VersionSide.plistVersionField`), or a
+    /// value the scan reads as the record would never match here.
     public static func bundleShortVersion(_ path: String) -> String? {
-        let plist = URL(fileURLWithPath: path).appendingPathComponent("Contents/Info.plist")
+        let plist = BundleLayout.infoPlistURL(for: URL(fileURLWithPath: path))
         guard let data = try? Data(contentsOf: plist),
               let info = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any]
         else { return nil }
-        return info["CFBundleShortVersionString"] as? String
+        return VersionSide.plistVersionField(info["CFBundleShortVersionString"])
     }
 
     /// The bundle's version is the one Homebrew recorded, cut at `,`/`:` as the

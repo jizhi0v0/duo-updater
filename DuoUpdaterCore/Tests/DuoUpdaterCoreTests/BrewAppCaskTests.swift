@@ -64,12 +64,26 @@ import Foundation
         #expect(!BrewAppCask.isAtRecord(app, "16.4.0"))
     }
 
-    /// Mutation: skip the live read → an app updated since the last scan is
-    /// upgraded by brew to an older release in the window before the rescan.
+    /// The comparison a brew run makes against the disk. (Its two call sites in
+    /// `AppListModel` are not in this target.)
     @Test func brewRunReadsTheDiskNotTheScan() {
         #expect(BrewAppCask.onDiskAtRecord(cask) { _ in "16.3.0" })
         #expect(!BrewAppCask.onDiskAtRecord(cask) { $0 == elements ? "16.5.0" : "16.3.0" })
         #expect(!BrewAppCask.onDiskAtRecord(cask) { $0 == viewer ? nil : "16.3.0" })
+    }
+
+    /// The disk read trims as the scan does: a version with a trailing newline
+    /// would otherwise refuse every upgrade, and checking again never clears it.
+    @Test func diskReadTrimsLikeTheScan() throws {
+        let app = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("brew-app-\(UUID().uuidString).app")
+        defer { try? FileManager.default.removeItem(at: app) }
+        try FileManager.default.createDirectory(
+            at: app.appendingPathComponent("Contents"), withIntermediateDirectories: true)
+        let plist = try PropertyListSerialization.data(
+            fromPropertyList: ["CFBundleShortVersionString": "16.3.0\n"], format: .xml, options: 0)
+        try plist.write(to: app.appendingPathComponent("Contents/Info.plist"))
+        #expect(BrewAppCask.bundleShortVersion(app.path) == "16.3.0")
     }
 
     @Test func notWhenAnAppHasNoRow() {

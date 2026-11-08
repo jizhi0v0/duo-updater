@@ -2,6 +2,14 @@
 
 Ceci est la traduction de `CHANGELOG.md`. La version anglaise fait autorité. Les versions non énumérées ici reviennent automatiquement à l’anglais.
 
+## 0.5.24-beta.5
+
+**Les mises à jour Homebrew sont détectées plus sûrement.** Les apps comme Karabiner-Elements sont désormais identifiées grâce à leurs reçus d’installation, et les apps comme WezTerm ne proposent plus sans cesse la version déjà installée par Homebrew.
+
+**Choisissez le délai avant de quitter une app en cours d’exécution autorisée pour une mise à jour automatique.** Le délai peut être de 15, 30 ou 60 minutes ; les nouvelles versions fréquentes ne le réinitialisent plus. Les réglages signalent aussi les mises à jour automatiques activées sans sauvegardes et proposent un bouton pour activer celles-ci.
+
+**Voyez d’où viennent les mises à jour et ce qui les bloque.** La liste des apps de la fenêtre principale affiche leur source de mise à jour. Dans Événements, cliquez sur un résumé des résultats pour filtrer la liste et consultez les processus qui bloquent une mise à jour.
+
 ## 0.5.24-beta.4
 
 **Choisissez quelles apps ouvertes peuvent se mettre à jour pendant votre absence.** La nouvelle page de réglages des mises à jour automatiques permet, pour chaque app, sa fermeture, sa mise à jour et sa réouverture au repos, les mises à jour uniquement une fois fermée, ou son exclusion ; un assistant facilite la sélection de plusieurs apps.

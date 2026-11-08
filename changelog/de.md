@@ -2,6 +2,14 @@
 
 Dies ist eine deutsche Übersetzung von `CHANGELOG.md`. Die englische Fassung ist maßgeblich; frühere Versionen, die hier nicht aufgeführt sind, fallen automatisch auf Englisch zurück.
 
+## 0.5.24-beta.5
+
+**Homebrew-Updates werden zuverlässiger erkannt.** Apps wie Karabiner-Elements werden jetzt über ihre Installationsbelege zugeordnet. Apps wie WezTerm bieten nicht mehr wiederholt die bereits von Homebrew installierte Version an.
+
+**Wählen Sie die Wartezeit vor dem Beenden einer freigegebenen laufenden App für automatische Updates.** Möglich sind 15, 30 oder 60 Minuten; häufige neue Versionen setzen die Wartezeit nicht mehr zurück. Sind automatische Updates ohne Backups aktiv, zeigen die Einstellungen eine Warnung und eine Schaltfläche zum Einschalten der Backups.
+
+**Sehen Sie, woher Updates kommen und was sie aufhält.** Die App-Liste im Hauptfenster zeigt die Update-Quelle jeder App. Klicken Sie in Ereignisse auf eine Ergebnisübersicht, um die Liste zu filtern, und prüfen Sie die Prozesse, die ein Update blockieren.
+
 ## 0.5.24-beta.4
 
 **Bestimme, welche laufenden Apps während deiner Abwesenheit aktualisiert werden dürfen.** Auf der neuen Einstellungsseite für automatische Updates kannst du einzelnen Apps erlauben, bei Inaktivität beendet, aktualisiert und wieder geöffnet zu werden, Updates auf geschlossene Apps beschränken oder eine App ausschließen; ein Assistent hilft bei der Auswahl mehrerer Apps.

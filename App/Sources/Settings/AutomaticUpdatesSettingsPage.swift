@@ -41,11 +41,17 @@ struct AutomaticUpdatesSettingsPage: View {
         SettingsCard {
             SettingsToggle(
                 "Automatically update closed apps",
-                detail: "Installs eligible updates after each scheduled check, backing up every app first. App data is not backed up.",
+                detail: "Installs eligible updates after each scheduled check. With backups on, each app is backed up first, and its update waits if that fails. App data is not backed up.",
                 info: "Runs only after scheduled checks, on a network that is not restricted. An app is skipped while it or one of its helpers is running, and updates that need an installer or an authorization prompt are left for you. Each attempt, and why one was deferred, is listed in the Network window under Events.",
                 channel: .beta,
                 isOn: $prefs.automaticUpdates)
                 .settingsAnchor(.automaticUpdates)
+            // Backups are opt-in, and with them off an unattended update leaves
+            // no way back (vendor and Sparkle take no install rollback point).
+            if prefs.automaticUpdates && !prefs.keepBackups {
+                SettingsDivider()
+                noBackupsWarning
+            }
             if prefs.automaticUpdates {
                 SettingsDivider()
                 SettingsToggle(
@@ -72,6 +78,20 @@ struct AutomaticUpdatesSettingsPage: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
+    }
+
+    private var noBackupsWarning: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
+            Label(
+                "Backups are off, so an automatic update can’t be undone. Turn them on to keep the previous version of each app.",
+                systemImage: "exclamationmark.triangle.fill")
+                .foregroundStyle(.orange)
+                .font(.callout)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+            Button("Turn On Backups") { prefs.keepBackups = true }
+        }
+        .settingsRow()
     }
 
     /// Spelled out per choice so each is its own catalog key.

@@ -88226,67 +88226,197 @@
         }
       }
     },
-  "Installs eligible updates after each scheduled check, backing up every app first. App data is not backed up.": {
+    "Installs eligible updates after each scheduled check. With backups on, each app is backed up first, and its update waits if that fails. App data is not backed up.": {
       "extractionState": "manual",
       "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "每次定时检查后安装符合条件的更新，并先备份每个应用。不会备份应用数据。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "每次定時檢查後安裝符合條件的更新，並先備份每個應用程式。不會備份應用程式資料。"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "定期チェックのたびに対象のアップデートをインストールし、事前に各アプリをバックアップします。アプリのデータはバックアップされません。"
-          }
-        },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Installiert passende Updates nach jeder geplanten Prüfung und sichert jede App vorher. App-Daten werden nicht gesichert."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Installe les mises à jour éligibles après chaque vérification planifiée, en sauvegardant d’abord chaque app. Les données des apps ne sont pas sauvegardées."
+            "value": "Installiert passende Updates nach jeder geplanten Prüfung. Bei aktivierten Backups wird jede App vorher gesichert; schlägt das fehl, wartet ihr Update. App-Daten werden nicht gesichert."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Instala las actualizaciones aptas tras cada comprobación programada y antes hace una copia de cada app. Los datos de las apps no se copian."
+            "value": "Instala las actualizaciones aptas tras cada comprobación programada. Con las copias activadas, antes se hace una copia de cada app y, si falla, su actualización espera. Los datos de las apps no se copian."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Installe les mises à jour éligibles après chaque vérification planifiée. Si les sauvegardes sont activées, chaque app est d’abord sauvegardée, et sa mise à jour attend en cas d’échec. Les données des apps ne sont pas sauvegardées."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Installa gli aggiornamenti idonei dopo ogni controllo programmato, eseguendo prima il backup di ogni app. I dati delle app non vengono salvati."
+            "value": "Installa gli aggiornamenti idonei dopo ogni controllo programmato. Con i backup attivi, ogni app viene prima salvata e, se non riesce, il suo aggiornamento attende. I dati delle app non vengono salvati."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "定期チェックのたびに対象のアップデートをインストールします。バックアップがオンの場合は事前に各アプリをバックアップし、失敗したアプリのアップデートは保留します。アプリのデータはバックアップされません。"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Instala as atualizações elegíveis após cada verificação agendada, fazendo antes um backup de cada app. Os dados dos apps não são copiados."
+            "value": "Instala as atualizações elegíveis após cada verificação agendada. Com os backups ativados, cada app é copiado antes e, se isso falhar, sua atualização espera. Os dados dos apps não são copiados."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Устанавливает подходящие обновления после каждой плановой проверки, предварительно создавая резервную копию каждого приложения. Данные приложений не копируются."
+            "value": "Устанавливает подходящие обновления после каждой плановой проверки. Если резервные копии включены, сначала копируется каждое приложение, а при сбое его обновление откладывается. Данные приложений не копируются."
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Her zamanlanmış denetimden sonra uygun güncellemeleri yükler ve önce her uygulamayı yedekler. Uygulama verileri yedeklenmez."
+            "value": "Her zamanlanmış denetimden sonra uygun güncellemeleri yükler. Yedekler açıksa önce her uygulama yedeklenir; bu başarısız olursa güncellemesi bekler. Uygulama verileri yedeklenmez."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每次定时检查后安装符合条件的更新。开启备份时会先备份每个应用，备份失败则暂缓该应用的更新。不会备份应用数据。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每次定時檢查後安裝符合條件的更新。開啟備份時會先備份每個應用程式，備份失敗則暫緩該應用程式的更新。不會備份應用程式資料。"
+          }
+        }
+      }
+    },
+    "Backups are off, so an automatic update can’t be undone. Turn them on to keep the previous version of each app.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Backups sind aus, daher lässt sich ein automatisches Update nicht rückgängig machen. Aktiviere sie, um die vorherige Version jeder App zu behalten."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las copias de seguridad están desactivadas, así que una actualización automática no se puede deshacer. Actívalas para conservar la versión anterior de cada app."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les sauvegardes sont désactivées : une mise à jour automatique ne peut pas être annulée. Activez-les pour conserver la version précédente de chaque app."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "I backup sono disattivati, quindi un aggiornamento automatico non può essere annullato. Attivali per conservare la versione precedente di ogni app."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "バックアップがオフのため、自動アップデートは元に戻せません。オンにすると、各アプリの以前のバージョンを残せます。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Os backups estão desativados, então uma atualização automática não pode ser desfeita. Ative-os para manter a versão anterior de cada app."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Резервные копии выключены, поэтому автоматическое обновление нельзя отменить. Включите их, чтобы сохранять предыдущую версию каждого приложения."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yedekler kapalı, bu yüzden otomatik bir güncelleme geri alınamaz. Her uygulamanın önceki sürümünü saklamak için yedekleri açın."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "备份已关闭，自动更新后无法回退。开启备份即可保留每个应用的上一版本。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "備份已關閉，自動更新後無法回復。開啟備份即可保留每個應用程式的上一個版本。"
+          }
+        }
+      }
+    },
+    "Turn On Backups": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Backups aktivieren"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Activar copias"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Activer les sauvegardes"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Attiva backup"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "バックアップをオン"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ativar backups"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Включить копии"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yedekleri aç"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "开启备份"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開啟備份"
           }
         }
       }

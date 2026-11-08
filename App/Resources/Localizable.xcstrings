@@ -1,6 +1,50 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "Wait before quitting a running app": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "退出运行中应用前等待"
+          }
+        }
+      }
+    },
+    "15 minutes": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "15 分钟"
+          }
+        }
+      }
+    },
+    "30 minutes": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "30 分钟"
+          }
+        }
+      }
+    },
+    "1 hour": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 小时"
+          }
+        }
+      }
+    },
     "Paused while “Also update running apps” is off; updated when closed": {
       "extractionState": "manual",
       "localizations": {
@@ -397,13 +441,13 @@
         }
       }
     },
-    "An app is quit only if: you allowed it; the update has been known for a day; it has not been in front for an hour; the Mac has had no input for 15 minutes or is locked; it is not keeping the Mac awake (calls, playback, recording, downloads); and it has no shell or other program running. It is asked to quit normally. If it does not quit, it is not asked again for that version, and after three failed updates it waits for the next version. Each app is quit at most once a day.": {
+    "An app is quit only if: you allowed it; it has been out of date for the wait chosen below, counted again from its last quit for an update; it has not been in front for an hour; the Mac has had no input for 15 minutes or is locked; it is not keeping the Mac awake (calls, playback, recording, downloads); and it has no shell or other program running. When the wait is over, the newest version is installed, even if it came out moments ago. It is asked to quit normally. If it does not quit, or an update fails, nothing is tried for a day; it is not asked again for that version, and after three failed updates it waits for the next version.": {
       "extractionState": "manual",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "只有同时满足以下条件，应用才会被退出：你允许了它；该更新已发布满一天；它已有一小时未在前台；Mac 已 15 分钟无输入或已锁屏；它没有阻止 Mac 睡眠（通话、播放、录制、下载）；它没有运行 shell 或其他程序。应用会被正常请求退出。如果它没有退出，这个版本不会再次请求；更新失败三次后，会等待下一个版本。每个应用每天最多被退出一次。"
+            "value": "只有同时满足以下条件，应用才会被退出：你允许了它；它落后于最新版本已满下方选择的等待时间（上次因更新被退出后重新计时）；它已有一小时未在前台；Mac 已 15 分钟无输入或已锁屏；它没有阻止 Mac 睡眠（通话、播放、录制、下载）；它没有运行 shell 或其他程序。等待结束时安装的是最新版本，即使它刚刚发布。应用会被正常请求退出。如果它没有退出或更新失败，一天内不会再尝试；这个版本不会再次请求退出，更新失败三次后会等待下一个版本。"
           }
         }
       }

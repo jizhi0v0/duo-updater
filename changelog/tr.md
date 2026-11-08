@@ -2,6 +2,12 @@
 
 Bu, `CHANGELOG.md` dosyasının Türkçe çevirisidir. Geçerli olan İngilizce sürümdür; burada yer almayan eski sürümler otomatik olarak İngilizce gösterilir.
 
+## 0.5.24-beta.4
+
+**Siz uzaktayken hangi açık uygulamaların güncellenebileceğini seçin.** Yeni otomatik güncelleme ayarları sayfasında her uygulamanın boştayken kapanıp güncellenerek yeniden açılmasına izin verebilir, güncellemeleri yalnızca kapalı uygulamalarla sınırlayabilir veya bir uygulamayı hariç tutabilirsiniz; kurulum rehberi toplu seçim yapmanızı kolaylaştırır.
+
+**Otomatik güncelleme olaylarını takip etmek daha kolay.** Kayıtlar güne göre gruplanır, tekrarlanan ertelemeler birleştirilir ve tanılama bilgileri güncellemeyi neyin engellediğini daha açık anlatır.
+
 ## 0.5.24-beta.3
 
 **Homebrew uygulamalarının diğer kaynakları nasıl kontrol edeceğini seçin.** Ayarlar’dan varsayılan davranışı belirleyin veya tek bir uygulama için yalnızca Homebrew’u seçin. Farklı bir geliştirici tarafından imzalanan güncellemeler, bu fark algılanabildiğinde atlanır.

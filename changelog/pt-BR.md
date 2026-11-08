@@ -2,6 +2,12 @@
 
 Esta é a tradução para o português do Brasil do arquivo CHANGELOG.md. A versão em inglês prevalece em caso de divergência. Os números de versão que não aparecem aqui são mostrados automaticamente em inglês na janela Novidades.
 
+## 0.5.24-beta.4
+
+**Escolha quais apps abertos podem ser atualizados enquanto você está ausente.** A nova página de ajustes de atualizações automáticas permite que cada app seja fechado, atualizado e reaberto quando estiver ocioso, limitar as atualizações a apps fechados ou excluir um app; um assistente facilita a seleção em grupo.
+
+**Os eventos de atualização automática ficaram mais fáceis de acompanhar.** As entradas são agrupadas por dia, os adiamentos repetidos são combinados e os diagnósticos explicam com mais clareza o que impede uma atualização.
+
 ## 0.5.24-beta.3
 
 **Escolha como os apps do Homebrew consultam outras fontes.** Defina o comportamento padrão nos Ajustes ou escolha usar apenas o Homebrew para um app. Atualizações assinadas por outro desenvolvedor são ignoradas quando essa diferença pode ser detectada.

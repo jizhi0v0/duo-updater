@@ -2,6 +2,12 @@
 
 Ceci est la traduction de `CHANGELOG.md`. La version anglaise fait autorité. Les versions non énumérées ici reviennent automatiquement à l’anglais.
 
+## 0.5.24-beta.4
+
+**Choisissez quelles apps ouvertes peuvent se mettre à jour pendant votre absence.** La nouvelle page de réglages des mises à jour automatiques permet, pour chaque app, sa fermeture, sa mise à jour et sa réouverture au repos, les mises à jour uniquement une fois fermée, ou son exclusion ; un assistant facilite la sélection de plusieurs apps.
+
+**Les événements des mises à jour automatiques sont plus lisibles.** Les entrées sont regroupées par jour, les reports répétés sont réunis et les diagnostics expliquent plus clairement ce qui retarde une mise à jour.
+
 ## 0.5.24-beta.3
 
 **Choisissez comment les apps Homebrew consultent d’autres sources.** Définissez le comportement par défaut dans les réglages ou choisissez Homebrew uniquement pour une app. Les mises à jour signées par un autre développeur sont ignorées lorsque cette différence peut être détectée.

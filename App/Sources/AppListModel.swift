@@ -4929,6 +4929,11 @@ final class AppListModel {
             // scan is left out (`BrewAppCask.onDiskAtRecord`).
             let changed = self.brewAppCasksChangedOnDisk()
             let caskTokens = listedCasks.filter { !changed.contains($0) }
+            // A run answers for every cask it lists, as a row's own Upgrade does
+            // for its row: an earlier run's "changed on disk" is not this one's.
+            for name in listedCasks {
+                self.formulaUpgradeErrors[BrewInstalledFormula.key(kind: .cask, name: name)] = nil
+            }
             if caskTokens.count < listedCasks.count {
                 Log.app.notice("brew upgrade (all): left out \(listedCasks.count - caskTokens.count) cask(s) whose app changed on disk since the last check")
                 self.brewUpgradeTotal -= listedCasks.count - caskTokens.count

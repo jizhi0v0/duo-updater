@@ -53,6 +53,10 @@
                 <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.5.24-beta.3/DuoUpdater144-143.delta" sparkle:deltaFrom="143" length="1357214" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="468528" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="3pn9O43ZhOorl0jo7jB11ADm0t/JSLW0S32oPQiXJPYnOmXtAH5NbuPW/8459rrGlfQLoVBsuieZtKCdQoDrBg=="/>
                 <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.5.24-beta.3/DuoUpdater144-142.delta" sparkle:deltaFrom="142" length="1606906" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="468528" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="zy636ZqS8/rCMRwBiP2zpd5J5ZaSYjiwbtdYf0NYN831b45slTLGLSeS4opOYclQkeikVNmnpRs8BleBnMgmBA=="/>
             </sparkle:deltas>
+            <description sparkle:format="markdown"><![CDATA[**Choose how Homebrew apps check other sources.** Set a default in Settings or choose Homebrew Only for an individual app. Updates signed by a different developer are skipped when that difference can be detected.
+
+**Beta and Setapp settings are easier to read.** Their controls now follow the layout used throughout Settings.
+]]></description>
         </item>
         <item>
             <title>0.5.24-beta.2</title>

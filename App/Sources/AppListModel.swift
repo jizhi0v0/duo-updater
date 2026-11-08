@@ -10419,7 +10419,7 @@ final class AppListModel {
                 let processes = NestedAppGuard.liveProcesses()
                 let running = processes.filter { AutomaticInstall.hasRunningProcess(at: result.app.path, processes: [$0]) }
                 for process in running {
-                    capture(.init(kind: .targetRunning, pid: process.pid, parentPID: process.parentPID))
+                    capture(.targetRunning(process, in: result.app.path, among: processes))
                 }
                 if running.isEmpty {
                     reason = nil

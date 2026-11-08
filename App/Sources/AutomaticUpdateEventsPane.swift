@@ -9,9 +9,15 @@ struct AutomaticUpdateEventsPane: View {
     /// Rows whose diagnostics are open. Kept here, not in the row: a lazy stack
     /// drops rows scrolled out of view, and their state with them.
     @State private var expanded: Set<String> = []
+    /// The outcome picked in the summary bar; nil shows every row.
+    @State private var filter: AttemptStatus?
 
     var body: some View {
-        let rows = AutomaticUpdateActivity.rows(from: events)
+        let allRows = AutomaticUpdateActivity.rows(from: events)
+        // A filter whose outcome is no longer listed (cleared, or aged out)
+        // shows everything rather than an empty list.
+        let active = filter.flatMap { f in allRows.contains { AttemptStatus($0.status) == f } ? f : nil }
+        let rows = active.map { f in allRows.filter { AttemptStatus($0.status) == f } } ?? allRows
         let days = Dictionary(grouping: rows) { Calendar.current.startOfDay(for: $0.last) }
             .sorted { $0.key > $1.key }
         // A stack, not a List: the table under a List kept a row's old height
@@ -42,12 +48,12 @@ struct AutomaticUpdateEventsPane: View {
         }
         .background(.background)
         .overlay {
-            if rows.isEmpty {
+            if allRows.isEmpty {
                 ContentUnavailableView("No automatic update activity yet.", systemImage: "clock.arrow.circlepath")
             }
         }
         .safeAreaInset(edge: .top, spacing: 0) {
-            if !rows.isEmpty { SummaryBar(rows: rows) }
+            if !allRows.isEmpty { SummaryBar(rows: allRows, filter: active) { filter = $0 } }
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             HStack {
@@ -125,6 +131,9 @@ private enum DayLabel {
 /// One tile per outcome, counting attempts rather than rows.
 private struct SummaryBar: View {
     let rows: [AutomaticUpdateActivity]
+    /// The outcome the list is narrowed to, if any.
+    let filter: AttemptStatus?
+    let select: (AttemptStatus?) -> Void
 
     var body: some View {
         let counts = Dictionary(grouping: rows) { AttemptStatus($0.status) }
@@ -151,7 +160,23 @@ private struct SummaryBar: View {
         .overlay(alignment: .bottom) { Divider() }
     }
 
+    /// A tile is a toggle: click to show only that outcome, again to show all.
     private func tile(_ status: AttemptStatus, count: Int) -> some View {
+        let selected = filter == status
+        let dimmed = filter != nil && !selected
+        return Button {
+            select(selected ? nil : status)
+        } label: {
+            tileLabel(status, count: count, selected: selected)
+        }
+        .buttonStyle(.plain)
+        .disabled(count == 0)
+        .opacity(dimmed ? 0.55 : 1)
+        .help(selected ? String(localized: "Show all") : status.label)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    private func tileLabel(_ status: AttemptStatus, count: Int, selected: Bool) -> some View {
         HStack(spacing: 10) {
             Image(systemName: status.symbol)
                 .font(.title2)
@@ -165,9 +190,15 @@ private struct SummaryBar: View {
         }
         .padding(.horizontal, 12).padding(.vertical, 8)
         .frame(minWidth: 120, alignment: .leading)
-        .background((count > 0 ? status.tint : Color.secondary).opacity(0.1),
+        .background((count > 0 ? status.tint : Color.secondary).opacity(selected ? 0.22 : 0.1),
                     in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-        .help(status.label)
+        .overlay {
+            if selected {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .strokeBorder(status.tint, lineWidth: 1.5)
+            }
+        }
+        .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 }
 

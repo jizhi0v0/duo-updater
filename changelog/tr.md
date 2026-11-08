@@ -2,6 +2,14 @@
 
 Bu, `CHANGELOG.md` dosyasının Türkçe çevirisidir. Geçerli olan İngilizce sürümdür; burada yer almayan eski sürümler otomatik olarak İngilizce gösterilir.
 
+## 0.5.24-beta.5
+
+**Homebrew güncellemeleri daha güvenilir algılanıyor.** Karabiner-Elements gibi uygulamalar artık kurulum makbuzlarıyla eşleştiriliyor; WezTerm gibi uygulamalar Homebrew’un zaten yüklediği sürümü tekrar tekrar önermiyor.
+
+**Otomatik güncelleme için izin verdiğiniz çalışan bir uygulamayı kapatmadan önce ne kadar bekleneceğini seçin.** 15, 30 veya 60 dakika seçebilirsiniz; sık çıkan yeni sürümler beklemeyi artık sıfırlamaz. Yedekleme kapalıyken otomatik güncellemeler açıksa Ayarlar uyarı gösterir ve yedeklemeyi açmak için bir düğme sunar.
+
+**Güncellemelerin kaynağını ve neyin engel olduğunu görün.** Ana penceredeki uygulama listesi her uygulamanın güncelleme kaynağını gösterir. Olaylar’da sonuç özetine tıklayarak listeyi filtreleyebilir ve güncellemeyi engelleyen süreçleri inceleyebilirsiniz.
+
 ## 0.5.24-beta.4
 
 **Siz uzaktayken hangi açık uygulamaların güncellenebileceğini seçin.** Yeni otomatik güncelleme ayarları sayfasında her uygulamanın boştayken kapanıp güncellenerek yeniden açılmasına izin verebilir, güncellemeleri yalnızca kapalı uygulamalarla sınırlayabilir veya bir uygulamayı hariç tutabilirsiniz; kurulum rehberi toplu seçim yapmanızı kolaylaştırır.

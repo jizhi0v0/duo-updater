@@ -2,6 +2,14 @@
 
 Questa è la traduzione di `CHANGELOG.md`. In caso di differenze fa fede la versione inglese. Le versioni non elencate qui vengono mostrate automaticamente in inglese.
 
+## 0.5.24-beta.5
+
+**Gli aggiornamenti Homebrew vengono rilevati con maggiore affidabilità.** App come Karabiner-Elements vengono ora associate tramite le ricevute di installazione, e app come WezTerm non propongono più ripetutamente la versione già installata da Homebrew.
+
+**Scegli quanto attendere prima di chiudere un’app in esecuzione autorizzata per aggiornarla automaticamente.** Puoi scegliere 15, 30 o 60 minuti; le nuove versioni frequenti non azzerano più l’attesa. Le impostazioni avvisano anche quando gli aggiornamenti automatici sono attivi senza backup e offrono un pulsante per abilitarli.
+
+**Scopri da dove arrivano gli aggiornamenti e cosa li blocca.** L’elenco delle app nella finestra principale mostra la fonte degli aggiornamenti di ogni app. In Eventi, fai clic su un riepilogo degli esiti per filtrare l’elenco e consulta i processi che bloccano un aggiornamento.
+
 ## 0.5.24-beta.4
 
 **Scegli quali app aperte possono aggiornarsi mentre sei assente.** La nuova pagina delle impostazioni degli aggiornamenti automatici consente a ogni app di chiudersi, aggiornarsi e riaprirsi quando è inattiva, di aggiornarsi solo da chiusa o di essere esclusa; una guida facilita la selezione di più app.

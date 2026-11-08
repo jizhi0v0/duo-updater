@@ -19,6 +19,14 @@ release note is debugging our code:
 
 Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
+## 0.5.24-beta.5
+
+**Homebrew updates are detected more reliably.** Apps such as Karabiner-Elements are now matched through their installer receipts, and apps such as WezTerm no longer keep offering the version Homebrew already installed.
+
+**Choose how long automatic updates wait before quitting an allowed running app.** The wait can be 15, 30 or 60 minutes, and frequent new releases no longer restart it. Settings also warns when automatic updates are on without backups and offers a button to enable them.
+
+**See where updates come from and what holds them back.** The app list in the main window shows each app’s update source. In Events, click an outcome summary to filter the list, and inspect the processes blocking an update.
+
 ## 0.5.24-beta.4
 
 **Choose which running apps may update while you are away.** The new Automatic Updates settings page lets you allow individual apps to quit, update and reopen when idle, keep updates limited to closed apps, or exclude an app; a setup guide helps you choose in bulk.

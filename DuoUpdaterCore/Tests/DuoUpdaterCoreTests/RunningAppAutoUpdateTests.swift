@@ -244,6 +244,9 @@ struct RunningAppAutoUpdateTests {
         #expect(Policy.hasForeignChild(of: bundle, processes: [app], children: children, isZombie: { _ in false }))
     }
 
+    /// offpool-lint:allow — the test needs a child nobody has reaped yet, which
+    /// `ChildProcess.run` never leaves behind. `/usr/bin/true` exits at once, so
+    /// the poll and the final `waitpid` are bounded.
     @Test func kernelReportsAnUnreapedChildAsZombie() throws {
         var pid: pid_t = 0
         var argv: [UnsafeMutablePointer<CChar>?] = [strdup("/usr/bin/true"), nil]

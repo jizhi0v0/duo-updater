@@ -64,6 +64,14 @@ import Foundation
         #expect(!BrewAppCask.isAtRecord(app, "16.4.0"))
     }
 
+    /// Mutation: skip the live read → an app updated since the last scan is
+    /// upgraded by brew to an older release in the window before the rescan.
+    @Test func brewRunReadsTheDiskNotTheScan() {
+        #expect(BrewAppCask.onDiskAtRecord(cask) { _ in "16.3.0" })
+        #expect(!BrewAppCask.onDiskAtRecord(cask) { $0 == elements ? "16.5.0" : "16.3.0" })
+        #expect(!BrewAppCask.onDiskAtRecord(cask) { $0 == viewer ? nil : "16.3.0" })
+    }
+
     @Test func notWhenAnAppHasNoRow() {
         #expect(unclaimed([row(elements)]).isEmpty)
     }

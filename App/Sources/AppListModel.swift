@@ -1204,6 +1204,13 @@ final class AppListModel {
             result.remote?.sourceName == "Homebrew" ? result.remote?.sourceIdentifier : nil
         })
     }
+    /// The app casks a brew run must leave alone now: listed only because their
+    /// apps found no source, and one of those apps is no longer at Homebrew's
+    /// record on disk. Read at the run, not from the scan.
+    private func brewAppCasksChangedOnDisk() -> Set<String> {
+        Set(brewAppCasks.filter { !BrewAppCask.onDiskAtRecord($0) }.map(\.row.name))
+    }
+
     /// Official casks whose apps have rows, from the last brew read. Each is a
     /// package row only while those rows found no update source.
     private var brewAppCasks: [BrewAppCask] = []
@@ -4889,10 +4896,14 @@ final class AppListModel {
         // Snapshot the target set so dependency formulae brew pulls in (which also
         // emit a 🍺 line) don't inflate the count past the user-visible total.
         // Keyed as the rows are: a formula and a cask may share a name.
-        let targets = Set(brewOutdatedFormulae.map { BrewInstalledFormula.key(kind: $0.kind, name: $0.name) })
+        // An app cask listed through `BrewAppCask.unclaimed` whose app changed on
+        // disk since the last scan is left out (`BrewAppCask.onDiskAtRecord`).
+        let changed = brewAppCasksChangedOnDisk()
+        let outdated = brewOutdatedFormulae.filter { !($0.kind == .cask && changed.contains($0.name)) }
+        let targets = Set(outdated.map { BrewInstalledFormula.key(kind: $0.kind, name: $0.name) })
         // Cask tokens are upgraded by name in a second pass — never a bare
         // `brew upgrade --cask`, which would reach GUI casks this surface doesn't own.
-        let caskTokens = brewOutdatedFormulae.filter { $0.kind == .cask }.map(\.name)
+        let caskTokens = outdated.filter { $0.kind == .cask }.map(\.name)
         // Taken at its turn, not at the click: a formula's own upgrade queued
         // ahead of it may have upgraded some already.
         guard !targets.isEmpty else { return }
@@ -4998,6 +5009,10 @@ final class AppListModel {
             }
             do {
                 if let cask = self.brewFormulae.first(where: { $0.key == name && $0.kind == .cask }) {
+                    if self.brewAppCasksChangedOnDisk().contains(cask.name) {
+                        Log.app.notice("brew upgrade \(cask.name, privacy: .public): skipped — its app changed on disk since the last check")
+                        return (BrewAppCaskChangedOnDisk(), false)
+                    }
                     try await self.brewFormulaService.upgrade(
                         cask: cask.name, password: BrewSudoPasswordPanel.prompt, onOutput: onOutput)
                 } else {
@@ -12008,5 +12023,13 @@ private final class BackgroundUpdateWait: @unchecked Sendable {
             return waiter
         }
         resume?.resume()
+    }
+}
+
+/// A package row's upgrade refused because its app changed on disk since the
+/// last check (`AppListModel.brewAppCasksChangedOnDisk`).
+private struct BrewAppCaskChangedOnDisk: LocalizedError {
+    var errorDescription: String? {
+        String(localized: "This app changed on disk since the last check. Check again first.")
     }
 }

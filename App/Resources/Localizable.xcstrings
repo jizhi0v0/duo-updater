@@ -1,6 +1,72 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "This app changed on disk since the last check. Check again first.": {
+      "comment": "Error on a Homebrew package row whose app was updated since the last check",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diese App hat sich seit der letzten Prüfung auf dem Mac geändert. Prüfe zuerst erneut."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta app ha cambiado en el disco desde la última comprobación. Vuelve a comprobar primero."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cette app a changé sur le disque depuis la dernière vérification. Vérifiez d’abord à nouveau."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Questa app è cambiata sul disco dall’ultimo controllo. Prima controlla di nuovo."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "前回の確認以降、このアプリはディスク上で変更されています。先にもう一度確認してください。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Este app mudou no disco desde a última verificação. Verifique novamente primeiro."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Это приложение изменилось на диске после последней проверки. Сначала проверьте ещё раз."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu uygulama son denetimden bu yana diskte değişti. Önce yeniden denetleyin."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自上次检查以来，此 App 在磁盘上已有变化。请先重新检查。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自上次檢查以來，此 App 在磁碟上已有變化。請先重新檢查。"
+          }
+        }
+      }
+    },
     "Wait before quitting a running app": {
       "extractionState": "manual",
       "localizations": {

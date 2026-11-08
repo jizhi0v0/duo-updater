@@ -54,6 +54,34 @@ public struct BrewAppCask: Sendable, Equatable {
         return names
     }
 
+    /// Every app of `cask` is, on disk right now, at the version Homebrew
+    /// recorded. `unclaimed` reads the last scan, which lags an app's own
+    /// updater until the folder watcher's rescan lands; a brew run that takes
+    /// the cask through this net asks this first, so a release older than the
+    /// one on disk is never installed over it in that window.
+    public static func onDiskAtRecord(
+        _ cask: BrewAppCask,
+        readVersion: (String) -> String? = BrewAppCask.bundleShortVersion
+    ) -> Bool {
+        guard !cask.appPaths.isEmpty,
+              let record = cask.row.installedVersion.split(whereSeparator: { $0 == "," || $0 == ":" }).first
+        else { return false }
+        return cask.appPaths.allSatisfy { path in
+            guard let version = readVersion(path) else { return false }
+            return VersionComparator.compare(String(record), version) == .orderedSame
+        }
+    }
+
+    /// `CFBundleShortVersionString` read from the bundle's Info.plist now, not
+    /// through `Bundle`, which caches.
+    public static func bundleShortVersion(_ path: String) -> String? {
+        let plist = URL(fileURLWithPath: path).appendingPathComponent("Contents/Info.plist")
+        guard let data = try? Data(contentsOf: plist),
+              let info = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any]
+        else { return nil }
+        return info["CFBundleShortVersionString"] as? String
+    }
+
     /// The bundle's version is the one Homebrew recorded, cut at `,`/`:` as the
     /// receipt match cuts it (`HomebrewCaskSource`).
     static func isAtRecord(_ app: InstalledApp, _ recorded: String) -> Bool {

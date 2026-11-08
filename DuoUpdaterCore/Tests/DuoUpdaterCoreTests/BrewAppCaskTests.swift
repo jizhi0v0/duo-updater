@@ -15,10 +15,10 @@ import Foundation
             appPaths: [elements, viewer])
     }
 
-    func row(_ path: String, source: String? = nil, status: UpdateStatus = .unknown) -> UpdateResult {
+    func row(_ path: String, source: String? = nil, status: UpdateStatus = .unknown, version: String = "16.3.0") -> UpdateResult {
         let app = InstalledApp(
             name: URL(fileURLWithPath: path).deletingPathExtension().lastPathComponent,
-            bundleID: "org.pqrs.\(path.count)", shortVersion: "16.3.0", buildVersion: "16.3.0",
+            bundleID: "org.pqrs.\(path.count)", shortVersion: version, buildVersion: version,
             path: URL(fileURLWithPath: path), isMASApp: false, sparkleFeedURL: nil)
         let remote = source.map {
             RemoteVersion(shortVersion: "16.3.0", version: nil, downloadURL: nil, sourceName: $0)
@@ -49,6 +49,19 @@ import Foundation
     /// A source that applied and failed is a route, retried by the next round.
     @Test func notWhenACheckFailed() {
         #expect(unclaimed([row(elements, status: .error("timed out")), row(viewer)]).isEmpty)
+    }
+
+    /// Mutation: drop the record check → an app its own updater moved past the
+    /// Caskroom record (which the receipt match declines, so it has no source)
+    /// lists the cask, and Upgrade All reinstalls an older release under sudo.
+    @Test func notWhenAnAppMovedPastTheRecord() {
+        #expect(unclaimed([row(elements, version: "16.5.0"), row(viewer)]).isEmpty)
+    }
+
+    @Test func recordIsCutLikeTheReceiptMatch() {
+        let app = row(elements).app
+        #expect(BrewAppCask.isAtRecord(app, "16.3.0,abc123"))
+        #expect(!BrewAppCask.isAtRecord(app, "16.4.0"))
     }
 
     @Test func notWhenAnAppHasNoRow() {

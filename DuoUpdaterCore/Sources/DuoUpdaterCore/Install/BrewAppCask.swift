@@ -29,6 +29,12 @@ public struct BrewAppCask: Sendable, Equatable {
     /// with no row here (moved, or not scanned) cannot be vouched for. A row that
     /// any source answered for — even with an error — has its own update route,
     /// and a cask listed beside it would offer a second one.
+    ///
+    /// And every app must still be at the version Homebrew recorded installing.
+    /// "No source" also covers an app the receipt match declined because it moved
+    /// past that record — its own updater ran — and for such an app brew's
+    /// non-greedy `outdated` compares only the record: Upgrade All would
+    /// reinstall, under sudo, a release older than the one on disk.
     public static func unclaimed(
         _ casks: [BrewAppCask], rows: [UpdateResult], checked: Bool,
         isIgnored: (InstalledApp) -> Bool
@@ -40,10 +46,20 @@ public struct BrewAppCask: Sendable, Equatable {
         for cask in casks where !cask.appPaths.isEmpty {
             let found = cask.appPaths.compactMap { byPath[$0] }
             guard found.count == cask.appPaths.count,
-                  found.allSatisfy({ $0.remote == nil && $0.status == .unknown && !isIgnored($0.app) })
+                  found.allSatisfy({ $0.remote == nil && $0.status == .unknown && !isIgnored($0.app) }),
+                  found.allSatisfy({ isAtRecord($0.app, cask.row.installedVersion) })
             else { continue }
             names.insert(cask.row.name)
         }
         return names
+    }
+
+    /// The bundle's version is the one Homebrew recorded, cut at `,`/`:` as the
+    /// receipt match cuts it (`HomebrewCaskSource`).
+    static func isAtRecord(_ app: InstalledApp, _ recorded: String) -> Bool {
+        guard let installed = app.shortVersion,
+              let record = recorded.split(whereSeparator: { $0 == "," || $0 == ":" }).first
+        else { return false }
+        return VersionComparator.compare(String(record), installed) == .orderedSame
     }
 }

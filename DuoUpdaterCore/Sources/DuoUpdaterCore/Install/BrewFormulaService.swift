@@ -581,6 +581,10 @@ public actor BrewFormulaService {
         public var headInstalls: [String: BrewHeadInstall] = [:]
         /// Casks needing a package row (app-less or third-party), sorted by name.
         public var appLessCasks: [BrewInstalledFormula] = []
+        /// Official casks that install an app, with the apps they installed. Each
+        /// is listed as a package only while its apps' rows found no update
+        /// source (`BrewAppCask.unclaimed`).
+        public var appCasks: [BrewAppCask] = []
         /// False when `brew info` failed: `appLessCasks` is empty for want of a
         /// read, and the last ones still stand.
         public var casksRead = true
@@ -612,6 +616,7 @@ public actor BrewFormulaService {
         }
         let caskInstallsAnApp: (String) async -> Bool = { facts[$0]?.installsAnApp ?? false }
         let appLessCasks = Self.appLessCasks(installedInfo: info, facts: facts)
+        let appCasks = Self.appCasks(installedInfo: info, facts: facts)
         let candidates = await Self.uncheckedCandidates(
             formulaFullNames: fullNames,
             installedInfo: info,
@@ -630,7 +635,7 @@ public actor BrewFormulaService {
         guard !candidates.isEmpty else {
             return InstalledReport(
                 unchecked: orphans, lifecycles: lifecycles, caskLifecycles: caskLifecycles,
-                headInstalls: headInstalls, appLessCasks: appLessCasks,
+                headInstalls: headInstalls, appLessCasks: appLessCasks, appCasks: appCasks,
                 casksRead: Self.parsesCasks(installedInfo: info))
         }
 
@@ -641,7 +646,7 @@ public actor BrewFormulaService {
             .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
         return InstalledReport(
             unchecked: unchecked, lifecycles: lifecycles, caskLifecycles: caskLifecycles,
-            headInstalls: headInstalls, appLessCasks: appLessCasks,
+            headInstalls: headInstalls, appLessCasks: appLessCasks, appCasks: appCasks,
             casksRead: Self.parsesCasks(installedInfo: info))
     }
 
@@ -715,6 +720,41 @@ public actor BrewFormulaService {
                 manualInstaller: manual)
         }
         .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
+    /// Installed homebrew/cask casks whose apps have rows, with those apps' paths
+    /// — the casks `appLessCasks` leaves out because an app row stands for them.
+    /// Read from Homebrew's catalog like any other row: an untrusted-tap copy
+    /// (`"tap": null`) is not one.
+    static func appCasks(installedInfo: Data, facts: [String: CaskFacts]) -> [BrewAppCask] {
+        guard
+            let root = try? JSONSerialization.jsonObject(with: installedInfo) as? [String: Any],
+            let casks = root["casks"] as? [[String: Any]]
+        else { return [] }
+        return casks.compactMap { c -> BrewAppCask? in
+            guard
+                !(c["tap"] is NSNull),
+                let token = c["token"] as? String,
+                thirdPartyCaskName(token: token, tap: c["tap"] as? String) == nil,
+                let fact = facts[token], fact.installsAnApp
+            else { return nil }
+            let manual = ((c["artifacts"] as? [Any]) ?? []).contains { artifact in
+                (((artifact as? [String: Any])?["installer"] as? [Any]) ?? []).contains {
+                    ($0 as? [String: Any])?["manual"] != nil
+                }
+            }
+            return BrewAppCask(
+                row: BrewInstalledFormula(
+                    name: token,
+                    installedVersion: (c["installed"] as? String) ?? "—",
+                    availableVersion: nil,
+                    lifecycle: BrewLifecycle.parse(c),
+                    kind: .cask,
+                    needsSudo: fact.needsSudo,
+                    manualInstaller: manual),
+                appPaths: fact.appPaths)
+        }
+        .sorted { $0.row.name.localizedCaseInsensitiveCompare($1.row.name) == .orderedAscending }
     }
 
     /// `BrewHeadInstall` for every formula whose keg in use is a HEAD one, keyed by
@@ -994,9 +1034,11 @@ public actor BrewFormulaService {
         }
     }
 
-    /// Outdated app-less casks and third-party GUI casks. See
-    /// `BrewOutdatedFormula` for why GUI casks are excluded, and
-    /// `caskFacts(caskToken:)` for how that's decided.
+    /// Every outdated cask, by the name its package row would have (tap-qualified
+    /// for a third-party cask). Which of them get a row is the caller's call:
+    /// app-less and third-party casks always, an official app cask only while its
+    /// apps found no update source (`BrewAppCask.unclaimed`) — see
+    /// `BrewOutdatedFormula` for why GUI casks are otherwise left to their app rows.
     ///
     /// Non-greedy on purpose: `--greedy` would pull in `auto_updates` casks, whose
     /// update channel is the app's own updater, not brew.
@@ -1011,12 +1053,12 @@ public actor BrewFormulaService {
         for cask in Self.parseCasks(data) {
             let token = Self.shortName(cask.name)
             let tapName = Self.thirdPartyCaskName(token: token, tap: caskReceiptTap(token))
-            let facts = await caskFacts(token, nil, extraFolders)
-            if tapName != nil || !facts.installsAnApp {
-                out.append(BrewOutdatedFormula(
-                    name: tapName ?? cask.name, installedVersion: cask.installedVersion,
-                    currentVersion: cask.currentVersion, kind: .cask))
-            }
+            // Every cask, app or not: the caller keeps only those with a package
+            // row (`InstalledReport.appLessCasks`, and an `appCasks` entry while
+            // its apps found no update source), and decides that from the same read.
+            out.append(BrewOutdatedFormula(
+                name: tapName ?? cask.name, installedVersion: cask.installedVersion,
+                currentVersion: cask.currentVersion, kind: .cask))
         }
         return out
     }
@@ -1027,6 +1069,9 @@ public actor BrewFormulaService {
         /// True → it has an app row already, and the Brew tree must not list it
         /// too. False → a CLI, a font, a driver, a JDK: nothing else shows it.
         var installsAnApp: Bool
+        /// The apps it installed that have rows, standardized paths. Empty when
+        /// `installsAnApp` is false.
+        var appPaths: [String] = []
         /// It installs a pkg (or its `uninstall` names `pkgutil:` receipts), which
         /// brew runs under `/usr/bin/sudo` (`cask/artifact/pkg.rb`
         /// `requires_sudo?`, Homebrew 7.0.10).
@@ -1095,7 +1140,11 @@ public actor BrewFormulaService {
             return hasRow(app)
         }
         let roots = caskroomPaths.map { URL(fileURLWithPath: $0).appendingPathComponent(Self.shortName(caskToken)) }
-        var visible = appTargets?.contains(where: isShown) ?? false
+        var shown: Set<String> = []
+        func record(_ appPath: String) {
+            if isShown(appPath) { shown.insert(URL(fileURLWithPath: appPath).standardizedFileURL.path) }
+        }
+        appTargets?.forEach(record)
         var hasPkg = false
         for root in roots {
             guard let versions = try? fm.contentsOfDirectory(
@@ -1115,7 +1164,7 @@ public actor BrewFormulaService {
                             let link = try? fm.destinationOfSymbolicLink(atPath: entry.path)
                         else { continue }
                         let destination = URL(fileURLWithPath: link, relativeTo: entry.deletingLastPathComponent())
-                        if isShown(destination.path) { visible = true }
+                        record(destination.path)
                     case "pkg", "mpkg":
                         hasPkg = true
                     default:
@@ -1131,15 +1180,13 @@ public actor BrewFormulaService {
             guard !patterns.isEmpty else { continue }
             // Its uninstall forgets receipts and deletes what they list, as root.
             needsSudo = true
-            guard !visible else { continue }
+            // Every pattern, even once an app is found: `appPaths` must hold all
+            // of them for `BrewAppCask.unclaimed`.
             for pattern in patterns {
-                if let apps = await receiptApps(pattern), apps.contains(where: isShown) {
-                    visible = true
-                    break
-                }
+                (await receiptApps(pattern))?.forEach(record)
             }
         }
-        return CaskFacts(installsAnApp: visible, needsSudo: needsSudo)
+        return CaskFacts(installsAnApp: !shown.isEmpty, appPaths: shown.sorted(), needsSudo: needsSudo)
     }
 
     /// How deep `caskFacts` walks a version directory: `Foo/Foo.app` is level 2.

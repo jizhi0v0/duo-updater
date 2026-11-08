@@ -263,6 +263,10 @@ struct CaskIndex: Sendable {
     let allByAppFilename: [String: [CaskEntry]]
     /// Every cask declaring each bundle id, in catalog order.
     let allByBundleID: [String: [CaskEntry]]
+    /// Every cask by its token, for a pkg cask that names neither its app nor
+    /// its bundle id: `HomebrewCaskSource` finds the token from the installed
+    /// package's receipt instead.
+    var byToken: [String: CaskEntry] = [:]
 }
 
 /// Loads the full Homebrew Cask catalog from formulae.brew.sh once and indexes
@@ -339,6 +343,12 @@ public actor HomebrewCaskCatalog {
     /// a bundle's channel casks (`utm` / `utm@beta`).
     public func entries(forBundleID bundleID: String) async throws -> [CaskEntry] {
         try await loadedIndex().allByBundleID[bundleID.lowercased()] ?? []
+    }
+
+    /// The cask with this token, if the catalog lists it (a disabled cask or one
+    /// versioned `latest` is left out, as from the other two keys).
+    public func entry(forToken token: String) async throws -> CaskEntry? {
+        try await loadedIndex().byToken[token.lowercased()]
     }
 
     private func loadedIndex() async throws -> CaskIndex {
@@ -422,6 +432,7 @@ public actor HomebrewCaskCatalog {
 
         var byApp: [String: [CaskEntry]] = [:]
         var allByBundle: [String: [CaskEntry]] = [:]
+        var byToken: [String: CaskEntry] = [:]
         for cask in casks {
             guard
                 let token = cask["token"] as? String,
@@ -463,8 +474,9 @@ public actor HomebrewCaskCatalog {
             for bundleID in ids {
                 allByBundle[bundleID.lowercased(), default: []].append(entry)
             }
+            byToken[token.lowercased()] = entry
         }
-        return CaskIndex(allByAppFilename: byApp, allByBundleID: allByBundle)
+        return CaskIndex(allByAppFilename: byApp, allByBundleID: allByBundle, byToken: byToken)
     }
 
     /// The `.app` filenames a cask's `artifacts` install under — the name

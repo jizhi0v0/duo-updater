@@ -189,9 +189,11 @@ import Foundation
             executor: { _ in (0, outdated) },
             caskReceiptTap: { $0 == "third" ? "example/tap" : "homebrew/cask" },
             caskFacts: { _, _, _ in facts })
+        // Every outdated cask comes back; only those with a row take an update.
         let updates = try await service.outdatedCasks()
-        #expect(updates.map(\.name) == ["example/tap/third"])
+        #expect(updates.map(\.name) == ["example/tap/third", "official"])
         let merged = BrewFormulaService.merge(rows, outdated: updates)
+        #expect(merged.map(\.name) == ["example/tap/third"])
         #expect(merged.first?.availableVersion == "2.0")
         #expect(merged.first?.canUpgrade == true)
     }
@@ -266,9 +268,12 @@ import Foundation
             "com.zzfixture.gone": nil,
         ]
         let sudo = { (app: Bool) in BrewFormulaService.CaskFacts(installsAnApp: app, needsSudo: true) }
+        // Only the receipt app in a scanned folder is recorded, not the helper.
+        let pkgapp = await disk.facts("zzfixture-pkgapp", receipts: receipts)
+        #expect(pkgapp.appPaths == [disk.scanned.appendingPathComponent("ZZ.app").standardizedFileURL.path])
         #expect(await disk.facts("zzfixture-jdk", receipts: receipts) == sudo(false))
         #expect(await disk.facts("example/tap/zzfixture-jdk", receipts: receipts) == sudo(false))
-        #expect(await disk.facts("zzfixture-pkgapp", receipts: receipts) == sudo(true))
+        #expect(pkgapp == .init(installsAnApp: true, appPaths: pkgapp.appPaths, needsSudo: true))
         #expect(await disk.facts("zzfixture-atrust", receipts: receipts) == sudo(false))
         #expect(await disk.facts("zzfixture-unread", receipts: receipts) == sudo(false))
         #expect(await disk.facts("zzfixture-nostanza", receipts: receipts) == sudo(false))
@@ -383,7 +388,10 @@ import Foundation
             "logitech-options",
             receipts: ["com.logitech.manager.pkg": [disk.scanned.appendingPathComponent("Logi Options.app").path]],
             targets: [])
-        #expect(logi == .init(installsAnApp: true, needsSudo: true))
+        #expect(logi == .init(
+            installsAnApp: true,
+            appPaths: [disk.scanned.appendingPathComponent("Logi Options.app").standardizedFileURL.path],
+            needsSudo: true))
     }
 
     /// `installer manual:` casks: brew refuses to upgrade them, so their row

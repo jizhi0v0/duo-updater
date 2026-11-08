@@ -51,6 +51,10 @@
             <sparkle:shortVersionString>0.5.24-beta.4</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[**Choose which running apps may update while you are away.** The new Automatic Updates settings page lets you allow individual apps to quit, update and reopen when idle, keep updates limited to closed apps, or exclude an app; a setup guide helps you choose in bulk.
+
+**Automatic-update events are easier to follow.** Entries are grouped by day, repeated deferrals are combined, and clearer diagnostics explain what is holding an update back.
+]]></description>
             <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.5.24-beta.4/DuoUpdater-0.5.24-beta.4-macos.zip" length="16304320" type="application/octet-stream" sparkle:edSignature="dNOhXz7ANgHGP9LyOdetThH961tOyi0EbWzEN1r0DofrmEXokT/hmGBanC9g+elMu5eqsWzGv+dYi7XL1Y2JDg=="/>
             <sparkle:deltas>
                 <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.5.24-beta.4/DuoUpdater145-144.delta" sparkle:deltaFrom="144" length="1470906" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="468528" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="z64dl/M/PYGB4tl6Rk/5tFJer99xvjOiYFrSCpVxD8SdhPRboQJFKg+h+sPUtM8H8IMX7CskJrVaWhLerIMuBg=="/>
@@ -67,6 +71,10 @@
             <sparkle:shortVersionString>0.5.24-beta.3</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[**Choose how Homebrew apps check other sources.** Set a default in Settings or choose Homebrew Only for an individual app. Updates signed by a different developer are skipped when that difference can be detected.
+
+**Beta and Setapp settings are easier to read.** Their controls now follow the layout used throughout Settings.
+]]></description>
             <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.5.24-beta.3/DuoUpdater-0.5.24-beta.3-macos.zip" length="16133700" type="application/octet-stream" sparkle:edSignature="RXYUMFitOn6vdECSyomWfZJ+iaWSwF0CXlPkWNGqaHIv0RE9Guz0EsVTN3FoW8Ca3jaXl7JHJBPfAfFYxkH/CQ=="/>
             <sparkle:deltas>
                 <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.5.24-beta.3/DuoUpdater144-143.delta" sparkle:deltaFrom="143" length="1357214" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="468528" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="3pn9O43ZhOorl0jo7jB11ADm0t/JSLW0S32oPQiXJPYnOmXtAH5NbuPW/8459rrGlfQLoVBsuieZtKCdQoDrBg=="/>

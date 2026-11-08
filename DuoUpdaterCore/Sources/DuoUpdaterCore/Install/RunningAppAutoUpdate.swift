@@ -273,14 +273,31 @@ public enum RunningAppAutoUpdate {
     /// parent 0 and it looks like nobody's child. Measured on Ghostty 1.3.1,
     /// macOS 27, 2026-11-08: a real-machine run quit Ghostty with a shell open
     /// because of exactly that.
+    ///
+    /// A zombie child does not count: it has exited and only waits for its
+    /// parent to collect it, and the kernel still lists it. Cua Driver 0.39.0's
+    /// `serve` kept one for days (macOS 27, 2026-11-08), which held its update
+    /// back for good. A child whose state cannot be read still counts.
     public static func hasForeignChild(
         of bundle: URL, processes: [NestedAppGuard.RunningProcess],
-        children: (pid_t) -> [pid_t] = childPIDs
+        children: (pid_t) -> [pid_t] = childPIDs,
+        isZombie: (pid_t) -> Bool = isZombie
     ) -> Bool {
         let own = Set(processes.filter {
             AutomaticInstall.hasRunningProcess(at: bundle, processes: [$0])
         }.map(\.pid))
-        return own.contains { parent in children(parent).contains { !own.contains($0) } }
+        return own.contains { parent in
+            children(parent).contains { !own.contains($0) && !isZombie($0) }
+        }
+    }
+
+    /// True only when a complete state read says `SZOMB`. The `1` asks for
+    /// zombie records too (XNU `proc_info.c`), as `NestedAppGuard` does.
+    public static func isZombie(_ pid: pid_t) -> Bool {
+        var info = proc_bsdshortinfo()
+        let size = Int32(MemoryLayout<proc_bsdshortinfo>.size)
+        guard proc_pidinfo(pid, PROC_PIDT_SHORTBSDINFO, 1, &info, size) == size else { return false }
+        return info.pbsi_status == UInt32(SZOMB)
     }
 
     public static func childPIDs(_ parent: pid_t) -> [pid_t] {

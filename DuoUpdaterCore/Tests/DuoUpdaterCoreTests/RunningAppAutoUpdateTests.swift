@@ -233,6 +233,33 @@ struct RunningAppAutoUpdateTests {
         #expect(Policy.hasForeignChild(of: bundle, processes: [app], children: { $0 == 10 ? [20] : [] }))
     }
 
+    /// Cua Driver's `serve` kept an unreaped child for days, which the kernel
+    /// still lists: an exited child is not work in progress. One whose state
+    /// cannot be read still counts.
+    @Test func zombieChildDoesNotCount() {
+        let bundle = URL(fileURLWithPath: "/Applications/Driver.app")
+        let app = process(10, parent: 1, "/Applications/Driver.app/Contents/MacOS/driver")
+        let children: (pid_t) -> [pid_t] = { $0 == 10 ? [20] : [] }
+        #expect(!Policy.hasForeignChild(of: bundle, processes: [app], children: children, isZombie: { $0 == 20 }))
+        #expect(Policy.hasForeignChild(of: bundle, processes: [app], children: children, isZombie: { _ in false }))
+    }
+
+    @Test func kernelReportsAnUnreapedChildAsZombie() throws {
+        var pid: pid_t = 0
+        var argv: [UnsafeMutablePointer<CChar>?] = [strdup("/usr/bin/true"), nil]
+        defer { argv.forEach { free($0) } }
+        #expect(posix_spawn(&pid, "/usr/bin/true", nil, nil, &argv, environ) == 0)
+        defer { var status: Int32 = 0; waitpid(pid, &status, 0) }
+        // Not waited for yet, so it stays a zombie once it exits.
+        var zombie = false
+        for _ in 0..<200 where !zombie {
+            zombie = Policy.isZombie(pid)
+            if !zombie { usleep(10_000) }
+        }
+        #expect(zombie)
+        #expect(!Policy.isZombie(getpid()))
+    }
+
     @Test func kernelListsALiveChild() async throws {
         let (pids, continuation) = AsyncStream.makeStream(of: pid_t.self)
         let child = Task {

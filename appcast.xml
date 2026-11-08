@@ -20,6 +20,29 @@
           private, and are not carried over.
         -->
         <item>
+            <title>0.5.24-beta.5</title>
+            <pubDate>Mon, 09 Nov 2026 02:53:04 +0800</pubDate>
+            <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.5.24-beta.5</link>
+            <sparkle:channel>beta</sparkle:channel>
+            <sparkle:version>146</sparkle:version>
+            <sparkle:shortVersionString>0.5.24-beta.5</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[**Homebrew updates are detected more reliably.** Apps such as Karabiner-Elements are now matched through their installer receipts, and apps such as WezTerm no longer keep offering the version Homebrew already installed.
+
+**Choose how long automatic updates wait before quitting an allowed running app.** The wait can be 15, 30 or 60 minutes, and frequent new releases no longer restart it. Settings also warns when automatic updates are on without backups and offers a button to enable them.
+
+**See where updates come from and what holds them back.** The app list in the main window shows each app’s update source. In Events, click an outcome summary to filter the list, and inspect the processes blocking an update.
+]]></description>
+            <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.5.24-beta.5/DuoUpdater-0.5.24-beta.5-macos.zip" length="16366757" type="application/octet-stream" sparkle:edSignature="UVJgOh4nqRg6hh8F9HoinjekHPxHee35tk1W6ijaQSBnGkMEjQVptR1De/zlp5WE6MZZDVMhtDldvOqHhIZEAg=="/>
+            <sparkle:deltas>
+                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.5.24-beta.5/DuoUpdater146-145.delta" sparkle:deltaFrom="145" length="1475270" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="468528" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="w1YNj/7/cY+B9Edq0yXhwdrJ5qraQhNqnONsuIpKNRgi293WF2ik4HwQZ3fSEcvsyJYMjrXVbfHeycdjFLwUBg=="/>
+                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.5.24-beta.5/DuoUpdater146-144.delta" sparkle:deltaFrom="144" length="1731842" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="468528" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="JKbZKcREify+JNcTby6nktcbsjAmrw1k3aQk5WZgzRjJ4eKcNT+lVffOxgLZBqvIkHil5FmLmNDUMh5jtW2ZAw=="/>
+                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.5.24-beta.5/DuoUpdater146-143.delta" sparkle:deltaFrom="143" length="1879374" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="468528" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="owJMWGF1nKJ+lz1pvQCxuwOatl3l6MM/phsrc+gc8qilQIxh3kWAZhS7fFbOtNdnSMriWyDRbHd96F1dAPmABw=="/>
+                <enclosure url="https://github.com/jizhi0v0/duo-updater/releases/download/v0.5.24-beta.5/DuoUpdater146-142.delta" sparkle:deltaFrom="142" length="1989006" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="468528" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="94ldAyM6HkdKV9qJpZKfZo8EY8hSbRaX2acZLjQd81aFNn4ybYiys/U1zAUAxRjJ2SyiJYMoZ3sIebo90gkUAQ=="/>
+            </sparkle:deltas>
+        </item>
+        <item>
             <title>0.5.24-beta.4</title>
             <pubDate>Sun, 08 Nov 2026 09:19:27 +0800</pubDate>
             <link>https://github.com/jizhi0v0/duo-updater/releases/tag/v0.5.24-beta.4</link>

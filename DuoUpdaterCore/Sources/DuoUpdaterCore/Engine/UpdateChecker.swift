@@ -438,9 +438,15 @@ public struct UpdateChecker: Sendable {
             // the failure this whole change is about.
             if app.isMASApp, !source.answersAppStoreCopies { continue }
             do {
-                guard let remote = try await source.latestVersion(for: app) else {
+                guard var remote = try await source.latestVersion(for: app) else {
                     Log.check.debug("\(label, privacy: .public): \(source.name, privacy: .public) miss")
                     continue  // source doesn't apply; try the next one
+                }
+                // Brew said "up to date" against its own record of this copy; a
+                // source asked after it reads the same bundle, and has to compare
+                // against the same record or it re-offers what brew installed.
+                if remote.homebrewRecordedVersion == nil {
+                    remote.homebrewRecordedVersion = brewAnswer?.remote?.homebrewRecordedVersion
                 }
                 // Brew already answered "up to date" and other sources were
                 // allowed: one whose build is visibly signed by someone else is
@@ -499,7 +505,11 @@ public struct UpdateChecker: Sendable {
                 // and saying "won't offer it" about a release it has or has outgrown
                 // is false. Same `evaluate` an answer goes through, so the version
                 // rules — build namespaces, lineage, marketing direction — exist once.
-                guard case .updateAvailable = Self.evaluate(installed: app, remote: refused.release) else {
+                var release = refused.release
+                if release.homebrewRecordedVersion == nil {
+                    release.homebrewRecordedVersion = brewAnswer?.remote?.homebrewRecordedVersion
+                }
+                guard case .updateAvailable = Self.evaluate(installed: app, remote: release) else {
                     Log.check.debug("\(label, privacy: .public): \(source.name, privacy: .public) refused a release that is not newer than this copy — a miss")
                     continue
                 }
@@ -790,6 +800,16 @@ public struct UpdateChecker: Sendable {
         }
 
         // Otherwise fall back to the marketing (short) version.
+        //
+        // A brew copy whose bundle names an older version than the one Homebrew
+        // records installed is compared as Homebrew's record here (WezTerm's
+        // bundle says 0.1.0 in every build). Here and nowhere above: the build
+        // and lineage branches keep the bundle's own marketing string, because
+        // their marketing checks (`isMarketingDowngrade`, the lineage pair) are
+        // about direction, and a raised string would turn a real build update
+        // into "up to date". In `evaluate` rather than the source, so every
+        // caller that re-evaluates a kept remote reads the copy the same way.
+        let installed = installed.comparedWithHomebrewRecord(remote.homebrewRecordedVersion)
         guard let rs = remote.shortVersion, let labelled = installed.shortVersion else {
             return .unknown
         }

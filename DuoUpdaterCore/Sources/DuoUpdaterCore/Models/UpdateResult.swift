@@ -475,6 +475,20 @@ public struct RemoteVersion: Sendable, Hashable {
     /// is its channel (`BrewFallbackPolicy`). Set by `HomebrewCaskSource` only.
     public var homebrewSelfUpdating = false
 
+    /// The cask version Homebrew records as installed for this exact copy
+    /// (`BrewLocalInventory.installedVersion`), cut at its first "," or ":" the
+    /// way the cask's own version is. `UpdateChecker.evaluate` compares against it
+    /// where the bundle's marketing string is older
+    /// (`InstalledApp.comparedWithHomebrewRecord`).
+    ///
+    /// Set by `HomebrewCaskSource`, and copied by `UpdateChecker` onto the answer
+    /// of a source asked after Homebrew said "up to date": that source reads the
+    /// same bundle, so without it the next source re-offers what brew installed.
+    /// It rides on the remote, not the app, so a rescan's re-evaluation
+    /// (`ScanRowAssembly`) and the pre-install re-check compare the same way the
+    /// check did.
+    public var homebrewRecordedVersion: String?
+
     public init(
         shortVersion: String?,
         version: String?,

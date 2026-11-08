@@ -19,6 +19,12 @@ release note is debugging our code:
 
 Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
+## 0.5.24-beta.4
+
+**Choose which running apps may update while you are away.** The new Automatic Updates settings page lets you allow individual apps to quit, update and reopen when idle, keep updates limited to closed apps, or exclude an app; a setup guide helps you choose in bulk.
+
+**Automatic-update events are easier to follow.** Entries are grouped by day, repeated deferrals are combined, and clearer diagnostics explain what is holding an update back.
+
 ## 0.5.24-beta.3
 
 **Choose how Homebrew apps check other sources.** Set a default in Settings or choose Homebrew Only for an individual app. Updates signed by a different developer are skipped when that difference can be detected.

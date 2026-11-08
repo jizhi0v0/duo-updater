@@ -2,6 +2,12 @@
 
 Dies ist eine deutsche Übersetzung von `CHANGELOG.md`. Die englische Fassung ist maßgeblich; frühere Versionen, die hier nicht aufgeführt sind, fallen automatisch auf Englisch zurück.
 
+## 0.5.24-beta.4
+
+**Bestimme, welche laufenden Apps während deiner Abwesenheit aktualisiert werden dürfen.** Auf der neuen Einstellungsseite für automatische Updates kannst du einzelnen Apps erlauben, bei Inaktivität beendet, aktualisiert und wieder geöffnet zu werden, Updates auf geschlossene Apps beschränken oder eine App ausschließen; ein Assistent hilft bei der Auswahl mehrerer Apps.
+
+**Ereignisse automatischer Updates sind übersichtlicher.** Einträge werden nach Tagen gruppiert, wiederholte Verschiebungen zusammengefasst und die Gründe für ausstehende Updates verständlicher erklärt.
+
 ## 0.5.24-beta.3
 
 **Wählen Sie, wie Homebrew-Apps andere Quellen prüfen.** Legen Sie in den Einstellungen einen Standard fest oder wählen Sie für einzelne Apps nur Homebrew. Updates mit einer anderen Entwicklersignatur werden übersprungen, wenn der Unterschied erkannt werden kann.

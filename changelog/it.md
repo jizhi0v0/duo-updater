@@ -2,6 +2,12 @@
 
 Questa è la traduzione di `CHANGELOG.md`. In caso di differenze fa fede la versione inglese. Le versioni non elencate qui vengono mostrate automaticamente in inglese.
 
+## 0.5.24-beta.4
+
+**Scegli quali app aperte possono aggiornarsi mentre sei assente.** La nuova pagina delle impostazioni degli aggiornamenti automatici consente a ogni app di chiudersi, aggiornarsi e riaprirsi quando è inattiva, di aggiornarsi solo da chiusa o di essere esclusa; una guida facilita la selezione di più app.
+
+**Gli eventi degli aggiornamenti automatici sono più facili da seguire.** Le voci sono raggruppate per giorno, i rinvii ripetuti sono riuniti e la diagnostica spiega più chiaramente cosa impedisce un aggiornamento.
+
 ## 0.5.24-beta.3
 
 **Scegli come le app Homebrew controllano altre fonti.** Imposta il comportamento predefinito nelle impostazioni oppure scegli solo Homebrew per una singola app. Gli aggiornamenti firmati da uno sviluppatore diverso vengono ignorati quando è possibile rilevare la differenza.

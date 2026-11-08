@@ -1255,68 +1255,68 @@
         }
       }
     },
-    "Updates come from Setapp. Update opens Setapp, which installs them and may also update your other Setapp apps.": {
+    "Updates come from Setapp, which installs them and may also update your other Setapp apps.": {
       "comment": "Help on the update source",
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Updates kommen aus Setapp. „Aktualisieren“ öffnet Setapp, das sie installiert und dabei auch deine anderen Setapp-Apps aktualisieren kann."
+            "value": "Updates kommen aus Setapp, das sie installiert und dabei auch deine anderen Setapp-Apps aktualisieren kann."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Las actualizaciones vienen de Setapp. Actualizar abre Setapp, que las instala y puede actualizar también tus otras apps de Setapp."
+            "value": "Las actualizaciones vienen de Setapp, que las instala y puede actualizar también tus otras apps de Setapp."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Les mises à jour proviennent de Setapp. Mettre à jour ouvre Setapp, qui les installe et peut aussi mettre à jour vos autres apps Setapp."
+            "value": "Les mises à jour proviennent de Setapp, qui les installe et peut aussi mettre à jour vos autres apps Setapp."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Gli aggiornamenti arrivano da Setapp. Aggiorna apre Setapp, che li installa e può aggiornare anche le altre app di Setapp."
+            "value": "Gli aggiornamenti arrivano da Setapp, che li installa e può aggiornare anche le altre app di Setapp."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "アップデートは Setapp から取得します。「更新」で Setapp が開いてインストールされ、ほかの Setapp アプリも更新されることがあります。"
+            "value": "アップデートは Setapp から取得し、Setapp がインストールします。ほかの Setapp アプリも更新されることがあります。"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "As atualizações vêm do Setapp. Atualizar abre o Setapp, que as instala e pode atualizar também seus outros apps do Setapp."
+            "value": "As atualizações vêm do Setapp, que as instala e pode atualizar também seus outros apps do Setapp."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Обновления берутся из Setapp. «Обновить» открывает Setapp, который их устанавливает и может обновить и другие ваши приложения Setapp."
+            "value": "Обновления берутся из Setapp, который их устанавливает и может обновить и другие ваши приложения Setapp."
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Güncellemeler Setapp’ten gelir. Güncelle, Setapp’i açar; Setapp güncellemeyi yükler ve diğer Setapp uygulamalarınızı da güncelleyebilir."
+            "value": "Güncellemeler Setapp’ten gelir; Setapp güncellemeyi yükler ve diğer Setapp uygulamalarınızı da güncelleyebilir."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "更新来自 Setapp。“更新”会打开 Setapp 安装，Setapp 也可能顺带更新你的其他 Setapp 应用。"
+            "value": "更新来自 Setapp，由 Setapp 安装，它也可能顺带更新你的其他 Setapp 应用。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "更新來自 Setapp。「更新」會打開 Setapp 安裝，Setapp 也可能順帶更新你的其他 Setapp App。"
+            "value": "更新來自 Setapp，由 Setapp 安裝，它也可能順帶更新你的其他 Setapp App。"
           }
         }
       }

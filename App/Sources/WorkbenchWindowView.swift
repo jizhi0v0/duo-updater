@@ -3518,6 +3518,9 @@ private struct DetailHeader: View {
     private var sourceAction: UpdateSourceLabel.Action {
         if model.defersToSelfUpdater(result) { return .none }
         if model.requiresInstaller(result) { return .installer }
+        // Xcode with no Apple Developer sign-in: the button is "Sign In…", and
+        // signing in installs nothing (`UpdateRoute.appleSignIn`).
+        if model.isXcodeRow(result), AppleDeveloperSession.shared.signInNeed != nil { return .none }
         if model.canAutoInstall(result) { return .install }
         return .none
     }

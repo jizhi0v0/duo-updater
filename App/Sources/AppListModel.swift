@@ -1182,8 +1182,8 @@ final class AppListModel {
     private var brewPackageOutdated: [BrewOutdatedFormula] = []
     private(set) var brewOutdatedFormulae: [BrewOutdatedFormula] {
         get {
-            let apps = brewAppCaskNames
-            return brewPackageOutdated.filter { $0.kind != .cask || !apps.contains($0.name) }
+            let hidden = brewHiddenCaskNames
+            return brewPackageOutdated.filter { $0.kind != .cask || !hidden.contains($0.name) }
         }
         set { brewPackageOutdated = newValue }
     }
@@ -1192,8 +1192,8 @@ final class AppListModel {
     private var brewPackageInventory: [BrewInstalledFormula] = []
     private(set) var brewFormulae: [BrewInstalledFormula] {
         get {
-            let apps = brewAppCaskNames
-            return brewPackageInventory.filter { $0.kind != .cask || !apps.contains($0.name) }
+            let hidden = brewHiddenCaskNames
+            return brewPackageInventory.filter { $0.kind != .cask || !hidden.contains($0.name) }
         }
         set { brewPackageInventory = newValue }
     }
@@ -1203,6 +1203,17 @@ final class AppListModel {
         Set(results.compactMap { result in
             result.remote?.sourceName == "Homebrew" ? result.remote?.sourceIdentifier : nil
         })
+    }
+    /// Official casks whose apps have rows, from the last brew read. Each is a
+    /// package row only while those rows found no update source.
+    private var brewAppCasks: [BrewAppCask] = []
+    /// The cask package rows to leave out: those an app row updates through
+    /// Homebrew, and the app casks whose apps have an update route of their own
+    /// (or have not been checked yet) — `BrewAppCask.unclaimed`.
+    private var brewHiddenCaskNames: Set<String> {
+        let unclaimed = BrewAppCask.unclaimed(
+            brewAppCasks, rows: results, checked: answeredThisLaunch, isIgnored: prefs.isIgnored)
+        return brewAppCaskNames.union(brewAppCasks.map(\.row.name).filter { !unclaimed.contains($0) })
     }
     /// Installed third-party-tap formulae/casks brew wouldn't read from their tap
     /// (e.g. the tap isn't trusted). No read above can say whether they're outdated,
@@ -4538,16 +4549,21 @@ final class AppListModel {
             outdated = []
             outdatedRead = false
         }
-        // App-less casks (CLIs, fonts) have no per-app row and no other home — see
-        // `BrewOutdatedFormula`. Best-effort: a failure here must not blank the
-        // formula count we already have.
+        // Casks with a package row: app-less ones (CLIs, fonts), third-party ones,
+        // and app casks whose apps found no update source — see
+        // `BrewOutdatedFormula` and `BrewAppCask`. Best-effort: a failure here must
+        // not blank the formula count we already have.
         let outdatedCasks = (try? await brewFormulaService.outdatedCasks(extraFolders: extraFolders)) ?? []
         let installed = await report
         // The cask rows: this pass's, or the last ones when `brew info` failed
         // and left none to go on (`InstalledReport.casksRead`). An outdated cask
         // counts only when it has a row: `outdatedCasks` decides from the
         // Caskroom alone, the report from where brew put each app.
-        let caskRows = installed.casksRead ? installed.appLessCasks : brewFormulae.filter { $0.kind == .cask }
+        // App casks are rows here too; `brewHiddenCaskNames` shows each only while
+        // its apps found no update source, as the check rounds answer.
+        let caskRows = installed.casksRead
+            ? installed.appLessCasks + installed.appCasks.map(\.row)
+            : brewPackageInventory.filter { $0.kind == .cask }
         let rowTokens = Set(caskRows.map(\.name))
         let casks = outdatedCasks.filter { rowTokens.contains($0.name) }
         // brew refuses to upgrade these: they show their update, but no Update,
@@ -4594,6 +4610,9 @@ final class AppListModel {
         brewOutdatedFormulae = outdated + casks.filter { !manual.contains($0.name) }
         brewUnchecked = newUnchecked
         brewCaskLifecycles = installed.caskLifecycles
+        // Kept from the last read when this one could not list the casks, as the
+        // rows themselves are (`caskRows` above).
+        if installed.casksRead { brewAppCasks = installed.appCasks }
         if !brewUnchecked.isEmpty {
             Log.app.info("brew: \(self.brewUnchecked.count, privacy: .public) packages not read from their tap (\(self.brewUnchecked.map { "\($0.fullName)=\($0.reason)" }.joined(separator: ", "), privacy: .public))")
         }

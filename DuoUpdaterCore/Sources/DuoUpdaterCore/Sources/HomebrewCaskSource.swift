@@ -2,7 +2,8 @@ import Foundation
 
 /// Update source for apps Homebrew actually installed. Matches the installed
 /// bundle to a Homebrew cask by its `.app` filename (falling back to bundle
-/// identifier for `pkg` casks that declare no `.app` artifact), then — crucially
+/// identifier for `pkg` casks that declare no `.app` artifact, and then to the
+/// cask whose installed package receipt lists this exact bundle), then — crucially
 /// — only resolves when that cask is present in the local Caskroom.
 ///
 /// The catalog match alone is not enough: many apps share a filename with a cask
@@ -21,15 +22,30 @@ public actor HomebrewCaskSource: UpdateSource {
     /// Injected like `SignatureVerifier`'s `osVersion`, and for the same reason:
     /// the pick below must be testable off whatever Mac the tests run on.
     private let hostOSVersion: String
+    /// Which cask installed which bundles, from the Caskroom's links and the
+    /// packages' receipts. Injected so a test need not read this Mac's `pkgutil`.
+    private let readOwnership: @Sendable ([String]) async -> [ThirdPartyCaskSource.Ownership]
 
     public init(
         catalog: HomebrewCaskCatalog = .shared,
         inventory: BrewLocalInventory = BrewLocalInventory(),
         hostOSVersion: String = HostOS.numericVersion()
     ) {
+        self.init(catalog: catalog, inventory: inventory, hostOSVersion: hostOSVersion) {
+            await ThirdPartyCaskSource.ownership(in: $0, includeOfficial: true)
+        }
+    }
+
+    init(
+        catalog: HomebrewCaskCatalog,
+        inventory: BrewLocalInventory,
+        hostOSVersion: String = HostOS.numericVersion(),
+        ownership: @escaping @Sendable ([String]) async -> [ThirdPartyCaskSource.Ownership]
+    ) {
         self.catalog = catalog
         self.inventory = inventory
         self.hostOSVersion = hostOSVersion
+        self.readOwnership = ownership
     }
 
     public func prewarm(_ apps: [InstalledApp]) async { ownershipTask = nil }
@@ -38,7 +54,8 @@ public actor HomebrewCaskSource: UpdateSource {
     private func owners(of app: InstalledApp) async -> [ThirdPartyCaskSource.Ownership] {
         if ownershipTask == nil {
             let roots = inventory.caskroomPaths
-            ownershipTask = Task { await ThirdPartyCaskSource.ownership(in: roots, includeOfficial: true) }
+            let read = readOwnership
+            ownershipTask = Task { await read(roots) }
         }
         let path = app.path.standardizedFileURL.resolvingSymlinksInPath().path
         return await ownershipTask!.value.filter { $0.tap == "homebrew/cask" && $0.paths.contains(path) }
@@ -62,6 +79,17 @@ public actor HomebrewCaskSource: UpdateSource {
         var candidates = try await catalog.entries(forAppFilename: filename)
         if candidates.isEmpty, let bundleID = app.bundleID {
             candidates = try await catalog.entries(forBundleID: bundleID)
+        }
+        // A pkg cask may name neither: `karabiner-elements` installs
+        // Karabiner-Elements.pkg, and its catalog entry has no `app` artifact and
+        // no `uninstall: quit:` id. Its package's receipt does list the app, and
+        // `owners(of:)` already reads it, so the cask is found by token from there.
+        var foundByReceipt = false
+        if candidates.isEmpty, !inventory.caskroomPaths.isEmpty {
+            for owner in await owners(of: app) {
+                if let entry = try await catalog.entry(forToken: owner.token) { candidates.append(entry) }
+            }
+            foundByReceipt = !candidates.isEmpty
         }
         guard !candidates.isEmpty else { return nil }
 
@@ -89,6 +117,17 @@ public actor HomebrewCaskSource: UpdateSource {
         }
         guard let entry = CaskEntry.preferred(among: installed, hostOSVersion: hostOSVersion)
         else { return nil }
+        // A receipt lists every app a package wrote, helpers included, and a
+        // helper's version need not follow the cask's. Only a bundle whose version
+        // is the one Homebrew recorded installing is known to; any other would be
+        // offered the cask's version as an update it can never reach.
+        if foundByReceipt {
+            guard let installedVersion = app.shortVersion,
+                  let recorded = inventory.installedVersion(caskToken: entry.token)?
+                    .split(whereSeparator: { $0 == "," || $0 == ":" }).first,
+                  VersionComparator.compare(String(recorded), installedVersion) == .orderedSame
+            else { return nil }
+        }
 
         // Cask versions are sometimes "version,revision" or "version:build";
         // use the leading marketing portion for comparison/display. Split on BOTH

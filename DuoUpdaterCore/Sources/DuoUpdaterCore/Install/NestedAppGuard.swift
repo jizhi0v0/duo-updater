@@ -241,10 +241,12 @@ public enum NestedAppGuard {
         /// nested `.app`; nil for everything else and when it can't be read,
         /// which matches no LaunchAgent.
         public let arguments: [String]?
+        /// From the BSD info already read for the parent PID; nil when it did not answer.
+        public let startedAt: Date?
 
         public init(
             pid: pid_t, parentPID: pid_t, executablePath: String?, launchedPath: String? = nil,
-            isRegularApp: Bool, arguments: [String]? = nil
+            isRegularApp: Bool, arguments: [String]? = nil, startedAt: Date? = nil
         ) {
             self.pid = pid
             self.parentPID = parentPID
@@ -252,6 +254,7 @@ public enum NestedAppGuard {
             self.launchedPath = launchedPath
             self.isRegularApp = isRegularApp
             self.arguments = arguments
+            self.startedAt = startedAt
         }
 
         /// The path this guard places the process by: what the kernel names now,
@@ -618,7 +621,8 @@ public enum NestedAppGuard {
             processes.append(RunningProcess(
                 pid: pid, parentPID: parent, executablePath: kernelPath, launchedPath: launchedPath,
                 isRegularApp: regular,
-                arguments: nested ? ClaudeCodeActivity.arguments(of: pid) : nil))
+                arguments: nested ? ClaudeCodeActivity.arguments(of: pid) : nil,
+                startedAt: answered ? Date(timeIntervalSince1970: TimeInterval(info.pbi_start_tvsec)) : nil))
         }
         return processes
     }

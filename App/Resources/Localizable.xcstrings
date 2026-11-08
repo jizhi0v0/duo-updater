@@ -1223,6 +1223,50 @@
       }
     }
   },
+  "parent %@ (%@)": {
+    "extractionState": "manual",
+    "localizations": {
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "父进程 %1$@（%2$@）"
+        }
+      }
+    }
+  },
+  "Running since %@": {
+    "extractionState": "manual",
+    "localizations": {
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "自 %@ 起运行"
+        }
+      }
+    }
+  },
+  "since %@": {
+    "extractionState": "manual",
+    "localizations": {
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "自 %@"
+        }
+      }
+    }
+  },
+  "Name not recorded": {
+    "extractionState": "manual",
+    "localizations": {
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "未记录名称"
+        }
+      }
+    }
+  },
   "App process running": {
     "extractionState": "manual",
     "localizations": {

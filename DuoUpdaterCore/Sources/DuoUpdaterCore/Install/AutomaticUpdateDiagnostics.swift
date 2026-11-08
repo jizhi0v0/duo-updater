@@ -1,6 +1,9 @@
 import Foundation
 
-/// Local-only short process names are retained for unresolved blockers. No argv, environment or paths.
+/// Local-only short process names are retained for unresolved blockers; a running
+/// target also keeps where it sits inside the app bundle, its parent's short name
+/// and its start time. No argv, environment or absolute paths. None of these
+/// reach the sanitized report.
 public struct AutomaticProcessDiagnostic: Codable, Hashable, Sendable {
     public enum Kind: String, Codable, Sendable {
         case enumerationFailed, enumerationTruncated, exited, permissionDenied
@@ -24,6 +27,12 @@ public struct AutomaticProcessDiagnostic: Codable, Hashable, Sendable {
     /// Raw pbi_status; nil means the BSD-info probe did not answer.
     public let lifecycleState: UInt32?
     public let probes: [Probe]
+    /// The executable relative to the app bundle, e.g.
+    /// `Contents/XPCServices/Foo.xpc/Contents/MacOS/Foo`.
+    public let bundlePath: String?
+    /// The parent's short name, when the same snapshot saw it.
+    public let parentName: String?
+    public let startedAt: Date?
 
     static func unresolvedKind(alive: Bool, lifecycleState: UInt32?, probes: [Probe]) -> Kind {
         if lifecycleState == UInt32(SZOMB) { return .zombie }
@@ -33,9 +42,26 @@ public struct AutomaticProcessDiagnostic: Codable, Hashable, Sendable {
     }
 
     public init(kind: Kind, pid: Int32? = nil, parentPID: Int32? = nil,
-                lifecycleState: UInt32? = nil, processName: String? = nil, probes: [Probe] = []) {
+                lifecycleState: UInt32? = nil, processName: String? = nil, probes: [Probe] = [],
+                bundlePath: String? = nil, parentName: String? = nil, startedAt: Date? = nil) {
         self.kind = kind; self.pid = pid; self.parentPID = parentPID
         self.lifecycleState = lifecycleState; self.processName = processName; self.probes = probes
+        self.bundlePath = bundlePath; self.parentName = parentName; self.startedAt = startedAt
+    }
+
+    /// A process of `bundle` that keeps it from being replaced, described from
+    /// the snapshot it was found in: which executable, who launched it, since when.
+    public static func targetRunning(_ process: NestedAppGuard.RunningProcess, in bundle: URL,
+        among processes: [NestedAppGuard.RunningProcess]) -> AutomaticProcessDiagnostic {
+        let root = bundle.resolvingSymlinksInPath().path + "/"
+        let path = NestedAppGuard.resolvedPath(process.executablePath ?? process.launchedPath ?? "")
+        let parent = processes.first { $0.pid == process.parentPID && $0.pid != 0 }
+        let parentName = parent.flatMap { $0.executablePath ?? $0.launchedPath }
+            .map { ($0 as NSString).lastPathComponent }.flatMap { $0.isEmpty ? nil : $0 }
+        return .init(kind: .targetRunning, pid: process.pid, parentPID: process.parentPID,
+            processName: path.isEmpty ? nil : (path as NSString).lastPathComponent,
+            bundlePath: path.hasPrefix(root) ? String(path.dropFirst(root.count)) : nil,
+            parentName: parentName, startedAt: process.startedAt)
     }
 }
 

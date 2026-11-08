@@ -91,16 +91,50 @@ struct AutomaticUpdateDiagnosticsTests {
         let pass = AutomaticUpdateDiagnostics()
         pass.record(.init(kind: .permissionDenied, pid: 87654, parentPID: 45678,
             lifecycleState: 2, processName: "private-process", probes: [.init(.pidPath, 0, EACCES)]), attemptID: "sensitive-attempt")
+        pass.record(.init(kind: .targetRunning, pid: 87655, processName: "private-helper",
+            bundlePath: "Contents/MacOS/private-helper", parentName: "private-parent",
+            startedAt: Date(timeIntervalSince1970: 1_700_000_000)), attemptID: "sensitive-attempt")
         let events = [try event(["appID": "/Users/private/Private.app", "appName": "PrivateApp",
             "reason": "credential-secret", "status": "installed", "recoveredFrom": "sensitive-attempt"]),
             try event(["status": "diagnostics", "passID": pass.passID, "diagnostics": pass.json])]
         let report = AutomaticUpdateDiagnostics.sanitizedReport(events)
-        for secret in ["/Users", "private-process", "PrivateApp", "credential-secret", "sensitive-attempt", "87654", "45678", pass.passID, "first", "last"] {
+        for secret in ["/Users", "private-process", "PrivateApp", "credential-secret", "sensitive-attempt", "87654", "45678", pass.passID, "first", "last",
+                       "private-helper", "Contents/", "private-parent", "startedAt", "2023"] {
             #expect(!report.contains(secret))
         }
         #expect(report.contains("permissionDenied"))
         #expect(report.contains("recovered"))
         #expect(report.contains("pidPath"))
+    }
+
+    @Test func runningTargetIsDescribedFromItsSnapshot() throws {
+        let bundle = URL(fileURLWithPath: "/Applications/Example.app")
+        let started = Date(timeIntervalSince1970: 1_700_000_000)
+        let parent = NestedAppGuard.RunningProcess(pid: 10, parentPID: 1,
+            executablePath: "/Applications/Example.app/Contents/MacOS/Example", isRegularApp: false)
+        let helper = NestedAppGuard.RunningProcess(pid: 11, parentPID: 10,
+            executablePath: "/Applications/Example.app/Contents/XPCServices/Web.xpc/Contents/MacOS/Web",
+            isRegularApp: false, startedAt: started)
+        let orphan = NestedAppGuard.RunningProcess(pid: 12, parentPID: 999,
+            executablePath: "/Applications/Example.app/Contents/MacOS/Example", isRegularApp: false)
+        let snapshot = [parent, helper, orphan]
+
+        let d = AutomaticProcessDiagnostic.targetRunning(helper, in: bundle, among: snapshot)
+        #expect(d.kind == .targetRunning)
+        #expect(d.pid == 11 && d.parentPID == 10)
+        #expect(d.processName == "Web")
+        #expect(d.bundlePath == "Contents/XPCServices/Web.xpc/Contents/MacOS/Web")
+        #expect(d.parentName == "Example")
+        #expect(d.startedAt == started)
+
+        let unknownParent = AutomaticProcessDiagnostic.targetRunning(orphan, in: bundle, among: snapshot)
+        #expect(unknownParent.parentName == nil)
+        #expect(unknownParent.startedAt == nil)
+
+        // Older records lack the snapshot fields and still decode.
+        let old = #"{"kind":"targetRunning","pid":5,"parentPID":1,"probes":[]}"#
+        let decoded = try JSONDecoder().decode(AutomaticProcessDiagnostic.self, from: Data(old.utf8))
+        #expect(decoded.pid == 5 && decoded.bundlePath == nil && decoded.parentName == nil && decoded.startedAt == nil)
     }
 
     @Test func unidentifiedLiveProcessStillPreventsFileExchange() async throws {

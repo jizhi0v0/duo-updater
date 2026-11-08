@@ -83,7 +83,7 @@ public enum AutomaticInstall {
 
     static func checkProcesses(at bundle: URL, processes: [NestedAppGuard.RunningProcess]) throws {
         for process in processes where hasRunningProcess(at: bundle, processes: [process]) {
-            diagnostic?(.init(kind: .targetRunning, pid: process.pid, parentPID: process.parentPID))
+            diagnostic?(.targetRunning(process, in: bundle, among: processes))
         }
         guard !processes.isEmpty,
               processes.allSatisfy({ $0.executablePath != nil || $0.launchedPath != nil }) else {

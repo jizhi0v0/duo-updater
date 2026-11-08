@@ -6,23 +6,41 @@ struct AutomaticUpdateEventsPane: View {
     @State private var confirmsClear = false
     @State private var report: String?
     @State private var exportError: String?
+    /// Rows whose diagnostics are open. Kept here, not in the row: a lazy stack
+    /// drops rows scrolled out of view, and their state with them.
+    @State private var expanded: Set<String> = []
 
     var body: some View {
         let rows = AutomaticUpdateActivity.rows(from: events)
         let days = Dictionary(grouping: rows) { Calendar.current.startOfDay(for: $0.last) }
             .sorted { $0.key > $1.key }
-        List {
-            ForEach(days, id: \.key) { day, rows in
-                Section {
-                    ForEach(rows) { ActivityRow(row: $0) }
-                } header: {
-                    Text(DayLabel.string(for: day))
-                        .font(.subheadline.weight(.semibold))
-                        .padding(.top, 4)
+        // A stack, not a List: the table under a List kept a row's old height
+        // when its diagnostics opened or closed — squeezing the row, then
+        // leaving a blank gap — until the next scroll re-measured it.
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
+                ForEach(days, id: \.key) { day, rows in
+                    Section {
+                        ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
+                            if index > 0 { Divider().padding(.leading, 44) }
+                            ActivityRow(row: row, expanded: Binding(
+                                get: { expanded.contains(row.id) },
+                                set: { if $0 { expanded.insert(row.id) } else { expanded.remove(row.id) } }))
+                        }
+                    } header: {
+                        Text(DayLabel.string(for: day))
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.top, 12).padding(.bottom, 4)
+                            .background(.background)
+                    }
                 }
             }
+            .padding(.horizontal, NetworkPaneMetrics.gutter)
+            .padding(.bottom, 12)
         }
-        .listStyle(.inset)
+        .background(.background)
         .overlay {
             if rows.isEmpty {
                 ContentUnavailableView("No automatic update activity yet.", systemImage: "clock.arrow.circlepath")
@@ -156,6 +174,7 @@ private struct SummaryBar: View {
 /// One attempt, or an unbroken run of identical ones.
 private struct ActivityRow: View {
     let row: AutomaticUpdateActivity
+    @Binding var expanded: Bool
 
     private var fields: [String: String] { row.fields }
     private var status: AttemptStatus { AttemptStatus(row.status) }
@@ -205,11 +224,12 @@ private struct ActivityRow: View {
                         .font(.callout).foregroundStyle(.secondary)
                 }
                 if !row.diagnostics.isEmpty || row.undecodedDiagnostics != nil {
-                    DiagnosticsDisclosure(row: row)
+                    DiagnosticsDisclosure(row: row, expanded: $expanded)
                 }
             }
         }
-        .padding(.vertical, 6)
+        .padding(.vertical, 8)
+        .contentShape(Rectangle())
         .contextMenu {
             Button("Copy attempt details") {
                 NSPasteboard.general.clearContents()
@@ -256,13 +276,12 @@ private struct ActivityRow: View {
 /// label lost its clicks, so it looked expandable and never opened.
 private struct DiagnosticsDisclosure: View {
     let row: AutomaticUpdateActivity
-    @State private var expanded = false
+    @Binding var expanded: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Button {
-                // No animation: the list resizes the row in one step, and an
-                // animated height change inside it jitters on collapse.
+                // No animation: the stack resizes the row in one step.
                 var transaction = Transaction()
                 transaction.disablesAnimations = true
                 withTransaction(transaction) { expanded.toggle() }
@@ -283,8 +302,10 @@ private struct DiagnosticsDisclosure: View {
             .foregroundStyle(.secondary)
 
             if expanded {
+                let running = row.diagnostics.filter { $0.diagnostic.kind == .targetRunning }
                 VStack(alignment: .leading, spacing: 8) {
-                    ForEach(row.diagnostics, id: \.id) { entry($0) }
+                    if !running.isEmpty { RunningProcessList(entries: running) }
+                    ForEach(row.diagnostics.filter { $0.diagnostic.kind != .targetRunning }, id: \.id) { entry($0) }
                     if let raw = row.undecodedDiagnostics {
                         Text(raw).font(.caption.monospaced()).foregroundStyle(.secondary)
                     }
@@ -302,8 +323,12 @@ private struct DiagnosticsDisclosure: View {
         return VStack(alignment: .leading, spacing: 2) {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Image(systemName: "gearshape").foregroundStyle(.tertiary)
-                Text(Self.label(d.kind)).fontWeight(.medium)
-                if let name = d.processName, !name.isEmpty { Text(name) }
+                if let name = d.processName, !name.isEmpty {
+                    Text(name).fontWeight(.medium)
+                    Text(Self.label(d.kind)).foregroundStyle(.secondary)
+                } else {
+                    Text(Self.label(d.kind)).fontWeight(.medium)
+                }
                 if entry.occurrences > 1 {
                     Text(verbatim: "×\(entry.occurrences)").foregroundStyle(.secondary)
                 }
@@ -353,6 +378,116 @@ private struct DiagnosticsDisclosure: View {
         case .enumerationFailed: String(localized: "Process list unavailable")
         case .enumerationTruncated: String(localized: "Process list incomplete")
         }
+    }
+}
+
+/// The app's processes that were running, one line per executable: what it
+/// is, how many copies, since when. Path and parent are in the tooltip.
+private struct RunningProcessList: View {
+    let entries: [AutomaticUpdateDiagnostics.Entry]
+
+    private struct Executable: Identifiable {
+        let id: String
+        let name: String?
+        let path: String?
+        var processes: [AutomaticProcessDiagnostic]
+        var started: Date? { processes.compactMap(\.startedAt).min() }
+    }
+
+    /// Same executable, one group; the earliest-started first, which puts the
+    /// main process ahead of the helpers it launched.
+    private var groups: [Executable] {
+        var groups: [Executable] = []
+        for d in entries.map(\.diagnostic) {
+            let key = (d.processName ?? "") + "\u{0}" + (d.bundlePath ?? "")
+            if let i = groups.firstIndex(where: { $0.id == key }) {
+                groups[i].processes.append(d)
+            } else {
+                groups.append(Executable(id: key, name: d.processName, path: d.bundlePath, processes: [d]))
+            }
+        }
+        return groups.enumerated().sorted { a, b in
+            switch (a.element.started, b.element.started) {
+            case let (x?, y?) where x != y: x < y
+            case (_?, nil): true
+            case (nil, _?): false
+            default: a.offset < b.offset
+            }
+        }.map(\.element)
+    }
+
+    var body: some View {
+        let first = entries.map(\.first).min() ?? Date()
+        let last = entries.map(\.last).max() ?? first
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Image(systemName: "gearshape").foregroundStyle(.tertiary)
+                Text("App process running").fontWeight(.medium)
+                Spacer(minLength: 8)
+                Group {
+                    if first < last {
+                        Text((first..<last).formatted(.interval.hour().minute().second()))
+                    } else {
+                        Text(first, format: .dateTime.hour().minute().second())
+                    }
+                }
+                .font(.caption).foregroundStyle(.secondary).monospacedDigit()
+            }
+            .font(.callout)
+            Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 12, verticalSpacing: 4) {
+                ForEach(groups) { group in
+                    GridRow {
+                        HStack(alignment: .firstTextBaseline, spacing: 6) {
+                            Text(group.name ?? String(localized: "Name not recorded"))
+                                .foregroundStyle(group.name == nil ? .secondary : .primary)
+                                .lineLimit(1).truncationMode(.middle)
+                            if group.processes.count > 1 {
+                                Text(verbatim: "×\(group.processes.count)")
+                                    .font(.caption.weight(.semibold)).monospacedDigit()
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        // Never empty: an empty Text has no baseline, and the
+                        // row, aligned on baselines, rode up over the header.
+                        Text(verbatim: group.started.map { since($0, detected: last) } ?? "–")
+                            .foregroundStyle(group.started == nil ? .tertiary : .secondary)
+                        Text(verbatim: "PID " + group.processes.compactMap(\.pid).map(String.init).joined(separator: ", "))
+                            .font(.caption.monospaced()).foregroundStyle(.tertiary)
+                            .lineLimit(1).truncationMode(.tail)
+                            .gridColumnAlignment(.leading)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .font(.callout)
+                    .help(details(group))
+                }
+            }
+            .padding(.leading, 22)
+        }
+    }
+
+    /// "since 2:44 pm"; the date too when it started on another day.
+    private func since(_ start: Date, detected: Date) -> String {
+        let text = Calendar.current.isDate(start, inSameDayAs: detected)
+            ? start.formatted(date: .omitted, time: .shortened)
+            : start.formatted(date: .abbreviated, time: .shortened)
+        return String(localized: "since \(text)")
+    }
+
+    private func details(_ group: Executable) -> String {
+        var lines: [String] = []
+        if let path = group.path, !path.isEmpty { lines.append(path) }
+        for d in group.processes {
+            var parts = [d.pid.map { "PID \($0)" }]
+            // The PID as text: interpolated as a number it gets a grouping separator.
+            parts.append(d.parentPID.map { pid in
+                d.parentName.map { String(localized: "parent \($0) (\(String(pid)))") } ?? "PPID \(pid)"
+            })
+            parts.append(d.startedAt.map {
+                String(localized: "Running since \($0.formatted(date: .abbreviated, time: .shortened))")
+            })
+            lines.append(parts.compactMap { $0 }.joined(separator: " · "))
+        }
+        return lines.joined(separator: "\n")
     }
 }
 

@@ -133,6 +133,11 @@ public actor HomebrewCaskSource: UpdateSource {
         // reminder over a gate, and the cask is what brew updates either way.
         if entry.isStandardStableCask { remote.offeredChannel = .stable }
         remote.homebrewSelfUpdating = entry.autoUpdates
+        // What brew itself compares (`brew outdated`), cut like the cask's own
+        // version. `evaluate` uses it only where the bundle's string is older.
+        remote.homebrewRecordedVersion = inventory.installedVersion(caskToken: entry.token)?
+            .split(whereSeparator: { $0 == "," || $0 == ":" }).first
+            .map(String.init)
         return remote
     }
 }

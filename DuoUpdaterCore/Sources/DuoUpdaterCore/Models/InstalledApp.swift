@@ -37,7 +37,10 @@ public struct InstalledApp: Sendable, Identifiable, Hashable {
 
     /// `CFBundleShortVersionString` — the user-facing "marketing" version
     /// (e.g. "1.95.3"). This is what we compare against feeds.
-    public let shortVersion: String?
+    ///
+    /// Settable inside the module only so a comparison can read a copy whose
+    /// marketing string Homebrew's record replaces (`comparedWithHomebrewRecord`).
+    public internal(set) var shortVersion: String?
 
     /// `CFBundleVersion` — the build number (e.g. "1.95.3" or "45821").
     public let buildVersion: String?
@@ -346,5 +349,39 @@ public struct InstalledApp: Sendable, Identifiable, Hashable {
         self.runtime = runtime
         self.linkedFrameworks = linkedFrameworks
         self.buildSDK = buildSDK
+    }
+}
+
+extension InstalledApp {
+    /// This copy as a version comparison should read it, given the cask version
+    /// Homebrew records as installed for it (`RemoteVersion.homebrewRecordedVersion`).
+    ///
+    /// Homebrew's record takes the marketing string's place only where it is
+    /// NEWER than the bundle's own. That is the shape of a bundle that does not
+    /// name its release: WezTerm says `0.1.0` in every build while brew records
+    /// `20240203-110809,5046fc22`, and compared as is the row offers the release
+    /// brew has just installed, forever. Where the bundle is newer instead, the app
+    /// updated itself past what brew installed (IINA: brew records 1.5.0, the
+    /// bundle says 1.5.1), and the bundle stays the answer; a stale record must not
+    /// pull a copy backwards and re-offer what it already has.
+    ///
+    /// A trailing `-<digits>` packaging revision does not count toward "newer":
+    /// MKVToolNix's record `102.0-2` is the bundle's 102.0 repackaged, and read as
+    /// one string it would rank as 102.0.2 and hide a real 102.0.1. Where the
+    /// rest of the record is newer, the whole record is used (WezTerm's
+    /// `20240203-110809`).
+    ///
+    /// Only the marketing string moves, and `UpdateChecker.evaluate` applies this
+    /// only where it compares marketing strings alone — never beside a build.
+    func comparedWithHomebrewRecord(_ recorded: String?) -> InstalledApp {
+        guard let recorded = VersionComparator.comparableMarketingVersion(recorded),
+              let own = shortVersion
+        else { return self }
+        let release = recorded.replacingOccurrences(
+            of: #"-[0-9]+$"#, with: "", options: .regularExpression)
+        guard VersionComparator.isNewer(release, than: own) else { return self }
+        var copy = self
+        copy.shortVersion = recorded
+        return copy
     }
 }

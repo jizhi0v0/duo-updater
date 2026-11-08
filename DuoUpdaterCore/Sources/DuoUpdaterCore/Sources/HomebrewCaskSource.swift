@@ -118,14 +118,22 @@ public actor HomebrewCaskSource: UpdateSource {
         guard let entry = CaskEntry.preferred(among: installed, hostOSVersion: hostOSVersion)
         else { return nil }
         // A receipt lists every app a package wrote, helpers included, and a
-        // helper's version need not follow the cask's. Only a bundle whose version
-        // is the one Homebrew recorded installing is known to; any other would be
-        // offered the cask's version as an update it can never reach.
+        // helper's version need not follow the cask's: one below the version
+        // Homebrew recorded installing would be offered the cask's version as an
+        // update it can never reach, so it is left alone. One at or past the
+        // record is the cask's app. Past it is the ordinary state after an update
+        // that did not go through brew — the app's own updater, or this source's
+        // own `.installer` route for a package cask, which leaves the Caskroom
+        // record behind. Requiring equality dropped Karabiner back to "no source"
+        // after the first update DuoUpdater installed (real machine, 2026-11-09).
+        // A copy past the catalog reads as up to date (`evaluate`), never as a
+        // downgrade; Upgrade All's safety net still requires the record exactly
+        // (`BrewAppCask.isAtRecord`).
         if foundByReceipt {
             guard let installedVersion = app.shortVersion,
                   let recorded = inventory.installedVersion(caskToken: entry.token)?
                     .split(whereSeparator: { $0 == "," || $0 == ":" }).first,
-                  VersionComparator.compare(String(recorded), installedVersion) == .orderedSame
+                  VersionComparator.compare(String(recorded), installedVersion) != .orderedDescending
             else { return nil }
         }
 

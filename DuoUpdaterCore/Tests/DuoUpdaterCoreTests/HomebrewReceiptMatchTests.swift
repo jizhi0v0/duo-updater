@@ -66,8 +66,21 @@ import Foundation
         #expect(remote?.shortVersion == "16.4.0")
     }
 
-    /// A helper the package also wrote, versioned on its own: offering it the
-    /// cask's version would be an update no install can reach.
+    /// Updated outside brew (its own updater, or the installer route), so the
+    /// Caskroom record is behind: still the cask's app, up to date against it.
+    /// Mutation: require the record exactly → no source after the first update.
+    @Test func adoptsAnAppPastTheRecord() async throws {
+        let root = try caskroom(recording: "16.2.0")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let path = "/Applications/Karabiner-Elements.app"
+        let remote = try await source(caskroom: root, owned: [path])
+            .latestVersion(for: app(path, version: "16.3.0"))
+        #expect(remote?.sourceName == "Homebrew")
+        #expect(remote?.shortVersion == "16.4.0")
+    }
+
+    /// A helper the package also wrote, versioned on its own below the record:
+    /// offering it the cask's version would be an update no install can reach.
     @Test func leavesAnAppWhoseVersionIsNotTheRecordedOne() async throws {
         let root = try caskroom(recording: "16.3.0")
         defer { try? FileManager.default.removeItem(at: root) }

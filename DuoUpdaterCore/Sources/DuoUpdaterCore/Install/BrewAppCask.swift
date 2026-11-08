@@ -31,9 +31,10 @@ public struct BrewAppCask: Sendable, Equatable {
     /// and a cask listed beside it would offer a second one.
     ///
     /// And every app must still be at the version Homebrew recorded installing.
-    /// "No source" also covers an app the receipt match declined because it moved
-    /// past that record — its own updater ran — and for such an app brew's
-    /// non-greedy `outdated` compares only the record: Upgrade All would
+    /// "No source" can hide an app that moved past that record — its own
+    /// updater ran — when no source matched it at all (its name or bundle id
+    /// matched another cask, so the receipt match never ran). For such an app
+    /// brew's non-greedy `outdated` compares only the record: Upgrade All would
     /// reinstall, under sudo, a release older than the one on disk.
     public static func unclaimed(
         _ casks: [BrewAppCask], rows: [UpdateResult], checked: Bool,

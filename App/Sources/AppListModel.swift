@@ -1426,14 +1426,6 @@ final class AppListModel {
         formulaReleases.state(name: name, version: version)
     }
 
-    /// Every brew-managed cask among the results. `HomebrewCaskSource` stamps each
-    /// app it claims with `sourceName == "Homebrew"` (current or outdated alike), so
-    /// this is the authoritative set with no extra subprocess. The workbench pulls
-    /// these out of its Apps list and shows them under Brew instead.
-    var brewCaskResults: [UpdateResult] {
-        results.filter { $0.remote?.sourceName == "Homebrew" }
-    }
-
     private let sparkleInstaller = SparkleInstaller()
     private let homebrewInstaller = HomebrewInstaller()
     private let packageInstaller = PackageInstaller()

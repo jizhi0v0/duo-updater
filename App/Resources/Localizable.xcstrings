@@ -1,6 +1,1260 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "no Homebrew update": {
+      "comment": "Before “· via Sparkle”: Homebrew installed the app but has no newer version",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "kein Homebrew-Update"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "sin actualización de Homebrew"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "pas de mise à jour Homebrew"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "nessun aggiornamento Homebrew"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew に更新なし"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "sem atualização do Homebrew"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "нет обновления в Homebrew"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew güncellemesi yok"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew 无新版"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew 無新版"
+          }
+        }
+      }
+    },
+    "Homebrew installed this app and has no newer version, and neither does the app’s other update source.": {
+      "comment": "Help for “via Homebrew” on a Homebrew-installed app that is up to date",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew hat diese App installiert und hat keine neuere Version, die andere Update-Quelle der App ebenfalls nicht."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew instaló esta app y no tiene una versión más reciente; la otra fuente de actualizaciones de la app tampoco."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew a installé cette app et n’a pas de version plus récente, pas plus que l’autre source de mises à jour de l’app."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew ha installato questa app e non ha una versione più recente, e nemmeno l’altra fonte di aggiornamenti dell’app."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このアプリは Homebrew でインストールされています。Homebrew にも、アプリのもう一方のアップデート元にも、新しいバージョンはありません。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O Homebrew instalou este app e não tem uma versão mais recente, nem a outra fonte de atualizações do app."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Это приложение установлено через Homebrew. Ни в Homebrew, ни в другом источнике обновлений приложения нет более новой версии."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu uygulamayı Homebrew yükledi. Ne Homebrew’da ne de uygulamanın diğer güncelleme kaynağında daha yeni bir sürüm var."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此 App 由 Homebrew 安装。Homebrew 和 App 的另一个更新来源都没有更新的版本。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此 App 由 Homebrew 安裝。Homebrew 和 App 的另一個更新來源都沒有更新的版本。"
+          }
+        }
+      }
+    },
+    "Homebrew installed this app but has no newer version, so Update uses this source. Homebrew’s record of the app stays at the old version.": {
+      "comment": "Help for “no Homebrew update · via …” on a Homebrew-installed app updated from another source",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew hat diese App installiert, hat aber keine neuere Version, daher verwendet „Aktualisieren“ diese Quelle. Homebrew führt die App weiterhin mit der alten Version."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew instaló esta app pero no tiene una versión más reciente, así que Actualizar usa esta fuente. El registro de Homebrew de la app se queda en la versión anterior."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew a installé cette app mais n’a pas de version plus récente : Mettre à jour utilise donc cette source. Homebrew garde l’ancienne version dans son registre."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew ha installato questa app ma non ha una versione più recente, quindi Aggiorna usa questa fonte. Homebrew continua a registrare la versione precedente."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このアプリは Homebrew でインストールされていますが、Homebrew に新しいバージョンがないため、「更新」はこのアップデート元を使います。Homebrew の記録は古いバージョンのままになります。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O Homebrew instalou este app, mas não tem uma versão mais recente, então Atualizar usa esta fonte. O registro do Homebrew continua na versão antiga."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Это приложение установлено через Homebrew, но в Homebrew нет более новой версии, поэтому «Обновить» использует этот источник. В Homebrew останется запись о старой версии."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu uygulamayı Homebrew yükledi ancak Homebrew’da daha yeni bir sürüm yok, bu yüzden Güncelle bu kaynağı kullanır. Homebrew’un kaydı eski sürümde kalır."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此 App 由 Homebrew 安装，但 Homebrew 没有更新的版本，所以“更新”会使用这个来源。Homebrew 记录的版本会停留在旧版本。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此 App 由 Homebrew 安裝，但 Homebrew 沒有更新的版本，所以「更新」會使用這個來源。Homebrew 記錄的版本會停留在舊版本。"
+          }
+        }
+      }
+    },
+    "v%@ · %@": {
+      "comment": "Workbench sidebar row: installed version, then where its updates come from, e.g. “v1.2 · Homebrew”",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "v%1$@ · %2$@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "v%1$@ · %2$@"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "v%1$@ · %2$@"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "v%1$@ · %2$@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "v%1$@ · %2$@"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "v%1$@ · %2$@"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "v%1$@ · %2$@"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "v%1$@ · %2$@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "v%1$@ · %2$@"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "v%1$@ · %2$@"
+          }
+        }
+      }
+    },
+    "via %@": {
+      "comment": "Where an app's updates come from, e.g. “via Sparkle”, “via Homebrew”",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "über %@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "vía %@"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "via %@"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "tramite %@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 経由"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "via %@"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "через %@"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ üzerinden"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "通过 %@"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "透過 %@"
+          }
+        }
+      }
+    },
+    "via the app’s update feed": {
+      "comment": "Where an app's updates come from: the feed the app itself publishes",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "über den Update-Feed der App"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "vía el canal de actualizaciones de la app"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "via le flux de mises à jour de l’app"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "tramite il feed di aggiornamento dell’app"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アプリのアップデートフィード経由"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "via o feed de atualizações do app"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "через канал обновлений приложения"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "uygulamanın güncelleme akışı üzerinden"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "通过应用自己的更新源"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "透過 App 自己的更新來源"
+          }
+        }
+      }
+    },
+    "via the developer’s site": {
+      "comment": "Where an app's updates come from: the developer's own website",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "über die Website des Entwicklers"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "vía el sitio del desarrollador"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "via le site du développeur"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "tramite il sito dello sviluppatore"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開発元のサイト経由"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "via o site do desenvolvedor"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "через сайт разработчика"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "geliştiricinin sitesi üzerinden"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "通过开发者网站"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "透過開發者網站"
+          }
+        }
+      }
+    },
+    "Update downloads the new version, verifies it and replaces the app.": {
+      "comment": "Help on the update source: what the Update button does",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "„Aktualisieren“ lädt die neue Version, prüft sie und ersetzt die App."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Actualizar descarga la nueva versión, la verifica y reemplaza la app."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mettre à jour télécharge la nouvelle version, la vérifie et remplace l’app."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aggiorna scarica la nuova versione, la verifica e sostituisce l’app."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「更新」は新しいバージョンをダウンロードして検証し、アプリを置き換えます。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Atualizar baixa a nova versão, verifica e substitui o app."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "«Обновить» загружает новую версию, проверяет её и заменяет приложение."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Güncelle, yeni sürümü indirir, doğrular ve uygulamanın yerine koyar."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“更新”会下载新版本，校验后替换应用。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「更新」會下載新版本，驗證後取代 App。"
+          }
+        }
+      }
+    },
+    "Update downloads an installer package and runs it with macOS’s installer, which may ask for your password.": {
+      "comment": "Help on the update source: the update is a .pkg installer package",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "„Aktualisieren“ lädt ein Installationspaket und öffnet es mit dem macOS-Installationsprogramm, das nach deinem Passwort fragen kann."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Actualizar descarga un paquete de instalación y lo ejecuta con el instalador de macOS, que puede pedir tu contraseña."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mettre à jour télécharge un paquet d’installation et l’exécute avec le programme d’installation de macOS, qui peut demander votre mot de passe."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aggiorna scarica un pacchetto di installazione e lo esegue con il programma di installazione di macOS, che potrebbe chiedere la password."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「更新」はインストーラパッケージをダウンロードし、macOS のインストーラで実行します。パスワードを求められることがあります。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Atualizar baixa um pacote de instalação e o executa com o instalador do macOS, que pode pedir sua senha."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "«Обновить» загружает установочный пакет и запускает его установщиком macOS, который может запросить пароль."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Güncelle, bir yükleyici paketi indirir ve macOS yükleyicisiyle çalıştırır; parolanız istenebilir."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“更新”会下载安装包并用 macOS 安装器运行，可能需要输入密码。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「更新」會下載安裝套件並以 macOS 安裝程式執行，可能需要輸入密碼。"
+          }
+        }
+      }
+    },
+    "Updates come from the app’s own Sparkle feed.": {
+      "comment": "Help on the update source",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Updates kommen aus dem Sparkle-Feed der App."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las actualizaciones vienen del canal Sparkle de la propia app."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les mises à jour proviennent du flux Sparkle de l’app."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gli aggiornamenti arrivano dal feed Sparkle dell’app."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アップデートはアプリ自身の Sparkle フィードから取得します。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "As atualizações vêm do feed Sparkle do próprio app."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Обновления берутся из собственного канала Sparkle приложения."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Güncellemeler uygulamanın kendi Sparkle akışından gelir."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新来自应用自己的 Sparkle 更新源。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新來自 App 自己的 Sparkle 更新來源。"
+          }
+        }
+      }
+    },
+    "Updates come from the project’s GitHub Releases.": {
+      "comment": "Help on the update source",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Updates kommen aus den GitHub Releases des Projekts."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las actualizaciones vienen de las GitHub Releases del proyecto."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les mises à jour proviennent des GitHub Releases du projet."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gli aggiornamenti arrivano dalle GitHub Releases del progetto."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アップデートはプロジェクトの GitHub Releases から取得します。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "As atualizações vêm das GitHub Releases do projeto."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Обновления берутся из GitHub Releases проекта."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Güncellemeler projenin GitHub Releases sayfasından gelir."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新来自该项目的 GitHub Releases。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新來自該專案的 GitHub Releases。"
+          }
+        }
+      }
+    },
+    "Updates come from the update feed the app itself reads.": {
+      "comment": "Help on the update source",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Updates kommen aus dem Update-Feed, den die App selbst liest."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las actualizaciones vienen del canal que lee la propia app."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les mises à jour proviennent du flux que l’app lit elle-même."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gli aggiornamenti arrivano dal feed che l’app stessa legge."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アップデートはアプリ自身が読むアップデートフィードから取得します。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "As atualizações vêm do feed que o próprio app lê."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Обновления берутся из канала, который читает само приложение."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Güncellemeler uygulamanın kendisinin okuduğu güncelleme akışından gelir."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新来自应用自己读取的更新源。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新來自 App 自己讀取的更新來源。"
+          }
+        }
+      }
+    },
+    "Updates come from the developer’s own site.": {
+      "comment": "Help on the update source",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Updates kommen von der Website des Entwicklers."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las actualizaciones vienen del sitio del desarrollador."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les mises à jour proviennent du site du développeur."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gli aggiornamenti arrivano dal sito dello sviluppatore."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アップデートは開発元のサイトから取得します。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "As atualizações vêm do site do desenvolvedor."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Обновления берутся с сайта разработчика."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Güncellemeler geliştiricinin kendi sitesinden gelir."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新来自开发者自己的网站。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新來自開發者自己的網站。"
+          }
+        }
+      }
+    },
+    "Updates come from a Homebrew cask. Update runs brew for this app only.": {
+      "comment": "Help on the update source",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Updates kommen aus einem Homebrew-Cask. „Aktualisieren“ führt brew nur für diese App aus."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las actualizaciones vienen de un cask de Homebrew. Actualizar ejecuta brew solo para esta app."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les mises à jour proviennent d’un cask Homebrew. Mettre à jour exécute brew pour cette app uniquement."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gli aggiornamenti arrivano da un cask di Homebrew. Aggiorna esegue brew solo per questa app."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アップデートは Homebrew の cask から取得します。「更新」はこのアプリだけに brew を実行します。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "As atualizações vêm de um cask do Homebrew. Atualizar executa o brew apenas para este app."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Обновления берутся из cask Homebrew. «Обновить» запускает brew только для этого приложения."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Güncellemeler bir Homebrew cask’ından gelir. Güncelle, brew’u yalnızca bu uygulama için çalıştırır."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新来自 Homebrew cask。“更新”只对这个应用运行 brew。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新來自 Homebrew cask。「更新」只對這個 App 執行 brew。"
+          }
+        }
+      }
+    },
+    "Updates come from the App Store, which installs them.": {
+      "comment": "Help on the update source",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Updates kommen aus dem App Store, der sie installiert."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las actualizaciones vienen del App Store, que las instala."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les mises à jour proviennent de l’App Store, qui les installe."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gli aggiornamenti arrivano dall’App Store, che li installa."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アップデートは App Store から取得し、App Store がインストールします。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "As atualizações vêm da App Store, que as instala."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Обновления берутся из App Store, который их и устанавливает."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Güncellemeler App Store’dan gelir ve App Store tarafından yüklenir."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新来自 App Store，由 App Store 安装。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新來自 App Store，由 App Store 安裝。"
+          }
+        }
+      }
+    },
+    "Updates come from Setapp. Update opens Setapp, which installs them and may also update your other Setapp apps.": {
+      "comment": "Help on the update source",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Updates kommen aus Setapp. „Aktualisieren“ öffnet Setapp, das sie installiert und dabei auch deine anderen Setapp-Apps aktualisieren kann."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las actualizaciones vienen de Setapp. Actualizar abre Setapp, que las instala y puede actualizar también tus otras apps de Setapp."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les mises à jour proviennent de Setapp. Mettre à jour ouvre Setapp, qui les installe et peut aussi mettre à jour vos autres apps Setapp."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gli aggiornamenti arrivano da Setapp. Aggiorna apre Setapp, che li installa e può aggiornare anche le altre app di Setapp."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アップデートは Setapp から取得します。「更新」で Setapp が開いてインストールされ、ほかの Setapp アプリも更新されることがあります。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "As atualizações vêm do Setapp. Atualizar abre o Setapp, que as instala e pode atualizar também seus outros apps do Setapp."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Обновления берутся из Setapp. «Обновить» открывает Setapp, который их устанавливает и может обновить и другие ваши приложения Setapp."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Güncellemeler Setapp’ten gelir. Güncelle, Setapp’i açar; Setapp güncellemeyi yükler ve diğer Setapp uygulamalarınızı da güncelleyebilir."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新来自 Setapp。“更新”会打开 Setapp 安装，Setapp 也可能顺带更新你的其他 Setapp 应用。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新來自 Setapp。「更新」會打開 Setapp 安裝，Setapp 也可能順帶更新你的其他 Setapp App。"
+          }
+        }
+      }
+    },
+    "TestFlight installs this app’s betas.": {
+      "comment": "Help on the update source",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TestFlight installiert die Betas dieser App."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TestFlight instala las betas de esta app."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TestFlight installe les bêtas de cette app."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TestFlight installa le beta di questa app."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このアプリのベータ版は TestFlight がインストールします。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O TestFlight instala as betas deste app."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Бета-версии этого приложения устанавливает TestFlight."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu uygulamanın betalarını TestFlight yükler."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这个应用的测试版由 TestFlight 安装。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這個 App 的測試版由 TestFlight 安裝。"
+          }
+        }
+      }
+    },
+    "JetBrains Toolbox installs this app’s updates.": {
+      "comment": "Help on the update source",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "JetBrains Toolbox installiert die Updates dieser App."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "JetBrains Toolbox instala las actualizaciones de esta app."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "JetBrains Toolbox installe les mises à jour de cette app."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "JetBrains Toolbox installa gli aggiornamenti di questa app."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このアプリのアップデートは JetBrains Toolbox がインストールします。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O JetBrains Toolbox instala as atualizações deste app."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Обновления этого приложения устанавливает JetBrains Toolbox."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu uygulamanın güncellemelerini JetBrains Toolbox yükler."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这个应用的更新由 JetBrains Toolbox 安装。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這個 App 的更新由 JetBrains Toolbox 安裝。"
+          }
+        }
+      }
+    },
+    "New Xcode versions are found through Xcode Releases. Update downloads and installs the new Xcode.": {
+      "comment": "Help on the update source",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Neue Xcode-Versionen werden über Xcode Releases gefunden. „Aktualisieren“ lädt das neue Xcode und installiert es."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las nuevas versiones de Xcode se encuentran a través de Xcode Releases. Actualizar descarga e instala el nuevo Xcode."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les nouvelles versions de Xcode sont trouvées via Xcode Releases. Mettre à jour télécharge et installe le nouveau Xcode."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le nuove versioni di Xcode vengono trovate tramite Xcode Releases. Aggiorna scarica e installa il nuovo Xcode."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新しい Xcode は Xcode Releases で見つけます。「更新」は新しい Xcode をダウンロードしてインストールします。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Novas versões do Xcode são encontradas pelo Xcode Releases. Atualizar baixa e instala o novo Xcode."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Новые версии Xcode находятся через Xcode Releases. «Обновить» загружает и устанавливает новый Xcode."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yeni Xcode sürümleri Xcode Releases üzerinden bulunur. Güncelle, yeni Xcode’u indirip yükler."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新版 Xcode 通过 Xcode Releases 获知。“更新”会下载并安装新的 Xcode。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新版 Xcode 透過 Xcode Releases 得知。「更新」會下載並安裝新的 Xcode。"
+          }
+        }
+      }
+    },
     "Wait before quitting a running app": {
       "extractionState": "manual",
       "localizations": {

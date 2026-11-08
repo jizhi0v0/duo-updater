@@ -142,45 +142,18 @@ struct WorkbenchWindowView: View {
 
     /// The sidebar app list. `AppListModel` already holds `results` in display
     /// order (pending updates first, then the user's chosen intra-tier order), so
-    /// this is only the Brew split — re-sorting here would be a second comparator
-    /// that could drift from the popover's.
+    /// it is used as is — re-sorting here would be a second comparator that could
+    /// drift from the popover's.
     ///
-    /// Brew-managed casks are excluded here: they live under the Brew tree instead
-    /// (the "cask 只在此面板" rule), so they never appear in both places.
+    /// Apps whose updates come from a Homebrew cask are listed here like any
+    /// other app, with "Homebrew" on their version line: they are apps, and the
+    /// CLI tab is for command-line tools.
     ///
     /// The apps an interrupted install left gone come first: the scan has no
     /// row for them (`AppListModel.interruptedStandIns`).
     private var apps: [UpdateResult] {
         let standIns = model.interruptedStandIns
-        return standIns.isEmpty ? sortedResults().apps : standIns + sortedResults().apps
-    }
-
-    /// Brew-managed casks, in the same display order — the cask half of the Brew
-    /// tree. (The formula half is `model.brewFormulae` — all top-level leaves.)
-    private var brewCasks: [UpdateResult] { sortedResults().brewCasks }
-
-    /// `apps` and `brewCasks`, split once per write to `model.results` rather than
-    /// on every pass of this body: a tab switch, a selection, a download tick each
-    /// re-read all 229 apps on the developer's Mac. Handing the Apps list the same
-    /// array again also makes its comparison (`WorkbenchAppsList`) a check of one
-    /// buffer instead of every app.
-    private final class SortedResults {
-        var generation = -1
-        var apps: [UpdateResult] = []
-        var brewCasks: [UpdateResult] = []
-    }
-    @State private var sortedResultsCache = SortedResults()
-
-    private func sortedResults() -> SortedResults {
-        // Read whether or not the cache holds: it is what makes a new list re-run
-        // this body.
-        let results = model.results
-        let cache = sortedResultsCache
-        guard cache.generation != model.resultsGeneration else { return cache }
-        cache.apps = results.filter { $0.remote?.sourceName != "Homebrew" }
-        cache.brewCasks = model.brewCaskResults
-        cache.generation = model.resultsGeneration
-        return cache
+        return standIns.isEmpty ? model.results : standIns + model.results
     }
 
     /// Apps that have a restorable backup on disk — the ones the user can roll back
@@ -230,7 +203,7 @@ struct WorkbenchWindowView: View {
     ///
     /// They used to be computed properties read from the view builders that need
     /// them — the app rows from three (the section header, the list, its empty
-    /// overlay), `rollbackableApps` from four, `brewCasks` from three — so one
+    /// overlay), `rollbackableApps` from four — so one
     /// pass re-ran every `filter` and every `sort(localizedCaseInsensitiveCompare)`
     /// three or four times over. And the pass is not rare: the body reads
     /// `model.installing`, so every download tick re-runs all of it.
@@ -251,7 +224,6 @@ struct WorkbenchWindowView: View {
         /// `CLIToolKind.allCases` order and npm's by prefix — the order the groups
         /// are drawn in (`CLIToolPresentation.groups`).
         let cliTools: [CLIToolStatus]
-        let brewCasks: [UpdateResult]
         let brewFormulae: [BrewInstalledFormula]
         let brewUnchecked: [BrewUncheckedPackage]
         /// App-less casks Homebrew deprecated or disabled (`BrewCaskLifecycle`).
@@ -271,15 +243,14 @@ struct WorkbenchWindowView: View {
 
     private var sidebarLists: SidebarLists {
         let allApps = apps
-        let allCasks = brewCasks
         let allRollbackable = rollbackableApps
-        let brewTotal = allCasks.count + model.brewFormulae.count + model.brewUnchecked.count
+        let brewTotal = model.brewFormulae.count + model.brewUnchecked.count
             + model.brewAppLessCaskLifecycles.count + (model.homebrewSelfUpdate == nil ? 0 : 1)
         let cliTools = CLIToolPresentation.holding(
             CLIToolPresentation.updatesFirst(model.cliTools.statuses), to: heldCLIOrder, id: \.toolID.tag)
         let formulae = CLIToolPresentation.holding(
             CLIToolPresentation.outdatedFirst(model.brewFormulae, \.hasUpdate), to: heldCLIOrder, id: Self.formulaTag)
-        // Unfiltered, the same array as the last pass (`sortedResults`). Read
+        // Unfiltered, the same array as the last pass (`model.results`). Read
         // once per row: `isIgnored` is the defaults-backed set, and this read is
         // also what makes the list drop a row the moment it is ignored
         // (`Preferences` is `@Observable`).
@@ -301,7 +272,6 @@ struct WorkbenchWindowView: View {
             filteredApps: rows,
             ignoredAppCount: ignoredCount,
             cliTools: CLIToolPresentation.groups(cliTools.filter(matchesSearch)).flatMap(\.statuses),
-            brewCasks: allCasks.filter(matchesSearch),
             brewFormulae: formulae.filter { matchesSearch($0.name) },
             brewUnchecked: model.brewUnchecked.filter { matchesSearch($0.fullName) },
             brewLifecycleCasks: model.brewAppLessCaskLifecycles.filter { matchesSearch($0.token) },
@@ -626,13 +596,10 @@ struct WorkbenchWindowView: View {
         if let result = model.results.first(where: { $0.id == id }), !matchesSearch(result) {
             searchText = ""
         }
-        // The row may be a Homebrew cask, which lives on the CLI tab. The tab is
-        // set first; `tabChanged` then finds the selection already in its list and
-        // leaves it alone.
-        let isCask = brewCasks.contains { $0.id == id }
-        sidebarTab = isCask ? .cli : .apps
-        // A cask row is inside the Homebrew group, which may be closed.
-        if isCask { homebrewRevealing = true }
+        // Every app row is on the Apps tab, Homebrew-updated ones included. The
+        // tab is set first; `tabChanged` then finds the selection already in its
+        // list and leaves it alone.
+        sidebarTab = .apps
         selection = id
         detailSelection = id
         // Selected is not the same as seen: the row may be below the fold, or on
@@ -723,13 +690,13 @@ struct WorkbenchWindowView: View {
 
     /// Homebrew has anything for the CLI tab to show, before the search.
     private var homebrewHasAnything: Bool {
-        !model.brewCaskResults.isEmpty || !model.brewFormulae.isEmpty || !model.brewUnchecked.isEmpty
+        !model.brewFormulae.isEmpty || !model.brewUnchecked.isEmpty
             || !model.brewAppLessCaskLifecycles.isEmpty || model.homebrewSelfUpdate != nil
     }
 
     /// Rows the Homebrew group shows after the search.
     private func brewItemCount(_ lists: SidebarLists) -> Int {
-        lists.brewCasks.count + lists.brewFormulae.count + lists.brewUnchecked.count
+        lists.brewFormulae.count + lists.brewUnchecked.count
             + lists.brewLifecycleCasks.count + (lists.homebrewSelfUpdate == nil ? 0 : 1)
     }
 
@@ -973,7 +940,6 @@ struct WorkbenchWindowView: View {
             return lists.filteredApps.map(\.id)
         case .cli:
             let brew = (lists.homebrewSelfUpdate == nil ? [] : [Self.homebrewSelfUpdateTag])
-                + lists.brewCasks.map(\.id)
                 + lists.brewFormulae.map(Self.formulaTag)
                 + lists.brewLifecycleCasks.map { "brew:cask:\($0.token)" }
                 + lists.brewUnchecked.map { "brew:unchecked:\($0.id)" }
@@ -1296,11 +1262,10 @@ struct WorkbenchWindowView: View {
         !searchQuery.isEmpty && brewItemCount(lists) > 0
     }
 
-    /// Whether `id` is one of the Homebrew group's rows: a cask, a formula, or an
-    /// unchecked package.
+    /// Whether `id` is one of the Homebrew group's rows: a formula, an app-less
+    /// cask, or an unchecked package.
     private func isHomebrewRow(_ id: String?) -> Bool {
-        guard let id else { return false }
-        return id.hasPrefix("brew:") || model.brewCaskResults.contains { $0.id == id }
+        id?.hasPrefix("brew:") == true
     }
 
     private func homebrewExpanded(_ lists: SidebarLists) -> Bool {
@@ -1352,11 +1317,10 @@ struct WorkbenchWindowView: View {
     /// whole group's, not the search's: a search that matches inside opens the
     /// group, and its rows show what matched.
     private func homebrewSummary(_ lists: SidebarLists) -> some View {
-        let casks = model.brewCaskResults
-        return HomebrewGroupSummary(
-            packages: casks.count + model.brewFormulae.count + model.brewUnchecked.count
+        HomebrewGroupSummary(
+            packages: model.brewFormulae.count + model.brewUnchecked.count
                 + model.brewAppLessCaskLifecycles.count,
-            outdated: casks.filter(\.hasUpdate).count + model.brewFormulae.filter(\.hasUpdate).count,
+            outdated: model.brewFormulae.filter(\.hasUpdate).count,
             unchecked: model.brewUnchecked.count,
             // While Upgrade All is on offer, as the popover shows it.
             upgradeError: model.brewOutdatedFormulae.isEmpty ? nil : model.brewUpgradeError,
@@ -1500,11 +1464,6 @@ struct WorkbenchWindowView: View {
                             // (`HomebrewSelfUpdateDetailPane`).
                             HomebrewSelfUpdateSidebarRow(update: update, model: model)
                                 .sidebarRow(Self.homebrewSelfUpdateTag, selection: $selection)
-                        }
-                        ForEach(lists.brewCasks) { result in
-                            WorkbenchAppRow(result: result, model: model)
-                                .equatable()
-                                .sidebarRow(result.id, selection: $selection)
                         }
                         ForEach(lists.brewFormulae) { formula in
                             BrewFormulaSidebarRow(formula: formula, model: model)
@@ -2116,6 +2075,10 @@ private struct WorkbenchSidebarRow: View {
                     // build in parentheses) and had only the line limit, so it
                     // truncated where they shrank.
                     .minimumScaleFactor(0.75)
+            } else if let source = UpdateSourceLabel(result)?.sidebarName {
+                // Update hands the work to another tool here, so the row says which.
+                Text("v\(result.installedDisplay ?? "?") · \(source)")
+                    .font(.caption).foregroundStyle(.secondary).lineLimit(1)
             } else {
                 Text("v\(result.installedDisplay ?? "?")")
                     .font(.caption).foregroundStyle(.secondary).lineLimit(1)
@@ -3533,44 +3496,62 @@ private struct DetailHeader: View {
                 .font(.callout).foregroundStyle(.secondary)
                 .lineLimit(1).minimumScaleFactor(0.75)
         case .status:
-            switch result.status {
-            case .updateAvailable(let latest):
-                // Names the running version when an older process is still live.
-                let running = model.runningUpdateLine(result, latest: latest)
-                let bump = result.buildBump(latest: latest)
-                let (installed, offered) = result.updateLineSides(latest: latest)
-                let from = running?.from ?? bump.map { "\(installed) (\($0.installed))" } ?? installed
-                let to = running?.to ?? bump.map { "\(offered) (\($0.remote))" } ?? offered
-                Text("\(from)  →  \(to)")
-                    .font(.callout).foregroundStyle(.tint)
-                    .lineLimit(1).minimumScaleFactor(0.75)
-            case .upToDate where result.heldBySubscription != nil:
-                // Current only within the subscription, and the action beside
-                // this line says what it is not offering — so not "up to date".
-                Text("v\(result.installedDisplay ?? "?")")
-                    .font(.callout).foregroundStyle(.secondary)
-                    .lineLimit(1).minimumScaleFactor(0.75)
-            case .upToDate:
-                // The only status a check answers with "current". The popover
-                // prints a bare "v<installed>" here too and puts the verdict in
-                // its action column as a checkmark; this header's action is blank
-                // for an up-to-date row, so the line says it.
-                Text("v\(result.installedDisplay ?? "?") · up to date")
-                    .font(.callout).foregroundStyle(.secondary)
-                    .lineLimit(1).minimumScaleFactor(0.75)
-            default:
-                // A failed check (`.error` — a rate limit, a timeout), no source
-                // (`.unknown`), or a channel that owns the updates: none of them
-                // established "up to date", and the action column beside this line
-                // already says which it is (Failed / Rate-limited, a source hint, a
-                // store tile). This used to append "· up to date" to all of
-                // them, so a rate-limited row read "v3.3.0 · up to date" right next
-                // to its orange "Rate-limited" badge. Same bare line the popover
-                // and sidebar draw for these.
-                Text("v\(result.installedDisplay ?? "?")")
-                    .font(.callout).foregroundStyle(.secondary)
-                    .lineLimit(1).minimumScaleFactor(0.75)
+            HStack(spacing: 0) {
+                statusVersionText
+                // Where updates come from, and in its help what Update will do.
+                if let source = UpdateSourceLabel(result, usesInstaller: model.requiresInstaller(result)) {
+                    Text(verbatim: " · ")
+                    Text(source.phrase)
+                        .help(source.detail)
+                        .layoutPriority(-1)
+                }
             }
+            .font(.callout).foregroundStyle(.secondary)
+            .lineLimit(1).minimumScaleFactor(0.75)
+        }
+    }
+
+    /// The version line's own words for a row with no relaunch, restart or
+    /// downgrade to explain: the update on offer, or the installed version.
+    @ViewBuilder
+    private var statusVersionText: some View {
+        switch result.status {
+        case .updateAvailable(let latest):
+            // Names the running version when an older process is still live.
+            let running = model.runningUpdateLine(result, latest: latest)
+            let bump = result.buildBump(latest: latest)
+            let (installed, offered) = result.updateLineSides(latest: latest)
+            let from = running?.from ?? bump.map { "\(installed) (\($0.installed))" } ?? installed
+            let to = running?.to ?? bump.map { "\(offered) (\($0.remote))" } ?? offered
+            Text("\(from)  →  \(to)")
+                .font(.callout).foregroundStyle(.tint)
+                .lineLimit(1).minimumScaleFactor(0.75)
+        case .upToDate where result.heldBySubscription != nil:
+            // Current only within the subscription, and the action beside
+            // this line says what it is not offering — so not "up to date".
+            Text("v\(result.installedDisplay ?? "?")")
+                .font(.callout).foregroundStyle(.secondary)
+                .lineLimit(1).minimumScaleFactor(0.75)
+        case .upToDate:
+            // The only status a check answers with "current". The popover
+            // prints a bare "v<installed>" here too and puts the verdict in
+            // its action column as a checkmark; this header's action is blank
+            // for an up-to-date row, so the line says it.
+            Text("v\(result.installedDisplay ?? "?") · up to date")
+                .font(.callout).foregroundStyle(.secondary)
+                .lineLimit(1).minimumScaleFactor(0.75)
+        default:
+            // A failed check (`.error` — a rate limit, a timeout), no source
+            // (`.unknown`), or a channel that owns the updates: none of them
+            // established "up to date", and the action column beside this line
+            // already says which it is (Failed / Rate-limited, a source hint, a
+            // store tile). This used to append "· up to date" to all of
+            // them, so a rate-limited row read "v3.3.0 · up to date" right next
+            // to its orange "Rate-limited" badge. Same bare line the popover
+            // and sidebar draw for these.
+            Text("v\(result.installedDisplay ?? "?")")
+                .font(.callout).foregroundStyle(.secondary)
+                .lineLimit(1).minimumScaleFactor(0.75)
         }
     }
 }

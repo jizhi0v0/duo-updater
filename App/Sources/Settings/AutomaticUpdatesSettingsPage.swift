@@ -51,9 +51,18 @@ struct AutomaticUpdatesSettingsPage: View {
                 SettingsToggle(
                     "Also update running apps you allow",
                     detail: "Quits an allowed app only when it and the Mac have both been idle, installs the update, and reopens it. Choose the apps below.",
-                    info: "An app is quit only if: you allowed it; the update has been known for a day; it has not been in front for an hour; the Mac has had no input for 15 minutes or is locked; it is not keeping the Mac awake (calls, playback, recording, downloads); and it has no shell or other program running. It is asked to quit normally. If it does not quit, it is not asked again for that version, and after three failed updates it waits for the next version. Each app is quit at most once a day.",
+                    info: "An app is quit only if: you allowed it; it has been out of date for the wait chosen below, counted again from its last quit for an update; it has not been in front for an hour; the Mac has had no input for 15 minutes or is locked; it is not keeping the Mac awake (calls, playback, recording, downloads); and it has no shell or other program running. When the wait is over, the newest version is installed, even if it came out moments ago. It is asked to quit normally. If it does not quit, or an update fails, nothing is tried for a day; it is not asked again for that version, and after three failed updates it waits for the next version.",
                     channel: .beta,
                     isOn: $prefs.automaticUpdatesRunningApps)
+                if prefs.automaticUpdatesRunningApps {
+                    SettingsDivider()
+                    Picker("Wait before quitting a running app", selection: $prefs.runningAppUpdateDelayMinutes) {
+                        ForEach(RunningAppAutoUpdate.delayChoices, id: \.self) { minutes in
+                            Text(Self.delayLabel(minutes)).tag(minutes)
+                        }
+                    }
+                    .settingsRow()
+                }
             }
         } footer: {
             if prefs.automaticUpdates && prefs.checkFrequency.interval == nil {
@@ -62,6 +71,15 @@ struct AutomaticUpdatesSettingsPage: View {
                     systemImage: "exclamationmark.triangle")
                     .fixedSize(horizontal: false, vertical: true)
             }
+        }
+    }
+
+    /// Spelled out per choice so each is its own catalog key.
+    private static func delayLabel(_ minutes: Int) -> LocalizedStringKey {
+        switch minutes {
+        case 15: "15 minutes"
+        case 30: "30 minutes"
+        default: "1 hour"
         }
     }
 

@@ -10475,7 +10475,7 @@ final class AppListModel {
                 } else if automaticUpdatesAllowed && prefs.automaticUpdatesRunningApps {
                     // Not when the user switched it off meanwhile: that stop is theirs,
                     // not the app's, and must not count toward giving up on it.
-                    prefs.runningAppUpdateLedger.recordFailure(prefs.key(for: result.app))
+                    prefs.runningAppUpdateLedger.recordFailure(prefs.key(for: result.app), now: Date())
                 }
             }
             let versions = automaticInstallVersions.removeValue(forKey: result.id)
@@ -10558,7 +10558,8 @@ final class AppListModel {
             screenLocked: Self.screenIsLocked(),
             busyAssertion: RunningAppAutoUpdate.busyAssertion(pids: ownPIDs),
             hasForeignChild: RunningAppAutoUpdate.hasForeignChild(of: result.app.path, processes: processes))
-        if case .wait(let why) = RunningAppAutoUpdate.decide(entry: entry, signals: signals, now: now) {
+        if case .wait(let why) = RunningAppAutoUpdate.decide(
+            entry: entry, signals: signals, now: now, delayMinutes: prefs.runningAppUpdateDelayMinutes) {
             return .wait(why.message)
         }
         // The app's own Sparkle may have an update downloaded and an installer
@@ -10580,7 +10581,7 @@ final class AppListModel {
             return .quit(nestedBundles: nested)
         case .stillRunning:
             prefs.runningAppUpdateLedger.recordQuit(key, now: Date())
-            prefs.runningAppUpdateLedger.recordQuitRefused(key)
+            prefs.runningAppUpdateLedger.recordQuitRefused(key, now: Date())
             reopenIfItQuitsLate(result.app)
             return .wait("The app did not quit, most likely to ask about unsaved work. It will not be asked again for this version.")
         case .notRunning, .awaitingOpenConfirmation:

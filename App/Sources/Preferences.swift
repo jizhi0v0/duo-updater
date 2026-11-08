@@ -88,6 +88,7 @@ final class Preferences {
         static let automaticRelaunchKeys = "AutomaticUpdateRelaunchKeys"
         static let automaticUpdateExcludedKeys = "AutomaticUpdateExcludedKeys"
         static let runningAppUpdateLedger = "RunningAppAutoUpdateLedger"
+        static let runningAppUpdateDelayMinutes = "RunningAppUpdateDelayMinutes"
         static let hideDockIcon = "HideDockIcon"
         static let appStoreUpdateStrategy = UpdateSettings.appStoreUpdateStrategyKey
         static let vendorInstallPolicy = UpdateSettings.vendorInstallPolicyKey
@@ -348,7 +349,14 @@ final class Preferences {
         didSet { defaults.set(Array(automaticUpdateExcludedKeys), forKey: Key.automaticUpdateExcludedKeys) }
     }
 
-    /// Cooldown, daily cap and give-up state for quitting running apps.
+    /// How long a running app must have been out of date, and since its last
+    /// quit for an update, before it is quit again. One of
+    /// `RunningAppAutoUpdate.delayChoices`.
+    var runningAppUpdateDelayMinutes: Int {
+        didSet { defaults.set(runningAppUpdateDelayMinutes, forKey: Key.runningAppUpdateDelayMinutes) }
+    }
+
+    /// When each running install fell behind, its last quit, and give-up state.
     var runningAppUpdateLedger: RunningAppAutoUpdate.Ledger {
         didSet {
             guard runningAppUpdateLedger != oldValue,
@@ -792,6 +800,9 @@ final class Preferences {
         self.automaticUpdatesRunningApps = defaults.bool(forKey: Key.automaticUpdatesRunningApps)
         self.automaticRelaunchKeys = Set(defaults.stringArray(forKey: Key.automaticRelaunchKeys) ?? [])
         self.automaticUpdateExcludedKeys = Set(defaults.stringArray(forKey: Key.automaticUpdateExcludedKeys) ?? [])
+        self.runningAppUpdateDelayMinutes = RunningAppAutoUpdate.delayChoices
+            .first { $0 == defaults.integer(forKey: Key.runningAppUpdateDelayMinutes) }
+            ?? RunningAppAutoUpdate.defaultDelayMinutes
         self.runningAppUpdateLedger = defaults.data(forKey: Key.runningAppUpdateLedger)
             .flatMap { try? JSONDecoder().decode(RunningAppAutoUpdate.Ledger.self, from: $0) } ?? .init()
         self.hideDockIcon = defaults.object(forKey: Key.hideDockIcon) as? Bool ?? true

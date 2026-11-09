@@ -96,6 +96,17 @@ public final class AutomaticUpdateDiagnostics: @unchecked Sendable {
     public var snapshot: [Entry] {
         lock.withLock { entries.values.sorted { $0.id < $1.id } }
     }
+    /// Forget what `attemptID` recorded, for an attempt whose row is not written
+    /// (a deferral that repeats the last one): nothing would refer to it.
+    public func discard(attemptID: String) {
+        lock.withLock {
+            for (key, var entry) in entries where entry.attempts.contains(attemptID) {
+                entry.attempts.remove(attemptID)
+                entries[key] = entry.attempts.isEmpty ? nil : entry
+            }
+        }
+    }
+    public var isEmpty: Bool { lock.withLock { entries.isEmpty } }
     public func references(for attemptID: String) -> String {
         snapshot.filter { $0.attempts.contains(attemptID) }.map(\.id).joined(separator: ",")
     }
@@ -111,14 +122,65 @@ public final class AutomaticUpdateDiagnostics: @unchecked Sendable {
         return try? JSONDecoder().decode([String: String].self, from: data)
     }
 
+    /// What a pass needs from the retained history, read once per pass instead of
+    /// once per app: every row decoded a single time.
+    public struct History: Sendable {
+        /// The latest attempt row per app and offered version.
+        private var latest: [String: [String: String]] = [:]
+        /// The latest attempt row per app, whatever the version.
+        private var latestByApp: [String: [String: String]] = [:]
+        /// Versions whose attempts since the last install include a failure, or
+        /// a start that never reached an outcome (DuoUpdater quit mid-install).
+        private var troubled: Set<String> = []
+
+        private static func key(_ appID: String, _ version: String) -> String { appID + "\u{0}" + version }
+
+        public init(_ events: [DuoEvent]) {
+            var open: [String: Set<String>] = [:]
+            for event in events.sorted(by: { $0.date < $1.date }) {
+                guard let row = AutomaticUpdateDiagnostics.fields(event),
+                      let appID = row["appID"], let attemptID = row["attemptID"] else { continue }
+                let key = Self.key(appID, row["toVersion"] ?? "")
+                latest[key] = row
+                latestByApp[appID] = row
+                switch row["status"] {
+                case "started": open[key, default: []].insert(attemptID)
+                case "installed":
+                    open[key] = nil
+                    troubled.remove(key)
+                case "notInstalled":
+                    open[key]?.remove(attemptID)
+                    troubled.insert(key)
+                default: open[key]?.remove(attemptID)
+                }
+            }
+            for (key, attempts) in open where !attempts.isEmpty { troubled.insert(key) }
+        }
+
+        /// The attempt a new one continues: the latest for this copy and version,
+        /// unless that one installed it.
+        public func predecessor(appID: String, version: String) -> [String: String]? {
+            guard let row = latest[Self.key(appID, version)], row["status"] != "installed" else { return nil }
+            return row
+        }
+
+        /// Whether an install now recovers from an earlier failed or cut-off
+        /// attempt at this version, rather than following a wait.
+        public func recovers(appID: String, version: String) -> Bool {
+            troubled.contains(Self.key(appID, version))
+        }
+
+        /// Whether this deferral says what the app's last row already says: the
+        /// same version and the same reason. It is then not written again.
+        public func repeatsLastDeferral(appID: String, version: String, reason: String) -> Bool {
+            guard let last = latestByApp[appID] else { return false }
+            return last["status"] == "deferred" && last["toVersion"] == version && last["reason"] == reason
+        }
+    }
+
     /// Resume only the latest retained attempt for this installed copy and target version.
     public static func predecessor(in events: [DuoEvent], appID: String, version: String) -> [String: String]? {
-        for event in events.sorted(by: { $0.date > $1.date }) {
-            guard let row = fields(event), row["appID"] == appID,
-                  row["toVersion"] == version, row["attemptID"] != nil else { continue }
-            return row["status"] == "installed" ? nil : row
-        }
-        return nil
+        History(events).predecessor(appID: appID, version: version)
     }
 
     /// Allowlist export: aggregate outcomes and typed probe diagnostics only. No

@@ -10455,7 +10455,11 @@ final class AppListModel {
         let diagnostics = AutomaticUpdateDiagnostics()
         // Retained history survives app restarts. New attempts link to the latest
         // incomplete attempt for the same installed copy and proposed version.
-        let history = await eventStore.events(.init(kind: "automaticUpdate", limit: 10_000))
+        let events = await eventStore.events(.init(kind: "automaticUpdate", limit: 10_000))
+        // Decoded off the main actor, once per pass.
+        let history = await Task.detached(priority: .utility) {
+            AutomaticUpdateDiagnostics.History(events)
+        }.value
         let targets = installAllTargets()
         // Forget only installs that caught up or are gone. One left out of
         // `targets` for any other reason (a failed check, a skipped version) keeps
@@ -10469,8 +10473,8 @@ final class AppListModel {
         for result in targets {
             guard automaticUpdatesAllowed else { break }
             let attemptID = UUID().uuidString
-            let previous = AutomaticUpdateDiagnostics.predecessor(in: history,
-                appID: result.id, version: result.remote?.displayVersion ?? "")
+            let offered = result.remote?.displayVersion ?? ""
+            let previous = history.predecessor(appID: result.id, version: offered)
             var correlation = ["passID": diagnostics.passID, "attemptID": attemptID,
                 "chainID": previous?["chainID"] ?? attemptID,
                 "retryOf": previous?["attemptID"] ?? ""]
@@ -10507,6 +10511,13 @@ final class AppListModel {
                 }
             }
             if let reason {
+                // Said once per version and reason, not on every pass: a pending
+                // update that waits for days would otherwise push everything
+                // else out of the Events list and the retention window.
+                if history.repeatsLastDeferral(appID: result.id, version: offered, reason: reason) {
+                    diagnostics.discard(attemptID: attemptID)
+                    continue
+                }
                 correlation["diagnosticIDs"] = diagnostics.references(for: attemptID)
                 await recordAutomaticUpdate(result, status: "deferred", reason: reason, correlation: correlation)
                 continue
@@ -10583,13 +10594,17 @@ final class AppListModel {
             }
             let versions = automaticInstallVersions.removeValue(forKey: result.id)
             correlation["diagnosticIDs"] = diagnostics.references(for: attemptID)
-            if event.status == "installed", let previous {
+            // A recovery only after a failed or cut-off attempt, not after waiting.
+            if event.status == "installed", let previous, history.recovers(appID: result.id, version: offered) {
                 correlation["recoveredFrom"] = previous["attemptID"]
             }
             await recordAutomaticUpdate(result, status: event.status,
                 reason: event.reason ?? installErrors[result.id] ?? installNotes[result.id],
                 versions: versions, correlation: correlation)
         }
+        // Only a pass that found something to record writes one: an empty row
+        // every few minutes pushed real activity out of the Events list.
+        guard !diagnostics.isEmpty else { return }
         let summary = ["status": "diagnostics", "passID": diagnostics.passID,
             "diagnostics": diagnostics.json]
         if let data = try? JSONEncoder().encode(summary) {

@@ -1,6 +1,138 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "Updated through Setapp, so not automatically": {
+      "comment": "Automatic Updates settings row caption for a Setapp app while Setapp background updates are off",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wird über Setapp aktualisiert, daher nicht automatisch"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se actualiza mediante Setapp, así que no automáticamente"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mise à jour via Setapp, donc pas automatiquement"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aggiornata tramite Setapp, quindi non automaticamente"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Setapp でアップデートするため、自動ではありません"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Atualizado pelo Setapp, então não automaticamente"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Обновляется через Setapp, поэтому не автоматически"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Setapp üzerinden güncellenir, bu yüzden otomatik değil"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "通过 Setapp 更新，因此不会自动更新"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "透過 Setapp 更新，因此不會自動更新"
+          }
+        }
+      }
+    },
+    "Updated by Setapp in the background, not here": {
+      "comment": "Automatic Updates settings row caption for a Setapp app while Setapp background updates are on",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wird von Setapp im Hintergrund aktualisiert, nicht hier"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lo actualiza Setapp en segundo plano, no aquí"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mise à jour par Setapp en arrière-plan, pas ici"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aggiornata da Setapp in background, non qui"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Setapp がバックグラウンドでアップデートします（ここでは行いません）"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Atualizado pelo Setapp em segundo plano, não aqui"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Обновляется Setapp в фоне, а не здесь"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Setapp tarafından arka planda güncellenir, burada değil"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "由 Setapp 在后台更新，不在这里"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "由 Setapp 在背景更新，不在這裡"
+          }
+        }
+      }
+    },
     "Quit for an update while you were away. The update did not install, and the app could not be reopened.": {
       "comment": "Notification body: an automatic update quit an idle app, the update failed, and the app could not be opened again",
       "extractionState": "manual",

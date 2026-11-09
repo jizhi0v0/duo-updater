@@ -291,6 +291,12 @@ final class AppListModel {
     /// crucially, blocks re-entry: the swap can take tens of seconds, during which
     /// the Relaunch button must not fire a second quit.
     private(set) var relaunching: Set<String> = []
+    /// Rows whose app an automatic update quit and has not reopened yet
+    /// (`quitForSwap` to the reopen, or `reopenIfItQuitsLate`'s watch). Its own
+    /// set, not `relaunching`: `install` clears that on every exit, and the hold
+    /// has to outlive the install. `quitGuardWork` reads it, so DuoUpdater's own
+    /// silent update and a Quit wait for the reopen.
+    private(set) var automaticQuitHolds: Set<String> = []
 
     /// True for the whole of the Update All staged-relaunch loop.
     ///
@@ -646,6 +652,7 @@ final class AppListModel {
     /// (`waitOutBundleChange`).
     func canRollback(_ id: String) -> Bool {
         installing[id] == nil && !relaunching.contains(id) && bundleChanges[id] == nil
+            && !automaticQuitHolds.contains(id)
     }
 
     /// Which operation may be replacing a row's bundle right now.
@@ -5740,6 +5747,10 @@ final class AppListModel {
                 installing[id] = nil
                 return .deferred(reason: "Automatic update eligibility changed before installation.")
             }
+            if needsAdministratorForAutomaticUpdate(result) {
+                installing[id] = nil
+                return .deferred(reason: "Updating it needs administrator authorization.")
+            }
             do { try AutomaticInstall.check(result.app) }
             catch {
                 installNotes[id] = error.localizedDescription
@@ -5789,7 +5800,7 @@ final class AppListModel {
         // before the staging clearance and the rollback point below, because both
         // change something: retention is one backup per app, so backing up first
         // and refusing after would lose the previous rollback point.
-        if let refused = InstallCoordinator.nestedAppRefusal(
+        if !AutomaticInstall.appQuitsBeforeApply, let refused = InstallCoordinator.nestedAppRefusal(
             for: result,
             route: InstallCoordinator.route(for: result, requiresInstaller: requiresInstaller(result))) {
             Log.install.notice("install refused: \(result.app.name, privacy: .public) — \(refused.blockers.map { "\($0.name) pid \($0.pid)" }.joined(separator: ", "), privacy: .public) running from inside it")
@@ -10446,7 +10457,15 @@ final class AppListModel {
         // incomplete attempt for the same installed copy and proposed version.
         let history = await eventStore.events(.init(kind: "automaticUpdate", limit: 10_000))
         let targets = installAllTargets()
-        prefs.runningAppUpdateLedger.retain(keys: Set(targets.map { prefs.key(for: $0.app) }))
+        // Forget only installs that caught up or are gone. One left out of
+        // `targets` for any other reason (a failed check, a skipped version) keeps
+        // its give-up and back-off, or a refused quit would be asked again.
+        let caughtUp = Set(results.filter {
+            if case .upToDate = $0.status { return true }
+            return false
+        }.map { prefs.key(for: $0.app) })
+        prefs.runningAppUpdateLedger.retain(
+            keys: Set(results.map { prefs.key(for: $0.app) }).subtracting(caughtUp))
         for result in targets {
             guard automaticUpdatesAllowed else { break }
             let attemptID = UUID().uuidString
@@ -10459,11 +10478,14 @@ final class AppListModel {
                 diagnostics.record($0, attemptID: attemptID)
             }
             let reason: String?
-            // Non-nil once this pass has quit the app: it must be reopened whatever
-            // the install does.
-            var quitNestedBundles: [URL]?
+            // Set when the app is running and may be quit for this update: it is
+            // quit only once the update is downloaded and verified, right before
+            // the swap (`AutomaticInstall.quitBeforeApply`), and reopened below.
+            var quitPlan: AutomaticQuit?
             if prefs.automaticUpdateMode(result.app) == .never {
                 reason = "Excluded from automatic updates in Settings."
+            } else if needsAdministratorForAutomaticUpdate(result) {
+                reason = "Updating it needs administrator authorization."
             } else if installsAutomatically(result) != true {
                 reason = "Requires an interactive or externally managed installation."
             } else {
@@ -10473,15 +10495,14 @@ final class AppListModel {
                     capture(.targetRunning(process, in: result.app.path, among: processes))
                 }
                 if running.isEmpty {
-                    reason = nil
+                    reason = closedAppBackoff(result)
                 } else {
-                    switch await quitIdleRunningApp(result, processes: processes) {
+                    switch runningAppReadiness(result, processes: processes) {
                     case .wait(let why):
                         reason = why
-                    case .quit(let nested):
+                    case .ready:
                         reason = nil
-                        quitNestedBundles = nested
-                        correlation["quitForUpdate"] = "true"
+                        quitPlan = AutomaticQuit()
                     }
                 }
             }
@@ -10492,44 +10513,73 @@ final class AppListModel {
             }
             await recordAutomaticUpdate(result, status: "started", correlation: correlation)
             automaticInstallVersions[result.id] = nil
-            // An app this pass quit is installed only while running apps may still
-            // be updated: turning that switch off stops the install at its next
-            // checkpoint, up to the commit, and the app is reopened below.
-            let quitPath = quitNestedBundles != nil
+            // An app this pass may quit is installed only while running apps may
+            // still be updated: turning that switch off stops the install at its
+            // next checkpoint, up to the commit, and a quit app is reopened below.
+            let quitPath = quitPlan != nil
+            let quitBeforeApply = quitPlan.map { plan in
+                AutomaticInstall.QuitBeforeApply { @MainActor [weak self] in
+                    guard let self else { throw AutomaticInstall.Deferred("Automatic updates are paused.") }
+                    try await self.quitForSwap(result, plan: plan)
+                }
+            }
             let outcome = await AutomaticInstall.$diagnostic.withValue(capture) {
                 await AutomaticInstall.$active.withValue(true) {
-                    await AutomaticInstall.$permission.withValue({ @MainActor [weak self] in
-                        guard let self else { return false }
-                        return self.automaticUpdatesAllowed
-                            && (!quitPath || self.prefs.automaticUpdatesRunningApps)
-                    }) {
-                        let enabled = prefs.automaticUpdatesSnapshot
-                        let scheduled = prefs.scheduledChecksSnapshot
-                        let running = prefs.runningAppsSnapshot
-                        let network = NetworkMonitor.shared.automaticTrafficSnapshot
-                        return await AutomaticInstall.$commitPermission.withValue({
-                            enabled.allowed && scheduled.allowed && network.allowed
-                                && (!quitPath || running.allowed)
+                    await AutomaticInstall.$quitBeforeApply.withValue(quitBeforeApply) {
+                        await AutomaticInstall.$permission.withValue({ @MainActor [weak self] in
+                            guard let self else { return false }
+                            return self.automaticUpdatesAllowed
+                                && (!quitPath || self.prefs.automaticUpdatesRunningApps)
                         }) {
-                            // Follow KeepBackups; the one-off override is only for
-                            // an explicit “Back Up & Update” action.
-                            await install(result, notify: false)
+                            let enabled = prefs.automaticUpdatesSnapshot
+                            let scheduled = prefs.scheduledChecksSnapshot
+                            let running = prefs.runningAppsSnapshot
+                            let network = NetworkMonitor.shared.automaticTrafficSnapshot
+                            return await AutomaticInstall.$commitPermission.withValue({
+                                enabled.allowed && scheduled.allowed && network.allowed
+                                    && (!quitPath || running.allowed)
+                            }) {
+                                // Follow KeepBackups; the one-off override is only for
+                                // an explicit “Back Up & Update” action.
+                                await install(result, notify: false)
+                            }
                         }
                     }
                 }
             }
             let event = AutomaticInstall.eventResult(outcome)
-            if let nested = quitNestedBundles {
-                let back = await AppRestarter.reopenAfterUpdate(result.app, nestedBundles: nested)
-                correlation["reopened"] = back ? "true" : "false"
+            if let plan = quitPlan, let nested = plan.nestedBundles {
+                correlation["quitForUpdate"] = "true"
+                // Opened again meanwhile — by the person, who came back — so the
+                // swap was refused for it: not the app's failure, and nothing to
+                // reopen (a reopen would only send it a stray reopen event).
+                let reopenedByUser = outcome != .installed
+                    && !AppRestarter.runningInstances(of: result.app).isEmpty
+                let back = reopenedByUser
+                    ? true : await AppRestarter.reopenAfterUpdate(result.app, nestedBundles: nested, hides: plan.hidden)
+                automaticQuitHolds.remove(result.id)
+                correlation["reopened"] = reopenedByUser ? "byUser" : (back ? "true" : "false")
                 if outcome == .installed {
                     UpdateNotifier.quitAndUpdated(app: result.app.name, version: result.remote?.displayVersion,
                                                   reopened: back, appID: result.id)
-                } else if automaticUpdatesAllowed && prefs.automaticUpdatesRunningApps {
-                    // Not when the user switched it off meanwhile: that stop is theirs,
-                    // not the app's, and must not count toward giving up on it.
-                    prefs.runningAppUpdateLedger.recordFailure(prefs.key(for: result.app), now: Date())
+                } else {
+                    // Closed for nothing and not back: say so, or the person finds
+                    // the app gone with only an Events row to explain it.
+                    if !back { UpdateNotifier.quitAndNotReopened(app: result.app.name, appID: result.id) }
+                    // Not when the user switched it off meanwhile or opened the app
+                    // again: those stops are theirs, not the app's, and must not
+                    // count toward giving up on it.
+                    if !reopenedByUser && automaticUpdatesAllowed && prefs.automaticUpdatesRunningApps {
+                        prefs.runningAppUpdateLedger.recordFailure(prefs.key(for: result.app), now: Date())
+                    }
                 }
+            } else if outcome == .notInstalled && installErrors[result.id] != nil && automaticUpdatesAllowed {
+                // A failed install (a refused signature, a broken archive, a
+                // download that keeps failing) would otherwise be downloaded again
+                // on every check. A running app's never reached its quit. Only a
+                // failure with an error: an early-out (a re-check that could not
+                // confirm the update, already current) is not the install failing.
+                prefs.runningAppUpdateLedger.recordFailure(prefs.key(for: result.app), now: Date())
             }
             let versions = automaticInstallVersions.removeValue(forKey: result.id)
             correlation["diagnosticIDs"] = diagnostics.references(for: attemptID)
@@ -10565,22 +10615,56 @@ final class AppListModel {
         // Apple Developer session, never an unattended pass.
         if result.app.bundleID == AppScanner.xcodeBundleID { return false }
         guard let route = automaticUpdateRoute(result) else { return nil }
+        // An install that needs an administrator is refused at the swap
+        // (`InPlaceSwap.replace`), after the backup and the download: leave it out
+        // here so the pass never quits, backs up or downloads for it.
         return AutomaticInstall.supports(route) && canAutoInstall(result)
+            && !needsAdministratorForAutomaticUpdate(result)
+    }
+
+    /// Whether replacing this install needs an administrator prompt, which an
+    /// unattended pass never raises.
+    private func needsAdministratorForAutomaticUpdate(_ result: UpdateResult) -> Bool {
+        UpdatePolicy.requiresElevatedInstall(result, environment: policyEnvironment)
+    }
+
+    /// Why a closed app's update waits after earlier failed attempts, if it does:
+    /// the same back-off and give-up as a running app's (`RunningAppAutoUpdate`).
+    private func closedAppBackoff(_ result: UpdateResult) -> String? {
+        guard let version = result.remote?.displayVersion else { return nil }
+        let entry = prefs.runningAppUpdateLedger.observe(prefs.key(for: result.app), version: version, now: Date())
+        if entry.gaveUp {
+            return "Updating it failed \(RunningAppAutoUpdate.maxFailures) times. Waiting for a newer version."
+        }
+        if let retryAfter = entry.retryAfter, Date() < retryAfter {
+            return "Updating it failed in the last day. Trying again after that."
+        }
+        return nil
     }
 
     private enum RunningAppPreparation {
         case wait(String)
-        /// Quit; `nestedBundles` are reopened with it.
-        case quit(nestedBundles: [URL])
+        /// May be quit once its update is ready to swap.
+        case ready
     }
 
-    /// Quit a running app for an automatic update when the user allowed it and
-    /// `RunningAppAutoUpdate` finds it and the person idle; otherwise the reason
-    /// it stays up. Never quits DuoUpdater itself, and never an app with no
-    /// running instance of its own (only helpers left): there is nothing to reopen.
-    private func quitIdleRunningApp(
+    /// What the quit before the swap did, for the reopen after the install.
+    @MainActor private final class AutomaticQuit {
+        /// Set once the app quit: the nested apps to reopen with it.
+        var nestedBundles: [URL]?
+        /// Every main instance was hidden; it is reopened hidden.
+        var hidden = false
+    }
+
+    /// Whether a running app may be quit for an automatic update: the user
+    /// allowed it and `RunningAppAutoUpdate` finds it and the person idle;
+    /// otherwise the reason it stays up. Asked when the pass reaches the app and
+    /// again right before the quit (`quitForSwap`), after the download: the
+    /// person may have come back. Never DuoUpdater itself, and never an app with
+    /// no running instance of its own (only helpers left): there is nothing to reopen.
+    private func runningAppReadiness(
         _ result: UpdateResult, processes: [NestedAppGuard.RunningProcess]
-    ) async -> RunningAppPreparation {
+    ) -> RunningAppPreparation {
         let running = "The app or one of its helpers is running."
         let instances = AppRestarter.allRunningInstances(of: result.app)
         guard prefs.automaticUpdatesRunningApps,
@@ -10615,6 +10699,13 @@ final class AppListModel {
             entry: entry, signals: signals, now: now, delayMinutes: prefs.runningAppUpdateDelayMinutes) {
             return .wait(why.message)
         }
+        // The install refuses a bundle a helper still runs from; quitting the app
+        // for it would only close it and reopen it.
+        if RunningAppAutoUpdate.independentHelper(
+            of: result.app.path, processes: processes,
+            instancePIDs: Set(instances.map(\.processIdentifier))) != nil {
+            return .wait(RunningAppAutoUpdate.Reason.independentHelper.message)
+        }
         // The app's own Sparkle may have an update downloaded and an installer
         // waiting for exactly this quit (`RestartStandoff`): quitting would start
         // its swap alongside ours. Stricter than the manual Relaunch, which only
@@ -10627,18 +10718,56 @@ final class AppListModel {
                 return .wait("The app’s own updater has an update waiting for it to quit.")
             }
         }
-        Log.app.notice("automatic update: quitting idle \(result.app.name, privacy: .public) for \(version, privacy: .public)")
+        // Any self-updater's staged build (ShipIt, Spotify, Firefox…), asked
+        // again here because the app keeps running through our download: one
+        // staged meanwhile would be applied on the quit, racing our swap.
+        if UpdatePolicy.stagedBlocksInstall(
+            result, staged: SelfUpdaterStaging.staged(for: result.app, requireNewerThanInstalled: false)) != nil {
+            return .wait("The app’s own updater has an update waiting for it to quit.")
+        }
+        // A Relaunch of this row, or an earlier automatic quit, owns it.
+        guard !relaunching.contains(result.id), !automaticQuitHolds.contains(result.id) else { return .wait(running) }
+        return .ready
+    }
+
+    /// Quit a running app right before its downloaded and verified update is
+    /// swapped in (`AutomaticInstall.quitPlannedApp`, called by the Sparkle and
+    /// vendor installers before the swap's commit), if it may still be quit.
+    /// Throws `Deferred` to leave it up; the install then stops before the swap.
+    private func quitForSwap(_ result: UpdateResult, plan: AutomaticQuit) async throws {
+        let running = "The app or one of its helpers is running."
+        // Quit by the person during the download: nothing to quit or reopen, and
+        // the exchange's own checks still refuse a helper left running.
+        guard !AppRestarter.allRunningInstances(of: result.app).isEmpty else { return }
+        if case .wait(let why) = runningAppReadiness(result, processes: NestedAppGuard.liveProcesses()) {
+            // Includes "the person came back during the download": not counted.
+            throw AutomaticInstall.Deferred(why)
+        }
+        let key = prefs.key(for: result.app)
+        Log.app.notice("automatic update: quitting idle \(result.app.name, privacy: .public) for \(result.remote?.displayVersion ?? "?", privacy: .public)")
+        // Held from the quit until the app is reopened (`automaticallyInstallUpdates`,
+        // `reopenIfItQuitsLate`); see `automaticQuitHolds`.
+        automaticQuitHolds.insert(result.id)
+        let main = AppRestarter.runningInstances(of: result.app)
+        let hidden = !main.isEmpty && main.allSatisfy(\.isHidden)
+        let nestedBeforeQuit = AppRestarter.nestedRunningBundles(of: result.app)
         switch await AppRestarter.quitForUpdate(result.app) {
         case .quit(let nested):
             prefs.runningAppUpdateLedger.recordQuit(key, now: Date())
-            return .quit(nestedBundles: nested)
+            plan.nestedBundles = nested
+            plan.hidden = hidden
         case .stillRunning:
             prefs.runningAppUpdateLedger.recordQuit(key, now: Date())
             prefs.runningAppUpdateLedger.recordQuitRefused(key, now: Date())
-            reopenIfItQuitsLate(result.app)
-            return .wait("The app did not quit, most likely to ask about unsaved work. It will not be asked again for this version.")
-        case .notRunning, .awaitingOpenConfirmation:
-            return .wait(running)
+            reopenIfItQuitsLate(result.app, id: result.id, nestedBundles: nestedBeforeQuit, hides: hidden)
+            throw AutomaticInstall.Deferred(
+                "The app did not quit, most likely to ask about unsaved work. It will not be asked again for this version.")
+        case .notRunning:
+            // Quit by the person meanwhile: nothing to reopen, and the swap goes on.
+            automaticQuitHolds.remove(result.id)
+        case .awaitingOpenConfirmation:
+            automaticQuitHolds.remove(result.id)
+            throw AutomaticInstall.Deferred(running)
         }
     }
 
@@ -10646,14 +10775,23 @@ final class AppListModel {
     /// someone answering its save prompt. Then the app is closed and nothing
     /// installed, so put it back. Ninety seconds, not the manual Relaunch's longer
     /// hand-off: unattended, a later quit is more likely the person's own.
-    private func reopenIfItQuitsLate(_ app: InstalledApp) {
+    /// Keeps `automaticQuitHolds` for `id` while it watches, so a quit of
+    /// DuoUpdater waits for it too. Only this watch inserted it, so removing it
+    /// at the end takes nobody else's.
+    private func reopenIfItQuitsLate(_ app: InstalledApp, id: String, nestedBundles: [URL], hides: Bool) {
         Task { @MainActor in
+            defer { automaticQuitHolds.remove(id) }
+            // A nested app that answered the quit while its parent did not is
+            // put back now; the parent keeps its prompt.
+            if !AppRestarter.runningInstances(of: app).isEmpty {
+                await AppRestarter.reopenQuitNestedApps(nestedBundles)
+            }
             for _ in 0..<90 {
                 // cancel-ok: an unstructured task nobody cancels, capped at 90 passes
                 try? await Task.sleep(for: .seconds(1))
                 guard AppRestarter.allRunningInstances(of: app).isEmpty else { continue }
                 Log.app.notice("automatic update: \(app.name, privacy: .public) quit after the wait — reopening it")
-                await AppRestarter.reopenAfterUpdate(app, nestedBundles: [])
+                await AppRestarter.reopenAfterUpdate(app, nestedBundles: nestedBundles, hides: hides)
                 return
             }
         }

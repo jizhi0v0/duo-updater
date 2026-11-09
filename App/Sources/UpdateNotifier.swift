@@ -54,6 +54,13 @@ enum UpdateNotifier {
         post(title: app, body: body, identifier: "restart:\(appID)")
     }
 
+    /// An app quit for an automatic update that was not installed, and that
+    /// could not be opened again.
+    static func quitAndNotReopened(app: String, appID: String) {
+        post(title: app, body: String(localized: "Quit for an update while you were away. The update did not install, and the app could not be reopened."),
+             identifier: "restart:\(appID)")
+    }
+
     /// A not-running app was updated in place — there's nothing left to do.
     static func updated(app: String, version: String?) {
         post(title: app, body: version.map { String(localized: "Updated to \($0).") } ?? String(localized: "Updated."))

@@ -129,8 +129,7 @@ public enum AppRestarter {
         if let early = await preQuitOutcome(running, isHeld: { await OpenConfirmationHold.isHeld($0) }) {
             return early == .notRunning ? .notRunning : .awaitingOpenConfirmation
         }
-        let nestedBundles = nestedRunningInstances(of: app).compactMap(\.bundleURL)
-            .map { URL(fileURLWithPath: UpdatePolicy.runtimeBundlePath($0)) }
+        let nestedBundles = nestedRunningBundles(of: app)
         let pids = running.map(\.processIdentifier)
         // Unstructured so a cancel cannot cut the wait short after the quit is sent.
         let quit = await Task {
@@ -150,13 +149,27 @@ public enum AppRestarter {
         return .quit(nestedBundles: nestedBundles)
     }
 
+    /// The bundles of the nested apps running inside `app` now, as `quitForUpdate`
+    /// records them for the reopen.
+    public static func nestedRunningBundles(of app: InstalledApp) -> [URL] {
+        nestedRunningInstances(of: app).compactMap(\.bundleURL)
+            .map { URL(fileURLWithPath: UpdatePolicy.runtimeBundlePath($0)) }
+    }
+
+    /// Reopen nested apps that a quit closed while their parent stayed up (it
+    /// answered the quit with a save prompt). Those already running are left alone.
+    public static func reopenQuitNestedApps(_ bundles: [URL]) async {
+        _ = await reopenNestedApps(bundles, frontmostPath: nil)
+    }
+
     /// Reopen an app `quitForUpdate` closed, in the background, with retries for
     /// a bundle that may still be settling. Unstructured, so a cancelled caller
-    /// still puts the app back.
+    /// still puts the app back. `hides` puts back an app that was hidden (⌘H, or
+    /// opened hidden at login) without its windows.
     @discardableResult
-    public static func reopenAfterUpdate(_ app: InstalledApp, nestedBundles: [URL]) async -> Bool {
+    public static func reopenAfterUpdate(_ app: InstalledApp, nestedBundles: [URL], hides: Bool = false) async -> Bool {
         await Task {
-            let back = await relaunchAfterSwap(app, activates: false)
+            let back = await relaunchAfterSwap(app, activates: false, hides: hides)
             _ = await reopenNestedApps(nestedBundles, frontmostPath: nil)
             return back
         }.value
@@ -411,14 +424,14 @@ public enum AppRestarter {
     /// `runningInstances` before each retry so an updater that *does* relaunch (or
     /// a user reopening the app) never gets a second copy.
     @discardableResult
-    public static func relaunchAfterSwap(_ app: InstalledApp, activates: Bool) async -> Bool {
+    public static func relaunchAfterSwap(_ app: InstalledApp, activates: Bool, hides: Bool = false) async -> Bool {
         for attempt in 1...5 {
             if attempt > 1 {
                 // cancel-ok: loop capped at 5 attempts; a cancelled task finishes them, no spin
                 try? await Task.sleep(for: .seconds(2))
                 guard runningInstances(of: app).isEmpty else { return true }
             }
-            if await launchApp(app.path, activates: activates) { return true }
+            if await launchApp(app.path, activates: activates, hides: hides && !activates) { return true }
             Log.app.error("relaunch: \(app.name, privacy: .public) launch failed (attempt \(attempt, privacy: .public)/5) — bundle may still be mid-swap")
         }
         return false

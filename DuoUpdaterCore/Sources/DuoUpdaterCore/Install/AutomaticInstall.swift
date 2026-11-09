@@ -10,6 +10,67 @@ public enum AutomaticInstall {
     /// Synchronous policy read at the filesystem exchange, after staging and dispatch.
     @TaskLocal public static var commitPermission: (@Sendable () -> Bool)?
 
+    /// Set when an unattended pass updates a running app the user allowed: the
+    /// app is quit only once its update is downloaded and verified, right before
+    /// the swap's commit (`quitPlannedApp`), so it is closed for the swap alone,
+    /// not for the download. Until then the checks that refuse a
+    /// running app or a running nested app let it pass (`appQuitsBeforeApply`);
+    /// once the quit has run, every check applies in full again.
+    @TaskLocal public static var quitBeforeApply: QuitBeforeApply?
+
+    public final class QuitBeforeApply: @unchecked Sendable {
+        private let lock = NSLock()
+        private var ran = false
+        private let quit: @Sendable () async throws -> Void
+
+        /// `quit` quits the app, or throws `Deferred` when it should stay up.
+        public init(_ quit: @escaping @Sendable () async throws -> Void) { self.quit = quit }
+
+        /// Whether the quit is still to come.
+        public var pending: Bool {
+            lock.lock()
+            defer { lock.unlock() }
+            return !ran
+        }
+
+        /// Quit once; later calls (a patch retried with the full archive) do nothing.
+        /// Marked as run before the quit, so a quit that throws still leaves
+        /// every check in force.
+        public func run() async throws {
+            guard claim() else { return }
+            try await quit()
+        }
+
+        private func claim() -> Bool {
+            lock.withLock {
+                defer { ran = true }
+                return !ran
+            }
+        }
+    }
+
+    /// Quit the running app an unattended pass planned to quit (`quitBeforeApply`),
+    /// once, right before the swap of `target` commits. Before the commit, not in
+    /// it: the install journal marks the commit before the body runs, and a crash
+    /// during a quit that can take half a minute would then read as an install
+    /// cut off mid-swap. A cancel between the quit and the commit makes the
+    /// commit refuse, and the host reopens the app. A target that needs an
+    /// administrator is deferred first: the swap would defer it after the quit.
+    /// The swap's own checks (`preExchangeCheck`) then refuse whatever did not quit.
+    public static func quitPlannedApp(before target: URL) async throws {
+        guard active, let quit = quitBeforeApply, quit.pending else { return }
+        if InPlaceSwap.needsElevatedReplace(target: target) {
+            throw Deferred("Automatic update needs administrator authorization.")
+        }
+        try await quit.run()
+    }
+
+    /// True while a running app is still to be quit before the swap: its own
+    /// processes are expected until then.
+    public static var appQuitsBeforeApply: Bool {
+        active && quitBeforeApply?.pending == true
+    }
+
     public final class PermissionSnapshot: @unchecked Sendable {
         private let lock = NSLock()
         private var value = false
@@ -89,7 +150,7 @@ public enum AutomaticInstall {
               processes.allSatisfy({ $0.executablePath != nil || $0.launchedPath != nil }) else {
             throw Deferred("Automatic update deferred: running processes could not be checked completely.")
         }
-        guard !hasRunningProcess(at: bundle, processes: processes) else {
+        guard appQuitsBeforeApply || !hasRunningProcess(at: bundle, processes: processes) else {
             throw Deferred("Automatic update deferred: the app or one of its helpers is running.")
         }
     }

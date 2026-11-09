@@ -2,6 +2,10 @@
 
 Ceci est la traduction de `CHANGELOG.md`. La version anglaise fait autorité. Les versions non énumérées ici reviennent automatiquement à l’anglais.
 
+## 0.5.24-beta.6
+
+**Les mises à jour automatiques respectent désormais votre réglage de sauvegarde.** Lorsque les sauvegardes sont désactivées, les mises à jour automatiques ne conservent plus la version précédente de l’app. Les sauvegardes existantes sont conservées.
+
 ## 0.5.24-beta.5
 
 **Les mises à jour Homebrew sont détectées plus sûrement.** Les apps comme Karabiner-Elements sont désormais identifiées grâce à leurs reçus d’installation, et les apps comme WezTerm ne proposent plus sans cesse la version déjà installée par Homebrew.

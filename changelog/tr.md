@@ -2,6 +2,10 @@
 
 Bu, `CHANGELOG.md` dosyasının Türkçe çevirisidir. Geçerli olan İngilizce sürümdür; burada yer almayan eski sürümler otomatik olarak İngilizce gösterilir.
 
+## 0.5.24-beta.6
+
+**Otomatik güncellemeler artık yedekleme ayarınıza uyuyor.** Yedeklemeler kapatıldığında otomatik güncellemeler uygulamanın önceki sürümünü artık kaydetmez. Mevcut yedekler korunur.
+
 ## 0.5.24-beta.5
 
 **Homebrew güncellemeleri daha güvenilir algılanıyor.** Karabiner-Elements gibi uygulamalar artık kurulum makbuzlarıyla eşleştiriliyor; WezTerm gibi uygulamalar Homebrew’un zaten yüklediği sürümü tekrar tekrar önermiyor.

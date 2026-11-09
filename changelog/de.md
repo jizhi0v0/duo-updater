@@ -2,6 +2,10 @@
 
 Dies ist eine deutsche Übersetzung von `CHANGELOG.md`. Die englische Fassung ist maßgeblich; frühere Versionen, die hier nicht aufgeführt sind, fallen automatisch auf Englisch zurück.
 
+## 0.5.24-beta.6
+
+**Automatische Updates berücksichtigen jetzt deine Backup-Einstellung.** Wenn Backups deaktiviert sind, speichern automatische Updates keine Sicherung der vorherigen App-Version mehr. Vorhandene Backups bleiben erhalten.
+
 ## 0.5.24-beta.5
 
 **Homebrew-Updates werden zuverlässiger erkannt.** Apps wie Karabiner-Elements werden jetzt über ihre Installationsbelege zugeordnet. Apps wie WezTerm bieten nicht mehr wiederholt die bereits von Homebrew installierte Version an.

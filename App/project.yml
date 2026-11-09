@@ -66,10 +66,9 @@ targets:
       - path: Sources/CLIToolPresentation.swift
       # How the workbench names where an app's updates come from. Foundation + Core.
       - path: Sources/UpdateSourceLabel.swift
-      # When the CLI tab's Homebrew group is open. Foundation only.
-      - path: Sources/BuildReleaseChannel.swift
       # The Events tab's translation of stored deferral reasons. Foundation only.
       - path: Sources/AutomaticUpdateReasonText.swift
+      # When the CLI tab's Homebrew group is open. Foundation only.
       - path: Sources/HomebrewGroupState.swift
       # Where the workbench sidebars' keys move the selection. Foundation only.
       - path: Sources/SidebarSelection.swift

@@ -1,8 +1,8 @@
 import SwiftUI
 import DuoUpdaterCore
 
-/// What automatic updates do, and the choice for each app. Beta builds only
-/// (`SettingsSection.isAvailable`), like the automatic updates themselves.
+/// What automatic updates do, and the choice for each app. A Beta feature in
+/// every build (its switches carry the Beta tag); off until the user turns it on.
 ///
 /// Every installed app is listed with its own choice, rather than only the ones
 /// already changed: a switch that names "apps you allow" has to show where they

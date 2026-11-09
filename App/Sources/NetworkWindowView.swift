@@ -84,7 +84,7 @@ struct NetworkWindowView: View {
             // window rather than two that look alike and behave differently.
             ToolbarItem(placement: .principal) {
                 Picker("View", selection: $tab) {
-                    ForEach(Tab.allCases.filter { $0 != .events || BuildReleaseChannel.isBeta }) { Text($0.label).tag($0) }
+                    ForEach(Tab.allCases) { Text($0.label).tag($0) }
                 }
                 .pickerStyle(.segmented)
                 .labelsHidden()

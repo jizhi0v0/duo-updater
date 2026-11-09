@@ -377,8 +377,13 @@ import Testing
     /// helpers — so that a change to either half of that name fails this rather
     /// than silently reporting "nothing is happening" for the whole transfer.
     ///
-    /// Mutation: drop the `.aar` from `archiveName(forBundle:)`, or the leading
-    /// dot from `BundleArchive.partialURL(for:)`.
+    /// The archive is streamed into the key's hidden staging directory
+    /// (`.staging-<key>`), not the key directory, so the previous generation
+    /// stays whole until the staged one replaces it.
+    ///
+    /// Mutation: drop the `.aar` from `archiveName(forBundle:)`, the leading
+    /// dot from `BundleArchive.partialURL(for:)`, or the staging directory from
+    /// `transferBytesLanded(forKey:)`.
     @Test func aTransferInFlightReportsWhatHasLandedOnTheDisk() async throws {
         try await withTwoDisks { outbox, active, _ in
             let apps = try appsDirectory(beside: outbox)
@@ -389,7 +394,7 @@ import Testing
             // Nothing being written yet.
             #expect(BackupStore.transferBytesLanded(forKey: "watched") == nil)
 
-            let target = active.appendingPathComponent("watched", isDirectory: true)
+            let target = active.appendingPathComponent(".staging-watched", isDirectory: true)
             try FileManager.default.createDirectory(at: target, withIntermediateDirectories: true)
             let partial = target.appendingPathComponent(".Watched.aar.partial")
             try Data(count: 4096).write(to: partial)

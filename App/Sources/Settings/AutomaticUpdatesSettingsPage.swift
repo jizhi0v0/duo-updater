@@ -41,7 +41,7 @@ struct AutomaticUpdatesSettingsPage: View {
             SettingsToggle(
                 "Automatically update closed apps",
                 detail: "Installs eligible updates after each scheduled check. With backups on, each app is backed up first, and its update waits if that fails. App data is not backed up.",
-                info: "Runs only after scheduled checks, on a network that is not restricted. An app is skipped while it or one of its helpers is running, and updates that need an installer or an authorization prompt are left for you. Each attempt, and why one was deferred, is listed in the Network window under Events.",
+                info: "Runs only after scheduled checks, on a network that is not restricted. An app is skipped while it or one of its helpers is running, and updates that need an installer or an authorization prompt are left for you. After a failed update, nothing is tried for that app for a day, and after three failures not until a newer version. Each attempt, and why one was deferred, is listed in the Network window under Events.",
                 channel: .beta,
                 isOn: $prefs.automaticUpdates)
                 .settingsAnchor(.automaticUpdates)
@@ -56,7 +56,7 @@ struct AutomaticUpdatesSettingsPage: View {
                 SettingsToggle(
                     "Also update running apps you allow",
                     detail: "Quits an allowed app only when it and the Mac have both been idle, installs the update, and reopens it. Choose the apps below.",
-                    info: "An app is quit only if: you allowed it; it has been out of date for the wait chosen below, counted again from its last quit for an update; it has not been in front for an hour; the Mac has had no input for 15 minutes or is locked; it is not keeping the Mac awake (calls, playback, recording, downloads); and it has no shell or other program running. When the wait is over, the newest version is installed, even if it came out moments ago. It is asked to quit normally. If it does not quit, or an update fails, nothing is tried for a day; it is not asked again for that version, and after three failed updates it waits for the next version.",
+                    info: "An app is quit only if: you allowed it; it has been out of date for the wait chosen below, counted again from its last quit for an update; it has not been in front for an hour; the Mac has had no input for 15 minutes or is locked; it is not keeping the Mac awake (calls, playback, recording, downloads); it has no shell or other program running; and none of its helpers keeps running once it quits. It is quit only after its update has downloaded and been verified, if all of this still holds, and is reopened in the background. When the wait is over, the newest version is installed, even if it came out moments ago. It is asked to quit normally; if it does not quit, it is not asked again for that version. These conditions are checked at each scheduled check, so the wait can run longer.",
                     channel: .beta,
                     isOn: $prefs.automaticUpdatesRunningApps)
                 if prefs.automaticUpdatesRunningApps {

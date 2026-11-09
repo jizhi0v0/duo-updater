@@ -247,7 +247,8 @@ private struct ActivityRow: View {
                         .background(status.tint.opacity(0.15), in: Capsule())
                         .help(status.label)
                     if let reason = fields["reason"], !reason.isEmpty {
-                        Text(reason).font(.callout).foregroundStyle(.secondary).textSelection(.enabled)
+                        Text(AutomaticUpdateReasonText.display(reason))
+                            .font(.callout).foregroundStyle(.secondary).textSelection(.enabled)
                     }
                 }
                 if fields["recoveredFrom"]?.isEmpty == false {

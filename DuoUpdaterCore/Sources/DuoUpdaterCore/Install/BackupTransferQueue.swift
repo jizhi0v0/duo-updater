@@ -62,7 +62,7 @@ public actor BackupTransferQueue {
     }
     /// Keys being deleted, which must not be queued or copied meanwhile. See
     /// ``withhold(_:)``.
-    private var withheld: Set<String> = []
+    private var withheld: [String: Int] = [:]
     /// ``withhold(_:)`` calls waiting for the copy in flight to end.
     private var inFlightEnded: [CheckedContinuation<Void, Never>] = []
     private var draining = false
@@ -95,7 +95,7 @@ public actor BackupTransferQueue {
     // MARK: - Enqueuing
 
     public func enqueue(_ key: String) {
-        guard !pending.contains(key), inFlight != key, !withheld.contains(key) else { return }
+        guard !pending.contains(key), inFlight != key, withheld[key] == nil else { return }
         pending.append(key)
     }
 
@@ -123,7 +123,7 @@ public actor BackupTransferQueue {
     ///
     /// Pair with ``release(_:)`` once the delete is done.
     public func withhold(_ keys: Set<String>) async {
-        withheld.formUnion(keys)
+        for key in keys { withheld[key, default: 0] += 1 }
         pending.removeAll { keys.contains($0) }
         while let key = inFlight, keys.contains(key) {
             await withCheckedContinuation { inFlightEnded.append($0) }
@@ -134,7 +134,10 @@ public actor BackupTransferQueue {
     /// re-queued here; a key whose delete failed is picked up by the next
     /// ``resumePending()`` like any other owed backup.
     public func release(_ keys: Set<String>) {
-        withheld.subtract(keys)
+        for key in keys {
+            guard let count = withheld[key] else { continue }
+            withheld[key] = count > 1 ? count - 1 : nil
+        }
     }
 
     // MARK: - Draining
@@ -177,7 +180,7 @@ public actor BackupTransferQueue {
             case .diskGone:
                 // Put it back at the front — it is still owed, and it was next.
                 // Unless it is being deleted, in which case it is owed nothing.
-                if !withheld.contains(key) { pending.insert(key, at: 0) }
+                if withheld[key] == nil { pending.insert(key, at: 0) }
                 state = .waitingForDisk(pending: pending.count)
                 return
             case .failed(let message):

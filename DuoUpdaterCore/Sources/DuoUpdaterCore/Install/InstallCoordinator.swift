@@ -342,6 +342,7 @@ public actor InstallCoordinator {
         /// Stored, but without files the app had written into its own bundle.
         /// It restores; whatever state lived in them is lost.
         case savedWithoutRuntimeState(omitted: Int)
+        case savedWithoutUserData(missing: Int)
         /// Skipped, or stopped mid-copy, because this Mac is too low on space
         /// to hold a copy. See ``BackupStore/freeSpaceFloorBytes``.
         case insufficientSpace
@@ -421,23 +422,18 @@ public actor InstallCoordinator {
             // replaces the key directory wholesale — the pending one, which
             // it moves with when promoted. See `InputMethodDataBackup`.
             //
-            // Not folded into `BackupOutcome`: this is not a reason to change
-            // what the user is told about the *bundle* rollback, and the
-            // outcome enum is switched over in both the app and the CLI.
             if InPlaceSwap.usesContentsRotation(target: path) {
-                let captured = await InputMethodDataBackup.save(
+                let snapshot = await InputMethodDataBackup.saveReporting(
                     bundleName: path.deletingPathExtension().lastPathComponent,
                     bundleID: bundleID, key: key, in: BackupStore.pendingBackupsRoot)
-                if captured.isEmpty {
-                    Log.install.error(
-                        "user data: captured nothing for \(path.lastPathComponent, privacy: .public) — a rollback will restore the bundle only")
-                } else {
+                if !snapshot.locations.isEmpty {
                     // Leaf names, not full paths: these all live under the
                     // user's home, and the leaf is what identifies the location
                     // while the prefix is only their account name.
                     Log.install.notice(
-                        "user data: snapshotted \(captured.count, privacy: .public) location(s) for \(path.lastPathComponent, privacy: .public): \(captured.map(\.original.lastPathComponent).joined(separator: ", "), privacy: .public)")
+                        "user data: snapshotted \(snapshot.locations.count, privacy: .public) location(s) for \(path.lastPathComponent, privacy: .public): \(snapshot.locations.map(\.original.lastPathComponent).joined(separator: ", "), privacy: .public)")
                 }
+                if snapshot.missing > 0 { return .savedWithoutUserData(missing: snapshot.missing) }
             }
             return unreadable.unsealed.isEmpty
                 ? .saved

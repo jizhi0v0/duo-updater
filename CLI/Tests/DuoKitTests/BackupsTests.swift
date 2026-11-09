@@ -315,6 +315,9 @@ private func app(_ name: String, _ bundleID: String?, _ path: String) -> Install
                 app: "WeType", key: "k", restoredVersion: "1.0", userData: outcome)
         }
         #expect(payload(.restored(2))["userDataRestored"] as? Int == 2)
+        #expect(payload(.partial(restored: 1, missing: 2))["userDataRestored"] as? Int == 1)
+        #expect(payload(.partial(restored: 1, missing: 2))["userDataLocationsMissing"] as? Int == 2)
+        #expect(Backups.userDataWarning(app: "WeType", .partial(restored: 0, missing: 2)) != nil)
         #expect(payload(.noSnapshot)["userDataMissing"] as? Bool == true)
         #expect(payload(.noSnapshot)["userDataRestored"] as? Int == 0)
         #expect(payload(.notApplicable)["userDataRestored"] == nil)

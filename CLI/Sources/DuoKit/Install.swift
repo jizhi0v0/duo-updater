@@ -1219,6 +1219,8 @@ public enum Install {
                 switch await InstallCoordinator.backUp(toInstall.app, route: route) {
                 case .saved:
                     if !json { print("   backed up \(toInstall.app.shortVersion ?? "current")") }
+                case .savedWithoutUserData(let missing):
+                    if !json { print("   backed up the app bundle, but \(missing) input-method data location(s) could not be backed up") }
                 case .savedWithoutRuntimeState(let omitted):
                     if !json {
                         print("   backed up \(toInstall.app.shortVersion ?? "current")"

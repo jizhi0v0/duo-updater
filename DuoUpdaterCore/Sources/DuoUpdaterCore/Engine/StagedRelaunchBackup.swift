@@ -192,7 +192,7 @@ extension StagedRelaunchBackup {
             // one never replaced the previous backup, which must survive; nor
             // did one skipped over an earlier install.
             switch outcome {
-            case .saved, .savedWithoutRuntimeState:
+            case .saved, .savedWithoutRuntimeState, .savedWithoutUserData:
                 await system.remove()
                 discarded = true
                 Log.install.error("relaunch-staged: discarded \(app.name, privacy: .public)'s backup — its bundle may have been swapped mid-copy")

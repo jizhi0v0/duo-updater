@@ -96,6 +96,12 @@ public enum InputMethodDataBackup {
         }
         let savedAt: Date
         let entries: [Entry]
+        let uncaptured: Int?
+    }
+
+    struct SnapshotResult: Sendable {
+        let locations: [Location]
+        let missing: Int
     }
 
     // MARK: - Discovery
@@ -233,18 +239,25 @@ public enum InputMethodDataBackup {
     public static func save(
         bundleName: String, bundleID: String?, key: String, in root: URL = BackupStore.root
     ) async -> [Location] {
+        await saveReporting(bundleName: bundleName, bundleID: bundleID, key: key, in: root).locations
+    }
+
+    static func saveReporting(
+        bundleName: String, bundleID: String?, key: String, in root: URL
+    ) async -> SnapshotResult {
         let fm = FileManager.default
         let dir = snapshotDirectory(forKey: key, in: root)
+        let sources = locations(bundleName: bundleName, bundleID: bundleID)
+        let none = SnapshotResult(locations: [], missing: sources.count)
+        guard !sources.isEmpty else { return none }
         // Only ever written beside a bundle backup that already landed. Without
         // that directory there is no generation to attach this to, and a snapshot
         // in a directory `BackupStore` does not know about would never be pruned.
         guard fm.fileExists(atPath: root.appendingPathComponent(key).path) else {
             Log.install.error(
                 "user data: no backup directory for \(key, privacy: .public) — nothing to attach a snapshot to")
-            return []
+            return none
         }
-        let sources = locations(bundleName: bundleName, bundleID: bundleID)
-        guard !sources.isEmpty else { return [] }
 
         // Built in a hidden sibling and swapped in, for the same reason
         // `BackupStore.save` does: a half-written snapshot must not replace a
@@ -272,12 +285,13 @@ public enum InputMethodDataBackup {
         guard (try? fm.createDirectory(at: staging, withIntermediateDirectories: true)) != nil else {
             Log.install.error(
                 "user data: could not create a staging directory for \(key, privacy: .public)")
-            return []
+            return none
         }
         // Whatever the snapshot did not swap into place is still in `staging` — up
         // to a copy of the whole data directory — so it is removed on Dispatch.
         defer { await removeItemOffCooperativePool(at: staging) }
-        return await snapshot(sources, key: key, stagingIn: staging, into: dir)
+        let stored = await snapshot(sources, key: key, stagingIn: staging, into: dir)
+        return SnapshotResult(locations: stored, missing: sources.count - stored.count)
     }
 
     /// `save` from the point its staging directory exists: copy, write the
@@ -291,6 +305,7 @@ public enum InputMethodDataBackup {
             guard await copyTree(from: source.original, to: dest) else {
                 Log.install.error(
                     "user data: could not copy \(source.original.lastPathComponent, privacy: .public) — this snapshot will not include it")
+                await removeItemOffCooperativePool(at: dest)
                 continue
             }
             stored.append(source)
@@ -301,7 +316,7 @@ public enum InputMethodDataBackup {
             savedAt: Date(),
             entries: stored.map {
                 Manifest.Entry(originalPath: $0.original.path, storedName: $0.storedName)
-            })
+            }, uncaptured: sources.count == stored.count ? nil : sources.count - stored.count)
         guard let data = try? JSONEncoder().encode(manifest),
               (try? data.write(to: staging.appendingPathComponent("userdata.json"), options: .atomic)) != nil
         else {
@@ -383,7 +398,7 @@ public enum InputMethodDataBackup {
     /// for the full check.
     @discardableResult
     public static func restore(forKey key: String, from dir: URL) async throws -> [Location] {
-        try await restore(forKey: key, from: dir, owner: nil)
+        try await restore(forKey: key, from: dir, owner: nil).locations
     }
 
     /// `restore(forKey:from:)` for the input method whose bundle is named
@@ -401,15 +416,23 @@ public enum InputMethodDataBackup {
     public static func restore(
         forKey key: String, from dir: URL, bundleName: String, bundleID: String?
     ) async throws -> [Location] {
+        try await restoreReporting(forKey: key, from: dir, bundleName: bundleName, bundleID: bundleID).locations
+    }
+
+    static func restoreReporting(
+        forKey key: String, from dir: URL, bundleName: String, bundleID: String?
+    ) async throws -> SnapshotResult {
         try await restore(forKey: key, from: dir, owner: (bundleName, bundleID))
     }
 
     private static func restore(
         forKey key: String, from dir: URL, owner: (name: String, id: String?)?
-    ) async throws -> [Location] {
+    ) async throws -> SnapshotResult {
         let fm = FileManager.default
         guard let data = try? Data(contentsOf: dir.appendingPathComponent("userdata.json")),
-              let manifest = try? JSONDecoder().decode(Manifest.self, from: data)
+              let manifest = try? JSONDecoder().decode(Manifest.self, from: data),
+              !manifest.entries.isEmpty,
+              (0...(Int.max - manifest.entries.count)).contains(manifest.uncaptured ?? 0)
         else { throw BackupStore.BackupError.noBackup(key) }
 
         var restored: [Location] = []
@@ -435,7 +458,8 @@ public enum InputMethodDataBackup {
                 restored.append(Location(original: target, storedName: entry.storedName))
             }
         }
-        return restored
+        return SnapshotResult(locations: restored,
+                              missing: manifest.entries.count - restored.count + (manifest.uncaptured ?? 0))
     }
 
     /// Where `entry` may be restored to, or nil when it names a place `save`

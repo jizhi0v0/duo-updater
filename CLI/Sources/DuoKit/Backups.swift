@@ -68,7 +68,7 @@ public enum Backups {
         let path: String?
         let key: String
         let version: String?
-        let savedAt: Date
+        let savedAt: Date?
         let bytes: Int64
         /// The disk this backup is on, or nil for this Mac.
         let disk: String?
@@ -76,6 +76,7 @@ public enum Backups {
         /// Worth saying, because "still on this Mac" otherwise reads as a
         /// transfer that has not happened yet — something to go and fix.
         let held: Bool
+        var pending: Bool? = nil
     }
 
     static func list(json: Bool) async -> Int32 {
@@ -84,7 +85,13 @@ public enum Backups {
         // After an abandoned scan no backup can be matched to its app, so each is
         // listed by its key — which `rows` otherwise reserves for a backup nothing
         // installed claims. The text says why; JSON has the scan's stderr line.
-        let rows = rows(installed: installed ?? [], backups: BackupStore.allBackups())
+        let stored = rows(installed: installed ?? [], backups: BackupStore.allBackups())
+        let pending = BackupStore.pendingListing().map {
+            Row(app: ($0.name as NSString).deletingPathExtension, bundleID: nil, path: nil,
+                key: $0.key, version: $0.version, savedAt: $0.savedAt, bytes: $0.sizeBytes,
+                disk: nil, held: false, pending: true)
+        }
+        let rows = (stored + pending).sorted { $0.app.localizedCaseInsensitiveCompare($1.app) == .orderedAscending }
         // Said before the rows, and on stderr so it cannot corrupt `--json`.
         // Without it a store that lives on a disk in someone's bag prints "No
         // backups stored.", which is a sentence about their data rather than
@@ -221,9 +228,10 @@ public enum Backups {
                 ? String(row.app.prefix(nameWidth - 1)) + "…"
                 : row.app.padding(toLength: nameWidth, withPad: " ", startingAt: 0)
             print("  \(name)  \(row.version ?? "?")"
-                + "  \(when.string(from: row.savedAt))"
+                + "  \(row.savedAt.map(when.string(from:)) ?? "?")"
                 + "  \(byteFormatter.string(fromByteCount: row.bytes))"
-                + "  (\(row.disk ?? (row.held ? "this Mac, staying" : "this Mac")))")
+                + "  (\(row.disk ?? (row.held ? "this Mac, staying" : "this Mac")))"
+                + (row.pending == true ? "  [pending backup]" : ""))
         }
         print("\n  \(rows.count) backup\(rows.count == 1 ? "" : "s"), "
             + "\(byteFormatter.string(fromByteCount: rows.reduce(0) { $0 + $1.bytes })) total.")
@@ -471,6 +479,8 @@ public enum Backups {
         switch outcome {
         case .notApplicable, .restored:
             return nil
+        case .partial(let restored, let missing):
+            return "\(app): restored \(restored) input-method data location(s). \(missing) could not be restored."
         case .noSnapshot:
             return "\(app)'s dictionary and settings were NOT restored — "
                 + "this restore point has no copy of them."
@@ -509,6 +519,9 @@ public enum Backups {
             break
         case .restored(let count):
             payload["userDataRestored"] = count
+        case .partial(let restored, let missing):
+            payload["userDataRestored"] = restored
+            payload["userDataLocationsMissing"] = missing
         case .noSnapshot:
             payload["userDataRestored"] = 0
             payload["userDataMissing"] = true
@@ -568,6 +581,7 @@ public enum Backups {
     /// as already moved rather than as a failure — the outcome is the one that
     /// was asked for, whoever produced it.
     static func sync(json: Bool) async -> Int32 {
+        await InstallCoordinator.sweepPendingBackups()
         // Sweep before asking about the disk, so this is worth running even with
         // no disk configured: a save that was cut off leaves its scratch in the
         // outbox whether or not the store was ever moved, and this is the only
@@ -603,7 +617,11 @@ public enum Backups {
                 + "and will not move.")
         }
         guard !keys.isEmpty else {
-            if !json { print("Nothing to move — every backup is already on the disk.") }
+            if !json {
+                print(BackupStore.pendingListing().isEmpty
+                    ? "Nothing to move — every backup is already on the disk."
+                    : "No backups are ready to move. Some copies are still pending.")
+            }
             return 0
         }
 

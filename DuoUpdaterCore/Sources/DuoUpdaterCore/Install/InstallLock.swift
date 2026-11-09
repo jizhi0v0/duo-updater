@@ -68,7 +68,7 @@ public final class InstallLock: @unchecked Sendable {
     }
 
     public static var defaultURL: URL {
-        DuoStateDirectory.base
+        (DuoStateDirectory.isTestProcess ? DuoStateDirectory.testProcessScratchRoot : DuoStateDirectory.base)
             .appendingPathComponent("com.duoupdater.app", isDirectory: true)
             .appendingPathComponent("install.lock")
     }

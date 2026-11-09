@@ -136,6 +136,72 @@ import Testing
 
     // MARK: - Round trip
 
+    @Test(arguments: [false, true])
+    func missingInputMethodSettingsAreReported(captureFails: Bool) async throws {
+        try await withInputMethodStores { fixture in
+            let fm = FileManager.default
+            try fixture.writeApp(marker: "old")
+            try fixture.writeDictionary("old words")
+            let settings = fixture.home.appendingPathComponent("Library/Preferences/com.example.ime.plist")
+            try Data("old settings".utf8).write(to: settings)
+            if captureFails { try fm.setAttributes([.posixPermissions: 0], ofItemAtPath: settings.path) }
+            let app = InstalledApp(name: Fixture.bundleName, bundleID: Fixture.bundleID,
+                shortVersion: "1", buildVersion: nil, path: fixture.app, isMASApp: false, sparkleFeedURL: nil)
+            let backup = await InstallCoordinator.backUp(app, route: .vendor)
+            #expect(backup == (captureFails ? .savedWithoutUserData(missing: 1) : .saved))
+            if captureFails { try fm.setAttributes([.posixPermissions: 0o600], ofItemAtPath: settings.path) }
+            #expect(await BackupStore.promotePending(forKey: fixture.key))
+            await InstallCoordinator.settlePendingBackup(for: app)
+            if !captureFails {
+                let location = try #require(InputMethodDataBackup.locations(
+                    bundleName: Fixture.bundleName, bundleID: Fixture.bundleID).first { $0.original == settings })
+                let snapshot = InputMethodDataBackup.snapshotDirectory(forKey: fixture.key)
+                try fm.removeItem(at: snapshot.appendingPathComponent(location.storedName))
+            }
+            try fixture.writeApp(marker: "new")
+            try fixture.writeDictionary("new words")
+            try Data("new settings".utf8).write(to: settings)
+            let result = try await BackupStore.restoreReportingUserData(forKey: fixture.key, over: fixture.app)
+            #expect(result.userData == .partial(restored: 1, missing: 1))
+            #expect(fixture.appMarker() == "old")
+            #expect(fixture.readDictionary() == "old words")
+            #expect(try String(contentsOf: settings, encoding: .utf8) == "new settings")
+        }
+    }
+
+    @Test func failedSecondTransferPreservesThePreviousExternalGeneration() async throws {
+        try await withInputMethodStores { fixture in
+            let fm = FileManager.default
+            try fixture.writeApp(marker: "older")
+            try fixture.writeDictionary("older words")
+            try await fixture.backUp(version: "1")
+            let prior = try await BackupStore.transferToDestination(forKey: fixture.key)
+            let oldDigest = try BundleArchive.sha256(of: prior.bundlePath)
+            let oldRecord = prior.bundlePath.deletingLastPathComponent().appendingPathComponent("backup.json")
+            let oldMetadata = try Data(contentsOf: oldRecord)
+            try fixture.writeApp(marker: "newer")
+            try fixture.writeDictionary("newer words")
+            try await fixture.backUp(version: "2")
+            let snapshot = InputMethodDataBackup.snapshotDirectory(forKey: fixture.key)
+            let manifest = snapshot.appendingPathComponent("userdata.json")
+            try fm.setAttributes([.posixPermissions: 0], ofItemAtPath: manifest.path)
+            defer { try? fm.setAttributes([.posixPermissions: 0o600], ofItemAtPath: manifest.path) }
+            do {
+                _ = try await BackupStore.transferToDestination(forKey: fixture.key)
+                Issue.record("expected the unreadable snapshot archive to fail")
+            } catch {}
+            #expect(try BundleArchive.sha256(of: prior.bundlePath) == oldDigest)
+            #expect(try Data(contentsOf: oldRecord) == oldMetadata)
+            #expect(BackupStore.backup(forKey: fixture.key)?.version == "2")
+            #expect(BackupStore.backup(forKey: fixture.key)?.location == .outbox)
+            try fm.setAttributes([.posixPermissions: 0o600], ofItemAtPath: manifest.path)
+            let retried = try await BackupStore.transferToDestination(forKey: fixture.key)
+            #expect(retried.version == "2")
+            #expect(retried.location == .destination)
+            #expect(try BundleArchive.sha256(of: retried.bundlePath) != oldDigest)
+        }
+    }
+
     /// The whole point: an input method backed up on this Mac, moved to a backup
     /// disk, updated, and rolled back **from the disk** gets its dictionary back.
     ///

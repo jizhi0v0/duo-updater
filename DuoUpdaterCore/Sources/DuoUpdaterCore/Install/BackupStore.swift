@@ -107,10 +107,8 @@ public enum BackupStore {
     /// copy waits, and becomes the user's backup only when the app is no
     /// longer what it was copied from (``settlePending(forKey:)``).
     ///
-    /// `.`-prefixed for the reason ``rollbackPointsRoot`` is: every scan of the
-    /// outbox skips it, so it is not listed, not owed to the backup disk and
-    /// not a victim of the low-space prune. The orphan prune is the one scan
-    /// that walks it (``pruneOrphans()``), for a copy whose app was removed.
+    /// Hidden from normal backup scans, transfers and low-space pruning.
+    /// Cleanup lists these copies separately from restorable backups.
     /// Inside the outbox, so `ditto` clones and the promotion is a same-volume
     /// rename.
     public static var pendingBackupsRoot: URL {
@@ -118,7 +116,7 @@ public enum BackupStore {
     }
 
     /// ``pendingBackupsRoot`` as a store: plain bundles on this Mac. Never
-    /// active, and never read by anything that lists or restores.
+    /// active or available for a normal restore.
     static var pendingStore: Store {
         Store(root: pendingBackupsRoot, location: .outbox, identity: nil, volumeName: nil,
               isActive: false)
@@ -462,6 +460,8 @@ public enum BackupStore {
         /// nil for the whole copy in that case, and a copy we never fingerprinted
         /// is one nothing may be cached against. See ``BackupFactsLibrary``.
         public let fingerprint: String?
+        /// Build identity recorded before archiving the bundle to another disk.
+        var archivedBuildIdentity: String? = nil
         /// Whether this is the user's backup or an install rollback point. See
         /// ``Purpose``.
         public var purpose: Purpose = .userBackup
@@ -601,6 +601,7 @@ public enum BackupStore {
         /// Only on a copy that is a plain bundle on this Mac; absent means no
         /// reuse.
         var storedIdentity: String?
+        var archivedBuildIdentity: String?
     }
 
     /// A filesystem-safe directory name for one installed copy of an app. It keeps
@@ -1252,9 +1253,8 @@ public enum BackupStore {
     /// spend the rollback point on an install that changed nothing, and so
     /// would a swap that put the same version back — a download that was not
     /// the advertised one, which the host reports as "applied nothing" after
-    /// the coordinator said `applied`. An app that ships every update under
-    /// one version pair keeps the earlier backup as its way back: older than
-    /// it could be, never gone.
+    /// the coordinator said `applied`. When the version pair stays the same,
+    /// compare the signed code, or the main executable of an unsigned app.
     ///
     /// `missingAppIsChanged` false (the sweep, which has no install of its
     /// own to vouch for): an app that is not there counts as unchanged. It may
@@ -1272,7 +1272,8 @@ public enum BackupStore {
         // below does not have.
         let dir = pendingBackupsRoot.appendingPathComponent(key, isDirectory: true)
         guard let meta = readMeta(in: dir) else { return .none }
-        let copy = dir.appendingPathComponent(meta.bundleName)
+        guard let copy = backupPayload(meta, in: dir, location: .outbox),
+              hasReadableBundle(at: copy) else { return .promotionFailed }
         let app = URL(fileURLWithPath: meta.originalPath)
         let superseded = await offCooperativePool(qos: .userInitiated) {
             pendingIsSuperseded(app: app, copy: copy, missingAppIsChanged: missingAppIsChanged)
@@ -1290,7 +1291,41 @@ public enum BackupStore {
             // then would spend the earlier backup on an app that is intact.
             return FileManager.default.fileExists(atPath: app.deletingLastPathComponent().path)
         }
-        return versionPair(of: app) != versionPair(of: copy)
+        if versionPair(of: app) != versionPair(of: copy) { return true }
+        guard buildDiffers(at: app, from: buildIdentity(of: copy), verifyingInstall: true)
+        else { return false }
+        do {
+            try verifyRestoreIdentity(staged: copy, over: app)
+            try verifyRestoreAuthenticity(staged: copy, over: app)
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    private static func buildIdentity(of bundle: URL) -> String? {
+        if let hash = CLIToolProcesses.fileCDHash(bundle.path) {
+            return "cdhash:" + hash.base64EncodedString()
+        }
+        guard let executable = InstallJournal.mainExecutable(in: bundle)?.resolvingSymlinksInPath(),
+              executable.path.hasPrefix(bundle.resolvingSymlinksInPath().path + "/"),
+              (try? executable.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true,
+              InstallJournal.signature(of: bundle) == .unsigned,
+              let hash = CLIToolTrust.sha256(of: executable)
+        else { return nil }
+        return "sha256:" + hash
+    }
+
+    private static func buildDiffers(
+        at app: URL, from oldBuild: String?, verifyingInstall: Bool = false
+    ) -> Bool {
+        guard let oldBuild, let newBuild = buildIdentity(of: app), oldBuild != newBuild else {
+            return false
+        }
+        if newBuild.hasPrefix("cdhash:") {
+            return InstallJournal.signature(of: app, strict: verifyingInstall) == .valid
+        }
+        return !oldBuild.hasPrefix("cdhash:")
     }
 
     /// `CFBundleShortVersionString` and `CFBundleVersion` as the bundle's own
@@ -1310,7 +1345,12 @@ public enum BackupStore {
     static func promotePending(forKey key: String) async -> Bool {
         let fm = FileManager.default
         let pendingDir = pendingBackupsRoot.appendingPathComponent(key, isDirectory: true)
-        guard let meta = readMeta(in: pendingDir) else { return false }
+        guard let meta = readMeta(in: pendingDir),
+              let copy = backupPayload(meta, in: pendingDir, location: .outbox),
+              hasReadableBundle(at: copy) else { return false }
+        guard await offCooperativePool(qos: .userInitiated, {
+            integrityHolds(for: key, recorded: meta.manifest, staged: copy)
+        }) else { return false }
         let root = outboxRoot
         let dir = root.appendingPathComponent(key, isDirectory: true)
         // A copy of the generation being replaced that is on its way to the
@@ -1446,7 +1486,7 @@ public enum BackupStore {
               let meta = readMeta(in: outboxRoot.appendingPathComponent(key, isDirectory: true))
         else { return nil }
         let archive = root
-            .appendingPathComponent(key, isDirectory: true)
+            .appendingPathComponent(stagingPrefix(key: key), isDirectory: true)
             .appendingPathComponent(archiveName(forBundle: meta.bundleName))
         let partial = BundleArchive.partialURL(for: archive)
         return (try? FileManager.default.attributesOfItem(atPath: partial.path)[.size] as? Int64)
@@ -1565,8 +1605,12 @@ public enum BackupStore {
             throw BackupError.destinationUnavailable(destination.volumeName ?? "backup disk")
         }
         let fm = FileManager.default
+        let transferLock = try InstallLock.acquire(at: outboxRoot.appendingPathComponent(".transfer.lock"))
+        defer { transferLock.release() }
         let outboxDir = outboxRoot.appendingPathComponent(key, isDirectory: true)
-        guard let meta = readMeta(in: outboxDir) else { throw BackupError.noBackup(key) }
+        guard let sourceIdentity = BackupSizeIndex.identity(of: outboxDir),
+              let meta = readMeta(in: outboxDir)
+        else { throw BackupError.noBackup(key) }
         let bundle = outboxDir.appendingPathComponent(meta.bundleName)
         guard fm.fileExists(atPath: bundle.path) else { throw BackupError.noBackup(key) }
 
@@ -1574,15 +1618,15 @@ public enum BackupStore {
         // root exists and carries our marker, so this cannot conjure a path on
         // the boot volume.
         let targetDir = root.appendingPathComponent(key, isDirectory: true)
-        try fm.createDirectory(at: targetDir, withIntermediateDirectories: true)
+        let staging = root.appendingPathComponent(stagingPrefix(key: key), isDirectory: true)
+        guard forceRemove(staging) else { throw BackupError.copyFailed(staging.path) }
+        try fm.createDirectory(at: staging, withIntermediateDirectories: true)
+        defer { await removeClearingImmutableFlagsOffPool(at: staging) }
 
         let archiveName = archiveName(forBundle: meta.bundleName)
-        let archive = targetDir.appendingPathComponent(archiveName)
-        // Straight to the destination rather than via a local staging file:
-        // `BundleArchive` already writes a `.partial` beside the target and
-        // renames it, so the atomicity is the same, and streaming the compressed
-        // output over means a transfer never needs a second bundle-sized hole on
-        // the boot volume — which is usually the reason the store was moved.
+        let archive = staging.appendingPathComponent(archiveName)
+        // Stage the whole generation on the destination so a failed archive
+        // or metadata write cannot split the previous generation.
         try await BundleArchive.archive(bundle: bundle, to: archive, compression: compression)
 
         let digest = try BundleArchive.sha256(of: archive)
@@ -1611,7 +1655,7 @@ public enum BackupStore {
         var userDataDigest: String?
         if InputMethodDataBackup.snapshotExists(in: userData) {
             let name = Self.userDataArchiveName(forBundle: meta.bundleName)
-            let userDataArchive = targetDir.appendingPathComponent(name)
+            let userDataArchive = staging.appendingPathComponent(name)
             try await BundleArchive.archive(
                 bundle: userData, to: userDataArchive, compression: compression)
             userDataArchiveName = name
@@ -1619,6 +1663,9 @@ public enum BackupStore {
         }
 
         var moved = meta
+        moved.archivedBuildIdentity = await offCooperativePool(qos: .utility) {
+            buildIdentity(of: bundle)
+        }
         moved.archiveName = archiveName
         moved.archiveSHA256 = digest
         moved.archiveBytes = bytes
@@ -1626,13 +1673,10 @@ public enum BackupStore {
         moved.userDataArchiveSHA256 = userDataDigest
         moved.pendingTransfer = false
         guard let data = try? JSONEncoder().encode(moved),
-              (try? data.write(to: targetDir.appendingPathComponent("backup.json"),
+              (try? data.write(to: staging.appendingPathComponent("backup.json"),
                                options: .atomic)) != nil else {
-            // No sidecar means no readable backup, so leave nothing half-made.
-            forceRemove(targetDir)
             throw BackupError.copyFailed(archive.path)
         }
-
         // Record what comparing this backup would otherwise have to unpack the whole
         // archive for. Here rather than in `save` for three reasons that all point
         // the same way: this is the only route a copy ever reaches a disk by, so the
@@ -1652,7 +1696,8 @@ public enum BackupStore {
                 for: BackupFactsLibrary.Reference(key: key, fingerprint: digest))
             let start = ContinuousClock.now
             let recorded = await offCooperativePool(qos: .utility) {
-                guard let facts = try? BundleFactsReader.scan(root: bundle) else { return false }
+                guard let facts = try? BundleFactsReader.scan(root: bundle),
+                      BackupSizeIndex.identity(of: outboxDir) == sourceIdentity else { return false }
                 return BackupFactsLibrary.store(facts, at: entry)
             }
             if recorded {
@@ -1664,14 +1709,53 @@ public enum BackupStore {
             }
         }
 
-        forceRemove(outboxDir)
+        // Installs in another process must leave this generation alone from
+        // the source check through publication and local removal.
+        let installLock = ProcessInstallLock.shared
+        try await installLock.claim()
+        defer { await installLock.release() }
+        try await offCooperativePool(qos: .utility) {
+            let fm = FileManager.default
+            guard BackupSizeIndex.identity(of: outboxDir) == sourceIdentity else {
+                throw BackupError.noBackup(key)
+            }
+            if fm.fileExists(atPath: targetDir.path) {
+                let previous = readMeta(in: targetDir)
+                do {
+                    _ = try fm.replaceItemAt(targetDir, withItemAt: staging,
+                                             options: [.usingNewMetadataOnly])
+                } catch {
+                    // The replacement may already have landed before cleanup threw.
+                    if (try? Data(contentsOf: targetDir.appendingPathComponent("backup.json"))) == data {
+                        return
+                    }
+                    if !fm.fileExists(atPath: targetDir.path), let previous,
+                       let relocated = (error as NSError).userInfo["NSFileOriginalItemLocationKey"] as? URL,
+                       relocated.isFileURL, relocated != staging,
+                       let original = readMeta(in: relocated),
+                       original.savedAt == previous.savedAt,
+                       original.archiveSHA256 == previous.archiveSHA256,
+                       backupPayload(original, in: relocated, location: .destination) != nil {
+                        try fm.moveItem(at: relocated, to: targetDir)
+                    }
+                    throw error
+                }
+            } else {
+                try fm.moveItem(at: staging, to: targetDir)
+            }
+        }
+
+        let store = activeStore(root: root)
+        guard let committed = readMeta(in: targetDir), committed.archiveSHA256 == digest,
+              let backup = backup(forKey: key, in: store),
+              committed.userDataArchiveName == nil || hasUserDataSnapshot(key: key, meta: committed, in: store)
+        else {
+            throw BackupError.noBackup(key)
+        }
+        if BackupSizeIndex.identity(of: outboxDir) == sourceIdentity { forceRemove(outboxDir) }
         Log.install.notice(
             "backup: moved \(key, privacy: .public) to the backup disk (\(bytes ?? 0, privacy: .public) bytes)")
-        return Backup(
-            key: key, version: meta.version, buildVersion: meta.buildVersion,
-            bundlePath: archive, store: activeStore(root: root), savedAt: meta.savedAt,
-            fromPackageInstall: meta.fromPackageInstall, fromAppStore: meta.fromAppStore,
-            omittedFiles: meta.omittedFiles ?? [], fingerprint: meta.manifest?.digest)
+        return backup
     }
 
     // MARK: - Cleanup of interrupted work
@@ -1776,6 +1860,14 @@ public enum BackupStore {
         return !VersionComparator.isSame(installed, as: backup)
     }
 
+    /// The workbench calls this off the main thread for backups whose version
+    /// pair alone would hide the rollback action.
+    public static func rollbackBuildDiffers(installedAt app: URL, backup: Backup) -> Bool {
+        let oldBuild = backup.location == .outbox
+            ? buildIdentity(of: backup.bundlePath) : backup.archivedBuildIdentity
+        return buildDiffers(at: app, from: oldBuild)
+    }
+
     /// The sidecar in `dir`, or nil when there is none — or when it names its
     /// payload in a way `save` never writes.
     ///
@@ -1811,9 +1903,21 @@ public enum BackupStore {
     /// The backup for `key` held in a specific store.
     private static func backup(forKey key: String, in store: Store) -> Backup? {
         let dir = store.root.appendingPathComponent(key, isDirectory: true)
-        guard let meta = readMeta(in: dir) else { return nil }
+        guard let meta = readMeta(in: dir),
+              let payload = backupPayload(meta, in: dir, location: store.location)
+        else { return nil }
+        return Backup(
+            key: key, version: meta.version, buildVersion: meta.buildVersion,
+            bundlePath: payload, store: store, savedAt: meta.savedAt,
+            fromPackageInstall: meta.fromPackageInstall, fromAppStore: meta.fromAppStore,
+            omittedFiles: meta.omittedFiles ?? [], fingerprint: meta.manifest?.digest,
+            archivedBuildIdentity: meta.archivedBuildIdentity,
+            purpose: meta.purpose ?? .userBackup)
+    }
+
+    private static func backupPayload(_ meta: Meta, in dir: URL, location: Backup.Location) -> URL? {
         let payload: URL
-        switch store.location {
+        switch location {
         case .outbox:
             payload = dir.appendingPathComponent(meta.bundleName)
         case .destination:
@@ -1826,16 +1930,11 @@ public enum BackupStore {
         // transfer writes, and following it would restore whatever it points at.
         guard let type = (try? FileManager.default.attributesOfItem(atPath: payload.path))?[.type]
                 as? FileAttributeType else { return nil }
-        switch store.location {
+        switch location {
         case .outbox: guard type == .typeDirectory else { return nil }
         case .destination: guard type == .typeRegular else { return nil }
         }
-        return Backup(
-            key: key, version: meta.version, buildVersion: meta.buildVersion,
-            bundlePath: payload, store: store, savedAt: meta.savedAt,
-            fromPackageInstall: meta.fromPackageInstall, fromAppStore: meta.fromAppStore,
-            omittedFiles: meta.omittedFiles ?? [], fingerprint: meta.manifest?.digest,
-            purpose: meta.purpose ?? .userBackup)
+        return payload
     }
 
     /// The current backup for `key`, or nil if none exists.
@@ -1958,6 +2057,7 @@ public enum BackupStore {
         case notApplicable
         /// The snapshot went back over the live data, at this many locations.
         case restored(Int)
+        case partial(restored: Int, missing: Int)
         /// An input method whose generation carries no snapshot: the bundle is
         /// back and its dictionary, settings and account state are not. The
         /// reason is usually that the backup predates the snapshot, or — for a
@@ -1974,6 +2074,7 @@ public enum BackupStore {
         public var isBundleOnly: Bool {
             switch self {
             case .notApplicable, .restored: return false
+            case .partial(let restored, _): return restored == 0
             case .noSnapshot, .failed: return true
             }
         }
@@ -2142,7 +2243,7 @@ public enum BackupStore {
                 // Held to where this app's data can live, by the names of the
                 // bundle now in place: the snapshot's manifest is a file in the
                 // store, and names its own targets.
-                let restored = try await InputMethodDataBackup.restore(
+                let snapshot = try await InputMethodDataBackup.restoreReporting(
                     forKey: key, from: snapshotDirectory,
                     bundleName: target.deletingPathExtension().lastPathComponent,
                     bundleID: SignatureVerifier.infoPlist(of: target)["CFBundleIdentifier"] as? String)
@@ -2152,8 +2253,10 @@ public enum BackupStore {
                 // until it is restarted. Not measured either way for these two apps
                 // — stated as the caveat it is rather than implied to be handled.
                 Log.install.notice(
-                    "rollback: restored \(restored.count, privacy: .public) user-data location(s) with \(target.lastPathComponent, privacy: .public) — a running input method keeps using what it already loaded until it restarts")
-                userData = .restored(restored.count)
+                    "rollback: restored \(snapshot.locations.count, privacy: .public) user-data location(s) with \(target.lastPathComponent, privacy: .public), \(snapshot.missing, privacy: .public) missing")
+                userData = snapshot.missing == 0
+                    ? .restored(snapshot.locations.count)
+                    : .partial(restored: snapshot.locations.count, missing: snapshot.missing)
             } catch {
                 Log.install.error(
                     "rollback: \(target.lastPathComponent, privacy: .public) is back, but its user data was not restored — \(error.localizedDescription, privacy: .public)")
@@ -2806,8 +2909,6 @@ public enum BackupStore {
             removeClearingImmutableFlags(
                 at: store.root.appendingPathComponent(key, isDirectory: true))
         }
-        // An install's copy waiting to become this backup goes with it: it is
-        // this app's backup too, and nothing on screen could remove it later.
         discardPending(forKey: key)
         // The recorded facts describe bytes that are now gone, and they are held
         // outside the store, so nothing above would ever reach them.
@@ -2819,7 +2920,7 @@ public enum BackupStore {
     /// is holding, and whether it can still do its job.
     public struct Listing: Sendable, Identifiable, Equatable {
         public let key: String
-        public var id: String { key }
+        public var id: String { store.root.appendingPathComponent(key).path }
         public let name: String
         /// What the backup would restore — the version that was replaced.
         public let version: String?
@@ -2835,10 +2936,8 @@ public enum BackupStore {
         public let bundlePath: URL?
         /// False when the original app is gone — nothing left to restore onto.
         public let appStillInstalled: Bool
-        /// False when the sidecar is missing or unreadable: without it `restore`
-        /// has no target path, so the bytes are unusable. Listing these anyway is
-        /// the point — they are invisible to every other surface, which is how one
-        /// grew to 272 MB unnoticed, counted in the total but impossible to remove.
+        /// Pending copies and backups without a readable sidecar cannot be
+        /// restored. Cleanup lists them because they still occupy space.
         public let isRestorable: Bool
         /// Which store this row came out of, so a sheet about reclaiming space
         /// can say *whose* space — this Mac's, or a named disk's.
@@ -2846,6 +2945,8 @@ public enum BackupStore {
         public var location: Backup.Location { store.location }
         /// The user's backup, or an install rollback point — see ``Purpose``.
         public let purpose: Purpose
+        public fileprivate(set) var isPending = false
+        fileprivate var directoryIdentity: String?
 
         public init(
             key: String, name: String, version: String?, currentVersion: String?,
@@ -2885,8 +2986,21 @@ public enum BackupStore {
     /// space: a backup mid-transfer really is occupying both disks, and merging
     /// the rows would hide half of what deleting it would free.
     public static func listing() -> [Listing] {
+        listing(includingPending: false)
+    }
+
+    public static func cleanupListing() -> [Listing] {
+        listing(includingPending: true)
+    }
+
+    public static func pendingListing() -> [Listing] {
+        listing(in: pendingStore)
+    }
+
+    private static func listing(includingPending: Bool) -> [Listing] {
         var out: [Listing] = []
         for store in reachableStores() { out += listing(in: store) }
+        if includingPending { out += pendingListing() + rollbackPointListing() }
         // Undated (sidecar-less) entries sort last: they are the ones to clear out,
         // not the ones to reason about.
         return out.sorted { ($0.savedAt ?? .distantPast) > ($1.savedAt ?? .distantPast) }
@@ -2895,6 +3009,8 @@ public enum BackupStore {
     private static func listing(in store: Store) -> [Listing] {
         let fm = FileManager.default
         let (root, location) = (store.root, store.location)
+        let isPending = root == pendingBackupsRoot
+        let isRollbackPoint = root == rollbackPointsRoot
         let keys = storedKeys(in: root)
         let dirs = keys.map { root.appendingPathComponent($0, isDirectory: true) }
         // Every size in one pass, so a store whose backups have not changed since
@@ -2905,6 +3021,7 @@ public enum BackupStore {
         var out: [Listing] = []
         for (index, key) in keys.enumerated() {
             let dir = dirs[index]
+            let identity = BackupSizeIndex.identity(of: dir)
             let meta = readMeta(in: dir)
             // The payload is a directory in the outbox and a single file on the
             // destination, so what stands in for "the bundle" differs; on the
@@ -2913,7 +3030,7 @@ public enum BackupStore {
                 ? (try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil))?
                     .first { $0.pathExtension == "app" }
                 : meta?.archiveName.map { dir.appendingPathComponent($0) }
-            out.append(Listing(
+            var row = Listing(
                 key: key,
                 name: meta?.bundleName ?? payload?.lastPathComponent ?? key,
                 version: meta?.version,
@@ -2922,11 +3039,54 @@ public enum BackupStore {
                 sizeBytes: sizes[index],
                 bundlePath: payload,
                 appStillInstalled: meta.map { fm.fileExists(atPath: $0.originalPath) } ?? false,
-                isRestorable: meta != nil,
+                isRestorable: !isPending && meta.flatMap { backupPayload($0, in: dir, location: location) } != nil,
                 store: store,
-                purpose: meta?.purpose ?? .userBackup))
+                purpose: isRollbackPoint ? .installRollbackPoint : meta?.purpose ?? .userBackup)
+            row.directoryIdentity = identity
+            row.isPending = isPending
+            out.append(row)
         }
         return out
+    }
+
+    /// Remove only the generation selected in Cleanup. A promotion or transfer
+    /// may replace a row between opening the sheet and pressing Delete.
+    public static func removeCleanupCopy(
+        _ row: Listing, lock: ProcessInstallLock = .shared
+    ) async -> Bool {
+        guard row.purpose == .userBackup, let identity = row.directoryIdentity else { return false }
+        do { try await lock.claim() } catch { return false }
+        defer { await lock.release() }
+        let claims = InstallRollbackPointClaims.pendingBackups
+        guard await claims.beginSweeping(row.key) else { return false }
+        defer { await claims.endSweeping(row.key) }
+        guard !InstallJournal.journaledBackupKeys().contains(row.key) else { return false }
+
+        if row.isPending {
+            guard row.store.root == pendingBackupsRoot else { return false }
+        } else {
+            guard reachableStores().contains(where: {
+                $0.root == row.store.root && $0.identity == row.store.identity
+            }) else { return false }
+        }
+        let dir = row.store.root.appendingPathComponent(row.key, isDirectory: true)
+        let transferLockPath = outboxRoot.appendingPathComponent(".transfer.lock")
+        let removed = await offCooperativePool(qos: .utility) {
+            let transferLock: InstallLock?
+            if row.isPending {
+                transferLock = nil
+            } else {
+                guard let claim = try? InstallLock.acquire(at: transferLockPath) else { return false }
+                transferLock = claim
+            }
+            defer { transferLock?.release() }
+            guard BackupSizeIndex.identity(of: dir) == identity else { return false }
+            return removeClearingImmutableFlags(at: dir)
+        }
+        if removed, !row.isPending, backup(forKey: row.key) == nil {
+            BackupFactsLibrary.drop(forKey: row.key)
+        }
+        return removed
     }
 
     // MARK: - Cleanup
@@ -3025,14 +3185,12 @@ public enum BackupStore {
         else { return 0 }
         // This Mac's figure includes the install rollback points: they are this
         // Mac's disk too, inside the outbox, and the hidden directory that keeps
-        // every sweep off them would otherwise keep them out of the total. Not
-        // in ``listing()``'s rows, so the Clean Up sheet's sum is lower by them.
+        // normal backup scans off them would otherwise keep them out of the total.
         if root.standardizedFileURL == outboxRoot.standardizedFileURL {
             dirs += (try? FileManager.default.contentsOfDirectory(
                 at: rollbackPointsRoot, includingPropertiesForKeys: nil,
                 options: [.skipsHiddenFiles])) ?? []
-            // The pending copies likewise: this Mac's disk, kept out of every
-            // listing by the same hidden directory.
+            // Cleanup also lists the pending copies on this Mac.
             dirs += (try? FileManager.default.contentsOfDirectory(
                 at: pendingBackupsRoot, includingPropertiesForKeys: nil,
                 options: [.skipsHiddenFiles])) ?? []

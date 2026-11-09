@@ -95,6 +95,7 @@ struct BackupsSettingsPage: View {
     @State private var showingBackups = false
     @State private var backupListing: [BackupStore.Listing] = []
     @State private var isCleaningBackups = false
+    @State private var backupCleanupIncomplete = false
     /// Clean Up found nothing to list; said for a moment, the way Copy Now
     /// says why it could not copy.
     @State private var nothingToCleanUp = false
@@ -233,9 +234,9 @@ struct BackupsSettingsPage: View {
         .task { await watchMounts(NSWorkspace.didUnmountNotification) }
         .task { await watchMounts(NSWorkspace.didRenameVolumeNotification) }
         .sheet(isPresented: $showingBackups) {
-            BackupsSheet(backups: backupListing) { keys in
+            BackupsSheet(backups: backupListing) { rows in
                 Task {
-                    await model.deleteBackups(keys: keys)
+                    backupCleanupIncomplete = !(await model.deleteBackups(rows: rows))
                     await refresh()
                 }
             }
@@ -667,6 +668,9 @@ struct BackupsSettingsPage: View {
                     Text("Deleting backups: \(deletion.done) of \(deletion.total)")
                         .foregroundStyle(.secondary)
                         .monospacedDigit()
+                } else if backupCleanupIncomplete {
+                    Label("Some backups could not be deleted", systemImage: "exclamationmark.circle")
+                        .foregroundStyle(.secondary)
                 } else if nothingToCleanUp {
                     // An empty store used to make this button do nothing at all,
                     // which reads the same as a button that is broken.
@@ -676,6 +680,7 @@ struct BackupsSettingsPage: View {
                 Spacer()
                 Button("Clean Up…") {
                     guard !isCleaningBackups, model.backupDeletion == nil else { return }
+                    backupCleanupIncomplete = false
                     isCleaningBackups = true
                     Task {
                         backupListing = await model.backupListing()

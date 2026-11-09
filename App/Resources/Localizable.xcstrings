@@ -6192,6 +6192,136 @@
         }
       }
     },
+    "%@ is back at the earlier version. Input method data locations restored: %lld. Could not restore: %lld.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ wurde auf die frühere Version zurückgesetzt. Wiederhergestellte Eingabemethoden-Datenorte: %lld. Nicht wiederhergestellt: %lld."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ ha vuelto a la versión anterior. Ubicaciones de datos del método de entrada restauradas: %lld. Sin restaurar: %lld."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ est revenu à sa version précédente. Emplacements de données de saisie restaurés : %lld. Non restaurés : %lld."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ è tornata alla versione precedente. Posizioni dei dati del metodo di input ripristinate: %lld. Non ripristinate: %lld."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ を以前のバージョンに戻しました。復元した入力メソッドのデータ保存場所：%lld 件。復元できなかった場所：%lld 件。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ voltou à versão anterior. Locais de dados do método de entrada restaurados: %lld. Não restaurados: %lld."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ возвращено к прежней версии. Восстановлено расположений данных метода ввода: %lld. Не удалось восстановить: %lld."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ önceki sürüme döndü. Geri yüklenen giriş yöntemi verisi konumu: %lld. Geri yüklenemeyen: %lld."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 已回到旧版本。已恢复 %lld 处输入法数据，另有 %lld 处无法恢复。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 已回到舊版本。已還原 %lld 處輸入法資料，另有 %lld 處無法還原。"
+          }
+        }
+      }
+    },
+    "%@ was backed up, but some of its input method data could not be copied (%lld).": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ wurde gesichert, aber einige Eingabemethoden-Datenorte konnten nicht kopiert werden (%lld)."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se guardó una copia de %@, pero no se pudieron copiar algunos datos del método de entrada (%lld)."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ a été sauvegardé, mais certaines données de saisie n’ont pas pu être copiées (%lld)."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "È stato salvato un backup di %@, ma alcuni dati del metodo di input non sono stati copiati (%lld)."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ をバックアップしましたが、入力メソッドのデータの一部をコピーできませんでした（%lld 件）。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Foi feito backup de %@, mas alguns dados do método de entrada não puderam ser copiados (%lld)."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Резервная копия %@ создана, но некоторые данные метода ввода скопировать не удалось (%lld)."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ yedeklendi, ancak bazı giriş yöntemi verileri kopyalanamadı (%lld)."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 已备份，但有 %lld 处输入法数据无法复制。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 已備份，但有 %lld 處輸入法資料無法複製。"
+          }
+        }
+      }
+    },
     "%@ is back at the earlier version, but its dictionary and settings are not — this restore point has no copy of them.": {
       "extractionState": "manual",
       "localizations": {
@@ -31893,6 +32023,71 @@
         }
       }
     },
+    "Deleting a backup frees its space and removes any option to restore that copy.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Beim Löschen eines Backups wird Speicherplatz frei und die Kopie kann nicht mehr wiederhergestellt werden."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eliminar una copia de seguridad libera espacio e impide restaurar esa copia."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Supprimer une sauvegarde libère de l’espace et empêche de restaurer cette copie."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eliminare un backup libera spazio e impedisce di ripristinare quella copia."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "バックアップを削除すると空き容量が増え、そのコピーからは復元できなくなります。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apagar um backup libera espaço e impede a restauração dessa cópia."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Удаление резервной копии освобождает место, и восстановление из неё становится невозможным."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bir yedeği silmek alan açar ve o kopyadan geri yükleme seçeneğini kaldırır."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "删除备份会释放空间，并且之后无法再从这份副本恢复。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "刪除備份會釋放空間，之後便無法再從這份副本還原。"
+          }
+        }
+      }
+    },
     "Deleting backups: %lld of %lld": {
       "extractionState": "manual",
       "localizations": {
@@ -34641,71 +34836,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "DuoUpdater 本身的版本。"
-          }
-        }
-      }
-    },
-    "Each backup lets you restore the version from before one update. Deleting it frees the space and gives up that option — the app itself is untouched.": {
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mit jedem Backup lässt sich die Version von vor einem Update wiederherstellen. Es zu löschen gibt Speicherplatz frei, verzichtet aber auf diese Option – die App selbst bleibt unberührt."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cada copia de seguridad permite restaurar la versión anterior a una actualización. Eliminarla libera espacio y renuncia a esa opción; la app en sí no se ve afectada."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Chaque sauvegarde permet de restaurer la version d'avant une mise à jour. La supprimer libère de l'espace mais fait perdre cette option — l'application elle-même n'est pas touchée."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ogni backup permette di ripristinare la versione precedente a un aggiornamento. Eliminarlo libera spazio e rinuncia a quella possibilità; l’app in sé non viene toccata."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "各バックアップにより、1回の更新前のバージョンに復元できます。削除すると容量は解放されますがそのオプションは失われます — アプリ自体には影響しません。"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cada backup permite restaurar a versão anterior a uma atualização. Apagá-lo libera espaço e abre mão dessa opção — o app em si não é afetado."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Каждая резервная копия позволяет восстановить версию до одного обновления. Удаление освобождает место и лишает этой возможности — само приложение не затрагивается."
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Her yedek, bir güncellemeden önceki sürümü geri yüklemenizi sağlar. Silmek yer açar ve bu seçenekten vazgeçer — uygulamanın kendisine dokunulmaz."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "每个备份都可用于恢复一次更新之前的版本。删除它会释放空间并放弃该选项 — 应用本身不受影响。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "每個備份可讓你還原一次更新之前的版本。刪除它會釋放空間，但也會失去這個選項——App 本身不受影響。"
           }
         }
       }
@@ -69146,6 +69276,71 @@
         }
       }
     },
+    "Some backups could not be deleted": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Einige Backups konnten nicht gelöscht werden"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se han podido eliminar algunas copias de seguridad"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Certaines sauvegardes n’ont pas pu être supprimées"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Impossibile eliminare alcuni backup"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "一部のバックアップを削除できませんでした"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Não foi possível apagar alguns backups"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось удалить некоторые резервные копии"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bazı yedekler silinemedi"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "有些备份未能删除"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "有些備份未能刪除"
+          }
+        }
+      }
+    },
     "Some of your apps keep what DuoUpdater needs to check them where macOS only lets it look with Full Disk Access. Nothing read there leaves your Mac.\n\n%@\n\nYou can grant it later in DuoUpdater’s Settings → Diagnostics, or in System Settings → Privacy & Security → Full Disk Access.": {
       "extractionState": "manual",
       "localizations": {
@@ -89336,67 +89531,197 @@
         }
       }
     },
-    "· unusable, its record is missing": {
+    "· pending backup": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "· unbrauchbar, Datensatz fehlt"
+            "value": "· ausstehendes Backup"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "· inutilizable, falta el registro"
+            "value": "· copia de seguridad pendiente"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "· inutilisable, l'enregistrement est manquant"
+            "value": "· sauvegarde en attente"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "· inutilizzabile, manca il suo record"
+            "value": "· backup in attesa"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "· 使用不可、記録がありません"
+            "value": "· 確認待ちのバックアップ"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "· inutilizável, o registro sumiu"
+            "value": "· backup pendente"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "· неработоспособна, отсутствует запись"
+            "value": "· резервная копия ожидает подтверждения"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "· kullanılamaz, kaydı eksik"
+            "value": "· bekleyen yedek"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "· 不可用，记录缺失"
+            "value": "· 待确认的备份"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "· 無法使用，記錄已遺失"
+            "value": "· 待確認的備份"
+          }
+        }
+      }
+    },
+    "· protected restore point": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "· geschützter Wiederherstellungspunkt"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "· punto de restauración protegido"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "· point de restauration protégé"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "· punto di ripristino protetto"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "· 保護された復元ポイント"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "· ponto de restauração protegido"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "· защищённая точка восстановления"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "· korumalı geri yükleme noktası"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "· 受保护的恢复点"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "· 受保護的還原點"
+          }
+        }
+      }
+    },
+    "· unusable, its record or files are missing": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "· nicht verwendbar, Eintrag oder Dateien fehlen"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "· inutilizable, faltan el registro o archivos"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "· inutilisable, la fiche ou des fichiers manquent"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "· inutilizzabile, mancano la scheda o dei file"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "· 使用不可、記録またはファイルがありません"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "· inutilizável, faltam o registro ou arquivos"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "· недоступна, отсутствует запись или файлы"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "· kullanılamıyor, kaydı veya dosyaları eksik"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "· 无法恢复，记录或文件缺失"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "· 無法還原，記錄或檔案遺失"
           }
         }
       }

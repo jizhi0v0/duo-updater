@@ -302,6 +302,8 @@ public enum Restart {
             return "no restore point: another install holds the install lock — restarting without one"
         case .attempted(.saved):
             return "backed up \(version)"
+        case .attempted(.savedWithoutUserData(let missing)):
+            return "backed up \(version), but \(missing) input-method data location(s) could not be backed up"
         case .attempted(.savedWithoutRuntimeState(let omitted)):
             return "backed up \(version) — without \(omitted) file(s) the app wrote inside its own"
                 + " bundle, which it will recreate"

@@ -471,14 +471,20 @@ public enum InstallJournal {
     /// `Contents/MacOS/` for a Mac app, the bundle root of a wrapped iOS app
     /// (``BundleLayout``). False when it names none.
     static func hasMainExecutable(_ app: URL) -> Bool {
+        guard let executable = mainExecutable(in: app) else { return false }
+        return FileManager.default.fileExists(atPath: executable.path)
+    }
+
+    static func mainExecutable(in app: URL) -> URL? {
         guard let data = try? Data(contentsOf: BundleLayout.infoPlistURL(for: app)),
               let info = try? PropertyListSerialization.propertyList(
                 from: data, options: [], format: nil) as? [String: Any],
-              let name = info["CFBundleExecutable"] as? String, !name.isEmpty
-        else { return false }
+              let name = info["CFBundleExecutable"] as? String, !name.isEmpty,
+              name != ".", name != "..", !name.contains("/"), !name.contains("\0")
+        else { return nil }
         let prefix = BundleLayout.interiorPrefix(for: app)
         let relative = prefix == "Contents/" ? "Contents/MacOS/\(name)" : prefix + name
-        return FileManager.default.fileExists(atPath: app.appendingPathComponent(relative).path)
+        return app.appendingPathComponent(relative)
     }
 
     /// Start the file for an install of `app` by `route` towards `target`.

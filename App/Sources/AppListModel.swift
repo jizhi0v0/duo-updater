@@ -587,6 +587,7 @@ final class AppListModel {
     /// than replacing it: that one is a DISPLAY string (it falls back to
     /// "previous"), and comparing against it is what hid the Rollback row.
     private(set) var backupSides: [String: VersionSide] = [:]
+    private var backupsWithDifferentBuilds: Set<String> = []
     /// The name of the backup disk we are configured for but cannot see right now,
     /// or nil when the store is fully readable.
     ///
@@ -789,7 +790,7 @@ final class AppListModel {
     /// `BackupStore.rollbackIsDistinct`.
     func rollbackIsDistinct(_ result: UpdateResult) -> Bool {
         guard let backup = backupSides[result.id] else { return false }
-        return BackupStore.rollbackIsDistinct(
+        return backupsWithDifferentBuilds.contains(result.id) || BackupStore.rollbackIsDistinct(
             installed: result.app.versionSide, backup: backup)
     }
 
@@ -3466,7 +3467,8 @@ final class AppListModel {
                 guard !InstallJournal.hasOrphanedChild() else { continue }
                 guard await InstallJournal.processLeftovers() != nil else { continue }
                 _ = await InstallCoordinator.sweepSettledInstallRollbackPoints()
-                _ = await InstallCoordinator.sweepPendingBackups()
+                guard let promoted = await InstallCoordinator.sweepPendingBackups() else { continue }
+                if promoted > 0 { await self?.refreshBackupIndex() }
                 break
             }
             await MainActor.run {
@@ -5956,6 +5958,20 @@ final class AppListModel {
             installing[id] = nil
             return .notInstalled
         }
+        // Register cleanup before taking a copy so an automatic deferral also
+        // releases its pending-backup claim.
+        defer {
+            await InstallCoordinator.settleInstallRollbackPoint(
+                for: result.app, journal: journal, succeeded: applied)
+            // The backup this attempt took waited in the pending slot, and
+            // the user's earlier one stayed the way back; it takes that slot
+            // only now, and only if the app changed — a cancel or a failure
+            // leaves the earlier one, and the copy for a retry to reuse.
+            if await InstallCoordinator.settlePendingBackup(for: result.app) == .promoted {
+                startOwedBackupTransfer()
+                await refreshBackupIndex()
+            }
+        }
         // `backUpOnce`: the major-upgrade confirmation's "Back Up & Update", for a
         // user who keeps backups off but wants a rollback point for this one update.
         // Without either, a route that hands the swap to someone else still gets
@@ -5980,22 +5996,6 @@ final class AppListModel {
                 stages.enter(.backingUp)
                 installing[id] = .backingUp
                 await InstallCoordinator.takeInstallRollbackPoint(result.app, route: backupRoute)
-            }
-        }
-        // Every way out of this attempt from here — installed, failed, skipped
-        // before the download, refused, cancelled — settles the rollback point:
-        // kept only when the app is left missing or unreadable. See
-        // `settleInstallRollbackPoint`.
-        defer {
-            await InstallCoordinator.settleInstallRollbackPoint(
-                for: result.app, journal: journal, succeeded: applied)
-            // The backup this attempt took waited in the pending slot, and
-            // the user's earlier one stayed the way back; it takes that slot
-            // only now, and only if the app changed — a cancel or a failure
-            // leaves the earlier one, and the copy for a retry to reuse.
-            if await InstallCoordinator.settlePendingBackup(for: result.app) == .promoted {
-                startOwedBackupTransfer()
-                await refreshBackupIndex()
             }
         }
         // Cancelled during the copy (which then kept nothing) or just after it
@@ -8821,6 +8821,9 @@ final class AppListModel {
         if case .savedWithoutRuntimeState(let omitted) = outcome {
             Log.install.notice("backup: \(result.app.name, privacy: .public) stored without \(omitted, privacy: .public) runtime file(s)")
         }
+        if case .savedWithoutUserData(let missing) = outcome {
+            installNotes[result.id] = String(localized: "\(result.app.name) was backed up, but some of its input method data could not be copied (\(missing)).")
+        }
         if case .unreadable(let path) = outcome {
             Log.install.notice("backup skipped: \(result.app.name, privacy: .public) — \(path, privacy: .public) unreadable")
             installNotes[result.id] = Self.backupUnreadableNote
@@ -9319,7 +9322,7 @@ final class AppListModel {
     /// Every stored backup, measured, for the delete sheet. Off the main actor:
     /// sizing walks each bundle.
     func backupListing() async -> [BackupStore.Listing] {
-        await Task.detached(priority: .utility) { BackupStore.listing() }.value
+        await Task.detached(priority: .utility) { BackupStore.cleanupListing() }.value
     }
 
     /// How far a delete from the Clean Up sheet has got, while one is running.
@@ -9332,34 +9335,21 @@ final class AppListModel {
 
     /// Delete exactly the backups the user ticked, then re-read the index so the
     /// rows lose their rollback affordance and the total is honest again.
-    func deleteBackups(keys: [String]) async {
-        guard backupDeletion == nil, !keys.isEmpty else { return }
-        backupDeletion = (0, keys.count)
-        // Out of the copy queue first, and only once any copy of one of them has
-        // ended: Copy Now, or a disk being plugged in, can be moving one of these
-        // right now, and the two pulling the same directory apart ended the run
-        // reporting a failed copy of something just deleted.
-        let withheld = Set(keys)
+    func deleteBackups(rows: [BackupStore.Listing]) async -> Bool {
+        let selected = rows.filter { $0.purpose == .userBackup }
+        guard backupDeletion == nil, !selected.isEmpty else { return false }
+        backupDeletion = (0, selected.count)
+        let withheld = Set(selected.filter { !$0.isPending }.map(\.key))
         await BackupTransferQueue.shared.withhold(withheld)
-        // Deletes whole bundle copies: Dispatch, not a detached task, which would
-        // still hold a cooperative thread for all of it. Several at once: removal
-        // is metadata-bound. Measured 2026-10-09 on one Mac's APFS boot volume,
-        // two runs each, `FileManager.removeItem` over six `ditto` copies of a
-        // 924 MB, 21k-file bundle: 8.4–9.0 s in a loop, 2.4–2.8 s under
-        // `concurrentPerform`.
-        await offCooperativePool(qos: .utility) {
-            DispatchQueue.concurrentPerform(iterations: keys.count) { index in
-                BackupStore.remove(forKey: keys[index])
-                Task { @MainActor [weak self] in
-                    guard let self, let progress = self.backupDeletion else { return }
-                    self.backupDeletion = (min(progress.done + 1, progress.total), progress.total)
-                }
-            }
+        var allRemoved = true
+        for row in selected {
+            if !(await BackupStore.removeCleanupCopy(row)) { allRemoved = false }
+            backupDeletion?.done += 1
         }
         await BackupTransferQueue.shared.release(withheld)
         backupDeletion = nil
-        Log.install.notice("backups: deleted \(keys.count, privacy: .public) on request")
         await refreshBackupIndex()
+        return allRemoved
     }
 
 
@@ -9380,22 +9370,35 @@ final class AppListModel {
         // the keys are derived in the same hop, keyed by what they are derived
         // from rather than by row: `results` can be replaced during the hop, and a
         // row that arrived since is simply keyed on the main actor below.
-        let sources = Set(results.map { BackupKeySource(bundleID: $0.app.bundleID, path: $0.app.path) })
+        let versions = Dictionary(results.map {
+            (BackupKeySource(bundleID: $0.app.bundleID, path: $0.app.path), $0.app.versionSide)
+        }, uniquingKeysWith: { first, _ in first })
         let scan = await Task.detached(priority: .utility) {
             // Both in the same hop off the main actor: they read the same two
             // directories, and asking separately would let the list and the
             // "disk isn't there" note disagree about a disk unplugged between them.
-            (map: BackupStore.allBackups(), state: BackupStore.availability(),
-             keys: Dictionary(uniqueKeysWithValues: sources.map {
-                 ($0, BackupStore.keyCandidates(bundleID: $0.bundleID, path: $0.path))
-             }))
+            let map = BackupStore.allBackups()
+            let keys = Dictionary(uniqueKeysWithValues: versions.keys.map {
+                ($0, BackupStore.keyCandidates(bundleID: $0.bundleID, path: $0.path))
+            })
+            let changedBuilds = Set(keys.compactMap { source, candidates -> BackupKeySource? in
+                guard let installed = versions[source],
+                      let backup = candidates.lazy.compactMap({ map[$0] }).first,
+                      !BackupStore.rollbackIsDistinct(installed: installed, backup: backup.versionSide),
+                      BackupStore.rollbackBuildDiffers(installedAt: source.path, backup: backup)
+                else { return nil }
+                return source
+            })
+            return (map: map, state: BackupStore.availability(), keys: keys, changedBuilds: changedBuilds)
         }.value
         let map = scan.map
         offlineBackupDisk = scan.state.unreachableDiskName
         var byID: [String: String] = [:]
         var sides: [String: VersionSide] = [:]
+        var changedBuilds: Set<String> = []
         for result in results {
             let source = BackupKeySource(bundleID: result.app.bundleID, path: result.app.path)
+            if scan.changedBuilds.contains(source) { changedBuilds.insert(result.id) }
             for key in scan.keys[source]
                 ?? BackupStore.keyCandidates(bundleID: source.bundleID, path: source.path)
             where map[key] != nil {
@@ -9406,6 +9409,7 @@ final class AppListModel {
         }
         backupVersions = byID
         backupSides = sides
+        backupsWithDifferentBuilds = changedBuilds
     }
 
     /// The two inputs of `BackupStore.keyCandidates`, as a dictionary key.
@@ -9511,18 +9515,11 @@ final class AppListModel {
             // Store app — but the ordering says which matters more if that ever
             // changes: one describes an update that may come back, the other
             // describes data that did not.
-            switch outcome.userData {
-            case .noSnapshot:
+            if let note = userDataRestoreNote(outcome.userData, appName: updated.app.name) {
+                installNotes[id] = note
+            } else if wasFromAppStore {
                 installNotes[id] = String(
-                    localized: "\(updated.app.name) is back at the earlier version, but its dictionary and settings are not — this restore point has no copy of them.")
-            case .failed:
-                installNotes[id] = String(
-                    localized: "\(updated.app.name) is back at the earlier version, but restoring its dictionary and settings failed — they are still what the newer version left.")
-            case .notApplicable, .restored:
-                if wasFromAppStore {
-                    installNotes[id] = String(
-                        localized: "Restored, but \(updated.app.name) updates through the App Store — it will offer this update again, and re-install it on its own if automatic app updates are on.")
-                }
+                    localized: "Restored, but \(updated.app.name) updates through the App Store — it will offer this update again, and re-install it on its own if automatic app updates are on.")
             }
             Log.install.info("rollback done: \(updated.app.name, privacy: .public) → \(restored ?? "?", privacy: .public)")
             if needsRestart.contains(updated.id) {
@@ -10046,6 +10043,19 @@ final class AppListModel {
         interruptedByPath = byPath
     }
 
+    private func userDataRestoreNote(_ outcome: BackupStore.UserDataOutcome, appName: String) -> String? {
+        switch outcome {
+        case .notApplicable, .restored:
+            return nil
+        case .noSnapshot:
+            return String(localized: "\(appName) is back at the earlier version, but its dictionary and settings are not — this restore point has no copy of them.")
+        case .failed:
+            return String(localized: "\(appName) is back at the earlier version, but restoring its dictionary and settings failed — they are still what the newer version left.")
+        case .partial(let restored, let missing):
+            return String(localized: "\(appName) is back at the earlier version. Input method data locations restored: \(restored). Could not restore: \(missing).")
+        }
+    }
+
     /// The cut-off install of `result`'s app, when there is one.
     func interruptedInstall(for result: UpdateResult) -> InstallJournal.InterruptedInstall? {
         guard !interruptedInstalls.isEmpty else { return nil }
@@ -10087,6 +10097,7 @@ final class AppListModel {
             case .restored(let outcome):
                 Log.install.info("restore interrupted done: \(result.app.name, privacy: .public) → \(outcome.version ?? "?", privacy: .public)")
                 AppIconCache.invalidate(result.app.path.path)
+                installNotes[id] = userDataRestoreNote(outcome.userData, appName: result.app.name)
             case .noLongerInterrupted:
                 Log.install.notice("restore interrupted: \(result.app.name, privacy: .public) reads again — nothing restored")
             case .stillRunning(let pid):

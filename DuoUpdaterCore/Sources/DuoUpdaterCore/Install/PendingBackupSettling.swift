@@ -23,15 +23,22 @@ extension InstallCoordinator {
     /// the next sweep, which the app runs on every re-read of its backups.
     @discardableResult
     public static func settlePendingBackup(
-        for app: InstalledApp
+        for app: InstalledApp, lock: ProcessInstallLock = .shared
     ) async -> BackupStore.PendingSettlement {
         let key = BackupStore.key(bundleID: app.bundleID, path: app.path)
+        defer { await InstallRollbackPointClaims.pendingBackups.endTaking(key) }
+        do {
+            try await lock.claim()
+        } catch {
+            Log.install.notice("pending backup: settlement deferred while another process holds the install lock")
+            return .kept
+        }
+        defer { await lock.release() }
         let outcome = await BackupStore.settlePending(forKey: key)
         if outcome == .kept {
             Log.install.notice(
                 "backup: \(app.path.lastPathComponent, privacy: .public)'s copy stays pending — the app is still the bundle it was copied from, so the earlier backup stays the way back")
         }
-        await InstallRollbackPointClaims.pendingBackups.endTaking(key)
         return outcome
     }
 
@@ -41,8 +48,8 @@ extension InstallCoordinator {
     /// unchanged stays, for a retry to reuse. One whose app is simply gone
     /// stays too when it would replace an earlier backup (see below);
     /// `BackupStore.pruneOrphans` removes it with the app's backups. With no
-    /// earlier backup there is nothing to lose: it is promoted, so it is
-    /// listed and Clean Up reaches it whatever the orphan setting says. Run by
+    /// earlier backup there is nothing to lose: it is promoted and becomes
+    /// available for restore whatever the orphan setting says. Run by
     /// the app at launch and whenever it re-reads its backups, and at the start
     /// of `duo install`, `duo restart` and `duo backups restore`. Returns how
     /// many were promoted.

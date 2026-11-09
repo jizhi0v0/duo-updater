@@ -306,6 +306,46 @@ import Testing
         }
     }
 
+    @Test func aNewBuildWithTheSameVersionAndBuildNumbersPromotesOnSweep() async throws {
+        try await withStore(disk: true) { apps, outbox, _ in
+            let app = try await appAtNWithBackupOfNMinus1(in: apps)
+            let executable = app.appendingPathComponent("Contents/MacOS/App")
+            let resources = app.appendingPathComponent("Contents/Resources")
+            try FileManager.default.createDirectory(at: resources, withIntermediateDirectories: true)
+            try FileManager.default.moveItem(
+                at: app.appendingPathComponent("Contents/marker.txt"),
+                to: resources.appendingPathComponent("marker.txt"))
+            try FileManager.default.createDirectory(
+                at: executable.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try FileManager.default.copyItem(at: URL(fileURLWithPath: "/bin/echo"), to: executable)
+            try await sign(app)
+            let atN = installed(app, version: "2.0")
+            #expect(await InstallCoordinator.backUp(atN, route: .vendor) == .saved)
+            try Data("runtime state".utf8).write(to: resources.appendingPathComponent("runtime.db"))
+            #expect(await InstallCoordinator.settlePendingBackup(for: atN) == .kept)
+
+            try FileManager.default.removeItem(at: executable)
+            try FileManager.default.copyItem(at: URL(fileURLWithPath: "/bin/cat"), to: executable)
+            try await sign(app)
+            #expect(await InstallCoordinator.sweepPendingBackups(lock: testLock(outbox)) == 1)
+            #expect(!FileManager.default.fileExists(atPath: pendingDir(app).path))
+            let backup = try #require(BackupStore.backup(forKey: key(app)))
+            #expect(backup.version == "2.0")
+            #expect(BackupStore.rollbackBuildDiffers(installedAt: app, backup: backup))
+            #expect(!BackupStore.rollbackBuildDiffers(installedAt: backup.bundlePath, backup: backup))
+            try await BackupStore.transferToDestination(forKey: key(app))
+            let archived = try #require(BackupStore.backup(forKey: key(app)))
+            #expect(archived.location == .destination)
+            #expect(BackupStore.rollbackBuildDiffers(installedAt: app, backup: archived))
+        }
+    }
+
+    private func sign(_ app: URL) async throws {
+        let result = try await ChildProcess.run(
+            "/usr/bin/codesign", ["--force", "--sign", "-", app.path], onCancel: .runToCompletion)
+        try #require(result.succeeded, "\(String(decoding: result.standardError, as: UTF8.self))")
+    }
+
     /// The sweep has no install of its own to vouch for an app that is not
     /// there: it may sit on a volume that is not mounted — with its folder
     /// gone, or with the mount point folder left behind — or be in the Trash.
@@ -542,6 +582,94 @@ import Testing
             BackupStore.remove(forKey: key(app))
             #expect(BackupStore.backup(forKey: key(app)) == nil)
             #expect(!FileManager.default.fileExists(atPath: pendingDir(app).path))
+        }
+    }
+
+    @Test func cleanupListsPendingSeparatelyAndDeletesOnlyTheSelectedGeneration() async throws {
+        try await withStore { apps, outbox, _ in
+            let app = try await appAtNWithBackupOfNMinus1(in: apps)
+            let atN = installed(app, version: "2.0")
+            let lock = testLock(outbox)
+            #expect(await InstallCoordinator.backUp(atN, route: .vendor) == .saved)
+            let rows = BackupStore.cleanupListing()
+            #expect(rows.count == 2)
+            #expect(Set(rows.map(\.id)).count == 2)
+            let pending = try #require(rows.first { $0.isPending })
+            #expect(!pending.isRestorable)
+            #expect(pending.sizeBytes > 0)
+            #expect(!(await BackupStore.removeCleanupCopy(pending, lock: lock)))
+            #expect(await InstallCoordinator.settlePendingBackup(for: atN) == .kept)
+
+            BackupStore.discardPending(forKey: key(app))
+            #expect(await InstallCoordinator.backUp(atN, route: .vendor) == .saved)
+            #expect(await InstallCoordinator.settlePendingBackup(for: atN) == .kept)
+            #expect(!(await BackupStore.removeCleanupCopy(pending, lock: lock)))
+            let current = try #require(BackupStore.cleanupListing().first { $0.isPending })
+            #expect(await BackupStore.removeCleanupCopy(current, lock: lock))
+            #expect(!FileManager.default.fileExists(atPath: pendingDir(app).path))
+            #expect(BackupStore.cleanupListing().map(\.version) == ["1.0"])
+        }
+    }
+
+    @Test func cleanupShowsProtectedPointsAndFlagsMissingPayloads() async throws {
+        try await withStore { apps, _, _ in
+            let app = try install(in: apps, version: "2.0")
+            let backup = try await BackupStore.save(
+                appPath: app, key: key(app), version: "2.0", bundleID: Self.bundleID)
+            try FileManager.default.removeItem(at: backup.bundlePath)
+            try await BackupStore.saveInstallRollbackPoint(
+                appPath: app, key: key(app), version: "2.0", bundleID: Self.bundleID)
+            let rows = BackupStore.cleanupListing()
+            let broken = try #require(rows.first { $0.purpose == .userBackup })
+            let protected = try #require(rows.first { $0.purpose == .installRollbackPoint })
+            #expect(!broken.isRestorable)
+            #expect(protected.isRestorable)
+            #expect(broken.id != protected.id)
+        }
+    }
+
+    @Test func cleanupRefusesAFormalRowReplacedByPromotion() async throws {
+        try await withStore { apps, outbox, _ in
+            let app = try await appAtNWithBackupOfNMinus1(in: apps)
+            let selected = try #require(BackupStore.cleanupListing().first)
+            let atN = installed(app, version: "2.0")
+            #expect(await InstallCoordinator.backUp(atN, route: .vendor) == .saved)
+            try install(in: apps, version: "3.0")
+            #expect(await InstallCoordinator.settlePendingBackup(for: atN) == .promoted)
+            #expect(!(await BackupStore.removeCleanupCopy(selected, lock: testLock(outbox))))
+            #expect(BackupStore.backup(forKey: key(app))?.version == "2.0")
+        }
+    }
+
+    @Test(arguments: ["Foo.app", "Foo.app/Contents/marker.txt"])
+    func aDamagedPendingCopyCannotReplaceTheEarlierBackup(missing: String) async throws {
+        try await withStore { apps, outbox, _ in
+            let app = try await appAtNWithBackupOfNMinus1(in: apps)
+            let atN = installed(app, version: "2.0")
+            #expect(await InstallCoordinator.backUp(atN, route: .vendor) == .saved)
+            try FileManager.default.removeItem(at: pendingDir(app).appendingPathComponent(missing))
+            try install(in: apps, version: "3.0")
+            #expect(await InstallCoordinator.settlePendingBackup(for: atN) == .promotionFailed)
+            #expect(await InstallCoordinator.sweepPendingBackups(lock: testLock(outbox)) == 0)
+            #expect(BackupStore.backup(forKey: key(app))?.version == "1.0")
+        }
+    }
+
+    @Test func aBusyInstallLockDefersSettlementAndReleasesThePendingClaim() async throws {
+        try await withStore { apps, outbox, _ in
+            let app = try await appAtNWithBackupOfNMinus1(in: apps)
+            let atN = installed(app, version: "2.0")
+            #expect(await InstallCoordinator.backUp(atN, route: .vendor) == .saved)
+            try install(in: apps, version: "3.0")
+            let lockURL = outbox.appendingPathComponent("exclusive-test.lock")
+            let held = try InstallLock.acquire(at: lockURL)
+            defer { held.release() }
+            let lock = ProcessInstallLock(url: lockURL)
+            #expect(await InstallCoordinator.settlePendingBackup(for: atN, lock: lock) == .kept)
+            #expect(BackupStore.backup(forKey: key(app))?.version == "1.0")
+            held.release()
+            #expect(await InstallCoordinator.sweepPendingBackups(lock: lock) == 1)
+            #expect(BackupStore.backup(forKey: key(app))?.version == "2.0")
         }
     }
 

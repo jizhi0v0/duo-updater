@@ -9,33 +9,38 @@ import DuoUpdaterCore
 /// nothing, and left the same number on screen. Reading "Backups are using 10 GB"
 /// next to a Clean Up button, that is indistinguishable from broken.
 ///
-/// So the button now means what it looks like it means: clear the backups. Every
-/// one is a rollback point, though, and reclaiming space costs the ability to undo
-/// those updates — which is a decision to put in front of someone rather than
-/// behind a single click. Hence a list, with everything selected, and the freed
-/// total on the button.
+/// The list includes restorable backups and pending copies. Start with
+/// everything selected and show the selected size on the delete button.
 struct BackupsSheet: View {
     let backups: [BackupStore.Listing]
-    /// Called with the keys to delete. Empty selection can't reach it — the button
+    /// Called with the rows selected for deletion. Empty selection can't reach it — the button
     /// disables — so a stray Return can't wipe anything.
-    let onDelete: ([String]) -> Void
+    let onDelete: ([BackupStore.Listing]) -> Void
     @Environment(\.dismiss) private var dismiss
 
     @State private var selected: Set<String>
 
-    init(backups: [BackupStore.Listing], onDelete: @escaping ([String]) -> Void) {
+    init(backups: [BackupStore.Listing], onDelete: @escaping ([BackupStore.Listing]) -> Void) {
         self.backups = backups
         self.onDelete = onDelete
         // Everything, because that is what pressing "Clean Up" asks for; unticking
         // is how you keep the rollback points that matter to you.
-        _selected = State(initialValue: Set(backups.map(\.key)))
+        _selected = State(initialValue: Set(backups.filter { $0.purpose == .userBackup }.map(\.id)))
+    }
+
+    private var selectedRows: [BackupStore.Listing] {
+        backups.filter { $0.purpose == .userBackup && selected.contains($0.id) }
     }
 
     private var selectedBytes: Int64 {
-        backups.filter { selected.contains($0.key) }.reduce(0) { $0 + $1.sizeBytes }
+        selectedRows.reduce(0) { $0 + $1.sizeBytes }
     }
 
-    private var allSelected: Bool { selected.count == backups.count }
+    private var deletableRows: [BackupStore.Listing] {
+        backups.filter { $0.purpose == .userBackup }
+    }
+
+    private var allSelected: Bool { selectedRows.count == deletableRows.count }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -52,7 +57,7 @@ struct BackupsSheet: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text("Delete backups").font(.headline)
-            Text("Each backup lets you restore the version from before one update. Deleting it frees the space and gives up that option — the app itself is untouched.")
+            Text("Deleting a backup frees its space and removes any option to restore that copy.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -76,6 +81,7 @@ struct BackupsSheet: View {
         HStack(spacing: 12) {
             Toggle("", isOn: binding(for: backup))
                 .labelsHidden()
+                .disabled(backup.purpose == .installRollbackPoint)
             // The icon comes from the backed-up bundle, not the installed app, so it
             // still resolves for something uninstalled — precisely when a name on
             // its own identifies least.
@@ -116,8 +122,12 @@ struct BackupsSheet: View {
                         Text("· \(savedAt.formatted(date: .abbreviated, time: .omitted))")
                             .foregroundStyle(.secondary)
                     }
-                    if !backup.isRestorable {
-                        Text("· unusable, its record is missing")
+                    if backup.purpose == .installRollbackPoint {
+                        Text("· protected restore point").foregroundStyle(.secondary)
+                    } else if backup.isPending {
+                        Text("· pending backup").foregroundStyle(.secondary)
+                    } else if !backup.isRestorable {
+                        Text("· unusable, its record or files are missing")
                             .foregroundStyle(.orange)
                     } else if !backup.appStillInstalled {
                         Text("· app no longer installed").foregroundStyle(.orange)
@@ -140,7 +150,9 @@ struct BackupsSheet: View {
         // The whole row toggles: aiming for a 14pt checkbox in a list you are about
         // to act on wholesale is needless precision.
         .contentShape(Rectangle())
-        .onTapGesture { binding(for: backup).wrappedValue.toggle() }
+        .onTapGesture {
+            if backup.purpose == .userBackup { binding(for: backup).wrappedValue.toggle() }
+        }
         .contextMenu {
             if let path = backup.bundlePath {
                 // Deliberately kept in a dialog that exists to delete things: the
@@ -164,9 +176,10 @@ struct BackupsSheet: View {
 
     private func binding(for backup: BackupStore.Listing) -> Binding<Bool> {
         Binding(
-            get: { selected.contains(backup.key) },
+            get: { backup.purpose == .userBackup && selected.contains(backup.id) },
             set: { isOn in
-                if isOn { selected.insert(backup.key) } else { selected.remove(backup.key) }
+                if isOn { selected.insert(backup.id) }
+                else { selected.remove(backup.id) }
             })
     }
 
@@ -186,8 +199,9 @@ struct BackupsSheet: View {
     private var footer: some View {
         HStack(spacing: 12) {
             Button(allSelected ? String(localized: "Deselect All") : String(localized: "Select All")) {
-                selected = allSelected ? [] : Set(backups.map(\.key))
+                selected = allSelected ? [] : Set(deletableRows.map(\.id))
             }
+            .disabled(deletableRows.isEmpty)
             Spacer(minLength: 0)
             Button("Cancel") { dismiss() }
                 .keyboardShortcut(.cancelAction)
@@ -195,7 +209,7 @@ struct BackupsSheet: View {
                 ? String(localized: "Delete")
                 : String(localized: "Delete \(selected.count) (\(ByteCountFormatter.string(fromByteCount: selectedBytes, countStyle: .file)))")
             Button(deleteLabel) {
-                onDelete(Array(selected))
+                onDelete(selectedRows)
                 dismiss()
             }
             .keyboardShortcut(.defaultAction)

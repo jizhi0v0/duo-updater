@@ -6,6 +6,8 @@ Questa è la traduzione di `CHANGELOG.md`. In caso di differenze fa fede la vers
 
 **Gli aggiornamenti automatici ora rispettano le impostazioni di backup.** Disattivando i backup, gli aggiornamenti automatici non conserveranno più la versione precedente dell’app. I backup esistenti vengono mantenuti.
 
+**Le impostazioni degli aggiornamenti automatici restano reattive anche con molte app.** Aprire la pagina o attivare i backup non richiede più di disporre tutte le righe contemporaneamente.
+
 ## 0.5.24-beta.5
 
 **Gli aggiornamenti Homebrew vengono rilevati con maggiore affidabilità.** App come Karabiner-Elements vengono ora associate tramite le ricevute di installazione, e app come WezTerm non propongono più ripetutamente la versione già installata da Homebrew.

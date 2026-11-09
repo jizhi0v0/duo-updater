@@ -6,6 +6,8 @@ Bu, `CHANGELOG.md` dosyasının Türkçe çevirisidir. Geçerli olan İngilizce 
 
 **Otomatik güncellemeler artık yedekleme ayarınıza uyuyor.** Yedeklemeler kapatıldığında otomatik güncellemeler uygulamanın önceki sürümünü artık kaydetmez. Mevcut yedekler korunur.
 
+**Otomatik güncelleme ayarları, çok sayıda uygulama olsa da hızlı yanıt veriyor.** Sayfayı açmak ve yedeklemeyi etkinleştirmek artık tüm uygulama satırlarının aynı anda yerleştirilmesini gerektirmiyor.
+
 ## 0.5.24-beta.5
 
 **Homebrew güncellemeleri daha güvenilir algılanıyor.** Karabiner-Elements gibi uygulamalar artık kurulum makbuzlarıyla eşleştiriliyor; WezTerm gibi uygulamalar Homebrew’un zaten yüklediği sürümü tekrar tekrar önermiyor.

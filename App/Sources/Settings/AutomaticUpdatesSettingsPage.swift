@@ -11,7 +11,6 @@ struct AutomaticUpdatesSettingsPage: View {
     @Bindable var prefs: Preferences
     let model: AppListModel
 
-    @State private var filter = ""
     @State private var showingSetup = false
 
     var body: some View {
@@ -19,7 +18,7 @@ struct AutomaticUpdatesSettingsPage: View {
             switchesCard
             // Every choice below is about automatic updates, so with them off
             // there is nothing to choose.
-            appsCard
+            AutomaticUpdateAppsCard(prefs: prefs, model: model, showingSetup: $showingSetup)
                 .disabled(!prefs.automaticUpdates)
                 .opacity(prefs.automaticUpdates ? 1 : 0.5)
         }
@@ -102,6 +101,15 @@ struct AutomaticUpdatesSettingsPage: View {
         default: "1 hour"
         }
     }
+}
+
+/// Keep list observation separate from the switches above it: changing the
+/// backup preference must not rebuild every app's picker.
+private struct AutomaticUpdateAppsCard: View {
+    let prefs: Preferences
+    let model: AppListModel
+    @Binding var showingSetup: Bool
+    @State private var filter = ""
 
     /// One row per installed copy, the ones with a choice of their own first.
     private var rows: [UpdateResult] {
@@ -109,15 +117,15 @@ struct AutomaticUpdatesSettingsPage: View {
         return model.results
             .filter { seen.insert(prefs.key(for: $0.app)).inserted }
             .filter { filter.isEmpty || SearchMatch.matches(filter, in: [$0.app.name, $0.app.path.path]) }
+            .map { (result: $0, customized: prefs.automaticUpdateMode($0.app) != .whenClosed) }
             .sorted { lhs, rhs in
-                let l = prefs.automaticUpdateMode(lhs.app) != .whenClosed
-                let r = prefs.automaticUpdateMode(rhs.app) != .whenClosed
-                if l != r { return l }
-                return lhs.app.name.localizedStandardCompare(rhs.app.name) == .orderedAscending
+                if lhs.customized != rhs.customized { return lhs.customized }
+                return lhs.result.app.name.localizedStandardCompare(rhs.result.app.name) == .orderedAscending
             }
+            .map(\.result)
     }
 
-    private var appsCard: some View {
+    var body: some View {
         SettingsCard(header: "Apps") {
             HStack {
                 TextField("Filter apps", text: $filter)
@@ -135,10 +143,14 @@ struct AutomaticUpdatesSettingsPage: View {
                     .foregroundStyle(.secondary)
                     .settingsRow()
             }
-            ForEach(rows, id: \.id) { result in
-                SettingsDivider()
-                AutomaticUpdateAppRow(prefs: prefs, model: model, result: result)
-                    .settingsRow()
+            LazyVStack(spacing: 0) {
+                ForEach(rows, id: \.id) { result in
+                    VStack(spacing: 0) {
+                        SettingsDivider()
+                        AutomaticUpdateAppRow(prefs: prefs, model: model, result: result)
+                            .settingsRow()
+                    }
+                }
             }
         }
     }

@@ -1,0 +1,19 @@
+macOS VM 1, macOS 27.2; 2026-11-09 Asia/Shanghai
+Shipping beta.5 reproduced backup with KeepBackups=false.
+Fixed source c5d7d8ea; unsigned Release build, ad-hoc signed in VM; self-update disabled for verification.
+BackupPreferenceProof installed build=3
+automaticUpdate {"appID":"\/Applications\/BackupPreferenceProof.app","appName":"VersionProof","attemptID":"61C69693-A6CE-483B-BEF2-02383B07AD39","chainID":"61C69693-A6CE-483B-BEF2-02383B07AD39","fromVersion":"3.0","passID":"2552DCE3-34D4-4A27-A45D-3B5B5D484287","reason":"","retryOf":"","status":"started","toVersion":"3.0","trigger":"automatic"}
+install {"appID":"/Applications/BackupPreferenceProof.app","appName":"VersionProof","applied":true,"automatic":true,"bundleID":"dev.duoupdater.versionproof","bytes":6819,"downloadKind":"full","fromBuild":"1","fromVersion":"3.0","sourceName":"Sparkle","toBuild":"3","toVersion":"3.0"}
+automaticUpdate {"appID":"\/Applications\/BackupPreferenceProof.app","appName":"VersionProof","attemptID":"61C69693-A6CE-483B-BEF2-02383B07AD39","chainID":"61C69693-A6CE-483B-BEF2-02383B07AD39","diagnosticIDs":"","fromVersion":"3.0 (1)","passID":"2552DCE3-34D4-4A27-A45D-3B5B5D484287","reason":"","retryOf":"","status":"installed","toVersion":"3.0 (3)","trigger":"automatic"}
+backups=[{"purpose": "userBackup", "version": "3.0", "buildVersion": "1", "savedAt": 815884352.212486}]
+BackupPreferenceOff installed build=3
+automaticUpdate {"appID":"\/Applications\/BackupPreferenceOff.app","appName":"VersionProof","attemptID":"561BC8F4-6BE8-4CC2-869C-AB0823DF29DA","chainID":"561BC8F4-6BE8-4CC2-869C-AB0823DF29DA","fromVersion":"3.0","passID":"D2B9A24F-5DB3-4747-8252-2D22A43AF6C1","reason":"","retryOf":"","status":"started","toVersion":"3.0","trigger":"automatic"}
+install {"appID":"/Applications/BackupPreferenceOff.app","appName":"VersionProof","applied":true,"automatic":true,"bundleID":"dev.duoupdater.versionproof","bytes":6819,"downloadKind":"full","fromBuild":"1","fromVersion":"3.0","sourceName":"Sparkle","toBuild":"3","toVersion":"3.0"}
+automaticUpdate {"appID":"\/Applications\/BackupPreferenceOff.app","appName":"VersionProof","attemptID":"561BC8F4-6BE8-4CC2-869C-AB0823DF29DA","chainID":"561BC8F4-6BE8-4CC2-869C-AB0823DF29DA","diagnosticIDs":"","fromVersion":"3.0 (1)","passID":"D2B9A24F-5DB3-4747-8252-2D22A43AF6C1","reason":"","retryOf":"","status":"installed","toVersion":"3.0 (3)","trigger":"automatic"}
+backups=[]
+BackupPreferenceOn installed build=3
+automaticUpdate {"appID":"\/Applications\/BackupPreferenceOn.app","appName":"VersionProof","attemptID":"1FD8BFCB-C094-4118-87C3-1B77E89F7B0A","chainID":"1FD8BFCB-C094-4118-87C3-1B77E89F7B0A","fromVersion":"3.0","passID":"01B5807D-152E-43E4-9382-8AFCAD2AD5AF","reason":"","retryOf":"","status":"started","toVersion":"3.0","trigger":"automatic"}
+install {"appID":"/Applications/BackupPreferenceOn.app","appName":"VersionProof","applied":true,"automatic":true,"bundleID":"dev.duoupdater.versionproof","bytes":6819,"downloadKind":"full","fromBuild":"1","fromVersion":"3.0","sourceName":"Sparkle","toBuild":"3","toVersion":"3.0"}
+automaticUpdate {"appID":"\/Applications\/BackupPreferenceOn.app","appName":"VersionProof","attemptID":"1FD8BFCB-C094-4118-87C3-1B77E89F7B0A","chainID":"1FD8BFCB-C094-4118-87C3-1B77E89F7B0A","diagnosticIDs":"4272A11A-5E44-4BB4-B6C3-7D9CC22312D4,B278186E-8B59-4FAE-9DEB-2C4613B5B790","fromVersion":"3.0 (1)","passID":"01B5807D-152E-43E4-9382-8AFCAD2AD5AF","reason":"","retryOf":"","status":"installed","toVersion":"3.0 (3)","trigger":"automatic"}
+backups=[{"purpose": "userBackup", "version": "3.0", "buildVersion": "1", "savedAt": 815884746.86727}]
+VM app/preferences restored; updated test fixtures and backups retained in evidence directory/stores.

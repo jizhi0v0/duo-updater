@@ -10500,7 +10500,9 @@ final class AppListModel {
                             enabled.allowed && scheduled.allowed && network.allowed
                                 && (!quitPath || running.allowed)
                         }) {
-                            await install(result, notify: false, backUpOnce: true)
+                            // Follow KeepBackups; the one-off override is only for
+                            // an explicit “Back Up & Update” action.
+                            await install(result, notify: false)
                         }
                     }
                 }

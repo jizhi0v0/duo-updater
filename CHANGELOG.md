@@ -19,6 +19,12 @@ release note is debugging our code:
 
 Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
+## 0.5.24-beta.6
+
+**Automatic updates now respect your backup setting.** Turning off backups prevents automatic updates from creating a saved backup of the previous app version. Existing backups are kept.
+
+**Automatic Updates settings stay responsive with large app libraries.** Opening the page and turning on backups no longer lay out every app row at once.
+
 ## 0.5.24-beta.5
 
 **Homebrew updates are detected more reliably.** Apps such as Karabiner-Elements are now matched through their installer receipts, and apps such as WezTerm no longer keep offering the version Homebrew already installed.

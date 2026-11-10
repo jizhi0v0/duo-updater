@@ -67,6 +67,12 @@ enum com_longbridge_app_desktop {
         // the pattern matches nothing and the install is Team-ID gated only — it
         // never borrows another asset's digest.
         //
+        // Preview file names may carry the build's git hash after the version
+        // (`longbridge-v1.2.0-preview.0-g86ccd38-macos-aarch64.dmg`), so the URL and
+        // checksum patterns take an optional `-g<hex>`; stable's names carry none.
+        // The manifest can list more than one build's assets; the first aarch64
+        // dmg is the one read, and its own `sha256` is the one checked.
+        //
         // The preview artifact is com.longbridge.app.desktop.preview, arm64,
         // Team 45NG8MW7WK — the SAME team as stable, which is what
         // `VendorInstaller`'s signature gate requires — notarized Developer ID.
@@ -79,10 +85,10 @@ enum com_longbridge_app_desktop {
             publishedAtPattern: #""published_at"\s*:\s*"([^"]+)""#,
             install: VendorInstallSpec(
                 urlSource: .bodyPattern(
-                    #""url"\s*:\s*"(https://assets\.lbkrs\.com/github/release/longbridge-desktop/preview/longbridge-v[0-9.]+-preview\.[0-9]+-macos-aarch64\.dmg)""#),
+                    #""url"\s*:\s*"(https://assets\.lbkrs\.com/github/release/longbridge-desktop/preview/longbridge-v[0-9.]+-preview\.[0-9]+(?:-g[0-9a-f]+)?-macos-aarch64\.dmg)""#),
                 kind: .dmg,
                 checksumPattern:
-                    #"\A(?:(?!longbridge-v[0-9.]+-preview\.[0-9]+-macos-aarch64\.dmg)[\s\S])*?\{(?=[^{}]*"url"\s*:\s*"https://assets\.lbkrs\.com/github/release/longbridge-desktop/preview/longbridge-v[0-9.]+-preview\.[0-9]+-macos-aarch64\.dmg")[^{}]*?"sha256"\s*:\s*"([0-9a-f]{64})""#,
+                    #"\A(?:(?!longbridge-v[0-9.]+-preview\.[0-9]+(?:-g[0-9a-f]+)?-macos-aarch64\.dmg)[\s\S])*?\{(?=[^{}]*"url"\s*:\s*"https://assets\.lbkrs\.com/github/release/longbridge-desktop/preview/longbridge-v[0-9.]+-preview\.[0-9]+(?:-g[0-9a-f]+)?-macos-aarch64\.dmg")[^{}]*?"sha256"\s*:\s*"([0-9a-f]{64})""#,
                 checksumFormat: .sha256Hex),
             channel: .preview),
         ],

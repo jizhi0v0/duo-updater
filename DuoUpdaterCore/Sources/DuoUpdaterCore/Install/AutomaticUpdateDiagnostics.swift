@@ -137,10 +137,15 @@ public final class AutomaticUpdateDiagnostics: @unchecked Sendable {
 
         public init(_ events: [DuoEvent]) {
             var open: [String: Set<String>] = [:]
+            // An attempt's outcome row carries the installed build ("2.8.0 (63)"),
+            // its start only the offered version ("2.8.0"), which is also what a
+            // pass looks up. Every row of an attempt goes under its start's key.
+            var startKeys: [String: String] = [:]
             for event in events.sorted(by: { $0.date < $1.date }) {
                 guard let row = AutomaticUpdateDiagnostics.fields(event),
                       let appID = row["appID"], let attemptID = row["attemptID"] else { continue }
-                let key = Self.key(appID, row["toVersion"] ?? "")
+                let key = startKeys[appID + "\u{0}" + attemptID] ?? Self.key(appID, row["toVersion"] ?? "")
+                if row["status"] == "started" { startKeys[appID + "\u{0}" + attemptID] = key }
                 latest[key] = row
                 latestByApp[appID] = row
                 switch row["status"] {

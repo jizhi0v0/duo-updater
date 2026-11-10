@@ -122,6 +122,24 @@ struct AutomaticUpdateDiagnosticsTests {
         #expect(!AutomaticUpdateDiagnostics.History([deferred, failed, installed]).recovers(appID: "a", version: "2"))
     }
 
+    /// The outcome row names the installed build, the start and the lookup only
+    /// the offered version. Seen on a real Mac: Maccy reinstalled at 2.8.0 two
+    /// days after an earlier 2.8.0 install was labelled a recovery.
+    @Test func anOutcomeNamingTheBuildClosesItsStart() throws {
+        let started = try event(["appID": "a", "toVersion": "2.8.0", "status": "started",
+            "attemptID": "1"], at: Date(timeIntervalSince1970: 10))
+        let installed = try event(["appID": "a", "toVersion": "2.8.0 (63)", "status": "installed",
+            "attemptID": "1"], at: Date(timeIntervalSince1970: 11))
+        let history = AutomaticUpdateDiagnostics.History([started, installed])
+        #expect(!history.recovers(appID: "a", version: "2.8.0"))
+        #expect(history.predecessor(appID: "a", version: "2.8.0") == nil)
+        let restarted = try event(["appID": "a", "toVersion": "2.9.0", "status": "started",
+            "attemptID": "2"], at: Date(timeIntervalSince1970: 20))
+        let failed = try event(["appID": "a", "toVersion": "2.9.0 (64)", "status": "notInstalled",
+            "attemptID": "2"], at: Date(timeIntervalSince1970: 21))
+        #expect(AutomaticUpdateDiagnostics.History([restarted, failed]).recovers(appID: "a", version: "2.9.0"))
+    }
+
     @Test func discardedAttemptsLeaveNoDiagnostics() {
         let diagnostics = AutomaticUpdateDiagnostics()
         let blocker = AutomaticProcessDiagnostic(kind: .targetRunning, pid: 9, processName: "Helper")

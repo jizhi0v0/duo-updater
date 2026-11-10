@@ -138,6 +138,7 @@ public enum AppRecipeIndex {
         com_macpaw_CleanMyMac5.set,
         com_macpaw_site_Gemini2.set,
         com_macpaw_site_theunarchiver.set,
+        com_macromates_TextMate.set,
         com_mailspring_mailspring.set,
         com_mak5er_aircard.set,
         com_maxgoedjen_Secretive_Host.set,

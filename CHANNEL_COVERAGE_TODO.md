@@ -520,6 +520,16 @@ rc 目录在终版发布后仍留着，接 preview 轨需要 `detect()` 加一�
 接 beta 需要 `detect()` 加一条 bundle 限定的 `-rc.N` 规则、一条读 `staging-rolling/latest.json` 的
 VendorProbe，以及读哨兵文件的 `ChannelBinding`。详见 [审计](docs/app-audits/com-extraheadroom-headroom.md)。
 
+### TextMate — beta（2026-11-11 查，未接）
+
+`com.macromates.TextMate` 的 Preferences → Software Update 有 release / beta 两项，写 CFPrefs
+`SoftwareUpdateChannel`（默认 `release`；`nightly` 只在 ⌥「Check for Test Build」时临时用，不写偏好），
+厂商端点按它换 `api.textmate.org/releases/<channel>`。prerelease 与正式版 tag 同形、包内版本纯数字，
+只有 GitHub 的 `prerelease` 位能分轨。2026-11-11 三条轨都答 2.0.23，最新 prerelease（2.0.22）低于
+最新正式版，所以 beta rule 今天与 stable 答案相同；勾了 beta 的副本走 stable rule，拿到的正是厂商 beta
+端点给它的版本。接 beta 需要读该偏好的 `ChannelBinding`、`usePrereleases` 的 beta rule，一键再加
+`ChannelProofRegistry` 条目。详见 [审计](docs/app-audits/com-macromates-TextMate.md)。
+
 ---
 
 ## §3 死轨 — Pattern D / 不可行（已否决，**勿重开**）

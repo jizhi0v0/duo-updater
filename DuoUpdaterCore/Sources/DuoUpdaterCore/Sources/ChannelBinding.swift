@@ -147,6 +147,7 @@ public struct ResolvedChannel: Sendable, Equatable {
 ///   * AirBuild → `UserDefaults[ReceiveBetaVersions]` (Bool: true → `<sparkle:channel>beta`, else stable)
 ///   * RuntimeViewer → `…/Application Support/RuntimeViewer/settings.json`
 ///                                     → `update.includePrereleases` (Bool: true→beta, else stable)
+///   * VimR     → `UserDefaults["168"]["use-snapshot-update-channel"]` (Bool: true→snapshot feed)
 ///
 /// So there is no generic reader. `ChannelBinding` is the single authority the
 /// scanner consults; an app with no resolver returns nil and the generic
@@ -200,6 +201,7 @@ public enum ChannelBinding {
         OpenScreenSharingChannel.bundleID.lowercased(),
         RuntimeViewerChannel.bundleID.lowercased(),
         AirBuildChannel.bundleID.lowercased(),
+        VimRChannel.bundleID.lowercased(),
     ]
 
     /// The directories holding every preference a resolver above reads, for a
@@ -535,6 +537,7 @@ public enum ChannelBinding {
             return { _, _ in AirBuildChannel.resolveCurrent() }
         case RuntimeViewerChannel.bundleID.lowercased():
             return { feeds, _ in RuntimeViewerChannel.resolveCurrent(bundleFeeds: feeds) }
+        case VimRChannel.bundleID.lowercased():    return { _, _ in VimRChannel.resolveCurrent() }
         default:                       return nil
         }
     }
@@ -585,6 +588,8 @@ public enum ChannelBinding {
         (IINAChannel.bundleID, IINAChannel.resolve(receiveBeta: true)),
         (MacMouseFixChannel.bundleID, MacMouseFixChannel.resolve(checkForPrereleases: false)),
         (MacMouseFixChannel.bundleID, MacMouseFixChannel.resolve(checkForPrereleases: true)),
+        (VimRChannel.bundleID, VimRChannel.resolve(useSnapshot: false)),
+        (VimRChannel.bundleID, VimRChannel.resolve(useSnapshot: true)),
         // A copy that declares its feed stands in for the bundle; the older ones
         // that do not are handed the same address (see the type).
         (AirBuildChannel.bundleID, AirBuildChannel.resolve(receiveBetaVersions: false)),

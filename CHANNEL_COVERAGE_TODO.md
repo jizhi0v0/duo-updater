@@ -268,6 +268,13 @@ tag 与资产名，互不相收。与 WhatCable 的区别是 **Yaak 的 beta rul
       已接入 `IINAChannel`（feed-swap：stable `appcast.xml` ↔ beta `appcast-beta.xml`），
       注册到 `ChannelBinding`，测试通过。
 
+- [x] **VimR** · `com.qvacua.VimR` — Preferences → Advanced → snapshot updates。源码确认
+      整个 app 状态是 UserDefaults key `"168"` 下的一个字典，开关是其中的
+      `use-snapshot-update-channel`（Bool，默认 false）。bundle 不声明 `SUFeedURL`，
+      `VimRChannel` 两轨都给 feed（stable `appcast.xml` ↔ snapshot `appcast_snapshot.xml`，
+      snapshot = `.preview`）。snapshot 解析用临时写入的偏好验证（见
+      `docs/app-audits/com-qvacua-VimR.md`）；没有在真 app 里拨开关。
+
 - [x] **Carbon Copy Cloner** · `com.bombich.ccc` — Settings → Software Update →
       **"Inform me of beta releases"** checkbox。**已接入（2026-08-29，见
       `docs/app-audits/com-bombich-ccc.md`）**——此前记为"阻塞，需人工抓包"，实际

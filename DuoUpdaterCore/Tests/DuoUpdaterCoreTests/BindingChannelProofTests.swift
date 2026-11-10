@@ -30,6 +30,7 @@ import Foundation
             ChannelProofKey("com.colliderli.iina", .beta),
             ChannelProofKey("com.nuebling.mac-mouse-fix", .beta),
             ChannelProofKey("com.googlecode.iterm2", .beta),
+            ChannelProofKey("com.qvacua.VimR", .preview),
             ChannelProofKey("pro.betterdisplay.BetterDisplay", .beta),
             ChannelProofKey("pro.betterdisplay.BetterDisplay", .unstable),
         ]), "the binding population changed: \(needing.map(\.description).sorted())")

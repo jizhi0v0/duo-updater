@@ -44,6 +44,8 @@ import Foundation
             "feed:com.nssurge.surge-mac:stable",
             "feed:com.nuebling.mac-mouse-fix:beta",
             "feed:com.nuebling.mac-mouse-fix:stable",
+            "feed:com.qvacua.VimR:preview",
+            "feed:com.qvacua.VimR:stable",
         ], "swept: \(ids.sorted())")
         #expect(cases.allSatisfy { $0.kind == .channel && $0.declared == nil })
     }

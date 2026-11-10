@@ -197,6 +197,7 @@ public enum AppRecipeIndex {
         com_qoder_app.set,
         com_qoder_ide.set,
         com_qodercn_app.set,
+        com_qvacua_VimR.set,
         com_rambox.set,
         com_raspberrypi_rpi_imager.set,
         com_raycast_macos.set,

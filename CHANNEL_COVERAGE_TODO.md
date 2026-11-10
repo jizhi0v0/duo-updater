@@ -530,6 +530,16 @@ VendorProbe，以及读哨兵文件的 `ChannelBinding`。详见 [审计](docs/a
 端点给它的版本。接 beta 需要读该偏好的 `ChannelBinding`、`usePrereleases` 的 beta rule，一键再加
 `ChannelProofRegistry` 条目。详见 [审计](docs/app-audits/com-macromates-TextMate.md)。
 
+### Maestro — RC（2026-11-11 查，未接）
+
+`com.maestro.app` 的 `-RC` 包（`v1.1.0-RC`、`v0.18.x-RC`…，多数标 prerelease，四个没标）与 stable 同 bundle id、
+同 Team `4N4DQ24LED`，版本串 `1.1.0-RC`（真包 Info.plist 实测）。`detect()` 把它读成 stable，stable rule 判为已最新
+（不降级），下一个 stable 发布时推终版；缺口只在 RC 窗口期看不到新 RC。app 自己只看设置里的
+「Include beta and release candidate updates」（`enableBetaUpdates`，默认 false，存在 Electron userData 的
+`maestro-settings.json`，用户可经 `maestro-bootstrap.json` 把它挪到自定义同步目录）：关着时 RC 副本也只拿 stable，
+开着时 stable 副本也拿 RC。接 beta 需要读这个设置的 `ChannelBinding`（先在真机上确认开关两态写进文件的样子）
+加一条 `usePrereleases` 的 beta rule。详见 [审计](docs/app-audits/com-maestro-app.md)。
+
 ---
 
 ## §3 死轨 — Pattern D / 不可行（已否决，**勿重开**）

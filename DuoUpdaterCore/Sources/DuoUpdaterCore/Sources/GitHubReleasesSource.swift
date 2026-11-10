@@ -1953,13 +1953,6 @@ public enum GitHubReleaseRegistry {
     // strings to compare, so any rule here would either be silent or permanently
     // claim an update.
 
-    // Deliberately NOT covered — Maestro (`com.maestro.app`). The repo's recent
-    // releases are all `cli-<ver>` (the CLI, now at 2.x) while the desktop app's
-    // last `v<ver>` tag is 0.17.3 and no longer appears in the newest 60
-    // releases. `/releases/latest` today resolves to `cli-2.8.0`, so a rule keyed
-    // on this repo would report the CLI's version as the app's. Revisit if the
-    // desktop app resumes its own release train.
-
     // Deliberately NOT covered — ungoogled-chromium. Its builds carry the SAME
     // bundle id as upstream Chromium (`org.chromium.Chromium`) and a version
     // string in the same shape, so a rule keyed on that id would offer

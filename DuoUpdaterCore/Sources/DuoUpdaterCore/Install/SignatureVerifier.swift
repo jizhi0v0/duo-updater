@@ -367,7 +367,8 @@ public enum SignatureVerifier {
     /// `offered` — the callers pass `shortVersion ?? ""` — is refused rather than
     /// compared: there is nothing to pin to, and a download with no version of its
     /// own would otherwise equal it. The MyGo source refuses an empty version
-    /// itself and the GitHub source sets it from the tag, so this is a backstop.
+    /// itself and the GitHub source sets it from the tag (or, with
+    /// `assetVersionPattern`, from the asset's name), so this is a backstop.
     static func verifyOfferedVersion(downloadedApp: URL, offered: String) throws {
         let downloaded = (infoPlist(of: downloadedApp)["CFBundleShortVersionString"] as? String)?
             .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""

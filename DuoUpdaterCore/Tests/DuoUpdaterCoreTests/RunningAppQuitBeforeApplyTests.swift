@@ -96,7 +96,15 @@ struct RunningAppQuitBeforeApplyTests {
         defer { try? FileManager.default.removeItem(at: workDir) }
         let order = Log()
         let plan = AutomaticInstall.QuitBeforeApply { order.append("quit") }
-        _ = try await AutomaticInstall.$active.withValue(true) {
+        // `fetchThenSwap` scans every process on the host, and an automatic
+        // install defers when one cannot be inspected. Scope the scan to this
+        // process so another test's child (or the CI host's) cannot defer it.
+        let onlyThisProcess: @Sendable (UnsafeMutableRawPointer?, Int32) -> Int32 = { buffer, _ in
+            buffer?.assumingMemoryBound(to: pid_t.self).pointee = getpid()
+            return 1
+        }
+        _ = try await NestedAppGuard.$listPIDs.withValue(onlyThisProcess) {
+        try await AutomaticInstall.$active.withValue(true) {
             try await AutomaticInstall.$permission.withValue({ true }) {
                 try await AutomaticInstall.$commitPermission.withValue({ true }) {
                 try await AutomaticInstall.$quitBeforeApply.withValue(plan) {
@@ -117,6 +125,7 @@ struct RunningAppQuitBeforeApplyTests {
                 }
                 }
             }
+        }
         }
         #expect(order.value == ["download", "verify", "quit", "exchanged"])
     }

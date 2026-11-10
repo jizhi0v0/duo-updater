@@ -177,11 +177,6 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         }
     }
 
-    /// Automatic updates exist only in beta builds, and so does their page.
-    var isAvailable: Bool {
-        self != .automaticUpdates || BuildReleaseChannel.isBeta
-    }
-
     /// Match over the label, subtitle, and keywords, by the rule every search
     /// field shares (`SearchMatch`: case, diacritics and width folded).
     func matches(_ query: String) -> Bool {

@@ -134,25 +134,57 @@ It **respects each app's own update channel**:
 | Homebrew app cask | `brew install --cask --force` |
 | Homebrew `pkg` cask | Download the official package and open the system installer |
 
-## Automatic updates
+## Automatic updates (Beta)
 
-In Beta builds only, an opt-in switch in General settings updates closed apps after scheduled checks. Stable builds hide this switch and refuse automatic installation, even if an earlier Beta saved the preference as enabled. Selecting the Beta update subscription alone does not enable the feature.
-Manual-only checks, offline, Low Data Mode and expensive networks pause automatic
-updates. Only direct vendor/Sparkle bundle installations qualify; Homebrew,
-App Store, Xcode and system-installer handoffs remain manual. Running apps and
-helpers are skipped, and automatic jobs never relaunch apps or request elevation.
+Automatic updates are a Beta feature, in every build. They stay off until you
+turn them on in Settings → Automatic Updates. Problems are welcome as GitHub
+issues; Events → "Review sanitized report…" gives a summary you can paste in
+without app names, paths or times.
 
-Every automatic install requires a complete backup, even when manual-update
-backups are disabled. A backup failure stops the update. Backups protect the app
-bundle, not its documents, settings or databases. Confirmation-gated upgrades,
-ignored apps and skipped versions remain excluded. The Network window's Events
-tab shows automatic starts, deferrals and outcomes; `duo events` exports the same
-records. Activity uses the shared SQLite database but has an independent 90-day,
-10,000-record retention window; request-log clearing and size trimming preserve it.
-The Events tab displays the latest 200 records and can clear activity separately.
-Successful install records also carry `automatic: true` and remain in the permanent
-install ledger. The 64 MiB database target is soft, not a hard limit on that ledger
-or the separately retained automatic activity.
+They run only after scheduled checks. Manual-only checks, being offline, Low Data
+Mode and expensive networks all pause them. Only direct vendor and Sparkle bundle
+updates qualify. Homebrew, the App Store, Xcode, system-installer packages and
+installs that need an administrator stay manual. So do confirmation-gated
+upgrades, ignored apps and skipped versions. Setapp apps are left to Setapp's own
+updater.
+
+Each app has a mode: **When Closed** (the default), **Also While Running** or
+**Never**.
+
+- **When Closed** apps are updated only while neither the app nor any helper inside
+  it is running.
+- **Also While Running** apps are quit, updated and reopened, but only if all of
+  these hold:
+  - you turned on "Also update running apps you allow" and chose the app;
+  - the update has waited the time you picked (15, 30 or 60 minutes);
+  - the app has not been in front for an hour;
+  - the Mac has had no input for 15 minutes or is locked;
+  - the app is not keeping the Mac awake;
+  - the app has no shell or other program of its own running;
+  - no helper of the app keeps running after the app quits.
+
+  The app is quit only once its update has downloaded and been verified, and only
+  if you are still away at that moment. It is asked to quit normally and is never
+  forced. If it doesn't quit, most likely because of a save prompt, it is not asked
+  again for that version. A reopened app comes back in the background, hidden if
+  it was hidden. These conditions are checked at scheduled checks, so with less
+  frequent checks an update can wait longer than the time you picked.
+
+After a failed update, nothing is tried for that app for a day. After three
+failures, nothing is tried until a newer version comes out.
+
+With backups on (Settings → Backups), every automatic update first takes a
+complete backup, and a backup that fails stops the update. With backups off, an
+automatic update leaves no way back, and the Automatic Updates page says so.
+Backups protect the app bundle, not its documents, settings or databases.
+
+The Network window's Events tab shows automatic starts, deferrals and outcomes;
+`duo events` exports the same records. Activity uses the shared SQLite database but
+has its own retention: 90 days, up to 10,000 records. Clearing the request log and
+size trimming leave it alone. The Events tab shows the latest 200 records and can
+clear activity separately. Successful installs are also recorded with
+`automatic: true` in the permanent install ledger. The database's 64 MiB target is
+a soft limit and doesn't cap that ledger or the automatic activity.
 
 ## Install safety
 

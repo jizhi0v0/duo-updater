@@ -312,14 +312,12 @@ final class Preferences {
         }
     }
 
-    /// After an in-place install of a *running* app, automatically quit and
-    /// relaunch it so the new version takes effect — instead of leaving a "Relaunch"
-    /// badge for a second click. Uses the same graceful quit as the manual button
-    /// (honors save prompts; a refused/blocked quit just leaves the badge), so it
-    /// never force-kills or loses unsaved work. Default ON — an opt-out convenience.
+    /// Install eligible updates unattended after scheduled checks (Automatic
+    /// Updates settings). A Beta feature in every build; off until the user turns
+    /// it on.
     var automaticUpdates: Bool {
         didSet {
-            automaticUpdatesSnapshot.set(BuildReleaseChannel.permitsAutomaticUpdates(enabled: automaticUpdates))
+            automaticUpdatesSnapshot.set(automaticUpdates)
             defaults.set(automaticUpdates, forKey: "AutomaticUpdates")
         }
     }
@@ -881,7 +879,7 @@ final class Preferences {
         self.marketingByBuild = defaults.dictionary(forKey: Key.marketingByBuild) as? [String: String] ?? [:]
         self.stagedPackages =
             defaults.dictionary(forKey: Key.stagedPackages) as? [String: [String: String]] ?? [:]
-        automaticUpdatesSnapshot.set(BuildReleaseChannel.permitsAutomaticUpdates(enabled: automaticUpdates))
+        automaticUpdatesSnapshot.set(automaticUpdates)
         scheduledChecksSnapshot.set(checkFrequency.interval != nil)
         runningAppsSnapshot.set(automaticUpdatesRunningApps)
         observeExternalWrites()

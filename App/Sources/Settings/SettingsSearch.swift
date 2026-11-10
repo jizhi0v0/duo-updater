@@ -61,9 +61,7 @@ enum SettingsSearch {
             Setting(anchor: .digestOnlyInstalls, title: String(localized: "Allow one-click updates for apps without a developer signature"), card: nil),
             Setting(anchor: .testFlightDetection, title: String(localized: "TestFlight betas"), card: nil),
 
-            BuildReleaseChannel.isBeta
-                ? Setting(anchor: .automaticUpdates, title: String(localized: "Automatically update closed apps"), card: String(localized: "Automatic updates"))
-                : nil,
+            Setting(anchor: .automaticUpdates, title: String(localized: "Automatically update closed apps"), card: String(localized: "Automatic updates")),
 
             Setting(anchor: .notifyApps, title: String(localized: "Apps"), card: notify),
             Setting(anchor: .notifyCLITools, title: String(localized: "Command-line tools"), card: notify),

@@ -25,6 +25,14 @@ private let longbridgePreviewManifestWithDigests = #"""
 {"version":"1.0.0-preview.1","created_at":"2026-09-07T11:39:49Z","published_at":"2026-09-08T02:05:26Z","release_notes":{"en":"### New Features\r\n- Added a HoverCard on the attached-order switch."},"assets":[{"name":"longbridge-v1.0.0-preview.1-linux-x86_64.deb","url":"https://assets.lbkrs.com/github/release/longbridge-desktop/preview/longbridge-v1.0.0-preview.1-linux-x86_64.deb","sha256":"90727a40b9c7a0b21ea422460fdf67a40eff37711f14cd7aaa2584c16815ac5a"},{"name":"longbridge-v1.0.0-preview.1-macos-aarch64.dmg","url":"https://assets.lbkrs.com/github/release/longbridge-desktop/preview/longbridge-v1.0.0-preview.1-macos-aarch64.dmg","sha256":"4c9aa9992675af7787756c83dda048beb0adb2bb0abefcaec53944572331bd02"},{"name":"longbridge-v1.0.0-preview.1-macos-x86_64.dmg","url":"https://assets.lbkrs.com/github/release/longbridge-desktop/preview/longbridge-v1.0.0-preview.1-macos-x86_64.dmg","sha256":"5ceca5c26a8ca522516975a8133911ad454dfa1a0f51578db84086d6caa78798"}]}
 """#
 
+/// `preview/latest.json` as served 2026-11-10 (1.2.0-preview.0), trimmed to four
+/// assets. File names now carry the build's git hash (`-g86ccd38`), and the
+/// manifest lists a second build (`-gbd8ecd3`) with no macOS assets. The aarch64
+/// dmg downloaded that day hashed to its `sha256`.
+private let longbridgePreviewManifestWithBuildHash = #"""
+{"version":"1.2.0-preview.0","created_at":"2026-11-09T12:13:05Z","published_at":"2026-11-09T10:21:17Z","assets":[{"name":"longbridge-v1.2.0-preview.0-g86ccd38-linux-x86_64.deb","url":"https://assets.lbkrs.com/github/release/longbridge-desktop/preview/longbridge-v1.2.0-preview.0-g86ccd38-linux-x86_64.deb","sha256":"901d7cce61821a2d2a5bba3f27d2fde41db5565f5ceb480c40341c83c6df4495"},{"name":"longbridge-v1.2.0-preview.0-g86ccd38-macos-aarch64.dmg","url":"https://assets.lbkrs.com/github/release/longbridge-desktop/preview/longbridge-v1.2.0-preview.0-g86ccd38-macos-aarch64.dmg","sha256":"ff841bd9847ea824511ecb4b50fc1d4dc2ab65283c030f14b9495c1586048225"},{"name":"longbridge-v1.2.0-preview.0-g86ccd38-macos-x86_64.dmg","url":"https://assets.lbkrs.com/github/release/longbridge-desktop/preview/longbridge-v1.2.0-preview.0-g86ccd38-macos-x86_64.dmg","sha256":"04137a228b84a17c3e08862664a336fe6690d94616bd5b1502df5ed4c3e5bdc5"},{"name":"longbridge-v1.2.0-preview.0-gbd8ecd3-windows-x86_64.exe","url":"https://assets.lbkrs.com/github/release/longbridge-desktop/preview/longbridge-v1.2.0-preview.0-gbd8ecd3-windows-x86_64.exe","sha256":"d966fa38c79b06c9a35f1bd0fa99458cbca0f23cd9c78e004f8d0f915197d7ff"}]}
+"""#
+
 /// Stable's minor page `…/longbridge-pro/0.19` as served 2026-10-14, trimmed to
 /// its two release sections: 0.19.1 first, then 0.19.0 with its figures dropped.
 /// The page holds every patch release of its line, newest first.
@@ -240,6 +248,27 @@ private let longbridgeIndexPage = #"""
         else { return }
         #expect(VendorProbeRecipe.extractVersion(from: longbridgePreviewManifestWithDigests, pattern: url)
             == "https://assets.lbkrs.com/github/release/longbridge-desktop/preview/longbridge-v1.0.0-preview.1-macos-aarch64.dmg")
+    }
+
+    /// Preview file names with the build's git hash (`…-preview.0-g86ccd38-macos-aarch64.dmg`)
+    /// still resolve the installer and its own digest, not the x86_64 dmg's (#1930).
+    @Test func previewFileNamesWithABuildHashStillResolve() throws {
+        let preview = try #require(Self.probes[.preview])
+        #expect(VendorProbeRecipe.extractVersion(
+            from: longbridgePreviewManifestWithBuildHash, pattern: preview.versionPattern) == "1.2.0-preview.0")
+        guard case .bodyPattern(let url) = try #require(preview.install).urlSource else {
+            Issue.record("preview installer is not read from the body"); return
+        }
+        #expect(VendorProbeRecipe.extractVersion(from: longbridgePreviewManifestWithBuildHash, pattern: url)
+            == "https://assets.lbkrs.com/github/release/longbridge-desktop/preview/longbridge-v1.2.0-preview.0-g86ccd38-macos-aarch64.dmg")
+        #expect(VendorProbeRecipe.extractVersion(
+            from: longbridgePreviewManifestWithBuildHash, pattern: try Self.checksumPattern(.preview))
+            == "ff841bd9847ea824511ecb4b50fc1d4dc2ab65283c030f14b9495c1586048225")
+        // Without its own digest the aarch64 asset reads nothing, not x86_64's.
+        let digestless = longbridgePreviewManifestWithBuildHash.replacingOccurrences(
+            of: #","sha256":"ff841bd9847ea824511ecb4b50fc1d4dc2ab65283c030f14b9495c1586048225""#, with: "")
+        #expect(VendorProbeRecipe.extractVersion(
+            from: digestless, pattern: try Self.checksumPattern(.preview)) == nil)
     }
 
     /// `sha256` ahead of `name` and `url` inside the asset still pairs with it.

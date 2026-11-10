@@ -81,7 +81,7 @@
 
 ## 一键安装
 - 状态: 支持（Sparkle 路径：EdDSA 校验 + Team ID 闸；`ArchiveExtractor` 对 `bz2` 用 `/usr/bin/tar -xf`）
-- 端到端: 「待主会话」
+- 端到端: ✓ 第一轮（2026-11-11，本机，未运行，偏好域不存在 → stable）：/Applications 放 0.66.1，`duo check` 报 `0.66.1 → v0.67.0 [Sparkle]`，`duo install com.qvacua.VimR --yes` → `extracting … verifyingCodeSignature … installed.`；结果 0.67.0、Team `H96Q2NKTQH`、`codesign --verify --deep --strict` 0、spctl Notarized Developer ID。snapshot 轨与运行中一轮未做。
 - 不适用的副本: 没有。≤0.34 的 DSA-only 副本跳过 EdDSA，仍过 Team 闸
 
 ## 已知问题

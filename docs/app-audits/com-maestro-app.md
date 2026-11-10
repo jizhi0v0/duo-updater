@@ -96,8 +96,8 @@
 
 | | 客户端会停放吗 | 本次实际停放了什么 | 我们能否直接拿来装 |
 |---|---|---|---|
-| 结论 | 会 | 待主会话 | 能（布局已接，待主会话端到端） |
-| 证据 | `app-update.yml` `updaterCacheDirName: maestro-updater`；electron-updater 的 `DownloadedUpdateHelper` | 待主会话第二轮 diff | `SelfUpdaterStash` 读 `.electronUpdater(cacheDirectoryName:)`，名字取自包内 `app-update.yml` |
+| 结论 | 会 | 未测（运行中一轮未做） | 能（布局已接；运行中一轮未做） |
+| 证据 | `app-update.yml` `updaterCacheDirName: maestro-updater`；electron-updater 的 `DownloadedUpdateHelper` | 未测（运行中一轮未做） | `SelfUpdaterStash` 读 `.electronUpdater(cacheDirectoryName:)`，名字取自包内 `app-update.yml` |
 
 - 记录文件与字段: `~/Library/Caches/maestro-updater/pending/update-info.json`，下载完成后才写（`setDownloadedFile`），
   带 `fileName` 与 `sha512`（base64）
@@ -118,7 +118,7 @@
 
 ## 一键安装
 - 状态: 支持（0.8.1 起的副本）
-- 端到端: 待主会话
+- 端到端: ✓ 第一轮（2026-11-11，本机，未运行）：/Applications 放 1.0.1，`duo install com.maestro.app --yes` → `verifyingSignature … verifyingCodeSignature … installed.`；结果 1.0.2、Team `4N4DQ24LED`、`codesign --verify --deep --strict` 0、spctl Notarized Developer ID。运行中一轮（含 electron-updater 停放与退出即装的竞争）未做。
 - 格式: .zip（electron-updater 自己装的也是这个 zip）
 - 嵌套 / 常驻组件: `Contents/Frameworks/Maestro Helper.app`、`Maestro Helper (GPU).app`、`Maestro Helper (Plugin).app`、
   `Maestro Helper (Renderer).app`，均 `LSUIElement=true`，是 Electron 标准的子进程 helper，随主进程退出；
@@ -130,7 +130,7 @@
 
 ## 已知问题
 - 自更新器竞争: 用户在 app 里点过下载、还没退出时，Squirrel.Mac 已经拿着那份包等退出安装（`autoInstallOnAppQuit`）。
-  我们装上更新的版本后，若它在退出时再装旧的那份，就会回退。待主会话第二轮验证
+  我们装上更新的版本后，若它在退出时再装旧的那份，就会回退。运行中一轮未做，未验证
 - Changelog 的 Highlights 段落丢失（见 Changelog）
 - RC 轨未接（见 Channel 详情）
 

@@ -77,7 +77,7 @@
 ## 一键安装
 - 状态: 支持（universal dmg，Team 闸 + GitHub digest）
 - 资产: `https://github.com/mltframework/shotcut/releases/download/v26.9.27/shotcut-macos-26.9.28.dmg`，`sha256:0e4c95ad41f26d96c442642e03e0c107bf98abfceea78724e2b05aa704ef79c6`（与下载文件一致）
-- 端到端: 待主会话
+- 端到端: ✓ 第一轮（2026-11-11，本机，未运行）：/Applications 放同 tag 的原版 26.9.27，`duo check` 报 `26.9.27 → 26.9.28`，`duo install com.Meltytech.Shotcut --yes` → `verifyingSignature … verifyingCodeSignature … installed.`；结果 26.9.28、Team `Y6RX44QG2G`、`codesign --verify --deep --strict` 0、spctl Notarized Developer ID；之后 `duo check` 报 up to date（重打包的版本从资产名读出，实测）。运行中一轮未做。
 - 旧副本: 24.04 起所有正式版同 id、同 Team，一键闸都能放行
 
 ## 已知问题

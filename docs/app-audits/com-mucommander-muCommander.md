@@ -98,7 +98,7 @@ brew 装的副本由 `HomebrewCaskSource` 应答（brew 拥有已装的 cask）�
 
 ## 一键安装
 - 状态: 支持（jpackage 版）；noarch 版仅检测
-- 端到端: 待主会话
+- 端到端: ✓ 第一轮（2026-11-11，本机，未运行）：/Applications 放 1.6.1（真包 `-aarch64.dmg`，带许可协议），`duo install com.mucommander.muCommander --yes` → `verifyingSignature … verifyingCodeSignature … installed.`；结果 1.6.2、Team `CZHQQ65L42`、`codesign --verify --deep --strict` 0、spctl Notarized Developer ID。许可协议 dmg 由 `DiskImageMount` 答 `yes`，实测可挂载。运行中一轮未做。
 - 格式: dmg（UDZO，**带软件许可协议**：`hdiutil imageinfo` 显示 `Software License Agreement: true`，
   不答 stdin 的 `hdiutil attach` 会失败）。引擎的 `DiskImageMount` 在 stdin 上回答 `yes\n`，
   `hdiutil` 和 `diskutil image attach` 两条路都这样，所以引擎不用改。注意

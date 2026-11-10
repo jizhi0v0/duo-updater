@@ -73,7 +73,7 @@ beta 轨没有接：端点在 2026-11-11 对 release / beta / nightly 三条都�
 | | 客户端会停放吗 | 本次实际停放了什么 | 我们能否直接拿来装 |
 |---|---|---|---|
 | 结论 | 不会 | 没查（一键端到端由主会话跑） | — |
-| 证据 | `SoftwareUpdate.mm`：下载后解到临时位置，在对话框里等用户点「Install & Relaunch」，对话框关闭时删掉（`_downloadedArchiveURL … Will be deleted in viewDidDisappear`）；不写完成记录 | 待主会话 | 没有可拿的 |
+| 证据 | `SoftwareUpdate.mm`：下载后解到临时位置，在对话框里等用户点「Install & Relaunch」，对话框关闭时删掉（`_downloadedArchiveURL … Will be deleted in viewDidDisappear`）；不写完成记录 | 未测（运行中一轮未做） | 没有可拿的 |
 
 - 记录文件与字段: 无
 - 容器: `.tbz`，包根是 `TextMate.app`
@@ -89,7 +89,7 @@ beta 轨没有接：端点在 2026-11-11 对 release / beta / nightly 三条都�
 
 ## 一键安装
 - 状态: 支持（universal `.tbz`，Team 闸）
-- 端到端: 待主会话
+- 端到端: ✓ 第一轮（2026-11-11，本机，未运行）：/Applications 放 2.0.19，`duo install com.macromates.TextMate --yes` → `verifyingCodeSignature … installed.`（无 GitHub digest，故无 `verifyingSignature`）；结果 2.0.23、Team `45TL96F76G`、`codesign --verify --deep --strict` 0、spctl Notarized Developer ID。`.tbz` 经 `.tarGz` 路径解包，实测可用。运行中一轮未做。
 - 格式: `.tbz`（bzip2 tar）。`VendorInstaller.normalizedArchive` 把它改名 `download.tar.gz`，`ArchiveExtractor.fromTar` 跑 `/usr/bin/tar -xf`，libarchive 按内容识别 bzip2。已在真包上按同样步骤（改名 `.tar.gz` 后 `tar -xf`）解出 `TextMate.app`，codesign / spctl 通过
 - 校验: 资产上传于 2021 年，GitHub 没有 `digest`；端点的 DSA `signature` 用的是厂商自有密钥，不支持。只靠 Team ID 闸（45TL96F76G）+ 公证。真包 sha256 `f8dba933209bd01070028892474bf0b72f36c673f7bcb8da5973f93ddc387420`
 - **读的是**: 人人可手动下载的 GA（GitHub `/releases/latest`，也是 macromates.com 下载页 302 的那份）

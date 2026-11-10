@@ -168,10 +168,14 @@ private struct AutomaticUpdateAppRow: View {
                 .frame(width: 20, height: 20)
             VStack(alignment: .leading, spacing: 1) {
                 Text(result.app.name)
-                Text(caption)
+                let text = caption
+                Text(text)
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                    // A path stays on one line; a reason may wrap, since in
+                    // German or French it does not fit beside the menu.
+                    .lineLimit(text == IgnoredSettingsPage.displayPath(result.app.path.path) ? 1 : 2)
+                    .fixedSize(horizontal: false, vertical: true)
                     .help(Text(verbatim: result.app.path.path))
             }
             Spacer(minLength: 12)

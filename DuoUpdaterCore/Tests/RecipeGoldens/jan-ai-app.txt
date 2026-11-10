@@ -113,6 +113,7 @@ githubRules[0].architectureRequirement?.architectures = Array(count: 1)
 githubRules[0].architectureRequirement?.architectures[0] = .arm64
 githubRules[0].tagRefPrefix = nil
 githubRules[0].installedExecutableMarker = nil
+githubRules[0].assetVersionPattern = nil
 
 appStoreCases = Array(count: 0)
 

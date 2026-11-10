@@ -90,6 +90,7 @@ githubRules[0].variant = nil
 githubRules[0].architectureRequirement = nil
 githubRules[0].tagRefPrefix = nil
 githubRules[0].installedExecutableMarker = nil
+githubRules[0].assetVersionPattern = nil
 githubRules[1] = struct GitHubReleaseRule
 githubRules[1].bundleID = "com.coteditor.CotEditor"
 githubRules[1].owner = "coteditor"
@@ -108,6 +109,7 @@ githubRules[1].variant = nil
 githubRules[1].architectureRequirement = nil
 githubRules[1].tagRefPrefix = nil
 githubRules[1].installedExecutableMarker = nil
+githubRules[1].assetVersionPattern = nil
 
 appStoreCases = Array(count: 0)
 

@@ -876,6 +876,11 @@ An audit that does not know a field exists will report the situation it covers a
 | `install` + `ChannelProofRegistry` | one-click; a NON-STABLE channel install **requires** a proof entry |
 | `install.checksumPattern` + `checksumFormat` | the body publishes a digest of the download (hex SHA-256 or base64 SHA-512) and a real download matched it (Phase 4, "Published digest") |
 
+On the GitHub side, `GitHubReleaseRule.assetVersionPattern` covers a vendor that
+respins under an old tag with a NEW version in the bundle and the filename
+(Shotcut: tag `v26.9.27` also carries `shotcut-macos-26.9.28.dmg`): the offered
+version is read off the asset the rule installs, not the tag.
+
 Adjacent machinery an audit should also weigh: `DeltaApplier` (applies Sparkle
 binary patches, and MyGo's through `MyGoDelta`), `VendorAppcastDeltas` (pulls
 them out of an appcast), `MyGoUpdateSource` (any MyGo app, from the feed and key

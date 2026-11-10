@@ -250,6 +250,27 @@ public struct GitHubReleaseRule: Sendable {
     /// `OneClickGate`'s, scoped to each edition's package, not this field's.
     public let installedExecutableMarker: String?
 
+    /// Regex applied to the CHOSEN install asset's filename; capture group 1 is
+    /// the version this rule reports for that release, in place of the one
+    /// `versionPattern` reads off the tag. Nil (the default) for every rule
+    /// whose tag names the version the package installs.
+    ///
+    /// For a vendor that respins a release under its old tag AND gives the
+    /// respin a new version, in the bundle and in the filename. Shotcut is the
+    /// measured case: tag `v26.9.27` carries `shotcut-macos-26.9.27.dmg` and,
+    /// a day later, `shotcut-macos-26.9.28.dmg`, whose bundle says 26.9.28 in
+    /// both version keys. Read from the tag, the release is 26.9.27: a 26.9.27
+    /// copy is "up to date" and never offered the respin the one-click would
+    /// install anyway (`installableAsset` already picks the highest-named
+    /// file). Read from the asset, the offer and the file agree.
+    ///
+    /// Only the reported version of the release this rule offers moves: which
+    /// release is chosen, the walk-back past assetless releases, the history
+    /// and the tag lookups all stay on the tag. Requires
+    /// `installAssetPattern` (`assetVersionPatternNeedsAnInstallAsset`); an
+    /// asset name it cannot read falls back to the tag's version.
+    public let assetVersionPattern: String?
+
     public init(
         bundleID: String,
         owner: String,
@@ -267,10 +288,12 @@ public struct GitHubReleaseRule: Sendable {
         variant: String? = nil,
         architectureRequirement: GitHubArchitectureRequirement? = nil,
         tagRefPrefix: String? = nil,
-        installedExecutableMarker: String? = nil
+        installedExecutableMarker: String? = nil,
+        assetVersionPattern: String? = nil
     ) {
         self.bundleID = bundleID
         self.installedExecutableMarker = installedExecutableMarker
+        self.assetVersionPattern = assetVersionPattern
         self.tagRefPrefix = tagRefPrefix
         self.variant = variant
         self.architectureRequirement = architectureRequirement
@@ -463,6 +486,18 @@ public struct GitHubReleaseRule: Sendable {
             if VersionComparator.isNewer(asset.name, than: current.name) { best = asset }
         }
         return best
+    }
+
+    /// The version a rule reports for a release: the one `pattern` reads off
+    /// the chosen asset's filename when the rule sets `assetVersionPattern`
+    /// and the name yields one, else the tag's. Pure and static so the respin
+    /// case is testable without a fetch.
+    static func offeredVersion(tagVersion: String, asset name: String?, pattern: String?) -> String {
+        guard let pattern, let name,
+              let fromAsset = VendorProbeRecipe.extractVersion(from: name, pattern: pattern),
+              !fromAsset.isEmpty
+        else { return tagVersion }
+        return fromAsset
     }
 
     /// Does this release carry *any* asset this rule would install?
@@ -1733,17 +1768,6 @@ public struct GitHubReleasesSource: UpdateSource {
                     archIncompatible = true
                     break
                 }
-                let page = release.htmlURL ?? URL(string: "https://github.com/\(rule.slug)/releases")
-                let body = release.body.flatMap { $0.isEmpty ? nil : $0 }
-                let structured = body.flatMap {
-                    GitHubMarkdownParser.parse(body: $0, version: version, date: release.publishedAt)
-                }
-                // #300: same day/minute split as the history backfill above —
-                // `release.publishedAt` is normally a full ISO8601 timestamp,
-                // but a bare calendar day now lands honestly in `vendorDay`
-                // instead of being dropped by the old `ReleaseDate.parse`.
-                let publishedFields = ReleaseDate.publishedFields(from: release.publishedAt)
-
                 // When the rule names an installable asset and this release ships
                 // a matching one, offer a one-click in-place install (the Team-ID
                 // gate in VendorInstaller still guards the swap). Otherwise stay
@@ -1753,6 +1777,23 @@ public struct GitHubReleasesSource: UpdateSource {
                         from: release.assets, matching: $0,
                         preferring: hostArch, allowingIntelTranslation: canRunIntel)
                 }
+                // The version the chosen file installs, for a vendor that respins
+                // under an old tag with a new version (`assetVersionPattern`).
+                let offered = GitHubReleaseRule.offeredVersion(
+                    tagVersion: version, asset: asset.flatMap { chosen in
+                        release.assets.first { $0.url == chosen.url }?.name
+                    }, pattern: rule.assetVersionPattern)
+
+                let page = release.htmlURL ?? URL(string: "https://github.com/\(rule.slug)/releases")
+                let body = release.body.flatMap { $0.isEmpty ? nil : $0 }
+                let structured = body.flatMap {
+                    GitHubMarkdownParser.parse(body: $0, version: offered, date: release.publishedAt)
+                }
+                // #300: same day/minute split as the history backfill above —
+                // `release.publishedAt` is normally a full ISO8601 timestamp,
+                // but a bare calendar day now lands honestly in `vendorDay`
+                // instead of being dropped by the old `ReleaseDate.parse`.
+                let publishedFields = ReleaseDate.publishedFields(from: release.publishedAt)
                 // The digest GitHub publishes for THIS asset, read from the same
                 // release object as its URL — never from the URL or a sidecar file.
                 // A digest-only rule rests entirely on it: no digest, no one-click.
@@ -1775,7 +1816,7 @@ public struct GitHubReleasesSource: UpdateSource {
                 // diagnostics panel is the only surface that says a recipe broke.
                 await RecipeHealth.shared.recordSuccess(id: rule.recipeID, source: name)
                 return Resolution(remote: RemoteVersion(
-                    shortVersion: version,
+                    shortVersion: offered,
                     version: nil,
                     downloadURL: asset?.url
                         ?? URL(string: "https://github.com/\(rule.slug)/releases"),
@@ -1798,7 +1839,7 @@ public struct GitHubReleasesSource: UpdateSource {
                 // Only what is newer than the answer: the list is not in version
                 // order (nor reliably in any timestamp's — measured on trycua/cua,
                 // where v0.9.1 sat above v0.10.0), so a backport can sit above it.
-                skippedPast: skippedPast.filter { VersionComparator.isNewer($0.version, than: version) })
+                skippedPast: skippedPast.filter { VersionComparator.isNewer($0.version, than: offered) })
             }
         }
         // Not a recipe failure — the vendor did ship a macOS build for the

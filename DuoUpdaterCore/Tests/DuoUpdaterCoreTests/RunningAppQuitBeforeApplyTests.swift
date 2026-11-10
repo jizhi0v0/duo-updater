@@ -119,7 +119,17 @@ struct RunningAppQuitBeforeApplyTests {
                             order.append("verify")
                             let (target, incoming) = try Self.bundles(in: workDir)
                             try await AutomaticInstall.quitPlannedApp(before: target)
-                            try await InPlaceSwap.replace(newApp: incoming, over: target)
+                            // The check right before the exchange runs on a
+                            // Dispatch queue, which the `listPIDs` override does
+                            // not reach: scope it to this process the same way.
+                            let scoped: @Sendable () throws -> Void = {
+                                try AutomaticInstall.checkProcesses(at: target, processes:
+                                    NestedAppGuard.liveProcesses(includeUninspectable: true)
+                                        .filter { $0.pid == getpid() })
+                            }
+                            try await InPlaceSwap.$preExchangeCheck.withValue(scoped) {
+                                try await InPlaceSwap.replace(newApp: incoming, over: target)
+                            }
                             order.append("exchanged")
                         })
                 }

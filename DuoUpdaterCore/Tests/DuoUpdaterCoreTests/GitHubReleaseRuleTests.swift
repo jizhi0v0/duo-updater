@@ -1306,3 +1306,30 @@ private func matches(
         #expect(rule(bundleID).installAssetPattern == nil)
     }
 }
+
+/// muCommander tags `<version>-<packaging release>`; the installed bundle's
+/// `CFBundleShortVersionString` is the bare version (1.6.2-1 → 1.6.2, 1.6.1-1 →
+/// 1.6.1, 1.4.0-1 → 1.4.0, 1.3.0-1 → 1.3.0 in the real dmgs). A respin reads as
+/// the same version; an rc-style tag (`0.9.1rc2`) and the old `v0.8.4` do not
+/// read at all. One-click takes only the arm64 jpackage dmg.
+@Test func muCommanderRuleDropsThePackagingSuffixAndInstallsTheArmDmg() {
+    let id = "com.mucommander.muCommander"
+    #expect(extract("1.6.2-1", id) == "1.6.2")
+    #expect(extract("1.6.2-2", id) == "1.6.2")
+    #expect(extract("0.9.4-2", id) == "0.9.4")
+    #expect(extract("1.3.0", id) == "1.3.0")
+    #expect(extract("2.0.0-1", id) == "2.0.0")
+    #expect(extract("1.7-1", id) == "1.7")
+    #expect(extract("0.9.1rc2", id) == nil)
+    #expect(extract("1.7.0-rc1", id) == nil)
+    #expect(extract("v0.8.4", id) == nil)
+    #expect(matches("mucommander-1.6.2-1-aarch64.dmg", id))
+    #expect(matches("muCommander-1.7.0-2-aarch64.dmg", id))
+    for other in ["mucommander-1.6.2-1-x86_64.dmg", "mucommander-1.6.2-1-noarch.dmg",
+                  "mucommander-1.6.2-1-portable-x86_64.zip", "mucommander-1.6.2-1-aarch64.tgz",
+                  "mucommander-1.6.2-1.aarch64.rpm", "mucommander-1.6.2-aarch64.msi"] {
+        #expect(!matches(other, id), "\(other)")
+    }
+    #expect(rule(id).installerKind == .dmg)
+    #expect(!rule(id).usePrereleases)
+}

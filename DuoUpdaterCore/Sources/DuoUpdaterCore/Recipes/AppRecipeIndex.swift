@@ -163,6 +163,7 @@ public enum AppRecipeIndex {
         com_moonlight_stream_Moonlight.set,
         com_moonshot_kimichat.set,
         com_MrKai77_Loop.set,
+        com_mucommander_muCommander.set,
         com_nabocorp_witsy.set,
         com_neovide_neovide.set,
         com_netease_uuremote.set,

@@ -7,14 +7,14 @@
       "sweepsSinceComment" : 0
     },
     "install:github:AppFlowy-IO\/AppFlowy:stable" : {
-      "consecutiveActionable" : 18,
+      "consecutiveActionable" : 20,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 1812,
       "lastCommentedAt" : "2026-11-03T22:35:56Z",
       "lastSignature" : "identityChanged: Sparkle key none → Bs++",
       "previousSignature" : "identityChanged: Sparkle key none → Bs++",
-      "sweepsSinceComment" : 16
+      "sweepsSinceComment" : 18
     },
     "install:github:AprilNEA\/OpenLogi:stable" : {
       "closedAt" : "2026-10-19T11:23:39Z",
@@ -1049,14 +1049,14 @@
       "sweepsSinceComment" : 0
     },
     "install:github:schuyler\/macdown3000:stable" : {
-      "consecutiveActionable" : 19,
+      "consecutiveActionable" : 21,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 1799,
       "lastCommentedAt" : "2026-11-03T13:08:24Z",
       "lastSignature" : "identityChanged: Sparkle key none → dYc+",
       "previousSignature" : "identityChanged: Sparkle key none → dYc+",
-      "sweepsSinceComment" : 17
+      "sweepsSinceComment" : 19
     },
     "install:github:sheprd-labs\/sheprd:stable" : {
       "consecutiveActionable" : 0,
@@ -1736,9 +1736,10 @@
     },
     "install:vendor:com.microsoft.edgemac:stable" : {
       "consecutiveActionable" : 0,
-      "consecutiveInfra" : 0,
+      "consecutiveInfra" : 1,
       "consecutiveInstallTransient" : 0,
-      "sweepsSinceComment" : 0
+      "infraSince" : "2026-11-10T01:32:02Z",
+      "sweepsSinceComment" : 1
     },
     "install:vendor:com.microsoft.m365copilot:stable" : {
       "consecutiveActionable" : 0,
@@ -2384,5 +2385,5 @@
     }
   },
   "schemaVersion" : 1,
-  "updatedAt" : "2026-11-09T03:10:22Z"
+  "updatedAt" : "2026-11-10T01:32:04Z"
 }

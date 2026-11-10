@@ -100,6 +100,12 @@ Longbridge 归到 `native`。见 `AppRuntimeDetector`。
 
 ## 历史与实测
 
+### Recipes/com-longbridge-app-desktop.swift — preview 文件名带构建 git hash（2026-11-10 实测，#1930）
+
+nightly `duo verify` 连续两轮报 preview `installURLUnresolved`。`preview/latest.json`（只读 GET）是 `1.2.0-preview.0`（`published_at` 2026-11-09），资产文件名变成 `longbridge-v1.2.0-preview.0-g86ccd38-macos-aarch64.dmg`，版本号后多了 `-g<git hash>`；同一份清单还列了另一个构建 `-gbd8ecd3` 的 linux/windows 资产，没有 macOS 资产。stable `latest.json`（1.1.0）的文件名没有 hash。
+
+下载 `-g86ccd38` 的 aarch64 dmg：SHA-256 `ff841bd9…8225`，与清单一致；挂载后是 `Longbridge Preview.app`，`com.longbridge.app.desktop.preview`，`CFBundleShortVersionString` 1.2.0-preview.0，arm64，Team 45NG8MW7WK，`spctl` 判定 Notarized Developer ID。URL 与 checksum pattern 改为允许可选的 `-g[0-9a-f]+`；对线上清单取到上面的 URL 与 digest，去掉 hash 的旧文件名仍能匹配，aarch64 资产缺 `sha256` 时 checksum 不取 x86_64 的值。
+
 ### Recipes/com-longbridge-app-desktop.swift — changelog 版本页加 `v` 前缀（2026-10-19 实测，#1273）
 
 夜扫 2026-10-18 报 `noEntriesExtracted`（`verify/baseline.json` 记的上次正常 2026-10-15T14:32Z，`1.0.0`），抓到的响应是 455 B 的跳转壳。只读 GET，浏览器样式 User-Agent：

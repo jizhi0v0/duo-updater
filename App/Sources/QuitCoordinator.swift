@@ -225,7 +225,8 @@ extension AppListModel {
             // `.installing` here, and the stage cannot tell a real install's opening
             // check from a recheck (see `bundleChanges`). A recheck makes the dialog
             // appear for a second or two; missing an install deletes an app.
-            rowNames: installing.keys.sorted().map(name) + relaunching.sorted().map(name),
+            rowNames: installing.keys.sorted().map(name)
+                + relaunching.union(automaticQuitHolds).sorted().map(name),
             batchRunning: isInstallingAll || cliTools.updatingAll,
             homebrewRunning: brewUpgrading || homebrewUpdating,
             formulae: upgradingFormulae.sorted().map(BrewInstalledFormula.displayName(forKey:)),

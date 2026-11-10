@@ -172,6 +172,8 @@ public actor InstallCoordinator {
     /// Throws `NestedAppRunningError` when an app nested in `result`'s bundle is
     /// running on its own (see `NestedAppGuard`).
     private func refuseWhileNestedAppRuns(_ result: UpdateResult) throws {
+        // Quit together with the app, right before the swap (`swap`).
+        guard !AutomaticInstall.appQuitsBeforeApply else { return }
         do {
             try NestedAppGuard.check(
                 result.app.path, appName: result.app.name, processes: runningProcesses)

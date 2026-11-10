@@ -127,8 +127,9 @@ public enum RunningAppAutoUpdate {
             entries[key] = entry
         }
 
-        /// Drop entries for installs that are no longer offered anything: they
-        /// caught up, so the next update starts a new count. Their `lastQuit`
+        /// Keep only `keys`; the caller passes every install still present except
+        /// those that caught up (a clean "up to date" check), so the next update
+        /// starts a new count. A failed check is not "caught up". Their `lastQuit`
         /// goes too, which costs nothing: the new entry's `behindSince` is after
         /// that quit, so the delay still spaces the next quit from it. So does
         /// `retryAfter`: an install no longer offered anything was updated.
@@ -178,6 +179,8 @@ public enum RunningAppAutoUpdate {
         case personPresent
         case busy(String)
         case childProcess
+        /// A process inside the bundle that the app's quit would not end.
+        case independentHelper
 
         /// The reason as the Events list shows it.
         public var message: String {
@@ -200,6 +203,8 @@ public enum RunningAppAutoUpdate {
                 return "The app is running and busy (\(name))."
             case .childProcess:
                 return "The app is running a process of its own, such as a shell or a build."
+            case .independentHelper:
+                return "The app is running, and one of its helpers keeps running when it quits."
             }
         }
     }
@@ -288,6 +293,42 @@ public enum RunningAppAutoUpdate {
         }.map(\.pid))
         return own.contains { parent in
             children(parent).contains { !own.contains($0) && !isZombie($0) }
+        }
+    }
+
+    /// A process inside `bundle` that quitting the app's instances would leave
+    /// running: a login item (`Contents/Library/LoginItems`) or an app extension
+    /// (`.appex`, `Contents/PlugIns`) that none of `instancePIDs` started. The
+    /// install refuses a bundle it still runs from, so quitting the app would
+    /// gain nothing. Only those places: other helpers with launchd as their
+    /// parent — XPC services, Chromium's crash handler — end with their client,
+    /// and treating them as independent would keep every such app from
+    /// updating. One missed here costs one useless quit (counted toward
+    /// `maxFailures`).
+    public static func independentHelper(
+        of bundle: URL, processes: [NestedAppGuard.RunningProcess], instancePIDs: Set<pid_t>
+    ) -> NestedAppGuard.RunningProcess? {
+        let parents = Dictionary(processes.map { ($0.pid, $0.parentPID) }, uniquingKeysWith: { first, _ in first })
+        func descendsFromInstance(_ pid: pid_t) -> Bool {
+            var current = pid
+            for _ in 0..<64 {
+                if instancePIDs.contains(current) { return true }
+                guard let parent = parents[current], parent > 1, parent != current else { return false }
+                current = parent
+            }
+            return false
+        }
+        let root = bundle.resolvingSymlinksInPath().path + "/"
+        return processes.first { process in
+            guard AutomaticInstall.hasRunningProcess(at: bundle, processes: [process]),
+                  !descendsFromInstance(process.pid) else { return false }
+            return [process.executablePath, process.launchedPath].compactMap { $0 }.contains { path in
+                let resolved = NestedAppGuard.resolvedPath(path)
+                guard resolved.hasPrefix(root) else { return false }
+                let inside = resolved.dropFirst(root.count)
+                return inside.hasPrefix("Contents/Library/LoginItems/")
+                    || inside.hasPrefix("Contents/PlugIns/") || inside.contains(".appex/")
+            }
         }
     }
 

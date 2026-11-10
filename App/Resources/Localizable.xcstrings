@@ -1,6 +1,72 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "Quit for an update while you were away. The update did not install, and the app could not be reopened.": {
+      "comment": "Notification body: an automatic update quit an idle app, the update failed, and the app could not be opened again",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Während du weg warst, für ein Update beendet. Das Update wurde nicht installiert, und die App ließ sich nicht wieder öffnen."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se cerró para actualizarla mientras no estabas. La actualización no se instaló y la app no se pudo volver a abrir."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quittée pour une mise à jour pendant votre absence. La mise à jour ne s’est pas installée et l’app n’a pas pu être rouverte."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chiusa per un aggiornamento mentre eri via. L’aggiornamento non è stato installato e l’app non è stata riaperta."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "離席中にアップデートのため終了しました。アップデートはインストールされず、アプリを再度開けませんでした。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Encerrado para uma atualização enquanto você estava ausente. A atualização não foi instalada e o app não pôde ser reaberto."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Закрыто для обновления, пока вас не было. Обновление не установилось, и приложение не удалось открыть снова."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Siz yokken güncelleme için kapatıldı. Güncelleme yüklenmedi ve uygulama yeniden açılamadı."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已在你离开时为更新而退出。更新未能安装，且未能重新打开。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已在你離開時為更新而結束。更新未能安裝，也無法重新開啟。"
+          }
+        }
+      }
+    },
     "This app changed on disk since the last check. Check again first.": {
       "comment": "Error on a Homebrew package row whose app was updated since the last check",
       "extractionState": "manual",

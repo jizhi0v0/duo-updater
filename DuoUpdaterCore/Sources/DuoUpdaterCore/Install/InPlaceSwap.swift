@@ -425,6 +425,12 @@ public enum InPlaceSwap {
         // whether the swap worked or threw, and "it said it finished" that means
         // nothing either way is the exact ambiguity this is here to remove.
         try await AutomaticInstall.checkPermission()
+        // Fail closed: an automatic install that planned to quit the running app
+        // (`AutomaticInstall.quitPlannedApp`) and reached the exchange without
+        // doing so would pass `preExchangeCheck` with the app still up.
+        if AutomaticInstall.appQuitsBeforeApply {
+            throw AutomaticInstall.Deferred("Automatic update deferred: the app or one of its helpers is running.")
+        }
         let elevated = needsElevatedReplace(target: target)
         if AutomaticInstall.active && elevated {
             throw AutomaticInstall.Deferred("Automatic update needs administrator authorization.")

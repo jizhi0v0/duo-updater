@@ -741,6 +741,7 @@ public actor VendorInstaller {
         // cases mean the new version is live, and a cleanup failure's reason is
         // logged by `replace` itself, in its `defer` —
         // `aCleanupFailureReasonReachesTheInstallLog` reads it back.
+        try await AutomaticInstall.quitPlannedApp(before: target)
         _ = try await InstallCommit.run("swap") {
             try await InPlaceSwap.replace(
                 newApp: newApp, over: target, stagedCheck: stagedCheck,

@@ -205,6 +205,13 @@ private struct AutomaticUpdateAppRow: View {
         if result.app.bundleID == AppScanner.xcodeBundleID {
             return String(localized: "Xcode is not updated automatically")
         }
+        // Setapp installs its own apps, all at once, when DuoUpdater starts it
+        // in the background (Updates settings); a choice here cannot hold one back.
+        if result.remote?.sourceName == "Setapp" {
+            return setappBackgroundUpdateEnabled()
+                ? String(localized: "Updated by Setapp in the background, not here")
+                : String(localized: "Updated through Setapp, so not automatically")
+        }
         switch model.automaticUpdateRoute(result) {
         case .homebrew?:
             return String(localized: "Updated through Homebrew, so not automatically")

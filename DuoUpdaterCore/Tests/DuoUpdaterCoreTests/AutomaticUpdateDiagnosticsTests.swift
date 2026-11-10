@@ -87,6 +87,70 @@ struct AutomaticUpdateDiagnosticsTests {
         #expect(AutomaticUpdateDiagnostics.predecessor(in: history + [installed], appID: "private-copy", version: "2") == nil)
     }
 
+    @Test func aDeferralIsWrittenOnceUntilItsVersionOrReasonChanges() throws {
+        let waiting = try event(["appID": "a", "toVersion": "2", "status": "deferred",
+            "reason": "running", "attemptID": "1"], at: Date(timeIntervalSince1970: 10))
+        let history = AutomaticUpdateDiagnostics.History([waiting])
+        #expect(history.repeatsLastDeferral(appID: "a", version: "2", reason: "running"))
+        #expect(!history.repeatsLastDeferral(appID: "a", version: "2", reason: "in front"))
+        #expect(!history.repeatsLastDeferral(appID: "a", version: "3", reason: "running"))
+        #expect(!history.repeatsLastDeferral(appID: "b", version: "2", reason: "running"))
+        // Once anything else happened to the app, the same wait is news again.
+        let failed = try event(["appID": "a", "toVersion": "2", "status": "notInstalled",
+            "attemptID": "2"], at: Date(timeIntervalSince1970: 20))
+        #expect(!AutomaticUpdateDiagnostics.History([waiting, failed])
+            .repeatsLastDeferral(appID: "a", version: "2", reason: "running"))
+    }
+
+    @Test func onlyAFailedOrCutOffAttemptMakesAnInstallARecovery() throws {
+        let deferred = try event(["appID": "a", "toVersion": "2", "status": "deferred",
+            "attemptID": "1"], at: Date(timeIntervalSince1970: 10))
+        #expect(!AutomaticUpdateDiagnostics.History([deferred]).recovers(appID: "a", version: "2"))
+        let failed = try event(["appID": "a", "toVersion": "2", "status": "notInstalled",
+            "attemptID": "2"], at: Date(timeIntervalSince1970: 20))
+        #expect(AutomaticUpdateDiagnostics.History([deferred, failed]).recovers(appID: "a", version: "2"))
+        // Started and never finished: DuoUpdater quit mid-install.
+        let started = try event(["appID": "a", "toVersion": "3", "status": "started",
+            "attemptID": "3"], at: Date(timeIntervalSince1970: 30))
+        #expect(AutomaticUpdateDiagnostics.History([started]).recovers(appID: "a", version: "3"))
+        let finished = try event(["appID": "a", "toVersion": "3", "status": "deferred",
+            "attemptID": "3"], at: Date(timeIntervalSince1970: 31))
+        #expect(!AutomaticUpdateDiagnostics.History([started, finished]).recovers(appID: "a", version: "3"))
+        // An install ends the trouble for the next attempt.
+        let installed = try event(["appID": "a", "toVersion": "2", "status": "installed",
+            "attemptID": "4"], at: Date(timeIntervalSince1970: 40))
+        #expect(!AutomaticUpdateDiagnostics.History([deferred, failed, installed]).recovers(appID: "a", version: "2"))
+    }
+
+    /// The outcome row names the installed build, the start and the lookup only
+    /// the offered version. Seen on a real Mac: Maccy reinstalled at 2.8.0 two
+    /// days after an earlier 2.8.0 install was labelled a recovery.
+    @Test func anOutcomeNamingTheBuildClosesItsStart() throws {
+        let started = try event(["appID": "a", "toVersion": "2.8.0", "status": "started",
+            "attemptID": "1"], at: Date(timeIntervalSince1970: 10))
+        let installed = try event(["appID": "a", "toVersion": "2.8.0 (63)", "status": "installed",
+            "attemptID": "1"], at: Date(timeIntervalSince1970: 11))
+        let history = AutomaticUpdateDiagnostics.History([started, installed])
+        #expect(!history.recovers(appID: "a", version: "2.8.0"))
+        #expect(history.predecessor(appID: "a", version: "2.8.0") == nil)
+        let restarted = try event(["appID": "a", "toVersion": "2.9.0", "status": "started",
+            "attemptID": "2"], at: Date(timeIntervalSince1970: 20))
+        let failed = try event(["appID": "a", "toVersion": "2.9.0 (64)", "status": "notInstalled",
+            "attemptID": "2"], at: Date(timeIntervalSince1970: 21))
+        #expect(AutomaticUpdateDiagnostics.History([restarted, failed]).recovers(appID: "a", version: "2.9.0"))
+    }
+
+    @Test func discardedAttemptsLeaveNoDiagnostics() {
+        let diagnostics = AutomaticUpdateDiagnostics()
+        let blocker = AutomaticProcessDiagnostic(kind: .targetRunning, pid: 9, processName: "Helper")
+        diagnostics.record(blocker, attemptID: "repeat")
+        diagnostics.record(blocker, attemptID: "kept")
+        diagnostics.discard(attemptID: "repeat")
+        #expect(diagnostics.snapshot.map(\.attempts) == [["kept"]])
+        diagnostics.discard(attemptID: "kept")
+        #expect(diagnostics.isEmpty)
+    }
+
     @Test func sanitizedExportCannotContainIdentityOrFreeText() throws {
         let pass = AutomaticUpdateDiagnostics()
         pass.record(.init(kind: .permissionDenied, pid: 87654, parentPID: 45678,

@@ -93,6 +93,17 @@ import Foundation
         #expect(VimRChannel.stateKey == "168")
     }
 
+    /// VimR's 2023 bump to `"169"` left `"168"` behind untouched. A stale `true`
+    /// there must not keep a user VimR now treats as stable on snapshots.
+    @Test func aNewerStateKeyMakesTheOldToggleStale() {
+        let ticked: [String: Any] = ["use-snapshot-update-channel": NSNumber(value: true)]
+        #expect(!VimRChannel.useSnapshot(fromState: ticked, domainKeys: ["168", "169"]))
+        #expect(!VimRChannel.useSnapshot(fromState: ticked, domainKeys: ["168", "1000"]))
+        // Older keys, VimR's own non-state keys and Sparkle's keys leave it alone.
+        #expect(VimRChannel.useSnapshot(fromState: ticked, domainKeys: ["128", "168", "SUHasLaunchedBefore", "NSWindow Frame 1"]))
+        #expect(VimRChannel.useSnapshot(fromState: ticked, domainKeys: []))
+    }
+
     /// A snapshot bundle carries no channel signal of its own: same id, name and
     /// Team, and its version reads stable. The preference is the only signal.
     @Test func theSnapshotBundleReadsStable() {

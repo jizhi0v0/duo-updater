@@ -38,11 +38,14 @@ import Foundation
 /// `detect()` signal is suppressed by that: there is none.
 ///
 /// ⚠️ `"168"` has been VimR's preference key since at least 2019 (a bump to
-/// `"169"` on 2023-10-29 was reverted on 2023-11-05). When VimR bumps it, the
-/// new build starts from defaults (stable) under the new key and the old `"168"`
-/// dictionary stays behind; reading `"168"` alone can then only keep a user who
-/// re-enabled snapshot on stable, never move a stable user to snapshot.
-/// Update `stateKey` when `PrefMiddleware.compatibleVersion` changes.
+/// `"169"` on 2023-10-29 was reverted on 2023-11-05, with no migration and no
+/// cleanup). When VimR bumps it, the new build starts from defaults (stable)
+/// under the new key and the old `"168"` dictionary stays behind with whatever
+/// it held, which the user can no longer change from VimR. A stale `true` there
+/// would push a user VimR treats as stable onto snapshots. So a domain that
+/// holds any all-digit key above `stateKey` resolves to stable, whatever
+/// `"168"` says: a bump can then only keep a snapshot user on stable, never the
+/// reverse. Update `stateKey` when `PrefMiddleware.compatibleVersion` changes.
 enum VimRChannel {
     static let bundleID = "com.qvacua.VimR"
 
@@ -71,12 +74,25 @@ enum VimRChannel {
         // VimR wrote the toggle.
         CFPreferencesAppSynchronize(bundleID as CFString)
         let state = CFPreferencesCopyAppValue(stateKey as CFString, bundleID as CFString)
-        return resolve(useSnapshot: useSnapshot(fromState: state as? [String: Any]))
+        let keys = CFPreferencesCopyKeyList(
+            bundleID as CFString, kCFPreferencesCurrentUser, kCFPreferencesAnyHost) as? [String] ?? []
+        return resolve(useSnapshot: useSnapshot(fromState: state as? [String: Any], domainKeys: keys))
     }
 
     /// The typed half of the read: false (stable) when the state dictionary or
-    /// the key is missing or not a Bool.
-    static func useSnapshot(fromState state: [String: Any]?) -> Bool {
-        (state?[snapshotKey] as? NSNumber)?.boolValue ?? false
+    /// the key is missing or not a Bool, or when the domain holds a newer state
+    /// key (VimR moved on and `"168"` is stale).
+    static func useSnapshot(fromState state: [String: Any]?, domainKeys: [String] = []) -> Bool {
+        if hasNewerStateKey(domainKeys) { return false }
+        return (state?[snapshotKey] as? NSNumber)?.boolValue ?? false
+    }
+
+    /// True when some key is all ASCII digits and numerically above `stateKey`.
+    static func hasNewerStateKey(_ keys: [String]) -> Bool {
+        let current = Int(stateKey)!
+        return keys.contains { key in
+            !key.isEmpty && key.utf8.allSatisfy { (0x30...0x39).contains($0) }
+                && (Int(key).map { $0 > current } ?? true)
+        }
     }
 }

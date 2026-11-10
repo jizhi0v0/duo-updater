@@ -46,7 +46,7 @@
 - 两个 feed 怎么生成: `bin/build_jenkins.sh` 在 stable 发布时执行 `cp appcast.xml appcast_snapshot.xml`；snapshot 发布（`snapshot/<build>` tag，`--prerelease`）只写 `appcast_snapshot.xml`（`bin/publish_release.sh`、`bin/set_appcast.py`）。所以 snapshot feed = stable feed，外加比上一个 stable 新的 snapshot
 - snapshot 包本身没有渠道标记: 同 id、同名、同 Team，`ReleaseChannel.detect` 把 `SNAPSHOT-20250715.204752` 读成 `.stable`（`channel-verify` 实测）。偏好是唯一信号，读不到时给 stable；这时没有任何 `detect()` 信号被压掉
 - snapshot 叫 `.preview`：`ReleaseChannel` 里 "snapshot" 这个词在别处都映射到 `.preview`
-- `"168"` 这个 key 的风险: VimR 一旦把 `compatibleVersion` 改掉，新版本从默认值（stable）开始写新 key，旧的 `"168"` 字典留在原处。只读 `"168"` 时，最坏情况是一个在新版本里重新打开 snapshot 的用户继续被当成 stable，不会把 stable 用户推到 snapshot。改了要同步改 `VimRChannel.stateKey`
+- `"168"` 这个 key 的风险: VimR 一旦把 `compatibleVersion` 改掉，新版本从默认值（stable）开始写新 key，旧的 `"168"` 字典留在原处。旧字典里残留的 `true` 用户在 VimR 里已改不掉；只读 `"168"` 会把 VimR 已当成 stable 的用户推到 snapshot（对抗审查指出，2023-10-29 那次改 `"169"` 就没有迁移和清理）。所以偏好域里只要出现比 `stateKey` 大的全数字 key，就按 stable 处理（`VimRChannel.hasNewerStateKey`，测试 `aNewerStateKeyMakesTheOldToggleStale`）：改 key 后最坏只是 snapshot 用户被当成 stable，不会反过来。改了要同步改 `VimRChannel.stateKey`
 - 偏好监视: VimR 不是沙盒 app，偏好在 `~/Library/Preferences/com.qvacua.VimR.plist`，已在 `ChannelBinding.preferenceWatchCandidates` 的根目录里；`boundBundleIDs` 已登记
 - 渠道证明: `bindingProofs` 里 `(com.qvacua.VimR, .preview)` 锚定 `appcast_snapshot\.xml` 于 `feedOverride`（和 IINA 一样，请求侧的证明）
 
@@ -93,8 +93,8 @@
 - 2026-11-11: 两份 appcast 字节相同（1326 字节，都是 v0.67.0 / 20261010.130648）
 - 2026-11-11: `appcast_snapshot.xml` 在 qvacua/vimr@245d6ad3（2025-07-15）时是 `SNAPSHOT-20250715.204752`（build 20250715.204752），同一提交的 `appcast.xml` 是 0.55.0（20250713.101600）；0.56.0（2025-07-23）发布后两份又相同
 - 2026-11-11: `PrefMiddleware.compatibleVersion` 的历史：2019-03（8d38b09d）到今天都是 `"168"`；3306da68（2023-10-29）改成 `"169"`，e103f67d（2023-11-05）"revert prefs version bump" 改回 `"168"`
-- 2026-11-11: release 列表 433 条，其中 132 条非 prerelease；最近 40 条里 VimR stable 约 27 条，`neovim-v…` prerelease 穿插其中
-- 2026-11-11: snapshot 解析用临时写入 `defaults write com.qvacua.VimR 168 -dict use-snapshot-update-channel -bool true` 验证，之后 `defaults delete` 并删除空 plist
+- 2026-11-11: release 列表 433 条，其中 132 条非 prerelease；最近 40 条里 VimR stable 24 条、`neovim-v…` 14 条、`snapshot/…` 2 条
+- 2026-11-11: snapshot 解析用临时写入 `defaults write com.qvacua.VimR 168 -dict use-snapshot-update-channel -bool true` 验证，之后 `defaults delete` 并删除空 plist（本机原本没有这个偏好域才可以这样做；`-dict` 会整个替换 VimR 的设置字典、`defaults delete` 会删掉整个域。有真实设置的机器上先 `defaults export com.qvacua.VimR <备份>`，并用 `-dict-add`）
 
 ## 如何复验
 ```bash

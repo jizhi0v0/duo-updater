@@ -189,6 +189,9 @@ import CryptoKit
     let timedOutInSweep = targets.filter { isTimeout((results[$0] ?? nil)?.failure) }.count
     // Balrog's emergency shutoffs, fetched at most once and only if needed.
     var balrogShutoffs: Set<BalrogTrack>?
+    // Balrog's rules per product, fetched at most once each and only if needed.
+    // A product whose list could not be read is cached as nil.
+    var balrogRules: [String: Data?] = [:]
 
     for key in targets {
         let outcome = results[key] ?? nil
@@ -243,6 +246,15 @@ import CryptoKit
                let track = byKey[key].flatMap({ BalrogTrack(updateURL: $0.url) }) {
                 if balrogShutoffs == nil { balrogShutoffs = await fetchBalrogShutoffs() }
                 shutOff = balrogShutoffs?.contains(track) ?? false
+            }
+            if !shutOff, case .versionPatternNoMatch? = outcome?.failure,
+               let request = byKey[key].flatMap({ BalrogRequest(updateURL: $0.url) }) {
+                if balrogRules[request.product] == nil {
+                    balrogRules[request.product] = .some(await fetchBalrogRules(product: request.product))
+                }
+                if let rules = balrogRules[request.product] ?? nil {
+                    shutOff = balrogPausesUpdates(for: request, rules: rules) ?? false
+                }
             }
             if let lastGoodAt = outcome.flatMap({ lastGood[$0.recipeID] }),
                excusesVendorOutage(outcome?.failure, lastGoodAt: lastGoodAt,
@@ -308,6 +320,13 @@ import CryptoKit
 /// which the fixed-anchor recipes read as a miss. On 2026-09-24 a Firefox
 /// `nightly` shutoff ("Bug 2075059: crashes") failed `test` on every PR, as a
 /// 13-hour one had on 2026-09-16 (PR #695).
+/// Mozilla also pauses a track with an ordinary rule instead of a shutoff: on
+/// 2026-11-10 rule 18119 ("Bug 2091237 - Pause Darwin Nightly updates: build
+/// 20261109214446 fails to launch", priority 1000, `nightly`, `Darwin`) mapped
+/// to `No-Update`. The shutoff list was empty, Windows Nightly still got the
+/// build, and `test` failed on every PR. So `balrogShutoff` is also true when
+/// the highest-priority rule that can match the recipe's own request is such a
+/// pause (`balrogPausesUpdates`).
 ///
 /// A `vendorErrorEnvelope` is excused: the body matched the recipe's own
 /// `transientBodyPattern`, the vendor's error written down per recipe, so it is
@@ -385,6 +404,90 @@ func parseBalrogShutoffs(_ data: Data) -> Set<BalrogTrack>? {
         else { return nil }
         return BalrogTrack(product: product, channel: channel)
     })
+}
+
+/// One AUS update request, as Balrog's rules see it. Only `aus5.mozilla.org`.
+/// Path shape: `/update/6/<product>/<version>/<buildID>/<buildTarget>/<locale>/
+/// <channel>/<osVersion>/…`.
+struct BalrogRequest: Equatable {
+    let product: String
+    let buildTarget: String
+    let locale: String
+    let channel: String
+    let osVersion: String
+
+    init?(updateURL url: URL) {
+        let parts = url.pathComponents
+        guard url.host == "aus5.mozilla.org", parts.count > 9, parts[1] == "update" else { return nil }
+        product = parts[3]
+        buildTarget = parts[6]
+        locale = parts[7]
+        channel = parts[8]
+        osVersion = parts[9]
+    }
+}
+
+/// Whether Balrog's rules hold back every update for `request`: of the rules
+/// that can match it, the highest-priority ones all map to `No-Update` and
+/// certainly match. nil if `data` is not a rules list, which excuses nothing.
+///
+/// Fields are matched the way Balrog does: a `*`-suffixed channel is a prefix,
+/// `osVersion` matches when one of its comma-separated parts is contained in the
+/// request's, and `locale` is a comma-separated list. A rule that sets any other
+/// field (version, buildID, distribution, …) is not evaluated: it may match, so
+/// it can block a pause below it but never counts as one. A pause with
+/// `backgroundRate` under 100 serves its fallback to some requests, so it does
+/// not count either.
+func balrogPausesUpdates(for request: BalrogRequest, rules data: Data) -> Bool? {
+    guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+          let rows = json["rules"] as? [[String: Any]]
+    else { return nil }
+    func text(_ row: [String: Any], _ field: String) -> String? {
+        (row[field] as? String).flatMap { $0.isEmpty ? nil : $0 }
+    }
+    func list(_ value: String) -> [String] {
+        value.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+    }
+    func mayMatch(_ row: [String: Any]) -> Bool {
+        guard text(row, "product") == request.product else { return false }
+        if let channel = text(row, "channel") {
+            let matches = channel.hasSuffix("*")
+                ? request.channel.hasPrefix(String(channel.dropLast()))
+                : request.channel == channel
+            guard matches else { return false }
+        }
+        if let os = text(row, "osVersion"), !list(os).contains(where: { request.osVersion.contains($0) }) {
+            return false
+        }
+        if let target = text(row, "buildTarget"), target != request.buildTarget { return false }
+        if let locales = text(row, "locale"), !list(locales).contains(request.locale) { return false }
+        return true
+    }
+    let unevaluated = ["version", "buildID", "distribution", "distVersion", "headerArchitecture",
+                       "instructionSet", "jaws", "memory", "mig64"]
+    func isPause(_ row: [String: Any]) -> Bool {
+        text(row, "mapping") == "No-Update"
+            && (row["backgroundRate"] as? Int) == 100
+            && unevaluated.allSatisfy { row[$0] == nil || row[$0] is NSNull }
+    }
+    let candidates = rows.filter(mayMatch)
+    guard let top = candidates.compactMap({ $0["priority"] as? Int }).max() else { return false }
+    let first = candidates.filter { ($0["priority"] as? Int) == top }
+    return first.allSatisfy(isPause)
+}
+
+/// Balrog's rules for one product, or nil if they could not be read — which
+/// excuses nothing.
+func fetchBalrogRules(product: String) async -> Data? {
+    var components = URLComponents(string: "https://aus-api.mozilla.org/api/v1/rules")!
+    components.queryItems = [URLQueryItem(name: "product", value: product)]
+    var request = URLRequest(url: components.url!)
+    // Past our own cache, as for the shutoffs: a lifted pause must not excuse a break.
+    request.cachePolicy = .reloadIgnoringLocalCacheData
+    guard let (data, response) = try? await URLSession.shared.data(for: request),
+          (response as? HTTPURLResponse)?.statusCode == 200
+    else { return nil }
+    return data
 }
 
 /// `lastGoodAt` per recipe ID from the committed `verify/baseline.json`.
@@ -1451,4 +1554,60 @@ private func checkGate(_ app: InstalledApp, log: @Sendable (String) -> Void) asy
     #expect(parseBalrogShutoffs(body) == [BalrogTrack(product: "Firefox", channel: "nightly")])
     #expect(parseBalrogShutoffs(Data(#"{"count":0,"shutoffs":[]}"#.utf8)) == [])
     #expect(parseBalrogShutoffs(Data("<html>".utf8)) == nil)
+}
+
+/// A pause written as a rule, not a shutoff: matched against the registry's
+/// real URLs, so a recipe moved to another OS or channel stops matching.
+@Test func balrogPauseRuleMatchesOnlyTheTrackItNames() throws {
+    let nightly = try #require(VendorProbeRegistry.recipes.first {
+        $0.bundleID == "org.mozilla.nightly" && $0.channel == .nightly
+    })
+    let request = try #require(BalrogRequest(updateURL: nightly.url))
+    #expect(request.channel == "nightly" && request.osVersion.hasPrefix("Darwin"))
+    #expect(BalrogRequest(updateURL: URL(string: "https://example.com/update/6/Firefox/1/2/3/4/nightly/x/y")!) == nil)
+
+    func rules(_ extra: String = "") -> Data {
+        // Rule 18119 as Balrog served it on 2026-11-10, the nightly release rule
+        // under it, and two rules for other platforms.
+        let served = [
+            #"{"rule_id":18119,"product":"Firefox","channel":"nightly","osVersion":"Darwin","mapping":"No-Update","priority":1000,"backgroundRate":100,"buildID":null,"buildTarget":null,"locale":null,"version":null,"distribution":null,"comment":"Bug 2091237 - Pause Darwin Nightly updates: build 20261109214446 fails to launch"}"#,
+            #"{"rule_id":3,"product":"Firefox","channel":"nightly","osVersion":null,"mapping":"Firefox-mozilla-central-nightly-latest","priority":90,"backgroundRate":100}"#,
+            #"{"rule_id":17830,"product":"Firefox","channel":"nightly*","osVersion":"Windows_NT 6.1,Windows_NT 6.2","mapping":"Windows-7-8-81-Desupport","priority":175,"backgroundRate":100}"#,
+            #"{"rule_id":17825,"product":"Firefox","channel":"nightly*","osVersion":"Darwin 16,Darwin 17,Darwin 18","mapping":"OSX-10.12-10.14-Desupport","priority":180,"backgroundRate":100}"#,
+        ]
+        return Data(#"{"count":0,"rules":["#.utf8 + Data((served + (extra.isEmpty ? [] : [extra])).joined(separator: ",").utf8) + Data("]}".utf8))
+    }
+    #expect(balrogPausesUpdates(for: request, rules: rules()) == true)
+
+    // Not this request's track.
+    let windows = try #require(BalrogRequest(updateURL: URL(string:
+        "https://aus5.mozilla.org/update/6/Firefox/161.0a1/20261001000000/WINNT_x86_64-msvc-x64/en-US/nightly/Windows_NT%2010.0.0.0.22631/default/default/default/update.xml")!))
+    #expect(balrogPausesUpdates(for: windows, rules: rules()) == false)
+    // The beta and aurora recipes: same host and OS, another channel.
+    let others = VendorProbeRegistry.recipes.compactMap { recipe in
+        BalrogRequest(updateURL: recipe.url).flatMap { $0.channel == "nightly" ? nil : $0 }
+    }
+    #expect(others.count >= 2)
+    for other in others {
+        #expect(balrogPausesUpdates(for: other, rules: rules()) == false, "\(other.channel)")
+    }
+
+    // A higher rule that may serve a build wins over the pause.
+    #expect(balrogPausesUpdates(for: request, rules: rules(
+        #"{"product":"Firefox","channel":"nightly*","mapping":"Firefox-mozilla-central-nightly-latest","priority":1100,"backgroundRate":100,"buildID":"<20261109000000"}"#)) == false)
+    // A higher pause scoped by a field not evaluated here is not certain.
+    #expect(balrogPausesUpdates(for: request, rules: rules(
+        #"{"product":"Firefox","channel":"nightly","mapping":"No-Update","priority":1100,"backgroundRate":100,"version":"<150.0"}"#)) == false)
+    // A pause that serves its fallback to some requests is not certain.
+    #expect(balrogPausesUpdates(for: request, rules: rules(
+        #"{"product":"Firefox","channel":"nightly","mapping":"No-Update","priority":1100,"backgroundRate":50}"#)) == false)
+    // A higher rule for another product or locale does not block the pause.
+    #expect(balrogPausesUpdates(for: request, rules: rules(
+        #"{"product":"Thunderbird","channel":"nightly","mapping":"x","priority":2000,"backgroundRate":100}"#)) == true)
+    #expect(balrogPausesUpdates(for: request, rules: rules(
+        #"{"product":"Firefox","channel":"nightly","locale":"de,fr","mapping":"x","priority":2000,"backgroundRate":100}"#)) == true)
+    // No pause at all.
+    let unpaused = Data(#"{"count":1,"rules":[{"product":"Firefox","channel":"nightly","mapping":"Firefox-mozilla-central-nightly-latest","priority":90,"backgroundRate":100}]}"#.utf8)
+    #expect(balrogPausesUpdates(for: request, rules: unpaused) == false)
+    #expect(balrogPausesUpdates(for: request, rules: Data("<html>".utf8)) == nil)
 }

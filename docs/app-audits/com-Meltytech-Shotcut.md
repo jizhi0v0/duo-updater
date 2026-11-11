@@ -15,7 +15,7 @@
 |            | Sparkle | Homebrew | MAS | GitHub | VendorProbe |
 |------------|---------|----------|-----|--------|-------------|
 | **stable** | —       | —（auto_updates，brew 让位） | — | ✓ 一键 universal dmg | — |
-| **beta**   | —       | —        | —   | ○（prerelease 副本按 stable 处理，见「已知问题」） | — |
+| **beta**   | —       | —        | —   | ✓ 一键 universal dmg（按精确 tag 的 `prerelease` 位证出） | — |
 
 当前生效源: **GitHub**（`channel-verify` 实测，见「如何复验」）
 
@@ -41,10 +41,10 @@
 | Channel | Bundle ID | 独立/共享 | 检测信号 | 门控方式 | 状态 |
 |---------|-----------|----------|---------|---------|------|
 | stable  | `com.Meltytech.Shotcut` | — | `CFBundleShortVersionString` 纯数字 | `/releases/latest`（GitHub 排除 prerelease） | ✓ |
-| beta    | 同 id | 共享 | 无本地信号；只有 GitHub 的 `prerelease` 位（精确 tag 可查） | 未接 rule | ○ 待用户决定 |
+| beta    | 同 id | 共享 | 无本地信号；`installedTagPrefix: "v"` 查 `v<版本>` 的 `prerelease` 位 | `/releases` 最新一条（不分轨） | ✓ |
 
 ## 更新检测
-- 源: `mltframework/shotcut` GitHub Releases，`/releases/latest`
+- 源: `mltframework/shotcut` GitHub Releases：stable 读 `/releases/latest`，beta 读 `/releases` 列表
 - `versionPattern` `^v([0-9]+(?:\.[0-9]+)+)$`：读 `v26.9.27`、`v25.08.16`，不读带后缀的 tag
 - `installAssetPattern` `^shotcut-macos-[0-9]+(?:\.[0-9]+)+\.dmg$`：同 release 的 `shotcut-macos-unsigned-*.dmg`、`-resigned`、旧 `YYMMDD` 名、Linux/Windows 包都不匹配。`v26.9.27` 下两个 dmg 都匹配，`installableAsset` 按整个文件名的版本取最高的 26.9.28
 - `assetVersionPattern` `^shotcut-macos-([0-9]+(?:\.[0-9]+)+)\.dmg$`（本 PR 新增的 `GitHubReleaseRule` 字段）：报出的版本读自被选中的那个资产名，所以 `v26.9.27` 报 26.9.28。只改报出版本；选哪个 release、跳过无资产的 release、历史和 tag 查询仍按 tag。资产名读不出时退回 tag 版本
@@ -72,16 +72,24 @@
 - 来源: GitHub release 正文，由 GitHub rule 自己带出（`GitHubMarkdownParser`，面板「source structured」）。没有另加 `ChangelogRecipe`：那类配方按 tag 给条目编号（26.9.27），而这条 rule 报的是 26.9.28，两者对不上
 - 结构: 正文是 `## What's Changed` 加一行指向网站的说明和 36 条 `- …`，结尾 `**Full Changelog**`。面板实测 1 条目、36 items、`headings []`：唯一的 `What's Changed` 标题不单独显示，条目带 `**粗体**` 的菜单/滤镜名。厂商在 GitHub 正文里本来就没有分节，这是能拿到的全部结构
 - shotcut.org 的博客页（`/blog/new-release-26.9.27/`）分节更细（Security Notice / New Look / Audio Enhancements / Timeline Enhancements / Other Changes / Fixes），但每个版本一页、要从版本拼地址，也不提 26.9.28 重打包，而且是带配图和说明文字的文章；GitHub 正文是同一版本的完整条目列表，随 rule 的同一次请求到手，所以用 GitHub
-- 跟随 channel: 只有 stable（`/releases/latest` 不含 prerelease）
+- 跟随 channel: 各轨读自己那条 release 的正文；beta 副本拿到的是它被推的那个 release（下一个 prerelease 或其后的正式版）的正文
 
 ## 一键安装
 - 状态: 支持（universal dmg，Team 闸 + GitHub digest）
 - 资产: `https://github.com/mltframework/shotcut/releases/download/v26.9.27/shotcut-macos-26.9.28.dmg`，`sha256:0e4c95ad41f26d96c442642e03e0c107bf98abfceea78724e2b05aa704ef79c6`（与下载文件一致）
 - 端到端: ✓ 第一轮（2026-11-11，本机，未运行）：/Applications 放同 tag 的原版 26.9.27，`duo check` 报 `26.9.27 → 26.9.28`，`duo install com.Meltytech.Shotcut --yes` → `verifyingSignature … verifyingCodeSignature … installed.`；结果 26.9.28、Team `Y6RX44QG2G`、`codesign --verify --deep --strict` 0、spctl Notarized Developer ID；之后 `duo check` 报 up to date（重打包的版本从资产名读出，实测）。运行中一轮未做。
+- 端到端（beta）: ✓（2026-11-11，本机，未运行）：/Applications 放 prerelease 26.9.6（digest 一致），`duo check` 报 `26.9.6 → 26.10.30`（stable rule 只会给 26.9.28），
+  `duo install com.Meltytech.Shotcut --yes` → `verifyingSignature … verifyingCodeSignature … installed.`；结果 26.10.30、Team `Y6RX44QG2G`、
+  `codesign --verify --deep --strict` 0、spctl Notarized Developer ID；之后 `duo check` up to date
 - 旧副本: 24.04 起所有正式版同 id、同 Team，一键闸都能放行
 
 ## 已知问题
-- **prerelease 副本没有本地标记**：装着 26.10.30 这类 prerelease 的副本按 stable 读。方向安全：它比当前正式版新，读 up to date；之后的正式版一直比之前的 prerelease 高（26.9.6 → 26.9.27、26.7.16 → 26.8.1、26.6.1 → 26.6.25、26.4.6 → 26.4.30、26.2.16 → 26.2.26、26.1.16 → 26.1.30、25.12.2 → 25.12.30），所以它会被推到下一个正式版，不会被降级；只是看不到更新的 prerelease。`installedTagPrefix` 能按精确 tag 证出 prerelease，可以接一条 `.beta` rule（见「建议下一步」）
+- **prerelease 副本没有本地标记**：beta rule 用 `installedTagPrefix: "v"` 查副本版本对应的精确 tag，GitHub 标 prerelease 的归 beta，
+  拿最新的 release（不分 prerelease / 正式版）。Shotcut 版本号是日期，之后的正式版一直比之前的 prerelease 高（26.9.6 → 26.9.27、
+  26.7.16 → 26.8.1、26.6.1 → 26.6.25、26.4.6 → 26.4.30、26.2.16 → 26.2.26、26.1.16 → 26.1.30、25.12.2 → 25.12.30），所以 beta 副本
+  会被推到下一个 prerelease 或其后的正式版，装上正式版后它的 tag 证出 stable，回到 stable rule
+- 证不出的副本走 stable rule：重打包的版本没有自己的 tag（26.9.28 在 `v26.9.27` 下；prerelease `v26.6.1` 下的 26.5.29 同理），
+  旧命名（short `25.08`）也拼不出 tag。方向安全：stable rule 只推更高的正式版
 - 重打包若改到 prerelease 的 tag 下（像 `v26.6.1` 的 26.5.29），对 stable rule 没有影响：`/releases/latest` 不返回 prerelease
 - 旧命名时代（≤ 25.08.16）的副本 short 只有 `YY.MM`，在面板里显示为 24.04 / 25.08，比较仍正确
 
@@ -102,13 +110,15 @@ swift run --package-path application-test channel-verify <dmg> --expect stable
 | 26.9.27（tag `v26.9.27` 原包） | 26.9.27 / 26.9.27 | stable | GitHub | 26.9.28 | UPDATE → 26.9.28 |
 | 26.9.28（同 tag 重打包，最新） | 26.9.28 / 26.9.28 | stable | GitHub | 26.9.28 | up to date |
 | 26.8.1（上一个正式版） | 26.8.1 / 26.8.1 | stable | GitHub | 26.9.28 | UPDATE → 26.9.28 |
-| 26.10.30（prerelease） | 26.10.30 / 26.10.30 | stable | GitHub | 26.9.28 | up to date |
+| 26.10.30（prerelease） | 26.10.30 / 26.10.30 | stable（本地）→ beta rule 作答 | GitHub | 26.10.30 | up to date |
 
-四个包的 `download` 都是 `https://github.com/mltframework/shotcut/releases/download/v26.9.27/shotcut-macos-26.9.28.dmg`；`changelog pane  source structured: 1 entries; newest 26.9.28: 36 items, headings []; first items ["Fixed security flaws in upgrade and Whis", "Fixed **Mask: Draw (Glaxnimate)** filter", "Fixed using **Size, Position & Rotate** "]`
+前三个包的 `download` 都是 `https://github.com/mltframework/shotcut/releases/download/v26.9.27/shotcut-macos-26.9.28.dmg`；`changelog pane  source structured: 1 entries; newest 26.9.28: 36 items, headings []; first items ["Fixed security flaws in upgrade and Whis", "Fixed **Mask: Draw (Glaxnimate)** filter", "Fixed using **Size, Position & Rotate** "]`
 
 ## 建议下一步
-- 待用户决定: 是否加一条 `.beta` rule（`usePrereleases`、`installedTagPrefix: "v"`、同样的资产与 `assetVersionPattern`），让 prerelease 副本拿到更新的 prerelease。26.10.30 的 dmg 同 id、同 Team、Notarized，一键可行
+- 运行中一轮（stable 与 beta）未做
 
 ## 历史与实测
 - 2026-11-11 接入。scaffold 在 `v26.9.27` 停下（tag 里没有与包版本 26.9.28 相同的版本），rule 手写；为重打包新增 `GitHubReleaseRule.assetVersionPattern`
 - 下载哈希与 GitHub `digest` 全部一致: 26.9.28 `0e4c95ad…79c6`、26.9.27 `629b056b…2548`、26.8.1 `7bab10bd…5657`、26.10.30 `efcb8836…e8aef7`、250816 `f81f839a…4c1`；240428 的资产没有 `digest`（2025-06 前上传），本地 sha256 `391f65ee…997d`
+- 2026-11-11 接 beta rule。`channel-verify` 26.10.30 真包：latest 26.10.30、download `v26.10.30/shotcut-macos-26.10.30.dmg`、
+  changelog 42 items（接之前 latest 26.9.28）；26.9.27 / 26.9.28 真包结果不变。最新 100 个 release 的 tag 全部符合规则，列表深度下限 1

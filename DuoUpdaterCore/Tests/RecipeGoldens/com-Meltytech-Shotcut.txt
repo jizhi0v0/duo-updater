@@ -7,7 +7,7 @@ probes = Array(count: 0)
 
 changelogs = Array(count: 0)
 
-githubRules = Array(count: 1)
+githubRules = Array(count: 2)
 githubRules[0] = struct GitHubReleaseRule
 githubRules[0].bundleID = "com.Meltytech.Shotcut"
 githubRules[0].owner = "mltframework"
@@ -27,12 +27,35 @@ githubRules[0].architectureRequirement = nil
 githubRules[0].tagRefPrefix = nil
 githubRules[0].installedExecutableMarker = nil
 githubRules[0].assetVersionPattern? = "^shotcut-macos-([0-9]+(?:\\.[0-9]+)+)\\.dmg$"
+githubRules[1] = struct GitHubReleaseRule
+githubRules[1].bundleID = "com.Meltytech.Shotcut"
+githubRules[1].owner = "mltframework"
+githubRules[1].repo = "shotcut"
+githubRules[1].usePrereleases = true
+githubRules[1].listPageSize = 20
+githubRules[1].versionPattern = "^v([0-9]+(?:\\.[0-9]+)+)$"
+githubRules[1].candidateScope = .newest
+githubRules[1].probesNewestFirst = true
+githubRules[1].installedTagPrefix? = "v"
+githubRules[1].channel = .beta
+githubRules[1].installAssetPattern? = "^shotcut-macos-[0-9]+(?:\\.[0-9]+)+\\.dmg$"
+githubRules[1].installerKind? = .dmg
+githubRules[1].installTrust = .developerID
+githubRules[1].variant = nil
+githubRules[1].architectureRequirement = nil
+githubRules[1].tagRefPrefix = nil
+githubRules[1].installedExecutableMarker = nil
+githubRules[1].assetVersionPattern? = "^shotcut-macos-([0-9]+(?:\\.[0-9]+)+)\\.dmg$"
 
 appStoreCases = Array(count: 0)
 
 channelProofs = Dictionary(count: 0)
 
-githubChannelProofs = Dictionary(count: 0)
+githubChannelProofs = Dictionary(count: 1)
+githubChannelProofs[ChannelProofKey(bundleID: "com.Meltytech.Shotcut", channel: .beta)] = .recipeAnchor(_:in:)
+githubChannelProofs[ChannelProofKey(bundleID: "com.Meltytech.Shotcut", channel: .beta)].0 = "^true$"
+githubChannelProofs[ChannelProofKey(bundleID: "com.Meltytech.Shotcut", channel: .beta)].in = Set(count: 1)
+githubChannelProofs[ChannelProofKey(bundleID: "com.Meltytech.Shotcut", channel: .beta)].in{0} = "usePrereleases"
 
 bindingProofs = Dictionary(count: 0)
 

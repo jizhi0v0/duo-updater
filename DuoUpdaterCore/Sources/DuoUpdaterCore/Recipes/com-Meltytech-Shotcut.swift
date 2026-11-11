@@ -29,12 +29,11 @@ enum com_Meltytech_Shotcut {
         // com.Meltytech.Shotcut, Team Y6RX44QG2G, Notarized Developer ID —
         // checked on 26.9.28, 26.9.27, 26.8.1, 25.08.16 and 24.04.28.
         //
-        // Prereleases (`v26.10.30`, `prerelease: true`) share the tag shape, the
-        // asset names and the bundle id, and their bundle keeps a plain version,
-        // so a copy installed from one reads as stable. That is safe by
-        // comparison: each prerelease so far was followed by a higher stable
-        // release, so such a copy is up to date until then and is offered that
-        // stable, never anything older. No beta rule (audit: 待用户决定).
+        // Prereleases (`v26.10.30`, `prerelease: true`, "beta" on the web site)
+        // share the tag shape, the asset names and the bundle id, and their
+        // bundle keeps a plain version: nothing local tells them apart. The beta
+        // rule below proves a copy's track from GitHub's `prerelease` bit on its
+        // exact tag; a copy this cannot prove answers here.
         GitHubReleaseRule(
             bundleID: "com.Meltytech.Shotcut",
             owner: "mltframework", repo: "shotcut",
@@ -42,5 +41,32 @@ enum com_Meltytech_Shotcut {
             installAssetPattern: #"^shotcut-macos-[0-9]+(?:\.[0-9]+)+\.dmg$"#,
             installerKind: .dmg,
             assetVersionPattern: #"^shotcut-macos-([0-9]+(?:\.[0-9]+)+)\.dmg$"#),
+        // Beta: a copy whose exact tag (`v` + its version) GitHub marks as a
+        // prerelease. Shotcut versions are dates and every release, of either
+        // kind, is numbered above the ones before it, so such a copy is offered
+        // the newest release of any kind: the next prerelease, or the stable
+        // release that follows it, after which it proves stable and answers on
+        // the rule above. A respin's version names no tag of its own
+        // (26.9.28 lives under `v26.9.27`), so it cannot be proven and answers
+        // on the stable rule, as does a copy from before the dotted names
+        // (short version `25.08`). Asset, kind and version reading are the
+        // stable rule's; the prerelease dmg is the same id and Team, notarized.
+        GitHubReleaseRule(
+            bundleID: "com.Meltytech.Shotcut",
+            owner: "mltframework", repo: "shotcut",
+            usePrereleases: true,
+            versionPattern: #"^v([0-9]+(?:\.[0-9]+)+)$"#,
+            installedTagPrefix: "v",
+            installAssetPattern: #"^shotcut-macos-[0-9]+(?:\.[0-9]+)+\.dmg$"#,
+            installerKind: .dmg,
+            channel: .beta,
+            assetVersionPattern: #"^shotcut-macos-([0-9]+(?:\.[0-9]+)+)\.dmg$"#),
+        ],
+        githubChannelProofs: [
+        // Anchor, not artifact: the beta rule offers stable releases on purpose
+        // (the graduation), so an artifact proof would fire on it. The track
+        // itself is proven per copy by the exact-tag lookup.
+        ChannelProofKey("com.Meltytech.Shotcut", .beta):
+            .recipeAnchor(#"^true$"#, in: ["usePrereleases"]),
         ])
 }

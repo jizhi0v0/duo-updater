@@ -148,6 +148,11 @@ struct GitHubListPageSizeTests {
         // (v2.0.0-beta.0, v1.18.0 … v1.0.1, v1.0.0-beta.6), first hit at index
         // 0, gap 0, so 1. The rule keeps the default 20.
         "app.responsively/beta": 1,
+        // Shotcut beta: the rule takes stable and prerelease tags alike (a
+        // prerelease copy is offered the newest of either). All 100 newest
+        // releases on 2026-11-11 match (v26.10.30, v26.9.27 … ), first hit at
+        // index 0, gap 0, so 1. The rule keeps the default 20.
+        "com.Meltytech.Shotcut/beta": 1,
     ]
 
     private static func key(_ rule: GitHubReleaseRule) -> String {

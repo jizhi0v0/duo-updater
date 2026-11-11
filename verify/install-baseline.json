@@ -7,14 +7,14 @@
       "sweepsSinceComment" : 0
     },
     "install:github:AppFlowy-IO\/AppFlowy:stable" : {
-      "consecutiveActionable" : 23,
+      "consecutiveActionable" : 24,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 1812,
       "lastCommentedAt" : "2026-11-10T22:39:32Z",
       "lastSignature" : "identityChanged: Sparkle key none → Bs++",
       "previousSignature" : "identityChanged: Sparkle key none → Bs++",
-      "sweepsSinceComment" : 1
+      "sweepsSinceComment" : 2
     },
     "install:github:AprilNEA\/OpenLogi:stable" : {
       "closedAt" : "2026-10-19T11:23:39Z",
@@ -139,6 +139,18 @@
       "sweepsSinceComment" : 0
     },
     "install:github:RSSNext\/Folo:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
+    "install:github:RunMaestro\/Maestro:beta" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
+    "install:github:RunMaestro\/Maestro:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
@@ -766,6 +778,18 @@
       "consecutiveInstallTransient" : 0,
       "sweepsSinceComment" : 0
     },
+    "install:github:mltframework\/shotcut:beta" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
+    "install:github:mltframework\/shotcut:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
     "install:github:mockoon\/mockoon:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
@@ -797,6 +821,12 @@
       "sweepsSinceComment" : 0
     },
     "install:github:mstcvk\/mc-download-manager:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
+    "install:github:mucommander\/mucommander:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
@@ -1049,14 +1079,14 @@
       "sweepsSinceComment" : 0
     },
     "install:github:schuyler\/macdown3000:stable" : {
-      "consecutiveActionable" : 24,
+      "consecutiveActionable" : 25,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 1799,
       "lastCommentedAt" : "2026-11-10T14:12:17Z",
       "lastSignature" : "identityChanged: Sparkle key none → dYc+",
       "previousSignature" : "identityChanged: Sparkle key none → dYc+",
-      "sweepsSinceComment" : 2
+      "sweepsSinceComment" : 3
     },
     "install:github:sheprd-labs\/sheprd:stable" : {
       "consecutiveActionable" : 0,
@@ -1131,6 +1161,18 @@
       "sweepsSinceComment" : 0
     },
     "install:github:swiftbar\/SwiftBar:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
+    "install:github:textmate\/textmate:beta" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
+    "install:github:textmate\/textmate:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
@@ -2384,5 +2426,5 @@
     }
   },
   "schemaVersion" : 1,
-  "updatedAt" : "2026-11-11T03:04:11Z"
+  "updatedAt" : "2026-11-11T13:12:14Z"
 }

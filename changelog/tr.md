@@ -2,6 +2,20 @@
 
 Bu, `CHANGELOG.md` dosyasının Türkçe çevirisidir. Geçerli olan İngilizce sürümdür; burada yer almayan eski sürümler otomatik olarak İngilizce gösterilir.
 
+## 0.5.24-beta.7
+
+**TextMate, VimR, Maestro, muCommander ve Shotcut artık güncelleme denetimi, tek tıkla güncelleme ve sürüm notları sunuyor.** Desteklenen beta, snapshot ve RC kanalları, uygulamanın kanal seçimini veya yüklü sürümü izler.
+
+**Otomatik güncellemeler indirilip doğrulanırken çalışan uygulamalar açık kalır.** İzin verilen uygulamalar yalnızca güncelleme kurulmaya hazır olduğunda kapatılır ve ardından arka planda yeniden açılır; Mac’e dönerseniz güncelleme bekler.
+
+**Kurtarılabilir yedekleri bulmak ve yönetmek kolaylaştı.** Yedek temizleme, bekleyenler dahil kayıtlı kopyaları ayrı ayrı listeler ve korunan geri yükleme noktalarını ve eksik dosyaları belirtir.
+
+**Homebrew, sürümsüz cask’leri ve eksik uygulamaları daha anlaşılır biçimde ele alır.** Karşılaştırılabilir sürümü olmayan üçüncü taraf cask’ler izin verildiğinde diğer kaynakları denetleyebilir; kayıtlı konumunda bulunmayan uygulamalar gösterilir ve Brew güncellemelerinde atlanır.
+
+**Sürüm notları aynı sürümün farklı derlemelerini içerir.** Sürüm numarası aynı olsa da kendi notları olan derlemeler artık tek bir kayıtta birleştirilmez.
+
+**Longbridge Preview yeniden güncellenebiliyor.** Derleme kimliği içeren indirme bağlantıları artık tanınıyor.
+
 ## 0.5.24-beta.6
 
 **Otomatik güncellemeler artık yedekleme ayarınıza uyuyor.** Yedeklemeler kapatıldığında otomatik güncellemeler uygulamanın önceki sürümünü artık kaydetmez. Mevcut yedekler korunur.

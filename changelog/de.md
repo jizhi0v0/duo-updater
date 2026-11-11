@@ -2,6 +2,20 @@
 
 Dies ist eine deutsche Übersetzung von `CHANGELOG.md`. Die englische Fassung ist maßgeblich; frühere Versionen, die hier nicht aufgeführt sind, fallen automatisch auf Englisch zurück.
 
+## 0.5.24-beta.7
+
+**TextMate, VimR, Maestro, muCommander und Shotcut erhalten Update-Prüfungen, Ein-Klick-Updates und Versionshinweise.** Unterstützte Beta-, Snapshot- und RC-Kanäle folgen der Kanalwahl der jeweiligen App oder der installierten Version.
+
+**Laufende Apps bleiben während Download und Prüfung automatischer Updates geöffnet.** Freigegebene Apps werden erst beendet, wenn das Update bereit zur Installation ist, und danach im Hintergrund erneut geöffnet; kehrst du zum Mac zurück, wartet das Update.
+
+**Wiederherstellbare Backups lassen sich leichter finden und verwalten.** Die Backup-Bereinigung listet gespeicherte Kopien einzeln auf, auch ausstehende, und kennzeichnet geschützte Wiederherstellungspunkte und fehlende Dateien.
+
+**Homebrew behandelt Casks ohne Versionsnummer und fehlende Apps verständlicher.** Drittanbieter-Casks ohne vergleichbare Version dürfen bei entsprechender Freigabe andere Quellen prüfen; Apps, die am registrierten Ort fehlen, werden angezeigt und bei Brew-Updates übersprungen.
+
+**Versionshinweise enthalten unterschiedliche Builds derselben Version.** Builds mit gleicher Versionsnummer, aber eigenen Hinweisen werden nicht mehr zu einem Eintrag zusammengefasst.
+
+**Longbridge Preview lässt sich wieder aktualisieren.** Download-Links mit einer Build-Kennung werden jetzt erkannt.
+
 ## 0.5.24-beta.6
 
 **Automatische Updates berücksichtigen jetzt deine Backup-Einstellung.** Wenn Backups deaktiviert sind, speichern automatische Updates keine Sicherung der vorherigen App-Version mehr. Vorhandene Backups bleiben erhalten.

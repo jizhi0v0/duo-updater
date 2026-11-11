@@ -38,6 +38,16 @@ import Foundation
 public enum GitHubCandidateScope: String, Sendable, Equatable {
     case newest
     case installedMajorLineOrNewestStable
+    /// The release whose tag reads the highest version on the fetched page,
+    /// whatever its position. For a vendor whose own updater sorts the list by
+    /// version before taking the first row, and whose prerelease line is
+    /// published ahead of later stable patches: Maestro's `1.1.0-RC` came out
+    /// before 1.0.1 and 1.0.2, and with RCs on the app offers it to a 1.0.2
+    /// copy. `.newest` would take 1.0.2, the first row. A release without the
+    /// macOS asset is walked past to the next-highest, as `.newest` walks to
+    /// the next row. Never probed with a one-row page: one row cannot say
+    /// which version is highest.
+    case highestVersion
 }
 
 /// From one release on, an app is only worth offering to some Macs, and nothing
@@ -795,6 +805,25 @@ public struct GitHubReleasesSource: UpdateSource {
     /// release and the next real one, so one row is the page that pays for
     /// itself; anything larger just moves the fallback threshold.
     static let newestProbePageSize = 1
+
+    /// `releases` ordered by the version their tag reads under `pattern`,
+    /// highest first; equal versions, and tags the pattern cannot read (last),
+    /// keep their list order.
+    static func byVersionDescending(_ releases: [Release], pattern: String) -> [Release] {
+        let keyed = releases.enumerated().map { (offset: $0.offset, release: $0.element,
+            version: VendorProbeRecipe.extractVersion(from: $0.element.tag, pattern: pattern)) }
+        return keyed.sorted { a, b in
+            switch (a.version, b.version) {
+            case let (va?, vb?):
+                if VersionComparator.isNewer(va, than: vb) { return true }
+                if VersionComparator.isNewer(vb, than: va) { return false }
+                return a.offset < b.offset
+            case (.some, nil): return true
+            case (nil, .some): return false
+            case (nil, nil): return a.offset < b.offset
+            }
+        }.map(\.release)
+    }
 
     /// Whether `resolve` may open with a one-row page for this rule at all —
     /// the static half of the decision. The dynamic half (has the full page
@@ -1663,6 +1692,13 @@ public struct GitHubReleasesSource: UpdateSource {
                     from: release.tag, pattern: rule.versionPattern) else { return false }
                 return !VersionComparator.isNewer(v, than: ceiling)
             }
+        }
+
+        // A highest-version rule walks the page in version order rather than in
+        // the order GitHub lists it. Stable, so equal versions keep their order;
+        // a tag the pattern cannot read goes last and is skipped by the walk.
+        if rule.candidateScope == .highestVersion {
+            releases = Self.byVersionDescending(releases, pattern: rule.versionPattern)
         }
 
         // A rule that names a macOS installer asks a stricter question than "what

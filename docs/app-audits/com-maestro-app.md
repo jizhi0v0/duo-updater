@@ -58,9 +58,12 @@
 - RC 轨已接（2026-11-11）：`MaestroChannel` 读 `~/Library/Application Support/maestro/maestro-settings.json`
   （真机目录是小写 `maestro`；`maestro-bootstrap.json` 的 `customSyncPath` 指向别处时读那里）的顶层 `enableBetaUpdates`，
   JSON `true` → `.beta`，其他一律 `.stable`。真机 1.0.2 拨两态实测：开 → `true`，关 → `false`，键保留（文件 81 个键）。
-  beta rule 读整个列表，tag 收 `v<ver>` 与 `v<ver>-RC` / `-rc`，取最新发布的那一个（RC 或正式版），与 app 开着开关时
-  `update-checker.ts` 把 `allReleases[0]` 当最新一致。RC 线常比正式版补丁先发（1.1.0-RC 在 1.0.0 与 1.0.1 之间发布），
-  这时最新发布的那个版本号低于 RC 副本，RC 副本读 up to date、不降级。
+  beta rule 读整个列表，tag 收 `v<ver>` 与 `v<ver>-RC` / `-rc`，取**版本号最高**的那一个（RC 或正式版，新范围
+  `.highestVersion`），与 app 开着开关时 `update-checker.ts` 先按 `compareVersions` 排序、再取第一个一致。RC 线常比正式版补丁先发
+  （1.1.0-RC 在 1.0.0 与 1.0.1 之间发布），所以列表顺序不是版本顺序：按列表第一条取会把开了开关的 1.0.2 副本判成已最新，
+  而 app 自己会推 1.1.0-RC。推出的版本号从实际安装的 zip 文件名读（`assetVersionPattern`）：`v0.16.16-RC` 里夹着一个正式版
+  `maestro-0.16.16-arm64-mac.zip`，`installableAsset` 会选它，读文件名才能让推荐版本与装上的包一致。
+- RC 轨的 changelog 用单独的 beta recipe（`includesPromotedStable`），列出 RC 与正式版；stable recipe 不再替 RC 副本作答
 - RC 的 release 也发 `latest-mac.yml`（不是 `beta-mac.yml`），里面 `version: 1.1.0-RC`。
 - 四个没标 prerelease 的 RC tag（`v0.15.4-RC`、`v0.15.0-RC`、`v0.11.2-rc`、`v0.8.8-rc`）被整串锚定的
   `versionPattern` 排除。`/releases/latest` 若落在这种 tag 上，它的资产名带 `-RC`，`installAssetPattern` 也不收，
@@ -135,7 +138,7 @@
 ## 已知问题
 - 自更新器竞争: 用户在 app 里点过下载、还没退出时，Squirrel.Mac 已经拿着那份包等退出安装（`autoInstallOnAppQuit`）。
   我们装上更新的版本后，若它在退出时再装旧的那份，就会回退。运行中一轮未做，未验证
-- RC 轨一键端到端未做：今天最新发布的是 1.0.2（正式版），没有能被推到的 RC
+- RC 轨一键端到端见「一键安装」
 
 ## 如何复验
 ```bash
@@ -158,12 +161,12 @@ ditto -x -k maestro-1.0.1-arm64-mac.zip prev && swift run --package-path applica
 ## 建议下一步
 1. 主会话: 两轮一键端到端（未运行 / 运行中），第二轮在 app 里点下载让 `~/Library/Caches/maestro-updater/pending/` 出现
    `update-info.json`，看 `local stash hit`，再用更旧的停放包测 Squirrel.Mac 退出安装是否回退
-2. 下一个 RC 成为最新发布时，用开了开关的副本做一次 RC 轨一键端到端
 
 ## 历史与实测
 - 2026-11-11 加 changelog recipe。旧路径（`GitHubReleasesSource` 的结构化日志）1.0.2 只有 6 条、没有小标题（Highlights 的 4 段丢了）。
   全部 103 个 release 正文用新旧两种读法回放：stable 共 66 个版本，新读法 1123 条；1.0.2 6→10、1.0.1 49→54、1.0.0 23→31、
   0.17.2 1→18、0.13.x 不变（旧版本段落照样切掉），0.1.x–0.9.x 多数不变。唯一多出的非改动内容是 0.15.1 的一段 🙏 安全致谢。
   当时 40 条一页里有 13 个 stable release，RC 穿插其间
-- 2026-11-11 接 RC 轨。真机 1.0.2 开关两态见 Channel 详情；开着时 `channel-verify` `ChannelBinding beta`、`latest 1.0.2`、up to date，
-  关后 `ChannelBinding stable`。最新 100 个 release 的 tag 全部符合 beta rule，列表深度下限 1
+- 2026-11-11 接 RC 轨。真机 1.0.2 开关两态见 Channel 详情；开着时 `channel-verify` `ChannelBinding beta`，关后 `ChannelBinding stable`。
+  第一版 RC rule 用 `.newest`（列表第一条），开着时答 `latest 1.0.2`、up to date；对抗审查指出 app 自己按版本排序、会推 1.1.0-RC，
+  改为 `.highestVersion`。把全部 103 个 release 的每个前缀回放一遍，版本最高的那条最深在下标 2，列表深度下限 3

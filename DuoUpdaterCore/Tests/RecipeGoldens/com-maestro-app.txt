@@ -5,7 +5,7 @@ family = "com-maestro-app"
 
 probes = Array(count: 0)
 
-changelogs = Array(count: 1)
+changelogs = Array(count: 2)
 changelogs[0] = struct ChangelogRecipe
 changelogs[0].bundleID = "com.maestro.app"
 changelogs[0].source = URL("https://api.github.com/repos/RunMaestro/Maestro/releases?per_page=40")
@@ -38,6 +38,38 @@ changelogs[0].httpMethod = .get
 changelogs[0].requestBody = nil
 changelogs[0].skipSections = Array(count: 0)
 changelogs[0].tagPattern? = "^v([0-9]+(?:\\.[0-9]+)+)$"
+changelogs[1] = struct ChangelogRecipe
+changelogs[1].bundleID = "com.maestro.app"
+changelogs[1].source = URL("https://api.github.com/repos/RunMaestro/Maestro/releases?per_page=40")
+changelogs[1].sourceTemplate = nil
+changelogs[1].versionFromTemplate = false
+changelogs[1].mode = .json
+changelogs[1].entryPattern = ""
+changelogs[1].itemPatterns = Array(count: 0)
+changelogs[1].stripTags = true
+changelogs[1].decodeEntities = true
+changelogs[1].escapedMarkup = false
+changelogs[1].markdownSource = false
+changelogs[1].maxEntries? = 20
+changelogs[1].minItemLength = 1
+changelogs[1].newestLast = false
+changelogs[1].indexLinkPattern = nil
+changelogs[1].feedPagePattern = nil
+changelogs[1].channel? = .beta
+changelogs[1].includesPromotedStable = true
+changelogs[1].ordersByPublishedDate = false
+changelogs[1].excludedChannels = Array(count: 0)
+changelogs[1].imagePattern = nil
+changelogs[1].headingPattern = nil
+changelogs[1].minimumAppVersion = nil
+changelogs[1].belowAppVersion = nil
+changelogs[1].carriesOtherTrainEntries = false
+changelogs[1].acknowledgedStaleEntry = nil
+changelogs[1].structuredFormat? = .maestroReleases
+changelogs[1].httpMethod = .get
+changelogs[1].requestBody = nil
+changelogs[1].skipSections = Array(count: 0)
+changelogs[1].tagPattern? = "^v([0-9]+(?:\\.[0-9]+)+(?:-(?:RC|rc))?)$"
 
 githubRules = Array(count: 2)
 githubRules[0] = struct GitHubReleaseRule
@@ -66,7 +98,7 @@ githubRules[1].repo = "Maestro"
 githubRules[1].usePrereleases = true
 githubRules[1].listPageSize = 20
 githubRules[1].versionPattern = "^v([0-9]+(?:\\.[0-9]+)+(?:-(?:RC|rc))?)$"
-githubRules[1].candidateScope = .newest
+githubRules[1].candidateScope = .highestVersion
 githubRules[1].probesNewestFirst = true
 githubRules[1].installedTagPrefix = nil
 githubRules[1].channel = .beta
@@ -77,7 +109,7 @@ githubRules[1].variant = nil
 githubRules[1].architectureRequirement = nil
 githubRules[1].tagRefPrefix = nil
 githubRules[1].installedExecutableMarker = nil
-githubRules[1].assetVersionPattern = nil
+githubRules[1].assetVersionPattern? = "^maestro-([0-9]+(?:\\.[0-9]+)+(?:-(?:RC|rc))?)-arm64-mac\\.zip$"
 
 appStoreCases = Array(count: 0)
 
@@ -85,10 +117,11 @@ channelProofs = Dictionary(count: 0)
 
 githubChannelProofs = Dictionary(count: 1)
 githubChannelProofs[ChannelProofKey(bundleID: "com.maestro.app", channel: .beta)] = .recipeAnchor(_:in:)
-githubChannelProofs[ChannelProofKey(bundleID: "com.maestro.app", channel: .beta)].0 = "^true$|-\\(\\?:RC\\|rc\\)\\)\\?\\)\\$$"
-githubChannelProofs[ChannelProofKey(bundleID: "com.maestro.app", channel: .beta)].in = Set(count: 2)
-githubChannelProofs[ChannelProofKey(bundleID: "com.maestro.app", channel: .beta)].in{0} = "usePrereleases"
-githubChannelProofs[ChannelProofKey(bundleID: "com.maestro.app", channel: .beta)].in{1} = "versionPattern"
+githubChannelProofs[ChannelProofKey(bundleID: "com.maestro.app", channel: .beta)].0 = "^true$|-\\(\\?:RC\\|rc\\)\\)\\?\\)\\$$|^highestVersion$"
+githubChannelProofs[ChannelProofKey(bundleID: "com.maestro.app", channel: .beta)].in = Set(count: 3)
+githubChannelProofs[ChannelProofKey(bundleID: "com.maestro.app", channel: .beta)].in{0} = "candidateScope"
+githubChannelProofs[ChannelProofKey(bundleID: "com.maestro.app", channel: .beta)].in{1} = "usePrereleases"
+githubChannelProofs[ChannelProofKey(bundleID: "com.maestro.app", channel: .beta)].in{2} = "versionPattern"
 
 bindingProofs = Dictionary(count: 0)
 

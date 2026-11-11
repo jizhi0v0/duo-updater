@@ -24,7 +24,8 @@ import Foundation
 ///
 /// A section repeating an earlier release is cut first, by the version its
 /// heading names, as the shared parser would have cut it. Fenced code and
-/// tables are left alone. A line right under a list item
+/// tables are left alone; a blockquote's `>` is dropped, and CRLF bodies
+/// read as LF. A line right under a list item
 /// with no blank line between is that item's continuation in Markdown and is
 /// left alone too: the shared parser already joins it onto the item.
 enum MaestroReleaseNotes {
@@ -32,7 +33,10 @@ enum MaestroReleaseNotes {
         // The shared parser cuts a section repeating an earlier release
         // (`### v0.13.0 Changes` in 0.13.1's body) by the version in its
         // heading, which the rewrite below takes out: cut first.
-        let body = GitHubMarkdownParser.withoutEarlierReleases(in: body, version: version)
+        // CRLF first: `.newlines` splits `\r\n` twice, and the blank line
+        // between would end every paragraph and list item at its first wrap.
+        let body = GitHubMarkdownParser.withoutEarlierReleases(
+            in: body.replacingOccurrences(of: "\r\n", with: "\n"), version: version)
         var out: [String] = []
         var paragraph: [String] = []
         // What the previous non-blank line was, for telling a paragraph's
@@ -86,17 +90,24 @@ enum MaestroReleaseNotes {
                 continue
             }
             if !paragraph.isEmpty {
-                paragraph.append(trimmed)
+                paragraph.append(Self.unquoted(trimmed))
                 continue
             }
             if keepsAsIs(trimmed) {
                 out.append(line)
                 continue
             }
-            paragraph.append(trimmed)
+            // A blockquoted notice (`> ⚠️ **Please update…**`) is a paragraph
+            // too; its marker is not part of the note.
+            paragraph.append(Self.unquoted(trimmed))
         }
         flushParagraph()
         return out.joined(separator: "\n")
+    }
+
+    /// A blockquote line without its `>`.
+    private static func unquoted(_ trimmed: String) -> String {
+        trimmed.hasPrefix(">") ? trimmed.dropFirst().trimmingCharacters(in: .whitespaces) : trimmed
     }
 
     /// `-`, `*`, `+` or `1.` followed by a space, at any indent.

@@ -20,6 +20,21 @@ enum com_maestro_app {
             channel: .stable,
             structuredFormat: .maestroReleases,
             tagPattern: #"^v([0-9]+(?:\.[0-9]+)+)$"#),
+        // The RC track (`MaestroChannel`) is offered RCs and stable releases
+        // alike (the rule below), so its notes list both: prereleases, plus the
+        // stable releases `includesPromotedStable` keeps, under the RC rule's
+        // tag pattern, so an entry's version is the string an RC bundle
+        // reports (`1.1.0-RC`). Without it the stable recipe above would answer
+        // for an RC copy and leave out the RC it is offered.
+        ChangelogRecipe(
+            bundleID: "com.maestro.app",
+            source: URL(string: "https://api.github.com/repos/RunMaestro/Maestro/releases?per_page=40")!,
+            mode: .json,
+            maxEntries: 20,
+            channel: .beta,
+            includesPromotedStable: true,
+            structuredFormat: .maestroReleases,
+            tagPattern: #"^v([0-9]+(?:\.[0-9]+)+(?:-(?:RC|rc))?)$"#),
         ],
         githubRules: [
         // Maestro — an Electron "agent orchestration command center"
@@ -57,12 +72,11 @@ enum com_maestro_app {
             installerKind: .zip),
         // RC — Settings ▸ "Include beta and release candidate updates"
         // (`MaestroChannel`). With it on, the app's own check takes every
-        // non-draft release and calls the newest-published one the latest, RC
-        // or not, which is this rule's `.newest` walk over the list. The RC
-        // line runs ahead of the stable patches (1.1.0-RC came out before
-        // 1.0.1 and 1.0.2), so the newest-published release can be numbered
-        // below an RC copy: that copy is then up to date, never moved down.
-        // RC zips are named like stable ones (`maestro-1.1.0-RC-arm64-mac.zip`),
+        // non-draft release, sorts them by version (`compareVersions`) and
+        // offers the first: the HIGHEST version, RC or not. The RC line is
+        // published ahead of later stable patches (1.1.0-RC came out before
+        // 1.0.1 and 1.0.2), so list order is not version order, hence
+        // `.highestVersion`. RC zips are named like stable ones (`maestro-1.1.0-RC-arm64-mac.zip`),
         // same id and Team; the bundle says `1.1.0-RC`, the version this
         // pattern reads off the tag.
         GitHubReleaseRule(
@@ -70,15 +84,21 @@ enum com_maestro_app {
             owner: "RunMaestro", repo: "Maestro",
             usePrereleases: true,
             versionPattern: #"^v([0-9]+(?:\.[0-9]+)+(?:-(?:RC|rc))?)$"#,
+            candidateScope: .highestVersion,
             installAssetPattern: #"^maestro-[0-9]+(?:\.[0-9]+)+(?:-(?:RC|rc))?-arm64-mac\.zip$"#,
             installerKind: .zip,
-            channel: .beta),
+            channel: .beta,
+            // `v0.16.16-RC` also carries a stable `maestro-0.16.16-arm64-mac.zip`,
+            // which `installableAsset` ranks above the RC zip. Reading the
+            // offer off the chosen file keeps the offer and the install equal.
+            assetVersionPattern: #"^maestro-([0-9]+(?:\.[0-9]+)+(?:-(?:RC|rc))?)-arm64-mac\.zip$"#),
         ],
         githubChannelProofs: [
         // Anchor, not artifact: a beta copy is offered stable releases on
-        // purpose. Both halves of the request must hold: the list read, and
-        // the tag pattern taking `-RC`.
+        // purpose. Every part of the request must hold: the list read, the
+        // tag pattern taking `-RC`, and the version-ordered pick.
         ChannelProofKey("com.maestro.app", .beta):
-            .recipeAnchor(#"^true$|-\(\?:RC\|rc\)\)\?\)\$$"#, in: ["usePrereleases", "versionPattern"]),
+            .recipeAnchor(#"^true$|-\(\?:RC\|rc\)\)\?\)\$$|^highestVersion$"#,
+                          in: ["usePrereleases", "versionPattern", "candidateScope"]),
         ])
 }

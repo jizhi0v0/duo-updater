@@ -78,7 +78,8 @@ public enum StructuredChangelogDecoder {
         case .maestroReleases:
             return decodeGitHubReleases(
                 body, channel: channel, maxEntries: maxEntries, skipSections: skipSections,
-                tagPattern: tagPattern, ordersByPublishedDate: ordersByPublishedDate,
+                includesPromotedStable: includesPromotedStable, tagPattern: tagPattern,
+                ordersByPublishedDate: ordersByPublishedDate,
                 rewritingBody: MaestroReleaseNotes.normalized)
         case .opencodeReleases:
             guard let changelog = OpencodeRelease.parseNotes(Data(body.utf8)),

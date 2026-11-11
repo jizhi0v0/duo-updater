@@ -20,8 +20,9 @@ import Foundation
 ///     directory names a `customSyncPath`, which then holds the settings file
 ///     instead (`src/main/stores/instances.ts`, `getCustomSyncPath`).
 ///   * with the toggle on, the app's update checker takes every non-draft
-///     release, RCs included, and calls the newest-published one the latest
+///     release, RCs included, sorts them by version and offers the highest
 ///     (`update-checker.ts`); off, it drops prereleases and `-rc`/`-beta` tags.
+///     The RC rule does the same (`.highestVersion`).
 ///
 /// Safety, in the one direction that matters: a missing, unreadable, oversized
 /// or malformed file, a `customSyncPath` that does not lead to a readable file,

@@ -169,7 +169,7 @@ Info.plist 在 2.02 上**完全不可用**（版本是 Electron 的 `36.6.0`）�
 - **Maestro** `com.maestro.app` — Settings →「Include beta and release candidate updates」写 `~/Library/Application Support/maestro/maestro-settings.json`
   的 `enableBetaUpdates`（真 app 拨开关实测：开 `true`、关 `false`，键保留；`maestro-bootstrap.json` 的 `customSyncPath` 可挪走设置文件）。
   RC 包 `1.1.0-RC` 被 `detect()` 读成 stable，`MaestroChannel`：`true` → `.beta`，其他 → `.stable`（权威）。beta rule 收 `-RC`/`-rc` tag，
-  取最新发布的那一个（与 app 自己的检查一致），RC 副本不会被降级。详见 [审计](docs/app-audits/com-maestro-app.md)
+  取版本号最高的那一个（app 自己也按版本排序后取第一个）；RC 副本走单独的 beta changelog recipe。详见 [审计](docs/app-audits/com-maestro-app.md)
 
 ### Pattern C 续 — CodeEdit（2026-09-12 接，`dev` 是唯一轨的标签）
 

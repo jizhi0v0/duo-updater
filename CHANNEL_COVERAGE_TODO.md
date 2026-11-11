@@ -160,6 +160,17 @@ Info.plist 在 2.02 上**完全不可用**（版本是 Electron 的 `36.6.0`）�
   一个 feed，beta item 打 `<sparkle:channel>beta`。beta 包的版本号与 `AirBuildReleaseLabel` 都不带渠道（1.1.120 beta 与 1.1.121 stable 同为 `1.1` / `v1.1-beta.143`），
   `AirBuildChannel`：`true` → `.beta`，其他 → `.stable`（权威）。标签是派生的，不需要 proof。详见 [审计](docs/app-audits/plus-yellow-AirBuild.md)
 
+### Pattern C 续 — TextMate、Maestro（2026-11-11 接 beta / RC，GitHub 规则）
+
+- **TextMate** `com.macromates.TextMate` — Settings → Software Update 写 CFPrefs `SoftwareUpdateChannel`（真 app 拨开关实测：选 beta 写 `beta`，
+  改回 release **删掉键**）。prerelease 与正式版 tag 同形、资产同名、包内版本纯数字，`detect()` 没有信号，所以 `TextMateChannel`：`beta` → `.beta`，
+  其他 → `.stable`（权威）。beta rule `usePrereleases`，取最新的一个（与厂商 `/releases/beta` 一致）；今天两轨都答 2.0.23。
+  详见 [审计](docs/app-audits/com-macromates-TextMate.md)
+- **Maestro** `com.maestro.app` — Settings →「Include beta and release candidate updates」写 `~/Library/Application Support/maestro/maestro-settings.json`
+  的 `enableBetaUpdates`（真 app 拨开关实测：开 `true`、关 `false`，键保留；`maestro-bootstrap.json` 的 `customSyncPath` 可挪走设置文件）。
+  RC 包 `1.1.0-RC` 被 `detect()` 读成 stable，`MaestroChannel`：`true` → `.beta`，其他 → `.stable`（权威）。beta rule 收 `-RC`/`-rc` tag，
+  取最新发布的那一个（与 app 自己的检查一致），RC 副本不会被降级。详见 [审计](docs/app-audits/com-maestro-app.md)
+
 ### Pattern C 续 — CodeEdit（2026-09-12 接，`dev` 是唯一轨的标签）
 
 - **CodeEdit** `app.codeedit.CodeEdit` — Info.plist 自带 `SUFeedURL`
@@ -526,26 +537,6 @@ rc 目录在终版发布后仍留着，接 preview 轨需要 `detect()` 加一�
 读 `staging-rolling/latest.json`，那里会落后于最新的 rc tag（2026-10-22：rc.3 已发，端点仍是 rc.2）。
 接 beta 需要 `detect()` 加一条 bundle 限定的 `-rc.N` 规则、一条读 `staging-rolling/latest.json` 的
 VendorProbe，以及读哨兵文件的 `ChannelBinding`。详见 [审计](docs/app-audits/com-extraheadroom-headroom.md)。
-
-### TextMate — beta（2026-11-11 查，未接）
-
-`com.macromates.TextMate` 的 Preferences → Software Update 有 release / beta 两项，写 CFPrefs
-`SoftwareUpdateChannel`（默认 `release`；`nightly` 只在 ⌥「Check for Test Build」时临时用，不写偏好），
-厂商端点按它换 `api.textmate.org/releases/<channel>`。prerelease 与正式版 tag 同形、包内版本纯数字，
-只有 GitHub 的 `prerelease` 位能分轨。2026-11-11 三条轨都答 2.0.23，最新 prerelease（2.0.22）低于
-最新正式版，所以 beta rule 今天与 stable 答案相同；勾了 beta 的副本走 stable rule，拿到的正是厂商 beta
-端点给它的版本。接 beta 需要读该偏好的 `ChannelBinding`、`usePrereleases` 的 beta rule，一键再加
-`ChannelProofRegistry` 条目。详见 [审计](docs/app-audits/com-macromates-TextMate.md)。
-
-### Maestro — RC（2026-11-11 查，未接）
-
-`com.maestro.app` 的 `-RC` 包（`v1.1.0-RC`、`v0.18.x-RC`…，多数标 prerelease，四个没标）与 stable 同 bundle id、
-同 Team `4N4DQ24LED`，版本串 `1.1.0-RC`（真包 Info.plist 实测）。`detect()` 把它读成 stable，stable rule 判为已最新
-（不降级），下一个 stable 发布时推终版；缺口只在 RC 窗口期看不到新 RC。app 自己只看设置里的
-「Include beta and release candidate updates」（`enableBetaUpdates`，默认 false，存在 Electron userData 的
-`maestro-settings.json`，用户可经 `maestro-bootstrap.json` 把它挪到自定义同步目录）：关着时 RC 副本也只拿 stable，
-开着时 stable 副本也拿 RC。接 beta 需要读这个设置的 `ChannelBinding`（先在真机上确认开关两态写进文件的样子）
-加一条 `usePrereleases` 的 beta rule。详见 [审计](docs/app-audits/com-maestro-app.md)。
 
 ---
 

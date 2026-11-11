@@ -39,7 +39,7 @@ changelogs[0].requestBody = nil
 changelogs[0].skipSections = Array(count: 0)
 changelogs[0].tagPattern? = "^v([0-9]+(?:\\.[0-9]+)+)$"
 
-githubRules = Array(count: 1)
+githubRules = Array(count: 2)
 githubRules[0] = struct GitHubReleaseRule
 githubRules[0].bundleID = "com.maestro.app"
 githubRules[0].owner = "RunMaestro"
@@ -59,12 +59,36 @@ githubRules[0].architectureRequirement = nil
 githubRules[0].tagRefPrefix = nil
 githubRules[0].installedExecutableMarker = nil
 githubRules[0].assetVersionPattern = nil
+githubRules[1] = struct GitHubReleaseRule
+githubRules[1].bundleID = "com.maestro.app"
+githubRules[1].owner = "RunMaestro"
+githubRules[1].repo = "Maestro"
+githubRules[1].usePrereleases = true
+githubRules[1].listPageSize = 20
+githubRules[1].versionPattern = "^v([0-9]+(?:\\.[0-9]+)+(?:-(?:RC|rc))?)$"
+githubRules[1].candidateScope = .newest
+githubRules[1].probesNewestFirst = true
+githubRules[1].installedTagPrefix = nil
+githubRules[1].channel = .beta
+githubRules[1].installAssetPattern? = "^maestro-[0-9]+(?:\\.[0-9]+)+(?:-(?:RC|rc))?-arm64-mac\\.zip$"
+githubRules[1].installerKind? = .zip
+githubRules[1].installTrust = .developerID
+githubRules[1].variant = nil
+githubRules[1].architectureRequirement = nil
+githubRules[1].tagRefPrefix = nil
+githubRules[1].installedExecutableMarker = nil
+githubRules[1].assetVersionPattern = nil
 
 appStoreCases = Array(count: 0)
 
 channelProofs = Dictionary(count: 0)
 
-githubChannelProofs = Dictionary(count: 0)
+githubChannelProofs = Dictionary(count: 1)
+githubChannelProofs[ChannelProofKey(bundleID: "com.maestro.app", channel: .beta)] = .recipeAnchor(_:in:)
+githubChannelProofs[ChannelProofKey(bundleID: "com.maestro.app", channel: .beta)].0 = "^true$|-\\(\\?:RC\\|rc\\)\\)\\?\\)\\$$"
+githubChannelProofs[ChannelProofKey(bundleID: "com.maestro.app", channel: .beta)].in = Set(count: 2)
+githubChannelProofs[ChannelProofKey(bundleID: "com.maestro.app", channel: .beta)].in{0} = "usePrereleases"
+githubChannelProofs[ChannelProofKey(bundleID: "com.maestro.app", channel: .beta)].in{1} = "versionPattern"
 
 bindingProofs = Dictionary(count: 0)
 

@@ -16,7 +16,7 @@
 |              | Sparkle | Homebrew | MAS | GitHub | VendorProbe |
 |--------------|---------|----------|-----|--------|-------------|
 | **stable**   | —       | —（auto_updates） | — | ✓ 一键 universal `.tbz` | ✗（见「更新检测」，与 GitHub 同字节、签名无法校验） |
-| **beta**     | —       | —        | —   | ○（偏好 `SoftwareUpdateChannel`，见 Channel 详情） | — |
+| **beta**     | —       | —        | —   | ✓ 一键 `.tbz`（`TextMateChannel` 读偏好 `SoftwareUpdateChannel`） | — |
 | **nightly**  | —       | —        | —   | — | — |
 
 当前生效源（`UpdateChecker` 优先链中第一个应答的）: **GitHub**（`channel-verify` 实测 `winning source GitHub`）
@@ -38,12 +38,12 @@
 | Channel | Bundle ID | 独立/共享 | 检测信号 | 门控方式 | 状态 |
 |---------|-----------|----------|---------|---------|------|
 | stable  | `com.macromates.TextMate` | — | 纯数字 short version | `/releases/latest`（GitHub 排除 prerelease） | ✓ |
-| beta    | 同 id | 共享 | CFPrefs `com.macromates.TextMate` / `SoftwareUpdateChannel` = `beta` | 厂商端点换 URL（`/releases/beta`） | ○ |
+| beta    | 同 id | 共享 | CFPrefs `com.macromates.TextMate` / `SoftwareUpdateChannel` = `beta` | `TextMateChannel` → `usePrereleases` 的 beta rule | ✓ |
 | nightly | 同 id | 共享 | 无持久信号：只有按住 ⌥ 点「Check for Test Build」时临时查 `/releases/nightly` | — | — |
 
 settled from source: `Frameworks/SoftwareUpdate/src/SoftwareUpdate.mm` on `master` —— `kUserDefaultsSoftwareUpdateChannelKey = @"SoftwareUpdateChannel"`，取值 `release`（默认，`registerDefaults` 注册）/ `beta` / `nightly`；`Frameworks/Preferences/src/SoftwareUpdatePreferences.mm` 的弹出菜单只提供 `release` 与 `beta` 两项；`checkForTestBuild:YES`（⌥ 菜单项）才用 `nightly`，不写偏好。
 
-beta 轨没有接：端点在 2026-11-11 对 release / beta / nightly 三条都答同一个 2.0.23，GitHub 上最新的 prerelease（v2.0.22）低于最新正式版，所以 beta rule 今天只会给出与 stable 相同的答案。勾了 beta 的副本今天走 stable rule，得到的正是厂商 beta 端点给它的版本。是否为将来的 prerelease 加 `ChannelBinding` + beta rule，待用户决定。
+beta 轨已接（2026-11-11）：`TextMateChannel` 读 `SoftwareUpdateChannel`，`beta` → `.beta`，其他（含没有这个键）→ `.stable`。真机拨两态实测：选 beta 立即写入 `beta`（app 仍在运行），改回 release 后**键被删除**（不是写 `release`）。beta rule 读整个列表、取最新的一个（prerelease 或正式版都算），与厂商 `beta` 端点一致；同样的 tag、资产与 `.tarGz`，没资产的 release（v2.0.13）跳过。今天 GitHub 上最新的 prerelease（v2.0.22）低于最新正式版，所以两轨都答 2.0.23，与厂商三条端点相同。
 
 ## 更新检测
 - 源: `textmate/textmate` GitHub Releases，`/releases/latest`
@@ -98,7 +98,8 @@ beta 轨没有接：端点在 2026-11-11 对 release / beta / nightly 三条都�
 
 ## 已知问题
 - 自更新器每小时检查一次（`_updateCheckInterval = 60*60`），默认先问用户（`SoftwareUpdateAskBeforeUpdating`）；它与我们拿到的是同一份字节，不会把副本带到另一个版本
-- prerelease 副本没有本地标记（版本纯数字、build 恒为 9800），按 stable 读，只能等毕业版
+- prerelease 副本没有本地标记（版本纯数字、build 恒为 9800），轨道只看 app 自己的设置：设置在 release 的 prerelease 副本按 stable 读，只拿毕业版（与 app 自己一样）
+- beta 轨一键端到端未做：今天没有比 2.0.23 更新的 prerelease，beta rule 给出的就是 stable 已端到端过的同一个资产
 
 ## 如何复验
 ```bash
@@ -116,9 +117,10 @@ curl -s 'https://api.textmate.org/releases/nightly?os=15.0'
 
 ## 建议下一步
 1. 一键端到端（主会话）：装 2.0.19 后 `duo install TextMate --yes`
-2. beta 轨（待用户决定）：若厂商再发 prerelease，加 `TextMateChannel`（读 `SoftwareUpdateChannel` = `beta`）+ `usePrereleases: true` 的 beta rule；prerelease 与正式版同形，只能靠 GitHub 的 `prerelease` 位分轨，一键还需要 `ChannelProofRegistry` 条目
+2. 厂商再发 prerelease 时，用 beta 设置的副本做一次 beta 轨一键端到端
 
 ## 历史与实测
 - 2026-11-11: `.gitHubReleases` 版 changelog 在 stable 轨只读出 2 条（v2.0.23 一句话、v2.0.19 三条；v2.0.17 / v2.0.6 / v2.0 正文为空），改用 tag 上的 `Changes.md`，读出 20 条
 - 2026-11-11: `Changes.md` 在 `master` 停在 v2.0.22；`v2.0.23` tag 上第一条是 `## 2021-10-12 (v2.0.23)`
 - 2026-11-11: `api.textmate.org/releases/{release,beta,nightly}?os=15.0` 都答 2.0.23、`revision = 9999`；`downloads/release?os=10.12` 302 到 v2.0.23 的 GitHub 资产
+- 2026-11-11: 接 beta 轨。真机 2.0.23 拨开关：beta → `SoftwareUpdateChannel = beta`，`channel-verify` `ChannelBinding beta`、`latest 2.0.23`、up to date；release → 键删除，`ChannelBinding stable`。最新 100 个 release 里 24 个 `v2.0.N` 都在最前，列表深度下限 1

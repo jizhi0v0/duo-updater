@@ -153,6 +153,14 @@ struct GitHubListPageSizeTests {
         // releases on 2026-11-11 match (v26.10.30, v26.9.27 … ), first hit at
         // index 0, gap 0, so 1. The rule keeps the default 20.
         "com.Meltytech.Shotcut/beta": 1,
+        // TextMate beta: stable and prerelease tags alike. Of the 100 newest
+        // releases on 2026-11-11, the 24 dotted `v2.0.N` ones match and sit
+        // together at the top (v2.0.23 … v2.0), the older `v2.0-rc.N` /
+        // `-beta.N` tags below them; first hit at index 0, gap 0, so 1.
+        "com.macromates.TextMate/beta": 1,
+        // Maestro RC: stable and `-RC`/`-rc` tags alike. All 100 newest
+        // releases on 2026-11-11 match, first hit at index 0, gap 0, so 1.
+        "com.maestro.app/beta": 1,
     ]
 
     private static func key(_ rule: GitHubReleaseRule) -> String {

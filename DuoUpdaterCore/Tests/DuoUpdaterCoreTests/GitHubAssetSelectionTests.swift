@@ -116,6 +116,11 @@ struct GitHubAssetSelectionTests {
         // arch-neutral and only the Intel one is recognised as foreign.
         (#"^anki-[0-9.]+-mac-(apple|intel)\.dmg$"#,
          ["anki-25.9-mac-apple.dmg", "anki-25.9-mac-intel.dmg"]),
+        // Maestro RC: `v0.16.16-RC` carries a stray stable `maestro-0.16.16-arm64-mac.zip`
+        // beside its own RC zip (the zips of that release, 2026-11-11).
+        (#"^maestro-[0-9]+(?:\.[0-9]+)+(?:-(?:RC|rc))?-arm64-mac\.zip$"#,
+         ["maestro-0.16.16-arm64-mac.zip", "maestro-0.16.16-RC-arm64-mac.zip",
+          "maestro-0.16.16-RC-x64-mac.zip", "maestro-0.16.16-x64-mac.zip"]),
         // Goose: an optional suffix, so the neutral and the Intel build both match.
         (#"^Goose(_intel_mac)?\.zip$"#, ["Goose.zip", "Goose_intel_mac.zip"]),
         // OpenLens: the same respin-tolerant `[0-9.\-]+` run KeePassXC uses.

@@ -67,15 +67,34 @@ enum com_macromates_TextMate {
         // Developer ID MacroMates Ltd. (45TL96F76G), notarized.
         //
         // Prereleases (v2.0.20–v2.0.22, …) share the tag shape and asset name, and
-        // the bundle keeps a plain version, so a copy installed from one reads as
-        // stable. Safe by comparison: each prerelease was followed by a HIGHER
-        // stable release (2.0.22 → 2.0.23), so such a copy is offered its
-        // graduation — the vendor's own `beta` endpoint answers the same 2.0.23.
+        // the bundle keeps a plain version: nothing local tells them apart. The
+        // track is the app's own setting, read by `TextMateChannel`; this rule
+        // answers for `release`.
         GitHubReleaseRule(
             bundleID: "com.macromates.TextMate",
             owner: "textmate", repo: "textmate",
             versionPattern: #"^v([0-9]+(?:\.[0-9]+)+)$"#,
             installAssetPattern: #"^TextMate_[0-9]+(?:\.[0-9]+)+\.tbz$"#,
             installerKind: .tarGz),
+        // Beta — Settings ▸ Software Update ▸ beta (`TextMateChannel`). The
+        // vendor's `beta` endpoint answers whichever is newer, a prerelease or a
+        // stable release, so this rule reads the whole list and takes the newest
+        // of either: the same tag, asset and archive as the release rule. A
+        // release with no asset (v2.0.13) is walked past.
+        GitHubReleaseRule(
+            bundleID: "com.macromates.TextMate",
+            owner: "textmate", repo: "textmate",
+            usePrereleases: true,
+            versionPattern: #"^v([0-9]+(?:\.[0-9]+)+)$"#,
+            installAssetPattern: #"^TextMate_[0-9]+(?:\.[0-9]+)+\.tbz$"#,
+            installerKind: .tarGz,
+            channel: .beta),
+        ],
+        githubChannelProofs: [
+        // Anchor, not artifact: tags and asset names carry no channel token, and
+        // a beta copy is offered a stable release on purpose. What must not drift
+        // is the list read; without it this is a second release rule.
+        ChannelProofKey("com.macromates.TextMate", .beta):
+            .recipeAnchor(#"^true$"#, in: ["usePrereleases"]),
         ])
 }

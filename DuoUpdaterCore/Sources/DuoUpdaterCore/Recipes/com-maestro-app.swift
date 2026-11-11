@@ -39,11 +39,10 @@ enum com_maestro_app {
         // Tags read `v1.0.2`; the bundle says 1.0.2. The anchored pattern
         // leaves out the `-RC` tags, including the four the vendor did not
         // flag as prereleases (v0.15.4-RC, v0.15.0-RC, v0.11.2-rc,
-        // v0.8.8-rc). An RC copy says `1.1.0-RC`, which `ReleaseChannel.detect`
-        // reads as stable; `VersionComparator` ranks it above 1.0.2 and below
-        // 1.1.0, so this rule offers it nothing until the next stable release,
-        // which is what the app's own check does with its beta switch off
-        // (the default).
+        // v0.8.8-rc). An RC copy says `1.1.0-RC`; `VersionComparator` ranks it
+        // above 1.0.2 and below 1.1.0, so with RCs off (`MaestroChannel`) this
+        // rule offers it nothing until the next stable release, which is what
+        // the app's own check does with its switch off (the default).
         //
         // One-click: `maestro-<v>-arm64-mac.zip` (the zip electron-updater
         // itself installs; the dmg and the x64 assets are left out by name),
@@ -56,5 +55,30 @@ enum com_maestro_app {
             versionPattern: #"^v([0-9]+(?:\.[0-9]+)+)$"#,
             installAssetPattern: #"^maestro-[0-9]+(?:\.[0-9]+)+-arm64-mac\.zip$"#,
             installerKind: .zip),
+        // RC — Settings ▸ "Include beta and release candidate updates"
+        // (`MaestroChannel`). With it on, the app's own check takes every
+        // non-draft release and calls the newest-published one the latest, RC
+        // or not, which is this rule's `.newest` walk over the list. The RC
+        // line runs ahead of the stable patches (1.1.0-RC came out before
+        // 1.0.1 and 1.0.2), so the newest-published release can be numbered
+        // below an RC copy: that copy is then up to date, never moved down.
+        // RC zips are named like stable ones (`maestro-1.1.0-RC-arm64-mac.zip`),
+        // same id and Team; the bundle says `1.1.0-RC`, the version this
+        // pattern reads off the tag.
+        GitHubReleaseRule(
+            bundleID: "com.maestro.app",
+            owner: "RunMaestro", repo: "Maestro",
+            usePrereleases: true,
+            versionPattern: #"^v([0-9]+(?:\.[0-9]+)+(?:-(?:RC|rc))?)$"#,
+            installAssetPattern: #"^maestro-[0-9]+(?:\.[0-9]+)+(?:-(?:RC|rc))?-arm64-mac\.zip$"#,
+            installerKind: .zip,
+            channel: .beta),
+        ],
+        githubChannelProofs: [
+        // Anchor, not artifact: a beta copy is offered stable releases on
+        // purpose. Both halves of the request must hold: the list read, and
+        // the tag pattern taking `-RC`.
+        ChannelProofKey("com.maestro.app", .beta):
+            .recipeAnchor(#"^true$|-\(\?:RC\|rc\)\)\?\)\$$"#, in: ["usePrereleases", "versionPattern"]),
         ])
 }

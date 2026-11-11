@@ -1,0 +1,24 @@
+BEFORE
+SCANNED edition=old bundle=com.bp.brow short=1.0.77-beta build=202610261552 feed=https://releases.brow-app.com/appcast.xml
+RESULT edition=old mode=off status=error("Cannot check the original Homebrew tap for duo-issue1946/tap/brow. Check its availability and trust in Homebrew; other update sources were not used.") source=nil calls=0 owner=nil
+RESULT edition=old mode=perCopy status=error("Cannot check the original Homebrew tap for duo-issue1946/tap/brow. Check its availability and trust in Homebrew; other update sources were not used.") source=nil calls=0 owner=nil
+RESULT edition=old mode=global status=error("Cannot check the original Homebrew tap for duo-issue1946/tap/brow. Check its availability and trust in Homebrew; other update sources were not used.") source=nil calls=0 owner=nil
+RESULT edition=old mode=homebrewOnly status=error("Cannot check the original Homebrew tap for duo-issue1946/tap/brow. Check its availability and trust in Homebrew; other update sources were not used.") source=nil calls=0 owner=nil
+SCANNED edition=current bundle=com.bp.brow short=1.0.78-beta build=202611061452 feed=https://releases.brow-app.com/appcast.xml
+RESULT edition=current mode=off status=error("Cannot check the original Homebrew tap for duo-issue1946/tap/brow. Check its availability and trust in Homebrew; other update sources were not used.") source=nil calls=0 owner=nil
+RESULT edition=current mode=perCopy status=error("Cannot check the original Homebrew tap for duo-issue1946/tap/brow. Check its availability and trust in Homebrew; other update sources were not used.") source=nil calls=0 owner=nil
+RESULT edition=current mode=global status=error("Cannot check the original Homebrew tap for duo-issue1946/tap/brow. Check its availability and trust in Homebrew; other update sources were not used.") source=nil calls=0 owner=nil
+RESULT edition=current mode=homebrewOnly status=error("Cannot check the original Homebrew tap for duo-issue1946/tap/brow. Check its availability and trust in Homebrew; other update sources were not used.") source=nil calls=0 owner=nil
+RUNTIME failures=8
+AFTER
+SCANNED edition=old bundle=com.bp.brow short=1.0.77-beta build=202610261552 feed=https://releases.brow-app.com/appcast.xml
+RESULT edition=old mode=off status=error("Homebrew does not provide a version for duo-issue1946/tap/brow (version :latest), so whether this copy is current cannot be determined.") source=nil calls=0 owner=duo-issue1946/tap/brow
+RESULT edition=old mode=perCopy status=updateAvailable(latest: "1.0.78-beta") source=Sparkle calls=1 owner=duo-issue1946/tap/brow
+RESULT edition=old mode=global status=updateAvailable(latest: "1.0.78-beta") source=Sparkle calls=1 owner=duo-issue1946/tap/brow
+RESULT edition=old mode=homebrewOnly status=error("Homebrew does not provide a version for duo-issue1946/tap/brow (version :latest), so whether this copy is current cannot be determined.") source=nil calls=0 owner=duo-issue1946/tap/brow
+SCANNED edition=current bundle=com.bp.brow short=1.0.78-beta build=202611061452 feed=https://releases.brow-app.com/appcast.xml
+RESULT edition=current mode=off status=error("Homebrew does not provide a version for duo-issue1946/tap/brow (version :latest), so whether this copy is current cannot be determined.") source=nil calls=0 owner=duo-issue1946/tap/brow
+RESULT edition=current mode=perCopy status=upToDate source=Sparkle calls=1 owner=duo-issue1946/tap/brow
+RESULT edition=current mode=global status=upToDate source=Sparkle calls=1 owner=duo-issue1946/tap/brow
+RESULT edition=current mode=homebrewOnly status=error("Homebrew does not provide a version for duo-issue1946/tap/brow (version :latest), so whether this copy is current cannot be determined.") source=nil calls=0 owner=duo-issue1946/tap/brow
+RUNTIME failures=0

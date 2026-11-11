@@ -21,6 +21,15 @@ public actor ThirdPartyCaskSource: UpdateSource {
         }
     }
 
+    /// The owner was read successfully, but `:latest` supplies no comparable version.
+    struct Unversioned: LocalizedError {
+        let cask: String
+        let selfUpdating: Bool
+        var errorDescription: String? {
+            "Homebrew does not provide a version for \(cask) (version :latest), so whether this copy is current cannot be determined."
+        }
+    }
+
     private let roots: [String]
     private let executor: BrewFormulaService.Executor
     private var ownershipTask: Task<[Ownership], Never>?
@@ -77,8 +86,12 @@ public actor ThirdPartyCaskSource: UpdateSource {
               // to another third-party tap is someone else's package: fail closed.
               tap == owner.tap || tap == Self.officialTap,
               tap == Self.officialTap || (cask["token"] as? String) == owner.token,
-              let version = cask["version"] as? String, !version.isEmpty, version != "latest"
+              let version = cask["version"] as? String, !version.isEmpty
         else { throw Unavailable(cask: qualified) }
+        if version == "latest" {
+            throw Unversioned(cask: qualified,
+                selfUpdating: tap == Self.officialTap && (cask["auto_updates"] as? Bool) == true)
+        }
         // The receipt owns the install even when the tap is auto_updates or its
         // current release lags GitHub. The checker owns the explicit fallback policy.
         let marketing = version.split(whereSeparator: { $0 == "," || $0 == ":" }).first.map(String.init)

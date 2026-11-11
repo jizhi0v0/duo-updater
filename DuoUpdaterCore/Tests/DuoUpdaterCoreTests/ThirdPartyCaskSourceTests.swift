@@ -147,6 +147,91 @@ import Testing
         }
     }
 
+    private func latestSource(root: URL, tap: String = "example/tap") -> ThirdPartyCaskSource {
+        ThirdPartyCaskSource(caskroomPaths: [root.appendingPathComponent("Caskroom").path]) { _ in
+            (0, Data("{\"casks\":[{\"token\":\"example\",\"tap\":\"\(tap)\",\"version\":\"latest\",\"auto_updates\":true}]}".utf8))
+        }
+    }
+
+    @Test(arguments: FallbackSetup.allCases)
+    func latestVersionFollowsTheFallbackChoice(setup: FallbackSetup) async throws {
+        let (root, app) = try fixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let downstream = CountingVendor()
+        let result = await UpdateChecker(sources: [latestSource(root: root), downstream],
+            brewFallback: setup.policy(InstallPreferenceKey.key(for: app))).check(app)
+        #expect(result.homebrewSourceIdentifier == "example/tap/example")
+        #expect(!result.homebrewSelfUpdating) // A third-party auto_updates is not an opt-in.
+        #expect(await downstream.calls == (setup.enabled ? 1 : 0))
+        if setup.enabled {
+            #expect(result.remote?.sourceName == "GitHub")
+            #expect(result.hasUpdate)
+            #expect(InstallCoordinator.route(for: result, requiresInstaller: true) != .homebrew)
+        } else {
+            guard case .error(let message) = result.status else { Issue.record("Latest cannot prove up to date"); return }
+            #expect(message.contains("version :latest"))
+            #expect(!message.contains("trust"))
+            #expect(result.remote == nil)
+        }
+    }
+
+    @Test func latestWithoutAnotherSourceDoesNotClaimUpToDate() async throws {
+        let (root, app) = try fixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let result = await UpdateChecker(sources: [latestSource(root: root)],
+            brewFallback: BrewFallbackPolicy(checksOtherSourcesByDefault: true)).check(app)
+        guard case .error(let message) = result.status else { Issue.record("No comparable version was found"); return }
+        #expect(message.contains("version :latest"))
+        #expect(result.homebrewSourceIdentifier == "example/tap/example")
+        #expect(result.remote == nil)
+    }
+
+    @Test func latestFromAnotherTapStillFailsClosed() async throws {
+        let (root, app) = try fixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let downstream = CountingVendor()
+        let result = await UpdateChecker(sources: [latestSource(root: root, tap: "someone/else"), downstream],
+            brewFallback: BrewFallbackPolicy(checksOtherSourcesByDefault: true)).check(app)
+        guard case .error(let message) = result.status else { Issue.record("Wrong owner must fail closed"); return }
+        #expect(message.contains("trust"))
+        #expect(await downstream.calls == 0)
+    }
+
+    @Test func latestMigratedToOfficialTapKeepsSelfUpdatingPolicy() async throws {
+        let (root, app) = try fixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let downstream = CountingVendor()
+        let result = await UpdateChecker(sources: [latestSource(root: root, tap: "homebrew/cask"), downstream]).check(app)
+        #expect(result.remote?.sourceName == "GitHub")
+        #expect(result.homebrewSelfUpdating)
+        #expect(result.homebrewSourceIdentifier == "example/tap/example")
+        #expect(await downstream.calls == 1)
+    }
+
+    @Test(arguments: [false, true])
+    func latestRetainsSigningGuards(recordedRefusal: Bool) async throws {
+        let (root, app) = try fixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        struct Downstream: UpdateSource {
+            let name = "GitHub"
+            let trust: InstallTrust
+            func latestVersion(for app: InstalledApp) async throws -> RemoteVersion? {
+                RemoteVersion(shortVersion: "2.0", version: nil, downloadURL: URL(string: "https://example.com/app.dmg"),
+                    sourceName: name, vendorInstallerKind: .dmg, installTrust: trust)
+            }
+        }
+        let key = InstallPreferenceKey.key(for: app)
+        let policy = BrewFallbackPolicy(checksOtherSourcesByDefault: true,
+            signingRefusals: recordedRefusal ? [key: .init(team: "TEAMBREW01", version: "2.0")] : [:])
+        let result = await UpdateChecker(sources: [latestSource(root: root), Downstream(
+            trust: recordedRefusal ? .developerID : .publishedDigestOnly)], brewFallback: policy,
+            installedTeam: { _ in "TEAMBREW01" }).check(app)
+        guard case .error = result.status else { Issue.record("No eligible source answered"); return }
+        #expect(result.remote == nil)
+        #expect(result.homebrewSourceIdentifier == "example/tap/example")
+        #expect(result.brewFallbackWithheldForSigning)
+    }
+
     @Test func enabledFallbackWithoutAnotherSourceKeepsBrew() async throws {
         let (root, app) = try fixture()
         defer { try? FileManager.default.removeItem(at: root) }

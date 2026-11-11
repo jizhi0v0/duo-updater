@@ -104,8 +104,8 @@ public enum VendorInstallPolicy: String, CaseIterable, Identifiable, Sendable {
 }
 
 /// Whether the checker may ask the sources below Homebrew about a brew-installed
-/// copy once brew has said it has no newer version. A brew update always wins;
-/// this only decides what happens when brew says "up to date".
+/// copy once brew has said it has no newer version, or its readable third-party
+/// cask uses `:latest` without a comparable version. A brew update always wins.
 ///
 /// Without a per-copy choice, an official cask marked `auto_updates` checks
 /// other sources even with the Settings default off: the cask itself says the
@@ -323,7 +323,7 @@ public struct BrewFallbackPolicy: Sendable, Equatable {
 /// a CLI reads the same UserDefaults keys and builds the same value, so both
 /// share one set of rules.
 public struct UpdateSettings: Sendable {
-    /// Per-install-path opt-in to check other sources after brew confirms no update.
+    /// Per-install-path opt-in after no brew update or a readable `:latest` cask.
     public static let brewFallbackKeysKey = "BrewFallbackKeys"
     /// Per-install-path "Homebrew only", which holds even when the default is on.
     public static let brewFallbackBlockedKeysKey = "BrewFallbackBlockedKeys"

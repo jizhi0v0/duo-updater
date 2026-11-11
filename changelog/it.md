@@ -2,6 +2,20 @@
 
 Questa è la traduzione di `CHANGELOG.md`. In caso di differenze fa fede la versione inglese. Le versioni non elencate qui vengono mostrate automaticamente in inglese.
 
+## 0.5.24-beta.7
+
+**TextMate, VimR, Maestro, muCommander e Shotcut ora offrono controllo degli aggiornamenti, aggiornamenti con un clic e note di rilascio.** I canali beta, snapshot e RC supportati seguono la scelta di ciascuna app o la versione installata.
+
+**Le app aperte restano in esecuzione durante il download e la verifica degli aggiornamenti automatici.** Le app autorizzate si chiudono solo quando l’aggiornamento è pronto per essere installato, poi si riaprono in background; se torni al Mac, l’aggiornamento attende.
+
+**È più facile trovare e gestire i backup recuperabili.** La pulizia dei backup elenca separatamente le copie salvate, incluse quelle in sospeso, e segnala i punti di ripristino protetti e i file mancanti.
+
+**Homebrew gestisce più chiaramente i cask senza versione e le app mancanti.** I cask di terze parti senza una versione confrontabile possono consultare altre fonti se autorizzati; le app assenti dal percorso registrato vengono mostrate e saltate durante gli aggiornamenti Brew.
+
+**Le note di rilascio includono build distinte della stessa versione.** Le build con lo stesso numero di versione ma note proprie non vengono più riunite in un’unica voce.
+
+**Longbridge Preview può di nuovo essere aggiornato.** Ora vengono riconosciuti i link di download con un identificativo della build.
+
 ## 0.5.24-beta.6
 
 **Gli aggiornamenti automatici ora rispettano le impostazioni di backup.** Disattivando i backup, gli aggiornamenti automatici non conserveranno più la versione precedente dell’app. I backup esistenti vengono mantenuti.

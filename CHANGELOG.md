@@ -19,6 +19,20 @@ release note is debugging our code:
 
 Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
+## 0.5.24-beta.7
+
+**TextMate, VimR, Maestro, muCommander and Shotcut now have update checks, one-click updates and release notes.** Supported beta, snapshot and release-candidate tracks follow each app’s channel selection or installed release.
+
+**Running apps stay open while automatic updates download and verify.** Allowed apps quit only when the update is ready to apply, then reopen in the background; if you return to the Mac, the update waits.
+
+**Recoverable backups are easier to find and manage.** Backup cleanup lists saved copies separately, including pending copies, and marks protected restore points and missing files.
+
+**Homebrew handles unversioned casks and missing apps more clearly.** Third-party casks without a comparable version can check other sources when allowed, while apps missing from their registered location are shown and skipped during Brew upgrades.
+
+**Release notes include distinct builds of the same version.** Updates that share a version number but have their own notes are no longer collapsed into one entry.
+
+**Longbridge Preview updates can install again.** Download links with a build identifier are now recognized.
+
 ## 0.5.24-beta.6
 
 **Automatic updates now respect your backup setting.** Turning off backups prevents automatic updates from creating a saved backup of the previous app version. Existing backups are kept.

@@ -384,35 +384,113 @@ public struct SparkleAppcastSource: UpdateSource {
     /// `<description>` / web-view fallback paths stay in charge for those feeds).
     static func structuredChangelog(from usable: [SparkleAppcastItem]) -> Changelog? {
         let maxEntries = 40
-        var entries: [Changelog.Entry] = []
-        // One RELEASE can be several <item>s. TablePro publishes its 0.67.0 twice —
-        // once per architecture (…-arm64.zip / …-x86_64.zip), same build, same
-        // notes, `pubDate` one second apart — so walking items 1:1 rendered every
-        // version twice in the rail. Key on the version the entry will display and
-        // keep the first item that yields notes; that's the same defence
-        // `ChangelogExtractor` already applies to pages that repeat their content.
-        var seen: Set<String> = []
+        var kept: [(item: SparkleAppcastItem, entry: Changelog.Entry)] = []
+        // Several <item>s can share a marketing version, for two reasons:
+        // - One release, several items. TablePro publishes 0.67.0 once per
+        //   architecture (…-arm64.zip / …-x86_64.zip), same build, same notes,
+        //   `pubDate` one second apart; listing items 1:1 showed every version
+        //   twice in the rail.
+        // - Several releases. Rex ships builds 20…26 all as 1.1, each with its
+        //   own notes (#1921); keeping only the first dropped six of them.
+        // `addsNothing` tells the two apart. Items arrive newest first, so a later
+        // item is checked against the newer ones already kept.
+        var versions: Set<String> = []
         for item in usable {
-            if entries.count >= maxEntries { break }
             let version = item.shortVersionString ?? item.version ?? ""
-            guard !version.isEmpty, !seen.contains(version) else { continue }
+            guard !version.isEmpty else { continue }
+            // Read until the first version past the cap; the cap is applied below.
+            if !versions.contains(version), versions.count >= maxEntries { break }
             let date = AppcastMarkdownParser.displayDate(from: item.pubDate)
 
+            let entry: Changelog.Entry?
             if let md = item.markdownDescription {
-                guard let entry = AppcastMarkdownParser.entry(from: md, version: version, date: date)
-                else { continue }
-                entries.append(entry)
-                seen.insert(version)
-                continue
+                entry = AppcastMarkdownParser.entry(from: md, version: version, date: date)
+            } else if let html = item.descriptionHTML {
+                entry = AppcastHTMLChangelogParser.entry(html: html, version: version, date: date)
+            } else {
+                entry = nil
             }
-
-            if let html = item.descriptionHTML,
-               let entry = AppcastHTMLChangelogParser.entry(html: html, version: version, date: date) {
-                entries.append(entry)
-                seen.insert(version)
+            guard let entry else { continue }
+            let duplicate = kept.contains { other in
+                other.entry.version == version
+                    && addsNothing(item, entry, to: other.item, other.entry)
+            }
+            if !duplicate {
+                kept.append((item, entry))
+                versions.insert(version)
             }
         }
-        return entries.isEmpty ? nil : Changelog(entries: entries)
+        guard !kept.isEmpty else { return nil }
+
+        // The cap counts versions first: the newest entry of each version always
+        // stays, so every version listed before #1921 is still listed. Extra
+        // builds fill what is left, newest first. Switchy's feed has 91 items over
+        // 9 versions; filling the cap in feed order dropped its 3 oldest versions.
+        var firsts: Set<String> = []
+        let isFirst = kept.map { firsts.insert($0.entry.version).inserted }
+        var budget = maxEntries - isFirst.filter { $0 }.count
+        kept = zip(kept, isFirst).compactMap { pair, first in
+            if first { return pair }
+            guard budget > 0 else { return nil }
+            budget -= 1
+            return pair
+        }
+
+        // Two entries for one version need telling apart in the rail, so each
+        // gets its build as a title: "1.1 (25)". `version` stays the plain
+        // marketing version, which is what everything else matches on.
+        var perVersion: [String: Int] = [:]
+        for pair in kept { perVersion[pair.entry.version, default: 0] += 1 }
+        let entries = kept.map { item, entry -> Changelog.Entry in
+            guard perVersion[entry.version, default: 0] > 1, entry.title == nil,
+                  let build = item.version, build != entry.version
+            else { return entry }
+            return Changelog.Entry(
+                title: "\(entry.version) (\(build))", version: entry.version, date: entry.date,
+                items: entry.items, content: entry.content, markdown: entry.markdown)
+        }
+        return Changelog(entries: entries)
+    }
+
+    /// Whether `item`, an older item with the same marketing version as `kept`,
+    /// adds nothing to the changelog `kept` is already in. It gets its own entry
+    /// only when all three hold:
+    /// - both name a build, and the builds differ. Without a build there is
+    ///   nothing to label the second entry with, so they merge as they always did.
+    ///   This is TablePro's case: one build, one item per architecture.
+    /// - it has a note the newer build does not. A respin that copies its notes
+    ///   (Astropad 5.3.3), or a newer build whose notes are the older ones plus a
+    ///   line (Backdrop 2.7.0, Sensei 1.6.2), would only repeat them. A line that
+    ///   names this build ("What's new in 5.3.3.4740", "Release 1.5.5 (56)") is
+    ///   not counted as a note of its own.
+    /// - they are not one build per architecture. A vendor that numbers its
+    ///   arm64 and x86_64 builds separately can also add a line that names the
+    ///   architecture, and that is still one release.
+    static func addsNothing(
+        _ item: SparkleAppcastItem, _ entry: Changelog.Entry,
+        to kept: SparkleAppcastItem, _ keptEntry: Changelog.Entry
+    ) -> Bool {
+        guard let build = item.version, let keptBuild = kept.version, build != keptBuild
+        else { return true }
+        if let arch = architecture(of: item), let keptArch = architecture(of: kept), arch != keptArch {
+            return true
+        }
+        func notes(_ entry: Changelog.Entry, build: String) -> Set<String> {
+            Set(entry.items.filter { !($0.contains(entry.version) && $0.contains(build)) })
+        }
+        return notes(entry, build: build).isSubset(of: notes(keptEntry, build: keptBuild))
+    }
+
+    /// The one architecture an item is built for, or nil when it names none or
+    /// both (a universal build). Read the same way `archVerdict` reads it: the
+    /// Sparkle tag first, then the enclosure's file name.
+    static func architecture(of item: SparkleAppcastItem) -> HostArch? {
+        if item.hardwareRequirements.contains("arm64") { return .arm64 }
+        let name = (item.enclosureURL?.lastPathComponent ?? "").lowercased()
+        let arm = HostArch.arm64.isMarked(inAssetName: name)
+        let intel = HostArch.x86_64.isMarked(inAssetName: name)
+        if arm == intel { return nil }
+        return arm ? .arm64 : .x86_64
     }
 
     /// Pick the best appcast item for an app: the highest-versioned, runnable,

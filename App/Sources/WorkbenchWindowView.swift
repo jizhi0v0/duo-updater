@@ -4908,7 +4908,9 @@ private struct ChangelogEntryView: View {
         @State private var resetTask: Task<Void, Never>?
 
         static func label(for entry: Changelog.Entry) -> String {
-            let name = entry.version.isEmpty ? (entry.title ?? "") : entry.version
+            // "1.1 (25)" rather than "1.1": several entries can share the version.
+            let name = entry.titleNamesVersionAndBuild ? (entry.title ?? entry.version)
+                : entry.version.isEmpty ? (entry.title ?? "") : entry.version
             return String(localized: "Copy the \(name) release notes")
         }
 
@@ -4956,13 +4958,14 @@ private struct ChangelogEntryView: View {
         var body: some View {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 // Primary: the list drew its section headers dimmed (seen 2026-10-14).
-                if let title = entry.title {
+                if let title = entry.title, !entry.titleNamesVersionAndBuild {
                     Text(title).font(.headline).foregroundStyle(.primary)
                     if !entry.version.isEmpty {
                         Text(entry.version).font(.caption).foregroundStyle(.secondary)
                     }
                 } else {
-                    Text(entry.version).font(.headline).foregroundStyle(.primary)
+                    // A "1.1 (25)" title stands in for the version it already names.
+                    Text(entry.title ?? entry.version).font(.headline).foregroundStyle(.primary)
                 }
                 if let date = entry.date {
                     Text(ChangelogEntryView.displayDate(for: date)).font(.caption).foregroundStyle(.secondary)
@@ -4981,7 +4984,7 @@ private struct ChangelogEntryView: View {
     /// A classic version heading, or a post-style title with its metadata.
     @ViewBuilder
     private var title: some View {
-        if let title = entry.title {
+        if let title = entry.title, !entry.titleNamesVersionAndBuild {
             VStack(alignment: .leading, spacing: 4) {
                 HStack(alignment: .firstTextBaseline, spacing: 10) {
                     Text(title).font(.title3).bold()
@@ -4995,7 +4998,8 @@ private struct ChangelogEntryView: View {
             }
         } else {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text(entry.version).font(.title3).bold()
+                // A "1.1 (25)" title stands in for the version it already names.
+                Text(entry.title ?? entry.version).font(.title3).bold()
                 if let date = displayDate {
                     Text(date).font(.caption).foregroundStyle(.secondary)
                 }

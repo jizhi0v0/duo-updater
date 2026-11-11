@@ -374,3 +374,14 @@ public struct Changelog: Codable, Sendable, Hashable {
         }
     }
 }
+
+extension Changelog.Entry {
+    /// Whether `title` is just this entry's version plus a build, "1.1 (25)": the
+    /// title a Sparkle feed's entry gets when several builds share one version.
+    /// The title already says the version, so a header shows it alone rather
+    /// than with the version again beside it.
+    public var titleNamesVersionAndBuild: Bool {
+        guard let title, !version.isEmpty else { return false }
+        return title.hasPrefix(version + " (") && title.hasSuffix(")")
+    }
+}

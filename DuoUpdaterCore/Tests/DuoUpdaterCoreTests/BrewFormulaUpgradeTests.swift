@@ -103,6 +103,19 @@ import Foundation
         #expect(brew.calls.last == "upgrade --formula|1")
     }
 
+    @Test func missingRegisteredAppsAreLeftOutOfTheCaskUpgradeCommand() async throws {
+        let brew = try FakeBrew(caskFacts: { token, _, _ in
+            .init(installsAnApp: false, needsSudo: false,
+                  missingAppPath: token == "zzfixture-gui" ? "/Applications/ZZFixture.app" : nil)
+        })
+        defer { brew.remove() }
+        try await brew.service.upgrade(cask: "zzfixture-gui", password: nil) { _ in }
+        let count = try await brew.service.upgradeAll(casks: ["zzfixture-gui", "zzfixture-cli"]) { _ in }
+        #expect(count == 1)
+        #expect(brew.calls.filter { $0.hasPrefix("upgrade --cask -- ") }
+                == ["upgrade --cask -- zzfixture-cli|1"])
+    }
+
     // MARK: - Cancel
 
     /// A cancel while brew fetches interrupts the fetch — it runs its own
@@ -146,7 +159,7 @@ import Foundation
         let watchdog = brew.watchdog()
         let (result, stopped) = await InstallJobs.run(id) { () -> (Result<Void, any Error>, Bool) in
             let result = await Result.of {
-                try await brew.service.upgradeAll(casks: ["zzfixture-cask"]) { line in
+                _ = try await brew.service.upgradeAll(casks: ["zzfixture-cask"]) { line in
                     if line == "fetching" { answer.set(InstallJobs.cancel(id)) }
                 }
             }
@@ -301,7 +314,12 @@ import Foundation
         let dir: URL
         let service: BrewFormulaService
 
-        init(dryRunStatus: Int32 = 0, fetch: Fetch = .succeed, upgrade: Upgrade = .succeed) throws {
+        init(
+            dryRunStatus: Int32 = 0, fetch: Fetch = .succeed, upgrade: Upgrade = .succeed,
+            caskFacts: @escaping BrewFormulaService.CaskFactsReader = { _, _, _ in
+                .init(installsAnApp: false, needsSudo: false)
+            }
+        ) throws {
             dir = FileManager.default.temporaryDirectory
                 .appendingPathComponent("ZZFixture-brew-upgrade-\(UUID().uuidString)", isDirectory: true)
             try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
@@ -338,7 +356,7 @@ import Foundation
             let path = dir.appendingPathComponent("brew")
             try Data(script.utf8).write(to: path)
             try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: path.path)
-            service = BrewFormulaService(executor: { _ in nil }, brewPath: { path.path })
+            service = BrewFormulaService(executor: { _ in nil }, caskFacts: caskFacts, brewPath: { path.path })
         }
 
         var calls: [String] {

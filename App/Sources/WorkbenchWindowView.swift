@@ -2175,13 +2175,20 @@ private struct BrewFormulaSidebarRow: View {
     var body: some View {
         let row = row
         HStack(spacing: 8) {
-            FormulaIcon(name: formula.name, size: 22)
+            FormulaIcon(name: formula.name, size: 22, missingAppPath: formula.missingAppPath)
             VStack(alignment: .leading, spacing: 1) {
                 HStack(spacing: 4) {
                     Text(formula.name).font(.body).lineLimit(1)
+                        .foregroundStyle(formula.missingAppPath == nil ? .primary : .secondary)
                     if formula.needsSudo { CLISudoBadge(help: CLIToolPresentation.brewSudoBadgeHelp) }
                 }
-                caption(row.caption)
+                if let path = formula.missingAppPath {
+                    Text("Registered path missing")
+                        .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                        .help(path)
+                } else {
+                    caption(row.caption)
+                }
             }
             Spacer()
             action(row.slot).swallowsClicksAfterSwap(of: row.slot.isRunning)
@@ -2632,7 +2639,7 @@ private struct FormulaDetailPane: View {
                     .padding(.bottom, 12)
             }
             // Why an update it shows has no Update (`manualInstaller`).
-            if formula.manualInstaller, formula.hasUpdate {
+            if formula.missingAppPath == nil, formula.manualInstaller, formula.hasUpdate {
                 BrewLifecycleNotice(text: AttributedString(String(localized: "Homebrew can’t upgrade \(formula.name) itself: its installer has to be run by hand.")))
                     .padding(.horizontal, 16)
                     .padding(.bottom, 12)
@@ -2677,13 +2684,21 @@ private struct FormulaDetailPane: View {
 
     private var header: some View {
         HStack(spacing: 8) {
-            FormulaIcon(name: formula.name, size: 44)
+            FormulaIcon(name: formula.name, size: 44, missingAppPath: formula.missingAppPath)
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
                     Text(formula.name).font(.title2).fontWeight(.semibold)
                     if formula.needsSudo { CLISudoBadge(help: CLIToolPresentation.brewSudoBadgeHelp) }
                 }
-                if let available = formula.availableVersion {
+                if let path = formula.missingAppPath {
+                    Text("Registered path missing")
+                        .font(.callout).foregroundStyle(.secondary)
+                    Text(formula.installedVersion)
+                        .font(.caption).foregroundStyle(.secondary)
+                    Text(verbatim: path)
+                        .font(.caption).foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                } else if let available = formula.availableVersion {
                     Text("\(formula.installedVersion) → \(available)")
                         .font(.callout).foregroundStyle(.tint)
                 } else {

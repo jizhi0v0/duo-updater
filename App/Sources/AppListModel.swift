@@ -1201,7 +1201,9 @@ final class AppListModel {
     private(set) var brewFormulae: [BrewInstalledFormula] {
         get {
             let hidden = brewHiddenCaskNames
-            return brewPackageInventory.filter { $0.kind != .cask || !hidden.contains($0.name) }
+            return brewPackageInventory.filter {
+                $0.kind != .cask || $0.missingAppPath != nil || !hidden.contains($0.name)
+            }
         }
         set { brewPackageInventory = newValue }
     }
@@ -4574,9 +4576,7 @@ final class AppListModel {
             : brewPackageInventory.filter { $0.kind == .cask }
         let rowTokens = Set(caskRows.map(\.name))
         let casks = outdatedCasks.filter { rowTokens.contains($0.name) }
-        // brew refuses to upgrade these: they show their update, but no Update,
-        // no place in Upgrade All and no count beside it.
-        let manual = Set(caskRows.filter(\.manualInstaller).map(\.name))
+        let blocked = Set(caskRows.filter { $0.manualInstaller || $0.missingAppPath != nil }.map(\.name))
         let newUnchecked = installed.unchecked
         // Where the read's time went, beside the lane's own line for the pass.
         let total = clock.now - started
@@ -4615,7 +4615,7 @@ final class AppListModel {
                 f.head = installed.headInstalls[f.name]
                 return f
             }
-        brewOutdatedFormulae = outdated + casks.filter { !manual.contains($0.name) }
+        brewOutdatedFormulae = outdated + casks.filter { !blocked.contains($0.name) }
         brewUnchecked = newUnchecked
         brewCaskLifecycles = installed.caskLifecycles
         // Kept from the last read when this one could not list the casks, as the
@@ -4945,11 +4945,10 @@ final class AppListModel {
             }
             var failure: (any Error)?
             do {
-                try await self.brewFormulaService.upgradeAll(
+                let upgradedCasks = try await self.brewFormulaService.upgradeAll(
                     casks: caskTokens, password: BrewSudoPasswordPanel.prompt, onOutput: onOutput)
-                if !caskTokens.isEmpty {
-                    self.brewUpgradeDone = min(self.brewUpgradeDone + caskTokens.count, self.brewUpgradeTotal)
-                }
+                self.brewUpgradeTotal -= caskTokens.count - upgradedCasks
+                self.brewUpgradeDone = min(self.brewUpgradeDone + upgradedCasks, self.brewUpgradeTotal)
             } catch {
                 failure = error
             }
@@ -4976,7 +4975,8 @@ final class AppListModel {
     /// workbench Brew list — then re-read the outdated set. `name` is the row's
     /// `BrewInstalledFormula.key`, which every run, note and error is keyed by.
     func upgradeBrewFormula(named name: String) async {
-        guard !upgradingFormulae.contains(name) else { return }
+        guard !upgradingFormulae.contains(name),
+              brewFormulae.contains(where: { $0.key == name && $0.canUpgrade }) else { return }
         upgradingFormulae.insert(name)
         formulaUpgradeErrors[name] = nil
         let jobID = Self.formulaJobID(name)
@@ -5014,6 +5014,8 @@ final class AppListModel {
         }) { @MainActor [weak self] () -> ((any Error)?, Bool) in
             guard let self else { return (nil, false) }
             await self.afterBackgroundHomebrewUpdate()
+            guard let row = self.brewFormulae.first(where: { $0.key == name && $0.canUpgrade })
+            else { return (nil, false) }
             var failure: (any Error)?
             // Map brew's noisy raw output to a clean phase word; ignore lines we
             // don't recognize so the label stays stable instead of flickering
@@ -5023,13 +5025,13 @@ final class AppListModel {
                 Task { @MainActor in self?.formulaUpgradeNotes[name] = phase }
             }
             do {
-                if let cask = self.brewFormulae.first(where: { $0.key == name && $0.kind == .cask }) {
-                    if self.brewAppCasksChangedOnDisk().contains(cask.name) {
-                        Log.app.notice("brew upgrade \(cask.name, privacy: .public): skipped — its app changed on disk since the last check")
+                if row.kind == .cask {
+                    if self.brewAppCasksChangedOnDisk().contains(row.name) {
+                        Log.app.notice("brew upgrade \(row.name, privacy: .public): skipped — its app changed on disk since the last check")
                         return (BrewAppCaskChangedOnDisk(), false)
                     }
                     try await self.brewFormulaService.upgrade(
-                        cask: cask.name, password: BrewSudoPasswordPanel.prompt, onOutput: onOutput)
+                        cask: row.name, password: BrewSudoPasswordPanel.prompt, onOutput: onOutput)
                 } else {
                     try await self.brewFormulaService.upgrade(formula: name, onOutput: onOutput)
                 }

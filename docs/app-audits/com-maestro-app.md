@@ -140,6 +140,10 @@
 - 阻塞: 0.1.0–0.8.0 是 ad-hoc 签名，Team 闸拒绝，需手动更新一次
 
 ## 已知问题
+- RC 轨在 `v0.16.16-RC` 这类同时带正式版 zip 的 release 上，`installableAsset` 选的是那个正式版 zip（包内 0.16.16，比 RC zip 早约 16 小时上传），
+  而厂商 `latest-mac.yml` 指向 RC zip；推荐版本已从所选文件名读出（0.16.16），与装上的包一致，但装的不是厂商更新器会给的那份。
+  只有这种 release 恰好版本最高时才会发生，今天不会
+- RC 轨的 changelog（`.maestroReleases`）按版本号从高到低排：面板打开第 0 条，RC rule 推的是版本最高的那个
 - 自更新器竞争: 用户在 app 里点过下载、还没退出时，Squirrel.Mac 已经拿着那份包等退出安装（`autoInstallOnAppQuit`）。
   我们装上更新的版本后，若它在退出时再装旧的那份，就会回退。运行中一轮未做，未验证
 

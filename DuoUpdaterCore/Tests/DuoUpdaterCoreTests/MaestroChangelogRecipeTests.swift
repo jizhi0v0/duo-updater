@@ -78,7 +78,8 @@ private let maestroReleasesFixture = #"""
         #expect(MaestroReleaseNotes.withoutVersion("Show Thinking") == "Show Thinking")
     }
 
-    /// CRLF bodies (1.0.2's is one) read as LF: a wrap is not a paragraph break.
+    /// CRLF bodies (88 of 103 on 2026-11-11, v0.18.5-RC the newest) read as LF:
+    /// a wrap is not a paragraph break.
     @Test func crlfBodiesWrapLikeLFOnes() {
         let body = "- An item\r\n  that wraps\r\n\r\n🎯 **A paragraph** that\r\nwraps too."
         #expect(MaestroReleaseNotes.normalized(body, version: "1.0.0")
@@ -93,13 +94,14 @@ private let maestroReleasesFixture = #"""
     }
 
     /// The RC track's notes carry the RCs it is offered and the stable releases
-    /// beside them; the stable track's never carry an RC.
+    /// beside them, highest version first: the pane opens on entry 0, and the
+    /// RC rule offers the highest version. Mutation: drop the sort → 1.0.2 first.
     @Test func theRCTrackListsRCsAndStableReleases() throws {
         let recipe = try #require(ChangelogRecipeRegistry.recipe(
             forBundleID: "com.maestro.app", channel: .beta))
         #expect(recipe.channel == .beta)
         let entries = try #require(ChangelogService.parse(recipe, body: maestroReleasesFixture)).entries
-        #expect(entries.map(\.version) == ["1.0.2", "1.1.0-RC", "0.15.4-RC", "0.13.1", "0.12.3"])
+        #expect(entries.map(\.version) == ["1.1.0-RC", "1.0.2", "0.15.4-RC", "0.13.1", "0.12.3"])
     }
 
     /// A line right under a list item continues it; a paragraph's hard wraps join.

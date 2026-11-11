@@ -2,7 +2,7 @@ import Foundation
 
 /// Which release a rule may offer once the list has been fetched.
 ///
-/// `.newest` is the historic behaviour and what every rule but one uses: walk
+/// `.newest` is the historic behaviour and what nearly every rule uses: walk
 /// newest-first and take the first release the patterns accept.
 ///
 /// `.installedMajorLineOrNewestStable` exists for a vendor whose prereleases are
@@ -150,8 +150,8 @@ public struct GitHubReleaseRule: Sendable {
     public let versionPattern: String
 
     /// How to choose among the releases this rule fetched. `.newest` for every
-    /// rule but UTM beta — see `GitHubCandidateScope` for why that one differs
-    /// and what it measured.
+    /// rule but UTM beta (`.installedMajorLineOrNewestStable`) and Maestro RC
+    /// (`.highestVersion`) — see `GitHubCandidateScope` for why each differs.
     public let candidateScope: GitHubCandidateScope
 
     /// Whether a `usePrereleases` rule with `.newest` scope first asks for a
@@ -164,7 +164,8 @@ public struct GitHubReleaseRule: Sendable {
     /// 17-75 KB (five installed repos, gzipped, 2026-09-05). Ignored for stable
     /// rules (they read `/releases/latest`, already one release) and for
     /// `.installedMajorLineOrNewestStable` (its answer is a window, not the
-    /// newest row). Set false for a rule whose newest release is usually NOT
+    /// newest row) and `.highestVersion` (one row cannot say which is highest).
+    /// Set false for a rule whose newest release is usually NOT
     /// the one it wants — Bitwarden's monorepo interleaves web, CLI and browser
     /// releases ahead of the desktop tag — since the probe then only adds a
     /// request. Defaults to true.

@@ -551,7 +551,9 @@ public struct ChangelogRecipe: Codable, Sendable {
         /// version (`# 1.0.2 Highlights`), which the shared parser drops. A
         /// format of its own so no other GitHub source changes. `tagPattern`,
         /// `channel` and `includesPromotedStable` work as they do for
-        /// `gitHubReleases`.
+        /// `gitHubReleases`. Entries come out highest version first, not in
+        /// list order: the RC rule offers the highest version, and an RC is
+        /// often published before later stable patches.
         case maestroReleases
         /// GotEmail's `gotemail.shipcat.app/releases.json` — `{releases: [{version,
         /// date, items: [{tag, text}]}]}`, newest first, the file its What's New

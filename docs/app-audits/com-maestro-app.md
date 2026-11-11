@@ -126,6 +126,10 @@
 ## 一键安装
 - 状态: 支持（0.8.1 起的副本）
 - 端到端: ✓ 第一轮（2026-11-11，本机，未运行）：/Applications 放 1.0.1，`duo install com.maestro.app --yes` → `verifyingSignature … verifyingCodeSignature … installed.`；结果 1.0.2、Team `4N4DQ24LED`、`codesign --verify --deep --strict` 0、spctl Notarized Developer ID。运行中一轮（含 electron-updater 停放与退出即装的竞争）未做。
+- 端到端（RC 轨）: ✓（2026-11-11，本机，未运行）：/Applications 放 1.0.2，app 里打开「Include beta and release candidate updates」后退出，
+  `duo check` 报 `1.0.2 → 1.1.0-RC`，`duo install com.maestro.app --yes` → `verifyingSignature … verifyingCodeSignature … installed.`；
+  结果 1.1.0-RC、Team `4N4DQ24LED`、`codesign --verify --deep --strict` 0、spctl Notarized Developer ID；之后 `duo check` up to date。
+  `channel-verify` 该副本：`ChannelBinding beta`、`latest 1.1.0-RC`、`changelog pane  recipe changelog:com.maestro.app:beta: 20 entries`
 - 格式: .zip（electron-updater 自己装的也是这个 zip）
 - 嵌套 / 常驻组件: `Contents/Frameworks/Maestro Helper.app`、`Maestro Helper (GPU).app`、`Maestro Helper (Plugin).app`、
   `Maestro Helper (Renderer).app`，均 `LSUIElement=true`，是 Electron 标准的子进程 helper，随主进程退出；
@@ -138,7 +142,6 @@
 ## 已知问题
 - 自更新器竞争: 用户在 app 里点过下载、还没退出时，Squirrel.Mac 已经拿着那份包等退出安装（`autoInstallOnAppQuit`）。
   我们装上更新的版本后，若它在退出时再装旧的那份，就会回退。运行中一轮未做，未验证
-- RC 轨一键端到端见「一键安装」
 
 ## 如何复验
 ```bash

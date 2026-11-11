@@ -2,7 +2,7 @@ import Foundation
 
 /// Which release a rule may offer once the list has been fetched.
 ///
-/// `.newest` is the historic behaviour and what every rule but one uses: walk
+/// `.newest` is the historic behaviour and what nearly every rule uses: walk
 /// newest-first and take the first release the patterns accept.
 ///
 /// `.installedMajorLineOrNewestStable` exists for a vendor whose prereleases are
@@ -38,6 +38,16 @@ import Foundation
 public enum GitHubCandidateScope: String, Sendable, Equatable {
     case newest
     case installedMajorLineOrNewestStable
+    /// The release whose tag reads the highest version on the fetched page,
+    /// whatever its position. For a vendor whose own updater sorts the list by
+    /// version before taking the first row, and whose prerelease line is
+    /// published ahead of later stable patches: Maestro's `1.1.0-RC` came out
+    /// before 1.0.1 and 1.0.2, and with RCs on the app offers it to a 1.0.2
+    /// copy. `.newest` would take 1.0.2, the first row. A release without the
+    /// macOS asset is walked past to the next-highest, as `.newest` walks to
+    /// the next row. Never probed with a one-row page: one row cannot say
+    /// which version is highest.
+    case highestVersion
 }
 
 /// From one release on, an app is only worth offering to some Macs, and nothing
@@ -140,8 +150,8 @@ public struct GitHubReleaseRule: Sendable {
     public let versionPattern: String
 
     /// How to choose among the releases this rule fetched. `.newest` for every
-    /// rule but UTM beta — see `GitHubCandidateScope` for why that one differs
-    /// and what it measured.
+    /// rule but UTM beta (`.installedMajorLineOrNewestStable`) and Maestro RC
+    /// (`.highestVersion`) — see `GitHubCandidateScope` for why each differs.
     public let candidateScope: GitHubCandidateScope
 
     /// Whether a `usePrereleases` rule with `.newest` scope first asks for a
@@ -154,7 +164,8 @@ public struct GitHubReleaseRule: Sendable {
     /// 17-75 KB (five installed repos, gzipped, 2026-09-05). Ignored for stable
     /// rules (they read `/releases/latest`, already one release) and for
     /// `.installedMajorLineOrNewestStable` (its answer is a window, not the
-    /// newest row). Set false for a rule whose newest release is usually NOT
+    /// newest row) and `.highestVersion` (one row cannot say which is highest).
+    /// Set false for a rule whose newest release is usually NOT
     /// the one it wants — Bitwarden's monorepo interleaves web, CLI and browser
     /// releases ahead of the desktop tag — since the probe then only adds a
     /// request. Defaults to true.
@@ -250,6 +261,27 @@ public struct GitHubReleaseRule: Sendable {
     /// `OneClickGate`'s, scoped to each edition's package, not this field's.
     public let installedExecutableMarker: String?
 
+    /// Regex applied to the CHOSEN install asset's filename; capture group 1 is
+    /// the version this rule reports for that release, in place of the one
+    /// `versionPattern` reads off the tag. Nil (the default) for every rule
+    /// whose tag names the version the package installs.
+    ///
+    /// For a vendor that respins a release under its old tag AND gives the
+    /// respin a new version, in the bundle and in the filename. Shotcut is the
+    /// measured case: tag `v26.9.27` carries `shotcut-macos-26.9.27.dmg` and,
+    /// a day later, `shotcut-macos-26.9.28.dmg`, whose bundle says 26.9.28 in
+    /// both version keys. Read from the tag, the release is 26.9.27: a 26.9.27
+    /// copy is "up to date" and never offered the respin the one-click would
+    /// install anyway (`installableAsset` already picks the highest-named
+    /// file). Read from the asset, the offer and the file agree.
+    ///
+    /// Only the reported version of the release this rule offers moves: which
+    /// release is chosen, the walk-back past assetless releases, the history
+    /// and the tag lookups all stay on the tag. Requires
+    /// `installAssetPattern` (`assetVersionPatternNeedsAnInstallAsset`); an
+    /// asset name it cannot read falls back to the tag's version.
+    public let assetVersionPattern: String?
+
     public init(
         bundleID: String,
         owner: String,
@@ -267,10 +299,12 @@ public struct GitHubReleaseRule: Sendable {
         variant: String? = nil,
         architectureRequirement: GitHubArchitectureRequirement? = nil,
         tagRefPrefix: String? = nil,
-        installedExecutableMarker: String? = nil
+        installedExecutableMarker: String? = nil,
+        assetVersionPattern: String? = nil
     ) {
         self.bundleID = bundleID
         self.installedExecutableMarker = installedExecutableMarker
+        self.assetVersionPattern = assetVersionPattern
         self.tagRefPrefix = tagRefPrefix
         self.variant = variant
         self.architectureRequirement = architectureRequirement
@@ -463,6 +497,18 @@ public struct GitHubReleaseRule: Sendable {
             if VersionComparator.isNewer(asset.name, than: current.name) { best = asset }
         }
         return best
+    }
+
+    /// The version a rule reports for a release: the one `pattern` reads off
+    /// the chosen asset's filename when the rule sets `assetVersionPattern`
+    /// and the name yields one, else the tag's. Pure and static so the respin
+    /// case is testable without a fetch.
+    static func offeredVersion(tagVersion: String, asset name: String?, pattern: String?) -> String {
+        guard let pattern, let name,
+              let fromAsset = VendorProbeRecipe.extractVersion(from: name, pattern: pattern),
+              !fromAsset.isEmpty
+        else { return tagVersion }
+        return fromAsset
     }
 
     /// Does this release carry *any* asset this rule would install?
@@ -760,6 +806,25 @@ public struct GitHubReleasesSource: UpdateSource {
     /// release and the next real one, so one row is the page that pays for
     /// itself; anything larger just moves the fallback threshold.
     static let newestProbePageSize = 1
+
+    /// `releases` ordered by the version their tag reads under `pattern`,
+    /// highest first; equal versions, and tags the pattern cannot read (last),
+    /// keep their list order.
+    static func byVersionDescending(_ releases: [Release], pattern: String) -> [Release] {
+        let keyed = releases.enumerated().map { (offset: $0.offset, release: $0.element,
+            version: VendorProbeRecipe.extractVersion(from: $0.element.tag, pattern: pattern)) }
+        return keyed.sorted { a, b in
+            switch (a.version, b.version) {
+            case let (va?, vb?):
+                if VersionComparator.isNewer(va, than: vb) { return true }
+                if VersionComparator.isNewer(vb, than: va) { return false }
+                return a.offset < b.offset
+            case (.some, nil): return true
+            case (nil, .some): return false
+            case (nil, nil): return a.offset < b.offset
+            }
+        }.map(\.release)
+    }
 
     /// Whether `resolve` may open with a one-row page for this rule at all —
     /// the static half of the decision. The dynamic half (has the full page
@@ -1630,6 +1695,13 @@ public struct GitHubReleasesSource: UpdateSource {
             }
         }
 
+        // A highest-version rule walks the page in version order rather than in
+        // the order GitHub lists it. Stable, so equal versions keep their order;
+        // a tag the pattern cannot read goes last and is skipped by the walk.
+        if rule.candidateScope == .highestVersion {
+            releases = Self.byVersionDescending(releases, pattern: rule.versionPattern)
+        }
+
         // A rule that names a macOS installer asks a stricter question than "what
         // is the newest tag": **which release shipped this app for macOS.** Those
         // differ whenever a cross-platform project cuts a release for some of its
@@ -1733,17 +1805,6 @@ public struct GitHubReleasesSource: UpdateSource {
                     archIncompatible = true
                     break
                 }
-                let page = release.htmlURL ?? URL(string: "https://github.com/\(rule.slug)/releases")
-                let body = release.body.flatMap { $0.isEmpty ? nil : $0 }
-                let structured = body.flatMap {
-                    GitHubMarkdownParser.parse(body: $0, version: version, date: release.publishedAt)
-                }
-                // #300: same day/minute split as the history backfill above —
-                // `release.publishedAt` is normally a full ISO8601 timestamp,
-                // but a bare calendar day now lands honestly in `vendorDay`
-                // instead of being dropped by the old `ReleaseDate.parse`.
-                let publishedFields = ReleaseDate.publishedFields(from: release.publishedAt)
-
                 // When the rule names an installable asset and this release ships
                 // a matching one, offer a one-click in-place install (the Team-ID
                 // gate in VendorInstaller still guards the swap). Otherwise stay
@@ -1753,6 +1814,23 @@ public struct GitHubReleasesSource: UpdateSource {
                         from: release.assets, matching: $0,
                         preferring: hostArch, allowingIntelTranslation: canRunIntel)
                 }
+                // The version the chosen file installs, for a vendor that respins
+                // under an old tag with a new version (`assetVersionPattern`).
+                let offered = GitHubReleaseRule.offeredVersion(
+                    tagVersion: version, asset: asset.flatMap { chosen in
+                        release.assets.first { $0.url == chosen.url }?.name
+                    }, pattern: rule.assetVersionPattern)
+
+                let page = release.htmlURL ?? URL(string: "https://github.com/\(rule.slug)/releases")
+                let body = release.body.flatMap { $0.isEmpty ? nil : $0 }
+                let structured = body.flatMap {
+                    GitHubMarkdownParser.parse(body: $0, version: offered, date: release.publishedAt)
+                }
+                // #300: same day/minute split as the history backfill above —
+                // `release.publishedAt` is normally a full ISO8601 timestamp,
+                // but a bare calendar day now lands honestly in `vendorDay`
+                // instead of being dropped by the old `ReleaseDate.parse`.
+                let publishedFields = ReleaseDate.publishedFields(from: release.publishedAt)
                 // The digest GitHub publishes for THIS asset, read from the same
                 // release object as its URL — never from the URL or a sidecar file.
                 // A digest-only rule rests entirely on it: no digest, no one-click.
@@ -1775,7 +1853,7 @@ public struct GitHubReleasesSource: UpdateSource {
                 // diagnostics panel is the only surface that says a recipe broke.
                 await RecipeHealth.shared.recordSuccess(id: rule.recipeID, source: name)
                 return Resolution(remote: RemoteVersion(
-                    shortVersion: version,
+                    shortVersion: offered,
                     version: nil,
                     downloadURL: asset?.url
                         ?? URL(string: "https://github.com/\(rule.slug)/releases"),
@@ -1798,7 +1876,7 @@ public struct GitHubReleasesSource: UpdateSource {
                 // Only what is newer than the answer: the list is not in version
                 // order (nor reliably in any timestamp's — measured on trycua/cua,
                 // where v0.9.1 sat above v0.10.0), so a backport can sit above it.
-                skippedPast: skippedPast.filter { VersionComparator.isNewer($0.version, than: version) })
+                skippedPast: skippedPast.filter { VersionComparator.isNewer($0.version, than: offered) })
             }
         }
         // Not a recipe failure — the vendor did ship a macOS build for the
@@ -1952,13 +2030,6 @@ public enum GitHubReleaseRegistry {
     // tagged by timestamp (`20240203-110809-5046fc22`). There is no pair of
     // strings to compare, so any rule here would either be silent or permanently
     // claim an update.
-
-    // Deliberately NOT covered — Maestro (`com.maestro.app`). The repo's recent
-    // releases are all `cli-<ver>` (the CLI, now at 2.x) while the desktop app's
-    // last `v<ver>` tag is 0.17.3 and no longer appears in the newest 60
-    // releases. `/releases/latest` today resolves to `cli-2.8.0`, so a rule keyed
-    // on this repo would report the CLI's version as the app's. Revisit if the
-    // desktop app resumes its own release train.
 
     // Deliberately NOT covered — ungoogled-chromium. Its builds carry the SAME
     // bundle id as upstream Chromium (`org.chromium.Chromium`) and a version

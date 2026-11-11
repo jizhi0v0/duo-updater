@@ -148,6 +148,22 @@ struct GitHubListPageSizeTests {
         // (v2.0.0-beta.0, v1.18.0 … v1.0.1, v1.0.0-beta.6), first hit at index
         // 0, gap 0, so 1. The rule keeps the default 20.
         "app.responsively/beta": 1,
+        // Shotcut beta: the rule takes stable and prerelease tags alike (a
+        // prerelease copy is offered the newest of either). All 100 newest
+        // releases on 2026-11-11 match (v26.10.30, v26.9.27 … ), first hit at
+        // index 0, gap 0, so 1. The rule keeps the default 20.
+        "com.Meltytech.Shotcut/beta": 1,
+        // TextMate beta: stable and prerelease tags alike. Of the 100 newest
+        // releases on 2026-11-11, the 24 dotted `v2.0.N` ones match and sit
+        // together at the top (v2.0.23 … v2.0), the older `v2.0-rc.N` /
+        // `-beta.N` tags below them; first hit at index 0, gap 0, so 1.
+        "com.macromates.TextMate/beta": 1,
+        // Maestro RC: stable and `-RC`/`-rc` tags alike, and `.highestVersion`,
+        // so the depth that matters is where the HIGHEST version sits, not the
+        // first match. Replaying every prefix of all 103 releases on
+        // 2026-11-11, the highest was at most at index 2 (1.1.0-RC under
+        // v1.0.2 and v1.0.1), so 3. The rule keeps the default 20.
+        "com.maestro.app/beta": 3,
     ]
 
     private static func key(_ rule: GitHubReleaseRule) -> String {

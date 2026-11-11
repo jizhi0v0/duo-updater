@@ -160,6 +160,17 @@ Info.plist 在 2.02 上**完全不可用**（版本是 Electron 的 `36.6.0`）�
   一个 feed，beta item 打 `<sparkle:channel>beta`。beta 包的版本号与 `AirBuildReleaseLabel` 都不带渠道（1.1.120 beta 与 1.1.121 stable 同为 `1.1` / `v1.1-beta.143`），
   `AirBuildChannel`：`true` → `.beta`，其他 → `.stable`（权威）。标签是派生的，不需要 proof。详见 [审计](docs/app-audits/plus-yellow-AirBuild.md)
 
+### Pattern C 续 — TextMate、Maestro（2026-11-11 接 beta / RC，GitHub 规则）
+
+- **TextMate** `com.macromates.TextMate` — Settings → Software Update 写 CFPrefs `SoftwareUpdateChannel`（真 app 拨开关实测：选 beta 写 `beta`，
+  改回 release **删掉键**）。prerelease 与正式版 tag 同形、资产同名、包内版本纯数字，`detect()` 没有信号，所以 `TextMateChannel`：`beta` → `.beta`，
+  其他 → `.stable`（权威）。beta rule `usePrereleases`，取最新的一个（与厂商 `/releases/beta` 一致）；今天两轨都答 2.0.23。
+  详见 [审计](docs/app-audits/com-macromates-TextMate.md)
+- **Maestro** `com.maestro.app` — Settings →「Include beta and release candidate updates」写 `~/Library/Application Support/maestro/maestro-settings.json`
+  的 `enableBetaUpdates`（真 app 拨开关实测：开 `true`、关 `false`，键保留；`maestro-bootstrap.json` 的 `customSyncPath` 可挪走设置文件）。
+  RC 包 `1.1.0-RC` 被 `detect()` 读成 stable，`MaestroChannel`：`true` → `.beta`，其他 → `.stable`（权威）。beta rule 收 `-RC`/`-rc` tag，
+  取版本号最高的那一个（app 自己也按版本排序后取第一个）；RC 副本走单独的 beta changelog recipe。详见 [审计](docs/app-audits/com-maestro-app.md)
+
 ### Pattern C 续 — CodeEdit（2026-09-12 接，`dev` 是唯一轨的标签）
 
 - **CodeEdit** `app.codeedit.CodeEdit` — Info.plist 自带 `SUFeedURL`
@@ -267,6 +278,13 @@ tag 与资产名，互不相收。与 WhatCable 的区别是 **Yaak 的 beta rul
       真机验证：切换后 `defaults read com.colliderli.iina receiveBetaUpdate` 返回 `1`。
       已接入 `IINAChannel`（feed-swap：stable `appcast.xml` ↔ beta `appcast-beta.xml`），
       注册到 `ChannelBinding`，测试通过。
+
+- [x] **VimR** · `com.qvacua.VimR` — Preferences → Advanced → snapshot updates。源码确认
+      整个 app 状态是 UserDefaults key `"168"` 下的一个字典，开关是其中的
+      `use-snapshot-update-channel`（Bool，默认 false）。bundle 不声明 `SUFeedURL`，
+      `VimRChannel` 两轨都给 feed（stable `appcast.xml` ↔ snapshot `appcast_snapshot.xml`，
+      snapshot = `.preview`）。snapshot 解析用临时写入的偏好验证（见
+      `docs/app-audits/com-qvacua-VimR.md`）；没有在真 app 里拨开关。
 
 - [x] **Carbon Copy Cloner** · `com.bombich.ccc` — Settings → Software Update →
       **"Inform me of beta releases"** checkbox。**已接入（2026-08-29，见

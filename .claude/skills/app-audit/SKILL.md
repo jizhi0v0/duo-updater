@@ -504,6 +504,7 @@ are NOT CFPreferences.
 | MonitorControl `app.monitorcontrol.MonitorControl` | CFPrefs (no UI yet) | `isBetaChannel` true → beta; else nil | Sparkle channel tag |
 | SwiftVM `com.swiftvm.app` | — (no preference: fixed per build; the bundle's own `SUFeedURL` via `bundleFeeds`) | `SUFeedURL` = `…/releases/download/beta-channel/appcast-beta.xml` → beta; else nil (the app itself keys on `-beta.` in its version) | Sparkle channel tag |
 | AdGuard `com.adguard.mac.adguard` | — (no preference: fixed per build; the bundle's own Info.plist via `bundleStrings`) | `AGChannel` = `beta` → beta, `nightly` → nightly, `release` → stable; else nil | label only (each build declares its own untagged one-item feed) |
+| VimR `com.qvacua.VimR` | CFPrefs, nested: the whole app state is one dict under key `"168"` | `use-snapshot-update-channel` true → snapshot (`.preview`) | feed swap (the bundle declares no `SUFeedURL`; both feeds from the binding) |
 | Ghostty, CodeEdit, Osaurus | — (constant, no user preference) | — | fixed feed / fixed Sparkle tag |
 
 **Confirm the write on the real app.** Have the toggle flipped in the real app (or flip it yourself if no
@@ -874,6 +875,11 @@ An audit that does not know a field exists will report the situation it covers a
 | `followRedirects: false` | the endpoint 302s to a huge binary and the version is in `Location` |
 | `install` + `ChannelProofRegistry` | one-click; a NON-STABLE channel install **requires** a proof entry |
 | `install.checksumPattern` + `checksumFormat` | the body publishes a digest of the download (hex SHA-256 or base64 SHA-512) and a real download matched it (Phase 4, "Published digest") |
+
+On the GitHub side, `GitHubReleaseRule.assetVersionPattern` covers a vendor that
+respins under an old tag with a NEW version in the bundle and the filename
+(Shotcut: tag `v26.9.27` also carries `shotcut-macos-26.9.28.dmg`): the offered
+version is read off the asset the rule installs, not the tag.
 
 Adjacent machinery an audit should also weigh: `DeltaApplier` (applies Sparkle
 binary patches, and MyGo's through `MyGoDelta`), `VendorAppcastDeltas` (pulls

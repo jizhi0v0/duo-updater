@@ -255,7 +255,7 @@ private let hbuilderXCodeSpanFixture = #"""
 /// recipe cannot declare it against a format that will never look.
 @Test func skipSectionsOnlyLandsOnAFormatThatReadsIt() {
     let formatsThatRead: Set<ChangelogRecipe.StructuredFormat> = [
-        .gitHubReleases, .zedGitHubReleases,
+        .gitHubReleases, .zedGitHubReleases, .maestroReleases,
     ]
     for recipe in ChangelogRecipeRegistry.recipes where !recipe.skipSections.isEmpty {
         let format = recipe.structuredFormat
@@ -264,7 +264,7 @@ private let hbuilderXCodeSpanFixture = #"""
     }
 }
 
-/// `tagPattern` is read only by `.gitHubReleases`. Same failure shape as
+/// `tagPattern` is read only by `.gitHubReleases` (and `.maestroReleases`, which is it). Same failure shape as
 /// `skipSections` above and the same reason for deriving it from the registry: on
 /// any other format the field is not an error, it is *nothing* — the author has
 /// declared which releases are this app's and every release is still taken.
@@ -277,7 +277,8 @@ private let hbuilderXCodeSpanFixture = #"""
     for recipe in ChangelogRecipeRegistry.recipes {
         guard let tagPattern = recipe.tagPattern else { continue }
         let format = recipe.structuredFormat.map(\.rawValue) ?? "the regex path"
-        #expect(recipe.structuredFormat == .gitHubReleases,
+        // `.maestroReleases` is `.gitHubReleases` over rewritten bodies.
+        #expect(recipe.structuredFormat == .gitHubReleases || recipe.structuredFormat == .maestroReleases,
                 "\(recipe.bundleID): tagPattern is a no-op on \(format)")
         // A pattern that cannot compile is silently "no release is this app's",
         // which renders an empty panel rather than the wrong one — quieter than

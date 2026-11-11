@@ -26,6 +26,7 @@ githubRules[0].variant = nil
 githubRules[0].architectureRequirement = nil
 githubRules[0].tagRefPrefix = nil
 githubRules[0].installedExecutableMarker = nil
+githubRules[0].assetVersionPattern = nil
 githubRules[1] = struct GitHubReleaseRule
 githubRules[1].bundleID = "pro.affine.beta"
 githubRules[1].owner = "toeverything"
@@ -44,6 +45,7 @@ githubRules[1].variant = nil
 githubRules[1].architectureRequirement = nil
 githubRules[1].tagRefPrefix = nil
 githubRules[1].installedExecutableMarker = nil
+githubRules[1].assetVersionPattern = nil
 githubRules[2] = struct GitHubReleaseRule
 githubRules[2].bundleID = "pro.affine.canary"
 githubRules[2].owner = "toeverything"
@@ -62,6 +64,7 @@ githubRules[2].variant = nil
 githubRules[2].architectureRequirement = nil
 githubRules[2].tagRefPrefix? = "v"
 githubRules[2].installedExecutableMarker = nil
+githubRules[2].assetVersionPattern = nil
 
 appStoreCases = Array(count: 0)
 

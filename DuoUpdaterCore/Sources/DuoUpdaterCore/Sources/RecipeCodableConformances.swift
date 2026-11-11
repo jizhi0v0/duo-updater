@@ -576,6 +576,7 @@ extension GitHubReleaseRule: Codable {
         case candidateScope, probesNewestFirst, installedTagPrefix, channel
         case installAssetPattern, installerKind, installTrust, variant
         case architectureRequirement, tagRefPrefix, installedExecutableMarker
+        case assetVersionPattern
     }
 
     private static var codingDefaults: GitHubReleaseRule {
@@ -616,7 +617,9 @@ extension GitHubReleaseRule: Codable {
                 String.self, forKey: .tagRefPrefix, default: d.tagRefPrefix),
             installedExecutableMarker: try c.decodeOptional(
                 String.self, forKey: .installedExecutableMarker,
-                default: d.installedExecutableMarker))
+                default: d.installedExecutableMarker),
+            assetVersionPattern: try c.decodeOptional(
+                String.self, forKey: .assetVersionPattern, default: d.assetVersionPattern))
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -646,6 +649,9 @@ extension GitHubReleaseRule: Codable {
         try c.encodeOptional(
             installedExecutableMarker, forKey: .installedExecutableMarker,
             defaultIsNil: d.installedExecutableMarker == nil)
+        try c.encodeOptional(
+            assetVersionPattern, forKey: .assetVersionPattern,
+            defaultIsNil: d.assetVersionPattern == nil)
     }
 }
 

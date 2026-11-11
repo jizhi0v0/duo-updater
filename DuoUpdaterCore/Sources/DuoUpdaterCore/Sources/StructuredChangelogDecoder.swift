@@ -75,6 +75,25 @@ public enum StructuredChangelogDecoder {
             return decodeTraeDocsChangelog(body, maxEntries: maxEntries)
         case .longbridgeDesktopManifest:
             return decodeLongbridgeDesktopManifest(body)
+        case .maestroReleases:
+            // Highest version first, then the cap: the RC track is offered the
+            // highest version (`.highestVersion`), and the pane opens on entry 0.
+            // List order puts an RC published before later stable patches below
+            // them (1.1.0-RC under 1.0.2 and 1.0.1).
+            guard let all = decodeGitHubReleases(
+                body, channel: channel, maxEntries: nil, skipSections: skipSections,
+                includesPromotedStable: includesPromotedStable, tagPattern: tagPattern,
+                ordersByPublishedDate: ordersByPublishedDate,
+                rewritingBody: MaestroReleaseNotes.normalized)
+            else { return nil }
+            let sorted = all.entries.enumerated().sorted { a, b in
+                if VersionComparator.isNewer(a.element.version, than: b.element.version) { return true }
+                if VersionComparator.isNewer(b.element.version, than: a.element.version) { return false }
+                return a.offset < b.offset
+            }.map(\.element)
+            return Changelog(
+                entries: maxEntries.map { Array(sorted.prefix($0)) } ?? sorted,
+                itemSyntax: all.itemSyntax)
         case .opencodeReleases:
             guard let changelog = OpencodeRelease.parseNotes(Data(body.utf8)),
                   !changelog.entries.isEmpty
@@ -1055,7 +1074,8 @@ public enum StructuredChangelogDecoder {
     static func decodeGitHubReleases(
         _ body: String, channel: ReleaseChannel? = nil, maxEntries: Int?,
         skipSections: [String] = [], includesPromotedStable: Bool = false,
-        tagPattern: String? = nil, ordersByPublishedDate: Bool = false
+        tagPattern: String? = nil, ordersByPublishedDate: Bool = false,
+        rewritingBody rewrite: ((_ body: String, _ version: String) -> String)? = nil
     ) -> Changelog? {
         guard let data = body.data(using: .utf8),
               var releases = try? JSONDecoder().decode([GitHubRelease].self, from: data)
@@ -1107,7 +1127,8 @@ public enum StructuredChangelogDecoder {
             guard !version.isEmpty else { continue }
             let date = isoDay(release.publishedAt)
             guard let parsed = GitHubMarkdownParser.parse(
-                    body: raw, version: version, date: date, skipSections: skipSections),
+                    body: rewrite?(raw, version) ?? raw, version: version, date: date,
+                    skipSections: skipSections),
                   let entry = parsed.entries.first
             else { continue }
             entries.append(entry)

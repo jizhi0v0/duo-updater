@@ -6,7 +6,7 @@ import Testing
 /// one-click; everything else keeps detection only. Exercised through the
 /// gates registered today (MuseScore, Memoh, Hyper, Readest, massCode, Museeks and Ferdium by installed version,
 /// Rambox by installed and offered major, GitKraken by an asar entry, Hoppscotch by both a version and an
-/// executable marker, FlowVision by an executable marker) and
+/// executable marker, FlowVision and muCommander by an executable marker) and
 /// through both places that enforce them.
 struct OneClickGateTests {
     /// A bundle at a fresh path whose `app.asar` packs `files` (path → contents),
@@ -86,7 +86,8 @@ struct OneClickGateTests {
     @Test func theRegisteredGatesAreTheMeasuredCases() {
         #expect(Set(OneClickGateRegistry.gates.map(\.bundleID))
             == ["org.musescore.MuseScore", "com.axosoft.gitkraken", "ai.memoh.desktop", "io.hoppscotch.desktop",
-                "co.zeit.hyper", "com.bilingify.readest", "io.masscode.app", "netdcy.FlowVision", "org.ferdium.ferdium-app", "io.museeks.app", "com.rambox"])
+                "co.zeit.hyper", "com.bilingify.readest", "io.masscode.app", "netdcy.FlowVision", "org.ferdium.ferdium-app", "io.museeks.app", "com.rambox",
+                "com.mucommander.muCommander"])
     }
 
     /// Versions of the real bundles: stable 7.2.3, 7.2.2, 6.0.0, the nightlies
@@ -745,6 +746,27 @@ struct OneClickGateTests {
             #expect(OneClickGateRegistry.withholding(app("io.museeks.app", version), offering: nil) != nil, "\(version)")
         }
         #expect(OneClickGateRegistry.withholding(app("io.museeks.app", nil), offering: nil) != nil)
+    }
+
+    /// muCommander's jpackage dmgs (1.3.0 x86_64 through 1.6.2 arm64) launch
+    /// through a Mach-O stub that links `JLI_Launch`; the `-noarch.dmg` edition,
+    /// same bundle id, unsigned, runs `universalJavaApplicationStub`, a bash
+    /// script over the system Java. Only the former takes the arm64 dmg.
+    @Test func muCommanderOneClickIsForTheJpackageEditionOnly() throws {
+        let id = "com.mucommander.muCommander"
+        let jpackage = try tauriBundle(
+            plist: ["CFBundleExecutable": "muCommander"],
+            executable: Data(repeating: 0xCF, count: 4096) + Data("_JLI_Launch".utf8) + Data(repeating: 0, count: 64),
+            named: "muCommander")
+        let noarch = try tauriBundle(
+            plist: ["CFBundleExecutable": "universalJavaApplicationStub"],
+            executable: Data("#!/bin/bash\n# universalJavaApplicationStub\nexec \"$JAVACMD\" -jar app.jar\n".utf8),
+            named: "universalJavaApplicationStub")
+        let offer = remote(package: "mucommander-1.6.2-1-aarch64.dmg")
+        #expect(OneClickGateRegistry.withholding(app(id, "1.6.1", at: jpackage), offering: offer) == nil)
+        #expect(OneClickGateRegistry.withholding(app(id, "1.6.1", at: noarch), offering: offer) != nil)
+        #expect(OneClickGateRegistry.withholding(
+            app(id, "1.6.1", at: try tauriBundle(plist: nil, executable: nil)), offering: offer) != nil)
     }
 
     @Test func gitKrakenOneClickIsForAProvenNormalEditionOnly() throws {

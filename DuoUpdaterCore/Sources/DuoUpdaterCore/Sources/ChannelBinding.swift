@@ -147,6 +147,10 @@ public struct ResolvedChannel: Sendable, Equatable {
 ///   * AirBuild → `UserDefaults[ReceiveBetaVersions]` (Bool: true → `<sparkle:channel>beta`, else stable)
 ///   * RuntimeViewer → `…/Application Support/RuntimeViewer/settings.json`
 ///                                     → `update.includePrereleases` (Bool: true→beta, else stable)
+///   * VimR     → `UserDefaults["168"]["use-snapshot-update-channel"]` (Bool: true→snapshot feed)
+///   * TextMate → `UserDefaults[SoftwareUpdateChannel]` (String: `beta`→beta, else stable)
+///   * Maestro  → `…/Application Support/maestro/maestro-settings.json` (`enableBetaUpdates`;
+///                                     true→beta, else stable; see the type for `customSyncPath`)
 ///
 /// So there is no generic reader. `ChannelBinding` is the single authority the
 /// scanner consults; an app with no resolver returns nil and the generic
@@ -200,6 +204,9 @@ public enum ChannelBinding {
         OpenScreenSharingChannel.bundleID.lowercased(),
         RuntimeViewerChannel.bundleID.lowercased(),
         AirBuildChannel.bundleID.lowercased(),
+        VimRChannel.bundleID.lowercased(),
+        TextMateChannel.bundleID.lowercased(),
+        MaestroChannel.bundleID.lowercased(),
     ]
 
     /// The directories holding every preference a resolver above reads, for a
@@ -321,6 +328,11 @@ public enum ChannelBinding {
         // RuntimeViewer deliberately adds nothing, for Cindy's reason: its
         // `settings.json` sits beside the app's other state. See
         // `RuntimeViewerChannel`.
+        //
+        // Maestro deliberately adds nothing, for Cindy's reason: its
+        // `maestro-settings.json` sits in the app's Electron `userData` directory
+        // beside its databases and sessions. See `MaestroChannel`. TextMate needs
+        // nothing either: its domain is in `~/Library/Preferences`, the first root.
         //
         // Open Screen Sharing deliberately adds nothing, for Cindy's reason: its
         // database sits in the app's group container beside its caches. See
@@ -535,6 +547,9 @@ public enum ChannelBinding {
             return { _, _ in AirBuildChannel.resolveCurrent() }
         case RuntimeViewerChannel.bundleID.lowercased():
             return { feeds, _ in RuntimeViewerChannel.resolveCurrent(bundleFeeds: feeds) }
+        case VimRChannel.bundleID.lowercased():    return { _, _ in VimRChannel.resolveCurrent() }
+        case TextMateChannel.bundleID.lowercased(): return { _, _ in TextMateChannel.resolveCurrent() }
+        case MaestroChannel.bundleID.lowercased(): return { _, _ in MaestroChannel.resolveCurrent() }
         default:                       return nil
         }
     }
@@ -585,6 +600,8 @@ public enum ChannelBinding {
         (IINAChannel.bundleID, IINAChannel.resolve(receiveBeta: true)),
         (MacMouseFixChannel.bundleID, MacMouseFixChannel.resolve(checkForPrereleases: false)),
         (MacMouseFixChannel.bundleID, MacMouseFixChannel.resolve(checkForPrereleases: true)),
+        (VimRChannel.bundleID, VimRChannel.resolve(useSnapshot: false)),
+        (VimRChannel.bundleID, VimRChannel.resolve(useSnapshot: true)),
         // A copy that declares its feed stands in for the bundle; the older ones
         // that do not are handed the same address (see the type).
         (AirBuildChannel.bundleID, AirBuildChannel.resolve(receiveBetaVersions: false)),
@@ -678,15 +695,15 @@ public enum ChannelBinding {
     /// The bindings `allResolutions` deliberately does NOT cover, lower-cased.
     ///
     /// OrbStack, Alfred, Tailscale, CapCut, Windscribe, super.engineering, Cua
-    /// Driver and both Cindy editions have bindings, but the binding only picks
+    /// Driver, both Cindy editions, TextMate and Maestro have bindings, but the binding only picks
     /// which RECIPE runs; the
     /// install comes from that recipe, so their cross-channel question is already
     /// answered by a proof map keyed to that recipe, and enumerating them here
     /// would double-count them into a second registry.
     ///
     /// ⚠️ The name predates the last of them. Six are backed by a
-    /// `VendorProbeRecipe` and answer to `ChannelProofRegistry.proofs`; Cua Driver
-    /// and Cindy are backed by a `GitHubReleaseRule` and answer to
+    /// `VendorProbeRecipe` and answer to `ChannelProofRegistry.proofs`; Cua Driver,
+    /// Cindy, TextMate and Maestro are backed by a `GitHubReleaseRule` and answer to
     /// `ChannelProofRegistry.githubProofs` instead. The membership test is "the
     /// binding chooses a recipe and carries no request-side channel signal of its
     /// own", not which registry that recipe lives in — renaming the set was
@@ -712,6 +729,8 @@ public enum ChannelBinding {
         CindyChannel.globalBundleID.lowercased(),
         CindyChannel.chinaBundleID.lowercased(),
         OpenScreenSharingChannel.bundleID.lowercased(),
+        TextMateChannel.bundleID.lowercased(),
+        MaestroChannel.bundleID.lowercased(),
     ]
 
     /// Every feed address a binding hands out as its `feedOverride`, one case per

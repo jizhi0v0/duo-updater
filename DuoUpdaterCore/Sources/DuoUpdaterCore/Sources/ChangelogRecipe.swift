@@ -545,6 +545,13 @@ public struct ChangelogRecipe: Codable, Sendable {
         /// contributors:**` paragraph. That block lists every contributor's pull
         /// requests and is credits, not notes; `gitHubReleases` would keep it.
         case opencodeReleases
+        /// Maestro's GitHub releases list, read as `gitHubReleases` reads one
+        /// after `MaestroReleaseNotes.normalized` rewrites each body: its
+        /// headline changes are paragraphs under a heading that names the
+        /// version (`# 1.0.2 Highlights`), which the shared parser drops. A
+        /// format of its own so no other GitHub source changes. `tagPattern`
+        /// and `channel` work as they do for `gitHubReleases`.
+        case maestroReleases
         /// GotEmail's `gotemail.shipcat.app/releases.json` — `{releases: [{version,
         /// date, items: [{tag, text}]}]}`, newest first, the file its What's New
         /// page renders. Each line keeps its tag as a `New:` / `Changed:` /

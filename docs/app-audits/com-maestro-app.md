@@ -107,14 +107,16 @@
 - 两份副本会不会共用这个目录: 会（目录按 `updaterCacheDirName`，不按副本），`SelfUpdaterStash.isSoleClaimant` 管这种情形
 
 ## Changelog
-- 来源: GitHub release 正文（`GitHubReleasesSource`，`GitHubMarkdownParser`）
-- 结构化: `changelog pane  source structured: 1 entries; newest 1.0.2: 6 items, headings []; first items ["🧊 **An Auto Run folder that holds a proj", "🗑️ **Close a whole tab group** from its c", "✏️ **Rename Tab Group** is now the label "]`
-- **只结构化了一半**：正文是 `# 1.0.2 Highlights` 下 4 段以 emoji + 粗体开头的段落，再加 `## Also in 1.0.2` 下的列表。
-  两个标题都带版本数字（不算分类标题），Highlights 又是段落不是列表，`GitHubMarkdownParser` 只留下 Also in 的 6 条列表，
-  **Highlights 的 4 条被丢掉**。1.0.1（5 段 + 49 条）、1.0.0（7 段 + 23 条）同形。修需要动共享解析器（让版本标题下的段落成条目，
-  并 bump `Changelog.parserGeneration`），不是本 recipe 的字段能表达的
-- 跟随 channel: stable 规则只读 stable release
-- Recipe 状态: 不需要单独的 ChangelogRecipe（同源同解析器）；解析器改动见 建议下一步
+- 来源: GitHub release 列表（`api.github.com/repos/RunMaestro/Maestro/releases?per_page=40`），专用格式 `.maestroReleases`：
+  每条正文先经 `MaestroReleaseNotes.normalized` 改写，再走与 `.gitHubReleases` 相同的 `GitHubMarkdownParser`
+- 结构化: `changelog pane  recipe changelog:com.maestro.app:stable: 12 entries; newest 1.0.2: 10 items, headings ["Highlights", "Also in this release"]; first items ["▶️ **Shell blocks in an agent's reply hav", "📊 **Re-reading your usage history no lon", "🗺️ **The Cue Pipeline Graph groups pipeli"]`
+- 为什么要专用格式: 正文把主要改动写成 `# 1.0.2 Highlights` 下的段落（emoji + 粗体句），其余放在 `## Also in 1.0.2` 的列表里。
+  共享解析器只要正文里有列表就只取列表，带数字的标题又当成重复的版本号丢掉，所以只剩 Also in 的列表、没有小标题。
+  改写把段落变成列表项（硬换行接起来；以 `:` 结尾的引导句、致谢、`**Full Changelog**`、图片和裸链接不动），
+  标题去掉版本号（`in v0.15.2` / `in 0.17.x` / `to v0.12.3` → `… this release`，其余版本号删掉）。改写之前先按原标题
+  切掉重复的旧版本段落（`### v0.13.0 Changes`），与共享解析器的规则一致。共享解析器本身没改，其他 GitHub 源不受影响
+- 跟随 channel: stable；`tagPattern` 与 rule 相同，GitHub 没标 prerelease 的四个 RC tag 也排除
+- 缓存: 加 recipe 之前没有 Maestro 的 recipe 缓存（磁盘缓存只存 recipe 结果），不需要 bump `Changelog.parserGeneration`
 
 ## 一键安装
 - 状态: 支持（0.8.1 起的副本）
@@ -131,7 +133,6 @@
 ## 已知问题
 - 自更新器竞争: 用户在 app 里点过下载、还没退出时，Squirrel.Mac 已经拿着那份包等退出安装（`autoInstallOnAppQuit`）。
   我们装上更新的版本后，若它在退出时再装旧的那份，就会回退。运行中一轮未做，未验证
-- Changelog 的 Highlights 段落丢失（见 Changelog）
 - RC 轨未接（见 Channel 详情）
 
 ## 如何复验
@@ -157,5 +158,9 @@ ditto -x -k maestro-1.0.1-arm64-mac.zip prev && swift run --package-path applica
    `update-info.json`，看 `local stash hit`，再用更旧的停放包测 Squirrel.Mac 退出安装是否回退
 2. RC 轨: 真机拨「Include beta and release candidate updates」两态，读 `maestro-settings.json` 的 `enableBetaUpdates`，
    再写 `ChannelBinding` + `usePrereleases` 的 beta rule（tag 收 `v<ver>` 与 `v<ver>-RC`）
-3. Changelog: `GitHubMarkdownParser` 让版本号标题（`# 1.0.2 Highlights`）下的段落也成条目，需在共享解析器的全部 GitHub 源上
-   回放并 bump `Changelog.parserGeneration`
+
+## 历史与实测
+- 2026-11-11 加 changelog recipe。旧路径（`GitHubReleasesSource` 的结构化日志）1.0.2 只有 6 条、没有小标题（Highlights 的 4 段丢了）。
+  全部 103 个 release 正文用新旧两种读法回放：stable 共 66 个版本，新读法 1123 条；1.0.2 6→10、1.0.1 49→54、1.0.0 23→31、
+  0.17.2 1→18、0.13.x 不变（旧版本段落照样切掉），0.1.x–0.9.x 多数不变。唯一多出的非改动内容是 0.15.1 的一段 🙏 安全致谢。
+  当时 40 条一页里有 13 个 stable release，RC 穿插其间

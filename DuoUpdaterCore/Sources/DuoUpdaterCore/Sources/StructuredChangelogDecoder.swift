@@ -75,6 +75,11 @@ public enum StructuredChangelogDecoder {
             return decodeTraeDocsChangelog(body, maxEntries: maxEntries)
         case .longbridgeDesktopManifest:
             return decodeLongbridgeDesktopManifest(body)
+        case .maestroReleases:
+            return decodeGitHubReleases(
+                body, channel: channel, maxEntries: maxEntries, skipSections: skipSections,
+                tagPattern: tagPattern, ordersByPublishedDate: ordersByPublishedDate,
+                rewritingBody: MaestroReleaseNotes.normalized)
         case .opencodeReleases:
             guard let changelog = OpencodeRelease.parseNotes(Data(body.utf8)),
                   !changelog.entries.isEmpty
@@ -1055,7 +1060,8 @@ public enum StructuredChangelogDecoder {
     static func decodeGitHubReleases(
         _ body: String, channel: ReleaseChannel? = nil, maxEntries: Int?,
         skipSections: [String] = [], includesPromotedStable: Bool = false,
-        tagPattern: String? = nil, ordersByPublishedDate: Bool = false
+        tagPattern: String? = nil, ordersByPublishedDate: Bool = false,
+        rewritingBody rewrite: ((_ body: String, _ version: String) -> String)? = nil
     ) -> Changelog? {
         guard let data = body.data(using: .utf8),
               var releases = try? JSONDecoder().decode([GitHubRelease].self, from: data)
@@ -1107,7 +1113,8 @@ public enum StructuredChangelogDecoder {
             guard !version.isEmpty else { continue }
             let date = isoDay(release.publishedAt)
             guard let parsed = GitHubMarkdownParser.parse(
-                    body: raw, version: version, date: date, skipSections: skipSections),
+                    body: rewrite?(raw, version) ?? raw, version: version, date: date,
+                    skipSections: skipSections),
                   let entry = parsed.entries.first
             else { continue }
             entries.append(entry)

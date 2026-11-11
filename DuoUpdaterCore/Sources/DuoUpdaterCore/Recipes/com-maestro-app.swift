@@ -3,6 +3,24 @@ import Foundation
 enum com_maestro_app {
     static let set = AppRecipeSet(
         family: "com-maestro-app",
+        // History: docs/app-audits/com-maestro-app.md#历史与实测
+        changelogs: [
+        // The same release bodies the rule below reads, through
+        // `MaestroReleaseNotes`: the headline changes are paragraphs under a
+        // heading naming the version (`# 1.0.2 Highlights`), which the shared
+        // parser drops (1.0.2: 6 of 10 changes, no headings). The tag pattern
+        // is the rule's, so the RC tags GitHub does not flag as prereleases
+        // (v0.15.4-RC, v0.15.0-RC, v0.11.2-rc, v0.8.8-rc) stay out. One page of
+        // 40 is read, so RCs interleaving leave fewer stable entries than that.
+        ChangelogRecipe(
+            bundleID: "com.maestro.app",
+            source: URL(string: "https://api.github.com/repos/RunMaestro/Maestro/releases?per_page=40")!,
+            mode: .json,
+            maxEntries: 12,
+            channel: .stable,
+            structuredFormat: .maestroReleases,
+            tagPattern: #"^v([0-9]+(?:\.[0-9]+)+)$"#),
+        ],
         githubRules: [
         // Maestro — an Electron "agent orchestration command center"
         // (RunMaestro/Maestro, renamed from pedramamini/Maestro; the old slug

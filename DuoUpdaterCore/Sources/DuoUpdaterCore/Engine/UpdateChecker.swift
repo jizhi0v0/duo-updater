@@ -448,7 +448,7 @@ public struct UpdateChecker: Sendable {
                 if remote.homebrewRecordedVersion == nil {
                     remote.homebrewRecordedVersion = brewAnswer?.remote?.homebrewRecordedVersion
                 }
-                // Brew already answered "up to date" and other sources were
+                // Brew answered (or declared `:latest`) and other sources were
                 // allowed: one whose build is visibly signed by someone else is
                 // skipped, since gate 3 would refuse it at install.
                 if brewAnswer != nil,
@@ -488,6 +488,21 @@ public struct UpdateChecker: Sendable {
                     }
                 }
                 return result
+            } catch let unversioned as ThirdPartyCaskSource.Unversioned {
+                // A readable `:latest` cask is not a failed tap, nor proof that
+                // this copy is current. Keep its owner and the normal fallback
+                // signing checks while respecting the copy's source choice.
+                var result = UpdateResult(app: app, remote: nil, status: .error(unversioned.localizedDescription))
+                result.homebrewSourceIdentifier = unversioned.cask
+                result.homebrewSelfUpdating = unversioned.selfUpdating
+                let key = InstallPreferenceKey.key(for: app)
+                guard brewFallback.checksOtherSources(key, selfUpdating: unversioned.selfUpdating) else { return result }
+                if let refusal = brewFallback.signingRefusals[key],
+                   refusal.team == BrewFallbackPolicy.signingStamp(team: await installedTeamOnce()) {
+                    heldRefusal = refusal
+                }
+                brewAnswer = result
+                continue
             } catch let unavailable as ThirdPartyCaskSource.Unavailable {
                 // A known package owner failing is not permission for GitHub or
                 // another feed to replace its installed copy.

@@ -10,6 +10,7 @@ import DuoUpdaterCore
 struct FormulaIcon: View {
     let name: String
     let size: CGFloat
+    var missingAppPath: String? = nil
 
     @State private var fetched: NSImage?
 
@@ -17,7 +18,20 @@ struct FormulaIcon: View {
 
     var body: some View {
         Group {
-            if let logo {
+            if let missingAppPath {
+                if let image = AppIconCache.cachedBundleIcon(for: missingAppPath) {
+                    Image(nsImage: image)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: size, height: size)
+                } else {
+                    LogoTile(tint: .secondary, size: size) {
+                        Image(systemName: "app")
+                            .font(.system(size: size * 0.62))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            } else if let logo {
                 LogoTile(tint: logo.tint, size: size) {
                     Image(logo.asset)
                         .resizable()
@@ -46,8 +60,11 @@ struct FormulaIcon: View {
                 }
             }
         }
-        .task(id: name) {
-            guard logo == nil, fetched == nil,
+        .saturation(missingAppPath == nil ? 1 : 0)
+        .opacity(missingAppPath == nil ? 1 : 0.6)
+        .accessibilityHidden(true)
+        .task(id: missingAppPath == nil ? name : nil) {
+            guard missingAppPath == nil, logo == nil, fetched == nil,
                   FormulaIconMemoryCache.shared.image(for: name) == nil,
                   let data = await BrewFormulaIconService.shared.icon(forFormula: name)
             else { return }

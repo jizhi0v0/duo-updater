@@ -97,6 +97,14 @@ enum AppIconCache {
         return image
     }
 
+    /// A missing Brew target can still show the icon from its last scan.
+    /// A cache entry read while the bundle was absent is only a system placeholder.
+    static func cachedBundleIcon(for path: String) -> NSImage? {
+        _ = revision.value
+        guard let entry = cache.object(forKey: path as NSString), entry.stamp != nil else { return nil }
+        return entry.image
+    }
+
     /// Read ahead of the first render. Popover and workbench rows call `icon(for:)`
     /// from `body`, so on a cold cache the first open paid a LaunchServices read
     /// per visible row — ~22 ms of the 269 ms main-thread cost of a cold first

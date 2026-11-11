@@ -121,6 +121,14 @@ import Foundation
             try Data(json.utf8).write(to: metadata.appendingPathComponent("INSTALL_RECEIPT.json"))
         }
 
+        func record(_ token: String) throws -> URL {
+            let metadata = caskroom.appendingPathComponent(token).appendingPathComponent(".metadata")
+            let casks = metadata.appendingPathComponent("1.0/20261028133554.149/Casks")
+            try fm.createDirectory(at: casks, withIntermediateDirectories: true)
+            try Data("{}".utf8).write(to: casks.appendingPathComponent("\(token).json"))
+            return metadata
+        }
+
         func facts(
             _ token: String, receipts: [String: [String]?] = [:], targets: [String]? = nil, extra: [String] = []
         ) async -> BrewFormulaService.CaskFacts {
@@ -237,6 +245,55 @@ import Foundation
         #expect(await disk.facts("font-jetbrains-mono") == .init(installsAnApp: false, needsSudo: false))
         // Nothing staged: no app row either.
         #expect(await disk.facts("absent") == .init(installsAnApp: false, needsSudo: false))
+    }
+
+    @Test func anInstalledAppTargetMissingFromDiskBlocksOnlyItsCask() async throws {
+        let disk = try Disk()
+        defer { disk.remove() }
+        let metadata = try disk.record("gui")
+        let oldPath = disk.elsewhere.appendingPathComponent("Old Name.app")
+        let otherCopy = disk.scanned.appendingPathComponent("New Name.app")
+        try disk.app(at: oldPath)
+        try disk.app(at: otherCopy)
+        try disk.receipt("gui", #"{"source":{"version":"1.0"},"uninstall_artifacts":[{"app":["Original.app",{"target":"Old Name.app"}]}]}"#)
+        try JSONSerialization.data(withJSONObject: [
+            "default": ["appdir": disk.scanned.path],
+            "explicit": ["appdir": disk.elsewhere.path],
+        ]).write(to: metadata.appendingPathComponent("config.json"))
+        let present = await disk.facts("gui", targets: [otherCopy.path])
+        #expect(present.missingAppPath == nil)
+
+        // The current definition names a different, present bundle. The installed
+        // receipt must still report the old path, even with no staged app link.
+        try disk.fm.removeItem(at: oldPath)
+        let missing = await disk.facts("gui", targets: [otherCopy.path])
+        #expect(missing.missingAppPath == oldPath.path)
+        #expect(disk.fm.fileExists(atPath: otherCopy.path))
+
+        _ = try disk.record("cli")
+        try disk.receipt("cli", #"{"uninstall_artifacts":[{"binary":["bin/tool"]}]}"#)
+        let cli = await disk.facts("cli")
+        #expect(cli.missingAppPath == nil)
+
+        let info = Data(#"{"casks":[{"token":"gui","tap":"homebrew/cask","installed":"1.0"},{"token":"cli","tap":"homebrew/cask","installed":"1.0"}]}"#.utf8)
+        let facts = ["gui": missing, "cli": cli]
+        let rows = BrewFormulaService.appLessCasks(installedInfo: info, facts: facts)
+        #expect(BrewFormulaService.appCasks(installedInfo: info, facts: facts).isEmpty)
+        let updates = ["gui", "cli"].map {
+            BrewOutdatedFormula(name: $0, installedVersion: "1.0", currentVersion: "2.0", kind: .cask)
+        }
+        let merged = BrewFormulaService.merge(rows, outdated: updates)
+        #expect(merged.first(where: { $0.name == "gui" })?.missingAppPath == oldPath.path)
+        #expect(merged.filter(\.canUpgrade).map(\.name) == ["cli"])
+    }
+
+    @Test func aDanglingStagedLinkCanIdentifyTheRegisteredTarget() async throws {
+        let disk = try Disk()
+        defer { disk.remove() }
+        _ = try disk.record("legacy")
+        try disk.moved("legacy", staged: "Legacy.app", to: disk.scanned, app: .gone)
+        #expect(await disk.facts("legacy").missingAppPath
+                == disk.scanned.appendingPathComponent("Legacy.app").path)
     }
 
     /// A pkg is an app only when a receipt its `uninstall` names put a `.app` in

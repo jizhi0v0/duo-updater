@@ -80,8 +80,10 @@ public struct BrewInstalledFormula: Sendable, Identifiable, Equatable {
     /// and the run fails (Homebrew 7.0.10 `cask/upgrade.rb`) — while `brew
     /// outdated` still lists it, so it shows its update with no Update.
     public var manualInstaller = false
+    /// A confirmed missing target of an `app` artifact in the installed cask.
+    public var missingAppPath: String? = nil
     /// Whether DuoUpdater can upgrade it (`brew upgrade`).
-    public var canUpgrade: Bool { hasUpdate && !manualInstaller }
+    public var canUpgrade: Bool { hasUpdate && !manualInstaller && missingAppPath == nil }
 }
 
 /// Homebrew's verdict that a formula or cask is on its way out: `deprecate!` or
@@ -375,7 +377,14 @@ public actor BrewFormulaService {
     public init() {
         self.executor = Self.executor(brewPath: HomebrewInstaller.brewPath)
         self.caskReceiptTap = { Self.realCaskReceiptTap($0) }
-        self.caskFacts = { await Self.caskFacts(caskToken: $0, appTargets: $1, extraFolders: $2) }
+        self.caskFacts = { token, targets, folders in
+            let caskroomPaths = HomebrewInstaller.brewPath().map {
+                [URL(fileURLWithPath: $0).deletingLastPathComponent().deletingLastPathComponent()
+                    .appendingPathComponent("Caskroom").path]
+            } ?? BrewLocalInventory.defaultCaskroomPaths
+            return await Self.caskFacts(caskToken: token, appTargets: targets, extraFolders: folders,
+                                        caskroomPaths: caskroomPaths)
+        }
         self.brewPath = HomebrewInstaller.brewPath
         self.askpassIsSudo = BrewAskPass.isSudo
     }
@@ -507,7 +516,8 @@ public actor BrewFormulaService {
                 head: f.head,
                 kind: f.kind,
                 needsSudo: f.needsSudo,
-                manualInstaller: f.manualInstaller)
+                manualInstaller: f.manualInstaller,
+                missingAppPath: f.missingAppPath)
         }
         .sorted { lhs, rhs in
             if lhs.hasUpdate != rhs.hasUpdate { return lhs.hasUpdate }
@@ -704,7 +714,7 @@ public actor BrewFormulaService {
                 let fact = facts[token]
             else { return nil }
             let tapName = thirdPartyCaskName(token: token, tap: c["tap"] as? String)
-            guard !fact.installsAnApp || tapName != nil else { return nil }
+            guard !fact.installsAnApp || tapName != nil || fact.missingAppPath != nil else { return nil }
             let manual = ((c["artifacts"] as? [Any]) ?? []).contains { artifact in
                 (((artifact as? [String: Any])?["installer"] as? [Any]) ?? []).contains {
                     ($0 as? [String: Any])?["manual"] != nil
@@ -717,7 +727,8 @@ public actor BrewFormulaService {
                 lifecycle: BrewLifecycle.parse(c),
                 kind: .cask,
                 needsSudo: fact.needsSudo,
-                manualInstaller: manual)
+                manualInstaller: manual,
+                missingAppPath: fact.missingAppPath)
         }
         .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
@@ -736,7 +747,7 @@ public actor BrewFormulaService {
                 !(c["tap"] is NSNull),
                 let token = c["token"] as? String,
                 thirdPartyCaskName(token: token, tap: c["tap"] as? String) == nil,
-                let fact = facts[token], fact.installsAnApp
+                let fact = facts[token], fact.installsAnApp, fact.missingAppPath == nil
             else { return nil }
             let manual = ((c["artifacts"] as? [Any]) ?? []).contains { artifact in
                 (((artifact as? [String: Any])?["installer"] as? [Any]) ?? []).contains {
@@ -1076,6 +1087,7 @@ public actor BrewFormulaService {
         /// brew runs under `/usr/bin/sudo` (`cask/artifact/pkg.rb`
         /// `requires_sudo?`, Homebrew 7.0.10).
         var needsSudo: Bool
+        var missingAppPath: String? = nil
     }
 
     /// `CaskFacts`, read off brew's own record, the Caskroom and the package
@@ -1186,7 +1198,10 @@ public actor BrewFormulaService {
                 (await receiptApps(pattern))?.forEach(record)
             }
         }
-        return CaskFacts(installsAnApp: !shown.isEmpty, appPaths: shown.sorted(), needsSudo: needsSudo)
+        let missing = BrewLocalInventory.missingRegisteredAppPath(
+            token: Self.shortName(caskToken), caskroomPaths: caskroomPaths)
+        return CaskFacts(installsAnApp: !shown.isEmpty, appPaths: shown.sorted(), needsSudo: needsSudo,
+                         missingAppPath: missing)
     }
 
     /// How deep `caskFacts` walks a version directory: `Foo/Foo.app` is level 2.
@@ -1337,12 +1352,14 @@ public actor BrewFormulaService {
     /// starts, as before.
     ///
     /// The cask pass's sudo asks `password` (`BrewAskPass`); with none, a pkg
-    /// cask fails there as it always did.
+    /// cask fails there as it always did. Returns the number of casks upgraded,
+    /// excluding targets that went missing after the list was read.
+    @discardableResult
     public func upgradeAll(
         casks tokens: [String],
         password: SudoPasswordPrompt? = nil,
         onOutput: @Sendable @escaping (String) -> Void
-    ) async throws {
+    ) async throws -> Int {
         let formulae = ["upgrade", "--formula"]
         try await prefetch(formulae, kind: "--formula", onOutput: onOutput)
         if !tokens.isEmpty {
@@ -1353,10 +1370,9 @@ public actor BrewFormulaService {
                 Log.install.notice("brew fetch --cask \(tokens.joined(separator: " "), privacy: .public) exited \(fetch.terminationStatus, privacy: .public): the upgrade downloads what is missing")
             }
         }
-        try await InstallCommit.run("brew upgrade") {
+        return try await InstallCommit.run("brew upgrade") {
             try await self.run(formulae, environment: ["HOMEBREW_NO_AUTO_UPDATE": "1"], onOutput: onOutput)
-            guard !tokens.isEmpty else { return }
-            try await self.runCaskUpgrade(tokens, password: password, onOutput: onOutput)
+            return try await self.runCaskUpgrade(tokens, password: password, onOutput: onOutput)
         }
     }
 
@@ -1371,7 +1387,7 @@ public actor BrewFormulaService {
     ) async throws {
         try await prefetch(["upgrade", "--cask"], operands: [token], kind: "--cask", onOutput: onOutput)
         try await InstallCommit.run("brew upgrade") {
-            try await self.runCaskUpgrade([token], password: password, onOutput: onOutput)
+            _ = try await self.runCaskUpgrade([token], password: password, onOutput: onOutput)
         }
     }
 
@@ -1382,19 +1398,31 @@ public actor BrewFormulaService {
         _ tokens: [String],
         password: SudoPasswordPrompt?,
         onOutput: @Sendable @escaping (String) -> Void
-    ) async throws {
+    ) async throws -> Int {
+        var eligible: [String] = []
         var sudoTokens: [String] = []
-        if password != nil {
-            for token in tokens where await caskFacts(token, nil, []).needsSudo { sudoTokens.append(token) }
+        // Re-read after downloads: a bundle can have moved since the list was
+        // read or while this run was waiting behind another one.
+        for token in tokens {
+            let facts = await caskFacts(token, nil, [])
+            if facts.missingAppPath != nil {
+                Log.install.notice("brew upgrade \(token, privacy: .public): skipped — registered app path is missing")
+                continue
+            }
+            eligible.append(token)
+            if facts.needsSudo { sudoTokens.append(token) }
         }
+        guard !eligible.isEmpty else { return 0 }
+        let targets = eligible
         try await BrewAskPass.withChannel(
-            packages: sudoTokens.isEmpty ? tokens : sudoTokens, prompt: password, isSudo: askpassIsSudo
+            packages: sudoTokens.isEmpty ? targets : sudoTokens, prompt: password, isSudo: askpassIsSudo
         ) { askpass in
             try await self.run(
-                ["upgrade", "--cask", "--"] + tokens,
+                ["upgrade", "--cask", "--"] + targets,
                 environment: askpass.merging(["HOMEBREW_NO_AUTO_UPDATE": "1"]) { a, _ in a },
                 onOutput: onOutput)
         }
+        return targets.count
     }
 
     /// Upgrade a single formula by name (`brew upgrade --formula <name>`). The

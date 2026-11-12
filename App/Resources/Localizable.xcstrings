@@ -30158,6 +30158,72 @@
         }
       }
     },
+    "Background processes are still running (%@). Automatic updating is paused for this app.": {
+      "comment": "Automatic updates: only background processes remain; do not interrupt services.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hintergrundprozesse laufen noch (%@). Die automatische Aktualisierung dieser App ist pausiert."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Todavía hay procesos en segundo plano (%@). La actualización automática de esta app está en pausa."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Des processus sont toujours actifs en arrière-plan (%@). La mise à jour automatique de cette app est suspendue."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sono ancora in esecuzione processi in background (%@). L’aggiornamento automatico di questa app è in pausa."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "バックグラウンドプロセスがまだ実行中です（%@）。このアプリの自動アップデートは一時停止しています。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ainda há processos em segundo plano (%@). A atualização automática deste app está pausada."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Фоновые процессы всё ещё работают (%@). Автообновление этого приложения приостановлено."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Arka plan işlemleri hâlâ çalışıyor (%@). Bu uygulamanın otomatik güncellemesi duraklatıldı."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "后台进程仍在运行（%@），已暂停此应用的自动更新。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "背景程序仍在執行（%@），已暫停此 App 的自動更新。"
+          }
+        }
+      }
+    },
     "Backup disk": {
       "extractionState": "manual",
       "localizations": {

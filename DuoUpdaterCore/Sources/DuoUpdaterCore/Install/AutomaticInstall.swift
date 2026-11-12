@@ -137,12 +137,42 @@ public enum AutomaticInstall {
     }
 
     public static func check(_ app: InstalledApp) throws {
-        guard active else { return }
-        try checkProcesses(at: app.path,
-            processes: NestedAppGuard.liveProcesses(includeUninspectable: true, diagnostic: diagnostic))
+        try processCheck(app)()
     }
 
-    static func checkProcesses(at bundle: URL, processes: [NestedAppGuard.RunningProcess]) throws {
+    /// Process inspection can need a bounded XPC read. Keep it off the UI and
+    /// cooperative pool, carrying the same policy into the Dispatch hop.
+    public static func checkAsync(_ app: InstalledApp) async throws {
+        try await offCooperativePool(processCheck(app))
+    }
+
+    /// A fresh check whose dependencies survive the final exchange's Dispatch
+    /// hop. No process/path result is cached: a service may start during download.
+    public static func processCheck(_ app: InstalledApp) -> @Sendable () throws -> Void {
+        let enabled = active
+        let capture = diagnostic
+        let resolve = NestedAppGuard.privilegedExecutablePath
+        let quit = quitBeforeApply
+        return {
+            guard enabled else { return }
+            try NestedAppGuard.$privilegedExecutablePath.withValue(resolve) {
+                try $diagnostic.withValue(capture) {
+                    try checkProcesses(at: app.path,
+                        processes: NestedAppGuard.liveProcesses(includeUninspectable: true, diagnostic: capture),
+                        allowRunningApp: quit?.pending == true)
+                }
+            }
+        }
+    }
+
+    public static func backgroundProcessReason(_ processes: [NestedAppGuard.RunningProcess]) -> String {
+        let names = Set(processes.compactMap { $0.executablePath ?? $0.launchedPath }
+            .map { ($0 as NSString).lastPathComponent }).sorted().joined(separator: ", ")
+        return "Background processes are still running (\(names)). Automatic updating is paused for this app."
+    }
+
+    static func checkProcesses(at bundle: URL, processes: [NestedAppGuard.RunningProcess],
+                               allowRunningApp: Bool = appQuitsBeforeApply) throws {
         for process in processes where hasRunningProcess(at: bundle, processes: [process]) {
             diagnostic?(.targetRunning(process, in: bundle, among: processes))
         }
@@ -150,7 +180,7 @@ public enum AutomaticInstall {
               processes.allSatisfy({ $0.executablePath != nil || $0.launchedPath != nil }) else {
             throw Deferred("Automatic update deferred: running processes could not be checked completely.")
         }
-        guard appQuitsBeforeApply || !hasRunningProcess(at: bundle, processes: processes) else {
+        guard allowRunningApp || !hasRunningProcess(at: bundle, processes: processes) else {
             throw Deferred("Automatic update deferred: the app or one of its helpers is running.")
         }
     }

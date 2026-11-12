@@ -126,6 +126,14 @@ final class HelperService: NSObject, MASHelperProtocol {
         }
     }
 
+    func processExecutablePath(pid: Int32, startedSeconds: Int64, startedMicroseconds: Int32,
+                               withReply reply: @escaping (String?) -> Void) {
+        Self.readQueue.async {
+            reply(ProcessExecutablePath.read(pid: pid,
+                expected: .init(seconds: startedSeconds, microseconds: startedMicroseconds)))
+        }
+    }
+
     enum LogFileError: LocalizedError {
         case cannotOpen(Int32)
         case notARegularFile

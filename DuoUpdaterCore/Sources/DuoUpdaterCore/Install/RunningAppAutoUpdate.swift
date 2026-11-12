@@ -297,10 +297,11 @@ public enum RunningAppAutoUpdate {
     }
 
     /// A process inside `bundle` that quitting the app's instances would leave
-    /// running: a login item (`Contents/Library/LoginItems`) or an app extension
-    /// (`.appex`, `Contents/PlugIns`) that none of `instancePIDs` started. The
+    /// running: an independent root service, a login item
+    /// (`Contents/Library/LoginItems`) or an app extension (`.appex`,
+    /// `Contents/PlugIns`) that none of `instancePIDs` started. The
     /// install refuses a bundle it still runs from, so quitting the app would
-    /// gain nothing. Only those places: other helpers with launchd as their
+    /// gain nothing. Other user-owned helpers with launchd as their
     /// parent — XPC services, Chromium's crash handler — end with their client,
     /// and treating them as independent would keep every such app from
     /// updating. One missed here costs one useless quit (counted toward
@@ -322,6 +323,7 @@ public enum RunningAppAutoUpdate {
         return processes.first { process in
             guard AutomaticInstall.hasRunningProcess(at: bundle, processes: [process]),
                   !descendsFromInstance(process.pid) else { return false }
+            if process.userID == 0 { return true }
             return [process.executablePath, process.launchedPath].compactMap { $0 }.contains { path in
                 let resolved = NestedAppGuard.resolvedPath(path)
                 guard resolved.hasPrefix(root) else { return false }

@@ -40,6 +40,17 @@ struct RunningAppQuitBeforeApplyTests {
             of: bundle, processes: [processes[0], child], instancePIDs: [100]) == nil)
     }
 
+    @Test func anIndependentRootServiceKeepsTheMainAppFromBeingQuitForNothing() {
+        let app = process(100, parent: 1, "/Applications/Test.app/Contents/MacOS/Test")
+        let service = NestedAppGuard.RunningProcess(pid: 200, parentPID: 1,
+            executablePath: nil, launchedPath: "/Applications/Test.app/Contents/MacOS/service",
+            isRegularApp: false, userID: 0)
+        #expect(RunningAppAutoUpdate.independentHelper(
+            of: bundle, processes: [app, service], instancePIDs: [100]) == service)
+        #expect(RunningAppAutoUpdate.independentHelper(
+            of: URL(fileURLWithPath: "/Applications/Other.app"), processes: [app, service], instancePIDs: [300]) == nil)
+    }
+
     @Test func aRunningAppPassesTheEarlyChecksOnlyUntilItsQuitRan() async throws {
         let running = [process(100, parent: 1, "/Applications/Test.app/Contents/MacOS/Test")]
         let quits = Counter()

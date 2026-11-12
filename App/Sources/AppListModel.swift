@@ -5753,7 +5753,7 @@ final class AppListModel {
                 installing[id] = nil
                 return .deferred(reason: "Updating it needs administrator authorization.")
             }
-            do { try AutomaticInstall.check(result.app) }
+            do { try await AutomaticInstall.checkAsync(result.app) }
             catch {
                 installNotes[id] = error.localizedDescription
                 installing[id] = nil
@@ -10453,6 +10453,12 @@ final class AppListModel {
     }
 
     private func automaticallyInstallUpdates() async {
+        await NestedAppGuard.$privilegedExecutablePath.withValue(HelperProcessIdentityReader.live.read) {
+            await performAutomaticUpdates()
+        }
+    }
+
+    private func performAutomaticUpdates() async {
         guard automaticUpdatesAllowed, canRefresh else { return }
         let diagnostics = AutomaticUpdateDiagnostics()
         // Retained history survives app restarts. New attempts link to the latest
@@ -10495,7 +10501,12 @@ final class AppListModel {
             } else if installsAutomatically(result) != true {
                 reason = "Requires an interactive or externally managed installation."
             } else {
-                let processes = NestedAppGuard.liveProcesses()
+                let resolve = NestedAppGuard.privilegedExecutablePath
+                let processes = await offCooperativePool {
+                    NestedAppGuard.$privilegedExecutablePath.withValue(resolve) {
+                        NestedAppGuard.liveProcesses(includeUninspectable: true, diagnostic: capture)
+                    }
+                }
                 let running = processes.filter { AutomaticInstall.hasRunningProcess(at: result.app.path, processes: [$0]) }
                 for process in running {
                     capture(.targetRunning(process, in: result.app.path, among: processes))
@@ -10684,10 +10695,13 @@ final class AppListModel {
     ) -> RunningAppPreparation {
         let running = "The app or one of its helpers is running."
         let instances = AppRestarter.allRunningInstances(of: result.app)
+        if instances.isEmpty {
+            let own = processes.filter { AutomaticInstall.hasRunningProcess(at: result.app.path, processes: [$0]) }
+            return .wait(own.isEmpty ? running : AutomaticInstall.backgroundProcessReason(own))
+        }
         guard prefs.automaticUpdatesRunningApps,
               prefs.automaticUpdateMode(result.app) == .alsoWhenRunning,
               let bundleID = result.app.bundleID, bundleID != Bundle.main.bundleIdentifier,
-              !instances.isEmpty,
               let version = result.remote?.displayVersion
         else { return .wait(running) }
         let key = prefs.key(for: result.app)

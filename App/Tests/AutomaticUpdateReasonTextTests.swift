@@ -2,6 +2,11 @@ import DuoUpdaterCore
 import Testing
 
 struct AutomaticUpdateReasonTextTests {
+    @Test func backgroundProcessDeferralIsLocalizedWithoutLosingItsName() {
+        let reason = "Background processes are still running (RustDesk service). Automatic updating is paused for this app."
+        #expect(AutomaticUpdateReasonText.isKnown(reason))
+        #expect(AutomaticUpdateReasonText.display(reason).contains("RustDesk service"))
+    }
     /// Every reason a running app waits for is translated when shown. Mutation:
     /// reword a `RunningAppAutoUpdate.Reason` message without its entry → red.
     @Test func everyRunningAppReasonIsTranslated() {

@@ -129,8 +129,8 @@ final class EndpointBox: @unchecked Sendable {
 }
 
 final class ZZExportingDelegate: NSObject, NSXPCListenerDelegate {
-    let exported: ZZFakeHelper
-    init(exported: ZZFakeHelper) { self.exported = exported }
+    let exported: MASHelperProtocol
+    init(exported: MASHelperProtocol) { self.exported = exported }
     func listener(_ listener: NSXPCListener, shouldAcceptNewConnection connection: NSXPCConnection) -> Bool {
         connection.exportedInterface = NSXPCInterface(with: MASHelperProtocol.self)
         connection.exportedObject = exported
@@ -172,5 +172,10 @@ final class ZZFakeHelper: NSObject, MASHelperProtocol, @unchecked Sendable {
                                      withReply reply: @escaping (String?, String?, String?) -> Void) {
         lock.lock(); _askedFor.append(bundleID); lock.unlock()
         reply(fields.0, fields.1, fields.2)
+    }
+
+    func processExecutablePath(pid: Int32, startedSeconds: Int64, startedMicroseconds: Int32,
+                               withReply reply: @escaping (String?) -> Void) {
+        reply(nil)
     }
 }

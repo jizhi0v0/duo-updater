@@ -39,9 +39,9 @@ struct AutomaticUpdatesSettingsPage: View {
     private var switchesCard: some View {
         SettingsCard {
             SettingsToggle(
-                "Automatically update closed apps",
+                "Automatically update apps",
                 detail: "Installs eligible updates after each scheduled check. With backups on, each app is backed up first, and its update waits if that fails. App data is not backed up.",
-                info: "Runs only after scheduled checks, on a network that is not restricted. An app is skipped while it or one of its helpers is running, and updates that need an installer or an authorization prompt are left for you. After a failed update, nothing is tried for that app for a day, and after three failures not until a newer version. Each attempt, and why one was deferred, is listed in the Network window under Events.",
+                info: "Runs only after scheduled checks, on a network that is not restricted. By default, an app is skipped while it or one of its helpers is running; apps you allow below may be quit and reopened, and updates that need an installer or an authorization prompt are left for you. After a failed update, nothing is tried for that app for a day, and after three failures not until a newer version. Each attempt, and why one was deferred, is listed in the Network window under Events.",
                 channel: .beta,
                 isOn: $prefs.automaticUpdates)
                 .settingsAnchor(.automaticUpdates)
@@ -55,19 +55,10 @@ struct AutomaticUpdatesSettingsPage: View {
                 SettingsDivider()
                 SettingsToggle(
                     "Also update running apps you allow",
-                    detail: "Quits an allowed app only when it and the Mac have both been idle, installs the update, and reopens it. Choose the apps below.",
-                    info: "An app is quit only if: you allowed it; it has been out of date for the wait chosen below, counted again from its last quit for an update; it has not been in front for an hour; the Mac has had no input for 15 minutes or is locked; it is not keeping the Mac awake (calls, playback, recording, downloads); it has no shell or other program running; and none of its helpers keeps running once it quits. It is quit only after its update has downloaded and been verified, if all of this still holds, and is reopened in the background. When the wait is over, the newest version is installed, even if it came out moments ago. It is asked to quit normally; if it does not quit, it is not asked again for that version. These conditions are checked at each scheduled check, so the wait can run longer.",
+                    detail: "Keeps allowed apps up to date, even while you use them. Downloads and verifies each update before quitting and reopening the app.",
+                    info: "Apps you allow may restart while in front, playing media or doing work. There is no idle-time or update delay. If normal quit is refused, that version waits. Independent background services, installer prompts and safety checks can still defer an update.",
                     channel: .beta,
                     isOn: $prefs.automaticUpdatesRunningApps)
-                if prefs.automaticUpdatesRunningApps {
-                    SettingsDivider()
-                    Picker("Wait before quitting a running app", selection: $prefs.runningAppUpdateDelayMinutes) {
-                        ForEach(RunningAppAutoUpdate.delayChoices, id: \.self) { minutes in
-                            Text(Self.delayLabel(minutes)).tag(minutes)
-                        }
-                    }
-                    .settingsRow()
-                }
             }
         } footer: {
             if prefs.automaticUpdates && prefs.checkFrequency.interval == nil {
@@ -93,14 +84,6 @@ struct AutomaticUpdatesSettingsPage: View {
         .settingsRow()
     }
 
-    /// Spelled out per choice so each is its own catalog key.
-    private static func delayLabel(_ minutes: Int) -> LocalizedStringKey {
-        switch minutes {
-        case 15: "15 minutes"
-        case 30: "30 minutes"
-        default: "1 hour"
-        }
-    }
 }
 
 /// Keep list observation separate from the switches above it: changing the
@@ -182,8 +165,8 @@ private struct AutomaticUpdateAppRow: View {
             Picker("Automatic updates for \(result.app.name)", selection: Binding(
                 get: { prefs.automaticUpdateMode(result.app) },
                 set: { prefs.setAutomaticUpdateMode($0, result.app) })) {
-                Text("When Closed").tag(Preferences.AutomaticUpdateMode.whenClosed)
-                Text("Also While Running").tag(Preferences.AutomaticUpdateMode.alsoWhenRunning)
+                Text("Only When Not Running").tag(Preferences.AutomaticUpdateMode.whenClosed)
+                Text("Keep Up to Date").tag(Preferences.AutomaticUpdateMode.alsoWhenRunning)
                     // Means nothing while running apps are not updated; a choice
                     // already made stays, shown as paused (`caption`).
                     .selectionDisabled(!prefs.automaticUpdatesRunningApps)
@@ -202,7 +185,7 @@ private struct AutomaticUpdateAppRow: View {
     private var caption: String {
         guard model.installsAutomatically(result) == false else {
             if !prefs.automaticUpdatesRunningApps, prefs.automaticUpdateMode(result.app) == .alsoWhenRunning {
-                return String(localized: "Paused while “Also update running apps” is off; updated when closed")
+                return String(localized: "Paused while “Also update running apps” is off; updated only when not running")
             }
             return IgnoredSettingsPage.displayPath(result.app.path.path)
         }
@@ -238,8 +221,8 @@ struct AutomaticUpdateModeMenu: View {
     var body: some View {
         let mode = prefs.automaticUpdateMode(app)
         Menu("Automatic Updates") {
-            choice("When Closed", .whenClosed, current: mode)
-            choice("Also While Running", .alsoWhenRunning, current: mode)
+            choice("Only When Not Running", .whenClosed, current: mode)
+            choice("Keep Up to Date", .alsoWhenRunning, current: mode)
             choice("Never", .never, current: mode)
         }
     }
@@ -295,7 +278,7 @@ struct AutomaticUpdateSetupSheet: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Choose apps that may be quit for an update")
                 .font(.title3.weight(.semibold))
-            Text("Apps in the first column are quit only while they and the Mac are idle, then updated and reopened. They still ask before discarding unsaved work. Drag an app to another column, or right-click it.")
+            Text("Apps in the first column are kept up to date even while you use them. After downloading and verifying an update, DuoUpdater asks the app to quit normally, installs and reopens it. A refused quit or independent background service defers the update. Drag an app to another column, or right-click it.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -494,8 +477,8 @@ struct AutomaticUpdateSetupSheet: View {
 
     static func title(_ mode: Mode) -> LocalizedStringKey {
         switch mode {
-        case .alsoWhenRunning: "Also While Running"
-        case .whenClosed: "When Closed"
+        case .alsoWhenRunning: "Keep Up to Date"
+        case .whenClosed: "Only When Not Running"
         case .never: "Never"
         }
     }

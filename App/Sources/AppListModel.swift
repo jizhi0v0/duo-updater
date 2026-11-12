@@ -1709,11 +1709,6 @@ final class AppListModel {
     /// lifetime (the single model never deallocates), so they stay registered
     /// without explicit teardown.
     @ObservationIgnored private var runningAppObservers: [NSObjectProtocol] = []
-    /// Runtime bundle path → when it last gained or lost the front. Only what this
-    /// process saw: anything before `activityWatchStart` is unknown and counted as
-    /// "just used" (`RunningAppAutoUpdate`).
-    @ObservationIgnored private var lastFrontmostByPath: [String: Date] = [:]
-    @ObservationIgnored private let activityWatchStart = Date()
     /// KVO on `NSWorkspace.runningApplications` — the primary source. Held because
     /// an `NSKeyValueObservation` unregisters itself when it is released, so
     /// dropping this handle would silently switch the running dot back to the
@@ -10684,12 +10679,11 @@ final class AppListModel {
         var hidden = false
     }
 
-    /// Whether a running app may be quit for an automatic update: the user
-    /// allowed it and `RunningAppAutoUpdate` finds it and the person idle;
-    /// otherwise the reason it stays up. Asked when the pass reaches the app and
-    /// again right before the quit (`quitForSwap`), after the download: the
-    /// person may have come back. Never DuoUpdater itself, and never an app with
-    /// no running instance of its own (only helpers left): there is nothing to reopen.
+    /// An allowed running app is kept current without an activity or delay gate.
+    /// Failure back-off, independent services and competing installers still
+    /// defer it. Asked at selection and again before the normal quit, so a
+    /// permission change during download is respected. Never DuoUpdater itself,
+    /// and never an app with only helpers left: there is nothing to reopen.
     private func runningAppReadiness(
         _ result: UpdateResult, processes: [NestedAppGuard.RunningProcess]
     ) -> RunningAppPreparation {
@@ -10707,27 +10701,7 @@ final class AppListModel {
         let key = prefs.key(for: result.app)
         let now = Date()
         let entry = prefs.runningAppUpdateLedger.observe(key, version: version, now: now)
-        var lastUsed = activityWatchStart
-        for instance in instances {
-            if let launched = instance.launchDate { lastUsed = max(lastUsed, launched) }
-            if let url = instance.bundleURL,
-               let front = lastFrontmostByPath[UpdatePolicy.runtimeBundlePath(url)] {
-                lastUsed = max(lastUsed, front)
-            }
-        }
-        let ownPIDs = Set(processes.filter {
-            AutomaticInstall.hasRunningProcess(at: result.app.path, processes: [$0])
-        }.map(\.pid))
-        let signals = RunningAppAutoUpdate.Signals(
-            isFrontmost: AppRestarter.isFrontmost(instances),
-            lastUsed: lastUsed,
-            userIdle: CGEventSource.secondsSinceLastEventType(
-                .combinedSessionState, eventType: .init(rawValue: ~0)!),
-            screenLocked: Self.screenIsLocked(),
-            busyAssertion: RunningAppAutoUpdate.busyAssertion(pids: ownPIDs),
-            hasForeignChild: RunningAppAutoUpdate.hasForeignChild(of: result.app.path, processes: processes))
-        if case .wait(let why) = RunningAppAutoUpdate.decide(
-            entry: entry, signals: signals, now: now, delayMinutes: prefs.runningAppUpdateDelayMinutes) {
+        if case .wait(let why) = RunningAppAutoUpdate.decide(entry: entry, now: now) {
             return .wait(why.message)
         }
         // The install refuses a bundle a helper still runs from; quitting the app
@@ -10770,12 +10744,19 @@ final class AppListModel {
         // Quit by the person during the download: nothing to quit or reopen, and
         // the exchange's own checks still refuse a helper left running.
         guard !AppRestarter.allRunningInstances(of: result.app).isEmpty else { return }
-        if case .wait(let why) = runningAppReadiness(result, processes: NestedAppGuard.liveProcesses()) {
-            // Includes "the person came back during the download": not counted.
+        let resolve = NestedAppGuard.privilegedExecutablePath
+        let capture = AutomaticInstall.diagnostic
+        let processes = await offCooperativePool {
+            NestedAppGuard.$privilegedExecutablePath.withValue(resolve) {
+                NestedAppGuard.liveProcesses(includeUninspectable: true, diagnostic: capture)
+            }
+        }
+        guard automaticUpdatesAllowed else { throw AutomaticInstall.Deferred("Automatic updates are paused.") }
+        if case .wait(let why) = runningAppReadiness(result, processes: processes) {
             throw AutomaticInstall.Deferred(why)
         }
         let key = prefs.key(for: result.app)
-        Log.app.notice("automatic update: quitting idle \(result.app.name, privacy: .public) for \(result.remote?.displayVersion ?? "?", privacy: .public)")
+        Log.app.notice("automatic update: quitting allowed \(result.app.name, privacy: .public) for \(result.remote?.displayVersion ?? "?", privacy: .public)")
         // Held from the quit until the app is reopened (`automaticallyInstallUpdates`,
         // `reopenIfItQuitsLate`); see `automaticQuitHolds`.
         automaticQuitHolds.insert(result.id)
@@ -10826,12 +10807,6 @@ final class AppListModel {
                 return
             }
         }
-    }
-
-    /// Whether the login window's lock is up, from the session dictionary.
-    private static func screenIsLocked() -> Bool {
-        guard let session = CGSessionCopyCurrentDictionary() as? [String: Any] else { return false }
-        return session["CGSSessionScreenIsLocked"] as? Bool ?? false
     }
 
     private func backgroundRefresh(automaticallyInstall: Bool = false) async {
@@ -11272,19 +11247,6 @@ final class AppListModel {
                      NSWorkspace.didTerminateApplicationNotification] {
             let observer = center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
                 Task { @MainActor in self?.handleRunningAppsChange() }
-            }
-            runningAppObservers.append(observer)
-        }
-        // When each app was last brought to front or left it, for
-        // `RunningAppAutoUpdate`. Both edges: an app used for two hours since it was
-        // activated was in use until it lost the front, not when it gained it.
-        for name in [NSWorkspace.didActivateApplicationNotification,
-                     NSWorkspace.didDeactivateApplicationNotification] {
-            let observer = center.addObserver(forName: name, object: nil, queue: .main) { [weak self] note in
-                let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
-                guard let url = app?.bundleURL else { return }
-                let path = UpdatePolicy.runtimeBundlePath(url)
-                Task { @MainActor in self?.lastFrontmostByPath[path] = Date() }
             }
             runningAppObservers.append(observer)
         }

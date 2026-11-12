@@ -59,6 +59,7 @@ public enum AutomaticInstall {
     /// The swap's own checks (`preExchangeCheck`) then refuse whatever did not quit.
     public static func quitPlannedApp(before target: URL) async throws {
         guard active, let quit = quitBeforeApply, quit.pending else { return }
+        try await checkPermission()
         if InPlaceSwap.needsElevatedReplace(target: target) {
             throw Deferred("Automatic update needs administrator authorization.")
         }

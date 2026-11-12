@@ -1,4 +1,5 @@
 import Darwin
+import DuoUpdaterCore
 import Foundation
 import Testing
 
@@ -15,43 +16,50 @@ struct HelperProcessIdentityReaderTests {
             identity: { _ in Self.expected })
     }
 
-    @Test func currentHelperReceivesTheExactProcessLifetime() {
+    /// The reader blocks for its XPC reply; production runs it on Dispatch.
+    /// Blocking Swift Testing's cooperative workers can starve the anonymous
+    /// listener during the concurrent suite, before it can answer the handshake.
+    private func read(_ client: HelperProcessIdentityReader, pid: Int32 = 554) async -> String? {
+        await offCooperativePool { client.read(pid: pid) }
+    }
+
+    @Test func currentHelperReceivesTheExactProcessLifetime() async {
         let fake = ProcessPathHelper(path: "/Applications/RustDesk.app/Contents/MacOS/service")
-        #expect(reader(fake).read(pid: 554) == fake.path)
+        #expect(await read(reader(fake)) == fake.path)
         #expect(fake.requests.map(\.0) == [554])
         #expect(fake.requests.map(\.1) == [Self.expected.seconds])
         #expect(fake.requests.map(\.2) == [Self.expected.microseconds])
     }
 
-    @Test func oldHelperIsNeverSentAnUnsupportedSelector() {
+    @Test func oldHelperIsNeverSentAnUnsupportedSelector() async {
         let fake = ProcessPathHelper(version: "148 protocol/3", path: "/Applications/RustDesk.app/Contents/MacOS/service")
-        #expect(reader(fake).read(pid: 554) == nil)
+        #expect(await read(reader(fake)) == nil)
         #expect(fake.requests.isEmpty)
         #expect(!HelperProtocolRevision.supportsProcessExecutablePath(versionReply: "148"))
         #expect(HelperProtocolRevision.supportsProcessExecutablePath(
             versionReply: HelperProtocolRevision.versionReply(bundleVersion: "148")))
     }
 
-    @Test func missingSilentAndMalformedAnswersStayUnknown() {
-        #expect(HelperProcessIdentityReader(connect: { nil }).read(pid: getpid()) == nil)
+    @Test func missingSilentAndMalformedAnswersStayUnknown() async {
+        #expect(await read(HelperProcessIdentityReader(connect: { nil }), pid: getpid()) == nil)
         for path in [nil, "service", "/Applications/Bad\0Path"] as [String?] {
-            #expect(reader(ProcessPathHelper(path: path)).read(pid: 554) == nil)
+            #expect(await read(reader(ProcessPathHelper(path: path))) == nil)
         }
         let fake = ProcessPathHelper(version: nil, path: "/should/not/be/asked")
-        var read = reader(fake)
-        read.timeout = .milliseconds(20)
-        #expect(read.read(pid: 554) == nil)
+        var client = reader(fake)
+        client.timeout = .milliseconds(20)
+        #expect(await read(client) == nil)
         #expect(fake.requests.isEmpty)
     }
 
-    @Test func replyForARecycledPIDIsRejectedByTheClient() {
+    @Test func replyForARecycledPIDIsRejectedByTheClient() async {
         let fake = ProcessPathHelper(path: "/Applications/Unrelated.app/Contents/MacOS/tool")
         let count = IdentityReads()
-        var read = reader(fake)
-        read.identity = { _ in
+        var client = reader(fake)
+        client.identity = { _ in
             count.next() == 1 ? Self.expected : .init(seconds: 101, microseconds: 7)
         }
-        #expect(read.read(pid: 554) == nil)
+        #expect(await read(client) == nil)
         #expect(fake.requests.count == 1)
     }
 
@@ -89,12 +97,17 @@ struct HelperProcessIdentityReaderTests {
             expected: .init(seconds: identity.seconds + 1, microseconds: identity.microseconds)) == nil)
     }
 
-    @Test func unlinkedExecutableIsRecoveredFromTheSavedExecPath() throws {
+    @Test func unlinkedExecutableIsRecoveredFromTheSavedExecPath() async throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
         let executable = directory.appendingPathComponent("BackgroundService")
         try FileManager.default.copyItem(atPath: "/bin/sleep", toPath: executable.path)
+        // Own the fixture's signature as well as its file. The copied Apple
+        // executable was observed exiting before the fallback read on this Mac.
+        let signed = try await ChildProcess.run("/usr/bin/codesign", ["--force", "--sign", "-", executable.path],
+            standardOutput: .discard, standardError: .discard, onCancel: .runToCompletion)
+        try #require(signed.succeeded)
         let process = Process()
         process.executableURL = executable
         process.arguments = ["60"]

@@ -5,6 +5,22 @@ import Testing
 struct RunningAppQuitBeforeApplyTests {
     let bundle = URL(fileURLWithPath: "/Applications/Test.app")
 
+    @Test func withdrawnPermissionDoesNotReachTheNormalQuit() async {
+        let quits = Counter()
+        let plan = AutomaticInstall.QuitBeforeApply { quits.increment() }
+        await AutomaticInstall.$active.withValue(true) {
+            await AutomaticInstall.$permission.withValue({ false }) {
+                await AutomaticInstall.$quitBeforeApply.withValue(plan) {
+                    await #expect(throws: AutomaticInstall.Deferred.self) {
+                        try await AutomaticInstall.quitPlannedApp(before: FileManager.default.temporaryDirectory)
+                    }
+                }
+            }
+        }
+        #expect(quits.value == 0)
+        #expect(plan.pending)
+    }
+
     func process(_ pid: pid_t, parent: pid_t, _ path: String) -> NestedAppGuard.RunningProcess {
         .init(pid: pid, parentPID: parent, executablePath: path, isRegularApp: false)
     }

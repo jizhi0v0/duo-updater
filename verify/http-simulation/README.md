@@ -13,6 +13,25 @@
 - 自动更新只在有同步、单调的阶段证据时恢复暂时性获取错误；获取失败使用独立、最多 3 次失败的预算。拒绝访问、内容/完整性、TLS、本地错误及获取之后的失败暂停同一 offered version，手动操作仍可尝试。新版本清新策略的暂停；既有账本和拒绝退出的历史约束保持兼容。
 - 失败与拒绝退出按本次实际 attempted version 记账，防止安装前复查换版本后下一轮误清暂停。阶段跨 Task/Dispatch 保留，fallback 回到下载状态也不能清掉已经验证/安装的证据。
 
+## 生产修复验证与审查（2026-11-12）
+
+生产实现提交：`7c131ab395cff792764fb3abd9cd380081fffa75`。在 Apple Silicon、macOS 27.3、Swift 6.4.2 上执行：
+
+- `scripts/test-http-simulation.sh`：106 个测试、5 个 suite，通过；参数化展开 391 个场景。覆盖真实 loopback 获取、重定向、ZIP 解包、文件写入/删除以及生产自动失败捕获器。
+- 新仿真与相关旧测试（另含 InstallURLTransient、InstallRedirectDeferral）：251 个测试、19 个 suite，通过。
+- `swift test --package-path CLI --scratch-path DuoUpdaterCore/.build --disable-automatic-resolution --jobs 4`：699 个测试、78 个 suite，通过。GUI 与 CLI 共用的下载和公开 HTTP 诊断保持可编译、可执行。
+- `xcodebuild` 对真正的 `DuoUpdater` scheme、Debug、arm64、禁用签名执行 build：`BUILD SUCCEEDED`。这实际编译了 AppListModel；AppTests target 不包含它，未用 AppTests 冒充 App 构建。
+- 移除单调获取/安装阶段保护：新测试以 7 个断言失败抓到越界后恢复权限；移除跨轮冷却：6 个断言失败抓到额外请求；恢复旧片段拒绝盲重发：35 个断言失败抓到错误重试。三个变异均已恢复，生产源码与审查提交一致。
+
+独立 Astra medium 对该实现进行只读对抗审查，未发现可确认的 blocking defect：
+
+- data-loss：核查 partial/HTML 删除、预算耗尽、取消清理，只操作续传 lease 或自身 workDir。
+- trust / secrets：未放宽签名、摘要、证书或重定向守卫；冷却状态无 raw URL、凭据或响应 body，标准凭据/session/方法隔离。
+- process-control：核查 InstallJobs 的 TaskLocal 继承、创建回调时捕获 Attempt、单调阶段、退出后暂停、取消与手动入口边界。
+- 审查员亲自核对仿真和 App build 日志，未自行构建或执行测试。
+
+验证范围：原生 Core 集成仿真与 App 编译，不等于完整 AppListModel 的运行时调度、真实应用退出/重开或真实 TLS/CDN 的端到端验证。普通端点冷却是进程内状态，不跨重启持久化；自定义账号头保守共享冷却；GitHub API 继续使用既有专用 gate。无法进一步区分的 after-quit Deferred 保持既有退避，而非新增重试权限。
+
 ## 运行
 
 在仓库根目录运行：

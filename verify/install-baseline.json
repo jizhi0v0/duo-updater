@@ -7,14 +7,14 @@
       "sweepsSinceComment" : 0
     },
     "install:github:AppFlowy-IO\/AppFlowy:stable" : {
-      "consecutiveActionable" : 25,
+      "consecutiveActionable" : 26,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 1812,
       "lastCommentedAt" : "2026-11-10T22:39:32Z",
       "lastSignature" : "identityChanged: Sparkle key none → Bs++",
       "previousSignature" : "identityChanged: Sparkle key none → Bs++",
-      "sweepsSinceComment" : 3
+      "sweepsSinceComment" : 4
     },
     "install:github:AprilNEA\/OpenLogi:stable" : {
       "closedAt" : "2026-10-19T11:23:39Z",
@@ -103,11 +103,14 @@
       "sweepsSinceComment" : 0
     },
     "install:github:MaddTheSane\/Simple-Comic:stable" : {
-      "consecutiveActionable" : 1,
+      "consecutiveActionable" : 2,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
+      "issueNumber" : 1972,
+      "lastCommentedAt" : "2026-11-12T04:21:45Z",
       "lastSignature" : "identityChanged: Sparkle key none → 2S+y",
-      "sweepsSinceComment" : 1
+      "previousSignature" : "identityChanged: Sparkle key none → 2S+y",
+      "sweepsSinceComment" : 0
     },
     "install:github:MarcoEidinger\/SwiftPlantUML-Xcode-Extension:stable" : {
       "consecutiveActionable" : 0,
@@ -1080,14 +1083,14 @@
       "sweepsSinceComment" : 0
     },
     "install:github:schuyler\/macdown3000:stable" : {
-      "consecutiveActionable" : 26,
+      "consecutiveActionable" : 27,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 1799,
       "lastCommentedAt" : "2026-11-10T14:12:17Z",
       "lastSignature" : "identityChanged: Sparkle key none → dYc+",
       "previousSignature" : "identityChanged: Sparkle key none → dYc+",
-      "sweepsSinceComment" : 4
+      "sweepsSinceComment" : 5
     },
     "install:github:sheprd-labs\/sheprd:stable" : {
       "consecutiveActionable" : 0,
@@ -1473,10 +1476,9 @@
     },
     "install:vendor:com.baidu.BaiduNetdisk-mac:stable" : {
       "consecutiveActionable" : 0,
-      "consecutiveInfra" : 1,
+      "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "infraSince" : "2026-11-11T23:51:10Z",
-      "sweepsSinceComment" : 1
+      "sweepsSinceComment" : 0
     },
     "install:vendor:com.bjango.istatmenus:stable" : {
       "consecutiveActionable" : 0,
@@ -2428,5 +2430,5 @@
     }
   },
   "schemaVersion" : 1,
-  "updatedAt" : "2026-11-11T23:51:14Z"
+  "updatedAt" : "2026-11-12T04:21:45Z"
 }

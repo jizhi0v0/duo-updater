@@ -112,9 +112,27 @@ public struct TriageSuggestion: Codable, Sendable {
 }
 
 public struct TriageDocument: Codable, Sendable {
-    public let schemaVersion = 1
+    public let schemaVersion: Int
     public let generatedAt: Date
     public let suggestions: [TriageSuggestion]
+
+    private enum CodingKeys: String, CodingKey {
+        case schemaVersion, generatedAt, suggestions
+    }
+
+    init(generatedAt: Date, suggestions: [TriageSuggestion]) {
+        self.schemaVersion = DocumentSchemaVersion.current
+        self.generatedAt = generatedAt
+        self.suggestions = suggestions
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.schemaVersion = try DocumentSchemaVersion.decode(from: decoder)
+        self.generatedAt = try container.decode(Date.self, forKey: .generatedAt)
+        self.suggestions = try container.decode([TriageSuggestion].self, forKey: .suggestions)
+    }
+
 }
 
 public enum Triage {

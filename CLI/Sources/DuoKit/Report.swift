@@ -1,6 +1,28 @@
 import Foundation
 import DuoUpdaterCore
 
+enum DocumentSchemaVersion {
+    static let current = 1
+
+    private enum CodingKeys: String, CodingKey {
+        case schemaVersion
+    }
+
+    static func decode(from decoder: Decoder) throws -> Int {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        // Documents written before the version field was added remain readable.
+        // Once present, the field must be an integer and match this reader.
+        guard container.contains(.schemaVersion) else { return current }
+        let version = try container.decode(Int.self, forKey: .schemaVersion)
+        guard version == current else {
+            throw DecodingError.dataCorruptedError(
+                forKey: .schemaVersion, in: container,
+                debugDescription: "Unsupported schemaVersion \(version); expected \(current)")
+        }
+        return version
+    }
+}
+
 /// Three renderings of one sweep: the terminal (for a human running it by hand),
 /// JSON (for the reconcile step that files issues), and Markdown (for the CI
 /// artifact and the issue bodies themselves).
@@ -152,9 +174,27 @@ public enum Report {
     // MARK: - machine readable
 
     public struct Document: Codable, Sendable {
-        public let schemaVersion = 1
+        public let schemaVersion: Int
         public let generatedAt: Date
         public let findings: [Finding]
+
+        private enum CodingKeys: String, CodingKey {
+            case schemaVersion, generatedAt, findings
+        }
+
+        init(generatedAt: Date, findings: [Finding]) {
+            self.schemaVersion = DocumentSchemaVersion.current
+            self.generatedAt = generatedAt
+            self.findings = findings
+        }
+
+        public init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            self.schemaVersion = try DocumentSchemaVersion.decode(from: decoder)
+            self.generatedAt = try container.decode(Date.self, forKey: .generatedAt)
+            self.findings = try container.decode([Finding].self, forKey: .findings)
+        }
+
     }
 
     static func json(_ findings: [Finding], to url: URL) throws {

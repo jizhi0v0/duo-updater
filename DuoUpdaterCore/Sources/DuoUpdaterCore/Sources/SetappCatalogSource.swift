@@ -136,22 +136,7 @@ public struct SetappCatalogSource: UpdateSource {
                     sourceName: name,
                     releaseChannel: isBeta ? .beta : nil)
             }
-            var remote = answer(for: app, release: release, version: version)
-            if version.isBeta, !Self.isNewer(version, than: app),
-               Self.installedIsCatalogueBeta(app, release: release),
-               app.shortVersion != nil {
-                remote = RemoteVersion(
-                    shortVersion: remote.shortVersion,
-                    version: remote.version,
-                    marketingMatchesBundle: remote.marketingMatchesBundle,
-                    downloadURL: remote.downloadURL,
-                    pageURL: remote.pageURL,
-                    downloadSize: remote.downloadSize,
-                    sourceName: remote.sourceName,
-                    releaseChannel: .beta,
-                    subscriptionHold: remote.subscriptionHold)
-            }
-            return remote
+            return answer(for: app, release: release, version: version)
         }
 
         // Not in the catalogue. A `-setapp` copy still answers — as installed —

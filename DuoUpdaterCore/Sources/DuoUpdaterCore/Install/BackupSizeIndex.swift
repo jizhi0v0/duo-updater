@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 
 /// What each stored backup measured, remembered across calls and across
 /// processes so that listing them need not walk every file of every one.
@@ -131,17 +132,18 @@ final class BackupSizeIndex: @unchecked Sendable {
 
         if !pending.isEmpty {
             let urls = pending.map { asked[$0].url }
-            let measured = UnsafeMutableBufferPointer<Int64>.allocate(capacity: urls.count)
-            defer { measured.deallocate() }
+            let measured = Mutex([Int64](repeating: 0, count: urls.count))
             // Fanned out because a miss is a walk of an entire app bundle, and the
             // first call against a store that has never been measured is all
             // misses. The walks are independent reads of separate directories, and
             // `FileManager`'s shared instance is documented thread-safe for
             // everything but delegate-based operations, which these are not.
             DispatchQueue.concurrentPerform(iterations: urls.count) { index in
-                (measured.baseAddress! + index).initialize(to: walk(urls[index]))
+                let bytes = walk(urls[index])
+                measured.withLock { $0[index] = bytes }
             }
-            for (slot, index) in pending.enumerated() { out[index] = measured[slot] }
+            let sizes = measured.withLock { $0 }
+            for (slot, index) in pending.enumerated() { out[index] = sizes[slot] }
         }
 
         lock.lock()

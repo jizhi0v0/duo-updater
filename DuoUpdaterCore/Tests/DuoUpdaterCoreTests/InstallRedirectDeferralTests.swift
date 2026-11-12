@@ -146,9 +146,9 @@ import Network
         /// serial queue, so it would burn a core for the rest of the run and look
         /// like the hang `scripts/run-with-hang-report.sh` exists to catch.
         private static func readRequestLine(
-            _ conn: NWConnection, _ body: @escaping (String, String) -> Void
+            _ conn: NWConnection, _ body: @escaping @Sendable (String, String) -> Void
         ) {
-            func step(_ sofar: Data) {
+            @Sendable func step(_ sofar: Data) {
                 conn.receive(minimumIncompleteLength: 1, maximumLength: 64 * 1024) { data, _, done, error in
                     let buffer = sofar + (data ?? Data())
                     let text = String(decoding: buffer, as: UTF8.self)

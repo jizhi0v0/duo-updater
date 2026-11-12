@@ -114,7 +114,8 @@ import Testing
 
     /// The same release with the arm64 dmg missing, so the list fallback cannot
     /// find one either.
-    final class IntelOnlyStub: Stub {
+    // No new shared state; explicitly restates Stub's inherited conformance.
+    final class IntelOnlyStub: Stub, @unchecked Sendable {
         override class var names: [String] {
             ["LosslessCut-mac-x64.dmg", "LosslessCut-mac-universal-DONT-USE-THIS-FILE.pkg"]
         }

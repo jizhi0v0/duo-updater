@@ -24,8 +24,6 @@ public struct HerdrBuild: Sendable, Equatable, Codable {
         self.builtAt = builtAt
     }
 
-    public var isPreview: Bool { previewID != nil }
-
     /// What `herdr --version` prints after `herdr `.
     public var version: String { previewID.map { "\(base)-preview.\($0)" } ?? base }
 

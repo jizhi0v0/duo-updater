@@ -19,6 +19,12 @@ release note is debugging our code:
 
 Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
+## 0.5.24-beta.8
+
+**Allowed running apps now stay up to date without waiting for idle time.** After downloading and verifying an update, DuoUpdater asks the app to quit and reopens it—even while you are using the Mac; the setup guide explains each app’s automatic-update choice more clearly.
+
+**Unrelated background services no longer hold up automatic updates.** An app’s own independent service can still defer its update, and services are left running.
+
 ## 0.5.24-beta.7
 
 **TextMate, VimR, Maestro, muCommander and Shotcut now have update checks, one-click updates and release notes.** Supported beta, snapshot and release-candidate tracks follow each app’s channel selection or installed release.

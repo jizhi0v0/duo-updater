@@ -2,6 +2,12 @@
 
 Ceci est la traduction de `CHANGELOG.md`. La version anglaise fait autorité. Les versions non énumérées ici reviennent automatiquement à l’anglais.
 
+## 0.5.24-beta.8
+
+**Les apps en cours d’exécution que vous avez autorisées restent à jour sans attendre une période d’inactivité.** Après le téléchargement et la vérification, DuoUpdater demande à l’app de quitter puis la rouvre, même pendant que vous utilisez le Mac ; le guide explique plus clairement les choix de mise à jour de chaque app.
+
+**Les services en arrière-plan sans lien avec une app ne bloquent plus sa mise à jour automatique.** Un service indépendant propre à l’app peut encore reporter sa mise à jour, et les services continuent de fonctionner.
+
 ## 0.5.24-beta.7
 
 **TextMate, VimR, Maestro, muCommander et Shotcut disposent désormais de la recherche de mises à jour, de la mise à jour en un clic et des notes de version.** Les canaux bêta, snapshot et RC pris en charge suivent le choix de chaque app ou la version installée.

@@ -88,3 +88,5 @@ swift test --package-path DuoUpdaterCore --skip-build \
 - 初轮实现 `643f5de2`：发现 1 个 P2，即取消桥被移除后测试仍可能靠请求超时得到 CancellationError 并假通过。通过实际变异复现，随后修复。
 - 修复实现 `8ce3360dc5a0688ac80dbf02a3c9d480ee090b34`：Astra 复核两文件改动及原始日志，确认取消变异被抓到、正常完成对照通过、全部仿真与相关回归通过，blocking findings 归零。
 - 审查员未自行运行构建或测试；执行与变异由主 agent 统一完成。审查范围仍受上面的仿真边界约束。
+
+提交 PR 前，将本轮三个提交移到最新 `main`（`f9aff3dab`）之上，排除已 squash 合并的父分支历史。七个本轮文件的内容未变。Astra medium 对新实现 head `193ffdc5f2fd494d778e8ad793f04e8b2f8e8120` 再次复核：diff 仍仅含这七个文件，相关生产上下文的清理不改变结论，blocking findings 仍为 0。

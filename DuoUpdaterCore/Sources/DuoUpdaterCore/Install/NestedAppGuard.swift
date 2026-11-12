@@ -243,10 +243,12 @@ public enum NestedAppGuard {
         public let arguments: [String]?
         /// From the BSD info already read for the parent PID; nil when it did not answer.
         public let startedAt: Date?
+        /// Effective UID, when a complete BSD or short-BSD read answered.
+        public let userID: uid_t?
 
         public init(
             pid: pid_t, parentPID: pid_t, executablePath: String?, launchedPath: String? = nil,
-            isRegularApp: Bool, arguments: [String]? = nil, startedAt: Date? = nil
+            isRegularApp: Bool, arguments: [String]? = nil, startedAt: Date? = nil, userID: uid_t? = nil
         ) {
             self.pid = pid
             self.parentPID = parentPID
@@ -255,6 +257,7 @@ public enum NestedAppGuard {
             self.isRegularApp = isRegularApp
             self.arguments = arguments
             self.startedAt = startedAt
+            self.userID = userID
         }
 
         /// The path this guard places the process by: what the kernel names now,
@@ -502,6 +505,11 @@ public enum NestedAppGuard {
         proc_pidinfo($0, PROC_PIDT_SHORTBSDINFO, 1, $1, $2)
     }
 
+    /// Optional, read-only privileged lookup supplied by the app. Automatic
+    /// callers use it only after both ordinary identity reads failed. A nil
+    /// answer remains unknown; neither UID nor a service's short name exempts it.
+    @TaskLocal public static var privilegedExecutablePath: (@Sendable (pid_t) -> String?)?
+
     public static func liveProcesses(includeUninspectable: Bool,
         diagnostic: ((AutomaticProcessDiagnostic) -> Void)? = nil) -> [RunningProcess] {
         errno = 0
@@ -545,13 +553,21 @@ public enum NestedAppGuard {
             let answered = infoResult == size
             var probes: [AutomaticProcessDiagnostic.Probe] = [
                 .init(.pidPath, length, pathError), .init(.bsdInfo, Int(infoResult), infoError)]
-            let parent = answered ? pid_t(info.pbi_ppid) : 0
+            var parent = answered ? pid_t(info.pbi_ppid) : 0
             // The executable is unlinked and the kernel has no path for it; the
             // path execve was given lives on in the argv block. See #1783.
             var launchedPath: String?
             if kernelPath == nil, let saved = ClaudeCodeActivity.executablePathSavedAtExec(of: pid, diagnostic: { probes.append($0) }),
                !saved.isEmpty {
                 launchedPath = resolvedPath(saved)
+            }
+            if includeUninspectable, kernelPath == nil, launchedPath == nil,
+               let resolve = privilegedExecutablePath {
+                let saved = resolve(pid)
+                probes.append(.init(.privilegedPath, saved == nil ? 0 : 1, 0))
+                if let saved, saved.hasPrefix("/"), !saved.contains("\0") {
+                    launchedPath = resolvedPath(saved)
+                }
             }
             guard let path = kernelPath ?? launchedPath else {
                 // Alive and unnamable is exactly the state the guard used to miss
@@ -612,6 +628,18 @@ public enum NestedAppGuard {
                 diagnostic?(.init(kind: .executablePathUnavailable, pid: pid,
                     parentPID: answered ? parent : nil, lifecycleState: answered ? info.pbi_status : nil, probes: probes))
             }
+            var userID: uid_t? = answered ? info.pbi_uid : nil
+            if !answered, includeUninspectable {
+                // Full BSD info can refuse a root daemon even when the short
+                // read answers. Retain its UID/parent so an unattended update
+                // does not quit the main app while its independent service stays up.
+                var short = proc_bsdshortinfo()
+                let size = Int32(MemoryLayout<proc_bsdshortinfo>.size)
+                if lifecycleInfo(pid, &short, size) == size {
+                    parent = pid_t(short.pbsi_ppid)
+                    userID = short.pbsi_uid
+                }
+            }
             // Only a process inside some `.app` below another `.app` can matter,
             // and asking LaunchServices or reading argv for every pid would be
             // wasted work.
@@ -622,7 +650,8 @@ public enum NestedAppGuard {
                 pid: pid, parentPID: parent, executablePath: kernelPath, launchedPath: launchedPath,
                 isRegularApp: regular,
                 arguments: nested ? ClaudeCodeActivity.arguments(of: pid) : nil,
-                startedAt: answered ? Date(timeIntervalSince1970: TimeInterval(info.pbi_start_tvsec)) : nil))
+                startedAt: answered ? Date(timeIntervalSince1970: TimeInterval(info.pbi_start_tvsec)) : nil,
+                userID: userID))
         }
         return processes
     }

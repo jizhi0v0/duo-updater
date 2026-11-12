@@ -17,6 +17,7 @@ enum AutomaticUpdateReasonText {
         #"^The app did not quit, or updating it failed (\d+) times\. Waiting for a newer version\.$"#,
         #"^Updating it failed (\d+) times\. Waiting for a newer version\.$"#,
         #"^The app is running and busy \((.+)\)\.$"#,
+        #"^Background processes are still running \((.+)\)\. Automatic updating is paused for this app\.$"#,
     ]
 
     static func display(_ reason: String) -> String {
@@ -35,6 +36,9 @@ enum AutomaticUpdateReasonText {
         }
         if let name = text(in: reason, patterns[4]) {
             return String(localized: "The app is running and busy (\(name)).")
+        }
+        if let names = text(in: reason, patterns[5]) {
+            return String(localized: "Background processes are still running (\(names)). Automatic updating is paused for this app.")
         }
         return reason
     }

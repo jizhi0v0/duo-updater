@@ -5,6 +5,22 @@ import Testing
 struct RunningAppQuitBeforeApplyTests {
     let bundle = URL(fileURLWithPath: "/Applications/Test.app")
 
+    @Test func withdrawnPermissionDoesNotReachTheNormalQuit() async {
+        let quits = Counter()
+        let plan = AutomaticInstall.QuitBeforeApply { quits.increment() }
+        await AutomaticInstall.$active.withValue(true) {
+            await AutomaticInstall.$permission.withValue({ false }) {
+                await AutomaticInstall.$quitBeforeApply.withValue(plan) {
+                    await #expect(throws: AutomaticInstall.Deferred.self) {
+                        try await AutomaticInstall.quitPlannedApp(before: FileManager.default.temporaryDirectory)
+                    }
+                }
+            }
+        }
+        #expect(quits.value == 0)
+        #expect(plan.pending)
+    }
+
     func process(_ pid: pid_t, parent: pid_t, _ path: String) -> NestedAppGuard.RunningProcess {
         .init(pid: pid, parentPID: parent, executablePath: path, isRegularApp: false)
     }
@@ -38,6 +54,17 @@ struct RunningAppQuitBeforeApplyTests {
         let child = process(200, parent: 100, agent.executablePath!)
         #expect(RunningAppAutoUpdate.independentHelper(
             of: bundle, processes: [processes[0], child], instancePIDs: [100]) == nil)
+    }
+
+    @Test func anIndependentRootServiceKeepsTheMainAppFromBeingQuitForNothing() {
+        let app = process(100, parent: 1, "/Applications/Test.app/Contents/MacOS/Test")
+        let service = NestedAppGuard.RunningProcess(pid: 200, parentPID: 1,
+            executablePath: nil, launchedPath: "/Applications/Test.app/Contents/MacOS/service",
+            isRegularApp: false, userID: 0)
+        #expect(RunningAppAutoUpdate.independentHelper(
+            of: bundle, processes: [app, service], instancePIDs: [100]) == service)
+        #expect(RunningAppAutoUpdate.independentHelper(
+            of: URL(fileURLWithPath: "/Applications/Other.app"), processes: [app, service], instancePIDs: [300]) == nil)
     }
 
     @Test func aRunningAppPassesTheEarlyChecksOnlyUntilItsQuitRan() async throws {

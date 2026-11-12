@@ -501,7 +501,7 @@ public actor InstallCoordinator {
             guard AutomaticInstall.supports(route) else {
                 throw AutomaticInstall.Deferred("Automatic update requires an interactive installer.")
             }
-            try AutomaticInstall.check(result.app)
+            try await AutomaticInstall.checkAsync(result.app)
         }
         let label = "\(result.app.name) [\(result.app.bundleID ?? "?")]"
         // `canAutoInstall` is the offer; this is the gate, for every route, before
@@ -903,11 +903,9 @@ public actor InstallCoordinator {
         // here and there. See `InPlaceSwap.preExchangeCheck`.
         let processes = runningProcesses
         let automatic = AutomaticInstall.active
-        let diagnostic = AutomaticInstall.diagnostic
+        let automaticCheck = AutomaticInstall.processCheck(result.app)
         try await InPlaceSwap.$preExchangeCheck.withValue({
-            try AutomaticInstall.$diagnostic.withValue(diagnostic) {
-                try AutomaticInstall.$active.withValue(automatic) { try AutomaticInstall.check(result.app) }
-            }
+            try automaticCheck()
             try AutomaticInstall.$active.withValue(automatic) {
                 do {
                     try NestedAppGuard.check(result.app.path, appName: result.app.name, processes: processes)

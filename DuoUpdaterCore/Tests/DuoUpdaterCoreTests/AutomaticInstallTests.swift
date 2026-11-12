@@ -3,6 +3,18 @@ import Testing
 @testable import DuoUpdaterCore
 
 struct AutomaticInstallTests {
+    private final class CheckCounter: @unchecked Sendable {
+        private let lock = NSLock()
+        private var count = 0
+
+        func next() -> Int {
+            lock.lock()
+            defer { lock.unlock() }
+            count += 1
+            return count
+        }
+    }
+
     @Test func policyRefusalsDeferOnlyAutomaticWorkAndNeverRetryDownloads() {
         let gate = OneClickGateRegistry.Withheld(appName: "Test", reason: "Copy changed")
         let nested = NestedAppRunningError(appName: "Test", blockers: [])
@@ -115,6 +127,45 @@ struct AutomaticInstallTests {
                 }
             }
         }
+        #expect(try Data(contentsOf: marker) == Data("old".utf8))
+    }
+
+    @Test(arguments: [false, true])
+    func permissionWithdrawnDuringFinalProcessCheckPreservesOriginal(rotation: Bool) async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let target = root.appendingPathComponent("Target.app")
+        let incoming = root.appendingPathComponent("Incoming.app")
+        for app in [target, incoming] {
+            try FileManager.default.createDirectory(
+                at: app.appendingPathComponent("Contents"), withIntermediateDirectories: true)
+        }
+        let marker = target.appendingPathComponent("Contents/original")
+        try Data("old".utf8).write(to: marker)
+        try Data("new".utf8).write(to: incoming.appendingPathComponent("Contents/original"))
+        let permission = AutomaticInstall.PermissionSnapshot()
+        permission.set(true)
+        let checks = CheckCounter()
+        await AutomaticInstall.$active.withValue(true) {
+            await AutomaticInstall.$permission.withValue({ true }) {
+                await AutomaticInstall.$commitPermission.withValue({ permission.allowed }) {
+                    await InPlaceSwap.$preExchangeCheck.withValue({
+                        // Rotation has no entry check; replace's first check must pass.
+                        if checks.next() == (rotation ? 1 : 2) { permission.set(false) }
+                    }) {
+                        await #expect(throws: AutomaticInstall.Deferred.self) {
+                            if rotation {
+                                _ = try await InPlaceSwap.rotateContents(newApp: incoming, over: target)
+                            } else {
+                                _ = try await InPlaceSwap.replace(newApp: incoming, over: target)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        #expect(!permission.allowed)
+        #expect(checks.next() == (rotation ? 2 : 3))
         #expect(try Data(contentsOf: marker) == Data("old".utf8))
     }
 

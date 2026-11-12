@@ -124,6 +124,11 @@ public enum InPlaceSwap {
                 throw AutomaticInstall.Deferred("Automatic updates are paused.")
             }
             try processes?()
+            // Process inspection may wait for the helper. A grant withdrawn
+            // during that wait must still stop the exchange.
+            if automatic, permission?() != true {
+                throw AutomaticInstall.Deferred("Automatic updates are paused.")
+            }
         }
     }
 

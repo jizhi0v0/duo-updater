@@ -1849,132 +1849,132 @@
         }
       }
     },
-    "An app is quit only if: you allowed it; it has been out of date for the wait chosen below, counted again from its last quit for an update; it has not been in front for an hour; the Mac has had no input for 15 minutes or is locked; it is not keeping the Mac awake (calls, playback, recording, downloads); it has no shell or other program running; and none of its helpers keeps running once it quits. It is quit only after its update has downloaded and been verified, if all of this still holds, and is reopened in the background. When the wait is over, the newest version is installed, even if it came out moments ago. It is asked to quit normally; if it does not quit, it is not asked again for that version. These conditions are checked at each scheduled check, so the wait can run longer.": {
+    "Apps you allow may restart while in front, playing media or doing work. There is no idle-time or update delay. If normal quit is refused, that version waits. Independent background services, installer prompts and safety checks can still defer an update.": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Eine App wird nur beendet, wenn: du sie erlaubt hast; sie seit der unten gewählten Wartezeit veraltet ist, neu gezählt ab ihrem letzten Beenden für ein Update; sie seit einer Stunde nicht im Vordergrund war; der Mac seit 15 Minuten keine Eingabe hatte oder gesperrt ist; sie den Mac nicht wach hält (Anrufe, Wiedergabe, Aufnahme, Downloads); sie keine Shell und kein anderes Programm ausführt; und keines ihrer Hilfsprogramme nach dem Beenden weiterläuft. Beendet wird sie erst, wenn ihr Update geladen und geprüft ist und all das dann noch gilt; danach wird sie im Hintergrund wieder geöffnet. Nach der Wartezeit wird die neueste Version installiert, auch wenn sie eben erst erschienen ist. Sie wird normal zum Beenden aufgefordert; beendet sie sich nicht, wird sie für diese Version nicht noch einmal gefragt. Diese Bedingungen werden bei jeder geplanten Prüfung geprüft, daher kann die Wartezeit länger dauern."
+            "value": "Erlaubte Apps können auch im Vordergrund, bei der Medienwiedergabe oder während der Arbeit neu starten. Es gibt keine Wartezeit für Inaktivität oder Updates. Wird das normale Beenden abgelehnt, wartet diese Version. Unabhängige Hintergrunddienste, Installationsdialoge und Sicherheitsprüfungen können ein Update weiterhin aufschieben."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Una app solo se cierra si: la permitiste; lleva desactualizada el tiempo de espera elegido abajo, contado de nuevo desde su último cierre para actualizarse; no ha estado en primer plano durante una hora; el Mac lleva 15 minutos sin actividad o está bloqueado; no mantiene el Mac despierto (llamadas, reproducción, grabación, descargas); no tiene una shell u otro programa en ejecución; y ninguno de sus auxiliares sigue en ejecución al cerrarla. Solo se cierra cuando su actualización se ha descargado y verificado, si todo esto sigue cumpliéndose, y se vuelve a abrir en segundo plano. Al terminar la espera se instala la versión más nueva, aunque haya salido hace un momento. Se le pide que se cierre de forma normal; si no se cierra, no se le vuelve a pedir para esa versión. Estas condiciones se comprueban en cada comprobación programada, así que la espera puede ser más larga."
+            "value": "Las apps permitidas pueden reiniciarse en primer plano, al reproducir contenido o mientras trabajas. No hay espera por inactividad ni demora adicional. Si la app rechaza el cierre normal, esa versión espera. Los servicios independientes en segundo plano, los avisos del instalador y las comprobaciones de seguridad aún pueden aplazar una actualización."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Une app n’est quittée que si : vous l’avez autorisée ; elle est obsolète depuis le délai choisi ci-dessous, recompté depuis sa dernière fermeture pour une mise à jour ; elle n’a pas été au premier plan depuis une heure ; le Mac n’a reçu aucune saisie depuis 15 minutes ou est verrouillé ; elle ne maintient pas le Mac éveillé (appels, lecture, enregistrement, téléchargements) ; elle n’exécute ni shell ni autre programme ; et aucun de ses assistants ne continue de s’exécuter une fois qu’elle est quittée. Elle n’est quittée qu’une fois sa mise à jour téléchargée et vérifiée, si tout cela est encore vrai, puis rouverte en arrière-plan. À la fin du délai, la version la plus récente est installée, même si elle vient de sortir. Il lui est demandé de quitter normalement ; si elle ne quitte pas, cela ne lui est plus demandé pour cette version. Ces conditions sont vérifiées à chaque vérification programmée, donc l’attente peut être plus longue."
+            "value": "Les apps autorisées peuvent redémarrer au premier plan, pendant la lecture de médias ou pendant votre travail. Aucun délai d’inactivité ni d’attente supplémentaire n’est requis. Si la fermeture normale est refusée, cette version attend. Les services d’arrière-plan indépendants, les demandes de l’installateur et les contrôles de sécurité peuvent toujours reporter une mise à jour."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Un’app viene chiusa solo se: l’hai consentita; è obsoleta da almeno l’attesa scelta qui sotto, contata di nuovo dall’ultima chiusura per un aggiornamento; non è stata in primo piano per un’ora; il Mac non riceve input da 15 minuti o è bloccato; non tiene sveglio il Mac (chiamate, riproduzione, registrazione, download); non ha una shell o un altro programma in esecuzione; e nessuno dei suoi helper continua a funzionare una volta chiusa. Viene chiusa solo dopo che il suo aggiornamento è stato scaricato e verificato, se tutto questo vale ancora, e viene riaperta in background. Al termine dell’attesa viene installata la versione più recente, anche se è uscita da poco. Le viene chiesto di chiudersi normalmente; se non si chiude, non le viene richiesto di nuovo per quella versione. Queste condizioni vengono verificate a ogni controllo programmato, quindi l’attesa può durare di più."
+            "value": "Le app consentite possono riavviarsi in primo piano, durante la riproduzione multimediale o mentre lavori. Non sono previsti tempi di inattività o attese aggiuntive. Se la chiusura normale viene rifiutata, quella versione attende. Servizi in background indipendenti, richieste del programma di installazione e controlli di sicurezza possono ancora rinviare un aggiornamento."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "アプリが終了されるのは次の条件をすべて満たすときだけです：あなたが許可した。下で選んだ待ち時間のあいだ最新ではない（前回アップデートのために終了してから数え直します）。1時間前面にない。Mac に15分間入力がないか、ロックされている。Mac をスリープさせない状態にしていない（通話、再生、録音、ダウンロード）。シェルやほかのプログラムを実行していない。終了後も動き続けるヘルパーがない。終了するのはアップデートのダウンロードと検証が済み、これらの条件がまだ満たされているときだけで、その後バックグラウンドで再度開かれます。待ち時間が過ぎると、公開直後であっても最新のバージョンがインストールされます。終了は通常どおり依頼され、終了しなかった場合はそのバージョンでは再度依頼しません。これらの条件は定期確認のたびに確認されるため、待ち時間が長くなることがあります。"
+            "value": "許可したアプリは、前面での使用中、メディアの再生中、作業中でも再起動される場合があります。アイドル状態や追加の待機時間は不要です。通常の終了が拒否された場合、そのバージョンは待機します。独立したバックグラウンドサービス、インストーラの確認、安全性チェックにより、更新が引き続き延期される場合があります。"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Um app só é encerrado se: você o permitiu; ele está desatualizado há o tempo de espera escolhido abaixo, contado de novo desde o último encerramento para atualização; não esteve em primeiro plano por uma hora; o Mac está sem entradas há 15 minutos ou bloqueado; ele não está mantendo o Mac acordado (chamadas, reprodução, gravação, downloads); não tem um shell ou outro programa em execução; e nenhum de seus auxiliares continua em execução depois que ele é encerrado. Ele só é encerrado depois que a atualização é baixada e verificada, se tudo isso ainda valer, e é reaberto em segundo plano. Quando a espera termina, a versão mais nova é instalada, mesmo que tenha saído há pouco. Ele é solicitado a encerrar normalmente; se não encerrar, não é solicitado de novo para essa versão. Essas condições são verificadas a cada verificação agendada, então a espera pode ser maior."
+            "value": "Os apps permitidos podem reiniciar em primeiro plano, durante a reprodução de mídia ou enquanto você trabalha. Não há espera por inatividade nem atraso adicional. Se o encerramento normal for recusado, essa versão aguarda. Serviços independentes em segundo plano, avisos do instalador e verificações de segurança ainda podem adiar uma atualização."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Приложение закрывается, только если: вы его разрешили; оно устарело дольше выбранного ниже ожидания, отсчитанного заново от последнего закрытия для обновления; оно не было на переднем плане час; на Mac не было ввода 15 минут или он заблокирован; оно не мешает Mac уснуть (звонки, воспроизведение, запись, загрузки); у него не запущена оболочка или другая программа; и ни один из его вспомогательных процессов не продолжает работать после его закрытия. Закрывается оно только после того, как обновление загружено и проверено, если всё это ещё верно, а затем открывается снова в фоне. Когда ожидание истекает, устанавливается новейшая версия, даже если она вышла только что. Его просят закрыться обычным образом; если оно не закрылось, для этой версии его больше не просят. Эти условия проверяются при каждой плановой проверке, поэтому ожидание может затянуться."
+            "value": "Разрешённые приложения могут перезапускаться на переднем плане, при воспроизведении мультимедиа или во время работы. Ожидание бездействия и дополнительная задержка не требуются. При отказе от обычного завершения эта версия откладывается. Независимые фоновые службы, запросы установщика и проверки безопасности по-прежнему могут отложить обновление."
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bir uygulama yalnızca şu durumlarda kapatılır: ona izin verdiniz; aşağıda seçilen bekleme süresi boyunca güncel değil (bir güncelleme için son kapatılışından itibaren yeniden sayılır); bir saattir önde değil; Mac 15 dakikadır girdi almadı veya kilitli; Mac’i uyanık tutmuyor (aramalar, oynatma, kayıt, indirmeler); çalışan bir kabuğu veya başka bir programı yok; ve kapatıldıktan sonra çalışmaya devam eden bir yardımcısı yok. Yalnızca güncellemesi indirilip doğrulandıktan sonra, bunların hepsi hâlâ geçerliyse kapatılır ve arka planda yeniden açılır. Bekleme bitince, az önce çıkmış olsa bile en yeni sürüm yüklenir. Normal şekilde kapanması istenir; kapanmazsa o sürüm için bir daha istenmez. Bu koşullar her zamanlanmış denetimde kontrol edildiğinden bekleme daha uzun sürebilir."
+            "value": "İzin verilen uygulamalar ön plandayken, medya oynatırken veya çalışırken yeniden başlatılabilir. Boşta kalma süresi veya ek güncelleme gecikmesi yoktur. Normal kapatma reddedilirse o sürüm bekler. Bağımsız arka plan hizmetleri, yükleyici istemleri ve güvenlik denetimleri güncellemeyi yine de erteleyebilir."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "只有同时满足以下条件，应用才会被退出：你允许了它；它落后于最新版本已满下方选择的等待时间（上次因更新被退出后重新计时）；它已有一小时未在前台；Mac 已 15 分钟无输入或已锁屏；它没有阻止 Mac 睡眠（通话、播放、录制、下载）；它没有运行 shell 或其他程序；且退出后没有仍在运行的辅助进程。只有在更新已下载并验证、而这些条件仍然成立时才会退出它，之后在后台重新打开。等待结束时安装的是最新版本，即使它刚刚发布。应用会被正常请求退出；如果它没有退出，这个版本不会再次请求。这些条件在每次定时检查时判断，因此等待可能更久。"
+            "value": "允许的应用即使在前台、播放媒体或处理工作时也可能重启。无需等待空闲，也没有额外的更新延迟。如果应用拒绝正常退出，该版本会暂缓更新。独立后台服务、安装器提示和安全检查仍可能让更新暂缓。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "只有同時符合以下條件，App 才會被結束：你允許了它；它落後於最新版本已滿下方選擇的等待時間（上次因更新被結束後重新計時）；它已有一小時未在前景；Mac 已 15 分鐘無輸入或已鎖定；它沒有讓 Mac 保持喚醒（通話、播放、錄製、下載）；它沒有執行 shell 或其他程式；且結束後沒有仍在執行的輔助程式。只有在更新已下載並驗證、而這些條件仍然成立時才會結束它，之後在背景重新開啟。等待結束時安裝的是最新版本，即使它剛剛發佈。App 會被正常要求結束；如果它沒有結束，這個版本不會再次要求。這些條件在每次定時檢查時判斷，因此等待可能更久。"
+            "value": "允許的 App 即使在前景、播放媒體或處理工作時也可能重新啟動。無需等待閒置，也沒有額外的更新延遲。如果 App 拒絕正常結束，該版本會暫緩更新。獨立背景服務、安裝程式提示和安全性檢查仍可能讓更新暫緩。"
           }
         }
       }
     },
-    "Runs only after scheduled checks, on a network that is not restricted. An app is skipped while it or one of its helpers is running, and updates that need an installer or an authorization prompt are left for you. After a failed update, nothing is tried for that app for a day, and after three failures not until a newer version. Each attempt, and why one was deferred, is listed in the Network window under Events.": {
+    "Runs only after scheduled checks, on a network that is not restricted. By default, an app is skipped while it or one of its helpers is running; apps you allow below may be quit and reopened, and updates that need an installer or an authorization prompt are left for you. After a failed update, nothing is tried for that app for a day, and after three failures not until a newer version. Each attempt, and why one was deferred, is listed in the Network window under Events.": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Läuft nur nach geplanten Prüfungen und in einem nicht eingeschränkten Netzwerk. Eine App wird übersprungen, solange sie oder eines ihrer Hilfsprogramme läuft, und Updates, die ein Installationsprogramm oder eine Berechtigungsabfrage brauchen, bleiben dir überlassen. Nach einem fehlgeschlagenen Update wird für diese App einen Tag lang nichts versucht, nach drei Fehlschlägen erst wieder bei einer neueren Version. Jeder Versuch und warum einer aufgeschoben wurde, steht im Netzwerkfenster unter „Ereignisse“."
+            "value": "Läuft nur nach geplanten Prüfungen und in einem nicht eingeschränkten Netzwerk. Standardmäßig wird eine App übersprungen, solange sie oder eines ihrer Hilfsprogramme läuft; unten erlaubte Apps dürfen beendet und neu geöffnet werden, und Updates, die ein Installationsprogramm oder eine Berechtigungsabfrage brauchen, bleiben dir überlassen. Nach einem fehlgeschlagenen Update wird für diese App einen Tag lang nichts versucht, nach drei Fehlschlägen erst wieder bei einer neueren Version. Jeder Versuch und warum einer aufgeschoben wurde, steht im Netzwerkfenster unter „Ereignisse“."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Solo se ejecuta tras las comprobaciones programadas y en una red sin restricciones. Una app se omite mientras ella o alguno de sus auxiliares esté en ejecución, y las actualizaciones que necesitan un instalador o una solicitud de autorización quedan para ti. Tras una actualización fallida, no se intenta nada con esa app durante un día, y tras tres fallos, hasta que haya una versión más nueva. Cada intento, y por qué se aplazó, aparece en la ventana Red, en Eventos."
+            "value": "Solo se ejecuta tras las comprobaciones programadas y en una red sin restricciones. Por defecto, una app se omite mientras ella o alguno de sus auxiliares esté en ejecución; las apps que permitas abajo pueden cerrarse y volver a abrirse, y las actualizaciones que necesitan un instalador o una solicitud de autorización quedan para ti. Tras una actualización fallida, no se intenta nada con esa app durante un día, y tras tres fallos, hasta que haya una versión más nueva. Cada intento, y por qué se aplazó, aparece en la ventana Red, en Eventos."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "S’exécute uniquement après les vérifications programmées, sur un réseau non restreint. Une app est ignorée tant qu’elle ou l’un de ses assistants est en cours d’exécution, et les mises à jour qui nécessitent un programme d’installation ou une demande d’autorisation vous sont laissées. Après une mise à jour échouée, rien n’est tenté pour cette app pendant un jour, et après trois échecs, pas avant une version plus récente. Chaque tentative, et la raison d’un report, figure dans la fenêtre Réseau, sous Événements."
+            "value": "S’exécute uniquement après les vérifications programmées, sur un réseau non restreint. Par défaut, une app est ignorée tant qu’elle ou l’un de ses assistants est en cours d’exécution ; les apps autorisées ci-dessous peuvent être quittées puis rouvertes, et les mises à jour qui nécessitent un programme d’installation ou une demande d’autorisation vous sont laissées. Après une mise à jour échouée, rien n’est tenté pour cette app pendant un jour, et après trois échecs, pas avant une version plus récente. Chaque tentative, et la raison d’un report, figure dans la fenêtre Réseau, sous Événements."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Viene eseguito solo dopo i controlli programmati, su una rete senza limitazioni. Un’app viene saltata mentre lei o uno dei suoi helper è in esecuzione, e gli aggiornamenti che richiedono un programma di installazione o una richiesta di autorizzazione sono lasciati a te. Dopo un aggiornamento non riuscito, per quell’app non si tenta nulla per un giorno, e dopo tre errori non prima di una versione più recente. Ogni tentativo, e il motivo di un rinvio, è elencato nella finestra Rete, in Eventi."
+            "value": "Viene eseguito solo dopo i controlli programmati, su una rete senza limitazioni. Per impostazione predefinita, un’app viene saltata mentre lei o uno dei suoi helper è in esecuzione; le app autorizzate sotto possono essere chiuse e riaperte, e gli aggiornamenti che richiedono un programma di installazione o una richiesta di autorizzazione sono lasciati a te. Dopo un aggiornamento non riuscito, per quell’app non si tenta nulla per un giorno, e dopo tre errori non prima di una versione più recente. Ogni tentativo, e il motivo di un rinvio, è elencato nella finestra Rete, in Eventi."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "定期確認のあと、制限のないネットワークでのみ実行されます。アプリやそのヘルパーが実行中の間はスキップされ、インストーラや認証の確認が必要なアップデートはあなたに任されます。アップデートに失敗すると、そのアプリでは1日間何も試さず、3回失敗すると新しいバージョンが出るまで試しません。各試行と延期の理由は、ネットワークウインドウの「イベント」に表示されます。"
+            "value": "定期確認のあと、制限のないネットワークでのみ実行されます。既定ではアプリやそのヘルパーが実行中の間はスキップされます。以下で許可したアプリは終了して再度開くことができます。インストーラや認証の確認が必要なアップデートはあなたに任されます。アップデートに失敗すると、そのアプリでは1日間何も試さず、3回失敗すると新しいバージョンが出るまで試しません。各試行と延期の理由は、ネットワークウインドウの「イベント」に表示されます。"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Só é executado após as verificações agendadas, em uma rede sem restrições. Um app é ignorado enquanto ele ou um de seus auxiliares estiver em execução, e as atualizações que precisam de um instalador ou de uma solicitação de autorização ficam com você. Após uma atualização com falha, nada é tentado para esse app por um dia e, após três falhas, só quando houver uma versão mais nova. Cada tentativa, e o motivo de um adiamento, aparece na janela Rede, em Eventos."
+            "value": "Só é executado após as verificações agendadas, em uma rede sem restrições. Por padrão, um app é ignorado enquanto ele ou um de seus auxiliares estiver em execução; os apps permitidos abaixo podem ser encerrados e reabertos, e as atualizações que precisam de um instalador ou de uma solicitação de autorização ficam com você. Após uma atualização com falha, nada é tentado para esse app por um dia e, após três falhas, só quando houver uma versão mais nova. Cada tentativa, e o motivo de um adiamento, aparece na janela Rede, em Eventos."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Работает только после плановых проверок и в сети без ограничений. Приложение пропускается, пока оно или его вспомогательный процесс запущены, а обновления, которым нужен установщик или запрос авторизации, остаются вам. После неудачного обновления для этого приложения сутки ничего не предпринимается, а после трёх неудач — до выхода более новой версии. Каждая попытка и причина отсрочки видны в окне «Сеть», в разделе «События»."
+            "value": "Работает только после плановых проверок и в сети без ограничений. По умолчанию приложение пропускается, пока оно или его вспомогательный процесс запущены; разрешённые ниже приложения могут быть закрыты и открыты заново, а обновления, которым нужен установщик или запрос авторизации, остаются вам. После неудачного обновления для этого приложения сутки ничего не предпринимается, а после трёх неудач — до выхода более новой версии. Каждая попытка и причина отсрочки видны в окне «Сеть», в разделе «События»."
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Yalnızca zamanlanmış denetimlerden sonra, kısıtlanmamış bir ağda çalışır. Bir uygulama, kendisi veya yardımcılarından biri çalışırken atlanır; yükleyici veya yetkilendirme istemi gerektiren güncellemeler size bırakılır. Başarısız bir güncellemeden sonra o uygulama için bir gün hiçbir şey denenmez, üç başarısızlıktan sonra ise daha yeni bir sürüme kadar denenmez. Her deneme ve neden ertelendiği, Ağ penceresinde Olaylar altında listelenir."
+            "value": "Yalnızca zamanlanmış denetimlerden sonra, kısıtlanmamış bir ağda çalışır. Varsayılan olarak bir uygulama, kendisi veya yardımcılarından biri çalışırken atlanır; aşağıda izin verdiğiniz uygulamalar kapatılıp yeniden açılabilir; yükleyici veya yetkilendirme istemi gerektiren güncellemeler size bırakılır. Başarısız bir güncellemeden sonra o uygulama için bir gün hiçbir şey denenmez, üç başarısızlıktan sonra ise daha yeni bir sürüme kadar denenmez. Her deneme ve neden ertelendiği, Ağ penceresinde Olaylar altında listelenir."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "仅在定时检查后、且网络未受限制时运行。应用或其辅助进程正在运行时会跳过，需要安装器或授权提示的更新会留给你处理。更新失败后，该应用一天内不会再尝试；失败三次后要等到更新的版本才会再试。每次尝试及暂缓原因都会列在“网络”窗口的“事件”中。"
+            "value": "仅在定时检查后、且网络未受限制时运行。默认会跳过应用或其辅助进程仍在运行的应用；下方允许的应用可退出并重新打开。需要安装器或授权提示的更新会留给你处理。更新失败后，该应用一天内不会再尝试；失败三次后要等到更新的版本才会再试。每次尝试及暂缓原因都会列在“网络”窗口的“事件”中。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "僅在定時檢查後、於未受限制的網路上執行。App 或其輔助程式執行中時會略過，需要安裝程式或授權提示的更新會留給你處理。更新失敗後，該 App 一天內不會再嘗試；失敗三次後要等到更新的版本才會再試。每次嘗試及暫緩原因都會列在「網路」視窗的「事件」中。"
+            "value": "僅在定時檢查後、於未受限制的網路上執行。預設會略過 App 或其輔助程式仍在執行的 App；下方允許的 App 可結束並重新開啟。需要安裝程式或授權提示的更新會留給你處理。更新失敗後，該 App 一天內不會再嘗試；失敗三次後要等到更新的版本才會再試。每次嘗試及暫緩原因都會列在「網路」視窗的「事件」中。"
           }
         }
       }
@@ -3695,327 +3695,67 @@
         }
       }
     },
-    "Wait before quitting a running app": {
+    "Paused while “Also update running apps” is off; updated only when not running": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Warten, bevor eine laufende App beendet wird"
+            "value": "Pausiert, solange „Auch laufende Apps aktualisieren“ aus ist; Updates nur, wenn die App nicht läuft"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Esperar antes de cerrar una app abierta"
+            "value": "En pausa si «Actualizar también apps en ejecución» está desactivado; solo se actualiza cuando no está en ejecución"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Attendre avant de quitter une app ouverte"
+            "value": "En pause si « Mettre aussi à jour les apps en cours » est désactivé ; mise à jour uniquement à l’arrêt"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Attendi prima di chiudere un’app aperta"
+            "value": "In pausa se «Aggiorna anche le app in esecuzione» è disattivato; si aggiorna solo quando non è in esecuzione"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "実行中のアプリを終了するまでの待ち時間"
+            "value": "「実行中のアプリも更新」がオフの間は一時停止し、実行していないときのみ更新"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Aguardar antes de encerrar um app aberto"
+            "value": "Pausado enquanto “Atualizar também apps em execução” estiver desativado; atualiza somente quando não estiver em execução"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ждать перед закрытием запущенного приложения"
+            "value": "При выключенном «Обновлять и запущенные приложения» обновляется только когда не запущено"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Çalışan bir uygulamayı kapatmadan önce bekle"
+            "value": "“Çalışan uygulamaları da güncelle” kapalıyken duraklatılır; yalnızca çalışmıyorken güncellenir"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "退出运行中应用前等待"
+            "value": "“也更新允许的运行中应用”已关闭；仅在应用未运行时更新"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "結束執行中的 App 前等待"
-          }
-        }
-      }
-    },
-    "15 minutes": {
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "15 Minuten"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "15 minutos"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "15 minutes"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "15 minuti"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "15分"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "15 minutos"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "15 минут"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "15 dakika"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "15 分钟"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "15 分鐘"
-          }
-        }
-      }
-    },
-    "30 minutes": {
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "30 Minuten"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "30 minutos"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "30 minutes"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "30 minuti"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "30分"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "30 minutos"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "30 минут"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "30 dakika"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "30 分钟"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "30 分鐘"
-          }
-        }
-      }
-    },
-    "1 hour": {
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "1 Stunde"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "1 hora"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "1 heure"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "1 ora"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "1時間"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "1 hora"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "1 час"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "1 saat"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "1 小时"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "1 小時"
-          }
-        }
-      }
-    },
-    "Paused while “Also update running apps” is off; updated when closed": {
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pausiert, solange „Auch laufende Apps aktualisieren“ aus ist; wird aktualisiert, wenn geschlossen"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "En pausa mientras «Actualizar también apps abiertas» esté desactivado; se actualiza cuando está cerrada"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "En pause tant que « Mettre aussi à jour les apps ouvertes » est désactivé ; mise à jour quand elle est fermée"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "In pausa finché “Aggiorna anche le app aperte” è disattivato; aggiornata quando è chiusa"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "「実行中のアプリもアップデート」がオフのため一時停止中。終了中はアップデートされます"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pausado enquanto “Atualizar também apps abertos” estiver desativado; atualizado quando fechado"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Приостановлено, пока «Обновлять и запущенные приложения» выключено; обновляется, когда закрыто"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "“Çalışan uygulamaları da güncelle” kapalıyken duraklatıldı; kapalıyken güncellenir"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "“也更新运行中的应用”已关闭，暂停中；未运行时照常更新"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "「也更新執行中的 App」已關閉，暫停中；未執行時照常更新"
+            "value": "「也更新允許的執行中 App」已關閉；僅在 App 未執行時更新"
           }
         }
       }
@@ -4150,67 +3890,262 @@
         }
       }
     },
-    "Apps in the first column are quit only while they and the Mac are idle, then updated and reopened. They still ask before discarding unsaved work. Drag an app to another column, or right-click it.": {
+    "Drag apps between columns, or right-click to move them.": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Apps in der ersten Spalte werden nur beendet, wenn sie und der Mac inaktiv sind, und dann aktualisiert und wieder geöffnet. Vor dem Verwerfen ungesicherter Arbeit fragen sie weiterhin nach. Zieh eine App in eine andere Spalte oder klicke sie mit der rechten Maustaste an."
+            "value": "Ziehe Apps zwischen die Spalten oder verschiebe sie per Rechtsklick."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Las apps de la primera columna solo se cierran cuando ellas y el Mac están inactivos, y luego se actualizan y se vuelven a abrir. Siguen preguntando antes de descartar trabajo sin guardar. Arrastra una app a otra columna o haz clic derecho en ella."
+            "value": "Arrastra apps entre columnas o haz clic derecho para moverlas."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Les apps de la première colonne ne sont quittées que lorsqu’elles et le Mac sont inactifs, puis mises à jour et rouvertes. Elles demandent toujours avant d’abandonner un travail non enregistré. Faites glisser une app vers une autre colonne, ou cliquez dessus avec le bouton droit."
+            "value": "Glissez les apps entre les colonnes ou déplacez-les par clic droit."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Le app nella prima colonna vengono chiuse solo quando loro e il Mac sono inattivi, poi aggiornate e riaperte. Chiedono comunque prima di scartare il lavoro non salvato. Trascina un’app in un’altra colonna o fai clic destro su di essa."
+            "value": "Trascina le app tra le colonne o spostale con un clic destro."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "最初の列のアプリは、アプリと Mac の両方がアイドル状態のときにだけ終了され、アップデート後に再度開かれます。保存していない作業を破棄する前には、引き続き確認があります。アプリを別の列にドラッグするか、右クリックしてください。"
+            "value": "アプリを列間でドラッグするか、右クリックして移動できます。"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Os apps da primeira coluna só são encerrados quando eles e o Mac estão ociosos, e depois atualizados e reabertos. Eles ainda perguntam antes de descartar trabalho não salvo. Arraste um app para outra coluna ou clique nele com o botão direito."
+            "value": "Arraste apps entre as colunas ou clique com o botão direito para movê-los."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Приложения в первом столбце закрываются, только когда они и Mac простаивают, затем обновляются и открываются снова. Перед тем как отбросить несохранённую работу, они по-прежнему спрашивают. Перетащите приложение в другой столбец или нажмите на него правой кнопкой."
+            "value": "Перетаскивайте приложения между столбцами или перемещайте правой кнопкой."
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "İlk sütundaki uygulamalar yalnızca kendileri ve Mac boştayken kapatılır, sonra güncellenip yeniden açılır. Kaydedilmemiş çalışmayı atmadan önce yine sorarlar. Bir uygulamayı başka bir sütuna sürükleyin veya sağ tıklayın."
+            "value": "Uygulamaları sütunlar arasında sürükleyin veya sağ tıklayarak taşıyın."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "第一栏中的应用只会在它和 Mac 都空闲时被退出，更新后重新打开；丢弃未保存的内容前仍会询问你。把应用拖到其他栏，或右键点按它来移动。"
+            "value": "在列之间拖动应用，或右键点击以移动。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "第一欄中的 App 只會在它和 Mac 都閒置時被結束，更新後重新開啟；丟棄未儲存的內容前仍會詢問你。把 App 拖到其他欄，或按右鍵來移動。"
+            "value": "在欄之間拖移 App，或按右鍵移動。"
+          }
+        }
+      }
+    },
+    "May quit and reopen apps to install updates.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Darf Apps zum Aktualisieren beenden und neu öffnen."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Puede cerrar y reabrir apps para actualizarlas."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Peut quitter et rouvrir les apps pour les mettre à jour."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Può chiudere e riaprire le app per aggiornarle."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新のためアプリを終了して再度開くことがあります。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pode encerrar e reabrir apps para atualizá-los."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Может закрывать и открывать приложения для обновления."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Güncellemek için uygulamaları kapatıp yeniden açabilir."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "可退出并重新打开应用以安装更新。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "可結束並重新開啟 App 以安裝更新。"
+          }
+        }
+      }
+    },
+    "Waits until the app and its helpers have quit.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wartet, bis die App und ihre Hilfsprogramme beendet sind."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Espera a que la app y sus auxiliares terminen."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Attend l’arrêt de l’app et de ses assistants."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Attende la chiusura dell’app e dei suoi helper."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アプリとヘルパーが終了するまで待ちます。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aguarda o app e seus auxiliares serem encerrados."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ждёт завершения приложения и вспомогательных процессов."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uygulama ve yardımcıları kapanana kadar bekler."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "等待应用及其辅助进程退出后再更新。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "等待 App 及其輔助程式結束後再更新。"
+          }
+        }
+      }
+    },
+    "Updates only when you choose.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aktualisiert nur auf deinen Wunsch."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Actualiza solo cuando tú lo decides."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Met à jour uniquement à votre demande."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aggiorna solo quando lo scegli tu."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自分で選んだときだけ更新します。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Atualiza somente quando você escolher."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Обновляет только по вашему выбору."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yalnızca siz seçtiğinizde günceller."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "仅在你手动选择时更新。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "僅在你手動選擇時更新。"
           }
         }
       }
@@ -4345,67 +4280,67 @@
         }
       }
     },
-    "Also While Running": {
+    "Keep Up to Date": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Auch während der Ausführung"
+            "value": "Aktuell halten"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "También mientras está abierta"
+            "value": "Mantener al día"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Aussi quand elle est ouverte"
+            "value": "Garder à jour"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Anche quando è aperta"
+            "value": "Mantieni aggiornate"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "実行中も"
+            "value": "最新に保つ"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Também enquanto aberto"
+            "value": "Manter atualizado"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "И во время работы"
+            "value": "Поддерживать актуальность"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Çalışırken de"
+            "value": "Güncel tut"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "运行中也更新"
+            "value": "保持最新"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "執行中也更新"
+            "value": "保持最新"
           }
         }
       }
@@ -5450,67 +5385,67 @@
         }
       }
     },
-    "Quits an allowed app only when it and the Mac have both been idle, installs the update, and reopens it. Choose the apps below.": {
+    "Keeps allowed apps up to date, even while you use them. Downloads and verifies each update before quitting and reopening the app.": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Beendet eine erlaubte App nur, wenn sie und der Mac inaktiv waren, installiert das Update und öffnet sie wieder. Wähle die Apps unten aus."
+            "value": "Hält erlaubte Apps aktuell, auch während du sie verwendest. Jedes Update wird geladen und geprüft, bevor die App beendet und erneut geöffnet wird."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cierra una app permitida solo cuando ella y el Mac han estado inactivos, instala la actualización y la vuelve a abrir. Elige las apps abajo."
+            "value": "Mantiene actualizadas las apps permitidas, incluso mientras las usas. Descarga y verifica cada actualización antes de cerrar y volver a abrir la app."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Quitte une app autorisée seulement lorsqu’elle et le Mac sont restés inactifs, installe la mise à jour et la rouvre. Choisissez les apps ci-dessous."
+            "value": "Maintient les apps autorisées à jour, même pendant leur utilisation. Chaque mise à jour est téléchargée et vérifiée avant de fermer puis de rouvrir l’app."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Chiude un’app consentita solo quando lei e il Mac sono rimasti inattivi, installa l’aggiornamento e la riapre. Scegli le app qui sotto."
+            "value": "Mantiene aggiornate le app consentite, anche mentre le usi. Scarica e verifica ogni aggiornamento prima di chiudere e riaprire l’app."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "許可したアプリを、アプリと Mac の両方がアイドル状態のときにだけ終了し、アップデートをインストールして再度開きます。下でアプリを選択してください。"
+            "value": "許可したアプリは、使用中でも最新の状態に保ちます。各アップデートをダウンロードして検証した後、アプリを終了して再度開きます。"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Encerra um app permitido somente quando ele e o Mac estiveram ociosos, instala a atualização e o reabre. Escolha os apps abaixo."
+            "value": "Mantém os apps permitidos atualizados, mesmo durante o uso. Baixa e verifica cada atualização antes de encerrar e reabrir o app."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Закрывает разрешённое приложение, только когда оно и Mac простаивали, устанавливает обновление и открывает его снова. Выберите приложения ниже."
+            "value": "Поддерживает разрешённые приложения в актуальном состоянии даже во время использования. Каждое обновление загружается и проверяется перед закрытием и повторным открытием приложения."
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "İzin verilen bir uygulamayı yalnızca kendisi ve Mac boştayken kapatır, güncellemeyi yükler ve yeniden açar. Uygulamaları aşağıdan seçin."
+            "value": "İzin verilen uygulamaları kullanım sırasında bile güncel tutar. Uygulamayı kapatıp yeniden açmadan önce her güncellemeyi indirir ve doğrular."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "仅在应用和 Mac 都处于空闲时退出已允许的应用，安装更新后重新打开。在下方选择应用。"
+            "value": "即使正在使用，也会让允许的应用保持最新。每次更新都会先下载并验证，再退出并重新打开应用。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "僅在 App 和 Mac 都閒置時結束已允許的 App，安裝更新後重新開啟。在下方選擇 App。"
+            "value": "即使正在使用，也會讓允許的 App 保持最新。每次更新都會先下載並驗證，再結束並重新開啟 App。"
           }
         }
       }
@@ -6361,67 +6296,67 @@
         }
       }
     },
-    "When Closed": {
+    "Only When Not Running": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Wenn geschlossen"
+            "value": "Nur wenn nicht ausgeführt"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cuando está cerrada"
+            "value": "Solo cuando no se está ejecutando"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Quand elle est fermée"
+            "value": "Uniquement à l’arrêt"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Quando è chiusa"
+            "value": "Solo quando non è in esecuzione"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "終了中のみ"
+            "value": "実行していないときのみ"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Quando fechado"
+            "value": "Somente quando não estiver em execução"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Когда закрыто"
+            "value": "Только когда не запущено"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Kapalıyken"
+            "value": "Yalnızca çalışmıyorken"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "未运行时更新"
+            "value": "仅在未运行时"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "未執行時更新"
+            "value": "僅在未執行時"
           }
         }
       }
@@ -9221,67 +9156,67 @@
       }
     }
   },
-  "Automatically update closed apps": {
+  "Automatically update apps": {
     "extractionState": "manual",
     "localizations": {
       "de": {
         "stringUnit": {
           "state": "translated",
-          "value": "Geschlossene Apps automatisch aktualisieren"
+          "value": "Apps automatisch aktualisieren"
         }
       },
       "es": {
         "stringUnit": {
           "state": "translated",
-          "value": "Actualizar automáticamente las apps cerradas"
+          "value": "Actualizar apps automáticamente"
         }
       },
       "fr": {
         "stringUnit": {
           "state": "translated",
-          "value": "Mettre à jour automatiquement les apps fermées"
+          "value": "Mettre à jour les apps automatiquement"
         }
       },
       "it": {
         "stringUnit": {
           "state": "translated",
-          "value": "Aggiorna automaticamente le app chiuse"
+          "value": "Aggiorna automaticamente le app"
         }
       },
       "ja": {
         "stringUnit": {
           "state": "translated",
-          "value": "終了中のアプリを自動でアップデート"
+          "value": "アプリを自動更新"
         }
       },
       "pt-BR": {
         "stringUnit": {
           "state": "translated",
-          "value": "Atualizar automaticamente os apps fechados"
+          "value": "Atualizar apps automaticamente"
         }
       },
       "ru": {
         "stringUnit": {
           "state": "translated",
-          "value": "Автоматически обновлять закрытые приложения"
+          "value": "Автоматически обновлять приложения"
         }
       },
       "tr": {
         "stringUnit": {
           "state": "translated",
-          "value": "Kapalı uygulamaları otomatik güncelle"
+          "value": "Uygulamaları otomatik güncelle"
         }
       },
       "zh-Hans": {
         "stringUnit": {
           "state": "translated",
-          "value": "自动更新未运行的应用"
+          "value": "自动更新应用"
         }
       },
       "zh-Hant": {
         "stringUnit": {
           "state": "translated",
-          "value": "自動更新未執行的 App"
+          "value": "自動更新 App"
         }
       }
     }
@@ -30154,6 +30089,72 @@
           "stringUnit": {
             "state": "translated",
             "value": "備份中"
+          }
+        }
+      }
+    },
+    "Background processes are still running (%@). Automatic updating is paused for this app.": {
+      "comment": "Automatic updates: only background processes remain; do not interrupt services.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hintergrundprozesse laufen noch (%@). Die automatische Aktualisierung dieser App ist pausiert."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Todavía hay procesos en segundo plano (%@). La actualización automática de esta app está en pausa."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Des processus sont toujours actifs en arrière-plan (%@). La mise à jour automatique de cette app est suspendue."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sono ancora in esecuzione processi in background (%@). L’aggiornamento automatico di questa app è in pausa."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "バックグラウンドプロセスがまだ実行中です（%@）。このアプリの自動アップデートは一時停止しています。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ainda há processos em segundo plano (%@). A atualização automática deste app está pausada."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Фоновые процессы всё ещё работают (%@). Автообновление этого приложения приостановлено."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Arka plan işlemleri hâlâ çalışıyor (%@). Bu uygulamanın otomatik güncellemesi duraklatıldı."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "后台进程仍在运行（%@），已暂停此应用的自动更新。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "背景程序仍在執行（%@），已暫停此 App 的自動更新。"
           }
         }
       }

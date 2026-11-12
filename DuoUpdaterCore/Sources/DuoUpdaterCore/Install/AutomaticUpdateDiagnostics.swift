@@ -11,7 +11,7 @@ public struct AutomaticProcessDiagnostic: Codable, Hashable, Sendable {
     }
     public struct Probe: Codable, Hashable, Sendable {
         public enum Name: String, Codable, Sendable {
-            case listSize, listPIDs, pidPath, bsdInfo, lifecycleInfo, procargsSize, procargs, existence
+            case listSize, listPIDs, pidPath, bsdInfo, lifecycleInfo, procargsSize, procargs, existence, privilegedPath
         }
         public let name: Name
         public let result: Int

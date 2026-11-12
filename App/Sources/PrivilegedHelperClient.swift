@@ -542,6 +542,16 @@ extension HelperStagedVersionReader {
     })
 }
 
+extension HelperProcessIdentityReader {
+    static let live = HelperProcessIdentityReader(connect: {
+        guard SMAppService.daemon(plistName: HelperConfig.plistName).status == .enabled,
+              let requirement = HelperConfig.helperRequirement else { return nil }
+        let connection = NSXPCConnection(machServiceName: HelperConfig.machServiceName, options: .privileged)
+        connection.setCodeSigningRequirement(requirement)
+        return connection
+    })
+}
+
 /// Single-fire guard so a continuation can't be resumed twice when both the XPC
 /// reply and the connection's error handler are in play.
 private final class ResumeGuard: @unchecked Sendable {

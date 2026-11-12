@@ -47,6 +47,12 @@ import Foundation
                                      withReply reply: @escaping (_ identifier: String?,
                                                                  _ shortVersion: String?,
                                                                  _ buildVersion: String?) -> Void)
+
+    /// Revision 4. Read only the kernel's executable path for this exact
+    /// process lifetime. No argv, environment, client-supplied path or command.
+    /// Nil when either identity read disagrees, or the kernel cannot name it.
+    func processExecutablePath(pid: Int32, startedSeconds: Int64, startedMicroseconds: Int32,
+                               withReply reply: @escaping (String?) -> Void)
 }
 
 /// What an installed helper can do, told to the app through `helperVersion`.
@@ -66,7 +72,8 @@ import Foundation
 /// sends it (revision 3).
 enum HelperProtocolRevision {
     /// This build's revision.
-    static let current = 3
+    static let current = 4
+    static let processExecutablePath = 4
     /// The first revision that implements `stagedSparkleBundleVersions`.
     static let stagedSparkleBundleVersions = 2
     /// The first revision whose `installMASApp` runs only a verified private copy
@@ -99,6 +106,10 @@ enum HelperProtocolRevision {
     /// which the caller treats exactly like a helper that is not enabled.
     static func supportsStagedSparkleBundleVersions(versionReply: String) -> Bool {
         revision(ofVersionReply: versionReply) >= stagedSparkleBundleVersions
+    }
+
+    static func supportsProcessExecutablePath(versionReply: String) -> Bool {
+        revision(ofVersionReply: versionReply) >= processExecutablePath
     }
 
     /// The revision a `helperVersion` reply declares. 1 for a reply without

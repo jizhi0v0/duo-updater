@@ -47,17 +47,18 @@ loopback 连接验证 100/102/103/104 中间响应后继续处理最终的 200 �
 
 2026-11-12，Apple Silicon / macOS 27.3 / Swift 6.4.2：
 
-- `scripts/test-http-simulation.sh`：退出码 0；`Test run with 58 tests in 4 suites passed`，参数化展开共 253 个案例。
-- 新仿真与既有 GatewayRetry、VendorArchiveHTMLRetry、DownloaderTraffic、DownloaderCancellation、ResumableDownloadStore、RunningAppAutoUpdate、AutomaticInstall、RunningAppQuitBeforeApply、GitHubRateLimitGate/Wiring、GitHubTokenRejection、GitHubConditionalCache 测试合跑：退出码 0；`Test run with 187 tests in 16 suites passed`。
+- `scripts/test-http-simulation.sh`：退出码 0；`Test run with 59 tests in 4 suites passed`，参数化展开共 254 个案例。
+- 新仿真与既有 GatewayRetry、VendorArchiveHTMLRetry、DownloaderTraffic、DownloaderCancellation、ResumableDownloadStore、RunningAppAutoUpdate、AutomaticInstall、RunningAppQuitBeforeApply、GitHubRateLimitGate/Wiring、GitHubTokenRejection、GitHubConditionalCache 测试合跑：退出码 0；`Test run with 188 tests in 16 suites passed`。
 - 临时移除 `versionFeedData` 的 GET/HEAD 方法保护：对应新测试以 8 个断言失败抓到 POST/PUT/PATCH/DELETE 重发；恢复原实现。
 - 临时移除 Downloader 的跨主机凭据剥离：对应新测试以 3 个断言失败抓到 Authorization/Cookie/Proxy-Authorization 保留；恢复原实现。
+- 独立 review 发现原取消用例的假通过：临时移除取消桥后，原用例等到请求超时仍以 CancellationError 通过（本次观察为 61.041 秒）。补强为取消后放行正确尾段，再做相同变异，取消用例以“错误完成下载”和“出现最终文件”两个断言失败；同夹具正常下载的完整 49,152 字节对照通过。恢复生产实现后，全部仿真通过。这里没有以墙钟上界判断取消是否正确。
 - 用假 `swift` 只提供一个 suite 验证运行入口：返回 1，明确报告缺失 suite，未进入测试执行步骤。
 - 最终生产源码与基线一致。这一轮增加测试设施与证据，没有修改自动更新策略。
 
 相关回归命令（实际运行时另以临时 `DUO_STATE_DIR` 隔离）：
 
 ```sh
-swift test --package-path DuoUpdaterCore --disable-automatic-resolution --jobs 4 \
+swift test --package-path DuoUpdaterCore --skip-build \
   --filter '(HTTP.*SimulationTests|GatewayRetryTests|VendorArchiveHTMLRetryTests|DownloaderTrafficTests|DownloaderCancellationTests|ResumableDownloadStoreTests|RunningAppAutoUpdateTests|AutomaticInstallTests|RunningAppQuitBeforeApplyTests|GitHubRateLimitGateTests|GitHubRateLimitGateWiringTests|GitHubTokenRejectionTests|GitHubConditionalCacheTests)'
 ```
 

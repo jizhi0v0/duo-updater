@@ -281,26 +281,73 @@ struct HTTPDownloadStatusSimulationTests {
         }
     }
 
-    @Test func cancellationStopsAnObservedInFlightTransferWithoutRetry() async throws {
-        let prefix = Data(repeating: 0x64, count: 16_384)
+    private static let heldPrefix = Data(repeating: 0x64, count: 16_384)
+    private static let heldTail = Data((0..<32_768).map { UInt8(($0 * 7 + 3) & 0xff) })
+
+    private func requireHeldPrefix(
+        _ sandbox: HTTPDownloadSandbox, server: HTTPDownloadLoopbackServer
+    ) async throws {
+        // Liveness guard only. A missing fixture is a failed prerequisite, never
+        // evidence that cancellation worked or that a download was fast enough.
+        let deadline = Date().addingTimeInterval(15)
+        while sandbox.downloader.bytesDownloaded < Int64(Self.heldPrefix.count), Date() < deadline {
+            try await Task.sleep(for: .milliseconds(5))
+        }
+        try #require(server.requests.count == 1, "Fixture never received the GET")
+        try #require(sandbox.downloader.bytesDownloaded == Int64(Self.heldPrefix.count),
+                     "Fixture prefix never reached Downloader")
+        #expect(try sandbox.destinationFiles.isEmpty)
+    }
+
+    /// Positive control for the cancellation fixture: an incomplete response can
+    /// finish cleanly after its exact tail is released on the same connection.
+    @Test func heldLoopbackResponseCompletesWithItsExactReleasedTail() async throws {
         let server = try HTTPDownloadLoopbackServer([
-            .init(status: 200,
-                  headers: ["Content-Length": "1000000", "Content-Type": "application/octet-stream"],
-                  body: prefix, hold: true),
+            .init(status: 200, headers: ["Content-Type": "application/octet-stream"],
+                  body: Self.heldPrefix, heldBody: Self.heldTail),
         ])
         defer { server.stop() }
         let sandbox = try HTTPDownloadSandbox()
+        let task = Task { try await sandbox.download(server.url) }
         do {
-            let task = Task { try await sandbox.download(server.url) }
-            // A harness liveness guard, not a download performance assertion.
-            // Cancellation happens only after bytes demonstrably reached disk.
-            let deadline = Date().addingTimeInterval(15)
-            while sandbox.downloader.bytesDownloaded < Int64(prefix.count), Date() < deadline {
-                try await Task.sleep(for: .milliseconds(5))
-            }
-            #expect(server.requests.count == 1, "Fixture never received the GET")
-            #expect(sandbox.downloader.bytesDownloaded == Int64(prefix.count), "Fixture body never reached Downloader")
+            try await requireHeldPrefix(sandbox, server: server)
+            let released = await server.releaseHeldBody()
+            try #require(released == 1, "The held response had no releasable tail")
+            let file = try await task.value
+            var fullBody = Self.heldPrefix
+            fullBody.append(Self.heldTail)
+            #expect(try Data(contentsOf: file) == fullBody)
+            #expect(sandbox.downloader.bytesDownloaded == Int64(fullBody.count))
+            #expect(server.requests.count == 1)
+            #expect(server.unexpectedRequests.isEmpty)
+            #expect(try sandbox.destinationFiles == [file.lastPathComponent])
+            #expect(try sandbox.resumeFiles.isEmpty)
+        } catch {
             task.cancel()
+            server.stop()
+            _ = await task.result
+            try await sandbox.close()
+            throw error
+        }
+        try await sandbox.close()
+    }
+
+    @Test func cancellationStopsAnObservedInFlightTransferWithoutRetry() async throws {
+        let server = try HTTPDownloadLoopbackServer([
+            .init(status: 200, headers: ["Content-Type": "application/octet-stream"],
+                  body: Self.heldPrefix, heldBody: Self.heldTail),
+        ])
+        defer { server.stop() }
+        let sandbox = try HTTPDownloadSandbox()
+        let task = Task { try await sandbox.download(server.url) }
+        do {
+            try await requireHeldPrefix(sandbox, server: server)
+            task.cancel()
+            // Let an unbridged URLSession finish successfully rather than timing
+            // out: a timeout would enter Downloader's catch, where the cancelled
+            // Swift task also becomes CancellationError and gives a false green.
+            let released = await server.releaseHeldBody()
+            try #require(released == 1, "The held response had no releasable tail")
             do {
                 _ = try await task.value
                 Issue.record("A cancelled download unexpectedly completed")
@@ -313,11 +360,14 @@ struct HTTPDownloadStatusSimulationTests {
             #expect(server.unexpectedRequests.isEmpty)
             #expect(try sandbox.destinationFiles.isEmpty)
             #expect(try sandbox.resumeFiles.isEmpty)
-            try await sandbox.close()
         } catch {
+            task.cancel()
+            server.stop()
+            _ = await task.result
             try await sandbox.close()
             throw error
         }
+        try await sandbox.close()
     }
 
     @Test func loopback302ToMirror403DoesNotRetryOrSaveThePage() async throws {

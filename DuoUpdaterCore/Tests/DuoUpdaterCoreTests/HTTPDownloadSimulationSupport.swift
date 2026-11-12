@@ -223,12 +223,15 @@ final class HTTPDownloadLoopbackServer: @unchecked Sendable {
         var headers: [String: String] = [:]
         var body = Data()
         var interimStatuses: [Int] = []
-        var hold = false
+        /// Withhold these exact bytes until releaseHeldBody(), keeping the same
+        /// response/connection open. Content-Length includes both body segments.
+        var heldBody: Data?
     }
 
     private final class State: @unchecked Sendable {
         let lock = NSLock()
         var connections: [ObjectIdentifier: NWConnection] = [:]
+        var heldBodies: [ObjectIdentifier: (connection: NWConnection, body: Data)] = [:]
         var stopped = false
         var requests: [String] = []
         var unexpected: [String] = []
@@ -253,8 +256,29 @@ final class HTTPDownloadLoopbackServer: @unchecked Sendable {
             }
         }
         func release(_ connection: NWConnection) {
-            _ = lock.withLock { connections.removeValue(forKey: ObjectIdentifier(connection)) }
+            lock.withLock {
+                let id = ObjectIdentifier(connection)
+                connections.removeValue(forKey: id)
+                heldBodies.removeValue(forKey: id)
+            }
             connection.cancel()
+        }
+
+        func hold(_ body: Data, on connection: NWConnection) {
+            lock.withLock {
+                let id = ObjectIdentifier(connection)
+                guard !stopped, connections[id] != nil else { return }
+                heldBodies[id] = (connection, body)
+            }
+        }
+
+        func takeHeldBodies() -> [(connection: NWConnection, body: Data)] {
+            lock.withLock {
+                guard !stopped else { return [] }
+                let bodies = Array(heldBodies.values)
+                heldBodies.removeAll()
+                return bodies
+            }
         }
     }
 
@@ -291,8 +315,10 @@ final class HTTPDownloadLoopbackServer: @unchecked Sendable {
                         return
                     }
                     var headers = response.headers
-                    if headers["Content-Length"] == nil { headers["Content-Length"] = String(response.body.count) }
-                    headers["Connection"] = response.hold ? "keep-alive" : "close"
+                    if headers["Content-Length"] == nil {
+                        headers["Content-Length"] = String(response.body.count + (response.heldBody?.count ?? 0))
+                    }
+                    headers["Connection"] = response.heldBody != nil ? "keep-alive" : "close"
                     // Informational heads precede the final response on the same
                     // socket. They are not standalone responses with a body.
                     var output = response.interimStatuses.map {
@@ -304,11 +330,9 @@ final class HTTPDownloadLoopbackServer: @unchecked Sendable {
                     }
                     var bytes = Data((output + "\r\n").utf8)
                     bytes.append(response.body)
+                    if let held = response.heldBody { state.hold(held, on: connection) }
                     connection.send(content: bytes, completion: .contentProcessed { error in
-                        // A held response deliberately leaves the declared body
-                        // incomplete. State retains it until the client cancels
-                        // or stop() closes all connections.
-                        if error != nil || !response.hold { state.release(connection) }
+                        if error != nil || response.heldBody == nil { state.release(connection) }
                     })
                 }
             }
@@ -330,11 +354,29 @@ final class HTTPDownloadLoopbackServer: @unchecked Sendable {
         self.port = port
     }
 
+    /// Enqueue the withheld, correct remainder immediately, without waiting for
+    /// the client to close. A cancelled client may reject the send; an uncancelled
+    /// client can complete the original Content-Length normally.
+    func releaseHeldBody() async -> Int {
+        await withCheckedContinuation { continuation in
+            queue.async { [state] in
+                let held = state.takeHeldBodies()
+                for response in held {
+                    response.connection.send(content: response.body, completion: .contentProcessed { _ in
+                        state.release(response.connection)
+                    })
+                }
+                continuation.resume(returning: held.count)
+            }
+        }
+    }
+
     func stop() {
         let connections = state.lock.withLock {
             state.stopped = true
             let connections = Array(state.connections.values)
             state.connections.removeAll()
+            state.heldBodies.removeAll()
             return connections
         }
         listener.cancel()

@@ -131,6 +131,23 @@ final class HTTPDownloadSimulation: @unchecked Sendable {
         try await sandbox.download(url, headers: headers)
     }
 
+    private let archiveBytesLock = NSLock()
+    private var _archiveBytesDownloaded: Int64 = 0
+    var archiveBytesDownloaded: Int64 { archiveBytesLock.withLock { _archiveBytesDownloaded } }
+
+    /// Runs the production artifact-acquisition helper. Each HTML recovery uses
+    /// a new Downloader as VendorInstaller.download does; only the helper owns
+    /// the shared attempt policy, not this fixture.
+    func fetchArchive() async throws -> URL {
+        try await ResumableDownloadStore.$rootOverride.withValue(sandbox.resumeRoot) {
+            try await VendorInstaller.fetchArchive(maxAttempts: VendorInstaller.htmlBodyMaxAttempts) {
+                let downloader = sandbox.makeDownloader()
+                defer { archiveBytesLock.withLock { _archiveBytesDownloaded += downloader.bytesDownloaded } }
+                return try await downloader.download(url)
+            }
+        }
+    }
+
     func close() async throws {
         script.stop()
         Transport.registry.remove(token)
@@ -159,6 +176,7 @@ final class HTTPDownloadSandbox: @unchecked Sendable {
     let resumeRoot: URL
     let store: EventStore
     let downloader: Downloader
+    private let configuration: URLSessionConfiguration
 
     static func configuration() -> URLSessionConfiguration {
         let configuration = URLSessionConfiguration.ephemeral
@@ -173,6 +191,7 @@ final class HTTPDownloadSandbox: @unchecked Sendable {
     }
 
     init(configuration: URLSessionConfiguration = HTTPDownloadSandbox.configuration()) throws {
+        self.configuration = configuration
         root = FileManager.default.temporaryDirectory
             .appendingPathComponent("HTTPDownloadSimulation-\(UUID().uuidString)", isDirectory: true)
         destination = root.appendingPathComponent("downloads", isDirectory: true)
@@ -181,6 +200,10 @@ final class HTTPDownloadSandbox: @unchecked Sendable {
         try FileManager.default.createDirectory(at: resumeRoot, withIntermediateDirectories: true)
         store = EventStore(fileURL: root.appendingPathComponent("events.sqlite"))
         downloader = Downloader(destinationDir: destination, configuration: configuration, store: store) { _ in }
+    }
+
+    func makeDownloader() -> Downloader {
+        Downloader(destinationDir: destination, configuration: configuration, store: store) { _ in }
     }
 
     func download(_ url: URL, headers: [String: String] = [:]) async throws -> URL {

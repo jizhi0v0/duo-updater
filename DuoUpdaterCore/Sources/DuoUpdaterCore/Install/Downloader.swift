@@ -36,10 +36,13 @@ final class Downloader: NSObject, URLSessionDataDelegate, @unchecked Sendable {
 
     enum DownloadError: LocalizedError {
         case httpStatus(Int)
+        /// Still a rejected response. Carries the server's future Retry-After
+        /// deadline so a later automatic round cannot retry before that date.
+        case httpStatusAfter(Int, Date)
         case unsafeFilename(String)
         /// A `206` whose `Content-Range` is missing, invalid, or describes a range
-        /// that cannot be joined onto the bytes already on disk. Not retried: the
-        /// same request would draw the same answer.
+        /// that cannot be joined onto the bytes already on disk. The same range
+        /// is not retried; a previously kept partial may be discarded once.
         case badPartialContent(String)
         /// The connection closed cleanly with a different number of bytes on disk
         /// than the server itself declared as the object's length. Transient when
@@ -61,7 +64,7 @@ final class Downloader: NSObject, URLSessionDataDelegate, @unchecked Sendable {
         case resumedObjectChanged(String)
         var errorDescription: String? {
             switch self {
-            case .httpStatus(let code):
+            case .httpStatus(let code), .httpStatusAfter(let code, _):
                 return "The server returned HTTP \(code) instead of the file."
             case .unsafeFilename(let name):
                 return "The server suggested an unsafe download filename: \(name)"
@@ -320,8 +323,8 @@ final class Downloader: NSObject, URLSessionDataDelegate, @unchecked Sendable {
                 try? FileManager.default.removeItem(at: partial)
             }
         }
-        // True while the bytes on disk came from an earlier call; cleared after
-        // the first attempt either way.
+        // A previously kept file gets one range-specific recovery. A malformed
+        // in-call resume still fails, unless its validator proves an object change.
         var resumingKept = lease?.validator != nil
 
         // `.notice`, not `.debug`: this is the longest and least reliable step in
@@ -335,6 +338,7 @@ final class Downloader: NSObject, URLSessionDataDelegate, @unchecked Sendable {
         Log.install.notice("download start: \(Redactor.host(url), privacy: .public)")
         let started = Date()
 
+        let budget = DownloadAttemptBudget.current ?? DownloadAttemptBudget()
         var lastError: Error = URLError(.unknown)
         for attempt in 0..<maxAttempts {
             // Stopping "Update All" has to stop the bytes. Checked before every
@@ -342,6 +346,7 @@ final class Downloader: NSObject, URLSessionDataDelegate, @unchecked Sendable {
             // two resumes is not answered with another request.
             try Task.checkCancellation()
             do {
+                try budget.beginAttempt()
                 let result = try await runAttempt(url: url, headers: headers, partial: partial)
                 let secs = Date().timeIntervalSince(started)
                 Log.install.notice(
@@ -356,29 +361,29 @@ final class Downloader: NSObject, URLSessionDataDelegate, @unchecked Sendable {
                 // `CancellationError` so every caller up the chain (the coordinator,
                 // `installAll`) reads it as "stopped", not "failed".
                 try Task.checkCancellation()
-                // A kept partial the server will not extend — a 416 because the
-                // earlier call had every byte but was killed before finishing, a
-                // 206 from some other offset — is not this download's failure:
-                // drop it and start from zero, as an in-call resume would. Nor is
-                // a resume answered from a changed object, kept partial or not.
-                let objectChanged: Bool
-                if case .resumedObjectChanged = error as? DownloadError { objectChanged = true } else { objectChanged = false }
-                if resumingKept || objectChanged, !Self.isTransient(error) {
-                    resumingKept = false
-                    try? FileManager.default.removeItem(at: partial)
+                budget.recordFailure(error)
+                // Restart only when a response says the requested range cannot
+                // be used. A kept partial does not make access denials, gateway
+                // errors, certificate failures or disk errors retryable.
+                let restartPartial = Self.partialNeedsRestart(error, resumingKept: resumingKept)
+                resumingKept = false
+                if attempt < maxAttempts - 1, budget.hasRemaining,
+                   attemptStartOffset > 0, restartPartial {
+                    if FileManager.default.fileExists(atPath: partial.path) {
+                        try FileManager.default.removeItem(at: partial)
+                    }
                     resumeValidator = nil
                     Log.install.notice(
-                        "download: the kept partial could not be resumed (\(error.localizedDescription, privacy: .public)) — starting over")
+                        "download: the requested partial could not be resumed (\(error.localizedDescription, privacy: .public)) — starting over")
                     continue
                 }
-                resumingKept = false
                 // Bytes already on disk: the next attempt resumes from here, so it
                 // is the one number that says whether a retry is making progress.
                 let attrs = try? FileManager.default.attributesOfItem(atPath: partial.path)
                 let onDisk = (attrs?[.size] as? Int64) ?? 0
                 // Only transient mid-transfer failures are worth another pass; the
                 // partial file persists so the next attempt resumes from it.
-                guard attempt < maxAttempts - 1, Self.isTransient(error) else {
+                guard attempt < maxAttempts - 1, budget.hasRemaining, Self.isTransient(error) else {
                     endedTransient = Self.isTransient(error)
                     Log.install.error(
                         "download failed: \(Redactor.host(url), privacy: .public) after attempt \(attempt + 1, privacy: .public)/\(self.maxAttempts, privacy: .public), \(onDisk, privacy: .public) bytes on disk, transient=\(Self.isTransient(error), privacy: .public) — \(error.localizedDescription, privacy: .public)")
@@ -533,7 +538,15 @@ final class Downloader: NSObject, URLSessionDataDelegate, @unchecked Sendable {
                 // Any other non-2xx (a 403/404 anti-bot page, a stray 416): reject.
                 // Such a body must never reach the extractor as if it were the
                 // archive.
-                pendingError = DownloadError.httpStatus(status)
+                let now = Date()
+                if let http, let delay = HTTPRetryAfter.delaySeconds(http, now: now), delay > 0 {
+                    let epoch = now.timeIntervalSince1970 + delay
+                    let deadline = Date(timeIntervalSince1970:
+                        epoch.isFinite ? epoch : TimeInterval.greatestFiniteMagnitude)
+                    pendingError = DownloadError.httpStatusAfter(status, deadline)
+                } else {
+                    pendingError = DownloadError.httpStatus(status)
+                }
                 completionHandler(.cancel)
                 return
             }
@@ -822,6 +835,18 @@ final class Downloader: NSObject, URLSessionDataDelegate, @unchecked Sendable {
         if totalText == "*" { return ContentRange(first: first, last: last, total: nil) }
         guard let total = Int64(totalText), total > last else { return nil }
         return ContentRange(first: first, last: last, total: total)
+    }
+
+    private static func partialNeedsRestart(_ error: Error, resumingKept: Bool) -> Bool {
+        guard let error = error as? DownloadError else { return false }
+        switch error {
+        case .httpStatus(416), .badPartialContent:
+            return resumingKept
+        case .resumedObjectChanged:
+            return true
+        default:
+            return false
+        }
     }
 
     /// Failures worth another attempt from the partial file: a `URLError` for a

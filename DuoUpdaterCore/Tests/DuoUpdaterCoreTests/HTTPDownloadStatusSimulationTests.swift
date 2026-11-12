@@ -202,28 +202,91 @@ struct HTTPDownloadStatusSimulationTests {
         }
     }
 
-    /// Current behavior: a definitive error while resuming kept bytes earns one
-    /// fresh request, even a 403/429/503. A fresh download of the same status earns
-    /// none. This pins that asymmetry; it does not endorse the retry policy.
-    @Test(arguments: [403, 404, 416, 429, 503])
-    func currentKeptPartialStatusFailureDiscardsItAndRetriesOnce(status: Int) async throws {
-        try await withSimulation([
-            .response(status, body: Self.errorPage), .response(status, body: Self.errorPage),
-        ]) { simulation in
+    @Test(arguments: [403, 404, 429, 500, 502, 503, 504])
+    func keptPartialDoesNotMakeARejectedStatusRetryable(status: Int) async throws {
+        try await withSimulation([.response(status, body: Self.errorPage)]) { simulation in
             try simulation.sandbox.seedPartial(for: simulation.url, body: Data("OLD".utf8), validator: "\"old\"")
             await expectHTTPStatus(status) { try await simulation.download() }
-            #expect(simulation.script.requests.count == 2)
-            #expect(simulation.script.requests.map(\.range) == ["bytes=3-", nil])
-            #expect(simulation.script.requests.map(\.ifRange) == ["\"old\"", nil])
+            #expect(simulation.script.requests.count == 1)
+            #expect(simulation.script.requests.map(\.range) == ["bytes=3-"])
+            #expect(simulation.script.requests.map(\.ifRange) == ["\"old\""])
             #expect(simulation.sandbox.downloader.bytesDownloaded == 3)
             #expect(try simulation.sandbox.destinationFiles.isEmpty)
             #expect(try simulation.sandbox.resumeFiles.isEmpty)
         }
     }
 
-    @Test func keptPartial403Then200NeverIncludesTheForbiddenPage() async throws {
+    @Test(arguments: [429, 503, 416])
+    func futureHTTPDateRetryAfterSurvivesARealHTTPRejectionWithoutRetry(status: Int) async throws {
+        let deadline = Date(timeIntervalSince1970: floor(Date().timeIntervalSince1970) + 48 * 60 * 60)
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "EEE, dd MMM yyyy HH:mm:ss 'GMT'"
+        let server = try HTTPDownloadLoopbackServer([
+            .init(status: status, headers: ["Retry-After": formatter.string(from: deadline)], body: Self.errorPage),
+        ])
+        defer { server.stop() }
+        let sandbox = try HTTPDownloadSandbox()
+        do {
+            // The 416 must also honor Retry-After rather than dropping the kept
+            // fragment and issuing a second request immediately.
+            try sandbox.seedPartial(for: server.url, body: Data("OLD".utf8), validator: "\"old\"")
+            do {
+                _ = try await sandbox.download(server.url)
+                Issue.record("A rejected HTTP response unexpectedly succeeded")
+            } catch let error as Downloader.DownloadError {
+                guard case .httpStatusAfter(let actual, let retryAt) = error else {
+                    Issue.record("Expected httpStatusAfter, got \(error)")
+                    try await sandbox.close()
+                    return
+                }
+                #expect(actual == status)
+                #expect(abs(retryAt.timeIntervalSince(deadline)) < 0.001)
+                #expect(error.localizedDescription == Downloader.DownloadError.httpStatus(status).localizedDescription)
+            }
+            #expect(server.requests.count == 1)
+            #expect(server.unexpectedRequests.isEmpty)
+            #expect(sandbox.downloader.bytesDownloaded == 3)
+            #expect(try sandbox.destinationFiles.isEmpty)
+            #expect(try sandbox.resumeFiles.isEmpty)
+        } catch {
+            try await sandbox.close()
+            throw error
+        }
+        try await sandbox.close()
+    }
+
+    @Test(arguments: [429, 503, 416])
+    func futureDeltaSecondsRetryAfterPreservesTheDeadlineAndMakesOneRequest(status: Int) async throws {
         try await withSimulation([
-            .response(403, body: Self.errorPage), .response(200, body: Self.payload),
+            .response(status, headers: ["Retry-After": "172800"], body: Self.errorPage),
+        ]) { simulation in
+            let beforeResponse = Date()
+            do {
+                _ = try await simulation.download()
+                Issue.record("A rejected HTTP response unexpectedly succeeded")
+            } catch let error as Downloader.DownloadError {
+                let afterResponse = Date()
+                guard case .httpStatusAfter(let actual, let retryAt) = error else {
+                    Issue.record("Expected httpStatusAfter, got \(error)")
+                    return
+                }
+                #expect(actual == status)
+                // Bounds on the encoded deadline, not transfer performance.
+                #expect(retryAt >= beforeResponse.addingTimeInterval(172800))
+                #expect(retryAt <= afterResponse.addingTimeInterval(172800))
+                #expect(error.localizedDescription == Downloader.DownloadError.httpStatus(status).localizedDescription)
+            }
+            #expect(simulation.script.requests.count == 1)
+            #expect(try simulation.sandbox.destinationFiles.isEmpty)
+            #expect(try simulation.sandbox.resumeFiles.isEmpty)
+        }
+    }
+
+    @Test func keptPartial416Then200RestartsFromZero() async throws {
+        try await withSimulation([
+            .response(416, body: Self.errorPage), .response(200, body: Self.payload),
         ]) { simulation in
             try simulation.sandbox.seedPartial(for: simulation.url, body: Data("OLD".utf8), validator: "\"old\"")
             let file = try await simulation.download()
@@ -231,6 +294,122 @@ struct HTTPDownloadStatusSimulationTests {
             #expect(simulation.script.requests.count == 2)
             #expect(simulation.script.requests.map(\.range) == ["bytes=3-", nil])
             #expect(simulation.sandbox.downloader.bytesDownloaded == 9)
+            #expect(try simulation.sandbox.resumeFiles.isEmpty)
+        }
+    }
+
+    @Test(arguments: [nil, "invalid", "bytes 2-5/6"] as [String?])
+    func unusableKeptRangeRestartsOnceWithoutAppending(contentRange: String?) async throws {
+        let headers = contentRange.map { ["Content-Range": $0] } ?? [:]
+        try await withSimulation([
+            .response(206, headers: headers, body: Self.errorPage), .response(200, body: Self.payload),
+        ]) { simulation in
+            try simulation.sandbox.seedPartial(for: simulation.url, body: Data("OLD".utf8), validator: "\"old\"")
+            let file = try await simulation.download()
+            #expect(try Data(contentsOf: file) == Self.payload)
+            #expect(simulation.script.requests.count == 2)
+            #expect(simulation.script.requests.map(\.range) == ["bytes=3-", nil])
+            #expect(simulation.script.requests.map(\.ifRange) == ["\"old\"", nil])
+            #expect(simulation.sandbox.downloader.bytesDownloaded == 9)
+            #expect(try simulation.sandbox.resumeFiles.isEmpty)
+        }
+    }
+
+    @Test(arguments: [URLError.Code.serverCertificateUntrusted, .serverCertificateHasBadDate, .cannotWriteToFile])
+    func keptPartialDoesNotRetryCertificateOrLocalWriteErrors(code: URLError.Code) async throws {
+        try await withSimulation([.transportError(code)]) { simulation in
+            try simulation.sandbox.seedPartial(for: simulation.url, body: Data("OLD".utf8), validator: "\"old\"")
+            do {
+                _ = try await simulation.download()
+                Issue.record("A definitive error unexpectedly succeeded")
+            } catch let error as URLError {
+                #expect(error.code == code)
+            }
+            #expect(simulation.script.requests.count == 1)
+            #expect(simulation.script.requests.map(\.range) == ["bytes=3-"])
+            #expect(try simulation.sandbox.destinationFiles.isEmpty)
+            #expect(try simulation.sandbox.resumeFiles.isEmpty)
+        }
+    }
+
+    @Test func transientThenRepeatedHTMLStopsAtFiveTotalGETsAndDeletesThePages() async throws {
+        try await withSimulation([
+            .transportError(.timedOut),
+            .response(200, body: Self.errorPage), .response(200, body: Self.errorPage),
+            .response(200, body: Self.errorPage), .response(200, body: Self.errorPage),
+        ]) { simulation in
+            do {
+                _ = try await simulation.fetchArchive()
+                Issue.record("Repeated HTML unexpectedly became an archive")
+            } catch let error as VendorInstaller.InstallError {
+                guard case .htmlInsteadOfArchive = error else {
+                    Issue.record("Expected htmlInsteadOfArchive, got \(error)")
+                    return
+                }
+            }
+            #expect(simulation.script.requests.map(\.attempt) == [1, 2, 3, 4, 5])
+            #expect(simulation.archiveBytesDownloaded == Int64(Self.errorPage.count * 4))
+            #expect(try simulation.sandbox.destinationFiles.isEmpty)
+            #expect(try simulation.sandbox.resumeFiles.isEmpty)
+        }
+    }
+
+    /// The outer helper creates fresh Downloader objects. Resetting their shared
+    /// budget would issue a sixth GET after the final timeout, which this strict
+    /// fixture rejects instead of supplying an implicit successful response.
+    @Test func alternatingTransportAndHTMLFailuresShareOneBudgetAndKeepTheLastTypedError() async throws {
+        try await withSimulation([
+            .transportError(.timedOut), .response(200, body: Self.errorPage),
+            .transportError(.timedOut), .response(200, body: Self.errorPage),
+            .transportError(.timedOut),
+        ]) { simulation in
+            do {
+                _ = try await simulation.fetchArchive()
+                Issue.record("An exhausted artifact acquisition unexpectedly succeeded")
+            } catch let error as URLError {
+                #expect(error.code == .timedOut)
+            }
+            #expect(simulation.script.requests.map(\.attempt) == [1, 2, 3, 4, 5])
+            #expect(simulation.archiveBytesDownloaded == Int64(Self.errorPage.count * 2))
+            #expect(try simulation.sandbox.destinationFiles.isEmpty)
+            #expect(try simulation.sandbox.resumeFiles.isEmpty)
+        }
+    }
+
+    @Test(arguments: [403, 429, 503])
+    func htmlRecoveryDoesNotMakeTheNextHTTPRejectionRetryable(status: Int) async throws {
+        try await withSimulation([
+            .response(200, body: Self.errorPage), .response(status, body: Self.errorPage),
+        ]) { (simulation: HTTPDownloadSimulation) async throws in
+            await expectHTTPStatus(status) { try await simulation.fetchArchive() }
+            #expect(simulation.script.requests.count == 2)
+            #expect(simulation.archiveBytesDownloaded == Int64(Self.errorPage.count))
+            #expect(try simulation.sandbox.destinationFiles.isEmpty)
+            #expect(try simulation.sandbox.resumeFiles.isEmpty)
+        }
+    }
+
+    @Test func htmlThenRealZIPRecoversAndCountsDiscardedPartialAndHTMLBytes() async throws {
+        // A complete stored ZIP with central directory, CRC and payload.txt,
+        // unpacked below by the production extractor rather than a magic prefix.
+        let zip = try #require(Data(base64Encoded:
+            "UEsDBBQAAAAAAAAAIQDbSPkjEwAAABMAAAALAAAAcGF5bG9hZC50eHRzaW11bGF0aW9uIGFyY2hpdmUKUEsBAhQDFAAAAAAAAAAhANtI+SMTAAAAEwAAAAsAAAAAAAAAAAAAAKSBAAAAAHBheWxvYWQudHh0UEsFBgAAAAABAAEAOQAAADwAAAAAAA=="))
+        try await withSimulation([
+            .response(200, body: Self.errorPage), .response(200, body: zip),
+        ]) { simulation in
+            try simulation.sandbox.seedPartial(for: simulation.url, body: Data("OLD".utf8), validator: "\"old\"")
+            let file = try await simulation.fetchArchive()
+            #expect(try Data(contentsOf: file) == zip)
+            let archive = try VendorInstaller.normalizedArchive(
+                file, kind: .zip, workDir: simulation.sandbox.destination)
+            let unpacked = simulation.sandbox.root.appendingPathComponent("extracted", isDirectory: true)
+            try FileManager.default.createDirectory(at: unpacked, withIntermediateDirectories: true)
+            try await ArchiveExtractor.unpack(archive, into: unpacked)
+            #expect(try Data(contentsOf: unpacked.appendingPathComponent("payload.txt")) == Data("simulation archive\n".utf8))
+            #expect(simulation.script.requests.count == 2)
+            #expect(simulation.script.requests.map(\.range) == ["bytes=3-", nil])
+            #expect(simulation.archiveBytesDownloaded == Int64(3 + Self.errorPage.count + zip.count))
+            #expect(try simulation.sandbox.destinationFiles == [archive.lastPathComponent])
             #expect(try simulation.sandbox.resumeFiles.isEmpty)
         }
     }

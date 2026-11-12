@@ -6062,33 +6062,38 @@ final class AppListModel {
                 // false here; the coordinator throws instead, which the catch
                 // below settles the same way (and now says why).
                 if AutomaticInstall.active && !automaticUpdatesAllowed { throw AutomaticInstall.Deferred("Automatic updates are paused.") }
-                let outcome = try await Self.installCoordinator.perform(
-                    result, route: route,
-                    // Every scanned app, not just this one — `SelfUpdaterStash`
-                    // asks whether any OTHER installed copy claims the same
-                    // updater cache directory. Same expression the staging sweep
-                    // uses for the same reason (`computeSelfUpdateStaging`).
-                    installedPopulation: results.map(\.app),
-                    // Read now, after the re-check: the row's offer may predate
-                    // the user turning this off.
-                    digestOnlyAllowed: prefs.allowsDigestOnlyInstalls,
-                    // Xcode asks before it quits a running copy — the row turns
-                    // into the same Relaunch control the App Store route raises,
-                    // and `confirmQuit`'s `reopenAfterQuit` reopens it after.
-                    quitPrompt: QuitPromptChannel(
-                        request: { [weak self] appName in
-                            Task { @MainActor in self?.requestQuit(id: id, appName: appName) }
+                let outcome = try await AutomaticUpdateFailurePolicy.capturing {
+                    try await Self.installCoordinator.perform(
+                        result, route: route,
+                        // Every scanned app, not just this one — `SelfUpdaterStash`
+                        // asks whether any OTHER installed copy claims the same
+                        // updater cache directory. Same expression the staging sweep
+                        // uses for the same reason (`computeSelfUpdateStaging`).
+                        installedPopulation: results.map(\.app),
+                        // Read now, after the re-check: the row's offer may predate
+                        // the user turning this off.
+                        digestOnlyAllowed: prefs.allowsDigestOnlyInstalls,
+                        // Xcode asks before it quits a running copy — the row turns
+                        // into the same Relaunch control the App Store route raises,
+                        // and `confirmQuit`'s `reopenAfterQuit` reopens it after.
+                        quitPrompt: QuitPromptChannel(
+                            request: { [weak self] appName in
+                                Task { @MainActor in self?.requestQuit(id: id, appName: appName) }
+                            },
+                            answer: { [weak self] in
+                                await MainActor.run { self?.quitAnswer(id: id) ?? .pending }
+                            },
+                            withdraw: { [weak self] in
+                                Task { @MainActor in self?.withdrawQuit(id: id) }
+                            }),
+                        brewPassword: AutomaticInstall.active ? nil : BrewSudoPasswordPanel.prompt,
+                        progress: AutomaticUpdateFailurePolicy.recordingProgress(
+                            stages.recording { stage in Task { @MainActor in self.setStage(id, stage) } }),
+                        releaseAfterDownload: AutomaticUpdateFailurePolicy.afterDownload {
+                            await releaseAfterDownload?.release()
                         },
-                        answer: { [weak self] in
-                            await MainActor.run { self?.quitAnswer(id: id) ?? .pending }
-                        },
-                        withdraw: { [weak self] in
-                            Task { @MainActor in self?.withdrawQuit(id: id) }
-                        }),
-                    brewPassword: AutomaticInstall.active ? nil : BrewSudoPasswordPanel.prompt,
-                    progress: stages.recording { stage in Task { @MainActor in self.setStage(id, stage) } },
-                    releaseAfterDownload: { await releaseAfterDownload?.release() },
-                    beforeInstallerOpen: { await self.retireStagedPackage(for: id) })
+                        beforeInstallerOpen: { await self.retireStagedPackage(for: id) })
+                }
                 // The App Store branch below has no `applied` to report and
                 // leaves this false, so there the disk still decides (whether a
                 // store update can move an app to another path: not checked).
@@ -10431,6 +10436,21 @@ final class AppListModel {
     // successful disk readback. Only the automatic caller owns these entries.
     private var automaticInstallVersions: [String: (from: String, to: String)] = [:]
 
+    private func recordAutomaticInstallFailure(
+        _ result: UpdateResult, failure: AutomaticUpdateFailurePolicy.Failure
+    ) {
+        let key = prefs.key(for: result.app)
+        let now = Date()
+        // A pre-install recheck may have replaced this pass's selected offer.
+        // Use its actual attempted version when it is known. An early-out with
+        // no attempted version stays attached to the originally selected offer;
+        // it is not evidence that a newer version was attempted.
+        let attempted = automaticInstallVersions[result.id]?.to
+        let version = attempted.flatMap { $0.isEmpty ? nil : $0 } ?? result.remote?.displayVersion ?? ""
+        _ = prefs.runningAppUpdateLedger.observe(key, version: version, now: now)
+        prefs.runningAppUpdateLedger.recordFailure(key, failure: failure, now: now)
+    }
+
     private func recordAutomaticUpdate(_ result: UpdateResult, status: String, reason: String? = nil,
                                        versions: (from: String, to: String)? = nil,
                                        correlation: [String: String] = [:]) async {
@@ -10542,25 +10562,28 @@ final class AppListModel {
                     try await self.quitForSwap(result, plan: plan)
                 }
             }
-            let outcome = await AutomaticInstall.$diagnostic.withValue(capture) {
-                await AutomaticInstall.$active.withValue(true) {
-                    await AutomaticInstall.$quitBeforeApply.withValue(quitBeforeApply) {
-                        await AutomaticInstall.$permission.withValue({ @MainActor [weak self] in
-                            guard let self else { return false }
-                            return self.automaticUpdatesAllowed
-                                && (!quitPath || self.prefs.automaticUpdatesRunningApps)
-                        }) {
-                            let enabled = prefs.automaticUpdatesSnapshot
-                            let scheduled = prefs.scheduledChecksSnapshot
-                            let running = prefs.runningAppsSnapshot
-                            let network = NetworkMonitor.shared.automaticTrafficSnapshot
-                            return await AutomaticInstall.$commitPermission.withValue({
-                                enabled.allowed && scheduled.allowed && network.allowed
-                                    && (!quitPath || running.allowed)
+            let failureAttempt = AutomaticUpdateFailurePolicy.Attempt()
+            let outcome = await AutomaticUpdateFailurePolicy.$attempt.withValue(failureAttempt) {
+                await AutomaticInstall.$diagnostic.withValue(capture) {
+                    await AutomaticInstall.$active.withValue(true) {
+                        await AutomaticInstall.$quitBeforeApply.withValue(quitBeforeApply) {
+                            await AutomaticInstall.$permission.withValue({ @MainActor [weak self] in
+                                guard let self else { return false }
+                                return self.automaticUpdatesAllowed
+                                    && (!quitPath || self.prefs.automaticUpdatesRunningApps)
                             }) {
-                                // Follow KeepBackups; the one-off override is only for
-                                // an explicit “Back Up & Update” action.
-                                await install(result, notify: false)
+                                let enabled = prefs.automaticUpdatesSnapshot
+                                let scheduled = prefs.scheduledChecksSnapshot
+                                let running = prefs.runningAppsSnapshot
+                                let network = NetworkMonitor.shared.automaticTrafficSnapshot
+                                return await AutomaticInstall.$commitPermission.withValue({
+                                    enabled.allowed && scheduled.allowed && network.allowed
+                                        && (!quitPath || running.allowed)
+                                }) {
+                                    // Follow KeepBackups; the one-off override is only for
+                                    // an explicit “Back Up & Update” action.
+                                    await install(result, notify: false)
+                                }
                             }
                         }
                     }
@@ -10589,16 +10612,30 @@ final class AppListModel {
                     // again: those stops are theirs, not the app's, and must not
                     // count toward giving up on it.
                     if !reopenedByUser && automaticUpdatesAllowed && prefs.automaticUpdatesRunningApps {
-                        prefs.runningAppUpdateLedger.recordFailure(prefs.key(for: result.app), now: Date())
+                        switch outcome {
+                        case .cancelled:
+                            break
+                        case .deferred:
+                            // Deferred has no typed user/safety distinction.
+                            // Keep the existing bounded post-quit safety backoff;
+                            // a revoked live permission is excluded above.
+                            prefs.runningAppUpdateLedger.recordFailure(prefs.key(for: result.app), now: Date())
+                        default:
+                            let reason = installErrors[result.id] ?? event.reason ?? "Automatic updates are paused."
+                            if let failure = failureAttempt.failure(or: reason, appWasQuit: true) {
+                                recordAutomaticInstallFailure(result, failure: failure)
+                            }
+                        }
                     }
                 }
-            } else if outcome == .notInstalled && installErrors[result.id] != nil && automaticUpdatesAllowed {
-                // A failed install (a refused signature, a broken archive, a
-                // download that keeps failing) would otherwise be downloaded again
-                // on every check. A running app's never reached its quit. Only a
-                // failure with an error: an early-out (a re-check that could not
-                // confirm the update, already current) is not the install failing.
-                prefs.runningAppUpdateLedger.recordFailure(prefs.key(for: result.app), now: Date())
+            } else if outcome == .notInstalled, let reason = installErrors[result.id], automaticUpdatesAllowed {
+                // Only a typed, acquisition-only transient error may recover on
+                // a later pass. Integrity, refusal, apply and unknown failures
+                // pause this offer instead of downloading it every day. An
+                // early-out without an error still is not an install failure.
+                if let failure = failureAttempt.failure(or: reason) {
+                    recordAutomaticInstallFailure(result, failure: failure)
+                }
             }
             let versions = automaticInstallVersions.removeValue(forKey: result.id)
             correlation["diagnosticIDs"] = diagnostics.references(for: attemptID)
@@ -10654,13 +10691,11 @@ final class AppListModel {
     /// Why a closed app's update waits after earlier failed attempts, if it does:
     /// the same back-off and give-up as a running app's (`RunningAppAutoUpdate`).
     private func closedAppBackoff(_ result: UpdateResult) -> String? {
-        guard let version = result.remote?.displayVersion else { return nil }
-        let entry = prefs.runningAppUpdateLedger.observe(prefs.key(for: result.app), version: version, now: Date())
-        if entry.gaveUp {
-            return "Updating it failed \(RunningAppAutoUpdate.maxFailures) times. Waiting for a newer version."
-        }
-        if let retryAfter = entry.retryAfter, Date() < retryAfter {
-            return "Updating it failed in the last day. Trying again after that."
+        let version = result.remote?.displayVersion ?? ""
+        let now = Date()
+        let entry = prefs.runningAppUpdateLedger.observe(prefs.key(for: result.app), version: version, now: now)
+        if case .wait(let reason) = RunningAppAutoUpdate.decide(entry: entry, now: now) {
+            return reason.message
         }
         return nil
     }
@@ -10685,7 +10720,7 @@ final class AppListModel {
     /// permission change during download is respected. Never DuoUpdater itself,
     /// and never an app with only helpers left: there is nothing to reopen.
     private func runningAppReadiness(
-        _ result: UpdateResult, processes: [NestedAppGuard.RunningProcess]
+        _ result: UpdateResult, processes: [NestedAppGuard.RunningProcess], offeredVersion: String? = nil
     ) -> RunningAppPreparation {
         let running = "The app or one of its helpers is running."
         let instances = AppRestarter.allRunningInstances(of: result.app)
@@ -10696,7 +10731,7 @@ final class AppListModel {
         guard prefs.automaticUpdatesRunningApps,
               prefs.automaticUpdateMode(result.app) == .alsoWhenRunning,
               let bundleID = result.app.bundleID, bundleID != Bundle.main.bundleIdentifier,
-              let version = result.remote?.displayVersion
+              let version = offeredVersion ?? result.remote?.displayVersion, !version.isEmpty
         else { return .wait(running) }
         let key = prefs.key(for: result.app)
         let now = Date()
@@ -10752,11 +10787,16 @@ final class AppListModel {
             }
         }
         guard automaticUpdatesAllowed else { throw AutomaticInstall.Deferred("Automatic updates are paused.") }
-        if case .wait(let why) = runningAppReadiness(result, processes: processes) {
+        // The recheck ran inside install(), after this quit plan captured its
+        // row. Never quit using an older row as proof of the attempted offer.
+        guard let attemptedVersion = automaticInstallVersions[result.id]?.to, !attemptedVersion.isEmpty else {
+            throw AutomaticInstall.Deferred("Automatic update eligibility changed before installation.")
+        }
+        if case .wait(let why) = runningAppReadiness(result, processes: processes, offeredVersion: attemptedVersion) {
             throw AutomaticInstall.Deferred(why)
         }
         let key = prefs.key(for: result.app)
-        Log.app.notice("automatic update: quitting allowed \(result.app.name, privacy: .public) for \(result.remote?.displayVersion ?? "?", privacy: .public)")
+        Log.app.notice("automatic update: quitting allowed \(result.app.name, privacy: .public) for \(attemptedVersion, privacy: .public)")
         // Held from the quit until the app is reopened (`automaticallyInstallUpdates`,
         // `reopenIfItQuitsLate`); see `automaticQuitHolds`.
         automaticQuitHolds.insert(result.id)

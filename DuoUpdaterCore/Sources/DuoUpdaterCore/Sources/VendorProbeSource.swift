@@ -145,40 +145,22 @@ public struct VendorProbeSource: UpdateSource {
         let status: Int?
     }
 
-    /// The same rule `ProbeFailure.classification` applies to version probes: 5xx and
-    /// 429 are the vendor having a bad day, anything else in 4xx is us.
+    /// Temporary responses this source may retry inside one probe. Capability,
+    /// authentication and unknown server errors do not earn another request.
     static func isTransientStatus(_ code: Int) -> Bool {
-        code >= 500 || code == 429
+        [429, 500, 502, 503, 504].contains(code)
     }
 
     /// How long to wait before each `.redirect` HEAD attempt, indexed by attempt
     /// number — so the count of attempts and the backoff between them are one
     /// declaration rather than two that can drift apart.
     ///
-    /// It doubles as the yardstick a `Retry-After` is measured against: what is
-    /// left of this array is the entire wait this probe will ever spend, so a
-    /// vendor asking for longer than that is telling us the remaining attempts
-    /// cannot succeed.
+    /// Retry-After is compared with the next pause, never the sum of remaining
+    /// pauses: no individual request may precede the vendor's deadline.
     static let redirectRetryBackoff: [TimeInterval] = [0, 0.7, 1.4]
 
-    /// The `Retry-After` delay the vendor asked for, in seconds, or nil if it did
-    /// not ask — or asked as a date.
-    ///
-    /// RFC 9110 §10.2.3 allows either form (`Retry-After = HTTP-date /
-    /// delay-seconds`, where `delay-seconds = 1*DIGIT`, a non-negative decimal
-    /// integer). Only the integer form is read here: it is what the one measured
-    /// case sent (Cloudflare's 429 for `discord.com/api/download/*`, 2026-09-15:
-    /// `retry-after: 3000`), and a value this cannot parse falls through to the
-    /// retry loop — which is what EVERY `Retry-After` did before this existed, so
-    /// the date form is a gap rather than a regression.
-    ///
-    /// `Character.isNumber` alone would accept non-ASCII digits, which `1*DIGIT`
-    /// does not, hence the pair.
-    static func retryAfterDelaySeconds(_ response: HTTPURLResponse) -> TimeInterval? {
-        guard let raw = response.value(forHTTPHeaderField: "Retry-After") else { return nil }
-        let digits = raw.trimmingCharacters(in: .whitespaces)
-        guard !digits.isEmpty, digits.allSatisfy({ $0.isASCII && $0.isNumber }) else { return nil }
-        return TimeInterval(digits)
+    static func retryAfterDelaySeconds(_ response: HTTPURLResponse, now: Date = Date()) -> TimeInterval? {
+        HTTPRetryAfter.delaySeconds(response, now: now)
     }
 
     /// A browser-like UA — several vendor sites reject unfamiliar agents.
@@ -1428,20 +1410,50 @@ public struct VendorProbeSource: UpdateSource {
         }
 
         var lastStatus: Int?
+        let cooldowns = HTTPRetryAfter.cooldowns
+        let headRequest = request("HEAD", range: false)
+        let rangeRequest = request("GET", range: true)
+        if let failure = cooldowns.failure(for: headRequest, in: session) { return .transient(status: failure.statusCode) }
+        // A known cooling fallback also ends this composite probe before its
+        // HEAD: a new scan must not keep paying a method-refusal request while
+        // the range check it would need is still unavailable.
+        if let failure = cooldowns.failure(for: rangeRequest, in: session) { return .transient(status: failure.statusCode) }
         // Same shape as the `.redirect` resolve above: retry the transient kinds a
         // few times before believing them, so one 502 in a burst does not cost a
         // recipe its green.
-        for attempt in 0..<3 {
-            if attempt > 0 {
-                try? await Task.sleep(nanoseconds: UInt64(attempt) * 700_000_000)
+        for attempt in Self.redirectRetryBackoff.indices {
+            guard !Task.isCancelled else { return .transient(status: lastStatus) }
+            let pause = Self.redirectRetryBackoff[attempt]
+            if pause > 0 {
+                do { try await Task.sleep(for: .seconds(pause)) }
+                catch { return .transient(status: lastStatus) }
             }
+            guard !Task.isCancelled else { return .transient(status: lastStatus) }
+            if let failure = cooldowns.failure(for: headRequest, in: session) { return .transient(status: failure.statusCode) }
             guard let (_, response) = try? await session.countedData(
-                for: request("HEAD", range: false), purpose: .versionCheck),
+                for: headRequest, purpose: .versionCheck),
                   let http = response as? HTTPURLResponse
             else { lastStatus = nil; continue }
             lastStatus = http.statusCode
+            cooldowns.observe(http, for: headRequest, in: session)
             if (200..<400).contains(http.statusCode) { return .ok }
-            if Self.isTransientStatus(http.statusCode) { continue }
+            if Self.isTransientStatus(http.statusCode) {
+                guard Self.permitsInstallRetry(http, afterAttempt: attempt) else {
+                    return .transient(status: lastStatus)
+                }
+                continue
+            }
+            // A server/capability failure is not evidence that the artifact is
+            // gone, but another identical request cannot repair it either.
+            if http.statusCode >= 500 || http.statusCode == 416 {
+                return .transient(status: lastStatus)
+            }
+            // The HEAD→GET fallback has no scheduled pause. Respect a positive
+            // Retry-After here too instead of changing methods and asking early.
+            guard cooldowns.permitsRetry(http, after: .zero), !Task.isCancelled else {
+                return .transient(status: lastStatus)
+            }
+            if let failure = cooldowns.failure(for: rangeRequest, in: session) { return .transient(status: failure.statusCode) }
 
             // 4xx. Could be a real 404, could be a host that simply refuses HEAD.
             //
@@ -1453,7 +1465,7 @@ public struct VendorProbeSource: UpdateSource {
             // stall and a straight violation of this sweep's "never downloads an
             // installer" contract (`Verify.swift`'s header).
             guard let (stream, ranged) = try? await session.countedBytes(
-                    for: request("GET", range: true), purpose: .versionCheck),
+                    for: rangeRequest, purpose: .versionCheck),
                   let rangedHTTP = ranged as? HTTPURLResponse
             else {
                 // No answer at all. NOT `.gone`: the asymmetry matters, because
@@ -1465,9 +1477,13 @@ public struct VendorProbeSource: UpdateSource {
                 continue
             }
             stream.task.cancel()
+            cooldowns.observe(rangedHTTP, for: rangeRequest, in: session)
             if (200..<400).contains(rangedHTTP.statusCode) { return .ok }
             if Self.isTransientStatus(rangedHTTP.statusCode) {
                 lastStatus = rangedHTTP.statusCode
+                guard Self.permitsInstallRetry(rangedHTTP, afterAttempt: attempt) else {
+                    return .transient(status: lastStatus)
+                }
                 continue
             }
             // 416 means the range was refused, not that the artifact is missing —
@@ -1476,13 +1492,18 @@ public struct VendorProbeSource: UpdateSource {
             // all. Either way this probe has run out of ways to ask, and guessing
             // "deleted" from a Range complaint is exactly the false accusation the
             // GET fallback exists to prevent.
-            if rangedHTTP.statusCode == 416 || rangedHTTP.statusCode == 501 {
-                lastStatus = rangedHTTP.statusCode
-                continue
+            if rangedHTTP.statusCode == 416 || rangedHTTP.statusCode >= 500 {
+                return .transient(status: rangedHTTP.statusCode)
             }
             return .gone(status: rangedHTTP.statusCode)
         }
         return .transient(status: lastStatus)
+    }
+
+    private static func permitsInstallRetry(_ response: HTTPURLResponse, afterAttempt attempt: Int) -> Bool {
+        let next = attempt + 1
+        guard redirectRetryBackoff.indices.contains(next) else { return false }
+        return HTTPRetryAfter.cooldowns.permitsRetry(response, after: .seconds(redirectRetryBackoff[next]))
     }
 
     private static func apply(_ headers: [String: String], to request: inout URLRequest) {
@@ -1720,47 +1741,40 @@ public struct VendorProbeSource: UpdateSource {
             // which also came back 502, so it is the vendor and not URLSession.
             // Retry a few times, then say which kind of failure it was.
             var lastStatus: Int?
+            let cooldowns = HTTPRetryAfter.cooldowns
+            var request = URLRequest(url: url)
+            request.httpMethod = "HEAD"
+            request.timeoutInterval = 15
+            request.cachePolicy = URLRequest.versionFeedCachePolicy
+            request.setValue(Self.userAgent, forHTTPHeaderField: "User-Agent")
+            if let failure = cooldowns.failure(for: request, in: session) {
+                throw TransientInstallURL(status: failure.statusCode)
+            }
             for attempt in Self.redirectRetryBackoff.indices {
+                guard !Task.isCancelled else { throw TransientInstallURL(status: lastStatus) }
                 let pause = Self.redirectRetryBackoff[attempt]
                 if pause > 0 {
-                    try? await Task.sleep(nanoseconds: UInt64(pause * 1_000_000_000))
+                    do { try await Task.sleep(for: .seconds(pause)) }
+                    catch { throw TransientInstallURL(status: lastStatus) }
                 }
-                var request = URLRequest(url: url)
-                request.httpMethod = "HEAD"
-                request.timeoutInterval = 15
-                request.cachePolicy = URLRequest.versionFeedCachePolicy
-                request.setValue(Self.userAgent, forHTTPHeaderField: "User-Agent")
+                guard !Task.isCancelled else { throw TransientInstallURL(status: lastStatus) }
+                if let failure = cooldowns.failure(for: request, in: session) {
+                    throw TransientInstallURL(status: failure.statusCode)
+                }
                 guard let (_, response) = try? await session.countedData(for: request, purpose: .versionCheck),
                       let http = response as? HTTPURLResponse
                 else { lastStatus = nil; continue }
                 lastStatus = http.statusCode
+                cooldowns.observe(http, for: request, in: session)
                 guard (200..<400).contains(http.statusCode) else {
-                    // 4xx means the URL we were given is wrong — that IS the recipe,
-                    // and retrying cannot help. Stop and report it as unresolved.
-                    if !Self.isTransientStatus(http.statusCode) { return nil }
-                    // Transient answers whether retrying COULD help; `Retry-After`
-                    // answers how long it would take, and those are two different
-                    // questions that used to be one. Discord's download redirect
-                    // answered this HEAD with 429 and `retry-after: 3000` while
-                    // saying `x-ratelimit-scope: shared` (2026-09-15) — so the two
-                    // remaining attempts went out against a vendor that had just
-                    // said it would not serve them for another fifty minutes, into
-                    // a bucket that may not even be ours alone. Give up and report
-                    // the rate limit instead.
-                    //
-                    // 429 only, deliberately — but for want of evidence, not
-                    // because a 5xx is known to be different. RFC 9110 §10.2.3
-                    // defines `Retry-After` for 503 by name, and whether any 5xx
-                    // here has ever sent one is UNMEASURED: the traffic ledger
-                    // records the status and no response headers, so it cannot be
-                    // asked. What is on record about the burst this retry exists
-                    // for is only the status itself — `td.telegram.org` answering
-                    // this HEAD 502, curl included, so the vendor and not us. So
-                    // widening this needs a measurement first, not a reading of
-                    // this comment.
-                    if http.statusCode == 429,
-                       let asked = Self.retryAfterDelaySeconds(http),
-                       asked > Self.redirectRetryBackoff[(attempt + 1)...].reduce(0, +) {
+                    guard Self.isTransientStatus(http.statusCode) else {
+                        if http.statusCode >= 500 { throw TransientInstallURL(status: http.statusCode) }
+                        return nil
+                    }
+                    // Even a wait that fits the *total* budget may be longer
+                    // than the next pause. Stop this round instead of asking
+                    // early or keeping a scan slot asleep for the vendor.
+                    if !Self.permitsInstallRetry(http, afterAttempt: attempt) {
                         throw TransientInstallURL(status: http.statusCode)
                     }
                     continue
@@ -1846,7 +1860,7 @@ public struct VendorProbeSource: UpdateSource {
             // 5xx/429 stay a status, so they classify as infra. Anything else is
             // worded as the ARCHIVE's answer: a bare `.httpStatus` would be reported
             // against `recipe.url`'s host, which answered its redirect just fine.
-            return .failure(Self.isTransientStatus(error.status)
+            return .failure((error.status >= 500 || error.status == 429)
                 ? .httpStatus(error.status)
                 : .archiveExtractionFailed(error.detail))
         } catch {

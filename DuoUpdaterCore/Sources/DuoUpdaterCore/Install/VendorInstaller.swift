@@ -77,6 +77,10 @@ public actor VendorInstaller {
         case noDownloadURL
         case unknownKind
         case checksumMismatch
+        /// A successful HTTP response contained a web page, including after the
+        /// bounded recovery attempts. Content failure, not a retryable transport
+        /// or HTTP error; the page must not be passed to an installer.
+        case htmlInsteadOfArchive
         /// The download unpacked, but the payload a stub was supposed to be
         /// carrying is not where the recipe says it is. Carries the detail,
         /// because the fix is a recipe edit and the path is the whole diagnosis.
@@ -103,6 +107,8 @@ public actor VendorInstaller {
                 return "This vendor update has no known installable archive format."
             case .checksumMismatch:
                 return "The download's checksum didn't match — it may be corrupt or tampered. Nothing was changed."
+            case .htmlInsteadOfArchive:
+                return "The server returned a web page instead of the update archive. Nothing was changed."
             case .nestedPayloadMissing(let detail):
                 return "The installer package did not contain the app: \(detail)"
             case .digestOnlyNotAllowed:
@@ -230,10 +236,9 @@ public actor VendorInstaller {
                 downloader = Downloader(destinationDir: workDir) { fraction in
                     onStage(.downloading(fraction: fraction))
                 }
-                let file = try await downloader.download(
+                defer { bytesDownloaded += downloader.bytesDownloaded }
+                return try await downloader.download(
                     patch?.url ?? downloadURL, headers: remote.downloadHeaders)
-                bytesDownloaded += downloader.bytesDownloaded
-                return file
             }
 
             // Ensure the file carries an extension matching its kind, so the
@@ -668,24 +673,32 @@ public actor VendorInstaller {
             workDir: workDir, finalHost: nil, localStash: stash)
     }
 
-    /// Downloads of an archive that come back as a web page before one is kept.
-    /// At one in two (Cork's server before its 2026-10-17 fix), four attempts
-    /// all failing is 1 in 16.
+    /// Maximum HTML responses before giving up. Cork's server intermittently
+    /// served its home page before its 2026-10-17 fix. Transport retries also
+    /// consume the shared five-attempt budget and can reduce this allowance.
     static let htmlBodyMaxAttempts = 4
 
-    /// Runs `fetch` until the file it returns is not an HTML document, at most
-    /// `maxAttempts` times; each HTML body is deleted. The last one is returned
-    /// as is, so the extractor reports the failure it always has.
+    /// Runs `fetch` until it returns an archive, at most `maxAttempts` times.
+    /// Transport resumes and HTML recovery share one network-attempt budget.
+    /// Every HTML body is removed, including the final rejected response.
     static func fetchArchive(
         maxAttempts: Int, _ fetch: () async throws -> URL
     ) async throws -> URL {
-        var attempt = 1
-        while true {
-            let file = try await fetch()
-            guard attempt < maxAttempts, isHTMLDocument(at: file) else { return file }
-            Log.install.info("download was a web page, not an archive: retry \(attempt, privacy: .public)/\(maxAttempts - 1, privacy: .public)")
-            try? FileManager.default.removeItem(at: file)
-            attempt += 1
+        let budget = DownloadAttemptBudget.current ?? DownloadAttemptBudget()
+        return try await DownloadAttemptBudget.$current.withValue(budget) {
+            var attempt = 1
+            while true {
+                try Task.checkCancellation()
+                let file = try await fetch()
+                guard isHTMLDocument(at: file) else { return file }
+                let error = InstallError.htmlInsteadOfArchive
+                budget.recordFailure(error)
+                try FileManager.default.removeItem(at: file)
+                guard attempt < maxAttempts, budget.hasRemaining else { throw error }
+                Log.install.info("download was a web page, not an archive: retry \(attempt, privacy: .public)/\(maxAttempts - 1, privacy: .public)")
+                try await Task.sleep(nanoseconds: UInt64(attempt) * 500_000_000)
+                attempt += 1
+            }
         }
     }
 

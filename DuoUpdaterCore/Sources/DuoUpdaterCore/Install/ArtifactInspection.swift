@@ -109,8 +109,13 @@ public enum ArtifactInspection {
         } catch {
             var failure = Failure(
                 stage: .download, message: error.localizedDescription, bytes: bytes)
-            if case Downloader.DownloadError.httpStatus(let status) = error {
-                failure.httpStatus = status
+            if let downloadError = error as? Downloader.DownloadError {
+                switch downloadError {
+                case .httpStatus(let status), .httpStatusAfter(let status, _):
+                    failure.httpStatus = status
+                default:
+                    break
+                }
             }
             return .failure(failure)
         }

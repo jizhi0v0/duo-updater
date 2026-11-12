@@ -353,7 +353,7 @@ struct HTTPVersionSourceSimulationTests {
     @Test(arguments: [200, 503])
     func safetyInvariantVendorPOSTKeepsItsBodyAndIsNeverRepeated(status: Int) async {
         let fixture = VersionHTTPFixture([
-            .init(status, body: #"{"error":"temporary"}"#),
+            .init(status, headers: ["Retry-After": "3000"], body: #"{"error":"temporary"}"#),
             .init(200, body: #"{"version":"99.0.0"}"#)
         ])
         defer { fixture.close() }

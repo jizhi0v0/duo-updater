@@ -35,23 +35,35 @@ public enum RunningAppAutoUpdate {
         /// Last quit, retained as history across versions; it does not space
         /// successful updates apart.
         public var lastQuit: Date?
-        /// Set by a refused quit or a failed update; kept across versions.
+        /// Refused-quit and legacy cooldowns survive versions. A new policy's
+        /// acquisition cooldown belongs only to its offered version.
         public var retryAfter: Date?
+        /// New automatic attempts distinguish recoverable acquisition errors
+        /// from failures that pause this offer. Nil on legacy ledgers.
+        public var automaticFailure: AutomaticUpdateFailurePolicy.Failure?
+        /// Acquisition-only failures have their own bounded recovery budget;
+        /// they never spend the installation/quit failure count above.
+        public var acquisitionFailures: Int?
 
         /// `behindSince` keeps its stored name from when it meant "this version
         /// first seen", so ledgers written by earlier builds still decode.
         enum CodingKeys: String, CodingKey {
             case version, behindSince = "firstSeen", failures, gaveUp, lastQuit, retryAfter
+            case automaticFailure, acquisitionFailures
         }
 
         public init(version: String, behindSince: Date, failures: Int = 0,
-                    gaveUp: Bool = false, lastQuit: Date? = nil, retryAfter: Date? = nil) {
+                    gaveUp: Bool = false, lastQuit: Date? = nil, retryAfter: Date? = nil,
+                    automaticFailure: AutomaticUpdateFailurePolicy.Failure? = nil,
+                    acquisitionFailures: Int? = nil) {
             self.version = version
             self.behindSince = behindSince
             self.failures = failures
             self.gaveUp = gaveUp
             self.lastQuit = lastQuit
             self.retryAfter = retryAfter
+            self.automaticFailure = automaticFailure
+            self.acquisitionFailures = acquisitionFailures
         }
     }
 
@@ -60,9 +72,10 @@ public enum RunningAppAutoUpdate {
         public var entries: [String: Entry]
         public init(entries: [String: Entry] = [:]) { self.entries = entries }
 
-        /// The entry for `key` offered `version`. A newer version clears the
-        /// failures and the give-up, which were about the old one, and keeps
-        /// `behindSince`, `lastQuit` and `retryAfter`, which are about the install.
+        /// The entry for `key` offered `version`. A different offer clears the
+        /// failures and the give-up, which were about the old one. Acquisition
+        /// recovery is also offer-specific. Legacy and refused-quit cooldowns
+        /// remain about the install and survive a changed version.
         public mutating func observe(_ key: String, version: String, now: Date) -> Entry {
             guard var entry = entries[key] else {
                 let entry = Entry(version: version, behindSince: now)
@@ -70,9 +83,12 @@ public enum RunningAppAutoUpdate {
                 return entry
             }
             if entry.version != version {
+                if entry.automaticFailure != nil { entry.retryAfter = nil }
                 entry.version = version
                 entry.failures = 0
                 entry.gaveUp = false
+                entry.automaticFailure = nil
+                entry.acquisitionFailures = nil
                 entries[key] = entry
             }
             return entry
@@ -84,14 +100,43 @@ public enum RunningAppAutoUpdate {
 
         public mutating func recordQuitRefused(_ key: String, now: Date) {
             entries[key]?.gaveUp = true
+            // A refusal now owns this install's cooldown. Do not let the next
+            // version clear it as though it were only acquisition recovery.
+            entries[key]?.automaticFailure = nil
             entries[key]?.retryAfter = now.addingTimeInterval(RunningAppAutoUpdate.retryBackoff)
         }
 
+        /// Compatibility for unclassified legacy failures and existing safety
+        /// deferrals after a quit. New automatic install errors pass a policy.
         public mutating func recordFailure(_ key: String, now: Date) {
             guard var entry = entries[key] else { return }
             entry.failures += 1
             if entry.failures >= RunningAppAutoUpdate.maxFailures { entry.gaveUp = true }
+            entry.automaticFailure = nil
             entry.retryAfter = now.addingTimeInterval(RunningAppAutoUpdate.retryBackoff)
+            entries[key] = entry
+        }
+
+        public mutating func recordFailure(
+            _ key: String, failure: AutomaticUpdateFailurePolicy.Failure, now: Date
+        ) {
+            guard var entry = entries[key] else { return }
+            switch failure.disposition {
+            case .retryAcquisition:
+                let count = (entry.acquisitionFailures ?? 0) + 1
+                entry.acquisitionFailures = count
+                if count >= AutomaticUpdateFailurePolicy.maxAcquisitionFailures {
+                    entry.automaticFailure = failure.pausingVersion
+                    entry.retryAfter = nil
+                } else {
+                    entry.automaticFailure = failure
+                    let localDeadline = now.addingTimeInterval(RunningAppAutoUpdate.retryBackoff)
+                    entry.retryAfter = max(localDeadline, failure.retryNotBefore ?? localDeadline)
+                }
+            case .pauseVersion:
+                entry.automaticFailure = failure
+                entry.retryAfter = nil
+            }
             entries[key] = entry
         }
 
@@ -114,6 +159,9 @@ public enum RunningAppAutoUpdate {
         case retryLater
         /// A process inside the bundle that the app's quit would not end.
         case independentHelper
+        /// Preserve the actual installer error instead of claiming that a
+        /// single refusal failed the legacy three-attempt installation limit.
+        case pausedFailure(String)
 
         /// The reason as the Events list shows it.
         public var message: String {
@@ -124,12 +172,17 @@ public enum RunningAppAutoUpdate {
                 return "The app did not quit, or updating it failed, in the last day. Trying again after that."
             case .independentHelper:
                 return "The app is running, and one of its helpers keeps running when it quits."
+            case .pausedFailure(let reason):
+                return reason
             }
         }
     }
 
     /// Only refusal/failure history postpones an otherwise allowed update.
     public static func decide(entry: Entry, now: Date) -> Verdict {
+        if let failure = entry.automaticFailure, failure.disposition == .pauseVersion {
+            return .wait(.pausedFailure(failure.reason))
+        }
         if entry.gaveUp { return .wait(.gaveUp) }
         if let retryAfter = entry.retryAfter, now < retryAfter { return .wait(.retryLater) }
         return .quitAndUpdate

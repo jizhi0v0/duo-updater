@@ -6,8 +6,9 @@ import Testing
 /// exercises production download/apply and quit/commit boundaries on scratch
 /// bundles. This does not run AppListModel: it owns the error-to-ledger mapping,
 /// clean-check retention keys, live permissions and the decision to start a pass.
-/// In particular, Ledger has no HTTP status or Retry-After input. These tests
-/// describe its existing uniform backoff, not a status-aware retry policy.
+/// Unclassified recordFailure calls below pin legacy ledger compatibility;
+/// terminal HTTP and checksum cases also exercise the classified production
+/// capture wrappers now used around AppListModel's coordinator call.
 struct HTTPAutomaticUpdateSimulationTests {
     private typealias Policy = RunningAppAutoUpdate
     private typealias Counter = RunningAppQuitBeforeApplyTests.Counter
@@ -15,7 +16,7 @@ struct HTTPAutomaticUpdateSimulationTests {
     private let firstFailure = Date(timeIntervalSince1970: 2_000_000_000)
     private let installKey = "com.example.http-simulation:/scratch/Target.app"
 
-    @Test func fiveMinuteChecksDoNotOverrideTheDayLongFailureBackoff() throws {
+    @Test func legacyFiveMinuteChecksDoNotOverrideTheDayLongFailureBackoff() throws {
         // Literal expectations pin production defaults. No developer-threshold
         // override or writes to UserDefaults are needed to advance this clock.
         #expect(Policy.retryBackoff == 86_400)
@@ -77,7 +78,7 @@ struct HTTPAutomaticUpdateSimulationTests {
     /// ordering. Even a changed, lower string clears the limit. This is current
     /// behavior to audit, not a claim that a downgrade should reset failures.
     @Test(arguments: ["2.1", "1.9"])
-    func anyChangedOfferedVersionResetsFailuresButKeepsTheInstallCooldown(offered: String) throws {
+    func anyChangedOfferedVersionResetsLegacyFailuresButKeepsTheInstallCooldown(offered: String) throws {
         var ledger = Policy.Ledger()
         _ = ledger.observe(installKey, version: "2.0", now: firstFailure)
         ledger.recordQuit(installKey, now: firstFailure)
@@ -141,34 +142,40 @@ struct HTTPAutomaticUpdateSimulationTests {
     /// Production coordinator, injected terminal download errors. This covers
     /// the download-to-apply boundary, not URLSession's per-request retry loop
     /// or AppListModel's decision to record these errors in its ledger.
-    @Test(arguments: [401, 403, 404, 408, 429, 500, 502, 503, 504])
+    @Test(arguments: [401, 403, 404, 408, 410, 429, 500, 501, 502, 503, 504, 505])
     func terminalHTTPDownloadFailureNeverReachesApplyOrQuit(status: Int) async throws {
         let scratch = try Scratch()
         defer { scratch.remove() }
         let downloads = Counter(), applies = Counter(), quits = Counter(), releases = Counter()
+        let failureAttempt = AutomaticUpdateFailurePolicy.Attempt()
         let plan = AutomaticInstall.QuitBeforeApply { quits.increment() }
         let coordinator = InstallCoordinator(
             permits: InstallPermits(downloads: 1, applies: 1), runningProcesses: { [] })
-        await AutomaticInstall.$active.withValue(true) {
-            await AutomaticInstall.$permission.withValue({ true }) {
-                await AutomaticInstall.$quitBeforeApply.withValue(plan) {
-                    do {
-                        _ = try await coordinator.fetchThenSwap(
-                            scratch.result(), spaceToApply: 0, progress: { _ in },
-                            releaseAfterDownload: { releases.increment() },
-                            download: { _, _ in
-                                downloads.increment()
-                                throw Downloader.DownloadError.httpStatus(status)
-                            },
-                            apply: { _, _, _ in
-                                applies.increment()
-                                try await AutomaticInstall.quitPlannedApp(before: scratch.target)
-                            })
-                        Issue.record("A terminal HTTP download failure unexpectedly succeeded")
-                    } catch Downloader.DownloadError.httpStatus(let actual) {
-                        #expect(actual == status)
-                    } catch {
-                        Issue.record("Expected HTTP \(status), got \(error)")
+        await AutomaticUpdateFailurePolicy.$attempt.withValue(failureAttempt) {
+            await AutomaticInstall.$active.withValue(true) {
+                await AutomaticInstall.$permission.withValue({ true }) {
+                    await AutomaticInstall.$quitBeforeApply.withValue(plan) {
+                        do {
+                            _ = try await AutomaticUpdateFailurePolicy.capturing {
+                                try await coordinator.fetchThenSwap(
+                                    scratch.result(), spaceToApply: 0,
+                                    progress: AutomaticUpdateFailurePolicy.recordingProgress { _ in },
+                                    releaseAfterDownload: AutomaticUpdateFailurePolicy.afterDownload { releases.increment() },
+                                    download: { _, _ in
+                                        downloads.increment()
+                                        throw Downloader.DownloadError.httpStatus(status)
+                                    },
+                                    apply: { _, _, _ in
+                                        applies.increment()
+                                        try await AutomaticInstall.quitPlannedApp(before: scratch.target)
+                                    })
+                            }
+                            Issue.record("A terminal HTTP download failure unexpectedly succeeded")
+                        } catch Downloader.DownloadError.httpStatus(let actual) {
+                            #expect(actual == status)
+                        } catch {
+                            Issue.record("Expected HTTP \(status), got \(error)")
+                        }
                     }
                 }
             }
@@ -179,6 +186,25 @@ struct HTTPAutomaticUpdateSimulationTests {
         #expect(releases.value == 0)
         #expect(plan.pending)
         #expect(try scratch.targetBytes() == Data("old".utf8))
+        let capture = try #require(failureAttempt.capture)
+        if case .httpStatus(let actual) = capture.error as? Downloader.DownloadError {
+            #expect(actual == status)
+        } else {
+            Issue.record("The capture lost the concrete HTTP status error")
+        }
+        #expect(capture.evidence.stage == .downloading(fraction: 0))
+        #expect(!capture.evidence.acquisitionFinished)
+        let failure = try #require(failureAttempt.failure(or: "missing failure"))
+        let recoverable = [408, 429, 500, 502, 503, 504].contains(status)
+        #expect(failure.disposition == (recoverable ? .retryAcquisition : .pauseVersion))
+        var ledger = Policy.Ledger()
+        _ = ledger.observe(installKey, version: "2.0", now: firstFailure)
+        ledger.recordFailure(installKey, failure: failure, now: firstFailure)
+        let entry = try #require(ledger.entries[installKey])
+        #expect(entry.failures == 0)
+        #expect(entry.acquisitionFailures == (recoverable ? 1 : nil))
+        let atNextDay = Policy.decide(entry: entry, now: firstFailure.addingTimeInterval(86_400))
+        #expect(atNextDay == (recoverable ? .quitAndUpdate : .wait(.pausedFailure(failure.reason))))
     }
 
     /// Actual VendorInstaller.apply, with a digest mismatch caught before
@@ -189,26 +215,31 @@ struct HTTPAutomaticUpdateSimulationTests {
         let archive = scratch.root.appendingPathComponent("download.zip")
         try Data("an untrusted download".utf8).write(to: archive)
         let quits = Counter()
+        let failureAttempt = AutomaticUpdateFailurePolicy.Attempt()
         let plan = AutomaticInstall.QuitBeforeApply { quits.increment() }
         let stages = RunningAppQuitBeforeApplyTests.Log()
         let result = scratch.result(expectedSHA256: String(repeating: "0", count: 64))
         let download = DownloadedUpdate(archiveURL: archive, bytesDownloaded: 21, workDir: scratch.root)
-        await AutomaticInstall.$active.withValue(true) {
-            await AutomaticInstall.$permission.withValue({ true }) {
-                await AutomaticInstall.$quitBeforeApply.withValue(plan) {
-                    do {
-                        try await VendorInstaller().apply(
-                            result, download: download, digestOnlyAllowed: false,
-                            onStage: { stage in
-                                if case .verifyingSignature = stage { stages.append("verifyingSignature") }
-                                if case .installing = stage { stages.append("installing") }
-                            })
-                        Issue.record("An incorrect published checksum unexpectedly passed")
-                    } catch VendorInstaller.InstallError.checksumMismatch {
-                        // Assert this specific gate was reached, rather than
-                        // accepting an unrelated early refusal as evidence.
-                    } catch {
-                        Issue.record("Expected checksumMismatch, got \(error)")
+        await AutomaticUpdateFailurePolicy.$attempt.withValue(failureAttempt) {
+            await AutomaticInstall.$active.withValue(true) {
+                await AutomaticInstall.$permission.withValue({ true }) {
+                    await AutomaticInstall.$quitBeforeApply.withValue(plan) {
+                        do {
+                            try await AutomaticUpdateFailurePolicy.capturing {
+                                try await VendorInstaller().apply(
+                                    result, download: download, digestOnlyAllowed: false,
+                                    onStage: AutomaticUpdateFailurePolicy.recordingProgress { stage in
+                                        if case .verifyingSignature = stage { stages.append("verifyingSignature") }
+                                        if case .installing = stage { stages.append("installing") }
+                                    })
+                            }
+                            Issue.record("An incorrect published checksum unexpectedly passed")
+                        } catch VendorInstaller.InstallError.checksumMismatch {
+                            // Assert this specific gate was reached, rather than
+                            // accepting an unrelated early refusal as evidence.
+                        } catch {
+                            Issue.record("Expected checksumMismatch, got \(error)")
+                        }
                     }
                 }
             }
@@ -217,6 +248,11 @@ struct HTTPAutomaticUpdateSimulationTests {
         #expect(quits.value == 0)
         #expect(plan.pending)
         #expect(try scratch.targetBytes() == Data("old".utf8))
+        let capture = try #require(failureAttempt.capture)
+        #expect(capture.evidence.stage == .verifyingSignature)
+        #expect(capture.evidence.advancedPastAcquisition)
+        let failure = try #require(failureAttempt.failure(or: "missing failure"))
+        #expect(failure.disposition == .pauseVersion)
     }
 
     @Test func revokedPermissionAtAnEligibleRetryStopsBeforeQuitAndCommit() async throws {
@@ -359,7 +395,10 @@ struct HTTPAutomaticUpdateSimulationTests {
     private func assertRetryEligible() throws {
         var ledger = Policy.Ledger()
         _ = ledger.observe(installKey, version: "2.0", now: firstFailure)
-        ledger.recordFailure(installKey, now: firstFailure)
+        let attempt = AutomaticUpdateFailurePolicy.Attempt()
+        attempt.observe(.downloading(fraction: 0))
+        attempt.record(Downloader.DownloadError.httpStatus(503))
+        ledger.recordFailure(installKey, failure: try #require(attempt.failure(or: "missing")), now: firstFailure)
         let entry = try #require(ledger.entries[installKey])
         #expect(Policy.decide(entry: entry, now: firstFailure.addingTimeInterval(86_400)) == .quitAndUpdate)
     }

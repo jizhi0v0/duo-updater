@@ -46,24 +46,41 @@ struct VendorArchiveHTMLRetryTests {
         #expect(!FileManager.default.fileExists(atPath: page.path))
     }
 
-    @Test func givesUpAfterTheLastAttemptAndHandsBackThePage() async throws {
+    @Test func givesUpAfterTheLastAttemptAndDeletesEveryPage() async throws {
         var calls = 0
-        var last: URL?
-        let got = try await VendorInstaller.fetchArchive(maxAttempts: 4) {
-            calls += 1
-            last = try file("<!DOCTYPE html>")
-            return last!
+        var pages: [URL] = []
+        do {
+            _ = try await VendorInstaller.fetchArchive(maxAttempts: 4) {
+                calls += 1
+                let page = try file("<!DOCTYPE html>")
+                pages.append(page)
+                return page
+            }
+            Issue.record("Repeated HTML was accepted as an archive")
+        } catch let error as VendorInstaller.InstallError {
+            guard case .htmlInsteadOfArchive = error else {
+                Issue.record("Expected htmlInsteadOfArchive, got \(error)")
+                return
+            }
         }
         #expect(calls == 4)
-        #expect(got == last)
-        #expect(FileManager.default.fileExists(atPath: got.path))
+        #expect(pages.count == 4)
+        #expect(pages.allSatisfy { !FileManager.default.fileExists(atPath: $0.path) })
     }
 
     @Test func oneAttemptMeansNoRetry() async throws {
         var calls = 0
-        _ = try await VendorInstaller.fetchArchive(maxAttempts: 1) {
-            calls += 1
-            return try file("<!DOCTYPE html>")
+        do {
+            _ = try await VendorInstaller.fetchArchive(maxAttempts: 1) {
+                calls += 1
+                return try file("<!DOCTYPE html>")
+            }
+            Issue.record("HTML was accepted as an archive")
+        } catch let error as VendorInstaller.InstallError {
+            guard case .htmlInsteadOfArchive = error else {
+                Issue.record("Expected htmlInsteadOfArchive, got \(error)")
+                return
+            }
         }
         #expect(calls == 1)
     }

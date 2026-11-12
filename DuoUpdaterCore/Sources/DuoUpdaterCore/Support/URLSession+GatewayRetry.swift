@@ -29,8 +29,9 @@ public extension URLSession {
     /// backoff, because there is only ever one retry to schedule.
     static let gatewayRetryDelay: Duration = .milliseconds(800)
 
-    /// GET a version feed, retrying **exactly once** when the answer is a
-    /// gateway 5xx (see ``retryableGatewayStatuses``).
+    /// GET a version feed, retrying **at most once** when the answer is a
+    /// gateway 5xx (see ``retryableGatewayStatuses``). A Retry-After longer than
+    /// the configured pause ends this round with the original response.
     ///
     /// The retry is invisible to the caller: this returns whatever the second
     /// attempt produced, so every existing status guard keeps its own meaning —
@@ -73,8 +74,12 @@ public extension URLSession {
         retryableBody: (@Sendable (Data) -> Bool)? = nil,
         purpose: RequestPurpose = .versionCheck
     ) async throws -> (Data, URLResponse) {
+        guard !Task.isCancelled else { throw URLError(.cancelled) }
+        let cooldowns = HTTPRetryAfter.cooldowns
+        if let failure = cooldowns.failure(for: request, in: self) { return (Data(), failure) }
         let first = try await countedData(for: request, purpose: purpose)
         let http = first.1 as? HTTPURLResponse
+        if let http { cooldowns.observe(http, for: request, in: self) }
         // What we would be retrying, in the words the log line wants. Nil means the
         // answer is settled and this returns untouched — the path every caller that
         // passes no predicate keeps taking.
@@ -98,6 +103,11 @@ public extension URLSession {
                 "\(label, privacy: .public): \(reason, privacy: .public) on \(method, privacy: .public) — not retried")
             return first
         }
+        if let http, !cooldowns.permitsRetry(http, after: retryDelay) {
+            Log.source.info(
+                "\(label, privacy: .public): \(reason, privacy: .public) — Retry-After exceeds the retry pause")
+            return first
+        }
 
         // `.info` rather than the `.debug` this file's own convention gives HTTP
         // statuses: this is not a status, it is us deciding to send a second
@@ -106,7 +116,6 @@ public extension URLSession {
         // trace anywhere.
         Log.source.info(
             "\(label, privacy: .public): \(reason, privacy: .public) — retrying once")
-        GatewayRetry.tally?.record()
         // Cancellation must not change the *shape* of the failure a caller sees.
         // `Task.sleep` throws `CancellationError`, which is not a `URLError`, and
         // `VendorProbeSource.transportFailure` would render it as "URLError 1" — a
@@ -114,10 +123,14 @@ public extension URLSession {
         // `URLError(.cancelled)`; keep that, so every existing catch stays honest.
         do { try await Task.sleep(for: retryDelay) }
         catch { throw URLError(.cancelled) }
+        guard !Task.isCancelled else { throw URLError(.cancelled) }
+        if let failure = cooldowns.failure(for: request, in: self) { return (Data(), failure) }
+        GatewayRetry.tally?.record()
         // Counted too, deliberately: the second request is the cost this retry
         // decided to pay, and a ledger that hid it would under-report by exactly
         // the amount `GatewayRetry.tally` exists to make visible.
         let second = try await countedData(for: request, purpose: purpose)
+        if let http = second.1 as? HTTPURLResponse { cooldowns.observe(http, for: request, in: self) }
         let status = (second.1 as? HTTPURLResponse)?.statusCode
         Log.source.info(
             "\(label, privacy: .public): gateway retry → \(status.map(String.init) ?? "non-HTTP", privacy: .public)")

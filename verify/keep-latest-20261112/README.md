@@ -106,3 +106,54 @@ repeat real-machine verification.
 
 Backup preferences, trust checks and refused-quit behavior remain in force.
 No vendor service was stopped or restarted.
+
+## Compact setup layout and languages (2026-11-12)
+
+The setup sheet now puts one short explanation under each column title. The
+introductory paragraph is replaced with one drag/right-click instruction. The
+header height comes from the tallest natural header in the current language;
+there is no reserved second line when every explanation fits on one line.
+The “Keep Up to Date” translations no longer repeat the restart qualification
+that is visible in the explanation directly below.
+
+The owner approved viewing the setup sheet while running-app updates are off.
+Its entry button now remains enabled in that state. Saving app choices no
+longer turns that switch on: only the explicit switch can authorize quitting
+running apps. The implementing agent traced `apply()` through
+`setAutomaticUpdateMode` and confirmed it only saves the per-app choices. The
+live sheet was opened without enabling the switch, then cancelled; no Apply
+was used to modify the owner's choices.
+
+- Real installed-app sheets: English, German, French, Simplified Chinese,
+  Traditional Chinese, Japanese and Russian. The actual screenshots in
+  [localization/](localization/) verify the full window, wrapping and aligned
+  list starts. These are isolated captures, not evidence for glass appearance.
+- After the owner reported foreground-window interruption, host window-menu
+  testing stopped. Spanish, Italian, Brazilian Portuguese and Turkish were
+  checked using offscreen native SwiftUI renders of the exact header body and
+  title/explanation functions extracted from the production source. Their
+  `headers-*.png` files validate column headers, not a complete live sheet.
+- All eleven languages also passed that offscreen header check. The renderer
+  compares the rendered height with and without the two-line description cap;
+  all were equal, so none of these descriptions was truncated. English,
+  Chinese and Japanese need 49 pt; German, French, Russian and Turkish 62 pt;
+  Spanish and Italian 65 pt; Brazilian Portuguese 78 pt, including padding.
+  Each language's three columns use its maximum height.
+- Reproduction: from the repository root, run
+  `python3 verify/keep-latest-20261112/localization/render-headers.py`, then
+  compile the printed Swift source with `xcrun swiftc -parse-as-library` into
+  `/tmp/duo-setup-header-renderer/HeaderRenderer.app/Contents/MacOS/HeaderRenderer`.
+  Run that executable with a language code followed by `-AppleLanguages '(code)'`.
+  It reads the installed app's compiled localizations and creates no NSWindow;
+  its activation policy is prohibited. Header-only renders use fixed sample
+  counts (51/219/0); they do not claim to be live installed-app counts.
+- `make install` and the 1,398-key localization check passed for this layout.
+  Language/check-frequency launch overrides were not saved. After teardown,
+  stored preferences still read `CheckFrequency=every5Min` and
+  `AutomaticUpdatesRunningApps=0`.
+
+Supplemental primary-agent review of the UI diff: checked that opening and
+saving the guide cannot enable the global restart grant, and that natural
+header measurement happens before the common minimum height is applied.
+The installation/helper/process-control implementation has not changed since
+the independent review and its recorded authorization-race correction.

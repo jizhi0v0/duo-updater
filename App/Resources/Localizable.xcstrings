@@ -3890,67 +3890,262 @@
         }
       }
     },
-    "Apps in the first column are kept up to date even while you use them. After downloading and verifying an update, DuoUpdater asks the app to quit normally, installs and reopens it. A refused quit or independent background service defers the update. Drag an app to another column, or right-click it.": {
+    "Drag apps between columns, or right-click to move them.": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Apps in der ersten Spalte bleiben auch während der Nutzung aktuell. Nach dem Laden und Prüfen eines Updates fordert DuoUpdater die App zum normalen Beenden auf, installiert das Update und öffnet sie erneut. Wird das Beenden abgelehnt oder läuft ein unabhängiger Hintergrunddienst, wird das Update aufgeschoben. Ziehe eine App in eine andere Spalte oder klicke sie mit der rechten Maustaste an."
+            "value": "Ziehe Apps zwischen die Spalten oder verschiebe sie per Rechtsklick."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Las apps de la primera columna se mantienen actualizadas incluso mientras las usas. Tras descargar y verificar una actualización, DuoUpdater solicita el cierre normal, instala y vuelve a abrir la app. Si se rechaza el cierre o hay un servicio independiente en segundo plano, la actualización se aplaza. Arrastra una app a otra columna o haz clic derecho en ella."
+            "value": "Arrastra apps entre columnas o haz clic derecho para moverlas."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Les apps de la première colonne restent à jour même pendant leur utilisation. Après avoir téléchargé et vérifié une mise à jour, DuoUpdater demande à l’app de se fermer normalement, installe la mise à jour puis la rouvre. Un refus de fermeture ou un service d’arrière-plan indépendant reporte la mise à jour. Faites glisser une app vers une autre colonne ou faites un clic droit dessus."
+            "value": "Glissez les apps entre les colonnes ou déplacez-les par clic droit."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Le app nella prima colonna rimangono aggiornate anche mentre le usi. Dopo aver scaricato e verificato un aggiornamento, DuoUpdater chiede all’app di chiudersi normalmente, installa e la riapre. Una chiusura rifiutata o un servizio in background indipendente rinvia l’aggiornamento. Trascina un’app in un’altra colonna o fai clic con il pulsante destro."
+            "value": "Trascina le app tra le colonne o spostale con un clic destro."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "最初の列のアプリは、使用中でも最新の状態に保たれます。アップデートをダウンロードして検証した後、DuoUpdater はアプリに通常の終了を要求し、インストールして再度開きます。終了の拒否や独立したバックグラウンドサービスがある場合は更新を延期します。アプリを別の列にドラッグするか、右クリックしてください。"
+            "value": "アプリを列間でドラッグするか、右クリックして移動できます。"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Os apps da primeira coluna ficam atualizados mesmo durante o uso. Após baixar e verificar uma atualização, o DuoUpdater pede que o app encerre normalmente, instala e o reabre. Uma recusa de encerramento ou um serviço independente em segundo plano adia a atualização. Arraste um app para outra coluna ou clique nele com o botão direito."
+            "value": "Arraste apps entre as colunas ou clique com o botão direito para movê-los."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Приложения в первом столбце остаются актуальными даже во время использования. Загрузив и проверив обновление, DuoUpdater запрашивает обычное завершение приложения, устанавливает обновление и открывает его снова. Отказ от завершения или независимая фоновая служба откладывает обновление. Перетащите приложение в другой столбец или нажмите на него правой кнопкой мыши."
+            "value": "Перетаскивайте приложения между столбцами или перемещайте правой кнопкой."
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "İlk sütundaki uygulamalar kullanım sırasında bile güncel tutulur. DuoUpdater güncellemeyi indirip doğruladıktan sonra uygulamadan normal şekilde kapanmasını ister, yükler ve yeniden açar. Reddedilen kapatma veya bağımsız bir arka plan hizmeti güncellemeyi erteler. Uygulamayı başka bir sütuna sürükleyin veya sağ tıklayın."
+            "value": "Uygulamaları sütunlar arasında sürükleyin veya sağ tıklayarak taşıyın."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "第一列中的应用即使正在使用也会保持最新。下载并验证更新后，DuoUpdater 会请求应用正常退出，安装更新并重新打开。应用拒绝退出或独立后台服务仍在运行时，会暂缓更新。可将应用拖到其他列，或右键点击应用。"
+            "value": "在列之间拖动应用，或右键点击以移动。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "第一欄中的 App 即使正在使用也會保持最新。下載並驗證更新後，DuoUpdater 會要求 App 正常結束，安裝更新並重新開啟。App 拒絕結束或獨立背景服務仍在執行時，會暫緩更新。可將 App 拖到其他欄，或按右鍵點選 App。"
+            "value": "在欄之間拖移 App，或按右鍵移動。"
+          }
+        }
+      }
+    },
+    "May quit and reopen apps to install updates.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Darf Apps zum Aktualisieren beenden und neu öffnen."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Puede cerrar y reabrir apps para actualizarlas."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Peut quitter et rouvrir les apps pour les mettre à jour."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Può chiudere e riaprire le app per aggiornarle."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新のためアプリを終了して再度開くことがあります。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pode encerrar e reabrir apps para atualizá-los."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Может закрывать и открывать приложения для обновления."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Güncellemek için uygulamaları kapatıp yeniden açabilir."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "可退出并重新打开应用以安装更新。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "可結束並重新開啟 App 以安裝更新。"
+          }
+        }
+      }
+    },
+    "Waits until the app and its helpers have quit.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wartet, bis die App und ihre Hilfsprogramme beendet sind."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Espera a que la app y sus auxiliares terminen."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Attend l’arrêt de l’app et de ses assistants."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Attende la chiusura dell’app e dei suoi helper."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アプリとヘルパーが終了するまで待ちます。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aguarda o app e seus auxiliares serem encerrados."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ждёт завершения приложения и вспомогательных процессов."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uygulama ve yardımcıları kapanana kadar bekler."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "等待应用及其辅助进程退出后再更新。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "等待 App 及其輔助程式結束後再更新。"
+          }
+        }
+      }
+    },
+    "Updates only when you choose.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aktualisiert nur auf deinen Wunsch."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Actualiza solo cuando tú lo decides."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Met à jour uniquement à votre demande."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aggiorna solo quando lo scegli tu."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自分で選んだときだけ更新します。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Atualiza somente quando você escolher."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Обновляет только по вашему выбору."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yalnızca siz seçtiğinizde günceller."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "仅在你手动选择时更新。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "僅在你手動選擇時更新。"
           }
         }
       }
@@ -4091,61 +4286,61 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Aktuell halten (Neustart erlaubt)"
+            "value": "Aktuell halten"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Mantener al día (permite reiniciar)"
+            "value": "Mantener al día"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Garder à jour (redémarrage autorisé)"
+            "value": "Garder à jour"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Mantieni aggiornate (riavvio consentito)"
+            "value": "Mantieni aggiornate"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "最新に保つ（再起動を許可）"
+            "value": "最新に保つ"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Manter atualizado (permite reiniciar)"
+            "value": "Manter atualizado"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Поддерживать актуальность (с перезапуском)"
+            "value": "Поддерживать актуальность"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Güncel tut (yeniden başlatılabilir)"
+            "value": "Güncel tut"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "保持最新（允许重启）"
+            "value": "保持最新"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "保持最新（允許重新啟動）"
+            "value": "保持最新"
           }
         }
       }

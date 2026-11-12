@@ -113,10 +113,8 @@ private struct AutomaticUpdateAppsCard: View {
             HStack {
                 TextField("Filter apps", text: $filter)
                     .textFieldStyle(.roundedBorder)
+                // Choices can be prepared while running-app updates are paused.
                 Button("Choose with Suggestions…") { showingSetup = true }
-                    // The guide picks apps to quit while running; it has no
-                    // job while that switch is off.
-                    .disabled(!prefs.automaticUpdatesRunningApps)
             }
             .settingsRow()
             let rows = rows
@@ -271,6 +269,7 @@ struct AutomaticUpdateSetupSheet: View {
     @State private var grabbed: Candidate?
     @State private var dragLocation: CGPoint?
     @State private var columnFrames: [Mode: CGRect] = [:]
+    @State private var columnHeaderHeight: CGFloat = 0
 
     private static let columns: [Mode] = [.alsoWhenRunning, .whenClosed, .never]
 
@@ -278,7 +277,7 @@ struct AutomaticUpdateSetupSheet: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Choose apps that may be quit for an update")
                 .font(.title3.weight(.semibold))
-            Text("Apps in the first column are kept up to date even while you use them. After downloading and verifying an update, DuoUpdater asks the app to quit normally, installs and reopens it. A refused quit or independent background service defers the update. Drag an app to another column, or right-click it.")
+            Text("Drag apps between columns, or right-click to move them.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -311,6 +310,7 @@ struct AutomaticUpdateSetupSheet: View {
         .frame(maxHeight: .infinity)
         .coordinateSpace(name: Self.space)
         .onPreferenceChange(ColumnFrames.self) { columnFrames = $0 }
+        .onPreferenceChange(ColumnHeaderHeights.self) { columnHeaderHeight = $0.values.max() ?? 0 }
         .overlay(alignment: .topLeading) { floatingTile }
     }
 
@@ -320,13 +320,25 @@ struct AutomaticUpdateSetupSheet: View {
         let items = items(in: mode)
         let targeted = dragLocation.map { columnFrames[mode]?.contains($0) == true } ?? false
         return VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .firstTextBaseline) {
-                Text(Self.title(mode)).font(.headline)
-                Spacer()
-                Text(verbatim: "\(count(in: mode))")
-                    .font(.headline.monospacedDigit())
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text(Self.title(mode)).font(.headline)
+                    Spacer()
+                    Text(verbatim: "\(count(in: mode))")
+                        .font(.headline.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                }
+                Text(Self.explanation(mode))
+                    .font(.caption)
                     .foregroundStyle(.secondary)
+                    .lineLimit(2)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
+            .fixedSize(horizontal: false, vertical: true)
+            .background(GeometryReader { proxy in
+                Color.clear.preference(key: ColumnHeaderHeights.self, value: [mode: proxy.size.height])
+            })
+            .frame(minHeight: columnHeaderHeight, alignment: .topLeading)
             .padding(.horizontal, 10)
             .padding(.vertical, 8)
             Divider()
@@ -483,6 +495,14 @@ struct AutomaticUpdateSetupSheet: View {
         }
     }
 
+    private static func explanation(_ mode: Mode) -> LocalizedStringKey {
+        switch mode {
+        case .alsoWhenRunning: "May quit and reopen apps to install updates."
+        case .whenClosed: "Waits until the app and its helpers have quit."
+        case .never: "Updates only when you choose."
+        }
+    }
+
     private func count(in mode: Mode) -> Int {
         candidates.filter { placement[$0.id] == mode }.count
     }
@@ -542,7 +562,17 @@ struct AutomaticUpdateSetupSheet: View {
                 prefs.setAutomaticUpdateMode(mode, item.result.app)
             }
         }
-        if placement.values.contains(.alsoWhenRunning) { prefs.automaticUpdatesRunningApps = true }
+        // Only the explicit switch enables quitting running apps. Saving this
+        // board must preserve the user's paused state.
+    }
+}
+
+/// Align lists to the tallest translated header without reserving empty lines.
+private struct ColumnHeaderHeights: PreferenceKey {
+    static let defaultValue: [Preferences.AutomaticUpdateMode: CGFloat] = [:]
+    static func reduce(value: inout [Preferences.AutomaticUpdateMode: CGFloat],
+                       nextValue: () -> [Preferences.AutomaticUpdateMode: CGFloat]) {
+        value.merge(nextValue()) { $1 }
     }
 }
 

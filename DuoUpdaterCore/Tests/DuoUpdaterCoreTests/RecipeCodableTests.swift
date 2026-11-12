@@ -551,10 +551,9 @@ struct CodingCase: Sendable {
     /// `CodingKeys` are its stored properties; every coding key refuses `null`
     /// unless its property is optional (then `null` is nil); an unknown key is
     /// refused.
-    static func structure<T: Codable>(
+    static func structure<T: Codable & Sendable>(
         _ type: T.Type, keys: [String], required: String, expected: T
     ) -> CodingCase {
-        nonisolated(unsafe) let expected = expected
         return CodingCase(typeName: String(reflecting: T.self)) {
             var failures: [String] = []
             let name = String(describing: T.self)
@@ -624,11 +623,10 @@ struct CodingCase: Sendable {
     /// The literal is what pins an unlabelled payload's key (`pattern`, `url`, …):
     /// a key renamed in the decoder, the encoder and the allowed list together
     /// still round-trips, but no longer matches the literal.
-    static func tagged<T: Codable>(
+    static func tagged<T: Codable & Sendable>(
         _ type: T.Type, tags: [String], samples: [(T, String)],
         keyForLabel: [String: String] = [:]
     ) -> CodingCase {
-        nonisolated(unsafe) let samples = samples
         return CodingCase(typeName: String(reflecting: T.self)) {
             var failures: [String] = []
             let name = String(describing: T.self)
@@ -701,9 +699,9 @@ struct CodingCase: Sendable {
 
     /// An enum without associated values: written as `name`, round-trips, and an
     /// unknown string is refused.
-    static func caseName<T: Codable>(_ type: T.Type, all: [T], name: @escaping (T) -> String) -> CodingCase {
-        nonisolated(unsafe) let all = all
-        nonisolated(unsafe) let name = name
+    static func caseName<T: Codable & Sendable>(
+        _ type: T.Type, all: [T], name: @escaping @Sendable (T) -> String
+    ) -> CodingCase {
         return CodingCase(typeName: String(reflecting: T.self)) {
             var failures: [String] = []
             for value in all {

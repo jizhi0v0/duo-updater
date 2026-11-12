@@ -1,6 +1,7 @@
 import CryptoKit
 import Darwin
 import Foundation
+import Synchronization
 
 /// Everything `duo diff` compares, read from one unpacked release.
 ///
@@ -294,7 +295,7 @@ enum BundleFactsReader {
 
     /// What reading one Mach-O yields. `fact` is nil when the read failed partway;
     /// `runs` is empty then, and for a file over ``stringsIndexLimit``.
-    struct MachORead {
+    struct MachORead: Sendable {
         var fact: MachOFact?
         var runs = Data()
         var indexed: Bool
@@ -303,14 +304,13 @@ enum BundleFactsReader {
     /// ``readMachO(at:size:)`` of each file given, all at once; nil where none is
     /// given, and for any file not yet started when `stop` is set.
     static func machOReads(of files: [(url: URL, size: Int64)?], stop: BundleDiff.StopFlag) -> [MachORead?] {
-        let results = UnsafeMutableBufferPointer<MachORead?>.allocate(capacity: files.count)
-        results.initialize(repeating: nil)
-        defer { results.deinitialize(); results.deallocate() }
+        let results = Mutex([MachORead?](repeating: nil, count: files.count))
         DispatchQueue.concurrentPerform(iterations: files.count) { index in
             guard let file = files[index], !stop.isSet else { return }
-            results[index] = readMachO(at: file.url, size: file.size)
+            let result = readMachO(at: file.url, size: file.size)
+            results.withLock { $0[index] = result }
         }
-        return Array(results)
+        return results.withLock { $0 }
     }
 
     static func readMachO(at url: URL, size: Int64) -> MachORead {
@@ -361,14 +361,13 @@ enum BundleFactsReader {
     /// ``hash(_:)`` of each URL given, all at once; nil where none is given, where
     /// the file could not be read, and for any file not yet started when `stop` is set.
     static func hashes(of urls: [URL?], stop: BundleDiff.StopFlag) -> [(digest: String, head: Data)?] {
-        let results = UnsafeMutableBufferPointer<(digest: String, head: Data)?>.allocate(capacity: urls.count)
-        results.initialize(repeating: nil)
-        defer { results.deinitialize(); results.deallocate() }
+        let results = Mutex([(digest: String, head: Data)?](repeating: nil, count: urls.count))
         DispatchQueue.concurrentPerform(iterations: urls.count) { index in
             guard let url = urls[index], !stop.isSet else { return }
-            results[index] = try? hash(url)
+            let result = try? hash(url)
+            results.withLock { $0[index] = result }
         }
-        return Array(results)
+        return results.withLock { $0 }
     }
 
     private static let hexDigits = Array("0123456789abcdef".utf8)
@@ -814,22 +813,24 @@ enum PrintableRuns {
         }
         if !alone.isEmpty {
             let alone = alone
-            let results = UnsafeMutableBufferPointer<Bool>.allocate(capacity: alone.count)
-            defer { results.deallocate() }
+            let results = Mutex([Bool](repeating: false, count: alone.count))
             DispatchQueue.concurrentPerform(iterations: alone.count) { i in
-                (results.baseAddress! + i).initialize(to: containsDelimited(blob, needles[alone[i]]))
+                let result = containsDelimited(blob, needles[alone[i]])
+                results.withLock { $0[i] = result }
             }
-            for (i, index) in alone.enumerated() where results[i] { found[index] = true }
+            let matches = results.withLock { $0 }
+            for (i, index) in alone.enumerated() where matches[i] { found[index] = true }
         }
         guard !byLeadingWord.isEmpty else { return found }
         let groups = byLeadingWord, lengths = leadingLengths
 
         let chunks = max(1, min(blob.count / 65_536, ProcessInfo.processInfo.activeProcessorCount * 4))
-        let hits = UnsafeMutableBufferPointer<[Int]>.allocate(capacity: chunks)
-        defer { hits.deinitialize(); hits.deallocate() }
-        blob.withUnsafeBytes { hay in
-            let count = hay.count
-            DispatchQueue.concurrentPerform(iterations: chunks) { chunk in
+        let hits = Mutex([[Int]](repeating: [], count: chunks))
+        DispatchQueue.concurrentPerform(iterations: chunks) { chunk in
+            // Keep the borrowed bytes inside this worker; only the immutable Data
+            // and the synchronized result collector cross the dispatch boundary.
+            blob.withUnsafeBytes { hay in
+                let count = hay.count
                 // Words that start in this chunk; one that starts before it is the
                 // previous chunk's, however far it runs.
                 let end = count * (chunk + 1) / chunks
@@ -852,10 +853,10 @@ enum PrintableRuns {
                         local.append(index)
                     }
                 }
-                (hits.baseAddress! + chunk).initialize(to: local)
+                hits.withLock { $0[chunk] = local }
             }
         }
-        for chunk in hits { for index in chunk { found[index] = true } }
+        for chunk in hits.withLock({ $0 }) { for index in chunk { found[index] = true } }
         return found
     }
 

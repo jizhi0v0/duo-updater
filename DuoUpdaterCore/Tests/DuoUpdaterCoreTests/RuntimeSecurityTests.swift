@@ -1,5 +1,6 @@
 import Testing
 import Foundation
+import Synchronization
 @testable import DuoUpdaterCore
 
 /// `RuntimeSecurityRules`, `RuntimeInstall` and `RuntimeSecurityFeeds` — the
@@ -403,32 +404,50 @@ import Foundation
     // MARK: - Fetching
 
     final class Stub: URLProtocol, @unchecked Sendable {
-        nonisolated(unsafe) static var responses: [String: (Int, Data, [String: String])] = [:]
-        nonisolated(unsafe) static var seen: [URLRequest] = []
+        private struct State: Sendable {
+            var responses: [String: (Int, Data, [String: String])] = [:]
+            var seen: [URLRequest] = []
+            var delay: TimeInterval = 0
+        }
+        private static let state = Mutex(State())
+        static var responses: [String: (Int, Data, [String: String])] {
+            get { state.withLock { $0.responses } }
+            set { state.withLock { $0.responses = newValue } }
+        }
+        static var seen: [URLRequest] {
+            get { state.withLock { $0.seen } }
+            set { state.withLock { $0.seen = newValue } }
+        }
         /// How long each answer takes, so two reports can overlap one ask.
-        nonisolated(unsafe) static var delay: TimeInterval = 0
+        static var delay: TimeInterval {
+            get { state.withLock { $0.delay } }
+            set { state.withLock { $0.delay = newValue } }
+        }
         private var timer: Timer?
 
         override class func canInit(with request: URLRequest) -> Bool { true }
         override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
         override func startLoading() {
-            Self.seen.append(request)
-            let (status, body, headers) = Self.responses[request.url!.absoluteString] ?? (500, Data(), [:])
+            let (reply, delay) = Self.state.withLock { state in
+                state.seen.append(request)
+                return (state.responses[request.url!.absoluteString] ?? (500, Data(), [:]), state.delay)
+            }
+            let (status, body, headers) = reply
             let response = HTTPURLResponse(
                 url: request.url!, statusCode: status, httpVersion: "HTTP/1.1", headerFields: headers)!
-            let answer = { [client] in
+            let answer: @Sendable () -> Void = { [self] in
                 client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
                 client?.urlProtocol(self, didLoad: body)
                 client?.urlProtocolDidFinishLoading(self)
             }
-            if Self.delay > 0 {
+            if delay > 0 {
                 // Answer later from this thread's run loop, the client thread
                 // URLSession called `startLoading` on, as the client expects.
                 // Not from GCD's global pool: with the pool held by other
                 // tests' blocked work the answer never came, and the request
                 // timed out after 20 seconds.
                 let runLoop = RunLoop.current
-                let timer = Timer(timeInterval: Self.delay, repeats: false) { _ in answer() }
+                let timer = Timer(timeInterval: delay, repeats: false) { _ in answer() }
                 runLoop.add(timer, forMode: runLoop.currentMode ?? .default)
                 self.timer = timer
             } else {

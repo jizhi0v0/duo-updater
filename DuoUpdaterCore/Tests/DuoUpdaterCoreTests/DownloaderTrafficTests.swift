@@ -189,7 +189,7 @@ struct DownloaderTrafficTests {
                                 preconditionFailure("RangeResumeServer: set clientBytes before downloading")
                             }
                             let deadline = Date().addingTimeInterval(Self.deliveryTimeout)
-                            func dropWhenDelivered() {
+                            @Sendable func dropWhenDelivered() {
                                 if clientBytes() >= Int64(want) || Date() >= deadline {
                                     conn.cancel()
                                 } else {

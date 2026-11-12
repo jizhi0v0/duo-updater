@@ -70,7 +70,7 @@ struct SparkleLoginWallTests {
             let queue = self.queue
             listener.newConnectionHandler = { [weak self] conn in
                 conn.start(queue: queue)
-                conn.receive(minimumIncompleteLength: 1, maximumLength: 64 * 1024) { data, _, _, _ in
+                conn.receive(minimumIncompleteLength: 1, maximumLength: 64 * 1024) { [weak self] data, _, _, _ in
                     let reply = self?.reply(to: data ?? Data()) ?? Data()
                     conn.send(content: reply, completion: .contentProcessed { _ in conn.cancel() })
                 }

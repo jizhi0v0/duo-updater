@@ -230,17 +230,6 @@ public actor AppStoreAXInstaller {
     /// the answer changes only when the user toggles the grant, so callers can poll.
     public static var isTrusted: Bool { AXIsProcessTrusted() }
 
-    /// Ask the system to prompt for Accessibility access (adds us to the list with
-    /// the deny/allow sheet). Returns the current trust state. The richer guided
-    /// flow is the caller's PermissionFlow panel; this is the plain system prompt.
-    @discardableResult
-    public static func requestTrust() -> Bool {
-        // Literal key rather than the `kAXTrustedCheckOptionPrompt` global, which
-        // Swift 6 flags as non-concurrency-safe shared mutable state.
-        let opts = ["AXTrustedCheckOptionPrompt": true] as CFDictionary
-        return AXIsProcessTrustedWithOptions(opts)
-    }
-
     /// Drive an App Store update for the app with the given numeric track id.
     ///
     /// - Parameters:

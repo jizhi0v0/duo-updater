@@ -413,9 +413,6 @@ public typealias MyGoKeyCheck = UpdateKeyCheck
 
 extension MyGoUpdateSource {
 
-    /// See `UpdateKeyCheck.byteCap`.
-    public static let keyCheckByteCap: Int64 = UpdateKeyCheck.byteCap
-
     /// Download the smallest file `remote` publishes a signature for — a patch
     /// when there is one, else the archive — and verify it against `publicKey`.
     /// For `duo verify`, which has no installed binary to take the key from.

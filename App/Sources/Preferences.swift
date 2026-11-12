@@ -246,12 +246,6 @@ final class Preferences {
         }
     }
 
-    /// The disk last chosen, even while backups are being kept on this Mac.
-    /// Lets the switch go back on without a second trip through a file picker.
-    var rememberedBackupDisk: BackupDestination? {
-        BackupDestination.remembered(from: defaults)
-    }
-
     /// Every disk ever adopted as a backup destination, most recently used
     /// first — including ones not plugged in right now. The disk picker has to
     /// name a disk in order to say it isn't connected, so this does not filter

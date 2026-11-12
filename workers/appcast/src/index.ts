@@ -42,7 +42,7 @@ export interface Env {
 const UPSTREAM =
   "https://raw.githubusercontent.com/jizhi0v0/duo-updater/main/appcast.xml";
 
-const SPARKLE_UA = /^DuoUpdater\/(\d{1,4}(?:\.\d{1,4}){1,3}) Sparkle\//;
+const SPARKLE_UA = /^DuoUpdater\/(\d{1,4}(?:\.\d{1,4}){1,3}(?:-beta\.\d{1,4})?) Sparkle\//;
 
 const BUCKETS = 65536;
 

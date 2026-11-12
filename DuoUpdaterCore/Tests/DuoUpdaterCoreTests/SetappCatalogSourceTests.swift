@@ -276,6 +276,7 @@ struct SetappCatalogSourceTests {
         // draws BETA beside the name.
         #expect(result.remote?.releaseChannel == .beta)
         #expect(result.remote?.installedDisplayVersion == nil)
+        #expect(result.remote?.minimumSystemVersion == "11.0")
     }
     @Test func parsesTheBetaFlag() throws {
         let release = try #require(try SetappCatalog.parse(Data("""

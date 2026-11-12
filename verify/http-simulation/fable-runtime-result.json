@@ -1,0 +1,140 @@
+{
+  "productionCommit": "caff1edcc925b3ddfa30352c766fe8ee10fe8efd",
+  "machine": "Apple Silicon MacBook Pro, macOS 27.3; make install Developer ID build",
+  "preflight": {
+    "entry": {
+      "failures": 0,
+      "firstSeen": 816194746.03086,
+      "automaticFailure": {
+        "disposition": "retryAcquisition",
+        "reason": "The update source answered 1.1, then 1.0 — nothing was installed."
+      },
+      "retryAfter": 816281146.174374,
+      "acquisitionFailures": 1,
+      "version": "1.1",
+      "gaveUp": false
+    },
+    "events": [
+      {
+        "appID": "/Users/bobby/Applications/ZZ Fable Retry.app",
+        "appName": "ZZ Fable Retry",
+        "attemptID": "C355D068-F6F7-4E55-813D-50D188B38F2A",
+        "chainID": "C355D068-F6F7-4E55-813D-50D188B38F2A",
+        "fromVersion": "1.0",
+        "passID": "770B17F9-C6BE-4A29-9777-AF65D503A6F8",
+        "reason": "",
+        "retryOf": "",
+        "status": "started",
+        "toVersion": "1.1",
+        "trigger": "automatic"
+      },
+      {
+        "appID": "/Users/bobby/Applications/ZZ Fable Retry.app",
+        "appName": "ZZ Fable Retry",
+        "attemptID": "C355D068-F6F7-4E55-813D-50D188B38F2A",
+        "chainID": "C355D068-F6F7-4E55-813D-50D188B38F2A",
+        "diagnosticIDs": "0E645833-BF6B-4C29-83E3-A4C56F9713CE,F5397289-2884-4180-8866-F88607F09C42",
+        "fromVersion": "1.0",
+        "passID": "770B17F9-C6BE-4A29-9777-AF65D503A6F8",
+        "reason": "The update source answered 1.1, then 1.0 — nothing was installed.",
+        "retryOf": "",
+        "status": "notInstalled",
+        "toVersion": "1.1",
+        "trigger": "automatic"
+      }
+    ]
+  },
+  "successfulAutomaticInstall": [
+    {
+      "appID": "/Users/bobby/Applications/ZZ Fable Retry.app",
+      "appName": "ZZ Fable Retry",
+      "attemptID": "EAEDAD79-E1DA-41EB-A5BB-8A35BE46E5EE",
+      "chainID": "EAEDAD79-E1DA-41EB-A5BB-8A35BE46E5EE",
+      "diagnosticIDs": "154B413B-500B-4963-8459-A59289090146,2D5A834A-37BC-4A99-BC83-D37D857BB72A,6FD8530E-4593-48E3-93A2-10C35DF8FCE4",
+      "fromVersion": "1.0 (1)",
+      "passID": "80FBB179-AD0D-4538-AC61-9AA9E35FA640",
+      "quitForUpdate": "true",
+      "reason": "",
+      "reopened": "true",
+      "retryOf": "",
+      "status": "installed",
+      "toVersion": "1.1 (2)",
+      "trigger": "automatic"
+    }
+  ],
+  "cancelEvents": [
+    {
+      "appID": "/Users/bobby/Applications/ZZ Fable Retry.app",
+      "appName": "ZZ Fable Retry",
+      "attemptID": "91373D44-5F5B-4970-B1A0-17BA8D89BF20",
+      "chainID": "91373D44-5F5B-4970-B1A0-17BA8D89BF20",
+      "fromVersion": "1.0",
+      "passID": "DED4C8A9-EC08-4BE2-8E10-1762AF67D294",
+      "reason": "",
+      "retryOf": "",
+      "status": "started",
+      "toVersion": "1.1",
+      "trigger": "automatic"
+    },
+    {
+      "appID": "/Users/bobby/Applications/ZZ Fable Retry.app",
+      "appName": "ZZ Fable Retry",
+      "attemptID": "91373D44-5F5B-4970-B1A0-17BA8D89BF20",
+      "chainID": "91373D44-5F5B-4970-B1A0-17BA8D89BF20",
+      "diagnosticIDs": "7B7FEF49-31CE-41F9-B308-C23562277BF4,F2A432DC-3420-4AF2-955E-44571E85AA47,FEA79EBD-9D66-4CF6-B790-4ACE63C5814B",
+      "fromVersion": "1.0 (1)",
+      "passID": "DED4C8A9-EC08-4BE2-8E10-1762AF67D294",
+      "quitForUpdate": "true",
+      "reason": "",
+      "reopened": "true",
+      "retryOf": "",
+      "status": "notInstalled",
+      "toVersion": "1.1",
+      "trigger": "automatic"
+    }
+  ],
+  "nextScheduledCheck": {
+    "event": {
+      "appID": "/Users/bobby/Applications/ZZ Fable Retry.app",
+      "appName": "ZZ Fable Retry",
+      "attemptID": "C2CE7AAD-F9B4-4A1F-ADB4-19D35D6E4615",
+      "chainID": "91373D44-5F5B-4970-B1A0-17BA8D89BF20",
+      "diagnosticIDs": "2FA8EA31-F7D1-4B3D-AD00-31A34AD2D417,545FBE1A-462C-4179-9522-6F432A08F664,7250A41A-4EE7-41FC-9DDB-055E3B138663",
+      "fromVersion": "1.0",
+      "passID": "12F2ABCC-03D2-4921-AF0C-94E244E0E1CC",
+      "reason": "Automatic updating is waiting for the retry deadline, including any delay requested by the server.",
+      "retryOf": "91373D44-5F5B-4970-B1A0-17BA8D89BF20",
+      "status": "deferred",
+      "toVersion": "1.1",
+      "trigger": "automatic"
+    },
+    "fixtureLedger": {
+      "lastQuit": 816195025.170559,
+      "gaveUp": false,
+      "retryAfter": 816281425.29383,
+      "failures": 1,
+      "version": "1.1",
+      "firstSeen": 816195003.715282
+    },
+    "feedRequests": 3,
+    "archiveRequests": 1,
+    "secondsBetweenFirstAndLastFeed": 305.1367962360382,
+    "fixtureQuitRequests": 1,
+    "runningFixturePID": 4100,
+    "diskVersion": "1.0",
+    "fixtureEvents": [
+      "2026-11-12T16:50:00Z pid=1324 version=1 launched",
+      "2026-11-12T16:50:04Z pid=1324 version=1 quit-request",
+      "2026-11-12T16:50:25Z pid=1324 version=1 quit-approved",
+      "2026-11-12T16:50:25Z pid=1324 version=1 terminated",
+      "2026-11-12T16:50:25Z pid=4100 version=1 launched"
+    ],
+    "observedAt": 1794502509.368242
+  },
+  "cleanup": {
+    "preferencesRestoredExactly": true,
+    "fixtureRemovedFromApplications": true,
+    "fixtureServerStopped": true,
+    "testedBuildRetained": "caff1edcc925b3ddfa30352c766fe8ee10fe8efd"
+  }
+}

@@ -37,7 +37,19 @@
 - `python3 scripts/check_localizable_keys.py`：**1399 keys, all reachable**；`python3 scripts/check_localizable_specifiers.py`：**373 keys / 4181 variants passed**。
 - 三组并行实现后，交叉复核及独立只读对抗审查未发现新增阻断缺陷。重点核查 process-control（TaskLocal、退出/提交不可逆证据、取消退避）、data-loss（仅清理自有工作目录）、trust/secrets（HTML 专属回退及保留信任错误类型、冷却身份隔离）。审查员未执行构建或测试，上述命令由主 agent 执行。
 
-运行验证限制：本轮 VMPal 列表为空，旧 VM 控制入口不可用。AppListModel 的完整自动调度、旧源答案记账及真实退出中取消→重开→下一轮退避仍未完成运行验证。原生 Core 集成测试、App hostless 测试和 App 编译不替代这些证据；PR 保持 needs-real-machine，不合并。
+### 本机 AppListModel 运行验证（2026-11-13）
+
+用户授权改用本机，使用 `make install` 部署的 Developer ID 签名开发版（生产源码 `caff1edcc925b3ddfa30352c766fe8ee10fe8efd`），没有注入 AppListModel 测试入口。备份整个 defaults 域并将其余 272 个扫描到的应用加入临时忽略/自动更新排除集合；仅放行独立 `ZZ Fable Retry.app`。事件、缓存等写入独立 `DUO_STATE_DIR`。测试应用正常退出延迟 20 秒；同团队签名的 1.0/1.1 包及独立 Ed25519 appcast 签名由 loopback 服务器提供。所有安装由真实 scheduler 的自动检查发起，不是手动 Update。
+
+- **旧源答案（00:45 CST）**：首次 feed 给 1.1，安装前复查给 1.0；UI 保留 1.0→1.1，真实持久账本记录 `version=1.1`、`retryAcquisition`、`acquisitionFailures=1`、`gaveUp=false`，截止时间为本次失败后 24 小时。没有下载归档。
+- **正常安装对照（00:47–00:48）**：允许完整流程运行，自动退出、验证并安装 1.0 (1)→1.1 (2)，新 PID 重新打开；事件 `installed`、`quitForUpdate=true`、`reopened=true`。
+- **退出中取消（00:50）**：fixture PID 1324 于 `16:50:04Z` 收到退出请求；`16:50:05Z` 通过真实 Workbench 行内 Cancel 的 AXPress 取消，界面显示 Cancelling；`16:50:25Z` 正常退出完成后，新 PID 4100 重新打开旧版 1.0。安装未提交，账本 `failures=1`、`gaveUp=false`、24 小时退避。未替换用户日常应用。
+- **下一次真实定时检查（00:55）**：与首轮 feed 间隔 **305.1368 秒**，服务器再次返回 1.1；AppListModel 记录 `deferred`，Events 显示新的重试期限文案。该轮没有新归档请求、没有新退出请求，仍是 PID 4100 / 1.0；整个取消场景归档 GET 总数 1、退出请求总数 1。
+- **还原**：退出测试进程、停止 loopback 服务，将测试应用移出 `~/Applications`；导入备份后逐项比较完整 defaults 域相等，再正常启动 DuoUpdater。保留已验证的新开发版。
+
+[原始 fixture 事件、账本与请求计数](fable-runtime-result.json) · [旧源答案 UI](fable-preflight.png) · [取消中 UI](fable-cancelling.png) · [下一轮退避 UI](fable-next-check.png)。截图仅隔离渲染目标窗口，不用于判断玻璃外观。
+
+这些本机结果补齐本轮 AppListModel 接线、真实退出/取消/重开及下一轮退避证据。只在运行时制造一次失败；三次上限由 Core 测试验证。没有声称验证厂商线上 TLS/CDN，也不以记录检查通过代替行为证据。
 
 ## 生产修复验证与审查（2026-11-12）
 
@@ -135,7 +147,7 @@ swift test --package-path DuoUpdaterCore --skip-build \
 | 权限撤销、真正取消任务、应用拒绝退出 | 不进入临时目标交换 | 实际 permission/quit/commit hook；未退出真实应用 |
 | 冷却到期且权限允许 | 可执行一次模拟退出和一次临时目录交换 | 到期只解除账本阻拦，不能推导真实 App 必然立即重试 |
 
-完整 AppListModel 编排、真实设置持久化、真实应用退出/重开、安装后崩溃恢复、101 升级、真实 TLS 和厂商线上端点仍未由本环境验证。这里没有声称所有现有产品策略均正确。
+仅上述仿真不覆盖完整 AppListModel 编排、真实设置持久化、真实应用退出/重开、安装后崩溃恢复、101 升级、真实 TLS 和厂商线上端点；本轮新增的本机接线验证另见上方记录。这里没有声称所有现有产品策略均正确。
 
 ## 测试设施阶段的独立 review（2026-11-12）
 

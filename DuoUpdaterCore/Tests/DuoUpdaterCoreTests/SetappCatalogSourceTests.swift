@@ -367,7 +367,7 @@ struct SetappCatalogSourceTests {
             path: URL(fileURLWithPath: "/Applications/Setapp/Moshi.app"),
             isMASApp: false, sparkleFeedURL: nil)
         let result = UpdateResult(app: edition, remote: nil, status: .upToDate)
-        let recipe = try? #require(ChangelogRecipeSelection.recipe(for: result))
+        let recipe = ChangelogRecipeSelection.recipe(for: result)
         #expect(recipe?.bundleID == "app.getmoshi.desktop")
     }
 

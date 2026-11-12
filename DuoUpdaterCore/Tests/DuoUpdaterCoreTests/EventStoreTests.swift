@@ -1003,7 +1003,7 @@ struct EventStoreTests {
         unsetenv("DUO_STATE_DIR")
         defer { if let previous { setenv("DUO_STATE_DIR", previous, 1) } }
 
-        withDUOStateDirUnset {
+        _ = withDUOStateDirUnset {
             setenv("DUO_STATE_DIR", "/tmp/duo-state-test-restore-check", 1)
         }
         #expect(ProcessInfo.processInfo.environment["DUO_STATE_DIR"] == nil,

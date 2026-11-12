@@ -223,12 +223,12 @@ public enum SetappCatalog {
                     throw SetappCatalogError.notAFeed
                 }
                 if http.statusCode == 304 {
-                    return try await self.unchanged(now: now)
+                    return try self.unchanged(now: now)
                 }
                 guard http.statusCode == 200 else {
                     throw SetappCatalogError.httpStatus(http.statusCode)
                 }
-                return try await self.commit(
+                return try self.commit(
                     data: data, responseETag: http.value(forHTTPHeaderField: "ETag"), now: now)
             }
             inFlight = task

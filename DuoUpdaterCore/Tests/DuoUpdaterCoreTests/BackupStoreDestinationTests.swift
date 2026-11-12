@@ -264,7 +264,7 @@ import Testing
         let configured = BackupDestination(
             kind: .external, path: path.path, identity: "X", volumeName: "Archive")
 
-        try BackupStore.$destinationOverride.withValue(configured) {
+        BackupStore.$destinationOverride.withValue(configured) {
             #expect(BackupStore.availability()
                 == .volumeNotMounted(volumeName: "Archive", path: path.path))
             #expect(throws: BackupStore.BackupError.self) {

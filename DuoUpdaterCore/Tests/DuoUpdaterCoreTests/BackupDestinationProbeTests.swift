@@ -91,7 +91,7 @@ import Testing
             let marker = try #require(BackupVolumeMarker.read(at: store))
             #expect(destination.identity == marker.identity)
             // The freshly adopted folder is immediately usable as a destination.
-            try BackupStore.$destinationOverride.withValue(destination) {
+            BackupStore.$destinationOverride.withValue(destination) {
                 #expect(BackupStore.availability() == .ready(destination.directory!))
             }
         }
@@ -125,10 +125,10 @@ import Testing
                     "the marker must go inside our own directory, not theirs")
             #expect(BackupVolumeMarker.read(at: store) != nil)
 
-            try BackupStore.$rootOverride.withValue(
+            BackupStore.$rootOverride.withValue(
                 picked.appendingPathComponent("outbox", isDirectory: true)
             ) {
-                try BackupStore.$destinationOverride.withValue(destination) {
+                BackupStore.$destinationOverride.withValue(destination) {
                     // Their folders are not backups, are not listed, and are not
                     // counted — so nothing can offer to delete them.
                     #expect(BackupStore.listing().isEmpty)

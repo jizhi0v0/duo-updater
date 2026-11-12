@@ -139,7 +139,7 @@ public struct SetappCatalogSource: UpdateSource {
             var remote = answer(for: app, release: release, version: version)
             if version.isBeta, !Self.isNewer(version, than: app),
                Self.installedIsCatalogueBeta(app, release: release),
-               let installed = app.shortVersion {
+               app.shortVersion != nil {
                 remote = RemoteVersion(
                     shortVersion: remote.shortVersion,
                     version: remote.version,

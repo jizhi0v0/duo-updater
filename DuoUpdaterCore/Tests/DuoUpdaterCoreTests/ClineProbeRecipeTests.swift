@@ -150,10 +150,10 @@ private let clineStableManifestWindowsFirst = """
 }
 
 @Test func clineInstallResolvesTheMacTarballAndNeverTheWindowsInstaller() throws {
-    let stable = try resolvedInstallURL(try clineRecipe(.stable), body: clineStableManifest)
+    let stable = resolvedInstallURL(try clineRecipe(.stable), body: clineStableManifest)
     #expect(stable == "https://github.com/cline/cline/releases/download/"
         + "desktop-v0.0.26/Cline_0.0.26_universal.app.tar.gz")
-    let beta = try resolvedInstallURL(try clineRecipe(.beta), body: clineBetaManifest)
+    let beta = resolvedInstallURL(try clineRecipe(.beta), body: clineBetaManifest)
     #expect(beta == "https://github.com/cline/cline/releases/download/"
         + "desktop-v0.0.23-beta.1/Cline-Beta_0.0.23-beta.1_universal.app.tar.gz")
     for url in [stable, beta] {

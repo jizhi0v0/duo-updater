@@ -197,8 +197,8 @@ private func app(_ name: String, _ bundleID: String?, _ path: String) -> Install
 
         let destination = BackupDestination(
             kind: .external, path: disk.path, identity: identity, volumeName: "TestDisk")
-        try await BackupStore.$rootOverride.withValue(outbox) {
-            try await BackupStore.$destinationOverride.withValue(destination) {
+        try BackupStore.$rootOverride.withValue(outbox) {
+            try BackupStore.$destinationOverride.withValue(destination) {
                 let backup = try #require(BackupStore.backup(forKey: "k"))
                 #expect(backup.location == .destination)
                 // Both archives and the sidecar, and not the abandoned `.partial`.

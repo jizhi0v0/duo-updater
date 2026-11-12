@@ -185,7 +185,7 @@ import Testing
             let impostor = BackupDestination(
                 kind: .external, path: retired.path, identity: "not-this-one",
                 volumeName: "RetiredDisk")
-            try await BackupStore.$knownDisksOverride.withValue([impostor]) {
+            BackupStore.$knownDisksOverride.withValue([impostor]) {
                 #expect(BackupStore.reachableDisks().isEmpty)
                 #expect(BackupStore.backup(forKey: "old") == nil)
             }

@@ -144,7 +144,7 @@ import Foundation
         let app = try fixtureApp(in: directory)
         let reference = reference()
 
-        try await BackupFactsLibrary.$rootOverride.withValue(directory.appendingPathComponent("library")) {
+        try BackupFactsLibrary.$rootOverride.withValue(directory.appendingPathComponent("library")) {
             let facts = try BundleFactsReader.scan(root: app)
             #expect(record(facts, reference))
             let entry = BackupFactsLibrary.entry(for: reference)
@@ -164,7 +164,7 @@ import Foundation
         defer { try? FileManager.default.removeItem(at: directory) }
         let app = try fixtureApp(in: directory)
 
-        try await BackupFactsLibrary.$rootOverride.withValue(directory.appendingPathComponent("library")) {
+        try BackupFactsLibrary.$rootOverride.withValue(directory.appendingPathComponent("library")) {
             let facts = try BundleFactsReader.scan(root: app)
             #expect(record(facts, reference("zz-first")))
             #expect(record(facts, reference("zz-second")))
@@ -188,7 +188,7 @@ import Foundation
         let app = try fixtureApp(in: directory)
         let reference = reference()
 
-        try await BackupFactsLibrary.$rootOverride.withValue(directory.appendingPathComponent("library")) {
+        try BackupFactsLibrary.$rootOverride.withValue(directory.appendingPathComponent("library")) {
             let scanned = try BundleFactsReader.scan(root: app)
             #expect(scanned.stringsIndexed)
             #expect(!scanned.stringsBlob.isEmpty)

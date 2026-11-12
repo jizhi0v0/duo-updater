@@ -501,7 +501,7 @@ import DuoUpdaterCore
         // A pattern is shown verbatim; one that reads as a closing keyword stops it.
         let pattern = #"<h3 class="v">(?<version>[0-9.]+)</h3>(?<body>(?:(?!<h3).)*)(?:fixes #9)?"#
         world.reply = Self.reply(entryPattern: pattern)
-        let (outcome, log) = try await Self.attempt(world)
+        let (outcome, _) = try await Self.attempt(world)
         #expect(Self.reason(outcome) == "refused: the pull request body would close an issue",
                 "\(Self.reason(outcome))")
     }
@@ -1114,14 +1114,14 @@ import DuoUpdaterCore
     @Test func g7ADegradedVerifyStopsThePullRequest() async throws {
         var world = World()
         world.verifyStatus = .warn
-        let (outcome, log) = try await Self.attempt(world)
+        let (outcome, _) = try await Self.attempt(world)
         #expect(Self.reason(outcome).hasPrefix("refused: G7"), "\(Self.reason(outcome))")
     }
 
     @Test func aTreeThatChangedDuringTheGatesIsNotPublished() async throws {
         var world = World()
         world.treeChangesDuringGates = true
-        let (outcome, log) = try await Self.attempt(world)
+        let (outcome, _) = try await Self.attempt(world)
         #expect(Self.reason(outcome).hasPrefix("refused: G5"), "\(Self.reason(outcome))")
     }
 

@@ -341,7 +341,7 @@ public enum GitHubRateLimitGate {
                 case .unknown:
                     let task = Task { [now] in
                         let answer = await probe()
-                        await self.probed(credential, generation: generation, answer: answer, at: now())
+                        self.probed(credential, generation: generation, answer: answer, at: now())
                     }
                     entry.phase = .probing(task)
                     entries[credential] = entry

@@ -272,7 +272,7 @@ for app in electron {
     if let staged = UpdatePolicy.stagedBlocksInstall(
         result,
         staged: SelfUpdaterStaging.staged(for: app, requireNewerThanInstalled: false)) {
-        print("\n    --install: refused — its own updater has \(staged.version ?? staged.buildVersion ?? "a build")"
+        print("\n    --install: refused — its own updater has \(staged.version)"
             + " staged for the next quit; installing now would be undone (quit it to apply).")
         continue
     }

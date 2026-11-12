@@ -75,7 +75,7 @@ enum ScratchSlot {
         var buffer = [CChar](repeating: 0, count: Int(PATH_MAX))
         precondition(confstr(_CS_DARWIN_USER_TEMP_DIR, &buffer, buffer.count) > 0,
                      "no per-user temporary directory for the scratch-defaults slots")
-        let directory = String(cString: buffer)
+        let directory = String(decoding: buffer.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self)
         var slot = 0
         while true {
             let path = URL(fileURLWithPath: directory, isDirectory: true)

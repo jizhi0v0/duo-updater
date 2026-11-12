@@ -1485,11 +1485,11 @@ public enum ChangelogAutofix {
     /// the pull request applies the change to the same commit.
     static func prepareWorktree(_ tree: URL, repository: URL) async throws {
         if !FileManager.default.fileExists(atPath: tree.appendingPathComponent(".git").path) {
-            try await git(["worktree", "add", "--detach", tree.path, "origin/main"], in: repository)
+            _ = try await git(["worktree", "add", "--detach", tree.path, "origin/main"], in: repository)
         }
-        try await git(["checkout", "--detach", "--force", "origin/main"], in: tree)
-        try await git(["reset", "--hard", "origin/main"], in: tree)
-        try await git(["clean", "-ffdx", "-e", "DuoUpdaterCore/.build", "-e", "CLI/.build"], in: tree)
+        _ = try await git(["checkout", "--detach", "--force", "origin/main"], in: tree)
+        _ = try await git(["reset", "--hard", "origin/main"], in: tree)
+        _ = try await git(["clean", "-ffdx", "-e", "DuoUpdaterCore/.build", "-e", "CLI/.build"], in: tree)
     }
 
     /// Every changed or new path, untracked files listed one by one.

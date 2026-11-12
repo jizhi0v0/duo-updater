@@ -74,7 +74,7 @@ import DuoUpdaterCore
         var store = InstallIdentities()
         _ = store.record("vendor:a", recorded())
         #expect(store.record("vendor:a", recorded(version: "2.0", at: day2)).isEmpty)
-        let entry = try? #require(store.entries["vendor:a"])
+        let entry = store.entries["vendor:a"]
         #expect(entry?.firstSeenAt == day1)
         #expect(entry?.firstSeenVersion == "1.0")
         #expect(entry?.lastSeenAt == day2)

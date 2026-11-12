@@ -79,7 +79,7 @@ enum GitHub {
     }
 
     static func comment(issue: Int, body: String) async throws {
-        try await withBodyFile(body) { file in
+        _ = try await withBodyFile(body) { file in
             try await run(["issue", "comment", "\(issue)", "--body-file", file.path])
         }
     }

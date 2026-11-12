@@ -32,6 +32,9 @@ let package = Package(
         .testTarget(
             name: "DuoUpdaterCoreTests",
             dependencies: ["DuoUpdaterCore"],
+            // Fixtures are read from the source checkout with #filePath, not
+            // compiled or copied into a SwiftPM resource bundle.
+            exclude: ["Fixtures"],
             // `make test-release` (ci.yml's `release` job) exists to run
             // DuoUpdaterCore optimized, the way the app ships it. The tests
             // themselves gain nothing from -O, and compiling all of them as one

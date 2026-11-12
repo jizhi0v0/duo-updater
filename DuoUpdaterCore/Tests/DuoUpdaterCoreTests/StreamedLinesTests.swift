@@ -118,7 +118,7 @@ import Foundation
     @Test func anEndBeforeTheWaitReturnsAtOnce() async throws {
         let s = StreamedLines()
         s.end()
-        let done = try await Self.finishing(within: Self.watchdogSeconds) { await s.waitForEnd(atMost: 3600) }
+        let done: Void? = try await Self.finishing(within: Self.watchdogSeconds) { await s.waitForEnd(atMost: 3600) }
         #expect(done != nil)
     }
 
@@ -135,7 +135,7 @@ import Foundation
     /// hung CI's release job (run 37508268328).
     @Test func anEndDuringTheWaitResumesIt() async throws {
         let s = StreamedLines()
-        let done = try await Self.finishing(within: Self.watchdogSeconds) {
+        let done: Void? = try await Self.finishing(within: Self.watchdogSeconds) {
             Thread.detachNewThread {
                 let deadline = Date().addingTimeInterval(Self.watchdogSeconds)
                 while !s.hasWaiter, Date() < deadline { usleep(1_000) }
@@ -151,7 +151,7 @@ import Foundation
     /// No EOF ever (a child kept the pipe open): the cap releases the wait.
     @Test func theCapReleasesAWaitThatNeverEnds() async throws {
         let s = StreamedLines()
-        let done = try await Self.finishing(within: Self.watchdogSeconds) { await s.waitForEnd(atMost: 0.05) }
+        let done: Void? = try await Self.finishing(within: Self.watchdogSeconds) { await s.waitForEnd(atMost: 0.05) }
         #expect(done != nil)
         #expect(!s.hasWaiter)
     }

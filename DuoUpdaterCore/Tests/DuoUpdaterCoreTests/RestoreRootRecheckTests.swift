@@ -149,7 +149,7 @@ import Testing
                     try FileManager.default.removeItem(at: scratch)
                     try FileManager.default.copyItem(at: forged, to: scratch)
                 }
-                try await InPlaceSwap.$elevatedShellOverride.withValue(runner) {
+                await InPlaceSwap.$elevatedShellOverride.withValue(runner) {
                     await #expect(throws: (any Error).self) {
                         try await BackupStore.restore(forKey: key, over: fixture.target)
                     }
@@ -221,7 +221,7 @@ import Testing
                 _ = try macOSLinkedOut(stored, in: fixture.dir)
                 try rewriteSidecar(fixture, bundle: stored)
                 chmod(fixture.apps.path, 0o555)
-                try await InPlaceSwap.$elevatedShellOverride.withValue(runAsThisUser(fixture, calls: calls)) {
+                await InPlaceSwap.$elevatedShellOverride.withValue(runAsThisUser(fixture, calls: calls)) {
                     await #expect(throws: (any Error).self) {
                         try await BackupStore.restore(forKey: fixture.key, over: fixture.target)
                     }
@@ -381,7 +381,7 @@ import Testing
                     appPath: fixture.target, key: fixture.key, version: "1", bundleID: Self.identifier)
                 try FileManager.default.removeItem(at: fixture.target)
                 chmod(fixture.apps.path, 0o555)
-                try await InPlaceSwap.$elevatedShellOverride.withValue(recordOnly(calls)) {
+                await InPlaceSwap.$elevatedShellOverride.withValue(recordOnly(calls)) {
                     do {
                         _ = try await BackupStore.restore(forKey: fixture.key, over: fixture.target)
                         Issue.record("restored with nothing to check the backup against")
@@ -410,7 +410,7 @@ import Testing
                 try await DigestOnlyInstallTests.makeApp(
                     at: fixture.target, bundleID: Self.identifier, build: "2", signing: .sealed(identifier: nil))
                 chmod(fixture.apps.path, 0o555)
-                try await InPlaceSwap.$elevatedShellOverride.withValue(recordOnly(calls)) {
+                await InPlaceSwap.$elevatedShellOverride.withValue(recordOnly(calls)) {
                     do {
                         _ = try await BackupStore.restore(forKey: fixture.key, over: fixture.target)
                         Issue.record("restored with nothing to check the backup against")

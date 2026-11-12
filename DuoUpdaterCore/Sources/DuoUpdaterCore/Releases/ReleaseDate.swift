@@ -235,7 +235,7 @@ public enum ReleaseDate {
 
     /// Zone-less ISO8601, with and without fractional seconds. `SSSSSS` covers
     /// Python's 6-digit microseconds; `DateFormatter` tolerates fewer digits.
-    private nonisolated(unsafe) static let zonelessISOFormatters: [DateFormatter] = {
+    private static let zonelessISOFormatters: [DateFormatter] = {
         ["yyyy-MM-dd'T'HH:mm:ss.SSSSSS", "yyyy-MM-dd'T'HH:mm:ss"].map { pattern in
             let f = DateFormatter()
             f.locale = Locale(identifier: "en_US_POSIX")
@@ -255,7 +255,7 @@ public enum ReleaseDate {
     /// as an ISO8601 basic offset (`xx`). It is last on purpose: a formatter
     /// only sees a string every earlier one rejected, so no string that already
     /// parsed can read differently because of it.
-    private nonisolated(unsafe) static let rfc822Formatters: [DateFormatter] = {
+    private static let rfc822Formatters: [DateFormatter] = {
         let patterns = [
             "EEE, dd MMM yyyy HH:mm:ss Z",
             "EEE, dd MMM yyyy HH:mm:ss zzz",

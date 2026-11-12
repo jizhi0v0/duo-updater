@@ -302,8 +302,8 @@ import Testing
         }
 
         // The user then points the store at a disk.
-        try await BackupStore.$rootOverride.withValue(stores.outbox) {
-            try await BackupStore.$destinationOverride.withValue(destination(stores)) {
+        await BackupStore.$rootOverride.withValue(stores.outbox) {
+            await BackupStore.$destinationOverride.withValue(destination(stores)) {
                 #expect(BackupStore.pendingTransferKeys() == ["old"])
 
                 let queue = BackupTransferQueue(backoffUnitNanos: 1_000)

@@ -215,7 +215,7 @@ public extension ISO8601DateFormatter {
     // documented as thread-safe and this instance is never reconfigured after
     // construction. Reached once per row of a dump, so a per-call formatter would
     // be pure waste.
-    public nonisolated(unsafe) static let duoEvent: ISO8601DateFormatter = {
+    nonisolated(unsafe) static let duoEvent: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return formatter

@@ -120,7 +120,7 @@ struct ChangelogDiskCacheTests {
 
     /// A changelog with nothing to drop is written exactly as it was.
     @Test func aChangelogWithNoQueriedImagesIsWrittenUnchanged() async throws {
-        try await withScratchDirectory { dir in
+        await withScratchDirectory { dir in
             let image = URL(string: "https://cdn.example.com/a.png")!
             let changelog = Changelog(entries: [Changelog.Entry(
                 version: "1.0", date: nil, items: ["one"], content: [.note("one"), .image(image)])])

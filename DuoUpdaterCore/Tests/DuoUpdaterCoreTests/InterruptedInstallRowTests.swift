@@ -96,7 +96,7 @@ import Testing
              interrupted(at: broken, damage: .signatureBroken)],
             scanned: scanned)
         #expect(rows.count == 1)
-        let row = try? #require(rows.first)
+        let row = rows.first
         #expect(row?.app.path == path)
         #expect(row?.app.name == "ZZFixture-Interrupted")
         #expect(row?.app.shortVersion == "1.0")

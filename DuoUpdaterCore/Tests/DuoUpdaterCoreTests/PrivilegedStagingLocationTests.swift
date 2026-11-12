@@ -350,7 +350,7 @@ import Testing
 
             let calls = Calls()
             chmod(fixture.apps.path, 0o555)
-            try await InPlaceSwap.$elevatedShellOverride.withValue(
+            await InPlaceSwap.$elevatedShellOverride.withValue(
                 runAsThisUser(fixture, calls: calls) {
                     try FileManager.default.removeItem(at: source)
                     try FileManager.default.copyItem(at: older, to: source)

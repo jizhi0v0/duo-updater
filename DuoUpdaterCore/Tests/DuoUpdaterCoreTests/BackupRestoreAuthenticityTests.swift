@@ -340,8 +340,8 @@ struct BackupRestoreAuthenticityTests {
             ] as [String: Any], to: keyDir.appendingPathComponent("backup.json"))
             let installed = try makeApp(named: "Installed.app", in: apps)
 
-            try await BackupStore.$rootOverride.withValue(outbox) {
-                try await BackupStore.$destinationOverride.withValue(destination) {
+            await BackupStore.$rootOverride.withValue(outbox) {
+                await BackupStore.$destinationOverride.withValue(destination) {
                     #expect(BackupStore.backup(forKey: "k") == nil)
                     await #expect(throws: BackupStore.BackupError.self) {
                         try await BackupStore.restore(forKey: "k", over: installed)
@@ -362,13 +362,13 @@ struct BackupRestoreAuthenticityTests {
             let keyDir = root.appendingPathComponent("k", isDirectory: true)
             try FileManager.default.createDirectory(at: keyDir, withIntermediateDirectories: true)
             // Something real where the path points, so only the name can refuse it.
-            try makeApp(named: "Other.app", in: root.appendingPathComponent("x", isDirectory: true))
+            _ = try makeApp(named: "Other.app", in: root.appendingPathComponent("x", isDirectory: true))
             try writeJSON([
                 "version": "1.0", "originalPath": "/Applications/Other.app",
                 "bundleName": "../x/Other.app", "savedAt": 0,
             ] as [String: Any], to: keyDir.appendingPathComponent("backup.json"))
 
-            try await BackupStore.$rootOverride.withValue(root) {
+            BackupStore.$rootOverride.withValue(root) {
                 #expect(BackupStore.backup(forKey: "k") == nil)
             }
         }
@@ -388,7 +388,7 @@ struct BackupRestoreAuthenticityTests {
                 "bundleName": "Other.app", "savedAt": 0,
             ] as [String: Any], to: keyDir.appendingPathComponent("backup.json"))
 
-            try await BackupStore.$rootOverride.withValue(root) {
+            BackupStore.$rootOverride.withValue(root) {
                 #expect(BackupStore.backup(forKey: "k") == nil)
             }
         }

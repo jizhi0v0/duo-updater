@@ -215,6 +215,59 @@ struct LocalStashFallbackTests {
             scratch: scratch)
     }
 
+    @Test func stashVerificationThenTemporaryFullDownloadFailureCanRetry() async throws {
+        let scratch = try Self.scratchDirectory()
+        defer { try? FileManager.default.removeItem(at: scratch) }
+        let caches = scratch.appendingPathComponent("caches")
+        let pending = caches.appendingPathComponent(Self.cacheDirName).appendingPathComponent("pending")
+        try FileManager.default.createDirectory(at: pending, withIntermediateDirectories: true)
+        let archive = pending.appendingPathComponent("fixture-mac-arm64.zip")
+        try await Self.zipApp(at: archive, scratch: scratch)
+        try JSONSerialization.data(withJSONObject: [
+            "fileName": archive.lastPathComponent,
+            "sha512": Data(SHA512.hash(data: try Data(contentsOf: archive))).base64EncodedString(),
+            "isAdminRightsRequired": false,
+        ]).write(to: pending.appendingPathComponent("update-info.json"))
+        let server = try HTTPDownloadLoopbackServer([.init(status: 503)])
+        defer { server.stop() }
+        let app = Self.installedApp(name: "ZZStashRetry", bundleID: Self.bundleID,
+            electronUpdate: ElectronUpdateConfig(provider: "github", url: nil, owner: "zzfixture",
+                repo: "zzfixture", channel: "latest", updaterCacheDirName: Self.cacheDirName))
+        let result = UpdateResult(app: app,
+            remote: RemoteVersion(shortVersion: Self.offered, version: nil, downloadURL: server.url,
+                sourceName: "GitHub", vendorInstallerKind: .zip),
+            status: .updateAvailable(latest: Self.offered))
+        let vendor = VendorInstaller(stashCachesDirectory: caches,
+            stashApplicationSupportDirectory: scratch.appendingPathComponent("support"))
+        let taken = try await vendor.download(result, population: [app], onStage: { _ in })
+        #expect(taken.localStash != nil)
+        try FileManager.default.removeItem(at: taken.workDir)
+        let attempt = AutomaticUpdateFailurePolicy.Attempt()
+        let coordinator = InstallCoordinator(runningProcesses: { [] }, vendor: vendor)
+        await AutomaticUpdateFailurePolicy.$attempt.withValue(attempt) {
+            do {
+                _ = try await AutomaticUpdateFailurePolicy.capturing {
+                    try await coordinator.perform(result, route: .vendor, installedPopulation: [app],
+                        digestOnlyAllowed: false,
+                        progress: AutomaticUpdateFailurePolicy.recordingProgress { _ in },
+                        releaseAfterDownload: AutomaticUpdateFailurePolicy.afterDownload {})
+                }
+                Issue.record("Expected full-download 503")
+            } catch {
+                guard case .httpStatus(503) = error as? Downloader.DownloadError else {
+                    Issue.record("Unexpected failure: \(error)")
+                    return
+                }
+            }
+        }
+        #expect(server.requests.count == 1)
+        #expect(server.unexpectedRequests.isEmpty)
+        #expect(attempt.evidence.acquisitionFinished)
+        #expect(attempt.evidence.advancedPastAcquisition)
+        #expect(attempt.evidence.allowedFallbackAcquisition)
+        #expect(try #require(attempt.failure(or: "missing")).disposition == .retryAcquisition)
+    }
+
     /// Which failures on a stash are worth the route's own download.
     ///
     /// Mutations (each verified red): drop the cancellation, free-space, or OS

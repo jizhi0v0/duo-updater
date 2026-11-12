@@ -548,7 +548,8 @@ public enum InstallVerify {
     /// - A download the server refused (any other 4xx — the asset was deleted or
     ///   renamed) is `broken`: waiting out the infra window would take days and
     ///   then file it as an unreachable host, which it is not.
-    /// - A gate that refused the bytes — digest, unpacking, signature — is
+    /// - A response with invalid content (such as an HTML landing page), or a
+    ///   gate that refused the bytes — digest, unpacking, signature — is
     ///   `broken`.
     /// - Unresolved is `skipped`: resolving the installer is `duo verify`'s
     ///   finding to file, and filing it here as well would open a second issue.

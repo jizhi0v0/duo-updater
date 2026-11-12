@@ -11,7 +11,33 @@
 - HTML 错误页恢复和断线续传共用最多 5 次获取请求预算；HTML 重取有可取消的退避，最终错误页删除并以内容错误拒绝。预算指 data task 初始 GET，安全重定向的每一跳不另占一次。
 - 下载拒绝携带有效未来 Retry-After 时保留 typed deadline，公开诊断仍得到原 HTTP code。自动获取的恢复时间取默认 24 小时与服务端截止时间的较晚者。
 - 自动更新只在有同步、单调的阶段证据时恢复暂时性获取错误；获取失败使用独立、最多 3 次失败的预算。拒绝访问、内容/完整性、TLS、本地错误及获取之后的失败暂停同一 offered version，手动操作仍可尝试。新版本清新策略的暂停；既有账本和拒绝退出的历史约束保持兼容。
-- 失败与拒绝退出按本次实际 attempted version 记账，防止安装前复查换版本后下一轮误清暂停。阶段跨 Task/Dispatch 保留，fallback 回到下载状态也不能清掉已经验证/安装的证据。
+- 失败与拒绝退出按本次实际 attempted version 记账，防止安装前复查换版本后下一轮误清暂停。阶段跨 Task/Dispatch 保留；协调器明确许可的 stash/delta 回退可重试完整包获取，但不会清掉退出/提交证据。
+
+## Fable review 修复（2026-11-13）
+
+对应 PR #1980 的十条意见及退出后取消补充：
+
+- #1：补丁下载返回 HTML 时仅将该内容错误包装为 `DeltaRouteFailure`，回退完整包；取消、传输与信任错误不获得该回退。
+- #2：安装前复查的 `.answerRegressed` 保留类型与原 offer，采用最多三次的获取失败预算；不可读 bundle、锁错误及未知错误仍暂停版本。
+- #3：短下载 `received < expected` 可有界恢复；TLS、证书、摘要与超长内容仍暂停。下载内部即时重试与耗尽后的无人值守恢复是两层策略。
+- #4：最终 HTML 安装响应记录为 `.content`，verify-install 分类为 `broken`，不再作为 `infra`。
+- #5/#10：保留现有 HTTP 重试白名单；403/404、本地问题与未知失败仍需手动尝试或新版本，其他 5xx 的探测结果仍是暂时不可用，不是永久失效。
+- #6：不截短或绕过 Retry-After；Events 改为等待重试期限（包含服务器要求的延迟），旧事件翻译保留。
+- #7：仅在协调器明确允许的 stash/delta 回退获取阶段暂时放行获取重试；历史阶段证据保留，退出或提交开始后永久禁止该尝试自动重放。
+- #8：应用已经退出后的取消沿用既有退避；退出前取消和现有权限撤销/用户重开排除条件不变。
+- #9：archiveBytes 在每次请求前检查冷却、每次响应后记录期限，跨扫描和 Range 变化均不提前请求。
+
+本轮本机验证（Apple Silicon、macOS 27.3）：
+
+- `swift test --package-path DuoUpdaterCore --disable-automatic-resolution --jobs 4 --filter 'HTTP.*SimulationTests|VendorArchiveHTMLRetryTests|LocalStashFallbackTests|RunningAppAutoUpdateTests|AutomaticInstallTests|RunningAppQuitBeforeApplyTests|InstallCommitTests|InstallURLTransientTests|InstallRedirectDeferralTests|VendorProbeArchiveInfoPlistTests'`：**214 tests / 17 suites passed**。
+- 联合变异移除旧源答案/短下载恢复、协调器回退许可和退出/提交标记：**26 tests / 3 suites，12 issues，exit 1**。恢复全部生产文件后，上面的 214 项重新全绿。该变异验证核心政策与生产协调器钩子，不验证 AppListModel UI 接线。
+- `swift test --package-path CLI --scratch-path DuoUpdaterCore/.build --disable-automatic-resolution --jobs 4`：**699 tests / 78 suites passed**。
+- `scripts/app-tests.sh`：**343 / 343 cases executed**。
+- `xcodebuild -project App/DuoUpdater.xcodeproj -scheme DuoUpdater -configuration Debug -destination 'generic/platform=macOS' -jobs 4 -derivedDataPath /tmp/duo-http-retry-app-2dd463be -onlyUsePackageVersionsFromResolvedFile ARCHS=arm64 CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO COMPILER_INDEX_STORE_ENABLE=NO build`：**BUILD SUCCEEDED**，实际编译 AppListModel。
+- `python3 scripts/check_localizable_keys.py`：**1399 keys, all reachable**；`python3 scripts/check_localizable_specifiers.py`：**373 keys / 4181 variants passed**。
+- 三组并行实现后，交叉复核及独立只读对抗审查未发现新增阻断缺陷。重点核查 process-control（TaskLocal、退出/提交不可逆证据、取消退避）、data-loss（仅清理自有工作目录）、trust/secrets（HTML 专属回退及保留信任错误类型、冷却身份隔离）。审查员未执行构建或测试，上述命令由主 agent 执行。
+
+运行验证限制：本轮 VMPal 列表为空，旧 VM 控制入口不可用。AppListModel 的完整自动调度、旧源答案记账及真实退出中取消→重开→下一轮退避仍未完成运行验证。原生 Core 集成测试、App hostless 测试和 App 编译不替代这些证据；PR 保持 needs-real-machine，不合并。
 
 ## 生产修复验证与审查（2026-11-12）
 
@@ -40,10 +66,11 @@
 scripts/test-http-simulation.sh
 ```
 
-入口先构建并枚举测试，确认五个 suite 均存在，再执行 `HTTP.*SimulationTests`。缺少 suite 或用例失败都会返回非零退出码。`DUO_STATE_DIR` 指向本次运行的临时目录，退出后清理；不启动 DuoUpdater，不执行真实应用安装或退出，不修改代理与用户设置。
+入口先构建并枚举测试，确认六个 suite 均存在，再执行 `HTTP.*SimulationTests`。缺少 suite 或用例失败都会返回非零退出码。`DUO_STATE_DIR` 指向本次运行的临时目录，退出后清理；不启动 DuoUpdater，不执行真实应用安装或退出，不修改代理与用户设置。
 
 | Suite | 负责的路径 |
 | --- | --- |
+| `HTTPAutomaticFallbackSimulationTests` | 实际协调器的补丁失败回退与暂时性完整包获取失败 |
 | `HTTPDownloadStatusSimulationTests` | `Downloader` 的状态码、文件响应、Range、传输失败与重定向 |
 | `HTTPVersionSourceSimulationTests` | 版本 feed、GitHub 与 Vendor source 的响应解析、缓存、凭据和重试 |
 | `HTTPRetryAfterSimulationTests` | 服务端等待要求、厂商下载地址解析与可达性探测 |

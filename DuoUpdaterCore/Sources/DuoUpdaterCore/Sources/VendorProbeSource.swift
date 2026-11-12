@@ -1931,15 +1931,26 @@ public struct VendorProbeSource: UpdateSource {
             expected = end - start + 1
         }
         let host = url.host ?? "the archive host"
+        let cooldowns = HTTPRetryAfter.cooldowns
 
         var attempt = 0
         while true {
+            guard !Task.isCancelled else { throw URLError(.cancelled) }
+            // Range changes between the ZIP tail and entry reads must not bypass
+            // the endpoint's deadline, including on a later scan.
+            if let failure = cooldowns.failure(for: request, in: session) {
+                throw ArchiveRangeRefused(
+                    status: failure.statusCode,
+                    detail: "\(host) is waiting for its Retry-After deadline (HTTP \(failure.statusCode))")
+            }
             let (stream, response) = try await session.countedBytes(for: request, purpose: .versionCheck)
             guard let http = response as? HTTPURLResponse else {
                 stream.task.cancel()
                 throw URLError(.badServerResponse)
             }
-            if attempt == 0, URLSession.retryableGatewayStatuses.contains(http.statusCode) {
+            cooldowns.observe(http, for: request, in: session)
+            if attempt == 0, URLSession.retryableGatewayStatuses.contains(http.statusCode),
+               cooldowns.permitsRetry(http, after: retryDelay) {
                 stream.task.cancel()
                 Log.source.info(
                     "archive range \(host, privacy: .public): HTTP \(http.statusCode) — retrying once")

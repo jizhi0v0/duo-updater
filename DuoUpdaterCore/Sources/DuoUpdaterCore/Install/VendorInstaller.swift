@@ -226,19 +226,27 @@ public actor VendorInstaller {
             // A web page where the archive should be is retried: some vendors
             // answer part of their requests with their home page (HTTP 200,
             // `text/html`) — corkmac.app did about one in two until its fix
-            // (2026-10-17, buresdv/Cork#687). Not for a patch, whose bytes are
-            // not an archive this check knows.
+            // (2026-10-17, buresdv/Cork#687). A patch answered with HTML
+            // falls back to the full archive instead of retrying the patch.
             var downloader: Downloader!
             var bytesDownloaded: Int64 = 0
-            let downloaded = try await Self.fetchArchive(
-                maxAttempts: patch == nil ? Self.htmlBodyMaxAttempts : 1
-            ) {
-                downloader = Downloader(destinationDir: workDir) { fraction in
-                    onStage(.downloading(fraction: fraction))
+            let downloaded: URL
+            do {
+                downloaded = try await Self.fetchArchive(
+                    maxAttempts: patch == nil ? Self.htmlBodyMaxAttempts : 1
+                ) {
+                    downloader = Downloader(destinationDir: workDir) { fraction in
+                        onStage(.downloading(fraction: fraction))
+                    }
+                    defer { bytesDownloaded += downloader.bytesDownloaded }
+                    return try await downloader.download(
+                        patch?.url ?? downloadURL, headers: remote.downloadHeaders)
                 }
-                defer { bytesDownloaded += downloader.bytesDownloaded }
-                return try await downloader.download(
-                    patch?.url ?? downloadURL, headers: remote.downloadHeaders)
+            } catch InstallError.htmlInsteadOfArchive where patch != nil {
+                // Only this content failure earns a full-archive fallback.
+                // Cancellation, transport and trust failures retain their type.
+                throw DeltaRouteFailure(
+                    underlying: InstallError.htmlInsteadOfArchive, bytesSpent: bytesDownloaded)
             }
 
             // Ensure the file carries an extension matching its kind, so the

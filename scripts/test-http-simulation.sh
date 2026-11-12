@@ -14,7 +14,7 @@ swift test --package-path "$REPO/DuoUpdaterCore" \
     --disable-automatic-resolution --jobs 4 list > "$SCRATCH/tests.txt"
 for suite in HTTPDownloadStatusSimulationTests HTTPVersionSourceSimulationTests \
              HTTPRetryAfterSimulationTests HTTPAutomaticUpdateSimulationTests \
-             HTTPAutomaticUpdateFailureSimulationTests; do
+             HTTPAutomaticUpdateFailureSimulationTests HTTPAutomaticFallbackSimulationTests; do
     if ! grep -F "$suite/" "$SCRATCH/tests.txt" >/dev/null; then
         printf 'Missing simulation suite: %s\n' "$suite" >&2
         exit 1

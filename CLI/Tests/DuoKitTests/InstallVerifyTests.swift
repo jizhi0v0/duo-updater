@@ -121,6 +121,8 @@ import DuoUpdaterCore
             refused.httpStatus = status
             #expect(InstallVerify.finding(refused).status == expected, "HTTP \(status)")
         }
+        #expect(InstallVerify.finding(item(.failed, stage: .content)).status == .broken)
+        #expect(InstallVerify.finding(item(.failed, stage: .content)).failureKind == "install.content")
         #expect(InstallVerify.finding(item(.failed, stage: .checksum)).status == .broken)
         #expect(InstallVerify.finding(item(.failed, stage: .unpack)).status == .broken)
         #expect(InstallVerify.finding(item(.failed, stage: .signature)).status == .broken)

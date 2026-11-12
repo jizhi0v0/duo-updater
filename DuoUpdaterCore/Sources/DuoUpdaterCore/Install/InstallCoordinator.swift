@@ -679,6 +679,7 @@ public actor InstallCoordinator {
                     digestOnlyAllowed: digestOnlyAllowed, spaceToApply: spaceToApply,
                     progress: progress, releaseAfterDownload: releaseAfterDownload)
             } catch let failure as LocalStashFailure {
+                AutomaticUpdateFailurePolicy.attempt?.beginAllowedFallbackAcquisition()
                 // The bytes the app's own updater parked did not unpack or did not
                 // pass a gate, and a retry would pick the same file again until
                 // that updater replaced it. Take the route's own artifact instead,
@@ -701,6 +702,7 @@ public actor InstallCoordinator {
                     },
                     apply: { _ = try await self.sparkle.apply($0, download: $1, onStage: $2) })
             } catch let failure as DeltaRouteFailure {
+                AutomaticUpdateFailurePolicy.attempt?.beginAllowedFallbackAcquisition()
                 // The patch route didn't work out; take the full archive, which is
                 // always published alongside it. Only `DeltaRouteFailure` lands here
                 // — a gate failure on the full route is a real refusal and must not
@@ -745,6 +747,7 @@ public actor InstallCoordinator {
                         $0, download: $1, digestOnlyAllowed: digestOnlyAllowed, onStage: $2)
                 })
         } catch let failure as DeltaRouteFailure {
+            AutomaticUpdateFailurePolicy.attempt?.beginAllowedFallbackAcquisition()
             Log.install.info("delta route failed, retrying with the full archive: \(result.app.name, privacy: .public) — \(failure.errorDescription ?? "unknown", privacy: .public)")
             // The patch's bytes were spent whether or not it worked, so they
             // belong in the total this install reports.

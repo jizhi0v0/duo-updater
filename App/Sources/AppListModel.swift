@@ -5718,7 +5718,10 @@ final class AppListModel {
                 // popover clamps this note to one line and hands the full string to
                 // the tooltip, so the two version numbers have to survive the clamp
                 // and everything else has to go.
-                installErrors[id] = String(localized: "The update source answered \(was), then \(now) — nothing was installed.")
+                let reason = String(localized: "The update source answered \(was), then \(now) — nothing was installed.")
+                installErrors[id] = reason
+                AutomaticUpdateFailurePolicy.attempt?.record(
+                    AutomaticUpdateFailurePolicy.PreflightFailure.answerRegressed(reason))
             case .unreadable:
                 break  // unreachable: guarded above, before `result` was bound
             case .proceed:
@@ -10613,9 +10616,9 @@ final class AppListModel {
                     // count toward giving up on it.
                     if !reopenedByUser && automaticUpdatesAllowed && prefs.automaticUpdatesRunningApps {
                         switch outcome {
-                        case .cancelled:
-                            break
-                        case .deferred:
+                        case .cancelled, .deferred:
+                            // The app was already quit. A row cancellation must
+                            // not let the next scan immediately quit it again.
                             // Deferred has no typed user/safety distinction.
                             // Keep the existing bounded post-quit safety backoff;
                             // a revoked live permission is excluded above.

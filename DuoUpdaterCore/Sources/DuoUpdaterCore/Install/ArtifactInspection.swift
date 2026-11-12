@@ -56,7 +56,7 @@ public enum ArtifactInspection {
 
     /// Where an inspection stopped.
     public enum Stage: String, Codable, Sendable {
-        case download, checksum, unpack, signature
+        case download, content, checksum, unpack, signature
     }
 
     public struct Failure: Error, Sendable {
@@ -106,6 +106,11 @@ public enum ArtifactInspection {
                 return try await downloader.download(url, headers: remote.downloadHeaders)
             }
             archive = try VendorInstaller.normalizedArchive(downloaded, kind: kind, workDir: workDir)
+        } catch VendorInstaller.InstallError.htmlInsteadOfArchive {
+            return .failure(Failure(
+                stage: .content,
+                message: VendorInstaller.InstallError.htmlInsteadOfArchive.localizedDescription,
+                bytes: bytes))
         } catch {
             var failure = Failure(
                 stage: .download, message: error.localizedDescription, bytes: bytes)

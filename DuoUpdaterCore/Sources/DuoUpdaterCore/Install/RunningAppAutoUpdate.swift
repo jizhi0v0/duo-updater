@@ -155,7 +155,7 @@ public enum RunningAppAutoUpdate {
 
     public enum Reason: Equatable, Sendable {
         case gaveUp
-        /// A refused quit or failed update less than `retryBackoff` ago.
+        /// A refused quit or failed update is cooling down, possibly until a server deadline.
         case retryLater
         /// A process inside the bundle that the app's quit would not end.
         case independentHelper
@@ -169,7 +169,7 @@ public enum RunningAppAutoUpdate {
             case .gaveUp:
                 return "The app did not quit, or updating it failed \(RunningAppAutoUpdate.maxFailures) times. Waiting for a newer version."
             case .retryLater:
-                return "The app did not quit, or updating it failed, in the last day. Trying again after that."
+                return "Automatic updating is waiting for the retry deadline, including any delay requested by the server."
             case .independentHelper:
                 return "The app is running, and one of its helpers keeps running when it quits."
             case .pausedFailure(let reason):

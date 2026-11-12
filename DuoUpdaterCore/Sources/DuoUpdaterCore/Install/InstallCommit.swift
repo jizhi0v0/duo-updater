@@ -107,6 +107,7 @@ public enum InstallCommit {
         // Throws if the registry already answered a cancel for this job, and
         // marks it committing in the same critical section otherwise.
         try InstallJobs.beginCommit(job, label: label)
+        AutomaticUpdateFailurePolicy.attempt?.beginSideEffects()
         // Written down (fsync'd) before the body touches the app: an install
         // that ends with its app missing was the cause only if it got here
         // (`InstallJournal.Recording.finish`).

@@ -2,7 +2,7 @@ import Foundation
 
 /// Recovery for an unattended attempt, separate from a download's in-request
 /// retries. Only a proven acquisition failure may be replayed automatically.
-/// Unknown errors and everything past acquisition wait for a different offer
+/// Unknown errors and failures past the final acquisition wait for a different offer
 /// or an explicit manual attempt; their localized text is never classification.
 public enum AutomaticUpdateFailurePolicy {
     public static let maxAcquisitionFailures = 3
@@ -32,12 +32,22 @@ public enum AutomaticUpdateFailurePolicy {
         }
     }
 
+    public enum PreflightFailure: LocalizedError, Sendable {
+        case answerRegressed(String)
+
+        public var errorDescription: String? {
+            switch self { case .answerRegressed(let reason): return reason }
+        }
+    }
+
     public struct Evidence: Equatable, Sendable {
         public let stage: InstallStage?
         public let acquisitionFinished: Bool
-        /// Monotonic: a delta/stash fallback's later `.downloading` must not
-        /// make an attempt that already verified/applied eligible for replay.
+        /// Historical evidence is monotonic. Only an explicit coordinator
+        /// fallback can authorize another acquisition before any quit/commit.
         public let advancedPastAcquisition: Bool
+        public let allowedFallbackAcquisition: Bool
+        public let sideEffectsStarted: Bool
     }
 
     public enum Decision: Equatable, Sendable {
@@ -59,6 +69,8 @@ public enum AutomaticUpdateFailurePolicy {
         private var stage: InstallStage?
         private var acquisitionFinished = false
         private var advancedPastAcquisition = false
+        private var allowedFallbackAcquisition = false
+        private var sideEffectsStarted = false
         private var captured: Capture?
 
         public init() {}
@@ -72,12 +84,30 @@ public enum AutomaticUpdateFailurePolicy {
                 case .verifyingSignature, .extracting, .verifyingCodeSignature,
                      .installing, .runningCommand, .done:
                     advancedPastAcquisition = true
+                    allowedFallbackAcquisition = false
                 }
             }
         }
 
         public func finishedAcquisition() {
-            lock.withLock { acquisitionFinished = true }
+            lock.withLock {
+                acquisitionFinished = true
+                allowedFallbackAcquisition = false
+            }
+        }
+
+        /// Only the coordinator may authorize a known stash/delta fallback.
+        /// Historical evidence is retained; this exemption lasts only through
+        /// the fallback acquisition and can never erase a quit or commit.
+        func beginAllowedFallbackAcquisition() {
+            lock.withLock {
+                stage = nil
+                allowedFallbackAcquisition = !sideEffectsStarted
+            }
+        }
+
+        func beginSideEffects() {
+            lock.withLock { sideEffectsStarted = true }
         }
 
         public var evidence: Evidence {
@@ -115,7 +145,9 @@ public enum AutomaticUpdateFailurePolicy {
 
         private func snapshot() -> Evidence {
             Evidence(stage: stage, acquisitionFinished: acquisitionFinished,
-                     advancedPastAcquisition: advancedPastAcquisition)
+                     advancedPastAcquisition: advancedPastAcquisition,
+                     allowedFallbackAcquisition: allowedFallbackAcquisition,
+                     sideEffectsStarted: sideEffectsStarted)
         }
     }
 
@@ -163,8 +195,18 @@ public enum AutomaticUpdateFailurePolicy {
         }
         let reason = error.localizedDescription
         let pause = Decision.failure(Failure(disposition: .pauseVersion, reason: reason))
+        guard !evidence.sideEffectsStarted else { return pause }
+        if case .answerRegressed = error as? PreflightFailure,
+           !evidence.acquisitionFinished, !evidence.advancedPastAcquisition {
+            return .failure(Failure(disposition: .retryAcquisition, reason: reason))
+        }
         guard let stage = evidence.stage, case .downloading = stage,
-              !evidence.acquisitionFinished, !evidence.advancedPastAcquisition else { return pause }
+              evidence.allowedFallbackAcquisition
+                || (!evidence.acquisitionFinished && !evidence.advancedPastAcquisition) else { return pause }
+        if case .lengthMismatch(let received, let expected) = error as? Downloader.DownloadError,
+           received < expected {
+            return .failure(Failure(disposition: .retryAcquisition, reason: reason))
+        }
         let response: (status: Int, retryNotBefore: Date?)?
         switch error as? Downloader.DownloadError {
         case .httpStatus(let status): response = (status, nil)

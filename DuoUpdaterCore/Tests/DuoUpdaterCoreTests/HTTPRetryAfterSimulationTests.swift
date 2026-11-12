@@ -685,6 +685,122 @@ struct HTTPRetryAfterSimulationTests {
     }
 }
 
+// Range acquisition shares the deadline policy without widening its retry statuses.
+extension HTTPRetryAfterSimulationTests {
+    @Test(arguments: [429, 503], ["3000", "Sun, 06 Nov 1994 09:39:35 GMT"])
+    func archiveRangeCooldownSurvivesScansAndChangedRanges(status: Int, header: String) async throws {
+        let fixture = RetryAfterHTTPFixture([
+            .init("GET", "/archive.zip", status, headers: ["Retry-After": header]),
+            .init("GET", "/archive.zip", 206,
+                  headers: ["Content-Range": "bytes 0-3/8", "ETag": "fixture-v1"], body: "head")
+        ])
+        defer { fixture.close() }
+        let clock = RetryAfterClock(Date(timeIntervalSince1970: 784_111_775))
+        let store = HTTPRetryAfter.CooldownStore(now: { clock.now })
+        try await HTTPRetryAfter.$cooldowns.withValue(store) {
+            do {
+                _ = try await VendorProbeSource.archiveBytes(
+                    fixture.url("/archive.zip"), .suffix(4), headers: [:],
+                    session: fixture.session, retryDelay: .zero)
+                Issue.record("A long Retry-After must end the range acquisition")
+            } catch let error as VendorProbeSource.ArchiveRangeRefused {
+                #expect(error.status == status)
+            }
+            #expect(fixture.requests.map(\.range) == ["bytes=-4"])
+            #expect(store.entryCount == 1)
+            clock.advance(300)
+            do {
+                _ = try await VendorProbeSource.archiveBytes(
+                    fixture.url("/archive.zip"), .span(0, 3), headers: [:],
+                    session: fixture.session, retryDelay: .zero)
+                Issue.record("Changing Range on the next scan must not bypass cooldown")
+            } catch let error as VendorProbeSource.ArchiveRangeRefused {
+                #expect(error.status == status)
+            }
+            #expect(fixture.requests.map(\.range) == ["bytes=-4"])
+            clock.advance(2700)
+            let result = try await VendorProbeSource.archiveBytes(
+                fixture.url("/archive.zip"), .span(0, 3), headers: [:],
+                session: fixture.session, retryDelay: .zero)
+            #expect(result.data == Data("head".utf8))
+            #expect(result.totalLength == 8)
+            #expect(result.identity == "fixture-v1")
+            #expect(fixture.requests.map(\.range) == ["bytes=-4", "bytes=0-3"])
+            #expect(store.entryCount == 0)
+        }
+        #expect(fixture.unexpected.isEmpty)
+    }
+
+    @Test func archiveRangeShortDeadlineWaitsBeforeSuccessful206() async throws {
+        let fixture = RetryAfterHTTPFixture([
+            .init("GET", "/archive.zip", 503, headers: ["Retry-After": "1"]),
+            .init("GET", "/archive.zip", 206,
+                  headers: ["Content-Range": "bytes 4-7/8"], body: "tail")
+        ])
+        defer { fixture.close() }
+        let result = try await HTTPRetryAfter.$cooldowns.withValue(HTTPRetryAfter.CooldownStore()) {
+            try await VendorProbeSource.archiveBytes(
+                fixture.url("/archive.zip"), .suffix(4), headers: [:],
+                session: fixture.session, retryDelay: .seconds(1))
+        }
+        #expect(result.data == Data("tail".utf8))
+        let requests = fixture.requests
+        try #require(requests.count == 2)
+        #expect(requests.allSatisfy { $0.range == "bytes=-4" && $0.acceptEncoding == "identity" })
+        #expect(requests[0].started.duration(to: requests[1].started) >= .seconds(1))
+        #expect(fixture.unexpected.isEmpty)
+    }
+
+    @Test func archiveRangeFinalRetryAnswerEstablishesCooldown() async throws {
+        let fixture = RetryAfterHTTPFixture([
+            .init("GET", "/archive.zip", 502),
+            .init("GET", "/archive.zip", 503, headers: ["Retry-After": "3000"])
+        ])
+        defer { fixture.close() }
+        let store = HTTPRetryAfter.CooldownStore()
+        try await HTTPRetryAfter.$cooldowns.withValue(store) {
+            for _ in 0..<2 {
+                do {
+                    _ = try await VendorProbeSource.archiveBytes(
+                        fixture.url("/archive.zip"), .suffix(4), headers: [:],
+                        session: fixture.session, retryDelay: .zero)
+                    Issue.record("A terminal gateway answer must remain refused")
+                } catch let error as VendorProbeSource.ArchiveRangeRefused {
+                    #expect(error.status == 503)
+                }
+            }
+            #expect(store.entryCount == 1)
+            #expect(fixture.requests.count == 2)
+        }
+        #expect(fixture.unexpected.isEmpty)
+    }
+
+    @Test func archiveRangeCancellationDuringCooldownPreservesCancellation() async throws {
+        let fixture = RetryAfterHTTPFixture([])
+        defer { fixture.close() }
+        let store = HTTPRetryAfter.CooldownStore()
+        let url = fixture.url("/archive.zip")
+        store.observe(HTTPURLResponse(url: url, statusCode: 503, httpVersion: nil,
+                                     headerFields: ["Retry-After": "3000"])!,
+                      for: URLRequest(url: url), in: fixture.session)
+        try await HTTPRetryAfter.$cooldowns.withValue(store) {
+            let task = Task {
+                withUnsafeCurrentTask { $0?.cancel() }
+                return try await VendorProbeSource.archiveBytes(
+                    url, .suffix(4), headers: [:], session: fixture.session, retryDelay: .zero)
+            }
+            do {
+                _ = try await task.value
+                Issue.record("Cancellation must not become a cached HTTP refusal")
+            } catch let error as URLError {
+                #expect(error.code == .cancelled)
+            }
+        }
+        #expect(fixture.requests.isEmpty)
+        #expect(fixture.unexpected.isEmpty)
+    }
+}
+
 private final class RetryAfterClock: @unchecked Sendable {
     private let lock = NSLock()
     private var date: Date

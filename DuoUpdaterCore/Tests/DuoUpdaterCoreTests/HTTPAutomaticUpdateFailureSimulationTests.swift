@@ -298,6 +298,79 @@ struct HTTPAutomaticUpdateFailureSimulationTests {
         #expect(ledger.entries[key]?.retryAfter == now.addingTimeInterval(86_400))
     }
 
+    @Test func regressedPreflightIsTypedBoundedAndKeepsTheOfferedVersion() throws {
+        let attempt = Policy.Attempt()
+        attempt.record(Policy.PreflightFailure.answerRegressed("offered 2.0, answered 1.9"))
+        let failure = try #require(attempt.failure(or: "missing"))
+        #expect(failure.disposition == .retryAcquisition)
+        var ledger = Ledger()
+        _ = ledger.observe(key, version: "2.0", now: now)
+        for day in 0..<3 {
+            ledger.recordFailure(key, failure: failure, now: now.addingTimeInterval(Double(day) * 86_400))
+        }
+        let entry = try #require(ledger.entries[key])
+        #expect(entry.version == "2.0")
+        #expect(entry.acquisitionFailures == 3)
+        #expect(entry.automaticFailure?.disposition == .pauseVersion)
+    }
+
+    @Test(arguments: [Int64(9), 10, 11])
+    func onlyShortDownloadsCanRecover(received: Int64) throws {
+        let attempt = Policy.Attempt()
+        attempt.observe(.downloading(fraction: 0.5))
+        attempt.record(Downloader.DownloadError.lengthMismatch(received: received, expected: 10))
+        #expect(try #require(attempt.failure(or: "missing")).disposition ==
+            (received < 10 ? .retryAcquisition : .pauseVersion))
+    }
+
+    @Test func explicitFallbackPermitsOnlyItsAcquisitionAndRetainsHistory() throws {
+        let attempt = Policy.Attempt()
+        attempt.finishedAcquisition()
+        attempt.observe(.verifyingCodeSignature)
+        attempt.beginAllowedFallbackAcquisition()
+        attempt.observe(.downloading(fraction: 0))
+        attempt.record(Downloader.DownloadError.httpStatus(503))
+        #expect(attempt.evidence.acquisitionFinished)
+        #expect(attempt.evidence.advancedPastAcquisition)
+        #expect(try #require(attempt.failure(or: "missing")).disposition == .retryAcquisition)
+        attempt.finishedAcquisition()
+        attempt.record(Downloader.DownloadError.httpStatus(503))
+        #expect(try #require(attempt.failure(or: "missing")).disposition == .pauseVersion)
+    }
+
+    @Test func productionCommitPermanentlyDisablesFallbackReplay() async throws {
+        let attempt = Policy.Attempt()
+        try await Policy.$attempt.withValue(attempt) {
+            try await InstallCommit.run("HTTP simulation marker") {}
+        }
+        attempt.beginAllowedFallbackAcquisition()
+        attempt.observe(.downloading(fraction: 0))
+        attempt.record(Downloader.DownloadError.httpStatus(503))
+        #expect(attempt.evidence.sideEffectsStarted)
+        #expect(try #require(attempt.failure(or: "missing")).disposition == .pauseVersion)
+    }
+
+    @Test func productionQuitPermanentlyDisablesFallbackReplay() async throws {
+        let attempt = Policy.Attempt()
+        let quits = RunningAppQuitBeforeApplyTests.Counter()
+        let quit = AutomaticInstall.QuitBeforeApply { quits.increment() }
+        try await Policy.$attempt.withValue(attempt) {
+            try await AutomaticInstall.$active.withValue(true) {
+                try await AutomaticInstall.$permission.withValue({ true }) {
+                    try await AutomaticInstall.$quitBeforeApply.withValue(quit) {
+                        try await AutomaticInstall.quitPlannedApp(before: FileManager.default.temporaryDirectory)
+                    }
+                }
+            }
+        }
+        #expect(quits.value == 1)
+        attempt.beginAllowedFallbackAcquisition()
+        attempt.observe(.downloading(fraction: 0))
+        attempt.record(Downloader.DownloadError.httpStatus(503))
+        #expect(attempt.evidence.sideEffectsStarted)
+        #expect(try #require(attempt.failure(or: "missing")).disposition == .pauseVersion)
+    }
+
     private func acquisitionFailure() throws -> Policy.Failure {
         let attempt = Policy.Attempt()
         attempt.observe(.downloading(fraction: 0))

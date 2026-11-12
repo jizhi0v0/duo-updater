@@ -2,6 +2,12 @@
 
 Bu, `CHANGELOG.md` dosyasının Türkçe çevirisidir. Geçerli olan İngilizce sürümdür; burada yer almayan eski sürümler otomatik olarak İngilizce gösterilir.
 
+## 0.5.24-beta.8
+
+**İzin verdiğiniz çalışan uygulamalar artık boşta kalmayı beklemeden güncel tutulur.** DuoUpdater, güncellemeyi indirip doğruladıktan sonra Mac’i kullanıyor olsanız bile uygulamadan kapanmasını ister ve yeniden açar; kurulum rehberi de her uygulamanın otomatik güncelleme seçeneklerini daha açık anlatır.
+
+**İlgisiz arka plan hizmetleri artık otomatik güncellemeleri engellemez.** Uygulamanın kendi bağımsız hizmeti güncellemesini yine de erteleyebilir; hizmetler çalışmaya devam eder.
+
 ## 0.5.24-beta.7
 
 **TextMate, VimR, Maestro, muCommander ve Shotcut artık güncelleme denetimi, tek tıkla güncelleme ve sürüm notları sunuyor.** Desteklenen beta, snapshot ve RC kanalları, uygulamanın kanal seçimini veya yüklü sürümü izler.

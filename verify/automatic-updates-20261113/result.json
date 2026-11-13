@@ -2,7 +2,7 @@
   "codeCommit": "0b3eb45cdcf7d164f46474957dd41cadebbd6859",
   "date": "2026-11-13",
   "host": "Apple Silicon MacBook Pro / macOS 27.3",
-  "uiDriver": "cua-driver 0.49.0 (subsequently updated to 0.49.1 by existing automatic-update policy)",
+  "uiDriver": "cua-driver 0.49.0",
   "ui": [
     "Board: moved Amp to Never, observed count change, Cancel discarded draft; preference sets and evidence unchanged.",
     "Board: Apply saved existing assignments.",

@@ -60,6 +60,36 @@ struct AutomaticInstallTests {
         #expect(!AutomaticInstall.hasRunningProcess(at: bundle, processes: [process("/Applications/Test.app other/Contents/MacOS/Test")]))
     }
 
+    @Test func onlyTheMainExecutableBlocksAutomaticUpdates() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let bundle = root.appendingPathComponent("Test.app")
+        try FileManager.default.createDirectory(at: bundle.appendingPathComponent("Contents"), withIntermediateDirectories: true)
+        try PropertyListSerialization.data(fromPropertyList: ["CFBundleExecutable": "Main"], format: .xml, options: 0)
+            .write(to: bundle.appendingPathComponent("Contents/Info.plist"))
+        func process(_ relative: String, unlinked: Bool = false) -> NestedAppGuard.RunningProcess {
+            let path = bundle.appendingPathComponent(relative).path
+            return .init(pid: 10, parentPID: 1, executablePath: unlinked ? nil : path,
+                launchedPath: unlinked ? path : nil, isRegularApp: false)
+        }
+        for path in ["Contents/PlugIns/Quota.appex/Contents/MacOS/Quota",
+                     "Contents/Library/LoginItems/Agent.app/Contents/MacOS/Agent",
+                     "Contents/MacOS/worker", "Contents/Frameworks/Helper"] {
+            let helper = process(path)
+            #expect(!AutomaticInstall.hasRunningMainProcess(at: bundle, processes: [helper]))
+            try AutomaticInstall.checkProcesses(at: bundle, processes: [helper])
+        }
+        for unlinked in [false, true] {
+            let main = process("Contents/MacOS/Main", unlinked: unlinked)
+            #expect(AutomaticInstall.hasRunningMainProcess(at: bundle, processes: [main]))
+            #expect(throws: AutomaticInstall.Deferred.self) {
+                try AutomaticInstall.checkProcesses(at: bundle, processes: [main], allowRunningApp: false)
+            }
+        }
+        let vm = process("Contents/Helpers/VMPalMachine.app/Contents/MacOS/VMPalMachine")
+        #expect(!NestedAppGuard.blockers(bundlePath: bundle.path, processes: [vm]).isEmpty)
+    }
+
     @Test func onlyACompleteBackupPermitsAutomaticInstallation() {
         #expect(AutomaticInstall.backupPermitsInstall(.saved))
         let outcomes: [InstallCoordinator.BackupOutcome] = [.failed, .cancelled, .insufficientSpace,
@@ -180,12 +210,15 @@ struct AutomaticInstallTests {
         }
         let marker = target.appendingPathComponent("Contents/original")
         try Data("old".utf8).write(to: marker)
-        let helper = target.appendingPathComponent("Contents/helper")
-        try FileManager.default.copyItem(at: URL(fileURLWithPath: "/bin/sleep"), to: helper)
-        let signed = try await ChildProcess.run("/usr/bin/codesign", ["--force", "--sign", "-", helper.path],
+        try FileManager.default.createDirectory(at: target.appendingPathComponent("Contents/MacOS"), withIntermediateDirectories: true)
+        let helper = target.appendingPathComponent("Contents/MacOS/Target")
+        let signingCopy = root.appendingPathComponent("sleep")
+        try FileManager.default.copyItem(at: URL(fileURLWithPath: "/bin/sleep"), to: signingCopy)
+        let signed = try await ChildProcess.run("/usr/bin/codesign", ["--force", "--sign", "-", signingCopy.path],
                                                 standardOutput: .discard, standardError: .discard,
                                                 onCancel: .runToCompletion)
         try #require(signed.succeeded)
+        try FileManager.default.moveItem(at: signingCopy, to: helper)
         let app = InstalledApp(name: "Test", bundleID: nil, shortVersion: nil,
                                buildVersion: nil, path: target, isMASApp: false, sparkleFeedURL: nil)
         #expect(!AutomaticInstall.hasRunningProcess(at: target, processes: NestedAppGuard.liveProcesses()))
@@ -227,14 +260,17 @@ struct AutomaticInstallTests {
         #expect(try Data(contentsOf: marker) == Data("old".utf8))
     }
 
-    @Test func aVisibleProcessDoesNotMakeAnUninspectablePIDSafe() throws {
+    @Test func unidentifiedBackgroundProcessesDoNotBlockButAnEmptySnapshotDoes() throws {
         let bundle = URL(fileURLWithPath: "/Applications/Test.app")
         let visible = NestedAppGuard.RunningProcess(
             pid: 1, parentPID: 0, executablePath: "/usr/bin/visible", isRegularApp: false)
         let unknown = NestedAppGuard.RunningProcess(
             pid: 2, parentPID: 0, executablePath: nil, isRegularApp: false)
+        try AutomaticInstall.checkProcesses(at: bundle, processes: [visible, unknown])
+        let truncated = NestedAppGuard.RunningProcess(
+            pid: 0, parentPID: 0, executablePath: nil, isRegularApp: false)
         #expect(throws: AutomaticInstall.Deferred.self) {
-            try AutomaticInstall.checkProcesses(at: bundle, processes: [visible, unknown])
+            try AutomaticInstall.checkProcesses(at: bundle, processes: [visible, truncated])
         }
         #expect(throws: AutomaticInstall.Deferred.self) {
             try AutomaticInstall.checkProcesses(at: bundle, processes: [])

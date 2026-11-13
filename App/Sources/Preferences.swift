@@ -329,16 +329,12 @@ final class Preferences {
         }
     }
 
-    /// Installs the user allowed to be quit for an automatic update, by `key(for:)`.
-    private(set) var automaticRelaunchKeys: Set<String> {
-        didSet { defaults.set(Array(automaticRelaunchKeys), forKey: Key.automaticRelaunchKeys) }
+    private var automaticUpdateChoices: AutomaticUpdateChoices {
+        didSet { automaticUpdateChoices.save(to: defaults) }
     }
-
-    /// Installs automatic updates never touch, running or not, by `key(for:)`.
-    /// Manual updates are unaffected.
-    private(set) var automaticUpdateExcludedKeys: Set<String> {
-        didSet { defaults.set(Array(automaticUpdateExcludedKeys), forKey: Key.automaticUpdateExcludedKeys) }
-    }
+    var automaticRelaunchKeys: Set<String> { automaticUpdateChoices.running }
+    var automaticUpdateExcludedKeys: Set<String> { automaticUpdateChoices.excluded }
+    private(set) var automaticUpdateObservations: [String: AutomaticUpdateSuggestion.Observation]
 
     /// When each running install fell behind, its last quit, and give-up state.
     var runningAppUpdateLedger: RunningAppAutoUpdate.Ledger {
@@ -349,37 +345,35 @@ final class Preferences {
         }
     }
 
-    enum AutomaticUpdateMode: Equatable {
-        /// Updated automatically while closed; left alone while running.
-        case whenClosed
-        /// Also quit and reopened for an update when idle.
-        case alsoWhenRunning
-        /// Never updated automatically.
-        case never
+    typealias AutomaticUpdateMode = AutomaticUpdateChoices.Mode
+
+    func explicitAutomaticUpdateMode(_ app: InstalledApp) -> AutomaticUpdateMode? {
+        automaticUpdateChoices.explicitMode(key: key(for: app), legacyKey: legacyKey(for: app))
     }
 
     func automaticUpdateMode(_ app: InstalledApp) -> AutomaticUpdateMode {
-        let keys = [key(for: app), legacyKey(for: app)]
-        if keys.contains(where: automaticUpdateExcludedKeys.contains) { return .never }
-        if keys.contains(where: automaticRelaunchKeys.contains) { return .alsoWhenRunning }
-        return .whenClosed
+        explicitAutomaticUpdateMode(app) ?? .whenClosed
+    }
+
+    func suggestedAutomaticUpdateMode(_ app: InstalledApp, suggested: Bool) -> AutomaticUpdateMode {
+        automaticUpdateChoices.setupMode(key: key(for: app), legacyKey: legacyKey(for: app), suggested: suggested)
     }
 
     func setAutomaticUpdateMode(_ mode: AutomaticUpdateMode, _ app: InstalledApp) {
-        for key in [key(for: app), legacyKey(for: app)] {
-            automaticRelaunchKeys.remove(key)
-            automaticUpdateExcludedKeys.remove(key)
-        }
-        switch mode {
-        case .whenClosed: break
-        case .alsoWhenRunning: automaticRelaunchKeys.insert(key(for: app))
-        case .never: automaticUpdateExcludedKeys.insert(key(for: app))
-        }
+        automaticUpdateChoices.set(mode, key: key(for: app), legacyKey: legacyKey(for: app))
     }
 
-    /// Key-based removals for the Settings lists.
-    func removeAutomaticRelaunch(key: String) { automaticRelaunchKeys.remove(key) }
-    func removeAutomaticUpdateExclusion(key: String) { automaticUpdateExcludedKeys.remove(key) }
+    /// Removing an allowance/exclusion is an explicit choice to wait for quit.
+    func removeAutomaticRelaunch(key: String) {
+        automaticUpdateChoices.set(.whenClosed, key: key, legacyKey: key)
+    }
+    func removeAutomaticUpdateExclusion(key: String) {
+        automaticUpdateChoices.set(.whenClosed, key: key, legacyKey: key)
+    }
+
+    func automaticUpdateObservation(_ app: InstalledApp) -> AutomaticUpdateSuggestion.Observation? {
+        automaticUpdateObservations[key(for: app)]
+    }
 
     /// Run without a Dock icon — menu bar only. **On by default**: this is a
     /// menu-bar app, and the popover is how it is actually driven, so the Dock
@@ -782,8 +776,8 @@ final class Preferences {
         self.automaticUpdates = defaults.bool(forKey: "AutomaticUpdates")
         self.autoRestartAfterUpdate = defaults.object(forKey: Key.autoRestartAfterUpdate) as? Bool ?? true
         self.automaticUpdatesRunningApps = defaults.bool(forKey: Key.automaticUpdatesRunningApps)
-        self.automaticRelaunchKeys = Set(defaults.stringArray(forKey: Key.automaticRelaunchKeys) ?? [])
-        self.automaticUpdateExcludedKeys = Set(defaults.stringArray(forKey: Key.automaticUpdateExcludedKeys) ?? [])
+        self.automaticUpdateChoices = AutomaticUpdateChoices(defaults: defaults)
+        self.automaticUpdateObservations = AutomaticUpdateChoices.observations(from: defaults)
         self.runningAppUpdateLedger = defaults.data(forKey: Key.runningAppUpdateLedger)
             .flatMap { try? JSONDecoder().decode(RunningAppAutoUpdate.Ledger.self, from: $0) } ?? .init()
         self.hideDockIcon = defaults.object(forKey: Key.hideDockIcon) as? Bool ?? true
@@ -1089,8 +1083,13 @@ final class Preferences {
         if ignoredKeys.remove(oldKey) != nil { ignoredKeys.insert(newKey) }
         if let skipped = skippedVersions.removeValue(forKey: oldKey) { skippedVersions[newKey] = skipped }
         if declinedElevationKeys.remove(oldKey) != nil { declinedElevationKeys.insert(newKey) }
-        if automaticRelaunchKeys.remove(oldKey) != nil { automaticRelaunchKeys.insert(newKey) }
-        if automaticUpdateExcludedKeys.remove(oldKey) != nil { automaticUpdateExcludedKeys.insert(newKey) }
+        automaticUpdateChoices.migrate(from: oldKey, to: newKey)
+        if let observation = automaticUpdateObservations.removeValue(forKey: oldKey) {
+            automaticUpdateObservations[newKey] = observation
+            if let data = try? JSONEncoder().encode(automaticUpdateObservations) {
+                defaults.set(data, forKey: AutomaticUpdateChoices.observationsKey)
+            }
+        }
     }
 
     /// Ignore whatever app will be at `path`, before it exists — Settings →

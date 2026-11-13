@@ -10525,7 +10525,7 @@ final class AppListModel {
                         NestedAppGuard.liveProcesses(includeUninspectable: true, diagnostic: capture)
                     }
                 }
-                let running = processes.filter { AutomaticInstall.hasRunningProcess(at: result.app.path, processes: [$0]) }
+                let running = AutomaticInstall.runningMainProcesses(at: result.app.path, processes: processes)
                 for process in running {
                     capture(.targetRunning(process, in: result.app.path, among: processes))
                 }
@@ -10670,6 +10670,71 @@ final class AppListModel {
         return InstallCoordinator.route(for: result, requiresInstaller: requiresInstaller(result))
     }
 
+    /// A temporary hold does not remove the user's future update preference.
+    /// This is presentation only; unattended installation still uses its full guards.
+    func canConfigureAutomaticUpdates(_ result: UpdateResult) -> Bool {
+        let staged = actionableStaged(result) != nil
+            && automaticUpdateRoute(result).map(AutomaticInstall.supports) == true
+        return AutomaticUpdateChoices.canConfigure(remote: result.remote,
+            installable: installsAutomatically(result), awaitingRelaunch: staged)
+    }
+
+    func automaticUpdateSetupHold(_ result: UpdateResult) -> String? {
+        if actionableStaged(result) != nil {
+            return String(localized: "\(result.app.name) already downloaded an update — relaunch to apply it")
+        }
+        return result.heldBySubscription.map {
+            SubscriptionHoldWording.explanation($0, appName: result.app.name)
+        }
+    }
+
+    /// Explain the actual route/guard for this installed copy, not its app name.
+    /// Keep this read-only: an explanation never relaxes install eligibility.
+    func manualAutomaticUpdateReason(_ result: UpdateResult) -> String {
+        if result.app.bundleID == AppScanner.xcodeBundleID {
+            return String(localized: "Xcode downloads use your Apple Developer account and require a manual update action.")
+        }
+        switch result.remote?.sourceName {
+        case "Setapp":
+            return setappBackgroundUpdateEnabled()
+                ? String(localized: "Updated by Setapp in the background, not here")
+                : String(localized: "Updated through Setapp, so not automatically")
+        case "Toolbox":
+            return String(localized: "Managed by JetBrains Toolbox — open Toolbox to update \(result.app.name)")
+        case "TestFlight":
+            return String(localized: "Managed by TestFlight — open TestFlight to update \(result.app.name)")
+        case "Homebrew":
+            return String(localized: "Updated through Homebrew, so not automatically")
+        case "App Store":
+            return String(localized: "Updated through the App Store, so not automatically")
+        default: break
+        }
+        if automaticUpdateRoute(result) == .installer || result.remote?.requiresManualInstaller == true
+            || result.remote?.sparklePackageEnclosure == true
+            || ["pkg", "mpkg"].contains(result.remote?.downloadURL?.pathExtension.lowercased() ?? "") {
+            return String(localized: "Needs an installer, so not automatically")
+        }
+        if needsAdministratorForAutomaticUpdate(result) {
+            return String(localized: "Automatic update needs administrator authorization.")
+        }
+        if let gate = OneClickGateRegistry.withholding(result.app, offering: result.remote) {
+            return gate.reason
+        }
+        if UpdatePolicy.withheldForMissingTeamIdentifier(result, settings: policySettings, environment: policyEnvironment) {
+            return String(localized: "The installed copy has no developer identity that DuoUpdater can verify for this update. Install it manually from the developer.")
+        }
+        switch UpdatePolicy.digestOnlyOffer(result, settings: policySettings) {
+        case .turnedOff?, .noPublishedDigest?:
+            if let note = digestOnlyNote(for: result) { return note }
+        default: break
+        }
+        if result.remote?.sourceName == "Sparkle", result.app.sparkleEdPublicKey?.isEmpty == false,
+           result.remote?.edSignature == nil, result.remote?.downloadURL != nil {
+            return String(localized: "The update feed gave no signature for this download, but the vendor signs this app’s updates. Refusing to install it unverified.")
+        }
+        return String(localized: "No supported installer is available for this update. Use the app’s updater or its official download page.")
+    }
+
     /// Whether an unattended pass would install this app's update itself: the
     /// one test `automaticallyInstallUpdates` applies, shared so Settings and the
     /// setup guide never promise what the pass then refuses. Nil before a check.
@@ -10728,7 +10793,7 @@ final class AppListModel {
         let running = "The app or one of its helpers is running."
         let instances = AppRestarter.allRunningInstances(of: result.app)
         if instances.isEmpty {
-            let own = processes.filter { AutomaticInstall.hasRunningProcess(at: result.app.path, processes: [$0]) }
+            let own = AutomaticInstall.runningMainProcesses(at: result.app.path, processes: processes)
             return .wait(own.isEmpty ? running : AutomaticInstall.backgroundProcessReason(own))
         }
         guard prefs.automaticUpdatesRunningApps,
@@ -10741,13 +10806,6 @@ final class AppListModel {
         let entry = prefs.runningAppUpdateLedger.observe(key, version: version, now: now)
         if case .wait(let why) = RunningAppAutoUpdate.decide(entry: entry, now: now) {
             return .wait(why.message)
-        }
-        // The install refuses a bundle a helper still runs from; quitting the app
-        // for it would only close it and reopen it.
-        if RunningAppAutoUpdate.independentHelper(
-            of: result.app.path, processes: processes,
-            instancePIDs: Set(instances.map(\.processIdentifier))) != nil {
-            return .wait(RunningAppAutoUpdate.Reason.independentHelper.message)
         }
         // The app's own Sparkle may have an update downloaded and an installer
         // waiting for exactly this quit (`RestartStandoff`): quitting would start

@@ -41,7 +41,7 @@ struct AutomaticUpdatesSettingsPage: View {
             SettingsToggle(
                 "Automatically update apps",
                 detail: "Installs eligible updates after each scheduled check. With backups on, each app is backed up first, and its update waits if that fails. App data is not backed up.",
-                info: "Runs only after scheduled checks, on a network that is not restricted. By default, an app is skipped while it or one of its helpers is running; apps you allow below may be quit and reopened, and updates that need an installer or an authorization prompt are left for you. After a failed update, nothing is tried for that app for a day, and after three failures not until a newer version. Each attempt, and why one was deferred, is listed in the Network window under Events.",
+                info: "Runs only after scheduled checks, on a network that is not restricted. By default, an app is skipped while its main app is running; apps you allow below may be quit and reopened, and updates that need an installer or an authorization prompt are left for you. After a failed update, nothing is tried for that app for a day, and after three failures not until a newer version. Each attempt, and why one was deferred, is listed in the Network window under Events.",
                 channel: .beta,
                 isOn: $prefs.automaticUpdates)
                 .settingsAnchor(.automaticUpdates)
@@ -56,7 +56,7 @@ struct AutomaticUpdatesSettingsPage: View {
                 SettingsToggle(
                     "Also update running apps you allow",
                     detail: "Keeps allowed apps up to date, even while you use them. Downloads and verifies each update before quitting and reopening the app.",
-                    info: "Apps you allow may restart while in front, playing media or doing work. There is no idle-time or update delay. If normal quit is refused, that version waits. Independent background services, installer prompts and safety checks can still defer an update.",
+                    info: "Apps you allow may restart while in front, playing media or doing work. There is no idle-time or update delay. If normal quit is refused, that version waits. Installer prompts and safety checks can still defer an update.",
                     channel: .beta,
                     isOn: $prefs.automaticUpdatesRunningApps)
             }
@@ -100,7 +100,7 @@ private struct AutomaticUpdateAppsCard: View {
         return model.results
             .filter { seen.insert(prefs.key(for: $0.app)).inserted }
             .filter { filter.isEmpty || SearchMatch.matches(filter, in: [$0.app.name, $0.app.path.path]) }
-            .map { (result: $0, customized: prefs.automaticUpdateMode($0.app) != .whenClosed) }
+            .map { (result: $0, customized: prefs.explicitAutomaticUpdateMode($0.app) != nil) }
             .sorted { lhs, rhs in
                 if lhs.customized != rhs.customized { return lhs.customized }
                 return lhs.result.app.name.localizedStandardCompare(rhs.result.app.name) == .orderedAscending
@@ -160,6 +160,15 @@ private struct AutomaticUpdateAppRow: View {
                     .help(Text(verbatim: result.app.path.path))
             }
             Spacer(minLength: 12)
+            if model.canConfigureAutomaticUpdates(result) {
+            AutomaticUpdateExplanationButton(prefs: prefs, app: result.app,
+                mode: prefs.automaticUpdateMode(result.app),
+                source: prefs.explicitAutomaticUpdateMode(result.app) == nil ? .defaultChoice : .userChoice,
+                updateHold: model.automaticUpdateSetupHold(result))
+            } else {
+                ManualAutomaticUpdateExplanationButton(result: result,
+                    reason: model.manualAutomaticUpdateReason(result))
+            }
             Picker("Automatic updates for \(result.app.name)", selection: Binding(
                 get: { prefs.automaticUpdateMode(result.app) },
                 set: { prefs.setAutomaticUpdateMode($0, result.app) })) {
@@ -174,39 +183,21 @@ private struct AutomaticUpdateAppRow: View {
             .pickerStyle(.menu)
             .fixedSize()
             // Nothing to choose for an app automatic updates never install.
-            .disabled(model.installsAutomatically(result) == false)
+            .disabled(!model.canConfigureAutomaticUpdates(result))
         }
     }
 
     /// Where the copy lives, or — when its updates come by a route automatic
     /// updates never take — that, so a choice here is not mistaken for a promise.
     private var caption: String {
+        if let hold = model.automaticUpdateSetupHold(result) { return hold }
         guard model.installsAutomatically(result) == false else {
             if !prefs.automaticUpdatesRunningApps, prefs.automaticUpdateMode(result.app) == .alsoWhenRunning {
                 return String(localized: "Paused while “Also update running apps” is off; updated only when not running")
             }
             return IgnoredSettingsPage.displayPath(result.app.path.path)
         }
-        if result.app.bundleID == AppScanner.xcodeBundleID {
-            return String(localized: "Xcode is not updated automatically")
-        }
-        // Setapp installs its own apps, all at once, when DuoUpdater starts it
-        // in the background (Updates settings); a choice here cannot hold one back.
-        if result.remote?.sourceName == "Setapp" {
-            return setappBackgroundUpdateEnabled()
-                ? String(localized: "Updated by Setapp in the background, not here")
-                : String(localized: "Updated through Setapp, so not automatically")
-        }
-        switch model.automaticUpdateRoute(result) {
-        case .homebrew?:
-            return String(localized: "Updated through Homebrew, so not automatically")
-        case .appStore?:
-            return String(localized: "Updated through the App Store, so not automatically")
-        case .installer?:
-            return String(localized: "Needs an installer, so not automatically")
-        default:
-            return String(localized: "Its update needs you, so not automatically")
-        }
+        return model.manualAutomaticUpdateReason(result)
     }
 }
 
@@ -258,9 +249,9 @@ struct AutomaticUpdateSetupSheet: View {
     @State private var candidates: [Candidate] = []
     @State private var unsupported: [UpdateResult] = []
     @State private var placement: [String: Mode] = [:]
+    @State private var edited: Set<String> = []
     @State private var filter = ""
     @State private var loaded = false
-    @State private var showUnsupported = false
     @State private var selection: Set<String> = []
     /// Where a ⇧-click range starts: the last plain or ⌘-click.
     @State private var anchor: String?
@@ -285,7 +276,6 @@ struct AutomaticUpdateSetupSheet: View {
                 .textFieldStyle(.roundedBorder)
             if loaded {
                 board
-                if !unsupported.isEmpty { unsupportedStrip }
             } else {
                 ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
             }
@@ -299,13 +289,14 @@ struct AutomaticUpdateSetupSheet: View {
             }
         }
         .padding(20)
-        .frame(width: 820, height: 640)
+        .frame(width: 1080, height: 640)
         .task { await load() }
     }
 
     private var board: some View {
         HStack(alignment: .top, spacing: 10) {
             ForEach(Self.columns, id: \.self) { mode in column(mode) }
+            unsupportedColumn
         }
         .frame(maxHeight: .infinity)
         .coordinateSpace(name: Self.space)
@@ -336,7 +327,7 @@ struct AutomaticUpdateSetupSheet: View {
             }
             .fixedSize(horizontal: false, vertical: true)
             .background(GeometryReader { proxy in
-                Color.clear.preference(key: ColumnHeaderHeights.self, value: [mode: proxy.size.height])
+                Color.clear.preference(key: ColumnHeaderHeights.self, value: [mode.rawValue: proxy.size.height])
             })
             .frame(minHeight: columnHeaderHeight, alignment: .topLeading)
             .padding(.horizontal, 10)
@@ -350,7 +341,7 @@ struct AutomaticUpdateSetupSheet: View {
             }
             .overlay {
                 if items.isEmpty {
-                    Text("Drag apps here")
+                    Text(filter.isEmpty ? "Drag apps here" : "No matching apps")
                         .font(.callout)
                         .foregroundStyle(.tertiary)
                 }
@@ -379,13 +370,20 @@ struct AutomaticUpdateSetupSheet: View {
                 .truncationMode(.tail)
                 .foregroundStyle(selected ? Color.white : Color.primary)
             Spacer(minLength: 0)
+            AutomaticUpdateExplanationButton(prefs: prefs, app: item.result.app, mode: mode,
+                source: edited.contains(item.id) ? .pendingChoice
+                    : prefs.explicitAutomaticUpdateMode(item.result.app) != nil ? .userChoice
+                    : item.suggestion.isSuggested ? .suggestion : .defaultChoice,
+                prepared: item.suggestion,
+                updateHold: model.automaticUpdateSetupHold(item.result))
+                .foregroundStyle(selected ? Color.white : Color.secondary)
         }
         .padding(.horizontal, 6)
         .padding(.vertical, 4)
         .background(selected ? Color.accentColor : Color.clear, in: RoundedRectangle(cornerRadius: 5))
         .opacity(dragging.contains(item.id) ? 0.3 : 1)
         .contentShape(Rectangle())
-        .help(Self.reason(item.suggestion))
+        .help("Why this category?")
         // Modifier taps first: a plain tap also fires with a modifier held.
         .highPriorityGesture(TapGesture().modifiers(.command).onEnded { toggle(item.id) })
         .highPriorityGesture(TapGesture().modifiers(.shift).onEnded { extend(to: item.id, in: mode) })
@@ -465,26 +463,62 @@ struct AutomaticUpdateSetupSheet: View {
 
     private func move(_ ids: Set<String>, to target: Mode) {
         withAnimation(.snappy(duration: 0.2)) {
-            for id in ids { placement[id] = target }
+            for id in ids { placement[id] = target; edited.insert(id) }
         }
     }
 
-    private var unsupportedStrip: some View {
-        DisclosureGroup(isExpanded: $showUnsupported) {
-            Text(unsupported.map(\.app.name).joined(separator: " · "))
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.top, 4)
-        } label: {
-            VStack(alignment: .leading, spacing: 1) {
-                Text("Not updated automatically (\(unsupported.count))")
-                Text("These update through Homebrew, the App Store, an installer or a prompt, which automatic updates never use.")
+    private var unsupportedColumn: some View {
+        let items = unsupported.filter { filter.isEmpty || SearchMatch.matches(filter, in: [$0.app.name]) }
+        return VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text("Manual Updates").font(.headline)
+                    Spacer()
+                    Text(verbatim: "\(unsupported.count)")
+                        .font(.headline.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                }
+                Text("Requires a manual update action.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .fixedSize(horizontal: false, vertical: true)
+            .background(GeometryReader { proxy in
+                Color.clear.preference(key: ColumnHeaderHeights.self, value: ["manual": proxy.size.height])
+            })
+            .frame(minHeight: columnHeaderHeight, alignment: .topLeading)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            Divider()
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 2) {
+                    ForEach(items) { result in
+                        HStack(spacing: 8) {
+                            Image(nsImage: AppIconCache.icon(for: result.app.path.path))
+                                .resizable().frame(width: 18, height: 18)
+                            Text(result.app.name).lineLimit(1).truncationMode(.tail)
+                            Spacer(minLength: 0)
+                            ManualAutomaticUpdateExplanationButton(result: result,
+                                reason: model.manualAutomaticUpdateReason(result))
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 4)
+                        .help("Why this category?")
+                    }
+                }
+                .padding(6)
+            }
+            .overlay {
+                if items.isEmpty {
+                    Text("No matching apps")
+                        .font(.callout).foregroundStyle(.secondary)
+                }
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 8))
     }
 
     static func title(_ mode: Mode) -> LocalizedStringKey {
@@ -498,7 +532,7 @@ struct AutomaticUpdateSetupSheet: View {
     private static func explanation(_ mode: Mode) -> LocalizedStringKey {
         switch mode {
         case .alsoWhenRunning: "May quit and reopen apps to install updates."
-        case .whenClosed: "Waits until the app and its helpers have quit."
+        case .whenClosed: "Waits until the app has quit."
         case .never: "Updates only when you choose."
         }
     }
@@ -514,25 +548,6 @@ struct AutomaticUpdateSetupSheet: View {
         }
     }
 
-    static func reason(_ suggestion: AutomaticUpdateSuggestion) -> String {
-        switch suggestion {
-        case .suggested(.menuBarApp), .notSuggested(.menuBarApp):
-            return String(localized: "Menu bar app")
-        case .suggested(.declaresSafeTermination), .notSuggested(.declaresSafeTermination):
-            return String(localized: "Tells macOS it can be quit safely")
-        case .suggested(.networkExtension), .notSuggested(.networkExtension):
-            return String(localized: "Runs a VPN, proxy or network filter")
-        case .suggested(.fileSync), .notSuggested(.fileSync):
-            return String(localized: "Syncs files")
-        case .suggested(.systemExtension), .notSuggested(.systemExtension):
-            return String(localized: "Installs a system extension")
-        case .suggested(.inputMethod), .notSuggested(.inputMethod):
-            return String(localized: "Input method: quitting it interrupts typing")
-        case .suggested(.windowedApp), .notSuggested(.windowedApp):
-            return String(localized: "Has windows that may hold your work")
-        }
-    }
-
     /// Sort the library once, reading each bundle off the main actor. One tile
     /// per installed copy; DuoUpdater itself and ignored apps are left out.
     private func load() async {
@@ -542,26 +557,31 @@ struct AutomaticUpdateSetupSheet: View {
                 && $0.app.bundleID != Bundle.main.bundleIdentifier
                 && !prefs.isIgnored($0.app)
         }.sorted { $0.app.name.localizedStandardCompare($1.app.name) == .orderedAscending }
-        let supported = results.filter { model.installsAutomatically($0) != false }
-        unsupported = results.filter { model.installsAutomatically($0) == false }
-        let paths = supported.map(\.app.path)
-        let suggestions = await Task.detached { paths.map { AutomaticUpdateSuggestion.classify(bundle: $0) } }.value
+        let supported = results.filter {
+            model.canConfigureAutomaticUpdates($0)
+        }
+        let supportedIDs = Set(supported.map(\.id))
+        unsupported = results.filter { !supportedIDs.contains($0.id) }
+        let inputs = supported.map { (path: $0.app.path, observation: prefs.automaticUpdateObservation($0.app)) }
+        let suggestions = await Task.detached {
+            inputs.map { AutomaticUpdateSuggestion.classify(bundle: $0.path, observation: $0.observation) }
+        }.value
         candidates = zip(supported, suggestions).map { Candidate(result: $0, suggestion: $1) }
-        // An explicit choice stays where it is; an app on the default starts in
-        // the first column only when it is a suggestion.
+        // A saved choice (including whenClosed) stays put. Only an unset copy
+        // may start in the running-updates column from matching evidence.
         for item in candidates {
-            let mode = prefs.automaticUpdateMode(item.result.app)
-            placement[item.id] = mode == .whenClosed && item.suggestion.isSuggested ? .alsoWhenRunning : mode
+            placement[item.id] = prefs.suggestedAutomaticUpdateMode(item.result.app, suggested: item.suggestion.isSuggested)
         }
         loaded = true
     }
 
     private func apply() {
         for item in candidates {
-            if let mode = placement[item.id], mode != prefs.automaticUpdateMode(item.result.app) {
+            if let mode = placement[item.id] {
                 prefs.setAutomaticUpdateMode(mode, item.result.app)
             }
         }
+        // Applying confirms every displayed placement, even an unchanged default.
         // Only the explicit switch enables quitting running apps. Saving this
         // board must preserve the user's paused state.
     }
@@ -569,9 +589,9 @@ struct AutomaticUpdateSetupSheet: View {
 
 /// Align lists to the tallest translated header without reserving empty lines.
 private struct ColumnHeaderHeights: PreferenceKey {
-    static let defaultValue: [Preferences.AutomaticUpdateMode: CGFloat] = [:]
-    static func reduce(value: inout [Preferences.AutomaticUpdateMode: CGFloat],
-                       nextValue: () -> [Preferences.AutomaticUpdateMode: CGFloat]) {
+    static let defaultValue: [String: CGFloat] = [:]
+    static func reduce(value: inout [String: CGFloat],
+                       nextValue: () -> [String: CGFloat]) {
         value.merge(nextValue()) { $1 }
     }
 }
@@ -583,4 +603,43 @@ private struct ColumnFrames: PreferenceKey {
                        nextValue: () -> [Preferences.AutomaticUpdateMode: CGRect]) {
         value.merge(nextValue()) { $1 }
     }
+}
+
+private struct AutomaticUpdateExplanationButton: View {
+    let prefs: Preferences
+    let app: InstalledApp
+    let mode: Preferences.AutomaticUpdateMode
+    let source: AutomaticUpdateCategorySource
+    var prepared: AutomaticUpdateSuggestion? = nil
+    var updateHold: String? = nil
+    @State private var showing = false
+    @State private var showingDetails = false
+    @State private var loaded: AutomaticUpdateSuggestion?
+
+    var body: some View {
+        Button { showing.toggle() } label: {
+            Image(systemName: "info.circle")
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Why this category?")
+        .help("Why this category?")
+        .popover(isPresented: $showing) {
+            AutomaticUpdateExplanationView(
+                appName: app.name,
+                icon: AppIconCache.icon(for: app.path.path),
+                mode: mode,
+                source: source,
+                suggestion: prepared ?? loaded,
+                expanded: $showingDetails, updateHold: updateHold)
+            .task {
+                guard prepared == nil else { return }
+                let path = app.path
+                let observation = prefs.automaticUpdateObservation(app)
+                loaded = await Task.detached {
+                    AutomaticUpdateSuggestion.classify(bundle: path, observation: observation)
+                }.value
+            }
+        }
+    }
+
 }

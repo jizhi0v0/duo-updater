@@ -201,7 +201,7 @@ struct AutomaticUpdateDiagnosticsTests {
         #expect(decoded.pid == 5 && decoded.bundlePath == nil && decoded.parentName == nil && decoded.startedAt == nil)
     }
 
-    @Test func unidentifiedLiveProcessStillPreventsFileExchange() async throws {
+    @Test func unidentifiedUnrelatedLiveProcessDoesNotPreventFileExchange() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
         let target = root.appendingPathComponent("Target.app")
@@ -216,14 +216,12 @@ struct AutomaticUpdateDiagnosticsTests {
         #expect(kill(getpid(), 0) == 0)
         let unknown = NestedAppGuard.RunningProcess(pid: getpid(), parentPID: getppid(),
             executablePath: nil, isRegularApp: false)
-        await InPlaceSwap.$preExchangeCheck.withValue({
+        try await InPlaceSwap.$preExchangeCheck.withValue({
             try AutomaticInstall.checkProcesses(at: target, processes: [unknown])
         }) {
-            await #expect(throws: AutomaticInstall.Deferred.self) {
-                try await InPlaceSwap.replace(newApp: incoming, over: target)
-            }
+            try await InPlaceSwap.replace(newApp: incoming, over: target)
         }
-        #expect(try Data(contentsOf: marker) == Data("old".utf8))
+        #expect(try Data(contentsOf: marker) == Data("new".utf8))
     }
 
     @Test func realZombieIsDiagnosedAndDoesNotBlockAutomaticInstall() async throws {
@@ -271,7 +269,7 @@ struct AutomaticUpdateDiagnosticsTests {
             // No diagnostic callback: lifecycle policy must still run. A failed
             // or partial answer must never treat its buffer as confirmed SZOMB.
             for partial in [false, true] {
-                NestedAppGuard.$lifecycleInfo.withValue({ _, buffer, size in
+                try NestedAppGuard.$lifecycleInfo.withValue({ _, buffer, size in
                     buffer.assumingMemoryBound(to: proc_bsdshortinfo.self).pointee.pbsi_status = UInt32(SZOMB)
                     errno = partial ? 0 : EPERM
                     return partial ? size - 1 : 0
@@ -279,9 +277,9 @@ struct AutomaticUpdateDiagnosticsTests {
                     let unresolved = NestedAppGuard.liveProcesses(includeUninspectable: true)
                         .filter { $0.pid == zombiePID || $0.pid == getpid() }
                     #expect(unresolved.contains { $0.pid == zombiePID && $0.executablePath == nil })
-                    #expect(throws: AutomaticInstall.Deferred.self) {
-                        try AutomaticInstall.checkProcesses(at: root, processes: unresolved)
-                    }
+                    // Retain the unresolved identity for diagnostics, without
+                    // treating this unrelated PID as the target's main process.
+                    try AutomaticInstall.checkProcesses(at: root, processes: unresolved)
                 }
             }
             let target = root.appendingPathComponent("Target.app")

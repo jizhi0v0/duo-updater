@@ -61,6 +61,11 @@ struct QQMusicProbeRecipeTests {
 
     private static let bundleID = "com.tencent.QQMusicMac"
 
+    // Live Mac record from 2026-11-13, with the redirect token replaced.
+    private static let currentMacEntry = #"""
+        {"ID":2,"Ftype":2,"Ftitle":"Mac","Fversion":"最新版:11.11.1","Fpic":"https://y.qq.com/music/common/upload/T_Y_SOFTWARE/7293792.png","Fdesc":"「场景模式」猜你喜欢新增场景模式听歌，让推荐更懂你\n|「聆听指南」古典、流行音乐解读全收录，带你深入探索音乐世界\n\n|发布时间：2026-11-12","Flink1":"https://c.y.qq.com/cgi-bin/file_redirect.fcg?bid=dldir&file=ecosfile%2Fmusic_clntupate%2Fmac%2Fother%2Fmwejkbzw-5e214dcd248f1b2e.dmg&sign=fixture","Flink2":"","Fintro":"","Fcode":""}
+        """#
+
     private static func recipe() throws -> VendorProbeRecipe {
         try #require(VendorProbeRegistry.recipes.first { $0.bundleID == bundleID },
                      "no QQ音乐 recipe in the registry")
@@ -152,9 +157,7 @@ struct QQMusicProbeRecipeTests {
         #expect(!VersionComparator.isNewer(installed, than: remote))
     }
 
-    /// The legacy `ID:15` record is the reason both patterns key on the versioned
-    /// filename. With the live entry gone, NOTHING may resolve — least of all
-    /// 7.0.0, which is otherwise the closest thing in the body.
+    /// With the current entry gone, the legacy Mac record must never supply a result.
     @Test func withoutTheLiveMacEntryNoVersionOrURLIsInvented() throws {
         guard let range = Self.body.range(of: ",{\"ID\":2,") ,
               let end = Self.body.range(of: ",{\"ID\":3,") else {
@@ -193,6 +196,35 @@ struct QQMusicProbeRecipeTests {
             from: Self.body, pattern: try Self.recipe().versionPattern))
         let url = try #require(try Self.installURL(in: Self.body))
         #expect(url.contains("QQMusicMac\(version)Build"))
+    }
+
+    @Test func currentReleaseUsesTheMacVersionFieldAndSignedLink() throws {
+        let legacy = #"{"ID":15,"Ftype":2,"Ftitle":"Mac","Fversion":"最新版:7.0.0","Fdesc":"旧版\n|发布时间：2020-05-19","Flink1":"https://dldir1.qq.com/music/clntupate/mac/QQMusicMac_Mgr.dmg"}"#
+        let windows = #"{"ID":1,"Ftype":1,"Ftitle":"Windows PC","Fversion":"最新版:22.8.1"}"#
+        let body = "MusicJsonCallback({\"data\":[\(windows),\(legacy),\(Self.currentMacEntry)]})"
+        #expect(VendorProbeRecipe.extractVersion(
+            from: body, pattern: try Self.recipe().versionPattern) == "11.11.1")
+        #expect(try Self.installURL(in: body) ==
+            "https://c.y.qq.com/cgi-bin/file_redirect.fcg?bid=dldir&file=ecosfile%2Fmusic_clntupate%2Fmac%2Fother%2Fmwejkbzw-5e214dcd248f1b2e.dmg&sign=fixture")
+        let notes = try #require(ChangelogExtractor.extract(from: body, using: try Self.changelogRecipe()))
+        let entry = try #require(notes.entries.first)
+        #expect(entry.version == "11.11.1")
+        #expect(entry.date == "2026-11-12")
+        #expect(entry.items == [
+            "「场景模式」猜你喜欢新增场景模式听歌，让推荐更懂你",
+            "「聆听指南」古典、流行音乐解读全收录，带你深入探索音乐世界",
+        ])
+    }
+
+    @Test func anotherPlatformsSignedMacLinkCannotCompleteTheMacRecord() throws {
+        let macWithoutLink = #"{"ID":2,"Ftype":2,"Ftitle":"Mac","Fversion":"最新版:11.11.1","Fdesc":"体验优化\n|发布时间：2026-11-12"}"#
+        let nonMac = Self.currentMacEntry.replacingOccurrences(of: #""Ftype":2,"Ftitle":"Mac""#,
+                                                               with: #""Ftype":1,"Ftitle":"Windows PC""#)
+        let body = "MusicJsonCallback({\"data\":[\(macWithoutLink),\(nonMac)]})"
+        #expect(VendorProbeRecipe.extractVersion(
+            from: body, pattern: try Self.recipe().versionPattern) == nil)
+        #expect(try Self.installURL(in: body) == nil)
+        #expect(try ChangelogExtractor.extract(from: body, using: Self.changelogRecipe()) == nil)
     }
 
     /// Windows ships an `.exe` and iPhone an `.ipa` off the same body; neither may
@@ -256,7 +288,7 @@ struct QQMusicProbeRecipeTests {
         let body = """
             {"ID":2,"Ftype":2,"Ftitle":"Mac","Fversion":"最新版:12.0.0",\
             "Fdesc":"整体体验优化\\n发布时间：2026-09-01",\
-            "Flink1":"https://c.y.qq.com/cgi-bin/file_redirect.fcg?file=QQMusicMac12.0.0Build01.dmg&sign=x"}
+            "Flink1":"https://c.y.qq.com/cgi-bin/file_redirect.fcg?bid=dldir&file=ecosfile%2Fmusic_clntupate%2Fmac%2Fother%2FQQMusicMac12.0.0Build01.dmg&sign=x"}
             """
         let log = try #require(
             ChangelogExtractor.extract(from: body, using: try Self.changelogRecipe()))
@@ -272,7 +304,7 @@ struct QQMusicProbeRecipeTests {
         let body = """
             {"ID":2,"Ftype":2,"Ftitle":"Mac","Fversion":"最新版:12.0.0",\
             "Fdesc":"她说\\"你好\\"，然后走了\\n|第二条\\n|发布时间：2026-09-01",\
-            "Flink1":"https://c.y.qq.com/cgi-bin/file_redirect.fcg?file=QQMusicMac12.0.0Build01.dmg&sign=x"}
+            "Flink1":"https://c.y.qq.com/cgi-bin/file_redirect.fcg?bid=dldir&file=ecosfile%2Fmusic_clntupate%2Fmac%2Fother%2FQQMusicMac12.0.0Build01.dmg&sign=x"}
             """
         let log = try #require(
             ChangelogExtractor.extract(from: body, using: try Self.changelogRecipe()))

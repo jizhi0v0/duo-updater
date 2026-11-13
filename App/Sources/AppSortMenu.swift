@@ -12,6 +12,35 @@ extension RowOrder.SortOrder {
     }
 }
 
+extension RowOrder.Grouping {
+    var title: String {
+        switch self {
+        case .none: return String(localized: "None", comment: "Group by: the apps list as one list")
+        case .source: return String(localized: "Update Source", comment: "Group by: one section per update source (Sparkle, App Store, Homebrew…)")
+        }
+    }
+}
+
+extension UpdateSourceGroup {
+    /// A section's name in the grouped apps list. Product names stay as they
+    /// are; the two that describe a kind of source are translated.
+    var title: String {
+        switch self {
+        case .sparkle: return "Sparkle"
+        case .gitHub: return "GitHub Releases"
+        case .appFeed: return String(localized: "App Update Feed", comment: "Apps-list section: updates from the feed the app itself reads (Electron and similar)")
+        case .vendor: return String(localized: "Developer’s Site", comment: "Apps-list section: updates read from the developer’s own website")
+        case .homebrew: return "Homebrew"
+        case .appStore: return "App Store"
+        case .setapp: return "Setapp"
+        case .testFlight: return "TestFlight"
+        case .toolbox: return "JetBrains Toolbox"
+        case .xcodeReleases: return "Xcode Releases"
+        case .other: return String(localized: "Other", comment: "Apps-list section: apps with no update source that can be named")
+        }
+    }
+}
+
 /// The apps list's order control, shared by the popover's footer and the
 /// workbench's toolbar so the two surfaces cannot offer different choices.
 ///
@@ -30,6 +59,12 @@ struct AppSortMenu: View {
         Binding(
             get: { prefs.appSortOrder },
             set: { prefs.appSortOrder = $0 })
+    }
+
+    private var grouping: Binding<RowOrder.Grouping> {
+        Binding(
+            get: { prefs.appGrouping },
+            set: { prefs.appGrouping = $0 })
     }
 
     var body: some View {
@@ -63,6 +98,14 @@ struct AppSortMenu: View {
             Picker("Sort", selection: selection) {
                 ForEach(RowOrder.SortOrder.allCases) { order in
                     Text(order.title).tag(order)
+                }
+            }
+            .pickerStyle(.inline)
+            // A second choice in the same menu: grouping does not change the
+            // order inside a section, so it is not another sort.
+            Picker("Group By", selection: grouping) {
+                ForEach(RowOrder.Grouping.allCases) { grouping in
+                    Text(grouping.title).tag(grouping)
                 }
             }
             .pickerStyle(.inline)
@@ -101,6 +144,11 @@ struct AppSortMenu: View {
         .fixedSize()
         .help("Sort")
         .accessibilityLabel(Text("Sort"))
-        .accessibilityValue(Text(prefs.appSortOrder.title))
+        .accessibilityValue(Text(accessibilityValue))
+    }
+
+    private var accessibilityValue: String {
+        prefs.appGrouping == .none ? prefs.appSortOrder.title
+            : "\(prefs.appSortOrder.title), \(prefs.appGrouping.title)"
     }
 }

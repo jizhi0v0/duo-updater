@@ -431,7 +431,27 @@ struct MenuContentView: View {
 
     @ViewBuilder
     private var rows: some View {
-        ForEach(Array(visible.enumerated()), id: \.element.id) { index, result in
+        if model.prefs.appGrouping == .source {
+            // One section per update source, the same sections as the
+            // workbench's (`AppListSection`), always open: the list is short
+            // unless "Show all" is on, and a closed section here would hide an
+            // update the menu-bar badge still counts.
+            let sections = AppListSection.sections(
+                visible, standIns: Set(model.interruptedStandIns.map(\.id)),
+                grouping: .source, group: model.sourceGroup(for:))
+            ForEach(sections) { section in
+                if let group = section.group {
+                    PopoverSourceGroupHeader(group: group, count: section.rows.count)
+                }
+                rowRun(section.rows)
+            }
+        } else {
+            rowRun(visible)
+        }
+    }
+
+    private func rowRun(_ list: [UpdateResult]) -> some View {
+        ForEach(Array(list.enumerated()), id: \.element.id) { index, result in
             // Divider *between* rows only — a trailing one after the last row left
             // a dangling line floating over the empty space below a short list.
             if index > 0 { Divider() }

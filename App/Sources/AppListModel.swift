@@ -3578,6 +3578,7 @@ final class AppListModel {
         // order outright rather than pinning the new list to an old layout. Also the
         // backstop that guarantees a freeze can never outlive its round.
         pinnedOrder = [:]
+        pinnedSourceGroups = [:]
         // Snapshot the current count before we blank the rows below, so the menu-bar
         // badge holds it steady through the scan/check instead of flickering to 0.
         heldBadgeCount = actionCount
@@ -12193,6 +12194,20 @@ final class AppListModel {
     /// Row id → the slot it occupied when the order was frozen.
     @ObservationIgnored private var pinnedOrder: [String: Int] = [:]
 
+    /// Row id → its update-source section when the order was frozen. Held for the
+    /// same reason as `pinnedOrder`: a Homebrew copy updated through Sparkle goes
+    /// from Sparkle's section to Homebrew's once it is up to date, and with the
+    /// list grouped that moves it, and every row under it, while the user is
+    /// still clicking. Observed, unlike `pinnedOrder`: the release can regroup
+    /// rows without changing `results`, and the lists must redraw then.
+    private var pinnedSourceGroups: [String: UpdateSourceGroup] = [:]
+
+    /// The section `row` is listed under when the apps list is grouped by update
+    /// source: the one it had when the order was frozen, while it is.
+    func sourceGroup(for row: UpdateResult) -> UpdateSourceGroup {
+        pinnedSourceGroups[row.id] ?? UpdateSourceGroup(row)
+    }
+
     /// Freeze the current order, if it isn't already. Called wherever work starts
     /// on a row (install, restart, staged relaunch) — the first one freezes and the
     /// rest ride along, so a batch or a run of clicks shares one snapshot.
@@ -12204,6 +12219,9 @@ final class AppListModel {
         // must never be the thing that traps.
         pinnedOrder = Dictionary(
             results.enumerated().map { ($0.element.id, $0.offset) },
+            uniquingKeysWith: { first, _ in first })
+        pinnedSourceGroups = Dictionary(
+            results.map { ($0.id, UpdateSourceGroup($0)) },
             uniquingKeysWith: { first, _ in first })
         // A freeze that failed to lift looks exactly like a freeze that never
         // engaged — from outside, both are "the list stopped re-sorting". Say when
@@ -12227,6 +12245,7 @@ final class AppListModel {
             return
         }
         pinnedOrder = [:]
+        pinnedSourceGroups = [:]
         results = sorted(results)
         Log.app.debug("row order: released — re-sorted")
     }

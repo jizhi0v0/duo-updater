@@ -115,6 +115,9 @@ struct WorkbenchWindowView: View {
     /// The managers' levels (`managerLevels`) the user closed in this window;
     /// every one is open otherwise.
     @State private var collapsedManagerLevels: Set<String> = []
+    /// The update-source sections the user closed in this window's Apps list.
+    /// Not remembered, like `collapsedManagerLevels`.
+    @State private var collapsedSourceGroups: Set<UpdateSourceGroup> = []
     /// The CLI tab's order — formula and tool rows' tags — as it stood when updates
     /// started running; nil while none runs. `CLIToolPresentation.holding`.
     @State private var heldCLIOrder: [String]?
@@ -217,6 +220,10 @@ struct WorkbenchWindowView: View {
         /// apps are managed in Settings, so browsing leaves them out; a search is
         /// a question about a specific app, so it may answer with one.
         let filteredApps: [UpdateResult]
+        /// `filteredApps` as the Apps list draws them: one headerless section,
+        /// or one per update source (`AppListSection.sections`). Each section's
+        /// `expanded` is not yet decided here; `appSections(_:)` does that.
+        let appSections: [AppListSection]
         /// How many installed apps are ignored, which is what the Apps list says
         /// when a search finds nothing: they are somewhere, just not here.
         let ignoredAppCount: Int
@@ -268,8 +275,12 @@ struct WorkbenchWindowView: View {
             guard searchQuery.isEmpty ? !ignored : matchesSearch(row) else { continue }
             rows.append(row)
         }
+        let standInIDs = Set(model.interruptedStandIns.map(\.id))
         return SidebarLists(
             filteredApps: rows,
+            appSections: AppListSection.sections(
+                rows, standIns: standInIDs, grouping: model.prefs.appGrouping,
+                group: model.sourceGroup(for:)),
             ignoredAppCount: ignoredCount,
             cliTools: CLIToolPresentation.groups(cliTools.filter(matchesSearch)).flatMap(\.statuses),
             brewFormulae: formulae.filter { matchesSearch($0.name) },
@@ -937,7 +948,7 @@ struct WorkbenchWindowView: View {
     private func selectableIDs(_ tab: SidebarTab, _ lists: SidebarLists) -> [String] {
         switch tab {
         case .apps:
-            return lists.filteredApps.map(\.id)
+            return appSections(lists).filter(\.expanded).flatMap { $0.rows.map(\.id) }
         case .cli:
             let brew = (lists.homebrewSelfUpdate == nil ? [] : [Self.homebrewSelfUpdateTag])
                 + lists.brewFormulae.map(Self.formulaTag)
@@ -1431,10 +1442,46 @@ struct WorkbenchWindowView: View {
     /// Settings), and the row's menu still offers Stop ignoring.
     private func appsListView(_ lists: SidebarLists, isShown: Bool) -> some View {
         WorkbenchAppsList(
-            apps: lists.filteredApps, ignoredAppCount: lists.ignoredAppCount,
+            apps: lists.filteredApps, sections: appSections(lists),
+            toggleSection: { group in inOneFrame { toggleSourceGroup(group) } },
+            ignoredAppCount: lists.ignoredAppCount,
             searchText: searchText, isShown: isShown,
             model: model, selection: $selection, focus: $listFocus)
             .equatable()
+    }
+
+    // MARK: - Update-source sections
+
+    /// The Apps list's sections with whether each is drawn open: open unless the
+    /// user closed it in this window, or while a search is typed (a search finds
+    /// rows, and closing their section would hide them) or one of its rows is
+    /// selected, as `managerLevelExpanded` holds a manager's level open.
+    private func appSections(_ lists: SidebarLists) -> [AppListSection] {
+        lists.appSections.map { section in
+            var section = section
+            if let group = section.group {
+                let held = !searchQuery.isEmpty || section.rows.contains { $0.id == selection }
+                section.expanded = held || !collapsedSourceGroups.contains(group)
+                section.toggleDisabled = held
+            }
+            return section
+        }
+    }
+
+    /// A click on a section's header. Closing it moves a selection that was one
+    /// of its rows off it, since that row is going. Reads the lists as they are
+    /// at the click: the Apps list keeps its closure from the last pass that
+    /// redrew it (`WorkbenchAppsList` is equatable).
+    private func toggleSourceGroup(_ group: UpdateSourceGroup) {
+        if collapsedSourceGroups.contains(group) {
+            collapsedSourceGroups.remove(group)
+            return
+        }
+        collapsedSourceGroups.insert(group)
+        if sidebarLists.appSections.first(where: { $0.group == group })?.rows.contains(where: { $0.id == selection }) == true {
+            selection = nil
+            detailSelection = nil
+        }
     }
 
     /// The CLI tab's list, one group per tool: Homebrew, then each `CLIToolKind`
@@ -1694,6 +1741,11 @@ extension View {
 private struct WorkbenchAppsList: View, @MainActor Equatable {
     /// The rows to draw: everything the search admits that is not ignored.
     let apps: [UpdateResult]
+    /// `apps` in the sections they are drawn in (`AppListSection`).
+    let sections: [AppListSection]
+    /// A click on a section's header. Not compared: the window builds it anew
+    /// each pass, and what it does follows from `sections`.
+    let toggleSection: (UpdateSourceGroup) -> Void
     /// How many installed apps are ignored. Only read when the list is empty, to
     /// say where they went — an app that vanishes without a word reads as a bug.
     let ignoredAppCount: Int
@@ -1704,19 +1756,35 @@ private struct WorkbenchAppsList: View, @MainActor Equatable {
     var focus: FocusState<WorkbenchWindowView.SidebarTab?>.Binding
 
     static func == (lhs: Self, rhs: Self) -> Bool {
-        lhs.apps == rhs.apps && lhs.ignoredAppCount == rhs.ignoredAppCount
+        lhs.apps == rhs.apps && lhs.sections == rhs.sections
+            && lhs.ignoredAppCount == rhs.ignoredAppCount
             && lhs.searchText == rhs.searchText && lhs.isShown == rhs.isShown
             && lhs.model === rhs.model
     }
 
     var body: some View {
-        SidebarList(selection: $selection, order: apps.map(\.id),
+        SidebarList(selection: $selection,
+                    order: sections.filter(\.expanded).flatMap { $0.rows.map(\.id) },
                     label: String(localized: "Apps"), focus: focus, focusValue: .apps,
                     isShown: isShown) {
-            ForEach(apps) { result in
-                WorkbenchAppRow(result: result, model: model)
-                    .equatable()
-                    .sidebarRow(result.id, selection: $selection)
+            ForEach(Array(sections.enumerated()), id: \.element.id) { index, section in
+                if let group = section.group {
+                    AppSourceGroupHeader(
+                        group: group, count: section.rows.count, updates: section.updateCount,
+                        expanded: section.expanded,
+                        toggleDisabled: section.toggleDisabled,
+                        toggle: { toggleSection(group) })
+                        // `WorkbenchWindowView.sectionHeaderTrailingInset`.
+                        .padding(.trailing, 14)
+                        .sidebarSectionHeader(first: index == 0)
+                }
+                if section.expanded {
+                    ForEach(section.rows) { result in
+                        WorkbenchAppRow(result: result, model: model)
+                            .equatable()
+                            .sidebarRow(result.id, selection: $selection)
+                    }
+                }
             }
         }
         .overlay {

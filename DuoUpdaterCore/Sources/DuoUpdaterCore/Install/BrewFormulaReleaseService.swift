@@ -41,6 +41,10 @@ public struct FormulaRelease: Sendable, Codable, Equatable {
 /// and check `Changelog.parserGeneration` for the same reason and by the same
 /// rule as `ChangelogDiskCache` — see its doc comment and `Changelog.parserGeneration`'s.
 public actor BrewFormulaReleaseService {
+    public nonisolated static func hasDedicatedNotes(for name: String) -> Bool {
+        name == "azure-cli"
+    }
+
     private let session: URLSession
     private let directory: URL
 
@@ -73,6 +77,7 @@ public actor BrewFormulaReleaseService {
     private struct Stored: Codable {
         let release: FormulaRelease
         let parserGeneration: Int
+        var dedicatedSource: URL? = nil
     }
 
     /// The cross-launch disk-cached notes for a formula version, with NO `brew info`
@@ -86,6 +91,11 @@ public actor BrewFormulaReleaseService {
               let stored = try? JSONDecoder().decode(Stored.self, from: data),
               stored.parserGeneration == Changelog.parserGeneration
         else { return nil }
+        // Discard Azure's old GitHub-only cache and retry transient document misses.
+        if Self.hasDedicatedNotes(for: name),
+           stored.dedicatedSource != AzureCLIChangelog.source || stored.release.changelog == nil {
+            return nil
+        }
         return stored.release
     }
 
@@ -103,6 +113,20 @@ public actor BrewFormulaReleaseService {
     }
 
     private func compute(name: String, version: String, token: String?) async -> FormulaRelease {
+        if Self.hasDedicatedNotes(for: name) {
+            var request = URLRequest(url: AzureCLIChangelog.source)
+            request.cachePolicy = URLRequest.versionFeedCachePolicy
+            request.timeoutInterval = 30
+            request.setValue("Mozilla/5.0", forHTTPHeaderField: "User-Agent")
+            if let (data, response) = try? await session.countedData(for: request, purpose: .changelog),
+               let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) {
+                let changelog = await offCooperativePool {
+                    AzureCLIChangelog.parse(String(decoding: data, as: UTF8.self), version: version)
+                }
+                return FormulaRelease(changelog: changelog, pageURL: AzureCLIChangelog.page)
+            }
+            return FormulaRelease(changelog: nil, pageURL: AzureCLIChangelog.page)
+        }
         guard let info = await Self.brewInfoOffActor(name: name) else {
             return FormulaRelease(changelog: nil, pageURL: nil)
         }
@@ -153,7 +177,8 @@ public actor BrewFormulaReleaseService {
             pageURL: release.pageURL)
         do {
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-            let stored = Stored(release: onDisk, parserGeneration: Changelog.parserGeneration)
+            let stored = Stored(release: onDisk, parserGeneration: Changelog.parserGeneration,
+                                dedicatedSource: Self.hasDedicatedNotes(for: name) ? AzureCLIChangelog.source : nil)
             try JSONEncoder().encode(stored).write(
                 to: directory.appendingPathComponent(keep), options: .atomic)
         } catch {

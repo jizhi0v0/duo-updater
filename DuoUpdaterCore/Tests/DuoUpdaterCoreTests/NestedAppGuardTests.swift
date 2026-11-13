@@ -195,6 +195,26 @@ import Testing
             == [.init(name: "VMPalMachine", pid: 745, vmName: "x")])
     }
 
+    @Test func vmpalPerMachineMCPRelayNeverBlocks() {
+        let bundle = "/Applications/ZZFixtureVMPal.app"
+        let program = "Contents/Helpers/VMPalMachine.app/Contents/MacOS/VMPalMachine"
+        let id = "00E0B475-F153-4E85-A7A4-0D6917EE1454"
+        let relay = Self.process(750, program, parent: 9000, bundle: bundle,
+                                 arguments: [program, "--mcp", id])
+        #expect(NestedAppGuard.blockers(bundlePath: bundle, processes: [relay]).isEmpty)
+        for arguments in [["--mcp"], ["--mcp", "invalid"],
+                          ["--mcp", id, "--machine", "x"], ["--machine", id]] {
+            let process = Self.process(751, program, bundle: bundle, arguments: [program] + arguments)
+            #expect(NestedAppGuard.blockers(bundlePath: bundle, processes: [process]).map(\.pid) == [751])
+        }
+        let vm = Self.process(752, program, parent: 750, bundle: bundle,
+                              arguments: [program, "--machine", "x"])
+        #expect(NestedAppGuard.blockers(bundlePath: bundle, processes: [relay, vm]).map(\.pid) == [752])
+        let other = Self.process(753, "Contents/Helpers/Other.app/Contents/MacOS/Other",
+                                 bundle: bundle, arguments: ["Other", "--mcp", id])
+        #expect(NestedAppGuard.blockers(bundlePath: bundle, processes: [other]).map(\.pid) == [753])
+    }
+
     /// The BetterTouchTool shape: `BTTRelaunch.app`, started by launchd, quits
     /// when its host does. It passes while the host's main app runs, since the
     /// restart quits both. A nested app not on the list still blocks beside it.

@@ -80,29 +80,17 @@ query，三者返回的 body 逐字节相同**，`Last-Modified` 和
 
 | ID | Fversion | Flink1 | 说明 |
 |---|---|---|---|
-| 2 | `最新版:11.8.1` | `…QQMusicMac11.8.1Build01.dmg&sign=…` | 在售客户端 |
+| 2 | `最新版:11.11.1` | `c.y.qq.com/cgi-bin/file_redirect.fcg`，指向 Mac 目录里的签名 DMG | 当前客户端 |
 | 15 | `最新版:7.0.0` | `…/mac/QQMusicMac_Mgr.dmg` | 2020-05-19 的遗留记录 |
 
-只按 `Ftitle` / `Ftype` 锚定会命中哪个纯看顺序。两条规则因此都锚在
-**带版本号的 Mac dmg 文件名** `QQMusicMac<ver>Build<nn>.dmg` 上：遗留记录的链接是
-`QQMusicMac_Mgr.dmg`，没有版本段，`QQMusicMac[0-9]` 结构性地排除它 —— 而不是锚一个
-`"ID":2` 字面量（表一改号就漂）。
-
-Windows / Android / iOS 的链接文件名词干不同（`QQMusic_Setup_*.exe`、
-`QQMusic*.apk`、`QQMusicIPhone*.ipa`），同样被排除。
+检测和更新说明都以 `Ftype: 2`、`Ftitle: "Mac"` 和同一对象里指向 Mac DMG 的签名
+`Flink1` 为条件。遗留对象链接到另一个下载主机。版本从该对象的 `Fversion` 读取，
+更新说明从 `Fdesc` 读取。规则适用于旧的带版本文件名和新的不透明文件名，也无需固定记录 ID。
 
 #### 版本粒度：只有 marketing，没有 build
 
-文件名里的 `Build01` 是该 marketing 版本的**重切序号**，不是 app 的
-`CFBundleVersion`（装好的 11.8.1 报 `73276`）。拿它当 build 比是**跨命名空间**，所以
-recipe 保持 `versionIsBuild: false`：
-
-- 同 marketing 重切（11.8.1 Build01 → Build02）在这里**看不见**；
-- 但绝不会凭空报更新 —— marketing 打平 + 远端无 build ⇒ `VersionComparator`
-  答 "not newer"。
-
-腾讯确实会动 marketing 版本（同一份 body 里 Windows 是 22.5.2、iPhone 是 20.7.5），
-所以这是**粒度上限，不是失效判据**。
+`Fversion` 对应 `CFBundleShortVersionString`。下载数据没有公布 `CFBundleVersion`，
+所以同一 marketing version 下重打包的 build 不会被这个数据源检出。
 
 #### 发布日期没有采纳
 
@@ -115,11 +103,9 @@ changelog 那边按**原样字符串**显示这个日期（display-only），这
 
 ## 一键安装
 
-`Flink1` 是 `c.y.qq.com/cgi-bin/file_redirect.fcg?bid=dldir&file=<路径>&sign=<token>`，
-302 到 `dldir.y.qq.com/…/QQMusicMac11.8.1Build01.dmg?sign=<另一个 token>`。
-body 里那个 `sign` 是**跳转器自己的 token**，最终下载链接上的 `sign` 由跳转在请求时
-现签 —— 所以 install spec 用 `.bodyPattern` 抓整条 `file_redirect.fcg` URL（含
-`&sign=`，截到 `.dmg` 就会拿到一条 CDN 拒绝的链接），apply 时从实时 body 现读。
+当前 Mac 记录的 `Flink1` 是 `c.y.qq.com/cgi-bin/file_redirect.fcg?bid=dldir&file=<路径>&sign=<token>`，
+返回 302 与空响应体，`Location` 指向 `dldir.y.qq.com` 上带签名的 DMG。规则保留
+`Flink1` 的完整查询串，apply 时从实时数据重新读取。302 响应和当前文件名都不提供版本号。
 
 2026-08-29 实拉验证（97 MB）：
 
@@ -180,7 +166,7 @@ $ duo check --json --all | grep qqmusic
 ```
 
 回归测试：`DuoUpdaterCore/Tests/DuoUpdaterCoreTests/QQMusicProbeRecipeTests.swift`
-（14 例，fixture 保留 Windows / iPhone / 遗留 Mac 三个诱饵对象）。
+（覆盖旧版和不透明 DMG 文件名、跨平台条目以及遗留 Mac 记录）。
 
 ## 历史与实测
 
@@ -237,3 +223,15 @@ than `.pkg`. Bundle id `com.tencent.QQMusicMac`, `CFBundleShortVersionString`
 `FN2V63AD2J` (Tencent Technology (Shanghai) Company Limited — the
 installed copy's team, which the VendorInstaller signature gate enforces),
 `spctl -a -t install` "Notarized Developer ID", `lipo -archs` x86_64 arm64.
+
+### 2026-11-13 — DMG 文件名变为不透明标识
+
+`download.js` 的当前 Mac 记录发布于 2026-11-12，`Fversion` 为 `11.11.1`，
+`Flink1` 跳转到 `mwejkbzw-5e214dcd248f1b2e.dmg`。旧正则依赖
+`QQMusicMac<版本>Build<序号>.dmg`，导致版本与更新说明均失配。北京时间 16:25
+的夜扫 [#1990](https://github.com/jizhi0v0/duo-updater/pull/1990) 各记下第一次失败。
+
+从 `Flink1` 下载后只读挂载，镜像的可见项目为 `QQMusic.app` 和 `Applications`。
+包内 `CFBundleIdentifier` 为 `com.tencent.QQMusicMac`，版本 `11.11.1`，build `73285`，
+Team ID `FN2V63AD2J` 与本机已安装副本一致，`spctl -a -vv` 判定为
+`Notarized Developer ID`。

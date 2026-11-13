@@ -1,0 +1,26 @@
+{
+  "blockers" : [
+    {
+      "name" : "VMPalMachine",
+      "pid" : 21919,
+      "vmName" : "macOS VM 1"
+    }
+  ],
+  "date" : "2026-11-13T08:39:37Z",
+  "machinePIDs" : [
+    21919
+  ],
+  "message" : "“macOS VM 1” is open in VMPal. Shut it down and close its window, then update again. VMPal was not updated.",
+  "mode" : "running",
+  "refused" : true,
+  "relays" : [
+    7968,
+    70410,
+    49062,
+    42413,
+    7838,
+    86646,
+    97775,
+    97190
+  ]
+}

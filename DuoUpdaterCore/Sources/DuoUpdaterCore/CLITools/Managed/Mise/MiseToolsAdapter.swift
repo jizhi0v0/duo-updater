@@ -240,7 +240,8 @@ public struct MiseToolsAdapter: ManagerAdapter {
                     .sorted { VersionComparator.compare($0, $1) == .orderedAscending }
                 let item = ManagedItem(
                     descriptor: descriptor, root: root, key: name, name: name, installPath: directory,
-                    shape: .request, installed: versions.last, backend: backend?.full)
+                    shape: .request, installed: versions.last, backend: backend?.full,
+                    notes: backend?.full == "core:node" ? Self.nodeNotes(versions.last) : nil)
                 items.append(item)
                 states[item.identity] = [backend?.full ?? "-", versions.joined(separator: ","), stamp].joined(separator: "|")
             }
@@ -516,13 +517,27 @@ public struct MiseToolsAdapter: ManagerAdapter {
         let toolDirectory = (entry.installPath as NSString).deletingLastPathComponent
         let backend = Self.backend(contents(toolDirectory + "/.mise.backend.toml"))?.full
         let newest = decided.latestOverall ?? decided.latestWithinRequest
+        let source: ManagedItem.NotesSource?
+        if backend == "core:node" {
+            // Match the version the pane shows: stay within the request unless
+            // the row offers a manual move off an exact pin.
+            let target = decided.request?.kind == .exact && decided.vendorWouldUpgrade != true
+                ? decided.latestOverall : decided.latestWithinRequest ?? decided.latestOverall
+            if decided.blocker == nil, let target, VersionComparator.isNewer(target, than: entry.version) {
+                source = nodeNotes(target) ?? nodeNotes(entry.version)
+            } else {
+                source = nodeNotes(entry.version)
+            }
+        } else {
+            source = notes(releaseURL: decided.releaseURL, newest: newest, backend: backend, tool: tool,
+                           installPath: entry.installPath, contents: contents)
+        }
         return ManagedItem(
             descriptor: descriptor, root: root, key: key(tool: tool, requested: entry.requestedVersion ?? ""),
             name: tool, installPath: entry.installPath, shape: .request, request: decided.request,
             installed: entry.version, latestWithinRequest: decided.latestWithinRequest,
             latestOverall: decided.latestOverall, alsoInstalled: decided.alsoInstalled, backend: backend,
-            notes: notes(releaseURL: decided.releaseURL, newest: newest, backend: backend, tool: tool,
-                         installPath: entry.installPath, contents: contents),
+            notes: source,
             effects: effects,
             facts: (entry.source.map { [ManagedItem.Fact.source($0)] } ?? []) + decided.notes.map(ManagedItem.Fact.note))
     }
@@ -564,12 +579,18 @@ public struct MiseToolsAdapter: ManagerAdapter {
         return (short, values["full"])
     }
 
-    /// Where a row's notes are (MISE-46 corrected, MISE-49): the GitHub release
+    /// Reuse Node's versioned Markdown documents, as nvm and fnm do.
+    private static func nodeNotes(_ version: String?) -> ManagedItem.NotesSource? {
+        guard let version = version.flatMap(NodePrefixes.versionName),
+              let major = VersionComparator.majorComponent(version), major > 0 else { return nil }
+        return .rawMarkdown(NodeChangelog.source(major: major))
+    }
+
+    /// Where other rows' notes are (MISE-46 corrected, MISE-49): the GitHub release
     /// mise names, else a `github:`/`aqua:`/`ubi:` backend's repository, else an
     /// `npm:` package's own `repository`, else a `pipx:` package's PyPI project
     /// URLs (`ProjectURLRepo`, read when the notes are). Nothing for
-    /// `core:node` (its notes are Node's `CHANGELOG_V<major>.md`, whose parser
-    /// is P3's), `cargo:`, `go:` or `asdf:` — an asdf id names the plugin's
+    /// `cargo:`, `go:` or `asdf:` — an asdf id names the plugin's
     /// repository, not the tool's.
     static func notes(
         releaseURL: String?, newest: String?, backend: String?, tool: String, installPath: String,

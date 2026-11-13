@@ -240,8 +240,27 @@ struct DefinitionLinesTests {
         #expect(ruby.state == .updateAvailable)
         #expect(ruby.latestVersion == "3.4.12")
         #expect(ruby.oneClick?.display == "rbenv install 3.4.12")
+        #expect(ruby.managedItem?.notes == .rubyMinorLine("3.4"))
         #expect(ruby.managedItem?.facts.contains(.asKnownBy("ruby-build 20261023")) == true)
         #expect(DefinitionLines.newest(try Self.names("ruby-build-20261023.txt"))["3.5"] == nil)
+    }
+
+    @Test func rubyNotesOnlyShowTheRequestedStableLineWithDottedVersions() throws {
+        let feed = """
+        [
+          {"tag_name":"v4.0.9","prerelease":false,"draft":false,"body":"- Ruby 4 fix"},
+          {"tag_name":"v3_4_12","prerelease":false,"draft":false,"body":"- Ruby 3.4 fix"},
+          {"tag_name":"v3_3_13","prerelease":false,"draft":false,"body":"- Ruby 3.3 fix"},
+          {"tag_name":"v3_4_13_preview1","prerelease":true,"draft":false,"body":"- Preview change"},
+          {"tag_name":"v3_4_13","prerelease":false,"draft":true,"body":"- Draft change"},
+          {"tag_name":"v3_4_11","prerelease":false,"draft":false,"body":"- Earlier Ruby 3.4 fix"}
+        ]
+        """
+        let ruby34 = try #require(ManagedNotes.parseRubyReleases(feed, line: "3.4"))
+        #expect(ruby34.entries.map(\.version) == ["3.4.12", "3.4.11"])
+        #expect(ruby34.entries.first?.items == ["Ruby 3.4 fix"])
+        let ruby40 = try #require(ManagedNotes.parseRubyReleases(feed, line: "4.0"))
+        #expect(ruby40.entries.map(\.version) == ["4.0.9"])
     }
 
     /// A ruby-build checkout under the root is what rbenv runs, even beside

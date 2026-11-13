@@ -28,9 +28,31 @@ enum ManagedNotes {
             // Node's `CHANGELOG_V<major>.md`, the one manager whose notes are
             // one Markdown document (`NodeChangelog`).
             return try await NodeChangelog.fetch(url, force: force)
+        case .rubyMinorLine(let line)?:
+            return try await DenoChangelog.gitHubReleases(rubyReleases, force: force, session: .updates) { data in
+                parseRubyReleases(String(decoding: data, as: UTF8.self), line: line)
+            }
         default:
             return Changelog(entries: [])
         }
+    }
+
+    private static let rubyReleases = URL(string: "https://api.github.com/repos/ruby/ruby/releases?per_page=30")!
+
+    /// Ruby's Release list interleaves its maintenance lines. Tags such as
+    /// `v3_4_12` and `v4.0.9` both become dotted versions in the workbench.
+    static func parseRubyReleases(_ body: String, line: String) -> Changelog? {
+        guard DefinitionLines.Patch(line + ".0") != nil else { return nil }
+        let linePattern = line.replacingOccurrences(of: ".", with: "[._]")
+        guard let parsed = StructuredChangelogDecoder.decode(
+            body, format: .gitHubReleases, channel: nil, maxEntries: nil,
+            tagPattern: "^v(\(linePattern)[._][0-9]+)$")
+        else { return nil }
+        return Changelog(entries: parsed.entries.map { entry in
+            Changelog.Entry(
+                title: entry.title, version: entry.version.replacingOccurrences(of: "_", with: "."),
+                date: entry.date, items: entry.items, content: entry.content, markdown: entry.markdown)
+        }, itemSyntax: parsed.itemSyntax)
     }
 
     /// A tag of another product in the same repository (`tagPrefix`) is never

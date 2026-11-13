@@ -2,10 +2,10 @@ import Foundation
 
 /// Release notes for one outdated Homebrew formula. A formula isn't an app, so it
 /// has no Sparkle/recipe changelog — but most formulae are GitHub-hosted, and a
-/// formula's `urls.stable.url` (read locally from `brew info`) names the repo and
-/// the release tag. From that we fetch the GitHub release body and parse it into the
+/// formula's stable source metadata (read from `brew info`) often names the repo
+/// and the release tag. From that we fetch the GitHub release body and parse it into the
 /// same structured `Changelog` the app rows render, so formula notes look native.
-/// Non-GitHub formulae (Go, GNU tools) fall back to their homepage.
+/// When no release source is known, the formula's homepage is the fallback.
 // `Equatable` (not `Hashable`) because that is all anything needs: the cache
 // round-trip test compares two values. Nothing hashes a `FormulaRelease` — it is
 // never a dictionary key or a Set member — and widening a public type further
@@ -45,6 +45,10 @@ public actor BrewFormulaReleaseService {
         name == "azure-cli"
     }
 
+    public nonisolated static func hasCaskNotes(for name: String) -> Bool {
+        hasDedicatedNotes(for: name) || name == "codex"
+    }
+
     private let session: URLSession
     private let directory: URL
 
@@ -78,7 +82,13 @@ public actor BrewFormulaReleaseService {
         let release: FormulaRelease
         let parserGeneration: Int
         var dedicatedSource: URL? = nil
+        var formulaRoutingGeneration: Int? = nil
     }
+
+    private static let formulaRoutingGeneration = 1
+    private static let newlyRoutedFormulae: Set<String> = [
+        "llama.cpp", "mas", "mediamtx", "ollama", "redis", "iperf3", "maven", "ruby",
+    ]
 
     /// The cross-launch disk-cached notes for a formula version, with NO `brew info`
     /// spawn and NO GitHub call. Used by the pre-warm probe and as the fast path in
@@ -86,8 +96,10 @@ public actor BrewFormulaReleaseService {
     /// PROVIDED it was written under the running build's `Changelog.parserGeneration`
     /// — a mismatch (or a pre-generation file with no such field at all) is treated
     /// as a miss, same as `ChangelogDiskCache.get`.
-    public func cached(for name: String, version: String) -> FormulaRelease? {
-        guard let data = try? Data(contentsOf: fileURL(name: name, version: version)),
+    public func cached(
+        for name: String, version: String, kind: BrewOutdatedFormula.Kind = .formula
+    ) -> FormulaRelease? {
+        guard let data = try? Data(contentsOf: fileURL(name: name, version: version, kind: kind)),
               let stored = try? JSONDecoder().decode(Stored.self, from: data),
               stored.parserGeneration == Changelog.parserGeneration
         else { return nil }
@@ -96,23 +108,34 @@ public actor BrewFormulaReleaseService {
            stored.dedicatedSource != AzureCLIChangelog.source || stored.release.changelog == nil {
             return nil
         }
+        // Retry old homepage-only entries for the newly routed formulae once.
+        if kind == .formula, stored.release.changelog == nil, Self.newlyRoutedFormulae.contains(name),
+           stored.formulaRoutingGeneration != Self.formulaRoutingGeneration {
+            return nil
+        }
         return stored.release
     }
 
-    public func release(for name: String, version: String, token: String?) async -> FormulaRelease {
+    public func release(
+        for name: String, version: String, token: String?, kind: BrewOutdatedFormula.Kind = .formula
+    ) async -> FormulaRelease {
         // Disk first: a version's notes never change, so a hit skips both the local
         // `brew info` Process and the (rate-limited) GitHub API call entirely.
-        if let cached = cached(for: name, version: version) { return cached }
+        if let cached = cached(for: name, version: version, kind: kind) { return cached }
 
         // Filed against the formula, so the request log's App column names it.
         let computed = await RequestAttribution.withApp(BrewFormulaIconService.attributionID(forFormula: name)) {
-            await compute(name: name, version: version, token: token)
+            await compute(name: name, version: version, token: token, kind: kind)
         }
-        if computed.isUseful { persist(computed, name: name, version: version) }
+        if computed.isUseful, kind == .formula || computed.changelog != nil {
+            persist(computed, name: name, version: version, kind: kind)
+        }
         return computed
     }
 
-    private func compute(name: String, version: String, token: String?) async -> FormulaRelease {
+    private func compute(
+        name: String, version: String, token: String?, kind: BrewOutdatedFormula.Kind
+    ) async -> FormulaRelease {
         if Self.hasDedicatedNotes(for: name) {
             var request = URLRequest(url: AzureCLIChangelog.source)
             request.cachePolicy = URLRequest.versionFeedCachePolicy
@@ -127,31 +150,45 @@ public actor BrewFormulaReleaseService {
             }
             return FormulaRelease(changelog: nil, pageURL: AzureCLIChangelog.page)
         }
+        if kind == .cask {
+            guard name == "codex", CodexRelease.isVersion(version) else {
+                return FormulaRelease(changelog: nil, pageURL: nil)
+            }
+            let ref = GitHubRef(owner: "openai", repo: "codex", tag: "rust-v" + version)
+            return await githubRelease(ref, version: version, token: token, skipSections: CodexChangelog.skipSections)
+        }
         guard let info = await Self.brewInfoOffActor(name: name) else {
             return FormulaRelease(changelog: nil, pageURL: nil)
         }
-        guard let gh = Self.deriveGitHub(fromStableURL: info.stableURL) else {
-            // Not GitHub-hosted (Go, GNU, …): the homepage is the best we can offer.
+        guard let gh = Self.formulaGitHubRef(name: name, version: version, info: info) else {
             return FormulaRelease(changelog: nil, pageURL: info.homepage)
         }
 
+        return await githubRelease(gh, version: version, token: token, homepage: info.homepage)
+    }
+
+    private func githubRelease(
+        _ gh: GitHubRef, version: String, token: String?, homepage: URL? = nil, skipSections: [String] = []
+    ) async -> FormulaRelease {
         let tagPage = URL(string:
             "https://github.com/\(gh.owner)/\(gh.repo)/releases/tag/\(Self.encode(gh.tag))")
         if let release = try? await fetchRelease(owner: gh.owner, repo: gh.repo, tag: gh.tag, token: token) {
             let changelog = release.body.flatMap {
-                $0.isEmpty ? nil : GitHubMarkdownParser.parse(body: $0, version: version, date: release.publishedAt)
+                $0.isEmpty ? nil : GitHubMarkdownParser.parse(
+                    body: $0, version: version, date: release.publishedAt, skipSections: skipSections)
             }
             return FormulaRelease(changelog: changelog, pageURL: release.htmlURL ?? tagPage)
         }
         // The git tag exists but carries no GitHub *release* (common for tarball-only
         // tags): no body to parse, but the tag page (or homepage) still works.
-        return FormulaRelease(changelog: nil, pageURL: tagPage ?? info.homepage)
+        return FormulaRelease(changelog: nil, pageURL: tagPage ?? homepage)
     }
 
     // MARK: - Disk cache
 
-    private func fileURL(name: String, version: String) -> URL {
-        directory.appendingPathComponent(prefix(name: name) + sanitize(version) + ".json")
+    private func fileURL(name: String, version: String, kind: BrewOutdatedFormula.Kind) -> URL {
+        let parent = kind == .cask ? directory.appendingPathComponent("casks", isDirectory: true) : directory
+        return parent.appendingPathComponent(prefix(name: name) + sanitize(version) + ".json")
     }
 
     /// Persist a formula version's notes, stamped with the running build's
@@ -166,8 +203,11 @@ public actor BrewFormulaReleaseService {
     /// `BrewFormulaReleaseServiceTests` calls this directly instead, the same
     /// reasoning `ChangelogDiskCache.directory` documents for its own test-only
     /// internal visibility.
-    func persist(_ release: FormulaRelease, name: String, version: String) {
-        let keep = fileURL(name: name, version: version).lastPathComponent
+    func persist(
+        _ release: FormulaRelease, name: String, version: String, kind: BrewOutdatedFormula.Kind = .formula
+    ) {
+        let file = fileURL(name: name, version: version, kind: kind)
+        let parent = file.deletingLastPathComponent()
         // Drop signed/session image URLs before the notes hit disk, the same way
         // `ChangelogDiskCache` does for the recipe changelog cache — this second
         // on-disk cache went through none of that filtering. The returned/ in-memory
@@ -176,19 +216,19 @@ public actor BrewFormulaReleaseService {
             changelog: release.changelog.map(ChangelogDiskCache.persisted),
             pageURL: release.pageURL)
         do {
-            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            try FileManager.default.createDirectory(at: parent, withIntermediateDirectories: true)
             let stored = Stored(release: onDisk, parserGeneration: Changelog.parserGeneration,
-                                dedicatedSource: Self.hasDedicatedNotes(for: name) ? AzureCLIChangelog.source : nil)
-            try JSONEncoder().encode(stored).write(
-                to: directory.appendingPathComponent(keep), options: .atomic)
+                                dedicatedSource: Self.hasDedicatedNotes(for: name) ? AzureCLIChangelog.source : nil,
+                                formulaRoutingGeneration: Self.formulaRoutingGeneration)
+            try JSONEncoder().encode(stored).write(to: file, options: .atomic)
         } catch {
             Log.app.debug("formula release disk write failed: \(error.localizedDescription, privacy: .public)")
             return
         }
         let pfx = prefix(name: name)
-        if let names = try? FileManager.default.contentsOfDirectory(atPath: directory.path) {
-            for n in names where n.hasPrefix(pfx) && n != keep {
-                try? FileManager.default.removeItem(at: directory.appendingPathComponent(n))
+        if let names = try? FileManager.default.contentsOfDirectory(atPath: parent.path) {
+            for n in names where n.hasPrefix(pfx) && n != file.lastPathComponent {
+                try? FileManager.default.removeItem(at: parent.appendingPathComponent(n))
             }
         }
     }
@@ -203,7 +243,14 @@ public actor BrewFormulaReleaseService {
     /// `Sendable` because `brewInfoOffActor` is a nonisolated `async` function that
     /// hands it back to this actor — it crosses a concurrency domain, it isn't
     /// decoration.
-    struct Info: Sendable, Equatable { let homepage: URL?; let stableURL: String? }
+    struct Info: Sendable, Equatable {
+        let homepage: URL?
+        let stableURL: String?
+        let stableTag: String?
+        let stableVersion: String?
+        let fullName: String?
+        let tap: String?
+    }
 
     /// Runs `brew info` so the ~0.5s subprocess never occupies this actor. It is
     /// `async` and awaits the child through `ChildProcess`, so `compute` suspends
@@ -249,8 +296,7 @@ public actor BrewFormulaReleaseService {
     /// of this comment shipped that ~0.01s figure and concluded, wrongly, that the
     /// vehicle didn't matter.
     ///
-    /// Read `homepage` + `urls.stable.url` for one formula from `brew info
-    /// --json=v2` — local, no network, authoritative for the installed formula.
+    /// Read the formula's identity and stable source from `brew info --json=v2`.
     /// stderr is discarded, as it was, and drained, so a long run of warnings
     /// cannot wedge the stdout read.
     ///
@@ -274,13 +320,46 @@ public actor BrewFormulaReleaseService {
               let formula = (root["formulae"] as? [[String: Any]])?.first
         else { return nil }
         let homepage = (formula["homepage"] as? String).flatMap { URL(string: $0) }
-        let stable = ((formula["urls"] as? [String: Any])?["stable"] as? [String: Any])?["url"] as? String
-        return Info(homepage: homepage, stableURL: stable)
+        let stable = (formula["urls"] as? [String: Any])?["stable"] as? [String: Any]
+        let versions = formula["versions"] as? [String: Any]
+        return Info(homepage: homepage, stableURL: stable?["url"] as? String,
+                    stableTag: stable?["tag"] as? String, stableVersion: versions?["stable"] as? String,
+                    fullName: formula["full_name"] as? String, tap: formula["tap"] as? String)
     }
 
     // MARK: - GitHub derivation
 
     struct GitHubRef: Equatable { let owner: String; let repo: String; let tag: String }
+
+    /// The row can be showing an older installed version while brew is already
+    /// describing a newer stable version. Only borrow the catalog tag for the
+    /// version it describes. A bottle revision suffix does not change the upstream
+    /// release. For known non-GitHub download URLs, derive the tag from the row's
+    /// version so even an older installed version can find its exact notes.
+    static func formulaGitHubRef(name: String, version: String, info: Info) -> GitHubRef? {
+        let upstreamVersion = version == info.stableVersion
+            ? version : version.replacingOccurrences(of: #"_[0-9]+$"#, with: "", options: .regularExpression)
+        if upstreamVersion == info.stableVersion {
+            if let archive = deriveGitHub(fromStableURL: info.stableURL) { return archive }
+            if let tag = info.stableTag, !tag.isEmpty,
+               let repo = NpmChangelog.gitHubRepository(info.stableURL) {
+                return GitHubRef(owner: repo.owner, repo: repo.name, tag: tag)
+            }
+        }
+        guard info.tap == "homebrew/core", info.fullName == name,
+              upstreamVersion.range(of: #"^[0-9]+(?:\.[0-9]+)+$"#, options: .regularExpression) != nil
+        else { return nil }
+        switch name {
+        case "redis": return GitHubRef(owner: "redis", repo: "redis", tag: upstreamVersion)
+        case "iperf3": return GitHubRef(owner: "esnet", repo: "iperf", tag: upstreamVersion)
+        case "maven": return GitHubRef(owner: "apache", repo: "maven", tag: "maven-\(upstreamVersion)")
+        case "ruby":
+            let tagVersion = upstreamVersion.hasPrefix("3.")
+                ? upstreamVersion.replacingOccurrences(of: ".", with: "_") : upstreamVersion
+            return GitHubRef(owner: "ruby", repo: "ruby", tag: "v\(tagVersion)")
+        default: return nil
+        }
+    }
 
     /// Pull (owner, repo, tag) out of a formula's stable source URL. Handles the two
     /// GitHub forms Homebrew uses:

@@ -161,6 +161,8 @@ public struct ManagedItem: Sendable, Equatable {
         /// A raw Markdown document with one heading per version (Node's
         /// `CHANGELOG_V<major>.md`).
         case rawMarkdown(URL)
+        /// Stable Ruby GitHub releases for this minor line, e.g. "3.4".
+        case rubyMinorLine(String)
         case pypiProject(String)
         /// A crates.io crate: the GitHub repository its `repository` names.
         case crate(String)

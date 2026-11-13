@@ -531,6 +531,16 @@ final class HelperShellRunner: PrivilegedMASRunner, @unchecked Sendable {
 /// The production reader: the installed daemon, pinned to our team, and only
 /// while the background item is enabled. `SMAppService.status` is a synchronous
 /// XPC round trip to `smd`; `read` is nonisolated, so it runs off the main actor.
+extension HelperPackageRunner {
+    static let live = HelperPackageRunner(connect: {
+        guard SMAppService.daemon(plistName: HelperConfig.plistName).status == .enabled,
+              let requirement = HelperConfig.helperRequirement else { return nil }
+        let connection = NSXPCConnection(machServiceName: HelperConfig.machServiceName, options: .privileged)
+        connection.setCodeSigningRequirement(requirement)
+        return connection
+    })
+}
+
 extension HelperStagedVersionReader {
     static let live = HelperStagedVersionReader(connect: {
         guard SMAppService.daemon(plistName: HelperConfig.plistName).status == .enabled,

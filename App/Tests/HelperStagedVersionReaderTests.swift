@@ -148,6 +148,9 @@ final class ZZRefusingDelegate: NSObject, NSXPCListenerDelegate {
 /// A helper that answers whatever it is told to. `versionReply == nil` never
 /// replies at all.
 final class ZZFakeHelper: NSObject, MASHelperProtocol, @unchecked Sendable {
+    func installPackage(package: FileHandle, fingerprint: Data, installedAppPath: String,
+                        bundleIdentifier: String, automatic: Bool, progress: FileHandle,
+                        withReply reply: @escaping (Int32, String?) -> Void) { reply(-1, "Fixture") }
     private let versionReply: String?
     private let fields: (String?, String?, String?)
     private let lock = NSLock()

@@ -10,6 +10,9 @@ public struct InstallEnvironment: Sendable {
     /// The gate for the App Store `.full` route — without it that route is
     /// offered only as a deep link, never as a one-click.
     public var isHelperEnabled: Bool
+    /// The approved helper answered with the protected PKG install protocol.
+    /// Separate from approval: an older running helper cannot install packages.
+    public var packageInstallerAvailable: Bool
     /// Bundle paths with at least one live process, normalized through
     /// `UpdatePolicy.runtimeBundlePath` — the running side of the
     /// `defersToSelfUpdater` / running-dot decisions.
@@ -69,9 +72,11 @@ public struct InstallEnvironment: Sendable {
         elevationRequiredPaths: Set<String> = [],
         runningBundleIDs: Set<String> = [],
         runtimeKeys: [URL: String] = [:],
-        inputMethods: [URL: Bool] = [:]
+        inputMethods: [URL: Bool] = [:],
+        packageInstallerAvailable: Bool = false
     ) {
         self.isHelperEnabled = isHelperEnabled
+        self.packageInstallerAvailable = packageInstallerAvailable
         self.runningAppPaths = runningAppPaths
         self.stagedSelfUpdates = stagedSelfUpdates
         self.elevationRequiredPaths = elevationRequiredPaths
@@ -152,9 +157,9 @@ public struct InstallPathFacts: Sendable, Equatable {
 /// `(UpdateResult, UpdateSettings, InstallEnvironment)` — no I/O, no globals.
 public enum UpdatePolicy {
 
-    /// True when this update installs seamlessly in place (Sparkle EdDSA, or a
-    /// drag-to-Applications Homebrew cask). Excludes `pkg` casks, which need the
-    /// system installer — see `requiresInstaller`.
+    /// True when the host can perform the update. Packages require a helper
+    /// that answered with the protected-install protocol; otherwise the host
+    /// offers the interactive route through `requiresInstaller`.
     ///
     /// A Homebrew result only ever reaches us when the app was *actually*
     /// installed via Homebrew (the source gates on the local Caskroom), so
@@ -210,6 +215,11 @@ public enum UpdatePolicy {
         // and so give the same answer in any order: a gate may read a file
         // (`.executableContains`), and a row they already refuse skips it.
         if OneClickGateRegistry.withholding(result.app, offering: result.remote) != nil { return false }
+        if environment.packageInstallerAvailable,
+           PackageInstallTrust.teamIdentifier(for: result.app.bundleID) != nil,
+           requiresInstaller(result, environment: environment) {
+            return true
+        }
         switch result.remote?.sourceName {
         case "Sparkle":
             let ext = result.remote?.downloadURL?.pathExtension.lowercased()
@@ -368,7 +378,10 @@ public enum UpdatePolicy {
         _ result: UpdateResult,
         environment: InstallEnvironment
     ) -> Bool {
-        environment.elevationRequiredPaths.contains(environment.runtimeKey(for: result.app.path))
+        if environment.packageInstallerAvailable,
+           PackageInstallTrust.teamIdentifier(for: result.app.bundleID) != nil,
+           requiresInstaller(result, environment: environment) { return false }
+        return environment.elevationRequiredPaths.contains(environment.runtimeKey(for: result.app.path))
     }
 
     /// The declined leg of the tri-state: this install needs an administrator

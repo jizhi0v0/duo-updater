@@ -434,6 +434,7 @@ final class AppListModel {
     /// moment the helper is approved — the live property isn't part of the @Observable
     /// model, so reading it directly wouldn't trigger a re-render.
     private(set) var helperEnabled = false
+    private(set) var packageHelperAvailable = false
     /// The user's answer to a pending quit-to-install prompt, keyed by app id, read
     /// by the AX installer on each poll and cleared when it withdraws the question.
     ///
@@ -1457,6 +1458,7 @@ final class AppListModel {
     private let sparkleInstaller = SparkleInstaller()
     private let homebrewInstaller = HomebrewInstaller()
     private let packageInstaller = PackageInstaller()
+    private let packageRunner = HelperPackageRunner.live
     private let vendorInstaller = VendorInstaller()
     /// Drives the privileged helper (root daemon) that runs `mas` without a
     /// password prompt; `masInstaller` routes its mas calls through it. The same
@@ -2193,11 +2195,17 @@ final class AppListModel {
 
     /// The helper half of `refreshPermissionStatus()`, with the `SMAppService` query off
     /// the main thread (see `PrivilegedHelperClient.refreshStatusOffMain`).
-    func refreshHelperStatus() async {
+    func refreshHelperStatus(checkPackage: Bool = false) async {
         await helperClient.refreshStatusOffMain()
         let wasEnabled = helperEnabled
         // The mirror it just wrote, not another live query — see the doc above.
         helperEnabled = helperClient.status == .enabled
+        if !helperEnabled {
+            packageHelperAvailable = false
+        } else if checkPackage || !packageHelperAvailable {
+            let available = await packageRunner.isAvailable()
+            packageHelperAvailable = helperEnabled && available
+        }
         // A row showing "→ ?" because only root can read its staged build can
         // name it now (#588) — the "?" popover's "Turn On Helper…" leads here.
         if !wasEnabled, helperEnabled, !armedSelfInstallers.isEmpty {
@@ -4060,7 +4068,8 @@ final class AppListModel {
             elevationRequiredPaths: pathFacts.elevationRequiredPaths,
             runningBundleIDs: runningBundleIDs,
             runtimeKeys: pathFacts.runtimeKeys,
-            inputMethods: pathFacts.inputMethods)
+            inputMethods: pathFacts.inputMethods,
+            packageInstallerAvailable: packageHelperAvailable)
     }
 
     /// The filesystem facts every row's policy questions are answered from — which
@@ -5736,13 +5745,15 @@ final class AppListModel {
             return .notInstalled
         }
 
+        if requiresInstaller(result) { await refreshHelperStatus(checkPackage: true) }
         if AutomaticInstall.active {
             automaticInstallVersions[id] = (
                 from: result.app.versionSide.text(withBuild: true),
                 to: result.remote?.displayVersion ?? "")
             guard automaticUpdatesAllowed, canAutoInstall(result),
                   UpdatePolicy.installConfirmation(for: result) == nil,
-                  AutomaticInstall.supports(InstallCoordinator.route(for: result, requiresInstaller: requiresInstaller(result))),
+                  AutomaticInstall.supports(InstallCoordinator.route(for: result, requiresInstaller: requiresInstaller(result)),
+                                            packageInstallerAvailable: packageHelperAvailable),
                   isActionableUpdate(result)
             else {
                 installing[id] = nil
@@ -6096,7 +6107,9 @@ final class AppListModel {
                         releaseAfterDownload: AutomaticUpdateFailurePolicy.afterDownload {
                             await releaseAfterDownload?.release()
                         },
-                        beforeInstallerOpen: { await self.retireStagedPackage(for: id) })
+                        beforeInstallerOpen: { await self.retireStagedPackage(for: id) },
+                        packageExecutor: route == .installer && canUsePackageHelper(result)
+                            ? packageRunner.executor(bundleIdentifier: result.app.bundleID) : nil)
                 }
                 // The App Store branch below has no `applied` to report and
                 // leaves this false, so there the disk still decides (whether a
@@ -6418,12 +6431,12 @@ final class AppListModel {
             //
             // Deliberately narrow, because a false "it didn't work" is its own kind
             // of lie: only routes we apply ourselves and that are finished when
-            // `perform` returns. `.installer` hands a pkg to macOS Installer, which
-            // the user may not have clicked through yet; `.appStore` lands
+            // `perform` returns. An interactive `.installer` handoff returned
+            // above; a helper package install is finished here. `.appStore` lands
             // asynchronously. Comparing against the row's own verdict rather than
             // raw version strings keeps every source's quirks (`versionIsBuild`,
             // build-vs-marketing schemes) out of this decision.
-            let appliedNothing = [.vendor, .sparkle, .homebrew].contains(route)
+            let appliedNothing = [.vendor, .sparkle, .homebrew, .installer].contains(route)
                 && updated.app.shortVersion == result.app.shortVersion
                 && updated.app.buildVersion == result.app.buildVersion
                 && isActionableUpdate(updated)
@@ -7220,6 +7233,9 @@ final class AppListModel {
         // the user cancelled, then the app arms its own update. Asked only once a
         // package is known to exist, so the ladder runs for those rows alone.
         if case .relaunchToApplyStaged = rowState(for: result) { return nil }
+        if canUsePackageHelper(result) {
+            return String(localized: "Download and install \(result.app.name) \(staged.version)")
+        }
         return String(localized: "\(staged.version) is downloaded — Install re-opens it in macOS’s installer, nothing is downloaded again.")
     }
 
@@ -7298,9 +7314,9 @@ final class AppListModel {
         persistStagedPackages()
     }
 
-    /// Re-open the package we already downloaded for this row. No network: the file
-    /// is on disk, re-verified, and handed back to macOS's installer, which brings
-    /// its existing window forward if it's still open.
+    /// Resume a package row. An available helper uses the normal install job so
+    /// its source recheck, locks, backup and post-install bookkeeping all apply.
+    /// Without the helper, re-open the existing download in macOS Installer.
     func openStagedPackage(_ result: UpdateResult) async {
         guard let staged = stagedPackage(for: result) else {
             // Swept since the row last asked. Forget it now, as the next
@@ -7313,6 +7329,14 @@ final class AppListModel {
                 stagedPackages[result.id] = nil
                 persistStagedPackages()
             }
+            return
+        }
+        await refreshHelperStatus(checkPackage: true)
+        if canUsePackageHelper(result) {
+            // Staged entries from earlier versions pin a version and a path,
+            // not the original download proof. Reacquire through the normal
+            // source gates before giving root a protected copy.
+            await install(result)
             return
         }
         installErrors[result.id] = nil
@@ -10479,6 +10503,7 @@ final class AppListModel {
 
     private func performAutomaticUpdates() async {
         guard automaticUpdatesAllowed, canRefresh else { return }
+        await refreshHelperStatus(checkPackage: true)
         let diagnostics = AutomaticUpdateDiagnostics()
         // Retained history survives app restarts. New attempts link to the latest
         // incomplete attempt for the same installed copy and proposed version.
@@ -10664,18 +10689,24 @@ final class AppListModel {
     }
 
     /// The route this app's update would take, for the Automatic Updates page:
-    /// only `.vendor` and `.sparkle` are ever installed unattended. Nil before a
+    /// `.installer` also supports unattended work when its helper is ready. Nil before a
     /// check has said where its latest version comes from.
     func automaticUpdateRoute(_ result: UpdateResult) -> InstallCoordinator.Route? {
         guard result.remote != nil else { return nil }
         return InstallCoordinator.route(for: result, requiresInstaller: requiresInstaller(result))
     }
 
+    private func canUsePackageHelper(_ result: UpdateResult) -> Bool {
+        packageHelperAvailable && PackageInstallTrust.teamIdentifier(for: result.app.bundleID) != nil
+    }
+
     /// A temporary hold does not remove the user's future update preference.
     /// This is presentation only; unattended installation still uses its full guards.
     func canConfigureAutomaticUpdates(_ result: UpdateResult) -> Bool {
         let staged = actionableStaged(result) != nil
-            && automaticUpdateRoute(result).map(AutomaticInstall.supports) == true
+            && automaticUpdateRoute(result).map {
+                AutomaticInstall.supports($0, packageInstallerAvailable: packageHelperAvailable)
+            } == true
         return AutomaticUpdateChoices.canConfigure(remote: result.remote,
             installable: installsAutomatically(result), awaitingRelaunch: staged)
     }
@@ -10710,7 +10741,7 @@ final class AppListModel {
             return String(localized: "Updated through the App Store, so not automatically")
         default: break
         }
-        if automaticUpdateRoute(result) == .installer || result.remote?.requiresManualInstaller == true
+        if !canUsePackageHelper(result), automaticUpdateRoute(result) == .installer || result.remote?.requiresManualInstaller == true
             || result.remote?.sparklePackageEnclosure == true
             || ["pkg", "mpkg"].contains(result.remote?.downloadURL?.pathExtension.lowercased() ?? "") {
             return String(localized: "Needs an installer, so not automatically")
@@ -10747,7 +10778,7 @@ final class AppListModel {
         // An install that needs an administrator is refused at the swap
         // (`InPlaceSwap.replace`), after the backup and the download: leave it out
         // here so the pass never quits, backs up or downloads for it.
-        return AutomaticInstall.supports(route) && canAutoInstall(result)
+        return AutomaticInstall.supports(route, packageInstallerAvailable: packageHelperAvailable) && canAutoInstall(result)
             && !needsAdministratorForAutomaticUpdate(result)
     }
 

@@ -4,10 +4,9 @@ import CryptoKit
 import Darwin
 
 /// Handles updates that ship as an installer package (`pkg` casks like AweSun,
-/// Tailscale). We can't swap those in place, and a non-interactive `brew` can't
-/// elevate to run the installer — so we download the official package (the same
-/// URL Homebrew would use) and hand it to macOS's own installer, which prompts
-/// for admin itself. The user confirms the install in a trusted, native UI.
+/// Tailscale). After common package checks, an approved host can execute a
+/// protected copy through its root helper. Without that executor, the package
+/// opens in macOS Installer, where the user authorizes and finishes the install.
 ///
 /// Architecture limitation (#205): this route does NOT run
 /// `SignatureVerifier.verifyRunnableArchitecture` (Gate 5) or
@@ -32,7 +31,7 @@ import Darwin
 /// architecture varies the declaration is blind; where it exists architecture
 /// does not vary. `duo verify --pkgarch` now tracks it for DRIFT on that basis,
 /// which is not the same claim as checking what will be installed.
-/// Handoff also returns before installation completes, so this actor performs no
+/// Interactive handoff returns before installation completes, so it performs no
 /// post-install architecture verification or automatic architecture rollback.
 /// Architecture compatibility on this route remains dependent on the vendor's
 /// package and system installer; it is not a DuoUpdater architecture guarantee.
@@ -84,6 +83,14 @@ import Darwin
 ///   package updates, so the cost would be a wrong floor rather than a wrong app.
 public actor PackageInstaller {
 
+    /// An approved host may execute the verified package through its root helper.
+    /// The fingerprint pins the exact package bytes the source and package gates
+    /// accepted. The helper must copy those bytes into protected storage and
+    /// repeat the package/installed-copy checks before executing them.
+    public typealias Executor = @Sendable (
+        URL, URL, Data, @escaping @Sendable (String) -> Void
+    ) async throws -> Void
+
     /// The final hand-over keeps its integrity check and `NSWorkspace.open` in one
     /// MainActor turn. Injectable so tests can observe it without a live Installer.
     private let handOff: @Sendable (
@@ -134,6 +141,9 @@ public actor PackageInstaller {
         case packageDestinationMismatch(installed: String, destinations: [String])
         case packageDestinationsUnreadable
         case packageRequiresNewerSystem(required: String, host: String)
+        case untrustedPackageDeveloper(expected: String, actual: String)
+        case requiresInteractiveInstaller(String)
+        case installationFailed(String)
 
         public var errorDescription: String? {
             switch self {
@@ -153,11 +163,15 @@ public actor PackageInstaller {
                 return "Installer Team Identifier mismatch: installed “\(installed)” vs package “\(package)”. Refusing to open it."
             case .packageRequiresNewerSystem(let required, let host):
                 return "This installer package requires macOS \(required) and this Mac runs macOS \(host). Refusing to install a build it cannot launch."
+            case .untrustedPackageDeveloper(let expected, let actual):
+                return "The package developer \(actual) does not match the trusted developer \(expected). Nothing was installed."
+            case .requiresInteractiveInstaller(let reason): return reason
+            case .installationFailed(let reason): return "Package installation failed: \(reason)"
             }
         }
     }
 
-    /// What `downloadAndOpen` handed to the system installer.
+    /// What `downloadAndOpen` applied or handed to the system installer.
     ///
     /// `packageURL` is kept so the caller can offer to re-open the *same* download
     /// later — the work directory deliberately outlives this call (see
@@ -171,17 +185,20 @@ public actor PackageInstaller {
         /// The host that actually served the bytes after redirects, for the
         /// per-host install gate (see `Downloader.finalHost`).
         public let finalHost: String?
+        /// True only after an injected helper executor finished successfully.
+        public let applied: Bool
 
-        public init(bytesDownloaded: Int64, packageURL: URL, finalHost: String? = nil) {
+        public init(bytesDownloaded: Int64, packageURL: URL, finalHost: String? = nil, applied: Bool = false) {
             self.bytesDownloaded = bytesDownloaded
             self.packageURL = packageURL
             self.finalHost = finalHost
+            self.applied = applied
         }
     }
 
     /// Download `url` and open the resulting installer (or the disk image that
-    /// contains it). Returns once the installer has been launched — the actual
-    /// install happens in macOS's installer, under the user's control.
+    /// contains it). An executor is awaited to completion. Without one, returns
+    /// once macOS Installer launches and leaves completion under user control.
     /// - Parameter beforeOpen: runs after a preliminary package gate and immediately
     ///   before the final gate + Installer hand-over, so a caller retiring the window
     ///   this package supersedes does it while Installer is idle. Not called when the
@@ -193,7 +210,8 @@ public actor PackageInstaller {
         headers: [String: String] = [:],
         onStage: @Sendable @escaping (InstallStage) -> Void,
         verifyDownload: @Sendable (URL) throws -> Data? = { _ in nil },
-        beforeOpen: @Sendable () async -> Void = {}
+        beforeOpen: @Sendable () async -> Void = {},
+        executor: Executor? = nil
     ) async throws -> OpenedPackage {
         guard let url else { throw PackageError.noURL }
 
@@ -259,16 +277,16 @@ public actor PackageInstaller {
             zipIsProven: sourceFingerprint != nil)
         let directSourceFingerprint = toOpen.standardizedFileURL == file.standardizedFileURL
             ? sourceFingerprint : nil
-        try await handOver(
+        let applied = try await handOver(
             toOpen, installedApp: installedApp,
             approvedFingerprint: directSourceFingerprint,
-            beforeOpen: beforeOpen)
-        keepWorkDirectory = true
+            beforeOpen: beforeOpen, executor: executor, onStage: onStage)
+        keepWorkDirectory = !applied
         onStage(.done)
         return OpenedPackage(
             bytesDownloaded: bytesDownloaded,
             packageURL: toOpen,
-            finalHost: downloader.finalHost)
+            finalHost: downloader.finalHost, applied: applied)
     }
 
     /// Re-open a package this installer already downloaded, without fetching it
@@ -285,11 +303,25 @@ public actor PackageInstaller {
     /// Opening a package the system installer already has open does *not* spawn a
     /// second window — macOS treats it as the same document and brings the
     /// existing one forward (verified against Installer.app on macOS 27).
-    public func reopen(package: URL, installedApp: URL) async throws {
+    @discardableResult
+    public func reopen(package: URL, installedApp: URL, executor: Executor? = nil,
+                       onStage: @escaping @Sendable (InstallStage) -> Void = { _ in }) async throws -> Bool {
         guard FileManager.default.fileExists(atPath: package.path) else {
             throw PackageError.noInstallablePackage
         }
-        try await handOver(package, installedApp: installedApp)
+        return try await handOver(package, installedApp: installedApp, executor: executor, onStage: onStage)
+    }
+
+    /// Shared validation for a helper's protected copy. Helpers require the
+    /// exact installed path among the package destinations; the interactive
+    /// Installer route retains its existing relocated-copy behavior.
+    public func validateProtectedPackage(_ package: URL, installedApp: URL,
+                                         bundleIdentifier: String) async throws {
+        guard let trustedTeam = PackageInstallTrust.teamIdentifier(for: bundleIdentifier) else {
+            throw PackageError.requiresInteractiveInstaller("This app's package developer is not registered for the helper. Use macOS Installer.")
+        }
+        try await verifyOpenable(package, installedApp: installedApp,
+                                 requireExactDestination: true, trustedTeam: trustedTeam)
     }
 
     /// Gate and fingerprint the package, let the caller settle whatever this open
@@ -313,8 +345,10 @@ public actor PackageInstaller {
         _ toOpen: URL,
         installedApp: URL,
         approvedFingerprint: Data? = nil,
-        beforeOpen: @Sendable () async -> Void = {}
-    ) async throws {
+        beforeOpen: @Sendable () async -> Void = {},
+        executor: Executor? = nil,
+        onStage: @escaping @Sendable (InstallStage) -> Void = { _ in }
+    ) async throws -> Bool {
         // Preliminary gate: an ordinary bad package must not retire the valid
         // Installer window it was meant to replace.
         //
@@ -346,6 +380,26 @@ public actor PackageInstaller {
         // This route's point of no return (`InstallCommit`): once Installer has
         // the package, the install is the user's and Installer's. A cancel before
         // it opens nothing; one during it is not seen.
+        if let executor {
+            try await AutomaticInstall.checkPermission()
+            try await AutomaticInstall.quitPlannedApp(before: installedApp, usingPrivilegedPackage: true)
+            try await AutomaticInstall.checkPackageTarget(installedApp)
+            do {
+                try await InstallCommit.run("package helper install") {
+                    if AutomaticInstall.active, let allowed = AutomaticInstall.commitPermission, !allowed() {
+                        throw AutomaticInstall.Deferred("Automatic updates are paused.")
+                    }
+                    try await executor(toOpen, installedApp, pinnedFingerprint) { line in
+                        onStage(.runningCommand(line))
+                    }
+                }
+                return true
+            } catch PackageError.requiresInteractiveInstaller(let reason) {
+                if AutomaticInstall.active {
+                    throw AutomaticInstall.Deferred(reason)
+                }
+            }
+        }
         let handOff = self.handOff
         try await InstallCommit.run("installer hand-off") {
             try await handOff(toOpen) {
@@ -355,6 +409,7 @@ public actor PackageInstaller {
                 }
             }
         }
+        return false
     }
 
     private struct ContentSeal: Sendable {
@@ -540,7 +595,9 @@ public actor PackageInstaller {
     /// Shared by the first open and every re-open. Fail-closed except for gate 6,
     /// which is best-effort and fails open — the header table says which is which,
     /// and it is the one list; do not restate it here.
-    private nonisolated func verifyOpenable(_ toOpen: URL, installedApp: URL) async throws {
+    private nonisolated func verifyOpenable(_ toOpen: URL, installedApp: URL,
+                                          requireExactDestination: Bool = false,
+                                          trustedTeam: String? = nil) async throws {
         // A `.pkg`/`.mpkg` runs install scripts (often with admin rights) the moment
         // the user confirms. The download's filename/extension is server-controlled
         // (`suggestedFilename`), so a hijacked or misconfigured endpoint could
@@ -558,12 +615,15 @@ public actor PackageInstaller {
         }) else {
             throw SignatureVerifier.VerifyError.noTeamIdentifier(which: "installed")
         }
-        let signature = await packageSignature(toOpen)
+        let signature = await packageSignature(toOpen, requiringAppleDeveloperID: trustedTeam != nil)
         guard signature.isValid else {
             throw PackageError.unsignedPackage
         }
         guard let packageTeam = signature.teamIdentifier else {
             throw PackageError.packageTeamIdentifierMissing
+        }
+        if let trustedTeam, packageTeam != trustedTeam {
+            throw PackageError.untrustedPackageDeveloper(expected: trustedTeam, actual: packageTeam)
         }
         guard packageTeam == installedTeam else {
             throw PackageError.packageTeamIdentifierMismatch(
@@ -629,7 +689,13 @@ public actor PackageInstaller {
         }
 
         let target = installedApp.resolvingSymlinksInPath().standardizedFileURL.path
-        try Self.verifyDestination(target: target, destinations: destinations)
+        if requireExactDestination {
+            guard destinations.contains(target) else {
+                throw PackageError.packageDestinationMismatch(installed: target, destinations: destinations.sorted())
+            }
+        } else {
+            try Self.verifyDestination(target: target, destinations: destinations)
+        }
 
         // Gate 6, the last thing before the package is eligible to be handed over.
         // Ordered after the destination check on purpose: it extracts a payload,
@@ -1368,15 +1434,34 @@ public actor PackageInstaller {
 
     /// `pkgutil --check-signature` validates the package chain and prints the
     /// Developer ID Installer certificate, whose parenthesized OU is the Team ID.
-    private nonisolated func packageSignature(_ pkg: URL) async -> (isValid: Bool, teamIdentifier: String?) {
-        await Self.packageSignature(of: pkg)
+    private nonisolated func packageSignature(_ pkg: URL, requiringAppleDeveloperID: Bool) async
+        -> (isValid: Bool, teamIdentifier: String?) {
+        await Self.packageSignature(of: pkg, requiringAppleDeveloperID: requiringAppleDeveloperID)
     }
 
     /// The same check with no instance to hang it on, for `ArtifactInspection`.
-    static func packageSignature(of pkg: URL) async -> (isValid: Bool, teamIdentifier: String?) {
+    static func packageSignature(of pkg: URL, requiringAppleDeveloperID: Bool = false) async
+        -> (isValid: Bool, teamIdentifier: String?) {
         let result = await runCapturing("/usr/sbin/pkgutil", ["--check-signature", pkg.path])
-        guard result.code == 0 else { return (false, nil) }
-        return (true, packageTeamIdentifier(fromPkgutilOutput: result.output))
+        return packageSignature(exitCode: result.code, output: result.output,
+                                requiringAppleDeveloperID: requiringAppleDeveloperID)
+    }
+
+    static func packageSignature(exitCode: Int32, output: String, requiringAppleDeveloperID: Bool)
+        -> (isValid: Bool, teamIdentifier: String?) {
+        guard exitCode == 0 else { return (false, nil) }
+        if requiringAppleDeveloperID {
+            // Exit 0 also accepts user/system-trusted certificates. The helper
+            // needs pkgutil's Apple-issued Developer ID policy result, not a
+            // caller-chosen certificate subject containing a vendor's name.
+            let status = output.split(whereSeparator: \.isNewline)
+                .map { $0.trimmingCharacters(in: .whitespaces) }
+                .first { $0.hasPrefix("Status:") }
+            guard status == "Status: signed by a developer certificate issued by Apple for distribution" else {
+                return (false, nil)
+            }
+        }
+        return (true, packageTeamIdentifier(fromPkgutilOutput: output))
     }
 
     /// Pick a package only when the answer is unambiguous. A single package needs

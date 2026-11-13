@@ -130,8 +130,9 @@ struct VendorSHA256GateTests {
             } catch { refusal = error }
             #expect(Self.isChecksumMismatch(refusal), "\(source)")
             for digest in [actual, nil] {
-                #expect(try InstallCoordinator.verifyInstallerDownload(
-                    file, for: Self.result(sha256: digest, source: source, kind: .pkg)) { _ in } == nil)
+                let pinned = try InstallCoordinator.verifyInstallerDownload(
+                    file, for: Self.result(sha256: digest, source: source, kind: .pkg)) { _ in }
+                #expect(pinned == (digest == nil ? nil : Data(SHA256.hash(data: Data("package bytes".utf8)))))
             }
         }
     }

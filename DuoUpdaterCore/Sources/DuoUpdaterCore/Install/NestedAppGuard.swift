@@ -376,12 +376,19 @@ public enum NestedAppGuard {
         ("Contents/Helpers/VMPalMachine.app", ["--mcp-library"]),
     ]
 
-    /// Whether `process` is one of `nestedAppInstancesThatNeverBlock`.
+    /// Whether `process` is a known MCP relay instance.
     /// `bundlePrefix` ends in `/`.
     static func neverBlocks(_ process: RunningProcess, insideBundle bundlePrefix: String) -> Bool {
         let path = process.path
         guard path.hasPrefix(bundlePrefix), let argv = process.arguments else { return false }
         let relative = path.dropFirst(bundlePrefix.count)
+        // VMPal also exposes a per-machine MCP connection. Measured 2026-11-13:
+        // Codex keeps `--mcp <UUID>` running even with no VMs in the library.
+        // Match the entire argv so a VM or an unknown mode still blocks.
+        if relative == "Contents/Helpers/VMPalMachine.app/Contents/MacOS/VMPalMachine",
+           argv.count == 3, argv[1] == "--mcp", UUID(uuidString: argv[2]) != nil {
+            return true
+        }
         return nestedAppInstancesThatNeverBlock.contains {
             relative.hasPrefix($0.app + "/") && argv.dropFirst().elementsEqual($0.arguments)
         }

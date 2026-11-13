@@ -1,6 +1,2142 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "Xcode downloads use your Apple Developer account and require a manual update action.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Xcode-Downloads verwenden deinen Apple-Developer-Account und erfordern ein manuelles Update."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las descargas de Xcode usan tu cuenta de Apple Developer y requieren una actualización manual."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les téléchargements de Xcode utilisent votre compte Apple Developer et nécessitent une mise à jour manuelle."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "I download di Xcode usano il tuo account Apple Developer e richiedono un aggiornamento manuale."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "XcodeのダウンロードにはApple Developerアカウントを使用し、手動でのアップデート操作が必要です。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Os downloads do Xcode usam sua conta Apple Developer e exigem uma atualização manual."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Для загрузки Xcode используется ваша учётная запись Apple Developer; обновление нужно запустить вручную."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Xcode indirmeleri Apple Developer hesabınızı kullanır ve elle güncelleme gerektirir."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Xcode 下载使用你的 Apple Developer 账户，需要手动执行更新。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Xcode 下載使用你的 Apple Developer 帳號，需要手動執行更新。"
+          }
+        }
+      }
+    },
+    "The installed copy has no developer identity that DuoUpdater can verify for this update. Install it manually from the developer.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Für diese installierte Kopie kann DuoUpdater die Entwickleridentität beim Update nicht bestätigen. Installiere sie manuell vom Entwickler."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "DuoUpdater no puede verificar la identidad del desarrollador de esta copia instalada para actualizarla. Instálala manualmente desde el desarrollador."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "DuoUpdater ne peut pas vérifier l’identité du développeur de cette copie installée pour cette mise à jour. Installez-la manuellement depuis le développeur."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "DuoUpdater non può verificare l’identità dello sviluppatore della copia installata per questo aggiornamento. Installala manualmente dal sito dello sviluppatore."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このアップデートでは、インストール済みのコピーの開発元をDuoUpdaterで確認できません。開発元から手動でインストールしてください。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O DuoUpdater não consegue verificar a identidade do desenvolvedor desta cópia instalada para esta atualização. Instale-a manualmente a partir do desenvolvedor."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "DuoUpdater не может проверить разработчика установленной копии для этого обновления. Установите приложение вручную из источника разработчика."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "DuoUpdater bu güncelleme için yüklü kopyanın geliştirici kimliğini doğrulayamıyor. Geliştiriciden elle yükleyin."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "DuoUpdater 无法为此更新验证已安装副本的开发者身份。请从开发者处手动安装。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "DuoUpdater 無法為此更新驗證已安裝副本的開發者身分。請從開發者處手動安裝。"
+          }
+        }
+      }
+    },
+    "No supported installer is available for this update. Use the app’s updater or its official download page.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Für dieses Update ist kein unterstütztes Installationspaket verfügbar. Verwende den Updater der App oder ihre offizielle Downloadseite."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No hay un instalador compatible para esta actualización. Usa el actualizador de la app o su página oficial de descargas."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aucun programme d’installation pris en charge n’est disponible pour cette mise à jour. Utilisez l’outil de mise à jour de l’app ou sa page de téléchargement officielle."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Non è disponibile un programma di installazione supportato per questo aggiornamento. Usa l’aggiornamento dell’app o la sua pagina ufficiale di download."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このアップデートには対応するインストーラがありません。アプリ内のアップデート機能または公式ダウンロードページを使用してください。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Não há um instalador compatível para esta atualização. Use o atualizador do app ou a página oficial de download."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Для этого обновления нет поддерживаемого установщика. Используйте обновление в приложении или официальную страницу загрузки."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu güncelleme için desteklenen bir yükleyici yok. Uygulamanın güncelleyicisini veya resmî indirme sayfasını kullanın."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此更新没有可支持的安装包。请使用 App 自带的更新功能或官方下载页面。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此更新沒有可支援的安裝套件。請使用 App 內建的更新功能或官方下載頁面。"
+          }
+        }
+      }
+    },
+    "Allowing restarts does not guarantee uninterrupted work.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erlaubte Neustarts garantieren kein unterbrechungsfreies Arbeiten."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Permitir reinicios no garantiza un trabajo sin interrupciones."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Autoriser les redémarrages ne garantit pas un travail sans interruption."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Consentire i riavvii non garantisce un lavoro senza interruzioni."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "再起動を許可しても、作業が中断されない保証はありません。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Permitir reinícios não garante trabalho sem interrupções."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Разрешение перезапуска не гарантирует работу без прерываний."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yeniden başlatmaya izin vermek kesintisiz çalışmayı garanti etmez."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "允许重启并不保证工作不会中断。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "允許重新啟動並不保證工作不會中斷。"
+          }
+        }
+      }
+    },
+    "No matching apps": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keine passenden Apps"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No hay apps coincidentes"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aucune app correspondante"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nessuna app corrispondente"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "一致するアプリはありません"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nenhum app correspondente"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Нет подходящих приложений"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eşleşen uygulama yok"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有匹配的 App"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "沒有符合的 App"
+          }
+        }
+      }
+    },
+    "Restarting this input method may interrupt typing.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ein Neustart dieser Eingabemethode kann die Texteingabe unterbrechen."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reiniciar este método de entrada puede interrumpir la escritura."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Redémarrer cette méthode de saisie peut interrompre la frappe."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Il riavvio di questo metodo di input può interrompere la digitazione."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "この入力方式の再起動は入力を中断する場合があります。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reiniciar este método de entrada pode interromper a digitação."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Перезапуск этого метода ввода может прервать набор текста."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu giriş yöntemini yeniden başlatmak yazmayı kesintiye uğratabilir."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重启此输入法可能中断输入。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新啟動此輸入法可能中斷輸入。"
+          }
+        }
+      }
+    },
+    "Background app; restarting may interrupt ongoing work.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hintergrund-App; ein Neustart kann laufende Arbeit unterbrechen."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App en segundo plano; reiniciarla puede interrumpir el trabajo."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App en arrière-plan ; un redémarrage peut interrompre le travail en cours."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App in background: il riavvio può interrompere il lavoro in corso."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "バックグラウンドアプリです。再起動で進行中の作業が中断される場合があります。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App em segundo plano; reiniciar pode interromper o trabalho em andamento."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Фоновое приложение; перезапуск может прервать текущую работу."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Arka plan uygulaması; yeniden başlatmak devam eden işi kesebilir."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "后台应用；重启可能中断正在进行的工作。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "背景 App；重新啟動可能中斷進行中的工作。"
+          }
+        }
+      }
+    },
+    "Apps you allow may restart while in front, playing media or doing work. There is no idle-time or update delay. If normal quit is refused, that version waits. Installer prompts and safety checks can still defer an update.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erlaubte Apps können auch im Vordergrund, bei der Medienwiedergabe oder während der Arbeit neu starten. Es gibt keine Wartezeit für Inaktivität oder Updates. Wird das normale Beenden abgelehnt, wartet diese Version. Installationsdialoge und Sicherheitsprüfungen können ein Update weiterhin aufschieben."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las apps permitidas pueden reiniciarse en primer plano, al reproducir contenido o mientras trabajas. No hay espera por inactividad ni demora adicional. Si la app rechaza el cierre normal, esa versión espera. Los avisos del instalador y las comprobaciones de seguridad aún pueden aplazar una actualización."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les apps autorisées peuvent redémarrer au premier plan, pendant la lecture de médias ou pendant votre travail. Aucun délai d’inactivité ni d’attente supplémentaire n’est requis. Si la fermeture normale est refusée, cette version attend. Les demandes de l’installateur et les contrôles de sécurité peuvent toujours reporter une mise à jour."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le app consentite possono riavviarsi in primo piano, durante la riproduzione multimediale o mentre lavori. Non sono previsti tempi di inattività o attese aggiuntive. Se la chiusura normale viene rifiutata, quella versione attende. Richieste del programma di installazione e controlli di sicurezza possono ancora rinviare un aggiornamento."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "許可したアプリは、前面での使用中、メディアの再生中、作業中でも再起動される場合があります。アイドル状態や追加の待機時間は不要です。通常の終了が拒否された場合、そのバージョンは待機します。インストーラの確認、安全性チェックにより、更新が引き続き延期される場合があります。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Os apps permitidos podem reiniciar em primeiro plano, durante a reprodução de mídia ou enquanto você trabalha. Não há espera por inatividade nem atraso adicional. Se o encerramento normal for recusado, essa versão aguarda. Avisos do instalador e verificações de segurança ainda podem adiar uma atualização."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Разрешённые приложения могут перезапускаться на переднем плане, при воспроизведении мультимедиа или во время работы. Ожидание бездействия и дополнительная задержка не требуются. При отказе от обычного завершения эта версия откладывается. Запросы установщика и проверки безопасности по-прежнему могут отложить обновление."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "İzin verilen uygulamalar ön plandayken, medya oynatırken veya çalışırken yeniden başlatılabilir. Boşta kalma süresi veya ek güncelleme gecikmesi yoktur. Normal kapatma reddedilirse o sürüm bekler. Yükleyici istemleri ve güvenlik denetimleri güncellemeyi yine de erteleyebilir."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "允许的应用即使在前台、播放媒体或处理工作时也可能重启。无需等待空闲，也没有额外的更新延迟。如果应用拒绝正常退出，该版本会暂缓更新。安装器提示和安全检查仍可能让更新暂缓。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "允許的 App 即使在前景、播放媒體或處理工作時也可能重新啟動。無需等待閒置，也沒有額外的更新延遲。如果 App 拒絕正常結束，該版本會暫緩更新。安裝程式提示和安全性檢查仍可能讓更新暫緩。"
+          }
+        }
+      }
+    },
+    "File provider extension: updates may affect synchronization.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dateianbieter-Erweiterung: Aktualisierungen können die Synchronisierung beeinflussen."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Extensión de proveedor de archivos: las actualizaciones pueden afectar la sincronización."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Extension de fournisseur de fichiers : les mises à jour peuvent affecter la synchronisation."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Estensione File Provider: gli aggiornamenti possono influire sulla sincronizzazione."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ファイルプロバイダ拡張：更新が同期に影響する場合があります。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Extensão de provedor de arquivos: atualizações podem afetar a sincronização."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Расширение файлового провайдера: обновления могут повлиять на синхронизацию."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dosya sağlayıcı uzantısı: güncellemeler eşzamanlamayı etkileyebilir."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "包含文件提供程序扩展：更新可能影响同步。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "包含檔案提供者延伸功能：更新可能影響同步。"
+          }
+        }
+      }
+    },
+    "Waits until the app has quit.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wartet, bis die App beendet ist."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Espera hasta que la app se cierre."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Attend que l’app soit fermée."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Attende la chiusura dell’app."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アプリが終了するまで待機します。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Espera até o app ser encerrado."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ждёт завершения приложения."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uygulama kapanana kadar bekler."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "等待应用退出后更新。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "等待 App 結束後更新。"
+          }
+        }
+      }
+    },
+    "Your choice in this setup — not applied yet": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ihre Auswahl in dieser Einrichtung — noch nicht angewendet"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tu elección en esta configuración: aún sin aplicar"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Votre choix dans cette configuration — pas encore appliqué"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La tua scelta in questa configurazione, non ancora applicata"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "今回の設定での選択 — 未適用"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sua escolha nesta configuração — ainda não aplicada"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ваш выбор в этой настройке — ещё не применён"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu kurulumdaki seçiminiz — henüz uygulanmadı"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你在本次设置中的选择——尚未应用"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你在本次設定中的選擇——尚未套用"
+          }
+        }
+      }
+    },
+    "Update paused": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Update pausiert"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Actualización pausada"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mise à jour en pause"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aggiornamento in pausa"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アップデートを一時停止中"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Atualização pausada"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Обновление приостановлено"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Güncelleme duraklatıldı"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新已暂停"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新已暫停"
+          }
+        }
+      }
+    },
+    "Local observation for this version": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lokale Beobachtung für diese Version"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Observación local de esta versión"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Observation locale pour cette version"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Osservazione locale per questa versione"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このバージョンのローカル観測"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Observação local desta versão"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Локальное наблюдение для этой версии"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu sürüme ait yerel gözlem"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此版本的本机观察记录"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此版本的本機觀察紀錄"
+          }
+        }
+      }
+    },
+    "System extensions have a separate update lifecycle.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Systemerweiterungen haben einen eigenen Aktualisierungsablauf."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las extensiones del sistema tienen su propio ciclo de actualización."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les extensions système ont leur propre cycle de mise à jour."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le estensioni di sistema hanno un ciclo di aggiornamento separato."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "システム拡張には独自の更新ライフサイクルがあります。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Extensões do sistema têm um ciclo de atualização próprio."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "У системных расширений отдельный цикл обновления."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sistem uzantılarının ayrı bir güncelleme yaşam döngüsü vardır."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "系统扩展有独立的更新生命周期。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "系統延伸功能有獨立的更新生命週期。"
+          }
+        }
+      }
+    },
+    "Agent app; this does not establish that restarting preserves work.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agent-App; daraus folgt nicht, dass ein Neustart die Arbeit erhält."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App agente; esto no demuestra que reiniciarla conserve el trabajo."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App agent ; cela ne prouve pas qu’un redémarrage préserve le travail."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App agente: ciò non dimostra che il riavvio preservi il lavoro."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "エージェントアプリです。再起動で作業が維持されることを意味しません。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App agente; isso não comprova que reiniciar preserva o trabalho."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Приложение-агент; это не доказывает сохранение работы при перезапуске."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aracı uygulama; bu, yeniden başlatmanın çalışmayı koruduğunu göstermez."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "代理应用；这一属性不能证明重启会保留工作。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "代理 App；這項屬性不能證明重新啟動會保留工作。"
+          }
+        }
+      }
+    },
+    "Supports sudden termination, such as at logout. This does not guarantee task continuity.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unterstützt sofortiges Beenden, etwa beim Abmelden. Das garantiert keine Aufgabenfortsetzung."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Admite el cierre repentino, por ejemplo al cerrar sesión. No garantiza la continuidad de las tareas."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prend en charge l’arrêt soudain, par exemple à la déconnexion. Cela ne garantit pas la continuité des tâches."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Supporta la terminazione improvvisa, ad esempio al logout. Non garantisce la continuità delle attività."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ログアウト時などの突然の終了に対応しています。タスクの継続を保証するものではありません。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Suporta encerramento repentino, como ao sair da sessão. Isso não garante a continuidade das tarefas."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Поддерживает внезапное завершение, например при выходе из системы. Это не гарантирует непрерывность задач."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oturum kapatma gibi durumlarda ani sonlandırmayı destekler. Bu, görev sürekliliğini garanti etmez."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "声明支持登出等场景下的突然终止；这不保证任务连续。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "聲明支援登出等情境下的突然終止；這不保證任務連續。"
+          }
+        }
+      }
+    },
+    "Details": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Details"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Detalles"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Détails"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dettagli"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "詳細"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Detalhes"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Подробности"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ayrıntılar"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "详情"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "詳細資訊"
+          }
+        }
+      }
+    },
+    "Recommendation: Keep Up to Date": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Empfehlung: Aktuell halten"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recomendación: mantener al día"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recommandation : maintenir à jour"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Consiglio: mantieni aggiornato"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "推奨：常に最新に保つ"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recomendação: manter atualizado"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Рекомендация: поддерживать актуальность"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Öneri: güncel tut"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "建议：保持最新"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "建議：保持最新"
+          }
+        }
+      }
+    },
+    "Default setting — you haven’t chosen for this app": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Standardeinstellung — für diese App noch nicht gewählt"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ajuste predeterminado: aún no has elegido para esta app"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Réglage par défaut — aucun choix pour cette app"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Impostazione predefinita: non hai ancora scelto per questa app"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "既定の設定 — このアプリには未選択です"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Padrão — você ainda não escolheu para este app"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Настройка по умолчанию — для этого приложения выбор ещё не сделан"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Varsayılan ayar — bu uygulama için henüz seçim yapmadınız"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "默认设置——你尚未为此应用选择"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "預設設定——你尚未為此 App 選擇"
+          }
+        }
+      }
+    },
+    "One observed result does not guarantee every task or future update.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ein beobachtetes Ergebnis garantiert nicht jede Aufgabe oder künftige Aktualisierung."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un resultado observado no garantiza cada tarea ni las futuras actualizaciones."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un résultat observé ne garantit pas chaque tâche ou mise à jour future."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un risultato osservato non garantisce ogni attività o aggiornamento futuro."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "一度の観測結果は、すべてのタスクや今後の更新を保証しません。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Um resultado observado não garante todas as tarefas ou atualizações futuras."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Одно наблюдение не гарантирует результат для каждой задачи или будущего обновления."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tek bir gözlem her görevi veya gelecekteki güncellemeyi garanti etmez."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "一次观察结果不保证所有任务或未来更新都相同。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "一次觀察結果不保證所有任務或未來更新都相同。"
+          }
+        }
+      }
+    },
+    "Historical observation — not verified for this version or macOS": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Frühere Beobachtung — für diese Version oder macOS nicht bestätigt"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Observación anterior: no verificada para esta versión o macOS"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Observation historique — non vérifiée pour cette version ou macOS"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Osservazione precedente, non verificata per questa versione o macOS"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "過去の観測 — このバージョンまたは macOS では未確認"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Observação anterior — não verificada nesta versão ou macOS"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Прошлое наблюдение — не проверено для этой версии или macOS"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Geçmiş gözlem — bu sürüm veya macOS için doğrulanmadı"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "历史记录——未验证适用于此版本或 macOS"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "歷史紀錄——未驗證適用於此版本或 macOS"
+          }
+        }
+      }
+    },
+    "Requires a manual update action.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erfordert ein manuelles Update."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Requiere una actualización manual."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nécessite une mise à jour manuelle."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Richiede un aggiornamento manuale."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "手動でのアップデートが必要です。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Requer uma atualização manual."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Требуется обновление вручную."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Elle güncelleme gerektirir."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "需要手动执行更新。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "需要手動執行更新。"
+          }
+        }
+      }
+    },
+    "Runs only after scheduled checks, on a network that is not restricted. By default, an app is skipped while its main app is running; apps you allow below may be quit and reopened, and updates that need an installer or an authorization prompt are left for you. After a failed update, nothing is tried for that app for a day, and after three failures not until a newer version. Each attempt, and why one was deferred, is listed in the Network window under Events.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Läuft nur nach geplanten Prüfungen und in einem nicht eingeschränkten Netzwerk. Standardmäßig wird eine App übersprungen, solange ihre Haupt-App läuft; unten erlaubte Apps dürfen beendet und neu geöffnet werden, und Updates, die ein Installationsprogramm oder eine Berechtigungsabfrage brauchen, bleiben dir überlassen. Nach einem fehlgeschlagenen Update wird für diese App einen Tag lang nichts versucht, nach drei Fehlschlägen erst wieder bei einer neueren Version. Jeder Versuch und warum einer aufgeschoben wurde, steht im Netzwerkfenster unter „Ereignisse“."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Solo se ejecuta tras las comprobaciones programadas y en una red sin restricciones. Por defecto, una app se omite mientras su app principal esté en ejecución; las apps que permitas abajo pueden cerrarse y volver a abrirse, y las actualizaciones que necesitan un instalador o una solicitud de autorización quedan para ti. Tras una actualización fallida, no se intenta nada con esa app durante un día, y tras tres fallos, hasta que haya una versión más nueva. Cada intento, y por qué se aplazó, aparece en la ventana Red, en Eventos."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "S’exécute uniquement après les vérifications programmées, sur un réseau non restreint. Par défaut, une app est ignorée tant qu’son app principale est en cours d’exécution ; les apps autorisées ci-dessous peuvent être quittées puis rouvertes, et les mises à jour qui nécessitent un programme d’installation ou une demande d’autorisation vous sont laissées. Après une mise à jour échouée, rien n’est tenté pour cette app pendant un jour, et après trois échecs, pas avant une version plus récente. Chaque tentative, et la raison d’un report, figure dans la fenêtre Réseau, sous Événements."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Viene eseguito solo dopo i controlli programmati, su una rete senza limitazioni. Per impostazione predefinita, un’app viene saltata mentre la sua app principale è in esecuzione; le app autorizzate sotto possono essere chiuse e riaperte, e gli aggiornamenti che richiedono un programma di installazione o una richiesta di autorizzazione sono lasciati a te. Dopo un aggiornamento non riuscito, per quell’app non si tenta nulla per un giorno, e dopo tre errori non prima di una versione più recente. Ogni tentativo, e il motivo di un rinvio, è elencato nella finestra Rete, in Eventi."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "定期確認のあと、制限のないネットワークでのみ実行されます。既定ではメインアプリが実行中の間はスキップされます。以下で許可したアプリは終了して再度開くことができます。インストーラや認証の確認が必要なアップデートはあなたに任されます。アップデートに失敗すると、そのアプリでは1日間何も試さず、3回失敗すると新しいバージョンが出るまで試しません。各試行と延期の理由は、ネットワークウインドウの「イベント」に表示されます。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Só é executado após as verificações agendadas, em uma rede sem restrições. Por padrão, um app é ignorado enquanto seu app principal estiver em execução; os apps permitidos abaixo podem ser encerrados e reabertos, e as atualizações que precisam de um instalador ou de uma solicitação de autorização ficam com você. Após uma atualização com falha, nada é tentado para esse app por um dia e, após três falhas, só quando houver uma versão mais nova. Cada tentativa, e o motivo de um adiamento, aparece na janela Rede, em Eventos."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Работает только после плановых проверок и в сети без ограничений. По умолчанию приложение пропускается, пока его основное приложение запущено; разрешённые ниже приложения могут быть закрыты и открыты заново, а обновления, которым нужен установщик или запрос авторизации, остаются вам. После неудачного обновления для этого приложения сутки ничего не предпринимается, а после трёх неудач — до выхода более новой версии. Каждая попытка и причина отсрочки видны в окне «Сеть», в разделе «События»."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yalnızca zamanlanmış denetimlerden sonra, kısıtlanmamış bir ağda çalışır. Varsayılan olarak bir uygulama, ana uygulaması çalışırken atlanır; aşağıda izin verdiğiniz uygulamalar kapatılıp yeniden açılabilir; yükleyici veya yetkilendirme istemi gerektiren güncellemeler size bırakılır. Başarısız bir güncellemeden sonra o uygulama için bir gün hiçbir şey denenmez, üç başarısızlıktan sonra ise daha yeni bir sürüme kadar denenmez. Her deneme ve neden ertelendiği, Ağ penceresinde Olaylar altında listelenir."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "仅在定时检查后、且网络未受限制时运行。默认会跳过主应用仍在运行的应用；下方允许的应用可退出并重新打开。需要安装器或授权提示的更新会留给你处理。更新失败后，该应用一天内不会再尝试；失败三次后要等到更新的版本才会再试。每次尝试及暂缓原因都会列在“网络”窗口的“事件”中。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "僅在定時檢查後、於未受限制的網路上執行。預設會略過 主 App 仍在執行的 App；下方允許的 App 可結束並重新開啟。需要安裝程式或授權提示的更新會留給你處理。更新失敗後，該 App 一天內不會再嘗試；失敗三次後要等到更新的版本才會再試。每次嘗試及暫緩原因都會列在「網路」視窗的「事件」中。"
+          }
+        }
+      }
+    },
+    "App metadata is unavailable; no recommendation can be made.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App-Metadaten sind nicht verfügbar; keine Empfehlung möglich."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Los metadatos de la app no están disponibles; no se puede recomendar."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les métadonnées de l’app sont indisponibles ; aucune recommandation possible."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Metadati dell’app non disponibili: impossibile fornire un consiglio."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アプリのメタデータを取得できないため、推奨できません。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Metadados do app indisponíveis; não é possível recomendar."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Метаданные приложения недоступны; рекомендация невозможна."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uygulama meta verileri kullanılamıyor; öneri yapılamaz."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法读取应用元数据，不能给出推荐。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法讀取 App 中繼資料，不能給出推薦。"
+          }
+        }
+      }
+    },
+    "Your saved choice": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ihre gespeicherte Auswahl"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tu elección guardada"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Votre choix enregistré"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La tua scelta salvata"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保存済みの選択"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sua escolha salva"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ваш сохранённый выбор"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kaydedilmiş seçiminiz"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你保存的选择"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你儲存的選擇"
+          }
+        }
+      }
+    },
+    "Supports macOS automatic termination under specific conditions; the app may disable it during work.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unterstützt automatisches Beenden durch macOS unter bestimmten Bedingungen; während der Arbeit kann die App es deaktivieren."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Admite el cierre automático de macOS bajo ciertas condiciones; la app puede desactivarlo mientras trabaja."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prend en charge l’arrêt automatique de macOS sous certaines conditions ; l’app peut le désactiver pendant le travail."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Supporta la terminazione automatica di macOS in certe condizioni; l’app può disabilitarla durante il lavoro."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "特定の条件で macOS の自動終了に対応していますが、作業中はアプリが無効にする場合があります。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Suporta encerramento automático do macOS em certas condições; o app pode desativá-lo durante o trabalho."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Поддерживает автоматическое завершение macOS при определённых условиях; во время работы приложение может его отключить."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Belirli koşullarda macOS otomatik sonlandırmasını destekler; uygulama çalışırken bunu devre dışı bırakabilir."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "声明支持 macOS 在特定条件下自动终止；应用可在工作期间禁用它。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "聲明支援 macOS 在特定條件下自動終止；App 可在工作期間停用它。"
+          }
+        }
+      }
+    },
+    "Restart behavior hasn’t been verified for this setup.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Verhalten beim Neustart wurde für diese Konfiguration noch nicht geprüft."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se ha verificado el comportamiento al reiniciar con esta configuración."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le comportement au redémarrage n’a pas été vérifié pour cette configuration."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Il comportamento al riavvio non è stato verificato per questa configurazione."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "この構成での再起動時の動作は未検証です。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O comportamento ao reiniciar não foi verificado nesta configuração."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Поведение при перезапуске в этой конфигурации не проверено."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu yapılandırmada yeniden başlatma davranışı doğrulanmadı."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "尚未验证当前配置下的重启行为。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "尚未驗證目前設定下的重新啟動行為。"
+          }
+        }
+      }
+    },
+    "Network extension: updates may affect connections.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Netzwerkerweiterung: Aktualisierungen können Verbindungen beeinflussen."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Extensión de red: las actualizaciones pueden afectar las conexiones."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Extension réseau : les mises à jour peuvent affecter les connexions."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Estensione di rete: gli aggiornamenti possono influire sulle connessioni."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ネットワーク拡張：更新が接続に影響する場合があります。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Extensão de rede: atualizações podem afetar conexões."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сетевое расширение: обновления могут повлиять на соединения."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ağ uzantısı: güncellemeler bağlantıları etkileyebilir."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "包含网络扩展：更新可能影响连接。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "包含網路延伸功能：更新可能影響連線。"
+          }
+        }
+      }
+    },
+    "Suggested for this setup — not applied yet": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vorschlag für diese Einrichtung — noch nicht angewendet"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sugerido para esta configuración: aún sin aplicar"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Suggestion pour cette configuration — pas encore appliquée"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Suggerimento per questa configurazione, non ancora applicato"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "今回の設定での提案 — 未適用"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sugestão para esta configuração — ainda não aplicada"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Предложение для этой настройки — ещё не применено"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu kurulum için öneri — henüz uygulanmadı"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "本次设置的建议——尚未应用"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "本次設定的建議——尚未套用"
+          }
+        }
+      }
+    },
+    "Recommendation: Only When Not Running": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Empfehlung: Nur wenn nicht ausgeführt"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recomendación: solo cuando no se esté ejecutando"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recommandation : uniquement à l’arrêt"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Consiglio: solo quando non è in esecuzione"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "推奨：実行していないときのみ"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recomendação: somente quando não estiver em execução"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Рекомендация: только когда не запущено"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Öneri: yalnızca çalışmıyorken"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "建议：仅在未运行时更新"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "建議：僅在未執行時更新"
+          }
+        }
+      }
+    },
+    "For individual update attempts and delays, see Network → Events.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Einzelne Aktualisierungsversuche und Verzögerungen stehen unter Netzwerk → Ereignisse."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Consulta los intentos y las demoras de actualización en Red → Eventos."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Consultez les tentatives et reports de mise à jour dans Réseau → Événements."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Per i tentativi di aggiornamento e i ritardi, vedi Rete → Eventi."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "個別の更新試行や延期の理由は「ネットワーク」→「イベント」を確認してください。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Veja tentativas e adiamentos de atualização em Rede → Eventos."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Отдельные попытки и задержки обновления: Сеть → События."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Güncelleme denemeleri ve gecikmeler için Ağ → Olaylar bölümüne bakın."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "单次更新尝试及延期原因请查看“网络 → 事件”。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "單次更新嘗試及延後原因請查看「網路 → 事件」。"
+          }
+        }
+      }
+    },
+    "Manual Updates": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Manuelle Updates"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Actualizaciones manuales"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mises à jour manuelles"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aggiornamenti manuali"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "手動アップデート"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Atualizações manuais"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Обновление вручную"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Elle Güncellemeler"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "手动更新"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "手動更新"
+          }
+        }
+      }
+    },
+    "Why this category?": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Warum diese Kategorie?"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "¿Por qué esta categoría?"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pourquoi cette catégorie ?"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Perché questa categoria?"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "この分類の理由"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Por que esta categoria?"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Почему эта категория?"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Neden bu kategori?"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "为什么这样分类？"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "為什麼這樣分類？"
+          }
+        }
+      }
+    },
     "Automatic updating is waiting for the retry deadline, including any delay requested by the server.": {
       "comment": "Events tab: local or server-requested automatic-update cooldown; no fixed duration.",
       "extractionState": "manual",
@@ -1915,136 +4051,6 @@
         }
       }
     },
-    "Apps you allow may restart while in front, playing media or doing work. There is no idle-time or update delay. If normal quit is refused, that version waits. Independent background services, installer prompts and safety checks can still defer an update.": {
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Erlaubte Apps können auch im Vordergrund, bei der Medienwiedergabe oder während der Arbeit neu starten. Es gibt keine Wartezeit für Inaktivität oder Updates. Wird das normale Beenden abgelehnt, wartet diese Version. Unabhängige Hintergrunddienste, Installationsdialoge und Sicherheitsprüfungen können ein Update weiterhin aufschieben."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Las apps permitidas pueden reiniciarse en primer plano, al reproducir contenido o mientras trabajas. No hay espera por inactividad ni demora adicional. Si la app rechaza el cierre normal, esa versión espera. Los servicios independientes en segundo plano, los avisos del instalador y las comprobaciones de seguridad aún pueden aplazar una actualización."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Les apps autorisées peuvent redémarrer au premier plan, pendant la lecture de médias ou pendant votre travail. Aucun délai d’inactivité ni d’attente supplémentaire n’est requis. Si la fermeture normale est refusée, cette version attend. Les services d’arrière-plan indépendants, les demandes de l’installateur et les contrôles de sécurité peuvent toujours reporter une mise à jour."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Le app consentite possono riavviarsi in primo piano, durante la riproduzione multimediale o mentre lavori. Non sono previsti tempi di inattività o attese aggiuntive. Se la chiusura normale viene rifiutata, quella versione attende. Servizi in background indipendenti, richieste del programma di installazione e controlli di sicurezza possono ancora rinviare un aggiornamento."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "許可したアプリは、前面での使用中、メディアの再生中、作業中でも再起動される場合があります。アイドル状態や追加の待機時間は不要です。通常の終了が拒否された場合、そのバージョンは待機します。独立したバックグラウンドサービス、インストーラの確認、安全性チェックにより、更新が引き続き延期される場合があります。"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Os apps permitidos podem reiniciar em primeiro plano, durante a reprodução de mídia ou enquanto você trabalha. Não há espera por inatividade nem atraso adicional. Se o encerramento normal for recusado, essa versão aguarda. Serviços independentes em segundo plano, avisos do instalador e verificações de segurança ainda podem adiar uma atualização."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Разрешённые приложения могут перезапускаться на переднем плане, при воспроизведении мультимедиа или во время работы. Ожидание бездействия и дополнительная задержка не требуются. При отказе от обычного завершения эта версия откладывается. Независимые фоновые службы, запросы установщика и проверки безопасности по-прежнему могут отложить обновление."
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "İzin verilen uygulamalar ön plandayken, medya oynatırken veya çalışırken yeniden başlatılabilir. Boşta kalma süresi veya ek güncelleme gecikmesi yoktur. Normal kapatma reddedilirse o sürüm bekler. Bağımsız arka plan hizmetleri, yükleyici istemleri ve güvenlik denetimleri güncellemeyi yine de erteleyebilir."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "允许的应用即使在前台、播放媒体或处理工作时也可能重启。无需等待空闲，也没有额外的更新延迟。如果应用拒绝正常退出，该版本会暂缓更新。独立后台服务、安装器提示和安全检查仍可能让更新暂缓。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "允許的 App 即使在前景、播放媒體或處理工作時也可能重新啟動。無需等待閒置，也沒有額外的更新延遲。如果 App 拒絕正常結束，該版本會暫緩更新。獨立背景服務、安裝程式提示和安全性檢查仍可能讓更新暫緩。"
-          }
-        }
-      }
-    },
-    "Runs only after scheduled checks, on a network that is not restricted. By default, an app is skipped while it or one of its helpers is running; apps you allow below may be quit and reopened, and updates that need an installer or an authorization prompt are left for you. After a failed update, nothing is tried for that app for a day, and after three failures not until a newer version. Each attempt, and why one was deferred, is listed in the Network window under Events.": {
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Läuft nur nach geplanten Prüfungen und in einem nicht eingeschränkten Netzwerk. Standardmäßig wird eine App übersprungen, solange sie oder eines ihrer Hilfsprogramme läuft; unten erlaubte Apps dürfen beendet und neu geöffnet werden, und Updates, die ein Installationsprogramm oder eine Berechtigungsabfrage brauchen, bleiben dir überlassen. Nach einem fehlgeschlagenen Update wird für diese App einen Tag lang nichts versucht, nach drei Fehlschlägen erst wieder bei einer neueren Version. Jeder Versuch und warum einer aufgeschoben wurde, steht im Netzwerkfenster unter „Ereignisse“."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Solo se ejecuta tras las comprobaciones programadas y en una red sin restricciones. Por defecto, una app se omite mientras ella o alguno de sus auxiliares esté en ejecución; las apps que permitas abajo pueden cerrarse y volver a abrirse, y las actualizaciones que necesitan un instalador o una solicitud de autorización quedan para ti. Tras una actualización fallida, no se intenta nada con esa app durante un día, y tras tres fallos, hasta que haya una versión más nueva. Cada intento, y por qué se aplazó, aparece en la ventana Red, en Eventos."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "S’exécute uniquement après les vérifications programmées, sur un réseau non restreint. Par défaut, une app est ignorée tant qu’elle ou l’un de ses assistants est en cours d’exécution ; les apps autorisées ci-dessous peuvent être quittées puis rouvertes, et les mises à jour qui nécessitent un programme d’installation ou une demande d’autorisation vous sont laissées. Après une mise à jour échouée, rien n’est tenté pour cette app pendant un jour, et après trois échecs, pas avant une version plus récente. Chaque tentative, et la raison d’un report, figure dans la fenêtre Réseau, sous Événements."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Viene eseguito solo dopo i controlli programmati, su una rete senza limitazioni. Per impostazione predefinita, un’app viene saltata mentre lei o uno dei suoi helper è in esecuzione; le app autorizzate sotto possono essere chiuse e riaperte, e gli aggiornamenti che richiedono un programma di installazione o una richiesta di autorizzazione sono lasciati a te. Dopo un aggiornamento non riuscito, per quell’app non si tenta nulla per un giorno, e dopo tre errori non prima di una versione più recente. Ogni tentativo, e il motivo di un rinvio, è elencato nella finestra Rete, in Eventi."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "定期確認のあと、制限のないネットワークでのみ実行されます。既定ではアプリやそのヘルパーが実行中の間はスキップされます。以下で許可したアプリは終了して再度開くことができます。インストーラや認証の確認が必要なアップデートはあなたに任されます。アップデートに失敗すると、そのアプリでは1日間何も試さず、3回失敗すると新しいバージョンが出るまで試しません。各試行と延期の理由は、ネットワークウインドウの「イベント」に表示されます。"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Só é executado após as verificações agendadas, em uma rede sem restrições. Por padrão, um app é ignorado enquanto ele ou um de seus auxiliares estiver em execução; os apps permitidos abaixo podem ser encerrados e reabertos, e as atualizações que precisam de um instalador ou de uma solicitação de autorização ficam com você. Após uma atualização com falha, nada é tentado para esse app por um dia e, após três falhas, só quando houver uma versão mais nova. Cada tentativa, e o motivo de um adiamento, aparece na janela Rede, em Eventos."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Работает только после плановых проверок и в сети без ограничений. По умолчанию приложение пропускается, пока оно или его вспомогательный процесс запущены; разрешённые ниже приложения могут быть закрыты и открыты заново, а обновления, которым нужен установщик или запрос авторизации, остаются вам. После неудачного обновления для этого приложения сутки ничего не предпринимается, а после трёх неудач — до выхода более новой версии. Каждая попытка и причина отсрочки видны в окне «Сеть», в разделе «События»."
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Yalnızca zamanlanmış denetimlerden sonra, kısıtlanmamış bir ağda çalışır. Varsayılan olarak bir uygulama, kendisi veya yardımcılarından biri çalışırken atlanır; aşağıda izin verdiğiniz uygulamalar kapatılıp yeniden açılabilir; yükleyici veya yetkilendirme istemi gerektiren güncellemeler size bırakılır. Başarısız bir güncellemeden sonra o uygulama için bir gün hiçbir şey denenmez, üç başarısızlıktan sonra ise daha yeni bir sürüme kadar denenmez. Her deneme ve neden ertelendiği, Ağ penceresinde Olaylar altında listelenir."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "仅在定时检查后、且网络未受限制时运行。默认会跳过应用或其辅助进程仍在运行的应用；下方允许的应用可退出并重新打开。需要安装器或授权提示的更新会留给你处理。更新失败后，该应用一天内不会再尝试；失败三次后要等到更新的版本才会再试。每次尝试及暂缓原因都会列在“网络”窗口的“事件”中。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "僅在定時檢查後、於未受限制的網路上執行。預設會略過 App 或其輔助程式仍在執行的 App；下方允許的 App 可結束並重新開啟。需要安裝程式或授權提示的更新會留給你處理。更新失敗後，該 App 一天內不會再嘗試；失敗三次後要等到更新的版本才會再試。每次嘗試及暫緩原因都會列在「網路」視窗的「事件」中。"
-          }
-        }
-      }
-    },
     "Updated through Setapp, so not automatically": {
       "comment": "Automatic Updates settings row caption for a Setapp app while Setapp background updates are off",
       "extractionState": "manual",
@@ -3826,71 +5832,6 @@
         }
       }
     },
-    "Input method: quitting it interrupts typing": {
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Eingabemethode: Beenden unterbricht das Tippen"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Método de entrada: cerrarlo interrumpe la escritura"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Méthode de saisie : la quitter interrompt la frappe"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Metodo di inserimento: chiuderlo interrompe la digitazione"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "入力方法：終了すると入力が中断されます"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Método de entrada: encerrá-lo interrompe a digitação"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Метод ввода: закрытие прервёт набор текста"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Giriş yöntemi: kapatmak yazmayı keser"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "输入法：退出会打断输入"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "輸入法：結束會打斷輸入"
-          }
-        }
-      }
-    },
     "Apply": {
       "extractionState": "manual",
       "localizations": {
@@ -4082,71 +6023,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "可結束並重新開啟 App 以安裝更新。"
-          }
-        }
-      }
-    },
-    "Waits until the app and its helpers have quit.": {
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Wartet, bis die App und ihre Hilfsprogramme beendet sind."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Espera a que la app y sus auxiliares terminen."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Attend l’arrêt de l’app et de ses assistants."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Attende la chiusura dell’app e dei suoi helper."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "アプリとヘルパーが終了するまで待ちます。"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Aguarda o app e seus auxiliares serem encerrados."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ждёт завершения приложения и вспомогательных процессов."
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Uygulama ve yardımcıları kapanana kadar bekler."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "等待应用及其辅助进程退出后再更新。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "等待 App 及其輔助程式結束後再更新。"
           }
         }
       }
@@ -4411,136 +6287,6 @@
         }
       }
     },
-    "Its update needs you, so not automatically": {
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Das Update braucht dich, daher nicht automatisch"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Su actualización te necesita, así que no automáticamente"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sa mise à jour a besoin de vous, donc pas automatiquement"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Il suo aggiornamento richiede te, quindi non automaticamente"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "アップデートに操作が必要なため、自動ではありません"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "A atualização precisa de você, então não automaticamente"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Обновлению нужно ваше участие, поэтому не автоматически"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Güncellemesi size ihtiyaç duyuyor, bu yüzden otomatik değil"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "更新需要你确认，因此不会自动更新"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "更新需要你確認，因此不會自動更新"
-          }
-        }
-      }
-    },
-    "These update through Homebrew, the App Store, an installer or a prompt, which automatic updates never use.": {
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Diese werden über Homebrew, den App Store, ein Installationsprogramm oder eine Abfrage aktualisiert – das nutzen automatische Updates nie."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Estas se actualizan mediante Homebrew, el App Store, un instalador o una solicitud, que las actualizaciones automáticas nunca usan."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Celles-ci se mettent à jour via Homebrew, l’App Store, un programme d’installation ou une demande, ce que les mises à jour automatiques n’utilisent jamais."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Queste si aggiornano tramite Homebrew, l’App Store, un programma di installazione o una richiesta, che gli aggiornamenti automatici non usano mai."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "これらは Homebrew、App Store、インストーラ、または確認を通じてアップデートされます。自動アップデートではこれらを使いません。"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Estes são atualizados pelo Homebrew, pela App Store, por um instalador ou por uma solicitação, que as atualizações automáticas nunca usam."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Они обновляются через Homebrew, App Store, установщик или запрос — автоматические обновления их никогда не используют."
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bunlar Homebrew, App Store, bir yükleyici veya bir onay istemiyle güncellenir; otomatik güncellemeler bunları hiç kullanmaz."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "这些应用通过 Homebrew、App Store、安装器或需要确认的方式更新，自动更新不会使用这些方式。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "這些 App 透過 Homebrew、App Store、安裝程式或需要確認的方式更新，自動更新不會使用這些方式。"
-          }
-        }
-      }
-    },
     "Choose apps that may be quit for an update": {
       "extractionState": "manual",
       "localizations": {
@@ -4667,461 +6413,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "依建議選擇…"
-          }
-        }
-      }
-    },
-    "Has windows that may hold your work": {
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Hat Fenster, in denen deine Arbeit sein kann"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tiene ventanas que pueden contener tu trabajo"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "A des fenêtres qui peuvent contenir votre travail"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ha finestre che potrebbero contenere il tuo lavoro"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "作業中の内容があるかもしれないウインドウがあります"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tem janelas que podem conter seu trabalho"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Есть окна, в которых может быть ваша работа"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Çalışmanızı içerebilecek pencereleri var"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "有窗口，可能有你正在进行的工作"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "有視窗，可能有你正在進行的工作"
-          }
-        }
-      }
-    },
-    "Installs a system extension": {
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Installiert eine Systemerweiterung"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Instala una extensión del sistema"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Installe une extension système"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Installa un’estensione di sistema"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "システム拡張機能をインストールします"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Instala uma extensão do sistema"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Устанавливает системное расширение"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bir sistem uzantısı yükler"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "安装了系统扩展"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "安裝了系統延伸功能"
-          }
-        }
-      }
-    },
-    "Menu bar app": {
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Menüleisten-App"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "App de la barra de menús"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "App de la barre des menus"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "App della barra dei menu"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "メニューバーアプリ"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "App da barra de menus"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Приложение в строке меню"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Menü çubuğu uygulaması"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "菜单栏应用"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "選單列 App"
-          }
-        }
-      }
-    },
-    "Not updated automatically (%lld)": {
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nicht automatisch aktualisiert (%lld)"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "No se actualizan automáticamente (%lld)"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pas mises à jour automatiquement (%lld)"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Non aggiornate automaticamente (%lld)"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "自動ではアップデートされない（%lld）"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Não atualizados automaticamente (%lld)"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Не обновляются автоматически (%lld)"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Otomatik güncellenmeyenler (%lld)"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "不会自动更新（%lld）"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "不會自動更新（%lld）"
-          }
-        }
-      }
-    },
-    "Runs a VPN, proxy or network filter": {
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Betreibt ein VPN, einen Proxy oder einen Netzwerkfilter"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ejecuta una VPN, un proxy o un filtro de red"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Exécute un VPN, un proxy ou un filtre réseau"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Esegue una VPN, un proxy o un filtro di rete"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "VPN、プロキシ、またはネットワークフィルタを実行します"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Executa uma VPN, um proxy ou um filtro de rede"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Работает как VPN, прокси или сетевой фильтр"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "VPN, proxy veya ağ filtresi çalıştırır"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "运行 VPN、代理或网络过滤"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "執行 VPN、代理或網路過濾"
-          }
-        }
-      }
-    },
-    "Syncs files": {
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Synchronisiert Dateien"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sincroniza archivos"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Synchronise des fichiers"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sincronizza file"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ファイルを同期します"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sincroniza arquivos"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Синхронизирует файлы"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dosyaları eşzamanlar"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "同步文件"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "同步檔案"
-          }
-        }
-      }
-    },
-    "Tells macOS it can be quit safely": {
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Teilt macOS mit, dass sie sicher beendet werden kann"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Indica a macOS que se puede cerrar con seguridad"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Indique à macOS qu’elle peut être quittée sans risque"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Indica a macOS che può essere chiusa in sicurezza"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "安全に終了できることを macOS に伝えています"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Informa ao macOS que pode ser encerrado com segurança"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Сообщает macOS, что его можно безопасно закрыть"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "macOS’a güvenle kapatılabileceğini bildirir"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "声明可以被 macOS 安全退出"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "聲明可以被 macOS 安全結束"
           }
         }
       }
@@ -5772,71 +7063,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "哪些 App 無需詢問即可更新，以及是否可以為此結束執行中的 App。"
-          }
-        }
-      }
-    },
-    "Xcode is not updated automatically": {
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Xcode wird nicht automatisch aktualisiert"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Xcode no se actualiza automáticamente"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Xcode n’est pas mis à jour automatiquement"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Xcode non viene aggiornato automaticamente"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Xcode は自動ではアップデートされません"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "O Xcode não é atualizado automaticamente"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Xcode не обновляется автоматически"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Xcode otomatik güncellenmez"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Xcode 不会自动更新"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Xcode 不會自動更新"
           }
         }
       }

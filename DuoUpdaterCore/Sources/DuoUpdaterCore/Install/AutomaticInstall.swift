@@ -138,6 +138,32 @@ public enum AutomaticInstall {
         }
     }
 
+    /// Automatic-update eligibility follows the main app, not every executable
+    /// inside its bundle. Installation safety guards remain shared with manual
+    /// updates (including NestedAppGuard). Read the plist fresh across swaps.
+    public static func hasRunningMainProcess(
+        at bundle: URL, processes: [NestedAppGuard.RunningProcess]
+    ) -> Bool {
+        !runningMainProcesses(at: bundle, processes: processes).isEmpty
+    }
+
+    public static func runningMainProcesses(
+        at bundle: URL, processes: [NestedAppGuard.RunningProcess]
+    ) -> [NestedAppGuard.RunningProcess] {
+        let infoURL = bundle.appendingPathComponent("Contents/Info.plist")
+        let info = (try? Data(contentsOf: infoURL)).flatMap {
+            (try? PropertyListSerialization.propertyList(from: $0, options: [], format: nil)) as? [String: Any]
+        }
+        let declared = (info?["CFBundleExecutable"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+        let executable = bundle.appendingPathComponent("Contents/MacOS")
+            .appendingPathComponent(declared ?? bundle.deletingPathExtension().lastPathComponent)
+        let target = NestedAppGuard.resolvedPath(executable.path)
+        return processes.filter { process in
+            [process.executablePath, process.launchedPath].compactMap { $0 }
+                .contains { NestedAppGuard.resolvedPath($0) == target }
+        }
+    }
+
     public static func check(_ app: InstalledApp) throws {
         try processCheck(app)()
     }
@@ -149,7 +175,7 @@ public enum AutomaticInstall {
     }
 
     /// A fresh check whose dependencies survive the final exchange's Dispatch
-    /// hop. No process/path result is cached: a service may start during download.
+    /// hop. No process/path result is cached: the app may start during download.
     public static func processCheck(_ app: InstalledApp) -> @Sendable () throws -> Void {
         let enabled = active
         let capture = diagnostic
@@ -175,15 +201,14 @@ public enum AutomaticInstall {
 
     static func checkProcesses(at bundle: URL, processes: [NestedAppGuard.RunningProcess],
                                allowRunningApp: Bool = appQuitsBeforeApply) throws {
-        for process in processes where hasRunningProcess(at: bundle, processes: [process]) {
+        for process in runningMainProcesses(at: bundle, processes: processes) {
             diagnostic?(.targetRunning(process, in: bundle, among: processes))
         }
-        guard !processes.isEmpty,
-              processes.allSatisfy({ $0.executablePath != nil || $0.launchedPath != nil }) else {
+        guard !processes.isEmpty, !processes.contains(where: { $0.pid == 0 }) else {
             throw Deferred("Automatic update deferred: running processes could not be checked completely.")
         }
-        guard allowRunningApp || !hasRunningProcess(at: bundle, processes: processes) else {
-            throw Deferred("Automatic update deferred: the app or one of its helpers is running.")
+        guard allowRunningApp || !hasRunningMainProcess(at: bundle, processes: processes) else {
+            throw Deferred("Automatic update deferred: the app is running.")
         }
     }
 }

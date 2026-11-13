@@ -67,6 +67,7 @@ public struct RbenvAdapter: ManagerAdapter {
                 names: names, root: root, title: "Ruby", interpreters: ["bin/ruby"],
                 definitions: found.definitions, knownBy: found.rubyBuild.map { "ruby-build \($0)" },
                 global: DefinitionLines.global(host.contents(root + "/version")), descriptor: descriptor,
+                notes: { $0.hasSuffix("t") ? nil : .rubyMinorLine($0) },
                 exists: host.exists)
             guard !items.isEmpty else { return .empty }
             var states: [String: String] = [:]
@@ -104,6 +105,10 @@ public struct RbenvAdapter: ManagerAdapter {
 
     public func reread(_ item: ManagedItem) async -> String? {
         await scan().items.first { $0.identity == item.identity }?.installed
+    }
+
+    public func releaseNotes(for item: ManagedItem, force: Bool) async throws -> Changelog {
+        try await ManagedNotes.fetch(item.notes, force: force)
     }
 
     // MARK: - The parts

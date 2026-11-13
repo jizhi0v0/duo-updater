@@ -364,7 +364,7 @@ struct WorkbenchWindowView: View {
                     .id(selected.id)
             } else if let formula = selectedFormula {
                 FormulaDetailPane(formula: formula, model: model)
-                    .id("brew:formula:\(formula.name)")
+                    .id(Self.formulaTag(formula))
             } else if let package = selectedUnchecked {
                 BrewUncheckedDetailPane(package: package)
                     .id("brew:unchecked:\(package.id)")
@@ -2663,16 +2663,15 @@ private struct FormulaDetailPane: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         // Load notes for the upgrade target when there is one, else the installed
         // version (so an up-to-date formula still shows its current release notes).
-        // Keyed on that version, not a bare `.task`: the pane's identity upstream is
-        // `brew:formula:<name>`, so a refresh that reveals a NEWER available version
+        // The pane's identity follows the selected package's sidebar tag.
+        // Key the task on the version too, so discovering a newer available version
         // for the formula on screen moves this version string WITHOUT rebuilding the
         // view — and a bare `.task` would never re-fire, leaving the pane on the
         // notes for a version it is no longer displaying. See `FormulaReleaseStore`
         // for which refreshes actually move it (a plain `brew upgrade` does not).
         .task(id: notesVersion) {
-            // CLI casks with a dedicated vendor document share the native notes pane.
-            guard formula.kind == .formula || BrewFormulaReleaseService.hasDedicatedNotes(for: formula.name) else { return }
-            model.ensureFormulaReleaseLoading(name: formula.name, version: notesVersion)
+            guard showsReleaseNotes else { return }
+            model.ensureFormulaReleaseLoading(for: formula, version: notesVersion)
         }
     }
 
@@ -2680,6 +2679,10 @@ private struct FormulaDetailPane: View {
     /// else what's installed.
     private var notesVersion: String {
         formula.availableVersion ?? formula.installedVersion
+    }
+
+    private var showsReleaseNotes: Bool {
+        formula.kind == .formula || BrewFormulaReleaseService.hasCaskNotes(for: formula.name)
     }
 
     private var header: some View {
@@ -2742,16 +2745,16 @@ private struct FormulaDetailPane: View {
 
     @ViewBuilder
     private var notes: some View {
-        if formula.kind == .cask && !BrewFormulaReleaseService.hasDedicatedNotes(for: formula.name) {
-            noNotes
-        } else {
+        if showsReleaseNotes {
             formulaNotes
+        } else {
+            noNotes
         }
     }
 
     @ViewBuilder
     private var formulaNotes: some View {
-        switch model.formulaReleaseState(name: formula.name, version: notesVersion) {
+        switch model.formulaReleaseState(for: formula, version: notesVersion) {
         case .loaded(let release):
             if let changelog = release.changelog {
                 ChangelogEntriesView(changelog: changelog)

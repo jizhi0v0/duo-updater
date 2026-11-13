@@ -79,4 +79,21 @@ struct AzureCLIChangelogTests {
         #expect(BrewFormulaReleaseService.hasDedicatedNotes(for: "azure-cli"))
         #expect(!BrewFormulaReleaseService.hasDedicatedNotes(for: "other/azure-cli"))
     }
+
+    @Test func caskAndFormulaNotesHaveSeparateDiskEntries() async {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let service = BrewFormulaReleaseService(cacheDirectory: directory)
+        let formula = FormulaRelease(changelog: nil, pageURL: URL(string: "https://example.com/formula"))
+        let cask = FormulaRelease(changelog: nil, pageURL: URL(string: "https://example.com/cask"))
+        await service.persist(formula, name: "codex", version: "1.0")
+        await service.persist(cask, name: "codex", version: "1.0", kind: .cask)
+        await service.persist(cask, name: "codex", version: "2.0", kind: .cask)
+
+        #expect(await service.cached(for: "codex", version: "1.0") == formula)
+        #expect(await service.cached(for: "codex", version: "1.0", kind: .cask) == nil)
+        #expect(await service.cached(for: "codex", version: "2.0", kind: .cask) == cask)
+        #expect(BrewFormulaReleaseService.hasCaskNotes(for: "codex"))
+        #expect(!BrewFormulaReleaseService.hasCaskNotes(for: "other/tap/codex"))
+    }
 }

@@ -1450,8 +1450,8 @@ final class AppListModel {
     private var formulaReleases = FormulaReleaseStore()
     private let formulaReleaseService = BrewFormulaReleaseService()
 
-    func formulaReleaseState(name: String, version: String) -> FormulaReleaseStore.State? {
-        formulaReleases.state(name: name, version: version)
+    func formulaReleaseState(for package: BrewInstalledFormula, version: String) -> FormulaReleaseStore.State? {
+        formulaReleases.state(name: package.key, version: version)
     }
 
     private let sparkleInstaller = SparkleInstaller()
@@ -5204,16 +5204,17 @@ final class AppListModel {
     /// reselecting renders the cache instantly. A DIFFERENT version re-fetches — the
     /// caller must pass the version it is about to render, or the pane shows notes
     /// for a version it is no longer displaying.
-    func ensureFormulaReleaseLoading(name: String, version: String) {
-        guard formulaReleases.claim(name: name, version: version) else { return }
+    func ensureFormulaReleaseLoading(for package: BrewInstalledFormula, version: String) {
+        guard formulaReleases.claim(name: package.key, version: version) else { return }
         Task {
             // Through the cache, like the prewarm pass: selecting formula after
             // formula used to resolve a token — a subprocess — every single time.
             let resolved = await githubTokenForRecheck()
             let release = await GitHubCredentials.$pinnedGeneration.withValue(resolved.generation) {
-                await formulaReleaseService.release(for: name, version: version, token: resolved.token)
+                await formulaReleaseService.release(for: package.name, version: version, token: resolved.token,
+                                                    kind: package.kind)
             }
-            formulaReleases.finish(name: name, version: version, release: release)
+            formulaReleases.finish(name: package.key, version: version, release: release)
         }
     }
 

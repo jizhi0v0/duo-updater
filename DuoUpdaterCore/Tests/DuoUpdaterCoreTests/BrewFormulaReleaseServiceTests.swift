@@ -51,7 +51,7 @@ struct BrewFormulaReleaseServiceTests {
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: dir) }
         let brew = dir.appendingPathComponent("brew")
-        let json = #"{"formulae":[{"homepage":"https://zzfixture.invalid","urls":{"stable":{"url":"https://github.com/zzfixture/alpha/archive/refs/tags/v1.0.tar.gz"}}}]}"#
+        let json = #"{"formulae":[{"homepage":"https://zzfixture.invalid","urls":{"stable":{"url":"https://github.com/zzfixture/alpha.git","tag":"v1.0"}},"versions":{"stable":"1.0"},"full_name":"zzfixture-alpha","tap":"homebrew/core"}]}"#
         try Data("#!/bin/sh\nsleep 0.2\ncat <<'EOF'\n\(json)\nEOF\n".utf8).write(to: brew)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: brew.path)
         let path = brew.path
@@ -63,7 +63,11 @@ struct BrewFormulaReleaseServiceTests {
         let info = await task.value
 
         #expect(info?.homepage == URL(string: "https://zzfixture.invalid"))
-        #expect(info?.stableURL == "https://github.com/zzfixture/alpha/archive/refs/tags/v1.0.tar.gz")
+        #expect(info?.stableURL == "https://github.com/zzfixture/alpha.git")
+        #expect(info?.stableTag == "v1.0")
+        #expect(info?.stableVersion == "1.0")
+        #expect(info?.fullName == "zzfixture-alpha")
+        #expect(info?.tap == "homebrew/core")
     }
 
     @Test func sameGenerationEntryIsServed() async {
@@ -162,6 +166,76 @@ struct BrewFormulaReleaseServiceTests {
                 try JSONSerialization.jsonObject(with: Data(contentsOf: fileURL)) as? [String: Any])
             #expect(json["parserGeneration"] as? Int == Changelog.parserGeneration)
         }
+    }
+
+    @Test(arguments: [
+        ("mediamtx", false, true),
+        ("mediamtx", true, false),
+        ("unrelated-formula", false, false),
+    ])
+    func onlyOldLinkOnlyCachesForNewlyRoutedFormulaeAreRetried(
+        name: String, hasNotes: Bool, shouldRetry: Bool
+    ) async throws {
+        try await withScratchDirectory { dir in
+            let service = BrewFormulaReleaseService(cacheDirectory: dir)
+            let release = hasNotes ? Self.makeRelease()
+                : FormulaRelease(changelog: nil, pageURL: URL(string: "https://example.com/"))
+            await service.persist(release, name: name, version: "1.0")
+            let file = try onDiskFileURL(in: dir)
+            var json = try #require(
+                JSONSerialization.jsonObject(with: Data(contentsOf: file)) as? [String: Any])
+            let routeGeneration = json.removeValue(forKey: "formulaRoutingGeneration")
+            try #require(routeGeneration != nil)
+            try JSONSerialization.data(withJSONObject: json).write(to: file)
+
+            #expect(await service.cached(for: name, version: "1.0") == (shouldRetry ? nil : release))
+
+            // A cache written by the new lookup is already current, even when
+            // this particular version still only has a link.
+            await service.persist(release, name: name, version: "1.0")
+            #expect(await service.cached(for: name, version: "1.0") == release)
+        }
+    }
+
+    @Test func catalogTagsAreUsedOnlyForTheStableVersionTheyDescribe() {
+        let git = BrewFormulaReleaseService.Info(
+            homepage: nil, stableURL: "https://github.com/bluenviron/mediamtx.git", stableTag: "v1.21.3",
+            stableVersion: "1.21.3", fullName: "mediamtx", tap: "homebrew/core")
+        #expect(BrewFormulaReleaseService.formulaGitHubRef(name: "mediamtx", version: "1.21.3_2", info: git)
+                == .init(owner: "bluenviron", repo: "mediamtx", tag: "v1.21.3"))
+        #expect(BrewFormulaReleaseService.formulaGitHubRef(name: "mediamtx", version: "1.21.2", info: git) == nil)
+
+        let archive = BrewFormulaReleaseService.Info(
+            homepage: nil, stableURL: "https://github.com/example/tool/archive/refs/tags/v2.0.0.tar.gz",
+            stableTag: nil, stableVersion: "2.0.0", fullName: "tool", tap: "homebrew/core")
+        #expect(BrewFormulaReleaseService.formulaGitHubRef(name: "tool", version: "2.0.0_1", info: archive)
+                == .init(owner: "example", repo: "tool", tag: "v2.0.0"))
+        #expect(BrewFormulaReleaseService.formulaGitHubRef(name: "tool", version: "1.9.0", info: archive) == nil)
+    }
+
+    @Test(arguments: [
+        ("redis", "8.10.3", "redis", "redis", "8.10.3"),
+        ("iperf3", "3.22", "esnet", "iperf", "3.22"),
+        ("maven", "3.10.0_1", "apache", "maven", "maven-3.10.0"),
+        ("ruby", "4.0.9", "ruby", "ruby", "v4.0.9"),
+        ("ruby", "3.4.12", "ruby", "ruby", "v3_4_12"),
+    ])
+    func knownCoreFormulaeDeriveTheExactRequestedTag(
+        name: String, version: String, owner: String, repo: String, tag: String
+    ) {
+        let info = BrewFormulaReleaseService.Info(
+            homepage: nil, stableURL: "https://example.com/download", stableTag: nil,
+            stableVersion: "90.1.0", fullName: name, tap: "homebrew/core")
+        #expect(BrewFormulaReleaseService.formulaGitHubRef(name: name, version: version, info: info)
+                == .init(owner: owner, repo: repo, tag: tag))
+        #expect(BrewFormulaReleaseService.formulaGitHubRef(name: name, version: "HEAD-1234567", info: info) == nil)
+    }
+
+    @Test func unrelatedTapWithSameFormulaNameDoesNotUseCoreReleaseSource() {
+        let info = BrewFormulaReleaseService.Info(
+            homepage: nil, stableURL: "https://example.com/download", stableTag: nil,
+            stableVersion: "3.22", fullName: "other/tap/iperf3", tap: "other/tap")
+        #expect(BrewFormulaReleaseService.formulaGitHubRef(name: "iperf3", version: "3.22", info: info) == nil)
     }
 
     // MARK: - deriveGitHub: the release a formula's stable URL names

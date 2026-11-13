@@ -1,6 +1,72 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "Automatic updating is waiting for the retry deadline, including any delay requested by the server.": {
+      "comment": "Events tab: local or server-requested automatic-update cooldown; no fixed duration.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die automatische Aktualisierung wartet bis zum nächsten zulässigen Versuch, einschließlich einer vom Server angeforderten Wartezeit."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La actualización automática espera hasta el próximo intento permitido, incluida cualquier demora solicitada por el servidor."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La mise à jour automatique attend la prochaine tentative autorisée, y compris tout délai demandé par le serveur."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "L’aggiornamento automatico attende il prossimo tentativo consentito, incluso qualsiasi ritardo richiesto dal server."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自動アップデートは、サーバーが指定した待機時間を含め、再試行できる時刻まで待機しています。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A atualização automática aguarda o próximo horário permitido para tentar novamente, incluindo qualquer espera solicitada pelo servidor."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Автоматическое обновление ожидает следующей разрешённой попытки с учётом задержки, указанной сервером."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Otomatik güncelleme, sunucunun istediği gecikme dahil yeniden deneme zamanını bekliyor."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自动更新正在等待重试期限结束，包括服务器要求的等待时间。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自動更新正在等待重試期限結束，包括伺服器要求的等待時間。"
+          }
+        }
+      }
+    },
     "Automatic update deferred: the app’s own installer is active.": {
       "comment": "Events tab: why an automatic update waited",
       "extractionState": "manual",

@@ -46,24 +46,41 @@ struct VendorArchiveHTMLRetryTests {
         #expect(!FileManager.default.fileExists(atPath: page.path))
     }
 
-    @Test func givesUpAfterTheLastAttemptAndHandsBackThePage() async throws {
+    @Test func givesUpAfterTheLastAttemptAndDeletesEveryPage() async throws {
         var calls = 0
-        var last: URL?
-        let got = try await VendorInstaller.fetchArchive(maxAttempts: 4) {
-            calls += 1
-            last = try file("<!DOCTYPE html>")
-            return last!
+        var pages: [URL] = []
+        do {
+            _ = try await VendorInstaller.fetchArchive(maxAttempts: 4) {
+                calls += 1
+                let page = try file("<!DOCTYPE html>")
+                pages.append(page)
+                return page
+            }
+            Issue.record("Repeated HTML was accepted as an archive")
+        } catch let error as VendorInstaller.InstallError {
+            guard case .htmlInsteadOfArchive = error else {
+                Issue.record("Expected htmlInsteadOfArchive, got \(error)")
+                return
+            }
         }
         #expect(calls == 4)
-        #expect(got == last)
-        #expect(FileManager.default.fileExists(atPath: got.path))
+        #expect(pages.count == 4)
+        #expect(pages.allSatisfy { !FileManager.default.fileExists(atPath: $0.path) })
     }
 
     @Test func oneAttemptMeansNoRetry() async throws {
         var calls = 0
-        _ = try await VendorInstaller.fetchArchive(maxAttempts: 1) {
-            calls += 1
-            return try file("<!DOCTYPE html>")
+        do {
+            _ = try await VendorInstaller.fetchArchive(maxAttempts: 1) {
+                calls += 1
+                return try file("<!DOCTYPE html>")
+            }
+            Issue.record("HTML was accepted as an archive")
+        } catch let error as VendorInstaller.InstallError {
+            guard case .htmlInsteadOfArchive = error else {
+                Issue.record("Expected htmlInsteadOfArchive, got \(error)")
+                return
+            }
         }
         #expect(calls == 1)
     }
@@ -83,7 +100,7 @@ struct VendorArchiveHTMLRetryTests {
         private let state = State()
         let port: UInt16
 
-        init(bodies: [Data]) throws {
+        init(bodies: [Data], status: Int = 200) throws {
             let listener = try NWListener(using: .tcp, on: .any)
             self.listener = listener
             let queue = self.queue
@@ -96,7 +113,7 @@ struct VendorArchiveHTMLRetryTests {
                         return state.requests
                     }
                     let body = bodies[min(index, bodies.count - 1)]
-                    let head = "HTTP/1.1 200 OK\r\nContent-Length: \(body.count)\r\n"
+                    let head = "HTTP/1.1 \(status) Test\r\nContent-Length: \(body.count)\r\n"
                         + "Connection: close\r\n\r\n"
                     conn.send(content: Data(head.utf8) + body,
                               completion: .contentProcessed { _ in conn.cancel() })
@@ -150,4 +167,68 @@ struct VendorArchiveHTMLRetryTests {
             Issue.record("\(failure.stage): \(failure.message)")
         }
     }
+
+    @Test func verifyInstallClassifiesPersistentHTMLAsContentFailure() async throws {
+        let dir = try DigestOnlyInstallTests.scratch("html-content")
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let page = Data("<!DOCTYPE html><title>Login</title>".utf8)
+        let server = try Server(bodies: [page])
+        let remote = RemoteVersion(
+            shortVersion: "2", version: nil, downloadURL: server.url,
+            sourceName: "Vendor", vendorInstallerKind: .zip)
+        let result = await ArtifactInspection.inspect(remote, bundleName: "Test", workDir: dir)
+        guard case .failure(let failure) = result else {
+            Issue.record("HTML passed inspection")
+            return
+        }
+        #expect(failure.stage == .content)
+        #expect(failure.httpStatus == nil)
+        #expect(server.requests == VendorInstaller.htmlBodyMaxAttempts)
+        #expect(failure.bytes == Int64(page.count * server.requests))
+    }
+
+    @Test(arguments: [200, 403])
+    func onlyHTMLPatchContentEarnsFullArchiveFallback(status: Int) async throws {
+        let dir = try DigestOnlyInstallTests.scratch("html-patch")
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let page = Data("<!DOCTYPE html><title>Landing page</title>".utf8)
+        let archive = Data([0x50, 0x4B, 0x03, 0x04])
+        let server = try Server(bodies: [page, archive], status: status)
+        let app = InstalledApp(
+            name: "HTMLPatch-\(UUID().uuidString)", bundleID: "test.html-patch",
+            shortVersion: "1", buildVersion: "1", path: dir.appendingPathComponent("Test.app"),
+            isMASApp: false, sparkleFeedURL: nil, hasSelfUpdater: false, hasSparkleUpdater: false)
+        let patch = DeltaPatch(fromBuild: "1", url: server.url, format: .myGo)
+        let remote = RemoteVersion(
+            shortVersion: "2", version: "2", downloadURL: server.url,
+            sourceName: "Vendor", vendorInstallerKind: .zip, deltas: [patch])
+        let result = UpdateResult(app: app, remote: remote, status: .updateAvailable(latest: "2"))
+        #expect(DeltaApplier.patch(for: app, in: remote) == patch)
+        let installer = VendorInstaller()
+        do {
+            _ = try await installer.download(
+                result, useLocalStash: false, population: nil, onStage: { _ in })
+            Issue.record("Patch failure was accepted")
+        } catch let error as DeltaRouteFailure {
+            #expect(status == 200)
+            #expect(error.bytesSpent == Int64(page.count))
+            guard case .htmlInsteadOfArchive = error.underlying as? VendorInstaller.InstallError else {
+                Issue.record("Unexpected fallback cause: \(error.underlying)")
+                return
+            }
+            let full = try await installer.download(
+                result, preferDelta: false, useLocalStash: false, population: nil, onStage: { _ in })
+            defer { try? FileManager.default.removeItem(at: full.workDir) }
+            #expect(full.appliedPatch == nil)
+            #expect(try Data(contentsOf: full.archiveURL) == archive)
+        } catch let error as Downloader.DownloadError {
+            #expect(status == 403)
+            guard case .httpStatus(403) = error else {
+                Issue.record("Unexpected download error: \(error)")
+                return
+            }
+        }
+        #expect(server.requests == (status == 200 ? 2 : 1))
+    }
+
 }

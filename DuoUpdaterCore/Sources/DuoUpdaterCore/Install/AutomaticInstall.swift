@@ -63,6 +63,7 @@ public enum AutomaticInstall {
         if InPlaceSwap.needsElevatedReplace(target: target) {
             throw Deferred("Automatic update needs administrator authorization.")
         }
+        AutomaticUpdateFailurePolicy.attempt?.beginSideEffects()
         try await quit.run()
     }
 

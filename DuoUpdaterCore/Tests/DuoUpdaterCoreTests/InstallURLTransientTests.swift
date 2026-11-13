@@ -16,10 +16,10 @@ struct InstallURLTransientTests {
         }
     }
 
-    @Test func clientErrorsAreOurProblemAndMustNotBeRetried() {
+    @Test func permanentAndUnknownStatusesDoNotEarnAnotherRequest() {
         // A 404 means the URL in the recipe is wrong. Retrying cannot fix that,
         // and reporting it as transient would hide a genuinely dead install spec.
-        for code in [400, 401, 403, 404, 410] {
+        for code in [400, 401, 403, 404, 410, 501, 511, 599, 701] {
             #expect(!VendorProbeSource.isTransientStatus(code), "\(code) should not be transient")
         }
     }
@@ -152,21 +152,12 @@ struct InstallURLTransientTests {
 
     // MARK: - #670: a rate limit that names its own wait
 
-    // These four assert a request COUNT, because "did not retry" is the entire
+    // These assert a request COUNT, because "did not retry" is the entire
     // property — a verdict-only assertion passes whether the loop stopped or
     // burned every attempt and then reported the same thing.
     //
-    // Each was run against the mutation it claims to catch (2026-09-16); all four
-    // mutations compile, and each killed exactly one of these and nothing else:
-    //
-    //   delete the `Retry-After` guard entirely (the bug as shipped)
-    //     → aRateLimitLongerThanTheBackoffStopsAtTheFirstAttempt
-    //   drop `http.statusCode == 429` so any transient status obeys the header
-    //     → aServerErrorKeepsItsRetriesEvenWhenItNamesALongWait
-    //   keep presence, drop the comparison (`retryAfterDelaySeconds(http) != nil`)
-    //     → aRateLimitInsideTheBackoffBudgetKeepsItsRetries
-    //   read an absent header as an infinite wait (`?? .infinity`)
-    //     → aRateLimitThatNamesNoWaitKeepsItsRetries
+    // HTTPRetryAfterSimulationTests adds dates, short waits, method guards and
+    // cancellation. These loopback cases keep the original wire-path evidence.
 
     /// One `.redirect` recipe against a stub whose `/install` answers `status`
     /// with `headers`, reporting how many HEADs the stub actually saw.
@@ -224,28 +215,21 @@ struct InstallURLTransientTests {
                 Comment(rawValue: "a bare 429 must still retry, saw \(run.heads) HEADs"))
     }
 
-    /// And the other half of the discriminator: how big. A wait this probe is
-    /// willing to sit through is not a reason to give up.
-    @Test func aRateLimitInsideTheBackoffBudgetKeepsItsRetries() async throws {
+    /// One second fits the total 2.1s budget, but the NEXT pause is only 0.7s.
+    /// The loop must stop instead of sending an early request.
+    @Test func aRateLimitLongerThanTheNextPauseStopsAtTheFirstAttempt() async throws {
         let run = try await Self.redirectAttempts(
             status: 429, headers: ["Retry-After": "1"])
-        #expect(run.heads == 3,
-                Comment(rawValue: "1s is inside the 2.1s this loop already waits, saw \(run.heads)"))
+        #expect(run.heads == 1,
+                Comment(rawValue: "1s exceeds the next 0.7s pause, saw \(run.heads)"))
     }
 
-    /// The case the retry exists for, pinned unchanged: `td.telegram.org` answers
-    /// this HEAD with 502 in bursts (see this suite's own doc comment), so a 5xx
-    /// must keep all three attempts — including one carrying a `Retry-After`.
-    ///
-    /// That last part is a scope decision, not a finding about 5xx: whether any
-    /// 5xx here sends the header is unmeasured (the traffic ledger keeps statuses,
-    /// not response headers), and RFC 9110 §10.2.3 defines `Retry-After` for 503
-    /// by name. This case pins today's behaviour so that widening it later is a
-    /// deliberate edit with a red test in front of it.
-    @Test func aServerErrorKeepsItsRetriesEvenWhenItNamesALongWait() async throws {
+    /// A server error cannot overrule a wait that is longer than the next pause.
+    /// Bare 502 bursts still get the existing retry budget.
+    @Test func aServerErrorHonorsALongRetryAfter() async throws {
         let run = try await Self.redirectAttempts(
             status: 502, headers: ["Retry-After": "3000"])
-        #expect(run.heads == 3,
-                Comment(rawValue: "Telegram's 502 bursts need the retry, saw \(run.heads) HEADs"))
+        #expect(run.heads == 1,
+                Comment(rawValue: "3000s exceeds the retry pause, saw \(run.heads) HEADs"))
     }
 }

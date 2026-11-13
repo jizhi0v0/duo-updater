@@ -1,0 +1,67 @@
+{
+  "codeCommit": "0b3eb45cdcf7d164f46474957dd41cadebbd6859",
+  "date": "2026-11-13",
+  "host": "Apple Silicon MacBook Pro / macOS 27.3",
+  "uiDriver": "cua-driver 0.49.0 (subsequently updated to 0.49.1 by existing automatic-update policy)",
+  "ui": [
+    "Board: moved Amp to Never, observed count change, Cancel discarded draft; preference sets and evidence unchanged.",
+    "Board: Apply saved existing assignments.",
+    "Settings: Amp changed from Only When Not Running to Never and back; explanation displayed Your saved choice.",
+    "Details expanded successfully in native app.",
+    "Quit and relaunched app; persisted automatic-update sets match original sets (array ordering ignored)."
+  ],
+  "samePreferenceSetsAfterRestart": {
+    "AutomaticUpdateRelaunchKeys": true,
+    "AutomaticUpdateExcludedKeys": true,
+    "AutomaticUpdateWhenClosedKeys": true
+  },
+  "liveProcesses": {
+    "Pearcleaner": {
+      "nestedPIDs": [
+        57800,
+        804
+      ],
+      "mainPIDs": [],
+      "automaticCheck": "allowed"
+    },
+    "DuoUpdater": {
+      "mainPresent": true,
+      "automaticCheck": "deferred"
+    }
+  },
+  "automaticInstalls": [
+    {
+      "at": 1794558553585319,
+      "appID": "/Users/bobby/Applications/T3 Code (Nightly).app",
+      "appName": "T3 Code (Nightly)",
+      "attemptID": "48BDFB91-A46E-4B73-B443-2C0EB56A1B3D",
+      "chainID": "48BDFB91-A46E-4B73-B443-2C0EB56A1B3D",
+      "diagnosticIDs": "2FE5C194-5215-48B2-A712-71DB0F086AF6,8E3614AF-D0D7-4304-8E25-D4E66776B339,9E42C1DD-8C50-465B-83C0-1120A0B78CFC",
+      "fromVersion": "0.1.10-nightly.20261113.4616",
+      "passID": "5C340710-FEA7-4135-A7CA-136A7097538E",
+      "reason": "",
+      "retryOf": "",
+      "status": "installed",
+      "toVersion": "0.1.10-nightly.20261113.4630",
+      "trigger": "automatic",
+      "timeUTC": "2026-11-13T08:29:13.585319+00:00"
+    },
+    {
+      "at": 1794558346882649,
+      "appID": "/Applications/DeepSeek Harness.app",
+      "appName": "DeepSeek Harness",
+      "attemptID": "21C71E22-D661-49C3-B840-049BF16897AD",
+      "chainID": "21C71E22-D661-49C3-B840-049BF16897AD",
+      "diagnosticIDs": "0B7FCF38-612E-44A5-9A7D-3D1536638E4F,1E54B78A-857E-414C-8CEA-44558E300ED4,98A927F1-59CF-4699-B36C-E5447A6212B3",
+      "fromVersion": "0.2.2-rc.2",
+      "passID": "B4F2DEFC-72D3-4F18-B684-642EF04FC950",
+      "reason": "",
+      "retryOf": "",
+      "status": "installed",
+      "toVersion": "0.2.2-rc.3",
+      "trigger": "automatic",
+      "timeUTC": "2026-11-13T08:25:46.882649+00:00"
+    }
+  ],
+  "scope": "Real installed app UI and scheduled installs; live-process test invokes this branch Core against actual host processes. No claim that a helper-only app itself was replaced."
+}

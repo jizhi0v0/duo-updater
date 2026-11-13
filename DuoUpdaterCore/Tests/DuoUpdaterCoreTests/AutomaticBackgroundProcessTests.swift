@@ -13,7 +13,7 @@ struct AutomaticBackgroundProcessTests {
         return 2
     }
 
-    @Test func identifiedServiceBlocksOnlyItsOwnBundle() throws {
+    @Test func identifiedHelperDoesNotCountAsRunningMainApp() throws {
         try NestedAppGuard.$listPIDs.withValue(Self.list) {
             try NestedAppGuard.$privilegedExecutablePath.withValue({ _ in Self.service }) {
                 var diagnostics: [AutomaticProcessDiagnostic] = []
@@ -22,9 +22,7 @@ struct AutomaticBackgroundProcessTests {
                 #expect(processes.first(where: { $0.pid == Self.pid })?.launchedPath == Self.service)
                 #expect(diagnostics.contains { $0.probes.contains(.init(.privilegedPath, 1, 0)) })
                 try AutomaticInstall.checkProcesses(at: URL(fileURLWithPath: "/Applications/Amp.app"), processes: processes)
-                #expect(throws: AutomaticInstall.Deferred.self) {
-                    try AutomaticInstall.checkProcesses(at: URL(fileURLWithPath: "/Applications/RustDesk.app"), processes: processes)
-                }
+                try AutomaticInstall.checkProcesses(at: URL(fileURLWithPath: "/Applications/RustDesk.app"), processes: processes)
                 #expect(AutomaticInstall.backgroundProcessReason(processes.filter { $0.pid == Self.pid }) ==
                     "Background processes are still running (service). Automatic updating is paused for this app.")
             }
@@ -42,10 +40,10 @@ struct AutomaticBackgroundProcessTests {
         }
     }
 
-    @Test func failedOrMalformedPrivilegedReadsNeverProveTheBundleClosed() {
+    @Test func failedOrMalformedPrivilegedReadsDoNotBlockUnrelatedApps() throws {
         for path in [nil, "service", "/bad\0path"] as [String?] {
-            NestedAppGuard.$listPIDs.withValue(Self.list) {
-                NestedAppGuard.$lifecycleInfo.withValue({ pid, buffer, _ in
+            try NestedAppGuard.$listPIDs.withValue(Self.list) {
+                try NestedAppGuard.$lifecycleInfo.withValue({ pid, buffer, _ in
                     var info = proc_bsdshortinfo()
                     info.pbsi_pid = UInt32(pid)
                     info.pbsi_status = UInt32(SRUN)
@@ -54,13 +52,11 @@ struct AutomaticBackgroundProcessTests {
                         return Int32($0.count)
                     }
                 }) {
-                    NestedAppGuard.$privilegedExecutablePath.withValue({ _ in path }) {
+                    try NestedAppGuard.$privilegedExecutablePath.withValue({ _ in path }) {
                         let processes = NestedAppGuard.liveProcesses(includeUninspectable: true)
                         #expect(processes.count == 2)
                         #expect(processes.contains { $0.pid == Self.pid && $0.executablePath == nil && $0.launchedPath == nil })
-                        #expect(throws: AutomaticInstall.Deferred.self) {
-                            try AutomaticInstall.checkProcesses(at: URL(fileURLWithPath: "/Applications/Amp.app"), processes: processes)
-                        }
+                        try AutomaticInstall.checkProcesses(at: URL(fileURLWithPath: "/Applications/Amp.app"), processes: processes)
                     }
                 }
             }
@@ -69,8 +65,13 @@ struct AutomaticBackgroundProcessTests {
 
     @Test func exchangeCheckCarriesTheReaderAcrossDispatchAndReadsFreshEachTime() async throws {
         let state = ServicePath()
+        let bundle = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).appendingPathComponent("Fixture.app")
+        defer { try? FileManager.default.removeItem(at: bundle.deletingLastPathComponent()) }
+        try FileManager.default.createDirectory(at: bundle.appendingPathComponent("Contents"), withIntermediateDirectories: true)
+        try PropertyListSerialization.data(fromPropertyList: ["CFBundleExecutable": "FixtureMain"], format: .xml, options: 0)
+            .write(to: bundle.appendingPathComponent("Contents/Info.plist"))
         let app = InstalledApp(name: "Amp", bundleID: "test.automatic.background",
-            shortVersion: "1", buildVersion: nil, path: URL(fileURLWithPath: "/Applications/Amp.app"),
+            shortVersion: "1", buildVersion: nil, path: bundle,
             isMASApp: false, sparkleFeedURL: nil)
         let check = AutomaticInstall.$active.withValue(true) {
             NestedAppGuard.$privilegedExecutablePath.withValue({ _ in state.path }) {
@@ -80,7 +81,7 @@ struct AutomaticBackgroundProcessTests {
         try await offCooperativePool {
             try NestedAppGuard.$listPIDs.withValue(Self.list) { try check() }
         }
-        state.path = "/Applications/Amp.app/Contents/MacOS/service"
+        state.path = bundle.appendingPathComponent("Contents/MacOS/FixtureMain").path
         await #expect(throws: AutomaticInstall.Deferred.self) {
             try await offCooperativePool {
                 try NestedAppGuard.$listPIDs.withValue(Self.list) { try check() }

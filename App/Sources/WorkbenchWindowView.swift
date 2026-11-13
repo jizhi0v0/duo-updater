@@ -2670,8 +2670,8 @@ private struct FormulaDetailPane: View {
         // notes for a version it is no longer displaying. See `FormulaReleaseStore`
         // for which refreshes actually move it (a plain `brew upgrade` does not).
         .task(id: notesVersion) {
-            // A cask's notes aren't a formula's: none are looked up by its name.
-            guard formula.kind == .formula else { return }
+            // CLI casks with a dedicated vendor document share the native notes pane.
+            guard formula.kind == .formula || BrewFormulaReleaseService.hasDedicatedNotes(for: formula.name) else { return }
             model.ensureFormulaReleaseLoading(name: formula.name, version: notesVersion)
         }
     }
@@ -2742,7 +2742,7 @@ private struct FormulaDetailPane: View {
 
     @ViewBuilder
     private var notes: some View {
-        if formula.kind == .cask {
+        if formula.kind == .cask && !BrewFormulaReleaseService.hasDedicatedNotes(for: formula.name) {
             noNotes
         } else {
             formulaNotes

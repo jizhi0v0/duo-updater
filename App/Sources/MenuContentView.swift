@@ -344,6 +344,12 @@ struct MenuContentView: View {
         ScrollViewReader { proxy in
             scrollingRows(proxy)
         }
+        // Each filter mode owns its scroll position and lazy row layout. Reusing
+        // them after a scrolled Show-all list shrinks can leave every pending
+        // row outside the realized viewport, even after scrolling back to the top.
+        // scrollTarget stays above this boundary so the failure banner can still
+        // open Show all and scroll to the first failed app.
+        .id(showAll)
     }
 
     /// Scrolls to `scrollTarget` once this scroll view is drawn. On each of the

@@ -118,6 +118,7 @@ final class Preferences {
         static let showRuntimeTags = "ShowRuntimeTags"
         static let showCLIRuntimeTags = "ShowCLIRuntimeTags"
         static let appSortOrder = "AppSortOrder"
+        static let appGrouping = "AppGrouping"
         static let renewAppleDeveloperSession = AppleDeveloperSessionRenewal.enabledKey
         static let acknowledgedSpotlights = "AcknowledgedSettingsSpotlights"
         static let offerFailureReports = "OfferFailureReports"
@@ -420,6 +421,14 @@ final class Preferences {
     /// see `RowOrder.SortOrder.recent`.
     var appSortOrder: RowOrder.SortOrder {
         didSet { defaults.set(appSortOrder.rawValue, forKey: Key.appSortOrder) }
+    }
+
+    /// Whether the apps list is one list or one section per update source
+    /// (`UpdateSourceGroup`, #1985). Persisted beside `appSortOrder` so the
+    /// popover, the workbench and a relaunch agree. Off by default: the one list
+    /// is what the list has always been.
+    var appGrouping: RowOrder.Grouping {
+        didSet { defaults.set(appGrouping.rawValue, forKey: Key.appGrouping) }
     }
 
     /// When Apple ends the Apple Developer session, try once to get a new one
@@ -785,6 +794,8 @@ final class Preferences {
         self.showCLIRuntimeTags = defaults.object(forKey: Key.showCLIRuntimeTags) as? Bool ?? true
         self.appSortOrder = RowOrder.SortOrder(
             rawValue: defaults.string(forKey: Key.appSortOrder) ?? "") ?? .name
+        self.appGrouping = RowOrder.Grouping(
+            rawValue: defaults.string(forKey: Key.appGrouping) ?? "") ?? .none
         self.renewAppleDeveloperSession = AppleDeveloperSessionRenewal.isEnabled(in: defaults)
         self.acknowledgedSpotlights = Set(defaults.stringArray(forKey: Key.acknowledgedSpotlights) ?? [])
         self.offerFailureReports = defaults.object(forKey: Key.offerFailureReports) as? Bool ?? true

@@ -115,6 +115,9 @@ struct WorkbenchWindowView: View {
     /// The managers' levels (`managerLevels`) the user closed in this window;
     /// every one is open otherwise.
     @State private var collapsedManagerLevels: Set<String> = []
+    /// The update-source sections the user closed in this window's Apps list.
+    /// Not remembered, like `collapsedManagerLevels`.
+    @State private var collapsedSourceGroups: Set<UpdateSourceGroup> = []
     /// The CLI tab's order — formula and tool rows' tags — as it stood when updates
     /// started running; nil while none runs. `CLIToolPresentation.holding`.
     @State private var heldCLIOrder: [String]?
@@ -217,6 +220,10 @@ struct WorkbenchWindowView: View {
         /// apps are managed in Settings, so browsing leaves them out; a search is
         /// a question about a specific app, so it may answer with one.
         let filteredApps: [UpdateResult]
+        /// `filteredApps` as the Apps list draws them: one headerless section,
+        /// or one per update source (`AppListSection.sections`). Each section's
+        /// `expanded` is not yet decided here; `appSections(_:)` does that.
+        let appSections: [AppListSection]
         /// How many installed apps are ignored, which is what the Apps list says
         /// when a search finds nothing: they are somewhere, just not here.
         let ignoredAppCount: Int
@@ -268,8 +275,12 @@ struct WorkbenchWindowView: View {
             guard searchQuery.isEmpty ? !ignored : matchesSearch(row) else { continue }
             rows.append(row)
         }
+        let standInIDs = Set(model.interruptedStandIns.map(\.id))
         return SidebarLists(
             filteredApps: rows,
+            appSections: AppListSection.sections(
+                rows, standIns: standInIDs, grouping: model.prefs.appGrouping,
+                group: model.sourceGroup(for:)),
             ignoredAppCount: ignoredCount,
             cliTools: CLIToolPresentation.groups(cliTools.filter(matchesSearch)).flatMap(\.statuses),
             brewFormulae: formulae.filter { matchesSearch($0.name) },
@@ -714,6 +725,7 @@ struct WorkbenchWindowView: View {
     @ViewBuilder
     private func sidebar(_ lists: SidebarLists) -> some View {
         let tab = shownTab(lists)
+        let showsCategoryBar = tab == .cli || (tab == .apps && model.prefs.appGrouping == .source)
         VStack(spacing: 0) {
             // The whole row picks one layout: one line per tab while every tab fits,
             // two lines for all of them otherwise. Deciding per tab would stack
@@ -749,7 +761,8 @@ struct WorkbenchWindowView: View {
 
             AppSearchField(text: $searchText)
                 .padding(.horizontal, 12)
-                .padding(.vertical, 10)
+                .padding(.top, 10)
+                .padding(.bottom, showsCategoryBar ? 4 : 10)
 
             // Every list built so far, the one on screen above the others
             // (`builtTabs`). Each is its own branch, so showing one leaves the
@@ -937,7 +950,7 @@ struct WorkbenchWindowView: View {
     private func selectableIDs(_ tab: SidebarTab, _ lists: SidebarLists) -> [String] {
         switch tab {
         case .apps:
-            return lists.filteredApps.map(\.id)
+            return appSections(lists).filter(\.expanded).flatMap { $0.rows.map(\.id) }
         case .cli:
             let brew = (lists.homebrewSelfUpdate == nil ? [] : [Self.homebrewSelfUpdateTag])
                 + lists.brewFormulae.map(Self.formulaTag)
@@ -1051,6 +1064,7 @@ struct WorkbenchWindowView: View {
     private func inOneFrame(_ change: () -> Void) {
         var transaction = Transaction()
         transaction.disablesAnimations = true
+        transaction.scrollContentOffsetAdjustmentBehavior = .disabled
         withTransaction(transaction, change)
     }
 
@@ -1294,6 +1308,7 @@ struct WorkbenchWindowView: View {
     /// The Homebrew group's header (`HomebrewGroupHeader`), fed from the model.
     private func homebrewHeader(_ lists: SidebarLists, expanded: Bool) -> some View {
         HomebrewGroupHeader(
+            scrollID: Self.homebrewHeaderID,
             expanded: expanded,
             // A search holds the group open while it matches rows inside; closing
             // it then would hide exactly what was searched for.
@@ -1431,10 +1446,48 @@ struct WorkbenchWindowView: View {
     /// Settings), and the row's menu still offers Stop ignoring.
     private func appsListView(_ lists: SidebarLists, isShown: Bool) -> some View {
         WorkbenchAppsList(
-            apps: lists.filteredApps, ignoredAppCount: lists.ignoredAppCount,
+            apps: lists.filteredApps, sections: appSections(lists),
+            toggleSection: { group in inOneFrame { toggleSourceGroup(group) } },
+            ignoredAppCount: lists.ignoredAppCount,
             searchText: searchText, isShown: isShown,
             model: model, selection: $selection, focus: $listFocus)
             .equatable()
+    }
+
+    // MARK: - Update-source sections
+
+    /// The Apps list's sections with whether each is drawn open: open unless the
+    /// user closed it in this window, or while a search is typed (a search finds
+    /// rows, and closing their section would hide them) or one of its rows is
+    /// selected, as `managerLevelExpanded` holds a manager's level open.
+    private func appSections(_ lists: SidebarLists) -> [AppListSection] {
+        lists.appSections.map { section in
+            var section = section
+            if let group = section.group {
+                let held = !searchQuery.isEmpty || section.rows.contains { $0.id == selection }
+                section.expanded = held || !collapsedSourceGroups.contains(group)
+                section.toggleDisabled = !searchQuery.isEmpty
+            }
+            return section
+        }
+    }
+
+    /// A click on a section's header. Closing it moves a selection that was one
+    /// of its rows off it, since that row is going. Reads the lists as they are
+    /// at the click: the Apps list keeps its closure from the last pass that
+    /// redrew it (`WorkbenchAppsList` is equatable).
+    private func toggleSourceGroup(_ group: UpdateSourceGroup) {
+        let holdsSelection = sidebarLists.appSections.first(where: { $0.group == group })?
+            .rows.contains(where: { $0.id == selection }) == true
+        if collapsedSourceGroups.contains(group), !holdsSelection {
+            collapsedSourceGroups.remove(group)
+            return
+        }
+        collapsedSourceGroups.insert(group)
+        if holdsSelection {
+            selection = nil
+            detailSelection = nil
+        }
     }
 
     /// The CLI tab's list, one group per tool: Homebrew, then each `CLIToolKind`
@@ -1453,30 +1506,34 @@ struct WorkbenchWindowView: View {
             SidebarList(selection: $selection, order: selectableIDs(.cli, lists),
                         label: String(localized: "CLI"), focus: $listFocus, focusValue: .cli) {
                 if showsBrew {
-                    homebrewHeader(lists, expanded: brewExpanded)
-                        .sidebarSectionHeader(first: true)
-                        .id(Self.homebrewHeaderID)
-                    homebrewSummary(lists)
-                        .sidebarStaticRow()
-                    if brewExpanded {
-                        if let update = lists.homebrewSelfUpdate {
-                            // Selecting it opens Homebrew's release notes
-                            // (`HomebrewSelfUpdateDetailPane`).
-                            HomebrewSelfUpdateSidebarRow(update: update, model: model)
-                                .sidebarRow(Self.homebrewSelfUpdateTag, selection: $selection)
+                    Color.clear.frame(height: SidebarSectionMetrics.firstGap).accessibilityHidden(true)
+                    Section {
+                        homebrewSummary(lists)
+                            .sidebarStaticRow()
+                        if brewExpanded {
+                            if let update = lists.homebrewSelfUpdate {
+                                // Selecting it opens Homebrew's release notes
+                                // (`HomebrewSelfUpdateDetailPane`).
+                                HomebrewSelfUpdateSidebarRow(update: update, model: model)
+                                    .sidebarRow(Self.homebrewSelfUpdateTag, selection: $selection)
+                            }
+                            ForEach(lists.brewFormulae) { formula in
+                                BrewFormulaSidebarRow(formula: formula, model: model)
+                                    .sidebarRow(Self.formulaTag(formula), selection: $selection)
+                            }
+                            ForEach(lists.brewLifecycleCasks) { cask in
+                                BrewLifecycleCaskSidebarRow(cask: cask)
+                                    .sidebarRow("brew:cask:\(cask.token)", selection: $selection)
+                            }
+                            ForEach(lists.brewUnchecked) { package in
+                                BrewUncheckedSidebarRow(package: package, highlighted: highlightUnchecked)
+                                    .sidebarRow("brew:unchecked:\(package.id)", selection: $selection)
+                            }
                         }
-                        ForEach(lists.brewFormulae) { formula in
-                            BrewFormulaSidebarRow(formula: formula, model: model)
-                                .sidebarRow(Self.formulaTag(formula), selection: $selection)
-                        }
-                        ForEach(lists.brewLifecycleCasks) { cask in
-                            BrewLifecycleCaskSidebarRow(cask: cask)
-                                .sidebarRow("brew:cask:\(cask.token)", selection: $selection)
-                        }
-                        ForEach(lists.brewUnchecked) { package in
-                            BrewUncheckedSidebarRow(package: package, highlighted: highlightUnchecked)
-                                .sidebarRow("brew:unchecked:\(package.id)", selection: $selection)
-                        }
+                    } header: {
+                        homebrewHeader(lists, expanded: brewExpanded)
+                            .sidebarSectionHeader(id: Self.homebrewHeaderID, isInitial: true)
+                            .id(Self.homebrewHeaderID)
                     }
                 }
                 // Each manager's items, a level of their own right under Homebrew,
@@ -1487,27 +1544,32 @@ struct WorkbenchWindowView: View {
                 let levels = managerLevels(lists.cliTools)
                 ForEach(levels) { level in
                     let expanded = managerLevelExpanded(level, lists)
-                    // The 4 pt between sections, as "Other tools" draws it below.
-                    if showsBrew || level.id != levels.first?.id {
-                        Color.clear.frame(height: 4).accessibilityHidden(true)
-                    }
-                    HomebrewGroupHeader(
-                        title: level.title,
-                        expanded: expanded,
-                        toggleDisabled: managerLevelSearchHits(level, lists),
-                        toggle: { inOneFrame { toggleManagerLevel(level, lists) } }
-                    ) {
-                        OtherToolsUpdateAllButton(tools: model.cliTools, scope: scope(of: level))
-                    }
-                    .padding(.trailing, Self.sectionHeaderTrailingInset)
-                    .sidebarSectionHeader(first: true)
-                    managerLevelSummary(level, lists)
-                        .sidebarStaticRow()
-                    ForEach(expanded ? level.statuses : [], id: \.toolID) { status in
-                        CLIToolSidebarRow(
-                            status: status, cli: model.cliTools,
-                            showsRuntime: model.prefs.showCLIRuntimeTags)
-                            .sidebarRow(status.toolID.tag, selection: $selection)
+                    Color.clear.frame(height: showsBrew || level.id != levels.first?.id
+                                      ? SidebarSectionMetrics.betweenGap : SidebarSectionMetrics.firstGap)
+                        .accessibilityHidden(true)
+                    Section {
+                        managerLevelSummary(level, lists)
+                            .sidebarStaticRow()
+                        ForEach(expanded ? level.statuses : [], id: \.toolID) { status in
+                            CLIToolSidebarRow(
+                                status: status, cli: model.cliTools,
+                                showsRuntime: model.prefs.showCLIRuntimeTags)
+                                .sidebarRow(status.toolID.tag, selection: $selection)
+                        }
+                    } header: {
+                        HomebrewGroupHeader(
+                            title: level.title,
+                            scrollID: "cli-manager:\(level.id)",
+                            expanded: expanded,
+                            toggleDisabled: managerLevelSearchHits(level, lists),
+                            toggle: { inOneFrame { toggleManagerLevel(level, lists) } }
+                        ) {
+                            OtherToolsUpdateAllButton(tools: model.cliTools, scope: scope(of: level))
+                        }
+                        .padding(.trailing, Self.sectionHeaderTrailingInset)
+                        .sidebarSectionHeader(id: "cli-manager:\(level.id)",
+                                              isInitial: !showsBrew && level.id == levels.first?.id)
+                        .id("cli-manager:\(level.id)")
                     }
                 }
                 // The popover's second row, "Other tools", as a level of its own,
@@ -1516,45 +1578,48 @@ struct WorkbenchWindowView: View {
                 let othersExpanded = otherToolsExpanded(lists)
                 let standalone = lists.cliTools.filter { $0.managedItem == nil }
                 if searchQuery.isEmpty ? !standaloneScope.isEmpty : !standalone.isEmpty {
-                    // A later section's header sits 16 pt under the row above, the
-                    // first's 12 (`sidebarSectionHeader`). The 4 pt between is drawn
-                    // apart from the header, which takes the first's padding: scrolled
-                    // to the top (`cliRevealRequest`) it then lands where Homebrew's
-                    // does, not 4 pt lower (2026-10-20, y 190 against 186).
-                    if showsBrew || !levels.isEmpty {
-                        Color.clear.frame(height: 4).accessibilityHidden(true)
-                    }
-                    // Homebrew's header, so the two levels open, close and line up
-                    // alike.
-                    HomebrewGroupHeader(
-                        title: String(localized: "Other tools"),
-                        expanded: othersExpanded,
-                        toggleDisabled: otherToolsSearchHits(lists),
-                        toggle: { inOneFrame { toggleOtherTools(lists) } }
-                    ) {
-                        // One spinner for a check, which reads every tool at once:
-                        // drawn on each group's header, twelve of them turned while
-                        // one update re-checked. Update All shows its own while it
-                        // runs.
-                        if model.cliTools.checking && !model.cliTools.updatingAll {
-                            ProgressView().controlSize(.mini)
+                    // Section spacing scrolls away; the pinned bar keeps equal padding.
+                    Color.clear.frame(height: showsBrew || !levels.isEmpty
+                                      ? SidebarSectionMetrics.betweenGap : SidebarSectionMetrics.firstGap)
+                        .accessibilityHidden(true)
+                    Section {
+                        otherToolsSummary(lists)
+                            .sidebarStaticRow()
+                    } header: {
+                        // Homebrew's header, so the levels open, close and line up alike.
+                        HomebrewGroupHeader(
+                            title: String(localized: "Other tools"),
+                            scrollID: Self.otherToolsHeaderID,
+                            expanded: othersExpanded,
+                            toggleDisabled: otherToolsSearchHits(lists),
+                            toggle: { inOneFrame { toggleOtherTools(lists) } }
+                        ) {
+                            // One spinner for a check, which reads every tool at once:
+                            // drawn on each group's header, twelve of them turned while
+                            // one update re-checked. Update All shows its own while it
+                            // runs.
+                            if model.cliTools.checking && !model.cliTools.updatingAll {
+                                ProgressView().controlSize(.mini)
+                            }
+                            otherToolsBulkUpdate
                         }
-                        otherToolsBulkUpdate
+                        .padding(.trailing, Self.sectionHeaderTrailingInset)
+                        .sidebarSectionHeader(id: Self.otherToolsHeaderID, isInitial: !showsBrew && levels.isEmpty)
+                        .id(Self.otherToolsHeaderID)
                     }
-                    .padding(.trailing, Self.sectionHeaderTrailingInset)
-                    .sidebarSectionHeader(first: true)
-                    .id(Self.otherToolsHeaderID)
-                    otherToolsSummary(lists)
-                        .sidebarStaticRow()
                 }
                 ForEach(othersExpanded ? CLIToolPresentation.groups(standalone) : []) { group in
-                    cliToolHeader(group)
-                        .sidebarSectionHeader(first: false)
-                    ForEach(group.statuses, id: \.toolID) { status in
-                        CLIToolSidebarRow(
-                            status: status, cli: model.cliTools,
-                            showsRuntime: model.prefs.showCLIRuntimeTags)
-                            .sidebarRow(status.toolID.tag, selection: $selection)
+                    Color.clear.frame(height: SidebarSectionMetrics.betweenGap).accessibilityHidden(true)
+                    Section {
+                        ForEach(group.statuses, id: \.toolID) { status in
+                            CLIToolSidebarRow(
+                                status: status, cli: model.cliTools,
+                                showsRuntime: model.prefs.showCLIRuntimeTags)
+                                .sidebarRow(status.toolID.tag, selection: $selection)
+                        }
+                    } header: {
+                        cliToolHeader(group)
+                            .sidebarSectionHeader(id: "cli-tool:\(group.id)")
                     }
                 }
             }
@@ -1694,6 +1759,11 @@ extension View {
 private struct WorkbenchAppsList: View, @MainActor Equatable {
     /// The rows to draw: everything the search admits that is not ignored.
     let apps: [UpdateResult]
+    /// `apps` in the sections they are drawn in (`AppListSection`).
+    let sections: [AppListSection]
+    /// A click on a section's header. Not compared: the window builds it anew
+    /// each pass, and what it does follows from `sections`.
+    let toggleSection: (UpdateSourceGroup) -> Void
     /// How many installed apps are ignored. Only read when the list is empty, to
     /// say where they went — an app that vanishes without a word reads as a bug.
     let ignoredAppCount: Int
@@ -1704,19 +1774,44 @@ private struct WorkbenchAppsList: View, @MainActor Equatable {
     var focus: FocusState<WorkbenchWindowView.SidebarTab?>.Binding
 
     static func == (lhs: Self, rhs: Self) -> Bool {
-        lhs.apps == rhs.apps && lhs.ignoredAppCount == rhs.ignoredAppCount
+        lhs.apps == rhs.apps && lhs.sections == rhs.sections
+            && lhs.ignoredAppCount == rhs.ignoredAppCount
             && lhs.searchText == rhs.searchText && lhs.isShown == rhs.isShown
             && lhs.model === rhs.model
     }
 
     var body: some View {
-        SidebarList(selection: $selection, order: apps.map(\.id),
+        SidebarList(selection: $selection,
+                    order: sections.filter(\.expanded).flatMap { $0.rows.map(\.id) },
                     label: String(localized: "Apps"), focus: focus, focusValue: .apps,
                     isShown: isShown) {
-            ForEach(apps) { result in
-                WorkbenchAppRow(result: result, model: model)
-                    .equatable()
-                    .sidebarRow(result.id, selection: $selection)
+            ForEach(Array(sections.enumerated()), id: \.element.id) { index, section in
+                if section.group != nil {
+                    Color.clear.frame(height: index == 0
+                                      ? SidebarSectionMetrics.firstGap : SidebarSectionMetrics.betweenGap)
+                        .accessibilityHidden(true)
+                }
+                Section {
+                    if section.expanded {
+                        ForEach(section.rows) { result in
+                            WorkbenchAppRow(result: result, model: model)
+                                .equatable()
+                                .sidebarRow(result.id, selection: $selection)
+                        }
+                    }
+                } header: {
+                    if let group = section.group {
+                        AppSourceGroupHeader(
+                            group: group, count: section.rows.count, updates: section.updateCount,
+                            expanded: section.expanded,
+                            toggleDisabled: section.toggleDisabled,
+                            toggle: { toggleSection(group) })
+                            // `WorkbenchWindowView.sectionHeaderTrailingInset`.
+                            .padding(.trailing, 14)
+                            .sidebarSectionHeader(id: AppSourceGroupHeader.scrollID(group), isInitial: index == 0)
+                            .id(AppSourceGroupHeader.scrollID(group))
+                    }
+                }
             }
         }
         .overlay {

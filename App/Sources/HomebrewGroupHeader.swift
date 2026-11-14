@@ -27,28 +27,29 @@ import SwiftUI
 /// row 142 → 130 px at 2x).
 struct HomebrewGroupHeader<Trailing: View>: View {
     var title = "Homebrew"
+    var scrollID: String? = nil
     let expanded: Bool
     let toggleDisabled: Bool
     let toggle: () -> Void
     @ViewBuilder let trailing: () -> Trailing
 
+    @Environment(\.sidebarScrollToHeader) private var scrollToHeader
+    @State private var pinned = false
+
     var body: some View {
-        ZStack(alignment: .trailing) {
-            // The room a small bordered button takes, unseen, so the header's
-            // height does not depend on whether its own is drawn.
-            Button(String(localized: "Upgrade All")) {}
-                .controlSize(.small)
-                .buttonStyle(.bordered)
-                .hidden()
-                .frame(width: 0)
-                .accessibilityHidden(true)
-            row
-        }
+        row.sidebarGroupHeaderFrame()
+            .onGeometryChange(for: Bool.self) {
+                $0.frame(in: .named(SidebarSectionMetrics.coordinateSpace)).minY
+                    <= SidebarSectionMetrics.verticalPadding + 0.5
+            } action: { pinned = $0 }
     }
 
     private var row: some View {
         HStack(spacing: 6) {
-            Button(action: toggle) {
+            Button {
+                if pinned, let scrollID { scrollToHeader(scrollID) }
+                toggle()
+            } label: {
                 HStack(spacing: 4) {
                     Image(systemName: "chevron.right")
                         .font(.caption2.weight(.bold))

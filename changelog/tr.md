@@ -2,6 +2,20 @@
 
 Bu, `CHANGELOG.md` dosyasının Türkçe çevirisidir. Geçerli olan İngilizce sürümdür; burada yer almayan eski sürümler otomatik olarak İngilizce gösterilir.
 
+## 0.5.24-beta.9
+
+**Desteklenen PKG güncellemeleri, onaylanmış yardımcıyla doğrudan yüklenebilir.** Uygun uygulamalar otomatik olarak da güncellenebilir; yardımcıyı kullanamayan paketler macOS Yükleyici’de açılmaya devam eder.
+
+**Geçici indirme hatalarından kurtarma daha güvenilir.** Otomatik güncellemeler sunucunun belirttiği yeniden deneme sürelerine uyar ve uygun geçici hataları yeniden dener; ilgilenilmesi gereken hatalar, o sürümün otomatik güncellemelerini duraklatır.
+
+**Otomatik güncelleme seçenekleri daha anlaşılır.** Uygulama açıklamaları; kayıtlı seçimleri, varsayılanları ve önerileri birbirinden ayırır ve yalnızca uygulama kapalıyken güncellemeyi de açıklar.
+
+**QQ Music güncelleme denetimleri ve sürüm notları yeniden çalışıyor.**
+
+**VMPal’in boşta duran MCP bağlantıları artık güncellemeleri engellemiyor.** Çalışan sanal makineler yüklemeyi engellemeye devam eder.
+
+**Daha fazla komut satırı aracı yapılandırılmış sürüm notları gösteriyor.** Destek artık Azure CLI ve Codex’i, daha fazla Homebrew paketini, mise tarafından yönetilen Node’u ve rbenv tarafından yönetilen Ruby’yi içeriyor.
+
 ## 0.5.24-beta.8
 
 **İzin verdiğiniz çalışan uygulamalar artık boşta kalmayı beklemeden güncel tutulur.** DuoUpdater, güncellemeyi indirip doğruladıktan sonra Mac’i kullanıyor olsanız bile uygulamadan kapanmasını ister ve yeniden açar; kurulum rehberi de her uygulamanın otomatik güncelleme seçeneklerini daha açık anlatır.

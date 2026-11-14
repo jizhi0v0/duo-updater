@@ -5635,6 +5635,266 @@
         }
       }
     },
+    "TestFlight hasn’t confirmed this Mac’s latest installable beta build, so we can’t say whether it’s current": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TestFlight hat den neuesten auf diesem Mac installierbaren Beta-Build noch nicht bestätigt, daher können wir nicht sagen, ob er aktuell ist"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TestFlight aún no ha confirmado la última compilación beta instalable en este Mac, por lo que no podemos saber si está actualizada"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TestFlight n’a pas confirmé la dernière version bêta installable sur ce Mac ; nous ne pouvons donc pas dire si elle est à jour"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TestFlight non ha confermato l’ultima build beta installabile su questo Mac, quindi non possiamo dire se è aggiornata"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TestFlight がこの Mac にインストールできる最新ベータビルドを確認できていないため、最新かどうかは不明です"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O TestFlight ainda não confirmou a versão beta mais recente instalável neste Mac, então não podemos dizer se está atualizada"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TestFlight не подтвердил последнюю бета-сборку, доступную для установки на этот Mac, поэтому актуальность неизвестна"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TestFlight bu Mac’e yüklenebilen en son beta derlemesini doğrulamadığından güncel olup olmadığını söyleyemiyoruz"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TestFlight 尚未确认这台 Mac 可安装的最新测试构建，因此无法判断是否为最新版本"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TestFlight 尚未確認這台 Mac 可安裝的最新測試版本，因此無法判斷是否為最新版本"
+          }
+        }
+      }
+    },
+    "TestFlight hasn’t confirmed the latest beta build available for this Mac. Refreshing asks TestFlight to check.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TestFlight hat den neuesten für diesen Mac verfügbaren Beta-Build noch nicht bestätigt. Beim Aktualisieren wird TestFlight gebeten nachzusehen."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TestFlight aún no ha confirmado la última compilación beta disponible para este Mac. Al actualizar se le pide a TestFlight que lo compruebe."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TestFlight n’a pas confirmé la dernière version bêta disponible pour ce Mac. Actualiser demande à TestFlight de vérifier."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TestFlight non ha confermato l’ultima build beta disponibile per questo Mac. Ricaricando si chiede a TestFlight di controllare."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TestFlight がこの Mac で利用できる最新ベータビルドを確認できていません。更新すると TestFlight に確認を依頼します。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O TestFlight ainda não confirmou a versão beta mais recente disponível para este Mac. Atualizar pede ao TestFlight que verifique."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TestFlight не подтвердил последнюю бета-сборку, доступную для этого Mac. Обновление запросит проверку у TestFlight."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TestFlight bu Mac için kullanılabilir en son beta derlemesini doğrulamadı. Yenilemek, TestFlight’tan kontrol etmesini ister."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TestFlight 尚未确认这台 Mac 可用的最新测试构建。刷新会让 TestFlight 重新检查。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TestFlight 尚未確認這台 Mac 可用的最新測試版本。重新整理會請 TestFlight 再次檢查。"
+          }
+        }
+      }
+    },
+    "TestFlight’s latest beta build can’t be installed on this Mac — click for details": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der neueste TestFlight-Beta-Build lässt sich auf diesem Mac nicht installieren – für Details klicken"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La última compilación beta de TestFlight no se puede instalar en este Mac; haz clic para ver los detalles"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La dernière version bêta de TestFlight ne peut pas être installée sur ce Mac — cliquez pour en savoir plus"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "L’ultima build beta di TestFlight non può essere installata su questo Mac — fai clic per i dettagli"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TestFlight の最新ベータビルドはこの Mac にインストールできません — クリックして詳細を表示"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A versão beta mais recente do TestFlight não pode ser instalada neste Mac — clique para ver os detalhes"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Последнюю бета-сборку TestFlight нельзя установить на этот Mac — нажмите для подробностей"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TestFlight’ın en son beta derlemesi bu Mac’e yüklenemiyor — ayrıntılar için tıklayın"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TestFlight 的最新测试构建无法在这台 Mac 上安装，点按查看详情"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TestFlight 的最新測試版本無法在這台 Mac 上安裝，按一下查看詳情"
+          }
+        }
+      }
+    },
+    "TestFlight says this beta’s latest build isn’t compatible with this Mac.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Laut TestFlight ist der neueste Build dieser Beta nicht mit diesem Mac kompatibel."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Según TestFlight, la última compilación de esta beta no es compatible con este Mac."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Selon TestFlight, la dernière version de cette bêta n’est pas compatible avec ce Mac."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Secondo TestFlight, l’ultima build di questa beta non è compatibile con questo Mac."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TestFlight によると、このベータ版の最新ビルドはこの Mac と互換性がありません。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Segundo o TestFlight, a versão mais recente desta versão beta não é compatível com este Mac."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "По данным TestFlight, последняя сборка этой бета-версии несовместима с этим Mac."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TestFlight’a göre bu betanın en son derlemesi bu Mac ile uyumlu değil."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TestFlight 表明，此测试 App 的最新构建与这台 Mac 不兼容。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TestFlight 顯示，此測試 App 的最新版本與這台 Mac 不相容。"
+          }
+        }
+      }
+    },
     "TestFlight installs this app’s betas.": {
       "comment": "Help on the update source",
       "extractionState": "manual",
@@ -79000,136 +79260,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "TestFlight 檢查已關閉，因此 DuoUpdater 無法判斷這個 Beta 版是否為最新"
-          }
-        }
-      }
-    },
-    "TestFlight hasn’t told DuoUpdater this beta’s latest build yet. Refreshing asks TestFlight to check.": {
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "TestFlight hat DuoUpdater den neuesten Build dieser Beta noch nicht mitgeteilt. Beim Aktualisieren wird TestFlight gebeten nachzusehen."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "TestFlight aún no le ha indicado a DuoUpdater la compilación más reciente de esta beta. Al actualizar se le pide a TestFlight que lo compruebe."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "TestFlight n’a pas encore indiqué à DuoUpdater la dernière version de cette bêta. Actualiser demande à TestFlight de vérifier."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "TestFlight non ha ancora comunicato a DuoUpdater l’ultima build di questa beta. Ricaricando si chiede a TestFlight di controllare."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "TestFlight からこのベータ版の最新ビルドがまだ知らされていません。更新すると TestFlight に確認を依頼します。"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "O TestFlight ainda não informou ao DuoUpdater o build mais recente deste beta. Recarregar pede ao TestFlight que verifique."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "TestFlight ещё не сообщил DuoUpdater последнюю сборку этой бета-версии. Обновление попросит TestFlight проверить."
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "TestFlight bu betanın en son derlemesini DuoUpdater’a henüz bildirmedi. Yenilemek TestFlight’tan denetlemesini ister."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "TestFlight 尚未告知 DuoUpdater 此测试版的最新版本。刷新会请 TestFlight 检查。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "TestFlight 尚未告知 DuoUpdater 這個 Beta 版的最新版本。重新整理會請 TestFlight 檢查。"
-          }
-        }
-      }
-    },
-    "TestFlight hasn’t told us this beta’s latest build, so we can’t say whether it’s current": {
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "TestFlight hat uns den neuesten Build dieser Beta nicht mitgeteilt – daher können wir nicht sagen, ob sie aktuell ist"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "TestFlight no nos ha indicado la compilación más reciente de esta beta, así que no podemos saber si está al día"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "TestFlight ne nous a pas indiqué la dernière version de cette bêta : impossible de dire si elle est à jour"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "TestFlight non ci ha comunicato l’ultima build di questa beta, quindi non possiamo dire se è aggiornata"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "TestFlight からこのベータ版の最新ビルドが知らされていないため、最新かどうか判断できません"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "O TestFlight não nos informou o build mais recente deste beta, então não sabemos dizer se está atualizado"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "TestFlight не сообщил последнюю сборку этой бета-версии, поэтому нельзя сказать, актуальна ли она"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "TestFlight bu betanın en son derlemesini bize bildirmedi; bu yüzden güncel olup olmadığını söyleyemiyoruz"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "TestFlight 尚未提供此测试版的最新版本信息，因此无法判断它是否已是最新"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "TestFlight 尚未告知我們這個 Beta 版的最新版本，因此無法判斷它是否為最新"
           }
         }
       }

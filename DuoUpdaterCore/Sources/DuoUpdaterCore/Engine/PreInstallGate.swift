@@ -108,7 +108,7 @@ public enum PreInstallGate {
             return VersionComparator.isNewer(offered, than: confirmed)
                 ? .answerRegressed
                 : .alreadyCurrent
-        case .appStoreManaged, .toolboxManaged, .testFlightManaged:
+        case .appStoreManaged, .toolboxManaged, .testFlightManaged, .testFlightIncompatible:
             return .managedElsewhere
         case .error(let message):
             return .cannotConfirm(message)

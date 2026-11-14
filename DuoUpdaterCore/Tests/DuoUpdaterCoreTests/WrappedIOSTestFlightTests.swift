@@ -334,7 +334,7 @@ struct WrappedIOSTestFlightTests {
     /// build an actual SQLite file instead.
     private static func plantDatabase(
         _ rows: [(bundleID: String, short: String, build: String, platform: Int32, installed: Int32)],
-        in root: URL
+        in root: URL, withCompatibility: Bool = false
     ) throws -> URL {
         let url = root.appendingPathComponent("TestFlight.sqlite")
         var db: OpaquePointer?
@@ -352,7 +352,22 @@ struct WrappedIOSTestFlightTests {
                 """
             #expect(sqlite3_exec(db, sql, nil, nil, nil) == SQLITE_OK)
         }
+        if withCompatibility, let bundle = rows.first?.bundleID {
+            #expect(sqlite3_exec(db, """
+                ALTER TABLE ZTFAPPBUNDLEMODEL ADD COLUMN ZBUILDID INTEGER;
+                ALTER TABLE ZTFAPPBUNDLEMODEL ADD COLUMN ZAPP INTEGER DEFAULT 1;
+                UPDATE ZTFAPPBUNDLEMODEL SET ZBUILDID=500000+CAST(ZBUNDLEVERSION AS INTEGER);
+                CREATE TABLE ZTFAPPMODEL (Z_PK INTEGER,ZAPPID INTEGER,ZBUNDLEID TEXT,ZISTESTER INTEGER);
+                INSERT INTO ZTFAPPMODEL VALUES (1,42,'\(bundle)',1);
+                """, nil, nil, nil) == SQLITE_OK)
+        }
         return url
+    }
+
+    private static func compatibleBeta(version: String) -> TestFlightCompatibility {
+        TestFlightCompatibilityFixture.client(for: .init(
+            appID: 42, buildID: 500000 + Int64(version)!, bundleID: "com.jizhi0v0.claude-usage",
+            shortVersion: "0.3.384", version: version, platform: "ios"))
     }
 
     /// The schema as it was before `ZINSTALLSTATUSRAW` was read: no such column.
@@ -506,7 +521,7 @@ struct WrappedIOSTestFlightTests {
                  platform: 1, installed: 1),
                 (bundleID: "com.jizhi0v0.claude-usage", short: "0.3.384", build: "1301",
                  platform: 1, installed: 0),
-            ], in: root)
+            ], in: root, withCompatibility: true)
             return TestFlightInventory(databaseURL: db)
         }
         #expect(inventory.accessible, "fixture database was not opened")
@@ -517,7 +532,8 @@ struct WrappedIOSTestFlightTests {
             path: URL(fileURLWithPath: "/Applications/ClaudeUsageApp.app"),
             isMASApp: false, isiOSAppOnMac: true, isTestFlightApp: true,
             sparkleFeedURL: nil)
-        let result = await UpdateChecker(sources: [], testflight: inventory).check(app)
+        let result = await UpdateChecker(sources: [], testflight: inventory,
+                                         testFlightCompatibility: Self.compatibleBeta(version: "1301")).check(app)
 
         #expect(result.remote?.sourceName == "TestFlight")
         #expect(result.remote?.version == "1301")
@@ -690,7 +706,7 @@ struct WrappedIOSTestFlightTests {
                  platform: platform, installed: 1),
                 (bundleID: "com.jizhi0v0.claude-usage", short: "0.3.384", build: "1307",
                  platform: platform, installed: 0),
-            ], in: root)
+            ], in: root, withCompatibility: true)
             return TestFlightInventory(databaseURL: db)
         }
         #expect(inventory.accessible, "fixture database was not opened")
@@ -701,7 +717,8 @@ struct WrappedIOSTestFlightTests {
             path: URL(fileURLWithPath: "/Applications/ClaudeUsageApp.app"),
             isMASApp: false, isiOSAppOnMac: wrapped, isTestFlightApp: true,
             sparkleFeedURL: nil)
-        let result = await UpdateChecker(sources: [], testflight: inventory).check(app)
+        let result = await UpdateChecker(sources: [], testflight: inventory,
+                                         testFlightCompatibility: Self.compatibleBeta(version: "1307")).check(app)
 
         #expect(result.remote?.version == "1307")
         guard case .updateAvailable(let latest) = result.status else {

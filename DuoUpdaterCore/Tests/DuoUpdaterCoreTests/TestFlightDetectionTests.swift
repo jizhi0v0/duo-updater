@@ -118,4 +118,11 @@ struct TestFlightDetectionTests {
                 == .storeSilent)
         }
     }
+
+    @Test func incompatibleBuildsHaveTheirOwnMarkWithoutOverridingOffOrPermission() {
+        #expect(TestFlightUnboundedReason.storeSilent.forStatus(.testFlightIncompatible) == .incompatibleBuild)
+        #expect(TestFlightUnboundedReason.storeSilent.forStatus(.testFlightManaged) == .storeSilent)
+        #expect(TestFlightUnboundedReason.checkingOff.forStatus(.testFlightIncompatible) == .checkingOff)
+        #expect(TestFlightUnboundedReason.noFullDiskAccess.forStatus(.testFlightIncompatible) == .noFullDiskAccess)
+    }
 }

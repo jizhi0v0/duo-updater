@@ -124,6 +124,12 @@ without it — which starts TestFlight in the background for a few seconds
 A Mac that already had Full Disk Access when it first ran this version starts at
 *When I refresh*, everyone else at *Off*.
 
+Before offering a newer iPhone/iPad beta on a Mac, DuoUpdater queries TestFlight's
+API for that exact build's compatibility. A confirmed incompatible build gets
+a warning instead of an update. If compatibility cannot be read, the row stays
+unknown rather than offering an unconfirmed update. An older build's answer is
+never applied to a newer one. Native Mac betas keep their existing flow.
+
 It **respects each app's own update channel**:
 
 | Channel | Action |
@@ -352,6 +358,13 @@ outside our own container:
   offered to you right now, and keeps DuoUpdater from starting TestFlight in the
   background just to ask you to sign in. Nothing else is read from it — no Apple ID, no name,
   no identifier — and nothing read there leaves the Mac.
+- **TestFlight compatibility** — when TestFlight detection is on and a newer
+  iPhone/iPad beta is known, TestFlight's HTTP cache supplies its last cached account/session
+  and matching request headers. These are kept in memory and sent only to
+  `testflight.apple.com` to ask whether that exact build is compatible with this
+  Mac. Redirects are refused, and the request is not cached to disk or logged.
+  DuoUpdater does not sign in or renew the session; a missing or expired session
+  leaves compatibility unknown.
 
 Credentials you enter yourself (a GitHub token, an Alcove licence) are stored in
 the login Keychain as `AfterFirstUnlockThisDeviceOnly` — not synced, not in a
@@ -386,6 +399,8 @@ at needs it:
   the latest build. Only when TestFlight detection is on — with it *Off*, this
   read is not one of the three, and CotEditor and Open Screen Sharing are the
   only things left that want the permission.
+  Its HTTP cache is also read for the existing session used by the compatibility
+  check described above.
 - CotEditor's update channel, which that sandboxed app keeps in its container.
   Without it, CotEditor is checked against its stable releases even if you asked
   it for prereleases (a prerelease you already run is still recognized from its

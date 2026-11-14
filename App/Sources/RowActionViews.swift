@@ -638,6 +638,9 @@ struct WorkbenchRowAction: View {
     /// and what that mark explains (`TestFlightUnboundedReason`). An input for the
     /// same reason as `helperEnabled`.
     var testFlightUnboundedReason: TestFlightUnboundedReason = .storeSilent
+    private var testFlightReason: TestFlightUnboundedReason {
+        testFlightUnboundedReason.forStatus(result.status)
+    }
     /// The running install's Cancel as the rows draw it
     /// (`AppListModel.installRows`), nil when the row's stage is no install of
     /// ours — a rollback, a re-check. An input for the same reason as
@@ -883,13 +886,13 @@ struct WorkbenchRowAction: View {
                     .lineLimit(1).minimumScaleFactor(0.7)
             }
         }
-        .dimmedWhenOff(testFlightUnboundedReason)
+        .dimmedWhenOff(testFlightReason)
         .overlay(alignment: .bottomTrailing) {
-            TestFlightUnboundedMark(reason: testFlightUnboundedReason).offset(x: 4, y: 4)
+            TestFlightUnboundedMark(reason: testFlightReason).offset(x: 4, y: 4)
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("TestFlight")
-        .help(testFlightUnboundedReason.rowHelp)
+        .help(testFlightReason.rowHelp)
         // A tap, not a Button: see `TestFlightUnboundedMark` on why this mark stays
         // out of a borderless button.
         .contentShape(Rectangle())
@@ -898,7 +901,7 @@ struct WorkbenchRowAction: View {
         .accessibilityAction { showTestFlightTip = true }
         .popover(isPresented: $showTestFlightTip, arrowEdge: .bottom) {
             TestFlightUnboundedTip(
-                reason: testFlightUnboundedReason, grant: actions.grantFullDiskAccess,
+                reason: testFlightReason, grant: actions.grantFullDiskAccess,
                 openSetting: actions.openTestFlightSetting)
         }
     }
@@ -1194,8 +1197,9 @@ struct ProgressRing: View {
 /// surfaces, so the popover and the workbench cannot drift into two different
 /// marks for one state.
 ///
-/// Two symbols, because the row has two things to say and they are not the same
-/// thing. A question mark means *asked, and could not be told* — the store was
+/// The symbols distinguish an unknown answer, checking switched off, and a
+/// confirmed incompatible build (an orange warning).
+/// A question mark means *asked, and could not be told* — the store was
 /// read and had no answer, or the permission to read it is missing. With detection
 /// off nothing was asked at all, and a question mark there reads as a failure the
 /// user should go and fix, which is how someone ends up granting Full Disk Access
@@ -1217,10 +1221,18 @@ struct TestFlightUnboundedMark: View {
     var reason: TestFlightUnboundedReason = .storeSilent
 
     var body: some View {
-        Image(systemName: reason == .checkingOff ? "slash.circle.fill" : "questionmark.circle.fill")
+        Image(systemName: symbol)
             .font(.system(size: 9, weight: .bold))
-            .foregroundStyle(.secondary)
+            .foregroundStyle(reason == .incompatibleBuild ? Color.orange : Color.secondary)
             .background(Circle().fill(.background).padding(1))
+    }
+
+    private var symbol: String {
+        switch reason {
+        case .checkingOff: return "slash.circle.fill"
+        case .incompatibleBuild: return "exclamationmark.triangle.fill"
+        case .noFullDiskAccess, .storeSilent: return "questionmark.circle.fill"
+        }
     }
 }
 
@@ -1231,7 +1243,7 @@ extension View {
     ///
     /// Grayscale and half opacity: the same "this is switched off" idiom macOS uses
     /// for a disabled control, and a change big enough to read from across the row.
-    /// Deliberately not applied to the other two reasons — those rows ARE being
+    /// Deliberately not applied to the other reasons — those rows ARE being
     /// checked, and dimming them would say the opposite of what is true.
     @ViewBuilder func dimmedWhenOff(_ reason: TestFlightUnboundedReason) -> some View {
         if reason == .checkingOff {
@@ -1259,7 +1271,9 @@ extension TestFlightUnboundedReason {
         case .noFullDiskAccess:
             return String(localized: "DuoUpdater has no Full Disk Access to read the builds TestFlight offers you, so it can’t say whether this beta is current")
         case .storeSilent:
-            return String(localized: "TestFlight hasn’t told us this beta’s latest build, so we can’t say whether it’s current")
+            return String(localized: "TestFlight hasn’t confirmed this Mac’s latest installable beta build, so we can’t say whether it’s current")
+        case .incompatibleBuild:
+            return String(localized: "TestFlight’s latest beta build can’t be installed on this Mac — click for details")
         }
     }
 }
@@ -1270,7 +1284,7 @@ extension TestFlightUnboundedReason {
 /// A literal `Text` per case rather than a value built from parts, which could
 /// resolve to `String` and skip localization.
 ///
-/// Two of the three reasons carry a way out, and it is a different way out each
+/// The permission and checking-off reasons carry a way out, a different one each
 /// time: a missing permission is granted, a switched-off setting is switched on.
 /// Offering Grant… for the second would send the user to a permission that changes
 /// nothing while the setting is off. `storeSilent` gets no button because there is
@@ -1292,7 +1306,9 @@ struct TestFlightUnboundedTip: View {
                 case .noFullDiskAccess:
                     Text("Without Full Disk Access, DuoUpdater can’t read the builds TestFlight offers you, so it can’t say whether this beta is current.")
                 case .storeSilent:
-                    Text("TestFlight hasn’t told DuoUpdater this beta’s latest build yet. Refreshing asks TestFlight to check.")
+                    Text("TestFlight hasn’t confirmed the latest beta build available for this Mac. Refreshing asks TestFlight to check.")
+                case .incompatibleBuild:
+                    Text("TestFlight says this beta’s latest build isn’t compatible with this Mac.")
                 }
             }
             .font(.callout)

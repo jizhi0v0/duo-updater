@@ -327,13 +327,18 @@ public enum Check {
         var rows: [Row] = []
         let today = ProductSunsetCatalog.today()
         for result in results.sorted(by: { $0.app.name.localizedCaseInsensitiveCompare($1.app.name) == .orderedAscending }) {
+            let sourceName: String?
+            switch result.status {
+            case .testFlightManaged, .testFlightIncompatible: sourceName = "TestFlight"
+            default: sourceName = result.remote?.sourceName
+            }
             let hidden = settings.isHidden(result)
             if hidden && !options.includeHidden { continue }
             if !options.all && !Self.showsByDefault(result) { continue }
             if !options.sources.isEmpty {
                 // An app no source answered for has no source to match, so a
                 // `--source` filter excludes it rather than letting it through.
-                let source = result.remote?.sourceName.lowercased() ?? ""
+                let source = sourceName?.lowercased() ?? ""
                 guard options.sources.contains(source) else { continue }
             }
             rows.append(Row(
@@ -344,7 +349,7 @@ public enum Check {
                 installedBuild: Self.installedBuild(result),
                 latestVersion: result.remote?.displayVersion,
                 latestBuild: result.remote?.version,
-                source: result.remote?.sourceName,
+                source: sourceName,
                 status: result.heldBySubscription.map { "\(describe(result.status)) (\($0.logDescription))" }
                     ?? describe(result.status),
                 hasUpdate: result.hasUpdate,
@@ -596,6 +601,7 @@ public enum Check {
         case .appStoreManaged:             return "app-store"
         case .toolboxManaged:              return "toolbox"
         case .testFlightManaged:           return "testflight"
+        case .testFlightIncompatible:      return "testflight-incompatible"
         case .outsideOSWindow(let refusal): return "not-for-this-macos: \(refusal.logDescription)"
         case .error(let message):          return "error: \(message)"
         }

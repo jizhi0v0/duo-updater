@@ -3220,9 +3220,8 @@ final class AppListModel {
     /// changed while DuoUpdater runs: granted, they are read now instead of at the
     /// next refresh; revoked, they stop claiming what nothing can confirm.
     ///
-    /// Local only — TestFlight's store and Notification Center's, never the
-    /// network — so meeting the scheduler's tick costs a few milliseconds of
-    /// reading twice, not a second check.
+    /// Reads TestFlight's store and Notification Center's. A newer beta may also
+    /// ask TestFlight's API whether that exact build is compatible with this Mac.
     ///
     /// A round in flight is waited for only when it began on the other side of the
     /// change: it answers these rows from the old state, and its write-back would
@@ -3323,8 +3322,8 @@ final class AppListModel {
                 within: .seconds(2))
             : nil
         let signedIn: Bool? = mayRead ? await AppStoreSignIn.current() : nil
-        // No sources: a TestFlight app is answered from the store and returns before
-        // any source is asked (`UpdateChecker`'s TestFlight branch).
+        // No other update sources: the TestFlight branch owns its version and
+        // device-compatibility check without consulting the stable store track.
         let checker = UpdateChecker(
             sources: [],
             maxConcurrency: prefs.maxConcurrency,

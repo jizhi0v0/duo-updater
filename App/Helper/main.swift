@@ -29,10 +29,8 @@ import Foundation
 /// the stale copy goes away on its own, and the next install starts the current
 /// one.
 ///
-/// It cannot interrupt work: a connection stays open for the whole of an install
-/// — its reply doesn't arrive until `mas` has finished, which can be minutes — so
-/// a running install is a live connection and the count never reaches zero
-/// underneath it.
+/// Live connections keep the daemon up. Accepted package operations also hold
+/// it independently, so a client's death cannot trigger idle exit mid-install.
 enum IdleExit {
     /// Long enough that the several installs of one "Update All" share a single
     /// process, short enough that a replaced bundle heals within about a minute.
@@ -42,6 +40,7 @@ enum IdleExit {
     // Both are guarded by `lock` on every access, which is what makes the
     // `unsafe` opt-out honest: the compiler can't see the lock, we can.
     nonisolated(unsafe) private static var liveConnections = 0
+    nonisolated(unsafe) private static var livePackageWork = 0
     nonisolated(unsafe) private static var timer: DispatchSourceTimer?
 
     static func connectionOpened() {
@@ -54,14 +53,27 @@ enum IdleExit {
     static func connectionClosed() {
         lock.lock(); defer { lock.unlock() }
         liveConnections = max(0, liveConnections - 1)
-        if liveConnections == 0 { armLocked() }
+        if liveConnections == 0, livePackageWork == 0 { armLocked() }
+    }
+
+    static func packageWorkStarted() {
+        lock.lock(); defer { lock.unlock() }
+        livePackageWork += 1
+        timer?.cancel()
+        timer = nil
+    }
+
+    static func packageWorkFinished() {
+        lock.lock(); defer { lock.unlock() }
+        livePackageWork = max(0, livePackageWork - 1)
+        if liveConnections == 0, livePackageWork == 0 { armLocked() }
     }
 
     /// Armed at launch too: a helper launchd started but nobody ever talked to
     /// (a probe that failed its signature check, say) shouldn't linger either.
     static func arm() {
         lock.lock(); defer { lock.unlock() }
-        if liveConnections == 0 { armLocked() }
+        if liveConnections == 0, livePackageWork == 0 { armLocked() }
     }
 
     private static func armLocked() {
@@ -70,11 +82,9 @@ enum IdleExit {
         scheduled.schedule(deadline: .now() + window)
         scheduled.setEventHandler {
             lock.lock()
-            let stillIdle = liveConnections == 0
-            lock.unlock()
-            // A connection that arrived while the timer was in flight cancels the
-            // exit — re-check rather than trusting the schedule.
-            guard stillIdle else { return }
+            guard liveConnections == 0, livePackageWork == 0 else { lock.unlock(); return }
+            // Keep admission locked through exit: a newly accepted package
+            // cannot start between the idle decision and process termination.
             NSLog("duo-helper: idle for 60s — exiting so launchd starts a fresh copy on demand")
             exit(0)
         }
@@ -90,7 +100,8 @@ let listener = NSXPCListener(machServiceName: HelperService.machServiceName)
 let gate = HelperPeerGate.install(
     on: listener,
     interface: NSXPCInterface(with: MASHelperProtocol.self),
-    exportedObject: { HelperService(clientIdentity: $0) },
+    exportedObject: { HelperService(clientIdentity: $0,
+        packageWorkStarted: IdleExit.packageWorkStarted, packageWorkFinished: IdleExit.packageWorkFinished) },
     connectionOpened: { IdleExit.connectionOpened() },
     connectionClosed: { IdleExit.connectionClosed() })
 IdleExit.arm()

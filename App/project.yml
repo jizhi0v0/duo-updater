@@ -97,12 +97,14 @@ targets:
       # main.swift's top-level code stays out.
       - path: Helper/HelperPeerGate.swift
       - path: Helper/HelperService.swift
+      - path: Helper/HelperPackageInstall.swift
       # The helper's read of root's Sparkle staging, run against fixture trees,
       # and the app's side of that call, run against in-process listeners.
       # Foundation + Core only; the SMAppService connection stays in
       # PrivilegedHelperClient.swift.
       - path: Helper/StagedSparkleVersions.swift
       - path: Sources/HelperStagedVersionReader.swift
+      - path: Sources/HelperPackageRunner.swift
       - path: Sources/HelperProcessIdentityReader.swift
       - path: Shared/ProcessExecutablePath.swift
       # Whether the helper that answered may be handed an install. Foundation + Core.
@@ -247,8 +249,8 @@ targets:
       base:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         PRODUCT_BUNDLE_IDENTIFIER: com.duoupdater.app
-        MARKETING_VERSION: "0.5.24-beta.8"
-        CURRENT_PROJECT_VERSION: "149"
+        MARKETING_VERSION: "0.5.24-beta.9"
+        CURRENT_PROJECT_VERSION: "150"
         GENERATE_INFOPLIST_FILE: NO
         INFOPLIST_FILE: Info.plist
         # Info.plist's SUAllowsAutomaticUpdates. YES for every build made from
@@ -360,6 +362,31 @@ targets:
         Release:
           OTHER_CODE_SIGN_FLAGS: "--options runtime"
 
+  # Local verification only: exercises the same XPC client as the app, including
+  # malformed requests and a separately re-signed negative-control peer.
+  PackageHelperVerification:
+    type: tool
+    platform: macOS
+    sources:
+      - PackageHelperVerification
+      - path: Sources/HelperPackageRunner.swift
+      - path: Shared/MASHelperProtocol.swift
+      - path: Shared/OwnTeamIdentifier.swift
+    dependencies:
+      - package: DuoUpdaterCore
+        product: DuoUpdaterCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.duoupdater.app
+        SWIFT_VERSION: "6.0"
+        GENERATE_INFOPLIST_FILE: YES
+        CREATE_INFOPLIST_SECTION_IN_BINARY: YES
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGN_IDENTITY: "Developer ID Application"
+        DEVELOPMENT_TEAM: ${DUO_TEAM_ID}
+        ENABLE_HARDENED_RUNTIME: YES
+        CODE_SIGN_INJECT_BASE_ENTITLEMENTS: NO
+
   DuoUpdaterHelper:
     type: tool
     platform: macOS
@@ -369,14 +396,17 @@ targets:
         excludes:
           - "com.duoupdater.helper.plist"
       - Shared
+    dependencies:
+      - package: DuoUpdaterCore
+        product: DuoUpdaterCore
     settings:
       base:
         # Executable filename is the target name (DuoUpdaterHelper) — the daemon
         # plist's BundleProgram points at Contents/MacOS/DuoUpdaterHelper. The bundle
         # *identifier* (for signing / XPC pinning) is com.duoupdater.helper.
         PRODUCT_BUNDLE_IDENTIFIER: com.duoupdater.helper
-        MARKETING_VERSION: "0.5.24-beta.8"
-        CURRENT_PROJECT_VERSION: "149"
+        MARKETING_VERSION: "0.5.24-beta.9"
+        CURRENT_PROJECT_VERSION: "150"
         SWIFT_VERSION: "6.0"
         # Embed a generated Info.plist into the binary's __TEXT,__info_plist so the
         # helper has a bundle id/version (Bundle.main reads it) without a wrapper.

@@ -7,14 +7,14 @@
       "sweepsSinceComment" : 0
     },
     "install:github:AppFlowy-IO\/AppFlowy:stable" : {
-      "consecutiveActionable" : 29,
+      "consecutiveActionable" : 32,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 1812,
       "lastCommentedAt" : "2026-11-10T22:39:32Z",
       "lastSignature" : "identityChanged: Sparkle key none → Bs++",
       "previousSignature" : "identityChanged: Sparkle key none → Bs++",
-      "sweepsSinceComment" : 7
+      "sweepsSinceComment" : 10
     },
     "install:github:AprilNEA\/OpenLogi:stable" : {
       "closedAt" : "2026-10-19T11:23:39Z",
@@ -103,14 +103,14 @@
       "sweepsSinceComment" : 0
     },
     "install:github:MaddTheSane\/Simple-Comic:stable" : {
-      "consecutiveActionable" : 5,
+      "consecutiveActionable" : 8,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 1972,
       "lastCommentedAt" : "2026-11-12T04:21:45Z",
       "lastSignature" : "identityChanged: Sparkle key none → 2S+y",
       "previousSignature" : "identityChanged: Sparkle key none → 2S+y",
-      "sweepsSinceComment" : 3
+      "sweepsSinceComment" : 6
     },
     "install:github:MarcoEidinger\/SwiftPlantUML-Xcode-Extension:stable" : {
       "consecutiveActionable" : 0,
@@ -1083,14 +1083,14 @@
       "sweepsSinceComment" : 0
     },
     "install:github:schuyler\/macdown3000:stable" : {
-      "consecutiveActionable" : 30,
+      "consecutiveActionable" : 33,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 1799,
       "lastCommentedAt" : "2026-11-10T14:12:17Z",
       "lastSignature" : "identityChanged: Sparkle key none → dYc+",
       "previousSignature" : "identityChanged: Sparkle key none → dYc+",
-      "sweepsSinceComment" : 8
+      "sweepsSinceComment" : 11
     },
     "install:github:sheprd-labs\/sheprd:stable" : {
       "consecutiveActionable" : 0,
@@ -2430,5 +2430,5 @@
     }
   },
   "schemaVersion" : 1,
-  "updatedAt" : "2026-11-13T03:40:03Z"
+  "updatedAt" : "2026-11-14T03:38:06Z"
 }

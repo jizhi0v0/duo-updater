@@ -2,6 +2,20 @@
 
 Ceci est la traduction de `CHANGELOG.md`. La version anglaise fait autorité. Les versions non énumérées ici reviennent automatiquement à l’anglais.
 
+## 0.5.24-beta.9
+
+**Les mises à jour PKG prises en charge peuvent être installées directement avec l’utilitaire auxiliaire autorisé.** Les apps éligibles peuvent aussi être mises à jour automatiquement ; les paquets qui ne peuvent pas utiliser cet utilitaire ouvrent toujours le programme d’installation de macOS.
+
+**La récupération après une erreur temporaire de téléchargement est plus fiable.** Les mises à jour automatiques respectent les délais de nouvelle tentative du serveur et réessaient après les erreurs temporaires éligibles ; les erreurs nécessitant une intervention suspendent les mises à jour automatiques de cette version.
+
+**Les options de mise à jour automatique sont plus claires.** Les explications de chaque app distinguent les choix enregistrés, les valeurs par défaut et les suggestions, y compris les mises à jour uniquement lorsque l’app est fermée.
+
+**La recherche de mises à jour et les notes de version de QQ Music fonctionnent à nouveau.**
+
+**Les connexions MCP inactives de VMPal ne bloquent plus les mises à jour.** Les machines virtuelles en cours d’exécution empêchent toujours l’installation.
+
+**Davantage d’outils en ligne de commande affichent des notes de version structurées.** La prise en charge inclut désormais Azure CLI et Codex, d’autres paquets Homebrew, Node géré par mise et Ruby géré par rbenv.
+
 ## 0.5.24-beta.8
 
 **Les apps en cours d’exécution que vous avez autorisées restent à jour sans attendre une période d’inactivité.** Après le téléchargement et la vérification, DuoUpdater demande à l’app de quitter puis la rouvre, même pendant que vous utilisez le Mac ; le guide explique plus clairement les choix de mise à jour de chaque app.

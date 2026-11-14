@@ -131,6 +131,9 @@ private final class IdentityReads: @unchecked Sendable {
 }
 
 private final class ProcessPathHelper: NSObject, MASHelperProtocol, @unchecked Sendable {
+    func installPackage(package: FileHandle, fingerprint: Data, installedAppPath: String,
+                        bundleIdentifier: String, automatic: Bool, progress: FileHandle,
+                        withReply reply: @escaping (Int32, String?) -> Void) { reply(-1, "Fixture") }
     let version: String?
     let path: String?
     private let lock = NSLock()

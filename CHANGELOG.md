@@ -19,6 +19,20 @@ release note is debugging our code:
 
 Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
+## 0.5.24-beta.9
+
+**Supported PKG updates can install directly with the approved helper.** Eligible apps can also update automatically; packages that cannot use the helper still open macOS Installer.
+
+**Temporary download failures recover more reliably.** Automatic updates respect server retry times and retry eligible temporary failures, while failures that need attention pause that version.
+
+**Automatic-update choices are easier to understand.** Per-app explanations distinguish saved choices, defaults and suggestions, including updates only while an app is closed.
+
+**QQ Music update checks and release notes work again.**
+
+**Idle VMPal MCP connections no longer block updates.** Running virtual machines continue to prevent installation.
+
+**More command-line tools show structured release notes.** Support now includes Azure CLI and Codex, more Homebrew packages, Node managed by mise and Ruby managed by rbenv.
+
 ## 0.5.24-beta.8
 
 **Allowed running apps now stay up to date without waiting for idle time.** After downloading and verifying an update, DuoUpdater asks the app to quit and reopens it—even while you are using the Mac; the setup guide explains each app’s automatic-update choice more clearly.

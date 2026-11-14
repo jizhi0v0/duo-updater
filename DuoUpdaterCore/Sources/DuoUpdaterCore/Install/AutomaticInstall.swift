@@ -6,6 +6,9 @@ public enum AutomaticInstall {
     @TaskLocal public static var active = false
     @TaskLocal public static var diagnostic: (@Sendable (AutomaticProcessDiagnostic) -> Void)?
     @TaskLocal public static var permission: (@Sendable () async -> Bool)?
+    @TaskLocal static var packageProcesses: @Sendable () -> [NestedAppGuard.RunningProcess] = {
+        NestedAppGuard.liveProcesses(includeUninspectable: true)
+    }
 
     /// Synchronous policy read at the filesystem exchange, after staging and dispatch.
     @TaskLocal public static var commitPermission: (@Sendable () -> Bool)?
@@ -57,10 +60,10 @@ public enum AutomaticInstall {
     /// commit refuse, and the host reopens the app. A target that needs an
     /// administrator is deferred first: the swap would defer it after the quit.
     /// The swap's own checks (`preExchangeCheck`) then refuse whatever did not quit.
-    public static func quitPlannedApp(before target: URL) async throws {
+    public static func quitPlannedApp(before target: URL, usingPrivilegedPackage: Bool = false) async throws {
         guard active, let quit = quitBeforeApply, quit.pending else { return }
         try await checkPermission()
-        if InPlaceSwap.needsElevatedReplace(target: target) {
+        if !usingPrivilegedPackage, InPlaceSwap.needsElevatedReplace(target: target) {
             throw Deferred("Automatic update needs administrator authorization.")
         }
         AutomaticUpdateFailurePolicy.attempt?.beginSideEffects()
@@ -123,8 +126,23 @@ public enum AutomaticInstall {
         outcome == .saved
     }
 
-    public static func supports(_ route: InstallCoordinator.Route) -> Bool {
-        route == .vendor || route == .sparkle
+    public static func supports(_ route: InstallCoordinator.Route, packageInstallerAvailable: Bool = false) -> Bool {
+        route == .vendor || route == .sparkle || (route == .installer && packageInstallerAvailable)
+    }
+
+    /// Recheck after a package's planned quit, including in the root helper
+    /// immediately before vendor scripts may terminate processes themselves.
+    public static func checkPackageTarget(_ bundle: URL) async throws {
+        guard active else { return }
+        let readProcesses = packageProcesses
+        try await offCooperativePool {
+            let processes = readProcesses()
+            try checkProcesses(at: bundle, processes: processes, allowRunningApp: false)
+            if let refusal = NestedAppGuard.refusal(bundle, appName: bundle.deletingPathExtension().lastPathComponent,
+                                                    processes: { processes }) {
+                throw Deferred(refusal.localizedDescription)
+            }
+        }
     }
 
     public static func hasRunningProcess(

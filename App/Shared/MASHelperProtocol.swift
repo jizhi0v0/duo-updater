@@ -53,6 +53,16 @@ import Foundation
     /// Nil when either identity read disagrees, or the kernel cannot name it.
     func processExecutablePath(pid: Int32, startedSeconds: Int64, startedMicroseconds: Int32,
                                withReply reply: @escaping (String?) -> Void)
+
+    /// Revision 5. Descriptors, never caller-selected root input/output paths.
+    /// The helper pins a protected copy to fingerprint, verifies the installed
+    /// identity and package again, then invokes only /usr/sbin/installer.
+    /// Status: 0 completed; 77 declined before execution (manual fallback);
+    /// 75 temporarily deferred before execution; 1 failed (never replay).
+    func installPackage(package: FileHandle, fingerprint: Data,
+                        installedAppPath: String, bundleIdentifier: String,
+                        automatic: Bool, progress: FileHandle,
+                        withReply reply: @escaping (Int32, String?) -> Void)
 }
 
 /// What an installed helper can do, told to the app through `helperVersion`.
@@ -72,7 +82,10 @@ import Foundation
 /// sends it (revision 3).
 enum HelperProtocolRevision {
     /// This build's revision.
-    static let current = 4
+    static let current = 6
+    // Revision 5 had the method but derived vendor trust from a mutable app.
+    // Root package execution requires revision 6's compiled developer binding.
+    static let protectedPackageInstall = 6
     static let processExecutablePath = 4
     /// The first revision that implements `stagedSparkleBundleVersions`.
     static let stagedSparkleBundleVersions = 2
@@ -110,6 +123,10 @@ enum HelperProtocolRevision {
 
     static func supportsProcessExecutablePath(versionReply: String) -> Bool {
         revision(ofVersionReply: versionReply) >= processExecutablePath
+    }
+
+    static func supportsPackageInstall(versionReply: String) -> Bool {
+        revision(ofVersionReply: versionReply) >= protectedPackageInstall
     }
 
     /// The revision a `helperVersion` reply declares. 1 for a reply without

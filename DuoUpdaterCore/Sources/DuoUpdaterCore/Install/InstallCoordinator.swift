@@ -31,8 +31,8 @@ public actor InstallCoordinator {
     /// than chosen by the caller, so both hosts route identically.
     public enum Route: String, Sendable, CaseIterable {
         case homebrew
-        /// A `.pkg`: downloaded, then handed to the system installer, which the
-        /// user finishes. We never see it land.
+        /// A `.pkg`: executed by an approved host's helper, or handed to macOS
+        /// Installer when the host has no package executor.
         case installer
         case vendor
         case sparkle
@@ -74,8 +74,8 @@ public actor InstallCoordinator {
         /// finish, so the caller offers "Install" (re-open this exact file)
         /// rather than downloading it again.
         public let stagedPackageURL: URL?
-        /// Whether the new version is on disk now. False for `.installer`, where
-        /// the user still has a window to click through.
+        /// Whether installation completed. False for an interactive package
+        /// handoff; true after the host's package executor completes.
         public let applied: Bool
         /// True only when a Sparkle binary patch was actually applied. Merely
         /// publishing a matching patch is not enough: a failed delta route retries
@@ -490,7 +490,8 @@ public actor InstallCoordinator {
         brewPassword: SudoPasswordPrompt? = nil,
         progress: @Sendable @escaping (InstallStage) -> Void,
         releaseAfterDownload: @Sendable () async -> Void = {},
-        beforeInstallerOpen: @Sendable () async -> Void = {}
+        beforeInstallerOpen: @Sendable () async -> Void = {},
+        packageExecutor: PackageInstaller.Executor? = nil
     ) async throws -> Outcome {
         // The install path was silent end to end, which made "it said it updated
         // and nothing changed" impossible to answer after the fact — the only
@@ -498,7 +499,7 @@ public actor InstallCoordinator {
         // the report arrives hours later.
         if AutomaticInstall.active {
             try await AutomaticInstall.checkPermission()
-            guard AutomaticInstall.supports(route) else {
+            guard AutomaticInstall.supports(route, packageInstallerAvailable: packageExecutor != nil) else {
                 throw AutomaticInstall.Deferred("Automatic update requires an interactive installer.")
             }
             try await AutomaticInstall.checkAsync(result.app)
@@ -531,7 +532,8 @@ public actor InstallCoordinator {
                         spaceToApply: toApply,
                         progress: progress,
                         releaseAfterDownload: releaseAfterDownload,
-                        beforeInstallerOpen: beforeInstallerOpen)
+                        beforeInstallerOpen: beforeInstallerOpen,
+                        packageExecutor: packageExecutor)
                 }
             }
             // `applied` is the load-bearing bit: false means the bytes are staged
@@ -591,7 +593,8 @@ public actor InstallCoordinator {
         spaceToApply: Int64,
         progress: @Sendable @escaping (InstallStage) -> Void,
         releaseAfterDownload: @Sendable () async -> Void,
-        beforeInstallerOpen: @Sendable () async -> Void
+        beforeInstallerOpen: @Sendable () async -> Void,
+        packageExecutor: PackageInstaller.Executor?
     ) async throws -> Outcome {
         switch route {
         case .appStore:
@@ -625,12 +628,13 @@ public actor InstallCoordinator {
                     headers: result.remote?.downloadHeaders ?? [:],
                     onStage: progress,
                     verifyDownload: verifyDownload,
-                    beforeOpen: beforeInstallerOpen)
+                    beforeOpen: beforeInstallerOpen,
+                    executor: packageExecutor)
             }
             await releaseAfterDownload()
             return Outcome(
                 bytesDownloaded: opened.bytesDownloaded, finalHost: opened.finalHost,
-                stagedPackageURL: opened.packageURL, applied: false)
+                stagedPackageURL: opened.applied ? nil : opened.packageURL, applied: opened.applied)
 
         case .homebrew:
             guard let token = result.remote?.sourceIdentifier else {
@@ -803,7 +807,14 @@ public actor InstallCoordinator {
             if result.remote?.installTrust == .developerID,
                let expected = result.remote?.expectedSHA256 {
                 progress(.verifyingSignature)
-                try VendorInstaller.verifySHA256(file, expectedHex: expected)
+                let fingerprint = try PackageInstaller.contentFingerprint(of: file)
+                let hex = fingerprint.map { String(format: "%02x", $0) }.joined()
+                guard CLIToolTrust.matches(hex, published: expected) else {
+                    throw VendorInstaller.InstallError.checksumMismatch
+                }
+                // Pin the bytes that actually satisfied the source's proof,
+                // rather than starting a new seal after this check returns.
+                return fingerprint
             }
             return nil
         }

@@ -162,6 +162,7 @@ struct MiseToolsAdapterTests {
         // scan sees: the version set and the backend.
         let node = try #require(scan.items.first { $0.key == "node" })
         #expect(scan.states[node.identity]?.hasPrefix("core:node|20.10.0,20.20.2|") == true)
+        #expect(node.notes == .rawMarkdown(NodeChangelog.source(major: 20)))
         // No installs directory: nothing to list.
         host.directories[Self.installs] = nil
         #expect(await Self.adapter(host).scan() == .empty)
@@ -585,16 +586,17 @@ struct MiseToolsAdapterTests {
     }
 
     /// Where a row's notes are: the release mise names (jq's tags carry a
-    /// "jq-" prefix), a GitHub-shaped backend, an npm package's repository;
-    /// nothing for `core:node` or `asdf:` (a plugin's repository is not the
-    /// tool's). Mutation: read jq's tags without the prefix; take an asdf id
-    /// as the tool's repository.
+    /// "jq-" prefix), Node's own changelog, a GitHub-shaped backend, an npm
+    /// package's repository; nothing for `asdf:` (a plugin's repository is
+    /// not the tool's). Mutation: read jq's tags without the prefix; take
+    /// an asdf id as the tool's repository.
     @Test func notesComeFromTheReleaseOrTheBackend() async throws {
         let report = await Self.provider(try Self.standard()).check()
         #expect(Self.status(report, "jq@1.6")?.managedItem?.notes == .gitHubReleases(owner: "jqlang", repo: "jq", tagPrefix: "jq-"))
         #expect(Self.status(report, "npm:prettier@2.0.0")?.managedItem?.notes
             == .gitHubReleases(owner: "prettier", repo: "prettier", tagPrefix: ""))
-        #expect(Self.status(report, "node@20")?.managedItem?.notes == nil)
+        // The offered 20.x patch wins over the separate 26.x bump.
+        #expect(Self.status(report, "node@20")?.managedItem?.notes == .rawMarkdown(NodeChangelog.source(major: 20)))
 
         let none: (String) -> Data? = { _ in nil }
         #expect(MiseToolsAdapter.notes(releaseURL: nil, newest: nil, backend: "github:BurntSushi/ripgrep[exe=rg]",
@@ -611,6 +613,28 @@ struct MiseToolsAdapterTests {
         #expect(MiseToolsAdapter.gitHubRelease("https://github.com/cli/cli/releases/tag/v2.80.0", version: "2.80.0")
             == .gitHubReleases(owner: "cli", repo: "cli", tagPrefix: ""))
         #expect(MiseToolsAdapter.gitHubRelease("https://example.com/x/y/releases/tag/1.0", version: "1.0") == nil)
+    }
+
+    @Test func pinnedNodeNotesFollowTheBumpAndAnUnreadableCheckUsesTheInstalledMajor() async throws {
+        let host = try Self.standard()
+        host.respond(["ls", "--json"], with: Data(#"""
+            {"node": [{"version": "20.10.0", "requested_version": "20.10.0",
+              "install_path": "/ZZFixture-home/.local/share/mise/installs/node/20.10.0", "installed": true}]}
+            """#.utf8))
+        host.respond(["outdated", "--json"], with: Data("{}".utf8))
+        host.respond(["latest", "node@20.10.0"], with: Data("20.10.0\n".utf8))
+        let provider = Self.provider(host)
+
+        let pin = try #require(Self.status(await provider.check(), "node@20.10.0"))
+        #expect(pin.state == .pinned)
+        #expect(pin.latestVersion == "26.12.1")
+        #expect(pin.managedItem?.notes == .rawMarkdown(NodeChangelog.source(major: 26)))
+
+        host.respond(["outdated", "--json"], with: nil)
+        let offline = try #require(Self.status(await provider.check(), "node@20.10.0"))
+        #expect(offline.state == .unknown)
+        #expect(offline.managedItem?.notes == .rawMarkdown(NodeChangelog.source(major: 20)))
+        #expect(offline.releaseNotesKey != pin.releaseNotesKey)
     }
 
     /// The manager is registered, first of the managers and after every

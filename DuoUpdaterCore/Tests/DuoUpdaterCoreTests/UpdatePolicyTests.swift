@@ -17,11 +17,12 @@ private func fixtureApp(
     sparkleEdKey: String? = nil,
     sparkleFeedURL: URL? = nil,
     isiOSAppOnMac: Bool = false,
-    path: String = fixturePath
+    path: String = fixturePath,
+    bundleID: String = "com.example.fixture"
 ) -> InstalledApp {
     InstalledApp(
         name: "Fixture",
-        bundleID: "com.example.fixture",
+        bundleID: bundleID,
         shortVersion: "1.0",
         buildVersion: "1",
         path: URL(fileURLWithPath: path),
@@ -76,6 +77,24 @@ private func environment(
     InstallEnvironment(isHelperEnabled: helperEnabled, runningAppPaths: running,
                        stagedSelfUpdates: staged, elevationRequiredPaths: elevationRequired,
                        runningBundleIDs: runningIDs)
+}
+
+@Test func packageCapabilityEnablesPackagesButApprovalAloneDoesNot() {
+    let package = fixtureResult(source: "Vendor", requiresManualInstaller: true,
+        vendorInstallerKind: .pkg, app: fixtureApp(bundleID: "io.tailscale.ipn.macsys"))
+    var facts = environment(helperEnabled: true, elevationRequired: [fixturePath])
+    #expect(!UpdatePolicy.canAutoInstall(package, settings: defaultSettings(), environment: facts))
+    facts.packageInstallerAvailable = true
+    #expect(UpdatePolicy.canAutoInstall(package, settings: defaultSettings(), environment: facts))
+    #expect(!UpdatePolicy.requiresElevatedInstall(package, environment: facts))
+    #expect(UpdatePolicy.requiresInstaller(package, environment: facts))
+    let inputMethod = fixtureResult(source: "Vendor", requiresManualInstaller: true,
+        vendorInstallerKind: .pkg, app: fixtureApp(path: "/Library/Input Methods/Fixture.app",
+            bundleID: "io.tailscale.ipn.macsys"))
+    #expect(!UpdatePolicy.canAutoInstall(inputMethod, settings: defaultSettings(), environment: facts))
+    let unknown = fixtureResult(source: "Vendor", requiresManualInstaller: true, vendorInstallerKind: .pkg)
+    #expect(!UpdatePolicy.canAutoInstall(unknown, settings: defaultSettings(), environment: facts))
+    #expect(UpdatePolicy.requiresElevatedInstall(unknown, environment: facts))
 }
 
 private func staged(_ version: String) -> StagedSelfUpdate {

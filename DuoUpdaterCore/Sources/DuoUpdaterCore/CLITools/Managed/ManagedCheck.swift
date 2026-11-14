@@ -143,9 +143,14 @@ public enum ManagedCheck {
     }
 
     /// One document per (manager, item key): two roots with the same item read
-    /// the same notes.
+    /// the same notes. A mise Node request can switch between documents as its
+    /// selected version changes, including when the update check fails.
     public static func releaseNotesKey(_ item: ManagedItem) -> String {
-        "managed:\(item.manager.rawValue):\(item.key)"
+        let key = "managed:\(item.manager.rawValue):\(item.key)"
+        if item.manager == MiseToolsAdapter.id, case .rawMarkdown(let url) = item.notes {
+            return key + "|" + url.absoluteString
+        }
+        return key
     }
 
     /// What lies beyond the request when the row is current: `latestOverall`

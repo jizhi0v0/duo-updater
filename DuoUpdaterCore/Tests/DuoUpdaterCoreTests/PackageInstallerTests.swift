@@ -3,6 +3,31 @@ import Foundation
 @testable import DuoUpdaterCore
 
 struct PackageInstallerTests {
+    @Test func rootPackagesRequireAppleIssuedDeveloperIDRatherThanAChosenCertificateName() {
+        let apple = "Status: signed by a developer certificate issued by Apple for distribution"
+        let certificate = "1. Developer ID Installer: Example Corp (ABCDE12345)"
+        for status in ["Status: signed by a certificate trusted by Mac OS X",
+                       "Status: signed by untrusted certificate", "Status: signed Apple Software", "Status: unknown"] {
+            // A trusted/custom certificate can choose the same subject text and
+            // even print a later Status-looking line. The first policy result
+            // must still refuse root execution. Legacy handoff stays unchanged.
+            let output = "\(status)\nCertificate Chain:\n\(certificate)\n\(apple)"
+            #expect(!PackageInstaller.packageSignature(exitCode: 0, output: output,
+                requiringAppleDeveloperID: true).isValid)
+            #expect(PackageInstaller.packageSignature(exitCode: 0, output: output,
+                requiringAppleDeveloperID: false).isValid)
+        }
+        let valid = "\(apple)\nCertificate Chain:\n\(certificate)"
+        let signature = PackageInstaller.packageSignature(exitCode: 0, output: valid,
+            requiringAppleDeveloperID: true)
+        #expect(signature.isValid)
+        #expect(signature.teamIdentifier == "ABCDE12345")
+        #expect(!PackageInstaller.packageSignature(exitCode: 0, output: certificate,
+            requiringAppleDeveloperID: true).isValid)
+        #expect(!PackageInstaller.packageSignature(exitCode: 1, output: valid,
+            requiringAppleDeveloperID: true).isValid)
+    }
+
     @Test func parsesDeveloperIDInstallerTeamIdentifier() {
         let output = """
         Package "Example.pkg":

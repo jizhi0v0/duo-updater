@@ -53,6 +53,7 @@ enum DefinitionLines {
     static func items(
         names: [String], root: String, title: String, interpreters: [String],
         definitions: [String]?, knownBy: String?, global: String?, descriptor: ManagerDescriptor,
+        notes: (String) -> ManagedItem.NotesSource? = { _ in nil },
         exists: (String) -> Bool
     ) -> [ManagedItem] {
         var lines: [String: [Patch]] = [:]
@@ -73,7 +74,7 @@ enum DefinitionLines {
             return ManagedItem(
                 descriptor: descriptor, root: root, key: line, name: "\(title) \(line)", installPath: directory,
                 shape: .line, installed: interpreters.contains { exists(directory + "/" + $0) } ? newest.version : nil,
-                latestOverall: latest?[line]?.version, alsoInstalled: older,
+                latestOverall: latest?[line]?.version, alsoInstalled: older, notes: notes(line),
                 effects: [.compilesFromSource, .oldKept(for: nil)], facts: facts)
         }
     }

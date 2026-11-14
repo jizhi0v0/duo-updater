@@ -104,6 +104,8 @@ swift run --package-path application-test channel-verify "x1.9.9/Simple Comic.ap
 
 ## 历史与实测
 
+- 2026-11-14 VM 端到端：独立 macOS 27.2 VM 中，GitHub 直装版 1.11.0 → 1.12.0 一键安装成功，签名和新增公钥与基线一致；装后真实检查由 Sparkle 回答 1.12.0 / build 363。完整命令、原始结果与截图见 [验证记录](../../verify/recipe-broken-seven/README.md)。
+
 ### 2026-11-14 · Direct 构建加入 Sparkle（#1972）
 
 - 官方 1.12.0 release 与上游 PR #192（`https://github.com/MaddTheSane/Simple-Comic/pull/192`）说明 Direct target 添加 Sparkle；MAS target 不加，不能从 `App-Store-1.12.0` tag 前缀推断 zip 是商店构建。

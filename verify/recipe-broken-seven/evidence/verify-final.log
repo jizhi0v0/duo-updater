@@ -1,0 +1,15 @@
+
+  duo verify
+  3 vendor probes  4 GitHub rules  3 changelogs  0 App Store probes  0 Sparkle feeds  0 MyGo feeds  0 pkg architectures  3 changelog pages
+  ─────────────────────────────────────────────
+
+  ~ INFRA (transient by default — reported once persistent)
+      vendor:org.inkscape.Inkscape:stable — URLError -1001: The request timed out. (3 attempts)
+
+  ─────────────────────────────────────────────
+  vendor probe  ✓ 2  ⚠ 0  ✗ 0  ~ 1  - 0
+  GitHub rule   ✓ 4  ⚠ 0  ✗ 0  ~ 0  - 0
+  changelog     ✓ 3  ⚠ 0  ✗ 0  ~ 0  - 0
+  changelog gap ✓ 3  ⚠ 0  ✗ 0  ~ 0  - 0
+  total          ✓ 12  ⚠ 0  ✗ 0  ~ 1  - 0      69s
+  0 of 3 apps with a changelog page have no recipe and are listed in ChangelogCoverage.acknowledged (0 feasible, not written yet)

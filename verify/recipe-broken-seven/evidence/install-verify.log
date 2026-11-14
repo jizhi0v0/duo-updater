@@ -1,0 +1,21 @@
+
+  duo verify-install
+  7 installers  (0 skipped)  3 hosts at a time  full pass (--full)
+  ─────────────────────────────────────────────
+  ? vendor:org.inkscape.Inkscape:stable  13s
+      transport: URLError -1200: A TLS error caused the secure connection to fail.
+  ? vendor:eu.davidbures.cork:stable  16s
+      transport: URLError -1001: The request timed out.
+  ? github:schuyler/macdown3000:stable  19s
+      transport: URLError -1200: A TLS error caused the secure connection to fail.
+  ? vendor:MstyStudio:stable  11s
+      transport: URLError -1200: A TLS error caused the secure connection to fail.
+  ? github:AppFlowy-IO/AppFlowy:stable  9s
+      transport: URLError -1200: A TLS error caused the secure connection to fail.
+  ? github:MaddTheSane/Simple-Comic:stable  15s
+      transport: URLError -1200: A TLS error caused the secure connection to fail.
+  ✓ github:sheprd-labs/sheprd:stable  20261109.1  138.6 MB  38s  so.pen.herdr-gpui / VJAHQVZ96V
+
+  ─────────────────────────────────────────────
+  ok 1  warn 0  failed 0  unresolved 6  skipped 0
+  138.6 MB in 80s  lowest free disk 922578.3 MB

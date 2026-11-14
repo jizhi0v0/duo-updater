@@ -144,6 +144,8 @@ channel-verify 原始输出（2026-10-26，节选）:
 
 ## 历史与实测
 
+- 2026-11-14 VM 端到端：独立 macOS 27.2 VM 中，0.14.11 → 0.15.0 一键安装成功；签名、公钥与接受的基线一致，最终 GitHub 检查报已最新。完整命令、原始结果与截图见 [验证记录](../../verify/recipe-broken-seven/README.md)。
+
 ### 2026-11-14 · 0.15.0 恢复 Sparkle（#1812）
 
 - 官方 release `https://github.com/AppFlowy-IO/AppFlowy/releases/tag/0.15.0` 描述服务器允许时由用户触发 native update installation，且重新提供 macOS appcast。

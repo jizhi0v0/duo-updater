@@ -1,0 +1,14 @@
+
+  duo verify-install
+  6 installers  (0 skipped)  1 hosts at a time  full pass (--full)
+  ─────────────────────────────────────────────
+  ✓ github:schuyler/macdown3000:stable  3000.0.8  9.3 MB  5s  app.macdown.macdown3000 / EDUS6QCV5X
+  ✓ github:AppFlowy-IO/AppFlowy:stable  0.15.0  119.5 MB  30s  com.appflowy.appflowy.flutter / VHB67HRSZG
+  ✓ github:MaddTheSane/Simple-Comic:stable  1.12.0  16.1 MB  7s  com.ToWatchList.SimpleComic / 3D9SMH4RWM
+  ✓ vendor:eu.davidbures.cork:stable  2.1.2  9.5 MB  7s  eu.davidbures.cork / ZSVA6DVZHM
+  ✓ vendor:org.inkscape.Inkscape:stable  1.4.4  156.9 MB  45s  org.inkscape.Inkscape / SW3D6BB6A6
+  ✓ vendor:MstyStudio:stable  3.0.0  247.4 MB  31s  MstyStudio / S6CF5A8MX9
+
+  ─────────────────────────────────────────────
+  ok 6  warn 0  failed 0  unresolved 0  skipped 0
+  558.7 MB in 125s  lowest free disk 921734.7 MB

@@ -63,6 +63,8 @@ swift run --package-path application-test channel-verify Herdr-20261007.1-univer
 
 ## 历史与实测
 
+- 2026-11-14 VM 端到端：独立 macOS 27.2 VM 中，不运行与运行中两轮 20261103.1 → 20261109.1 一键安装成功；`duo restart` 从原 `/Applications/Herdr.app` 路径启动新的 `sheprd` 可执行文件，Bundle ID / Team 不变。完整命令、原始结果与截图见 [验证记录](../../verify/recipe-broken-seven/README.md)。
+
 - 2026-11-14（#1829）：旧 pattern 把新资产全跳过，生产诊断停在 20261103.1；官方 v20261109.1 的 dmg 为 `Sheprd-20261109.1-universal-apple-darwin.dmg`（138,571,691 B）。
   VM 解包 20261103.1 的 `Herdr.app` 和 20261109.1 的 `Sheprd.app`：二者 Bundle ID / signed identifier 均为 `so.pen.herdr-gpui`、Team `VJAHQVZ96V`、universal、最低 macOS 14.2；严格签名验证均通过，带 stapled notarization ticket。
 

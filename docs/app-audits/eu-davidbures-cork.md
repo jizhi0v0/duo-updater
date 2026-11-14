@@ -126,6 +126,8 @@ spctl -a -vv -t exec <Cork.app>
 
 ## 历史与实测
 
+- 2026-11-14 VM 端到端：独立 macOS 27.2 VM 中，2.1.1 → 2.1.2 一键安装成功；原生面板显示 2026-11-02 的四段首帖内容，未混入回复。完整命令、原始结果与截图见 [验证记录](../../verify/recipe-broken-seven/README.md)。
+
 ### 2026-11-14 · changelog 迁到论坛（#1533）
 
 - 旧 RSS 生产解析仍为 2.0.3 / 13 条，版本 probe 已为 2.1.2。旧 RSS 的 2.1.x 字面命中为 0，并有迁移公告 `https://blog.corkmac.app/p/changelogs-will-be-posted-to-the`。

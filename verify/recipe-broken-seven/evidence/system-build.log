@@ -1,0 +1,16 @@
+ProductName:		macOS
+ProductVersion:		27.2
+BuildVersion:		26B123
+arm64
+Sat Nov 14 15:00:16 UTC 2026
+CLI built-from source digest: 96f29a1c58d5b1809140e1581495e0e739a88d5f94c01df9f9ec0d98014b450f
+Identifier=com.duoupdater.cli
+Authority=Developer ID Application: BO LI (RS59HDH7Y3)
+Authority=Developer ID Certification Authority
+Authority=Apple Root CA
+TeamIdentifier=RS59HDH7Y3
+Identifier=com.duoupdater.app
+Authority=Developer ID Application: BO LI (RS59HDH7Y3)
+Authority=Developer ID Certification Authority
+Authority=Apple Root CA
+TeamIdentifier=RS59HDH7Y3

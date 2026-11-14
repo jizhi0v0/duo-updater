@@ -23,7 +23,7 @@
 ## 更新检测
 - 端点: `https://next-assets.msty.studio/app/latest/v3/mac/latest-mac.yml`。
 - v3 是官网公开的 stable 下载；旧 `/app/latest/mac/` 目录仍停在 v2，不能再用它表示当前 stable。
-- 2.x 与 3.x 共用 `MstyStudio` / Team `S6CF5A8MX9`；版本源与 zip 一起迁到 v3 目录，2 → 3 由通用主版本升级提示处理。
+- 2.x 与 3.x 共用 `MstyStudio` / Team `S6CF5A8MX9`；版本源与 zip 一起迁到 v3 目录。当前通用策略将 `Vendor` 源视为免许可边界提示的来源，因此 2 → 3 走普通更新路径；未新增或绕过确认规则。
 
 ## Changelog
 - `https://msty.ai/resources/changelog/studio/`，**已接 `ChangelogRecipe`（2026-10-10）**，正则只读稳定版：
@@ -53,8 +53,8 @@
   `Developer ID Application: Ashok Gelal (S6CF5A8MX9)`, spctl accepted / Notarized, arm64。
   新的 2.9.12 / 3.0.0 签名显示 CloudStack, LLC，Team 未变。
 - 生产路径实测: 签名闸 harness 报 `sha512 expected: aNSie9nHz5ybfhfC… actual: aNSie9nHz5ybfhfC…`
-  —— 即锚定摘要对真实字节成立 —— 随后 `✅ gate passed`。**未做**红→绿：
-  厂商只有 latest 路径，`app/2.9.7/…` 与 `app/2.9.6/…` 均 404，拿不到旧构建。
+  —— 即锚定摘要对真实字节成立 —— 随后 `✅ gate passed`。2026-08-29 当时未做红→绿：
+  厂商只有 latest 路径，`app/2.9.7/…` 与 `app/2.9.6/…` 均 404，拿不到旧构建。2026-11-14 已从仍保留的 v2 目录取得 2.9.12，并实测升级至 3.0.0，见下文。
 
 ## 已知问题
 - Bundle ID 为无点形式 `MstyStudio`，不得按产品名推导成反向域名。
@@ -65,6 +65,8 @@
 
 
 ## 历史与实测
+
+- 2026-11-14 VM 端到端：独立 macOS 27.2 VM 中，真实 2.9.12 副本经已安装 DuoUpdater 的普通 Update 按钮完成运行中升级和重启，磁盘 / 新进程 / 复查均为 3.0.0；34 条稳定版历史、3.0.0 的 15 条原生说明可见。完整命令、原始结果与截图见 [验证记录](../../verify/recipe-broken-seven/README.md)。
 
 ### 2026-11-14 · stable v3 端点迁移（#1849）
 

@@ -1,0 +1,137 @@
+{
+  "bytes" : 138571691,
+  "generatedAt" : "2026-11-14T14:46:31Z",
+  "hostConcurrency" : 3,
+  "items" : [
+    {
+      "bundleID" : "com.appflowy.appflowy.flutter",
+      "bytes" : 0,
+      "detail" : "transport: URLError -1200: A TLS error caused the secure connection to fail.",
+      "notes" : [
+
+      ],
+      "probeHost" : "api.github.com",
+      "recipeID" : "github:AppFlowy-IO\/AppFlowy:stable",
+      "registry" : "github",
+      "seconds" : 8.938354969024658,
+      "status" : "unresolved",
+      "warnings" : [
+
+      ]
+    },
+    {
+      "bundleID" : "com.ToWatchList.SimpleComic",
+      "bytes" : 0,
+      "detail" : "transport: URLError -1200: A TLS error caused the secure connection to fail.",
+      "notes" : [
+
+      ],
+      "probeHost" : "api.github.com",
+      "recipeID" : "github:MaddTheSane\/Simple-Comic:stable",
+      "registry" : "github",
+      "seconds" : 14.58714497089386,
+      "status" : "unresolved",
+      "warnings" : [
+
+      ]
+    },
+    {
+      "bundleID" : "app.macdown.macdown3000",
+      "bytes" : 0,
+      "detail" : "transport: URLError -1200: A TLS error caused the secure connection to fail.",
+      "notes" : [
+
+      ],
+      "probeHost" : "api.github.com",
+      "recipeID" : "github:schuyler\/macdown3000:stable",
+      "registry" : "github",
+      "seconds" : 18.536081075668335,
+      "status" : "unresolved",
+      "warnings" : [
+
+      ]
+    },
+    {
+      "bundleID" : "so.pen.herdr-gpui",
+      "bytes" : 138571691,
+      "finalHost" : "release-assets.githubusercontent.com",
+      "identity" : {
+        "architectures" : [
+          "arm64",
+          "x86_64"
+        ],
+        "bundleIdentifier" : "so.pen.herdr-gpui",
+        "bundleVersion" : "20261109.1",
+        "minimumSystemVersion" : "14.2",
+        "shortVersion" : "20261109.1",
+        "signedIdentifier" : "so.pen.herdr-gpui",
+        "teamIdentifier" : "VJAHQVZ96V"
+      },
+      "kind" : "dmg",
+      "notes" : [
+
+      ],
+      "probeHost" : "api.github.com",
+      "recipeID" : "github:sheprd-labs\/sheprd:stable",
+      "registry" : "github",
+      "seconds" : 38.006962060928345,
+      "status" : "ok",
+      "url" : "https:\/\/github.com\/sheprd-labs\/sheprd\/releases\/download\/v20261109.1\/Sheprd-20261109.1-universal-apple-darwin.dmg",
+      "urlSHA256" : "5136fc30ac0453bdbabdfbc6875b8779ec59bf7749bffc8a9b08f3735092f916",
+      "version" : "20261109.1",
+      "warnings" : [
+
+      ]
+    },
+    {
+      "bundleID" : "MstyStudio",
+      "bytes" : 0,
+      "detail" : "transport: URLError -1200: A TLS error caused the secure connection to fail.",
+      "notes" : [
+
+      ],
+      "probeHost" : "next-assets.msty.studio",
+      "recipeID" : "vendor:MstyStudio:stable",
+      "registry" : "vendor",
+      "seconds" : 11.023146986961365,
+      "status" : "unresolved",
+      "warnings" : [
+
+      ]
+    },
+    {
+      "bundleID" : "eu.davidbures.cork",
+      "bytes" : 0,
+      "detail" : "transport: URLError -1001: The request timed out.",
+      "notes" : [
+
+      ],
+      "probeHost" : "corkmac.app",
+      "recipeID" : "vendor:eu.davidbures.cork:stable",
+      "registry" : "vendor",
+      "seconds" : 15.902854084968567,
+      "status" : "unresolved",
+      "warnings" : [
+
+      ]
+    },
+    {
+      "bundleID" : "org.inkscape.Inkscape",
+      "bytes" : 0,
+      "detail" : "transport: URLError -1200: A TLS error caused the secure connection to fail.",
+      "notes" : [
+
+      ],
+      "probeHost" : "inkscape.org",
+      "recipeID" : "vendor:org.inkscape.Inkscape:stable",
+      "registry" : "vendor",
+      "seconds" : 13.217276930809021,
+      "status" : "unresolved",
+      "warnings" : [
+
+      ]
+    }
+  ],
+  "minimumFreeBytes" : 922578259968,
+  "seconds" : 80.07775795459747
+}

@@ -78,8 +78,7 @@ prerelease 轨是已知缺口。
 
 ## 已知问题
 - prerelease 轨（`-beta.N` / `-rc.N`）未接入。
-- Sparkle feed 上线后需复验：`feed-discover` 对带 `SUFeedURL` 的包应报 `declared`，且 stable
-  副本能匹配到 feed 里的条目（未验证）。
+- 3000.0.8 的 stable Sparkle 源已在真实副本上匹配到版本 / build；prerelease 的 feed channel 标记仍未验证。
 
 ## 如何复验
 ```
@@ -94,12 +93,13 @@ swift run --package-path application-test channel-verify MacDown-3000.0.6.dmg --
 ```
 
 ## 建议下一步
-1. `macdown.app/sparkle/macdown3000/stable/appcast.xml` 上线后跑 `feed-discover`，确认 Sparkle 源接手、
-   两源版本一致。
+1. stable 源接手已在 3000.0.8 真机检查中确认；若扩展 prerelease，另验其 feed channel 标记。
 2. prerelease 轨如需接入：rc/beta 与 stable 共享 bundle id，短版本号带 `-rc.N` / `-beta.N` 后缀，
    需先在真实 rc 包上确认 `ReleaseChannel.detect()` 的判定再加 rule。
 
 ## 历史与实测
+
+- 2026-11-14 VM 端到端：独立 macOS 27.2 VM 中，3000.0.7 → 3000.0.8 一键安装成功，签名和新增公钥与基线一致；装后真实检查由 Sparkle 回答 3000.0.8 / build 1476。完整命令、原始结果与截图见 [验证记录](../../verify/recipe-broken-seven/README.md)。
 
 ### 2026-11-14 · 3000.0.8 正式采用 Sparkle（#1799）
 

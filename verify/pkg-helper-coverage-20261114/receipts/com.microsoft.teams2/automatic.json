@@ -1,0 +1,14 @@
+{
+  "after" : "26289.204.5281.6363",
+  "afterBuild" : "26289.204.5281.6363",
+  "before" : "26289.204.5281.6363",
+  "beforeBuild" : "26289.204.5281.6363",
+  "beforeProductVersion" : "26289.204.5281.6363",
+  "bundleIdentifier" : "com.microsoft.teams2",
+  "date" : "2026-11-14T14:32:00Z",
+  "mode" : "automatic",
+  "physicalBundleIdentifier" : "com.microsoft.teams2",
+  "pid" : 51484,
+  "result" : "installed",
+  "uid" : 501
+}

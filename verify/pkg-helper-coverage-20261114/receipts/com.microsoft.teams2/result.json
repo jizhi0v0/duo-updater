@@ -1,0 +1,43 @@
+{
+  "name": "Teams",
+  "bundleID": "com.microsoft.teams2",
+  "startedAt": "2026-11-14T14:31:56.088835+00:00",
+  "initial": {
+    "CFBundleIdentifier": "com.microsoft.teams2",
+    "CFBundleShortVersionString": "26289.204.5281.6363",
+    "CFBundleVersion": "26289.204.5281.6363",
+    "CFBundleExecutable": "MSTeams"
+  },
+  "app": "/Applications/Microsoft Teams.app",
+  "before": {
+    "CFBundleIdentifier": "com.microsoft.teams2",
+    "CFBundleShortVersionString": "26289.204.5281.6363",
+    "CFBundleVersion": "26289.204.5281.6363",
+    "CFBundleExecutable": "MSTeams"
+  },
+  "beforeSignatureExit": 0,
+  "automaticExit": 0,
+  "automatic": {
+    "after": "26289.204.5281.6363",
+    "afterBuild": "26289.204.5281.6363",
+    "before": "26289.204.5281.6363",
+    "beforeBuild": "26289.204.5281.6363",
+    "beforeProductVersion": "26289.204.5281.6363",
+    "bundleIdentifier": "com.microsoft.teams2",
+    "date": "2026-11-14T14:32:00Z",
+    "mode": "automatic",
+    "physicalBundleIdentifier": "com.microsoft.teams2",
+    "pid": 51484,
+    "result": "installed",
+    "uid": 501
+  },
+  "after": {
+    "CFBundleIdentifier": "com.microsoft.teams2",
+    "CFBundleShortVersionString": "26289.204.5281.6363",
+    "CFBundleVersion": "26289.204.5281.6363",
+    "CFBundleExecutable": "MSTeams"
+  },
+  "afterSignatureExit": 0,
+  "status": "installed",
+  "finishedAt": "2026-11-14T14:32:46.590884+00:00"
+}

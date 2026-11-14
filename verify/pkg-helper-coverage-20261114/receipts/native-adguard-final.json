@@ -1,0 +1,14 @@
+{
+  "date": "2026-11-14T15:28:10.662658+00:00",
+  "client": "DuoUpdater native menu UI",
+  "action": "Click AdGuard row Update; observed Installing then Installed",
+  "beforeVersion": "2.19.0.2258",
+  "beforeBuild": "2258",
+  "afterVersion": "2.20.3",
+  "afterBuild": "2633",
+  "AGChannel": "release",
+  "strictSignatureExit": 0,
+  "installerUIOpened": false,
+  "passwordPromptShown": false,
+  "finalHelperBindings": 19
+}

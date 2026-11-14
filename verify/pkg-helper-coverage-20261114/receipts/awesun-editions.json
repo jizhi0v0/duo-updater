@@ -1,0 +1,172 @@
+{
+  "date": "2026-11-14",
+  "globalDownloadURL": "https://dw.oray.com/sl/mac/AweSun_16.6.0.32198_global_arm64.dmg",
+  "globalPage": "https://awesun.aweray.com/en/download",
+  "cnDownloadURL": "https://dw.oray.com/sl/mac/AweSun_16.6.0.32198_arm64.dmg",
+  "globalMetadata": {
+    "CFBundleIdentifier": "com.oray.sunlogin.macclient",
+    "CFBundleShortVersionString": "16.6.0",
+    "CFBundleVersion": "32198"
+  },
+  "globalStrictSignatureExit": 0,
+  "globalAppSignature": "Executable=/private/tmp/duo-pkg-coverage-tools/global-payload/Applications/AweSun.app/Contents/MacOS/AweSun\nIdentifier=com.oray.sunlogin.macclient\nFormat=app bundle with Mach-O thin (arm64)\nCodeDirectory v=20500 size=1351 flags=0x10000(runtime) hashes=31+7 location=embedded\nSignature size=9105\nTimestamp=Aug 11, 2026 at 10:40:39\u202fAM\nInfo.plist entries=29\nTeamIdentifier=ZBNMDRTU32\nRuntime Version=15.1.0\nSealed Resources version=2 rules=13 files=72\nInternal requirements count=1 size=220\n",
+  "installationDestination": "/Applications/AweSun.app",
+  "deletionTestExecuted": false,
+  "globalPackageSignature": "Package \"AweSun.pkg\":\n   Status: signed by a developer certificate issued by Apple for distribution\n   Notarization: trusted by the Apple notary service\n   Signed with a trusted timestamp on: 2026-08-11 02:42:47 +0000\n   Certificate Chain:\n    1. Developer ID Installer: Shanghai best oray information s&t co.,ltd (ZBNMDRTU32)\n       Expires: 2027-02-01 22:12:15 +0000\n       SHA256 Fingerprint:\n           1D 0A 0E 6B BB A9 74 52 9A 65 B6 F5 F7 A8 2E 30 8E 47 F4 9A EE 64 \n           FE 69 FF 7C EF 99 34 8D E3 C1\n       ------------------------------------------------------------------------\n    2. Developer ID Certification Authority\n       Expires: 2027-02-01 22:12:15 +0000\n       SHA256 Fingerprint:\n           7A FC 9D 01 A6 2F 03 A2 DE 96 37 93 6D 4A FE 68 09 0D 2D E1 8D 03 \n           F2 9C 88 CF B0 B1 BA 63 58 7F\n       ------------------------------------------------------------------------\n    3. Apple Root CA\n       Expires: 2035-02-09 21:40:36 +0000\n       SHA256 Fingerprint:\n           B0 B1 73 0E CB C7 FF 45 05 14 2C 49 F1 29 5E 6E DA 6B CA ED 7E 2C \n           68 C5 BE 91 B5 A1 10 01 F0 24\n\n",
+  "cnPreinstallRelevantLines": [
+    {
+      "line": 13,
+      "text": "CURRENT_OVERSEAS=0"
+    },
+    {
+      "line": 30,
+      "text": "if [ \"$CURRENT_OVERSEAS\" == 1 ]; then"
+    },
+    {
+      "line": 53,
+      "text": ""
+    },
+    {
+      "line": 54,
+      "text": "LOGGEDUSERS=`who | awk '/console/ { print $1 }'`"
+    },
+    {
+      "line": 55,
+      "text": "for CURRUSER in $LOGGEDUSERS"
+    },
+    {
+      "line": 56,
+      "text": "do"
+    },
+    {
+      "line": 57,
+      "text": "    su -l $CURRUSER -c 'launchctl unload /Library/LaunchAgents/com.oray.awesun.agent.plist'"
+    },
+    {
+      "line": 58,
+      "text": "    # su -l $CURRUSER -c 'launchctl load -w /Library/LaunchAgents/com.oray.awesun.agent.plist'"
+    },
+    {
+      "line": 59,
+      "text": "    if [ \"$CURRUSER\" = \"$CURRENT_USER\" ]; then"
+    },
+    {
+      "line": 60,
+      "text": "        USERDIR=\"/Users/${CURRUSER}/Library/Application Support\""
+    },
+    {
+      "line": 61,
+      "text": "        APP_USERDIR=\"$USERDIR/$APP_SAAS_NAME\""
+    },
+    {
+      "line": 62,
+      "text": "        if [ \"$IS_OVERSEAS\" != \"$CURRENT_OVERSEAS\" ]; then"
+    },
+    {
+      "line": 63,
+      "text": "            rm -rf \"$APP_USERDIR\""
+    },
+    {
+      "line": 64,
+      "text": "        else"
+    },
+    {
+      "line": 65,
+      "text": "            mv -f \"$APP_USERDIR\" \"$APP_USERDIR.bak\""
+    },
+    {
+      "line": 66,
+      "text": "            chmod 777 \"$APP_USERDIR.bak\""
+    },
+    {
+      "line": 67,
+      "text": "        fi"
+    },
+    {
+      "line": 68,
+      "text": "    fi"
+    },
+    {
+      "line": 69,
+      "text": "done"
+    }
+  ],
+  "globalPreinstallRelevantLines": [
+    {
+      "line": 13,
+      "text": "CURRENT_OVERSEAS=1"
+    },
+    {
+      "line": 30,
+      "text": "if [ \"$CURRENT_OVERSEAS\" == 1 ]; then"
+    },
+    {
+      "line": 53,
+      "text": ""
+    },
+    {
+      "line": 54,
+      "text": "LOGGEDUSERS=`who | awk '/console/ { print $1 }'`"
+    },
+    {
+      "line": 55,
+      "text": "for CURRUSER in $LOGGEDUSERS"
+    },
+    {
+      "line": 56,
+      "text": "do"
+    },
+    {
+      "line": 57,
+      "text": "    su -l $CURRUSER -c 'launchctl unload /Library/LaunchAgents/com.oray.awesun.agent.plist'"
+    },
+    {
+      "line": 58,
+      "text": "    # su -l $CURRUSER -c 'launchctl load -w /Library/LaunchAgents/com.oray.awesun.agent.plist'"
+    },
+    {
+      "line": 59,
+      "text": "    if [ \"$CURRUSER\" = \"$CURRENT_USER\" ]; then"
+    },
+    {
+      "line": 60,
+      "text": "        USERDIR=\"/Users/${CURRUSER}/Library/Application Support\""
+    },
+    {
+      "line": 61,
+      "text": "        APP_USERDIR=\"$USERDIR/$APP_SAAS_NAME\""
+    },
+    {
+      "line": 62,
+      "text": "        if [ \"$IS_OVERSEAS\" != \"$CURRENT_OVERSEAS\" ]; then"
+    },
+    {
+      "line": 63,
+      "text": "            rm -rf \"$APP_USERDIR\""
+    },
+    {
+      "line": 64,
+      "text": "        else"
+    },
+    {
+      "line": 65,
+      "text": "            mv -f \"$APP_USERDIR\" \"$APP_USERDIR.bak\""
+    },
+    {
+      "line": 66,
+      "text": "            chmod 777 \"$APP_USERDIR.bak\""
+    },
+    {
+      "line": 67,
+      "text": "        fi"
+    },
+    {
+      "line": 68,
+      "text": "    fi"
+    },
+    {
+      "line": 69,
+      "text": "done"
+    }
+  ]
+}

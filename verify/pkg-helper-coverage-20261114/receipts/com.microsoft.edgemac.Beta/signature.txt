@@ -1,0 +1,22 @@
+Package "new.pkg":
+   Status: signed by a developer certificate issued by Apple for distribution
+   Notarization: trusted by the Apple notary service
+   Signed with a trusted timestamp on: 2026-11-13 03:06:22 +0000
+   Certificate Chain:
+    1. Developer ID Installer: Microsoft Corporation (UBF8T346G9)
+       Expires: 2027-02-01 22:12:15 +0000
+       SHA256 Fingerprint:
+           64 5D 86 D2 DF 76 9E D7 04 CF B1 FA 1B 38 7F 78 69 DC 87 12 AB 4E
+           0F BC EB BC 29 64 D3 E9 A9 48
+       ------------------------------------------------------------------------
+    2. Developer ID Certification Authority
+       Expires: 2027-02-01 22:12:15 +0000
+       SHA256 Fingerprint:
+           7A FC 9D 01 A6 2F 03 A2 DE 96 37 93 6D 4A FE 68 09 0D 2D E1 8D 03
+           F2 9C 88 CF B0 B1 BA 63 58 7F
+       ------------------------------------------------------------------------
+    3. Apple Root CA
+       Expires: 2035-02-09 21:40:36 +0000
+       SHA256 Fingerprint:
+           B0 B1 73 0E CB C7 FF 45 05 14 2C 49 F1 29 5E 6E DA 6B CA ED 7E 2C
+           68 C5 BE 91 B5 A1 10 01 F0 24

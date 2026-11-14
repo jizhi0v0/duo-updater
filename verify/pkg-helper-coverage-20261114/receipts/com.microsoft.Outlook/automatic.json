@@ -1,0 +1,14 @@
+{
+  "after" : "16.115",
+  "afterBuild" : "16.115.26110837",
+  "before" : "16.115",
+  "beforeBuild" : "16.115.26110837",
+  "beforeProductVersion" : "16.115",
+  "bundleIdentifier" : "com.microsoft.Outlook",
+  "date" : "2026-11-14T14:04:18Z",
+  "mode" : "automatic",
+  "physicalBundleIdentifier" : "com.microsoft.Outlook",
+  "pid" : 42053,
+  "result" : "installed",
+  "uid" : 501
+}

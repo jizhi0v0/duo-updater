@@ -1,0 +1,47 @@
+{
+  "name": "Excel",
+  "bundleID": "com.microsoft.Excel",
+  "startedAt": "2026-11-14T13:49:54.266806+00:00",
+  "seedExit": 0,
+  "app": "/Applications/Microsoft Excel.app",
+  "before": {
+    "CFBundleIdentifier": "com.microsoft.Excel",
+    "CFBundleShortVersionString": "16.115",
+    "CFBundleVersion": "16.115.26110837",
+    "CFBundleExecutable": "Microsoft Excel"
+  },
+  "beforeSignatureExit": 0,
+  "automaticExit": 0,
+  "automatic": {
+    "after": "16.115",
+    "afterBuild": "16.115.26110837",
+    "before": "16.115",
+    "beforeBuild": "16.115.26110837",
+    "date": "2026-11-14T13:51:13Z",
+    "mode": "automatic",
+    "pid": 38329,
+    "result": "installed",
+    "uid": 501
+  },
+  "manualExit": 0,
+  "manual": {
+    "after": "16.115",
+    "afterBuild": "16.115.26110837",
+    "before": "16.115",
+    "beforeBuild": "16.115.26110837",
+    "date": "2026-11-14T13:54:10Z",
+    "mode": "manual",
+    "pid": 39587,
+    "result": "installed",
+    "uid": 501
+  },
+  "after": {
+    "CFBundleIdentifier": "com.microsoft.Excel",
+    "CFBundleShortVersionString": "16.115",
+    "CFBundleVersion": "16.115.26110837",
+    "CFBundleExecutable": "Microsoft Excel"
+  },
+  "afterSignatureExit": 0,
+  "status": "installed",
+  "finishedAt": "2026-11-14T13:56:41.145081+00:00"
+}

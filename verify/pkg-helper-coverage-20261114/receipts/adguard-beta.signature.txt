@@ -1,0 +1,22 @@
+Package "adguard-beta":
+   Status: signed by a developer certificate issued by Apple for distribution
+   Notarization: trusted by the Apple notary service
+   Signed with a trusted timestamp on: 2026-11-02 19:26:17 +0000
+   Certificate Chain:
+    1. Developer ID Installer: Adguard Software Limited (TC3Q7MAJXF)
+       Expires: 2029-04-13 11:30:49 +0000
+       SHA256 Fingerprint:
+           E4 17 8D 27 7B 52 82 D4 9A 50 91 33 76 48 18 B9 7A EF A7 9C AF 12
+           00 E4 98 DC 28 DA 16 12 10 F2
+       ------------------------------------------------------------------------
+    2. Developer ID Certification Authority
+       Expires: 2031-09-17 00:00:00 +0000
+       SHA256 Fingerprint:
+           F1 6C D3 C5 4C 7F 83 CE A4 BF 1A 3E 6A 08 19 C8 AA A8 E4 A1 52 8F
+           D1 44 71 5F 35 06 43 D2 DF 3A
+       ------------------------------------------------------------------------
+    3. Apple Root CA
+       Expires: 2035-02-09 21:40:36 +0000
+       SHA256 Fingerprint:
+           B0 B1 73 0E CB C7 FF 45 05 14 2C 49 F1 29 5E 6E DA 6B CA ED 7E 2C
+           68 C5 BE 91 B5 A1 10 01 F0 24

@@ -97,6 +97,19 @@ private func environment(
     #expect(UpdatePolicy.requiresElevatedInstall(unknown, environment: facts))
 }
 
+@Test(arguments: ["com.oray.sunlogin.macclient", "com.youqu.todesk.mac", "com.openai.chat"])
+func unapprovedPackagesRetainTheInteractiveInstaller(bundleID: String) {
+    let app = InstalledApp(name: "Unapproved PKG", bundleID: bundleID,
+        shortVersion: "16.6.0", buildVersion: "32198", path: URL(fileURLWithPath: fixturePath),
+        isMASApp: false, sparkleFeedURL: nil)
+    let package = fixtureResult(source: "Vendor", requiresManualInstaller: true,
+        vendorInstallerKind: .pkg, app: app)
+    var facts = environment(helperEnabled: true)
+    facts.packageInstallerAvailable = true
+    #expect(!UpdatePolicy.canAutoInstall(package, settings: defaultSettings(), environment: facts))
+    #expect(UpdatePolicy.requiresInstaller(package, environment: facts))
+}
+
 private func staged(_ version: String) -> StagedSelfUpdate {
     StagedSelfUpdate(version: version, buildVersion: nil, stagedBundlePath: URL(fileURLWithPath: "/tmp/staged.app"))
 }

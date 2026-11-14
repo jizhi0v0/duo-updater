@@ -1,0 +1,14 @@
+{
+  "after" : "157.0.4341.60",
+  "afterBuild" : "157.0.4341.60",
+  "before" : "157.0.4341.60",
+  "beforeBuild" : "157.0.4341.60",
+  "beforeProductVersion" : "157.0.4341.60",
+  "bundleIdentifier" : "com.microsoft.edgemac",
+  "date" : "2026-11-14T14:16:46Z",
+  "mode" : "automatic",
+  "physicalBundleIdentifier" : "com.microsoft.edgemac",
+  "pid" : 48437,
+  "result" : "installed",
+  "uid" : 501
+}

@@ -1,0 +1,14 @@
+{
+  "after" : "1.2610",
+  "afterBuild" : "1.2610.2101",
+  "before" : "1.2610",
+  "beforeBuild" : "1.2610.2101",
+  "beforeProductVersion" : "1.2610",
+  "bundleIdentifier" : "com.microsoft.m365copilot",
+  "date" : "2026-11-14T14:19:19Z",
+  "mode" : "automatic",
+  "physicalBundleIdentifier" : "com.microsoft.m365copilot",
+  "pid" : 49079,
+  "result" : "installed",
+  "uid" : 501
+}

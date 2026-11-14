@@ -1,0 +1,48 @@
+{
+  "name": "UU Remote",
+  "bundleID": "com.netease.uuremote",
+  "startedAt": "2026-11-14T13:47:38.879552+00:00",
+  "seedExit": 0,
+  "app": "/Applications/UURemote.app",
+  "before": {
+    "CFBundleIdentifier": "com.netease.uuremote",
+    "CFBundleShortVersionString": "4.47.0",
+    "CFBundleVersion": "631",
+    "CFBundleExecutable": "UURemote"
+  },
+  "beforeSignatureExit": 0,
+  "automaticExit": 1,
+  "automatic": {
+    "after": "4.47.0",
+    "afterBuild": "631",
+    "before": "4.47.0",
+    "beforeBuild": "631",
+    "date": "2026-11-14T13:47:48Z",
+    "error": "Automatic update deferred: the app is running.",
+    "mode": "automatic",
+    "pid": 36750,
+    "result": "refused",
+    "uid": 501
+  },
+  "manualExit": 0,
+  "manual": {
+    "after": "4.47.0",
+    "afterBuild": "631",
+    "before": "4.47.0",
+    "beforeBuild": "631",
+    "date": "2026-11-14T13:47:49Z",
+    "mode": "manual",
+    "pid": 36764,
+    "result": "installed",
+    "uid": 501
+  },
+  "after": {
+    "CFBundleIdentifier": "com.netease.uuremote",
+    "CFBundleShortVersionString": "4.47.0",
+    "CFBundleVersion": "631",
+    "CFBundleExecutable": "UURemote"
+  },
+  "afterSignatureExit": 0,
+  "status": "installed",
+  "finishedAt": "2026-11-14T13:48:00.063645+00:00"
+}

@@ -1,0 +1,38 @@
+{
+  "name": "WeChat DevTools",
+  "bundleID": "com.tencent.wechatdevtools",
+  "startedAt": "2026-11-14T14:01:36.801332+00:00",
+  "seedExit": 0,
+  "app": "/Applications/wechatwebdevtools.app",
+  "before": {
+    "CFBundleIdentifier": "com.github.Electron",
+    "CFBundleShortVersionString": "36.6.0",
+    "CFBundleVersion": "36.6.0",
+    "CFBundleExecutable": "Electron"
+  },
+  "beforeSignatureExit": 0,
+  "automaticExit": 0,
+  "automatic": {
+    "after": "36.6.0",
+    "afterBuild": "36.6.0",
+    "before": "36.6.0",
+    "beforeBuild": "36.6.0",
+    "beforeProductVersion": "2.02.2609250",
+    "bundleIdentifier": "com.tencent.wechatdevtools",
+    "date": "2026-11-14T14:01:52Z",
+    "mode": "automatic",
+    "physicalBundleIdentifier": "com.github.Electron",
+    "pid": 40985,
+    "result": "installed",
+    "uid": 501
+  },
+  "after": {
+    "CFBundleIdentifier": "com.github.Electron",
+    "CFBundleShortVersionString": "36.6.0",
+    "CFBundleVersion": "36.6.0",
+    "CFBundleExecutable": "Electron"
+  },
+  "afterSignatureExit": 0,
+  "status": "installed",
+  "finishedAt": "2026-11-14T14:02:18.239084+00:00"
+}

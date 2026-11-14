@@ -1,0 +1,11 @@
+{
+  "after" : "16.6.0",
+  "afterBuild" : "32198",
+  "before" : "16.6.0",
+  "beforeBuild" : "32198",
+  "date" : "2026-11-14T13:46:59Z",
+  "mode" : "manual",
+  "pid" : 36349,
+  "result" : "installed",
+  "uid" : 501
+}

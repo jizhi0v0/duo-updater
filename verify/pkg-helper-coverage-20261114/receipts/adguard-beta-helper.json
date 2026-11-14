@@ -1,0 +1,14 @@
+{
+  "after" : "2.20.3 RC 1",
+  "afterBuild" : "2634",
+  "before" : "2.20.3",
+  "beforeBuild" : "2633",
+  "beforeProductVersion" : "2.20.3",
+  "bundleIdentifier" : "com.adguard.mac.adguard",
+  "date" : "2026-11-14T14:40:09Z",
+  "mode" : "automatic",
+  "physicalBundleIdentifier" : "com.adguard.mac.adguard",
+  "pid" : 52020,
+  "result" : "installed",
+  "uid" : 501
+}

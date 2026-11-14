@@ -1,0 +1,15 @@
+{
+  "after" : "16.5.0",
+  "afterBuild" : "30905",
+  "before" : "16.5.0",
+  "beforeBuild" : "30905",
+  "beforeProductVersion" : "16.5.0",
+  "bundleIdentifier" : "com.oray.sunlogin.macclient",
+  "date" : "2026-11-14T14:59:34Z",
+  "error" : "Package installation failed: The downloaded app's code signature is invalid (OSStatus -67054).",
+  "mode" : "manual",
+  "physicalBundleIdentifier" : "com.oray.sunlogin.macclient",
+  "pid" : 52977,
+  "result" : "refused",
+  "uid" : 501
+}

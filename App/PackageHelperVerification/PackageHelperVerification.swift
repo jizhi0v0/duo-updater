@@ -11,6 +11,10 @@ import Foundation
         guard arguments.count >= 2 else { exit(64) }
         let mode = arguments[0]
         let output = URL(fileURLWithPath: arguments.last!)
+        if mode == "catalog" {
+            await catalog(to: output)
+            return
+        }
         let runner = HelperPackageRunner(connect: {
             guard let requirement = OwnTeamIdentifier.requirement(bundleIdentifier: "com.duoupdater.helper") else { return nil }
             let connection = NSXPCConnection(machServiceName: "com.duoupdater.helper", options: .privileged)
@@ -29,13 +33,17 @@ import Foundation
         let app = URL(fileURLWithPath: arguments[2])
         do {
             let info = try metadata(app)
-            guard let actualIdentifier = info["CFBundleIdentifier"] as? String else { exit(65) }
+            let selected = AppScanner().scan(bundlesAt: [app]).first
+            guard let actualIdentifier = selected?.bundleID ?? info["CFBundleIdentifier"] as? String else { exit(65) }
+            receipt["bundleIdentifier"] = actualIdentifier
+            receipt["physicalBundleIdentifier"] = info["CFBundleIdentifier"]
+            receipt["beforeProductVersion"] = selected?.shortVersion
             receipt["before"] = info["CFBundleShortVersionString"]
             receipt["beforeBuild"] = info["CFBundleVersion"]
             var fingerprint = Data(SHA256.hash(data: try Data(contentsOf: package)))
             if mode == "wrong-digest" { fingerprint[0] ^= 1 }
             let identifier = mode == "wrong-identity" ? actualIdentifier + ".wrong" : actualIdentifier
-            try await AutomaticInstall.$active.withValue(mode == "automatic-running") {
+            try await AutomaticInstall.$active.withValue(mode == "automatic" || mode == "automatic-running") {
                 try await runner.install(package: package, installedApp: app,
                     bundleIdentifier: identifier, fingerprint: fingerprint) { line in
                         try? FileHandle.standardOutput.write(contentsOf: Data("PROGRESS \(line)\n".utf8))
@@ -53,6 +61,44 @@ import Foundation
             emit(receipt, to: output)
             exit(1)
         }
+    }
+
+    private static func catalog(to output: URL) async {
+        var rows: [[String: Any]] = []
+        func row(_ bundleID: String, channel: String, remote: RemoteVersion?) -> [String: Any] {
+            var value: [String: Any] = ["bundleID": bundleID, "channel": channel]
+            value["pinnedTeam"] = PackageInstallTrust.teamIdentifier(for: bundleID)
+            value["version"] = remote?.version
+            value["shortVersion"] = remote?.shortVersion
+            value["url"] = remote?.downloadURL?.absoluteString
+            value["headers"] = remote?.downloadHeaders
+            value["edSignature"] = remote?.edSignature
+            value["source"] = remote?.sourceName
+            return value
+        }
+        let vendor = VendorProbeSource()
+        for recipe in VendorProbeRegistry.recipes where recipe.install?.kind == .pkg {
+            let outcome = await vendor.probeDiagnostic(recipe)
+            var value = row(recipe.bundleID, channel: recipe.channel.rawValue, remote: outcome.remote)
+            value["warnings"] = outcome.warnings.map(\.display)
+            value["resolved"] = outcome.succeeded
+            rows.append(value)
+        }
+        let github = GitHubReleasesSource()
+        for (id, name) in [("org.xquartz.X11", "XQuartz"),
+                           ("io.nekohasekai.screensharing", "OpenScreenSharing")] {
+            let app = InstalledApp(name: name, bundleID: id, shortVersion: "0", buildVersion: "0",
+                path: URL(fileURLWithPath: "/Applications/\(name).app"), isMASApp: false, sparkleFeedURL: nil)
+            let remote = try? await github.latestVersion(for: app)
+            rows.append(row(id, channel: "stable", remote: remote))
+        }
+        let adguard = InstalledApp(name: "Adguard", bundleID: "com.adguard.mac.adguard",
+            shortVersion: "0", buildVersion: "0",
+            path: URL(fileURLWithPath: "/Applications/Adguard.app"), isMASApp: false,
+            sparkleFeedURL: URL(string: "https://static.adtidy.org/mac/release/adguard-release-appcast.xml"))
+        let remote = try? await SparkleAppcastSource().latestVersion(for: adguard)
+        rows.append(row("com.adguard.mac.adguard", channel: "stable", remote: remote))
+        emit(["date": ISO8601DateFormatter().string(from: Date()), "packages": rows], to: output)
     }
 
     private static func metadata(_ app: URL) throws -> [String: Any] {

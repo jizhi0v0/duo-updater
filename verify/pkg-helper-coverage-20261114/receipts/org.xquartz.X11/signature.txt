@@ -1,0 +1,22 @@
+Package "new.pkg":
+   Status: signed by a developer certificate issued by Apple for distribution
+   Notarization: trusted by the Apple notary service
+   Signed with a trusted timestamp on: 2026-07-13 23:06:08 +0000
+   Certificate Chain:
+    1. Developer ID Installer: Apple Inc. - XQuartz (NA574AWV7E)
+       Expires: 2027-02-01 22:12:15 +0000
+       SHA256 Fingerprint:
+           8F 0E 65 96 A5 E8 97 9F ED FA 7C 58 8A 69 6E 76 95 90 7E DC 22 EE
+           94 BD B4 6F 74 7E 36 F7 C0 85
+       ------------------------------------------------------------------------
+    2. Developer ID Certification Authority
+       Expires: 2027-02-01 22:12:15 +0000
+       SHA256 Fingerprint:
+           7A FC 9D 01 A6 2F 03 A2 DE 96 37 93 6D 4A FE 68 09 0D 2D E1 8D 03
+           F2 9C 88 CF B0 B1 BA 63 58 7F
+       ------------------------------------------------------------------------
+    3. Apple Root CA
+       Expires: 2035-02-09 21:40:36 +0000
+       SHA256 Fingerprint:
+           B0 B1 73 0E CB C7 FF 45 05 14 2C 49 F1 29 5E 6E DA 6B CA ED 7E 2C
+           68 C5 BE 91 B5 A1 10 01 F0 24

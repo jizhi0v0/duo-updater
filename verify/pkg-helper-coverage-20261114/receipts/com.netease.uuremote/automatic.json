@@ -1,0 +1,12 @@
+{
+  "after" : "4.47.0",
+  "afterBuild" : "631",
+  "before" : "4.47.0",
+  "beforeBuild" : "631",
+  "date" : "2026-11-14T13:47:48Z",
+  "error" : "Automatic update deferred: the app is running.",
+  "mode" : "automatic",
+  "pid" : 36750,
+  "result" : "refused",
+  "uid" : 501
+}

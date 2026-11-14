@@ -4,6 +4,74 @@ import Foundation
 import Testing
 
 @Suite struct HelperPackageInstallTests {
+    @Test func anUnverifiableInstalledCopyRequiresInteractivePreflight() {
+        let reason = HelperPackageInstall.installedIdentityRefusal(
+            at: URL(fileURLWithPath: "/Applications/Fixture.app"), bundleIdentifier: "test.fixture",
+            validate: { _, _ in throw HelperPackageInstall.Failure.installedIdentity })
+        #expect(reason?.contains("macOS Installer") == true)
+    }
+
+    @Test func aVerifiedInstalledCopyHasNoInteractivePreflightRefusal() {
+        #expect(HelperPackageInstall.installedIdentityRefusal(
+            at: URL(fileURLWithPath: "/Applications/Fixture.app"), bundleIdentifier: "test.fixture",
+            validate: { _, _ in }) == nil)
+    }
+
+    @Test(arguments: ["com.github.Electron", "com.tencent.webplusdevtools"])
+    func weChatDevToolsUsesItsVerifiedProductIdentity(rawIdentifier: String) throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanUp() }
+        let app = try weChatApp(in: fixture.root, rawIdentifier: rawIdentifier)
+        try HelperPackageInstall.validateInstalledIdentity(at: app,
+            bundleIdentifier: "com.tencent.wechatdevtools", verifiedTeam: { _ in "FN2V63AD2J" })
+    }
+
+    @Test func anotherElectronProductCannotUseTheWeChatBinding() throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanUp() }
+        let app = try weChatApp(in: fixture.root, rawIdentifier: "com.github.Electron", product: "another-product")
+        #expect(throws: HelperPackageInstall.Failure.self) {
+            try HelperPackageInstall.validateInstalledIdentity(at: app,
+                bundleIdentifier: "com.tencent.wechatdevtools", verifiedTeam: { _ in "FN2V63AD2J" })
+        }
+    }
+
+    @Test func weChatProductMetadataCannotChangeTheTrustedDeveloper() throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanUp() }
+        let app = try weChatApp(in: fixture.root, rawIdentifier: "com.github.Electron")
+        #expect(throws: HelperPackageInstall.Failure.self) {
+            try HelperPackageInstall.validateInstalledIdentity(at: app,
+                bundleIdentifier: "com.tencent.wechatdevtools", verifiedTeam: { _ in "ATTACKER01" })
+        }
+    }
+
+    @Test func anUnknownPhysicalIdentifierCannotUseTheWeChatBinding() throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanUp() }
+        let app = try weChatApp(in: fixture.root, rawIdentifier: "com.tencent.another-product")
+        #expect(throws: HelperPackageInstall.Failure.self) {
+            try HelperPackageInstall.validateInstalledIdentity(at: app,
+                bundleIdentifier: "com.tencent.wechatdevtools", verifiedTeam: { _ in "FN2V63AD2J" })
+        }
+    }
+
+    private func weChatApp(in root: URL, rawIdentifier: String,
+                          product: String = "wechatwebdevtools") throws -> URL {
+        let app = root.appendingPathComponent("wechatwebdevtools.app")
+        let relative = rawIdentifier == "com.github.Electron"
+            ? "Contents/Resources/app.asar.unpacked" : "Contents/Resources/package.nw"
+        let resources = app.appendingPathComponent(relative)
+        try FileManager.default.createDirectory(at: resources, withIntermediateDirectories: true)
+        let plist = try PropertyListSerialization.data(fromPropertyList: ["CFBundleIdentifier": rawIdentifier],
+            format: .xml, options: 0)
+        try plist.write(to: app.appendingPathComponent("Contents/Info.plist"))
+        let json = try JSONSerialization.data(withJSONObject: ["appname": product,
+            "version": "2.02.2609250", "versionType": "0"])
+        try json.write(to: resources.appendingPathComponent("package.json"))
+        return app
+    }
+
     @Test func replacingTheInstalledAppWithAnAttackerSignedCopyCannotChangeVendorTrust() throws {
         let fixture = try Fixture()
         defer { fixture.cleanUp() }

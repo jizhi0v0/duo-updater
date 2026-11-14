@@ -1,0 +1,47 @@
+{
+  "name": "XQuartz",
+  "bundleID": "org.xquartz.X11",
+  "startedAt": "2026-11-14T13:48:12.124947+00:00",
+  "seedExit": 0,
+  "app": "/Applications/Utilities/XQuartz.app",
+  "before": {
+    "CFBundleIdentifier": "org.xquartz.X11",
+    "CFBundleShortVersionString": "2.8.6",
+    "CFBundleVersion": "2.8.67",
+    "CFBundleExecutable": "X11"
+  },
+  "beforeSignatureExit": 0,
+  "automaticExit": 0,
+  "automatic": {
+    "after": "2.8.6",
+    "afterBuild": "2.8.67",
+    "before": "2.8.6",
+    "beforeBuild": "2.8.67",
+    "date": "2026-11-14T13:48:33Z",
+    "mode": "automatic",
+    "pid": 37149,
+    "result": "installed",
+    "uid": 501
+  },
+  "manualExit": 0,
+  "manual": {
+    "after": "2.8.6",
+    "afterBuild": "2.8.67",
+    "before": "2.8.6",
+    "beforeBuild": "2.8.67",
+    "date": "2026-11-14T13:49:02Z",
+    "mode": "manual",
+    "pid": 37405,
+    "result": "installed",
+    "uid": 501
+  },
+  "after": {
+    "CFBundleIdentifier": "org.xquartz.X11",
+    "CFBundleShortVersionString": "2.8.6",
+    "CFBundleVersion": "2.8.67",
+    "CFBundleExecutable": "X11"
+  },
+  "afterSignatureExit": 0,
+  "status": "installed",
+  "finishedAt": "2026-11-14T13:49:54.264738+00:00"
+}

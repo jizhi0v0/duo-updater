@@ -160,3 +160,16 @@ swift run --package-path application-test channel-verify /Applications/wechatweb
 NOT the old `servicewechat.com/wxa-dev-logic/download_redirect?…&
 version_type=N` endpoint: measured 2026-08-18, it ignores `version_type`
 entirely and 302s all three values to the same Stable dmg.
+
+## PKG helper 专项验证（2026-11-14）
+
+VM 实装 2.02.2609250 后，磁盘身份为 `com.github.Electron` / `36.6.0`。
+原 helper 拒绝 scanner 归一化后的 `com.tencent.wechatdevtools` 请求；修复后同包
+同副本通过真实 XPC/root helper 安装及完整签名检查。身份别名只允许两个已知
+物理 ID、签名覆盖的 WeChat 产品标记和 Tencent Team `FN2V63AD2J` 的组合。
+
+修改受签名保护的 `package.json` 后 helper 拒绝，恢复原字节后严格校验恢复。
+本轮只实装 stable 2.02；旧 2.01 的别名有单元测试，RC/nightly 未在本轮安装。
+上文「2.02 未取到安装副本」是旧验证状态，现已由本记录更新。
+
+[原始 A/B、拒绝凭据与限制](../../verify/pkg-helper-coverage-20261114/README.md)。

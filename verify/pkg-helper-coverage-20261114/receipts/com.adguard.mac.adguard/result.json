@@ -1,0 +1,47 @@
+{
+  "name": "AdGuard",
+  "bundleID": "com.adguard.mac.adguard",
+  "startedAt": "2026-11-14T13:46:03.501648+00:00",
+  "seedExit": 0,
+  "app": "/Applications/Adguard.app",
+  "before": {
+    "CFBundleIdentifier": "com.adguard.mac.adguard",
+    "CFBundleShortVersionString": "2.20.3",
+    "CFBundleVersion": "2633",
+    "CFBundleExecutable": "Adguard"
+  },
+  "beforeSignatureExit": 0,
+  "automaticExit": 0,
+  "automatic": {
+    "after": "2.20.3",
+    "afterBuild": "2633",
+    "before": "2.20.3",
+    "beforeBuild": "2633",
+    "date": "2026-11-14T13:46:12Z",
+    "mode": "automatic",
+    "pid": 36064,
+    "result": "installed",
+    "uid": 501
+  },
+  "manualExit": 0,
+  "manual": {
+    "after": "2.20.3",
+    "afterBuild": "2633",
+    "before": "2.20.3",
+    "beforeBuild": "2633",
+    "date": "2026-11-14T13:46:24Z",
+    "mode": "manual",
+    "pid": 36109,
+    "result": "installed",
+    "uid": 501
+  },
+  "after": {
+    "CFBundleIdentifier": "com.adguard.mac.adguard",
+    "CFBundleShortVersionString": "2.20.3",
+    "CFBundleVersion": "2633",
+    "CFBundleExecutable": "Adguard"
+  },
+  "afterSignatureExit": 0,
+  "status": "installed",
+  "finishedAt": "2026-11-14T13:46:34.492066+00:00"
+}

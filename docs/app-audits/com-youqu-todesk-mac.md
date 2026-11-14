@@ -67,3 +67,14 @@ Notion and Figma changelogs were just moved away from.
 改写 2026-09-15：上面这一段有一处本机状态措辞（安装路径与那台机器的记录来源），按本目录的机器状态规则改成了针对那份拷贝的说法；版本、日期、字节数与结论不变。
 
 **baseline**：`verify/baseline.json` 的 `vendor:com.youqu.todesk.mac:stable` 从 `5.1.0.0` 改成 `4.10.1.0`。不改的话下一轮巡检报「version went BACKWARDS」，而 `Baseline.reconcile` 拒绝记下更低的值，警告会每轮重复（同 #622 对 Raycast 的处理）。
+
+## PKG helper 专项验证（2026-11-14，非完整审计）
+
+当前正式版 5.3.1.0 的官方 PKG 通过签名及公证检查（`KM56KD59W4`）。VM 中
+旧官方 5.1.0.0 安装成功后，副本严格资源签名校验失败（-67054）；实验 helper
+在执行安装前拒绝，版本未变。仅补 Team 白名单不能解决这项限制。
+
+本轮**不加入 helper 白名单**，保留系统 Installer。安装脚本会在 app 内创建
+可写日志/缓存等目录；未据此宣称存在已验证的漏洞，也未放宽资源签名检查。
+
+[凭据与限制](../../verify/pkg-helper-coverage-20261114/README.md)。

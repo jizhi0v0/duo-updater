@@ -1,0 +1,38 @@
+{
+  "name": "Outlook",
+  "bundleID": "com.microsoft.Outlook",
+  "startedAt": "2026-11-14T14:02:55.619938+00:00",
+  "seedExit": 0,
+  "app": "/Applications/Microsoft Outlook.app",
+  "before": {
+    "CFBundleIdentifier": "com.microsoft.Outlook",
+    "CFBundleShortVersionString": "16.115",
+    "CFBundleVersion": "16.115.26110837",
+    "CFBundleExecutable": "Microsoft Outlook"
+  },
+  "beforeSignatureExit": 0,
+  "automaticExit": 0,
+  "automatic": {
+    "after": "16.115",
+    "afterBuild": "16.115.26110837",
+    "before": "16.115",
+    "beforeBuild": "16.115.26110837",
+    "beforeProductVersion": "16.115",
+    "bundleIdentifier": "com.microsoft.Outlook",
+    "date": "2026-11-14T14:04:18Z",
+    "mode": "automatic",
+    "physicalBundleIdentifier": "com.microsoft.Outlook",
+    "pid": 42053,
+    "result": "installed",
+    "uid": 501
+  },
+  "after": {
+    "CFBundleIdentifier": "com.microsoft.Outlook",
+    "CFBundleShortVersionString": "16.115",
+    "CFBundleVersion": "16.115.26110837",
+    "CFBundleExecutable": "Microsoft Outlook"
+  },
+  "afterSignatureExit": 0,
+  "status": "installed",
+  "finishedAt": "2026-11-14T14:06:54.572039+00:00"
+}

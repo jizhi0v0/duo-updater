@@ -1,0 +1,14 @@
+{
+  "after" : "2.21 Nightly 2",
+  "afterBuild" : "2635",
+  "before" : "2.20.3 RC 1",
+  "beforeBuild" : "2634",
+  "beforeProductVersion" : "2.20.3 RC 1",
+  "bundleIdentifier" : "com.adguard.mac.adguard",
+  "date" : "2026-11-14T14:40:30Z",
+  "mode" : "automatic",
+  "physicalBundleIdentifier" : "com.adguard.mac.adguard",
+  "pid" : 52079,
+  "result" : "installed",
+  "uid" : 501
+}

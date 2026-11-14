@@ -1,0 +1,54 @@
+{
+  "name": "Tailscale",
+  "bundleID": "io.tailscale.ipn.macsys",
+  "startedAt": "2026-11-14T13:47:23.419205+00:00",
+  "initial": {
+    "CFBundleIdentifier": "io.tailscale.ipn.macsys",
+    "CFBundleShortVersionString": "1.104.7",
+    "CFBundleVersion": "101.104.7",
+    "CFBundleExecutable": "Tailscale"
+  },
+  "app": "/Applications/Tailscale.app",
+  "before": {
+    "CFBundleIdentifier": "io.tailscale.ipn.macsys",
+    "CFBundleShortVersionString": "1.104.6",
+    "CFBundleVersion": "101.104.6",
+    "CFBundleExecutable": "Tailscale"
+  },
+  "oldSeedExit": 0,
+  "beforeSignatureExit": 0,
+  "automaticExit": 1,
+  "automatic": {
+    "after": "1.104.6",
+    "afterBuild": "101.104.6",
+    "before": "1.104.6",
+    "beforeBuild": "101.104.6",
+    "date": "2026-11-14T13:47:31Z",
+    "error": "Automatic update deferred: the app is running.",
+    "mode": "automatic",
+    "pid": 36614,
+    "result": "refused",
+    "uid": 501
+  },
+  "manualExit": 0,
+  "manual": {
+    "after": "1.104.7",
+    "afterBuild": "101.104.7",
+    "before": "1.104.6",
+    "beforeBuild": "101.104.6",
+    "date": "2026-11-14T13:47:32Z",
+    "mode": "manual",
+    "pid": 36624,
+    "result": "installed",
+    "uid": 501
+  },
+  "after": {
+    "CFBundleIdentifier": "io.tailscale.ipn.macsys",
+    "CFBundleShortVersionString": "1.104.7",
+    "CFBundleVersion": "101.104.7",
+    "CFBundleExecutable": "Tailscale"
+  },
+  "afterSignatureExit": 0,
+  "status": "installed",
+  "finishedAt": "2026-11-14T13:47:38.878385+00:00"
+}

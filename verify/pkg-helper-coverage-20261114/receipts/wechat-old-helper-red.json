@@ -1,0 +1,15 @@
+{
+  "after" : "36.6.0",
+  "afterBuild" : "36.6.0",
+  "before" : "36.6.0",
+  "beforeBuild" : "36.6.0",
+  "beforeProductVersion" : "2.02.2609250",
+  "bundleIdentifier" : "com.tencent.wechatdevtools",
+  "date" : "2026-11-14T14:39:26Z",
+  "error" : "Package installation failed: The installed app no longer matches the selected copy.",
+  "mode" : "manual",
+  "physicalBundleIdentifier" : "com.github.Electron",
+  "pid" : 51957,
+  "result" : "refused",
+  "uid" : 501
+}

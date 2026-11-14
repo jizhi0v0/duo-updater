@@ -1,0 +1,35 @@
+{
+  "date": "2026-11-14",
+  "sourceBase": "6070ece11b2e60291ec84765c6199c6cdac25b6a",
+  "branch": "feat/pkg-helper-vm-coverage",
+  "appTests": "364 of 364 declared cases executed; passed",
+  "coreTests": "7455 tests / 658 suites, one known issue; passed excluding installPipelineDryRun",
+  "excludedLiveFailure": "Earlier make test installPipelineDryRun rejected Kuvo 0.7.2: installed run.kuvo.app vs downloaded run.kuvo.code",
+  "focusedPolicy": "3 unapproved identities passed",
+  "signedBuild": "Release Developer ID build passed; strict signed bundle validation passed",
+  "nativeAppUpgrade": "AdGuard 2.19.0.2258 to 2.20.3/2633; installed; no Installer UI/password prompt",
+  "rootClientUID": 501,
+  "vm": "00E0B475-F153-4E85-A7A4-0D6917EE1454",
+  "helperBindings": 19,
+  "hostAppDeployed": false,
+  "releasePublished": false,
+  "testsLogExcerpts": {
+    "core": [
+      "\u2714 Test aCancelledDMGExtractionUnmountsOnBothExits(tool:) with 2 test cases passed after 33.174 seconds.",
+      "\u2714 Test aTwoVolumeImageFallsBackToHdiutilUnderDiskutil() passed after 35.149 seconds.",
+      "\u2714 Suite InstallChildProcessTests passed after 35.179 seconds.",
+      "\u2714 Test postmanZipPlanResolvesOfficialBuild() passed after 53.550 seconds.",
+      "\u2501 Test run with 7455 tests in 658 suites passed after 54.169 seconds with 1 known issue."
+    ],
+    "app": [
+      "\u2713 App tests \u2014 364 of 364 cases executed (source: result-bundle)"
+    ],
+    "policy": [
+      "\u25c7 Test case passing 1 argument bundleID \u2192 \"com.youqu.todesk.mac\" to unapprovedPackagesRetainTheInteractiveInstaller(bundleID:) started.",
+      "\u25c7 Test case passing 1 argument bundleID \u2192 \"com.oray.sunlogin.macclient\" to unapprovedPackagesRetainTheInteractiveInstaller(bundleID:) started.",
+      "\u25c7 Test case passing 1 argument bundleID \u2192 \"com.openai.chat\" to unapprovedPackagesRetainTheInteractiveInstaller(bundleID:) started.",
+      "\u2714 Test unapprovedPackagesRetainTheInteractiveInstaller(bundleID:) with 3 test cases passed after 0.007 seconds.",
+      "\u2714 Test run with 1 test in 0 suites passed after 0.008 seconds."
+    ]
+  }
+}

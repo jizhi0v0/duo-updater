@@ -1,0 +1,38 @@
+{
+  "name": "OneDrive",
+  "bundleID": "com.microsoft.OneDrive",
+  "startedAt": "2026-11-14T14:02:18.244322+00:00",
+  "seedExit": 0,
+  "app": "/Applications/OneDrive.app",
+  "before": {
+    "CFBundleIdentifier": "com.microsoft.OneDrive",
+    "CFBundleShortVersionString": "26.198.1011",
+    "CFBundleVersion": "26198.1011.0006",
+    "CFBundleExecutable": "OneDrive"
+  },
+  "beforeSignatureExit": 0,
+  "automaticExit": 0,
+  "automatic": {
+    "after": "26.198.1011",
+    "afterBuild": "26198.1011.0006",
+    "before": "26.198.1011",
+    "beforeBuild": "26198.1011.0006",
+    "beforeProductVersion": "26.198.1011",
+    "bundleIdentifier": "com.microsoft.OneDrive",
+    "date": "2026-11-14T14:02:31Z",
+    "mode": "automatic",
+    "physicalBundleIdentifier": "com.microsoft.OneDrive",
+    "pid": 41266,
+    "result": "installed",
+    "uid": 501
+  },
+  "after": {
+    "CFBundleIdentifier": "com.microsoft.OneDrive",
+    "CFBundleShortVersionString": "26.198.1011",
+    "CFBundleVersion": "26198.1011.0006",
+    "CFBundleExecutable": "OneDrive"
+  },
+  "afterSignatureExit": 0,
+  "status": "installed",
+  "finishedAt": "2026-11-14T14:02:55.618225+00:00"
+}

@@ -1,0 +1,4 @@
+    AutomaticUpdates = 0;
+    AutomaticUpdatesRunningApps = 0;
+    KeepBackups = 0;
+    SUAutomaticallyUpdate = 1;

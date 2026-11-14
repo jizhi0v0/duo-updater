@@ -1,0 +1,4 @@
+/Users/bobby/Library/Caches/run.kuvo.code/fsCachedData/40190983-30A4-4B7D-A073-60EEB81E9DF7
+/Users/bobby/Library/Caches/run.kuvo.code/Cache.db-shm
+/Users/bobby/Library/Caches/run.kuvo.code/Cache.db-wal
+/Users/bobby/Library/Caches/run.kuvo.code/Cache.db

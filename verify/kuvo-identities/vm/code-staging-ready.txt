@@ -1,0 +1,10 @@
+-rw-------  1 bobby  staff  29022193 Nov 14 11:11 /Users/bobby/Library/Caches/run.kuvo.code/org.sparkle-project.Sparkle/Installation/LACIIB0y6/CB4C621F-8BC8-4FEB-BC8A-CD4A073ADB62.dmg
+-rw-r--r--  1 bobby  staff  34537 Nov 14 11:10 /Users/bobby/Library/Caches/run.kuvo.code/fsCachedData/89F2CE1D-E22C-4FB1-87DC-FFD8FEF1BAC2
+-rw-r--r--  1 bobby  staff  8089 Nov 14 11:10 /Users/bobby/Library/Caches/run.kuvo.code/fsCachedData/40190983-30A4-4B7D-A073-60EEB81E9DF7
+-rw-r--r--  1 bobby  staff  6823 Nov 14 11:10 /Users/bobby/Library/Caches/run.kuvo.code/fsCachedData/B9E16AAF-6296-4671-B8FC-5EE4BE58AE41
+-rw-r--r--  1 bobby  staff  8385 Nov 14 11:10 /Users/bobby/Library/Caches/run.kuvo.code/fsCachedData/A4E87824-D184-43EF-B283-DD46662CB4B9
+-rw-r--r--  1 bobby  staff  41070 Nov 14 11:10 /Users/bobby/Library/Caches/run.kuvo.code/fsCachedData/68041662-580C-4E20-8F49-D4301BEAB370
+-rw-r--r--  1 bobby  staff  2 Nov 14 11:10 /Users/bobby/Library/Caches/run.kuvo.code/Conversations/this-mac/sessions.json
+-rw-r--r--  1 bobby  staff  32768 Nov 14 11:10 /Users/bobby/Library/Caches/run.kuvo.code/Cache.db-shm
+-rw-r--r--  1 bobby  staff  1182472 Nov 14 11:10 /Users/bobby/Library/Caches/run.kuvo.code/Cache.db-wal
+-rw-r--r--@ 1 bobby  staff  49152 Nov 14 11:10 /Users/bobby/Library/Caches/run.kuvo.code/Cache.db

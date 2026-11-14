@@ -1,0 +1,33 @@
+
+  app             Kuvo
+  bundle id       run.kuvo.app
+  short version   0.1.2
+  build version   0.1.2
+  KSChannelID     <none>
+  RemotingName    <none>
+  BuildID         <none>
+  package.json    <none>
+  HFBuildLabel    <none>
+  Blender build   <none>
+  Lapce build     <none>
+  inferred        stable
+  ChannelBinding  <none for this app>
+  ─────────────────────────────────────────────
+  detected channel  → stable
+  ✓ detection matches --expect stable
+  ─────────────────────────────────────────────
+  VendorProbe       — no recipe registered for 'run.kuvo.app'
+    → expected for an app covered by Sparkle / GitHub / the App Store. The full
+      chain below is the one that answers for those.
+  ─────────────────────────────────────────────
+  UpdateChecker.check() — full production source chain
+    SUFeedURL       https://github.com/serhatandic/box/releases/latest/download/appcast.xml
+    superseded    https://github.com/serhatandic/kuvo/releases/latest/download/appcast.xml  (the address the bundle states; SparkleFeedCatalog replaced it)
+    winning source  Sparkle
+    latest          0.1.3
+    download        https://github.com/serhatandic/box/releases/download/v0.1.3/Kuvo.dmg
+    release notes   1507 chars inline, changelogURL <nil>
+    changelog pane  source structured: 1 entries; newest 0.1.3: 10 items, headings ["What\'s new", "Fixes"] (rendered as markdown); first items ["What's new", "Images. A new Images tab lists every ima", "Volumes. A new Volumes tab shows every v"]
+    release history 1 entries
+    deltas          0
+    status          UPDATE → 0.1.3

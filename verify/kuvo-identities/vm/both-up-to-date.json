@@ -1,0 +1,3 @@
+{"command":"check","schemaVersion":2}
+{"bundleID":"run.kuvo.app","hasUpdate":false,"hidden":false,"installedBuild":"0.1.3","installedVersion":"0.1.3","latestBuild":"0.1.3","latestVersion":"0.1.3","name":"Kuvo","path":"\/Applications\/Kuvo.app","source":"Sparkle","status":"up-to-date"}
+{"bundleID":"run.kuvo.code","hasUpdate":false,"hidden":false,"installedBuild":"0.7.2","installedVersion":"0.7.2","latestBuild":"0.7.2","latestVersion":"0.7.2","name":"Kuvo Code","path":"\/Applications\/Kuvo Code.app","source":"Sparkle","status":"up-to-date"}

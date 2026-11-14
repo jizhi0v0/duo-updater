@@ -4,7 +4,7 @@
 
 ## 基本信息
 - Bundle ID: `run.kuvo.app`
-- Team ID: `C8Y523R7T5`（Developer ID Application: Serhat Andiç；0.1.0 / 0.1.1 / 0.1.2 三个真包一致）
+- Team ID: `C8Y523R7T5`（Developer ID Application: Serhat Andiç；0.1.0 / 0.1.1 / 0.1.2 的历史包与本轮 0.1.3 一致）
 - 观测版本: 当前 `0.1.3` / 上一版 `0.1.2`。`CFBundleVersion` 与 `CFBundleShortVersionString` 相同
 - 自更新机制: Sparkle 2（`SUFeedURL` + `SUPublicEDKey`，`SUEnableAutomaticChecks` = true；
   `SPUStandardUpdaterController(updaterDelegate: nil)`，无 channel 委托）
@@ -54,13 +54,14 @@
 
 当前 0.1.3 feed 使用 `<description sparkle:format="markdown">` 内联说明，包含 What's new / Fixes；由通用 Sparkle Markdown 路径解析。官方仓库也已提供 `CHANGELOG.md`，旧审计的「没有更新说明」结论仅适用于当时的 0.1.0–0.1.2。
 
-`ChangelogCatalog` 以官方 Box releases 页兜底；内联原生条目优先。本轮原生面板、章节保留与 VM 展示结果将在真实验证后记录。
+`ChangelogCatalog` 以官方 Box releases 页兜底；内联原生条目优先。本轮 `channel-verify` 输出 `source structured: 1 entries; newest 0.1.3: 10 items, headings ["What\'s new", "Fixes"]`。VM 原生工作台确认两组标题及条目均保留，见[验证记录](../../verify/kuvo-identities/README.md)。
 
 ## 一键安装
 - 状态: 支持
 - 读的是: 官方 `serhatandic/box` 的 GA 安装包；修正后的 feed 下载地址仍指向同一版本的 `Kuvo.dmg`。
 - 格式: dmg
 - 校验: `sparkle:edSignature`；GitHub release 资产带 `digest`（`sha256:1a58b2a2…` for 0.1.2）；装前 Team ID 闸
+- 本轮端到端（2026-11-15，独立 Apple Silicon macOS VM）：0.1.2 → 0.1.3，未运行和运行中两轮均为 `applied:true / outcome:installed / route:sparkle`，每轮下载 3,659,402 bytes。运行中 `duo restart` 返回 `restarted`，磁盘版本连续 10 秒保持 0.1.3。严格深度验签、Notarized Developer ID、Team / ID 检查通过；与官方包文件比较无差异。VM 的 `KeepBackups=0`，未产生新的 Kuvo 备份。原始回执见[验证记录](../../verify/kuvo-identities/README.md)。
 - 历史端到端（2026-10-12）:
   1. **不运行**：0.1.1 放进 `/Applications` → `duo install /Applications/Kuvo.app --yes --json` →
      `{"applied":true,"bytesDownloaded":3412123,"outcome":"installed","route":"sparkle"}`，7 s；结果 0.1.2，inode 变更，
@@ -71,6 +72,7 @@
      `duo restart Kuvo` → `restarted`，5 s 完成，新进程报 `Version="0.1.2"`，引擎 5 s 内重新应答 `_ping`。
 
 ## 已知问题
+- **厂商自更新器仍指向另一个产品**：VM 启动 Box 0.1.2 时，其 Sparkle 弹窗错误提供 Code 0.7.2。Duo 修正自己的读取和下载路径，不改写厂商签名包中的 `SUFeedURL`；不要通过 Box 的这个弹窗安装 Code。本轮未让 Box 自更新器下载错误产品。
 - **首次启动的「Use Kuvo for the docker command?」弹窗会挡住退出**（settled from source：`ContentView.swift` 的 `.alert`，
   引擎连上后出现）。默认按钮是「Use Kuvo」（回车即接受），接受会把 `~/.docker/config.json` 的 `currentContext` 改成 `kuvo`；
   「Not Now」只记 `dockerContext.asked`，不碰 `~/.docker`。弹窗开着时 restart 不会强杀，这是 duo 的既定行为。
@@ -95,12 +97,13 @@
 - 旧 feed 返回 Code 0.7.2，Box 的正确 feed 返回 0.1.3。Box feed 内旧 enclosure 地址返回 HTTP 404；官方 Box 仓库的同 tag / 同文件下载可用。
 - 离线回归在修复前分别复现旧 feed 未更换和旧下载 URL 未迁移；修正后两条生产路径均通过。独立 macOS VM 的旧客户端也将 Box 0.1.2 误报为可更新到 Code 0.7.2，记录用于与修复后的结果对照。
 
-原始包、实际升级及运行中重启结果在本轮 VM 验证完成后补入；不能把历史 0.1.1 → 0.1.2 成功当作本轮验证。
+- 本轮 VM 复验完成：旧 CLI 误报 0.7.2，新 CLI 检测 0.1.3，静止与运行中升级、重启、签名和原生日志均通过。Box 启动后的 Docker 业务与嵌套虚拟化没有作为本轮验收内容；不沿用历史引擎 `_ping` 结果宣称本轮已覆盖。
+- 本轮未构造旧版暂存包与新版安装的碰撞；Box 的厂商 updater 指向错误产品，因此没有武装该下载。限制与原始回执见[verify/kuvo-identities](../../verify/kuvo-identities/README.md)。
 
 ## 如何复验
 
 ```bash
 swift run --package-path application-test feed-discover <Kuvo.app>   # → declared
-swift run --package-path application-test channel-verify <Kuvo 0.1.1 .app>   # → winning source Sparkle, UPDATE → 0.1.2
-curl -sSLO https://github.com/serhatandic/kuvo/releases/download/v0.1.1/Kuvo.dmg   # 上一版
+swift run --package-path application-test channel-verify <Kuvo-0.1.2.dmg> --expect stable   # → Sparkle, UPDATE → 0.1.3
+curl -sSLO https://github.com/serhatandic/box/releases/download/v0.1.2/Kuvo.dmg   # 上一版
 ```

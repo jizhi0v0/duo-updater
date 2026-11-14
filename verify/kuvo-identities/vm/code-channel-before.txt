@@ -1,0 +1,32 @@
+
+  app             Kuvo Code
+  bundle id       run.kuvo.code
+  short version   0.7.1
+  build version   0.7.1
+  KSChannelID     <none>
+  RemotingName    <none>
+  BuildID         <none>
+  package.json    <none>
+  HFBuildLabel    <none>
+  Blender build   <none>
+  Lapce build     <none>
+  inferred        stable  (overridden below)
+  ChannelBinding  stable — read from this app's own preference
+  ─────────────────────────────────────────────
+  detected channel  → stable
+  ✓ detection matches --expect stable
+  ─────────────────────────────────────────────
+  VendorProbe       — no recipe registered for 'run.kuvo.code'
+    → expected for an app covered by Sparkle / GitHub / the App Store. The full
+      chain below is the one that answers for those.
+  ─────────────────────────────────────────────
+  UpdateChecker.check() — full production source chain
+    SUFeedURL       https://github.com/serhatandic/kuvo-code/releases/latest/download/appcast.xml
+    winning source  Sparkle
+    latest          0.7.2
+    download        https://github.com/serhatandic/kuvo-code/releases/download/v0.7.2/KuvoCode.dmg
+    release notes   1485 chars inline, changelogURL <nil>
+    changelog pane  source structured: 1 entries; newest 0.7.2: 8 items, headings [] (rendered as markdown); first items ["Edit Bot shows the model a bot really ta", "With Claude Code in Build, a plan it mak", "With Claude Code in Plan mode under Ask "]
+    release history 1 entries
+    deltas          0
+    status          UPDATE → 0.7.2

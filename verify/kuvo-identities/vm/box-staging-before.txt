@@ -1,0 +1,4 @@
+/Users/bobby/Library/Caches/run.kuvo.app/fsCachedData/C1DADC77-650D-4DE6-8A22-D3ABFC27AAF9
+/Users/bobby/Library/Caches/run.kuvo.app/Cache.db-shm
+/Users/bobby/Library/Caches/run.kuvo.app/Cache.db-wal
+/Users/bobby/Library/Caches/run.kuvo.app/Cache.db

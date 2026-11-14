@@ -72,6 +72,8 @@ targets:
       - path: Sources/HomebrewGroupState.swift
       # Where the workbench sidebars' keys move the selection. Foundation only.
       - path: Sources/SidebarSelection.swift
+      # Render the sidebar with recovery rows before its first source header.
+      - path: Sources/SidebarList.swift
       # The icon cache's check that the bundle at a path is still the copy its
       # icon came from. AppKit + Core only.
       - path: Sources/AppIconCache.swift

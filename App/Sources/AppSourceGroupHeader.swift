@@ -10,7 +10,7 @@ struct AppListSection: Equatable, Identifiable {
     let rows: [UpdateResult]
     /// Drawn open. Always true in the popover, which does not close sections.
     var expanded = true
-    /// A search, or a selected row inside, holds it open.
+    /// A search holds it open and disables toggling.
     var toggleDisabled = false
 
     var id: String { group?.rawValue ?? "interrupted" }
@@ -39,12 +39,20 @@ struct AppSourceGroupHeader: View {
     let count: Int
     let updates: Int
     let expanded: Bool
-    /// A search, or a selected row inside, holds the section open.
+    /// A search holds the section open and disables toggling.
     let toggleDisabled: Bool
     let toggle: () -> Void
 
+    @Environment(\.sidebarScrollToHeader) private var scrollToHeader
+    @State private var pinned = false
+
+    static func scrollID(_ group: UpdateSourceGroup) -> String { "app-source:\(group.rawValue)" }
+
     var body: some View {
-        Button(action: toggle) {
+        Button {
+            if pinned { scrollToHeader(Self.scrollID(group)) }
+            toggle()
+        } label: {
             HStack(spacing: 4) {
                 Image(systemName: "chevron.right")
                     .font(.caption2.weight(.bold))
@@ -68,12 +76,17 @@ struct AppSourceGroupHeader: View {
         .buttonStyle(.plain)
         .disabled(toggleDisabled)
         .help(expanded ? String(localized: "Hide apps") : String(localized: "Show apps"))
+        .sidebarGroupHeaderFrame()
+        .onGeometryChange(for: Bool.self) {
+            $0.frame(in: .named(SidebarSectionMetrics.coordinateSpace)).minY
+                <= SidebarSectionMetrics.verticalPadding + 0.5
+        } action: { pinned = $0 }
     }
 }
 
-/// The header of a section in the popover's grouped list: the source's name on
-/// a hairline, and how many apps are under it. Not a control: the popover's
-/// list is short and its sections stay open.
+/// A source heading, dividing rule and count in the popover's grouped list.
+/// The stronger title and extra space above it distinguish each group.
+/// Not a control: the popover's sections stay open.
 struct PopoverSourceGroupHeader: View {
     let group: UpdateSourceGroup
     let count: Int
@@ -81,19 +94,23 @@ struct PopoverSourceGroupHeader: View {
     var body: some View {
         HStack(spacing: 6) {
             Text(verbatim: group.title)
-                .fontWeight(.semibold)
+                .font(.subheadline.weight(.bold))
+                .foregroundStyle(.primary)
                 .lineLimit(1)
             Rectangle()
                 .fill(.separator)
                 .frame(height: 1)
             Text(verbatim: "\(count)")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.secondary)
                 .monospacedDigit()
+                .padding(.horizontal, 6)
+                .padding(.vertical, 1)
+                .background(.quaternary, in: Capsule())
         }
-        .font(.caption)
-        .foregroundStyle(.secondary)
         .padding(.horizontal, 12)
-        .padding(.top, 8)
-        .padding(.bottom, 2)
+        .padding(.top, 10)
+        .padding(.bottom, 4)
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isHeader)
     }

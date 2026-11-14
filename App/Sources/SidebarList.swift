@@ -22,11 +22,9 @@ import AppKit
 /// - each row is an accessibility element with its selected state, and the list
 ///   a labelled container.
 ///
-/// A section header is a plain view in the run of rows (`sidebarSectionHeader`),
-/// not a `Section`: it scrolls with its rows, as the sidebar `List`'s headers did
-/// (measured 2026-10-10: scrolled past a header, none stayed pinned), and a lazy
-/// stack's `Section` put its header after its rows in the accessibility order
-/// (read through the AX API, 2026-10-10).
+/// Apps and CLI retain native section pinning to track the current section,
+/// but draw its header in one fixed overlay so adjacent sections cannot push
+/// the visible title up and down during fast scrolling.
 struct SidebarList<Content: View, FocusValue: Hashable>: View {
     @Binding var selection: String?
     /// The selectable rows' ids in the order they are drawn: what the keys walk.
@@ -43,16 +41,60 @@ struct SidebarList<Content: View, FocusValue: Hashable>: View {
     @ViewBuilder var content: () -> Content
 
     @State private var viewportHeight: CGFloat = 0
+    /// Only the displayed overlay can cover rows; later natural headers cannot.
+    @State private var headerHeight: CGFloat = 0
+    @State private var keyboardScroll = SidebarKeyboardScroll()
 
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: 0) {
+                LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
                     content()
                 }
                 .padding(.bottom, 10)
             }
+            // Let the sidebar show through the header without rows drawing
+            // underneath its text as they scroll past.
+            .mask {
+                Rectangle().padding(.top, headerHeight)
+            }
+            .overlayPreferenceValue(SidebarHeaderAnchorsKey.self, alignment: .topLeading) { headers in
+                GeometryReader { geometry in
+                    let current = headers.last(where: { geometry[$0.bounds].minY <= 0.5 })
+                        ?? headers.first(where: { $0.isInitial && geometry[$0.bounds].minY > 0.5 })
+                    if let header = current {
+                        header.content
+                            .id("pinned:\(header.id)")
+                            .frame(maxWidth: .infinity, alignment: .topLeading)
+                            .transaction { $0.disablesAnimations = true }
+                    }
+                }
+            }
+            .environment(\.sidebarSelectedRowFrame, { id, frame in
+                guard keyboardScroll.target == id else { return }
+                if headerHeight > 0, frame.minY < headerHeight - 0.5 {
+                    keyboardScroll.target = nil
+                    let anchor = UnitPoint(x: 0.5, y: min(1,
+                        headerHeight / max(1, viewportHeight - frame.height)))
+                    DispatchQueue.main.async {
+                        guard selection == id else { return }
+                        proxy.scrollTo(id, anchor: anchor)
+                    }
+                } else if frame.maxY <= viewportHeight + 0.5 {
+                    keyboardScroll.target = nil
+                }
+            })
+            .environment(\.sidebarScrollToHeader, { id in
+                // Align the natural header before folding its rows, in the
+                // same update, so the following section never flashes through.
+                var transaction = Transaction()
+                transaction.disablesAnimations = true
+                transaction.scrollContentOffsetAdjustmentBehavior = .disabled
+                withTransaction(transaction) { proxy.scrollTo(id, anchor: .top) }
+            })
+            .coordinateSpace(name: SidebarSectionMetrics.coordinateSpace)
             .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { viewportHeight = $0 }
+            .onPreferenceChange(SidebarHeaderHeightKey.self) { headerHeight = $0 }
             // `.edit`: focused by a click and by Tab, whatever the system's
             // keyboard-navigation setting — `.activate` alone would only take the
             // keyboard with that setting on, and the arrow keys would be dead.
@@ -64,6 +106,7 @@ struct SidebarList<Content: View, FocusValue: Hashable>: View {
                 let pageSize = SidebarSelection.pageSize(
                     viewportHeight: viewportHeight, rowHeight: SidebarRowMetrics.height)
                 if let next = SidebarSelection.target(of: move, from: selection, in: order, pageSize: pageSize) {
+                    keyboardScroll.target = next
                     selection = next
                     // No anchor: the least scroll that shows it, as a table scrolls
                     // to a selection made by key.
@@ -101,6 +144,58 @@ enum SidebarRowMetrics {
     static let height: CGFloat = 42
 }
 
+enum SidebarSectionMetrics {
+    static let coordinateSpace = "sidebar-scroll"
+    static let verticalPadding: CGFloat = 10
+    static let firstGap: CGFloat = 0
+    static let betweenGap: CGFloat = 0
+}
+
+private struct SidebarHeaderHeightKey: PreferenceKey {
+    static var defaultValue: CGFloat { 0 }
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
+    }
+}
+
+private struct SidebarHeaderAnchor {
+    let id: String
+    let isInitial: Bool
+    let bounds: Anchor<CGRect>
+    let content: AnyView
+}
+
+private struct SidebarHeaderAnchorsKey: PreferenceKey {
+    static var defaultValue: [SidebarHeaderAnchor] { [] }
+    static func reduce(value: inout [SidebarHeaderAnchor], nextValue: () -> [SidebarHeaderAnchor]) {
+        value.append(contentsOf: nextValue())
+    }
+}
+
+@MainActor
+private final class SidebarKeyboardScroll {
+    var target: String?
+}
+
+private struct SidebarSelectedRowFrameKey: EnvironmentKey {
+    static let defaultValue: @MainActor (String, CGRect) -> Void = { _, _ in }
+}
+
+private struct SidebarScrollToHeaderKey: EnvironmentKey {
+    static let defaultValue: @MainActor (String) -> Void = { _ in }
+}
+
+extension EnvironmentValues {
+    var sidebarSelectedRowFrame: @MainActor (String, CGRect) -> Void {
+        get { self[SidebarSelectedRowFrameKey.self] }
+        set { self[SidebarSelectedRowFrameKey.self] = newValue }
+    }
+    var sidebarScrollToHeader: @MainActor (String) -> Void {
+        get { self[SidebarScrollToHeaderKey.self] }
+        set { self[SidebarScrollToHeaderKey.self] = newValue }
+    }
+}
+
 /// The selected row's fill, focused or not: the colour the user picked on the
 /// shipping window — the sidebar `List`'s selection without focus, which is a
 /// system fill, with the accent at 0.16 over it (2026-10-10).
@@ -135,27 +230,77 @@ extension View {
             .padding(.horizontal, SidebarRowMetrics.selectionInset)
     }
 
+    /// The same height for app-source and CLI group headers, including those
+    /// with no trailing action. The small action button sets their minimum.
+    func sidebarGroupHeaderFrame() -> some View {
+        ZStack(alignment: .trailing) {
+            Button(String(localized: "Upgrade All")) {}
+                .controlSize(.small)
+                .buttonStyle(.bordered)
+                .hidden()
+                .frame(width: 0)
+                .accessibilityHidden(true)
+            self
+        }
+    }
+
     /// A section header of a `SidebarList`, placed as the sidebar `List`'s were
     /// (measured 2026-10-10): small, bold and secondary, starting 14 pt in and
     /// running to 2 pt from the edge — so a header's own trailing inset still lines
-    /// it up with the rows — 12 pt below the top of the list for the first section
-    /// and 16 pt below the row above for the others, 3 pt above its first row.
-    func sidebarSectionHeader(first: Bool) -> some View {
-        font(.subheadline.weight(.bold))
+    /// it up with the rows. Pinned and inline headers use the same symmetric
+    /// vertical padding, including when the sections are collapsed.
+    func sidebarSectionHeader(id: String, isInitial: Bool = false) -> some View {
+        SidebarSectionHeader(id: id, content: self, isInitial: isInitial)
+    }
+}
+
+private struct SidebarSectionHeader<Content: View>: View {
+    let id: String
+    let content: Content
+    var isInitial = false
+    var isOverlay = false
+    @State private var covered = false
+
+    var body: some View {
+        let header = content
+            .sidebarGroupHeaderFrame()
+            .font(.subheadline.weight(.bold))
             .foregroundStyle(.secondary)
             .padding(.leading, 14)
             .padding(.trailing, 2)
-            .padding(.top, first ? 12 : 16)
-            .padding(.bottom, 3)
+            .padding(.vertical, SidebarSectionMetrics.verticalPadding)
             .frame(maxWidth: .infinity, alignment: .leading)
+            .background {
+                if isOverlay {
+                    GeometryReader { geometry in
+                        Color.clear.preference(key: SidebarHeaderHeightKey.self, value: geometry.size.height)
+                    }
+                }
+            }
             .accessibilityElement(children: .contain)
             .accessibilityAddTraits(.isHeader)
+            .opacity(isOverlay || (!covered && !isInitial) ? 1 : 0)
+            .allowsHitTesting(isOverlay || (!covered && !isInitial))
+            .accessibilityHidden((covered || isInitial) && !isOverlay)
+            .onGeometryChange(for: Bool.self) {
+                $0.frame(in: .named(SidebarSectionMetrics.coordinateSpace)).minY <= 0.5
+            } action: { covered = $0 }
+
+        if isOverlay {
+            header
+        } else {
+            header.anchorPreference(key: SidebarHeaderAnchorsKey.self, value: .bounds) { bounds in
+                [SidebarHeaderAnchor(id: id, isInitial: isInitial, bounds: bounds, content: AnyView(
+                    SidebarSectionHeader(id: id, content: content, isInitial: isInitial, isOverlay: true)))]
+            }
+        }
     }
 }
 
 private struct SidebarRowModifier: ViewModifier {
     let id: String
     @Binding var selection: String?
+    @Environment(\.sidebarSelectedRowFrame) private var selectedRowFrame
 
     func body(content: Content) -> some View {
         let selected = selection == id
@@ -173,5 +318,10 @@ private struct SidebarRowModifier: ViewModifier {
             .accessibilityElement(children: .contain)
             .accessibilityAddTraits(selected ? .isSelected : [])
             .accessibilityAction { selection = id }
+            .onGeometryChange(for: CGRect?.self) {
+                selected ? $0.frame(in: .named(SidebarSectionMetrics.coordinateSpace)) : nil
+            } action: { frame in
+                if let frame { selectedRowFrame(id, frame) }
+            }
     }
 }

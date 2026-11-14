@@ -6,7 +6,7 @@
 - 仓库: `MaddTheSane/Simple-Comic`
 - Team ID: `3D9SMH4RWM`（Developer ID Application: Nicholas Vance；1.9.8、1.9.9 两版相同，`spctl` Notarized Developer ID）
 - 观测版本: 1.9.9（`CFBundleVersion` 360，2025-01-20 发布）；上一版 1.9.8（355）；观测日期: 2026-10-22
-- 自更新机制: **无**。`feed-discover` 对 1.9.8: `no Sparkle, no electron-builder update config and no MyGo feed`；两版 Info.plist 无 `SUFeedURL`，`Contents/Frameworks` 只有 UniversalDetector / WebPMac / XADMaster / `libswift_Concurrency.dylib`；主二进制 `strings` 里 `sparkle|SUFeed|appcast|SMAppService|SMLoginItem|LaunchAgents|LSSetDefault|checkForUpdates` 0 条命中
+- 自更新机制：**1.12.0 Direct 构建加入 Sparkle；MAS 构建不包含更新器**。以下为 1.9.8 / 1.9.9 的历史包记录：`feed-discover` 对 1.9.8: `no Sparkle, no electron-builder update config and no MyGo feed`；两版 Info.plist 无 `SUFeedURL`，`Contents/Frameworks` 只有 UniversalDetector / WebPMac / XADMaster / `libswift_Concurrency.dylib`；主二进制 `strings` 里 `sparkle|SUFeed|appcast|SMAppService|SMLoginItem|LaunchAgents|LSSetDefault|checkForUpdates` 0 条命中
 - 分发: GitHub Releases（每版一个 zip）、Homebrew cask `simple-comic`（url 就是 GitHub 资产，无 `auto_updates`）、Mac App Store（id 1497435571，同 bundle id，seller「Nicholas Vance」，商店版本 1.9.9）
 
 ## 覆盖矩阵
@@ -15,7 +15,7 @@
 
 |              | Sparkle | Homebrew | MAS | GitHub | VendorProbe |
 |--------------|---------|----------|-----|--------|-------------|
-| **stable**   | —       | ✓（通用 cask 源） | ✓（通用 MAS 源） | ✓ | — |
+| **stable**   | ✓（1.12.0 Direct 起） | ✓（通用 cask 源） | ✓（通用 MAS 源） | ✓ | — |
 
 当前生效源（非商店副本，channel-verify 实测）: **GitHub**。商店副本由 MAS 源负责：`GitHubReleasesSource` 对 `isMASApp` 直接返回 nil（`guard !app.isMASApp`），`isMASApp` 来自 bundle 里的 `_MASReceipt`（`AppScanner`：`isMAS = !isTestFlight && (isiOSAppOnMac || hasReceipt)`）。GitHub zip 解开后没有 `_MASReceipt`（`find … -name _MASReceipt` 无结果），所以 GitHub/cask 副本走 GitHub 规则，商店副本不会被这条规则碰到。
 
@@ -39,11 +39,11 @@
 - 资产: `^Simple\.Comic(?:\.app)?(?:\.[0-9]+(?:\.[0-9]+)+)?\.zip$`。历史资产名换过四种：`Simple.Comic.<v>.zip`（1.9.4/1.9.5/1.9.8/1.9.9）、`Simple.Comic.zip`（1.9.7）、`Simple.Comic.app.zip`（1.9.1/1.9.2/1.9.6）、`Simple.Comic.app.<v>.zip`（1.9.3），全部匹配；`Source code.zip`、`.dmg`、`.zip.sha256` 不匹配。
   - 分诊的「不少 release 没有 mac 资产」**不成立**：脚手架只认 `Simple.Comic.<v>.zip`，所以把 1.9.7/1.9.6/1.9.3/1.9.2 报成没有 macOS 包；实际上 10 个 release 里 9 个各有一个 zip，只有 `App-Store-1.8.8` 一个资产都没有。
   - `/releases/latest` 指向的 release 没有匹配资产时：引擎回落到 `/releases?per_page=20`、去掉 prerelease/draft 后往回走，最多跳过 `maxReleasesWithoutMacOSAsset` 个没资产的 release（`GitHubReleasesSource.settle`）。按现在的资产 pattern，只有 1.8.8 会被跳过。下一版若再换资产名（第五种），最新那个 release 被跳过，往回走到 1.9.9 就匹配，`recordSuccess` 记成功：**不记** `no release carries an asset matching` 错误日志，健康状态保持绿，提供的版本停在 1.9.9（不会装错东西，但也不会提示新版）。唯一的信号是诊断里的警告：被跳过的更新 release 若带看着像 macOS 安装包的资产，报 `installAssetRenamed`，否则报 `installAssetMissing`（`resolveDiagnostic` 经 `skippedReleaseWarning` 给出）。那条错误日志加 `recordMiss` 只在整页都没有匹配资产、或连续跳过的 release 超过 `maxReleasesWithoutMacOSAsset`（5）个时才出现，而这个仓库有 9 个带 zip 的 release，前一种不会发生。
-- 注意事项: 1.9.9 之后（2025-01）没有新 release。
+- 历史注意事项：2026-10-22 审计时最新为 1.9.9；2026-11-14 已核对 1.12.0，旧判断不再表示当前发布状态。
 
 ## 按架构 / 按 OS 分轨
 - 架构: universal（`x86_64 arm64`，两版相同），单一 zip。
-- `LSMinimumSystemVersion`: 10.14.6（1.9.8）/ 11.5（1.9.9），低于宿主下限。
+- `LSMinimumSystemVersion`: 10.14.6（1.9.8）/ 11.5（1.9.9）；1.11.0 / 1.12.0 为 **15.6**，当前安装包不能在 macOS 15.0–15.5 上安装。
 
 ## 增量更新（delta / binary patch）
 
@@ -101,3 +101,12 @@ swift run --package-path application-test channel-verify "x1.9.9/Simple Comic.ap
 
 ## 建议下一步
 1. 下一个 release 出来后核对资产名仍被 pattern 接住（这个仓库换过四次资产名）。
+
+## 历史与实测
+
+### 2026-11-14 · Direct 构建加入 Sparkle（#1972）
+
+- 官方 1.12.0 release 与上游 PR #192（`https://github.com/MaddTheSane/Simple-Comic/pull/192`）说明 Direct target 添加 Sparkle；MAS target 不加，不能从 `App-Store-1.12.0` tag 前缀推断 zip 是商店构建。
+- 本机生产 `verify-install`：1.12.0 zip、16,106,839 B，Bundle ID / signed identifier 仍为 `com.ToWatchList.SimpleComic`，Team `3D9SMH4RWM`、universal，严格签名检查通过，minimum macOS 15.6。
+- 新增 key `2S+y6238Obvk4gqgJIInoFOz2wJ0DVNVUMUL8h4wSU8=` 与上游 Direct target 的 `SPARKLE_PUBLIC_ED_KEY` 一致，feed 为 `https://github.com/MaddTheSane/Simple-Comic/releases/latest/download/appcast.xml`。
+- 身份基线只接受这次新增 key 并保留 first-seen provenance；旧无 Sparkle 副本仍由 GitHub 覆盖，同 id 的 MAS 副本保留 MAS 路由。

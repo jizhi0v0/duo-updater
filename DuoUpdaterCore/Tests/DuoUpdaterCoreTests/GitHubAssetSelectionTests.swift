@@ -271,6 +271,12 @@ struct GitHubAssetSelectionTests {
          ["Flycut.1.9.6.zip", "Flycut.dmg"],
          "zip-era releases (1.8 ... 1.9.6, one zip each) and the release.yml era (one Flycut.dmg); "
              + "one asset per release, so the branches select between tags and never within one"),
+        (#"^(?:Herdr|Sheprd)-[0-9]{8}\.[0-9]+-universal-apple-darwin\.dmg$"#,
+         // Not a listing: the rename spans releases, with one macOS dmg each.
+         ["Herdr-20261103.1-universal-apple-darwin.dmg",
+          "Sheprd-20261109.1-universal-apple-darwin.dmg"],
+         "Herdr and Sheprd name the same app before and after its rename; "
+             + "one dmg per release, so these branches select between tags"),
     ]
 
     /// Selection must not depend on the order GitHub happens to list assets in.

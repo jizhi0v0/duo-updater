@@ -21,12 +21,17 @@ import Testing
         #expect(VendorProbeRecipe.extractVersion(from: "v20261007.2-rc.1", pattern: rule.versionPattern) == nil)
 
         #expect(matches("Herdr-20261007.2-universal-apple-darwin.dmg"))
+        #expect(matches("Sheprd-20261109.1-universal-apple-darwin.dmg"))
         // The rest of the real v20261007.2 listing's macOS-looking names.
         #expect(!matches("Herdr-20261007.2-universal-apple-darwin.dmg.sha256"))
         #expect(!matches("Herdr-20261007.2-universal-apple-darwin.dmg.sig"))
         #expect(!matches("herdr-gpui-20261007.2-macos-universal.app.tar.gz"))
         #expect(!matches("update-manifest.json"))
         #expect(!matches("Herdr-20261007.2-x86_64-pc-windows-msvc.zip"))
+        #expect(!matches("Sheprd-20261109.1-universal-apple-darwin.dmg.sig"))
+        #expect(!matches("Sheprd-20261109.1-universal-apple-darwin.dmg.sha512"))
+        #expect(!matches("sheprd-20261109.1-macos-universal.app.tar.gz"))
+        #expect(!matches("Sheprd-20261109.1-aarch64-pc-windows-msvc-setup.exe"))
     }
 
     /// The daily counter is compared as a number, so a tenth release in a day

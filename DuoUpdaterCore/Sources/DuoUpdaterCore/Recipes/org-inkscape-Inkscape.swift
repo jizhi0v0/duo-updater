@@ -51,6 +51,8 @@ enum org_inkscape_Inkscape {
         // feed mixes releases with everything else, so the wiki is the only
         // per-version source. Version-templated for the same reason as
         // Thunderbird: each page is exactly one release, so `maxEntries: 1`.
+        // MediaWiki can wrap the h1 title in spans and place a section id on
+        // either h2 itself or its inner span; both shapes keep the same bounds.
         //
         // The item pattern matches a BARE `<li>` on purpose. MediaWiki's table of
         // contents is a nested list whose items all carry
@@ -61,9 +63,9 @@ enum org_inkscape_Inkscape {
             bundleID: "org.inkscape.Inkscape",
             source: URL(string: "https://wiki.inkscape.org/wiki/Release_notes/1.4")!,
             entryPattern:
-                #"<h1 id="firstHeading"[^>]*>Release notes/(?<version>[0-9]+(?:\.[0-9]+)*)</h1>"#
-                + #".*?<h2[^>]*>\s*<span[^>]*id="Changes_and_Bug_Fixes""#
-                + #"(?<body>.*?)<h2[^>]*>\s*<span[^>]*id="Other_releases""#,
+                #"<h1 id="firstHeading"[^>]*>\s*(?:<span\b[^>]*>\s*)*Release notes/(?<version>[0-9]+(?:\.[0-9]+)*)(?:\s*</span>)*\s*</h1>"#
+                + #".*?<h2\b(?:[^>]*>\s*<span\b)?[^>]*\bid="Changes_and_Bug_Fixes"[^>]*>"#
+                + #"(?<body>.*?)<h2\b(?:[^>]*>\s*<span\b)?[^>]*\bid="Other_releases"[^>]*>"#,
             itemPatterns: [#"<li>(?<item>.*?)</li>"#],
             maxEntries: 1,
             channel: .stable,

@@ -4,9 +4,11 @@ enum com_ToWatchList_SimpleComic {
     static let set = AppRecipeSet(
         family: "com-ToWatchList-SimpleComic",
         githubRules: [
+        // History: docs/app-audits/com-ToWatchList-SimpleComic.md#历史与实测
         // Simple Comic (MaddTheSane/Simple-Comic) — a comic-archive reader with
-        // no self-updater (no Sparkle, no SUFeedURL, no update code in the
-        // binary), so GitHub Releases is the route for the notarized download.
+        // no self-updater through 1.11.0. The 1.12.0 Direct build adds Sparkle
+        // and SUFeedURL; GitHub keeps covering the older notarized downloads.
+        // The MAS build has no updater and stays on the App Store route.
         //
         // Tags read `App-Store-1.9.9`: the vendor names every release after
         // the Mac App Store build it goes out with, but the asset is a

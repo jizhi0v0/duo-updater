@@ -13,6 +13,8 @@ enum MstyStudio {
         // (`MstyStudio_arm64.zip`), so the artifact URL is a constant and there is
         // nothing to template. The manifest that names the version sits in the
         // same directory, so the two always describe one release.
+        // Stable v3 is published under `/latest/v3/`; the old `/latest/mac/`
+        // directory stays on v2. The manifest and installer must move together.
         //
         // THE CHECKSUM PATTERN IS ANCHORED ON THE arm64 FILENAME, and that anchor
         // is the whole reason this recipe was blocked. `checksumPattern` is a
@@ -47,7 +49,7 @@ enum MstyStudio {
         // version and size).
         VendorProbeRecipe(
             bundleID: "MstyStudio",
-            url: URL(string: "https://next-assets.msty.studio/app/latest/mac/latest-mac.yml")!,
+            url: URL(string: "https://next-assets.msty.studio/app/latest/v3/mac/latest-mac.yml")!,
             mode: .responseBody,
             versionPattern: #"(?m)^version:\s*v?([0-9]+(?:\.[0-9]+)+)\s*$"#,
             downloadURL: URL(string: "https://msty.ai/"),
@@ -55,7 +57,7 @@ enum MstyStudio {
             publishedAtPattern: #"(?m)^releaseDate:\s*'([^']+)'\s*$"#,
             install: VendorInstallSpec(
                 urlSource: .fixed(
-                    URL(string: "https://next-assets.msty.studio/app/latest/mac/"
+                    URL(string: "https://next-assets.msty.studio/app/latest/v3/mac/"
                         + "MstyStudio_arm64.zip")!),
                 kind: .zip,
                 checksumPattern: #"url:\s*MstyStudio_arm64\.zip\s*\n\s*sha512:\s*(\S+)"#)),

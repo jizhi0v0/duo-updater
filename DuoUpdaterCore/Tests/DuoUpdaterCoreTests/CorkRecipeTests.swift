@@ -22,11 +22,24 @@ private let corkReleasesFixture = #"""
 {"name":"macos-13","url":"https://corkmac.app/RLS/macos-13/Cork.zip"}]
 """#
 
-/// Three items of `blog.corkmac.app/feed`, fetched 2026-10-16: the 1.7.4 post
-/// verbatim (the subscribe box included), a beta post cut after its title, and
-/// the tail of the 2.0.1 post with the vendor's closing boilerplate.
-private let corkFeedFixture = #"""
-<rss><channel><item><title><![CDATA[Cork 2.0.0 Public Beta 3 is out!]]></title><description><![CDATA[Entering the home stretch.]]></description><pubDate>Tue, 14 Jul 2026 19:03:25 GMT</pubDate><content:encoded><![CDATA[<p>Beta notes</p>]]></content:encoded></item><item><title><![CDATA[Cork 2.0.1 is out: Processes don’t error out anymore]]></title><description><![CDATA[Cursed `depends_on` and `tap trust`]]></description><pubDate>Fri, 11 Sep 2026 18:29:24 GMT</pubDate><content:encoded><![CDATA[<h2>Fixes</h2><ul><li><p><code>tap trust</code> warnings incorrectly showing in the UI</p></li></ul><div><hr></div><h2>NO AI USED, EVER</h2><p>As always, no AI is used at any point in the development of Cork.</p><h2>Cork Community</h2><ul><li><p><a href="https://mstdn.social/@CorkApp">Cork on Mastodon</a></p></li></ul>]]></content:encoded></item><item><title><![CDATA[Cork 1.7.4 Out: Small fixes before the storm]]></title><description><![CDATA[The next update is really big.]]></description><link>https://blog.corkmac.app/p/cork-174-out-small-fixed-before-the</link><guid isPermaLink="false">https://blog.corkmac.app/p/cork-174-out-small-fixed-before-the</guid><dc:creator><![CDATA[David Bureš]]></dc:creator><pubDate>Tue, 31 Mar 2026 20:33:45 GMT</pubDate><enclosure url="https://substackcdn.com/image/fetch/$s_!Y8Zb!,w_256,c_limit,f_auto,q_auto:good,fl_progressive:steep/https%3A%2F%2Fsubstack-post-media.s3.amazonaws.com%2Fpublic%2Fimages%2F8fa79553-ae95-43f2-ae3b-64169ed5afe3_1024x1024.png" length="0" type="image/jpeg"/><content:encoded><![CDATA[<p>The next update is <em>really </em>big. This one implements a few small fixes to get us there.</p><h2>Fixes:</h2><ul><li><p>Few incorrect associations for adoptable packages</p></li><li><p>Wrong packages listed in the &#8220;New updates available&#8220; notification</p></li><li><p>Some ignorable errors not getting ignored during package updating</p></li></ul><div class="subscription-widget-wrap-editor" data-attrs="{&quot;url&quot;:&quot;https://blog.corkmac.app/subscribe?&quot;,&quot;text&quot;:&quot;Subscribe&quot;,&quot;language&quot;:&quot;en&quot;}" data-component-name="SubscribeWidgetToDOM"><div class="subscription-widget show-subscribe"><div class="preamble"><p class="cta-caption">Thanks for reading Cork: The Ultimate Homebrew Companion! Subscribe for free to receive new posts and support my work.</p></div><form class="subscription-widget-subscribe"><input type="email" class="email-input" name="email" placeholder="Type your email&#8230;" tabindex="-1"><input type="submit" class="button primary" value="Subscribe"><div class="fake-input-wrapper"><div class="fake-input"></div><div class="fake-button"></div></div></form></div></div>]]></content:encoded></item></channel></rss>
+/// The release header and original-post structure of the official NodeBB topic,
+/// fetched 2026-11-14. Other paragraphs, author chrome and the reply are trimmed.
+private let corkForumFixture = #"""
+<span class="topic-title" component="topic/title">Cork 2.1.2 is Out: Just Some Legalities</span>
+<li component="post" class="topic-owner-post" data-index="0" data-pid="21" data-uid="3">
+<meta itemprop="datePublished" content="2026-11-02T19:50:03.626Z">
+<div class="content text-break" component="post/content" itemprop="text">
+<p dir="auto">Cork 2.1.2 is out, and it only includes some legalities.</p>
+</div>
+<div component="post/footer" class="post-footer"></div></li>
+<li component="post" data-index="1"><div component="post/content"><p>Unrelated reply</p></div><div component="post/footer"></div></li>
+"""#
+
+private let corkForumIndexFixture = #"""
+<h3 component="topic/header"><a href="/topic/20/download-endpoints-fixed">Download endpoints fixed</a></h3>
+<h3 component="topic/header"><a href="/topic/21/cork-2.2.0-public-beta-is-out">Cork 2.2.0 Public Beta is out</a></h3>
+<h3 component="topic/header"><a href="/topic/19/cork-2.1.2-is-out-just-some-legalities">Cork 2.1.2 is Out: Just Some Legalities</a></h3>
+<h3 component="topic/header"><a href="/topic/18/cork-2.1.1-is-out-fixed-permissions">Cork 2.1.1 is Out</a></h3>
 """#
 
 private func corkProbe() throws -> VendorProbeRecipe {
@@ -71,19 +84,37 @@ private func corkProbe() throws -> VendorProbeRecipe {
         installedVersion: "1.5.6", installedTeam: "ZSVA6DVZHM", downloadedTeam: "OTHERTEAM1") == nil)
 }
 
-@Test func corkChangelogReadsReleasePostsOnly() throws {
+@Test func corkChangelogFollowsTheNewestCreatedReleaseTopic() throws {
     let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "eu.davidbures.cork"))
-    let log = try #require(ChangelogExtractor.extract(from: corkFeedFixture, using: recipe))
+    #expect(URLComponents(url: recipe.source, resolvingAgainstBaseURL: false)?.queryItems
+        == [URLQueryItem(name: "sort", value: "recently_created")])
+    let pattern = try #require(recipe.indexLinkPattern)
+    #expect(ChangelogService.firstLink(in: corkForumIndexFixture, pattern: pattern, base: recipe.source)?
+        .absoluteString == "https://forum.rikidar.eu/topic/19/cork-2.1.2-is-out-just-some-legalities")
+}
 
-    #expect(log.entries.map(\.version) == ["2.0.1", "1.7.4"])
-    #expect(log.entries.map(\.date) == ["11 Sep 2026", "31 Mar 2026"])
-    // The closing boilerplate is cut off.
-    #expect(log.entries[0].items == ["tap trust warnings incorrectly showing in the UI"])
-    // The subscribe box's caption is not an item; entities are decoded.
-    #expect(log.entries[1].items == [
-        "The next update is really big. This one implements a few small fixes to get us there.",
-        "Few incorrect associations for adoptable packages",
-        "Wrong packages listed in the \u{201C}New updates available\u{201C} notification",
-        "Some ignorable errors not getting ignored during package updating",
-    ])
+@Test func corkChangelogReadsOnlyTheReleaseAuthorsOriginalPost() throws {
+    let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "eu.davidbures.cork"))
+    let log = try #require(ChangelogExtractor.extract(from: corkForumFixture, using: recipe))
+    #expect(log.entries.count == 1)
+    #expect(log.entries[0].version == "2.1.2")
+    #expect(log.entries[0].date == "2026-11-02")
+    #expect(log.entries[0].items == ["Cork 2.1.2 is out, and it only includes some legalities."])
+
+    // A missing original-post footer must fail closed, rather than use a reply's.
+    let missingFooter = corkForumFixture.replacingOccurrences(
+        of: "<div component=\"post/footer\" class=\"post-footer\"></div>", with: "")
+    #expect(ChangelogExtractor.extract(from: missingFooter, using: recipe) == nil)
+    let replyOnly = corkForumFixture.replacingOccurrences(of: "data-index=\"0\"", with: "data-index=\"2\"")
+    #expect(ChangelogExtractor.extract(from: replyOnly, using: recipe) == nil)
+}
+
+@Test func corkChangelogKeepsParagraphsListsAndHeadingsTogether() throws {
+    let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "eu.davidbures.cork"))
+    let fixture = corkForumFixture.replacingOccurrences(
+        of: "<p dir=\"auto\">Cork 2.1.2 is out, and it only includes some legalities.</p>",
+        with: "<p>Overview &amp; details</p><h2>Fixes</h2><ul><li>First fix<ul><li>Nested fix</li></ul></li><li><p>Second fix</p></li></ul>")
+    let entry = try #require(ChangelogExtractor.extract(from: fixture, using: recipe)?.entries.first)
+    #expect(entry.items == ["Overview & details", "First fix", "Nested fix", "Second fix"])
+    #expect(entry.content.contains(.heading("Fixes")))
 }

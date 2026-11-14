@@ -4,7 +4,7 @@
 - Bundle ID: `app.macdown.macdown3000`（原版 MacDown 是 `com.uranusjr.macdown`，两者不同，互不覆盖）
 - Team ID: `EDUS6QCV5X`
 - 观测版本: `3000.0.7`（`CFBundleVersion` `1429`，不参与比较）
-- 自更新机制: 3000.0.7 及更早的正式版无（包里没有 `SUFeedURL`、没有 Sparkle.framework）；
+- 自更新机制：3000.0.8 正式版已加入 Sparkle 2 / EdDSA；3000.0.7 及更早的正式版无（包里没有 `SUFeedURL`、没有 Sparkle.framework）；
   仓库 2026-08-04 合入 Sparkle 2（#556），`3000.0.8-rc.1` 包里已声明
   `SUFeedURL = https://macdown.app/sparkle/macdown3000/stable/appcast.xml` 并带 Sparkle.framework
 - 分发: GitHub Releases（`schuyler/macdown3000`）/ Homebrew cask `macdown-3000`（非 `auto_updates`，
@@ -17,7 +17,7 @@
 
 |              | Sparkle | Homebrew | MAS | GitHub | VendorProbe |
 |--------------|---------|----------|-----|--------|-------------|
-| **stable**   | ○（feed 尚未上线） | ✓（通用源，未单独验证） | — | ✓ | — |
+| **stable**   | ✓（3000.0.8 起包内声明；旧包仍走 GitHub） | ✓（通用源，未单独验证） | — | ✓ | — |
 | **beta/rc**  | ○（Sparkle channel，见下） | — | — | ○ | — |
 
 当前生效源（`UpdateChecker` 优先链中第一个应答的）: brew 装的副本是 **Homebrew**；
@@ -98,3 +98,12 @@ swift run --package-path application-test channel-verify MacDown-3000.0.6.dmg --
    两源版本一致。
 2. prerelease 轨如需接入：rc/beta 与 stable 共享 bundle id，短版本号带 `-rc.N` / `-beta.N` 后缀，
    需先在真实 rc 包上确认 `ReleaseChannel.detect()` 的判定再加 rule。
+
+## 历史与实测
+
+### 2026-11-14 · 3000.0.8 正式采用 Sparkle（#1799）
+
+- 官方 release `https://github.com/schuyler/macdown3000/releases/tag/v3000.0.8` 与同 tag 的 `MacDown/MacDown-Info.plist` 共同确认新增 Sparkle 更新器。
+- 本机生产 `verify-install`：3000.0.8 dmg、9,260,952 B，Bundle ID / signed identifier 仍为 `app.macdown.macdown3000`，Team `EDUS6QCV5X`、universal；严格签名检查通过。
+- 真包与源码公钥均为 `dYc+fhKTMkIAQNFSmNbSMQTq2KMXgN9OqHiURc7oK1A=`，feed 为 `https://macdown.app/sparkle/macdown3000/stable/appcast.xml`。本次宿主机单次请求 feed 遇 TLS EOF，不能据此宣称 feed 内容已验证；原来的 404 记录仍仅代表 2026-09-29。
+- 身份基线接受新增 key，保留原 first-seen provenance；不涉及原版 MacDown 的 `com.uranusjr.macdown`，也不放宽签名闸。

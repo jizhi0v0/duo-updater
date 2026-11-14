@@ -3,7 +3,7 @@
 ## 基本信息
 - Bundle ID: `MstyStudio`
 - Team ID: `S6CF5A8MX9`
-- 已验证版本: `2.9.7`
+- 已验证版本: `2.9.12`、`3.0.0`（同 Bundle ID / Team，arm64）
 - 自更新机制: electron-builder generic provider
 
 ## 覆盖矩阵
@@ -21,8 +21,9 @@
 | stable | `MstyStudio` | latest-mac.yml `version` | ✓ |
 
 ## 更新检测
-- 端点: `https://next-assets.msty.studio/app/latest/mac/latest-mac.yml`。
-- 生产验证: mounted DMG `2.9.7 → 2.9.7`, stable/up-to-date。
+- 端点: `https://next-assets.msty.studio/app/latest/v3/mac/latest-mac.yml`。
+- v3 是官网公开的 stable 下载；旧 `/app/latest/mac/` 目录仍停在 v2，不能再用它表示当前 stable。
+- 2.x 与 3.x 共用 `MstyStudio` / Team `S6CF5A8MX9`；版本源与 zip 一起迁到 v3 目录，2 → 3 由通用主版本升级提示处理。
 
 ## Changelog
 - `https://msty.ai/resources/changelog/studio/`，**已接 `ChangelogRecipe`（2026-10-10）**，正则只读稳定版：
@@ -32,7 +33,7 @@
 
 ## 一键安装
 - 状态: **已启用**（2026-08-29），`.fixed` →
-  `https://next-assets.msty.studio/app/latest/mac/MstyStudio_arm64.zip`（文件名不带版本，
+  `https://next-assets.msty.studio/app/latest/v3/mac/MstyStudio_arm64.zip`（文件名不带版本，
   URL 是常量，没有可模板化的东西），校验和取 manifest 里 **arm64 那一条**。
 - **真正的阻碍不是"按 host 选包"，是校验和配对**: `checksumPattern` 是对整份 body 的首个匹配，
   而这份 manifest 列了四个资产、`MstyStudio_x64.zip` **排第一**，`path:` 指的也是 x64。
@@ -50,6 +51,7 @@
   后者更糟。
 - 包实测 2026-08-29: 248,234,928 B，解出 `MstyStudio.app` 2.9.8,
   `Developer ID Application: Ashok Gelal (S6CF5A8MX9)`, spctl accepted / Notarized, arm64。
+  新的 2.9.12 / 3.0.0 签名显示 CloudStack, LLC，Team 未变。
 - 生产路径实测: 签名闸 harness 报 `sha512 expected: aNSie9nHz5ybfhfC… actual: aNSie9nHz5ybfhfC…`
   —— 即锚定摘要对真实字节成立 —— 随后 `✅ gate passed`。**未做**红→绿：
   厂商只有 latest 路径，`app/2.9.7/…` 与 `app/2.9.6/…` 均 404，拿不到旧构建。
@@ -63,6 +65,13 @@
 
 
 ## 历史与实测
+
+### 2026-11-14 · stable v3 端点迁移（#1849）
+
+- 官网 `https://msty.ai/products/studio/` 的 Apple Silicon 下载指向 `/app/latest/v3/mac/MstyStudio_arm64.dmg`。
+- v3 的 `latest-mac.yml` 返回 `3.0.0`，旧目录返回 `2.9.12`；v3 的 arm64 zip 为 247,420,514 字节，摘要锚在该 zip 条目，不取排在前面的 x64 摘要。
+- macOS VM 1 解包两份官方 zip：均为 `MstyStudio.app`、Bundle ID `MstyStudio`、Team `S6CF5A8MX9`、arm64、最低 macOS 12.0；`codesign --verify --deep --strict` 均为 0，带 stapled notarization ticket。
+- 此前旧目录下的 2.9.7 检查、2.9.8 摘要检查保留在下文，属于历史证据。
 
 从 recipe 注释迁出（2026-09-14）。正文逐字，只去掉了行首 `// `；每组标明出处。
 

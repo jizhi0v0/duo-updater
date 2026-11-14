@@ -20,10 +20,11 @@
       "bundleIdentifier" : "com.appflowy.appflowy.flutter",
       "firstSeenAt" : "2026-10-26T17:44:32Z",
       "firstSeenVersion" : "0.14.11",
-      "lastSeenAt" : "2026-10-26T17:44:32Z",
-      "lastSeenURLSHA256" : "c7fefe943b05e2c5f19b83b6ad3d611a9c26773dbdb416d01d4e1bdd3fb9ee88",
-      "lastSeenVersion" : "0.14.11",
+      "lastSeenAt" : "2026-11-14T13:14:37Z",
+      "lastSeenURLSHA256" : "374ae4e6cd4321e74fbf1f0ed8c80d37d9c0ddefd77d363a9794ed40bf096112",
+      "lastSeenVersion" : "0.15.0",
       "signedIdentifier" : "com.appflowy.appflowy.flutter",
+      "sparklePublicKey" : "Bs++IOmOwYmNTjMMC2jMqLNldP+mndDp\/LwujCg2\/kw=",
       "teamIdentifier" : "VHB67HRSZG"
     },
     "github:AprilNEA\/OpenLogi:stable" : {
@@ -222,10 +223,11 @@
       "bundleIdentifier" : "com.ToWatchList.SimpleComic",
       "firstSeenAt" : "2026-10-22T10:43:03Z",
       "firstSeenVersion" : "1.9.9",
-      "lastSeenAt" : "2026-11-08T21:25:03Z",
-      "lastSeenURLSHA256" : "1177df6e5947226d5e7bf17adf37607afcf91f94b44bcd5a18b163fe10b44585",
-      "lastSeenVersion" : "1.11.0",
+      "lastSeenAt" : "2026-11-14T13:14:37Z",
+      "lastSeenURLSHA256" : "e1d0017b55d9fce192d7cd3e5dd4b2efcad67b51cb913f518a17a163ad08d625",
+      "lastSeenVersion" : "1.12.0",
       "signedIdentifier" : "com.ToWatchList.SimpleComic",
+      "sparklePublicKey" : "2S+y6238Obvk4gqgJIInoFOz2wJ0DVNVUMUL8h4wSU8=",
       "teamIdentifier" : "3D9SMH4RWM"
     },
     "github:MarcoEidinger\/SwiftPlantUML-Xcode-Extension:stable" : {
@@ -2407,10 +2409,11 @@
       "bundleIdentifier" : "app.macdown.macdown3000",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "3000.0.7",
-      "lastSeenAt" : "2026-10-11T17:17:49Z",
-      "lastSeenURLSHA256" : "e9eb24ad0ccde60fb1225532dbe589ffd3eaa50d0437cdd9327518e026ead33a",
-      "lastSeenVersion" : "3000.0.7",
+      "lastSeenAt" : "2026-11-14T13:14:37Z",
+      "lastSeenURLSHA256" : "ebdbb6b45de8b261a8d703da3c6b4c035088b6067eabb8a342965a4308130afb",
+      "lastSeenVersion" : "3000.0.8",
       "signedIdentifier" : "app.macdown.macdown3000",
+      "sparklePublicKey" : "dYc+fhKTMkIAQNFSmNbSMQTq2KMXgN9OqHiURc7oK1A=",
       "teamIdentifier" : "EDUS6QCV5X"
     },
     "github:sheprd-labs\/sheprd:stable" : {

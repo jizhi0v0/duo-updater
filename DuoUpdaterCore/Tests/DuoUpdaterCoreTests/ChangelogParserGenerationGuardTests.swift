@@ -129,8 +129,10 @@ import Foundation
     /// 20 (`markdownSource` unwraps a code span split by a hard wrap) moves
     /// neither fixture: neither recipe sets `markdownSource`. Pinned by
     /// `inlineCodeWrappedAcrossALineIsUnwrapped`.
+    /// 21 (Cork's forum source and Inkscape's current MediaWiki headings) moves
+    /// neither fixture: pinned by CorkRecipeTests and InkscapeChangelogRecipeTests.
     @Test func pinnedGeneration() {
-        #expect(Changelog.parserGeneration == 20)
+        #expect(Changelog.parserGeneration == 21)
     }
 
     /// Stable (v4.3.6, bulleted): exercises `skipSections` — the `### Included

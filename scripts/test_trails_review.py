@@ -96,8 +96,10 @@ class RecipePage(unittest.TestCase):
             Path(folder.name, f"f{i}.swift").write_text(call)
         return Path(folder.name)
 
-    def test_reads_the_real_cork_recipe(self):
-        self.assertEqual(t.recipe_page("changelog:eu.davidbures.cork:-"), "https://blog.corkmac.app/feed")
+    def test_cork_forum_index_is_not_treated_as_the_notes_page(self):
+        # Cork now follows a release topic: absence from its category index
+        # cannot establish that the vendor has not published the notes.
+        self.assertIsNone(t.recipe_page("changelog:eu.davidbures.cork:-"))
 
     def test_parentheses_inside_raw_strings_do_not_end_the_call(self):
         folder = self.recipes('ChangelogRecipe(bundleID: "a.b", source: URL(string: "https://a.example/n")!,\n'

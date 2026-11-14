@@ -15,7 +15,8 @@ enum so_pen_herdr_gpui {
         // without `v` (20261007.1 and .2 checked on the real dmgs). No
         // prerelease in the list; the anchor is the backstop.
         //
-        // Assets: `Herdr-<ver>-universal-apple-darwin.dmg` (universal) beside
+        // Assets: `Herdr-<ver>-universal-apple-darwin.dmg` or the renamed
+        // `Sheprd-<ver>-universal-apple-darwin.dmg` (universal) beside
         // `.crt`/`.sha256`/`.sha512`/`.sig` siblings, the updater's
         // `herdr-gpui-<ver>-macos-universal.app.tar.gz`, and Linux/Windows
         // builds. The pattern takes the dmg alone.
@@ -27,13 +28,14 @@ enum so_pen_herdr_gpui {
         // URLSession drops `Authorization` while following that redirect
         // (`GitHubEndpointAudit`), so every check of the old slug went out on
         // the shared 60/hour anonymous budget whatever token was configured,
-        // and once that was spent the row failed with a 403. Tags and assets
-        // did not change with the move.
+        // and once that was spent the row failed with a 403. The app's rename
+        // changes its asset and bundle names, but keeps so.pen.herdr-gpui and
+        // Team VJAHQVZ96V, so both asset prefixes belong to the same rule.
         GitHubReleaseRule(
             bundleID: "so.pen.herdr-gpui",
             owner: "sheprd-labs", repo: "sheprd",
             versionPattern: #"^v([0-9]{8}\.[0-9]+)$"#,
-            installAssetPattern: #"^Herdr-[0-9]{8}\.[0-9]+-universal-apple-darwin\.dmg$"#,
+            installAssetPattern: #"^(?:Herdr|Sheprd)-[0-9]{8}\.[0-9]+-universal-apple-darwin\.dmg$"#,
             installerKind: .dmg),
         ])
 }

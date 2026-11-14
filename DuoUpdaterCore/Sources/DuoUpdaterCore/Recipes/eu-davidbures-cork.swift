@@ -41,7 +41,7 @@ enum eu_davidbures_cork {
             mode: .responseBody,
             versionPattern: #""name"\s*:\s*"([0-9]+(?:\.[0-9]+)+)""#,
             downloadURL: URL(string: "https://corkmac.app/"),
-            changelogURL: URL(string: "https://blog.corkmac.app/"),
+            changelogURL: URL(string: "https://forum.rikidar.eu/category/17/announcements?sort=recently_created"),
             selectHighest: true,
             install: VendorInstallSpec(
                 urlSource: .versionTemplate("https://corkmac.app/RLS/{version}/Cork.zip"),
@@ -49,30 +49,28 @@ enum eu_davidbures_cork {
         ],
         changelogs: [
         // History: docs/app-audits/eu-davidbures-cork.md#历史与实测
-        // The vendor's release posts on its Substack blog, read from the RSS
-        // feed: one `<item>` per post, the post's HTML inlined as
-        // `<content:encoded>` CDATA. Only titles shaped `Cork <version> (is) out`
-        // are releases; the public betas and the release candidate are titled
-        // `Cork 2.0.0 Public Beta 4 is out!` / `… Release Candidate …` and never
-        // match, nor do non-release posts. A release with no post (2.0.2, a
-        // rebuild of 2.0.1) has no entry.
+        // The vendor publishes release posts in its forum's Cork Announcements
+        // category. Sort by creation, not replies: a reply on an old release
+        // must not make it the latest. Follow the first stable release title;
+        // beta/RC and general announcements do not have `<version> (is) out`.
         //
-        // Posts nest lists inside lists, every line in its own `<p>`, so items
-        // are the paragraphs (intro lines and list lines alike) and `<h2>`
-        // sections (Additions / Fixes / Adjustments) are headings. The body ends
-        // before the vendor's closing boilerplate (`NO AI USED, EVER`,
-        // `Cork Community` with its social links), and the Substack subscribe
-        // box's `cta-caption` paragraph is skipped.
+        // Read the topic's original post (`data-index="0"`) only. The category
+        // RSS description is the LAST REPLY, not release notes. The body stops
+        // at the original post's footer and cannot cross into another post if
+        // that footer disappears. Paragraphs and list lines share one pattern
+        // so neither drops the other; nested lists are separate items.
         ChangelogRecipe(
             bundleID: "eu.davidbures.cork",
-            source: URL(string: "https://blog.corkmac.app/feed")!,
+            source: URL(string: "https://forum.rikidar.eu/category/17/announcements?sort=recently_created")!,
             entryPattern:
-                #"<item>\s*<title><!\[CDATA\[Cork (?<version>[0-9]+(?:\.[0-9]+)+) (?:is )?out\b[^\]]*\]\]></title>"#
-                + #".*?<pubDate>[A-Za-z]{3}, (?<date>[0-9]{1,2} [A-Za-z]{3} [0-9]{4})[^<]*</pubDate>"#
-                + #".*?<content:encoded><!\[CDATA\[(?<body>.*?)"#
-                + #"(?:<h2>(?:NO AI USED|Cork Community)|\]\]></content:encoded>)"#,
-            itemPatterns: [#"<p(?![^>]*cta-caption)\b[^>]*>(?<item>.*?)</p>"#],
-            maxEntries: 15,
-            headingPattern: #"<h2[^>]*>(?<heading>.*?)</h2>"#),
+                #"<span\b[^>]*\bcomponent="topic/title"[^>]*>\s*Cork (?<version>[0-9]+(?:\.[0-9]+)+) (?:is )?out\b[^<]*</span>"#
+                + #".*?<li\b(?=[^>]*\bcomponent="post")(?=[^>]*\bdata-index="0")[^>]*>"#
+                + #"(?:(?!<li\b[^>]*\bcomponent="post").)*?<meta\b[^>]*\bitemprop="datePublished"[^>]*\bcontent="(?<date>[0-9]{4}-[0-9]{2}-[0-9]{2})T[^"]*"[^>]*>"#
+                + #"(?:(?!<li\b[^>]*\bcomponent="post").)*?<div\b[^>]*\bcomponent="post/content"[^>]*>"#
+                + #"(?<body>(?:(?!<li\b[^>]*\bcomponent="post").)*?)</div>\s*<div\b[^>]*\bcomponent="post/footer""#,
+            itemPatterns: [#"<(?:p|li)\b[^>]*>(?<item>(?:(?!<(?:p|li|ul|ol)\b).)*?)(?=</(?:p|li)>|<(?:ul|ol)\b)"#],
+            maxEntries: 1,
+            indexLinkPattern: #"<h3\b[^>]*\bcomponent="topic/header"[^>]*>\s*<a\b[^>]*href="(?<link>/topic/[0-9]+/cork-[^"/]+)"[^>]*>\s*Cork [0-9]+(?:\.[0-9]+)+ (?:is )?out\b"#,
+            headingPattern: #"<h[1-6]\b[^>]*>(?<heading>.*?)</h[1-6]>"#),
         ])
 }

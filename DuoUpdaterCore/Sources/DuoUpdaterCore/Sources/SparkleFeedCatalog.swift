@@ -203,4 +203,40 @@ public enum SparkleFeedCatalog {
         else { return nil }
         return entry.live
     }
+
+    /// A recorded GitHub feed move can leave absolute release links inside the
+    /// appcast pointing at the old repository. Move those links with the feed,
+    /// only for this app, this exact replacement feed and the old repository's
+    /// release paths. The archive's signature, size and version stay unchanged.
+    static func relocatedReleaseURL(_ url: URL, forBundleID bundleID: String?, feedURL: URL) -> URL {
+        guard let bundleID, let entry = supersededFeeds[bundleID.lowercased()],
+              feedURL == entry.live,
+              let oldRoot = githubReleaseFeedRoot(entry.declared),
+              let newRoot = githubReleaseFeedRoot(entry.live),
+              var parts = githubComponents(url)
+        else { return url }
+        let path = parts.percentEncodedPath
+        guard ["download", "tag"].contains(where: {
+            path.hasPrefix(oldRoot + "/releases/\($0)/")
+        }) else { return url }
+        parts.percentEncodedPath = newRoot + path.dropFirst(oldRoot.count)
+        return parts.url ?? url
+    }
+
+    private static func githubReleaseFeedRoot(_ url: URL) -> String? {
+        guard let parts = githubComponents(url), parts.query == nil, parts.fragment == nil else { return nil }
+        let path = parts.percentEncodedPath.split(separator: "/", omittingEmptySubsequences: false)
+        guard path.count == 7, path[0].isEmpty,
+              Array(path.dropFirst(3)) == ["releases", "latest", "download", "appcast.xml"]
+        else { return nil }
+        return "/\(path[1])/\(path[2])"
+    }
+
+    private static func githubComponents(_ url: URL) -> URLComponents? {
+        guard let parts = URLComponents(url: url, resolvingAgainstBaseURL: false),
+              parts.scheme == "https", parts.host?.lowercased() == "github.com",
+              parts.port == nil, parts.user == nil, parts.password == nil
+        else { return nil }
+        return parts
+    }
 }

@@ -1,0 +1,2 @@
+{"command":"install","schemaVersion":2}
+{"app":"Kuvo Code","applied":false,"outcome":"skipped","reason":"its own updater already has 0.7.2 staged — quit it to apply, or `duo restart`"}

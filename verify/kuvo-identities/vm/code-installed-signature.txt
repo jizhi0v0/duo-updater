@@ -1,0 +1,23 @@
+run.kuvo.code
+0.7.2
+Executable=/Applications/Kuvo Code.app/Contents/MacOS/Kuvo Code
+Identifier=run.kuvo.code
+Format=app bundle with Mach-O universal (x86_64 arm64)
+CodeDirectory v=20500 size=46425 flags=0x10000(runtime) hashes=1440+7 location=embedded
+Signature size=8976
+Authority=Developer ID Application: Serhat Andiç (C8Y523R7T5)
+Authority=Developer ID Certification Authority
+Authority=Apple Root CA
+Timestamp=Oct 22, 2026 at 9:51:36 AM
+Notarization Ticket=stapled
+Info.plist entries=31
+TeamIdentifier=C8Y523R7T5
+Runtime Version=27.0.0
+Sealed Resources version=2 rules=13 files=99
+Internal requirements count=1 size=176
+Total signatures=1
+Chosen signature=1
+strict_exit=0
+/Applications/Kuvo Code.app: accepted
+source=Notarized Developer ID
+origin=Developer ID Application: Serhat Andiç (C8Y523R7T5)

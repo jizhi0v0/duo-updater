@@ -102,7 +102,7 @@ public extension SparkleAppcastSource {
             return .failure(.badStatus(http.statusCode))
         }
 
-        let items = SparkleAppcastParser.parse(data, relativeTo: feedURL)
+        let items = Self.parsedItems(data, feedURL: feedURL, bundleID: bundleID)
         let osVersion = Self.numericSystemVersion()
         let usable = Self.probeUsableItems(
             items, feedURL: feedURL, bundleID: bundleID, osVersion: osVersion,
@@ -129,7 +129,7 @@ public extension SparkleAppcastSource {
     /// and pinned architecture as `readFeed`, for the reasons given there.
     static func probeReleaseNotesLink(in data: Data, feedURL: URL, bundleID: String) -> URL? {
         probeUsableItems(
-            SparkleAppcastParser.parse(data, relativeTo: feedURL),
+            parsedItems(data, feedURL: feedURL, bundleID: bundleID),
             feedURL: feedURL, bundleID: bundleID, osVersion: numericSystemVersion()
         ).first?.releaseNotesLink
     }

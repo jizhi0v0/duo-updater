@@ -180,6 +180,7 @@ public enum ChannelBinding {
     /// and AdGuard, from the bundle's own `AGChannel`.
     public static let boundBundleIDs: Set<String> = [
         DuoPasteChannel.bundleID.lowercased(),
+        KuvoCodeChannel.bundleID.lowercased(),
         ForkChannel.bundleID.lowercased(),
         SurgeChannel.bundleID.lowercased(),
         OrbStackChannel.bundleID.lowercased(),
@@ -505,6 +506,8 @@ public enum ChannelBinding {
     private static func resolver(for id: String) -> (@Sendable ([String: URL], [String: String]) -> ResolvedChannel?)? {
         switch id {
         case DuoPasteChannel.bundleID.lowercased(): return { _, _ in DuoPasteChannel.resolveCurrent() }
+        case KuvoCodeChannel.bundleID.lowercased():
+            return { _, strings in KuvoCodeChannel.resolveCurrent(bundleStrings: strings) }
         case ForkChannel.bundleID.lowercased():     return { _, _ in ForkChannel.resolveCurrent() }
         case SurgeChannel.bundleID.lowercased():    return { _, _ in SurgeChannel.resolveCurrent() }
         case OrbStackChannel.bundleID.lowercased(): return { _, _ in OrbStackChannel.resolveCurrent() }
@@ -629,6 +632,10 @@ public enum ChannelBinding {
         (OsaurusChannel.bundleID, OsaurusChannel.resolveCurrent()),
     ] + (CleanShotChannel.resolve(activationKey: CleanShotChannel.placeholderActivationKey)
         .map { [(CleanShotChannel.bundleID, $0)] } ?? [])
+    + [true, false].compactMap { flag in
+        KuvoCodeChannel.resolve(includeBetas: flag)
+            .map { (bundleID: KuvoCodeChannel.bundleID, resolved: $0) }
+    }
     // CotEditor answers for ONE of its two preference values — an unticked box
     // resolves to nil so `ReleaseChannel.detect()` keeps the other half (see the
     // type). Enumerated by calling the pure function with both values rather than

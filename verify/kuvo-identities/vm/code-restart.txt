@@ -1,0 +1,1 @@
+Kuvo Code  quit — its own updater applied 0.7.2

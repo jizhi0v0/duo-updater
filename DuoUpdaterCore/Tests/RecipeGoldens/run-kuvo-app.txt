@@ -1,0 +1,36 @@
+// Generated from AppRecipeIndex.all by RecipeGoldenTests. Do not edit by hand.
+// Regenerate: DUO_RECORD_RECIPE_GOLDENS=1 swift test --package-path DuoUpdaterCore --filter RecipeGoldenTests
+
+family = "run-kuvo-app"
+
+probes = Array(count: 0)
+
+changelogs = Array(count: 0)
+
+githubRules = Array(count: 0)
+
+appStoreCases = Array(count: 0)
+
+channelProofs = Dictionary(count: 0)
+
+githubChannelProofs = Dictionary(count: 0)
+
+bindingProofs = Dictionary(count: 0)
+
+sparkleFeeds = Dictionary(count: 0)
+
+supersededFeeds = Dictionary(count: 1)
+supersededFeeds["run.kuvo.app"] = struct SparkleFeedCatalog.SupersededFeed
+supersededFeeds["run.kuvo.app"].declared = URL("https://github.com/serhatandic/kuvo/releases/latest/download/appcast.xml")
+supersededFeeds["run.kuvo.app"].live = URL("https://github.com/serhatandic/box/releases/latest/download/appcast.xml")
+
+loginWalls = Dictionary(count: 0)
+
+changelogPages = Dictionary(count: 1)
+changelogPages["run.kuvo.app"] = URL("https://github.com/serhatandic/box/releases")
+
+oneClickGates = Array(count: 0)
+
+loginItemAgentRestarts = Dictionary(count: 0)
+
+sunsets = Dictionary(count: 0)

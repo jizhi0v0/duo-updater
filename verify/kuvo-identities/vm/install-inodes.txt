@@ -1,0 +1,4 @@
+4079273 original/Kuvo-0.1.3-stopped.app
+4080205 /Applications/Kuvo.app
+4079611 original/Kuvo Code-0.7.2-stopped.app
+4089075 /Applications/Kuvo Code.app

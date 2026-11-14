@@ -1,0 +1,5 @@
+  Discord Canary  0.0.1459  2026-11-05T08:39:59Z  538.7 MB  (this Mac)
+  Handy           0.9.8  2026-11-06T08:51:17Z  44.6 MB  (this Mac)
+  VersionProof    1.0  2026-11-05T09:25:58Z  85 KB  (this Mac)
+
+  3 backups, 583.3 MB total.

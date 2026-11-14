@@ -386,6 +386,7 @@ public enum AppRecipeIndex {
         pro_betterdisplay_BetterDisplay.set,
         rocks_spotifast_Spotifast.set,
         ru_starmel_OpenSuperWhisper.set,
+        run_kuvo_app.set,
         sb_moe_tamio.set,
         se_johnste_finicky.set,
         sh_brew_app.set,

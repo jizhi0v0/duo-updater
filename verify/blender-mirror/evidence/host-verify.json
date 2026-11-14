@@ -1,0 +1,106 @@
+{
+  "findings" : [
+    {
+      "attempts" : 1,
+      "bundleID" : "org.blenderfoundation.blender",
+      "channel" : "-",
+      "elapsedMs" : 1828,
+      "endpointHost" : "developer.blender.org",
+      "entryCount" : 1,
+      "entrySwallowsAnother" : false,
+      "entryVersions" : [
+        "5.3"
+      ],
+      "headingMatchesPage" : true,
+      "pattern" : "<h1[^>]*>Blender\\s+(?<version>\\d+\\.\\d+(?:\\.\\d+)?)(?:\\s+LTS)?\\s+Release Notes.*?<\/h1>\\s*<p>Blender\\s+[\\d.]+(?:\\s+LTS)?\\s+was released on\\s+(?<date>[^.<]+)\\.<\/p>(?<body>.*?)(?=<h2[^>]*id=\"corrective-releases\"|<\/article>)",
+      "recipeID" : "changelog:org.blenderfoundation.blender:-",
+      "registry" : "changelog",
+      "status" : "ok",
+      "version" : "5.3",
+      "warnings" : [
+
+      ]
+    },
+    {
+      "attempts" : 1,
+      "bundleID" : "org.blenderfoundation.blender",
+      "channel" : "-",
+      "elapsedMs" : 0,
+      "endpointHost" : "developer.blender.org",
+      "recipeID" : "coverage:org.blenderfoundation.blender",
+      "registry" : "coverage",
+      "status" : "ok",
+      "warnings" : [
+
+      ]
+    },
+    {
+      "attempts" : 1,
+      "bundleID" : "org.blenderfoundation.blender",
+      "channel" : "alpha",
+      "elapsedMs" : 1663,
+      "endpointHost" : "builder.blender.org",
+      "gatewayRetries" : 0,
+      "pattern" : "\"version\":\\s*\"([0-9]+\\.[0-9]+\\.[0-9]+)\",\\s*\"risk_id\":\\s*\"alpha\",\\s*\"branch\":\\s*\"main\",[^{}]*?\"platform\":\\s*\"darwin\",\\s*\"architecture\":\\s*\"arm64\",[^{}]*?\"file_extension\":\\s*\"dmg\"",
+      "recipeID" : "vendor:org.blenderfoundation.blender:alpha",
+      "registry" : "vendor",
+      "status" : "ok",
+      "version" : "5.4.0",
+      "warnings" : [
+
+      ]
+    },
+    {
+      "attempts" : 1,
+      "bundleID" : "org.blenderfoundation.blender",
+      "channel" : "beta",
+      "elapsedMs" : 387,
+      "endpointHost" : "builder.blender.org",
+      "failureDetail" : "no current build on the beta track",
+      "failureKind" : "notApplicable",
+      "gatewayRetries" : 0,
+      "pattern" : "\"version\":\\s*\"([0-9]+\\.[0-9]+\\.[0-9]+)\",\\s*\"risk_id\":\\s*\"beta\",\\s*\"branch\":\\s*\"v[0-9]+\",[^{}]*?\"platform\":\\s*\"darwin\",\\s*\"architecture\":\\s*\"arm64\",[^{}]*?\"file_extension\":\\s*\"dmg\"",
+      "recipeID" : "vendor:org.blenderfoundation.blender:beta",
+      "registry" : "vendor",
+      "status" : "skipped",
+      "warnings" : [
+
+      ]
+    },
+    {
+      "attempts" : 1,
+      "bundleID" : "org.blenderfoundation.blender",
+      "channel" : "rc",
+      "elapsedMs" : 426,
+      "endpointHost" : "builder.blender.org",
+      "failureDetail" : "no current build on the rc track",
+      "failureKind" : "notApplicable",
+      "gatewayRetries" : 0,
+      "pattern" : "\"version\":\\s*\"([0-9]+\\.[0-9]+\\.[0-9]+)\",\\s*\"risk_id\":\\s*\"candidate\",\\s*\"branch\":\\s*\"v[0-9]+\",[^{}]*?\"platform\":\\s*\"darwin\",\\s*\"architecture\":\\s*\"arm64\",[^{}]*?\"file_extension\":\\s*\"dmg\"",
+      "recipeID" : "vendor:org.blenderfoundation.blender:rc",
+      "registry" : "vendor",
+      "status" : "skipped",
+      "warnings" : [
+
+      ]
+    },
+    {
+      "attempts" : 1,
+      "bundleID" : "org.blenderfoundation.blender",
+      "channel" : "stable",
+      "elapsedMs" : 1920,
+      "endpointHost" : "mirror.blender.org",
+      "gatewayRetries" : 0,
+      "pattern" : "\"url\"\\s*:\\s*\"\\.\/blender-([0-9]+\\.[0-9]+\\.[0-9]+)-macos-arm64\\.dmg\"",
+      "recipeID" : "vendor:org.blenderfoundation.blender:stable",
+      "registry" : "vendor",
+      "status" : "ok",
+      "version" : "5.3.0",
+      "warnings" : [
+
+      ]
+    }
+  ],
+  "generatedAt" : "2026-11-14T17:33:01Z",
+  "schemaVersion" : 1
+}

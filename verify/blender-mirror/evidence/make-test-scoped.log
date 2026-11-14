@@ -1,0 +1,8 @@
+→ test-scripts started (log: /var/folders/vr/3fgyyc596c722388795qp2140000gn/T/duo-make-test.Bi0htf/test-scripts.log)
+→ test-swift started (log: /var/folders/vr/3fgyyc596c722388795qp2140000gn/T/duo-make-test.Bi0htf/test-swift.log)
+→ test-app started (log: /var/folders/vr/3fgyyc596c722388795qp2140000gn/T/duo-make-test.Bi0htf/test-app.log)
+[1;32m✓ test-app[0m (22s)
+[1;32m✓ test-scripts[0m (59s)
+[1;32m✓ test-swift[0m (67s)
+
+[1;32m✓ make test: all 3 parts passed[0m (67s). Logs: /var/folders/vr/3fgyyc596c722388795qp2140000gn/T/duo-make-test.Bi0htf

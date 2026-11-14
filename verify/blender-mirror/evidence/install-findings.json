@@ -1,0 +1,19 @@
+{
+  "findings" : [
+    {
+      "attempts" : 1,
+      "bundleID" : "org.blenderfoundation.blender",
+      "channel" : "-",
+      "elapsedMs" : 41744,
+      "endpointHost" : "download.blender.org",
+      "recipeID" : "install:vendor:org.blenderfoundation.blender:stable",
+      "registry" : "install",
+      "status" : "ok",
+      "warnings" : [
+
+      ]
+    }
+  ],
+  "generatedAt" : "2026-11-14T17:34:37Z",
+  "schemaVersion" : 1
+}

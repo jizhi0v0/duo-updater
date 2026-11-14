@@ -12,7 +12,7 @@
 
 |              | Sparkle | Homebrew | MAS | GitHub | VendorProbe |
 |--------------|---------|----------|-----|--------|-------------|
-| **stable**   | — | ✓ | — | — | ✓ 下载页 |
+| **stable**   | — | ✓ | — | — | ✓ 镜像 JSON |
 | **alpha**    | — | — | — | — | ✓ builder |
 | **beta**     | — | — | — | — | ✓ builder（周期外关闭） |
 | **rc**       | — | — | — | — | ✓ builder（周期外关闭） |
@@ -23,7 +23,7 @@
 
 | Channel | Bundle ID | 独立/共享 | 检测信号 | 门控方式 | 状态 |
 |---------|-----------|----------|---------|---------|------|
-| stable  | `org.blenderfoundation.blender` | 共享 | 主程序里没有周期字面量对 | 下载页 / Homebrew cask | ✓ |
+| stable  | `org.blenderfoundation.blender` | 共享 | 主程序里没有周期字面量对 | 镜像 JSON / Homebrew cask | ✓ |
 | alpha   | 同上 | 共享 | 主程序：`" Alpha"`/`" a"` + 分支 `main` | builder JSON `risk_id: alpha` | ✓ |
 | beta    | 同上 | 共享 | 主程序：`" Beta"`/`" b"` + 分支 `blender-vX.Y-release` | builder JSON `risk_id: beta` | ✓ |
 | rc      | 同上 | 共享 | 主程序：`" Release Candidate"`/`" RC"` + 分支 `blender-vX.Y-release` | builder JSON `risk_id: candidate` | ✓ |
@@ -37,18 +37,18 @@
 
 单独的 `" Alpha"` 四个构建里都有（别处用到的），所以只认「格式串前紧挨的一对」。`buildinfo.c` 的全局变量给出日期、UTC 时间、12 位 commit、分支；alpha 从 `main` 出，beta/RC/正式版都从 `blender-vX.Y-release` 出，所以分支只分得出 alpha。同周期但不在该轨分支上的构建（实验分支、PR 构建、本地编译）不给 commit，比较结果是「无法判断」，不会被提示换成 `main` 的最新构建。
 
-所有 stable 线（最新版与各 LTS）共用一个 bundle id：4.5 LTS 的拷贝会被提示升到当前正式版（与 Homebrew `blender` cask 一致），4 → 5 由大版本门标出。
+所有 stable 线（最新版与各 LTS）共用一个 bundle id：4.5 LTS 的拷贝会被提示升到当前正式版（与 Homebrew `blender` cask 一致）。
 
 ## 更新检测
 - 源: `VendorProbeSource`（直接下载）、`HomebrewCaskSource`（brew 装的正式版）
-- **stable** 端点: `https://www.blender.org/download/`，取 macOS 按钮的链接 `/download/release/Blender<major.minor>/blender-<version>-macos-arm64.dmg/`（页面上唯一的 macOS 链接，出现两处：页头按钮与平台菜单）。读的是：人人可手动下载的 GA。
+- **stable** 端点: `https://mirror.blender.org/release/`，请求头 `Accept: application/json`。先按数字版本选择最高的 `Blender<major.minor>/`，再请求该目录的 JSON，取最高的 `blender-<version>-macos-arm64.dmg` 正式版条目；版本和安装 URL 同取该条目。最高目录没有正式版或请求失败时明确失败，不回退旧目录。读的是人人可手动下载的 GA；LTS 拷贝仍跟随当前正式版。
 - **alpha / beta / rc** 端点: `https://builder.blender.org/download/daily/?format=json&v=1`（约 80 KB，每个分支 × 平台 × 文件类型只列**最新一个**构建；更早的在 `/download/daily/archive/?format=json&v=1`，约 100 天，**不按时间排序**，也不含当前构建）。按 `{"url"` 切成条目，取 `risk_id` / 分支 / `darwin` / `arm64` / `dmg` 都对得上的条目里 `version` 最高的那个；`hash` 是 commit（`headBuildPattern`），`file_mtime` 是上传时间（`publishedAtPattern`）。读的是：该轨的最新构建，builder 页面上人人可下。
 - **比较**: 同一轨所有构建的 `version` 都一样（每个 5.3 alpha 都是 5.3.0），只能按 commit 比。列表只给最新那个，所以用 `BuildLineage.head`：已装 commit 等于它就是最新，否则落后于它。`UpdateChecker.evaluate` 在上面加两道闸：已装的 marketing 版本更高时不提示（RC 轨可能同时列着 4.5 LTS 和 5.2 的 candidate，按版本取最高后仍可能低于已装的）；该构建的上传时间早于已装拷贝的构建时间时不提示——这是防护，没观测到过：防的是列表万一滞后于 builder 页面上已被下载的构建，或本地用更新的 commit 编译的拷贝。
 - **周期外**: beta/RC 只在发布周期里存在几周。列表里还有正常形状的 alpha 条目、却没有该轨条目时，`trackClosedPattern` 判为「轨道关闭」，不算失败；列表形状变了则两者都不匹配，照常报 recipe 失败。
 - **列表服务端崩溃**: 正文以 PHP 的 `<br />` + `<b>Fatal error</b>:` 开头时，`transientBodyPattern` 判为厂商错误信封（`vendorErrorEnvelope`，infra）：抓取时重试一次，`duo verify` 按 infra 窗口（5 天）才报，PR 上的 `vendorResolvesInstallPlans` 在有新鲜 `lastGoodAt` 时记为 known issue。锚在文档开头，正常列表以 `[` 开头，匹配不到。
 - `hostRequirement`: 全部仅 arm64。5.0 起 Blender 不再出 Intel dmg，builder 条目也只读 `darwin`/`arm64`。
 - 注意事项:
-  - Homebrew 的 livecheck 说下载页在 Cloudflare 后面、它抓不到，所以改读 `download.blender.org/release/`；那个目录是两级（每个 minor 一个子目录），单 URL 的 probe 跟不下去。2026-09-25 连续 5 次 GET 都是 200（`server: cloudflare`, `cf-cache-status: DYNAMIC`），被挑战时 probe 退回 unknown，不会误报。
+  - 官网下载页曾被 Cloudflare 以 403 拒绝，stable 探测改走镜像 JSON 的两级目录。子链接仅接受同一根目录下的单个字面目录名；不接受 URL、父目录、编码分隔符、查询串或片段。
   - 下载页上 Windows-arm 那栏的 checksum 链接指向 `blender-5.2.1.sha256`，而按钮已是 5.2.2——页面局部会滞后，所以不接 checksum，只靠 Team ID 签名闸。builder 发布的 `.sha256` 是 hex，`checksumPattern` 要 base64 SHA-512，同样不接。
   - builder 列表里有陈旧条目（2024 年的 `4.2.0` Windows alpha 还在），按版本取最高会压过它们。
   - 正式版的 `file_mtime` 会晚于构建时间很多（5.2.2 构建于 09-15，文件上传时间 09-25），所以上传时间只作防护，身份一律看 commit。
@@ -70,7 +70,7 @@
 ## 一键安装
 - 状态: 支持（直接下载的拷贝，四条轨）；brew 装的走 Homebrew
 - 格式: dmg，Blender.app 自包含（bundle 外无 helper / launch item），所以 `.dmg` 而不是 `.pkg`
-- stable URL: 下载页的链接是感谢页不是文件；由同一个链接的两个捕获拼出 `https://download.blender.org/release/Blender{major.minor}/blender-{version}-macos-arm64.dmg`（HEAD 200，`application/octet-stream`，346286611 字节）
+- stable URL: 由获胜 JSON 条目的文件名捕获 major.minor 与完整版本，拼出 `https://download.blender.org/release/Blender{major.minor}/blender-{version}-macos-arm64.dmg`，继续使用官方下载域名和现有签名闸。
 - alpha/beta/rc URL: 条目自己的 `url`，`https://cdn.builder.blender.org/download/daily/blender-<ver>-<alpha|beta|candidate>+<main|vNN>.<commit>-darwin.arm64-release.dmg`；channel proof 锚在文件名里的 `-alpha+main.` / `-beta+vNN.` / `-candidate+vNN.`，beta/RC 轨永远不会装到正式版。
 - **读的是**: stable 是人人可手动下载的 GA；alpha/beta/rc 是 builder 页面上该轨的最新构建（人人可下，没有灰度）
 - 阻塞: 无。stable 已在真实旧版拷贝上跑通（见「如何复验」）；alpha/beta/rc 的一键安装尚未真跑。
@@ -195,3 +195,9 @@ RC **不排除**（PR #1086 第一轮 review 指出）：Blender 也给已发布
 ### Recipes/org-blenderfoundation-blender.swift — builder 列表的 PHP fatal 记为厂商错误信封
 
 2026-10-15 约 09:00 UTC 起（nightly 的 `lastGoodAt` 是 08:33:04Z），`https://builder.blender.org/download/daily/?format=json&v=1` 返回 HTTP/2 200、`content-type: application/json`、590 字节的 PHP fatal（`Call to undefined method BuildsRenderer::getFileNameURL()`，栈里是 `renderJSON('1')`）；`v=2` 与 `archive/?format=json&v=1` 同样 590 字节，HTML 页 `/download/daily/` 正常（267016 字节，列着 5.4.0 alpha、5.3.0 beta、5.2.3 candidate）。三条轨都报 `versionPatternNoMatch`，PR 的 `test` 全红：`excusesVendorOutage` 对 pattern miss 只在 Balrog 停发时豁免。经用户同意，三条 builder 轨声明 `transientBodyPattern` `\A\s*<br />\s*<b>Fatal error</b>:`，`excusesVendorOutage` 豁免 `vendorErrorEnvelope`（仍要求 5 天内的 `lastGoodAt`）。`BlenderBuilderTrackTests` 用原样抓下的正文钉两个方向（崩溃正文匹配、三份真实列表都不匹配、也不判为轨道关闭），并经 `VendorProbeSource` 实跑：重试一次后为 infra。
+
+### 2026-11-15 — stable 改用镜像 JSON 两级目录
+
+`www.blender.org/download/` 的版本探测 GET 返回 403；`mirror.blender.org/release/` 与 `Blender5.3/` 的 JSON 均返回 200，最高目录为 5.3，正式版 arm64 文件为 `blender-5.3.0-macos-arm64.dmg`。使用 `versionedDirectory` 模式，保留 alpha/beta/RC 的 builder 端点、LTS 跟随当前正式版的政策和官方 DMG 安装路径。离线测试覆盖目录数值排序、同一条目的版本/安装 URL、preview/Intel 排除、子目录失败不回退、两次请求的缓存策略和恶意子链接拒绝。
+
+独立 macOS 27.2 arm64 VM：真实官方 5.2.2 拷贝，旧 CLI 返回 HTTP 403；新 CLI 检测 5.3.0 / Vendor / in-place。安装后的应用用普通 Update 按钮完成 5.2.2 → 5.3.0，事件 `client: app` / `applied: true`，复查 up-to-date；最终包 strict 签名与 Gatekeeper notarization 均通过，Team 68UA947AUU。完整官方 DMG 身份验证 1 ok / 0 warn / 0 failed。原生 5.3 更新说明和安装前后截图、原始日志见 [验证记录](../../verify/blender-mirror/README.md)。

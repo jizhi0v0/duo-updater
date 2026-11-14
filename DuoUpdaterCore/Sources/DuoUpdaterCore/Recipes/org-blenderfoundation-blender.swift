@@ -5,53 +5,38 @@ enum org_blenderfoundation_blender {
         family: "org-blenderfoundation-blender",
         probes: [
         // History: docs/app-audits/org-blenderfoundation-blender.md#历史与实测
-        // Blender — no updater in the bundle (no `SUFeedURL`, no Sparkle), so a
-        // direct-download copy has no source until this one. The version is read
-        // off www.blender.org/download/, the vendor's own "current release" page:
-        // its macOS button links to
-        // `/download/release/Blender<major.minor>/blender-<version>-macos-arm64.dmg/`
-        // and it is the only macOS link on the page. That version string is the
-        // bundle's `CFBundleShortVersionString` (and `CFBundleVersion`, identical),
-        // so no `versionIsBuild`. The page names a GA build anyone can download by
-        // hand, not a staged rollout.
+        // Blender has no bundled updater. The mirror's release index serves
+        // JSON with `Accept: application/json`: choose the highest numeric minor
+        // directory, then its highest stable arm64 DMG entry. Only literal GA
+        // filenames count; previews, Intel builds and mirror-info links do not.
+        // An empty/newly-created highest directory fails visibly, never falls
+        // back to an older minor and reports it as current.
         //
-        // Apple silicon only: since 5.0 Blender builds no Intel dmg (the 5.x
-        // release directories hold `-macos-arm64.dmg` alone), and the page links
-        // nothing for Intel. Intel copies are capped at the 4.5 LTS line, which
-        // this recipe does not cover.
+        // Stable and LTS copies follow the current stable release, as Homebrew's
+        // `blender` cask does. The executable's cycle keeps alpha/beta/RC copies
+        // on their separate builder tracks below. Intel hosts are unsupported.
         //
-        // Every stable line shares the bundle id: a 4.5 LTS copy is offered the
-        // current release here, the same as Homebrew's `blender` cask does, and the
-        // major-version gate marks a 4 → 5 jump. Alpha, beta and release-candidate
-        // builds share it too, but never reach this recipe: their cycle is read out
-        // of the executable (`BlenderBuildInfo`) and they follow the builder tracks
-        // below.
-        //
-        // Homebrew notes the page sits behind Cloudflare and its livecheck reads
-        // download.blender.org/release/ instead; that listing is two levels deep
-        // (one directory per minor), which a single-URL probe cannot follow.
-        //
-        // One-click: the page's link is a thank-you page, not the file. The dmg
-        // lives at download.blender.org/release/Blender<major.minor>/, rebuilt
-        // from the same anchor's two captures. Blender.app is self-contained (no
-        // helpers or launch items outside the bundle), so `.dmg` is right. Team
-        // 68UA947AUU (Stichting Blender Foundation).
+        // One-click rebuilds the official download URL from the SAME winning
+        // JSON entry. Blender.app is self-contained; Team 68UA947AUU.
         VendorProbeRecipe(
             bundleID: "org.blenderfoundation.blender",
-            url: URL(string: "https://www.blender.org/download/")!,
-            mode: .responseBody,
+            url: URL(string: "https://mirror.blender.org/release/")!,
+            mode: .versionedDirectory(linkPattern:
+                #""url"\s*:\s*"\./(Blender([0-9]+\.[0-9]+)/)""#),
             versionPattern:
-                #"href="https://www\.blender\.org/download/release/Blender[0-9]+\.[0-9]+/blender-([0-9]+\.[0-9]+\.[0-9]+)-macos-arm64\.dmg/""#,
+                #""url"\s*:\s*"\./blender-([0-9]+\.[0-9]+\.[0-9]+)-macos-arm64\.dmg""#,
             downloadURL: URL(string: "https://www.blender.org/download/"),
             changelogURL: URL(string: "https://developer.blender.org/docs/release_notes/"),
+            entryStartPattern: #"\{\s*"name"\s*:"#,
             install: VendorInstallSpec(
                 urlSource: .bodyTemplate(
                     "https://download.blender.org/release/Blender{0}/blender-{1}-macos-arm64.dmg",
                     fields: [
-                        #"href="https://www\.blender\.org/download/release/Blender([0-9]+\.[0-9]+)/blender-[0-9]+\.[0-9]+\.[0-9]+-macos-arm64\.dmg/""#,
-                        #"href="https://www\.blender\.org/download/release/Blender[0-9]+\.[0-9]+/blender-([0-9]+\.[0-9]+\.[0-9]+)-macos-arm64\.dmg/""#,
+                        #""url"\s*:\s*"\./blender-([0-9]+\.[0-9]+)\.[0-9]+-macos-arm64\.dmg""#,
+                        #""url"\s*:\s*"\./blender-([0-9]+\.[0-9]+\.[0-9]+)-macos-arm64\.dmg""#,
                     ]),
                 kind: .dmg),
+            requestHeaders: ["Accept": "application/json"],
             hostRequirement: VendorHostRequirement(architectures: [.arm64])),
         // Alpha, beta and release candidate — the builds builder.blender.org
         // publishes every day. Its JSON listing names the newest build of each

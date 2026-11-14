@@ -1246,74 +1246,28 @@ public struct VendorProbeSource: UpdateSource {
             }
 
         case .responseBody:
-            var request = URLRequest(url: endpoint)
-            request.timeoutInterval = 15
-            request.cachePolicy = URLRequest.versionFeedCachePolicy
-            request.setValue(Self.userAgent, forHTTPHeaderField: "User-Agent")
-            Self.apply(recipe.requestHeaders, to: &request)
-            // An update service that only answers a POST (Omaha). The body is
-            // fixed by the recipe — nothing about this machine goes into it —
-            // except an echoed field, which carries back what the service itself
-            // assigned last time (`RequestBody.EchoedField`).
-            if let body = recipe.requestBody {
-                request.httpMethod = "POST"
-                var json = body.json
-                if let field = body.echoedField {
-                    json = field.body(json, stored: await echoedFields?.value(for: recipe.recipeID))
-                }
-                request.httpBody = Data(json.utf8)
-                request.setValue(body.contentType, forHTTPHeaderField: "Content-Type")
-            }
+            return await fetchResponseBody(recipe, endpoint: endpoint)
 
-            // When not following redirects we want the 3xx itself (its small body
-            // / Location), so widen the accepted range and use the blocking session.
-            let activeSession = recipe.followRedirects ? session : Self.noRedirectSession
-            let okRange = recipe.followRedirects ? (200..<300) : (200..<400)
-            // A vendor that reports its own outage inside a 200 gets the same one
-            // retry a gateway 5xx gets, through the same helper — so the delay, the
-            // "never retry a POST" guard and the sweep's request tally stay in one
-            // place instead of growing a second copy here. Nil for every recipe that
-            // declares no envelope, which is all of them but CapCut's: the predicate
-            // is not built and `versionFeedData` never consults it.
-            var transientBody: (@Sendable (Data) -> Bool)?
-            if recipe.transientBodyPattern != nil {
-                transientBody = { data in
-                    recipe.matchesTransientBody(String(decoding: data, as: UTF8.self))
-                }
+        case .versionedDirectory(let pattern):
+            guard recipe.requestBody == nil, endpoint.hasDirectoryPath,
+                  endpoint.query == nil, endpoint.fragment == nil else {
+                return .failure(.malformedResolvedURL("versioned directory requires a GET directory endpoint"))
             }
-            let data: Data
-            let response: URLResponse
-            do { (data, response) = try await activeSession.versionFeedData(
-                for: request, label: "VendorProbe \(recipe.bundleID)",
-                retryableBody: transientBody) }
-            catch { return .failure(Self.transportFailure(error)) }
-            guard let http = response as? HTTPURLResponse else {
-                return .failure(.nonHTTPResponse)
+            let index: FetchedBody
+            switch await fetchResponseBody(recipe, endpoint: endpoint) {
+            case .failure(let failure): return .failure(failure)
+            case .success(let body): index = body
             }
-            guard okRange.contains(http.statusCode) else {
-                return .failure(.httpStatus(http.statusCode))
+            guard let child = Self.highestVersionedDirectory(
+                in: index.text, pattern: pattern, root: endpoint) else {
+                return .failure(.versionPatternNoMatch(sampleBytes: index.text.utf8.count))
             }
-            let text = String(decoding: data, as: UTF8.self)
-            // Stored before the reply is even parsed: the assignment is a fact
-            // about the service's state whatever this recipe goes on to make of
-            // the rest, and the next request must carry it either way.
-            if let field = recipe.requestBody?.echoedField, let echoedFields {
-                if let assigned = field.assigned(in: text) {
-                    await echoedFields.record(assigned, for: recipe.recipeID)
-                } else if VendorProbeRecipe.extractVersion(
-                    from: text, pattern: field.responsePattern) != nil {
-                    // The reply named a value and we refused it. Nothing is
-                    // stored, so every request goes on being asked as a fresh
-                    // client — #1621 again, silently, unless this is said. The
-                    // value itself stays out of the log.
-                    Log.source.error(
-                        "\(recipe.recipeID, privacy: .public): the reply assigned a \(field.placeholder, privacy: .public) value that fails the recipe's validation; it was not stored")
-                }
+            let listing = await fetchResponseBody(recipe, endpoint: child)
+            if case .success(let body) = listing,
+               recipe.entryStartPattern != nil, Self.scopedBody(recipe, body.text).fellBack {
+                return .failure(.versionPatternNoMatch(sampleBytes: body.text.utf8.count))
             }
-            return .success(FetchedBody(
-                text: text,
-                resolvedDownload: recipe.downloadURL ?? recipe.url,
-                status: http.statusCode))
+            return listing
 
         case .zipEntryPlist(let entry, let key):
             // The version lives in a bundled Info.plist inside a (small) zip —
@@ -1325,6 +1279,105 @@ public struct VendorProbeSource: UpdateSource {
                     text: $0, resolvedDownload: recipe.downloadURL ?? recipe.url,
                     status: nil) }
         }
+    }
+
+    /// Shared GET/POST body path: both directory requests retain the same cache
+    /// policy, request headers, retry accounting and cancellation behavior.
+    private func fetchResponseBody(
+        _ recipe: VendorProbeRecipe, endpoint: URL
+    ) async -> Result<FetchedBody, ProbeFailure> {
+        var request = URLRequest(url: endpoint)
+        request.timeoutInterval = 15
+        request.cachePolicy = URLRequest.versionFeedCachePolicy
+        request.setValue(Self.userAgent, forHTTPHeaderField: "User-Agent")
+        Self.apply(recipe.requestHeaders, to: &request)
+        // An update service that only answers a POST (Omaha). The body is
+        // fixed by the recipe — nothing about this machine goes into it —
+        // except an echoed field, which carries back what the service itself
+        // assigned last time (`RequestBody.EchoedField`).
+        if let body = recipe.requestBody {
+            request.httpMethod = "POST"
+            var json = body.json
+            if let field = body.echoedField {
+                json = field.body(json, stored: await echoedFields?.value(for: recipe.recipeID))
+            }
+            request.httpBody = Data(json.utf8)
+            request.setValue(body.contentType, forHTTPHeaderField: "Content-Type")
+        }
+
+        // When not following redirects we want the 3xx itself (its small body
+        // / Location), so widen the accepted range and use the blocking session.
+        let activeSession = recipe.followRedirects ? session : Self.noRedirectSession
+        let okRange = recipe.followRedirects ? (200..<300) : (200..<400)
+        // A vendor that reports its own outage inside a 200 gets the same one
+        // retry a gateway 5xx gets, through the same helper — so the delay, the
+        // "never retry a POST" guard and the sweep's request tally stay in one
+        // place instead of growing a second copy here. Nil for every recipe that
+        // declares no envelope, which is all of them but CapCut's: the predicate
+        // is not built and `versionFeedData` never consults it.
+        var transientBody: (@Sendable (Data) -> Bool)?
+        if recipe.transientBodyPattern != nil {
+            transientBody = { data in
+                recipe.matchesTransientBody(String(decoding: data, as: UTF8.self))
+            }
+        }
+        let data: Data
+        let response: URLResponse
+        do { (data, response) = try await activeSession.versionFeedData(
+            for: request, label: "VendorProbe \(recipe.bundleID)",
+            retryableBody: transientBody) }
+        catch { return .failure(Self.transportFailure(error)) }
+        guard let http = response as? HTTPURLResponse else {
+            return .failure(.nonHTTPResponse)
+        }
+        guard okRange.contains(http.statusCode) else {
+            return .failure(.httpStatus(http.statusCode))
+        }
+        let text = String(decoding: data, as: UTF8.self)
+        // Stored before the reply is even parsed: the assignment is a fact
+        // about the service's state whatever this recipe goes on to make of
+        // the rest, and the next request must carry it either way.
+        if let field = recipe.requestBody?.echoedField, let echoedFields {
+            if let assigned = field.assigned(in: text) {
+                await echoedFields.record(assigned, for: recipe.recipeID)
+            } else if VendorProbeRecipe.extractVersion(
+                from: text, pattern: field.responsePattern) != nil {
+                // The reply named a value and we refused it. Nothing is
+                // stored, so every request goes on being asked as a fresh
+                // client — #1621 again, silently, unless this is said. The
+                // value itself stays out of the log.
+                Log.source.error(
+                    "\(recipe.recipeID, privacy: .public): the reply assigned a \(field.placeholder, privacy: .public) value that fails the recipe's validation; it was not stored")
+            }
+        }
+        return .success(FetchedBody(
+            text: text,
+            resolvedDownload: recipe.downloadURL ?? recipe.url,
+            status: http.statusCode))
+    }
+
+    /// Version-order the index, never its lexical/page order. Captured links are
+    /// untrusted: only a literal immediate child is allowed, with no URL syntax,
+    /// encoded separators, dot traversal, query or fragment. A malformed matched
+    /// entry refuses the index rather than silently selecting an older release.
+    static func highestVersionedDirectory(in text: String, pattern: String, root: URL) -> URL? {
+        guard let regex = try? NSRegularExpression(pattern: pattern),
+              regex.numberOfCaptureGroups == 2 else { return nil }
+        let ns = text as NSString
+        var best: (path: String, version: String)?
+        for match in regex.matches(in: text, range: NSRange(location: 0, length: ns.length)) {
+            guard match.range(at: 1).location != NSNotFound,
+                  match.range(at: 2).location != NSNotFound else { return nil }
+            let path = ns.substring(with: match.range(at: 1))
+            let version = ns.substring(with: match.range(at: 2))
+            guard path.range(of: #"^[A-Za-z0-9_-][A-Za-z0-9._-]*/$"#, options: .regularExpression) != nil,
+                  version.range(of: #"^[0-9]+(?:\.[0-9]+)+$"#, options: .regularExpression) != nil else { return nil }
+            if best == nil || VersionComparator.isNewer(version, than: best!.version) {
+                best = (path, version)
+            }
+        }
+        guard let best else { return nil }
+        return root.appendingPathComponent(String(best.path.dropLast()), isDirectory: true)
     }
 
     /// Layer a recipe's own headers over the defaults set just above, so a recipe

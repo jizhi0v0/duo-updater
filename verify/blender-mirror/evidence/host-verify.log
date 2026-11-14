@@ -1,0 +1,18 @@
+
+  duo verify
+  4 vendor probes  0 GitHub rules  1 changelogs  0 App Store probes  0 Sparkle feeds  0 MyGo feeds  0 pkg architectures  1 changelog pages
+  ─────────────────────────────────────────────
+  baseline: changelog:app.getmoshi.desktop.tauri:- has no recipe but its issue is still open — kept
+  baseline: github:vorssaintapp/vorssaint-utils:beta has no recipe but its issue is still open — kept
+  baseline: github:vorssaintapp/vorssaint-utils:stable has no recipe but its issue is still open — kept
+
+  - SKIPPED
+      vendor:org.blenderfoundation.blender:beta — no current build on the beta track
+      vendor:org.blenderfoundation.blender:rc — no current build on the rc track
+
+  ─────────────────────────────────────────────
+  vendor probe  ✓ 2  ⚠ 0  ✗ 0  ~ 0  - 2
+  changelog     ✓ 1  ⚠ 0  ✗ 0  ~ 0  - 0
+  changelog gap ✓ 1  ⚠ 0  ✗ 0  ~ 0  - 0
+  total          ✓ 4  ⚠ 0  ✗ 0  ~ 0  - 2      7s
+  0 of 1 apps with a changelog page have no recipe and are listed in ChangelogCoverage.acknowledged (0 feasible, not written yet)

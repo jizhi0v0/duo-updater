@@ -268,6 +268,15 @@ public struct VendorProbeRecipe: Sendable {
         /// `url` is a small text/JSON endpoint whose body contains the version;
         /// we GET it and apply `versionPattern` to the response text.
         case responseBody
+        /// GET a release index, then GET its highest versioned child directory.
+        /// `linkPattern` captures a single directory component (including `/`)
+        /// and its numeric version in groups 1 and 2. Only an immediate child of
+        /// `url` is accepted. The second body uses the usual version/install
+        /// patterns; a missing build there fails rather than trying older dirs.
+        /// This mode requires GET requests and a directory URL ending in `/`.
+        /// If `entryStartPattern` is set, entry slicing must succeed: an index
+        /// shape change cannot fall back to another entry's first-match URL.
+        case versionedDirectory(linkPattern: String)
         /// `url` is a (small) ZIP whose version lives in a bundled Info.plist —
         /// for vendors whose only cheap version surface is a "stub installer"
         /// archive: we GET the zip, extract the named `entry`, parse it as a

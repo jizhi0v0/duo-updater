@@ -60,6 +60,29 @@ private let inkscapeWikiFixture = #"""
         #expect(!items.contains { $0.contains("Inkscape 0.4") })
     }
 
+    /// MediaWiki now nests the page title in spans and puts section ids on h2.
+    /// Trimmed from the live 1.4.4 page; navigation stays outside the body.
+    @Test func readsCurrentMediaWikiHeadings() throws {
+        let fixture = #"""
+        <h1 id="firstHeading" class="firstHeading mw-first-heading"><span lang="en" dir="ltr"><span class="mw-page-title-main">Release notes/1.4.4</span></span></h1>
+        <ul><li>Commit History Main Program</li></ul>
+        <div class="mw-heading mw-heading2"><h2 id="Changes_and_Bug_Fixes">Changes and Bug Fixes</h2></div>
+        <div class="mw-heading mw-heading3"><h3 id="Crash_Fixes">Crash Fixes</h3></div>
+        <ul><li>… <b>trying to start Inkscape</b> when there are two entries for the same file in the list of recently used files (<a rel="nofollow" class="external text" href="https://gitlab.com/inkscape/inkscape/-/work_items/6002">Bug 6002</a>, <a rel="nofollow" class="external text" href="https://gitlab.com/inkscape/inkscape/-/merge_requests/7750">MR #7750</a>)</li>
+        <li>… <b> trying to start Inkscape on Windows</b>, when two recently opened files are in the same folder on different drives (<a rel="nofollow" class="external text" href="https://gitlab.com/inkscape/inkscape/-/work_items/6028">Bug #6028</a>, <a rel="nofollow" class="external text" href="https://gitlab.com/inkscape/inkscape/-/merge_requests/7754">MR #7754</a>)</li></ul>
+        <div class="mw-heading mw-heading2"><h2 id="Other_releases">Other releases</h2></div>
+        <ul><li>Inkscape 1.5 — development branch</li></ul>
+        """#
+        let log = try #require(ChangelogExtractor.extract(from: fixture, using: try recipe()))
+        let entry = try #require(log.entries.first)
+        #expect(log.entries.count == 1)
+        #expect(entry.version == "1.4.4")
+        #expect(entry.date == nil)
+        #expect(entry.items.count == 2)
+        #expect(entry.items[0] == "… trying to start Inkscape when there are two entries for the same file in the list of recently used files (Bug 6002, MR #7750)")
+        #expect(!entry.items.contains { $0.contains("Commit History") || $0.contains("Inkscape 1.5") })
+    }
+
     @Test func eachPageIsOneRelease() throws {
         let recipe = try self.recipe()
         #expect(recipe.maxEntries == 1)

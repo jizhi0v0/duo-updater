@@ -73,14 +73,13 @@ beta 副本的 short 版本是 `2.0.0`，所以它会被当作 stable 2.0.0，�
 不适用：app 没有更新器。
 
 ## Changelog
-- 来源: recipe，读厂商 Substack 博客的 RSS `https://blog.corkmac.app/feed`（每篇文章的 HTML 在 `<content:encoded>` 里）
-- 只认标题形如 `Cork <version> (is) out` 的文章；beta 和 RC 文章（`Cork 2.0.0 Public Beta 4 is out!`、`… Release Candidate …`）不匹配
-- 条目是每个 `<p>`（文章里列表层层嵌套，每行都包在 `<p>` 里），`<h2>` 作为分节标题（Additions / Fixes / Adjustments）；
-  正文在厂商的结尾套话（`NO AI USED, EVER`、`Cork Community`）之前截断，Substack 订阅框的 `cta-caption` 段落跳过
-- 结构化（`channel-verify` 生产链）: `recipe changelog:eu.davidbures.cork:-: 14 entries; newest 2.0.3: 8 items, headings ["Additions", "Fixes", "Adjustments"]`
-- 缺口：2.0.2 没有文章（GitHub 说明写着它与 2.0.1 相同，只是换了 SDK 重新编译），所以没有 2.0.2 条目
-- GitHub release body 不用：多数只有一条指向博客的链接
-- 跟随 channel: 只有 stable
+- 来源：官方 Rikidar Forum 的 Cork Announcements 分类，`https://forum.rikidar.eu/category/17/announcements?sort=recently_created`。
+- 两阶段 recipe：按创建时间查看分类，跳过非 release、beta/RC 标题，跟随首条 `Cork <version> (is) out` 的 topic 链接；只解析该 topic 的 `data-index="0"` 原帖，最多一条 release。
+- 版本来自 topic 标题，日期来自原帖的 `datePublished`，正文止于原帖 footer；段落、列表项及标题一并保留，不收用户回复。
+- **不用分类 RSS 的 description**：NodeBB 填的是最后一条回复；2.1.2 的 RSS 已出现推广回复，不能当 release notes。
+- 厂商 2026-10-25 公告 changelog 从旧 Substack 博客迁到论坛。旧博客仍有历史文章，但不再表示最新版本。
+- 缺口：结构化 pane 跟随当前最新 release 原帖，旧版本历史留在论坛和博客；2.0.2 没有独立文章（与 2.0.1 内容相同的 rebuild）。
+- 跟随 channel：stable；beta/RC 的标题不能通过 index 过滤。
 
 ## 一键安装
 - 状态: **一键**，下载到首页 HTML 时由 `VendorInstaller.fetchArchive` 重下（`VendorInstallSpec`，`.versionTemplate("https://corkmac.app/RLS/{version}/Cork.zip")`，`kind: .zip`）
@@ -126,6 +125,15 @@ spctl -a -vv -t exec <Cork.app>
 ```
 
 ## 历史与实测
+
+- 2026-11-14 VM 端到端：独立 macOS 27.2 VM 中，2.1.1 → 2.1.2 一键安装成功；原生面板显示 2026-11-02 的四段首帖内容，未混入回复。完整命令、原始结果与截图见 [验证记录](../../verify/recipe-broken-seven/README.md)。
+
+### 2026-11-14 · changelog 迁到论坛（#1533）
+
+- 旧 RSS 生产解析仍为 2.0.3 / 13 条，版本 probe 已为 2.1.2。旧 RSS 的 2.1.x 字面命中为 0，并有迁移公告 `https://blog.corkmac.app/p/changelogs-will-be-posted-to-the`。
+- 新分类的 `recently_created` 排序实际返回 200、`sortOption=recently_created`。默认则是 `recently_replied`；不是按版本发布排序。
+- 当前 release 为 `https://forum.rikidar.eu/topic/19/cork-2.1.2-is-out-just-some-legalities`，原帖日期 2026-11-02，4 个正文段落。分类 RSS 对该 topic 的 description 是 2026-11-10 的推广回复，不能直接解析它。
+- VM 解包 2.1.1 / 2.1.2 的官方 zip：同为 `eu.davidbures.cork` / Team `ZSVA6DVZHM`、universal、最低 macOS 14.0.0，严格签名验证通过。
 
 ### 2026-10-16 · 接入
 

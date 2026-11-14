@@ -1,7 +1,7 @@
-# Herdr（herdr-gpui）
+# Herdr / Sheprd（herdr-gpui）
 
 ## 基本信息
-- App: Herdr — Herdr 守护进程的 Rust/GPUI 桌面客户端（终端会话、workspace、worktree、agent 活动）
+- App: Herdr，现名 Sheprd — Herdr 守护进程的 Rust/GPUI 桌面客户端（终端会话、workspace、worktree、agent 活动）
 - Bundle ID: `so.pen.herdr-gpui`
 - 仓库: `sheprd-labs/sheprd`（旧名 `penso/herdr-gpui`；GitHub 301 到 `/repositories/1377952273/…`）
 - Team ID: `VJAHQVZ96V`（Fabien Penso），Developer ID + 公证
@@ -43,9 +43,10 @@
 
 ## 一键安装
 - 状态: **支持**
-- 格式: dmg — `Herdr-<ver>-universal-apple-darwin.dmg`，旁边是 `.crt` / `.sha256` / `.sha512` / `.sig`、更新器用的
+- 格式: dmg — `Herdr-<ver>-universal-apple-darwin.dmg` 或改名后的 `Sheprd-<ver>-universal-apple-darwin.dmg`，旁边是 `.crt` / `.sha256` / `.sha512` / `.sig`、更新器用的
   `.app.tar.gz` 与 Linux / Windows 包；GitHub 为每个资产发布 sha256 `digest`
-- Pattern: `^Herdr-[0-9]{8}\.[0-9]+-universal-apple-darwin\.dmg$`, kind `.dmg`
+- Pattern: `^(?:Herdr|Sheprd)-[0-9]{8}\.[0-9]+-universal-apple-darwin\.dmg$`, kind `.dmg`
+- 两种文件名和 app 名共享 `so.pen.herdr-gpui` / Team `VJAHQVZ96V`，同一条规则覆盖旧 Herdr 和新 Sheprd 副本，无需 Bundle ID 迁移。
 - 包验（2026-10-07）: 20261007.1 / 20261007.2 挂载，Team `VJAHQVZ96V`，`--deep --strict` 0，`spctl` Notarized Developer ID
 - 端到端（2026-10-07）:
   - 不运行: 20261007.1 → `duo check` `[GitHub, in-place]` → `duo install --yes --json` `installed`（6 s，39826779 字节）→
@@ -61,6 +62,11 @@ swift run --package-path application-test channel-verify Herdr-20261007.1-univer
 ```
 
 ## 历史与实测
+
+- 2026-11-14 VM 端到端：独立 macOS 27.2 VM 中，不运行与运行中两轮 20261103.1 → 20261109.1 一键安装成功；`duo restart` 从原 `/Applications/Herdr.app` 路径启动新的 `sheprd` 可执行文件，Bundle ID / Team 不变。完整命令、原始结果与截图见 [验证记录](../../verify/recipe-broken-seven/README.md)。
+
+- 2026-11-14（#1829）：旧 pattern 把新资产全跳过，生产诊断停在 20261103.1；官方 v20261109.1 的 dmg 为 `Sheprd-20261109.1-universal-apple-darwin.dmg`（138,571,691 B）。
+  VM 解包 20261103.1 的 `Herdr.app` 和 20261109.1 的 `Sheprd.app`：二者 Bundle ID / signed identifier 均为 `so.pen.herdr-gpui`、Team `VJAHQVZ96V`、universal、最低 macOS 14.2；严格签名验证均通过，带 stapled notarization ticket。
 
 - 2026-11-04: 仓库改名 `penso/herdr-gpui` → `sheprd-labs/sheprd`（GitHub 301 到
   `/repositories/1377952273/…`；tag 与 assets 未变，最新 v20261103.1）。旧 slug 每轮检查都吃一次

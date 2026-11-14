@@ -1,0 +1,203 @@
+{
+  "bytes" : 558668539,
+  "generatedAt" : "2026-11-14T14:50:31Z",
+  "hostConcurrency" : 1,
+  "items" : [
+    {
+      "bundleID" : "com.appflowy.appflowy.flutter",
+      "bytes" : 119452957,
+      "finalHost" : "release-assets.githubusercontent.com",
+      "identity" : {
+        "architectures" : [
+          "arm64"
+        ],
+        "bundleIdentifier" : "com.appflowy.appflowy.flutter",
+        "bundleVersion" : "0.15.0",
+        "minimumSystemVersion" : "12.0",
+        "shortVersion" : "0.15.0",
+        "signedIdentifier" : "com.appflowy.appflowy.flutter",
+        "sparklePublicKey" : "Bs++IOmOwYmNTjMMC2jMqLNldP+mndDp\/LwujCg2\/kw=",
+        "teamIdentifier" : "VHB67HRSZG"
+      },
+      "kind" : "dmg",
+      "notes" : [
+
+      ],
+      "probeHost" : "api.github.com",
+      "recipeID" : "github:AppFlowy-IO\/AppFlowy:stable",
+      "registry" : "github",
+      "seconds" : 29.89106011390686,
+      "status" : "ok",
+      "url" : "https:\/\/github.com\/AppFlowy-IO\/AppFlowy\/releases\/download\/0.15.0\/AppFlowy-0.15.0-macos-arm64.dmg",
+      "urlSHA256" : "374ae4e6cd4321e74fbf1f0ed8c80d37d9c0ddefd77d363a9794ed40bf096112",
+      "version" : "0.15.0",
+      "warnings" : [
+
+      ]
+    },
+    {
+      "bundleID" : "com.ToWatchList.SimpleComic",
+      "bytes" : 16106839,
+      "finalHost" : "release-assets.githubusercontent.com",
+      "identity" : {
+        "architectures" : [
+          "arm64",
+          "x86_64"
+        ],
+        "bundleIdentifier" : "com.ToWatchList.SimpleComic",
+        "bundleVersion" : "363",
+        "minimumSystemVersion" : "15.6",
+        "shortVersion" : "1.12.0",
+        "signedIdentifier" : "com.ToWatchList.SimpleComic",
+        "sparkleFeedURL" : "https:\/\/github.com\/MaddTheSane\/Simple-Comic\/releases\/latest\/download\/appcast.xml",
+        "sparklePublicKey" : "2S+y6238Obvk4gqgJIInoFOz2wJ0DVNVUMUL8h4wSU8=",
+        "teamIdentifier" : "3D9SMH4RWM"
+      },
+      "kind" : "zip",
+      "notes" : [
+
+      ],
+      "probeHost" : "api.github.com",
+      "recipeID" : "github:MaddTheSane\/Simple-Comic:stable",
+      "registry" : "github",
+      "seconds" : 6.8002769947052,
+      "status" : "ok",
+      "url" : "https:\/\/github.com\/MaddTheSane\/Simple-Comic\/releases\/download\/App-Store-1.12.0\/Simple.Comic.1.12.0.zip",
+      "urlSHA256" : "e1d0017b55d9fce192d7cd3e5dd4b2efcad67b51cb913f518a17a163ad08d625",
+      "version" : "1.12.0",
+      "warnings" : [
+
+      ]
+    },
+    {
+      "bundleID" : "app.macdown.macdown3000",
+      "bytes" : 9260952,
+      "finalHost" : "release-assets.githubusercontent.com",
+      "identity" : {
+        "architectures" : [
+          "arm64",
+          "x86_64"
+        ],
+        "bundleIdentifier" : "app.macdown.macdown3000",
+        "bundleVersion" : "1476",
+        "minimumSystemVersion" : "11.0",
+        "shortVersion" : "3000.0.8",
+        "signedIdentifier" : "app.macdown.macdown3000",
+        "sparkleFeedURL" : "https:\/\/macdown.app\/sparkle\/macdown3000\/stable\/appcast.xml",
+        "sparklePublicKey" : "dYc+fhKTMkIAQNFSmNbSMQTq2KMXgN9OqHiURc7oK1A=",
+        "teamIdentifier" : "EDUS6QCV5X"
+      },
+      "kind" : "dmg",
+      "notes" : [
+
+      ],
+      "probeHost" : "api.github.com",
+      "recipeID" : "github:schuyler\/macdown3000:stable",
+      "registry" : "github",
+      "seconds" : 5.2681779861450195,
+      "status" : "ok",
+      "url" : "https:\/\/github.com\/schuyler\/macdown3000\/releases\/download\/v3000.0.8\/MacDown-3000.0.8.dmg",
+      "urlSHA256" : "ebdbb6b45de8b261a8d703da3c6b4c035088b6067eabb8a342965a4308130afb",
+      "version" : "3000.0.8",
+      "warnings" : [
+
+      ]
+    },
+    {
+      "bundleID" : "MstyStudio",
+      "bytes" : 247420514,
+      "finalHost" : "next-assets.msty.studio",
+      "identity" : {
+        "architectures" : [
+          "arm64"
+        ],
+        "bundleIdentifier" : "MstyStudio",
+        "bundleVersion" : "3.0.0",
+        "minimumSystemVersion" : "12.0",
+        "shortVersion" : "3.0.0",
+        "signedIdentifier" : "MstyStudio",
+        "teamIdentifier" : "S6CF5A8MX9"
+      },
+      "kind" : "zip",
+      "notes" : [
+
+      ],
+      "probeHost" : "next-assets.msty.studio",
+      "recipeID" : "vendor:MstyStudio:stable",
+      "registry" : "vendor",
+      "seconds" : 30.880697011947632,
+      "status" : "ok",
+      "url" : "https:\/\/next-assets.msty.studio\/app\/latest\/v3\/mac\/MstyStudio_arm64.zip",
+      "urlSHA256" : "590115aebcc3ad775e82108fbccb237bfad26588d20dd50da3698fe8e8d527a4",
+      "version" : "3.0.0",
+      "warnings" : [
+
+      ]
+    },
+    {
+      "bundleID" : "eu.davidbures.cork",
+      "bytes" : 9506686,
+      "finalHost" : "corkmac.app",
+      "identity" : {
+        "architectures" : [
+          "arm64",
+          "x86_64"
+        ],
+        "bundleIdentifier" : "eu.davidbures.cork",
+        "bundleVersion" : "155",
+        "minimumSystemVersion" : "14.0.0",
+        "shortVersion" : "2.1.2",
+        "signedIdentifier" : "eu.davidbures.cork",
+        "teamIdentifier" : "ZSVA6DVZHM"
+      },
+      "kind" : "zip",
+      "notes" : [
+
+      ],
+      "probeHost" : "corkmac.app",
+      "recipeID" : "vendor:eu.davidbures.cork:stable",
+      "registry" : "vendor",
+      "seconds" : 6.805310964584351,
+      "status" : "ok",
+      "url" : "https:\/\/corkmac.app\/RLS\/2.1.2\/Cork.zip",
+      "urlSHA256" : "623524f3e20ecc72c5f0686260a997679ccdb33846a504ebe699a55790d8cdb1",
+      "version" : "2.1.2",
+      "warnings" : [
+
+      ]
+    },
+    {
+      "bundleID" : "org.inkscape.Inkscape",
+      "bytes" : 156920591,
+      "finalHost" : "media.inkscape.org",
+      "identity" : {
+        "architectures" : [
+          "arm64"
+        ],
+        "bundleIdentifier" : "org.inkscape.Inkscape",
+        "bundleVersion" : "34085",
+        "minimumSystemVersion" : "11.3",
+        "shortVersion" : "1.4.4",
+        "signedIdentifier" : "org.inkscape.Inkscape",
+        "teamIdentifier" : "SW3D6BB6A6"
+      },
+      "kind" : "dmg",
+      "notes" : [
+
+      ],
+      "probeHost" : "inkscape.org",
+      "recipeID" : "vendor:org.inkscape.Inkscape:stable",
+      "registry" : "vendor",
+      "seconds" : 45.26365900039673,
+      "status" : "ok",
+      "url" : "https:\/\/media.inkscape.org\/dl\/resources\/file\/Inkscape-1.4.4_arm64.dmg",
+      "urlSHA256" : "34df592986e3b1f9f4e75578fb44b82d080ea456e238ba37d132a8b3916d63f9",
+      "version" : "1.4.4",
+      "warnings" : [
+
+      ]
+    }
+  ],
+  "minimumFreeBytes" : 921734725632,
+  "seconds" : 124.91667997837067
+}

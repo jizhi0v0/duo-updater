@@ -6,8 +6,9 @@
 - 仓库: `AppFlowy-IO/AppFlowy`（默认分支 `main`；`main` 最后一次提交 2026-06-26，此后的 0.13.x / 0.14.x 发布不是从公开的 `main` 构建的，见「自更新机制」）
 - Team ID: `VHB67HRSZG`；`codesign --verify --deep --strict` 通过；spctl: Notarized Developer ID
 - 观测版本: 0.14.11（tag `0.14.11`，资产 `AppFlowy-0.14.11-macos-arm64.dmg` / `-macos-universal.dmg`）；上一版 0.14.10；观测日期: 2026-10-26
-- 自更新机制: **分两段，都不会就地换包和我们抢**
-  - **0.14.10 起（含 0.14.11）**: 包里没有 `Sparkle.framework`、没有 `auto_updater_macos.framework`、没有 `SUFeedURL`。Rust 可执行文件里有 `/api/desktop-update`、`invalid desktop-update Cloud URL` 和 `[UpdateCompat] candidate= … server=`；Dart 侧有 `_openDownload`、`[AutoUpdate] could not open download:`。英文文案 `autoUpdate.downloadInstructions` = "Download the installer, then open it to update AppFlowy."，`serverTooOldDescription` = "Version {newVersion} is available, but this workspace's server (version {serverVersion}) doesn't support it yet…"。即：问它连着的 AppFlowy Cloud 服务器有没有新版，再按服务器版本决定提示还是暂停（"Update paused"），提示时让用户自己去下安装包。可执行文件里拼下载地址用的是 `https://github.com/AppFlowy-IO/AppFlowy/releases/download/` + `aarch64` / `x86_64`。`/api/desktop-update` 的请求参数没在公开源码里（`AppFlowy-IO/AppFlowy-Cloud` 的 `main` 里搜不到这个路由），对 `beta.appflowy.cloud/api/desktop-update` 直接 GET 回 400，没继续猜参数
+- 自更新机制: **按版本分段**
+  - **0.15.0**：恢复用户触发的 native update installation，release 重新发布 appcast，包内恢复 Sparkle 公钥 `Bs++IOmOwYmNTjMMC2jMqLNldP+mndDp/LwujCg2/kw=`；是否允许安装仍由其服务器功能/兼容性判断决定。
+  - **0.14.10–0.14.11**: 包里没有 `Sparkle.framework`、没有 `auto_updater_macos.framework`、没有 `SUFeedURL`。Rust 可执行文件里有 `/api/desktop-update`、`invalid desktop-update Cloud URL` 和 `[UpdateCompat] candidate= … server=`；Dart 侧有 `_openDownload`、`[AutoUpdate] could not open download:`。英文文案 `autoUpdate.downloadInstructions` = "Download the installer, then open it to update AppFlowy."，`serverTooOldDescription` = "Version {newVersion} is available, but this workspace's server (version {serverVersion}) doesn't support it yet…"。即：问它连着的 AppFlowy Cloud 服务器有没有新版，再按服务器版本决定提示还是暂停（"Update paused"），提示时让用户自己去下安装包。可执行文件里拼下载地址用的是 `https://github.com/AppFlowy-IO/AppFlowy/releases/download/` + `aarch64` / `x86_64`。`/api/desktop-update` 的请求参数没在公开源码里（`AppFlowy-IO/AppFlowy-Cloud` 的 `main` 里搜不到这个路由），对 `beta.appflowy.cloud/api/desktop-update` 直接 GET 回 400，没继续猜参数
   - **0.14.8 及更早（真包核过 0.13.2、0.14.5、0.14.7、0.14.8）**: 带 `Sparkle.framework` 2.8.1 + `auto_updater_macos.framework`，`SUPublicEDKey` = `Bs++IOmOwYmNTjMMC2jMqLNldP+mndDp/LwujCg2/kw=`，Info.plist 没有 `SUFeedURL`。settled from source: `frontend/appflowy_flutter/lib/startup/tasks/auto_update_task.dart` 与 `lib/shared/version_checker/version_checker.dart` on `main`：feed 在代码里设，`https://github.com/AppFlowy-IO/AppFlowy/releases/latest/download/appcast-{os}-{arch}.xml`（`macos-arm64` / `macos-x86_64`），并 `setScheduledCheckInterval(0)` 关掉定时检查——只在用户点「Update」时让 Sparkle 检查和安装
   - 0.14.11 这个 release **没有** `appcast-macos-*.xml` 资产（只有 `desktop-update.json` = `{"version": "0.14.11", "minimum_server_version": "0.19.10"}`），所以 2026-10-26 上面那个 `latest/download` 地址两种架构都回 404：0.14.8 及更早的副本自己的更新器眼下看不到任何版本
 - 分发: GitHub Releases（每版 arm64 / universal / x86_64 三个 dmg，加 arm64 / universal zip）；Homebrew cask `appflowy`（0.14.11，装 `-macos-universal.zip`，没有 `auto_updates`，`depends_on macos >= 12`）；官网下载页（`appflowy.com/download`）是前端渲染，curl 拿到的 HTML 里没有安装包链接，没核它指向哪里；App Store 上同 bundle id 的是 iOS/iPadOS 版（`itunes.apple.com/lookup` 返回 trackId 6457261352，0.14.10）
@@ -18,11 +19,11 @@
 
 |            | Sparkle | Homebrew | MAS | GitHub | VendorProbe |
 |------------|---------|----------|-----|--------|-------------|
-| **stable** | ✗（feed 在代码里且 0.14.10 起不再带 Sparkle） | cask 无 `auto_updates`：Caskroom 里有它（brew 装的）的副本由 `HomebrewCaskSource` 先回答，其余副本落到 GitHub | 商店副本（iPad 版）走 MAS 源 | ✓ | —（`/api/desktop-update` 参数未知） |
+| **stable** | ✗（feed 在代码里且 0.14.10–0.14.11 不带 Sparkle） | cask 无 `auto_updates`：Caskroom 里有它（brew 装的）的副本由 `HomebrewCaskSource` 先回答，其余副本落到 GitHub | 商店副本（iPad 版）走 MAS 源 | ✓ | —（`/api/desktop-update` 参数未知） |
 
 当前生效源: **GitHub**（channel-verify 实测 0.13.2 / 0.14.10 / 0.14.11 三个真包都是 `winning source GitHub`，见「如何复验」）。没有 `SUFeedURL`、没有 `app-update.yml`、没有 MyGo feed。
 
-**为什么不走通用 Sparkle 源 / `SparkleFeedCatalog`**: `feed-discover` 对 0.13.2 报 `review feedUnparseable`（候选 `https://github.com/AppFlowy-IO/AppFlowy/releases/latest/download/appcast-`，即模板里的 `{os}-{arch}`），对 0.14.11 报「no Sparkle, no electron-builder update config and no MyGo feed」。就算按架构写一条 catalog，那个地址 2026-10-26 回 404，且 0.14.10 起的包不再读它；GitHub 规则对新旧副本都答得出，应当是 GitHub 赢。
+**为什么不走通用 Sparkle 源 / `SparkleFeedCatalog`**: `feed-discover` 对 0.13.2 报 `review feedUnparseable`（候选 `https://github.com/AppFlowy-IO/AppFlowy/releases/latest/download/appcast-`，即模板里的 `{os}-{arch}`），对 0.14.11 报「no Sparkle, no electron-builder update config and no MyGo feed」。就算按架构写一条 catalog，那个地址 2026-10-26 回 404，且 0.14.10–0.14.11 的包不再读它；GitHub 规则对新旧副本都答得出，应当是 GitHub 赢。
 
 ## 覆盖清单
 - 各版本的 bundle id / Team（读真包）:
@@ -65,14 +66,14 @@
 
 | | 客户端能力 | 服务端实际下发 | 我们能否消费 |
 |---|---|---|---|
-| 结论 | 0.14.8 及更早有（Sparkle 2.8.1 自带 BinaryDelta）；0.14.10 起无 | 无 | — |
+| 结论 | 0.14.8 及更早有（Sparkle 2.8.1 自带 BinaryDelta）；0.14.10–0.14.11 无 | 无 | — |
 | 证据 | 0.14.10 / 0.14.11 包里没有 Sparkle；旧包 `Frameworks/Sparkle.framework` 2.8.1 | 2026-10-26 读 0.14.10 的 `appcast-macos-arm64.xml`：一个 item，只有整包 enclosure，没有 `<sparkle:deltas>`；0.14.11 没有 appcast | — |
 
 ## 已停放整包（自更新器下完、还没装的那份）
 
 | | 客户端会停放吗 | 本次实际停放了什么 | 我们能否直接拿来装 |
 |---|---|---|---|
-| 结论 | 0.14.10 起不会；0.14.8 及更早只在用户点「Update」后由 Sparkle 下载 | 真机（2026-10-26）：0.14.10 运行中没有停放任何东西（0.14.10+ 没有自更新器） | 不需要 / ○ |
+| 结论 | 0.14.10–0.14.11 不会；0.14.8 及更早只在用户点「Update」后由 Sparkle 下载 | 真机（2026-10-26）：0.14.10 运行中没有停放任何东西（0.14.10–0.14.11 没有自更新器） | 不需要 / ○ |
 | 证据 | 新版只打开下载链接（`downloadInstructions` 文案、`_openDownload`），安装包由浏览器下到用户的下载目录；旧版 Sparkle 定时检查被关（`setScheduledCheckInterval(0)`），且 feed 目前 404 | — | `SelfUpdaterStash` 只读 electron-updater 与 Cindy 的布局，不读 Sparkle 缓存；旧版 feed 404，眼下也不会有暂存 |
 
 ## Changelog
@@ -140,3 +141,13 @@ channel-verify 原始输出（2026-10-26，节选）:
 ## 建议下一步
 1. 自托管服务器的版本绑定要不要管（待用户决定）: 要像厂商那样「服务器太旧就不推」，得读 AppFlowy 本地存的当前服务器地址并问它的 `/api/server-info`，是引擎改动（新的 scan-time 读取或 `OneClickGate` 条件），本次没做
 2. 若厂商以后在 release 里恢复 `appcast-macos-*.xml`，0.14.8 及更早副本的 Sparkle 会重新可用；那仍是用户点了才装，不影响本规则
+
+## 历史与实测
+
+- 2026-11-14 VM 端到端：独立 macOS 27.2 VM 中，0.14.11 → 0.15.0 一键安装成功；签名、公钥与接受的基线一致，最终 GitHub 检查报已最新。完整命令、原始结果与截图见 [验证记录](../../verify/recipe-broken-seven/README.md)。
+
+### 2026-11-14 · 0.15.0 恢复 Sparkle（#1812）
+
+- 官方 release `https://github.com/AppFlowy-IO/AppFlowy/releases/tag/0.15.0` 描述服务器允许时由用户触发 native update installation，且重新提供 macOS appcast。
+- 本机生产 `verify-install`：0.15.0 arm64 dmg、119,452,957 B，`com.appflowy.appflowy.flutter` / signed identifier 相同，Team `VHB67HRSZG` 未变，严格签名通过。新增公钥与该 tag 的 `frontend/appflowy_flutter/macos/Runner/Info.plist` 一致，也与较早 Sparkle 版同值。
+- 只接受这次 `none → key`，保留首次观测 provenance；不更改 Team、Bundle ID、架构或安装信任闸。上文 0.14.10–0.14.11 的无 Sparkle 结论是该版本区间的历史状态。

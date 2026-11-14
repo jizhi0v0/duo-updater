@@ -157,7 +157,10 @@ public struct Changelog: Codable, Sendable, Hashable {
     ///   spans (Mac Performance Monitor's `MemoryInspection.parseBytes` note).
     ///   Of the 14 `markdownSource` recipes' live sources (2026-10-19), those two
     ///   items are the only ones that change.
-    public static let parserGeneration = 20
+    /// - 21: Cork follows the forum's release post instead of the retired blog
+    ///   feed, and Inkscape accepts current MediaWiki headings. Cached Cork
+    ///   notes for a 2.1.x target can otherwise keep showing 2.0.3 indefinitely.
+    public static let parserGeneration = 21
 
     public let entries: [Entry]
 

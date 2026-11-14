@@ -1,0 +1,36 @@
+
+  app             MstyStudio
+  bundle id       MstyStudio
+  short version   2.9.12
+  build version   2.9.12
+  KSChannelID     <none>
+  RemotingName    <none>
+  BuildID         <none>
+  package.json    <none>
+  HFBuildLabel    <none>
+  Blender build   <none>
+  Lapce build     <none>
+  inferred        stable
+  ChannelBinding  <none for this app>
+  ─────────────────────────────────────────────
+  detected channel  → stable
+  ✓ detection matches --expect stable
+  ─────────────────────────────────────────────
+  VendorProbe       ✓ recipe answered for channel 'stable'
+    latest          3.0.0
+    shortVersion    3.0.0
+    version(build)  <nil>
+    download        https://next-assets.msty.studio/app/latest/v3/mac/MstyStudio_arm64.zip
+    changelog       https://msty.ai/resources/changelog/studio/
+    verdict       UPDATE 2.9.12 → 3.0.0
+  ─────────────────────────────────────────────
+  UpdateChecker.check() — full production source chain
+    SUFeedURL       <none>
+    winning source  Vendor
+    latest          3.0.0
+    download        https://next-assets.msty.studio/app/latest/v3/mac/MstyStudio_arm64.zip
+    release notes   0 chars inline, changelogURL https://msty.ai/resources/changelog/studio/
+    changelog pane  recipe changelog:MstyStudio:-: 34 entries; newest 3.0.0: 15 items, headings ["Highlights", "Enhancements", "Fixes"]; first items ["Redesigned the app UI and navigation acr", "Added dedicated Studio pages for Persona", "Added a Crew tab under Personas with fol"]
+    release history 0 entries
+    deltas          0
+    status          UPDATE → 3.0.0

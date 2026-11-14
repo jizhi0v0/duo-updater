@@ -1,0 +1,33 @@
+
+  app             Inkscape
+  bundle id       org.inkscape.Inkscape
+  short version   1.4.4
+  build version   34085
+  KSChannelID     <none>
+  RemotingName    <none>
+  BuildID         <none>
+  package.json    <none>
+  HFBuildLabel    <none>
+  Blender build   <none>
+  Lapce build     <none>
+  inferred        stable
+  ChannelBinding  <none for this app>
+  ─────────────────────────────────────────────
+  detected channel  → stable
+  ✓ detection matches --expect stable
+  ─────────────────────────────────────────────
+  VendorProbe       ✗ no version
+    → a recipe IS keyed to bundle 'org.inkscape.Inkscape', but not for channel
+      'stable', or the probe missed (network / pattern). This is the
+      failure the channel gate produces when a recipe's bundleID/channel is wrong.
+  ─────────────────────────────────────────────
+  UpdateChecker.check() — full production source chain
+    SUFeedURL       <none>
+    winning source  <none>
+    latest          <none>
+    download        <nil>
+    release notes   0 chars inline, changelogURL <nil>
+    changelog pane  recipe changelog:org.inkscape.Inkscape:stable: 1 entries; newest 1.4.4: 90 items, headings []; first items ["… trying to start Inkscape when there ar", "… trying to start Inkscape on Windows, w", "… when starting Inkscape with a graphics"]
+    release history 0 entries
+    deltas          0
+    status          error: HTTP 502

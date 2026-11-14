@@ -4,15 +4,18 @@ enum com_appflowy_appflowy_flutter {
     static let set = AppRecipeSet(
         family: "com-appflowy-appflowy-flutter",
         githubRules: [
-        // AppFlowy — open-source workspace / notes app (Flutter + Rust). From
-        // 0.14.10 the bundle carries no Sparkle: the app asks its AppFlowy Cloud
+        // History: docs/app-audits/com-appflowy-appflowy-flutter.md#历史与实测
+        // AppFlowy — open-source workspace / notes app (Flutter + Rust).
+        // 0.14.10–0.14.11 carry no Sparkle: the app asks its AppFlowy Cloud
         // server (`/api/desktop-update`) and, when there is a newer build, tells
         // the user to download the installer and open it. It never swaps its
-        // own bundle. Copies up to 0.14.8 carry Sparkle 2.8.1 through
+        // own bundle. 0.15.0 restores user-initiated native installation when
+        // its server enables it, and publishes signed appcasts again. The feed
+        // is configured in code, not SUFeedURL, so GitHub still covers it here.
+        // Copies up to 0.14.8 carry Sparkle 2.8.1 through
         // auto_updater, fed in code from this repo's
         // `releases/latest/download/appcast-macos-<arch>.xml`, with scheduled
-        // checks off (user-initiated only); 0.14.11 publishes no appcast, so
-        // that address answers 404. No helper or login item in the bundle.
+        // checks off (user-initiated only). No helper or login item in the bundle.
         //
         // Tags read `0.14.11` (no `v`); the bundle says 0.14.11. Since 0.8.5
         // each release ships `-macos-arm64`, `-macos-universal` and

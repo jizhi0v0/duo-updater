@@ -4,6 +4,14 @@
 
 ## 历史与实测
 
+- 2026-11-14 VM 端到端：独立 macOS 27.2 VM 中，真实 1.4.4 副本的生产 harness 与原生面板均解析到 90 条 changes；版本探针首次网络超时，重试与最终 CLI 复查均报 1.4.4 已最新。完整命令、原始结果与截图见 [验证记录](../../verify/recipe-broken-seven/README.md)。
+
+### 2026-11-14 · MediaWiki 标题结构变化（#1810）
+
+- 1.4.4 notes 页面仍返回 HTTP 200，但 h1 的版本标题改为嵌套 span，章节 id 从内部 span 移到 h2 本身。
+- 旧 entryPattern 在真实响应上为 0 条；新 pattern 同时接受两种标题形态，正文仍限定在 `Changes_and_Bug_Fixes` 与 `Other_releases` 之间，只收裸 li，排除导航。
+- 原始响应中的新结构与已有旧结构分别固定在 `InkscapeChangelogRecipeTests`；新结构回归测试在旧 recipe 上失败、修复后通过。
+
 从 recipe 注释迁出（2026-09-14）。正文逐字，只去掉了行首 `// `；每组标明出处。
 
 ### Recipes/org-inkscape-Inkscape.swift — VendorProbe（一键 dmg 的地址）

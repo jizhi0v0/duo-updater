@@ -1,0 +1,36 @@
+
+  app             Cork
+  bundle id       eu.davidbures.cork
+  short version   2.1.1
+  build version   154
+  KSChannelID     <none>
+  RemotingName    <none>
+  BuildID         <none>
+  package.json    <none>
+  HFBuildLabel    <none>
+  Blender build   <none>
+  Lapce build     <none>
+  inferred        stable
+  ChannelBinding  <none for this app>
+  ─────────────────────────────────────────────
+  detected channel  → stable
+  ✓ detection matches --expect stable
+  ─────────────────────────────────────────────
+  VendorProbe       ✓ recipe answered for channel 'stable'
+    latest          2.1.2
+    shortVersion    2.1.2
+    version(build)  <nil>
+    download        https://corkmac.app/RLS/2.1.2/Cork.zip
+    changelog       https://forum.rikidar.eu/category/17/announcements?sort=recently_created
+    verdict       UPDATE 2.1.1 → 2.1.2
+  ─────────────────────────────────────────────
+  UpdateChecker.check() — full production source chain
+    SUFeedURL       <none>
+    winning source  Vendor
+    latest          2.1.2
+    download        https://corkmac.app/RLS/2.1.2/Cork.zip
+    release notes   0 chars inline, changelogURL https://forum.rikidar.eu/category/17/announcements?sort=recently_created
+    changelog pane  recipe changelog:eu.davidbures.cork:-: 1 entries; newest 2.1.2: 4 items, headings []; first items ["Cork 2.1.2 is out, and it only includes ", "These include the copyright change to RI", "The development of Cork doesn't change, "]
+    release history 0 entries
+    deltas          0
+    status          UPDATE → 2.1.2

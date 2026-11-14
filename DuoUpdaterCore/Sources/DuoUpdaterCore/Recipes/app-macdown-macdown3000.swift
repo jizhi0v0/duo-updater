@@ -4,9 +4,10 @@ enum app_macdown_macdown3000 {
     static let set = AppRecipeSet(
         family: "app-macdown-macdown3000",
         githubRules: [
+        // History: docs/app-audits/app-macdown-macdown3000.md#历史与实测
         // MacDown 3000 — Markdown editor, fork of MacDown under a new bundle id
         // (not `com.uranusjr.macdown`). Stable releases through 3000.0.7 ship
-        // no SUFeedURL; Sparkle 2 landed after 3000.0.7 and the rc builds
+        // no SUFeedURL; Sparkle 2 landed after 3000.0.7, and 3000.0.8 plus its rc builds
         // declare macdown.app/sparkle/macdown3000/stable/appcast.xml, which
         // `SparkleAppcastSource` answers first once it serves. Tags are
         // `v3000.0.7`; short == tag minus `v`. `-beta.N` / `-rc.N` tags are

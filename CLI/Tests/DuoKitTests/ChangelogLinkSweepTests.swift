@@ -169,9 +169,11 @@ struct ChangelogLinkSweepTests {
     /// sweep must cover all of it and no more. (An earlier draft also asserted
     /// that `pages` has no duplicates, which `pages` guarantees by construction
     /// with a `Set` — true no matter how broken the rest of it was.)
-    @Test func everyDeclaredPageIsSweptExactlyOnce() {
+    @Test func everySupportedPageIsSweptExactlyOnce() {
         let pages = ChangelogLinkSweep.pages(of: VendorProbeRegistry.recipes)
-        let declared = Set(VendorProbeRegistry.recipes.compactMap(\.changelogURL)
+        let declared = Set(VendorProbeRegistry.recipes
+            .filter { Verify.unsupportedHostReason(for: $0) == nil }
+            .compactMap(\.changelogURL)
             .map(\.absoluteString))
         #expect(Set(pages.map(\.absoluteString)) == declared)
         #expect(pages.count < VendorProbeRegistry.recipes.compactMap(\.changelogURL).count,

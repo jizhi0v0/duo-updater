@@ -237,6 +237,12 @@ public enum InstallVerify {
         for recipe in Verify.filtered(VendorProbeRegistry.recipes, selector)
         where recipe.install != nil {
             let host = recipe.url.host ?? "-"
+            if let reason = Verify.unsupportedHostReason(for: recipe) {
+                skipped.append(Item(
+                    recipeID: recipe.recipeID, registry: "vendor", bundleID: recipe.bundleID,
+                    probeHost: host, status: .skipped, detail: reason))
+                continue
+            }
             // Never fetched by `duo verify` either: its URL, headers and body would
             // all flow into a report.
             if RegistrySecurity.isCredentialBearing(bundleID: recipe.bundleID) {
@@ -261,7 +267,7 @@ public enum InstallVerify {
                 previous: previous(rule.recipeID),
                 recordedSparkleKey: identities?.entries[rule.recipeID]?.sparklePublicKey))
         }
-        guard !targets.isEmpty else {
+        guard !targets.isEmpty || !skipped.isEmpty else {
             die("nothing to verify — no recipe with an installer matches "
                 + options.only.joined(separator: ", "), code: 2)
         }

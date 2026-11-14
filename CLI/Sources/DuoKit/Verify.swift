@@ -419,6 +419,15 @@ public enum Verify {
         }
     }
 
+    /// Sweep the hosts this product supports, rather than every architecture
+    /// retained in a registry. Do not apply the current machine's OS floor:
+    /// recipes for other supported macOS versions still need verification.
+    static func unsupportedHostReason(for recipe: VendorProbeRecipe) -> String? {
+        let architectures = recipe.hostRequirement?.architectures ?? []
+        guard !architectures.isEmpty, !architectures.contains(.arm64) else { return nil }
+        return "unsupported host architecture — DuoUpdater supports Apple Silicon Macs only"
+    }
+
     private static func writeArtifacts(
         _ findings: [Finding], baseline: Baseline, options: VerifyOptions
     ) {
@@ -518,7 +527,7 @@ public enum Verify {
 
     // MARK: - vendor probes
 
-    private static func sweepVendor(
+    static func sweepVendor(
         _ recipes: [VendorProbeRecipe], options: VerifyOptions,
         installed: [String: InstalledVersion],
         // Not optional and not defaulted: an omitted collector compiles and
@@ -528,6 +537,12 @@ public enum Verify {
         collecting installURLs: ResolvedInstallURLs
     ) async -> [Finding] {
         await byHost(recipes, host: { $0.url.host ?? "-" }, options: options) { recipe in
+            if let reason = unsupportedHostReason(for: recipe) {
+                return Finding(
+                    recipeID: recipe.recipeID, registry: .vendor, bundleID: recipe.bundleID,
+                    channel: recipe.channel.rawValue, status: .skipped,
+                    failureDetail: reason, endpointHost: recipe.url.host ?? "-")
+            }
             // A credential-bearing recipe is never fetched by the sweep: its URL,
             // headers and body would all flow into a report and possibly an
             // issue. Reported as skipped so the absence is visible.

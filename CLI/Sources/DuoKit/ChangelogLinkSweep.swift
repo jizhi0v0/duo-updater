@@ -106,6 +106,7 @@ enum ChangelogLinkSweep {
         var seen = Set<String>()
         var out: [URL] = []
         for recipe in recipes {
+            guard Verify.unsupportedHostReason(for: recipe) == nil else { continue }
             guard let url = recipe.changelogURL else { continue }
             guard !alreadyFetched.contains(url.absoluteString) else { continue }
             if seen.insert(url.absoluteString).inserted { out.append(url) }

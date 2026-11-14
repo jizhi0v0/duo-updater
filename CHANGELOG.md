@@ -19,6 +19,30 @@ release note is debugging our code:
 
 Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
+## 0.5.24
+
+**Try automatic updates, now available as an opt-in Beta in every release.** They stay off by default; enable them in Settings → Automatic Updates and share feedback on GitHub, using the sanitized report from Events if helpful.
+
+**Choose how each app updates automatically.** Update only closed apps, allow selected running apps to quit and reopen even while you use them, or exclude an app; updates download and verify before an allowed app quits.
+
+**Automatic updates respect your backup setting and retry temporary download failures.** With backups on, a complete app backup is required before updating; app data is not backed up.
+
+**Apps are grouped by their update source.** The sidebar keeps its group headings in place, and pending apps reappear when you turn Show all off.
+
+**Supported PKG updates can install directly with the approved helper.** Eligible apps can also update automatically; packages that cannot use the helper still open macOS Installer.
+
+**Homebrew-managed apps prefer Homebrew, with a choice to check other sources when it has no update.** Apps installed in subfolders and through package receipts are matched more reliably, and unavailable registered apps are skipped during upgrades.
+
+**Recoverable backups and automatic-update activity are easier to inspect.** Backups distinguish protected restore points and missing files, while Events groups repeated deferrals and lets you filter outcomes and review diagnostics before sharing.
+
+**TestFlight iPhone and iPad betas are checked for Mac compatibility before an update is offered.** An incompatible build gets a warning, and a build whose compatibility cannot be confirmed stays unknown.
+
+**TextMate, VimR, Maestro, muCommander and Shotcut now have update checks, one-click updates and release notes.** Supported beta, snapshot and release-candidate tracks follow each app’s channel selection or installed release.
+
+**More apps find the right updates and release notes again.** Fixes cover QQ Music, WeChat, AdGuard, Blender, Msty Studio, Cork, Herdr and Inkscape, and Kuvo Box and Kuvo Code keep their updates separate.
+
+**More command-line tools show structured release notes.** Support now includes Azure CLI and Codex, more Homebrew packages, Node managed by mise and Ruby managed by rbenv.
+
 ## 0.5.24-beta.9
 
 **Supported PKG updates can install directly with the approved helper.** Eligible apps can also update automatically; packages that cannot use the helper still open macOS Installer.

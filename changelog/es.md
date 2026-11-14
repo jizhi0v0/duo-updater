@@ -2,6 +2,30 @@
 
 Esta es la traducción al español del archivo CHANGELOG.md. La versión en inglés es la autoridad en caso de discrepancias. Los números de versión no incluidos aquí se mostrarán automáticamente en inglés en la ventana de Novedades.
 
+## 0.5.24
+
+**Las actualizaciones automáticas ya están disponibles como Beta opcional en todas las versiones.** Siguen desactivadas por defecto; actívalas en Ajustes → Actualizaciones automáticas y comparte tus comentarios en GitHub, con el informe de Events sin datos identificativos si resulta útil.
+
+**Elige cómo se actualiza automáticamente cada app.** Actualiza solo apps cerradas, permite que determinadas apps abiertas se cierren y vuelvan a abrirse incluso mientras las usas, o excluye una app; la descarga y verificación terminan antes de cerrarla.
+
+**Las actualizaciones automáticas respetan tus ajustes de copia de seguridad y reintentan las descargas con fallos temporales.** Si las copias están activadas, se exige una copia completa de la app antes de actualizar; no se copian sus datos.
+
+**Las apps se agrupan por su fuente de actualización.** Los encabezados de la barra lateral mantienen su posición y las apps pendientes reaparecen al desactivar «Mostrar todo».
+
+**Las actualizaciones PKG compatibles pueden instalarse directamente con el auxiliar autorizado.** Las apps aptas también pueden actualizarse automáticamente; los demás paquetes siguen abriendo el instalador de macOS.
+
+**Las apps gestionadas por Homebrew dan prioridad a Homebrew y permiten consultar otras fuentes si no hay actualización.** Se identifican mejor las apps de subcarpetas y las instaladas mediante paquetes; las apps ausentes de su ruta registrada se omiten durante las actualizaciones.
+
+**Es más fácil revisar las copias recuperables y la actividad de actualización automática.** Las copias distinguen puntos de restauración protegidos y archivos ausentes, y Events agrupa los aplazamientos repetidos y permite filtrar resultados y revisar diagnósticos antes de compartirlos.
+
+**Se comprueba la compatibilidad con Mac de las betas de iPhone y iPad de TestFlight antes de ofrecer una actualización.** Las compilaciones incompatibles muestran una advertencia y las de compatibilidad sin confirmar conservan el estado desconocido.
+
+**TextMate, VimR, Maestro, muCommander y Shotcut ya tienen comprobación de actualizaciones, actualización con un clic y notas de versión.** Las versiones beta, snapshot y candidatas compatibles siguen el canal elegido en cada app o la versión instalada.
+
+**Más apps vuelven a encontrar las actualizaciones y notas de versión correctas.** Las correcciones abarcan QQ Music, WeChat, AdGuard, Blender, Msty Studio, Cork, Herdr e Inkscape; Kuvo Box y Kuvo Code mantienen sus actualizaciones separadas.
+
+**Más herramientas de línea de comandos muestran notas de versión estructuradas.** Se añaden Azure CLI y Codex, más paquetes de Homebrew, Node gestionado por mise y Ruby gestionado por rbenv.
+
 ## 0.5.24-beta.9
 
 **Las actualizaciones PKG compatibles se pueden instalar directamente con el componente auxiliar autorizado.** Las apps que cumplan los requisitos también pueden actualizarse automáticamente; los paquetes que no puedan usar el componente auxiliar seguirán abriendo el Instalador de macOS.

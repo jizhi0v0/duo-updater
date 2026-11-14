@@ -21,6 +21,7 @@ public struct UpdateChecker: Sendable {
     /// local cache; the action stays "open TestFlight". When nil they're simply
     /// labelled `.testFlightManaged` without a version.
     public let testflight: TestFlightInventory?
+    private let testFlightCompatibility: TestFlightCompatibility
 
     /// What TestFlight has *told the user about*, as a second witness to the store
     /// above. Only ever used to **refuse** an up-to-date verdict — see
@@ -45,6 +46,7 @@ public struct UpdateChecker: Sendable {
         brewFallback: BrewFallbackPolicy = BrewFallbackPolicy(),
         toolbox: ToolboxSource? = nil,
         testflight: TestFlightInventory? = nil,
+        testFlightCompatibility: TestFlightCompatibility = TestFlightCompatibility(),
         announcements: TestFlightAnnouncements? = nil,
         appStoreSignedIn: Bool? = nil,
         channelStore: ResolvedChannelStore? = nil,
@@ -59,6 +61,7 @@ public struct UpdateChecker: Sendable {
         self.maxConcurrency = max(1, maxConcurrency)
         self.toolbox = toolbox
         self.testflight = testflight
+        self.testFlightCompatibility = testFlightCompatibility
         self.announcements = announcements
         self.appStoreSignedIn = appStoreSignedIn
         self.channelStore = channelStore
@@ -347,6 +350,23 @@ public struct UpdateChecker: Sendable {
                     // `remote: nil` for the same reason as the branch above: a version
                     // we have just called unusable must not be the one the row shows.
                     return UpdateResult(app: app, remote: nil, status: .testFlightManaged)
+                }
+                if hasUpdate, app.isiOSAppOnMac {
+                    guard let buildID = latest.latestBuildID,
+                          let frontier = testflight?.frontier(forBundleID: app.bundleID),
+                          let compatible = await testFlightCompatibility.compatible(with: .init(
+                            appID: frontier.adamID, buildID: buildID, bundleID: latest.bundleID,
+                            shortVersion: latest.latestShortVersion, version: latest.latestBuild, platform: "ios"))
+                    else {
+                        // A version row proves a newer iOS build exists, not that
+                        // this Mac may install it. In particular, an expired session
+                        // must not turn a compatibility refusal back into an update.
+                        return UpdateResult(app: app, remote: nil, status: .testFlightManaged)
+                    }
+                    if !compatible {
+                        Log.check.info("\(label, privacy: .public): TestFlight build \(latest.latestBuild, privacy: .public) is incompatible with this Mac")
+                        return UpdateResult(app: app, remote: nil, status: .testFlightIncompatible)
+                    }
                 }
                 // The label is `testFlightVerdict`'s: the marketing version alone,
                 // even when it did not move — see there for why baking the build in

@@ -146,6 +146,14 @@ struct ScanRowAssemblyTests {
         #expect(buildOnly[0].status == .unknown)
     }
 
+    @Test func aTestFlightCompatibilityRefusalIsRecheckedWhenTheCopyMoves() {
+        let prior = [UpdateResult(app: utm("1.0", build: "354"), remote: nil, status: .testFlightIncompatible)]
+        let same = ScanRowAssembly.merged([utm("1.0", build: "354")], prior: prior, proofs: noProofs)
+        #expect(same[0].status == .testFlightIncompatible)
+        let moved = ScanRowAssembly.merged([utm("1.0", build: "504")], prior: prior, proofs: noProofs)
+        #expect(moved[0].status == .unknown)
+    }
+
     /// The other half of the same rule: when the copy on disk has been REPLACED,
     /// the old answer is about an app that is gone. Asserting on
     /// `effectiveReleaseChannel` rather than on `provenChannel` is the point —

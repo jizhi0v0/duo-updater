@@ -83,9 +83,12 @@ enum ScanRowAssembly {
                 // the app updated itself — would keep being told the vendor "won't
                 // offer" a build it may now have. Back to unchecked until the next
                 // check answers again.
-                if case .outsideOSWindow = was.status,
-                   was.app.shortVersion != app.shortVersion || was.app.buildVersion != app.buildVersion {
-                    return carrying(nil, .unknown)
+                switch was.status {
+                case .outsideOSWindow, .testFlightIncompatible:
+                    if was.app.shortVersion != app.shortVersion || was.app.buildVersion != app.buildVersion {
+                        return carrying(nil, .unknown)
+                    }
+                default: break
                 }
                 return carrying(nil, was.status)
             }

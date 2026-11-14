@@ -910,6 +910,10 @@ public enum UpdateStatus: Sendable, Equatable {
     /// action is "open TestFlight". Used when no newer build is known (or the
     /// cache is empty); a known newer build surfaces as `.updateAvailable`.
     case testFlightManaged
+    /// TestFlight's response for the exact newest beta build says it cannot be
+    /// installed on this device. A failed/unknown compatibility read never
+    /// produces this state. No update is offered for this build.
+    case testFlightIncompatible
     /// A source read the newest release and the vendor states it is not for the
     /// macOS this Mac runs. Neither `.unknown` (a source DID cover the app) nor
     /// `.error` (nothing failed, and a Retry changes nothing) — see

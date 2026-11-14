@@ -60,11 +60,15 @@ public struct TestFlightInventory: Sendable {
         public let latestShortVersion: String
         /// Build number of the newest available build (`ZBUNDLEVERSION`).
         public let latestBuild: String
+        /// TestFlight's server id for this exact (bundle, platform, version,
+        /// build), used only to ask for its device compatibility.
+        public let latestBuildID: Int64?
 
-        public init(bundleID: String, latestShortVersion: String, latestBuild: String) {
+        public init(bundleID: String, latestShortVersion: String, latestBuild: String, latestBuildID: Int64? = nil) {
             self.bundleID = bundleID
             self.latestShortVersion = latestShortVersion
             self.latestBuild = latestBuild
+            self.latestBuildID = latestBuildID
         }
     }
 
@@ -171,7 +175,7 @@ public struct TestFlightInventory: Sendable {
 
     public init(databaseURL: URL? = nil) {
         let url = databaseURL ?? Self.defaultDatabaseURL
-        let (rows, macInstalledRows, iosRows, iosAvailableRows, frontiers, testers, rebuilding, readable, opened) =
+        let (rows, macInstalledRows, iosRows, iosAvailableRows, frontiers, testers, rebuilding, readable, opened, buildIDs) =
             Self.readRows(at: url)
         self.accessible = opened
         self.rowsReadable = readable
@@ -179,9 +183,9 @@ public struct TestFlightInventory: Sendable {
         self.testerBundleIDs = testers
         self.isRebuilding = rebuilding
         self.iosBuildsByBundleID = Self.buildIndex(iosRows)
-        self.iosLatestByBundleID = Self.newestByBundleID(iosAvailableRows)
+        self.iosLatestByBundleID = Self.withBuildIDs(Self.newestByBundleID(iosAvailableRows), platform: Self.iOSPlatform, ids: buildIDs)
 
-        self.appsByBundleID = Self.newestByBundleID(rows)
+        self.appsByBundleID = Self.withBuildIDs(Self.newestByBundleID(rows), platform: Self.macOSPlatform, ids: buildIDs)
         // `?? rows` is the fail-open: a schema without `ZINSTALLSTATUSRAW` costs
         // the precision, not the signal, so every native-Mac TestFlight app keeps
         // its tag rather than silently losing it.
@@ -336,12 +340,9 @@ public struct TestFlightInventory: Sendable {
     /// track sits at 29814462, so a Mac app routed here would be offered an iPhone
     /// build as its next Mac update.
     ///
-    /// ⚠️ **Compatibility is not in this database.** Whether a given build runs on
-    /// this Mac lives in TestFlight's API response (`compatible`), not in any
-    /// column here, so a build offered from these rows can turn out to be
-    /// iPhone-only. The cost is bounded — the row's action is "open TestFlight",
-    /// which is where the real answer is, and nothing is downloaded on our side —
-    /// but it is a real gap, not one this can close.
+    /// Compatibility is not in this database. `UpdateChecker` asks TestFlight's
+    /// API for the exact `latestBuildID` before offering an update; a missing id
+    /// or unavailable session leaves compatibility unknown.
     public func latestIOS(forBundleID bundleID: String?) -> App? {
         guard let bundleID else { return nil }
         return iosLatestByBundleID[bundleID]
@@ -455,6 +456,12 @@ public struct TestFlightInventory: Sendable {
     // MARK: - SQLite
 
     typealias Row = (bundleID: String, shortVersion: String, build: String)
+    struct BuildIdentity: Hashable {
+        let bundleID: String
+        let shortVersion: String
+        let build: String
+        let platform: Int64
+    }
     /// What one read of the database yields: the two platform buckets, plus
     /// whether we got in at all.
     /// `macInstalledRows` is nil — not empty — when the query could not name
@@ -462,7 +469,8 @@ public struct TestFlightInventory: Sendable {
     /// which is a claim that read never made.
     typealias Reading = (
         rows: [Row], macInstalledRows: [Row]?, iosRows: [Row], iosAvailableRows: [Row],
-        frontiers: [String: Frontier], testers: Set<String>?, rebuilding: Bool, rowsReadable: Bool, opened: Bool)
+        frontiers: [String: Frontier], testers: Set<String>?, rebuilding: Bool, rowsReadable: Bool, opened: Bool,
+        buildIDs: [BuildIdentity: Int64])
 
     /// How long to wait for the database to open before treating it as
     /// unreachable. Generous: a cold sandboxed sqlite open is milliseconds, so
@@ -516,7 +524,7 @@ public struct TestFlightInventory: Sendable {
     /// Observed 2026-08-15: a nightly sweep sat in `guarded_open_np` for ten
     /// minutes at 0.03s of CPU before it was killed.
     private static func readRows(at url: URL) -> Reading {
-        guard FileManager.default.fileExists(atPath: url.path) else { return ([], nil, [], [], [:], nil, false, false, false) }
+        guard FileManager.default.fileExists(atPath: url.path) else { return ([], nil, [], [], [:], nil, false, false, false, [:]) }
         // nil covers both give-up modes — this open timed out, or an earlier one
         // for this path is still stranded — and both mean the same thing to the
         // caller: we never got in, so `opened` is false rather than "read it,
@@ -527,7 +535,7 @@ public struct TestFlightInventory: Sendable {
         return bounded.run(key: url.path, timeout: openTimeout) {
             openAndRead(at: url)
         } ?? (rows: [], macInstalledRows: nil, iosRows: [], iosAvailableRows: [],
-              frontiers: [:], testers: nil, rebuilding: false, rowsReadable: false, opened: false)
+              frontiers: [:], testers: nil, rebuilding: false, rowsReadable: false, opened: false, buildIDs: [:])
     }
 
     /// The actual read. Only ever called from `readRows(at:)`'s worker thread.
@@ -538,7 +546,7 @@ public struct TestFlightInventory: Sendable {
         guard sqlite3_open_v2(url.path, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else {
             sqlite3_close(db)
             Log.scan.error("TestFlight DB open failed at \(url.path, privacy: .public)")
-            return ([], nil, [], [], [:], nil, false, false, false)
+            return ([], nil, [], [], [:], nil, false, false, false, [:])
         }
         defer { sqlite3_close(db) }
         sqlite3_busy_timeout(db, busyTimeoutMilliseconds)
@@ -563,6 +571,7 @@ public struct TestFlightInventory: Sendable {
             reading.frontiers = readFrontiers(db)
             reading.testers = readTesters(db)
             reading.rebuilding = readRebuilding(db)
+            reading.buildIDs = readBuildIDs(db)
             return reading
         }
         Log.scan.error("""
@@ -573,6 +582,7 @@ public struct TestFlightInventory: Sendable {
             reading.frontiers = readFrontiers(db)
             reading.testers = readTesters(db)
             reading.rebuilding = readRebuilding(db)
+            reading.buildIDs = readBuildIDs(db)
             return reading
         }
         Log.scan.error("TestFlight DB prepare failed (\(String(cString: sqlite3_errmsg(db)), privacy: .public))")
@@ -581,7 +591,43 @@ public struct TestFlightInventory: Sendable {
         // one cannot prepare — and the whole reason the frontier got its own query is
         // that each signal fails on its own. Returning here without trying made the
         // implication run backwards.
-        return ([], nil, [], [], readFrontiers(db), readTesters(db), readRebuilding(db), false, true)  // we opened it; the schema just didn't match
+        return ([], nil, [], [], readFrontiers(db), readTesters(db), readRebuilding(db), false, true, [:])  // we opened it; the schema just didn't match
+    }
+
+    private static func withBuildIDs(
+        _ apps: [String: App], platform: Int64, ids: [BuildIdentity: Int64]
+    ) -> [String: App] {
+        apps.mapValues { app in
+            let key = BuildIdentity(bundleID: app.bundleID, shortVersion: app.latestShortVersion,
+                                    build: app.latestBuild, platform: platform)
+            return App(bundleID: app.bundleID, latestShortVersion: app.latestShortVersion,
+                       latestBuild: app.latestBuild, latestBuildID: ids[key])
+        }
+    }
+
+    /// Independent of the version/membership queries: losing ZBUILDID costs
+    /// only compatibility checks. The cross-platform frontier is not a build id
+    /// for the platform being offered (native Mac apps can have newer iOS rows).
+    private static func readBuildIDs(_ db: OpaquePointer?) -> [BuildIdentity: Int64] {
+        var statement: OpaquePointer?
+        defer { sqlite3_finalize(statement) }
+        let sql = """
+            SELECT ZBUNDLEID, ZSHORTVERSION, ZBUNDLEVERSION, ZPLATFORMRAW, ZBUILDID
+            FROM ZTFAPPBUNDLEMODEL WHERE ZBUILDID > 0 AND ZPLATFORMRAW IN (1, 3)
+            """
+        guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else { return [:] }
+        var ids: [BuildIdentity: Int64] = [:]
+        var step = sqlite3_step(statement)
+        while step == SQLITE_ROW {
+            defer { step = sqlite3_step(statement) }
+            guard let bundle = sqlite3_column_text(statement, 0),
+                  let version = sqlite3_column_text(statement, 2) else { continue }
+            let key = BuildIdentity(bundleID: String(cString: bundle),
+                                    shortVersion: sqlite3_column_text(statement, 1).map { String(cString: $0) } ?? "",
+                                    build: String(cString: version), platform: sqlite3_column_int64(statement, 3))
+            ids[key] = max(ids[key] ?? 0, sqlite3_column_int64(statement, 4))
+        }
+        return step == SQLITE_DONE ? ids : [:]
     }
 
     /// Both platforms, sorted into two buckets by the reader rather than merged.
@@ -782,13 +828,13 @@ public struct TestFlightInventory: Sendable {
         // `openAndRead` to the fallback query, which is for a schema missing a column.
         guard result == SQLITE_DONE else {
             logStepFailure(db, "row query", "its rows are unreadable for this read")
-            return ([], nil, [], [], [:], nil, false, false, true)
+            return ([], nil, [], [], [:], nil, false, false, true, [:])
         }
         // Frontiers are filled in by `openAndRead`, from its own query.
         // `hasInstallStatus == false` means the status column was never selected,
         // so "installed here" is unknown for mac rows, not empty.
         return (rows, hasInstallStatus ? macInstalledRows : nil,
-                iosRows, iosAvailableRows, [:], nil, false, true, true)
+                iosRows, iosAvailableRows, [:], nil, false, true, true, [:])
     }
 
     /// Whether the store is between TestFlight's two catalogue requests.

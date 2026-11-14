@@ -850,7 +850,7 @@ public enum UpdatePolicy {
             case .upToDate:
                 settled.insert(id)
             case .updateAvailable, .unknown, .error, .outsideOSWindow,
-                 .appStoreManaged, .toolboxManaged, .testFlightManaged:
+                 .appStoreManaged, .toolboxManaged, .testFlightManaged, .testFlightIncompatible:
                 break
             }
         }

@@ -639,6 +639,7 @@ public enum RowAction {
         case .appStoreManaged: return .managedElsewhere(.appStore)
         case .toolboxManaged: return .managedElsewhere(.toolbox)
         case .testFlightManaged: return .managedElsewhere(.testFlight)
+        case .testFlightIncompatible: return .managedElsewhere(.testFlight)
         case .upToDate:
             if let hold = facts.subscriptionHold { return .subscriptionHold(hold) }
             // Same priority the popover's `.upToDate` branch used to apply

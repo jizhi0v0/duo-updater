@@ -397,7 +397,7 @@ import Foundation
     @Test func everyStatusIsAccountedFor() {
         for status: UpdateStatus in [
             .upToDate, .updateAvailable(latest: "1"), .unknown,
-            .appStoreManaged, .toolboxManaged, .testFlightManaged, .error("x"),
+            .appStoreManaged, .toolboxManaged, .testFlightManaged, .testFlightIncompatible, .error("x"),
             .outsideOSWindow(Self.ceiling),
         ] {
             switch status {
@@ -409,6 +409,8 @@ import Foundation
                 break  // aToolboxOwnedAppKeepsItsChannelWhenASourceThrows
             case .testFlightManaged:
                 break  // aTestFlightAppNeverReachesASourceAtAll
+            case .testFlightIncompatible:
+                break  // the exact beta's compatibility check, before other sources
             case .appStoreManaged:
                 break  // anAppStoreAppReportsAFailedStoreLookup
             case .error:

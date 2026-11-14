@@ -9,7 +9,7 @@ import Foundation
 /// | | reads | needs Full Disk Access | background cost |
 /// |---|---|---|---|
 /// | ``off`` | nothing | no | none — and no "Data Access Blocked" notices, since nothing is attempted |
-/// | ``whenAsked`` | the store, each round | yes | none; TestFlight is asked to sync only by the Refresh button |
+/// | ``whenAsked`` | the store, each round | yes | no TestFlight launch; only the Refresh button asks it to sync |
 /// | ``keepFresh`` | the store and its announcements | yes | a sync when a round earns one (`TestFlightSyncPolicy`) — measured ~0.72 MB each |
 ///
 /// The store is the only thing that can say what build a beta is on, and only
@@ -17,6 +17,8 @@ import Foundation
 /// app the user did not start, which is exactly why it is a choice and not the
 /// default: #543 shipped that behaviour to everyone with the grant, and this
 /// type is what gives it back to them to decide (#547).
+/// A newer iOS beta may also require a compatibility request to Apple's API;
+/// this does not launch TestFlight or renew its session.
 public enum TestFlightDetection: String, CaseIterable, Identifiable, Sendable {
     /// Nothing is read and nothing is claimed. A TestFlight row says so — it does
     /// not show the question mark, which means "asked, and could not be told".
@@ -110,6 +112,12 @@ public enum TestFlightUnboundedReason: Sendable, Equatable, CaseIterable {
     /// installed build newer than anything on file, or an announcement the store
     /// has not caught up with.
     case storeSilent
+    /// The exact offered build's device-specific response says incompatible.
+    case incompatibleBuild
+
+    public func forStatus(_ status: UpdateStatus) -> Self {
+        self == .storeSilent && status == .testFlightIncompatible ? .incompatibleBuild : self
+    }
 
     public static func of(
         detection: TestFlightDetection, fullDiskAccessMissing: Bool

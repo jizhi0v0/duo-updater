@@ -15,6 +15,10 @@ import SQLite3
 struct TestFlightTesterTests {
 
     private static let bundleID = "zz.fixture.beta"
+    private static func compatibleBeta() -> TestFlightCompatibility {
+        TestFlightCompatibilityFixture.client(for: .init(appID: 111, buildID: 11, bundleID: bundleID,
+            shortVersion: "0.3.384", version: "1301", platform: "ios"))
+    }
 
     private static let schema = """
         CREATE TABLE ZTFAPPMODEL (
@@ -103,7 +107,8 @@ struct TestFlightTesterTests {
         let inventory = try Self.inventory(Self.signedOut)
         #expect(inventory.latestIOS(forBundleID: Self.bundleID)?.latestBuild == "1300",
                 "fixture guard: the installed row must be all the lookup sees")
-        let result = await UpdateChecker(sources: [], testflight: inventory).check(Self.wrappedApp())
+        let result = await UpdateChecker(sources: [], testflight: inventory,
+                                         testFlightCompatibility: Self.compatibleBeta()).check(Self.wrappedApp())
         #expect(result.status == .testFlightManaged)
         #expect(result.remote == nil)
     }
@@ -113,7 +118,8 @@ struct TestFlightTesterTests {
     /// then blocks too, and its update disappears.
     @Test func testingOrUnknownKeepsTheUpdate() async throws {
         for sql in [Self.signedIn, Self.noTesterColumn] {
-            let result = await UpdateChecker(sources: [], testflight: try Self.inventory(sql))
+            let result = await UpdateChecker(sources: [], testflight: try Self.inventory(sql),
+                                             testFlightCompatibility: Self.compatibleBeta())
                 .check(Self.wrappedApp())
             guard case .updateAvailable(let latest) = result.status else {
                 Issue.record("expected the update to survive, got \(result.status)")
@@ -144,7 +150,8 @@ extension TestFlightTesterTests {
     /// `UpdateChecker` — the stale store's update comes back and this fails.
     @Test func aMacSignedOutOfTheAppStoreIsNotOfferedTheStoresUpdate() async throws {
         let result = await UpdateChecker(
-            sources: [], testflight: try Self.inventory(Self.signedIn), appStoreSignedIn: false
+            sources: [], testflight: try Self.inventory(Self.signedIn),
+            testFlightCompatibility: Self.compatibleBeta(), appStoreSignedIn: false
         ).check(Self.wrappedApp())
         #expect(result.status == .testFlightManaged)
         #expect(result.remote == nil)
@@ -155,7 +162,8 @@ extension TestFlightTesterTests {
     @Test func aSignInThatIsTrueOrUnknownLeavesTheStoreToDecide() async throws {
         for signedIn in [true, nil] as [Bool?] {
             let result = await UpdateChecker(
-                sources: [], testflight: try Self.inventory(Self.signedIn), appStoreSignedIn: signedIn
+                sources: [], testflight: try Self.inventory(Self.signedIn),
+                testFlightCompatibility: Self.compatibleBeta(), appStoreSignedIn: signedIn
             ).check(Self.wrappedApp())
             guard case .updateAvailable(let latest) = result.status else {
                 Issue.record("signed in = \(String(describing: signedIn)): expected the update, got \(result.status)")

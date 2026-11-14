@@ -43,6 +43,9 @@ struct PopoverRowAction: View {
     /// Why a TestFlight row cannot bound its beta — decides which mark it carries
     /// and what that mark explains (`TestFlightUnboundedReason`).
     var testFlightUnboundedReason: TestFlightUnboundedReason = .storeSilent
+    private var testFlightReason: TestFlightUnboundedReason {
+        testFlightUnboundedReason.forStatus(result.status)
+    }
     /// The running install's Cancel as the rows draw it
     /// (`AppListModel.installRows`), nil when the row's stage is no install of
     /// ours — a rollback, a re-check. The row budgets its width
@@ -967,13 +970,13 @@ struct PopoverRowAction: View {
                 Text("TestFlight").font(.caption2).foregroundStyle(.tertiary)
             }
         }
-        .dimmedWhenOff(testFlightUnboundedReason)
+        .dimmedWhenOff(testFlightReason)
         .overlay(alignment: .bottomTrailing) {
-            TestFlightUnboundedMark(reason: testFlightUnboundedReason).offset(x: 4, y: 4)
+            TestFlightUnboundedMark(reason: testFlightReason).offset(x: 4, y: 4)
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("TestFlight")
-        .help(testFlightUnboundedReason.rowHelp)
+        .help(testFlightReason.rowHelp)
         // A tap, not a Button: see `TestFlightUnboundedMark` on why this mark stays
         // out of a borderless button.
         .contentShape(Rectangle())
@@ -982,7 +985,7 @@ struct PopoverRowAction: View {
         .accessibilityAction { showTestFlightTip = true }
         .popover(isPresented: $showTestFlightTip, arrowEdge: .bottom) {
             TestFlightUnboundedTip(
-                reason: testFlightUnboundedReason, grant: actions.grantFullDiskAccess,
+                reason: testFlightReason, grant: actions.grantFullDiskAccess,
                 openSetting: actions.openTestFlightSetting)
         }
     }

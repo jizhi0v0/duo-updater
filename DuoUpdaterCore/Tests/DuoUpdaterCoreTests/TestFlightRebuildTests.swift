@@ -280,7 +280,10 @@ struct TestFlightRebuildTests {
     /// Not a mutation guard — a record that the fixture reproduces the defect, so the
     /// cases above are guarding against something real.
     @Test func aStoreMidRebuildWouldCallABetaWithAnUpdateCurrent() async throws {
-        let complete = await UpdateChecker(sources: [], testflight: try Self.inventory(Self.complete))
+        let compatible = TestFlightCompatibilityFixture.client(for: .init(
+            appID: 111, buildID: 11, bundleID: "zz.fixture.beta", shortVersion: "1.0", version: "91", platform: "ios"))
+        let complete = await UpdateChecker(sources: [], testflight: try Self.inventory(Self.complete),
+                                           testFlightCompatibility: compatible)
             .check(Self.installedBeta())
         #expect(complete.status == .updateAvailable(latest: "1.0"))
         let half = await UpdateChecker(sources: [], testflight: try Self.inventory(Self.midRebuild))

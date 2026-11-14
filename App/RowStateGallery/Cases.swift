@@ -372,6 +372,8 @@ enum RowStateGalleryCases {
         // The same switch with the cask a major ahead: the major-upgrade route, the
         // channel panel above the license confirmation (review round 4, #1501).
         ("57-channel-switch-major-upgrade-explanation", .updateAvailable(.majorUpgrade), channelSwitchMajorApp),
+        ("58-testflight-incompatible", .managedElsewhere(.testFlight),
+         UpdateResult(app: app.app, remote: nil, status: .testFlightIncompatible)),
     ]
 
     /// A date written out, never read, for the same reason as the hosts below.

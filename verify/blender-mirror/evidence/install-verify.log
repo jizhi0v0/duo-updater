@@ -1,0 +1,9 @@
+
+  duo verify-install
+  1 installers  (0 skipped)  3 hosts at a time  full pass (--full)
+  ─────────────────────────────────────────────
+  ✓ vendor:org.blenderfoundation.blender:stable  5.3.0  359.9 MB  42s  org.blenderfoundation.blender / 68UA947AUU
+
+  ─────────────────────────────────────────────
+  ok 1  warn 0  failed 0  unresolved 0  skipped 0
+  359.9 MB in 42s  lowest free disk 918431.6 MB

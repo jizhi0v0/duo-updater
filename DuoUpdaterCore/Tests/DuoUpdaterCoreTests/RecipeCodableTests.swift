@@ -166,6 +166,8 @@ struct RecipeCodableTests {
                 samples: [
                     (.redirectFilename, #"{"kind":"redirectFilename"}"#),
                     (.responseBody, #"{"kind":"responseBody"}"#),
+                    (.versionedDirectory(linkPattern: "(dir)(1.2)"),
+                     #"{"kind":"versionedDirectory","linkPattern":"(dir)(1.2)"}"#),
                     (.zipEntryPlist(entry: "a/Info.plist", key: "K"),
                      #"{"kind":"zipEntryPlist","entry":"a/Info.plist","key":"K"}"#),
                     (.redirectArchiveInfoPlist(entry: "a/Info.plist"),

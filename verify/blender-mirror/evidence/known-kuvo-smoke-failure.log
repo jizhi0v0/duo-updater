@@ -1,0 +1,6 @@
+20802:✘ Test installPipelineDryRun() recorded an issue at InstallPipelineSmokeTests.swift:69:5: Expectation failed: failures.isEmpty
+20803-↳ install path broken for:
+20804-  Kuvo → 0.7.2: Bundle identifier mismatch: installed “run.kuvo.app” vs downloaded “run.kuvo.code”. Refusing to install.
+20805-↳ failures.isEmpty → false
+20806-↳   failures → ["Kuvo → 0.7.2: Bundle identifier mismatch: installed “run.kuvo.app” vs downloaded “run.kuvo.code”. Refusing to install."]
+20807-↳   isEmpty → false

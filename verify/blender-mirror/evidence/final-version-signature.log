@@ -1,0 +1,24 @@
+ProductName:		macOS
+ProductVersion:		27.2
+BuildVersion:		26B123
+arm64
+2191c2c10e5ca270a23aa987bce34a8117c736fe7da87a6b6585119cd87b0a47
+Signed Time=Nov 14, 2026 at 9:32:03 AM
+Info.plist entries=16
+TeamIdentifier=RS59HDH7Y3
+Runtime Version=27.2.0
+Sealed Resources=none
+Internal requirements count=1 size=212
+5.3.0
+5.3.0
+CodeDirectory v=20500 size=1628457 flags=0x10000(runtime) hashes=50878+7 location=embedded
+Signature size=9007
+Timestamp=Nov 9, 2026 at 6:44:27 PM
+Info.plist entries=19
+TeamIdentifier=68UA947AUU
+Runtime Version=26.1.0
+Sealed Resources version=2 rules=13 files=6626
+Internal requirements count=1 size=192
+/Applications/Blender.app: accepted
+source=Notarized Developer ID
+origin=Developer ID Application: Stichting Blender Foundation (68UA947AUU)

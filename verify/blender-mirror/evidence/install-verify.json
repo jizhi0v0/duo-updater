@@ -1,0 +1,40 @@
+{
+  "bytes" : 359893873,
+  "generatedAt" : "2026-11-14T17:34:37Z",
+  "hostConcurrency" : 3,
+  "items" : [
+    {
+      "bundleID" : "org.blenderfoundation.blender",
+      "bytes" : 359893873,
+      "finalHost" : "download.blender.org",
+      "identity" : {
+        "architectures" : [
+          "arm64"
+        ],
+        "bundleIdentifier" : "org.blenderfoundation.blender",
+        "bundleVersion" : "5.3.0",
+        "minimumSystemVersion" : "13.0",
+        "shortVersion" : "5.3.0",
+        "signedIdentifier" : "org.blenderfoundation.blender",
+        "teamIdentifier" : "68UA947AUU"
+      },
+      "kind" : "dmg",
+      "notes" : [
+
+      ],
+      "probeHost" : "mirror.blender.org",
+      "recipeID" : "vendor:org.blenderfoundation.blender:stable",
+      "registry" : "vendor",
+      "seconds" : 41.744824051856995,
+      "status" : "ok",
+      "url" : "https:\/\/download.blender.org\/release\/Blender5.3\/blender-5.3.0-macos-arm64.dmg",
+      "urlSHA256" : "ba972e1e4a29039c61ecc0d5f8b4d4d25d7705fac566489ccb41b1cc787bc0f6",
+      "version" : "5.3.0",
+      "warnings" : [
+
+      ]
+    }
+  ],
+  "minimumFreeBytes" : 918431629312,
+  "seconds" : 41.75263690948486
+}

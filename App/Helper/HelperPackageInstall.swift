@@ -133,10 +133,33 @@ actor HelperPackageInstall {
         let installedTeam = try verifiedTeam(app)
         let data = try Data(contentsOf: app.appendingPathComponent("Contents/Info.plist"))
         let info = try PropertyListSerialization.propertyList(from: data, options: [], format: nil) as? [String: Any]
-        guard info?["CFBundleIdentifier"] as? String == bundleIdentifier else { throw Failure.installedIdentity }
+        let physicalIdentifier = info?["CFBundleIdentifier"] as? String
+        // The scanner files both WeChat DevTools generations under the PKG's
+        // product ID. Its bundled product marker is covered by the strict
+        // signature check above; a generic Electron ID alone is never an alias.
+        let weChatAlias = bundleIdentifier == AppScanner.weChatDevToolsBundleID
+            && ["com.github.Electron", "com.tencent.webplusdevtools"].contains(physicalIdentifier ?? "")
+            && AppScanner.weChatDevToolsIdentity(in: app) != nil
+        guard physicalIdentifier == bundleIdentifier || weChatAlias else { throw Failure.installedIdentity }
         guard let trustedTeam = PackageInstallTrust.teamIdentifier(for: bundleIdentifier),
               installedTeam == trustedTeam else {
             throw Failure.untrustedInstalledDeveloper
+        }
+    }
+
+    /// A pre-execution refusal may retain the original interactive route. Never
+    /// use this after installer starts: an error then must not replay the PKG.
+    static func installedIdentityRefusal(
+        at app: URL, bundleIdentifier: String,
+        validate: @Sendable (URL, String) throws -> Void = {
+            try validateInstalledIdentity(at: $0, bundleIdentifier: $1)
+        }
+    ) -> String? {
+        do {
+            try validate(app, bundleIdentifier)
+            return nil
+        } catch {
+            return "The installed copy could not be verified for the package helper. Use macOS Installer. \(error.localizedDescription)"
         }
     }
 
@@ -162,7 +185,11 @@ actor HelperPackageInstall {
                 try Self.stage(package, fingerprint: fingerprint)
             }
             defer { staged.remove() }
-            try await offCooperativePool { try Self.validateInstalledIdentity(at: app, bundleIdentifier: bundleIdentifier) }
+            if let reason = await offCooperativePool({
+                Self.installedIdentityRefusal(at: app, bundleIdentifier: bundleIdentifier)
+            }) {
+                return (77, reason)
+            }
             try await validator.validateProtectedPackage(staged.package, installedApp: app,
                                                          bundleIdentifier: bundleIdentifier)
             let environment = ["PATH": "/usr/bin:/bin:/usr/sbin:/sbin", "USER": "root", "LOGNAME": "root"]
@@ -180,7 +207,11 @@ actor HelperPackageInstall {
             try await AutomaticInstall.$active.withValue(automatic) {
                 try await AutomaticInstall.checkPackageTarget(app)
             }
-            try await offCooperativePool { try Self.validateInstalledIdentity(at: app, bundleIdentifier: bundleIdentifier) }
+            if let reason = await offCooperativePool({
+                Self.installedIdentityRefusal(at: app, bundleIdentifier: bundleIdentifier)
+            }) {
+                return (77, reason)
+            }
             let outcome = try await ChildProcess.run("/usr/sbin/installer",
                 ["-pkg", staged.package.path, "-target", "/", "-verboseR"],
                 environment: environment, standardError: .mergeIntoOutput,

@@ -187,3 +187,12 @@ bytes rather than assumed:
     no per-version history, and the same copy would render under every
     future build. Rendering that as "what is new" is worse than the
     web-view fallback, which at least shows it as the vendor's page.
+
+## PKG helper 专项验证（2026-11-14）
+
+ChatGPT Classic 当前官方更新 PKG 有效签名/公证，但仅将 app ZIP 放入
+`/Library/Application Support/OpenAI/ChatGPT Classic Update/`，没有声明 app
+bundle 目标，不能按 helper 的 app 目标契约直接安装。保持仅检测，不加白名单；
+未执行该 PKG 的 root 安装。
+
+[包目标检查凭据](../../verify/pkg-helper-coverage-20261114/receipts/classic-destinations.json)。

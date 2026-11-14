@@ -1,0 +1,48 @@
+{
+  "name": "AweSun",
+  "bundleID": "com.oray.sunlogin.macclient",
+  "startedAt": "2026-11-14T13:46:34.493274+00:00",
+  "seedExit": 0,
+  "app": "/Applications/AweSun.app",
+  "before": {
+    "CFBundleIdentifier": "com.oray.sunlogin.macclient",
+    "CFBundleShortVersionString": "16.6.0",
+    "CFBundleVersion": "32198",
+    "CFBundleExecutable": "AweSun"
+  },
+  "beforeSignatureExit": 0,
+  "automaticExit": 1,
+  "automatic": {
+    "after": "16.6.0",
+    "afterBuild": "32198",
+    "before": "16.6.0",
+    "beforeBuild": "32198",
+    "date": "2026-11-14T13:46:56Z",
+    "error": "Automatic update deferred: the app is running.",
+    "mode": "automatic",
+    "pid": 36336,
+    "result": "refused",
+    "uid": 501
+  },
+  "manualExit": 0,
+  "manual": {
+    "after": "16.6.0",
+    "afterBuild": "32198",
+    "before": "16.6.0",
+    "beforeBuild": "32198",
+    "date": "2026-11-14T13:46:59Z",
+    "mode": "manual",
+    "pid": 36349,
+    "result": "installed",
+    "uid": 501
+  },
+  "after": {
+    "CFBundleIdentifier": "com.oray.sunlogin.macclient",
+    "CFBundleShortVersionString": "16.6.0",
+    "CFBundleVersion": "32198",
+    "CFBundleExecutable": "AweSun"
+  },
+  "afterSignatureExit": 0,
+  "status": "installed",
+  "finishedAt": "2026-11-14T13:47:15.832199+00:00"
+}

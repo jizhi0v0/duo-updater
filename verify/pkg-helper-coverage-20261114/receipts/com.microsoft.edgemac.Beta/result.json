@@ -1,0 +1,38 @@
+{
+  "name": "Edge Beta",
+  "bundleID": "com.microsoft.edgemac.Beta",
+  "startedAt": "2026-11-14T14:17:21.410980+00:00",
+  "seedExit": 0,
+  "app": "/Applications/Microsoft Edge Beta.app",
+  "before": {
+    "CFBundleIdentifier": "com.microsoft.edgemac.Beta",
+    "CFBundleShortVersionString": "158.0.4370.21",
+    "CFBundleVersion": "158.0.4370.21",
+    "CFBundleExecutable": "Microsoft Edge Beta"
+  },
+  "beforeSignatureExit": 0,
+  "automaticExit": 0,
+  "automatic": {
+    "after": "158.0.4370.21",
+    "afterBuild": "158.0.4370.21",
+    "before": "158.0.4370.21",
+    "beforeBuild": "158.0.4370.21",
+    "beforeProductVersion": "158.0.4370.21",
+    "bundleIdentifier": "com.microsoft.edgemac.Beta",
+    "date": "2026-11-14T14:17:38Z",
+    "mode": "automatic",
+    "physicalBundleIdentifier": "com.microsoft.edgemac.Beta",
+    "pid": 48682,
+    "result": "installed",
+    "uid": 501
+  },
+  "after": {
+    "CFBundleIdentifier": "com.microsoft.edgemac.Beta",
+    "CFBundleShortVersionString": "158.0.4370.21",
+    "CFBundleVersion": "158.0.4370.21",
+    "CFBundleExecutable": "Microsoft Edge Beta"
+  },
+  "afterSignatureExit": 0,
+  "status": "installed",
+  "finishedAt": "2026-11-14T14:18:12.986370+00:00"
+}

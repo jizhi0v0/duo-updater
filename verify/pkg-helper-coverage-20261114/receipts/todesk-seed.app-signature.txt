@@ -1,0 +1,1 @@
+/Applications/ToDesk.app: a sealed resource is missing or invalid

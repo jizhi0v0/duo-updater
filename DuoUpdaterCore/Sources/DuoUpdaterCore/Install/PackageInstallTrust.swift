@@ -16,6 +16,7 @@ public enum PackageInstallTrust {
     // from other editions are not accepted by a prefix or vendor-name match.
     private static let teams: [String: String] = [
         "cc.ffitch.shottr": "2Y683PRQWN",
+        "com.adguard.mac.adguard": "TC3Q7MAJXF",
         "com.microsoft.Excel": "UBF8T346G9",
         "com.microsoft.OneDrive": "UBF8T346G9",
         "com.microsoft.Outlook": "UBF8T346G9",

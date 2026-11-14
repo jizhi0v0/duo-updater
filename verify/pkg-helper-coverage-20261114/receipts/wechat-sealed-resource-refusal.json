@@ -1,0 +1,15 @@
+{
+  "after" : "36.6.0",
+  "afterBuild" : "36.6.0",
+  "before" : "36.6.0",
+  "beforeBuild" : "36.6.0",
+  "beforeProductVersion" : "2.02.2609250",
+  "bundleIdentifier" : "com.tencent.wechatdevtools",
+  "date" : "2026-11-14T14:29:08Z",
+  "error" : "Package installation failed: The downloaded app's code signature is invalid (OSStatus -67054).",
+  "mode" : "manual",
+  "physicalBundleIdentifier" : "com.github.Electron",
+  "pid" : 51344,
+  "result" : "refused",
+  "uid" : 501
+}

@@ -1,0 +1,38 @@
+{
+  "name": "Word",
+  "bundleID": "com.microsoft.Word",
+  "startedAt": "2026-11-14T14:11:09.890811+00:00",
+  "seedExit": 0,
+  "app": "/Applications/Microsoft Word.app",
+  "before": {
+    "CFBundleIdentifier": "com.microsoft.Word",
+    "CFBundleShortVersionString": "16.115",
+    "CFBundleVersion": "16.115.26110837",
+    "CFBundleExecutable": "Microsoft Word"
+  },
+  "beforeSignatureExit": 0,
+  "automaticExit": 0,
+  "automatic": {
+    "after": "16.115",
+    "afterBuild": "16.115.26110837",
+    "before": "16.115",
+    "beforeBuild": "16.115.26110837",
+    "beforeProductVersion": "16.115",
+    "bundleIdentifier": "com.microsoft.Word",
+    "date": "2026-11-14T14:13:19Z",
+    "mode": "automatic",
+    "physicalBundleIdentifier": "com.microsoft.Word",
+    "pid": 46794,
+    "result": "installed",
+    "uid": 501
+  },
+  "after": {
+    "CFBundleIdentifier": "com.microsoft.Word",
+    "CFBundleShortVersionString": "16.115",
+    "CFBundleVersion": "16.115.26110837",
+    "CFBundleExecutable": "Microsoft Word"
+  },
+  "afterSignatureExit": 0,
+  "status": "installed",
+  "finishedAt": "2026-11-14T14:16:25.010172+00:00"
+}

@@ -1,0 +1,12 @@
+{
+  "after" : "5.1.0.0",
+  "afterBuild" : "2712",
+  "before" : "5.1.0.0",
+  "beforeBuild" : "2712",
+  "date" : "2026-11-14T13:30:42Z",
+  "error" : "Package installation failed: The downloaded app's code signature is invalid (OSStatus -67054).",
+  "mode" : "manual",
+  "pid" : 35370,
+  "result" : "refused",
+  "uid" : 501
+}

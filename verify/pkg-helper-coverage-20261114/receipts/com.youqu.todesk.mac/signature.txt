@@ -1,0 +1,22 @@
+Package "new.pkg":
+   Status: signed by a developer certificate issued by Apple for distribution
+   Notarization: trusted by the Apple notary service
+   Signed with a trusted timestamp on: 2026-10-30 11:30:20 +0000
+   Certificate Chain:
+    1. Developer ID Installer: Hainan Youqu Technology Co., Ltd. (KM56KD59W4)
+       Expires: 2030-09-09 01:58:38 +0000
+       SHA256 Fingerprint:
+           3E 58 A6 0B 3D 06 70 AD C9 25 2B 5E 8A 04 67 0E 68 E9 85 5C 7A 07
+           1B F8 38 D6 A3 62 DB 1C 59 5A
+       ------------------------------------------------------------------------
+    2. Developer ID Certification Authority
+       Expires: 2031-09-17 00:00:00 +0000
+       SHA256 Fingerprint:
+           F1 6C D3 C5 4C 7F 83 CE A4 BF 1A 3E 6A 08 19 C8 AA A8 E4 A1 52 8F
+           D1 44 71 5F 35 06 43 D2 DF 3A
+       ------------------------------------------------------------------------
+    3. Apple Root CA
+       Expires: 2035-02-09 21:40:36 +0000
+       SHA256 Fingerprint:
+           B0 B1 73 0E CB C7 FF 45 05 14 2C 49 F1 29 5E 6E DA 6B CA ED 7E 2C
+           68 C5 BE 91 B5 A1 10 01 F0 24

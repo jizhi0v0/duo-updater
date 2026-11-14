@@ -1,0 +1,38 @@
+{
+  "name": "PowerPoint",
+  "bundleID": "com.microsoft.Powerpoint",
+  "startedAt": "2026-11-14T14:06:54.575165+00:00",
+  "seedExit": 0,
+  "app": "/Applications/Microsoft PowerPoint.app",
+  "before": {
+    "CFBundleIdentifier": "com.microsoft.Powerpoint",
+    "CFBundleShortVersionString": "16.115",
+    "CFBundleVersion": "16.115.26110837",
+    "CFBundleExecutable": "Microsoft PowerPoint"
+  },
+  "beforeSignatureExit": 0,
+  "automaticExit": 0,
+  "automatic": {
+    "after": "16.115",
+    "afterBuild": "16.115.26110837",
+    "before": "16.115",
+    "beforeBuild": "16.115.26110837",
+    "beforeProductVersion": "16.115",
+    "bundleIdentifier": "com.microsoft.Powerpoint",
+    "date": "2026-11-14T14:08:36Z",
+    "mode": "automatic",
+    "physicalBundleIdentifier": "com.microsoft.Powerpoint",
+    "pid": 43970,
+    "result": "installed",
+    "uid": 501
+  },
+  "after": {
+    "CFBundleIdentifier": "com.microsoft.Powerpoint",
+    "CFBundleShortVersionString": "16.115",
+    "CFBundleVersion": "16.115.26110837",
+    "CFBundleExecutable": "Microsoft PowerPoint"
+  },
+  "afterSignatureExit": 0,
+  "status": "installed",
+  "finishedAt": "2026-11-14T14:11:09.885295+00:00"
+}

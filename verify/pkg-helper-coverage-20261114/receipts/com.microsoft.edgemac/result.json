@@ -1,0 +1,38 @@
+{
+  "name": "Edge",
+  "bundleID": "com.microsoft.edgemac",
+  "startedAt": "2026-11-14T14:16:25.046808+00:00",
+  "seedExit": 0,
+  "app": "/Applications/Microsoft Edge.app",
+  "before": {
+    "CFBundleIdentifier": "com.microsoft.edgemac",
+    "CFBundleShortVersionString": "157.0.4341.60",
+    "CFBundleVersion": "157.0.4341.60",
+    "CFBundleExecutable": "Microsoft Edge"
+  },
+  "beforeSignatureExit": 0,
+  "automaticExit": 0,
+  "automatic": {
+    "after": "157.0.4341.60",
+    "afterBuild": "157.0.4341.60",
+    "before": "157.0.4341.60",
+    "beforeBuild": "157.0.4341.60",
+    "beforeProductVersion": "157.0.4341.60",
+    "bundleIdentifier": "com.microsoft.edgemac",
+    "date": "2026-11-14T14:16:46Z",
+    "mode": "automatic",
+    "physicalBundleIdentifier": "com.microsoft.edgemac",
+    "pid": 48437,
+    "result": "installed",
+    "uid": 501
+  },
+  "after": {
+    "CFBundleIdentifier": "com.microsoft.edgemac",
+    "CFBundleShortVersionString": "157.0.4341.60",
+    "CFBundleVersion": "157.0.4341.60",
+    "CFBundleExecutable": "Microsoft Edge"
+  },
+  "afterSignatureExit": 0,
+  "status": "installed",
+  "finishedAt": "2026-11-14T14:17:21.407764+00:00"
+}

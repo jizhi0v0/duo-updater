@@ -1,0 +1,20 @@
+{
+  "packageInfo": [
+    {
+      "overwrite-permissions": "true",
+      "relocatable": "false",
+      "identifier": "com.openai.chat.classic-update",
+      "postinstall-action": "none",
+      "version": "1784145287",
+      "format-version": "2",
+      "generator-version": "InstallCmds-864.1 (25E246)",
+      "install-location": "/",
+      "auth": "root"
+    }
+  ],
+  "declaredBundles": [],
+  "bomAppPaths": [],
+  "bomZipPaths": [
+    "./Library/Application Support/OpenAI/ChatGPT Classic Update/ChatGPT Classic.app.zip"
+  ]
+}

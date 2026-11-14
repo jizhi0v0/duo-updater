@@ -109,3 +109,15 @@ duo verify --only adguard
 - 本地化页面 zh_cn / ja / de 也是 10/10：标题分别是 `AdGuard Mac版 2.20`、`AdGuard for Mac 2.20`、`AdGuard für Mac 2.20`，日期标签分别是 `更新日期：`（全角冒号）、`公開日:`、`Veröffentlicht am:`。
 - 图片只出现在 2.17（release）和 2.17 beta（beta）两条里，各两张，都在 `cdn.adtidy.org`。
 - 变异：去掉 `imagePattern`、或要求后缀带序号，`AdGuardChangelogRecipeTests` 对应的测试变红。
+
+## PKG helper 专项验证（2026-11-14）
+
+本分支将 `TC3Q7MAJXF` 加入 helper 信任绑定。macOS VM 中 release 2.20.3
+（2633）、beta 2.20.3 RC 1（2634）、nightly 2.21 Nightly 2（2635）均通过真实
+签名客户端 → root helper → 系统 installer 安装及落地签名检查。三轨主动切换用于
+验证，正常检测仍读取副本自带 feed。此前「交给系统 Installer」的记录是历史路径。
+
+[本轮范围、原始凭据和限制](../../verify/pkg-helper-coverage-20261114/README.md)。
+
+最终构建又从 DuoUpdater 菜单栏界面完成 release 2.19.0.2258 → 2.20.3（2633），
+显示 Installed；未出现 Installer 窗口或密码提示，落地严格签名校验通过。

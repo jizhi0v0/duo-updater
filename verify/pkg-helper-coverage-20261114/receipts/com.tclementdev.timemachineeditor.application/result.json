@@ -1,0 +1,52 @@
+{
+  "name": "TimeMachineEditor",
+  "bundleID": "com.tclementdev.timemachineeditor.application",
+  "startedAt": "2026-11-14T13:47:15.835697+00:00",
+  "initial": {
+    "CFBundleIdentifier": "com.tclementdev.timemachineeditor.application",
+    "CFBundleShortVersionString": "5.2.2",
+    "CFBundleVersion": "219",
+    "CFBundleExecutable": "TimeMachineEditor"
+  },
+  "app": "/Applications/TimeMachineEditor.app",
+  "before": {
+    "CFBundleIdentifier": "com.tclementdev.timemachineeditor.application",
+    "CFBundleShortVersionString": "5.2.2",
+    "CFBundleVersion": "219",
+    "CFBundleExecutable": "TimeMachineEditor"
+  },
+  "beforeSignatureExit": 0,
+  "automaticExit": 0,
+  "automatic": {
+    "after": "5.2.2",
+    "afterBuild": "219",
+    "before": "5.2.2",
+    "beforeBuild": "219",
+    "date": "2026-11-14T13:47:16Z",
+    "mode": "automatic",
+    "pid": 36524,
+    "result": "installed",
+    "uid": 501
+  },
+  "manualExit": 0,
+  "manual": {
+    "after": "5.2.2",
+    "afterBuild": "219",
+    "before": "5.2.2",
+    "beforeBuild": "219",
+    "date": "2026-11-14T13:47:20Z",
+    "mode": "manual",
+    "pid": 36551,
+    "result": "installed",
+    "uid": 501
+  },
+  "after": {
+    "CFBundleIdentifier": "com.tclementdev.timemachineeditor.application",
+    "CFBundleShortVersionString": "5.2.2",
+    "CFBundleVersion": "219",
+    "CFBundleExecutable": "TimeMachineEditor"
+  },
+  "afterSignatureExit": 0,
+  "status": "installed",
+  "finishedAt": "2026-11-14T13:47:23.417513+00:00"
+}

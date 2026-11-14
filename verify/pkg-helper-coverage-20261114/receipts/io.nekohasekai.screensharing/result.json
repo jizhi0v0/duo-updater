@@ -1,0 +1,47 @@
+{
+  "name": "Open Screen Sharing",
+  "bundleID": "io.nekohasekai.screensharing",
+  "startedAt": "2026-11-14T13:48:00.065483+00:00",
+  "seedExit": 0,
+  "app": "/Applications/Open Screen Sharing.app",
+  "before": {
+    "CFBundleIdentifier": "io.nekohasekai.screensharing",
+    "CFBundleShortVersionString": "1.0.6",
+    "CFBundleVersion": "58",
+    "CFBundleExecutable": "Open Screen Sharing"
+  },
+  "beforeSignatureExit": 0,
+  "automaticExit": 0,
+  "automatic": {
+    "after": "1.0.6",
+    "afterBuild": "58",
+    "before": "1.0.6",
+    "beforeBuild": "58",
+    "date": "2026-11-14T13:48:03Z",
+    "mode": "automatic",
+    "pid": 36865,
+    "result": "installed",
+    "uid": 501
+  },
+  "manualExit": 0,
+  "manual": {
+    "after": "1.0.6",
+    "afterBuild": "58",
+    "before": "1.0.6",
+    "beforeBuild": "58",
+    "date": "2026-11-14T13:48:07Z",
+    "mode": "manual",
+    "pid": 36881,
+    "result": "installed",
+    "uid": 501
+  },
+  "after": {
+    "CFBundleIdentifier": "io.nekohasekai.screensharing",
+    "CFBundleShortVersionString": "1.0.6",
+    "CFBundleVersion": "58",
+    "CFBundleExecutable": "Open Screen Sharing"
+  },
+  "afterSignatureExit": 0,
+  "status": "installed",
+  "finishedAt": "2026-11-14T13:48:12.123972+00:00"
+}

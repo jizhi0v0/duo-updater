@@ -1,0 +1,38 @@
+{
+  "name": "Microsoft 365 Copilot",
+  "bundleID": "com.microsoft.m365copilot",
+  "startedAt": "2026-11-14T14:19:03.176604+00:00",
+  "seedExit": 0,
+  "app": "/Applications/Microsoft 365 Copilot.app",
+  "before": {
+    "CFBundleIdentifier": "com.microsoft.m365copilot",
+    "CFBundleShortVersionString": "1.2610",
+    "CFBundleVersion": "1.2610.2101",
+    "CFBundleExecutable": "Microsoft 365 Copilot"
+  },
+  "beforeSignatureExit": 0,
+  "automaticExit": 0,
+  "automatic": {
+    "after": "1.2610",
+    "afterBuild": "1.2610.2101",
+    "before": "1.2610",
+    "beforeBuild": "1.2610.2101",
+    "beforeProductVersion": "1.2610",
+    "bundleIdentifier": "com.microsoft.m365copilot",
+    "date": "2026-11-14T14:19:19Z",
+    "mode": "automatic",
+    "physicalBundleIdentifier": "com.microsoft.m365copilot",
+    "pid": 49079,
+    "result": "installed",
+    "uid": 501
+  },
+  "after": {
+    "CFBundleIdentifier": "com.microsoft.m365copilot",
+    "CFBundleShortVersionString": "1.2610",
+    "CFBundleVersion": "1.2610.2101",
+    "CFBundleExecutable": "Microsoft 365 Copilot"
+  },
+  "afterSignatureExit": 0,
+  "status": "installed",
+  "finishedAt": "2026-11-14T14:19:47.504440+00:00"
+}

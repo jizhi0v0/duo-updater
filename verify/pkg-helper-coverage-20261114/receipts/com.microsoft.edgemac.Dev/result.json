@@ -1,0 +1,38 @@
+{
+  "name": "Edge Dev",
+  "bundleID": "com.microsoft.edgemac.Dev",
+  "startedAt": "2026-11-14T14:18:13.005669+00:00",
+  "seedExit": 0,
+  "app": "/Applications/Microsoft Edge Dev.app",
+  "before": {
+    "CFBundleIdentifier": "com.microsoft.edgemac.Dev",
+    "CFBundleShortVersionString": "159.0.4393.0",
+    "CFBundleVersion": "159.0.4393.0",
+    "CFBundleExecutable": "Microsoft Edge Dev"
+  },
+  "beforeSignatureExit": 0,
+  "automaticExit": 0,
+  "automatic": {
+    "after": "159.0.4393.0",
+    "afterBuild": "159.0.4393.0",
+    "before": "159.0.4393.0",
+    "beforeBuild": "159.0.4393.0",
+    "beforeProductVersion": "159.0.4393.0",
+    "bundleIdentifier": "com.microsoft.edgemac.Dev",
+    "date": "2026-11-14T14:18:27Z",
+    "mode": "automatic",
+    "physicalBundleIdentifier": "com.microsoft.edgemac.Dev",
+    "pid": 48912,
+    "result": "installed",
+    "uid": 501
+  },
+  "after": {
+    "CFBundleIdentifier": "com.microsoft.edgemac.Dev",
+    "CFBundleShortVersionString": "159.0.4393.0",
+    "CFBundleVersion": "159.0.4393.0",
+    "CFBundleExecutable": "Microsoft Edge Dev"
+  },
+  "afterSignatureExit": 0,
+  "status": "installed",
+  "finishedAt": "2026-11-14T14:19:03.174929+00:00"
+}

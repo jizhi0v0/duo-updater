@@ -1,0 +1,52 @@
+{
+  "name": "Shottr",
+  "bundleID": "cc.ffitch.shottr",
+  "startedAt": "2026-11-14T13:45:46.349849+00:00",
+  "initial": {
+    "CFBundleIdentifier": "cc.ffitch.shottr",
+    "CFBundleShortVersionString": "1.9.4",
+    "CFBundleVersion": "146",
+    "CFBundleExecutable": "Shottr"
+  },
+  "app": "/Applications/Shottr.app",
+  "before": {
+    "CFBundleIdentifier": "cc.ffitch.shottr",
+    "CFBundleShortVersionString": "1.9.4",
+    "CFBundleVersion": "146",
+    "CFBundleExecutable": "Shottr"
+  },
+  "beforeSignatureExit": 0,
+  "automaticExit": 0,
+  "automatic": {
+    "after": "1.9.4",
+    "afterBuild": "146",
+    "before": "1.9.4",
+    "beforeBuild": "146",
+    "date": "2026-11-14T13:45:47Z",
+    "mode": "automatic",
+    "pid": 35964,
+    "result": "installed",
+    "uid": 501
+  },
+  "manualExit": 0,
+  "manual": {
+    "after": "1.9.4",
+    "afterBuild": "146",
+    "before": "1.9.4",
+    "beforeBuild": "146",
+    "date": "2026-11-14T13:45:56Z",
+    "mode": "manual",
+    "pid": 35996,
+    "result": "installed",
+    "uid": 501
+  },
+  "after": {
+    "CFBundleIdentifier": "cc.ffitch.shottr",
+    "CFBundleShortVersionString": "1.9.4",
+    "CFBundleVersion": "146",
+    "CFBundleExecutable": "Shottr"
+  },
+  "afterSignatureExit": 0,
+  "status": "installed",
+  "finishedAt": "2026-11-14T13:46:03.500068+00:00"
+}

@@ -1,0 +1,22 @@
+{
+  "date": "2026-11-14",
+  "model": "gpt-6-astra",
+  "base": "6070ece11b2e60291ec84765c6199c6cdac25b6a",
+  "result": "No findings",
+  "risks": [
+    "privilege",
+    "trust",
+    "data-loss",
+    "untrusted-input",
+    "installation replay"
+  ],
+  "method": "Read-only diff, guards/callers/tests; no VM commands by reviewer",
+  "diffSHA256": "3733efc7847a30b8a10f4cede9ca636ba6ceeb380e057aaa5d976ca0e37ab10e",
+  "files": {
+    "App/Helper/HelperPackageInstall.swift": "e9ab16c20215ebf115917413ec6ed41fff6f29a28a8096bd177b118aaa7c6840",
+    "App/PackageHelperVerification/PackageHelperVerification.swift": "168d106f86f8d3b1336e72ead4a4fed7f4ae9020ea59b2ecb699c597bbf8f813",
+    "App/Tests/HelperPackageInstallTests.swift": "7a3fb905cf0582947c7ed280cb39f79394129d6e9ca24784e9289c8799690b5f",
+    "DuoUpdaterCore/Sources/DuoUpdaterCore/Install/PackageInstallTrust.swift": "fd98d9596b17ca8b62efe9ddda378af0aa415daa5110d1f070d84a146d6bbad8",
+    "DuoUpdaterCore/Tests/DuoUpdaterCoreTests/UpdatePolicyTests.swift": "605d99001b60d2efa6bd67b00471861a58d995ba633f2e34abfa3e022a0abd71"
+  }
+}

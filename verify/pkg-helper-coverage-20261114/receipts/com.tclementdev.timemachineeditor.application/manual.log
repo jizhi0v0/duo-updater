@@ -1,0 +1,30 @@
+PROGRESS installer: Package name is TimeMachineEditor
+PROGRESS installer: Upgrading at base path /
+PROGRESS installer:PHASE:Preparing for installation…
+PROGRESS installer:PHASE:Preparing the disk…
+PROGRESS installer:PHASE:Preparing TimeMachineEditor…
+PROGRESS installer:PHASE:Waiting for other installations to complete…
+PROGRESS installer:PHASE:Configuring the installation…
+PROGRESS installer:STATUS:
+PROGRESS installer:%86.597967
+PROGRESS installer:PHASE:Running package scripts…
+PROGRESS installer:PHASE:Validating packages…
+PROGRESS installer:%97.750000
+PROGRESS installer:STATUS:Running installer actions…
+PROGRESS installer:STATUS:
+PROGRESS installer:PHASE:Finishing the Installation…
+PROGRESS installer:STATUS:
+PROGRESS installer:%100.000000
+PROGRESS installer:PHASE:The software was successfully installed.
+PROGRESS installer: The upgrade was successful.
+{
+  "after" : "5.2.2",
+  "afterBuild" : "219",
+  "before" : "5.2.2",
+  "beforeBuild" : "219",
+  "date" : "2026-11-14T13:47:20Z",
+  "mode" : "manual",
+  "pid" : 36551,
+  "result" : "installed",
+  "uid" : 501
+}

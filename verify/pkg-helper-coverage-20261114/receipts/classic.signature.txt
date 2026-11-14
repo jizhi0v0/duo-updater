@@ -1,0 +1,22 @@
+Package "classic.pkg":
+   Status: signed by a developer certificate issued by Apple for distribution
+   Notarization: trusted by the Apple notary service
+   Signed with a trusted timestamp on: 2026-07-15 20:15:36 +0000
+   Certificate Chain:
+    1. Developer ID Installer: OpenAI OpCo, LLC (2DC432GLL2)
+       Expires: 2031-07-15 21:55:59 +0000
+       SHA256 Fingerprint:
+           35 58 AD A7 09 7F 0E 79 5B A4 89 E2 61 AF A3 AF A3 4B 9D 85 45 3B
+           DA A3 4F 4D 84 B3 6E B3 20 80
+       ------------------------------------------------------------------------
+    2. Developer ID Certification Authority
+       Expires: 2031-09-17 00:00:00 +0000
+       SHA256 Fingerprint:
+           F1 6C D3 C5 4C 7F 83 CE A4 BF 1A 3E 6A 08 19 C8 AA A8 E4 A1 52 8F
+           D1 44 71 5F 35 06 43 D2 DF 3A
+       ------------------------------------------------------------------------
+    3. Apple Root CA
+       Expires: 2035-02-09 21:40:36 +0000
+       SHA256 Fingerprint:
+           B0 B1 73 0E CB C7 FF 45 05 14 2C 49 F1 29 5E 6E DA 6B CA ED 7E 2C
+           68 C5 BE 91 B5 A1 10 01 F0 24

@@ -1,0 +1,38 @@
+{
+  "name": "OneNote",
+  "bundleID": "com.microsoft.onenote.mac",
+  "startedAt": "2026-11-14T14:19:47.505514+00:00",
+  "seedExit": 0,
+  "app": "/Applications/Microsoft OneNote.app",
+  "before": {
+    "CFBundleIdentifier": "com.microsoft.onenote.mac",
+    "CFBundleShortVersionString": "16.115",
+    "CFBundleVersion": "16.115.26110837",
+    "CFBundleExecutable": "Microsoft OneNote"
+  },
+  "beforeSignatureExit": 0,
+  "automaticExit": 0,
+  "automatic": {
+    "after": "16.115",
+    "afterBuild": "16.115.26110837",
+    "before": "16.115",
+    "beforeBuild": "16.115.26110837",
+    "beforeProductVersion": "16.115",
+    "bundleIdentifier": "com.microsoft.onenote.mac",
+    "date": "2026-11-14T14:21:17Z",
+    "mode": "automatic",
+    "physicalBundleIdentifier": "com.microsoft.onenote.mac",
+    "pid": 50050,
+    "result": "installed",
+    "uid": 501
+  },
+  "after": {
+    "CFBundleIdentifier": "com.microsoft.onenote.mac",
+    "CFBundleShortVersionString": "16.115",
+    "CFBundleVersion": "16.115.26110837",
+    "CFBundleExecutable": "Microsoft OneNote"
+  },
+  "afterSignatureExit": 0,
+  "status": "installed",
+  "finishedAt": "2026-11-14T14:23:16.166197+00:00"
+}

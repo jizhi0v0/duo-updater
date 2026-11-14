@@ -1,0 +1,11 @@
+{
+  "after" : "2.20.3",
+  "afterBuild" : "2633",
+  "before" : "2.20.3",
+  "beforeBuild" : "2633",
+  "date" : "2026-11-14T13:46:24Z",
+  "mode" : "manual",
+  "pid" : 36109,
+  "result" : "installed",
+  "uid" : 501
+}

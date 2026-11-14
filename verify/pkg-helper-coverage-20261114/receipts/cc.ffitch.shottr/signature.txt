@@ -1,0 +1,22 @@
+Package "new.pkg":
+   Status: signed by a developer certificate issued by Apple for distribution
+   Notarization: trusted by the Apple notary service
+   Signed with a trusted timestamp on: 2026-09-26 05:40:47 +0000
+   Certificate Chain:
+    1. Developer ID Installer: Max Kovalenko (2Y683PRQWN)
+       Expires: 2027-02-01 22:12:15 +0000
+       SHA256 Fingerprint:
+           00 32 35 7D DD AE B8 0F 27 53 00 73 F9 E4 95 95 81 2E 5D 3C 6A 95
+           E4 3C 4E 1B FB 9B 26 27 AA 5C
+       ------------------------------------------------------------------------
+    2. Developer ID Certification Authority
+       Expires: 2027-02-01 22:12:15 +0000
+       SHA256 Fingerprint:
+           7A FC 9D 01 A6 2F 03 A2 DE 96 37 93 6D 4A FE 68 09 0D 2D E1 8D 03
+           F2 9C 88 CF B0 B1 BA 63 58 7F
+       ------------------------------------------------------------------------
+    3. Apple Root CA
+       Expires: 2035-02-09 21:40:36 +0000
+       SHA256 Fingerprint:
+           B0 B1 73 0E CB C7 FF 45 05 14 2C 49 F1 29 5E 6E DA 6B CA ED 7E 2C
+           68 C5 BE 91 B5 A1 10 01 F0 24

@@ -1,0 +1,15 @@
+{
+  "after" : "26289.204.5281.6363",
+  "afterBuild" : "26289.204.5281.6363",
+  "before" : "26289.204.5281.6363",
+  "beforeBuild" : "26289.204.5281.6363",
+  "beforeProductVersion" : "26289.204.5281.6363",
+  "bundleIdentifier" : "com.microsoft.teams2",
+  "date" : "2026-11-14T14:23:45Z",
+  "error" : "The file “new.pkg” couldn’t be opened because you don’t have permission to view it.",
+  "mode" : "manual",
+  "physicalBundleIdentifier" : "com.microsoft.teams2",
+  "pid" : 51118,
+  "result" : "refused",
+  "uid" : 501
+}

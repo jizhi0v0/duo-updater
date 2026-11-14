@@ -559,3 +559,5 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [Setapp editions](com-setapp-managed.md) ·
   `-setapp` 副本这一类渠道的观测记录：包里没有 Sparkle、Setapp 公开目录、
   订阅状态、深链与 MCP。不是单个 app 的审计。
+
+2026-11-14：[PKG helper VM 专项验证](../../verify/pkg-helper-coverage-20261114/README.md)——19 个可用身份；ToDesk / 向日葵 / ChatGPT Classic 保留原路径，非完整渠道审计。

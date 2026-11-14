@@ -1,17 +1,16 @@
-# Kuvo
+# Kuvo Box
 
-> 审计 2026-10-12（项目 2026-10-11 发出 0.1.0–0.1.2，三版同一天）。
+> 初审 2026-10-12；2026-11-15 修订更新源。Docker 产品现名 Kuvo Box，仍为 `run.kuvo.app`，与 AI 编程产品 Kuvo Code（`run.kuvo.code`）分别更新。
 
 ## 基本信息
 - Bundle ID: `run.kuvo.app`
 - Team ID: `C8Y523R7T5`（Developer ID Application: Serhat Andiç；0.1.0 / 0.1.1 / 0.1.2 三个真包一致）
-- 观测版本: `0.1.2`（最新）/ `0.1.1`（上一版）。`CFBundleVersion` 与 `CFBundleShortVersionString` 相同
+- 观测版本: 当前 `0.1.3` / 上一版 `0.1.2`。`CFBundleVersion` 与 `CFBundleShortVersionString` 相同
 - 自更新机制: Sparkle 2（`SUFeedURL` + `SUPublicEDKey`，`SUEnableAutomaticChecks` = true；
   `SPUStandardUpdaterController(updaterDelegate: nil)`，无 channel 委托）
 - 架构: arm64 only；`LSMinimumSystemVersion` = `15.0`
 - 内容: 原生 Docker 前端，用 Virtualization.framework 跑 Alpine VM 里的 Docker 引擎
-- 开源: `github.com/serhatandic/kuvo`（默认分支 `main`）。以下「settled from source」均读自 `main`
-  （与 `v0.1.1` 相比只有 `.github/workflows/release.yml` 不同）
+- 官方仓库: [`serhatandic/box`](https://github.com/serhatandic/box)；早期 `serhatandic/kuvo` 地址现在服务另一产品 Kuvo Code。下文标明日期的历史实测保留原版本语境。
 
 ## 覆盖矩阵
 
@@ -19,7 +18,7 @@
 
 |              | Sparkle | Homebrew | MAS | GitHub | VendorProbe |
 |--------------|---------|----------|-----|--------|-------------|
-| **stable**   | ✓（generic，无 recipe） | —（无 cask） | — | —（feed 本身就是 release 附件，Sparkle 先应答，不需要 rule） | — |
+| **stable**   | ✓（generic + 旧 feed 修正） | — | — | —（Sparkle 先应答，不需要版本 rule） | — |
 
 当前生效源（`UpdateChecker` 优先链中第一个应答的）: **Sparkle**（`channel-verify`：`winning source  Sparkle`）。
 
@@ -36,12 +35,12 @@
 
 ## 更新检测
 - 源: `SparkleAppcastSource`（generic）
-- 端点: `https://github.com/serhatandic/kuvo/releases/latest/download/appcast.xml`（302 到最新 release 的 `appcast.xml` 附件）
+- 已发布包仍声明 `https://github.com/serhatandic/kuvo/releases/latest/download/appcast.xml`；`SparkleFeedCatalog.supersededFeeds` 只对 `run.kuvo.app` + 这一精确地址改用 `https://github.com/serhatandic/box/releases/latest/download/appcast.xml`。
 - `feed-discover` 判定: `declared`
-- 上一版 0.1.1 → `channel-verify`：`status  UPDATE → 0.1.2`
+- 早期 0.1.1 → 0.1.2 的检测记录来自 2026-10-12；本轮 0.1.2 → 0.1.3 的完整生产链及 VM 结果见历史与实测。
 - 注意事项:
-  - feed 永远只有一个 item（`appcast.sh` 只写当前版本），所以 release history 恒为 1 条。
-  - enclosure 指向**带版本号**的 `releases/download/v<VERSION>/Kuvo.dmg`，与 feed 同一次发布生成，带 `sparkle:edSignature`。
+  - feed 当前只有一个 item（`appcast.sh` 只写当前版本），release history 仅来自该条。
+  - enclosure 指向**带版本号**的 `releases/download/v<VERSION>/Kuvo.dmg`，带 `sparkle:edSignature`；当前 feed 内绝对地址仍写旧仓库，生产解析和验证共用已登记仓库搬迁规则，将 release 路径迁至 `serhatandic/box`。版本、文件名、大小、签名不变。
   - `minimumSystemVersion` = `15.0`，无上限。
 
 ## 增量更新（delta / binary patch）
@@ -52,18 +51,17 @@
 | 证据 | 内嵌 `Sparkle.framework` | `appcast.sh` 不生成 `<sparkle:deltas>`；2026-10-12 feed 无 deltas，`channel-verify` `deltas 0` | 没有可消费的补丁，dmg 只有 3.4 MB |
 
 ## Changelog
-- 来源: **无**。`channel-verify`：`changelog pane  none — the pane says there are no release notes`
-- feed 只有 `sparkle:fullReleaseNotesLink`（指向 GitHub release 页），没有 `<description>`；`SparkleAppcastSource` 不读这个字段。
-- GitHub release 正文是发版 workflow `--generate-notes` 加一行固定说明（"Requires macOS 15 or later on Apple silicon…"），
-  外加 compare 链接，三版都没有实际内容；仓库里没有 CHANGELOG。
-- **✗ 做不了**：厂商没有发布任何更新说明。不写 recipe。厂商以后在 release 正文写说明了，再加 GitHub changelog recipe。
+
+当前 0.1.3 feed 使用 `<description sparkle:format="markdown">` 内联说明，包含 What's new / Fixes；由通用 Sparkle Markdown 路径解析。官方仓库也已提供 `CHANGELOG.md`，旧审计的「没有更新说明」结论仅适用于当时的 0.1.0–0.1.2。
+
+`ChangelogCatalog` 以官方 Box releases 页兜底；内联原生条目优先。本轮原生面板、章节保留与 VM 展示结果将在真实验证后记录。
 
 ## 一键安装
 - 状态: 支持
-- 读的是: 人人可手动下载的 GA（feed 指向的 dmg 与 `releases/latest/download/Kuvo.dmg` 同一文件）
+- 读的是: 官方 `serhatandic/box` 的 GA 安装包；修正后的 feed 下载地址仍指向同一版本的 `Kuvo.dmg`。
 - 格式: dmg
 - 校验: `sparkle:edSignature`；GitHub release 资产带 `digest`（`sha256:1a58b2a2…` for 0.1.2）；装前 Team ID 闸
-- 端到端（2026-10-12）:
+- 历史端到端（2026-10-12）:
   1. **不运行**：0.1.1 放进 `/Applications` → `duo install /Applications/Kuvo.app --yes --json` →
      `{"applied":true,"bytesDownloaded":3412123,"outcome":"installed","route":"sparkle"}`，7 s；结果 0.1.2，inode 变更，
      `codesign --verify --deep --strict` 通过，`spctl` = Notarized Developer ID，Team `C8Y523R7T5`，`diff -r` 与厂商 dmg 一致，
@@ -84,7 +82,20 @@
   （启动前后 `sfltool dumpbtm` 无差异）。
 
 ## 建议下一步
-1. 无代码改动。厂商开始写 release 正文时，补一个 GitHub changelog recipe。
+
+已按精确旧 feed 修正产品归属；保留 Bundle ID 匹配，不将 Box 迁移到 Code。新地址、下载地址和更新密钥需要随厂商后续发布复核。
+
+## 历史与实测
+
+### 2026-11-15：仓库搬迁，两个产品保持独立
+
+- 官方 Box 仓库保留 0.1.0–0.1.3 的 Docker 应用；官方 Code 仓库最早 0.1.0 为独立 AI 编程产品，版本范围重叠，不能登记为 Bundle ID 迁移。
+- 真实 Box 0.1.3 包仍为签名 ID `run.kuvo.app`、Team `C8Y523R7T5`、arm64、最低 macOS 15，严格深度验签通过，Gatekeeper 报 Notarized Developer ID。
+- Box 与 Code 共用 Team 和 Sparkle key `uG/YbzL4kf+DAYCiTTfK8ztEOBo96hkEAuKk9rw9BE4=`；安装必须继续检查产品 ID，不能仅凭同团队或同 key 接受跨产品包。
+- 旧 feed 返回 Code 0.7.2，Box 的正确 feed 返回 0.1.3。Box feed 内旧 enclosure 地址返回 HTTP 404；官方 Box 仓库的同 tag / 同文件下载可用。
+- 离线回归在修复前分别复现旧 feed 未更换和旧下载 URL 未迁移；修正后两条生产路径均通过。独立 macOS VM 的旧客户端也将 Box 0.1.2 误报为可更新到 Code 0.7.2，记录用于与修复后的结果对照。
+
+原始包、实际升级及运行中重启结果在本轮 VM 验证完成后补入；不能把历史 0.1.1 → 0.1.2 成功当作本轮验证。
 
 ## 如何复验
 

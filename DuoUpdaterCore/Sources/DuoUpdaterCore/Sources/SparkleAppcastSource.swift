@@ -69,7 +69,7 @@ public struct SparkleAppcastSource: UpdateSource {
             throw error
         }
 
-        let items = SparkleAppcastParser.parse(content, relativeTo: feedURL)
+        let items = Self.parsedItems(content, feedURL: feedURL, bundleID: app.bundleID)
         // An HTML page with no items is not a feed that offers nothing — it is a
         // feed we never got. Muse's (facebook.com/endo/…/appcast.xml) answers most
         // requests with a 302 to a login page. That redirect is now a declared
@@ -351,6 +351,25 @@ public struct SparkleAppcastSource: UpdateSource {
         request.setValue("DuoUpdater/0.1", forHTTPHeaderField: "User-Agent")
         for (field, value) in headers { request.setValue(value, forHTTPHeaderField: field) }
         return request
+    }
+
+    /// Shared by live checks and feed verification: a recorded repository move
+    /// applies to absolute release links inside the feed as well as its address.
+    static func parsedItems(_ content: Data, feedURL: URL, bundleID: String?) -> [SparkleAppcastItem] {
+        SparkleAppcastParser.parse(content, relativeTo: feedURL).map { parsed in
+            var item = parsed
+            func relocated(_ url: URL) -> URL {
+                SparkleFeedCatalog.relocatedReleaseURL(url, forBundleID: bundleID, feedURL: feedURL)
+            }
+            item.enclosureURL = item.enclosureURL.map(relocated)
+            item.releaseNotesLink = item.releaseNotesLink.map(relocated)
+            item.deltas = item.deltas.map {
+                DeltaPatch(fromBuild: $0.fromBuild, url: relocated($0.url), size: $0.size,
+                           edSignature: $0.edSignature, format: $0.format,
+                           toVersion: $0.toVersion, publicKey: $0.publicKey)
+            }
+            return item
+        }
     }
 
     /// Every in-channel item with a parseable vendor date, turned into a

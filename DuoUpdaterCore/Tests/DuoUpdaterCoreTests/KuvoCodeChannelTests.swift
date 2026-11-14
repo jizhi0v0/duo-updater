@@ -2,6 +2,7 @@ import Foundation
 import Testing
 @testable import DuoUpdaterCore
 
+// History: docs/app-audits/run-kuvo-code.md#历史与实测
 struct KuvoCodeChannelTests {
     /// The real stable and beta item shapes from Kuvo Code's appcast. Notes are
     /// trimmed; the version pair, channel, OS floor and asset names are retained.

@@ -66,7 +66,7 @@ Info.plist 在 2.02 上**完全不可用**（版本是 Electron 的 `36.6.0`）�
 
 ### Pattern B/C — 共享 bundle id + app 内开关写的本地信号（ChannelBinding）
 
-这就是"app 内切换渠道"已做成的 6 个。每个读一个具体偏好/凭证：
+这一组包含 7 个 "app 内切换渠道" 的绑定。每个读一个具体偏好/凭证：
 
 | App | bundle id（共享）| 读的信号 | 门控方式 |
 |---|---|---|---|
@@ -74,6 +74,7 @@ Info.plist 在 2.02 上**完全不可用**（版本是 Electron 的 `36.6.0`）�
 | **Surge** | `com.nssurge.surge-mac` | `IncludeBetaBuilds` | feed-swap（`appcast-signed.xml` ↔ `-beta.xml`）|
 | **TablePlus** | `com.tinyapp.TablePlus` | `IsReceiveBetaBuild` | header 注入（`X-Tiny-Beta-Update`）|
 | **DuoPaste** | `io.duopaste.daemon` | `sparkleIncludePrereleases` | channel-tag |
+| **Kuvo Code** | `run.kuvo.code` | `updates.betas`（未设值按短版本 `-beta`） | channel-tag；独立于 Kuvo Box |
 | **OrbStack** | `dev.kdrag0n.MacVirt` | `updates_optinChannel`(=`beta`) | channel-tag |
 | **CleanShot X** | `pl.maketheweb.cleanshotx` | `activationKey` | license-keyed legit feed（`legit.maketheweb.io/api/v1/appcast`）|
 

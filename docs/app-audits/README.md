@@ -448,7 +448,8 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**SwiftVM**](com-swiftvm-app.md) · `com.swiftvm.app` — S+B · stable/beta 各自的 feed，beta 由构建定死（`SwiftVMChannel`）· 真包 1.0.0 / beta.12 / beta.16 验证 ✓ · 一键端到端 ✓（beta.12→beta.16；stable 只有一版，无旧版可测） · ✗ changelog：厂商 release 正文为空 · 2026-10-12
 - [x] [**Sensei**](org-cindori-Sensei.md) · `org.cindori.Sensei` — S · 一键 ✓ · changelog 结构化（Fixed/Improved 分节）· 2026-10-12
 - [x] [**Backdrop**](com-cindori-Backdrop.md) · `com.cindori.Backdrop` — S · 一键（delta，壁纸 agent 在跑也可） · changelog 结构化（无分节）· 2026-10-12
-- [x] [**Kuvo**](run-kuvo-app.md) · `run.kuvo.app` — S · 一键 ✓ · ✗ changelog：厂商 release 正文为空、无 CHANGELOG · 2026-10-12
+- [x] [**Kuvo Box**](run-kuvo-app.md) · `run.kuvo.app` — S + 精确旧 feed 修正 · 版本/下载归属独立 Box 仓库 · 历史一键 ✓；本轮 VM 验证进行中 · 内联 Markdown 日志 · 2026-11-15
+- [x] [**Kuvo Code**](run-kuvo-code.md) · `run.kuvo.code` — S + binding · stable/beta · 原生内联 Markdown 日志；本轮 VM 验证进行中 · 2026-11-15
 - [x] [**Seedmux**](com-xx-seedmux.md) · `com.xx.seedmux` — S · arm64/x86_64 各自 feed · 一键（delta）不运行 ✓、运行中（守护进程换新）✓ · changelog 结构化（双语、无分节）· 2026-10-15
 - [x] [**Tamio**](sb-moe-tamio.md) · `sb.moe.tamio` — S · 单轨 · changelog recipe ✓（仓库 CHANGELOG.md，分节保留）· 一键真机端到端 ✓（不运行 + 运行中）· 首启许可窗挡退出，restart 未验 · 2026-10-19
 - [x] [**Loon**](com-loon-Loon.md) · `com.loon.Loon` — S · 单轨 · 一键真机不运行 ✓、运行中（未激活）✓，扩展/helper 升级仅静态分析· changelog 结构化（inline 列表，无分节）· 2026-10-21

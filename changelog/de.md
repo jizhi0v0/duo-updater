@@ -2,6 +2,30 @@
 
 Dies ist eine deutsche Übersetzung von `CHANGELOG.md`. Die englische Fassung ist maßgeblich; frühere Versionen, die hier nicht aufgeführt sind, fallen automatisch auf Englisch zurück.
 
+## 0.5.24
+
+**Automatische Updates sind jetzt in jeder Version als freiwillige Beta verfügbar.** Sie bleiben standardmäßig ausgeschaltet; aktiviere sie unter Einstellungen → Automatische Updates und teile Feedback auf GitHub, bei Bedarf mit dem bereinigten Bericht aus Events.
+
+**Lege automatische Updates für jede App einzeln fest.** Aktualisiere nur geschlossene Apps, erlaube ausgewählten laufenden Apps das Beenden und erneute Öffnen auch während der Nutzung oder schließe eine App aus; Download und Prüfung erfolgen vor dem Beenden.
+
+**Automatische Updates beachten deine Backup-Einstellung und wiederholen vorübergehend fehlgeschlagene Downloads.** Bei aktivierten Backups muss vor dem Update eine vollständige App-Sicherung vorliegen; App-Daten werden nicht gesichert.
+
+**Apps sind nach ihrer Update-Quelle gruppiert.** Die Gruppenüberschriften in der Seitenleiste bleiben an ihrem Platz, und ausstehende Apps erscheinen wieder, wenn du „Alle anzeigen“ ausschaltest.
+
+**Unterstützte PKG-Updates lassen sich direkt mit dem genehmigten Hilfsprogramm installieren.** Geeignete Apps können auch automatisch aktualisiert werden; andere Pakete öffnen weiterhin das macOS-Installationsprogramm.
+
+**Von Homebrew verwaltete Apps bevorzugen Homebrew und können bei fehlendem Update andere Quellen prüfen.** Apps in Unterordnern und aus Paketinstallationen werden zuverlässiger erkannt; Apps, die am registrierten Pfad fehlen, werden beim Upgrade übersprungen.
+
+**Wiederherstellbare Backups und automatische Update-Aktivitäten lassen sich leichter prüfen.** Backups unterscheiden geschützte Wiederherstellungspunkte und fehlende Dateien; Events fasst wiederholte Verschiebungen zusammen und bietet Ergebnisfilter sowie eine Diagnosevorschau vor dem Teilen.
+
+**TestFlight-Betas für iPhone und iPad werden vor einem Update-Angebot auf Mac-Kompatibilität geprüft.** Inkompatible Builds erhalten eine Warnung; lässt sich die Kompatibilität nicht bestätigen, bleibt der Status unbekannt.
+
+**TextMate, VimR, Maestro, muCommander und Shotcut unterstützen jetzt Update-Prüfungen, Ein-Klick-Updates und Versionshinweise.** Unterstützte Beta-, Snapshot- und Release-Candidate-Versionen folgen der Kanalauswahl der App oder der installierten Version.
+
+**Weitere Apps finden wieder die richtigen Updates und Versionshinweise.** Korrekturen betreffen QQ Music, WeChat, AdGuard, Blender, Msty Studio, Cork, Herdr und Inkscape; Kuvo Box und Kuvo Code behalten getrennte Updates.
+
+**Weitere Kommandozeilenwerkzeuge zeigen strukturierte Versionshinweise.** Neu dabei sind Azure CLI und Codex, weitere Homebrew-Pakete sowie von mise verwaltetes Node und von rbenv verwaltetes Ruby.
+
 ## 0.5.24-beta.9
 
 **Unterstützte PKG-Updates lassen sich mit dem genehmigten Hilfsprogramm direkt installieren.** Geeignete Apps können auch automatisch aktualisiert werden; Pakete, die das Hilfsprogramm nicht nutzen können, öffnen weiterhin das macOS-Installationsprogramm.

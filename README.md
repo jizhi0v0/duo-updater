@@ -148,36 +148,32 @@ issues; Events → "Review sanitized report…" gives a summary you can paste in
 without app names, paths or times.
 
 They run only after scheduled checks. Manual-only checks, being offline, Low Data
-Mode and expensive networks all pause them. Only direct vendor and Sparkle bundle
-updates qualify. Homebrew, the App Store, Xcode, system-installer packages and
-installs that need an administrator stay manual. So do confirmation-gated
-upgrades, ignored apps and skipped versions. Setapp apps are left to Setapp's own
-updater.
+Mode and expensive networks all pause them. Direct vendor and Sparkle bundle
+updates qualify, as do supported PKG updates when the approved helper is ready.
+Packages that cannot use the helper, Homebrew, the App Store, Xcode and installs
+that need an authorization prompt stay manual. So do confirmation-gated upgrades,
+ignored apps and skipped versions. Setapp apps are left to Setapp's own updater.
 
 Each app has a mode: **When Closed** (the default), **Also While Running** or
 **Never**.
 
 - **When Closed** apps are updated only while neither the app nor any helper inside
   it is running.
-- **Also While Running** apps are quit, updated and reopened, but only if all of
-  these hold:
-  - you turned on "Also update running apps you allow" and chose the app;
-  - the update has waited the time you picked (15, 30 or 60 minutes);
-  - the app has not been in front for an hour;
-  - the Mac has had no input for 15 minutes or is locked;
-  - the app is not keeping the Mac awake;
-  - the app has no shell or other program of its own running;
-  - no helper of the app keeps running after the app quits.
+- **Also While Running** apps may be quit, updated and reopened after you turn on
+  "Also update running apps you allow" and choose the app. There is no idle-time
+  or update delay: an allowed app may restart while in front, playing media or
+  doing work. Independent background services, a competing installer and other
+  safety checks can still defer its update.
 
-  The app is quit only once its update has downloaded and been verified, and only
-  if you are still away at that moment. It is asked to quit normally and is never
-  forced. If it doesn't quit, most likely because of a save prompt, it is not asked
-  again for that version. A reopened app comes back in the background, hidden if
-  it was hidden. These conditions are checked at scheduled checks, so with less
-  frequent checks an update can wait longer than the time you picked.
+  The app is asked to quit normally only once its update has downloaded and been
+  verified; it is never forced. If it doesn't quit, most likely because of a save
+  prompt, it is not asked again for that version. A reopened app comes back in
+  the background, hidden if it was hidden.
 
-After a failed update, nothing is tried for that app for a day. After three
-failures, nothing is tried until a newer version comes out.
+Recoverable download failures retry after at least a day, or later if the server
+asks for more time. After three such failures, automatic attempts pause for that
+version. Other failures pause that version immediately; use a manual update to
+try again.
 
 With backups on (Settings → Backups), every automatic update first takes a
 complete backup, and a backup that fails stops the update. With backups off, an

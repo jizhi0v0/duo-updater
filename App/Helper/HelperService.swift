@@ -18,9 +18,15 @@ final class HelperService: NSObject, MASHelperProtocol {
     /// Fixed at accept time by `HelperPeerGate`, from the connection that passed
     /// the code-signing requirement.
     private let clientIdentity: HelperClientIdentity
+    private let packageWorkStarted: @Sendable () -> Void
+    private let packageWorkFinished: @Sendable () -> Void
 
-    init(clientIdentity: HelperClientIdentity) {
+    init(clientIdentity: HelperClientIdentity,
+         packageWorkStarted: @escaping @Sendable () -> Void = {},
+         packageWorkFinished: @escaping @Sendable () -> Void = {}) {
         self.clientIdentity = clientIdentity
+        self.packageWorkStarted = packageWorkStarted
+        self.packageWorkFinished = packageWorkFinished
         super.init()
     }
 
@@ -109,6 +115,22 @@ final class HelperService: NSObject, MASHelperProtocol {
     func helperVersion(withReply reply: @escaping (String) -> Void) {
         reply(HelperProtocolRevision.versionReply(
             bundleVersion: (Bundle.main.infoDictionary?["CFBundleVersion"] as? String) ?? "0"))
+    }
+
+    func installPackage(package: FileHandle, fingerprint: Data, installedAppPath: String,
+                        bundleIdentifier: String, automatic: Bool, progress: FileHandle,
+                        withReply reply: @escaping (Int32, String?) -> Void) {
+        let caller = clientIdentity.uid
+        let finished = packageWorkFinished
+        let reply = HelperPackageReply(reply)
+        packageWorkStarted()
+        Task {
+            defer { finished() }
+            let result = await HelperPackageInstall.shared.install(
+                package: package, fingerprint: fingerprint, installedAppPath: installedAppPath,
+                bundleIdentifier: bundleIdentifier, automatic: automatic, progress: progress, caller: caller)
+            reply.send(result.0, result.1)
+        }
     }
 
     /// Read-only, and takes nothing from the client but the identifier, which

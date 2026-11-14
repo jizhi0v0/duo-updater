@@ -3531,15 +3531,15 @@ private struct DetailHeader: View {
 
     /// What Update does for this row, for the source label's help, in the order
     /// the install takes it (`InstallCoordinator.route`): a running
-    /// self-updating app's own updater first, then macOS's installer, then our
-    /// own route. Anything else has no install here.
+    /// self-updating app's own updater first, then a one-click route (including
+    /// approved helper packages), then macOS Installer.
     private var sourceAction: UpdateSourceLabel.Action {
         if model.defersToSelfUpdater(result) { return .none }
-        if model.requiresInstaller(result) { return .installer }
         // Xcode with no Apple Developer sign-in: the button is "Sign In…", and
         // signing in installs nothing (`UpdateRoute.appleSignIn`).
         if model.isXcodeRow(result), AppleDeveloperSession.shared.signInNeed != nil { return .none }
         if model.canAutoInstall(result) { return .install }
+        if model.requiresInstaller(result) { return .installer }
         return .none
     }
 

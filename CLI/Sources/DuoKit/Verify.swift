@@ -249,7 +249,15 @@ public enum Verify {
 
         Report.text(findings, elapsed: Int(Date().timeIntervalSince(started)),
                     baseline: baseline, showSamples: options.showSamples)
-        writeArtifacts(findings, baseline: baseline, options: options)
+        do {
+            try writeArtifacts(findings, baseline: baseline, options: options)
+        } catch {
+            FileHandle.standardError.write(
+                Data("could not persist verification results: \(error)\n".utf8))
+            // 1 belongs to actionable findings. A runner must not reconcile an
+            // old or partial report after an output failure as if it were fresh.
+            return 2
+        }
 
         // Broken recipes below the streak threshold don't fail the run — a first
         // bad sweep is information, not a verdict. An endpoint that has been
@@ -428,20 +436,17 @@ public enum Verify {
         return "unsupported host architecture — DuoUpdater supports Apple Silicon Macs only"
     }
 
-    private static func writeArtifacts(
+    static func writeArtifacts(
         _ findings: [Finding], baseline: Baseline, options: VerifyOptions
-    ) {
+    ) throws {
         if let path = options.jsonPath {
-            do { try Report.json(findings, to: path) }
-            catch { FileHandle.standardError.write(Data("could not write \(path.path): \(error)\n".utf8)) }
+            try Report.json(findings, to: path)
         }
         if let path = options.markdownPath {
-            do { try Report.markdown(findings, baseline: baseline, to: path) }
-            catch { FileHandle.standardError.write(Data("could not write \(path.path): \(error)\n".utf8)) }
+            try Report.markdown(findings, baseline: baseline, to: path)
         }
         if let path = options.baselinePath {
-            do { try baseline.save(to: path) }
-            catch { FileHandle.standardError.write(Data("could not write \(path.path): \(error)\n".utf8)) }
+            try baseline.save(to: path)
         }
     }
 

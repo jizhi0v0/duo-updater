@@ -99,6 +99,8 @@ test-scripts: check-python
 	$(PYTHON) scripts/test_check_ifchange.py
 	$(PYTHON) scripts/check_ifchange.py
 	$(PYTHON) scripts/test_check_real_machine_record.py
+	$(PYTHON) scripts/test_check_verify_report.py
+	$(PYTHON) scripts/test_install_verify_workflow.py
 	$(PYTHON) scripts/test_check_adversarial_review.py
 	$(PYTHON) scripts/test_check_nightly_data.py
 	$(PYTHON) scripts/test_check_ci_results.py

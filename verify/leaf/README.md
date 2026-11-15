@@ -48,7 +48,9 @@ Observed archive checksums:
 - v0.16.0 arm64: `1fbbc5fdaf3d44c996b0a07120f6d8203a5e42e88295c93a42f5b8dea0563636`.
 - v0.16.1 arm64: `39f1c05dffee98270fb468045ddcd31d0bd03f6236a6651399683386e5fa0227`.
 
-GUI validation is incomplete: after the app was rebuilt and installed, the available native automation returned `timeoutReached` / `noWindowsAvailable` when trying to open its menu-bar popover. No screenshot or light/dark visual pass is claimed. Keep the PR open until the installed CLI row, icon and structured notes have been viewed and recorded.
+GUI validation completed on 2026-11-15 after the workbench was opened. In the installed app's CLI tab, the filtered Leaf row shows its official icon, Rust badge and version 0.16.1; the detail pane shows installed/latest versions both 0.16.1 and `Up to date`. The native version rail lists 0.16.1 through 0.15.0, and the selected 0.16.1 entry renders its actual `leaf agent setup` change as a structured bullet, including inline code. The screenshot below captures only DuoUpdater's window with isolated-window capture; it verifies the content and icon in the observed dark appearance, not glass compositing. No production code changed for this follow-up.
+
+![Leaf CLI row, official icon and structured release notes](leaf-workbench.png)
 
 The final signed CLI build also updated verified v0.16.0 to v0.16.1 while a v0.16.0 reader stayed open on a temporary Markdown document. Installation returned `applied:true`; a fresh check returned `upToDate` and correctly reported one running process on the replaced binary. The current file again matched the verified v0.16.1 hash. The old reader remained running until it was quit normally with `q`, then exited successfully.
 

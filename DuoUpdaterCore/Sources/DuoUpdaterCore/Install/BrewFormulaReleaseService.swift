@@ -172,6 +172,13 @@ public actor BrewFormulaReleaseService {
     ) async -> FormulaRelease {
         let tagPage = URL(string:
             "https://github.com/\(gh.owner)/\(gh.repo)/releases/tag/\(Self.encode(gh.tag))")
+        if gh.owner.lowercased() == "deepanshumishraa", gh.repo.lowercased() == "leaf", LeafRelease.isVersion(version),
+           let notes = try? await LeafChangelog.fetch(force: false, version: version, session: session) {
+            let entries = notes.entries.filter { $0.version == version }
+            if !entries.isEmpty {
+                return FormulaRelease(changelog: Changelog(entries: entries, itemSyntax: notes.itemSyntax), pageURL: tagPage)
+            }
+        }
         if let release = try? await fetchRelease(owner: gh.owner, repo: gh.repo, tag: gh.tag, token: token) {
             let changelog = release.body.flatMap {
                 $0.isEmpty ? nil : GitHubMarkdownParser.parse(

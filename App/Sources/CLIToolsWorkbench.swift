@@ -49,7 +49,8 @@ struct LogoTile<Mark: View>: View {
 /// dot-line-dot mark without its tile; Biome is Simple Icons 16.34.0's (CC0,
 /// from biomejs/resources' `icon-light-mono.svg`); Atuin's turtle (atuin.sh's brand assets) and
 /// zoxide's keycap (`contrib/logo-{light,dark}.svg`) keep their own colours,
-/// since one colour would leave a blob and a blank square. go install's Go logo
+/// since one colour would leave a blob and a blank square. Leaf's favicon is
+/// its repo's `site/public/favicon.svg` (MIT), also in its original colours. go install's Go logo
 /// is go.dev/brand's `go-logo-blue.svg`, unmodified and in its own colour, used
 /// with the Go team's approval (trademark@golang.org, 2026-10-28). bub and Lorca
 /// publish only a PNG, so they stand in with an SF Symbol.
@@ -110,6 +111,7 @@ struct CLIToolIcon: View {
         case .flyctl: "cli-flyctl"
         case .obelus: "cli-obelus"
         case .biome: "cli-biome"
+        case .leaf: "cli-leaf"
         case .bub, .lorca, .terminalMac: nil
         case .managed: managed?.logo
         }
@@ -152,6 +154,7 @@ struct CLIToolIcon: View {
         })
         case .starship: Color(red: 0xDD / 255, green: 0x0B / 255, blue: 0x78 / 255)
         // Simple Icons' brand colour for Biome, the blue its installer prints in.
+        case .leaf: Color(red: 0xF3 / 255, green: 0xD3 / 255, blue: 0x5F / 255)
         case .biome: Color(red: 0x60 / 255, green: 0xA5 / 255, blue: 0xFA / 255)
         // Simple Icons' brand colours: pnpm's orange, Yarn's blue.
         case .pnpm: Color(red: 0xF6 / 255, green: 0x92 / 255, blue: 0x20 / 255)

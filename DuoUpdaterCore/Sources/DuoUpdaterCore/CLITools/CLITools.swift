@@ -23,7 +23,7 @@ public enum CLITools {
             VitePlusProvider(), HerdrProvider(), LuvusProvider(), LorcaProvider(), ZoxideProvider(), NvmProvider(),
             AtuinProvider(), GhcupProvider(),
             FlyctlProvider(), HelmProvider(), StarshipProvider(),
-            DenoProvider(), MiseProvider(), ObelusProvider(), BiomeProvider(), TerminalMacProvider(),
+            DenoProvider(), MiseProvider(), ObelusProvider(), BiomeProvider(), TerminalMacProvider(), LeafProvider(),
             GlobalPackagesProvider(.pnpm), GlobalPackagesProvider(.yarn),
         ]
     }

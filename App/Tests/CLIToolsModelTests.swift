@@ -72,6 +72,7 @@ struct CLIToolsModelTests {
         case .mise: detail = .mise(MiseInstall(path: path, version: version))
         case .obelus: detail = .obelus(ObelusInstall(path: path, version: version))
         case .biome: detail = .biome(BiomeInstall(path: path, version: version))
+        case .leaf: detail = .leaf(LeafInstall(path: path, binary: path, version: version, target: "aarch64-apple-darwin"))
         case .terminalMac: detail = .terminalMac(TerminalMacInstall(path: path, version: version, build: "1"))
         case .managed:
             // A managed row by its path alone: its key is the directory's name,
@@ -126,6 +127,7 @@ struct CLIToolsModelTests {
         case .obelus: context = .obelus
         case .biome: context = .biome
         case .terminalMac: context = .terminalMac
+        case .leaf: context = .leaf
         case .pnpm: context = .pnpm
         case .yarn: context = .yarn
         case .managed: context = .managed(ManagerContext(descriptor: Self.fakeManager, roots: []))

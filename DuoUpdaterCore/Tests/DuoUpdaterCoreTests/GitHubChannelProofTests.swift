@@ -76,7 +76,7 @@ struct GitHubChannelProofTests {
     }
 
     /// T3 Code's nightly proof is a tag-path `.artifact` like the others, but it
-    /// can't live in the tables above: the bundle id has TWO non-stable rules
+    /// can't live in the tables above: the bundle id has several non-stable rules
     /// (alpha first in the registry), and `nonStableRule` would hand the nightly
     /// URL to the alpha proof, which does not inspect URLs at all.
     @Test func t3CodeNightlyProofKeysOnTheTagPath() {
@@ -97,19 +97,20 @@ struct GitHubChannelProofTests {
                 + "v0.0.36/T3-Code-0.0.36-arm64.dmg")) != nil)
     }
 
-    /// The alpha proof must be able to fail on the drift it exists to catch: the
+    /// The primary alpha/beta proofs must fail on the drift they exist to catch: the
     /// install pattern loosened enough to swallow another train's asset names
     /// (nightly here; the later `-preview.` series carries the same kind of
     /// token). A synthetic rule with a `.*` version run exercises the
     /// registered proof exactly as the runtime would.
-    @Test func t3CodeAlphaProofFailsWhenThePatternCanMatchNightlyAssets() {
+    @Test(arguments: [ReleaseChannel.alpha, .beta])
+    func t3CodePrimaryProofFailsWhenThePatternCanMatchNightlyAssets(channel: ReleaseChannel) {
         let loosened = GitHubReleaseRule(
             bundleID: "com.t3tools.t3code",
             owner: "pingdotgg", repo: "t3code",
             versionPattern: #"^v([0-9]+(?:\.[0-9]+)+)$"#,
             installAssetPattern: #"^T3-Code-.*-arm64\.dmg$"#,
             installerKind: .dmg,
-            channel: .alpha)
+            channel: channel)
         #expect(RecipeSanity.crossChannelArtifact(
             rule: loosened,
             remote: remote("https://github.com/pingdotgg/t3code/releases/download/"
@@ -118,7 +119,7 @@ struct GitHubChannelProofTests {
 
         let anchored = try! #require(
             GitHubReleaseRegistry.rules.first {
-                $0.bundleID == "com.t3tools.t3code" && $0.channel == .alpha
+                $0.bundleID == "com.t3tools.t3code" && $0.channel == channel
             })
         #expect(RecipeSanity.crossChannelArtifact(
             rule: anchored,

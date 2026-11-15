@@ -1,0 +1,7 @@
+com.t3tools.t3code
+0.1.9
+0.1.9
+strict-signature: passed
+Identifier=com.t3tools.t3code
+CDHash=b5ff77524756a2bc9f2f96d5cc95677d28bb6447
+TeamIdentifier=ARK85ZXQ4Z

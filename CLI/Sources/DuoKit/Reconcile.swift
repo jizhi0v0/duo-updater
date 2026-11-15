@@ -239,7 +239,10 @@ public enum Reconcile {
     static func qualifier(recipeID: String) -> String? {
         var parts = recipeID.split(separator: ":", omittingEmptySubsequences: false).map(String.init)
         if parts.first == Registry.install.rawValue { parts.removeFirst() }
-        if let registry = parts.first, Registry(rawValue: registry) != nil { parts.removeFirst() }
+        if let registry = parts.first,
+           Registry(rawValue: registry) != nil || ["sparkle", "electron"].contains(registry) {
+            parts.removeFirst()
+        }
         guard !parts.isEmpty else { return nil }
         parts.removeFirst()
         let rest = parts.joined(separator: ":")
@@ -425,6 +428,17 @@ public enum Reconcile {
     }
 
     public static func run(_ options: Options) async -> Int32 {
+        await run(options, githubUnavailableReason: { await GitHub.unavailableReason() })
+    }
+
+    /// The availability seam lets the persistence path run in tests without
+    /// invoking `gh`. A report containing only healthy findings has no issue
+    /// writes, so the test can exercise the real baseline save against an
+    /// unwritable destination without any GitHub side effects.
+    static func run(
+        _ options: Options,
+        githubUnavailableReason: @Sendable () async -> String?
+    ) async -> Int32 {
         guard let data = try? Data(options.reportPath) else {
             die("cannot read report at \(options.reportPath.path)", code: 2)
         }
@@ -440,7 +454,7 @@ public enum Reconcile {
         // this the run dies at the first `gh issue create` with a bare exit 127
         // — after a full 46-second sweep, in a step whose name says "File and
         // close issues", pointing at everything except the actual cause.
-        if !options.dryRun, let missing = await GitHub.unavailableReason() {
+        if !options.dryRun, let missing = await githubUnavailableReason() {
             die("""
                 cannot reach the GitHub CLI: \(missing)
 
@@ -460,6 +474,22 @@ public enum Reconcile {
                 finding, entry: entry,
                 reportable: baseline.isReportable(finding.recipeID),
                 suggestion: suggestions[finding.recipeID])))
+        }
+
+        // Check the same destination before writing external issues. If an issue
+        // is created and the baseline cannot be saved afterward, its number is
+        // lost and the next sweep can create a duplicate. The final save below
+        // still persists any issue numbers returned by GitHub.
+        if !options.dryRun {
+            baseline.updatedAt = Date()
+            do {
+                try baseline.save(to: options.baselinePath)
+            } catch {
+                FileHandle.standardError.write(Data(
+                    "could not preflight reconcile baseline at \(options.baselinePath.path): \(error.localizedDescription)\n"
+                        .utf8))
+                return 2
+            }
         }
 
         let creations = decisions.filter { if case .create = $0.1 { return true } else { return false } }
@@ -507,10 +537,19 @@ public enum Reconcile {
             }
         }
 
+        var baselineSaveFailed = false
         if !options.dryRun {
             baseline.updatedAt = Date()
-            try? baseline.save(to: options.baselinePath)
+            do {
+                try baseline.save(to: options.baselinePath)
+            } catch {
+                FileHandle.standardError.write(Data(
+                    "could not save reconcile baseline at \(options.baselinePath.path): \(error.localizedDescription)\n"
+                        .utf8))
+                baselineSaveFailed = true
+            }
         }
+        if baselineSaveFailed { return 2 }
         return failures == 0 ? 0 : 1
     }
 

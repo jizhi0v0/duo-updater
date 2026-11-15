@@ -23,17 +23,11 @@ import Foundation
 /// `provider: s3` state no URL, and Termius is the reason guessing one is not
 /// allowed — see `ElectronUpdateConfig.manifestURL`.
 ///
-/// **Not covered by `duo verify`'s nightly sweep, and cannot be with the sweep's
-/// current shape.** `Registry` (`CLI/Sources/DuoKit/Finding.swift`) enumerates
-/// `vendor` / `github` / `changelog` because each of those has a table in the
-/// repo to walk. This source has no table — its addresses live inside whatever
-/// `app-update.yml` happens to be sitting in a bundle on the machine running the
-/// check, which is exactly what makes it a mechanism rather than a registry (see
-/// above). A `duo verify` pass has no bundles to read that file from, so there is
-/// nothing to enumerate. Covering it would mean walking a list of installed
-/// bundles instead of a registry — a different mechanism, and a separate piece of
-/// work, not something to bolt on here. Until that exists, `RecipeHealth` (see
-/// `latestVersion(for:)`) is this source's only failure signal.
+/// Runtime addresses still come from installed bundles. The hosted
+/// `duo verify-install` job independently enumerates public configurations from
+/// reviewed app audits (`AuditedUpdateFeeds` in DuoKit), resolves them through
+/// `probeDiagnostic`, and inspects changed archives. That diagnostic inventory
+/// never overrides this source's runtime routing.
 public struct ElectronManifestSource: UpdateSource {
     public let name = Self.sourceName
 
@@ -54,9 +48,27 @@ public struct ElectronManifestSource: UpdateSource {
     private static let hostArch = "arm64"
 
     public func latestVersion(for app: InstalledApp) async throws -> RemoteVersion? {
+        await probeDiagnostic(for: app).remote
+    }
+
+    /// The same manifest read as `latestVersion`, with the reason for a miss
+    /// retained for unattended verification. The interactive source stays
+    /// best-effort; an audited feed that returns nil must not look like a
+    /// successfully checked installer in the nightly job.
+    public func probeDiagnostic(for app: InstalledApp) async -> ProbeOutcome {
+        let started = Date()
+        func outcome(
+            remote: RemoteVersion? = nil, failure: ProbeFailure? = nil, httpStatus: Int? = nil
+        ) -> ProbeOutcome {
+            ProbeOutcome(
+                recipeID: "electron:\(app.bundleID ?? "?"):\(app.releaseChannel.rawValue)",
+                bundleID: app.bundleID ?? "?", channel: app.releaseChannel,
+                remote: remote, failure: failure, httpStatus: httpStatus,
+                elapsedMs: Int(Date().timeIntervalSince(started) * 1000))
+        }
         guard let config = app.electronUpdate, let manifestURL = config.manifestURL,
               let fetchURL = config.manifestRequestURL() else {
-            return nil
+            return outcome(failure: .notApplicable("the bundle states no fetchable Electron manifest"))
         }
         let healthID = Self.healthID(bundleID: app.bundleID, manifestURL: manifestURL)
 
@@ -105,7 +117,8 @@ public struct ElectronManifestSource: UpdateSource {
             await RecipeHealth.shared.recordMiss(
                 id: healthID, source: name,
                 detail: "manifest fetch failed: \(error.localizedDescription)")
-            return nil
+            return outcome(failure: .transport(
+                urlErrorCode: (error as NSError).code, error.localizedDescription))
         }
         if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
             // `RecipeHealth` gets told too — this source went unrepresented there
@@ -115,7 +128,7 @@ public struct ElectronManifestSource: UpdateSource {
                 "electron: \(app.bundleID ?? "?", privacy: .public) manifest returned \(http.statusCode, privacy: .public)")
             await RecipeHealth.shared.recordMiss(
                 id: healthID, source: name, detail: "manifest returned HTTP \(http.statusCode)")
-            return nil
+            return outcome(failure: .httpStatus(http.statusCode), httpStatus: http.statusCode)
         }
         guard let text = String(data: data, encoding: .utf8),
               let manifest = ElectronManifest.parse(text) else {
@@ -123,7 +136,9 @@ public struct ElectronManifestSource: UpdateSource {
                 "electron: \(app.bundleID ?? "?", privacy: .public) manifest body did not parse")
             await RecipeHealth.shared.recordMiss(
                 id: healthID, source: name, detail: "manifest fetched but did not parse")
-            return nil
+            return outcome(
+                failure: .versionPatternNoMatch(sampleBytes: data.count),
+                httpStatus: (response as? HTTPURLResponse)?.statusCode)
         }
         // Read exactly the manifest this bundle names. electron-updater does not
         // choose macOS manifests by architecture: Provider returns `-mac` for
@@ -207,7 +222,7 @@ public struct ElectronManifestSource: UpdateSource {
         // `ReleaseDate.parse`, which had no honest place to put a bare
         // calendar day and so silently dropped one.
         let fields = ReleaseDate.publishedFields(from: manifest.releaseDate)
-        return RemoteVersion(
+        return outcome(remote: RemoteVersion(
             shortVersion: manifest.version,
             version: nil,
             downloadURL: file == nil ? nil : resolvedDownloadURL,
@@ -216,7 +231,7 @@ public struct ElectronManifestSource: UpdateSource {
             vendorInstallerKind: Self.kind(of: file?.url),
             expectedSHA512: file?.sha512,
             publishedAt: fields.publishedAt,
-            vendorDay: fields.vendorDay)
+            vendorDay: fields.vendorDay), httpStatus: (response as? HTTPURLResponse)?.statusCode)
     }
 
     /// A bundle id when the scanner found one, the manifest address otherwise

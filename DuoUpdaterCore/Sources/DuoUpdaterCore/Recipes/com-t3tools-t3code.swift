@@ -5,13 +5,14 @@ enum com_t3tools_t3code {
         family: "com-t3tools-t3code",
         githubRules: [
         // History: docs/app-audits/com-t3tools-t3code.md#历史与实测
-        // T3 Code — two covered trains, ONE bundle id (`com.t3tools.t3code`), one
+        // T3 Code — alpha/beta and nightly, ONE bundle id (`com.t3tools.t3code`), one
         // repo; a `-preview.` release series has also appeared (tags since
         // 2026-09-12, releases since 2026-09-13) and is not covered.
-        // `ReleaseChannel.detect()` reads the display name: the primary build is
-        // `T3 Code (Alpha).app` (→ .alpha) and the nightly prerelease train is
+        // `ReleaseChannel.detect()` reads the display name: older primary builds
+        // are `T3 Code (Alpha).app` (→ .alpha), newer ones are Beta (→ .beta),
+        // and the nightly prerelease train is
         // `T3 Code (Nightly).app` (→ .nightly), verified on the mounted artifacts.
-        // Neither the alpha nor the nightly build carries SUFeedURL; the cask is
+        // These builds carry no SUFeedURL; the cask is
         // auto_updates, so Homebrew defers.
         //
         // The alpha train tags plain `vX.Y.Z` and is NOT prerelease-flagged, so
@@ -26,6 +27,18 @@ enum com_t3tools_t3code {
             installAssetPattern: #"^T3-Code-[0-9.]+-arm64\.dmg$"#,
             installerKind: .dmg,
             channel: .alpha),
+
+        // The primary public release now calls its app T3 Code (Beta), while
+        // keeping plain vX.Y.Z tags and T3-Code-X.Y.Z-arm64.dmg assets. The
+        // display name detects .beta, so it needs its own channel-gated rule;
+        // the alpha rule remains for older copies of this same release train.
+        GitHubReleaseRule(
+            bundleID: "com.t3tools.t3code",
+            owner: "pingdotgg", repo: "t3code",
+            versionPattern: #"^v([0-9]+(?:\.[0-9]+)+)$"#,
+            installAssetPattern: #"^T3-Code-[0-9.]+-arm64\.dmg$"#,
+            installerKind: .dmg,
+            channel: .beta),
 
         // T3 Code nightly — prerelease tags `vX.Y.Z-nightly.<date>.<seq>`, several
         // per day, marked prerelease, so `usePrereleases` reads the list and the
@@ -59,7 +72,7 @@ enum com_t3tools_t3code {
         // pattern matched is in the path.
         ChannelProofKey("com.t3tools.t3code", .nightly):
             .artifact(#"/download/v[0-9.]+-nightly\."#),
-        // T3 Code alpha is the one channel with no token in the tag OR the asset
+        // T3 Code's primary alpha/beta train has no token in the tag OR the asset
         // name: `v0.0.36` / `T3-Code-0.0.36-arm64.dmg` are byte-identical in
         // shape to what a hypothetical stable train would publish. What keeps
         // the alpha rule off the nightly train is the install pattern's PURE
@@ -75,6 +88,10 @@ enum com_t3tools_t3code {
         // would distinguish it, and `/releases/latest` would return it; the
         // anchor documents that exposure rather than pretending to close it.
         ChannelProofKey("com.t3tools.t3code", .alpha):
+            .recipeAnchor(#"\[0-9\.\]\+-arm64"#, in: ["installAssetPattern"]),
+        // Beta is the same primary release train and has no beta token in its
+        // tag or asset. Preserve the same exclusion of nightly/preview assets.
+        ChannelProofKey("com.t3tools.t3code", .beta):
             .recipeAnchor(#"\[0-9\.\]\+-arm64"#, in: ["installAssetPattern"]),
         ])
 }

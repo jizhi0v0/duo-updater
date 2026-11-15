@@ -65,8 +65,11 @@
 `channel-verify` 绿灯：stable → UPDATE 126.4.11→126.4.13；beta → up to date 126.6.2。
 
 ## 已知问题
-- 无。（Figma 自身也会 Squirrel 自更新；我们的一键安装是手动 fallback，同渠道、同签名，
-  不会跨渠道混装。）
+- 官网 DMG 还可能提供官方的 Dynamic Universal App 下载启动器，
+  `com.figma.Desktop.dua` / `DynamicUniversalApp` / `1.0`，并非完整 Figma。
+  当前配方没有覆盖这个启动器；它不是 `com.figma.Desktop` 的旧版 ID，不能按普通
+  `BundleIDMigration` 把启动器的 1.0 当作 Figma 正式版版本号。
+  启动器会下载当前架构的完整包，替换自身后再启动 Figma，见下方本机核对记录。
 - 记一笔判据问题（不是 Figma 的问题）：changelog recipe 的 `version` 组捕获的是**文章标题**，
   因为 Figma 的 release notes 根本不编号。`duo verify` 的「version went BACKWARDS」拿
   `VersionComparator` 比两句散文，结果是自信的胡话——2026-09-17 feed 新发了
@@ -76,9 +79,45 @@
   只是从没搬到 `Baseline` 的那一半。已补 `Baseline.eitherIsNumbered`。
 
 ## 建议下一步
-- 已完成。后续仅在端点结构或签名变化时复核 recipe。
+- 完整 stable / beta App 已覆盖。下载启动器可另做“完成安装”路线：识别官方
+  `.dua` 副本，下载完整 App，并在替换前固定核对目标 ID 与签名团队。它不是普通
+  旧版本更新；当前仍未实现，不能只加 ID 别名绕过身份检查。
 
 ## 历史与实测
+
+### 2026-11-15：官网 DMG 的下载启动器
+
+只读挂载用户提供的 `~/Downloads/Figma.dmg`（约 768 KB），与本机
+`/Applications/Figma.app` 分别读取 plist 与签名，未启动或替换本机 App：
+
+- 两份均为 `com.figma.Desktop.dua`，主程序 `DynamicUniversalApp`，short/build 为
+  `1.0` / `1`，Team `T8RA8NE3B7`。
+- `TargetAppName = Figma`；`TargetDownloadURLs.aarch64` 为
+  `https://desktop.figma.com/mac-arm/Figma.zip`，`x86_64` 为
+  `https://desktop.figma.com/mac/Figma.zip`。
+- DMG 中没有完整 Electron Figma，也没有包含完整载荷的嵌套归档。
+- [官方源码](https://github.com/figma/dynamic-universal-app/blob/master/AppDelegate.mm)
+  按架构下载、解压并替换启动器自身，然后重启完整 App，和这些 plist 字段一致。
+
+结论：本机扫描的 unknown 是尚未完成安装的官方启动器，并不表示原生 Figma 配方
+失效。此次只澄清身份，没有新增启动器安装路线，也没有把它当作普通 ID 迁移。
+
+### 2026-11-15：启动器接入可行性
+
+继续读取官方 `mac-arm/RELEASE.json`，得到 `126.11.9` 及固定版本的完整
+`Figma-126.11.9.zip`，下载 138,358,776 字节并解压核验：
+
+- 完整包 ID 为 `com.figma.Desktop`，short/build 均为 `126.11.9`。
+- Team 为 `T8RA8NE3B7`，与官方启动器相同；`codesign --verify --deep --strict`
+  通过。完整包可直接用现有 Figma recipe 获取。
+- 官方启动器源码确实支持下载完整 zip 后替换自身，因此不存在载荷不可获取的
+  障碍。当前的缺口是有意区分启动器 ID 和目标 App ID 的安装流程。
+
+结论：技术上可接入，但仍需显式的 bootstrap→完整 App 转换。建议识别时核对
+`.dua` ID、Team、`TargetAppName` 与预期官方架构 URL，展示“完成安装”，校验完整
+包的 `com.figma.Desktop` 与 Team 后替换，并重新扫描身份。固定的启动器 `1.0`
+不应参与正常 Figma 版本比较。此轮只验证可行性，未安装完整 Figma 或修改通用
+签名/ID 门控。
 
 从 recipe 注释迁出（2026-09-14）。正文逐字，只去掉了行首 `// `；每组标明出处。
 

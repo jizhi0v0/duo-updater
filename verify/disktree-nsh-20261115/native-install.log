@@ -1,0 +1,10 @@
+Timestamp               Ty Process[PID:TID]
+2026-11-15 02:29:06.941 Df DuoUpdater[4844:10d763] [com.duoupdater.app:install] install start: Disktree [com.huacnlee.disktree] 0.1.7 → 0.1.8 via vendor
+2026-11-15 02:29:06.974 Df DuoUpdater[4844:10cfd1] [com.duoupdater.app:install] disk space: Disktree watched while downloading, 49741761 bytes checked before its swap
+2026-11-15 02:29:06.976 Df DuoUpdater[4844:10cfd1] [com.duoupdater.app:install] download start: github.com
+2026-11-15 02:29:09.233 Df DuoUpdater[4844:10d76a] [com.duoupdater.app:install] download ok: 12659183 bytes transferred (0 of them by an earlier attempt) in 2s from github.com (attempt 1)
+2026-11-15 02:29:09.445 Df DuoUpdater[4844:10cfd1] [com.duoupdater.app:install] swap start: Disktree NSH.app elevated=false
+2026-11-15 02:29:09.467 Df DuoUpdater[4844:10d763] [com.duoupdater.app:install] swap done: Disktree NSH.app
+2026-11-15 02:29:09.468 Df DuoUpdater[4844:10d763] [com.duoupdater.app:install] install returned: Disktree [com.huacnlee.disktree] applied=true bytes=12659183 staged=false
+2026-11-15 02:29:10.024 Df DuoUpdater[4844:10cf58] [com.duoupdater.app:install] install disposition: Disktree via vendor — batch=false wasRunning=false prePIDs=[] surviving=[] stillRunning=false needsRestart=false → complete
+2026-11-15 02:29:10.024 Df DuoUpdater[4844:10cf58] [com.duoupdater.app:install] install done: Disktree now 0.1.8

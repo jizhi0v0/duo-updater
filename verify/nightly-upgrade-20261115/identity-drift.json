@@ -1,0 +1,40 @@
+{
+  "bytes" : 123001804,
+  "generatedAt" : "2026-11-15T10:56:32Z",
+  "hostConcurrency" : 3,
+  "items" : [
+    {
+      "bundleID" : "ai.thinkany.douchat",
+      "bytes" : 123001804,
+      "finalHost" : "cdn.douchat.ai",
+      "identity" : {
+        "architectures" : [
+          "arm64"
+        ],
+        "bundleIdentifier" : "ai.thinkany.douchat",
+        "bundleVersion" : "0.1.29",
+        "minimumSystemVersion" : "12.0",
+        "shortVersion" : "0.1.29",
+        "signedIdentifier" : "ai.thinkany.douchat",
+        "teamIdentifier" : "8PL52G56V9"
+      },
+      "kind" : "zip",
+      "notes" : [
+
+      ],
+      "probeHost" : "cdn.douchat.ai",
+      "recipeID" : "electron:ai.thinkany.douchat:stable:thinkany",
+      "registry" : "electron",
+      "seconds" : 10.612339973449707,
+      "status" : "warn",
+      "url" : "https:\/\/cdn.douchat.ai\/thinkany\/Douchat-0.1.29-mac-arm64.zip",
+      "urlSHA256" : "6c3012e65cb4f2ea9e793f50eb73d2351709eddc1e8236bae2245d91e0f2158e",
+      "version" : "0.1.29",
+      "warnings" : [
+        "identityChanged: Team JU9K7W6T6W → 8PL52G56V9 (recorded at 0.1.29, 2026-11-15)"
+      ]
+    }
+  ],
+  "minimumFreeBytes" : 17853071360,
+  "seconds" : 10.616927027702332
+}

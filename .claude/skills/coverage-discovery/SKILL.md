@@ -47,6 +47,10 @@ A one-click that would replace or damage what the user has is **not** a
 legitimate "can't": recording it in the audit is not enough. Gate it
 (`OneClickGate`) or withhold one-click (MuseScore 3, GitKraken On-Premise).
 
+In addition to the three product results, each implemented app/track must meet
+[app-audit's nightly acceptance](../fragile-recipe/references/nightly-coverage.md):
+monitoring in the same integration PR, or an explicit evidenced gap.
+
 ## Phase 1: Enumerate — from data, not memory
 
 ```bash
@@ -101,6 +105,10 @@ The brief follows the memory note `subagent-brief-rules`. It must say:
 - old→new `channel-verify` on the previous and newest packages (it reads a `.app` or a `.dmg`; `ditto -x -k` a `.zip` first and pass the `.app`), goldens re-recorded, `make test` in the foreground judged by exit code;
 - the audit doc plus a README line **in the section matching its source**. A row whose coverage is generic Sparkle (`— S`) belongs in the Sparkle section; `AppAuditCoverageTests` fails it anywhere else;
 - a track or group of copies left unwired goes in the report under 「待用户决定」 with its reason: the agent can't ask, and app-audit never lets "not wired" be decided alone. The main session asks the user before the batch merges;
+- follow [nightly acceptance](../fragile-recipe/references/nightly-coverage.md) in the
+  isolated worktree: include monitoring IDs/config or evidenced gaps for all
+  tracks and copy groups. Leave CLI-only live checks to the parent where the
+  worker's permissions forbid them; return the exact handoff;
 - commit with `git commit -F`, no push;
 - **forbidden**: `make install`, `make cli`, the `duo` CLI, `pkill`, `git stash`, copying into /Applications, launching anything downloaded, touching quarantine, anything that pops system UI. The end-to-end run is yours, serially (Phase 5): the CLI and /Applications are shared. A claim about install behaviour ("the next attempt draws the zip") is a hypothesis until Phase 5;
 - hygiene, each of which went wrong once:
@@ -140,6 +148,11 @@ If the batch touches engine code — a binding, `BundleIDMigration`,
 `UpdateResult` / `UpdatePolicy`, or the installer — run one `adversary` agent
 (Opus, xhigh) on that diff before opening the PR: #1358's review found bugs
 in `UpdateResult` and `ZettlrChannel` that no recipe check would.
+
+Merge public-inventory/gap edits from all workers as a union of their recipe
+IDs, not just a count. The integration helper may stop on these shared-file
+conflicts; resolve them without dropping another app/track, then run the relevant
+inventory tests. The parent completes and records delegated nightly checks.
 
 ## Phase 5: End to end — install the previous release, update it with `duo`
 
@@ -217,6 +230,9 @@ blank:
 | Osaurus | ✓ Sparkle + binding | ✓ e2e（含 EdDSA） | ⚠ 结构化但小标题被压平成条目 |
 | Secretive | ✓ GitHub | ✓ e2e 3.0.4→4.0.0，换包后重启 SSH agent，签名实测通过 | ✓ Features / Fixes |
 ```
+
+Also report each app's nightly monitor/recipe IDs, checks actually run, and any
+explicit gap, following the shared acceptance checklist.
 
 Also list:
 - candidates found already covered, with their three counts;

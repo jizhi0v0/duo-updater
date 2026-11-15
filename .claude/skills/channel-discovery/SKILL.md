@@ -147,6 +147,12 @@ For **Pattern D**: a one-liner with the reason, for the dead-end log.
   matching its existing format and the 2026-06-04 provenance note style).
 - If a sweep date matters, stamp it (the repo uses absolute dates).
 
+Include a nightly handoff for each proposed new track/feed/copy group: after
+real-bundle/channel verification, `/app-audit` applies
+[nightly coverage acceptance](../fragile-recipe/references/nightly-coverage.md) in the
+implementation PR. A discovery candidate is not an inventory entry or proof of
+byte coverage; this breadth pass does not edit the runner inventory.
+
 **Then stop.** Implementation and the empirical toggle-and-diff are `/app-audit` +
 `/fragile-recipe`, with the user's hands-on help. This skill's deliverable is the
 *ranked worklist*, nothing landed in code.

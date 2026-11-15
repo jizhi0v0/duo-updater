@@ -24,6 +24,11 @@ import Foundation
                      "the catalog no longer has a superseding entry to test against")
     }
 
+    private func kuvoBoxEntry() throws -> SparkleFeedCatalog.VerificationCase {
+        try #require(SparkleFeedCatalog.verificationCases.first { $0.bundleID == "run.kuvo.app" },
+                     "the Kuvo Box feed override is no longer swept")
+    }
+
     /// A feed answering the way both live feeds answer today: several items,
     /// the newest usable one naming a marketing version and an absolute
     /// enclosure. The baseline every mutation below starts from.
@@ -63,9 +68,11 @@ import Foundation
     /// is still older than the one it redirects to — which is the entry's whole
     /// justification, and the only thing about it that can expire on its own.
     @Test func aSupersededEntryIsOKWhileTheDeadAddressIsStillBehind() throws {
+        let entry = try supersededEntry()
+        #expect(entry.supersessionJustification == .versionLag)
         let dead = healthy(items: 4, usable: 1, short: "2.5.22", build: "764")
         let verdict = Verify.classifyFeed(
-            try supersededEntry(),
+            entry,
             FeedObservation(live: .read(healthy()), declared: .read(dead)))
         #expect(verdict.status == .ok)
         #expect(verdict.version == "3.13.2")
@@ -212,6 +219,56 @@ import Foundation
         // version history is worth keeping while the override is reviewed.
         #expect(verdict.version == "3.13.2")
         #expect(verdict.warnings.first?.hasPrefix("supersededAddressIsNoLongerBehind") == true)
+    }
+
+    /// Kuvo Box's declared feed now serves the separate Kuvo Code product, so
+    /// the versions do not share an ordering. The normal case reproduces the
+    /// live Box 0.1.3 versus Code 0.8.0-beta.1 false alert; the second pins the
+    /// same-version boundary for unrelated products.
+    @Test func aDifferentProductEntryDoesNotCompareVersionSequences() throws {
+        let entry = try kuvoBoxEntry()
+        #expect(entry.supersessionJustification == .declaredFeedServesDifferentProduct)
+
+        for declaredVersion in ["0.8.0-beta.1", "0.1.3"] {
+            let verdict = Verify.classifyFeed(
+                entry,
+                FeedObservation(
+                    live: .read(healthy(short: "0.1.3", build: "0.1.3")),
+                    declared: .read(healthy(items: 4, usable: 1,
+                                           short: declaredVersion, build: declaredVersion))))
+            #expect(verdict.status == .ok, Comment(rawValue: declaredVersion))
+            #expect(verdict.version == "0.1.3", Comment(rawValue: declaredVersion))
+            #expect(!verdict.warnings.contains {
+                $0.hasPrefix("supersededAddressIsNoLongerBehind")
+            }, Comment(rawValue: declaredVersion))
+        }
+    }
+
+    /// Product separation exempts only the version comparison. The live Box
+    /// feed must still parse to a usable release and its download must remain
+    /// fetchable.
+    @Test func aDifferentProductEntryStillChecksLiveFeedAndEnclosure() throws {
+        let entry = try kuvoBoxEntry()
+        let empty = Verify.classifyFeed(
+            entry,
+            FeedObservation(
+                live: .read(healthy(items: 0, usable: 0, short: nil, build: nil,
+                                    enclosure: nil)),
+                declared: .read(healthy(short: "0.8.0-beta.1"))))
+        #expect(empty.status == .broken)
+        #expect(empty.warnings.first?.hasPrefix("feedParsedToZeroItems") == true)
+
+        let enclosure = Verify.classifyFeed(
+            entry,
+            FeedObservation(
+                live: .read(healthy(short: "0.1.3", build: "0.1.3")),
+                declared: .read(healthy(short: "0.8.0-beta.1")),
+                enclosure: .answered(status: 404, bytesRead: 0)))
+        #expect(enclosure.status == .warn)
+        #expect(enclosure.warnings.contains { $0.hasPrefix("installURLNotFound") })
+        #expect(!enclosure.warnings.contains {
+            $0.hasPrefix("supersededAddressIsNoLongerBehind")
+        })
     }
 
     /// Two addresses that both name a version, in namespaces

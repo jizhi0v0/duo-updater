@@ -288,6 +288,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**Herdr**](so-pen-herdr-gpui.md) · `so.pen.herdr-gpui` — G (one-click universal dmg) · 日期版本 `vYYYYMMDD.N` · 真包 20261007.1/.2 挂载验证 ✓ · 一键端到端 ✓（不运行 + 运行中）· changelog 结构化 ✓ · 2026-10-07
 - [x] [**Search**](com-officecommun-search.md) · `com.officecommun.search` — G (one-click arm64 dmg，1.0.5 起另有 `Search-Intel.dmg`) · 真包 1.0.3/1.0.4 挂载验证 ✓ · 一键端到端 ✓（不运行 + 运行中；自研更新器启动即换 bundle）· changelog 结构化 ✓ · 2026-10-09
 - [x] [**disktree**](io-github-tobi-disktree.md) · `io.github.tobi.disktree` — G (**digest-only**，ad-hoc 签名，arm64/x86_64 分 arch zip) · 4 个真包核对封印/标识/版本/digest ✓ · 一键端到端 ✓（设置关闭→拒绝；打开→installed） · changelog 结构化 ✓（GitHub 自动生成的 PR 列表，无厂商小节） · 2026-10-12
+- [x] [**Disktree NSH**](com-huacnlee-disktree.md) · `com.huacnlee.disktree` — G（digest-only，普通 arm64 tar.gz）· 独立于 tobi GPUI 产品，无 ID 迁移 · 真包 0.1.0/0.1.7/0.1.8 channel-verify ✓ · VM 原生一键 0.1.7→0.1.8、配置保留与启动 ✓ · changelog 结构化 ✓ · 2026-11-15
 - [x] [**Plexo**](com-plexo-app.md) · `com.plexo.app` — G (one-click arm64/x64 dmg，`v1.0.0-rc.N` 保留后缀) · 真包 rc.14/rc.15 挂载验证 ✓ · 一键端到端：rc.14（未签名）→ 拒绝 ✓，**rc.15 → 下一签名版未跑**（只有一个签名版） · changelog 结构化 ✓ · 单轨（settled from source） · 2026-10-12
 - [x] [**RustGIS**](org-rustgis-RustGIS.md) · `org.rustgis.RustGIS` — G (one-click arm64/x86_64 dmg) · 真包 0.1.0 两个架构挂载验证 ✓ · **一键端到端未跑**（只有 v0.1.0 一个 release） · changelog 结构化 ✓ · 单轨（settled from source） · 2026-10-13
 - [x] [**MuseScore Studio 4**](org-musescore-MuseScore.md) · `org.musescore.MuseScore` — G (one-click universal dmg，主版本钉在 4：5.x 换 bundle id) · 真包 4.0.0/4.2.1/4.7.4/4.7.5 挂载验证 ✓ · channel-verify 4.7.4→4.7.5 ✓ · 一键真机端到端 ✓ 4.7.4→4.7.5 · changelog 结构化 ✓（只有最新一条） · MuseScore 3 同 bundle id：提示 4.x、不给一键（`OneClickGate` 按已装版本 `^4\.`） · Testing 预发布读成 stable，Nightly 读成 nightly 不推 · 2026-10-16
@@ -562,7 +563,3 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
   订阅状态、深链与 MCP。不是单个 app 的审计。
 
 2026-11-14：[PKG helper VM 专项验证](../../verify/pkg-helper-coverage-20261114/README.md)——19 个可用身份；ToDesk / 向日葵 / ChatGPT Classic 保留原路径，非完整渠道审计。
-
-## 本机副本身份调查
-
-- [Disktree NSH](com-huacnlee-disktree.md) — `com.huacnlee.disktree`，独立于 tobi/disktree；需单独接入，不能作 ID 迁移；2026-11-15。

@@ -1,0 +1,32 @@
+
+  app             Disktree
+  bundle id       com.huacnlee.disktree
+  short version   0.1.0
+  build version   0.1.0
+  KSChannelID     <none>
+  RemotingName    <none>
+  BuildID         <none>
+  package.json    <none>
+  HFBuildLabel    <none>
+  Blender build   <none>
+  Lapce build     <none>
+  inferred        stable
+  ChannelBinding  <none for this app>
+  ─────────────────────────────────────────────
+  detected channel  → stable
+  ✓ detection matches --expect stable
+  ─────────────────────────────────────────────
+  VendorProbe       — no recipe registered for 'com.huacnlee.disktree'
+    → expected for an app covered by Sparkle / GitHub / the App Store. The full
+      chain below is the one that answers for those.
+  ─────────────────────────────────────────────
+  UpdateChecker.check() — full production source chain
+    SUFeedURL       <none>
+    winning source  GitHub
+    latest          0.1.8
+    download        https://github.com/huacnlee/disktree/releases/download/v0.1.8/disktree-v0.1.8-aarch64-apple-darwin.tar.gz
+    release notes   0 chars inline, changelogURL https://github.com/huacnlee/disktree/releases/tag/v0.1.8
+    changelog pane  source structured: 1 entries; newest 0.1.8: 2 items, headings []; first items ["perf: remove directory trees in parallel", "build: add Intel macOS (x86_64-apple-dar"]
+    release history 1 entries
+    deltas          0
+    status          UPDATE → 0.1.8

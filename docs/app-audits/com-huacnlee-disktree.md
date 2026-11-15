@@ -1,40 +1,71 @@
-# Disktree NSH — 身份核对
+# Disktree NSH
 
-核对日期：2026-11-15。此记录回答与已接入 disktree 的关系，尚未新增配方或执行安装。
+核对日期：2026-11-15。独立接入 `huacnlee/disktree`，不与 tobi 的 GPUI 产品互换。
 
-## 本机副本
+## 身份与版本组
 
-- 路径：`/Applications/Disktree NSH.app`；显示名 `Disktree`。
-- Bundle ID：`com.huacnlee.disktree`；short/build：`0.1.7` / `0.1.7`。
-- 签名：ad-hoc，无 Team ID；没有 `SUFeedURL`。
-- `Contents/Resources/nsh/app.json` 声明同一 ID 与版本。
-- `Contents/Resources/nsh/assets/nsh-updater.json` 声明
-  `github = huacnlee/disktree`，不是 `tobi/disktree`。
+- Bundle ID：`com.huacnlee.disktree`；显示名 `Disktree`，文件夹也可能叫
+  `Disktree NSH.app`。真实 0.1.0、0.1.7、0.1.8 副本的 short/build 均等于发布版本。
+- 三份副本均为 ad-hoc 签名，无 Team ID；签名 identifier 等于 bundle ID，
+  `codesign --verify --deep --strict` 均通过。无 `SUFeedURL`。
+- 0.1.7 的 `Resources/nsh/app.json` 声明同一 ID、版本；
+  `assets/nsh-updater.json` 指向 `huacnlee/disktree`。
+- [上游 README](https://github.com/huacnlee/disktree) 明确说受
+  [tobi/disktree](https://github.com/tobi/disktree) 启发，用 NSH 独立实现。
+  后者的 ID 是 `io.github.tobi.disktree`，已有另一配方。没有证据表明它们是 ID
+  迁移，因此两者保留各自 recipe family，不加 `BundleIDMigration`。
 
-## 与已有支持项的关系
+## 分发源与发布渠道
 
-[huacnlee/disktree](https://github.com/huacnlee/disktree) 的 README 明确说明是受
-[tobi/disktree](https://github.com/tobi/disktree) 启发、用 NSH 实现的独立 App。
-GitHub 元数据 `fork=false`；本机的 NSH 资源、ID 和更新器配置与其一致。
+| 副本组 | 实际来源 | 检测 / 安装覆盖 |
+|---|---|---|
+| 手动解压的完整 App | GitHub Releases 普通 macOS tar.gz | GitHub 检测；开启 digest-only 后可一键 |
+| 官方脚本安装的 App | 同一完整归档，固定目录内的 App 加 Applications 软链 | 可见 App 使用同一规则；脚本安装过程不由 Duo 执行 |
+| mise 管理的副本 | 同一 GitHub 资产，mise 的版本目录 | 无默认 Applications 项；是否被扫描取决于副本位置，更新建议交给 mise |
+| tobi 的 GPUI App | 独立 `tobi/disktree` 仓库 | 仍使用原有独立配方，不匹配此规则 |
 
-已有配方 `io-github-tobi-disktree.swift` 只对应 tobi 的 Rust + GPUI App，
-ID `io.github.tobi.disktree`。不能把两者加入 `BundleIDMigration`，否则会把一个产品
-替换成另一实现。它需要独立 recipe family，不能用新旧 ID 的别名覆盖。
+[官方安装说明](https://github.com/huacnlee/disktree/blob/main/docs/install.md)
+列出脚本、mise 与手动下载。此次未发现上游另列的 Homebrew、MAS 或 TestFlight
+分发；Homebrew 的 `Casks/d/disktree.rb` 查询为 404，不把它当作所有第三方 tap 的证明。
+0.1.0–0.1.8 共九个 release 均为 stable，未见 beta/nightly 或另一 bundle ID。
 
-## 当前覆盖与可接入方向
+官方说明区分无自更新器的旧版与 updater-enabled 构建；观测 0.1.7 已含
+自更新配置，启动时检查、用户确认下载与重启。新规则不执行厂商 shell 安装器，
+直接更新完整 App；也不消费单独的 `-updater.tar.gz`。
 
-- 检测：本轮本机扫描为 unknown；尚无这个 ID 的配方。
-- Changelog：可评估读取 `huacnlee/disktree` GitHub Release 正文。
-- 一键：尚未实现或验证。上游最新非 prerelease 为 `v0.1.8`，发布普通 macOS
-  `disktree-v0.1.8-aarch64-apple-darwin.tar.gz`、独立 updater 归档，以及 GitHub
-  SHA-256 digest；不能把 updater 归档误选作普通安装包。
-- 本机无 Team ID，不能直接按 Developer ID 路线安装；项目已有
-  `.publishedDigestOnly` 能力，可以在读取真实新包、核对 ID、签名标识、目录结构
-  及旧→新数据保留后评估。当前不能据此声称一键已可用。
-- 其余分发源与其他渠道未在此身份调查中完整审计。
+## 检测、更新日志与一键
 
-## 已有 ID 迁移案例
+- 检测：GitHub `huacnlee/disktree`，tag 全串锚定 `vX.Y.Z`，不截断预发布版本。
+  两个 plist 版本字段与 tag 同构，没有 marketing/build 换算。
+- 更新日志：已有 GitHub Release 解析器。生产链实读 0.1.8 得到一条版本记录、
+  两条正文（并行目录删除与 Intel 构建），不是只有下载链接。
+- 一键：普通 `disktree-vX.Y.Z-aarch64-apple-darwin.tar.gz`。
+  updater、Intel、Linux、校验和 sidecar 均不匹配；在受支持的 Apple Silicon
+  宿主上取原生 arm64 App。
+- 信任：复用 `.publishedDigestOnly`，需要用户开启既有设置；先核对 GitHub API
+  公布的文件 digest，再核对严格签名、ad-hoc 身份、bundle ID 与落地版本。
+  缺 digest、内容不符或身份不符时拒绝，不放宽通用安装门控。
+- 0.1.8 普通 arm64 归档为 12,659,183 字节，实际 SHA-256 与 API 的
+  `7b08b6196d23a075115e801b083d295f83b39c366c9b9cc5eba5db9d29b775ef` 相同。
+  解压得到独立 `Disktree.app`，可执行文件只链接系统 framework。
+- 官方脚本顶层 `disktree` launcher 委托 bundle 内的可执行文件，所以 App 换包也
+  更新被启动的运行时。外层 launcher、安装标记及 mise 元数据不在此次替换范围内。
+- 状态文件独立保存在 `~/Library/Application Support/Disktree/state.json`，
+  内容为记住的目录；可用 `DISKTREE_STATE` 覆盖。
 
-项目 `Models/BundleIDMigration.swift` 已处理 WorkBuddy、PrintCraft→PdfCraft、
-WhatCable、Cork、MusicBrainz Picard、SwitchHosts、Museeks、Rclone UI 等真正的
-上游 ID 变更。迁移有方向、签名团队和版本边界；不是仅凭名称相同就兼容。
+## 如何复验
+
+真实 0.1.0、0.1.7 与 0.1.8 的生产 `channel-verify --expect stable` 均退出 0：
+前两份为 GitHub → UPDATE 0.1.8，后一份为 GitHub → up to date。真实包的 bundle
+ID 均为 `com.huacnlee.disktree`，short/build 分别为对应版本。
+
+VM 原生一键结果及界面证据记录在
+[VM 验证](../../verify/disktree-nsh-20261115/README.md)。
+
+## 边界
+
+- 验证的是普通完整 App。mise 的版本选择与元数据没有整合到此 App recipe。
+- 厂商改用 Developer ID 时，既有 ad-hoc→Team 路线会拒绝，需要人工安装一次并
+  重新评估配方，不能凭发布者账号相同就放行。
+- Intel Mac 不属于 DuoUpdater 的支持宿主；在 Apple Silicon 上的 Intel 副本未
+  单独做安装轮次。没有使用这个理由放宽归档选择或身份检查。

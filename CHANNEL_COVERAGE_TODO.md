@@ -39,6 +39,13 @@
 | **Capy** | nightly `ai.capy.desktop.nightly`（显示名 "Capy Nightly"，版本串带 `-nightly.<date>.<n>`；独立 `nightly/latest-mac.yml` 由包的 `app-update.yml` 声明，零 recipe，2026-10-04）| Electron |
 | **Kitten** | preview `dev.kitten.Kitten-Preview`（Zed 式：`releases/preview/latest/asset`；仅检测，ad-hoc 签名无 Team ID；stable `dev.kitten.Kitten` 轨未开放，端点 404 `release channel "stable" is not available`，2026-10-12）| VendorProbe |
 
+### 同名独立产品
+
+- **Disktree NSH** `com.huacnlee.disktree`（huacnlee / NSH）与 **disktree**
+  `io.github.tobi.disktree`（tobi / GPUI）分别使用自己的 stable GitHub 规则。
+  两者不是 ID 迁移。NSH 新增检测、结构化日志与 digest-only 原生 arm64 一键，
+  VM 0.1.7→0.1.8 通过，见 [审计](docs/app-audits/com-huacnlee-disktree.md)。
+
 ### 共享 bundle id，以显示名区分主发布轨与 Nightly
 
 - **T3 Code**：`com.t3tools.t3code`。主发布序列的历史名称为 Alpha，当前真包为

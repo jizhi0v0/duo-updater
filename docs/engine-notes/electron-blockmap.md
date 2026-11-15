@@ -44,6 +44,10 @@ encoding. Redirects are bounded, strip cross-origin credentials and reject HTTPS
 downgrades. Cancellation cancels the active URLSession task and escapes the
 fallback path. Failed differential bytes and metadata count toward download
 accounting; existing request metrics record their transfers as install traffic.
+A successful blockmap reconstruction also reaches the existing `usedDelta`
+outcome and permanent download ledger, so Downloads shows its `Delta` badge.
+Cold full downloads and full fallbacks keep the full route; checking a map
+alone never earns the badge.
 
 ## 4. Verification
 

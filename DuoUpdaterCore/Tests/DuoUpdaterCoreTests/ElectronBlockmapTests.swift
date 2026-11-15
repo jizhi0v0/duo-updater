@@ -112,6 +112,40 @@ struct ElectronZIPDownloadTests {
         try await sim.close()
     }
 
+    @Test(arguments: [false, true])
+    func coordinatorRecordsDeltaOnlyWhenBlockmapReconstructionSucceeds(hasBaseline: Bool) async throws {
+        let server = try HTTPDownloadLoopbackServer([
+            .init(status: 200, body: newMapBytes),
+            hasBaseline
+                ? .init(status: 206, headers: ["Content-Range": "bytes 4-7/12"], body: Data("XXXX".utf8))
+                : .init(status: 200, body: newZIP),
+        ])
+        defer { server.stop() }
+        let box = try HTTPDownloadSandbox()
+        let app = app(at: box.root)
+        try await ElectronArchiveCache.$rootOverride.withValue(box.root.appendingPathComponent("cache")) {
+            if hasBaseline { try seed(root: box.root, app: app) }
+            let result = UpdateResult(app: app,
+                remote: remote(url: server.url, map: server.url.appendingPathExtension("blockmap")),
+                status: .updateAvailable(latest: "2.0"))
+            let download = try await VendorInstaller().download(result, population: nil, onStage: { _ in })
+            #expect(try Data(contentsOf: download.archiveURL) == newZIP)
+            #expect(download.appliedPatch == nil) // The apply phase still receives a complete ZIP.
+            let outcome = try await installedOutcome(result, download)
+            #expect(outcome.usedDelta == hasBaseline)
+            #expect(outcome.bytesDownloaded == Int64(newMapBytes.count + (hasBaseline ? 4 : newZIP.count)))
+            #expect(server.requests.count == 2)
+            #expect(server.unexpectedRequests.isEmpty)
+        }
+        try await box.close()
+    }
+
+    private func installedOutcome(_ result: UpdateResult, _ download: DownloadedUpdate) async throws -> InstallCoordinator.Outcome {
+        try await InstallCoordinator().fetchThenSwap(
+            result, spaceToApply: 0, progress: { _ in }, releaseAfterDownload: {},
+            download: { _, _ in download }, apply: { _, _, _ in })
+    }
+
     @Test func corruptCachedBaseIsRejectedBeforeRequestingAnyRanges() async throws {
         let sim = try HTTPDownloadSimulation([.response(200, body: newMapBytes)])
         let app = app(at: sim.sandbox.root)
@@ -154,6 +188,8 @@ struct ElectronZIPDownloadTests {
             // Merely downloading must not promote the pending map/new archive.
             let retained = try #require(ElectronArchiveCache.open(for: app))
             #expect(try retained.archive.readToEnd() == oldZIP)
+            let outcome = try await installedOutcome(result, download)
+            #expect(!outcome.usedDelta)
         }
         try await box.close()
     }

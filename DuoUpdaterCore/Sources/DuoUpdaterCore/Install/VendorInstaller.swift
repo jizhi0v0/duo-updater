@@ -270,7 +270,7 @@ public actor VendorInstaller {
                 bytesDownloaded: bytesDownloaded,
                 workDir: workDir,
                 finalHost: differential?.archive == nil ? downloader.finalHost : differential?.finalHost,
-                appliedPatch: patch)
+                appliedPatch: patch, usedBlockmap: differential?.archive != nil)
         } catch {
             // A failed (or partially-written) download leaves nothing behind.
             try? FileManager.default.removeItem(at: workDir)

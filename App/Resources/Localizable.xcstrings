@@ -84537,67 +84537,67 @@
         }
       }
     },
-    "This update used a Sparkle delta patch.": {
+    "This update used a differential download.": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Dieses Update verwendete einen Sparkle-Deltapatch."
+            "value": "Dieses Update verwendete einen differenziellen Download."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Esta actualización utilizó un parche delta de Sparkle."
+            "value": "Esta actualización utilizó una descarga diferencial."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cette mise à jour a utilisé un correctif delta Sparkle."
+            "value": "Cette mise à jour a utilisé un téléchargement différentiel."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Questo aggiornamento ha usato una patch delta di Sparkle."
+            "value": "Questo aggiornamento ha usato un download differenziale."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "この更新では Sparkle のデルタパッチを使用しました。"
+            "value": "この更新では差分ダウンロードを使用しました。"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Esta atualização usou um patch delta do Sparkle."
+            "value": "Esta atualização usou um download diferencial."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Для этого обновления использовался дельта-патч Sparkle."
+            "value": "Для этого обновления использовалась дифференциальная загрузка."
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bu güncelleme bir Sparkle delta yaması kullandı."
+            "value": "Bu güncelleme fark indirmesi kullandı."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "此次更新使用了 Sparkle 增量补丁。"
+            "value": "此次更新使用了差分下载。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "這次更新使用了 Sparkle 增量修補檔。"
+            "value": "這次更新使用了差分下載。"
           }
         }
       }

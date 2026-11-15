@@ -19,6 +19,7 @@ struct Input: Decodable {
     let version: String
     let outputPath: String
     let launch: Bool
+    let useCoordinator: Bool?
 }
 
 struct Receipt: Codable {
@@ -30,6 +31,9 @@ struct Receipt: Codable {
     var bytesDownloaded: Int64?
     var archiveSHA256: String?
     var downloadedArchive: String?
+    var usedDelta: Bool?
+    var ledgerDownloadKind: TrafficDownloadKind?
+    var deltaBadge: Bool?
     var launchPID: Int32?
     var launchedBundle: String?
     var stayedRunning: Bool?
@@ -62,27 +66,55 @@ struct Receipt: Codable {
                     electronBlockmapURL: input.mapURL, sourceName: "Vendor", vendorInstallerKind: .zip,
                     expectedSHA512: input.sha512, expectedSHA256: input.sha256)
                 let result = UpdateResult(app: app, remote: remote, status: .updateAvailable(latest: input.version))
-                let installer = VendorInstaller()
-                let download: DownloadedUpdate
-                if let path = input.archivePath {
-                    let work = FileManager.default.temporaryDirectory.appendingPathComponent("duo-blockmap-verify-\(UUID())")
-                    try FileManager.default.createDirectory(at: work, withIntermediateDirectories: false)
-                    download = DownloadedUpdate(archiveURL: URL(fileURLWithPath: path), bytesDownloaded: 0, workDir: work)
+                if input.useCoordinator == true {
+                    guard ProcessInfo.processInfo.environment["DUO_STATE_DIR"] != nil else {
+                        throw NSError(domain: "blockmap-verify: coordinator ledger requires isolated DUO_STATE_DIR", code: 2)
+                    }
+                    let unusedStash = URL(fileURLWithPath: input.outputPath)
+                        .deletingLastPathComponent().appendingPathComponent("unused-stash")
+                    let coordinator = InstallCoordinator(vendor: VendorInstaller(
+                        stashCachesDirectory: unusedStash, stashApplicationSupportDirectory: unusedStash))
+                    let outcome = try await coordinator.perform(
+                        result, route: .vendor, installedPopulation: nil,
+                        digestOnlyAllowed: false, progress: { _ in })
+                    receipt.bytesDownloaded = outcome.bytesDownloaded
+                    receipt.usedDelta = outcome.usedDelta
+                    // Same public event/ledger path the App uses after perform.
+                    await EventStore.shared.append(DuoEvent(client: .app, payload: .install(InstallEvent(
+                        appID: app.id, appName: app.name, bundleID: app.bundleID,
+                        fromVersion: app.shortVersion, toVersion: input.version,
+                        fromBuild: app.buildVersion, toBuild: remote.version,
+                        sourceName: remote.sourceName, bytes: outcome.bytesDownloaded,
+                        downloadKind: outcome.usedDelta ? .delta : .full, applied: outcome.applied))))
+                    await EventStore.shared.flush()
+                    if let stat = await EventStore.shared.appTrafficStats().first(where: { $0.appID == app.id }),
+                       let event = stat.events.last {
+                        receipt.ledgerDownloadKind = event.downloadKind
+                        receipt.deltaBadge = stat.deltaEvidence(for: event) != nil
+                    }
                 } else {
-                    download = try await installer.download(result, useLocalStash: false,
-                                                            population: nil, onStage: { _ in })
+                    let installer = VendorInstaller()
+                    let download: DownloadedUpdate
+                    if let path = input.archivePath {
+                        let work = FileManager.default.temporaryDirectory.appendingPathComponent("duo-blockmap-verify-\(UUID())")
+                        try FileManager.default.createDirectory(at: work, withIntermediateDirectories: false)
+                        download = DownloadedUpdate(archiveURL: URL(fileURLWithPath: path), bytesDownloaded: 0, workDir: work)
+                    } else {
+                        download = try await installer.download(result, useLocalStash: false,
+                                                                population: nil, onStage: { _ in })
+                    }
+                    defer { try? FileManager.default.removeItem(at: download.workDir) }
+                    receipt.bytesDownloaded = download.bytesDownloaded
+                    receipt.archiveSHA256 = try await offCooperativePool {
+                        let handle = try FileHandle(forReadingFrom: download.archiveURL)
+                        defer { try? handle.close() }
+                        var hash = SHA256()
+                        while let bytes = try handle.read(upToCount: 1024 * 1024), !bytes.isEmpty { hash.update(data: bytes) }
+                        return hash.finalize().map { String(format: "%02x", $0) }.joined()
+                    }
+                    receipt.downloadedArchive = download.archiveURL.lastPathComponent
+                    try await installer.apply(result, download: download, digestOnlyAllowed: false, onStage: { _ in })
                 }
-                defer { try? FileManager.default.removeItem(at: download.workDir) }
-                receipt.bytesDownloaded = download.bytesDownloaded
-                receipt.archiveSHA256 = try await offCooperativePool {
-                    let handle = try FileHandle(forReadingFrom: download.archiveURL)
-                    defer { try? handle.close() }
-                    var hash = SHA256()
-                    while let bytes = try handle.read(upToCount: 1024 * 1024), !bytes.isEmpty { hash.update(data: bytes) }
-                    return hash.finalize().map { String(format: "%02x", $0) }.joined()
-                }
-                receipt.downloadedArchive = download.archiveURL.lastPathComponent
-                try await installer.apply(result, download: download, digestOnlyAllowed: false, onStage: { _ in })
                 let after = await offCooperativePool { AppScanner().scan(bundlesAt: [appURL]) }
                 receipt.installedVersion = after.first?.shortVersion
                 guard receipt.installedVersion == input.version else {

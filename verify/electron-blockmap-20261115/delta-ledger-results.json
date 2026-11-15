@@ -1,0 +1,26 @@
+[
+  {
+    "appPath": "/Users/bobby/Applications/DuoBlockmap/FlyEnv/FlyEnv.app",
+    "bytesDownloaded": 165879039,
+    "date": "2026-11-15T13:51:54Z",
+    "deltaBadge": false,
+    "installedVersion": "4.20.1",
+    "ledgerDownloadKind": "full",
+    "name": "FlyEnv 4.20.1",
+    "scannedVersion": "4.20.2",
+    "state": "installed",
+    "usedDelta": false
+  },
+  {
+    "appPath": "/Users/bobby/Applications/DuoBlockmap/FlyEnv/FlyEnv.app",
+    "bytesDownloaded": 43465419,
+    "date": "2026-11-15T13:52:25Z",
+    "deltaBadge": true,
+    "installedVersion": "4.20.2",
+    "ledgerDownloadKind": "delta",
+    "name": "FlyEnv 4.20.2",
+    "scannedVersion": "4.20.1",
+    "state": "installed",
+    "usedDelta": true
+  }
+]

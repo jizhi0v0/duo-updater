@@ -85,6 +85,40 @@ present. The verification app was stopped and shared resource leases released.
 
 [Before](storage-before.png) · [After](storage-after.png) · [Filesystem receipt](storage-clear.json).
 
+## Downloads Delta label follow-up
+
+The successful blockmap route now carries an explicit `usedBlockmap` result
+through `DownloadedUpdate` into the existing `InstallCoordinator.Outcome.usedDelta`
+and App `recordTraffic` / `InstallEvent.downloadKind` chain. It reuses the current
+Downloads badge and ledger schema. `appliedPatch` stays nil for a reconstructed
+ZIP, so extraction and publisher-digest/signature checks retain their full-ZIP
+meaning. The recorded badge explanation is now generic to differential downloads
+in all existing shipped languages.
+
+`delta_ledger_vm.py` used the changed non-shipping harness on the same VM with a
+fresh `DUO_STATE_DIR`. It called production `InstallCoordinator.perform`, then
+persisted its real outcome through the same public InstallEvent/EventStore APIs
+used by the App. These are actual downloaded/installed outcomes; the harness
+wrote the events, rather than clicking an update button in the GUI.
+
+- Full control, 4.20.2 → 4.20.1: **165,879,039 bytes** including the map,
+  installed 4.20.1, `usedDelta: false`, ledger `full`, no Delta evidence.
+- Genuine 4.20.1 → 4.20.2 blockmap update: **43,465,419 bytes**, installed
+  4.20.2, `usedDelta: true`, ledger `delta`, recorded Delta evidence.
+- The changed Release App opened that isolated state. Downloads showed **43.5 MB
+  with Delta** and **165.9 MB without Delta**. Hovering the badge showed
+  “This update used a differential download.” The verification App was stopped
+  and shared leases released.
+
+[Raw outcomes](delta-ledger-results.json) · [Downloads](downloads-delta.png) ·
+[Badge explanation](downloads-delta-help.png).
+
+The new regression first failed on the previous implementation: a successful
+blockmap reconstruction returned `outcome.usedDelta == false`. After the fix,
+68 related Core tests across four suites passed, including cold-full and
+failed-digest/full-fallback checks. App 365/365, localization 1,428 reachable
+keys, the harness build and unsigned Release App/CLI builds also passed.
+
 ## Local validation
 
 - Core: 7,518 tests across 670 suites passed; the existing schema-drift known

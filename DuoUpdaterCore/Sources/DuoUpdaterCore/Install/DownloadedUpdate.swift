@@ -29,6 +29,11 @@ public struct DownloadedUpdate: Sendable {
     /// Nil for an ordinary full download.
     public let appliedPatch: DeltaPatch?
 
+    /// True only when blockmap ranges reconstructed and verified this complete
+    /// ZIP. This affects traffic reporting; extraction and trust checks still
+    /// treat `archiveURL` as the publisher's full archive, not a binary patch.
+    public let usedBlockmap: Bool
+
     /// Set when `archiveURL` is a copy of an installer the app's OWN updater had
     /// already downloaded, rather than the artifact our route resolved — see
     /// `SelfUpdaterStash`.
@@ -44,7 +49,7 @@ public struct DownloadedUpdate: Sendable {
     public init(
         archiveURL: URL, bytesDownloaded: Int64, workDir: URL,
         finalHost: String? = nil, appliedPatch: DeltaPatch? = nil,
-        localStash: LocalStagedInstaller? = nil
+        localStash: LocalStagedInstaller? = nil, usedBlockmap: Bool = false
     ) {
         self.archiveURL = archiveURL
         self.bytesDownloaded = bytesDownloaded
@@ -52,5 +57,6 @@ public struct DownloadedUpdate: Sendable {
         self.finalHost = finalHost
         self.appliedPatch = appliedPatch
         self.localStash = localStash
+        self.usedBlockmap = usedBlockmap
     }
 }

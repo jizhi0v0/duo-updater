@@ -254,24 +254,38 @@ private func assetList(_ names: [String]) -> [(name: String, url: URL, size: Int
     names.map { (name: $0, url: URL(string: "https://example.invalid/\($0)")!, size: Int64?.none) }
 }
 
-private func matches(_ name: String, _ bundleID: String) -> Bool {
-    guard let p = rule(bundleID).installAssetPattern else { return false }
+private func matches(_ name: String, _ bundleID: String, channel: ReleaseChannel? = nil) -> Bool {
+    guard let p = rule(bundleID, channel: channel).installAssetPattern else { return false }
     return name.range(of: p, options: .regularExpression) != nil
 }
 
-@Test func t3CodeAlphaRuleRejectsNightlyTagsAndAssets() {
-    #expect(extract("v0.0.36", "com.t3tools.t3code") == "0.0.36")
+@Test(arguments: [ReleaseChannel.alpha, .beta])
+func t3CodePrimaryRulesRejectNightlyTagsAndAssets(channel: ReleaseChannel) {
+    #expect(extract("v0.0.36", "com.t3tools.t3code", channel: channel) == "0.0.36")
+    #expect(extract("v0.1.9", "com.t3tools.t3code", channel: channel) == "0.1.9")
     // The nightly train lives in the SAME repo — the `$` anchor is what keeps
     // it from reading as alpha when the list fallback walks past a dmg-less
     // alpha release.
-    #expect(extract("v0.0.37-nightly.20260830.1227", "com.t3tools.t3code") == nil)
-    #expect(rule("com.t3tools.t3code").channel == .alpha)
+    #expect(extract("v0.0.37-nightly.20260830.1227", "com.t3tools.t3code", channel: channel) == nil)
+    #expect(extract("v0.1.10-preview.20261111.4547", "com.t3tools.t3code", channel: channel) == nil)
+    #expect(rule("com.t3tools.t3code", channel: channel).channel == channel)
     // `[0-9.]+` refuses the `-nightly.` dash — the discriminator the alpha
     // channel proof anchors on.
-    #expect(matches("T3-Code-0.0.36-arm64.dmg", "com.t3tools.t3code"))
-    #expect(!matches("T3-Code-0.0.37-nightly.20260830.1227-arm64.dmg", "com.t3tools.t3code"))
-    #expect(!matches("T3-Code-0.0.36-x64.dmg", "com.t3tools.t3code"))
-    #expect(!matches("T3-Code-0.0.36-arm64.zip", "com.t3tools.t3code"))
+    #expect(matches("T3-Code-0.1.9-arm64.dmg", "com.t3tools.t3code", channel: channel))
+    for sibling in ["T3-Code-0.0.37-nightly.20260830.1227-arm64.dmg",
+                    "T3-Code-0.1.10-preview.20261111.4547-arm64.dmg",
+                    "T3-Code-0.1.9-x64.dmg", "T3-Code-0.1.9-arm64.zip",
+                    "T3-Code-0.1.9-arm64.dmg.blockmap"] {
+        #expect(!matches(sibling, "com.t3tools.t3code", channel: channel))
+    }
+}
+
+@Test func t3CodeBetaDisplayNameSelectsTheBetaRule() {
+    let channel = ReleaseChannel.detect(
+        name: "T3 Code (Beta)", bundleID: "com.t3tools.t3code",
+        keystoneChannel: nil, version: "0.1.6")
+    #expect(channel == .beta)
+    #expect(rule("com.t3tools.t3code", channel: channel).channel == .beta)
 }
 
 @Test func t3CodeNightlyRuleKeepsTheWholeVersionAndPicksTheNightlyDmg() {

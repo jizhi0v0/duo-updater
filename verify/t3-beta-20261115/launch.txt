@@ -1,0 +1,2 @@
+2478 /Applications/T3 Code (Beta).app/Contents/MacOS/T3 Code (Beta)
+CDHash=eb4cd0bfea003f6e4de83371e312d859b9c20841

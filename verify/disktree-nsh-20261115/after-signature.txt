@@ -1,0 +1,7 @@
+com.huacnlee.disktree
+0.1.8
+0.1.8
+strict-signature: passed
+Identifier=com.huacnlee.disktree
+Signature=adhoc
+TeamIdentifier=not set

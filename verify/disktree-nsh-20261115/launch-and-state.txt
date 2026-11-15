@@ -1,0 +1,5 @@
+6699 /Applications/Disktree NSH.app/Contents/MacOS/disktree
+saved directory after launch: preserved
+{"directory":"/Users/bobby/duo-verify/disktree-nsh-20261115/fixture-root"}
+fixture contents: preserved
+CDHash=61e69cca2813ba3e96acbaabb9428b5482c1d917

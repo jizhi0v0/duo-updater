@@ -116,6 +116,7 @@ public enum AppRecipeIndex {
         com_henrikruscon_Alcove.set,
         com_heynote_app.set,
         com_hnc_Discord.set,
+        com_huacnlee_disktree.set,
         com_insomnia_app.set,
         com_intelliscapesolutions_caffeine.set,
         com_itsytv_app.set,

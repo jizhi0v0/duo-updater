@@ -7,7 +7,8 @@ import Testing
 /// from the GitHub API 2026-10-02 — see `docs/app-audits/org-alacritty.md`),
 /// and Lokii, added since (both releases, 2026-10-07 — `docs/app-audits/com-lokii-app.md`),
 /// and disktree (its two newest releases, 2026-10-12 — `docs/app-audits/io-github-tobi-disktree.md`),
-/// and Obelus (its two newest releases, 2026-10-19 — `docs/app-audits/io-github-obelus-editor-obelus.md`).
+/// and Obelus (its two newest releases, 2026-10-19 — `docs/app-audits/io-github-obelus-editor-obelus.md`),
+/// and Disktree NSH (0.1.7/0.1.8, 2026-11-15 — `docs/app-audits/com-huacnlee-disktree.md`).
 @Suite struct DigestOnlyRecipeTests {
 
     private static let expected: [String: [[String]]] = [
@@ -29,6 +30,18 @@ import Testing
         "com.lokii.app": [
             ["Lokii-arm64.dmg", "Lokii-x86_64.dmg"],
             ["Lokii-arm64.dmg", "Lokii-x86_64.dmg"],
+        ],
+        "com.huacnlee.disktree": [
+            ["disktree-v0.1.8-aarch64-apple-darwin-updater.tar.gz",
+             "disktree-v0.1.8-aarch64-apple-darwin.tar.gz",
+             "disktree-v0.1.8-x86_64-apple-darwin-updater.tar.gz",
+             "disktree-v0.1.8-x86_64-apple-darwin.tar.gz",
+             "disktree-v0.1.8-x86_64-unknown-linux-gnu-updater.tar.gz",
+             "disktree-v0.1.8-x86_64-unknown-linux-gnu.tar.gz", "latest.json", "SHA256SUMS"],
+            ["disktree-v0.1.7-aarch64-apple-darwin-updater.tar.gz",
+             "disktree-v0.1.7-aarch64-apple-darwin.tar.gz",
+             "disktree-v0.1.7-x86_64-unknown-linux-gnu-updater.tar.gz",
+             "disktree-v0.1.7-x86_64-unknown-linux-gnu.tar.gz", "latest.json", "SHA256SUMS"],
         ],
         "io.github.tobi.disktree": [
             ["disktree-0.11.0-aarch64-linux.tar.gz", "disktree-0.11.0-aarch64-linux.tar.gz.sha256",
@@ -98,6 +111,8 @@ import Testing
             "org.flameshot.Flameshot": ["Flameshot-14.0-macos-arm64.dmg", "Flameshot-13.3.0-artifact-macos-arm64.dmg"],
             "org.darktable": ["darktable-5.6.1-arm64.dmg", "darktable-5.2.1-arm64.dmg", "darktable-5.4.0-arm64.dmg"],
             "com.lokii.app": ["Lokii-arm64.dmg", "Lokii-arm64.dmg"],
+            "com.huacnlee.disktree": ["disktree-v0.1.8-aarch64-apple-darwin.tar.gz",
+                                      "disktree-v0.1.7-aarch64-apple-darwin.tar.gz"],
             "io.github.tobi.disktree": ["disktree-0.11.0-aarch64-macos.zip", "disktree-0.10.1-aarch64-macos.zip"],
             "io.github.obelus-editor.obelus": ["Obelus-0.16.0-universal2-apple-darwin.app.zip",
                                                "Obelus-0.15.0-universal2-apple-darwin.app.zip"],

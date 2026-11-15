@@ -24,6 +24,12 @@ nothing about the rest reads as "all done". The evidence each one needs is in
 `.claude/skills/coverage-discovery/SKILL.md` §「What "onboarded" means」. For
 many apps at once, use that skill; it dispatches this one per app.
 
+For an app/channel/feed implementation, **nightly coverage or an evidenced gap
+is also a completion requirement in the same PR**. For an audit-only request,
+report its current status and hand off missing work. Read
+[nightly coverage acceptance](../fragile-recipe/references/nightly-coverage.md) before choosing a
+monitor, updating the inventory, or marking an integration complete.
+
 ## The two orthogonal dimensions
 
 Every app sits at the intersection of two independent axes. The audit must cover
@@ -349,7 +355,7 @@ doesn't say? Fall through to the rest of this phase as written.
 
 **1a-0. Then: ask whether a generic source already covers it. Often it does.**
 
-Three families need no per-app entry at all, because a generic source reads the
+Three families need no per-app runtime recipe, because a generic source reads the
 address out of the bundle itself — Sparkle (`SUFeedURL`), electron-builder
 (`app-update.yml`) and MyGo (feed and key linked into the executable, read by
 `MyGoUpdateConfig`):
@@ -360,10 +366,10 @@ swift run --package-path application-test feed-discover <path-to-.app/.dmg/.zip>
 
 | Verdict | What it means | What to do |
 |---------|---------------|------------|
-| `declared` | Bundle names its own `SUFeedURL`, the feed answered, and either a `ChannelBinding` already exists for this id or the feed has a default (untagged) item; `SparkleAppcastSource` resolves it | **STOP.** No recipe. Only changelog + channel remain (see below) |
+| `declared` | Bundle names its own `SUFeedURL`, the feed answered, and either a `ChannelBinding` already exists for this id or the feed has a default (untagged) item; `SparkleAppcastSource` resolves it | **STOP adding runtime recipes.** Continue changelog, channel and nightly coverage acceptance (see below) |
 | `NEEDS BINDING` | Bundle names its own `SUFeedURL`, but **every** item in it carries `<sparkle:channel>` and no `ChannelBinding` exists. The address resolves; the channel filter then admits nothing for an install the feed no longer lists | **Do not stop.** No recipe either: write a `ChannelBinding` whose resolver names the tag(s) in `sparkleChannelNames` (the `BetterDisplayChannel` route) |
 | `UNREADABLE` | Bundle names its own `SUFeedURL`, but the feed answered with no appcast item (fetch failed, non-2xx, or nothing parsed) — nothing about it was checked. Reported even when a `ChannelBinding` exists: a tag-only binding (CodeEdit's) still reads exactly this address | **Do not stop.** Re-run; if it persists, `curl` the feed. A dead declared feed means `SparkleAppcastSource` resolves nothing for this app — unless its binding swaps in a different feed (Fork), in which case check that one instead |
-| `ADOPT` (electron) | `app-update.yml` names a fetchable `*-mac.yml`; `ElectronManifestSource` covers it | **STOP**, unless you need a page/changelog link — the generic source carries neither |
+| `ADOPT` (electron) | `app-update.yml` names a fetchable `*-mac.yml`; `ElectronManifestSource` covers it | **STOP adding runtime recipes**, unless you need a page/changelog link; still complete nightly coverage acceptance |
 | `declared` (MyGo) | The executable links a MyGo feed and key, and `MyGoUpdateSource` resolved them — detection, one-click (`.tar.gz`, vendor signature, deltas) and the newest release's notes | **STOP.** No probe, no GitHub rule. Only a changelog *history* may need a recipe (the manifest carries one release's notes). An ad-hoc signed app installs through `InstallTrust.myGoSignatureOnly`, checked against the key in its own binary; it is not behind "Allow one-click updates for apps without a developer signature". Once audited, add the app to `MyGoFeedCatalog` (feed and key as feed-discover printed them) so `duo verify --mygo` sweeps it nightly |
 | `UNREADABLE` (MyGo) | The executable links a MyGo feed, but it did not resolve to a complete release | **Do not stop.** `curl` the feed; for a `{version}` feed, the GitHub release list first |
 | `ADOPT` (sparkle) | Address found in code and proved against the bundle | Propose a `SparkleFeedCatalog` entry, not a recipe |
@@ -375,7 +381,7 @@ swift run --package-path application-test feed-discover <path-to-.app/.dmg/.zip>
 pointing at the address the bundle already declares in `SUFeedURL` never runs —
 and from outside, a dead recipe and a working one look identical.
 
-**When the verdict is `declared`, the only questions left are:**
+**When the verdict is `declared`, continue these checks:**
 
 1. **changelog** — does the feed inline notes (`<description>` /
    `<sparkle:releaseNotesLink>` / `<markdownDescription>`)? If yes, nothing to do.
@@ -390,6 +396,9 @@ and from outside, a dead recipe and a working one look identical.
    Seeing your installed build in the feed does not clear it: CodeEdit
    (2026-09-12) publishes one item per release, tagged `dev`, so the copy you
    just downloaded matches and an install one version behind matches nothing.
+
+3. **nightly coverage** — follow [the acceptance checklist](../fragile-recipe/references/nightly-coverage.md).
+   A working generic source still needs public runner inventory or an explicit gap.
 
 Everything else — version parsing, download URL, EdDSA verification, release
 history, OS floor — the generic source already does.
@@ -1133,6 +1142,11 @@ same check.
   - 若是「轨道最新」: 为什么这个 app 可以接受? (一键会装厂商还没分配给这台机器的构建)
 - 阻塞: ...
 
+## 夜扫覆盖
+- 监控入口与 recipe IDs: ...（注明覆盖哪些渠道 / 旧副本组）
+- 实测: ...（命令、结果；只登记未跑检查要明说）
+- 缺口: ...（私有 feed、公钥或包检查限制及证据；没有则写无）
+
 ## 已知问题
 - ...
 
@@ -1232,7 +1246,7 @@ suggestions. Use this decision table:
 | Needs ChannelBinding | → Edit `ChannelBinding.swift` + new `<App>Channel.swift` | Create resolver, add to switch, add tests |
 | Needs channel added to existing probe | → Edit the family's file under `Recipes/` | Duplicate the stable recipe in its `probes:`, change channel + endpoint, then re-record goldens (below) |
 | Blocked (same ID, undetectable) | → Update `CHANNEL_COVERAGE_TODO.md` §3 | Document the reason; no code change |
-| Already fully covered | → Write/update audit doc only | No code change needed |
+| Already functionally covered | → Check nightly acceptance, then update the audit | Missing monitoring becomes an explicit handoff or part of the authorized implementation PR |
 
 Any edit to a family file under `Recipes/` (or to `AppRecipeIndex.all`) changes
 what `RecipeGoldenTests` expects. Re-record the goldens from the repository root

@@ -56,7 +56,7 @@ public enum ArtifactInspection {
 
     /// Where an inspection stopped.
     public enum Stage: String, Codable, Sendable {
-        case download, content, checksum, unpack, signature
+        case resolve, download, content, checksum, unpack, signature
     }
 
     public struct Failure: Error, Sendable {
@@ -81,15 +81,21 @@ public enum ArtifactInspection {
         public let packageTeamIdentifier: String?
         /// Things that were not checked, said out loud.
         public let notes: [String]
+        /// Inspection reports drift; it never authorizes an installation. A
+        /// changed Sparkle key is actionable even when the code seal is valid.
+        public var warnings: [String] = []
+        public var sparkleSignatureVerified: Bool = false
     }
 
     /// Download `remote`'s installer into `workDir` (which the caller owns and
     /// removes) and read it. `bundleName` names the bundle a `ContentsPayload`
     /// assembles — production takes it from the installed copy.
     public static func inspect(
-        _ remote: RemoteVersion, bundleName: String, workDir: URL
+        _ remote: RemoteVersion, bundleName: String, workDir: URL,
+        sparklePublicKey: String? = nil
     ) async -> Result<Inspected, Failure> {
-        guard let url = remote.downloadURL, let kind = remote.vendorInstallerKind else {
+        guard let url = remote.downloadURL,
+              remote.vendorInstallerKind != nil || remote.sourceName == "Sparkle" else {
             return .failure(Failure(stage: .download, message: "no installer resolved", bytes: 0))
         }
         let downloader = Downloader(destinationDir: workDir, purpose: .other) { _ in }
@@ -105,7 +111,14 @@ public enum ArtifactInspection {
                 defer { bytes += downloader.bytesDownloaded }
                 return try await downloader.download(url, headers: remote.downloadHeaders)
             }
-            archive = try VendorInstaller.normalizedArchive(downloaded, kind: kind, workDir: workDir)
+            if let declaredKind = remote.vendorInstallerKind {
+                archive = try VendorInstaller.normalizedArchive(downloaded, kind: declaredKind, workDir: workDir)
+            } else {
+                // Sparkle classifies the actual downloaded filename, after
+                // redirects and Content-Disposition, just like its production
+                // installer. HandBrake's enclosure is rotation.php → .dmg.
+                archive = downloaded
+            }
         } catch VendorInstaller.InstallError.htmlInsteadOfArchive {
             return .failure(Failure(
                 stage: .content,
@@ -127,11 +140,36 @@ public enum ArtifactInspection {
         func failure(_ stage: Stage, _ error: Error) -> Result<Inspected, Failure> {
             .failure(Failure(stage: stage, message: error.localizedDescription, bytes: bytes))
         }
+        guard let kind = remote.vendorInstallerKind ?? installerKind(for: archive) else {
+            return .failure(Failure(stage: .content,
+                message: "unsupported downloaded installer format", bytes: bytes))
+        }
 
-        if kind == .pkg {
-            return await inspectPackage(
+        var archiveWarnings: [String] = []
+        var sparkleSignatureVerified = false
+        if let key = sparklePublicKey {
+            do {
+                let check = try await offCooperativePool {
+                    let data = try Data(contentsOf: archive, options: .mappedIfSafe)
+                    return Self.sparkleArchiveSignature(
+                        data: data, signature: remote.edSignature, publicKey: key)
+                }
+                archiveWarnings = check.warnings
+                sparkleSignatureVerified = check.verified
+            } catch {
+                return failure(.signature, error)
+            }
+        }
+        if kind == .pkg || remote.sparklePackageEnclosure {
+            let result = await inspectPackage(
                 archive, remote: remote, kind: kind, bytes: bytes,
                 finalHost: downloader.finalHost)
+            if case .success(var inspected) = result {
+                inspected.warnings = archiveWarnings
+                inspected.sparkleSignatureVerified = sparkleSignatureVerified
+                return .success(inspected)
+            }
+            return result
         }
 
         // The digest-only route's proof of origin runs before anything is
@@ -167,10 +205,42 @@ public enum ArtifactInspection {
                 try SignatureVerifier.verifyCodeSignature(appAt: app)
                 return try identity(of: app)
             }
+            let notes = remote.sourceName == "Sparkle" && sparklePublicKey == nil
+                ? ["sparkleArchiveSignatureNotChecked: no previously audited key — "
+                   + "this run establishes package identity, not signing-key continuity"] : []
             return .success(Inspected(
                 bytes: bytes, finalHost: downloader.finalHost, kind: kind,
-                identity: identity, packageTeamIdentifier: nil, notes: []))
+                identity: identity, packageTeamIdentifier: nil, notes: notes,
+                warnings: archiveWarnings, sparkleSignatureVerified: sparkleSignatureVerified))
         } catch { return failure(.signature, error) }
+    }
+
+    /// The same archive suffixes `ArchiveExtractor` accepts, plus flat pkgs.
+    /// Consult the downloaded file URL: an enclosure can be a redirect endpoint.
+    public static func installerKind(for archive: URL) -> VendorInstallerKind? {
+        switch archive.pathExtension.lowercased() {
+        case "zip": return .zip
+        case "dmg": return .dmg
+        case "pkg": return .pkg
+        case "gz", "bz2", "xz", "tar", "tbz", "tgz": return .tarGz
+        default: return nil
+        }
+    }
+
+    static func sparkleArchiveSignature(
+        data: Data, signature: String?, publicKey: String
+    ) -> (warnings: [String], verified: Bool) {
+        do {
+            try SignatureVerifier.verifyEdSignature(
+                fileData: data, signatureBase64: signature, publicKeyBase64: publicKey)
+            return ([], true)
+        } catch {
+            // Continue reading identity to distinguish a legitimate rotation
+            // from an unrelated signer. This never authorizes an installation.
+            return (["sparkleArchiveSignatureChanged: the archive does not verify with the "
+                + "previously recorded or audited Sparkle key — existing copies "
+                + "may need a signing-key transition (\(error.localizedDescription))"], false)
+        }
     }
 
     /// `vetStub` with no installed Team to hold an installer stub to: its seal

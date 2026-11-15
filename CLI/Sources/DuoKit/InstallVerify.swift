@@ -1,7 +1,7 @@
 import Foundation
 import DuoUpdaterCore
 
-// Download every installer a vendor recipe or GitHub rule resolves, and read it
+// Download every installer a recipe or audited public feed resolves, and read it
 // the way the install route does — `ArtifactInspection` — on a machine where none
 // of the apps are installed.
 //
@@ -11,8 +11,7 @@ import DuoUpdaterCore
 // It is meant for a hosted runner, where the download costs nothing; it holds one
 // archive per host in flight and deletes each as soon as it has been read.
 //
-// For now it only reports. Comparing against what an earlier run saw, and filing
-// issues, come after a first run has shown what the noise looks like.
+// Identity history and issue streaks are persisted separately from `duo verify`.
 
 public struct InstallVerifyOptions: Sendable {
     public init() {}
@@ -74,6 +73,8 @@ public enum InstallVerify {
         public var detail: String?
         /// The status a server refused the download with, if that is why it failed.
         public var httpStatus: Int?
+        /// Generic feed resolution has no duplicate finding in `duo verify`.
+        public var resolutionIsInfra: Bool? = nil
         public var warnings: [String] = []
         public var notes: [String] = []
         public var bytes: Int64 = 0
@@ -109,6 +110,7 @@ public enum InstallVerify {
         /// pass: for a download without a Team ID it is the key copies installed
         /// from it check their updates against (`sparkleKeyCheck`).
         var recordedSparkleKey: String? = nil
+        var ownsResolutionFinding = false
     }
 
     struct Previous: Sendable {
@@ -267,6 +269,9 @@ public enum InstallVerify {
                 previous: previous(rule.recipeID),
                 recordedSparkleKey: identities?.entries[rule.recipeID]?.sparklePublicKey))
         }
+        targets += auditedTargets(
+            only: options.only, previous: previous,
+            recordedKeys: identities?.entries.compactMapValues(\.sparklePublicKey) ?? [:])
         guard !targets.isEmpty || !skipped.isEmpty else {
             die("nothing to verify — no recipe with an installer matches "
                 + options.only.joined(separator: ", "), code: 2)
@@ -280,6 +285,10 @@ public enum InstallVerify {
         \(mode)
           ─────────────────────────────────────────────
         """)
+        let feedTargets = targets.filter { $0.ownsResolutionFinding }
+        print("  audited public feeds: \(feedTargets.count) selected of \(AuditedUpdateFeeds.entries.count); "
+            + "\(AuditedUpdateFeeds.uncoveredRows.count) indexed rows and "
+            + "\(AuditedUpdateFeeds.uncoveredTracks.count) tracks explicitly uncovered")
 
         let started = Date()
         let disk = FreeSpaceWatermark()
@@ -291,6 +300,14 @@ public enum InstallVerify {
             return item
         }
         var items = (inspected + skipped).sorted { $0.recipeID < $1.recipeID }
+        // Never discard trust history because a target vanished from the
+        // compiled inventory. Surface the exact missing IDs until a reviewer
+        // explicitly retires their persisted identity/baseline entries.
+        let missing = missingInventoryItems(
+            identityIDs: Set(identities?.entries.keys.map { $0 } ?? []),
+            baselineIDs: Set(priorBaseline?.entries.keys.map { $0 } ?? []),
+            live: liveRecipeIDs(), only: options.only)
+        items += missing
         if var store = identities, let path = options.identitiesPath {
             let now = Date()
             for index in items.indices {
@@ -303,8 +320,9 @@ public enum InstallVerify {
                 print("\n  identity changes since first seen:")
                 for item in changed { print(line(item)) }
             }
-            store.prune(keeping: liveRecipeIDs())
-            stampFullPass(&store, incremental: incremental, only: options.only, at: now)
+            if missing.isEmpty {
+                stampFullPass(&store, incremental: incremental, only: options.only, at: now)
+            }
             do { try store.save(to: path) } catch {
                 die("could not write \(path.path): \(error.localizedDescription)", code: 2)
             }
@@ -314,7 +332,8 @@ public enum InstallVerify {
             let findings = items.map(finding)
             for finding in findings { _ = baseline.reconcile(finding) }
             baseline.updatedAt = Date()
-            _ = baseline.prune(keeping: Set(liveRecipeIDs().map(findingID)))
+            // Retiring a source is explicit: preserve issue IDs and trust
+            // history even when a catalog/registry edit removes its target.
             do {
                 if let path = options.baselinePath { try baseline.save(to: path) }
                 if let path = options.findingsPath { try DuoKit.Report.json(findings, to: path) }
@@ -363,13 +382,16 @@ public enum InstallVerify {
         let outcome = await target.resolve()
         guard let remote = outcome.remote else {
             item.detail = outcome.failure.map { "\($0.kind): \($0.detail)" } ?? "the probe answered nothing"
+            applyResolutionFailure(outcome, target: target, to: &item)
             return item
         }
         item.version = remote.displayVersion
         item.kind = remote.vendorInstallerKind.map { "\($0)" }
-        guard let url = remote.downloadURL, remote.vendorInstallerKind != nil else {
+        guard let url = remote.downloadURL,
+              remote.vendorInstallerKind != nil || target.registry == "sparkle" else {
             let said = outcome.warnings.map(\.display)
             item.detail = said.isEmpty ? "the probe resolved no installer" : said.joined(separator: "; ")
+            applyResolutionFailure(outcome, target: target, to: &item)
             return item
         }
         item.url = displayURL(url)
@@ -397,7 +419,8 @@ public enum InstallVerify {
 
         let bundleName = target.bundleID.split(separator: ".").last.map(String.init) ?? "App"
         let inspection = await ArtifactInspection.inspect(
-            remote, bundleName: bundleName, workDir: workDir)
+            remote, bundleName: bundleName, workDir: workDir,
+            sparklePublicKey: target.registry == "sparkle" ? target.recordedSparkleKey : nil)
         // Here, not after returning: the archive and the unpacked app are both
         // still in `workDir`, and the `defer` above deletes them on the way out.
         await disk.sample()
@@ -409,20 +432,26 @@ public enum InstallVerify {
             item.bytes = failure.bytes
             item.httpStatus = failure.httpStatus
         case .success(let inspected):
+            item.kind = "\(inspected.kind)"
             item.bytes = inspected.bytes
             item.finalHost = inspected.finalHost
             item.identity = inspected.identity
             item.packageTeamIdentifier = inspected.packageTeamIdentifier
             item.notes = inspected.notes
+            if inspected.sparkleSignatureVerified {
+                item.notes.append("sparkleArchiveSignatureVerified: the full archive verifies against "
+                    + "the previously recorded or audited public key")
+            }
             // The installer read fine, but it is an older release's: newer ones
             // carry none the rule matches — renamed (PrintCraft, #1087) or absent.
             let renamed = outcome.warnings
                 .filter { ProbeWarning.installPatternKinds.contains($0.kind) }
                 .map(\.display)
-            item.warnings = renamed + warnings(
-                identity: inspected.identity, remote: remote, recipeBundleID: target.bundleID)
+            item.warnings = inspected.warnings + renamed + warnings(
+                identity: inspected.identity, remote: remote, recipeBundleID: target.bundleID,
+                sparkleSignatureVerified: inspected.sparkleSignatureVerified)
             item.notes += notes(identity: inspected.identity, remote: remote)
-            if let check = await sparkleKeyCheck(
+            if target.registry != "sparkle", let check = await sparkleKeyCheck(
                 identity: inspected.identity, recordedKey: target.recordedSparkleKey,
                 bundleID: target.bundleID) {
                 let verdict = sparkleKeyVerdict(check)
@@ -505,6 +534,20 @@ public enum InstallVerify {
     /// a download that was read counts: a failed or unresolved one says nothing
     /// about the vendor's identity, and must neither record nor clear anything.
     static func compare(_ item: inout Item, with store: inout InstallIdentities, at date: Date) {
+        // A newly catalogued feed already has an audited key. If its first
+        // archive fails that key, recording the package's replacement key here
+        // would make the second sweep trust it and clear the warning before
+        // the baseline's reporting threshold. Leave the first sighting
+        // unrecorded until continuity is restored or explicitly reviewed.
+        if store.entries[item.recipeID] == nil,
+           item.warnings.contains(where: {
+               $0.hasPrefix("sparkleArchiveSignatureChanged:")
+                   || $0.hasPrefix("sparkleKeyOnlyIdentityInvalid:")
+                   || $0.hasPrefix("sparkleUpdateKeyRemoved:")
+           }) {
+            item.notes.append("identityNotRecorded: the first archive failed its Sparkle anchor or payload identity checks")
+            return
+        }
         guard item.status == .ok || item.status == .warn,
               let observed = InstallIdentities.observed(
                   identity: item.identity, packageTeamIdentifier: item.packageTeamIdentifier,
@@ -574,7 +617,11 @@ public enum InstallVerify {
         case .ok: status = .ok
         case .warn: status = warnings.isEmpty ? .ok : .warn
         case .failed:
-            status = item.stage == .download && !isRefusal(item.httpStatus) ? .infra : .broken
+            if item.stage == .resolve {
+                status = item.resolutionIsInfra == true ? .infra : .broken
+            } else {
+                status = item.stage == .download && !isRefusal(item.httpStatus) ? .infra : .broken
+            }
         case .unresolved, .skipped: status = .skipped
         }
         let host = item.finalHost ?? item.url.flatMap { URL(string: $0)?.host } ?? item.probeHost
@@ -597,13 +644,15 @@ public enum InstallVerify {
     /// the identity store keeps entries for.
     static func liveRecipeIDs() -> Set<String> {
         Set(VendorProbeRegistry.recipes.filter { $0.install != nil }.map(\.recipeID)
-            + GitHubReleaseRegistry.rules.filter { $0.installAssetPattern != nil }.map(\.recipeID))
+            + GitHubReleaseRegistry.rules.filter { $0.installAssetPattern != nil }.map(\.recipeID)
+            + AuditedUpdateFeeds.entries.map(\.recipeID))
     }
 
     /// What an installed copy's gates would refuse, judged from the download
     /// alone.
     static func warnings(
-        identity: ArtifactInspection.Identity?, remote: RemoteVersion, recipeBundleID: String
+        identity: ArtifactInspection.Identity?, remote: RemoteVersion, recipeBundleID: String,
+        sparkleSignatureVerified: Bool = false
     ) -> [String] {
         guard let identity else { return [] }
         var out: [String] = []
@@ -615,8 +664,22 @@ public enum InstallVerify {
             out.append("bundleIDMismatch: the download is \(downloaded), the recipe is keyed by \(recipeBundleID)")
         }
         // Gate 3 refuses a download without a Team unless the route is digest-only.
-        if identity.teamIdentifier == nil, remote.installTrust == .developerID {
+        if identity.teamIdentifier == nil, remote.installTrust == .developerID,
+           !sparkleSignatureVerified {
             out.append("noTeamIdentifier: the download is not Developer ID signed")
+        }
+        if identity.teamIdentifier == nil, sparkleSignatureVerified {
+            // The archive key alone is insufficient on production's key-only
+            // route: the new app must retain an update key and both its plist
+            // and code-signing identifier must name this exact product.
+            if identity.sparklePublicKey?.isEmpty != false {
+                out.append("sparkleUpdateKeyRemoved: the no-Team payload contains no update key — "
+                    + "existing copies refuse it even though the archive signature verifies")
+            }
+            if identity.bundleIdentifier != recipeBundleID || identity.signedIdentifier != recipeBundleID {
+                out.append("sparkleKeyOnlyIdentityInvalid: the no-Team payload's plist and signed "
+                    + "identifiers must both match \(recipeBundleID)")
+            }
         }
         return out
     }

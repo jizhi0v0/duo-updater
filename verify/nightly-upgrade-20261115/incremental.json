@@ -1,0 +1,47 @@
+{
+  "bytes" : 0,
+  "generatedAt" : "2026-11-15T10:55:01Z",
+  "hostConcurrency" : 3,
+  "items" : [
+    {
+      "bundleID" : "com.knollsoft.Rectangle",
+      "bytes" : 0,
+      "detail" : "unchanged since 2026-11-15: same version and URL, last outcome clean — not downloaded",
+      "notes" : [
+
+      ],
+      "probeHost" : "rectangleapp.com",
+      "recipeID" : "sparkle:com.knollsoft.Rectangle:stable",
+      "registry" : "sparkle",
+      "seconds" : 0.6470530033111572,
+      "status" : "skipped",
+      "url" : "https:\/\/download.rectangleapp.com\/Rectangle2.0.4.dmg",
+      "urlSHA256" : "2d93f25b32976cae0fe28fe995bb8ee4c25195890fec94aa1347a648197331ef",
+      "version" : "2.0.4",
+      "warnings" : [
+
+      ]
+    },
+    {
+      "bundleID" : "run.kuvo.app",
+      "bytes" : 0,
+      "detail" : "unchanged since 2026-11-15: same version and URL, last outcome clean — not downloaded",
+      "notes" : [
+
+      ],
+      "probeHost" : "github.com",
+      "recipeID" : "sparkle:run.kuvo.app:stable",
+      "registry" : "sparkle",
+      "seconds" : 1.391832947731018,
+      "status" : "skipped",
+      "url" : "https:\/\/github.com\/serhatandic\/box\/releases\/download\/v0.1.3\/Kuvo.dmg",
+      "urlSHA256" : "b7c736a3d178d6f2f6f4d60427a56094a9d24548eda508d1de463eef7c0ce38f",
+      "version" : "0.1.3",
+      "warnings" : [
+
+      ]
+    }
+  ],
+  "minimumFreeBytes" : 18563973120,
+  "seconds" : 1.4016059637069702
+}

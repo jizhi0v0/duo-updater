@@ -265,9 +265,11 @@ extension Verify {
                     + "the update can be detected but never installed")
         }
 
-        // A superseding entry's expiry condition, made mechanical: it is only
+        // A version-lag entry's expiry condition, made mechanical: it is only
         // justified while the address it overrides is behind the one it points
-        // at.
+        // at. When the declared address now serves a different product, these
+        // versions belong to separate sequences and this comparison has no
+        // meaning; the explicit justification skips only this check.
         //
         // An empty dead side is NOT that condition failing — it is the condition
         // at its strongest. A dead address that has stopped offering anything a
@@ -278,12 +280,13 @@ extension Verify {
         // as a complaint there would file an issue every night against the one
         // entry behaving perfectly.
         //
-        // What DOES still complain is two non-empty sides that cannot be ranked
-        // — a dead feed naming only a build against a live feed naming only a
-        // marketing string. `VersionComparator` refuses to cross those
-        // namespaces, and "we can no longer show this entry is justified" is
-        // worth being told however it became true.
-        if case .read(let dead)? = observation.declared {
+        // For version-lag entries, two non-empty sides that cannot be ranked
+        // still complain — a dead feed naming only a build against a live feed
+        // naming only a marketing string. `VersionComparator` refuses to cross
+        // those namespaces, and "we can no longer show this entry is justified"
+        // is worth being told however it became true.
+        if entry.supersessionJustification != .declaredFeedServesDifferentProduct,
+           case .read(let dead)? = observation.declared {
             let liveSide = VersionSide(marketing: marketing, build: live.headBuildVersion)
             let deadSide = VersionSide(
                 marketing: dead.headShortVersion, build: dead.headBuildVersion)

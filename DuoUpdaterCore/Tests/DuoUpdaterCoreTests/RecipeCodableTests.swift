@@ -228,6 +228,8 @@ struct RecipeCodableTests {
             // Standard-library `RawRepresentable` coding, not code in this file:
             // listed so the population stays complete, checked for round trip only.
             .caseName(ReleaseChannel.self, all: ReleaseChannel.allCases, name: \.rawValue),
+            .caseName(SparkleFeedCatalog.SupersessionJustification.self,
+                     all: SparkleFeedCatalog.SupersessionJustification.allCases, name: \.rawValue),
             .caseName(MacAppStoreProbeCase.Route.self, all: MacAppStoreProbeCase.Route.allCases, name: \.rawValue),
             .caseName(GitHubCandidateScope.self, all: [.newest, .installedMajorLineOrNewestStable], name: \.rawValue),
             .caseName(InstalledApp.BuildNamespace.self, all: [.bundle, .vendor], name: \.rawValue),

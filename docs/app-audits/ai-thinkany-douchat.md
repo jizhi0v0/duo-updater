@@ -79,7 +79,8 @@
   满足旧包原有的 designated requirement（指定要求）。两组 Team 各自的同 Team 更新继续走原校验。
 - 格式: zip，顶层只有 `Douchat.app`
 - **读的是**: 人人都能下载的 GA 版：manifest 里只有一个版本，就是 app 自己的更新器读的那份，和官网下载的是同一个构建
-- 没有跑 `--install` 实装。
+- 2026-11-15 已通过签名 Release CLI 跑真实 `0.1.28` → `0.1.29`，结果
+  `applied:true / outcome:installed / route:vendor`，下载 123,001,804 bytes。见下方真机升级记录。
 
 ## 已知问题
 
@@ -191,7 +192,7 @@ and (certificate leaf[subject.OU] = JU9K7W6T6W or certificate leaf[subject.OU] =
 前提是 `verifySatisfiesDesignatedRequirement` 按旧包原有、未改写的指定要求验证下载包通过。
 不是仅凭两个 Team 字符串放行，也没有把新包自己的指定要求当作信任依据。
 同 Team 的路径不变；未登记的 Team、其他 bundle、逆向迁移与缺少旧签名授权的包仍拒绝。
-后续严格代码签名、bundle ID、架构、OS 校验和 privileged staging 的指定要求 + cdhash 复验保持不变。
+严格代码签名、bundle ID、架构、OS 校验和 privileged staging 的指定要求 + cdhash 复验保持不变。
 新包的指定要求不授权旧 Team，跨 Team 回滚仍会被备份的真实性校验拒绝。
 未核实厂商改变签名主体的具体原因，也未测试 Douchat 自更新器是否支持跨 Team 迁移。
 
@@ -199,3 +200,21 @@ and (certificate leaf[subject.OU] = JU9K7W6T6W or certificate leaf[subject.OU] =
 `https://cdn.douchat.ai/thinkany/Douchat-0.1.29-mac-arm64.zip` 和
 `https://cdn.douchat.ai/thinkany/Douchat-0.1.29-mac-arm64.dmg`，按上方「如何复验」的哈希、解包、
 签名命令检查；dmg 应只读挂载，完成后卸载。
+
+## 真机升级（2026-11-15）
+
+`make cli` 和 `make install` 均完成签名 Release 构建与部署。Douchat 未运行时执行：
+
+```sh
+duo install /Applications/Douchat.app --yes --json
+```
+
+```json
+{"app":"Douchat","applied":true,"bytesDownloaded":123001804,"outcome":"installed","route":"vendor"}
+```
+
+退出码 0。磁盘包为 `ai.thinkany.douchat` `0.1.29` / `0.1.29`、arm64、Team `8PL52G56V9`；
+`codesign --verify --deep --strict` 退出 0，`spctl` 返回 `accepted / Notarized Developer ID`。
+随后 `duo check /Applications/Douchat.app --all --json` 返回 `source:Electron`、
+`installedVersion:0.1.29`、`latestVersion:0.1.29`、`status:up-to-date`、`hasUpdate:false`。
+验证未启动 Douchat。

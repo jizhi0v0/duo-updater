@@ -49,3 +49,7 @@ Observed archive checksums:
 - v0.16.1 arm64: `39f1c05dffee98270fb468045ddcd31d0bd03f6236a6651399683386e5fa0227`.
 
 GUI validation is incomplete: after the app was rebuilt and installed, the available native automation returned `timeoutReached` / `noWindowsAvailable` when trying to open its menu-bar popover. No screenshot or light/dark visual pass is claimed. Keep the PR open until the installed CLI row, icon and structured notes have been viewed and recorded.
+
+The final signed CLI build also updated verified v0.16.0 to v0.16.1 while a v0.16.0 reader stayed open on a temporary Markdown document. Installation returned `applied:true`; a fresh check returned `upToDate` and correctly reported one running process on the replaced binary. The current file again matched the verified v0.16.1 hash. The old reader remained running until it was quit normally with `q`, then exited successfully.
+
+Final local validation: `make test` passed all three parts (Core: 7,498 Swift Testing cases plus XCTest, with one pre-existing known issue; CLI: 704 cases; App: all 365 cases executed; script and localization checks passed). `make install` and `make cli` both completed with Developer ID verification and the macOS 15 runtime-library checks. Independent gpt-6-astra adversarial review on `d645a32266c4dba6f2c6db95676c57820df97ca2` had no remaining findings after the alias, Cargo ownership and exact-command regression fixes.

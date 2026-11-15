@@ -127,11 +127,11 @@ import Foundation
     }
 
     /// No updater or provider under `CLITools` builds its child's environment from
-    /// the full one. Source-level because the 31 default closures are not
+    /// the full one. Source-level because the default closures are not
     /// reachable from a test without running a vendor's tool; the one exception is
     /// the administrator runner, whose script takes the proxy variables by name
     /// (`CLIToolAdministratorRun.proxies`) and nothing else.
-    /// Kills: a new updater copying the old line; reverting one of the 32.
+    /// Kills: a new updater copying the old line; reverting one of the 33.
     @Test func noCLIToolChildInheritsTheFullEnvironment() throws {
         let tools = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
@@ -149,6 +149,6 @@ import Foundation
             if text.contains("processInfo.environmentWithSystemProxy") { inheriting.append(file.lastPathComponent) }
         }
         #expect(inheriting == ["CLIToolAdministratorRun.swift"], "\(inheriting)")
-        #expect(scrubbed == 32)
+        #expect(scrubbed == 33)
     }
 }

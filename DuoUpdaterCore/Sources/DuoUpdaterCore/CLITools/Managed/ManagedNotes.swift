@@ -58,6 +58,9 @@ enum ManagedNotes {
     /// A tag of another product in the same repository (`tagPrefix`) is never
     /// read as this item's.
     static func gitHubReleases(owner: String, repo: String, tagPrefix: String, force: Bool) async throws -> Changelog {
+        if owner.lowercased() == "deepanshumishraa", repo.lowercased() == "leaf" {
+            return try await LeafChangelog.fetch(force: force)
+        }
         let source = URL(string: "https://api.github.com/repos/\(owner)/\(repo)/releases?per_page=30")!
         let pattern = tagPrefix.isEmpty ? nil : "^" + NSRegularExpression.escapedPattern(for: tagPrefix) + "v?(\\d.*)$"
         return try await DenoChangelog.gitHubReleases(source, force: force, session: .updates) { data in

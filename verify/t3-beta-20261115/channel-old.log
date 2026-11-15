@@ -1,0 +1,12 @@
+
+  UpdateChecker.check() — full production source chain
+    app             T3 Code (Beta)
+    bundle id       com.t3tools.t3code
+    short version   0.1.6
+    build version   0.1.6
+    ─────────────────────────────────────────────
+    detected channel → beta
+    winning source    → GitHub
+    latest            → 0.1.9
+    status            → UPDATE → 0.1.9
+    ✓ channel matches --expect beta

@@ -1,0 +1,32 @@
+
+  app             T3 Code (Beta)
+  bundle id       com.t3tools.t3code
+  short version   0.1.9
+  build version   0.1.9
+  KSChannelID     <none>
+  RemotingName    <none>
+  BuildID         <none>
+  package.json    <none>
+  HFBuildLabel    <none>
+  Blender build   <none>
+  Lapce build     <none>
+  inferred        beta
+  ChannelBinding  <none for this app>
+  ─────────────────────────────────────────────
+  detected channel  → beta
+  ✓ detection matches --expect beta
+  ─────────────────────────────────────────────
+  VendorProbe       — no recipe registered for 'com.t3tools.t3code'
+    → expected for an app covered by Sparkle / GitHub / the App Store. The full
+      chain below is the one that answers for those.
+  ─────────────────────────────────────────────
+  UpdateChecker.check() — full production source chain
+    SUFeedURL       <none>
+    winning source  GitHub
+    latest          0.1.9
+    download        https://github.com/pingdotgg/t3code/releases/download/v0.1.9/T3-Code-0.1.9-arm64.dmg
+    release notes   0 chars inline, changelogURL https://github.com/pingdotgg/t3code/releases/tag/v0.1.9
+    changelog pane  source structured: 1 entries; newest 0.1.9: 203 items, headings []; first items ["**T3 Connect agent sign-in.** Approve ag", "**Send during uploads.** Send messages w", "**Claude session approvals.** Allow an M"]
+    release history 1 entries
+    deltas          0
+    status          up to date

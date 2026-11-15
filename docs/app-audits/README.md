@@ -248,7 +248,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**Memoh Desktop**](ai-memoh-desktop.md) · `ai.memoh.desktop` — P (one-click arm64 zip + feed sha512) · 真包 2026.9.16-1 解包验证 ✓（Team P9R669C27U，notarized）· bundle 的 `app-update.yml` 写着 `channel: 1`，通用 Electron 源拿 `1-mac.yml` 会 404，所以用 recipe 读 `latest-mac.yml` · changelog: OSS 仓库 GitHub releases（条目保留 `v` tag，编号与桌面版不同）· 一键真机端到端 ✓ 2026.10.5-1→2026.10.19-1（不运行 + 运行中，复用停放 zip）· 同 id 的 OSS GitHub 0.x 构建（含带本地 server 的 Memoh Local）只检测（`OneClickGate`）· 2026-10-19
 - [x] [**Chatbox**](xyz-chatboxapp-app.md) · `xyz.chatboxapp.app` — P (one-click arm64 dmg + feed sha512) · **端到端验过**：装 1.22.6 → 一键到 1.23.1，日志里 `verifyingSignature` 证明 sha512 闸真的跑了 ✓ · **已接 changelog**（厂商 changelog 页，30 条，验过不吃 download 链接）· 2026-09-03
 - [x] [**AnythingLLM**](com-anythingllm.md) · `com.anythingllm` — P (one-click arm64 dmg) · 真包 1.16.1 挂载验证 ✓ · **已接 changelog**（GitHub releases，`version.txt` 与 tag 同号；`docs.anythingllm.com/changelog` 404 不是源）· 2026-09-03
-- [x] [**T3 Code**](com-t3tools-t3code.md) · `com.t3tools.t3code` — G(alpha/nightly) · 2 channels，共享 bundle id，app 名渠道词 + GitHub 双 rule · **两轨一键 ✓**（Team ARK85ZXQ4Z，真包挂载验证）· 2026-08-30 · 仓库出现了未覆盖的 `-preview.` 发布系列（tag 自 2026-09-12、release 自 2026-09-13；2026-09-14 复测）
+- [x] [**T3 Code**](com-t3tools-t3code.md) · `com.t3tools.t3code` — G(alpha/beta/nightly) · Beta 主发布轨新增，历史 Alpha 兼容与 Nightly 保留；preview 未覆盖 · VM 验证见审计 · 2026-11-15
 - [x] [**Kun**](com-xingyuzhong-deepseekgui.md) · `com.xingyuzhong.deepseekgui` — G (one-click arm64 dmg) · 真包 v0.3.7 挂载验证 ✓ · 2026-08-30
 - [x] [**Reviu**](com-jorisgallot-reviu.md) · `com.jorisgallot.reviu` — G (one-click arm64 dmg) · 真包 v1.4.0 挂载验证 ✓ · 一键 1.3.0→1.4.0 端到端 ✓ · 2026-09-29
 - [x] [**Obelisk**](com-obelisk-app.md) · `com.obelisk.app` — G (**detection-only**：0.2.2 为 ad-hoc 签名) C (GitHub releases) · 真包 v0.2.2 挂载验证 ✓ · 下一版起 bundle 自带 Sparkle feed，待复验 · 2026-10-02
@@ -562,3 +562,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
   订阅状态、深链与 MCP。不是单个 app 的审计。
 
 2026-11-14：[PKG helper VM 专项验证](../../verify/pkg-helper-coverage-20261114/README.md)——19 个可用身份；ToDesk / 向日葵 / ChatGPT Classic 保留原路径，非完整渠道审计。
+
+## 本机副本身份调查
+
+- [Disktree NSH](com-huacnlee-disktree.md) — `com.huacnlee.disktree`，独立于 tobi/disktree；需单独接入，不能作 ID 迁移；2026-11-15。

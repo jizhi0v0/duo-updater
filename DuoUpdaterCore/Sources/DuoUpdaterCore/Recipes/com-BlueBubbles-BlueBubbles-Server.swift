@@ -15,7 +15,7 @@ enum com_BlueBubbles_BlueBubbles_Server {
         // Team-ID route (`installTrust` default `.developerID`, which needs no GitHub
         // `digest`), not the detection-only group in `Recipes/org-alacritty.swift`.
         //
-        // Best-effort one-click on `BlueBubbles-<ver>-arm64.dmg`, which wraps
+        // Best-effort one-click on `BlueBubbles-<ver>-arm64-mac.zip`, which wraps
         // `BlueBubbles.app` reporting the tag as its version. The bare
         // `BlueBubbles-<ver>.dmg` is an x86_64-only build; DuoUpdater is arm64-only
         // (`App/project.yml`), so the pattern anchors `-arm64` (checked 2026-10-02;
@@ -34,7 +34,7 @@ enum com_BlueBubbles_BlueBubbles_Server {
         GitHubReleaseRule(
             bundleID: "com.BlueBubbles.BlueBubbles-Server",
             owner: "BlueBubblesApp", repo: "bluebubbles-server",
-            installAssetPattern: #"^BlueBubbles-[0-9.]+-arm64\.dmg$"#,
-            installerKind: .dmg),
+            installAssetPattern: #"^BlueBubbles-[0-9.]+-arm64-mac\.zip$"#,
+            installerKind: .zip),
         ])
 }

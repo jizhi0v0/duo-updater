@@ -122,11 +122,11 @@ private func extract(
     // stable pattern must reject it so a stable install is never offered one.
     #expect(extract("v0.7.0-beta.2", "sh.paseo.desktop") == nil)
     let pattern = try! #require(rule("sh.paseo.desktop").installAssetPattern)
-    #expect("Paseo-0.6.1-arm64.dmg".range(of: pattern, options: .regularExpression) != nil)
+    #expect("Paseo-0.6.1-arm64.zip".range(of: pattern, options: .regularExpression) != nil)
     #expect("Paseo-0.6.1-amd64.deb".range(of: pattern, options: .regularExpression) == nil)
     #expect("beta-mac.yml".range(of: pattern, options: .regularExpression) == nil)
     #expect(rule("sh.paseo.desktop").slug == "getpaseo/paseo")
-    #expect(rule("sh.paseo.desktop").installerKind == .dmg)
+    #expect(rule("sh.paseo.desktop").installerKind == .zip)
 }
 
 @Test func openSuperWhisperRuleReadsBareTagsAndTheVersionlessDmg() {
@@ -176,15 +176,15 @@ private func extract(
     #expect(rule("com.local.claudestatusbar").installerKind == .dmg)
 }
 
-@Test func claudeDevtoolsRulePinsTheArm64Dmg() {
+@Test func claudeDevtoolsRulePinsTheArm64ZIP() {
     #expect(extract("v0.5.0", "com.claudecode.context") == "0.5.0")
     #expect(extract("v0.5.0-rc.1", "com.claudecode.context") == nil)
     let pattern = try! #require(rule("com.claudecode.context").installAssetPattern)
-    #expect("claude-devtools-0.5.0-arm64.dmg".range(of: pattern, options: .regularExpression) != nil)
-    #expect("claude-devtools-0.5.0-x64.dmg".range(of: pattern, options: .regularExpression) == nil)
-    #expect("claude-devtools-0.5.0-arm64.zip".range(of: pattern, options: .regularExpression) == nil)
+    #expect("claude-devtools-0.5.0-arm64.zip".range(of: pattern, options: .regularExpression) != nil)
+    #expect("claude-devtools-0.5.0-x64.zip".range(of: pattern, options: .regularExpression) == nil)
+    #expect("claude-devtools-0.5.0-arm64.dmg".range(of: pattern, options: .regularExpression) == nil)
     #expect(rule("com.claudecode.context").slug == "matt1398/claude-devtools")
-    #expect(rule("com.claudecode.context").installerKind == .dmg)
+    #expect(rule("com.claudecode.context").installerKind == .zip)
 }
 
 @Test func insomniaRuleMatchesCoreTagOnly() {
@@ -371,9 +371,9 @@ func t3CodePrimaryRulesRejectNightlyTagsAndAssets(channel: ReleaseChannel) {
 
 @Test func brunoRulePinsArm64() {
     #expect(extract("v4.0.0", "com.usebruno.app") == "4.0.0")
-    #expect(matches("bruno_4.0.0_arm64_mac.dmg", "com.usebruno.app"))
+    #expect(matches("bruno_4.0.0_arm64_mac.zip", "com.usebruno.app"))
     // An Intel dmg ships in the same release — never hand it to an arm64 Mac.
-    #expect(!matches("bruno_4.0.0_x64_mac.dmg", "com.usebruno.app"))
+    #expect(!matches("bruno_4.0.0_x64_mac.zip", "com.usebruno.app"))
     #expect(!matches("bruno_4.0.0_arm64_mac.pkg", "com.usebruno.app"))
     #expect(!matches("bruno_4.0.0_arm64_win.zip", "com.usebruno.app"))
 }
@@ -560,21 +560,21 @@ private func matches(
     #expect(!matches("DB.Browser.for.SQLite-v3.13.1-win64.msi", "net.sourceforge.sqlitebrowser"))
 }
 
-@Test func drawioRulePicksArm64Dmg() {
+@Test func drawioRulePicksArm64ZIP() {
     #expect(extract("v31.1.8", "com.jgraph.drawio.desktop") == "31.1.8")
-    #expect(matches("draw.io-arm64-31.1.8.dmg", "com.jgraph.drawio.desktop"))
-    #expect(!matches("draw.io-universal-31.1.8.dmg", "com.jgraph.drawio.desktop"))
-    #expect(!matches("draw.io-arm64-31.1.8.zip", "com.jgraph.drawio.desktop"))
+    #expect(matches("draw.io-arm64-31.1.8.zip", "com.jgraph.drawio.desktop"))
+    #expect(!matches("draw.io-universal-31.1.8.zip", "com.jgraph.drawio.desktop"))
+    #expect(!matches("draw.io-arm64-31.1.8.dmg", "com.jgraph.drawio.desktop"))
 }
 
 @Test func podmanDesktopRuleExcludesAirgapBuild() {
     #expect(extract("v1.29.1", "io.podmandesktop.PodmanDesktop") == "1.29.1")
-    #expect(matches("podman-desktop-1.29.1-arm64.dmg", "io.podmandesktop.PodmanDesktop"))
+    #expect(matches("podman-desktop-1.29.1-arm64.zip", "io.podmandesktop.PodmanDesktop"))
     // The airgap variant is the same app plus ~900 MB of bundled images; a
     // substring match would download it instead.
-    #expect(!matches("podman-desktop-airgap-1.29.1-arm64.dmg", "io.podmandesktop.PodmanDesktop"))
-    #expect(!matches("podman-desktop-1.29.1-universal.dmg", "io.podmandesktop.PodmanDesktop"))
-    #expect(!matches("podman-desktop-1.29.1-arm64.zip", "io.podmandesktop.PodmanDesktop"))
+    #expect(!matches("podman-desktop-airgap-1.29.1-arm64.zip", "io.podmandesktop.PodmanDesktop"))
+    #expect(!matches("podman-desktop-1.29.1-universal.zip", "io.podmandesktop.PodmanDesktop"))
+    #expect(!matches("podman-desktop-1.29.1-arm64.dmg", "io.podmandesktop.PodmanDesktop"))
 }
 
 @Test func bitwardenRuleTracksTheDesktopTagOnly() {
@@ -1105,25 +1105,23 @@ private func matches(
     #expect(extract("11.15", "org.winehq.wine-staging.wine") == "11.15")
 }
 
-/// BlueBubbles Server left the detection-only group on 2026-10-02: its dmg is
-/// Developer ID signed (Team WPV275H8W7) and only unnotarized, which no install
-/// gate checks. Real v1.9.9 assets; DuoUpdater is arm64-only, so the bare dmg
-/// (BUILD_PLAIN_ARCH) must never be picked.
-@Test func blueBubblesServerInstallsTheArm64Dmg() {
+/// BlueBubbles uses its ARM64 ZIP. A Developer ID signature without
+/// notarization remains eligible for the existing signature/identity gates.
+@Test func blueBubblesServerInstallsTheArm64ZIP() {
     let id = "com.BlueBubbles.BlueBubbles-Server"
-    #expect(rule(id).installerKind == .dmg)
+    #expect(rule(id).installerKind == .zip)
     #expect(extract("v1.9.9", id) == "1.9.9")
-    #expect(matches("BlueBubbles-1.9.9-arm64.dmg", id))
-    #expect(!matches("BlueBubbles-1.9.9.dmg", id))
-    #expect(!matches("BlueBubbles-1.9.9-arm64.dmg.blockmap", id))
+    #expect(matches("BlueBubbles-1.9.12-arm64-mac.zip", id))
+    #expect(!matches("BlueBubbles-1.9.12.dmg", id))
+    #expect(!matches("BlueBubbles-1.9.12-arm64-mac.zip.blockmap", id))
     #expect(!matches("BlueBubbles-1.9.6-mac.zip", id))
     guard let pattern = rule(id).installAssetPattern else {
         Issue.record("\(id) has no installAssetPattern")
         return
     }
-    let v199 = assetList(["BlueBubbles-1.9.9-arm64.dmg", "BlueBubbles-1.9.9.dmg"])
+    let v199 = assetList(["BlueBubbles-1.9.12-arm64-mac.zip", "BlueBubbles-1.9.12.dmg"])
     #expect(GitHubReleaseRule.installableAsset(from: v199, matching: pattern, preferring: .arm64)?
-        .url.lastPathComponent == "BlueBubbles-1.9.9-arm64.dmg")
+        .url.lastPathComponent == "BlueBubbles-1.9.12-arm64-mac.zip")
 }
 
 @Test func registryHasNoDuplicateBundleChannelPairs() {
@@ -1152,10 +1150,10 @@ private func matches(
 }
 
 /// Cherry Studio publishes Linux and Windows artifacts that also carry `arm64`
-/// in their names, so the dmg extension is what separates them.
-@Test func cherryStudioRulePicksTheDmgAmongArm64Siblings() {
+/// in their names, so the macOS token and ZIP extension separate them.
+@Test func cherryStudioRulePicksTheMacZIPAmongArm64Siblings() {
     #expect(extract("v2.0.5", "com.kangfenmao.CherryStudio") == "2.0.5")
-    #expect(matches("Cherry-Studio-2.0.5-arm64.dmg", "com.kangfenmao.CherryStudio"))
+    #expect(matches("Cherry-Studio-2.2.2-mac-arm64.zip", "com.kangfenmao.CherryStudio"))
     for sibling in ["Cherry-Studio-2.0.5-arm64.AppImage", "Cherry-Studio-2.0.5-arm64.deb",
                     "Cherry-Studio-2.0.5-arm64-setup.exe", "Cherry-Studio-2.0.5-aarch64.rpm"] {
         #expect(!matches(sibling, "com.kangfenmao.CherryStudio"), "\(sibling) is not a Mac app")
@@ -1171,13 +1169,13 @@ private func matches(
     #expect(!matches("Rancher.Desktop-1.24.0.x86_64.dmg", "io.rancherdesktop.app"))
 }
 
-/// Upscayl ships ONE universal dmg — no architecture token to match on. The
-/// pattern must not grow one, and must still reject the zip beside it.
-@Test func upscaylRuleMatchesTheUniversalDmg() {
+/// Upscayl ships a universal ZIP without an architecture token. The pattern
+/// must keep that spelling and reject its DMG sibling.
+@Test func upscaylRuleMatchesTheUniversalZIP() {
     #expect(extract("v2.15.0", "org.upscayl.Upscayl") == "2.15.0")
-    #expect(matches("upscayl-2.15.0-mac.dmg", "org.upscayl.Upscayl"))
-    #expect(!matches("upscayl-2.15.0-mac.zip", "org.upscayl.Upscayl"))
-    #expect(!matches("upscayl-2.15.0-mac.dmg.blockmap", "org.upscayl.Upscayl"))
+    #expect(matches("upscayl-2.15.0-mac.zip", "org.upscayl.Upscayl"))
+    #expect(!matches("upscayl-2.15.0-mac.dmg", "org.upscayl.Upscayl"))
+    #expect(!matches("upscayl-2.15.0-mac.zip.blockmap", "org.upscayl.Upscayl"))
 }
 
 /// WailBrew ships the app as a zip whose name repeats the `v` from the tag.
@@ -1209,9 +1207,9 @@ private func matches(
 @Test func secondPassRulesAllInstall() {
     let expected: [String: VendorInstallerKind] = [
         "io.rancherdesktop.app": .dmg,
-        "com.kangfenmao.CherryStudio": .dmg,
+        "com.kangfenmao.CherryStudio": .zip,
         "org.RedisLabs.RedisInsight-V2": .dmg,
-        "org.upscayl.Upscayl": .dmg,
+        "org.upscayl.Upscayl": .zip,
         "io.github.wickenico.wailbrew": .zip,
     ]
     for (bundleID, kind) in expected {

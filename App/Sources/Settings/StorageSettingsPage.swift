@@ -271,6 +271,7 @@ struct StorageSettingsPage: View {
             do {
                 try StorageInventory.removeContents(of: .formulaIcons)
                 try StorageInventory.removeContents(of: .cliCache)
+                try StorageInventory.removeContents(of: .installerArchives)
                 return nil
             } catch {
                 return error.localizedDescription
@@ -348,6 +349,7 @@ struct StorageSettingsPage: View {
         case .networkCache: String(localized: "Web and download cache")
         case .formulaIcons: String(localized: "Homebrew formula icons")
         case .cliCache: String(localized: "duo command-line cache")
+        case .installerArchives: String(localized: "Update archive cache")
         case .backups: String(localized: "Backups on this Mac")
         case .backupIndex: String(localized: "Backup index")
         case .history: String(localized: "History and network log")
@@ -370,6 +372,8 @@ struct StorageSettingsPage: View {
             String(localized: "Icons fetched from each formula’s homepage.")
         case .cliCache:
             String(localized: "Responses kept for the duo command.")
+        case .installerArchives:
+            String(localized: "Original ZIPs kept for smaller future updates. Up to 2 GB; cleared first when space is needed.")
         case .backups:
             String(localized: "The previous version of each updated app, for undoing an update. Backups on another disk are not counted here.")
         case .backupIndex:

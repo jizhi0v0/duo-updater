@@ -32,9 +32,9 @@ probes[0].maximumSystemVersionPattern = nil
 probes[0].entryStartPattern = nil
 probes[0].install? = struct VendorInstallSpec
 probes[0].install?.urlSource = .versionTemplate(_:)
-probes[0].install?.urlSource.0 = "https://dr2v7l5emb758.cloudfront.net/{version}/Granola-{version}-mac-universal.dmg"
-probes[0].install?.kind = .dmg
-probes[0].install?.checksumPattern = nil
+probes[0].install?.urlSource.0 = "https://dr2v7l5emb758.cloudfront.net/{version}/Granola-{version}-mac-universal.zip"
+probes[0].install?.kind = .zip
+probes[0].install?.checksumPattern? = "Granola-[^\\n]+-mac-universal\\.zip\\s*\\n\\s*sha512:\\s*([A-Za-z0-9+/=]+)"
 probes[0].install?.checksumFormat = .sha512Base64
 probes[0].install?.requestHeaders = Dictionary(count: 0)
 probes[0].install?.nestedArchivePath = nil

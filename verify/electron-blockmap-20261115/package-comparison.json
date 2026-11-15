@@ -1,0 +1,2198 @@
+[
+  {
+    "name": "Bdash",
+    "target": {
+      "name": "Bdash",
+      "family": "io-bdash",
+      "bundleID": "io.bdash",
+      "channel": ".stable",
+      "version": "v1.35.4",
+      "dmg": {
+        "name": "Bdash-1.35.4-universal.dmg",
+        "url": "https://github.com/bdash-app/bdash/releases/download/v1.35.4/Bdash-1.35.4-universal.dmg",
+        "size": 256334401,
+        "digest": "sha256:75be2be37c29e5ccc4160e905cb9acbef8de392016339fcb8078a4f644e505df"
+      },
+      "zip": {
+        "name": "Bdash-1.35.4-universal-mac.zip",
+        "url": "https://github.com/bdash-app/bdash/releases/download/v1.35.4/Bdash-1.35.4-universal-mac.zip",
+        "size": 250153825,
+        "digest": "sha256:45db49d7029c8919ff150335823a60a2dca84699904029a5c6071a564109c614"
+      },
+      "source": "DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/io-bdash.swift",
+      "line": 21
+    },
+    "startedAt": 1794744231.1382232,
+    "dmgArchive": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Bdash/current.dmg",
+      "bytes": 256334401,
+      "sha256": "75be2be37c29e5ccc4160e905cb9acbef8de392016339fcb8078a4f644e505df"
+    },
+    "zipArchive": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Bdash/target.zip",
+      "bytes": 250153825,
+      "sha256": "45db49d7029c8919ff150335823a60a2dca84699904029a5c6071a564109c614"
+    },
+    "zipApp": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Bdash/zip/Bdash.app",
+      "bundleID": "io.bdash",
+      "shortVersion": "1.35.4",
+      "buildVersion": "1.35.4",
+      "team": "4GERXBURZN",
+      "arm64CDHash": "8307a52fd653ab6f019fc2e7b9f7318b9f2bddd8",
+      "architectures": [
+        "x86_64",
+        "arm64"
+      ],
+      "codesignExit": 0,
+      "codesignError": "",
+      "asarSHA256": "036cc40d5f617a8b9b4b108c5bd656c4e7f2722b03f3742d94c8ea566eae2647"
+    },
+    "dmgApp": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Bdash/mount/Bdash.app",
+      "bundleID": "io.bdash",
+      "shortVersion": "1.35.4",
+      "buildVersion": "1.35.4",
+      "team": "4GERXBURZN",
+      "arm64CDHash": "8307a52fd653ab6f019fc2e7b9f7318b9f2bddd8",
+      "architectures": [
+        "x86_64",
+        "arm64"
+      ],
+      "codesignExit": 0,
+      "codesignError": "",
+      "asarSHA256": "036cc40d5f617a8b9b4b108c5bd656c4e7f2722b03f3742d94c8ea566eae2647",
+      "savedPath": "/Users/bobby/duo-verify/electron-blockmap-20261115/Bdash/dmg-app/Bdash.app"
+    },
+    "identityCompatible": true,
+    "sameArm64CDHash": true,
+    "sameAsar": true,
+    "state": "packages-compared",
+    "finishedAt": 1794744316.31558
+  },
+  {
+    "name": "BlueBubbles Server",
+    "target": {
+      "name": "BlueBubbles Server",
+      "family": "com-BlueBubbles-BlueBubbles-Server",
+      "bundleID": "com.BlueBubbles.BlueBubbles-Server",
+      "channel": ".stable",
+      "version": "v1.9.12",
+      "dmg": {
+        "name": "BlueBubbles-1.9.12-arm64.dmg",
+        "url": "https://github.com/BlueBubblesApp/bluebubbles-server/releases/download/v1.9.12/BlueBubbles-1.9.12-arm64.dmg",
+        "size": 304909058,
+        "digest": "sha256:923b562d2c945e7bb587576902f39af1456ec746b041090a397296e0786d5d43"
+      },
+      "zip": {
+        "name": "BlueBubbles-1.9.12-arm64-mac.zip",
+        "url": "https://github.com/BlueBubblesApp/bluebubbles-server/releases/download/v1.9.12/BlueBubbles-1.9.12-arm64-mac.zip",
+        "size": 296262790,
+        "digest": "sha256:e1d96d67fe4fc79ad44a8f1eeac3de78eef561635842b66d380dd3eba5092d89"
+      },
+      "source": "DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/com-BlueBubbles-BlueBubbles-Server.swift",
+      "line": 34
+    },
+    "startedAt": 1794744231.1384919,
+    "dmgArchive": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/BlueBubbles-Server/current.dmg",
+      "bytes": 304909058,
+      "sha256": "923b562d2c945e7bb587576902f39af1456ec746b041090a397296e0786d5d43"
+    },
+    "zipArchive": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/BlueBubbles-Server/target.zip",
+      "bytes": 296262790,
+      "sha256": "e1d96d67fe4fc79ad44a8f1eeac3de78eef561635842b66d380dd3eba5092d89"
+    },
+    "zipApp": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/BlueBubbles-Server/zip/BlueBubbles.app",
+      "bundleID": "com.BlueBubbles.BlueBubbles-Server",
+      "shortVersion": "1.9.12",
+      "buildVersion": "1.9.12",
+      "team": "WPV275H8W7",
+      "arm64CDHash": "305978b4551e03df92e0d602c0be957d5095b305",
+      "architectures": [
+        "arm64"
+      ],
+      "codesignExit": 0,
+      "codesignError": "",
+      "asarSHA256": "a0dc9413d5506a0707205c9c6eb2a7d0155dc60d1a93188aaff540d245c854d8"
+    },
+    "dmgApp": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/BlueBubbles-Server/mount/BlueBubbles.app",
+      "bundleID": "com.BlueBubbles.BlueBubbles-Server",
+      "shortVersion": "1.9.12",
+      "buildVersion": "1.9.12",
+      "team": "WPV275H8W7",
+      "arm64CDHash": "305978b4551e03df92e0d602c0be957d5095b305",
+      "architectures": [
+        "arm64"
+      ],
+      "codesignExit": 0,
+      "codesignError": "",
+      "asarSHA256": "a0dc9413d5506a0707205c9c6eb2a7d0155dc60d1a93188aaff540d245c854d8",
+      "savedPath": "/Users/bobby/duo-verify/electron-blockmap-20261115/BlueBubbles-Server/dmg-app/BlueBubbles.app"
+    },
+    "identityCompatible": true,
+    "sameArm64CDHash": true,
+    "sameAsar": true,
+    "state": "packages-compared",
+    "finishedAt": 1794744309.985386
+  },
+  {
+    "name": "Bruno",
+    "target": {
+      "name": "Bruno",
+      "family": "com-usebruno-app",
+      "bundleID": "com.usebruno.app",
+      "channel": ".stable",
+      "version": "v4.3.0",
+      "dmg": {
+        "name": "bruno_4.3.0_arm64_mac.dmg",
+        "url": "https://github.com/usebruno/bruno/releases/download/v4.3.0/bruno_4.3.0_arm64_mac.dmg",
+        "size": 167922780,
+        "digest": "sha256:bb4c4d8de817a6f529880627606137fd16346ddece547c6a0862e84bd1cc69bf"
+      },
+      "zip": {
+        "name": "bruno_4.3.0_arm64_mac.zip",
+        "url": "https://github.com/usebruno/bruno/releases/download/v4.3.0/bruno_4.3.0_arm64_mac.zip",
+        "size": 160252445,
+        "digest": "sha256:8d87a7c21f5c4723d26975c11042592d5bf503e1dc87aa5bba9e8067e551d2dc"
+      },
+      "source": "DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/com-usebruno-app.swift",
+      "line": 13
+    },
+    "startedAt": 1794744309.992328,
+    "dmgArchive": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Bruno/current.dmg",
+      "bytes": 167922780,
+      "sha256": "bb4c4d8de817a6f529880627606137fd16346ddece547c6a0862e84bd1cc69bf"
+    },
+    "zipArchive": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Bruno/target.zip",
+      "bytes": 160252445,
+      "sha256": "8d87a7c21f5c4723d26975c11042592d5bf503e1dc87aa5bba9e8067e551d2dc"
+    },
+    "zipApp": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Bruno/zip/Bruno.app",
+      "bundleID": "com.usebruno.app",
+      "shortVersion": "4.3.0",
+      "buildVersion": "4.3.0",
+      "team": "W7LPPWA48L",
+      "arm64CDHash": "ec9d9962d5d89e01007f92fb007ff9aeb0cb47db",
+      "architectures": [
+        "arm64"
+      ],
+      "codesignExit": 0,
+      "codesignError": "",
+      "asarSHA256": "b77ef4eb00d2fe56a763ce287c91b8efbd2d42f70606f4f1bc05f58b34385feb"
+    },
+    "dmgApp": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Bruno/mount/Bruno.app",
+      "bundleID": "com.usebruno.app",
+      "shortVersion": "4.3.0",
+      "buildVersion": "4.3.0",
+      "team": "W7LPPWA48L",
+      "arm64CDHash": "ec9d9962d5d89e01007f92fb007ff9aeb0cb47db",
+      "architectures": [
+        "arm64"
+      ],
+      "codesignExit": 0,
+      "codesignError": "",
+      "asarSHA256": "b77ef4eb00d2fe56a763ce287c91b8efbd2d42f70606f4f1bc05f58b34385feb",
+      "savedPath": "/Users/bobby/duo-verify/electron-blockmap-20261115/Bruno/dmg-app/Bruno.app"
+    },
+    "identityCompatible": true,
+    "sameArm64CDHash": true,
+    "sameAsar": true,
+    "state": "packages-compared",
+    "finishedAt": 1794744344.822848
+  },
+  {
+    "name": "Chatbox",
+    "target": {
+      "name": "Chatbox",
+      "family": "vendor:Chatbox",
+      "bundleID": "xyz.chatboxapp.app",
+      "channel": ".stable",
+      "version": "1.24.4",
+      "dmg": {
+        "url": "https://download.chatboxai.app/releases/Chatbox-1.24.4-arm64.dmg"
+      },
+      "zip": {
+        "url": "https://download.chatboxai.app/releases/Chatbox-1.24.4-arm64-mac.zip",
+        "sha512": "x7oL0ENgxtLHjX6NdS+FgjfRue3B5BTl+6QSBlp9yP5KQEHx7IML3IjqWTT5FWXiRoheHLWpfbhPBiNwp1d5rg==",
+        "size": 152421838
+      },
+      "feed": "https://download.chatboxai.app/releases/latest-mac.yml"
+    },
+    "startedAt": 1794744316.3161201,
+    "dmgArchive": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Chatbox/current.dmg",
+      "bytes": 157996502,
+      "sha256": "09a48e314ec4d2988219db3e128a58fe6b32cd2da24a779f8068d98874a04d78"
+    },
+    "zipArchive": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Chatbox/target.zip",
+      "bytes": 152421838,
+      "sha256": "186d5c8c8887bdbbe2cfa57c7c7b4954373a39ab8cd67a1c2884fd613d16bca7"
+    },
+    "zipApp": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Chatbox/zip/Chatbox.app",
+      "bundleID": "xyz.chatboxapp.app",
+      "shortVersion": "1.24.4",
+      "buildVersion": "1.24.4",
+      "team": "YJ5GSB3AMW",
+      "arm64CDHash": "1ecd1c84dd3aacf3846d416c4e82af3a1d11baa5",
+      "architectures": [
+        "arm64"
+      ],
+      "codesignExit": 0,
+      "codesignError": "",
+      "asarSHA256": "3ccec87f579dad7cd429ef6d3c116f0ffde5975af5e7e49b5a8e37a880318f15"
+    },
+    "dmgApp": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Chatbox/mount/Chatbox.app",
+      "bundleID": "xyz.chatboxapp.app",
+      "shortVersion": "1.24.4",
+      "buildVersion": "1.24.4",
+      "team": "YJ5GSB3AMW",
+      "arm64CDHash": "1ecd1c84dd3aacf3846d416c4e82af3a1d11baa5",
+      "architectures": [
+        "arm64"
+      ],
+      "codesignExit": 0,
+      "codesignError": "",
+      "asarSHA256": "3ccec87f579dad7cd429ef6d3c116f0ffde5975af5e7e49b5a8e37a880318f15",
+      "savedPath": "/Users/bobby/duo-verify/electron-blockmap-20261115/Chatbox/dmg-app/Chatbox.app"
+    },
+    "identityCompatible": true,
+    "sameArm64CDHash": true,
+    "sameAsar": true,
+    "state": "packages-compared",
+    "finishedAt": 1794744338.7938838
+  },
+  {
+    "name": "Cherry Studio",
+    "target": {
+      "name": "Cherry Studio",
+      "family": "com-kangfenmao-CherryStudio",
+      "bundleID": "com.kangfenmao.CherryStudio",
+      "channel": ".stable",
+      "version": "v2.2.2",
+      "dmg": {
+        "name": "Cherry-Studio-2.2.2-mac-arm64.dmg",
+        "url": "https://github.com/CherryHQ/cherry-studio/releases/download/v2.2.2/Cherry-Studio-2.2.2-mac-arm64.dmg",
+        "size": 300083451,
+        "digest": "sha256:5de08748e4a62023e5b942722fc84623e5c466d51b403a3429a0f29dc31270cd"
+      },
+      "zip": {
+        "name": "Cherry-Studio-2.2.2-mac-arm64.zip",
+        "url": "https://github.com/CherryHQ/cherry-studio/releases/download/v2.2.2/Cherry-Studio-2.2.2-mac-arm64.zip",
+        "size": 296654496,
+        "digest": "sha256:f62a9aab1efd2aab961932d4423b9396866376a9b4517d9109fc29914dce7af4"
+      },
+      "source": "DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/com-kangfenmao-CherryStudio.swift",
+      "line": 24
+    },
+    "startedAt": 1794744338.79494,
+    "dmgArchive": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Cherry-Studio/current.dmg",
+      "bytes": 300083451,
+      "sha256": "5de08748e4a62023e5b942722fc84623e5c466d51b403a3429a0f29dc31270cd"
+    },
+    "zipArchive": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Cherry-Studio/target.zip",
+      "bytes": 296654496,
+      "sha256": "f62a9aab1efd2aab961932d4423b9396866376a9b4517d9109fc29914dce7af4"
+    },
+    "zipApp": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Cherry-Studio/zip/Cherry Studio.app",
+      "bundleID": "com.kangfenmao.CherryStudio",
+      "shortVersion": "2.2.2",
+      "buildVersion": "2.2.2",
+      "team": "87242QY66T",
+      "arm64CDHash": "1f08eed77891592a36f19f6b3aacc75d592fe29a",
+      "architectures": [
+        "arm64"
+      ],
+      "codesignExit": 0,
+      "codesignError": "",
+      "asarSHA256": "46004be39a43e62dd241750fb3e3513c1e29602499bdf09d41dbcd09b1ab6a2c"
+    },
+    "dmgApp": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Cherry-Studio/mount/Cherry Studio.app",
+      "bundleID": "com.kangfenmao.CherryStudio",
+      "shortVersion": "2.2.2",
+      "buildVersion": "2.2.2",
+      "team": "87242QY66T",
+      "arm64CDHash": "1f08eed77891592a36f19f6b3aacc75d592fe29a",
+      "architectures": [
+        "arm64"
+      ],
+      "codesignExit": 0,
+      "codesignError": "",
+      "asarSHA256": "46004be39a43e62dd241750fb3e3513c1e29602499bdf09d41dbcd09b1ab6a2c",
+      "savedPath": "/Users/bobby/duo-verify/electron-blockmap-20261115/Cherry-Studio/dmg-app/Cherry Studio.app"
+    },
+    "identityCompatible": true,
+    "sameArm64CDHash": true,
+    "sameAsar": true,
+    "state": "packages-compared",
+    "finishedAt": 1794744397.715606
+  },
+  {
+    "name": "claude-devtools",
+    "target": {
+      "name": "claude-devtools",
+      "family": "com-claudecode-context",
+      "bundleID": "com.claudecode.context",
+      "channel": ".stable",
+      "version": "v0.5.0",
+      "dmg": {
+        "name": "claude-devtools-0.5.0-arm64.dmg",
+        "url": "https://github.com/matt1398/claude-devtools/releases/download/v0.5.0/claude-devtools-0.5.0-arm64.dmg",
+        "size": 157809161,
+        "digest": "sha256:f37ec018a4052aa7b73e8ece741cf864bd2ee20c0e25b911211616f672bef441"
+      },
+      "zip": {
+        "name": "claude-devtools-0.5.0-arm64.zip",
+        "url": "https://github.com/matt1398/claude-devtools/releases/download/v0.5.0/claude-devtools-0.5.0-arm64.zip",
+        "size": 150872813,
+        "digest": "sha256:8a587c277fde1a5d879547cf44141302d747cbd7423f06a581c181ade062d7f5"
+      },
+      "source": "DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/com-claudecode-context.swift",
+      "line": 13
+    },
+    "startedAt": 1794744344.823488,
+    "dmgArchive": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/claude-devtools/current.dmg",
+      "bytes": 157809161,
+      "sha256": "f37ec018a4052aa7b73e8ece741cf864bd2ee20c0e25b911211616f672bef441"
+    },
+    "zipArchive": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/claude-devtools/target.zip",
+      "bytes": 150872813,
+      "sha256": "8a587c277fde1a5d879547cf44141302d747cbd7423f06a581c181ade062d7f5"
+    },
+    "zipApp": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/claude-devtools/zip/claude-devtools.app",
+      "bundleID": "com.claudecode.context",
+      "shortVersion": "0.5.0",
+      "buildVersion": "0.5.0",
+      "team": "55PSHY2MW6",
+      "arm64CDHash": "1ce94c8b849432e77aeffe4b7e5e93acb8c504cd",
+      "architectures": [
+        "arm64"
+      ],
+      "codesignExit": 0,
+      "codesignError": "",
+      "asarSHA256": "9fa063a6db8f0688fac262a91d313da962b09173a54ed08214265c2d6830787d"
+    },
+    "dmgApp": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/claude-devtools/mount/claude-devtools.app",
+      "bundleID": "com.claudecode.context",
+      "shortVersion": "0.5.0",
+      "buildVersion": "0.5.0",
+      "team": "55PSHY2MW6",
+      "arm64CDHash": "1ce94c8b849432e77aeffe4b7e5e93acb8c504cd",
+      "architectures": [
+        "arm64"
+      ],
+      "codesignExit": 0,
+      "codesignError": "",
+      "asarSHA256": "9fa063a6db8f0688fac262a91d313da962b09173a54ed08214265c2d6830787d",
+      "savedPath": "/Users/bobby/duo-verify/electron-blockmap-20261115/claude-devtools/dmg-app/claude-devtools.app"
+    },
+    "identityCompatible": true,
+    "sameArm64CDHash": true,
+    "sameAsar": true,
+    "state": "packages-compared",
+    "finishedAt": 1794744385.387054
+  },
+  {
+    "name": "draw.io",
+    "target": {
+      "name": "draw.io",
+      "family": "com-jgraph-drawio-desktop",
+      "bundleID": "com.jgraph.drawio.desktop",
+      "channel": ".stable",
+      "version": "v32.6.10",
+      "dmg": {
+        "name": "draw.io-arm64-32.6.10.dmg",
+        "url": "https://github.com/jgraph/drawio-desktop/releases/download/v32.6.10/draw.io-arm64-32.6.10.dmg",
+        "size": 157367951,
+        "digest": "sha256:83e4027837f89bfba9dafbcc5c0e4befa76e2ac7f4e37f7a7b40c817141a6727"
+      },
+      "zip": {
+        "name": "draw.io-arm64-32.6.10.zip",
+        "url": "https://github.com/jgraph/drawio-desktop/releases/download/v32.6.10/draw.io-arm64-32.6.10.zip",
+        "size": 152083191,
+        "digest": "sha256:d97a0740fdf835fb9944369b87d86eb9ff1e37f2e0e1306544711f721f977a35"
+      },
+      "source": "DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/com-jgraph-drawio-desktop.swift",
+      "line": 13
+    },
+    "startedAt": 1794744385.387768,
+    "dmgArchive": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/draw.io/current.dmg",
+      "bytes": 157367951,
+      "sha256": "83e4027837f89bfba9dafbcc5c0e4befa76e2ac7f4e37f7a7b40c817141a6727"
+    },
+    "zipArchive": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/draw.io/target.zip",
+      "bytes": 152083191,
+      "sha256": "d97a0740fdf835fb9944369b87d86eb9ff1e37f2e0e1306544711f721f977a35"
+    },
+    "zipApp": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/draw.io/zip/draw.io.app",
+      "bundleID": "com.jgraph.drawio.desktop",
+      "shortVersion": "32.6.10",
+      "buildVersion": "32.6.10",
+      "team": "UZEUFB4N53",
+      "arm64CDHash": "2e1b7a3892661871ea0b5009b1eaceb2c544c14b",
+      "architectures": [
+        "arm64"
+      ],
+      "codesignExit": 0,
+      "codesignError": "",
+      "asarSHA256": "3cf8e711b818d539b3dd4a8f33203419743c7aec784368bd2d512ad69cc49c25"
+    },
+    "dmgApp": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/draw.io/mount/draw.io.app",
+      "bundleID": "com.jgraph.drawio.desktop",
+      "shortVersion": "32.6.10",
+      "buildVersion": "32.6.10",
+      "team": "UZEUFB4N53",
+      "arm64CDHash": "2e1b7a3892661871ea0b5009b1eaceb2c544c14b",
+      "architectures": [
+        "arm64"
+      ],
+      "codesignExit": 0,
+      "codesignError": "",
+      "asarSHA256": "3cf8e711b818d539b3dd4a8f33203419743c7aec784368bd2d512ad69cc49c25",
+      "savedPath": "/Users/bobby/duo-verify/electron-blockmap-20261115/draw.io/dmg-app/draw.io.app"
+    },
+    "identityCompatible": true,
+    "sameArm64CDHash": true,
+    "sameAsar": true,
+    "state": "packages-compared",
+    "finishedAt": 1794744417.568248
+  },
+  {
+    "name": "Ferdium",
+    "target": {
+      "name": "Ferdium",
+      "family": "org-ferdium-ferdium-app",
+      "bundleID": "org.ferdium.ferdium-app",
+      "channel": ".stable",
+      "version": "v7.2.3",
+      "dmg": {
+        "name": "Ferdium-mac-7.2.3-arm64.dmg",
+        "url": "https://github.com/ferdium/ferdium-app/releases/download/v7.2.3/Ferdium-mac-7.2.3-arm64.dmg",
+        "size": 167567454,
+        "digest": "sha256:478842403c103837b3ba3bae4b9b86df1fb4f8f1da41dc642440ac1fdd51b5b0"
+      },
+      "zip": {
+        "name": "Ferdium-mac-bundle-7.2.3-arm64.zip",
+        "url": "https://github.com/ferdium/ferdium-app/releases/download/v7.2.3/Ferdium-mac-bundle-7.2.3-arm64.zip",
+        "size": 160221326,
+        "digest": "sha256:79d569fe06c5c1547c90440d549bf1e9af0465a2cce806734c3ebf625cfdd881"
+      },
+      "source": "DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/org-ferdium-ferdium-app.swift",
+      "line": 32
+    },
+    "startedAt": 1794744397.716095,
+    "dmgArchive": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Ferdium/current.dmg",
+      "bytes": 167567454,
+      "sha256": "478842403c103837b3ba3bae4b9b86df1fb4f8f1da41dc642440ac1fdd51b5b0"
+    },
+    "zipArchive": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Ferdium/target.zip",
+      "bytes": 160221326,
+      "sha256": "79d569fe06c5c1547c90440d549bf1e9af0465a2cce806734c3ebf625cfdd881"
+    },
+    "zipApp": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Ferdium/zip/Ferdium.app",
+      "bundleID": "org.ferdium.ferdium-app",
+      "shortVersion": "7.2.3",
+      "buildVersion": "7.2.3",
+      "team": "55E9FPJ93P",
+      "arm64CDHash": "c8c18c5eefb9129f6b8deeadc495606cb3a0fb1a",
+      "architectures": [
+        "arm64"
+      ],
+      "codesignExit": 0,
+      "codesignError": "",
+      "asarSHA256": "621cf64fbe26fd3795b678ddfb2e312ecbb58772a0e3f494954a589a7973e160"
+    },
+    "dmgApp": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Ferdium/mount/Ferdium.app",
+      "bundleID": "org.ferdium.ferdium-app",
+      "shortVersion": "7.2.3",
+      "buildVersion": "7.2.3",
+      "team": "55E9FPJ93P",
+      "arm64CDHash": "c8c18c5eefb9129f6b8deeadc495606cb3a0fb1a",
+      "architectures": [
+        "arm64"
+      ],
+      "codesignExit": 0,
+      "codesignError": "",
+      "asarSHA256": "621cf64fbe26fd3795b678ddfb2e312ecbb58772a0e3f494954a589a7973e160",
+      "savedPath": "/Users/bobby/duo-verify/electron-blockmap-20261115/Ferdium/dmg-app/Ferdium.app"
+    },
+    "identityCompatible": true,
+    "sameArm64CDHash": true,
+    "sameAsar": true,
+    "state": "packages-compared",
+    "finishedAt": 1794744440.516953
+  },
+  {
+    "name": "Granola",
+    "target": {
+      "name": "Granola",
+      "family": "vendor:Granola",
+      "bundleID": "com.granola.app",
+      "channel": ".stable",
+      "version": "7.786.3",
+      "dmg": {
+        "url": "https://dr2v7l5emb758.cloudfront.net/7.786.3/Granola-7.786.3-mac-universal.dmg"
+      },
+      "zip": {
+        "url": "https://api.granola.ai/v1/check-for-update/Granola-7.786.3-mac-universal.zip",
+        "sha512": "YFrMa6vFL/Ycaog/AdfF1wsmgGVZrm6O5KRObqDptzeTgXpG08c4YA44aOUajwkRrCeXQT31+Y+EwmnHxEuhlQ==",
+        "size": 262897870
+      },
+      "feed": "https://api.granola.ai/v1/check-for-update/latest-mac.yml"
+    },
+    "startedAt": 1794744417.5688362,
+    "dmgArchive": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Granola/current.dmg",
+      "bytes": 270025780,
+      "sha256": "89b06f2f8818406ec79252e45350e0c27a10138a8abf21ffa830cf9c5dc3a111"
+    },
+    "zipArchive": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Granola/target.zip",
+      "bytes": 262897870,
+      "sha256": "fea143779bb5effe51751ecccacf23b3779862e2a498277fe3854616e2318467"
+    },
+    "zipApp": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Granola/zip/Granola.app",
+      "bundleID": "com.granola.app",
+      "shortVersion": "7.786.3",
+      "buildVersion": "7.786.3",
+      "team": "QZ7DHHLN25",
+      "arm64CDHash": "cdda71de3d757c0dbab793301d64d65e8d2b5050",
+      "architectures": [
+        "x86_64",
+        "arm64"
+      ],
+      "codesignExit": 0,
+      "codesignError": "",
+      "asarSHA256": "56d8bb4a37dea8266d5c973f6335fccd73e8db5490763e248e8448ca49598159"
+    },
+    "dmgApp": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Granola/mount/Granola.app",
+      "bundleID": "com.granola.app",
+      "shortVersion": "7.786.3",
+      "buildVersion": "7.786.3",
+      "team": "QZ7DHHLN25",
+      "arm64CDHash": "cdda71de3d757c0dbab793301d64d65e8d2b5050",
+      "architectures": [
+        "x86_64",
+        "arm64"
+      ],
+      "codesignExit": 0,
+      "codesignError": "",
+      "asarSHA256": "56d8bb4a37dea8266d5c973f6335fccd73e8db5490763e248e8448ca49598159",
+      "savedPath": "/Users/bobby/duo-verify/electron-blockmap-20261115/Granola/dmg-app/Granola.app"
+    },
+    "identityCompatible": true,
+    "sameArm64CDHash": true,
+    "sameAsar": true,
+    "state": "packages-compared",
+    "finishedAt": 1794744448.890423
+  },
+  {
+    "name": "Heynote",
+    "target": {
+      "name": "Heynote",
+      "family": "com-heynote-app",
+      "bundleID": "com.heynote.app",
+      "channel": ".stable",
+      "version": "v2.9.1",
+      "dmg": {
+        "name": "Heynote_2.9.1_universal.dmg",
+        "url": "https://github.com/heyman/heynote/releases/download/v2.9.1/Heynote_2.9.1_universal.dmg",
+        "size": 215742574,
+        "digest": "sha256:4b7525892769a2710fec66d95c96d3eb082634fb139d6df0f744d3347a65d23f"
+      },
+      "zip": {
+        "name": "Heynote_2.9.1_universal.zip",
+        "url": "https://github.com/heyman/heynote/releases/download/v2.9.1/Heynote_2.9.1_universal.zip",
+        "size": 208432837,
+        "digest": "sha256:a3b0bd8c4b9f3fc8b8c46904508bc3a5b4bfe4cfbde254b68dc68def207d9e2e"
+      },
+      "source": "DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/com-heynote-app.swift",
+      "line": 22
+    },
+    "startedAt": 1794744440.518493,
+    "dmgArchive": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Heynote/current.dmg",
+      "bytes": 215742574,
+      "sha256": "4b7525892769a2710fec66d95c96d3eb082634fb139d6df0f744d3347a65d23f"
+    },
+    "zipArchive": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Heynote/target.zip",
+      "bytes": 208432837,
+      "sha256": "a3b0bd8c4b9f3fc8b8c46904508bc3a5b4bfe4cfbde254b68dc68def207d9e2e"
+    },
+    "zipApp": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Heynote/zip/Heynote.app",
+      "bundleID": "com.heynote.app",
+      "shortVersion": "2.9.1",
+      "buildVersion": "2.9.1",
+      "team": "VY5Y3H438S",
+      "arm64CDHash": "b72db338bb6186ca2e72ece14b923d72ed602c78",
+      "architectures": [
+        "x86_64",
+        "arm64"
+      ],
+      "codesignExit": 0,
+      "codesignError": "",
+      "asarSHA256": "13c8c4156c064b9adb55d1f4a1cdd3e991dcc455d47be9cc956a46f5b6f83458"
+    },
+    "dmgApp": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Heynote/mount/Heynote.app",
+      "bundleID": "com.heynote.app",
+      "shortVersion": "2.9.1",
+      "buildVersion": "2.9.1",
+      "team": "VY5Y3H438S",
+      "arm64CDHash": "b72db338bb6186ca2e72ece14b923d72ed602c78",
+      "architectures": [
+        "x86_64",
+        "arm64"
+      ],
+      "codesignExit": 0,
+      "codesignError": "",
+      "asarSHA256": "13c8c4156c064b9adb55d1f4a1cdd3e991dcc455d47be9cc956a46f5b6f83458",
+      "savedPath": "/Users/bobby/duo-verify/electron-blockmap-20261115/Heynote/dmg-app/Heynote.app"
+    },
+    "identityCompatible": true,
+    "sameArm64CDHash": true,
+    "sameAsar": true,
+    "state": "packages-compared",
+    "finishedAt": 1794744489.764825
+  },
+  {
+    "name": "Hyper",
+    "target": {
+      "name": "Hyper",
+      "family": "co-zeit-hyper",
+      "bundleID": "co.zeit.hyper",
+      "channel": ".stable",
+      "version": "v3.4.1",
+      "dmg": {
+        "name": "Hyper-3.4.1-mac-arm64.dmg",
+        "url": "https://github.com/vercel/hyper/releases/download/v3.4.1/Hyper-3.4.1-mac-arm64.dmg",
+        "size": 92046768,
+        "digest": null
+      },
+      "zip": {
+        "name": "Hyper-3.4.1-mac-arm64.zip",
+        "url": "https://github.com/vercel/hyper/releases/download/v3.4.1/Hyper-3.4.1-mac-arm64.zip",
+        "size": 88240309,
+        "digest": null
+      },
+      "source": "DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/co-zeit-hyper.swift",
+      "line": 36
+    },
+    "startedAt": 1794744448.891607,
+    "dmgArchive": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Hyper/current.dmg",
+      "bytes": 92046768,
+      "sha256": "a4a9bf1752c14c371db327e1240186f172c651f98b26fea4eb2101cbeaa583f2"
+    },
+    "zipArchive": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Hyper/target.zip",
+      "bytes": 88240309,
+      "sha256": "7d2440fdd93fde4101e603fe2de46732b54292a868ad17dbcb55288e6f8430a8"
+    },
+    "zipApp": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Hyper/zip/Hyper.app",
+      "bundleID": "co.zeit.hyper",
+      "shortVersion": "3.4.1",
+      "buildVersion": "3.4.1",
+      "team": "JW6Y669B67",
+      "arm64CDHash": "4e192d48df5eed809fd68f235011e51c4f261572",
+      "architectures": [
+        "arm64"
+      ],
+      "codesignExit": 0,
+      "codesignError": "",
+      "asarSHA256": "c6e60d6df62aec1a16373901242e4d3d9a5e998b9dc4a4dc42736282fada12c0"
+    },
+    "dmgApp": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Hyper/mount/Hyper.app",
+      "bundleID": "co.zeit.hyper",
+      "shortVersion": "3.4.1",
+      "buildVersion": "3.4.1",
+      "team": "JW6Y669B67",
+      "arm64CDHash": "4e192d48df5eed809fd68f235011e51c4f261572",
+      "architectures": [
+        "arm64"
+      ],
+      "codesignExit": 0,
+      "codesignError": "",
+      "asarSHA256": "c6e60d6df62aec1a16373901242e4d3d9a5e998b9dc4a4dc42736282fada12c0",
+      "savedPath": "/Users/bobby/duo-verify/electron-blockmap-20261115/Hyper/dmg-app/Hyper.app"
+    },
+    "identityCompatible": true,
+    "sameArm64CDHash": true,
+    "sameAsar": true,
+    "state": "packages-compared",
+    "finishedAt": 1794744479.9898062
+  },
+  {
+    "name": "Joplin",
+    "target": {
+      "name": "Joplin",
+      "family": "net-cozic-joplin-desktop",
+      "bundleID": "net.cozic.joplin-desktop",
+      "channel": ".stable",
+      "version": "v3.7.22",
+      "dmg": {
+        "name": "Joplin-3.7.22-arm64.DMG",
+        "url": "https://github.com/laurent22/joplin/releases/download/v3.7.22/Joplin-3.7.22-arm64.DMG",
+        "size": 211992036,
+        "digest": "sha256:185395eba8d9dac2d8656884cbb0e5b96bcb40b41d80c67126ce5526cb5186c8"
+      },
+      "zip": {
+        "name": "Joplin-3.7.22-arm64.zip",
+        "url": "https://github.com/laurent22/joplin/releases/download/v3.7.22/Joplin-3.7.22-arm64.zip",
+        "size": 203508269,
+        "digest": "sha256:9906830034c6323ae77698a520c1299c49c70eefe62337f3b1019da1f082f48f"
+      },
+      "source": "DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/net-cozic-joplin-desktop.swift",
+      "line": 31
+    },
+    "startedAt": 1794744479.990571,
+    "dmgArchive": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Joplin/current.dmg",
+      "bytes": 211992036,
+      "sha256": "185395eba8d9dac2d8656884cbb0e5b96bcb40b41d80c67126ce5526cb5186c8"
+    },
+    "zipArchive": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Joplin/target.zip",
+      "bytes": 203508269,
+      "sha256": "9906830034c6323ae77698a520c1299c49c70eefe62337f3b1019da1f082f48f"
+    },
+    "zipApp": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Joplin/zip/Joplin.app",
+      "bundleID": "net.cozic.joplin-desktop",
+      "shortVersion": "3.7.22",
+      "buildVersion": "3.7.22",
+      "team": "A9BXAFS6CT",
+      "arm64CDHash": "bee4db1b0c98de626d25fc7afddae44afbd420d4",
+      "architectures": [
+        "arm64"
+      ],
+      "codesignExit": 0,
+      "codesignError": "",
+      "asarSHA256": "bfa30dd744852e73f69b96d5288db8c75429fdfb68bc4952f8d5de756fc1bbc0"
+    },
+    "dmgApp": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Joplin/mount/Joplin.app",
+      "bundleID": "net.cozic.joplin-desktop",
+      "shortVersion": "3.7.22",
+      "buildVersion": "3.7.22",
+      "team": "A9BXAFS6CT",
+      "arm64CDHash": "bee4db1b0c98de626d25fc7afddae44afbd420d4",
+      "architectures": [
+        "arm64"
+      ],
+      "codesignExit": 0,
+      "codesignError": "",
+      "asarSHA256": "bfa30dd744852e73f69b96d5288db8c75429fdfb68bc4952f8d5de756fc1bbc0",
+      "savedPath": "/Users/bobby/duo-verify/electron-blockmap-20261115/Joplin/dmg-app/Joplin.app"
+    },
+    "identityCompatible": true,
+    "sameArm64CDHash": true,
+    "sameAsar": true,
+    "state": "packages-compared",
+    "finishedAt": 1794744527.027722
+  },
+  {
+    "name": "Kap",
+    "target": {
+      "name": "Kap",
+      "family": "com-wulkano-kap",
+      "bundleID": "com.wulkano.kap",
+      "channel": ".stable",
+      "version": "v3.6.0",
+      "dmg": {
+        "name": "Kap-3.6.0-arm64.dmg",
+        "url": "https://github.com/wulkano/Kap/releases/download/v3.6.0/Kap-3.6.0-arm64.dmg",
+        "size": 124651995,
+        "digest": null
+      },
+      "zip": {
+        "name": "Kap-3.6.0-arm64-mac.zip",
+        "url": "https://github.com/wulkano/Kap/releases/download/v3.6.0/Kap-3.6.0-arm64-mac.zip",
+        "size": 119687412,
+        "digest": null
+      },
+      "source": "DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/com-wulkano-kap.swift",
+      "line": 23
+    },
+    "startedAt": 1794744489.76638,
+    "dmgArchive": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Kap/current.dmg",
+      "bytes": 124651995,
+      "sha256": "0f4b69d5fd4ec59da7b6e153722314c93dc263db2b81c0d0191e256360473ce3"
+    },
+    "zipArchive": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Kap/target.zip",
+      "bytes": 119687412,
+      "sha256": "56148635da77d081b4db1854fef46f220414b3de342824ea582673ed185c56fb"
+    },
+    "zipApp": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Kap/zip/Kap.app",
+      "bundleID": "com.wulkano.kap",
+      "shortVersion": "3.6.0",
+      "buildVersion": "3.6.0.1846",
+      "team": "2KEEHXF6R6",
+      "arm64CDHash": "824f889c11c3098faffde653e9566d3cbff3288c",
+      "architectures": [
+        "arm64"
+      ],
+      "codesignExit": 0,
+      "codesignError": "",
+      "asarSHA256": "1231e8d447e285e30c481d9c85a716593d8c16e2665d3edb6623405d7286f2b1"
+    },
+    "dmgApp": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Kap/mount/Kap.app",
+      "bundleID": "com.wulkano.kap",
+      "shortVersion": "3.6.0",
+      "buildVersion": "3.6.0.1846",
+      "team": "2KEEHXF6R6",
+      "arm64CDHash": "824f889c11c3098faffde653e9566d3cbff3288c",
+      "architectures": [
+        "arm64"
+      ],
+      "codesignExit": 0,
+      "codesignError": "",
+      "asarSHA256": "1231e8d447e285e30c481d9c85a716593d8c16e2665d3edb6623405d7286f2b1",
+      "savedPath": "/Users/bobby/duo-verify/electron-blockmap-20261115/Kap/dmg-app/Kap.app"
+    },
+    "identityCompatible": true,
+    "sameArm64CDHash": true,
+    "sameAsar": true,
+    "state": "packages-compared",
+    "finishedAt": 1794744523.9718971
+  },
+  {
+    "name": "Lens",
+    "target": {
+      "name": "Lens",
+      "family": "vendor:Lens",
+      "bundleID": "com.electron.kontena-lens",
+      "channel": ".stable",
+      "version": "2026.11.91422-latest",
+      "dmg": {
+        "url": "https://api.k8slens.dev/binaries/Lens-2026.11.91422-latest-arm64.dmg"
+      },
+      "zip": {
+        "url": "https://api.k8slens.dev/binaries/Lens-2026.11.91422-latest-arm64-mac.zip",
+        "sha512": "dGcpm1C/v1PMqX73/gDyBKIv1jDNWQtRGUvB/vJI1czUyUCjuxfDzK+N6wHxB0FpG6vxb44YEQletWQdPT83ig==",
+        "size": 225218660
+      },
+      "feed": "https://api.k8slens.dev/binaries/latest-mac.yml"
+    },
+    "startedAt": 1794744523.972592,
+    "dmgArchive": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Lens/current.dmg",
+      "bytes": 233137938,
+      "sha256": "408cc1c31cbb0893c70a591262c83978f0ab24acdbf56e900ac9dd23bf0e496e"
+    },
+    "zipArchive": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Lens/target.zip",
+      "bytes": 225218660,
+      "sha256": "2b853c956341baa228169ff9580153ebcc18ba9b795d34ec245ee7434006e2a1"
+    },
+    "zipApp": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Lens/zip/Lens.app",
+      "bundleID": "com.electron.kontena-lens",
+      "shortVersion": "2026.11.91422-latest",
+      "buildVersion": "2026.11.91422-latest",
+      "team": "JJ22T2W355",
+      "arm64CDHash": "9282c9b5d3b16785f49f8f8f209fcbd0e23ec870",
+      "architectures": [
+        "arm64"
+      ],
+      "codesignExit": 0,
+      "codesignError": "",
+      "asarSHA256": "995899f3217ba85dc2a2cf86311ba6d683083f09d4ee9f917fd119ec0f975abe"
+    },
+    "dmgApp": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Lens/mount/Lens.app",
+      "bundleID": "com.electron.kontena-lens",
+      "shortVersion": "2026.11.91422-latest",
+      "buildVersion": "2026.11.91422-latest",
+      "team": "JJ22T2W355",
+      "arm64CDHash": "9282c9b5d3b16785f49f8f8f209fcbd0e23ec870",
+      "architectures": [
+        "arm64"
+      ],
+      "codesignExit": 0,
+      "codesignError": "",
+      "asarSHA256": "995899f3217ba85dc2a2cf86311ba6d683083f09d4ee9f917fd119ec0f975abe",
+      "savedPath": "/Users/bobby/duo-verify/electron-blockmap-20261115/Lens/dmg-app/Lens.app"
+    },
+    "identityCompatible": true,
+    "sameArm64CDHash": true,
+    "sameAsar": true,
+    "state": "packages-compared",
+    "finishedAt": 1794744555.2181172
+  },
+  {
+    "name": "Logseq",
+    "target": {
+      "name": "Logseq",
+      "family": "com-logseq-logseq",
+      "bundleID": "com.logseq.logseq",
+      "channel": ".stable",
+      "version": "2.0.2",
+      "dmg": {
+        "name": "Logseq-darwin-arm64-2.0.2.dmg",
+        "url": "https://github.com/logseq/logseq/releases/download/2.0.2/Logseq-darwin-arm64-2.0.2.dmg",
+        "size": 177591867,
+        "digest": "sha256:b9a16b6ddef1659aa3c2301ce37a0336377644bbf1016051e3d19d1a66776314"
+      },
+      "zip": {
+        "name": "Logseq-darwin-arm64-2.0.2.zip",
+        "url": "https://github.com/logseq/logseq/releases/download/2.0.2/Logseq-darwin-arm64-2.0.2.zip",
+        "size": 171440323,
+        "digest": "sha256:ffd6e086ba6f68a4748f80eaa8b38244a9cf78b05c076343d75e0230fe9440b4"
+      },
+      "source": "DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/com-logseq-logseq.swift",
+      "line": 26
+    },
+    "startedAt": 1794744527.028556,
+    "dmgArchive": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Logseq/current.dmg",
+      "bytes": 177591867,
+      "sha256": "b9a16b6ddef1659aa3c2301ce37a0336377644bbf1016051e3d19d1a66776314"
+    },
+    "zipArchive": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Logseq/target.zip",
+      "bytes": 171440323,
+      "sha256": "ffd6e086ba6f68a4748f80eaa8b38244a9cf78b05c076343d75e0230fe9440b4"
+    },
+    "zipApp": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Logseq/zip/Logseq.app",
+      "bundleID": "com.logseq.logseq",
+      "shortVersion": "2.0.2",
+      "buildVersion": "2.0.2",
+      "team": "K378MFWK59",
+      "arm64CDHash": "f30147af6cf15a02160f3c2fdf3b66383aef338d",
+      "architectures": [
+        "arm64"
+      ],
+      "codesignExit": 0,
+      "codesignError": "",
+      "asarSHA256": "aac5f9e5af43837157c9f3b576752d156cca086e43fae23acf2a2e3e566c8b6d"
+    },
+    "dmgApp": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Logseq/mount/Logseq.app",
+      "bundleID": "com.logseq.logseq",
+      "shortVersion": "2.0.2",
+      "buildVersion": "2.0.2",
+      "team": "K378MFWK59",
+      "arm64CDHash": "f30147af6cf15a02160f3c2fdf3b66383aef338d",
+      "architectures": [
+        "arm64"
+      ],
+      "codesignExit": 0,
+      "codesignError": "",
+      "asarSHA256": "aac5f9e5af43837157c9f3b576752d156cca086e43fae23acf2a2e3e566c8b6d",
+      "savedPath": "/Users/bobby/duo-verify/electron-blockmap-20261115/Logseq/dmg-app/Logseq.app"
+    },
+    "identityCompatible": true,
+    "sameArm64CDHash": true,
+    "sameAsar": true,
+    "state": "packages-compared",
+    "finishedAt": 1794744567.070008
+  },
+  {
+    "name": "Lunatask",
+    "target": {
+      "name": "Lunatask",
+      "family": "com-mikekreeki-tasks",
+      "bundleID": "com.mikekreeki.tasks",
+      "channel": ".stable",
+      "version": "v2.1.29",
+      "dmg": {
+        "name": "Lunatask-2.1.29-universal.dmg",
+        "url": "https://github.com/lunatask/lunatask/releases/download/v2.1.29/Lunatask-2.1.29-universal.dmg",
+        "size": 213639115,
+        "digest": "sha256:93dedebb249e12250c798738d50599b60a14d1adcc60a2cf0714ef2d6c1ec2e9"
+      },
+      "zip": {
+        "name": "Lunatask-2.1.29-universal-mac.zip",
+        "url": "https://github.com/lunatask/lunatask/releases/download/v2.1.29/Lunatask-2.1.29-universal-mac.zip",
+        "size": 206074547,
+        "digest": "sha256:4087034e1a075538385efe661fc0026a08f02657f3d085ca99c111ace9d7055b"
+      },
+      "source": "DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/com-mikekreeki-tasks.swift",
+      "line": 27
+    },
+    "startedAt": 1794744555.218969,
+    "dmgArchive": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Lunatask/current.dmg",
+      "bytes": 213639115,
+      "sha256": "93dedebb249e12250c798738d50599b60a14d1adcc60a2cf0714ef2d6c1ec2e9"
+    },
+    "zipArchive": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Lunatask/target.zip",
+      "bytes": 206074547,
+      "sha256": "4087034e1a075538385efe661fc0026a08f02657f3d085ca99c111ace9d7055b"
+    },
+    "zipApp": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Lunatask/zip/Lunatask.app",
+      "bundleID": "com.mikekreeki.tasks",
+      "shortVersion": "2.1.29",
+      "buildVersion": "2.1.29",
+      "team": "24KNYM7WQY",
+      "arm64CDHash": "a49b8bd0af42e066ac4fd659a6cc357350b9b329",
+      "architectures": [
+        "x86_64",
+        "arm64"
+      ],
+      "codesignExit": 0,
+      "codesignError": "",
+      "asarSHA256": "17521b8a52525818d3ad55ed0bdf9889b84bf4435c05a96c68d3ab3206ce676d"
+    },
+    "dmgApp": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Lunatask/mount/Lunatask.app",
+      "bundleID": "com.mikekreeki.tasks",
+      "shortVersion": "2.1.29",
+      "buildVersion": "2.1.29",
+      "team": "24KNYM7WQY",
+      "arm64CDHash": "a49b8bd0af42e066ac4fd659a6cc357350b9b329",
+      "architectures": [
+        "x86_64",
+        "arm64"
+      ],
+      "codesignExit": 0,
+      "codesignError": "",
+      "asarSHA256": "17521b8a52525818d3ad55ed0bdf9889b84bf4435c05a96c68d3ab3206ce676d",
+      "savedPath": "/Users/bobby/duo-verify/electron-blockmap-20261115/Lunatask/dmg-app/Lunatask.app"
+    },
+    "identityCompatible": true,
+    "sameArm64CDHash": true,
+    "sameAsar": true,
+    "state": "packages-compared",
+    "finishedAt": 1794744602.3330612
+  },
+  {
+    "name": "massCode",
+    "target": {
+      "name": "massCode",
+      "family": "io-masscode-app",
+      "bundleID": "io.masscode.app",
+      "channel": ".stable",
+      "version": "v6.3.1",
+      "dmg": {
+        "name": "massCode-6.3.1-arm64.dmg",
+        "url": "https://github.com/massCodeIO/massCode/releases/download/v6.3.1/massCode-6.3.1-arm64.dmg",
+        "size": 279156277,
+        "digest": "sha256:450c4aa8de921827e47419937dc05136155bc92bfc23a42d629d2971ae1ddec7"
+      },
+      "zip": {
+        "name": "massCode-6.3.1-arm64-mac.zip",
+        "url": "https://github.com/massCodeIO/massCode/releases/download/v6.3.1/massCode-6.3.1-arm64-mac.zip",
+        "size": 269629632,
+        "digest": "sha256:193f7a34cf05fa82068317dd0e14b36e71ed5e31434919eb3640b3e3ba8efe20"
+      },
+      "source": "DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/io-masscode-app.swift",
+      "line": 25
+    },
+    "startedAt": 1794744567.070932,
+    "dmgArchive": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/massCode/current.dmg",
+      "bytes": 279156277,
+      "sha256": "450c4aa8de921827e47419937dc05136155bc92bfc23a42d629d2971ae1ddec7"
+    },
+    "zipArchive": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/massCode/target.zip",
+      "bytes": 269629632,
+      "sha256": "193f7a34cf05fa82068317dd0e14b36e71ed5e31434919eb3640b3e3ba8efe20"
+    },
+    "zipApp": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/massCode/zip/massCode.app",
+      "bundleID": "io.masscode.app",
+      "shortVersion": "6.3.1",
+      "buildVersion": "6.3.1",
+      "team": "GCU493MNF8",
+      "arm64CDHash": "0617d0a3a17a75d321b9ff234499298431fb8b06",
+      "architectures": [
+        "arm64"
+      ],
+      "codesignExit": 0,
+      "codesignError": "",
+      "asarSHA256": "cfe1ea8e7d3df7f4c959548def457844c9fbdd14b6d76f468b7016851ee0130f"
+    },
+    "dmgApp": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/massCode/mount/massCode.app",
+      "bundleID": "io.masscode.app",
+      "shortVersion": "6.3.1",
+      "buildVersion": "6.3.1",
+      "team": "GCU493MNF8",
+      "arm64CDHash": "0617d0a3a17a75d321b9ff234499298431fb8b06",
+      "architectures": [
+        "arm64"
+      ],
+      "codesignExit": 0,
+      "codesignError": "",
+      "asarSHA256": "cfe1ea8e7d3df7f4c959548def457844c9fbdd14b6d76f468b7016851ee0130f",
+      "savedPath": "/Users/bobby/duo-verify/electron-blockmap-20261115/massCode/dmg-app/massCode.app"
+    },
+    "identityCompatible": true,
+    "sameArm64CDHash": true,
+    "sameAsar": true,
+    "state": "packages-compared",
+    "finishedAt": 1794744636.080905
+  },
+  {
+    "name": "OpenChamber",
+    "target": {
+      "name": "OpenChamber",
+      "family": "dev-openchamber-desktop",
+      "bundleID": "dev.openchamber.desktop",
+      "channel": ".stable",
+      "version": "v2.7.2",
+      "dmg": {
+        "name": "OpenChamber-2.7.2-mac-arm64.dmg",
+        "url": "https://github.com/openchamber/openchamber/releases/download/v2.7.2/OpenChamber-2.7.2-mac-arm64.dmg",
+        "size": 268366539,
+        "digest": "sha256:682699251cee5f9a3c6132db73db2e91543f402dabe0172c6babac752408cd32"
+      },
+      "zip": {
+        "name": "OpenChamber-2.7.2-mac-arm64.zip",
+        "url": "https://github.com/openchamber/openchamber/releases/download/v2.7.2/OpenChamber-2.7.2-mac-arm64.zip",
+        "size": 260296059,
+        "digest": "sha256:ca9848da5e2ac66ed99bcb8d763995e3efa3184485010b7fa880a8847a441ff2"
+      },
+      "source": "DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/dev-openchamber-desktop.swift",
+      "line": 11
+    },
+    "startedAt": 1794744602.333736,
+    "dmgArchive": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/OpenChamber/current.dmg",
+      "bytes": 268366539,
+      "sha256": "682699251cee5f9a3c6132db73db2e91543f402dabe0172c6babac752408cd32"
+    },
+    "zipArchive": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/OpenChamber/target.zip",
+      "bytes": 260296059,
+      "sha256": "ca9848da5e2ac66ed99bcb8d763995e3efa3184485010b7fa880a8847a441ff2"
+    },
+    "zipApp": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/OpenChamber/zip/OpenChamber.app",
+      "bundleID": "dev.openchamber.desktop",
+      "shortVersion": "2.7.2",
+      "buildVersion": "2.7.2",
+      "team": "5J7WJGPA2Q",
+      "arm64CDHash": "28ecb17399345bb6b3339104c30702b6c5b28614",
+      "architectures": [
+        "arm64"
+      ],
+      "codesignExit": 0,
+      "codesignError": "",
+      "asarSHA256": "87e235b0e4d6c762e60d3a609b5e406c3ffd61b3be9eada584d6dcff3b83f912"
+    },
+    "dmgApp": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/OpenChamber/mount/OpenChamber.app",
+      "bundleID": "dev.openchamber.desktop",
+      "shortVersion": "2.7.2",
+      "buildVersion": "2.7.2",
+      "team": "5J7WJGPA2Q",
+      "arm64CDHash": "28ecb17399345bb6b3339104c30702b6c5b28614",
+      "architectures": [
+        "arm64"
+      ],
+      "codesignExit": 0,
+      "codesignError": "",
+      "asarSHA256": "87e235b0e4d6c762e60d3a609b5e406c3ffd61b3be9eada584d6dcff3b83f912",
+      "savedPath": "/Users/bobby/duo-verify/electron-blockmap-20261115/OpenChamber/dmg-app/OpenChamber.app"
+    },
+    "identityCompatible": true,
+    "sameArm64CDHash": true,
+    "sameAsar": true,
+    "state": "packages-compared",
+    "finishedAt": 1794744669.4645948
+  },
+  {
+    "name": "Paseo",
+    "target": {
+      "name": "Paseo",
+      "family": "sh-paseo-desktop",
+      "bundleID": "sh.paseo.desktop",
+      "channel": ".stable",
+      "version": "v0.15.4",
+      "dmg": {
+        "name": "Paseo-0.15.4-arm64.dmg",
+        "url": "https://github.com/getpaseo/paseo/releases/download/v0.15.4/Paseo-0.15.4-arm64.dmg",
+        "size": 186129307,
+        "digest": "sha256:b689017a0137480e6ba8231d97016b94570e8dfc6d0e23c4d833867765cfbcc1"
+      },
+      "zip": {
+        "name": "Paseo-0.15.4-arm64.zip",
+        "url": "https://github.com/getpaseo/paseo/releases/download/v0.15.4/Paseo-0.15.4-arm64.zip",
+        "size": 179357523,
+        "digest": "sha256:64793f71bc280ab0866c46529a788d606e0f2e5175d05ea7f1a595360bbc683c"
+      },
+      "source": "DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/sh-paseo-desktop.swift",
+      "line": 14
+    },
+    "startedAt": 1794744636.0823019,
+    "dmgArchive": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Paseo/current.dmg",
+      "bytes": 186129307,
+      "sha256": "b689017a0137480e6ba8231d97016b94570e8dfc6d0e23c4d833867765cfbcc1"
+    },
+    "zipArchive": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Paseo/target.zip",
+      "bytes": 179357523,
+      "sha256": "64793f71bc280ab0866c46529a788d606e0f2e5175d05ea7f1a595360bbc683c"
+    },
+    "zipApp": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Paseo/zip/Paseo.app",
+      "bundleID": "sh.paseo.desktop",
+      "shortVersion": "0.15.4",
+      "buildVersion": "0.15.4",
+      "team": "99ZMJMKU9Y",
+      "arm64CDHash": "832a97e08eb3033e0859aaabefef801e6f49816c",
+      "architectures": [
+        "arm64"
+      ],
+      "codesignExit": 0,
+      "codesignError": "",
+      "asarSHA256": "588b21a717157df5e86f2a7f54546aabed788c704ea897ec8c6ac893e5c69bd7"
+    },
+    "dmgApp": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Paseo/mount/Paseo.app",
+      "bundleID": "sh.paseo.desktop",
+      "shortVersion": "0.15.4",
+      "buildVersion": "0.15.4",
+      "team": "99ZMJMKU9Y",
+      "arm64CDHash": "832a97e08eb3033e0859aaabefef801e6f49816c",
+      "architectures": [
+        "arm64"
+      ],
+      "codesignExit": 0,
+      "codesignError": "",
+      "asarSHA256": "588b21a717157df5e86f2a7f54546aabed788c704ea897ec8c6ac893e5c69bd7",
+      "savedPath": "/Users/bobby/duo-verify/electron-blockmap-20261115/Paseo/dmg-app/Paseo.app"
+    },
+    "identityCompatible": true,
+    "sameArm64CDHash": true,
+    "sameAsar": true,
+    "state": "packages-compared",
+    "finishedAt": 1794744682.061463
+  },
+  {
+    "name": "Plexo",
+    "target": {
+      "name": "Plexo",
+      "family": "com-plexo-app",
+      "bundleID": "com.plexo.app",
+      "channel": ".stable",
+      "version": "v1.0.0-rc.15",
+      "dmg": {
+        "name": "plexo-1.0.0-rc.15-arm64.dmg",
+        "url": "https://github.com/anmolkapil/plexo/releases/download/v1.0.0-rc.15/plexo-1.0.0-rc.15-arm64.dmg",
+        "size": 147530640,
+        "digest": "sha256:3e05a6ada7e50bf401472c0dbf14a48a709404d36a4b8bf8572ea88a3e57e64d"
+      },
+      "zip": {
+        "name": "plexo-1.0.0-rc.15-arm64-mac.zip",
+        "url": "https://github.com/anmolkapil/plexo/releases/download/v1.0.0-rc.15/plexo-1.0.0-rc.15-arm64-mac.zip",
+        "size": 147276972,
+        "digest": "sha256:d96f74348cf1e2eeefdc5705142bd0dfddc33fe6969c1529358c0bda8a280fc2"
+      },
+      "source": "DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/com-plexo-app.swift",
+      "line": 20
+    },
+    "startedAt": 1794744669.477139,
+    "dmgArchive": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Plexo/current.dmg",
+      "bytes": 147530640,
+      "sha256": "3e05a6ada7e50bf401472c0dbf14a48a709404d36a4b8bf8572ea88a3e57e64d"
+    },
+    "zipArchive": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Plexo/target.zip",
+      "bytes": 147276972,
+      "sha256": "d96f74348cf1e2eeefdc5705142bd0dfddc33fe6969c1529358c0bda8a280fc2"
+    },
+    "zipApp": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Plexo/zip/Plexo.app",
+      "bundleID": "com.plexo.app",
+      "shortVersion": "1.0.0-rc.15",
+      "buildVersion": "1.0.0-rc.15",
+      "team": "8YNW6SHRQ8",
+      "arm64CDHash": "af85d41fd99ab2c3c368d92e7847c258d4788b23",
+      "architectures": [
+        "arm64"
+      ],
+      "codesignExit": 0,
+      "codesignError": "",
+      "asarSHA256": "354c07dc2dd23f0aeec41497bea79c77fe7e2e5bacf2f6b99c8be40bf4180172"
+    },
+    "dmgApp": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Plexo/mount/Plexo.app",
+      "bundleID": "com.plexo.app",
+      "shortVersion": "1.0.0-rc.15",
+      "buildVersion": "1.0.0-rc.15",
+      "team": "8YNW6SHRQ8",
+      "arm64CDHash": "af85d41fd99ab2c3c368d92e7847c258d4788b23",
+      "architectures": [
+        "arm64"
+      ],
+      "codesignExit": 0,
+      "codesignError": "",
+      "asarSHA256": "354c07dc2dd23f0aeec41497bea79c77fe7e2e5bacf2f6b99c8be40bf4180172",
+      "savedPath": "/Users/bobby/duo-verify/electron-blockmap-20261115/Plexo/dmg-app/Plexo.app"
+    },
+    "identityCompatible": true,
+    "sameArm64CDHash": true,
+    "sameAsar": true,
+    "state": "packages-compared",
+    "finishedAt": 1794744704.1032882
+  },
+  {
+    "name": "Podman Desktop",
+    "target": {
+      "name": "Podman Desktop",
+      "family": "io-podmandesktop-PodmanDesktop",
+      "bundleID": "io.podmandesktop.PodmanDesktop",
+      "channel": ".stable",
+      "version": "v1.30.5",
+      "dmg": {
+        "name": "podman-desktop-1.30.5-arm64.dmg",
+        "url": "https://github.com/podman-desktop/podman-desktop/releases/download/v1.30.5/podman-desktop-1.30.5-arm64.dmg",
+        "size": 246551678,
+        "digest": "sha256:80736702a47d16a9cccf51809d40b79361a1449e257b867dfa6fa819a8f8e212"
+      },
+      "zip": {
+        "name": "podman-desktop-1.30.5-arm64.zip",
+        "url": "https://github.com/podman-desktop/podman-desktop/releases/download/v1.30.5/podman-desktop-1.30.5-arm64.zip",
+        "size": 239965170,
+        "digest": "sha256:9e2fa0b94bc0c1517a30fcd6aba0d09a285d89e80ff509e04c2fad42497a22ad"
+      },
+      "source": "DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/io-podmandesktop-PodmanDesktop.swift",
+      "line": 23
+    },
+    "startedAt": 1794744682.062242,
+    "dmgArchive": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Podman-Desktop/current.dmg",
+      "bytes": 246551678,
+      "sha256": "80736702a47d16a9cccf51809d40b79361a1449e257b867dfa6fa819a8f8e212"
+    },
+    "zipArchive": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Podman-Desktop/target.zip",
+      "bytes": 239965170,
+      "sha256": "9e2fa0b94bc0c1517a30fcd6aba0d09a285d89e80ff509e04c2fad42497a22ad"
+    },
+    "zipApp": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Podman-Desktop/zip/Podman Desktop.app",
+      "bundleID": "io.podmandesktop.PodmanDesktop",
+      "shortVersion": "1.30.5",
+      "buildVersion": "1.30.5",
+      "team": "HYSCB8KRL2",
+      "arm64CDHash": "a01aa07a2847907a103b77604f318d9fc385bbb4",
+      "architectures": [
+        "arm64"
+      ],
+      "codesignExit": 0,
+      "codesignError": "",
+      "asarSHA256": "a1749de28ef9955c60cef7c1928b7d51562619d69cb5bd528fb22710ecb3851a"
+    },
+    "dmgApp": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Podman-Desktop/mount/Podman Desktop.app",
+      "bundleID": "io.podmandesktop.PodmanDesktop",
+      "shortVersion": "1.30.5",
+      "buildVersion": "1.30.5",
+      "team": "HYSCB8KRL2",
+      "arm64CDHash": "a01aa07a2847907a103b77604f318d9fc385bbb4",
+      "architectures": [
+        "arm64"
+      ],
+      "codesignExit": 0,
+      "codesignError": "",
+      "asarSHA256": "a1749de28ef9955c60cef7c1928b7d51562619d69cb5bd528fb22710ecb3851a",
+      "savedPath": "/Users/bobby/duo-verify/electron-blockmap-20261115/Podman-Desktop/dmg-app/Podman Desktop.app"
+    },
+    "identityCompatible": true,
+    "sameArm64CDHash": true,
+    "sameAsar": true,
+    "state": "packages-compared",
+    "finishedAt": 1794744731.910325
+  },
+  {
+    "name": "Porting Kit",
+    "target": {
+      "name": "Porting Kit",
+      "family": "com-paulthetall-portingkit",
+      "bundleID": "com.paulthetall.portingkit",
+      "channel": ".stable",
+      "version": "v6.7.0",
+      "dmg": {
+        "name": "Porting.Kit-6.7.0-arm64.dmg",
+        "url": "https://github.com/vitor251093/porting-kit-releases/releases/download/v6.7.0/Porting.Kit-6.7.0-arm64.dmg",
+        "size": 142767508,
+        "digest": "sha256:7e33b70e326c7e5a99c531b65b678b605c44aaa107f51688777ad5dd9e5fbf5a"
+      },
+      "zip": {
+        "name": "Porting.Kit-6.7.0-arm64-mac.zip",
+        "url": "https://github.com/vitor251093/porting-kit-releases/releases/download/v6.7.0/Porting.Kit-6.7.0-arm64-mac.zip",
+        "size": 141202060,
+        "digest": "sha256:199e63b7f3242fdaace15f6de9d2a96776b82e0f6c18b96d5686260333c210b3"
+      },
+      "source": "DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/com-paulthetall-portingkit.swift",
+      "line": 43
+    },
+    "startedAt": 1794744704.104071,
+    "dmgArchive": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Porting-Kit/current.dmg",
+      "bytes": 142767508,
+      "sha256": "7e33b70e326c7e5a99c531b65b678b605c44aaa107f51688777ad5dd9e5fbf5a"
+    },
+    "zipArchive": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Porting-Kit/target.zip",
+      "bytes": 141202060,
+      "sha256": "199e63b7f3242fdaace15f6de9d2a96776b82e0f6c18b96d5686260333c210b3"
+    },
+    "zipApp": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Porting-Kit/zip/Porting Kit.app",
+      "bundleID": "com.paulthetall.portingkit",
+      "shortVersion": "6.7.0",
+      "buildVersion": "6.7.0",
+      "team": "45WEPZ3433",
+      "arm64CDHash": "cecea6cdbdff2f87ad400638042b90d419cf6436",
+      "architectures": [
+        "arm64"
+      ],
+      "codesignExit": 0,
+      "codesignError": "",
+      "asarSHA256": "5541c7c57d14131b88f12c274cee9ce7b0c92160cd5a5921f800d6c569c4777a"
+    },
+    "dmgApp": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Porting-Kit/mount/Porting Kit.app",
+      "bundleID": "com.paulthetall.portingkit",
+      "shortVersion": "6.7.0",
+      "buildVersion": "6.7.0",
+      "team": "45WEPZ3433",
+      "arm64CDHash": "cecea6cdbdff2f87ad400638042b90d419cf6436",
+      "architectures": [
+        "arm64"
+      ],
+      "codesignExit": 0,
+      "codesignError": "",
+      "asarSHA256": "5541c7c57d14131b88f12c274cee9ce7b0c92160cd5a5921f800d6c569c4777a",
+      "savedPath": "/Users/bobby/duo-verify/electron-blockmap-20261115/Porting-Kit/dmg-app/Porting Kit.app"
+    },
+    "identityCompatible": true,
+    "sameArm64CDHash": true,
+    "sameAsar": true,
+    "state": "packages-compared",
+    "finishedAt": 1794744738.730121
+  },
+  {
+    "name": "Rambox",
+    "target": {
+      "name": "Rambox",
+      "family": "com-rambox",
+      "bundleID": "com.rambox",
+      "channel": ".stable",
+      "version": "v3.2.0",
+      "dmg": {
+        "name": "Rambox-3.2.0-mac.dmg",
+        "url": "https://github.com/ramboxapp/download/releases/download/v3.2.0/Rambox-3.2.0-mac.dmg",
+        "size": 228081202,
+        "digest": "sha256:38cc8b19fb272fa0919c252973cf360e1ee6f56adc6a6e7b0b3f4cabb0ec1273"
+      },
+      "zip": {
+        "name": "Rambox-3.2.0-mac.zip",
+        "url": "https://github.com/ramboxapp/download/releases/download/v3.2.0/Rambox-3.2.0-mac.zip",
+        "size": 223594271,
+        "digest": "sha256:3ff54ac108b98aa8ff18988a245e00545076e410b075573664086723c36ac578"
+      },
+      "source": "DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/com-rambox.swift",
+      "line": 25
+    },
+    "startedAt": 1794744731.9110029,
+    "dmgArchive": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Rambox/current.dmg",
+      "bytes": 228081202,
+      "sha256": "38cc8b19fb272fa0919c252973cf360e1ee6f56adc6a6e7b0b3f4cabb0ec1273"
+    },
+    "zipArchive": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Rambox/target.zip",
+      "bytes": 223594271,
+      "sha256": "3ff54ac108b98aa8ff18988a245e00545076e410b075573664086723c36ac578"
+    },
+    "zipApp": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Rambox/zip/Rambox.app",
+      "bundleID": "com.rambox",
+      "shortVersion": "3.2.0",
+      "buildVersion": "3.2.0",
+      "team": "7F292FPD69",
+      "arm64CDHash": "9df1bc5a6a89bc7fc8b67c4111416654582b5701",
+      "architectures": [
+        "x86_64",
+        "arm64"
+      ],
+      "codesignExit": 0,
+      "codesignError": "",
+      "asarSHA256": "62b0c56af0bfe814d32271ed654271077bbc57430f36c37234c00b0619d83040"
+    },
+    "dmgApp": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Rambox/mount/Rambox.app",
+      "bundleID": "com.rambox",
+      "shortVersion": "3.2.0",
+      "buildVersion": "3.2.0",
+      "team": "7F292FPD69",
+      "arm64CDHash": "9df1bc5a6a89bc7fc8b67c4111416654582b5701",
+      "architectures": [
+        "x86_64",
+        "arm64"
+      ],
+      "codesignExit": 0,
+      "codesignError": "",
+      "asarSHA256": "62b0c56af0bfe814d32271ed654271077bbc57430f36c37234c00b0619d83040",
+      "savedPath": "/Users/bobby/duo-verify/electron-blockmap-20261115/Rambox/dmg-app/Rambox.app"
+    },
+    "identityCompatible": true,
+    "sameArm64CDHash": true,
+    "sameAsar": true,
+    "state": "packages-compared",
+    "finishedAt": 1794744784.464276
+  },
+  {
+    "name": "Requestly",
+    "target": {
+      "name": "Requestly",
+      "family": "io-requestly-beta",
+      "bundleID": "io.requestly.beta",
+      "channel": ".stable",
+      "version": "v26.6.29",
+      "dmg": {
+        "name": "Requestly-26.6.29-arm64.dmg",
+        "url": "https://github.com/requestly/http-interceptor-desktop-app/releases/download/v26.6.29/Requestly-26.6.29-arm64.dmg",
+        "size": 155160056,
+        "digest": "sha256:e8eebb6db725b079306973f74a453c2b707924d8a44c641b3a531eac83758bfc"
+      },
+      "zip": {
+        "name": "Requestly-26.6.29-arm64-mac.zip",
+        "url": "https://github.com/requestly/http-interceptor-desktop-app/releases/download/v26.6.29/Requestly-26.6.29-arm64-mac.zip",
+        "size": 154530201,
+        "digest": "sha256:6915448955d75d8c91e816fc717df7f7097765f234bc206894ed10d16c94f602"
+      },
+      "source": "DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/io-requestly-beta.swift",
+      "line": 53
+    },
+    "startedAt": 1794744738.730766,
+    "dmgArchive": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Requestly/current.dmg",
+      "bytes": 155160056,
+      "sha256": "e8eebb6db725b079306973f74a453c2b707924d8a44c641b3a531eac83758bfc"
+    },
+    "zipArchive": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Requestly/target.zip",
+      "bytes": 154530201,
+      "sha256": "6915448955d75d8c91e816fc717df7f7097765f234bc206894ed10d16c94f602"
+    },
+    "zipApp": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Requestly/zip/Requestly.app",
+      "bundleID": "io.requestly.beta",
+      "shortVersion": "26.6.29",
+      "buildVersion": "26.6.29",
+      "team": "YQ5FZQ855D",
+      "arm64CDHash": "a6aee8d3e1e3eba848866e50b693d3ac0242013e",
+      "architectures": [
+        "arm64"
+      ],
+      "codesignExit": 0,
+      "codesignError": "",
+      "asarSHA256": "fe39011033e1c20890158d7aabf5dd1a1a5942a75bad551f66e3edc41c8805c0"
+    },
+    "dmgApp": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Requestly/mount/Requestly.app",
+      "bundleID": "io.requestly.beta",
+      "shortVersion": "26.6.29",
+      "buildVersion": "26.6.29",
+      "team": "YQ5FZQ855D",
+      "arm64CDHash": "a6aee8d3e1e3eba848866e50b693d3ac0242013e",
+      "architectures": [
+        "arm64"
+      ],
+      "codesignExit": 0,
+      "codesignError": "",
+      "asarSHA256": "fe39011033e1c20890158d7aabf5dd1a1a5942a75bad551f66e3edc41c8805c0",
+      "savedPath": "/Users/bobby/duo-verify/electron-blockmap-20261115/Requestly/dmg-app/Requestly.app"
+    },
+    "identityCompatible": true,
+    "sameArm64CDHash": true,
+    "sameAsar": true,
+    "state": "packages-compared",
+    "finishedAt": 1794744782.242444
+  },
+  {
+    "name": "ResponsivelyApp",
+    "target": {
+      "name": "ResponsivelyApp",
+      "family": "app-responsively",
+      "bundleID": "app.responsively",
+      "channel": ".stable",
+      "version": "v1.18.0",
+      "dmg": {
+        "name": "ResponsivelyApp-1.18.0-arm64.dmg",
+        "url": "https://github.com/responsively-org/responsively-app-releases/releases/download/v1.18.0/ResponsivelyApp-1.18.0-arm64.dmg",
+        "size": 111987056,
+        "digest": "sha256:870ef97ae7b23758411841f0c35058ddd36ba2dce51b1f8a48063664dc12d92b"
+      },
+      "zip": {
+        "name": "ResponsivelyApp-1.18.0-arm64-mac.zip",
+        "url": "https://github.com/responsively-org/responsively-app-releases/releases/download/v1.18.0/ResponsivelyApp-1.18.0-arm64-mac.zip",
+        "size": 107579374,
+        "digest": "sha256:599e55c3e2664f6cb230f0d4af84fcface89a41a826cbeccbd9031e283baef57"
+      },
+      "source": "DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/app-responsively.swift",
+      "line": 26
+    },
+    "startedAt": 1794744782.243101,
+    "dmgArchive": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/ResponsivelyApp/current.dmg",
+      "bytes": 111987056,
+      "sha256": "870ef97ae7b23758411841f0c35058ddd36ba2dce51b1f8a48063664dc12d92b"
+    },
+    "zipArchive": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/ResponsivelyApp/target.zip",
+      "bytes": 107579374,
+      "sha256": "599e55c3e2664f6cb230f0d4af84fcface89a41a826cbeccbd9031e283baef57"
+    },
+    "zipApp": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/ResponsivelyApp/zip/ResponsivelyApp.app",
+      "bundleID": "app.responsively",
+      "shortVersion": "1.18.0",
+      "buildVersion": "1.18.0",
+      "team": "M4H33HFC4K",
+      "arm64CDHash": "339bb2386dc5aebf07ba6b1eb55ba64db9849c99",
+      "architectures": [
+        "arm64"
+      ],
+      "codesignExit": 0,
+      "codesignError": "",
+      "asarSHA256": "9055069774c83fbb47f90376198cbd10131da0e1010f337192b24fff0bcf3059"
+    },
+    "dmgApp": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/ResponsivelyApp/mount/ResponsivelyApp.app",
+      "bundleID": "app.responsively",
+      "shortVersion": "1.18.0",
+      "buildVersion": "1.18.0",
+      "team": "M4H33HFC4K",
+      "arm64CDHash": "339bb2386dc5aebf07ba6b1eb55ba64db9849c99",
+      "architectures": [
+        "arm64"
+      ],
+      "codesignExit": 0,
+      "codesignError": "",
+      "asarSHA256": "9055069774c83fbb47f90376198cbd10131da0e1010f337192b24fff0bcf3059",
+      "savedPath": "/Users/bobby/duo-verify/electron-blockmap-20261115/ResponsivelyApp/dmg-app/ResponsivelyApp.app"
+    },
+    "identityCompatible": true,
+    "sameArm64CDHash": true,
+    "sameAsar": true,
+    "state": "packages-compared",
+    "finishedAt": 1794744816.82721
+  },
+  {
+    "name": "Signal Desktop",
+    "target": {
+      "name": "Signal Desktop",
+      "family": "vendor:Signal Desktop",
+      "bundleID": "org.whispersystems.signal-desktop",
+      "channel": ".stable",
+      "version": "8.35.0",
+      "dmg": {
+        "url": "https://updates.signal.org/desktop/signal-desktop-mac-universal-8.35.0.dmg"
+      },
+      "zip": {
+        "url": "https://updates.signal.org/desktop/signal-desktop-mac-arm64-8.35.0.zip",
+        "sha512": "Ce/tLdnlyi9MhmZfSQ4a3mqfCjf5h9Qj/ctS/WLKUKrzG6AP4NHgAy8vv7LKFZagBTr5M24r9tFfQF2F4ISskg==",
+        "size": 146526884
+      },
+      "feed": "https://updates.signal.org/desktop/latest-mac.yml"
+    },
+    "startedAt": 1794744784.465034,
+    "dmgArchive": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Signal-Desktop/current.dmg",
+      "bytes": 271241278,
+      "sha256": "2745ae6a735bb39cb35a5761b98faaea011ace66cf28bbe5f9cbbb2a73cc6804"
+    },
+    "zipArchive": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Signal-Desktop/target.zip",
+      "bytes": 146526884,
+      "sha256": "c977cd0e36f389b0ee8d8e384cb1d67c63029002d58dd68c6df1fa6a53ce79d7"
+    },
+    "zipApp": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Signal-Desktop/zip/Signal.app",
+      "bundleID": "org.whispersystems.signal-desktop",
+      "shortVersion": "8.35.0",
+      "buildVersion": "1",
+      "team": "U68MSDN6DR",
+      "arm64CDHash": "141a1692fa8b273d9267bc1018be91419e0def0f",
+      "architectures": [
+        "arm64"
+      ],
+      "codesignExit": 0,
+      "codesignError": "",
+      "asarSHA256": "053c70976a0ca521fce58fe7a89ccf21eb7ded8dd7a4ece609b86868d31c3318"
+    },
+    "dmgApp": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Signal-Desktop/mount/Signal.app",
+      "bundleID": "org.whispersystems.signal-desktop",
+      "shortVersion": "8.35.0",
+      "buildVersion": "1",
+      "team": "U68MSDN6DR",
+      "arm64CDHash": "c9180d9f9c7b97645a915b25ef0e4ff15927d01c",
+      "architectures": [
+        "x86_64",
+        "arm64"
+      ],
+      "codesignExit": 0,
+      "codesignError": "",
+      "asarSHA256": "1736a2e6cc9fa7550a59a0c0558d4c4901fcc7a03f324b2002babf648cc006d0",
+      "savedPath": "/Users/bobby/duo-verify/electron-blockmap-20261115/Signal-Desktop/dmg-app/Signal.app"
+    },
+    "identityCompatible": true,
+    "sameArm64CDHash": false,
+    "sameAsar": false,
+    "state": "packages-compared",
+    "finishedAt": 1794744816.8276181
+  },
+  {
+    "name": "Standard Notes",
+    "target": {
+      "name": "Standard Notes",
+      "family": "org-standardnotes-standardnotes",
+      "bundleID": "org.standardnotes.standardnotes",
+      "channel": ".stable",
+      "version": "@standardnotes/desktop@3.202.11",
+      "dmg": {
+        "name": "standard-notes-3.202.11-mac-arm64.dmg",
+        "url": "https://github.com/standardnotes/app/releases/download/%40standardnotes/desktop%403.202.11/standard-notes-3.202.11-mac-arm64.dmg",
+        "size": 160129097,
+        "digest": "sha256:4de1a8010eb1500dd42bbf28242c04771775d6b9bb303da0439bea3254480e86"
+      },
+      "zip": {
+        "name": "standard-notes-3.202.11-mac-arm64.zip",
+        "url": "https://github.com/standardnotes/app/releases/download/%40standardnotes/desktop%403.202.11/standard-notes-3.202.11-mac-arm64.zip",
+        "size": 153851499,
+        "digest": "sha256:8a8d85860487ddf9a9f89b6e06bf00e36d96dbe4ab99d0c41f52f7ff4d47bcaa"
+      },
+      "source": "DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/org-standardnotes-standardnotes.swift",
+      "line": 33
+    },
+    "startedAt": 1794744816.828902,
+    "dmgArchive": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Standard-Notes/current.dmg",
+      "bytes": 160129097,
+      "sha256": "4de1a8010eb1500dd42bbf28242c04771775d6b9bb303da0439bea3254480e86"
+    },
+    "zipArchive": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Standard-Notes/target.zip",
+      "bytes": 153851499,
+      "sha256": "8a8d85860487ddf9a9f89b6e06bf00e36d96dbe4ab99d0c41f52f7ff4d47bcaa"
+    },
+    "zipApp": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Standard-Notes/zip/Standard Notes.app",
+      "bundleID": "org.standardnotes.standardnotes",
+      "shortVersion": "3.202.11",
+      "buildVersion": "3.202.11",
+      "team": "HKF9BXSN95",
+      "arm64CDHash": "5d48dc5ef43c9ab4d22c65f3140c40210c11a920",
+      "architectures": [
+        "arm64"
+      ],
+      "codesignExit": 0,
+      "codesignError": "",
+      "asarSHA256": "5314bac24246340e2af4e6431574ef0614df3323c40ea76f3751226bc70f6bde"
+    },
+    "dmgApp": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Standard-Notes/mount/Standard Notes.app",
+      "bundleID": "org.standardnotes.standardnotes",
+      "shortVersion": "3.202.11",
+      "buildVersion": "3.202.11",
+      "team": "HKF9BXSN95",
+      "arm64CDHash": "5d48dc5ef43c9ab4d22c65f3140c40210c11a920",
+      "architectures": [
+        "arm64"
+      ],
+      "codesignExit": 0,
+      "codesignError": "",
+      "asarSHA256": "5314bac24246340e2af4e6431574ef0614df3323c40ea76f3751226bc70f6bde",
+      "savedPath": "/Users/bobby/duo-verify/electron-blockmap-20261115/Standard-Notes/dmg-app/Standard Notes.app"
+    },
+    "identityCompatible": true,
+    "sameArm64CDHash": true,
+    "sameAsar": true,
+    "state": "packages-compared",
+    "finishedAt": 1794744858.9152482
+  },
+  {
+    "name": "T3 Code",
+    "target": {
+      "name": "T3 Code",
+      "family": "com-t3tools-t3code",
+      "bundleID": "com.t3tools.t3code",
+      "channel": ".alpha",
+      "version": "v0.1.9",
+      "dmg": {
+        "name": "T3-Code-0.1.9-arm64.dmg",
+        "url": "https://github.com/pingdotgg/t3code/releases/download/v0.1.9/T3-Code-0.1.9-arm64.dmg",
+        "size": 195374334,
+        "digest": "sha256:b0a15cb7aac2461425f670b14ac52d7a207a0e2008250882c850b4cd62aa926a"
+      },
+      "zip": {
+        "name": "T3-Code-0.1.9-arm64.zip",
+        "url": "https://github.com/pingdotgg/t3code/releases/download/v0.1.9/T3-Code-0.1.9-arm64.zip",
+        "size": 187924587,
+        "digest": "sha256:03ef426e66ac5b16700188596c1394f448586b8ab7cc379e1e321b29f2c4597e"
+      },
+      "source": "DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/com-t3tools-t3code.swift",
+      "line": 22
+    },
+    "startedAt": 1794744816.829407,
+    "dmgArchive": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/T3-Code/current.dmg",
+      "bytes": 195374334,
+      "sha256": "b0a15cb7aac2461425f670b14ac52d7a207a0e2008250882c850b4cd62aa926a"
+    },
+    "zipArchive": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/T3-Code/target.zip",
+      "bytes": 187924587,
+      "sha256": "03ef426e66ac5b16700188596c1394f448586b8ab7cc379e1e321b29f2c4597e"
+    },
+    "zipApp": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/T3-Code/zip/T3 Code (Beta).app",
+      "bundleID": "com.t3tools.t3code",
+      "shortVersion": "0.1.9",
+      "buildVersion": "0.1.9",
+      "team": "ARK85ZXQ4Z",
+      "arm64CDHash": "b5ff77524756a2bc9f2f96d5cc95677d28bb6447",
+      "architectures": [
+        "arm64"
+      ],
+      "codesignExit": 0,
+      "codesignError": "",
+      "asarSHA256": "6d89f54f6fb11be0d449359c5868496f78b6118ed17dd14727a2414cede16f75"
+    },
+    "dmgApp": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/T3-Code/mount/T3 Code (Beta).app",
+      "bundleID": "com.t3tools.t3code",
+      "shortVersion": "0.1.9",
+      "buildVersion": "0.1.9",
+      "team": "ARK85ZXQ4Z",
+      "arm64CDHash": "b5ff77524756a2bc9f2f96d5cc95677d28bb6447",
+      "architectures": [
+        "arm64"
+      ],
+      "codesignExit": 0,
+      "codesignError": "",
+      "asarSHA256": "6d89f54f6fb11be0d449359c5868496f78b6118ed17dd14727a2414cede16f75",
+      "savedPath": "/Users/bobby/duo-verify/electron-blockmap-20261115/T3-Code/dmg-app/T3 Code (Beta).app"
+    },
+    "identityCompatible": true,
+    "sameArm64CDHash": true,
+    "sameAsar": true,
+    "state": "packages-compared",
+    "finishedAt": 1794744859.2327821
+  },
+  {
+    "name": "Tad",
+    "target": {
+      "name": "Tad",
+      "family": "com-antonycourtney-tad",
+      "bundleID": "com.antonycourtney.tad",
+      "channel": ".stable",
+      "version": "v0.14.0",
+      "dmg": {
+        "name": "Tad-0.14.0-arm64.dmg",
+        "url": "https://github.com/antonycourtney/tad/releases/download/v0.14.0/Tad-0.14.0-arm64.dmg",
+        "size": 242206843,
+        "digest": null
+      },
+      "zip": {
+        "name": "Tad-0.14.0-arm64-mac.zip",
+        "url": "https://github.com/antonycourtney/tad/releases/download/v0.14.0/Tad-0.14.0-arm64-mac.zip",
+        "size": 232837547,
+        "digest": null
+      },
+      "source": "DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/com-antonycourtney-tad.swift",
+      "line": 21
+    },
+    "startedAt": 1794744858.9162781,
+    "dmgArchive": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Tad/current.dmg",
+      "bytes": 242206843,
+      "sha256": "18004712674bbd7072137937f2ad02231f71b2b326d48079e72f9a536660d588"
+    },
+    "zipArchive": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Tad/target.zip",
+      "bytes": 232837547,
+      "sha256": "9006cb996884e4115b13d55f5c9e0ac351a7b366285e0144f1b435743e19610d"
+    },
+    "zipApp": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Tad/zip/Tad.app",
+      "bundleID": "com.antonycourtney.tad",
+      "shortVersion": "0.14.0",
+      "buildVersion": "0.14.0.1",
+      "team": "VPS8BQAV8D",
+      "arm64CDHash": "5b7e61e727ff310fb354f223a0cdcbe04257af85",
+      "architectures": [
+        "arm64"
+      ],
+      "codesignExit": 0,
+      "codesignError": "",
+      "asarSHA256": "b449373a209071a0ac252c14a025584905d898a2ae8a75c0dc5a6116c4be5d9d"
+    },
+    "dmgApp": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Tad/mount/Tad.app",
+      "bundleID": "com.antonycourtney.tad",
+      "shortVersion": "0.14.0",
+      "buildVersion": "0.14.0.1",
+      "team": "VPS8BQAV8D",
+      "arm64CDHash": "5b7e61e727ff310fb354f223a0cdcbe04257af85",
+      "architectures": [
+        "arm64"
+      ],
+      "codesignExit": 0,
+      "codesignError": "",
+      "asarSHA256": "b449373a209071a0ac252c14a025584905d898a2ae8a75c0dc5a6116c4be5d9d",
+      "savedPath": "/Users/bobby/duo-verify/electron-blockmap-20261115/Tad/dmg-app/Tad.app"
+    },
+    "identityCompatible": true,
+    "sameArm64CDHash": true,
+    "sameAsar": true,
+    "state": "packages-compared",
+    "finishedAt": 1794744915.824457
+  },
+  {
+    "name": "Termius",
+    "target": {
+      "name": "Termius",
+      "family": "vendor:Termius",
+      "bundleID": "com.termius-dmg.mac",
+      "channel": ".stable",
+      "version": "10.4.1",
+      "dmg": {
+        "url": "https://autoupdate.termius.com/mac-arm64/Termius.dmg"
+      },
+      "zip": {
+        "url": "https://autoupdate.termius.com/mac-arm64/Termius.zip",
+        "sha512": "k34UnL4wuRHnqu64JWCLB+mE3rm+/0hJSX/J1jcM8RteGzWhY9Qh7rO7pLHoP6xoT3lfss0/CeCiPaQoSpdnLg==",
+        "size": 184381038
+      },
+      "feed": "https://autoupdate.termius.com/mac-arm64/latest-mac.yml"
+    },
+    "startedAt": 1794744859.23984,
+    "dmgArchive": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Termius/current.dmg",
+      "bytes": 191584135,
+      "sha256": "db11fd2e91f5513ba4f26f1622702f7755ae3cf4c2fde91538979f940a979389"
+    },
+    "zipArchive": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Termius/target.zip",
+      "bytes": 184381038,
+      "sha256": "998bd3fa36694ee0f489abffb5e8af8154314dee7da034d6ce5de07aa5342abd"
+    },
+    "zipApp": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Termius/zip/Termius.app",
+      "bundleID": "com.termius-dmg.mac",
+      "shortVersion": "10.4.1",
+      "buildVersion": "10.4.1",
+      "team": "6KN952WR85",
+      "arm64CDHash": "d783ab35a142d7fa02b13a58c7421dcde82eac17",
+      "architectures": [
+        "arm64"
+      ],
+      "codesignExit": 0,
+      "codesignError": "",
+      "asarSHA256": "d0477e93ef749b3ee35cd6d247e1b887bab435f59b5927f86666106ca60a7aba"
+    },
+    "dmgApp": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Termius/mount/Termius.app",
+      "bundleID": "com.termius-dmg.mac",
+      "shortVersion": "10.4.1",
+      "buildVersion": "10.4.1",
+      "team": "6KN952WR85",
+      "arm64CDHash": "d783ab35a142d7fa02b13a58c7421dcde82eac17",
+      "architectures": [
+        "arm64"
+      ],
+      "codesignExit": 0,
+      "codesignError": "",
+      "asarSHA256": "d0477e93ef749b3ee35cd6d247e1b887bab435f59b5927f86666106ca60a7aba",
+      "savedPath": "/Users/bobby/duo-verify/electron-blockmap-20261115/Termius/dmg-app/Termius.app"
+    },
+    "identityCompatible": true,
+    "sameArm64CDHash": true,
+    "sameAsar": true,
+    "state": "packages-compared",
+    "finishedAt": 1794744882.31021
+  },
+  {
+    "name": "TimeScribe",
+    "target": {
+      "name": "TimeScribe",
+      "family": "de-amplussoftware-timescribe",
+      "bundleID": "de.amplussoftware.timescribe",
+      "channel": ".stable",
+      "version": "v1.18.0",
+      "dmg": {
+        "name": "TimeScribe-1.18.0-arm64.dmg",
+        "url": "https://github.com/WINBIGFOX/TimeScribe/releases/download/v1.18.0/TimeScribe-1.18.0-arm64.dmg",
+        "size": 165876650,
+        "digest": "sha256:0513120db6b4b7ce654733ee221dfe0bb00a4e4baff57d50cbb43afeb139a818"
+      },
+      "zip": {
+        "name": "TimeScribe-1.18.0-arm64.zip",
+        "url": "https://github.com/WINBIGFOX/TimeScribe/releases/download/v1.18.0/TimeScribe-1.18.0-arm64.zip",
+        "size": 165421958,
+        "digest": "sha256:64aebe49706ffab3e66fe2a320bb705a945ef88e6afe042d42c233a5a2adeacd"
+      },
+      "source": "DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/de-amplussoftware-timescribe.swift",
+      "line": 25
+    },
+    "startedAt": 1794744882.310872,
+    "dmgArchive": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/TimeScribe/current.dmg",
+      "bytes": 165876650,
+      "sha256": "0513120db6b4b7ce654733ee221dfe0bb00a4e4baff57d50cbb43afeb139a818"
+    },
+    "zipArchive": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/TimeScribe/target.zip",
+      "bytes": 165421958,
+      "sha256": "64aebe49706ffab3e66fe2a320bb705a945ef88e6afe042d42c233a5a2adeacd"
+    },
+    "zipApp": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/TimeScribe/zip/TimeScribe.app",
+      "bundleID": "de.amplussoftware.timescribe",
+      "shortVersion": "1.18.0",
+      "buildVersion": "1.18.0",
+      "team": "69A277BV6W",
+      "arm64CDHash": "4bf33516cf3d351c2efe1877d1cbb80b66dda3ba",
+      "architectures": [
+        "arm64"
+      ],
+      "codesignExit": 0,
+      "codesignError": "",
+      "asarSHA256": "24459aa963aadeb40a16a318039c40b2ed06a92b9847a87d01d63ca291110b5e"
+    },
+    "dmgApp": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/TimeScribe/mount/TimeScribe.app",
+      "bundleID": "de.amplussoftware.timescribe",
+      "shortVersion": "1.18.0",
+      "buildVersion": "1.18.0",
+      "team": "69A277BV6W",
+      "arm64CDHash": "4bf33516cf3d351c2efe1877d1cbb80b66dda3ba",
+      "architectures": [
+        "arm64"
+      ],
+      "codesignExit": 0,
+      "codesignError": "",
+      "asarSHA256": "24459aa963aadeb40a16a318039c40b2ed06a92b9847a87d01d63ca291110b5e",
+      "savedPath": "/Users/bobby/duo-verify/electron-blockmap-20261115/TimeScribe/dmg-app/TimeScribe.app"
+    },
+    "identityCompatible": true,
+    "sameArm64CDHash": true,
+    "sameAsar": true,
+    "state": "packages-compared",
+    "finishedAt": 1794744982.928424
+  },
+  {
+    "name": "Upscayl",
+    "target": {
+      "name": "Upscayl",
+      "family": "org-upscayl-Upscayl",
+      "bundleID": "org.upscayl.Upscayl",
+      "channel": ".stable",
+      "version": "v2.15.0",
+      "dmg": {
+        "name": "upscayl-2.15.0-mac.dmg",
+        "url": "https://github.com/upscayl/upscayl/releases/download/v2.15.0/upscayl-2.15.0-mac.dmg",
+        "size": 385264901,
+        "digest": null
+      },
+      "zip": {
+        "name": "upscayl-2.15.0-mac.zip",
+        "url": "https://github.com/upscayl/upscayl/releases/download/v2.15.0/upscayl-2.15.0-mac.zip",
+        "size": 376811048,
+        "digest": null
+      },
+      "source": "DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/org-upscayl-Upscayl.swift",
+      "line": 14
+    },
+    "startedAt": 1794744915.8284302,
+    "dmgArchive": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Upscayl/current.dmg",
+      "bytes": 385264901,
+      "sha256": "0e53c9ee8c1800cb3e2ce0f574e4e1a35a51945e19ff2b93f33928bbd7fd4c5a"
+    },
+    "zipArchive": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Upscayl/target.zip",
+      "bytes": 376811048,
+      "sha256": "817a9e45a356d20ed95640926f1a6cf52a8f32e552ccb4c218be45dce9bf8b0a"
+    },
+    "zipApp": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Upscayl/zip/Upscayl.app",
+      "bundleID": "org.upscayl.Upscayl",
+      "shortVersion": "2.15.0",
+      "buildVersion": "2.15.0",
+      "team": "W2T4W74X87",
+      "arm64CDHash": "5cff0d1f838ff590da83d69467eb29c788b09223",
+      "architectures": [
+        "x86_64",
+        "arm64"
+      ],
+      "codesignExit": 0,
+      "codesignError": "",
+      "asarSHA256": "f73c361adc1c2e6bb7d010a64330c2ec329aeec1ad5d1222424a18a7d0bdafc3"
+    },
+    "dmgApp": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Upscayl/mount/Upscayl.app",
+      "bundleID": "org.upscayl.Upscayl",
+      "shortVersion": "2.15.0",
+      "buildVersion": "2.15.0",
+      "team": "W2T4W74X87",
+      "arm64CDHash": "5cff0d1f838ff590da83d69467eb29c788b09223",
+      "architectures": [
+        "x86_64",
+        "arm64"
+      ],
+      "codesignExit": 0,
+      "codesignError": "",
+      "asarSHA256": "f73c361adc1c2e6bb7d010a64330c2ec329aeec1ad5d1222424a18a7d0bdafc3",
+      "savedPath": "/Users/bobby/duo-verify/electron-blockmap-20261115/Upscayl/dmg-app/Upscayl.app"
+    },
+    "identityCompatible": true,
+    "sameArm64CDHash": true,
+    "sameAsar": true,
+    "state": "packages-compared",
+    "finishedAt": 1794744987.619164
+  }
+]

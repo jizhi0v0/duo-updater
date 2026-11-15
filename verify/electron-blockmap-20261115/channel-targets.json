@@ -1,0 +1,70 @@
+[
+  {
+    "name": "T3 Code Nightly",
+    "family": "com-t3tools-t3code",
+    "bundleID": "com.t3tools.t3code",
+    "channel": ".nightly",
+    "version": "v0.1.10-nightly.20261115.4723",
+    "dmg": {
+      "name": "T3-Code-0.1.10-nightly.20261115.4723-arm64.dmg",
+      "url": "https://github.com/pingdotgg/t3code/releases/download/v0.1.10-nightly.20261115.4723/T3-Code-0.1.10-nightly.20261115.4723-arm64.dmg",
+      "size": 240661617,
+      "digest": "sha256:72454e80f32500dc27ce7154c3d8f312674151ec894603a88c45cf86ec39437c"
+    },
+    "zip": {
+      "name": "T3-Code-0.1.10-nightly.20261115.4723-arm64.zip",
+      "url": "https://github.com/pingdotgg/t3code/releases/download/v0.1.10-nightly.20261115.4723/T3-Code-0.1.10-nightly.20261115.4723-arm64.zip",
+      "size": 229808494,
+      "digest": "sha256:da854d84b02167de33e84d73b92b3212c064e41f913a2231a49bd7e97502e51b"
+    }
+  },
+  {
+    "name": "ResponsivelyApp Beta",
+    "family": "app-responsively",
+    "bundleID": "app.responsively",
+    "channel": ".beta",
+    "version": "v2.0.0-beta.0",
+    "dmg": {
+      "name": "ResponsivelyApp-2.0.0-beta.0-arm64.dmg",
+      "url": "https://github.com/responsively-org/responsively-app-releases/releases/download/v2.0.0-beta.0/ResponsivelyApp-2.0.0-beta.0-arm64.dmg",
+      "size": 136670493,
+      "digest": "sha256:c32f1d6808e143af056ed342f947a18448cd1b281d7945ec3a6f7d8d9fcb1260"
+    },
+    "zip": {
+      "name": "ResponsivelyApp-2.0.0-beta.0-arm64-mac.zip",
+      "url": "https://github.com/responsively-org/responsively-app-releases/releases/download/v2.0.0-beta.0/ResponsivelyApp-2.0.0-beta.0-arm64-mac.zip",
+      "size": 136182003,
+      "digest": "sha256:a794fd253300e51a89a0b803715031aadd2f0101a8eed94fc834549394f0e131"
+    }
+  },
+  {
+    "name": "Signal Beta",
+    "family": "org-whispersystems-signal-desktop-beta",
+    "bundleID": "org.whispersystems.signal-desktop-beta",
+    "channel": ".beta",
+    "version": "8.36.0-beta.1",
+    "dmg": {
+      "url": "https://updates.signal.org/desktop/signal-desktop-beta-mac-universal-8.36.0-beta.1.dmg"
+    },
+    "zip": {
+      "url": "https://updates.signal.org/desktop/signal-desktop-beta-mac-arm64-8.36.0-beta.1.zip",
+      "sha512": "VzhEA2HdGHHXkVcUDS2hYZPAle/6uR/f24dHMoI+ufludAkOyxVkrHUeSTWWA4Ro2GINwBJ2f2mVBB9S83akSg==",
+      "size": 145422122
+    }
+  },
+  {
+    "name": "Termius Beta",
+    "family": "com-termius-beta-mac",
+    "bundleID": "com.termius-beta.mac",
+    "channel": ".beta",
+    "version": "10.4.1",
+    "dmg": {
+      "url": "https://autoupdate.termius.com/mac-beta-universal/Termius%20Beta.dmg"
+    },
+    "zip": {
+      "url": "https://autoupdate.termius.com/mac-beta-universal/Termius%20Beta.zip",
+      "sha512": "wjcysBJlt8kKSH6eIc5t2Un1DpBXSUFi8wnHpbzauM+GP/k+ZtJUFujPdliU+eZBRHCdJI5ulUX3SFmmErZJkg==",
+      "size": 288311701
+    }
+  }
+]

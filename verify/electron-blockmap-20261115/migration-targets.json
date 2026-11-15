@@ -1,0 +1,649 @@
+[
+  {
+    "name": "Bdash",
+    "family": "io-bdash",
+    "bundleID": "io.bdash",
+    "channel": ".stable",
+    "version": "v1.35.4",
+    "dmg": {
+      "name": "Bdash-1.35.4-universal.dmg",
+      "url": "https://github.com/bdash-app/bdash/releases/download/v1.35.4/Bdash-1.35.4-universal.dmg",
+      "size": 256334401,
+      "digest": "sha256:75be2be37c29e5ccc4160e905cb9acbef8de392016339fcb8078a4f644e505df"
+    },
+    "zip": {
+      "name": "Bdash-1.35.4-universal-mac.zip",
+      "url": "https://github.com/bdash-app/bdash/releases/download/v1.35.4/Bdash-1.35.4-universal-mac.zip",
+      "size": 250153825,
+      "digest": "sha256:45db49d7029c8919ff150335823a60a2dca84699904029a5c6071a564109c614"
+    },
+    "source": "DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/io-bdash.swift",
+    "line": 21
+  },
+  {
+    "name": "BlueBubbles Server",
+    "family": "com-BlueBubbles-BlueBubbles-Server",
+    "bundleID": "com.BlueBubbles.BlueBubbles-Server",
+    "channel": ".stable",
+    "version": "v1.9.12",
+    "dmg": {
+      "name": "BlueBubbles-1.9.12-arm64.dmg",
+      "url": "https://github.com/BlueBubblesApp/bluebubbles-server/releases/download/v1.9.12/BlueBubbles-1.9.12-arm64.dmg",
+      "size": 304909058,
+      "digest": "sha256:923b562d2c945e7bb587576902f39af1456ec746b041090a397296e0786d5d43"
+    },
+    "zip": {
+      "name": "BlueBubbles-1.9.12-arm64-mac.zip",
+      "url": "https://github.com/BlueBubblesApp/bluebubbles-server/releases/download/v1.9.12/BlueBubbles-1.9.12-arm64-mac.zip",
+      "size": 296262790,
+      "digest": "sha256:e1d96d67fe4fc79ad44a8f1eeac3de78eef561635842b66d380dd3eba5092d89"
+    },
+    "source": "DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/com-BlueBubbles-BlueBubbles-Server.swift",
+    "line": 34
+  },
+  {
+    "name": "Bruno",
+    "family": "com-usebruno-app",
+    "bundleID": "com.usebruno.app",
+    "channel": ".stable",
+    "version": "v4.3.0",
+    "dmg": {
+      "name": "bruno_4.3.0_arm64_mac.dmg",
+      "url": "https://github.com/usebruno/bruno/releases/download/v4.3.0/bruno_4.3.0_arm64_mac.dmg",
+      "size": 167922780,
+      "digest": "sha256:bb4c4d8de817a6f529880627606137fd16346ddece547c6a0862e84bd1cc69bf"
+    },
+    "zip": {
+      "name": "bruno_4.3.0_arm64_mac.zip",
+      "url": "https://github.com/usebruno/bruno/releases/download/v4.3.0/bruno_4.3.0_arm64_mac.zip",
+      "size": 160252445,
+      "digest": "sha256:8d87a7c21f5c4723d26975c11042592d5bf503e1dc87aa5bba9e8067e551d2dc"
+    },
+    "source": "DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/com-usebruno-app.swift",
+    "line": 13
+  },
+  {
+    "name": "Chatbox",
+    "family": "vendor:Chatbox",
+    "bundleID": "xyz.chatboxapp.app",
+    "channel": ".stable",
+    "version": "1.24.4",
+    "dmg": {
+      "url": "https://download.chatboxai.app/releases/Chatbox-1.24.4-arm64.dmg"
+    },
+    "zip": {
+      "url": "https://download.chatboxai.app/releases/Chatbox-1.24.4-arm64-mac.zip",
+      "sha512": "x7oL0ENgxtLHjX6NdS+FgjfRue3B5BTl+6QSBlp9yP5KQEHx7IML3IjqWTT5FWXiRoheHLWpfbhPBiNwp1d5rg==",
+      "size": 152421838
+    },
+    "feed": "https://download.chatboxai.app/releases/latest-mac.yml"
+  },
+  {
+    "name": "Cherry Studio",
+    "family": "com-kangfenmao-CherryStudio",
+    "bundleID": "com.kangfenmao.CherryStudio",
+    "channel": ".stable",
+    "version": "v2.2.2",
+    "dmg": {
+      "name": "Cherry-Studio-2.2.2-mac-arm64.dmg",
+      "url": "https://github.com/CherryHQ/cherry-studio/releases/download/v2.2.2/Cherry-Studio-2.2.2-mac-arm64.dmg",
+      "size": 300083451,
+      "digest": "sha256:5de08748e4a62023e5b942722fc84623e5c466d51b403a3429a0f29dc31270cd"
+    },
+    "zip": {
+      "name": "Cherry-Studio-2.2.2-mac-arm64.zip",
+      "url": "https://github.com/CherryHQ/cherry-studio/releases/download/v2.2.2/Cherry-Studio-2.2.2-mac-arm64.zip",
+      "size": 296654496,
+      "digest": "sha256:f62a9aab1efd2aab961932d4423b9396866376a9b4517d9109fc29914dce7af4"
+    },
+    "source": "DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/com-kangfenmao-CherryStudio.swift",
+    "line": 24
+  },
+  {
+    "name": "claude-devtools",
+    "family": "com-claudecode-context",
+    "bundleID": "com.claudecode.context",
+    "channel": ".stable",
+    "version": "v0.5.0",
+    "dmg": {
+      "name": "claude-devtools-0.5.0-arm64.dmg",
+      "url": "https://github.com/matt1398/claude-devtools/releases/download/v0.5.0/claude-devtools-0.5.0-arm64.dmg",
+      "size": 157809161,
+      "digest": "sha256:f37ec018a4052aa7b73e8ece741cf864bd2ee20c0e25b911211616f672bef441"
+    },
+    "zip": {
+      "name": "claude-devtools-0.5.0-arm64.zip",
+      "url": "https://github.com/matt1398/claude-devtools/releases/download/v0.5.0/claude-devtools-0.5.0-arm64.zip",
+      "size": 150872813,
+      "digest": "sha256:8a587c277fde1a5d879547cf44141302d747cbd7423f06a581c181ade062d7f5"
+    },
+    "source": "DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/com-claudecode-context.swift",
+    "line": 13
+  },
+  {
+    "name": "draw.io",
+    "family": "com-jgraph-drawio-desktop",
+    "bundleID": "com.jgraph.drawio.desktop",
+    "channel": ".stable",
+    "version": "v32.6.10",
+    "dmg": {
+      "name": "draw.io-arm64-32.6.10.dmg",
+      "url": "https://github.com/jgraph/drawio-desktop/releases/download/v32.6.10/draw.io-arm64-32.6.10.dmg",
+      "size": 157367951,
+      "digest": "sha256:83e4027837f89bfba9dafbcc5c0e4befa76e2ac7f4e37f7a7b40c817141a6727"
+    },
+    "zip": {
+      "name": "draw.io-arm64-32.6.10.zip",
+      "url": "https://github.com/jgraph/drawio-desktop/releases/download/v32.6.10/draw.io-arm64-32.6.10.zip",
+      "size": 152083191,
+      "digest": "sha256:d97a0740fdf835fb9944369b87d86eb9ff1e37f2e0e1306544711f721f977a35"
+    },
+    "source": "DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/com-jgraph-drawio-desktop.swift",
+    "line": 13
+  },
+  {
+    "name": "Ferdium",
+    "family": "org-ferdium-ferdium-app",
+    "bundleID": "org.ferdium.ferdium-app",
+    "channel": ".stable",
+    "version": "v7.2.3",
+    "dmg": {
+      "name": "Ferdium-mac-7.2.3-arm64.dmg",
+      "url": "https://github.com/ferdium/ferdium-app/releases/download/v7.2.3/Ferdium-mac-7.2.3-arm64.dmg",
+      "size": 167567454,
+      "digest": "sha256:478842403c103837b3ba3bae4b9b86df1fb4f8f1da41dc642440ac1fdd51b5b0"
+    },
+    "zip": {
+      "name": "Ferdium-mac-bundle-7.2.3-arm64.zip",
+      "url": "https://github.com/ferdium/ferdium-app/releases/download/v7.2.3/Ferdium-mac-bundle-7.2.3-arm64.zip",
+      "size": 160221326,
+      "digest": "sha256:79d569fe06c5c1547c90440d549bf1e9af0465a2cce806734c3ebf625cfdd881"
+    },
+    "source": "DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/org-ferdium-ferdium-app.swift",
+    "line": 32
+  },
+  {
+    "name": "Granola",
+    "family": "vendor:Granola",
+    "bundleID": "com.granola.app",
+    "channel": ".stable",
+    "version": "7.786.3",
+    "dmg": {
+      "url": "https://dr2v7l5emb758.cloudfront.net/7.786.3/Granola-7.786.3-mac-universal.dmg"
+    },
+    "zip": {
+      "url": "https://api.granola.ai/v1/check-for-update/Granola-7.786.3-mac-universal.zip",
+      "sha512": "YFrMa6vFL/Ycaog/AdfF1wsmgGVZrm6O5KRObqDptzeTgXpG08c4YA44aOUajwkRrCeXQT31+Y+EwmnHxEuhlQ==",
+      "size": 262897870
+    },
+    "feed": "https://api.granola.ai/v1/check-for-update/latest-mac.yml"
+  },
+  {
+    "name": "Heynote",
+    "family": "com-heynote-app",
+    "bundleID": "com.heynote.app",
+    "channel": ".stable",
+    "version": "v2.9.1",
+    "dmg": {
+      "name": "Heynote_2.9.1_universal.dmg",
+      "url": "https://github.com/heyman/heynote/releases/download/v2.9.1/Heynote_2.9.1_universal.dmg",
+      "size": 215742574,
+      "digest": "sha256:4b7525892769a2710fec66d95c96d3eb082634fb139d6df0f744d3347a65d23f"
+    },
+    "zip": {
+      "name": "Heynote_2.9.1_universal.zip",
+      "url": "https://github.com/heyman/heynote/releases/download/v2.9.1/Heynote_2.9.1_universal.zip",
+      "size": 208432837,
+      "digest": "sha256:a3b0bd8c4b9f3fc8b8c46904508bc3a5b4bfe4cfbde254b68dc68def207d9e2e"
+    },
+    "source": "DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/com-heynote-app.swift",
+    "line": 22
+  },
+  {
+    "name": "Hyper",
+    "family": "co-zeit-hyper",
+    "bundleID": "co.zeit.hyper",
+    "channel": ".stable",
+    "version": "v3.4.1",
+    "dmg": {
+      "name": "Hyper-3.4.1-mac-arm64.dmg",
+      "url": "https://github.com/vercel/hyper/releases/download/v3.4.1/Hyper-3.4.1-mac-arm64.dmg",
+      "size": 92046768,
+      "digest": null
+    },
+    "zip": {
+      "name": "Hyper-3.4.1-mac-arm64.zip",
+      "url": "https://github.com/vercel/hyper/releases/download/v3.4.1/Hyper-3.4.1-mac-arm64.zip",
+      "size": 88240309,
+      "digest": null
+    },
+    "source": "DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/co-zeit-hyper.swift",
+    "line": 36
+  },
+  {
+    "name": "Joplin",
+    "family": "net-cozic-joplin-desktop",
+    "bundleID": "net.cozic.joplin-desktop",
+    "channel": ".stable",
+    "version": "v3.7.22",
+    "dmg": {
+      "name": "Joplin-3.7.22-arm64.DMG",
+      "url": "https://github.com/laurent22/joplin/releases/download/v3.7.22/Joplin-3.7.22-arm64.DMG",
+      "size": 211992036,
+      "digest": "sha256:185395eba8d9dac2d8656884cbb0e5b96bcb40b41d80c67126ce5526cb5186c8"
+    },
+    "zip": {
+      "name": "Joplin-3.7.22-arm64.zip",
+      "url": "https://github.com/laurent22/joplin/releases/download/v3.7.22/Joplin-3.7.22-arm64.zip",
+      "size": 203508269,
+      "digest": "sha256:9906830034c6323ae77698a520c1299c49c70eefe62337f3b1019da1f082f48f"
+    },
+    "source": "DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/net-cozic-joplin-desktop.swift",
+    "line": 31
+  },
+  {
+    "name": "Kap",
+    "family": "com-wulkano-kap",
+    "bundleID": "com.wulkano.kap",
+    "channel": ".stable",
+    "version": "v3.6.0",
+    "dmg": {
+      "name": "Kap-3.6.0-arm64.dmg",
+      "url": "https://github.com/wulkano/Kap/releases/download/v3.6.0/Kap-3.6.0-arm64.dmg",
+      "size": 124651995,
+      "digest": null
+    },
+    "zip": {
+      "name": "Kap-3.6.0-arm64-mac.zip",
+      "url": "https://github.com/wulkano/Kap/releases/download/v3.6.0/Kap-3.6.0-arm64-mac.zip",
+      "size": 119687412,
+      "digest": null
+    },
+    "source": "DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/com-wulkano-kap.swift",
+    "line": 23
+  },
+  {
+    "name": "Lens",
+    "family": "vendor:Lens",
+    "bundleID": "com.electron.kontena-lens",
+    "channel": ".stable",
+    "version": "2026.11.91422-latest",
+    "dmg": {
+      "url": "https://api.k8slens.dev/binaries/Lens-2026.11.91422-latest-arm64.dmg"
+    },
+    "zip": {
+      "url": "https://api.k8slens.dev/binaries/Lens-2026.11.91422-latest-arm64-mac.zip",
+      "sha512": "dGcpm1C/v1PMqX73/gDyBKIv1jDNWQtRGUvB/vJI1czUyUCjuxfDzK+N6wHxB0FpG6vxb44YEQletWQdPT83ig==",
+      "size": 225218660
+    },
+    "feed": "https://api.k8slens.dev/binaries/latest-mac.yml"
+  },
+  {
+    "name": "Logseq",
+    "family": "com-logseq-logseq",
+    "bundleID": "com.logseq.logseq",
+    "channel": ".stable",
+    "version": "2.0.2",
+    "dmg": {
+      "name": "Logseq-darwin-arm64-2.0.2.dmg",
+      "url": "https://github.com/logseq/logseq/releases/download/2.0.2/Logseq-darwin-arm64-2.0.2.dmg",
+      "size": 177591867,
+      "digest": "sha256:b9a16b6ddef1659aa3c2301ce37a0336377644bbf1016051e3d19d1a66776314"
+    },
+    "zip": {
+      "name": "Logseq-darwin-arm64-2.0.2.zip",
+      "url": "https://github.com/logseq/logseq/releases/download/2.0.2/Logseq-darwin-arm64-2.0.2.zip",
+      "size": 171440323,
+      "digest": "sha256:ffd6e086ba6f68a4748f80eaa8b38244a9cf78b05c076343d75e0230fe9440b4"
+    },
+    "source": "DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/com-logseq-logseq.swift",
+    "line": 26
+  },
+  {
+    "name": "Lunatask",
+    "family": "com-mikekreeki-tasks",
+    "bundleID": "com.mikekreeki.tasks",
+    "channel": ".stable",
+    "version": "v2.1.29",
+    "dmg": {
+      "name": "Lunatask-2.1.29-universal.dmg",
+      "url": "https://github.com/lunatask/lunatask/releases/download/v2.1.29/Lunatask-2.1.29-universal.dmg",
+      "size": 213639115,
+      "digest": "sha256:93dedebb249e12250c798738d50599b60a14d1adcc60a2cf0714ef2d6c1ec2e9"
+    },
+    "zip": {
+      "name": "Lunatask-2.1.29-universal-mac.zip",
+      "url": "https://github.com/lunatask/lunatask/releases/download/v2.1.29/Lunatask-2.1.29-universal-mac.zip",
+      "size": 206074547,
+      "digest": "sha256:4087034e1a075538385efe661fc0026a08f02657f3d085ca99c111ace9d7055b"
+    },
+    "source": "DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/com-mikekreeki-tasks.swift",
+    "line": 27
+  },
+  {
+    "name": "massCode",
+    "family": "io-masscode-app",
+    "bundleID": "io.masscode.app",
+    "channel": ".stable",
+    "version": "v6.3.1",
+    "dmg": {
+      "name": "massCode-6.3.1-arm64.dmg",
+      "url": "https://github.com/massCodeIO/massCode/releases/download/v6.3.1/massCode-6.3.1-arm64.dmg",
+      "size": 279156277,
+      "digest": "sha256:450c4aa8de921827e47419937dc05136155bc92bfc23a42d629d2971ae1ddec7"
+    },
+    "zip": {
+      "name": "massCode-6.3.1-arm64-mac.zip",
+      "url": "https://github.com/massCodeIO/massCode/releases/download/v6.3.1/massCode-6.3.1-arm64-mac.zip",
+      "size": 269629632,
+      "digest": "sha256:193f7a34cf05fa82068317dd0e14b36e71ed5e31434919eb3640b3e3ba8efe20"
+    },
+    "source": "DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/io-masscode-app.swift",
+    "line": 25
+  },
+  {
+    "name": "OpenChamber",
+    "family": "dev-openchamber-desktop",
+    "bundleID": "dev.openchamber.desktop",
+    "channel": ".stable",
+    "version": "v2.7.2",
+    "dmg": {
+      "name": "OpenChamber-2.7.2-mac-arm64.dmg",
+      "url": "https://github.com/openchamber/openchamber/releases/download/v2.7.2/OpenChamber-2.7.2-mac-arm64.dmg",
+      "size": 268366539,
+      "digest": "sha256:682699251cee5f9a3c6132db73db2e91543f402dabe0172c6babac752408cd32"
+    },
+    "zip": {
+      "name": "OpenChamber-2.7.2-mac-arm64.zip",
+      "url": "https://github.com/openchamber/openchamber/releases/download/v2.7.2/OpenChamber-2.7.2-mac-arm64.zip",
+      "size": 260296059,
+      "digest": "sha256:ca9848da5e2ac66ed99bcb8d763995e3efa3184485010b7fa880a8847a441ff2"
+    },
+    "source": "DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/dev-openchamber-desktop.swift",
+    "line": 11
+  },
+  {
+    "name": "Paseo",
+    "family": "sh-paseo-desktop",
+    "bundleID": "sh.paseo.desktop",
+    "channel": ".stable",
+    "version": "v0.15.4",
+    "dmg": {
+      "name": "Paseo-0.15.4-arm64.dmg",
+      "url": "https://github.com/getpaseo/paseo/releases/download/v0.15.4/Paseo-0.15.4-arm64.dmg",
+      "size": 186129307,
+      "digest": "sha256:b689017a0137480e6ba8231d97016b94570e8dfc6d0e23c4d833867765cfbcc1"
+    },
+    "zip": {
+      "name": "Paseo-0.15.4-arm64.zip",
+      "url": "https://github.com/getpaseo/paseo/releases/download/v0.15.4/Paseo-0.15.4-arm64.zip",
+      "size": 179357523,
+      "digest": "sha256:64793f71bc280ab0866c46529a788d606e0f2e5175d05ea7f1a595360bbc683c"
+    },
+    "source": "DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/sh-paseo-desktop.swift",
+    "line": 14
+  },
+  {
+    "name": "Plexo",
+    "family": "com-plexo-app",
+    "bundleID": "com.plexo.app",
+    "channel": ".stable",
+    "version": "v1.0.0-rc.15",
+    "dmg": {
+      "name": "plexo-1.0.0-rc.15-arm64.dmg",
+      "url": "https://github.com/anmolkapil/plexo/releases/download/v1.0.0-rc.15/plexo-1.0.0-rc.15-arm64.dmg",
+      "size": 147530640,
+      "digest": "sha256:3e05a6ada7e50bf401472c0dbf14a48a709404d36a4b8bf8572ea88a3e57e64d"
+    },
+    "zip": {
+      "name": "plexo-1.0.0-rc.15-arm64-mac.zip",
+      "url": "https://github.com/anmolkapil/plexo/releases/download/v1.0.0-rc.15/plexo-1.0.0-rc.15-arm64-mac.zip",
+      "size": 147276972,
+      "digest": "sha256:d96f74348cf1e2eeefdc5705142bd0dfddc33fe6969c1529358c0bda8a280fc2"
+    },
+    "source": "DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/com-plexo-app.swift",
+    "line": 20
+  },
+  {
+    "name": "Podman Desktop",
+    "family": "io-podmandesktop-PodmanDesktop",
+    "bundleID": "io.podmandesktop.PodmanDesktop",
+    "channel": ".stable",
+    "version": "v1.30.5",
+    "dmg": {
+      "name": "podman-desktop-1.30.5-arm64.dmg",
+      "url": "https://github.com/podman-desktop/podman-desktop/releases/download/v1.30.5/podman-desktop-1.30.5-arm64.dmg",
+      "size": 246551678,
+      "digest": "sha256:80736702a47d16a9cccf51809d40b79361a1449e257b867dfa6fa819a8f8e212"
+    },
+    "zip": {
+      "name": "podman-desktop-1.30.5-arm64.zip",
+      "url": "https://github.com/podman-desktop/podman-desktop/releases/download/v1.30.5/podman-desktop-1.30.5-arm64.zip",
+      "size": 239965170,
+      "digest": "sha256:9e2fa0b94bc0c1517a30fcd6aba0d09a285d89e80ff509e04c2fad42497a22ad"
+    },
+    "source": "DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/io-podmandesktop-PodmanDesktop.swift",
+    "line": 23
+  },
+  {
+    "name": "Porting Kit",
+    "family": "com-paulthetall-portingkit",
+    "bundleID": "com.paulthetall.portingkit",
+    "channel": ".stable",
+    "version": "v6.7.0",
+    "dmg": {
+      "name": "Porting.Kit-6.7.0-arm64.dmg",
+      "url": "https://github.com/vitor251093/porting-kit-releases/releases/download/v6.7.0/Porting.Kit-6.7.0-arm64.dmg",
+      "size": 142767508,
+      "digest": "sha256:7e33b70e326c7e5a99c531b65b678b605c44aaa107f51688777ad5dd9e5fbf5a"
+    },
+    "zip": {
+      "name": "Porting.Kit-6.7.0-arm64-mac.zip",
+      "url": "https://github.com/vitor251093/porting-kit-releases/releases/download/v6.7.0/Porting.Kit-6.7.0-arm64-mac.zip",
+      "size": 141202060,
+      "digest": "sha256:199e63b7f3242fdaace15f6de9d2a96776b82e0f6c18b96d5686260333c210b3"
+    },
+    "source": "DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/com-paulthetall-portingkit.swift",
+    "line": 43
+  },
+  {
+    "name": "Rambox",
+    "family": "com-rambox",
+    "bundleID": "com.rambox",
+    "channel": ".stable",
+    "version": "v3.2.0",
+    "dmg": {
+      "name": "Rambox-3.2.0-mac.dmg",
+      "url": "https://github.com/ramboxapp/download/releases/download/v3.2.0/Rambox-3.2.0-mac.dmg",
+      "size": 228081202,
+      "digest": "sha256:38cc8b19fb272fa0919c252973cf360e1ee6f56adc6a6e7b0b3f4cabb0ec1273"
+    },
+    "zip": {
+      "name": "Rambox-3.2.0-mac.zip",
+      "url": "https://github.com/ramboxapp/download/releases/download/v3.2.0/Rambox-3.2.0-mac.zip",
+      "size": 223594271,
+      "digest": "sha256:3ff54ac108b98aa8ff18988a245e00545076e410b075573664086723c36ac578"
+    },
+    "source": "DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/com-rambox.swift",
+    "line": 25
+  },
+  {
+    "name": "Requestly",
+    "family": "io-requestly-beta",
+    "bundleID": "io.requestly.beta",
+    "channel": ".stable",
+    "version": "v26.6.29",
+    "dmg": {
+      "name": "Requestly-26.6.29-arm64.dmg",
+      "url": "https://github.com/requestly/http-interceptor-desktop-app/releases/download/v26.6.29/Requestly-26.6.29-arm64.dmg",
+      "size": 155160056,
+      "digest": "sha256:e8eebb6db725b079306973f74a453c2b707924d8a44c641b3a531eac83758bfc"
+    },
+    "zip": {
+      "name": "Requestly-26.6.29-arm64-mac.zip",
+      "url": "https://github.com/requestly/http-interceptor-desktop-app/releases/download/v26.6.29/Requestly-26.6.29-arm64-mac.zip",
+      "size": 154530201,
+      "digest": "sha256:6915448955d75d8c91e816fc717df7f7097765f234bc206894ed10d16c94f602"
+    },
+    "source": "DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/io-requestly-beta.swift",
+    "line": 53
+  },
+  {
+    "name": "ResponsivelyApp",
+    "family": "app-responsively",
+    "bundleID": "app.responsively",
+    "channel": ".stable",
+    "version": "v1.18.0",
+    "dmg": {
+      "name": "ResponsivelyApp-1.18.0-arm64.dmg",
+      "url": "https://github.com/responsively-org/responsively-app-releases/releases/download/v1.18.0/ResponsivelyApp-1.18.0-arm64.dmg",
+      "size": 111987056,
+      "digest": "sha256:870ef97ae7b23758411841f0c35058ddd36ba2dce51b1f8a48063664dc12d92b"
+    },
+    "zip": {
+      "name": "ResponsivelyApp-1.18.0-arm64-mac.zip",
+      "url": "https://github.com/responsively-org/responsively-app-releases/releases/download/v1.18.0/ResponsivelyApp-1.18.0-arm64-mac.zip",
+      "size": 107579374,
+      "digest": "sha256:599e55c3e2664f6cb230f0d4af84fcface89a41a826cbeccbd9031e283baef57"
+    },
+    "source": "DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/app-responsively.swift",
+    "line": 26
+  },
+  {
+    "name": "Signal Desktop",
+    "family": "vendor:Signal Desktop",
+    "bundleID": "org.whispersystems.signal-desktop",
+    "channel": ".stable",
+    "version": "8.35.0",
+    "dmg": {
+      "url": "https://updates.signal.org/desktop/signal-desktop-mac-universal-8.35.0.dmg"
+    },
+    "zip": {
+      "url": "https://updates.signal.org/desktop/signal-desktop-mac-arm64-8.35.0.zip",
+      "sha512": "Ce/tLdnlyi9MhmZfSQ4a3mqfCjf5h9Qj/ctS/WLKUKrzG6AP4NHgAy8vv7LKFZagBTr5M24r9tFfQF2F4ISskg==",
+      "size": 146526884
+    },
+    "feed": "https://updates.signal.org/desktop/latest-mac.yml"
+  },
+  {
+    "name": "Standard Notes",
+    "family": "org-standardnotes-standardnotes",
+    "bundleID": "org.standardnotes.standardnotes",
+    "channel": ".stable",
+    "version": "@standardnotes/desktop@3.202.11",
+    "dmg": {
+      "name": "standard-notes-3.202.11-mac-arm64.dmg",
+      "url": "https://github.com/standardnotes/app/releases/download/%40standardnotes/desktop%403.202.11/standard-notes-3.202.11-mac-arm64.dmg",
+      "size": 160129097,
+      "digest": "sha256:4de1a8010eb1500dd42bbf28242c04771775d6b9bb303da0439bea3254480e86"
+    },
+    "zip": {
+      "name": "standard-notes-3.202.11-mac-arm64.zip",
+      "url": "https://github.com/standardnotes/app/releases/download/%40standardnotes/desktop%403.202.11/standard-notes-3.202.11-mac-arm64.zip",
+      "size": 153851499,
+      "digest": "sha256:8a8d85860487ddf9a9f89b6e06bf00e36d96dbe4ab99d0c41f52f7ff4d47bcaa"
+    },
+    "source": "DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/org-standardnotes-standardnotes.swift",
+    "line": 33
+  },
+  {
+    "name": "T3 Code",
+    "family": "com-t3tools-t3code",
+    "bundleID": "com.t3tools.t3code",
+    "channel": ".alpha",
+    "version": "v0.1.9",
+    "dmg": {
+      "name": "T3-Code-0.1.9-arm64.dmg",
+      "url": "https://github.com/pingdotgg/t3code/releases/download/v0.1.9/T3-Code-0.1.9-arm64.dmg",
+      "size": 195374334,
+      "digest": "sha256:b0a15cb7aac2461425f670b14ac52d7a207a0e2008250882c850b4cd62aa926a"
+    },
+    "zip": {
+      "name": "T3-Code-0.1.9-arm64.zip",
+      "url": "https://github.com/pingdotgg/t3code/releases/download/v0.1.9/T3-Code-0.1.9-arm64.zip",
+      "size": 187924587,
+      "digest": "sha256:03ef426e66ac5b16700188596c1394f448586b8ab7cc379e1e321b29f2c4597e"
+    },
+    "source": "DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/com-t3tools-t3code.swift",
+    "line": 22
+  },
+  {
+    "name": "Tad",
+    "family": "com-antonycourtney-tad",
+    "bundleID": "com.antonycourtney.tad",
+    "channel": ".stable",
+    "version": "v0.14.0",
+    "dmg": {
+      "name": "Tad-0.14.0-arm64.dmg",
+      "url": "https://github.com/antonycourtney/tad/releases/download/v0.14.0/Tad-0.14.0-arm64.dmg",
+      "size": 242206843,
+      "digest": null
+    },
+    "zip": {
+      "name": "Tad-0.14.0-arm64-mac.zip",
+      "url": "https://github.com/antonycourtney/tad/releases/download/v0.14.0/Tad-0.14.0-arm64-mac.zip",
+      "size": 232837547,
+      "digest": null
+    },
+    "source": "DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/com-antonycourtney-tad.swift",
+    "line": 21
+  },
+  {
+    "name": "Termius",
+    "family": "vendor:Termius",
+    "bundleID": "com.termius-dmg.mac",
+    "channel": ".stable",
+    "version": "10.4.1",
+    "dmg": {
+      "url": "https://autoupdate.termius.com/mac-arm64/Termius.dmg"
+    },
+    "zip": {
+      "url": "https://autoupdate.termius.com/mac-arm64/Termius.zip",
+      "sha512": "k34UnL4wuRHnqu64JWCLB+mE3rm+/0hJSX/J1jcM8RteGzWhY9Qh7rO7pLHoP6xoT3lfss0/CeCiPaQoSpdnLg==",
+      "size": 184381038
+    },
+    "feed": "https://autoupdate.termius.com/mac-arm64/latest-mac.yml"
+  },
+  {
+    "name": "TimeScribe",
+    "family": "de-amplussoftware-timescribe",
+    "bundleID": "de.amplussoftware.timescribe",
+    "channel": ".stable",
+    "version": "v1.18.0",
+    "dmg": {
+      "name": "TimeScribe-1.18.0-arm64.dmg",
+      "url": "https://github.com/WINBIGFOX/TimeScribe/releases/download/v1.18.0/TimeScribe-1.18.0-arm64.dmg",
+      "size": 165876650,
+      "digest": "sha256:0513120db6b4b7ce654733ee221dfe0bb00a4e4baff57d50cbb43afeb139a818"
+    },
+    "zip": {
+      "name": "TimeScribe-1.18.0-arm64.zip",
+      "url": "https://github.com/WINBIGFOX/TimeScribe/releases/download/v1.18.0/TimeScribe-1.18.0-arm64.zip",
+      "size": 165421958,
+      "digest": "sha256:64aebe49706ffab3e66fe2a320bb705a945ef88e6afe042d42c233a5a2adeacd"
+    },
+    "source": "DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/de-amplussoftware-timescribe.swift",
+    "line": 25
+  },
+  {
+    "name": "Upscayl",
+    "family": "org-upscayl-Upscayl",
+    "bundleID": "org.upscayl.Upscayl",
+    "channel": ".stable",
+    "version": "v2.15.0",
+    "dmg": {
+      "name": "upscayl-2.15.0-mac.dmg",
+      "url": "https://github.com/upscayl/upscayl/releases/download/v2.15.0/upscayl-2.15.0-mac.dmg",
+      "size": 385264901,
+      "digest": null
+    },
+    "zip": {
+      "name": "upscayl-2.15.0-mac.zip",
+      "url": "https://github.com/upscayl/upscayl/releases/download/v2.15.0/upscayl-2.15.0-mac.zip",
+      "size": 376811048,
+      "digest": null
+    },
+    "source": "DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/org-upscayl-Upscayl.swift",
+    "line": 14
+  }
+]

@@ -282,6 +282,10 @@ public struct RemoteVersion: Sendable, Hashable {
     /// order the batch smallest-first instead of alphabetically. Nil when the
     /// source doesn't know.
     public let downloadSize: Int64?
+
+    /// External electron-builder map for the exact ZIP this answer selected.
+    /// A download optimization only; it never replaces the archive's digest.
+    public let electronBlockmapURL: URL?
     /// EdDSA signature of the enclosure, used to verify the download later.
     public let edSignature: String?
     /// Minimum macOS version the release requires, if declared.
@@ -498,6 +502,7 @@ public struct RemoteVersion: Sendable, Hashable {
         pageURL: URL? = nil,
         installedDisplayVersion: String? = nil,
         downloadSize: Int64? = nil,
+        electronBlockmapURL: URL? = nil,
         edSignature: String? = nil,
         minimumSystemVersion: String? = nil,
         sourceName: String,
@@ -533,6 +538,7 @@ public struct RemoteVersion: Sendable, Hashable {
         self.pageURL = pageURL
         self.installedDisplayVersion = installedDisplayVersion
         self.downloadSize = downloadSize
+        self.electronBlockmapURL = electronBlockmapURL
         self.edSignature = edSignature
         self.minimumSystemVersion = minimumSystemVersion
         self.sourceName = sourceName

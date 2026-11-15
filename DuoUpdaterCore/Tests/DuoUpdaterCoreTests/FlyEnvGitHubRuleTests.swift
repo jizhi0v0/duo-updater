@@ -37,6 +37,7 @@ import Testing
         let remote = try await source.latestVersion(for: Self.installed("4.20.1"))
         #expect(remote?.shortVersion == "4.20.2")
         #expect(remote?.downloadURL?.lastPathComponent == "FlyEnv-4.20.2-arm64-mac.zip")
+        #expect(remote?.electronBlockmapURL?.lastPathComponent == "FlyEnv-4.20.2-arm64-mac.zip.blockmap")
     }
 
     private static func installed(_ version: String) -> InstalledApp {
@@ -53,6 +54,7 @@ import Testing
         override func startLoading() {
             let base = "https://github.com/xpf0000/FlyEnv/releases/download/v4.20.2/"
             let assets = [
+                "FlyEnv-4.20.2-x64-mac.zip.blockmap", "FlyEnv-4.20.2-arm64.dmg.blockmap",
                 "FlyEnv-4.20.2-arm64-mac.zip", "FlyEnv-4.20.2-arm64-mac.zip.blockmap",
                 "FlyEnv-4.20.2-arm64.deb", "FlyEnv-4.20.2-arm64.dmg",
                 "FlyEnv-4.20.2-arm64.dmg.blockmap", "FlyEnv-4.20.2-arm64.rpm",

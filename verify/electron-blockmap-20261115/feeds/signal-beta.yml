@@ -1,0 +1,16 @@
+version: 8.36.0-beta.1
+files:
+  - url: signal-desktop-beta-mac-x64-8.36.0-beta.1.zip
+    sha512: uJjCl24H5caXx/A1KV+axjZIR1HzqgIId+Lqe7Q8RAR527Okifc0LWqzckLwSf/jvWky+Y5mlTuYkC/dqBkEUQ==
+    size: 152733055
+  - url: signal-desktop-beta-mac-arm64-8.36.0-beta.1.zip
+    sha512: VzhEA2HdGHHXkVcUDS2hYZPAle/6uR/f24dHMoI+ufludAkOyxVkrHUeSTWWA4Ro2GINwBJ2f2mVBB9S83akSg==
+    size: 145422122
+  - url: signal-desktop-beta-mac-universal-8.36.0-beta.1.dmg
+    sha512: 1JWcJ/Ka011IeYewlT9QdrN08B8lbXp1lLgn4QjTrqL/A7gAp79ZHsolqmR/Z1GtiOB9q+5lA/NybFmTL0AdoA==
+    size: 268946858
+path: signal-desktop-beta-mac-x64-8.36.0-beta.1.zip
+sha512: uJjCl24H5caXx/A1KV+axjZIR1HzqgIId+Lqe7Q8RAR527Okifc0LWqzckLwSf/jvWky+Y5mlTuYkC/dqBkEUQ==
+vendor:
+  minOSVersion: 22.1.0
+releaseDate: '2026-11-11T23:54:17.317Z'

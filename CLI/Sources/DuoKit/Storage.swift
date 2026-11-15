@@ -180,6 +180,7 @@ public enum Storage {
         case .networkCache: "Web and download cache"
         case .formulaIcons: "Homebrew formula icons"
         case .cliCache: "duo command-line cache"
+        case .installerArchives: "Update archive cache"
         case .backups: "Backups on this Mac"
         case .backupIndex: "Backup index"
         case .history: "History and network log"

@@ -6,8 +6,8 @@ enum com_termius_dmg_mac {
         probes: [
         // Shared rationale for 2026-08-16 vendor batch: Recipes/dev-commandline-waveterm.swift.
 
-        // Termius — electron-builder feed, one per architecture. The artifacts
-        // are unversioned (`Termius.dmg`), so the install URL is fixed and the
+        // Termius — electron-builder feed, one per architecture. The ZIP artifacts
+        // are unversioned (`Termius.zip`), so the install URL is fixed and the
         // version comes from the feed. Verified 2026-08-16 on the arm64 dmg:
         // com.termius-dmg.mac, 9.43.1, Team 6KN952WR85, notarized.
         // snapshot-lint:allow — this dated verification stays in code: `Recipes/dev-commandline-waveterm.swift`'s batch block names Termius stable and relies on it.
@@ -23,8 +23,9 @@ enum com_termius_dmg_mac {
             changelogURL: URL(string: "https://docs.termius.com/changelog"),
             install: VendorInstallSpec(
                 urlSource: .fixed(
-                    URL(string: "https://autoupdate.termius.com/mac-arm64/Termius.dmg")!),
-                kind: .dmg)),
+                    URL(string: "https://autoupdate.termius.com/mac-arm64/Termius.zip")!),
+                kind: .zip,
+                checksumPattern: #"Termius\.zip\s*\n\s*sha512:\s*([A-Za-z0-9+/=]+)"#)),
 
         // History: docs/app-audits/com-termius-dmg-mac.md#历史与实测
         // Termius Beta — a genuinely independent bundle id from stable's
@@ -43,19 +44,10 @@ enum com_termius_dmg_mac {
         // what led here, since the app's own bundled `app-update.yml` names an
         // `acl: private` S3 bucket that a plain GET can't read (403, verified).
         //
-        // One-click: the real dmg holds com.termius-beta.mac, Team 6KN952WR85,
-        // Notarized Developer ID, not sandboxed — same Team as stable, so
-        // `VendorInstaller`'s Team gate holds. Unlike the arm64-only stable
-        // recipe above, this feed's dmg is UNIVERSAL (x86_64 arm64), so one
-        // recipe correctly serves every Mac with no `hostRequirement` needed
-        // (downloaded and mounted 2026-08-27; History has the version checked).
-        //
-        // checksumPattern is safe here — unlike Signal Beta, whose CDN staples
-        // the dmg AFTER electron-builder computed the feed's sha512 (see the
-        // comment on Signal's recipe in `Recipes/org-whispersystems-signal-desktop.swift`), Termius Beta's declared
-        // `sha512` for "Termius Beta.dmg" was independently verified
-        // 2026-08-27 to equal `shasum -a 512 | base64` of the downloaded file,
-        // byte for byte.
+        // The universal ZIP contains com.termius-beta.mac, with the same
+        // Developer ID Team as stable. Its file-list SHA512 is bound to the
+        // literal filename containing the space, distinct from the DMG entry.
+        // History: docs/app-audits/com-termius-dmg-mac.md#历史与实测
         //
         // No changelogURL. When this recipe was written, stable's changelogURL
         // was `https://termius.com/release-notes`, which 404'd; stable now points
@@ -69,9 +61,9 @@ enum com_termius_dmg_mac {
             downloadURL: URL(string: "https://termius.com/beta-program"),
             install: VendorInstallSpec(
                 urlSource: .fixed(
-                    URL(string: "https://autoupdate.termius.com/mac-beta-universal/Termius%20Beta.dmg")!),
-                kind: .dmg,
-                checksumPattern: #"Termius Beta\.dmg\s*\n\s*sha512:\s*([A-Za-z0-9+/=]+)"#),
+                    URL(string: "https://autoupdate.termius.com/mac-beta-universal/Termius%20Beta.zip")!),
+                kind: .zip,
+                checksumPattern: #"Termius Beta\.zip\s*\n\s*sha512:\s*([A-Za-z0-9+/=]+)"#),
             channel: .beta),
         ],
         changelogs: [

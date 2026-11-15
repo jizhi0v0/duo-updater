@@ -1,6 +1,111 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "Update archive cache": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Update-Archivcache"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Caché de archivos de actualización"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cache des archives de mise à jour"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cache degli archivi di aggiornamento"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新アーカイブのキャッシュ"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "업데이트 아카이브 캐시"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新安装包缓存"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新安裝包快取"
+          }
+        }
+      }
+    },
+    "Original ZIPs kept for smaller future updates. Up to 2 GB; cleared first when space is needed.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Original-ZIPs für kleinere künftige Updates. Bis zu 2 GB; bei Platzmangel zuerst gelöscht."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ZIP originales para reducir futuras descargas. Hasta 2 GB; se eliminan primero si falta espacio."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ZIP d’origine pour réduire les prochains téléchargements. Jusqu’à 2 Go ; supprimés en priorité si nécessaire."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ZIP originali per ridurre i download futuri. Fino a 2 GB; eliminati per primi se serve spazio."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "今後の更新を小さくするため元のZIPを保持します。最大2 GBで、容量が必要な場合は優先して削除します。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "향후 업데이트 다운로드를 줄이기 위해 원본 ZIP을 보관합니다. 최대 2 GB이며 공간이 필요하면 먼저 삭제합니다."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保留原始 ZIP，减少后续更新的下载量。最多 2 GB；空间不足时优先清理。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保留原始 ZIP，減少後續更新的下載量。最多 2 GB；空間不足時優先清理。"
+          }
+        }
+      }
+    }
+,
     "Xcode downloads use your Apple Developer account and require a manual update action.": {
       "localizations": {
         "de": {

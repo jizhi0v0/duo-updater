@@ -1,5 +1,7 @@
 # BlueBubbles Server
 
+2026-11-15 路线更新：当前一键安装使用已在 VM 验证的 ZIP；下文原有 DMG 包与端到端记录保留为历史证据。Duo 的 blockmap 优化以所选 ZIP 的发布方整包校验值为前提，缺少校验值时仍全量下载。详见文末「Electron ZIP 迁移」。
+
 **这不是审计**：family `com-BlueBubbles-BlueBubbles-Server`（`Recipes/com-BlueBubbles-BlueBubbles-Server.swift`）里 BlueBubbles Server `com.BlueBubbles.BlueBubbles-Server` 的覆盖情况没有审过。这份文件只接收从 recipe 注释迁出的历史，登记在索引的「仅迁出历史（未审计）」一节。
 
 ## 历史与实测
@@ -77,3 +79,10 @@ Apple 的 Platform Security Guide 把 Gatekeeper 的「identified developer + no
 结论：无 quarantine 的未公证 Developer ID 构建，换装后首次启动会被 Gatekeeper **检查**（公证查询失败 +
 XProtect 扫描），但**不拦截、不弹窗**——与上面引用的 Eclectic Light 说法一致。只测了这一台机器、这一个
 macOS 版本。
+
+### Electron ZIP 迁移（2026-11-15）
+
+安装容器改为 `BlueBubbles-1.9.12-arm64-mac.zip`。在 macOS 27.2 Apple Silicon VM 中，从本次对应 DMG 准备的独立副本，经生产 `VendorInstaller.apply` 校验与替换为同版本 ZIP，再通过 LaunchServices 启动指定路径，确认 PID 存活后退出测试实例。版本、bundle ID、Team、arm64 与代码签名检查均通过。本次对应 DMG/ZIP 的 arm64 主程序 CDHash 与 app.asar 相同。既有旧 bundle ID、版本门控、edition 与仅检测渠道的范围沿用原规则；没有新增跨组安装。
+整包发布校验值存在时才会尝试 blockmap；旧 GitHub 发布缺少 digest 时仍走全量 ZIP 与原有签名检查。
+
+本次包、逐项结果与限制见 [集中验证记录](../../verify/electron-blockmap-20261115/README.md)。这些是一次验证的结果，不代表应用所有版本或功能均已测试。

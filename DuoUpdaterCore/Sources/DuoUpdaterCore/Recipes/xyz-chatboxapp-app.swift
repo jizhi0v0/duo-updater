@@ -18,20 +18,15 @@ enum xyz_chatboxapp_app {
         //
         // Feed shape: `version: 1.22.6` on the first line, then a `files:` list
         // pairing each artifact's relative `url:` with its base64 `sha512:`.
-        // The arm64 dmg is resolved against `download.chatboxai.app/releases/`
-        // and its sha512 verified from the feed — unlike Signal's yml, the hash
-        // here IS the bytes the CDN serves (computed over the real downloaded dmg
-        // 2026-08-30 and found byte-for-byte equal; History has the size). The x64
-        // dmg and both zips are siblings we deliberately don't select; DuoUpdater
-        // is arm64-only. Signed "Developer ID Application" (Team YJ5GSB3AMW,
-        // notarized) — matches the mounted artifact, so the VendorInstaller
-        // Team gate passes.
+        // The arm64 ZIP and its SHA512 come from the same file-list entry.
+        // The x64 ZIP and the DMGs are siblings, excluded by the anchored suffix.
+        // VendorInstaller additionally checks the bundle's Developer ID/Team.
         //
         // `version` is the marketing string and equals the installed
         // CFBundleShortVersionString (e.g. 1.22.6 == build 1.22.6); no versionIsBuild.
         //
         // Single channel, self-contained bundle (no daemons outside the .app) →
-        // `kind: .dmg` is right.
+        // `kind: .zip` is right.
         VendorProbeRecipe(
             bundleID: "xyz.chatboxapp.app",
             url: URL(string: "https://download.chatboxai.app/releases/latest-mac.yml")!,
@@ -44,10 +39,10 @@ enum xyz_chatboxapp_app {
             changelogURL: URL(string: "https://chatboxai.app/en/help-center/changelog"),
             install: VendorInstallSpec(
                 urlSource: .bodyPatternRelative(
-                    #"(Chatbox-[^\s]+-arm64\.dmg)"#,
+                    #"(Chatbox-[^\s]+-arm64-mac\.zip)"#,
                     base: URL(string: "https://download.chatboxai.app/releases/")!),
-                kind: .dmg,
-                checksumPattern: #"Chatbox-[^\n]+-arm64\.dmg\s*\n\s*sha512:\s*([A-Za-z0-9+/=]+)"#)),
+                kind: .zip,
+                checksumPattern: #"Chatbox-[^\n]+-arm64-mac\.zip\s*\n\s*sha512:\s*([A-Za-z0-9+/=]+)"#)),
         ],
         changelogs: [
         // Chatbox — the electron-builder feed we read for the version

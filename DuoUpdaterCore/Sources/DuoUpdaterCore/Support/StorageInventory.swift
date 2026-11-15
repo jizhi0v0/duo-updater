@@ -28,6 +28,7 @@ public enum StorageInventory {
         case networkCache
         case formulaIcons
         case cliCache
+        case installerArchives
         // Kept.
         case backups
         case backupIndex
@@ -41,7 +42,7 @@ public enum StorageInventory {
 
         public var isClearable: Bool {
             switch self {
-            case .changelogImages, .networkCache, .formulaIcons, .cliCache: true
+            case .changelogImages, .networkCache, .formulaIcons, .cliCache, .installerArchives: true
             default: false
             }
         }
@@ -50,7 +51,7 @@ public enum StorageInventory {
         /// alike. Items within a group keep `allCases` order.
         public var group: Group {
             switch self {
-            case .changelogImages, .networkCache, .formulaIcons, .cliCache: .caches
+            case .changelogImages, .networkCache, .formulaIcons, .cliCache, .installerArchives: .caches
             case .appleDeveloperSession, .httpStorage, .preferences: .system
             default: .appData
             }
@@ -75,17 +76,20 @@ public enum StorageInventory {
     public struct Layout: Sendable {
         public var library: URL
         public var stateBase: URL
+        public var cachesBase: URL
 
-        public init(library: URL, stateBase: URL) {
+        public init(library: URL, stateBase: URL, cachesBase: URL? = nil) {
             self.library = library
             self.stateBase = stateBase
+            self.cachesBase = cachesBase ?? library.appendingPathComponent("Caches", isDirectory: true)
         }
 
         public static var current: Layout {
             Layout(
                 library: FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask).first
                     ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library"),
-                stateBase: DuoStateDirectory.base)
+                stateBase: DuoStateDirectory.base,
+                cachesBase: DuoStateDirectory.cachesBase)
         }
 
         var appState: URL { stateBase.appendingPathComponent("com.duoupdater.app", isDirectory: true) }
@@ -156,6 +160,7 @@ public enum StorageInventory {
         let lib = layout.library
         add(.networkCache, layout.appCaches)
         add(.cliCache, layout.cliCaches)
+        add(.installerArchives, layout.cachesBase.appendingPathComponent("com.duoupdater.installers", isDirectory: true))
         add(.appleDeveloperSession, lib.appendingPathComponent("WebKit/com.duoupdater.app", isDirectory: true))
         for name in ["com.duoupdater.app", "com.duoupdater.app.binarycookies",
                      "com.duoupdater.cli", "com.duoupdater.cli.binarycookies"] {
@@ -257,6 +262,10 @@ public enum StorageInventory {
     ) throws -> Int64 {
         precondition(item.isClearable && item != .networkCache,
                      "\(item) is not one StorageInventory empties from disk")
+        if item == .installerArchives,
+           layout.cachesBase.appendingPathComponent("com.duoupdater.installers").standardizedFileURL.path == rootForArchiveCache?.path {
+            return ElectronArchiveCache.discardAllForSpace()
+        }
         var freed: Int64 = 0
         for root in paths(in: layout, fileManager: fileManager)[item] ?? [] {
             guard let entries = try? fileManager.contentsOfDirectory(
@@ -268,6 +277,8 @@ public enum StorageInventory {
         }
         return freed
     }
+
+    private static var rootForArchiveCache: URL? { ElectronArchiveCache.root?.standardizedFileURL }
 
     /// Bytes on disk under `url` — allocated, so a 4 KB block holding a 10-byte
     /// JSON counts as 4 KB, the same answer `du` and Finder give. A file is

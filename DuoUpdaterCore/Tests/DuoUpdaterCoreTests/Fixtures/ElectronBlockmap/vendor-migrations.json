@@ -1,0 +1,65 @@
+[
+  {
+    "bundleID": "xyz.chatboxapp.app",
+    "channel": "stable",
+    "fixture": "chatbox.yml",
+    "feedURL": "https://download.chatboxai.app/releases/latest-mac.yml",
+    "version": "1.24.4",
+    "expectedZIP": "Chatbox-1.24.4-arm64-mac.zip",
+    "expectedSHA512": "x7oL0ENgxtLHjX6NdS+FgjfRue3B5BTl+6QSBlp9yP5KQEHx7IML3IjqWTT5FWXiRoheHLWpfbhPBiNwp1d5rg=="
+  },
+  {
+    "bundleID": "com.granola.app",
+    "channel": "stable",
+    "fixture": "granola.yml",
+    "feedURL": "https://api.granola.ai/v1/check-for-update/latest-mac.yml",
+    "version": "7.786.3",
+    "expectedZIP": "Granola-7.786.3-mac-universal.zip",
+    "expectedSHA512": "YFrMa6vFL/Ycaog/AdfF1wsmgGVZrm6O5KRObqDptzeTgXpG08c4YA44aOUajwkRrCeXQT31+Y+EwmnHxEuhlQ=="
+  },
+  {
+    "bundleID": "com.electron.kontena-lens",
+    "channel": "stable",
+    "fixture": "lens.yml",
+    "feedURL": "https://api.k8slens.dev/binaries/latest-mac.yml",
+    "version": "2026.11.91422-latest",
+    "expectedZIP": "Lens-2026.11.91422-latest-arm64-mac.zip",
+    "expectedSHA512": "dGcpm1C/v1PMqX73/gDyBKIv1jDNWQtRGUvB/vJI1czUyUCjuxfDzK+N6wHxB0FpG6vxb44YEQletWQdPT83ig=="
+  },
+  {
+    "bundleID": "org.whispersystems.signal-desktop",
+    "channel": "stable",
+    "fixture": "signal.yml",
+    "feedURL": "https://updates.signal.org/desktop/latest-mac.yml",
+    "version": "8.35.0",
+    "expectedZIP": "signal-desktop-mac-arm64-8.35.0.zip",
+    "expectedSHA512": "Ce/tLdnlyi9MhmZfSQ4a3mqfCjf5h9Qj/ctS/WLKUKrzG6AP4NHgAy8vv7LKFZagBTr5M24r9tFfQF2F4ISskg=="
+  },
+  {
+    "bundleID": "com.termius-dmg.mac",
+    "channel": "stable",
+    "fixture": "termius.yml",
+    "feedURL": "https://autoupdate.termius.com/mac-arm64/latest-mac.yml",
+    "version": "10.4.1",
+    "expectedZIP": "Termius.zip",
+    "expectedSHA512": "k34UnL4wuRHnqu64JWCLB+mE3rm+/0hJSX/J1jcM8RteGzWhY9Qh7rO7pLHoP6xoT3lfss0/CeCiPaQoSpdnLg=="
+  },
+  {
+    "bundleID": "org.whispersystems.signal-desktop-beta",
+    "channel": "beta",
+    "fixture": "signal-beta.yml",
+    "feedURL": "https://updates.signal.org/desktop/beta-mac.yml",
+    "version": "8.36.0-beta.1",
+    "expectedZIP": "signal-desktop-beta-mac-arm64-8.36.0-beta.1.zip",
+    "expectedSHA512": "VzhEA2HdGHHXkVcUDS2hYZPAle/6uR/f24dHMoI+ufludAkOyxVkrHUeSTWWA4Ro2GINwBJ2f2mVBB9S83akSg=="
+  },
+  {
+    "bundleID": "com.termius-beta.mac",
+    "channel": "beta",
+    "fixture": "termius-beta.yml",
+    "feedURL": "https://autoupdate.termius.com/mac-beta-universal/latest-mac.yml",
+    "version": "10.4.1",
+    "expectedZIP": "Termius Beta.zip",
+    "expectedSHA512": "wjcysBJlt8kKSH6eIc5t2Un1DpBXSUFi8wnHpbzauM+GP/k+ZtJUFujPdliU+eZBRHCdJI5ulUX3SFmmErZJkg=="
+  }
+]

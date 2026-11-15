@@ -1,6 +1,7 @@
 import Foundation
 
 enum com_paulthetall_portingkit {
+    // History: docs/app-audits/com-paulthetall-portingkit.md#历史与实测
     static let set = AppRecipeSet(
         family: "com-paulthetall-portingkit",
         changelogs: [
@@ -44,7 +45,7 @@ enum com_paulthetall_portingkit {
             bundleID: "com.paulthetall.portingkit",
             owner: "vitor251093", repo: "porting-kit-releases",
             versionPattern: #"^v([0-9]+(?:\.[0-9]+)+)$"#,
-            installAssetPattern: #"^Porting[.-]Kit-[0-9]+(?:\.[0-9]+)+-arm64\.dmg$"#,
-            installerKind: .dmg),
+            installAssetPattern: #"^Porting[.-]Kit-[0-9]+(?:\.[0-9]+)+-arm64-mac\.zip$"#,
+            installerKind: .zip),
         ])
 }

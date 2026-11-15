@@ -20,14 +20,14 @@ enum com_logseq_logseq {
         // /releases/latest. A nightly build carries the same plist as stable, and
         // its own updater moves it to the next stable too, so it is not gated.
         //
-        // One-click: the arm64 dmg (no universal build), com.logseq.logseq,
+        // One-click: the arm64 ZIP (no universal build), com.logseq.logseq,
         // Team K378MFWK59, notarized; 2.0.1 is the same Team.
         // History: docs/app-audits/com-logseq-logseq.md#历史与实测
         GitHubReleaseRule(
             bundleID: "com.logseq.logseq",
             owner: "logseq", repo: "logseq",
             versionPattern: #"^([0-9]+(?:\.[0-9]+)+)$"#,
-            installAssetPattern: #"^Logseq-darwin-arm64-[0-9]+(?:\.[0-9]+)+\.dmg$"#,
-            installerKind: .dmg),
+            installAssetPattern: #"^Logseq-darwin-arm64-[0-9]+(?:\.[0-9]+)+\.zip$"#,
+            installerKind: .zip),
         ])
 }

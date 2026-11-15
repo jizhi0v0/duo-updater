@@ -127,8 +127,8 @@ import Foundation
 
 // MARK: - Signal
 
-/// Real `beta-mac.yml` / `latest-mac.yml` bodies, 2026-08-09 (sha512 values
-/// truncated — nothing reads them, see `signalRecipesCarryNoChecksum`).
+/// Older real Signal file lists, with truncated hashes. Current full hashes
+/// and the production resolver are covered by ElectronZIPMigrationTests.
 private enum SignalFeedFixture {
     static let beta = """
         version: 8.23.0-beta.1
@@ -197,34 +197,35 @@ private func signalRecipe(_ bundleID: String) -> VendorProbeRecipe {
 
     #expect(
         resolveRelativeInstallURL(beta, body: SignalFeedFixture.beta)?.absoluteString
-            == "https://updates.signal.org/desktop/signal-desktop-beta-mac-universal-8.23.0-beta.1.dmg")
+            == "https://updates.signal.org/desktop/signal-desktop-beta-mac-arm64-8.23.0-beta.1.zip")
     #expect(
         resolveRelativeInstallURL(stable, body: SignalFeedFixture.stable)?.absoluteString
-            == "https://updates.signal.org/desktop/signal-desktop-mac-universal-8.22.0.dmg")
+            == "https://updates.signal.org/desktop/signal-desktop-mac-arm64-8.22.0.zip")
 
     // The regression itself: stable's pattern is blind to the beta filename.
     #expect(resolveRelativeInstallURL(stable, body: SignalFeedFixture.beta) == nil)
     // And the fix stays one-way — beta's pattern must not claim a stable build.
     #expect(resolveRelativeInstallURL(beta, body: SignalFeedFixture.stable) == nil)
 
-    // Only the universal dmg is installable; the per-arch zips must never win.
+    // Only the arm64 ZIP is installable; the x64 ZIP and DMG stay excluded.
     for (recipe, body) in [(stable, SignalFeedFixture.stable), (beta, SignalFeedFixture.beta)] {
         let url = resolveRelativeInstallURL(recipe, body: body)?.absoluteString ?? ""
-        #expect(url.hasSuffix(".dmg"))
-        #expect(url.contains("-universal-"))
+        #expect(url.hasSuffix(".zip"))
+        #expect(url.contains("-arm64-"))
     }
 }
 
-/// Signal's CI signs + staples the dmg AFTER electron-builder writes the yml, so
-/// the feed's sha512 covers 2563 fewer bytes than the CDN serves. A checksum gate
-/// built from that hash aborts every install (`VendorInstaller` gate 1 throws), so
-/// both recipes deliberately ship without one and lean on the signature/Team/
-/// bundle-id gates instead.
-@Test func signalRecipesCarryNoChecksum() {
-    for id in ["org.whispersystems.signal-desktop", "org.whispersystems.signal-desktop-beta"] {
-        let spec = try! #require(signalRecipe(id).install)
-        #expect(spec.kind == .dmg)
-        #expect(spec.checksumPattern == nil)
+/// The ZIP hash, unlike Signal's post-stapling DMG hash, describes the served
+/// bytes. Read the matching arm64 entry rather than the top-level x64 entry.
+@Test func signalRecipesCarryTheArm64ZIPChecksum() throws {
+    for (id, body, expected) in [
+        ("org.whispersystems.signal-desktop", SignalFeedFixture.stable, "0yLqy1+k93lqmITMfxmTC8QlZlVaD+9vZT7pfyeH+IB18lMn4Xhw"),
+        ("org.whispersystems.signal-desktop-beta", SignalFeedFixture.beta, "TX5BDJafhAthnojxnyraqXlhAuIz9+B84u0Eara4vH6R4+p0DkKc"),
+    ] {
+        let spec = try #require(signalRecipe(id).install)
+        #expect(spec.kind == .zip)
+        let pattern = try #require(spec.checksumPattern)
+        #expect(VendorProbeRecipe.extractVersion(from: body, pattern: pattern) == expected)
     }
 }
 
@@ -436,8 +437,8 @@ private func batchVersion(_ bundleID: String, in body: String) -> String? {
 @Test func vendorBatchInstallKindsMatchTheVerifiedArtifacts() {
     let expected: [String: VendorInstallerKind] = [
         "dev.commandline.waveterm": .zip,
-        "com.electron.kontena-lens": .dmg,
-        "com.termius-dmg.mac": .dmg,
+        "com.electron.kontena-lens": .zip,
+        "com.termius-dmg.mac": .zip,
         "com.unity3d.unityhub": .zip,
         "com.bjango.istatmenus": .zip,
     ]
@@ -780,9 +781,7 @@ private let chatGPTClassicAppcastFixture = #"""
 
 /// Verbatim body of `https://download.chatboxai.app/releases/latest-mac.yml`,
 /// fetched 2026-08-30 — electron-builder feed, version on the first line.
-/// Trimmed to the arm64 dmg entry plus its x64 sibling (the real feed also
-/// lists both zips; the pattern only ever needs the dmg pair to prove the arm64
-/// selection).
+/// Includes both architectures and containers to pin the ZIP/hash pairing.
 private let chatboxMacYmlFixture = """
 version: 1.22.6
 files:
@@ -810,11 +809,9 @@ releaseDate: '2026-08-23T07:44:52.995Z'
     #expect(batchVersion("xyz.chatboxapp.app", in: chatboxMacYmlFixture) == "1.22.6")
 }
 
-/// The install must resolve the ARM64 dmg (the x64 dmg and both zips are
-/// siblings), the URL must resolve against the releases base, and the sha512
-/// the CDN actually serves must be verified — computed over the real dmg
-/// 2026-08-30, it equals the feed hash byte-for-byte.
-@Test func chatboxInstallPinsTheArm64DmgWithItsChecksum() throws {
+/// Resolve the arm64 ZIP and its checksum together, excluding the DMG and x64
+/// entries from the same feed.
+@Test func chatboxInstallPinsTheArm64ZIPWithItsChecksum() throws {
     let recipe = try #require(batchRecipe("xyz.chatboxapp.app"))
     let install = try #require(recipe.install)
     guard case .bodyPatternRelative(let pattern, let base) = install.urlSource else {
@@ -824,8 +821,8 @@ releaseDate: '2026-08-23T07:44:52.995Z'
     let url = try #require(
         chatboxMacYmlFixture.range(of: pattern, options: .regularExpression)
             .map { String(chatboxMacYmlFixture[$0]) })
-    #expect(url == "Chatbox-1.22.6-arm64.dmg")
-    #expect(install.kind == .dmg)
+    #expect(url == "Chatbox-1.22.6-arm64-mac.zip")
+    #expect(install.kind == .zip)
     let checksum = try #require(install.checksumPattern)
     let regex = try NSRegularExpression(pattern: checksum)
     let match = try #require(
@@ -835,7 +832,7 @@ releaseDate: '2026-08-23T07:44:52.995Z'
     let group = try #require(Range(match.range(at: 1), in: chatboxMacYmlFixture))
     #expect(
         String(chatboxMacYmlFixture[group])
-            == "wUKJID49530D5hi9bMH9sLx8H/rj39wsZC9+lIo1H5790bKS/rptqfmSTKmybBCiBYJfBruQl1b0V2+uCun1KQ==")
+            == "K0ltIPtoUqXkAxw1r4CMO/dsT9oihH0KTUO32n0gLkjSVxhjRu+0FIHtnRVK0E0Ph2PJde7lxAG30QfEz/JrBA==")
 }
 
 // MARK: - Memoh

@@ -19,15 +19,15 @@ enum io_masscode_app {
         // `ReleaseChannel.detect` reads as beta, so the beta rule below serves
         // it, not this one.
         //
-        // `massCode-<v>-arm64.dmg` is io.masscode.app, Team GCU493MNF8,
+        // `massCode-<v>-arm64-mac.zip` is io.masscode.app, Team GCU493MNF8,
         // notarized (6.0.0, 6.2.1, 6.3.1). The unsuffixed dmg/zip are the x64
         // build (`electron-builder --mac --x64 --arm64`); there is no universal.
         GitHubReleaseRule(
             bundleID: "io.masscode.app",
             owner: "massCodeIO", repo: "massCode",
             versionPattern: #"^v([0-9]+(?:\.[0-9]+)+)$"#,
-            installAssetPattern: #"^massCode-[0-9]+(?:\.[0-9]+)+-arm64\.dmg$"#,
-            installerKind: .dmg),
+            installAssetPattern: #"^massCode-[0-9]+(?:\.[0-9]+)+-arm64-mac\.zip$"#,
+            installerKind: .zip),
 
         // A copy on a beta (`2.0.0-beta.6`, `3.0.0-beta.1`, `4.0.0-beta.2`):
         // same bundle id, but its version makes `ReleaseChannel.detect` call it

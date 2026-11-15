@@ -110,8 +110,8 @@ struct GitHubAssetSelectionTests {
         // OpenCode / OpenChamber: one alternation matching both architectures.
         (#"^opencode-desktop-mac-(?:arm64|x64)\.dmg$"#,
          ["opencode-desktop-mac-arm64.dmg", "opencode-desktop-mac-x64.dmg"]),
-        (#"^OpenChamber-[0-9.]+-mac-(?:arm64|x64)\.dmg$"#,
-         ["OpenChamber-1.4.0-mac-arm64.dmg", "OpenChamber-1.4.0-mac-x64.dmg"]),
+        (#"^OpenChamber-[0-9.]+-mac-(?:arm64|x64)\.zip$"#,
+         ["OpenChamber-1.4.0-mac-arm64.zip", "OpenChamber-1.4.0-mac-x64.zip"]),
         // Anki: `apple`/`intel` rather than arch tokens, so the arm build reads as
         // arch-neutral and only the Intel one is recognised as foreign.
         (#"^anki-[0-9.]+-mac-(apple|intel)\.dmg$"#,
@@ -163,7 +163,7 @@ struct GitHubAssetSelectionTests {
           "audacity-macOS-4.0.1-x86_64.dmg"]),
         // Plexo: one dmg per architecture beside the updater's zips and the
         // blockmaps (v1.0.0-rc.15's macOS assets, in the order GitHub listed them).
-        (#"^plexo-[0-9][0-9A-Za-z.-]*-(?:arm64|x64)\.dmg$"#,
+        (#"^plexo-[0-9][0-9A-Za-z.-]*-(?:arm64|x64)-mac\.zip$"#,
          ["plexo-1.0.0-rc.15-arm64-mac.zip", "plexo-1.0.0-rc.15-arm64-mac.zip.blockmap",
           "plexo-1.0.0-rc.15-arm64.dmg", "plexo-1.0.0-rc.15-arm64.dmg.blockmap",
           "plexo-1.0.0-rc.15-x64-mac.zip", "plexo-1.0.0-rc.15-x64-mac.zip.blockmap",

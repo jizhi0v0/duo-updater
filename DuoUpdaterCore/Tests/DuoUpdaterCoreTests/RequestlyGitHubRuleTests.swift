@@ -22,11 +22,10 @@ import Testing
         #expect(VendorProbeRecipe.extractVersion(from: "v26.6.29-beta.1", pattern: pattern) == nil)
     }
 
-    /// A 26.6.26 copy is offered v26.6.29's arm64 dmg, not the arm64 zip or the
-    /// x64 dmg beside it.
+    /// A 26.6.26 copy is offered the arm64 ZIP, excluding DMG and x64 siblings.
     /// Mutation: widen `installAssetPattern` to `^Requestly-` → the last
     /// expectation fails (the zip's name still starts with it).
-    @Test func theArm64DmgIsTheInstaller() async throws {
+    @Test func theArm64ZIPIsTheInstaller() async throws {
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [StubLatest.self]
         let source = GitHubReleasesSource(
@@ -34,7 +33,7 @@ import Testing
 
         let remote = try await source.latestVersion(for: Self.installed("26.6.26"))
         #expect(remote?.shortVersion == "26.6.29")
-        #expect(remote?.downloadURL?.lastPathComponent == "Requestly-26.6.29-arm64.dmg")
+        #expect(remote?.downloadURL?.lastPathComponent == "Requestly-26.6.29-arm64-mac.zip")
     }
 
     private static func installed(_ version: String) -> InstalledApp {

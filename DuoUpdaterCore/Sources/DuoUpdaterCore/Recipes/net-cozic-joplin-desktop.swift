@@ -1,6 +1,7 @@
 import Foundation
 
 enum net_cozic_joplin_desktop {
+    // History: docs/app-audits/net-cozic-joplin-desktop.md#历史与实测
     static let set = AppRecipeSet(
         family: "net-cozic-joplin-desktop",
         githubRules: [
@@ -32,7 +33,7 @@ enum net_cozic_joplin_desktop {
             bundleID: "net.cozic.joplin-desktop",
             owner: "laurent22", repo: "joplin",
             versionPattern: #"^v([0-9]+(?:\.[0-9]+)+)$"#,
-            installAssetPattern: #"^Joplin-[0-9]+(?:\.[0-9]+)+-arm64\.DMG$"#,
-            installerKind: .dmg),
+            installAssetPattern: #"^Joplin-[0-9]+(?:\.[0-9]+)+-arm64\.zip$"#,
+            installerKind: .zip),
         ])
 }

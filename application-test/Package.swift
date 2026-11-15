@@ -30,6 +30,10 @@ let package = Package(
             ]
         ),
         .executableTarget(
+            name: "blockmap-verify",
+            dependencies: [.product(name: "DuoUpdaterCore", package: "DuoUpdaterCore")]
+        ),
+        .executableTarget(
             name: "electron-verify",
             dependencies: [
                 .product(name: "DuoUpdaterCore", package: "DuoUpdaterCore")

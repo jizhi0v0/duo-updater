@@ -121,8 +121,10 @@ public enum DiskSpaceGuard {
                 // Kept partial downloads give their space up before an install
                 // is made to wait or refused for want of it. Asked again at
                 // once: what they held is free now.
-                if decision != .granted, ResumableDownloadStore.discardAllForSpace() > 0 {
-                    continue
+                if decision != .granted {
+                    let partials = ResumableDownloadStore.discardAllForSpace()
+                    let archives = ElectronArchiveCache.discardAllForSpace()
+                    if partials > 0 || archives > 0 { continue }
                 }
                 switch decision {
                 case .granted:
@@ -206,8 +208,8 @@ public enum DiskSpaceGuard {
         throw InsufficientSpace(needed: target, free: free)
     }
 
-    /// Free space back to `target`: kept partial downloads first
-    /// (`ResumableDownloadStore`), then this Mac's oldest backups (never
+    /// Free space back to `target`: partial downloads and cached original ZIPs
+    /// first, then this Mac's oldest backups (never
     /// `key`'s). A partial is only kept to save a re-download; a backup is a
     /// rollback point that cannot be fetched again, so it is never the one to
     /// go while a partial is still holding space.
@@ -217,6 +219,7 @@ public enum DiskSpaceGuard {
         if let raw = BackupStore.outboxRawFreeBytes(), raw >= target { return true }
         if let free = BackupStore.outboxFreeBytes(), free < target {
             ResumableDownloadStore.discardAllForSpace()
+            ElectronArchiveCache.discardAllForSpace()
         }
         return await BackupStore.reclaimFreeSpace(sparing: key, target: target)
     }

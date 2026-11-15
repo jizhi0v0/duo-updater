@@ -1,6 +1,7 @@
 import Foundation
 
 enum com_antonycourtney_tad {
+    // History: docs/app-audits/com-antonycourtney-tad.md#历史与实测
     static let set = AppRecipeSet(
         family: "com-antonycourtney-tad",
         githubRules: [
@@ -22,7 +23,7 @@ enum com_antonycourtney_tad {
             bundleID: "com.antonycourtney.tad",
             owner: "antonycourtney", repo: "tad",
             versionPattern: #"^v([0-9]+(?:\.[0-9]+)+)$"#,
-            installAssetPattern: #"^Tad-[0-9]+(?:\.[0-9]+)+-arm64\.dmg$"#,
-            installerKind: .dmg),
+            installAssetPattern: #"^Tad-[0-9]+(?:\.[0-9]+)+-arm64-mac\.zip$"#,
+            installerKind: .zip),
         ])
 }

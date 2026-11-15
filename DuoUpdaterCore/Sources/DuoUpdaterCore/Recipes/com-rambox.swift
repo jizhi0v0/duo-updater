@@ -1,6 +1,7 @@
 import Foundation
 
 enum com_rambox {
+    // History: docs/app-audits/com-rambox.md#历史与实测
     static let set = AppRecipeSet(
         family: "com-rambox",
         githubRules: [
@@ -26,8 +27,8 @@ enum com_rambox {
             bundleID: "com.rambox",
             owner: "ramboxapp", repo: "download",
             versionPattern: #"^v([0-9]+(?:\.[0-9]+)+)$"#,
-            installAssetPattern: #"^Rambox-[0-9]+(?:\.[0-9]+)+-mac\.dmg$"#,
-            installerKind: .dmg),
+            installAssetPattern: #"^Rambox-[0-9]+(?:\.[0-9]+)+-mac\.zip$"#,
+            installerKind: .zip),
         ],
         // One-click never crosses from Rambox 2 to Rambox 3 or later: signing in
         // to Rambox 3 moves the account to the new format one way, and Rambox 2

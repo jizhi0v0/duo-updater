@@ -3,20 +3,9 @@ import Testing
 
 @testable import DuoUpdaterCore
 
-/// `com.kangfenmao.CherryStudio` publishes one release carrying every platform, so
-/// the install pattern has to pick the Apple-silicon dmg out of a list that also
-/// holds Linux and Windows arm64 artifacts, the Intel dmg, the update zip and the
-/// China edition.
-///
-/// v2.0.10 renamed the macOS artifacts from `Cherry-Studio-<ver>-arm64.dmg` to
-/// `Cherry-Studio-<ver>-mac-arm64.dmg`. The pattern admitted only the old
-/// spelling, so from that release on it matched nothing — and the walk back past
-/// asset-less releases, bounded at five
-/// (`GitHubReleasesSource.maxReleasesWithoutMacOSAsset`), then answered **2.0.9**
-/// for a repository whose newest release was 2.0.14, offering the 2.0.9 dmg as the
-/// one-click while every copy on 2.0.10–2.0.13 read "up to date". The asset names
-/// below are the live ones (release list read 2026-09-17); `verify/baseline.json`
-/// was recording the same `2.0.9`.
+/// Cherry Studio's macOS ZIP must remain separate from Windows/Linux arm64,
+/// Intel and CN artifacts. The current artifact set is pinned independently by
+/// ElectronZIPMigrationTests; these cases attack edition and fallback guards.
 @Suite struct CherryStudioGitHubRuleTests {
 
     private static let bundleID = "com.kangfenmao.CherryStudio"
@@ -42,15 +31,13 @@ import Testing
             from: assets, matching: pattern, preferring: .arm64)?.url.lastPathComponent
     }
 
-    /// Both spellings, so a release published before the rename still installs.
-    @Test func bothMacOSSpellingsResolve() throws {
-        #expect(try picked(["Cherry-Studio-2.0.9-arm64.dmg"]) == "Cherry-Studio-2.0.9-arm64.dmg")
-        #expect(try picked(["Cherry-Studio-2.0.14-mac-arm64.dmg"])
-            == "Cherry-Studio-2.0.14-mac-arm64.dmg")
+    @Test func theZIPSpellingResolvesAndLegacyDMGsDoNot() throws {
+        #expect(try picked(["Cherry-Studio-2.2.2-mac-arm64.zip"]) == "Cherry-Studio-2.2.2-mac-arm64.zip")
+        #expect(try picked(["Cherry-Studio-2.0.9-arm64.dmg"]) == nil)
+        #expect(try picked(["Cherry-Studio-2.0.14-mac-arm64.dmg"]) == nil)
     }
 
-    /// The rename is the whole bug: the newest release's own asset list, as the
-    /// live API returns it, must yield the Apple-silicon dmg rather than nothing.
+    /// A release containing both containers selects the ZIP.
     @Test func theNewestReleasesAssetsStillResolve() throws {
         let live = [
             "Cherry-Studio-2.0.14-linux-arm64.deb",
@@ -61,24 +48,21 @@ import Testing
             "Cherry-Studio-2.0.14-mac-x64.dmg",
             "Cherry-Studio-2.0.14-win-arm64-setup.exe",
         ]
-        #expect(try picked(live) == "Cherry-Studio-2.0.14-mac-arm64.dmg")
+        #expect(try picked(live) == "Cherry-Studio-2.0.14-mac-arm64.zip")
     }
 
-    /// The CN edition is a different build for a different store, and the Intel
-    /// dmg is the wrong architecture: neither may be offered to a global install.
+    /// Neither CN nor Intel may be offered to a global Apple Silicon copy.
     @Test func theChinaEditionAndTheIntelBuildAreNotInstallable() throws {
-        #expect(try picked(["Cherry-Studio-CN-2.0.14-mac-arm64.dmg"]) == nil)
-        #expect(try picked(["Cherry-Studio-2.0.14-mac-x64.dmg"]) == nil)
-        // With both spellings present, the global Apple-silicon dmg wins.
-        #expect(try picked(["Cherry-Studio-CN-2.0.14-mac-arm64.dmg",
-                            "Cherry-Studio-2.0.14-mac-arm64.dmg"])
-            == "Cherry-Studio-2.0.14-mac-arm64.dmg")
+        #expect(try picked(["Cherry-Studio-CN-2.2.2-mac-arm64.zip"]) == nil)
+        #expect(try picked(["Cherry-Studio-2.2.2-mac-x64.zip"]) == nil)
+        #expect(try picked(["Cherry-Studio-CN-2.2.2-mac-arm64.zip",
+                            "Cherry-Studio-2.2.2-mac-arm64.zip"])
+            == "Cherry-Studio-2.2.2-mac-arm64.zip")
     }
 
-    /// No dmg at all is still a miss, so the source falls through to its
-    /// asset-less walk instead of inventing an installer out of a zip.
-    @Test func aReleaseWithoutAMacDmgIsStillAMiss() throws {
-        #expect(try picked(["Cherry-Studio-2.0.14-mac-arm64.zip",
-                            "Cherry-Studio-2.0.14-linux-x64.AppImage"]) == nil)
+    /// A release with only the DMG and Linux artifacts still has no selected ZIP.
+    @Test func aReleaseWithoutAMacZIPIsStillAMiss() throws {
+        #expect(try picked(["Cherry-Studio-2.2.2-mac-arm64.dmg",
+                            "Cherry-Studio-2.2.2-linux-x64.AppImage"]) == nil)
     }
 }

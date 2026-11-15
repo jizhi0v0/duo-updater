@@ -1747,13 +1747,9 @@ private let weChatFeed = #"""
     }
 }
 
-// Signal stable — one-click resolves the UNIVERSAL dmg from the same latest-mac.yml
-// we probe (not the per-arch zips), against updates.signal.org/desktop/. There is
-// deliberately no checksum to assert: Signal staples the dmg after electron-builder
-// writes the yml, so the feed's sha512 never matches the served bytes (see
-// `signalRecipesCarryNoChecksum`). Per-channel filenames: see
-// `signalInstallPatternsAreChannelSpecific`.
-@Test func signalOneClickResolvesUniversalDmg() throws {
+// Signal stable resolves the arm64 ZIP from its matching file-list entry,
+// excluding the x64 top-level path and the universal DMG.
+@Test func signalOneClickResolvesArm64ZIP() throws {
     let recipe = try #require(
         VendorProbeRegistry.recipes.first { $0.bundleID == "org.whispersystems.signal-desktop" })
     let body = """
@@ -1771,14 +1767,14 @@ private let weChatFeed = #"""
     path: signal-desktop-mac-x64-8.14.0.zip
     """
     let install = try #require(recipe.install)
-    #expect(install.kind == .dmg)
+    #expect(install.kind == .zip)
     guard case let .bodyPatternRelative(pat, base) = install.urlSource else {
         Issue.record("expected bodyPatternRelative"); return
     }
     let fn = try #require(VendorProbeRecipe.extractVersion(from: body, pattern: pat))
-    // Must grab the universal dmg, never the x64/arm64 zips.
+    // Must grab the arm64 ZIP, never the x64 ZIP or universal DMG.
     #expect(URL(string: fn, relativeTo: base)?.absoluteString
-        == "https://updates.signal.org/desktop/signal-desktop-mac-universal-8.14.0.dmg")
+        == "https://updates.signal.org/desktop/signal-desktop-mac-arm64-8.14.0.zip")
 }
 
 // Obsidian — the manifest's own downloadUrl is an asar.gz we can't apply, so the

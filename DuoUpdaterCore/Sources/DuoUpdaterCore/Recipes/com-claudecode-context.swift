@@ -1,6 +1,7 @@
 import Foundation
 
 enum com_claudecode_context {
+    // History: docs/app-audits/com-claudecode-context.md#历史与实测
     static let set = AppRecipeSet(
         family: "com-claudecode-context",
         githubRules: [
@@ -14,7 +15,7 @@ enum com_claudecode_context {
             bundleID: "com.claudecode.context",
             owner: "matt1398", repo: "claude-devtools",
             versionPattern: #"^v([0-9]+(?:\.[0-9]+)+)$"#,
-            installAssetPattern: #"^claude-devtools-[0-9.]+-arm64\.dmg$"#,
-            installerKind: .dmg),
+            installAssetPattern: #"^claude-devtools-[0-9.]+-arm64\.zip$"#,
+            installerKind: .zip),
         ])
 }

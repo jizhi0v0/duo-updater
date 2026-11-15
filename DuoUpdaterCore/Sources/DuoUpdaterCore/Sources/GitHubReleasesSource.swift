@@ -1843,6 +1843,11 @@ public struct GitHubReleasesSource: UpdateSource {
                 }
                 let installable = asset?.url != nil && rule.installerKind != nil
                     && (rule.installTrust == .developerID || digest != nil)
+                let blockmap = asset.flatMap { chosen -> URL? in
+                    guard rule.installerKind == .zip,
+                          let selected = release.assets.first(where: { $0.url == chosen.url }) else { return nil }
+                    return release.assets.first { $0.name == selected.name + ".blockmap" }?.url
+                }
 
                 // `recipeID`, not `slug`: two rules can share one repo (Zed and Zed
                 // Preview, UTM Stable and Beta, GitHub Desktop's two channels), and
@@ -1860,6 +1865,7 @@ public struct GitHubReleasesSource: UpdateSource {
                     // The release page — an asset URL would download the archive.
                     pageURL: page,
                     downloadSize: asset?.size,
+                    electronBlockmapURL: blockmap,
                     sourceName: name,
                     requiresManualInstaller: !installable,
                     vendorInstallerKind: installable ? rule.installerKind : nil,

@@ -1,6 +1,7 @@
 import Foundation
 
 enum com_mikekreeki_tasks {
+    // History: docs/app-audits/com-mikekreeki-tasks.md#历史与实测
     static let set = AppRecipeSet(
         family: "com-mikekreeki-tasks",
         githubRules: [
@@ -28,7 +29,7 @@ enum com_mikekreeki_tasks {
             bundleID: "com.mikekreeki.tasks",
             owner: "lunatask", repo: "lunatask",
             versionPattern: #"^v([0-9]+(?:\.[0-9]+)+)$"#,
-            installAssetPattern: #"^Lunatask-[0-9]+(?:\.[0-9]+)+-universal\.dmg$"#,
-            installerKind: .dmg),
+            installAssetPattern: #"^Lunatask-[0-9]+(?:\.[0-9]+)+-universal-mac\.zip$"#,
+            installerKind: .zip),
         ])
 }

@@ -1,6 +1,7 @@
 import Foundation
 
 enum de_amplussoftware_timescribe {
+    // History: docs/app-audits/de-amplussoftware-timescribe.md#历史与实测
     static let set = AppRecipeSet(
         family: "de-amplussoftware-timescribe",
         githubRules: [
@@ -26,8 +27,8 @@ enum de_amplussoftware_timescribe {
             bundleID: "de.amplussoftware.timescribe",
             owner: "WINBIGFOX", repo: "TimeScribe",
             versionPattern: #"^v([0-9]+(?:\.[0-9]+)+)$"#,
-            installAssetPattern: #"^TimeScribe-[0-9]+(?:\.[0-9]+)+-arm64\.dmg$"#,
-            installerKind: .dmg),
+            installAssetPattern: #"^TimeScribe-[0-9]+(?:\.[0-9]+)+-arm64\.zip$"#,
+            installerKind: .zip),
 
         // A copy of `1.2.0-beta.1`…`beta.3` (2025-05, flagged prerelease):
         // same bundle id, but its version makes `ReleaseChannel.detect` call it

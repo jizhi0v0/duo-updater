@@ -27,7 +27,7 @@ many apps at once, use that skill; it dispatches this one per app.
 For an app/channel/feed implementation, **nightly coverage or an evidenced gap
 is also a completion requirement in the same PR**. For an audit-only request,
 report its current status and hand off missing work. Read
-[nightly coverage acceptance](references/nightly-coverage.md) before choosing a
+[nightly coverage acceptance](../fragile-recipe/references/nightly-coverage.md) before choosing a
 monitor, updating the inventory, or marking an integration complete.
 
 ## The two orthogonal dimensions
@@ -397,7 +397,7 @@ and from outside, a dead recipe and a working one look identical.
    (2026-09-12) publishes one item per release, tagged `dev`, so the copy you
    just downloaded matches and an install one version behind matches nothing.
 
-3. **nightly coverage** — follow [the acceptance checklist](references/nightly-coverage.md).
+3. **nightly coverage** — follow [the acceptance checklist](../fragile-recipe/references/nightly-coverage.md).
    A working generic source still needs public runner inventory or an explicit gap.
 
 Everything else — version parsing, download URL, EdDSA verification, release

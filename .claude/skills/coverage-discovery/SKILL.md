@@ -48,7 +48,7 @@ legitimate "can't": recording it in the audit is not enough. Gate it
 (`OneClickGate`) or withhold one-click (MuseScore 3, GitKraken On-Premise).
 
 In addition to the three product results, each implemented app/track must meet
-[app-audit's nightly acceptance](../app-audit/references/nightly-coverage.md):
+[app-audit's nightly acceptance](../fragile-recipe/references/nightly-coverage.md):
 monitoring in the same integration PR, or an explicit evidenced gap.
 
 ## Phase 1: Enumerate — from data, not memory
@@ -105,7 +105,7 @@ The brief follows the memory note `subagent-brief-rules`. It must say:
 - old→new `channel-verify` on the previous and newest packages (it reads a `.app` or a `.dmg`; `ditto -x -k` a `.zip` first and pass the `.app`), goldens re-recorded, `make test` in the foreground judged by exit code;
 - the audit doc plus a README line **in the section matching its source**. A row whose coverage is generic Sparkle (`— S`) belongs in the Sparkle section; `AppAuditCoverageTests` fails it anywhere else;
 - a track or group of copies left unwired goes in the report under 「待用户决定」 with its reason: the agent can't ask, and app-audit never lets "not wired" be decided alone. The main session asks the user before the batch merges;
-- follow [nightly acceptance](../app-audit/references/nightly-coverage.md) in the
+- follow [nightly acceptance](../fragile-recipe/references/nightly-coverage.md) in the
   isolated worktree: include monitoring IDs/config or evidenced gaps for all
   tracks and copy groups. Leave CLI-only live checks to the parent where the
   worker's permissions forbid them; return the exact handoff;

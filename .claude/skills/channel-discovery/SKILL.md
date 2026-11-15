@@ -149,7 +149,7 @@ For **Pattern D**: a one-liner with the reason, for the dead-end log.
 
 Include a nightly handoff for each proposed new track/feed/copy group: after
 real-bundle/channel verification, `/app-audit` applies
-[nightly coverage acceptance](../app-audit/references/nightly-coverage.md) in the
+[nightly coverage acceptance](../fragile-recipe/references/nightly-coverage.md) in the
 implementation PR. A discovery candidate is not an inventory entry or proof of
 byte coverage; this breadth pass does not edit the runner inventory.
 

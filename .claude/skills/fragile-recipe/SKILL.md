@@ -133,7 +133,7 @@ examples — don't author from memory:
    (`make install`) is only needed to *see* the result in the UI.
 
 For a new app/channel, feed change or installer-route change, finish
-[nightly coverage acceptance](../app-audit/references/nightly-coverage.md) in the same implementation PR. Vendor
+[nightly coverage acceptance](references/nightly-coverage.md) in the same implementation PR. Vendor
 recipes are already enumerated; verify their actual IDs/install coverage rather
 than adding a duplicate generic entry. A changelog-only fix checks its existing
 monitoring status and records relevant gaps without expanding into unrelated

@@ -211,6 +211,7 @@ jobs:
             --report install-findings.json \
             --baseline verify/install-baseline.json
           status=$?
+          set -e
           echo "exit_code=$status" >> "$GITHUB_OUTPUT"
           exit "$status"
 

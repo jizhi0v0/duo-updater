@@ -1,6 +1,7 @@
 import Foundation
 
 enum org_upscayl_Upscayl {
+    // History: docs/app-audits/org-upscayl-Upscayl.md#历史与实测
     static let set = AppRecipeSet(
         family: "org-upscayl-Upscayl",
         githubRules: [
@@ -15,7 +16,7 @@ enum org_upscayl_Upscayl {
             bundleID: "org.upscayl.Upscayl",
             owner: "upscayl", repo: "upscayl",
             versionPattern: #"^v([0-9]+(?:\.[0-9]+)+)$"#,
-            installAssetPattern: #"^upscayl-[0-9.]+-mac\.dmg$"#,
-            installerKind: .dmg),
+            installAssetPattern: #"^upscayl-[0-9.]+-mac\.zip$"#,
+            installerKind: .zip),
         ])
 }

@@ -1,6 +1,7 @@
 import Foundation
 
 enum dev_openchamber_desktop {
+    // History: docs/app-audits/dev-openchamber-desktop.md#历史与实测
     static let set = AppRecipeSet(
         family: "dev-openchamber-desktop",
         githubRules: [
@@ -12,8 +13,8 @@ enum dev_openchamber_desktop {
             bundleID: "dev.openchamber.desktop",
             owner: "openchamber", repo: "openchamber",
             versionPattern: #"^v([0-9]+(?:\.[0-9]+)+)$"#,
-            installAssetPattern: #"^OpenChamber-[0-9.]+-mac-(?:arm64|x64)\.dmg$"#,
-            installerKind: .dmg),
+            installAssetPattern: #"^OpenChamber-[0-9.]+-mac-(?:arm64|x64)\.zip$"#,
+            installerKind: .zip),
 
         // Preview — the `v2-preview` GitHub prerelease (`2.0.0-preview.8`), which
         // `ReleaseChannel.detect` step 4 reads as `.preview`. Without a rule of its
@@ -39,8 +40,8 @@ enum dev_openchamber_desktop {
             bundleID: "dev.openchamber.desktop",
             owner: "openchamber", repo: "openchamber",
             versionPattern: #"^v([0-9]+(?:\.[0-9]+)+)$"#,
-            installAssetPattern: #"^OpenChamber-[0-9.]+-mac-(?:arm64|x64)\.dmg$"#,
-            installerKind: .dmg,
+            installAssetPattern: #"^OpenChamber-[0-9.]+-mac-(?:arm64|x64)\.zip$"#,
+            installerKind: .zip,
             channel: .preview),
         ],
         githubChannelProofs: [

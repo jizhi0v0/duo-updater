@@ -1,0 +1,18 @@
+[
+  {
+    "name": "T3 Code",
+    "pid": 12315,
+    "source": "installed ZIP bundle",
+    "stayedRunning": false,
+    "exitCodeBeforeTermination": 130,
+    "profileDirectoryExists": false
+  },
+  {
+    "name": "T3 Code Nightly",
+    "pid": 12323,
+    "source": "installed ZIP bundle",
+    "stayedRunning": false,
+    "exitCodeBeforeTermination": 130,
+    "profileDirectoryExists": false
+  }
+]

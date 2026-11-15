@@ -1,0 +1,15 @@
+version: 10.4.1
+files:
+  - url: Termius Beta.zip
+    sha512: wjcysBJlt8kKSH6eIc5t2Un1DpBXSUFi8wnHpbzauM+GP/k+ZtJUFujPdliU+eZBRHCdJI5ulUX3SFmmErZJkg==
+    size: 288311701
+  - url: Termius Beta.dmg
+    sha512: bu5QOm/OipwJfAV6t/JPb5LEN9RCLHN1pFa0Le1Ib2CUuJo7GBCB7QxFOdDAEmQaG2tH/CXrbZ6xnZ4/ItEL7A==
+    size: 298667441
+path: Termius Beta.zip
+sha512: wjcysBJlt8kKSH6eIc5t2Un1DpBXSUFi8wnHpbzauM+GP/k+ZtJUFujPdliU+eZBRHCdJI5ulUX3SFmmErZJkg==
+releaseDate: '2026-11-06T04:11:55.857Z'
+rollout:
+  freeUsers: 100
+  paidUsers: 100
+minimumSystemVersion: 21.0.0

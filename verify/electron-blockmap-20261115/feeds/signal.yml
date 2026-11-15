@@ -1,0 +1,16 @@
+version: 8.35.0
+files:
+  - url: signal-desktop-mac-x64-8.35.0.zip
+    sha512: Hv9Wy5vQyjq/5nJab/mwdbqIGY2H1hskfsNq8ePiAp4iivvOgKDYwvjrOnt760qhyH4HSD8niI9BcDF0Q0fVgA==
+    size: 153844820
+  - url: signal-desktop-mac-arm64-8.35.0.zip
+    sha512: Ce/tLdnlyi9MhmZfSQ4a3mqfCjf5h9Qj/ctS/WLKUKrzG6AP4NHgAy8vv7LKFZagBTr5M24r9tFfQF2F4ISskg==
+    size: 146526884
+  - url: signal-desktop-mac-universal-8.35.0.dmg
+    sha512: xosOUNnSkynR2jeAgsYoD/phJXVcL/4oJMh3jWZ3cWwurKq9SueMpRPiOlX3vQPrNxWDV6SAz9HYF2g2Nv1xVQ==
+    size: 271238757
+path: signal-desktop-mac-x64-8.35.0.zip
+sha512: Hv9Wy5vQyjq/5nJab/mwdbqIGY2H1hskfsNq8ePiAp4iivvOgKDYwvjrOnt760qhyH4HSD8niI9BcDF0Q0fVgA==
+vendor:
+  minOSVersion: 22.1.0
+releaseDate: '2026-11-11T23:37:27.191Z'

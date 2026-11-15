@@ -117,12 +117,14 @@ final class HTTPDownloadSimulation: @unchecked Sendable {
     let token = UUID().uuidString
     let script: Script
     let sandbox: HTTPDownloadSandbox
+    let configuration: URLSessionConfiguration
     var url: URL { URL(string: "https://download-simulation.invalid/\(token)/payload.bin")! }
 
     init(_ steps: [Step]) throws {
         script = Script(steps)
         let configuration = HTTPDownloadSandbox.configuration()
         configuration.protocolClasses = [Transport.self]
+        self.configuration = configuration
         sandbox = try HTTPDownloadSandbox(configuration: configuration)
         Transport.registry.add(script, token: token)
     }
@@ -258,8 +260,11 @@ final class HTTPDownloadLoopbackServer: @unchecked Sendable {
         var stopped = false
         var requests: [String] = []
         var unexpected: [String] = []
+        let observed: AsyncStream<String>.Continuation
         let responses: [Response]
-        init(_ responses: [Response]) { self.responses = responses }
+        init(_ responses: [Response], observed: AsyncStream<String>.Continuation) {
+            self.responses = responses; self.observed = observed
+        }
         func accept(_ connection: NWConnection) -> Bool {
             lock.withLock {
                 guard !stopped else { return false }
@@ -309,6 +314,7 @@ final class HTTPDownloadLoopbackServer: @unchecked Sendable {
     private let state: State
     private let queue = DispatchQueue(label: "HTTPDownloadLoopbackServer")
     let port: UInt16
+    let observedRequests: AsyncStream<String>
     var url: URL { URL(string: "http://127.0.0.1:\(port)/payload.bin")! }
     var requests: [String] { state.lock.withLock { state.requests } }
     var unexpectedRequests: [String] { state.lock.withLock { state.unexpected } }
@@ -317,7 +323,9 @@ final class HTTPDownloadLoopbackServer: @unchecked Sendable {
         let parameters = NWParameters.tcp
         parameters.requiredLocalEndpoint = .hostPort(host: "127.0.0.1", port: .any)
         listener = try NWListener(using: parameters, on: .any)
-        state = State(responses)
+        let stream = AsyncStream<String>.makeStream()
+        observedRequests = stream.stream
+        state = State(responses, observed: stream.continuation)
         let state = self.state
         let queue = self.queue
         listener.newConnectionHandler = { connection in
@@ -333,7 +341,8 @@ final class HTTPDownloadLoopbackServer: @unchecked Sendable {
                         else { receive(head) }
                         return
                     }
-                    guard let response = state.next(String(decoding: head, as: UTF8.self)) else {
+                    let requestText = String(decoding: head, as: UTF8.self)
+                    guard let response = state.next(requestText) else {
                         state.release(connection)
                         return
                     }
@@ -354,6 +363,7 @@ final class HTTPDownloadLoopbackServer: @unchecked Sendable {
                     var bytes = Data((output + "\r\n").utf8)
                     bytes.append(response.body)
                     if let held = response.heldBody { state.hold(held, on: connection) }
+                    state.observed.yield(requestText)
                     connection.send(content: bytes, completion: .contentProcessed { error in
                         if error != nil || response.heldBody == nil { state.release(connection) }
                     })
@@ -403,6 +413,7 @@ final class HTTPDownloadLoopbackServer: @unchecked Sendable {
             return connections
         }
         listener.cancel()
+        state.observed.finish()
         connections.forEach { $0.cancel() }
     }
 }

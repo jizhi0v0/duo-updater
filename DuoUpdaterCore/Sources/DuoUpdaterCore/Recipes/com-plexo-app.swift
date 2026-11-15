@@ -1,6 +1,7 @@
 import Foundation
 
 enum com_plexo_app {
+    // History: docs/app-audits/com-plexo-app.md#历史与实测
     static let set = AppRecipeSet(
         family: "com-plexo-app",
         githubRules: [
@@ -21,7 +22,7 @@ enum com_plexo_app {
             bundleID: "com.plexo.app",
             owner: "anmolkapil", repo: "plexo",
             versionPattern: #"^v?([0-9]+(?:\.[0-9]+)+(?:-[A-Za-z]+\.[0-9]+)?)$"#,
-            installAssetPattern: #"^plexo-[0-9][0-9A-Za-z.-]*-(?:arm64|x64)\.dmg$"#,
-            installerKind: .dmg),
+            installAssetPattern: #"^plexo-[0-9][0-9A-Za-z.-]*-(?:arm64|x64)-mac\.zip$"#,
+            installerKind: .zip),
         ])
 }

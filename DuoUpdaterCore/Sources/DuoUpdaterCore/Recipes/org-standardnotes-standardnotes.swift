@@ -1,6 +1,7 @@
 import Foundation
 
 enum org_standardnotes_standardnotes {
+    // History: docs/app-audits/org-standardnotes-standardnotes.md#历史与实测
     static let set = AppRecipeSet(
         family: "org-standardnotes-standardnotes",
         githubRules: [
@@ -34,8 +35,8 @@ enum org_standardnotes_standardnotes {
             bundleID: "org.standardnotes.standardnotes",
             owner: "standardnotes", repo: "app",
             versionPattern: #"^@standardnotes/desktop@([0-9]+(?:\.[0-9]+)+)$"#,
-            installAssetPattern: #"^standard-notes-[0-9]+(?:\.[0-9]+)+-mac-arm64\.dmg$"#,
-            installerKind: .dmg),
+            installAssetPattern: #"^standard-notes-[0-9]+(?:\.[0-9]+)+-mac-arm64\.zip$"#,
+            installerKind: .zip),
 
         // A copy of one of the 2020–2022 `standardnotes/desktop` betas
         // (`3.10.0-beta.1` … `3.15.0-beta.4`, older `3.7.0-beta01`): same bundle

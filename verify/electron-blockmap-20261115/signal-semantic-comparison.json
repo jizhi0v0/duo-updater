@@ -1,0 +1,25 @@
+{
+  "extraDMG": [
+    "node_modules/@indutny/mac-screen-share/prebuilds/darwin-x64/@indutny+mac-screen-share.node",
+    "node_modules/@signalapp/libsignal-client/prebuilds/darwin-x64/@signalapp+libsignal-client.node",
+    "node_modules/@signalapp/ringrtc/build/darwin/libringrtc-x64.node",
+    "node_modules/@signalapp/sqlcipher/prebuilds/darwin-x64/@signalapp+sqlcipher.node"
+  ],
+  "extraZIP": [],
+  "different": [
+    {
+      "name": "node_modules/@signalapp/mute-state-change/build/Release/mute-state-change.node",
+      "unpackedDMG": true,
+      "unpackedZIP": true,
+      "thinExit": 0,
+      "arm64BytesEqual": false
+    },
+    {
+      "name": "node_modules/fs-xattr/build/Release/xattr.node",
+      "unpackedDMG": true,
+      "unpackedZIP": true,
+      "thinExit": 0,
+      "arm64BytesEqual": false
+    }
+  ]
+}

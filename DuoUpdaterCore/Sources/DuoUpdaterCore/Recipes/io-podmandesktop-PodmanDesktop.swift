@@ -23,7 +23,7 @@ enum io_podmandesktop_PodmanDesktop {
         GitHubReleaseRule(
             bundleID: "io.podmandesktop.PodmanDesktop",
             owner: "podman-desktop", repo: "podman-desktop",
-            installAssetPattern: #"^podman-desktop-[0-9.]+-arm64\.dmg$"#,
-            installerKind: .dmg),
+            installAssetPattern: #"^podman-desktop-[0-9.]+-arm64\.zip$"#,
+            installerKind: .zip),
         ])
 }

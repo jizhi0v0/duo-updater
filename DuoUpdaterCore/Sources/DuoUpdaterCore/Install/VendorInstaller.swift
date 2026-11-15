@@ -228,19 +228,28 @@ public actor VendorInstaller {
             // `text/html`) — corkmac.app did about one in two until its fix
             // (2026-10-17, buresdv/Cork#687). A patch answered with HTML
             // falls back to the full archive instead of retrying the patch.
+            let differential = patch == nil && preferDelta
+                ? try await ElectronZIPDownload.prepare(
+                    app: result.app, remote: remote, workDir: workDir,
+                    onProgress: { onStage(.downloading(fraction: $0)) })
+                : nil
             var downloader: Downloader!
-            var bytesDownloaded: Int64 = 0
+            var bytesDownloaded: Int64 = differential?.bytes ?? 0
             let downloaded: URL
             do {
-                downloaded = try await Self.fetchArchive(
-                    maxAttempts: patch == nil ? Self.htmlBodyMaxAttempts : 1
-                ) {
-                    downloader = Downloader(destinationDir: workDir) { fraction in
-                        onStage(.downloading(fraction: fraction))
+                if let reconstructed = differential?.archive {
+                    downloaded = reconstructed
+                } else {
+                    downloaded = try await Self.fetchArchive(
+                        maxAttempts: patch == nil ? Self.htmlBodyMaxAttempts : 1
+                    ) {
+                        downloader = Downloader(destinationDir: workDir) { fraction in
+                            onStage(.downloading(fraction: fraction))
+                        }
+                        defer { bytesDownloaded += downloader.bytesDownloaded }
+                        return try await downloader.download(
+                            patch?.url ?? downloadURL, headers: remote.downloadHeaders)
                     }
-                    defer { bytesDownloaded += downloader.bytesDownloaded }
-                    return try await downloader.download(
-                        patch?.url ?? downloadURL, headers: remote.downloadHeaders)
                 }
             } catch InstallError.htmlInsteadOfArchive where patch != nil {
                 // Only this content failure earns a full-archive fallback.
@@ -260,8 +269,8 @@ public actor VendorInstaller {
                 archiveURL: archive,
                 bytesDownloaded: bytesDownloaded,
                 workDir: workDir,
-                finalHost: downloader.finalHost,
-                appliedPatch: patch)
+                finalHost: differential?.archive == nil ? downloader.finalHost : differential?.finalHost,
+                appliedPatch: patch, usedBlockmap: differential?.archive != nil)
         } catch {
             // A failed (or partially-written) download leaves nothing behind.
             try? FileManager.default.removeItem(at: workDir)
@@ -333,6 +342,17 @@ public actor VendorInstaller {
         onStage(.installing)
         try await installApp(
             newApp, over: result.app.path, stagedCheck: stagedCheck, refuseElevation: refuseElevation)
+
+        if download.appliedPatch == nil, download.localStash == nil,
+           result.remote?.vendorInstallerKind == .zip {
+            let cacheLocation = ElectronArchiveCache.Location.current
+            await offCooperativePool {
+                ElectronArchiveCache.retain(
+                    archive: download.archiveURL,
+                    map: download.workDir.appendingPathComponent(ElectronZIPDownload.mapFileName),
+                    for: result.app, at: cacheLocation)
+            }
+        }
 
         onStage(.done)
     }

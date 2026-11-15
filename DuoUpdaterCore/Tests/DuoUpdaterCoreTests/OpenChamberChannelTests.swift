@@ -91,7 +91,7 @@ import Testing
 
         #expect(remote.displayVersion == "2.1.1")
         #expect(remote.releaseChannel == .preview)
-        #expect(remote.vendorInstallerKind == .dmg)
+        #expect(remote.vendorInstallerKind == .zip)
         let url = try #require(remote.downloadURL?.absoluteString)
         #expect(url.contains("/releases/download/v2.1.1/OpenChamber-2.1.1-mac-"), "\(url)")
         #expect(OpenChamberGitHubFixture.paths() == ["/repos/openchamber/openchamber/releases/latest"])
@@ -153,8 +153,8 @@ import Testing
             #expect(VendorProbeRecipe.extractVersion(
                 from: "v2.0.0-preview.8", pattern: rule.versionPattern) == nil)
             let pattern = try #require(rule.installAssetPattern)
-            for name in ["OpenChamber-2.0.0-preview.8-mac-arm64.dmg",
-                         "OpenChamber-2.0.0-preview.8-mac-x64.dmg"] {
+            for name in ["OpenChamber-2.0.0-preview.8-mac-arm64.zip",
+                         "OpenChamber-2.0.0-preview.8-mac-x64.zip"] {
                 #expect(name.range(of: pattern, options: .regularExpression) == nil, "\(name)")
             }
         }
@@ -167,8 +167,8 @@ import Testing
         let remote = RemoteVersion(
             shortVersion: "2.1.1", version: nil,
             downloadURL: URL(string:
-                "https://github.com/openchamber/openchamber/releases/download/v2.1.1/OpenChamber-2.1.1-mac-arm64.dmg"),
-            sourceName: "GitHub", vendorInstallerKind: .dmg, releaseChannel: .preview)
+                "https://github.com/openchamber/openchamber/releases/download/v2.1.1/OpenChamber-2.1.1-mac-arm64.zip"),
+            sourceName: "GitHub", vendorInstallerKind: .zip, releaseChannel: .preview)
         #expect(RecipeSanity.crossChannelArtifact(rule: preview, remote: remote) == nil)
 
         func loosened(
@@ -181,14 +181,14 @@ import Testing
                 usePrereleases: usePrereleases,
                 versionPattern: versionPattern ?? preview.versionPattern,
                 installAssetPattern: installAssetPattern ?? preview.installAssetPattern,
-                installerKind: .dmg,
+                installerKind: .zip,
                 channel: .preview)
         }
         for broken in [
             loosened(usePrereleases: true),
             loosened(versionPattern: #"^v([0-9]+(?:\.[0-9]+)+(?:-preview\.[0-9]+)?)$"#),
             loosened(versionPattern: #"^v(.+)$"#),
-            loosened(installAssetPattern: #"^OpenChamber-.+-mac-(?:arm64|x64)\.dmg$"#),
+            loosened(installAssetPattern: #"^OpenChamber-.+-mac-(?:arm64|x64)\.zip$"#),
         ] {
             #expect(RecipeSanity.crossChannelArtifact(rule: broken, remote: remote) != nil,
                     "\(broken.usePrereleases) \(broken.versionPattern) \(broken.installAssetPattern ?? "")")
@@ -198,7 +198,7 @@ import Testing
 
 /// Serves the shape of the real repository: `/releases/latest` is v2.1.1, and
 /// the list holds the `v2-preview` prerelease (assets `2.0.0-preview.8`) above
-/// the stable releases. `latestHasMacAsset: false` strips v2.1.1's macOS dmgs,
+/// the stable releases. `latestHasMacAsset: false` strips v2.1.1's macOS ZIPs,
 /// which sends the source to the list.
 private final class OpenChamberGitHubFixture: URLProtocol, @unchecked Sendable {
     private static let lock = NSLock()
@@ -259,7 +259,7 @@ private final class OpenChamberGitHubFixture: URLProtocol, @unchecked Sendable {
             "OpenChamber-\(version)-win-x64.exe", "OpenChamber-\(version)-linux-x86_64.AppImage",
         ]
         if mac {
-            names += ["OpenChamber-\(version)-mac-arm64.dmg", "OpenChamber-\(version)-mac-x64.dmg"]
+            names += ["OpenChamber-\(version)-mac-arm64.zip", "OpenChamber-\(version)-mac-x64.zip"]
         }
         let assets = names.map { name in
             "{\"name\":\"\(name)\",\"browser_download_url\":\"\(base)\(name)\",\"size\":254975125}"

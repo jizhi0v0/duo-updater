@@ -1,0 +1,32 @@
+[
+  {
+    "version": "4.20.1",
+    "zip": {
+      "name": "FlyEnv-4.20.1-arm64-mac.zip",
+      "url": "https://github.com/xpf0000/FlyEnv/releases/download/v4.20.1/FlyEnv-4.20.1-arm64-mac.zip",
+      "size": 165703939,
+      "digest": "sha256:29e6a772e1c9d782e9102782e0396bda3884f644b371fe384b3698328833b4ef"
+    },
+    "map": {
+      "name": "FlyEnv-4.20.1-arm64-mac.zip.blockmap",
+      "url": "https://github.com/xpf0000/FlyEnv/releases/download/v4.20.1/FlyEnv-4.20.1-arm64-mac.zip.blockmap",
+      "size": 175100,
+      "digest": "sha256:0d202048e088aac6eceee0d33aca895e9c664a620915b8e182bc83a342ea5bca"
+    }
+  },
+  {
+    "version": "4.20.2",
+    "zip": {
+      "name": "FlyEnv-4.20.2-arm64-mac.zip",
+      "url": "https://github.com/xpf0000/FlyEnv/releases/download/v4.20.2/FlyEnv-4.20.2-arm64-mac.zip",
+      "size": 165572419,
+      "digest": "sha256:c3fbd63e9b9fb52ad798a98e95eb881bf72b8d1813a9de5cc76b6a69b0131cd2"
+    },
+    "map": {
+      "name": "FlyEnv-4.20.2-arm64-mac.zip.blockmap",
+      "url": "https://github.com/xpf0000/FlyEnv/releases/download/v4.20.2/FlyEnv-4.20.2-arm64-mac.zip.blockmap",
+      "size": 173734,
+      "digest": "sha256:6573b920b1fb53b91c5ec5a80bf4e9c5eafbc7306c18a27b67445b7fa21efe43"
+    }
+  }
+]

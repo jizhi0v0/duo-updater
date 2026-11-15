@@ -473,6 +473,12 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 
 ## 仅迁出历史（未审计）
 
+- [ ] [**Lens**](com-electron-kontena-lens.md) · `com.electron.kontena-lens` — 仅记录本次 DMG→ZIP 包身份、生产安装与启动验证；未完成全量应用审计
+- [ ] [**draw.io**](com-jgraph-drawio-desktop.md) · `com.jgraph.drawio.desktop` — 仅记录本次 DMG→ZIP 包身份、生产安装与启动验证；未完成全量应用审计
+- [ ] [**Cherry Studio**](com-kangfenmao-CherryStudio.md) · `com.kangfenmao.CherryStudio` — 仅记录本次 DMG→ZIP 包身份、生产安装与启动验证；未完成全量应用审计
+- [ ] [**Bruno**](com-usebruno-app.md) · `com.usebruno.app` — 仅记录本次 DMG→ZIP 包身份、生产安装与启动验证；未完成全量应用审计
+- [ ] [**Upscayl**](org-upscayl-Upscayl.md) · `org.upscayl.Upscayl` — 仅记录本次 DMG→ZIP 包身份、生产安装与启动验证；未完成全量应用审计
+
 从 recipe 注释迁出历史、但覆盖情况没审过的 family（格式见上面「从 recipe 注释迁出的历史」），
 也收没有审计的新 family 的历史。
 这一节的条目**永远是 `- [ ]`**；真审计之后挪到对应分类再打勾。

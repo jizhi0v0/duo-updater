@@ -1,0 +1,17 @@
+version: 1.24.4
+files:
+  - url: Chatbox-1.24.4-arm64-mac.zip
+    sha512: x7oL0ENgxtLHjX6NdS+FgjfRue3B5BTl+6QSBlp9yP5KQEHx7IML3IjqWTT5FWXiRoheHLWpfbhPBiNwp1d5rg==
+    size: 152421838
+  - url: Chatbox-1.24.4-mac.zip
+    sha512: AH8OIurpbz+4/tVji+L25iC9BAMgCgB1zeek3wTdzhOx/pWZsXvn6LvOyGWf76BVDfjxtAcEb+S+A914/qU5/g==
+    size: 159619081
+  - url: Chatbox-1.24.4-arm64.dmg
+    sha512: XuhBowseFTz8qMAdG6Sp2ImtEP21qdm5TUjGziDfjqJf6mOK1+/xTVIQB/1hYcDWVc6T0ukvoImVGRl7HuPl3Q==
+    size: 157996502
+  - url: Chatbox-1.24.4.dmg
+    sha512: /BAZl5QHzB3HfM2h1f39VNbJnP3carA+o+ov1LaT6Bu9BUGfYCqwQVKCWQ+//Y82bPOPQ5VnjenSRMKVVrV72Q==
+    size: 165182243
+path: Chatbox-1.24.4-arm64-mac.zip
+sha512: x7oL0ENgxtLHjX6NdS+FgjfRue3B5BTl+6QSBlp9yP5KQEHx7IML3IjqWTT5FWXiRoheHLWpfbhPBiNwp1d5rg==
+releaseDate: '2026-11-12T15:28:00.500Z'

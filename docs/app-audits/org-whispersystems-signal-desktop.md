@@ -1,5 +1,7 @@
 # Signal Desktop
 
+2026-11-15 路线更新：当前一键安装使用已在 VM 验证的 ZIP；下文原有 DMG 包与端到端记录保留为历史证据。Duo 的 blockmap 优化以所选 ZIP 的发布方整包校验值为前提，缺少校验值时仍全量下载。详见文末「Electron ZIP 迁移」。
+
 > 审计日期 2026-06-04 · 模式 REPORT（已接入）· 结论：**stable/beta 两 channel 已检测**
 
 ## 基本信息
@@ -98,3 +100,21 @@ swift run --package-path application-test channel-verify "/tmp/Signal Beta.app" 
 - 未验证：beta-mac.yml 是否曾经给出过不带 `-beta.N` 的版本。历次记录的 beta 版本（8.14.0-beta.1、8.23.0-beta.1、
   8.31.0-beta.1）都带后缀，beta dmg pattern 也要求 `signal-desktop-beta-` 前缀；据此不开 `includesPromotedStable`。
 
+
+### Electron ZIP 迁移（2026-11-15）
+
+安装容器改为 `signal-desktop-mac-arm64-8.35.0.zip`。在 macOS 27.2 Apple Silicon VM 中，从本次对应 DMG 准备的独立副本，经生产 `VendorInstaller.apply` 校验与替换为同版本 ZIP，再通过 LaunchServices 启动指定路径，确认 PID 存活后退出测试实例。版本、bundle ID、Team、arm64 与代码签名检查均通过。Signal 的 DMG 是 universal、ZIP 是 arm64，主程序 CDHash / app.asar 不相等，未声称字节相同；两者身份、版本、Team 一致，ZIP 另已按 feed SHA512 核验，生产安装与启动通过。Stable 与 Beta 两包分别验证。既有旧 bundle ID、版本门控、edition 与仅检测渠道的范围沿用原规则；没有新增跨组安装。
+整包发布校验值存在时才会尝试 blockmap；旧 GitHub 发布缺少 digest 时仍走全量 ZIP 与原有签名检查。
+
+本次包、逐项结果与限制见 [集中验证记录](../../verify/electron-blockmap-20261115/README.md)。这些是一次验证的结果，不代表应用所有版本或功能均已测试。
+
+## 夜扫覆盖
+
+2026-11-15 ZIP 容器验收。
+
+Vendor/GitHub registry 由 `duo verify-install` 自动枚举，本次没有向通用 feed inventory 重复添加条目。实际下载并读取以下精确 recipe ID：
+
+- `vendor:org.whispersystems.signal-desktop-beta:beta`：8.36.0-beta.1，ZIP，145,422,122 bytes，读取检查通过；universal → arm64 导致预期架构差异，连续性复查见集中记录。
+- `vendor:org.whispersystems.signal-desktop:stable`：8.35.0，ZIP，146,526,884 bytes，读取检查通过；universal → arm64 导致预期架构差异，连续性复查见集中记录。
+
+命令、35 个目标的集合核对与原始结果见[集中夜扫记录](../../verify/electron-blockmap-20261115/README.md)。旧副本/edition 的闸与原有缺口保持原文范围，本次只改变上述安装容器。

@@ -539,7 +539,7 @@ private struct TrafficRow: View {
     private func deltaHelp(_ evidence: AppTrafficStat.DeltaEvidence) -> String {
         switch evidence {
         case .recorded:
-            return String(localized: "This update used a Sparkle delta patch.")
+            return String(localized: "This update used a differential download.")
         case .inferred:
             return String(localized: "Likely a delta update based on its much smaller download. This event predates delta-route tracking.")
         }

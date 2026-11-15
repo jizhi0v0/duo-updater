@@ -1,0 +1,24 @@
+[
+  {
+    "appPath": "/Users/bobby/Applications/DuoBlockmap/FlyEnv/FlyEnv.app",
+    "archiveSHA256": "29e6a772e1c9d782e9102782e0396bda3884f644b371fe384b3698328833b4ef",
+    "bytesDownloaded": 43598305,
+    "date": "2026-11-15T13:22:41Z",
+    "downloadedArchive": "electron-update.zip",
+    "installedVersion": "4.20.1",
+    "name": "FlyEnv final 4.20.1",
+    "scannedVersion": "4.20.2",
+    "state": "installed"
+  },
+  {
+    "appPath": "/Users/bobby/Applications/DuoBlockmap/FlyEnv/FlyEnv.app",
+    "archiveSHA256": "c3fbd63e9b9fb52ad798a98e95eb881bf72b8d1813a9de5cc76b6a69b0131cd2",
+    "bytesDownloaded": 43465419,
+    "date": "2026-11-15T13:25:15Z",
+    "downloadedArchive": "electron-update.zip",
+    "installedVersion": "4.20.2",
+    "name": "FlyEnv final 4.20.2",
+    "scannedVersion": "4.20.1",
+    "state": "installed"
+  }
+]

@@ -77,10 +77,9 @@ public actor InstallCoordinator {
         /// Whether installation completed. False for an interactive package
         /// handoff; true after the host's package executor completes.
         public let applied: Bool
-        /// True only when a Sparkle binary patch was actually applied. Merely
-        /// publishing a matching patch is not enough: a failed delta route retries
-        /// the full archive and reports false, so the traffic ledger records what
-        /// happened rather than what the feed offered.
+        /// True when a binary patch or blockmap reconstruction actually supplied
+        /// the installed update. Merely offering a differential route is not
+        /// enough: a full-archive fallback reports false.
         public let usedDelta: Bool
         /// Bundle ids of the login-item agents the recipe asked us to restart
         /// after the swap (`LoginItemAgentRestart`) that are not confirmed
@@ -939,7 +938,7 @@ public actor InstallCoordinator {
         return Outcome(
             bytesDownloaded: downloaded.bytesDownloaded, finalHost: downloaded.finalHost,
             stagedPackageURL: nil, applied: true,
-            usedDelta: downloaded.appliedPatch != nil,
+            usedDelta: downloaded.appliedPatch != nil || downloaded.usedBlockmap,
             agentsNotRestarted: agentsNotRestarted)
     }
 

@@ -1,6 +1,7 @@
 import Foundation
 
 enum io_requestly_beta {
+    // History: docs/app-audits/io-requestly-beta.md#历史与实测
     static let set = AppRecipeSet(
         family: "io-requestly-beta",
         changelogs: [
@@ -54,7 +55,7 @@ enum io_requestly_beta {
             bundleID: "io.requestly.beta",
             owner: "requestly", repo: "http-interceptor-desktop-app",
             versionPattern: #"^v([0-9]+(?:\.[0-9]+)+)$"#,
-            installAssetPattern: #"^Requestly-[0-9]+(?:\.[0-9]+)+-arm64\.dmg$"#,
-            installerKind: .dmg),
+            installAssetPattern: #"^Requestly-[0-9]+(?:\.[0-9]+)+-arm64-mac\.zip$"#,
+            installerKind: .zip),
         ])
 }

@@ -45,12 +45,10 @@ struct TermiusProbeRecipeTests {
     /// same day the bodies above were captured).
     private static let installedBetaShortVersion = "9.43.1"
 
-    /// `shasum -a 512 Termius\ Beta.dmg | base64`, computed on the SAME downloaded
-    /// bytes the mount above verified — confirms the feed's declared sha512 is not
-    /// stale relative to what the CDN actually serves (unlike Signal Beta, whose
-    /// CDN staples the dmg after electron-builder wrote the feed).
+    /// ZIP entry of the captured feed. Whole downloaded bytes are checked
+    /// independently by the current migration's VM receipt.
     private static let expectedBetaChecksum =
-        "Eo4XFtmNeDRfMA9X9N2yw2jHf7TS2o2GH4pbIbWpl2qEYBoXb7CIgIdQlLRzUb38LXO59/xUciQXgwuExlBE+w=="
+        "08ovSDodx5wGBfp/vLCwf49uVACJ9Xj95aPgn7Lm+Z0exazThLdCOVf/LwrRF4hjY+lBUzm4l45lG8rk6D9cLQ=="
 
     private static func betaRecipe() throws -> VendorProbeRecipe {
         let recipes = VendorProbeRegistry.recipes.filter { $0.bundleID == betaBundleID }
@@ -126,7 +124,7 @@ struct TermiusProbeRecipeTests {
 
     // MARK: - the install artifact
 
-    @Test func theInstallResolvesTheFixedUniversalDMG() throws {
+    @Test func theInstallResolvesTheFixedUniversalZIP() throws {
         let recipe = try Self.betaRecipe()
         let spec = try #require(recipe.install)
         guard case .fixed(let url) = spec.urlSource else {
@@ -134,21 +132,19 @@ struct TermiusProbeRecipeTests {
             return
         }
         #expect(url.absoluteString
-            == "https://autoupdate.termius.com/mac-beta-universal/Termius%20Beta.dmg")
-        #expect(spec.kind == .dmg)
+            == "https://autoupdate.termius.com/mac-beta-universal/Termius%20Beta.zip")
+        #expect(spec.kind == .zip)
     }
 
-    /// The checksum line belongs to the dmg, not the zip listed just above it in
-    /// the same document — and it matches bytes actually downloaded, not merely
-    /// the feed's own internal consistency.
-    @Test func theChecksumMatchesTheDownloadedDMGBytes() throws {
+    /// Bind the checksum to the ZIP filename rather than its DMG sibling.
+    @Test func theChecksumBelongsToTheZIPEntry() throws {
         let recipe = try Self.betaRecipe()
         let pattern = try #require(recipe.install?.checksumPattern)
         let digest = try #require(
             VendorProbeRecipe.extractVersion(from: Self.betaBody, pattern: pattern))
         #expect(digest == Self.expectedBetaChecksum)
-        #expect(digest != "08ovSDodx5wGBfp/vLCwf49uVACJ9Xj95aPgn7Lm+Z0exazThLdCOVf/LwrRF4hjY+lBUzm4l45lG8rk6D9cLQ==",
-                "that is the zip's digest")
+        #expect(digest != "Eo4XFtmNeDRfMA9X9N2yw2jHf7TS2o2GH4pbIbWpl2qEYBoXb7CIgIdQlLRzUb38LXO59/xUciQXgwuExlBE+w==",
+                "that is the DMG's digest")
         #expect(Data(base64Encoded: digest)?.count == 64, "not a 512-bit digest")
     }
 

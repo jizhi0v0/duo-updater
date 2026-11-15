@@ -53,22 +53,22 @@ import Testing
         #expect(remote.vendorInstallerKind == nil)
     }
 
-    @Test func theStableCopyKeepsTheStableRuleAndItsDmg() async throws {
+    @Test func theStableCopyKeepsTheStableRuleAndItsZIP() async throws {
         let app = installed("6.2.1")
         #expect(app.releaseChannel == .stable)
         let remote = try #require(try await source().latestVersion(for: app))
         #expect(remote.shortVersion == "6.3.1")
-        #expect(remote.downloadURL?.lastPathComponent == "massCode-6.3.1-arm64.dmg")
-        #expect(remote.vendorInstallerKind == .dmg)
+        #expect(remote.downloadURL?.lastPathComponent == "massCode-6.3.1-arm64-mac.zip")
+        #expect(remote.vendorInstallerKind == .zip)
     }
 
-    /// `/releases/latest` answering v6.3.1 with its mac dmgs.
+    /// `/releases/latest` answering v6.3.1 with its mac ZIP and DMG.
     final class StubLatest: URLProtocol, @unchecked Sendable {
         override class func canInit(with request: URLRequest) -> Bool { true }
         override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
         override func startLoading() {
             let base = "https://github.com/massCodeIO/massCode/releases/download/v6.3.1/"
-            let assets = ["massCode-6.3.1-arm64.dmg", "massCode-6.3.1.dmg"].map {
+            let assets = ["massCode-6.3.1-arm64-mac.zip", "massCode-6.3.1.dmg"].map {
                 #"{"name":"\#($0)","browser_download_url":"\#(base)\#($0)","size":1000}"#
             }
             let release = """

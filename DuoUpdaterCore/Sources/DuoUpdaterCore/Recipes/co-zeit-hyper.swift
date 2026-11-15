@@ -1,6 +1,7 @@
 import Foundation
 
 enum co_zeit_hyper {
+    // History: docs/app-audits/co-zeit-hyper.md#历史与实测
     static let set = AppRecipeSet(
         family: "co-zeit-hyper",
         githubRules: [

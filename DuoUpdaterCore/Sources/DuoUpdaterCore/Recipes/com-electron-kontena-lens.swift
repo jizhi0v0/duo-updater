@@ -1,6 +1,7 @@
 import Foundation
 
 enum com_electron_kontena_lens {
+    // History: docs/app-audits/com-electron-kontena-lens.md#历史与实测
     static let set = AppRecipeSet(
         family: "com-electron-kontena-lens",
         probes: [
@@ -20,8 +21,9 @@ enum com_electron_kontena_lens {
             downloadURL: URL(string: "https://k8slens.dev/"),
             install: VendorInstallSpec(
                 urlSource: .bodyPatternRelative(
-                    #"(Lens-[^\s]+-arm64\.dmg)"#,
+                    #"(Lens-[^\s]+-arm64-mac\.zip)"#,
                     base: URL(string: "https://api.k8slens.dev/binaries/")!),
-                kind: .dmg)),
+                kind: .zip,
+                checksumPattern: #"Lens-[^\n]+-arm64-mac\.zip\s*\n\s*sha512:\s*(?:>-\s*)?([A-Za-z0-9+/=]+)"#)),
         ])
 }

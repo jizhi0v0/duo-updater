@@ -1,0 +1,265 @@
+[
+  {
+    "name": "T3 Code Nightly",
+    "target": {
+      "name": "T3 Code Nightly",
+      "family": "com-t3tools-t3code",
+      "bundleID": "com.t3tools.t3code",
+      "channel": ".nightly",
+      "version": "v0.1.10-nightly.20261115.4723",
+      "dmg": {
+        "name": "T3-Code-0.1.10-nightly.20261115.4723-arm64.dmg",
+        "url": "https://github.com/pingdotgg/t3code/releases/download/v0.1.10-nightly.20261115.4723/T3-Code-0.1.10-nightly.20261115.4723-arm64.dmg",
+        "size": 240661617,
+        "digest": "sha256:72454e80f32500dc27ce7154c3d8f312674151ec894603a88c45cf86ec39437c"
+      },
+      "zip": {
+        "name": "T3-Code-0.1.10-nightly.20261115.4723-arm64.zip",
+        "url": "https://github.com/pingdotgg/t3code/releases/download/v0.1.10-nightly.20261115.4723/T3-Code-0.1.10-nightly.20261115.4723-arm64.zip",
+        "size": 229808494,
+        "digest": "sha256:da854d84b02167de33e84d73b92b3212c064e41f913a2231a49bd7e97502e51b"
+      }
+    },
+    "startedAt": 1794746261.818485,
+    "dmgArchive": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/T3-Code-Nightly/current.dmg",
+      "bytes": 240661617,
+      "sha256": "72454e80f32500dc27ce7154c3d8f312674151ec894603a88c45cf86ec39437c"
+    },
+    "zipArchive": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/T3-Code-Nightly/target.zip",
+      "bytes": 229808494,
+      "sha256": "da854d84b02167de33e84d73b92b3212c064e41f913a2231a49bd7e97502e51b"
+    },
+    "zipApp": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/T3-Code-Nightly/zip/T3 Code (Nightly).app",
+      "bundleID": "com.t3tools.t3code",
+      "shortVersion": "0.1.10-nightly.20261115.4723",
+      "buildVersion": "0.1.10-nightly.20261115.4723",
+      "team": "ARK85ZXQ4Z",
+      "arm64CDHash": "fe8dc8792d17bba73dc81ddd0898845f3654eb12",
+      "architectures": [
+        "arm64"
+      ],
+      "codesignExit": 0,
+      "codesignError": "",
+      "asarSHA256": "338a0d848a4b8ebb5777173f2134bc5a5131239f297f46ab75b63d50daf301ef"
+    },
+    "dmgApp": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/T3-Code-Nightly/mount/T3 Code (Nightly).app",
+      "bundleID": "com.t3tools.t3code",
+      "shortVersion": "0.1.10-nightly.20261115.4723",
+      "buildVersion": "0.1.10-nightly.20261115.4723",
+      "team": "ARK85ZXQ4Z",
+      "arm64CDHash": "fe8dc8792d17bba73dc81ddd0898845f3654eb12",
+      "architectures": [
+        "arm64"
+      ],
+      "codesignExit": 0,
+      "codesignError": "",
+      "asarSHA256": "338a0d848a4b8ebb5777173f2134bc5a5131239f297f46ab75b63d50daf301ef",
+      "savedPath": "/Users/bobby/duo-verify/electron-blockmap-20261115/T3-Code-Nightly/dmg-app/T3 Code (Nightly).app"
+    },
+    "identityCompatible": true,
+    "sameArm64CDHash": true,
+    "sameAsar": true,
+    "state": "packages-compared",
+    "finishedAt": 1794746330.7362251
+  },
+  {
+    "name": "ResponsivelyApp Beta",
+    "target": {
+      "name": "ResponsivelyApp Beta",
+      "family": "app-responsively",
+      "bundleID": "app.responsively",
+      "channel": ".beta",
+      "version": "v2.0.0-beta.0",
+      "dmg": {
+        "name": "ResponsivelyApp-2.0.0-beta.0-arm64.dmg",
+        "url": "https://github.com/responsively-org/responsively-app-releases/releases/download/v2.0.0-beta.0/ResponsivelyApp-2.0.0-beta.0-arm64.dmg",
+        "size": 136670493,
+        "digest": "sha256:c32f1d6808e143af056ed342f947a18448cd1b281d7945ec3a6f7d8d9fcb1260"
+      },
+      "zip": {
+        "name": "ResponsivelyApp-2.0.0-beta.0-arm64-mac.zip",
+        "url": "https://github.com/responsively-org/responsively-app-releases/releases/download/v2.0.0-beta.0/ResponsivelyApp-2.0.0-beta.0-arm64-mac.zip",
+        "size": 136182003,
+        "digest": "sha256:a794fd253300e51a89a0b803715031aadd2f0101a8eed94fc834549394f0e131"
+      }
+    },
+    "startedAt": 1794746261.818787,
+    "dmgArchive": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/ResponsivelyApp-Beta/current.dmg",
+      "bytes": 136670493,
+      "sha256": "c32f1d6808e143af056ed342f947a18448cd1b281d7945ec3a6f7d8d9fcb1260"
+    },
+    "zipArchive": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/ResponsivelyApp-Beta/target.zip",
+      "bytes": 136182003,
+      "sha256": "a794fd253300e51a89a0b803715031aadd2f0101a8eed94fc834549394f0e131"
+    },
+    "zipApp": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/ResponsivelyApp-Beta/zip/ResponsivelyApp.app",
+      "bundleID": "app.responsively",
+      "shortVersion": "2.0.0-beta.0",
+      "buildVersion": "2.0.0-beta.0",
+      "team": "M4H33HFC4K",
+      "arm64CDHash": "156f5bcf39ec6050c7222819936c5c6e87d05e4f",
+      "architectures": [
+        "arm64"
+      ],
+      "codesignExit": 0,
+      "codesignError": "",
+      "asarSHA256": "ed56bfc95ff47d75d1c1718d1851142785bc239ffdd799aa6c36709cbc807a8b"
+    },
+    "dmgApp": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/ResponsivelyApp-Beta/mount/ResponsivelyApp.app",
+      "bundleID": "app.responsively",
+      "shortVersion": "2.0.0-beta.0",
+      "buildVersion": "2.0.0-beta.0",
+      "team": "M4H33HFC4K",
+      "arm64CDHash": "156f5bcf39ec6050c7222819936c5c6e87d05e4f",
+      "architectures": [
+        "arm64"
+      ],
+      "codesignExit": 0,
+      "codesignError": "",
+      "asarSHA256": "ed56bfc95ff47d75d1c1718d1851142785bc239ffdd799aa6c36709cbc807a8b",
+      "savedPath": "/Users/bobby/duo-verify/electron-blockmap-20261115/ResponsivelyApp-Beta/dmg-app/ResponsivelyApp.app"
+    },
+    "identityCompatible": true,
+    "sameArm64CDHash": true,
+    "sameAsar": true,
+    "state": "packages-compared",
+    "finishedAt": 1794746315.444161
+  },
+  {
+    "name": "Signal Beta",
+    "target": {
+      "name": "Signal Beta",
+      "family": "org-whispersystems-signal-desktop-beta",
+      "bundleID": "org.whispersystems.signal-desktop-beta",
+      "channel": ".beta",
+      "version": "8.36.0-beta.1",
+      "dmg": {
+        "url": "https://updates.signal.org/desktop/signal-desktop-beta-mac-universal-8.36.0-beta.1.dmg"
+      },
+      "zip": {
+        "url": "https://updates.signal.org/desktop/signal-desktop-beta-mac-arm64-8.36.0-beta.1.zip",
+        "sha512": "VzhEA2HdGHHXkVcUDS2hYZPAle/6uR/f24dHMoI+ufludAkOyxVkrHUeSTWWA4Ro2GINwBJ2f2mVBB9S83akSg==",
+        "size": 145422122
+      }
+    },
+    "startedAt": 1794746315.499052,
+    "dmgArchive": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Signal-Beta/current.dmg",
+      "bytes": 268949421,
+      "sha256": "f2e48be625b4e3664854973e3757d8b574486757864f8bee4560629744cde708"
+    },
+    "zipArchive": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Signal-Beta/target.zip",
+      "bytes": 145422122,
+      "sha256": "94d640be24c12d67be374c77fce5d35c788a75e3a43863831afa04e18cfface6"
+    },
+    "zipApp": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Signal-Beta/zip/Signal Beta.app",
+      "bundleID": "org.whispersystems.signal-desktop-beta",
+      "shortVersion": "8.36.0-beta.1",
+      "buildVersion": "1",
+      "team": "U68MSDN6DR",
+      "arm64CDHash": "aecd77adb8f4829161983c49a8932cf347c6be8f",
+      "architectures": [
+        "arm64"
+      ],
+      "codesignExit": 0,
+      "codesignError": "",
+      "asarSHA256": "28c81b5d20b9c45caf52c5ca1c76a0c1a3acf59aa3fc49657390141fedd71787"
+    },
+    "dmgApp": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Signal-Beta/mount/Signal Beta.app",
+      "bundleID": "org.whispersystems.signal-desktop-beta",
+      "shortVersion": "8.36.0-beta.1",
+      "buildVersion": "1",
+      "team": "U68MSDN6DR",
+      "arm64CDHash": "01cc6074885f97a25839dc5ff10dea56ca7a0390",
+      "architectures": [
+        "x86_64",
+        "arm64"
+      ],
+      "codesignExit": 0,
+      "codesignError": "",
+      "asarSHA256": "b3601e9450cf1cd7c00c7bc4afcd98369f08685b9ca07c7755c1c69badaffd59",
+      "savedPath": "/Users/bobby/duo-verify/electron-blockmap-20261115/Signal-Beta/dmg-app/Signal Beta.app"
+    },
+    "identityCompatible": true,
+    "sameArm64CDHash": false,
+    "sameAsar": false,
+    "state": "packages-compared",
+    "finishedAt": 1794746363.698228
+  },
+  {
+    "name": "Termius Beta",
+    "target": {
+      "name": "Termius Beta",
+      "family": "com-termius-beta-mac",
+      "bundleID": "com.termius-beta.mac",
+      "channel": ".beta",
+      "version": "10.4.1",
+      "dmg": {
+        "url": "https://autoupdate.termius.com/mac-beta-universal/Termius%20Beta.dmg"
+      },
+      "zip": {
+        "url": "https://autoupdate.termius.com/mac-beta-universal/Termius%20Beta.zip",
+        "sha512": "wjcysBJlt8kKSH6eIc5t2Un1DpBXSUFi8wnHpbzauM+GP/k+ZtJUFujPdliU+eZBRHCdJI5ulUX3SFmmErZJkg==",
+        "size": 288311701
+      }
+    },
+    "startedAt": 1794746330.75526,
+    "dmgArchive": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Termius-Beta/current.dmg",
+      "bytes": 298667441,
+      "sha256": "c655496c709bc6fa3755c810d45e7ce8878164e19628fffc7e5e97f6bf6cecf8"
+    },
+    "zipArchive": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Termius-Beta/target.zip",
+      "bytes": 288311701,
+      "sha256": "67ec1234c96272d9e7c605349306397babc28a7d7924aa975c88682899381b81"
+    },
+    "zipApp": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Termius-Beta/zip/Termius Beta.app",
+      "bundleID": "com.termius-beta.mac",
+      "shortVersion": "10.4.1",
+      "buildVersion": "10.4.1",
+      "team": "6KN952WR85",
+      "arm64CDHash": "99e08001a1d4a1d81a44aa6c709ffe000ff3215a",
+      "architectures": [
+        "x86_64",
+        "arm64"
+      ],
+      "codesignExit": 0,
+      "codesignError": "",
+      "asarSHA256": "a2d879a47c00266c1f8663f4ee02fa147e3f08f90e7afb21da075e5ff3b21d73"
+    },
+    "dmgApp": {
+      "path": "/Users/bobby/duo-verify/electron-blockmap-20261115/Termius-Beta/mount/Termius Beta.app",
+      "bundleID": "com.termius-beta.mac",
+      "shortVersion": "10.4.1",
+      "buildVersion": "10.4.1",
+      "team": "6KN952WR85",
+      "arm64CDHash": "99e08001a1d4a1d81a44aa6c709ffe000ff3215a",
+      "architectures": [
+        "x86_64",
+        "arm64"
+      ],
+      "codesignExit": 0,
+      "codesignError": "",
+      "asarSHA256": "a2d879a47c00266c1f8663f4ee02fa147e3f08f90e7afb21da075e5ff3b21d73",
+      "savedPath": "/Users/bobby/duo-verify/electron-blockmap-20261115/Termius-Beta/dmg-app/Termius Beta.app"
+    },
+    "identityCompatible": true,
+    "sameArm64CDHash": true,
+    "sameAsar": true,
+    "state": "packages-compared",
+    "finishedAt": 1794746397.814681
+  }
+]

@@ -1,6 +1,134 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "Update archive cache": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Update-Archivcache"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Caché de archivos de actualización"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cache des archives de mise à jour"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cache degli archivi di aggiornamento"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新アーカイブのキャッシュ"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cache de arquivos de atualização"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Кэш архивов обновлений"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Güncelleme arşivi önbelleği"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新安装包缓存"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新安裝包快取"
+          }
+        }
+      }
+    },
+    "Original ZIPs kept for smaller future updates. Up to 2 GB; cleared first when space is needed.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Original-ZIPs für kleinere künftige Updates. Bis zu 2 GB; bei Platzmangel zuerst gelöscht."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ZIP originales para reducir futuras descargas. Hasta 2 GB; se eliminan primero si falta espacio."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ZIP d’origine pour réduire les prochains téléchargements. Jusqu’à 2 Go ; supprimés en priorité si nécessaire."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ZIP originali per ridurre i download futuri. Fino a 2 GB; eliminati per primi se serve spazio."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "今後の更新を小さくするため元のZIPを保持します。最大2 GBで、容量が必要な場合は優先して削除します。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Arquivos ZIP originais guardados para reduzir futuras atualizações. Até 2 GB; removidos primeiro quando é preciso espaço."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Исходные ZIP-архивы для уменьшения будущих обновлений. До 2 ГБ; удаляются первыми при нехватке места."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sonraki güncellemeleri küçültmek için saklanan özgün ZIP dosyaları. En fazla 2 GB; alan gerektiğinde önce bunlar temizlenir."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保留原始 ZIP，减少后续更新的下载量。最多 2 GB；空间不足时优先清理。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保留原始 ZIP，減少後續更新的下載量。最多 2 GB；空間不足時優先清理。"
+          }
+        }
+      }
+    },
     "Xcode downloads use your Apple Developer account and require a manual update action.": {
       "localizations": {
         "de": {
@@ -84409,67 +84537,67 @@
         }
       }
     },
-    "This update used a Sparkle delta patch.": {
+    "This update used a differential download.": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Dieses Update verwendete einen Sparkle-Deltapatch."
+            "value": "Dieses Update verwendete einen differenziellen Download."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Esta actualización utilizó un parche delta de Sparkle."
+            "value": "Esta actualización utilizó una descarga diferencial."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cette mise à jour a utilisé un correctif delta Sparkle."
+            "value": "Cette mise à jour a utilisé un téléchargement différentiel."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Questo aggiornamento ha usato una patch delta di Sparkle."
+            "value": "Questo aggiornamento ha usato un download differenziale."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "この更新では Sparkle のデルタパッチを使用しました。"
+            "value": "この更新では差分ダウンロードを使用しました。"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Esta atualização usou um patch delta do Sparkle."
+            "value": "Esta atualização usou um download diferencial."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Для этого обновления использовался дельта-патч Sparkle."
+            "value": "Для этого обновления использовалась дифференциальная загрузка."
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bu güncelleme bir Sparkle delta yaması kullandı."
+            "value": "Bu güncelleme fark indirmesi kullandı."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "此次更新使用了 Sparkle 增量补丁。"
+            "value": "此次更新使用了差分下载。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "這次更新使用了 Sparkle 增量修補檔。"
+            "value": "這次更新使用了差分下載。"
           }
         }
       }

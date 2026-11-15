@@ -1,6 +1,7 @@
 import Foundation
 
 enum app_responsively {
+    // History: docs/app-audits/app-responsively.md#历史与实测
     static let set = AppRecipeSet(
         family: "app-responsively",
         githubRules: [
@@ -27,8 +28,8 @@ enum app_responsively {
             bundleID: "app.responsively",
             owner: "responsively-org", repo: "responsively-app-releases",
             versionPattern: #"^v([0-9]+(?:\.[0-9]+)+)$"#,
-            installAssetPattern: #"^ResponsivelyApp-[0-9]+(?:\.[0-9]+)+-arm64\.dmg$"#,
-            installerKind: .dmg),
+            installAssetPattern: #"^ResponsivelyApp-[0-9]+(?:\.[0-9]+)+-arm64-mac\.zip$"#,
+            installerKind: .zip),
 
         // Beta — GitHub prereleases on the same bundle id (`v2.0.0-beta.0`,
         // 2026-09; earlier `v1.0.0-beta.6`). A beta bundle keeps the suffix in
@@ -43,8 +44,8 @@ enum app_responsively {
             owner: "responsively-org", repo: "responsively-app-releases",
             usePrereleases: true,
             versionPattern: #"^v([0-9]+(?:\.[0-9]+)+(?:-beta\.[0-9]+)?)$"#,
-            installAssetPattern: #"^ResponsivelyApp-[0-9]+(?:\.[0-9]+)+(?:-beta\.[0-9]+)?-arm64\.dmg$"#,
-            installerKind: .dmg,
+            installAssetPattern: #"^ResponsivelyApp-[0-9]+(?:\.[0-9]+)+(?:-beta\.[0-9]+)?-arm64-mac\.zip$"#,
+            installerKind: .zip,
             channel: .beta),
         ],
         githubChannelProofs: [

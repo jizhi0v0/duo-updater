@@ -1,0 +1,71 @@
+{
+  "bytes" : 291949006,
+  "generatedAt" : "2026-11-15T13:37:22Z",
+  "hostConcurrency" : 2,
+  "items" : [
+    {
+      "bundleID" : "org.whispersystems.signal-desktop-beta",
+      "bytes" : 145422122,
+      "finalHost" : "updates.signal.org",
+      "identity" : {
+        "architectures" : [
+          "arm64"
+        ],
+        "bundleIdentifier" : "org.whispersystems.signal-desktop-beta",
+        "bundleVersion" : "1",
+        "minimumSystemVersion" : "13.0",
+        "shortVersion" : "8.36.0-beta.1",
+        "signedIdentifier" : "org.whispersystems.signal-desktop-beta",
+        "teamIdentifier" : "U68MSDN6DR"
+      },
+      "kind" : "zip",
+      "notes" : [
+
+      ],
+      "probeHost" : "updates.signal.org",
+      "recipeID" : "vendor:org.whispersystems.signal-desktop-beta:beta",
+      "registry" : "vendor",
+      "seconds" : 12.190564036369324,
+      "status" : "ok",
+      "url" : "https:\/\/updates.signal.org\/desktop\/signal-desktop-beta-mac-arm64-8.36.0-beta.1.zip",
+      "urlSHA256" : "45d0975553852e40f3ff757a36f3cd2d70631efd6ebe783e07793659c4585931",
+      "version" : "8.36.0-beta.1",
+      "warnings" : [
+
+      ]
+    },
+    {
+      "bundleID" : "org.whispersystems.signal-desktop",
+      "bytes" : 146526884,
+      "finalHost" : "updates.signal.org",
+      "identity" : {
+        "architectures" : [
+          "arm64"
+        ],
+        "bundleIdentifier" : "org.whispersystems.signal-desktop",
+        "bundleVersion" : "1",
+        "minimumSystemVersion" : "13.0",
+        "shortVersion" : "8.35.0",
+        "signedIdentifier" : "org.whispersystems.signal-desktop",
+        "teamIdentifier" : "U68MSDN6DR"
+      },
+      "kind" : "zip",
+      "notes" : [
+
+      ],
+      "probeHost" : "updates.signal.org",
+      "recipeID" : "vendor:org.whispersystems.signal-desktop:stable",
+      "registry" : "vendor",
+      "seconds" : 12.93883204460144,
+      "status" : "ok",
+      "url" : "https:\/\/updates.signal.org\/desktop\/signal-desktop-mac-arm64-8.35.0.zip",
+      "urlSHA256" : "77933f9de8681cb7e3e7e80060b0dc5f93e959033fd12d2f83a7a5dd15cc0d43",
+      "version" : "8.35.0",
+      "warnings" : [
+
+      ]
+    }
+  ],
+  "minimumFreeBytes" : 18364346368,
+  "seconds" : 25.13815200328827
+}

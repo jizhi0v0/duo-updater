@@ -129,3 +129,11 @@ swift run --package-path application-test channel-verify Hyper-3.4.1-mac-arm64.d
 swift run --package-path application-test channel-verify Hyper-4.0.0-canary.5-mac-arm64.dmg --expect canary  # → MISMATCH (stable), up to date
 curl -s https://releases.hyper.is/update/darwin_arm64/3.4.0                  # → v3.4.1 arm64 zip
 ```
+
+## 历史与实测
+
+### Electron ZIP 迁移（2026-11-15）
+
+本次保留 DMG 路线。VM 上 ZIP 通过生产签名、身份与替换检查，但 3.4.1 启动时在 V8 初始化中 SIGTRAP；原 DMG 的同一版本也以 SIGTRAP 退出。两包 arm64 主程序 CDHash 与 app.asar 相同。因本次没有取得可运行结果，不迁移。
+
+本次包、逐项结果与限制见 [集中验证记录](../../verify/electron-blockmap-20261115/README.md)。这些是一次验证的结果，不代表应用所有版本或功能均已测试。

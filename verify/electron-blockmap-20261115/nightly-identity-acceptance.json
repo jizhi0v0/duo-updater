@@ -1,0 +1,296 @@
+{
+  "generatedAt": "2026-11-15T13:37:22Z",
+  "expectedRecipeCount": 35,
+  "observedRecipeCount": 35,
+  "originalStatuses": {
+    "ok": 33,
+    "warn": 2
+  },
+  "acceptedSignalStatuses": {
+    "ok": 2
+  },
+  "identityKeysPreserved": true,
+  "firstObservationAndIdentityAnchorsPreserved": true,
+  "storeMetadataPreserved": true,
+  "repositoryBaselineUnchanged": true,
+  "explicitArchitectureChanges": [
+    {
+      "recipeID": "vendor:org.whispersystems.signal-desktop-beta:beta",
+      "from": [
+        "arm64",
+        "x86_64"
+      ],
+      "to": [
+        "arm64"
+      ]
+    },
+    {
+      "recipeID": "vendor:org.whispersystems.signal-desktop:stable",
+      "from": [
+        "arm64",
+        "x86_64"
+      ],
+      "to": [
+        "arm64"
+      ]
+    }
+  ],
+  "changedIdentityEntries": [
+    {
+      "recipeID": "github:BlueBubblesApp/bluebubbles-server:stable",
+      "changedFields": [
+        "lastSeenAt",
+        "lastSeenURLSHA256"
+      ]
+    },
+    {
+      "recipeID": "github:CherryHQ/cherry-studio:stable",
+      "changedFields": [
+        "lastSeenAt",
+        "lastSeenURLSHA256"
+      ]
+    },
+    {
+      "recipeID": "github:WINBIGFOX/TimeScribe:stable",
+      "changedFields": [
+        "lastSeenAt",
+        "lastSeenURLSHA256"
+      ]
+    },
+    {
+      "recipeID": "github:anmolkapil/plexo:stable",
+      "changedFields": [
+        "lastSeenAt",
+        "lastSeenURLSHA256"
+      ]
+    },
+    {
+      "recipeID": "github:antonycourtney/tad:stable",
+      "changedFields": [
+        "lastSeenAt",
+        "lastSeenURLSHA256"
+      ]
+    },
+    {
+      "recipeID": "github:bdash-app/bdash:stable",
+      "changedFields": [
+        "lastSeenAt",
+        "lastSeenURLSHA256"
+      ]
+    },
+    {
+      "recipeID": "github:ferdium/ferdium-app:stable",
+      "changedFields": [
+        "lastSeenAt",
+        "lastSeenURLSHA256"
+      ]
+    },
+    {
+      "recipeID": "github:getpaseo/paseo:stable",
+      "changedFields": [
+        "lastSeenAt",
+        "lastSeenURLSHA256"
+      ]
+    },
+    {
+      "recipeID": "github:heyman/heynote:beta",
+      "changedFields": [
+        "lastSeenAt",
+        "lastSeenURLSHA256"
+      ]
+    },
+    {
+      "recipeID": "github:heyman/heynote:stable",
+      "changedFields": [
+        "lastSeenAt",
+        "lastSeenURLSHA256"
+      ]
+    },
+    {
+      "recipeID": "github:jgraph/drawio-desktop:stable",
+      "changedFields": [
+        "lastSeenAt",
+        "lastSeenURLSHA256"
+      ]
+    },
+    {
+      "recipeID": "github:laurent22/joplin:stable",
+      "changedFields": [
+        "lastSeenAt",
+        "lastSeenURLSHA256"
+      ]
+    },
+    {
+      "recipeID": "github:logseq/logseq:stable",
+      "changedFields": [
+        "lastSeenAt",
+        "lastSeenURLSHA256"
+      ]
+    },
+    {
+      "recipeID": "github:lunatask/lunatask:stable",
+      "changedFields": [
+        "lastSeenAt",
+        "lastSeenURLSHA256"
+      ]
+    },
+    {
+      "recipeID": "github:massCodeIO/massCode:stable",
+      "changedFields": [
+        "lastSeenAt",
+        "lastSeenURLSHA256"
+      ]
+    },
+    {
+      "recipeID": "github:matt1398/claude-devtools:stable",
+      "changedFields": [
+        "lastSeenAt",
+        "lastSeenURLSHA256"
+      ]
+    },
+    {
+      "recipeID": "github:openchamber/openchamber:preview",
+      "changedFields": [
+        "lastSeenAt",
+        "lastSeenURLSHA256"
+      ]
+    },
+    {
+      "recipeID": "github:openchamber/openchamber:stable",
+      "changedFields": [
+        "lastSeenAt",
+        "lastSeenURLSHA256"
+      ]
+    },
+    {
+      "recipeID": "github:podman-desktop/podman-desktop:stable",
+      "changedFields": [
+        "lastSeenAt",
+        "lastSeenURLSHA256"
+      ]
+    },
+    {
+      "recipeID": "github:ramboxapp/download:stable",
+      "changedFields": [
+        "lastSeenAt",
+        "lastSeenURLSHA256"
+      ]
+    },
+    {
+      "recipeID": "github:requestly/http-interceptor-desktop-app:stable",
+      "changedFields": [
+        "lastSeenAt",
+        "lastSeenURLSHA256"
+      ]
+    },
+    {
+      "recipeID": "github:responsively-org/responsively-app-releases:beta",
+      "changedFields": [
+        "lastSeenAt",
+        "lastSeenURLSHA256"
+      ]
+    },
+    {
+      "recipeID": "github:responsively-org/responsively-app-releases:stable",
+      "changedFields": [
+        "lastSeenAt",
+        "lastSeenURLSHA256"
+      ]
+    },
+    {
+      "recipeID": "github:standardnotes/app:stable",
+      "changedFields": [
+        "lastSeenAt",
+        "lastSeenURLSHA256"
+      ]
+    },
+    {
+      "recipeID": "github:upscayl/upscayl:stable",
+      "changedFields": [
+        "lastSeenAt",
+        "lastSeenURLSHA256"
+      ]
+    },
+    {
+      "recipeID": "github:usebruno/bruno:stable",
+      "changedFields": [
+        "lastSeenAt",
+        "lastSeenURLSHA256"
+      ]
+    },
+    {
+      "recipeID": "github:vitor251093/porting-kit-releases:stable",
+      "changedFields": [
+        "lastSeenAt",
+        "lastSeenURLSHA256"
+      ]
+    },
+    {
+      "recipeID": "github:wulkano/kap:stable",
+      "changedFields": [
+        "lastSeenAt",
+        "lastSeenURLSHA256"
+      ]
+    },
+    {
+      "recipeID": "vendor:com.electron.kontena-lens:stable",
+      "changedFields": [
+        "lastSeenAt",
+        "lastSeenURLSHA256"
+      ]
+    },
+    {
+      "recipeID": "vendor:com.granola.app:stable",
+      "changedFields": [
+        "lastSeenAt",
+        "lastSeenURLSHA256"
+      ]
+    },
+    {
+      "recipeID": "vendor:com.termius-beta.mac:beta",
+      "changedFields": [
+        "lastSeenAt",
+        "lastSeenURLSHA256"
+      ]
+    },
+    {
+      "recipeID": "vendor:com.termius-dmg.mac:stable",
+      "changedFields": [
+        "lastSeenAt",
+        "lastSeenURLSHA256"
+      ]
+    },
+    {
+      "recipeID": "vendor:org.whispersystems.signal-desktop-beta:beta",
+      "changedFields": [
+        "architectures",
+        "lastSeenAt",
+        "lastSeenURLSHA256"
+      ]
+    },
+    {
+      "recipeID": "vendor:org.whispersystems.signal-desktop:stable",
+      "changedFields": [
+        "architectures",
+        "lastSeenAt",
+        "lastSeenURLSHA256"
+      ]
+    },
+    {
+      "recipeID": "vendor:xyz.chatboxapp.app:stable",
+      "changedFields": [
+        "lastSeenAt",
+        "lastSeenURLSHA256"
+      ]
+    }
+  ],
+  "evidence": [
+    "nightly-install.json",
+    "nightly-signal-accepted.json",
+    "package-comparison.json",
+    "channel-package-comparison.json",
+    "install-results.json",
+    "channel-install-results.json",
+    "signal-semantic-comparison.json"
+  ]
+}

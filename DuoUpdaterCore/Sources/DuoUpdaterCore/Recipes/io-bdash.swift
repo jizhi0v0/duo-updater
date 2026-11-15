@@ -1,6 +1,7 @@
 import Foundation
 
 enum io_bdash {
+    // History: docs/app-audits/io-bdash.md#历史与实测
     static let set = AppRecipeSet(
         family: "io-bdash",
         githubRules: [
@@ -16,13 +17,13 @@ enum io_bdash {
         // (1.0.0–1.2.2, 2017) are the same app tagged without the `v`, so the
         // pattern takes an optional `v`. The 1.0.0 betas/rcs are prereleases and
         // the anchor keeps their suffix out.
-        // `Bdash-<version>-universal.dmg` is io.bdash, Team 4GERXBURZN,
+        // `Bdash-<version>-universal-mac.zip` is io.bdash, Team 4GERXBURZN,
         // notarized — the same Team back to the x86_64-only 1.17.1.
         GitHubReleaseRule(
             bundleID: "io.bdash",
             owner: "bdash-app", repo: "bdash",
             versionPattern: #"^v?([0-9]+(?:\.[0-9]+)+)$"#,
-            installAssetPattern: #"^Bdash-[0-9]+(?:\.[0-9]+)+-universal\.dmg$"#,
-            installerKind: .dmg),
+            installAssetPattern: #"^Bdash-[0-9]+(?:\.[0-9]+)+-universal-mac\.zip$"#,
+            installerKind: .zip),
         ])
 }

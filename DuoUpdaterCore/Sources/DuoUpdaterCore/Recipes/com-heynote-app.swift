@@ -1,6 +1,7 @@
 import Foundation
 
 enum com_heynote_app {
+    // History: docs/app-audits/com-heynote-app.md#历史与实测
     static let set = AppRecipeSet(
         family: "com-heynote-app",
         githubRules: [
@@ -23,8 +24,8 @@ enum com_heynote_app {
             bundleID: "com.heynote.app",
             owner: "heyman", repo: "heynote",
             versionPattern: #"^v([0-9]+(?:\.[0-9]+)+)$"#,
-            installAssetPattern: #"^Heynote_[0-9]+(?:\.[0-9]+)+_universal\.dmg$"#,
-            installerKind: .dmg),
+            installAssetPattern: #"^Heynote_[0-9]+(?:\.[0-9]+)+_universal\.zip$"#,
+            installerKind: .zip),
 
         // Heynote beta — the same repo's prereleases (`v2.9.0-beta`,
         // `v2.9.0-beta.6`, `v2.9.1-beta`), same bundle id and Team; the bundle
@@ -49,8 +50,8 @@ enum com_heynote_app {
             usePrereleases: true,
             versionPattern: #"^v([0-9]+\.[0-9]+\.[0-9]+(?:-beta(?:\.[0-9]+)?)?)$"#,
             installAssetPattern:
-                #"^Heynote_[0-9]+\.[0-9]+\.[0-9]+(?:-beta(?:\.[0-9]+)?)?_universal\.dmg$"#,
-            installerKind: .dmg,
+                #"^Heynote_[0-9]+\.[0-9]+\.[0-9]+(?:-beta(?:\.[0-9]+)?)?_universal\.zip$"#,
+            installerKind: .zip,
             channel: .beta),
         ],
         githubChannelProofs: [

@@ -1,0 +1,1102 @@
+{
+  "bytes" : 7038088600,
+  "generatedAt" : "2026-11-15T13:32:12Z",
+  "hostConcurrency" : 4,
+  "items" : [
+    {
+      "bundleID" : "com.BlueBubbles.BlueBubbles-Server",
+      "bytes" : 296262790,
+      "finalHost" : "release-assets.githubusercontent.com",
+      "identity" : {
+        "architectures" : [
+          "arm64"
+        ],
+        "bundleIdentifier" : "com.BlueBubbles.BlueBubbles-Server",
+        "bundleVersion" : "1.9.12",
+        "minimumSystemVersion" : "10.15.0",
+        "shortVersion" : "1.9.12",
+        "signedIdentifier" : "com.BlueBubbles.BlueBubbles-Server",
+        "teamIdentifier" : "WPV275H8W7"
+      },
+      "kind" : "zip",
+      "notes" : [
+
+      ],
+      "probeHost" : "api.github.com",
+      "recipeID" : "github:BlueBubblesApp\/bluebubbles-server:stable",
+      "registry" : "github",
+      "seconds" : 55.48769199848175,
+      "status" : "ok",
+      "url" : "https:\/\/github.com\/BlueBubblesApp\/bluebubbles-server\/releases\/download\/v1.9.12\/BlueBubbles-1.9.12-arm64-mac.zip",
+      "urlSHA256" : "fc7824e9727d570d7a5d084a2485d457f9485e4b1456d40dcc21cc85da024497",
+      "version" : "1.9.12",
+      "warnings" : [
+
+      ]
+    },
+    {
+      "bundleID" : "com.kangfenmao.CherryStudio",
+      "bytes" : 296654496,
+      "finalHost" : "release-assets.githubusercontent.com",
+      "identity" : {
+        "architectures" : [
+          "arm64"
+        ],
+        "bundleIdentifier" : "com.kangfenmao.CherryStudio",
+        "bundleVersion" : "2.2.2",
+        "minimumSystemVersion" : "13.0",
+        "shortVersion" : "2.2.2",
+        "signedIdentifier" : "com.kangfenmao.CherryStudio",
+        "teamIdentifier" : "87242QY66T"
+      },
+      "kind" : "zip",
+      "notes" : [
+
+      ],
+      "probeHost" : "api.github.com",
+      "recipeID" : "github:CherryHQ\/cherry-studio:stable",
+      "registry" : "github",
+      "seconds" : 54.27421808242798,
+      "status" : "ok",
+      "url" : "https:\/\/github.com\/CherryHQ\/cherry-studio\/releases\/download\/v2.2.2\/Cherry-Studio-2.2.2-mac-arm64.zip",
+      "urlSHA256" : "365319f637f013707235b71be2e9451ac3bfe6745948c977b66c8b12d680436a",
+      "version" : "2.2.2",
+      "warnings" : [
+
+      ]
+    },
+    {
+      "bundleID" : "de.amplussoftware.timescribe",
+      "bytes" : 165421958,
+      "finalHost" : "release-assets.githubusercontent.com",
+      "identity" : {
+        "architectures" : [
+          "arm64"
+        ],
+        "bundleIdentifier" : "de.amplussoftware.timescribe",
+        "bundleVersion" : "1.18.0",
+        "minimumSystemVersion" : "12.0",
+        "shortVersion" : "1.18.0",
+        "signedIdentifier" : "de.amplussoftware.timescribe",
+        "teamIdentifier" : "69A277BV6W"
+      },
+      "kind" : "zip",
+      "notes" : [
+
+      ],
+      "probeHost" : "api.github.com",
+      "recipeID" : "github:WINBIGFOX\/TimeScribe:stable",
+      "registry" : "github",
+      "seconds" : 35.9190319776535,
+      "status" : "ok",
+      "url" : "https:\/\/github.com\/WINBIGFOX\/TimeScribe\/releases\/download\/v1.18.0\/TimeScribe-1.18.0-arm64.zip",
+      "urlSHA256" : "e1b23d687009163fd253d7acb236429e895009f6f951d40142eb948dca951754",
+      "version" : "1.18.0",
+      "warnings" : [
+
+      ]
+    },
+    {
+      "bundleID" : "com.plexo.app",
+      "bytes" : 147276972,
+      "finalHost" : "release-assets.githubusercontent.com",
+      "identity" : {
+        "architectures" : [
+          "arm64"
+        ],
+        "bundleIdentifier" : "com.plexo.app",
+        "bundleVersion" : "1.0.0-rc.15",
+        "minimumSystemVersion" : "13.0",
+        "shortVersion" : "1.0.0-rc.15",
+        "signedIdentifier" : "com.plexo.app",
+        "teamIdentifier" : "8YNW6SHRQ8"
+      },
+      "kind" : "zip",
+      "notes" : [
+
+      ],
+      "probeHost" : "api.github.com",
+      "recipeID" : "github:anmolkapil\/plexo:stable",
+      "registry" : "github",
+      "seconds" : 29.89091193675995,
+      "status" : "ok",
+      "url" : "https:\/\/github.com\/anmolkapil\/plexo\/releases\/download\/v1.0.0-rc.15\/plexo-1.0.0-rc.15-arm64-mac.zip",
+      "urlSHA256" : "d088286ca12b3664b2559d5a61a55f3c334dbb061ff475f02cdf3fe992e8596c",
+      "version" : "1.0.0-rc.15",
+      "warnings" : [
+
+      ]
+    },
+    {
+      "bundleID" : "com.antonycourtney.tad",
+      "bytes" : 232837547,
+      "finalHost" : "release-assets.githubusercontent.com",
+      "identity" : {
+        "architectures" : [
+          "arm64"
+        ],
+        "bundleIdentifier" : "com.antonycourtney.tad",
+        "bundleVersion" : "0.14.0.1",
+        "minimumSystemVersion" : "10.15",
+        "shortVersion" : "0.14.0",
+        "signedIdentifier" : "com.antonycourtney.tad",
+        "teamIdentifier" : "VPS8BQAV8D"
+      },
+      "kind" : "zip",
+      "notes" : [
+
+      ],
+      "probeHost" : "api.github.com",
+      "recipeID" : "github:antonycourtney\/tad:stable",
+      "registry" : "github",
+      "seconds" : 41.37314796447754,
+      "status" : "ok",
+      "url" : "https:\/\/github.com\/antonycourtney\/tad\/releases\/download\/v0.14.0\/Tad-0.14.0-arm64-mac.zip",
+      "urlSHA256" : "e193670f60c4b34e8d2d33a1ff9a8aad23c33f00ce692432222ab98c7f867c60",
+      "version" : "0.14.0",
+      "warnings" : [
+
+      ]
+    },
+    {
+      "bundleID" : "io.bdash",
+      "bytes" : 250153825,
+      "finalHost" : "release-assets.githubusercontent.com",
+      "identity" : {
+        "architectures" : [
+          "arm64",
+          "x86_64"
+        ],
+        "bundleIdentifier" : "io.bdash",
+        "bundleVersion" : "1.35.4",
+        "minimumSystemVersion" : "12.0",
+        "shortVersion" : "1.35.4",
+        "signedIdentifier" : "io.bdash",
+        "teamIdentifier" : "4GERXBURZN"
+      },
+      "kind" : "zip",
+      "notes" : [
+
+      ],
+      "probeHost" : "api.github.com",
+      "recipeID" : "github:bdash-app\/bdash:stable",
+      "registry" : "github",
+      "seconds" : 57.902409076690674,
+      "status" : "ok",
+      "url" : "https:\/\/github.com\/bdash-app\/bdash\/releases\/download\/v1.35.4\/Bdash-1.35.4-universal-mac.zip",
+      "urlSHA256" : "49a18cb94066c8303271a7cec17d1eda375b0040a6e58c5be28755e80d76a7ca",
+      "version" : "1.35.4",
+      "warnings" : [
+
+      ]
+    },
+    {
+      "bundleID" : "org.ferdium.ferdium-app",
+      "bytes" : 160221326,
+      "finalHost" : "release-assets.githubusercontent.com",
+      "identity" : {
+        "architectures" : [
+          "arm64"
+        ],
+        "bundleIdentifier" : "org.ferdium.ferdium-app",
+        "bundleVersion" : "7.2.3",
+        "minimumSystemVersion" : "12.0",
+        "shortVersion" : "7.2.3",
+        "signedIdentifier" : "org.ferdium.ferdium-app",
+        "teamIdentifier" : "55E9FPJ93P"
+      },
+      "kind" : "zip",
+      "notes" : [
+
+      ],
+      "probeHost" : "api.github.com",
+      "recipeID" : "github:ferdium\/ferdium-app:stable",
+      "registry" : "github",
+      "seconds" : 34.26231300830841,
+      "status" : "ok",
+      "url" : "https:\/\/github.com\/ferdium\/ferdium-app\/releases\/download\/v7.2.3\/Ferdium-mac-bundle-7.2.3-arm64.zip",
+      "urlSHA256" : "37894f56a38b7cc1a826c1228633175a69e75f960f5d6ed4fc30eebafd607b17",
+      "version" : "7.2.3",
+      "warnings" : [
+
+      ]
+    },
+    {
+      "bundleID" : "sh.paseo.desktop",
+      "bytes" : 179357523,
+      "finalHost" : "release-assets.githubusercontent.com",
+      "identity" : {
+        "architectures" : [
+          "arm64"
+        ],
+        "bundleIdentifier" : "sh.paseo.desktop",
+        "bundleVersion" : "0.15.4",
+        "minimumSystemVersion" : "13.0.0",
+        "shortVersion" : "0.15.4",
+        "signedIdentifier" : "sh.paseo.desktop",
+        "teamIdentifier" : "99ZMJMKU9Y"
+      },
+      "kind" : "zip",
+      "notes" : [
+
+      ],
+      "probeHost" : "api.github.com",
+      "recipeID" : "github:getpaseo\/paseo:stable",
+      "registry" : "github",
+      "seconds" : 37.236559987068176,
+      "status" : "ok",
+      "url" : "https:\/\/github.com\/getpaseo\/paseo\/releases\/download\/v0.15.4\/Paseo-0.15.4-arm64.zip",
+      "urlSHA256" : "4fa59ca0582275b288e198157aa6f09a2709a9ce16f504394cab056eff35db7c",
+      "version" : "0.15.4",
+      "warnings" : [
+
+      ]
+    },
+    {
+      "bundleID" : "com.heynote.app",
+      "bytes" : 208432837,
+      "finalHost" : "release-assets.githubusercontent.com",
+      "identity" : {
+        "architectures" : [
+          "arm64",
+          "x86_64"
+        ],
+        "bundleIdentifier" : "com.heynote.app",
+        "bundleVersion" : "2.9.1",
+        "minimumSystemVersion" : "12.0",
+        "shortVersion" : "2.9.1",
+        "signedIdentifier" : "com.heynote.app",
+        "teamIdentifier" : "VY5Y3H438S"
+      },
+      "kind" : "zip",
+      "notes" : [
+
+      ],
+      "probeHost" : "api.github.com",
+      "recipeID" : "github:heyman\/heynote:beta",
+      "registry" : "github",
+      "seconds" : 33.22805297374725,
+      "status" : "ok",
+      "url" : "https:\/\/github.com\/heyman\/heynote\/releases\/download\/v2.9.1\/Heynote_2.9.1_universal.zip",
+      "urlSHA256" : "148b0f6ac7d55ce0657bd2105448c5ee6ff782206e0f1c1b5b58f6ea2d2a6ff3",
+      "version" : "2.9.1",
+      "warnings" : [
+
+      ]
+    },
+    {
+      "bundleID" : "com.heynote.app",
+      "bytes" : 208432837,
+      "finalHost" : "release-assets.githubusercontent.com",
+      "identity" : {
+        "architectures" : [
+          "arm64",
+          "x86_64"
+        ],
+        "bundleIdentifier" : "com.heynote.app",
+        "bundleVersion" : "2.9.1",
+        "minimumSystemVersion" : "12.0",
+        "shortVersion" : "2.9.1",
+        "signedIdentifier" : "com.heynote.app",
+        "teamIdentifier" : "VY5Y3H438S"
+      },
+      "kind" : "zip",
+      "notes" : [
+
+      ],
+      "probeHost" : "api.github.com",
+      "recipeID" : "github:heyman\/heynote:stable",
+      "registry" : "github",
+      "seconds" : 42.6139680147171,
+      "status" : "ok",
+      "url" : "https:\/\/github.com\/heyman\/heynote\/releases\/download\/v2.9.1\/Heynote_2.9.1_universal.zip",
+      "urlSHA256" : "148b0f6ac7d55ce0657bd2105448c5ee6ff782206e0f1c1b5b58f6ea2d2a6ff3",
+      "version" : "2.9.1",
+      "warnings" : [
+
+      ]
+    },
+    {
+      "bundleID" : "com.jgraph.drawio.desktop",
+      "bytes" : 152083191,
+      "finalHost" : "release-assets.githubusercontent.com",
+      "identity" : {
+        "architectures" : [
+          "arm64"
+        ],
+        "bundleIdentifier" : "com.jgraph.drawio.desktop",
+        "bundleVersion" : "32.6.10",
+        "minimumSystemVersion" : "13.0",
+        "shortVersion" : "32.6.10",
+        "signedIdentifier" : "com.jgraph.drawio.desktop",
+        "teamIdentifier" : "UZEUFB4N53"
+      },
+      "kind" : "zip",
+      "notes" : [
+
+      ],
+      "probeHost" : "api.github.com",
+      "recipeID" : "github:jgraph\/drawio-desktop:stable",
+      "registry" : "github",
+      "seconds" : 29.367660999298096,
+      "status" : "ok",
+      "url" : "https:\/\/github.com\/jgraph\/drawio-desktop\/releases\/download\/v32.6.10\/draw.io-arm64-32.6.10.zip",
+      "urlSHA256" : "ca440b230bdc4105e256e8567acfbd90090c4151cb60159d255987baabe2e675",
+      "version" : "32.6.10",
+      "warnings" : [
+
+      ]
+    },
+    {
+      "bundleID" : "net.cozic.joplin-desktop",
+      "bytes" : 203508269,
+      "finalHost" : "release-assets.githubusercontent.com",
+      "identity" : {
+        "architectures" : [
+          "arm64"
+        ],
+        "bundleIdentifier" : "net.cozic.joplin-desktop",
+        "bundleVersion" : "3.7.22",
+        "minimumSystemVersion" : "12.0",
+        "shortVersion" : "3.7.22",
+        "signedIdentifier" : "net.cozic.joplin-desktop",
+        "teamIdentifier" : "A9BXAFS6CT"
+      },
+      "kind" : "zip",
+      "notes" : [
+
+      ],
+      "probeHost" : "api.github.com",
+      "recipeID" : "github:laurent22\/joplin:stable",
+      "registry" : "github",
+      "seconds" : 48.52535903453827,
+      "status" : "ok",
+      "url" : "https:\/\/github.com\/laurent22\/joplin\/releases\/download\/v3.7.22\/Joplin-3.7.22-arm64.zip",
+      "urlSHA256" : "a86fdb783537987a07798e49b2f439e68a92f33969d5d34eaaaf689a4ff0fccd",
+      "version" : "3.7.22",
+      "warnings" : [
+
+      ]
+    },
+    {
+      "bundleID" : "com.logseq.logseq",
+      "bytes" : 171440323,
+      "finalHost" : "release-assets.githubusercontent.com",
+      "identity" : {
+        "architectures" : [
+          "arm64"
+        ],
+        "bundleIdentifier" : "com.logseq.logseq",
+        "bundleVersion" : "2.0.2",
+        "minimumSystemVersion" : "12.0",
+        "shortVersion" : "2.0.2",
+        "signedIdentifier" : "com.logseq.logseq",
+        "teamIdentifier" : "K378MFWK59"
+      },
+      "kind" : "zip",
+      "notes" : [
+
+      ],
+      "probeHost" : "api.github.com",
+      "recipeID" : "github:logseq\/logseq:stable",
+      "registry" : "github",
+      "seconds" : 32.46526098251343,
+      "status" : "ok",
+      "url" : "https:\/\/github.com\/logseq\/logseq\/releases\/download\/2.0.2\/Logseq-darwin-arm64-2.0.2.zip",
+      "urlSHA256" : "40f5fe6b32b4419f5eaef213c0b841359d4e5141a065c7d2e16501ca0027736c",
+      "version" : "2.0.2",
+      "warnings" : [
+
+      ]
+    },
+    {
+      "bundleID" : "com.mikekreeki.tasks",
+      "bytes" : 206074547,
+      "finalHost" : "release-assets.githubusercontent.com",
+      "identity" : {
+        "architectures" : [
+          "arm64",
+          "x86_64"
+        ],
+        "bundleIdentifier" : "com.mikekreeki.tasks",
+        "bundleVersion" : "2.1.29",
+        "minimumSystemVersion" : "12.0",
+        "shortVersion" : "2.1.29",
+        "signedIdentifier" : "com.mikekreeki.tasks",
+        "teamIdentifier" : "24KNYM7WQY"
+      },
+      "kind" : "zip",
+      "notes" : [
+
+      ],
+      "probeHost" : "api.github.com",
+      "recipeID" : "github:lunatask\/lunatask:stable",
+      "registry" : "github",
+      "seconds" : 43.07012891769409,
+      "status" : "ok",
+      "url" : "https:\/\/github.com\/lunatask\/lunatask\/releases\/download\/v2.1.29\/Lunatask-2.1.29-universal-mac.zip",
+      "urlSHA256" : "9ddfb59e0ec084feadc4d3ee2d42e5e841a884bccd143cfcfe54843a34d4d285",
+      "version" : "2.1.29",
+      "warnings" : [
+
+      ]
+    },
+    {
+      "bundleID" : "io.masscode.app",
+      "bytes" : 269629632,
+      "finalHost" : "release-assets.githubusercontent.com",
+      "identity" : {
+        "architectures" : [
+          "arm64"
+        ],
+        "bundleIdentifier" : "io.masscode.app",
+        "bundleVersion" : "6.3.1",
+        "minimumSystemVersion" : "11.0",
+        "shortVersion" : "6.3.1",
+        "signedIdentifier" : "io.masscode.app",
+        "teamIdentifier" : "GCU493MNF8"
+      },
+      "kind" : "zip",
+      "notes" : [
+
+      ],
+      "probeHost" : "api.github.com",
+      "recipeID" : "github:massCodeIO\/massCode:stable",
+      "registry" : "github",
+      "seconds" : 57.11786699295044,
+      "status" : "ok",
+      "url" : "https:\/\/github.com\/massCodeIO\/massCode\/releases\/download\/v6.3.1\/massCode-6.3.1-arm64-mac.zip",
+      "urlSHA256" : "dc58ac4cf69c383db8e1e7b86f4bd317995a8bb77aa4937e56d76feaf87ea0ee",
+      "version" : "6.3.1",
+      "warnings" : [
+
+      ]
+    },
+    {
+      "bundleID" : "com.claudecode.context",
+      "bytes" : 150872813,
+      "finalHost" : "release-assets.githubusercontent.com",
+      "identity" : {
+        "architectures" : [
+          "arm64"
+        ],
+        "bundleIdentifier" : "com.claudecode.context",
+        "bundleVersion" : "0.5.0",
+        "minimumSystemVersion" : "12.0",
+        "shortVersion" : "0.5.0",
+        "signedIdentifier" : "com.claudecode.context",
+        "teamIdentifier" : "55PSHY2MW6"
+      },
+      "kind" : "zip",
+      "notes" : [
+
+      ],
+      "probeHost" : "api.github.com",
+      "recipeID" : "github:matt1398\/claude-devtools:stable",
+      "registry" : "github",
+      "seconds" : 30.727169036865234,
+      "status" : "ok",
+      "url" : "https:\/\/github.com\/matt1398\/claude-devtools\/releases\/download\/v0.5.0\/claude-devtools-0.5.0-arm64.zip",
+      "urlSHA256" : "a00a2441e83fb192a42a6d362c79b848afa926dc5a7f08987da73520cc7cd09d",
+      "version" : "0.5.0",
+      "warnings" : [
+
+      ]
+    },
+    {
+      "bundleID" : "dev.openchamber.desktop",
+      "bytes" : 260296059,
+      "finalHost" : "release-assets.githubusercontent.com",
+      "identity" : {
+        "architectures" : [
+          "arm64"
+        ],
+        "bundleIdentifier" : "dev.openchamber.desktop",
+        "bundleVersion" : "2.7.2",
+        "minimumSystemVersion" : "13.0",
+        "shortVersion" : "2.7.2",
+        "signedIdentifier" : "dev.openchamber.desktop",
+        "teamIdentifier" : "5J7WJGPA2Q"
+      },
+      "kind" : "zip",
+      "notes" : [
+
+      ],
+      "probeHost" : "api.github.com",
+      "recipeID" : "github:openchamber\/openchamber:preview",
+      "registry" : "github",
+      "seconds" : 48.759479999542236,
+      "status" : "ok",
+      "url" : "https:\/\/github.com\/openchamber\/openchamber\/releases\/download\/v2.7.2\/OpenChamber-2.7.2-mac-arm64.zip",
+      "urlSHA256" : "2f976f0e090c6e04d3cf7633471d31857a99c2cc3c68ff640cec875dabe606fd",
+      "version" : "2.7.2",
+      "warnings" : [
+
+      ]
+    },
+    {
+      "bundleID" : "dev.openchamber.desktop",
+      "bytes" : 260296059,
+      "finalHost" : "release-assets.githubusercontent.com",
+      "identity" : {
+        "architectures" : [
+          "arm64"
+        ],
+        "bundleIdentifier" : "dev.openchamber.desktop",
+        "bundleVersion" : "2.7.2",
+        "minimumSystemVersion" : "13.0",
+        "shortVersion" : "2.7.2",
+        "signedIdentifier" : "dev.openchamber.desktop",
+        "teamIdentifier" : "5J7WJGPA2Q"
+      },
+      "kind" : "zip",
+      "notes" : [
+
+      ],
+      "probeHost" : "api.github.com",
+      "recipeID" : "github:openchamber\/openchamber:stable",
+      "registry" : "github",
+      "seconds" : 53.31990993022919,
+      "status" : "ok",
+      "url" : "https:\/\/github.com\/openchamber\/openchamber\/releases\/download\/v2.7.2\/OpenChamber-2.7.2-mac-arm64.zip",
+      "urlSHA256" : "2f976f0e090c6e04d3cf7633471d31857a99c2cc3c68ff640cec875dabe606fd",
+      "version" : "2.7.2",
+      "warnings" : [
+
+      ]
+    },
+    {
+      "bundleID" : "io.podmandesktop.PodmanDesktop",
+      "bytes" : 239965170,
+      "finalHost" : "release-assets.githubusercontent.com",
+      "identity" : {
+        "architectures" : [
+          "arm64"
+        ],
+        "bundleIdentifier" : "io.podmandesktop.PodmanDesktop",
+        "bundleVersion" : "1.30.5",
+        "minimumSystemVersion" : "13.0",
+        "shortVersion" : "1.30.5",
+        "signedIdentifier" : "io.podmandesktop.PodmanDesktop",
+        "teamIdentifier" : "HYSCB8KRL2"
+      },
+      "kind" : "zip",
+      "notes" : [
+
+      ],
+      "probeHost" : "api.github.com",
+      "recipeID" : "github:podman-desktop\/podman-desktop:stable",
+      "registry" : "github",
+      "seconds" : 51.68302500247955,
+      "status" : "ok",
+      "url" : "https:\/\/github.com\/podman-desktop\/podman-desktop\/releases\/download\/v1.30.5\/podman-desktop-1.30.5-arm64.zip",
+      "urlSHA256" : "0c7ae15de8bd94b7859bbc99ed429098b6b07b6607645dbe54875d0fbe5ec928",
+      "version" : "1.30.5",
+      "warnings" : [
+
+      ]
+    },
+    {
+      "bundleID" : "com.rambox",
+      "bytes" : 223594271,
+      "finalHost" : "release-assets.githubusercontent.com",
+      "identity" : {
+        "architectures" : [
+          "arm64",
+          "x86_64"
+        ],
+        "bundleIdentifier" : "com.rambox",
+        "bundleVersion" : "3.2.0",
+        "minimumSystemVersion" : "13.0",
+        "shortVersion" : "3.2.0",
+        "signedIdentifier" : "com.rambox",
+        "teamIdentifier" : "7F292FPD69"
+      },
+      "kind" : "zip",
+      "notes" : [
+
+      ],
+      "probeHost" : "api.github.com",
+      "recipeID" : "github:ramboxapp\/download:stable",
+      "registry" : "github",
+      "seconds" : 43.15976798534393,
+      "status" : "ok",
+      "url" : "https:\/\/github.com\/ramboxapp\/download\/releases\/download\/v3.2.0\/Rambox-3.2.0-mac.zip",
+      "urlSHA256" : "00f6acb51f293abe3f86eae1c9959045e9d1a2a8e3f6271cd0186902e150384c",
+      "version" : "3.2.0",
+      "warnings" : [
+
+      ]
+    },
+    {
+      "bundleID" : "io.requestly.beta",
+      "bytes" : 154530201,
+      "finalHost" : "release-assets.githubusercontent.com",
+      "identity" : {
+        "architectures" : [
+          "arm64"
+        ],
+        "bundleIdentifier" : "io.requestly.beta",
+        "bundleVersion" : "26.6.29",
+        "minimumSystemVersion" : "12.0",
+        "shortVersion" : "26.6.29",
+        "signedIdentifier" : "io.requestly.beta",
+        "teamIdentifier" : "YQ5FZQ855D"
+      },
+      "kind" : "zip",
+      "notes" : [
+
+      ],
+      "probeHost" : "api.github.com",
+      "recipeID" : "github:requestly\/http-interceptor-desktop-app:stable",
+      "registry" : "github",
+      "seconds" : 32.23403203487396,
+      "status" : "ok",
+      "url" : "https:\/\/github.com\/requestly\/http-interceptor-desktop-app\/releases\/download\/v26.6.29\/Requestly-26.6.29-arm64-mac.zip",
+      "urlSHA256" : "730eafde2b7f863b024e9d3423b0114fe7d9e18b579f310a4a6df994005eaae9",
+      "version" : "26.6.29",
+      "warnings" : [
+
+      ]
+    },
+    {
+      "bundleID" : "app.responsively",
+      "bytes" : 136182003,
+      "finalHost" : "release-assets.githubusercontent.com",
+      "identity" : {
+        "architectures" : [
+          "arm64"
+        ],
+        "bundleIdentifier" : "app.responsively",
+        "bundleVersion" : "2.0.0-beta.0",
+        "minimumSystemVersion" : "13.0",
+        "shortVersion" : "2.0.0-beta.0",
+        "signedIdentifier" : "app.responsively",
+        "teamIdentifier" : "M4H33HFC4K"
+      },
+      "kind" : "zip",
+      "notes" : [
+
+      ],
+      "probeHost" : "api.github.com",
+      "recipeID" : "github:responsively-org\/responsively-app-releases:beta",
+      "registry" : "github",
+      "seconds" : 32.750102043151855,
+      "status" : "ok",
+      "url" : "https:\/\/github.com\/responsively-org\/responsively-app-releases\/releases\/download\/v2.0.0-beta.0\/ResponsivelyApp-2.0.0-beta.0-arm64-mac.zip",
+      "urlSHA256" : "18c0e15be6b793895b8212581d7ad0b5657231f287e44c410672f60051257708",
+      "version" : "2.0.0-beta.0",
+      "warnings" : [
+
+      ]
+    },
+    {
+      "bundleID" : "app.responsively",
+      "bytes" : 107579374,
+      "finalHost" : "release-assets.githubusercontent.com",
+      "identity" : {
+        "architectures" : [
+          "arm64"
+        ],
+        "bundleIdentifier" : "app.responsively",
+        "bundleVersion" : "1.18.0",
+        "minimumSystemVersion" : "10.15",
+        "shortVersion" : "1.18.0",
+        "signedIdentifier" : "app.responsively",
+        "teamIdentifier" : "M4H33HFC4K"
+      },
+      "kind" : "zip",
+      "notes" : [
+
+      ],
+      "probeHost" : "api.github.com",
+      "recipeID" : "github:responsively-org\/responsively-app-releases:stable",
+      "registry" : "github",
+      "seconds" : 27.708396077156067,
+      "status" : "ok",
+      "url" : "https:\/\/github.com\/responsively-org\/responsively-app-releases\/releases\/download\/v1.18.0\/ResponsivelyApp-1.18.0-arm64-mac.zip",
+      "urlSHA256" : "4bbb67ff3b3388174831550a12e6c5555474872204dfa417420a8951c028004e",
+      "version" : "1.18.0",
+      "warnings" : [
+
+      ]
+    },
+    {
+      "bundleID" : "org.standardnotes.standardnotes",
+      "bytes" : 153851499,
+      "finalHost" : "release-assets.githubusercontent.com",
+      "identity" : {
+        "architectures" : [
+          "arm64"
+        ],
+        "bundleIdentifier" : "org.standardnotes.standardnotes",
+        "bundleVersion" : "3.202.11",
+        "minimumSystemVersion" : "11.0",
+        "shortVersion" : "3.202.11",
+        "signedIdentifier" : "org.standardnotes.standardnotes",
+        "teamIdentifier" : "HKF9BXSN95"
+      },
+      "kind" : "zip",
+      "notes" : [
+
+      ],
+      "probeHost" : "api.github.com",
+      "recipeID" : "github:standardnotes\/app:stable",
+      "registry" : "github",
+      "seconds" : 33.14541506767273,
+      "status" : "ok",
+      "url" : "https:\/\/github.com\/standardnotes\/app\/releases\/download\/%40standardnotes\/desktop%403.202.11\/standard-notes-3.202.11-mac-arm64.zip",
+      "urlSHA256" : "f3cd45edc6d99691e2f9fe29d82b66b59f8b2e987ee8967c85504f7b0b71273a",
+      "version" : "3.202.11",
+      "warnings" : [
+
+      ]
+    },
+    {
+      "bundleID" : "org.upscayl.Upscayl",
+      "bytes" : 376811048,
+      "finalHost" : "release-assets.githubusercontent.com",
+      "identity" : {
+        "architectures" : [
+          "arm64",
+          "x86_64"
+        ],
+        "bundleIdentifier" : "org.upscayl.Upscayl",
+        "bundleVersion" : "2.15.0",
+        "minimumSystemVersion" : "12.0.0",
+        "shortVersion" : "2.15.0",
+        "signedIdentifier" : "org.upscayl.Upscayl",
+        "teamIdentifier" : "W2T4W74X87"
+      },
+      "kind" : "zip",
+      "notes" : [
+
+      ],
+      "probeHost" : "api.github.com",
+      "recipeID" : "github:upscayl\/upscayl:stable",
+      "registry" : "github",
+      "seconds" : 76.9947030544281,
+      "status" : "ok",
+      "url" : "https:\/\/github.com\/upscayl\/upscayl\/releases\/download\/v2.15.0\/upscayl-2.15.0-mac.zip",
+      "urlSHA256" : "6b8d6aa663f34084882b3d98cb24257af1090b700b9c959c58bc07ec50f43462",
+      "version" : "2.15.0",
+      "warnings" : [
+
+      ]
+    },
+    {
+      "bundleID" : "com.usebruno.app",
+      "bytes" : 160252445,
+      "finalHost" : "release-assets.githubusercontent.com",
+      "identity" : {
+        "architectures" : [
+          "arm64"
+        ],
+        "bundleIdentifier" : "com.usebruno.app",
+        "bundleVersion" : "4.3.0",
+        "minimumSystemVersion" : "11.0",
+        "shortVersion" : "4.3.0",
+        "signedIdentifier" : "com.usebruno.app",
+        "teamIdentifier" : "W7LPPWA48L"
+      },
+      "kind" : "zip",
+      "notes" : [
+
+      ],
+      "probeHost" : "api.github.com",
+      "recipeID" : "github:usebruno\/bruno:stable",
+      "registry" : "github",
+      "seconds" : 32.19536900520325,
+      "status" : "ok",
+      "url" : "https:\/\/github.com\/usebruno\/bruno\/releases\/download\/v4.3.0\/bruno_4.3.0_arm64_mac.zip",
+      "urlSHA256" : "2a89ae2eccbd372c78347ce0a2f0a7c74e2bdf8b92f523faeb19bebccb01d3aa",
+      "version" : "4.3.0",
+      "warnings" : [
+
+      ]
+    },
+    {
+      "bundleID" : "com.paulthetall.portingkit",
+      "bytes" : 141202060,
+      "finalHost" : "release-assets.githubusercontent.com",
+      "identity" : {
+        "architectures" : [
+          "arm64"
+        ],
+        "bundleIdentifier" : "com.paulthetall.portingkit",
+        "bundleVersion" : "6.7.0",
+        "minimumSystemVersion" : "10.13.0",
+        "shortVersion" : "6.7.0",
+        "signedIdentifier" : "com.paulthetall.portingkit",
+        "teamIdentifier" : "45WEPZ3433"
+      },
+      "kind" : "zip",
+      "notes" : [
+
+      ],
+      "probeHost" : "api.github.com",
+      "recipeID" : "github:vitor251093\/porting-kit-releases:stable",
+      "registry" : "github",
+      "seconds" : 27.259397983551025,
+      "status" : "ok",
+      "url" : "https:\/\/github.com\/vitor251093\/porting-kit-releases\/releases\/download\/v6.7.0\/Porting.Kit-6.7.0-arm64-mac.zip",
+      "urlSHA256" : "55c807bfae90e83e084a9abc815c8f361f0b05864680528730f2ed047e44b0ad",
+      "version" : "6.7.0",
+      "warnings" : [
+
+      ]
+    },
+    {
+      "bundleID" : "com.wulkano.kap",
+      "bytes" : 119687412,
+      "finalHost" : "release-assets.githubusercontent.com",
+      "identity" : {
+        "architectures" : [
+          "arm64"
+        ],
+        "bundleIdentifier" : "com.wulkano.kap",
+        "bundleVersion" : "3.6.0.1846",
+        "minimumSystemVersion" : "10.12.0",
+        "shortVersion" : "3.6.0",
+        "signedIdentifier" : "com.wulkano.kap",
+        "teamIdentifier" : "2KEEHXF6R6"
+      },
+      "kind" : "zip",
+      "notes" : [
+
+      ],
+      "probeHost" : "api.github.com",
+      "recipeID" : "github:wulkano\/kap:stable",
+      "registry" : "github",
+      "seconds" : 23.383615016937256,
+      "status" : "ok",
+      "url" : "https:\/\/github.com\/wulkano\/Kap\/releases\/download\/v3.6.0\/Kap-3.6.0-arm64-mac.zip",
+      "urlSHA256" : "42d5a313b4e86688309cf181750292e058afd13c476423d1c2818f32238c9745",
+      "version" : "3.6.0",
+      "warnings" : [
+
+      ]
+    },
+    {
+      "bundleID" : "com.electron.kontena-lens",
+      "bytes" : 225218660,
+      "finalHost" : "downloads.k8slens.dev",
+      "identity" : {
+        "architectures" : [
+          "arm64"
+        ],
+        "bundleIdentifier" : "com.electron.kontena-lens",
+        "bundleVersion" : "2026.11.91422-latest",
+        "minimumSystemVersion" : "13.0",
+        "shortVersion" : "2026.11.91422-latest",
+        "signedIdentifier" : "com.electron.kontena-lens",
+        "teamIdentifier" : "JJ22T2W355"
+      },
+      "kind" : "zip",
+      "notes" : [
+
+      ],
+      "probeHost" : "api.k8slens.dev",
+      "recipeID" : "vendor:com.electron.kontena-lens:stable",
+      "registry" : "vendor",
+      "seconds" : 30.832430005073547,
+      "status" : "ok",
+      "url" : "https:\/\/api.k8slens.dev\/binaries\/Lens-2026.11.91422-latest-arm64-mac.zip",
+      "urlSHA256" : "8316bd160f515194008406d49ab6aad0e72e0167fbcd53e9b79674f47b963577",
+      "version" : "2026.11.91422-latest",
+      "warnings" : [
+
+      ]
+    },
+    {
+      "bundleID" : "com.granola.app",
+      "bytes" : 262897870,
+      "finalHost" : "dr2v7l5emb758.cloudfront.net",
+      "identity" : {
+        "architectures" : [
+          "arm64",
+          "x86_64"
+        ],
+        "bundleIdentifier" : "com.granola.app",
+        "bundleVersion" : "7.786.3",
+        "minimumSystemVersion" : "13.0",
+        "shortVersion" : "7.786.3",
+        "signedIdentifier" : "com.granola.app",
+        "teamIdentifier" : "QZ7DHHLN25"
+      },
+      "kind" : "zip",
+      "notes" : [
+
+      ],
+      "probeHost" : "api.granola.ai",
+      "recipeID" : "vendor:com.granola.app:stable",
+      "registry" : "vendor",
+      "seconds" : 29.713581919670105,
+      "status" : "ok",
+      "url" : "https:\/\/dr2v7l5emb758.cloudfront.net\/7.786.3\/Granola-7.786.3-mac-universal.zip",
+      "urlSHA256" : "6cb664bb5fa185727dccee7755b5aa57fe9a1af1839dd14f1a316070142dd7fb",
+      "version" : "7.786.3",
+      "warnings" : [
+
+      ]
+    },
+    {
+      "bundleID" : "com.termius-beta.mac",
+      "bytes" : 288311701,
+      "finalHost" : "autoupdate.termius.com",
+      "identity" : {
+        "architectures" : [
+          "arm64",
+          "x86_64"
+        ],
+        "bundleIdentifier" : "com.termius-beta.mac",
+        "bundleVersion" : "10.4.1",
+        "minimumSystemVersion" : "12.0",
+        "shortVersion" : "10.4.1",
+        "signedIdentifier" : "com.termius-beta.mac",
+        "teamIdentifier" : "6KN952WR85"
+      },
+      "kind" : "zip",
+      "notes" : [
+
+      ],
+      "probeHost" : "autoupdate.termius.com",
+      "recipeID" : "vendor:com.termius-beta.mac:beta",
+      "registry" : "vendor",
+      "seconds" : 29.204829931259155,
+      "status" : "ok",
+      "url" : "https:\/\/autoupdate.termius.com\/mac-beta-universal\/Termius%20Beta.zip",
+      "urlSHA256" : "bf869810254c991eafa898aeefb6f4027c5aa254d3b3cda4184aa7f5656e9e78",
+      "version" : "10.4.1",
+      "warnings" : [
+
+      ]
+    },
+    {
+      "bundleID" : "com.termius-dmg.mac",
+      "bytes" : 184381038,
+      "finalHost" : "autoupdate.termius.com",
+      "identity" : {
+        "architectures" : [
+          "arm64"
+        ],
+        "bundleIdentifier" : "com.termius-dmg.mac",
+        "bundleVersion" : "10.4.1",
+        "minimumSystemVersion" : "12.0",
+        "shortVersion" : "10.4.1",
+        "signedIdentifier" : "com.termius-dmg.mac",
+        "teamIdentifier" : "6KN952WR85"
+      },
+      "kind" : "zip",
+      "notes" : [
+
+      ],
+      "probeHost" : "autoupdate.termius.com",
+      "recipeID" : "vendor:com.termius-dmg.mac:stable",
+      "registry" : "vendor",
+      "seconds" : 24.283244967460632,
+      "status" : "ok",
+      "url" : "https:\/\/autoupdate.termius.com\/mac-arm64\/Termius.zip",
+      "urlSHA256" : "b6ebe7d172deb3680b0c0b3ebda1732aff036f88bb066ce0be6615d20959b39f",
+      "version" : "10.4.1",
+      "warnings" : [
+
+      ]
+    },
+    {
+      "bundleID" : "org.whispersystems.signal-desktop-beta",
+      "bytes" : 145422122,
+      "finalHost" : "updates.signal.org",
+      "identity" : {
+        "architectures" : [
+          "arm64"
+        ],
+        "bundleIdentifier" : "org.whispersystems.signal-desktop-beta",
+        "bundleVersion" : "1",
+        "minimumSystemVersion" : "13.0",
+        "shortVersion" : "8.36.0-beta.1",
+        "signedIdentifier" : "org.whispersystems.signal-desktop-beta",
+        "teamIdentifier" : "U68MSDN6DR"
+      },
+      "kind" : "zip",
+      "notes" : [
+
+      ],
+      "probeHost" : "updates.signal.org",
+      "recipeID" : "vendor:org.whispersystems.signal-desktop-beta:beta",
+      "registry" : "vendor",
+      "seconds" : 12.027687072753906,
+      "status" : "warn",
+      "url" : "https:\/\/updates.signal.org\/desktop\/signal-desktop-beta-mac-arm64-8.36.0-beta.1.zip",
+      "urlSHA256" : "45d0975553852e40f3ff757a36f3cd2d70631efd6ebe783e07793659c4585931",
+      "version" : "8.36.0-beta.1",
+      "warnings" : [
+        "identityChanged: architectures arm64+x86_64 → arm64 (recorded at 8.36.0-beta.1, 2026-11-12)"
+      ]
+    },
+    {
+      "bundleID" : "org.whispersystems.signal-desktop",
+      "bytes" : 146526884,
+      "finalHost" : "updates.signal.org",
+      "identity" : {
+        "architectures" : [
+          "arm64"
+        ],
+        "bundleIdentifier" : "org.whispersystems.signal-desktop",
+        "bundleVersion" : "1",
+        "minimumSystemVersion" : "13.0",
+        "shortVersion" : "8.35.0",
+        "signedIdentifier" : "org.whispersystems.signal-desktop",
+        "teamIdentifier" : "U68MSDN6DR"
+      },
+      "kind" : "zip",
+      "notes" : [
+
+      ],
+      "probeHost" : "updates.signal.org",
+      "recipeID" : "vendor:org.whispersystems.signal-desktop:stable",
+      "registry" : "vendor",
+      "seconds" : 21.620630025863647,
+      "status" : "warn",
+      "url" : "https:\/\/updates.signal.org\/desktop\/signal-desktop-mac-arm64-8.35.0.zip",
+      "urlSHA256" : "77933f9de8681cb7e3e7e80060b0dc5f93e959033fd12d2f83a7a5dd15cc0d43",
+      "version" : "8.35.0",
+      "warnings" : [
+        "identityChanged: architectures arm64+x86_64 → arm64 (recorded at 8.35.0, 2026-11-11)"
+      ]
+    },
+    {
+      "bundleID" : "xyz.chatboxapp.app",
+      "bytes" : 152421838,
+      "finalHost" : "download.chatboxai.app",
+      "identity" : {
+        "architectures" : [
+          "arm64"
+        ],
+        "bundleIdentifier" : "xyz.chatboxapp.app",
+        "bundleVersion" : "1.24.4",
+        "minimumSystemVersion" : "11.0",
+        "shortVersion" : "1.24.4",
+        "signedIdentifier" : "xyz.chatboxapp.app",
+        "teamIdentifier" : "YJ5GSB3AMW"
+      },
+      "kind" : "zip",
+      "notes" : [
+
+      ],
+      "probeHost" : "download.chatboxai.app",
+      "recipeID" : "vendor:xyz.chatboxapp.app:stable",
+      "registry" : "vendor",
+      "seconds" : 21.846192955970764,
+      "status" : "ok",
+      "url" : "https:\/\/download.chatboxai.app\/releases\/Chatbox-1.24.4-arm64-mac.zip",
+      "urlSHA256" : "ec3bfe0eba93dca5183ae687a57b88a119ded26b834f114e8d3ae4bc0a2d42c6",
+      "version" : "1.24.4",
+      "warnings" : [
+
+      ]
+    }
+  ],
+  "minimumFreeBytes" : 15371452416,
+  "seconds" : 1146.0682810544968
+}

@@ -1,0 +1,31 @@
+version: 2026.11.91422-latest
+files:
+  - url: Lens-2026.11.91422-latest-mac.zip
+    sha512: >-
+      ltxpOqtEGJuXw0A8NZAXhgdzZm252usByBXSBd46CwkgEkzJtiYS/OZvJjv37V/fd9V5ofR7f59bRGfAC/5p0Q==
+    size: 237920359
+  - url: Lens-2026.11.91422-latest.dmg
+    sha512: >-
+      23mg1Zjm3DTFUqdElHClvvaMmDE8mxzuN1VcavoEFw0V2cCDmvXzcr0EABH6MzFrODHifDhJ7Y3vSclBbGAjtg==
+    size: 245927857
+  - url: Lens-2026.11.91422-latest.dmg
+    sha512: >-
+      23mg1Zjm3DTFUqdElHClvvaMmDE8mxzuN1VcavoEFw0V2cCDmvXzcr0EABH6MzFrODHifDhJ7Y3vSclBbGAjtg==
+    size: 245927857
+  - url: Lens-2026.11.91422-latest-arm64-mac.zip
+    sha512: >-
+      dGcpm1C/v1PMqX73/gDyBKIv1jDNWQtRGUvB/vJI1czUyUCjuxfDzK+N6wHxB0FpG6vxb44YEQletWQdPT83ig==
+    size: 225218660
+  - url: Lens-2026.11.91422-latest-arm64.dmg
+    sha512: >-
+      MPmq30YrYxTho+FBXFe6eBKWibpaFxFSzxHJSWNbwg+mxKDWnAm3Bki9RmWCuyPoRXdiJktn3uPa/HO1ShwNyQ==
+    size: 233137938
+  - url: Lens-2026.11.91422-latest-arm64.dmg
+    sha512: >-
+      MPmq30YrYxTho+FBXFe6eBKWibpaFxFSzxHJSWNbwg+mxKDWnAm3Bki9RmWCuyPoRXdiJktn3uPa/HO1ShwNyQ==
+    size: 233137938
+path: Lens-2026.11.91422-latest-mac.zip
+sha512: >-
+  ltxpOqtEGJuXw0A8NZAXhgdzZm252usByBXSBd46CwkgEkzJtiYS/OZvJjv37V/fd9V5ofR7f59bRGfAC/5p0Q==
+releaseDate: '2026-11-09T15:01:23.529Z'
+stagingPercentage: 100

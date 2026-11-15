@@ -1,6 +1,7 @@
 import Foundation
 
 enum org_ferdium_ferdium_app {
+    // History: docs/app-audits/org-ferdium-ferdium-app.md#历史与实测
     static let set = AppRecipeSet(
         family: "org-ferdium-ferdium-app",
         githubRules: [
@@ -33,8 +34,8 @@ enum org_ferdium_ferdium_app {
             bundleID: "org.ferdium.ferdium-app",
             owner: "ferdium", repo: "ferdium-app",
             versionPattern: #"^v([0-9]+(?:\.[0-9]+)+)$"#,
-            installAssetPattern: #"^Ferdium-mac-[0-9]+(?:\.[0-9]+)+-arm64\.dmg$"#,
-            installerKind: .dmg),
+            installAssetPattern: #"^Ferdium-mac-bundle-[0-9]+(?:\.[0-9]+)+-arm64\.zip$"#,
+            installerKind: .zip),
 
         // A copy of one of the 2022–2023 betas (`6.0.0-beta.1` …
         // `6.4.1-beta.2`): same bundle id and Team, but `ReleaseChannel.detect`

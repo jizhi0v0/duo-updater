@@ -56,8 +56,8 @@ private func aiGitHubRule(_ bundleID: String) throws -> GitHubReleaseRule {
     // channel, and its GitHub rule is gone so a probe can answer instead
     // (`OpenCodeDesktopProbeTests`).
     let cases: [(String, String, String, [String])] = [
-        ("dev.openchamber.desktop", "v1.18.4", "OpenChamber-1.18.4-mac-arm64.dmg",
-         ["OpenChamber-1.18.4-mac-arm64.zip", "OpenChamber-1.18.4-win-arm64.exe"]),
+        ("dev.openchamber.desktop", "v1.18.4", "OpenChamber-1.18.4-mac-arm64.zip",
+         ["OpenChamber-1.18.4-mac-arm64.dmg", "OpenChamber-1.18.4-win-arm64.exe"]),
         ("jan.ai.app", "v0.8.4", "jan-mac-universal-0.8.4.zip",
          ["Jan_0.8.4_universal.dmg", "Jan_0.8.4_amd64.AppImage"]),
         ("com.FluidApp.app", "v1.6.9", "Fluid-oss-1.6.9.dmg",
@@ -84,15 +84,15 @@ private func aiGitHubRule(_ bundleID: String) throws -> GitHubReleaseRule {
     let rule = try aiGitHubRule("dev.openchamber.desktop")
     let pattern = try #require(rule.installAssetPattern)
     let prefix = "OpenChamber-1.18.4-mac-"
-    let assets = ["\(prefix)x64.dmg", "\(prefix)arm64.dmg"].map {
+    let assets = ["\(prefix)x64.zip", "\(prefix)arm64.zip"].map {
         (name: $0, url: URL(string: "https://example.invalid/\($0)")!, size: Int64?.none)
     }
     #expect(GitHubReleaseRule.installableAsset(
         from: assets, matching: pattern, preferring: .arm64)?.url.lastPathComponent
-        == "\(prefix)arm64.dmg")
+        == "\(prefix)arm64.zip")
     #expect(GitHubReleaseRule.installableAsset(
         from: assets, matching: pattern, preferring: .x86_64)?.url.lastPathComponent
-        == "\(prefix)x64.dmg")
+        == "\(prefix)x64.zip")
 }
 
 // MARK: - One-click, wired 2026-08-29

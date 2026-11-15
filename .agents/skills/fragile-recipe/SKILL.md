@@ -132,6 +132,13 @@ examples — don't author from memory:
    checkout it refuses a binary built from a different tree. Rebuilding the menu-bar app
    (`make install`) is only needed to *see* the result in the UI.
 
+For a new app/channel, feed change or installer-route change, finish
+[nightly coverage acceptance](../../../.claude/skills/app-audit/references/nightly-coverage.md) in the same implementation PR. Vendor
+recipes are already enumerated; verify their actual IDs/install coverage rather
+than adding a duplicate generic entry. A changelog-only fix checks its existing
+monitoring status and records relevant gaps without expanding into unrelated
+feed/runner changes.
+
 ## Fetching
 
 Save the raw response to a file with a browser-like User-Agent, for example:

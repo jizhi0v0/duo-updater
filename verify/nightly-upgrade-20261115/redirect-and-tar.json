@@ -1,0 +1,77 @@
+{
+  "bytes" : 282489573,
+  "generatedAt" : "2026-11-15T10:54:55Z",
+  "hostConcurrency" : 3,
+  "items" : [
+    {
+      "bundleID" : "com.vivaldi.Vivaldi",
+      "bytes" : 234511456,
+      "finalHost" : "downloads.vivaldi.com",
+      "identity" : {
+        "architectures" : [
+          "arm64",
+          "x86_64"
+        ],
+        "bundleIdentifier" : "com.vivaldi.Vivaldi",
+        "bundleVersion" : "8.3.4191.44",
+        "minimumSystemVersion" : "13.0",
+        "shortVersion" : "8.3.4191.44",
+        "signedIdentifier" : "com.vivaldi.Vivaldi",
+        "sparkleFeedURL" : "https:\/\/update.vivaldi.com\/update\/1.0\/public\/mac\/appcast.xml",
+        "sparklePublicKey" : "3tFhu3zD\/nVxTY+R4nH1ISgcWa5Jk7yxLuq3aQQOIgY=",
+        "teamIdentifier" : "4XF3XNRN6Y"
+      },
+      "kind" : "tarGz",
+      "notes" : [
+        "sparkleArchiveSignatureNotChecked: no previously audited key — this run establishes package identity, not signing-key continuity"
+      ],
+      "probeHost" : "update.vivaldi.com",
+      "recipeID" : "sparkle:com.vivaldi.Vivaldi:stable",
+      "registry" : "sparkle",
+      "seconds" : 39.52965998649597,
+      "status" : "ok",
+      "url" : "https:\/\/downloads.vivaldi.com\/stable-auto\/Vivaldi.8.3.4191.44.universal.tar.xz",
+      "urlSHA256" : "6e0ed71707de0e455a4deec5b91210c995bcf9eb0abd6e52fd91d88da71f00cf",
+      "version" : "8.3.4191.44",
+      "warnings" : [
+
+      ]
+    },
+    {
+      "bundleID" : "fr.handbrake.HandBrake",
+      "bytes" : 47978117,
+      "finalHost" : "release-assets.githubusercontent.com",
+      "identity" : {
+        "architectures" : [
+          "arm64",
+          "x86_64"
+        ],
+        "bundleIdentifier" : "fr.handbrake.HandBrake",
+        "bundleVersion" : "2026060700",
+        "minimumSystemVersion" : "10.13.4",
+        "shortVersion" : "1.11.2",
+        "signedIdentifier" : "fr.handbrake.HandBrake",
+        "sparkleFeedURL" : "https:\/\/handbrake.fr\/appcast.arm64.xml",
+        "sparklePublicKey" : "aeDqvDkdHhSaNiWXf13dD72+hwWhLz6jD4sdHGP+Vbg=",
+        "teamIdentifier" : "5X9DE89KYV"
+      },
+      "kind" : "dmg",
+      "notes" : [
+        "sparkleArchiveSignatureVerified: the full archive verifies against the previously recorded or audited public key"
+      ],
+      "probeHost" : "handbrake.fr",
+      "recipeID" : "sparkle:fr.handbrake.HandBrake:stable",
+      "registry" : "sparkle",
+      "seconds" : 14.883694052696228,
+      "status" : "ok",
+      "url" : "https:\/\/handbrake.fr\/rotation.php",
+      "urlSHA256" : "4be8350dc08ede6e8f73eb71aa3c55f15d8ca1d5485abf12044a04bbae5508c6",
+      "version" : "1.11.2",
+      "warnings" : [
+
+      ]
+    }
+  ],
+  "minimumFreeBytes" : 17571442688,
+  "seconds" : 39.53223705291748
+}

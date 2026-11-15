@@ -1,0 +1,138 @@
+{
+  "bytes" : 251694900,
+  "generatedAt" : "2026-11-15T10:40:37Z",
+  "hostConcurrency" : 3,
+  "items" : [
+    {
+      "bundleID" : "ai.thinkany.douchat",
+      "bytes" : 120072874,
+      "finalHost" : "cdn.douchat.ai",
+      "identity" : {
+        "architectures" : [
+          "arm64"
+        ],
+        "bundleIdentifier" : "ai.thinkany.douchat",
+        "bundleVersion" : "0.1.28",
+        "minimumSystemVersion" : "12.0",
+        "shortVersion" : "0.1.28",
+        "signedIdentifier" : "ai.thinkany.douchat",
+        "teamIdentifier" : "JU9K7W6T6W"
+      },
+      "kind" : "zip",
+      "notes" : [
+
+      ],
+      "probeHost" : "cdn.douchat.ai",
+      "recipeID" : "electron:ai.thinkany.douchat:stable:legacy-root",
+      "registry" : "electron",
+      "seconds" : 12.41195297241211,
+      "status" : "ok",
+      "url" : "https:\/\/cdn.douchat.ai\/Douchat-0.1.28-mac-arm64.zip",
+      "urlSHA256" : "b3e713f4bcaa41f40d445d53691281570ae2d99a38b0583fd0d23220d2e87200",
+      "version" : "0.1.28",
+      "warnings" : [
+
+      ]
+    },
+    {
+      "bundleID" : "ai.thinkany.douchat",
+      "bytes" : 123001804,
+      "finalHost" : "cdn.douchat.ai",
+      "identity" : {
+        "architectures" : [
+          "arm64"
+        ],
+        "bundleIdentifier" : "ai.thinkany.douchat",
+        "bundleVersion" : "0.1.29",
+        "minimumSystemVersion" : "12.0",
+        "shortVersion" : "0.1.29",
+        "signedIdentifier" : "ai.thinkany.douchat",
+        "teamIdentifier" : "8PL52G56V9"
+      },
+      "kind" : "zip",
+      "notes" : [
+
+      ],
+      "probeHost" : "cdn.douchat.ai",
+      "recipeID" : "electron:ai.thinkany.douchat:stable:thinkany",
+      "registry" : "electron",
+      "seconds" : 10.637259006500244,
+      "status" : "ok",
+      "url" : "https:\/\/cdn.douchat.ai\/thinkany\/Douchat-0.1.29-mac-arm64.zip",
+      "urlSHA256" : "6c3012e65cb4f2ea9e793f50eb73d2351709eddc1e8236bae2245d91e0f2158e",
+      "version" : "0.1.29",
+      "warnings" : [
+
+      ]
+    },
+    {
+      "bundleID" : "com.knollsoft.Rectangle",
+      "bytes" : 4960820,
+      "finalHost" : "download.rectangleapp.com",
+      "identity" : {
+        "architectures" : [
+          "arm64",
+          "x86_64"
+        ],
+        "bundleIdentifier" : "com.knollsoft.Rectangle",
+        "bundleVersion" : "111",
+        "minimumSystemVersion" : "14.0",
+        "shortVersion" : "2.0.4",
+        "signedIdentifier" : "com.knollsoft.Rectangle",
+        "sparkleFeedURL" : "https:\/\/rectangleapp.com\/downloads\/updates.xml",
+        "sparklePublicKey" : "lpt9M3PhocbZ3MZiLH+crEqRfU11kfoNzGxSqiEIdvM=",
+        "teamIdentifier" : "XSYZ3E4B7D"
+      },
+      "kind" : "dmg",
+      "notes" : [
+
+      ],
+      "probeHost" : "rectangleapp.com",
+      "recipeID" : "sparkle:com.knollsoft.Rectangle:stable",
+      "registry" : "sparkle",
+      "seconds" : 2.7418709993362427,
+      "status" : "ok",
+      "url" : "https:\/\/download.rectangleapp.com\/Rectangle2.0.4.dmg",
+      "urlSHA256" : "2d93f25b32976cae0fe28fe995bb8ee4c25195890fec94aa1347a648197331ef",
+      "version" : "2.0.4",
+      "warnings" : [
+
+      ]
+    },
+    {
+      "bundleID" : "run.kuvo.app",
+      "bytes" : 3659402,
+      "finalHost" : "release-assets.githubusercontent.com",
+      "identity" : {
+        "architectures" : [
+          "arm64"
+        ],
+        "bundleIdentifier" : "run.kuvo.app",
+        "bundleVersion" : "0.1.3",
+        "minimumSystemVersion" : "15.0",
+        "shortVersion" : "0.1.3",
+        "signedIdentifier" : "run.kuvo.app",
+        "sparkleFeedURL" : "https:\/\/github.com\/serhatandic\/kuvo\/releases\/latest\/download\/appcast.xml",
+        "sparklePublicKey" : "uG\/YbzL4kf+DAYCiTTfK8ztEOBo96hkEAuKk9rw9BE4=",
+        "teamIdentifier" : "C8Y523R7T5"
+      },
+      "kind" : "dmg",
+      "notes" : [
+
+      ],
+      "probeHost" : "github.com",
+      "recipeID" : "sparkle:run.kuvo.app:stable",
+      "registry" : "sparkle",
+      "seconds" : 4.884567975997925,
+      "status" : "ok",
+      "url" : "https:\/\/github.com\/serhatandic\/box\/releases\/download\/v0.1.3\/Kuvo.dmg",
+      "urlSHA256" : "b7c736a3d178d6f2f6f4d60427a56094a9d24548eda508d1de463eef7c0ce38f",
+      "version" : "0.1.3",
+      "warnings" : [
+
+      ]
+    }
+  ],
+  "minimumFreeBytes" : 20867973120,
+  "seconds" : 23.05324900150299
+}

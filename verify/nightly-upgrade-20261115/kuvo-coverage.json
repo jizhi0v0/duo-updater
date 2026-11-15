@@ -1,0 +1,19 @@
+{
+  "findings" : [
+    {
+      "attempts" : 1,
+      "bundleID" : "run.kuvo.app",
+      "channel" : "-",
+      "elapsedMs" : 1374,
+      "endpointHost" : "github.com",
+      "recipeID" : "coverage:run.kuvo.app",
+      "registry" : "coverage",
+      "status" : "ok",
+      "warnings" : [
+
+      ]
+    }
+  ],
+  "generatedAt" : "2026-11-15T10:54:56Z",
+  "schemaVersion" : 1
+}

@@ -33,14 +33,14 @@
 # land. Starting from a `main` without the issue numbers that pull request
 # carries would file every open finding a second time, and its own pull request
 # would conflict with the pending one. If it does not land, the run still
-# verifies and reports but files and commits nothing.
+# verifies and reports but files and commits nothing, then fails visibly.
 #
 # The pull request is opened with INSTALL_VERIFY_PR_TOKEN, a fine-grained token
 # (contents + pull requests, this repository only): one opened with GITHUB_TOKEN
 # does not run CI until someone approves it, so the required `test` check would
 # never report and it would never merge. Without the secret, steps 2 and 3 are
-# skipped rather than half-done: an issue filed whose number is never committed
-# would be filed again by the next run.
+# skipped rather than half-done, and a later guard fails the run after verification
+# so the missing persistence path is visible without filing duplicate issues.
 #
 # Otherwise ci.yml's rules: hosted runner, actions pinned by SHA.
 name: Install verify
@@ -178,6 +178,8 @@ jobs:
           CONCURRENCY: ${{ inputs.concurrency }}
           FULL: ${{ inputs.full == true }}
         run: |
+          rm -f verify-install.json verify-install.md install-findings.json
+          started_at=$(date +%s)
           args=(verify-install --allow-stale-binary
                 --max-concurrency "${CONCURRENCY:-3}"
                 --report verify-install.json --markdown verify-install.md
@@ -192,21 +194,46 @@ jobs:
           df -h "$TMPDIR" /
           # 1 = something warned or failed, which is what the issues are for.
           # Anything else is the command itself going wrong.
-          if [ "$status" -gt 1 ]; then exit "$status"; fi
+          if [ "$status" -gt 1 ]; then
+            echo "::error::duo verify-install failed operationally (exit $status)"
+            exit "$status"
+          fi
+          python3 scripts/check_verify_report.py install-findings.json --not-before "$started_at"
 
       - name: File and close issues
+        id: reconcile
         if: steps.previous.outputs.clear == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          set +e
           CLI/.build/debug/duo reconcile \
             --report install-findings.json \
             --baseline verify/install-baseline.json
+          status=$?
+          echo "exit_code=$status" >> "$GITHUB_OUTPUT"
+          exit "$status"
 
-      # Even when filing failed part-way: `duo reconcile` saves the numbers of
-      # the issues it did open before returning non-zero, and dropping them here
-      # would file those again next run. Only a completed verification has state
-      # worth keeping.
+      # A scan without a safe path to persist issue numbers and identities is
+      # not a healthy scheduled run. The queue guard remains in force: this
+      # fails after verification and leaves its report artifact for inspection,
+      # without filing issues or creating a competing state pull request.
+      - name: Require a durable state path
+        if: ${{ steps.verify.outcome == 'success' && (env.HAS_PR_TOKEN != 'true' || steps.previous.outputs.clear != 'true') }}
+        env:
+          HAS_PR_TOKEN: ${{ secrets.INSTALL_VERIFY_PR_TOKEN != '' }}
+        run: |
+          if [ "$HAS_PR_TOKEN" != "true" ]; then
+            echo "::error::INSTALL_VERIFY_PR_TOKEN is not set; findings were not filed and state was not committed."
+          else
+            echo "::error::A previous verify/install- state pull request did not clear; findings were not filed and state was not committed."
+          fi
+          exit 1
+
+      # Exit 1 means issue writes partly failed, but reconcile saved the numbers
+      # of the issues it did open; keep that state so the next run does not file
+      # duplicates. Exit 2 means the baseline itself could not be saved, so the
+      # condition below leaves this state uncommitted and the failed job visible.
       #
       # The branch is cut from main as it is NOW, not from this run's checkout,
       # which is half an hour old by here. Cut from the checkout, anything main
@@ -217,7 +244,7 @@ jobs:
       # If main changed one of them during the run too, it refuses instead of
       # overwriting that change, and this step fails.
       - name: Commit the state back
-        if: ${{ !cancelled() && steps.previous.outputs.clear == 'true' && steps.verify.outcome == 'success' }}
+        if: ${{ !cancelled() && steps.previous.outputs.clear == 'true' && steps.verify.outcome == 'success' && (steps.reconcile.outputs.exit_code == '0' || steps.reconcile.outputs.exit_code == '1') }}
         env:
           PR_TOKEN: ${{ secrets.INSTALL_VERIFY_PR_TOKEN }}
         run: |
@@ -237,11 +264,6 @@ jobs:
             --title "verify-install: update identities and baseline" \
             --body "State written by run ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}."
           GH_TOKEN="$PR_TOKEN" gh pr merge "$branch" --squash --delete-branch --auto
-
-      - name: Say why nothing was filed
-        if: env.HAS_PR_TOKEN != 'true'
-        run: |
-          echo "::warning::INSTALL_VERIFY_PR_TOKEN is not set: nothing was filed and the state was not committed. See the comment at the top of this workflow."
 
       - name: Summary
         if: always()

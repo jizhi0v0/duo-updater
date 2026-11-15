@@ -239,7 +239,10 @@ public enum Reconcile {
     static func qualifier(recipeID: String) -> String? {
         var parts = recipeID.split(separator: ":", omittingEmptySubsequences: false).map(String.init)
         if parts.first == Registry.install.rawValue { parts.removeFirst() }
-        if let registry = parts.first, Registry(rawValue: registry) != nil { parts.removeFirst() }
+        if let registry = parts.first,
+           Registry(rawValue: registry) != nil || ["sparkle", "electron"].contains(registry) {
+            parts.removeFirst()
+        }
         guard !parts.isEmpty else { return nil }
         parts.removeFirst()
         let rest = parts.joined(separator: ":")

@@ -279,8 +279,9 @@ verify options:
                       the vendor's claim, not the payload's slices (#415).
   --coverage          Report only the apps that link a changelog page but have
                       no recipe to structure it, and are not in the list of
-                      accepted gaps (ChangelogCoverage.acknowledged). Fetches
-                      nothing.
+                      accepted gaps (ChangelogCoverage.acknowledged). Checks
+                      an audited stable feed for native notes before declaring
+                      a missing recipe.
   --samples           Print the fetched body sample for each flagged recipe —
                       what you need to re-derive a broken pattern.
   --no-installed      Don't cross-check against locally installed apps. Implied
@@ -305,7 +306,8 @@ verify options:
 verify-install options:
   --only <text>       Restrict to recipes whose bundle id or recipe id contains
                       <text>. Comma-separated for several. Without it every
-                      vendor recipe and GitHub rule with an installer is
+                      vendor/GitHub installer and audited public Sparkle or
+                      Electron feed is
                       resolved and, unless left out as unchanged (see
                       --full), downloaded; meant for a hosted runner.
   --report <path>     Write the results as JSON.

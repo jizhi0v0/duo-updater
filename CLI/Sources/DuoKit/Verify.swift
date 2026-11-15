@@ -224,7 +224,7 @@ public enum Verify {
                 vendor, urls: await resolvedInstallURLs.all(), options: options)
         }
         if options.registries.contains(.changelogCoverage) {
-            findings += coverage
+            findings += await ChangelogCoverage.checkNativeSources(coverage)
         }
 
         findings.sort { $0.recipeID < $1.recipeID }

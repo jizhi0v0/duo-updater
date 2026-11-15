@@ -40,8 +40,9 @@ public enum Registry: String, Codable, Sendable, CaseIterable {
     /// — a spec that stops declaring, or starts declaring one architecture — and
     /// is not an installability check. See `PackageArchitectureProbe`.
     case pkgArch = "pkgarch"
-    /// Not a fetch at all: which apps link a changelog page but have no recipe to
-    /// structure it, against the list of gaps somebody has accepted. See
+    /// Which apps link a changelog page but have no recipe to structure it.
+    /// Audited update feeds are checked for source-native structured notes
+    /// before declaring a gap, against the list somebody has accepted. See
     /// `ChangelogCoverage`.
     case changelogCoverage = "coverage"
     /// Not swept by `duo verify` at all: `duo verify-install` downloads each

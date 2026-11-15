@@ -459,11 +459,11 @@ enum AuditedUpdateFeeds {
         Gap(
             bundleID: "com.coconut-flavour.coconutBattery", trackID: "beta",
             auditDocument: "docs/app-audits/com-coconut-flavour-coconutBattery.md",
-            reason: "The current audited appcast has no beta-tagged items."),
+            reason: "The audited beta mapping has no beta-tagged items. A live testing-tagged item was observed; its mapping to installed beta preferences has not been established."),
         Gap(
             bundleID: "com.dinoki.osaurus", trackID: "beta",
             auditDocument: "docs/app-audits/com-dinoki-osaurus.md",
-            reason: "The vendor has never published a beta item; only the public release track is catalogued."),
+            reason: "A live feed beta item was observed after the audit, but its mapping to installed beta copies/preferences has not been established; only the audited release track is catalogued."),
     ]
 
     /// Sparkle identities whose complete public EdDSA key was not available in

@@ -121,6 +121,6 @@ anchor documents that exposure rather than pretending to close it.
 
 ### Electron ZIP 迁移（2026-11-15）
 
-本次保留 alpha 与 nightly 的 DMG 路线。两个 ZIP 都通过生产签名、身份与替换检查，且与对应 DMG 的 arm64 主程序 CDHash / app.asar 一致；但 VM 已运行的 T3 Code Beta 占用共享 t3code-v2 用户目录，测试副本在单实例闸处退出。没有停止既有实例，没有把退出记成启动成功。当前普通版本包已名为 T3 Code (Beta)，既有 alpha 渠道覆盖范围未在本次扩展。
+本次保留 alpha 与 nightly 的 DMG 路线。两个 ZIP 都通过生产签名、身份与替换检查，且与对应 DMG 的 arm64 主程序 CDHash / app.asar 一致；但 VM 已运行的 T3 Code Beta 占用共享 t3code-v2 用户目录，测试副本在单实例闸处退出。没有停止既有实例，没有把退出记成启动成功。当前普通版本包已名为 T3 Code (Beta)，main 的 #2027 已独立补齐 Beta 覆盖；本次没有改变 T3 任一渠道的安装容器。
 
 本次包、逐项结果与限制见 [集中验证记录](../../verify/electron-blockmap-20261115/README.md)。这些是一次验证的结果，不代表应用所有版本或功能均已测试。

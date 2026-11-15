@@ -9,6 +9,7 @@ Environment: Apple Silicon macOS VM 1, macOS 27.2 (26B123), VMPal Tools 0.41. Th
 - Cold 4.20.1: 165,703,939-byte ZIP + 175,100-byte map = **165,879,039 bytes**; installed 4.20.1 and retained the baseline after success.
 - Genuine 4.20.1 → 4.20.2: the **165,572,419-byte** target was reconstructed into `electron-update.zip`; **43,465,419 bytes** including the map were fetched, saving **73.75%**. Installed version: 4.20.2.
 - Reconstructed SHA256: `c3fbd63e9b9fb52ad798a98e95eb881bf72b8d1813a9de5cc76b6a69b0131cd2`, equal to the digest GitHub publishes for that exact ZIP.
+- After rebasing and adding the total-I/O cap, the final harness repeated a reverse update to prepare 4.20.1 and then the genuine 4.20.1 → 4.20.2 update. The latter again fetched exactly **43,465,419 bytes**, verified the published SHA256 and installed 4.20.2. [Final-code receipts](flyenv-final-results.json).
 - Receipts: [flyenv-results.json](flyenv-results.json); publisher metadata: [flyenv-versions.json](flyenv-versions.json). This is one version pair, not a claimed saving for every app or version.
 
 ## DMG → ZIP feasibility
@@ -67,11 +68,36 @@ Every corresponding DMG/ZIP pair has equal ARM64 main-executable CDHash and `app
 
 Hyper 3.4.1 exits with SIGTRAP during V8 initialization; its original DMG bundle also exits with SIGTRAP. The pair has matching ARM64 CDHash/asar, but no runnable result was obtained on this VM, so no route migration is made. [Control](hyper-dmg-launch.json).
 
-T3 Code ordinary 0.1.9 now contains `T3 Code (Beta).app`, while the existing rule serves alpha copies. Both ordinary and Nightly ZIP installs passed, but an already running `/Applications/T3 Code (Beta).app` owns the `t3code-v2` single-instance profile. Test copies exited through the app’s lock path; an attempted isolated launch did not establish a separate profile. The existing instance was not stopped and no successful startup was invented. Both routes remain DMG. [Additional attempt](t3-isolated-launch-results.json).
+T3 Code ordinary 0.1.9 now contains `T3 Code (Beta).app`, while its earlier rule served alpha copies (current main separately added Beta support in #2027). Both ordinary and Nightly ZIP installs passed, but an already running `/Applications/T3 Code (Beta).app` owns the `t3code-v2` single-instance profile. Test copies exited through the app’s lock path; an attempted isolated launch did not establish a separate profile. The existing instance was not stopped and no successful startup was invented. Both routes remain DMG. [Additional attempt](t3-isolated-launch-results.json).
 
 TimeScribe left its known PHP `nightwatch:agent` child after its test instance exited. The child’s executable was verified to be under this verification copy and terminated; unrelated processes were retained.
 
 Raw results: [package-comparison.json](package-comparison.json), [install-results.json](install-results.json), [channel-package-comparison.json](channel-package-comparison.json), [channel-install-results.json](channel-install-results.json). Each row includes the exact target/paths/hashes or PID. VM files remain under `~/duo-verify/electron-blockmap-20261115` and `~/Applications/DuoBlockmap`.
+
+## Storage UI
+
+The unsigned Release app was launched in the VM with a separate `DUO_STATE_DIR`.
+A copy of the successful FlyEnv baseline seeded this GUI cache. The Storage page
+showed **165.8 MB** for “Update archive cache”, including the 2 GB explanation.
+Clicking “Clear Caches” changed the row to **0 bytes** and disabled the button;
+the cache directory was empty. The original FlyEnv experiment baseline remained
+present. The verification app was stopped and shared resource leases released.
+
+[Before](storage-before.png) · [After](storage-after.png) · [Filesystem receipt](storage-clear.json).
+
+## Local validation
+
+- Core: 7,518 tests across 670 suites passed; the existing schema-drift known
+  issue remains marked as known by the repository.
+- CLI: 730 tests across 84 suites passed; all application-test harnesses built.
+- App: 365 of 365 cases executed and passed on the final rerun. Earlier runs
+  hit the pre-existing download-resume timeout and unlinked-process-identity
+  tests; neither production path was changed by this work. The final rerun
+  passed both. Localization: 1,428 catalog keys reachable.
+- `make test-scripts` passed. `make test`'s Core/CLI and script components passed;
+  the App component was rerun separately after the transient failures above.
+- App and CLI unsigned Release builds passed. The two new strings use existing
+  shipped languages; an initially added unsupported Korean entry was removed.
 
 ## Safety and coverage limits
 
@@ -79,6 +105,34 @@ Raw results: [package-comparison.json](package-comparison.json), [install-result
 - Unsupported/malformed maps, missing or changed baseline, invalid range responses and target-hash mismatch fall back to the full route; failed bytes count. Live-transfer cancellation escapes without full fallback. Offline loopback tests exercise these states.
 - Cache budget, allocation overhead, claimed-reader preservation, orphan cleanup and symlink rejection are covered by Core tests. The disposable cache is exposed in Storage settings/CLI and reclaimed before backups for disk space.
 - Startup survival is not an assertion that every app feature, service, permission prompt, login or user-data migration was tested. The tested host is macOS 27.2; no macOS 15 claim is made beyond the project’s normal build/deployment checks.
+
+## Nightly byte coverage
+
+A Release CLI built from this rebased checkout ran `verify-install --full` with
+all 30 migrated product IDs, private copies of the committed identity/baseline
+stores, and a matching source stamp. No stale-binary override was used. These
+Vendor/GitHub entries are enumerated by the existing registries; no duplicate
+generic audited-feed entry was added.
+
+The actual set is exactly the [35 expected installable recipe IDs](nightly-expected-ids.json):
+**7,038,088,600 bytes** inspected, **33 ok, 2 expected architecture warnings,
+0 failed, 0 unresolved, 0 skipped**. [Original report](nightly-install.json).
+The two warnings are Signal stable/Beta changing universal DMG to ARM64 ZIP;
+bundle id, signed id and Team remain unchanged. VM package comparison and
+production install/startup evidence above justify this deliberate route choice.
+The original warning report is preserved; the global identity-drift guard and
+baseline counters are not weakened or reset. Signal continuity verification
+against the explicitly accepted architecture passed **2 ok, 0 warnings**
+([continuity report](nightly-signal-accepted.json)). The committed identity-store
+change preserves every key, first-seen field, signing/feed anchor and store
+metadata; only the 35 observed entries receive current URL/time stamps, plus
+those two explicit architecture changes. `verify/install-baseline.json` is
+unchanged. [Acceptance checks](nightly-identity-acceptance.json).
+
+Each affected audit now names its exact monitor IDs and results. Existing
+only-detection beta rules remain `duo verify` targets and are not represented as
+successful archive inspections. CLI inventory tests ran with the full 730-test
+CLI suite.
 
 ## Reproduction
 

@@ -86,3 +86,13 @@ macOS 版本。
 整包发布校验值存在时才会尝试 blockmap；旧 GitHub 发布缺少 digest 时仍走全量 ZIP 与原有签名检查。
 
 本次包、逐项结果与限制见 [集中验证记录](../../verify/electron-blockmap-20261115/README.md)。这些是一次验证的结果，不代表应用所有版本或功能均已测试。
+
+## 夜扫覆盖
+
+2026-11-15 ZIP 容器验收。
+
+Vendor/GitHub registry 由 `duo verify-install` 自动枚举，本次没有向通用 feed inventory 重复添加条目。实际下载并读取以下精确 recipe ID：
+
+- `github:BlueBubblesApp/bluebubbles-server:stable`：1.9.12，ZIP，296,262,790 bytes，身份匹配、读取检查通过。
+
+命令、35 个目标的集合核对与原始结果见[集中夜扫记录](../../verify/electron-blockmap-20261115/README.md)。旧副本/edition 的闸与原有缺口保持原文范围，本次只改变上述安装容器。

@@ -33,10 +33,22 @@
             "value": "更新アーカイブのキャッシュ"
           }
         },
-        "ko": {
+        "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "업데이트 아카이브 캐시"
+            "value": "Cache de arquivos de atualização"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Кэш архивов обновлений"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Güncelleme arşivi önbelleği"
           }
         },
         "zh-Hans": {
@@ -85,10 +97,22 @@
             "value": "今後の更新を小さくするため元のZIPを保持します。最大2 GBで、容量が必要な場合は優先して削除します。"
           }
         },
-        "ko": {
+        "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "향후 업데이트 다운로드를 줄이기 위해 원본 ZIP을 보관합니다. 최대 2 GB이며 공간이 필요하면 먼저 삭제합니다."
+            "value": "Arquivos ZIP originais guardados para reduzir futuras atualizações. Até 2 GB; removidos primeiro quando é preciso espaço."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Исходные ZIP-архивы для уменьшения будущих обновлений. До 2 ГБ; удаляются первыми при нехватке места."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sonraki güncellemeleri küçültmek için saklanan özgün ZIP dosyaları. En fazla 2 GB; alan gerektiğinde önce bunlar temizlenir."
           }
         },
         "zh-Hans": {
@@ -104,8 +128,7 @@
           }
         }
       }
-    }
-,
+    },
     "Xcode downloads use your Apple Developer account and require a manual update action.": {
       "localizations": {
         "de": {

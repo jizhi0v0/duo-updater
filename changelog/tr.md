@@ -2,6 +2,30 @@
 
 Bu, `CHANGELOG.md` dosyasının Türkçe çevirisidir. Geçerli olan İngilizce sürümdür; burada yer almayan eski sürümler otomatik olarak İngilizce gösterilir.
 
+## 0.5.24
+
+**Otomatik güncellemeler artık tüm sürümlerde isteğe bağlı bir Beta özelliği olarak kullanılabilir.** Varsayılan olarak kapalıdır; Ayarlar → Otomatik Güncellemeler bölümünden açabilir ve gerekirse Events bölümündeki kimlik bilgileri çıkarılmış raporu kullanarak GitHub’da geri bildirim paylaşabilirsiniz.
+
+**Her uygulamanın otomatik güncelleme biçimini seçin.** Yalnızca kapalı uygulamaları güncelleyin, seçtiğiniz çalışan uygulamaların kullanım sırasında bile kapanıp yeniden açılmasına izin verin veya bir uygulamayı hariç tutun; indirme ve doğrulama uygulama kapanmadan tamamlanır.
+
+**Otomatik güncellemeler yedekleme ayarınıza uyar ve geçici indirme hatalarından sonra yeniden dener.** Yedekleme açıksa güncellemeden önce uygulamanın tam yedeği gerekir; uygulama verileri yedeklenmez.
+
+**Uygulamalar güncelleme kaynağına göre gruplandırılır.** Kenar çubuğundaki grup başlıkları yerlerini korur ve Tümünü Göster kapatıldığında bekleyen uygulamalar yeniden görünür.
+
+**Desteklenen PKG güncellemeleri onaylı yardımcı aracılığıyla doğrudan kurulabilir.** Uygun uygulamalar otomatik olarak da güncellenebilir; diğer paketler macOS Yükleyici’yi açmaya devam eder.
+
+**Homebrew tarafından yönetilen uygulamalar Homebrew’u tercih eder; güncelleme yoksa diğer kaynakları denetlemeyi seçebilirsiniz.** Alt klasörlerdeki ve paket makbuzlarıyla kurulan uygulamalar daha güvenilir eşleştirilir; kayıtlı konumunda bulunmayan uygulamalar yükseltmelerde atlanır.
+
+**Geri yüklenebilir yedekleri ve otomatik güncelleme etkinliğini incelemek kolaylaştı.** Yedekler korunan geri yükleme noktaları ile eksik dosyaları ayırır; Events yinelenen ertelemeleri birleştirir, sonuçları filtrelemenizi ve paylaşmadan önce tanı bilgilerini incelemenizi sağlar.
+
+**TestFlight iPhone ve iPad betaları için güncelleme sunulmadan önce Mac uyumluluğu denetlenir.** Uyumsuz derlemelerde uyarı gösterilir; uyumluluğu doğrulanamayan derlemelerin durumu bilinmiyor olarak kalır.
+
+**TextMate, VimR, Maestro, muCommander ve Shotcut artık güncelleme denetimi, tek tıkla güncelleme ve sürüm notları sunuyor.** Desteklenen beta, snapshot ve sürüm adayı kanalları uygulamanın kanal seçimini veya kurulu sürümü izler.
+
+**Daha fazla uygulama doğru güncellemeleri ve sürüm notlarını yeniden buluyor.** Düzeltmeler QQ Music, WeChat, AdGuard, Blender, Msty Studio, Cork, Herdr ve Inkscape’i kapsıyor; Kuvo Box ile Kuvo Code güncellemeleri ayrı tutuluyor.
+
+**Daha fazla komut satırı aracı yapılandırılmış sürüm notları gösteriyor.** Azure CLI ve Codex, daha fazla Homebrew paketi, mise tarafından yönetilen Node ve rbenv tarafından yönetilen Ruby desteği eklendi.
+
 ## 0.5.24-beta.9
 
 **Desteklenen PKG güncellemeleri, onaylanmış yardımcıyla doğrudan yüklenebilir.** Uygun uygulamalar otomatik olarak da güncellenebilir; yardımcıyı kullanamayan paketler macOS Yükleyici’de açılmaya devam eder.

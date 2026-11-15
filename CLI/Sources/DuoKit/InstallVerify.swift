@@ -306,7 +306,7 @@ public enum InstallVerify {
             store.prune(keeping: liveRecipeIDs())
             stampFullPass(&store, incremental: incremental, only: options.only, at: now)
             do { try store.save(to: path) } catch {
-                die("could not write \(path.path): \(error.localizedDescription)", code: 1)
+                die("could not write \(path.path): \(error.localizedDescription)", code: 2)
             }
         }
         if options.baselinePath != nil || options.findingsPath != nil {
@@ -319,7 +319,7 @@ public enum InstallVerify {
                 if let path = options.baselinePath { try baseline.save(to: path) }
                 if let path = options.findingsPath { try DuoKit.Report.json(findings, to: path) }
             } catch {
-                die("could not write the baseline or findings: \(error.localizedDescription)", code: 1)
+                die("could not write the baseline or findings: \(error.localizedDescription)", code: 2)
             }
         }
         let report = Report(
@@ -335,12 +335,12 @@ public enum InstallVerify {
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
             encoder.dateEncodingStrategy = .iso8601
             do { try encoder.encode(report).write(to: path) } catch {
-                die("could not write \(path.path): \(error.localizedDescription)", code: 1)
+                die("could not write \(path.path): \(error.localizedDescription)", code: 2)
             }
         }
         if let path = options.markdownPath {
             do { try markdown(report).write(to: path, atomically: true, encoding: .utf8) } catch {
-                die("could not write \(path.path): \(error.localizedDescription)", code: 1)
+                die("could not write \(path.path): \(error.localizedDescription)", code: 2)
             }
         }
         return items.contains { $0.status == .failed || $0.status == .warn } ? 1 : 0

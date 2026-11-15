@@ -7,14 +7,12 @@
       "sweepsSinceComment" : 0
     },
     "install:github:AppFlowy-IO\/AppFlowy:stable" : {
-      "consecutiveActionable" : 33,
+      "closedAt" : "2026-11-14T21:45:39Z",
+      "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 1812,
-      "lastCommentedAt" : "2026-11-10T22:39:32Z",
-      "lastSignature" : "identityChanged: Sparkle key none → Bs++",
-      "previousSignature" : "identityChanged: Sparkle key none → Bs++",
-      "sweepsSinceComment" : 11
+      "sweepsSinceComment" : 0
     },
     "install:github:AprilNEA\/OpenLogi:stable" : {
       "closedAt" : "2026-10-19T11:23:39Z",
@@ -103,14 +101,12 @@
       "sweepsSinceComment" : 0
     },
     "install:github:MaddTheSane\/Simple-Comic:stable" : {
-      "consecutiveActionable" : 9,
+      "closedAt" : "2026-11-14T21:45:40Z",
+      "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 1972,
-      "lastCommentedAt" : "2026-11-12T04:21:45Z",
-      "lastSignature" : "identityChanged: Sparkle key none → 2S+y",
-      "previousSignature" : "identityChanged: Sparkle key none → 2S+y",
-      "sweepsSinceComment" : 7
+      "sweepsSinceComment" : 0
     },
     "install:github:MarcoEidinger\/SwiftPlantUML-Xcode-Extension:stable" : {
       "consecutiveActionable" : 0,
@@ -1083,14 +1079,12 @@
       "sweepsSinceComment" : 0
     },
     "install:github:schuyler\/macdown3000:stable" : {
-      "consecutiveActionable" : 34,
+      "closedAt" : "2026-11-14T21:45:40Z",
+      "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 1799,
-      "lastCommentedAt" : "2026-11-10T14:12:17Z",
-      "lastSignature" : "identityChanged: Sparkle key none → dYc+",
-      "previousSignature" : "identityChanged: Sparkle key none → dYc+",
-      "sweepsSinceComment" : 12
+      "sweepsSinceComment" : 0
     },
     "install:github:sheprd-labs\/sheprd:stable" : {
       "consecutiveActionable" : 0,
@@ -2430,5 +2424,5 @@
     }
   },
   "schemaVersion" : 1,
-  "updatedAt" : "2026-11-14T12:36:35Z"
+  "updatedAt" : "2026-11-15T03:08:32Z"
 }

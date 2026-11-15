@@ -374,15 +374,21 @@ enum SelfSignedCodeSigner {
     /// as `identifier` with `team` in the CodeDirectory.
     @discardableResult
     static func makeSignedApp(
-        at url: URL, identifier: String, build: String = "2", team: String, with identity: Identity
+        at url: URL, identifier: String, build: String = "2", team: String, with identity: Identity,
+        designatedRequirement: String? = nil
     ) async throws -> URL {
         try await DigestOnlyInstallTests.makeApp(
             at: url, bundleID: identifier, build: build, signing: .unsigned)
-        try await sign(url, identifier: identifier, team: team, with: identity)
+        try await sign(
+            url, identifier: identifier, team: team, with: identity,
+            designatedRequirement: designatedRequirement)
         return url
     }
 
-    static func sign(_ app: URL, identifier: String, team: String, with identity: Identity) async throws {
+    static func sign(
+        _ app: URL, identifier: String, team: String, with identity: Identity,
+        designatedRequirement: String? = nil
+    ) async throws {
         try await offCooperativePool {
             typealias Create = @convention(c) (
                 CFDictionary, UInt32, UnsafeMutablePointer<Unmanaged<AnyObject>?>) -> OSStatus
@@ -396,11 +402,15 @@ enum SelfSignedCodeSigner {
                 guard let symbol = dlsym(security, name) else { throw Failure(description: "\(name) missing") }
                 return symbol.assumingMemoryBound(to: CFString.self).pointee
             }
-            let parameters: [CFString: Any] = [
+            var parameters: [CFString: Any] = [
                 try key("kSecCodeSignerIdentity"): identity.ref,
                 try key("kSecCodeSignerIdentifier"): identifier,
                 try key("kSecCodeSignerTeamIdentifier"): team,
             ]
+            if let designatedRequirement {
+                parameters[try key("kSecCodeSignerRequirements")] =
+                    "designated => \(designatedRequirement)" as CFString
+            }
             var signer: Unmanaged<AnyObject>?
             let made = unsafeBitCast(createSymbol, to: Create.self)(parameters as CFDictionary, 0, &signer)
             guard made == errSecSuccess, let signer = signer?.takeRetainedValue() else {

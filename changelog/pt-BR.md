@@ -2,6 +2,18 @@
 
 Esta é a tradução para o português do Brasil do arquivo CHANGELOG.md. A versão em inglês prevalece em caso de divergência. Os números de versão que não aparecem aqui são mostrados automaticamente em inglês na janela Novidades.
 
+## 0.5.25-beta.1
+
+**Apps Electron compatíveis podem baixar apenas as partes que mudaram.** Quando há um download reutilizável disponível, as atualizações consomem menos dados; caso contrário, baixam o pacote completo.
+
+**Gerencie downloads de atualizações reutilizáveis nos ajustes de armazenamento.** Downloads diferenciais concluídos também exibem o selo Delta em Downloads.
+
+**O Leaf agora oferece verificação de atualizações de linha de comando, atualizações verificadas com um clique e notas de versão estruturadas.**
+
+**O T3 Code Beta e a versão NSH do Disktree agora oferecem verificação de atualizações e instalação com um clique.** Cada um acompanha suas próprias versões.
+
+**O Douchat pode ser atualizado após a mudança da equipe de assinatura do desenvolvedor.** As atualizações precisam atender à autorização já assinada no app instalado.
+
 ## 0.5.24
 
 **As atualizações automáticas agora estão disponíveis como Beta opcional em todas as versões.** Elas continuam desativadas por padrão; ative-as em Ajustes → Atualizações automáticas e envie comentários no GitHub, usando o relatório de Events sem dados de identificação se for útil.

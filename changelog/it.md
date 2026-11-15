@@ -2,6 +2,18 @@
 
 Questa è la traduzione di `CHANGELOG.md`. In caso di differenze fa fede la versione inglese. Le versioni non elencate qui vengono mostrate automaticamente in inglese.
 
+## 0.5.25-beta.1
+
+**Le app Electron supportate possono scaricare solo le parti modificate.** Se è disponibile un download riutilizzabile, gli aggiornamenti consumano meno dati; altrimenti scaricano il pacchetto completo.
+
+**Gestisci i download degli aggiornamenti riutilizzabili nelle impostazioni di archiviazione.** I download differenziali riusciti mostrano anche il badge Delta in Download.
+
+**Leaf ora offre controlli degli aggiornamenti da riga di comando, aggiornamenti verificati con un clic e note di rilascio strutturate.**
+
+**T3 Code Beta e la versione NSH di Disktree ora supportano i controlli degli aggiornamenti e l’installazione con un clic.** Ognuno segue i propri rilasci.
+
+**Douchat può aggiornarsi anche dopo il cambio del team di firma dello sviluppatore.** Gli aggiornamenti devono soddisfare l’autorizzazione già firmata nell’app installata.
+
 ## 0.5.24
 
 **Gli aggiornamenti automatici sono ora disponibili come Beta facoltativa in tutte le versioni.** Restano disattivati per impostazione predefinita; attivali in Impostazioni → Aggiornamenti automatici e condividi i tuoi commenti su GitHub, allegando se utile il rapporto di Events privo di dati identificativi.

@@ -23,6 +23,7 @@ supersededFeeds = Dictionary(count: 1)
 supersededFeeds["run.kuvo.app"] = struct SparkleFeedCatalog.SupersededFeed
 supersededFeeds["run.kuvo.app"].declared = URL("https://github.com/serhatandic/kuvo/releases/latest/download/appcast.xml")
 supersededFeeds["run.kuvo.app"].live = URL("https://github.com/serhatandic/box/releases/latest/download/appcast.xml")
+supersededFeeds["run.kuvo.app"].justification = .declaredFeedServesDifferentProduct
 
 loginWalls = Dictionary(count: 0)
 

@@ -2,7 +2,7 @@ import Foundation
 
 /// Sparkle feed addresses the bundle's own `Info.plist` does not give us: the
 /// app keeps the address in code (``feeds``), or it states one the vendor has
-/// stopped publishing to (``supersededFeeds``).
+/// stopped publishing that app's feed to (``supersededFeeds``).
 ///
 /// `AppScanner` learns an app's feed from one key, `SUFeedURL`. An app that sets
 /// it up programmatically (`SPUUpdaterDelegate.feedURLString`, or a
@@ -37,30 +37,53 @@ import Foundation
 /// question about where its updater happens to be packaged.
 ///
 /// ``supersededFeeds`` is the second, narrower gap: a bundle that *does* state an
-/// address, at a feed the vendor has abandoned. Everything above says a stated
-/// address is the app speaking for itself and must be honoured — that still
-/// holds, which is why replacing one is not a lookup by bundle id but a match
-/// against the exact dead address, recorded here beside its replacement. The
-/// moment the vendor edits `SUFeedURL` to anything else, the match fails and the
-/// bundle's own word wins again.
+/// address, but the vendor no longer publishes that app's feed there. The old
+/// address may now be stale or serve a different product. Everything above says
+/// a stated address is the app speaking for itself and must be honoured — that
+/// still holds, which is why replacing one is not a lookup by bundle id but a
+/// match against the exact declared address, recorded here beside its replacement.
+/// The moment the vendor edits `SUFeedURL` to anything else, the match fails and
+/// the bundle's own word wins again.
 public enum SparkleFeedCatalog {
+    /// Why a superseded-feed override is still justified. Most entries redirect
+    /// from a feed that serves an older version; a small number redirect away
+    /// from an address that now serves a different product, whose version
+    /// sequence cannot be compared with the intended app's.
+    public enum SupersessionJustification: String, Codable, CaseIterable, Sendable, Equatable {
+        case versionLag
+        case declaredFeedServesDifferentProduct
+    }
+
     /// bundleID (lowercased) → appcast. Lowercase keys only; `feed(forBundleID:)`
     /// lowercases its argument, so a key with a capital is unreachable — the same
     /// trap `ChangelogCatalog` shipped once and now guards against.
     static let feeds: [String: URL] =
         AppRecipeIndex.merged(\.sparkleFeeds, into: "SparkleFeedCatalog.feeds")
 
-    /// A feed the bundle still declares, paired with the one its vendor actually
-    /// ships from. Both halves are load-bearing: `declared` is the match key, not
-    /// documentation.
+    /// A feed the bundle still declares, paired with the one the vendor publishes
+    /// for that app. Both addresses and the justification are load-bearing:
+    /// `declared` is the match key, while the justification controls whether the
+    /// expiry check can compare versions.
     struct SupersededFeed: Sendable, Equatable {
         /// The `SUFeedURL` the bundle states verbatim today.
         let declared: URL
         /// The appcast the vendor's own updater reads instead.
         let live: URL
+        /// The evidence that makes replacing the declared feed appropriate.
+        /// Defaults to the historical rule: the live feed is newer.
+        let justification: SupersessionJustification
+
+        init(
+            declared: URL, live: URL,
+            justification: SupersessionJustification = .versionLag
+        ) {
+            self.declared = declared
+            self.live = live
+            self.justification = justification
+        }
     }
 
-    /// bundleID (lowercased) → the dead feed it declares and the live one to use.
+    /// bundleID (lowercased) → the declared feed being replaced and the live one to use.
     /// Same lowercase-key rule as `feeds`.
     static let supersededFeeds: [String: SupersededFeed] =
         AppRecipeIndex.merged(\.supersededFeeds, into: "SparkleFeedCatalog.supersededFeeds")
@@ -127,8 +150,8 @@ public enum SparkleFeedCatalog {
     /// The catalog is not a recipe registry — there is no pattern to re-derive
     /// and no version to parse out of a page. What it publishes is an ADDRESS,
     /// and the thing that rots is whether that address still answers with a
-    /// feed a default-channel install can use. So a case carries the address
-    /// and how we came to hand it out, and nothing else.
+    /// feed a default-channel install can use. A case carries the address and how
+    /// we came to hand it out; a superseded entry also carries its justification.
     public struct VerificationCase: Sendable, Equatable {
         public enum Kind: String, Sendable {
             /// From ``feeds``: an address the bundle never states.
@@ -144,14 +167,30 @@ public enum SparkleFeedCatalog {
         public let kind: Kind
         /// The address `AppScanner` would write onto the row.
         public let feed: URL
-        /// Superseded entries only: the dead address the entry matches on, and
-        /// whose being dead is the entry's whole justification. Nil for a
-        /// fill-in, which overrides nothing.
+        /// Superseded entries only: the declared address this entry replaces and
+        /// matches exactly. It may be stale or now serve a different product.
+        /// Nil for a fill-in, which overrides nothing.
         public let declared: URL?
+        /// Why this superseded entry is justified. Nil for a fill-in or channel
+        /// entry. Feed validation is still performed for every justification.
+        public let supersessionJustification: SupersessionJustification?
         /// Channel entries only: the resolution that hands `feed` out, so the
         /// sweep reads the feed as the bound install reads it (`AppScanner`
         /// makes that channel authoritative). Nil for this table's own entries.
         public var resolution: ResolvedChannel? = nil
+
+        init(
+            bundleID: String, kind: Kind, feed: URL, declared: URL?,
+            supersessionJustification: SupersessionJustification? = nil,
+            resolution: ResolvedChannel? = nil
+        ) {
+            self.bundleID = bundleID
+            self.kind = kind
+            self.feed = feed
+            self.declared = declared
+            self.supersessionJustification = supersessionJustification
+            self.resolution = resolution
+        }
 
         /// Stable sweep key, same shape as every other registry's, so the
         /// baseline and the issue history key on it the same way.
@@ -177,7 +216,8 @@ public enum SparkleFeedCatalog {
         }
         let superseded = supersededFeeds.map {
             VerificationCase(bundleID: $0.key, kind: .superseded,
-                             feed: $0.value.live, declared: $0.value.declared)
+                             feed: $0.value.live, declared: $0.value.declared,
+                             supersessionJustification: $0.value.justification)
         }
         return (fillIns + superseded).sorted { $0.recipeID < $1.recipeID }
     }

@@ -12,7 +12,8 @@ enum run_kuvo_app {
             // absolute release URLs move to the new repository with it.
             "run.kuvo.app": SparkleFeedCatalog.SupersededFeed(
                 declared: URL(string: "https://github.com/serhatandic/kuvo/releases/latest/download/appcast.xml")!,
-                live: URL(string: "https://github.com/serhatandic/box/releases/latest/download/appcast.xml")!),
+                live: URL(string: "https://github.com/serhatandic/box/releases/latest/download/appcast.xml")!,
+                justification: .declaredFeedServesDifferentProduct),
         ],
         changelogPages: [
             "run.kuvo.app": URL(string: "https://github.com/serhatandic/box/releases")!,

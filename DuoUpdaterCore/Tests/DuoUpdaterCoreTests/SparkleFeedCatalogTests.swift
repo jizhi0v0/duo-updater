@@ -313,6 +313,7 @@ struct SparkleFeedCatalogTests {
             // entry is only justified while that address stays behind.
             #expect(entry?.feed == superseded.live)
             #expect(entry?.declared == superseded.declared)
+            #expect(entry?.supersessionJustification == superseded.justification)
         }
     }
 }

@@ -2,6 +2,18 @@
 
 Dies ist eine deutsche Übersetzung von `CHANGELOG.md`. Die englische Fassung ist maßgeblich; frühere Versionen, die hier nicht aufgeführt sind, fallen automatisch auf Englisch zurück.
 
+## 0.5.25-beta.1
+
+**Unterstützte Electron-Apps können nur die geänderten Teile herunterladen.** Ist ein wiederverwendbarer Download verfügbar, benötigen Updates weniger Daten; andernfalls wird das vollständige Paket geladen.
+
+**Wiederverwendbare Update-Downloads lassen sich in den Speichereinstellungen verwalten.** Erfolgreiche Differenzdownloads tragen unter Downloads außerdem das Delta-Abzeichen.
+
+**Leaf bietet jetzt Update-Prüfungen für die Kommandozeile, verifizierte Ein-Klick-Updates und strukturierte Versionshinweise.**
+
+**T3 Code Beta und die NSH-Version von Disktree unterstützen jetzt Update-Prüfungen und Ein-Klick-Updates.** Beide folgen ihren eigenen Veröffentlichungen.
+
+**Douchat kann über den Wechsel des Signaturteams seines Entwicklers hinweg aktualisiert werden.** Updates müssen die bereits in der installierten App signierte Autorisierung erfüllen.
+
 ## 0.5.24
 
 **Automatische Updates sind jetzt in jeder Version als freiwillige Beta verfügbar.** Sie bleiben standardmäßig ausgeschaltet; aktiviere sie unter Einstellungen → Automatische Updates und teile Feedback auf GitHub, bei Bedarf mit dem bereinigten Bericht aus Events.

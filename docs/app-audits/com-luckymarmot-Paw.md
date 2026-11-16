@@ -38,7 +38,7 @@
 
 ## 一键安装
 
-本次待整批 VM 验证完成后记录旧版→新版替换、运行中退出/重开、数据保留及签名结果。
+在 macOS 27.2 Apple Silicon VM 完成 4.5.4→4.5.5 的停用及运行中两轮安装，均经过 EdDSA、代码签名、同 Team 检查。运行中换包保留旧进程，随后显式 `duo restart` 切换新版；复查为最新，严格签名、公证及合成偏好保留通过。未测试账户、云数据或完整 API 请求功能，且厂商不支持 macOS 27+ 的限制仍适用。
 
 ## 历史与实测
 
@@ -55,4 +55,4 @@
 
 安装字节监控对应 `install:` 前缀。另有 `feed:com.luckymarmot.paw` 监控 feed catalog；`changelog:com.luckymarmot.Paw:-` 监控 archive recipe。旧组在 `unavailablePublicKeys` 明确记录无 Ed key；它仍参与包身份读取，不冒充 EdDSA 验签成功。
 
-整批 CLI 的精确集合、实际下载和实时解析结果将在本次实现的验收记录中补充。没有替换既有 identities/baseline，也没有添加签名失败豁免。
+两组安装字节各读取 41,670,777 bytes，均为 ok，无 skip/unresolved；最终 feed 和 archive 解析也为 ok，最近 40 条结构化日志保留 Fixes 标题。精确集合和实际命令见[集中验收](../../verify/awesome-four-20261116/README.md)。没有替换既有 identities/baseline，也没有添加签名失败豁免。

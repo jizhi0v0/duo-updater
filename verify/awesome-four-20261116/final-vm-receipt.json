@@ -1,0 +1,84 @@
+{
+  "observedDate": "2026-11-16",
+  "sourceCommit": "c87031be7723be261516ffdc73d16ff7545a0746",
+  "groups": [
+    {
+      "group": "paw",
+      "bundleID": "com.luckymarmot.Paw",
+      "plistShortVersion": "4.5.5",
+      "buildVersion": "4005005001",
+      "productVersion": "4.5.5",
+      "teamID": "84599RL58A",
+      "strictSignaturePassed": true,
+      "gatekeeperNotarized": true
+    },
+    {
+      "group": "electerm",
+      "bundleID": "org.electerm.electerm",
+      "plistShortVersion": "5.11.8",
+      "buildVersion": "5.11.8.1",
+      "productVersion": "5.11.8",
+      "teamID": "38ZYC7L6N5",
+      "strictSignaturePassed": true,
+      "gatekeeperNotarized": true
+    },
+    {
+      "group": "suspicious",
+      "bundleID": "com.mothersruin.SuspiciousPackageApp",
+      "plistShortVersion": "4.8",
+      "buildVersion": "1457",
+      "productVersion": "4.8",
+      "teamID": "936EB786NH",
+      "strictSignaturePassed": true,
+      "gatekeeperNotarized": true
+    },
+    {
+      "group": "mattermost-stable",
+      "bundleID": "Mattermost.Desktop",
+      "plistShortVersion": "6.4.0",
+      "buildVersion": "438145774761",
+      "productVersion": "6.4.0",
+      "teamID": "UQ8HT4Q2XM",
+      "strictSignaturePassed": true,
+      "gatekeeperNotarized": true
+    },
+    {
+      "group": "mattermost-migrated",
+      "bundleID": "Mattermost.Desktop",
+      "plistShortVersion": "6.4.0",
+      "buildVersion": "438145774761",
+      "productVersion": "6.4.0",
+      "teamID": "UQ8HT4Q2XM",
+      "strictSignaturePassed": true,
+      "gatekeeperNotarized": true
+    },
+    {
+      "group": "mattermost-rc",
+      "bundleID": "Mattermost.Desktop",
+      "plistShortVersion": "6.2.5",
+      "buildVersion": "410455984891",
+      "productVersion": "6.2.5-rc.5",
+      "teamID": "UQ8HT4Q2XM",
+      "strictSignaturePassed": true,
+      "gatekeeperNotarized": true
+    },
+    {
+      "group": "mattermost-nightly",
+      "bundleID": "Mattermost.Desktop",
+      "plistShortVersion": "6.5.0",
+      "buildVersion": "438026459481",
+      "productVersion": "6.5.0-nightly.20261116",
+      "teamID": "UQ8HT4Q2XM",
+      "strictSignaturePassed": true,
+      "gatekeeperNotarized": true
+    }
+  ],
+  "syntheticPreferencesPreserved": {
+    "com.luckymarmot.Paw": true,
+    "org.electerm.electerm": true,
+    "com.mothersruin.SuspiciousPackageApp": true
+  },
+  "mattermostSyntheticDataFilePreserved": true,
+  "journalDirectoryObserved": true,
+  "remainingScopedJournalEntries": []
+}

@@ -17,7 +17,7 @@
 |---|---|---|---|---|---|
 | stable | — | —（auto_updates） | — | ✓ | — |
 
-复用 `GitHubReleaseRule` 提供版本、安装资产和 release 正文，不添加 vendor/changelog recipe。生产 `channel-verify` 和安装端到端结果尚待本批集成验证，本子任务没有据此声称安装已实测。
+复用 `GitHubReleaseRule` 提供版本、安装资产和 release 正文，不添加 vendor/changelog recipe。真实旧版/新版的生产检测和结构化 pane 均已核对；5.10.0→5.11.8 在 macOS 27.2 Apple Silicon VM 完成停用及运行中两轮一键安装，见[集中验收](../../verify/awesome-four-20261116/README.md)。
 
 ## 覆盖清单与渠道
 
@@ -38,7 +38,7 @@
 
 当前 tag 的 `src/client/common/update-check.js` 读取 `${homepage}/version.html` 和 `${homepage}/data/electerm-github-release.json`，失败时回退到 Gitee 的 `gh-pages` 镜像。`src/build/bin/build-mac-arm.js` 将 `installSrc` 写为 `mac-arm64.dmg`。用户触发 `upgrade.jsx` 的 `doUpgrade` 后，`src/app/server/download-upgrade.js` 下载匹配的完整资产到 `os.tmpdir()`，完成后只 `openFile` 并在 Finder 显示 DMG，没有退出时换包步骤。
 
-它可以留下临时 DMG，但没有 Squirrel / electron-updater 的 pending queue 或退出安装任务；`SelfUpdaterStash` 不读取这种临时下载。本次未启动应用或触发其下载，只确认源码能力，没有测量实际停放文件。
+它可以留下临时 DMG，但没有 Squirrel / electron-updater 的 pending queue 或退出安装任务；`SelfUpdaterStash` 不读取这种临时下载。本次 VM 启动了旧版并运行 Duo 更新，但未主动触发厂商下载按钮，没有测量其手工下载留下的临时文件。
 
 ## 增量更新（delta / binary patch）
 
@@ -48,11 +48,11 @@
 
 - 来源: GitHub release 正文，经现有 `GitHubMarkdownParser` 结构化，无额外 recipe。
 - 当前正文为双语多个小标题；离线真响应节选测试验证 `Major updates`、`New features/UI/Updates`、`Bug fixes`、`重大更新` 和对应条目的顺序。
-- 生产 `channel-verify` 的 `changelog pane` 行尚待集成验证补充；离线解析不充当生产端到端证据。
+- 生产 `channel-verify` 的 `changelog pane` 已返回结构化 release 正文，保留上述双语标题，旧版显示更新、新版显示最新；原始关键行见集中验收。
 
 ## 一键安装
 
-- 已接入 Developer ID DMG 路线，沿用签名、bundle ID、Team ID 闸。本子任务未执行 old→new 安装；集成验证应覆盖 5.10.0 → 5.11.8 后再记录结论。
+- 已接入 Developer ID DMG 路线，沿用签名、bundle ID、Team ID 闸。5.10.0→5.11.8 已完成停用、运行中两轮真实安装。运行中换包保留旧进程，随后显式 `duo restart` 切换新进程，复查为最新；合成偏好保留，替换后严格签名和公证检查通过。
 - 当前和上一版 Team 相同、严格签名校验及公证通过，具体结果见下。
 - Bundle 只有 `Contents/Frameworks/electerm Helper{, (GPU), (Plugin), (Renderer)}.app` 四个普通 Electron helper；未发现 `Library/LoginItems`、LaunchAgent、LaunchDaemon、SystemExtension 或外部 XPC 组件，无需单独 restart hook。
 - 当前 DMG 字节与 GitHub SHA-256 相符，`GitHubReleasesSource` 自动携带 digest，安装器在解包前校验。
@@ -63,12 +63,12 @@
 - `Verify.swift` 自动枚举 `GitHubReleaseRegistry.rules`，recipe ID 为 `github:electerm/electerm:stable`。
 - `InstallVerify.swift` 枚举具有 `installAssetPattern` 的同一规则，archive 检查 recipe ID 同上，finding ID 为 `install:github:electerm/electerm:stable`，覆盖 stable arm64 DMG。无需在 `AuditedUpdateFeeds` 重复登记。
 - 历史 0.x / 1.x / Intel 副本读取同一个当前 stable，无独立旧版 feed 或密钥。
-- 子任务已接入自动枚举配置，尚未运行生产 CLI live verifier。集成验证须检查 `duo verify --only electerm`、`duo verify-install --only electerm` 的非空命中、状态和真实资产身份；首次观测不代表已有 continuity anchor。
+- `duo verify --only electerm` 命中上述检测 ID；`duo verify-install --only electerm` 实际读取 123,930,165 bytes，`ok 1 / skipped 0 / unresolved 0`，ID/Team 符合。首观记录与精确 ID 集合见集中验收，未替换既有 continuity anchor。
 
 ## 已知问题
 
 - 早期 Intel app 在当前 macOS 的运行能力未验证；规则提供当前原生 arm64 整包。
-- old→new 安装、生产检测与 changelog pane、live nightly verifier 尚待集成验证。
+- 以上安装和启动测试不覆盖 SSH/SFTP 会话、插件及完整业务功能；未主动触发厂商自更新下载。
 
 ## 如何复验
 

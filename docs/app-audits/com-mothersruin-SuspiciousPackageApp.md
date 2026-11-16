@@ -11,7 +11,7 @@
 
 ## 覆盖矩阵
 
-> ✓ = 已接入；— = 不适用。一键已接线，旧→新实际安装证据尚待补齐，见下。
+> ✓ = 已接入；— = 不适用。旧→新安装、生产检测与结构化日志均已验收，见下。
 
 | Channel | Sparkle | Homebrew | MAS | GitHub | VendorProbe |
 |---------|---------|----------|-----|--------|-------------|
@@ -48,7 +48,7 @@
 
 ## 一键安装
 
-- 状态: **已接线；包身份已验证，4.7 → 4.8 的实际安装尚待验证。**
+- 状态: **4.7→4.8 已在 macOS 27.2 Apple Silicon VM 完成停用及运行中两轮实际安装。**
 - 使用现有 `.dmg` 路径，URL 为 `https://www.mothersruin.com/software/archives/SuspiciousPackage-{version}.dmg`，避免解析版本与固定 latest 下载内容不同步。
 - 4.8 DMG 为 8,089,083 bytes，根目录只有一个待安装的 `Suspicious Package.app`。4.7、4.8 的 app seal 校验通过，`spctl` 均为 Notarized Developer ID，Team 均为 `936EB786NH`；3.0、4.3.3 同 Team，严格 seal 校验也通过。
 - 当前 app 内含 `SuspiciousPackagePreviewExtension.appex`、`spkg` 和更新检查 XPC service。整包替换会一并交付这些内嵌组件；没有增加独立后台任务或安装脚本。
@@ -67,19 +67,19 @@ VendorProbe / Changelog registry 已被现有 verifier 自动枚举，不向 `Au
 - `changelog:com.mothersruin.SuspiciousPackageApp:-`：官方完整发布历史。
 - `install:vendor:com.mothersruin.SuspiciousPackageApp:stable`：通过配方的 `.dmg` URL 检查下载内容及身份。`verify-install` 的 `recipeID` 为不带 `install:` 前缀的 vendor ID。
 
-已完成的是官方原始响应与四个版本包的只读核对，以及配方注册。以下实际枚举检查尚待补跑，尚未创建或替换 identity/baseline，不把首次身份观察当作连续性验证：
+以下实际枚举检查均已命中：vendor 与 changelog 检查为 ok，安装字节读取 8,089,083 bytes、`ok 1 / skipped 0 / unresolved 0`。没有创建或替换既有 identity/baseline，首观不冒充连续性验证：
 
 ```sh
 duo verify --only com.mothersruin.SuspiciousPackageApp
 duo verify-install --only com.mothersruin.SuspiciousPackageApp --report /tmp/suspicious-package-install.json
 ```
 
-须使用从本次变更 checkout 构建的 CLI，并核对以上检测、changelog 和安装项目都被选中，且安装字节检查没有 OS skip 或 unresolved installer。历史 Preview 没有可枚举的独立现行公开轨，未声明该组的独立夜扫字节覆盖。
+使用本次变更 checkout 的 CLI 完成了上述检测、changelog 和安装字节检查，结果见[集中验收](../../verify/awesome-four-20261116/README.md)。历史 Preview 没有可枚举的独立现行公开轨，未声明该组的独立夜扫字节覆盖。
 
 ## 已知问题
 
 - 历史 4.5.1 Preview 只有已结束的公开页面证据，未取得真实 bundle。当前 `preview.html` 指向厂商的 stable 后继版本；标准 `SuspiciousPackage-4.5.1.dmg` 存档 URL 返回 404。没有可验证的独立 Preview 端点或包，故不伪造 Preview 配方或信号。若取得该旧 bundle，先验证 scanner 实际读出的渠道和它自己的更新目的地；确认为 `.preview` 时，现有 stable 渠道闸不会回答，需为该组单独决定后继映射。没有旧 bundle 证据时不把它标成已覆盖。
-- 对四个版本包的签名核对不等于完整旧→新安装。4.7 → 4.8 的替换、版本回读、替换后签名，以及运行中 / Quick Look 组件的实际行为须由实际安装轮次补齐。
+- 两轮换包、版本回读、严格签名、公证、显式重启及合成偏好保留均通过；没有覆盖 Finder Quick Look 的内容预览、`spkg` 的完整命令集合或任意第三方 PKG 分析。
 
 ## 如何复验
 
@@ -92,4 +92,6 @@ duo verify-install --only com.mothersruin.SuspiciousPackageApp --report /tmp/sus
 
 2026-11-16：读取官方版本 plist、下载页、FAQ 和 Release History；营销版本 `4.8`、build `1457`、最低 macOS `14.0` 一致。原始 history 正则匹配 37 个 release，4.8 / 4.7 / 4.6.2 的列表条目数为 7 / 8 / 2。
 
-同日只读检查官方 3.0、4.3.3、4.7、4.8 四个 DMG；bundle ID 均为 `com.mothersruin.SuspiciousPackageApp`，Team 均为 `936EB786NH`，严格 seal 校验均通过。3.0 的 `spctl` 为 Developer ID，其余三版为 Notarized Developer ID。只做挂载和身份检查，没有把它们当作已完成一键安装的证据。
+同日只读检查官方 3.0、4.3.3、4.7、4.8 四个 DMG；bundle ID 均为 `com.mothersruin.SuspiciousPackageApp`，Team 均为 `936EB786NH`，严格 seal 校验均通过。3.0 的 `spctl` 为 Developer ID，其余三版为 Notarized Developer ID。初次包核对只做挂载和身份检查；后续实际安装另见集中验收。
+
+同日集成验收：真实 4.7 显示 4.8、4.8 显示最新，生产 pane 返回 37 条结构化历史；4.2 内嵌列表后的 blockquote 说明也由回归 fixture 保留。运行中更新保留旧进程，随后 `duo restart` 切换为新版，签名与合成偏好复查通过。

@@ -53,6 +53,18 @@
 - 实包 6.3.2 / 6.4.0：`Mattermost.Desktop`，同 Team。迁移记录 `lastFromVersion: 4.1.0`、`firstToVersion: 6.3.2` 是已观察的包边界，未声称精确改名发生在 6.3.2。旧 ID 在该边界及以上不映射；签名迁移必须两侧 Team 相同。
 - 无签名的两个 `com.electron.*` ID 不能套 `BundleIDMigration` 的同 Team 假设，也不能以 GitHub digest-only 信任跨到不同 ID 的 Developer ID 包；保留检测和手动下载。
 
+## 一键安装实测
+
+2026-11-16，macOS 27.2 Apple Silicon VM，使用生产 CLI：
+
+- stable 6.3.2→6.4.0：停用、运行中两轮通过；显式 `duo restart` 后新进程和最新状态均确认。
+- 签名旧 ID 4.1.0→6.4.0：原地换包通过，结果 ID 为 `Mattermost.Desktop`，合成数据文件保留。没有保留可供恢复的长期备份，实际备份恢复未覆盖；迁移和恢复的 Team/版本边界另由既有单元测试约束。
+- RC 6.2.5-rc.4→rc.5：真实包原始 plist 均为 `6.2.5`，生产 scan/check 恢复完整 RC 版本、只读 RC feed；运行中一键安装和显式重启通过，仍为 `.rc`，结果为最新。
+- nightly 6.5.0-nightly.20261115→20261116：生产 scan/check 保留日期、只读 nightly feed；停用安装、启动新包、最新状态与合成数据文件保留通过。
+- 四个当前安装结果均通过严格代码签名与公证检查。没有登录服务器、迁移真实账户或验证全部业务功能。
+
+路径模式的 `channel-verify` 会手工读取原始 plist，并额外要求同 bundle 的 VendorProbe 回答；对混合来源的 stable 或被 coerce 的版本会产生辅助检查失败。因此这些轨道以已有 `--scan` / `--check` 生产模式与实际 `duo` 路径为准，stable 的结构化 pane 另核对其正文输出，不把辅助失败写成通过。
+
 ## 夜扫覆盖
 
 由现有 registry 自动枚举，不增加重复 generic feed：
@@ -68,7 +80,7 @@
 
 安装字节检查对应 `install:github:mattermost/desktop:stable` 、`install:vendor:Mattermost.Desktop:rc` 与 `install:vendor:Mattermost.Desktop:nightly`；签名旧 ID 映射复用 stable 监控。无签名旧 ID 的检测行没有 install spec，不能算安装字节检查通过。MAS 商店包及 0.1.0 扫描缺口不由上述 ZIP 行覆盖。
 
-本分支已运行 focused fixture/source-selection tests；现场 `duo verify --only mattermost`、`duo verify-install --only mattermost`、整体 `make test` 和旧到新安装验证由整合分支执行，未在此把它们写成通过。
+`duo verify --only mattermost` 实际命中 2 vendor、3 GitHub、3 changelog，共 8 项 ok；`duo verify-install --only mattermost` 实际读取 stable/RC/nightly 三个 ZIP，共 369,748,997 bytes，`ok 3 / skipped 0 / unresolved 0`。RC/nightly 的原始 plist 与完整产品版本不同被记为解释性 note，并未更换签名锚。结果见[集中验收](../../verify/awesome-four-20261116/README.md)。
 
 ## 历史与实测
 
@@ -78,7 +90,7 @@ RC 6.1.0-rc.4 ARM ZIP 为 113,761,398 bytes，`codesign --verify --deep --strict
 
 同日补查官方 RC feed，返回 `6.2.5-rc.5`。该版本 ARM ZIP 为 123,262,733 bytes，真实包 Team 为 `UQ8HT4Q2XM`，严格深度签名检查成功，Gatekeeper 为 `accepted / source=Notarized Developer ID`。两个观察 RC 的 asar `package.name` 都是 `mattermost-desktop`。plist 短版本与 asar 完整产品版本的区别如上；扫描与安装日志/重启复查共用完整版本读取，source fixture 使用恢复后的产品版本。
 
-同日下载公开 nightly feed 对应的 `6.5.0-nightly.20261116` ARM ZIP，123,243,637 bytes。`Mattermost.Desktop` 的 plist short/build 为 `6.5.0` / `438026459481`，asar `package.name` / `version` 为 `mattermost-desktop` / `6.5.0-nightly.20261116`；Team `UQ8HT4Q2XM`，严格深度签名检查成功，Gatekeeper 为 `accepted / source=Notarized Developer ID`。未安装或启动该包。
+同日下载公开 nightly feed 对应的 `6.5.0-nightly.20261116` ARM ZIP，123,243,637 bytes。`Mattermost.Desktop` 的 plist short/build 为 `6.5.0` / `438026459481`，asar `package.name` / `version` 为 `mattermost-desktop` / `6.5.0-nightly.20261116`；Team `UQ8HT4Q2XM`，严格深度签名检查成功，Gatekeeper 为 `accepted / source=Notarized Developer ID`。随后完成上述日期 nightly 的安装与启动验证。
 
 同日官方文档 Markdown 原文 regex 得到 72 个完整版本 entry；首项 6.4.0 有 29 个项目，6.3.2 有 1 个项目，6.3.1 有 6 个项目，6.3.0 的正文保持独立。离线 fixture 覆盖实体清理、代码/链接、类别/平台标题及补丁边界。RC source fixture 覆盖本地后缀识别、精确已装 tag 端点不可用、vendor RC feed 及安装 URL、stable `/latest` 不被访问。
 

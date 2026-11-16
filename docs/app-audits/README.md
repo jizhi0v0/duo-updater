@@ -145,6 +145,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 > installed-app inventory, so it stays local (`application-test/records/`,
 > gitignored) — per-app conclusions live in each app's audit instead.
 
+- [~] [**Suspicious Package**](com-mothersruin-SuspiciousPackageApp.md) · `com.mothersruin.SuspiciousPackageApp` — P+C（一键 DMG；包身份已核对，旧→新端到端待验证）· 2026-11-16
 - [x] **VS Code** · `com.microsoft.VSCode` — P C (one-click) · ✓ src=Vendor
 - [x] **Claude Desktop** · `com.anthropic.claudefordesktop` — P (one-click) · ✓ src=Vendor
 - [x] [**super.engineering**](com-zarifpour-superconductor.md) · `com.zarifpour.superconductor` — P C B (one-click) · ✓ src=Vendor · 版本是 commit hash，按 `changelog.json` 的发布顺序比较 · 审计 2026-09-11

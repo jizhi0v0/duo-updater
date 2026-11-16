@@ -559,6 +559,7 @@ VendorProbe，以及读哨兵文件的 `ChannelBinding`。详见 [审计](docs/a
 
 同 stable bundle id 会就地覆盖、或纯应用内/服务端 opt-in 无本地痕迹、或已停产。
 
+- ◐ **Suspicious Package — 历史 4.5.1 Preview** · [官方 4.6 历史](https://www.mothersruin.com/software/SuspiciousPackage/relnotes.html) 说明它随后成为 4.6；2026-11-16 实际请求 `preview.html` 已重定向到 stable `update.html`（4.8），没有独立活动 Preview 轨。旧 Preview 真包未取得，标准 4.5.1 存档 URL 返回 404，未宣称该组的渠道判断或一键已验证；明确 `.preview` 的副本仍由 stable 渠道闸拒绝。取得旧 bundle 后先确认其真实信号和更新目的地，不从历史网页推断包内标记或新增猜测的 feed。见 [审计](docs/app-audits/com-mothersruin-SuspiciousPackageApp.md)。
 - ✗ **Sublime Text — Dev** · 同 `com.sublimetext.4`，license 门控，就地替换 stable
 - ✗ **Sublime Merge — Dev** · 同 `com.sublimemerge`，同上
 - ✗ **Slack — Beta** · 同 `com.tinyspeck.slackmacgap`，应用内 opt-in，无独立下载（beta 有独立 changelog 但无法区分安装）

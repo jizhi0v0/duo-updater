@@ -27,11 +27,13 @@ enum com_mothersruin_SuspiciousPackageApp {
             // One table row per released version; the bundle build in parentheses
             // is metadata, not part of the displayed version. Nested lists become
             // separate notes so a parent does not swallow its first child.
+            // A blockquote after a nested list is its own item; one already
+            // inside a plain li stays in that li, including any following text.
             ChangelogRecipe(
                 bundleID: "com.mothersruin.SuspiciousPackageApp",
                 source: URL(string: "https://www.mothersruin.com/software/SuspiciousPackage/relnotes.html")!,
                 entryPattern:
                     #"<tr>\s*<td class="vnum">\s*(?<version>[0-9]+(?:\.[0-9]+)+)\s*<span class="bundle-version">[^<]*</span>\s*</td>\s*<td class="vnotes">\s*<em class="date">Released on (?<date>[^<]+)</em>(?<body>.*?)</td>\s*</tr>"#,
-                itemPatterns: [#"<li\b[^>]*>(?<item>.*?)(?=<li\b|</li>|<ul\b|</ul>|\z)"#]),
+                itemPatterns: [#"<(?:li|blockquote)\b[^>]*>(?<item>.*?)(?=<li\b|</li>|<ul\b|</ul>|\z)"#]),
         ])
 }

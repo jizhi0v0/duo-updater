@@ -50,4 +50,34 @@ struct SuspiciousPackageRecipeTests {
         #expect(log.entries[0].items == ["Added support for arm64e.x1.", "Architecture details & compatibility.", "Dark & tinted icons."])
         #expect(log.entries[1].items == ["Quick Look fixes."])
     }
+
+    @Test func keepsBlockquotesAfterNestedListsWithoutDuplicatingInlineQuotes() throws {
+        // Reduced 4.2 row: the payload note is after </ul> but before the
+        // parent's </li>. Keep its real opening/ending words with the middle
+        // trimmed. An inline quote with trailing text mirrors the 4.8 shape.
+        let fixture = """
+        <table><tbody>
+        <tr><td class="vnum">4.2 <span class="bundle-version">(923)</span></td>
+        <td class="vnotes"><em class="date">Released on March 14, 2022</em>
+        <ul><li>More payload details.<ul>
+        <li>New search filters.<ul><li>Architecture filter.</li></ul>
+        <blockquote>For a package with a large payload, ...
+        the info pane and any rule-based search will update accordingly.</blockquote></li>
+        <li>More processor information.</li></ul></li>
+        <li>Inline quote: <blockquote class="quote">Quoted detail.</blockquote>
+        Text after the quote.</li></ul></td></tr>
+        </tbody></table>
+        """
+        let recipe = com_mothersruin_SuspiciousPackageApp.set.changelogs[0]
+        let log = try #require(ChangelogExtractor.extract(from: fixture, using: recipe))
+        #expect(log.entries.map(\.version) == ["4.2"])
+        #expect(log.entries[0].items == [
+            "More payload details.",
+            "New search filters.",
+            "Architecture filter.",
+            "For a package with a large payload, ... the info pane and any rule-based search will update accordingly.",
+            "More processor information.",
+            "Inline quote: Quoted detail. Text after the quote.",
+        ])
+    }
 }

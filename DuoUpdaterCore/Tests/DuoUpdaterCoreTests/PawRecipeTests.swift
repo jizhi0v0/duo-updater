@@ -2,8 +2,8 @@ import Foundation
 import Testing
 @testable import DuoUpdaterCore
 
-// Three complete version articles from paw.cloud/updates (2026-11-16): list,
-// paragraph and historical Paw formats. Surrounding page chrome is synthetic.
+// Four complete version articles from paw.cloud/updates (2026-11-16): list,
+// paragraph, feature-title and historical Paw formats. Surrounding page chrome is synthetic.
 private let pawUpdatesFixture = #"""
 <nav><a href="/updates/99.9">macOS 27</a><li>Download</li></nav>
 <article class="article-version">
@@ -127,6 +127,45 @@ private let pawUpdatesFixture = #"""
 
             
         </article>
+<article class="article-version">
+            
+                
+
+
+<h3 class="version-title">
+    <a href="/updates/4.1.1">
+    <span lang="en">
+        RapidAPI for Mac 4.1.1
+        
+    </span>
+    
+    <span class="version-os-version">macOS 10.15+</span>
+    
+    
+    <span class="version-date">Jan. 11, 2023</span>
+    </a>
+</h3>
+
+<div class="update-description" lang="en">
+    <h4 class="update-type">
+    <img src="https://cdn-static.paw.cloud/img/update-icons/New-b92e03d345.svg" class="update-type-tag noselect" />
+    New
+</h4>
+
+<h5 id="updating-to-v411-will-rename-application-bundle-name-from-pawapp-to-rapidapiapp">Updating to v4.1.1 will rename application bundle name from <code>Paw.app</code> to <code>RapidAPI.app</code></h5>
+<h4 class="update-type">
+    <img src="https://cdn-static.paw.cloud/img/update-icons/Fixes-4b68d809fb.svg" class="update-type-tag noselect" />
+    Fixes
+</h4>
+
+<ul>
+<li>Fix issue where application would crash when opening a document</li>
+</ul>
+</div>
+
+
+            
+        </article>
 <footer><h4 class="update-type">Support</h4><p>Contact us</p></footer>
 """#
 
@@ -135,8 +174,8 @@ private let pawUpdatesFixture = #"""
         let recipe = try #require(ChangelogRecipeRegistry.recipe(
             forBundleID: "com.luckymarmot.Paw", channel: .stable, version: "4.5.5"))
         let log = try #require(ChangelogService.parse(recipe, body: pawUpdatesFixture))
-        #expect(log.entries.map(\.version) == ["4.5.5", "4.5.0", "3.1.8"])
-        #expect(log.entries.map(\.date) == ["April 20, 2026", "Nov. 13, 2025", "Nov. 14, 2018"])
+        #expect(log.entries.map(\.version) == ["4.5.5", "4.5.0", "3.1.8", "4.1.1"])
+        #expect(log.entries.map(\.date) == ["April 20, 2026", "Nov. 13, 2025", "Nov. 14, 2018", "Jan. 11, 2023"])
         #expect(log.entries[0].items == ["Bug fixes and performance improvements"])
         #expect(log.entries[1].items == [
             "🐾 Add option to add additional headers during OAuth2 flow",
@@ -147,6 +186,11 @@ private let pawUpdatesFixture = #"""
         #expect(headings(log.entries[0]) == ["Fixes"])
         #expect(headings(log.entries[1]) == ["New", "Fixes"])
         #expect(headings(log.entries[2]) == ["Improvements", "Fixes"])
+        #expect(log.entries[3].items == [
+            "Updating to v4.1.1 will rename application bundle name from Paw.app to RapidAPI.app",
+            "Fix issue where application would crash when opening a document",
+        ])
+        #expect(headings(log.entries[3]) == ["New", "Fixes"])
         #expect(!log.entries.flatMap(\.items).contains { $0.contains("Contact us") || $0 == "Download" })
     }
 

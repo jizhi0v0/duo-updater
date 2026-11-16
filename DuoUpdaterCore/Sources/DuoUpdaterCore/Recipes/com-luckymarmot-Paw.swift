@@ -6,7 +6,7 @@ enum com_luckymarmot_Paw {
         changelogs: [
             // The archive keeps both Paw and RapidAPI releases in version articles.
             // Match the version in the article's own link, not the macOS badge.
-            // Changes use both lists and paragraphs; category headings are h4s.
+            // Changes use lists, paragraphs and h5 feature titles; categories are h4s.
             // History: docs/app-audits/com-luckymarmot-Paw.md#历史与实测
             ChangelogRecipe(
                 bundleID: "com.luckymarmot.Paw",
@@ -14,7 +14,7 @@ enum com_luckymarmot_Paw {
                 entryPattern:
                     #"<article\s+class="article-version"[^>]*>\s*<h3\s+class="version-title"[^>]*>\s*<a\s+href="/updates/(?<version>[0-9]+(?:\.[0-9]+)+)"[^>]*>"#
                     + #".*?<span\s+class="version-date"[^>]*>(?<date>[^<]+)</span>.*?</h3>\s*(?<body>.*?)</article>"#,
-                itemPatterns: [#"<(?:li|p)\b[^>]*>(?<item>.*?)</(?:li|p)>"#],
+                itemPatterns: [#"<(?:li|p|h5)\b[^>]*>(?<item>.*?)</(?:li|p|h5)>"#],
                 headingPattern: #"<h4\s+class="update-type"[^>]*>(?<heading>.*?)</h4>"#),
         ],
         sparkleFeeds: [

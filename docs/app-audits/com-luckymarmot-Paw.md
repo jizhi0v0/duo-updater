@@ -30,7 +30,7 @@
 
 复用 `SparkleAppcastSource` 的 build/short-version 比较、最低系统判断、签名元数据和 ZIP 安装路径。当前版最低 macOS 13，在 Duo 支持的 macOS 15+ 主机上没有最低系统缺口。官网明确不支持 macOS 27+，见上文。
 
-[完整更新历史](https://paw.cloud/updates)中，每个 `<article class="article-version">` 有版本链接、日期和变更正文。recipe 从链接读取版本，避免把 macOS badge 当版本；同时读取 `li` 和 `p`，并保留 `h4.update-type` 的 Fixes / New / Improvements 标题。feed 仅给每版 webview 链接，不内联说明，故使用完整 archive，而非依赖原文网页。
+[完整更新历史](https://paw.cloud/updates)中，每个 `<article class="article-version">` 有版本链接、日期和变更正文。recipe 从链接读取版本，避免把 macOS badge 当版本；同时读取 `li`、`p` 和 `h5` 功能标题，并保留 `h4.update-type` 的 Fixes / New / Improvements 标题。feed 仅给每版 webview 链接，不内联说明，故使用完整 archive，而非依赖原文网页。
 
 ## 增量与自更新并发
 
@@ -42,7 +42,7 @@
 
 ## 历史与实测
 
-2026-11-16：读取官方 appcast 102 项；没有 channel 标签或 delta。官网 archive 有 103 个版本 article，首版 1.0 仅有标题没有变更条目；有效变更可由现有 extractor 读取，界面最多保留最近 40 条。4.5.5 为 2026-04-20；4.5.0 的变更用段落，3.1.8 用列表且有 Improvements / Fixes 两节，回归 fixture 覆盖这三种结构和外围导航污染。
+2026-11-16：读取官方 appcast 102 项；没有 channel 标签或 delta。官网 archive 有 103 个版本 article，首版 1.0 仅有标题没有变更条目；有效变更可由现有 extractor 读取，界面最多保留最近 40 条。4.5.5 为 2026-04-20；4.5.0 的变更用段落，3.1.8 用列表且有 Improvements / Fixes 两节，回归 fixture 覆盖这些结构、4.1.1 只在 h5 中说明改名的公告，以及外围导航污染。
 
 4.5.5、4.5.4、4.5.2、3.4.0 的真实包均读取了 Info.plist、架构、签名团队，并执行 `codesign --verify --deep --strict` 和 `spctl -a -vv -t exec`，全部通过。它们均无 `SUFeedURL`；前两者有 Ed key，后两者无 Ed key。
 
@@ -53,6 +53,6 @@
 - `sparkle:com.luckymarmot.Paw:stable:ed25519`
 - `sparkle:com.luckymarmot.Paw:stable:legacy-dsa`
 
-安装字节监控对应 `install:` 前缀。另有 `feed:com.luckymarmot.paw` 监控 feed catalog；`changelog:com.luckymarmot.Paw:stable` 监控 archive recipe（最终 ID 以枚举器输出复核）。旧组在 `unavailablePublicKeys` 明确记录无 Ed key；它仍参与包身份读取，不冒充 EdDSA 验签成功。
+安装字节监控对应 `install:` 前缀。另有 `feed:com.luckymarmot.paw` 监控 feed catalog；`changelog:com.luckymarmot.Paw:-` 监控 archive recipe。旧组在 `unavailablePublicKeys` 明确记录无 Ed key；它仍参与包身份读取，不冒充 EdDSA 验签成功。
 
 整批 CLI 的精确集合、实际下载和实时解析结果将在本次实现的验收记录中补充。没有替换既有 identities/baseline，也没有添加签名失败豁免。

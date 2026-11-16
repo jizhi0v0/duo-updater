@@ -402,6 +402,17 @@ public enum ReleaseChannel: String, Codable, Sendable, Hashable, CaseIterable {
         //     cannot carry.
         if bundleID == "io.requestly.beta" { return .stable }
 
+        // Mattermost's product version retains -rc.N (older tags -rcN),
+        // restored from app.asar when its plist drops the suffix. It must select
+        // the RC rule even when the installed release's GitHub tag disappears
+        // or cannot be fetched. Scoped to this app: DeepSeek's -rc.N builds
+        // intentionally share its ordinary stable updater train below.
+        if bundleID == "Mattermost.Desktop",
+           let version = version?.trimmingCharacters(in: .whitespacesAndNewlines),
+           fullyMatches(#"[0-9]+(\.[0-9]+)+-rc\.?[0-9]+"#, version.lowercased()) {
+            return .rc
+        }
+
         // 0.999 DeepSeek Harness (official) — `com.deepseek.dsh` runs TWO trains
         //     behind ONE bundle id, one Team (NAN929V4UM) and one display name:
         //     the `-rc.N`/plain builds its electron-updater feed serves, and a

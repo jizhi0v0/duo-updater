@@ -96,7 +96,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 
 ## Multi-channel families (audit covers all channels)
 
-- [ ] [**Mattermost Desktop**](Mattermost-Desktop.md) · `Mattermost.Desktop` — G(stable/RC，arm64 ZIP) C(stable，保留分节) · 两个 unsigned legacy ID 仅检测，同 Team 旧 `com.mattermost.desktop` 可迁移 · RC 实包签名/公证与 exact-tag 来源选择已验；整合安装/夜扫待跑，RC 结构化说明与 nightly 明确缺口 · 2026-11-16
+- [ ] [**Mattermost Desktop**](Mattermost-Desktop.md) · `Mattermost.Desktop` — G(stable) P(RC，官方 rc.txt)，arm64 ZIP · C(stable，保留分节) · 两个 unsigned legacy ID 仅检测，同 Team 旧 `com.mattermost.desktop` 可迁移 · RC 真实 CDN 包签名/公证已验，产品版本须从 asar 对齐；整合安装/夜扫待跑，RC 结构化说明与 nightly 明确缺口 · 2026-11-16
 - [x] [**Chrome**](com-google-Chrome.md) · `com.google.Chrome` — P(stable/beta/dev/canary) · 4 channels, independent bundle IDs · 审计 2026-06-04 ✓
 - [x] [**Firefox**](org-mozilla-firefox.md) · `org.mozilla.firefox` — P(stable/beta/esr/nightly/dev-edition) C(stable/beta/esr/nightly/dev-edition) · 5 channels · RemotingName 检测（修复 beta/esr 误判）· 5 个真实 bundle 验证 ✓ · 2026-06-04
 - [x] [**Thunderbird**](org-mozilla-thunderbird.md) · `org.mozilla.thunderbird` — P(stable/beta/esr/nightly) C(stable/beta/esr) · 4 channels · RemotingName 检测（修复 beta bundle id + esr 跨 channel 误推）· 4 个真实 bundle 验证 ✓ · 2026-06-04

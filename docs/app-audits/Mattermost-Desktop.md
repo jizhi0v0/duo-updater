@@ -13,24 +13,27 @@
 | 拷贝组 | 检测 | 一键安装 | 结构化更新说明 |
 |---|---|---|---|
 | 直接下载 stable，`Mattermost.Desktop` | GitHub stable | arm64 ZIP，签名/Team 闸 | 官方文档，保留分节及平台标题 |
-| 官方 RC，`Mattermost.Desktop`，`-rc.N` / `-rcN` | exact installed tag 证明身份后，GitHub RC | RC 专用 arm64 / m1 ZIP | 缺口：当前官方文档没有 RC 版本条目；当前 RC release body 主要是下载链接，不冒充变更说明 |
+| 官方 RC，`Mattermost.Desktop`，`-rc.N` / `-rcN` | 本地产品版本识别后，VendorProbe `rc.txt` | 当前 RC 专用 arm64 ZIP | 缺口：当前官方文档没有 RC 版本条目；GitHub release 也可能不存在，不冒充变更说明 |
+| 6.2 Extended Support Release | 与普通 stable 相同的 latest 轨；可更新到后续 stable | 复用 stable ARM ZIP | 官方文档中 ESR 补丁逐项保留 |
 | 签名旧版 `com.mattermost.desktop` | `BundleIDMigration` 复用当前 stable rule | 同 Team、低于观察边界时允许迁移 | 复用当前 stable recipe |
 | 早期 `com.electron.electron-mattermost` | 独立 stable rule，variant `legacy-electron` | 不提供：观察包没有签名，不能用同 Team 迁移 | 官方文档 |
 | 后续旧版 `com.electron.mattermost` | 独立 stable rule，variant `legacy-mattermost` | 不提供：观察包没有签名，不能用同 Team 迁移 | 官方文档 |
 | 0.1.0，缺少 `CFBundleShortVersionString` | 不进入现有扫描器 | 手动升级 | 不可选择该拷贝；不能拿 Electron build `0.33.6` 当产品版本 |
 | Homebrew `mattermost` | 相同官方二进制；非托管时由 GitHub 回答，实际 brew 托管时沿用现有管理器规则 | 沿用现有来源策略 | 官方文档 |
 | Mac App Store | 通用 MAS 路径 | 商店管理 | 商店说明；`isMASApp` 阻止此 GitHub/文档配方覆盖商店拷贝 |
-| 上游 nightly / daily 测试构建 | 尚未验证其真实已发布包及版本字段，未登记产品更新配方 | 未宣称支持 | 未宣称支持 |
+| 上游 nightly / daily 测试构建 | 当前 ARM 包身份和完整 asar 版本已核对；本补丁未登记产品更新配方 | 包签名已验，安装路由待整合 | 未宣称支持 |
 
 官方 [Mac App Store listing](https://apps.apple.com/us/app/mattermost-desktop/id1614666244?mt=12) 与[部署文档](https://docs.mattermost.com/deployment-guide/desktop/macos-desktop-install)确认商店发行存在；本次未取得商店包，未推断其 Bundle ID。没有 licence、账号或付费状态分支。
 
 ## Channel 与版本规则
 
 - stable 使用 `^v?([0-9]+(?:\.[0-9]+)+)$`，兼容未带 `v` 的旧稳定 tag，排除 RC/beta 尾缀；安装 pattern 仅接收稳定 arm64/m1 `.zip`，不选 DMG、Intel ZIP 或 blockmap。
-- 真实 6.1.0-rc.4 包的 short/build 均为 `6.1.0-rc.4`，名字仍为 Mattermost。现有通用 `ReleaseChannel.detect` 不把 `-rc.N` 当 channel；`installedTagPrefix: "v"` 先查这份拷贝的精确 release，并用明确的 `prerelease` / `draft` 位证明 RC，才选 RC rule。
-- RC rule 的版本和安装 pattern 都要求 `-rc.N` / `-rcN`，不接收 stable；`.highestVersion` 避免后来发布的 5.x RC backport 遮住更高的 6.x RC。当前最高 RC 在 release list 第 19 项，使用 100 项窗口；窗口不再含 RC 时验证报错/未知，不用 stable 候选假装 RC。
-- 精确 tag 丢失/无法证明时，现有 GitHub discovery 会回退 stable；这是共享机制的现有行为。本次 fixture 证明已发布 RC tag 正常时不会访问 stable `/latest`。上游删 tag 时的回退不是完整 RC 隔离保证。
-- 上游 nightly workflow 会把 `package.json` 写成 `X.Y.Z-nightly.DATE` 后另行上传 S3，并非 GitHub Releases 的 RC。尚无真实 nightly 包的 channel/short version 证据，不把源代码中的打包规则当作包内字段的证明；该拷贝组仍需单独取包验证。
+- 真实 6.1.0-rc.4 包的 short/build 均为 `6.1.0-rc.4`；6.2.5-rc.5 的 plist short 为 `6.2.5`、build 为 `410455984891`，但 `app.asar/package.json` 的完整产品版本仍为 `6.2.5-rc.5`。新包须由扫描器恢复该产品版本后判断 channel 和比较更新，不能把 plist 的正式版本形状当作 stable 证明。
+- `ReleaseChannel.detect` 的 `Mattermost.Desktop` 专用分支按完整 `-rc.N` / `-rcN` 产品版本后缀直接返回 `.rc`；其他 app 的 RC 约定保持各自语义，包括 DeepSeek 普通更新轨中的 `-rc.N`。
+- RC 使用上游 `UpdateNotifier` 实际读取的 `https://releases.mattermost.com/desktop/rc.txt`，整份响应只接受一个完整 RC 版本，并用同一解析版本填充官方 `.../{version}/mattermost-desktop-{version}-mac-arm64.zip`。最新 RC 可以只存在于 CDN：实测 `6.2.5-rc.5` 已公开，GitHub 对应 release 端点为 404，而 GitHub release list 停在 `6.1.0-rc.4`。
+- RC 身份由已装包决定，不依赖其精确 GitHub tag；删除旧 tag、tag 端点 404 或不可访问均不会将此拷贝重新归到 stable。source fixture 中所有精确 tag 端点均为 404，RC 拷贝只请求 `rc.txt`，GitHub stable rule 不适用于 `.rc` 拷贝。
+- 官方文档称 6.2 为 Extended Support Release，但[6.2.0 的 `UpdateNotifier`](https://github.com/mattermost/desktop/blob/v6.2.0/src/main/updateNotifier.ts)对无预发布后缀的版本始终使用 `latest.txt`，其[同版本 buildConfig](https://github.com/mattermost/desktop/blob/v6.2.0/src/common/config/buildConfig.ts)指向相同 `https://releases.mattermost.com/desktop`。该实现没有 ESR 更新偏好或独立端点分支；因此这里沿用上游普通 stable 检查行为，不将 6.2 锁在 ESR 补丁线。
+- 上游 [nightly 版本脚本](https://github.com/mattermost/desktop/blob/v6.4.0/.github/actions/patch-nightly-version/patch-version.go)把 `package.json` 写成 `X.Y.Z-nightly.YYYYMMDD`；[`generate_latest_version.sh`](https://github.com/mattermost/desktop/blob/v6.4.0/scripts/generate_latest_version.sh)生成 `nightly.txt`，[nightly workflow](https://github.com/mattermost/desktop/blob/v6.4.0/.github/workflows/nightly-main.yml)另行上传同一 S3 release bucket，并非 GitHub Releases 的 RC。公开 [nightly.txt](https://releases.mattermost.com/desktop/nightly.txt)实测 200，返回 `6.5.0-nightly.20261116`；对应真实 ARM ZIP 的 plist short 为 `6.5.0`，asar 完整产品版本为 `6.5.0-nightly.20261116`。产品检测、安装和监控由整合分支继续补充，本补丁不声称已经覆盖。
 
 ## Changelog
 
@@ -49,14 +52,14 @@
 由现有 registry 自动枚举，不增加重复 generic feed：
 
 - `github:mattermost/desktop:stable`
-- `github:mattermost/desktop:rc`
+- `vendor:Mattermost.Desktop:rc`
 - `github:mattermost/desktop:stable:legacy-electron`
 - `github:mattermost/desktop:stable:legacy-mattermost`
 - `changelog:Mattermost.Desktop:stable`
 - `changelog:com.electron.electron-mattermost:stable`
 - `changelog:com.electron.mattermost:stable`
 
-安装字节检查对应 `install:github:mattermost/desktop:stable` 与 `install:github:mattermost/desktop:rc`；签名旧 ID 映射复用 stable 监控。无签名旧 ID 的检测行没有 install spec，不能算安装字节检查通过。nightly、MAS 商店包及 0.1.0 扫描缺口不由这两个 ZIP 行覆盖。
+安装字节检查对应 `install:github:mattermost/desktop:stable` 与 `install:vendor:Mattermost.Desktop:rc`；签名旧 ID 映射复用 stable 监控。无签名旧 ID 的检测行没有 install spec，不能算安装字节检查通过。nightly、MAS 商店包及 0.1.0 扫描缺口不由这两个 ZIP 行覆盖。
 
 本分支已运行 focused fixture/source-selection tests；现场 `duo verify --only mattermost`、`duo verify-install --only mattermost`、整体 `make test` 和旧到新安装验证由整合分支执行，未在此把它们写成通过。
 
@@ -66,6 +69,10 @@
 
 RC 6.1.0-rc.4 ARM ZIP 为 113,761,398 bytes，`codesign --verify --deep --strict` 成功，`spctl --assess --type execute --verbose` 为 `accepted / source=Notarized Developer ID`，Team 为 `UQ8HT4Q2XM`。未安装或启动下载包。
 
-同日官方文档 Markdown 原文 regex 得到 72 个完整版本 entry；首项 6.4.0 有 29 个项目，6.3.2 有 1 个项目，6.3.1 有 6 个项目，6.3.0 的正文保持独立。离线 fixture 覆盖实体清理、代码/链接、类别/平台标题及补丁边界。RC source fixture 覆盖精确已装 tag 识别、较晚 backport 排序和 stable `/latest` 不被访问。
+同日补查官方 RC feed，返回 `6.2.5-rc.5`。该版本 ARM ZIP 为 123,262,733 bytes，真实包 Team 为 `UQ8HT4Q2XM`，严格深度签名检查成功，Gatekeeper 为 `accepted / source=Notarized Developer ID`。两个观察 RC 的 asar `package.name` 都是 `mattermost-desktop`。plist 短版本与 asar 完整产品版本的区别如上，已交由整合分支扫描器处理；此处的 source fixture 使用恢复后的产品版本。
 
-当前 [`electron-builder.ts`](https://github.com/mattermost/desktop/blob/v6.4.0/electron-builder.ts)会 coerce macOS short version；真实已发布 6.1.0-rc.4 包保留后缀。因此未仅凭当前构建源码假定旧 RC 或 nightly 包的字段形状，也未新增推测性的扫描器分支。
+同日下载公开 nightly feed 对应的 `6.5.0-nightly.20261116` ARM ZIP，123,243,637 bytes。`Mattermost.Desktop` 的 plist short/build 为 `6.5.0` / `438026459481`，asar `package.name` / `version` 为 `mattermost-desktop` / `6.5.0-nightly.20261116`；Team `UQ8HT4Q2XM`，严格深度签名检查成功，Gatekeeper 为 `accepted / source=Notarized Developer ID`。未安装或启动该包。
+
+同日官方文档 Markdown 原文 regex 得到 72 个完整版本 entry；首项 6.4.0 有 29 个项目，6.3.2 有 1 个项目，6.3.1 有 6 个项目，6.3.0 的正文保持独立。离线 fixture 覆盖实体清理、代码/链接、类别/平台标题及补丁边界。RC source fixture 覆盖本地后缀识别、精确已装 tag 端点不可用、vendor RC feed 及安装 URL、stable `/latest` 不被访问。
+
+当前 [`electron-builder.ts`](https://github.com/mattermost/desktop/blob/v6.4.0/electron-builder.ts)会 coerce macOS short version；真实已发布 6.1.0-rc.4 保留后缀、6.2.5-rc.5 与当前 nightly 则已剥离后缀，各包 asar 都保存完整产品版本。

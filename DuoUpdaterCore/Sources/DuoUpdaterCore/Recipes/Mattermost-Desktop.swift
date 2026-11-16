@@ -4,6 +4,23 @@ enum Mattermost_Desktop {
     // History: docs/app-audits/Mattermost-Desktop.md#历史与实测
     static let set = AppRecipeSet(
         family: "Mattermost-Desktop",
+        probes: [
+            // RC builds also ship only on the vendor CDN, without a GitHub
+            // release. Match the updater's rc.txt and versioned ARM ZIP route,
+            // retaining the complete product version restored from app.asar
+            // when the plist short version drops the RC suffix.
+            VendorProbeRecipe(
+                bundleID: "Mattermost.Desktop",
+                url: URL(string: "https://releases.mattermost.com/desktop/rc.txt")!,
+                mode: .responseBody,
+                versionPattern: #"^\s*([0-9]+(?:\.[0-9]+)+-rc\.?[0-9]+)\s*$"#,
+                downloadURL: URL(string: "https://mattermost.com/download/"),
+                install: VendorInstallSpec(
+                    urlSource: .versionTemplate(
+                        "https://releases.mattermost.com/desktop/{version}/mattermost-desktop-{version}-mac-arm64.zip"),
+                    kind: .zip),
+                channel: .rc),
+        ],
         changelogs: ["Mattermost.Desktop", "com.electron.electron-mattermost", "com.electron.mattermost"].map { bundleID in
             // The vendor docs' Markdown source contains the actual changes;
             // GitHub release bodies are download lists. Each bold full-version
@@ -42,22 +59,6 @@ enum Mattermost_Desktop {
                 installAssetPattern: #"^mattermost-desktop-[0-9]+(?:\.[0-9]+)+-mac-(?:arm64|m1)\.zip$"#,
                 installerKind: .zip),
 
-            // Published RC bundles retain -rc.N (older tags spell -rcN).
-            // Generic channel detection leaves those stable, so exact installed
-            // tag discovery proves their RC identity before selecting a rule.
-            // RC backports can be published after a newer major's RC; compare
-            // versions within the page instead of taking publication order.
-            // Neither version nor asset pattern accepts stable releases.
-            GitHubReleaseRule(
-                bundleID: "Mattermost.Desktop", owner: "mattermost", repo: "desktop",
-                usePrereleases: true, listPageSize: 100,
-                versionPattern: #"^v([0-9]+(?:\.[0-9]+)+-rc\.?[0-9]+)$"#,
-                candidateScope: .highestVersion,
-                installedTagPrefix: "v",
-                installAssetPattern: #"^mattermost-desktop-[0-9]+(?:\.[0-9]+)+-rc\.?[0-9]+-mac-(?:arm64|m1)\.zip$"#,
-                installerKind: .zip,
-                channel: .rc),
-
             // The original electron-mattermost bundles are unsigned and use a
             // different id. They can read the current stable version and notes,
             // but a same-Team BundleIDMigration cannot authorize their swap.
@@ -72,8 +73,8 @@ enum Mattermost_Desktop {
                 versionPattern: #"^v?([0-9]+(?:\.[0-9]+)+)$"#,
                 variant: "legacy-mattermost"),
         ],
-        githubChannelProofs: [
+        channelProofs: [
             ChannelProofKey("Mattermost.Desktop", .rc):
-                .artifact(#"/mattermost-desktop-[0-9.]+-rc\.?[0-9]+-mac-(?:arm64|m1)\.zip$"#),
+                .artifact(#"/mattermost-desktop-[0-9.]+-rc\.?[0-9]+-mac-arm64\.zip$"#),
         ])
 }

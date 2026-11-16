@@ -10,43 +10,54 @@ struct MattermostRecipeTests {
         GitHubReleaseRegistry.rules.filter { $0.bundleID == bundleID }
     }
 
+    private func rcRecipe() throws -> VendorProbeRecipe {
+        try #require(VendorProbeRegistry.recipes.first { $0.bundleID == bundleID && $0.channel == .rc })
+    }
+
     @Test func nightlyRegistryIncludesEachSupportedCopyGroupAndOnlySignedInstallerRoutes() {
         let rules = GitHubReleaseRegistry.rules.filter { $0.owner == "mattermost" && $0.repo == "desktop" }
         #expect(Set(rules.map(\.recipeID)) == [
-            "github:mattermost/desktop:stable", "github:mattermost/desktop:rc",
+            "github:mattermost/desktop:stable",
             "github:mattermost/desktop:stable:legacy-electron", "github:mattermost/desktop:stable:legacy-mattermost"])
         #expect(Set(rules.filter { $0.installAssetPattern != nil }.map(\.recipeID)) == [
-            "github:mattermost/desktop:stable", "github:mattermost/desktop:rc"])
+            "github:mattermost/desktop:stable"])
+        let probes = VendorProbeRegistry.recipes.filter { $0.bundleID == bundleID }
+        #expect(Set(probes.map(\.recipeID)) == ["vendor:Mattermost.Desktop:rc"])
+        #expect(probes.first?.channel == .rc)
+        #expect(probes.first?.install != nil)
+        #expect(probes.first?.url.absoluteString == "https://releases.mattermost.com/desktop/rc.txt")
         let ids = Set([bundleID, "com.electron.electron-mattermost", "com.electron.mattermost"])
         #expect(Set(ChangelogRecipeRegistry.recipes.filter { ids.contains($0.bundleID) }.map(\.recipeID)) == [
             "changelog:Mattermost.Desktop:stable", "changelog:com.electron.electron-mattermost:stable",
             "changelog:com.electron.mattermost:stable"])
     }
 
-    @Test func stableAndRCPatternsKeepTagsAndArchivesOnTheirTracks() throws {
+    @Test func stableTagsAndRCFeedResponsesStayOnTheirOwnTracks() throws {
         let stable = try #require(rules().first { $0.channel == .stable })
-        let rc = try #require(rules().first { $0.channel == .rc })
+        let rc = try rcRecipe()
         for tag in ["v6.4.0", "4.3.2", "v7.0.0", "v7.1"] {
             #expect(VendorProbeRecipe.extractVersion(from: tag, pattern: stable.versionPattern) != nil)
             #expect(VendorProbeRecipe.extractVersion(from: tag, pattern: rc.versionPattern) == nil)
         }
         for tag in ["v6.1.0-rc.4", "v5.0.0-rc1"] {
             #expect(VendorProbeRecipe.extractVersion(from: tag, pattern: stable.versionPattern) == nil)
-            #expect(VendorProbeRecipe.extractVersion(from: tag, pattern: rc.versionPattern) != nil)
+        }
+        for version in ["6.2.5-rc.5", "6.1.0-rc.4", "5.0.0-rc1"] {
+            #expect(VendorProbeRecipe.extractVersion(from: "\(version)\n", pattern: rc.versionPattern) == version)
+        }
+        for body in ["6.4.0", "6.2.5-rc.5-extra", "6.2.5-rc.5\nunrelated"] {
+            #expect(VendorProbeRecipe.extractVersion(from: body, pattern: rc.versionPattern) == nil)
         }
         for tag in ["v6.4.0-beta.1", "v6.4.0-extra", "latest"] {
             #expect(VendorProbeRecipe.extractVersion(from: tag, pattern: stable.versionPattern) == nil)
             #expect(VendorProbeRecipe.extractVersion(from: tag, pattern: rc.versionPattern) == nil)
         }
         let stablePattern = try #require(stable.installAssetPattern)
-        let rcPattern = try #require(rc.installAssetPattern)
         func matches(_ name: String, _ pattern: String) -> Bool {
             name.range(of: pattern, options: .regularExpression) != nil
         }
         #expect(matches("mattermost-desktop-6.4.0-mac-arm64.zip", stablePattern))
         #expect(matches("mattermost-desktop-5.13.8-mac-m1.zip", stablePattern))
-        #expect(matches("mattermost-desktop-6.1.0-rc.4-mac-arm64.zip", rcPattern))
-        #expect(!matches("mattermost-desktop-6.4.0-mac-arm64.zip", rcPattern))
         for name in ["mattermost-desktop-6.4.0-mac-x64.zip", "mattermost-desktop-6.4.0-mac-arm64.dmg",
                      "mattermost-desktop-6.4.0-mac-arm64.zip.blockmap", "mattermost-desktop-6.1.0-rc.4-mac-arm64.zip"] {
             #expect(!matches(name, stablePattern))
@@ -67,13 +78,7 @@ struct MattermostRecipeTests {
             let body: String
             switch path {
             case "/repos/mattermost/desktop/releases/latest": body = Self.release("6.4.0")
-            case "/repos/mattermost/desktop/releases/tags/v6.1.0-rc.2": body = Self.release("6.1.0-rc.2")
-            case "/repos/mattermost/desktop/releases":
-                // The actual repository's ordering: a 5.x RC backport is
-                // published after the higher-version 6.1 RC. Stable is newer
-                // than either and must never be handed to the RC install.
-                body = "[" + [Self.release("6.4.0"), Self.release("5.13.5-rc.1"),
-                              Self.release("6.1.0-rc.4"), Self.release("6.1.0-rc.2")].joined(separator: ",") + "]"
+            case "/desktop/rc.txt": body = "6.2.5-rc.5\n"
             default: body = "{}"
             }
             let response = HTTPURLResponse(url: request.url!, statusCode: body == "{}" ? 404 : 200,
@@ -95,30 +100,52 @@ struct MattermostRecipeTests {
         }
     }
 
-    private func source() -> GitHubReleasesSource {
+    private func session() -> URLSession {
         FixtureProtocol.reset()
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [FixtureProtocol.self]
+        return URLSession(configuration: configuration)
+    }
+    private func source() -> GitHubReleasesSource {
         return GitHubReleasesSource(rules: GitHubReleaseRegistry.rules.filter { $0.repo == "desktop" && $0.owner == "mattermost" },
-                                    session: URLSession(configuration: configuration))
+                                    session: session())
     }
     private func app(_ version: String, bundleID: String = "Mattermost.Desktop") -> InstalledApp {
         InstalledApp(name: "Mattermost", bundleID: bundleID, shortVersion: version, buildVersion: version,
                      path: URL(fileURLWithPath: "/Applications/Mattermost.app"),
-                     isMASApp: false, isToolboxManaged: false, sparkleFeedURL: nil)
+                     isMASApp: false, isToolboxManaged: false, sparkleFeedURL: nil,
+                     releaseChannel: ReleaseChannel.detect(
+                        name: "Mattermost", bundleID: bundleID, keystoneChannel: nil, version: version))
     }
 
-    @Test func publishedRCInstallIsProvenByItsExactTagAndNeverServedStable() async throws {
-        let installed = app("6.1.0-rc.2")
-        #expect(installed.releaseChannel == .stable)
-        let remote = try #require(try await source().latestVersion(for: installed))
-        #expect(remote.displayVersion == "6.1.0-rc.4")
-        #expect(remote.releaseChannel == .rc)
+    @Test func publishedRCVersionSuffixIsLocalAndScopedToMattermost() {
+        for version in ["6.1.0-rc.4", "5.0.0-rc1"] {
+            #expect(app(version).releaseChannel == .rc)
+            #expect(app(version, bundleID: "com.deepseek.dsh").releaseChannel == .stable)
+        }
+        for version in ["6.4.0", "6.1.0", "6.1.0-rc", "6.1.0-rc.4+build", "6.1.0-rc.4.extra"] {
+            #expect(app(version).releaseChannel == .stable)
+        }
+    }
+
+    @Test func anRCInstallWithNoGitHubTagReadsOnlyTheOfficialRCFeed() async throws {
+        let installed = app("6.1.0-rc.4")
+        #expect(installed.releaseChannel == .rc)
+        let gitHub = source()
+        #expect(try await gitHub.latestVersion(for: installed) == nil)
+        #expect(FixtureProtocol.paths.isEmpty)
+        let vendor = VendorProbeSource(recipes: [try rcRecipe()], session: session())
+        let remote = try #require(try await vendor.latestVersion(for: installed))
+        #expect(remote.displayVersion == "6.2.5-rc.5")
+        #expect(UpdateResult(app: installed, remote: remote, status: .updateAvailable(latest: "6.2.5-rc.5"))
+            .effectiveReleaseChannel == .rc)
         #expect(remote.vendorInstallerKind == .zip)
         #expect(!remote.requiresManualInstaller)
-        #expect(remote.downloadURL?.lastPathComponent == "mattermost-desktop-6.1.0-rc.4-mac-arm64.zip")
-        #expect(FixtureProtocol.paths.contains("/repos/mattermost/desktop/releases/tags/v6.1.0-rc.2"))
-        #expect(!FixtureProtocol.paths.contains("/repos/mattermost/desktop/releases/latest"))
+        #expect(remote.downloadURL?.absoluteString
+                == "https://releases.mattermost.com/desktop/6.2.5-rc.5/mattermost-desktop-6.2.5-rc.5-mac-arm64.zip")
+        // Exact-tag endpoints all answer 404; the current vendor RC need not
+        // have a GitHub release at all. There is no stable /latest fallback.
+        #expect(FixtureProtocol.paths == ["/desktop/rc.txt"])
         #expect(ChangelogRecipeRegistry.recipe(forBundleID: bundleID, channel: .rc) == nil)
     }
 

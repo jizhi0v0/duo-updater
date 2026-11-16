@@ -64,7 +64,7 @@ private let hbuilderXCodeSpanFixture = #"""
 /// so a future recipe that sets `markdownSource` shows up here.
 ///
 /// "Really is Markdown" is checked by where the body comes from, not by what it
-/// looks like, and there are exactly two such places: a `.md` file, and a GitHub
+/// looks like, and there are exactly two such places: a Markdown file (`.md` / `.mdx`), and a GitHub
 /// release `body`, which is Markdown by the API's own definition. The second was
 /// added for Headlamp, whose notes are Markdown TABLES that
 /// `GitHubMarkdownParser` refuses (see `HeadlampChangelogRecipeTests`), so its
@@ -82,9 +82,9 @@ private let hbuilderXCodeSpanFixture = #"""
 /// `## What's Changed` heading and spells options as inline code (`` `-L` ``).
 @Test func onlyMarkdownSourceRecipesUnwrapCodeSpans() {
     func bodyIsMarkdown(_ recipe: ChangelogRecipe) -> Bool {
-        if let template = recipe.sourceTemplate { return template.hasSuffix(".md") }
+        if let template = recipe.sourceTemplate { return template.hasSuffix(".md") || template.hasSuffix(".mdx") }
         let source = recipe.source
-        if source.path.hasSuffix(".md") { return true }
+        if source.path.hasSuffix(".md") || source.path.hasSuffix(".mdx") { return true }
         if source.host == "cdn.getmoshi.app" && source.path.hasSuffix("/latest/manifest.json") { return true }
         return source.host == "api.github.com" && source.path.hasSuffix("/releases")
     }

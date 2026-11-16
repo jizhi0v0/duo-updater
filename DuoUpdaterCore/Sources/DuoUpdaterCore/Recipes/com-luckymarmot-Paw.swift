@@ -23,8 +23,5 @@ enum com_luckymarmot_Paw {
             // The public feed is untagged stable, with full ZIPs and no deltas.
             // History: docs/app-audits/com-luckymarmot-Paw.md#历史与实测
             "com.luckymarmot.paw": URL(string: "https://paw.cloud/api/v2/updates/appcast")!,
-        ],
-        changelogPages: [
-            "com.luckymarmot.paw": URL(string: "https://paw.cloud/updates")!,
         ])
 }

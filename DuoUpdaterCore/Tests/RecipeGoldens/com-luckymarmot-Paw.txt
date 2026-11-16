@@ -57,8 +57,7 @@ supersededFeeds = Dictionary(count: 0)
 
 loginWalls = Dictionary(count: 0)
 
-changelogPages = Dictionary(count: 1)
-changelogPages["com.luckymarmot.paw"] = URL("https://paw.cloud/updates")
+changelogPages = Dictionary(count: 0)
 
 oneClickGates = Array(count: 0)
 

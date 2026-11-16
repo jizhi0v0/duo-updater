@@ -84,10 +84,8 @@ struct DuoUpdaterApp: App {
         Window("What's New", id: SelfChangelogView.windowID) {
             SelfChangelogView(model: model)
         }
-        // Landscape by default: the notes are prose, and a narrow window turns each
-        // paragraph into a column of short lines. Wide enough that the rail plus a
-        // comfortable measure both fit without resizing on first open.
-        .defaultSize(width: 900, height: 620)
+        // A two-line version history beside a bounded reading column.
+        .defaultSize(width: 960, height: 680)
         .windowResizability(.contentMinSize)
         .commands {
             // Restore the ⌘, "Settings…" app-menu item now that there's no Settings

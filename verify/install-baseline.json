@@ -543,14 +543,14 @@
       "sweepsSinceComment" : 0
     },
     "install:github:dwarvesf\/hidden:stable" : {
-      "consecutiveActionable" : 2,
+      "consecutiveActionable" : 3,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 2043,
       "lastCommentedAt" : "2026-11-15T22:08:49Z",
       "lastSignature" : "identityChanged: Sparkle key none → C7MH",
       "previousSignature" : "identityChanged: Sparkle key none → C7MH",
-      "sweepsSinceComment" : 0
+      "sweepsSinceComment" : 1
     },
     "install:github:espanso\/espanso:stable" : {
       "consecutiveActionable" : 0,
@@ -1811,14 +1811,14 @@
       "sweepsSinceComment" : 0
     },
     "install:vendor:app.getmoshi.desktop.tauri:stable" : {
-      "consecutiveActionable" : 6,
+      "consecutiveActionable" : 7,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 1167,
       "lastCommentedAt" : "2026-11-15T13:07:33Z",
       "lastSignature" : "inventoryEntryMissing: a previously trac",
       "previousSignature" : "inventoryEntryMissing: a previously trac",
-      "sweepsSinceComment" : 1
+      "sweepsSinceComment" : 2
     },
     "install:vendor:app.getmoshi.desktop:stable" : {
       "consecutiveActionable" : 0,
@@ -2866,5 +2866,5 @@
     }
   },
   "schemaVersion" : 1,
-  "updatedAt" : "2026-11-15T22:08:49Z"
+  "updatedAt" : "2026-11-16T03:09:48Z"
 }

@@ -23,7 +23,8 @@ import Foundation
 /// revert. Not handled here.
 public enum RelaunchRecheck {
 
-    /// One read of the bundle: both version fields off its `Info.plist`, and
+    /// One read of the bundle: its product version/build (including Mattermost
+    /// package metadata when the plist omits a prerelease suffix), and
     /// the bundle directory's inode, which changes when the bundle is swapped
     /// for another rather than written in place.
     public struct Reading: Sendable, Equatable {

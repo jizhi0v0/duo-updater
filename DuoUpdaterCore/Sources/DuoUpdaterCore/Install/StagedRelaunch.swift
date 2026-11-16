@@ -516,17 +516,20 @@ public enum StagedRelaunch {
         }.count
     }
 
-    /// Both version fields read straight from the bundle's `Info.plist` — not
-    /// `Bundle(path:)`, which memoises per path and would answer with the build
-    /// the swap just replaced.
+    /// Read the plist afresh, restoring Mattermost's complete package version
+    /// like the scanner/journal. `Bundle(path:)` memoises per path and would
+    /// answer with the build the swap just replaced.
     public static func diskVersionSide(_ bundle: URL) -> VersionSide {
         let info = BundleLayout.infoPlistURL(for: bundle)
         guard let data = try? Data(contentsOf: info),
               let dict = (try? PropertyListSerialization.propertyList(
                 from: data, options: [], format: nil)) as? [String: Any]
         else { return VersionSide() }
+        let marketing = VersionSide.plistVersionField(dict["CFBundleShortVersionString"])
         return VersionSide(
-            marketing: VersionSide.plistVersionField(dict["CFBundleShortVersionString"]),
+            marketing: MattermostBuild.version(
+                in: bundle, bundleID: dict["CFBundleIdentifier"] as? String,
+                plistVersion: marketing) ?? marketing,
             build: VersionSide.plistVersionField(dict["CFBundleVersion"]))
     }
 }

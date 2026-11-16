@@ -1119,14 +1119,18 @@ public enum InstallJournal {
         BackupStore.hasReadableBundle(at: app) ? versions(at: app) : nil
     }
 
-    /// Both version fields, from one read of the Info.plist.
+    /// Version fields from the plist, restoring Mattermost prerelease metadata
+    /// shared with the scanner so recovery compares the same product version.
     static func versions(at app: URL) -> VersionSide {
         guard let data = try? Data(contentsOf: BundleLayout.infoPlistURL(for: app)),
               let info = try? PropertyListSerialization.propertyList(
                 from: data, options: [], format: nil) as? [String: Any]
         else { return VersionSide() }
+        let marketing = VersionSide.plistVersionField(info["CFBundleShortVersionString"])
         return VersionSide(
-            marketing: VersionSide.plistVersionField(info["CFBundleShortVersionString"]),
+            marketing: MattermostBuild.version(
+                in: app, bundleID: info["CFBundleIdentifier"] as? String,
+                plistVersion: marketing) ?? marketing,
             build: VersionSide.plistVersionField(info["CFBundleVersion"]))
     }
 

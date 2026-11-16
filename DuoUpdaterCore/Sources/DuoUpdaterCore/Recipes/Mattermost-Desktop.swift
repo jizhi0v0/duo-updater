@@ -20,6 +20,19 @@ enum Mattermost_Desktop {
                         "https://releases.mattermost.com/desktop/{version}/mattermost-desktop-{version}-mac-arm64.zip"),
                     kind: .zip),
                 channel: .rc),
+            // The public daily build uses the same versioned ARM ZIP layout.
+            // Its complete nightly date is retained in package.json, too.
+            VendorProbeRecipe(
+                bundleID: "Mattermost.Desktop",
+                url: URL(string: "https://releases.mattermost.com/desktop/nightly.txt")!,
+                mode: .responseBody,
+                versionPattern: #"^\s*([0-9]+(?:\.[0-9]+)+-nightly\.[0-9]{8})\s*$"#,
+                downloadURL: URL(string: "https://mattermost.com/download/"),
+                install: VendorInstallSpec(
+                    urlSource: .versionTemplate(
+                        "https://releases.mattermost.com/desktop/{version}/mattermost-desktop-{version}-mac-arm64.zip"),
+                    kind: .zip),
+                channel: .nightly),
         ],
         changelogs: ["Mattermost.Desktop", "com.electron.electron-mattermost", "com.electron.mattermost"].map { bundleID in
             // The vendor docs' Markdown source contains the actual changes;
@@ -76,5 +89,7 @@ enum Mattermost_Desktop {
         channelProofs: [
             ChannelProofKey("Mattermost.Desktop", .rc):
                 .artifact(#"/mattermost-desktop-[0-9.]+-rc\.?[0-9]+-mac-arm64\.zip$"#),
+            ChannelProofKey("Mattermost.Desktop", .nightly):
+                .artifact(#"/mattermost-desktop-[0-9.]+-nightly\.[0-9]{8}-mac-arm64\.zip$"#),
         ])
 }

@@ -413,6 +413,14 @@ public enum ReleaseChannel: String, Codable, Sendable, Hashable, CaseIterable {
             return .rc
         }
 
+        // The public Mattermost nightly uses a dotted date suffix, likewise
+        // restored from package.json instead of the coerced plist version.
+        if bundleID == "Mattermost.Desktop",
+           let version = version?.trimmingCharacters(in: .whitespacesAndNewlines),
+           fullyMatches(#"[0-9]+(\.[0-9]+)+-nightly\.[0-9]{8}"#, version.lowercased()) {
+            return .nightly
+        }
+
         // 0.999 DeepSeek Harness (official) — `com.deepseek.dsh` runs TWO trains
         //     behind ONE bundle id, one Team (NAN929V4UM) and one display name:
         //     the `-rc.N`/plain builds its electron-updater feed serves, and a

@@ -504,7 +504,7 @@ enum AuditedUpdateFeeds {
         PublicKeyGap(bundleID: "com.goodsnooze.MacWhisper", auditDocument: "docs/app-audits/com-goodsnooze-MacWhisper.md",
                      reason: "No matching installed copy or full public key in the linked audit was available from the permitted sources."),
         PublicKeyGap(bundleID: "com.luckymarmot.Paw", auditDocument: "docs/app-audits/com-luckymarmot-Paw.md",
-                     reason: "The legacy-dsa group (verified Paw3.4.0 and RapidAPI4.5.2) has no SUPublicEDKey; code-signature and Team checks still apply. Current copies have the separately recorded Ed25519 key."),
+                     reason: "The legacy-dsa group (verified Paw 3.4.0 and RapidAPI 4.5.2) has no SUPublicEDKey; code-signature and Team checks still apply. Current copies have the separately recorded Ed25519 key."),
         PublicKeyGap(bundleID: "com.prakashjoshipax.VoiceInk", auditDocument: "docs/app-audits/com-prakashjoshipax-VoiceInk.md",
                      reason: "No matching installed copy or full public key in the linked audit was available from the permitted sources."),
         PublicKeyGap(bundleID: "com.robinebers.openusage", auditDocument: "docs/app-audits/com-robinebers-openusage.md",

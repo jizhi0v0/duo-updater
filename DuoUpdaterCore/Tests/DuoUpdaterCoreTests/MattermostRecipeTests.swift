@@ -22,7 +22,7 @@ struct MattermostRecipeTests {
         #expect(Set(rules.filter { $0.installAssetPattern != nil }.map(\.recipeID)) == [
             "github:mattermost/desktop:stable"])
         let probes = VendorProbeRegistry.recipes.filter { $0.bundleID == bundleID }
-        #expect(Set(probes.map(\.recipeID)) == ["vendor:Mattermost.Desktop:rc"])
+        #expect(Set(probes.map(\.recipeID)) == ["vendor:Mattermost.Desktop:rc", "vendor:Mattermost.Desktop:nightly"])
         #expect(probes.first?.channel == .rc)
         #expect(probes.first?.install != nil)
         #expect(probes.first?.url.absoluteString == "https://releases.mattermost.com/desktop/rc.txt")
@@ -79,6 +79,7 @@ struct MattermostRecipeTests {
             switch path {
             case "/repos/mattermost/desktop/releases/latest": body = Self.release("6.4.0")
             case "/desktop/rc.txt": body = "6.2.5-rc.5\n"
+            case "/desktop/nightly.txt": body = "6.5.0-nightly.20261116\n"
             default: body = "{}"
             }
             let response = HTTPURLResponse(url: request.url!, statusCode: body == "{}" ? 404 : 200,
@@ -126,6 +127,19 @@ struct MattermostRecipeTests {
         for version in ["6.4.0", "6.1.0", "6.1.0-rc", "6.1.0-rc.4+build", "6.1.0-rc.4.extra"] {
             #expect(app(version).releaseChannel == .stable)
         }
+    }
+
+    @Test func aDatedNightlyReadsOnlyItsOwnVendorFeed() async throws {
+        let installed = app("6.5.0-nightly.20261115")
+        #expect(installed.releaseChannel == .nightly)
+        #expect(try await source().latestVersion(for: installed) == nil)
+        #expect(FixtureProtocol.paths.isEmpty)
+        let vendor = VendorProbeSource(recipes: VendorProbeRegistry.recipes.filter { $0.bundleID == bundleID }, session: session())
+        let remote = try #require(try await vendor.latestVersion(for: installed))
+        #expect(remote.displayVersion == "6.5.0-nightly.20261116")
+        #expect(remote.downloadURL?.absoluteString == "https://releases.mattermost.com/desktop/6.5.0-nightly.20261116/mattermost-desktop-6.5.0-nightly.20261116-mac-arm64.zip")
+        #expect(FixtureProtocol.paths == ["/desktop/nightly.txt"])
+        #expect(ChangelogRecipeRegistry.recipe(forBundleID: bundleID, channel: .nightly) == nil)
     }
 
     @Test func anRCInstallWithNoGitHubTagReadsOnlyTheOfficialRCFeed() async throws {

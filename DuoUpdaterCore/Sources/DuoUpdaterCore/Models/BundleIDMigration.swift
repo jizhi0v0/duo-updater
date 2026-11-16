@@ -54,6 +54,14 @@ public struct BundleIDMigration: Sendable, Equatable {
     }
 
     public static let all: [BundleIDMigration] = [
+        // Mattermost 4.0.0/4.1.0 are com.mattermost.desktop; the observed
+        // 6.3.2/6.4.0 bundles are Mattermost.Desktop, the same Team. The bound
+        // is the first observed new-id package, not the exact rename release.
+        // Earlier com.electron.* bundles are unsigned and are detection-only.
+        // History: docs/app-audits/Mattermost-Desktop.md#历史与实测
+        BundleIDMigration(
+            from: "com.mattermost.desktop", to: "Mattermost.Desktop",
+            teamID: "UQ8HT4Q2XM", lastFromVersion: "4.1.0", firstToVersion: "6.3.2"),
         // WorkBuddy, China site: 5.3.14 (2026-08-17) is `com.workbuddy.workbuddy`,
         // 5.5.4 (2026-09-16) and every build since is `com.tencent.workbuddy.mac`;
         // the releases between could not be fetched. The vendor's own updater

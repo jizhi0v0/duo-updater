@@ -277,6 +277,7 @@ public enum AppRecipeIndex {
         dev_kiro_desktop.set,
         dev_kitten_Kitten_Preview.set,
         dev_mayoi_editor.set,
+        dev_nkzw_tech_codiff.set,
         dev_openchamber_desktop.set,
         dev_pennybar_PennyBar.set,
         dev_warp_Warp_Stable.set,

@@ -35,6 +35,24 @@ private func extract(
     #expect(extract("v2.12.16", "eu.exelban.Stats") == "2.12.16")
 }
 
+@Test func codiffRuleReadsPackagingRebuildsAndRejectsPrereleaseTracks() throws {
+    let id = "dev.nkzw-tech.codiff"
+    for (tag, version) in [("v0.5.0-2", "0.5.0"), ("v1.0.1-1", "1.0.1"),
+                           ("v1.20.0", "1.20.0"), ("v2.0", "2.0")] {
+        #expect(extract(tag, id) == version)
+    }
+    for tag in ["v2.0.0-beta.1", "v2.0.0-rc.1", "v2.0.0-nightly", "v2.0.0-1-beta"] {
+        #expect(extract(tag, id) == nil)
+    }
+    let pattern = try #require(rule(id).installAssetPattern)
+    #expect("Codiff-darwin-arm64-1.20.0.zip".range(of: pattern, options: .regularExpression) != nil)
+    for asset in ["Codiff-win32-x64-1.20.0.zip", "Codiff-darwin-x64-1.20.0.zip",
+                  "Codiff-darwin-arm64-2.0.0-beta.1.zip", "codiff_1.20.0_amd64.deb"] {
+        #expect(asset.range(of: pattern, options: .regularExpression) == nil)
+    }
+    #expect(rule(id).recipeID == "github:nkzw-tech/codiff:stable")
+}
+
 @Test func dbeaverRuleExtractsBareTag() {
     #expect(extract("26.1.0", "org.jkiss.dbeaver.core.product") == "26.1.0")
     // One-click pins the aarch64 asset: the release publishes an x86_64 dmg beside

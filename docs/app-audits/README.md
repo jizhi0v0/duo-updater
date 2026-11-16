@@ -222,6 +222,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 
 ## Single-channel — GitHub Releases
 
+- [x] [**Codiff**](dev-nkzw-tech-codiff.md) · `dev.nkzw-tech.codiff` — G（arm64 ZIP 一键安装、结构化日志）· 2026-11-16
 - [x] **RustDesk** · `com.carriez.rustdesk` — G C (one-click) · ✓ src=GitHub
 - [x] **GitHub Desktop** · `com.github.GitHubClient` — G · ✓ src=GitHub
 - [x] **Stats** · `eu.exelban.Stats` — G (one-click) · ✓ src=GitHub · [audit](eu-exelban-Stats.md)

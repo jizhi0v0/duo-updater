@@ -697,6 +697,8 @@ VendorProbe，以及读哨兵文件的 `ChannelBinding`。详见 [审计](docs/a
 
 ## 已全覆盖的单 channel app（存档参考）
 
+Codiff：stable GitHub Releases 检测、arm64 ZIP 一键安装、源内结构化日志；55 个公开 release 均非 prerelease，数字后缀为历史重打包，未发现其他发布轨（2026-11-16；[audit](docs/app-audits/dev-nkzw-tech-codiff.md)）。
+
 只有 stable、无其它轨需接的：Claude / Codex / ChatWise / Ollama / Conductor / opencode /
 CleanShot(单轨部分) / Shottr / AppCleaner / Unarchiver / ImageOptim / Pearcleaner /
 Stats / MacsFanControl / Notion / LibreWolf / Plex / Dropbox /

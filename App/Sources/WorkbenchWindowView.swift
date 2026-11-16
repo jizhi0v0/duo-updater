@@ -4096,9 +4096,6 @@ struct BreakingChangesJump: Equatable {
 /// `columns` — a master/detail with a version list on the left and the selected
 /// version's notes on the right, best for content-heavy changelogs; or `list` — one
 /// long top-down scroll, better when each version is only a line or two.
-/// Internal, not private: the self-changelog window renders DuoUpdater's own
-/// release notes through the very same view, so they look like every other app's
-/// rather than a second, drifting layout.
 struct ChangelogEntriesView: View {
     /// How an entry's items should read.
     ///
@@ -4125,17 +4122,6 @@ struct ChangelogEntriesView: View {
     /// The latest click on a version in the pane's Compatibility row: shown
     /// like a click on that version's ⚠ in the rail (`showBreaking`).
     var breakingJump: BreakingChangesJump?
-    /// DuoUpdater's own history uses compact version + date rows. Vendor
-    /// changelogs retain the two-line treatment because their titles can be long.
-    var showsDatesInline: Bool = false
-    /// Whether to offer the side-by-side / long-scroll switch.
-    ///
-    /// Off for our own notes: with 101 versions the rail is the only sane way to
-    /// read them, so the picker sat alone in an empty strip offering a layout
-    /// nobody would pick — cost in vertical space and visual noise, no benefit.
-    /// A vendor changelog is often a handful of entries where the long scroll is a
-    /// reasonable choice, so it keeps the switch.
-    var showsLayoutPicker: Bool = true
     @AppStorage("changelogLayout") private var layout: ChangelogLayout = .columns
     @State private var selection = 0
     /// Cached rail width. The measurement below runs AppKit text sizing over every
@@ -4216,7 +4202,7 @@ struct ChangelogEntriesView: View {
     /// title (and the lower clamp keeps a terse changelog from getting cramped).
     /// Measured with AppKit since the labels are known up front — no GeometryReader.
     private static func railWidth(
-        for changelog: Changelog, showsDatesInline: Bool, flagsBreaking: Bool = false
+        for changelog: Changelog, flagsBreaking: Bool = false
     ) -> CGFloat {
         let labelFont = NSFont.preferredFont(forTextStyle: .callout)
         let dateFont = NSFont.preferredFont(forTextStyle: .caption2)
@@ -4227,24 +4213,17 @@ struct ChangelogEntriesView: View {
                 let dateW = (entry.date?.isEmpty == false)
                     ? (entry.date! as NSString).size(withAttributes: [.font: dateFont]).width
                     : 0
-                return showsDatesInline && dateW > 0
-                    ? labelW + 6 + dateW
-                    : max(labelW, dateW)
+                return max(labelW, dateW)
             }
             .sorted()
         guard !rowWidths.isEmpty else { return 200 }
         let pick = rowWidths[Int((Double(rowWidths.count - 1) * 0.85).rounded())]
-        // Row chrome: line .horizontal(10)×2 + rail .padding(8)×2. Inline dates
-        // also reserve the current-version dot and its gap; without that small
-        // accessory budget only the running row truncates its otherwise identical
-        // date, which makes the rail look inconsistently sized.
+        // Row chrome: line .horizontal(10)×2 + rail .padding(8)×2.
         let chrome: CGFloat = 20 + 16
-        let inlineAccessory: CGFloat = showsDatesInline ? 16 : 0
         // The ⚠ beside a flagged version, budgeted for the same reason: without
         // it only the flagged rows would truncate their labels.
         let breakingAccessory: CGFloat = flagsBreaking ? 18 : 0
-        let minimum: CGFloat = showsDatesInline ? 156 : 140
-        return min(max(pick + chrome + inlineAccessory + breakingAccessory, minimum), 360)
+        return min(max(pick + chrome + breakingAccessory, 140), 360)
     }
 
     var body: some View {
@@ -4299,41 +4278,34 @@ struct ChangelogEntriesView: View {
 
     private var multipleBody: some View {
         VStack(spacing: 0) {
-            if showsLayoutPicker {
-                // Slim header carrying the layout toggle, right-aligned.
-                HStack(spacing: 0) {
-                    Spacer()
-                    Picker("Layout", selection: $layout) {
-                        ForEach(ChangelogLayout.allCases, id: \.self) { option in
-                            Image(systemName: option.symbol).tag(option)
-                        }
+            // Slim header carrying the layout toggle, right-aligned.
+            HStack(spacing: 0) {
+                Spacer()
+                Picker("Layout", selection: $layout) {
+                    ForEach(ChangelogLayout.allCases, id: \.self) { option in
+                        Image(systemName: option.symbol).tag(option)
                     }
-                    .pickerStyle(.segmented)
-                    .labelsHidden()
-                    .fixedSize()
-                    .help("Switch between side-by-side and long-scroll layouts")
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-
-                Divider()
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .fixedSize()
+                .help("Switch between side-by-side and long-scroll layouts")
             }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
 
-            if showsLayoutPicker {
-                switch layout {
-                case .columns: columnsBody
-                case .list:    listBody
-                }
-            } else {
-                columnsBody
+            Divider()
+
+            switch layout {
+            case .columns: columnsBody
+            case .list:    listBody
             }
         }
     }
 
     private var measuredRailWidth: CGFloat {
         let shown = Set(changelog.entries.map(\.version))
-        return Self.railWidth(for: changelog, showsDatesInline: showsDatesInline,
-                              flagsBreaking: breakingVersions.contains(where: shown.contains))
+        return Self.railWidth(for: changelog, flagsBreaking: breakingVersions.contains(where: shown.contains))
     }
 
     private func entry(_ version: String) -> Int? {
@@ -4480,7 +4452,6 @@ struct ChangelogEntriesView: View {
                 entries: changelog.entries, selection: $selection,
                 runningVersion: runningVersion,
                 breakingVersions: Set(breakingVersions),
-                showsDatesInline: showsDatesInline,
                 showBreaking: { showBreaking(BreakingChangesJump(version: $0)) })
                 .frame(width: cachedRailWidth)
             Divider()
@@ -4813,7 +4784,6 @@ private struct ChangelogVersionList: View {
     var runningVersion: String?
     /// Versions whose notes mark breaking changes (`ChangelogEntriesView.breakingVersions`).
     var breakingVersions: Set<String> = []
-    var showsDatesInline = false
     /// A flagged version's ⚠, clicked: show that version's breaking changes.
     var showBreaking: (String) -> Void = { _ in }
 
@@ -4829,12 +4799,6 @@ private struct ChangelogVersionList: View {
                                     .font(.callout)
                                     .fontWeight(index == selected ? .semibold : .regular)
                                     .lineLimit(1)
-                                if showsDatesInline, let date = entry.date, !date.isEmpty {
-                                    Text(date)
-                                        .font(.caption2)
-                                        .foregroundStyle(.secondary)
-                                        .lineLimit(1)
-                                }
                                 if isRunning(entry) {
                                     // A filled dot, not the word "current": the rail
                                     // is narrow and sized from its labels, so a word
@@ -4860,7 +4824,7 @@ private struct ChangelogVersionList: View {
                                     .accessibilityLabel("This version’s notes mark breaking changes. Click to show them.")
                                 }
                             }
-                            if !showsDatesInline, let date = entry.date, !date.isEmpty {
+                            if let date = entry.date, !date.isEmpty {
                                 Text(date).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
                             }
                         }
@@ -4897,7 +4861,7 @@ private struct ChangelogVersionList: View {
 /// One part of a changelog entry — its title, or one row under it — as
 /// `ChangelogRowsStack` lays them out. The title is either a classic version
 /// heading, or a post-style title with date/build metadata underneath.
-private struct ChangelogEntryView: View {
+struct ChangelogEntryView: View {
     /// What of the entry to draw: its title, or row `n` of `rowCount(of:)`.
     enum Part: Hashable {
         case title
@@ -5177,7 +5141,7 @@ private struct ChangelogEntryView: View {
             .padding(.top, 2)
     }
 
-    fileprivate static func displayDate(for raw: String) -> String {
+    static func displayDate(for raw: String) -> String {
         if let parsed = iso8601Fractional.date(from: raw) ?? iso8601.date(from: raw) {
             return ymd.string(from: parsed)
         }
@@ -5309,7 +5273,7 @@ extension View {
     ///
     /// `NSWorkspace` rather than SwiftUI's own `openURL`, which errors -50 in this
     /// app's windows (see `AlcoveSettingsPage`).
-    fileprivate func releaseNoteLinks() -> some View {
+    func releaseNoteLinks() -> some View {
         environment(\.openURL, OpenURLAction { url in
             guard ReleaseNoteLinkPolicy.allows(url) else { return .discarded }
             NSWorkspace.shared.open(url)

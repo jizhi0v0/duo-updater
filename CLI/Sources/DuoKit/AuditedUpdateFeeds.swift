@@ -136,6 +136,16 @@ enum AuditedUpdateFeeds {
                  url: "https://download.deepseek.com/dsh-desk/feeds/mac-arm64/",
                  channel: "nightly", audit: "docs/app-audits/com-deepseek-dsh.md"),
 
+        // Audit: docs/app-audits/com-luckymarmot-Paw.md. Current copies
+        // declare an Ed25519 key; legacy Paw/RapidAPI copies carry DSA only.
+        sparkle("RapidAPI for Mac", "com.luckymarmot.Paw", .stable,
+                feed: "https://paw.cloud/api/v2/updates/appcast",
+                publicKey: "EbtjNsFuPe0o0UZDSFr/514GIusvouXngkfdmiKApHY=",
+                copyGroup: "ed25519", audit: "docs/app-audits/com-luckymarmot-Paw.md"),
+        sparkle("Paw / RapidAPI for Mac", "com.luckymarmot.Paw", .stable,
+                feed: "https://paw.cloud/api/v2/updates/appcast",
+                copyGroup: "legacy-dsa", audit: "docs/app-audits/com-luckymarmot-Paw.md"),
+
         // Audit: docs/app-audits/com-googlecode-iterm2.md. No query shard is
         // needed: the audit found it does not change the feed response. The
         // public key comes from the matching installed iTerm2 bundle.
@@ -493,6 +503,8 @@ enum AuditedUpdateFeeds {
                      reason: "No matching installed copy or full public key in the linked audit was available from the permitted sources."),
         PublicKeyGap(bundleID: "com.goodsnooze.MacWhisper", auditDocument: "docs/app-audits/com-goodsnooze-MacWhisper.md",
                      reason: "No matching installed copy or full public key in the linked audit was available from the permitted sources."),
+        PublicKeyGap(bundleID: "com.luckymarmot.Paw", auditDocument: "docs/app-audits/com-luckymarmot-Paw.md",
+                     reason: "The legacy-dsa group (verified Paw3.4.0 and RapidAPI4.5.2) has no SUPublicEDKey; code-signature and Team checks still apply. Current copies have the separately recorded Ed25519 key."),
         PublicKeyGap(bundleID: "com.prakashjoshipax.VoiceInk", auditDocument: "docs/app-audits/com-prakashjoshipax-VoiceInk.md",
                      reason: "No matching installed copy or full public key in the linked audit was available from the permitted sources."),
         PublicKeyGap(bundleID: "com.robinebers.openusage", auditDocument: "docs/app-audits/com-robinebers-openusage.md",

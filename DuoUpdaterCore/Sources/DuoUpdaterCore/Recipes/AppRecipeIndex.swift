@@ -135,6 +135,7 @@ public enum AppRecipeIndex {
         com_logseq_logseq.set,
         com_lokii_app.set,
         com_longbridge_app_desktop.set,
+        com_luckymarmot_Paw.set,
         com_lwouis_alt_tab_macos.set,
         com_macpaw_CleanMyMac5.set,
         com_macpaw_site_Gemini2.set,

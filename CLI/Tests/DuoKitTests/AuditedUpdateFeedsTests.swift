@@ -78,7 +78,7 @@ import Testing
     }
 
     @Test func allCatalogURLsArePublicHTTPSWithoutCredentialsOrQuery() {
-        #expect(AuditedUpdateFeeds.entries.count == 71)
+        #expect(AuditedUpdateFeeds.entries.count == 73)
         for entry in AuditedUpdateFeeds.entries {
             let url: URL?
             if case .electron(let config) = entry.source {
@@ -109,7 +109,7 @@ import Testing
         let excludedDocuments = Set(AuditedUpdateFeeds.uncoveredRows.map(\.auditDocument))
 
         #expect(electronEntries.count == 12)
-        #expect(sparkleEntries.count == 59)
+        #expect(sparkleEntries.count == 61)
         #expect(electronDocuments == electronRows)
         #expect(sparkleDocuments.isDisjoint(with: excludedDocuments))
         #expect(sparkleDocuments.union(excludedDocuments) == sparkleRows)
@@ -207,6 +207,22 @@ import Testing
         #expect(app.sparkleFeedURL?.absoluteString == "https://www.iina.io/appcast-beta.xml")
     }
 
+    @Test func pawKeepsTheLegacyAndCurrentKeyGroups() throws {
+        let entries = AuditedUpdateFeeds.entries.filter { $0.bundleID == "com.luckymarmot.Paw" }
+        #expect(Set(entries.map(\.recipeID)) == [
+            "sparkle:com.luckymarmot.Paw:stable:ed25519",
+            "sparkle:com.luckymarmot.Paw:stable:legacy-dsa",
+        ])
+        let current = try #require(entries.first { $0.copyGroup == "ed25519" })
+        let legacy = try #require(entries.first { $0.copyGroup == "legacy-dsa" })
+        #expect(sparkleDetails(current)?.publicKey == "EbtjNsFuPe0o0UZDSFr/514GIusvouXngkfdmiKApHY=")
+        #expect(sparkleDetails(legacy)?.publicKey == nil)
+        for entry in entries {
+            #expect(sparkleDetails(entry)?.feed.absoluteString == "https://paw.cloud/api/v2/updates/appcast")
+            #expect(sparkleDetails(entry)?.channelNames.isEmpty == true)
+        }
+    }
+
     @Test func everyKnownPublicKeyIsAValidSparkleKeyAndEveryMissingOneIsExplained() {
         let sparkleEntries = AuditedUpdateFeeds.entries.filter { sparkleDetails($0) != nil }
         let keyedBundleIDs = Set(sparkleEntries.compactMap { item -> String? in
@@ -218,8 +234,8 @@ import Testing
         let gaps = AuditedUpdateFeeds.unavailablePublicKeys
         let gapBundleIDs = Set(gaps.map(\.bundleID))
 
-        #expect(keyedBundleIDs.count == 20)
-        #expect(missingBundleIDs.count == 24)
+        #expect(keyedBundleIDs.count == 21)
+        #expect(missingBundleIDs.count == 25)
         #expect(gapBundleIDs == missingBundleIDs)
         #expect(gaps.count == gapBundleIDs.count)
 

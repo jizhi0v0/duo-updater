@@ -411,6 +411,8 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 
 ## Sparkle-covered (auto-detected, no custom recipe)
 
+- [x] [**RapidAPI for Mac / Paw**](com-luckymarmot-Paw.md) · `com.luckymarmot.Paw` — S（feed 补全）· 检测、安装及结构化日志验收见审计 · 2026-11-16
+
 - [x] [**iTerm2**](com-googlecode-iterm2.md) · `com.googlecode.iterm2` — S+B · stable/nightly ✓ · test release ✓（`ITerm2Channel`）· 一键 ✓ · changelog recipe ✓（stable/test release）· 2026-10-08
 - [x] [**Arc**](company-thebrowser-Browser.md) · `company.thebrowser.Browser` — S · 一键（delta）✓ · Early Birds 需申请，RC 包自带 feed，不做 binding · changelog 原文 · 2026-10-08
 - [x] [**Dia Browser**](company-thebrowser-dia.md) · `company.thebrowser.dia` — S · 真包 1.51.0/1.51.1/RC 1.52.0 验证 ✓ · 一键（delta）✓ · Early Birds（RC）需申请，RC 包自带 feed，不做 binding · changelog 结构化（无分节）· 2026-10-08

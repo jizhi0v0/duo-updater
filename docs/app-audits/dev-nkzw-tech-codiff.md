@@ -19,7 +19,7 @@
 
 ## 覆盖清单
 - 最早公开包 0.1.0、上一版 1.19.1、最新版 1.20.0 真包均为上述 Bundle ID / Team，营销版本与 build 相同。`forge.config.cjs` 在最早 tag 与 main 使用相同 `appBundleId`。
-- 55 个公开 release、65 个 git tag；公开 release 全部 `prerelease=false`。`v0.5.0-2`、`v0.9.0-2`、`v0.10.0-5`、`v0.11.0-2`、`v1.0.1-1` 是数字后缀重打包，ZIP 名仍是无后缀版本。规则提取营销版本，所有 65 个 tag 均可读。
+- 55 个公开 release、65 个 git tag；公开 release 全部 `prerelease=false`。`v0.5.0-2`、`v0.9.0-2`、`v0.10.0-5`、`v1.0.1-1` 的数字后缀 release 使用无后缀 ZIP 名。另有历史异常：`v0.11.0-2` 资产名为 `Codiff-darwin-arm64-0.10.0.zip`，不能从这个旧 tag 推断包内版本；它不在当前 latest 或 20 条回退窗口中。旧副本仍按 Bundle ID 查当前 1.20.0，无需借旧 tag 确定安装版本。所有 65 个 tag 的数字格式均可读；当前 latest 的 tag、资产与真包版本已核对相等。
 - 没有独立 beta/nightly 资产或源码中的发布轨切换。命名预发布后缀不匹配 stable 规则。
 - 各历史 tag 无 release 的副本仍按相同 Bundle ID 检测最新 stable；未逐个下载的中间版本若签名不同，现有安装 Team 闸会安全拒绝。
 - 无许可/订阅门控，无其他 Mac 产品或旧 Bundle ID 证据。

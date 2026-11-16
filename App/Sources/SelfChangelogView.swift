@@ -313,6 +313,8 @@ struct SelfChangelogHistoryView: View {
                     .padding(.horizontal, 4)
                     .frame(minHeight: SidebarRowMetrics.height - 2 * SidebarRowMetrics.verticalPadding)
                     .sidebarRow(String(index), selection: historySelection)
+                    .accessibilityElement(children: .combine)
+                    .accessibilityAddTraits(.isButton)
                 }
             }
         }

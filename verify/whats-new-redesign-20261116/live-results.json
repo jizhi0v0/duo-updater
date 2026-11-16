@@ -1,0 +1,67 @@
+{
+  "date": "2026-11-16",
+  "host": "Apple Silicon, macOS 27.3 (26C5035r)",
+  "method": "cua-driver AX/key/wheel input to a running SwiftUI Window hosting the production history view; DuoShot isolated captures",
+  "base_commit": "e9252919d04e1bb42fc84b0227cd846ee70f7c02",
+  "source_delta": "SelfChangelogView.swift: combine accessibility children and expose version rows as buttons",
+  "checks": [
+    {
+      "evidence": "08-click-state.json",
+      "expected_version": "0.5.24",
+      "observed_version": "0.5.24",
+      "passed": true
+    },
+    {
+      "evidence": "09-up-state.json",
+      "expected_version": "0.5.25-beta.1",
+      "observed_version": "0.5.25-beta.1",
+      "passed": true
+    },
+    {
+      "evidence": "10-page-down-get_window_state.json",
+      "expected_version": "0.5.21",
+      "observed_version": "0.5.21",
+      "passed": true
+    },
+    {
+      "evidence": "11-page-up-get_window_state.json",
+      "expected_version": "0.5.25-beta.1",
+      "observed_version": "0.5.25-beta.1",
+      "passed": true
+    },
+    {
+      "evidence": "12-end-get_window_state.json",
+      "expected_version": "0.1.9",
+      "observed_version": "0.1.9",
+      "passed": true
+    },
+    {
+      "evidence": "13-home-get_window_state.json",
+      "expected_version": "0.5.25-beta.1",
+      "observed_version": "0.5.25-beta.1",
+      "passed": true
+    },
+    {
+      "evidence": "22-down-get_window_state.json",
+      "expected_version": "0.5.24",
+      "observed_version": "0.5.24",
+      "passed": true
+    },
+    {
+      "evidence": "23-up-get_window_state.json",
+      "expected_version": "0.5.25-beta.1",
+      "observed_version": "0.5.25-beta.1",
+      "passed": true
+    },
+    {
+      "check": "Copy from selected stable release",
+      "result": {
+        "copied_version": "0.5.24",
+        "characters": 2287,
+        "paragraphs": 11,
+        "matches_published_notes": true
+      },
+      "feedback_screenshot": "live-copy.png"
+    }
+  ]
+}

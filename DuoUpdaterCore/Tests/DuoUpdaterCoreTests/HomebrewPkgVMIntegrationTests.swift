@@ -45,7 +45,7 @@ struct HomebrewPkgVMIntegrationTests {
                 try await installer.upgrade(caskToken: token, app: path) { _ in }
             } catch { failure = error.localizedDescription }
             let message = try #require(failure)
-            #expect(message.localizedCaseInsensitiveContains(stage == "conflict" ? "conflict" : "SHA256"))
+            #expect(message.localizedCaseInsensitiveContains(stage == "conflict" ? "conflict" : "SHA-256"))
             #expect(BrewAppCask.bundleShortVersion(path.path) == "2.0")
             #expect(BrewLocalInventory().installedVersion(caskToken: "duo206x-pkg") == "2.0")
         }

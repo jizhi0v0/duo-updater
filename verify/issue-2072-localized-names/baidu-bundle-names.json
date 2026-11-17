@@ -1,0 +1,19 @@
+{
+  "path": "/Applications/BaiduNetdisk_mac.app",
+  "info": {
+    "CFBundleIdentifier": "com.baidu.BaiduNetdisk-mac",
+    "CFBundleName": "BaiduNetdisk_mac",
+    "CFBundleDisplayName": "BaiduNetdisk_mac",
+    "CFBundleShortVersionString": "8.10.3"
+  },
+  "localizedNames": {
+    "en.lproj": {
+      "CFBundleDisplayName": "BaiduNetdisk",
+      "CFBundleName": "BaiduNetdisk"
+    },
+    "zh_CN.lproj": {
+      "CFBundleDisplayName": "百度网盘",
+      "CFBundleName": "百度网盘"
+    }
+  }
+}

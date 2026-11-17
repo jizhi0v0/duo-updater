@@ -45,6 +45,8 @@ public struct AppScanner: Sendable {
     /// tag installs as TestFlight-managed (and keep them out of the MAS path).
     private let testflight: TestFlightInventory
 
+    private let preferredLanguages: [String]
+
     /// Where `readApp` gets an app's user-chosen channel. Always
     /// `ChannelBinding.resolve` outside tests.
     ///
@@ -70,12 +72,14 @@ public struct AppScanner: Sendable {
         locations: [URL]? = nil,
         extraLocations: [URL] = [],
         toolbox: ToolboxInventory = ToolboxInventory(),
-        testflight: TestFlightInventory = TestFlightInventory()
+        testflight: TestFlightInventory = TestFlightInventory(),
+        preferredLanguages: [String] = Locale.preferredLanguages
     ) {
         self.init(
             locations: locations, extraLocations: extraLocations,
             toolbox: toolbox, testflight: testflight,
-            channelBinding: { ChannelBinding.resolve(bundleID: $0, bundleFeeds: $1, bundleStrings: $2) })
+            channelBinding: { ChannelBinding.resolve(bundleID: $0, bundleFeeds: $1, bundleStrings: $2) },
+            preferredLanguages: preferredLanguages)
     }
 
     /// The above, with the channel read injected. See `channelBinding`.
@@ -86,11 +90,13 @@ public struct AppScanner: Sendable {
         testflight: TestFlightInventory = TestFlightInventory(),
         channelBinding: @escaping @Sendable (
             _ bundleID: String?, _ bundleFeeds: [String: URL], _ bundleStrings: [String: String]
-        ) -> ResolvedChannel?
+        ) -> ResolvedChannel?,
+        preferredLanguages: [String] = Locale.preferredLanguages
     ) {
         self.toolbox = toolbox
         self.testflight = testflight
         self.channelBinding = channelBinding
+        self.preferredLanguages = preferredLanguages
         self.locations = (locations ?? Self.defaultLocations) + extraLocations
     }
 
@@ -175,15 +181,8 @@ public struct AppScanner: Sendable {
     /// of bidi marks — so the emptiness test has to be on its *output*, not on the
     /// raw plist value.
     ///
-    /// We deliberately do not consult the localized `InfoPlist.strings`: every name
-    /// in this app comes from the unlocalized plist (WeChat is "WeChat", not
-    /// "微信"), so rows, logs and prompts all say the same thing.
-    ///
-    /// That used to be justified by the AX/App Store matching comparing against these
-    /// same strings. It no longer is: App Store renders the *localized* listing, so on
-    /// a non-English Mac the name here is not the name on screen. The matching reads
-    /// the localized name itself — `AppStoreAXInstaller.AppNames.localizedName` — and
-    /// keeps this one as a needle beside it, rather than changing what the UI says.
+    /// Display names may come from localized bundle resources; callers still
+    /// fall back to these raw metadata candidates when no usable translation exists.
     ///
     /// The last candidate is the caller's non-optional backstop (the bundle's
     /// filename); if even that is blank the name is genuinely unknowable and an
@@ -594,11 +593,16 @@ public struct AppScanner: Sendable {
         // literal comparison against text rendered *without* them — most visibly the
         // App Store AX updater's `heroOwns`/row matching, which then "can't find the
         // update button". Strip them so the canonical name matches everywhere.
-        let displayName = Self.firstUsableName(
+        let metadataName = Self.firstUsableName(
             plist["CFBundleDisplayName"] as? String,
             plist["CFBundleName"] as? String,
             bundleURL.deletingPathExtension().lastPathComponent
         )
+        let displayName = Self.firstUsableName(
+            LocalizedAppName.read(
+                at: bundleURL, preferredLanguages: preferredLanguages,
+                fallbackDisplayName: plist["CFBundleDisplayName"] as? String),
+            metadataName)
 
         // Wrapped iOS apps can only come from the Mac App Store; native Mac apps
         // carry a `_MASReceipt` when bought there. TestFlight builds ALSO carry a
@@ -858,7 +862,9 @@ public struct AppScanner: Sendable {
         // bundle id suffix or a channel word in the display name. This gates
         // cross-channel updates downstream (see `ReleaseChannel`).
         var releaseChannel = ReleaseChannel.detect(
-            name: displayName,
+            // Localized display names can hide or introduce words like Beta.
+            // Channel inference keeps the original metadata name.
+            name: metadataName,
             bundleID: bundleID,
             keystoneChannel: plist["KSChannelID"] as? String,
             // Use the RAW marketing version (not the Toolbox-aligned display one)

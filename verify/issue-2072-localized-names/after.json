@@ -1,0 +1,34 @@
+[
+  {
+    "bundleID" : "com.mac.utility.media.hub",
+    "channel" : "stable",
+    "languages" : "en-US",
+    "name" : "VidHub",
+    "path" : "\/Applications\/MediaCenter.app",
+    "version" : "3.0.4"
+  },
+  {
+    "bundleID" : "com.baidu.BaiduNetdisk-mac",
+    "channel" : "stable",
+    "languages" : "en-US",
+    "name" : "BaiduNetdisk",
+    "path" : "\/Applications\/BaiduNetdisk_mac.app",
+    "version" : "8.10.3"
+  },
+  {
+    "bundleID" : "com.mac.utility.media.hub",
+    "channel" : "stable",
+    "languages" : "zh-Hans-US,en-US",
+    "name" : "VidHub",
+    "path" : "\/Applications\/MediaCenter.app",
+    "version" : "3.0.4"
+  },
+  {
+    "bundleID" : "com.baidu.BaiduNetdisk-mac",
+    "channel" : "stable",
+    "languages" : "zh-Hans-US,en-US",
+    "name" : "百度网盘",
+    "path" : "\/Applications\/BaiduNetdisk_mac.app",
+    "version" : "8.10.3"
+  }
+]

@@ -76,7 +76,7 @@ import CryptoKit
         }
         return result
     }
-    static func refuses(_ label: String, action: () async throws -> Void) async throws {
+    static func refuses(_ label: String, action: @Sendable () async throws -> Void) async throws {
         do {
             try await action()
             throw Failure(message: "\(label): foreign prefix was accepted")

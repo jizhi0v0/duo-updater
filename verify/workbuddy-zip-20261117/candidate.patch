@@ -2,10 +2,7 @@ diff --git a/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/com-workbuddy-workbud
 index b8d63717..7a4213bd 100644
 --- a/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/com-workbuddy-workbuddy-ai.swift
 +++ b/DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes/com-workbuddy-workbuddy-ai.swift
-@@ -95,13 +95,10 @@ enum com_workbuddy_workbuddy_ai {
-         // situation degrades loudly instead (`installURLUnresolved`, which the
-         // nightly `duo verify` sweep reports).
-         //
+@@ -98,7 +98,4 @@ enum com_workbuddy_workbuddy_ai {
 -        // One-click: the JSON's `url` is a plain, unsigned zip on Tencent COS
 -        // (intl: `download.codebuddy.ai`; CN: `download.codebuddy.cn` — each a
 -        // branded front for the vendor's COS bucket). The `sha256hash` field alongside it is NOT
@@ -17,96 +14,53 @@ index b8d63717..7a4213bd 100644
 +        // against that response's `sha256hash`, then the existing Team-ID gate.
 +        // The ZIP URL remains pinned to the international host and selected architecture.
 +        // History: docs/app-audits/com-workbuddy-workbuddy-ai.md#历史与实测
-         //
-         // Changelog: each site's page is the one the app itself links (the build
-         // branches on `isOverseas()`). The two pages share one entry pattern — see
-@@ -110,12 +107,14 @@ enum com_workbuddy_workbuddy_ai {
-             bundleID: "com.workbuddy.workbuddy-ai", host: "www.workbuddy.ai",
-             assetHost: "download.codebuddy.ai", arch: .arm64,
-             downloadURL: URL(string: "https://www.workbuddy.ai/")!,
+@@ -113 +110,2 @@ enum com_workbuddy_workbuddy_ai {
 -            changelogURL: URL(string: "https://www.workbuddy.ai/docs/workbuddy/Changelog")!),
 +            changelogURL: URL(string: "https://www.workbuddy.ai/docs/workbuddy/Changelog")!,
 +            installsZip: true),
-         VendorProbeRegistry.workBuddyRecipe(
-             bundleID: "com.workbuddy.workbuddy-ai", host: "www.workbuddy.ai",
-             assetHost: "download.codebuddy.ai", arch: .x86_64,
-             downloadURL: URL(string: "https://www.workbuddy.ai/")!,
+@@ -118 +116,2 @@ enum com_workbuddy_workbuddy_ai {
 -            changelogURL: URL(string: "https://www.workbuddy.ai/docs/workbuddy/Changelog")!),
 +            changelogURL: URL(string: "https://www.workbuddy.ai/docs/workbuddy/Changelog")!,
 +            installsZip: true),
-         ],
-         changelogs: [
-         ChangelogRecipe(
 diff --git a/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/WorkBuddyProbeRecipeTests.swift b/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/WorkBuddyProbeRecipeTests.swift
 index 5e75b858..cd4160cf 100644
 --- a/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/WorkBuddyProbeRecipeTests.swift
 +++ b/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/WorkBuddyProbeRecipeTests.swift
-@@ -13,18 +13,17 @@ struct WorkBuddyProbeRecipeTests {
- 
-     /// The two sites and the version each served when the recipes were written.
-     /// `body` is the endpoint's response captured verbatim: the China site's on
+@@ -16,2 +16,2 @@ struct WorkBuddyProbeRecipeTests {
 -    /// 2026-08-27, the international site's on 2026-10-19 (after it moved its
 -    /// downloads to `download.codebuddy.ai`).
 +    /// 2026-08-27, the international site's on 2026-11-17 (after its digest moved
 +    /// from the DMG to the ZIP).
-     private struct Site {
-         let bundleID: String
-         let host: String
-         /// `CFBundleShortVersionString` of the real bundle for that train, read
+@@ -22 +22 @@ struct WorkBuddyProbeRecipeTests {
 -        /// off the vendor's own DMG — deliberately the THREE-segment string, which
 +        /// off the vendor's real bundle — deliberately the THREE-segment string, which
-         /// is the point of the version pattern.
-         let installedShortVersion: String
-         /// The artifact `sha256hash` describes, which one-click must install: the
+@@ -26,2 +26 @@ struct WorkBuddyProbeRecipeTests {
 -        /// dmg for the international site, the zip for the China site (its digest
 -        /// moved to the zip by 2026-10-14; see `workBuddyRecipe`).
 +        /// ZIP named by the current response for both sites.
-         let installKind: VendorInstallerKind
-         let bodies: [String: String]  // variant slug → captured response body
-     }
-@@ -33,11 +32,11 @@ struct WorkBuddyProbeRecipeTests {
-         Site(
-             bundleID: "com.workbuddy.workbuddy-ai",
-             host: "www.workbuddy.ai",
+@@ -36,2 +35,2 @@ struct WorkBuddyProbeRecipeTests {
 -            installedShortVersion: "5.8.4",
 -            installKind: .dmg,
 +            installedShortVersion: "5.11.4",
 +            installKind: .zip,
-             bodies: [
+@@ -39,2 +38,2 @@ struct WorkBuddyProbeRecipeTests {
 -                "arm64": #"{"version":"5.8.4.41366630","url":"https://download.codebuddy.ai/workbuddy/saas/darwin-arm64/WorkBuddy-darwin-arm64-5.8.4.41366630-73952edb.zip","productVersion":"5.8.4.41366630","sha256hash":"e5ef3f91e7f9d61a3d41eb9e279f1bc676e4317afdb211fee94efc03548f1133","timestamp":1792089830,"hash":"","name":"","supportsFastUpdate":false}"#,
 -                "x64": #"{"version":"5.8.4.41366630","url":"https://download.codebuddy.ai/workbuddy/saas/darwin-x64/WorkBuddy-darwin-x64-5.8.4.41366630-73952edb.zip","productVersion":"5.8.4.41366630","sha256hash":"8404d7eeb2653ec49ca3f3bce4b69fd101ecf60bd1fd9f8472181108a11aa63e","timestamp":1792089830,"hash":"","name":"","supportsFastUpdate":false}"#,
 +                "arm64": #"{"version":"5.11.4.44121853","url":"https://download.codebuddy.ai/workbuddy/saas/darwin-arm64/WorkBuddy-darwin-arm64-5.11.4.44121853-0026dff0.zip","productVersion":"5.11.4.44121853","sha256hash":"fe5d9be52791bb10df320ff7f66a24923a279f588dfe55284911f30a64eaeef8","timestamp":1794845053,"hash":"","name":"","supportsFastUpdate":false}"#,
 +                "x64": #"{"version":"5.11.4.44121853","url":"https://download.codebuddy.ai/workbuddy/saas/darwin-x64/WorkBuddy-darwin-x64-5.11.4.44121853-0026dff0.zip","productVersion":"5.11.4.44121853","sha256hash":"f17292ee0a9702670d739679b76d3a84a012dbd232f45c6479bf37cc00cf402c","timestamp":1794845053,"hash":"","name":"","supportsFastUpdate":false}"#,
-             ]),
-         Site(
-             bundleID: "com.tencent.workbuddy.mac",
 diff --git a/DuoUpdaterCore/Tests/RecipeGoldens/com-workbuddy-workbuddy-ai.txt b/DuoUpdaterCore/Tests/RecipeGoldens/com-workbuddy-workbuddy-ai.txt
 index ed0d5053..55c37c83 100644
 --- a/DuoUpdaterCore/Tests/RecipeGoldens/com-workbuddy-workbuddy-ai.txt
 +++ b/DuoUpdaterCore/Tests/RecipeGoldens/com-workbuddy-workbuddy-ai.txt
-@@ -35,10 +35,10 @@ probes[0].maximumSystemVersionPattern = nil
- probes[0].entryStartPattern = nil
- probes[0].install? = struct VendorInstallSpec
- probes[0].install?.urlSource = .bodyTemplate(_:fields:)
+@@ -38 +38 @@ probes[0].install?.urlSource = .bodyTemplate(_:fields:)
 -probes[0].install?.urlSource.0 = "{0}.dmg"
 +probes[0].install?.urlSource.0 = "{0}.zip"
- probes[0].install?.urlSource.fields = Array(count: 1)
- probes[0].install?.urlSource.fields[0] = "\"url\"\\s*:\\s*\"(https://download\\.codebuddy\\.ai/workbuddy/saas/darwin-arm64/WorkBuddy-darwin-arm64-[^\"]+)\\.zip\""
+@@ -41 +41 @@ probes[0].install?.urlSource.fields[0] = "\"url\"\\s*:\\s*\"(https://download\\.
 -probes[0].install?.kind = .dmg
 +probes[0].install?.kind = .zip
- probes[0].install?.checksumPattern? = "\"sha256hash\"\\s*:\\s*\"([0-9a-f]{64})\""
- probes[0].install?.checksumFormat = .sha256Hex
- probes[0].install?.requestHeaders = Dictionary(count: 0)
-@@ -79,10 +79,10 @@ probes[1].maximumSystemVersionPattern = nil
- probes[1].entryStartPattern = nil
- probes[1].install? = struct VendorInstallSpec
- probes[1].install?.urlSource = .bodyTemplate(_:fields:)
+@@ -82 +82 @@ probes[1].install?.urlSource = .bodyTemplate(_:fields:)
 -probes[1].install?.urlSource.0 = "{0}.dmg"
 +probes[1].install?.urlSource.0 = "{0}.zip"
- probes[1].install?.urlSource.fields = Array(count: 1)
- probes[1].install?.urlSource.fields[0] = "\"url\"\\s*:\\s*\"(https://download\\.codebuddy\\.ai/workbuddy/saas/darwin-x64/WorkBuddy-darwin-x64-[^\"]+)\\.zip\""
+@@ -85 +85 @@ probes[1].install?.urlSource.fields[0] = "\"url\"\\s*:\\s*\"(https://download\\.
 -probes[1].install?.kind = .dmg
 +probes[1].install?.kind = .zip
- probes[1].install?.checksumPattern? = "\"sha256hash\"\\s*:\\s*\"([0-9a-f]{64})\""
- probes[1].install?.checksumFormat = .sha256Hex
- probes[1].install?.requestHeaders = Dictionary(count: 0)

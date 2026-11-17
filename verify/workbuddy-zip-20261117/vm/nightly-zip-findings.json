@@ -1,0 +1,32 @@
+{
+  "findings" : [
+    {
+      "attempts" : 1,
+      "bundleID" : "com.workbuddy.workbuddy-ai",
+      "channel" : "-",
+      "elapsedMs" : 57632,
+      "endpointHost" : "download.codebuddy.ai",
+      "recipeID" : "install:vendor:com.workbuddy.workbuddy-ai:stable:arm64",
+      "registry" : "install",
+      "status" : "ok",
+      "warnings" : [
+
+      ]
+    },
+    {
+      "attempts" : 1,
+      "bundleID" : "com.workbuddy.workbuddy-ai",
+      "channel" : "-",
+      "elapsedMs" : 0,
+      "endpointHost" : "www.workbuddy.ai",
+      "recipeID" : "install:vendor:com.workbuddy.workbuddy-ai:stable:x64",
+      "registry" : "install",
+      "status" : "skipped",
+      "warnings" : [
+
+      ]
+    }
+  ],
+  "generatedAt" : "2026-11-17T15:07:51Z",
+  "schemaVersion" : 1
+}

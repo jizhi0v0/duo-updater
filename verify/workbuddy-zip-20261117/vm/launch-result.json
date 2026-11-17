@@ -1,0 +1,29 @@
+{
+  "codesignVerify": {
+    "exitCode": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  "codesignIdentity": {
+    "exitCode": 0,
+    "stdout": "",
+    "stderr": "Executable=/Applications/Duo WorkBuddy Verification/WorkBuddy AI.app/Contents/MacOS/Electron\nIdentifier=com.workbuddy.workbuddy-ai\nFormat=app bundle with Mach-O thin (arm64)\nCodeDirectory v=20500 size=742 flags=0x10000(runtime) hashes=12+7 location=embedded\nVersionPlatform=1\nVersionMin=720896\nVersionSDK=984064\nHash type=sha256 size=32\nCandidateCDHash sha256=aa432b5ee408e45a76c4c78c4cbe076b6ebdc6a4\nCandidateCDHashFull sha256=aa432b5ee408e45a76c4c78c4cbe076b6ebdc6a4dfb641218c6dd82861bfc4f3\nHash choices=sha256\nCMSDigest=aa432b5ee408e45a76c4c78c4cbe076b6ebdc6a4dfb641218c6dd82861bfc4f3\nCMSDigestType=2\nExecutable Segment base=0\nExecutable Segment limit=147456\nExecutable Segment flags=0x1\nPage size=16384\nCDHash=aa432b5ee408e45a76c4c78c4cbe076b6ebdc6a4\nSignature size=9110\nAuthority=Developer ID Application: Tencent Technology (Shanghai) Company Limited (FN2V63AD2J)\nAuthority=Developer ID Certification Authority\nAuthority=Apple Root CA\nTimestamp=Nov 16, 2026 at 12:23:08\u202fAM\nNotarization Ticket=stapled\nInfo.plist entries=32\nTeamIdentifier=FN2V63AD2J\nRuntime Version=15.4.0\nSealed Resources version=2 rules=13 files=3826\nInternal requirements count=1 size=188\nTotal signatures=1\nChosen signature=1\n"
+  },
+  "gatekeeper": {
+    "exitCode": 0,
+    "stdout": "",
+    "stderr": "/Applications/Duo WorkBuddy Verification/WorkBuddy AI.app: accepted\nsource=Notarized Developer ID\norigin=Developer ID Application: Tencent Technology (Shanghai) Company Limited (FN2V63AD2J)\n"
+  },
+  "identity": {
+    "CFBundleIdentifier": "com.workbuddy.workbuddy-ai",
+    "CFBundleShortVersionString": "5.11.4",
+    "CFBundleVersion": "5.11.4"
+  },
+  "open": {
+    "exitCode": 0,
+    "stderr": ""
+  },
+  "runningProcesses": [
+    "51596 /Applications/Duo WorkBuddy Verification/WorkBuddy AI.app/Contents/MacOS/Electron"
+  ]
+}

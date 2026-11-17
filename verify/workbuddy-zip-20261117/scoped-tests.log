@@ -1,0 +1,54 @@
+Building for debugging...
+Build complete! (0.40 sec)
+◇ Test run started.
+↳ Testing Library Version: 2403
+↳ Target Platform: arm64e-apple-macos14.0
+◇ Suite RecipeGoldenTests started.
+◇ Suite WorkBuddyProbeRecipeTests started.
+◇ Test leavesAreDistinctAndEscaped() started.
+◇ Test theRegistryMatchesTheGoldens() started.
+◇ Test enumsDumpCaseAndLabelledPayload() started.
+◇ Test aURLWithABaseIsRefused() started.
+◇ Test setsAndDictionariesAreDumpedSorted() started.
+◇ Test theDumpIsNotVacuous() started.
+◇ Test bothSitesAreSeparateStableApps() started.
+◇ Test theBuildCounterIsDiscardedSoAnUpToDateInstallCompensatesEqual() started.
+◇ Test theInstalledArtifactIsCheckedAgainstTheBodysSHA256() started.
+◇ Test noRecipeResolvesTheOtherSitesArtifact() started.
+◇ Test theVersionComesFromProductVersion() started.
+◇ Test whatCannotBeReadFaithfullyIsRefused() started.
+◇ Test eachRecipeReadsItsOwnSite() started.
+◇ Test theChinaSiteDigestIsTheZipsToday() started.
+◇ Test theUserIsSentToAPageRatherThanTheJSONEndpoint() started.
+◇ Test noRecipeResolvesTheOtherArchitecturesArtifact() started.
+◇ Test eachSiteSplitsByArchitectureAndOnlyByArchitecture() started.
+◇ Test aThreeSegmentVersionStillMatches() started.
+◇ Test theTimestampParsesAsAPublishDate() started.
+◇ Test noSHA256HashReadsNoDigest() started.
+◇ Test everyEndpointAsksAsAVersionlessClient() started.
+◇ Test eachRecipeInstallsTheArtifactItsDigestDescribes() started.
+✔ Test aURLWithABaseIsRefused() passed after 0.002 seconds.
+✔ Test leavesAreDistinctAndEscaped() passed after 0.002 seconds.
+✔ Test enumsDumpCaseAndLabelledPayload() passed after 0.002 seconds.
+✔ Test setsAndDictionariesAreDumpedSorted() passed after 0.002 seconds.
+✔ Test whatCannotBeReadFaithfullyIsRefused() passed after 0.002 seconds.
+✔ Test bothSitesAreSeparateStableApps() passed after 0.002 seconds.
+✔ Test eachRecipeReadsItsOwnSite() passed after 0.002 seconds.
+✔ Test theUserIsSentToAPageRatherThanTheJSONEndpoint() passed after 0.002 seconds.
+✔ Test everyEndpointAsksAsAVersionlessClient() passed after 0.002 seconds.
+✔ Test eachSiteSplitsByArchitectureAndOnlyByArchitecture() passed after 0.002 seconds.
+✔ Test noSHA256HashReadsNoDigest() passed after 0.003 seconds.
+✔ Test theVersionComesFromProductVersion() passed after 0.003 seconds.
+✔ Test aThreeSegmentVersionStillMatches() passed after 0.003 seconds.
+✔ Test noRecipeResolvesTheOtherArchitecturesArtifact() passed after 0.003 seconds.
+✔ Test noRecipeResolvesTheOtherSitesArtifact() passed after 0.003 seconds.
+✔ Test theChinaSiteDigestIsTheZipsToday() passed after 0.003 seconds.
+✔ Test theInstalledArtifactIsCheckedAgainstTheBodysSHA256() passed after 0.003 seconds.
+✔ Test theTimestampParsesAsAPublishDate() passed after 0.003 seconds.
+✔ Test theBuildCounterIsDiscardedSoAnUpToDateInstallCompensatesEqual() passed after 0.003 seconds.
+✔ Test eachRecipeInstallsTheArtifactItsDigestDescribes() passed after 0.003 seconds.
+✔ Suite WorkBuddyProbeRecipeTests passed after 0.003 seconds.
+✔ Test theRegistryMatchesTheGoldens() passed after 0.190 seconds.
+✔ Test theDumpIsNotVacuous() passed after 0.808 seconds.
+✔ Suite RecipeGoldenTests passed after 0.809 seconds.
+✔ Test run with 22 tests in 2 suites passed after 0.809 seconds.

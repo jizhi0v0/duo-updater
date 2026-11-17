@@ -1,0 +1,2 @@
+{"command":"install","schemaVersion":2}
+{"app":"WorkBuddy AI","applied":false,"outcome":"failed","reason":"The download's checksum didn't match — it may be corrupt or tampered. Nothing was changed.","route":"vendor"}

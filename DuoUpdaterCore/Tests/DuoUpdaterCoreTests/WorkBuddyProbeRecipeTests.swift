@@ -13,18 +13,17 @@ struct WorkBuddyProbeRecipeTests {
 
     /// The two sites and the version each served when the recipes were written.
     /// `body` is the endpoint's response captured verbatim: the China site's on
-    /// 2026-08-27, the international site's on 2026-10-19 (after it moved its
-    /// downloads to `download.codebuddy.ai`).
+    /// 2026-08-27, the international site's on 2026-11-17 (after its digest moved
+    /// from the DMG to the ZIP).
     private struct Site {
         let bundleID: String
         let host: String
         /// `CFBundleShortVersionString` of the real bundle for that train, read
-        /// off the vendor's own DMG — deliberately the THREE-segment string, which
+        /// off the vendor's real bundle — deliberately the THREE-segment string, which
         /// is the point of the version pattern.
         let installedShortVersion: String
         /// The artifact `sha256hash` describes, which one-click must install: the
-        /// dmg for the international site, the zip for the China site (its digest
-        /// moved to the zip by 2026-10-14; see `workBuddyRecipe`).
+        /// ZIP named by the current response for both sites.
         let installKind: VendorInstallerKind
         let bodies: [String: String]  // variant slug → captured response body
     }
@@ -33,11 +32,11 @@ struct WorkBuddyProbeRecipeTests {
         Site(
             bundleID: "com.workbuddy.workbuddy-ai",
             host: "www.workbuddy.ai",
-            installedShortVersion: "5.8.4",
-            installKind: .dmg,
+            installedShortVersion: "5.11.4",
+            installKind: .zip,
             bodies: [
-                "arm64": #"{"version":"5.8.4.41366630","url":"https://download.codebuddy.ai/workbuddy/saas/darwin-arm64/WorkBuddy-darwin-arm64-5.8.4.41366630-73952edb.zip","productVersion":"5.8.4.41366630","sha256hash":"e5ef3f91e7f9d61a3d41eb9e279f1bc676e4317afdb211fee94efc03548f1133","timestamp":1792089830,"hash":"","name":"","supportsFastUpdate":false}"#,
-                "x64": #"{"version":"5.8.4.41366630","url":"https://download.codebuddy.ai/workbuddy/saas/darwin-x64/WorkBuddy-darwin-x64-5.8.4.41366630-73952edb.zip","productVersion":"5.8.4.41366630","sha256hash":"8404d7eeb2653ec49ca3f3bce4b69fd101ecf60bd1fd9f8472181108a11aa63e","timestamp":1792089830,"hash":"","name":"","supportsFastUpdate":false}"#,
+                "arm64": #"{"version":"5.11.4.44121853","url":"https://download.codebuddy.ai/workbuddy/saas/darwin-arm64/WorkBuddy-darwin-arm64-5.11.4.44121853-0026dff0.zip","productVersion":"5.11.4.44121853","sha256hash":"fe5d9be52791bb10df320ff7f66a24923a279f588dfe55284911f30a64eaeef8","timestamp":1794845053,"hash":"","name":"","supportsFastUpdate":false}"#,
+                "x64": #"{"version":"5.11.4.44121853","url":"https://download.codebuddy.ai/workbuddy/saas/darwin-x64/WorkBuddy-darwin-x64-5.11.4.44121853-0026dff0.zip","productVersion":"5.11.4.44121853","sha256hash":"f17292ee0a9702670d739679b76d3a84a012dbd232f45c6479bf37cc00cf402c","timestamp":1794845053,"hash":"","name":"","supportsFastUpdate":false}"#,
             ]),
         Site(
             bundleID: "com.tencent.workbuddy.mac",

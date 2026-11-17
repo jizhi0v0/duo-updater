@@ -1,0 +1,54 @@
+{
+  "/opt/homebrew/Caskroom/duo-2055-full": {
+    "versions": [
+      "1.0,102"
+    ],
+    "links": {
+      "/opt/homebrew/Caskroom/duo-2055-full/1.0,102/Duo2055Full.app": "/Applications/Duo2055Full.app"
+    }
+  },
+  "/opt/homebrew/Caskroom/duo-2055-pin": {
+    "versions": [
+      "1.0"
+    ],
+    "links": {
+      "/opt/homebrew/Caskroom/duo-2055-pin/1.0/Duo2055Pin.app": "/Applications/Duo2055Pin.app"
+    }
+  },
+  "/opt/homebrew/Caskroom/duo-2055-var": {
+    "versions": [
+      "1.0"
+    ],
+    "links": {
+      "/opt/homebrew/Caskroom/duo-2055-var/1.0/Duo2055Var.app": "/Applications/Duo2055Var.app"
+    }
+  },
+  "/opt/homebrew/Caskroom/duo-2055-old": {
+    "versions": [],
+    "links": {}
+  },
+  "/opt/homebrew/Caskroom/duo-2055-new": {
+    "versions": [
+      "2.0"
+    ],
+    "links": {
+      "/opt/homebrew/Caskroom/duo-2055-new/2.0/Duo2055Old.app": "/Applications/Duo2055Old.app"
+    }
+  },
+  "/opt/homebrew/Caskroom/duo-2055-intel": {
+    "versions": [
+      "2.0"
+    ],
+    "links": {
+      "/opt/homebrew/Caskroom/duo-2055-intel/2.0/Duo2055Intel.app": "/Applications/Duo2055Intel.app"
+    }
+  },
+  "/usr/local/Caskroom/duo-2055-intel": {
+    "versions": [
+      "1.0"
+    ],
+    "links": {
+      "/usr/local/Caskroom/duo-2055-intel/1.0/Duo2055Intel.app": "/Applications/Duo2055Intel.app"
+    }
+  }
+}

@@ -1,0 +1,213 @@
+COMMAND ('install', '--cask', 'duo-2055-full') EXIT 0 
+==> Fetching downloads for: duo-2055-full
+✔︎ Cask duo-2055-full (1.0,101)
+==> Installing Cask duo-2055-full
+==> Moving App 'Duo2055Full.app' to '/Applications/Duo2055Full.app'
+🍺  duo-2055-full was successfully installed!
+
+COMMAND ('install', '--cask', 'duo-2055-old') EXIT 0 
+==> Fetching downloads for: duo-2055-old
+✔︎ Cask duo-2055-old (1.0)
+==> Installing Cask duo-2055-old
+==> Moving App 'Duo2055Old.app' to '/Applications/Duo2055Old.app'
+🍺  duo-2055-old was successfully installed!
+
+COMMAND ('install', '--cask', 'duo-2055-pin') EXIT 0 
+==> Fetching downloads for: duo-2055-pin
+✔︎ Cask duo-2055-pin (1.0)
+==> Installing Cask duo-2055-pin
+==> Moving App 'Duo2055Pin.app' to '/Applications/Duo2055Pin.app'
+🍺  duo-2055-pin was successfully installed!
+
+COMMAND ('install', '--cask', 'duo-2055-var') EXIT 0 
+==> Fetching downloads for: duo-2055-var
+✔︎ Cask duo-2055-var (1.0)
+==> Installing Cask duo-2055-var
+==> Moving App 'Duo2055Var.app' to '/Applications/Duo2055Var.app'
+🍺  duo-2055-var was successfully installed!
+
+COMMAND ('pin', '--cask', 'duo-2055-pin') EXIT 0 
+
+COMMAND ('install', '--formula', 'duo2055/test/duo-2055-formula') EXIT 1 
+==> Trusted formula duo2055/test/duo-2055-formula
+==> Fetching downloads for: duo-2055-formula
+✘ Formula duo-2055-formula (1.0)
+Error: Formula duo-2055-formula (1.0) reports different checksum: no_check
+       SHA-256 checksum of downloaded file:                       c9c6cc81da0c8a1dd50cf1dffc82fdd6fc9b066eb4c41bc2d7d0a91fc0a12d1a
+
+COMMAND ('pin', 'duo-2055-formula') EXIT 1 
+Error: duo2055/test/duo-2055-formula not installed
+
+COMMAND ('outdated', '--formula', '--json=v2') EXIT 0 
+{
+  "formulae": [],
+  "casks": []
+}
+
+COMMAND ('outdated', '--cask', '--json=v2') EXIT 0 
+{
+  "formulae": [],
+  "casks": [
+    {
+      "name": "duo-2055-full",
+      "installed_versions": [
+        "1.0,101"
+      ],
+      "current_version": "1.0,102",
+      "pinned": false,
+      "pinned_version": null
+    },
+    {
+      "name": "duo-2055-new",
+      "installed_versions": [
+        "1.0"
+      ],
+      "current_version": "2.0",
+      "pinned": false,
+      "pinned_version": null
+    },
+    {
+      "name": "duo-2055-pin",
+      "installed_versions": [
+        "1.0"
+      ],
+      "current_version": "2.0",
+      "pinned": true,
+      "pinned_version": "1.0"
+    }
+  ]
+}
+
+COMMAND ('upgrade', '--formula', '--dry-run', 'duo-2055-formula') EXIT 1 
+Error: duo2055/test/duo-2055-formula not installed
+
+COMMAND ('upgrade', '--cask', '--dry-run', 'duo-2055-pin') EXIT 1 
+Error: Not upgrading 1 pinned package:
+==> 1 Pinned cask
+duo-2055-pin 1.0 -> 2.0
+
+COMMAND ('info', '--cask', '--json=v2', 'duo-2055-new', 'duo-2055-var') EXIT 0 
+{
+  "formulae": [],
+  "casks": [
+    {
+      "token": "duo-2055-new",
+      "full_token": "duo-2055-new",
+      "old_tokens": [
+        "duo-2055-old"
+      ],
+      "tap": "homebrew/cask",
+      "name": [
+        "Duo2055Old"
+      ],
+      "desc": "Disposable issue 2055 fixture",
+      "homepage": "https://example.com",
+      "url": "file:///tmp/duo-2055/duo-2055-old.tar.gz",
+      "url_specs": {},
+      "version": "2.0",
+      "autobump": true,
+      "no_autobump_message": null,
+      "skip_livecheck": false,
+      "installed": "1.0",
+      "installed_time": 1794924822,
+      "bundle_version": "101",
+      "bundle_short_version": "1.0",
+      "pinned": false,
+      "pinned_version": null,
+      "outdated": true,
+      "sha256": "no_check",
+      "artifacts": [
+        {
+          "app": [
+            "Duo2055Old.app"
+          ],
+          "target": "/Applications/Duo2055Old.app"
+        }
+      ],
+      "caveats": null,
+      "caveats_rosetta": null,
+      "depends_on": {},
+      "conflicts_with": null,
+      "container": null,
+      "rename": [],
+      "auto_updates": null,
+      "deprecated": false,
+      "deprecation_date": null,
+      "deprecation_reason": null,
+      "deprecation_replacement_formula": null,
+      "deprecation_replacement_cask": null,
+      "deprecate_args": null,
+      "disabled": false,
+      "disable_date": null,
+      "disable_reason": null,
+      "disable_replacement_formula": null,
+      "disable_replacement_cask": null,
+      "disable_args": null,
+      "tap_git_head": "317af39765947b73fb621ad96c8e4bc7305d6304",
+      "languages": [],
+      "ruby_source_path": "Casks/d/duo-2055-new.rb",
+      "ruby_source_checksum": {
+        "sha256": "00a4e45304c0786e6967036c6fdd614d9158b450d60f9998111fc13c86b6c7fa"
+      }
+    },
+    {
+      "token": "duo-2055-var",
+      "full_token": "duo-2055-var",
+      "old_tokens": [],
+      "tap": "homebrew/cask",
+      "name": [
+        "Duo2055Var"
+      ],
+      "desc": "Disposable issue 2055 fixture",
+      "homepage": "https://example.com",
+      "url": "file:///tmp/duo-2055/duo-2055-var.tar.gz",
+      "url_specs": {},
+      "version": "1.0",
+      "autobump": true,
+      "no_autobump_message": null,
+      "skip_livecheck": false,
+      "installed": "1.0",
+      "installed_time": 1794924831,
+      "bundle_version": "101",
+      "bundle_short_version": "1.0",
+      "pinned": false,
+      "pinned_version": null,
+      "outdated": false,
+      "sha256": "no_check",
+      "artifacts": [
+        {
+          "app": [
+            "Duo2055Var.app"
+          ],
+          "target": "/Applications/Duo2055Var.app"
+        }
+      ],
+      "caveats": null,
+      "caveats_rosetta": null,
+      "depends_on": {},
+      "conflicts_with": null,
+      "container": null,
+      "rename": [],
+      "auto_updates": null,
+      "deprecated": false,
+      "deprecation_date": null,
+      "deprecation_reason": null,
+      "deprecation_replacement_formula": null,
+      "deprecation_replacement_cask": null,
+      "deprecate_args": null,
+      "disabled": false,
+      "disable_date": null,
+      "disable_reason": null,
+      "disable_replacement_formula": null,
+      "disable_replacement_cask": null,
+      "disable_args": null,
+      "tap_git_head": "317af39765947b73fb621ad96c8e4bc7305d6304",
+      "languages": [],
+      "ruby_source_path": "Casks/d/duo-2055-var.rb",
+      "ruby_source_checksum": {
+        "sha256": "3725e20e65d662c84a738224bf16b1d69b3d0db8d3caf3a2707218bcca3c417d"
+      }
+    }
+  ]
+}
+

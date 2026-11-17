@@ -1,0 +1,9 @@
+==> Fetching downloads for: duo-2055-new
+✔︎ Cask duo-2055-new (2.0)
+==> Upgrading duo-2055-old
+  1.0 -> 2.0
+==> Backing up App 'Duo2055Old.app' to '/opt/homebrew/Caskroom/duo-2055-old/1.0/Duo2055Old.app'
+==> Removing App '/Applications/Duo2055Old.app'
+==> Moving App 'Duo2055Old.app' to '/Applications/Duo2055Old.app'
+==> Purging files for version 1.0 of Cask duo-2055-old
+🍺  duo-2055-old was successfully upgraded!

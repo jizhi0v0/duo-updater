@@ -1,0 +1,24 @@
+Warning: You are using macOS on Intel x86_64.
+We do not provide support for this platform (as-of September 2026, announced August 2025).
+
+Apple have dropped Intel x86_64 support in macOS Golden Gate (27).
+GitHub Actions are dropping macOS Intel x86_64 runners in 2027.
+Homebrew is a non-profit project run entirely by volunteers, not employees.
+If the biggest companies in the world cannot support macOS Intel x86_64
+any longer, sadly neither can we.
+Error: The following directories are not writable by your user:
+  /usr/local/bin
+  /usr/local/share
+  /usr/local/share/man
+  /usr/local/share/man/man8
+
+You should change the ownership of these directories to your user,
+and make sure that you have write permission.
+  sudo chown -R bobby /usr/local/bin /usr/local/share /usr/local/share/man /usr/local/share/man/man8
+  chmod u+w /usr/local/bin /usr/local/share /usr/local/share/man /usr/local/share/man/man8
+
+This is a Tier 3 configuration:
+  https://docs.brew.sh/Support-Tiers#tier-3
+You can report issues with Tier 3 configurations to Homebrew/* repositories!
+  
+Read the above document before opening any issues or PRs.

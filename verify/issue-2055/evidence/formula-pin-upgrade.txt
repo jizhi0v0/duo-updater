@@ -1,0 +1,5 @@
+command: ['/opt/homebrew/bin/brew', 'upgrade', '--formula', '--dry-run', 'duo-2055-formula']
+exit: 1
+Error: Not upgrading 1 pinned package:
+==> 1 Pinned formula
+duo2055/test/duo-2055-formula 1.0 -> 2.0

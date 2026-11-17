@@ -36,6 +36,33 @@ public enum AutomaticUpdateFailurePolicy {
         public var pausingVersion: Failure {
             Failure(disposition: .pauseVersion, reason: reason, retryNotBefore: retryNotBefore)
         }
+
+        private enum CodingKeys: String, CodingKey {
+            case disposition, reason, retryNotBefore, requiredFreeBytes
+        }
+
+        public init(from decoder: Decoder) throws {
+            let values = try decoder.container(keyedBy: CodingKeys.self)
+            let stored = try values.decode(Disposition.self, forKey: .disposition)
+            reason = try values.decode(String.self, forKey: .reason)
+            retryNotBefore = try values.decodeIfPresent(Date.self, forKey: .retryNotBefore)
+            requiredFreeBytes = try values.decodeIfPresent(Int64.self, forKey: .requiredFreeBytes)
+            disposition = stored == .pauseVersion && requiredFreeBytes != nil ? .waitForSpace : stored
+        }
+
+        public func encode(to encoder: Encoder) throws {
+            var values = encoder.container(keyedBy: CodingKeys.self)
+            // Older builds decode the entire ledger at once. Keep their known
+            // disposition so a space wait pauses there instead of discarding
+            // every app's refusal history because of an unknown enum case.
+            try values.encode(disposition == .waitForSpace ? Disposition.pauseVersion : disposition,
+                              forKey: .disposition)
+            try values.encode(reason, forKey: .reason)
+            try values.encodeIfPresent(retryNotBefore, forKey: .retryNotBefore)
+            if disposition == .waitForSpace {
+                try values.encodeIfPresent(requiredFreeBytes, forKey: .requiredFreeBytes)
+            }
+        }
     }
 
     public enum PreflightFailure: LocalizedError, Sendable {

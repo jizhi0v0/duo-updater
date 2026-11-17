@@ -90,6 +90,24 @@ struct HTTPAutomaticUpdateFailureSimulationTests {
         #expect(attempt.failure(or: "missing")?.requiredFreeBytes == nil)
     }
 
+    @Test func spaceRecoveryRemainsReadableByOlderBuildsWithoutDroppingTheirLedger() throws {
+        // The two dispositions accepted by builds before space recovery.
+        enum LegacyDisposition: String, Decodable { case retryAcquisition, pauseVersion }
+        struct LegacyFailure: Decodable { let disposition: LegacyDisposition; let reason: String }
+        let failure = Policy.Failure(disposition: .waitForSpace, reason: "space", requiredFreeBytes: 100)
+        let data = try JSONEncoder().encode(failure)
+        let legacy = try JSONDecoder().decode(LegacyFailure.self, from: data)
+        #expect(legacy.disposition == .pauseVersion)
+        #expect(legacy.reason == "space")
+        #expect(try JSONDecoder().decode(Policy.Failure.self, from: data) == failure)
+
+        // A post-quit pause must never regain a space-based recovery condition.
+        let paused = failure.pausingVersion
+        let restored = try JSONDecoder().decode(Policy.Failure.self, from: JSONEncoder().encode(paused))
+        #expect(restored.disposition == .pauseVersion)
+        #expect(restored.requiredFreeBytes == nil)
+    }
+
     @Test func missingAcquisitionEvidenceFailsClosed() throws {
         for stage: InstallStage? in [nil, .queued, .checking, .backingUp] {
             let attempt = Policy.Attempt()

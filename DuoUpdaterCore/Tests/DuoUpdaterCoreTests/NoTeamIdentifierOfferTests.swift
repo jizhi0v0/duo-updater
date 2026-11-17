@@ -26,13 +26,14 @@ import Testing
         sha: String? = nil, cask: String? = nil, manualInstaller: Bool = false, lacksTeam: Bool,
         edKey: String? = "key", edSignature: String? = "sig"
     ) -> UpdateResult {
+        var remote = RemoteVersion(
+            shortVersion: "2.0", version: nil, downloadURL: URL(string: url),
+            edSignature: edSignature, sourceName: source, sourceIdentifier: cask,
+            requiresManualInstaller: manualInstaller, vendorInstallerKind: kind,
+            expectedSHA256: sha, installTrust: trust)
+        if manualInstaller { remote.homebrewManualInstaller = "ZZFixtureInstaller.app" }
         var row = UpdateResult(
-            app: app(edKey: edKey),
-            remote: RemoteVersion(
-                shortVersion: "2.0", version: nil, downloadURL: URL(string: url),
-                edSignature: edSignature, sourceName: source, sourceIdentifier: cask,
-                requiresManualInstaller: manualInstaller, vendorInstallerKind: kind,
-                expectedSHA256: sha, installTrust: trust),
+            app: app(edKey: edKey), remote: remote,
             status: .updateAvailable(latest: "2.0"))
         row.installedLacksTeamIdentifier = lacksTeam
         return row
@@ -111,8 +112,8 @@ import Testing
         #expect(Self.offered(Self.result(source: "Homebrew", cask: "zzfixture", lacksTeam: true)))
     }
 
-    /// A cask that needs the system installer goes through `PackageInstaller`'s
-    /// Team check. Mutation: drop the `"Homebrew"` case in
+    /// A cask's declared manual installer is verified against the installed
+    /// copy's Team ID. Mutation: drop the `"Homebrew"` case in
     /// `lacksTeamIdentifierForRoute` → red.
     @Test func aHomebrewInstallerCaskOverACopyWithoutATeamIDIsNotOffered() {
         let pkg = "https://example.com/zz.pkg"

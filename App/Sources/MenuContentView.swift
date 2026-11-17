@@ -1473,6 +1473,19 @@ private struct CommandLineRow: View {
         case .spinner: spinner
         case .seal: seal
         case .unchecked: uncheckedMark
+        case .readFailed(let error):
+            HStack(spacing: 6) {
+                if !model.brewUnchecked.isEmpty { uncheckedMark }
+                Button {
+                    Task { await model.brewLane.handle(.manual) }
+                } label: {
+                    Image(systemName: "exclamationmark.triangle")
+                        .foregroundStyle(.orange)
+                }
+                .buttonStyle(.plain)
+                .help(String(localized: "Homebrew check failed. Existing results are kept. Click to retry.") + "\n\n" + error)
+                .accessibilityLabel(String(localized: "Retry Homebrew check"))
+            }
         case nil: nil
         }
         let button: (any View)? = switch row.button {
@@ -1500,6 +1513,7 @@ private struct CommandLineRow: View {
         case .progress(let progress): return Text(progress.text).monospacedDigit()
         case .upgrading(let name): return Text(String(localized: "Upgrading \(name)"))
         case .checking: return Text(String(localized: "Checking…"))
+        case .checkFailed: return Text(String(localized: "Check failed")).foregroundStyle(.orange)
         case .error(let error): return Text(error).foregroundStyle(.red)
         case .updates(let count): return Text(String(localized: "\(count) updates"))
         // Packages brew wouldn't read: no count here can include them.
@@ -2082,6 +2096,11 @@ private struct AppRow: View {
                         openSelfUpdater: { model.openSelfUpdater(result) },
                         openToolbox: { model.openToolbox() },
                         openTestFlight: { model.openTestFlight(for: result) },
+                        openHomebrewSuite: { cask in
+                            model.requestedWorkbenchHomebrewCask = cask
+                            openWindow(id: WorkbenchWindowView.windowID)
+                            model.surfaceWindow(sceneID: WorkbenchWindowView.windowID)
+                        },
                         grantFullDiskAccess: { model.presentFullDiskAccessPermissionFlow() },
                         openTestFlightSetting: {
                             model.requestedSettingsSection = .general

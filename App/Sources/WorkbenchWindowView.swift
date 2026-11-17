@@ -453,12 +453,13 @@ struct WorkbenchWindowView: View {
             // A "Changelog" deep-link from the menu row lands instantly, before the
             // (possibly networked) refresh below — the row already exists in
             // `model.results`, so the detail can render right away.
-            let hadRequest = model.requestedWorkbenchAppID != nil
+            let hadRequest = model.requestedWorkbenchAppID != nil || model.requestedWorkbenchHomebrewCask != nil
             if hadRequest { applyRequestedApp() }
             applyRequestedBrewUnchecked()
             applyRequestedCLITools()
             applyRequestedHomebrew()
             applyRequestedCLITool()
+            applyRequestedHomebrewCask()
             // Every lane decides what an open calls for (`AppListModel.refreshes`):
             // the apps a full check with no data or while TestFlight is still
             // owed a read, otherwise a network-free rescan (`AppsRefreshPolicy`);
@@ -572,6 +573,13 @@ struct WorkbenchWindowView: View {
         .onChange(of: model.requestedWorkbenchBrewUnchecked) { applyRequestedBrewUnchecked() }
         .onChange(of: model.requestedWorkbenchCLITools) { applyRequestedCLITools() }
         .onChange(of: model.requestedWorkbenchHomebrew) { applyRequestedHomebrew() }
+        .onChange(of: model.requestedWorkbenchHomebrewCask) { applyRequestedHomebrewCask() }
+        // The app-source check can find a suite before the Brew inventory lane
+        // finishes. Keep that deliberate jump pending until its package exists.
+        // No per-redraw inventory walk when there is no request.
+        .onChange(of: requestedHomebrewCaskTarget) {
+            applyRequestedHomebrewCask()
+        }
         .onChange(of: model.requestedWorkbenchCLITool) { applyRequestedCLITool() }
         // `initial`: the window can open on a run already going — Update All from
         // the popover, then the workbench — and the order it first shows must hold
@@ -663,6 +671,37 @@ struct WorkbenchWindowView: View {
         cliRevealRequest += 1
     }
 
+    private var requestedHomebrewCaskTarget: SidebarSelection.HomebrewCaskTarget? {
+        guard let cask = model.requestedWorkbenchHomebrewCask else { return nil }
+        return SidebarSelection.homebrewCask(
+            cask, packages: model.brewFormulae, unchecked: model.brewUnchecked, checked: model.brewChecked)
+    }
+
+    /// A suite member has no Update of its own: reveal and select the exact
+    /// owning package, preserving third-party tap qualification in the tag.
+    private func applyRequestedHomebrewCask() {
+        guard let target = requestedHomebrewCaskTarget else { return }
+        searchText = ""
+        homebrewRevealing = true
+        sidebarTab = .cli
+        guard case .row(let tag) = target else {
+            // Wait only while the initial inventory is unknown. A completed
+            // read with no navigable parent still reveals Homebrew's notices,
+            // but must not keep a request that later hijacks another selection.
+            if target == .unavailable { model.requestedWorkbenchHomebrewCask = nil }
+            cliRevealTarget = Self.homebrewHeaderID
+            cliRevealAnchor = .top
+            cliRevealRequest += 1
+            return
+        }
+        model.requestedWorkbenchHomebrewCask = nil
+        selection = tag
+        detailSelection = tag
+        cliRevealTarget = tag
+        cliRevealAnchor = .center
+        cliRevealRequest += 1
+    }
+
     /// Honor a pending click on a row of the popover's tool groups' page: the
     /// CLI tab with that copy selected — its level opens for a selected row
     /// (`otherToolsExpanded`, `managerLevelExpanded`) — and scrolled to. The tab
@@ -703,6 +742,7 @@ struct WorkbenchWindowView: View {
     private var homebrewHasAnything: Bool {
         !model.brewFormulae.isEmpty || !model.brewUnchecked.isEmpty
             || !model.brewAppLessCaskLifecycles.isEmpty || model.homebrewSelfUpdate != nil
+            || model.brewReadError != nil
     }
 
     /// Rows the Homebrew group shows after the search.
@@ -1341,7 +1381,9 @@ struct WorkbenchWindowView: View {
             upgradeError: model.brewOutdatedFormulae.isEmpty ? nil : model.brewUpgradeError,
             homebrewUpdate: model.homebrewSelfUpdate?.latest,
             toggleDisabled: homebrewSearchHits(lists),
-            toggle: { inOneFrame { toggleHomebrewGroup() } })
+            toggle: { inOneFrame { toggleHomebrewGroup() } },
+            readError: model.brewReadError,
+            retry: { Task { await model.brewLane.handle(.manual) } })
     }
 
     /// A tool group's header: the tool's name, and what decides its installs'
@@ -2733,6 +2775,11 @@ private struct FormulaDetailPane: View {
                     .padding(.horizontal, 16)
                     .padding(.bottom, 12)
             }
+            if let reason = formula.incompatibility {
+                BrewLifecycleNotice(text: AttributedString(CaskCompatibilityWording.explanation(reason)))
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 12)
+            }
             // Why an update it shows has no Update (`manualInstaller`).
             if formula.missingAppPath == nil, formula.manualInstaller, formula.hasUpdate {
                 BrewLifecycleNotice(text: AttributedString(String(localized: "Homebrew can’t upgrade \(formula.name) itself: its installer has to be run by hand.")))
@@ -3463,6 +3510,10 @@ private struct DetailHeader: View {
                         openSelfUpdater: { model.openSelfUpdater(result) },
                         openToolbox: { model.openToolbox() },
                         openTestFlight: { model.openTestFlight(for: result) },
+                        openHomebrewSuite: { cask in
+                            model.requestedWorkbenchHomebrewCask = cask
+                            model.surfaceWindow(sceneID: WorkbenchWindowView.windowID)
+                        },
                         grantFullDiskAccess: { model.presentFullDiskAccessPermissionFlow() },
                         openTestFlightSetting: {
                             model.requestedSettingsSection = .general

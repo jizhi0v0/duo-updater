@@ -1,4 +1,5 @@
 import Testing
+@testable import DuoUpdaterCore
 
 /// Where the workbench sidebars' keys move the selection (`SidebarSelection`).
 ///
@@ -6,6 +7,39 @@ import Testing
 struct SidebarSelectionTests {
 
     private let order = ["a", "b", "c", "d", "e", "f"]
+
+    @Test func suiteJumpSelectsItsCaskRatherThanASameNamedFormulaOrOtherTap() {
+        let packages = [
+            BrewInstalledFormula(name: "example/tap/racket", installedVersion: "9.2", availableVersion: nil),
+            BrewInstalledFormula(name: "racket", installedVersion: "9.2", availableVersion: nil, kind: .cask),
+            BrewInstalledFormula(name: "other/tap/racket", installedVersion: "9.2", availableVersion: nil, kind: .cask),
+            BrewInstalledFormula(name: "example/tap/racket", installedVersion: "9.2", availableVersion: nil, kind: .cask),
+        ]
+        #expect(SidebarSelection.homebrewCask("racket", packages: packages, unchecked: [], checked: true)
+                == .row("brew:formula:cask:racket"))
+        #expect(SidebarSelection.homebrewCask("example/tap/racket", packages: packages, unchecked: [], checked: true)
+                == .row("brew:formula:cask:example/tap/racket"))
+    }
+
+    @Test func suiteJumpSelectsTheUncheckedParentWhenItsTapCannotBeRead() {
+        let unchecked = [
+            BrewUncheckedPackage(fullName: "example/tap/racket", kind: .formula,
+                                 installedVersion: "9.2", reason: .tapNotTrusted),
+            BrewUncheckedPackage(fullName: "other/tap/racket", kind: .cask,
+                                 installedVersion: "9.2", reason: .unreadable),
+            BrewUncheckedPackage(fullName: "example/tap/racket", kind: .cask,
+                                 installedVersion: "9.2", reason: .tapNotTrusted),
+        ]
+        #expect(SidebarSelection.homebrewCask("example/tap/racket", packages: [], unchecked: unchecked, checked: true)
+                == .row("brew:unchecked:cask:example/tap/racket"))
+    }
+
+    @Test func suiteJumpWaitsOnlyForAnUnknownInitialInventory() {
+        #expect(SidebarSelection.homebrewCask("example/tap/racket", packages: [], unchecked: [], checked: false)
+                == .awaitingInventory)
+        #expect(SidebarSelection.homebrewCask("example/tap/racket", packages: [], unchecked: [], checked: true)
+                == .unavailable)
+    }
 
     private func move(_ move: SidebarMove, from current: String?, page: Int = 2) -> String? {
         SidebarSelection.target(of: move, from: current, in: order, pageSize: page)

@@ -221,6 +221,49 @@ import Testing
 
     // MARK: - Replays
 
+    /// A check failure is stale information, not a decision to disable an
+    /// already known update. Counts, warnings and actions all survive it.
+    @Test func aReadFailureKeepsTheKnownUpdateAndWarnings() {
+        let snapshot = Snapshot(
+            formulae: [.init(name: "jq", run: .init(id: Self.jq))],
+            outdated: 3, unchecked: 2, deprecated: 1, readError: "controlled failure")
+        #expect(snapshot.popover == BrewPopoverRow(
+            lines: [.updates(3), .checkFailed, .notChecked(2), .deprecated(1)],
+            mark: .readFailed("controlled failure"), button: .update(admin: false), isRunning: false))
+        #expect(snapshot.upgradeAllHeader == .update)
+        #expect(snapshot.formulaRow("jq")?.slot == .update(admin: false))
+    }
+
+    @Test(arguments: [false, true])
+    func aFailedReadWithoutKnownUpdatesNeverShowsAnAllCurrentSeal(checked: Bool) {
+        var snapshot = Snapshot(checked: checked, readError: "controlled failure")
+        #expect(snapshot.popover?.lines == [.checkFailed])
+        #expect(snapshot.popover?.mark == .readFailed("controlled failure"))
+        #expect(snapshot.popover?.button == CLIRowState<String>.none)
+        #expect(snapshot.upgradeAllHeader == .hidden)
+        snapshot.checked = true
+        snapshot.readError = nil
+        #expect(snapshot.popover?.lines == [.upToDate])
+        #expect(snapshot.popover?.mark == .seal)
+    }
+
+    @Test func aReadFailureDoesNotReplaceARunningUpgradesProgressOrCancel() {
+        let snapshot = Snapshot(
+            upgradeAll: .init(id: Self.all, phase: .running, cancel: .available),
+            outdated: 3, readError: "controlled failure")
+        #expect(snapshot.popover?.lines == [.progress(.runningBrewUpgrade)])
+        #expect(snapshot.popover?.mark == .spinner)
+        #expect(snapshot.popover?.button == .cancel(Group(state: .available, pending: false, live: 1)))
+        #expect(snapshot.upgradeAllHeader == .running(
+            cancel: Group(state: .available, pending: false, live: 1), progress: nil))
+    }
+
+    @Test func anUpgradeFailureAndAReadFailureAreBothReported() {
+        let snapshot = Snapshot(upgradeAllError: "upgrade failed", outdated: 2, readError: "check failed")
+        #expect(snapshot.popover?.lines == [.error("upgrade failed"), .checkFailed])
+        #expect(snapshot.popover?.button == .update(admin: false))
+    }
+
     /// #1509: a formula's own upgrade started from the workbench — the
     /// popover row says so, and has its Cancel.
     @Test func aFormulaUpgradeFromTheWorkbenchHasItsCancelOnThePopover() {

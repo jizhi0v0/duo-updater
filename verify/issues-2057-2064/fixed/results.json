@@ -1,0 +1,210 @@
+{
+  "date": "2026-11-17",
+  "platform": "Apple Silicon macOS 27.2 VM",
+  "sourceComparison": {
+    "sourceCommit": "5438dd9ae711366b8ad74fd66e5acdf6000184a6",
+    "checkedChangedFiles": 64,
+    "mismatches": []
+  },
+  "checks": [
+    {
+      "name": "focused-core",
+      "exit": 0,
+      "elapsedSeconds": 67.535,
+      "recordedLog": "focused-1794916582728146000.log",
+      "tests": 232,
+      "suites": 23
+    },
+    {
+      "name": "app",
+      "exit": 0,
+      "elapsedSeconds": 60.028,
+      "recordedLog": "app-1794916862861512000.log"
+    },
+    {
+      "name": "release-app-and-cli",
+      "exit": 0,
+      "elapsedSeconds": 254.822,
+      "recordedLog": "release-build-1794917297224307000.log"
+    },
+    {
+      "name": "cli",
+      "exit": 0,
+      "elapsedSeconds": 28.928,
+      "recordedLog": "cli-1794917712796118000.log",
+      "tests": 731,
+      "suites": 84
+    },
+    {
+      "name": "scripts",
+      "exit": 0,
+      "elapsedSeconds": 82.012,
+      "recordedLog": "scripts-1794917836606524000.log"
+    },
+    {
+      "name": "application-tools-build",
+      "exit": 0,
+      "elapsedSeconds": 4.012,
+      "recordedLog": "application-build-1794917979577410000.log"
+    },
+    {
+      "name": "pkg-before",
+      "exit": 0,
+      "elapsedSeconds": 6.776,
+      "recordedLog": "focused-1794916677101166000.log",
+      "tests": 1,
+      "suites": 1
+    },
+    {
+      "name": "pkg-after",
+      "exit": 0,
+      "elapsedSeconds": 5.988,
+      "recordedLog": "focused-1794918137188169000.log",
+      "tests": 1,
+      "suites": 1
+    },
+    {
+      "name": "pkg-conflict",
+      "exit": 0,
+      "elapsedSeconds": 9.125,
+      "recordedLog": "focused-1794918160595176000.log",
+      "tests": 1,
+      "suites": 1
+    },
+    {
+      "name": "pkg-checksum",
+      "exit": 0,
+      "elapsedSeconds": 73.293,
+      "recordedLog": "focused-1794918219335230000.log",
+      "tests": 1,
+      "suites": 1
+    },
+    {
+      "name": "manual-handoff",
+      "exit": 0,
+      "elapsedSeconds": 50.471,
+      "recordedLog": "focused-1794918372745592000.log",
+      "tests": 1,
+      "suites": 1
+    },
+    {
+      "name": "suite-before",
+      "exit": 0,
+      "elapsedSeconds": 9.631,
+      "recordedLog": "focused-1794918621943776000.log",
+      "tests": 1,
+      "suites": 1
+    },
+    {
+      "name": "suite-after",
+      "exit": 0,
+      "elapsedSeconds": 10.668,
+      "recordedLog": "focused-1794919014146500000.log",
+      "tests": 1,
+      "suites": 1
+    },
+    {
+      "name": "manual-team-policy",
+      "exit": 0,
+      "elapsedSeconds": 58.078,
+      "recordedLog": "focused-1794919591542893000.log",
+      "tests": 11,
+      "suites": 1
+    },
+    {
+      "name": "core-appstore",
+      "exit": 0,
+      "elapsedSeconds": 1.869,
+      "recordedLog": "core-appstore-1794919688492384000.log",
+      "tests": 27,
+      "suites": 1
+    },
+    {
+      "name": "core-rest",
+      "exit": 0,
+      "elapsedSeconds": 140.55,
+      "recordedLog": "core-rest-1794919700809797000.log",
+      "tests": 7601,
+      "suites": 687
+    },
+    {
+      "name": "initial-monolithic-core",
+      "exit": 1,
+      "elapsedSeconds": 127.222,
+      "recordedLog": "core-1794919329522897000.log",
+      "tests": 7628,
+      "suites": 688,
+      "disposition": "Failure preserved; manual-path fixture corrected, all Core tests then passed in two fresh processes. App Store process-wide language latch and existing known issue are explained in README."
+    }
+  ],
+  "appLocalizationReachableKeys": 1445,
+  "nativeReadChecks": [
+    {
+      "name": "failed-info-abort",
+      "arguments": [
+        "info",
+        "--json=v2",
+        "--installed"
+      ],
+      "exit": 1
+    },
+    {
+      "name": "failed-outdated-abort",
+      "arguments": [
+        "outdated",
+        "--cask",
+        "--json=v2"
+      ],
+      "exit": 1
+    },
+    {
+      "name": "recovered-info",
+      "arguments": [
+        "info",
+        "--json=v2",
+        "--installed"
+      ],
+      "exit": 0
+    },
+    {
+      "name": "recovered-outdated",
+      "arguments": [
+        "outdated",
+        "--cask",
+        "--json=v2"
+      ],
+      "exit": 0
+    }
+  ],
+  "manualHandoff": {
+    "applied": false,
+    "beforeOpenCalls": 1,
+    "brewRecordCreated": false,
+    "cask": "duo206x/fixtures/duo206x-manual",
+    "caskVersion": "2026.10.66,11",
+    "handoffOnly": true,
+    "hasStagedSignatureProof": true,
+    "manualPath": "AdobeConnectInstaller.app",
+    "observedVersionAfter": "2026.10.66",
+    "observedVersionBefore": "2026.10.66",
+    "oldToNewUpdateTested": false,
+    "releaseAfterDownloadCalls": 1,
+    "route": "homebrew",
+    "sourceDetectionTested": false,
+    "stagedTeam": "JQ525L2MZD"
+  },
+  "cleanup": {
+    "manualAllTrackedPathsAbsent": true,
+    "pkg": {
+      "appsRemain": [],
+      "tapRemains": false
+    },
+    "reads": {
+      "recordRemains": false,
+      "definitionRemains": false
+    },
+    "suite": {
+      "leftovers": []
+    }
+  }
+}

@@ -80,6 +80,8 @@ struct HomebrewGroupSummary: View {
     let homebrewUpdate: String?
     let toggleDisabled: Bool
     let toggle: () -> Void
+    var readError: String? = nil
+    var retry: () -> Void = {}
 
     private var counts: String {
         let packages = String(localized: "\(packages) packages")
@@ -90,6 +92,26 @@ struct HomebrewGroupSummary: View {
     }
 
     var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            countsRow
+            if let readError {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Label(String(localized: "Check failed — showing last results"), systemImage: "exclamationmark.triangle")
+                        .foregroundStyle(.orange)
+                        .lineLimit(2)
+                        .help(readError)
+                    Spacer(minLength: 0)
+                    Button("Retry", action: retry)
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.tint)
+                        .help(String(localized: "Retry Homebrew check"))
+                }
+                .font(.caption)
+            }
+        }
+    }
+
+    private var countsRow: some View {
         Button(action: toggle) {
             HStack(spacing: 8) {
                 // A failed Upgrade All takes the counts' place, as it takes the

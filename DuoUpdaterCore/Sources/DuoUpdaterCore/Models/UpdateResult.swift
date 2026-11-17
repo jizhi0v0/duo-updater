@@ -325,9 +325,9 @@ public struct RemoteVersion: Sendable, Hashable {
     /// Mac App Store availability/region info, when this came from the App Store.
     public let appStore: AppStoreAvailability?
 
-    /// True when installing means running a downloaded installer package (a
-    /// `pkg` cask) rather than an in-place swap — needs admin via the system
-    /// installer, so we download the official package and open it.
+    /// Installation needs a separate installer or a user-controlled handoff.
+    /// Normal Homebrew PKGs use Brew; `homebrewManualInstaller` distinguishes
+    /// its declared manual installers from vendor/Sparkle packages.
     public let requiresManualInstaller: Bool
 
     /// For a `Vendor` update we can install in place: the archive format of
@@ -495,11 +495,18 @@ public struct RemoteVersion: Sendable, Hashable {
 
     /// Complete Cask version identities. These are opaque Brew identifiers, not
     /// CFBundleVersion values: comma/colon suffixes can be hashes or dates.
+    /// `installer manual` path. Execution resolves it again through Brew;
+    /// this marks a user-controlled handoff, never a direct PKG/helper route.
+    public var homebrewManualInstaller: String?
     public var homebrewCaskVersion: String?
     public var homebrewInstalledCaskVersion: String?
     /// A Brew pin blocks this source alone; explicit other-source fallback keeps
     /// the user's existing policy and is not made a global application hold.
     public var homebrewPinned = false
+    /// The selected owning cask's release is known not to support this host.
+    /// Detection and provenance remain available; every install offer and the
+    /// coordinator's entry gate refuse it.
+    public var homebrewIncompatibility: CaskIncompatibility?
 
     public init(
         shortVersion: String?,
@@ -927,6 +934,9 @@ public enum UpdateStatus: Sendable, Equatable {
     /// endpoint would risk a cross-channel install, so we defer to Toolbox and
     /// label it as managed — informational, not actionable here.
     case toolboxManaged
+    /// A member of a registered Homebrew suite. The cask's package row owns
+    /// the update; this app row carries no independently installable release.
+    case homebrewSuiteManaged(cask: String)
     /// TestFlight installed this beta and owns its updates. We read TestFlight's
     /// local cache for the latest build but never install it ourselves — the
     /// action is "open TestFlight". Used when no newer build is known (or the

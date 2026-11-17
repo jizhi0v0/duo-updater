@@ -99454,6 +99454,966 @@
           }
         }
       }
+    },
+    "%@ is prepared — Install verifies and opens its installer. Finish the update there.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ ist vorbereitet — „Installieren“ prüft und öffnet das Installationsprogramm. Schließe das Update dort ab."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ está preparado — Instalar verifica y abre su instalador. Completa la actualización allí."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ est prêt — Installer vérifie et ouvre son programme d’installation. Terminez la mise à jour dans sa fenêtre."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ è pronto — Installa verifica e apre il programma di installazione. Completa lì l’aggiornamento."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ の準備ができました。「インストール」でインストーラを検証して開きます。そのウインドウでアップデートを完了してください。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ está preparado — Instalar verifica e abre o instalador. Conclua a atualização na janela dele."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ подготовлена — кнопка «Установить» проверит и откроет установщик. Завершите обновление в его окне."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ hazır — Yükle, yükleyiciyi doğrular ve açar. Güncellemeyi o pencerede tamamlayın."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 已准备好——点击“安装”会验证并打开安装器。请在其窗口中完成更新。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 已準備好——按一下「安裝」會驗證並開啟安裝程式。請在其視窗中完成更新。"
+          }
+        }
+      }
+    },
+    "Check failed — showing last results": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prüfung fehlgeschlagen — letzte Ergebnisse werden angezeigt"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La comprobación falló — se muestran los últimos resultados"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Échec de la vérification — affichage des derniers résultats"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Controllo non riuscito — vengono mostrati gli ultimi risultati"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "確認に失敗しました — 前回の結果を表示しています"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Falha na verificação — mostrando os últimos resultados"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Проверка не удалась — показаны предыдущие результаты"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Denetim başarısız — son sonuçlar gösteriliyor"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "检查失败——显示上次结果"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "檢查失敗——顯示上次結果"
+          }
+        }
+      }
+    },
+    "Retry Homebrew check": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew-Prüfung wiederholen"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reintentar la comprobación de Homebrew"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Réessayer la vérification Homebrew"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Riprova il controllo di Homebrew"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew の確認を再試行"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Repetir a verificação do Homebrew"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Повторить проверку Homebrew"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew denetimini yeniden dene"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重试 Homebrew 检查"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重試 Homebrew 檢查"
+          }
+        }
+      }
+    },
+    "Homebrew check failed. Existing results are kept. Click to retry.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Homebrew-Prüfung ist fehlgeschlagen. Die bisherigen Ergebnisse bleiben erhalten. Zum Wiederholen klicken."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La comprobación de Homebrew falló. Se conservan los resultados anteriores. Haz clic para reintentar."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La vérification Homebrew a échoué. Les résultats précédents sont conservés. Cliquez pour réessayer."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Il controllo di Homebrew non è riuscito. I risultati precedenti vengono mantenuti. Fai clic per riprovare."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew の確認に失敗しました。前回の結果は保持されています。クリックして再試行してください。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A verificação do Homebrew falhou. Os resultados anteriores foram mantidos. Clique para tentar novamente."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Проверка Homebrew не удалась. Предыдущие результаты сохранены. Нажмите, чтобы повторить."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew denetimi başarısız oldu. Önceki sonuçlar korundu. Yeniden denemek için tıklayın."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew 检查失败。已保留原有结果。点击重试。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew 檢查失敗。已保留原有結果。按一下以重試。"
+          }
+        }
+      }
+    },
+    "Check failed": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prüfung fehlgeschlagen"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La comprobación falló"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Échec de la vérification"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Controllo non riuscito"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "確認に失敗しました"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Falha na verificação"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Проверка не удалась"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Denetim başarısız"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "检查失败"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "檢查失敗"
+          }
+        }
+      }
+    },
+    "This Homebrew release requires %@; this Mac uses %@.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diese Homebrew-Version benötigt %@; dieser Mac verwendet %@."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta versión de Homebrew requiere %@; este Mac usa %@."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cette version Homebrew nécessite %@ ; ce Mac utilise %@."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Questa versione Homebrew richiede %@; questo Mac usa %@."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "この Homebrew リリースには %@ が必要ですが、この Mac は %@ を使用しています。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta versão do Homebrew requer %@; este Mac usa %@."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Этот выпуск Homebrew требует %@; этот Mac использует %@."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu Homebrew sürümü %@ gerektirir; bu Mac %@ kullanıyor."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此 Homebrew 版本要求 %@；这台 Mac 使用 %@。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此 Homebrew 版本要求 %@；這台 Mac 使用 %@。"
+          }
+        }
+      }
+    },
+    "This Homebrew release requires macOS %@ or later; this Mac runs macOS %@.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diese Homebrew-Version benötigt macOS %@ oder neuer; auf diesem Mac läuft macOS %@."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta versión de Homebrew requiere macOS %@ o posterior; este Mac ejecuta macOS %@."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cette version Homebrew nécessite macOS %@ ou une version ultérieure ; ce Mac utilise macOS %@."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Questa versione Homebrew richiede macOS %@ o successivo; questo Mac esegue macOS %@."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "この Homebrew リリースには macOS %@ 以降が必要ですが、この Mac は macOS %@ を実行しています。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta versão do Homebrew requer macOS %@ ou posterior; este Mac está no macOS %@."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Этот выпуск Homebrew требует macOS %@ или новее; на этом Mac установлена macOS %@."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu Homebrew sürümü macOS %@ veya yenisini gerektirir; bu Mac macOS %@ kullanıyor."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此 Homebrew 版本要求 macOS %@ 或更高版本；这台 Mac 运行 macOS %@。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此 Homebrew 版本要求 macOS %@ 或更新版本；這台 Mac 執行 macOS %@。"
+          }
+        }
+      }
+    },
+    "This Homebrew release supports macOS %@ or earlier; this Mac runs macOS %@.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diese Homebrew-Version unterstützt macOS %@ oder älter; auf diesem Mac läuft macOS %@."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta versión de Homebrew admite macOS %@ o anterior; este Mac ejecuta macOS %@."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cette version Homebrew prend en charge macOS %@ ou une version antérieure ; ce Mac utilise macOS %@."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Questa versione Homebrew supporta macOS %@ o precedente; questo Mac esegue macOS %@."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "この Homebrew リリースは macOS %@ 以前に対応していますが、この Mac は macOS %@ を実行しています。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta versão do Homebrew oferece suporte ao macOS %@ ou anterior; este Mac está no macOS %@."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Этот выпуск Homebrew поддерживает macOS %@ или старее; на этом Mac установлена macOS %@."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu Homebrew sürümü macOS %@ veya öncesini destekler; bu Mac macOS %@ kullanıyor."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此 Homebrew 版本支持 macOS %@ 或更早版本；这台 Mac 运行 macOS %@。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此 Homebrew 版本支援 macOS %@ 或更早版本；這台 Mac 執行 macOS %@。"
+          }
+        }
+      }
+    },
+    "This Homebrew release supports macOS %@; this Mac runs macOS %@.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diese Homebrew-Version unterstützt macOS %@; auf diesem Mac läuft macOS %@."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta versión de Homebrew admite macOS %@; este Mac ejecuta macOS %@."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cette version Homebrew prend en charge macOS %@ ; ce Mac utilise macOS %@."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Questa versione Homebrew supporta macOS %@; questo Mac esegue macOS %@."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "この Homebrew リリースは macOS %@ に対応していますが、この Mac は macOS %@ を実行しています。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta versão do Homebrew oferece suporte ao macOS %@; este Mac está no macOS %@."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Этот выпуск Homebrew поддерживает macOS %@; на этом Mac установлена macOS %@."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu Homebrew sürümü macOS %@ sürümünü destekler; bu Mac macOS %@ kullanıyor."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此 Homebrew 版本支持 macOS %@；这台 Mac 运行 macOS %@。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此 Homebrew 版本支援 macOS %@；這台 Mac 執行 macOS %@。"
+          }
+        }
+      }
+    },
+    "Not compatible": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nicht kompatibel"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No compatible"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Non compatible"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Non compatibile"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "互換性がありません"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Incompatível"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Несовместимо"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uyumlu değil"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不兼容"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不相容"
+          }
+        }
+      }
+    },
+    "Show %@ in Homebrew — updates are managed by the suite’s package row.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ in Homebrew anzeigen — Updates werden über die Paketzeile der Suite verwaltet."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mostrar %@ en Homebrew — las actualizaciones se gestionan desde la fila del paquete de la suite."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Afficher %@ dans Homebrew — les mises à jour sont gérées depuis la ligne du paquet de la suite."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mostra %@ in Homebrew — gli aggiornamenti si gestiscono dalla riga del pacchetto della suite."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew で %@ を表示 — アップデートはスイートのパッケージ行で管理します。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mostrar %@ no Homebrew — as atualizações são gerenciadas pela linha do pacote da suíte."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Показать %@ в Homebrew — обновления управляются в строке пакета набора."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ paketini Homebrew’da göster — güncellemeler paketin satırından yönetilir."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 Homebrew 中显示 %@——更新由套件的软件包行统一管理。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 Homebrew 中顯示 %@——更新由套件的軟體套件列統一管理。"
+          }
+        }
+      }
+    },
+    "Show %@ in Homebrew": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ in Homebrew anzeigen"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mostrar %@ en Homebrew"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Afficher %@ dans Homebrew"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mostra %@ in Homebrew"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew で %@ を表示"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mostrar %@ no Homebrew"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Показать %@ в Homebrew"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ paketini Homebrew’da göster"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 Homebrew 中显示 %@"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 Homebrew 中顯示 %@"
+          }
+        }
+      }
+    },
+    "part of %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Teil von %@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "parte de %@"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "fait partie de %@"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "parte di %@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ の一部"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "parte de %@"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "в составе %@"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ paketinin parçası"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "属于 %@"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "屬於 %@"
+          }
+        }
+      }
+    },
+    "%@ is part of the Homebrew suite %@. Update the suite from its Homebrew package row.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ gehört zur Homebrew-Suite %@. Aktualisiere die Suite über ihre Homebrew-Paketzeile."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ forma parte de la suite %@ de Homebrew. Actualiza la suite desde su fila de paquete en Homebrew."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ fait partie de la suite Homebrew %@. Mettez la suite à jour depuis sa ligne de paquet Homebrew."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ fa parte della suite Homebrew %@. Aggiorna la suite dalla relativa riga del pacchetto Homebrew."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ は Homebrew スイート %@ の一部です。Homebrew のパッケージ行からスイートをアップデートしてください。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ faz parte da suíte %@ do Homebrew. Atualize a suíte pela linha do pacote no Homebrew."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ входит в набор Homebrew %@. Обновите набор из его строки пакета Homebrew."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@, Homebrew’daki %@ paketinin parçasıdır. Paketi Homebrew’daki paket satırından güncelleyin."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 属于 Homebrew 套件 %@。请从 Homebrew 软件包行统一更新套件。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 屬於 Homebrew 套件 %@。請從 Homebrew 軟體套件列統一更新套件。"
+          }
+        }
+      }
+    },
+    "Homebrew downloads and verifies the declared installer. Finish the update in its window.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew lädt das angegebene Installationsprogramm herunter und prüft es. Schließe das Update in dessen Fenster ab."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew descarga y verifica el instalador indicado. Completa la actualización en su ventana."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew télécharge et vérifie le programme d’installation déclaré. Terminez la mise à jour dans sa fenêtre."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew scarica e verifica il programma di installazione dichiarato. Completa l’aggiornamento nella sua finestra."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew が指定されたインストーラをダウンロードして検証します。そのウインドウでアップデートを完了してください。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O Homebrew baixa e verifica o instalador declarado. Conclua a atualização na janela dele."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew загрузит и проверит указанный установщик. Завершите обновление в его окне."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew belirtilen yükleyiciyi indirir ve doğrular. Güncellemeyi yükleyicinin penceresinde tamamlayın."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew 会下载并验证声明的安装器。请在其窗口中完成更新。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homebrew 會下載並驗證宣告的安裝程式。請在其視窗中完成更新。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

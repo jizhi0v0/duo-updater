@@ -171,6 +171,7 @@ public enum UpdatePolicy {
         environment: InstallEnvironment,
         osVersion: String = HostOS.numericVersion()
     ) -> Bool {
+        if result.remote?.homebrewIncompatibility != nil { return false }
         // The user was asked for an administrator password for this exact install
         // and said no. Keeping the Update button would re-raise that panel on every
         // release; this is the only branch here that turns a *previously offered*
@@ -215,7 +216,7 @@ public enum UpdatePolicy {
         // and so give the same answer in any order: a gate may read a file
         // (`.executableContains`), and a row they already refuse skips it.
         if OneClickGateRegistry.withholding(result.app, offering: result.remote) != nil { return false }
-        if environment.packageInstallerAvailable,
+        if result.remote?.homebrewManualInstaller == nil, environment.packageInstallerAvailable,
            PackageInstallTrust.teamIdentifier(for: result.app.bundleID) != nil,
            requiresInstaller(result, environment: environment) {
             return true
@@ -453,6 +454,7 @@ public enum UpdatePolicy {
         _ result: UpdateResult,
         environment: InstallEnvironment
     ) -> Bool {
+        if result.remote?.homebrewIncompatibility != nil { return false }
         // Same as `canAutoInstall`: only a staged build that *is* the latest is
         // relaunch-only; one that trails the latest still gets a normal installer.
         if actionableStaged(result, staged: environment.stagedSelfUpdates[result.id]) != nil { return false }
@@ -475,11 +477,9 @@ public enum UpdatePolicy {
         if lacksTeamIdentifierForRoute(result) { return false }
         switch result.remote?.sourceName {
         case "Homebrew":
-            // A cask whose installer needs a person but whose download holds no
-            // package we can reach comes without a URL (`CaskInstallKind
-            // .detectionOnly`) and stays detection-only.
-            return result.remote?.requiresManualInstaller == true
-                && result.remote?.downloadURL != nil
+            // A declared manual path is prepared by Brew, then handed to the
+            // person. Normal PKGs use Brew directly, including its AskPass.
+            return result.remote?.homebrewManualInstaller != nil
         case "Vendor", "GitHub", "Electron", MyGoUpdateSource.sourceName:
             // electron-builder can publish a `.pkg` alongside (or instead of) the
             // Squirrel `.zip` — `ElectronManifestSource.kind(of:)` recognises it —
@@ -850,7 +850,7 @@ public enum UpdatePolicy {
             case .upToDate:
                 settled.insert(id)
             case .updateAvailable, .unknown, .error, .outsideOSWindow,
-                 .appStoreManaged, .toolboxManaged, .testFlightManaged, .testFlightIncompatible:
+                 .appStoreManaged, .toolboxManaged, .testFlightManaged, .testFlightIncompatible, .homebrewSuiteManaged:
                 break
             }
         }

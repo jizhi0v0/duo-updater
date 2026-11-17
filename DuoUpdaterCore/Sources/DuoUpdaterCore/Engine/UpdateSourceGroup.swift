@@ -40,6 +40,7 @@ public enum UpdateSourceGroup: String, CaseIterable, Sendable, Identifiable {
         case .appStoreManaged: self = .appStore; return
         case .testFlightManaged: self = .testFlight; return
         case .toolboxManaged: self = .toolbox; return
+        case .homebrewSuiteManaged: self = .homebrew; return
         default: break
         }
         guard let source = result.remote?.sourceName else {

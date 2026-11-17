@@ -398,7 +398,7 @@ import Foundation
         for status: UpdateStatus in [
             .upToDate, .updateAvailable(latest: "1"), .unknown,
             .appStoreManaged, .toolboxManaged, .testFlightManaged, .testFlightIncompatible, .error("x"),
-            .outsideOSWindow(Self.ceiling),
+            .outsideOSWindow(Self.ceiling), .homebrewSuiteManaged(cask: "racket"),
         ] {
             switch status {
             case .upToDate, .updateAvailable:
@@ -407,6 +407,8 @@ import Foundation
                 break  // anUnownedAppReportsAThrownFailure / …WithNoApplicableSource
             case .toolboxManaged:
                 break  // aToolboxOwnedAppKeepsItsChannelWhenASourceThrows
+            case .homebrewSuiteManaged:
+                break  // suite ownership is terminal before per-member sources
             case .testFlightManaged:
                 break  // aTestFlightAppNeverReachesASourceAtAll
             case .testFlightIncompatible:

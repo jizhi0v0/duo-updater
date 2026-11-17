@@ -265,6 +265,7 @@ struct RowActionStateTests {
         (UpdateStatus.appStoreManaged, RowActionState.Manager.appStore),
         (.toolboxManaged, .toolbox),
         (.testFlightManaged, .testFlight),
+        (.homebrewSuiteManaged(cask: "racket"), .homebrewSuite("racket")),
     ])
     func managedNamesItsManager(status: UpdateStatus, manager: RowActionState.Manager) {
         #expect(RowAction.state(for: RowActionFacts(status: status)) == .managedElsewhere(manager))

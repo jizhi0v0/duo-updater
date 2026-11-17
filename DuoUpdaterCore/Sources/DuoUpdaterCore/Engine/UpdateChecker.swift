@@ -414,6 +414,29 @@ public struct UpdateChecker: Sendable {
             }
         }
 
+        // Suite members keep their own app rows, but the registered suite is
+        // the only update unit. Resolve this before source priority: a member's
+        // Sparkle/vendor feed must not split that package into several installs.
+        if !app.isMASApp {
+            do {
+                for source in sources {
+                    let owner: String?
+                    if let homebrew = source as? HomebrewCaskSource {
+                        owner = try await homebrew.suiteOwner(of: app)
+                    } else if let tap = source as? ThirdPartyCaskSource {
+                        owner = try await tap.suiteOwner(of: app)
+                    } else { continue }
+                    if let owner {
+                        var managed = UpdateResult(app: app, remote: nil, status: .homebrewSuiteManaged(cask: owner))
+                        managed.homebrewSourceIdentifier = owner
+                        return managed
+                    }
+                }
+            } catch {
+                return UpdateResult(app: app, remote: nil, status: .error(error.localizedDescription))
+            }
+        }
+
         var lastError: String?
         // Whether ANY source failed transiently, not just the last one: a feed that
         // timed out may answer on a retry even when a later source's 404 is the

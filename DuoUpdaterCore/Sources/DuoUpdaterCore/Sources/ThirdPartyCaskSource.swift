@@ -10,6 +10,9 @@ public actor ThirdPartyCaskSource: UpdateSource {
         let tap: String
         let paths: Set<String>
         var brewPrefix: String? = nil
+        /// Member apps of a registered suite. They belong to the package row,
+        /// never to independent app-source update operations.
+        var suitePaths: Set<String> = []
         var qualifiedName: String { "\(tap)/\(token)" }
     }
 
@@ -56,14 +59,39 @@ public actor ThirdPartyCaskSource: UpdateSource {
         reads = [:]
     }
 
-    public func latestVersion(for app: InstalledApp) async throws -> RemoteVersion? {
-        guard !app.isMASApp else { return nil }
+    private func owners() async -> [Ownership] {
         if ownershipTask == nil {
             let roots = roots
-            ownershipTask = Task { await Self.ownership(in: roots) }
+            // Suite ownership is terminal before any update source is asked,
+            // so include official owners here too to detect overlaps. Ordinary
+            // app lookups below still accept only the non-official owners.
+            ownershipTask = Task { await Self.ownership(in: roots, includeOfficial: true) }
         }
+        return await ownershipTask!.value
+    }
+
+    func suiteOwner(of app: InstalledApp) async throws -> String? {
+        try Self.suiteOwner(of: app, owners: await owners())
+    }
+
+    static func suiteOwner(of app: InstalledApp, owners: [Ownership]) throws -> String? {
         let path = app.path.standardizedFileURL.resolvingSymlinksInPath().path
-        let owners = await ownershipTask!.value.filter { $0.paths.contains(path) }
+        let matches = owners.filter { $0.paths.contains(path) }
+        guard matches.contains(where: { $0.suitePaths.contains(path) }) else { return nil }
+        // Neither a second suite nor an ordinary app owner may silently lose
+        // the same copy. There is no independent member install to fall back to.
+        guard matches.count == 1, let owner = matches.first else {
+            throw Unavailable(cask: matches.map(\.qualifiedName).sorted().joined(separator: ", "))
+        }
+        if let prefix = owner.brewPrefix { try HomebrewInstaller.validateOwnerPrefix(prefix) }
+        return owner.tap == officialTap ? owner.token : owner.qualifiedName
+    }
+
+    public func latestVersion(for app: InstalledApp) async throws -> RemoteVersion? {
+        guard !app.isMASApp else { return nil }
+        if try await suiteOwner(of: app) != nil { return nil }
+        let path = app.path.standardizedFileURL.resolvingSymlinksInPath().path
+        let owners = await self.owners().filter { $0.tap != Self.officialTap && $0.paths.contains(path) }
         guard let owner = owners.first else { return nil }
         guard Set(owners.map(\.qualifiedName)).count == 1 else {
             throw Unavailable(cask: owners.map(\.qualifiedName).sorted().joined(separator: ", "))
@@ -97,10 +125,25 @@ public actor ThirdPartyCaskSource: UpdateSource {
         // The receipt owns the install even when the tap is auto_updates or its
         // current release lags GitHub. The checker owns the explicit fallback policy.
         let marketing = version.split(whereSeparator: { $0 == "," || $0 == ":" }).first.map(String.init)
+        let installKind = HomebrewCaskCatalog.installKind(
+            artifacts: cask["artifacts"], dependsOn: cask["depends_on"],
+            conflictsWith: cask["conflicts_with"], disabled: (cask["disabled"] as? Bool) == true)
         var remote = RemoteVersion(
             shortVersion: marketing, version: nil,
             downloadURL: nil, pageURL: (cask["homepage"] as? String).flatMap(URL.init(string:)),
-            sourceName: name, sourceIdentifier: qualified)
+            sourceName: name, sourceIdentifier: qualified,
+            requiresManualInstaller: installKind != .brew)
+        remote.homebrewIncompatibility = CaskIncompatibility.check(
+            macOS: CaskMacOSRequirement.parse(dependsOn: cask["depends_on"]),
+            architectures: HomebrewCaskCatalog.architectures(dependsOn: cask["depends_on"]))
+        switch installKind {
+        case .manualInstaller(let path):
+            remote.homebrewManualInstaller = path
+        case .detectionOnly:
+            break
+        case .brew:
+            break
+        }
         // Moved to the official tap: it follows the official cask's rules from
         // here, its `auto_updates` included. Upgrades keep the old qualified
         // name, which brew follows to the new home and records there.
@@ -166,9 +209,11 @@ public actor ThirdPartyCaskSource: UpdateSource {
                         paths.insert(URL(fileURLWithPath: path).standardizedFileURL.resolvingSymlinksInPath().path)
                     }
                 }
+                let suitePaths = BrewLocalInventory.suiteAppPaths(token: token, caskroomPaths: [root])
+                paths.formUnion(suitePaths)
                 let prefix = BrewLocalInventory.defaultCaskroomPaths.contains(root)
                     ? URL(fileURLWithPath: root).deletingLastPathComponent().path : nil
-                result.append(Ownership(token: token, tap: tap, paths: paths, brewPrefix: prefix))
+                result.append(Ownership(token: token, tap: tap, paths: paths, brewPrefix: prefix, suitePaths: suitePaths))
             }
         }
         return result

@@ -10,8 +10,8 @@ import Foundation
 /// rather than a made-up one.
 struct UpdateSourceLabel: Equatable {
     /// What Update does for this row, which the source alone does not say: a
-    /// Homebrew cask whose package needs macOS's installer goes there, not to brew,
-    /// and a detection-only or gated row has no install at all.
+    /// manual installer needs a user-controlled handoff; a detection-only or
+    /// gated row has no install at all.
     enum Action: Equatable {
         /// The source's own one-click route: download and replace, brew, Xcode.
         case install
@@ -31,6 +31,19 @@ struct UpdateSourceLabel: Equatable {
     let sidebarName: String?
 
     init?(_ result: UpdateResult, action: Action = .none) {
+        if case .homebrewSuiteManaged(let cask) = result.status {
+            self.init(
+                phrase: String(localized: "part of \(cask)"),
+                detail: String(localized: "\(result.app.name) is part of the Homebrew suite \(cask). Update the suite from its Homebrew package row."),
+                sidebarName: "Homebrew")
+            return
+        }
+        if result.remote?.sourceName == "Homebrew", result.remote?.homebrewManualInstaller != nil {
+            self.init(phrase: Self.via("Homebrew"),
+                      detail: String(localized: "Homebrew downloads and verifies the declared installer. Finish the update in its window."),
+                      sidebarName: "Homebrew")
+            return
+        }
         guard let source = result.remote?.sourceName,
               let label = Self.label(for: source, action: action)
         else { return nil }
@@ -142,4 +155,16 @@ struct UpdateSourceLabel: Equatable {
     private static func via(_ name: String) -> String {
         String(localized: "via \(name)", comment: "Where an app's updates come from, e.g. “via Sparkle”, “via Homebrew”")
     }
+}
+
+/// The installer handoff explained by both action surfaces. Foundation only,
+/// so the hostless App tests exercise the wording used by the actual buttons.
+func installerHandoffHelp(for result: UpdateResult, stagedFileName: String?) -> String {
+    if result.remote?.homebrewManualInstaller != nil {
+        return String(localized: "Homebrew downloads and verifies the declared installer. Finish the update in its window.")
+    }
+    if let stagedFileName {
+        return String(localized: "\(stagedFileName) is already downloaded — opens it in macOS's installer (asks for admin). Nothing is downloaded again.")
+    }
+    return String(localized: "Downloads the official installer and opens it (asks for admin)")
 }

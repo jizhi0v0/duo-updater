@@ -305,11 +305,13 @@ public actor PackageInstaller {
     /// existing one forward (verified against Installer.app on macOS 27).
     @discardableResult
     public func reopen(package: URL, installedApp: URL, executor: Executor? = nil,
+                       beforeOpen: @Sendable () async -> Void = {},
                        onStage: @escaping @Sendable (InstallStage) -> Void = { _ in }) async throws -> Bool {
         guard FileManager.default.fileExists(atPath: package.path) else {
             throw PackageError.noInstallablePackage
         }
-        return try await handOver(package, installedApp: installedApp, executor: executor, onStage: onStage)
+        return try await handOver(package, installedApp: installedApp, beforeOpen: beforeOpen,
+                                  executor: executor, onStage: onStage)
     }
 
     /// Shared validation for a helper's protected copy. Helpers require the

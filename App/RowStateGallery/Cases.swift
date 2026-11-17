@@ -269,6 +269,8 @@ enum RowStateGalleryCases {
         ("27-managed-app-store", .managedElsewhere(.appStore), app),
         ("28-managed-toolbox", .managedElsewhere(.toolbox), app),
         ("29-managed-testflight", .managedElsewhere(.testFlight), app),
+        ("29b-managed-homebrew-suite", .managedElsewhere(.homebrewSuite("racket")),
+         UpdateResult(app: app.app, remote: nil, status: .homebrewSuiteManaged(cask: "racket"))),
         ("30-up-to-date", .upToDate(channel: .none), app),
         // `.upToDate` is not one picture: a store-managed or TestFlight app keeps
         // its channel marker so it never reads like something we could update

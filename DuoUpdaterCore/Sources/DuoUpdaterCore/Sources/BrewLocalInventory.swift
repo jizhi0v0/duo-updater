@@ -97,8 +97,9 @@ public struct BrewLocalInventory: Sendable {
         for root in caskroomPaths {
             let directory = URL(fileURLWithPath: root, isDirectory: true).appendingPathComponent(token)
             guard let version = installedVersion(inCaskDirectory: directory, token: token) else { continue }
-            let paths = receiptAppTargets(directory: directory, version: version)
-                ?? stagedAppTargets(directory: directory.appendingPathComponent(version))
+            let paths = (receiptAppTargets(directory: directory, version: version)
+                ?? stagedAppTargets(directory: directory.appendingPathComponent(version)))
+                + registeredSuiteTargets(directory: directory, version: version)
             return paths.sorted().first { path in
                 var info = stat()
                 return stat(path, &info) != 0 && (errno == ENOENT || errno == ENOTDIR)
@@ -110,6 +111,78 @@ public struct BrewLocalInventory: Sendable {
     static func receiptAppTargets(
         directory: URL, version: String, excludingStagedSources: Set<String> = []
     ) -> [String]? {
+        guard let apps = receiptArtifacts(directory: directory, version: version, kind: "app") else { return nil }
+        // An installed definition with no `app` stanza can still contain a
+        // staged installer bundle. It has no registered app target.
+        guard !apps.isEmpty else { return [] }
+        let paths = apps.compactMap { artifact -> String? in
+            guard !excludingStagedSources.contains((artifact.source as NSString).standardizingPath) else { return nil }
+            return artifact.target
+        }
+        return paths.isEmpty ? nil : paths
+    }
+
+    /// Installed suite directories, not arbitrary extracted folders. A suite
+    /// is a relocated artifact just like an app: its current staged link is
+    /// authoritative, and only a missing link falls back to the saved target.
+    /// Reading the installed receipt keeps a newly published, renamed suite
+    /// from adopting a same-named folder that this cask never installed.
+    static func registeredSuiteTargets(directory: URL, version: String) -> [String] {
+        guard let suites = receiptArtifacts(directory: directory, version: version, kind: "suite") else { return [] }
+        let staged = directory.appendingPathComponent(version).standardizedFileURL
+        let resolvedStaged = staged.resolvingSymlinksInPath().path
+        return suites.compactMap { suite in
+            guard !suite.source.hasPrefix("/"), !suite.source.hasPrefix("~") else { return nil }
+            let source = staged.appendingPathComponent(suite.source).standardizedFileURL
+            // A source is relative to the staged version. Do not let a corrupt
+            // receipt inspect a link outside that tree.
+            guard source.path.hasPrefix(staged.path + "/") else { return nil }
+            let parent = source.deletingLastPathComponent().resolvingSymlinksInPath().path
+            guard parent == resolvedStaged || parent.hasPrefix(resolvedStaged + "/") else { return nil }
+            if let link = try? FileManager.default.destinationOfSymbolicLink(atPath: source.path) {
+                return URL(fileURLWithPath: link, relativeTo: source.deletingLastPathComponent())
+                    .standardizedFileURL.path
+            }
+            return suite.target
+        }
+    }
+
+    /// Apps directly inside the exact registered suite target. This is the
+    /// scanner's one plain-folder descent, never a recursive helper search.
+    /// A link to an app outside the suite does not give this cask ownership of
+    /// that other installation, even though scanning the link can show a row.
+    static func suiteAppPaths(token: String, caskroomPaths: [String]) -> Set<String> {
+        var paths: Set<String> = []
+        let fm = FileManager.default
+        for root in caskroomPaths {
+            let directory = URL(fileURLWithPath: root).appendingPathComponent(token)
+            guard let version = installedVersion(inCaskDirectory: directory, token: token) else { continue }
+            for target in registeredSuiteTargets(directory: directory, version: version) {
+                let suite = URL(fileURLWithPath: target).standardizedFileURL
+                guard AppScanner.isPlainFolder(suite),
+                      (try? suite.resourceValues(forKeys: [.isHiddenKey]))?.isHidden == false,
+                      let children = try? fm.contentsOfDirectory(
+                        at: suite, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])
+                else { continue }
+                let resolvedSuite = suite.resolvingSymlinksInPath().path
+                for child in children where child.pathExtension == "app" && !AppScanner.isSidecarCopy(child) {
+                    let resolved = child.standardizedFileURL.resolvingSymlinksInPath()
+                    guard resolved.deletingLastPathComponent().path == resolvedSuite,
+                          !resolved.path.hasPrefix("/System/"), AppScanner.hasRow(resolved)
+                    else { continue }
+                    paths.insert(resolved.path)
+                }
+            }
+        }
+        return paths
+    }
+
+    /// `app` and `suite` use the same saved appdir and target syntax. Keep that
+    /// resolution together; a missing appdir can still leave a usable source
+    /// for the suite's staged-link lookup.
+    private static func receiptArtifacts(
+        directory: URL, version: String, kind: String
+    ) -> [(source: String, target: String?)]? {
         let metadata = directory.appendingPathComponent(".metadata")
         guard let data = try? Data(contentsOf: metadata.appendingPathComponent("INSTALL_RECEIPT.json")),
               let receipt = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
@@ -117,29 +190,23 @@ public struct BrewLocalInventory: Sendable {
         else { return nil }
         if let recorded = (receipt["source"] as? [String: Any])?["version"] as? String,
            recorded != version { return nil }
-        let apps = artifacts.compactMap { $0["app"] as? [Any] }
-        // An installed definition with no `app` stanza can still contain a
-        // staged installer bundle. It has no registered app target.
-        guard !apps.isEmpty else { return [] }
+        let entries = artifacts.compactMap { $0[kind] as? [Any] }
 
         let config = (try? Data(contentsOf: metadata.appendingPathComponent("config.json")))
             .flatMap { (try? JSONSerialization.jsonObject(with: $0)) as? [String: Any] }
         let appdir = ["explicit", "env", "default"].lazy.compactMap {
             (config?[$0] as? [String: Any])?["appdir"] as? String
         }.first
-        let paths: [String] = apps.compactMap { args in
-            guard let source = args.first as? String, !source.isEmpty,
-                  !excludingStagedSources.contains((source as NSString).standardizingPath)
-            else { return nil }
+        return entries.compactMap { args -> (source: String, target: String?)? in
+            guard let source = args.first as? String, !source.isEmpty else { return nil }
             let options = args.dropFirst().first as? [String: Any]
             let target = (options?["target"] as? String) ?? (source as NSString).lastPathComponent
             guard !target.isEmpty else { return nil }
-            if target.hasPrefix("/") { return target }
-            if target.hasPrefix("~/") { return (target as NSString).expandingTildeInPath }
-            guard let appdir, appdir.hasPrefix("/") else { return nil }
-            return (appdir as NSString).appendingPathComponent(target)
+            if target.hasPrefix("/") { return (source, target) }
+            if target.hasPrefix("~/") { return (source, (target as NSString).expandingTildeInPath) }
+            guard let appdir, appdir.hasPrefix("/") else { return (source, nil) }
+            return (source, (appdir as NSString).appendingPathComponent(target))
         }
-        return paths.isEmpty ? nil : paths
     }
 
     private static func stagedAppTargets(directory: URL) -> [String] {

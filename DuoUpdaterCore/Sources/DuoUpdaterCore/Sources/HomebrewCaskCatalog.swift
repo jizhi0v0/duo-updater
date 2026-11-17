@@ -141,6 +141,8 @@ public enum CaskInstallKind: Sendable, Equatable {
 /// One cask's relevant fields.
 public struct CaskEntry: Sendable {
     public let token: String
+    /// Previous official tokens, used only alongside exact installed ownership.
+    public let oldTokens: [String]
     public let version: String
     public let url: URL?
     public let autoUpdates: Bool
@@ -164,9 +166,11 @@ public struct CaskEntry: Sendable {
         installKind: CaskInstallKind,
         macOS: CaskMacOSRequirement? = nil,
         appFilenames: [String] = [],
-        bundleIDs: [String] = []
+        bundleIDs: [String] = [],
+        oldTokens: [String] = []
     ) {
         self.token = token
+        self.oldTokens = oldTokens
         self.version = version
         self.url = url
         self.autoUpdates = autoUpdates
@@ -256,8 +260,7 @@ public struct CaskEntry: Sendable {
 /// Both keep **every** cask claiming a key, in catalog order. Picking one is the
 /// caller's job (`HomebrewCaskSource`), because the pick needs two facts the
 /// catalog does not have: the host's macOS version and which cask the Caskroom
-/// actually holds. Indexing is therefore host-independent — a pure function of
-/// the catalog bytes.
+/// actually holds. Each entry has already resolved the catalog platform variation.
 struct CaskIndex: Sendable {
     /// Every cask installing each `.app` filename, in catalog order.
     let allByAppFilename: [String: [CaskEntry]]
@@ -420,20 +423,41 @@ public actor HomebrewCaskCatalog {
         return try index(fromCatalogJSON: data)
     }
 
-    /// The whole indexing rule, as a pure function of the catalog bytes — so it
+    /// The indexing rule, as a pure function of catalog bytes and platform — so it
     /// can be replayed against a fixture built from real response bodies, with no
     /// network and nothing read off the machine running it.
-    static func index(fromCatalogJSON data: Data) throws -> CaskIndex {
+    /// Homebrew's macOS bottle tags. Unknown future systems have no matching
+    /// variation in today's API and retain the base entry, as Brew does.
+    static func hostPlatformTag(osVersion: String = HostOS.numericVersion()) -> String? {
+        let major = osVersion.split(separator: ".").first.flatMap { Int($0) }
+        let systems = [15: "sequoia", 26: "tahoe", 27: "golden_gate"]
+        guard let major, let system = systems[major] else { return nil }
+        return "arm64_\(system)"
+    }
+
+    static func index(
+        fromCatalogJSON data: Data, platformTag: String? = hostPlatformTag()
+    ) throws -> CaskIndex {
         // artifacts is a heterogeneous array, so walk the JSON manually rather
         // than fighting Codable over its shape.
         guard let casks = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
             throw CaskError.malformed
         }
 
+        let canonicalTokens = Set(casks.compactMap { ($0["token"] as? String)?.lowercased() })
         var byApp: [String: [CaskEntry]] = [:]
         var allByBundle: [String: [CaskEntry]] = [:]
         var byToken: [String: CaskEntry] = [:]
-        for cask in casks {
+        for base in casks {
+            // api.merge_variations uses a shallow merge, including explicit nulls.
+            // Resolve once before reading any field so version, URL, dependencies
+            // and artifacts always describe the same platform-specific cask.
+            var cask = base
+            if let platformTag,
+               let variations = base["variations"] as? [String: Any],
+               let variation = variations[platformTag] as? [String: Any] {
+                cask.merge(variation) { _, replacement in replacement }
+            }
             guard
                 let token = cask["token"] as? String,
                 let version = cask["version"] as? String,
@@ -459,7 +483,10 @@ public actor HomebrewCaskCatalog {
                     artifacts: cask["artifacts"], url: cask["url"] as? String),
                 macOS: CaskMacOSRequirement.parse(dependsOn: cask["depends_on"]),
                 appFilenames: appNames,
-                bundleIDs: ids
+                bundleIDs: ids,
+                oldTokens: ((cask["old_tokens"] as? [String]) ?? []).filter {
+                    !canonicalTokens.contains($0.lowercased())
+                }
             )
 
             // Both keys keep every declaring cask, in catalog order. Keeping the
@@ -475,6 +502,13 @@ public actor HomebrewCaskCatalog {
                 allByBundle[bundleID.lowercased(), default: []].append(entry)
             }
             byToken[token.lowercased()] = entry
+        }
+        // Canonical tokens win over historical aliases if the API ever contains
+        // both; never let catalog order reassign an active token to another cask.
+        for entry in byToken.values.sorted(by: { $0.token < $1.token }) {
+            for old in entry.oldTokens where byToken[old.lowercased()] == nil {
+                byToken[old.lowercased()] = entry
+            }
         }
         return CaskIndex(allByAppFilename: byApp, allByBundleID: allByBundle, byToken: byToken)
     }

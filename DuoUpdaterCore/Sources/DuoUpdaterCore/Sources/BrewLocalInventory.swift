@@ -170,6 +170,26 @@ public struct BrewLocalInventory: Sendable {
         installedVersions[caskToken.lowercased()]
     }
 
+    /// Scope a record to the prefix that actually owns the exact installed copy.
+    func installedVersion(caskToken: String, brewPrefix: String?) -> String? {
+        guard let brewPrefix else { return installedVersion(caskToken: caskToken) }
+        let directory = URL(fileURLWithPath: brewPrefix).appendingPathComponent("Caskroom")
+            .appendingPathComponent(caskToken)
+        return Self.installedVersion(inCaskDirectory: directory, token: caskToken)
+    }
+
+    /// Mirrors Cask#pinned?: a live symlink under this prefix's pinned_casks.
+    func isPinned(caskToken: String, brewPrefix: String? = nil) -> Bool {
+        let prefixes = brewPrefix.map { [$0] }
+            ?? caskroomPaths.map { URL(fileURLWithPath: $0).deletingLastPathComponent().path }
+        return prefixes.contains { prefix in
+            let path = URL(fileURLWithPath: prefix).appendingPathComponent("var/homebrew/pinned_casks")
+                .appendingPathComponent(caskToken).path
+            return (try? FileManager.default.destinationOfSymbolicLink(atPath: path)) != nil
+                && FileManager.default.fileExists(atPath: path)
+        }
+    }
+
     /// No casks installed at all — so no app can possibly clear the provenance
     /// gate, and the ~2 MB catalog behind it never needs fetching. Lets
     /// `HomebrewCaskSource` decline before the network on a machine that doesn't

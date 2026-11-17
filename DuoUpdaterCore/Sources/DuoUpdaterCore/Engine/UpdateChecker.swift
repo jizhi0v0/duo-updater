@@ -523,6 +523,10 @@ public struct UpdateChecker: Sendable {
                 }
                 brewAnswer = result
                 continue
+            } catch let unsupported as HomebrewInstaller.UnsupportedPrefix {
+                // A proven foreign owner is not permission to replace the app
+                // through this process's preferred Brew or an unrelated source.
+                return UpdateResult(app: app, remote: nil, status: .error(unsupported.localizedDescription))
             } catch let unavailable as ThirdPartyCaskSource.Unavailable {
                 // A known package owner failing is not permission for GitHub or
                 // another feed to replace its installed copy.
@@ -743,6 +747,21 @@ public struct UpdateChecker: Sendable {
     public static func evaluate(
         installed: InstalledApp, remote: RemoteVersion
     ) -> UpdateStatus {
+        if remote.sourceName == "Homebrew" {
+            if remote.homebrewPinned { return .upToDate }
+            if let latest = remote.homebrewCaskVersion,
+               let recorded = remote.homebrewInstalledCaskVersion {
+                // Brew compares complete opaque cask identities. Do not invent
+                // an ordering for hash/date suffixes or reinterpret them as the
+                // bundle build. A copy whose own marketing version moved ahead
+                // remains current, preserving the no-downgrade rule.
+                if !VersionComparator.isMarketingDowngrade(
+                    offered: remote.shortVersion, from: installed.shortVersion) {
+                    return latest == recorded ? .upToDate : .updateAvailable(latest: remote.displayVersion ?? latest)
+                }
+                return .upToDate
+            }
+        }
         // Build ids with no order of their own (commit hashes) are ordered by the
         // vendor's published lineage and by nothing else: every branch below ends
         // in `VersionComparator`, which on two hashes is a coin flip (see

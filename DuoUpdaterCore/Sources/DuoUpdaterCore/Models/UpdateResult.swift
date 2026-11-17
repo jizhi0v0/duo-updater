@@ -493,6 +493,14 @@ public struct RemoteVersion: Sendable, Hashable {
     /// check did.
     public var homebrewRecordedVersion: String?
 
+    /// Complete Cask version identities. These are opaque Brew identifiers, not
+    /// CFBundleVersion values: comma/colon suffixes can be hashes or dates.
+    public var homebrewCaskVersion: String?
+    public var homebrewInstalledCaskVersion: String?
+    /// A Brew pin blocks this source alone; explicit other-source fallback keeps
+    /// the user's existing policy and is not made a global application hold.
+    public var homebrewPinned = false
+
     public init(
         shortVersion: String?,
         version: String?,
@@ -572,7 +580,15 @@ public struct RemoteVersion: Sendable, Hashable {
     /// Marketing-first, which is right for DISPLAY and wrong for comparison — for
     /// a vendor that freezes its marketing string this is the same value release
     /// after release. Anything deciding "is this newer" wants ``versionSide``.
-    public var displayVersion: String? { shortVersion ?? version }
+    public var displayVersion: String? {
+        if sourceName == "Homebrew", let full = homebrewCaskVersion,
+           let recorded = homebrewInstalledCaskVersion, full != recorded,
+           full.split(whereSeparator: { $0 == "," || $0 == ":" }).first
+            == recorded.split(whereSeparator: { $0 == "," || $0 == ":" }).first {
+            return full
+        }
+        return shortVersion ?? version
+    }
 
     /// Both halves of what the source reported, for comparison. `version` is the
     /// build (Sparkle's `sparkle:version`, its canonical comparison key); some

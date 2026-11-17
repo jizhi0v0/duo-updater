@@ -340,4 +340,62 @@ import Testing
         #expect(HomebrewInstaller.installArguments(caskToken: "official") ==
                 ["install", "--cask", "--force", "--", "official"])
     }
+
+    @Test func retainsFullCaskIdentityAndPinStateFromTheOwningTap() async throws {
+        let (root, app) = try fixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let source = ThirdPartyCaskSource(caskroomPaths: [root.appendingPathComponent("Caskroom").path]) { _ in
+            (0, Data(#"{"casks":[{"token":"example","tap":"example/tap","version":"1.0,102","installed":"1.0,101","pinned":true}]}"#.utf8))
+        }
+        let remote = try await source.latestVersion(for: app)
+        #expect(remote?.homebrewCaskVersion == "1.0,102")
+        #expect(remote?.homebrewInstalledCaskVersion == "1.0,101")
+        #expect(remote?.homebrewPinned == true)
+        #expect(remote?.shortVersion == "1.0")
+        #expect(remote?.version == nil)
+    }
+
+
+    @Test(arguments: ["homebrew/cask", "example/tap"])
+    func missingStagedLinkUsesOnlyTheExistingVersionMatchedReceiptTarget(tap: String) async throws {
+        let (root, app) = try fixture(tap: tap)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let cask = root.appendingPathComponent("Caskroom/example")
+        let metadata = cask.appendingPathComponent(".metadata/1.0/20261117000000/Casks")
+        try FileManager.default.createDirectory(at: metadata, withIntermediateDirectories: true)
+        try Data().write(to: metadata.appendingPathComponent("example.rb"))
+        let receipt: [String: Any] = [
+            "source": ["tap": tap, "version": "1.0"],
+            "uninstall_artifacts": [["app": ["Example.app", ["target": app.path.path]]]],
+        ]
+        try JSONSerialization.data(withJSONObject: receipt).write(to: cask.appendingPathComponent(".metadata/INSTALL_RECEIPT.json"))
+        try FileManager.default.removeItem(at: cask.appendingPathComponent("1.0/Example.app"))
+        let roots = [root.appendingPathComponent("Caskroom").path]
+        let owners = await ThirdPartyCaskSource.ownership(in: roots, includeOfficial: true)
+        #expect(owners.count == 1)
+        #expect(owners.first?.paths == [app.path.standardizedFileURL.resolvingSymlinksInPath().path])
+
+        // Matching a filename somewhere else is insufficient.
+        let copy = root.appendingPathComponent("Other/Example.app")
+        try FileManager.default.createDirectory(at: copy, withIntermediateDirectories: true)
+        #expect(owners.first?.paths.contains(copy.path) == false)
+        var wrongVersion = receipt
+        wrongVersion["source"] = ["tap": tap, "version": "0.9"]
+        try JSONSerialization.data(withJSONObject: wrongVersion).write(to: cask.appendingPathComponent(".metadata/INSTALL_RECEIPT.json"))
+        let stale = await ThirdPartyCaskSource.ownership(in: roots, includeOfficial: true)
+        #expect(stale.first?.paths.isEmpty == true)
+    }
+
+
+    @Test func migratedTokenDirectoryAliasDoesNotDuplicateOwnership() async throws {
+        let (root, app) = try fixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let caskroom = root.appendingPathComponent("Caskroom")
+        try FileManager.default.createSymbolicLink(at: caskroom.appendingPathComponent("old-example"),
+            withDestinationURL: caskroom.appendingPathComponent("example"))
+        let owners = await ThirdPartyCaskSource.ownership(in: [caskroom.path])
+        #expect(owners.map(\.token) == ["example"])
+        #expect(owners.first?.paths.contains(app.path.standardizedFileURL.resolvingSymlinksInPath().path) == true)
+    }
+
 }

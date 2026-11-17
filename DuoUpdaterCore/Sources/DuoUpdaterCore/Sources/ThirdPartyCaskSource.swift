@@ -9,6 +9,7 @@ public actor ThirdPartyCaskSource: UpdateSource {
         let token: String
         let tap: String
         let paths: Set<String>
+        var brewPrefix: String? = nil
         var qualifiedName: String { "\(tap)/\(token)" }
     }
 
@@ -67,6 +68,7 @@ public actor ThirdPartyCaskSource: UpdateSource {
         guard Set(owners.map(\.qualifiedName)).count == 1 else {
             throw Unavailable(cask: owners.map(\.qualifiedName).sorted().joined(separator: ", "))
         }
+        for owner in owners { try HomebrewInstaller.validateOwnerPrefix(owner.brewPrefix) }
         let qualified = owner.qualifiedName
         if reads[qualified] == nil {
             let executor = executor
@@ -105,6 +107,11 @@ public actor ThirdPartyCaskSource: UpdateSource {
         if tap == Self.officialTap {
             remote.homebrewSelfUpdating = (cask["auto_updates"] as? Bool) ?? false
         }
+        remote.homebrewPinned = (cask["pinned"] as? Bool) == true
+        remote.homebrewCaskVersion = version
+        remote.homebrewInstalledCaskVersion = BrewLocalInventory(caskroomPaths: roots)
+            .installedVersion(caskToken: owner.token, brewPrefix: owner.brewPrefix)
+            ?? (cask["installed"] as? String)
         return remote
     }
 
@@ -114,9 +121,12 @@ public actor ThirdPartyCaskSource: UpdateSource {
         for root in roots {
             guard let tokens = try? fm.contentsOfDirectory(atPath: root) else { continue }
             for token in tokens where !token.hasPrefix(".") {
+                let directory = URL(fileURLWithPath: root).appendingPathComponent(token)
+                // Brew leaves old-token directory aliases after migration. Only
+                // the real directory owns the canonical token, receipt and pin.
+                guard (try? fm.destinationOfSymbolicLink(atPath: directory.path)) == nil else { continue }
                 guard let tap = BrewFormulaService.realCaskReceiptTap(token, caskroomPaths: [root]),
                       includeOfficial || tap != "homebrew/cask" else { continue }
-                let directory = URL(fileURLWithPath: root).appendingPathComponent(token)
                 var paths: Set<String> = []
                 // Walk staged artifacts only, never into an app or arbitrary deep
                 // extracted trees. A real staged .app is an installer, not a copy
@@ -134,13 +144,27 @@ public actor ThirdPartyCaskSource: UpdateSource {
                         }
                     }
                 }
+                // A valid receipt still owns its saved app target when brew's
+                // staged link disappeared (#2036). Existing staged links take
+                // precedence: do not adopt an old target after a recorded move.
+                if paths.isEmpty,
+                   let version = BrewLocalInventory.installedVersion(inCaskDirectory: directory, token: token),
+                   let targets = BrewLocalInventory.receiptAppTargets(directory: directory, version: version) {
+                    for target in targets {
+                        var isDirectory: ObjCBool = false
+                        guard fm.fileExists(atPath: target, isDirectory: &isDirectory), isDirectory.boolValue else { continue }
+                        paths.insert(URL(fileURLWithPath: target).standardizedFileURL.resolvingSymlinksInPath().path)
+                    }
+                }
                 let receipt = (try? Data(contentsOf: directory.appendingPathComponent(".metadata/INSTALL_RECEIPT.json"))) ?? Data()
                 for pattern in BrewFormulaService.pkgutilPatterns(installReceipt: receipt) {
                     for path in await BrewFormulaService.receiptApps(pkgutilPattern: pattern) ?? [] {
                         paths.insert(URL(fileURLWithPath: path).standardizedFileURL.resolvingSymlinksInPath().path)
                     }
                 }
-                result.append(Ownership(token: token, tap: tap, paths: paths))
+                let prefix = BrewLocalInventory.defaultCaskroomPaths.contains(root)
+                    ? URL(fileURLWithPath: root).deletingLastPathComponent().path : nil
+                result.append(Ownership(token: token, tap: tap, paths: paths, brewPrefix: prefix))
             }
         }
         return result

@@ -51,12 +51,14 @@ import Foundation
     @Test func onlyTheDryRunBeforeTheFetchAutoUpdates() async throws {
         let fixture = try Fixture()
         defer { fixture.remove() }
-        try await HomebrewInstaller.$brewPathOverride.withValue(fixture.brew.path) {
-            let brew = HomebrewInstaller()
-            try await brew.fetch(caskToken: "zzfixture-cask") { _ in }
-            // The fixture has no Info.plist, so an untouched bundle is not
-            // `unchanged` (see `BundleSnapshot.isUnchanged`).
-            try await brew.upgrade(caskToken: "zzfixture-cask", app: fixture.app) { _ in }
+        try await LoginShellEnvironment.$homebrewVariablesOverride.withValue([:]) {
+            try await HomebrewInstaller.$brewPathOverride.withValue(fixture.brew.path) {
+                let brew = HomebrewInstaller()
+                try await brew.fetch(caskToken: "zzfixture-cask") { _ in }
+                // The fixture has no Info.plist, so an untouched bundle is not
+                // `unchanged` (see `BundleSnapshot.isUnchanged`).
+                try await brew.upgrade(caskToken: "zzfixture-cask", app: fixture.app) { _ in }
+            }
         }
         // The dry run carries the user's own setting: GitHub's hosted images
         // export HOMEBREW_NO_AUTO_UPDATE=1, and a user who did the same keeps

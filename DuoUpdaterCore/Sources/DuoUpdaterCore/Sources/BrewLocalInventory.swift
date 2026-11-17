@@ -107,7 +107,7 @@ public struct BrewLocalInventory: Sendable {
         return nil
     }
 
-    private static func receiptAppTargets(directory: URL, version: String) -> [String]? {
+    static func receiptAppTargets(directory: URL, version: String) -> [String]? {
         let metadata = directory.appendingPathComponent(".metadata")
         guard let data = try? Data(contentsOf: metadata.appendingPathComponent("INSTALL_RECEIPT.json")),
               let receipt = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],

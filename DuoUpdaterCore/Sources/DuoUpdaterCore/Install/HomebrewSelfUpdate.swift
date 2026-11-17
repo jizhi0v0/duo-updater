@@ -126,6 +126,59 @@ public enum LoginShellEnvironment {
     static let beginMarker = "__DUO_HOMEBREW_ENV_BEGIN__"
     static let endMarker = "__DUO_HOMEBREW_ENV_END__"
 
+    /// Per-operation test seam; production reads the real login shell. Only
+    /// HOMEBREW_* values are forwarded, so shell PATH and unrelated secrets do
+    /// not replace the GUI's process environment.
+    @TaskLocal static var homebrewVariablesOverride: [String: String]?
+
+    // installedReport performs several concurrent/sequential reads. Bound the
+    // snapshot to five seconds rather than starting an interactive login shell
+    // for every child; rc changes are picked up by the next snapshot.
+    private static let commandSnapshot = CommandSnapshot()
+
+    actor CommandSnapshot {
+        private struct Cached {
+            let at: Date
+            let variables: [String: String]?
+        }
+        private let now: @Sendable () -> Date
+        private let resolve: @Sendable () async -> [String: String]?
+        private var cached: Cached?
+        private var pending: Task<[String: String]?, Never>?
+
+        init(now: @escaping @Sendable () -> Date = { Date() },
+             resolve: @escaping @Sendable () async -> [String: String]? = {
+                 await LoginShellEnvironment.resolveHomebrewVariables()
+             }) {
+            self.now = now
+            self.resolve = resolve
+        }
+
+        func variables() async -> [String: String]? {
+            if let cached, (0..<5).contains(now().timeIntervalSince(cached.at)) { return cached.variables }
+            if let pending { return await pending.value }
+            let resolve = resolve
+            let task = Task { await resolve() }
+            pending = task
+            let variables = await task.value
+            cached = Cached(at: now(), variables: variables)
+            pending = nil
+            return variables
+        }
+    }
+
+    static func commandEnvironment(extra: [String: String] = [:]) async -> [String: String] {
+        let variables: [String: String]
+        if let override = homebrewVariablesOverride { variables = override }
+        // If the shell cannot be read, retain the inherited process settings;
+        // this is not evidence that the user configured no Homebrew settings.
+        else { variables = await commandSnapshot.variables() ?? [:] }
+        var environment = ProcessInfo.processInfo.environmentWithSystemProxy
+        environment.merge(variables.filter { $0.key.hasPrefix("HOMEBREW_") }) { _, shell in shell }
+        environment.merge(extra) { _, explicit in explicit }
+        return environment
+    }
+
     /// Run the user's login shell as an interactive login shell and collect its
     /// `HOMEBREW_*` variables. nil when the shell can't be run, times out, or
     /// doesn't print the markers — the caller must treat that as "unknown", not as

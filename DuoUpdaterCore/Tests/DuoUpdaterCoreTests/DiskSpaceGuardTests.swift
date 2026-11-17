@@ -85,6 +85,28 @@ struct DiskSpaceGuardTests {
 
     // MARK: - Ledger
 
+    @Test func batchAdmissionReadsTheSameVolumeWithoutDeletingAnything() async throws {
+        try await withScratch { scratch, root in
+            let key = try await storeBackup("Kept", in: scratch, root: root, age: 100)
+            let free = Box(floor - 1)
+            BackupStore.$freeBytesOverride.withValue({ free.get() }) {
+                let low = DiskSpaceGuard.Capacity.read()
+                #expect(low.shortfall == DiskSpaceGuard.InsufficientSpace(needed: floor, free: floor - 1))
+                #expect(keys(in: root).contains(key))
+
+                // The common floor admits a batch; the ledger still requires
+                // the additional bytes for each individual app.
+                free.set(floor)
+                #expect(DiskSpaceGuard.Capacity.read().shortfall == nil)
+                free.set(floor + gib)
+                #expect(DiskSpaceGuard.Capacity.read().shortfall == nil)
+            }
+            BackupStore.$freeBytesOverride.withValue({ nil }) {
+                #expect(DiskSpaceGuard.Capacity.read().shortfall == nil)
+            }
+        }
+    }
+
     @Test func aClaimIsGrantedWhenItFitsAboveTheFloor() async throws {
         let ledger = DiskSpaceGuard.SpaceLedger()
         let free = floor + 5 * gib

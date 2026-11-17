@@ -41,7 +41,6 @@ struct HTTPAutomaticUpdateFailureSimulationTests {
             VendorInstaller.InstallError.checksumMismatch,
             VendorInstaller.InstallError.htmlInsteadOfArchive,
             CocoaError(.fileWriteNoPermission),
-            DiskSpaceGuard.InsufficientSpace(needed: 100, free: 0),
             LooksLikeHTTP503(),
         ]
         for error in errors {
@@ -52,6 +51,43 @@ struct HTTPAutomaticUpdateFailureSimulationTests {
             #expect(failure.disposition == .pauseVersion, "\(type(of: error))")
             #expect(failure.reason == error.localizedDescription)
         }
+    }
+
+    @Test func aTypedSpaceRefusalRecoversTheSameOfferOnlyAfterEnoughSpaceIsAvailable() throws {
+        let attempt = Policy.Attempt()
+        attempt.observe(.downloading(fraction: 0.5))
+        attempt.record(DiskSpaceGuard.InsufficientSpace(needed: 100, free: 20))
+        let failure = try #require(attempt.failure(or: "missing"))
+        #expect(failure.disposition == .waitForSpace)
+        #expect(failure.requiredFreeBytes == 100)
+        var ledger = Ledger()
+        _ = ledger.observe(key, version: "2.0", now: now)
+        ledger.recordFailure(key, failure: failure, now: now)
+        ledger = try restored(ledger)
+        let entry = ledger.observe(key, version: "2.0", now: now.addingTimeInterval(300))
+        #expect(entry.failures == 0)
+        #expect(entry.acquisitionFailures == nil)
+        #expect(entry.retryAfter == nil)
+        #expect(!entry.gaveUp)
+        #expect(RunningAppAutoUpdate.decide(entry: entry, now: now, freeBytes: 99) == .wait(.waitingForSpace))
+        #expect(RunningAppAutoUpdate.decide(entry: entry, now: now, freeBytes: nil) == .wait(.waitingForSpace))
+        #expect(RunningAppAutoUpdate.decide(entry: entry, now: now, freeBytes: 100) == .quitAndUpdate)
+
+        // A real quit still rules out automatic replay of the same failure.
+        #expect(attempt.failure(or: "missing", appWasQuit: true)?.disposition == .pauseVersion)
+    }
+
+    @Test func aSpaceLikeMessageWithoutTheTypedErrorStillPausesTheVersion() throws {
+        struct SpaceLike: LocalizedError {
+            var errorDescription: String? {
+                DiskSpaceGuard.InsufficientSpace(needed: 100, free: 0).localizedDescription
+            }
+        }
+        let attempt = Policy.Attempt()
+        attempt.observe(.downloading(fraction: 0))
+        attempt.record(SpaceLike())
+        #expect(attempt.failure(or: "missing")?.disposition == .pauseVersion)
+        #expect(attempt.failure(or: "missing")?.requiredFreeBytes == nil)
     }
 
     @Test func missingAcquisitionEvidenceFailsClosed() throws {

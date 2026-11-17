@@ -38,8 +38,8 @@ public enum RunningAppAutoUpdate {
         /// Refused-quit and legacy cooldowns survive versions. A new policy's
         /// acquisition cooldown belongs only to its offered version.
         public var retryAfter: Date?
-        /// New automatic attempts distinguish recoverable acquisition errors
-        /// from failures that pause this offer. Nil on legacy ledgers.
+        /// Automatic attempts distinguish acquisition retries and waiting for
+        /// space from failures that pause this offer. Nil on legacy ledgers.
         public var automaticFailure: AutomaticUpdateFailurePolicy.Failure?
         /// Acquisition-only failures have their own bounded recovery budget;
         /// they never spend the installation/quit failure count above.
@@ -133,7 +133,7 @@ public enum RunningAppAutoUpdate {
                     let localDeadline = now.addingTimeInterval(RunningAppAutoUpdate.retryBackoff)
                     entry.retryAfter = max(localDeadline, failure.retryNotBefore ?? localDeadline)
                 }
-            case .pauseVersion:
+            case .waitForSpace, .pauseVersion:
                 entry.automaticFailure = failure
                 entry.retryAfter = nil
             }
@@ -157,6 +157,7 @@ public enum RunningAppAutoUpdate {
         case gaveUp
         /// A refused quit or failed update is cooling down, possibly until a server deadline.
         case retryLater
+        case waitingForSpace
         /// A process inside the bundle that the app's quit would not end.
         case independentHelper
         /// Preserve the actual installer error instead of claiming that a
@@ -170,6 +171,8 @@ public enum RunningAppAutoUpdate {
                 return "The app did not quit, or updating it failed \(RunningAppAutoUpdate.maxFailures) times. Waiting for a newer version."
             case .retryLater:
                 return "Automatic updating is waiting for the retry deadline, including any delay requested by the server."
+            case .waitingForSpace:
+                return "Automatic updating is waiting for enough free space on this Mac."
             case .independentHelper:
                 return "The app is running, and one of its helpers keeps running when it quits."
             case .pausedFailure(let reason):
@@ -179,12 +182,17 @@ public enum RunningAppAutoUpdate {
     }
 
     /// Only refusal/failure history postpones an otherwise allowed update.
-    public static func decide(entry: Entry, now: Date) -> Verdict {
+    public static func decide(entry: Entry, now: Date, freeBytes: Int64? = nil) -> Verdict {
         if let failure = entry.automaticFailure, failure.disposition == .pauseVersion {
             return .wait(.pausedFailure(failure.reason))
         }
         if entry.gaveUp { return .wait(.gaveUp) }
         if let retryAfter = entry.retryAfter, now < retryAfter { return .wait(.retryLater) }
+        if let failure = entry.automaticFailure, failure.disposition == .waitForSpace {
+            guard let needed = failure.requiredFreeBytes, let freeBytes, freeBytes >= needed else {
+                return .wait(.waitingForSpace)
+            }
+        }
         return .quitAndUpdate
     }
 

@@ -23,6 +23,7 @@ struct AutomaticUpdatesSettingsPage: View {
                 .opacity(prefs.automaticUpdates ? 1 : 0.5)
         }
         .onAppear { AppIconCache.prefetch(model.results.map(\.app.path.path)) }
+        .task { await model.installSpace.refresh() }
         // The guide opens by itself the first time the switch goes on with no app
         // allowed: otherwise the switch does nothing and says nothing.
         .onChange(of: prefs.automaticUpdatesRunningApps) { _, on in
@@ -41,9 +42,16 @@ struct AutomaticUpdatesSettingsPage: View {
             SettingsToggle(
                 "Automatically update apps",
                 detail: "Installs eligible updates after each scheduled check. With backups on, each app is backed up first, and its update waits if that fails. App data is not backed up.",
-                info: "Runs only after scheduled checks, on a network that is not restricted. By default, an app is skipped while its main app is running; apps you allow below may be quit and reopened, and updates that need an installer or an authorization prompt are left for you. After a failed update, nothing is tried for that app for a day, and after three failures not until a newer version. Each attempt, and why one was deferred, is listed in the Network window under Events.",
+                info: "Runs only after scheduled checks, on a network that is not restricted. By default, an app is skipped while its main app is running; apps you allow below may be quit and reopened, and updates that need an installer or an authorization prompt are left for you. Low storage pauses updates until a later check finds enough free space. Each attempt, and why one was deferred, is listed in the Network window under Events.",
                 channel: .beta,
-                isOn: $prefs.automaticUpdates)
+                isOn: Binding(
+                    get: { prefs.automaticUpdates },
+                    set: { enabled in
+                        if !enabled || !model.installSpace.isLow { prefs.automaticUpdates = enabled }
+                    }))
+                // Keep an enabled preference switch usable so it can still be
+                // turned off while installation is temporarily paused.
+                .disabled(model.installSpace.isLow && !prefs.automaticUpdates)
                 .settingsAnchor(.automaticUpdates)
             // Backups are opt-in, and with them off an unattended update leaves
             // no way back (vendor and Sparkle take no install rollback point).
@@ -61,6 +69,9 @@ struct AutomaticUpdatesSettingsPage: View {
                     isOn: $prefs.automaticUpdatesRunningApps)
             }
         } footer: {
+            if let message = model.installSpace.message {
+                InstallSpaceNotice(message: message)
+            }
             if prefs.automaticUpdates && prefs.checkFrequency.interval == nil {
                 Label(
                     "Scheduled checks are off, so nothing is updated automatically. Choose how often to check for updates in General.",

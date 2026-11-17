@@ -265,6 +265,7 @@ struct MenuContentView: View {
             NSApp.activate(ignoringOtherApps: true)
 
             model.refreshPermissionStatus()
+            await model.installSpace.refresh()
             // One-time wiring: arm the background-check loop and teach the
             // notification's "View" action how to open the window.
             model.start(showUpdates: {
@@ -867,8 +868,8 @@ struct MenuContentView: View {
                             .controlSize(.small)
                             .buttonStyle(.borderedProminent)
                             .fixedSize(horizontal: true, vertical: false)
-                            .disabled(model.isStartingInstallAll)
-                            .help("Install every pending update that can be applied automatically")
+                            .disabled(model.isStartingInstallAll || model.installSpace.isLow)
+                            .help(model.installSpace.message ?? String(localized: "Install every pending update that can be applied automatically"))
                     } else {
                         Color.clear.frame(width: 0, height: 20)
                     }
@@ -882,6 +883,10 @@ struct MenuContentView: View {
             }
             .padding(.top, 8)
             .padding(.bottom, 5)
+            if !toolsPageOpen, let message = model.installSpace.message {
+                InstallSpaceNotice(message: message)
+                    .padding(.bottom, 8)
+            }
         }
         .padding(.horizontal, 12)
     }

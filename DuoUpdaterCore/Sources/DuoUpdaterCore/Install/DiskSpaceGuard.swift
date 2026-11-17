@@ -38,6 +38,29 @@ import Foundation
 /// worse than a full disk.
 public enum DiskSpaceGuard {
 
+    /// A read-only snapshot for admitting a batch before it queues any apps.
+    /// The per-install ledger still reserves the additional room each app needs.
+    public struct Capacity: Equatable, Sendable {
+        public let freeBytes: Int64?
+
+        public init(freeBytes: Int64?) { self.freeBytes = freeBytes }
+
+        /// A control only reads. A check or admission may also release the same
+        /// expendable downloads that the per-app reservation would have released.
+        /// Reclamation requires the caller to hold the machine-wide install lock.
+        public static func read(reclaimingDownloads: Bool = false) -> Capacity {
+            let current = Capacity(freeBytes: BackupStore.outboxFreeBytes())
+            guard reclaimingDownloads, current.shortfall != nil,
+                  DiskSpaceGuard.discardDownloadsForSpace() else { return current }
+            return Capacity(freeBytes: BackupStore.outboxFreeBytes())
+        }
+
+        public var shortfall: InsufficientSpace? {
+            guard let freeBytes, freeBytes < BackupStore.freeSpaceFloorBytes else { return nil }
+            return InsufficientSpace(needed: BackupStore.freeSpaceFloorBytes, free: freeBytes)
+        }
+    }
+
     /// An install that did not start, or stopped before its swap, because this
     /// Mac is too low on space.
     public struct InsufficientSpace: LocalizedError, Equatable, Sendable {
@@ -121,10 +144,8 @@ public enum DiskSpaceGuard {
                 // Kept partial downloads give their space up before an install
                 // is made to wait or refused for want of it. Asked again at
                 // once: what they held is free now.
-                if decision != .granted {
-                    let partials = ResumableDownloadStore.discardAllForSpace()
-                    let archives = ElectronArchiveCache.discardAllForSpace()
-                    if partials > 0 || archives > 0 { continue }
+                if decision != .granted, DiskSpaceGuard.discardDownloadsForSpace() {
+                    continue
                 }
                 switch decision {
                 case .granted:
@@ -218,9 +239,15 @@ public enum DiskSpaceGuard {
     ) async -> Bool {
         if let raw = BackupStore.outboxRawFreeBytes(), raw >= target { return true }
         if let free = BackupStore.outboxFreeBytes(), free < target {
-            ResumableDownloadStore.discardAllForSpace()
-            ElectronArchiveCache.discardAllForSpace()
+            discardDownloadsForSpace()
         }
         return await BackupStore.reclaimFreeSpace(sparing: key, target: target)
+    }
+
+    @discardableResult
+    private static func discardDownloadsForSpace() -> Bool {
+        let partials = ResumableDownloadStore.discardAllForSpace()
+        let archives = ElectronArchiveCache.discardAllForSpace()
+        return partials > 0 || archives > 0
     }
 }

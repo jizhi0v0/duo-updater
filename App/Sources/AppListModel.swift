@@ -201,6 +201,7 @@ final class AppListModel {
     /// (`ListActivity.isStartingInstallAll`): the helper-status read it waits
     /// for first.
     private(set) var isStartingInstallAll = false
+    let installSpace = InstallSpaceState()
     /// The Cancel each row an install runs for offers (`InstallCancelState`),
     /// from the moment the install is registered — or claimed by "Update All" —
     /// until it returns. A row with no entry offers none: a rollback, a re-check.
@@ -2335,6 +2336,7 @@ final class AppListModel {
         // the rate-limit gate from now on (`GitHubRateLimitGate`).
         GitHubRateLimitGate.activate()
         self.prefs = prefs
+        Task { await installSpace.refresh() }
         defer { watchGitHubGate() }
         // A `duo unignore` from another process (KVO in `Preferences`) has to
         // re-check what it just made visible: the copy was never checked while
@@ -3571,6 +3573,7 @@ final class AppListModel {
         Log.app.info("refresh: start (scan + network check, intent=\(String(describing: intent), privacy: .public), testflight=\(allowTestFlight, privacy: .public), mayReadTestFlight=\(mayReadTestFlight, privacy: .public), detection=\(detection.rawValue, privacy: .public))")
         isRefreshing = true
         defer { isRefreshing = false }
+        await installSpace.refresh(reclaimingDownloads: true)
         // This round re-asks every row, so the retry the last one scheduled has
         // nothing left to do (#899).
         automaticRetryTask?.cancel()
@@ -9810,6 +9813,11 @@ final class AppListModel {
         // guard, so nothing suspends between that guard and `isInstallingAll =
         // true`. The header greys the button for the wait.
         isStartingInstallAll = true
+        guard await installSpace.refresh(reclaimingDownloads: true) else {
+            isStartingInstallAll = false
+            Log.install.notice("update all: deferred — below the free-space floor")
+            return
+        }
         let helperWait = ContinuousClock.now
         await refreshHelperStatus()
         isStartingInstallAll = false
@@ -9923,6 +9931,7 @@ final class AppListModel {
         // own may still run, or land while this reads the disk: its row keeps what
         // its install wrote (`InstallOwnership`), not this scan's read of it.
         await performLocalRescan(unattended: false)
+        await installSpace.refresh()
         // The authoritative process-version sweep inside `performLocalRescan` has
         // now converted these provisional states into `needsRestart` (or proved the
         // app stopped meanwhile). From here the normal Restart state owns the row.
@@ -10503,6 +10512,11 @@ final class AppListModel {
 
     private func performAutomaticUpdates() async {
         guard automaticUpdatesAllowed, canRefresh else { return }
+        guard await installSpace.refresh(reclaimingDownloads: true) else {
+            Log.install.notice("automatic updates: deferred — below the free-space floor")
+            return
+        }
+        guard automaticUpdatesAllowed, canRefresh else { return }
         await refreshHelperStatus(checkPackage: true)
         let diagnostics = AutomaticUpdateDiagnostics()
         // Retained history survives app restarts. New attempts link to the latest
@@ -10658,8 +10672,8 @@ final class AppListModel {
                     }
                 }
             } else if outcome == .notInstalled, let reason = installErrors[result.id], automaticUpdatesAllowed {
-                // Only a typed, acquisition-only transient error may recover on
-                // a later pass. Integrity, refusal, apply and unknown failures
+                // Typed acquisition-only transient errors and space refusals
+                // may recover on a later pass. Integrity, refusal, apply and unknown failures
                 // pause this offer instead of downloading it every day. An
                 // early-out without an error still is not an install failure.
                 if let failure = failureAttempt.failure(or: reason) {
@@ -10676,6 +10690,7 @@ final class AppListModel {
                 reason: event.reason ?? installErrors[result.id] ?? installNotes[result.id],
                 versions: versions, correlation: correlation)
         }
+        await installSpace.refresh()
         // Only a pass that found something to record writes one: an empty row
         // every few minutes pushed real activity out of the Events list.
         guard !diagnostics.isEmpty else { return }
@@ -10794,7 +10809,8 @@ final class AppListModel {
         let version = result.remote?.displayVersion ?? ""
         let now = Date()
         let entry = prefs.runningAppUpdateLedger.observe(prefs.key(for: result.app), version: version, now: now)
-        if case .wait(let reason) = RunningAppAutoUpdate.decide(entry: entry, now: now) {
+        if case .wait(let reason) = RunningAppAutoUpdate.decide(
+            entry: entry, now: now, freeBytes: installSpace.capacity.freeBytes) {
             return reason.message
         }
         return nil
@@ -10836,7 +10852,8 @@ final class AppListModel {
         let key = prefs.key(for: result.app)
         let now = Date()
         let entry = prefs.runningAppUpdateLedger.observe(key, version: version, now: now)
-        if case .wait(let why) = RunningAppAutoUpdate.decide(entry: entry, now: now) {
+        if case .wait(let why) = RunningAppAutoUpdate.decide(
+            entry: entry, now: now, freeBytes: installSpace.capacity.freeBytes) {
             return .wait(why.message)
         }
         // The app's own Sparkle may have an update downloaded and an installer

@@ -1,14 +1,16 @@
 import Foundation
 
 /// Recovery for an unattended attempt, separate from a download's in-request
-/// retries. Only a proven acquisition failure may be replayed automatically.
-/// Unknown errors and failures past the final acquisition wait for a different offer
+/// retries. A proven acquisition failure may be replayed automatically; a typed
+/// space refusal waits for its measured requirement to become available.
+/// Unknown errors and other failures past the final acquisition wait for a different offer
 /// or an explicit manual attempt; their localized text is never classification.
 public enum AutomaticUpdateFailurePolicy {
     public static let maxAcquisitionFailures = 3
 
     public enum Disposition: String, Codable, Equatable, Sendable {
         case retryAcquisition
+        case waitForSpace
         case pauseVersion
     }
 
@@ -20,11 +22,15 @@ public enum AutomaticUpdateFailurePolicy {
         /// A typed server Retry-After deadline, when the response supplied one.
         /// Optional so failures persisted before this field still decode.
         public let retryNotBefore: Date?
+        /// Only typed space refusals populate this recovery condition.
+        public let requiredFreeBytes: Int64?
 
-        public init(disposition: Disposition, reason: String, retryNotBefore: Date? = nil) {
+        public init(disposition: Disposition, reason: String, retryNotBefore: Date? = nil,
+                    requiredFreeBytes: Int64? = nil) {
             self.disposition = disposition
             self.reason = reason
             self.retryNotBefore = retryNotBefore
+            self.requiredFreeBytes = requiredFreeBytes
         }
 
         public var pausingVersion: Failure {
@@ -196,6 +202,10 @@ public enum AutomaticUpdateFailurePolicy {
         let reason = error.localizedDescription
         let pause = Decision.failure(Failure(disposition: .pauseVersion, reason: reason))
         guard !evidence.sideEffectsStarted else { return pause }
+        if let shortfall = error as? DiskSpaceGuard.InsufficientSpace {
+            return .failure(Failure(disposition: .waitForSpace, reason: reason,
+                                    requiredFreeBytes: shortfall.needed))
+        }
         if case .answerRegressed = error as? PreflightFailure,
            !evidence.acquisitionFinished, !evidence.advancedPastAcquisition {
             return .failure(Failure(disposition: .retryAcquisition, reason: reason))

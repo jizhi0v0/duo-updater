@@ -39,6 +39,17 @@ The regression fixture combines v0.17.0's complete version banner with its User-
 
 Static inspection confirmed the complete banner in official v0.12.0 and v0.16.1 arm64 archives and the v0.17.0 x86_64 archive. On this Apple Silicon Mac, the rebuilt CLI's `duo list /Users/bobby/.local/bin/leaf --json`, with an isolated `DUO_STATE_DIR`, returned `installedVersion: "0.17.0"` for the existing arm64 installation. This was a read-only scan; it did not exercise an update or replace the running DuoUpdater app. The CLI build, `git diff --check` and the repository's `check_ifchange.py` also passed.
 
+### VM result (2026-11-17)
+
+On the macOS 27.2 (26B123) Apple Silicon VM, a debug CLI built from code commit `5779e0fb69f80aee9eb04161505f0d7381d2da27` exercised the same `LeafProvider` and `LeafUpdater` as the app. The official v0.16.1 arm64 archive was unpacked into a dedicated test directory, selected through `LEAF_INSTALL_DIR`, with an isolated `DUO_STATE_DIR`. The installed app and the user's default CLI installation were not replaced.
+
+- The [before scan](vm-20261117/before-list.jsonl) read `0.16.1`.
+- `duo install <leaf-path> --yes --json` [returned](vm-20261117/install.jsonl) `applied: true`, `outcome: "installed"`, `version: "0.17.0"`, with exit 0. The [output](vm-20261117/install.log) shows the old binary's verification and Leaf's own upgrade. Success also required DuoUpdater's post-update verification.
+- A fresh [check](vm-20261117/after-check.jsonl) returned installed/latest `0.17.0`, `state: "upToDate"`, and `hasUpdate: false`; the binary itself [printed](vm-20261117/leaf-version.txt) `leaf 0.17.0`.
+- The [resulting binary hash](vm-20261117/leaf-sha256.txt) matches the [verified published digest](vm-20261117/leaf-published-digests.json). The [Leaf request log](vm-20261117/leaf-requests.json) contains no HTTP errors and no `v0.17.01` URL. The transferred [test CLI's hash](vm-20261117/duo-sha256.txt) matches the build artifact on the host.
+
+This validates CLI detection and a real one-click update through the shared Core provider, including both binary checks. No GUI interaction or macOS 15 runtime test is claimed.
+
 ### Real-machine result (2026-11-15)
 
 On an Apple Silicon Mac, the signed installed `duo` found a verified v0.12.0 at the real default `~/.local/bin/leaf` path and offered v0.16.1. `duo install <leaf-path> --yes --json` returned:

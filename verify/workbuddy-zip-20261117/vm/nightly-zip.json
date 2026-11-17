@@ -1,0 +1,56 @@
+{
+  "bytes" : 475192215,
+  "generatedAt" : "2026-11-17T15:07:51Z",
+  "hostConcurrency" : 3,
+  "items" : [
+    {
+      "bundleID" : "com.workbuddy.workbuddy-ai",
+      "bytes" : 475192215,
+      "finalHost" : "download.codebuddy.ai",
+      "identity" : {
+        "architectures" : [
+          "arm64"
+        ],
+        "bundleIdentifier" : "com.workbuddy.workbuddy-ai",
+        "bundleVersion" : "5.11.4",
+        "minimumSystemVersion" : "11.0",
+        "shortVersion" : "5.11.4",
+        "signedIdentifier" : "com.workbuddy.workbuddy-ai",
+        "teamIdentifier" : "FN2V63AD2J"
+      },
+      "kind" : "zip",
+      "notes" : [
+
+      ],
+      "probeHost" : "www.workbuddy.ai",
+      "recipeID" : "vendor:com.workbuddy.workbuddy-ai:stable:arm64",
+      "registry" : "vendor",
+      "seconds" : 57.63223397731781,
+      "status" : "ok",
+      "url" : "https:\/\/download.codebuddy.ai\/workbuddy\/saas\/darwin-arm64\/WorkBuddy-darwin-arm64-5.11.4.44121853-0026dff0.zip",
+      "urlSHA256" : "60048319c73716ed3b460fff6a6245239f1ea3f90a9824cc560b4d3f21fd7994",
+      "version" : "5.11.4",
+      "warnings" : [
+
+      ]
+    },
+    {
+      "bundleID" : "com.workbuddy.workbuddy-ai",
+      "bytes" : 0,
+      "detail" : "unsupported host architecture — DuoUpdater supports Apple Silicon Macs only",
+      "notes" : [
+
+      ],
+      "probeHost" : "www.workbuddy.ai",
+      "recipeID" : "vendor:com.workbuddy.workbuddy-ai:stable:x64",
+      "registry" : "vendor",
+      "seconds" : 0,
+      "status" : "skipped",
+      "warnings" : [
+
+      ]
+    }
+  ],
+  "minimumFreeBytes" : 759523041280,
+  "seconds" : 57.684590101242065
+}

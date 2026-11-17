@@ -1,0 +1,12 @@
+{
+  "testAppRemoved": true,
+  "remainingTestProcesses": [],
+  "killedOwnedPIDs": [
+    51596,
+    51615,
+    51616,
+    51633,
+    51718,
+    51787
+  ]
+}

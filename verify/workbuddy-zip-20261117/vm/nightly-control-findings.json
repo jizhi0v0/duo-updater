@@ -1,0 +1,34 @@
+{
+  "findings" : [
+    {
+      "attempts" : 1,
+      "bundleID" : "com.workbuddy.workbuddy-ai",
+      "channel" : "-",
+      "elapsedMs" : 48550,
+      "endpointHost" : "download.codebuddy.ai",
+      "failureDetail" : "The download's checksum didn't match — it may be corrupt or tampered. Nothing was changed.",
+      "failureKind" : "install.checksum",
+      "recipeID" : "install:vendor:com.workbuddy.workbuddy-ai:stable:arm64",
+      "registry" : "install",
+      "status" : "broken",
+      "warnings" : [
+
+      ]
+    },
+    {
+      "attempts" : 1,
+      "bundleID" : "com.workbuddy.workbuddy-ai",
+      "channel" : "-",
+      "elapsedMs" : 0,
+      "endpointHost" : "www.workbuddy.ai",
+      "recipeID" : "install:vendor:com.workbuddy.workbuddy-ai:stable:x64",
+      "registry" : "install",
+      "status" : "skipped",
+      "warnings" : [
+
+      ]
+    }
+  ],
+  "generatedAt" : "2026-11-17T15:06:11Z",
+  "schemaVersion" : 1
+}

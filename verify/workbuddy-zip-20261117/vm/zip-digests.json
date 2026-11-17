@@ -1,0 +1,16 @@
+{
+  "arm64": {
+    "path": "/tmp/issue-2072/downloads/workbuddy-5.11.4.zip",
+    "bytes": 475192215,
+    "actualSHA256": "fe5d9be52791bb10df320ff7f66a24923a279f588dfe55284911f30a64eaeef8",
+    "expectedSHA256": "fe5d9be52791bb10df320ff7f66a24923a279f588dfe55284911f30a64eaeef8",
+    "matches": true
+  },
+  "x64": {
+    "path": "/tmp/workbuddy-zip-20261117/workbuddy-5.11.4-x64.zip",
+    "bytes": 504410899,
+    "actualSHA256": "f17292ee0a9702670d739679b76d3a84a012dbd232f45c6479bf37cc00cf402c",
+    "expectedSHA256": "f17292ee0a9702670d739679b76d3a84a012dbd232f45c6479bf37cc00cf402c",
+    "matches": true
+  }
+}

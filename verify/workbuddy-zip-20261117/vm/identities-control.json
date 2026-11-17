@@ -1,0 +1,30 @@
+{
+  "entries": {
+    "vendor:com.workbuddy.workbuddy-ai:stable:arm64": {
+      "architectures": [
+        "arm64"
+      ],
+      "bundleIdentifier": "com.workbuddy.workbuddy-ai",
+      "firstSeenAt": "2026-10-09T05:20:43Z",
+      "firstSeenVersion": "5.7.6",
+      "lastSeenAt": "2026-10-30T11:48:38Z",
+      "lastSeenURLSHA256": "cdaa53e59ec4fd89415399aebfdd0c1568c9ccf3d84d6ff7dc227b938cc105f2",
+      "lastSeenVersion": "5.9.4",
+      "signedIdentifier": "com.workbuddy.workbuddy-ai",
+      "teamIdentifier": "FN2V63AD2J"
+    },
+    "vendor:com.workbuddy.workbuddy-ai:stable:x64": {
+      "architectures": [
+        "x86_64"
+      ],
+      "bundleIdentifier": "com.workbuddy.workbuddy-ai",
+      "firstSeenAt": "2026-10-09T05:20:43Z",
+      "firstSeenVersion": "5.7.6",
+      "lastSeenAt": "2026-10-30T11:48:38Z",
+      "lastSeenURLSHA256": "10eceed65b04025dadec935a92a32cfbd8fc2a21a6c03095c70beeb31c9e1974",
+      "lastSeenVersion": "5.9.4",
+      "signedIdentifier": "com.workbuddy.workbuddy-ai",
+      "teamIdentifier": "FN2V63AD2J"
+    }
+  }
+}

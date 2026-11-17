@@ -1,0 +1,60 @@
+{
+  "runURL": "https://github.com/jizhi0v0/duo-updater/actions/runs/42731456094",
+  "generatedAt": "2026-11-10T01:32:02Z",
+  "items": [
+    {
+      "bundleID": "com.workbuddy.workbuddy-ai",
+      "bytes": 408500901,
+      "finalHost": "download.codebuddy.ai",
+      "identity": {
+        "architectures": [
+          "arm64"
+        ],
+        "bundleIdentifier": "com.workbuddy.workbuddy-ai",
+        "bundleVersion": "5.9.4",
+        "minimumSystemVersion": "11.0",
+        "shortVersion": "5.9.4",
+        "signedIdentifier": "com.workbuddy.workbuddy-ai",
+        "teamIdentifier": "FN2V63AD2J"
+      },
+      "kind": "dmg",
+      "notes": [],
+      "probeHost": "www.workbuddy.ai",
+      "recipeID": "vendor:com.workbuddy.workbuddy-ai:stable:arm64",
+      "registry": "vendor",
+      "seconds": 41.8694189786911,
+      "status": "ok",
+      "url": "https://download.codebuddy.ai/workbuddy/saas/darwin-arm64/WorkBuddy-darwin-arm64-5.9.4.42593613-fa0a0901.dmg",
+      "urlSHA256": "cdaa53e59ec4fd89415399aebfdd0c1568c9ccf3d84d6ff7dc227b938cc105f2",
+      "version": "5.9.4",
+      "warnings": []
+    },
+    {
+      "bundleID": "com.workbuddy.workbuddy-ai",
+      "bytes": 439693678,
+      "finalHost": "download.codebuddy.ai",
+      "identity": {
+        "architectures": [
+          "x86_64"
+        ],
+        "bundleIdentifier": "com.workbuddy.workbuddy-ai",
+        "bundleVersion": "5.9.4",
+        "minimumSystemVersion": "11.0",
+        "shortVersion": "5.9.4",
+        "signedIdentifier": "com.workbuddy.workbuddy-ai",
+        "teamIdentifier": "FN2V63AD2J"
+      },
+      "kind": "dmg",
+      "notes": [],
+      "probeHost": "www.workbuddy.ai",
+      "recipeID": "vendor:com.workbuddy.workbuddy-ai:stable:x64",
+      "registry": "vendor",
+      "seconds": 43.95476508140564,
+      "status": "ok",
+      "url": "https://download.codebuddy.ai/workbuddy/saas/darwin-x64/WorkBuddy-darwin-x64-5.9.4.42593613-fa0a0901.dmg",
+      "urlSHA256": "10eceed65b04025dadec935a92a32cfbd8fc2a21a6c03095c70beeb31c9e1974",
+      "version": "5.9.4",
+      "warnings": []
+    }
+  ]
+}

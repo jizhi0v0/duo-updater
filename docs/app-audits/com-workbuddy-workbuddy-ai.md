@@ -64,14 +64,37 @@ changelog 页面标记、一键安装的闸与 host 钉死、验证方法——�
 - 状态：**支持**（检测 + 一键）
 - install 正则钉死的下载 host：`download.codebuddy.ai`（之前是 `codebuddy-1328495429.cos.accelerate.myqcloud.com`；何时切换没有直接观测到，新 host 上 5.8.4 对象的 Last-Modified 是 2026-10-15，见「历史与实测」2026-10-19）
   （为什么要钉、钉错会怎样，见国内站文档「一键安装」）
-- 格式与校验：装 `url` 同路径的 `.dmg`，按 `sha256hash`（hex SHA-256）核对（2026-10-07 起，见国内站文档「一键安装」）
-- 端到端：2026-10-07 `duo install` 5.5.2 → 5.6.2（app 未运行），下载 533,453,859 B 的 dmg，29 s，`spctl` accepted
+- 格式与校验：装响应 `url` 所指的 ZIP，按同一响应的 `sha256hash`（hex SHA-256）核对。本次修复复用国内版已有的 `installsZip: true`。
+- 端到端：2026-11-17，Apple Silicon / macOS 27.2 VM，5.9.4 → 5.11.4；生产 CLI 返回 `installed`，下载 475,192,215 B 的 ZIP，严格深度签名检查通过，Team `FN2V63AD2J`，Gatekeeper accepted / Notarized Developer ID，启动后 8 秒进程仍在。测试副本已移除。
+- 差分：5.11.4 的两个架构 `.zip.blockmap` / `.dmg.blockmap` 均为 404，真实包无 `app-update.yml`，更新响应 `supportsFastUpdate: false`。当前仅验证全量 ZIP，不声称支持 #2033 的 blockmap 差分。
+
+## 夜扫覆盖
+
+- 普通 `duo verify` 检查版本和安装 URL，不下载包，无法从字节发现这次摘要配错。
+- 安装巡检由现有 Vendor registry 自动枚举，无需新增通用 feed 项：`install:vendor:com.workbuddy.workbuddy-ai:stable:arm64`；`install:vendor:com.workbuddy.workbuddy-ai:stable:x64` 也在清单内，但按当前 Apple Silicon 宿主范围跳过，不算成功安装包验证。
+- 2026-11-17 的定时 [run 43992623527](https://github.com/jizhi0v0/duo-updater/actions/runs/43992623527)，01:12 UTC 报告仍解析到 5.9.4，因版本、URL 与上次干净结果一致而跳过下载。下一次定时运行 [44107997500](https://github.com/jizhi0v0/duo-updater/actions/runs/44107997500) 于 14:53 UTC 才启动，两次启动相隔约 13 小时 49 分；15:06 UTC 查询时仍在执行全量安装巡检，不能将该时点的未完成运行视为通过或已发校验告警。
+- VM 中用生产 CLI 运行 `verify-install --full --only com.workbuddy.workbuddy-ai`，保留原有 identity 和 baseline 的私有副本：旧 DMG 规则返回 `failed / checksum`，finding 为 `broken / install.checksum`，对应 baseline 计数从 0 到 1；候选 ZIP 规则返回 arm64 `ok`（475,192,215 B），签名身份与原锚一致，未修改锚或添加豁免。
+- `Baseline.actionableThreshold = 2`，自动 issue 等连续两轮失败；工作流允许 verifier 的 0/1 结果进入 reconcile，所以 Actions 运行绿色仅表示巡检/持久化链路成功，不能代替报告里每个应用的结果。
+- 原始记录：[本次验证](../../verify/workbuddy-zip-20261117/README.md)。没有运行 `reconcile` 或改动夜扫部署。
 
 ## 已知问题
 
 - 国际站 changelog 页滞后于其发布轨道，vendor 侧问题，我们这边无解。
 
 ## 历史与实测
+
+### 国际站 5.11.4 的摘要改为 ZIP：VM 验证（2026-11-17）
+
+`/v2/update?platform=workbuddy-darwin-{arm64,x64}` 均返回 `5.11.4.44121853`。分别下载响应中的 ZIP：
+arm64 475,192,215 B，SHA-256 `fe5d9be52791bb10df320ff7f66a24923a279f588dfe55284911f30a64eaeef8`；
+x64 504,410,899 B，SHA-256 `f17292ee0a9702670d739679b76d3a84a012dbd232f45c6479bf37cc00cf402c`。
+两者均等于各自响应的 `sha256hash`。旧规则仍下载 DMG，VM 中先复现失败且旧包元数据不变，再以候选 ZIP 规则完成 5.9.4 → 5.11.4、签名/公证/启动检查。没有定位摘要语义切换的首个国际版版本。
+
+补查历史安装巡检 [run 42731456094](https://github.com/jizhi0v0/duo-updater/actions/runs/42731456094)：
+2026-11-10 实际下载 5.9.4 DMG，arm64 408,500,901 B、x64 439,693,678 B 均为 `ok`。该报告没有完整 API 原文或预期摘要字段，
+不能重建每次 API 响应；它能证明旧 DMG 路线曾成功，不能定位后续第一次切换的版本。
+
+复用 `workBuddyRecipe` 和既有安装、校验与夜扫枚举链路；只改变国际版的容器选择并更新实时响应 fixture / recipe golden。22 项相关测试通过。未进行 x64 安装或运行中替换测试，也未将全量 ZIP 成功记作 delta。
 
 ### Recipes/com-workbuddy-workbuddy-ai.swift — 国际站下载 host 换成 `download.codebuddy.ai`（2026-10-19 实测，#1433 #1434）
 

@@ -1,0 +1,11 @@
+
+  duo verify-install
+  1 installers  (1 skipped)  3 hosts at a time  full pass (--full)
+  ─────────────────────────────────────────────
+  audited public feeds: 0 selected of 73; 2 indexed rows and 9 tracks explicitly uncovered
+  ✗ vendor:com.workbuddy.workbuddy-ai:stable:arm64  5.11.4  405.8 MB  49s
+      checksum: The download's checksum didn't match — it may be corrupt or tampered. Nothing was changed.
+
+  ─────────────────────────────────────────────
+  ok 0  warn 0  failed 1  unresolved 0  skipped 1
+  405.8 MB in 49s  lowest free disk 760597.2 MB

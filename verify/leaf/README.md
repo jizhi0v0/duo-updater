@@ -15,7 +15,7 @@ Vendor sources: [installation and update instructions](https://github.com/Deepan
 
 ## Detection and one-click
 
-The scanner reads the compiled `leaf/<version>` User-Agent without executing the binary, and derives the archive architecture from its Mach-O header. Checks follow `https://github.com/DeepanshuMishraa/leaf/releases/latest` to a stable `vX.Y.Z` tag using a revalidated HEAD request. Version checks and the vendor updater do not call the GitHub API.
+The scanner reads the compiled `leaf <version>\n` version banner without executing the binary, and derives the archive architecture from its Mach-O header. A complete newline-terminated banner is required: the User-Agent has no terminator, and in v0.17.0 its `leaf/0.17.0` is immediately followed by a certificate's DER SET tag, byte `0x31` (ASCII `1`), which the former reader mistook for another version digit. Checks follow `https://github.com/DeepanshuMishraa/leaf/releases/latest` to a stable `vX.Y.Z` tag using a revalidated HEAD request. Version checks and the vendor updater do not call the GitHub API.
 
 One-click is the installed binary's own `leaf upgrade`. It is offered only for a supported macOS architecture, a stable version with that command, a writable destination and a file without quarantine. `LeafVerifier` downloads the installed version's archive, checks its SHA-256 against the vendor's `.tar.gz.sha256` sidecar, extracts it in a temporary directory, and compares the binary hash before execution. A remembered mismatch withholds subsequent offers. After the command, a newer version must be readable and must match its own verified release archive before the result counts as updated. No sudo fallback is introduced.
 
@@ -32,6 +32,12 @@ The CLI icon is the vendor's [favicon.svg](https://github.com/DeepanshuMishraa/l
 ## Validation
 
 Automated coverage includes passive scanning and manager ownership, stable/prerelease parsing, malformed redirects, quarantined/read-only/busy gates, changed installed bytes, tampered archives refused before extraction or execution, exact update command reconstruction despite a hostile command payload, successful replacement, unchanged outcomes and post-update hash failure.
+
+### Version-boundary fix (2026-11-17)
+
+The regression fixture combines v0.17.0's complete version banner with its User-Agent followed by the actual DER country-name bytes. Before the fix, the production scanner returned `0.17.01`; after the fix it returns `0.17.0`. All 12 `LeafTests` pass, including multi-digit patch versions, prereleases, conflicting banners and incomplete or malformed banners. The production change is confined to `LeafScanner`; the shared byte reader, shared version parser, other providers and update-verification gates are unchanged.
+
+Static inspection confirmed the complete banner in official v0.12.0 and v0.16.1 arm64 archives and the v0.17.0 x86_64 archive. On this Apple Silicon Mac, the rebuilt CLI's `duo list /Users/bobby/.local/bin/leaf --json`, with an isolated `DUO_STATE_DIR`, returned `installedVersion: "0.17.0"` for the existing arm64 installation. This was a read-only scan; it did not exercise an update or replace the running DuoUpdater app. The CLI build, `git diff --check` and the repository's `check_ifchange.py` also passed.
 
 ### Real-machine result (2026-11-15)
 

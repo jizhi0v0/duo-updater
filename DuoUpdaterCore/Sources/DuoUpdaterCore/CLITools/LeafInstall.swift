@@ -1,7 +1,7 @@
 import Foundation
 
 /// Leaf's standalone binary. Homebrew, Cargo, mise, Nix and app-owned copies
-/// belong to their managers. Scanning reads the compiled User-Agent, never runs it.
+/// belong to their managers. Scanning reads the compiled version banner, never runs it.
 public struct LeafInstall: Sendable, Equatable, Codable {
     public let path: String
     public let binary: String?
@@ -79,20 +79,22 @@ public struct LeafScanner: Sendable {
                            writable: access(url.deletingLastPathComponent().path, W_OK) == 0)
     }
 
-    static let marker = Data("leaf/".utf8)
+    static let marker = Data("leaf ".utf8)
 
     static func version(of url: URL) -> String? {
         ExecutableBytes.windows(in: url, marker: marker, before: 0, after: 64).flatMap(compiledVersion)
     }
 
-    /// The slash also occurs in paths and reader record names; only version
-    /// literals count. Keep prerelease suffixes so they cannot become stable.
+    /// `--version`'s complete `leaf <version>\n` banner. The User-Agent has no
+    /// terminator: v0.17.0's `leaf/0.17.0` directly precedes DER's 0x31 SET tag,
+    /// which reads as an extra ASCII "1". Require the banner's newline instead.
+    /// Keep prerelease suffixes so they cannot become stable.
     static func compiledVersion(_ windows: [Data]) -> String? {
         var found: Set<String> = []
         for window in windows {
             guard let version = LuvusScanner.version(at: window.startIndex + marker.count, in: window) else { continue }
             let end = window.startIndex + marker.count + version.utf8.count
-            if end < window.endIndex, window[end] == 0x2E || window[end] == 0x2B { return nil }
+            guard end < window.endIndex, window[end] == 0x0A else { continue }
             found.insert(version)
         }
         return found.count == 1 ? found.first : nil

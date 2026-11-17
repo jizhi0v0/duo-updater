@@ -27,12 +27,12 @@ import Testing
         }
 
         func install(update: Bool = true, publishOld: Bool = true, publishNew: Bool = true) throws {
-            let next = Data("#!/bin/sh\n# leaf/0.16.1\nexit 0\n".utf8)
+            let next = Data("#!/bin/sh\n# leaf 0.16.1\nexit 0\n".utf8)
             let staged = root.appendingPathComponent("next")
             try next.write(to: staged)
             let body = """
             #!/bin/sh
-            # leaf/0.16.0
+            # leaf 0.16.0
             [ "$#" = 1 ] && [ "$1" = upgrade ] || exit 23
             /usr/bin/touch '\(root.path)/ran'
             /usr/bin/env > '\(root.path)/env'
@@ -100,15 +100,30 @@ import Testing
         #expect(box.scanner.scan().isEmpty)
     }
 
-    @Test func versionsKeepPrereleasesAndRejectConflictsAndMalformedSuffixes() {
+    @Test func versionBannerDoesNotAbsorbAdjacentCertificateBytes() throws {
+        let box = try Box()
+        // v0.17.0's User-Agent directly precedes DER certificate data. Its
+        // opening SET tag (0x31) is also ASCII "1", not part of the version.
+        var bytes = Data("leaf 0.17.0\nleaf/0.17.0".utf8)
+        bytes.append(contentsOf: [0x31, 0x0B, 0x30, 0x09, 0x06, 0x03, 0x55, 0x04, 0x06, 0x13, 0x02, 0x55, 0x53])
+        try bytes.write(to: box.file)
+        #expect(box.scanner.scan().first?.version == "0.17.0")
+        #expect(!box.ran)
+    }
+
+    @Test func versionsRequireCompleteBannersAndKeepPrereleases() {
         func version(_ values: String...) -> String? {
-            LeafScanner.compiledVersion(values.map { Data(("leaf/" + $0).utf8) })
+            LeafScanner.compiledVersion(values.map { Data(("leaf " + $0).utf8) })
         }
-        #expect(version("reader\0", "0.16.1overflow") == "0.16.1")
-        #expect(version("0.17.0-rc.1\0") == "0.17.0-rc.1")
-        #expect(version("0.16.0\0", "0.16.1\0") == nil)
-        #expect(version("0.16.1.2\0") == nil)
-        #expect(version("0.16.1+local\0") == nil)
+        #expect(version("reader\n", "0.16.1\n") == "0.16.1")
+        #expect(version("0.17.10\n") == "0.17.10")
+        #expect(version("0.17.0-rc.1\n") == "0.17.0-rc.1")
+        #expect(version("0.16.0\n", "0.16.1\n") == nil)
+        #expect(version("0.16.1overflow\n") == nil)
+        #expect(version("0.16.1.2\n") == nil)
+        #expect(version("0.16.1+local\n") == nil)
+        #expect(version("0.17.0\0") == nil)
+        #expect(version("0.17.0") == nil)
         #expect(version("reader") == nil)
         #expect(!LeafRelease.isVersion("0.17.0-rc.1"))
         #expect(LeafRelease.isVersion("1.0.0"))

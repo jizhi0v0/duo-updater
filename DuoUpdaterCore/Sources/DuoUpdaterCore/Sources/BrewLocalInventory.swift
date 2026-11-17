@@ -107,7 +107,9 @@ public struct BrewLocalInventory: Sendable {
         return nil
     }
 
-    static func receiptAppTargets(directory: URL, version: String) -> [String]? {
+    static func receiptAppTargets(
+        directory: URL, version: String, excludingStagedSources: Set<String> = []
+    ) -> [String]? {
         let metadata = directory.appendingPathComponent(".metadata")
         guard let data = try? Data(contentsOf: metadata.appendingPathComponent("INSTALL_RECEIPT.json")),
               let receipt = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
@@ -126,7 +128,9 @@ public struct BrewLocalInventory: Sendable {
             (config?[$0] as? [String: Any])?["appdir"] as? String
         }.first
         let paths: [String] = apps.compactMap { args in
-            guard let source = args.first as? String, !source.isEmpty else { return nil }
+            guard let source = args.first as? String, !source.isEmpty,
+                  !excludingStagedSources.contains((source as NSString).standardizingPath)
+            else { return nil }
             let options = args.dropFirst().first as? [String: Any]
             let target = (options?["target"] as? String) ?? (source as NSString).lastPathComponent
             guard !target.isEmpty else { return nil }

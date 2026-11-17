@@ -17,6 +17,10 @@ import Testing
         #expect(throws: HomebrewInstaller.UnsupportedPrefix.self) {
             try HomebrewInstaller.validateOwnerPrefix("/usr/local", selectedBrew: nil)
         }
+        #expect(throws: HomebrewInstaller.UnsupportedPrefix.self) {
+            try HomebrewInstaller.validateOwnerPrefix("/usr/local", selectedBrew: "/usr/local/bin/brew", hostArch: .arm64)
+        }
+        try HomebrewInstaller.validateOwnerPrefix("/usr/local", selectedBrew: "/usr/local/bin/brew", hostArch: .x86_64)
     }
 
     private final class ClockAndCount: @unchecked Sendable {

@@ -398,4 +398,57 @@ import Testing
         #expect(owners.first?.paths.contains(app.path.standardizedFileURL.resolvingSymlinksInPath().path) == true)
     }
 
+
+    enum PartialLinks: CaseIterable, Sendable, Equatable {
+        case missingMain, relocatedMain, missingHelper
+    }
+
+    @Test(arguments: PartialLinks.allCases)
+    func receiptFallbackIsPerArtifactAndDoesNotAdoptARelocatedArtifactsOldTarget(state: PartialLinks) async throws {
+        let (root, app) = try fixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let cask = root.appendingPathComponent("Caskroom/example")
+        let staged = cask.appendingPathComponent("1.0")
+        let metadata = cask.appendingPathComponent(".metadata/1.0/20261117000000/Casks")
+        try FileManager.default.createDirectory(at: metadata, withIntermediateDirectories: true)
+        try Data().write(to: metadata.appendingPathComponent("example.rb"))
+        let helper = root.appendingPathComponent("Applications/Helper.app")
+        try FileManager.default.createDirectory(at: helper, withIntermediateDirectories: true)
+        // Equal basenames in different artifact source folders must remain
+        // independent. Matching only lastPathComponent would hide the main app.
+        let helperLink = staged.appendingPathComponent("Tools/Example.app")
+        try FileManager.default.createDirectory(at: helperLink.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try FileManager.default.createSymbolicLink(at: helperLink, withDestinationURL: helper)
+        let receipt: [String: Any] = [
+            "source": ["tap": "example/tap", "version": "1.0"],
+            "uninstall_artifacts": [
+                ["app": ["Example.app", ["target": app.path.path]]],
+                ["app": ["Tools/Example.app", ["target": helper.path]]],
+            ],
+        ]
+        try JSONSerialization.data(withJSONObject: receipt).write(to: cask.appendingPathComponent(".metadata/INSTALL_RECEIPT.json"))
+        let mainLink = staged.appendingPathComponent("Example.app")
+        var expectedMain = app.path
+        switch state {
+        case .missingMain:
+            try FileManager.default.removeItem(at: mainLink)
+        case .relocatedMain:
+            let moved = root.appendingPathComponent("Moved/Example.app")
+            try FileManager.default.createDirectory(at: moved, withIntermediateDirectories: true)
+            try FileManager.default.removeItem(at: mainLink)
+            try FileManager.default.createSymbolicLink(at: mainLink, withDestinationURL: moved)
+            expectedMain = moved
+        case .missingHelper:
+            try FileManager.default.removeItem(at: helperLink)
+        }
+        let owners = await ThirdPartyCaskSource.ownership(in: [root.appendingPathComponent("Caskroom").path])
+        #expect(owners.count == 1)
+        #expect(owners.first?.paths == Set([expectedMain, helper].map {
+            $0.standardizedFileURL.resolvingSymlinksInPath().path
+        }))
+        if state == .relocatedMain {
+            #expect(owners.first?.paths.contains(app.path.standardizedFileURL.resolvingSymlinksInPath().path) == false)
+        }
+    }
+
 }

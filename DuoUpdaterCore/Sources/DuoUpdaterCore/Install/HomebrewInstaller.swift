@@ -12,12 +12,18 @@ public actor HomebrewInstaller {
     public struct UnsupportedPrefix: LocalizedError {
         public let prefix: String
         public var errorDescription: String? {
-            "This copy belongs to Homebrew at \(prefix), which DuoUpdater cannot update with the selected Homebrew. Update it using its owning Brew installation."
+            "DuoUpdater cannot safely update this Homebrew copy at \(prefix). Update it using its owning Brew installation."
         }
     }
 
-    static func validateOwnerPrefix(_ prefix: String?, selectedBrew: String? = brewPathOverride ?? brewPath()) throws {
+    static func validateOwnerPrefix(
+        _ prefix: String?, selectedBrew: String? = brewPathOverride ?? brewPath(), hostArch: HostArch = .current
+    ) throws {
         guard let prefix else { return }
+        // The app's catalogue and execution run natively on supported Apple
+        // Silicon Macs. Intel Brew needs explicit Rosetta routing and Intel
+        // metadata; until both are supported, refuse even an Intel-only install.
+        guard prefix != "/usr/local" || hostArch != .arm64 else { throw UnsupportedPrefix(prefix: prefix) }
         let selected = selectedBrew.map {
             URL(fileURLWithPath: $0).deletingLastPathComponent().deletingLastPathComponent().path
         }

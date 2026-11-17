@@ -128,6 +128,8 @@ public actor ThirdPartyCaskSource: UpdateSource {
                 guard let tap = BrewFormulaService.realCaskReceiptTap(token, caskroomPaths: [root]),
                       includeOfficial || tap != "homebrew/cask" else { continue }
                 var paths: Set<String> = []
+                let installedVersion = BrewLocalInventory.installedVersion(inCaskDirectory: directory, token: token)
+                var stagedSources: Set<String> = []
                 // Walk staged artifacts only, never into an app or arbitrary deep
                 // extracted trees. A real staged .app is an installer, not a copy
                 // Homebrew moved into the user's Applications directory.
@@ -141,15 +143,20 @@ public actor ThirdPartyCaskSource: UpdateSource {
                             guard entry.pathExtension.lowercased() == "app",
                                   (try? fm.destinationOfSymbolicLink(atPath: entry.path)) != nil else { continue }
                             paths.insert(entry.standardizedFileURL.resolvingSymlinksInPath().path)
+                            if let installedVersion, version.lastPathComponent == installedVersion {
+                                let source = String(entry.path.dropFirst(version.path.count + 1))
+                                stagedSources.insert((source as NSString).standardizingPath)
+                            }
                         }
                     }
                 }
-                // A valid receipt still owns its saved app target when brew's
-                // staged link disappeared (#2036). Existing staged links take
-                // precedence: do not adopt an old target after a recorded move.
-                if paths.isEmpty,
-                   let version = BrewLocalInventory.installedVersion(inCaskDirectory: directory, token: token),
-                   let targets = BrewLocalInventory.receiptAppTargets(directory: directory, version: version) {
+                // Resolve each absent artifact link from the receipt (#2036).
+                // A surviving link supersedes only that same artifact's saved
+                // target, so a helper cannot hide the main app's ownership, and
+                // an old target is not adopted after that artifact was moved.
+                if let version = installedVersion,
+                   let targets = BrewLocalInventory.receiptAppTargets(
+                       directory: directory, version: version, excludingStagedSources: stagedSources) {
                     for target in targets {
                         var isDirectory: ObjCBool = false
                         guard fm.fileExists(atPath: target, isDirectory: &isDirectory), isDirectory.boolValue else { continue }

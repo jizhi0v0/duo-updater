@@ -543,14 +543,20 @@
       "sweepsSinceComment" : 0
     },
     "install:github:dwarvesf\/hidden:stable" : {
-      "consecutiveActionable" : 5,
+      "consecutiveActionable" : 6,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 2043,
       "lastCommentedAt" : "2026-11-15T22:08:49Z",
       "lastSignature" : "identityChanged: Sparkle key none → C7MH",
       "previousSignature" : "identityChanged: Sparkle key none → C7MH",
-      "sweepsSinceComment" : 3
+      "sweepsSinceComment" : 4
+    },
+    "install:github:electerm\/electerm:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
     },
     "install:github:espanso\/espanso:stable" : {
       "consecutiveActionable" : 0,
@@ -837,6 +843,12 @@
       "sweepsSinceComment" : 0
     },
     "install:github:matt1398\/claude-devtools:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
+    "install:github:mattermost\/desktop:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
@@ -1570,6 +1582,18 @@
       "consecutiveInstallTransient" : 0,
       "sweepsSinceComment" : 0
     },
+    "install:sparkle:com.luckymarmot.Paw:stable:ed25519" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
+    "install:sparkle:com.luckymarmot.Paw:stable:legacy-dsa" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
     "install:sparkle:com.obsproject.obs-studio:beta" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
@@ -1780,6 +1804,18 @@
       "consecutiveInstallTransient" : 0,
       "sweepsSinceComment" : 0
     },
+    "install:vendor:Mattermost.Desktop:nightly" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
+    "install:vendor:Mattermost.Desktop:rc" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
     "install:vendor:MstyStudio:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
@@ -1817,14 +1853,14 @@
       "sweepsSinceComment" : 0
     },
     "install:vendor:app.getmoshi.desktop.tauri:stable" : {
-      "consecutiveActionable" : 9,
+      "consecutiveActionable" : 10,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 1167,
       "lastCommentedAt" : "2026-11-15T13:07:33Z",
       "lastSignature" : "inventoryEntryMissing: a previously trac",
       "previousSignature" : "inventoryEntryMissing: a previously trac",
-      "sweepsSinceComment" : 4
+      "sweepsSinceComment" : 5
     },
     "install:vendor:app.getmoshi.desktop:stable" : {
       "consecutiveActionable" : 0,
@@ -2252,6 +2288,12 @@
       "consecutiveInstallTransient" : 0,
       "sweepsSinceComment" : 0
     },
+    "install:vendor:com.mothersruin.SuspiciousPackageApp:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
     "install:vendor:com.netease.uuremote:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
@@ -2417,10 +2459,11 @@
     "install:vendor:com.tencent.workbuddy.mac:stable:arm64" : {
       "closedAt" : "2026-10-14T16:03:36Z",
       "consecutiveActionable" : 0,
-      "consecutiveInfra" : 0,
+      "consecutiveInfra" : 1,
       "consecutiveInstallTransient" : 0,
+      "infraSince" : "2026-11-17T15:31:00Z",
       "issueNumber" : 1297,
-      "sweepsSinceComment" : 0
+      "sweepsSinceComment" : 1
     },
     "install:vendor:com.tencent.workbuddy.mac:stable:x64" : {
       "closedAt" : "2026-10-14T16:03:37Z",
@@ -2497,10 +2540,11 @@
       "sweepsSinceComment" : 0
     },
     "install:vendor:com.workbuddy.workbuddy-ai:stable:arm64" : {
-      "consecutiveActionable" : 0,
+      "consecutiveActionable" : 1,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "sweepsSinceComment" : 0
+      "lastSignature" : "install.checksum",
+      "sweepsSinceComment" : 1
     },
     "install:vendor:com.workbuddy.workbuddy-ai:stable:x64" : {
       "consecutiveActionable" : 0,
@@ -2872,5 +2916,5 @@
     }
   },
   "schemaVersion" : 1,
-  "updatedAt" : "2026-11-17T01:12:12Z"
+  "updatedAt" : "2026-11-17T15:31:01Z"
 }

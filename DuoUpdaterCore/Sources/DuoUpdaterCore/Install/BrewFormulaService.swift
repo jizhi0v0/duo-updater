@@ -80,10 +80,15 @@ public struct BrewInstalledFormula: Sendable, Identifiable, Equatable {
     /// and the run fails (Homebrew 7.0.10 `cask/upgrade.rb`) — while `brew
     /// outdated` still lists it, so it shows its update with no Update.
     public var manualInstaller = false
-    /// A confirmed missing target of an `app` artifact in the installed cask.
+    /// A confirmed missing target of an `app` or `suite` artifact in the installed cask.
     public var missingAppPath: String? = nil
+    /// Requirements of the current cask definition returned by Brew. Provenance
+    /// remains intact, but an incompatible target has no executable upgrade.
+    public var incompatibility: CaskIncompatibility? = nil
     /// Whether DuoUpdater can upgrade it (`brew upgrade`).
-    public var canUpgrade: Bool { hasUpdate && !manualInstaller && missingAppPath == nil }
+    public var canUpgrade: Bool {
+        hasUpdate && !manualInstaller && missingAppPath == nil && incompatibility == nil
+    }
 }
 
 /// Homebrew's verdict that a formula or cask is on its way out: `deprecate!` or
@@ -343,8 +348,8 @@ public actor BrewFormulaService {
     /// Homebrew is installed. `nil` means "no brew" (never throws for that case), a
     /// thrown error means the process itself couldn't start (mirrors
     /// `ChildProcess.run` throwing), and a returned tuple is the definite outcome —
-    /// the *caller* decides what a nonzero `status` means (an error for
-    /// `outdated()`, an empty read for `runReading`).
+    /// the caller propagates a failed command or carries its unavailable flag in
+    /// `InstalledReport`, instead of treating it as a successful empty list.
     ///
     /// `HomebrewInstaller.brewPath()` is asked only by the real executor
     /// (`executor(brewPath:)` below, wired in `init()`), not by the read paths
@@ -410,6 +415,7 @@ public actor BrewFormulaService {
     public enum BrewError: LocalizedError {
         case brewNotFound
         case failed(code: Int32, output: String)
+        case malformedOutput(command: String)
 
         public var errorDescription: String? {
             switch self {
@@ -417,6 +423,8 @@ public actor BrewFormulaService {
                 return "Homebrew isn’t installed (no brew found in the usual locations)."
             case .failed(let code, let output):
                 return HomebrewInstaller.failureDescription(code: code, output: output)
+            case .malformedOutput(let command):
+                return "Homebrew returned an unreadable result for \(command)."
             }
         }
     }
@@ -436,15 +444,13 @@ public actor BrewFormulaService {
         // The spawn and the wait happen inside `executor`, which awaits the child
         // rather than parking a thread (see `ChildProcess`), so this actor is free
         // while `brew` runs.
-        let outcome = try await executor(["outdated", "--formula", "--json=v2"])
-        guard let outcome else { return [] }
-
-        guard outcome.status == 0 else {
-            let text = String(data: outcome.stdout, encoding: .utf8) ?? ""
-            throw BrewError.failed(code: outcome.status, output: text)
+        let arguments = ["outdated", "--formula", "--json=v2"]
+        guard let output = try await readText(arguments) else { return [] }
+        let data = Data(output.utf8)
+        guard Self.parsesArray("formulae", in: data) else {
+            throw BrewError.malformedOutput(command: arguments.joined(separator: " "))
         }
-
-        return Self.parse(outcome.stdout)
+        return Self.parse(data)
     }
 
     /// Fast local inventory: top-level installed formulae (`brew leaves`) with their
@@ -478,12 +484,14 @@ public actor BrewFormulaService {
         // 1357-1439 ms whether called in sequence or as an `async let` pair — i.e.
         // the pair bought nothing — while the identical two `brew` commands run on
         // two separate Dispatch threads took 760-783 ms.
-        async let leafNames = runReading(["leaves"])
-        async let versionList = runReading(["list", "--formula", "--versions"])
+        async let leafNames = readText(["leaves"])
+        async let versionList = readText(["list", "--formula", "--versions"])
 
-        let leaves = Set(Self.parseLines(await leafNames))
-        guard !leaves.isEmpty else { return [] }
-        let versions = Self.parseVersions(await versionList)
+        // Await both even when leaves is empty: an unsuccessful versions read
+        // must not turn that partial pass into a successful empty inventory.
+        let (names, listedVersions) = try await (leafNames, versionList)
+        let leaves = Set(Self.parseLines(names ?? ""))
+        let versions = Self.parseVersions(listedVersions ?? "")
 
         return leaves.map { name in
             BrewInstalledFormula(
@@ -517,7 +525,8 @@ public actor BrewFormulaService {
                 kind: f.kind,
                 needsSudo: f.needsSudo,
                 manualInstaller: f.manualInstaller,
-                missingAppPath: f.missingAppPath)
+                missingAppPath: f.missingAppPath,
+                incompatibility: f.incompatibility)
         }
         .sorted { lhs, rhs in
             if lhs.hasUpdate != rhs.hasUpdate { return lhs.hasUpdate }
@@ -595,9 +604,17 @@ public actor BrewFormulaService {
         /// is listed as a package only while its apps' rows found no update
         /// source (`BrewAppCask.unclaimed`).
         public var appCasks: [BrewAppCask] = []
-        /// False when `brew info` failed: `appLessCasks` is empty for want of a
-        /// read, and the last ones still stand.
+        /// False when the cask part of `brew info` failed or was malformed:
+        /// `appLessCasks` is empty for want of a read, and the last ones still stand.
         public var casksRead = true
+        /// The formula half of `info` supplies lifecycle and HEAD facts.
+        public var formulaeRead = true
+        /// Unchecked verdicts need additional reads. Their failure must not
+        /// remove a warning that an earlier complete pass established.
+        public var uncheckedFormulaeRead = true
+        public var uncheckedCasksRead = true
+        /// Failures for the host to display beside its retained last results.
+        public var readErrors: [String] = []
     }
 
     /// `extraFolders`: the folders the person added to the scan, which give an
@@ -615,9 +632,17 @@ public actor BrewFormulaService {
         async let availableFormulae = runReading(["formulae"])
         async let availableCasks = runReading(["casks"])
 
-        let fullNames = Self.parseLines(await formulaNames)
-        let versions = Self.parseVersions(await versionList)
-        let info = Data(await installedInfo.utf8)
+        let (namesRead, versionsRead, infoRead, formulaNamesRead, caskNamesRead) = await (
+            formulaNames, versionList, installedInfo, availableFormulae, availableCasks)
+        let fullNames = Self.parseLines(namesRead.output)
+        let versions = Self.parseVersions(versionsRead.output)
+        let info = Data(infoRead.output.utf8)
+        let formulaeRead = infoRead.succeeded && Self.parsesArray("formulae", in: info)
+        let casksRead = infoRead.succeeded && Self.parsesArray("casks", in: info)
+        var errors = [namesRead, versionsRead, infoRead, formulaNamesRead, caskNamesRead].compactMap(\.error)
+        if infoRead.succeeded && (!formulaeRead || !casksRead) {
+            errors.append(BrewError.malformedOutput(command: "info --json=v2 --installed").localizedDescription)
+        }
         // Once per installed cask: a pkg cask's costs a few `pkgutil` reads.
         var facts: [String: CaskFacts] = [:]
         let targets = Self.appTargets(installedInfo: info)
@@ -636,35 +661,49 @@ public actor BrewFormulaService {
         let orphans = Self.coreFormulaOrphans(
             formulaFullNames: fullNames,
             installedInfo: info,
-            availableFormulae: Self.parseLines(await availableFormulae),
-            availableCasks: Self.parseLines(await availableCasks),
+            availableFormulae: Self.parseLines(formulaNamesRead.output),
+            availableCasks: Self.parseLines(caskNamesRead.output),
             formulaVersions: versions)
         let lifecycles = Self.lifecycles(installedInfo: info)
         let caskLifecycles = await Self.caskLifecycles(installedInfo: info, installsAnApp: caskInstallsAnApp)
         let headInstalls = Self.headInstalls(installedInfo: info)
-        guard !candidates.isEmpty else {
-            return InstalledReport(
-                unchecked: orphans, lifecycles: lifecycles, caskLifecycles: caskLifecycles,
-                headInstalls: headInstalls, appLessCasks: appLessCasks, appCasks: appCasks,
-                casksRead: Self.parsesCasks(installedInfo: info))
+        var tapRead = true
+        var untrustedTaps: Set<String> = []
+        if !candidates.isEmpty {
+            // `--installed` rather than naming the taps: `tap-info` on a tap
+            // that no longer exists would fail the whole read.
+            let tapInfo = await runReading(["tap-info", "--json=v1", "--installed"])
+            let tapData = Data(tapInfo.output.utf8)
+            let parsedTaps = (try? JSONSerialization.jsonObject(with: tapData)) as? [[String: Any]]
+            tapRead = tapInfo.succeeded && parsedTaps != nil
+            if let error = tapInfo.error { errors.append(error) }
+            else if !tapRead {
+                errors.append(BrewError.malformedOutput(command: "tap-info --json=v1 --installed").localizedDescription)
+            }
+            untrustedTaps = Self.parseUntrustedTaps(tapData)
         }
-
-        // `--installed` rather than naming the taps: `tap-info` on a tap that no
-        // longer exists would fail the whole read and mislabel the others.
-        let tapInfo = await runReading(["tap-info", "--json=v1", "--installed"])
-        let unchecked = (Self.label(candidates, untrustedTaps: Self.parseUntrustedTaps(Data(tapInfo.utf8))) + orphans)
+        let unchecked = (Self.label(candidates, untrustedTaps: untrustedTaps) + orphans)
             .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
         return InstalledReport(
             unchecked: unchecked, lifecycles: lifecycles, caskLifecycles: caskLifecycles,
             headInstalls: headInstalls, appLessCasks: appLessCasks, appCasks: appCasks,
-            casksRead: Self.parsesCasks(installedInfo: info))
+            casksRead: casksRead, formulaeRead: formulaeRead,
+            uncheckedFormulaeRead: formulaeRead && namesRead.succeeded && versionsRead.succeeded
+                && formulaNamesRead.succeeded && caskNamesRead.succeeded
+                && (tapRead || !candidates.contains { $0.kind == .formula }),
+            uncheckedCasksRead: casksRead && (tapRead || !candidates.contains { $0.kind == .cask }),
+            readErrors: errors)
     }
 
-    /// Whether `info --json=v2 --installed` parsed with a `casks` array: a
-    /// failed read is "" (`runReading`), and must not read as "no casks".
+    /// Whether `info --json=v2 --installed` parsed with a cask-object array;
+    /// malformed output must not read as "no casks".
     static func parsesCasks(installedInfo: Data) -> Bool {
-        guard let root = try? JSONSerialization.jsonObject(with: installedInfo) as? [String: Any] else { return false }
-        return root["casks"] is [Any]
+        parsesArray("casks", in: installedInfo)
+    }
+
+    private static func parsesArray(_ key: String, in data: Data) -> Bool {
+        guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return false }
+        return root[key] is [[String: Any]]
     }
 
     /// Each installed cask's relocated `.app` targets — where brew put its
@@ -702,7 +741,10 @@ public actor BrewFormulaService {
     /// sudo. A cask brew read from its Caskroom copy (`"tap": null`, an untrusted
     /// tap) is not one: it is an unchecked row (`uncheckedCandidates`), which
     /// says why it has no update line. A token missing from `facts` is left out.
-    static func appLessCasks(installedInfo: Data, facts: [String: CaskFacts]) -> [BrewInstalledFormula] {
+    static func appLessCasks(
+        installedInfo: Data, facts: [String: CaskFacts],
+        osVersion: String = HostOS.numericVersion(), hostArchitecture: HostArch = .current
+    ) -> [BrewInstalledFormula] {
         guard
             let root = try? JSONSerialization.jsonObject(with: installedInfo) as? [String: Any],
             let casks = root["casks"] as? [[String: Any]]
@@ -728,16 +770,24 @@ public actor BrewFormulaService {
                 kind: .cask,
                 needsSudo: fact.needsSudo,
                 manualInstaller: manual,
-                missingAppPath: fact.missingAppPath)
+                missingAppPath: fact.missingAppPath,
+                incompatibility: CaskIncompatibility.check(
+                    macOS: CaskMacOSRequirement.parse(dependsOn: c["depends_on"]),
+                    architectures: HomebrewCaskCatalog.architectures(dependsOn: c["depends_on"]),
+                    osVersion: osVersion, hostArchitecture: hostArchitecture))
         }
         .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
 
-    /// Installed homebrew/cask casks whose apps have rows, with those apps' paths
-    /// — the casks `appLessCasks` leaves out because an app row stands for them.
+    /// Installed homebrew/cask casks whose apps have rows, with those apps' paths.
+    /// Ordinary app casks are conditional package fallbacks; suites retain their
+    /// package row permanently because that is the unit Brew upgrades.
     /// Read from Homebrew's catalog like any other row: an untrusted-tap copy
     /// (`"tap": null`) is not one.
-    static func appCasks(installedInfo: Data, facts: [String: CaskFacts]) -> [BrewAppCask] {
+    static func appCasks(
+        installedInfo: Data, facts: [String: CaskFacts],
+        osVersion: String = HostOS.numericVersion(), hostArchitecture: HostArch = .current
+    ) -> [BrewAppCask] {
         guard
             let root = try? JSONSerialization.jsonObject(with: installedInfo) as? [String: Any],
             let casks = root["casks"] as? [[String: Any]]
@@ -762,8 +812,13 @@ public actor BrewFormulaService {
                     lifecycle: BrewLifecycle.parse(c),
                     kind: .cask,
                     needsSudo: fact.needsSudo,
-                    manualInstaller: manual),
-                appPaths: fact.appPaths)
+                    manualInstaller: manual,
+                    incompatibility: CaskIncompatibility.check(
+                        macOS: CaskMacOSRequirement.parse(dependsOn: c["depends_on"]),
+                        architectures: HomebrewCaskCatalog.architectures(dependsOn: c["depends_on"]),
+                        osVersion: osVersion, hostArchitecture: hostArchitecture)),
+                appPaths: fact.appPaths,
+                isSuite: fact.isSuite)
         }
         .sorted { $0.row.name.localizedCaseInsensitiveCompare($1.row.name) == .orderedAscending }
     }
@@ -849,8 +904,8 @@ public actor BrewFormulaService {
     /// tap's tap-qualified, and a tap formula brew can't load is `uncheckedCandidates`'
     /// business.
     ///
-    /// Fails closed: an empty `availableFormulae` (`runReading` answers "" for a
-    /// failed read) or an `installedInfo` that doesn't parse yields [] — never
+    /// Fails closed: an empty `availableFormulae` or an `installedInfo` that
+    /// doesn't parse yields [] — never
     /// "brew has no formulae, so every installed one is gone", and never a rename
     /// read as a removal because the read that names renames failed.
     static func coreFormulaOrphans(
@@ -898,11 +953,12 @@ public actor BrewFormulaService {
         caskReceiptTap: (String) -> String?,
         caskInstallsAnApp: (String) async -> Bool
     ) async -> [BrewUncheckedPackage] {
-        guard
-            let root = try? JSONSerialization.jsonObject(with: installedInfo) as? [String: Any],
-            let formulae = root["formulae"] as? [[String: Any]],
-            let casks = root["casks"] as? [[String: Any]]
+        guard let root = try? JSONSerialization.jsonObject(with: installedInfo) as? [String: Any]
         else { return [] }
+        // Each half has its own validity flag in InstalledReport. An unreadable
+        // cask array must not discard a successful formula warning, or vice versa.
+        let formulae = root["formulae"] as? [[String: Any]] ?? []
+        let casks = root["casks"] as? [[String: Any]] ?? []
 
         // Official formulae are listed bare (`ripgrep`); only tap-qualified ones can
         // be from an untrusted tap. (A bare one missing from `info` failed to load
@@ -989,24 +1045,37 @@ public actor BrewFormulaService {
         return nil
     }
 
-    /// Run a read-only `brew` subcommand and return stdout, never triggering an
-    /// implicit `brew update`. Returns "" on any failure — no brew, the process
-    /// failing to start, or a nonzero exit — the callers treat a missing read as
-    /// "nothing to show" rather than surfacing an error.
-    ///
-    /// The spawn and the wait happen inside `executor`, awaited. That suspension
-    /// point is also what lets two `runReading` calls (the `async let` pair in
-    /// `installedLeaves()`) genuinely overlap instead of serializing behind this
-    /// actor — see the comment there.
-    private func runReading(_ arguments: [String]) async -> String {
-        let outcome: (status: Int32, stdout: Data)?
-        do {
-            outcome = try await executor(arguments)
-        } catch {
-            return ""
+    /// Preserve success separately from the text: a successful empty list clears
+    /// the last inventory, while a failed command leaves the last answer intact.
+    private struct Reading: Sendable {
+        var output: String = ""
+        var succeeded = false
+        var error: String?
+    }
+
+    private func readText(_ arguments: [String]) async throws -> String? {
+        guard let outcome = try await executor(arguments) else { return nil }
+        guard outcome.status == 0 else {
+            throw BrewError.failed(
+                code: outcome.status, output: String(data: outcome.stdout, encoding: .utf8) ?? "")
         }
-        guard let outcome, outcome.status == 0 else { return "" }
-        return String(data: outcome.stdout, encoding: .utf8) ?? ""
+        guard let output = String(data: outcome.stdout, encoding: .utf8) else {
+            throw BrewError.malformedOutput(command: arguments.joined(separator: " "))
+        }
+        return output
+    }
+
+    /// Report reads are independent and remain best-effort, carrying validity
+    /// and an explanation rather than translating failure into a successful [].
+    private func runReading(_ arguments: [String]) async -> Reading {
+        do {
+            guard let output = try await readText(arguments) else {
+                return Reading(error: BrewError.brewNotFound.localizedDescription)
+            }
+            return Reading(output: output, succeeded: true)
+        } catch {
+            return Reading(error: "brew \(arguments.joined(separator: " ")): \(error.localizedDescription)")
+        }
     }
 
     /// The real `Executor`: locate `brew`, spawn it read-only (never an implicit
@@ -1018,17 +1087,14 @@ public actor BrewFormulaService {
     /// those methods themselves is what lets a fake `Executor` answer "no brew" on
     /// its own, without a test asking the actual host underneath its own fixture.
     ///
-    /// stderr is discarded, as it was: `ChildProcess` drains it either way, so a
-    /// long run of deprecation warnings or a Ruby backtrace cannot wedge the
-    /// stdout read — the deadlock the old `nullDevice` here was avoiding.
+    /// On failure, include stderr in the diagnostic. Successful JSON is stdout
+    /// alone, so deprecation warnings cannot corrupt a valid response. ChildProcess
+    /// drains both streams concurrently.
     ///
     /// Runs to completion if the caller is cancelled, although it only reads. The
-    /// caller does not stop when cancelled: `AppListModel.refreshBrewFormulae` runs
-    /// from a view's `.task`, is cancelled when the popover closes, and goes on to
-    /// write what these reads returned — a killed `brew` reads as `""` in
-    /// `runReading`, so the Brew tree, the outdated badges and the unchecked list
-    /// would all be replaced with empty ones. The Dispatch hop this replaced could
-    /// not be cancelled, so those writes always carried real data.
+    /// caller does not stop when cancelled: the view's refresh may be cancelled
+    /// when the popover closes, but still publishes the completed read. Letting
+    /// this small read finish avoids manufacturing a check failure on every close.
     ///
     /// `brewPath` is a parameter so a test can hand in an invented script and still
     /// exercise this real executor, cancellation policy included.
@@ -1040,8 +1106,13 @@ public actor BrewFormulaService {
             env["HOMEBREW_NO_ENV_HINTS"] = "1"
             let outcome = try await ChildProcess.run(
                 brew, arguments, environment: env,
-                standardError: .discard, onCancel: .runToCompletion)
-            return (outcome.terminationStatus, outcome.standardOutput)
+                onCancel: .runToCompletion)
+            var output = outcome.standardOutput
+            if !outcome.succeeded, !outcome.standardError.isEmpty {
+                if !output.isEmpty { output.append(Data("\n".utf8)) }
+                output.append(outcome.standardError)
+            }
+            return (outcome.terminationStatus, output)
         }
     }
 
@@ -1054,12 +1125,15 @@ public actor BrewFormulaService {
     /// Non-greedy on purpose: `--greedy` would pull in `auto_updates` casks, whose
     /// update channel is the app's own updater, not brew.
     ///
-    /// No direct `HomebrewInstaller.brewPath()` check here — `runReading` asks the
-    /// executor, the one seam a test can control (see `Executor`); an absent brew
-    /// reaches this the same way any other empty read does, via `output == ""`.
+    /// An absent Brew returns []; a failed command or malformed JSON throws so
+    /// the host can retain the last successful verdict instead of clearing it.
     public func outdatedCasks(extraFolders: [String] = []) async throws -> [BrewOutdatedFormula] {
-        let output = await runReading(["outdated", "--cask", "--json=v2"])
-        guard let data = output.data(using: .utf8) else { return [] }
+        let arguments = ["outdated", "--cask", "--json=v2"]
+        guard let output = try await readText(arguments) else { return [] }
+        let data = Data(output.utf8)
+        guard Self.parsesArray("casks", in: data) else {
+            throw BrewError.malformedOutput(command: arguments.joined(separator: " "))
+        }
         var out: [BrewOutdatedFormula] = []
         for cask in Self.parseCasks(data) {
             let token = Self.shortName(cask.name)
@@ -1077,8 +1151,8 @@ public actor BrewFormulaService {
     /// What an installed cask put on disk, as far as two surfaces care: whether
     /// the scanner gives it an app row, and whether its upgrade runs under sudo.
     struct CaskFacts: Sendable, Equatable {
-        /// True → it has an app row already, and the Brew tree must not list it
-        /// too. False → a CLI, a font, a driver, a JDK: nothing else shows it.
+        /// It has scannable member app rows. Ordinary casks use those rows as
+        /// their update surface; suites still keep their one package action.
         var installsAnApp: Bool
         /// The apps it installed that have rows, standardized paths. Empty when
         /// `installsAnApp` is false.
@@ -1088,6 +1162,9 @@ public actor BrewFormulaService {
         /// `requires_sudo?`, Homebrew 7.0.10).
         var needsSudo: Bool
         var missingAppPath: String? = nil
+        /// Registered `suite` directories are upgraded as one package even when
+        /// their scannable member apps use different version schemes.
+        var isSuite = false
     }
 
     /// `CaskFacts`, read off brew's own record, the Caskroom and the package
@@ -1138,7 +1215,7 @@ public actor BrewFormulaService {
     ) async -> CaskFacts {
         let fm = FileManager.default
         let scanned = Set((scannedFolders + extraFolders).map { URL(fileURLWithPath: $0).standardizedFileURL.path })
-        func isShown(_ appPath: String) -> Bool {
+        func isShown(_ appPath: String, in scanned: Set<String>) -> Bool {
             let app = URL(fileURLWithPath: appPath).standardizedFileURL
             let parent = app.deletingLastPathComponent()
             if scanned.contains(parent.path) { return hasRow(app) }
@@ -1154,9 +1231,23 @@ public actor BrewFormulaService {
         let roots = caskroomPaths.map { URL(fileURLWithPath: $0).appendingPathComponent(Self.shortName(caskToken)) }
         var shown: Set<String> = []
         func record(_ appPath: String) {
-            if isShown(appPath) { shown.insert(URL(fileURLWithPath: appPath).standardizedFileURL.path) }
+            if isShown(appPath, in: scanned) { shown.insert(URL(fileURLWithPath: appPath).standardizedFileURL.path) }
         }
         appTargets?.forEach(record)
+        let suitePaths = BrewLocalInventory.suiteAppPaths(
+            token: Self.shortName(caskToken), caskroomPaths: caskroomPaths)
+        if !suitePaths.isEmpty {
+            // `AppScanner.admit` resolves member paths even when the selected
+            // scan root is a symlink. Suite ownership supplies those same real
+            // paths, so compare them to resolved roots in this branch only.
+            let suiteScanRoots = Set(scanned.map { URL(fileURLWithPath: $0).resolvingSymlinksInPath().path })
+            for path in suitePaths where isShown(path, in: suiteScanRoots) { shown.insert(path) }
+        }
+        let isSuite = roots.contains { root in
+            guard let version = BrewLocalInventory.installedVersion(
+                inCaskDirectory: root, token: Self.shortName(caskToken)) else { return false }
+            return !BrewLocalInventory.registeredSuiteTargets(directory: root, version: version).isEmpty
+        }
         var hasPkg = false
         for root in roots {
             guard let versions = try? fm.contentsOfDirectory(
@@ -1201,7 +1292,7 @@ public actor BrewFormulaService {
         let missing = BrewLocalInventory.missingRegisteredAppPath(
             token: Self.shortName(caskToken), caskroomPaths: caskroomPaths)
         return CaskFacts(installsAnApp: !shown.isEmpty, appPaths: shown.sorted(), needsSudo: needsSudo,
-                         missingAppPath: missing)
+                         missingAppPath: missing, isSuite: isSuite)
     }
 
     /// How deep `caskFacts` walks a version directory: `Foo/Foo.app` is level 2.

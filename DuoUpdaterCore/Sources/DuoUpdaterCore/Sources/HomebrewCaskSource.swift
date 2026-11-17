@@ -22,6 +22,7 @@ public actor HomebrewCaskSource: UpdateSource {
     /// Injected like `SignatureVerifier`'s `osVersion`, and for the same reason:
     /// the pick below must be testable off whatever Mac the tests run on.
     private let hostOSVersion: String
+    private let hostArchitecture: HostArch
     /// Which cask installed which bundles, from the Caskroom's links and the
     /// packages' receipts. Injected so a test need not read this Mac's `pkgutil`.
     private let readOwnership: @Sendable ([String]) async -> [ThirdPartyCaskSource.Ownership]
@@ -29,9 +30,11 @@ public actor HomebrewCaskSource: UpdateSource {
     public init(
         catalog: HomebrewCaskCatalog = .shared,
         inventory: BrewLocalInventory = BrewLocalInventory(),
-        hostOSVersion: String = HostOS.numericVersion()
+        hostOSVersion: String = HostOS.numericVersion(),
+        hostArchitecture: HostArch = .current
     ) {
-        self.init(catalog: catalog, inventory: inventory, hostOSVersion: hostOSVersion) {
+        self.init(catalog: catalog, inventory: inventory, hostOSVersion: hostOSVersion,
+                  hostArchitecture: hostArchitecture) {
             await ThirdPartyCaskSource.ownership(in: $0, includeOfficial: true)
         }
     }
@@ -40,25 +43,36 @@ public actor HomebrewCaskSource: UpdateSource {
         catalog: HomebrewCaskCatalog,
         inventory: BrewLocalInventory,
         hostOSVersion: String = HostOS.numericVersion(),
+        hostArchitecture: HostArch = .current,
         ownership: @escaping @Sendable ([String]) async -> [ThirdPartyCaskSource.Ownership]
     ) {
         self.catalog = catalog
         self.inventory = inventory
         self.hostOSVersion = hostOSVersion
+        self.hostArchitecture = hostArchitecture
         self.readOwnership = ownership
     }
 
     public func prewarm(_ apps: [InstalledApp]) async { ownershipTask = nil }
     public func invalidateMemo(for apps: [InstalledApp]) async { ownershipTask = nil }
 
-    private func owners(of app: InstalledApp) async -> [ThirdPartyCaskSource.Ownership] {
+    private func allOwners() async -> [ThirdPartyCaskSource.Ownership] {
         if ownershipTask == nil {
             let roots = inventory.caskroomPaths
             let read = readOwnership
             ownershipTask = Task { await read(roots) }
         }
+        return await ownershipTask!.value
+    }
+
+    private func owners(of app: InstalledApp) async -> [ThirdPartyCaskSource.Ownership] {
         let path = app.path.standardizedFileURL.resolvingSymlinksInPath().path
-        return await ownershipTask!.value.filter { $0.tap == "homebrew/cask" && $0.paths.contains(path) }
+        return await allOwners().filter { $0.tap == "homebrew/cask" && $0.paths.contains(path) }
+    }
+
+    func suiteOwner(of app: InstalledApp) async throws -> String? {
+        guard !inventory.isEmpty else { return nil }
+        return try ThirdPartyCaskSource.suiteOwner(of: app, owners: await allOwners())
     }
 
     func ownsInstalledPath(_ app: InstalledApp) async -> Bool {
@@ -74,24 +88,7 @@ public actor HomebrewCaskSource: UpdateSource {
         // Nothing in the Caskroom → the provenance gate below can never pass, so
         // decline before pulling the ~2 MB catalog over the network.
         guard !inventory.isEmpty else { return nil }
-
-        let filename = app.path.lastPathComponent  // e.g. "TablePlus.app"
-        var candidates = try await catalog.entries(forAppFilename: filename)
-        if candidates.isEmpty, let bundleID = app.bundleID {
-            candidates = try await catalog.entries(forBundleID: bundleID)
-        }
-        // A pkg cask may name neither: `karabiner-elements` installs
-        // Karabiner-Elements.pkg, and its catalog entry has no `app` artifact and
-        // no `uninstall: quit:` id. Its package's receipt does list the app, and
-        // `owners(of:)` already reads it, so the cask is found by token from there.
-        var foundByReceipt = false
-        if candidates.isEmpty, !inventory.caskroomPaths.isEmpty {
-            for owner in await owners(of: app) {
-                if let entry = try await catalog.entry(forToken: owner.token) { candidates.append(entry) }
-            }
-            foundByReceipt = !candidates.isEmpty
-        }
-        guard !candidates.isEmpty else { return nil }
+        if try await suiteOwner(of: app) != nil { return nil }
 
         // Provenance gate: only adopt this app if Homebrew actually installed one
         // of the matching casks here. A filename/id collision with an uninstalled
@@ -110,14 +107,34 @@ public actor HomebrewCaskSource: UpdateSource {
         // must associate this exact copy with the candidate, not just find a
         // same-named cask somewhere else on the machine.
         let owners = inventory.caskroomPaths.isEmpty ? [] : await owners(of: app)
-        let installed = candidates.filter { entry in
-            let names = Set(([entry.token] + entry.oldTokens).map { $0.lowercased() })
-            if inventory.caskroomPaths.isEmpty {
-                return names.contains { inventory.isOfficialCandidate(caskToken: $0) }
+        func installedCandidates(_ candidates: [CaskEntry]) -> [CaskEntry] {
+            candidates.filter { entry in
+                let names = Set(([entry.token] + entry.oldTokens).map { $0.lowercased() })
+                if inventory.caskroomPaths.isEmpty {
+                    return names.contains { inventory.isOfficialCandidate(caskToken: $0) }
+                }
+                return owners.contains { names.contains($0.token.lowercased()) }
             }
-            return owners.contains { names.contains($0.token.lowercased()) }
         }
-        guard let entry = CaskEntry.preferred(among: installed, hostOSVersion: hostOSVersion)
+        let filename = app.path.lastPathComponent  // e.g. "TablePlus.app"
+        var installed = installedCandidates(try await catalog.entries(forAppFilename: filename))
+        // A nonempty catalogue candidate list is not ownership. An unrelated
+        // filename collision must not suppress the stronger bundle-ID or
+        // installed-receipt evidence for this exact copy (#2062).
+        if installed.isEmpty, let bundleID = app.bundleID {
+            installed = installedCandidates(try await catalog.entries(forBundleID: bundleID))
+        }
+        var foundByReceipt = false
+        if installed.isEmpty, !inventory.caskroomPaths.isEmpty {
+            var receiptCandidates: [CaskEntry] = []
+            for owner in owners {
+                if let entry = try await catalog.entry(forToken: owner.token) { receiptCandidates.append(entry) }
+            }
+            installed = installedCandidates(receiptCandidates)
+            foundByReceipt = true
+        }
+        guard let entry = CaskEntry.preferred(
+            among: installed, hostOSVersion: hostOSVersion, hostArchitecture: hostArchitecture)
         else { return nil }
         let names = Set(([entry.token] + entry.oldTokens).map { $0.lowercased() })
         let matchingOwners = owners.filter { names.contains($0.token.lowercased()) }
@@ -187,6 +204,9 @@ public actor HomebrewCaskSource: UpdateSource {
             sourceIdentifier: entry.token,
             requiresManualInstaller: entry.installKind != .brew
         )
+        if case .manualInstaller(let path) = entry.installKind {
+            remote.homebrewManualInstaller = path
+        }
         // What brew will put on disk, for the reminder when that is not the
         // copy's own channel (`UpdateResult.replacesChannelWithStable`). This
         // source still answers for a nightly copy, on purpose: the user chose a
@@ -201,6 +221,8 @@ public actor HomebrewCaskSource: UpdateSource {
         remote.homebrewCaskVersion = entry.version
         remote.homebrewInstalledCaskVersion = recorded
         remote.homebrewPinned = inventory.isPinned(caskToken: installedToken, brewPrefix: owner?.brewPrefix)
+        remote.homebrewIncompatibility = entry.incompatibility(
+            osVersion: hostOSVersion, hostArchitecture: hostArchitecture)
         return remote
     }
 }

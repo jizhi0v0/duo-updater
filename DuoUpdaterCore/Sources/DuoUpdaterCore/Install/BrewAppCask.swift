@@ -10,15 +10,21 @@ import Foundation
 /// shows the cask's updates — `karabiner-elements` before its apps could be
 /// matched through the package receipt was invisible everywhere. Then it is a
 /// package row like an app-less cask (`unclaimed`).
+/// A suite is different: it always keeps its package row, and the member app
+/// rows link there instead of independently updating parts of the group.
 public struct BrewAppCask: Sendable, Equatable {
-    /// The package row it gets while unclaimed.
+    /// Its package row, shown while unclaimed or permanently for a suite.
     public let row: BrewInstalledFormula
     /// Its apps that have rows: standardized paths.
     public let appPaths: [String]
+    /// A registered suite is always a Brew package row. Member rows only link
+    /// to it; their individual versions are not the suite's package version.
+    public let isSuite: Bool
 
-    public init(row: BrewInstalledFormula, appPaths: [String]) {
+    public init(row: BrewInstalledFormula, appPaths: [String], isSuite: Bool = false) {
         self.row = row
         self.appPaths = appPaths
+        self.isSuite = isSuite
     }
 
     /// The casks (by row name) whose apps all have rows that a finished check
@@ -36,15 +42,17 @@ public struct BrewAppCask: Sendable, Equatable {
     /// matched another cask, so the receipt match never ran). For such an app
     /// brew's non-greedy `outdated` compares only the record: Upgrade All would
     /// reinstall, under sudo, a release older than the one on disk.
+    /// Suites are always included, even before a member check or when a member
+    /// is ignored; members have no independent update action to duplicate.
     public static func unclaimed(
         _ casks: [BrewAppCask], rows: [UpdateResult], checked: Bool,
         isIgnored: (InstalledApp) -> Bool
     ) -> Set<String> {
-        guard checked else { return [] }
+        var names = Set(casks.filter(\.isSuite).map(\.row.name))
+        guard checked else { return names }
         var byPath: [String: UpdateResult] = [:]
         for row in rows { byPath[row.app.path.standardizedFileURL.path] = row }
-        var names: Set<String> = []
-        for cask in casks where !cask.appPaths.isEmpty {
+        for cask in casks where !cask.isSuite && !cask.appPaths.isEmpty {
             let found = cask.appPaths.compactMap { byPath[$0] }
             guard found.count == cask.appPaths.count,
                   found.allSatisfy({ $0.remote == nil && $0.status == .unknown && !isIgnored($0.app) }),
@@ -64,6 +72,9 @@ public struct BrewAppCask: Sendable, Equatable {
         _ cask: BrewAppCask,
         readVersion: (String) -> String? = BrewAppCask.bundleShortVersion
     ) -> Bool {
+        // Brew owns the complete suite. A member's version may be unrelated
+        // to the package version, so it cannot authorise or block the group.
+        if cask.isSuite { return true }
         guard !cask.appPaths.isEmpty,
               let record = cask.row.installedVersion.split(whereSeparator: { $0 == "," || $0 == ":" }).first
         else { return false }

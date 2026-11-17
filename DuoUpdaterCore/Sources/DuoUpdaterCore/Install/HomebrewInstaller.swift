@@ -59,7 +59,7 @@ public actor HomebrewInstaller {
 
     /// Re-read at execution time: an earlier scan must never hand an app owned
     /// by another prefix to the preferred Brew's force-install path.
-    private static func validateAppOwner(_ app: URL) async throws {
+    static func validateAppOwner(_ app: URL) async throws {
         let path = app.standardizedFileURL.resolvingSymlinksInPath().path
         let owners: [ThirdPartyCaskSource.Ownership]
         if let override = ownershipOverride { owners = override }

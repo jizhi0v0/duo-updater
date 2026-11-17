@@ -41,14 +41,33 @@ struct UpdateSourceLabelTests {
         #expect(label?.phrase == "via Homebrew")
     }
 
-    /// Mutation: ignore the action for Homebrew → a cask whose package goes to
-    /// macOS's installer says Update runs brew.
-    @Test func homebrewPackageSaysTheInstallerRuns() {
+    @Test(arguments: ["racket", "example/tap/racket"])
+    func suiteMemberNamesItsExactParentWithoutARemote(cask: String) {
+        let ordinary = row(source: "Sparkle", status: .upToDate, brewToken: nil)
+        let member = UpdateResult(app: ordinary.app, remote: nil, status: .homebrewSuiteManaged(cask: cask))
+        let label = UpdateSourceLabel(member)
+        #expect(label?.phrase == "part of \(cask)")
+        #expect(label?.sidebarName == "Homebrew")
+        #expect(label?.detail.contains(cask) == true)
+        #expect(label?.detail.contains("package row") == true)
+        #expect(!member.hasUpdate)
+    }
+
+    @Test func ordinaryHomebrewUpdateNamesBrew() {
         let result = row(source: "Homebrew", status: .updateAvailable(latest: "1.3.0"), brewToken: "ghostty")
-        let detail = UpdateSourceLabel(result, action: .installer)?.detail ?? ""
-        #expect(detail.contains("macOS’s installer"))
-        #expect(!detail.contains("runs brew"))
         #expect(UpdateSourceLabel(result, action: .install)?.detail.contains("runs brew") == true)
+    }
+
+    @Test func homebrewManualInstallerNamesTheHandoff() {
+        let base = row(source: "Homebrew", status: .updateAvailable(latest: "1.3.0"), brewToken: "ghostty")
+        var remote = RemoteVersion(shortVersion: "1.3.0", version: nil, downloadURL: nil,
+                                   sourceName: "Homebrew", requiresManualInstaller: true)
+        remote.homebrewManualInstaller = "Install Ghostty.app"
+        let result = UpdateResult(app: base.app, remote: remote, status: base.status)
+        let detail = UpdateSourceLabel(result, action: .installer)?.detail ?? ""
+        #expect(detail.contains("Homebrew downloads and verifies"))
+        #expect(detail.contains("Finish the update"))
+        #expect(!detail.contains("macOS’s installer"))
     }
 
     /// Mutation: describe the route whatever the action → a detection-only row's

@@ -119,6 +119,7 @@ targets:
       # What the popover's Homebrew row stands for, and what its Cancel stops.
       # Foundation and Core only.
       - path: Sources/BrewRowRuns.swift
+      - path: Sources/BrewReadMerge.swift
       # The install table and the ownership a local rescan reads from it.
       # Foundation and Core only.
       - path: Sources/InstallTable.swift

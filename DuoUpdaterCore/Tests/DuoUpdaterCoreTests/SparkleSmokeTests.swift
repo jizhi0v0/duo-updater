@@ -34,6 +34,7 @@ import Foundation
         case .unknown: unknown += 1
         case .appStoreManaged: unknown += 1
         case .toolboxManaged: unknown += 1
+        case .homebrewSuiteManaged: unknown += 1
         case .testFlightManaged: unknown += 1
         case .testFlightIncompatible: unknown += 1
         case .outsideOSWindow(let refusal): unknown += 1; log("🚫 \(r.app.name): \(refusal.logDescription)")

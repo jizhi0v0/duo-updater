@@ -330,6 +330,7 @@ public enum Check {
             let sourceName: String?
             switch result.status {
             case .testFlightManaged, .testFlightIncompatible: sourceName = "TestFlight"
+            case .homebrewSuiteManaged: sourceName = "Homebrew"
             default: sourceName = result.remote?.sourceName
             }
             let hidden = settings.isHidden(result)
@@ -600,6 +601,7 @@ public enum Check {
         case .unknown:                     return "unknown"
         case .appStoreManaged:             return "app-store"
         case .toolboxManaged:              return "toolbox"
+        case .homebrewSuiteManaged(let cask): return "homebrew-suite: \(cask)"
         case .testFlightManaged:           return "testflight"
         case .testFlightIncompatible:      return "testflight-incompatible"
         case .outsideOSWindow(let refusal): return "not-for-this-macos: \(refusal.logDescription)"

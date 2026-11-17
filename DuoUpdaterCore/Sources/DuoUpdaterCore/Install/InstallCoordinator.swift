@@ -188,6 +188,9 @@ public actor InstallCoordinator {
     /// callers must still gate on `UpdatePolicy.canAutoInstall` /
     /// `requiresInstaller`, which is what keeps detection-only apps out.
     public static func route(for result: UpdateResult, requiresInstaller: Bool) -> Route {
+        if result.remote?.sourceName == "Homebrew", result.remote?.homebrewManualInstaller != nil {
+            return .homebrew
+        }
         if requiresInstaller { return .installer }
         switch result.remote?.sourceName {
         case "Homebrew":                    return .homebrew
@@ -492,6 +495,9 @@ public actor InstallCoordinator {
         beforeInstallerOpen: @Sendable () async -> Void = {},
         packageExecutor: PackageInstaller.Executor? = nil
     ) async throws -> Outcome {
+        if let incompatibility = result.remote?.homebrewIncompatibility {
+            throw incompatibility
+        }
         // The install path was silent end to end, which made "it said it updated
         // and nothing changed" impossible to answer after the fact — the only
         // evidence was the app's own mtime. `.notice`, so it is still readable when
@@ -658,6 +664,17 @@ public actor InstallCoordinator {
             // Auto-update and download first, where a cancel changes nothing…
             try await homebrew.fetch(caskToken: token, app: result.app.path) { line in
                 progress(.runningCommand(line))
+            }
+            if let manual = result.remote?.homebrewManualInstaller {
+                let installer = try await HomebrewManualInstaller().prepareAndOpen(
+                    caskToken: token, app: result.app.path,
+                    version: result.remote?.homebrewCaskVersion, path: manual,
+                    onOutput: { progress(.runningCommand($0)) }, beforeOpen: beforeInstallerOpen)
+                permits.signalApply()
+                applyHeld = false
+                await releaseAfterDownload()
+                return Outcome(bytesDownloaded: 0, finalHost: nil,
+                               stagedPackageURL: installer, applied: false)
             }
             // …so a nested app started during them is refused before brew's
             // install. The last check this route can make: the install moves the

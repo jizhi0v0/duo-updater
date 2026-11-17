@@ -532,6 +532,65 @@ func skippedRowLabel() -> String {
            comment: "Muted tag on a single row for a version the user skipped — short, standalone, no parenthetical qualifier.")
 }
 
+/// The cask's own compatibility refusal, shared by both surfaces.
+enum CaskCompatibilityWording {
+    static func explanation(_ reason: CaskIncompatibility) -> String {
+        switch reason {
+        case .architecture(let required, let host):
+            let names = required.map(CaskIncompatibility.architectureName).joined(separator: ", ")
+            let hostName = CaskIncompatibility.architectureName(host)
+            return String(localized: "This Homebrew release requires \(names); this Mac uses \(hostName).")
+        case .macOS(let requirement, let host):
+            let versions = requirement.versions.joined(separator: ", ")
+            switch requirement.comparison {
+            case .atLeast:
+                return String(localized: "This Homebrew release requires macOS \(versions) or later; this Mac runs macOS \(host).")
+            case .atMost:
+                return String(localized: "This Homebrew release supports macOS \(versions) or earlier; this Mac runs macOS \(host).")
+            case .exactly:
+                return String(localized: "This Homebrew release supports macOS \(versions); this Mac runs macOS \(host).")
+            }
+        }
+    }
+}
+
+struct CaskCompatibilityLabel: View {
+    let reason: CaskIncompatibility
+    var body: some View {
+        Label("Not compatible", systemImage: "exclamationmark.triangle.fill")
+            .foregroundStyle(.orange)
+            .lineLimit(1).minimumScaleFactor(0.7)
+            .help(CaskCompatibilityWording.explanation(reason))
+            .accessibilityLabel(CaskCompatibilityWording.explanation(reason))
+    }
+}
+
+/// A suite member names its parent and links to the one place that updates it.
+/// This label remains static while the package row runs or reports an error.
+struct HomebrewSuiteLink: View {
+    let cask: String
+    var compact = false
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 4) {
+                Text(cask)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                Image(systemName: "arrow.right")
+                    .font(.caption2)
+            }
+            .font(compact ? .caption : .callout)
+            .frame(maxWidth: compact ? 130 : 220, alignment: .trailing)
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(.tint)
+        .help("Show \(cask) in Homebrew — updates are managed by the suite’s package row.")
+        .accessibilityLabel("Show \(cask) in Homebrew")
+    }
+}
+
 /// The row actions both windows can trigger, as plain closures.
 ///
 /// The views below take these rather than an `AppListModel`, which is what makes
@@ -563,6 +622,8 @@ struct RowActions {
     var openSelfUpdater: () -> Void = {}
     var openToolbox: () -> Void = {}
     var openTestFlight: () -> Void = {}
+    /// Reveal a suite's sole package row; this never starts an update.
+    var openHomebrewSuite: (String) -> Void = { _ in }
     var grantFullDiskAccess: () -> Void = {}
     /// Deep-link to Settings → General, where TestFlight detection is. Only the
     /// "checking is off" tip offers it, and it is an action rather than a sentence
@@ -594,6 +655,7 @@ struct RowActions {
         openSelfUpdater: @escaping () -> Void,
         openToolbox: @escaping () -> Void,
         openTestFlight: @escaping () -> Void,
+        openHomebrewSuite: @escaping (String) -> Void,
         grantFullDiskAccess: @escaping () -> Void,
         openTestFlightSetting: @escaping () -> Void,
         openBackupSetting: @escaping () -> Void,
@@ -608,7 +670,8 @@ struct RowActions {
             retryPausedUntil: retryPausedUntil,
             restart: restart, relaunchStaged: relaunchStaged, confirmQuit: confirmQuit,
             openSelfUpdater: openSelfUpdater, openToolbox: openToolbox,
-            openTestFlight: openTestFlight, grantFullDiskAccess: grantFullDiskAccess,
+            openTestFlight: openTestFlight, openHomebrewSuite: openHomebrewSuite,
+            grantFullDiskAccess: grantFullDiskAccess,
             openTestFlightSetting: openTestFlightSetting,
             openBackupSetting: openBackupSetting,
             signInToAppleDeveloper: signInToAppleDeveloper,
@@ -828,6 +891,9 @@ struct WorkbenchRowAction: View {
 
         case .managedElsewhere(.testFlight):
             testFlightUnboundedTile
+
+        case .managedElsewhere(.homebrewSuite(let cask)):
+            HomebrewSuiteLink(cask: cask) { actions.openHomebrewSuite(cask) }
 
         case .upToDate(let channel):
             // Blank is deliberate for `.none` (`mayBeBlank` in the gallery says
@@ -1073,7 +1139,9 @@ struct WorkbenchRowAction: View {
             // this host's own call (kept out of the shared type on purpose): "Open
             // page" here, distinct from the popover's "Open". A deep link is not a
             // page, so it says "Open", as the self-updater route's button does.
-            if let affordance = controls.detectionOnly {
+            if let reason = result.remote?.homebrewIncompatibility {
+                CaskCompatibilityLabel(reason: reason).font(.callout)
+            } else if let affordance = controls.detectionOnly {
                 Button(detectionOnlyTitle(affordance)) {
                     openDetectionOnly(affordance, app: result.app.path)
                 }

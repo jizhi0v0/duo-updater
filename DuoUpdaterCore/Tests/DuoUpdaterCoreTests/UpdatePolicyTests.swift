@@ -39,13 +39,12 @@ private func fixtureResult(
     edSignature: String? = nil,
     sourceIdentifier: String? = nil,
     requiresManualInstaller: Bool = false,
+    homebrewManualInstaller: String? = nil,
     vendorInstallerKind: VendorInstallerKind? = nil,
     appStore: AppStoreAvailability? = nil,
     app: InstalledApp = fixtureApp()
 ) -> UpdateResult {
-    UpdateResult(
-        app: app,
-        remote: RemoteVersion(
+    var remote = RemoteVersion(
             shortVersion: displayVersion,
             version: nil,
             downloadURL: downloadURL,
@@ -54,7 +53,10 @@ private func fixtureResult(
             sourceIdentifier: sourceIdentifier,
             appStore: appStore,
             requiresManualInstaller: requiresManualInstaller,
-            vendorInstallerKind: vendorInstallerKind),
+            vendorInstallerKind: vendorInstallerKind)
+    remote.homebrewManualInstaller = homebrewManualInstaller
+    return UpdateResult(
+        app: app, remote: remote,
         status: .updateAvailable(latest: displayVersion ?? "2.0"))
 }
 
@@ -195,7 +197,7 @@ private func storeAvailability(
             settings: defaultSettings(), environment: environment(),
             expected: false
         ),
-        // Homebrew: needs the cask token and must not require the system installer.
+        // Homebrew: needs the cask token and must not require a manual handoff.
         (
             name: "homebrew cask with token and no manual installer is auto-installable",
             result: fixtureResult(source: "Homebrew", sourceIdentifier: "fixture"),
@@ -209,8 +211,9 @@ private func storeAvailability(
             expected: false
         ),
         (
-            name: "homebrew pkg cask (requiresManualInstaller) is not auto-installable",
-            result: fixtureResult(source: "Homebrew", sourceIdentifier: "fixture", requiresManualInstaller: true),
+            name: "homebrew manual cask is not auto-installable",
+            result: fixtureResult(source: "Homebrew", sourceIdentifier: "fixture", requiresManualInstaller: true,
+                                  homebrewManualInstaller: "Install Fixture.app"),
             settings: defaultSettings(), environment: environment(),
             expected: false
         ),
@@ -421,13 +424,14 @@ private func storeAvailability(
             expected: false
         ),
         (
-            name: "homebrew pkg cask needs the system installer",
-            result: fixtureResult(source: "Homebrew", sourceIdentifier: "fixture", requiresManualInstaller: true),
+            name: "homebrew manual cask needs an interactive handoff",
+            result: fixtureResult(source: "Homebrew", sourceIdentifier: "fixture", requiresManualInstaller: true,
+                                  homebrewManualInstaller: "Install Fixture.app"),
             settings: defaultSettings(), environment: environment(),
             expected: true
         ),
         (
-            name: "homebrew cask with no package to reach (no URL) is detection-only",
+            name: "homebrew cask with no declared manual artifact stays detection-only",
             result: fixtureResult(
                 source: "Homebrew", downloadURL: nil, sourceIdentifier: "fixture",
                 requiresManualInstaller: true),

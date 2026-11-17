@@ -207,6 +207,9 @@ struct PopoverRowAction: View {
         case .managedElsewhere(.testFlight):
             testFlightUnboundedLabel
 
+        case .managedElsewhere(.homebrewSuite(let cask)):
+            HomebrewSuiteLink(cask: cask, compact: true) { actions.openHomebrewSuite(cask) }
+
         case .upToDate(let channel):
             // The channel comes from the state, not a fresh read of
             // `result.app.isMASApp` / `isTestFlightApp` — that used to be this
@@ -270,7 +273,9 @@ struct PopoverRowAction: View {
                 .buttonStyle(.bordered)
                 .help(appleSignInHelp(need))
         case .detectionOnly:
-            if let affordance = controls.detectionOnly {
+            if let reason = result.remote?.homebrewIncompatibility {
+                CaskCompatibilityLabel(reason: reason).font(.caption2)
+            } else if let affordance = controls.detectionOnly {
                 openButton(affordance)
             }
         }

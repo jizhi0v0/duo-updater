@@ -201,7 +201,7 @@ import Foundation
         #expect(result.first?.currentVersion == "1.1.0")
     }
 
-    // MARK: - Behavior preserved: runReading (via installedLeaves / outdatedCasks)
+    // MARK: - A failed read is distinct from a successful empty result
 
     @Test func installedLeavesReturnsEmptyWhenBrewIsAbsent() async throws {
         let service = BrewFormulaService(executor: { _ in nil })
@@ -209,19 +209,18 @@ import Foundation
         #expect(result.isEmpty)
     }
 
-    /// `runReading` swallows an executor throw into `""` — unlike `outdated()`,
-    /// which must propagate it. A thrown spawn failure on either subcommand must
-    /// not surface as a thrown error from `installedLeaves()`.
-    @Test func installedLeavesSwallowsASpawnFailure() async throws {
+    @Test func installedLeavesPropagatesASpawnFailure() async throws {
         let service = BrewFormulaService(executor: { _ in throw FakeSpawnFailure() })
-        let result = try await service.installedLeaves()
-        #expect(result.isEmpty)
+        await #expect(throws: FakeSpawnFailure.self) {
+            _ = try await service.installedLeaves()
+        }
     }
 
-    @Test func installedLeavesTreatsNonzeroExitAsEmpty() async throws {
+    @Test func installedLeavesThrowsOnNonzeroExit() async throws {
         let service = BrewFormulaService(executor: { _ in (1, Data("boom".utf8)) })
-        let result = try await service.installedLeaves()
-        #expect(result.isEmpty)
+        await #expect(throws: BrewFormulaService.BrewError.self) {
+            _ = try await service.installedLeaves()
+        }
     }
 
     @Test func outdatedCasksReturnsEmptyWhenBrewIsAbsent() async throws {
@@ -230,16 +229,18 @@ import Foundation
         #expect(result.isEmpty)
     }
 
-    @Test func outdatedCasksSwallowsASpawnFailure() async throws {
+    @Test func outdatedCasksPropagatesASpawnFailure() async throws {
         let service = BrewFormulaService(executor: { _ in throw FakeSpawnFailure() })
-        let result = try await service.outdatedCasks()
-        #expect(result.isEmpty)
+        await #expect(throws: FakeSpawnFailure.self) {
+            _ = try await service.outdatedCasks()
+        }
     }
 
-    @Test func outdatedCasksTreatsNonzeroExitAsEmpty() async throws {
+    @Test func outdatedCasksThrowsOnNonzeroExit() async throws {
         let service = BrewFormulaService(executor: { _ in (1, Data("boom".utf8)) })
-        let result = try await service.outdatedCasks()
-        #expect(result.isEmpty)
+        await #expect(throws: BrewFormulaService.BrewError.self) {
+            _ = try await service.outdatedCasks()
+        }
     }
 
     /// End-to-end wiring for the cask path: JSON in, filtered by `caskFacts`

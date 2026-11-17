@@ -155,10 +155,11 @@ struct HomebrewCompatibilityTests {
     }
 
     @Test(arguments: [false, true])
-    func staleBrewReceiptDoesNotReofferAnInstalledMarketingRelease(packageRoute: Bool) {
+    func staleBrewReceiptDoesNotReofferAnInstalledMarketingRelease(manualInstaller: Bool) {
         let current = Self.app(path: URL(fileURLWithPath: "/Applications/Example.app"), version: "2.0")
         var remote = RemoteVersion(shortVersion: "2.0", version: nil, downloadURL: nil,
-            sourceName: "Homebrew", requiresManualInstaller: packageRoute)
+            sourceName: "Homebrew", requiresManualInstaller: manualInstaller)
+        remote.homebrewManualInstaller = manualInstaller ? "Install Example.app" : nil
         remote.homebrewCaskVersion = "2.0"
         remote.homebrewInstalledCaskVersion = "1.0"
         remote.homebrewRecordedVersion = "1.0"
@@ -168,10 +169,11 @@ struct HomebrewCompatibilityTests {
     }
 
     @Test(arguments: ["1.0,102", "1.0:2026-11-17", "1.0,abcdef"])
-    func packageRouteCannotInferAnOpaqueSuffixUpdateFromItsUnchangedBrewRecord(latest: String) {
+    func manualHandoffCannotInferAnOpaqueSuffixUpdateFromItsUnchangedBrewRecord(latest: String) {
         let current = Self.app(path: URL(fileURLWithPath: "/Applications/Example.app"))
         var remote = RemoteVersion(shortVersion: "1.0", version: nil, downloadURL: nil,
             sourceName: "Homebrew", requiresManualInstaller: true)
+        remote.homebrewManualInstaller = "Install Example.app"
         remote.homebrewCaskVersion = latest
         remote.homebrewInstalledCaskVersion = "1.0,101"
         remote.homebrewRecordedVersion = "1.0"

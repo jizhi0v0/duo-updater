@@ -118,6 +118,7 @@ public enum RowActionState: Sendable, Equatable {
 
     public enum Manager: Sendable, Equatable {
         case appStore, toolbox, testFlight
+        case homebrewSuite(String)
     }
 
     /// What an `.interruptedInstall` row offers.
@@ -638,6 +639,7 @@ public enum RowAction {
         case .outsideOSWindow(let refusal): return .notForThisMacOS(refusal)
         case .appStoreManaged: return .managedElsewhere(.appStore)
         case .toolboxManaged: return .managedElsewhere(.toolbox)
+        case .homebrewSuiteManaged(let cask): return .managedElsewhere(.homebrewSuite(cask))
         case .testFlightManaged: return .managedElsewhere(.testFlight)
         case .testFlightIncompatible: return .managedElsewhere(.testFlight)
         case .upToDate:

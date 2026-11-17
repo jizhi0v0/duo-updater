@@ -1232,7 +1232,9 @@ final class AppListModel {
     private var brewHiddenCaskNames: Set<String> {
         let unclaimed = BrewAppCask.unclaimed(
             brewAppCasks, rows: results, checked: answeredThisLaunch, isIgnored: prefs.isIgnored)
+        let suites = Set(brewAppCasks.filter(\.isSuite).map(\.row.name))
         return brewAppCaskNames.union(brewAppCasks.map(\.row.name).filter { !unclaimed.contains($0) })
+            .subtracting(suites)
     }
     /// Installed third-party-tap formulae/casks brew wouldn't read from their tap
     /// (e.g. the tap isn't trusted). No read above can say whether they're outdated,
@@ -1240,6 +1242,8 @@ final class AppListModel {
     private(set) var brewUnchecked: [BrewUncheckedPackage] = []
     /// Installed casks Homebrew deprecated or disabled — see `BrewCaskLifecycle`.
     private(set) var brewCaskLifecycles: [BrewCaskLifecycle] = []
+    /// The latest check failed; the existing versions and actions remain usable.
+    private(set) var brewReadError: String?
     /// What nodejs.org, nodejs/Release and php.net say about the installed
     /// Node.js and Homebrew PHP (`RuntimeSecurityReport`), for the formula pane
     /// and the npm packages' Node fact. Re-read with each brew read.
@@ -1514,6 +1518,9 @@ final class AppListModel {
     /// group open. With one request for both rows, a click on Homebrew's landed on
     /// another tool's row with Homebrew's packages hidden (review, #1008).
     var requestedWorkbenchHomebrew = false
+    /// A suite member's parent package row, with a tap-qualified name where
+    /// applicable. Consumed by the workbench after that row is available.
+    var requestedWorkbenchHomebrewCask: String?
     /// The same for a row on the popover's tool groups' page: the tag of the
     /// copy the workbench selects, which opens its level and scrolls to it.
     var requestedWorkbenchCLITool: String?
@@ -4501,9 +4508,8 @@ final class AppListModel {
             brewIsIdle: brewIsIdle)
     }
 
-    /// Re-read outdated CLI formulae via `brew outdated --formula` — `brewLane`'s
-    /// pass. Never throws — any failure just leaves the list empty, so no row
-    /// shows on a clean or brew-less machine.
+    /// `brewLane`'s read-only pass. Failed reads retain their previous answers;
+    /// successful empty results clear them. A failure never disables Update.
     private func readBrewFormulae() async {
         // Beside the read, not after it: the feeds may wait on the network, and
         // nvm's node has notices with no Homebrew at all. The feeds ask each
@@ -4516,35 +4522,35 @@ final class AppListModel {
             let report = await RuntimeSecurityFeeds.shared.report()
             if securityGeneration == runtimeSecurityGeneration { runtimeSecurity = report }
         }
+        brewRefreshGeneration += 1
+        let generation = brewRefreshGeneration
         guard BrewFormulaService.isAvailable else {
             brewOutdatedFormulae = []
             brewFormulae = []
             brewUnchecked = []
             brewCaskLifecycles = []
+            brewAppCasks = []
+            brewReadError = nil
             brewChecked = true
             return
         }
         let clock = ContinuousClock()
         let started = clock.now
-        // Phase 1 — fast local inventory: paint the Brew tree immediately with the
-        // installed leaves (no update badges yet), mirroring how the Apps tree shows
-        // every app before its update check lands. The `await` yields to the runloop,
-        // so SwiftUI repaints with the list before phase 2 runs. Best-effort:
-        // installedLeaves() returns [] on any brew hiccup.
-        //
-        // Only when the tree is empty. On a re-read (the workbench refreshes brew
-        // every time it becomes key) this paint replaced the badged, updates-first
-        // tree with a bare one until phase 2 landed: measured, an outdated formula
-        // dropped off the top of the list at +0.9s after focus and came back at
-        // +1.5s, on every focus. The previous tree stays up until the new one is
-        // complete.
-        brewRefreshGeneration += 1
-        let generation = brewRefreshGeneration
+        // Paint a first inventory quickly. A refresh keeps the old tree up until
+        // all reads land together, so opening the window does not remove badges.
         brewReadsInFlight += 1
         defer { brewReadsInFlight -= 1 }
-        let leaves = (try? await brewFormulaService.installedLeaves()) ?? []
+        var readErrors: [String] = []
+        var leaves: [BrewInstalledFormula]?
+        do {
+            leaves = try await brewFormulaService.installedLeaves()
+        } catch {
+            readErrors.append("brew leaves: \(error.localizedDescription)")
+        }
         let leavesRead = clock.now - started
-        if generation == brewRefreshGeneration, brewFormulae.isEmpty { brewFormulae = leaves }
+        if generation == brewRefreshGeneration, brewPackageInventory.isEmpty, let leaves {
+            brewFormulae = leaves
+        }
 
         // Phase 2 — the slower `brew outdated` read: learn which leaves have an
         // upgrade, then re-stamp the already-shown list so badges appear in place
@@ -4557,83 +4563,40 @@ final class AppListModel {
         // The person's own scan folders give an app a row too (`caskFacts`).
         let extraFolders = prefs.customScanPaths
         async let report = brewFormulaService.installedReport(extraFolders: extraFolders)
-        var outdated: [BrewOutdatedFormula]
-        var outdatedRead = true
+        var outdated: [BrewOutdatedFormula]?
         do {
             outdated = try await brewFormulaService.outdated()
         } catch {
-            Log.app.info("brew outdated --formula failed: \(error.localizedDescription, privacy: .public)")
-            outdated = []
-            outdatedRead = false
+            readErrors.append("brew outdated --formula: \(error.localizedDescription)")
         }
-        // Casks with a package row: app-less ones (CLIs, fonts), third-party ones,
-        // and app casks whose apps found no update source — see
-        // `BrewOutdatedFormula` and `BrewAppCask`. Best-effort: a failure here must
-        // not blank the formula count we already have.
-        let outdatedCasks = (try? await brewFormulaService.outdatedCasks(extraFolders: extraFolders)) ?? []
+        var outdatedCasks: [BrewOutdatedFormula]?
+        do {
+            outdatedCasks = try await brewFormulaService.outdatedCasks(extraFolders: extraFolders)
+        } catch {
+            readErrors.append("brew outdated --cask: \(error.localizedDescription)")
+        }
         let installed = await report
-        // The cask rows: this pass's, or the last ones when `brew info` failed
-        // and left none to go on (`InstalledReport.casksRead`). An outdated cask
-        // counts only when it has a row: `outdatedCasks` decides from the
-        // Caskroom alone, the report from where brew put each app.
-        // App casks are rows here too; `brewHiddenCaskNames` shows each only while
-        // its apps found no update source, as the check rounds answer.
-        let caskRows = installed.casksRead
-            ? installed.appLessCasks + installed.appCasks.map(\.row)
-            : brewPackageInventory.filter { $0.kind == .cask }
-        let rowTokens = Set(caskRows.map(\.name))
-        let casks = outdatedCasks.filter { rowTokens.contains($0.name) }
-        let blocked = Set(caskRows.filter { $0.manualInstaller || $0.missingAppPath != nil }.map(\.name))
-        let newUnchecked = installed.unchecked
-        // Where the read's time went, beside the lane's own line for the pass.
-        let total = clock.now - started
-        Log.app.notice("brew read: \(Log.seconds(total), privacy: .public) — leaves \(Log.seconds(leavesRead), privacy: .public), \(leaves.count, privacy: .public) leaves, \(outdated.count, privacy: .public) outdated formulae\(outdatedRead ? "" : " (read failed)", privacy: .public), \(casks.count, privacy: .public) app-less casks, \(newUnchecked.count, privacy: .public) unchecked")
-        // Every read is in; apply them together, and only if no newer refresh has
-        // started since — its results are fresher and it applies its own.
+        readErrors += installed.readErrors
+        // Only the latest refresh may publish data or failures. An older pass can
+        // finish after a newer one, including after Homebrew was uninstalled.
         guard generation == brewRefreshGeneration else { return }
-        if !casks.isEmpty {
-            Log.app.info("brew outdated: \(outdated.count, privacy: .public) formulae + \(casks.count, privacy: .public) app-less casks (\(casks.map(\.name).joined(separator: ", "), privacy: .public))")
-        }
-        // The tree is the leaves and the app-less casks; `merge` matches each to
-        // its update by kind and name, so a cask never takes a same-named
-        // formula's version, nor the other way round.
-        //
-        // An empty leaves read replacing a non-empty tree is taken as a failed read
-        // (`runReading` answers "" for any non-zero exit, so the two can't be told
-        // apart) and the previous tree is re-stamped instead of blanked. The cost:
-        // uninstalling the very last leaf leaves its row up until a read that
-        // returns something.
-        // The app-less casks join the formula leaves here, from the same pass as
-        // their facts (`InstalledReport.appLessCasks`); never kept from the last
-        // tree, which would list them twice.
-        let inventory = (leaves.isEmpty ? brewFormulae.filter { $0.kind == .formula } : leaves)
-            + caskRows
-        // A formula moved to a cask, removed or renamed is still a leaf — brew
-        // loads it from its keg, or under its new name — and reads as up to date
-        // there; its unchecked row is the one that's true.
-        let shadowed = Set(newUnchecked.compactMap(\.leafName))
-        brewFormulae = BrewFormulaService.merge(inventory, outdated: outdated + casks)
-            .filter { $0.kind == .cask || !shadowed.contains($0.name) }
-            .map { f in
-                // A cask's lifecycle came with it; these maps are formulae's.
-                guard f.kind == .formula else { return f }
-                var f = f
-                f.lifecycle = installed.lifecycles[f.name]
-                f.head = installed.headInstalls[f.name]
-                return f
-            }
-        brewOutdatedFormulae = outdated + casks.filter { !blocked.contains($0.name) }
-        brewUnchecked = newUnchecked
-        brewCaskLifecycles = installed.caskLifecycles
-        // Kept from the last read when this one could not list the casks, as the
-        // rows themselves are (`caskRows` above).
-        if installed.casksRead { brewAppCasks = installed.appCasks }
-        if !brewUnchecked.isEmpty {
-            Log.app.info("brew: \(self.brewUnchecked.count, privacy: .public) packages not read from their tap (\(self.brewUnchecked.map { "\($0.fullName)=\($0.reason)" }.joined(separator: ", "), privacy: .public))")
-        }
-        // Not on a failed read: it left the list empty, a first pass would take
-        // that as the baseline, and the next good read would announce everything.
-        if outdatedRead { notifyNewHomebrewUpdates() }
+        let previous = BrewReadMerge(
+            inventory: brewPackageInventory, outdated: brewPackageOutdated,
+            unchecked: brewUnchecked, caskLifecycles: brewCaskLifecycles, appCasks: brewAppCasks)
+        let merged = previous.merging(
+            leaves: leaves, formulaUpdates: outdated, caskUpdates: outdatedCasks, report: installed)
+        brewFormulae = merged.inventory
+        brewOutdatedFormulae = merged.outdated
+        brewUnchecked = merged.unchecked
+        brewCaskLifecycles = merged.caskLifecycles
+        brewAppCasks = merged.appCasks
+        brewReadError = readErrors.isEmpty ? nil : readErrors.joined(separator: "\n")
+        let total = clock.now - started
+        Log.app.notice("brew read: \(Log.seconds(total), privacy: .public) — leaves \(Log.seconds(leavesRead), privacy: .public), \(merged.inventory.count, privacy: .public) packages, \(merged.outdated.count, privacy: .public) outdated, \(merged.unchecked.count, privacy: .public) unchecked, \(readErrors.count, privacy: .public) read failures")
+        if let brewReadError { Log.app.info("brew check failed: \(brewReadError, privacy: .public)") }
+        // A partial first pass is not a complete announcement baseline. Nor can
+        // retained old offers be announced as newly checked during a failure.
+        if readErrors.isEmpty { notifyNewHomebrewUpdates() }
         prewarmFormulaReleases()
     }
 
@@ -5157,7 +5120,8 @@ final class AppListModel {
             outdated: brewOutdatedFormulae.count, unchecked: brewUnchecked.count,
             // Casks once: every flagged one is in `brewCaskLifecycles`, rows or not.
             deprecated: brewFormulae.filter { $0.kind == .formula && $0.lifecycle != nil }.count
-                + brewCaskLifecycles.count)
+                + brewCaskLifecycles.count,
+            readError: brewReadError)
     }
 
     /// `brew update`'s Cancel beside its row's progress, while it waits its
@@ -7239,6 +7203,9 @@ final class AppListModel {
         if canUsePackageHelper(result) {
             return String(localized: "Download and install \(result.app.name) \(staged.version)")
         }
+        if result.remote?.homebrewManualInstaller != nil {
+            return String(localized: "\(staged.version) is prepared — Install verifies and opens its installer. Finish the update there.")
+        }
         return String(localized: "\(staged.version) is downloaded — Install re-opens it in macOS’s installer, nothing is downloaded again.")
     }
 
@@ -7335,7 +7302,7 @@ final class AppListModel {
             return
         }
         await refreshHelperStatus(checkPackage: true)
-        if canUsePackageHelper(result) {
+        if canUsePackageHelper(result) || result.remote?.homebrewManualInstaller != nil {
             // Staged entries from earlier versions pin a version and a path,
             // not the original download proof. Reacquire through the normal
             // source gates before giving root a protected copy.
@@ -10712,7 +10679,8 @@ final class AppListModel {
     }
 
     private func canUsePackageHelper(_ result: UpdateResult) -> Bool {
-        packageHelperAvailable && PackageInstallTrust.teamIdentifier(for: result.app.bundleID) != nil
+        result.remote?.homebrewManualInstaller == nil
+            && packageHelperAvailable && PackageInstallTrust.teamIdentifier(for: result.app.bundleID) != nil
     }
 
     /// A temporary hold does not remove the user's future update preference.
@@ -11607,10 +11575,8 @@ final class AppListModel {
             UpdateAnnouncementItem(key: "\($0.kind.rawValue):\($0.name)", name: $0.name, version: $0.currentVersion)
         }
         var ledger = prefs.homebrewAnnouncements
-        // Nothing is forgotten: a failed `brew outdated --cask` reads as no
-        // outdated casks at all (`runReading` answers "" for any failure), and
-        // forgetting them on it would announce every one again on the next good
-        // read. The ledger is bounded by what brew has installed.
+        // The ledger retains previous announcements; only a complete successful
+        // check reaches this method. Failed reads never establish a new baseline.
         let newly = ledger.pass(enabled: prefs.notifyOnHomebrewUpdates, offered: offered, liveKeys: nil)
         if ledger != prefs.homebrewAnnouncements { prefs.homebrewAnnouncements = ledger }
         announce(.homebrew, newly)

@@ -1,0 +1,19 @@
+{
+  "9.2": {
+    "architecture": "arm64",
+    "url": "https://mirror.racket-lang.org/installers/9.2/racket-9.2-aarch64-macosx-cs.dmg",
+    "sha256": "f5ce6a2e2758aae048c556e29f47edeb5edfd77d1f42f5aa965040e7e73c3809",
+    "checksumSource": "https://download.racket-lang.org/releases/9.2/",
+    "caskSource": "https://github.com/Homebrew/homebrew-cask/blob/80cdbb5972d2e2348bc64877b1f0a90480c5e7fe/Casks/r/racket.rb",
+    "historicalCaskSHA256": "045aa88a0c8b7b31da35ecad8d5ba3d5af4cea056d4e583e61f50618ae2d0b00",
+    "resigningNotice": "https://blog.racket-lang.org/2026/10/infrastructure-compromise.html",
+    "fixtureChange": "Use the historical 9.2 cask declaration with only its ARM SHA-256 changed to the current vendor-published value; retain the raw original racket-9.2.rb."
+  },
+  "9.3": {
+    "architecture": "arm64",
+    "url": "https://mirror.racket-lang.org/installers/9.3/racket-9.3-aarch64-macosx-cs.dmg",
+    "sha256": "21f4937ca0bf37c31e60c1d77f5fd20f175e3ad51f6197f27149055bc222e559",
+    "caskSource": "https://formulae.brew.sh/api/cask/racket.json",
+    "recordedMetadata": "../evidence/racket.json"
+  }
+}

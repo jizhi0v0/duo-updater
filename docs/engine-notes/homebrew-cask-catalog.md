@@ -253,3 +253,26 @@ the mutation table. (The first version of this change used the
 
 Not verified: no cask whose key moved was installed on a real Mac and run
 through the app. The tests drive `HomebrewCaskSource` with an injected Caskroom.
+
+## §7 Installer routing policy (2026-11-17)
+
+Ordinary `pkg` artifacts and `installer script` artifacts, including scripts
+that request sudo, now stay on the owning Brew's `.brew` route. The existing
+BrewAskPass channel supplies interactive authorization. Brew retains its own
+catalog authentication, download checksum, dependency/conflict checks and
+installation semantics; these casks no longer use a direct Homebrew
+`.package` route through DuoUpdater's PKG helper.
+
+An explicit `installer manual` is a separate, user-controlled handoff. Brew
+prepares the authenticated download with `unpack`; this preparation does not
+run cask hooks, uninstall the old app or advance its installed receipt.
+DuoUpdater pins the selected cask version and declared relative path, confines
+that path to the extracted tree, verifies the `.app` or `.pkg`/`.mpkg` before
+opening it, and leaves completion to the installer window. Opening a window
+is not a successful update: the installed application's observed version is
+still what settles completion. Manual packages remain interactive even when
+the PKG helper is approved. Ambiguous/unsafe declarations and unsupported
+manual artifact kinds remain detection-only. The older fixture measurements
+above retain their original dates and scope.
+
+Manual handoffs currently accept signed `.app` installers and `.pkg`/`.mpkg` packages. A manual cask with additional package dependencies, conflicts, mixed installer scripts or an unsupported artifact remains detection-only; preparation does not reproduce Brew installation prerequisites.

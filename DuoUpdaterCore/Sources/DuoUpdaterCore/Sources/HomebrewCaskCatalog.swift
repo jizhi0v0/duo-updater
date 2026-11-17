@@ -9,8 +9,8 @@ import Foundation
 ///
 /// Counts, the `<=` caveat and the rest of the 2026-09-15 measurement:
 /// `docs/engine-notes/homebrew-cask-catalog.md` §1.
-public struct CaskMacOSRequirement: Sendable, Equatable {
-    public enum Comparison: String, Sendable, Equatable {
+public struct CaskMacOSRequirement: Sendable, Hashable {
+    public enum Comparison: String, Sendable, Hashable {
         case atLeast = ">="
         case atMost = "<="
         case exactly = "=="
@@ -126,15 +126,11 @@ public struct CaskMacOSRequirement: Sendable, Equatable {
 
 /// How an update to one cask can be applied from here.
 public enum CaskInstallKind: Sendable, Equatable {
-    /// brew installs it unattended: a dragged `.app`, or an installer `script`
-    /// brew runs itself.
+    /// Brew owns installation, including PKGs, scripts, dependencies and sudo.
     case brew
-    /// We download the official package and hand it to the system installer —
-    /// the cask has no route brew can run for us unattended (see
-    /// `HomebrewCaskCatalog.installKind`).
-    case package
-    /// Neither: the installer needs a person and the download holds no package
-    /// `PackageInstaller` can reach. Offered as an update, never installed.
+    /// Brew prepares the download; the user runs this declared installer.
+    case manualInstaller(path: String)
+    /// An installer declaration we cannot safely resolve.
     case detectionOnly
 }
 
@@ -151,6 +147,9 @@ public struct CaskEntry: Sendable {
     /// The cask's `depends_on.macos`, when it states one. `nil` means "runs
     /// anywhere", which is what the catalog says for the large majority.
     public let macOS: CaskMacOSRequirement?
+    /// The explicit `depends_on.arch` alternatives. An absent or unrecognised
+    /// declaration is left to Brew's execution-time checks.
+    public let architectures: [HostArch]?
     /// The `.app` filenames this cask installs (`CaskIndex`'s lookup key), empty
     /// for a cask with no `app` artifact. Read by `isStandardStableCask`.
     public let appFilenames: [String]
@@ -167,7 +166,8 @@ public struct CaskEntry: Sendable {
         macOS: CaskMacOSRequirement? = nil,
         appFilenames: [String] = [],
         bundleIDs: [String] = [],
-        oldTokens: [String] = []
+        oldTokens: [String] = [],
+        architectures: [HostArch]? = nil
     ) {
         self.token = token
         self.oldTokens = oldTokens
@@ -176,6 +176,7 @@ public struct CaskEntry: Sendable {
         self.autoUpdates = autoUpdates
         self.installKind = installKind
         self.macOS = macOS
+        self.architectures = architectures
         self.appFilenames = appFilenames
         self.bundleIDs = bundleIDs
     }
@@ -238,6 +239,15 @@ public struct CaskEntry: Sendable {
         macOS?.admits(hostOSVersion) ?? true
     }
 
+    /// Eligibility is evaluated after selecting the platform variation and the
+    /// installed owner. It never changes which installed copy a cask owns.
+    public func incompatibility(
+        osVersion: String, hostArchitecture: HostArch = .current
+    ) -> CaskIncompatibility? {
+        CaskIncompatibility.check(macOS: macOS, architectures: architectures,
+                                 osVersion: osVersion, hostArchitecture: hostArchitecture)
+    }
+
     /// Which of several casks claiming one key this Mac should be offered:
     /// catalog order decides, but only among the casks it can actually install —
     /// the first admitted entry, else the first entry, so a host outside every
@@ -248,8 +258,11 @@ public struct CaskEntry: Sendable {
     /// `HomebrewCaskSource`, and the index copy had no production consumer at all
     /// — deleting it changed nothing a user could see, which also meant every
     /// mutation aimed at it was evidence about dead code.
-    static func preferred(among entries: [CaskEntry], hostOSVersion: String) -> CaskEntry? {
-        entries.first { $0.admits(hostOSVersion) } ?? entries.first
+    static func preferred(
+        among entries: [CaskEntry], hostOSVersion: String, hostArchitecture: HostArch = .current
+    ) -> CaskEntry? {
+        entries.first { $0.incompatibility(osVersion: hostOSVersion, hostArchitecture: hostArchitecture) == nil }
+            ?? entries.first
     }
 }
 
@@ -479,14 +492,15 @@ public actor HomebrewCaskCatalog {
                 version: version,
                 url: (cask["url"] as? String).flatMap { URL(string: $0) },
                 autoUpdates: (cask["auto_updates"] as? Bool) ?? false,
-                installKind: installKind(
-                    artifacts: cask["artifacts"], url: cask["url"] as? String),
+                installKind: installKind(artifacts: cask["artifacts"], dependsOn: cask["depends_on"],
+                                         conflictsWith: cask["conflicts_with"], disabled: (cask["disabled"] as? Bool) == true),
                 macOS: CaskMacOSRequirement.parse(dependsOn: cask["depends_on"]),
                 appFilenames: appNames,
                 bundleIDs: ids,
                 oldTokens: ((cask["old_tokens"] as? [String]) ?? []).filter {
                     !canonicalTokens.contains($0.lowercased())
-                }
+                },
+                architectures: architectures(dependsOn: cask["depends_on"])
             )
 
             // Both keys keep every declaring cask, in catalog order. Keeping the
@@ -511,6 +525,29 @@ public actor HomebrewCaskCatalog {
             }
         }
         return CaskIndex(allByAppFilename: byApp, allByBundleID: allByBundle, byToken: byToken)
+    }
+
+    /// Homebrew's JSON normalises `:intel` / `:x86_64` and `:arm64` to
+    /// `{type: "intel"|"arm", bits: 64}`. Alternatives are ORed as Brew's
+    /// `check_arch_requirements` does; malformed/unknown declarations are not
+    /// enough evidence for a detection-time refusal.
+    static func architectures(dependsOn: Any?) -> [HostArch]? {
+        guard let dependencies = dependsOn as? [String: Any],
+              let choices = dependencies["arch"] as? [[String: Any]], !choices.isEmpty
+        else { return nil }
+        var result: [HostArch] = []
+        for choice in choices {
+            let bits = (choice["bits"] as? [Int]) ?? (choice["bits"] as? Int).map { [$0] }
+            guard bits?.contains(64) == true else { return nil }
+            let architecture: HostArch
+            switch choice["type"] as? String {
+            case "arm": architecture = .arm64
+            case "intel": architecture = .x86_64
+            default: return nil
+            }
+            if !result.contains(architecture) { result.append(architecture) }
+        }
+        return result
     }
 
     /// The `.app` filenames a cask's `artifacts` install under — the name
@@ -542,115 +579,41 @@ public actor HomebrewCaskCatalog {
         return names
     }
 
-    /// For what brew cannot install for us unattended — a `pkg` artifact (brew
-    /// runs `/usr/sbin/installer` under `/usr/bin/sudo`), an `installer` that is
-    /// `manual` (brew only prints "open …", and `brew upgrade` skips such casks
-    /// outright) or a `script` with `sudo: true` — `.package` only when
-    /// `PackageInstaller` can reach a package in the download, else
-    /// `.detectionOnly`. Everything else, `.brew`. The sudo there has no terminal
-    /// to ask on, gets `-A` only when `SUDO_ASKPASS` is set, and finds no cached
-    /// credential, because `brew.sh` runs `sudo --reset-timestamp` first. Read in
-    /// brew 7.0.6: `cask/artifact/pkg.rb`, `cask/artifact/installer.rb`,
-    /// `cask/upgrade.rb`, `system_command.rb`, `brew.sh`.
-    ///
-    /// Unless Touch ID is on for sudo (`pam_tid` in `/etc/pam.d/sudo_local`;
-    /// the template macOS ships has it commented out). Then the sudo does not
-    /// fail: it puts up a Touch ID prompt. Seen on 2026-09-26: a `brew uninstall
-    /// --cask` run with no terminal went through once the prompt was approved,
-    /// and the person approving could not tell which task had asked. Still not
-    /// a route for these: with the shipped setting the install fails after the
-    /// download, with Touch ID on a root prompt appears in the middle of Update
-    /// All, and brew's route skips `PackageInstaller`'s Team ID and destination
-    /// checks.
-    ///
-    /// A `script` without `sudo` is `.brew`: brew runs it itself in the
-    /// installer artifact's `install_phase`, on `brew install --cask` as on
-    /// `brew upgrade`. Sending it to `PackageInstaller`, which looks for a `.pkg`
-    /// in the download, failed while what the cask installs through is the
-    /// script's executable: an installer `.app`, a shell script or a program in
-    /// the archive, never a `.pkg`, for all 24 such casks on 2026-09-26 (read off
-    /// the catalog; the downloads were not opened). quarkclouddrive's update
-    /// failed there with "did not contain an installer package" (issue #877).
-    ///
-    /// The same failure awaited most of the casks that need a person, after the
-    /// whole download: on 2026-09-26, 16 non-`auto_updates` casks with a `.app`
-    /// or `uninstall: quit:` to match on had such an installer and no `pkg`
-    /// artifact, and 3 of them named a package `packageIsReachable` accepts —
-    /// pivy-app, datadog-agent, qsync-client (read off the catalog; the downloads
-    /// were not opened).
-    ///
-    /// And for a `pkg` artifact, which used to be `.package` whatever the url:
-    /// on 2026-09-26, 12 of the 106 such casks (same filter) are out of reach —
-    /// nine in a `.zip`, one in a `.7z`, wch-ch34x-usb-serial-driver's in a
-    /// folder, paragon-extfs's inside an installer `.app` on its `.dmg`. Their
-    /// updates downloaded in full, then failed with "did not contain an
-    /// installer package" (read off the catalog; the downloads were not opened).
-    private static func installKind(artifacts: Any?, url: String?) -> CaskInstallKind {
+    /// Let Brew execute every normal artifact. Manual installers are the only
+    /// exception: prepare their bytes with Brew, then open the declared path.
+    /// A malformed or ambiguous manual declaration stays detection-only.
+    static func installKind(
+        artifacts: Any?, dependsOn: Any? = nil, conflictsWith: Any? = nil, disabled: Bool = false
+    ) -> CaskInstallKind {
         guard let artifacts = artifacts as? [Any] else { return .brew }
-        var needsPerson = false
-        var packages: [String] = []
+        var manualPaths: [String] = []
+        var hasScript = false
         for artifact in artifacts {
-            guard let dict = artifact as? [String: Any] else { continue }
-            if let pkg = dict["pkg"] {
-                needsPerson = true
-                packages += (pkg as? [Any])?.compactMap { $0 as? String } ?? []
-            }
-            if let installer = dict["installer"] {
-                // Anything but a list of unprivileged scripts needs a person, as
-                // every `installer` was taken to before #877.
-                guard let entries = installer as? [Any] else {
-                    needsPerson = true
-                    continue
-                }
-                if !entries.allSatisfy(isUnprivilegedScript) { needsPerson = true }
-                packages += entries.compactMap {
-                    ($0 as? [String: Any])?["manual"] as? String
+            guard let dict = artifact as? [String: Any], let installer = dict["installer"] else { continue }
+            guard let entries = installer as? [[String: Any]], !entries.isEmpty else { return .detectionOnly }
+            for entry in entries {
+                if let manual = entry["manual"] as? String {
+                    guard entry.count == 1, HomebrewManualInstaller.isRelativeArtifactPath(manual),
+                          HomebrewManualInstaller.supportedExtensions.contains((manual as NSString).pathExtension.lowercased()) else { return .detectionOnly }
+                    manualPaths.append(manual)
+                } else if entry["script"] == nil {
+                    return .detectionOnly
+                } else {
+                    hasScript = true
                 }
             }
         }
-        guard needsPerson else { return .brew }
-        return packageIsReachable(url: url, packages: packages)
-            ? .package : .detectionOnly
-    }
-
-    /// Whether `PackageInstaller` would find a package in this cask's download:
-    /// the download itself is one, or it is a disk image with one at its top
-    /// level. `resolveInstaller` mounts a `.dmg` and nothing else (a `.zip` is
-    /// handed on as is and refused by `verifyOpenable`), and `preferredPackage`
-    /// lists only the image's root — so a `pkg` or `manual` path with a `/` in it
-    /// is out of reach even inside a `.dmg`. What the catalog *names*: whether
-    /// the image really holds that file is only known after the download.
-    ///
-    /// A url with no extension is judged like a `.dmg`: the file is named by
-    /// the server's `Content-Disposition`, which the catalog does not carry, so
-    /// only a package with no folder in its path can be reached, whether it
-    /// arrives bare or at an image's top level. On 2026-09-26, HEAD on the five
-    /// such `pkg` casks gave three that arrive as a `.pkg` or `.dmg`
-    /// (ecodms-client, meta-quest-remote-desktop, infocert-sign) and two as a
-    /// `.zip`. wch-ch34x-usb-serial-driver names its package inside a folder,
-    /// so it is detection-only. lg-onscreen-control does not, so it stays on
-    /// the package route, where its update still fails after the download.
-    private static func packageIsReachable(url: String?, packages: [String]) -> Bool {
-        guard let ext = url.flatMap(URL.init(string:))?.pathExtension.lowercased()
-        else { return false }
-        if packageExtensions.contains(ext) { return true }
-        guard ext == "dmg" || ext.isEmpty else { return false }
-        return packages.contains {
-            !$0.contains("/")
-                && packageExtensions.contains(($0 as NSString).pathExtension.lowercased())
+        guard !manualPaths.isEmpty else { return .brew }
+        // `unpack` deliberately runs no install hooks or prerequisite changes.
+        // Leave complex manual casks to the person, rather than silently
+        // bypassing their dependencies/conflicts through a new direct route.
+        let packageDependencies = (dependsOn as? [String: Any] ?? [:]).filter {
+            $0.key != "macos" && $0.key != "arch"
         }
-    }
-
-    /// What `PackageInstaller.verifyOpenable` accepts.
-    private static let packageExtensions: Set<String> = ["pkg", "mpkg"]
-
-    /// `{"script": {"executable": …}}` without `sudo: true`, or the bare
-    /// `{"script": "path"}` form brew also accepts (which cannot ask for sudo).
-    private static func isUnprivilegedScript(_ entry: Any) -> Bool {
-        guard let script = (entry as? [String: Any])?["script"] else { return false }
-        if script is String { return true }
-        guard let options = script as? [String: Any] else { return false }
-        return (options["sudo"] as? Bool) != true
+        let conflicts = conflictsWith as? [String: Any] ?? [:]
+        guard manualPaths.count == 1, !hasScript, !disabled,
+              packageDependencies.isEmpty, conflicts.isEmpty else { return .detectionOnly }
+        return .manualInstaller(path: manualPaths[0])
     }
 
     /// Extract bundle identifiers a cask declares in its `uninstall: quit:`

@@ -1,0 +1,6 @@
+   Checking Leaf 0.16.1 against its published SHA-256…
+   ✓ Checking for a new release
+   ✓ Downloading leaf 0.17.0 (14.9 MB of 14.9 MB)
+   ✓ Verifying the download
+   ✓ Installing to /Users/bobby/Desktop/duo-leaf-vm-20261117/bin/leaf
+   Upgraded leaf from 0.16.1 to 0.17.0.

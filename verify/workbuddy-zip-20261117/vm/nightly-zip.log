@@ -1,0 +1,10 @@
+
+  duo verify-install
+  1 installers  (1 skipped)  3 hosts at a time  full pass (--full)
+  ─────────────────────────────────────────────
+  audited public feeds: 0 selected of 73; 2 indexed rows and 9 tracks explicitly uncovered
+  ✓ vendor:com.workbuddy.workbuddy-ai:stable:arm64  5.11.4  475.2 MB  58s  com.workbuddy.workbuddy-ai / FN2V63AD2J
+
+  ─────────────────────────────────────────────
+  ok 1  warn 0  failed 0  unresolved 0  skipped 1
+  475.2 MB in 58s  lowest free disk 759523.0 MB

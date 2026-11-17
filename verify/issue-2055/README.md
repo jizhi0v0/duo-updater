@@ -68,3 +68,20 @@ and restored only if their current bytes still equal this run's edit. A
 concurrent change makes the run fail and is preserved. Only packages and
 fixture paths proven absent at startup are removed. No result is claimed here
 until an actual VM run is recorded.
+
+The fixed-state runner also includes adversarial controls added after review:
+
+- A real old-to-new token upgrade followed by canonical-token pin/unpin while
+  a legacy directory symlink remains. `old-alias-origin.txt` distinguishes an
+  alias retained by Brew from a controlled alias added after real migration.
+- An official Intel-prefix cask with main and helper artifacts: removing only
+  the main staged link must still produce terminal foreign-prefix refusal.
+  The third-party Intel receipt-only case receives the same checks. Both
+  prefix records and actual main/helper app bytes are fingerprinted before
+  and after source/checker/fetch/upgrade refusal.
+- An official receipt-only positive case for #2036, plus a self-updated app at
+  the offered version while its Brew record remains older. The latter must
+  settle current, with the pin explicitly removed.
+- A synthetic `HOMEBREW_FIXTURE_TOKEN` must reach ordinary Brew commands, while
+  an unrelated synthetic secret and shell PATH are excluded. Only these
+  synthetic named fields are captured; no environment dump is recorded.

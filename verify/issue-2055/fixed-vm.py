@@ -54,7 +54,7 @@ def main():
         paths += [root/'Casks/d'/('duo2055vm-'+n+'.rb') for n in TOKENS]
     paths += [Path(root)/('duo2055vm-'+n) for root in ['/opt/homebrew/Caskroom', '/usr/local/Caskroom'] for n in TOKENS]
     paths += [Path('/Applications')/('Duo2055VM'+label+'.app') for label in LABELS.values()]
-    paths += [Path('/opt/homebrew/Cellar/duo2055vm-formula')]
+    paths += [Path('/opt/homebrew/Cellar/duo2055vm-formula'),Path('/Applications/Duo2055VMIntelHelper.app')]
     for p in paths:
         if p.exists() or p.is_symlink():
             raise SystemExit('Refusing to reuse preexisting fixture state: '+str(p))
@@ -95,13 +95,18 @@ def main():
             CFBundleExecutable='main', CFBundlePackageType='APPL')))
         exe=d/'Contents/MacOS/main'; exe.write_text('#!/bin/sh\nexit 0\n'); exe.chmod(0o755)
         archive=work/(name+'-'+build+'.tar.gz')
-        with tarfile.open(archive,'w:gz') as t: t.add(d,arcname=app)
+        with tarfile.open(archive,'w:gz') as t:
+            t.add(d,arcname=app)
+            if name=='intel':
+                helper=d.parent/'Duo2055VMIntelHelper.app';shutil.copytree(d,helper)
+                info=helper/'Contents/Info.plist';j=plistlib.loads(info.read_bytes());j['CFBundleIdentifier']='org.duo2055vm.intelhelper';info.write_bytes(plistlib.dumps(j))
+                t.add(helper,arcname=helper.name)
         return app, archive
     def cask(token, app, archive, version, variation_archive=None):
         return (f'cask "{token}" do\n  version "{version}"\n  sha256 "{hashlib.sha256(archive.read_bytes()).hexdigest()}"\n'
                 f'  url "file://{archive}"\n  name "{app[:-4]}"\n  desc "Disposable issue 2055 VM fixture"\n'
                 '  homepage "https://example.com"\n'+(f'  on_arm do\n    version "1.0"\n    url "file://{variation_archive}"\n    sha256 "{hashlib.sha256(variation_archive.read_bytes()).hexdigest()}"\n  end\n' if variation_archive else '')+
-                f'  app "{app}"\nend\n').encode()
+                f'  app "{app}"\n'+('  app "Duo2055VMIntelHelper.app"\n' if token=='duo2055vm-intel' else '')+'end\n').encode()
     result = {'passed':False, 'model':model}
     try:
         run(['/usr/bin/git','-C',repo,'rev-parse','HEAD'], 'source-commit')
@@ -197,14 +202,67 @@ def main():
         # Foreign-prefix refusal must happen before either ownership record or
         # the installed app is changed, for detection and real fetch/upgrade.
         run([binary,work,'foreign'], 'probe-foreign-prefix')
+        # Keep the Intel helper staged link; remove ONLY main's link. The
+        # production owner reader must merge the absent main's receipt target.
+        for name,label in [('intel','Intel'),('thirdintel','ThirdIntel')]:
+            link=Path('/usr/local/Caskroom')/('duo2055vm-'+name)/'1.0'/('Duo2055VM'+label+'.app')
+            if not link.is_symlink():raise RuntimeError('Foreign staged link missing before attack: '+str(link))
+            target=os.readlink(link);link.unlink()
+            if name=='intel' and not link.with_name('Duo2055VMIntelHelper.app').is_symlink():
+                raise RuntimeError('Partial-link attack requires the helper staged link to remain')
+            try:run([binary,work,'foreign'], 'probe-foreign-missing-main-'+name)
+            finally:link.symlink_to(target)
+        # Official #2036 receipt-only owner remains covered without a staged
+        # link, while the foreign variants above must still refuse execution.
+        link=Path('/opt/homebrew/Caskroom/duo2055vm-var/1.0/Duo2055VMVar.app')
+        if not link.is_symlink():raise RuntimeError('Official staged link absent before receipt-only control')
+        target=os.readlink(link);link.unlink()
+        try:run([binary,work,'receipt-only'], 'probe-official-receipt-only')
+        finally:link.symlink_to(target)
+        # Simulate a legitimate app self-update while deliberately leaving the
+        # genuine Brew installation record at 1.0.
+        installed_app=Path('/Applications/Duo2055VMPin.app')
+        shutil.rmtree(installed_app);shutil.copytree(work/'payloads/pin-102/Duo2055VMPin.app',installed_app)
+        run([binary,work,'selfupdated'], 'probe-stale-selfupdated-record')
+        # Exercise real old-token migration before canonical pinning. Preserve
+        # a legacy directory alias even if this Brew release cleans it away.
+        brew('upgrade','--cask','duo2055vm-new',name='upgrade-renamed-cask')
+        installed=[('duo2055vm-new' if token=='duo2055vm-old' else token,x86) for token,x86 in installed]
+        oldpath=Path('/opt/homebrew/Caskroom/duo2055vm-old')
+        newpath=Path('/opt/homebrew/Caskroom/duo2055vm-new')
+        if not newpath.is_dir():raise RuntimeError('Real rename upgrade did not create canonical record')
+        alias_origin='created by actual brew migration'
+        if not oldpath.is_symlink():
+            alias_origin='explicit legacy alias added after successful actual migration'
+            if oldpath.exists():shutil.move(oldpath,work/'old-directory-after-migration')
+            oldpath.symlink_to(newpath.name)
+        (evidence/'old-alias-origin.txt').write_text(alias_origin+'\n'+str(oldpath)+' -> '+os.readlink(oldpath)+'\n')
+        app,newarc=make_archive('old','3.0','103')
+        edit(tap/'Casks/d/duo2055vm-new.rb',cask('duo2055vm-new',app,newarc,'3.0'))
+        for entry in entries:
+            if entry['token']=='duo2055vm-new':entry.update(version='3.0',url='file://'+str(newarc))
+        (work/'catalog.json').write_text(json.dumps(entries))
+        brew('pin','--cask','duo2055vm-new',name='pin-renamed-canonical-cask')
+        run([binary,work,'renamed-pinned'], 'probe-renamed-pinned')
+        brew('unpin','--cask','duo2055vm-new',name='unpin-renamed-canonical-cask')
+        run([binary,work,'renamed-unpinned'], 'probe-renamed-unpinned')
         # LaunchServices environment starts without exports inherited from our
         # CLI. The rc file has guarded backup/restore and no preexisting content
         # is discarded. brew.env remains untouched.
         for p in [Path.home()/'.config/homebrew/brew.env',Path('/opt/homebrew/etc/homebrew/brew.env'),Path('/etc/homebrew/brew.env')]:
             if p.exists(): raise RuntimeError('Environment scenario requires no existing brew.env: '+str(p))
         rc=Path.home()/'.zshrc';old=rc.read_bytes() if rc.exists() else b''
-        edit(rc,old+b'\nexport HOMEBREW_NO_AUTO_UPDATE=1\nexport HOMEBREW_AUTO_UPDATE_SECS=2055\n')
-        logger=work/'brew-log';logger.write_text('#!/bin/sh\nprintf "%s|%s|%s\\n" "$*" "${HOMEBREW_NO_AUTO_UPDATE-unset}" "${HOMEBREW_AUTO_UPDATE_SECS-unset}" >> '+str(work/'env-commands.txt')+'\nprintf "{}\\n"\n');logger.chmod(0o755)
+        edit(rc,old+b'\nexport HOMEBREW_NO_AUTO_UPDATE=1\nexport HOMEBREW_AUTO_UPDATE_SECS=2055\nexport HOMEBREW_FIXTURE_TOKEN=synthetic-2055-token\nexport DUO2055_UNRELATED_SECRET=synthetic-unrelated-secret\nexport PATH=/duo2055vm-synthetic-path:$PATH\n')
+        logger=work/'brew-log'
+        logger.write_text('''#!/bin/sh
+case "$PATH" in
+  /duo2055vm-synthetic-path:*) path_state=imported ;;
+  *) path_state=clean ;;
+esac
+printf '%s|%s|%s|%s|%s|%s\\n' "$*" "${HOMEBREW_NO_AUTO_UPDATE-unset}" "${HOMEBREW_AUTO_UPDATE_SECS-unset}" "${HOMEBREW_FIXTURE_TOKEN-unset}" "${DUO2055_UNRELATED_SECRET-unset}" "$path_state" >> '''+str(work/'env-commands.txt')+'''
+printf '{}\\n'
+''')
+        logger.chmod(0o755)
         app=work/'EnvProbe.app/Contents';(app/'MacOS').mkdir(parents=True)
         shutil.copy2(binary,app/'MacOS/FixedVMProbe')
         (app/'Info.plist').write_bytes(plistlib.dumps(dict(CFBundleIdentifier='org.duo2055vm.env',CFBundleExecutable='FixedVMProbe',CFBundlePackageType='APPL',LSUIElement=True)))

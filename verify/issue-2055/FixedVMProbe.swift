@@ -95,6 +95,8 @@ import CryptoKit
             let shell = await LoginShellEnvironment.resolveHomebrewVariables()
             try require(shell?["HOMEBREW_NO_AUTO_UPDATE"] == "1", "login shell resolves NO_AUTO_UPDATE")
             try require(shell?["HOMEBREW_AUTO_UPDATE_SECS"] == "2055", "login shell resolves update interval")
+            try require(shell?["HOMEBREW_FIXTURE_TOKEN"] == "synthetic-2055-token", "synthetic Homebrew token is retained by resolver")
+            try require(shell?["DUO2055_UNRELATED_SECRET"] == nil && shell?["PATH"] == nil, "resolver excludes unrelated secret and PATH")
             guard let config = await HomebrewConfig.read(environment: shell ?? [:]) else {
                 throw Failure(message: "Actual Brew config did not resolve")
             }
@@ -114,7 +116,7 @@ import CryptoKit
             try require(lines.contains { $0.hasPrefix("config|") }, "ordinary read captured")
             try require(lines.contains { $0.hasPrefix("install --cask --force --dry-run -- duo2055vm-fullcomma|") }, "preliminary dry run captured")
             try require(lines.contains { $0.hasPrefix("fetch --cask -- duo2055vm-fullcomma|") }, "fetch captured")
-            try require(lines.allSatisfy { $0.hasSuffix("|1|2055") }, "all ordinary read/fetch commands receive shell settings")
+            try require(lines.allSatisfy { $0.hasSuffix("|1|2055|synthetic-2055-token|unset|clean") }, "all commands forward synthetic Homebrew token but exclude unrelated secret and shell PATH")
             record = ["passed": true, "configAutoUpdateDisabled": config.autoUpdateDisabled,
                       "configAutoUpdateSeconds": config.autoUpdateSeconds ?? -1, "commands": lines]
         } catch { record = ["passed": false, "error": String(describing: error)] }
@@ -165,11 +167,36 @@ import CryptoKit
         case "other-tap":
             let release = try await source(work).latestVersion(for: app("old"))
             try require(release == nil, "official catalog does not adopt a different originating tap")
+        case "receipt-only":
+            let link = "/opt/homebrew/Caskroom/duo2055vm-var/1.0/Duo2055VMVar.app"
+            try require(!FileManager.default.fileExists(atPath: link), "official staged link is absent before receipt-only assertion")
+            let release = try await remote("var", work)
+            try require(release.sourceIdentifier == "duo2055vm-var", "official saved receipt target retains exact-copy owner")
+            try await update("var", work, expected: false)
+        case "selfupdated":
+            let installed = try app("pin")
+            let release = try await remote("pin", work)
+            try require(installed.shortVersion == "2.0" && installed.buildVersion == "102", "self-updated app is genuinely at offered payload")
+            try require(release.homebrewInstalledCaskVersion == "1.0", "Brew record deliberately remains stale after external app update")
+            try require(!release.homebrewPinned, "self-updated control is not being hidden by pin")
+            try await update("pin", work, expected: false)
+        case "renamed-pinned", "renamed-unpinned":
+            let installed = try app("old")
+            let release = try await remote("old", work)
+            try require(installed.shortVersion == "2.0", "actual old-token Brew upgrade installed version 2.0")
+            try require(release.sourceIdentifier == "duo2055vm-new", "legacy directory alias does not replace canonical token")
+            try require(release.homebrewInstalledCaskVersion == "2.0" && release.homebrewCaskVersion == "3.0", "full canonical installed and current cask identities are preserved")
+            let alias = URL(fileURLWithPath: "/opt/homebrew/Caskroom/duo2055vm-old")
+            let aliasValues = try alias.resourceValues(forKeys: [.isSymbolicLinkKey])
+            try require(aliasValues.isSymbolicLink == true, "old-token directory symlink remains for canonical pin attack")
+            try require(release.homebrewPinned == (mode == "renamed-pinned"), "canonical pin state remains live despite legacy alias")
+            try await update("old", work, expected: mode == "renamed-unpinned")
         case "foreign":
             for name in ["intel", "thirdintel"] {
                 let installed = try app(name)
                 let token = "duo2055vm-" + name
-                let paths = ["/opt/homebrew/Caskroom/"+token, "/usr/local/Caskroom/"+token, installed.path.path]
+                var paths = ["/opt/homebrew/Caskroom/"+token, "/usr/local/Caskroom/"+token, installed.path.path]
+                if name == "intel" { paths.append("/Applications/Duo2055VMIntelHelper.app") }
                 let before = try fingerprint(paths)
                 try require(before["/opt/homebrew/Caskroom/"+token] == "absent", "\(name): no ARM installation before refusal")
                 if name == "intel" {

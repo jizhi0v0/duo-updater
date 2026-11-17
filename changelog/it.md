@@ -2,6 +2,30 @@
 
 Questa è la traduzione di `CHANGELOG.md`. In caso di differenze fa fede la versione inglese. Le versioni non elencate qui vengono mostrate automaticamente in inglese.
 
+## 0.5.26-beta.1
+
+**Include gli hotfix di 0.5.25 insieme a tutte le funzionalità Beta.**
+
+**Gli aggiornamenti Homebrew gestiscono meglio compatibilità, installer nativi e pacchetti con più app.** Se l’aggiornamento dei metadati fallisce, gli aggiornamenti già disponibili restano pronti per un nuovo tentativo.
+
+**Le app mostrano i nomi localizzati e i selettori di nome esistenti della CLI continuano a funzionare.**
+
+**Aggiorna tutto attende quando lo spazio su disco è insufficiente.** Gli aggiornamenti automatici rinviati per mancanza di spazio possono riprendere quando torna disponibile.
+
+**Novità è più facile da consultare e copiare.** Navigazione tra versioni, tastiera e intestazione fissa rendono più leggibili le note lunghe.
+
+**Codiff, electerm, Suspicious Package, RapidAPI/Paw e Mattermost ottengono il supporto agli aggiornamenti.** I canali supportati mantengono aggiornamenti e controlli d’installazione propri.
+
+**Il rilevamento della versione di Leaf resta preciso con le nuove build compilate.**
+
+## 0.5.25
+
+**AirBuddy, Downie e le altre app scaricate direttamente trovano di nuovo i normali aggiornamenti.** La presenza di risorse Setapp non le fa più riconoscere erroneamente come versioni Setapp.
+
+**WorkBuddy AI torna a installare correttamente gli aggiornamenti.** Viene scaricato il pacchetto ZIP corrispondente alla somma di controllo pubblicata dallo sviluppatore.
+
+**Douchat può aggiornarsi dopo il cambio del team di firma autorizzato dallo sviluppatore.**
+
 ## 0.5.25-beta.1
 
 **Le app Electron supportate possono scaricare solo le parti modificate.** Se è disponibile un download riutilizzabile, gli aggiornamenti consumano meno dati; altrimenti scaricano il pacchetto completo.

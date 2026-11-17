@@ -2,6 +2,30 @@
 
 Bu, `CHANGELOG.md` dosyasının Türkçe çevirisidir. Geçerli olan İngilizce sürümdür; burada yer almayan eski sürümler otomatik olarak İngilizce gösterilir.
 
+## 0.5.26-beta.1
+
+**0.5.25 düzeltmelerini ve Beta özelliklerinin tamamını içerir.**
+
+**Homebrew güncellemeleri uyumluluğu, yerel yükleyicileri ve birden fazla uygulama içeren paketleri daha güvenilir işler.** Meta veri yenilemesi başarısız olursa mevcut güncellemeler yeniden denenebilir.
+
+**Uygulamalar yerelleştirilmiş adları gösterir; mevcut CLI ad seçicileri çalışmaya devam eder.**
+
+**Disk alanı az olduğunda Tümünü Güncelle bekler.** Alan yetersizliği nedeniyle ertelenen otomatik güncellemeler, alan açıldığında devam edebilir.
+
+**Yenilikler bölümünü gezmek ve kopyalamak kolaylaştı.** Sürüm gezintisi, klavye desteği ve sabit başlık uzun sürüm notlarını okumayı kolaylaştırır.
+
+**Codiff, electerm, Suspicious Package, RapidAPI/Paw ve Mattermost için güncelleme desteği eklendi.** Desteklenen yayın kanalları kendi güncellemelerini ve yükleme denetimlerini korur.
+
+**Leaf sürüm algılama, yeni derlenmiş sürümlerde de doğru sonuç verir.**
+
+## 0.5.25
+
+**AirBuddy, Downie ve doğrudan indirilen diğer uygulamalar normal güncellemelerini yeniden buluyor.** Setapp kaynakları içermeleri artık Setapp sürümü olarak yanlış tanınmalarına neden olmuyor.
+
+**WorkBuddy AI güncellemeleri yeniden sorunsuz yükleniyor.** Geliştiricinin yayımladığı sağlama toplamıyla eşleşen ZIP paketi indiriliyor.
+
+**Douchat, geliştiricinin yetkilendirdiği imzalama ekibi değişikliğinin ardından güncellenebiliyor.**
+
 ## 0.5.25-beta.1
 
 **Desteklenen Electron uygulamaları yalnızca değişen bölümleri indirebilir.** Yeniden kullanılabilir bir indirme varsa güncellemeler daha az veri kullanır; yoksa paketin tamamı indirilir.

@@ -19,6 +19,30 @@ release note is debugging our code:
 
 Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
+## 0.5.26-beta.1
+
+**Includes the hotfixes from 0.5.25 alongside the full Beta feature set.**
+
+**Homebrew updates handle compatibility, native installers and multi-app suites more reliably.** A failed metadata refresh keeps existing update offers available for retry.
+
+**Apps display their localized names while existing CLI name selectors keep working.**
+
+**Update All waits when disk space is low.** Space-related automatic-update deferrals can resume after capacity recovers.
+
+**What's New is easier to browse and copy.** Version navigation, keyboard access and a fixed reading header make long release notes easier to follow.
+
+**Codiff, electerm, Suspicious Package, RapidAPI/Paw and Mattermost gain update support.** Supported release tracks keep their own updates and installation checks.
+
+**Leaf version detection remains accurate with newer compiled releases.**
+
+## 0.5.25
+
+**AirBuddy, Downie and other direct-download apps find their normal updates again.** Apps that also include Setapp resources are no longer mistaken for Setapp copies.
+
+**WorkBuddy AI updates install successfully again.** Downloads use the ZIP package that matches the developer's published checksum.
+
+**Douchat can update across its developer's authorized signing-team change.**
+
 ## 0.5.25-beta.1
 
 **Supported Electron apps can download only the parts that changed.** When a reusable download is available, updates use less data; otherwise they download the full package.

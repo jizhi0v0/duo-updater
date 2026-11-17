@@ -1,0 +1,8 @@
+/Applications/AirBuddy.app
+codes.rambo.AirBuddy
+https://su.airbuddy.app/lleMaylxgd/appcast_taeyang.xml
+setappPublicKey.pem still present
+/Applications/Downie 4.app
+com.charliemonroe.Downie-4
+https://software.charliemonroe.net/trial/downie/v4/updates.xml
+setappPublicKey.pem still present

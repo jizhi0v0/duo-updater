@@ -1,0 +1,4 @@
+{"command":"check","schemaVersion":2}
+{"bundleID":"codes.rambo.AirBuddy","hasUpdate":true,"hidden":false,"installedBuild":"1034","installedVersion":"3.0.3","latestVersion":"3.1","name":"AirBuddy","path":"\/Applications\/AirBuddy.app","route":"in-place","source":"Homebrew","status":"update 3.1"}
+{"bundleID":"com.charliemonroe.Downie-setapp","hasUpdate":false,"hidden":true,"installedBuild":"5290","installedVersion":"4.13.5","latestBuild":"5290","latestVersion":"4.13.5","name":"Downie","path":"\/Applications\/Setapp\/Downie.app","source":"Setapp","status":"up-to-date"}
+{"bundleID":"com.charliemonroe.Downie-4","hasUpdate":true,"hidden":false,"installedBuild":"5284","installedVersion":"4.13.4","latestVersion":"4.13.5","name":"Downie 4","path":"\/Applications\/Downie 4.app","route":"in-place","source":"Homebrew","status":"update 4.13.5"}

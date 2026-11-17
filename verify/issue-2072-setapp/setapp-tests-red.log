@@ -1,0 +1,70 @@
+◇ Test run started.
+↳ Testing Library Version: 2403
+↳ Target Platform: arm64e-apple-macos14.0
+◇ Suite SetappCatalogSourceTests started.
+◇ Test aDirectCopyWithASetappPublicKeyKeepsItsVendorSource(bundleID:catalogueFails:) started.
+◇ Test case passing 2 arguments bundleID → "com.charliemonroe.Downie-4", catalogueFails → true to aDirectCopyWithASetappPublicKeyKeepsItsVendorSource(bundleID:catalogueFails:) started.
+◇ Test case passing 2 arguments bundleID → "codes.rambo.AirBuddy", catalogueFails → true to aDirectCopyWithASetappPublicKeyKeepsItsVendorSource(bundleID:catalogueFails:) started.
+◇ Test case passing 2 arguments bundleID → "com.charliemonroe.Downie-4", catalogueFails → false to aDirectCopyWithASetappPublicKeyKeepsItsVendorSource(bundleID:catalogueFails:) started.
+◇ Test case passing 2 arguments bundleID → "codes.rambo.AirBuddy", catalogueFails → false to aDirectCopyWithASetappPublicKeyKeepsItsVendorSource(bundleID:catalogueFails:) started.
+✘ Test aDirectCopyWithASetappPublicKeyKeepsItsVendorSource(bundleID:catalogueFails:) recorded an issue with 2 arguments bundleID → "codes.rambo.AirBuddy", catalogueFails → false at SetappCatalogSourceTests.swift:432:9: Expectation failed: spy.calls == 1
+↳ spy.calls == 1 → false
+↳   spy.calls → 0
+✘ Test aDirectCopyWithASetappPublicKeyKeepsItsVendorSource(bundleID:catalogueFails:) recorded an issue with 2 arguments bundleID → "com.charliemonroe.Downie-4", catalogueFails → false at SetappCatalogSourceTests.swift:432:9: Expectation failed: spy.calls == 1
+↳ spy.calls == 1 → false
+↳   spy.calls → 0
+✘ Test aDirectCopyWithASetappPublicKeyKeepsItsVendorSource(bundleID:catalogueFails:) recorded an issue with 2 arguments bundleID → "codes.rambo.AirBuddy", catalogueFails → true at SetappCatalogSourceTests.swift:432:9: Expectation failed: spy.calls == 1
+↳ spy.calls == 1 → false
+↳   spy.calls → 0
+✘ Test aDirectCopyWithASetappPublicKeyKeepsItsVendorSource(bundleID:catalogueFails:) recorded an issue with 2 arguments bundleID → "com.charliemonroe.Downie-4", catalogueFails → true at SetappCatalogSourceTests.swift:432:9: Expectation failed: spy.calls == 1
+↳ spy.calls == 1 → false
+↳   spy.calls → 0
+✘ Test aDirectCopyWithASetappPublicKeyKeepsItsVendorSource(bundleID:catalogueFails:) recorded an issue with 2 arguments bundleID → "codes.rambo.AirBuddy", catalogueFails → true at SetappCatalogSourceTests.swift:433:9: Expectation failed: result.remote?.sourceName == "Sparkle"
+↳ result.remote?.sourceName == "Sparkle" → false
+↳   result.remote?.sourceName → nil
+↳     some → "Sparkle"
+✘ Test aDirectCopyWithASetappPublicKeyKeepsItsVendorSource(bundleID:catalogueFails:) recorded an issue with 2 arguments bundleID → "com.charliemonroe.Downie-4", catalogueFails → true at SetappCatalogSourceTests.swift:433:9: Expectation failed: result.remote?.sourceName == "Sparkle"
+↳ result.remote?.sourceName == "Sparkle" → false
+↳   result.remote?.sourceName → nil
+↳     some → "Sparkle"
+✘ Test aDirectCopyWithASetappPublicKeyKeepsItsVendorSource(bundleID:catalogueFails:) recorded an issue with 2 arguments bundleID → "com.charliemonroe.Downie-4", catalogueFails → false at SetappCatalogSourceTests.swift:433:9: Expectation failed: result.remote?.sourceName == "Sparkle"
+↳ result.remote?.sourceName == "Sparkle" → false
+↳   result.remote?.sourceName → "Setapp"
+↳     some → "Setapp"
+↳     some → "Sparkle"
+✘ Test aDirectCopyWithASetappPublicKeyKeepsItsVendorSource(bundleID:catalogueFails:) recorded an issue with 2 arguments bundleID → "codes.rambo.AirBuddy", catalogueFails → false at SetappCatalogSourceTests.swift:433:9: Expectation failed: result.remote?.sourceName == "Sparkle"
+↳ result.remote?.sourceName == "Sparkle" → false
+↳   result.remote?.sourceName → "Setapp"
+↳     some → "Setapp"
+↳     some → "Sparkle"
+✘ Test aDirectCopyWithASetappPublicKeyKeepsItsVendorSource(bundleID:catalogueFails:) recorded an issue with 2 arguments bundleID → "codes.rambo.AirBuddy", catalogueFails → true at SetappCatalogSourceTests.swift:434:9: Expectation failed: result.remote?.shortVersion == "9.9.9"
+↳ result.remote?.shortVersion == "9.9.9" → false
+↳   result.remote?.shortVersion → nil
+↳     some → "9.9.9"
+✘ Test aDirectCopyWithASetappPublicKeyKeepsItsVendorSource(bundleID:catalogueFails:) recorded an issue with 2 arguments bundleID → "com.charliemonroe.Downie-4", catalogueFails → true at SetappCatalogSourceTests.swift:434:9: Expectation failed: result.remote?.shortVersion == "9.9.9"
+↳ result.remote?.shortVersion == "9.9.9" → false
+↳   result.remote?.shortVersion → nil
+↳     some → "9.9.9"
+✘ Test aDirectCopyWithASetappPublicKeyKeepsItsVendorSource(bundleID:catalogueFails:) recorded an issue with 2 arguments bundleID → "com.charliemonroe.Downie-4", catalogueFails → false at SetappCatalogSourceTests.swift:434:9: Expectation failed: result.remote?.shortVersion == "9.9.9"
+↳ result.remote?.shortVersion == "9.9.9" → false
+↳   result.remote?.shortVersion → "1.0"
+↳     some → "1.0"
+↳     some → "9.9.9"
+✘ Test aDirectCopyWithASetappPublicKeyKeepsItsVendorSource(bundleID:catalogueFails:) recorded an issue with 2 arguments bundleID → "codes.rambo.AirBuddy", catalogueFails → false at SetappCatalogSourceTests.swift:434:9: Expectation failed: result.remote?.shortVersion == "9.9.9"
+↳ result.remote?.shortVersion == "9.9.9" → false
+↳   result.remote?.shortVersion → "1.0"
+↳     some → "1.0"
+↳     some → "9.9.9"
+✘ Test aDirectCopyWithASetappPublicKeyKeepsItsVendorSource(bundleID:catalogueFails:) recorded an issue with 2 arguments bundleID → "codes.rambo.AirBuddy", catalogueFails → false at SetappCatalogSourceTests.swift:436:25: Issue recorded
+↳ the direct copy lost its working update source: .upToDate
+✘ Test aDirectCopyWithASetappPublicKeyKeepsItsVendorSource(bundleID:catalogueFails:) recorded an issue with 2 arguments bundleID → "com.charliemonroe.Downie-4", catalogueFails → false at SetappCatalogSourceTests.swift:436:25: Issue recorded
+↳ the direct copy lost its working update source: .upToDate
+✘ Test aDirectCopyWithASetappPublicKeyKeepsItsVendorSource(bundleID:catalogueFails:) recorded an issue with 2 arguments bundleID → "com.charliemonroe.Downie-4", catalogueFails → true at SetappCatalogSourceTests.swift:436:25: Issue recorded
+↳ the direct copy lost its working update source: .error("The operation couldn’t be completed. (NSURLErrorDomain error -1001.)")
+✘ Test aDirectCopyWithASetappPublicKeyKeepsItsVendorSource(bundleID:catalogueFails:) recorded an issue with 2 arguments bundleID → "codes.rambo.AirBuddy", catalogueFails → true at SetappCatalogSourceTests.swift:436:25: Issue recorded
+↳ the direct copy lost its working update source: .error("The operation couldn’t be completed. (NSURLErrorDomain error -1001.)")
+✘ Test aDirectCopyWithASetappPublicKeyKeepsItsVendorSource(bundleID:catalogueFails:) with 4 test cases failed after 0.013 seconds with 16 issues.
+✘ Suite SetappCatalogSourceTests failed after 0.013 seconds with 16 issues.
+✘ Test run with 1 test in 1 suite failed after 0.013 seconds with 16 issues.
+Note: Some test targets reported failures:
+  - DuoUpdaterCoreTests (Swift Testing)

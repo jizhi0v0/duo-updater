@@ -298,28 +298,17 @@ public struct SetappCatalogSource: UpdateSource {
         return components.url
     }
 
-    /// Whether this copy could be one of Setapp's, without reading the catalogue.
-    ///
-    /// The identifier suffix is the documented mark (Setapp mandates
-    /// `…-setapp`), but it is not the only evidence a copy can carry: the
-    /// install root (`/Applications/Setapp`, `~/Applications/Setapp`) and the
-    /// framework's own `setappPublicKey.pem` inside the bundle both say the same
-    /// thing, and either can outlive a vendor that ignores the convention. The
-    /// point of the gate is only to avoid fetching a 3 MB catalogue for every app
-    /// on a Mac that has no Setapp at all; the catalogue lookup itself is the
-    /// authority.
-    /// Ownership, as opposed to plausibility: a copy the Setapp channel is
-    /// responsible for even when the catalogue cannot be read. An identifier
-    /// ending in the mandated suffix, or the framework's public key inside the
-    /// bundle. NOT the install folder alone — a direct build a user filed away
-    /// under `/Applications/Setapp` is still the vendor's to update, and making
-    /// it terminal on a catalogue outage would take away its working source.
+    /// An explicit Setapp identifier owns the copy even when its catalogue is
+    /// unavailable, so the checker must not ask the direct edition's feed.
+    /// A public key is only a candidate signal: official direct AirBuddy and
+    /// Downie packages ship `setappPublicKey.pem` too (#2072). Neither that
+    /// resource nor the install folder alone may make this check terminal.
     static func owns(_ app: InstalledApp) -> Bool {
-        if let id = app.bundleID?.lowercased(), id.hasSuffix("-setapp") { return true }
-        let publicKey = app.path.appendingPathComponent("Contents/Resources/setappPublicKey.pem")
-        return FileManager.default.fileExists(atPath: publicKey.path)
+        app.bundleID?.lowercased().hasSuffix("-setapp") == true
     }
 
+    /// Folder and resource hints may prompt an exact catalogue-id lookup, but
+    /// a miss must leave the copy's other update sources available.
     static func plausiblySetapp(_ app: InstalledApp) -> Bool {
         if let id = app.bundleID?.lowercased(), id.hasSuffix("-setapp") { return true }
         if app.path.path.contains("/Setapp/") { return true }

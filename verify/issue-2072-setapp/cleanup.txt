@@ -1,0 +1,8 @@
+==> Uninstalling Cask airbuddy
+==> Backing up App 'AirBuddy.app' to '/opt/homebrew/Caskroom/airbuddy/3.0.3,1034/AirBuddy.app'
+==> Removing App '/Applications/AirBuddy.app'
+==> Purging files for version 3.0.3,1034 of Cask airbuddy
+==> Uninstalling Cask downie
+==> Backing up App 'Downie 4.app' to '/opt/homebrew/Caskroom/downie/4.13.4,5284/Downie 4.app'
+==> Removing App '/Applications/Downie 4.app'
+==> Purging files for version 4.13.4,5284 of Cask downie

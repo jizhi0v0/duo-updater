@@ -1,0 +1,8 @@
+command: ['/usr/bin/arch', '-x86_64', '/usr/local/bin/brew', 'uninstall', '--cask', 'duo2055vm-intel']
+exit: 0
+==> Uninstalling Cask duo2055vm-intel
+==> Backing up App 'Duo2055VMIntel.app' to '/usr/local/Caskroom/duo2055vm-intel/1.0/Duo2055VMIntel.app'
+==> Removing App '/Applications/Duo2055VMIntel.app'
+==> Backing up App 'Duo2055VMIntelHelper.app' to '/usr/local/Caskroom/duo2055vm-intel/1.0/Duo2055VMIntelHelper.app'
+==> Removing App '/Applications/Duo2055VMIntelHelper.app'
+==> Purging files for version 1.0 of Cask duo2055vm-intel

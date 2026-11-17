@@ -1,0 +1,6 @@
+command: ['/opt/homebrew/bin/brew', 'uninstall', '--cask', 'duo2055vm-var']
+exit: 0
+==> Uninstalling Cask duo2055vm-var
+==> Backing up App 'Duo2055VMVar.app' to '/opt/homebrew/Caskroom/duo2055vm-var/1.0/Duo2055VMVar.app'
+==> Removing App '/Applications/Duo2055VMVar.app'
+==> Purging files for version 1.0 of Cask duo2055vm-var

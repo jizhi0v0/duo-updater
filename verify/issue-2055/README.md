@@ -1,4 +1,7 @@
-# Issue #2055: VM validation
+# Issue #2055: pre-fix VM baseline
+
+The baseline below records behavior before the fixes. The implementation and
+completed verification are described in [the final VM record](fixed-results/README.md).
 
 2026-11-17. VMPal macOS VM 1, Apple Silicon, macOS 27.2 (26B123), Homebrew 7.0.12. Guest clock showed November 16. Core source checkout: `57aefd45f9babb58fbb28979e25bb4854bc2e001`, also named in the issue. Relevant Homebrew source files had no working-tree changes. No production fix was made.
 
@@ -32,7 +35,7 @@ Additional #2036 check: removing only the full-version fixture's staged app syml
 
 ## Cleanup and scope
 
-Fixture packages were unpinned/uninstalled, temporary cask definitions removed, both rename maps restored and temporary `.zshrc` removed. Rosetta and the new Intel Brew remain in the VM. No host app was replaced, no issue comment posted, and no regression fix implemented. Existing working-tree changes were preserved.
+At the baseline checkpoint, fixture packages were unpinned/uninstalled, temporary cask definitions removed, both rename maps restored and temporary `.zshrc` removed. Rosetta and the new Intel Brew remained in the VM. No host app was replaced, no issue comment posted, and no regression fix had yet been implemented. Existing working-tree changes were preserved.
 
 ## Fixed-state VM runner
 
@@ -66,8 +69,8 @@ is the overall verdict; raw commands and outputs remain beside it.
 Cleanup runs on failure too. Existing rc and tap rename files are backed up,
 and restored only if their current bytes still equal this run's edit. A
 concurrent change makes the run fail and is preserved. Only packages and
-fixture paths proven absent at startup are removed. No result is claimed here
-until an actual VM run is recorded.
+fixture paths proven absent at startup are removed. Completed results are in
+[the final VM record](fixed-results/README.md).
 
 The fixed-state runner also includes adversarial controls added after review:
 

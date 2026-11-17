@@ -1,0 +1,8 @@
+command: ['/private/tmp/duo2055vm-fixed-f00a515b/core/.build/debug/FixedVMProbe', '/private/tmp/duo2055vm-fixed-f00a515b', 'selfupdated']
+exit: 0
+PASS: self-updated app is genuinely at offered payload
+PASS: Brew record deliberately remains stale after external app update
+PASS: self-updated control is not being hidden by pin
+PASS: pin: expected current/held, got upToDate
+PASS: pin status=upToDate, marketing=2.0, build=nil
+PASS: mode selfupdated

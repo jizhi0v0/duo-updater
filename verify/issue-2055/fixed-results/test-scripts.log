@@ -1,0 +1,458 @@
+/opt/homebrew/opt/python@3.14/libexec/bin/python3 scripts/test_appcast_edit.py
+..................................................
+----------------------------------------------------------------------
+Ran 50 tests in 0.018s
+
+OK
+/opt/homebrew/opt/python@3.14/libexec/bin/python3 scripts/test_publish_release.py
+test_signed_archive_channel_must_match_publication (__main__.ArtifactChannelGate.test_signed_archive_channel_must_match_publication) ... ok
+test_a_missing_dsym_is_refused_by_name (__main__.DsymGate.test_a_missing_dsym_is_refused_by_name) ... warning: (arm64) /var/folders/zh/stp9z0wd23v1xpxwtlmy_h540000gn/T/main-c156d6.o unable to open object file: No such file or directory
+warning: no debug symbols in executable (-arch arm64)
+ok
+test_another_builds_dsym_is_refused (__main__.DsymGate.test_another_builds_dsym_is_refused) ... warning: (arm64) /var/folders/zh/stp9z0wd23v1xpxwtlmy_h540000gn/T/main-b21f29.o unable to open object file: No such file or directory
+warning: no debug symbols in executable (-arch arm64)
+warning: (arm64) /var/folders/zh/stp9z0wd23v1xpxwtlmy_h540000gn/T/main-ab1137.o unable to open object file: No such file or directory
+warning: no debug symbols in executable (-arch arm64)
+ok
+test_the_builds_own_dsym_passes (__main__.DsymGate.test_the_builds_own_dsym_passes) ... warning: (arm64) /var/folders/zh/stp9z0wd23v1xpxwtlmy_h540000gn/T/main-5f4809.o unable to open object file: No such file or directory
+warning: no debug symbols in executable (-arch arm64)
+ok
+test_a_draft_or_prerelease_leaves_the_tap_alone (__main__.HomebrewTapGate.test_a_draft_or_prerelease_leaves_the_tap_alone) ... ok
+test_a_failed_bump_only_warns (__main__.HomebrewTapGate.test_a_failed_bump_only_warns) ... ok
+test_a_published_release_bumps_the_tap (__main__.HomebrewTapGate.test_a_published_release_bumps_the_tap) ... ok
+test_beta_feed_publication_does_not_bump_stable_tap (__main__.HomebrewTapGate.test_beta_feed_publication_does_not_bump_stable_tap) ... ok
+test_the_skip_variable_leaves_the_tap_alone (__main__.HomebrewTapGate.test_the_skip_variable_leaves_the_tap_alone) ... ok
+test_a_green_run_is_reported_quietly (__main__.PostMergeCI.test_a_green_run_is_reported_quietly) ... ok
+test_a_red_run_is_reported_and_does_not_fail_the_script (__main__.PostMergeCI.test_a_red_run_is_reported_and_does_not_fail_the_script) ... ok
+test_a_run_that_never_reports_does_not_hang (__main__.PostMergeCI.test_a_run_that_never_reports_does_not_hang) ... ok
+test_skipping_leaves_gh_alone (__main__.PostMergeCI.test_skipping_leaves_gh_alone) ... ok
+test_a_missing_artifact_is_resolved_rather_than_refused (__main__.SparkleToolLookup.test_a_missing_artifact_is_resolved_rather_than_refused) ... ok
+test_a_missing_pin_file_is_refused_before_resolving (__main__.SparkleToolLookup.test_a_missing_pin_file_is_refused_before_resolving) ... ok
+test_a_non_executable_candidate_does_not_count_as_the_tool (__main__.SparkleToolLookup.test_a_non_executable_candidate_does_not_count_as_the_tool) ... ok
+test_a_pinned_xcodegen_that_cannot_be_had_is_named (__main__.SparkleToolLookup.test_a_pinned_xcodegen_that_cannot_be_had_is_named) ... ok
+test_an_artifact_newer_than_the_spec_is_used_as_is (__main__.SparkleToolLookup.test_an_artifact_newer_than_the_spec_is_used_as_is) ... ok
+test_an_artifact_older_than_the_spec_is_re_resolved (__main__.SparkleToolLookup.test_an_artifact_older_than_the_spec_is_re_resolved) ... ok
+test_resolve_is_confined_to_the_committed_pins (__main__.SparkleToolLookup.test_resolve_is_confined_to_the_committed_pins) ... ok
+test_the_project_is_generated_with_a_team_id (__main__.SparkleToolLookup.test_the_project_is_generated_with_a_team_id) ... ok
+test_the_refusal_names_the_resolve_not_skip_notarize (__main__.SparkleToolLookup.test_the_refusal_names_the_resolve_not_skip_notarize) ... ok
+test_xcodegen_is_the_pinned_one_not_the_one_on_path (__main__.SparkleToolLookup.test_xcodegen_is_the_pinned_one_not_the_one_on_path) ... ok
+
+----------------------------------------------------------------------
+Ran 23 tests in 17.361s
+
+OK
+/opt/homebrew/opt/python@3.14/libexec/bin/python3 scripts/test_notarize_pins.py
+test_a_failing_pinned_xcodegen_stops_the_build (__main__.NotarizePins.test_a_failing_pinned_xcodegen_stops_the_build) ... ok
+test_a_missing_pin_file_is_refused_before_building (__main__.NotarizePins.test_a_missing_pin_file_is_refused_before_building) ... ok
+test_the_project_is_generated_by_the_pinned_xcodegen_not_path (__main__.NotarizePins.test_the_project_is_generated_by_the_pinned_xcodegen_not_path) ... ok
+test_the_release_build_is_confined_to_the_committed_pins (__main__.NotarizePins.test_the_release_build_is_confined_to_the_committed_pins) ... ok
+
+----------------------------------------------------------------------
+Ran 4 tests in 3.223s
+
+OK
+/opt/homebrew/opt/python@3.14/libexec/bin/python3 scripts/test_pinned_xcodegen.py
+test_every_workflow_that_installs_xcodegen_uses_the_pinned_script (__main__.NoPathOrBrewXcodegen.test_every_workflow_that_installs_xcodegen_uses_the_pinned_script) ... ok
+test_no_workflow_brew_installs_xcodegen (__main__.NoPathOrBrewXcodegen.test_no_workflow_brew_installs_xcodegen) ... ok
+test_signing_scripts_never_use_xcodegen_from_path (__main__.NoPathOrBrewXcodegen.test_signing_scripts_never_use_xcodegen_from_path) ... ok
+test_version_and_hash_are_defined_only_in_the_script (__main__.NoPathOrBrewXcodegen.test_version_and_hash_are_defined_only_in_the_script) ... ok
+test_a_cache_directory_owned_by_someone_else_is_refused (__main__.PinnedScript.test_a_cache_directory_owned_by_someone_else_is_refused) ... ok
+test_a_failed_download_is_an_error_not_an_empty_path (__main__.PinnedScript.test_a_failed_download_is_an_error_not_an_empty_path) ... ok
+test_a_good_zip_yields_a_working_binary_path (__main__.PinnedScript.test_a_good_zip_yields_a_working_binary_path) ... ok
+test_a_group_writable_cache_directory_is_refused (__main__.PinnedScript.test_a_group_writable_cache_directory_is_refused) ... ok
+test_a_symlinked_cache_directory_is_refused (__main__.PinnedScript.test_a_symlinked_cache_directory_is_refused) ... ok
+test_a_tampered_cached_zip_is_not_trusted (__main__.PinnedScript.test_a_tampered_cached_zip_is_not_trusted) ... ok
+test_a_tampered_unpacked_binary_is_replaced_from_the_verified_zip (__main__.PinnedScript.test_a_tampered_unpacked_binary_is_replaced_from_the_verified_zip) ... ok
+test_a_zip_with_the_wrong_hash_is_refused (__main__.PinnedScript.test_a_zip_with_the_wrong_hash_is_refused) ... ok
+test_the_second_run_uses_the_cache_without_downloading (__main__.PinnedScript.test_the_second_run_uses_the_cache_without_downloading) ... ok
+
+----------------------------------------------------------------------
+Ran 13 tests in 3.826s
+
+OK
+/opt/homebrew/opt/python@3.14/libexec/bin/python3 scripts/test_derived_data_path.py
+.......
+----------------------------------------------------------------------
+Ran 7 tests in 0.025s
+
+OK
+/opt/homebrew/opt/python@3.14/libexec/bin/python3 scripts/test_pkg_host_architectures.py
+..........
+----------------------------------------------------------------------
+Ran 10 tests in 0.578s
+
+OK
+/opt/homebrew/opt/python@3.14/libexec/bin/python3 scripts/test_homebrew_tap.py
+test_refuses_a_cask_it_cannot_read_unambiguously (__main__.Bump.test_refuses_a_cask_it_cannot_read_unambiguously) ... ok
+test_rejects_a_tag_or_a_bad_digest (__main__.Bump.test_rejects_a_tag_or_a_bad_digest) ... ok
+test_rewrites_version_and_sha_and_nothing_else (__main__.Bump.test_rewrites_version_and_sha_and_nothing_else) ... ok
+test_same_release_is_a_no_op (__main__.Bump.test_same_release_is_a_no_op) ... ok
+test_the_url_template_is_left_alone (__main__.Bump.test_the_url_template_is_left_alone) ... ok
+
+----------------------------------------------------------------------
+Ran 5 tests in 0.000s
+
+OK
+/opt/homebrew/opt/python@3.14/libexec/bin/python3 scripts/test_sunset_sweep.py
+........   news     : no cask named 'Foo', dropped
+.   news     : no cask named 'Unknown Thing', dropped
+....................
+----------------------------------------------------------------------
+Ran 29 tests in 0.206s
+
+OK
+::warning::review of hex failed: 300 s
+/opt/homebrew/opt/python@3.14/libexec/bin/python3 scripts/test_trails_review.py
+......................
+----------------------------------------------------------------------
+Ran 22 tests in 0.047s
+
+OK
+/opt/homebrew/opt/python@3.14/libexec/bin/python3 scripts/test_site_floor.py
+test_a_directory_that_is_not_a_checkout_cannot_be_compared (__main__.AgainstAGitRepository.test_a_directory_that_is_not_a_checkout_cannot_be_compared) ... ok
+test_reads_the_fetched_branch_not_the_local_checkout (__main__.AgainstAGitRepository.test_reads_the_fetched_branch_not_the_local_checkout)
+The site is fixed on origin after this clone was made: the local tree ... ok
+test_the_changelog_copy_is_excluded_end_to_end (__main__.AgainstAGitRepository.test_the_changelog_copy_is_excluded_end_to_end) ... ok
+test_a_minor_version_reads_as_its_major (__main__.Parsing.test_a_minor_version_reads_as_its_major) ... ok
+test_every_real_site_phrasing_is_read (__main__.Parsing.test_every_real_site_phrasing_is_read)
+Mutation: drop `\+` from the pattern → layout.tsx is not read. ... ok
+test_the_site_copy_of_the_changelog_is_not_the_site_speaking (__main__.Parsing.test_the_site_copy_of_the_changelog_is_not_the_site_speaking)
+Release notes describe other apps: "needs macOS 26 or later". ... ok
+test_unreadable_floor_is_none (__main__.Parsing.test_unreadable_floor_is_none) ... ok
+test_a_site_behind_a_raised_floor_is_reported_line_by_line (__main__.Verdict.test_a_site_behind_a_raised_floor_is_reported_line_by_line) ... ok
+test_a_site_that_agrees (__main__.Verdict.test_a_site_that_agrees) ... ok
+test_finding_nothing_is_not_agreement (__main__.Verdict.test_finding_nothing_is_not_agreement)
+The site reworded to "Sequoia or newer": no statement is read, and that ... ok
+test_no_floor_in_the_app_is_not_agreement (__main__.Verdict.test_no_floor_in_the_app_is_not_agreement) ... ok
+test_one_line_left_behind_is_still_a_mismatch (__main__.Verdict.test_one_line_left_behind_is_still_a_mismatch)
+Mutation: report a mismatch only when every statement differs → green. ... ok
+
+----------------------------------------------------------------------
+Ran 12 tests in 1.286s
+
+OK
+/opt/homebrew/opt/python@3.14/libexec/bin/python3 scripts/test_recipe_autofix_check.py
+...
+----------------------------------------------------------------------
+Ran 3 tests in 1.096s
+
+OK
+/opt/homebrew/opt/python@3.14/libexec/bin/python3 scripts/test_runner_hook.py
+...............
+----------------------------------------------------------------------
+Ran 15 tests in 3.979s
+
+OK
+/opt/homebrew/opt/python@3.14/libexec/bin/python3 scripts/test_ci_build_cache.py
+...
+----------------------------------------------------------------------
+Ran 3 tests in 0.495s
+
+OK
+/opt/homebrew/opt/python@3.14/libexec/bin/python3 scripts/test_ci_xcode_cache.py
+.....
+----------------------------------------------------------------------
+Ran 5 tests in 0.750s
+
+OK
+/opt/homebrew/opt/python@3.14/libexec/bin/python3 scripts/test_unsigned_release_build.py
+....
+----------------------------------------------------------------------
+Ran 4 tests in 3.516s
+
+OK
+/opt/homebrew/opt/python@3.14/libexec/bin/python3 scripts/test_check_prose_claims.py
+test_a_bare_exemption_is_not_an_exemption (__main__.ProseClaims.test_a_bare_exemption_is_not_an_exemption) ... ok
+test_a_clean_tree_passes (__main__.ProseClaims.test_a_clean_tree_passes) ... ok
+test_a_dated_verification_and_a_runtime_here_are_left_alone (__main__.ProseClaims.test_a_dated_verification_and_a_runtime_here_are_left_alone) ... ok
+test_a_described_marker_does_not_exempt_a_real_claim (__main__.ProseClaims.test_a_described_marker_does_not_exempt_a_real_claim) ... ok
+test_a_missing_root_is_a_failure_not_a_smaller_scan (__main__.ProseClaims.test_a_missing_root_is_a_failure_not_a_smaller_scan) ... ✗ these source roots are not under /var/folders/zh/stp9z0wd23v1xpxwtlmy_h540000gn/T/duo-claims-ci2nxv7t: Nope
+  Fix the paths rather than dropping them.
+ok
+test_an_exemption_matching_nothing_fails (__main__.ProseClaims.test_an_exemption_matching_nothing_fails) ... ok
+test_an_exemption_with_a_reason_clears_it (__main__.ProseClaims.test_an_exemption_with_a_reason_clears_it) ... ok
+test_describing_the_marker_is_not_invoking_it (__main__.ProseClaims.test_describing_the_marker_is_not_invoking_it) ... ok
+test_scanning_almost_nothing_is_a_failure (__main__.ProseClaims.test_scanning_almost_nothing_is_a_failure) ... ✗ only 1 Swift files scanned across 1 roots — too few to be a real run.
+ok
+test_the_same_sentence_unwrapped_is_caught_too (__main__.ProseClaims.test_the_same_sentence_unwrapped_is_caught_too) ... ok
+test_the_wrapped_sentence_that_motivated_this_is_caught (__main__.ProseClaims.test_the_wrapped_sentence_that_motivated_this_is_caught) ... ok
+
+----------------------------------------------------------------------
+Ran 11 tests in 0.010s
+
+OK
+✓ no machine-population claims in code comments — 1 files
+/opt/homebrew/opt/python@3.14/libexec/bin/python3 scripts/test_check_offpool.py
+test_a_block_opener_inside_a_line_comment_is_inert (__main__.OffPool.test_a_block_opener_inside_a_line_comment_is_inert) ... ok
+test_a_brace_inside_a_block_comment_is_not_a_scope (__main__.OffPool.test_a_brace_inside_a_block_comment_is_not_a_scope) ... ok
+test_a_default_closure_argument_does_not_end_the_signature (__main__.OffPool.test_a_default_closure_argument_does_not_end_the_signature) ... ok
+test_a_detached_task_is_not_a_hop (__main__.OffPool.test_a_detached_task_is_not_a_hop) ... ok
+test_a_hopped_call_passes (__main__.OffPool.test_a_hopped_call_passes) ... ok
+test_a_launch_in_a_comment_is_not_code (__main__.OffPool.test_a_launch_in_a_comment_is_not_code) ... ok
+test_a_launch_in_a_synchronous_helper_is_refused (__main__.OffPool.test_a_launch_in_a_synchronous_helper_is_refused) ... ok
+test_a_launch_inside_a_hop_is_refused (__main__.OffPool.test_a_launch_inside_a_hop_is_refused) ... ok
+test_a_missing_root_fails (__main__.OffPool.test_a_missing_root_fails) ... ✗ these source roots are not under /var/folders/zh/stp9z0wd23v1xpxwtlmy_h540000gn/T/duo-offpool-6r_bpipg: Nope
+  Fix the paths rather than dropping them.
+ok
+test_a_retired_spelling_may_match_nothing (__main__.OffPool.test_a_retired_spelling_may_match_nothing) ... ok
+test_a_retired_spelling_not_in_blocking_fails (__main__.OffPool.test_a_retired_spelling_not_in_blocking_fails) ... ✗ `waitUntilExit ()` is in RETIRED but not in BLOCKING — fix the spelling
+ok
+test_a_retired_spelling_that_matches_again_fails (__main__.OffPool.test_a_retired_spelling_that_matches_again_fails) ... ✗ `waitUntilExit()` is RETIRED but matches 1 call(s) again — take it out of RETIRED
+ok
+test_a_stale_exemption_fails (__main__.OffPool.test_a_stale_exemption_fails) ... ok
+test_a_stale_marker_is_not_covered_by_a_longer_live_one (__main__.OffPool.test_a_stale_marker_is_not_covered_by_a_longer_live_one) ... ok
+test_a_synchronous_helper_is_not_reported (__main__.OffPool.test_a_synchronous_helper_is_not_reported) ... ok
+test_a_synchronous_test_body_is_the_cooperative_pool (__main__.OffPool.test_a_synchronous_test_body_is_the_cooperative_pool) ... ok
+test_a_test_attribute_above_belongs_to_the_next_func_only (__main__.OffPool.test_a_test_attribute_above_belongs_to_the_next_func_only) ... ok
+test_a_wrapped_async_signature_is_still_async (__main__.OffPool.test_a_wrapped_async_signature_is_still_async) ... ok
+test_an_async_getter_is_an_async_scope (__main__.OffPool.test_an_async_getter_is_an_async_scope) ... ok
+test_an_awaited_wait_is_not_a_parked_thread (__main__.OffPool.test_an_awaited_wait_is_not_a_parked_thread) ... ok
+test_an_exempted_launch_passes_and_its_exemption_is_live (__main__.OffPool.test_an_exempted_launch_passes_and_its_exemption_is_live) ... ok
+test_an_exemption_needs_a_reason (__main__.OffPool.test_an_exemption_needs_a_reason) ... ok
+test_an_exemption_with_a_reason_exempts (__main__.OffPool.test_an_exemption_with_a_reason_exempts) ... ok
+test_an_extended_string_literal_is_not_code (__main__.OffPool.test_an_extended_string_literal_is_not_code) ... ok
+test_brace_arithmetic_survives_one_line_bodies_and_else (__main__.OffPool.test_brace_arithmetic_survives_one_line_bodies_and_else) ... ok
+test_dispatch_sync_is_still_the_calling_thread (__main__.OffPool.test_dispatch_sync_is_still_the_calling_thread) ... ok
+test_every_launch_spelling_is_refused (__main__.OffPool.test_every_launch_spelling_is_refused) ... ok
+test_every_spelling_matching_passes (__main__.OffPool.test_every_spelling_matching_passes) ... ok
+test_gcd_closures_are_not_the_cooperative_pool (__main__.OffPool.test_gcd_closures_are_not_the_cooperative_pool) ... ok
+test_lookalike_names_are_not_launches (__main__.OffPool.test_lookalike_names_are_not_launches) ... ok
+test_one_spelling_that_matches_nothing_fails (__main__.OffPool.test_one_spelling_that_matches_nothing_fails) ... ✗ `SecStaticCodeCheckValidity` matches no call in Sources.
+  If the API was renamed, fix the spelling in BLOCKING; if the last call really is gone, move it to RETIRED with the reason.
+ok
+test_semaphore_and_group_waits_are_blocking (__main__.OffPool.test_semaphore_and_group_waits_are_blocking) ... ok
+test_the_signing_wrappers_are_blocking (__main__.OffPool.test_the_signing_wrappers_are_blocking) ... ok
+test_the_tests_are_scanned (__main__.OffPool.test_the_tests_are_scanned) ... ok
+test_too_few_blocking_calls_fails (__main__.OffPool.test_too_few_blocking_calls_fails) ... ✗ `readDataToEndOfFile()` matches no call in Sources.
+  If the API was renamed, fix the spelling in BLOCKING; if the last call really is gone, move it to RETIRED with the reason.
+✗ `SecStaticCodeCheckValidity` matches no call in Sources.
+  If the API was renamed, fix the spelling in BLOCKING; if the last call really is gone, move it to RETIRED with the reason.
+✗ `SecCodeCopySigningInformation` matches no call in Sources.
+  If the API was renamed, fix the spelling in BLOCKING; if the last call really is gone, move it to RETIRED with the reason.
+✗ `.wait()` matches no call in Sources.
+  If the API was renamed, fix the spelling in BLOCKING; if the last call really is gone, move it to RETIRED with the reason.
+✗ `.wait(timeout:` matches no call in Sources.
+  If the API was renamed, fix the spelling in BLOCKING; if the last call really is gone, move it to RETIRED with the reason.
+✗ `.run(key:` matches no call in Sources.
+  If the API was renamed, fix the spelling in BLOCKING; if the last call really is gone, move it to RETIRED with the reason.
+✗ `verifyCodeSignature(` matches no call in Sources.
+  If the API was renamed, fix the spelling in BLOCKING; if the last call really is gone, move it to RETIRED with the reason.
+✗ `teamIdentifier(at:` matches no call in Sources.
+  If the API was renamed, fix the spelling in BLOCKING; if the last call really is gone, move it to RETIRED with the reason.
+✗ `signingIdentifier(at:` matches no call in Sources.
+  If the API was renamed, fix the spelling in BLOCKING; if the last call really is gone, move it to RETIRED with the reason.
+✗ `signingSummary(at:` matches no call in Sources.
+  If the API was renamed, fix the spelling in BLOCKING; if the last call really is gone, move it to RETIRED with the reason.
+✗ `verifyTeamIdentifierMatch(` matches no call in Sources.
+  If the API was renamed, fix the spelling in BLOCKING; if the last call really is gone, move it to RETIRED with the reason.
+✗ `verifyBundleIdentifierMatch(` matches no call in Sources.
+  If the API was renamed, fix the spelling in BLOCKING; if the last call really is gone, move it to RETIRED with the reason.
+✗ `verifyDigestOnlyIdentity(` matches no call in Sources.
+  If the API was renamed, fix the spelling in BLOCKING; if the last call really is gone, move it to RETIRED with the reason.
+✗ `verifyIsXcode(` matches no call in Sources.
+  If the API was renamed, fix the spelling in BLOCKING; if the last call really is gone, move it to RETIRED with the reason.
+✗ `CLIToolTrust.signature(` matches no call in Sources.
+  If the API was renamed, fix the spelling in BLOCKING; if the last call really is gone, move it to RETIRED with the reason.
+✗ `verifyAnthropicSignature(` matches no call in Sources.
+  If the API was renamed, fix the spelling in BLOCKING; if the last call really is gone, move it to RETIRED with the reason.
+✗ `verifyVercelSignature(` matches no call in Sources.
+  If the API was renamed, fix the spelling in BLOCKING; if the last call really is gone, move it to RETIRED with the reason.
+ok
+test_too_few_files_fails (__main__.OffPool.test_too_few_files_fails) ... ✗ only 1 Swift files scanned across 1 roots — too few to be a real run.
+ok
+
+----------------------------------------------------------------------
+Ran 36 tests in 0.141s
+
+OK
+✓ no blocking calls left on the cooperative pool — 17 call(s) in 1 files
+✓ no blocking calls left on the cooperative pool — 18 call(s) in 1 files
+/opt/homebrew/opt/python@3.14/libexec/bin/python3 scripts/test_check_recipe_snapshots.py
+test_a_bare_marker_is_not_an_exemption (__main__.Snapshots.test_a_bare_marker_is_not_an_exemption) ... ok
+test_a_broken_shape_fails_the_canaries (__main__.Snapshots.test_a_broken_shape_fails_the_canaries) ... ✗ shape `count-on-date` no longer catches its canary: 'Shape (51 entries on 2026-09-14): `## v1.0.914.1` headings.'
+  The patterns no longer do what their canaries say. Fix SHAPES (or the exclusions) rather than the canary.
+ok
+test_a_clean_tree_passes (__main__.Snapshots.test_a_clean_tree_passes) ... ok
+test_a_dash_with_no_words_after_it_is_not_a_reason (__main__.Snapshots.test_a_dash_with_no_words_after_it_is_not_a_reason) ... ok
+test_a_marker_does_not_reach_the_next_paragraph (__main__.Snapshots.test_a_marker_does_not_reach_the_next_paragraph) ... ok
+test_a_marker_whose_paragraph_has_no_snapshot_fails (__main__.Snapshots.test_a_marker_whose_paragraph_has_no_snapshot_fails) ... ok
+test_a_marker_with_a_reason_clears_its_paragraph (__main__.Snapshots.test_a_marker_with_a_reason_clears_its_paragraph) ... ok
+test_a_missing_recipes_dir_is_a_failure (__main__.Snapshots.test_a_missing_recipes_dir_is_a_failure) ... ✗ DuoUpdaterCore/Sources/DuoUpdaterCore/Recipes is not under /var/folders/zh/stp9z0wd23v1xpxwtlmy_h540000gn/T/duo-snapshots-empty-jc_bfksj — fix the path rather than scanning nothing.
+ok
+test_a_sentence_wrapped_across_lines_is_caught (__main__.Snapshots.test_a_sentence_wrapped_across_lines_is_caught) ... ok
+test_a_stale_marker_fails_main (__main__.Snapshots.test_a_stale_marker_fails_main) ... ok
+test_an_inline_pointer_does_not_hide_its_line (__main__.Snapshots.test_an_inline_pointer_does_not_hide_its_line) ... ok
+test_an_offence_fails_main (__main__.Snapshots.test_an_offence_fails_main) ... ok
+test_citing_history_without_a_pointer_fails (__main__.Snapshots.test_citing_history_without_a_pointer_fails) ... ok
+test_date_led_and_as_of_are_caught (__main__.Snapshots.test_date_led_and_as_of_are_caught) ... ok
+test_describing_the_marker_is_not_invoking_it (__main__.Snapshots.test_describing_the_marker_is_not_invoking_it) ... ok
+test_guarding_too_few_families_is_a_failure (__main__.Snapshots.test_guarding_too_few_families_is_a_failure) ... ✗ only 1 guarded recipe families — too few to be a real run.
+ok
+test_the_default_floor_refuses_a_small_tree (__main__.Snapshots.test_the_default_floor_refuses_a_small_tree) ... ok
+test_the_floor_admits_a_tree_at_exactly_the_minimum (__main__.Snapshots.test_the_floor_admits_a_tree_at_exactly_the_minimum) ... ok
+test_the_real_snapshots_from_610_622_623_are_caught_under_their_shape (__main__.Snapshots.test_the_real_snapshots_from_610_622_623_are_caught_under_their_shape) ... ok
+test_the_rest_of_a_pointer_line_is_scanned (__main__.Snapshots.test_the_rest_of_a_pointer_line_is_scanned) ... ok
+test_the_shapes_the_batches_keep_are_left_alone (__main__.Snapshots.test_the_shapes_the_batches_keep_are_left_alone) ... ok
+test_when_checked_excuses_only_what_is_next_to_it (__main__.Snapshots.test_when_checked_excuses_only_what_is_next_to_it) ... ok
+
+----------------------------------------------------------------------
+Ran 22 tests in 0.035s
+
+OK
+/opt/homebrew/opt/python@3.14/libexec/bin/python3 scripts/test_check_swift_backdeploy.py
+test_a_correctly_embedded_real_shim_passes (__main__.BackDeploy.test_a_correctly_embedded_real_shim_passes) ... ok
+test_a_nested_executable_uses_its_own_executable_path (__main__.BackDeploy.test_a_nested_executable_uses_its_own_executable_path) ... ok
+test_a_path_without_mach_o_fails (__main__.BackDeploy.test_a_path_without_mach_o_fails) ... ✗ no Mach-O files under /var/folders/zh/stp9z0wd23v1xpxwtlmy_h540000gn/T/ZZFixture-backdeploy-_6eb7yfa
+ok
+test_a_shim_beside_a_lone_binary_is_not_embedded (__main__.BackDeploy.test_a_shim_beside_a_lone_binary_is_not_embedded) ... ok
+test_a_shim_embedded_in_the_bundle_passes (__main__.BackDeploy.test_a_shim_embedded_in_the_bundle_passes) ... ok
+test_an_absolute_run_path_does_not_count (__main__.BackDeploy.test_an_absolute_run_path_does_not_count) ... ok
+test_an_unembedded_span_shim_fails (__main__.BackDeploy.test_an_unembedded_span_shim_fails) ... ok
+test_the_os_runtime_by_run_path_passes (__main__.BackDeploy.test_the_os_runtime_by_run_path_passes) ... ok
+test_the_parsers_read_real_listings (__main__.BackDeploy.test_the_parsers_read_real_listings) ... ok
+
+----------------------------------------------------------------------
+Ran 9 tests in 1.290s
+
+OK
+/opt/homebrew/opt/python@3.14/libexec/bin/python3 scripts/test_claude_lag_probe.py
+....
+----------------------------------------------------------------------
+Ran 4 tests in 1.583s
+
+OK
+/opt/homebrew/opt/python@3.14/libexec/bin/python3 scripts/test_app_test_coverage.py
+......................................
+----------------------------------------------------------------------
+Ran 38 tests in 12.877s
+
+OK
+/opt/homebrew/opt/python@3.14/libexec/bin/python3 scripts/test_check_localizable_specifiers.py
+test_a_catalog_too_small_to_be_real_fails (__main__.SpecifierCheck.test_a_catalog_too_small_to_be_real_fails)
+Vacuity guard: a parse that silently stops matching must not pass. ... ok
+test_a_literal_percent_carries_no_argument (__main__.SpecifierCheck.test_a_literal_percent_carries_no_argument) ... ok
+test_a_named_substitution_is_not_a_failure (__main__.SpecifierCheck.test_a_named_substitution_is_not_a_failure)
+The shape Xcode writes for plurals, and the one a first draft of this ... ok
+test_a_substitution_body_with_the_wrong_type_is_caught (__main__.SpecifierCheck.test_a_substitution_body_with_the_wrong_type_is_caught) ... ok
+test_a_substitution_pointed_at_the_wrong_argument_is_caught (__main__.SpecifierCheck.test_a_substitution_pointed_at_the_wrong_argument_is_caught) ... ok
+test_a_swapped_pair_is_caught (__main__.SpecifierCheck.test_a_swapped_pair_is_caught)
+Both specifiers present, in the wrong order. Formats garbage. ... ok
+test_an_argument_the_key_does_not_pass_is_caught (__main__.SpecifierCheck.test_an_argument_the_key_does_not_pass_is_caught) ... ok
+test_keys_without_specifiers_are_not_examined (__main__.SpecifierCheck.test_keys_without_specifiers_are_not_examined) ... ok
+test_mixing_positional_and_implicit_is_caught (__main__.SpecifierCheck.test_mixing_positional_and_implicit_is_caught) ... ok
+test_reordering_with_positions_is_allowed (__main__.SpecifierCheck.test_reordering_with_positions_is_allowed) ... ok
+test_the_fix_passes (__main__.SpecifierCheck.test_the_fix_passes) ... ok
+test_the_real_catalog_passes (__main__.SpecifierCheck.test_the_real_catalog_passes) ... ok
+test_the_singular_that_crashed_is_caught (__main__.SpecifierCheck.test_the_singular_that_crashed_is_caught)
+Mutation: restore the shipped `one` variant. Must fail. ... ok
+
+----------------------------------------------------------------------
+Ran 13 tests in 0.047s
+
+OK
+/opt/homebrew/opt/python@3.14/libexec/bin/python3 scripts/check_localizable_specifiers.py
+✓ format specifiers agree with their keys — 373 key(s), 4181 variant(s)
+/opt/homebrew/opt/python@3.14/libexec/bin/python3 scripts/check_staged_version_use.py
+✓ version comparisons discriminate — 1148 files, 2 ledger call(s) keyed on the build, 11 marketing-first pick(s), all display-only
+/opt/homebrew/opt/python@3.14/libexec/bin/python3 scripts/test_check_staged_version_use.py
+...........
+----------------------------------------------------------------------
+Ran 11 tests in 0.001s
+
+OK
+/opt/homebrew/opt/python@3.14/libexec/bin/python3 scripts/check_cli_concurrency_gates.py
+✓ No inline brew/tool gate in 3 CLI-tab views
+/opt/homebrew/opt/python@3.14/libexec/bin/python3 scripts/test_check_cli_concurrency_gates.py
+...
+----------------------------------------------------------------------
+Ran 3 tests in 0.011s
+
+OK
+✓ No inline brew/tool gate in 3 CLI-tab views
+/opt/homebrew/opt/python@3.14/libexec/bin/python3 scripts/check_app_audits.py
+✓ app audits consistent — 376 docs, all indexed, no machine inventory, no pointers into untracked evidence, no hand-over placeholders, no unanswered TODO(audit), history pointers resolve (1964 Swift files, 400 families)
+/opt/homebrew/opt/python@3.14/libexec/bin/python3 scripts/check_recipe_snapshots.py
+✓ no dated snapshots in recipe comments — 400 families guarded
+/opt/homebrew/opt/python@3.14/libexec/bin/python3 scripts/check_engine_notes.py
+✓ engine-notes pointers resolve — 1964 Swift files scanned, 9 doc(s) indexed
+/opt/homebrew/opt/python@3.14/libexec/bin/python3 scripts/check_skill_docs.py
+✓ skill docs consistent — 4 files mirrored, documented parameter counts (29 / 31) match the initializers
+/opt/homebrew/opt/python@3.14/libexec/bin/python3 scripts/check_prose_claims.py
+✓ no machine-population claims in code comments — 1964 files
+/opt/homebrew/opt/python@3.14/libexec/bin/python3 scripts/test_check_digest_only_names.py
+..........
+----------------------------------------------------------------------
+Ran 10 tests in 0.284s
+
+OK
+✓ digest-only apps named in Settings: Alacritty, Flameshot, darktable, disktree, Lokii, Obelus
+/opt/homebrew/opt/python@3.14/libexec/bin/python3 scripts/check_digest_only_names.py
+✓ digest-only apps named in Settings: Alacritty, Flameshot, darktable, disktree, Lokii, Obelus
+/opt/homebrew/opt/python@3.14/libexec/bin/python3 scripts/check_offpool.py
+✓ no blocking calls left on the cooperative pool — 184 call(s) in 1935 files
+/opt/homebrew/opt/python@3.14/libexec/bin/python3 scripts/test_check_github_gate.py
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/tempfile.py:1041: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/var/folders/zh/stp9z0wd23v1xpxwtlmy_h540000gn/T/tmpsqd8zhmo'>
+  _warnings.warn(warn_message, ResourceWarning)
+./opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/tempfile.py:1041: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/var/folders/zh/stp9z0wd23v1xpxwtlmy_h540000gn/T/tmp1ark9uam'>
+  _warnings.warn(warn_message, ResourceWarning)
+./opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/tempfile.py:1041: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/var/folders/zh/stp9z0wd23v1xpxwtlmy_h540000gn/T/tmpww4yrr59'>
+  _warnings.warn(warn_message, ResourceWarning)
+./opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/tempfile.py:1041: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/var/folders/zh/stp9z0wd23v1xpxwtlmy_h540000gn/T/tmp9371ve7t'>
+  _warnings.warn(warn_message, ResourceWarning)
+../opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/tempfile.py:1041: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/var/folders/zh/stp9z0wd23v1xpxwtlmy_h540000gn/T/tmp836yybqv'>
+  _warnings.warn(warn_message, ResourceWarning)
+./opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/tempfile.py:1041: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/var/folders/zh/stp9z0wd23v1xpxwtlmy_h540000gn/T/tmpxwwxp85n'>
+  _warnings.warn(warn_message, ResourceWarning)
+./opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/tempfile.py:1041: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/var/folders/zh/stp9z0wd23v1xpxwtlmy_h540000gn/T/tmpr0istq7h'>
+  _warnings.warn(warn_message, ResourceWarning)
+..
+----------------------------------------------------------------------
+Ran 9 tests in 0.719s
+
+OK
+/opt/homebrew/opt/python@3.14/libexec/bin/python3 scripts/check_github_gate.py
+✓ GitHub API requests all pass the rate-limit gate
+/opt/homebrew/opt/python@3.14/libexec/bin/python3 scripts/test_check_ifchange.py
+................................
+----------------------------------------------------------------------
+Ran 32 tests in 5.462s
+
+OK
+/opt/homebrew/opt/python@3.14/libexec/bin/python3 scripts/check_ifchange.py
+✓ 4 LINT.IfChange block(s) checked
+/opt/homebrew/opt/python@3.14/libexec/bin/python3 scripts/test_check_real_machine_record.py
+....................
+----------------------------------------------------------------------
+Ran 20 tests in 0.001s
+
+OK
+/opt/homebrew/opt/python@3.14/libexec/bin/python3 scripts/test_check_verify_report.py
+.........
+----------------------------------------------------------------------
+Ran 9 tests in 0.448s
+
+OK
+/opt/homebrew/opt/python@3.14/libexec/bin/python3 scripts/test_install_verify_workflow.py
+....
+----------------------------------------------------------------------
+Ran 4 tests in 1.058s
+
+OK
+/opt/homebrew/opt/python@3.14/libexec/bin/python3 scripts/test_check_adversarial_review.py
+...................
+----------------------------------------------------------------------
+Ran 19 tests in 0.001s
+
+OK
+/opt/homebrew/opt/python@3.14/libexec/bin/python3 scripts/test_check_nightly_data.py
+.............
+----------------------------------------------------------------------
+Ran 13 tests in 0.194s
+
+OK
+/opt/homebrew/opt/python@3.14/libexec/bin/python3 scripts/test_check_ci_results.py
+..
+----------------------------------------------------------------------
+Ran 2 tests in 0.000s
+
+OK

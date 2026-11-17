@@ -1,0 +1,2 @@
+command: ['/opt/homebrew/bin/brew', 'unpin', 'duo2055vm-formula']
+exit: 0

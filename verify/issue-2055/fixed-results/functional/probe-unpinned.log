@@ -1,0 +1,5 @@
+command: ['/private/tmp/duo2055vm-fixed-f00a515b/core/.build/debug/FixedVMProbe', '/private/tmp/duo2055vm-fixed-f00a515b', 'unpinned']
+exit: 0
+PASS: live unpin is visible
+PASS: pin status=updateAvailable(latest: "2.0"), marketing=2.0, build=nil
+PASS: mode unpinned

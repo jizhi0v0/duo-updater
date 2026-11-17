@@ -1,0 +1,2 @@
+explicit legacy alias added after successful actual migration
+/opt/homebrew/Caskroom/duo2055vm-old -> duo2055vm-new

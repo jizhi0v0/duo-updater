@@ -1,0 +1,9 @@
+command: ['/private/tmp/duo2055vm-fixed-f00a515b/core/.build/debug/FixedVMProbe', '/private/tmp/duo2055vm-fixed-f00a515b', 'upgraded']
+exit: 0
+PASS: fullcomma upgrade changed actual bundle build
+PASS: fullcomma: expected current/held, got upToDate
+PASS: fullcomma status=upToDate, marketing=1.0, build=nil
+PASS: fullcolon upgrade changed actual bundle build
+PASS: fullcolon: expected current/held, got upToDate
+PASS: fullcolon status=upToDate, marketing=1.0, build=nil
+PASS: mode upgraded

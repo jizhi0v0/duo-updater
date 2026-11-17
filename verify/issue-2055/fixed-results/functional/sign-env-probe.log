@@ -1,0 +1,3 @@
+command: ['/usr/bin/codesign', '--force', '--sign', '-', '/private/tmp/duo2055vm-fixed-f00a515b/EnvProbe.app']
+exit: 0
+/private/tmp/duo2055vm-fixed-f00a515b/EnvProbe.app: replacing existing signature

@@ -1,0 +1,6 @@
+command: ['/usr/bin/arch', '-x86_64', '/usr/local/bin/brew', 'uninstall', '--cask', 'duo2055vm/fixture/duo2055vm-thirdintel']
+exit: 0
+==> Uninstalling Cask duo2055vm-thirdintel
+==> Backing up App 'Duo2055VMThirdIntel.app' to '/usr/local/Caskroom/duo2055vm-thirdintel/1.0/Duo2055VMThirdIntel.app'
+==> Removing App '/Applications/Duo2055VMThirdIntel.app'
+==> Purging files for version 1.0 of Cask duo2055vm-thirdintel

@@ -1,0 +1,140 @@
+Building for debugging...
+[Using on-disk description]
+[1 / 1]
+[1 / 8] DuoUpdaterCore
+[2 / 8] DuoUpdaterCoreTests-product
+[4 / 10] DuoUpdaterCoreTests-product
+[9 / 12] DuoUpdaterCoreTests-product
+[10 / 12] DuoUpdaterCoreTests-product
+[11 / 12] DuoUpdaterCoreTests-product
+[12 / 12] DuoUpdaterCoreTests-product
+Build complete! (60.79 sec)
+◇ Test run started.
+↳ Testing Library Version: 2403
+↳ Target Platform: arm64e-apple-macos14.0
+◇ Suite HomebrewCompatibilityTests started.
+◇ Suite HomebrewExecutionCompatibilityTests started.
+◇ Suite ThirdPartyCaskSourceTests started.
+◇ Test activeTokenWinsOverAnOldAlias() started.
+◇ Test opaqueVersionSuffixIsNotInterpretedAsABundleBuild(latest:) started.
+◇ Test foreignOrUnavailablePrefixesAreRefused() started.
+◇ Test batchChecksRefuseOverlappingForeignOwnersButKeepIndependentCopies() started.
+◇ Test shellVariablesAndExplicitOperationalFlagsHaveDefinedPrecedence() started.
+◇ Test packageRouteCannotInferAnOpaqueSuffixUpdateFromItsUnchangedBrewRecord(latest:) started.
+◇ Test staleBrewReceiptDoesNotReofferAnInstalledMarketingRelease(packageRoute:) started.
+◇ Test supportedHostTagsMatchHomebrew() started.
+◇ Test variationResolvesEveryFieldBeforeIndexing() started.
+◇ Test pinnedFormulaeAreNotOfferedButUnpinnedFormulaeRemain() started.
+◇ Test oldTokenMatchesOnlyTheExactOfficialCopy() started.
+◇ Test normalReadAndCaskFetchReceiveShellVariables() started.
+◇ Test commandSnapshotCoalescesReadsAndRefreshesAfterExpiry() started.
+◇ Test oldTokenFromAnotherTapCannotBeAdopted() started.
+◇ Test pinBlocksBrewWithoutBecomingAnotherSourcesHold() started.
+◇ Test migratedCaskKeepsCanonicalRecordAndPin() started.
+◇ Test staleForeignOwnershipRefusesFetchAndApplyBeforeBrewStarts() started.
+◇ Test variationNullRemovesBaseConstraintAndURL() started.
+◇ Test case passing 1 argument latest → "1.0,102" to opaqueVersionSuffixIsNotInterpretedAsABundleBuild(latest:) started.
+◇ Test case passing 1 argument latest → "1.0,abcdef" to opaqueVersionSuffixIsNotInterpretedAsABundleBuild(latest:) started.
+◇ Test case passing 1 argument latest → "1.0:2026-11-17" to opaqueVersionSuffixIsNotInterpretedAsABundleBuild(latest:) started.
+◇ Test case passing 1 argument latest → "1.0,102" to packageRouteCannotInferAnOpaqueSuffixUpdateFromItsUnchangedBrewRecord(latest:) started.
+◇ Test case passing 1 argument latest → "1.0:2026-11-17" to packageRouteCannotInferAnOpaqueSuffixUpdateFromItsUnchangedBrewRecord(latest:) started.
+◇ Test case passing 1 argument latest → "1.0,abcdef" to packageRouteCannotInferAnOpaqueSuffixUpdateFromItsUnchangedBrewRecord(latest:) started.
+◇ Test case passing 1 argument packageRoute → false to staleBrewReceiptDoesNotReofferAnInstalledMarketingRelease(packageRoute:) started.
+◇ Test case passing 1 argument packageRoute → true to staleBrewReceiptDoesNotReofferAnInstalledMarketingRelease(packageRoute:) started.
+◇ Test fallbackRequiresOptInAndNoBrewUpdate(setup:brewVersion:) started.
+◇ Test retainsFullCaskIdentityAndPinStateFromTheOwningTap() started.
+◇ Test homebrewOnlyWinsWhenBothChoicesAreRecorded() started.
+◇ Test receiptFallbackIsPerArtifactAndDoesNotAdoptARelocatedArtifactsOldTarget(state:) started.
+◇ Test latestRetainsSigningGuards(recordedRefusal:) started.
+◇ Test unreadableOrWrongTapCannotFallThrough(tap:) started.
+◇ Test officialAutoUpdatingCaskOnlyOwnsItsRecordedPath() started.
+◇ Test sameNamedCopyIsNotOwned() started.
+◇ Test migratedTokenDirectoryAliasDoesNotClaimTheCanonicalApp() started.
+◇ Test commandFailureCannotFallThrough() started.
+◇ Test latestMigratedToOfficialTapKeepsSelfUpdatingPolicy() started.
+◇ Test enabledFallbackWithoutAnotherSourceKeepsBrew() started.
+◇ Test originalTapWinsOverNewerGitHub() started.
+◇ Test latestFromAnotherTapStillFailsClosed() started.
+◇ Test latestVersionFollowsTheFallbackChoice(setup:) started.
+◇ Test officialCatalogueFailureDoesNotAuthorizeFallbackOrBlockUnrelatedCopy() started.
+◇ Test latestWithoutAnotherSourceDoesNotClaimUpToDate() started.
+◇ Test qualifiedInstallerKeepsTapAndUsesUpgrade() started.
+◇ Test aTapMigratedToAnotherThirdPartyTapFailsClosed() started.
+◇ Test officialReceiptContinuesToOtherSources() started.
+◇ Test aTapMigratedToTheOfficialTapFollowsTheOfficialRules(autoUpdates:) started.
+◇ Test missingStagedLinkUsesOnlyTheExistingVersionMatchedReceiptTarget(tap:) started.
+✔ Test batchChecksRefuseOverlappingForeignOwnersButKeepIndependentCopies() passed after 0.006 seconds.
+✔ Test opaqueVersionSuffixIsNotInterpretedAsABundleBuild(latest:) with 3 test cases passed after 0.006 seconds.
+✔ Test foreignOrUnavailablePrefixesAreRefused() passed after 0.006 seconds.
+✔ Test supportedHostTagsMatchHomebrew() passed after 0.006 seconds.
+✔ Test variationResolvesEveryFieldBeforeIndexing() passed after 0.006 seconds.
+✔ Test pinnedFormulaeAreNotOfferedButUnpinnedFormulaeRemain() passed after 0.006 seconds.
+✔ Test staleBrewReceiptDoesNotReofferAnInstalledMarketingRelease(packageRoute:) with 2 test cases passed after 0.007 seconds.
+✔ Test packageRouteCannotInferAnOpaqueSuffixUpdateFromItsUnchangedBrewRecord(latest:) with 3 test cases passed after 0.007 seconds.
+◇ Test case passing 2 arguments setup → .off, brewVersion → "0.5" to fallbackRequiresOptInAndNoBrewUpdate(setup:brewVersion:) started.
+◇ Test case passing 2 arguments setup → .off, brewVersion → "1.0" to fallbackRequiresOptInAndNoBrewUpdate(setup:brewVersion:) started.
+◇ Test case passing 2 arguments setup → .off, brewVersion → "2.0" to fallbackRequiresOptInAndNoBrewUpdate(setup:brewVersion:) started.
+◇ Test case passing 2 arguments setup → .perCopy, brewVersion → "0.5" to fallbackRequiresOptInAndNoBrewUpdate(setup:brewVersion:) started.
+◇ Test case passing 2 arguments setup → .perCopy, brewVersion → "2.0" to fallbackRequiresOptInAndNoBrewUpdate(setup:brewVersion:) started.
+◇ Test case passing 2 arguments setup → .perCopy, brewVersion → "1.0" to fallbackRequiresOptInAndNoBrewUpdate(setup:brewVersion:) started.
+◇ Test case passing 2 arguments setup → .byDefault, brewVersion → "0.5" to fallbackRequiresOptInAndNoBrewUpdate(setup:brewVersion:) started.
+◇ Test case passing 2 arguments setup → .byDefault, brewVersion → "1.0" to fallbackRequiresOptInAndNoBrewUpdate(setup:brewVersion:) started.
+◇ Test case passing 2 arguments setup → .byDefault, brewVersion → "2.0" to fallbackRequiresOptInAndNoBrewUpdate(setup:brewVersion:) started.
+◇ Test case passing 2 arguments setup → .byDefaultButHomebrewOnly, brewVersion → "0.5" to fallbackRequiresOptInAndNoBrewUpdate(setup:brewVersion:) started.
+◇ Test case passing 2 arguments setup → .byDefaultButHomebrewOnly, brewVersion → "1.0" to fallbackRequiresOptInAndNoBrewUpdate(setup:brewVersion:) started.
+◇ Test case passing 2 arguments setup → .byDefaultButHomebrewOnly, brewVersion → "2.0" to fallbackRequiresOptInAndNoBrewUpdate(setup:brewVersion:) started.
+◇ Test case passing 2 arguments setup → .perCopyBeatsBlockedDefault, brewVersion → "0.5" to fallbackRequiresOptInAndNoBrewUpdate(setup:brewVersion:) started.
+◇ Test case passing 2 arguments setup → .perCopyBeatsBlockedDefault, brewVersion → "1.0" to fallbackRequiresOptInAndNoBrewUpdate(setup:brewVersion:) started.
+◇ Test case passing 2 arguments setup → .perCopyBeatsBlockedDefault, brewVersion → "2.0" to fallbackRequiresOptInAndNoBrewUpdate(setup:brewVersion:) started.
+◇ Test case passing 1 argument state → .missingMain to receiptFallbackIsPerArtifactAndDoesNotAdoptARelocatedArtifactsOldTarget(state:) started.
+◇ Test case passing 1 argument state → .relocatedMain to receiptFallbackIsPerArtifactAndDoesNotAdoptARelocatedArtifactsOldTarget(state:) started.
+◇ Test case passing 1 argument recordedRefusal → false to latestRetainsSigningGuards(recordedRefusal:) started.
+◇ Test case passing 1 argument state → .missingHelper to receiptFallbackIsPerArtifactAndDoesNotAdoptARelocatedArtifactsOldTarget(state:) started.
+◇ Test case passing 1 argument recordedRefusal → true to latestRetainsSigningGuards(recordedRefusal:) started.
+◇ Test case passing 1 argument tap → "null" to unreadableOrWrongTapCannotFallThrough(tap:) started.
+◇ Test case passing 1 argument tap → ""someone/else"" to unreadableOrWrongTapCannotFallThrough(tap:) started.
+✔ Test shellVariablesAndExplicitOperationalFlagsHaveDefinedPrecedence() passed after 0.048 seconds.
+✔ Test activeTokenWinsOverAnOldAlias() passed after 0.048 seconds.
+✔ Test variationNullRemovesBaseConstraintAndURL() passed after 0.049 seconds.
+◇ Test case passing 1 argument setup → .off to latestVersionFollowsTheFallbackChoice(setup:) started.
+◇ Test case passing 1 argument setup → .perCopy to latestVersionFollowsTheFallbackChoice(setup:) started.
+◇ Test case passing 1 argument setup → .byDefault to latestVersionFollowsTheFallbackChoice(setup:) started.
+◇ Test case passing 1 argument setup → .byDefaultButHomebrewOnly to latestVersionFollowsTheFallbackChoice(setup:) started.
+◇ Test case passing 1 argument setup → .perCopyBeatsBlockedDefault to latestVersionFollowsTheFallbackChoice(setup:) started.
+◇ Test case passing 1 argument autoUpdates → true to aTapMigratedToTheOfficialTapFollowsTheOfficialRules(autoUpdates:) started.
+◇ Test case passing 1 argument autoUpdates → false to aTapMigratedToTheOfficialTapFollowsTheOfficialRules(autoUpdates:) started.
+◇ Test case passing 1 argument tap → "homebrew/cask" to missingStagedLinkUsesOnlyTheExistingVersionMatchedReceiptTarget(tap:) started.
+◇ Test case passing 1 argument tap → "example/tap" to missingStagedLinkUsesOnlyTheExistingVersionMatchedReceiptTarget(tap:) started.
+✔ Test homebrewOnlyWinsWhenBothChoicesAreRecorded() passed after 0.055 seconds.
+✔ Test migratedTokenDirectoryAliasDoesNotClaimTheCanonicalApp() passed after 0.054 seconds.
+✔ Test qualifiedInstallerKeepsTapAndUsesUpgrade() passed after 0.054 seconds.
+✔ Test receiptFallbackIsPerArtifactAndDoesNotAdoptARelocatedArtifactsOldTarget(state:) with 3 test cases passed after 0.058 seconds.
+✔ Test staleForeignOwnershipRefusesFetchAndApplyBeforeBrewStarts() passed after 0.064 seconds.
+✔ Test missingStagedLinkUsesOnlyTheExistingVersionMatchedReceiptTarget(tap:) with 2 test cases passed after 0.058 seconds.
+✔ Test oldTokenFromAnotherTapCannotBeAdopted() passed after 0.065 seconds.
+✔ Test sameNamedCopyIsNotOwned() passed after 0.063 seconds.
+✔ Test oldTokenMatchesOnlyTheExactOfficialCopy() passed after 0.067 seconds.
+✔ Test migratedCaskKeepsCanonicalRecordAndPin() passed after 0.072 seconds.
+✔ Test retainsFullCaskIdentityAndPinStateFromTheOwningTap() passed after 0.069 seconds.
+✔ Test latestRetainsSigningGuards(recordedRefusal:) with 2 test cases passed after 0.069 seconds.
+✔ Test latestFromAnotherTapStillFailsClosed() passed after 0.066 seconds.
+✔ Test pinBlocksBrewWithoutBecomingAnotherSourcesHold() passed after 0.078 seconds.
+✔ Test officialAutoUpdatingCaskOnlyOwnsItsRecordedPath() passed after 0.075 seconds.
+✔ Test latestWithoutAnotherSourceDoesNotClaimUpToDate() passed after 0.072 seconds.
+✔ Test latestVersionFollowsTheFallbackChoice(setup:) with 5 test cases passed after 0.080 seconds.
+✔ Test latestMigratedToOfficialTapKeepsSelfUpdatingPolicy() passed after 0.082 seconds.
+✔ Test unreadableOrWrongTapCannotFallThrough(tap:) with 2 test cases passed after 0.086 seconds.
+✔ Test officialReceiptContinuesToOtherSources() passed after 0.082 seconds.
+✔ Test commandFailureCannotFallThrough() passed after 0.082 seconds.
+✔ Test enabledFallbackWithoutAnotherSourceKeepsBrew() passed after 0.094 seconds.
+✔ Test aTapMigratedToAnotherThirdPartyTapFailsClosed() passed after 0.094 seconds.
+✔ Suite HomebrewCompatibilityTests passed after 0.101 seconds.
+✔ Test originalTapWinsOverNewerGitHub() passed after 0.114 seconds.
+✔ Test aTapMigratedToTheOfficialTapFollowsTheOfficialRules(autoUpdates:) with 2 test cases passed after 0.117 seconds.
+✔ Test commandSnapshotCoalescesReadsAndRefreshesAfterExpiry() passed after 0.127 seconds.
+✔ Test officialCatalogueFailureDoesNotAuthorizeFallbackOrBlockUnrelatedCopy() passed after 0.124 seconds.
+✔ Test fallbackRequiresOptInAndNoBrewUpdate(setup:brewVersion:) with 15 test cases passed after 0.150 seconds.
+✔ Suite ThirdPartyCaskSourceTests passed after 0.153 seconds.
+✔ Test normalReadAndCaskFetchReceiveShellVariables() passed after 1.842 seconds.
+✔ Suite HomebrewExecutionCompatibilityTests passed after 1.842 seconds.
+✔ Test run with 40 tests in 3 suites passed after 1.843 seconds.

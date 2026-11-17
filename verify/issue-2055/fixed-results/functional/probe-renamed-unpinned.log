@@ -1,0 +1,9 @@
+command: ['/private/tmp/duo2055vm-fixed-f00a515b/core/.build/debug/FixedVMProbe', '/private/tmp/duo2055vm-fixed-f00a515b', 'renamed-unpinned']
+exit: 0
+PASS: actual old-token Brew upgrade installed version 2.0
+PASS: legacy directory alias does not replace canonical token
+PASS: full canonical installed and current cask identities are preserved
+PASS: old-token directory symlink remains for canonical pin attack
+PASS: canonical pin state remains live despite legacy alias
+PASS: old status=updateAvailable(latest: "3.0"), marketing=3.0, build=nil
+PASS: mode renamed-unpinned

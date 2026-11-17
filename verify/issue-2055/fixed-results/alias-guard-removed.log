@@ -1,0 +1,22 @@
+Building for debugging...
+[Using on-disk description]
+[1 / 17] Subprocess
+[2 / 12] DuoUpdaterCore
+[4 / 14] DuoUpdaterCore
+[8 / 17] DuoUpdaterCore
+[8 / 17]
+[9 / 17] DuoUpdaterCore
+[9 / 14] DuoUpdaterCoreTests-product
+[11 / 12] DuoUpdaterCore-product
+[11 / 12] DuoUpdaterCoreTests-product
+[12 / 13] DuoUpdaterCoreTests-product
+[13 / 13] DuoUpdaterCoreTests-product
+Build complete! (14.81 sec)
+◇ Test run started.
+↳ Testing Library Version: 2403
+↳ Target Platform: arm64e-apple-macos14.0
+◇ Suite HomebrewCompatibilityTests started.
+◇ Test migratedDirectoryAliasCannotHideTheCanonicalRecordOrPin() started.
+✔ Test migratedDirectoryAliasCannotHideTheCanonicalRecordOrPin() passed after 0.027 seconds.
+✔ Suite HomebrewCompatibilityTests passed after 0.027 seconds.
+✔ Test run with 1 test in 1 suite passed after 0.028 seconds.

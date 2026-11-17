@@ -1,0 +1,7 @@
+command: ['/opt/homebrew/bin/brew', 'install', '--cask', 'duo2055vm-var']
+exit: 0
+==> Fetching downloads for: duo2055vm-var
+✔︎ Cask duo2055vm-var (1.0)
+==> Installing Cask duo2055vm-var
+==> Moving App 'Duo2055VMVar.app' to '/Applications/Duo2055VMVar.app'
+🍺  duo2055vm-var was successfully installed!

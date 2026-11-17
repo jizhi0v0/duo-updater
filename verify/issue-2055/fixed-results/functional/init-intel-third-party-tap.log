@@ -1,0 +1,3 @@
+command: ['/usr/bin/git', 'init', '/usr/local/Homebrew/Library/Taps/duo2055vm/homebrew-fixture']
+exit: 0
+Initialized empty Git repository in /usr/local/Homebrew/Library/Taps/duo2055vm/homebrew-fixture/.git/

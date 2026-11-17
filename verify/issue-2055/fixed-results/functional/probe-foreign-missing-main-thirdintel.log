@@ -1,0 +1,15 @@
+command: ['/private/tmp/duo2055vm-fixed-f00a515b/core/.build/debug/FixedVMProbe', '/private/tmp/duo2055vm-fixed-f00a515b', 'foreign']
+exit: 0
+PASS: intel: no ARM installation before refusal
+PASS: official source: explicit UnsupportedPrefix, got UnsupportedPrefix: UnsupportedPrefix(prefix: "/usr/local")
+PASS: intel: terminal refusal prevents other-source adoption
+PASS: intel fetch: explicit UnsupportedPrefix, got UnsupportedPrefix: UnsupportedPrefix(prefix: "/usr/local")
+PASS: intel upgrade: explicit UnsupportedPrefix, got UnsupportedPrefix: UnsupportedPrefix(prefix: "/usr/local")
+PASS: intel: neither prefix record nor installed app changes
+PASS: thirdintel: no ARM installation before refusal
+PASS: third-party source: explicit UnsupportedPrefix, got UnsupportedPrefix: UnsupportedPrefix(prefix: "/usr/local")
+PASS: thirdintel: terminal refusal prevents other-source adoption
+PASS: thirdintel fetch: explicit UnsupportedPrefix, got UnsupportedPrefix: UnsupportedPrefix(prefix: "/usr/local")
+PASS: thirdintel upgrade: explicit UnsupportedPrefix, got UnsupportedPrefix: UnsupportedPrefix(prefix: "/usr/local")
+PASS: thirdintel: neither prefix record nor installed app changes
+PASS: mode foreign

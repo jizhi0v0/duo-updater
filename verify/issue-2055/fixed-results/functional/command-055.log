@@ -1,0 +1,6 @@
+command: ['/opt/homebrew/bin/brew', 'uninstall', '--cask', 'duo2055vm-fullcomma']
+exit: 0
+==> Uninstalling Cask duo2055vm-fullcomma
+==> Backing up App 'Duo2055VMFullComma.app' to '/opt/homebrew/Caskroom/duo2055vm-fullcomma/1.0,102/Duo2055VMFullComma.app'
+==> Removing App '/Applications/Duo2055VMFullComma.app'
+==> Purging files for version 1.0,102 of Cask duo2055vm-fullcomma

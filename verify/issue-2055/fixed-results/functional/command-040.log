@@ -1,0 +1,3 @@
+command: ['/usr/bin/arch', '-x86_64', '/usr/local/bin/brew', 'unpin', 'duo2055vm/fixture/duo2055vm-thirdintel']
+exit: 0
+Warning: duo2055vm/fixture/duo2055vm-thirdintel not pinned

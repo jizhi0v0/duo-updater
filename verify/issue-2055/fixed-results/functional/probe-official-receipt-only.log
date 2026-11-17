@@ -1,0 +1,7 @@
+command: ['/private/tmp/duo2055vm-fixed-f00a515b/core/.build/debug/FixedVMProbe', '/private/tmp/duo2055vm-fixed-f00a515b', 'receipt-only']
+exit: 0
+PASS: official staged link is absent before receipt-only assertion
+PASS: official saved receipt target retains exact-copy owner
+PASS: var: expected current/held, got upToDate
+PASS: var status=upToDate, marketing=1.0, build=nil
+PASS: mode receipt-only

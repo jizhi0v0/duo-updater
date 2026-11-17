@@ -1,0 +1,7 @@
+command: ['/opt/homebrew/bin/brew', 'install', '--cask', 'duo2055vm-pin']
+exit: 0
+==> Fetching downloads for: duo2055vm-pin
+✔︎ Cask duo2055vm-pin (1.0)
+==> Installing Cask duo2055vm-pin
+==> Moving App 'Duo2055VMPin.app' to '/Applications/Duo2055VMPin.app'
+🍺  duo2055vm-pin was successfully installed!

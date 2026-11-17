@@ -122,9 +122,6 @@ public actor ThirdPartyCaskSource: UpdateSource {
             guard let tokens = try? fm.contentsOfDirectory(atPath: root) else { continue }
             for token in tokens where !token.hasPrefix(".") {
                 let directory = URL(fileURLWithPath: root).appendingPathComponent(token)
-                // Brew leaves old-token directory aliases after migration. Only
-                // the real directory owns the canonical token, receipt and pin.
-                guard (try? fm.destinationOfSymbolicLink(atPath: directory.path)) == nil else { continue }
                 guard let tap = BrewFormulaService.realCaskReceiptTap(token, caskroomPaths: [root]),
                       includeOfficial || tap != "homebrew/cask" else { continue }
                 var paths: Set<String> = []

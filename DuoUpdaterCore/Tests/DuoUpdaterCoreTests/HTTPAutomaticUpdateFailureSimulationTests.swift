@@ -77,6 +77,54 @@ struct HTTPAutomaticUpdateFailureSimulationTests {
         #expect(attempt.failure(or: "missing", appWasQuit: true)?.disposition == .pauseVersion)
     }
 
+    @Test func admittedSpaceRecoveryDoesNotReapplyItsDownloadBudgetBeforeQuitting() throws {
+        let gib: Int64 = 1 << 30
+        let needed = BackupStore.freeSpaceFloorBytes + 4 * gib
+        let failure = Policy.Failure(disposition: .waitForSpace, reason: "space", requiredFreeBytes: needed)
+        let waiting = RunningAppAutoUpdate.Entry(
+            version: "2.0", behindSince: now, failures: 1, lastQuit: now.addingTimeInterval(-300),
+            automaticFailure: failure, acquisitionFailures: 1)
+        var ledger = try restored(Ledger(entries: [key: waiting]))
+
+        // Neither an unreadable nor an insufficient sample consumes the wait.
+        for freeBytes: Int64? in [nil, needed - 1] {
+            let entry = ledger.observe(key, version: "2.0", now: now, freeBytes: freeBytes)
+            #expect(entry == waiting)
+            #expect(RunningAppAutoUpdate.decide(entry: entry, now: now, freeBytes: freeBytes)
+                == .wait(.waitingForSpace))
+        }
+        var recovered = waiting
+        recovered.automaticFailure = nil
+        let admitted = ledger.observe(key, version: "2.0", now: now, freeBytes: needed)
+        #expect(admitted == recovered)
+        #expect(RunningAppAutoUpdate.decide(entry: admitted, now: now, freeBytes: needed) == .quitAndUpdate)
+        ledger = try restored(ledger)
+
+        // Its own 1 GiB archive lowers free capacity after admission. There is
+        // still room for the 2 GiB apply, checked by the installer before quit.
+        let afterDownload = needed - gib
+        #expect(afterDownload >= BackupStore.freeSpaceFloorBytes + 2 * gib)
+        let beforeQuit = ledger.observe(key, version: "2.0", now: now, freeBytes: afterDownload)
+        #expect(beforeQuit == recovered)
+        #expect(RunningAppAutoUpdate.decide(entry: beforeQuit, now: now, freeBytes: afterDownload)
+            == .quitAndUpdate)
+    }
+
+    @Test(arguments: [Policy.Disposition.retryAcquisition, .pauseVersion])
+    func recoveredCapacityPreservesOtherFailureAndQuitHistory(disposition: AutomaticUpdateFailurePolicy.Disposition) {
+        let failure = Policy.Failure(disposition: disposition, reason: "keep this refusal")
+        let waiting = RunningAppAutoUpdate.Entry(
+            version: "2.0", behindSince: now, failures: 2, gaveUp: true, lastQuit: now,
+            retryAfter: now.addingTimeInterval(300), automaticFailure: failure, acquisitionFailures: 2)
+        var ledger = Ledger(entries: [key: waiting])
+        let entry = ledger.observe(key, version: "2.0", now: now,
+                                   freeBytes: BackupStore.freeSpaceFloorBytes + (10 << 30))
+        #expect(entry == waiting)
+        #expect(RunningAppAutoUpdate.decide(entry: entry, now: now,
+                                          freeBytes: BackupStore.freeSpaceFloorBytes + (10 << 30))
+            != .quitAndUpdate)
+    }
+
     @Test func aSpaceLikeMessageWithoutTheTypedErrorStillPausesTheVersion() throws {
         struct SpaceLike: LocalizedError {
             var errorDescription: String? {

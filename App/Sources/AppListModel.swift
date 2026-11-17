@@ -10808,9 +10808,11 @@ final class AppListModel {
     private func closedAppBackoff(_ result: UpdateResult) -> String? {
         let version = result.remote?.displayVersion ?? ""
         let now = Date()
-        let entry = prefs.runningAppUpdateLedger.observe(prefs.key(for: result.app), version: version, now: now)
+        let freeBytes = installSpace.capacity.freeBytes
+        let entry = prefs.runningAppUpdateLedger.observe(
+            prefs.key(for: result.app), version: version, now: now, freeBytes: freeBytes)
         if case .wait(let reason) = RunningAppAutoUpdate.decide(
-            entry: entry, now: now, freeBytes: installSpace.capacity.freeBytes) {
+            entry: entry, now: now, freeBytes: freeBytes) {
             return reason.message
         }
         return nil
@@ -10851,9 +10853,11 @@ final class AppListModel {
         else { return .wait(running) }
         let key = prefs.key(for: result.app)
         let now = Date()
-        let entry = prefs.runningAppUpdateLedger.observe(key, version: version, now: now)
+        let freeBytes = installSpace.capacity.freeBytes
+        let entry = prefs.runningAppUpdateLedger.observe(
+            key, version: version, now: now, freeBytes: freeBytes)
         if case .wait(let why) = RunningAppAutoUpdate.decide(
-            entry: entry, now: now, freeBytes: installSpace.capacity.freeBytes) {
+            entry: entry, now: now, freeBytes: freeBytes) {
             return .wait(why.message)
         }
         // The app's own Sparkle may have an update downloaded and an installer

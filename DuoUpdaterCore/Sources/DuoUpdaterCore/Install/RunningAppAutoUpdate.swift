@@ -76,7 +76,9 @@ public enum RunningAppAutoUpdate {
         /// failures and the give-up, which were about the old one. Acquisition
         /// recovery is also offer-specific. Legacy and refused-quit cooldowns
         /// remain about the install and survive a changed version.
-        public mutating func observe(_ key: String, version: String, now: Date) -> Entry {
+        public mutating func observe(
+            _ key: String, version: String, now: Date, freeBytes: Int64? = nil
+        ) -> Entry {
             guard var entry = entries[key] else {
                 let entry = Entry(version: version, behindSince: now)
                 entries[key] = entry
@@ -89,8 +91,15 @@ public enum RunningAppAutoUpdate {
                 entry.gaveUp = false
                 entry.automaticFailure = nil
                 entry.acquisitionFailures = nil
-                entries[key] = entry
             }
+            // A recovered requirement described the room needed before this
+            // attempt. Once admitted, its own download may consume that room;
+            // the live reservation and pre-swap checks then protect the install.
+            if let failure = entry.automaticFailure, failure.disposition == .waitForSpace,
+               let needed = failure.requiredFreeBytes, let freeBytes, freeBytes >= needed {
+                entry.automaticFailure = nil
+            }
+            entries[key] = entry
             return entry
         }
 

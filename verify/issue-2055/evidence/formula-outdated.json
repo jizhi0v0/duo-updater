@@ -1,0 +1,14 @@
+{
+  "formulae": [
+    {
+      "name": "duo2055/test/duo-2055-formula",
+      "installed_versions": [
+        "1.0"
+      ],
+      "current_version": "2.0",
+      "pinned": true,
+      "pinned_version": "1.0"
+    }
+  ],
+  "casks": []
+}

@@ -1,0 +1,38 @@
+{
+  "passed": true,
+  "model": "VirtualMac2,1",
+  "cleanup": [
+    [
+      "duo2055vm/fixture/duo2055vm-thirdintel",
+      0
+    ],
+    [
+      "duo2055vm-intel",
+      0
+    ],
+    [
+      "duo2055vm-formula",
+      0
+    ],
+    [
+      "duo2055vm-var",
+      0
+    ],
+    [
+      "duo2055vm-pin",
+      0
+    ],
+    [
+      "duo2055vm-new",
+      0
+    ],
+    [
+      "duo2055vm-fullcolon",
+      0
+    ],
+    [
+      "duo2055vm-fullcomma",
+      0
+    ]
+  ]
+}

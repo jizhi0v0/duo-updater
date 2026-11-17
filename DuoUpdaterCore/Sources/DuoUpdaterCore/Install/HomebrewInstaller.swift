@@ -9,6 +9,70 @@ public actor HomebrewInstaller {
 
     public init() {}
 
+    public struct UnsupportedPrefix: LocalizedError {
+        public let prefix: String
+        public var errorDescription: String? {
+            "DuoUpdater cannot safely update this Homebrew copy at \(prefix). Update it using its owning Brew installation."
+        }
+    }
+
+    static func validateOwnerPrefix(
+        _ prefix: String?, selectedBrew: String? = brewPathOverride ?? brewPath(), hostArch: HostArch = .current
+    ) throws {
+        guard let prefix else { return }
+        // The app's catalogue and execution run natively on supported Apple
+        // Silicon Macs. Intel Brew needs explicit Rosetta routing and Intel
+        // metadata; until both are supported, refuse even an Intel-only install.
+        guard prefix != "/usr/local" || hostArch != .arm64 else { throw UnsupportedPrefix(prefix: prefix) }
+        let selected = selectedBrew.map {
+            URL(fileURLWithPath: $0).deletingLastPathComponent().deletingLastPathComponent().path
+        }
+        guard prefix == selected else { throw UnsupportedPrefix(prefix: prefix) }
+    }
+
+    /// Package rows come from the selected Brew. Refuse stale or overlapping
+    /// records belonging to another prefix before downloads and again at commit.
+    static func validateCaskOwners(
+        _ tokens: [String], selectedBrew: String? = brewPathOverride ?? brewPath()
+    ) async throws {
+        guard !tokens.isEmpty else { return }
+        let owners: [ThirdPartyCaskSource.Ownership]
+        if let override = ownershipOverride { owners = override }
+        else if selectedBrew != "/opt/homebrew/bin/brew" && selectedBrew != "/usr/local/bin/brew" { owners = [] }
+        else {
+            owners = await ThirdPartyCaskSource.ownership(
+                in: BrewLocalInventory.defaultCaskroomPaths, includeOfficial: true)
+        }
+        for token in tokens {
+            let matching = owners.filter {
+                token.contains("/") ? $0.qualifiedName == token : $0.token == token
+            }
+            let selected = matching.filter {
+                (try? validateOwnerPrefix($0.brewPrefix, selectedBrew: selectedBrew)) != nil
+            }
+            let paths = Set(selected.flatMap(\.paths))
+            for owner in matching where selected.isEmpty || !owner.paths.isDisjoint(with: paths) {
+                try validateOwnerPrefix(owner.brewPrefix, selectedBrew: selectedBrew)
+            }
+        }
+    }
+
+    /// Re-read at execution time: an earlier scan must never hand an app owned
+    /// by another prefix to the preferred Brew's force-install path.
+    private static func validateAppOwner(_ app: URL) async throws {
+        let path = app.standardizedFileURL.resolvingSymlinksInPath().path
+        let owners: [ThirdPartyCaskSource.Ownership]
+        if let override = ownershipOverride { owners = override }
+        else if brewPathOverride != nil { owners = [] }
+        else {
+            owners = await ThirdPartyCaskSource.ownership(
+                in: BrewLocalInventory.defaultCaskroomPaths, includeOfficial: true)
+        }
+        for owner in owners where owner.paths.contains(path) {
+            try validateOwnerPrefix(owner.brewPrefix)
+        }
+    }
+
     static func installArguments(caskToken: String, dryRun: Bool = false) -> [String] {
         // Qualified names come from an existing third-party receipt. Upgrade
         // that cask in place, preserving its recorded app directory.
@@ -79,6 +143,7 @@ public actor HomebrewInstaller {
     /// Test seam: the brew to run instead of ``brewPath()``. Bound per task;
     /// production never binds it.
     @TaskLocal static var brewPathOverride: String?
+    @TaskLocal static var ownershipOverride: [ThirdPartyCaskSource.Ownership]?
 
     /// The one-line description both `BrewError.failed` copies (this one and
     /// `BrewFormulaService.BrewError`) report. The popover and workbench rows render
@@ -141,12 +206,14 @@ public actor HomebrewInstaller {
     /// `CancellationError`.
     public func fetch(
         caskToken: String,
+        app: URL? = nil,
         onOutput: @Sendable @escaping (String) -> Void
     ) async throws {
         guard let brew = Self.brewPathOverride ?? Self.brewPath() else { throw BrewError.brewNotFound }
-        var env = ProcessInfo.processInfo.environmentWithSystemProxy
+        var env = await LoginShellEnvironment.commandEnvironment()
         env["HOMEBREW_NO_ENV_HINTS"] = "1"
         env["NONINTERACTIVE"] = "1"
+        if let app { try await Self.validateAppOwner(app) }
         // `--dry-run` goes before the `--` that keeps the token from being read
         // as an option.
         let (plan, _) = try await StreamedLines.run(
@@ -190,7 +257,7 @@ public actor HomebrewInstaller {
         // Non-interactive so brew never blocks on a prompt we can't answer.
         // No auto-update: `fetch` ran it, before the download, where a cancel
         // still stops it.
-        var env = ProcessInfo.processInfo.environmentWithSystemProxy
+        var env = await LoginShellEnvironment.commandEnvironment()
         env["HOMEBREW_NO_ENV_HINTS"] = "1"
         env["NONINTERACTIVE"] = "1"
         env["HOMEBREW_NO_AUTO_UPDATE"] = "1"
@@ -212,6 +279,7 @@ public actor HomebrewInstaller {
         try await BrewAskPass.withChannel(packages: [caskToken], prompt: password) { askpass in
             let environment = env.merging(askpass) { _, channel in channel }
             try await InstallCommit.run("brew upgrade") { [environment] in
+                try await Self.validateAppOwner(app)
                 let (outcome, output) = try await StreamedLines.run(
                     brew, arguments, environment: environment, onOutput: onOutput,
                     onLaunch: { journal?.noteChild($0) })

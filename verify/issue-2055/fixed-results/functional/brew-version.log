@@ -1,0 +1,5 @@
+command: ['/opt/homebrew/bin/brew', '--version']
+exit: 0
+Homebrew 7.0.12
+Homebrew/homebrew-core (git revision 4b942b13011; last commit 2026-11-06)
+Homebrew/homebrew-cask (git revision 317af39; last commit 2026-11-06)

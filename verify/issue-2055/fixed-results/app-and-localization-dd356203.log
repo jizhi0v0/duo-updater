@@ -1,0 +1,3 @@
+✓ App tests — 370 of 370 cases executed (source: result-bundle)
+/opt/homebrew/opt/python@3.14/libexec/bin/python3 scripts/check_localizable_keys.py
+✓ localizable keys agree — 1430 in the catalog, all reachable

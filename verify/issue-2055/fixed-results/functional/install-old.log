@@ -1,0 +1,7 @@
+command: ['/opt/homebrew/bin/brew', 'install', '--cask', 'duo2055vm-old']
+exit: 0
+==> Fetching downloads for: duo2055vm-old
+✔︎ Cask duo2055vm-old (1.0)
+==> Installing Cask duo2055vm-old
+==> Moving App 'Duo2055VMOld.app' to '/Applications/Duo2055VMOld.app'
+🍺  duo2055vm-old was successfully installed!

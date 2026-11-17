@@ -1,0 +1,16 @@
+command: ['/opt/homebrew/bin/brew', 'outdated', '--formula', '--json=v2']
+exit: 0
+{
+  "formulae": [
+    {
+      "name": "duo2055vm/fixture/duo2055vm-formula",
+      "installed_versions": [
+        "1.0"
+      ],
+      "current_version": "2.0",
+      "pinned": true,
+      "pinned_version": "1.0"
+    }
+  ],
+  "casks": []
+}

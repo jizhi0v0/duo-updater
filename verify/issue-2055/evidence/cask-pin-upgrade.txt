@@ -1,0 +1,5 @@
+command: ['/opt/homebrew/bin/brew', 'upgrade', '--cask', '--dry-run', 'duo-2055-pin']
+exit: 1
+Error: Not upgrading 1 pinned package:
+==> 1 Pinned cask
+duo-2055-pin 1.0 -> 2.0

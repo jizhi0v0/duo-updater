@@ -1,0 +1,78 @@
+command: ['/usr/bin/xcrun', 'swift', 'build', '--package-path', '/private/tmp/duo2055vm-fixed-f00a515b/core', '--force-resolved-versions', '--product', 'FixedVMProbe', '-Xswiftc', '-enable-testing']
+exit: 0
+Fetching https://github.com/apple/swift-system from cache
+Fetching https://github.com/swiftlang/swift-subprocess from cache
+Fetched https://github.com/swiftlang/swift-subprocess from cache (0.04s)
+Fetched https://github.com/apple/swift-system from cache (0.04s)
+Creating working copy for https://github.com/swiftlang/swift-subprocess
+Creating working copy for https://github.com/apple/swift-system
+Working copy of https://github.com/apple/swift-system resolved at 1.8.1
+Working copy of https://github.com/swiftlang/swift-subprocess resolved at 1.0.2
+Building for debugging...
+[Pre-planning 1 / 125]
+[Planning deferred tasks]
+[31 / 57]
+[33 / 58] _SubprocessCShims
+[39 / 71]
+[42 / 71]
+[46 / 73] Subprocess
+[55 / 116]
+[56 / 116]
+[62 / 116] _SubprocessCShims
+[67 / 116]
+[68 / 116]
+[73 / 116]
+[75 / 116]
+[78 / 116]
+[82 / 116]
+[84 / 116]
+[85 / 116]
+[93 / 116] Subprocess
+[94 / 116] Subprocess
+[100 / 117] Subprocess
+[102 / 117]
+[102 / 117] DuoUpdaterCore
+[110 / 188]
+[120 / 188]
+[124 / 188]
+[128 / 188]
+[130 / 188]
+[131 / 188]
+[139 / 188] DuoUpdaterCore
+[142 / 188] DuoUpdaterCore
+[143 / 188] DuoUpdaterCore
+[144 / 188] DuoUpdaterCore
+[145 / 188] DuoUpdaterCore
+[146 / 188] DuoUpdaterCore
+[147 / 188] DuoUpdaterCore
+[148 / 188] DuoUpdaterCore
+[149 / 188] DuoUpdaterCore
+[150 / 188] DuoUpdaterCore
+[151 / 188] DuoUpdaterCore
+[152 / 188] DuoUpdaterCore
+[154 / 188] DuoUpdaterCore
+[159 / 188] DuoUpdaterCore
+[160 / 188] FixedVMProbe-product
+[161 / 188] FixedVMProbe-product
+[164 / 188] DuoUpdaterCore
+[165 / 188] DuoUpdaterCore
+[167 / 188] DuoUpdaterCore
+[168 / 188] DuoUpdaterCore
+[169 / 188] DuoUpdaterCore
+[170 / 188] DuoUpdaterCore
+[171 / 188] DuoUpdaterCore
+[172 / 188] DuoUpdaterCore
+[174 / 188] DuoUpdaterCore
+[176 / 188] DuoUpdaterCore
+[177 / 188] DuoUpdaterCore
+[178 / 188] DuoUpdaterCore
+[179 / 188]
+[182 / 189]
+[182 / 189] FixedVMProbe-product
+[185 / 191] DuoUpdaterCore
+[185 / 191] FixedVMProbe-product
+[186 / 191] DuoUpdaterCore
+[188 / 191] DuoUpdaterCore
+[189 / 191] FixedVMProbe-product
+[190 / 191] FixedVMProbe-product
+Build complete! (27.18 sec)

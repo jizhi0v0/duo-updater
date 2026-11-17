@@ -1,0 +1,4 @@
+command: ['/private/tmp/duo2055vm-fixed-f00a515b/core/.build/debug/FixedVMProbe', '/private/tmp/duo2055vm-fixed-f00a515b', 'unowned']
+exit: 0
+PASS: same filename/bundle ID unowned copy is not adopted
+PASS: mode unowned

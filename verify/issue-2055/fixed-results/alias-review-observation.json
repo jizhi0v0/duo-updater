@@ -1,0 +1,10 @@
+{
+  "reviewed_source": "bf90f41e6a5a165be617822d606b0fa3bac10a96",
+  "mutation": "remove only the proposed token-directory symlink exclusion",
+  "observed_exit": 0,
+  "observed_test_count": 1,
+  "observed_result": "passed",
+  "conclusion": "original alias defect finding withdrawn; do not claim a failing guard mutation",
+  "unneeded_guard_removed_in": "f00a515be5d3e91456a69a75e9a06b4f7e91a245",
+  "subsequent_test_correction": "assert exact app owners, allowing alias inventory entries with empty paths"
+}

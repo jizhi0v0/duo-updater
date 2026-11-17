@@ -9,6 +9,7 @@ public actor ThirdPartyCaskSource: UpdateSource {
         let token: String
         let tap: String
         let paths: Set<String>
+        var brewPrefix: String? = nil
         var qualifiedName: String { "\(tap)/\(token)" }
     }
 
@@ -67,6 +68,7 @@ public actor ThirdPartyCaskSource: UpdateSource {
         guard Set(owners.map(\.qualifiedName)).count == 1 else {
             throw Unavailable(cask: owners.map(\.qualifiedName).sorted().joined(separator: ", "))
         }
+        for owner in owners { try HomebrewInstaller.validateOwnerPrefix(owner.brewPrefix) }
         let qualified = owner.qualifiedName
         if reads[qualified] == nil {
             let executor = executor
@@ -105,6 +107,11 @@ public actor ThirdPartyCaskSource: UpdateSource {
         if tap == Self.officialTap {
             remote.homebrewSelfUpdating = (cask["auto_updates"] as? Bool) ?? false
         }
+        remote.homebrewPinned = (cask["pinned"] as? Bool) == true
+        remote.homebrewCaskVersion = version
+        remote.homebrewInstalledCaskVersion = BrewLocalInventory(caskroomPaths: roots)
+            .installedVersion(caskToken: owner.token, brewPrefix: owner.brewPrefix)
+            ?? (cask["installed"] as? String)
         return remote
     }
 
@@ -114,10 +121,12 @@ public actor ThirdPartyCaskSource: UpdateSource {
         for root in roots {
             guard let tokens = try? fm.contentsOfDirectory(atPath: root) else { continue }
             for token in tokens where !token.hasPrefix(".") {
+                let directory = URL(fileURLWithPath: root).appendingPathComponent(token)
                 guard let tap = BrewFormulaService.realCaskReceiptTap(token, caskroomPaths: [root]),
                       includeOfficial || tap != "homebrew/cask" else { continue }
-                let directory = URL(fileURLWithPath: root).appendingPathComponent(token)
                 var paths: Set<String> = []
+                let installedVersion = BrewLocalInventory.installedVersion(inCaskDirectory: directory, token: token)
+                var stagedSources: Set<String> = []
                 // Walk staged artifacts only, never into an app or arbitrary deep
                 // extracted trees. A real staged .app is an installer, not a copy
                 // Homebrew moved into the user's Applications directory.
@@ -131,7 +140,24 @@ public actor ThirdPartyCaskSource: UpdateSource {
                             guard entry.pathExtension.lowercased() == "app",
                                   (try? fm.destinationOfSymbolicLink(atPath: entry.path)) != nil else { continue }
                             paths.insert(entry.standardizedFileURL.resolvingSymlinksInPath().path)
+                            if let installedVersion, version.lastPathComponent == installedVersion {
+                                let source = String(entry.path.dropFirst(version.path.count + 1))
+                                stagedSources.insert((source as NSString).standardizingPath)
+                            }
                         }
+                    }
+                }
+                // Resolve each absent artifact link from the receipt (#2036).
+                // A surviving link supersedes only that same artifact's saved
+                // target, so a helper cannot hide the main app's ownership, and
+                // an old target is not adopted after that artifact was moved.
+                if let version = installedVersion,
+                   let targets = BrewLocalInventory.receiptAppTargets(
+                       directory: directory, version: version, excludingStagedSources: stagedSources) {
+                    for target in targets {
+                        var isDirectory: ObjCBool = false
+                        guard fm.fileExists(atPath: target, isDirectory: &isDirectory), isDirectory.boolValue else { continue }
+                        paths.insert(URL(fileURLWithPath: target).standardizedFileURL.resolvingSymlinksInPath().path)
                     }
                 }
                 let receipt = (try? Data(contentsOf: directory.appendingPathComponent(".metadata/INSTALL_RECEIPT.json"))) ?? Data()
@@ -140,7 +166,9 @@ public actor ThirdPartyCaskSource: UpdateSource {
                         paths.insert(URL(fileURLWithPath: path).standardizedFileURL.resolvingSymlinksInPath().path)
                     }
                 }
-                result.append(Ownership(token: token, tap: tap, paths: paths))
+                let prefix = BrewLocalInventory.defaultCaskroomPaths.contains(root)
+                    ? URL(fileURLWithPath: root).deletingLastPathComponent().path : nil
+                result.append(Ownership(token: token, tap: tap, paths: paths, brewPrefix: prefix))
             }
         }
         return result

@@ -1,0 +1,8 @@
+duo-2055-full: remote=1.0 build=nil record=1.0 sourceID=duo-2055-full
+duo-2055-new: remote=nil build=nil record=nil sourceID=nil
+duo-2055-pin: remote=2.0 build=nil record=1.0 sourceID=duo-2055-pin
+duo-2055-intel: remote=2.0 build=nil record=1.0 sourceID=duo-2055-intel
+duo-2055-var: remote=2.0 build=nil record=1.0 sourceID=duo-2055-var
+formula-outdated formula parser=["duo2055/test/duo-2055-formula"] cask parser=[]
+cask-outdated formula parser=[] cask parser=["duo-2055-full", "duo-2055-new"]
+selected brew=/opt/homebrew/bin/brew

@@ -1,0 +1,7 @@
+command: ['/opt/homebrew/bin/brew', 'install', 'duo2055vm/fixture/duo2055vm-formula']
+exit: 0
+==> Trusted formula duo2055vm/fixture/duo2055vm-formula
+==> Fetching downloads for: duo2055vm-formula
+✔︎ Formula duo2055vm-formula (1.0)
+==> Installing duo2055vm-formula from duo2055vm/fixture
+🍺  /opt/homebrew/Cellar/duo2055vm-formula/1.0: 4 files, 3.9KB, built in 1 second

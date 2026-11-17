@@ -1,0 +1,4 @@
+command: ['/private/tmp/duo2055vm-fixed-f00a515b/core/.build/debug/FixedVMProbe', '/private/tmp/duo2055vm-fixed-f00a515b', 'other-tap']
+exit: 0
+PASS: official catalog does not adopt a different originating tap
+PASS: mode other-tap

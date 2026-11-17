@@ -1,0 +1,10 @@
+{
+  "commands" : [
+    "config|1|2055|synthetic-2055-token|unset|clean",
+    "install --cask --force --dry-run -- duo2055vm-fullcomma|1|2055|synthetic-2055-token|unset|clean",
+    "fetch --cask -- duo2055vm-fullcomma|1|2055|synthetic-2055-token|unset|clean"
+  ],
+  "configAutoUpdateDisabled" : true,
+  "configAutoUpdateSeconds" : 2055,
+  "passed" : true
+}

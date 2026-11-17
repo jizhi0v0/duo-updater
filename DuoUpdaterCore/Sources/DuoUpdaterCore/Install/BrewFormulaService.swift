@@ -1035,7 +1035,7 @@ public actor BrewFormulaService {
     static func executor(brewPath: @escaping @Sendable () -> String?) -> Executor {
         { arguments in
             guard let brew = brewPath() else { return nil }
-            var env = ProcessInfo.processInfo.environmentWithSystemProxy
+            var env = await LoginShellEnvironment.commandEnvironment()
             env["HOMEBREW_NO_AUTO_UPDATE"] = "1"
             env["HOMEBREW_NO_ENV_HINTS"] = "1"
             let outcome = try await ChildProcess.run(
@@ -1326,7 +1326,8 @@ public actor BrewFormulaService {
             guard
                 let name = f["name"] as? String,
                 let current = f["current_version"] as? String,
-                let installed = (f["installed_versions"] as? [String])?.last
+                let installed = (f["installed_versions"] as? [String])?.last,
+                (f["pinned"] as? Bool) != true
             else { continue }
             out.append(BrewOutdatedFormula(
                 name: name,
@@ -1360,6 +1361,7 @@ public actor BrewFormulaService {
         password: SudoPasswordPrompt? = nil,
         onOutput: @Sendable @escaping (String) -> Void
     ) async throws -> Int {
+        try await HomebrewInstaller.validateCaskOwners(tokens, selectedBrew: brewPath())
         let formulae = ["upgrade", "--formula"]
         try await prefetch(formulae, kind: "--formula", onOutput: onOutput)
         if !tokens.isEmpty {
@@ -1385,6 +1387,7 @@ public actor BrewFormulaService {
         password: SudoPasswordPrompt?,
         onOutput: @Sendable @escaping (String) -> Void
     ) async throws {
+        try await HomebrewInstaller.validateCaskOwners([token], selectedBrew: brewPath())
         try await prefetch(["upgrade", "--cask"], operands: [token], kind: "--cask", onOutput: onOutput)
         try await InstallCommit.run("brew upgrade") {
             _ = try await self.runCaskUpgrade([token], password: password, onOutput: onOutput)
@@ -1399,6 +1402,7 @@ public actor BrewFormulaService {
         password: SudoPasswordPrompt?,
         onOutput: @Sendable @escaping (String) -> Void
     ) async throws -> Int {
+        try await HomebrewInstaller.validateCaskOwners(tokens, selectedBrew: brewPath())
         var eligible: [String] = []
         var sudoTokens: [String] = []
         // Re-read after downloads: a bundle can have moved since the list was
@@ -1611,7 +1615,7 @@ public actor BrewFormulaService {
         // Non-interactive so brew never blocks on a prompt we can't answer.
         // HOMEBREW_NO_AUTO_UPDATE is the caller's: a terminal `brew upgrade`
         // refreshes first, and so does the first brew an upgrade runs.
-        var env = ProcessInfo.processInfo.environmentWithSystemProxy
+        var env = await LoginShellEnvironment.commandEnvironment()
         env.merge(extra) { _, user in user }
         env["HOMEBREW_NO_ENV_HINTS"] = "1"
         env["NONINTERACTIVE"] = "1"

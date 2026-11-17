@@ -1,0 +1,15 @@
+Building for debugging...
+[Using on-disk description]
+[1 / 5]
+[1 / 5] DuoUpdaterCore
+[1 / 4] DuoUpdaterCore
+[1 / 5] DuoUpdaterCoreTests-product
+Build complete! (1.64 sec)
+◇ Test run started.
+↳ Testing Library Version: 2403
+↳ Target Platform: arm64e-apple-macos14.0
+◇ Suite MacAppStorePageCacheTests started.
+◇ Test theBatchAsksForTheSameLanguageAsTheSingleLookup() started.
+✔ Test theBatchAsksForTheSameLanguageAsTheSingleLookup() passed after 0.071 seconds.
+✔ Suite MacAppStorePageCacheTests passed after 0.071 seconds.
+✔ Test run with 1 test in 1 suite passed after 0.071 seconds.

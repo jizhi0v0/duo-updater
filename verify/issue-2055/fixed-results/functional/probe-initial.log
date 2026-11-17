@@ -1,0 +1,19 @@
+command: ['/private/tmp/duo2055vm-fixed-f00a515b/core/.build/debug/FixedVMProbe', '/private/tmp/duo2055vm-fixed-f00a515b', 'initial']
+exit: 0
+PASS: platform variation selects actual ARM version
+PASS: platform variation selects matching URL
+PASS: var: expected current/held, got upToDate
+PASS: var status=upToDate, marketing=1.0, build=nil
+PASS: old receipt resolves canonical current token
+PASS: old status=updateAvailable(latest: "2.0"), marketing=2.0, build=nil
+PASS: fullcomma displays complete version 1.0,102
+PASS: fullcomma status=updateAvailable(latest: "1.0,102"), marketing=1.0, build=nil
+PASS: fullcolon displays complete version 1.0:102
+PASS: fullcolon status=updateAvailable(latest: "1.0:102"), marketing=1.0, build=nil
+PASS: app source reads real cask pin state
+PASS: pin: expected current/held, got upToDate
+PASS: pin status=upToDate, marketing=2.0, build=nil
+PASS: actual pinned formula exists in Brew JSON
+PASS: formula parser excludes pinned formula
+PASS: package cask parser excludes pinned cask
+PASS: mode initial

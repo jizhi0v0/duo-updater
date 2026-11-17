@@ -1,0 +1,5 @@
+command: ['/usr/bin/sw_vers']
+exit: 0
+ProductName:		macOS
+ProductVersion:		27.2
+BuildVersion:		26B123

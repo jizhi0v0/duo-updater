@@ -1,0 +1,13 @@
+==> Fetching downloads for: duo-2055-full
+✔︎ Cask duo-2055-full (1.0,102)
+==> Upgrading duo-2055-full
+  1.0,101 -> 1.0,102
+==> Backing up App 'Duo2055Full.app' to '/opt/homebrew/Caskroom/duo-2055-full/1.0,101/Duo2055Full.app'
+==> Removing App '/Applications/Duo2055Full.app'
+==> Moving App 'Duo2055Full.app' to '/Applications/Duo2055Full.app'
+==> Purging files for version 1.0,101 of Cask duo-2055-full
+🍺  duo-2055-full was successfully upgraded!
+==> Cleanup
+Removing: /Users/bobby/Library/Caches/Homebrew/Cask/duo-2055-full--1.0,101.tar.gz... (616B)
+Disable this behaviour by setting `HOMEBREW_NO_INSTALL_CLEANUP=1`.
+Hide these hints with `HOMEBREW_NO_ENV_HINTS=1` (see `man brew`).

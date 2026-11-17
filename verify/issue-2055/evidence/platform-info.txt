@@ -1,0 +1,65 @@
+command: ['/opt/homebrew/bin/brew', 'info', '--cask', '--json=v2', 'duo-2055-var']
+exit: 0
+{
+  "formulae": [],
+  "casks": [
+    {
+      "token": "duo-2055-var",
+      "full_token": "duo-2055-var",
+      "old_tokens": [],
+      "tap": "homebrew/cask",
+      "name": [
+        "Duo2055Var"
+      ],
+      "desc": "Disposable issue 2055 fixture",
+      "homepage": "https://example.com",
+      "url": "file:///tmp/duo-2055/duo-2055-var.tar.gz",
+      "url_specs": {},
+      "version": "1.0",
+      "autobump": true,
+      "no_autobump_message": null,
+      "skip_livecheck": false,
+      "installed": "1.0",
+      "installed_time": 1794924831,
+      "bundle_version": "101",
+      "bundle_short_version": "1.0",
+      "pinned": false,
+      "pinned_version": null,
+      "outdated": false,
+      "sha256": "no_check",
+      "artifacts": [
+        {
+          "app": [
+            "Duo2055Var.app"
+          ],
+          "target": "/Applications/Duo2055Var.app"
+        }
+      ],
+      "caveats": null,
+      "caveats_rosetta": null,
+      "depends_on": {},
+      "conflicts_with": null,
+      "container": null,
+      "rename": [],
+      "auto_updates": null,
+      "deprecated": false,
+      "deprecation_date": null,
+      "deprecation_reason": null,
+      "deprecation_replacement_formula": null,
+      "deprecation_replacement_cask": null,
+      "deprecate_args": null,
+      "disabled": false,
+      "disable_date": null,
+      "disable_reason": null,
+      "disable_replacement_formula": null,
+      "disable_replacement_cask": null,
+      "disable_args": null,
+      "tap_git_head": "317af39765947b73fb621ad96c8e4bc7305d6304",
+      "languages": [],
+      "ruby_source_path": "Casks/d/duo-2055-var.rb",
+      "ruby_source_checksum": {
+        "sha256": "3725e20e65d662c84a738224bf16b1d69b3d0db8d3caf3a2707218bcca3c417d"
+      }
+    }
+  ]
+}

@@ -656,7 +656,7 @@ public actor InstallCoordinator {
             // Again, for a nested app started while this waited for the permit.
             try refuseWhileNestedAppRuns(result)
             // Auto-update and download first, where a cancel changes nothing…
-            try await homebrew.fetch(caskToken: token) { line in
+            try await homebrew.fetch(caskToken: token, app: result.app.path) { line in
                 progress(.runningCommand(line))
             }
             // …so a nested app started during them is refused before brew's

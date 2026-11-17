@@ -1,0 +1,8 @@
+Building for production...
+[0/4] Write sources
+[2/4] Write swift-version--58304C5D6DBC2206.txt
+[3/4] Compiling _SubprocessCShims process_shims.c
+[5/5] Compiling Subprocess API.swift
+[6/6] Compiling DuoUpdaterCore AmpActivity.swift
+Build complete! (172.20s)
+warning: '--build-system native' has been deprecated and will be removed in a future release; please report an issue at https://github.com/swiftlang/swift-package-manager/issues if you are unable to adopt the default build system.

@@ -1,0 +1,7 @@
+command: ['/opt/homebrew/bin/brew', 'install', '--cask', 'duo2055vm-fullcomma']
+exit: 0
+==> Fetching downloads for: duo2055vm-fullcomma
+✔︎ Cask duo2055vm-fullcomma (1.0,101)
+==> Installing Cask duo2055vm-fullcomma
+==> Moving App 'Duo2055VMFullComma.app' to '/Applications/Duo2055VMFullComma.app'
+🍺  duo2055vm-fullcomma was successfully installed!

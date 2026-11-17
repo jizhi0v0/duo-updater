@@ -1,0 +1,7 @@
+command: ['/opt/homebrew/bin/brew', 'install', '--cask', 'duo2055vm-fullcolon']
+exit: 0
+==> Fetching downloads for: duo2055vm-fullcolon
+✔︎ Cask duo2055vm-fullcolon (1.0:101)
+==> Installing Cask duo2055vm-fullcolon
+==> Moving App 'Duo2055VMFullColon.app' to '/Applications/Duo2055VMFullColon.app'
+🍺  duo2055vm-fullcolon was successfully installed!

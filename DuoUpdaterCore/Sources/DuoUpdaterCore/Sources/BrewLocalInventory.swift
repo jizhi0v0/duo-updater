@@ -107,7 +107,9 @@ public struct BrewLocalInventory: Sendable {
         return nil
     }
 
-    private static func receiptAppTargets(directory: URL, version: String) -> [String]? {
+    static func receiptAppTargets(
+        directory: URL, version: String, excludingStagedSources: Set<String> = []
+    ) -> [String]? {
         let metadata = directory.appendingPathComponent(".metadata")
         guard let data = try? Data(contentsOf: metadata.appendingPathComponent("INSTALL_RECEIPT.json")),
               let receipt = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
@@ -126,7 +128,9 @@ public struct BrewLocalInventory: Sendable {
             (config?[$0] as? [String: Any])?["appdir"] as? String
         }.first
         let paths: [String] = apps.compactMap { args in
-            guard let source = args.first as? String, !source.isEmpty else { return nil }
+            guard let source = args.first as? String, !source.isEmpty,
+                  !excludingStagedSources.contains((source as NSString).standardizingPath)
+            else { return nil }
             let options = args.dropFirst().first as? [String: Any]
             let target = (options?["target"] as? String) ?? (source as NSString).lastPathComponent
             guard !target.isEmpty else { return nil }
@@ -168,6 +172,26 @@ public struct BrewLocalInventory: Sendable {
     /// one; nil says nothing about whether the cask is installed.
     public func installedVersion(caskToken: String) -> String? {
         installedVersions[caskToken.lowercased()]
+    }
+
+    /// Scope a record to the prefix that actually owns the exact installed copy.
+    func installedVersion(caskToken: String, brewPrefix: String?) -> String? {
+        guard let brewPrefix else { return installedVersion(caskToken: caskToken) }
+        let directory = URL(fileURLWithPath: brewPrefix).appendingPathComponent("Caskroom")
+            .appendingPathComponent(caskToken)
+        return Self.installedVersion(inCaskDirectory: directory, token: caskToken)
+    }
+
+    /// Mirrors Cask#pinned?: a live symlink under this prefix's pinned_casks.
+    func isPinned(caskToken: String, brewPrefix: String? = nil) -> Bool {
+        let prefixes = brewPrefix.map { [$0] }
+            ?? caskroomPaths.map { URL(fileURLWithPath: $0).deletingLastPathComponent().path }
+        return prefixes.contains { prefix in
+            let path = URL(fileURLWithPath: prefix).appendingPathComponent("var/homebrew/pinned_casks")
+                .appendingPathComponent(caskToken).path
+            return (try? FileManager.default.destinationOfSymbolicLink(atPath: path)) != nil
+                && FileManager.default.fileExists(atPath: path)
+        }
     }
 
     /// No casks installed at all — so no app can possibly clear the provenance

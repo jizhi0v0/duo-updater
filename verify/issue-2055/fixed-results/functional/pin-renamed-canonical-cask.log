@@ -1,0 +1,2 @@
+command: ['/opt/homebrew/bin/brew', 'pin', '--cask', 'duo2055vm-new']
+exit: 0

@@ -1,0 +1,39 @@
+['/opt/homebrew/bin/brew', 'unpin', 'duo-2055-formula']
+exit=0
+
+['/opt/homebrew/bin/brew', 'unpin', '--cask', 'duo-2055-pin']
+exit=0
+
+['/opt/homebrew/bin/brew', 'uninstall', '--formula', 'duo-2055-formula']
+exit=0
+Uninstalling /opt/homebrew/Cellar/duo-2055-formula/1.0... (4 files, 3.9KB)
+
+['/opt/homebrew/bin/brew', 'uninstall', '--cask', 'duo-2055-full', 'duo-2055-new', 'duo-2055-pin', 'duo-2055-var', 'duo-2055-intel']
+exit=0
+==> Uninstalling Cask duo-2055-full
+==> Backing up App 'Duo2055Full.app' to '/opt/homebrew/Caskroom/duo-2055-full/1.0,102/Duo2055Full.app'
+==> Removing App '/Applications/Duo2055Full.app'
+==> Purging files for version 1.0,102 of Cask duo-2055-full
+==> Uninstalling Cask duo-2055-new
+==> Backing up App 'Duo2055Old.app' to '/opt/homebrew/Caskroom/duo-2055-new/2.0/Duo2055Old.app'
+==> Removing App '/Applications/Duo2055Old.app'
+==> Purging files for version 2.0 of Cask duo-2055-new
+==> Uninstalling Cask duo-2055-pin
+==> Backing up App 'Duo2055Pin.app' to '/opt/homebrew/Caskroom/duo-2055-pin/1.0/Duo2055Pin.app'
+==> Removing App '/Applications/Duo2055Pin.app'
+==> Purging files for version 1.0 of Cask duo-2055-pin
+==> Uninstalling Cask duo-2055-var
+==> Backing up App 'Duo2055Var.app' to '/opt/homebrew/Caskroom/duo-2055-var/1.0/Duo2055Var.app'
+==> Removing App '/Applications/Duo2055Var.app'
+==> Purging files for version 1.0 of Cask duo-2055-var
+==> Uninstalling Cask duo-2055-intel
+==> Backing up App 'Duo2055Intel.app' to '/opt/homebrew/Caskroom/duo-2055-intel/2.0/Duo2055Intel.app'
+==> Removing App '/Applications/Duo2055Intel.app'
+==> Purging files for version 2.0 of Cask duo-2055-intel
+
+['/usr/bin/arch', '-x86_64', '/usr/local/bin/brew', 'uninstall', '--cask', 'duo-2055-intel']
+exit=0
+==> Uninstalling Cask duo-2055-intel
+==> Purging files for version 1.0 of Cask duo-2055-intel
+
+remaining fixture records: ['/opt/homebrew/Caskroom/duo-2055-old']

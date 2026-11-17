@@ -1,0 +1,22 @@
+command: ['/opt/homebrew/bin/brew', 'upgrade', '--cask', 'duo2055vm-fullcomma', 'duo2055vm-fullcolon']
+exit: 0
+==> Fetching downloads for: duo2055vm-fullcomma and duo2055vm-fullcolon
+✔︎ Cask duo2055vm-fullcomma (1.0,102)
+✔︎ Cask duo2055vm-fullcolon (1.0:102)
+==> Upgrading duo2055vm-fullcomma
+  1.0,101 -> 1.0,102
+==> Backing up App 'Duo2055VMFullComma.app' to '/opt/homebrew/Caskroom/duo2055vm-fullcomma/1.0,101/Duo2055VMFullComma.app'
+==> Removing App '/Applications/Duo2055VMFullComma.app'
+==> Moving App 'Duo2055VMFullComma.app' to '/Applications/Duo2055VMFullComma.app'
+==> Purging files for version 1.0,101 of Cask duo2055vm-fullcomma
+🍺  duo2055vm-fullcomma was successfully upgraded!
+==> Upgrading duo2055vm-fullcolon
+  1.0:101 -> 1.0:102
+==> Backing up App 'Duo2055VMFullColon.app' to '/opt/homebrew/Caskroom/duo2055vm-fullcolon/1.0:101/Duo2055VMFullColon.app'
+==> Removing App '/Applications/Duo2055VMFullColon.app'
+==> Moving App 'Duo2055VMFullColon.app' to '/Applications/Duo2055VMFullColon.app'
+==> Purging files for version 1.0:101 of Cask duo2055vm-fullcolon
+🍺  duo2055vm-fullcolon was successfully upgraded!
+==> Upgraded 2 requested outdated packages
+duo2055vm-fullcomma  1.0,101 -> 1.0,102
+duo2055vm-fullcolon  1.0:101 -> 1.0:102

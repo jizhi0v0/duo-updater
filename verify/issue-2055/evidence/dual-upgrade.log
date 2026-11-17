@@ -1,0 +1,9 @@
+==> Fetching downloads for: duo-2055-intel
+✔︎ Cask duo-2055-intel (2.0)
+Warning: It seems there is already an App at '/Applications/Duo2055Intel.app'; overwriting.
+==> Installing Cask duo-2055-intel
+==> Removing App '/Applications/Duo2055Intel.app'
+==> Moving App 'Duo2055Intel.app' to '/Applications/Duo2055Intel.app'
+🍺  duo-2055-intel was successfully installed!
+==> Cleanup
+Removing: /Users/bobby/Library/Caches/Homebrew/Cask/duo-2055-intel--1.0.tar.gz... (604B)

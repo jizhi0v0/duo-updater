@@ -1,0 +1,22 @@
+command: ['/usr/bin/arch', '-x86_64', '/usr/local/bin/brew', 'install', '--cask', 'duo2055vm-intel']
+exit: 0
+Warning: You are using macOS on Intel x86_64.
+We do not provide support for this platform (as-of September 2026, announced August 2025).
+
+Apple have dropped Intel x86_64 support in macOS Golden Gate (27).
+GitHub Actions are dropping macOS Intel x86_64 runners in 2027.
+Homebrew is a non-profit project run entirely by volunteers, not employees.
+If the biggest companies in the world cannot support macOS Intel x86_64
+any longer, sadly neither can we.
+==> Fetching downloads for: duo2055vm-intel
+✔︎ Cask duo2055vm-intel (1.0)
+==> Installing Cask duo2055vm-intel
+==> Moving App 'Duo2055VMIntel.app' to '/Applications/Duo2055VMIntel.app'
+==> Moving App 'Duo2055VMIntelHelper.app' to '/Applications/Duo2055VMIntelHelper.app'
+
+This is a Tier 3 configuration:
+  https://docs.brew.sh/Support-Tiers#tier-3
+You can report issues with Tier 3 configurations to Homebrew/* repositories!
+  
+Read the above document before opening any issues or PRs.
+🍺  duo2055vm-intel was successfully installed!

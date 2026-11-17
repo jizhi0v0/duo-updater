@@ -109,14 +109,26 @@ public actor HomebrewCaskSource: UpdateSource {
         // Synthetic token-only inventories are a test seam. Real inventories
         // must associate this exact copy with the candidate, not just find a
         // same-named cask somewhere else on the machine.
-        let ownedTokens: Set<String>? = inventory.caskroomPaths.isEmpty
-            ? nil : Set(await owners(of: app).map(\.token))
-        let installed = candidates.filter {
-            inventory.isOfficialCandidate(caskToken: $0.token)
-                && (ownedTokens?.contains($0.token) ?? true)
+        let owners = inventory.caskroomPaths.isEmpty ? [] : await owners(of: app)
+        let installed = candidates.filter { entry in
+            let names = Set(([entry.token] + entry.oldTokens).map { $0.lowercased() })
+            if inventory.caskroomPaths.isEmpty {
+                return names.contains { inventory.isOfficialCandidate(caskToken: $0) }
+            }
+            return owners.contains { names.contains($0.token.lowercased()) }
         }
         guard let entry = CaskEntry.preferred(among: installed, hostOSVersion: hostOSVersion)
         else { return nil }
+        let names = Set(([entry.token] + entry.oldTokens).map { $0.lowercased() })
+        let matchingOwners = owners.filter { names.contains($0.token.lowercased()) }
+        for owner in matchingOwners { try HomebrewInstaller.validateOwnerPrefix(owner.brewPrefix) }
+        // A real owner supplies its historical token and prefix. Never read a
+        // same-token record from another Brew when matching an exact app path.
+        let owner = matchingOwners.first
+        let installedToken = owner?.token
+            ?? ([entry.token] + entry.oldTokens).first { inventory.isOfficialCandidate(caskToken: $0) }
+            ?? entry.token
+        let recorded = inventory.installedVersion(caskToken: installedToken, brewPrefix: owner?.brewPrefix)
         // A receipt lists every app a package wrote, helpers included, and a
         // helper's version need not follow the cask's: one below the version
         // Homebrew recorded installing would be offered the cask's version as an
@@ -131,14 +143,15 @@ public actor HomebrewCaskSource: UpdateSource {
         // (`BrewAppCask.isAtRecord`).
         if foundByReceipt {
             guard let installedVersion = app.shortVersion,
-                  let recorded = inventory.installedVersion(caskToken: entry.token)?
+                  let recorded = recorded?
                     .split(whereSeparator: { $0 == "," || $0 == ":" }).first,
                   VersionComparator.compare(String(recorded), installedVersion) != .orderedDescending
             else { return nil }
         }
 
         // Cask versions are sometimes "version,revision" or "version:build";
-        // use the leading marketing portion for comparison/display. Split on BOTH
+        // keep the leading marketing portion for bundle comparison. The complete
+        // identity below drives Brew record decisions and suffix-only displays. Split on BOTH
         // separators — keying only on "," left the ":build" form (e.g. "1.2.3:456")
         // intact, which then mis-compares against the bare installed "1.2.3" and can
         // surface a spurious update.
@@ -154,7 +167,7 @@ public actor HomebrewCaskSource: UpdateSource {
         // that instead. Before then the revision still shows as an update, as
         // it does in `brew outdated`.
         if let installed = app.shortVersion,
-           inventory.installedVersion(caskToken: entry.token) == entry.version,
+           recorded == entry.version,
            let dash = marketing.lastIndex(of: "-"),
            VersionComparator.compare(String(marketing[..<dash]), installed) == .orderedSame {
             marketing = String(marketing[..<dash])
@@ -180,11 +193,14 @@ public actor HomebrewCaskSource: UpdateSource {
         // reminder over a gate, and the cask is what brew updates either way.
         if entry.isStandardStableCask { remote.offeredChannel = .stable }
         remote.homebrewSelfUpdating = entry.autoUpdates
-        // What brew itself compares (`brew outdated`), cut like the cask's own
-        // version. `evaluate` uses it only where the bundle's string is older.
-        remote.homebrewRecordedVersion = inventory.installedVersion(caskToken: entry.token)?
+        // Marketing baseline for downstream sources allowed by Brew fallback.
+        // Brew itself compares the complete identities stored separately below.
+        remote.homebrewRecordedVersion = recorded?
             .split(whereSeparator: { $0 == "," || $0 == ":" }).first
             .map(String.init)
+        remote.homebrewCaskVersion = entry.version
+        remote.homebrewInstalledCaskVersion = recorded
+        remote.homebrewPinned = inventory.isPinned(caskToken: installedToken, brewPrefix: owner?.brewPrefix)
         return remote
     }
 }

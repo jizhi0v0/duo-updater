@@ -1,0 +1,2 @@
+command: ['/usr/bin/open', '-n', '/private/tmp/duo2055vm-fixed-f00a515b/EnvProbe.app', '--args', '/private/tmp/duo2055vm-fixed-f00a515b', 'env']
+exit: 0

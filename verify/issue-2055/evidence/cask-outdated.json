@@ -1,0 +1,32 @@
+{
+  "formulae": [],
+  "casks": [
+    {
+      "name": "duo-2055-full",
+      "installed_versions": [
+        "1.0,101"
+      ],
+      "current_version": "1.0,102",
+      "pinned": false,
+      "pinned_version": null
+    },
+    {
+      "name": "duo-2055-new",
+      "installed_versions": [
+        "1.0"
+      ],
+      "current_version": "2.0",
+      "pinned": false,
+      "pinned_version": null
+    },
+    {
+      "name": "duo-2055-pin",
+      "installed_versions": [
+        "1.0"
+      ],
+      "current_version": "2.0",
+      "pinned": true,
+      "pinned_version": "1.0"
+    }
+  ]
+}

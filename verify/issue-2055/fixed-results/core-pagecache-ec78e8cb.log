@@ -1,0 +1,69 @@
+Building for debugging...
+[1 / 1]
+[1 / 8] DuoUpdaterCore
+Build complete! (0.70 sec)
+◇ Test run started.
+↳ Testing Library Version: 2403
+↳ Target Platform: arm64e-apple-macos14.0
+◇ Suite MacAppStorePageCacheTests started.
+◇ Test withinTTLThePageIsScrapedOnlyOnce() started.
+✔ Test withinTTLThePageIsScrapedOnlyOnce() passed after 0.012 seconds.
+◇ Test parseFailureIsCachedButTransportFailureIsNot() started.
+✔ Test parseFailureIsCachedButTransportFailureIsNot() passed after 0.002 seconds.
+◇ Test nativeMacVersionScrapesTrackViewUrl() started.
+✔ Test nativeMacVersionScrapesTrackViewUrl() passed after 0.001 seconds.
+◇ Test iosOnMacVersionIgnoresTrackViewUrl() started.
+✔ Test iosOnMacVersionIgnoresTrackViewUrl() passed after 0.001 seconds.
+◇ Test untrustedTrackViewUrlHostFallsBackToConstructedURL() started.
+✔ Test untrustedTrackViewUrlHostFallsBackToConstructedURL() passed after 0.001 seconds.
+◇ Test trackViewUrlNamingAnotherListingFallsBackToConstructedURL() started.
+✔ Test trackViewUrlNamingAnotherListingFallsBackToConstructedURL() passed after 0.001 seconds.
+◇ Test trackViewUrlWithoutAPlatformMarkerFallsBackToConstructedURL() started.
+✔ Test trackViewUrlWithoutAPlatformMarkerFallsBackToConstructedURL() passed after 0.001 seconds.
+◇ Test trackViewUrlForAnotherStorefrontFallsBackToConstructedURL() started.
+✔ Test trackViewUrlForAnotherStorefrontFallsBackToConstructedURL() passed after 0.001 seconds.
+◇ Test invalidateAllForcesTheNextScrapeLive() started.
+✔ Test invalidateAllForcesTheNextScrapeLive() passed after 0.002 seconds.
+◇ Test aTrackViewUrlOffAppsAppleComIsNotOfferedAsALink(trackViewURL:) started.
+◇ Test case passing 1 argument trackViewURL → "javascript:alert(1)" to aTrackViewUrlOffAppsAppleComIsNotOfferedAsALink(trackViewURL:) started.
+◇ Test case passing 1 argument trackViewURL → "file:///etc/passwd" to aTrackViewUrlOffAppsAppleComIsNotOfferedAsALink(trackViewURL:) started.
+◇ Test case passing 1 argument trackViewURL → "myapp://open?x=1" to aTrackViewUrlOffAppsAppleComIsNotOfferedAsALink(trackViewURL:) started.
+◇ Test case passing 1 argument trackViewURL → "http://apps.apple.com/us/app/demo/id4501" to aTrackViewUrlOffAppsAppleComIsNotOfferedAsALink(trackViewURL:) started.
+◇ Test case passing 1 argument trackViewURL → "https://evil.example.com/us/app/demo/id4501" to aTrackViewUrlOffAppsAppleComIsNotOfferedAsALink(trackViewURL:) started.
+✔ Test aTrackViewUrlOffAppsAppleComIsNotOfferedAsALink(trackViewURL:) with 5 test cases passed after 0.011 seconds.
+◇ Test anAppsAppleComTrackViewUrlIsStillTheRowsLink() started.
+✔ Test anAppsAppleComTrackViewUrlIsStillTheRowsLink() passed after 0.002 seconds.
+◇ Test nativeMacVersionCarriesCompatibilityAndFloorFromTheSameScrape() started.
+✔ Test nativeMacVersionCarriesCompatibilityAndFloorFromTheSameScrape() passed after 0.001 seconds.
+◇ Test iosOnMacVersionCarriesCompatibilityAndFloorFromTheSameScrape() started.
+✔ Test iosOnMacVersionCarriesCompatibilityAndFloorFromTheSameScrape() passed after 0.001 seconds.
+◇ Test remoteVersionKeepsAskingMacSupportedNotPublishesMacBuild() started.
+✔ Test remoteVersionKeepsAskingMacSupportedNotPublishesMacBuild() passed after 0.001 seconds.
+◇ Test invalidatingOneBundleIDLeavesAnotherAppsCacheAlone() started.
+✔ Test invalidatingOneBundleIDLeavesAnotherAppsCacheAlone() passed after 0.003 seconds.
+◇ Test invalidatingAnUnnotedBundleIDClearsNothing() started.
+✔ Test invalidatingAnUnnotedBundleIDClearsNothing() passed after 0.002 seconds.
+◇ Test invalidateAllStillClearsEveryApp() started.
+✔ Test invalidateAllStillClearsEveryApp() passed after 0.003 seconds.
+◇ Test prewarmedAppSkipsIndividualLookup() started.
+✔ Test prewarmedAppSkipsIndividualLookup() passed after 0.001 seconds.
+◇ Test uncoveredAppFallsThroughToLiveLookup() started.
+✔ Test uncoveredAppFallsThroughToLiveLookup() passed after 0.001 seconds.
+◇ Test lookupBatchesDoNotDependOnInputOrder() started.
+✔ Test lookupBatchesDoNotDependOnInputOrder() passed after 0.005 seconds.
+◇ Test aRebuiltSourceStackStillSeesTheCachedPage() started.
+✔ Test aRebuiltSourceStackStillSeesTheCachedPage() passed after 0.001 seconds.
+◇ Test theBatchAsksForTheSameLanguageAsTheSingleLookup() started.
+✔ Test theBatchAsksForTheSameLanguageAsTheSingleLookup() passed after 0.001 seconds.
+◇ Test aPrewarmUnderOneLanguageIsNotServedToAnother() started.
+✔ Test aPrewarmUnderOneLanguageIsNotServedToAnother() passed after 0.001 seconds.
+◇ Test prewarmDoesNotBlockOnItsOwnBatch() started.
+✔ Test prewarmDoesNotBlockOnItsOwnBatch() passed after 0.001 seconds.
+◇ Test freshTrueDropsMemoForExactlyTheCheckedApps() started.
+✔ Test freshTrueDropsMemoForExactlyTheCheckedApps() passed after 0.004 seconds.
+◇ Test freshDefaultFalseDropsNothing() started.
+✔ Test freshDefaultFalseDropsNothing() passed after 0.002 seconds.
+◇ Test invalidateMemoIsDispatchedDynamically() started.
+✔ Test invalidateMemoIsDispatchedDynamically() passed after 0.001 seconds.
+✔ Suite MacAppStorePageCacheTests passed after 0.069 seconds.
+✔ Test run with 27 tests in 1 suite passed after 0.069 seconds.

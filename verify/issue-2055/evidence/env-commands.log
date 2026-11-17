@@ -1,0 +1,9 @@
+args=config NO_AUTO_UPDATE=1 AUTO_UPDATE_SECS=unset
+args=install --cask --force --dry-run -- duo-2055-full NO_AUTO_UPDATE=unset AUTO_UPDATE_SECS=unset
+args=fetch --cask -- duo-2055-full NO_AUTO_UPDATE=1 AUTO_UPDATE_SECS=unset
+args=config NO_AUTO_UPDATE=1 AUTO_UPDATE_SECS=unset
+args=install --cask --force --dry-run -- duo-2055-full NO_AUTO_UPDATE=unset AUTO_UPDATE_SECS=unset
+args=fetch --cask -- duo-2055-full NO_AUTO_UPDATE=1 AUTO_UPDATE_SECS=unset
+args=config NO_AUTO_UPDATE=1 AUTO_UPDATE_SECS=unset
+args=install --cask --force --dry-run -- duo-2055-full NO_AUTO_UPDATE=unset AUTO_UPDATE_SECS=unset
+args=fetch --cask -- duo-2055-full NO_AUTO_UPDATE=1 AUTO_UPDATE_SECS=unset

@@ -1,0 +1,3 @@
+command: ['/usr/bin/git', '-C', '/Users/bobby/duo-updater-2055', 'rev-parse', 'HEAD']
+exit: 0
+f00a515be5d3e91456a69a75e9a06b4f7e91a245

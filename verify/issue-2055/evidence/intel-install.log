@@ -1,0 +1,7 @@
+Error: Homebrew requires casks to be in a tap, rejecting:
+  /tmp/duo-2055/intel.rb (/private/tmp/duo-2055/intel.rb)
+
+To create a tap, run e.g.
+  brew tap-new <user|org>/<repository>
+To create a cask in a tap run e.g.
+  brew create --cask <url> --tap=<user|org>/<repository>

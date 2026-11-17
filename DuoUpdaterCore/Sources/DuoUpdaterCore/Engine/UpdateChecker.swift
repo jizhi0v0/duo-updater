@@ -523,6 +523,10 @@ public struct UpdateChecker: Sendable {
                 }
                 brewAnswer = result
                 continue
+            } catch let unsupported as HomebrewInstaller.UnsupportedPrefix {
+                // A proven foreign owner is not permission to replace the app
+                // through this process's preferred Brew or an unrelated source.
+                return UpdateResult(app: app, remote: nil, status: .error(unsupported.localizedDescription))
             } catch let unavailable as ThirdPartyCaskSource.Unavailable {
                 // A known package owner failing is not permission for GitHub or
                 // another feed to replace its installed copy.
@@ -743,6 +747,25 @@ public struct UpdateChecker: Sendable {
     public static func evaluate(
         installed: InstalledApp, remote: RemoteVersion
     ) -> UpdateStatus {
+        if remote.sourceName == "Homebrew" {
+            if remote.homebrewPinned { return .upToDate }
+            if !remote.requiresManualInstaller,
+               let latest = remote.homebrewCaskVersion,
+               let recorded = remote.homebrewInstalledCaskVersion,
+               latest != recorded,
+               latest.split(whereSeparator: { $0 == "," || $0 == ":" }).first
+                == recorded.split(whereSeparator: { $0 == "," || $0 == ":" }).first {
+                // Only a Brew route can act on an opaque suffix-only change.
+                // Package installation and the app's own updater leave Brew's
+                // record behind, so ordinary marketing changes must still use
+                // the actual bundle comparison below.
+                if !VersionComparator.isMarketingDowngrade(
+                    offered: remote.shortVersion, from: installed.shortVersion) {
+                    return .updateAvailable(latest: remote.displayVersion ?? latest)
+                }
+                return .upToDate
+            }
+        }
         // Build ids with no order of their own (commit hashes) are ordered by the
         // vendor's published lineage and by nothing else: every branch below ends
         // in `VersionComparator`, which on two hashes is a coin flip (see

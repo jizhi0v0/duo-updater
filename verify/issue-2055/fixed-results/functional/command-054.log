@@ -1,0 +1,3 @@
+command: ['/opt/homebrew/bin/brew', 'unpin', 'duo2055vm-fullcomma']
+exit: 0
+Warning: duo2055vm-fullcomma not pinned

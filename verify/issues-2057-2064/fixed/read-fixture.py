@@ -43,7 +43,9 @@ end
     definition.write_text(current)
 elif action == 'fail':
     assert definition.read_text() == (work / 'current.rb').read_text()
-    definition.write_text('raise "Duo206x controlled Brew read failure"\n')
+    # A normal exception can fall back to installed metadata with exit 0. Keep
+    # the valid cask header and explicitly abort this controlled native read.
+    definition.write_text('cask "duo206x-read" do\n  abort "Duo206x controlled Brew read failure"\nend\n')
 elif action == 'recover':
     assert 'Duo206x controlled Brew read failure' in definition.read_text()
     definition.write_text((work / 'current.rb').read_text())

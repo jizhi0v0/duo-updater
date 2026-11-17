@@ -72,7 +72,9 @@ def main():
         (evidence / ('racket-inspection-' + '-'.join(p.name for p in suites if p.exists()) + '.json')) \
             .write_text(json.dumps(record, indent=2) + '\n')
         brew(['info', '--cask', '--json=v2', 'racket'], 'racket-info')
-        brew(['outdated', '--cask', '--json=v2', 'racket'], 'racket-outdated')
+        # Match the product's all-cask read. A named outdated cask makes Brew
+        # exit 1 even for a valid response; its all-cask read exits 0.
+        brew(['outdated', '--cask', '--json=v2'], 'racket-outdated')
         print(json.dumps(record), flush=True)
 
     if args.action == 'prepare':
@@ -120,7 +122,7 @@ def main():
         state['prepared'] = True
         state['expectedDefinition'] = current
         write_state(state)
-        brew(['outdated', '--cask', '--json=v2', 'racket'], 'racket93-update-offer')
+        brew(['outdated', '--cask', '--json=v2'], 'racket93-update-offer')
         return
 
     state = json.loads(state_file.read_text())

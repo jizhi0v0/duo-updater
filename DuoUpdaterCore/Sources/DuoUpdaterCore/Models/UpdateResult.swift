@@ -581,7 +581,7 @@ public struct RemoteVersion: Sendable, Hashable {
     /// a vendor that freezes its marketing string this is the same value release
     /// after release. Anything deciding "is this newer" wants ``versionSide``.
     public var displayVersion: String? {
-        if sourceName == "Homebrew", let full = homebrewCaskVersion,
+        if sourceName == "Homebrew", !requiresManualInstaller, let full = homebrewCaskVersion,
            let recorded = homebrewInstalledCaskVersion, full != recorded,
            full.split(whereSeparator: { $0 == "," || $0 == ":" }).first
             == recorded.split(whereSeparator: { $0 == "," || $0 == ":" }).first {

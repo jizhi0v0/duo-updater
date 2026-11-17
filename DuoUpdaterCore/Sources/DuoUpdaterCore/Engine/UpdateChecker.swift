@@ -749,15 +749,19 @@ public struct UpdateChecker: Sendable {
     ) -> UpdateStatus {
         if remote.sourceName == "Homebrew" {
             if remote.homebrewPinned { return .upToDate }
-            if let latest = remote.homebrewCaskVersion,
-               let recorded = remote.homebrewInstalledCaskVersion {
-                // Brew compares complete opaque cask identities. Do not invent
-                // an ordering for hash/date suffixes or reinterpret them as the
-                // bundle build. A copy whose own marketing version moved ahead
-                // remains current, preserving the no-downgrade rule.
+            if !remote.requiresManualInstaller,
+               let latest = remote.homebrewCaskVersion,
+               let recorded = remote.homebrewInstalledCaskVersion,
+               latest != recorded,
+               latest.split(whereSeparator: { $0 == "," || $0 == ":" }).first
+                == recorded.split(whereSeparator: { $0 == "," || $0 == ":" }).first {
+                // Only a Brew route can act on an opaque suffix-only change.
+                // Package installation and the app's own updater leave Brew's
+                // record behind, so ordinary marketing changes must still use
+                // the actual bundle comparison below.
                 if !VersionComparator.isMarketingDowngrade(
                     offered: remote.shortVersion, from: installed.shortVersion) {
-                    return latest == recorded ? .upToDate : .updateAvailable(latest: remote.displayVersion ?? latest)
+                    return .updateAvailable(latest: remote.displayVersion ?? latest)
                 }
                 return .upToDate
             }

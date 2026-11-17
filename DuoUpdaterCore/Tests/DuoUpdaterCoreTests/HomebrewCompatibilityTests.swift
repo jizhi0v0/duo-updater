@@ -137,4 +137,33 @@ struct HomebrewCompatibilityTests {
         let newer = Self.app(path: app.path, version: "2.0")
         #expect(UpdateChecker.evaluate(installed: newer, remote: remote) == .upToDate)
     }
+
+    @Test(arguments: [false, true])
+    func staleBrewReceiptDoesNotReofferAnInstalledMarketingRelease(packageRoute: Bool) {
+        let current = Self.app(path: URL(fileURLWithPath: "/Applications/Example.app"), version: "2.0")
+        var remote = RemoteVersion(shortVersion: "2.0", version: nil, downloadURL: nil,
+            sourceName: "Homebrew", requiresManualInstaller: packageRoute)
+        remote.homebrewCaskVersion = "2.0"
+        remote.homebrewInstalledCaskVersion = "1.0"
+        remote.homebrewRecordedVersion = "1.0"
+        #expect(UpdateChecker.evaluate(installed: current, remote: remote) == .upToDate)
+        let old = Self.app(path: current.path, version: "1.0")
+        #expect(UpdateChecker.evaluate(installed: old, remote: remote) == .updateAvailable(latest: "2.0"))
+    }
+
+    @Test(arguments: ["1.0,102", "1.0:2026-11-17", "1.0,abcdef"])
+    func packageRouteCannotInferAnOpaqueSuffixUpdateFromItsUnchangedBrewRecord(latest: String) {
+        let current = Self.app(path: URL(fileURLWithPath: "/Applications/Example.app"))
+        var remote = RemoteVersion(shortVersion: "1.0", version: nil, downloadURL: nil,
+            sourceName: "Homebrew", requiresManualInstaller: true)
+        remote.homebrewCaskVersion = latest
+        remote.homebrewInstalledCaskVersion = "1.0,101"
+        remote.homebrewRecordedVersion = "1.0"
+        #expect(UpdateChecker.evaluate(installed: current, remote: remote) == .upToDate)
+        #expect(remote.displayVersion == "1.0")
+        let old = Self.app(path: current.path, version: "0.9")
+        remote.homebrewRecordedVersion = "0.9"
+        #expect(UpdateChecker.evaluate(installed: old, remote: remote) == .updateAvailable(latest: "1.0"))
+    }
+
 }

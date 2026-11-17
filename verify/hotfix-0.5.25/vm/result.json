@@ -1,0 +1,23 @@
+{
+  "AirBuddy.app": {
+    "bundleID": "codes.rambo.AirBuddy",
+    "version": "3.0.3",
+    "build": "1034",
+    "strictDeepSignature": true,
+    "setappKeyPresent": true
+  },
+  "Downie.app": {
+    "bundleID": "com.charliemonroe.Downie-4",
+    "version": "4.13.4",
+    "build": "5284",
+    "strictDeepSignature": true,
+    "setappKeyPresent": true
+  },
+  "WorkBuddy AI.app": {
+    "bundleID": "com.workbuddy.workbuddy-ai",
+    "version": "5.11.4",
+    "build": "5.11.4",
+    "strictDeepSignature": true,
+    "setappKeyPresent": false
+  }
+}

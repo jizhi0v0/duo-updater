@@ -1,0 +1,34 @@
+{
+  "runURL": "https://github.com/jizhi0v0/duo-updater/actions/runs/43992623527",
+  "generatedAt": "2026-11-17T01:12:09Z",
+  "items": [
+    {
+      "bundleID": "com.workbuddy.workbuddy-ai",
+      "bytes": 0,
+      "detail": "unchanged since 2026-10-30: same version and URL, last outcome clean \u2014 not downloaded",
+      "kind": "dmg",
+      "notes": [],
+      "probeHost": "www.workbuddy.ai",
+      "recipeID": "vendor:com.workbuddy.workbuddy-ai:stable:arm64",
+      "registry": "vendor",
+      "seconds": 0.6073249578475952,
+      "status": "skipped",
+      "url": "https://download.codebuddy.ai/workbuddy/saas/darwin-arm64/WorkBuddy-darwin-arm64-5.9.4.42593613-fa0a0901.dmg",
+      "urlSHA256": "cdaa53e59ec4fd89415399aebfdd0c1568c9ccf3d84d6ff7dc227b938cc105f2",
+      "version": "5.9.4",
+      "warnings": []
+    },
+    {
+      "bundleID": "com.workbuddy.workbuddy-ai",
+      "bytes": 0,
+      "detail": "unsupported host architecture \u2014 DuoUpdater supports Apple Silicon Macs only",
+      "notes": [],
+      "probeHost": "www.workbuddy.ai",
+      "recipeID": "vendor:com.workbuddy.workbuddy-ai:stable:x64",
+      "registry": "vendor",
+      "seconds": 0,
+      "status": "skipped",
+      "warnings": []
+    }
+  ]
+}

@@ -1,0 +1,292 @@
+Fetching https://github.com/apple/swift-system from cache
+Fetching https://github.com/swiftlang/swift-subprocess from cache
+Fetched https://github.com/swiftlang/swift-subprocess from cache (1.03s)
+Computing version for https://github.com/swiftlang/swift-subprocess
+Fetched https://github.com/apple/swift-system from cache (1.11s)
+Computed https://github.com/swiftlang/swift-subprocess at 1.0.2 (1.53s)
+Computing version for https://github.com/apple/swift-system
+Computed https://github.com/apple/swift-system at 1.8.1 (0.64s)
+Creating working copy for https://github.com/apple/swift-system
+Working copy of https://github.com/apple/swift-system resolved at 1.8.1
+Creating working copy for https://github.com/swiftlang/swift-subprocess
+Working copy of https://github.com/swiftlang/swift-subprocess resolved at 1.0.2
+Building for debugging...
+[Pre-planning 1 / 155]
+[Planning deferred tasks]
+[7 / 71]
+[36 / 71]
+[38 / 72] _SubprocessCShims
+[47 / 85]
+[51 / 85] Subprocess
+[61 / 137]
+[65 / 137]
+[71 / 137]
+[73 / 137]
+[78 / 137]
+[80 / 137]
+[83 / 137]
+[87 / 137]
+[89 / 137]
+[90 / 137]
+[105 / 137] Subprocess
+[106 / 137] Subprocess
+[112 / 138] Subprocess
+[114 / 138] DuoUpdaterCore
+[129 / 208]
+[135 / 208]
+[138 / 208]
+[142 / 208]
+[143 / 208]
+[158 / 208] DuoUpdaterCore
+[161 / 208] DuoUpdaterCore
+[162 / 208] DuoUpdaterCore
+[163 / 208] DuoUpdaterCore
+[164 / 208] DuoUpdaterCore
+[165 / 208] DuoUpdaterCore
+[166 / 208] DuoUpdaterCore
+[167 / 208] DuoUpdaterCore
+[169 / 208] DuoUpdaterCore
+[170 / 208] DuoUpdaterCore
+[172 / 208] DuoUpdaterCore
+[173 / 208] DuoUpdaterCore
+[174 / 208] DuoUpdaterCore
+[175 / 208] DuoUpdaterCore
+[176 / 208] DuoUpdaterCore
+[177 / 208] DuoUpdaterCore
+[179 / 208] DuoUpdaterCore
+[180 / 208] DuoUpdaterCore
+[183 / 208] DuoUpdaterCore
+[189 / 208] DuoUpdaterCore
+[190 / 208] DuoUpdaterCoreTests-product
+[192 / 208] DuoUpdaterCore
+[194 / 208] DuoUpdaterCore
+[198 / 209] DuoUpdaterCoreTests-product
+[204 / 249]
+[207 / 249]
+[223 / 249] DuoUpdaterCoreTests-product
+[224 / 249] DuoUpdaterCoreTests-product
+[225 / 249] DuoUpdaterCoreTests-product
+[226 / 249] DuoUpdaterCoreTests-product
+[228 / 249] DuoUpdaterCoreTests-product
+[229 / 249] DuoUpdaterCoreTests-product
+[230 / 249] DuoUpdaterCoreTests-product
+[231 / 249] DuoUpdaterCoreTests-product
+[232 / 249] DuoUpdaterCoreTests-product
+[233 / 249] DuoUpdaterCoreTests-product
+[234 / 249] DuoUpdaterCoreTests-product
+[235 / 249] DuoUpdaterCoreTests-product
+[236 / 249] DuoUpdaterCoreTests-product
+[237 / 249] DuoUpdaterCoreTests-product
+[238 / 249] DuoUpdaterCoreTests-product
+macro expansion #require:1:22: warning: no calls to throwing functions occur within 'try' expression [#UnnecessaryEffectMarker]
+`- /private/tmp/duo-hotfix-audit/source/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/ActivityWatchGitHubRuleTests.swift:68:61: note: expanded code originates here
+ 65 |         let tauri = try copy("0.14.1", literal: "https://activitywatch.net/tauri-fixture")
+ 66 |         let classic = try copy("0.14.1", literal: "https://activitywatch.net/classic-fixture")
+ 67 |         let tauriRule = try #require(try await GitHubReleasesSource.rule(
+    |                             `- note: in expansion of macro 'require' here
+ 68 |             forEditionOf: tauri, among: Self.registryRules))
+    +--- macro expansion #require --------------------------------------
+    |1 | Testing.__checkValue(try await GitHubReleasesSource.rule(
+    |  |                      `- warning: no calls to throwing functions occur within 'try' expression [#UnnecessaryEffectMarker]
+    |2 |             forEditionOf: tauri, among: Self.registryRules),expression: .__fromSyntaxNode("try await GitHubReleasesSource.rule(\n            forEditionOf: tauri, among: Self.registryRules)"),comments: [],isRequired: true,sourceLocation: Testing.SourceLocation.__here()).__required()
+    +-------------------------------------------------------------------
+ 69 |         let classicRule = try #require(try await GitHubReleasesSource.rule(
+ 70 |             forEditionOf: classic, among: Self.registryRules))
+
+macro expansion #require:1:22: warning: no calls to throwing functions occur within 'try' expression [#UnnecessaryEffectMarker]
+`- /private/tmp/duo-hotfix-audit/source/DuoUpdaterCore/Tests/DuoUpdaterCoreTests/ActivityWatchGitHubRuleTests.swift:70:63: note: expanded code originates here
+ 67 |         let tauriRule = try #require(try await GitHubReleasesSource.rule(
+ 68 |             forEditionOf: tauri, among: Self.registryRules))
+ 69 |         let classicRule = try #require(try await GitHubReleasesSource.rule(
+    |                               `- note: in expansion of macro 'require' here
+ 70 |             forEditionOf: classic, among: Self.registryRules))
+    +--- macro expansion #require --------------------------------------
+    |1 | Testing.__checkValue(try await GitHubReleasesSource.rule(
+    |  |                      `- warning: no calls to throwing functions occur within 'try' expression [#UnnecessaryEffectMarker]
+    |2 |             forEditionOf: classic, among: Self.registryRules),expression: .__fromSyntaxNode("try await GitHubReleasesSource.rule(\n            forEditionOf: classic, among: Self.registryRules)"),comments: [],isRequired: true,sourceLocation: Testing.SourceLocation.__here()).__required()
+    +-------------------------------------------------------------------
+ 71 |         #expect(tauriRule.installedExecutableMarker == Self.tauriMarker)
+ 72 |         #expect(classicRule.installedExecutableMarker == nil)
+
+[#UnnecessaryEffectMarker]: <https://docs.swift.org/compiler/documentation/diagnostics/unnecessary-effect-marker>
+[243 / 249] DuoUpdaterCoreTests-product
+[245 / 249] DuoUpdaterCoreTests-product
+[246 / 249] DuoUpdaterCoreTests-product
+[247 / 249] DuoUpdaterCoreTests-product
+Build complete! (91.11 sec)
+◇ Test run started.
+↳ Testing Library Version: 2403
+↳ Target Platform: arm64e-apple-macos14.0
+◇ Suite SetappCatalogSourceTests started.
+◇ Suite DouchatTeamMigrationTests started.
+◇ Suite RecipeGoldenTests started.
+◇ Suite InstallAuthenticityStagedCheckTests started.
+◇ Suite InstallAuthenticityDRRenameTests started.
+◇ Suite InstallAuthenticityDRTests started.
+◇ Suite WorkBuddyProbeRecipeTests started.
+◇ Test theSetappDeepLinkIsHandedToTheSetappClient() started.
+◇ Test ordinaryUpdatesKeepWorkingForEachTeam(team:) started.
+◇ Test theHandoverDoesNotAuthorizeOtherTeamsProductsOrTheReverseDirection(installedID:downloadedID:installedTeam:downloadedTeam:) started.
+◇ Test aBuildOnlyReleaseIsStillAnUpdate() started.
+◇ Test aNewTeamClaimWithoutTheInstalledSignersAuthorizationIsRefused() started.
+◇ Test offersTheCatalogueReleaseWhenTheSubscriptionIsActive() started.
+◇ Test aDirectCopyWithASetappPublicKeyKeepsItsVendorSource(bundleID:catalogueFails:) started.
+◇ Test aSetappEditionUsesTheBaseAppsReleaseNotes() started.
+◇ Test theAuthorizedHandoverPassesTheInstallGatesAndStagedSwap() started.
+◇ Test readsTheTrialDatesTheClientWrites() started.
+◇ Test readsTheDateFormTheCurrentClientWrites() started.
+◇ Test aRunningClientTakesThePageRoute() started.
+◇ Test readsBetaRowsFromTheClientsCatalogue() started.
+◇ Test ranksByVersionNotPublicationDate() started.
+◇ Test aBetaEnabledCheckReadsTheBetaCatalogue() started.
+◇ Test anIgnoredSetappCopyWithAStoredSkipVetoesTheGlobalLaunch() started.
+◇ Test rejectsAPayloadThatIsNotTheCatalogue() started.
+◇ Test noReadableCustomerMeansNoState() started.
+◇ Test anInstalledBetaIsStillNamedAfterTheSwitchGoesOff() started.
+◇ Test parsesEveryCatalogueEntryAtTheNewestRelease() started.
+◇ Test parsesTheBetaFlag() started.
+◇ Test offersTheNewestReleaseThatRunsHereNotTheNewestStanding() started.
+◇ Test answersACatalogueEntryThatBreaksTheNamingConvention() started.
+◇ Test aBetaRecordedByTheClientNamesTheChannel() started.
+◇ Test aMissingBuildIsNotABetaMatch() started.
+◇ Test withholdsTheVersionOnceTheSubscriptionHasLapsed() started.
+◇ Test aCopyAheadOfTheStableCatalogueIsNotADowngrade() started.
+◇ Test anInstalledBetaIsNamedFromTheCatalogue() started.
+◇ Test setsAndDictionariesAreDumpedSorted() started.
+◇ Test enumsDumpCaseAndLabelledPayload() started.
+◇ Test noReleaseThatRunsHereIsStillAnAnswer() started.
+◇ Test theDumpIsNotVacuous() started.
+◇ Test readsSetappsPerCustomerAutoInstallFlag() started.
+◇ Test aCatalogueFailureIsATerminalRetryableCheckFailure() started.
+◇ Test oneSkippedOfferVetoesTheGlobalAutomaticLaunch() started.
+◇ Test stillAnsweredAsInstalledWhenTheCatalogueDoesNotListIt() started.
+◇ Test picksTheNewestReleaseThisMacCanRun() started.
+◇ Test theRegistryMatchesTheGoldens() started.
+◇ Test aSkippedDirectOfferDoesNotVetoSetappUpdates() started.
+◇ Test anAheadCopyWithBetaOnNamesTheBetaChannel() started.
+◇ Test anInstallerStubMustBeSignedLikeTheInstalledCopy() started.
+◇ Test leavesAreDistinctAndEscaped() started.
+◇ Test ignoresAppsThatAreNotSetappEditions() started.
+◇ Test aURLWithABaseIsRefused() started.
+◇ Test whatCannotBeReadFaithfullyIsRefused() started.
+◇ Test aSignatureInvalidBackupIsRestoredByThePrivilegedShells() started.
+◇ Test case passing 1 argument team → "8PL52G56V9" to ordinaryUpdatesKeepWorkingForEachTeam(team:) started.
+◇ Test aUniversalAdHocBuildIsRefusedByRoot() started.
+◇ Test case passing 1 argument team → "JU9K7W6T6W" to ordinaryUpdatesKeepWorkingForEachTeam(team:) started.
+◇ Test case passing 4 arguments installedID → "ai.thinkany.douchat", downloadedID → "ai.thinkany.douchat", installedTeam → "8PL52G56V9", downloadedTeam → "JU9K7W6T6W" to theHandoverDoesNotAuthorizeOtherTeamsProductsOrTheReverseDirection(installedID:downloadedID:installedTeam:downloadedTeam:) started.
+◇ Test eachRecipeInstallsTheArtifactItsDigestDescribes() started.
+◇ Test aRenameIsJudgedByTheSignerNotTheOldIdentifier() started.
+◇ Test onlyActionableSetappOffersTriggerBackgroundUpdates() started.
+◇ Test case passing 4 arguments installedID → "ai.thinkany.douchat", downloadedID → "ai.thinkany.douchat", installedTeam → "JU9K7W6T6W", downloadedTeam → "OTHERTEAM1" to theHandoverDoesNotAuthorizeOtherTeamsProductsOrTheReverseDirection(installedID:downloadedID:installedTeam:downloadedTeam:) started.
+◇ Test theIdentifierClauseIsReaimedAndNothingElse() started.
+◇ Test aSelfSignedForgeryOfTheTeamIsRefusedOnTheDeveloperIDRoute() started.
+◇ Test case passing 2 arguments bundleID → "codes.rambo.AirBuddy", catalogueFails → false to aDirectCopyWithASetappPublicKeyKeepsItsVendorSource(bundleID:catalogueFails:) started.
+◇ Test aStagedCopySwappedAfterTheGateFailsTheInstalledRequirementInTheShell() started.
+◇ Test everyEndpointAsksAsAVersionlessClient() started.
+◇ Test case passing 4 arguments installedID → "ai.thinkany.douchat", downloadedID → "ai.thinkany.douchat", installedTeam → "OTHERTEAM1", downloadedTeam → "8PL52G56V9" to theHandoverDoesNotAuthorizeOtherTeamsProductsOrTheReverseDirection(installedID:downloadedID:installedTeam:downloadedTeam:) started.
+◇ Test aBuildSwappedInAfterTheGateIsRefusedByTheCdhashCapturedAtTheGate() started.
+◇ Test theLaunchSweepClearsAStagingDirectoryItCanRemove() started.
+◇ Test case passing 2 arguments bundleID → "codes.rambo.AirBuddy", catalogueFails → true to aDirectCopyWithASetappPublicKeyKeepsItsVendorSource(bundleID:catalogueFails:) started.
+◇ Test theTimestampParsesAsAPublishDate() started.
+◇ Test aSelfSignedForgeryOfTheTeamIsRefusedOnTheSparkleKeyOnlyTeamGate() started.
+◇ Test noRecipeResolvesTheOtherArchitecturesArtifact() started.
+◇ Test aSelfSignedForgeryOfTheTeamIsRefusedOnTheDigestAndMyGoRoutes() started.
+◇ Test case passing 4 arguments installedID → "ai.thinkany.other", downloadedID → "ai.thinkany.other", installedTeam → "JU9K7W6T6W", downloadedTeam → "8PL52G56V9" to theHandoverDoesNotAuthorizeOtherTeamsProductsOrTheReverseDirection(installedID:downloadedID:installedTeam:downloadedTeam:) started.
+◇ Test case passing 2 arguments bundleID → "com.charliemonroe.Downie-4", catalogueFails → true to aDirectCopyWithASetappPublicKeyKeepsItsVendorSource(bundleID:catalogueFails:) started.
+◇ Test case passing 2 arguments bundleID → "com.charliemonroe.Downie-4", catalogueFails → false to aDirectCopyWithASetappPublicKeyKeepsItsVendorSource(bundleID:catalogueFails:) started.
+◇ Test eachSiteSplitsByArchitectureAndOnlyByArchitecture() started.
+◇ Test theInstalledArtifactIsCheckedAgainstTheBodysSHA256() started.
+◇ Test case passing 4 arguments installedID → "ai.thinkany.other", downloadedID → "ai.thinkany.douchat", installedTeam → "JU9K7W6T6W", downloadedTeam → "8PL52G56V9" to theHandoverDoesNotAuthorizeOtherTeamsProductsOrTheReverseDirection(installedID:downloadedID:installedTeam:downloadedTeam:) started.
+◇ Test aStagedAdHocCopySwappedAfterTheGateFailsItsCdhashInTheShell() started.
+◇ Test case passing 4 arguments installedID → "ai.thinkany.douchat", downloadedID → "ai.thinkany.other", installedTeam → "JU9K7W6T6W", downloadedTeam → "8PL52G56V9" to theHandoverDoesNotAuthorizeOtherTeamsProductsOrTheReverseDirection(installedID:downloadedID:installedTeam:downloadedTeam:) started.
+◇ Test noSHA256HashReadsNoDigest() started.
+◇ Test thePrivilegedShellsStageInAFreshDirectoryNotAFixedSibling() started.
+◇ Test theBuildCounterIsDiscardedSoAnUpToDateInstallCompensatesEqual() started.
+◇ Test noRecipeResolvesTheOtherSitesArtifact() started.
+◇ Test theChinaSiteDigestIsTheZipsToday() started.
+◇ Test aThreeSegmentVersionStillMatches() started.
+◇ Test bothSitesAreSeparateStableApps() started.
+◇ Test theVersionComesFromProductVersion() started.
+◇ Test eachRecipeReadsItsOwnSite() started.
+◇ Test theUserIsSentToAPageRatherThanTheJSONEndpoint() started.
+✔ Test theSetappDeepLinkIsHandedToTheSetappClient() passed after 0.008 seconds.
+✔ Test anIgnoredSetappCopyWithAStoredSkipVetoesTheGlobalLaunch() passed after 0.027 seconds.
+✔ Test ranksByVersionNotPublicationDate() passed after 0.027 seconds.
+✔ Test noReadableCustomerMeansNoState() passed after 0.027 seconds.
+✔ Test rejectsAPayloadThatIsNotTheCatalogue() passed after 0.027 seconds.
+✔ Test readsTheDateFormTheCurrentClientWrites() passed after 0.027 seconds.
+✔ Test aSetappEditionUsesTheBaseAppsReleaseNotes() passed after 0.027 seconds.
+✔ Test readsTheTrialDatesTheClientWrites() passed after 0.027 seconds.
+✔ Test parsesEveryCatalogueEntryAtTheNewestRelease() passed after 0.027 seconds.
+✔ Test parsesTheBetaFlag() passed after 0.027 seconds.
+✔ Test aBetaRecordedByTheClientNamesTheChannel() passed after 0.027 seconds.
+✔ Test answersACatalogueEntryThatBreaksTheNamingConvention() passed after 0.027 seconds.
+✔ Test offersTheCatalogueReleaseWhenTheSubscriptionIsActive() passed after 0.028 seconds.
+✔ Test aRunningClientTakesThePageRoute() passed after 0.027 seconds.
+✔ Test withholdsTheVersionOnceTheSubscriptionHasLapsed() passed after 0.027 seconds.
+✔ Test enumsDumpCaseAndLabelledPayload() passed after 0.027 seconds.
+✔ Test readsBetaRowsFromTheClientsCatalogue() passed after 0.028 seconds.
+✔ Test setsAndDictionariesAreDumpedSorted() passed after 0.027 seconds.
+✔ Test oneSkippedOfferVetoesTheGlobalAutomaticLaunch() passed after 0.027 seconds.
+✔ Test aSkippedDirectOfferDoesNotVetoSetappUpdates() passed after 0.027 seconds.
+✔ Test stillAnsweredAsInstalledWhenTheCatalogueDoesNotListIt() passed after 0.027 seconds.
+✔ Test picksTheNewestReleaseThisMacCanRun() passed after 0.028 seconds.
+✔ Test ignoresAppsThatAreNotSetappEditions() passed after 0.027 seconds.
+✔ Test aURLWithABaseIsRefused() passed after 0.027 seconds.
+✔ Test onlyActionableSetappOffersTriggerBackgroundUpdates() passed after 0.027 seconds.
+✔ Test everyEndpointAsksAsAVersionlessClient() passed after 0.027 seconds.
+✔ Test noRecipeResolvesTheOtherArchitecturesArtifact() passed after 0.027 seconds.
+✔ Test eachRecipeInstallsTheArtifactItsDigestDescribes() passed after 0.027 seconds.
+✔ Test theIdentifierClauseIsReaimedAndNothingElse() passed after 0.027 seconds.
+✔ Test readsSetappsPerCustomerAutoInstallFlag() passed after 0.028 seconds.
+✔ Test theTimestampParsesAsAPublishDate() passed after 0.027 seconds.
+✔ Test eachSiteSplitsByArchitectureAndOnlyByArchitecture() passed after 0.026 seconds.
+✔ Test whatCannotBeReadFaithfullyIsRefused() passed after 0.028 seconds.
+✔ Test leavesAreDistinctAndEscaped() passed after 0.027 seconds.
+✔ Test theInstalledArtifactIsCheckedAgainstTheBodysSHA256() passed after 0.026 seconds.
+✔ Test noSHA256HashReadsNoDigest() passed after 0.026 seconds.
+✔ Test aThreeSegmentVersionStillMatches() passed after 0.025 seconds.
+✔ Test noRecipeResolvesTheOtherSitesArtifact() passed after 0.026 seconds.
+✔ Test bothSitesAreSeparateStableApps() passed after 0.023 seconds.
+✔ Test theBuildCounterIsDiscardedSoAnUpToDateInstallCompensatesEqual() passed after 0.026 seconds.
+✔ Test theVersionComesFromProductVersion() passed after 0.021 seconds.
+✔ Test theChinaSiteDigestIsTheZipsToday() passed after 0.025 seconds.
+✔ Test eachRecipeReadsItsOwnSite() passed after 0.021 seconds.
+✔ Test theUserIsSentToAPageRatherThanTheJSONEndpoint() passed after 0.021 seconds.
+✔ Test theLaunchSweepClearsAStagingDirectoryItCanRemove() passed after 0.028 seconds.
+✔ Suite WorkBuddyProbeRecipeTests passed after 0.029 seconds.
+✔ Test aCopyAheadOfTheStableCatalogueIsNotADowngrade() passed after 0.029 seconds.
+✔ Test anAheadCopyWithBetaOnNamesTheBetaChannel() passed after 0.029 seconds.
+✔ Test anInstalledBetaIsStillNamedAfterTheSwitchGoesOff() passed after 0.029 seconds.
+✔ Test noReleaseThatRunsHereIsStillAnAnswer() passed after 0.029 seconds.
+✔ Test aCatalogueFailureIsATerminalRetryableCheckFailure() passed after 0.029 seconds.
+✔ Test aBuildOnlyReleaseIsStillAnUpdate() passed after 0.031 seconds.
+✔ Test anInstalledBetaIsNamedFromTheCatalogue() passed after 0.031 seconds.
+✔ Test aDirectCopyWithASetappPublicKeyKeepsItsVendorSource(bundleID:catalogueFails:) with 4 test cases passed after 0.031 seconds.
+✔ Test aMissingBuildIsNotABetaMatch() passed after 0.031 seconds.
+✔ Test aBetaEnabledCheckReadsTheBetaCatalogue() passed after 0.031 seconds.
+✔ Test offersTheNewestReleaseThatRunsHereNotTheNewestStanding() passed after 0.031 seconds.
+✔ Suite SetappCatalogSourceTests passed after 0.031 seconds.
+✔ Test theRegistryMatchesTheGoldens() passed after 0.377 seconds.
+✔ Test thePrivilegedShellsStageInAFreshDirectoryNotAFixedSibling() passed after 0.422 seconds.
+✔ Test aSelfSignedForgeryOfTheTeamIsRefusedOnTheDeveloperIDRoute() passed after 1.378 seconds.
+✔ Test aNewTeamClaimWithoutTheInstalledSignersAuthorizationIsRefused() passed after 1.420 seconds.
+✔ Test aRenameIsJudgedByTheSignerNotTheOldIdentifier() passed after 1.445 seconds.
+✔ Test anInstallerStubMustBeSignedLikeTheInstalledCopy() passed after 1.477 seconds.
+✔ Suite InstallAuthenticityDRRenameTests passed after 1.477 seconds.
+✔ Test aSelfSignedForgeryOfTheTeamIsRefusedOnTheSparkleKeyOnlyTeamGate() passed after 1.562 seconds.
+✔ Test theDumpIsNotVacuous() passed after 1.572 seconds.
+✔ Suite RecipeGoldenTests passed after 1.572 seconds.
+✔ Test theAuthorizedHandoverPassesTheInstallGatesAndStagedSwap() passed after 1.596 seconds.
+✔ Test theHandoverDoesNotAuthorizeOtherTeamsProductsOrTheReverseDirection(installedID:downloadedID:installedTeam:downloadedTeam:) with 6 test cases passed after 1.626 seconds.
+✔ Test ordinaryUpdatesKeepWorkingForEachTeam(team:) with 2 test cases passed after 1.633 seconds.
+✔ Suite DouchatTeamMigrationTests passed after 1.633 seconds.
+✔ Test aSignatureInvalidBackupIsRestoredByThePrivilegedShells() passed after 1.639 seconds.
+✔ Test aSelfSignedForgeryOfTheTeamIsRefusedOnTheDigestAndMyGoRoutes() passed after 1.642 seconds.
+✔ Test aStagedAdHocCopySwappedAfterTheGateFailsItsCdhashInTheShell() passed after 1.709 seconds.
+✔ Test aUniversalAdHocBuildIsRefusedByRoot() passed after 1.723 seconds.
+✔ Test aBuildSwappedInAfterTheGateIsRefusedByTheCdhashCapturedAtTheGate() passed after 1.725 seconds.
+✔ Suite InstallAuthenticityStagedCheckTests passed after 1.726 seconds.
+✔ Test aStagedCopySwappedAfterTheGateFailsTheInstalledRequirementInTheShell() passed after 1.858 seconds.
+✔ Suite InstallAuthenticityDRTests passed after 1.859 seconds.
+✔ Test run with 73 tests in 7 suites passed after 1.859 seconds.

@@ -2,6 +2,26 @@
 
 Ceci est la traduction de `CHANGELOG.md`. La version anglaise fait autorité. Les versions non énumérées ici reviennent automatiquement à l’anglais.
 
+## 0.5.25
+
+**AirBuddy, Downie et les autres apps téléchargées directement retrouvent leurs mises à jour habituelles.** La présence de ressources Setapp ne les fait plus passer pour des versions Setapp.
+
+**WorkBuddy AI peut à nouveau installer ses mises à jour.** Le téléchargement utilise le paquet ZIP correspondant à la somme de contrôle publiée par le développeur.
+
+**Douchat peut être mis à jour après le changement d’équipe de signature autorisé par son développeur.**
+
+## 0.5.25-beta.1
+
+**Les apps Electron compatibles peuvent télécharger uniquement les parties modifiées.** Lorsqu’un téléchargement réutilisable est disponible, les mises à jour consomment moins de données ; sinon, elles téléchargent le paquet complet.
+
+**Gérez les téléchargements de mises à jour réutilisables dans les réglages de stockage.** Les téléchargements différentiels réussis affichent aussi le badge Delta dans Téléchargements.
+
+**Leaf propose désormais la recherche de mises à jour en ligne de commande, des mises à jour vérifiées en un clic et des notes de version structurées.**
+
+**T3 Code Beta et la version NSH de Disktree prennent désormais en charge la recherche de mises à jour et leur installation en un clic.** Chacun suit ses propres versions.
+
+**Douchat peut être mis à jour malgré le changement d’équipe de signature de son développeur.** Les mises à jour doivent respecter l’autorisation déjà signée dans l’app installée.
+
 ## 0.5.24
 
 **Les mises à jour automatiques sont désormais proposées en bêta facultative dans toutes les versions.** Elles restent désactivées par défaut ; activez-les dans Réglages → Mises à jour automatiques et partagez vos retours sur GitHub, avec le rapport anonymisé d’Events si utile.

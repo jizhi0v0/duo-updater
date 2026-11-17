@@ -1,0 +1,4 @@
+{"command":"check","schemaVersion":2}
+{"bundleID":"codes.rambo.AirBuddy","hasUpdate":true,"hidden":false,"installedBuild":"1034","installedVersion":"3.0.3","latestBuild":"1055","latestVersion":"3.1","name":"AirBuddy","path":"\/Applications\/Duo Hotfix Verification\/AirBuddy.app","route":"in-place","source":"Sparkle","status":"update 3.1"}
+{"bundleID":"com.charliemonroe.Downie-4","hasUpdate":true,"hidden":false,"installedBuild":"5284","installedVersion":"4.13.4","latestBuild":"5290","latestVersion":"4.13.5","name":"Downie 4","path":"\/Applications\/Duo Hotfix Verification\/Downie.app","route":"in-place","source":"Sparkle","status":"update 4.13.5"}
+{"bundleID":"com.workbuddy.workbuddy-ai","hasUpdate":true,"hidden":false,"installedBuild":"5.9.4","installedVersion":"5.9.4","latestVersion":"5.11.4","name":"WorkBuddy AI","path":"\/Applications\/Duo Hotfix Verification\/WorkBuddy AI.app","route":"in-place","source":"Vendor","status":"update 5.11.4"}

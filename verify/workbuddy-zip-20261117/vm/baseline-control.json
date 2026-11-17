@@ -1,0 +1,17 @@
+{
+  "entries": {
+    "install:vendor:com.workbuddy.workbuddy-ai:stable:arm64": {
+      "consecutiveActionable": 1,
+      "consecutiveInfra": 0,
+      "consecutiveInstallTransient": 0,
+      "lastSignature": "install.checksum",
+      "sweepsSinceComment": 1
+    },
+    "install:vendor:com.workbuddy.workbuddy-ai:stable:x64": {
+      "consecutiveActionable": 0,
+      "consecutiveInfra": 0,
+      "consecutiveInstallTransient": 0,
+      "sweepsSinceComment": 0
+    }
+  }
+}

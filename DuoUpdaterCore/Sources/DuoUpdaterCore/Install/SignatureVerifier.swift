@@ -708,11 +708,15 @@ public enum SignatureVerifier {
         return unique.map { String(format: "%02x", $0) }.joined()
     }
 
-    // MARK: Gate 3 — Team Identifier must match the installed app
+    // MARK: Gate 3 — Team Identifier must match or have a signed handover
 
     /// The single most important gate: the new build must be signed by the
     /// same developer team as what's already installed, so a hijacked feed
     /// can't swap in a different vendor's (or malicious) binary.
+    /// Douchat's personal → company transition is the one exception: its old
+    /// signature already authorizes the new Team in its designated requirement.
+    /// That unmodified requirement must still validate the download; the pair
+    /// alone never grants trust. See docs/app-audits/ai-thinkany-douchat.md.
     public static func verifyTeamIdentifierMatch(
         installedApp: URL,
         downloadedApp: URL
@@ -724,9 +728,16 @@ public enum SignatureVerifier {
             throw VerifyError.noTeamIdentifier(which: "downloaded")
         }
         guard installedTeam == downloadedTeam else {
-            throw VerifyError.teamIdentifierMismatch(
-                installed: installedTeam, downloaded: downloadedTeam
-            )
+            guard installedTeam == "JU9K7W6T6W", downloadedTeam == "8PL52G56V9",
+                  try signingIdentifier(at: installedApp) == "ai.thinkany.douchat",
+                  try signingIdentifier(at: downloadedApp) == "ai.thinkany.douchat"
+            else {
+                throw VerifyError.teamIdentifierMismatch(
+                    installed: installedTeam, downloaded: downloadedTeam)
+            }
+            try verifySatisfiesDesignatedRequirement(
+                installedApp: installedApp, downloadedApp: downloadedApp)
+            return
         }
     }
 

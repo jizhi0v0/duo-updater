@@ -95,13 +95,10 @@ enum com_workbuddy_workbuddy_ai {
         // situation degrades loudly instead (`installURLUnresolved`, which the
         // nightly `duo verify` sweep reports).
         //
-        // One-click: the JSON's `url` is a plain, unsigned zip on Tencent COS
-        // (intl: `download.codebuddy.ai`; CN: `download.codebuddy.cn` — each a
-        // branded front for the vendor's COS bucket). The `sha256hash` field alongside it is NOT
-        // that zip's digest: it is the SHA-256 of the `.dmg` sibling at the same
-        // path (measured 2026-10-07 on all four host×arch pairs; History). So
-        // one-click installs that dmg, checked against `sha256hash`, then Team
-        // FN2V63AD2J (see `workBuddyRecipe`).
+        // One-click installs the ZIP named by the update response and checks it
+        // against that response's `sha256hash`, then the existing Team-ID gate.
+        // The ZIP URL remains pinned to the international host and selected architecture.
+        // History: docs/app-audits/com-workbuddy-workbuddy-ai.md#历史与实测
         //
         // Changelog: each site's page is the one the app itself links (the build
         // branches on `isOverseas()`). The two pages share one entry pattern — see
@@ -110,12 +107,14 @@ enum com_workbuddy_workbuddy_ai {
             bundleID: "com.workbuddy.workbuddy-ai", host: "www.workbuddy.ai",
             assetHost: "download.codebuddy.ai", arch: .arm64,
             downloadURL: URL(string: "https://www.workbuddy.ai/")!,
-            changelogURL: URL(string: "https://www.workbuddy.ai/docs/workbuddy/Changelog")!),
+            changelogURL: URL(string: "https://www.workbuddy.ai/docs/workbuddy/Changelog")!,
+            installsZip: true),
         VendorProbeRegistry.workBuddyRecipe(
             bundleID: "com.workbuddy.workbuddy-ai", host: "www.workbuddy.ai",
             assetHost: "download.codebuddy.ai", arch: .x86_64,
             downloadURL: URL(string: "https://www.workbuddy.ai/")!,
-            changelogURL: URL(string: "https://www.workbuddy.ai/docs/workbuddy/Changelog")!),
+            changelogURL: URL(string: "https://www.workbuddy.ai/docs/workbuddy/Changelog")!,
+            installsZip: true),
         ],
         changelogs: [
         ChangelogRecipe(

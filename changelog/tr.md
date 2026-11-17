@@ -2,6 +2,26 @@
 
 Bu, `CHANGELOG.md` dosyasının Türkçe çevirisidir. Geçerli olan İngilizce sürümdür; burada yer almayan eski sürümler otomatik olarak İngilizce gösterilir.
 
+## 0.5.25
+
+**AirBuddy, Downie ve doğrudan indirilen diğer uygulamalar normal güncellemelerini yeniden buluyor.** Setapp kaynakları içermeleri artık Setapp sürümü olarak yanlış tanınmalarına neden olmuyor.
+
+**WorkBuddy AI güncellemeleri yeniden sorunsuz yükleniyor.** Geliştiricinin yayımladığı sağlama toplamıyla eşleşen ZIP paketi indiriliyor.
+
+**Douchat, geliştiricinin yetkilendirdiği imzalama ekibi değişikliğinin ardından güncellenebiliyor.**
+
+## 0.5.25-beta.1
+
+**Desteklenen Electron uygulamaları yalnızca değişen bölümleri indirebilir.** Yeniden kullanılabilir bir indirme varsa güncellemeler daha az veri kullanır; yoksa paketin tamamı indirilir.
+
+**Yeniden kullanılabilir güncelleme indirmelerini Depolama ayarlarından yönetin.** Başarılı fark indirmeleri, İndirilenler bölümünde Delta rozetiyle de gösterilir.
+
+**Leaf artık komut satırı güncelleme denetimleri, doğrulanmış tek tıkla güncellemeler ve yapılandırılmış sürüm notları sunuyor.**
+
+**T3 Code Beta ve Disktree’nin NSH sürümü artık güncelleme denetimlerini ve tek tıkla güncellemeyi destekliyor.** Her biri kendi sürümlerini izler.
+
+**Douchat, geliştiricisinin imzalama ekibi değişikliğinden sonra da güncellenebilir.** Güncellemeler, yüklü uygulamanın imzasında zaten bulunan yetkilendirmeyi karşılamalıdır.
+
 ## 0.5.24
 
 **Otomatik güncellemeler artık tüm sürümlerde isteğe bağlı bir Beta özelliği olarak kullanılabilir.** Varsayılan olarak kapalıdır; Ayarlar → Otomatik Güncellemeler bölümünden açabilir ve gerekirse Events bölümündeki kimlik bilgileri çıkarılmış raporu kullanarak GitHub’da geri bildirim paylaşabilirsiniz.

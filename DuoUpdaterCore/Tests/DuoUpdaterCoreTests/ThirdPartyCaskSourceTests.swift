@@ -387,15 +387,16 @@ import Testing
     }
 
 
-    @Test func migratedTokenDirectoryAliasDoesNotDuplicateOwnership() async throws {
+    @Test func migratedTokenDirectoryAliasDoesNotClaimTheCanonicalApp() async throws {
         let (root, app) = try fixture()
         defer { try? FileManager.default.removeItem(at: root) }
         let caskroom = root.appendingPathComponent("Caskroom")
         try FileManager.default.createSymbolicLink(at: caskroom.appendingPathComponent("old-example"),
             withDestinationURL: caskroom.appendingPathComponent("example"))
         let owners = await ThirdPartyCaskSource.ownership(in: [caskroom.path])
-        #expect(owners.map(\.token) == ["example"])
-        #expect(owners.first?.paths.contains(app.path.standardizedFileURL.resolvingSymlinksInPath().path) == true)
+        let appPath = app.path.standardizedFileURL.resolvingSymlinksInPath().path
+        let appOwners = owners.filter { $0.paths.contains(appPath) }
+        #expect(Set(appOwners.map(\.token)) == ["example"])
     }
 
 

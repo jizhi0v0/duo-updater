@@ -31,6 +31,10 @@ struct HomebrewCaskInstallerKindTests {
                     conflictsWith: ["cask": ["conflict"]]) == .detectionOnly)
         #expect(HomebrewCaskCatalog.installKind(artifacts: artifacts,
                     disabled: true) == .detectionOnly)
+        #expect(HomebrewCaskCatalog.installKind(artifacts: artifacts + [["preflight": NSNull()]]) == .detectionOnly)
+        #expect(HomebrewCaskCatalog.installKind(artifacts: artifacts + [["binary": ["tool"]]]) == .detectionOnly)
+        #expect(HomebrewCaskCatalog.installKind(artifacts: artifacts + [["uninstall_postflight_steps": []]])
+                == .manualInstaller(path: "Install.app"))
         #expect(HomebrewCaskCatalog.installKind(artifacts: [["installer": [
                     ["manual": "Install.app"], ["script": "run"]]]]) == .detectionOnly)
     }

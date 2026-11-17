@@ -68,6 +68,12 @@ struct UpdateSourceLabelTests {
         #expect(detail.contains("Homebrew downloads and verifies"))
         #expect(detail.contains("Finish the update"))
         #expect(!detail.contains("macOS’s installer"))
+        for staged in [nil, "Install Ghostty.app"] as [String?] {
+            let help = installerHandoffHelp(for: result, stagedFileName: staged)
+            #expect(help.contains("Finish the update"))
+            #expect(!help.contains("asks for admin"))
+            #expect(!help.contains("Nothing is downloaded again"))
+        }
     }
 
     /// Mutation: describe the route whatever the action → a detection-only row's

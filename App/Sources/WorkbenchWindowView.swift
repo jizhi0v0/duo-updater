@@ -577,7 +577,7 @@ struct WorkbenchWindowView: View {
         // The app-source check can find a suite before the Brew inventory lane
         // finishes. Keep that deliberate jump pending until its package exists.
         // No per-redraw inventory walk when there is no request.
-        .onChange(of: model.requestedWorkbenchHomebrewCask == nil ? [] : model.brewFormulae.map(\.key)) {
+        .onChange(of: requestedHomebrewCaskTarget) {
             applyRequestedHomebrewCask()
         }
         .onChange(of: model.requestedWorkbenchCLITool) { applyRequestedCLITool() }
@@ -671,21 +671,30 @@ struct WorkbenchWindowView: View {
         cliRevealRequest += 1
     }
 
+    private var requestedHomebrewCaskTarget: SidebarSelection.HomebrewCaskTarget? {
+        guard let cask = model.requestedWorkbenchHomebrewCask else { return nil }
+        return SidebarSelection.homebrewCask(
+            cask, packages: model.brewFormulae, unchecked: model.brewUnchecked, checked: model.brewChecked)
+    }
+
     /// A suite member has no Update of its own: reveal and select the exact
     /// owning package, preserving third-party tap qualification in the tag.
     private func applyRequestedHomebrewCask() {
-        guard let cask = model.requestedWorkbenchHomebrewCask else { return }
+        guard let target = requestedHomebrewCaskTarget else { return }
         searchText = ""
         homebrewRevealing = true
         sidebarTab = .cli
-        guard let row = model.brewFormulae.first(where: { $0.kind == .cask && $0.name == cask }) else {
+        guard case .row(let tag) = target else {
+            // Wait only while the initial inventory is unknown. A completed
+            // read with no navigable parent still reveals Homebrew's notices,
+            // but must not keep a request that later hijacks another selection.
+            if target == .unavailable { model.requestedWorkbenchHomebrewCask = nil }
             cliRevealTarget = Self.homebrewHeaderID
             cliRevealAnchor = .top
             cliRevealRequest += 1
             return
         }
         model.requestedWorkbenchHomebrewCask = nil
-        let tag = Self.formulaTag(row)
         selection = tag
         detailSelection = tag
         cliRevealTarget = tag

@@ -19,7 +19,7 @@ struct BrewSuiteVMIntegrationTests {
     }
 
     @Test func genuineSuiteHasOnePackageUpdateUnitBeforeAndAfterUpgrade() async throws {
-        let hardware = try await ChildProcess.run("/usr/sbin/sysctl", ["-n", "hw.model"])
+        let hardware = try await ChildProcess.run("/usr/sbin/sysctl", ["-n", "hw.model"], onCancel: .terminateChild)
         let model = String(decoding: hardware.standardOutput, as: UTF8.self)
         try #require(hardware.terminationStatus == 0 && model.hasPrefix("VirtualMac"), "VM execution only")
         let stage = try #require(ProcessInfo.processInfo.environment["DUO206X_VM_SUITE_STAGE"])

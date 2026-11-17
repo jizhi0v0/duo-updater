@@ -92,16 +92,23 @@ import Testing
         #expect(rows.map(\.name) == ["racket"])
     }
 
-    @Test func aSymlinkScanRootShowsTheSameMembersAsTheScanner() async throws {
+    @Test func suiteVisibilityMatchesTheScannerForAnExplicitSymlinkRoot() async throws {
         let disk = try Disk()
         defer { disk.remove() }
-        let alias = disk.root.appendingPathComponent("ApplicationAlias")
+        // Prove the fixture really supplies scanner rows before comparing an
+        // alias root. A scan that always returned nothing would otherwise pass.
+        let directScanner = AppScanner(
+            locations: [disk.applications], toolbox: ToolboxInventory(managedPaths: []),
+            testflight: TestFlightInventory(macRows: []), channelBinding: { _, _, _ in nil })
+        try #require(Set(directScanner.scan().map { $0.path.path }) == Set(disk.paths))
+        // Preferences.customScanLocations always supplies directory URLs. This
+        // alias is built before it exists, so give it that same directory hint.
+        let alias = disk.root.appendingPathComponent("ApplicationAlias", isDirectory: true)
         try FileManager.default.createSymbolicLink(at: alias, withDestinationURL: disk.applications)
         let scanner = AppScanner(
             locations: [alias], toolbox: ToolboxInventory(managedPaths: []),
             testflight: TestFlightInventory(macRows: []), channelBinding: { _, _, _ in nil })
         let scanned = Set(scanner.scan().map { $0.path.path })
-        #expect(scanned == Set(disk.paths))
         let facts = await BrewFormulaService.caskFacts(
             caskToken: "racket", appTargets: [], caskroomPaths: [disk.caskroom.path],
             scannedFolders: [alias.path], receiptApps: { _ in nil })

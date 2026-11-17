@@ -79,7 +79,7 @@ struct BrewReadMergeTests {
         #expect(merged.inventory.first { $0.kind == .formula }?.lifecycle == Self.lifecycle)
         #expect(merged.inventory.first { $0.kind == .formula }?.head == Self.head)
         #expect(merged.inventory.first { $0.kind == .cask }?.lifecycle == Self.lifecycle)
-        #expect(merged.unchecked == Self.previous.unchecked)
+        #expect(merged.unchecked == [Self.caskWarning, Self.formulaWarning])
         #expect(merged.caskLifecycles == [Self.caskLifecycle])
         #expect(merged.appCasks == [Self.association])
         #expect(Set(merged.inventory.filter(\.canUpgrade).map(\.key)) == ["zzfixture-tool", "cask:zzfixture-cask"])
@@ -123,11 +123,13 @@ struct BrewReadMergeTests {
     @Test func uncheckedWarningsAreKeptIndependentlyAndStillShadowTheirLeaf() {
         var report = BrewFormulaService.InstalledReport()
         report.uncheckedFormulaeRead = false
-        let legacy = BrewInstalledFormula(name: "zzfixture-legacy", installedVersion: "1.0", availableVersion: nil)
+        // Homebrew loads a renamed leaf under its new name. The old package's
+        // warning is the replacement for that new-name leaf, as leafName states.
+        let renamed = BrewInstalledFormula(name: "new", installedVersion: "1.0", availableVersion: nil)
         let merged = Self.previous.merging(
-            leaves: [Self.formula, legacy], formulaUpdates: [], caskUpdates: [], report: report)
+            leaves: [Self.formula, renamed], formulaUpdates: [], caskUpdates: [], report: report)
         #expect(merged.unchecked == [Self.formulaWarning])
-        #expect(!merged.inventory.contains { $0.name == "zzfixture-legacy" })
+        #expect(!merged.inventory.contains { $0.name == "new" })
         #expect(!merged.unchecked.contains { $0.kind == .cask })
     }
 

@@ -56,6 +56,13 @@ struct HomebrewManualInstallerTests {
         #expect(throws: (any Error).self) {
             try HomebrewManualInstaller.artifact(in: stage, path: "Install.app")
         }
+        let outsideRoot = root.appendingPathComponent("outside")
+        try FileManager.default.createDirectory(at: outsideRoot.appendingPathComponent("Install.app"), withIntermediateDirectories: true)
+        let linkedRoot = root.appendingPathComponent("linked-stage")
+        try FileManager.default.createSymbolicLink(at: linkedRoot, withDestinationURL: outsideRoot)
+        #expect(throws: (any Error).self) {
+            try HomebrewManualInstaller.artifact(in: linkedRoot, path: "Install.app")
+        }
         let inside = stage.appendingPathComponent("nested/Install.app")
         try FileManager.default.createDirectory(at: inside, withIntermediateDirectories: true)
         #expect(try HomebrewManualInstaller.artifact(in: stage, path: "nested/Install.app")

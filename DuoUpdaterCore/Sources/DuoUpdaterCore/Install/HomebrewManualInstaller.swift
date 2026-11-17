@@ -70,7 +70,11 @@ public actor HomebrewManualInstaller {
     /// the installer Brew just downloaded.
     static func artifact(in directory: URL, path: String) throws -> URL {
         guard isRelativeArtifactPath(path) else { throw ManualError.unsafeArtifact }
-        let base = directory.standardizedFileURL.resolvingSymlinksInPath()
+        let lexical = directory.standardizedFileURL
+        let base = lexical.resolvingSymlinksInPath()
+        let expected = lexical.deletingLastPathComponent().resolvingSymlinksInPath()
+            .appendingPathComponent(lexical.lastPathComponent).standardizedFileURL
+        guard base == expected else { throw ManualError.unsafeArtifact }
         let file = base.appendingPathComponent(path).standardizedFileURL.resolvingSymlinksInPath()
         guard file.path.hasPrefix(base.path + "/"), FileManager.default.fileExists(atPath: file.path)
         else { throw ManualError.unsafeArtifact }
@@ -129,12 +133,25 @@ public actor HomebrewManualInstaller {
                 guard try await Self.verifyInstallerApp(staged, installedApp: app) == proof else {
                     throw ManualError.unsafeArtifact
                 }
-                let opened = await MainActor.run { NSWorkspace.shared.open(staged) }
-                guard opened else { throw ManualError.couldNotOpen }
+                try await Self.openInstallerApp(staged)
             }
         }
         keep = true
         return staged
+    }
+
+    @MainActor
+    private static func openInstallerApp(_ installer: URL) async throws {
+        let configuration = NSWorkspace.OpenConfiguration()
+        // An older installer with the same bundle ID may still be open. Launch
+        // this verified copy rather than merely activating that other process.
+        configuration.createsNewApplicationInstance = true
+        configuration.addsToRecentItems = false
+        do {
+            _ = try await NSWorkspace.shared.openApplication(at: installer, configuration: configuration)
+        } catch {
+            throw ManualError.couldNotOpen
+        }
     }
 
     private static func verifyInstallerApp(_ installer: URL, installedApp: URL) async throws -> String {

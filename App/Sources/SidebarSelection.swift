@@ -1,4 +1,7 @@
+import DuoUpdaterCore
+
 import Foundation
+import DuoUpdaterCore
 
 /// A key that moves a sidebar list's selection (`SidebarList`).
 enum SidebarMove: Sendable, Equatable {
@@ -10,6 +13,28 @@ enum SidebarMove: Sendable, Equatable {
 /// (`SidebarList`) rather than `List(selection:)`'s, and with it own what the
 /// arrow keys do.
 enum SidebarSelection {
+
+    enum HomebrewCaskTarget: Equatable {
+        case row(String)
+        case awaitingInventory
+        case unavailable
+    }
+
+    /// A suite may have a normal package row or an unchecked one when Brew
+    /// cannot read its owning tap. Match the complete cask identity in either
+    /// list: a same-named formula or another tap's cask is not its parent.
+    static func homebrewCask(
+        _ cask: String, packages: [BrewInstalledFormula], unchecked: [BrewUncheckedPackage],
+        checked: Bool
+    ) -> HomebrewCaskTarget {
+        if let row = packages.first(where: { $0.kind == .cask && $0.name == cask }) {
+            return .row("brew:formula:\(row.key)")
+        }
+        if let row = unchecked.first(where: { $0.kind == .cask && $0.fullName == cask }) {
+            return .row("brew:unchecked:\(row.id)")
+        }
+        return checked ? .unavailable : .awaitingInventory
+    }
 
     /// The row `move` selects, from `current`, among `order` — the selectable
     /// rows' ids in the order they are drawn, so section headers, summary rows and

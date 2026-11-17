@@ -611,7 +611,16 @@ public actor HomebrewCaskCatalog {
             $0.key != "macos" && $0.key != "arch"
         }
         let conflicts = conflictsWith as? [String: Any] ?? [:]
-        guard manualPaths.count == 1, !hasScript, !disabled,
+        let handoffOnly = artifacts.allSatisfy { artifact in
+            guard let declaration = artifact as? [String: Any] else { return false }
+            // Uninstall-only hooks do not participate in this handoff: the old
+            // app is not uninstalled. Install flights/other live artifacts do.
+            return Set(declaration.keys).isSubset(of: [
+                "installer", "uninstall", "zap", "uninstall_preflight", "uninstall_postflight",
+                "uninstall_preflight_steps", "uninstall_postflight_steps",
+            ])
+        }
+        guard manualPaths.count == 1, !hasScript, !disabled, handoffOnly,
               packageDependencies.isEmpty, conflicts.isEmpty else { return .detectionOnly }
         return .manualInstaller(path: manualPaths[0])
     }

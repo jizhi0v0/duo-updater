@@ -275,4 +275,4 @@ the PKG helper is approved. Ambiguous/unsafe declarations and unsupported
 manual artifact kinds remain detection-only. The older fixture measurements
 above retain their original dates and scope.
 
-Manual handoffs currently accept signed `.app` installers and `.pkg`/`.mpkg` packages. A manual cask with additional package dependencies, conflicts, mixed installer scripts or an unsupported artifact remains detection-only; preparation does not reproduce Brew installation prerequisites.
+Manual handoffs currently accept signed `.app` installers and `.pkg`/`.mpkg` packages. A manual cask with additional package dependencies, conflicts, mixed installer scripts, flight hooks, other operative artifacts or an unsupported artifact remains detection-only; preparation does not reproduce Brew installation prerequisites.

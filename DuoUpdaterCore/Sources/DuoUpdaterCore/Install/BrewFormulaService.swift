@@ -1215,7 +1215,7 @@ public actor BrewFormulaService {
     ) async -> CaskFacts {
         let fm = FileManager.default
         let scanned = Set((scannedFolders + extraFolders).map { URL(fileURLWithPath: $0).standardizedFileURL.path })
-        func isShown(_ appPath: String, in scanned: Set<String>) -> Bool {
+        func isShown(_ appPath: String) -> Bool {
             let app = URL(fileURLWithPath: appPath).standardizedFileURL
             let parent = app.deletingLastPathComponent()
             if scanned.contains(parent.path) { return hasRow(app) }
@@ -1231,18 +1231,12 @@ public actor BrewFormulaService {
         let roots = caskroomPaths.map { URL(fileURLWithPath: $0).appendingPathComponent(Self.shortName(caskToken)) }
         var shown: Set<String> = []
         func record(_ appPath: String) {
-            if isShown(appPath, in: scanned) { shown.insert(URL(fileURLWithPath: appPath).standardizedFileURL.path) }
+            if isShown(appPath) { shown.insert(URL(fileURLWithPath: appPath).standardizedFileURL.path) }
         }
         appTargets?.forEach(record)
         let suitePaths = BrewLocalInventory.suiteAppPaths(
             token: Self.shortName(caskToken), caskroomPaths: caskroomPaths)
-        if !suitePaths.isEmpty {
-            // `AppScanner.admit` resolves member paths even when the selected
-            // scan root is a symlink. Suite ownership supplies those same real
-            // paths, so compare them to resolved roots in this branch only.
-            let suiteScanRoots = Set(scanned.map { URL(fileURLWithPath: $0).resolvingSymlinksInPath().path })
-            for path in suitePaths where isShown(path, in: suiteScanRoots) { shown.insert(path) }
-        }
+        suitePaths.forEach(record)
         let isSuite = roots.contains { root in
             guard let version = BrewLocalInventory.installedVersion(
                 inCaskDirectory: root, token: Self.shortName(caskToken)) else { return false }

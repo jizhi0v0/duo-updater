@@ -541,14 +541,14 @@ struct PopoverRowAction: View {
                 .minimumScaleFactor(0.7)
                 .controlSize(.small)
                 .buttonStyle(.borderedProminent)
-                .help("\(stagedFileName) is already downloaded — opens it in macOS's installer (asks for admin). Nothing is downloaded again.")
+                .help(installerHandoffHelp(for: result, stagedFileName: stagedFileName))
         } else {
             Button { actions.install() } label: { Text("Update").rowButtonLabel() }
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
                 .controlSize(.small)
                 .buttonStyle(.bordered)
-                .help("Downloads the official installer and opens it (asks for admin)")
+                .help(installerHandoffHelp(for: result, stagedFileName: nil))
         }
     }
 

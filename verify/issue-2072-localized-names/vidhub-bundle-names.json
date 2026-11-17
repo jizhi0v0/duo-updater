@@ -1,0 +1,91 @@
+{
+  "path": "/Applications/MediaCenter.app",
+  "info": {
+    "CFBundleIdentifier": "com.mac.utility.media.hub",
+    "CFBundleName": "MediaCenter",
+    "CFBundleDisplayName": "MediaCenter",
+    "CFBundleExecutable": "MediaCenter",
+    "CFBundleShortVersionString": "3.0.4",
+    "CFBundleVersion": "2026111101",
+    "CFBundleDevelopmentRegion": "en"
+  },
+  "hasMASReceipt": true,
+  "localizedNames": {
+    "ar.lproj": {
+      "CFBundleDisplayName": "VidHub",
+      "CFBundleName": "VidHub"
+    },
+    "cs.lproj": {
+      "CFBundleDisplayName": "VidHub",
+      "CFBundleName": "VidHub"
+    },
+    "de.lproj": {
+      "CFBundleDisplayName": "VidHub",
+      "CFBundleName": "VidHub"
+    },
+    "en.lproj": {
+      "CFBundleDisplayName": "VidHub",
+      "CFBundleName": "VidHub"
+    },
+    "es.lproj": {
+      "CFBundleDisplayName": "VidHub",
+      "CFBundleName": "VidHub"
+    },
+    "fr.lproj": {
+      "CFBundleDisplayName": "VidHub",
+      "CFBundleName": "VidHub"
+    },
+    "it.lproj": {
+      "CFBundleDisplayName": "VidHub",
+      "CFBundleName": "VidHub"
+    },
+    "ja.lproj": {
+      "CFBundleDisplayName": "VidHub",
+      "CFBundleName": "VidHub"
+    },
+    "ko.lproj": {
+      "CFBundleDisplayName": "VidHub",
+      "CFBundleName": "VidHub"
+    },
+    "lt.lproj": {
+      "CFBundleDisplayName": "VidHub",
+      "CFBundleName": "VidHub"
+    },
+    "nl.lproj": {
+      "CFBundleDisplayName": "VidHub",
+      "CFBundleName": "VidHub"
+    },
+    "pt-BR.lproj": {
+      "CFBundleDisplayName": "VidHub",
+      "CFBundleName": "VidHub"
+    },
+    "pt-PT.lproj": {
+      "CFBundleDisplayName": "VidHub",
+      "CFBundleName": "VidHub"
+    },
+    "ru.lproj": {
+      "CFBundleDisplayName": "VidHub",
+      "CFBundleName": "VidHub"
+    },
+    "sk.lproj": {
+      "CFBundleDisplayName": "VidHub",
+      "CFBundleName": "VidHub"
+    },
+    "tr.lproj": {
+      "CFBundleDisplayName": "VidHub",
+      "CFBundleName": "VidHub"
+    },
+    "vi.lproj": {
+      "CFBundleDisplayName": "VidHub",
+      "CFBundleName": "VidHub"
+    },
+    "zh-Hans.lproj": {
+      "CFBundleDisplayName": "VidHub",
+      "CFBundleName": "VidHub"
+    },
+    "zh-Hant.lproj": {
+      "CFBundleDisplayName": "VidHub",
+      "CFBundleName": "VidHub"
+    }
+  }
+}

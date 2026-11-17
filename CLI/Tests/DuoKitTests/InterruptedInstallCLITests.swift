@@ -11,12 +11,28 @@ struct InterruptedInstallCLITests {
     private func interrupted(
         name: String = "ZZFixture Journal", path: String = "/Applications/ZZFixture Journal.app",
         bundleID: String? = "com.example.zzfixture.journal",
-        source: InstallJournal.RestoreSource? = nil
+        source: InstallJournal.RestoreSource? = nil, metadataName: String? = nil
     ) -> InstallJournal.InterruptedInstall {
         InstallJournal.InterruptedInstall(
             id: UUID().uuidString, appID: path, appName: name, bundleID: bundleID,
             appPath: URL(fileURLWithPath: path), oldVersion: "1.0", oldBuild: nil,
-            route: "homebrew", damage: .missing, restoreFrom: source, iconSource: nil)
+            route: "homebrew", damage: .missing, restoreFrom: source, iconSource: nil,
+            metadataName: metadataName)
+    }
+
+    @Test(arguments: [false, true])
+    func aLocalizedInterruptedInstallKeepsBothNameSelectors(scanned: Bool) throws {
+        let item = interrupted(name: "百度网盘", path: "/Applications/Cloud.app",
+                               metadataName: "BaiduNetdisk_mac")
+        let damaged = InstalledApp(
+            name: "百度网盘", bundleID: item.bundleID, shortVersion: "1.0", buildVersion: nil,
+            path: item.appPath, isMASApp: false, sparkleFeedURL: nil,
+            metadataName: "BaiduNetdisk_mac")
+        for query in ["BaiduNetdisk", "百度网盘"] {
+            let found = try Backups.resolveRestoreTarget(
+                query: query, installed: scanned ? [damaged] : [], interrupted: [item]).get()
+            #expect(found == .interrupted(item))
+        }
     }
 
     @Test func theWarningNamesTheAppAndTheCommandThatPutsItBack() {

@@ -1,0 +1,46 @@
+[
+  {
+    "bundleID" : "com.mac.utility.media.hub",
+    "channel" : "stable",
+    "languages" : "en-US",
+    "legacyQuery" : "MediaCenter",
+    "metadataName" : "MediaCenter",
+    "name" : "VidHub",
+    "path" : "\/Applications\/MediaCenter.app",
+    "selectedPath" : "\/Applications\/MediaCenter.app",
+    "version" : "3.0.4"
+  },
+  {
+    "bundleID" : "com.baidu.BaiduNetdisk-mac",
+    "channel" : "stable",
+    "languages" : "en-US",
+    "legacyQuery" : "BaiduNetdisk",
+    "metadataName" : "BaiduNetdisk_mac",
+    "name" : "BaiduNetdisk",
+    "path" : "\/Applications\/BaiduNetdisk_mac.app",
+    "selectedPath" : "\/Applications\/BaiduNetdisk_mac.app",
+    "version" : "8.10.3"
+  },
+  {
+    "bundleID" : "com.mac.utility.media.hub",
+    "channel" : "stable",
+    "languages" : "zh-Hans-US,en-US",
+    "legacyQuery" : "MediaCenter",
+    "metadataName" : "MediaCenter",
+    "name" : "VidHub",
+    "path" : "\/Applications\/MediaCenter.app",
+    "selectedPath" : "\/Applications\/MediaCenter.app",
+    "version" : "3.0.4"
+  },
+  {
+    "bundleID" : "com.baidu.BaiduNetdisk-mac",
+    "channel" : "stable",
+    "languages" : "zh-Hans-US,en-US",
+    "legacyQuery" : "BaiduNetdisk",
+    "metadataName" : "BaiduNetdisk_mac",
+    "name" : "百度网盘",
+    "path" : "\/Applications\/BaiduNetdisk_mac.app",
+    "selectedPath" : "\/Applications\/BaiduNetdisk_mac.app",
+    "version" : "8.10.3"
+  }
+]

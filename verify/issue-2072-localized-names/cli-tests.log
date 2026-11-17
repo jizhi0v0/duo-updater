@@ -1,0 +1,135 @@
+Building for debugging...
+[1 / 5]
+[2 / 6] DuoUpdaterCore
+[3 / 7] DuoUpdaterCore
+[9 / 13] DuoKit
+[10 / 14] DuoKit
+[13 / 17] DuoUpdaterCore
+[14 / 17] DuoUpdaterCore
+[14 / 18]
+[15 / 18] DuoUpdaterCore
+[16 / 19] DuoKit
+[17 / 20] DuoKitTests-product
+[19 / 22] DuoKitTests-product
+[21 / 22] DuoKitTests-product
+[25 / 25] DuoKitTests-product
+[27 / 31] duo-product
+[30 / 31] duo-product
+Build complete! (15.63 sec)
+◇ Test run started.
+↳ Testing Library Version: 2403
+↳ Target Platform: arm64e-apple-macos14.0
+◇ Suite InventorySelectionTests started.
+◇ Suite InterruptedInstallCLITests started.
+◇ Suite CLIToolRowsTests started.
+◇ Test aMetadataAliasCannotResolveAnAmbiguousPrefix() started.
+◇ Test candidatesSharingANameAreSeparatedByVersionAndPath() started.
+◇ Test noArgumentsMeansEverything() started.
+◇ Test anAmbiguousPrefixIsRefusedAndNamesTheCandidates() started.
+◇ Test anUnambiguousNamePrefixResolves() started.
+◇ Test candidatesWithDistinctNamesAreToldToNameOne() started.
+◇ Test theSameAppNamedTwoWaysIsSelectedOnce() started.
+◇ Test aSharedBundleIDSelectsEveryCopy() started.
+◇ Test localizedRowsKeepTheirPreviousNameSelectors() started.
+◇ Test anUnknownNameIsAnError() started.
+◇ Test anExactPathWins() started.
+◇ Test anAbandonedScanStillFindsInterruptedInstalls() started.
+◇ Test aGoneAppIsFoundByPathBundleIDOrName() started.
+◇ Test withNothingToRestoreFromTheWarningSaysSo() started.
+◇ Test aLocalizedInterruptedInstallKeepsBothNameSelectors(scanned:) started.
+◇ Test restartProcessesTheJournalFirst() started.
+◇ Test theWarningNamesTheAppAndTheCommandThatPutsItBack() started.
+◇ Test shellQuotingLeavesPlainPathsAlone() started.
+◇ Test theNoBackupLineSaysWhatTheWayBackIs() started.
+◇ Test aQueryNamingAnInstalledAppAndAnInterruptedOneIsAmbiguous() started.
+◇ Test aDamagedBundleTheScanFoundCountsOnceAsInterrupted() started.
+◇ Test aPackageIsNamedByItsOwnName() started.
+◇ Test aToolIsNamedByItsToolName() started.
+◇ Test theStillRunningReasonNamesThePid() started.
+◇ Test checkTextSaysWhyAndWhatToRun() started.
+◇ Test progressGoesToStderr() started.
+◇ Test aFailureCarriesTheVendorsLineAndExitStatus() started.
+◇ Test managedTextSaysWhatTheUpdateDoesAndWhatLiesBeyond() started.
+◇ Test scannedRowsReadTheirFiles() started.
+◇ Test notesThatFailGiveNoHintAndAreAskedOnce() started.
+◇ Test aMissSaysToolsWereLookedAt() started.
+◇ Test securityLinesEndTheToolsSection() started.
+◇ Test twoToolsMatchingOnePrefixAreRefused() started.
+◇ Test aCurrentCopyWithStaleProcessesSaysSo() started.
+◇ Test textSaysWhatEachIsBuiltWith() started.
+◇ Test toolsNotStartedAfterACancelAreCountedCancelled() started.
+◇ Test aSkippedToolsJSONRowHasNoAppKey() started.
+◇ Test anAbandonedScanStillResolvesAToolPathButNoName() started.
+◇ Test rowsCarryWhatTheyAreBuiltWith() started.
+◇ Test anUpdateRowCarriesTheVersionsItsNotesMarkBreaking() started.
+◇ Test jsonCarriesRuntime() started.
+◇ Test aManagedRowIsNamedByItsKeyAndItsManager() started.
+◇ Test aToolIsNamedByItsPath() started.
+◇ Test outcomesMapToInstallsOwn() started.
+◇ Test aToolUpdateMakesCheckExit1() started.
+◇ Test jsonRowsCarryTheToolAndTheSchemaSays2() started.
+◇ Test skippedCopiesNeverReachAProvider() started.
+◇ Test aManagedRowCarriesItsManagerAndItem() started.
+◇ Test installRunsOnlyWhatUpdateAllWould() started.
+◇ Test aNoteThatSaysMoreThanTheReasonIsPrinted() started.
+◇ Test onlyAnAppPathOrBundleIDSparesTheToolCheck() started.
+◇ Test case passing 1 argument scanned → false to aLocalizedInterruptedInstallKeepsBothNameSelectors(scanned:) started.
+◇ Test aPrefixMatchingAnAppAndAToolIsRefused() started.
+◇ Test case passing 1 argument scanned → true to aLocalizedInterruptedInstallKeepsBothNameSelectors(scanned:) started.
+✔ Test noArgumentsMeansEverything() passed after 0.001 seconds.
+✔ Test anExactPathWins() passed after 0.002 seconds.
+✔ Test theSameAppNamedTwoWaysIsSelectedOnce() passed after 0.002 seconds.
+✔ Test aSharedBundleIDSelectsEveryCopy() passed after 0.002 seconds.
+✔ Test anUnambiguousNamePrefixResolves() passed after 0.002 seconds.
+✔ Test candidatesWithDistinctNamesAreToldToNameOne() passed after 0.005 seconds.
+✔ Test anAmbiguousPrefixIsRefusedAndNamesTheCandidates() passed after 0.005 seconds.
+✔ Test withNothingToRestoreFromTheWarningSaysSo() passed after 0.005 seconds.
+✔ Test aMetadataAliasCannotResolveAnAmbiguousPrefix() passed after 0.005 seconds.
+✔ Test candidatesSharingANameAreSeparatedByVersionAndPath() passed after 0.005 seconds.
+✔ Test shellQuotingLeavesPlainPathsAlone() passed after 0.004 seconds.
+✔ Test theNoBackupLineSaysWhatTheWayBackIs() passed after 0.004 seconds.
+✔ Test theStillRunningReasonNamesThePid() passed after 0.004 seconds.
+✔ Test localizedRowsKeepTheirPreviousNameSelectors() passed after 0.005 seconds.
+✔ Test aDamagedBundleTheScanFoundCountsOnceAsInterrupted() passed after 0.004 seconds.
+✔ Test aQueryNamingAnInstalledAppAndAnInterruptedOneIsAmbiguous() passed after 0.005 seconds.
+✔ Test anAbandonedScanStillFindsInterruptedInstalls() passed after 0.005 seconds.
+✔ Test anUnknownNameIsAnError() passed after 0.005 seconds.
+✔ Test aGoneAppIsFoundByPathBundleIDOrName() passed after 0.005 seconds.
+✔ Test aSkippedToolsJSONRowHasNoAppKey() passed after 0.004 seconds.
+✔ Test theWarningNamesTheAppAndTheCommandThatPutsItBack() passed after 0.004 seconds.
+✔ Test securityLinesEndTheToolsSection() passed after 0.004 seconds.
+✔ Test managedTextSaysWhatTheUpdateDoesAndWhatLiesBeyond() passed after 0.004 seconds.
+✔ Test aToolUpdateMakesCheckExit1() passed after 0.004 seconds.
+✔ Test jsonRowsCarryTheToolAndTheSchemaSays2() passed after 0.004 seconds.
+✔ Test checkTextSaysWhyAndWhatToRun() passed after 0.005 seconds.
+✔ Test anAbandonedScanStillResolvesAToolPathButNoName() passed after 0.004 seconds.
+✔ Test aToolIsNamedByItsToolName() passed after 0.005 seconds.
+✔ Test aPackageIsNamedByItsOwnName() passed after 0.005 seconds.
+✔ Test aLocalizedInterruptedInstallKeepsBothNameSelectors(scanned:) with 2 test cases passed after 0.005 seconds.
+✔ Test twoToolsMatchingOnePrefixAreRefused() passed after 0.004 seconds.
+✔ Test aMissSaysToolsWereLookedAt() passed after 0.004 seconds.
+✔ Test outcomesMapToInstallsOwn() passed after 0.004 seconds.
+✔ Test aManagedRowCarriesItsManagerAndItem() passed after 0.004 seconds.
+✔ Test aManagedRowIsNamedByItsKeyAndItsManager() passed after 0.004 seconds.
+✔ Test aNoteThatSaysMoreThanTheReasonIsPrinted() passed after 0.004 seconds.
+✔ Test aToolIsNamedByItsPath() passed after 0.004 seconds.
+✔ Test installRunsOnlyWhatUpdateAllWould() passed after 0.004 seconds.
+✔ Test aPrefixMatchingAnAppAndAToolIsRefused() passed after 0.004 seconds.
+✔ Test rowsCarryWhatTheyAreBuiltWith() passed after 0.004 seconds.
+✔ Suite InventorySelectionTests passed after 0.005 seconds.
+✔ Test progressGoesToStderr() passed after 0.004 seconds.
+✔ Test jsonCarriesRuntime() passed after 0.004 seconds.
+✔ Test aFailureCarriesTheVendorsLineAndExitStatus() passed after 0.004 seconds.
+✔ Test skippedCopiesNeverReachAProvider() passed after 0.004 seconds.
+✔ Test onlyAnAppPathOrBundleIDSparesTheToolCheck() passed after 0.004 seconds.
+✔ Test toolsNotStartedAfterACancelAreCountedCancelled() passed after 0.004 seconds.
+✔ Test textSaysWhatEachIsBuiltWith() passed after 0.004 seconds.
+✔ Test notesThatFailGiveNoHintAndAreAskedOnce() passed after 0.005 seconds.
+✔ Test aCurrentCopyWithStaleProcessesSaysSo() passed after 0.005 seconds.
+✔ Test anUpdateRowCarriesTheVersionsItsNotesMarkBreaking() passed after 0.005 seconds.
+✔ Test scannedRowsReadTheirFiles() passed after 0.016 seconds.
+✔ Suite CLIToolRowsTests passed after 0.017 seconds.
+duo: no installed app matches 'ZZFixture-no-such-app-46830A82-2848-4D3F-ADB4-278C7181BA8F'
+✔ Test restartProcessesTheJournalFirst() passed after 4.067 seconds.
+✔ Suite InterruptedInstallCLITests passed after 4.068 seconds.
+✔ Test run with 52 tests in 3 suites passed after 4.068 seconds.

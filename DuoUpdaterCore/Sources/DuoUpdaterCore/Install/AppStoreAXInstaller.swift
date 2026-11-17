@@ -130,29 +130,7 @@ public actor AppStoreAXInstaller {
             return out
         }
 
-        /// The app's own name in the user's language, read from the bundle it is about
-        /// to update.
-        ///
-        /// The lproj is matched explicitly rather than through `localizedInfoDictionary`,
-        /// which measurably does not follow the process's languages: a probe running as
-        /// zh-Hans still read "DingTalk" from it, while the explicit match below read
-        /// "钉钉" (2026-09-05). `preferredLocalizations(from:forPreferences:)` is what
-        /// handles the mapping that matters — DingTalk ships the old-style `zh_CN.lproj`,
-        /// not `zh-Hans.lproj`, and it resolves that pairing correctly.
-        ///
-        /// nil when the bundle localizes no name at all (Keka ships lprojs with no
-        /// `InfoPlist.strings` name), which just leaves the other needles.
-        static func localizedName(at path: URL) -> String? {
-            guard let bundle = Bundle(url: path) else { return nil }
-            let preferred = Bundle.preferredLocalizations(
-                from: bundle.localizations, forPreferences: Locale.preferredLanguages)
-            guard let localization = preferred.first,
-                  let url = bundle.url(forResource: "InfoPlist", withExtension: "strings",
-                                       subdirectory: nil, localization: localization),
-                  let strings = NSDictionary(contentsOf: url) as? [String: Any]
-            else { return nil }
-            return (strings["CFBundleDisplayName"] ?? strings["CFBundleName"]) as? String
-        }
+
     }
 
     /// Why a lookup answered the way it did — carried alongside the button so the
@@ -280,8 +258,14 @@ public actor AppStoreAXInstaller {
     ) async throws {
         guard Self.isTrusted else { throw AXError.notTrusted }
 
-        let names = AppNames(bundle: appName, store: storeName,
-                             localized: AppNames.localizedName(at: appPath))
+        // Scanned row names are localized now. Preserve the original bundle
+        // name as an additional matching needle for another-language store page.
+        let rawInfo = NSDictionary(contentsOf: BundleLayout.infoPlistURL(for: appPath))
+        let metadataName = AppScanner.firstUsableName(
+            rawInfo?["CFBundleDisplayName"] as? String,
+            rawInfo?["CFBundleName"] as? String, appName)
+        let names = AppNames(bundle: metadataName, store: storeName,
+                             localized: LocalizedAppName.read(at: appPath))
         let runningAtStart = bundleID.map { Self.isRunning($0) } ?? false
         Log.install.notice("appstore-ax: start \(appName, privacy: .public) [\(bundleID ?? "?", privacy: .public)] trackID=\(trackID) storeName=\(storeName ?? "-", privacy: .public) needles=\(names.needles.joined(separator: " | "), privacy: .public) viaUpdatesList=\(viaUpdatesList) running=\(runningAtStart)")
 

@@ -229,7 +229,7 @@ public enum Inventory {
 
     /// `select`, with the command-line tools in the running too. An argument is
     /// resolved as an app's install path, then a tool's (`path`), then a bundle
-    /// id, then a case-insensitive prefix of an app's name or of a tool's
+    /// id, then a case-insensitive prefix of an app's localized or original name, or of a tool's
     /// (`names`) — the apps' rule, with the same refusal: a prefix that matches
     /// more than one thing, apps and tools together, is an error, never a guess.
     ///
@@ -268,6 +268,7 @@ public enum Inventory {
             let prefix = query.lowercased()
             let byName = apps.filter {
                 $0.name.lowercased().hasPrefix(prefix)
+                    || $0.metadataName.lowercased().hasPrefix(prefix)
             }
             let toolsByName = tools.filter { $0.names.contains { $0.lowercased().hasPrefix(prefix) } }
             switch byName.count + toolsByName.count {

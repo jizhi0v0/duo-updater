@@ -1,0 +1,256 @@
+Building for debugging...
+[2 / 11] DuoUpdaterCore
+[4 / 13] DuoUpdaterCore
+[10 / 15] DuoUpdaterCore
+[10 / 16]
+[11 / 16] DuoUpdaterCore
+[12 / 15] DuoUpdaterCoreTests-product
+[17 / 20] DuoUpdaterCoreTests-product
+[18 / 20] DuoUpdaterCoreTests-product
+[20 / 25] DuoUpdaterCoreTests-product
+[22 / 24] DuoUpdaterCoreTests-product
+[23 / 24] DuoUpdaterCoreTests-product
+[24 / 24] DuoUpdaterCoreTests-product
+Build complete! (56.10 sec)
+Test Suite 'Selected tests' started at 2026-11-17 22:16:01.113.
+Test Suite 'DuoUpdaterCoreTests.xctest' started at 2026-11-17 22:16:01.114.
+Test Suite 'TestFlightInventoryTests' started at 2026-11-17 22:16:01.114.
+Test Case '-[DuoUpdaterCoreTests.TestFlightInventoryTests testABlockedDatabaseOpenGivesUpAndIsNotRetried]' started.
+Test Case '-[DuoUpdaterCoreTests.TestFlightInventoryTests testABlockedDatabaseOpenGivesUpAndIsNotRetried]' passed (5.015 seconds).
+Test Case '-[DuoUpdaterCoreTests.TestFlightInventoryTests testAMissingDatabaseIsInaccessibleImmediately]' started.
+Test Case '-[DuoUpdaterCoreTests.TestFlightInventoryTests testAMissingDatabaseIsInaccessibleImmediately]' passed (0.001 seconds).
+Test Case '-[DuoUpdaterCoreTests.TestFlightInventoryTests testApplyingInventoryDoesNotMatchAnOverriddenBuild]' started.
+Test Case '-[DuoUpdaterCoreTests.TestFlightInventoryTests testApplyingInventoryDoesNotMatchAnOverriddenBuild]' passed (0.002 seconds).
+Test Case '-[DuoUpdaterCoreTests.TestFlightInventoryTests testApplyingInventoryDoesNotTagADifferentInstalledBuild]' started.
+Test Case '-[DuoUpdaterCoreTests.TestFlightInventoryTests testApplyingInventoryDoesNotTagADifferentInstalledBuild]' passed (0.001 seconds).
+Test Case '-[DuoUpdaterCoreTests.TestFlightInventoryTests testApplyingInventoryKeepsLocalReceiptTagWhenDatabaseLags]' started.
+Test Case '-[DuoUpdaterCoreTests.TestFlightInventoryTests testApplyingInventoryKeepsLocalReceiptTagWhenDatabaseLags]' passed (0.001 seconds).
+Test Case '-[DuoUpdaterCoreTests.TestFlightInventoryTests testApplyingInventoryRetagsWithoutLosingScannedMetadata]' started.
+Test Case '-[DuoUpdaterCoreTests.TestFlightInventoryTests testApplyingInventoryRetagsWithoutLosingScannedMetadata]' passed (0.001 seconds).
+Test Case '-[DuoUpdaterCoreTests.TestFlightInventoryTests testCheckerManagedWhenNoCache]' started.
+Test Case '-[DuoUpdaterCoreTests.TestFlightInventoryTests testCheckerManagedWhenNoCache]' passed (0.011 seconds).
+Test Case '-[DuoUpdaterCoreTests.TestFlightInventoryTests testCheckerOffersAMarketingBumpThatRestartsBuildNumbering]' started.
+Test Case '-[DuoUpdaterCoreTests.TestFlightInventoryTests testCheckerOffersAMarketingBumpThatRestartsBuildNumbering]' passed (0.002 seconds).
+Test Case '-[DuoUpdaterCoreTests.TestFlightInventoryTests testCheckerOffersBetaUpdateWhenNewerBuildExists]' started.
+Test Case '-[DuoUpdaterCoreTests.TestFlightInventoryTests testCheckerOffersBetaUpdateWhenNewerBuildExists]' passed (0.001 seconds).
+Test Case '-[DuoUpdaterCoreTests.TestFlightInventoryTests testCheckerRefusesUpToDateWhenInstalledBuildOutrunsTheDatabase]' started.
+Test Case '-[DuoUpdaterCoreTests.TestFlightInventoryTests testCheckerRefusesUpToDateWhenInstalledBuildOutrunsTheDatabase]' passed (0.000 seconds).
+Test Case '-[DuoUpdaterCoreTests.TestFlightInventoryTests testCheckerUpToDateOnNewestBuild]' started.
+Test Case '-[DuoUpdaterCoreTests.TestFlightInventoryTests testCheckerUpToDateOnNewestBuild]' passed (0.000 seconds).
+Test Case '-[DuoUpdaterCoreTests.TestFlightInventoryTests testIsManagedFailsOpenWhenInstallStatusIsUnknown]' started.
+Test Case '-[DuoUpdaterCoreTests.TestFlightInventoryTests testIsManagedFailsOpenWhenInstallStatusIsUnknown]' passed (0.000 seconds).
+Test Case '-[DuoUpdaterCoreTests.TestFlightInventoryTests testIsManagedIgnoresBuildsTestFlightDidNotInstallHere]' started.
+Test Case '-[DuoUpdaterCoreTests.TestFlightInventoryTests testIsManagedIgnoresBuildsTestFlightDidNotInstallHere]' passed (0.000 seconds).
+Test Case '-[DuoUpdaterCoreTests.TestFlightInventoryTests testIsManagedRequiresBundleAndBuildMatch]' started.
+Test Case '-[DuoUpdaterCoreTests.TestFlightInventoryTests testIsManagedRequiresBundleAndBuildMatch]' passed (0.000 seconds).
+Test Case '-[DuoUpdaterCoreTests.TestFlightInventoryTests testLatestPicksHighestBuild]' started.
+Test Case '-[DuoUpdaterCoreTests.TestFlightInventoryTests testLatestPicksHighestBuild]' passed (0.000 seconds).
+Test Suite 'TestFlightInventoryTests' passed at 2026-11-17 22:16:06.150.
+	 Executed 15 tests, with 0 failures (0 unexpected) in 5.035 (5.036) seconds
+Test Suite 'DuoUpdaterCoreTests.xctest' passed at 2026-11-17 22:16:06.150.
+	 Executed 15 tests, with 0 failures (0 unexpected) in 5.035 (5.036) seconds
+Test Suite 'Selected tests' passed at 2026-11-17 22:16:06.150.
+	 Executed 15 tests, with 0 failures (0 unexpected) in 5.035 (5.037) seconds
+◇ Test run started.
+↳ Testing Library Version: 2403
+↳ Target Platform: arm64e-apple-macos14.0
+◇ Suite AppStoreOfferButtonTests started.
+◇ Suite InstallJournalTests started.
+◇ Test dedupeKeepsSameBundleIDInstallsThatDifferInVersionOrChannel() started.
+◇ Test stripInvisibleMarksKeepsZeroWidthJoiner() started.
+◇ Test nestedInterfaceDoesNotLendItsUpdaterToTheWrapper() started.
+◇ Suite AppScannerStoreCopyTests started.
+◇ Test sparkleTwoFrameworksDownIsNotSearched() started.
+◇ Test scanReachesAppsOneFolderDeepButNotTwo() started.
+◇ Test scannerStripsInvisibleBidiMarksFromDisplayName() started.
+◇ Test extraLocationsAreScannedOnTopOfBuiltInRoots() started.
+◇ Test folderThatIsAlsoARootIsReadOnce() started.
+◇ Test scannerFallsThroughAnEmptyDisplayName() started.
+◇ Test installerHomesIncludeASparkleNestedInAFramework() started.
+◇ Test sparkleNestedInAVersionedFrameworkIsSeen() started.
+◇ Test scannerSkipsSymlinksIntoSystem() started.
+◇ Test scannerSkipsBundlesWithNoMarketingVersion() started.
+◇ Suite InterruptedInstallRowTests started.
+◇ Test firstUsableNameSkipsBlankCandidatesInOrder() started.
+◇ Test scopedScanAppliesTheSameEntryRulesAsTheFullScan() started.
+◇ Test scannerFallsBackToTheBundleFilenameWhenBothNamesAreBlank() started.
+◇ Test scannerReadsABlankBuildVersionAsNilNotEmptyString() started.
+◇ Suite LocalizedAppNameTests started.
+◇ Test scanFindsRealApps() started.
+◇ Test cleansNoisyJetBrainsEAPVersion() started.
+◇ Test scannerSkipsSidecarBackupAndDuplicateBundles() started.
+◇ Test scannerReadsWrappedIOSAppAndFlagsItMAS() started.
+◇ Test scopedScanMatchesTheFullScanRowForRow() started.
+◇ Test twoBundlesSharingABundleIDGetDistinctIDs() started.
+◇ Test scopedScanYieldsNothingForABundleThatIsGone() started.
+◇ Test sidecarMatcherLeavesOrdinaryAppNamesAlone() started.
+◇ Test aDownloadThatMovedLeavesMoreThanOneLine() started.
+◇ Test aSwapWithNoReadableProgressGetsTheGenerousCap() started.
+◇ Test aNeedleWithRegexMetacharactersIsMatchedLiterally() started.
+◇ Test aDecomposedRowStillMatchesAComposedName() started.
+◇ Test pageFurnitureAndMenuItemsAreNotCells() started.
+◇ Test aPunctuationEdgedTitleCanStillMatchLoose() started.
+◇ Test sawProgressAloneGatesWhetherTheSheetIsOurs() started.
+◇ Test neverPressesWhileThePageIsNotOurs() started.
+◇ Test aFrozenPercentageIsNotAStallWhileTheAppIsStillOpen() started.
+◇ Test anAmbiguousLooseMatchIsRefusedRatherThanGuessed() started.
+◇ Test aDownloadedSheetWithTheAppAlreadyQuitNeedsNothingPressed() started.
+◇ Test withoutAStoreTitleTheBundleNameIsAllThereIs() started.
+◇ Test aFrozenPercentageCountsAsStalled() started.
+◇ Test aRowThatIsReallyOursNeverLosesToSomeoneElsesSubstring() started.
+◇ Test onlyAChangeOfKindIsWorthALogLine() started.
+◇ Test aSheetAlreadyUpBeforeWePressedIsNotOurs() started.
+◇ Test noDownloadAtAllIsAlwaysAPossiblePurchaseConfirmation() started.
+◇ Test aDecoratedLabelIsStillFoundWhenNothingMatchesExactly() started.
+◇ Test aDownloadedSheetWithTheAppStillOpenAsksToQuit() started.
+◇ Test noSightingAtAllIsNotStable() started.
+◇ Test theHeroLockupIsOurOwnCell() started.
+◇ Test originalNameSurvivesJournalRecoveryAndOlderRecordsStillDecode() started.
+◇ Test waitsWhenNoButtonIsOurs() started.
+◇ Test everyOtherLockupBelongsToSomeoneElse() started.
+◇ Test aSheetRaisedAfterTheScreenClearedIsOurs() started.
+◇ Test numbersPastAHundredShareTheTopBucket() started.
+◇ Test theProductPageIsRecognisedByTheStoresOwnTitle() started.
+◇ Test movementIsStillMovementWhileTheAppIsOpen() started.
+◇ Test anAppNamedTheSameInBothPlacesIsLookedUpOnce() started.
+◇ Test ourTitleWithATaglineAfterItStillMatches() started.
+◇ Test aButtonThatJustVanishedIsNotTrusted() started.
+◇ Test withNoLeftoverEverySheetIsOurs() started.
+◇ Test stabilityRequiresBothPollsToHaveFoundIt() started.
+◇ Test aSpentBudgetWithTheAppStillOpenAsksForTheQuitByName() started.
+◇ Test aMovingInstallNeverAccumulatesStallHoweverLongItRuns() started.
+◇ Test theBundlesOwnLocalizedNameIsANeedleToo() started.
+◇ Test aStoreTitleIsCleanedTheSameWayTheBundleNameIs() started.
+◇ Test aButtonSeenOnOnlyOnePollIsNotYetTrusted() started.
+◇ Test neverPressesWhileTwoPagesOverlap() started.
+◇ Test settledButtonTitlesCarryNoProgress() started.
+◇ Test pressesWhenThePageIsOursAndOneButtonSurvives() started.
+◇ Test readsTheInstallPercentageAppStoreShowsWhileSwapping() started.
+◇ Test pollsWithNoReadingCountAsStalled() started.
+◇ Test aButtonSeenOnTwoConsecutivePollsIsTrusted() started.
+◇ Test aLooseMatchNeverSelectsALongerNameThatStartsWithOurs() started.
+◇ Test bothConditionsAreRequired() started.
+◇ Test theSwapDeadlineMeasuresStallingNotElapsedTime() started.
+◇ Test anAppLeftOpenDoesNotFreezeACountWithNoReadingBehindIt() started.
+◇ Test aSupersededFeedIsRedirectedForDirectCopiesOnly() started.
+◇ Test aStoreCopyKeepsTheFeedItsOwnBundleStates() started.
+◇ Test aFilledInFeedGoesToDirectCopiesAndNotToStoreCopies() started.
+◇ Test aDownloadedSheetWithNoBundleIDNeedsNothingPressed() started.
+✔ Test stripInvisibleMarksKeepsZeroWidthJoiner() passed after 0.016 seconds.
+◇ Test aWayBackIsRestore(ignored:) started.
+✔ Test firstUsableNameSkipsBlankCandidatesInOrder() passed after 0.015 seconds.
+◇ Test theTableIsReadUnderTheRowsPath() started.
+◇ Test theVersionLineNamesTheVersionFromBefore() started.
+✔ Test dedupeKeepsSameBundleIDInstallsThatDifferInVersionOrChannel() passed after 0.016 seconds.
+◇ Test aMissingAppGetsAStandInAndAScannedOneDoesNot() started.
+✔ Test installerHomesIncludeASparkleNestedInAFramework() passed after 0.016 seconds.
+◇ Test theStageAndAnUntouchedRowAreUnchanged() started.
+◇ Test noWayBackIsReinstallOnlyForAOneClickUpdate() started.
+◇ Test wrappedIOSBundleUsesItsInnerLocalizedName() started.
+◇ Test missingTranslationsKeepTheRawFallback() started.
+◇ Test localizationCannotInventAChannel() started.
+◇ Test noUsableTranslationKeepsTheRawFallback() started.
+◇ Test localizationCannotHideTheInstalledChannel(word:) started.
+✔ Test scannerSkipsSymlinksIntoSystem() passed after 0.016 seconds.
+◇ Test legacyChineseLocalizationFollowsTheRequestedLanguage() started.
+◇ Test blankLocalizedDisplayNameFallsThroughToLocalizedBundleName() started.
+◇ Test localizedBrandOverridesTheInternalProjectName() started.
+◇ Test anUntranslatedDisplayNamePrecedesTheLocalizedShortName() started.
+✔ Test cleansNoisyJetBrainsEAPVersion() passed after 0.017 seconds.
+✔ Test folderThatIsAlsoARootIsReadOnce() passed after 0.017 seconds.
+✔ Test scannerFallsBackToTheBundleFilenameWhenBothNamesAreBlank() passed after 0.017 seconds.
+✔ Test scannerStripsInvisibleBidiMarksFromDisplayName() passed after 0.017 seconds.
+✔ Test scannerFallsThroughAnEmptyDisplayName() passed after 0.018 seconds.
+✔ Test scannerSkipsBundlesWithNoMarketingVersion() passed after 0.018 seconds.
+✔ Test sparkleNestedInAVersionedFrameworkIsSeen() passed after 0.018 seconds.
+◇ Test case passing 1 argument ignored → false to aWayBackIsRestore(ignored:) started.
+◇ Test case passing 1 argument ignored → true to aWayBackIsRestore(ignored:) started.
+✔ Test aDownloadThatMovedLeavesMoreThanOneLine() passed after 0.018 seconds.
+✔ Test sidecarMatcherLeavesOrdinaryAppNamesAlone() passed after 0.018 seconds.
+✔ Test scannerReadsABlankBuildVersionAsNilNotEmptyString() passed after 0.019 seconds.
+✔ Test pageFurnitureAndMenuItemsAreNotCells() passed after 0.012 seconds.
+✔ Test aSwapWithNoReadableProgressGetsTheGenerousCap() passed after 0.012 seconds.
+✔ Test aDecomposedRowStillMatchesAComposedName() passed after 0.012 seconds.
+✔ Test aNeedleWithRegexMetacharactersIsMatchedLiterally() passed after 0.013 seconds.
+✔ Test neverPressesWhileThePageIsNotOurs() passed after 0.014 seconds.
+✔ Test sawProgressAloneGatesWhetherTheSheetIsOurs() passed after 0.014 seconds.
+◇ Test case passing 1 argument word → "Beta" to localizationCannotHideTheInstalledChannel(word:) started.
+◇ Test case passing 1 argument word → "Canary" to localizationCannotHideTheInstalledChannel(word:) started.
+◇ Test case passing 1 argument word → "Preview" to localizationCannotHideTheInstalledChannel(word:) started.
+✔ Test aFrozenPercentageIsNotAStallWhileTheAppIsStillOpen() passed after 0.017 seconds.
+✔ Test aDownloadedSheetWithTheAppAlreadyQuitNeedsNothingPressed() passed after 0.014 seconds.
+✔ Test sparkleTwoFrameworksDownIsNotSearched() passed after 0.024 seconds.
+✔ Test withoutAStoreTitleTheBundleNameIsAllThereIs() passed after 0.014 seconds.
+✔ Test aFrozenPercentageCountsAsStalled() passed after 0.016 seconds.
+✔ Test aRowThatIsReallyOursNeverLosesToSomeoneElsesSubstring() passed after 0.016 seconds.
+✔ Test aSheetAlreadyUpBeforeWePressedIsNotOurs() passed after 0.016 seconds.
+✔ Test scopedScanYieldsNothingForABundleThatIsGone() passed after 0.026 seconds.
+✔ Test noDownloadAtAllIsAlwaysAPossiblePurchaseConfirmation() passed after 0.016 seconds.
+✔ Test onlyAChangeOfKindIsWorthALogLine() passed after 0.016 seconds.
+✔ Test aDownloadedSheetWithTheAppStillOpenAsksToQuit() passed after 0.011 seconds.
+✔ Test noSightingAtAllIsNotStable() passed after 0.011 seconds.
+✔ Test theHeroLockupIsOurOwnCell() passed after 0.011 seconds.
+✔ Test nestedInterfaceDoesNotLendItsUpdaterToTheWrapper() passed after 0.026 seconds.
+✔ Test aPunctuationEdgedTitleCanStillMatchLoose() passed after 0.020 seconds.
+✔ Test waitsWhenNoButtonIsOurs() passed after 0.011 seconds.
+✔ Test everyOtherLockupBelongsToSomeoneElse() passed after 0.011 seconds.
+✔ Test aSheetRaisedAfterTheScreenClearedIsOurs() passed after 0.011 seconds.
+✔ Test scannerSkipsSidecarBackupAndDuplicateBundles() passed after 0.026 seconds.
+✔ Test numbersPastAHundredShareTheTopBucket() passed after 0.011 seconds.
+✔ Test theProductPageIsRecognisedByTheStoresOwnTitle() passed after 0.011 seconds.
+✔ Test movementIsStillMovementWhileTheAppIsOpen() passed after 0.011 seconds.
+✔ Test anAppNamedTheSameInBothPlacesIsLookedUpOnce() passed after 0.011 seconds.
+✔ Test aButtonThatJustVanishedIsNotTrusted() passed after 0.011 seconds.
+✔ Test withNoLeftoverEverySheetIsOurs() passed after 0.011 seconds.
+✔ Test stabilityRequiresBothPollsToHaveFoundIt() passed after 0.011 seconds.
+✔ Test aSpentBudgetWithTheAppStillOpenAsksForTheQuitByName() passed after 0.011 seconds.
+✔ Test theBundlesOwnLocalizedNameIsANeedleToo() passed after 0.011 seconds.
+✔ Test aButtonSeenOnOnlyOnePollIsNotYetTrusted() passed after 0.011 seconds.
+✔ Test anAmbiguousLooseMatchIsRefusedRatherThanGuessed() passed after 0.017 seconds.
+✔ Test neverPressesWhileTwoPagesOverlap() passed after 0.011 seconds.
+✔ Test pressesWhenThePageIsOursAndOneButtonSurvives() passed after 0.011 seconds.
+✔ Test settledButtonTitlesCarryNoProgress() passed after 0.011 seconds.
+✔ Test readsTheInstallPercentageAppStoreShowsWhileSwapping() passed after 0.011 seconds.
+✔ Test aStoreTitleIsCleanedTheSameWayTheBundleNameIs() passed after 0.011 seconds.
+✔ Test pollsWithNoReadingCountAsStalled() passed after 0.011 seconds.
+✔ Test bothConditionsAreRequired() passed after 0.011 seconds.
+✔ Test theSwapDeadlineMeasuresStallingNotElapsedTime() passed after 0.011 seconds.
+✔ Test anAppLeftOpenDoesNotFreezeACountWithNoReadingBehindIt() passed after 0.011 seconds.
+✔ Test ourTitleWithATaglineAfterItStillMatches() passed after 0.012 seconds.
+✔ Test aButtonSeenOnTwoConsecutivePollsIsTrusted() passed after 0.012 seconds.
+✔ Test aDownloadedSheetWithNoBundleIDNeedsNothingPressed() passed after 0.011 seconds.
+✔ Test aWayBackIsRestore(ignored:) with 2 test cases passed after 0.011 seconds.
+✔ Test theTableIsReadUnderTheRowsPath() passed after 0.011 seconds.
+✔ Test theVersionLineNamesTheVersionFromBefore() passed after 0.010 seconds.
+✔ Test scanReachesAppsOneFolderDeepButNotTwo() passed after 0.027 seconds.
+✔ Test aMissingAppGetsAStandInAndAScannedOneDoesNot() passed after 0.010 seconds.
+✔ Test theStageAndAnUntouchedRowAreUnchanged() passed after 0.010 seconds.
+✔ Test noWayBackIsReinstallOnlyForAOneClickUpdate() passed after 0.010 seconds.
+✔ Test aMovingInstallNeverAccumulatesStallHoweverLongItRuns() passed after 0.012 seconds.
+✔ Test aDecoratedLabelIsStillFoundWhenNothingMatchesExactly() passed after 0.017 seconds.
+✔ Test aLooseMatchNeverSelectsALongerNameThatStartsWithOurs() passed after 0.012 seconds.
+✔ Test twoBundlesSharingABundleIDGetDistinctIDs() passed after 0.027 seconds.
+✔ Test scopedScanAppliesTheSameEntryRulesAsTheFullScan() passed after 0.027 seconds.
+✔ Test missingTranslationsKeepTheRawFallback() passed after 0.010 seconds.
+✔ Test localizationCannotInventAChannel() passed after 0.010 seconds.
+✔ Test noUsableTranslationKeepsTheRawFallback() passed after 0.010 seconds.
+✔ Test localizationCannotHideTheInstalledChannel(word:) with 3 test cases passed after 0.010 seconds.
+✔ Suite InterruptedInstallRowTests passed after 0.027 seconds.
+✔ Suite AppStoreOfferButtonTests passed after 0.027 seconds.
+✔ Test blankLocalizedDisplayNameFallsThroughToLocalizedBundleName() passed after 0.011 seconds.
+✔ Test localizedBrandOverridesTheInternalProjectName() passed after 0.011 seconds.
+✔ Test anUntranslatedDisplayNamePrecedesTheLocalizedShortName() passed after 0.012 seconds.
+✔ Test originalNameSurvivesJournalRecoveryAndOlderRecordsStillDecode() passed after 0.015 seconds.
+✔ Suite InstallJournalTests passed after 0.029 seconds.
+✔ Test legacyChineseLocalizationFollowsTheRequestedLanguage() passed after 0.012 seconds.
+✔ Test scannerReadsWrappedIOSAppAndFlagsItMAS() passed after 0.033 seconds.
+✔ Test wrappedIOSBundleUsesItsInnerLocalizedName() passed after 0.017 seconds.
+✔ Suite LocalizedAppNameTests passed after 0.034 seconds.
+✔ Test aStoreCopyKeepsTheFeedItsOwnBundleStates() passed after 0.020 seconds.
+✔ Test aSupersededFeedIsRedirectedForDirectCopiesOnly() passed after 0.026 seconds.
+✔ Test aFilledInFeedGoesToDirectCopiesAndNotToStoreCopies() passed after 0.033 seconds.
+✔ Suite AppScannerStoreCopyTests passed after 0.048 seconds.
+✔ Test scanFindsRealApps() passed after 3.892 seconds.
+✔ Test extraLocationsAreScannedOnTopOfBuiltInRoots() passed after 6.900 seconds.
+✔ Test scopedScanMatchesTheFullScanRowForRow() passed after 7.521 seconds.
+✔ Test run with 92 tests in 5 suites passed after 7.521 seconds.

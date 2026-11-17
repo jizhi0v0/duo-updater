@@ -28,7 +28,8 @@ final class TestFlightInventoryTests: XCTestCase {
             sparkleChannelNames: ["pre", "internal"],
             sparkleEdPublicKey: "fixture-key", hasSelfUpdater: true,
             releaseChannel: .beta, channelIsAuthoritative: true,
-            toolboxInstalledBuild: "toolbox-build", appStoreAdamID: 123)
+            toolboxInstalledBuild: "toolbox-build", appStoreAdamID: 123,
+            metadataName: "Original Beta App")
     }
 
     func testApplyingInventoryRetagsWithoutLosingScannedMetadata() {
@@ -42,6 +43,7 @@ final class TestFlightInventoryTests: XCTestCase {
         XCTAssertTrue(retagged.isTestFlightApp)
         XCTAssertFalse(retagged.isMASApp)
         XCTAssertEqual(retagged.name, app.name)
+        XCTAssertEqual(retagged.metadataName, "Original Beta App")
         XCTAssertEqual(retagged.path, app.path)
         XCTAssertEqual(retagged.sparkleFeedURL, app.sparkleFeedURL)
         XCTAssertEqual(retagged.sparkleFeedHeaders, app.sparkleFeedHeaders)

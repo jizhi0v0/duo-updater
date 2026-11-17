@@ -49,6 +49,36 @@ private let installed = [
         #expect(try Inventory.select(installed, matching: ["curs"]).get().map(\.name) == ["Cursor"])
     }
 
+    @Test func localizedRowsKeepTheirPreviousNameSelectors() throws {
+        let netdisk = InstalledApp(
+            name: "百度网盘", bundleID: "com.baidu.BaiduNetdisk-mac",
+            shortVersion: "8.10.3", buildVersion: "1",
+            path: URL(fileURLWithPath: "/Applications/Cloud.app"), isMASApp: false,
+            sparkleFeedURL: nil, metadataName: "BaiduNetdisk_mac")
+        let video = InstalledApp(
+            name: "VidHub", bundleID: "com.mac.utility.media.hub",
+            shortVersion: "3.0.4", buildVersion: "1",
+            path: URL(fileURLWithPath: "/Applications/Player.app"), isMASApp: true,
+            sparkleFeedURL: nil, metadataName: "MediaCenter")
+        #expect(try Inventory.select([netdisk, video], matching: ["BaiduNetdisk"]).get() == [netdisk])
+        #expect(try Inventory.select([netdisk, video], matching: ["百度"]).get() == [netdisk])
+        #expect(try Inventory.select([netdisk, video], matching: ["MediaCenter", "VidHub"]).get() == [video])
+    }
+
+    @Test func aMetadataAliasCannotResolveAnAmbiguousPrefix() {
+        let localized = InstalledApp(
+            name: "编辑器", bundleID: "com.example.localized", shortVersion: "1", buildVersion: "1",
+            path: URL(fileURLWithPath: "/Applications/Localized.app"), isMASApp: false,
+            sparkleFeedURL: nil, metadataName: "Editor")
+        let other = app("Editor Beta", "com.example.beta", "/Applications/Other.app")
+        guard case .failure(let failure) = Inventory.select([localized, other], matching: ["Editor"]) else {
+            Issue.record("the new alias must retain ambiguous-prefix refusal")
+            return
+        }
+        #expect(failure.description.contains(localized.path.path))
+        #expect(failure.description.contains(other.path.path))
+    }
+
     /// The important one: `duo install HBuilderX` must not pick a copy for you.
     @Test func anAmbiguousPrefixIsRefusedAndNamesTheCandidates() {
         let result = Inventory.select(installed, matching: ["HBuilderX"])

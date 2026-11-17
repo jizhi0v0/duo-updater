@@ -9,7 +9,23 @@ struct HomebrewCompatibilityTests {
     }
 
     @Test func variationResolvesEveryFieldBeforeIndexing() throws {
-        let data = Data(#"[{"token":"example","version":"2.0","url":"https://example.com/base.pkg","artifacts":[{"pkg":["Base.pkg"]}],"depends_on":{"macos":{">=":["27"]}},"variations":{"arm64_sequoia":{"version":"1.0","url":"https://example.com/arm.zip","artifacts":[{"app":["Arm.app"]}],"depends_on":{"macos":{">=":["15"]}}}}]"#.utf8)
+        let data = Data(#"""
+        [{
+            "token": "example",
+            "version": "2.0",
+            "url": "https://example.com/base.pkg",
+            "artifacts": [{"pkg": ["Base.pkg"]}],
+            "depends_on": {"macos": {">=": ["27"]}},
+            "variations": {
+                "arm64_sequoia": {
+                    "version": "1.0",
+                    "url": "https://example.com/arm.zip",
+                    "artifacts": [{"app": ["Arm.app"]}],
+                    "depends_on": {"macos": {">=": ["15"]}}
+                }
+            }
+        }]
+        """#.utf8)
         let index = try HomebrewCaskCatalog.index(fromCatalogJSON: data, platformTag: "arm64_sequoia")
         let entry = try #require(index.byToken["example"])
         #expect(entry.version == "1.0")

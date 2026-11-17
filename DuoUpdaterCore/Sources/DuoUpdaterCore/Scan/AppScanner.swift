@@ -638,6 +638,15 @@ public struct AppScanner: Sendable {
             shortVersion = identity.version
             weChatDevToolsChannel = identity.channel
         }
+        // Mattermost's macOS plist coerces prerelease versions to plain numbers.
+        // Its bundled package.json retains the version the updater itself reads.
+        // Restore only a validated same-base version, scoped to this product, so
+        // RC/nightly copies cannot silently enter the stable source stack.
+        // History: docs/app-audits/Mattermost-Desktop.md#历史与实测
+        if let version = MattermostBuild.version(
+            in: bundleURL, bundleID: bundleID, plistVersion: shortVersion) {
+            shortVersion = version
+        }
         let hasReceipt = !isiOSAppOnMac && fm.fileExists(
             atPath: bundleURL.appendingPathComponent("Contents/_MASReceipt/receipt").path)
         // Primary TestFlight signal: the receipt ENVIRONMENT. A TestFlight build

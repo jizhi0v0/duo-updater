@@ -103,6 +103,11 @@ struct GitHubAssetSelectionTests {
     /// that read the same set — a case added here is exercised AND counted as
     /// covered, and neither can drift from the other.
     static let multiCandidateCases: [(pattern: String, names: [String])] = [
+        // Mattermost's current arm64 and historical m1 spellings: stress both
+        // accepted names together even though current releases publish arm64.
+        (#"^mattermost-desktop-[0-9]+(?:\.[0-9]+)+-mac-(?:arm64|m1)\.zip$"#,
+         ["mattermost-desktop-6.4.0-mac-arm64.zip", "mattermost-desktop-6.4.0-mac-m1.zip",
+          "mattermost-desktop-6.4.0-mac-x64.zip", "mattermost-desktop-6.4.0-mac-arm64.zip.blockmap"]),
         // KeePassXC: a respun release keeps both dmgs under the one tag.
         (#"^KeePassXC-[0-9.\-]+-arm64\.dmg$"#,
          ["KeePassXC-2.7.11-1-arm64.dmg", "KeePassXC-2.7.11-2-arm64.dmg",

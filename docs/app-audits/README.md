@@ -96,6 +96,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 
 ## Multi-channel families (audit covers all channels)
 
+- [x] [**Mattermost Desktop**](Mattermost-Desktop.md) · `Mattermost.Desktop` — G(stable) P(RC/nightly) · 一键 ZIP ✓（含旧 ID 迁移、RC/日期 nightly）· stable 结构化日志 ✓；RC/nightly 无独立说明 · 2026-11-16
 - [x] [**Chrome**](com-google-Chrome.md) · `com.google.Chrome` — P(stable/beta/dev/canary) · 4 channels, independent bundle IDs · 审计 2026-06-04 ✓
 - [x] [**Firefox**](org-mozilla-firefox.md) · `org.mozilla.firefox` — P(stable/beta/esr/nightly/dev-edition) C(stable/beta/esr/nightly/dev-edition) · 5 channels · RemotingName 检测（修复 beta/esr 误判）· 5 个真实 bundle 验证 ✓ · 2026-06-04
 - [x] [**Thunderbird**](org-mozilla-thunderbird.md) · `org.mozilla.thunderbird` — P(stable/beta/esr/nightly) C(stable/beta/esr) · 4 channels · RemotingName 检测（修复 beta bundle id + esr 跨 channel 误推）· 4 个真实 bundle 验证 ✓ · 2026-06-04
@@ -145,6 +146,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 > installed-app inventory, so it stays local (`application-test/records/`,
 > gitignored) — per-app conclusions live in each app's audit instead.
 
+- [x] [**Suspicious Package**](com-mothersruin-SuspiciousPackageApp.md) · `com.mothersruin.SuspiciousPackageApp` — P+C · 4.7→4.8 一键 DMG ✓（停用/运行中）· 结构化发布历史 ✓ · 2026-11-16
 - [x] **VS Code** · `com.microsoft.VSCode` — P C (one-click) · ✓ src=Vendor
 - [x] **Claude Desktop** · `com.anthropic.claudefordesktop` — P (one-click) · ✓ src=Vendor
 - [x] [**super.engineering**](com-zarifpour-superconductor.md) · `com.zarifpour.superconductor` — P C B (one-click) · ✓ src=Vendor · 版本是 commit hash，按 `changelog.json` 的发布顺序比较 · 审计 2026-09-11
@@ -373,6 +375,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**TextMate**](com-macromates-TextMate.md) · `com.macromates.TextMate` — G C (one-click universal `.tbz`, `.tarGz`) · 自研更新器读 `api.textmate.org/releases/<channel>`，`url` 302 到同一个 GitHub 资产、签名是厂商自有 DSA → 走 GitHub · prerelease 与正式版同形，副本按 stable 读、只拿毕业版；2013–2018 的 alpha/beta/rc tag 未标 prerelease，锚定 pattern 排除 · beta 轨 ✓（`TextMateChannel` 读 `SoftwareUpdateChannel`，真机两态实测；今天两轨都答 2.0.23） · **changelog 结构化 ✓**（tag 上的 `Changes.md`，20 条）· 一键端到端 ✓（2026-11-11，本机 2.0.19→2.0.23，未运行一轮） · 2026-11-11
 - [x] [**Maestro**](com-maestro-app.md) · `com.maestro.app` — G (one-click arm64 zip) · electron-updater（provider github，点了才下载、退出即装） · 真包 1.0.1/1.0.2 channel-verify ✓（1.0.1 → 1.0.2） · 0.8.0 及更早 ad-hoc，一键被拒 · **RC 同 id**：RC 轨 ✓（`MaestroChannel` 读 `enableBetaUpdates`，真机两态实测；取版本号最高的 release，与 app 自己一致） · 一键端到端 ✓（2026-11-11，本机 1.0.1→1.0.2；RC 轨 1.0.2→1.1.0-RC；未运行一轮；运行中一轮未做） · changelog 结构化 ✓（专用 `.maestroReleases`，Highlights 段落成条目，小标题保留） · 2026-11-11
 - [x] [**Shotcut**](com-Meltytech-Shotcut.md) · `com.Meltytech.Shotcut` — G (one-click universal dmg) · 自带更新检查只读 `check.shotcut.org/version.json` 并打开网页（只通知） · **重打包换版本号**：tag `v26.9.27` 下另有 `shotcut-macos-26.9.28.dmg`（包内 26.9.28），报出版本读资产名（新字段 `assetVersionPattern`），26.9.27 → 26.9.28、26.9.28 up to date · 真包 24.04/25.08/26.8.1/26.9.27/26.9.28/26.10.30 同 id 同 Team Notarized · prerelease 同 id 无本地标记，beta rule 按精确 tag 的 `prerelease` 位证出（26.10.30 实测） · changelog 结构化 ✓（GitHub 正文 36 条，厂商没分节，`headings []`） · 一键端到端 ✓（2026-11-11，本机 26.9.27→26.9.28；beta 26.9.6→26.10.30；未运行一轮） · 2026-11-11
+- [x] [**electerm**](org-electerm-electerm.md) · `org.electerm.electerm` — G · 5.10.0→5.11.8 一键 DMG ✓（停用/运行中）· 结构化日志（双语分节）✓ · 2026-11-16
 
 ## Changelog-only (detection via Sparkle or Homebrew)
 
@@ -410,6 +413,8 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**Mayoi**](dev-mayoi-editor.md) · `dev.mayoi.editor` — C（历史读仓库 `CHANGELOG.md`，19 版全）· 检测与 tar.gz/delta 一键走 MyGoUpdateSource · Developer ID + 公证 · MyGo delta ✓ · 真包 0.1.0/0.10.0/0.11.0 ✓ · 一键端到端 ✓ · 2026-10-18
 
 ## Sparkle-covered (auto-detected, no custom recipe)
+
+- [x] [**RapidAPI for Mac / Paw**](com-luckymarmot-Paw.md) · `com.luckymarmot.Paw` — S（feed 补全）· 4.5.4→4.5.5 一键 ZIP ✓（停用/运行中）· 结构化日志（保留分节）✓ · 2026-11-16
 
 - [x] [**iTerm2**](com-googlecode-iterm2.md) · `com.googlecode.iterm2` — S+B · stable/nightly ✓ · test release ✓（`ITerm2Channel`）· 一键 ✓ · changelog recipe ✓（stable/test release）· 2026-10-08
 - [x] [**Arc**](company-thebrowser-Browser.md) · `company.thebrowser.Browser` — S · 一键（delta）✓ · Early Birds 需申请，RC 包自带 feed，不做 binding · changelog 原文 · 2026-10-08

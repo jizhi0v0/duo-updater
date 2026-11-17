@@ -1,0 +1,189 @@
+{
+  "observedDate": "2026-11-16",
+  "identityContinuity": "first observation for these new monitor IDs; no recorded anchor was replaced",
+  "items": [
+    {
+      "recipeID": "github:electerm/electerm:stable",
+      "registry": "github",
+      "bundleID": "org.electerm.electerm",
+      "version": "5.11.8",
+      "kind": "dmg",
+      "url": "https://github.com/electerm/electerm/releases/download/v5.11.8/electerm-5.11.8-mac-arm64.dmg",
+      "bytes": 123942113,
+      "identity": {
+        "architectures": [
+          "arm64"
+        ],
+        "bundleIdentifier": "org.electerm.electerm",
+        "bundleVersion": "5.11.8.1",
+        "minimumSystemVersion": "13.0",
+        "shortVersion": "5.11.8",
+        "signedIdentifier": "org.electerm.electerm",
+        "teamIdentifier": "38ZYC7L6N5"
+      },
+      "status": "ok",
+      "notes": [],
+      "warnings": [],
+      "verifiedSourceCommit": "f3d91623"
+    },
+    {
+      "recipeID": "github:mattermost/desktop:stable",
+      "registry": "github",
+      "bundleID": "Mattermost.Desktop",
+      "version": "6.4.0",
+      "kind": "zip",
+      "url": "https://github.com/mattermost/desktop/releases/download/v6.4.0/mattermost-desktop-6.4.0-mac-arm64.zip",
+      "bytes": 123242627,
+      "identity": {
+        "architectures": [
+          "arm64"
+        ],
+        "bundleIdentifier": "Mattermost.Desktop",
+        "bundleVersion": "438145774761",
+        "minimumSystemVersion": "13.0",
+        "shortVersion": "6.4.0",
+        "signedIdentifier": "Mattermost.Desktop",
+        "teamIdentifier": "UQ8HT4Q2XM"
+      },
+      "status": "ok",
+      "notes": [],
+      "warnings": [],
+      "verifiedSourceCommit": "c87031be"
+    },
+    {
+      "recipeID": "sparkle:com.luckymarmot.Paw:stable:ed25519",
+      "registry": "sparkle",
+      "bundleID": "com.luckymarmot.Paw",
+      "version": "4.5.5",
+      "kind": "zip",
+      "url": "https://cdn-builds.paw.cloud/paw/RapidAPI-4.5.5-4005005001.zip",
+      "bytes": 41670777,
+      "identity": {
+        "architectures": [
+          "arm64",
+          "x86_64"
+        ],
+        "bundleIdentifier": "com.luckymarmot.Paw",
+        "bundleVersion": "4005005001",
+        "minimumSystemVersion": "13.0",
+        "shortVersion": "4.5.5",
+        "signedIdentifier": "com.luckymarmot.Paw",
+        "sparklePublicKey": "EbtjNsFuPe0o0UZDSFr/514GIusvouXngkfdmiKApHY=",
+        "teamIdentifier": "84599RL58A"
+      },
+      "status": "ok",
+      "notes": [
+        "sparkleArchiveSignatureVerified: the full archive verifies against the previously recorded or audited public key"
+      ],
+      "warnings": [],
+      "verifiedSourceCommit": "f3d91623"
+    },
+    {
+      "recipeID": "sparkle:com.luckymarmot.Paw:stable:legacy-dsa",
+      "registry": "sparkle",
+      "bundleID": "com.luckymarmot.Paw",
+      "version": "4.5.5",
+      "kind": "zip",
+      "url": "https://cdn-builds.paw.cloud/paw/RapidAPI-4.5.5-4005005001.zip",
+      "bytes": 41670777,
+      "identity": {
+        "architectures": [
+          "arm64",
+          "x86_64"
+        ],
+        "bundleIdentifier": "com.luckymarmot.Paw",
+        "bundleVersion": "4005005001",
+        "minimumSystemVersion": "13.0",
+        "shortVersion": "4.5.5",
+        "signedIdentifier": "com.luckymarmot.Paw",
+        "sparklePublicKey": "EbtjNsFuPe0o0UZDSFr/514GIusvouXngkfdmiKApHY=",
+        "teamIdentifier": "84599RL58A"
+      },
+      "status": "ok",
+      "notes": [
+        "sparkleArchiveSignatureNotChecked: no previously audited key — this run establishes package identity, not signing-key continuity"
+      ],
+      "warnings": [],
+      "verifiedSourceCommit": "f3d91623"
+    },
+    {
+      "recipeID": "vendor:Mattermost.Desktop:nightly",
+      "registry": "vendor",
+      "bundleID": "Mattermost.Desktop",
+      "version": "6.5.0-nightly.20261116",
+      "kind": "zip",
+      "url": "https://releases.mattermost.com/desktop/6.5.0-nightly.20261116/mattermost-desktop-6.5.0-nightly.20261116-mac-arm64.zip",
+      "bytes": 123243637,
+      "identity": {
+        "architectures": [
+          "arm64"
+        ],
+        "bundleIdentifier": "Mattermost.Desktop",
+        "bundleVersion": "438026459481",
+        "minimumSystemVersion": "13.0",
+        "shortVersion": "6.5.0",
+        "signedIdentifier": "Mattermost.Desktop",
+        "teamIdentifier": "UQ8HT4Q2XM"
+      },
+      "status": "ok",
+      "notes": [
+        "versionDiffers: the probe said 6.5.0-nightly.20261116, the bundle says 6.5.0"
+      ],
+      "warnings": [],
+      "verifiedSourceCommit": "c87031be"
+    },
+    {
+      "recipeID": "vendor:Mattermost.Desktop:rc",
+      "registry": "vendor",
+      "bundleID": "Mattermost.Desktop",
+      "version": "6.2.5-rc.5",
+      "kind": "zip",
+      "url": "https://releases.mattermost.com/desktop/6.2.5-rc.5/mattermost-desktop-6.2.5-rc.5-mac-arm64.zip",
+      "bytes": 123262733,
+      "identity": {
+        "architectures": [
+          "arm64"
+        ],
+        "bundleIdentifier": "Mattermost.Desktop",
+        "bundleVersion": "410455984891",
+        "minimumSystemVersion": "12.0",
+        "shortVersion": "6.2.5",
+        "signedIdentifier": "Mattermost.Desktop",
+        "teamIdentifier": "UQ8HT4Q2XM"
+      },
+      "status": "ok",
+      "notes": [
+        "versionDiffers: the probe said 6.2.5-rc.5, the bundle says 6.2.5"
+      ],
+      "warnings": [],
+      "verifiedSourceCommit": "c87031be"
+    },
+    {
+      "recipeID": "vendor:com.mothersruin.SuspiciousPackageApp:stable",
+      "registry": "vendor",
+      "bundleID": "com.mothersruin.SuspiciousPackageApp",
+      "version": "4.8",
+      "kind": "dmg",
+      "url": "https://www.mothersruin.com/software/archives/SuspiciousPackage-4.8.dmg",
+      "bytes": 8089083,
+      "identity": {
+        "architectures": [
+          "arm64",
+          "x86_64"
+        ],
+        "bundleIdentifier": "com.mothersruin.SuspiciousPackageApp",
+        "bundleVersion": "1457",
+        "minimumSystemVersion": "14.0",
+        "shortVersion": "4.8",
+        "signedIdentifier": "com.mothersruin.SuspiciousPackageApp",
+        "teamIdentifier": "936EB786NH"
+      },
+      "status": "ok",
+      "notes": [],
+      "warnings": [],
+      "verifiedSourceCommit": "f3d91623"
+    }
+  ],
+  "integrationCommit": "c87031be7723be261516ffdc73d16ff7545a0746",
+  "verificationScope": "The first three app installer routes were inspected at f3d91623 and remain unchanged; Mattermost current tracks were inspected at c87031be."
+}

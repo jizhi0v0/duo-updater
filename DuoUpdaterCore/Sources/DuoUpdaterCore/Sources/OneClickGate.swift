@@ -314,7 +314,7 @@ public enum OneClickGateRegistry {
 }
 
 /// Reads one packed entry of an Electron `app.asar` without unpacking it, cached
-/// per asar path, size and modification date: `UpdatePolicy.canAutoInstall` asks
+/// per asar path, device/inode, size and modification date: `UpdatePolicy.canAutoInstall` asks
 /// per row per redraw, and only a changed file is read again (a stat per call
 /// otherwise). Same layout as `BundleFacts.readAsar`: an 8-byte pickle
 /// `[4][header pickle size]`, then `[payload size][JSON length][JSON]`; offsets
@@ -325,13 +325,18 @@ public enum OneClickGateRegistry {
 enum AsarEntryReader {
     /// Entries larger than this are not read: the gates look at small markers.
     static let entryByteLimit: UInt64 = 64 * 1024
+    /// Bound the metadata allocation as well as the entry itself. A normal
+    /// Mattermost header is under 100 KB; large Electron apps have room here.
+    static let headerByteLimit: UInt64 = 16 * 1024 * 1024
 
     static func packedEntry(_ path: String, inAsarAt url: URL) -> Data? {
         guard let attributes = try? FileManager.default.attributesOfItem(atPath: url.path),
               let size = (attributes[.size] as? NSNumber)?.int64Value,
-              let modified = attributes[.modificationDate] as? Date
+              let modified = attributes[.modificationDate] as? Date,
+              let inode = (attributes[.systemFileNumber] as? NSNumber)?.uint64Value,
+              let device = (attributes[.systemNumber] as? NSNumber)?.uint64Value
         else { return nil }
-        let key = Key(asar: url.path, entry: path, size: size, modified: modified)
+        let key = Key(asar: url.path, entry: path, size: size, modified: modified, inode: inode, device: device)
         if let hit = cache.withLock({ $0[key] }) { return hit.data }
         let data = try? read(path.split(separator: "/").map(String.init), inAsarAt: url)
         cache.withLock { $0[key] = Cached(data: data ?? nil) }
@@ -346,7 +351,9 @@ enum AsarEntryReader {
         guard let head = try handle.read(upToCount: 16), head.count == 16 else { return nil }
         let headerPickleSize = UInt64(word(head, at: 4))
         let jsonLength = UInt64(word(head, at: 12))
-        guard jsonLength > 0, 16 + jsonLength <= fileSize, 8 + headerPickleSize <= fileSize,
+        guard jsonLength > 0, jsonLength <= headerByteLimit,
+              headerPickleSize >= 8 + jsonLength,
+              16 + jsonLength <= fileSize, 8 + headerPickleSize <= fileSize,
               let json = try handle.read(upToCount: Int(jsonLength)),
               var node = try JSONSerialization.jsonObject(with: json) as? [String: Any]
         else { return nil }
@@ -358,8 +365,10 @@ enum AsarEntryReader {
               let size = (node["size"] as? NSNumber)?.uint64Value, size <= entryByteLimit,
               let offsetText = node["offset"] as? String, let offset = UInt64(offsetText)
         else { return nil }
-        let start = 8 + headerPickleSize + offset
-        guard start + size <= fileSize else { return nil }
+        let bodyStart = 8 + headerPickleSize
+        guard offset <= fileSize - bodyStart else { return nil }
+        let start = bodyStart + offset
+        guard size <= fileSize - start else { return nil }
         try handle.seek(toOffset: start)
         return try handle.read(upToCount: Int(size))
     }
@@ -369,7 +378,10 @@ enum AsarEntryReader {
         return UInt32(data[b]) | UInt32(data[b + 1]) << 8 | UInt32(data[b + 2]) << 16 | UInt32(data[b + 3]) << 24
     }
 
-    private struct Key: Hashable { let asar: String; let entry: String; let size: Int64; let modified: Date }
+    private struct Key: Hashable {
+        let asar: String; let entry: String; let size: Int64; let modified: Date
+        let inode: UInt64; let device: UInt64
+    }
     private struct Cached { let data: Data? }
     private static let cache = Mutex<[Key: Cached]>([:])
 }

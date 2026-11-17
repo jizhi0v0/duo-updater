@@ -401,10 +401,13 @@ struct SetappCatalogSourceTests {
         #expect(result.remote?.version == "131")
     }
 
-    @Test func aPublicKeyOwnedCopyNeverFallsThroughToTheVendorFeed() async throws {
-        // No `-setapp` suffix, not in the catalogue: only the framework's public
-        // key says this is Setapp's. The answer must still be "as installed" —
-        // nil would hand the row to Sparkle's direct-edition offer.
+    @Test(arguments: ["codes.rambo.AirBuddy", "com.charliemonroe.Downie-4"], [false, true])
+    func aDirectCopyWithASetappPublicKeyKeepsItsVendorSource(
+        bundleID: String, catalogueFails: Bool
+    ) async throws {
+        // Official AirBuddy 3.0.3 and Downie 4.13.4 direct downloads both ship
+        // this resource (#2072, verify/issue-2072-setapp). It is not channel ownership.
+        // Their working source must survive both a catalogue miss and an outage.
         let bundle = FileManager.default.temporaryDirectory
             .appendingPathComponent("thing-\(UUID().uuidString).app", isDirectory: true)
         try FileManager.default.createDirectory(
@@ -414,17 +417,25 @@ struct SetappCatalogSourceTests {
             atPath: bundle.appendingPathComponent("Contents/Resources/setappPublicKey.pem").path,
             contents: Data("key".utf8))
 
-        let owned = InstalledApp(
-            name: "Thing", bundleID: "com.example.thing",
+        let direct = InstalledApp(
+            name: "Thing", bundleID: bundleID,
             shortVersion: "1.0", buildVersion: "100",
             path: bundle, isMASApp: false, sparkleFeedURL: nil)
         let spy = SparkleSpy()
         let source = SetappCatalogSource(
-            releases: { _ in [:] }, subscription: { nil }, now: { Date() })
+            releases: { _ in
+                if catalogueFails { throw URLError(.timedOut) }
+                return [:]
+            }, subscription: { nil }, now: { Date() })
         let checker = UpdateChecker(sources: [source, spy])
-        let result = try #require(await checker.check([owned]).first)
-        #expect(spy.calls == 0)
-        #expect(result.remote?.shortVersion == "1.0")
+        let result = try #require(await checker.check([direct]).first)
+        #expect(spy.calls == 1)
+        #expect(result.remote?.sourceName == "Sparkle")
+        #expect(result.remote?.shortVersion == "9.9.9")
+        guard case .updateAvailable = result.status else {
+            Issue.record("the direct copy lost its working update source: \(result.status)")
+            return
+        }
     }
 
     @Test func aBetaEnabledCheckReadsTheBetaCatalogue() async throws {

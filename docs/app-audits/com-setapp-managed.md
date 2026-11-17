@@ -14,9 +14,9 @@
 - Setapp 自己的发版节奏独立于厂商 feed：它的目录里给的是「Setapp 渠道当前发到哪一版」，
   可以领先、落后或中间多一次构建号。读厂商 feed 猜 Setapp 渠道的版本是错的方向。
 
-## 包里没有 Sparkle
+## AlDente Pro 的包内渠道差异
 
-同一个 1.40.1 (119)，直营包与 Setapp 包的差别（2026-11-03 逐项核对）：
+同一个 AlDente Pro 1.40.1 (119)，直营包与 Setapp 包的差别（2026-11-03 逐项核对）：
 
 | | 直营 | Setapp 版 |
 |---|---|---|
@@ -30,7 +30,20 @@
 [Allow Setapp to update your app on macOS 13+](https://docs.setapp.com/docs/allow-setapp-to-update-your-app-on-macos-13)），
 意思是「Setapp 的 agent 被授权更新这个包」。
 
-结论：**Setapp 版里 Sparkle 是被剥掉的**，`SUFeedURL` 只是 Info.plist 里的一段死配置；
+### 公钥文件不是渠道归属证据（2026-11-17，#2072）
+
+上表只能说明 AlDente Pro 这对包的差异，不能推广成“直营包没有 `setappPublicKey.pem`”。
+官方 AirBuddy 3.0.3 (1034) 与 Downie 4.13.4 (5284) 的直营 DMG 都带这个资源，
+也都带有效 Sparkle 更新源。0.5.24 和 main `c2615223` 因此误将两者归为 Setapp，
+在目录找不到它们的直营 bundle ID 时按已装版本返回“最新”，遮住了真实更新。
+清洁 VM 和 Homebrew 安装场景的原始证据见 [#2072 验证记录](../../verify/issue-2072-setapp/README.md)。
+
+修正后的 `SetappCatalogSource.owns` 仅将明确的 `-setapp` 标识作为终止式归属证据。
+公钥和目录位置仍可触发已有的目录精确 ID 查询；目录不匹配或查询失败时，
+这些弱线索不能阻断直营副本的 Homebrew、Sparkle 等来源。
+真正的 `-setapp` 副本继续保留目录失败时的终止保护，避免被换成直营版。
+
+这对包的结论：**AlDente Pro 的 Setapp 版里 Sparkle 被剥掉了**，`SUFeedURL` 只是 Info.plist 里的一段死配置；
 唯一会去读它的是我们自己的通用 Sparkle 源。这就是那个错配的来历：
 Setapp 副本被按厂商 feed 报出版本，下载直营 DMG，安装时 gate 4 拒绝——
 `Bundle identifier mismatch: installed "…-setapp" vs downloaded "…-pro"`。

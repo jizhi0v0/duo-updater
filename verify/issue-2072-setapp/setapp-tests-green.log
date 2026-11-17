@@ -1,0 +1,90 @@
+Building for debugging...
+[1 / 6] DuoUpdaterCore
+[2 / 6] DuoUpdaterCore
+[3 / 7] DuoUpdaterCore
+[8 / 12] DuoUpdaterCore
+[9 / 12] DuoUpdaterCore
+[9 / 13]
+[10 / 13] DuoUpdaterCore
+[11 / 12] DuoUpdaterCoreTests-product
+[12 / 13] DuoUpdaterCoreTests-product
+[13 / 13] DuoUpdaterCoreTests-product
+Build complete! (10.72 sec)
+◇ Test run started.
+↳ Testing Library Version: 2403
+↳ Target Platform: arm64e-apple-macos14.0
+◇ Suite SetappCatalogSourceTests started.
+◇ Test answersACatalogueEntryThatBreaksTheNamingConvention() started.
+◇ Test aSetappEditionUsesTheBaseAppsReleaseNotes() started.
+◇ Test ranksByVersionNotPublicationDate() started.
+◇ Test aBetaRecordedByTheClientNamesTheChannel() started.
+◇ Test oneSkippedOfferVetoesTheGlobalAutomaticLaunch() started.
+◇ Test picksTheNewestReleaseThisMacCanRun() started.
+◇ Test anAheadCopyWithBetaOnNamesTheBetaChannel() started.
+◇ Test withholdsTheVersionOnceTheSubscriptionHasLapsed() started.
+◇ Test readsTheDateFormTheCurrentClientWrites() started.
+◇ Test rejectsAPayloadThatIsNotTheCatalogue() started.
+◇ Test stillAnsweredAsInstalledWhenTheCatalogueDoesNotListIt() started.
+◇ Test anIgnoredSetappCopyWithAStoredSkipVetoesTheGlobalLaunch() started.
+◇ Test theSetappDeepLinkIsHandedToTheSetappClient() started.
+◇ Test aMissingBuildIsNotABetaMatch() started.
+◇ Test offersTheNewestReleaseThatRunsHereNotTheNewestStanding() started.
+◇ Test onlyActionableSetappOffersTriggerBackgroundUpdates() started.
+◇ Test readsBetaRowsFromTheClientsCatalogue() started.
+◇ Test aCopyAheadOfTheStableCatalogueIsNotADowngrade() started.
+◇ Test anInstalledBetaIsNamedFromTheCatalogue() started.
+◇ Test aDirectCopyWithASetappPublicKeyKeepsItsVendorSource(bundleID:catalogueFails:) started.
+◇ Test readsTheTrialDatesTheClientWrites() started.
+◇ Test ignoresAppsThatAreNotSetappEditions() started.
+◇ Test readsSetappsPerCustomerAutoInstallFlag() started.
+◇ Test aRunningClientTakesThePageRoute() started.
+◇ Test noReadableCustomerMeansNoState() started.
+◇ Test aCatalogueFailureIsATerminalRetryableCheckFailure() started.
+◇ Test noReleaseThatRunsHereIsStillAnAnswer() started.
+◇ Test parsesEveryCatalogueEntryAtTheNewestRelease() started.
+◇ Test aBuildOnlyReleaseIsStillAnUpdate() started.
+◇ Test parsesTheBetaFlag() started.
+◇ Test offersTheCatalogueReleaseWhenTheSubscriptionIsActive() started.
+◇ Test aBetaEnabledCheckReadsTheBetaCatalogue() started.
+◇ Test aSkippedDirectOfferDoesNotVetoSetappUpdates() started.
+◇ Test anInstalledBetaIsStillNamedAfterTheSwitchGoesOff() started.
+◇ Test case passing 2 arguments bundleID → "codes.rambo.AirBuddy", catalogueFails → false to aDirectCopyWithASetappPublicKeyKeepsItsVendorSource(bundleID:catalogueFails:) started.
+◇ Test case passing 2 arguments bundleID → "codes.rambo.AirBuddy", catalogueFails → true to aDirectCopyWithASetappPublicKeyKeepsItsVendorSource(bundleID:catalogueFails:) started.
+◇ Test case passing 2 arguments bundleID → "com.charliemonroe.Downie-4", catalogueFails → false to aDirectCopyWithASetappPublicKeyKeepsItsVendorSource(bundleID:catalogueFails:) started.
+◇ Test case passing 2 arguments bundleID → "com.charliemonroe.Downie-4", catalogueFails → true to aDirectCopyWithASetappPublicKeyKeepsItsVendorSource(bundleID:catalogueFails:) started.
+✔ Test oneSkippedOfferVetoesTheGlobalAutomaticLaunch() passed after 0.007 seconds.
+✔ Test anIgnoredSetappCopyWithAStoredSkipVetoesTheGlobalLaunch() passed after 0.007 seconds.
+✔ Test theSetappDeepLinkIsHandedToTheSetappClient() passed after 0.007 seconds.
+✔ Test ranksByVersionNotPublicationDate() passed after 0.007 seconds.
+✔ Test onlyActionableSetappOffersTriggerBackgroundUpdates() passed after 0.007 seconds.
+✔ Test rejectsAPayloadThatIsNotTheCatalogue() passed after 0.007 seconds.
+✔ Test readsTheTrialDatesTheClientWrites() passed after 0.007 seconds.
+✔ Test ignoresAppsThatAreNotSetappEditions() passed after 0.007 seconds.
+✔ Test aBetaRecordedByTheClientNamesTheChannel() passed after 0.007 seconds.
+✔ Test readsTheDateFormTheCurrentClientWrites() passed after 0.007 seconds.
+✔ Test aSetappEditionUsesTheBaseAppsReleaseNotes() passed after 0.007 seconds.
+✔ Test noReadableCustomerMeansNoState() passed after 0.007 seconds.
+✔ Test answersACatalogueEntryThatBreaksTheNamingConvention() passed after 0.007 seconds.
+✔ Test stillAnsweredAsInstalledWhenTheCatalogueDoesNotListIt() passed after 0.007 seconds.
+✔ Test withholdsTheVersionOnceTheSubscriptionHasLapsed() passed after 0.007 seconds.
+✔ Test readsSetappsPerCustomerAutoInstallFlag() passed after 0.007 seconds.
+✔ Test picksTheNewestReleaseThisMacCanRun() passed after 0.007 seconds.
+✔ Test aSkippedDirectOfferDoesNotVetoSetappUpdates() passed after 0.007 seconds.
+✔ Test parsesTheBetaFlag() passed after 0.007 seconds.
+✔ Test parsesEveryCatalogueEntryAtTheNewestRelease() passed after 0.007 seconds.
+✔ Test aRunningClientTakesThePageRoute() passed after 0.008 seconds.
+✔ Test anAheadCopyWithBetaOnNamesTheBetaChannel() passed after 0.008 seconds.
+✔ Test offersTheCatalogueReleaseWhenTheSubscriptionIsActive() passed after 0.008 seconds.
+✔ Test anInstalledBetaIsStillNamedAfterTheSwitchGoesOff() passed after 0.008 seconds.
+✔ Test aCopyAheadOfTheStableCatalogueIsNotADowngrade() passed after 0.008 seconds.
+✔ Test aMissingBuildIsNotABetaMatch() passed after 0.008 seconds.
+✔ Test aCatalogueFailureIsATerminalRetryableCheckFailure() passed after 0.008 seconds.
+✔ Test readsBetaRowsFromTheClientsCatalogue() passed after 0.009 seconds.
+✔ Test aBuildOnlyReleaseIsStillAnUpdate() passed after 0.009 seconds.
+✔ Test offersTheNewestReleaseThatRunsHereNotTheNewestStanding() passed after 0.009 seconds.
+✔ Test anInstalledBetaIsNamedFromTheCatalogue() passed after 0.009 seconds.
+✔ Test aBetaEnabledCheckReadsTheBetaCatalogue() passed after 0.009 seconds.
+✔ Test aDirectCopyWithASetappPublicKeyKeepsItsVendorSource(bundleID:catalogueFails:) with 4 test cases passed after 0.010 seconds.
+✔ Test noReleaseThatRunsHereIsStillAnAnswer() passed after 0.014 seconds.
+✔ Suite SetappCatalogSourceTests passed after 0.015 seconds.
+✔ Test run with 34 tests in 1 suite passed after 0.015 seconds.

@@ -178,7 +178,9 @@ import CryptoKit
                     try await refuses("third-party source") { _ = try await ThirdPartyCaskSource().latestVersion(for: installed) }
                 }
                 let fallback = Fallback()
-                let ownerSource: any UpdateSource = name == "intel" ? try source(work) : ThirdPartyCaskSource()
+                let ownerSource: any UpdateSource
+                if name == "intel" { ownerSource = try source(work) }
+                else { ownerSource = ThirdPartyCaskSource() }
                 let verdict = await UpdateChecker(sources: [ownerSource, fallback]).check(installed)
                 guard case .error = verdict.status else { throw Failure(message: "foreign owner checker must stop with error") }
                 let fallbackCalls = await fallback.calls

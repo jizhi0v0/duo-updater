@@ -166,4 +166,29 @@ struct HomebrewCompatibilityTests {
         #expect(UpdateChecker.evaluate(installed: old, remote: remote) == .updateAvailable(latest: "1.0"))
     }
 
+
+    @Test func migratedDirectoryAliasCannotHideTheCanonicalRecordOrPin() async throws {
+        let (root, app) = try Self.fixture(token: "new-example")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let room = root.appendingPathComponent("Caskroom")
+        try FileManager.default.createSymbolicLink(at: room.appendingPathComponent("old-example"),
+            withDestinationURL: room.appendingPathComponent("new-example"))
+        let pins = root.appendingPathComponent("var/homebrew/pinned_casks")
+        try FileManager.default.createDirectory(at: pins, withIntermediateDirectories: true)
+        try FileManager.default.createSymbolicLink(at: pins.appendingPathComponent("new-example"),
+            withDestinationURL: room.appendingPathComponent("new-example/1.0,101"))
+        let source = HomebrewCaskSource(catalog: try Self.catalog(),
+            inventory: BrewLocalInventory(caskroomPaths: [room.path]), ownership: { roots in
+                // Deliberately put a historical alias first if ownership ever
+                // starts accepting root token symlinks again.
+                await ThirdPartyCaskSource.ownership(in: roots, includeOfficial: true)
+                    .sorted { $0.token > $1.token }
+            })
+        let remote = try #require(try await source.latestVersion(for: app))
+        #expect(remote.sourceIdentifier == "new-example")
+        #expect(remote.homebrewInstalledCaskVersion == "1.0,101")
+        #expect(remote.homebrewPinned)
+        #expect(UpdateChecker.evaluate(installed: app, remote: remote) == .upToDate)
+    }
+
 }

@@ -60,6 +60,35 @@ struct InstallJournalTests {
 
     private let bundleID = "com.example.zzfixture.journal"
 
+    @Test func originalNameSurvivesJournalRecoveryAndOlderRecordsStillDecode() async throws {
+        try await withScratch { scratch in
+            let app = InstalledApp(
+                name: "百度网盘", bundleID: bundleID, shortVersion: "1.0", buildVersion: nil,
+                path: scratch.apps.appendingPathComponent("Cloud.app"), isMASApp: false,
+                sparkleFeedURL: nil, metadataName: "BaiduNetdisk_mac")
+            let recording = try #require(await InstallJournal.begin(
+                app: app, route: .homebrew, target: VersionSide(marketing: "2.0")))
+            var saved = try JSONDecoder().decode(
+                InstallJournal.Entry.self, from: Data(contentsOf: recording.file))
+            #expect(saved.appName == "BaiduNetdisk_mac")
+            #expect(saved.displayName == "百度网盘")
+            saved.damage = .missing
+            try #require(InstallJournal.write(saved, to: recording.file))
+            let recovered = try #require(InstallJournal.interruptedInstalls().first)
+            #expect(recovered.appName == "百度网盘")
+            #expect(recovered.metadataName == "BaiduNetdisk_mac")
+
+            var legacy = try #require(JSONSerialization.jsonObject(
+                with: Data(contentsOf: recording.file)) as? [String: Any])
+            legacy.removeValue(forKey: "displayName")
+            legacy["appName"] = "BaiduNetdisk_mac"
+            try JSONSerialization.data(withJSONObject: legacy).write(to: recording.file)
+            let older = try #require(InstallJournal.interruptedInstalls().first)
+            #expect(older.metadataName == "BaiduNetdisk_mac")
+            #expect(older.appName == "BaiduNetdisk_mac")
+        }
+    }
+
     /// `withExecutable` copies `/usr/bin/true` in as the bundle's executable,
     /// so `codesign` signs real code pages a test can then cut short.
     /// `withHelper` adds a second copy as nested code (`Contents/Helpers`),

@@ -15,7 +15,7 @@ import Testing
             id: UUID().uuidString, appID: path.path, appName: "ZZFixture-Interrupted",
             bundleID: "com.example.zzfixture.interrupted", appPath: path,
             oldVersion: oldVersion, oldBuild: "100", route: "homebrew", damage: damage,
-            restoreFrom: nil, iconSource: nil)
+            restoreFrom: nil, iconSource: nil, metadataName: nil)
     }
 
     /// With a copy to restore from, Restore — over the update the row has, and

@@ -41,16 +41,18 @@ production scanner, not an interactive App Store update or a GUI screenshot.
 
 ## Tests
 
-85 scoped tests pass (raw output: `tests.log`), covering localized names,
-legacy Chinese localization mapping, blank/missing resources, raw display-name
-precedence, wrapped iOS bundles, channel words hidden or introduced by a
-translation, scanner behavior and existing App Store offer-button guards.
+92 scoped Swift Testing tests and 15 XCTest tests pass (raw output: `tests.log`),
+covering localization, legacy Chinese mapping, blank/missing resources, raw-name
+precedence, wrapped iOS apps, translation/channel separation, scanner/AX guards,
+TestFlight metadata retention and interrupted-install recovery identity.
 
-The new fixtures deliberately use a generic bundle ID, so correctness cannot
-come from a VidHub/Baidu alias. Beta/Canary/Preview remain derived from raw
-metadata even when the translated row name omits or introduces a channel word.
+52 CLI selection/tool/recovery tests pass (`cli-tests.log`), including old/new
+aliases, collisions, deduplication, missing/damaged app recovery, and existing
+interrupted-install command behavior.
 
-After preserving legacy selectors, 41 CLI selection/tool-row tests pass, including
-old/new aliases, alias collisions and deduplication. All 15 TestFlight inventory
-tests pass, including retention of the original name when provenance is retagged.
-Raw additional output is in `cli-tests.log` and `testflight-tests.log`.
+The install journal keeps the original name in its existing `appName` field, so
+older readers keep their previous selectors. An optional `displayName` carries
+the new presentation. New readers carry both names through recovery; old records
+without the optional field still decode. A scratch-journal regression exercises
+production begin/write/read and legacy decoding. Recovery tests cover both an
+absent app and a scanned damaged same-path copy, without modifying real apps.

@@ -349,7 +349,8 @@ public enum Backups {
             InstalledApp(
                 name: item.appName, bundleID: item.bundleID,
                 shortVersion: item.oldVersion, buildVersion: item.oldBuild,
-                path: item.appPath, isMASApp: false, sparkleFeedURL: nil)
+                path: item.appPath, isMASApp: false, sparkleFeedURL: nil,
+                metadataName: item.metadataName)
         }
         let candidates: [InstalledApp]?
         if let installed {

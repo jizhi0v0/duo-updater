@@ -144,6 +144,10 @@ public enum InstallJournal {
         /// menu-bar app goes on for days after one.
         var ended: Bool? = nil
 
+        /// Localized presentation, while appName keeps its original wire meaning
+        /// for recovery by older versions. Absent in older journals.
+        var displayName: String? = nil
+
         var targetSide: VersionSide { VersionSide(marketing: targetVersion, build: targetBuild) }
 
         /// Whether the install this describes is still running in the
@@ -510,7 +514,7 @@ public enum InstallJournal {
         let onDisk = versions(at: path)
         let job = UUID().uuidString
         var entry = Entry(
-            job: job, appID: app.id, appName: app.name, bundleID: app.bundleID,
+            job: job, appID: app.id, appName: app.metadataName, bundleID: app.bundleID,
             appPath: path.path,
             oldVersion: onDisk.marketing ?? app.shortVersion,
             oldBuild: onDisk.build ?? app.buildVersion,
@@ -519,6 +523,7 @@ public enum InstallJournal {
             route: route.rawValue,
             backupKey: BackupStore.key(bundleID: app.bundleID, path: path),
             startedAt: Date(), owner: owner)
+        entry.displayName = app.name
         entry.sameIDSiblings = sameIDApps(beside: path, bundleID: app.bundleID).map(\.path)
         do {
             try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
@@ -863,6 +868,7 @@ public enum InstallJournal {
         /// A bundle to read the app's icon from: the app itself when something
         /// readable is still there, else the stored copy's, else nil.
         public let iconSource: URL?
+        public let metadataName: String?
     }
 
     /// Every install launch processing found cut off, oldest first.
@@ -882,11 +888,11 @@ public enum InstallJournal {
                 let source = restoreSource(for: entry)
                 let icon = BackupStore.hasReadableBundle(at: app) ? app : source?.bundle
                 return InterruptedInstall(
-                    id: entry.job, appID: entry.appID, appName: entry.appName,
+                    id: entry.job, appID: entry.appID, appName: entry.displayName ?? entry.appName,
                     bundleID: entry.bundleID, appPath: app,
                     oldVersion: entry.oldVersion, oldBuild: entry.oldBuild,
                     route: entry.route, damage: entry.damage ?? .missing,
-                    restoreFrom: source, iconSource: icon)
+                    restoreFrom: source, iconSource: icon, metadataName: entry.appName)
             }
     }
 

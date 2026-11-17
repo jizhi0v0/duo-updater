@@ -156,3 +156,15 @@ struct UpdateSourceLabel: Equatable {
         String(localized: "via \(name)", comment: "Where an app's updates come from, e.g. “via Sparkle”, “via Homebrew”")
     }
 }
+
+/// The installer handoff explained by both action surfaces. Foundation only,
+/// so the hostless App tests exercise the wording used by the actual buttons.
+func installerHandoffHelp(for result: UpdateResult, stagedFileName: String?) -> String {
+    if result.remote?.homebrewManualInstaller != nil {
+        return String(localized: "Homebrew downloads and verifies the declared installer. Finish the update in its window.")
+    }
+    if let stagedFileName {
+        return String(localized: "\(stagedFileName) is already downloaded — opens it in macOS's installer (asks for admin). Nothing is downloaded again.")
+    }
+    return String(localized: "Downloads the official installer and opens it (asks for admin)")
+}

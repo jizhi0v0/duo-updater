@@ -533,16 +533,6 @@ func skippedRowLabel() -> String {
 }
 
 /// The cask's own compatibility refusal, shared by both surfaces.
-func installerHandoffHelp(for result: UpdateResult, stagedFileName: String?) -> String {
-    if result.remote?.homebrewManualInstaller != nil {
-        return String(localized: "Homebrew downloads and verifies the declared installer. Finish the update in its window.")
-    }
-    if let stagedFileName {
-        return String(localized: "\(stagedFileName) is already downloaded — opens it in macOS's installer (asks for admin). Nothing is downloaded again.")
-    }
-    return String(localized: "Downloads the official installer and opens it (asks for admin)")
-}
-
 enum CaskCompatibilityWording {
     static func explanation(_ reason: CaskIncompatibility) -> String {
         switch reason {

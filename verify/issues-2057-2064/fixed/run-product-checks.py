@@ -45,7 +45,10 @@ def main():
     env['APP_TESTS_DD'] = str(work / 'app-dd')
     env['LOCALIZABLE_DD'] = str(work / 'localizable-dd')
     env['UNSIGNED_RELEASE_DD'] = str(work / 'release-dd')
-    env['XCODE_CLONED_SOURCE_PACKAGES'] = str(work / 'app-dd/SourcePackages')
+    # The shipping embedding phase finds Sparkle's BinaryDelta under its own
+    # DerivedData. Sharing app-dd here leaves Release's artifact directory empty.
+    package_cache = 'release-dd' if args.step == 'release-build' else 'app-dd'
+    env['XCODE_CLONED_SOURCE_PACKAGES'] = str(work / package_cache / 'SourcePackages')
     swift = ['/usr/bin/xcrun', 'swift']
     shared = ['--scratch-path', str(repo / 'DuoUpdaterCore/.build'), '--force-resolved-versions', '-j', '4']
     commands = {

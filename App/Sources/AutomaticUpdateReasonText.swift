@@ -44,6 +44,8 @@ enum AutomaticUpdateReasonText {
     }
 
     private static let fixed: [String: String] = [
+        "Automatic updating is waiting for enough free space on this Mac.":
+            String(localized: "Automatic updating is waiting for enough free space on this Mac."),
         "Automatic updating is waiting for the retry deadline, including any delay requested by the server.":
             String(localized: "Automatic updating is waiting for the retry deadline, including any delay requested by the server."),
         "Excluded from automatic updates in Settings.":

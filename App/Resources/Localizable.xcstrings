@@ -1552,67 +1552,67 @@
         }
       }
     },
-    "Runs only after scheduled checks, on a network that is not restricted. By default, an app is skipped while its main app is running; apps you allow below may be quit and reopened, and updates that need an installer or an authorization prompt are left for you. After a failed update, nothing is tried for that app for a day, and after three failures not until a newer version. Each attempt, and why one was deferred, is listed in the Network window under Events.": {
+    "Runs only after scheduled checks, on a network that is not restricted. By default, an app is skipped while its main app is running; apps you allow below may be quit and reopened, and updates that need an installer or an authorization prompt are left for you. Low storage pauses updates until a later check finds enough free space. Each attempt, and why one was deferred, is listed in the Network window under Events.": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Läuft nur nach geplanten Prüfungen und in einem nicht eingeschränkten Netzwerk. Standardmäßig wird eine App übersprungen, solange ihre Haupt-App läuft; unten erlaubte Apps dürfen beendet und neu geöffnet werden, und Updates, die ein Installationsprogramm oder eine Berechtigungsabfrage brauchen, bleiben dir überlassen. Nach einem fehlgeschlagenen Update wird für diese App einen Tag lang nichts versucht, nach drei Fehlschlägen erst wieder bei einer neueren Version. Jeder Versuch und warum einer aufgeschoben wurde, steht im Netzwerkfenster unter „Ereignisse“."
+            "value": "Läuft nur nach geplanten Prüfungen und in einem nicht eingeschränkten Netzwerk. Standardmäßig wird eine App übersprungen, solange ihre Haupt-App läuft; unten erlaubte Apps dürfen beendet und neu geöffnet werden, und Updates, die ein Installationsprogramm oder eine Berechtigungsabfrage brauchen, bleiben dir überlassen. Bei wenig Speicherplatz pausieren Updates, bis eine spätere Prüfung genügend freien Platz feststellt. Jeder Versuch und warum einer aufgeschoben wurde, steht im Netzwerkfenster unter „Ereignisse“."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Solo se ejecuta tras las comprobaciones programadas y en una red sin restricciones. Por defecto, una app se omite mientras su app principal esté en ejecución; las apps que permitas abajo pueden cerrarse y volver a abrirse, y las actualizaciones que necesitan un instalador o una solicitud de autorización quedan para ti. Tras una actualización fallida, no se intenta nada con esa app durante un día, y tras tres fallos, hasta que haya una versión más nueva. Cada intento, y por qué se aplazó, aparece en la ventana Red, en Eventos."
+            "value": "Solo se ejecuta tras las comprobaciones programadas y en una red sin restricciones. Por defecto, una app se omite mientras su app principal esté en ejecución; las apps que permitas abajo pueden cerrarse y volver a abrirse, y las actualizaciones que necesitan un instalador o una solicitud de autorización quedan para ti. Si queda poco espacio, las actualizaciones se pausan hasta que una comprobación posterior encuentre suficiente espacio libre. Cada intento, y por qué se aplazó, aparece en la ventana Red, en Eventos."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "S’exécute uniquement après les vérifications programmées, sur un réseau non restreint. Par défaut, une app est ignorée tant qu’son app principale est en cours d’exécution ; les apps autorisées ci-dessous peuvent être quittées puis rouvertes, et les mises à jour qui nécessitent un programme d’installation ou une demande d’autorisation vous sont laissées. Après une mise à jour échouée, rien n’est tenté pour cette app pendant un jour, et après trois échecs, pas avant une version plus récente. Chaque tentative, et la raison d’un report, figure dans la fenêtre Réseau, sous Événements."
+            "value": "S’exécute uniquement après les vérifications programmées, sur un réseau non restreint. Par défaut, une app est ignorée tant qu’son app principale est en cours d’exécution ; les apps autorisées ci-dessous peuvent être quittées puis rouvertes, et les mises à jour qui nécessitent un programme d’installation ou une demande d’autorisation vous sont laissées. Les mises à jour sont suspendues si l’espace manque, jusqu’à ce qu’une vérification ultérieure trouve suffisamment d’espace libre. Chaque tentative, et la raison d’un report, figure dans la fenêtre Réseau, sous Événements."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Viene eseguito solo dopo i controlli programmati, su una rete senza limitazioni. Per impostazione predefinita, un’app viene saltata mentre la sua app principale è in esecuzione; le app autorizzate sotto possono essere chiuse e riaperte, e gli aggiornamenti che richiedono un programma di installazione o una richiesta di autorizzazione sono lasciati a te. Dopo un aggiornamento non riuscito, per quell’app non si tenta nulla per un giorno, e dopo tre errori non prima di una versione più recente. Ogni tentativo, e il motivo di un rinvio, è elencato nella finestra Rete, in Eventi."
+            "value": "Viene eseguito solo dopo i controlli programmati, su una rete senza limitazioni. Per impostazione predefinita, un’app viene saltata mentre la sua app principale è in esecuzione; le app autorizzate sotto possono essere chiuse e riaperte, e gli aggiornamenti che richiedono un programma di installazione o una richiesta di autorizzazione sono lasciati a te. Se lo spazio è insufficiente, gli aggiornamenti attendono finché un controllo successivo non rileva abbastanza spazio libero. Ogni tentativo, e il motivo di un rinvio, è elencato nella finestra Rete, in Eventi."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "定期確認のあと、制限のないネットワークでのみ実行されます。既定ではメインアプリが実行中の間はスキップされます。以下で許可したアプリは終了して再度開くことができます。インストーラや認証の確認が必要なアップデートはあなたに任されます。アップデートに失敗すると、そのアプリでは1日間何も試さず、3回失敗すると新しいバージョンが出るまで試しません。各試行と延期の理由は、ネットワークウインドウの「イベント」に表示されます。"
+            "value": "定期確認のあと、制限のないネットワークでのみ実行されます。既定ではメインアプリが実行中の間はスキップされます。以下で許可したアプリは終了して再度開くことができます。インストーラや認証の確認が必要なアップデートはあなたに任されます。空き容量が少ない場合は、後の確認で十分な空き容量が見つかるまで更新を一時停止します。各試行と延期の理由は、ネットワークウインドウの「イベント」に表示されます。"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Só é executado após as verificações agendadas, em uma rede sem restrições. Por padrão, um app é ignorado enquanto seu app principal estiver em execução; os apps permitidos abaixo podem ser encerrados e reabertos, e as atualizações que precisam de um instalador ou de uma solicitação de autorização ficam com você. Após uma atualização com falha, nada é tentado para esse app por um dia e, após três falhas, só quando houver uma versão mais nova. Cada tentativa, e o motivo de um adiamento, aparece na janela Rede, em Eventos."
+            "value": "Só é executado após as verificações agendadas, em uma rede sem restrições. Por padrão, um app é ignorado enquanto seu app principal estiver em execução; os apps permitidos abaixo podem ser encerrados e reabertos, e as atualizações que precisam de um instalador ou de uma solicitação de autorização ficam com você. Com pouco espaço, as atualizações são pausadas até que uma verificação posterior encontre espaço livre suficiente. Cada tentativa, e o motivo de um adiamento, aparece na janela Rede, em Eventos."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Работает только после плановых проверок и в сети без ограничений. По умолчанию приложение пропускается, пока его основное приложение запущено; разрешённые ниже приложения могут быть закрыты и открыты заново, а обновления, которым нужен установщик или запрос авторизации, остаются вам. После неудачного обновления для этого приложения сутки ничего не предпринимается, а после трёх неудач — до выхода более новой версии. Каждая попытка и причина отсрочки видны в окне «Сеть», в разделе «События»."
+            "value": "Работает только после плановых проверок и в сети без ограничений. По умолчанию приложение пропускается, пока его основное приложение запущено; разрешённые ниже приложения могут быть закрыты и открыты заново, а обновления, которым нужен установщик или запрос авторизации, остаются вам. При нехватке места обновления приостанавливаются, пока следующая проверка не обнаружит достаточно свободного места. Каждая попытка и причина отсрочки видны в окне «Сеть», в разделе «События»."
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Yalnızca zamanlanmış denetimlerden sonra, kısıtlanmamış bir ağda çalışır. Varsayılan olarak bir uygulama, ana uygulaması çalışırken atlanır; aşağıda izin verdiğiniz uygulamalar kapatılıp yeniden açılabilir; yükleyici veya yetkilendirme istemi gerektiren güncellemeler size bırakılır. Başarısız bir güncellemeden sonra o uygulama için bir gün hiçbir şey denenmez, üç başarısızlıktan sonra ise daha yeni bir sürüme kadar denenmez. Her deneme ve neden ertelendiği, Ağ penceresinde Olaylar altında listelenir."
+            "value": "Yalnızca zamanlanmış denetimlerden sonra, kısıtlanmamış bir ağda çalışır. Varsayılan olarak bir uygulama, ana uygulaması çalışırken atlanır; aşağıda izin verdiğiniz uygulamalar kapatılıp yeniden açılabilir; yükleyici veya yetkilendirme istemi gerektiren güncellemeler size bırakılır. Depolama alanı azsa, sonraki bir denetim yeterli boş alan bulana kadar güncellemeler duraklatılır. Her deneme ve neden ertelendiği, Ağ penceresinde Olaylar altında listelenir."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "仅在定时检查后、且网络未受限制时运行。默认会跳过主应用仍在运行的应用；下方允许的应用可退出并重新打开。需要安装器或授权提示的更新会留给你处理。更新失败后，该应用一天内不会再尝试；失败三次后要等到更新的版本才会再试。每次尝试及暂缓原因都会列在“网络”窗口的“事件”中。"
+            "value": "仅在定时检查后、且网络未受限制时运行。默认会跳过主应用仍在运行的应用；下方允许的应用可退出并重新打开。需要安装器或授权提示的更新会留给你处理。空间不足时会暂停更新，后续检查确认有足够空间后再继续。每次尝试及暂缓原因都会列在“网络”窗口的“事件”中。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "僅在定時檢查後、於未受限制的網路上執行。預設會略過 主 App 仍在執行的 App；下方允許的 App 可結束並重新開啟。需要安裝程式或授權提示的更新會留給你處理。更新失敗後，該 App 一天內不會再嘗試；失敗三次後要等到更新的版本才會再試。每次嘗試及暫緩原因都會列在「網路」視窗的「事件」中。"
+            "value": "僅在定時檢查後、於未受限制的網路上執行。預設會略過 主 App 仍在執行的 App；下方允許的 App 可結束並重新開啟。需要安裝程式或授權提示的更新會留給你處理。空間不足時會暫停更新，後續檢查確認有足夠空間後再繼續。每次嘗試及暫緩原因都會列在「網路」視窗的「事件」中。"
           }
         }
       }
@@ -99321,6 +99321,136 @@
           "stringUnit": {
             "state": "translated",
             "value": "顯示 App"
+          }
+        }
+      }
+    },
+    "Updates are paused: %@ free on this Mac; at least %@ must remain free. Free up space, then check for updates again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Updates pausieren: Auf diesem Mac sind %@ frei; mindestens %@ müssen frei bleiben. Schaffe Platz und suche dann erneut nach Updates."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Actualizaciones en pausa: %@ libres en este Mac; deben quedar al menos %@ libres. Libera espacio y vuelve a buscar actualizaciones."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mises à jour en pause : %@ disponibles sur ce Mac ; au moins %@ doivent rester libres. Libérez de l’espace, puis recherchez à nouveau les mises à jour."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aggiornamenti in pausa: %@ liberi su questo Mac; almeno %@ devono restare liberi. Libera spazio, poi cerca di nuovo gli aggiornamenti."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新を一時停止中です。この Mac の空き容量は %@ で、最低 %@ を空けておく必要があります。空き容量を増やしてから、更新を再確認してください。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Atualizações pausadas: %@ livres neste Mac; pelo menos %@ devem permanecer livres. Libere espaço e verifique as atualizações novamente."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Обновления приостановлены: на этом Mac свободно %@; не менее %@ должно оставаться свободным. Освободите место и снова проверьте обновления."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Güncellemeler duraklatıldı: Bu Mac’te %@ boş; en az %@ boş kalmalı. Yer açıp güncellemeleri yeniden denetleyin."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新已暂停：这台 Mac 剩余 %@，需至少保留 %@ 空间。请清理空间后重新检查更新。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新已暫停：這台 Mac 剩餘 %@，需至少保留 %@ 空間。請清理空間後重新檢查更新。"
+          }
+        }
+      }
+    },
+    "Automatic updating is waiting for enough free space on this Mac.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Automatische Updates warten auf genügend freien Speicherplatz auf diesem Mac."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La actualización automática espera a que haya suficiente espacio libre en este Mac."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La mise à jour automatique attend que ce Mac dispose de suffisamment d’espace libre."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "L’aggiornamento automatico attende spazio libero sufficiente su questo Mac."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自動更新は、この Mac に十分な空き容量ができるまで待機しています。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A atualização automática está aguardando espaço livre suficiente neste Mac."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Автоматическое обновление ожидает достаточного свободного места на этом Mac."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Otomatik güncelleme bu Mac’te yeterli boş alan olmasını bekliyor."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自动更新正在等待这台 Mac 有足够的可用空间。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自動更新正在等待這台 Mac 有足夠的可用空間。"
           }
         }
       }

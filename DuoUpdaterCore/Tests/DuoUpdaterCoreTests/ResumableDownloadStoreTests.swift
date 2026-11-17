@@ -656,6 +656,33 @@ struct ResumableDownloadStoreTests {
 
     // MARK: - After an install
 
+    @Test func batchAdmissionReclaimsExpendableDownloadsBeforePausingTheWholeBatch() async throws {
+        let root = try scratch("batch-admission")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let archives = root.appendingPathComponent("Archives")
+        let cached = archives.appendingPathComponent(String(repeating: "a", count: 64))
+        try FileManager.default.createDirectory(at: cached, withIntermediateDirectories: true)
+        try Data(repeating: 1, count: 4096).write(to: cached.appendingPathComponent("archive.zip"))
+        let floor = BackupStore.freeSpaceFloorBytes
+        try ResumableDownloadStore.$rootOverride.withValue(root) {
+            let entry = try seed(URL(string: "https://example.invalid/batch.dmg")!, appID: nil, in: root)
+            ElectronArchiveCache.$rootOverride.withValue(archives) {
+                BackupStore.$freeBytesOverride.withValue({
+                    let kept = FileManager.default.fileExists(atPath: entry.partial.path)
+                        || FileManager.default.fileExists(atPath: cached.path)
+                    return kept ? floor - 1 : floor + (1 << 30)
+                }) {
+                    #expect(DiskSpaceGuard.Capacity.read().shortfall != nil)
+                    #expect(FileManager.default.fileExists(atPath: entry.partial.path))
+                    #expect(FileManager.default.fileExists(atPath: cached.path))
+                    #expect(DiskSpaceGuard.Capacity.read(reclaimingDownloads: true).shortfall == nil)
+                    #expect(!FileManager.default.fileExists(atPath: entry.partial.path))
+                    #expect(!FileManager.default.fileExists(atPath: cached.path))
+                }
+            }
+        }
+    }
+
     @Test func aSuccessfulInstallForgetsThatAppsPartials() async throws {
         let root = try scratch("root"), work = try scratch("work")
         defer { [root, work].forEach { try? FileManager.default.removeItem(at: $0) } }

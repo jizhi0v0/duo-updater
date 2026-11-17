@@ -11,7 +11,7 @@ struct AutomaticUpdateReasonTextTests {
     /// reword a `RunningAppAutoUpdate.Reason` message without its entry → red.
     @Test func everyRunningAppReasonIsTranslated() {
         let reasons: [RunningAppAutoUpdate.Reason] = [
-            .gaveUp, .retryLater, .independentHelper,
+            .gaveUp, .retryLater, .waitingForSpace, .independentHelper,
         ]
         for reason in reasons {
             #expect(AutomaticUpdateReasonText.isKnown(reason.message), "\(reason.message)")

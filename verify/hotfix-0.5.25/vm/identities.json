@@ -1,0 +1,22 @@
+[
+  {
+    "CFBundleIdentifier": "codes.rambo.AirBuddy",
+    "CFBundleShortVersionString": "3.0.3",
+    "CFBundleVersion": "1034"
+  },
+  {
+    "CFBundleIdentifier": "com.charliemonroe.Downie-4",
+    "CFBundleShortVersionString": "4.13.4",
+    "CFBundleVersion": "5284"
+  },
+  {
+    "CFBundleIdentifier": "com.workbuddy.workbuddy-ai",
+    "CFBundleShortVersionString": "5.9.4",
+    "CFBundleVersion": "5.9.4"
+  },
+  {
+    "CFBundleIdentifier": "com.charliemonroe.Downie-setapp",
+    "CFBundleShortVersionString": "4.13.5",
+    "CFBundleVersion": "5290"
+  }
+]

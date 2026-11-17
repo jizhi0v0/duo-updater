@@ -19,6 +19,26 @@ release note is debugging our code:
 
 Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
+## 0.5.25
+
+**AirBuddy, Downie and other direct-download apps find their normal updates again.** Apps that also include Setapp resources are no longer mistaken for Setapp copies.
+
+**WorkBuddy AI updates install successfully again.** Downloads use the ZIP package that matches the developer's published checksum.
+
+**Douchat can update across its developer's authorized signing-team change.**
+
+## 0.5.25-beta.1
+
+**Supported Electron apps can download only the parts that changed.** When a reusable download is available, updates use less data; otherwise they download the full package.
+
+**Manage reusable update downloads in Storage settings.** Successful differential downloads also show the Delta badge in Downloads.
+
+**Leaf now has command-line update checks, verified one-click updates and structured release notes.**
+
+**T3 Code Beta and the NSH version of Disktree now have update checks and one-click updates.** Each follows its own releases.
+
+**Douchat can update across its developer's signing-team change.** Updates must satisfy the authorization already signed into the installed app.
+
 ## 0.5.24
 
 **Try automatic updates, now available as an opt-in Beta in every release.** They stay off by default; enable them in Settings → Automatic Updates and share feedback on GitHub, using the sanitized report from Events if helpful.

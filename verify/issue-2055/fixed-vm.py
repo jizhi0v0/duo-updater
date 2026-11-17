@@ -246,8 +246,8 @@ def main():
         run([binary,work,'renamed-pinned'], 'probe-renamed-pinned')
         brew('unpin','--cask','duo2055vm-new',name='unpin-renamed-canonical-cask')
         run([binary,work,'renamed-unpinned'], 'probe-renamed-unpinned')
-        # LaunchServices environment starts without exports inherited from our
-        # CLI. The rc file has guarded backup/restore and no preexisting content
+        # Model a GUI launch whose Homebrew exports exist only in shell rc.
+        # The rc file has guarded backup/restore and no preexisting content
         # is discarded. brew.env remains untouched.
         for p in [Path.home()/'.config/homebrew/brew.env',Path('/opt/homebrew/etc/homebrew/brew.env'),Path('/etc/homebrew/brew.env')]:
             if p.exists(): raise RuntimeError('Environment scenario requires no existing brew.env: '+str(p))
@@ -267,7 +267,12 @@ printf '{}\\n'
         shutil.copy2(binary,app/'MacOS/FixedVMProbe')
         (app/'Info.plist').write_bytes(plistlib.dumps(dict(CFBundleIdentifier='org.duo2055vm.env',CFBundleExecutable='FixedVMProbe',CFBundlePackageType='APPL',LSUIElement=True)))
         run(['/usr/bin/codesign','--force','--sign','-',app.parent], 'sign-env-probe')
-        run(['/usr/bin/open','-n',app.parent,'--args',work,'env'], 'launch-env-probe')
+        # Brew commands above intentionally receive NO_AUTO_UPDATE=1. Do not
+        # seed that test-only environment into the GUI probe via open. Preserve
+        # the guest's base HOME/USER/PATH and other LaunchServices variables.
+        gui_env={key:value for key,value in os.environ.items()
+                 if not key.startswith('HOMEBREW_') and key!='DUO2055_UNRELATED_SECRET'}
+        run(['/usr/bin/open','-n',app.parent,'--args',work,'env'], 'launch-env-probe',extra=gui_env)
         deadline=time.monotonic()+30
         while not (work/'env-result.json').exists() and time.monotonic()<deadline:time.sleep(.2)
         if not (work/'env-result.json').exists():raise RuntimeError('GUI environment probe did not finish')

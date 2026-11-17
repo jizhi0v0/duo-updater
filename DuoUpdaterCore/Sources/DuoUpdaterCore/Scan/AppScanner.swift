@@ -388,7 +388,8 @@ public struct AppScanner: Sendable {
                 appStoreAdamID: app.appStoreAdamID ?? appStoreAdamID(app.path),
                 runtime: app.runtime,
                 linkedFrameworks: app.linkedFrameworks,
-                buildSDK: app.buildSDK
+                buildSDK: app.buildSDK,
+                metadataName: app.metadataName
             )
         }
     }
@@ -977,7 +978,8 @@ public struct AppScanner: Sendable {
             // already stat-ing this bundle and holding its Info.plist.
             runtime: runtimeReading.runtime,
             linkedFrameworks: runtimeReading.frameworks,
-            buildSDK: buildSDK
+            buildSDK: buildSDK,
+            metadataName: metadataName
         )
     }
 

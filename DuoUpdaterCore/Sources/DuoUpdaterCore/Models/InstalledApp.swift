@@ -31,6 +31,10 @@ public struct InstalledApp: Sendable, Identifiable, Hashable {
     /// Display name, e.g. "Visual Studio Code".
     public let name: String
 
+    /// Original unlocalized name retained for existing CLI selectors. Display
+    /// localization must not change which installed copy an old command names.
+    public let metadataName: String
+
     /// `CFBundleIdentifier`, e.g. "com.microsoft.VSCode". Nil if the bundle
     /// has no identifier (rare, usually a malformed app).
     public let bundleID: String?
@@ -321,9 +325,11 @@ public struct InstalledApp: Sendable, Identifiable, Hashable {
         appStoreAdamID: Int? = nil,
         runtime: AppRuntime? = nil,
         linkedFrameworks: LinkedFrameworks = [],
-        buildSDK: BuildSDK? = nil
+        buildSDK: BuildSDK? = nil,
+        metadataName: String? = nil
     ) {
         self.name = name
+        self.metadataName = metadataName ?? name
         self.bundleID = bundleID
         self.shortVersion = shortVersion
         self.buildVersion = buildVersion

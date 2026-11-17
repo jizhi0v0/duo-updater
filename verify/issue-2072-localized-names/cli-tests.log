@@ -1,0 +1,139 @@
+Building for debugging...
+[Pre-planning 1 / 214]
+[Planning deferred tasks]
+[1 / 40]
+[14 / 49]
+[15 / 43] DuoUpdaterCore
+[21 / 49] DuoUpdaterCore
+[25 / 63] DuoUpdaterCore
+[26 / 66] DuoUpdaterCore
+[28 / 66] DuoUpdaterCore
+[29 / 66] DuoUpdaterCore
+[30 / 66] DuoUpdaterCore
+[32 / 66] DuoUpdaterCore
+[34 / 66] DuoUpdaterCore
+[35 / 66] DuoUpdaterCore
+[36 / 66] DuoUpdaterCore
+[37 / 66] DuoUpdaterCore
+[38 / 66] DuoUpdaterCore
+[44 / 68] DuoUpdaterCore
+[44 / 68] DuoKit
+[49 / 83] DuoKit
+[50 / 83] DuoKit
+[52 / 83] DuoKit
+[54 / 84] DuoKit
+[58 / 86] duo-product
+[58 / 86] DuoKit
+[62 / 88] duo-product
+[64 / 88] DuoKit
+[67 / 88] DuoKit
+[70 / 88] DuoUpdaterCore
+[70 / 88] DuoKit
+[71 / 88] DuoUpdaterCore
+[71 / 88] DuoKit
+[78 / 90] DuoKit-product
+[78 / 90] duo-product
+[80 / 91] duo-product
+[80 / 91] DuoKitTests-product
+[83 / 110]
+[84 / 110]
+[91 / 110] DuoKitTests-product
+[94 / 110] DuoKitTests-product
+[95 / 110] DuoKitTests-product
+[102 / 110] DuoKitTests-product
+[104 / 110] DuoKitTests-product
+[104 / 110] AllIncludingTests
+[104 / 110] DuoKitTests-product
+[106 / 110] DuoKitTests-product
+[108 / 110] DuoKitTests-product
+Build complete! (22.11 sec)
+◇ Test run started.
+↳ Testing Library Version: 2403
+↳ Target Platform: arm64e-apple-macos14.0
+◇ Suite InventorySelectionTests started.
+◇ Suite CLIToolRowsTests started.
+◇ Test aToolIsNamedByItsToolName() started.
+◇ Test aPackageIsNamedByItsOwnName() started.
+◇ Test anUnambiguousNamePrefixResolves() started.
+◇ Test jsonCarriesRuntime() started.
+◇ Test anAmbiguousPrefixIsRefusedAndNamesTheCandidates() started.
+◇ Test theSameAppNamedTwoWaysIsSelectedOnce() started.
+◇ Test textSaysWhatEachIsBuiltWith() started.
+◇ Test aCurrentCopyWithStaleProcessesSaysSo() started.
+◇ Test noArgumentsMeansEverything() started.
+◇ Test aPrefixMatchingAnAppAndAToolIsRefused() started.
+◇ Test skippedCopiesNeverReachAProvider() started.
+◇ Test aManagedRowIsNamedByItsKeyAndItsManager() started.
+◇ Test aSharedBundleIDSelectsEveryCopy() started.
+◇ Test anUnknownNameIsAnError() started.
+◇ Test anExactPathWins() started.
+◇ Test anAbandonedScanStillResolvesAToolPathButNoName() started.
+◇ Test scannedRowsReadTheirFiles() started.
+◇ Test jsonRowsCarryTheToolAndTheSchemaSays2() started.
+◇ Test candidatesWithDistinctNamesAreToldToNameOne() started.
+◇ Test managedTextSaysWhatTheUpdateDoesAndWhatLiesBeyond() started.
+◇ Test aSkippedToolsJSONRowHasNoAppKey() started.
+◇ Test candidatesSharingANameAreSeparatedByVersionAndPath() started.
+◇ Test localizedRowsKeepTheirPreviousNameSelectors() started.
+◇ Test aToolUpdateMakesCheckExit1() started.
+◇ Test twoToolsMatchingOnePrefixAreRefused() started.
+◇ Test aMetadataAliasCannotResolveAnAmbiguousPrefix() started.
+◇ Test aNoteThatSaysMoreThanTheReasonIsPrinted() started.
+◇ Test aToolIsNamedByItsPath() started.
+◇ Test aFailureCarriesTheVendorsLineAndExitStatus() started.
+◇ Test rowsCarryWhatTheyAreBuiltWith() started.
+◇ Test aMissSaysToolsWereLookedAt() started.
+◇ Test checkTextSaysWhyAndWhatToRun() started.
+◇ Test installRunsOnlyWhatUpdateAllWould() started.
+◇ Test toolsNotStartedAfterACancelAreCountedCancelled() started.
+◇ Test outcomesMapToInstallsOwn() started.
+◇ Test anUpdateRowCarriesTheVersionsItsNotesMarkBreaking() started.
+◇ Test securityLinesEndTheToolsSection() started.
+◇ Test onlyAnAppPathOrBundleIDSparesTheToolCheck() started.
+◇ Test notesThatFailGiveNoHintAndAreAskedOnce() started.
+◇ Test aManagedRowCarriesItsManagerAndItem() started.
+◇ Test progressGoesToStderr() started.
+✔ Test noArgumentsMeansEverything() passed after 0.006 seconds.
+✔ Test theSameAppNamedTwoWaysIsSelectedOnce() passed after 0.006 seconds.
+✔ Test anExactPathWins() passed after 0.006 seconds.
+✔ Test aSharedBundleIDSelectsEveryCopy() passed after 0.006 seconds.
+✔ Test anAmbiguousPrefixIsRefusedAndNamesTheCandidates() passed after 0.006 seconds.
+✔ Test anUnambiguousNamePrefixResolves() passed after 0.006 seconds.
+✔ Test aSkippedToolsJSONRowHasNoAppKey() passed after 0.006 seconds.
+✔ Test candidatesSharingANameAreSeparatedByVersionAndPath() passed after 0.006 seconds.
+✔ Test candidatesWithDistinctNamesAreToldToNameOne() passed after 0.006 seconds.
+✔ Test aMetadataAliasCannotResolveAnAmbiguousPrefix() passed after 0.006 seconds.
+✔ Test managedTextSaysWhatTheUpdateDoesAndWhatLiesBeyond() passed after 0.006 seconds.
+✔ Test anUnknownNameIsAnError() passed after 0.006 seconds.
+✔ Test localizedRowsKeepTheirPreviousNameSelectors() passed after 0.006 seconds.
+✔ Test aNoteThatSaysMoreThanTheReasonIsPrinted() passed after 0.006 seconds.
+✔ Test outcomesMapToInstallsOwn() passed after 0.006 seconds.
+✔ Test jsonRowsCarryTheToolAndTheSchemaSays2() passed after 0.006 seconds.
+✔ Test anAbandonedScanStillResolvesAToolPathButNoName() passed after 0.006 seconds.
+✔ Test securityLinesEndTheToolsSection() passed after 0.006 seconds.
+✔ Test onlyAnAppPathOrBundleIDSparesTheToolCheck() passed after 0.006 seconds.
+✔ Test aManagedRowCarriesItsManagerAndItem() passed after 0.006 seconds.
+✔ Suite InventorySelectionTests passed after 0.006 seconds.
+✔ Test textSaysWhatEachIsBuiltWith() passed after 0.006 seconds.
+✔ Test aToolUpdateMakesCheckExit1() passed after 0.006 seconds.
+✔ Test toolsNotStartedAfterACancelAreCountedCancelled() passed after 0.006 seconds.
+✔ Test progressGoesToStderr() passed after 0.006 seconds.
+✔ Test jsonCarriesRuntime() passed after 0.006 seconds.
+✔ Test rowsCarryWhatTheyAreBuiltWith() passed after 0.006 seconds.
+✔ Test aManagedRowIsNamedByItsKeyAndItsManager() passed after 0.006 seconds.
+✔ Test skippedCopiesNeverReachAProvider() passed after 0.006 seconds.
+✔ Test notesThatFailGiveNoHintAndAreAskedOnce() passed after 0.006 seconds.
+✔ Test aPrefixMatchingAnAppAndAToolIsRefused() passed after 0.006 seconds.
+✔ Test installRunsOnlyWhatUpdateAllWould() passed after 0.006 seconds.
+✔ Test aMissSaysToolsWereLookedAt() passed after 0.006 seconds.
+✔ Test anUpdateRowCarriesTheVersionsItsNotesMarkBreaking() passed after 0.006 seconds.
+✔ Test aToolIsNamedByItsPath() passed after 0.006 seconds.
+✔ Test twoToolsMatchingOnePrefixAreRefused() passed after 0.006 seconds.
+✔ Test checkTextSaysWhyAndWhatToRun() passed after 0.006 seconds.
+✔ Test aToolIsNamedByItsToolName() passed after 0.007 seconds.
+✔ Test aPackageIsNamedByItsOwnName() passed after 0.007 seconds.
+✔ Test aFailureCarriesTheVendorsLineAndExitStatus() passed after 0.007 seconds.
+✔ Test aCurrentCopyWithStaleProcessesSaysSo() passed after 0.007 seconds.
+✔ Test scannedRowsReadTheirFiles() passed after 0.020 seconds.
+✔ Suite CLIToolRowsTests passed after 0.020 seconds.
+✔ Test run with 41 tests in 2 suites passed after 0.020 seconds.

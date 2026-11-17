@@ -8,7 +8,9 @@ The existing App Store matching reader is now shared with scanning. A localized
 display-name key overrides its raw value; an untranslated raw display-name key
 still precedes the shorter localized bundle-name key. Blank/bidi-only values
 fall through. Channel detection continues to use the raw metadata name, and App
-Store button matching retains that raw name as a separate matching needle.
+Store button matching retains that raw name as a separate matching needle. The
+scanned model also retains `metadataName` so existing CLI name prefixes remain
+valid, using the same ambiguity refusal and deduplication as localized names.
 No product-specific aliases, network requests, language-setting changes or
 package modifications are introduced.
 
@@ -24,13 +26,15 @@ Local Apple Silicon Mac (OS build in `host.txt`), original installed packages:
   English resource says `BaiduNetdisk`, legacy `zh_CN` says `百度网盘`.
 
 `AppNameProbe.swift` was built locally as a temporary SwiftPM executable linking
-this checkout's production DuoUpdaterCore. It invokes the real AppScanner on the
+this checkout's production DuoUpdaterCore and DuoKit. It invokes the real AppScanner on the
 two installed bundles with an empty TestFlight inventory and explicit language
 preferences, without account prompts, network access or changing system settings.
 
 - English: **VidHub**, **BaiduNetdisk**.
 - Simplified Chinese: **VidHub**, **百度网盘**.
-- Both remain stable and retain their bundle IDs, paths and versions.
+- Both remain stable and retain their bundle IDs, paths and versions. The real
+  CLI selector also resolves the old `MediaCenter` and `BaiduNetdisk` prefixes
+  to those same paths under both language preferences.
 
 Raw before/after and selected bundle metadata are included. This verifies the
 production scanner, not an interactive App Store update or a GUI screenshot.
@@ -45,3 +49,8 @@ translation, scanner behavior and existing App Store offer-button guards.
 The new fixtures deliberately use a generic bundle ID, so correctness cannot
 come from a VidHub/Baidu alias. Beta/Canary/Preview remain derived from raw
 metadata even when the translated row name omits or introduces a channel word.
+
+After preserving legacy selectors, 41 CLI selection/tool-row tests pass, including
+old/new aliases, alias collisions and deduplication. All 15 TestFlight inventory
+tests pass, including retention of the original name when provenance is retagged.
+Raw additional output is in `cli-tests.log` and `testflight-tests.log`.

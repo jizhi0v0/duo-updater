@@ -1,0 +1,48 @@
+Building for debugging...
+[1 / 6] Subprocess
+[2 / 5] DuoUpdaterCoreTests-product
+[4 / 7] DuoUpdaterCoreTests-product
+[5 / 7] DuoUpdaterCoreTests-product
+[9 / 11] DuoUpdaterCoreTests-product
+[10 / 11] DuoUpdaterCoreTests-product
+[11 / 11] DuoUpdaterCoreTests-product
+Build complete! (50.31 sec)
+Test Suite 'Selected tests' started at 2026-11-17 22:03:52.792.
+Test Suite 'DuoUpdaterCoreTests.xctest' started at 2026-11-17 22:03:52.793.
+Test Suite 'TestFlightInventoryTests' started at 2026-11-17 22:03:52.793.
+Test Case '-[DuoUpdaterCoreTests.TestFlightInventoryTests testABlockedDatabaseOpenGivesUpAndIsNotRetried]' started.
+Test Case '-[DuoUpdaterCoreTests.TestFlightInventoryTests testABlockedDatabaseOpenGivesUpAndIsNotRetried]' passed (5.013 seconds).
+Test Case '-[DuoUpdaterCoreTests.TestFlightInventoryTests testAMissingDatabaseIsInaccessibleImmediately]' started.
+Test Case '-[DuoUpdaterCoreTests.TestFlightInventoryTests testAMissingDatabaseIsInaccessibleImmediately]' passed (0.000 seconds).
+Test Case '-[DuoUpdaterCoreTests.TestFlightInventoryTests testApplyingInventoryDoesNotMatchAnOverriddenBuild]' started.
+Test Case '-[DuoUpdaterCoreTests.TestFlightInventoryTests testApplyingInventoryDoesNotMatchAnOverriddenBuild]' passed (0.001 seconds).
+Test Case '-[DuoUpdaterCoreTests.TestFlightInventoryTests testApplyingInventoryDoesNotTagADifferentInstalledBuild]' started.
+Test Case '-[DuoUpdaterCoreTests.TestFlightInventoryTests testApplyingInventoryDoesNotTagADifferentInstalledBuild]' passed (0.000 seconds).
+Test Case '-[DuoUpdaterCoreTests.TestFlightInventoryTests testApplyingInventoryKeepsLocalReceiptTagWhenDatabaseLags]' started.
+Test Case '-[DuoUpdaterCoreTests.TestFlightInventoryTests testApplyingInventoryKeepsLocalReceiptTagWhenDatabaseLags]' passed (0.000 seconds).
+Test Case '-[DuoUpdaterCoreTests.TestFlightInventoryTests testApplyingInventoryRetagsWithoutLosingScannedMetadata]' started.
+Test Case '-[DuoUpdaterCoreTests.TestFlightInventoryTests testApplyingInventoryRetagsWithoutLosingScannedMetadata]' passed (0.000 seconds).
+Test Case '-[DuoUpdaterCoreTests.TestFlightInventoryTests testCheckerManagedWhenNoCache]' started.
+Test Case '-[DuoUpdaterCoreTests.TestFlightInventoryTests testCheckerManagedWhenNoCache]' passed (0.009 seconds).
+Test Case '-[DuoUpdaterCoreTests.TestFlightInventoryTests testCheckerOffersAMarketingBumpThatRestartsBuildNumbering]' started.
+Test Case '-[DuoUpdaterCoreTests.TestFlightInventoryTests testCheckerOffersAMarketingBumpThatRestartsBuildNumbering]' passed (0.001 seconds).
+Test Case '-[DuoUpdaterCoreTests.TestFlightInventoryTests testCheckerOffersBetaUpdateWhenNewerBuildExists]' started.
+Test Case '-[DuoUpdaterCoreTests.TestFlightInventoryTests testCheckerOffersBetaUpdateWhenNewerBuildExists]' passed (0.001 seconds).
+Test Case '-[DuoUpdaterCoreTests.TestFlightInventoryTests testCheckerRefusesUpToDateWhenInstalledBuildOutrunsTheDatabase]' started.
+Test Case '-[DuoUpdaterCoreTests.TestFlightInventoryTests testCheckerRefusesUpToDateWhenInstalledBuildOutrunsTheDatabase]' passed (0.000 seconds).
+Test Case '-[DuoUpdaterCoreTests.TestFlightInventoryTests testCheckerUpToDateOnNewestBuild]' started.
+Test Case '-[DuoUpdaterCoreTests.TestFlightInventoryTests testCheckerUpToDateOnNewestBuild]' passed (0.000 seconds).
+Test Case '-[DuoUpdaterCoreTests.TestFlightInventoryTests testIsManagedFailsOpenWhenInstallStatusIsUnknown]' started.
+Test Case '-[DuoUpdaterCoreTests.TestFlightInventoryTests testIsManagedFailsOpenWhenInstallStatusIsUnknown]' passed (0.000 seconds).
+Test Case '-[DuoUpdaterCoreTests.TestFlightInventoryTests testIsManagedIgnoresBuildsTestFlightDidNotInstallHere]' started.
+Test Case '-[DuoUpdaterCoreTests.TestFlightInventoryTests testIsManagedIgnoresBuildsTestFlightDidNotInstallHere]' passed (0.000 seconds).
+Test Case '-[DuoUpdaterCoreTests.TestFlightInventoryTests testIsManagedRequiresBundleAndBuildMatch]' started.
+Test Case '-[DuoUpdaterCoreTests.TestFlightInventoryTests testIsManagedRequiresBundleAndBuildMatch]' passed (0.000 seconds).
+Test Case '-[DuoUpdaterCoreTests.TestFlightInventoryTests testLatestPicksHighestBuild]' started.
+Test Case '-[DuoUpdaterCoreTests.TestFlightInventoryTests testLatestPicksHighestBuild]' passed (0.000 seconds).
+Test Suite 'TestFlightInventoryTests' passed at 2026-11-17 22:03:57.822.
+	 Executed 15 tests, with 0 failures (0 unexpected) in 5.027 (5.028) seconds
+Test Suite 'DuoUpdaterCoreTests.xctest' passed at 2026-11-17 22:03:57.822.
+	 Executed 15 tests, with 0 failures (0 unexpected) in 5.027 (5.029) seconds
+Test Suite 'Selected tests' passed at 2026-11-17 22:03:57.822.
+	 Executed 15 tests, with 0 failures (0 unexpected) in 5.027 (5.030) seconds

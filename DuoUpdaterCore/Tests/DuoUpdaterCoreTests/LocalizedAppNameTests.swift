@@ -45,7 +45,9 @@ struct LocalizedAppNameTests {
         // a different bundle ID so this cannot pass through a product alias.
         let f = try fixture(names: ["en": ["CFBundleDisplayName": "VidHub"]])
         defer { try? FileManager.default.removeItem(at: f.root) }
-        #expect(try scan(f.app, languages: ["en-US"]).name == "VidHub")
+        let app = try scan(f.app, languages: ["en-US"])
+        #expect(app.name == "VidHub")
+        #expect(app.metadataName == "MediaCenter")
     }
 
     @Test func legacyChineseLocalizationFollowsTheRequestedLanguage() throws {

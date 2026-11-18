@@ -141,6 +141,7 @@ public actor PackageInstaller {
         case packageDestinationMismatch(installed: String, destinations: [String])
         case packageDestinationsUnreadable
         case packageRequiresNewerSystem(required: String, host: String)
+        case packagePayloadIdentityMismatch
         case untrustedPackageDeveloper(expected: String, actual: String)
         case requiresInteractiveInstaller(String)
         case installationFailed(String)
@@ -163,11 +164,33 @@ public actor PackageInstaller {
                 return "Installer Team Identifier mismatch: installed “\(installed)” vs package “\(package)”. Refusing to open it."
             case .packageRequiresNewerSystem(let required, let host):
                 return "This installer package requires macOS \(required) and this Mac runs macOS \(host). Refusing to install a build it cannot launch."
+            case .packagePayloadIdentityMismatch:
+                return "The installer package does not contain the expected app version and build."
             case .untrustedPackageDeveloper(let expected, let actual):
                 return "The package developer \(actual) does not match the trusted developer \(expected). Nothing was installed."
             case .requiresInteractiveInstaller(let reason): return reason
             case .installationFailed(let reason): return "Package installation failed: \(reason)"
             }
+        }
+    }
+
+    public struct PayloadIdentity: Sendable, Equatable {
+        let bundleID: String
+        let version: VersionSide
+
+        init(bundleID: String, marketing: String, build: String) {
+            self.bundleID = bundleID
+            self.version = VersionSide(marketing: marketing, build: build)
+        }
+
+        fileprivate func matches(_ plist: Data) -> Bool {
+            guard let fields = try? PropertyListSerialization
+                .propertyList(from: plist, format: nil) as? [String: Any],
+                  fields["CFBundleIdentifier"] as? String == bundleID
+            else { return false }
+            return VersionSide(
+                marketing: VersionSide.plistVersionField(fields["CFBundleShortVersionString"]),
+                build: VersionSide.plistVersionField(fields["CFBundleVersion"])) == version
         }
     }
 
@@ -187,18 +210,24 @@ public actor PackageInstaller {
         public let finalHost: String?
         /// True only after an injected helper executor finished successfully.
         public let applied: Bool
+        /// Pin an interactive reopen to the preferred package whose payload was verified.
+        let stagedFingerprint: Data?
 
-        public init(bytesDownloaded: Int64, packageURL: URL, finalHost: String? = nil, applied: Bool = false) {
+        public init(bytesDownloaded: Int64, packageURL: URL, finalHost: String? = nil, applied: Bool = false,
+                    stagedFingerprint: Data? = nil) {
             self.bytesDownloaded = bytesDownloaded
             self.packageURL = packageURL
             self.finalHost = finalHost
             self.applied = applied
+            self.stagedFingerprint = stagedFingerprint
         }
     }
 
     /// Download `url` and open the resulting installer (or the disk image that
     /// contains it). An executor is awaited to completion. Without one, returns
     /// once macOS Installer launches and leaves completion under user control.
+    /// - Parameter preferredPackage: an alternate URL and its required payload.
+    ///   If it can't be downloaded or approved, try the original URL before any hand-off.
     /// - Parameter beforeOpen: runs after a preliminary package gate and immediately
     ///   before the final gate + Installer hand-over, so a caller retiring the window
     ///   this package supersedes does it while Installer is idle. Not called when the
@@ -206,6 +235,7 @@ public actor PackageInstaller {
     @discardableResult
     public func downloadAndOpen(
         url: URL?,
+        preferredPackage: (url: URL, identity: PayloadIdentity)? = nil,
         installedApp: URL,
         headers: [String: String] = [:],
         onStage: @Sendable @escaping (InstallStage) -> Void,
@@ -221,46 +251,75 @@ public actor PackageInstaller {
         // ones old enough that no Installer window could still be using them.
         Self.sweepStaleWorkDirectories()
 
-        // Keep each download in its own scratch directory where the system
-        // installer can read it for the whole session. This method awaits during
-        // the download, so the actor may be re-entered by another package update;
-        // a shared `/tmp/DuoUpdater-pkg/mnt` would let concurrent installs collide
-        // or remove a package an already-open Installer window is still reading.
-        let workDir = Self.workDirectory(forInstalledApp: installedApp)
-        try? FileManager.default.createDirectory(at: workDir, withIntermediateDirectories: true)
-        InstallJournal.noteWorkDirectory(workDir)
-        var keepWorkDirectory = false
-        defer {
-            // Installer keeps reading a successfully opened package after this
-            // method returns. Every failure/cancellation path, however, has no
-            // consumer and must release the potentially very large download now.
-            if !keepWorkDirectory { try? FileManager.default.removeItem(at: workDir) }
-        }
+        var preferred = preferredPackage.flatMap { $0.url == url ? nil : $0 }
+        var bytesDownloaded: Int64 = 0
+        while true {
+            // Every attempt gets its own directory. A failed preferred download
+            // must leave no files for the public download, even if both CDNs
+            // suggest the same filename.
+            let workDir = Self.workDirectory(forInstalledApp: installedApp)
+            try? FileManager.default.createDirectory(at: workDir, withIntermediateDirectories: true)
+            InstallJournal.noteWorkDirectory(workDir)
+            var keepWorkDirectory = false
+            defer {
+                // Installer keeps reading the package after a successful open.
+                if !keepWorkDirectory { try? FileManager.default.removeItem(at: workDir) }
+            }
 
-        let downloader = Downloader(destinationDir: workDir) { fraction in
-            onStage(.downloading(fraction: fraction))
+            let downloader = Downloader(destinationDir: workDir) { fraction in
+                onStage(.downloading(fraction: fraction))
+            }
+            let package: URL
+            let fingerprint: Data
+            do {
+                (package, fingerprint) = try await prepare(
+                    preferred?.url ?? url, installedApp: installedApp, workDir: workDir,
+                    downloader: downloader, headers: headers, expectedPayload: preferred?.identity,
+                    verifyDownload: verifyDownload, onStage: onStage)
+            } catch where preferred != nil {
+                try Task.checkCancellation()
+                if error is CancellationError || error is AutomaticInstall.Deferred { throw error }
+                bytesDownloaded += downloader.bytesDownloaded
+                preferred = nil
+                // Don't log transient URLs or error strings that may contain an
+                // expiring download credential from the cache.
+                Log.install.notice("Cached package unavailable or refused; downloading the vendor package")
+                AutomaticUpdateFailurePolicy.attempt?.beginAllowedFallbackAcquisition()
+                onStage(.downloading(fraction: 0))
+                continue
+            }
+
+            // Nothing after approval is eligible for a fallback. The existing
+            // Installer session may already be retired or the helper may have run.
+            let applied = try await handOver(
+                package, installedApp: installedApp, pinnedFingerprint: fingerprint,
+                expectedPayload: preferred?.identity,
+                beforeOpen: beforeOpen, executor: executor, onStage: onStage)
+            keepWorkDirectory = !applied
+            onStage(.done)
+            return OpenedPackage(
+                bytesDownloaded: bytesDownloaded + downloader.bytesDownloaded,
+                packageURL: package, finalHost: downloader.finalHost, applied: applied,
+                stagedFingerprint: preferred != nil && !applied ? fingerprint : nil)
         }
+    }
+
+    private func prepare(
+        _ url: URL, installedApp: URL, workDir: URL, downloader: Downloader,
+        headers: [String: String], expectedPayload: PayloadIdentity?,
+        verifyDownload: @Sendable (URL) throws -> Data?,
+        onStage: @Sendable (InstallStage) -> Void
+    ) async throws -> (package: URL, fingerprint: Data) {
         let file = try await downloader.download(url, headers: headers)
-        let bytesDownloaded = downloader.bytesDownloaded
+        if expectedPayload != nil, file.pathExtension.lowercased() != "pkg" {
+            throw PackageError.noInstallablePackage
+        }
 
-        // Source-specific proof over the original downloaded bytes belongs before
-        // any parsing or mounting. Sparkle uses this seam for its enclosure EdDSA,
-        // and a package whose source published a SHA-256 (a GitHub asset's
-        // `digest`) for that digest; the rest pass through, and every package
-        // retains the common pkg gate in `handOver` below — signature, Team ID,
-        // destination and gate 6; the header table is the one list of what that is.
+        // Source proof (such as Sparkle EdDSA or the published SHA-256) covers the
+        // original download. For a wrapper, recheck the exact bytes before unpacking.
         let sourceFingerprint = try verifyDownload(file)
-        // A signed DMG or zip is about to be parsed into a different inner file, so
-        // prove the pathname still holds the exact enclosure whose EdDSA check passed.
-        // A direct pkg is not re-read here; it carries this proof into `handOver`
-        // as `approvedFingerprint`, which is then what the seals there are pinned
-        // against. It is NOT an extra full read saved — `handOver` hashes the file
-        // whole twice either way, deliberately (see its two-seal comment) — only
-        // one the DMG and zip routes pay on a different file.
         if Self.wrapperExtensions.contains(file.pathExtension.lowercased()),
            let sourceFingerprint {
-            // Hashing hundreds of megabytes is blocking work, and this is reached
-            // from an async install. See `offCooperativePool`.
             let seen = try await offCooperativePool { try Self.contentFingerprint(of: file) }
             guard seen == sourceFingerprint else {
                 throw PackageError.downloadFailed(
@@ -269,24 +328,18 @@ public actor PackageInstaller {
         }
 
         onStage(.installing)
-        // The DMG route mounts with `DiskImageMount` and copies with `ditto`, the zip
-        // route unpacks with `ditto`; both awaited through `ChildProcess` rather than
-        // parked on a thread.
-        let toOpen = try await resolveInstaller(
+        let package = try await resolveInstaller(
             from: file, workDir: workDir, installedApp: installedApp,
             zipIsProven: sourceFingerprint != nil)
-        let directSourceFingerprint = toOpen.standardizedFileURL == file.standardizedFileURL
+        let directSourceFingerprint = package.standardizedFileURL == file.standardizedFileURL
             ? sourceFingerprint : nil
-        let applied = try await handOver(
-            toOpen, installedApp: installedApp,
-            approvedFingerprint: directSourceFingerprint,
-            beforeOpen: beforeOpen, executor: executor, onStage: onStage)
-        keepWorkDirectory = !applied
-        onStage(.done)
-        return OpenedPackage(
-            bytesDownloaded: bytesDownloaded,
-            packageURL: toOpen,
-            finalHost: downloader.finalHost, applied: applied)
+        let approvedPackage = try expectedPayload.map { _ in
+            try PackageDirectoryWatch.canonicalPackageURL(package)
+        } ?? package
+        let fingerprint = try await approve(
+            approvedPackage, installedApp: installedApp, sourceFingerprint: directSourceFingerprint,
+            expectedPayload: expectedPayload)
+        return (approvedPackage, fingerprint)
     }
 
     /// Re-open a package this installer already downloaded, without fetching it
@@ -304,14 +357,17 @@ public actor PackageInstaller {
     /// second window — macOS treats it as the same document and brings the
     /// existing one forward (verified against Installer.app on macOS 27).
     @discardableResult
-    public func reopen(package: URL, installedApp: URL, executor: Executor? = nil,
+    public func reopen(package: URL, installedApp: URL, expectedFingerprint: Data? = nil,
+                       executor: Executor? = nil,
                        beforeOpen: @Sendable () async -> Void = {},
                        onStage: @escaping @Sendable (InstallStage) -> Void = { _ in }) async throws -> Bool {
         guard FileManager.default.fileExists(atPath: package.path) else {
             throw PackageError.noInstallablePackage
         }
-        return try await handOver(package, installedApp: installedApp, beforeOpen: beforeOpen,
-                                  executor: executor, onStage: onStage)
+        let fingerprint = try await approve(
+            package, installedApp: installedApp, sourceFingerprint: expectedFingerprint)
+        return try await handOver(package, installedApp: installedApp, pinnedFingerprint: fingerprint,
+                                  beforeOpen: beforeOpen, executor: executor, onStage: onStage)
     }
 
     /// Shared validation for a helper's protected copy. Helpers require the
@@ -326,55 +382,146 @@ public actor PackageInstaller {
                                  requireExactDestination: true, trustedTeam: trustedTeam)
     }
 
-    /// Gate and fingerprint the package, let the caller settle whatever this open
-    /// supersedes, then re-establish both properties and hand it to Installer.
-    ///
-    /// The order is the point. `beforeOpen` is where the caller closes the stale
-    /// Installer window this package replaces, and both neighbours matter:
-    ///
-    /// - *After* the gate, so a package that fails verification never costs the user
-    ///   the window they already have open.
-    /// - *Before* the final gate + open, so the close lands while Installer is idle.
-    ///   A pinned content fingerprint prevents another valid package from the same
-    ///   Team inheriting the selected enclosure's approval, while the second Team
-    ///   gate re-establishes the package identity after the async callback. Doing
-    ///   the close after opening instead put an AX press into the exact window in
-    ///   which Installer is
-    ///   opening a new document — the state its own `AXDocument` reads go blank in,
-    ///   and the state a macOS 26.6 Installer crashed in (`_volumeAppeared:` messaging
-    ///   a dead object one second after we opened a third package into it).
+    /// Verify and fingerprint the package before doing anything with the existing
+    /// Installer window or starting the helper. A rejected candidate can still
+    /// yield to the original package URL here.
+    private func approve(
+        _ package: URL, installedApp: URL, sourceFingerprint: Data? = nil,
+        expectedPayload: PayloadIdentity? = nil
+    ) async throws -> Data {
+        let seal = try await checkedSeal(
+            package, installedApp: installedApp, expectedPayload: expectedPayload)
+        if let sourceFingerprint, seal.fingerprint != sourceFingerprint {
+            throw PackageError.downloadFailed(
+                "The installer changed after source verification. Nothing was opened.")
+        }
+        return seal.fingerprint
+    }
+
+    private func checkedSeal(
+        _ package: URL, installedApp: URL, expectedPayload: PayloadIdentity?
+    ) async throws -> ContentSeal {
+        // For an alternate, bind the payload read and signature check to the
+        // same file that is fingerprinted, even across awaited child processes.
+        let directories = try expectedPayload.map { _ in try PackageDirectoryWatch(package: package) }
+        try directories?.verify()
+        let before: [FileSnapshot]? = if expectedPayload != nil {
+            try await offCooperativePool { try Self.integritySnapshot(of: package) }
+        } else {
+            nil
+        }
+        try await applyPackageGate(package, installedApp: installedApp, expectedPayload: expectedPayload)
+        let seal = try await offCooperativePool { try Self.contentSeal(of: package) }
+        try directories?.verify()
+        if let before, seal.snapshot != before {
+            throw PackageError.downloadFailed("The installer changed during verification. Nothing was opened.")
+        }
+        return seal
+    }
+
+    /// The tools resolve the package pathname independently. Watch its ancestor
+    /// directories for renames or removal even if a directory is put back before
+    /// the next snapshot. Ordinary writes inside those directories are allowed.
+    private final class PackageDirectoryWatch {
+        private let queue: Int32
+        private let watched: [(path: String, fd: Int32)]
+        private let parent: URL
+
+        init(package: URL) throws {
+            // The caller has already formed the physical URL. Converting it
+            // through Foundation's standardizedFileURL can restore /var.
+            parent = package.deletingLastPathComponent()
+            let queue = kqueue()
+            guard queue >= 0 else { throw CocoaError(.fileReadUnknown) }
+            var opened: [(path: String, fd: Int32)] = []
+            do {
+                var directory = parent.path
+                while directory != "/" {
+                    let fd = open(directory, O_EVTONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+                    guard fd >= 0 else { throw CocoaError(.fileReadUnknown) }
+                    opened.append((directory, fd))
+                    var event = kevent(
+                        ident: UInt(fd), filter: Int16(EVFILT_VNODE),
+                        flags: UInt16(EV_ADD | EV_CLEAR),
+                        fflags: UInt32(NOTE_RENAME | NOTE_DELETE | NOTE_REVOKE),
+                        data: 0, udata: nil)
+                    guard kevent(queue, &event, 1, nil, 0, nil) == 0 else {
+                        throw CocoaError(.fileReadUnknown)
+                    }
+                    directory = (directory as NSString).deletingLastPathComponent
+                }
+            } catch {
+                close(queue)
+                for directory in opened { close(directory.fd) }
+                throw error
+            }
+            self.queue = queue
+            watched = opened
+        }
+
+        deinit {
+            close(queue)
+            for directory in watched { close(directory.fd) }
+        }
+
+        func verify() throws {
+            var event = kevent()
+            var noWait = timespec()
+            guard kevent(queue, nil, 0, &event, 1, &noWait) == 0,
+                  try Self.resolve(parent) == parent.path,
+                  watched.allSatisfy(Self.matchesEntry) else {
+                throw PackageError.downloadFailed(
+                    "The installer directory changed during verification. Nothing was opened.")
+            }
+        }
+
+        static func canonicalPackageURL(_ package: URL) throws -> URL {
+            let directory = package.deletingLastPathComponent()
+            let base = try resolve(directory.deletingLastPathComponent())
+            let physical = URL(fileURLWithPath: base, isDirectory: true)
+                .appendingPathComponent(directory.lastPathComponent, isDirectory: true)
+            guard try resolve(directory) == physical.path else {
+                throw PackageError.downloadFailed("The installer directory is a symbolic link.")
+            }
+            return physical.appendingPathComponent(package.lastPathComponent)
+        }
+
+        private static func matchesEntry(_ directory: (path: String, fd: Int32)) -> Bool {
+            var opened = stat()
+            var named = stat()
+            return fstat(directory.fd, &opened) == 0 && lstat(directory.path, &named) == 0
+                && opened.st_dev == named.st_dev && opened.st_ino == named.st_ino
+        }
+
+        private static func resolve(_ directory: URL) throws -> String {
+            // Foundation can keep the /var alias when resolving paths. Walking
+            // and opening each component without following links needs the
+            // physical path instead.
+            guard let path = realpath(directory.path, nil) else {
+                throw CocoaError(.fileReadUnknown)
+            }
+            defer { free(path) }
+            return String(cString: path)
+        }
+    }
+
+    /// Retire the previous Installer window between approval and a final gate.
+    /// The fingerprint binds both gates to the same bytes across the async hook.
     private func handOver(
         _ toOpen: URL,
         installedApp: URL,
-        approvedFingerprint: Data? = nil,
+        pinnedFingerprint: Data,
+        expectedPayload: PayloadIdentity? = nil,
         beforeOpen: @Sendable () async -> Void = {},
         executor: Executor? = nil,
         onStage: @escaping @Sendable (InstallStage) -> Void = { _ in }
     ) async throws -> Bool {
-        // Preliminary gate: an ordinary bad package must not retire the valid
-        // Installer window it was meant to replace.
-        //
-        // Gate, then seal, and the order between them is load-bearing. They used to
-        // share ONE `offCooperativePool` hop so that nothing could come between
-        // them; they are two statements now because the gate's `pkgutil`/`xar`/
-        // `lsbom` are awaited through `ChildProcess` and cannot run inside a
-        // synchronous hop. The gate hops its own `SecStaticCode…` call (the #351
-        // call) and the seal hops its hashing — 375 MB for ToDesk. See
-        // `offCooperativePool`.
-        try await applyPackageGate(toOpen, installedApp: installedApp)
-        let preliminarySeal = try await offCooperativePool { try Self.contentSeal(of: toOpen) }
-        let pinnedFingerprint = approvedFingerprint ?? preliminarySeal.fingerprint
-        if approvedFingerprint != nil,
-           preliminarySeal.fingerprint != pinnedFingerprint {
-            throw PackageError.downloadFailed(
-                "The installer changed after source verification. Nothing was opened.")
-        }
         await beforeOpen()
         // Final gate: `beforeOpen` is async, so the user-owned temp path may have
         // changed while it ran. Re-establish every signature/identity invariant
         // immediately before handing the path to Installer.
-        try await applyPackageGate(toOpen, installedApp: installedApp)
-        let finalSeal = try await offCooperativePool { try Self.contentSeal(of: toOpen) }
+        let finalSeal = try await checkedSeal(
+            toOpen, installedApp: installedApp, expectedPayload: expectedPayload)
         guard finalSeal.fingerprint == pinnedFingerprint else {
             throw PackageError.downloadFailed(
                 "The installer changed after verification. Nothing was opened.")
@@ -583,11 +730,24 @@ public actor PackageInstaller {
     /// this actor, so the actor is free while their child processes run. The
     /// actor was never the thing ordering these anyway — `handOver` already
     /// suspends between its two gates, and `downloadAndOpen` awaits its download.
-    private nonisolated func applyPackageGate(_ package: URL, installedApp: URL) async throws {
+    private nonisolated func applyPackageGate(
+        _ package: URL, installedApp: URL, expectedPayload: PayloadIdentity?
+    ) async throws {
         if let packageGate {
             try await packageGate(package, installedApp)
+            if let expectedPayload {
+                try await verifyPayloadSystemVersion(
+                    package, components: await Self.readComponents(package),
+                    installedApp: installedApp, expectedPayload: expectedPayload)
+            }
         } else {
-            try await verifyOpenable(package, installedApp: installedApp)
+            let trustedTeam = expectedPayload.flatMap { PackageInstallTrust.teamIdentifier(for: $0.bundleID) }
+            guard expectedPayload == nil || trustedTeam != nil else {
+                throw PackageError.packageTeamIdentifierMissing
+            }
+            try await verifyOpenable(
+                package, installedApp: installedApp, requireExactDestination: expectedPayload != nil,
+                trustedTeam: trustedTeam, expectedPayload: expectedPayload)
         }
     }
 
@@ -599,7 +759,8 @@ public actor PackageInstaller {
     /// and it is the one list; do not restate it here.
     private nonisolated func verifyOpenable(_ toOpen: URL, installedApp: URL,
                                           requireExactDestination: Bool = false,
-                                          trustedTeam: String? = nil) async throws {
+                                          trustedTeam: String? = nil,
+                                          expectedPayload: PayloadIdentity? = nil) async throws {
         // A `.pkg`/`.mpkg` runs install scripts (often with admin rights) the moment
         // the user confirms. The download's filename/extension is server-controlled
         // (`suggestedFilename`), so a hijacked or misconfigured endpoint could
@@ -704,7 +865,7 @@ public actor PackageInstaller {
         // which is the expensive part of this gate, and a package that is not even
         // for this app should be refused for that reason and without paying it.
         try await verifyPayloadSystemVersion(
-            toOpen, components: components, installedApp: installedApp)
+            toOpen, components: components, installedApp: installedApp, expectedPayload: expectedPayload)
     }
 
     /// The package must write to the app being updated. Split out of
@@ -776,11 +937,21 @@ public actor PackageInstaller {
     /// packages it can read a floor out of", never "a pkg that needs a newer
     /// macOS can no longer reach the installer".
     nonisolated func verifyPayloadSystemVersion(
-        _ pkg: URL, components: [Component], installedApp: URL
+        _ pkg: URL, components: [Component], installedApp: URL, expectedPayload: PayloadIdentity? = nil
     ) async throws {
         let appName = installedApp.deletingPathExtension().lastPathComponent
-        let outcome = await Self.payloadMinimumSystemVersion(
-            pkg, components: components, appName: appName)
+        let target = expectedPayload.map { _ in
+            installedApp.resolvingSymlinksInPath().standardizedFileURL
+                .appendingPathComponent("Contents/Info.plist").path
+        }
+        let payload = await Self.payloadPlist(
+            pkg, components: components, appName: appName, exactTarget: target)
+        if let expectedPayload {
+            guard case .found(let plist) = payload, expectedPayload.matches(plist) else {
+                throw PackageError.packagePayloadIdentityMismatch
+            }
+        }
+        let outcome = payload.floor
         guard !SignatureVerifier.canRun(
             minimumSystemVersion: outcome.declared, on: osVersion) else {
             if outcome.declared == nil {
@@ -841,7 +1012,26 @@ public actor PackageInstaller {
         }
     }
 
-    /// What `appName`'s payload plist says about the OS floor.
+    private enum PayloadPlist {
+        case found(Data)
+        case unavailable(PayloadFloor)
+
+        var floor: PayloadFloor {
+            switch self {
+            case .found(let plist):
+                if let declared = SignatureVerifier.declaredMinimumSystemVersion(inInfoPlist: plist) {
+                    return .floor(declared)
+                }
+                // A readable plist with no floor is distinct from invalid bytes.
+                return SignatureVerifier.infoPlistParses(plist) ? .noKey : .unparsedPlist
+            case .unavailable(let reason):
+                return reason
+            }
+        }
+    }
+
+    /// Read the payload plist for the OS floor and, for a preferred package, the
+    /// exact app identity. Both checks share the same extraction.
     ///
     /// **Which component's payload is opened is decided from metadata already
     /// read, not by unpacking anything.** `readComponents` has the Bom — the
@@ -888,28 +1078,37 @@ public actor PackageInstaller {
     /// theoretical objection, it is how the first version of that test passed on
     /// a 14-core machine and failed on a 3-core runner, where sibling tests in
     /// the same suite were still holding their own scratch when it looked.
-    static func payloadMinimumSystemVersion(
+    private static func payloadPlist(
         _ pkg: URL,
         components: [Component],
         appName: String,
+        exactTarget: String?,
         scratchRoot: URL = FileManager.default.temporaryDirectory
-    ) async -> PayloadFloor {
-        guard !components.isEmpty else { return .noComponents }
+    ) async -> PayloadPlist {
+        guard !components.isEmpty else { return .unavailable(.noComponents) }
 
-        // Every component that claims this app's plist, in package order. More
-        // than one is possible in principle; the first is taken and the rest are
-        // a known limitation rather than a merge.
-        var candidate: (component: Component, member: String)?
-        for component in components {
-            if let member = Self.plistMember(
-                inPayloadListing: component.payloadPaths,
-                appName: appName,
-                installLocation: component.installLocation) {
-                candidate = (component, member)
-                break
+        let candidate: (component: Component, member: String)
+        if let exactTarget {
+            // A same-named nested app cannot vouch for the installed copy.
+            // Multiple components writing this path are ambiguous.
+            let matches = components.flatMap { component in
+                component.payloadPaths.compactMap { member in
+                    Self.installedPath(for: member, under: component.installLocation) == exactTarget
+                        ? (component, member) : nil
+                }
             }
+            guard matches.count == 1, let match = matches.first else { return .unavailable(.noMember) }
+            candidate = match
+        } else {
+            // The legacy floor check uses the first matching bundle name.
+            guard let match = components.lazy.compactMap({ component in
+                Self.plistMember(
+                    inPayloadListing: component.payloadPaths,
+                    appName: appName,
+                    installLocation: component.installLocation).map { (component, $0) }
+            }).first else { return .unavailable(.noMember) }
+            candidate = match
         }
-        guard let candidate else { return .noMember }
 
         // Named so `sweepStaleWorkDirectories` reclaims it: this directory holds a
         // whole `Payload` (69 MB for that vendor package, hundreds for ToDesk),
@@ -920,10 +1119,19 @@ public actor PackageInstaller {
                 "\(Self.osFloorScratchPrefix)\(UUID().uuidString)", isDirectory: true)
         guard (try? FileManager.default.createDirectory(
             at: scratch, withIntermediateDirectories: true)) != nil
-        else { return .unreadablePayload }
+        else { return .unavailable(.unreadablePayload) }
 
         defer { await removeItemOffCooperativePool(at: scratch) }
-        return await Self.readFloor(pkg, candidate: candidate, into: scratch)
+        return await Self.readPlist(pkg, candidate: candidate, into: scratch)
+    }
+
+    static func payloadMinimumSystemVersion(
+        _ pkg: URL, components: [Component], appName: String,
+        scratchRoot: URL = FileManager.default.temporaryDirectory
+    ) async -> PayloadFloor {
+        await payloadPlist(
+            pkg, components: components, appName: appName,
+            exactTarget: nil, scratchRoot: scratchRoot).floor
     }
 
     /// Convenience for callers that have no components in hand (tests, and any
@@ -939,16 +1147,16 @@ public actor PackageInstaller {
             appName: appName, scratchRoot: scratchRoot)
     }
 
-    private static func readFloor(
+    private static func readPlist(
         _ pkg: URL, candidate: (component: Component, member: String), into scratch: URL
-    ) async -> PayloadFloor {
+    ) async -> PayloadPlist {
         let name = candidate.component.payloadMember
         guard let payload = Self.scratchMember(named: name, under: scratch) else {
-            return .unreadablePayload
+            return .unavailable(.unreadablePayload)
         }
         guard await Self.runCapturing(
             "/usr/bin/xar", ["-xf", pkg.path, "--", name], cwd: scratch).code == 0
-        else { return .unreadablePayload }
+        else { return .unavailable(.unreadablePayload) }
 
         // `--` for the same reason as `xar` above: bsdtar reads an argument after
         // the archive that starts with `-` as an option, and the member name comes
@@ -960,16 +1168,8 @@ public actor PackageInstaller {
         // scratch removal so the two are independent.
         await removeItemOffCooperativePool(at: payload)
 
-        guard body.code == 0 else { return .unreadablePayload }
-        guard let declared = SignatureVerifier.declaredMinimumSystemVersion(
-            inInfoPlist: body.output)
-        else {
-            // Told apart because they are different events: a plist that parses
-            // and simply has no macOS floor is ordinary, one that does not parse
-            // means this gate read the wrong bytes.
-            return SignatureVerifier.infoPlistParses(body.output) ? .noKey : .unparsedPlist
-        }
-        return .floor(declared)
+        guard body.code == 0 else { return .unavailable(.unreadablePayload) }
+        return .found(body.output)
     }
 
     /// Deliberately inside `sweepStaleWorkDirectories`'s `DuoUpdater-pkg-`
@@ -1033,9 +1233,13 @@ public actor PackageInstaller {
     ) -> String? {
         let needle = "/\(appName).app/Contents/Info.plist".lowercased()
         return paths.first { path in
-            let joined = (installLocation as NSString).appendingPathComponent(path)
-            return (joined as NSString).standardizingPath.lowercased().hasSuffix(needle)
+            installedPath(for: path, under: installLocation).lowercased().hasSuffix(needle)
         }
+    }
+
+    private static func installedPath(for member: String, under installLocation: String) -> String {
+        let joined = (installLocation as NSString).appendingPathComponent(member)
+        return (joined as NSString).standardizingPath
     }
 
     /// The `.app` destinations a package declares, as absolute paths.

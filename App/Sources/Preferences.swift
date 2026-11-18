@@ -725,6 +725,7 @@ final class Preferences {
     /// which leaves those entries comparing on the marketing version alone, i.e.
     /// exactly what they did when they were written.
     static let stagedPackageBuildField = "build"
+    static let stagedPackageFingerprintField = "fingerprint"
 
     /// The marketing half of the source's comparable version pair. The empty
     /// string records an explicitly-absent marketing version; a missing field is

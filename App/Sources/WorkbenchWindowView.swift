@@ -3589,7 +3589,7 @@ private struct DetailHeader: View {
                     .font(.caption)
                     .buttonStyle(.link)
                 }
-            } else if let note = model.installNotes[result.id] ?? model.stagedPackageNote(for: result) {
+            } else if let note = model.installNote(for: result) {
                 Text(note)
                     .font(.caption)
                     .foregroundStyle(.secondary)

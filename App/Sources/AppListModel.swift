@@ -429,12 +429,10 @@ final class AppListModel {
         .of(detection: prefs.testFlightDetection,
             fullDiskAccessMissing: fullDiskAccessMissing)
     }
-    /// Observable mirror of the privileged helper's approval (`helperClient.isEnabled`),
-    /// refreshed alongside the other permission statuses. `canAutoInstall` reads THIS
-    /// (not the client's live value) so SwiftUI re-renders App Store rows Get→Update the
-    /// moment the helper is approved — the live property isn't part of the @Observable
-    /// model, so reading it directly wouldn't trigger a re-render.
-    private(set) var helperEnabled = false
+    /// The system's latest approval reading. The full-download App Store action
+    /// also remains available during the client's brief approval recheck.
+    var helperEnabled: Bool { helperClient.isEnabled }
+    @ObservationIgnored private var helperWasEnabledOnRefresh = false
     private(set) var packageHelperAvailable = false
     /// The user's answer to a pending quit-to-install prompt, keyed by app id, read
     /// by the AX installer on each poll and cleared when it withdraws the question.
@@ -1469,7 +1467,11 @@ final class AppListModel {
     /// password prompt; `masInstaller` routes its mas calls through it. The same
     /// client backs the Settings "Enable…" UI and the `canAutoInstall` gate.
     let helperClient = PrivilegedHelperClient()
-    private let masInstaller = MASInstaller(runner: HelperShellRunner())
+    @ObservationIgnored private lazy var masInstaller = MASInstaller(runner: HelperShellRunner(
+        requireApproval: { [weak helperClient = self.helperClient] in
+            guard let helperClient else { throw CancellationError() }
+            return try await helperClient.requireApprovalForInstall()
+        }))
     /// Names the build a root-run Sparkle installer staged (#588). See
     /// `computeSelfUpdateStaging`.
     private let stagedVersionReader = HelperStagedVersionReader.live
@@ -1842,7 +1844,9 @@ final class AppListModel {
 
     /// Keep a failure the row is showing, so it can be reported later. Local
     /// only, like every event: nothing is sent anywhere.
-    private func recordFailure(_ result: UpdateResult, stage: InstallFailureEvent.Stage, message: String) async {
+    private func recordFailure(
+        _ result: UpdateResult, stage: InstallFailureEvent.Stage, message: String, diagnostic: String? = nil
+    ) async {
         await eventStore.append(DuoEvent(payload: .failure(InstallFailureEvent(
             appID: result.app.id,
             appName: result.app.name,
@@ -1851,7 +1855,8 @@ final class AppListModel {
             toVersion: result.remote?.displayVersion,
             sourceName: result.remote?.sourceName,
             stage: stage,
-            message: message))))
+            message: message,
+            diagnostic: diagnostic))))
         await eventStore.flush()
         await reloadRecentFailures()
     }
@@ -2189,13 +2194,9 @@ final class AppListModel {
             }
         }
 
-        // Mirror the helper's approval into observable state, and refresh the client's
-        // published status so the Settings "App Store helper" row flips on its own once
-        // approved in Login Items (no second click). The menu's `.task` calls this on
-        // appear, so App Store rows reflect the helper without opening Settings.
-        // Not awaited: callers are window appears and polls, and the mirror is
-        // observable, so it lands a round trip later. A caller that acts on it right
-        // away awaits `refreshHelperStatus()` itself (see `installAll`).
+        // The menu also calls this on appearance, so App Store rows see approval
+        // without opening Settings. Callers that act on the result immediately
+        // await `refreshHelperStatus()` themselves.
         if queryingHelper { Task { await refreshHelperStatus() } }
 
         logPermissionsOnce()
@@ -2205,9 +2206,8 @@ final class AppListModel {
     /// the main thread (see `PrivilegedHelperClient.refreshStatusOffMain`).
     func refreshHelperStatus(checkPackage: Bool = false) async {
         await helperClient.refreshStatusOffMain()
-        let wasEnabled = helperEnabled
-        // The mirror it just wrote, not another live query — see the doc above.
-        helperEnabled = helperClient.status == .enabled
+        let justEnabled = helperEnabled && !helperWasEnabledOnRefresh
+        helperWasEnabledOnRefresh = helperEnabled
         if !helperEnabled {
             packageHelperAvailable = false
         } else if checkPackage || !packageHelperAvailable {
@@ -2216,7 +2216,7 @@ final class AppListModel {
         }
         // A row showing "→ ?" because only root can read its staged build can
         // name it now (#588) — the "?" popover's "Turn On Helper…" leads here.
-        if !wasEnabled, helperEnabled, !armedSelfInstallers.isEmpty {
+        if justEnabled, helperEnabled, !armedSelfInstallers.isEmpty {
             await computeSelfUpdateStaging()
         }
     }
@@ -2262,10 +2262,10 @@ final class AppListModel {
                 // `backgroundtaskmanagementd` for the item's disposition; a
                 // Settings window left open behind other windows kept that going
                 // every 1.5 s for hours (2026-10-16, 38 a minute for two hours).
-                // Skipped only when the client AND the model's mirror both say
-                // enabled: Diagnostics' Enable… registers through the client
-                // alone, and this query is what brings `helperEnabled` along.
-                let settled = self.helperEnabled && self.helperClient.isEnabled
+                // During a short approval recheck, the client already has a
+                // bounded status query scheduled.
+                let settled = (self.helperEnabled && self.helperWasEnabledOnRefresh)
+                    || self.helperClient.isConfirmingApproval
                 self.refreshPermissionStatus(queryingHelper: !settled)
             }
         }
@@ -4070,9 +4070,17 @@ final class AppListModel {
     /// (a declined elevation reaches the same branch).
     var appStoreStrategyIsFullDownload: Bool { prefs.appStoreUpdateStrategy == .full }
 
+    func installNote(for result: UpdateResult) -> String? {
+        if helperClient.isConfirmingApproval, appStoreStrategyIsFullDownload,
+           result.remote?.appStore != nil, canAutoInstall(result) {
+            return String(localized: "Confirming helper approval…")
+        }
+        return installNotes[result.id] ?? stagedPackageNote(for: result)
+    }
+
     private var policyEnvironment: InstallEnvironment {
         InstallEnvironment(
-            isHelperEnabled: helperEnabled,
+            isHelperEnabled: helperEnabled || helperClient.isConfirmingApproval,
             runningAppPaths: runningAppPaths,
             stagedSelfUpdates: pendingSelfUpdate,
             elevationRequiredPaths: pathFacts.elevationRequiredPaths,
@@ -5512,11 +5520,12 @@ final class AppListModel {
         // what the journal is told, since the old path cannot say it for a
         // cask renamed in its new version (`Recording.finish(succeeded:)`).
         var applied = false
+        var failureDiagnostic: String?
         let outcome = await InstallJournal.recording(journal) {
             await performInstall(
                 result, notify: notify, deferBookkeeping: deferBookkeeping,
                 releaseAfterDownload: isAppStore ? nil : hostGate, backUpOnce: backUpOnce,
-                journal: journal, applied: &applied)
+                journal: journal, applied: &applied, failureDiagnostic: &failureDiagnostic)
         }
         // After `performInstall`'s rollback-point settle, which reads it.
         await journal?.finish(succeeded: applied)
@@ -5526,7 +5535,7 @@ final class AppListModel {
         // again, since the row offers Sign In… instead.
         if outcome == .notInstalled, let message = installErrors[id],
            message != AppleDeveloperSession.expiredMessage {
-            await recordFailure(result, stage: .install, message: message)
+            await recordFailure(result, stage: .install, message: message, diagnostic: failureDiagnostic)
         }
         // If something self-updated externally while this install ran, its rescan was
         // deferred — drain it now that the install is done (no-op in a batch, which
@@ -5558,7 +5567,7 @@ final class AppListModel {
     private func performInstall(
         _ result: UpdateResult, notify: Bool, deferBookkeeping: Bool,
         releaseAfterDownload: GateHandle? = nil, backUpOnce: Bool = false,
-        journal: InstallJournal.Recording?, applied: inout Bool
+        journal: InstallJournal.Recording?, applied: inout Bool, failureDiagnostic: inout String?
     ) async -> InstallAttemptOutcome {
         let id = result.id
         // The span in which this install may replace the bundle (`bundleChanges`).
@@ -6542,6 +6551,7 @@ final class AppListModel {
             // failure floats its authorize panel.
             Log.install.error("install blocked by helper approval: \(result.app.name, privacy: .public)")
             installErrors[id] = error.errorDescription
+            failureDiagnostic = error.diagnostic
             await presentHelperApprovalFlowForInstallFailure(batchRun: deferBookkeeping)
         } catch {
             // A failed *App Store* install whose bundle is ALREADY at the target
@@ -6596,6 +6606,7 @@ final class AppListModel {
                 userFixableErrors[id] = installErrors[id]
             } else {
                 installErrors[id] = error.localizedDescription
+                failureDiagnostic = (error as? MASInstaller.MASError)?.diagnostic
             }
         }
         // If an AX App Store update quit the app but then threw before the swap
@@ -6636,9 +6647,7 @@ final class AppListModel {
         installErrors[id]?.contains(MASInstaller.MASError.helperApprovalHint) == true
     }
 
-    /// The other helper failure: registered and switched on, but the process
-    /// answering for it belongs to a bundle we've since replaced. Distinct action
-    /// from the approval one — Login Items is the wrong place to send anyone here.
+    /// The helper needs attention before an update can be sent.
     func showsHelperRestartFallback(_ id: String) -> Bool {
         installErrors[id]?.contains(MASInstaller.MASError.helperRestartHint) == true
     }
@@ -6655,7 +6664,6 @@ final class AppListModel {
         restartingHelper = true
         defer { restartingHelper = false }
         guard await helperClient.restartDaemon() else { return }
-        helperEnabled = helperClient.isEnabled
         installErrors[id] = nil
     }
 
@@ -6668,7 +6676,6 @@ final class AppListModel {
     func enableAppStoreHelper() {
         Task {
             await helperClient.reregister()
-            helperEnabled = helperClient.isEnabled
             if !helperClient.isEnabled { helperClient.openLoginItems() }
         }
     }
@@ -8467,9 +8474,8 @@ final class AppListModel {
         Log.app.notice("permissions: Full Disk Access granted while running — re-checked \(updated.count, privacy: .public) row(s) a turned-away read had left stale")
     }
 
-    /// Guide the user out of a blocked App Store install: rebuild the helper's
-    /// registration first (a record can read as approved yet no longer resolve — see
-    /// `HelperShellRunner`), and only if that doesn't restore it, ask.
+    /// Guide the user out of a blocked App Store install: try registration first,
+    /// then offer Login Items if it still needs approval.
     ///
     /// Shown at most once per batch, like the App Management flow — an "Update All"
     /// across three App Store apps must not stack three identical dialogs.
@@ -8479,7 +8485,6 @@ final class AppListModel {
     private func presentHelperApprovalFlowForInstallFailure(batchRun: Bool) async {
         guard helperApprovalPrompt.shouldPresent(batchRun: batchRun) else { return }
         await helperClient.reregister()
-        helperEnabled = helperClient.isEnabled
         // Repaired silently — the record was stale, not unapproved. Nothing to ask;
         // the row keeps its error and the retry is one click away.
         guard !helperClient.isEnabled else {

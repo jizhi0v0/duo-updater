@@ -58,6 +58,17 @@ import Testing
         #expect(await vendor.calls == 1)
     }
 
+    @Test func anUndeterminedChannelDoesNotOfferAStableCask() async {
+        let claude = InstalledApp(
+            name: "Claude", bundleID: ClaudeDesktopChannel.bundleID, shortVersion: "5.11492.5",
+            buildVersion: nil, path: URL(fileURLWithPath: "/Applications/Claude.app"),
+            isMASApp: false, sparkleFeedURL: nil, releaseChannel: .undetermined, channelIsAuthoritative: true)
+        let brew = Brew(selfUpdating: true, version: "6.6395.0", channel: .stable)
+        let result = await UpdateChecker(sources: [brew]).check(claude)
+        #expect(result.status == .unknown)
+        #expect(result.remote == nil)
+    }
+
     /// An official cask marked `auto_updates` says the app's own updater is its
     /// channel: with the Settings default off it still checks other sources, and
     /// a per-copy "Homebrew Only" still holds it.

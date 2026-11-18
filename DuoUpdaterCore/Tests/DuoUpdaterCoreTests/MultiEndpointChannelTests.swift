@@ -151,7 +151,9 @@ import Testing
     }
 
     @Test func managedAndOlderCopiesReadAsStable() {
-        #expect(ClaudeDesktopChannel.resolve(preference: "latest", isManaged: true).channel == .stable)
+        #expect(ClaudeDesktopChannel.resolve(preference: "latest", management: .managed).channel == .stable)
+        #expect(ClaudeDesktopChannel.resolve(preference: "latest", management: .undetermined).channel == .undetermined)
+        #expect(ClaudeDesktopChannel.resolve(preference: "stable", management: .undetermined).channel == .stable)
         #expect(ClaudeDesktopChannel.resolve(preference: "latest", installedVersion: "4.28.0").channel == .stable)
         #expect(ClaudeDesktopChannel.resolve(preference: "latest", installedVersion: "4.29.0").channel == .latest)
     }
@@ -167,17 +169,21 @@ import Testing
         let noOp = try PropertyListSerialization.data(
             fromPropertyList: ["deploymentMode": "any"], format: .xml, options: 0)
         try activePolicy.write(to: root.appendingPathComponent("com.anthropic.claudecode.plist"))
-        #expect(!ClaudeDesktopChannel.hasManagedPreferences(in: root, user: "test-user"))
+        #expect(ClaudeDesktopChannel.managedPreferences(in: root, user: "test-user") == .unmanaged)
 
         let devicePolicy = root.appendingPathComponent("com.anthropic.claudefordesktop.plist")
         let userPolicy = user.appendingPathComponent("com.anthropic.claudefordesktop.plist")
         try noOp.write(to: devicePolicy)
-        #expect(!ClaudeDesktopChannel.hasManagedPreferences(in: root, user: "test-user"))
+        #expect(ClaudeDesktopChannel.managedPreferences(in: root, user: "test-user") == .unmanaged)
+        let unknownPolicy = try PropertyListSerialization.data(
+            fromPropertyList: ["UnexpectedPolicy": true], format: .xml, options: 0)
+        try unknownPolicy.write(to: devicePolicy)
+        #expect(ClaudeDesktopChannel.managedPreferences(in: root, user: "test-user") == .undetermined)
         try activePolicy.write(to: userPolicy)
-        #expect(ClaudeDesktopChannel.hasManagedPreferences(in: root, user: "test-user"))
+        #expect(ClaudeDesktopChannel.managedPreferences(in: root, user: "test-user") == .managed)
         try fm.removeItem(at: userPolicy)
         try Data("unreadable policy".utf8).write(to: devicePolicy)
-        #expect(ClaudeDesktopChannel.hasManagedPreferences(in: root, user: "test-user"))
+        #expect(ClaudeDesktopChannel.managedPreferences(in: root, user: "test-user") == .managed)
     }
 
     @Test func latestReadsThePublishedVersionDateAndZIPDigest() throws {

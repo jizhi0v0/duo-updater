@@ -222,6 +222,10 @@ public struct UpdateChecker: Sendable {
         let label = "\(app.name) [\(app.bundleID ?? "no-bundle-id")] v\(app.shortVersion ?? "?")"
         Log.check.debug("check start: \(label, privacy: .public)")
 
+        guard app.releaseChannel != .undetermined else {
+            return UpdateResult(app: app, remote: nil, status: .unknown)
+        }
+
         if app.isToolboxManaged && !app.prefersVendorProbeOverToolbox {
             if let verdict = await toolbox?.verdict(for: app) {
                 let remote = RemoteVersion(

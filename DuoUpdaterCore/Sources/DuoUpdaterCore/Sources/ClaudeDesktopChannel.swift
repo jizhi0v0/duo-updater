@@ -4,6 +4,19 @@ enum ClaudeDesktopChannel {
     static let bundleID = "com.anthropic.claudefordesktop"
     private static let firstChannelVersion = "4.29.0"
 
+    enum Management {
+        case unmanaged, managed, undetermined
+    }
+
+    // Published macOS Enterprise policy keys in Claude's bundled schema.
+    // Private or future keys alone don't establish which track Claude picks.
+    private static let desktopPolicyKeys: Set<String> = [
+        "allowedWorkspaceFolders", "autoUpdaterEnforcementHours", "disableAutoUpdates",
+        "forceLoginOrgUUID", "isClaudeCodeForDesktopEnabled",
+        "isDesktopExtensionEnabled", "isDesktopExtensionDirectoryEnabled",
+        "isLocalDevMcpEnabled", "secureVmFeaturesEnabled",
+    ]
+
     static func resolveCurrent(bundleStrings: [String: String]) -> ResolvedChannel {
         let home = FileManager.default.homeDirectoryForCurrentUser
         let settings = home.appendingPathComponent(
@@ -13,7 +26,7 @@ enum ClaudeDesktopChannel {
         return resolve(
             preference: requested,
             installedVersion: bundleStrings["CFBundleShortVersionString"],
-            isManaged: requested == "latest" && hasManagedPreferences())
+            management: requested == "latest" ? managedPreferences() : .unmanaged)
     }
 
     // Claude Desktop migrates ancientJournal to releaseChannel when the latter
@@ -31,37 +44,45 @@ enum ClaudeDesktopChannel {
     }
 
     static func resolve(
-        preference: String?, installedVersion: String? = nil, isManaged: Bool = false
+        preference: String?, installedVersion: String? = nil, management: Management = .unmanaged
     ) -> ResolvedChannel {
         let supportsPicker = installedVersion.map {
             VersionComparator.compare($0, firstChannelVersion) != .orderedAscending
         } ?? true  // The preference fingerprint is read without a bundle.
-        return ResolvedChannel(
-            channel: preference == "latest" && supportsPicker && !isManaged ? .latest : .stable)
+        guard preference == "latest", supportsPicker else { return ResolvedChannel(channel: .stable) }
+        switch management {
+        case .unmanaged: return ResolvedChannel(channel: .latest)
+        case .managed: return ResolvedChannel(channel: .stable)
+        case .undetermined: return ResolvedChannel(channel: .undetermined)
+        }
     }
 
-    static func hasManagedPreferences(
+    static func managedPreferences(
         in root: URL = URL(fileURLWithPath: "/Library/Managed Preferences", isDirectory: true),
         user: String = NSUserName()
-    ) -> Bool {
+    ) -> Management {
         let userDirectory = root.appendingPathComponent(user, isDirectory: true)
-        return [root, userDirectory].contains { directory in
+        var hasUnrecognizedPolicy = false
+        for directory in [root, userDirectory] {
             let plist = directory.appendingPathComponent(bundleID + ".plist")
             let data: Data
             do {
                 data = try Data(contentsOf: plist)
-            } catch let error as CocoaError {
-                // Claude disables Latest when a Desktop policy cannot be read.
-                return error.code != .fileReadNoSuchFile && error.code != .fileNoSuchFile
+            } catch let error as CocoaError
+                where error.code == .fileReadNoSuchFile || error.code == .fileNoSuchFile {
+                continue
             } catch {
-                return true
+                // Claude disables Latest when a Desktop policy cannot be read.
+                return .managed
             }
             guard let values = try? PropertyListSerialization.propertyList(
                 from: data, format: nil) as? [String: Any]
-            else { return true }
-            return values.contains { key, value in
+            else { return .managed }
+            if !desktopPolicyKeys.isDisjoint(with: values.keys) { return .managed }
+            hasUnrecognizedPolicy = hasUnrecognizedPolicy || values.contains { key, value in
                 key != "deploymentMode" || value as? String != "any"
             }
         }
+        return hasUnrecognizedPolicy ? .undetermined : .unmanaged
     }
 }

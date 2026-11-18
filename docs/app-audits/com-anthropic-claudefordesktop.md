@@ -22,7 +22,8 @@ Stable 和 Latest 共用 bundle ID 和纯数字版本。用户在 Claude 的 Set
   [Claude Desktop 变更日志](https://claude.com/docs/cowork/changelog)
 
 自定义 `CLAUDE_USER_DATA_DIR` 和服务端下发的企业或灰度策略尚未覆盖。
-非空或无法读取的 Desktop 管理文件按受管理处理，未逐项复刻厂商随版本变化的 MDM 键名表。
+Desktop 管理文件只含无法识别的键且偏好仍是 Latest 时，DuoUpdater 暂停提供更新，避免猜测渠道。
+[Anthropic Desktop 企业策略说明](https://support.claude.com/en/articles/12622667-enterprise-configuration-for-claude-desktop)
 
 ## 夜扫覆盖
 

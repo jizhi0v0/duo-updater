@@ -97,6 +97,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 ## Multi-channel families (audit covers all channels)
 
 - [x] [**Mattermost Desktop**](Mattermost-Desktop.md) · `Mattermost.Desktop` — G(stable) P(RC/nightly) · 一键 ZIP ✓（含旧 ID 迁移、RC/日期 nightly）· stable 结构化日志 ✓；RC/nightly 无独立说明 · 2026-11-16
+- [x] [**Claude Desktop**](com-anthropic-claudefordesktop.md) · `com.anthropic.claudefordesktop` — P(stable/latest) C · 共享 bundle ID，读取 Claude 设置 · 两轨官方 ZIP · 2026-11-18
 - [x] [**Chrome**](com-google-Chrome.md) · `com.google.Chrome` — P(stable/beta/dev/canary) · 4 channels, independent bundle IDs · 审计 2026-06-04 ✓
 - [x] [**Firefox**](org-mozilla-firefox.md) · `org.mozilla.firefox` — P(stable/beta/esr/nightly/dev-edition) C(stable/beta/esr/nightly/dev-edition) · 5 channels · RemotingName 检测（修复 beta/esr 误判）· 5 个真实 bundle 验证 ✓ · 2026-06-04
 - [x] [**Thunderbird**](org-mozilla-thunderbird.md) · `org.mozilla.thunderbird` — P(stable/beta/esr/nightly) C(stable/beta/esr) · 4 channels · RemotingName 检测（修复 beta bundle id + esr 跨 channel 误推）· 4 个真实 bundle 验证 ✓ · 2026-06-04
@@ -148,7 +149,6 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 
 - [x] [**Suspicious Package**](com-mothersruin-SuspiciousPackageApp.md) · `com.mothersruin.SuspiciousPackageApp` — P+C · 4.7→4.8 一键 DMG ✓（停用/运行中）· 结构化发布历史 ✓ · 2026-11-16
 - [x] **VS Code** · `com.microsoft.VSCode` — P C (one-click) · ✓ src=Vendor
-- [x] **Claude Desktop** · `com.anthropic.claudefordesktop` — P (one-click) · ✓ src=Vendor
 - [x] [**super.engineering**](com-zarifpour-superconductor.md) · `com.zarifpour.superconductor` — P C B (one-click) · ✓ src=Vendor · 版本是 commit hash，按 `changelog.json` 的发布顺序比较 · 审计 2026-09-11
 - [x] **Codex → ChatGPT** · `com.openai.codex` — P C (one-click) · ✓ src=Vendor · 独立 Codex 桌面端 2026-07 并入 ChatGPT app（cask `codex-app` 已 `deprecate! … replacement_cask: "chatgpt"`），**bundle id 未变**——真包核实 ChatGPT.app 仍登记 `com.openai.codex` / `26.825.51511`，既有 recipe 全链 ✓（2026-08-30 复验）
 - [x] **Cursor** · `com.todesktop.230313mzl4w4u92` — P · ✓ src=Vendor
@@ -496,7 +496,6 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [ ] [**Shottr**](cc-ffitch-shottr.md) · `cc.ffitch.shottr` — 仅迁出历史：`latestVersion` 当时的值、changelog 页结构实测
 - [ ] [**1Password**](com-1password-1password.md) · `com.1password.1password` — 仅迁出历史：一键 zip 的下载核对
 - [ ] [**Pearcleaner**](com-alienator88-Pearcleaner.md) · `com.alienator88.Pearcleaner` — 仅迁出历史：一键 dmg 的签名核对
-- [ ] [**Claude Desktop**](com-anthropic-claudefordesktop.md) · `com.anthropic.claudefordesktop` — 仅迁出历史：2026-08-15 灰度发布与 device id 分桶
 - [ ] [**Xcode**](com-apple-dt-Xcode.md) · `com.apple.dt.Xcode` — 仅迁出历史：release notes SPA 壳 · 另记 `requires`（索引里每个版本的 macOS 下限，同一版本内不等：27.0 RC 要 26.6、27.0 beta 要 26.4）2026-09-15 实测
 - [ ] [**Bitwarden**](com-bitwarden-desktop.md) · `com.bitwarden.desktop` — 仅迁出历史：monorepo 里 `desktop-v` tag 间隔的测量
 - [ ] [**iStat Menus**](com-bjango-istatmenus.md) · `com.bjango.istatmenus` — 仅迁出历史：重发的 zip 里 marketing 不动、只涨 build；改为按 Range 读包内 Info.plist 的版本与 build

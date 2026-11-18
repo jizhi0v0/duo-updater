@@ -21,12 +21,41 @@ import Testing
     private struct Brew: UpdateSource {
         let name = "Homebrew"
         var selfUpdating = false
+        var version = "1.0"
+        var channel: ReleaseChannel?
         func latestVersion(for app: InstalledApp) async throws -> RemoteVersion? {
-            var remote = RemoteVersion(shortVersion: "1.0", version: nil, downloadURL: nil,
+            var remote = RemoteVersion(shortVersion: version, version: nil, downloadURL: nil,
                                        sourceName: name, sourceIdentifier: "example")
             remote.homebrewSelfUpdating = selfUpdating
+            remote.offeredChannel = channel
             return remote
         }
+    }
+
+    @Test func claudeLatestChecksVendorEvenWhenTheStableCaskHasAnUpdate() async {
+        let claude = InstalledApp(
+            name: "Claude", bundleID: ClaudeDesktopChannel.bundleID, shortVersion: "5.11492.5",
+            buildVersion: nil, path: URL(fileURLWithPath: "/Applications/Claude.app"),
+            isMASApp: false, sparkleFeedURL: nil, releaseChannel: .latest, channelIsAuthoritative: true)
+        let brew = Brew(selfUpdating: true, version: "6.6395.0", channel: .stable)
+        let vendor = Downstream(name: "Vendor", version: "6.6695.0")
+        let followsLatest = await UpdateChecker(sources: [brew, vendor]).check(claude)
+        #expect(followsLatest.remote?.sourceName == "Vendor")
+        #expect(followsLatest.status == .updateAvailable(latest: "6.6695.0"))
+        #expect(followsLatest.homebrewSourceIdentifier == "example")
+
+        let noLatestAnswer = await UpdateChecker(sources: [brew]).check(claude)
+        #expect(noLatestAnswer.status == .unknown)
+        #expect(noLatestAnswer.remote == nil)
+        #expect(noLatestAnswer.homebrewSourceIdentifier == "example")
+
+        let held = await UpdateChecker(
+            sources: [brew, vendor],
+            brewFallback: BrewFallbackPolicy(blockedKeys: [InstallPreferenceKey.key(for: claude)])
+        ).check(claude)
+        #expect(held.remote?.sourceName == "Homebrew")
+        #expect(held.status == .updateAvailable(latest: "6.6395.0"))
+        #expect(await vendor.calls == 1)
     }
 
     /// An official cask marked `auto_updates` says the app's own updater is its
@@ -63,15 +92,17 @@ import Testing
     private actor Downstream: UpdateSource {
         nonisolated let name: String
         let trust: InstallTrust
+        let version: String
         var calls = 0
-        init(name: String = "GitHub", trust: InstallTrust = .developerID) {
+        init(name: String = "GitHub", trust: InstallTrust = .developerID, version: String = "2.0") {
             self.name = name
             self.trust = trust
+            self.version = version
         }
         func latestVersion(for app: InstalledApp) async throws -> RemoteVersion? {
             calls += 1
             return RemoteVersion(
-                shortVersion: "2.0", version: nil, downloadURL: URL(string: "https://example.com/app.dmg"),
+                shortVersion: version, version: nil, downloadURL: URL(string: "https://example.com/app.dmg"),
                 sourceName: name, vendorInstallerKind: .dmg, installTrust: trust)
         }
     }

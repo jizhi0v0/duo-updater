@@ -19,6 +19,16 @@ release note is debugging our code:
 
 Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
+## 0.5.26-beta.2
+
+**Workbench search keeps showing Apps and CLI results after scrolling.**
+
+**Events shows why automatic updates are currently on hold.** Active holds stay visible when you clear the activity history.
+
+**Claude Desktop follows its Stable or Latest setting.** Longbridge handles staged updates more reliably, and Longbridge Pro shows release notes from the official feed.
+
+**App Store updates recover more reliably just after helper approval.** UU Remote can reuse a cached installer after verifying it matches the public release.
+
 ## 0.5.26-beta.1
 
 **Includes the hotfixes from 0.5.25 alongside the full Beta feature set.**

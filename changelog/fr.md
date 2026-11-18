@@ -2,6 +2,16 @@
 
 Ceci est la traduction de `CHANGELOG.md`. La version anglaise fait autorité. Les versions non énumérées ici reviennent automatiquement à l’anglais.
 
+## 0.5.26-beta.2
+
+**La recherche dans l’espace de travail affiche toujours les résultats pour les apps et les outils en ligne de commande après un défilement.**
+
+**Les événements indiquent pourquoi les mises à jour automatiques sont en pause.** Les pauses actives restent visibles après l’effacement de l’historique d’activité.
+
+**Claude Desktop suit son réglage Stable ou Latest.** Longbridge gère mieux les déploiements progressifs et Longbridge Pro affiche les notes du flux officiel.
+
+**Les mises à jour de l’App Store reprennent plus facilement après l’autorisation de l’utilitaire.** UU Remote peut réutiliser un programme d’installation en cache après avoir vérifié qu’il correspond à la version publique.
+
 ## 0.5.26-beta.1
 
 **Inclut les correctifs de 0.5.25 et l’ensemble des fonctionnalités Beta.**

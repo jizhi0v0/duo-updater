@@ -53,122 +53,23 @@ private let longbridgeRolloutManifest = #"""
 }
 """#
 
-/// Stable's minor page `…/longbridge-pro/0.19` as served 2026-10-14, trimmed to
-/// its two release sections: 0.19.1 first, then 0.19.0 with its figures dropped.
-/// The page holds every patch release of its line, newest first.
-private let longbridgeStableMinorPage = #"""
-<main class="mx-auto"><section id="v0.19.1" class="release-section" data-release-section data-rail-version="0.19.1" data-rail-date="2026-08-20" data-rail-title="Fixes for editor crashes and stray scrollbars · August 20, 2026"><h2 class="text-[1.25rem] font-semibold tracking-tight">Fixes for editor crashes and stray scrollbars</h2><div class="mt-2"><div class="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-[0.8125rem] text-ink-soft"><time datetime="2026-08-20T00:00:00.000Z" class="tnum">August 20, 2026</time></div></div><p class="mt-3 text-[0.9375rem] leading-relaxed text-ink-soft">Fixed an issue where the editor could quit unexpectedly in c</p><div class="prose mt-5"><h2 id="improvements">Improvements</h2>
-<ul>
-<li>Fixed an issue where the editor could quit unexpectedly in certain syntax highlighting cases — editing content with multi-byte characters such as Chinese is now more stable.</li>
-<li>Fixed vertical lists occasionally showing an unnecessary horizontal scrollbar — overlong text now truncates correctly to the actual list width.</li>
-</ul></div></section><section id="v0.19.0" class="release-section" data-release-section data-rail-version="0.19.0" data-rail-date="2026-08-19" data-rail-title="Screener, quant workbench and grid trading · August 19, 2026"><h2 class="text-[1.25rem] font-semibold tracking-tight">Screener, quant workbench and grid trading</h2><div class="mt-2"><div class="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-[0.8125rem] text-ink-soft"><time datetime="2026-08-19T00:00:00.000Z" class="tnum">August 19, 2026</time></div></div><p class="mt-3 text-[0.9375rem] leading-relaxed text-ink-soft">Screener：Added a stock screener with multi-dimensional filte</p><div class="prose mt-5"><h2 id="new-features">New Features</h2>
-<p><strong>Screening &amp; quant</strong></p>
-<ul>
-<li><strong>Screener</strong>: Added a stock screener with multi-dimensional filters across markets, industries, themes, range indicators and technical indicators — range conditions can be dragged on the distribution chart, and a filter combination can be saved as a strategy for reuse.</li>
-</ul>
-
-<ul>
-<li><strong>Quant</strong>: Added a quant workspace for authoring indicator and strategy scripts, chart syncing and strategy backtests; once a backtest finishes, the performance report, net value curve and buy/sell markers are all available.</li>
-</ul>
-
-<p><strong>Trading</strong></p>
-<ul>
-<li><strong>Grid Trading</strong>: Added grid trading — for stocks that move within a fluctuating range, set up a buy-low/sell-high strategy and let it run inside the price range you specify, and it can be paused, restarted, adjusted or terminated at any time.</li>
-</ul>
-
-<ul>
-<li><strong>Trade</strong>: The take-profit/stop-loss ticket has been redesigned for a more intuitive way to set stop levels, and now supports dynamic “Full position” and “Trigger price” parameters that follow position changes automatically, for greater flexibility.</li>
-</ul>
-
-<p><strong>Monitoring &amp; research</strong></p>
-<ul>
-<li><strong>Quotes</strong>: Added quote change alerts to stock details, pushing that stock’s alerts such as limit-up and block trades in real time.</li>
-</ul>
-
-<ul>
-<li><strong>Watchlist</strong>: The list view now supports drag-and-drop sorting, with pinned stocks reordered within the pinned segment, so there is no need to open group management to change the order.</li>
-</ul>
-
-<ul>
-<li><strong>Chart</strong>: Drawings can now be locked per shape or globally, preventing accidental dragging of finished lines while reading charts, with the lock state kept in sync with mobile.</li>
-<li><strong>Layout</strong>: Added an adaptive layout to custom pages — widgets dragged in are arranged automatically and fit the screen size, for a more flexible layout.</li>
-<li><strong>Financials</strong>: Added a “Financial Score” panel covering the latest rating, a five-dimension radar chart, score criteria details and the industry rating distribution, making it easy to see where a stock stands among its peers.</li>
-</ul>
-
-<h2 id="improvements">Improvements</h2>
-<ul>
-<li>Placing a US market order outside regular trading hours now shows a reminder with a one-click switch to a limit order, avoiding accidental market fills in pre-/post-market sessions.</li>
-<li>Reconnecting and disconnected states now show a status indicator with manual retry, so a stalled quote feed is no longer left to guesswork.</li>
-</ul></div></section></main>
-"""#
-
-/// The 0.19.0 section as served 2026-10-14, scripts dropped: a `<strong>`
-/// category label, an `<img>` mid-list and six `<video>` clips with their
-/// fallback text, the shape the video and image rules have to handle.
-private let longbridgeStableRichSection = #"""
-<main class="mx-auto"><section id="v0.19.0" class="release-section" data-release-section data-rail-version="0.19.0" data-rail-date="2026-08-19" data-rail-title="Screener, quant workbench and grid trading · August 19, 2026"><h2 class="text-[1.25rem] font-semibold tracking-tight">Screener, quant workbench and grid trading</h2><div class="mt-2"><div class="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-[0.8125rem] text-ink-soft"><time datetime="2026-08-19T00:00:00.000Z" class="tnum">August 19, 2026</time></div></div><p class="mt-3 text-[0.9375rem] leading-relaxed text-ink-soft">Screener：Added a stock screener with multi-dimensional filte</p><div class="prose mt-5"><h2 id="new-features">New Features</h2>
-<p><strong>Screening &amp; quant</strong></p>
-<ul>
-<li><strong>Screener</strong>: Added a stock screener with multi-dimensional filters across markets, industries, themes, range indicators and technical indicators — range conditions can be dragged on the distribution chart, and a filter combination can be saved as a strategy for reuse.</li>
-</ul>
-<figure class="my-7" data-reveal><div class="media-frame relative group" data-video-state="loading" style="--video-ratio:16 / 9"><video class="block w-full" data-release-video data-autoplay muted playsinline preload="metadata" loop aria-label="Screener：Added a stock screener with multi-dimensional filte"><source src="https://assets.lbkrs.com/uploads/eca49d71-c8f8-4f8a-bc37-30edb934c20b/Screener.mp4" type="video/mp4"></video><span class="video-loading" aria-hidden="true"></span><button type="button" data-video-toggle class="absolute inset-0 grid cursor-pointer place-items-center" aria-label="Play"><span class="grid h-11 w-11 place-items-center rounded-full bg-black/55 text-white opacity-0 backdrop-blur-sm transition-opacity [[data-video-toggle]:focus-visible_&amp;]:opacity-100" data-video-icon><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path data-icon-pause d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z"></path><path data-icon-play class="hidden" d="M8 5.2v13.6L19 12z"></path></svg></span></button><input type="range" class="video-progress" data-video-progress min="0" max="1000" value="0" step="1" aria-label="Seek"></div></figure>
-<ul>
-<li><strong>Quant</strong>: Added a quant workspace for authoring indicator and strategy scripts, chart syncing and strategy backtests; once a backtest finishes, the performance report, net value curve and buy/sell markers are all available.</li>
-</ul>
-<figure class="my-7" data-reveal><div class="media-frame relative group" data-video-state="loading" style="--video-ratio:16 / 9"><video class="block w-full" data-release-video data-autoplay muted playsinline preload="metadata" loop aria-label="Quant：Added a quant workspace for authoring indicator and st"><source src="https://assets.lbkrs.com/uploads/a78a6d7c-a64e-4763-aa70-f74f631cec2a/Quant.mp4" type="video/mp4"></video><span class="video-loading" aria-hidden="true"></span><button type="button" data-video-toggle class="absolute inset-0 grid cursor-pointer place-items-center" aria-label="Play"><span class="grid h-11 w-11 place-items-center rounded-full bg-black/55 text-white opacity-0 backdrop-blur-sm transition-opacity [[data-video-toggle]:focus-visible_&amp;]:opacity-100" data-video-icon><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path data-icon-pause d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z"></path><path data-icon-play class="hidden" d="M8 5.2v13.6L19 12z"></path></svg></span></button><input type="range" class="video-progress" data-video-progress min="0" max="1000" value="0" step="1" aria-label="Seek"></div></figure>
-<p><strong>Trading</strong></p>
-<ul>
-<li><strong>Grid Trading</strong>: Added grid trading — for stocks that move within a fluctuating range, set up a buy-low/sell-high strategy and let it run inside the price range you specify, and it can be paused, restarted, adjusted or terminated at any time.</li>
-</ul>
-<figure class="my-7" data-reveal><div class="media-frame relative group" data-video-state="loading" style="--video-ratio:16 / 9"><video class="block w-full" data-release-video data-autoplay muted playsinline preload="metadata" loop aria-label="Grid Trading：Added grid trading — for stocks that move withi"><source src="https://assets.lbkrs.com/uploads/3b21b781-677f-42d5-8f22-ee70e3c39973/Grid.mp4" type="video/mp4"></video><span class="video-loading" aria-hidden="true"></span><button type="button" data-video-toggle class="absolute inset-0 grid cursor-pointer place-items-center" aria-label="Play"><span class="grid h-11 w-11 place-items-center rounded-full bg-black/55 text-white opacity-0 backdrop-blur-sm transition-opacity [[data-video-toggle]:focus-visible_&amp;]:opacity-100" data-video-icon><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path data-icon-pause d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z"></path><path data-icon-play class="hidden" d="M8 5.2v13.6L19 12z"></path></svg></span></button><input type="range" class="video-progress" data-video-progress min="0" max="1000" value="0" step="1" aria-label="Seek"></div></figure>
-<ul>
-<li><strong>Trade</strong>: The take-profit/stop-loss ticket has been redesigned for a more intuitive way to set stop levels, and now supports dynamic “Full position” and “Trigger price” parameters that follow position changes automatically, for greater flexibility.</li>
-</ul>
-<figure class="my-7" data-reveal><div class="media-frame relative group" data-video-state="loading" style="--video-ratio:16 / 9"><video class="block w-full" data-release-video data-autoplay muted playsinline preload="metadata" loop aria-label="Trade：The take-profit/stop-loss ticket has been redesigned f"><source src="https://assets.lbkrs.com/uploads/65032bfc-4738-426d-87e3-c0be30588879/TP-SL.mp4" type="video/mp4"></video><span class="video-loading" aria-hidden="true"></span><button type="button" data-video-toggle class="absolute inset-0 grid cursor-pointer place-items-center" aria-label="Play"><span class="grid h-11 w-11 place-items-center rounded-full bg-black/55 text-white opacity-0 backdrop-blur-sm transition-opacity [[data-video-toggle]:focus-visible_&amp;]:opacity-100" data-video-icon><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path data-icon-pause d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z"></path><path data-icon-play class="hidden" d="M8 5.2v13.6L19 12z"></path></svg></span></button><input type="range" class="video-progress" data-video-progress min="0" max="1000" value="0" step="1" aria-label="Seek"></div></figure>
-<p><strong>Monitoring &amp; research</strong></p>
-<ul>
-<li><strong>Quotes</strong>: Added quote change alerts to stock details, pushing that stock’s alerts such as limit-up and block trades in real time.</li>
-</ul>
-<figure class="my-7" data-reveal><div class="media-frame relative group" data-video-state="loading" style="--video-ratio:16 / 9"><video class="block w-full" data-release-video data-autoplay muted playsinline preload="metadata" loop aria-label="Quotes：Added quote change alerts to stock details, pushing t"><source src="https://assets.lbkrs.com/uploads/4d435b8b-ac15-49c5-8239-210e36227346/Big.mp4" type="video/mp4"></video><span class="video-loading" aria-hidden="true"></span><button type="button" data-video-toggle class="absolute inset-0 grid cursor-pointer place-items-center" aria-label="Play"><span class="grid h-11 w-11 place-items-center rounded-full bg-black/55 text-white opacity-0 backdrop-blur-sm transition-opacity [[data-video-toggle]:focus-visible_&amp;]:opacity-100" data-video-icon><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path data-icon-pause d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z"></path><path data-icon-play class="hidden" d="M8 5.2v13.6L19 12z"></path></svg></span></button><input type="range" class="video-progress" data-video-progress min="0" max="1000" value="0" step="1" aria-label="Seek"></div></figure>
-<ul>
-<li><strong>Watchlist</strong>: The list view now supports drag-and-drop sorting, with pinned stocks reordered within the pinned segment, so there is no need to open group management to change the order.</li>
-</ul>
-<figure class="my-7" data-reveal><div class="media-frame relative group" data-video-state="loading" style="--video-ratio:16 / 9"><video class="block w-full" data-release-video data-autoplay muted playsinline preload="metadata" loop aria-label="Watchlist：The list view now supports drag-and-drop sorting, "><source src="https://assets.lbkrs.com/uploads/6d576317-2705-4bf4-8f56-1570b0f500be/Drag.mp4" type="video/mp4"></video><span class="video-loading" aria-hidden="true"></span><button type="button" data-video-toggle class="absolute inset-0 grid cursor-pointer place-items-center" aria-label="Play"><span class="grid h-11 w-11 place-items-center rounded-full bg-black/55 text-white opacity-0 backdrop-blur-sm transition-opacity [[data-video-toggle]:focus-visible_&amp;]:opacity-100" data-video-icon><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path data-icon-pause d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z"></path><path data-icon-play class="hidden" d="M8 5.2v13.6L19 12z"></path></svg></span></button><input type="range" class="video-progress" data-video-progress min="0" max="1000" value="0" step="1" aria-label="Seek"></div></figure>
-<ul>
-<li><strong>Chart</strong>: Drawings can now be locked per shape or globally, preventing accidental dragging of finished lines while reading charts, with the lock state kept in sync with mobile.</li>
-<li><strong>Layout</strong>: Added an adaptive layout to custom pages — widgets dragged in are arranged automatically and fit the screen size, for a more flexible layout.</li>
-<li><strong>Financials</strong>: Added a “Financial Score” panel covering the latest rating, a five-dimension radar chart, score criteria details and the industry rating distribution, making it easy to see where a stock stands among its peers.</li>
-</ul>
-<figure class="my-7" data-reveal><div class="media-frame"><img src="https://assets.lbkrs.com/uploads/945a3959-f08c-4510-83aa-252ac8bf3ac0/Score.png" alt="score" width="3584" height="2324" loading="lazy" decoding="async" data-zoomable class="block w-full"></div></figure>
-<h2 id="improvements">Improvements</h2>
-<ul>
-<li>Placing a US market order outside regular trading hours now shows a reminder with a one-click switch to a limit order, avoiding accidental market fills in pre-/post-market sessions.</li>
-<li>Reconnecting and disconnected states now show a status indicator with manual retry, so a stalled quote feed is no longer left to guesswork.</li>
-</ul></div></section></main>
+/// Official English RSS (2026-11-18), trimmed to five items in feed order.
+/// LongbridgeAI shares a version number with Pro but its notes belong to a
+/// different product.
+private let longbridgeStableRSS = #"""
+<rss version="2.0"><channel>
+<item><title>Longbridge Pro 1.2.0 · Community, Message Center, and watchlist import and export</title><link>https://longbridge.com/en/changelog/longbridge-pro/v1.2#v1.2.0</link><guid isPermaLink="true">https://longbridge.com/en/changelog/longbridge-pro/v1.2#v1.2.0</guid><description>Adds Community and a Message Center, watchlist import and export as CSV / Excel, and Related ETFs in Stock Detail.</description><pubDate>Wed, 18 Nov 2026 00:00:00 GMT</pubDate></item>
+<item><title>LongbridgeAI 1.8.0 · Follow each scheduled task&apos;s latest results</title><link>https://longbridge.com/en/changelog/longbridge-ai/v1.8#v1.8.0</link><guid isPermaLink="true">https://longbridge.com/en/changelog/longbridge-ai/v1.8#v1.8.0</guid><description>Each scheduled task takes one row in the conversation list with its unread count, and the web version can switch to Japanese.</description><pubDate>Fri, 13 Nov 2026 00:00:00 GMT</pubDate></item>
+<item><title>Longbridge Pro 1.1.2 · Fixes for take-profit / stop-loss lines and voice input</title><link>https://longbridge.com/en/changelog/longbridge-pro/v1.1#v1.1.2</link><guid isPermaLink="true">https://longbridge.com/en/changelog/longbridge-pro/v1.1#v1.1.2</guid><description>Fixes take-profit / stop-loss lines disappearing from the chart and LongbridgeAI voice input recognition, and improves stability on Windows.</description><pubDate>Tue, 10 Nov 2026 00:00:00 GMT</pubDate></item>
+<item><title>LongbridgeAI 1.2.0 · Start chatting, no login required</title><link>https://longbridge.com/en/changelog/longbridge-ai/v1.2#v1.2.0</link><guid isPermaLink="true">https://longbridge.com/en/changelog/longbridge-ai/v1.2#v1.2.0</guid><description>Ask the AI right away without signing up. Build your Agent with Gemini 3.7 Flash or DeepSeek-V4</description><pubDate>Mon, 24 Aug 2026 07:57:48 GMT</pubDate></item>
+<item><title>Longbridge Pro 0.19.1 · Fixes for editor crashes and stray scrollbars</title><link>https://longbridge.com/en/changelog/longbridge-pro/v0.19#v0.19.1</link><guid isPermaLink="true">https://longbridge.com/en/changelog/longbridge-pro/v0.19#v0.19.1</guid><description>Fixed an issue where the editor could quit unexpectedly in c</description><pubDate>Thu, 20 Aug 2026 00:00:00 GMT</pubDate></item>
+</channel></rss>
 """#
 
 /// Preview's manifest `preview/latest.json` as served 2026-10-14, trimmed to the
 /// keys the decoder reads. Only the newest preview build is in it.
 private let longbridgePreviewManifestNotes = #"""
 {"version":"1.0.0-preview.3","published_at":"2026-10-09T07:20:12Z","release_notes":{"en":"### New Features\r\n\r\n- **LongbridgeAI**: Redesigned the reasoning process, making the AI's progress easy to follow and keeping answers focused.\r\n- **Stock Details**: Added a hot topic card to the pinned board, showing trending discussions about the stock and linking straight to the topic page.\r\n- **Trade**: Added Touch ID unlock for trading on macOS — verify your trade password with just a fingerprint.\r\n- **Account**: Added account switching, so you can switch to any previously signed-in account from the avatar menu without logging out and back in.\r\n- **Chart**: Added \"Signals & Catalysts\" to the K-line chart, marking trading signals and catalyst events on the chart; open one to see the details or ask AI to analyze it, helping you quickly understand what drives a move.\r\n- **Custom Layout**: Added undo, so accidentally removed widgets or a messed-up layout can be restored at any time; tabs can be exported to a file and imported on another device, making layouts easy to share and migrate.\r\n- **Announcements**: New announcements are also sent to the system notification center while the app is in the background, so important notices are not missed.\r\n\r\n### Improvements\r\n\r\n- Added display settings to the heatmap for customizing titles, values, colors and grouping; also improved the layout so small blocks are no longer squeezed into thin strips.\r\n- The Today's Orders popover in chart trading now shows the strategy name and leg details of multi-leg option orders.\r\n- Fixed an issue where a full leap-year range was rejected as longer than one year when exporting historical orders.\r\n- Dragging a widget into an empty custom layout now shows the drop area, and the widget toolbox hides automatically while you adjust panels so it no longer covers the canvas."}}
-"""#
-
-/// The ordering the live pages do NOT currently use: illustration first, change
-/// line after it. Longbridge puts media at the end of every bullet today, so this
-/// is the shape a vendor restyle would introduce — and the one an item pattern
-/// that treats `<img>` as a hard stop silently eats.
-private let longbridgeMediaFirstNotes = #"""
-<main><section id="v0.20.0" class="release-section" data-release-section data-rail-version="0.20.0" data-rail-date="2026-09-01" data-rail-title="Charts and watchlist · September 1, 2026"><h2 class="text-[1.25rem] font-semibold tracking-tight">Charts and watchlist</h2><p class="mt-3 text-[0.9375rem] leading-relaxed text-ink-soft">Charts gained a new drawing tool.</p><div class="prose mt-5"><h2 id="improvements">Improvements</h2>
-<ul>
-<li><img width="1200" alt="chart" src="https://assets.lbkrs.com/uploads/Chart.png">Charts gained a new drawing tool.</li>
-<li>Watchlist sorting is now stable.</li>
-</ul></div></section></main>
-"""#
-
-/// The releases INDEX page: a heading and no `release-section`. The no-version
-/// fallback depends on this parsing to nothing.
-private let longbridgeIndexPage = #"""
-<main class="mx-auto w-full max-w-5xl flex-1 px-5 py-10"><h1 class="text-[1.75rem] font-semibold">Longbridge Pro</h1><div class="grid"></div></main>
 """#
 
 @Suite struct LongbridgeIntegrationTests {
@@ -194,7 +95,7 @@ private let longbridgeIndexPage = #"""
     ]
 
     private static let notes: [ReleaseChannel: (String, String)] = [
-        .stable: (longbridgeStableMinorPage, "0.19.1"),
+        .stable: (longbridgeStableRSS, "1.2.0"),
         .preview: (longbridgePreviewManifestNotes, "1.0.0-preview.3"),
     ]
 
@@ -478,102 +379,33 @@ private let longbridgeIndexPage = #"""
 
     // MARK: - Changelog
 
-    /// Stable reads the minor page the version belongs to. That page holds every
-    /// patch release of its line, newest first, so the first section is the one
-    /// the entry pattern takes, and the older 0.19.0 section below it is not read.
-    @Test func stableReadsTheNewestSectionOfItsMinorPage() throws {
+    @Test func stableReadsVersionedSummariesFromTheOfficialRSS() throws {
         let recipe = try #require(Self.changelogs[.stable])
-        let (page, expected) = try #require(Self.notes[.stable])
+        let (feed, expected) = try #require(Self.notes[.stable])
+        #expect(recipe.source.absoluteString == "https://longbridge.com/en/changelog/rss.xml")
+        #expect(recipe.resolvedSource(forVersion: expected) == recipe.source)
+        #expect(recipe.resolvedSource(forVersion: nil) == recipe.source)
 
-        #expect(recipe.structuredFormat == nil)
-        #expect(recipe.mode == .html)
-        #expect(recipe.resolvedSource(forVersion: expected).absoluteString
-            == "https://longbridge.com/en/changelog/longbridge-pro/v0.19")
-        #expect(recipe.resolvedSource(forVersion: "1.0.0").absoluteString
-            == "https://longbridge.com/en/changelog/longbridge-pro/v1.0")
-
-        let log = try #require(ChangelogExtractor.extract(from: page, using: recipe))
-        #expect(log.entries.count == 1)
-        let entry = try #require(log.entries.first)
-        #expect(entry.version == expected)
-        #expect(entry.date == "2026-08-20")
-        // Two change lines, read from the prose list. The `<p>` summary above the
-        // prose repeats the first line and must not come through as a third.
-        #expect(entry.items.count == 2)
-        #expect(entry.items.first?.hasPrefix("Fixed an issue where the editor could quit unexpectedly") == true)
-        #expect(entry.items.allSatisfy { !$0.contains("Screener") })
-    }
-
-    /// The stable entry reads its section's own date, and an installer link cannot
-    /// become a change line: the section ends at its own `</section>`.
-    @Test func stableEntryTakesItsOwnSectionDate() throws {
-        let recipe = try #require(Self.changelogs[.stable])
-        let page = try #require(Self.notes[.stable]).0
-        let entry = try #require(ChangelogExtractor.extract(from: page, using: recipe)?.entries.first)
-        #expect(entry.date == "2026-08-20")
-        #expect(entry.items.allSatisfy { !$0.contains("macOS installer") })
-    }
-
-    /// The 0.19.0 section carries the shapes the vendor page really uses: a
-    /// `<strong>` label, an illustration mid-list, and video clips whose fallback
-    /// text must not survive as a change line.
-    @Test func richSectionKeepsImagesInDocumentOrderAndDropsVideoFallbackText() throws {
-        let recipe = try #require(Self.changelogs[.stable])
-        let entry = try #require(ChangelogExtractor.extract(
-            from: longbridgeStableRichSection, using: recipe)?.entries.first)
-        #expect(entry.version == "0.19.0")
-        #expect(entry.date == "2026-08-19")
-        #expect(entry.items.allSatisfy { !$0.contains("does not support") })
-        #expect(entry.items.allSatisfy { !$0.isEmpty })
-        #expect(entry.items.contains { $0.hasPrefix("Screening") })
-        #expect(entry.content.contains { block in
-            if case .image = block { return true }
-            return false
-        })
-    }
-
-    /// A change line must survive its own illustration appearing BEFORE it.
-    ///
-    /// `<img>` is a void tag carrying no text, `stripTags` removes it anyway, and
-    /// `imagePattern` collects images from the whole body independently of item
-    /// boundaries — so treating `<img` as an item terminator never added anything
-    /// and could only truncate. When the image came first the captured item was
-    /// empty, `minItemLength` discarded it, and scanning resumed at the `<img>`,
-    /// past the point where the bullet's text lived: the whole line vanished
-    /// rather than merely losing its tail.
-    @Test func aChangeLineSurvivesAnIllustrationPlacedBeforeIt() throws {
-        let recipe = try #require(Self.changelogs[.stable])
-        let entry = try #require(ChangelogExtractor.extract(
-            from: longbridgeMediaFirstNotes, using: recipe)?.entries.first)
-        #expect(entry.items == [
-            "Charts gained a new drawing tool.",
-            "Watchlist sorting is now stable.",
-        ])
-        // The image is still collected. It renders AFTER its own line rather than
-        // before it, even though the markup puts it first: `ChangelogExtractor`
-        // interleaves on each match's START offset, and an item's match starts at
-        // its `<li>` tag, which precedes the `<img>` nested inside it. So a bullet's
-        // note always sorts ahead of an image belonging to that same bullet. That
-        // is a property of the extractor, not of this recipe, and it reads fine —
-        // pinned here so the ordering is a decision on record rather than a
-        // surprise the next person re-derives.
-        #expect(entry.content == [
-            .note("Charts gained a new drawing tool."),
-            .image(try #require(URL(string: "https://assets.lbkrs.com/uploads/Chart.png"))),
-            .note("Watchlist sorting is now stable."),
+        let log = try #require(ChangelogService.parse(recipe, body: feed, version: expected))
+        #expect(log.entries.map(\.version) == [expected, "1.1.2", "0.19.1"])
+        let release = try #require(log.entries.first)
+        #expect(release.title == "Community, Message Center, and watchlist import and export")
+        #expect(release.date == "18 Nov 2026")
+        #expect(release.items == [
+            "Adds Community and a Message Center, watchlist import and export as CSV / Excel, and Related ETFs in Stock Detail.",
         ])
     }
 
-    /// The no-version fallback. Stable's `source` is the releases index, which must
-    /// yield NOTHING, so the UI embeds the vendor page instead of presenting one
-    /// pinned release's notes as if they described the installed build.
-    @Test func theUntemplatedStableSourceIsAnIndexThatParsesNothing() throws {
+    @Test func stableSkipsPreviewAndMismatchedItemLinks() throws {
         let recipe = try #require(Self.changelogs[.stable])
-        #expect(recipe.sourceTemplate != nil)
-        let fallback = recipe.resolvedSource(forVersion: nil)
-        #expect(fallback == recipe.source)
-        #expect(fallback.absoluteString.range(of: #"/v[0-9]"#, options: .regularExpression) == nil)
-        #expect(ChangelogExtractor.extract(from: longbridgeIndexPage, using: recipe) == nil)
+        let feed = longbridgeStableRSS
+            .replacingOccurrences(of: "LongbridgeAI 1.8.0 ·", with: "Longbridge Pro 1.8.0 ·")
+            .replacingOccurrences(of: "Longbridge Pro 1.2.0 ·", with: "Longbridge Pro 1.2.0-preview.1 ·")
+            .replacingOccurrences(of: "#v1.2.0</link>", with: "#v1.2.0-preview.1</link>")
+            .replacingOccurrences(of: "/longbridge-pro/v1.1#v1.1.2</link>",
+                                  with: "/longbridge-pro/v1.1#v1.1.1</link>")
+        let log = try #require(ChangelogService.parse(recipe, body: feed, version: "1.2.0"))
+        #expect(log.entries.map(\.version) == ["0.19.1"])
     }
 
     /// Preview has no per-version page any more. Its notes come from the manifest's
@@ -600,18 +432,18 @@ private let longbridgeIndexPage = #"""
     }
 
     /// Each channel's recipe reads only its own document, and the two routes are
-    /// keyed by bundle id: the stable HTML pattern finds nothing in the preview
-    /// manifest, and the preview decoder finds nothing in a stable page.
+    /// keyed by bundle id. The RSS pattern accepts only stable Pro items and
+    /// the Preview decoder reads its separate JSON manifest.
     @Test func eachChannelsChangelogRecipeRejectsTheOtherChannelsDocument() throws {
         let stable = try #require(Self.changelogs[.stable])
         let preview = try #require(Self.changelogs[.preview])
-        let (stablePage, _) = try #require(Self.notes[.stable])
+        let (stableFeed, _) = try #require(Self.notes[.stable])
         let (previewManifest, _) = try #require(Self.notes[.preview])
 
-        #expect(ChangelogExtractor.extract(from: previewManifest, using: stable) == nil,
+        #expect(ChangelogService.parse(stable, body: previewManifest) == nil,
                 "the stable entry pattern must not read the preview manifest")
-        #expect(ChangelogService.parse(preview, body: stablePage) == nil,
-                "the preview decoder must not read a stable page")
+        #expect(ChangelogService.parse(preview, body: stableFeed) == nil,
+                "the preview decoder must not read the stable RSS")
 
         #expect(ChangelogRecipeRegistry.recipe(
             forBundleID: "com.longbridge.app.desktop.preview", channel: .preview)?

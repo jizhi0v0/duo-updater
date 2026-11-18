@@ -160,7 +160,9 @@ public struct Changelog: Codable, Sendable, Hashable {
     /// - 21: Cork follows the forum's release post instead of the retired blog
     ///   feed, and Inkscape accepts current MediaWiki headings. Cached Cork
     ///   notes for a 2.1.x target can otherwise keep showing 2.0.3 indefinitely.
-    public static let parserGeneration = 21
+    /// - 22: Longbridge Pro stable follows the official RSS, replacing cached
+    ///   minor-version-page bodies with versioned summaries from the feed.
+    public static let parserGeneration = 22
 
     public let entries: [Entry]
 

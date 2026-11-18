@@ -72,54 +72,21 @@ enum com_longbridge_app_desktop {
         ],
         changelogs: [
         // History: docs/app-audits/com-longbridge-app-desktop.md#历史与实测
-        // Longbridge Desktop — the English release page for the installed minor
-        // line, not the compact latest.json notes: the page carries the richer
-        // release body and some releases interleave screenshots with their change
-        // lines. The vendor serves one page per MINOR line (`…/longbridge-pro/v0.19`;
-        // the unprefixed `…/0.19` is a 200 meta-refresh stub with no sections)
-        // holding every patch release in it, each in a `release-section` carrying its
-        // own `data-rail-version` and `data-rail-date`; the entry pattern takes the
-        // first section, which is the newest on that page. A section ends at its
-        // own `</section>`, so no entry can run into the next one.
-        //
-        // The entry body starts at `div.prose`: the `<p>` summary above it repeats
-        // the first change line and would otherwise be read as one.
-        //
-        // `<video>` terminates an item because it is the one element whose INNER
-        // text would otherwise survive `stripTags` and land in the notes as
-        // "Your browser does not support the video tag."; the native changelog
-        // model has no video block, so the element itself is dropped.
-        // `<img>` deliberately does NOT terminate an item. It is a void tag with
-        // no text, `stripTags` removes it regardless, and `imagePattern` collects
-        // images from the whole body independently of item boundaries — so the
-        // boundary added nothing and could only truncate. With it, a bullet whose
-        // illustration came FIRST captured an empty item, lost it to
-        // `minItemLength`, and resumed scanning past its own text: the entire line
-        // disappeared. Longbridge puts media last on every page today, so this was
-        // latent, not live — the regression test pins the other ordering.
-        // The `/en/` pages serve English for every user, so the `data-rail-*`
-        // attributes the entry pattern reads are the same in every locale.
-        //
-        // `source` is the releases INDEX, used only when no version is supplied.
-        // It must not be a per-version page: that page parses perfectly, so the
-        // no-version fallback would render one pinned release's notes as if they
-        // described whatever build the user actually has. The index carries no
-        // `release-section`, so it correctly yields nothing and the UI falls
-        // back to the embedded web page — which is the same assumption
-        // `Verify.sweepChangelog` relies on when it skips version-templated
-        // recipes that have no version to resolve.
+        // The English changelog RSS mixes Longbridge Pro and LongbridgeAI.
+        // Read only numeric Pro releases whose item link identifies the same
+        // version. Each description is a short summary; the release article
+        // and its media are outside the feed.
         ChangelogRecipe(
             bundleID: "com.longbridge.app.desktop",
-            source: URL(string: "https://longbridge.com/desktop/release-notes/")!,
+            source: URL(string: "https://longbridge.com/en/changelog/rss.xml")!,
             entryPattern:
-                #"<section id="v[^"]*" class="release-section"[^>]*\bdata-rail-version="(?<version>[0-9]+(?:\.[0-9]+)+)"[^>]*\bdata-rail-date="(?<date>[0-9]{4}-[0-9]{2}-[0-9]{2})"[^>]*>(?:(?!</section>).)*?<div class="prose[^"]*">(?<body>(?:(?!</section>).)*?)</section>"#,
-            itemPatterns: [
-                #"<(?:li|p)\b[^>]*>(?<item>.*?)(?=<video\b|</(?:li|p)>)"#,
-            ],
-            maxEntries: 1,
-            channel: .stable,
-            sourceTemplate: "https://longbridge.com/en/changelog/longbridge-pro/v{majorMinor}",
-            imagePattern: #"<img\b[^>]*\bsrc="(?<image>https://[^"]+)"#),
+                #"<item>\s*<title>Longbridge Pro (?<version>[0-9]+(?:\.[0-9]+){2})\s+·\s+(?<title>[^<]+)</title>\s*"#
+                + #"<link>https://longbridge\.com/en/changelog/longbridge-pro/v[0-9]+\.[0-9]+#v\k<version></link>\s*"#
+                + #"<guid\b[^>]*>[^<]*</guid>\s*"#
+                + #"<description>(?<body>[^<]*)</description>\s*"#
+                + #"<pubDate>[A-Za-z]{3},\s+(?<date>[0-9]{1,2} [A-Za-z]{3} [0-9]{4}) [^<]+</pubDate>\s*</item>"#,
+            itemPatterns: [#"(?<item>.+)"#],
+            channel: .stable),
 
         // Longbridge Desktop Preview — no HTML page to read any more. The vendor's
         // preview release-notes URLs (`/desktop/release-notes/preview/` and

@@ -131,8 +131,10 @@ import Foundation
     /// `inlineCodeWrappedAcrossALineIsUnwrapped`.
     /// 21 (Cork's forum source and Inkscape's current MediaWiki headings) moves
     /// neither fixture: pinned by CorkRecipeTests and InkscapeChangelogRecipeTests.
+    /// 22 (Longbridge Pro's official RSS) moves neither fixture. Pinned by
+    /// `stableReadsVersionedSummariesFromTheOfficialRSS`.
     @Test func pinnedGeneration() {
-        #expect(Changelog.parserGeneration == 21)
+        #expect(Changelog.parserGeneration == 22)
     }
 
     /// Stable (v4.3.6, bulleted): exercises `skipSections` — the `### Included

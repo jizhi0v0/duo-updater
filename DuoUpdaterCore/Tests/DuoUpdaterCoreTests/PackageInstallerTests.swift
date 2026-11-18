@@ -458,6 +458,125 @@ struct PackageInstallerTests {
         #expect(await opened.urls.isEmpty)
     }
 
+    enum PreferredFixture: String, CaseIterable {
+        case matching
+        case wrongMarketing
+        case wrongBuild
+        case missingBuild
+        case wrongBundle
+        case nestedBundle
+        case refusedByPackageGate
+        case directoryMovedDuringVerification
+    }
+
+    private static let preferredIdentity = PackageInstaller.PayloadIdentity(
+        bundleID: "com.example.preferred", marketing: "4.48.0", build: "632")
+
+    private func buildPreferredPackage(
+        _ package: URL, fixture: PreferredFixture = .matching
+    ) async throws {
+        let root = package.deletingLastPathComponent().appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let bundle = fixture == .nestedBundle
+            ? "Applications/Wrapper.app/Contents/Resources/PreferredFixture.app"
+            : "Applications/PreferredFixture.app"
+        let contents = root.appendingPathComponent(bundle).appendingPathComponent("Contents")
+        try FileManager.default.createDirectory(at: contents, withIntermediateDirectories: true)
+        var fields = [
+            "CFBundleIdentifier": fixture == .wrongBundle ? "com.example.other" : "com.example.preferred",
+            "CFBundleShortVersionString": fixture == .wrongMarketing ? "4.47.0" : "4.48.0"
+        ]
+        if fixture != .missingBuild {
+            fields["CFBundleVersion"] = fixture == .wrongBuild ? "631" : "632"
+        }
+        try PropertyListSerialization.data(fromPropertyList: fields, format: .binary, options: 0)
+            .write(to: contents.appendingPathComponent("Info.plist"))
+        let built = try await ChildProcess.run(
+            "/usr/bin/pkgbuild",
+            ["--root", root.path, "--identifier", "com.example.preferred",
+             "--version", "1.0", "--install-location", "/", package.path],
+            onCancel: .runToCompletion)
+        try #require(built.succeeded)
+    }
+
+    @Test(arguments: PreferredFixture.allCases)
+    func preferredPackageMustContainTheExactAppRelease(fixture: PreferredFixture) async throws {
+        let fm = FileManager.default
+        let sources = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try fm.createDirectory(at: sources, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: sources) }
+        let preferred = sources.appendingPathComponent("Preferred.pkg")
+        let original = sources.appendingPathComponent("Original.pkg")
+        try await buildPreferredPackage(preferred, fixture: fixture)
+        try Data("original".utf8).write(to: original)
+
+        let gated = Recorder()
+        let opened = Recorder()
+        let installer = PackageInstaller(
+            opener: { await opened.record($0) },
+            packageGate: { package, _ in
+                await gated.record(package)
+                if fixture == .refusedByPackageGate, package.lastPathComponent == preferred.lastPathComponent {
+                    throw PackageInstaller.PackageError.unsignedPackage
+                }
+                if fixture == .directoryMovedDuringVerification,
+                   package.lastPathComponent == preferred.lastPathComponent {
+                    let directory = package.deletingLastPathComponent()
+                    let moved = directory.deletingLastPathComponent().appendingPathComponent(UUID().uuidString)
+                    try FileManager.default.moveItem(at: directory, to: moved)
+                    try FileManager.default.moveItem(at: moved, to: directory)
+                }
+            })
+        let installedApp = URL(fileURLWithPath: "/Applications/PreferredFixture.app")
+        let outcome = try await installer.downloadAndOpen(
+            url: original, preferredPackage: (preferred, Self.preferredIdentity),
+            installedApp: installedApp, onStage: { _ in })
+        defer { PackageInstaller.discardWorkDirectory(containing: outcome.packageURL) }
+
+        let reusedPreferred = fixture == .matching
+        let expected = reusedPreferred ? preferred.lastPathComponent : original.lastPathComponent
+        #expect(outcome.packageURL.lastPathComponent == expected)
+        #expect(await opened.urls == [outcome.packageURL])
+        let attempts = await gated.urls
+        let approvals = [expected, expected]
+        #expect(attempts.map(\.lastPathComponent) == (reusedPreferred ? approvals : ["Preferred.pkg"] + approvals))
+        if reusedPreferred {
+            let fingerprint = try #require(outcome.stagedFingerprint)
+            // An interactive reopen must stay pinned to the package whose payload
+            // was checked, even when its substitute passes the ordinary gate.
+            try Data("replacement".utf8).write(to: outcome.packageURL, options: .atomic)
+            await #expect(throws: PackageInstaller.PackageError.self) {
+                try await installer.reopen(
+                    package: outcome.packageURL, installedApp: installedApp, expectedFingerprint: fingerprint)
+            }
+            #expect(await opened.urls == [outcome.packageURL])
+        } else {
+            #expect(outcome.stagedFingerprint == nil)
+            let rejected = try #require(attempts.first)
+            #expect(!fm.fileExists(atPath: rejected.deletingLastPathComponent().path))
+        }
+    }
+
+    @Test func missingPreferredPackageDownloadsTheOriginal() async throws {
+        let fm = FileManager.default
+        let directory = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try fm.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: directory) }
+        let original = directory.appendingPathComponent("Original.pkg")
+        try Data("original".utf8).write(to: original)
+
+        let opened = Recorder()
+        let installer = PackageInstaller(
+            opener: { await opened.record($0) }, packageGate: { _, _ in })
+        let outcome = try await installer.downloadAndOpen(
+            url: original, preferredPackage: (directory.appendingPathComponent("Missing.pkg"), Self.preferredIdentity),
+            installedApp: URL(fileURLWithPath: "/Applications/PreferredFixture.app"),
+            onStage: { _ in })
+        defer { PackageInstaller.discardWorkDirectory(containing: outcome.packageURL) }
+        #expect(outcome.packageURL.lastPathComponent == original.lastPathComponent)
+        #expect(await opened.urls == [outcome.packageURL])
+    }
+
     @Test func replacementDuringBeforeOpenFailsTheFinalGate() async throws {
         let fm = FileManager.default
         let source = fm.temporaryDirectory

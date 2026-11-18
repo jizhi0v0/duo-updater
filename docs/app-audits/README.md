@@ -520,7 +520,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [ ] [**Microsoft Outlook**](com-microsoft-Outlook.md) · `com.microsoft.Outlook` — 仅迁出历史：一键修复经过与 MAU 各 payload 的测量、changelog recipe 接入实测
 - [ ] [**VS Code**](com-microsoft-VSCode.md) · `com.microsoft.VSCode` — 仅迁出历史：release 页加 blockquote 导致的回退
 - [ ] [**MongoDB Compass**](com-mongodb-compass.md) · `com.mongodb.compass` — 仅迁出历史：download-center JSON 与挂载 dmg 的核对；changelog 选 docs 页的取证
-- [ ] [**UURemote（网易UU远程）**](com-netease-uuremote.md) · `com.netease.uuremote` — 仅迁出历史：一键 pkg 的签名核对、changelog 页的排查
+- [ ] [**UURemote（网易UU远程）**](com-netease-uuremote.md) · `com.netease.uuremote` — 官网灰度回退记录、本机同版本缓存及 PKG 安装验证
 - [ ] [**ChatGPT（原 Codex 桌面端）**](com-openai-codex.md) · `com.openai.codex` — 仅迁出历史：静态 feed 与灰度端点不一致、`plan_type` 两条轨的测量
 - [ ] [**Opera**](com-operasoftware-Opera.md) · `com.operasoftware.Opera` — 仅迁出历史：挂载 dmg 的版本方案核对、group D「只检测」说法的更正
 - [ ] [**AweSun**](com-oray-sunlogin-macclient.md) · `com.oray.sunlogin.macclient` — 仅迁出历史：changelog 接口「50 bytes」的复查

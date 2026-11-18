@@ -74,6 +74,8 @@ public actor InstallCoordinator {
         /// finish, so the caller offers "Install" (re-open this exact file)
         /// rather than downloading it again.
         public let stagedPackageURL: URL?
+        /// The approved bytes of a preferred package staged for interactive install.
+        public let stagedPackageFingerprint: Data?
         /// Whether installation completed. False for an interactive package
         /// handoff; true after the host's package executor completes.
         public let applied: Bool
@@ -91,12 +93,14 @@ public actor InstallCoordinator {
             finalHost: String?,
             stagedPackageURL: URL?,
             applied: Bool,
+            stagedPackageFingerprint: Data? = nil,
             usedDelta: Bool = false,
             agentsNotRestarted: [String] = []
         ) {
             self.bytesDownloaded = bytesDownloaded
             self.finalHost = finalHost
             self.stagedPackageURL = stagedPackageURL
+            self.stagedPackageFingerprint = stagedPackageFingerprint
             self.applied = applied
             self.usedDelta = usedDelta
             self.agentsNotRestarted = agentsNotRestarted
@@ -629,6 +633,8 @@ public actor InstallCoordinator {
                 try Task.checkCancellation()
                 return try await packages.downloadAndOpen(
                     url: result.remote?.downloadURL,
+                    preferredPackage: UURemotePackageCache().preferredPackage(
+                        for: result.app, remote: result.remote),
                     installedApp: result.app.path,
                     headers: result.remote?.downloadHeaders ?? [:],
                     onStage: progress,
@@ -639,7 +645,8 @@ public actor InstallCoordinator {
             await releaseAfterDownload()
             return Outcome(
                 bytesDownloaded: opened.bytesDownloaded, finalHost: opened.finalHost,
-                stagedPackageURL: opened.applied ? nil : opened.packageURL, applied: opened.applied)
+                stagedPackageURL: opened.applied ? nil : opened.packageURL, applied: opened.applied,
+                stagedPackageFingerprint: opened.stagedFingerprint)
 
         case .homebrew:
             guard let token = result.remote?.sourceIdentifier else {
@@ -797,6 +804,7 @@ public actor InstallCoordinator {
             finalHost: outcome.finalHost,
             stagedPackageURL: outcome.stagedPackageURL,
             applied: outcome.applied,
+            stagedPackageFingerprint: outcome.stagedPackageFingerprint,
             usedDelta: outcome.usedDelta,
             agentsNotRestarted: outcome.agentsNotRestarted)
     }

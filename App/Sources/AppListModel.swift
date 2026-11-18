@@ -6109,7 +6109,8 @@ final class AppListModel {
                     // announced "2 apps were updated" with both Installer windows
                     // still open and neither bundle replaced. It is not a failure
                     // either — the row carries no error and keeps the staged package.
-                    recordStagedPackage(result, packageURL: packageURL)
+                    recordStagedPackage(
+                        result, packageURL: packageURL, fingerprint: outcome.stagedPackageFingerprint)
                     installing[id] = nil
                     return .handedOffToSystemInstaller
                 }
@@ -7033,6 +7034,7 @@ final class AppListModel {
         /// that into `marketing` would compare two different namespaces.
         let versionSide: VersionSide
         let url: URL
+        let fingerprint: Data?
         /// When the package was handed to macOS's installer. Used to tell a copy
         /// running the OLD code (launched before this) from one the vendor's own
         /// installer relaunched afterwards — see `PackageRestartState`.
@@ -7066,22 +7068,30 @@ final class AppListModel {
             } else {
                 marketing = version
             }
+            let fingerprint: Data?
+            if let stored = fields[Preferences.stagedPackageFingerprintField] {
+                guard let decoded = Data(base64Encoded: stored), decoded.count == SHA256.Digest.byteCount
+                else { continue }
+                fingerprint = decoded
+            } else {
+                fingerprint = nil
+            }
             restored[id] = StagedPackage(
                 version: version,
                 versionSide: VersionSide(
                     marketing: marketing,
                     build: fields[Preferences.stagedPackageBuildField]),
-                url: URL(fileURLWithPath: path), stagedAt: stagedAt)
+                url: URL(fileURLWithPath: path), fingerprint: fingerprint, stagedAt: stagedAt)
         }
         stagedPackages = restored
         persistStagedPackages()
     }
 
-    private func recordStagedPackage(_ result: UpdateResult, packageURL: URL) {
+    private func recordStagedPackage(_ result: UpdateResult, packageURL: URL, fingerprint: Data?) {
         guard let remote = result.remote, let version = remote.displayVersion else { return }
         stagedPackages[result.id] = StagedPackage(
             version: version, versionSide: remote.versionSide,
-            url: packageURL, stagedAt: Date())
+            url: packageURL, fingerprint: fingerprint, stagedAt: Date())
         persistStagedPackages()
         Log.install.info("package staged: \(result.app.name, privacy: .public) \(version, privacy: .public) → \(packageURL.lastPathComponent, privacy: .public)")
     }
@@ -7218,7 +7228,7 @@ final class AppListModel {
 
     private func persistStagedPackages() {
         prefs.setStagedPackages(stagedPackages.mapValues {
-            [
+            var fields = [
                 Preferences.stagedPackageVersionField: $0.version,
                 Preferences.stagedPackagePathField: $0.url.path,
                 Preferences.stagedPackageStagedAtField:
@@ -7227,9 +7237,10 @@ final class AppListModel {
                 // marketing version (empty) from a legacy entry (missing).
                 Preferences.stagedPackageMarketingField:
                     $0.versionSide.marketing ?? "",
-            ].merging($0.versionSide.build.map {
-                [Preferences.stagedPackageBuildField: $0]
-            } ?? [:], uniquingKeysWith: { a, _ in a })
+            ]
+            fields[Preferences.stagedPackageBuildField] = $0.versionSide.build
+            fields[Preferences.stagedPackageFingerprintField] = $0.fingerprint?.base64EncodedString()
+            return fields
         })
     }
 
@@ -7319,7 +7330,7 @@ final class AppListModel {
         installErrors[result.id] = nil
         do {
             try await packageInstaller.reopen(
-                package: staged.url, installedApp: result.app.path)
+                package: staged.url, installedApp: result.app.path, expectedFingerprint: staged.fingerprint)
             let note = String(localized: "Opened the installer for \(result.app.name) \(staged.version) — finish it there.")
             installNotes[result.id] = note
             inFlightNotes[result.id] = note

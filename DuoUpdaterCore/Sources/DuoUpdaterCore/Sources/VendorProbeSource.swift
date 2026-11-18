@@ -568,14 +568,18 @@ public struct VendorProbeSource: UpdateSource {
     /// `displayVersionPattern`, `publishedAtPattern`, and the install spec's
     /// `.bodyPattern`-family URL) should actually run against: the winning
     /// entry when `entryStartPattern` slices the body and a version-pattern
-    /// match picks one (see `VendorProbeRecipe.highestVersionEntry`), otherwise
-    /// `body` verbatim — today's behaviour for every recipe that doesn't set
-    /// `entryStartPattern`, and the fallback when slicing produces no winner.
+    /// match picks one (see `VendorProbeRecipe.highestVersionEntry`), or the
+    /// top-level release in Longbridge's manifest. Ordinary body recipes and
+    /// unsuccessful regex slicing use `body` verbatim.
     ///
     /// The single choke point every reader of the fetched body goes through,
     /// so a recipe with `entryStartPattern` set can't have one reader (say, a
     /// future addition) forget to scope while the others do.
     private static func scopedBody(_ recipe: VendorProbeRecipe, _ body: String) -> Scope {
+        if case .longbridgeManifest = recipe.mode {
+            let release = com_longbridge_app_desktop.releaseBody(from: body, channel: recipe.channel)
+            return Scope(text: release ?? "", fellBack: false)
+        }
         guard let pattern = recipe.entryStartPattern else {
             return Scope(text: body, fellBack: false)
         }
@@ -689,10 +693,6 @@ public struct VendorProbeSource: UpdateSource {
         // pre-#76 whole-body semantics for exactly the recipes this fix changed
         // (`Triage.swift` validates a proposed pattern with
         // `VendorProbeRecipe.extractVersion(from: finding.bodySample, ...)`).
-        // Safe on the failure path below too: whenever extraction fails, `scope`
-        // is already `body.text` by construction — `highestVersionEntry` only
-        // ever returns a winner it already confirmed `versionPattern` matches,
-        // so a scoped `scope` can't reach the miss branch.
         let sample = ProbeOutcome.sample(scope)
 
         // Default to the first match (the app's own field, which structured
@@ -1252,7 +1252,7 @@ public struct VendorProbeSource: UpdateSource {
                     status: http.statusCode))
             }
 
-        case .responseBody:
+        case .responseBody, .longbridgeManifest:
             return await fetchResponseBody(recipe, endpoint: endpoint)
 
         case .versionedDirectory(let pattern):

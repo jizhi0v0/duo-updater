@@ -138,13 +138,13 @@ extension VendorProbeRecipe: Codable {
 
 extension VendorProbeRecipe.Mode: Codable {
     enum CodingKind: String, CaseIterable {
-        case redirectFilename, responseBody, versionedDirectory, zipEntryPlist, redirectArchiveInfoPlist
+        case redirectFilename, responseBody, longbridgeManifest, versionedDirectory, zipEntryPlist, redirectArchiveInfoPlist
     }
 
     public init(from decoder: Decoder) throws {
         let (kind, c) = try RecipeCoding.taggedObject(CodingKind.self, in: decoder) {
             switch $0 {
-            case .redirectFilename, .responseBody: return []
+            case .redirectFilename, .responseBody, .longbridgeManifest: return []
             case .versionedDirectory: return ["linkPattern"]
             case .zipEntryPlist: return ["entry", "key"]
             case .redirectArchiveInfoPlist: return ["entry"]
@@ -153,6 +153,7 @@ extension VendorProbeRecipe.Mode: Codable {
         switch kind {
         case .redirectFilename: self = .redirectFilename
         case .responseBody: self = .responseBody
+        case .longbridgeManifest: self = .longbridgeManifest
         case .versionedDirectory:
             self = .versionedDirectory(linkPattern: try c.decode(String.self, forKey: .init("linkPattern")))
         case .zipEntryPlist:
@@ -172,6 +173,8 @@ extension VendorProbeRecipe.Mode: Codable {
             try c.encode(CodingKind.redirectFilename.rawValue, forKey: .init("kind"))
         case .responseBody:
             try c.encode(CodingKind.responseBody.rawValue, forKey: .init("kind"))
+        case .longbridgeManifest:
+            try c.encode(CodingKind.longbridgeManifest.rawValue, forKey: .init("kind"))
         case .versionedDirectory(let pattern):
             try c.encode(CodingKind.versionedDirectory.rawValue, forKey: .init("kind"))
             try c.encode(pattern, forKey: .init("linkPattern"))

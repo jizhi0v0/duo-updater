@@ -268,6 +268,9 @@ public struct VendorProbeRecipe: Sendable {
         /// `url` is a small text/JSON endpoint whose body contains the version;
         /// we GET it and apply `versionPattern` to the response text.
         case responseBody
+        /// GET Longbridge's manifest and scope the patterns to the top-level
+        /// release before resolving its version, date, and installer.
+        case longbridgeManifest
         /// GET a release index, then GET its highest versioned child directory.
         /// `linkPattern` captures a single directory component (including `/`)
         /// and its numeric version in groups 1 and 2. Only an immediate child of

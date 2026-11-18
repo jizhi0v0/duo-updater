@@ -40,12 +40,27 @@ enum ClaudeDesktopChannel {
             channel: preference == "latest" && supportsPicker && !isManaged ? .latest : .stable)
     }
 
-    private static func hasManagedPreferences() -> Bool {
-        let root = URL(fileURLWithPath: "/Library/Managed Preferences", isDirectory: true)
-        let domains = [bundleID, "com.anthropic.claudecode"]
-        return [root, root.appendingPathComponent(NSUserName(), isDirectory: true)].contains { directory in
-            domains.contains { domain in
-                FileManager.default.fileExists(atPath: directory.appendingPathComponent(domain + ".plist").path)
+    static func hasManagedPreferences(
+        in root: URL = URL(fileURLWithPath: "/Library/Managed Preferences", isDirectory: true),
+        user: String = NSUserName()
+    ) -> Bool {
+        let userDirectory = root.appendingPathComponent(user, isDirectory: true)
+        return [root, userDirectory].contains { directory in
+            let plist = directory.appendingPathComponent(bundleID + ".plist")
+            let data: Data
+            do {
+                data = try Data(contentsOf: plist)
+            } catch let error as CocoaError {
+                // Claude disables Latest when a Desktop policy cannot be read.
+                return error.code != .fileReadNoSuchFile && error.code != .fileNoSuchFile
+            } catch {
+                return true
+            }
+            guard let values = try? PropertyListSerialization.propertyList(
+                from: data, format: nil) as? [String: Any]
+            else { return true }
+            return values.contains { key, value in
+                key != "deploymentMode" || value as? String != "any"
             }
         }
     }

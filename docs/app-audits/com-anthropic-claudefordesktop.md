@@ -12,7 +12,7 @@ Stable 和 Latest 共用 bundle ID 和纯数字版本。用户在 Claude 的 Set
   缺少设备 ID 时使用公开 GA。官网 URL 中的 `/latest/redirect` 指当前公开版本。
 - **Latest** 读取 `~/Library/Application Support/Claude/claude_desktop_config.json` 中
   `preferences.releaseChannel`，兼容旧键 `ancientJournal`。早于 4.29.0 的副本、默认配置以及
-  检测到本地受管理偏好时使用 Stable。用户修改偏好后，下次扫描或 Claude 启停时重新读取。
+  检测到 Desktop 自己的本地管理偏好时使用 Stable。用户修改偏好后，下次扫描或 Claude 启停时重新读取。
 - **Latest 版本源** 使用 Squirrel API 的 Latest 渠道 UUID、Claude 写入的 `ant-did` 和本机 macOS 版本。
   只接受 `releases-latest` 下与 `currentRelease` 一致的 ZIP。设备 ID 缺失时该 recipe 跳过。
 - **Homebrew** 的 `claude` cask 跟随公开版本。选择 Latest 后，自更新 cask 副本优先走 Latest
@@ -22,6 +22,7 @@ Stable 和 Latest 共用 bundle ID 和纯数字版本。用户在 Claude 的 Set
   [Claude Desktop 变更日志](https://claude.com/docs/cowork/changelog)
 
 自定义 `CLAUDE_USER_DATA_DIR` 和服务端下发的企业或灰度策略尚未覆盖。
+非空或无法读取的 Desktop 管理文件按受管理处理，未逐项复刻厂商随版本变化的 MDM 键名表。
 
 ## 夜扫覆盖
 
@@ -32,7 +33,7 @@ Stable 和 Latest 共用 bundle ID 和纯数字版本。用户在 Claude 的 Set
 - `duo verify --only com.anthropic.claudefordesktop` 实测三条版本源与共享的变更日志均通过。
   两条 Squirrel 路径需要扫描用户的 Claude `ant-did`，缺少设备 ID 的运行器只能覆盖 Stable GA。
 - `duo verify-install --only vendor:com.anthropic.claudefordesktop:latest` 通过，验证了
-  `6.6695.0` 的 399,150,694 字节 ZIP、bundle ID、Team ID 和通用架构。实际替换安装仍待验证。
+  `6.6695.0` 的 399,150,694 字节 ZIP、bundle ID、Team ID 和通用架构。
 
 ## 历史与实测
 
@@ -40,6 +41,7 @@ Stable 和 Latest 共用 bundle ID 和纯数字版本。用户在 Claude 的 Set
 
 - 检查了已安装的 `5.11492.5`。其 `app.asar` 从 `claude_desktop_config.json` 解析渠道，
   Latest 请求附带 `channelUuid=77a14fc4-808e-4345-ac3e-090be671bf94`。
+  解包的 Latest `6.6695.0` 也包含同一渠道 UUID。
 - 用本机设备 ID 和 macOS 27.3 查询时，公开跳转与 Stable Squirrel 均返回 `5.11492.5`。
   Latest Squirrel 返回 `6.6695.0` 及独立 CDN 路径、发布时间和 SHA-256。只发设备 ID 时
   Stable 回答 `1.46388.4`，Latest 回答 404。加上 macOS 版本后，省略客户端版本或传入
@@ -48,6 +50,8 @@ Stable 和 Latest 共用 bundle ID 和纯数字版本。用户在 Claude 的 Set
   ZIP 的 SHA-256、`codesign --verify --deep --strict` 和 Gatekeeper 公证检查均通过。
 - `channel-verify` 用隔离偏好和真实 bundle 跑过完整检测链路。Stable `5.11492.5` 显示已最新，
   切换到 Latest 后同一副本收到 `6.6695.0`。用该版本的解包副本切回 Stable，结果为已最新。
+- 在 Apple Silicon macOS 27.3 上，用 `VendorInstaller.download` 和 `apply` 将隔离副本从
+  `5.11492.5` 更新到 `6.6695.0`。下载摘要、解包、签名验证和替换阶段均通过，磁盘版本与目标一致。
 
 以下记录于 2026-09-14 从 recipe 注释迁出，正文保留原样。
 

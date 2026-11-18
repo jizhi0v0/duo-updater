@@ -156,6 +156,30 @@ import Testing
         #expect(ClaudeDesktopChannel.resolve(preference: "latest", installedVersion: "4.29.0").channel == .latest)
     }
 
+    @Test func onlyDesktopPoliciesAffectTheChannel() throws {
+        let fm = FileManager.default
+        let root = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let user = root.appendingPathComponent("test-user", isDirectory: true)
+        try fm.createDirectory(at: user, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: root) }
+        let activePolicy = try PropertyListSerialization.data(
+            fromPropertyList: ["disableAutoUpdates": true], format: .xml, options: 0)
+        let noOp = try PropertyListSerialization.data(
+            fromPropertyList: ["deploymentMode": "any"], format: .xml, options: 0)
+        try activePolicy.write(to: root.appendingPathComponent("com.anthropic.claudecode.plist"))
+        #expect(!ClaudeDesktopChannel.hasManagedPreferences(in: root, user: "test-user"))
+
+        let devicePolicy = root.appendingPathComponent("com.anthropic.claudefordesktop.plist")
+        let userPolicy = user.appendingPathComponent("com.anthropic.claudefordesktop.plist")
+        try noOp.write(to: devicePolicy)
+        #expect(!ClaudeDesktopChannel.hasManagedPreferences(in: root, user: "test-user"))
+        try activePolicy.write(to: userPolicy)
+        #expect(ClaudeDesktopChannel.hasManagedPreferences(in: root, user: "test-user"))
+        try fm.removeItem(at: userPolicy)
+        try Data("unreadable policy".utf8).write(to: devicePolicy)
+        #expect(ClaudeDesktopChannel.hasManagedPreferences(in: root, user: "test-user"))
+    }
+
     @Test func latestReadsThePublishedVersionDateAndZIPDigest() throws {
         let latest = try #require(recipes.first { $0.channel == .latest })
         let response = """

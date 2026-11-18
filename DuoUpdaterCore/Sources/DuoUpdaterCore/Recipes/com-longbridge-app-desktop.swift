@@ -169,7 +169,7 @@ enum com_longbridge_app_desktop {
                   url.dropFirst(assetPrefix.count).range(of: suffixPattern, options: .regularExpression) != nil
             else { return nil }
             var selected = ["url": url]
-            selected["sha256"] = fields["sha256"] as? String
+            selected["sha256"] = (fields["sha256"] as? String)?.lowercased()
             return selected
         }.first
         var release: [String: Any] = ["version": version, "assets": asset.map { [$0] } ?? []]

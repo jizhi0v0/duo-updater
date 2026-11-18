@@ -262,8 +262,14 @@ private let longbridgeIndexPage = #"""
         let gray = try #require(manifest.removeValue(forKey: "gray") as? [String: Any])
         manifest["version"] = gray["version"]
         manifest["published_at"] = "2026-11-18T06:07:09Z"
-        manifest["assets"] = try #require(manifest["assets"] as? [[String: String]])
-            + #require(gray["assets"] as? [[String: String]])
+        let promotedAssets = try #require(gray["assets"] as? [[String: String]])
+        let olderAssets = try #require(manifest["assets"] as? [[String: String]])
+        // The vendor's hex digest may be written in either case.
+        manifest["assets"] = olderAssets + promotedAssets.map { asset in
+            var asset = asset
+            asset["sha256"] = asset["sha256"]?.uppercased()
+            return asset
+        }
         let body = String(decoding: try JSONSerialization.data(withJSONObject: manifest), as: UTF8.self)
         let outcome = try await Self.probe(.stable, body: body)
         let remote = try #require(outcome.remote)

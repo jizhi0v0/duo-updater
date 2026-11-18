@@ -46,12 +46,14 @@ Store 搜索没有 Longbridge Desktop。公开 stable 分发由厂商自己的 r
 - preview（`55721c0e`，2026-08-26 接入）: 独立 recipe，端点 `…/longbridge-desktop/preview/latest.json`，版本 pattern 要求 `-preview.N` 后缀；两条轨的 pattern 互不匹配，跨轨解析 fail-closed。
 
 ## Changelog
-- 来源（stable）: 英文版本页 `longbridge.com/en/changelog/longbridge-pro/v{major.minor}`。官网一页对应一条小版本线（如 `…/v0.19` 同页含 0.19.1 与 0.19.0），每版是一个 `release-section`。不带 `v` 的 `…/0.19` 是 meta-refresh 跳转壳（见「历史与实测」2026-10-19）。
-- 来源（preview）: 官网已没有 preview 版本页（见「历史与实测」2026-10-14）。唯一仍发布 preview 说明的是 `…/longbridge-desktop/preview/latest.json` 的 `release_notes.en`。
-- 状态（stable）: `ChangelogRecipe`，正则取该页第一个 `release-section`（`data-rail-version` / `data-rail-date`），条目取 `div.prose` 里的 `<li>`/`<p>`；`<video>` 截断条目，`imagePattern` 收图。
-- 状态（preview）: `StructuredFormat.longbridgeDesktopManifest`，读 JSON 字符串 `release_notes.en`，每个 `- ` 行一条，去掉 `**` 与 `###` 标题。清单只含最新一版，所以无论请求哪个版本，条目都是这一版（条目上标的是它自己的版本号）。
-- 网页兜底（stable）: `https://longbridge.com/desktop/release-notes/`（仍 200，跳到 Pro 产品列表）。preview 没有专属兜底页，`changelogURL` 同样跳到 Pro 产品列表。
-- 限制: stable 的 `maxEntries: 1`，按装机版本的那条小版本线取最新一版；preview 只有最新一版的说明，没有历史。
+- Stable 使用官方英文 RSS `https://longbridge.com/en/changelog/rss.xml`。同一份 RSS 混发
+  Longbridge Pro 和 LongbridgeAI。规则只接收标题和链接均指向同一正式版的 Pro 条目，
+  从 `pubDate` 取日期，`description` 渲染为摘要。
+- Stable RSS 只提供最近条目的短摘要。完整正文和媒体由官网文章提供。网页兜底仍是
+  `https://longbridge.com/desktop/release-notes/`（跳到 Pro 产品列表）。
+- Preview 使用独立的 `…/longbridge-desktop/preview/latest.json`。现有
+  `StructuredFormat.longbridgeDesktopManifest` 读取最新 Preview 的 `release_notes.en`，
+  无历史。旧 Preview 说明索引同样跳到 Pro 产品列表。
 
 ## 一键安装
 - 状态: ✓（Apple Silicon）。
@@ -101,6 +103,14 @@ Longbridge 归到 `native`。见 `AppRuntimeDetector`。
 
 
 ## 历史与实测
+
+### Recipes/com-longbridge-app-desktop.swift — Stable 更新说明改用 RSS（2026-11-18）
+
+英文、简体中文和繁体中文 RSS 均返回 50 条，其中 37 条是 Pro，13 条是 LongbridgeAI。
+两种产品各有一条 `1.2.0`。英文 RSS 的 Pro `1.2.0` 排在首位，发布日期为 11 月 18 日，
+摘要涵盖社区、消息中心、自选股导入导出和相关 ETF。RSS 没有 Preview 条目，
+Preview 仍读取自己的发布清单。夜扫沿用 `changelog:com.longbridge.app.desktop:stable`
+和 `changelog:com.longbridge.app.desktop.preview:preview`。
 
 ### Recipes/com-longbridge-app-desktop.swift — 灰度候选与正式版共用清单（2026-11-18）
 

@@ -292,12 +292,33 @@ private let longbridgeIndexPage = #"""
         #expect(missingAsset.warnings.contains(.installURLUnresolved))
     }
 
+    @Test func ineligibleURLsCannotHideTheSelectedAssetsDigest() async throws {
+        var manifest = try #require(JSONSerialization.jsonObject(
+            with: Data(longbridgeRolloutManifest.utf8)) as? [String: Any])
+        let assets = try #require(manifest["assets"] as? [[String: String]])
+        let base = "https://assets.lbkrs.com/github/release/longbridge-desktop"
+        let filename = "longbridge-v1.1.2-g1234-macos-aarch64.dmg"
+        let invalid = [
+            ["url": "https://other.example/stable/\(filename)", "sha256": String(repeating: "a", count: 64)],
+            ["url": "\(base)/preview/\(filename)", "sha256": String(repeating: "b", count: 64)],
+            ["url": "\(base)/stable/\(filename)?variant=other", "sha256": String(repeating: "c", count: 64)],
+        ]
+        manifest["assets"] = invalid + assets
+        let body = String(decoding: try JSONSerialization.data(withJSONObject: manifest), as: UTF8.self)
+        let outcome = try await Self.probe(.stable, body: body)
+        let remote = try #require(outcome.remote)
+        #expect(remote.downloadURL?.absoluteString == assets.first?["url"])
+        #expect(remote.expectedSHA256 == assets.first?["sha256"])
+        #expect(remote.expectedSHA256 != nil)
+        #expect(outcome.warnings.isEmpty)
+    }
+
     @Test func previewStillResolvesItsOwnHashedDMG() async throws {
         let outcome = try await Self.probe(.preview, body: longbridgePreviewManifestWithBuildHash)
         let remote = try #require(outcome.remote)
         #expect(remote.shortVersion == "1.2.0-preview.0")
         #expect(remote.downloadURL?.lastPathComponent == "longbridge-v1.2.0-preview.0-g86ccd38-macos-aarch64.dmg")
-        #expect(remote.expectedSHA256 != nil)
+        #expect(remote.expectedSHA256 == "ff841bd9847ea824511ecb4b50fc1d4dc2ab65283c030f14b9495c1586048225")
         #expect(outcome.warnings.isEmpty)
     }
 

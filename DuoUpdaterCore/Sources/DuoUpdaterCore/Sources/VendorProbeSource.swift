@@ -577,7 +577,8 @@ public struct VendorProbeSource: UpdateSource {
     /// future addition) forget to scope while the others do.
     private static func scopedBody(_ recipe: VendorProbeRecipe, _ body: String) -> Scope {
         if case .longbridgeManifest = recipe.mode {
-            return Scope(text: com_longbridge_app_desktop.releaseBody(from: body) ?? "", fellBack: false)
+            let release = com_longbridge_app_desktop.releaseBody(from: body, channel: recipe.channel)
+            return Scope(text: release ?? "", fellBack: false)
         }
         guard let pattern = recipe.entryStartPattern else {
             return Scope(text: body, fellBack: false)

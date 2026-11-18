@@ -154,22 +154,25 @@ enum com_longbridge_app_desktop {
         "com.longbridge.app.desktop": URL(string: "https://longbridge.com/desktop/release-notes/")!,
         ])
 
-    /// Keep only fields from the top-level release and assets whose filenames
-    /// name that version. The probe's existing patterns check the channel,
-    /// architecture, and digest against this scoped body.
-    static func releaseBody(from body: String) -> String? {
+    /// Scope resolution to the top-level release and its first eligible ARM
+    /// asset. Project that one object so URL and digest extraction share it.
+    static func releaseBody(from body: String, channel: ReleaseChannel) -> String? {
         guard let manifest = try? JSONSerialization.jsonObject(with: Data(body.utf8)) as? [String: Any],
               let version = manifest["version"] as? String else { return nil }
 
-        let assetPath = "/longbridge-v\(version)-"
-        let assets = (manifest["assets"] as? [Any] ?? []).compactMap { entry -> [String: String]? in
-            guard let asset = entry as? [String: Any], let url = asset["url"] as? String,
-                  url.contains(assetPath) else { return nil }
-            var fields = ["url": url]
-            fields["sha256"] = asset["sha256"] as? String
-            return fields
-        }
-        var release: [String: Any] = ["version": version, "assets": assets]
+        let assetPrefix = "https://assets.lbkrs.com/github/release/longbridge-desktop/"
+            + "\(channel.rawValue)/longbridge-v\(version)"
+        let suffixPattern = #"\A(?:-g[0-9a-f]+)?-macos-aarch64\.dmg\z"#
+        let asset = (manifest["assets"] as? [Any] ?? []).lazy.compactMap { entry -> [String: String]? in
+            guard let fields = entry as? [String: Any], let url = fields["url"] as? String,
+                  url.hasPrefix(assetPrefix),
+                  url.dropFirst(assetPrefix.count).range(of: suffixPattern, options: .regularExpression) != nil
+            else { return nil }
+            var selected = ["url": url]
+            selected["sha256"] = fields["sha256"] as? String
+            return selected
+        }.first
+        var release: [String: Any] = ["version": version, "assets": asset.map { [$0] } ?? []]
         release["published_at"] = manifest["published_at"] as? String
         guard let data = try? JSONSerialization.data(
             withJSONObject: release, options: [.sortedKeys, .withoutEscapingSlashes]) else { return nil }

@@ -2,6 +2,16 @@
 
 Bu, `CHANGELOG.md` dosyasının Türkçe çevirisidir. Geçerli olan İngilizce sürümdür; burada yer almayan eski sürümler otomatik olarak İngilizce gösterilir.
 
+## 0.5.26-beta.2
+
+**Çalışma alanında arama, kaydırmadan sonra da uygulama ve komut satırı aracı sonuçlarını gösterir.**
+
+**Olaylar, otomatik güncellemelerin neden bekletildiğini gösterir.** Etkin bekletmeler, etkinlik geçmişini temizlediğinizde de görünür kalır.
+
+**Claude Desktop, Stable veya Latest ayarını izler.** Longbridge aşamalı güncellemeleri daha güvenilir işler ve Longbridge Pro resmi akıştaki sürüm notlarını gösterir.
+
+**App Store güncellemeleri, yardımcı uygulama onaylandıktan sonra daha güvenilir biçimde devam eder.** UU Remote, herkese açık sürümle eşleştiği doğrulanan önbellekteki yükleyiciyi yeniden kullanabilir.
+
 ## 0.5.26-beta.1
 
 **0.5.25 düzeltmelerini ve Beta özelliklerinin tamamını içerir.**

@@ -40,7 +40,8 @@ Store 搜索没有 Longbridge Desktop。公开 stable 分发由厂商自己的 r
 - 端点: `https://assets.lbkrs.com/github/release/longbridge-desktop/stable/latest.json`。
 - 版本字段: 顶层 `version`，与实包 `CFBundleShortVersionString` 完全一致；不使用时间戳式
   `CFBundleVersion`。
-- 发布时间: 顶层 `published_at`，写入 Release Log。
+- 发布时间: 顶层 `published_at`，写入 Release Log。灰度候选属于独立的 `gray` 对象，
+  DuoUpdater 等版本进入顶层正式发布后再提供更新。
 - 生产验证: mounted stable DMG `0.19.1 → 0.19.1`，stable / up-to-date。
 - preview（`55721c0e`，2026-08-26 接入）: 独立 recipe，端点 `…/longbridge-desktop/preview/latest.json`，版本 pattern 要求 `-preview.N` 后缀；两条轨的 pattern 互不匹配，跨轨解析 fail-closed。
 
@@ -54,7 +55,8 @@ Store 搜索没有 Longbridge Desktop。公开 stable 分发由厂商自己的 r
 
 ## 一键安装
 - 状态: ✓（Apple Silicon）。
-- 格式: 自包含 DMG；manifest 精确选择 `macos-aarch64.dmg`。
+- 格式: 自包含 DMG。只从顶层 `assets` 选与顶层版本一致的 `macos-aarch64.dmg`，
+  stable 和 preview 的文件名都允许可选的构建哈希后缀。
 - 安全: 官方 JSON 的 SHA-256 与下载字节一致；应用代码签名有效，Team
   `45NG8MW7WK`，Gatekeeper 判定 `Notarized Developer ID`。
 - 校验: 2026-10-07 起 stable 与 preview 都接上 manifest 里同一资产的 `sha256`（`checksumFormat: .sha256Hex`，#1016），
@@ -99,6 +101,21 @@ Longbridge 归到 `native`。见 `AppRuntimeDetector`。
 
 
 ## 历史与实测
+
+### Recipes/com-longbridge-app-desktop.swift — 灰度候选与正式版共用清单（2026-11-18）
+
+同一次匿名 GET 在顶层给出 `1.1.2`，同时在排在前面的 `gray` 对象给出
+`1.2.0` 和 `device_ratio: "1/10"`。旧规则先读到灰度版本，安装 URL 的规则
+又跳过带 `-g7595e75` 的灰度包，结果实际下载了 `1.1.2`。14:07 CST
+后 `1.2.0` 进入顶层正式版，正式包也使用带哈希的文件名
+`longbridge-v1.2.0-g7595e75-macos-aarch64.dmg`。版本、发布时间和资产现在从同一份
+顶层数据读取，摘要取自选中的资产。
+
+夜扫沿用 `vendor:com.longbridge.app.desktop:stable` 和
+`vendor:com.longbridge.app.desktop.preview:preview`，两者均有安装包基线和签名锚。
+修复后的 `duo verify --only longbridge` 两条版本探测通过。Stable 网页更新说明另有跳转，
+校验返回 `noEntriesExtracted`。`duo verify-install --only longbridge` 下载并核验
+Stable `1.2.0` 和 Preview `1.2.0-preview.1`，两份均通过，Team ID 都是 `45NG8MW7WK`。
 
 ### Recipes/com-longbridge-app-desktop.swift — preview 文件名带构建 git hash（2026-11-10 实测，#1930）
 

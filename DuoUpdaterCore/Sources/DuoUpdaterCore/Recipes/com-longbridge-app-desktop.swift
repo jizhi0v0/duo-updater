@@ -12,34 +12,25 @@ enum com_longbridge_app_desktop {
         // app's CFBundleShortVersionString exactly (e.g. 0.19.1); CFBundleVersion is
         // a timestamp-like build (e.g. 20260820.080114) and must not be compared.
         //
-        // The response carries both macOS architectures. DuoUpdater currently
-        // runs this official-website install path on Apple Silicon, so the URL
-        // pattern is deliberately pinned to `macos-aarch64.dmg` instead of taking
-        // the first arbitrary dmg asset. Verified against the mounted 0.19.1
-        // artifact: com.longbridge.app.desktop, Team 45NG8MW7WK, accepted by
-        // Gatekeeper as Notarized Developer ID. The DMG is self-contained.
-        //
-        // The download is checked against the hex `sha256` the manifest gives
-        // that same asset, on top of the Team-ID gate. The checksum pattern takes
-        // the object holding the first stable aarch64 dmg filename — the asset the
-        // URL pattern reads — whatever the key order inside it; if that object
-        // carries no `sha256` it matches nothing (Team-ID only,
-        // `checksumPatternNoMatch` in `duo verify`) rather than the x86_64 or
-        // linux asset's digest.
+        // Use the manifest's top-level release. Its optional gray object has
+        // separate versions and assets selected by Longbridge's own updater.
+        // The matching arm64 DMG is self-contained, notarized, and signed by
+        // Team 45NG8MW7WK. Filenames may include a build's git hash.
+        // Use the selected asset's own SHA-256 when present.
         VendorProbeRecipe(
             bundleID: "com.longbridge.app.desktop",
             url: URL(string: "https://assets.lbkrs.com/github/release/longbridge-desktop/stable/latest.json")!,
-            mode: .responseBody,
+            mode: .longbridgeManifest,
             versionPattern: #""version"\s*:\s*"([0-9]+(?:\.[0-9]+){1,4})""#,
             downloadURL: URL(string: "https://longbridge.com/desktop/")!,
             changelogURL: URL(string: "https://longbridge.com/desktop/release-notes/")!,
             publishedAtPattern: #""published_at"\s*:\s*"([^"]+)""#,
             install: VendorInstallSpec(
                 urlSource: .bodyPattern(
-                    #""url"\s*:\s*"(https://assets\.lbkrs\.com/github/release/longbridge-desktop/stable/longbridge-v[0-9.]+-macos-aarch64\.dmg)""#),
+                    #""url"\s*:\s*"(https://assets\.lbkrs\.com/github/release/longbridge-desktop/stable/longbridge-v[0-9.]+(?:-g[0-9a-f]+)?-macos-aarch64\.dmg)""#),
                 kind: .dmg,
                 checksumPattern:
-                    #"\A(?:(?!longbridge-v[0-9.]+-macos-aarch64\.dmg)[\s\S])*?\{(?=[^{}]*"url"\s*:\s*"https://assets\.lbkrs\.com/github/release/longbridge-desktop/stable/longbridge-v[0-9.]+-macos-aarch64\.dmg")[^{}]*?"sha256"\s*:\s*"([0-9a-f]{64})""#,
+                    #"\A(?:(?!longbridge-v[0-9.]+(?:-g[0-9a-f]+)?-macos-aarch64\.dmg)[\s\S])*?\{(?=[^{}]*"url"\s*:\s*"https://assets\.lbkrs\.com/github/release/longbridge-desktop/stable/longbridge-v[0-9.]+(?:-g[0-9a-f]+)?-macos-aarch64\.dmg")[^{}]*?"sha256"\s*:\s*"([0-9a-f]{64})""#,
                 checksumFormat: .sha256Hex)),
 
         // Longbridge Desktop Preview — a SEPARATE bundle id
@@ -56,22 +47,9 @@ enum com_longbridge_app_desktop {
         // still names the preview index although that URL now redirects to the
         // Longbridge Pro product listing (see the preview changelog below).
         //
-        // Two structural differences from the stable manifest, both deliberate
-        // here: the version carries a `-preview.N` suffix (so the pattern requires
-        // it — the stable pattern's trailing quote cannot match this shape, and
-        // this one cannot match stable's, verified both directions against the
-        // live bodies), and preview assets have shipped WITHOUT the `sha256` field
-        // stable includes (History). The checksum pattern is stable's, re-anchored
-        // on the preview aarch64 asset: when that asset carries a `sha256` the
-        // download is checked against it, and when it doesn't (as on 0.19.0-preview.1)
-        // the pattern matches nothing and the install is Team-ID gated only — it
-        // never borrows another asset's digest.
-        //
-        // Preview file names may carry the build's git hash after the version
-        // (`longbridge-v1.2.0-preview.0-g86ccd38-macos-aarch64.dmg`), so the URL and
-        // checksum patterns take an optional `-g<hex>`; stable's names carry none.
-        // The manifest can list more than one build's assets; the first aarch64
-        // dmg is the one read, and its own `sha256` is the one checked.
+        // Preview requires a -preview.N version and its own CDN track.
+        // Older preview assets omitted sha256. In that case the install still
+        // uses the Team ID gate and the probe reports the missing checksum.
         //
         // The preview artifact is com.longbridge.app.desktop.preview, arm64,
         // Team 45NG8MW7WK — the SAME team as stable, which is what
@@ -79,7 +57,7 @@ enum com_longbridge_app_desktop {
         VendorProbeRecipe(
             bundleID: "com.longbridge.app.desktop.preview",
             url: URL(string: "https://assets.lbkrs.com/github/release/longbridge-desktop/preview/latest.json")!,
-            mode: .responseBody,
+            mode: .longbridgeManifest,
             versionPattern: #""version"\s*:\s*"([0-9]+(?:\.[0-9]+){1,4}-preview\.[0-9]+)""#,
             changelogURL: URL(string: "https://longbridge.com/desktop/release-notes/preview/")!,
             publishedAtPattern: #""published_at"\s*:\s*"([^"]+)""#,
@@ -175,4 +153,26 @@ enum com_longbridge_app_desktop {
         // update result or a freshly added recipe has not populated yet.
         "com.longbridge.app.desktop": URL(string: "https://longbridge.com/desktop/release-notes/")!,
         ])
+
+    /// Keep only fields from the top-level release and assets whose filenames
+    /// name that version. The probe's existing patterns check the channel,
+    /// architecture, and digest against this scoped body.
+    static func releaseBody(from body: String) -> String? {
+        guard let manifest = try? JSONSerialization.jsonObject(with: Data(body.utf8)) as? [String: Any],
+              let version = manifest["version"] as? String else { return nil }
+
+        let assetPath = "/longbridge-v\(version)-"
+        let assets = (manifest["assets"] as? [Any] ?? []).compactMap { entry -> [String: String]? in
+            guard let asset = entry as? [String: Any], let url = asset["url"] as? String,
+                  url.contains(assetPath) else { return nil }
+            var fields = ["url": url]
+            fields["sha256"] = asset["sha256"] as? String
+            return fields
+        }
+        var release: [String: Any] = ["version": version, "assets": assets]
+        release["published_at"] = manifest["published_at"] as? String
+        guard let data = try? JSONSerialization.data(
+            withJSONObject: release, options: [.sortedKeys, .withoutEscapingSlashes]) else { return nil }
+        return String(decoding: data, as: UTF8.self)
+    }
 }

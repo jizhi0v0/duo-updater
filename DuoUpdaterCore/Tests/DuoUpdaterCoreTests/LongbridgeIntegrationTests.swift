@@ -33,6 +33,26 @@ private let longbridgePreviewManifestWithBuildHash = #"""
 {"version":"1.2.0-preview.0","created_at":"2026-11-09T12:13:05Z","published_at":"2026-11-09T10:21:17Z","assets":[{"name":"longbridge-v1.2.0-preview.0-g86ccd38-linux-x86_64.deb","url":"https://assets.lbkrs.com/github/release/longbridge-desktop/preview/longbridge-v1.2.0-preview.0-g86ccd38-linux-x86_64.deb","sha256":"901d7cce61821a2d2a5bba3f27d2fde41db5565f5ceb480c40341c83c6df4495"},{"name":"longbridge-v1.2.0-preview.0-g86ccd38-macos-aarch64.dmg","url":"https://assets.lbkrs.com/github/release/longbridge-desktop/preview/longbridge-v1.2.0-preview.0-g86ccd38-macos-aarch64.dmg","sha256":"ff841bd9847ea824511ecb4b50fc1d4dc2ab65283c030f14b9495c1586048225"},{"name":"longbridge-v1.2.0-preview.0-g86ccd38-macos-x86_64.dmg","url":"https://assets.lbkrs.com/github/release/longbridge-desktop/preview/longbridge-v1.2.0-preview.0-g86ccd38-macos-x86_64.dmg","sha256":"04137a228b84a17c3e08862664a336fe6690d94616bd5b1502df5ed4c3e5bdc5"},{"name":"longbridge-v1.2.0-preview.0-gbd8ecd3-windows-x86_64.exe","url":"https://assets.lbkrs.com/github/release/longbridge-desktop/preview/longbridge-v1.2.0-preview.0-gbd8ecd3-windows-x86_64.exe","sha256":"d966fa38c79b06c9a35f1bd0fa99458cbca0f23cd9c78e004f8d0f915197d7ff"}]}
 """#
 
+// The 2026-11-18 staged rollout, trimmed to the two arm64 assets.
+private let longbridgeRolloutManifest = #"""
+{
+  "gray": {
+    "version": "1.2.0",
+    "assets": [{
+      "url": "https://assets.lbkrs.com/github/release/longbridge-desktop/stable/longbridge-v1.2.0-g7595e75-macos-aarch64.dmg",
+      "sha256": "0b389c7249467c2db06844b124d51b187cc26aeb65edce3612953e0ef55f5a9a"
+    }],
+    "device_ratio": "1/10"
+  },
+  "version": "1.1.2",
+  "published_at": "2026-11-10T11:15:55Z",
+  "assets": [{
+    "url": "https://assets.lbkrs.com/github/release/longbridge-desktop/stable/longbridge-v1.1.2-macos-aarch64.dmg",
+    "sha256": "5d11818c6d87ffafaad1a56f9e24ddd547520575ebb90c6706c429c2183df622"
+  }]
+}
+"""#
+
 /// Stable's minor page `…/longbridge-pro/0.19` as served 2026-10-14, trimmed to
 /// its two release sections: 0.19.1 first, then 0.19.0 with its figures dropped.
 /// The page holds every patch release of its line, newest first.
@@ -224,6 +244,68 @@ private let longbridgeIndexPage = #"""
         #expect(!url.contains("x86_64"))
         #expect(!url.contains("linux"))
         #expect(spec.kind == .dmg)
+    }
+
+    @Test func rolloutUsesOnlyThePublicVersionDateAndInstaller() async throws {
+        let outcome = try await Self.probe(.stable, body: longbridgeRolloutManifest)
+        let remote = try #require(outcome.remote)
+        #expect(remote.shortVersion == "1.1.2")
+        #expect(remote.publishedAt == ISO8601DateFormatter().date(from: "2026-11-10T11:15:55Z"))
+        #expect(remote.downloadURL?.lastPathComponent == "longbridge-v1.1.2-macos-aarch64.dmg")
+        #expect(remote.expectedSHA256 == "5d11818c6d87ffafaad1a56f9e24ddd547520575ebb90c6706c429c2183df622")
+        #expect(outcome.warnings.isEmpty)
+    }
+
+    @Test func promotedStableReleaseAcceptsItsHashedDMGAndIgnoresOlderAssets() async throws {
+        var manifest = try #require(JSONSerialization.jsonObject(
+            with: Data(longbridgeRolloutManifest.utf8)) as? [String: Any])
+        let gray = try #require(manifest.removeValue(forKey: "gray") as? [String: Any])
+        manifest["version"] = gray["version"]
+        manifest["published_at"] = "2026-11-18T06:07:09Z"
+        manifest["assets"] = try #require(manifest["assets"] as? [[String: String]])
+            + #require(gray["assets"] as? [[String: String]])
+        let body = String(decoding: try JSONSerialization.data(withJSONObject: manifest), as: UTF8.self)
+        let outcome = try await Self.probe(.stable, body: body)
+        let remote = try #require(outcome.remote)
+        #expect(remote.shortVersion == "1.2.0")
+        #expect(remote.publishedAt == ISO8601DateFormatter().date(from: "2026-11-18T06:07:09Z"))
+        #expect(remote.downloadURL?.lastPathComponent == "longbridge-v1.2.0-g7595e75-macos-aarch64.dmg")
+        #expect(remote.expectedSHA256 == "0b389c7249467c2db06844b124d51b187cc26aeb65edce3612953e0ef55f5a9a")
+        #expect(outcome.warnings.isEmpty)
+    }
+
+    @Test func grayOnlyDataCannotSupplyAMissingPublicVersionOrInstaller() async throws {
+        let manifest = try #require(JSONSerialization.jsonObject(
+            with: Data(longbridgeRolloutManifest.utf8)) as? [String: Any])
+        let gray = try #require(manifest["gray"])
+        let grayOnly = String(decoding: try JSONSerialization.data(
+            withJSONObject: ["gray": gray]), as: UTF8.self)
+        let missingVersion = try await Self.probe(.stable, body: grayOnly)
+        #expect(missingVersion.remote == nil)
+
+        let noPublicAsset = String(decoding: try JSONSerialization.data(
+            withJSONObject: ["gray": gray, "version": "1.2.0"]), as: UTF8.self)
+        let missingAsset = try await Self.probe(.stable, body: noPublicAsset)
+        #expect(missingAsset.remote?.shortVersion == "1.2.0")
+        #expect(missingAsset.remote?.vendorInstallerKind == nil)
+        #expect(missingAsset.remote?.expectedSHA256 == nil)
+        #expect(missingAsset.warnings.contains(.installURLUnresolved))
+    }
+
+    @Test func previewStillResolvesItsOwnHashedDMG() async throws {
+        let outcome = try await Self.probe(.preview, body: longbridgePreviewManifestWithBuildHash)
+        let remote = try #require(outcome.remote)
+        #expect(remote.shortVersion == "1.2.0-preview.0")
+        #expect(remote.downloadURL?.lastPathComponent == "longbridge-v1.2.0-preview.0-g86ccd38-macos-aarch64.dmg")
+        #expect(remote.expectedSHA256 != nil)
+        #expect(outcome.warnings.isEmpty)
+    }
+
+    private static func probe(_ channel: ReleaseChannel, body: String) async throws -> ProbeOutcome {
+        let recipe = try #require(probes[channel])
+        let server = try RecipeVerificationTests.StubServer(body: body)
+        defer { server.stop() }
+        return await VendorProbeSource().probeDiagnostic(recipe.with(url: server.url))
     }
 
     // MARK: - Download digest

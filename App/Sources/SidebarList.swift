@@ -38,6 +38,8 @@ struct SidebarList<Content: View, FocusValue: Hashable>: View {
     let focusValue: FocusValue
     /// The list is the one on screen. A hidden one is kept out of the key loop.
     var isShown = true
+    /// Whether the list is showing search results.
+    var isSearching = false
     @ViewBuilder var content: () -> Content
 
     @State private var viewportHeight: CGFloat = 0
@@ -117,6 +119,10 @@ struct SidebarList<Content: View, FocusValue: Hashable>: View {
             .accessibilityElement(children: .contain)
             .accessibilityLabel(label)
         }
+        // After a scrolled lazy list shrinks, SwiftUI can leave all matching
+        // rows unrealized even at offset zero. Give each ordered result set
+        // its own layout, reusing it when more typing matches the same rows.
+        .id(isSearching ? order : nil)
     }
 
     private static func move(for key: KeyEquivalent) -> SidebarMove? {

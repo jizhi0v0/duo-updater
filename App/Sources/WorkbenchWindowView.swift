@@ -1546,7 +1546,8 @@ struct WorkbenchWindowView: View {
         let showsBrew = searchQuery.isEmpty ? homebrewHasAnything : brewItemCount(lists) > 0
         return ScrollViewReader { proxy in
             SidebarList(selection: $selection, order: selectableIDs(.cli, lists),
-                        label: String(localized: "CLI"), focus: $listFocus, focusValue: .cli) {
+                        label: String(localized: "CLI"), focus: $listFocus, focusValue: .cli,
+                        isSearching: !searchQuery.isEmpty) {
                 if showsBrew {
                     Color.clear.frame(height: SidebarSectionMetrics.firstGap).accessibilityHidden(true)
                     Section {
@@ -1816,17 +1817,20 @@ private struct WorkbenchAppsList: View, @MainActor Equatable {
     var focus: FocusState<WorkbenchWindowView.SidebarTab?>.Binding
 
     static func == (lhs: Self, rhs: Self) -> Bool {
-        lhs.apps == rhs.apps && lhs.sections == rhs.sections
+        guard lhs.isShown == rhs.isShown, lhs.model === rhs.model else { return false }
+        // Kept tabs pick up the latest results when shown. Applying each search
+        // to a hidden tab would rebuild its scroll layout offscreen.
+        if !lhs.isShown { return true }
+        return lhs.apps == rhs.apps && lhs.sections == rhs.sections
             && lhs.ignoredAppCount == rhs.ignoredAppCount
-            && lhs.searchText == rhs.searchText && lhs.isShown == rhs.isShown
-            && lhs.model === rhs.model
+            && lhs.searchText == rhs.searchText
     }
 
     var body: some View {
         SidebarList(selection: $selection,
                     order: sections.filter(\.expanded).flatMap { $0.rows.map(\.id) },
                     label: String(localized: "Apps"), focus: focus, focusValue: .apps,
-                    isShown: isShown) {
+                    isShown: isShown, isSearching: !SearchMatch.trimmed(searchText).isEmpty) {
             ForEach(Array(sections.enumerated()), id: \.element.id) { index, section in
                 if section.group != nil {
                     Color.clear.frame(height: index == 0
@@ -1931,14 +1935,15 @@ private struct WorkbenchRollbackList: View, @MainActor Equatable {
     @Environment(\.openWindow) private var openWindow
 
     static func == (lhs: Self, rhs: Self) -> Bool {
-        lhs.apps == rhs.apps && lhs.searchText == rhs.searchText && lhs.isShown == rhs.isShown
-            && lhs.model === rhs.model
+        guard lhs.isShown == rhs.isShown, lhs.model === rhs.model else { return false }
+        if !lhs.isShown { return true }
+        return lhs.apps == rhs.apps && lhs.searchText == rhs.searchText
     }
 
     var body: some View {
         SidebarList(selection: $selection, order: apps.map(\.id),
                     label: String(localized: "Restore"), focus: focus, focusValue: .rollback,
-                    isShown: isShown) {
+                    isShown: isShown, isSearching: !SearchMatch.trimmed(searchText).isEmpty) {
             ForEach(apps) { result in
                 WorkbenchRollbackRow(result: result, model: model)
                     .sidebarRow(result.id, selection: $selection)

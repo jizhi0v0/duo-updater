@@ -1878,7 +1878,7 @@ private struct AppRow: View {
     /// asking twice on a per-row, per-repaint path is exactly the cost the frame
     /// below exists to remove.
     private var secondaryNote: String? {
-        model.installNotes[result.id] ?? model.stagedPackageNote(for: result)
+        model.installNote(for: result)
     }
 
     /// How wide the name line wants to be — the name plus whatever shares its

@@ -69,17 +69,39 @@ public actor MASInstaller {
     }
 
     public enum MASError: LocalizedError {
+        public enum HelperPhase: String, Sendable {
+            case handshake = "helperVersion"
+            case installRequest = "installMASApp"
+        }
+
+        public enum HelperFailure: Sendable {
+            case timeout
+            case missingSigningRequirement
+            case proxyUnavailable
+            case rejected(String)
+            case xpc(domain: String, code: Int)
+
+            public static func xpc(_ error: Error) -> Self {
+                let error = error as NSError
+                return .xpc(domain: error.domain, code: error.code)
+            }
+
+            var diagnostic: String {
+                switch self {
+                case .timeout: "timed out"
+                case .missingSigningRequirement: "app signing identity unavailable"
+                case .proxyUnavailable: "XPC proxy unavailable"
+                case .rejected(let message): message
+                case .xpc(let domain, let code): "\(domain) (\(code))"
+                }
+            }
+        }
+
         case masNotFound
         case cancelled
         case helperNotApproved
-        /// Registered and switched on, yet the daemon never answers. Distinct from
-        /// `helperNotApproved` because the guidance is the opposite: sending the user
-        /// to Login Items is a dead end — the item is already on there.
-        case helperUnresponsive
+        case helperCommunication(HelperPhase, HelperFailure)
         /// Answering, but built before the helper verified the `mas` it runs as root.
-        /// Not an approval problem and not silence, so it gets its own case; the
-        /// remedy is the same one `helperUnresponsive` names, because restarting
-        /// is what replaces the old process with the copy in the current bundle.
         case helperOutdated
         case failed(code: Int32, output: String)
 
@@ -91,10 +113,18 @@ public actor MASInstaller {
                 return "Authorization cancelled."
             case .helperNotApproved:
                 return "App Store updates need DuoUpdater's background helper. \(MASError.helperApprovalHint)"
-            case .helperUnresponsive:
-                return "DuoUpdater's background helper is switched on but isn’t answering — a leftover copy is still holding its slot after DuoUpdater updated itself. \(MASError.helperRestartHint)"
+            case .helperCommunication(.handshake, .missingSigningRequirement):
+                return "DuoUpdater couldn’t verify its signing identity to connect to the background helper."
+            case .helperCommunication(.handshake, _):
+                return "DuoUpdater couldn’t reach its background helper before starting the update. \(MASError.helperRestartHint)"
+            case .helperCommunication(.installRequest, .proxyUnavailable):
+                return "DuoUpdater couldn’t send the update request to its background helper."
+            case .helperCommunication(.installRequest, .rejected):
+                return "DuoUpdater’s background helper couldn’t start the App Store update."
+            case .helperCommunication(.installRequest, _):
+                return "DuoUpdater lost contact with its background helper while waiting for the update. Check the app’s version before trying again."
             case .helperOutdated:
-                return "DuoUpdater's background helper is a copy from before DuoUpdater updated itself, and it can’t be trusted with App Store updates. \(MASError.helperRestartHint)"
+                return "DuoUpdater’s background helper is too old to safely install App Store updates. \(MASError.helperRestartHint)"
             case .failed(let code, let output):
                 // A known dead end on recent macOS: mas downloads the app fully, then
                 // CommerceKit refuses the final receipt import ("Failed to find receipt
@@ -119,6 +149,16 @@ public actor MASInstaller {
                 }
                 let tail = Self.tail(of: output)
                 return tail.isEmpty ? "mas failed (\(code))." : "mas failed (\(code)): \(tail)"
+            }
+        }
+
+        public var diagnostic: String? {
+            switch self {
+            case .helperNotApproved: "Helper approval: macOS did not report enabled"
+            case .helperCommunication(let phase, let failure): "\(phase.rawValue): \(failure.diagnostic)"
+            case .helperOutdated: "Helper protocol: verified mas installs are unsupported"
+            case .failed(let code, _): "mas command exited with status \(code)"
+            case .masNotFound, .cancelled: nil
             }
         }
 
@@ -173,7 +213,7 @@ public actor MASInstaller {
         /// `isHelperApproval`: that flow raises the Login Items prompt, which is the
         /// wrong destination here and the reason this case was split out.
         public var isHelperUnresponsive: Bool {
-            if case .helperUnresponsive = self { return true }
+            if case .helperCommunication(.handshake, _) = self { return true }
             return false
         }
 

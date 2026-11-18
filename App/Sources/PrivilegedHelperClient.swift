@@ -1,4 +1,5 @@
 import Foundation
+import Observation
 import ServiceManagement
 import DuoUpdaterCore
 import os
@@ -21,17 +22,27 @@ enum HelperConfig {
 /// daemon, reports its approval status to the UI, and guides the user to the
 /// Login Items pane when approval is pending.
 @MainActor
-final class PrivilegedHelperClient: ObservableObject {
+@Observable
+final class PrivilegedHelperClient {
     private let log = Logger(subsystem: "com.duoupdater.app", category: "helper")
 
-    @Published private(set) var status: SMAppService.Status
+    private(set) var status: SMAppService.Status?
+    private(set) var answering: Bool?
+    private var reachabilityProbe: Task<Void, Never>?
+    private var approvalConfirmation: Task<Void, Never>?
+    @ObservationIgnored private var recentApproval: (until: ContinuousClock.Instant, recheckAvailable: Bool)?
+
+    private let readStatus: @Sendable () async -> SMAppService.Status
+    private let probe: @Sendable (Bool) async -> Bool
+    private let retryDelay: Duration
+    private let now: @Sendable () -> ContinuousClock.Instant
 
     /// Why the last `register()` failed, for the Diagnostics row to show. Registering
     /// is the only lever the app has — macOS grants no API to flip the approval
     /// switch itself — so when even that is refused the button appears to do nothing
     /// at all. Surfacing the reason is the difference between "this button is broken"
     /// and "macOS is refusing; here's what to do".
-    @Published private(set) var lastRegisterError: String?
+    private(set) var lastRegisterError: String?
 
     /// The registration in flight, so the next one waits for it. They used to block
     /// the main thread, which queued a second call behind the first; off the main
@@ -39,14 +50,18 @@ final class PrivilegedHelperClient: ObservableObject {
     /// one's `register()`. Waiting rather than dropping the second call matters to
     /// its caller: it reads `isEnabled` straight after, and a dropped call would
     /// leave that reading the status from before either registration ran.
-    private var registration: Task<Void, Never>?
+    @ObservationIgnored private var statusOperation: Task<Void, Never>?
 
-    init() {
-        // Not queried here: this runs on the main thread at launch, and the query is
-        // a synchronous XPC round trip to `smd`. "Not registered" stands in until the
-        // first off-main answer lands; a Diagnostics page opened before that shows
-        // "Enable…" until then, and its own `.task` refresh corrects it as well.
-        self.status = .notRegistered
+    init(
+        readStatus: @escaping @Sendable () async -> SMAppService.Status = PrivilegedHelperClient.systemStatus,
+        probe: @escaping @Sendable (Bool) async -> Bool = HelperShellRunner.isAnswering,
+        retryDelay: Duration = .milliseconds(500),
+        now: @escaping @Sendable () -> ContinuousClock.Instant = { ContinuousClock.now }
+    ) {
+        self.readStatus = readStatus
+        self.probe = probe
+        self.retryDelay = retryDelay
+        self.now = now
         Task { await refreshStatusOffMain() }
     }
 
@@ -62,25 +77,92 @@ final class PrivilegedHelperClient: ObservableObject {
     /// every 1.5 s. Measured 2026-10-11 on macOS 27.2 with the page open: 561 of
     /// 42,416 main-thread samples in 60 s, stalls of 17–32 ms.
     var isEnabled: Bool { status == .enabled }
+    var isConfirmingApproval: Bool { approvalConfirmation != nil && status == .requiresApproval }
+    var isCheckingReachability: Bool { reachabilityProbe != nil }
+    private var wasRecentlyApproved: Bool {
+        recentApproval.map { now() < $0.until } ?? false
+    }
 
     /// Refresh `status` with the query off the main thread. `SMAppService.status` is a
     /// synchronous XPC round trip to `smd` — measured 16–40 ms per call on macOS 27 —
     /// and the window-appear and 1.5 s permission polls ran it on the main thread,
     /// inside a window's first layout.
     func refreshStatusOffMain() async {
+        await serialized { self.apply(await self.readStatus()) }
+    }
+
+    nonisolated static func systemStatus() async -> SMAppService.Status {
         let plistName = HelperConfig.plistName
-        let current = await Task.detached { SMAppService.daemon(plistName: plistName).status }.value
-        apply(current)
+        return await offCooperativePool { SMAppService.daemon(plistName: plistName).status }
     }
 
     private func apply(_ current: SMAppService.Status) {
-        if current != status { status = current }
-        // A registration failure explains why the helper ISN'T on. Once it is, the
-        // explanation is not just stale but contradictory — the pane showed a green
-        // "Enabled" next to red text telling the user to reset their whole system.
-        // Any path that reaches `.enabled` (a later register, the user approving in
-        // Login Items, a reset that cleared a damaged record) retires the message.
+        let previous = status
         if current == .enabled { lastRegisterError = nil }
+        guard current != previous else { return }
+
+        if current == .requiresApproval, previous == .enabled, wasRecentlyApproved,
+           recentApproval?.recheckAvailable == true {
+            // Login Items can briefly report pending again just after approval.
+            // Keep the update action during this bounded check, but gate the actual
+            // install on an enabled reading. Consume the grace period on regression.
+            recentApproval?.recheckAvailable = false
+            approvalConfirmation = Task { [weak self, retryDelay] in
+                for _ in 0..<3 {
+                    do { try await Task.sleep(for: retryDelay) } catch { break }
+                    guard let self else { return }
+                    await self.refreshStatusOffMain()
+                    if self.status != .requiresApproval { break }
+                }
+                self?.approvalConfirmation = nil
+            }
+        } else if current != .enabled, current != .requiresApproval {
+            recentApproval = nil
+        }
+
+        status = current
+        resetReachability()
+        if current == .enabled, previous == .requiresApproval || previous == .notRegistered {
+            if approvalConfirmation == nil {
+                recentApproval = (now() + .seconds(5), true)
+            }
+            startReachabilityCheck(afterApproval: true)
+        }
+    }
+
+    /// Verify live approval and return whether the install is in the initial
+    /// approval window, when launchd may still be publishing the XPC service.
+    func requireApprovalForInstall() async throws -> Bool {
+        await refreshStatusOffMain()
+        let confirmation = isConfirmingApproval ? approvalConfirmation : nil
+        await confirmation?.value
+        try Task.checkCancellation()
+        guard isEnabled else { throw MASInstaller.MASError.helperNotApproved }
+        return confirmation != nil || wasRecentlyApproved
+    }
+
+    func checkReachability(manual: Bool = false) {
+        guard isEnabled, reachabilityProbe == nil else { return }
+        startReachabilityCheck(afterApproval: wasRecentlyApproved, manual: manual)
+    }
+
+    private func startReachabilityCheck(afterApproval: Bool, manual: Bool = false) {
+        reachabilityProbe = Task { [weak self, probe] in
+            let began = ContinuousClock.now
+            let result = await probe(afterApproval)
+            if manual {
+                try? await Task.sleep(until: began + .milliseconds(350), clock: .continuous)
+            }
+            guard !Task.isCancelled, let self else { return }
+            self.answering = result
+            self.reachabilityProbe = nil
+        }
+    }
+
+    private func resetReachability() {
+        reachabilityProbe?.cancel()
+        reachabilityProbe = nil
+        answering = nil
     }
 
     /// `register()` and the status it leaves behind, off the main thread: both are
@@ -110,15 +192,15 @@ final class PrivilegedHelperClient: ObservableObject {
         await serialized { await self.performRegister() }
     }
 
-    /// Run `body` after every registration already queued, the order the old
-    /// synchronous calls had.
+    /// Order reads with registration changes so an earlier permission poll cannot
+    /// overwrite the result of a newer query or registration.
     private func serialized(_ body: @escaping @MainActor @Sendable () async -> Void) async {
-        let previous = registration
+        let previous = statusOperation
         let next = Task {
             await previous?.value
             await body()
         }
-        registration = next
+        statusOperation = next
         await next.value
     }
 
@@ -127,7 +209,7 @@ final class PrivilegedHelperClient: ObservableObject {
         guard let error = failure else {
             lastRegisterError = nil
             apply(current)
-            log.notice("helper register() ok — status \(self.status.rawValue, privacy: .public)")
+            log.notice("helper register() ok — status \(current.rawValue, privacy: .public)")
             if status == .requiresApproval { openLoginItems() }
             return
         }
@@ -136,8 +218,8 @@ final class PrivilegedHelperClient: ObservableObject {
         // already switched on changes nothing the user has to act on, and
         // posting a message would put red type next to the green "Enabled" —
         // the same contradiction `apply(_:)` exists to clear.
-        lastRegisterError = status == .enabled ? nil : Self.explain(error, status: status)
-        log.error("helper register() failed: \(error.localizedDescription, privacy: .public) — status \(self.status.rawValue, privacy: .public)")
+        lastRegisterError = current == .enabled ? nil : Self.explain(error, status: current)
+        log.error("helper register() failed: \(error.localizedDescription, privacy: .public) — status \(current.rawValue, privacy: .public)")
         // A refusal is not proof of a damaged record. macOS also refuses while
         // a background item exists but sits switched OFF, and there the switch
         // — not a system-wide reset — is the whole cure: reported 2026-08-23,
@@ -173,20 +255,20 @@ final class PrivilegedHelperClient: ObservableObject {
     }
 
     func unregister() async {
-        await Self.unregisterOffMain()
-        await refreshStatusOffMain()
+        await serialized {
+            await Self.unregisterOffMain()
+            self.apply(await self.readStatus())
+        }
     }
 
     /// Unregister and register again, to rebuild a Background Task Management record
-    /// that reads as approved but no longer resolves to the daemon (see
-    /// `HelperShellRunner`'s repair path). Surfaced in Diagnostics so the user can
-    /// clear it without first walking into a failed App Store update.
+    /// that no longer resolves to the daemon. Used by the helper approval flow.
     func reregister() async {
         await serialized { await self.performReregister() }
     }
 
     private func performReregister() async {
-        // Gentle first, for the reason spelled out in `HelperShellRunner`'s repair:
+        // Gentle first:
         // on a corrupt record `register()` is refused, and an unregister-first order
         // leaves the background item switched OFF with no way back from in-app.
         //
@@ -197,7 +279,7 @@ final class PrivilegedHelperClient: ObservableObject {
         // `unregister()` DID dislodge the stale daemon, and then `register()` came
         // back "Operation not permitted", leaving the item switched off with no way
         // back short of `sudo sfltool resetbtm` + a restart. The enabled-but-dead
-        // case has no in-app cure; `MASError.helperUnresponsive` says so honestly.
+        // case needs the separate Restart Helper action.
         let (failure, current) = await Self.registerOffMain()
         guard let error = failure else {
             log.notice("helper re-registered — status \(current.rawValue, privacy: .public)")
@@ -260,271 +342,151 @@ final class PrivilegedHelperClient: ObservableObject {
             return false
         }
         log.notice("helper kickstarted — launchd will start the copy in the current bundle")
-        // The install path owns its own XPC connection and drops a dead one on the
-        // first failure, so there is nothing to tear down from here.
+        resetReachability()
         await refreshStatusOffMain()
         return true
     }
 }
 
-/// Runs `mas install` as root by handing a structured request to the privileged
-/// helper over XPC — the passwordless replacement for the old
-/// `osascript … with administrator privileges` escalation. Injected into
-/// `MASInstaller` as its `PrivilegedMASRunner`.
-///
-/// Thread-safe: the NSXPCConnection it owns is itself thread-safe; the only
-/// mutable state (the cached connection) is lock-guarded, hence `@unchecked
-/// Sendable`. It is intentionally independent of the `@MainActor`
-/// `PrivilegedHelperClient` so `MASInstaller` (an actor) can call it off-main.
-final class HelperShellRunner: PrivilegedMASRunner, @unchecked Sendable {
-    private let log = Logger(subsystem: "com.duoupdater.app", category: "helper")
-    private let lock = NSLock()
-    private var cachedConnection: NSXPCConnection?
+/// Runs `mas install` over XPC. The version check and install use the same
+/// authenticated connection, which is closed when the operation finishes.
+struct HelperShellRunner: PrivilegedMASRunner {
+    typealias MASError = MASInstaller.MASError
+
+    let requireApproval: @Sendable () async throws -> Bool
 
     func installMAS(adamID: Int, uid: Int, gid: Int, userName: String, logPath: String) async throws -> Int32 {
-        // Fail fast (and let the UI fall back to the store redirect / guidance) if
-        // the helper isn't approved.
-        guard SMAppService.daemon(plistName: HelperConfig.plistName).status == .enabled else {
-            throw MASInstaller.MASError.helperNotApproved
-        }
-        // Prove the helper actually answers BEFORE handing it the install. The
-        // install call's reply doesn't arrive until `mas` has finished — minutes for
-        // an Office update — so it can't carry a timeout of its own, and a helper
-        // that never launches makes it hang forever instead of failing: the row sits
-        // at 0%, the single-slot App Store gate is never released, and every queued
-        // App Store update behind it waits on a reply that will never come. Observed
-        // exactly that: `launchd: service inactive: com.duoupdater.helper` repeating
-        // every 10s while the batch sat frozen, no error anywhere.
-        // A silent peer lands here, not in the `isConnectionFailure` catch below: the
-        // connection is accepted and the reply simply never comes. Replacing the app
-        // bundle in place (a self-update, `make install`) leaves the OLD helper process
-        // holding launchd's slot while BTM still reads `.enabled`, so every App Store
-        // install timed out and — until the error was split — told the user to go
-        // switch on something that was already on.
-        //
-        // No repair is attempted for it, deliberately: `register()` cannot re-resolve a
-        // live record and the unregister-first alternative was measured to leave the
-        // item switched off and unregisterable (see `repairRegistration`). So this
-        // throws `helperUnresponsive`, whose message names the one thing that does
-        // work, rather than burning a second 10s timeout pretending otherwise.
-        try await ensureReadyToInstall()
+        let afterApproval = try await requireApproval()
+        let (version, connection) = try await Self.handshake(afterApproval: afterApproval)
+        defer { connection.invalidate() }
+        try HelperInstallGate.require(versionReply: version)
+        try Task.checkCancellation()
+        return try await Self.send(
+            on: connection, adamID: adamID, uid: uid, gid: gid, userName: userName, logPath: logPath)
+    }
+
+    static func isAnswering(afterApproval: Bool) async -> Bool {
         do {
-            return try await send(adamID: adamID, uid: uid, gid: gid,
-                                  userName: userName, logPath: logPath)
-        } catch let error as NSError where Self.isConnectionFailure(error) {
-            // Approved but unreachable — the Background Task Management record can
-            // survive the app bundle being replaced (an in-place update, `make
-            // install`) while losing the resolved path to the daemon:
-            //   "FATAL ERROR - fullPath is nil, container=(null) … disposition=[enabled, allowed]"
-            // launchd then never spawns the helper, yet `status` still reads
-            // `.enabled`, so the guard above lets the call through and every App
-            // Store update fails with "Couldn't communicate with a helper
-            // application". Nothing in the UI could fix it either: the Enable button
-            // only shows while NOT enabled. Re-registering rebuilds the record, so
-            // do it once and retry rather than stranding the user.
-            log.error("helper unreachable (\(error.code, privacy: .public)) — re-registering and retrying once")
-            clearConnection()
-            repairRegistration()
+            let (_, connection) = try await handshake(afterApproval: afterApproval)
+            connection.invalidate()
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    private static func handshake(afterApproval: Bool) async throws -> (String, NSXPCConnection) {
+        try await retryHandshake(
+            afterApproval: afterApproval,
+            isEnabled: { await PrivilegedHelperClient.systemStatus() == .enabled },
+            probe: probeVersion)
+    }
+
+    /// Retry only a read-only version request that failed with XPC connection
+    /// invalidation during the initial approval window. Each attempt opens a
+    /// fresh pinned connection. A timeout or interruption is surfaced directly.
+    static func retryHandshake<Value>(
+        afterApproval: Bool,
+        retryDelay: Duration = .milliseconds(500),
+        isEnabled: () async -> Bool,
+        probe: () async throws -> Value
+    ) async throws -> Value {
+        let retries = afterApproval ? 3 : 0
+        for _ in 0..<retries {
+            try Task.checkCancellation()
             do {
-                try await ensureReadyToInstall()
-                return try await send(adamID: adamID, uid: uid, gid: gid,
-                                      userName: userName, logPath: logPath)
-            } catch let retryError as NSError where Self.isConnectionFailure(retryError) {
-                // Still unreachable after rebuilding the record. Which advice is right
-                // depends on where the rebuild left the item: back in "pending
-                // approval" means Login Items really is the answer, while still
-                // `.enabled` means it is on and simply not coming up — say that
-                // instead of sending the user to a switch they'd find already flipped.
-                // Either way, never let the raw XPC message ("Couldn't communicate
-                // with a helper application") reach the row; it names nothing the user
-                // can act on.
-                throw SMAppService.daemon(plistName: HelperConfig.plistName).status == .enabled
-                    ? MASInstaller.MASError.helperUnresponsive
-                    : MASInstaller.MASError.helperNotApproved
+                return try await probe()
+            } catch let error as MASError {
+                guard case .helperCommunication(.handshake, .xpc(let domain, let code)) = error,
+                      domain == NSCocoaErrorDomain, code == NSXPCConnectionInvalid else {
+                    throw error
+                }
+                try await Task.sleep(for: retryDelay)
+                guard await isEnabled() else { throw MASError.helperNotApproved }
             }
         }
+        try Task.checkCancellation()
+        return try await probe()
     }
 
-    /// How long a trivial round-trip may take before we call the helper dead. Long
-    /// enough for launchd to cold-start a daemon on a busy machine, short enough
-    /// that a user watching a stuck row gets an answer.
-    private static let reachabilityTimeout = Duration.seconds(10)
-
-    /// Round-trip `helperVersion` — the cheapest call in the protocol — and give up
-    /// if nothing comes back in time. A registered-but-unlaunchable daemon accepts
-    /// the connection and simply never replies, which no error handler ever fires
-    /// for, so a timeout is the only way to tell "working on it" from "never coming".
-    /// Does the helper actually answer right now? The same round-trip an install
-    /// makes, exposed so the Diagnostics page can tell "switched on" from
-    /// "switched on and working" — a distinction that otherwise only surfaces as a
-    /// failed update, and that a replaced app bundle creates routinely.
-    func isAnswering() async -> Bool {
-        do { _ = try await ensureReachable(); return true } catch { return false }
-    }
-
-    /// `ensureReachable`, then refuse a helper that answers but would run `mas` as
-    /// root without verifying it first (`HelperInstallGate`). Both install attempts
-    /// go through here, and nothing else sends `installMASApp`.
-    private func ensureReadyToInstall() async throws {
-        let (versionReply, conn) = try await ensureReachable()
+    private static func probeVersion() async throws -> (String, NSXPCConnection) {
+        guard let requirement = HelperConfig.helperRequirement else {
+            throw MASError.helperCommunication(.handshake, .missingSigningRequirement)
+        }
+        let connection = NSXPCConnection(machServiceName: HelperConfig.machServiceName, options: .privileged)
+        connection.remoteObjectInterface = NSXPCInterface(with: MASHelperProtocol.self)
+        connection.setCodeSigningRequirement(requirement)
+        connection.resume()
         do {
-            try HelperInstallGate.require(versionReply: versionReply)
+            let version = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<String, Error>) in
+                // A task group would wait for the silent XPC child even after
+                // timing out. Race the deadline and the reply on one continuation.
+                let once = ResumeGuard()
+                let deadline = Task {
+                    do { try await Task.sleep(for: .seconds(10)) } catch { return }
+                    once.once {
+                        continuation.resume(throwing: MASError.helperCommunication(.handshake, .timeout))
+                    }
+                }
+                let proxy = connection.remoteObjectProxyWithErrorHandler { error in
+                    once.once {
+                        deadline.cancel()
+                        continuation.resume(throwing: MASError.helperCommunication(.handshake, .xpc(error)))
+                    }
+                }
+                guard let helper = proxy as? MASHelperProtocol else {
+                    once.once {
+                        deadline.cancel()
+                        continuation.resume(throwing: MASError.helperCommunication(.handshake, .proxyUnavailable))
+                    }
+                    return
+                }
+                helper.helperVersion { version in
+                    once.once {
+                        deadline.cancel()
+                        continuation.resume(returning: version)
+                    }
+                }
+            }
+            return (version, connection)
         } catch {
-            // Drop and invalidate the connection, as for a silent helper. The helper
-            // only arms its idle exit once its last connection closes
-            // (`IdleExit.connectionClosed`), so a connection kept open to the old
-            // process would hold it in launchd's slot for as long as this app runs,
-            // and every later attempt would reach it and be refused again.
-            clearConnection()
-            conn.invalidate()
-            log.error("helper \(versionReply, privacy: .public) predates verified mas — refusing to send it the install")
+            connection.invalidate()
             throw error
         }
     }
 
-    /// The `helperVersion` reply of the helper that answered, and the connection
-    /// it answered on.
-    @discardableResult
-    private func ensureReachable() async throws -> (versionReply: String, connection: NSXPCConnection) {
-        // A deadline and a probe raced through ONE continuation — not a task group
-        // with a timeout child. This used to be
-        // `withThrowingTaskGroup { probe; sleep; first = await group.next() }`, and
-        // that cannot work: the group does not return until **every** child has
-        // finished, while `probeVersion` sits in a `withCheckedContinuation` that no
-        // cancellation can resume. So on a peer that accepts the connection and
-        // never replies — the exact state this timeout exists for, measured and
-        // quoted above ("the connection is accepted and the reply simply never
-        // comes") — the deadline child resumed `group.next()` with `false` and the
-        // call then hung in the group's implicit drain anyway. Reproduced on this
-        // machine with this shape in isolation: the process had to be killed after
-        // its own timeout expired. `ResumeGuard` lets whichever side loses the race
-        // be a no-op, which is what the guard was already there for.
-        let conn = connection()
-        let answered = await withCheckedContinuation { (cont: CheckedContinuation<String?, Never>) in
+    private static func send(
+        on connection: NSXPCConnection, adamID: Int, uid: Int, gid: Int, userName: String, logPath: String
+    ) async throws -> Int32 {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Int32, Error>) in
             let once = ResumeGuard()
-            Task {
-                try? await Task.sleep(for: Self.reachabilityTimeout)
-                once.once { cont.resume(returning: nil) }
+            let proxy = connection.remoteObjectProxyWithErrorHandler { error in
+                once.once {
+                    // The helper may already have started mas. Never resend this
+                    // request or re-register the service after this error.
+                    continuation.resume(throwing: MASError.helperCommunication(.installRequest, .xpc(error)))
+                }
             }
-            guard let proxy = conn.remoteObjectProxyWithErrorHandler({ _ in
-                once.once { cont.resume(returning: nil) }
-            }) as? MASHelperProtocol else {
-                once.once { cont.resume(returning: nil) }
+            guard let helper = proxy as? MASHelperProtocol else {
+                once.once {
+                    continuation.resume(throwing: MASError.helperCommunication(.installRequest, .proxyUnavailable))
+                }
                 return
             }
-            proxy.helperVersion { reply in once.once { cont.resume(returning: reply) } }
-        }
-        guard let versionReply = answered else {
-            // Drop the connection: a fresh one is the only way a later attempt can
-            // bind to a helper that did eventually come up. Invalidate it too, so the
-            // call still parked on the silent peer is torn down rather than left
-            // holding its continuation — `clearConnection` alone only drops our
-            // reference to a connection that is still live.
-            clearConnection()
-            conn.invalidate()
-            log.error("helper did not answer within \(Self.reachabilityTimeout, privacy: .public) — treating as unavailable")
-            throw MASInstaller.MASError.helperUnresponsive
-        }
-        return (versionReply, conn)
-    }
-
-    /// The two ways an XPC call fails when the peer never came up: Cocoa's
-    /// `NSXPCConnectionInvalid` (4097, "Couldn't communicate with a helper
-    /// application") and `NSXPCConnectionInterrupted` (4099) if it died mid-call.
-    private static func isConnectionFailure(_ error: NSError) -> Bool {
-        error.domain == NSCocoaErrorDomain && (error.code == 4097 || error.code == 4099)
-    }
-
-    /// Tear the daemon's registration down and put it back, so BTM re-resolves the
-    /// path to the helper inside the *current* app bundle. If macOS decides this
-    /// needs the user's blessing again it lands as `.requiresApproval`, which the
-    /// Diagnostics row already surfaces as an "Enable…" button.
-    private func repairRegistration() {
-        let service = SMAppService.daemon(plistName: HelperConfig.plistName)
-        // ⚠️ An ALREADY-enabled record is the one case this repair cannot fix, and it
-        // must not try: `register()` is a no-op on a live service, but tearing the
-        // record down first to force a re-resolve is strictly worse. Measured
-        // 2026-08-17 — `unregister()` did dislodge the stale daemon, then `register()`
-        // returned "Operation not permitted" and the background item was left switched
-        // off, recoverable only by `sudo sfltool resetbtm` + a restart. Enabled-but-dead
-        // is reported as `MASError.helperUnresponsive` instead of being "repaired".
-        //
-        // Re-register FIRST, without tearing anything down. `register()` on a live
-        // service is a no-op, so this costs nothing when the record is fine — and it
-        // can't make a broken one worse. That matters: when BTM's record is corrupt
-        // (`fullPath is nil, container=(null)`), `register()` is refused with
-        // "Operation not permitted", so an unregister-first repair *disables* the
-        // item and then can't put it back, turning "approved but unreachable" into
-        // "switched off and unfixable from here". Only fall back to the destructive
-        // order once the gentle one has failed.
-        do {
-            try service.register()
-            log.notice("helper re-registered — status \(service.status.rawValue, privacy: .public)")
-            return
-        } catch {
-            log.notice("helper register() refused (\(error.localizedDescription, privacy: .public)) — retrying via unregister")
-        }
-        try? service.unregister()
-        do {
-            try service.register()
-            log.notice("helper re-registered after unregister — status \(service.status.rawValue, privacy: .public)")
-        } catch {
-            // Both orders refused: the BTM record is corrupt beyond what an app is
-            // allowed to touch. The caller turns this into the approval prompt, which
-            // is the only lever left on this side.
-            log.error("helper re-register failed: \(error.localizedDescription, privacy: .public)")
-        }
-    }
-
-    private func send(adamID: Int, uid: Int, gid: Int, userName: String, logPath: String) async throws -> Int32 {
-        let conn = connection()
-        return try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Int32, Error>) in
-            let guard1 = ResumeGuard()
-            guard let proxy = conn.remoteObjectProxyWithErrorHandler({ error in
-                guard1.once { cont.resume(throwing: error) }
-            }) as? MASHelperProtocol else {
-                guard1.once { cont.resume(throwing: MASInstaller.MASError.helperNotApproved) }
-                return
-            }
-            proxy.installMASApp(adamID: adamID, uid: uid, gid: gid,
-                                userName: userName, logPath: logPath) { status, _ in
-                guard1.once { cont.resume(returning: status) }
+            helper.installMASApp(adamID: adamID, uid: uid, gid: gid,
+                                 userName: userName, logPath: logPath) { status, message in
+                once.once {
+                    // The helper uses -1 for its own validation or process
+                    // launch failures. Other statuses come from the launched command.
+                    if status == -1 {
+                        continuation.resume(throwing: MASError.helperCommunication(
+                            .installRequest, .rejected(message ?? "no reason provided")))
+                    } else {
+                        continuation.resume(returning: status)
+                    }
+                }
             }
         }
-    }
-
-    private func connection() -> NSXPCConnection {
-        lock.lock(); defer { lock.unlock() }
-        if let c = cachedConnection { return c }
-        let c = NSXPCConnection(machServiceName: HelperConfig.machServiceName, options: .privileged)
-        c.remoteObjectInterface = NSXPCInterface(with: MASHelperProtocol.self)
-        guard let requirement = HelperConfig.helperRequirement else {
-            // We can't read our own team (or it isn't a well-formed Team ID), so we
-            // can't state who the helper must be. Hand back an invalidated connection: every call on it fails, which is
-            // the correct outcome — talking to an unpinned root daemon is worse than
-            // not talking to one.
-            //
-            // Not cached, but that costs only a wasted allocation per attempt:
-            // `OwnTeamIdentifier.current` is resolved once per process, so this can
-            // never start succeeding later. Leaving it uncached keeps `cachedConnection`
-            // meaning "a usable connection" rather than holding a dead one.
-            let reason = OwnTeamIdentifier.missingRequirementReason(team: OwnTeamIdentifier.current)
-            log.error("helper: \(reason, privacy: .public) — refusing to connect unpinned")
-            c.invalidate()
-            return c
-        }
-        if #available(macOS 13.0, *) {
-            c.setCodeSigningRequirement(requirement)
-        }
-        c.invalidationHandler = { [weak self] in self?.clearConnection() }
-        c.interruptionHandler = { [weak self] in self?.clearConnection() }
-        c.resume()
-        cachedConnection = c
-        return c
-    }
-
-    private func clearConnection() {
-        lock.lock(); cachedConnection = nil; lock.unlock()
     }
 }
 

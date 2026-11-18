@@ -109,6 +109,9 @@ targets:
       - path: Shared/ProcessExecutablePath.swift
       # Whether the helper that answered may be handed an install. Foundation + Core.
       - path: Sources/HelperInstallGate.swift
+      # App Store approval settling and handshake retry policy. Tests inject
+      # the approval reads and version probes without contacting the daemon.
+      - path: Sources/PrivilegedHelperClient.swift
       - path: Shared/OwnTeamIdentifier.swift
       - path: Shared/MASHelperProtocol.swift
       # The install gates' semaphore and its cancellable wait. Foundation only.

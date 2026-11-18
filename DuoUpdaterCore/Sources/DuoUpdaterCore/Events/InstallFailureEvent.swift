@@ -33,11 +33,13 @@ public struct InstallFailureEvent: Codable, Sendable, Hashable {
     public let stage: Stage
     /// The error exactly as the row showed it.
     public let message: String
+    /// Technical detail for exported reports, when the installer provides it.
+    public let diagnostic: String?
 
     public init(
         appID: String, appName: String, bundleID: String?,
         fromVersion: String?, toVersion: String?, sourceName: String?,
-        stage: Stage, message: String
+        stage: Stage, message: String, diagnostic: String? = nil
     ) {
         self.appID = appID
         self.appName = appName
@@ -47,6 +49,7 @@ public struct InstallFailureEvent: Codable, Sendable, Hashable {
         self.sourceName = sourceName
         self.stage = stage
         self.message = message
+        self.diagnostic = diagnostic
     }
 }
 
@@ -76,6 +79,9 @@ public enum InstallFailureReport {
             "Error:",
             failure.message,
         ]
+        if let diagnostic = failure.diagnostic {
+            lines.append("Detail: \(diagnostic)")
+        }
         if !homeDirectory.isEmpty {
             lines = lines.map { $0.replacingOccurrences(of: homeDirectory, with: "~") }
         }

@@ -300,19 +300,9 @@ struct DiagnosticsSettingsPage: View {
 /// "Enabled" once the user approves the background item, and re-queries status on
 /// appear (approval happens out-of-app, in System Settings › Login Items).
 private struct HelperStatusRow: View {
-    @ObservedObject var helper: PrivilegedHelperClient
-    /// nil until asked. "Switched on" and "actually answers" are different things —
-    /// updating DuoUpdater leaves the previous copy of the helper holding the
-    /// slot — and until you press Check there is no way to see which one you have
-    /// short of an update failing.
-    @State private var answering: Bool?
-    /// Guards against a second probe; carries no appearance of its own.
-    @State private var inFlight = false
-    /// Drives the busy look, and only once a check has been slow enough to be
-    /// worth mentioning. A reachable helper answers in tens of milliseconds, and
-    /// switching the button to disabled, spinning a spinner and dimming the result
-    /// for that long reads as a flicker rather than as progress.
-    @State private var checking = false
+    var helper: PrivilegedHelperClient
+    private var answering: Bool? { helper.answering }
+    private var checking: Bool { helper.isCheckingReachability }
     @State private var restarting = false
 
     var body: some View {
@@ -394,23 +384,7 @@ private struct HelperStatusRow: View {
         // Title stays put: swapping it for "Checking…" makes the button wider, and
         // in a right-aligned row a wider button grows leftwards — the press moves
         // the thing being pressed. Progress belongs in the result line instead.
-        Button("Check") {
-            guard !inFlight else { return }
-            inFlight = true
-            checking = true
-            Task {
-                // Shown for a minimum beat, not a minimum of work: a healthy helper
-                // answers in tens of milliseconds, and a spinner that appears and
-                // vanishes inside one frame reads as a glitch rather than as
-                // feedback. Every press therefore looks the same from the outside.
-                async let settled: Void = Task.sleep(for: .milliseconds(350))
-                let reachable = await HelperShellRunner().isAnswering()
-                try? await settled
-                answering = reachable
-                inFlight = false
-                checking = false
-            }
-        }
+        Button("Check") { helper.checkReachability(manual: true) }
         .settingsGlassButton()
         .disabled(checking)
         .help("Ask the helper to answer — tells you whether App Store updates can actually run right now")
@@ -449,17 +423,20 @@ private struct HelperStatusRow: View {
                 .settingsRow()
             } else {
                 SettingsField(title: "App Store helper") {
-                    Button("Enable…") { Task { await helper.register() } }
-                        .settingsGlassButton()
+                    if helper.isConfirmingApproval {
+                        Text("Confirming helper approval…")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Button("Enable…") { Task { await helper.register() } }
+                            .settingsGlassButton()
+                    }
                 }
             }
         }
-        .task { await helper.refreshStatusOffMain() }
-        // Probe once on arrival rather than waiting to be asked: this page exists to
-        // say whether things work, and "Enabled" alone cannot. It also means the
-        // result line is populated from the start, so the first press of Check
-        // changes a word rather than growing the card by a row.
-        .task { answering = await HelperShellRunner().isAnswering() }
+        .task {
+            await helper.refreshStatusOffMain()
+            if !Task.isCancelled { helper.checkReachability() }
+        }
     }
 
     /// Last on the title's line in both layouts, so this row's "Enabled" lines up
@@ -472,14 +449,6 @@ private struct HelperStatusRow: View {
             .labelStyle(.titleAndIcon)
     }
 
-    // "Enabled" is not the same as "answering". Updating DuoUpdater replaces its
-    // bundle while the helper from the old one keeps holding launchd's slot, so the
-    // record still reads enabled while every App Store install times out.
-    // Re-registering cannot fix that — `register()` on a live record does nothing,
-    // measured — so the button offered here is the one that works: kill the stale
-    // copy so launchd starts the one belonging to the app that's installed now.
-    // Helpers built after this change exit on their own when idle; the button is
-    // for the ones already stranded by an older build.
     private var restartButton: some View {
         // Disabled while the authorization panel is up: pressing again would stack
         // a second prompt on the first and kickstart twice.
@@ -492,7 +461,7 @@ private struct HelperStatusRow: View {
                 // Re-probe rather than assume: the point of the button is that it
                 // makes the helper answer again, so show whether it did instead of
                 // leaving a stale result on screen.
-                if restarted { answering = await HelperShellRunner().isAnswering() }
+                if restarted { helper.checkReachability() }
             }
         } label: {
             // Sized for the wider of its two titles, so the press can't change the

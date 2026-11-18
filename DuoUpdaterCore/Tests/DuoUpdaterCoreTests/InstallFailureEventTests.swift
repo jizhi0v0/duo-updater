@@ -96,6 +96,25 @@ struct InstallFailureEventTests {
         #expect(text.contains("DuoUpdater: 0.6.0 (600)"))
         #expect(text.contains("macOS: Version 27.2 (arm64)"))
     }
+
+    @Test func reportsPreserveTheHelperOperationAndOriginalXPCCode() async throws {
+        let (store, url) = Self.store()
+        defer { Self.remove(url) }
+        let error = MASInstaller.MASError.helperCommunication(
+            .installRequest, .xpc(domain: NSCocoaErrorDomain, code: NSXPCConnectionInterrupted))
+        let failure = InstallFailureEvent(
+            appID: "/Applications/Foo.app", appName: "Foo", bundleID: nil,
+            fromVersion: "1.0", toVersion: "1.1", sourceName: "App Store", stage: .install,
+            message: try #require(error.errorDescription), diagnostic: error.diagnostic)
+        await store.append(DuoEvent(payload: .failure(failure)))
+        await store.flush()
+
+        let restored = try #require(await store.events(EventQuery(kind: "failure")).first?.failure)
+        #expect(restored == failure)
+        let report = InstallFailureReport.text(for: restored, at: Date(), duoUpdaterVersion: "0.5.26")
+        #expect(report.contains("Detail: installMASApp: NSCocoaErrorDomain (4097)"))
+        #expect(!report.contains(MASInstaller.MASError.helperRestartHint))
+    }
 }
 
 /// Turning a report into something the user sends themselves.

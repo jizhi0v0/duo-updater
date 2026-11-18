@@ -10771,67 +10771,67 @@
       }
     }
   },
-  "Request logs and permanent install history will be kept.": {
+  "Current update holds, request logs, and permanent install history will be kept.": {
     "extractionState": "manual",
     "localizations": {
       "de": {
         "stringUnit": {
           "state": "translated",
-          "value": "Anfrageprotokolle und der dauerhafte Installationsverlauf bleiben erhalten."
+          "value": "Derzeit zurückgestellte Updates, Anfrageprotokolle und der dauerhafte Installationsverlauf bleiben erhalten."
         }
       },
       "es": {
         "stringUnit": {
           "state": "translated",
-          "value": "Se conservarán los registros de solicitudes y el historial permanente de instalaciones."
+          "value": "Se conservarán las actualizaciones en espera, los registros de solicitudes y el historial permanente de instalaciones."
         }
       },
       "fr": {
         "stringUnit": {
           "state": "translated",
-          "value": "Les journaux de requêtes et l’historique permanent des installations seront conservés."
+          "value": "Les mises à jour en attente, les journaux de requêtes et l’historique permanent des installations seront conservés."
         }
       },
       "it": {
         "stringUnit": {
           "state": "translated",
-          "value": "I log delle richieste e la cronologia permanente delle installazioni verranno conservati."
+          "value": "Gli aggiornamenti in attesa, i log delle richieste e la cronologia permanente delle installazioni verranno conservati."
         }
       },
       "ja": {
         "stringUnit": {
           "state": "translated",
-          "value": "リクエストログと永続的なインストール履歴は保持されます。"
+          "value": "保留中のアップデート、リクエストログ、永続的なインストール履歴は保持されます。"
         }
       },
       "pt-BR": {
         "stringUnit": {
           "state": "translated",
-          "value": "Os registros de solicitações e o histórico permanente de instalações serão mantidos."
+          "value": "As atualizações em espera, os registros de solicitações e o histórico permanente de instalações serão mantidos."
         }
       },
       "ru": {
         "stringUnit": {
           "state": "translated",
-          "value": "Журналы запросов и постоянная история установок сохранятся."
+          "value": "Приостановленные обновления, журналы запросов и постоянная история установок сохранятся."
         }
       },
       "tr": {
         "stringUnit": {
           "state": "translated",
-          "value": "İstek günlükleri ve kalıcı yükleme geçmişi korunur."
+          "value": "Bekleyen güncellemeler, istek günlükleri ve kalıcı yükleme geçmişi korunur."
         }
       },
       "zh-Hans": {
         "stringUnit": {
           "state": "translated",
-          "value": "请求日志和永久安装历史将予以保留。"
+          "value": "当前暂停的更新、请求日志和永久安装历史将予以保留。"
         }
       },
       "zh-Hant": {
         "stringUnit": {
           "state": "translated",
-          "value": "請求記錄和永久安裝歷史會保留。"
+          "value": "目前暫停的更新、請求記錄和永久安裝歷史會保留。"
         }
       }
     }
@@ -10962,6 +10962,71 @@
         "stringUnit": {
           "state": "translated",
           "value": "事件"
+        }
+      }
+    }
+  },
+  "Current automatic update holds": {
+    "extractionState": "manual",
+    "localizations": {
+      "de": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "Derzeit zurückgestellte automatische Updates"
+        }
+      },
+      "es": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "Actualizaciones automáticas en espera"
+        }
+      },
+      "fr": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "Mises à jour automatiques en attente"
+        }
+      },
+      "it": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "Aggiornamenti automatici in attesa"
+        }
+      },
+      "ja": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "保留中の自動アップデート"
+        }
+      },
+      "pt-BR": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "Atualizações automáticas em espera"
+        }
+      },
+      "ru": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "Приостановленные автообновления"
+        }
+      },
+      "tr": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "Bekleyen otomatik güncellemeler"
+        }
+      },
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "当前暂停的自动更新"
+        }
+      },
+      "zh-Hant": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "目前暫停的自動更新"
         }
       }
     }

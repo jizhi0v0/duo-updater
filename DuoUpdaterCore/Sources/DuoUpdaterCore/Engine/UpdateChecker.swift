@@ -222,6 +222,10 @@ public struct UpdateChecker: Sendable {
         let label = "\(app.name) [\(app.bundleID ?? "no-bundle-id")] v\(app.shortVersion ?? "?")"
         Log.check.debug("check start: \(label, privacy: .public)")
 
+        guard app.releaseChannel != .undetermined else {
+            return UpdateResult(app: app, remote: nil, status: .unknown)
+        }
+
         if app.isToolboxManaged && !app.prefersVendorProbeOverToolbox {
             if let verdict = await toolbox?.verdict(for: app) {
                 let remote = RemoteVersion(
@@ -517,11 +521,20 @@ public struct UpdateChecker: Sendable {
                 result.homebrewSourceIdentifier = brewAnswer?.homebrewSourceIdentifier
                 result.homebrewSelfUpdating = brewAnswer?.homebrewSelfUpdating ?? false
                 if source.name == "Homebrew" {
+                    let key = InstallPreferenceKey.key(for: app)
+                    // Claude's self-updating cask publishes Stable. An opted-in
+                    // Latest copy checks its own feed even when the cask is newer.
+                    let followsClaudeLatest = app.bundleID?.lowercased() == ClaudeDesktopChannel.bundleID
+                        && app.releaseChannel == .latest && remote.offeredChannel == .stable
+                        && remote.homebrewSelfUpdating
+                    let checksOtherSources = (status == .upToDate || followsClaudeLatest)
+                        && brewFallback.checksOtherSources(key, selfUpdating: remote.homebrewSelfUpdating)
+                    if checksOtherSources && followsClaudeLatest {
+                        result = UpdateResult(app: app, remote: nil, status: .unknown)
+                    }
                     result.homebrewSourceIdentifier = remote.sourceIdentifier
                     result.homebrewSelfUpdating = remote.homebrewSelfUpdating
-                    let key = InstallPreferenceKey.key(for: app)
-                    if status == .upToDate,
-                       brewFallback.checksOtherSources(key, selfUpdating: remote.homebrewSelfUpdating) {
+                    if checksOtherSources {
                         if let refusal = brewFallback.signingRefusals[key],
                            refusal.team == BrewFallbackPolicy.signingStamp(team: await installedTeamOnce()) {
                             heldRefusal = refusal

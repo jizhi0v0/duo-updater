@@ -122,10 +122,97 @@ import Testing
         VendorProbeRegistry.recipes.filter { $0.bundleID == Self.bundleID }
     }
 
-    @Test func bothEndpointsAreRegisteredOnTheSameChannel() throws {
-        #expect(recipes.count == 2)
-        #expect(Set(recipes.map(\.channel)) == [.stable])
-        #expect(Set(recipes.compactMap(\.variant)) == ["ga", "rollout"])
+    @Test func stableKeepsBothEndpointsAndLatestHasItsOwn() throws {
+        let stable = recipes.filter { $0.channel == .stable }
+        #expect(Set(stable.compactMap(\.variant)) == ["ga", "rollout"])
+        #expect(stable.allSatisfy { !$0.url.absoluteString.contains("channelUuid") })
+        let latest = recipes.filter { $0.channel == .latest }
+        #expect(latest.count == 1)
+        let endpoint = try #require(latest.first?.url)
+        let query = try #require(URLComponents(url: endpoint, resolvingAgainstBaseURL: false)?.queryItems)
+        #expect(query.contains(URLQueryItem(name: "os_version", value: "__HOST_OS_VERSION__")))
+        #expect(query.contains(URLQueryItem(name: "device_id", value: "__IDENTITY__")))
+        #expect(query.contains(URLQueryItem(
+            name: "channelUuid", value: "77a14fc4-808e-4345-ac3e-090be671bf94")))
+    }
+
+    @Test(arguments: [
+        (#"{"preferences":{"releaseChannel":"latest"}}"#, ReleaseChannel.latest),
+        (#"{"preferences":{"releaseChannel":"stable","ancientJournal":"latest"}}"#, .stable),
+        (#"{"preferences":{"ancientJournal":"latest"}}"#, .latest),
+        (#"{"preferences":{"releaseChannel":"invalid","ancientJournal":"latest"}}"#, .latest),
+        (#"{"releaseChannel":"latest"}"#, .stable),
+        (#"{"preferences":{"releaseChannel":true}}"#, .stable),
+        ("{", .stable),
+    ])
+    func readsClaudesStoredChannel(json: String, expected: ReleaseChannel) {
+        let preference = ClaudeDesktopChannel.releaseChannel(in: Data(json.utf8))
+        #expect(ClaudeDesktopChannel.resolve(preference: preference).channel == expected)
+    }
+
+    @Test func managedAndOlderCopiesReadAsStable() {
+        #expect(ClaudeDesktopChannel.resolve(preference: "latest", management: .managed).channel == .stable)
+        #expect(ClaudeDesktopChannel.resolve(preference: "latest", management: .undetermined).channel == .undetermined)
+        #expect(ClaudeDesktopChannel.resolve(preference: "stable", management: .undetermined).channel == .stable)
+        #expect(ClaudeDesktopChannel.resolve(preference: "latest", installedVersion: "4.28.0").channel == .stable)
+        #expect(ClaudeDesktopChannel.resolve(preference: "latest", installedVersion: "4.29.0").channel == .latest)
+    }
+
+    @Test func onlyDesktopPoliciesAffectTheChannel() throws {
+        let fm = FileManager.default
+        let root = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let user = root.appendingPathComponent("test-user", isDirectory: true)
+        try fm.createDirectory(at: user, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: root) }
+        let activePolicy = try PropertyListSerialization.data(
+            fromPropertyList: ["disableAutoUpdates": true], format: .xml, options: 0)
+        let noOp = try PropertyListSerialization.data(
+            fromPropertyList: ["deploymentMode": "any"], format: .xml, options: 0)
+        try activePolicy.write(to: root.appendingPathComponent("com.anthropic.claudecode.plist"))
+        #expect(ClaudeDesktopChannel.managedPreferences(in: root, user: "test-user") == .unmanaged)
+
+        let devicePolicy = root.appendingPathComponent("com.anthropic.claudefordesktop.plist")
+        let userPolicy = user.appendingPathComponent("com.anthropic.claudefordesktop.plist")
+        try noOp.write(to: devicePolicy)
+        #expect(ClaudeDesktopChannel.managedPreferences(in: root, user: "test-user") == .unmanaged)
+        let unknownPolicy = try PropertyListSerialization.data(
+            fromPropertyList: ["UnexpectedPolicy": true], format: .xml, options: 0)
+        try unknownPolicy.write(to: devicePolicy)
+        #expect(ClaudeDesktopChannel.managedPreferences(in: root, user: "test-user") == .undetermined)
+        try activePolicy.write(to: userPolicy)
+        #expect(ClaudeDesktopChannel.managedPreferences(in: root, user: "test-user") == .managed)
+        try fm.removeItem(at: userPolicy)
+        try Data("unreadable policy".utf8).write(to: devicePolicy)
+        #expect(ClaudeDesktopChannel.managedPreferences(in: root, user: "test-user") == .managed)
+    }
+
+    @Test func latestReadsThePublishedVersionDateAndZIPDigest() throws {
+        let latest = try #require(recipes.first { $0.channel == .latest })
+        let response = """
+            {"currentRelease":"6.6695.0","releases":[{"version":"6.6695.0","updateTo":\
+            {"version":"6.6695.0","pub_date":"2026-11-17T14:52:12.376020",\
+            "url":"https://downloads.claude.ai/releases-latest/darwin/universal/6.6695.0/\
+            Claude-82d7d93a9d84003697aee8216ab3a46012e8e2b6.zip",\
+            "sha256":"76016338f630dea98d1c1c0fe5dd927a6d5fb100517b179f2e846b483354a5d4"}}]}
+            """
+        #expect(VendorProbeRecipe.extractVersion(from: response, pattern: latest.versionPattern) == "6.6695.0")
+        #expect(VendorProbeRecipe.extractVersion(
+            from: response, pattern: try #require(latest.publishedAtPattern)) == "2026-11-17T14:52:12.376020")
+        let install = try #require(latest.install)
+        guard case .bodyPattern(let pattern) = install.urlSource else {
+            Issue.record("Latest must use the ZIP from the vendor response")
+            return
+        }
+        #expect(VendorProbeRecipe.extractVersion(from: response, pattern: pattern)?
+            .hasSuffix("/releases-latest/darwin/universal/6.6695.0/Claude-82d7d93a9d84003697aee8216ab3a46012e8e2b6.zip") == true)
+        #expect(install.checksumFormat == .sha256Hex)
+        #expect(VendorProbeRecipe.extractVersion(from: response, pattern: try #require(install.checksumPattern))
+            == "76016338f630dea98d1c1c0fe5dd927a6d5fb100517b179f2e846b483354a5d4")
+
+        let stable = response.replacingOccurrences(of: "/releases-latest/", with: "/releases/")
+        let stale = response.replacingOccurrences(of: "/6.6695.0/", with: "/6.6395.0/")
+        #expect(VendorProbeRecipe.extractVersion(from: stable, pattern: latest.versionPattern) == nil)
+        #expect(VendorProbeRecipe.extractVersion(from: stale, pattern: latest.versionPattern) == nil)
     }
 
     /// The GA endpoint must stay id-free — it is the answer for a machine whose

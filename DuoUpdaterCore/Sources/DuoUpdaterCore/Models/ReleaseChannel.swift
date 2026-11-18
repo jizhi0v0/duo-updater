@@ -14,6 +14,12 @@ import Foundation
 /// stay `.stable`, the channel every current recipe targets.
 public enum ReleaseChannel: String, Codable, Sendable, Hashable, CaseIterable {
     case stable
+    /// Claude Desktop's opt-in fast release track. Stable and Latest share a
+    /// bundle ID and numeric versions, so only its channel binding sets this.
+    case latest
+    /// The installed copy has conflicting or unrecognized channel settings.
+    /// Update checks wait for a channel that can be identified.
+    case undetermined
     case beta
     /// A "release candidate" train that is its own published channel, not a tag on
     /// a beta build: WeChat DevTools ships 稳定版 / 预发布版(RC) / 开发版(Nightly) as

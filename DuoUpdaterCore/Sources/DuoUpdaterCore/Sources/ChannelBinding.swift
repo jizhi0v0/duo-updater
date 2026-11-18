@@ -208,6 +208,7 @@ public enum ChannelBinding {
         VimRChannel.bundleID.lowercased(),
         TextMateChannel.bundleID.lowercased(),
         MaestroChannel.bundleID.lowercased(),
+        ClaudeDesktopChannel.bundleID,
     ]
 
     /// The directories holding every preference a resolver above reads, for a
@@ -334,6 +335,8 @@ public enum ChannelBinding {
         // `maestro-settings.json` sits in the app's Electron `userData` directory
         // beside its databases and sessions. See `MaestroChannel`. TextMate needs
         // nothing either: its domain is in `~/Library/Preferences`, the first root.
+        // Claude Desktop's config also shares its directory with active Electron
+        // state. The next scan or Claude launch/quit picks up a channel change.
         //
         // Open Screen Sharing deliberately adds nothing, for Cindy's reason: its
         // database sits in the app's group container beside its caches. See
@@ -553,6 +556,8 @@ public enum ChannelBinding {
         case VimRChannel.bundleID.lowercased():    return { _, _ in VimRChannel.resolveCurrent() }
         case TextMateChannel.bundleID.lowercased(): return { _, _ in TextMateChannel.resolveCurrent() }
         case MaestroChannel.bundleID.lowercased(): return { _, _ in MaestroChannel.resolveCurrent() }
+        case ClaudeDesktopChannel.bundleID:
+            return { _, strings in ClaudeDesktopChannel.resolveCurrent(bundleStrings: strings) }
         default:                       return nil
         }
     }
@@ -702,8 +707,8 @@ public enum ChannelBinding {
     /// The bindings `allResolutions` deliberately does NOT cover, lower-cased.
     ///
     /// OrbStack, Alfred, Tailscale, CapCut, Windscribe, super.engineering, Cua
-    /// Driver, both Cindy editions, TextMate and Maestro have bindings, but the binding only picks
-    /// which RECIPE runs; the
+    /// Driver, both Cindy editions, TextMate, Maestro and Claude Desktop have
+    /// bindings that only pick which recipe runs. The
     /// install comes from that recipe, so their cross-channel question is already
     /// answered by a proof map keyed to that recipe, and enumerating them here
     /// would double-count them into a second registry.
@@ -738,6 +743,7 @@ public enum ChannelBinding {
         OpenScreenSharingChannel.bundleID.lowercased(),
         TextMateChannel.bundleID.lowercased(),
         MaestroChannel.bundleID.lowercased(),
+        ClaudeDesktopChannel.bundleID,
     ]
 
     /// Every feed address a binding hands out as its `feedOverride`, one case per

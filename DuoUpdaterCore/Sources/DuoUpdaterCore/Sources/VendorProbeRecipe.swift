@@ -405,10 +405,8 @@ public struct VendorProbeRecipe: Sendable {
 
     /// The endpoint to probe (a stable "latest" redirect, or a version API).
     ///
-    /// When `identity` is set this carries its placeholder token and is NOT a
-    /// fetchable URL on its own; the substitution happens inside the fetch. It is
-    /// still the value reported everywhere (logs, verify findings), which is what
-    /// keeps the machine's identifier out of them.
+    /// Identity and `__HOST_OS_VERSION__` tokens expand just before the request.
+    /// Logs and verify findings retain the template to keep identifiers private.
     public let url: URL
 
     /// Set when the endpoint only answers for a specific machine, and the app

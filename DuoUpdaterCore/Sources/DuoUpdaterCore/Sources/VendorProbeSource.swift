@@ -1146,6 +1146,13 @@ public struct VendorProbeSource: UpdateSource {
         _ recipe: VendorProbeRecipe, trackOverride: String? = nil
     ) -> Result<ResolvedEndpoint, ProbeFailure> {
         var endpoint = recipe.url
+        let osVersionPlaceholder = "__HOST_OS_VERSION__"
+        if endpoint.absoluteString.contains(osVersionPlaceholder) {
+            guard let expanded = URL(string: endpoint.absoluteString.replacingOccurrences(
+                of: osVersionPlaceholder, with: hostOSVersion))
+            else { return .failure(.malformedResolvedURL("invalid host OS version in endpoint")) }
+            endpoint = expanded
+        }
         for identity in recipe.identities {
             guard let resolved = identity.resolve(endpoint) else {
                 return .failure(.notApplicable("no device identity at \(identity.displayPath)"))

@@ -47,7 +47,7 @@ struct NetworkWindowView: View {
     var body: some View {
         Group {
             switch tab {
-            case .events: AutomaticUpdateEventsPane()
+            case .events: AutomaticUpdateEventsPane(currentHolds: model.currentAutomaticUpdateHolds)
             case .downloads: TrafficLedgerPane(model: model)
             case .requests:
                 // Values and closures, not the model: `AppListModel.init`

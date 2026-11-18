@@ -9642,36 +9642,38 @@ final class AppListModel {
     /// confirmation gates, and no row that's already busy. Snapshotted up front
     /// so the re-sorting each install triggers can't reshuffle what we iterate.
     private func installAllTargets() -> [UpdateResult] {
-        results.filter { result in
-            isActionableUpdate(result)
-                // `requiresInstaller` too, not just `canAutoInstall`: a vendor `.pkg`
-                // (ToDesk, AweSun) sets `requiresManualInstaller`, which excludes it
-                // from `canAutoInstall` — so those apps used to be silently absent
-                // from "Update All" and could only be updated one row at a time. The
-                // download is unattended like any other; only the final hand-off to
-                // the system installer needs the user, and `installAll` runs those
-                // last (see its phase ordering).
-                && (canAutoInstall(result) || requiresInstaller(result))
-                && !defersToSelfUpdater(result)
-                && UpdatePolicy.installConfirmation(for: result) == nil
-                // The row offers Relaunch, not Update (`RowAction.state`), and
-                // `runInstall` would refuse it after queueing it anyway. The
-                // versioned staged case is already out via `canAutoInstall`.
-                && !armedSelfInstallers.contains(result.id)
-                // The row offers Restore or Reinstall (`.interruptedInstall`),
-                // which is the user's to click; nothing restores by itself.
-                && interruptedByPath[result.id] == nil
-                && installing[result.id] == nil
-                // Xcode joins only with a valid Apple Developer session and with
-                // no copy of it running: the archive is fetched through that
-                // session, and the installer refuses a running Xcode instead of
-                // quitting it. It still runs last and alone (serial, by size) —
-                // a multi-gigabyte download and a swap of the toolchain they
-                // build with.
-                && UpdatePolicy.joinsUpdateAll(
-                    result, environment: policyEnvironment,
-                    appleSignIn: isXcodeRow(result) ? AppleDeveloperSession.shared.signInNeed : nil)
-        }
+        results.filter(isInstallAllTarget)
+    }
+
+    private func isInstallAllTarget(_ result: UpdateResult) -> Bool {
+        isActionableUpdate(result)
+            // `requiresInstaller` too, not just `canAutoInstall`: a vendor `.pkg`
+            // (ToDesk, AweSun) sets `requiresManualInstaller`, which excludes it
+            // from `canAutoInstall` — so those apps used to be silently absent
+            // from "Update All" and could only be updated one row at a time. The
+            // download is unattended like any other; only the final hand-off to
+            // the system installer needs the user, and `installAll` runs those
+            // last (see its phase ordering).
+            && (canAutoInstall(result) || requiresInstaller(result))
+            && !defersToSelfUpdater(result)
+            && UpdatePolicy.installConfirmation(for: result) == nil
+            // The row offers Relaunch, not Update (`RowAction.state`), and
+            // `runInstall` would refuse it after queueing it anyway. The
+            // versioned staged case is already out via `canAutoInstall`.
+            && !armedSelfInstallers.contains(result.id)
+            // The row offers Restore or Reinstall (`.interruptedInstall`),
+            // which is the user's to click; nothing restores by itself.
+            && interruptedByPath[result.id] == nil
+            && installing[result.id] == nil
+            // Xcode joins only with a valid Apple Developer session and with
+            // no copy of it running: the archive is fetched through that
+            // session, and the installer refuses a running Xcode instead of
+            // quitting it. It still runs last and alone (serial, by size) —
+            // a multi-gigabyte download and a swap of the toolchain they
+            // build with.
+            && UpdatePolicy.joinsUpdateAll(
+                result, environment: policyEnvironment,
+                appleSignIn: isXcodeRow(result) ? AppleDeveloperSession.shared.signInNeed : nil)
     }
 
     /// Only independent archive/appcast installs run in parallel, and only once
@@ -10439,6 +10441,26 @@ final class AppListModel {
             && prefs.checkFrequency.interval != nil
             && NetworkMonitor.shared.hasObservedPath
             && NetworkMonitor.shared.path.allowsDiscretionaryTraffic && !Task.isCancelled
+    }
+
+    /// Only ledger-backed holds on updates we would otherwise try automatically.
+    /// Use the same capacity snapshot as the pass, without rechecking the disk.
+    func currentAutomaticUpdateHolds(now: Date) -> [AutomaticUpdateHold] {
+        guard prefs.automaticUpdates, prefs.checkFrequency.interval != nil else { return [] }
+        let ledger = prefs.runningAppUpdateLedger
+        let freeBytes = installSpace.capacity.freeBytes
+        return results.compactMap { result in
+            guard let version = result.remote?.displayVersion, !version.isEmpty,
+                  let reason = ledger.holdReason(for: prefs.key(for: result.app), version: version,
+                                                 now: now, freeBytes: freeBytes),
+                  isInstallAllTarget(result), prefs.automaticUpdateMode(result.app) != .never,
+                  installsAutomatically(result) == true else { return nil }
+            return AutomaticUpdateHold(id: result.id, name: result.app.name, fromVersion: result.app.shortVersion ?? "",
+                                       toVersion: version, reason: reason.message)
+        }.sorted { lhs, rhs in
+            let order = lhs.name.localizedStandardCompare(rhs.name)
+            return order == .orderedSame ? lhs.id < rhs.id : order == .orderedAscending
+        }
     }
 
     // Attempt-local versions, refreshed by the pre-install recheck and the

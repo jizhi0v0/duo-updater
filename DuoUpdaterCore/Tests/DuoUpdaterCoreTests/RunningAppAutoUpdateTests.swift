@@ -111,4 +111,31 @@ struct RunningAppAutoUpdateTests {
         let data = try JSONEncoder().encode(ledger)
         #expect(try JSONDecoder().decode(Policy.Ledger.self, from: data) == ledger)
     }
+
+    @Test func currentHoldComesFromThePersistedLedger() throws {
+        let json = #"{"entries":{"_Applications_Discord.app":{"version":"0.0.423","firstSeen":816545450.055032,"failures":0,"gaveUp":false,"automaticFailure":{"disposition":"pauseVersion","reason":"Not enough free space on this Mac to install this update: it has 723.7 MB free and needs 11.82 GB. Nothing was changed."}}}}"#
+        let ledger = try JSONDecoder().decode(Policy.Ledger.self, from: Data(json.utf8))
+        let key = "_Applications_Discord.app"
+        #expect(ledger.holdReason(for: key, version: "0.0.423", now: now, freeBytes: 0) != nil)
+        #expect(ledger.holdReason(for: key, version: "0.0.424", now: now, freeBytes: nil) == nil)
+        #expect(ledger.holdReason(for: "other", version: "0.0.423", now: now, freeBytes: nil) == nil)
+    }
+
+    @Test func currentHoldExpiresWhenTheCooldownOrSpaceRequirementClears() {
+        var ledger = Policy.Ledger()
+        _ = ledger.observe("space", version: "2", now: now)
+        ledger.recordFailure("space", failure: .init(disposition: .waitForSpace, reason: "Low space",
+                                                     requiredFreeBytes: 200), now: now)
+        #expect(ledger.holdReason(for: "space", version: "2", now: now, freeBytes: 199) == .waitingForSpace)
+        #expect(ledger.holdReason(for: "space", version: "2", now: now, freeBytes: 200) == nil)
+        #expect(ledger.entries["space"]?.automaticFailure?.disposition == .waitForSpace)
+
+        _ = ledger.observe("cooldown", version: "2", now: now)
+        ledger.recordQuitRefused("cooldown", now: now)
+        #expect(ledger.holdReason(for: "cooldown", version: "2", now: now, freeBytes: nil) == .gaveUp)
+        #expect(ledger.holdReason(for: "cooldown", version: "3", now: now, freeBytes: nil) == .retryLater)
+        let deadline = now.addingTimeInterval(Policy.retryBackoff)
+        #expect(ledger.holdReason(for: "cooldown", version: "3", now: deadline, freeBytes: nil) == nil)
+        #expect(ledger.entries["cooldown"]?.version == "2")
+    }
 }

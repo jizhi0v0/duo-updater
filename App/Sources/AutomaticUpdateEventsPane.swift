@@ -1,8 +1,19 @@
 import SwiftUI
 import DuoUpdaterCore
 
+struct AutomaticUpdateHold: Identifiable {
+    let id: String
+    let name: String
+    let fromVersion: String
+    let toVersion: String
+    let reason: String
+}
+
 struct AutomaticUpdateEventsPane: View {
+    let currentHolds: @MainActor (Date) -> [AutomaticUpdateHold]
+
     @State private var events: [DuoEvent] = []
+    @State private var now = Date.now
     @State private var confirmsClear = false
     @State private var report: String?
     @State private var exportError: String?
@@ -13,6 +24,7 @@ struct AutomaticUpdateEventsPane: View {
     @State private var filter: AttemptStatus?
 
     var body: some View {
+        let holds = currentHolds(now)
         let allRows = AutomaticUpdateActivity.rows(from: events)
         // A filter whose outcome is no longer listed (cleared, or aged out)
         // shows everything rather than an empty list.
@@ -25,6 +37,16 @@ struct AutomaticUpdateEventsPane: View {
         // leaving a blank gap — until the next scroll re-measured it.
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
+                if !holds.isEmpty {
+                    Section {
+                        ForEach(Array(holds.enumerated()), id: \.element.id) { index, hold in
+                            if index > 0 { Divider().padding(.leading, 44) }
+                            HoldRow(hold: hold)
+                        }
+                    } header: {
+                        sectionHeading(Text("Current automatic update holds"))
+                    }
+                }
                 ForEach(days, id: \.key) { day, rows in
                     Section {
                         ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
@@ -34,12 +56,7 @@ struct AutomaticUpdateEventsPane: View {
                                 set: { if $0 { expanded.insert(row.id) } else { expanded.remove(row.id) } }))
                         }
                     } header: {
-                        Text(DayLabel.string(for: day))
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(.secondary)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.top, 12).padding(.bottom, 4)
-                            .background(.background)
+                        sectionHeading(Text(DayLabel.string(for: day)))
                     }
                 }
             }
@@ -48,7 +65,7 @@ struct AutomaticUpdateEventsPane: View {
         }
         .background(.background)
         .overlay {
-            if allRows.isEmpty {
+            if holds.isEmpty && allRows.isEmpty {
                 ContentUnavailableView("No automatic update activity yet.", systemImage: "clock.arrow.circlepath")
             }
         }
@@ -91,14 +108,25 @@ struct AutomaticUpdateEventsPane: View {
                 }
             }
         } message: {
-            Text("Request logs and permanent install history will be kept.")
+            Text("Current update holds, request logs, and permanent install history will be kept.")
         }
         .task {
             while !Task.isCancelled {
                 events = await EventStore.shared.events(.init(kind: "automaticUpdate", limit: 200))
+                now = .now
                 do { try await Task.sleep(for: .seconds(2)) } catch { return }
             }
         }
+    }
+
+    private func sectionHeading(_ title: Text) -> some View {
+        title
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.top, 12).padding(.bottom, 4)
+            .background(.background)
+            .accessibilityAddTraits(.isHeader)
     }
 
     private func saveReport() {
@@ -112,6 +140,42 @@ struct AutomaticUpdateEventsPane: View {
             exportError = nil
             self.report = nil
         } catch { exportError = error.localizedDescription }
+    }
+}
+
+private struct HoldRow: View {
+    let hold: AutomaticUpdateHold
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            AppIcon(path: hold.id).accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 5) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(hold.name).font(.body.weight(.semibold))
+                    ActivityVersions(from: hold.fromVersion, to: hold.toVersion)
+                }
+                Text(AutomaticUpdateReasonText.display(hold.reason))
+                    .font(.callout).foregroundStyle(.secondary).textSelection(.enabled)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 8)
+    }
+}
+
+private struct ActivityVersions: View {
+    let from: String
+    let to: String
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 4) {
+            if !from.isEmpty {
+                Text(from).foregroundStyle(.secondary)
+                Image(systemName: "arrow.right").font(.caption2).foregroundStyle(.tertiary)
+            }
+            Text(to).fontWeight(.medium)
+        }
+        .monospacedDigit().lineLimit(1)
     }
 }
 
@@ -228,7 +292,7 @@ private struct ActivityRow: View {
             VStack(alignment: .leading, spacing: 5) {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Text(fields["appName"] ?? "").font(.body.weight(.semibold))
-                    versions
+                    ActivityVersions(from: fields["fromVersion"] ?? "", to: fields["toVersion"] ?? "")
                     Spacer(minLength: 12)
                     if row.count > 1 {
                         Text(verbatim: "×\(row.count)")
@@ -269,18 +333,6 @@ private struct ActivityRow: View {
             }
             .disabled(details.isEmpty)
         }
-    }
-
-    @ViewBuilder private var versions: some View {
-        let from = fields["fromVersion"] ?? "", to = fields["toVersion"] ?? ""
-        HStack(alignment: .firstTextBaseline, spacing: 4) {
-            if !from.isEmpty {
-                Text(from).foregroundStyle(.secondary)
-                Image(systemName: "arrow.right").font(.caption2).foregroundStyle(.tertiary)
-            }
-            Text(to).fontWeight(.medium)
-        }
-        .monospacedDigit().lineLimit(1)
     }
 
     @ViewBuilder private var time: some View {

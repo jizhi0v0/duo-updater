@@ -72,6 +72,19 @@ public enum RunningAppAutoUpdate {
         public var entries: [String: Entry]
         public init(entries: [String: Entry] = [:]) { self.entries = entries }
 
+        /// A still-applicable hold on the offered version, for the Events pane.
+        /// Read-only: viewing Events does not observe an offer or clear a failure.
+        public func holdReason(for key: String, version: String, now: Date, freeBytes: Int64?) -> Reason? {
+            guard let stored = entries[key] else { return nil }
+            // A newer offer clears version-specific pauses but can inherit a
+            // refused-quit cooldown. Apply that same transition to a local copy.
+            var snapshot = Ledger(entries: [key: stored])
+            let entry = snapshot.observe(key, version: version, now: now, freeBytes: freeBytes)
+            guard case .wait(let reason) = RunningAppAutoUpdate.decide(entry: entry, now: now, freeBytes: freeBytes)
+            else { return nil }
+            return reason
+        }
+
         /// The entry for `key` offered `version`. A different offer clears the
         /// failures and the give-up, which were about the old one. Acquisition
         /// recovery is also offer-specific. Legacy and refused-quit cooldowns

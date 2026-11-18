@@ -1207,7 +1207,7 @@ private final class AweSunFeedStub: URLProtocol, @unchecked Sendable {
 /// the build comes from Postman's own CDN (`dl.pstmn.io`, no WAF) and the bundle
 /// inside is signed by the SAME Team as the installed app, so the install can't
 /// cross channels or downgrade. Confirms the resolved plan and that the CDN
-/// actually serves a versioned zip (1-byte range — no ~131 MB pull).
+/// actually serves ZIP bytes at the versioned URL, without pulling the archive.
 @Test func postmanZipPlanResolvesOfficialBuild() async throws {
     let source = VendorProbeSource()
     let app = InstalledApp(
@@ -1227,12 +1227,18 @@ private final class AweSunFeedStub: URLProtocol, @unchecked Sendable {
     #expect(url.absoluteString.hasSuffix("osx_arm64"))
 
     var req = URLRequest(url: url)
-    req.setValue("bytes=0-0", forHTTPHeaderField: "Range")
-    let (_, resp) = try await URLSession.shared.data(for: req)
-    let http = resp as? HTTPURLResponse
-    let disp = http?.value(forHTTPHeaderField: "Content-Disposition") ?? ""
-    #expect(disp.lowercased().contains(".zip"))                 // a real zip download
-    #expect(disp.contains(version))                             // for this exact version
+    req.setValue("bytes=0-3", forHTTPHeaderField: "Range")
+    let (bytes, response) = try await URLSession.shared.bytes(for: req)
+    defer { bytes.task.cancel() }
+    let http = try #require(response as? HTTPURLResponse)
+    try #require(http.statusCode == 200 || http.statusCode == 206)
+    // The CDN can omit Content-Disposition and ignore Range. Check the archive
+    // signature itself and cancel the transfer after reading four bytes.
+    var prefix: [UInt8] = []
+    for try await byte in bytes.prefix(4) {
+        prefix.append(byte)
+    }
+    #expect(prefix == [0x50, 0x4B, 0x03, 0x04])
 }
 
 /// The real proof: take whichever enabled app is actually installed (ChatWise

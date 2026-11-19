@@ -14,15 +14,7 @@ struct CLIToolGitHubAPITests {
     /// Mutation: drop `readsGitHubAPI` from any of the five providers, or set it
     /// on another one.
     @Test func exactlyBunOpenCodeHerdrZoxideAndNvmReadTheGitHubAPI() {
-        let providers: [any CLIToolProvider] = [
-            ClaudeCodeProvider(), BubProvider(), FxProvider(), UvProvider(), JunieProvider(), RustProvider(), NpmProvider(),
-            BoatProvider(), CodexProvider(), BunProvider(), OpencodeProvider(), CursorAgentProvider(), AmpProvider(),
-            VitePlusProvider(), HerdrProvider(), LuvusProvider(), LorcaProvider(), ZoxideProvider(), NvmProvider(),
-            AtuinProvider(), GhcupProvider(),
-            FlyctlProvider(), HelmProvider(), StarshipProvider(),
-            DenoProvider(), MiseProvider(), ObelusProvider(), BiomeProvider(), TerminalMacProvider(), LeafProvider(),
-            GlobalPackagesProvider(.pnpm), GlobalPackagesProvider(.yarn),
-        ]
+        let providers = CLITools.standaloneProviders()
         #expect(Set(providers.map(\.kind)) == Set(CLIToolKind.allCases).subtracting([.managed]))
         #expect(Set(providers.filter(\.readsGitHubAPI).map(\.kind)) == [.bun, .opencode, .herdr, .zoxide, .nvm, .terminalMac])
     }

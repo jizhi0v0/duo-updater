@@ -2,6 +2,38 @@
 
 Dies ist eine deutsche Übersetzung von `CHANGELOG.md`. Die englische Fassung ist maßgeblich; frühere Versionen, die hier nicht aufgeführt sind, fallen automatisch auf Englisch zurück.
 
+## 0.5.26
+
+**Unterstützte Electron-Apps können nur die geänderten Teile herunterladen.** Ist ein wiederverwendbarer Download verfügbar, benötigen Updates weniger Daten; andernfalls wird das vollständige Paket geladen.
+
+**Wiederverwendbare Update-Downloads lassen sich in den Speichereinstellungen verwalten.** Erfolgreiche Differenzdownloads tragen unter Downloads außerdem das Delta-Abzeichen.
+
+**Alle aktualisieren wartet bei knappem Speicherplatz.** Wegen Platzmangels aufgeschobene automatische Updates können nach Freigabe von Speicher fortfahren.
+
+**Unter Ereignisse steht, warum automatische Updates gerade pausieren.** Aktive Pausen bleiben sichtbar, wenn du den Aktivitätsverlauf löschst.
+
+**Die Ereignisansicht springt beim Laden des Verlaufs nicht mehr.**
+
+**Homebrew-Updates berücksichtigen Kompatibilität, native Installer und Pakete mit mehreren Apps zuverlässiger.** Nach einem fehlgeschlagenen Metadatenabruf bleiben vorhandene Updates erneut ausführbar.
+
+**Das Update-Angebot für Homebrew selbst wird nach Formel-Upgrades aktualisiert.** DuoUpdater prüft jetzt auch die eigenständige Antigravity CLI auf Updates und verarbeitet Updates für AstrLink, Hidden Bar, Dropbox, WorkBuddy und Microsoft Edge Dev zuverlässiger.
+
+**Apps zeigen lokalisierte Namen an; bisherige CLI-Namen funktionieren weiterhin.**
+
+**Die Suche im Arbeitsbereich zeigt auch nach dem Scrollen Ergebnisse für Apps und CLI-Tools.**
+
+**Neuigkeiten lassen sich leichter lesen und kopieren.** Versionsnavigation, Tastaturbedienung und eine feste Überschrift helfen bei langen Versionshinweisen.
+
+**Claude Desktop folgt seiner Einstellung für Stable oder Latest.** Longbridge verarbeitet gestaffelte Updates zuverlässiger, und Longbridge Pro zeigt Versionshinweise aus dem offiziellen Feed.
+
+**App-Store-Updates werden nach der Freigabe des Hilfsprogramms zuverlässiger fortgesetzt.** UU Remote kann ein zwischengespeichertes Installationspaket nach Abgleich mit der öffentlichen Version wiederverwenden.
+
+**Codiff, electerm, Suspicious Package, RapidAPI/Paw und Mattermost erhalten Update-Unterstützung.** Unterstützte Release-Kanäle behalten ihre eigenen Updates und Installationsprüfungen.
+
+**Leaf bietet jetzt Update-Prüfungen für die Kommandozeile, verifizierte Ein-Klick-Updates und strukturierte Versionshinweise.**
+
+**T3 Code Beta und die NSH-Version von Disktree unterstützen jetzt Update-Prüfungen und Ein-Klick-Updates.** Beide folgen ihren eigenen Veröffentlichungen.
+
 ## 0.5.26-beta.2
 
 **Die Suche im Arbeitsbereich zeigt auch nach dem Scrollen Ergebnisse für Apps und CLI-Tools.**

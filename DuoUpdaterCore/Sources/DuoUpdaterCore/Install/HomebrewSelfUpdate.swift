@@ -86,13 +86,17 @@ public enum HomebrewSelfUpdatePolicy {
     /// `7.0.0-3-g…` is not. Comparing against `main` itself instead would light the
     /// row up permanently.
     public static func update(config: HomebrewConfig?, latestTag: String?) -> HomebrewSelfUpdate? {
-        guard let config, !config.autoUpdateDisabled,
-              let latestTag,
-              let latest = releaseComponents(latestTag, allowingDescribeSuffix: false),
-              let installed = releaseComponents(config.version, allowingDescribeSuffix: true),
-              installed.lexicographicallyPrecedes(latest)
+        guard let config, !config.autoUpdateDisabled, let latestTag else { return nil }
+        return update(installed: config.version, latestTag: latestTag)
+    }
+
+    /// Reconcile an existing offer against a fresh local version.
+    public static func update(installed: String, latestTag: String) -> HomebrewSelfUpdate? {
+        guard let latest = releaseComponents(latestTag, allowingDescribeSuffix: false),
+              let current = releaseComponents(installed, allowingDescribeSuffix: true),
+              current.lexicographicallyPrecedes(latest)
         else { return nil }
-        return HomebrewSelfUpdate(installed: config.version, latest: latestTag)
+        return HomebrewSelfUpdate(installed: installed, latest: latestTag)
     }
 
     /// `[major, minor, patch]` of a Homebrew version. With `allowingDescribeSuffix`,

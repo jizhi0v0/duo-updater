@@ -112,7 +112,7 @@ struct CLIToolIcon: View {
         case .obelus: "cli-obelus"
         case .biome: "cli-biome"
         case .leaf: "cli-leaf"
-        case .bub, .lorca, .terminalMac: nil
+        case .antigravityCLI, .bub, .lorca, .terminalMac: nil
         case .managed: managed?.logo
         }
     }
@@ -144,7 +144,7 @@ struct CLIToolIcon: View {
                 ? NSColor(srgbRed: 0xDB / 255, green: 0xC6 / 255, blue: 0x6F / 255, alpha: 1)
                 : NSColor(srgbRed: 0x9C / 255, green: 0x82 / 255, blue: 0x26 / 255, alpha: 1)
         })
-        case .bun, .cursorAgent, .opencode, .rust, .fx, .boat, .herdr, .lorca, .zoxide, .nvm, .deno, .mise, .terminalMac: Color(nsColor: .labelColor)
+        case .antigravityCLI, .bun, .cursorAgent, .opencode, .rust, .fx, .boat, .herdr, .lorca, .zoxide, .nvm, .deno, .mise, .terminalMac: Color(nsColor: .labelColor)
         // Obelus's brass (`obelus.svg`'s gradient): its #C9A227 in the dark,
         // the gradient's darker #8C6F33 on a light sidebar.
         case .obelus: Color(nsColor: NSColor(name: nil) { appearance in

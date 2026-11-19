@@ -27,6 +27,7 @@ public enum CLIToolWording {
         case .uv: return "Astral"
         case .junie: return "JetBrains"
         case .codex: return "OpenAI"
+        case .antigravityCLI: return "Google"
         case .bun: return "Oven"
         case .opencode: return "Anomaly"
         case .cursorAgent: return "Anysphere"
@@ -185,6 +186,8 @@ public enum CLIToolWording {
         case (.unverified, .herdr(let herdr)) where herdr.quarantined:
             return quarantined
         case (.unverified, .codex(let codex)) where codex.quarantined:
+            return quarantined
+        case (.unverified, .antigravityCLI(let agy)) where agy.quarantined:
             return quarantined
         case (.unverified, .bun(let bun)) where bun.quarantined:
             return quarantined

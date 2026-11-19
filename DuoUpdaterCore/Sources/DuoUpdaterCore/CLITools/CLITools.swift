@@ -19,7 +19,7 @@ public enum CLITools {
     static func standaloneProviders() -> [any CLIToolProvider] {
         [
             ClaudeCodeProvider(), BubProvider(), FxProvider(), UvProvider(), JunieProvider(), RustProvider(), NpmProvider(),
-            BoatProvider(), CodexProvider(), BunProvider(), OpencodeProvider(), CursorAgentProvider(), AmpProvider(),
+            BoatProvider(), CodexProvider(), AntigravityCLIProvider(), BunProvider(), OpencodeProvider(), CursorAgentProvider(), AmpProvider(),
             VitePlusProvider(), HerdrProvider(), LuvusProvider(), LorcaProvider(), ZoxideProvider(), NvmProvider(),
             AtuinProvider(), GhcupProvider(),
             FlyctlProvider(), HelmProvider(), StarshipProvider(),

@@ -94,6 +94,10 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 
 ---
 
+## Command-line tools
+
+- [x] [**Antigravity CLI**](antigravity-cli.md) · 独立版 `agy` · 官方 manifest、内置一键更新、结构化日志 · 2026-11-19
+
 ## Multi-channel families (audit covers all channels)
 
 - [x] [**Mattermost Desktop**](Mattermost-Desktop.md) · `Mattermost.Desktop` — G(stable) P(RC/nightly) · 一键 ZIP ✓（含旧 ID 迁移、RC/日期 nightly）· stable 结构化日志 ✓；RC/nightly 无独立说明 · 2026-11-16

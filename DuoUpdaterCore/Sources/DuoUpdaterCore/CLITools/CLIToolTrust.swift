@@ -39,7 +39,9 @@ public enum CLIToolTrust {
     /// with a seal that no longer validates (`codesign --verify` on the published
     /// build, 2026-10-01), and what decides an ad hoc file is its hash, not its
     /// seal. A Developer ID file whose seal fails is `invalid`, never trusted.
-    public static func signature(of url: URL, teamIdentifier: String) -> Signature {
+    public static func signature(
+        of url: URL, teamIdentifier: String, signingIdentifier: String? = nil
+    ) -> Signature {
         var code: SecStaticCode?
         guard SecStaticCodeCreateWithPath(url as CFURL, [], &code) == errSecSuccess, let code else {
             return .invalid
@@ -54,6 +56,9 @@ public enum CLIToolTrust {
         if flags & SecCodeSignatureFlags.adhoc.rawValue != 0 { return .adHoc }
         let strict = SecCSFlags(rawValue: kSecCSCheckAllArchitectures | kSecCSStrictValidate)
         guard SecStaticCodeCheckValidity(code, strict, nil) == errSecSuccess else { return .invalid }
+        if let signingIdentifier, info[kSecCodeInfoIdentifier as String] as? String != signingIdentifier {
+            return .otherSigner
+        }
         var requirement: SecRequirement?
         guard SecRequirementCreateWithString(
             developerIDRequirement(teamIdentifier: teamIdentifier) as CFString, [], &requirement

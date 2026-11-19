@@ -72,6 +72,8 @@ struct CLIToolsModelTests {
         case .mise: detail = .mise(MiseInstall(path: path, version: version))
         case .obelus: detail = .obelus(ObelusInstall(path: path, version: version))
         case .biome: detail = .biome(BiomeInstall(path: path, version: version))
+        case .antigravityCLI:
+            detail = .antigravityCLI(AntigravityCLIInstall(path: path, version: version, signature: .vendor))
         case .leaf: detail = .leaf(LeafInstall(path: path, binary: path, version: version, target: "aarch64-apple-darwin"))
         case .terminalMac: detail = .terminalMac(TerminalMacInstall(path: path, version: version, build: "1"))
         case .managed:
@@ -128,6 +130,7 @@ struct CLIToolsModelTests {
         case .biome: context = .biome
         case .terminalMac: context = .terminalMac
         case .leaf: context = .leaf
+        case .antigravityCLI: context = .antigravityCLI
         case .pnpm: context = .pnpm
         case .yarn: context = .yarn
         case .managed: context = .managed(ManagerContext(descriptor: Self.fakeManager, roots: []))

@@ -1424,11 +1424,24 @@ final class AppListModel {
             case .local(unattended: false): await self.refreshLocal(unattended: false)
             }
         })
+    private enum HomebrewSelfUpdateRefresh: Sendable {
+        case full
+        case installedVersion
+    }
+
+    private static let brewFormulaUpgradeAction = "brew formula upgrade"
+
     /// Whether Homebrew itself has an update to offer (`checkHomebrewSelfUpdate`).
-    @ObservationIgnored private(set) lazy var homebrewSelfUpdateLane = RefreshLane(
+    @ObservationIgnored private lazy var homebrewSelfUpdateLane = RefreshLane(
         "homebrew-self-update",
         decide: { [weak self] trigger in self?.homebrewSelfUpdateDecision(trigger) ?? .skip(because: "model gone") },
-        work: { [weak self] in await self?.checkHomebrewSelfUpdate() })
+        merge: { current, next in current == .full ? current : next },
+        work: { [weak self] refresh in
+            switch refresh {
+            case .full: await self?.checkHomebrewSelfUpdate()
+            case .installedVersion: await self?.refreshInstalledHomebrewVersion()
+            }
+        })
     /// True while `brew update` is running.
     private(set) var homebrewUpdating = false
     /// Streamed tail of the running `brew update`.
@@ -4686,27 +4699,41 @@ final class AppListModel {
     /// user's login shell and `brew config` (about a second together) and, only
     /// if an update may be offered, the latest release (cached for hours) — so
     /// it runs when the workbench opens, not on every popover open.
-    private func homebrewSelfUpdateDecision(_ trigger: RefreshTrigger) -> RefreshDecision<Void> {
+    private func homebrewSelfUpdateDecision(_ trigger: RefreshTrigger) -> RefreshDecision<HomebrewSelfUpdateRefresh> {
         switch trigger {
         case .workbenchOpen:
             guard brewInstalled else { return .skip(because: "no Homebrew") }
             guard !homebrewUpdating else { return .skip(because: "brew update is running; it re-checks when it ends") }
-            return .run((), because: "the workbench shows the offer")
+            return .run(.full, because: "the workbench shows the offer")
         case .popoverOpen:
             return .skip(because: "the popover does not show the offer")
         case .workbenchFocus:
             return .skip(because: "decided when the workbench opens")
         case .backgroundTick:
             return .skip(because: "re-checked only after a brew update that ran")
+        case .afterAction(Self.brewFormulaUpgradeAction):
+            return .run(.installedVersion, because: "brew can auto-update before a formula upgrade")
         case .afterAction:
-            return .run((), because: "brew update moves Homebrew itself")
+            return .run(.full, because: "brew update moves Homebrew itself")
         case .manual:
             guard brewInstalled else { return .skip(because: "no Homebrew") }
             guard !homebrewUpdating else { return .skip(because: "brew update is running; it re-checks when it ends") }
-            return .run((), because: "the refresh button")
+            return .run(.full, because: "the refresh button")
         case .diskChanged, .backstopTick:
             return .skip(because: "decided on the workbench's open and after brew update")
         }
+    }
+
+    private func refreshInstalledHomebrewVersion() async {
+        homebrewCheckGeneration += 1
+        let generation = homebrewCheckGeneration
+        guard let offered = homebrewSelfUpdate,
+              let installed = await brewFormulaService.installedHomebrewVersion(),
+              generation == homebrewCheckGeneration,
+              installed != offered.installed
+        else { return }
+        homebrewSelfUpdate = HomebrewSelfUpdatePolicy.update(installed: installed, latestTag: offered.latest)
+        homebrewUpdateError = nil
     }
 
     private func checkHomebrewSelfUpdate() async {
@@ -4932,8 +4959,9 @@ final class AppListModel {
             }
             return (failure, InstallJobs.cancelStoppedSomething(jobID))
         }
-        // Stopped before the upgrade started: nothing installed changed, so no
-        // error and no re-read, as for a row (`upgradeBrewFormula`).
+        // The dry run can auto-update Homebrew even if installation fails or is cancelled.
+        await homebrewSelfUpdateLane.handle(.afterAction(Self.brewFormulaUpgradeAction))
+        // Stopped before the package upgrade started: no package re-read.
         if cancelStopped {
             Log.app.notice("brew upgrade (all): cancelled before the upgrade started")
             return
@@ -4987,13 +5015,13 @@ final class AppListModel {
         // A job of its own (`InstallJobs.run`), so the row's Cancel reaches the
         // wait for a background `brew update` and brew's downloads ahead of the
         // upgrade, and the upgrade's `InstallCommit` greys it.
-        let (failure, cancelStopped) = await InstallJobs.run(jobID, phaseChanged: { [weak self] _ in
+        let (failure, cancelStopped, wasFormula) = await InstallJobs.run(jobID, phaseChanged: { [weak self] _ in
             Task { @MainActor in self?.followBrewPhase(jobID) }
-        }) { @MainActor [weak self] () -> ((any Error)?, Bool) in
-            guard let self else { return (nil, false) }
+        }) { @MainActor [weak self] () -> ((any Error)?, Bool, Bool) in
+            guard let self else { return (nil, false, false) }
             await self.afterBackgroundHomebrewUpdate()
             guard let row = self.brewFormulae.first(where: { $0.key == name && $0.canUpgrade })
-            else { return (nil, false) }
+            else { return (nil, false, false) }
             var failure: (any Error)?
             // Map brew's noisy raw output to a clean phase word; ignore lines we
             // don't recognize so the label stays stable instead of flickering
@@ -5006,7 +5034,7 @@ final class AppListModel {
                 if row.kind == .cask {
                     if self.brewAppCasksChangedOnDisk().contains(row.name) {
                         Log.app.notice("brew upgrade \(row.name, privacy: .public): skipped — its app changed on disk since the last check")
-                        return (BrewAppCaskChangedOnDisk(), false)
+                        return (BrewAppCaskChangedOnDisk(), false, false)
                     }
                     try await self.brewFormulaService.upgrade(
                         cask: row.name, password: BrewSudoPasswordPanel.prompt, onOutput: onOutput)
@@ -5017,7 +5045,10 @@ final class AppListModel {
                 failure = error
             }
             // Asked while the job is still registered: it is forgotten when it ends.
-            return (failure, InstallJobs.cancelStoppedSomething(jobID))
+            return (failure, InstallJobs.cancelStoppedSomething(jobID), row.kind == .formula)
+        }
+        if wasFormula {
+            await homebrewSelfUpdateLane.handle(.afterAction(Self.brewFormulaUpgradeAction))
         }
         // Stopped before the upgrade started: nothing installed changed, so no
         // error and no re-read. (brew's auto-update before the dry run may have

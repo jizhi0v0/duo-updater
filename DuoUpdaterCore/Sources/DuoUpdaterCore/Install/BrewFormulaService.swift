@@ -1065,6 +1065,19 @@ public actor BrewFormulaService {
         return output
     }
 
+    /// Read the version of the same Homebrew used for package upgrades.
+    public func installedHomebrewVersion() async -> String? {
+        let result = await runReading(["--version"])
+        let prefix = "Homebrew "
+        guard let line = result.output.split(whereSeparator: \.isNewline).first,
+              line.hasPrefix(prefix)
+        else { return nil }
+        let version = String(line.dropFirst(prefix.count))
+        guard HomebrewSelfUpdatePolicy.releaseComponents(version, allowingDescribeSuffix: true) != nil
+        else { return nil }
+        return version
+    }
+
     /// Report reads are independent and remain best-effort, carrying validity
     /// and an explanation rather than translating failure into a successful [].
     private func runReading(_ arguments: [String]) async -> Reading {

@@ -105,6 +105,30 @@ import Foundation
         #expect(HomebrewSelfUpdatePolicy.update(config: nil, latestTag: "7.0.0") == nil)
     }
 
+    @Test func upgradedLocalVersionClearsAnExistingOffer() async throws {
+        let brew = BrewFormulaService { arguments in
+            #expect(arguments == ["--version"])
+            return (0, Data("""
+                Homebrew 7.0.15-3-gd79ef82
+                Homebrew/homebrew-core (git revision 725e7b7; last commit 2026-11-19)
+                """.utf8))
+        }
+
+        let installed = try #require(await brew.installedHomebrewVersion())
+        #expect(installed == "7.0.15-3-gd79ef82")
+        #expect(HomebrewSelfUpdatePolicy.update(installed: installed, latestTag: "7.0.15") == nil)
+        #expect(HomebrewSelfUpdatePolicy.update(installed: installed, latestTag: "7.0.16")?.installed == installed)
+    }
+
+    @Test(arguments: [0, 1]) func unreadableLocalVersionIsUnknown(status: Int32) async {
+        let brew = BrewFormulaService { _ in
+            let output = status == 0 ? "Homebrew >=4.3.0 (shallow or no git repository)" : "Homebrew 7.0.15"
+            return (status, Data(output.utf8))
+        }
+
+        #expect(await brew.installedHomebrewVersion() == nil)
+    }
+
     // MARK: - GitHub response
 
     @Test func readsTheTagName() {

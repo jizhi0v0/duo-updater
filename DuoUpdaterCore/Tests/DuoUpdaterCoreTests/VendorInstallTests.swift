@@ -112,22 +112,6 @@ import CryptoKit
     if !retried.isEmpty {
         log("↻ retried after a first-pass miss: \(retried.map(\.description).joined(separator: ", "))")
     }
-    // Tracks the vendor is currently between releases on — derived from the
-    // registry, never hand-listed.
-    //
-    // A channel recipe that resolves nothing is normally rot, which is what this
-    // sweep exists to catch. It is not rot when the vendor has closed a track,
-    // and the recipe says which tracks can be closed by carrying a
-    // `trackClosedPattern` — the vendor's own statement that nothing is
-    // published there (CapCut empties `lastest_beta_number` between betas).
-    //
-    // Reading it off the registry rather than repeating the key here is the
-    // difference between one source of truth and two that drift: a hand-written
-    // list goes on exempting a recipe whose declaration was removed.
-    let dormantTracks = Set(
-        byKey.values.filter { $0.trackClosedPattern != nil }
-            .map { ChannelProofKey($0.bundleID, $0.channel) })
-
     // Recipes whose probe cannot even be addressed from this machine, because the
     // endpoint is keyed by an identifier the vendor's own app writes locally —
     // Codex reads an `installationId` out of Application Support, and without it
@@ -196,15 +180,7 @@ import CryptoKit
     for key in targets {
         let outcome = results[key] ?? nil
         let remote = outcome?.remote
-        // Only when it actually resolved nothing. `trackClosedPattern` is a
-        // permanent property of the recipe — it says how this vendor SIGNALS
-        // dormancy, not that the track is closed today — so keying the exemption
-        // on the declaration alone breaks twice over: the sweep fails the day the
-        // vendor reopens the track (and advises deleting the very declaration
-        // that keeps the row calm next time it closes), and while the track IS
-        // open the assertions below are skipped, so a working channel quietly
-        // stops being covered.
-        if remote?.downloadURL == nil, dormantTracks.contains(key) {
+        if LiveProbe.isDormantTrack(outcome?.failure, channel: key.channel) {
             log("• \(key): dormant — vendor publishes no current build on this track")
             continue
         }

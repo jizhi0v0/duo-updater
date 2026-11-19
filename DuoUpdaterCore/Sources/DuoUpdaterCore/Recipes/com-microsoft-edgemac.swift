@@ -67,27 +67,7 @@ enum com_microsoft_edgemac {
             url: URL(string: "https://edgeupdates.microsoft.com/api/products?view=enterprise")!,
             mode: .responseBody,
             versionPattern: #"(?s)"Product"\s*:\s*"Beta"(?:(?!"Product"\s*:)[\s\S])*?"Platform"\s*:\s*"MacOS"(?:(?!"Product"\s*:)[\s\S])*?"ProductVersion"\s*:\s*"([0-9]+(?:\.[0-9]+){3})""#,
-            // How this vendor signals "no build on this track right now": the
-            // product's block is present and contains no MacOS release at all.
-            // Consulted only after the version pattern already missed, so a
-            // publishing track can never be talked into looking closed.
-            //
-            // ⚠️ **Beta only, on purpose.** `VendorInstallTests` builds its dormancy
-            // exemption from the *presence* of this declaration, not from whether it
-            // matches, so every channel that declares one is permanently exempt from
-            // "resolved no installer URL" — a recipe that genuinely breaks there
-            // reports "dormant" and passes. Beta is the one track measured dormant,
-            // so it is the only one that gets the exemption; Dev and Stable keep
-            // failing loudly, and the price is that the first day either of them goes
-            // quiet the sweep reds once. That is the safe direction.
-            //
-            // ⚠️ The trailing `(?:"Product"\s*:|$)` needs another product after this
-            // one, or the very end of the body, to anchor on. Today the feed orders
-            // them Dev, Beta, Stable, EdgeUpdate, Policy, so every channel has
-            // something after it; a future feed that puts a channel last with other
-            // trailing content would read its empty track as breakage instead. Loud,
-            // not silent, so it stays a note rather than a guard.
-            trackClosedPattern: #"(?s)"Product"\s*:\s*"Beta"(?:(?!"Platform"\s*:\s*"MacOS")(?!"Product"\s*:)[\s\S])*?(?:"Product"\s*:|$)"#,
+            trackClosedPattern: macOSReleaseMissing(for: "Beta"),
             downloadURL: URL(string: "https://www.microsoftedgeinsider.com/download"),
             changelogURL: URL(
                 string: "https://learn.microsoft.com/deployedge/microsoft-edge-relnote-beta-channel"),
@@ -104,6 +84,7 @@ enum com_microsoft_edgemac {
             url: URL(string: "https://edgeupdates.microsoft.com/api/products?view=enterprise")!,
             mode: .responseBody,
             versionPattern: #"(?s)"Product"\s*:\s*"Dev"(?:(?!"Product"\s*:)[\s\S])*?"Platform"\s*:\s*"MacOS"(?:(?!"Product"\s*:)[\s\S])*?"ProductVersion"\s*:\s*"([0-9]+(?:\.[0-9]+){3})""#,
+            trackClosedPattern: macOSReleaseMissing(for: "Dev"),
             downloadURL: URL(string: "https://www.microsoftedgeinsider.com/download"),
             install: VendorInstallSpec(
                 urlSource: .bodyPattern(
@@ -160,6 +141,13 @@ enum com_microsoft_edgemac {
         ChannelProofKey("com.microsoft.edgemac.Beta", .beta): .artifact(#"MicrosoftEdgeBeta-"#),
         ChannelProofKey("com.microsoft.edgemac.Dev", .dev): .artifact(#"MicrosoftEdgeDev-"#),
         ])
+
+    /// The enterprise feed can list a preview product while omitting every macOS
+    /// release in its block. Keep the match inside that product's own releases.
+    private static func macOSReleaseMissing(for product: String) -> String {
+        #"(?s)"Product"\s*:\s*""# + product
+            + #""(?:(?!"Platform"\s*:\s*"MacOS")(?!"Product"\s*:)[\s\S])*?(?:"Product"\s*:|$)"#
+    }
 
     /// The note lines of a release on either Edge release-notes page, tried in
     /// order: list lines, then the summary table's description cells, then

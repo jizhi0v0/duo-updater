@@ -1,0 +1,33 @@
+[
+  {
+    "Product": "Dev",
+    "Releases": [
+      {
+        "ReleaseId": 135492,
+        "Platform": "Linux",
+        "Architecture": "x64",
+        "ProductVersion": "160.0.4408.0"
+      }
+    ]
+  },
+  {
+    "Product": "Stable",
+    "Releases": [
+      {
+        "ReleaseId": 135124,
+        "Platform": "MacOS",
+        "Architecture": "universal",
+        "ProductVersion": "157.0.4341.60",
+        "Artifacts": [
+          {
+            "ArtifactName": "pkg",
+            "Location": "https://msedge.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/e70e6888-3793-48bf-af04-53db0bd99abe/MicrosoftEdge-157.0.4341.60.pkg",
+            "Hash": "01A3976AC110C8C408D86650C0342056CE1CFC5097BCFBAFDD42AF797EB69AD3",
+            "HashAlgorithm": "SHA256",
+            "SizeInBytes": 438222223
+          }
+        ]
+      }
+    ]
+  }
+]

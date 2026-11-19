@@ -16,8 +16,8 @@ import Foundation
 /// page" fails, as does a probe that resolves nothing without saying why.
 enum LiveProbe {
 
-    /// Probe `app` and run `check` on the version, unless the failure was the
-    /// network's fault.
+    /// Probe the app and check its version when the vendor offers a build.
+    /// Network failures and explicitly dormant tracks are logged as skips.
     ///
     /// - Parameter mustHaveRecipe: when true (the default), a source that does
     ///   not apply at all — no recipe for the bundle id, or none for the app's
@@ -51,7 +51,9 @@ enum LiveProbe {
                 print("   ~ \(label): skipped, \(failure.kind) — \(failure.detail)")
                 return
             case .notApplicable:
-                if mustHaveRecipe {
+                if isDormantTrack(failure, channel: app.releaseChannel) {
+                    print("   ~ \(label): skipped, \(failure.detail)")
+                } else if mustHaveRecipe {
                     Issue.record(
                         Comment(rawValue: "\(label): probe reports not-applicable — \(failure.detail)"),
                         sourceLocation: sourceLocation)
@@ -71,6 +73,12 @@ enum LiveProbe {
             return
         }
         check(version)
+    }
+
+    /// Match the probe's explicit result for a vendor track with no current build.
+    static func isDormantTrack(_ failure: ProbeFailure?, channel: ReleaseChannel) -> Bool {
+        guard case .notApplicable(let reason)? = failure else { return false }
+        return reason == "no current build on the \(channel.rawValue) track"
     }
 
     /// The whole resolved `RemoteVersion`, for tests that assert on the install

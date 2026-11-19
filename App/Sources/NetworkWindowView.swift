@@ -30,6 +30,9 @@ struct NetworkWindowView: View {
     /// filter that evaporated when you glanced at Downloads would have to be
     /// retyped every time.
     @State private var filter = RequestLogFilter()
+    // Keep the last Events snapshot across tab switches. Until the first read
+    // finishes, the pane can't tell whether the summary needs space above the list.
+    @State private var automaticUpdateEvents: [DuoEvent]?
 
     enum Tab: String, CaseIterable, Identifiable {
         case downloads, requests, events
@@ -47,7 +50,10 @@ struct NetworkWindowView: View {
     var body: some View {
         Group {
             switch tab {
-            case .events: AutomaticUpdateEventsPane(currentHolds: model.currentAutomaticUpdateHolds)
+            case .events:
+                AutomaticUpdateEventsPane(
+                    currentHolds: model.currentAutomaticUpdateHolds,
+                    events: $automaticUpdateEvents)
             case .downloads: TrafficLedgerPane(model: model)
             case .requests:
                 // Values and closures, not the model: `AppListModel.init`
@@ -77,6 +83,14 @@ struct NetworkWindowView: View {
         .task {
             guard !model.requestLogLoaded else { return }
             await model.reloadRequestLog(RequestQuery.window(""))
+        }
+        .task(id: tab == .events) {
+            // Warm the snapshot on window open. Once Events is selected, the
+            // pane's refresh loop owns reads for as long as it is visible.
+            guard tab != .events, automaticUpdateEvents == nil else { return }
+            let history = await EventStore.shared.events(AutomaticUpdateEventsPane.historyQuery)
+            guard !Task.isCancelled else { return }
+            automaticUpdateEvents = history
         }
         .toolbar {
             // Centred in the title bar, and the same control the ledger's own

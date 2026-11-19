@@ -19,6 +19,38 @@ release note is debugging our code:
 
 Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
+## 0.5.26
+
+**Supported Electron apps can download only the parts that changed.** When a reusable download is available, updates use less data; otherwise they download the full package.
+
+**Manage reusable update downloads in Storage settings.** Successful differential downloads also show the Delta badge in Downloads.
+
+**Update All waits when disk space is low.** Space-related automatic-update deferrals can resume after capacity recovers.
+
+**Events shows why automatic updates are currently on hold.** Active holds stay visible when you clear the activity history.
+
+**Events stays in place while history loads.**
+
+**Homebrew updates handle compatibility, native installers and multi-app suites more reliably.** A failed metadata refresh keeps existing update offers available for retry.
+
+**Homebrew's own update offer refreshes after formula upgrades.** DuoUpdater now also checks for standalone Antigravity CLI updates and improves update handling for AstrLink, Hidden Bar, Dropbox, WorkBuddy, and Microsoft Edge Dev.
+
+**Apps display their localized names while existing CLI name selectors keep working.**
+
+**Workbench search keeps showing Apps and CLI results after scrolling.**
+
+**What's New is easier to browse and copy.** Version navigation, keyboard access and a fixed reading header make long release notes easier to follow.
+
+**Claude Desktop follows its Stable or Latest setting.** Longbridge handles staged updates more reliably, and Longbridge Pro shows release notes from the official feed.
+
+**App Store updates recover more reliably just after helper approval.** UU Remote can reuse a cached installer after verifying it matches the public release.
+
+**Codiff, electerm, Suspicious Package, RapidAPI/Paw and Mattermost gain update support.** Supported release tracks keep their own updates and installation checks.
+
+**Leaf now has command-line update checks, verified one-click updates and structured release notes.**
+
+**T3 Code Beta and the NSH version of Disktree now have update checks and one-click updates.** Each follows its own releases.
+
 ## 0.5.26-beta.2
 
 **Workbench search keeps showing Apps and CLI results after scrolling.**

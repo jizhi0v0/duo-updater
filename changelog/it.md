@@ -2,6 +2,38 @@
 
 Questa è la traduzione di `CHANGELOG.md`. In caso di differenze fa fede la versione inglese. Le versioni non elencate qui vengono mostrate automaticamente in inglese.
 
+## 0.5.26
+
+**Le app Electron supportate possono scaricare solo le parti modificate.** Se è disponibile un download riutilizzabile, gli aggiornamenti consumano meno dati; altrimenti scaricano il pacchetto completo.
+
+**Gestisci i download degli aggiornamenti riutilizzabili nelle impostazioni di archiviazione.** I download differenziali riusciti mostrano anche il badge Delta in Download.
+
+**Aggiorna tutto attende quando lo spazio su disco è insufficiente.** Gli aggiornamenti automatici rinviati per mancanza di spazio possono riprendere quando torna disponibile.
+
+**Eventi mostra perché gli aggiornamenti automatici sono in pausa.** Le pause attive restano visibili quando cancelli la cronologia delle attività.
+
+**La vista Eventi rimane al suo posto durante il caricamento della cronologia.**
+
+**Gli aggiornamenti Homebrew gestiscono meglio compatibilità, installer nativi e pacchetti con più app.** Se l’aggiornamento dei metadati fallisce, gli aggiornamenti già disponibili restano pronti per un nuovo tentativo.
+
+**La disponibilità di aggiornamenti per Homebrew viene ricontrollata dopo l’aggiornamento delle formule.** DuoUpdater controlla anche gli aggiornamenti della CLI autonoma di Antigravity e gestisce meglio quelli di AstrLink, Hidden Bar, Dropbox, WorkBuddy e Microsoft Edge Dev.
+
+**Le app mostrano i nomi localizzati e i selettori di nome esistenti della CLI continuano a funzionare.**
+
+**La ricerca nell’area di lavoro continua a mostrare app e strumenti da riga di comando dopo lo scorrimento.**
+
+**Novità è più facile da consultare e copiare.** Navigazione tra versioni, tastiera e intestazione fissa rendono più leggibili le note lunghe.
+
+**Claude Desktop segue la propria impostazione Stable o Latest.** Longbridge gestisce meglio gli aggiornamenti graduali e Longbridge Pro mostra le note del feed ufficiale.
+
+**Gli aggiornamenti dell’App Store riprendono più facilmente dopo l’autorizzazione del componente ausiliario.** UU Remote può riutilizzare un programma di installazione in cache dopo aver verificato che corrisponda alla versione pubblica.
+
+**Codiff, electerm, Suspicious Package, RapidAPI/Paw e Mattermost ottengono il supporto agli aggiornamenti.** I canali supportati mantengono aggiornamenti e controlli d’installazione propri.
+
+**Leaf ora offre controlli degli aggiornamenti da riga di comando, aggiornamenti verificati con un clic e note di rilascio strutturate.**
+
+**T3 Code Beta e la versione NSH di Disktree ora supportano i controlli degli aggiornamenti e l’installazione con un clic.** Ognuno segue i propri rilasci.
+
 ## 0.5.26-beta.2
 
 **La ricerca nell’area di lavoro continua a mostrare app e strumenti da riga di comando dopo lo scorrimento.**

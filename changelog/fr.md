@@ -2,6 +2,38 @@
 
 Ceci est la traduction de `CHANGELOG.md`. La version anglaise fait autorité. Les versions non énumérées ici reviennent automatiquement à l’anglais.
 
+## 0.5.26
+
+**Les apps Electron compatibles peuvent télécharger uniquement les parties modifiées.** Lorsqu’un téléchargement réutilisable est disponible, les mises à jour consomment moins de données ; sinon, elles téléchargent le paquet complet.
+
+**Gérez les téléchargements de mises à jour réutilisables dans les réglages de stockage.** Les téléchargements différentiels réussis affichent aussi le badge Delta dans Téléchargements.
+
+**Tout mettre à jour attend lorsque l’espace disque est insuffisant.** Les mises à jour automatiques différées pour cette raison peuvent reprendre lorsque l’espace est libéré.
+
+**Les événements indiquent pourquoi les mises à jour automatiques sont en pause.** Les pauses actives restent visibles après l’effacement de l’historique d’activité.
+
+**La vue Événements reste en place pendant le chargement de l’historique.**
+
+**Les mises à jour Homebrew gèrent mieux la compatibilité, les installateurs natifs et les suites de plusieurs apps.** Si l’actualisation des métadonnées échoue, les mises à jour déjà proposées restent disponibles pour réessayer.
+
+**La mise à jour de Homebrew lui-même est revérifiée après la mise à jour des formules.** DuoUpdater vérifie aussi les mises à jour de la CLI autonome Antigravity et gère mieux celles d’AstrLink, Hidden Bar, Dropbox, WorkBuddy et Microsoft Edge Dev.
+
+**Les apps affichent leurs noms localisés tout en conservant les sélecteurs de nom existants de la CLI.**
+
+**La recherche dans l’espace de travail affiche toujours les résultats pour les apps et les outils en ligne de commande après un défilement.**
+
+**Nouveautés est plus facile à parcourir et à copier.** La navigation entre versions, le clavier et un en-tête fixe facilitent la lecture des longues notes.
+
+**Claude Desktop suit son réglage Stable ou Latest.** Longbridge gère mieux les déploiements progressifs et Longbridge Pro affiche les notes du flux officiel.
+
+**Les mises à jour de l’App Store reprennent plus facilement après l’autorisation de l’utilitaire.** UU Remote peut réutiliser un programme d’installation en cache après avoir vérifié qu’il correspond à la version publique.
+
+**Codiff, electerm, Suspicious Package, RapidAPI/Paw et Mattermost bénéficient de la prise en charge des mises à jour.** Les canaux pris en charge conservent leurs propres mises à jour et contrôles d’installation.
+
+**Leaf propose désormais la recherche de mises à jour en ligne de commande, des mises à jour vérifiées en un clic et des notes de version structurées.**
+
+**T3 Code Beta et la version NSH de Disktree prennent désormais en charge la recherche de mises à jour et leur installation en un clic.** Chacun suit ses propres versions.
+
 ## 0.5.26-beta.2
 
 **La recherche dans l’espace de travail affiche toujours les résultats pour les apps et les outils en ligne de commande après un défilement.**

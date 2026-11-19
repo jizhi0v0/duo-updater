@@ -2,6 +2,38 @@
 
 Bu, `CHANGELOG.md` dosyasının Türkçe çevirisidir. Geçerli olan İngilizce sürümdür; burada yer almayan eski sürümler otomatik olarak İngilizce gösterilir.
 
+## 0.5.26
+
+**Desteklenen Electron uygulamaları yalnızca değişen bölümleri indirebilir.** Yeniden kullanılabilir bir indirme varsa güncellemeler daha az veri kullanır; yoksa paketin tamamı indirilir.
+
+**Yeniden kullanılabilir güncelleme indirmelerini Depolama ayarlarından yönetin.** Başarılı fark indirmeleri, İndirilenler bölümünde Delta rozetiyle de gösterilir.
+
+**Disk alanı az olduğunda Tümünü Güncelle bekler.** Alan yetersizliği nedeniyle ertelenen otomatik güncellemeler, alan açıldığında devam edebilir.
+
+**Olaylar, otomatik güncellemelerin neden bekletildiğini gösterir.** Etkin bekletmeler, etkinlik geçmişini temizlediğinizde de görünür kalır.
+
+**Geçmiş yüklenirken Etkinlikler görünümü yerinde kalır.**
+
+**Homebrew güncellemeleri uyumluluğu, yerel yükleyicileri ve birden fazla uygulama içeren paketleri daha güvenilir işler.** Meta veri yenilemesi başarısız olursa mevcut güncellemeler yeniden denenebilir.
+
+**Formüller yükseltildikten sonra Homebrew’un kendi güncellemesi yeniden kontrol edilir.** DuoUpdater artık bağımsız Antigravity CLI güncellemelerini de denetliyor. AstrLink, Hidden Bar, Dropbox, WorkBuddy ve Microsoft Edge Dev güncellemeleri daha güvenilir işleniyor.
+
+**Uygulamalar yerelleştirilmiş adları gösterir; mevcut CLI ad seçicileri çalışmaya devam eder.**
+
+**Çalışma alanında arama, kaydırmadan sonra da uygulama ve komut satırı aracı sonuçlarını gösterir.**
+
+**Yenilikler bölümünü gezmek ve kopyalamak kolaylaştı.** Sürüm gezintisi, klavye desteği ve sabit başlık uzun sürüm notlarını okumayı kolaylaştırır.
+
+**Claude Desktop, Stable veya Latest ayarını izler.** Longbridge aşamalı güncellemeleri daha güvenilir işler ve Longbridge Pro resmi akıştaki sürüm notlarını gösterir.
+
+**App Store güncellemeleri, yardımcı uygulama onaylandıktan sonra daha güvenilir biçimde devam eder.** UU Remote, herkese açık sürümle eşleştiği doğrulanan önbellekteki yükleyiciyi yeniden kullanabilir.
+
+**Codiff, electerm, Suspicious Package, RapidAPI/Paw ve Mattermost için güncelleme desteği eklendi.** Desteklenen yayın kanalları kendi güncellemelerini ve yükleme denetimlerini korur.
+
+**Leaf artık komut satırı güncelleme denetimleri, doğrulanmış tek tıkla güncellemeler ve yapılandırılmış sürüm notları sunuyor.**
+
+**T3 Code Beta ve Disktree’nin NSH sürümü artık güncelleme denetimlerini ve tek tıkla güncellemeyi destekliyor.** Her biri kendi sürümlerini izler.
+
 ## 0.5.26-beta.2
 
 **Çalışma alanında arama, kaydırmadan sonra da uygulama ve komut satırı aracı sonuçlarını gösterir.**

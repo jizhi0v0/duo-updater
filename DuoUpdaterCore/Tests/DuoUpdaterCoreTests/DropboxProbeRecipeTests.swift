@@ -25,7 +25,7 @@ private let dropboxIntelRedirectFixture =
     /// the installer fetches — so the version offered is the version downloaded.
     /// Dropping the query from the install URL alone, from the probe alone, or
     /// from both turns this red.
-    @Test func probeAndInstallBothAskForTheArm64Build() throws {
+    @Test func probeAndInstallBothAskForTheStableArm64Build() throws {
         let recipe = try #require(recipe)
         guard case .redirectFilename = recipe.mode else {
             Issue.record("expected the redirect-filename mode"); return
@@ -41,6 +41,7 @@ private let dropboxIntelRedirectFixture =
         let query = try #require(
             URLComponents(url: installURL, resolvingAgainstBaseURL: false)?.queryItems)
         #expect(query.filter { $0.name == "arch" }.map(\.value) == ["arm64"])
+        #expect(query.filter { $0.name == "build" }.map(\.value) == ["stable"])
         #expect(query.contains(URLQueryItem(name: "plat", value: "mac")))
         #expect(query.contains(URLQueryItem(name: "full", value: "1")))
     }

@@ -12,14 +12,14 @@ enum com_astrlink_desktop {
         // CFBundleShortVersionString == CFBundleVersion == the tag's version, and
         // marks a SemVer pre-release tag (`-…`) as a GitHub pre-release and never
         // `latest`; the anchored pattern keeps those off the stable track.
-        // The arm64 dmg ships with the release; the x64 dmg is attached later by
-        // release-macos-x86_64.yml, and v0.2.5 never got one — an Intel Mac then
-        // sees "nothing to offer", not a broken rule.
+        // Match both the legacy Tauri DMGs and the renamed DMGs. The shared
+        // GitHub asset selector recognizes both sets of architecture markers.
+        // History: docs/app-audits/com-astrlink-desktop.md#历史与实测
         GitHubReleaseRule(
             bundleID: "com.astrlink.desktop",
             owner: "Calcium-Ion", repo: "AstrLink",
             versionPattern: #"^v?([0-9]+(?:\.[0-9]+)+)$"#,
-            installAssetPattern: #"^AstrLink_[0-9][0-9A-Za-z.-]*_(?:aarch64|x64)\.dmg$"#,
+            installAssetPattern: #"^(?:AstrLink_[0-9][0-9A-Za-z.-]*_(?:aarch64|x64)|astrlink-[0-9]+(?:\.[0-9]+)+-(?:arm64|amd64))\.dmg$"#,
             installerKind: .dmg),
         ])
 }

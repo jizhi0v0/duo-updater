@@ -446,6 +446,16 @@
       "consecutiveInstallTransient" : 0,
       "sweepsSinceComment" : 0
     },
+    "install:github:consolelabs\/hidden:stable" : {
+      "consecutiveActionable" : 9,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "issueNumber" : 2043,
+      "lastCommentedAt" : "2026-11-15T22:08:49Z",
+      "lastSignature" : "identityChanged: Sparkle key none → C7MH",
+      "previousSignature" : "identityChanged: Sparkle key none → C7MH",
+      "sweepsSinceComment" : 7
+    },
     "install:github:cordwainersmith\/Claudoscope:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
@@ -541,16 +551,6 @@
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "sweepsSinceComment" : 0
-    },
-    "install:github:dwarvesf\/hidden:stable" : {
-      "consecutiveActionable" : 9,
-      "consecutiveInfra" : 0,
-      "consecutiveInstallTransient" : 0,
-      "issueNumber" : 2043,
-      "lastCommentedAt" : "2026-11-15T22:08:49Z",
-      "lastSignature" : "identityChanged: Sparkle key none → C7MH",
-      "previousSignature" : "identityChanged: Sparkle key none → C7MH",
-      "sweepsSinceComment" : 7
     },
     "install:github:electerm\/electerm:stable" : {
       "consecutiveActionable" : 0,

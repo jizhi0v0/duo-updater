@@ -94,6 +94,20 @@ struct GitHubAssetSelectionTests {
         #expect(GitHubReleaseRule.installableAsset(from: assets, matching: #"^Stats\.dmg$"#) != nil)
     }
 
+    @Test(arguments: [
+        ["AstrLink_0.2.30_x64.dmg", "AstrLink_0.2.30_aarch64.dmg"],
+        ["astrlink-0.3.2-amd64.dmg", "astrlink-0.3.2-arm64.dmg"],
+    ])
+    func astrLinkPicksNativeDmgForBothNamingSchemes(_ names: [String]) throws {
+        let rule = try #require(GitHubReleaseRegistry.rules.first { $0.bundleID == "com.astrlink.desktop" })
+        let pattern = try #require(rule.installAssetPattern)
+        let assets = names.map { (name: $0, url: URL(string: "https://example.invalid/\($0)")!, size: Int64?.none) }
+        #expect(GitHubReleaseRule.installableAsset(from: assets, matching: pattern,
+                                                  preferring: .arm64)?.url.lastPathComponent == names[1])
+        #expect(GitHubReleaseRule.installableAsset(from: assets, matching: pattern,
+                                                  preferring: .x86_64)?.url.lastPathComponent == names[0])
+    }
+
     // MARK: - Order independence (issue #80)
 
     /// The registry patterns that can genuinely admit more than one asset from a
@@ -206,13 +220,18 @@ struct GitHubAssetSelectionTests {
         // AstrLink: one dmg per architecture beside the Tauri updater's
         // `.app.tar.gz` archives and the Linux/Windows packages (v0.2.6's
         // assets, in the order GitHub listed them).
-        (#"^AstrLink_[0-9][0-9A-Za-z.-]*_(?:aarch64|x64)\.dmg$"#,
+        (#"^(?:AstrLink_[0-9][0-9A-Za-z.-]*_(?:aarch64|x64)|astrlink-[0-9]+(?:\.[0-9]+)+-(?:arm64|amd64))\.dmg$"#,
          ["AstrLink-macOS-arm64.app.tar.gz", "AstrLink-macOS-arm64.app.tar.gz.sig",
           "AstrLink-macOS-x86_64.app.tar.gz", "AstrLink-macOS-x86_64.app.tar.gz.sig",
           "AstrLink_0.2.6_aarch64.dmg", "AstrLink_0.2.6_amd64.AppImage",
           "AstrLink_0.2.6_amd64.AppImage.sig", "AstrLink_0.2.6_amd64.deb",
           "AstrLink_0.2.6_x64-setup.exe", "AstrLink_0.2.6_x64-setup.exe.sig",
           "AstrLink_0.2.6_x64.dmg", "latest.json", "SHA256SUMS"]),
+        // The renamed stable DMGs, beside the other update and platform artifacts.
+        (#"^(?:AstrLink_[0-9][0-9A-Za-z.-]*_(?:aarch64|x64)|astrlink-[0-9]+(?:\.[0-9]+)+-(?:arm64|amd64))\.dmg$"#,
+         ["astrlink-0.3.1-to-0.3.2-darwin-arm64.delta", "astrlink-0.3.2-amd64.dmg",
+          "astrlink-0.3.2-arm64.dmg", "astrlink-0.3.2-darwin-arm64.tar.gz",
+          "astrlink-setup-0.3.2-amd64.exe"]),
         // Hoppscotch: Cloud and Self-Host dmgs per architecture beside the
         // Tauri tar.gz archives and the Linux/Windows packages (v26.9.0-0's
         // assets, in the order GitHub listed them); only the Cloud dmgs match.

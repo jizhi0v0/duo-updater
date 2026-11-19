@@ -23,7 +23,7 @@
 当前生效源: **VendorProbe**（`Recipes/com-getdropbox-dropbox.swift`）。
 
 ## 更新检测
-- 端点: `https://www.dropbox.com/download?plat=mac&full=1&arch=arm64`，不跟随重定向，读 302 的 `Location`
+- 端点: `https://www.dropbox.com/download?plat=mac&full=1&arch=arm64&build=stable`，不跟随重定向，读 302 的 `Location`
   文件名（`.redirectFilename`）。
 - 2026-09-14 no-follow HEAD：
   - 带 `&arch=arm64` → `…/dbx-releng/client/Dropbox%20268.4.4124.arm64.dmg`（387,752,941 B）
@@ -78,7 +78,8 @@
 ## 如何复验
 ```
 # 两个 no-follow HEAD，比对 Location 文件名：
-curl -sI 'https://www.dropbox.com/download?plat=mac&full=1&arch=arm64' | grep -i '^location'
+curl -sI 'https://www.dropbox.com/download?plat=mac&full=1&arch=arm64&build=stable' | grep -i '^location'
+curl -sI 'https://www.dropbox.com/download?plat=mac&full=1&arch=arm64&build=beta' | grep -i '^location'
 curl -sI 'https://www.dropbox.com/download?plat=mac&full=1' | grep -i '^location'
 # Homebrew：formulae.brew.sh/api/cask/dropbox.json 的 url（arm）与 variations.*.url（intel）+ sha256
 # 下载两个 dmg，shasum -a 256 比对 cask；hdiutil attach -readonly 后：
@@ -89,6 +90,17 @@ curl -sI 'https://www.dropbox.com/download?plat=mac&full=1' | grep -i '^location
 ```
 
 ## 历史与实测
+
+### 2026-11-19 · 显式稳定渠道
+
+macOS 27.2 ARM64 VM 请求官网下载接口，`build=stable` 返回 278.4.4020，`build=beta` 返回 280.3.5020。
+`duo verify-install --only com.getdropbox.dropbox --full` 下载 stable DMG，包内短版本与构建号均为 278.4.4020，
+签名身份为 `com.getdropbox.dropbox` / `G7HH3F8CAK`，主程序架构为 ARM64。stable 基线已从混入的 beta 版本
+纠正为 278.4.4020。
+
+夜扫使用 `vendor:com.getdropbox.dropbox:stable` 和 `install:vendor:com.getdropbox.dropbox:stable`。
+beta 的跳转用于核对分流，当前 recipe 覆盖 stable。
+
 
 ### Recipes/com-getdropbox-dropbox.swift — stable
 转引自 recipe 注释，未复测。（2026-09-14 下载的是 268.4.4124，结论见上「一键安装」；这段说的 264.4.3385 当时装的是哪个架构的包，注释里没有记录。）

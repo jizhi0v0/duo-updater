@@ -1,12 +1,15 @@
 import Foundation
 
 enum com_getdropbox_dropbox {
+    private static let stableArm64Download =
+        URL(string: "https://www.dropbox.com/download?plat=mac&full=1&arch=arm64&build=stable")!
+
     static let set = AppRecipeSet(
         family: "com-getdropbox-dropbox",
         probes: [
         // History: docs/app-audits/com-getdropbox-dropbox.md#历史与实测
         // Dropbox (desktop, mac) — the website's "latest" download link. A single
-        // 302 from www.dropbox.com/download?plat=mac&full=1&arch=arm64 lands on the
+        // 302 from the explicit stable ARM64 download link lands on the
         // versioned package
         // edge.dropboxstatic.com/dbx-releng/client/Dropbox%20<ver>.arm64.dmg, so the
         // version rides in the %20-encoded Location filename. The target is a
@@ -15,7 +18,8 @@ enum com_getdropbox_dropbox {
         // 254/4/2518, not four) — the pattern is three numeric groups. Dropbox
         // self-updates, so this row usually just confirms that.
         //
-        // `&arch=arm64` is load-bearing, on BOTH URLs. Without it the same link
+        // `build=stable` pins both version detection and installation to the
+        // stable track. `arch=arm64` is also load-bearing. Without it the same link
         // redirects to `Dropbox%20<ver>.dmg`, which is an x86_64-only build (the
         // Homebrew cask labels it `intel:` and adds this same query for `arm:` in
         // its livecheck). Installing that over an arm64 copy is refused after the
@@ -38,13 +42,12 @@ enum com_getdropbox_dropbox {
         // still lands here, but through four redirects across two forum hosts.
         VendorProbeRecipe(
             bundleID: "com.getdropbox.dropbox",
-            url: URL(string: "https://www.dropbox.com/download?plat=mac&full=1&arch=arm64")!,
+            url: stableArm64Download,
             mode: .redirectFilename,
             versionPattern: #"Dropbox(?:%20| )([0-9]+\.[0-9]+\.[0-9]+)\.arm64\.dmg"#,
             changelogURL: URL(string: "https://community.dropbox.com/en/categories/dropbox-desktop-client-builds")!,
             install: VendorInstallSpec(
-                urlSource: .redirect(
-                    URL(string: "https://www.dropbox.com/download?plat=mac&full=1&arch=arm64")!),
+                urlSource: .redirect(stableArm64Download),
                 kind: .dmg),
             followRedirects: false),
         ])

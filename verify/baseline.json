@@ -3738,6 +3738,18 @@
       "lastGoodVersion" : "4.2.0",
       "sweepsSinceComment" : 0
     },
+    "github:consolelabs\/hidden:stable" : {
+      "consecutiveActionable" : 8,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "issueNumber" : 2077,
+      "lastCommentedAt" : "2026-11-17T14:32:08Z",
+      "lastGoodAt" : "2026-11-19T02:25:54Z",
+      "lastGoodVersion" : "1.13.1",
+      "lastSignature" : "staleSlug: the registry says dwarvesf\/hi",
+      "previousSignature" : "staleSlug: the registry says dwarvesf\/hi",
+      "sweepsSinceComment" : 6
+    },
     "github:cordwainersmith\/Claudoscope:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
@@ -3873,18 +3885,6 @@
       "lastGoodAt" : "2026-11-19T02:25:54Z",
       "lastGoodVersion" : "1.0.15",
       "sweepsSinceComment" : 0
-    },
-    "github:dwarvesf\/hidden:stable" : {
-      "consecutiveActionable" : 8,
-      "consecutiveInfra" : 0,
-      "consecutiveInstallTransient" : 0,
-      "issueNumber" : 2077,
-      "lastCommentedAt" : "2026-11-17T14:32:08Z",
-      "lastGoodAt" : "2026-11-19T02:25:54Z",
-      "lastGoodVersion" : "1.13.1",
-      "lastSignature" : "staleSlug: the registry says dwarvesf\/hi",
-      "previousSignature" : "staleSlug: the registry says dwarvesf\/hi",
-      "sweepsSinceComment" : 6
     },
     "github:electerm\/electerm:stable" : {
       "consecutiveActionable" : 0,
@@ -5778,8 +5778,8 @@
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 1690,
       "lastCommentedAt" : "2026-11-16T08:36:45Z",
-      "lastGoodAt" : "2026-11-15T20:39:45Z",
-      "lastGoodVersion" : "280.3.5020",
+      "lastGoodAt" : "2026-11-19T02:50:35Z",
+      "lastGoodVersion" : "278.4.4020",
       "lastSignature" : "version went BACKWARDS since the last sw",
       "previousSignature" : "version went BACKWARDS since the last sw",
       "sweepsSinceComment" : 11

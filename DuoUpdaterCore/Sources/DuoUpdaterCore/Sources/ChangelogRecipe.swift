@@ -1201,13 +1201,10 @@ public enum ChangelogRecipeRegistry {
         // while its notes show under the wrong version. Refusing to cross a
         // `</h2>` makes the adjacency requirement below actually hold.
         + #"(?:(?!</h2>).)*</h2>\s*"#
-        // The body is one list, or a run of lists each optionally led by a
-        // bracketed category label (`<p>[New]</p><ul>…</ul><p>[Fixed]</p><ul>…`,
-        // the intl page's shape; the CN page is one bare `<ul>` per release).
-        // Only labels and lists may sit between `</h2>` and the end of the run,
-        // so the adjacency rule still holds: a heading followed by anything else
-        // (prose, an unbracketed `<p>`, the next `<h2>`) is not an entry, and the
-        // run stops at the first thing that is neither.
+        // Some releases introduce their lists with plain-text paragraphs. Allow
+        // those before the first list, but keep labels attached to their lists
+        // and stop at any new heading. The notes themselves remain list items.
+        + #"(?:<p[^>]*>(?!\s*\[)[^<]*</p>\s*)*"#
         + #"(?<body>"# + workBuddyListRun + #"(?:\s*"# + workBuddyListRun + #")*)"#
 
     /// One optional `<p>[Label]</p>` followed by the `<ul>` it labels.

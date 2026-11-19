@@ -10,9 +10,11 @@ struct AutomaticUpdateHold: Identifiable {
 }
 
 struct AutomaticUpdateEventsPane: View {
-    let currentHolds: @MainActor (Date) -> [AutomaticUpdateHold]
+    static let historyQuery = EventQuery(kind: "automaticUpdate", limit: 200)
 
-    @State private var events: [DuoEvent] = []
+    let currentHolds: @MainActor (Date) -> [AutomaticUpdateHold]
+    @Binding var events: [DuoEvent]?
+
     @State private var now = Date.now
     @State private var confirmsClear = false
     @State private var report: String?
@@ -24,6 +26,27 @@ struct AutomaticUpdateEventsPane: View {
     @State private var filter: AttemptStatus?
 
     var body: some View {
+        Group {
+            if let events {
+                loadedBody(events: events)
+            } else {
+                ProgressView()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(.background)
+            }
+        }
+        .task {
+            while !Task.isCancelled {
+                let history = await EventStore.shared.events(Self.historyQuery)
+                guard !Task.isCancelled else { return }
+                self.events = history
+                now = .now
+                do { try await Task.sleep(for: .seconds(2)) } catch { return }
+            }
+        }
+    }
+
+    private func loadedBody(events: [DuoEvent]) -> some View {
         let holds = currentHolds(now)
         let allRows = AutomaticUpdateActivity.rows(from: events)
         // A filter whose outcome is no longer listed (cleared, or aged out)
@@ -35,7 +58,7 @@ struct AutomaticUpdateEventsPane: View {
         // A stack, not a List: the table under a List kept a row's old height
         // when its diagnostics opened or closed — squeezing the row, then
         // leaving a blank gap — until the next scroll re-measured it.
-        ScrollView {
+        return ScrollView {
             LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
                 if !holds.isEmpty {
                     Section {
@@ -104,18 +127,11 @@ struct AutomaticUpdateEventsPane: View {
             Button("Clear activity", role: .destructive) {
                 Task {
                     await EventStore.shared.resetAutomaticUpdates()
-                    events = await EventStore.shared.events(.init(kind: "automaticUpdate", limit: 200))
+                    self.events = await EventStore.shared.events(Self.historyQuery)
                 }
             }
         } message: {
             Text("Current update holds, request logs, and permanent install history will be kept.")
-        }
-        .task {
-            while !Task.isCancelled {
-                events = await EventStore.shared.events(.init(kind: "automaticUpdate", limit: 200))
-                now = .now
-                do { try await Task.sleep(for: .seconds(2)) } catch { return }
-            }
         }
     }
 

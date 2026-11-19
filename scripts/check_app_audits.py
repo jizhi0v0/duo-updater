@@ -70,6 +70,8 @@ INDEX = os.path.join(AUD, "README.md")
 NON_APP = {
     "README.md",
     "issue-111-appcast-channel-population.md",
+    # The standalone agy executable has a signing identifier but no bundle ID.
+    "antigravity-cli.md",
     # A channel, not an app: Setapp editions of many apps share one audit.
     "com-setapp-managed.md",
 }

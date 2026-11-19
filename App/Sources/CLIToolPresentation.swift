@@ -336,6 +336,10 @@ enum CLIToolPresentation {
         case .bun(let bun): return facts(of: bun)
         case .opencode(let opencode): return facts(of: opencode, status: status)
         case .amp(let amp): return facts(of: amp)
+        case .antigravityCLI(let agy):
+            return [Fact(label: String(localized: "Signature"),
+                         value: signature(agy.signature, signer: "Google LLC",
+                                          team: AntigravityCLIInstall.teamIdentifier))]
         case .managed(let item): return facts(of: item, status: status, home: home)
         case .claudeCode, .bub, .fx, .boat, .cursorAgent, .vitePlus, .herdr, .luvus, .lorca, .zoxide, .nvm, .atuin, .ghcup, .flyctl, .helm, .starship, .deno, .mise, .obelus, .biome, .terminalMac, .leaf: return []
         }

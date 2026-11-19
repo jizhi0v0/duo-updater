@@ -23,6 +23,8 @@ public enum CLIToolKind: String, Sendable, Codable, CaseIterable {
     case boat
     /// OpenAI's Codex CLI as its standalone installer leaves it, `~/.local/bin/codex`.
     case codex
+    /// Google Antigravity CLI as its standalone installer leaves it, ~/.local/bin/agy.
+    case antigravityCLI = "antigravity-cli"
     /// bun at `~/.bun/bin/bun`, and the packages `bun add -g` installed: one
     /// group, a row each.
     case bun
@@ -95,6 +97,7 @@ public enum CLIToolKind: String, Sendable, Codable, CaseIterable {
         case .npm: return "npm"
         case .boat: return "Boat"
         case .codex: return "Codex"
+        case .antigravityCLI: return "Antigravity CLI"
         case .bun: return "Bun"
         case .opencode: return "OpenCode"
         case .cursorAgent: return "Cursor CLI"
@@ -279,6 +282,7 @@ public struct CLIToolStatus: Sendable, Equatable {
         case npm(NpmPackage)
         case boat(BoatInstall)
         case codex(CodexInstall)
+        case antigravityCLI(AntigravityCLIInstall)
         /// bun's own row; its packages' rows carry `.npm`.
         case bun(BunInstall)
         case opencode(OpencodeInstall)
@@ -383,6 +387,7 @@ public struct CLIToolReport: Sendable, Equatable {
         case npm
         case boat
         case codex(CodexSettings)
+        case antigravityCLI
         case bun
         case opencode(OpencodeSettings)
         case cursorAgent(CursorAgentSettings)

@@ -19,7 +19,7 @@
 | **stable**  | —       | —        | —   | ✓      | —           |
 | **preview** | —       | —        | —   | ○      | —           |
 
-当前生效源: **GitHub**（channel-verify 实测）。`feed-discover` 给出 `no Sparkle and no electron-builder update config`。
+0.2.x 副本由 **GitHub** 回答。0.3.2 副本装后复查由 **MyGo** 回答，见「历史与实测」。
 
 ## Channel 详情
 
@@ -51,10 +51,8 @@ Settled from source: `apps/desktop/src-tauri/src/updates.rs` 和 `apps/desktop/s
 - 源: `Calcium-Ion/AstrLink` GitHub Releases，`/releases/latest`
 - 版本: `^v?([0-9]+(?:\.[0-9]+)+)$`。发版脚本把 tag 去掉 `v` 后写进 `tauri.conf.json` 的 `version`，所以
   `CFBundleShortVersionString` == `CFBundleVersion` == tag 的版本（0.2.4 / 0.2.5 / 0.2.6 真包都是如此）
-- 按架构: 每个 release 一个 `AstrLink_<v>_aarch64.dmg` 和一个 `AstrLink_<v>_x64.dmg`（`lipo` 分别是 arm64 / x86_64），
-  没有 universal。arm64 包随主 `release.yml` 发布；x86_64 包由 `release-macos-x86_64.yml` 在发布后补上（v0.2.6
-  晚了约 10 分钟）。**v0.2.5 从未补上 x86_64**（只有 arm64 的 dmg 和 `.app.tar.gz`）。这时候 Intel Mac 上的规则
-  报「最新的匹配 release 只有本机跑不了的资产」（notApplicable），不报规则坏了，也不会往回退到旧版本
+- 按架构: 旧包用 `AstrLink_<v>_aarch64.dmg` 和 `AstrLink_<v>_x64.dmg`，新包用
+  `astrlink-<v>-arm64.dmg` 和 `astrlink-<v>-amd64.dmg`。GitHub 资产选择器识别这两种命名，优先选择原生架构。
 - OS: `LSMinimumSystemVersion` = `13.4`（三个版本、两个架构都一样）；release 不写 OS 上下限
 
 ## 增量更新（delta / binary patch）
@@ -78,8 +76,7 @@ Settled from source: `apps/desktop/src-tauri/src/updates.rs` 和 `apps/desktop/s
 ## 一键安装
 - 状态: **支持**（按 Team 闸；端到端两轮都过，见下）
 - 格式: dmg（公证、staple），按架构选；bundle 里没有嵌套 app、LoginItems 或 helper
-- Pattern: `^AstrLink_[0-9][0-9A-Za-z.-]*_(?:aarch64|x64)\.dmg$`, kind `.dmg`。不匹配 Tauri 更新器的
-  `AstrLink-macOS-<arch>.app.tar.gz`、Linux/Windows 包和 `latest.json`
+- 文件名范围: 旧、新两种命名的 macOS DMG。Tauri 更新归档、增量包和其他平台的安装器均在匹配范围之外。
 - Sidecar: `Contents/MacOS/` 里有 `astrlink-core`、`astrlink-privacy-worker`、`astrlink-classifier-worker`、
   `astrlink-cli`。`sidecar.rs` 启动 core 时带 `--parent-pid <app pid>`，core 跟着 app 的生命周期走，不是常驻 helper
 - 校验: GitHub 资产 `digest`（sha256），每个规则都会传下去。四个真包（0.2.6 aarch64 / x64、0.2.5 aarch64、
@@ -132,3 +129,23 @@ shasum -a 256 *.dmg
 #   3302e6647dd3ebbb2ed40b85ae4a249300b5fe58bdfaae36584d15df8beebe6c  AstrLink_0.2.4_x64.dmg
 #   每个都等于 GitHub 资产的 digest
 ```
+
+
+## 夜扫覆盖
+
+- 版本与安装器共用 `github:Calcium-Ion/AstrLink:stable`，安装告警使用 `install:github:Calcium-Ion/AstrLink:stable`。
+  GitHub 规则自动进入两种扫描，覆盖仍通过 GitHub 更新的旧副本。
+- 0.3.2 的 MyGo 来源已由 VM 中的装后检查确认。MyGo 独立夜扫尚无 `mygo:com.astrlink.desktop` 条目，
+  其 manifest、独立更新归档及签名检查不在 GitHub DMG 夜扫范围内。
+
+## 历史与实测
+
+### 2026-11-19 · DMG 改名
+
+macOS 27.2 ARM64 VM 的定向夜扫命中 [0.3.2 发布](https://github.com/Calcium-Ion/AstrLink/releases/tag/v0.3.2) 的
+`astrlink-0.3.2-arm64.dmg`。`duo verify-install --only com.astrlink.desktop --full` 所检 DMG 的包内版本和构建号均为
+0.3.2，签名身份为 `com.astrlink.desktop` / `7XWQYGN832`，主程序架构为 ARM64。
+
+同一台 VM 用 `duo install com.astrlink.desktop --yes` 将旧 GitHub 副本 0.2.30 原地更新为 0.3.2，报告
+`applied: true`。装后严格代码签名检查通过，Gatekeeper 返回 Notarized Developer ID。`duo check` 由 MyGo
+回答已是最新的 0.3.2，本次检测时无需应用 MyGo 安装包。

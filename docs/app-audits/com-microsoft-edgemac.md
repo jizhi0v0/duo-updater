@@ -117,6 +117,13 @@ with 154.0.4258.9 back under Beta, it stops matching.
 
 复测 2026-09-14（03:15 UTC，只读 GET `edgeupdates.microsoft.com/api/products?view=enterprise`）：product 顺序仍是 Dev、Beta、Stable、EdgeUpdate、Policy；三个频道都有 MacOS release（Dev 155.0.4268.0、Beta 154.0.4258.12、Stable 153.0.4234.32），列表里没有 Canary。没有复跑 `trackClosedPattern` 本身。
 
+### 2026-11-19 · Dev 企业源暂缺 macOS 构建
+
+微软企业源的 Dev 产品块仍在，只有 Linux 160.0.4408.0，后续 Stable 产品块仍有 macOS 157.0.4341.60。
+Dev 和 Beta 共用 `trackClosedPattern`，在各自产品块没有 macOS 条目时报告当前无构建。出现 macOS
+条目时仍照常检测版本和 PKG。离线重放验证了 Dev 暂缺、正常发布和 macOS 条目格式错误三种响应。
+[微软企业源](https://edgeupdates.microsoft.com/api/products?view=enterprise)
+
 ### Recipes/com-microsoft-edgemac.swift — 一键接上 sha256（2026-10-07）
 
 实测（2026-10-07，只读 GET `edgeupdates.microsoft.com/api/products?view=enterprise`，326,171 B）：三个 channel 的首个 MacOS release 都是 `universal`，各列三个 artifact——`pkg`、`plist`、`p7s`——键依次是 `ArtifactName, Location, Hash, HashAlgorithm, SizeInBytes`，`Hash` 是大写 hex、`HashAlgorithm` 都是 `SHA256`（`CLIToolTrust.matches` 不分大小写）。Dev `156.0.4301.0`、Beta `155.0.4283.39`、Stable `154.0.4258.62`。`go.microsoft.com/fwlink/?linkid=2093504` 302 到 `…/a51ab0b3-605c-4237-9ea5-eedd05bb664a/MicrosoftEdge-154.0.4258.62.pkg`，与 API 里 Stable 首个 MacOS pkg 的 `Location` 逐字相同。

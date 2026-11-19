@@ -28,20 +28,10 @@ struct EdgeChannelBoundaryTests {
     /// — rather than by count: a "first two releases" trim dropped Dev's macOS entry
     /// and made three of these cases fail against a correct implementation.
     /// Beta's macOS list is empty here because that is what the vendor was serving.
-    private static func fixture() throws -> String {
+    private static func fixture(_ name: String = "edge-enterprise-beta-dormant") throws -> String {
         let url = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
-            .appendingPathComponent("Fixtures/edge-enterprise-beta-dormant.json")
-        return try String(contentsOf: url, encoding: .utf8)
-    }
-
-    /// The same feed two hours later, after Microsoft put a macOS build back under
-    /// Beta (154.0.4258.9). Also a real capture, not a synthesised one — the pair is
-    /// what makes the dormancy check two-sided.
-    private static func fixtureWithBetaPublishing() throws -> String {
-        let url = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .appendingPathComponent("Fixtures/edge-enterprise-beta-publishing.json")
+            .appendingPathComponent("Fixtures/\(name).json")
         return try String(contentsOf: url, encoding: .utf8)
     }
 
@@ -105,7 +95,7 @@ struct EdgeChannelBoundaryTests {
     /// cross a release boundary — Beta stops resolving even when publishing, and
     /// this fails.
     @Test func aBetaTrackThatPublishesAgainResolvesItsOwnPackage() throws {
-        let body = try Self.fixtureWithBetaPublishing()
+        let body = try Self.fixture("edge-enterprise-beta-publishing")
         let beta = try Self.recipe("com.microsoft.edgemac.Beta")
 
         #expect(Self.firstMatch(beta.versionPattern, in: body) == "154.0.4258.9")
@@ -133,22 +123,35 @@ struct EdgeChannelBoundaryTests {
             re.firstMatch(in: body, range: NSRange(body.startIndex..., in: body)) != nil
         }
         #expect(matches(try Self.fixture()), "an empty Beta track must read as dormant")
-        #expect(!matches(try Self.fixtureWithBetaPublishing()),
+        #expect(!matches(try Self.fixture("edge-enterprise-beta-publishing")),
                 "a publishing Beta track must never read as dormant")
     }
 
-    /// Only Beta carries the dormancy declaration, and that is a decision rather
-    /// than an oversight: `VendorInstallTests` keys its exemption on the *presence*
-    /// of `trackClosedPattern`, not on whether it matches, so each declaration is a
-    /// standing exemption from "resolved no installer URL" for that channel. Beta is
-    /// the track measured dormant; Dev and Stable keep failing loudly.
-    ///
-    /// Mutation: declare `trackClosedPattern` on Dev or Stable — this fails, which is
-    /// the point: adding one has to be a decision someone makes on purpose, with the
-    /// evidence that the track really does go quiet.
-    @Test func onlyTheTrackMeasuredDormantIsExemptFromTheSweep() throws {
-        #expect(try Self.recipe("com.microsoft.edgemac.Beta").trackClosedPattern != nil)
-        #expect(try Self.recipe("com.microsoft.edgemac.Dev").trackClosedPattern == nil)
+    @Test func devSkipsOnlyWhileTheFeedHasNoMacOSBuild() async throws {
+        let dev = try Self.recipe("com.microsoft.edgemac.Dev")
+        func probe(_ body: String) async throws -> ProbeOutcome {
+            let server = try RecipeVerificationTests.StubServer(body: body, contentType: "application/json")
+            defer { server.stop() }
+            return await VendorProbeSource().probeDiagnostic(dev.with(url: server.url))
+        }
+
+        let dormant = try await probe(Self.fixture("edge-enterprise-dev-dormant"))
+        #expect(dormant.remote == nil)
+        #expect(LiveProbe.isDormantTrack(dormant.failure, channel: .dev))
+
+        let publishingBody = try Self.fixture()
+        let publishing = try await probe(publishingBody)
+        #expect(publishing.remote?.displayVersion == "155.0.4268.0")
+        #expect(publishing.remote?.downloadURL?.lastPathComponent == "MicrosoftEdgeDev-155.0.4268.0.pkg")
+        #expect(publishing.remote?.vendorInstallerKind == .pkg)
+
+        let unreadable = try await probe(publishingBody.replacingOccurrences(
+            of: #""ProductVersion""#, with: #""UnknownVersion""#))
+        #expect(unreadable.failure?.kind == "versionPatternNoMatch")
+        #expect(!LiveProbe.isDormantTrack(unreadable.failure, channel: .dev))
+    }
+
+    @Test func stableHasNoDormancyExemption() throws {
         #expect(try Self.recipe("com.microsoft.edgemac").trackClosedPattern == nil)
     }
 

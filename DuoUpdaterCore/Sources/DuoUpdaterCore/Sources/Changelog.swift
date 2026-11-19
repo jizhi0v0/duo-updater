@@ -162,7 +162,9 @@ public struct Changelog: Codable, Sendable, Hashable {
     ///   notes for a 2.1.x target can otherwise keep showing 2.0.3 indefinitely.
     /// - 22: Longbridge Pro stable follows the official RSS, replacing cached
     ///   minor-version-page bodies with versioned summaries from the feed.
-    public static let parserGeneration = 22
+    /// - 23: WorkBuddy recognizes release lists after introductory paragraphs,
+    ///   so cached notes that omit the newest release are fetched again.
+    public static let parserGeneration = 23
 
     public let entries: [Entry]
 

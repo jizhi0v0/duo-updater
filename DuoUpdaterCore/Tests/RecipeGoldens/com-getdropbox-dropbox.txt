@@ -12,7 +12,7 @@ probes[0].hostRequirement = nil
 probes[0].installedVersionPattern = nil
 probes[0].buildLineage = nil
 probes[0].headBuildPattern = nil
-probes[0].url = URL("https://www.dropbox.com/download?plat=mac&full=1&arch=arm64")
+probes[0].url = URL("https://www.dropbox.com/download?plat=mac&full=1&arch=arm64&build=stable")
 probes[0].identities = Array(count: 0)
 probes[0].track = nil
 probes[0].mode = .redirectFilename
@@ -32,7 +32,7 @@ probes[0].maximumSystemVersionPattern = nil
 probes[0].entryStartPattern = nil
 probes[0].install? = struct VendorInstallSpec
 probes[0].install?.urlSource = .redirect(_:)
-probes[0].install?.urlSource.0 = URL("https://www.dropbox.com/download?plat=mac&full=1&arch=arm64")
+probes[0].install?.urlSource.0 = URL("https://www.dropbox.com/download?plat=mac&full=1&arch=arm64&build=stable")
 probes[0].install?.kind = .dmg
 probes[0].install?.checksumPattern = nil
 probes[0].install?.checksumFormat = .sha512Base64

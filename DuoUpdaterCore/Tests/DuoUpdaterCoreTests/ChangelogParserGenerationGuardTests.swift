@@ -134,7 +134,7 @@ import Foundation
     /// 22 (Longbridge Pro's official RSS) moves neither fixture. Pinned by
     /// `stableReadsVersionedSummariesFromTheOfficialRSS`.
     @Test func pinnedGeneration() {
-        #expect(Changelog.parserGeneration == 22)
+        #expect(Changelog.parserGeneration == 23)
     }
 
     /// Stable (v4.3.6, bulleted): exercises `skipSections` — the `### Included

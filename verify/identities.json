@@ -973,6 +973,21 @@
       "signedIdentifier" : "io.github.clash-verge-rev.clash-verge-rev",
       "teamIdentifier" : "JPH3Z7PPBB"
     },
+    "github:consolelabs\/hidden:stable" : {
+      "architectures" : [
+        "arm64",
+        "x86_64"
+      ],
+      "bundleIdentifier" : "com.dwarvesv.minimalbar",
+      "firstSeenAt" : "2026-10-09T05:20:43Z",
+      "firstSeenVersion" : "1.11.1",
+      "lastSeenAt" : "2026-11-19T02:50:35Z",
+      "lastSeenURLSHA256" : "836ab12c8ff5f572861b48ed097b40260d8d2f02ee50de0655a8bf23741cfad2",
+      "lastSeenVersion" : "1.13.1",
+      "signedIdentifier" : "com.dwarvesv.minimalbar",
+      "sparklePublicKey" : "C7MH2NS46vKD4nNh9i4BmFzXLSAbP2jM5qZcaPw9u3w=",
+      "teamIdentifier" : "W777S7V8TN"
+    },
     "github:cordwainersmith\/Claudoscope:stable" : {
       "architectures" : [
         "arm64",
@@ -1189,20 +1204,6 @@
       "lastSeenVersion" : "1.0.15",
       "signedIdentifier" : "com.officecommun.search",
       "teamIdentifier" : "7BYKA895MC"
-    },
-    "github:dwarvesf\/hidden:stable" : {
-      "architectures" : [
-        "arm64",
-        "x86_64"
-      ],
-      "bundleIdentifier" : "com.dwarvesv.minimalbar",
-      "firstSeenAt" : "2026-10-09T05:20:43Z",
-      "firstSeenVersion" : "1.11.1",
-      "lastSeenAt" : "2026-10-11T17:17:49Z",
-      "lastSeenURLSHA256" : "f59d44ff35e10d58e7869265c406aaaa4b37dd39b49d3b99cd33b888632fb1e0",
-      "lastSeenVersion" : "1.11.1",
-      "signedIdentifier" : "com.dwarvesv.minimalbar",
-      "teamIdentifier" : "W777S7V8TN"
     },
     "github:electerm\/electerm:stable" : {
       "architectures" : [

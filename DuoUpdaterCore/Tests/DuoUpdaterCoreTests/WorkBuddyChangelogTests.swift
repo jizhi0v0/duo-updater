@@ -83,6 +83,22 @@ struct WorkBuddyChangelogTests {
         #expect(!log.entries.contains { $0.items.contains { $0.contains("[") } })
     }
 
+    @Test func skipsIntroProseAndKeepsListsUnderTheirOwnRelease() throws {
+        let heading = ##"<h2 id="_5-11-4" tabindex="-1">5.11.4 <a class="header-anchor" href="#_5-11-4">​</a></h2>"##
+        let notes = """
+        <p>常规版本需求（含技术优化）</p><p>[Fixed]</p><ul><li>Local conversation history disappearing from the sidebar task list under certain conditions</li></ul>
+        """
+        let log = try #require(
+            ChangelogExtractor.extract(from: heading + notes + notes + aiFixture,
+                                       using: try Self.recipe(Self.intlID)))
+        #expect(log.entries.map(\.version) == ["5.11.4", "5.5.0", "5.2.7"])
+        #expect(log.entries.first?.content == [
+            .heading("Fixed"),
+            .note("Local conversation history disappearing from the sidebar task list under certain conditions"),
+        ])
+        #expect(log.entries.dropFirst().first?.items.first == "Invite-a-friend credit rewards")
+    }
+
     /// The trap that reading the page in a browser cannot reveal: most of the CN
     /// page's date parentheses are FULLWIDTH（）(some older ones are ASCII), the
     /// intl page's are ASCII. A pattern written for one form silently drops dates

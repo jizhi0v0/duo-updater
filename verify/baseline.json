@@ -6085,15 +6085,13 @@
       "sweepsSinceComment" : 0
     },
     "vendor:com.microsoft.edgemac.Dev:dev" : {
-      "consecutiveActionable" : 2,
+      "closedAt" : "2026-11-20T12:29:55Z",
+      "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 2106,
-      "lastCommentedAt" : "2026-11-19T02:26:04Z",
       "lastGoodAt" : "2026-11-18T14:37:51Z",
       "lastGoodVersion" : "159.0.4393.0",
-      "lastSignature" : "versionPatternNoMatch",
-      "previousSignature" : "versionPatternNoMatch",
       "sweepsSinceComment" : 0
     },
     "vendor:com.microsoft.edgemac:stable" : {

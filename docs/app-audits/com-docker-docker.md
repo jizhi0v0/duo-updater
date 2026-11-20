@@ -4,7 +4,8 @@
 
 - Bundle ID: `com.docker.docker`
 - Team ID: `9BNSXJN65R`
-- 观测版本: 4.89.0 / build 238018（Apple Silicon）
+- 观测 stable 版本: 4.89.0 / build 238018、4.98.0 / build 245422、
+  4.99.0 / build 245822（Apple Silicon）
 - stable 构建信号: `channelID=main`
 - 外层可执行文件: `com.docker.backend`
 - 界面 bundle: `Contents/MacOS/Docker Desktop.app`，Bundle ID
@@ -21,18 +22,18 @@
 | stable | — | ✗（auto_updates 且版本滞后） | — | — | ✓ | ✓ |
 | nightly | — | — | — | — | ○（缺真实构件/信号） | — |
 
-当前生效源: **VendorProbe**。2026-09-02 用观测 stable bundle 跑完整生产链，检测到
-stable，VendorProbe 返回 4.89.0 和 build 238018，结果为 up to date。
+当前生效源为 **VendorProbe**。同一个 stable recipe 覆盖 Apple Silicon 的
+`com.docker.docker`。Docker 的 Intel 分发包不在 DuoUpdater 的宿主范围内。
 
 ## 更新检测
 
-- DuoUpdater 端点: `https://desktop.docker.com/mac/main/arm64/appcast.xml`
-- 版本字段: enclosure 的 `sparkle:shortVersionString`，与
-  `CFBundleShortVersionString` 同构
-- 下载地址: 同一 enclosure 的完整 `Docker.dmg`；正则刻意排除相邻 delta
-- 选择方式: `.selectHighestVersion`。Docker 的 feed 不是严格 newest-first，不能取第一项
-- Docker 自身的 backend 使用同一发布面的 JSON 版本：
-  `https://desktop.docker.com/mac/main/arm64/appcast.json`
+- DuoUpdater 与 Docker backend 均使用 Apple Silicon stable 的 [JSON appcast](https://desktop.docker.com/mac/main/arm64/appcast.json)。
+- 读取同一个 `Items` 条目的 `AppVersion` 与 `BuildNumber`，对应
+  `CFBundleShortVersionString` 与 `CFBundleVersion`。
+- 在 `Visibility` 为正且符合宿主 `MinOSVersion` 的条目中按版本选最新项，
+  同版本用 build 决定。若可见版本都要求更新的 macOS，沿用现有系统版本提示。
+- `PreviousBuild` 不限制全量 DMG 的升级起点。DuoUpdater 读取公开发布的条目，
+  Docker 仍独立决定每个副本的分批推送。
 
 XML 里使用 Sparkle namespace 只是 feed 格式，不代表 Docker.app 嵌入 Sparkle。实际 bundle
 没有 `Sparkle.framework` 或 `SUFeedURL`。
@@ -65,16 +66,31 @@ bundle：`SUFeedURL`、`app-update.yml`、Squirrel 和 Sparkle。
 ## 一键安装
 
 - 状态: 支持
-- 格式: Apple Silicon dmg
+- 格式: 同一发布条目的完整 Apple Silicon DMG。只接受 Docker CDN 上
+  `/mac/main/arm64/<BuildNumber>/Docker.dmg` 和该 artifact 的 SHA-256。
+  DMG 或摘要缺失时版本仍可检测。Docker 的交互安装也使用这个 DMG 中的应用包。
+  [Docker for Mac 安装文档](https://docs.docker.com/desktop/setup/install/mac-install/#install-interactively)
 - 产物: `Docker.app`
 - 安全闸: bundle ID `com.docker.docker`、Team ID `9BNSXJN65R`、签名/公证及架构检查
-- VendorProbe 与 Docker backend 指向同一 build 238018 的 dmg，版本命名空间一致
 
 ## Channels
 
 stable 已验证。GUI 代码里另有 feature-flagged `useNightlyBuildUpdates` 设置，但 stable
 构建只观测到 `channelID=main`。在拿到真实 nightly 构件、落盘信号和 endpoint 前，不把它
 登记为可检测渠道；缺口记录在 `CHANNEL_COVERAGE_TODO.md` §2b。
+
+历史上的 public Edge 与 Stable 已在 Docker Desktop 3.0.0 合并成单一发布流。
+[Docker 3.0.0 发布公告](https://www.docker.com/blog/docker-desktop-3-0-0-smaller-faster-releases/)
+
+## 夜扫覆盖
+
+- `duo verify --only com.docker.docker` 走现有 VendorProbe 注册表，版本行仍为
+  `vendor:com.docker.docker:stable`，并检查原来的 changelog 行
+  `changelog:com.docker.docker:-`。
+- `duo verify-install --only com.docker.docker` 枚举
+  `install:vendor:com.docker.docker:stable`，继续对照既有的 Apple Silicon 安装包身份
+  记录 `vendor:com.docker.docker:stable`。
+- Docker 的 nightly 轨缺少经过验证的构件及更新源，因此没有该轨的扫描行。
 
 ## 已知边界
 
@@ -108,6 +124,22 @@ find "<Docker.app>/Contents/MacOS/Docker Desktop.app/Contents" \
    staging detector；不要复用 ShipIt。
 
 ## 历史与实测
+
+### 2026-11-20 — #2119 stable JSON 切换
+
+VM 中两份 Docker 原厂签名的 Apple Silicon 副本，4.98.0（245422）和
+4.99.0（245822），均由原生 backend 读取 JSON appcast，并直接发现
+4.100.0（246961）的全量 DMG。该条目当时为 `Visibility=99`，
+`PreviousBuild=245822`。旧 XML 仍只返回到 4.99.0。
+[Docker 4.100.0 发布说明](https://docs.docker.com/desktop/release-notes/#41000)
+
+JSON 里同时含 DMG 和 PKG。4.100.0 的 DMG SHA-256 与 Docker 单独发布的校验清单一致。
+[Docker 官方校验清单](https://desktop.docker.com/mac/main/arm64/246961/checksums.txt)
+
+### 2026-09-02 — 4.89.0 stable
+
+用 4.89.0（238018）副本跑完整生产检测，检测到 stable，VendorProbe 返回
+4.89.0，结果为 up to date。旧 XML 与 Docker backend 的下载都指向 build 238018。
 
 从 recipe 注释迁出（2026-09-14）。正文逐字，只去掉了行首 `// `；每组标明出处。
 

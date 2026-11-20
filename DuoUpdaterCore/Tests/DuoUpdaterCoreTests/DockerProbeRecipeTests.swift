@@ -1,92 +1,206 @@
-import Testing
 import Foundation
+import Testing
 @testable import DuoUpdaterCore
-
-/// Trimmed from the real `https://desktop.docker.com/mac/main/arm64/appcast.xml`,
-/// captured 2026-08-17 (full file carries 13 deltas per item). Everything that
-/// matters is preserved verbatim: the channel `<link>` pointing at a THIRD build,
-/// the 4.86.0 item listed BEFORE the newer 4.87.0 one, one `.delta` enclosure
-/// inside `<sparkle:deltas>`, and the original attribute order.
-private let dockerAppcastFixture = """
-<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:d4w="http://www.docker.com/docker-for-windows">
-  <channel>
-    <title>Docker for Mac</title>
-    <link>https://desktop.docker.com/mac/main/arm64/229452/Docker.dmg</link>
-    <item>
-      <title>Version 4.86.0 (236216)</title>
-      <sparkle:minimumSystemVersion>14.0.0</sparkle:minimumSystemVersion>
-      <pubDate>2026-08-10T09:13:06Z</pubDate>
-      <description></description>
-      <enclosure url="https://desktop.docker.com/mac/main/arm64/236216/Docker.dmg" sparkle:version="236216" sparkle:shortVersionString="4.86.0" length="573976729" type="application/octet-stream" d4w:url="" previousBuild="235549"></enclosure>
-      <sparkle:deltas>
-        <enclosure url="https://desktop.docker.com/mac/main/arm64/236216/Docker-234817.delta" sparkle:version="236216" sparkle:shortVersionString="4.86.0" sparkle:deltaFrom="234817" length="100289824" type="application/octet-stream"></enclosure>
-      </sparkle:deltas>
-      <visibility>100</visibility>
-    </item>
-    <item>
-      <title>Version 4.87.0 (236836)</title>
-      <sparkle:minimumSystemVersion>14.0.0</sparkle:minimumSystemVersion>
-      <pubDate>2026-08-17T08:42:58Z</pubDate>
-      <description></description>
-      <enclosure url="https://desktop.docker.com/mac/main/arm64/236836/Docker.dmg" sparkle:version="236836" sparkle:shortVersionString="4.87.0" length="582196078" type="application/octet-stream" d4w:url="" previousBuild="236216"></enclosure>
-      <sparkle:deltas>
-        <enclosure url="https://desktop.docker.com/mac/main/arm64/236836/Docker-236216.delta" sparkle:version="236836" sparkle:shortVersionString="4.87.0" sparkle:deltaFrom="236216" length="87115679" type="application/octet-stream"></enclosure>
-      </sparkle:deltas>
-      <visibility>100</visibility>
-    </item>
-  </channel>
-</rss>
-"""
 
 @Suite("Docker vendor probe")
 struct DockerProbeRecipeTests {
-    private var recipe: VendorProbeRecipe? {
-        VendorProbeRegistry.recipes.first { $0.bundleID == "com.docker.docker" }
+    private static let bundleID = "com.docker.docker"
+    private static let imageURL = "https://desktop.docker.com/mac/main/arm64/246961/Docker.dmg"
+    private static let imageSHA256 = "633c570d2eda7e6100ff59080d065f185f27cd9d981b2b9b0ef68b9778e33cd9"
+
+    // Trimmed from the stable ARM64 appcast fetched on 2026-11-20.
+    private static let olderRelease = """
+    {
+        "Date": "2026-11-09T09:43:37Z",
+        "PreviousBuild": "245422",
+        "Visibility": "100",
+        "AppVersion": "4.99.0",
+        "BuildNumber": "245822",
+        "MinOSVersion": "14.0.0",
+        "Artifacts": [
+            {
+                "URL": "https://desktop.docker.com/mac/main/arm64/245822/Docker.dmg",
+                "Length": "573453282",
+                "Type": "dmg",
+                "Checksum": "0ede7f9917b55c396a17b03c069cadf457a7d21904bc264c6d398fe132da7fb9"
+            }
+        ]
+    }
+    """
+
+    private static let newerRelease = """
+    {
+        "Date": "2026-11-19T14:04:13Z",
+        "PreviousBuild": "245822",
+        "Visibility": "99",
+        "AppVersion": "4.100.0",
+        "BuildNumber": "246961",
+        "MinOSVersion": "14.0.0",
+        "Artifacts": [
+            {
+                "URL": "\(imageURL)",
+                "Length": "573576477",
+                "Type": "dmg",
+                "Checksum": "\(imageSHA256)"
+            },
+            {
+                "URL": "https://desktop.docker.com/mac/main/arm64/246961/Docker.pkg",
+                "Length": "555414328",
+                "Type": "pkg",
+                "Checksum": "9c46bc8de01f70e8869d42da90ebf1ad79008eda131ad12e5d3c0e6c249bcc8c"
+            }
+        ]
+    }
+    """
+
+    enum Feed: String {
+        case captured, reversed, sameMarketing, hidden, newerNeedsOS, allNeedOS
+        case wrongBuild, wrongArchitecture, wrongHost, wrongType, missingDigest, foreignDelta, malformed
+
+        var body: String {
+            let older = DockerProbeRecipeTests.olderRelease
+            let newer = DockerProbeRecipeTests.newerRelease
+            let imageURL = DockerProbeRecipeTests.imageURL
+            func appcast(_ first: String, _ second: String) -> String {
+                #"{"Version":"1.0","Items":["# + first + "," + second + "]}"
+            }
+            switch self {
+            case .captured: return appcast(older, newer)
+            case .reversed: return appcast(newer, older)
+            case .sameMarketing: return appcast(older.replacingOccurrences(of: "4.99.0", with: "4.100.0"), newer)
+            case .hidden:
+                return appcast(older, newer.replacingOccurrences(of: #""Visibility": "99""#, with: #""Visibility": "0""#))
+            case .newerNeedsOS:
+                return appcast(older, newer.replacingOccurrences(of: "14.0.0", with: "26.0"))
+            case .allNeedOS: return appcast(older, newer).replacingOccurrences(of: "14.0.0", with: "26.0")
+            case .wrongBuild:
+                return appcast(older, newer.replacingOccurrences(
+                    of: imageURL, with: "https://desktop.docker.com/mac/main/arm64/245822/Docker.dmg"))
+            case .wrongArchitecture:
+                return appcast(older, newer.replacingOccurrences(
+                    of: imageURL, with: "https://desktop.docker.com/mac/main/amd64/246961/Docker.dmg"))
+            case .wrongHost:
+                return appcast(older, newer.replacingOccurrences(
+                    of: "desktop.docker.com/mac/main/arm64/246961/Docker.dmg",
+                    with: "desktop.docker.com.invalid/mac/main/arm64/246961/Docker.dmg"))
+            case .wrongType:
+                return appcast(older, newer.replacingOccurrences(of: #""Type": "dmg""#, with: #""Type": "delta""#))
+            case .missingDigest:
+                return appcast(older, newer.replacingOccurrences(of: DockerProbeRecipeTests.imageSHA256, with: ""))
+            case .foreignDelta:
+                return #"{"version":"4.100.0","deltas":[{"from":"245422","url":"https://other.invalid/update.delta"}],"#
+                    + appcast(older, newer).dropFirst()
+            case .malformed: return appcast(older, newer).replacingOccurrences(of: #""Items""#, with: #""PreviousItems""#)
+            }
+        }
     }
 
-    /// `selectHighest` is what makes the reported version right despite the order.
-    @Test func reportsTheHighestVersionNotTheFirstListed() throws {
-        let recipe = try #require(recipe)
-        #expect(recipe.selectHighest)
-        #expect(VendorProbeRecipe.highestVersion(
-            from: dockerAppcastFixture, pattern: recipe.versionPattern) == "4.87.0")
+    private final class AppcastProtocol: URLProtocol, @unchecked Sendable {
+        override class func canInit(with request: URLRequest) -> Bool { true }
+        override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+
+        override func startLoading() {
+            guard let url = request.url, let feed = Feed(rawValue: url.lastPathComponent) else {
+                client?.urlProtocol(self, didFailWithError: URLError(.fileDoesNotExist))
+                return
+            }
+            let response = HTTPURLResponse(
+                url: url, statusCode: 200, httpVersion: nil, headerFields: ["Content-Type": "application/json"])!
+            client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+            client?.urlProtocol(self, didLoad: Data(feed.body.utf8))
+            client?.urlProtocolDidFinishLoading(self)
+        }
+
+        override func stopLoading() {}
     }
 
-    /// The bug this file exists for: the download used to be chosen by position
-    /// while the version was chosen by comparison, and this feed does not list the
-    /// newest release first. Pinned here so the asymmetry can't come back unnoticed.
-    @Test func theFirstDockerDmgInTheFeedIsNotTheNewestOne() throws {
-        let recipe = try #require(recipe)
-        guard case .bodyPatternHighestVersioned(let pattern) = try #require(recipe.install).urlSource
-        else { Issue.record("expected a version-paired body pattern"); return }
-        // Same regex, taken positionally the way `bodyPattern` would: the 4.86.0
-        // image. That is exactly what got downloaded and installed over itself.
-        #expect(VendorProbeRecipe.extractVersion(from: dockerAppcastFixture, pattern: pattern)
-            != "https://desktop.docker.com/mac/main/arm64/236836/Docker.dmg")
+    private func source(_ feed: Feed, hostOS: String = "15.0") throws -> VendorProbeSource {
+        let recipe = try #require(VendorProbeRegistry.recipes.first { $0.bundleID == Self.bundleID })
+        #expect(recipe.url.absoluteString == "https://desktop.docker.com/mac/main/arm64/appcast.json")
+        #expect(recipe.recipeID == "vendor:com.docker.docker:stable")
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [AppcastProtocol.self]
+        let endpoint = URL(string: "https://docker-feed.fixture.invalid/\(feed.rawValue)")!
+        return VendorProbeSource(
+            recipes: [recipe.with(url: endpoint)], session: URLSession(configuration: config),
+            hostOSVersion: hostOS)
     }
 
-    /// What must actually be downloaded: the full image belonging to the version
-    /// that won the comparison — not the older item's, not the channel `<link>`'s
-    /// third build, and never a `.delta` (which is also an `<enclosure>` here).
-    @Test func installsTheDmgBelongingToTheReportedVersion() throws {
-        let recipe = try #require(recipe)
-        let spec = try #require(recipe.install)
-        guard case .bodyPatternHighestVersioned(let pattern) = spec.urlSource
-        else { Issue.record("expected a version-paired body pattern"); return }
-        let picked = VendorProbeRecipe.highestVersionedURL(
-            from: dockerAppcastFixture, pattern: pattern)
-        #expect(picked == "https://desktop.docker.com/mac/main/arm64/236836/Docker.dmg")
-        #expect(spec.kind == .dmg)
-        let url = try #require(picked)
-        #expect(!url.contains(".delta"))
-        #expect(!url.contains("229452"))
+    private func installed(
+        _ marketing: String = "4.98.0", _ build: String = "245422", channel: ReleaseChannel = .stable
+    ) -> InstalledApp {
+        InstalledApp(
+            name: "Docker", bundleID: Self.bundleID, shortVersion: marketing, buildVersion: build,
+            path: URL(fileURLWithPath: "/Applications/ZZDockerFixture.app"),
+            isMASApp: false, sparkleFeedURL: nil, releaseChannel: channel)
     }
 
-    /// A pattern that captures only the URL must yield nothing rather than quietly
-    /// falling back to first-match — that fallback is the whole failure mode.
-    @Test func aPatternWithoutAVersionGroupSelectsNothing() {
-        #expect(VendorProbeRecipe.highestVersionedURL(
-            from: dockerAppcastFixture,
-            pattern: #"<enclosure[^>]*url="(https://desktop\.docker\.com/[^"]+/Docker\.dmg)""#) == nil)
+    @Test(arguments: [Feed.captured, .reversed, .sameMarketing])
+    func reportsTheLatestReleaseAndItsOwnFullImage(_ feed: Feed) async throws {
+        let source = try source(feed)
+        let remote = try #require(try await source.latestVersion(for: installed()))
+        #expect(remote.shortVersion == "4.100.0")
+        #expect(remote.version == "246961")
+        #expect(remote.marketingMatchesBundle)
+        #expect(remote.downloadURL?.absoluteString == Self.imageURL)
+        #expect(remote.vendorInstallerKind == .dmg)
+        #expect(remote.expectedSHA256 == Self.imageSHA256)
+        #expect(remote.expectedSHA512 == nil)
+        #expect(remote.publishedAt != nil)
+    }
+
+    @Test func newerReleaseIsOfferedWithoutRequiringThePreviousBuild() async throws {
+        let source = try source(.captured)
+        for app in [installed(), installed("4.99.0", "245822"), installed("4.100.0", "246000")] {
+            let remote = try #require(try await source.latestVersion(for: app))
+            #expect(UpdateChecker.evaluate(installed: app, remote: remote) == .updateAvailable(latest: "4.100.0"))
+        }
+        for app in [installed("4.100.0", "246961"), installed("4.101.0", "246000")] {
+            let remote = try #require(try await source.latestVersion(for: app))
+            #expect(UpdateChecker.evaluate(installed: app, remote: remote) == .upToDate)
+        }
+    }
+
+    @Test(arguments: [Feed.hidden, .newerNeedsOS])
+    func choosesAnEligibleOlderRelease(_ feed: Feed) async throws {
+        let remote = try #require(try await source(feed).latestVersion(for: installed()))
+        #expect(remote.shortVersion == "4.99.0")
+        #expect(remote.version == "245822")
+        #expect(remote.downloadURL?.lastPathComponent == "Docker.dmg")
+        #expect(remote.downloadURL?.deletingLastPathComponent().lastPathComponent == "245822")
+    }
+
+    @Test func refusesReleasesThatAllNeedNewerMacOS() async throws {
+        let source = try source(.allNeedOS)
+        await #expect(throws: OSWindowRefused.self) {
+            try await source.latestVersion(for: installed())
+        }
+    }
+
+    @Test(arguments: [Feed.wrongBuild, .wrongArchitecture, .wrongHost, .wrongType, .missingDigest])
+    func detectsWithoutBorrowingAnotherArtifact(_ feed: Feed) async throws {
+        let remote = try #require(try await source(feed).latestVersion(for: installed()))
+        #expect(remote.shortVersion == "4.100.0")
+        #expect(remote.vendorInstallerKind == nil)
+        #expect(remote.expectedSHA256 == nil)
+        #expect(remote.requiresManualInstaller)
+    }
+
+    @Test func unrelatedTopLevelDeltaCannotBecomeAnAlternateInstaller() async throws {
+        let remote = try #require(try await source(.foreignDelta).latestVersion(for: installed()))
+        #expect(remote.downloadURL?.absoluteString == Self.imageURL)
+        #expect(remote.deltas.isEmpty)
+    }
+
+    @Test func malformedAppcastFailsTheProbe() async throws {
+        let source = try source(.malformed)
+        await #expect(throws: VendorProbeSource.ProbeFailed.self) {
+            try await source.latestVersion(for: installed())
+        }
+    }
+
+    @Test func nightlyCopyCannotUseTheStableRecipe() async throws {
+        let source = try source(.captured)
+        #expect(try await source.latestVersion(for: installed(channel: .nightly)) == nil)
     }
 }

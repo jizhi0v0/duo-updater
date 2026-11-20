@@ -167,6 +167,7 @@ struct RecipeCodableTests {
                     (.redirectFilename, #"{"kind":"redirectFilename"}"#),
                     (.responseBody, #"{"kind":"responseBody"}"#),
                     (.longbridgeManifest, #"{"kind":"longbridgeManifest"}"#),
+                    (.dockerAppcast, #"{"kind":"dockerAppcast"}"#),
                     (.versionedDirectory(linkPattern: "(dir)(1.2)"),
                      #"{"kind":"versionedDirectory","linkPattern":"(dir)(1.2)"}"#),
                     (.zipEntryPlist(entry: "a/Info.plist", key: "K"),

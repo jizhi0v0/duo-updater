@@ -21,6 +21,14 @@ struct UTMGitHubChannelTests {
         /// rate limit takes. Used to prove the discovery probe does not relabel
         /// infrastructure as a broken recipe.
         nonisolated(unsafe) static var rateLimitTagLookups = false
+        nonisolated(unsafe) static var hasRespin = false
+        nonisolated(unsafe) static var plainIsPreview = false
+        nonisolated(unsafe) static var plainListedFirst = true
+        nonisolated(unsafe) static var respinTag = "v5.0.9-2"
+        nonisolated(unsafe) static var respinBuildSettings = """
+            MARKETING_VERSION = 5.0.9
+            CURRENT_PROJECT_VERSION = 132
+            """
         private static let lock = NSLock()
         static func record(_ path: String) {
             lock.lock(); defer { lock.unlock() }
@@ -41,6 +49,9 @@ struct UTMGitHubChannelTests {
         override func startLoading() {
             let path = request.url?.path ?? ""
             Self.record(path)
+            if request.url?.host == "raw.githubusercontent.com" {
+                #expect(request.value(forHTTPHeaderField: "Authorization") == nil)
+            }
             let body: String
             let status: Int
             if Self.rateLimitTagLookups, path.contains("/releases/tags/") {
@@ -52,7 +63,33 @@ struct UTMGitHubChannelTests {
                 client?.urlProtocolDidFinishLoading(self)
                 return
             }
+            let plain = Self.release(tag: "v5.0.9", prerelease: Self.plainIsPreview, body: "* Original 5.0.9")
+            let respin = Self.release(tag: Self.respinTag, prerelease: false, body: "* Republished 5.0.9")
             switch path {
+            case "/utmapp/UTM/v5.0.9-3/Build.xcconfig":
+                status = 200
+                body = "MARKETING_VERSION = 5.0.9\nCURRENT_PROJECT_VERSION = 133\n"
+            case "/utmapp/UTM/v5.0.9-2/Build.xcconfig":
+                status = 200
+                body = Self.respinBuildSettings
+            case "/utmapp/UTM/v5.0.9/Build.xcconfig":
+                status = 200
+                body = "MARKETING_VERSION = 5.0.9\nCURRENT_PROJECT_VERSION = 130\n"
+            case "/utmapp/UTM/v5.0.8/Build.xcconfig":
+                status = 200
+                body = "MARKETING_VERSION = 5.0.8\nCURRENT_PROJECT_VERSION = 128\n"
+            case "/utmapp/UTM/v5.0.5/Build.xcconfig":
+                status = 200
+                body = "MARKETING_VERSION = 5.0.5\nCURRENT_PROJECT_VERSION = 124\n"
+            case "/repos/utmapp/UTM/releases/tags/v5.0.9-2" where Self.hasRespin:
+                status = 200
+                body = respin
+            case "/repos/utmapp/UTM/releases/tags/v5.0.9" where Self.hasRespin:
+                status = 200
+                body = plain
+            case "/repos/utmapp/UTM/releases/tags/v5.0.8" where Self.hasRespin:
+                status = 200
+                body = Self.release(tag: "v5.0.8", prerelease: false, body: "* Previous stable")
             case "/repos/utmapp/UTM/releases/tags/v5.0.5":
                 status = 200
                 body = Self.release(tag: "v5.0.5", prerelease: true, body: "* Newest preview")
@@ -78,11 +115,22 @@ struct UTMGitHubChannelTests {
                   "assets":[]
                 }
                 """
+            case "/repos/utmapp/UTM/releases/latest" where Self.hasRespin:
+                status = 200
+                body = respin
             case "/repos/utmapp/UTM/releases/latest":
                 status = 200
                 body = Self.release(
                     tag: "v4.7.5", prerelease: false,
                     body: "## Changes (v4.7.5)\n* Stable-only QEMU update")
+            case "/repos/utmapp/UTM/releases" where Self.hasRespin:
+                status = 200
+                let stable = Self.plainListedFirst ? [plain, respin] : [respin, plain]
+                let previews = [
+                    Self.release(tag: "v5.0.9-3", prerelease: true, body: "* Different major preview"),
+                    Self.release(tag: "v6.0.1", prerelease: true, body: "* Future preview"),
+                ]
+                body = "[" + (stable + previews).joined(separator: ",") + "]"
             case "/repos/utmapp/UTM/releases":
                 status = 200
                 body = "[" + [
@@ -142,22 +190,31 @@ struct UTMGitHubChannelTests {
         }
     }
 
-    private func source(channelStore: ResolvedChannelStore? = nil) -> GitHubReleasesSource {
+    private func source(
+        channelStore: ResolvedChannelStore? = nil, hasRespin: Bool = false
+    ) -> GitHubReleasesSource {
         FixtureProtocol.reset()
         FixtureProtocol.rateLimitTagLookups = false
+        FixtureProtocol.hasRespin = hasRespin
+        FixtureProtocol.plainIsPreview = false
+        FixtureProtocol.plainListedFirst = true
+        FixtureProtocol.respinTag = "v5.0.9-2"
+        FixtureProtocol.respinBuildSettings = "MARKETING_VERSION = 5.0.9\nCURRENT_PROJECT_VERSION = 132\n"
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [FixtureProtocol.self]
         let rules = GitHubReleaseRegistry.rules.filter { $0.bundleID == "com.utmapp.UTM" }
         return GitHubReleasesSource(
-            rules: rules, session: URLSession(configuration: configuration),
+            rules: rules, token: "fixture-token", session: URLSession(configuration: configuration),
             channelStore: channelStore)
     }
 
-    private func app(version: String) -> InstalledApp {
+    private func app(
+        version: String, build: String? = nil, path: String = "/Applications/UTM.app"
+    ) -> InstalledApp {
         InstalledApp(
             name: "UTM", bundleID: "com.utmapp.UTM",
-            shortVersion: version, buildVersion: nil,
-            path: URL(fileURLWithPath: "/Applications/UTM.app"),
+            shortVersion: version, buildVersion: build,
+            path: URL(fileURLWithPath: path),
             isMASApp: false, isToolboxManaged: false, sparkleFeedURL: nil)
     }
 
@@ -217,6 +274,87 @@ struct UTMGitHubChannelTests {
         let items = try #require(remote.structuredChangelog?.entries.first?.items)
         #expect(items.contains { $0.contains("Stable-only QEMU update") })
         #expect(!items.contains { $0.contains("Beta-only") })
+    }
+
+    @Test func numberedStableRespinUpdatesOlderAndSameMarketingBuildsOnly() async throws {
+        let checker = UpdateChecker(sources: [source(hasRespin: true)])
+        let older = await checker.check(app(version: "5.0.8", build: "128"))
+        let original = await checker.check(app(version: "5.0.9", build: "130"))
+        let current = await checker.check(app(version: "5.0.9", build: "132"))
+
+        #expect(older.hasUpdate)
+        #expect(original.hasUpdate)
+        #expect(current.status == .upToDate)
+        for result in [older, original, current] {
+            let remote = try #require(result.remote)
+            #expect(remote.shortVersion == "5.0.9")
+            #expect(remote.version == "132")
+            #expect(remote.releaseChannel == .stable)
+            #expect(remote.vendorInstallerKind == .dmg)
+            #expect(remote.downloadURL?.path == "/utmapp/UTM/releases/download/v5.0.9-2/UTM.dmg")
+        }
+    }
+
+    @Test func theExactBuildProvesEachTrackWhenPlainAndRespinTagsCoexist() async throws {
+        let store = tempStore()
+        let source = source(channelStore: store, hasRespin: true)
+        FixtureProtocol.plainIsPreview = true
+        // This synthetic combination makes the proof observable. The two real
+        // v5.0.9 artifacts are stable, so checking only those would also pass if
+        // the repack were attributed to the plain tag's track by mistake.
+        let plain = app(version: "5.0.9", build: "130")
+        let respin = app(version: "5.0.9", build: "132", path: "/Users/someone/Applications/UTM.app")
+        _ = try await source.latestVersion(for: plain)
+        _ = try await source.latestVersion(for: respin)
+        #expect(await store.channel(for: plain) == .beta)
+        #expect(await store.channel(for: respin) == .stable)
+    }
+
+    @Test func anOldBetaGetsTheStableRespinEvenWithPlainAndPreviewTagsOnTop() async throws {
+        let store = tempStore()
+        let source = source(channelStore: store, hasRespin: true)
+        let installed = app(version: "4.7.3")
+        let remote = try #require(try await source.latestVersion(for: installed))
+        #expect(await store.channel(for: installed) == .beta)
+        #expect(remote.version == "132")
+        #expect(remote.downloadURL?.path == "/utmapp/UTM/releases/download/v5.0.9-2/UTM.dmg")
+    }
+
+    @Test func theDiscoveryProbeCanProveASuffixedTagWithoutRebuildingIt() async throws {
+        let rule = try #require(GitHubReleaseRegistry.rules.first {
+            $0.bundleID == "com.utmapp.UTM" && $0.channel == .beta
+        })
+        let source = source(hasRespin: true)
+        FixtureProtocol.plainListedFirst = false
+
+        let discovery = try await source.channelDiscoveryProbe(rule)
+        #expect(discovery.failure == nil)
+        #expect(discovery.provenVersion == "5.0.9")
+        #expect(FixtureProtocol.paths().contains("/repos/utmapp/UTM/releases/tags/v5.0.9-2"))
+    }
+
+    @Test func mismatchedBuildSettingsDoNotFabricateARespinBuild() async {
+        let checker = UpdateChecker(sources: [source(hasRespin: true)])
+        FixtureProtocol.respinBuildSettings = "MARKETING_VERSION = 6.0.1\nCURRENT_PROJECT_VERSION = 132\n"
+        let result = await checker.check(app(version: "5.0.9", build: "130"))
+
+        #expect(result.remote == nil)
+        guard case .error = result.status else {
+            Issue.record("A mismatched build settings file must leave a retryable check failure")
+            return
+        }
+    }
+
+    @Test func aMalformedReleaseTagCannotSelectABuildSettingsPath() async throws {
+        let source = source(hasRespin: true)
+        FixtureProtocol.respinTag = "v5.0.9-2/../../somewhere"
+        let stable = try #require(GitHubReleaseRegistry.rules.first {
+            $0.bundleID == "com.utmapp.UTM" && $0.channel == .stable
+        })
+        let result = await source.resolveDiagnostic(stable)
+
+        #expect(result.failure != nil)
+        #expect(!FixtureProtocol.paths().contains { $0.hasSuffix("/Build.xcconfig") })
     }
 
     /// An unprovable copy loses its BADGE, not its row. Returning nil would drop

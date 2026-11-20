@@ -38,13 +38,14 @@
 | beta（GitHub/Homebrew） | `com.utmapp.UTM` | 共享 | 包内无标记；exact tag 对应 release 的 `prerelease: true` | 候选取 `max(装机大版本线最新, 全局最新正式版)`，排除 draft —— **不是"只收 prerelease"**，见下 | ✓ |
 
 UTM 的 stable 与 beta bundle ID、app 名、Team ID、资产名都相同，营销版本也是不带后缀的
-纯数字。因此 `ReleaseChannel.detect()` 单靠本地 bundle 无法分轨。做法不是用"5.x 就是 beta"
-这类版本猜测，而是以已安装 `CFBundleShortVersionString` 构造 exact tag `v<version>`，读取
-GitHub 对该 release 的权威 `prerelease` 位：
+纯数字。因此 `ReleaseChannel.detect()` 单靠本地 bundle 无法分轨。判轨先按
+`CFBundleShortVersionString` 查 `v<version>`，再用该标签的 `Build.xcconfig` 核对
+`CFBundleVersion`。原始标签缺失或构建号不同时，在最新 release 列表内核对同营销版本的
+数字后缀标签。确认具体 release 后，读取 GitHub 的 `prerelease` 位：
 
 - `true`：这份拷贝在预览轨；
 - `false`：这份拷贝在正式轨；
-- exact tag 不存在、是 draft、或应答不再带 `prerelease`/`draft` 字段：**不声称任何渠道，退回
+- 找不到匹配的已发布构建、或应答不再带 `prerelease`/`draft` 字段：**不声称任何渠道，退回
   stable rule**（即这个机制出现之前的行为）。
 
   注意这里是"丢徽章"而不是"丢整行"。早期做法是判不出就不响应，但 UTM 没有 Sparkle、cask 只在
@@ -63,7 +64,7 @@ GitHub 对该 release 的权威 `prerelease` 位：
    渠道若只挂在 `RemoteVersion` 上，一次网络抖动就会让 Beta 徽章消失、changelog cache key
    从 `:beta` 翻回 `:stable`。存下来之后，失败的那一轮仍然读得到 `provenChannel`。
 
-顺带把稳态成本降回每轮一个请求：exact-tag 只在装机版本变化时重探一次。
+只有安装路径或任一装机版本串变化才会重新核对已证明的渠道。
 
 ## ⚠️ `prerelease` 位不是"轨"，是"这一版还没转正"
 
@@ -95,8 +96,8 @@ v4.6.1  v4.6.0  (Beta)
 
 ## 更新检测
 
-stable 与 beta 各有一条 `GitHubReleaseRule`。两条都把 tag 限定为纯数字 `vX.Y…`，都只
-接受精确资产名 `UTM.dmg`。stable 读 `/releases/latest`（GitHub 定义上不返回 prerelease，
+stable 与 beta 各有一条 `GitHubReleaseRule`。两条都接受纯数字 `vX.Y…` 或带数字重发后缀的
+标签，都只接受精确资产名 `UTM.dmg`。stable 读 `/releases/latest`（GitHub 定义上不返回 prerelease，
 所以正式轨永远看不到预览）；beta 读列表，另有两个字段：
 
 ```swift
@@ -104,6 +105,11 @@ usePrereleases: true                                  // 列表里才看得见�
 candidateScope: .installedMajorLineOrNewestStable      // 上面那条候选算法
 installedTagPrefix: "v"                                // 开启 exact-release 判轨
 ```
+
+数字后缀用于从同一营销版本的候选中选出后续发布。选中的重发包从对应标签的
+`Build.xcconfig` 读取 `CURRENT_PROJECT_VERSION`，并校验 `MARKETING_VERSION` 与标签一致。
+`UpdateChecker` 用实际构建号完成同营销版本的比较。如果无法确认重发包构建号，检查会提示重试。
+正常纯数字标签沿用营销版本比较。
 
 `duo verify` 对任何设了 `installedTagPrefix` 的 rule **额外跑一条 discovery 诊断**：
 拿列表最新的 tag 反查 exact release，要求应答仍带 `prerelease`/`draft` 且 tag 能被
@@ -143,12 +149,9 @@ beta 5.0.5 对 stable 4.7.5 被报成「macOS 上可能不存在的幽灵版本�
 
 ## 已知限制
 
-- 首次判轨需要网络访问 GitHub exact-release API；之后按路径 + 版本缓存，版本不变不再重探。
-- 自编译、改写版本号或上游已删除 exact tag 的构建无法证明渠道，此时**不声称渠道、退回 stable
-  rule**（见上文「Channel 详情」下的说明），不会猜轨，也不会让整行消失。
-  分两种：版本串根本形不成合法 tag 的（`v2.0b7` / `v1.0-rc6` 这类）在构造 tag **之前**就被
-  `versionPattern` 挡掉，一个请求都不花；版本串合法但上游 tag 已删的（`v3.1.3` / `v3.0.4`
-  已重打成 `-2` 后缀）每轮仍会花一个必然 404 的请求 —— 这类拷贝极少，没有为它加负缓存。
+- 首次判轨会查询 GitHub exact-release API 和对应标签的 `Build.xcconfig`。已证明的结果按安装路径和两个版本串缓存。
+- 自编译、改写版本号或超出最近 20 条 release 的旧重发包可能无法证明渠道，检查会使用 stable 规则。
+  `v2.0b7` / `v1.0-rc6` 这类无法构成有效标签的装机版本直接使用 stable 规则。
 - GitHub 的 `prerelease` 位是判轨依据；上游若重新标记一条既有 release，DuoUpdater 会按上游
   当前声明处理。注意判轨结果按"路径 + 版本"缓存且**不设过期**，所以重新标记要到该拷贝版本变化
   时才会被重新读取。
@@ -185,6 +188,12 @@ beta 5.0.5 对 stable 4.7.5 被报成「macOS 上可能不存在的幽灵版本�
   的 finding，先查这一条再怀疑上游。
 
 ## 历史与实测
+
+### 2026-11-20 数字后缀重发（#2101）
+
+GitHub 最新正式版标签为 `v5.0.9-2`。VM 挂载的 `v5.0.9` / `v5.0.9-2` 官方 DMG 都是
+`com.utmapp.UTM`，营销版本均为 `5.0.9`，构建号分别为 `130` / `132`，Team 均为
+`WDNLXAD4W8`。对应标签的 `Build.xcconfig` 与包内版本相符，`v5.0.8` 的配置为 `5.0.8` / `128`。
 
 从 recipe 注释迁出（2026-09-14）。正文逐字，只去掉了行首 `// `；每组标明出处。
 

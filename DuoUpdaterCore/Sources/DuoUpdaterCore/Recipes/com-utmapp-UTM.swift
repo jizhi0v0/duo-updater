@@ -1,11 +1,27 @@
 import Foundation
 
 enum com_utmapp_UTM {
+    static let bundleID = "com.utmapp.UTM"
+    static let slug = "utmapp/UTM"
+
+    // A numeric suffix identifies a republished release, while the macOS bundle
+    // still uses the plain marketing version. The build is in Build.xcconfig.
+    static let versionPattern = #"\Av([0-9]+(?:\.[0-9]+)+)(?:-[1-9][0-9]*)?\z"#
+    static let orderedTagPattern = #"\Av([0-9]+(?:\.[0-9]+)+(?:-[1-9][0-9]*)?)\z"#
+
+    static func build(in xcconfig: String, for version: String) -> String? {
+        let marketing = VendorProbeRecipe.extractVersion(
+            from: xcconfig, pattern: #"(?m)^MARKETING_VERSION[ \t]*=[ \t]*([0-9.]+)[ \t]*\r?$"#)
+        guard marketing == version else { return nil }
+        return VendorProbeRecipe.extractVersion(
+            from: xcconfig, pattern: #"(?m)^CURRENT_PROJECT_VERSION[ \t]*=[ \t]*([0-9]+)[ \t]*\r?$"#)
+    }
+
     static let set = AppRecipeSet(
         family: "com-utmapp-UTM",
         changelogs: [
         // History: docs/app-audits/com-utmapp-UTM.md#历史与实测
-        // UTM Stable and Beta publish in one GitHub repository with plain numeric
+        // UTM Stable and Beta publish in one GitHub repository with numeric
         // tags and the same `UTM.dmg` asset name. The release record's
         // `prerelease` bit is the only split, matching the corresponding
         // GitHubReleaseRule. Two channel-keyed recipes over the same JSON keep the
@@ -18,7 +34,7 @@ enum com_utmapp_UTM {
         // `includesPromotedStable` is what stops that update's notes from
         // rendering as an empty panel. See `GitHubCandidateScope`.
         ChangelogRecipe(
-            bundleID: "com.utmapp.UTM",
+            bundleID: bundleID,
             source: URL(
                 string: "https://api.github.com/repos/utmapp/UTM/releases?per_page=40")!,
             mode: .json,
@@ -27,7 +43,7 @@ enum com_utmapp_UTM {
             structuredFormat: .gitHubReleases),
 
         ChangelogRecipe(
-            bundleID: "com.utmapp.UTM",
+            bundleID: bundleID,
             source: URL(
                 string: "https://api.github.com/repos/utmapp/UTM/releases?per_page=40")!,
             mode: .json,
@@ -47,11 +63,11 @@ enum com_utmapp_UTM {
 
         // UTM — virtualiser. Stable and Beta share EVERYTHING visible locally:
         // bundle id, app name, plain numeric marketing/build versions, Team ID,
-        // and the literal `UTM.dmg` asset name. The tag is plain numeric too
-        // (e.g. `v5.0.5`), so no suffix can gate the beta rule. Instead, the source
-        // looks up the exact tag for the installed version and reads GitHub's own
-        // authoritative `prerelease` bit to decide WHICH RULE this copy is on. An
-        // unprovable tag claims no channel and answers on the stable rule.
+        // and the literal `UTM.dmg` asset name. The source reads the exact
+        // release's `prerelease` bit to decide which rule this copy is on.
+        // For copies with a build number, the release's Build.xcconfig must
+        // identify that build, including when the plain and republished tags
+        // coexist. An unprovable copy answers on the stable rule.
         //
         // What that bit does NOT mean here is "a parallel Beta train": each minor
         // line ships previews and then graduates at a higher patch number
@@ -67,9 +83,9 @@ enum com_utmapp_UTM {
         // Developer ID` (checked on a real DMG 2026-09-03; History has its version,
         // size and hash).
         GitHubReleaseRule(
-            bundleID: "com.utmapp.UTM",
+            bundleID: bundleID,
             owner: "utmapp", repo: "UTM",
-            versionPattern: #"^v([0-9]+(?:\.[0-9]+)+)$"#,
+            versionPattern: versionPattern,
             installAssetPattern: #"^UTM\.dmg$"#,
             installerKind: .dmg),
 
@@ -88,10 +104,10 @@ enum com_utmapp_UTM {
         // covers both; trimming it below ~15 would be gambling on the burst
         // never growing past what's been observed once already.
         GitHubReleaseRule(
-            bundleID: "com.utmapp.UTM",
+            bundleID: bundleID,
             owner: "utmapp", repo: "UTM",
             usePrereleases: true,
-            versionPattern: #"^v([0-9]+(?:\.[0-9]+)+)$"#,
+            versionPattern: versionPattern,
             candidateScope: .installedMajorLineOrNewestStable,
             installedTagPrefix: "v",
             installAssetPattern: #"^UTM\.dmg$"#,
@@ -115,7 +131,7 @@ enum com_utmapp_UTM {
         // `UTMGitHubChannelTests.aPreviewInstallWhoseLineGraduatedIsOfferedThatGraduation`
         // is what covers the code: delete the ceiling and it offers a v5 preview
         // to a 4.7 install.
-        ChannelProofKey("com.utmapp.UTM", .beta):
+        ChannelProofKey(bundleID, .beta):
             .recipeAnchor(#"^installedMajorLineOrNewestStable$"#, in: ["candidateScope"]),
         ])
 }

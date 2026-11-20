@@ -4,6 +4,19 @@
 
 ## 历史与实测
 
+### 2026-11-20：稳定版改用官方下载入口（#2123）
+
+`desktop/desktop` 的 latest Release 仍报 `3.6.11`，官方稳定版 Apple silicon 下载入口已经指向 `3.7.0`。
+`VendorProbeRecipe` 从 `central.github.com/deployments/desktop/desktop/latest/darwin-arm64` 的 `Location` 读取稳定版版本号和同一个 arm64 ZIP 地址。`-betaN` 副本继续从 Releases 的 beta 规则查版本，两个渠道各自沿用现有更新日志。
+
+## 夜扫覆盖
+
+- 检测和安装包检查由现有 Vendor/GitHub 注册表枚举，稳定版为 `vendor:com.github.GitHubClient:stable`，beta 为 `github:desktop/desktop:beta`。两条都配置了 arm64 ZIP。
+- 原稳定版在检测基线、安装基线和身份记录的键同步迁移至新 recipe ID，保留既有 bundle ID、Team、架构和版本历史。Beta 的 key 保持原样。
+- Apple Silicon macOS 27.2 VM：`duo verify --only com.github.GitHubClient --no-installed` 通过 5 项检查，包括两条版本源、两组更新日志和日志覆盖。安装包及升级实测命令和结果见关联 PR。
+
+## 原 recipe 注释
+
 从 recipe 注释迁出（2026-09-14）。正文逐字，只去掉了行首 `// `；每组标明出处。
 
 ### Recipes/com-github-GitHubClient.swift — stable / beta GitHubReleaseRule（一键 `GitHub.Desktop-arm64.zip`）

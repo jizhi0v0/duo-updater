@@ -526,12 +526,6 @@
       "consecutiveInstallTransient" : 0,
       "sweepsSinceComment" : 0
     },
-    "install:github:desktop\/desktop:stable" : {
-      "consecutiveActionable" : 0,
-      "consecutiveInfra" : 0,
-      "consecutiveInstallTransient" : 0,
-      "sweepsSinceComment" : 0
-    },
     "install:github:divamgupta\/diffusionbee-stable-diffusion-ui:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
@@ -2053,6 +2047,12 @@
       "sweepsSinceComment" : 0
     },
     "install:vendor:com.getdropbox.dropbox:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
+    "install:vendor:com.github.GitHubClient:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,

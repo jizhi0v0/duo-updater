@@ -3,11 +3,25 @@ import Foundation
 enum com_github_GitHubClient {
     static let set = AppRecipeSet(
         family: "com-github-GitHubClient",
+        probes: [
+        // The official Apple silicon download redirects to the production ZIP.
+        // Read and validate its Location once, then install that exact archive.
+        VendorProbeRecipe(
+            bundleID: "com.github.GitHubClient",
+            url: URL(string: "https://central.github.com/deployments/desktop/desktop/latest/darwin-arm64")!,
+            mode: .redirectFilename,
+            versionPattern: #"^https://desktop\.githubusercontent\.com/releases/([0-9]+\.[0-9]+\.[0-9]+)-[0-9a-f]+/GitHubDesktop-arm64\.zip$"#,
+            downloadURL: URL(string: "https://desktop.github.com/download/"),
+            changelogURL: URL(string: "https://desktop.github.com/release-notes/"),
+            install: VendorInstallSpec(urlSource: .bodyPattern(#"^(.+)$"#), kind: .zip),
+            followRedirects: false,
+            hostRequirement: VendorHostRequirement(architectures: [.arm64])),
+        ],
         changelogs: [
         // History: docs/app-audits/com-github-GitHubClient.md#历史与实测
         // ── GitHub Desktop — one bundle id (`com.github.GitHubClient`), TWO channels
         // distinguished only by the install's `-betaN` version suffix (see
-        // ReleaseChannel.detect / the GitHubReleaseRule pair). The desktop.github.com
+        // ReleaseChannel.detect). The desktop.github.com
         // /release-notes page is a client-rendered SPA; its data is a JSONP-ish feed
         // at central.github.com/deployments/desktop/desktop/changelog.json, and the
         // page's `?env=beta` maps to a `?env=beta` query on that feed (read from
@@ -41,38 +55,10 @@ enum com_github_GitHubClient {
             structuredFormat: .gitHubDesktopChangelog),
         ],
         githubRules: [
-        // GitHub Desktop — TWO channels share ONE bundle id (com.github.GitHubClient)
-        // AND one app name ("GitHub Desktop"): Stable ships `release-X.Y.Z` tags,
-        // Beta ships `release-X.Y.Z-betaN` prereleases, interleaved AHEAD of
-        // production in the list (e.g. `release-3.5.12-beta2` sits above `release-3.5.12`).
-        // Unlike Zed (separate bundle ids per channel), the ONLY channel signal is
-        // the installed version string's `-betaN` suffix — `ReleaseChannel.detect`'s
-        // step-4 `-beta[0-9]+` shape flips a `3.5.12-beta2` install to `.beta`, and
-        // the channel gate then serves it the beta rule below, never this stable one.
-        // Both rails' `GitHub.Desktop-arm64.zip` are notarized Developer ID builds
-        // (Team VEKTX9H2N7, GitHub) with the same bundle id. Squirrel self-updater,
-        // so one-click is a best-effort
-        // fallback. arm64 only (a `-x64.zip` also ships), swapped in place.
-        //
-        // Stable: `/releases/latest` resolves to the production tag (betas are
-        // prerelease=true), so usePrereleases=false; the `$`-anchored pattern
-        // captures only the bare X.Y.Z and refuses any `-beta`/`-test` suffix.
-        GitHubReleaseRule(
-            bundleID: "com.github.GitHubClient",
-            owner: "desktop", repo: "desktop",
-            usePrereleases: false,
-            versionPattern: #"release-([0-9]+\.[0-9]+\.[0-9]+)$"#,
-            installAssetPattern: #"^GitHub\.Desktop-arm64\.zip$"#,
-            installerKind: .zip),
-
-        // GitHub Desktop Beta — same repo/asset, `channel: .beta` so the gate serves
-        // it only to a `-betaN`-detected install. usePrereleases scans the list and
-        // takes the first `release-X.Y.Z-betaN` tag (newest beta, since GitHub
-        // returns newest-first); the pattern KEEPS the `-betaN` so the captured
-        // `-betaN` version (e.g. `3.5.12-beta2`) equals the installed
-        // CFBundleShortVersionString (no phantom update/downgrade against the stable
-        // `3.5.12`). Same `GitHub.Desktop-arm64.zip`
-        // one-click as stable.
+        // GitHub Desktop Beta stays on the Releases list. The same bundle id
+        // and name as stable make the installed `-betaN` version suffix the
+        // channel discriminator. Keep that suffix in the extracted version.
+        // The arm64 ZIP is signed by GitHub (Team VEKTX9H2N7).
         // listPageSize: the newest release is often the stable `release-…` tag one
         // spot above the newest beta, and consecutive `-betaN` tags can sit several
         // releases apart; 8 keeps 2x headroom over the widest run measured between

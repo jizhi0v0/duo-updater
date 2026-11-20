@@ -3866,14 +3866,6 @@
       "lastGoodVersion" : "3.6.12-beta2",
       "sweepsSinceComment" : 0
     },
-    "github:desktop\/desktop:stable" : {
-      "consecutiveActionable" : 0,
-      "consecutiveInfra" : 0,
-      "consecutiveInstallTransient" : 0,
-      "lastGoodAt" : "2026-11-20T08:26:08Z",
-      "lastGoodVersion" : "3.6.11",
-      "sweepsSinceComment" : 0
-    },
     "github:divamgupta\/diffusionbee-stable-diffusion-ui:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
@@ -5792,6 +5784,14 @@
       "issueNumber" : 1690,
       "lastGoodAt" : "2026-11-20T08:26:08Z",
       "lastGoodVersion" : "278.4.4020",
+      "sweepsSinceComment" : 0
+    },
+    "vendor:com.github.GitHubClient:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "lastGoodAt" : "2026-11-20T08:26:08Z",
+      "lastGoodVersion" : "3.6.11",
       "sweepsSinceComment" : 0
     },
     "vendor:com.google.Chrome.beta:beta" : {

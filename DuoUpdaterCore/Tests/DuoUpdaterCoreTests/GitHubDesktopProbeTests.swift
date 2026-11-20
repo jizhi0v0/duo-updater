@@ -7,6 +7,8 @@ import Testing
     })
     let location = "https://desktop.githubusercontent.com/releases/3.7.0-f13859b6/GitHubDesktop-arm64.zip"
 
+    #expect(recipe.runs(onOS: "15.0", arch: .arm64))
+    #expect(!recipe.runs(onOS: "15.0", arch: .x86_64))
     #expect(!recipe.followRedirects)
     #expect(VendorProbeRecipe.extractVersion(from: location, pattern: recipe.versionPattern) == "3.7.0")
     let install = try #require(recipe.install)

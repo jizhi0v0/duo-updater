@@ -175,6 +175,8 @@ private let raycastChangelogFixture = #"""
             // TRAE: separate arm64 and x64 dmgs, one recipe per architecture.
             "vendor:com.trae.app:stable:arm64",
             "vendor:com.trae.app:stable:x64",
+            // GitHub Desktop stable uses the official Apple silicon download.
+            "vendor:com.github.GitHubClient:stable",
         ])
         let unrestricted = VendorProbeRegistry.recipes.filter { $0.hostRequirement == nil }
         #expect(unrestricted.count == VendorProbeRegistry.recipes.count - restricted.count)

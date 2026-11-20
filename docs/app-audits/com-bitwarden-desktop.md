@@ -1,6 +1,6 @@
 # Bitwarden
 
-**这不是审计**：family `com-bitwarden-desktop`（`Recipes/com-bitwarden-desktop.swift`）里 Bitwarden `com.bitwarden.desktop` 的覆盖情况没有审过。这份文件只接收从 recipe 注释迁出的历史，登记在索引的「仅迁出历史（未审计）」一节。
+本页记录 Bitwarden `com.bitwarden.desktop` 的 GitHub stable 安装包、同 bundle ID 的安装副本及 recipe 历史。覆盖状态登记在索引的「仅迁出历史（未审计）」一节。
 
 ## 相关安装副本
 

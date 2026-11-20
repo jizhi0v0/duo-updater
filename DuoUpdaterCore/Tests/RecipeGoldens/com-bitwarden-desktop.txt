@@ -19,7 +19,7 @@ githubRules[0].candidateScope = .newest
 githubRules[0].probesNewestFirst = false
 githubRules[0].installedTagPrefix = nil
 githubRules[0].channel = .stable
-githubRules[0].installAssetPattern? = "^Bitwarden-[0-9.]+-universal\\.dmg$"
+githubRules[0].installAssetPattern? = "^(?:oss-)?Bitwarden-[0-9.]+-universal\\.dmg$"
 githubRules[0].installerKind? = .dmg
 githubRules[0].installTrust = .developerID
 githubRules[0].variant = nil
@@ -44,7 +44,20 @@ loginWalls = Dictionary(count: 0)
 
 changelogPages = Dictionary(count: 0)
 
-oneClickGates = Array(count: 0)
+oneClickGates = Array(count: 2)
+oneClickGates[0] = struct OneClickGate
+oneClickGates[0].bundleID = "com.bitwarden.desktop"
+oneClickGates[0].requirement = .asarEntry(path:pattern:)
+oneClickGates[0].requirement.path = "preload.js"
+oneClickGates[0].requirement.pattern = "(?ms)\\A(?!.*bitwarden_license/bit-desktop/src/preload\\.ts).*^;// \\./src/preload\\.ts$"
+oneClickGates[0].reason = "the installed copy was not identified as open-source Bitwarden; update it from Bitwarden itself"
+oneClickGates[0].offering? = "^(?:GitHub:(?:oss-)?Bitwarden-[0-9.]+-universal\\.dmg|Homebrew:bitwarden)$"
+oneClickGates[1] = struct OneClickGate
+oneClickGates[1].bundleID = "com.bitwarden.desktop"
+oneClickGates[1].requirement = .installedVersion(pattern:)
+oneClickGates[1].requirement.pattern = ".+"
+oneClickGates[1].reason = "the Mac App Store copy has no readable version"
+oneClickGates[1].offering? = "^App Store:id1352778147$"
 
 loginItemAgentRestarts = Dictionary(count: 0)
 

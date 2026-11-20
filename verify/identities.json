@@ -1152,19 +1152,6 @@
       "signedIdentifier" : "com.github.GitHubClient",
       "teamIdentifier" : "VEKTX9H2N7"
     },
-    "github:desktop\/desktop:stable" : {
-      "architectures" : [
-        "arm64"
-      ],
-      "bundleIdentifier" : "com.github.GitHubClient",
-      "firstSeenAt" : "2026-10-09T05:20:43Z",
-      "firstSeenVersion" : "3.6.6",
-      "lastSeenAt" : "2026-11-16T14:15:28Z",
-      "lastSeenURLSHA256" : "fba3a8aa010275a050768df8088d51118a46ec33ae0df1be58292591df9e72ab",
-      "lastSeenVersion" : "3.6.11",
-      "signedIdentifier" : "com.github.GitHubClient",
-      "teamIdentifier" : "VEKTX9H2N7"
-    },
     "github:divamgupta\/diffusionbee-stable-diffusion-ui:stable" : {
       "architectures" : [
         "arm64"
@@ -4605,6 +4592,19 @@
       "lastSeenVersion" : "278.4.4020",
       "signedIdentifier" : "com.getdropbox.dropbox",
       "teamIdentifier" : "G7HH3F8CAK"
+    },
+    "vendor:com.github.GitHubClient:stable" : {
+      "architectures" : [
+        "arm64"
+      ],
+      "bundleIdentifier" : "com.github.GitHubClient",
+      "firstSeenAt" : "2026-10-09T05:20:43Z",
+      "firstSeenVersion" : "3.6.6",
+      "lastSeenAt" : "2026-11-16T14:15:28Z",
+      "lastSeenURLSHA256" : "fba3a8aa010275a050768df8088d51118a46ec33ae0df1be58292591df9e72ab",
+      "lastSeenVersion" : "3.6.11",
+      "signedIdentifier" : "com.github.GitHubClient",
+      "teamIdentifier" : "VEKTX9H2N7"
     },
     "vendor:com.google.Chrome.beta:beta" : {
       "architectures" : [

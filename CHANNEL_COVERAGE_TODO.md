@@ -605,7 +605,7 @@ VendorProbe，以及读哨兵文件的 `ChannelBinding`。详见 [审计](docs/a
   见 issue #95、`docs/app-audits/org-videolan-vlc.md`。
 - ✅ **Blender — Alpha / Beta / RC** · 已接入（**更正 2026-09-25**：原先这里记为「无检测信号」——信号不在 plist，在主程序里，见 §1 Pattern A\*）。三条轨都读 builder.blender.org 的 daily JSON（每分支只列最新一个构建，按 commit 比：`headBuildPattern` + `BuildLineage.head`）；beta/rc 只在发布周期里存在几周，其余时间是「轨道关闭」而不是失败。一键装 builder CDN 的 dmg（Team 68UA947AUU）。见 `docs/app-audits/org-blenderfoundation-blender.md`。
 - ✅ **Figma — Beta** · 已接入（**更正旧判断：不是**应用内 flag）。独立 app：bundle `com.figma.DesktopBeta`、"Figma Beta.app"、独立端点 `desktop.figma.com/mac-arm/beta/`。Pattern A，VendorProbe(`channel: .beta`) + 一键安装（Team T8RA8NE3B7，2026-06-06 真机验证）
-- ✅ **GitHub Desktop — Beta** · 已接入（**更正 2026-09-14**：原先这里记为 ✗，与代码矛盾）。同 `com.github.GitHubClient`，beta 由装机版本串 `-betaN` 后缀判轨（`ReleaseChannel.detect` 第 4 步），`Recipes/com-github-GitHubClient.swift` 有 `channel: .beta` 的 `GitHubReleaseRule`（`release-X.Y.Z-betaN`，一键 `GitHub.Desktop-arm64.zip`）和 `?env=beta` 的 changelog，`githubChannelProofs` 锚 `/download/release-…-betaN/`。stable rule 仍排除 prerelease。
+- ✅ **GitHub Desktop — Beta** · 已接入（**更正 2026-09-14**：原先这里记为 ✗，与代码矛盾）。同 `com.github.GitHubClient`，beta 由装机版本串 `-betaN` 后缀判轨（`ReleaseChannel.detect` 第 4 步），`Recipes/com-github-GitHubClient.swift` 有 `channel: .beta` 的 `GitHubReleaseRule`（`release-X.Y.Z-betaN`，一键 `GitHub.Desktop-arm64.zip`）和 `?env=beta` 的 changelog，`githubChannelProofs` 锚 `/download/release-…-betaN/`。稳定版从官方下载入口读取 arm64 ZIP。
 - ✅ **Longbridge Desktop — Preview** · 已接入。**更正 2026-08-25 那版"已停更"的判断**：那条结论是
   从本机一个旧的 `0.15.0-preview.0` 包倒推的，没打端点；实际 2026-08-26 复核时 preview 轨道是活的。
   独立 bundle `com.longbridge.app.desktop.preview`（"Longbridge Preview.app"），靠 `.preview`

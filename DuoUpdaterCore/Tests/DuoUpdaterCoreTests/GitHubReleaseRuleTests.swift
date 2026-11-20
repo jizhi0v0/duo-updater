@@ -261,14 +261,12 @@ private func extract(
     #expect(extract("1.20.1b", "app.zen-browser.zen") == "1.20.1b")
 }
 
-@Test func githubDesktopRuleExcludesBetaAndTestTags() {
-    // Production tag → bare X.Y.Z.
-    #expect(extract("release-3.5.12", "com.github.GitHubClient") == "3.5.12")
-    // Beta/test tags must NOT match (the `$` anchor rejects the suffix), so a
-    // stray prerelease can never be read as a production version.
-    #expect(extract("release-3.5.12-beta2", "com.github.GitHubClient") == nil)
-    #expect(extract("release-3.5.13-beta1", "com.github.GitHubClient") == nil)
-    #expect(extract("release-3.5.12-test1", "com.github.GitHubClient") == nil)
+@Test func githubDesktopBetaRuleKeepsTheBetaSuffixAndExcludesOtherTags() {
+    let id = "com.github.GitHubClient"
+    #expect(extract("release-3.6.12-beta2", id, channel: .beta) == "3.6.12-beta2")
+    #expect(extract("release-3.7.0", id, channel: .beta) == nil)
+    #expect(extract("release-3.7.0-test1", id, channel: .beta) == nil)
+    #expect(!GitHubReleaseRegistry.rules.contains { $0.bundleID == id && $0.channel == .stable })
 }
 
 // MARK: - 2026-08-16 coverage batch

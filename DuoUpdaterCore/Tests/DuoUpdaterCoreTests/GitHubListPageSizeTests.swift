@@ -28,7 +28,7 @@ struct GitHubListPageSizeTests {
     /// clear, not the value itself.
     ///
     /// Keyed by `bundleID/channel` since one bundle id can carry two rules
-    /// (GitHub Desktop stable/beta, T3 Code alpha/nightly) — `bundleID` alone
+    /// (T3 Code alpha/nightly) — `bundleID` alone
     /// would collide.
     ///
     /// UTM beta (`com.utmapp.UTM/beta`) is deliberately ABSENT: its

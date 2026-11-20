@@ -304,11 +304,9 @@ struct GitHubChannelProofTests {
 
     /// Select by bundle id AND non-stable channel, never by bundle id alone.
     ///
-    /// GitHub Desktop ships two rules under `com.github.GitHubClient` — stable
-    /// and beta — and `first(where: bundleID)` returns the stable one, whose
-    /// channel makes `crossChannelArtifact` return nil before it checks
-    /// anything. Written the lazy way, the positive test above passed while
-    /// asserting nothing at all; the negative test is what caught it.
+    /// UTM shares a bundle id between its stable and beta rules. Selecting the
+    /// stable rule makes `crossChannelArtifact` return nil before it checks the
+    /// URL. The negative test guards against that vacuous pass.
     private func nonStableRule(_ bundleID: String) -> GitHubReleaseRule? {
         GitHubReleaseRegistry.rules.first {
             $0.bundleID == bundleID && $0.channel != .stable

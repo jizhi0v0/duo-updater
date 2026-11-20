@@ -87,7 +87,7 @@ struct OneClickGateTests {
         #expect(Set(OneClickGateRegistry.gates.map(\.bundleID))
             == ["org.musescore.MuseScore", "com.axosoft.gitkraken", "ai.memoh.desktop", "io.hoppscotch.desktop",
                 "co.zeit.hyper", "com.bilingify.readest", "io.masscode.app", "netdcy.FlowVision", "org.ferdium.ferdium-app", "io.museeks.app", "com.rambox",
-                "com.mucommander.muCommander"])
+                "com.mucommander.muCommander", "com.bitwarden.desktop"])
     }
 
     /// Versions of the real bundles: stable 7.2.3, 7.2.2, 6.0.0, the nightlies
@@ -392,10 +392,11 @@ struct OneClickGateTests {
     }
 
     /// Offers a scoped gate may name although their route never consults
-    /// `packageMarkers`: brew fetches and swaps the package itself, so only
-    /// the gate on the copy stands before the swap.
+    /// `packageMarkers`. Homebrew owns its cask install, and the App Store
+    /// updates a copy through its own product listing.
     static let offeringsWithoutAPackageCheck: Set<String> = [
-        "Homebrew:hoppscotch", "Homebrew:hoppscotch-selfhost", "Homebrew:flowvision",
+        "Homebrew:hoppscotch", "Homebrew:hoppscotch-selfhost", "Homebrew:flowvision", "Homebrew:bitwarden",
+        "App Store:id1352778147",
     ]
 
     /// The package check (`VendorInstaller` step 3c) runs on the `.vendor`
@@ -767,6 +768,41 @@ struct OneClickGateTests {
         #expect(OneClickGateRegistry.withholding(app(id, "1.6.1", at: noarch), offering: offer) != nil)
         #expect(OneClickGateRegistry.withholding(
             app(id, "1.6.1", at: try tauriBundle(plist: nil, executable: nil)), offering: offer) != nil)
+    }
+
+    @Test func bitwardenOneClickRequiresTheOSSPreloadEntry() throws {
+        let id = "com.bitwarden.desktop"
+        let ossEntry = ";// ./src/preload.ts"
+        let commercialEntry = ";// ../../bitwarden_license/bit-desktop/src/preload.ts"
+        let shared = ";// ./src/preload.base.ts\n"
+        let ossOffers = [
+            remote(package: "Bitwarden-2026.10.4-universal.dmg"),
+            remote(package: "oss-Bitwarden-2026.11.0-universal.dmg"),
+            remote(source: "Homebrew", package: "bitwarden"),
+        ]
+        for version in ["2026.10.4", "2026.11.0"] {
+            let oss = app(id, version, at: try bundle(["preload.js": shared + ossEntry + "\n"]))
+            let commercial = app(id, version, at: try bundle(["preload.js": shared + commercialEntry + "\n"]))
+            for offer in ossOffers {
+                #expect(OneClickGateRegistry.withholding(oss, offering: offer) == nil)
+                #expect(OneClickGateRegistry.withholding(commercial, offering: offer) != nil)
+            }
+            for package in ["commercial-Bitwarden-2026.10.4-universal.dmg", "bit-Bitwarden-2026.11.0-universal.dmg"] {
+                #expect(OneClickGateRegistry.withholding(oss, offering: remote(package: package)) != nil)
+            }
+        }
+        let appStore = remote(source: "App Store", package: "id1352778147")
+        let storeCopy = InstalledApp(
+            name: "Bitwarden", bundleID: id, shortVersion: "2026.10.4", buildVersion: "73705",
+            path: try bundle(nil), isMASApp: true, sparkleFeedURL: nil, releaseChannel: .stable)
+        #expect(OneClickGateRegistry.withholding(storeCopy, offering: appStore) == nil)
+        #expect(OneClickGateRegistry.withholding(storeCopy, offering: ossOffers[1]) != nil)
+        for files in [nil, ["package.json": "{}"], ["preload.js": shared],
+                      ["preload.js": ossEntry + "\n" + commercialEntry + "\n"],
+                      ["preload.js": ossEntry + "\n" + String(repeating: " ", count: 65_536)]] {
+            let unknown = app(id, "2026.10.4", at: try bundle(files))
+            #expect(OneClickGateRegistry.withholding(unknown, offering: ossOffers[1]) != nil)
+        }
     }
 
     @Test func gitKrakenOneClickIsForAProvenNormalEditionOnly() throws {

@@ -609,6 +609,10 @@ private func matches(
     // Which requires reading the release LIST, not `/releases/latest`.
     #expect(rule("com.bitwarden.desktop").usePrereleases == true)
     #expect(matches("Bitwarden-2026.7.0-universal.dmg", "com.bitwarden.desktop"))
+    #expect(matches("oss-Bitwarden-2026.11.0-universal.dmg", "com.bitwarden.desktop"))
+    #expect(!matches("bit-Bitwarden-2026.11.0-universal.dmg", "com.bitwarden.desktop"))
+    #expect(!matches("commercial-Bitwarden-2026.10.4-universal.dmg", "com.bitwarden.desktop"))
+    #expect(!matches("oss-Bitwarden-2026.11.0-universal-mac.zip", "com.bitwarden.desktop"))
     #expect(!matches("Bitwarden-2026.7.0-universal-mac.zip", "com.bitwarden.desktop"))
     #expect(!matches("Bitwarden-2026.7.0-universal.pkg.archive", "com.bitwarden.desktop"))
 }

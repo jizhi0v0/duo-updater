@@ -501,7 +501,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [ ] [**1Password**](com-1password-1password.md) · `com.1password.1password` — 仅迁出历史：一键 zip 的下载核对
 - [ ] [**Pearcleaner**](com-alienator88-Pearcleaner.md) · `com.alienator88.Pearcleaner` — 仅迁出历史：一键 dmg 的签名核对
 - [ ] [**Xcode**](com-apple-dt-Xcode.md) · `com.apple.dt.Xcode` — 仅迁出历史：release notes SPA 壳 · 另记 `requires`（索引里每个版本的 macOS 下限，同一版本内不等：27.0 RC 要 26.6、27.0 beta 要 26.4）2026-09-15 实测
-- [ ] [**Bitwarden**](com-bitwarden-desktop.md) · `com.bitwarden.desktop` — 仅迁出历史：monorepo 里 `desktop-v` tag 间隔的测量
+- [ ] [**Bitwarden**](com-bitwarden-desktop.md) · `com.bitwarden.desktop` — GitHub stable OSS 安装包改名及版别防护实测 · 2026-11-20
 - [ ] [**iStat Menus**](com-bjango-istatmenus.md) · `com.bjango.istatmenus` — 仅迁出历史：重发的 zip 里 marketing 不动、只涨 build；改为按 Range 读包内 Info.plist 的版本与 build
 - [ ] [**BlueBubbles Server**](com-BlueBubbles-BlueBubbles-Server.md) · `com.BlueBubbles.BlueBubbles-Server` — 仅迁出历史：一键 dmg 的签名核对（Developer ID、未公证）与换装后 Gatekeeper 的未验证项
 - [ ] [**Brave Browser Beta / Nightly**](com-brave-Browser.md) · `com.brave.Browser.beta` / `com.brave.Browser.nightly` — 仅迁出历史：arm64 appcast 的签名核对

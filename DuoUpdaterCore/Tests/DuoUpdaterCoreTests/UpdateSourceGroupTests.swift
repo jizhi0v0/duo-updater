@@ -63,6 +63,16 @@ struct UpdateSourceGroupTests {
         #expect(UpdateSourceGroup(row("D", source: nil, status: .error("offline"))) == .other)
     }
 
+    @Test func incompatibleTestFlightCopyGroupsApartFromNativeAmp() {
+        let testFlightAmp = row("Amp iOS", source: nil, status: .testFlightIncompatible)
+        let nativeAmp = row("Amp", source: "Sparkle")
+
+        let sections = UpdateSourceGroup.sections([testFlightAmp, nativeAmp])
+
+        #expect(sections.map(\.group) == [.sparkle, .testFlight])
+        #expect(sections.map(\.rows) == [[nativeAmp], [testFlightAmp]])
+    }
+
     /// Sections come in `allCases` order and each keeps the rows' own order, so
     /// the tier order and the chosen sort still hold inside a section.
     @Test func sectionsKeepRowOrderAndGroupOrder() {

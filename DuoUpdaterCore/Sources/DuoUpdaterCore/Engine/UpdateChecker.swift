@@ -522,18 +522,19 @@ public struct UpdateChecker: Sendable {
                 result.homebrewSelfUpdating = brewAnswer?.homebrewSelfUpdating ?? false
                 if source.name == "Homebrew" {
                     let key = InstallPreferenceKey.key(for: app)
-                    // Claude's self-updating cask publishes Stable. An opted-in
-                    // Latest copy checks its own feed even when the cask is newer.
-                    let followsClaudeLatest = app.bundleID?.lowercased() == ClaudeDesktopChannel.bundleID
-                        && app.releaseChannel == .latest && remote.offeredChannel == .stable
-                        && remote.homebrewSelfUpdating
+                    // These self-updating casks publish Stable. An opted-in copy
+                    // checks its own feed even when the cask is newer.
+                    let bundleID = app.bundleID?.lowercased()
+                    let followsVendorChannel = remote.homebrewSelfUpdating && remote.offeredChannel == .stable
+                        && ((bundleID == ClaudeDesktopChannel.bundleID && app.releaseChannel == .latest)
+                            || (bundleID == DockerDesktopChannel.bundleID && app.releaseChannel == .nightly))
                     // A self-updating cask can advertise a separate new generation.
                     // Keep checking the installed generation's own update feed
                     // when this copy allows non-Brew checks.
                     let offersManualMigration = remote.homebrewSelfUpdating && result.manualMajorUpgradePage != nil
-                    let checksOtherSources = (status == .upToDate || followsClaudeLatest || offersManualMigration)
+                    let checksOtherSources = (status == .upToDate || followsVendorChannel || offersManualMigration)
                         && brewFallback.checksOtherSources(key, selfUpdating: remote.homebrewSelfUpdating)
-                    if checksOtherSources && followsClaudeLatest {
+                    if checksOtherSources && followsVendorChannel {
                         result = UpdateResult(app: app, remote: nil, status: .unknown)
                     }
                     result.homebrewSourceIdentifier = remote.sourceIdentifier

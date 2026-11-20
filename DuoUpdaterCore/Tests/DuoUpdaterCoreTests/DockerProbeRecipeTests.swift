@@ -4,9 +4,11 @@ import Testing
 
 @Suite("Docker vendor probe")
 struct DockerProbeRecipeTests {
-    private static let bundleID = "com.docker.docker"
+    private static let bundleID = DockerDesktopChannel.bundleID
     private static let imageURL = "https://desktop.docker.com/mac/main/arm64/246961/Docker.dmg"
     private static let imageSHA256 = "633c570d2eda7e6100ff59080d065f185f27cd9d981b2b9b0ef68b9778e33cd9"
+    private static let nightlyImageURL = "https://desktop-stage.docker.com/mac/main/arm64/247044/Docker.dmg"
+    private static let nightlyImageSHA256 = "7f09fd58d1a540221079e29e07fe6846b46aa1e60c6dd92fcb08bea60a682fa5"
 
     // Trimmed from the stable ARM64 appcast fetched on 2026-11-20.
     private static let olderRelease = """
@@ -53,14 +55,41 @@ struct DockerProbeRecipeTests {
     }
     """
 
+    // Trimmed from the Nightly ARM64 appcast fetched on 2026-11-21.
+    private static let nightlyVisible = """
+    {
+        "Date": "2026-11-20T04:20:15Z",
+        "Visibility": "100",
+        "AppVersion": "4.101.0",
+        "BuildNumber": "247044",
+        "MinOSVersion": "14.0.0",
+        "Artifacts": [{"URL": "\(nightlyImageURL)", "Type": "dmg", "Checksum": "\(nightlyImageSHA256)"}]
+    }
+    """
+
+    private static let nightlyHidden = """
+    {
+        "Date": "2026-11-20T17:17:13Z",
+        "Visibility": "0",
+        "AppVersion": "4.101.0",
+        "BuildNumber": "247119",
+        "MinOSVersion": "14.0.0",
+        "Artifacts": [{"URL": "https://desktop-stage.docker.com/mac/main/arm64/247119/Docker.dmg",
+                       "Type": "dmg", "Checksum": "56f83752a5bb2e4b7f1f3a0548c9978e9fcaf12741a33e235b0210bd8ea23b22"}]
+    }
+    """
+
     enum Feed: String {
         case captured, reversed, sameMarketing, hidden, newerNeedsOS, allNeedOS
         case wrongBuild, wrongArchitecture, wrongHost, wrongType, missingDigest, foreignDelta, malformed
+        case nightly, stableWithNightlyImage, nightlyWithStableImage, nightlyRedirectedToStable
 
         var body: String {
             let older = DockerProbeRecipeTests.olderRelease
             let newer = DockerProbeRecipeTests.newerRelease
             let imageURL = DockerProbeRecipeTests.imageURL
+            let nightly = DockerProbeRecipeTests.nightlyVisible
+            let nightlyHidden = DockerProbeRecipeTests.nightlyHidden
             func appcast(_ first: String, _ second: String) -> String {
                 #"{"Version":"1.0","Items":["# + first + "," + second + "]}"
             }
@@ -91,6 +120,12 @@ struct DockerProbeRecipeTests {
                 return #"{"version":"4.100.0","deltas":[{"from":"245422","url":"https://other.invalid/update.delta"}],"#
                     + appcast(older, newer).dropFirst()
             case .malformed: return appcast(older, newer).replacingOccurrences(of: #""Items""#, with: #""PreviousItems""#)
+            case .nightly: return appcast(nightlyHidden, nightly)
+            case .stableWithNightlyImage:
+                return appcast(older, newer.replacingOccurrences(of: "desktop.docker.com", with: "desktop-stage.docker.com"))
+            case .nightlyWithStableImage:
+                return appcast(nightlyHidden, nightly.replacingOccurrences(of: "desktop-stage.docker.com", with: "desktop.docker.com"))
+            case .nightlyRedirectedToStable: return appcast(older, newer)
             }
         }
     }
@@ -100,12 +135,25 @@ struct DockerProbeRecipeTests {
         override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
 
         override func startLoading() {
-            guard let url = request.url, let feed = Feed(rawValue: url.lastPathComponent) else {
+            guard let url = request.url else {
                 client?.urlProtocol(self, didFailWithError: URLError(.fileDoesNotExist))
                 return
             }
+            let feed: Feed
+            switch url.absoluteString {
+            case "https://desktop.docker.com/mac/main/arm64/appcast.json": feed = .captured
+            case "https://desktop-stage.docker.com/mac/main/arm64/appcast.json": feed = .nightly
+            default:
+                guard url.host == "docker-feed.fixture.invalid", let fixture = Feed(rawValue: url.lastPathComponent) else {
+                    client?.urlProtocol(self, didFailWithError: URLError(.fileDoesNotExist))
+                    return
+                }
+                feed = fixture
+            }
+            let responseURL = feed == .nightlyRedirectedToStable
+                ? URL(string: "https://desktop.docker.com/mac/main/arm64/appcast.json")! : url
             let response = HTTPURLResponse(
-                url: url, statusCode: 200, httpVersion: nil, headerFields: ["Content-Type": "application/json"])!
+                url: responseURL, statusCode: 200, httpVersion: nil, headerFields: ["Content-Type": "application/json"])!
             client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
             client?.urlProtocol(self, didLoad: Data(feed.body.utf8))
             client?.urlProtocolDidFinishLoading(self)
@@ -114,16 +162,18 @@ struct DockerProbeRecipeTests {
         override func stopLoading() {}
     }
 
-    private func source(_ feed: Feed, hostOS: String = "15.0") throws -> VendorProbeSource {
-        let recipe = try #require(VendorProbeRegistry.recipes.first { $0.bundleID == Self.bundleID })
-        #expect(recipe.url.absoluteString == "https://desktop.docker.com/mac/main/arm64/appcast.json")
-        #expect(recipe.recipeID == "vendor:com.docker.docker:stable")
+    private var session: URLSession {
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [AppcastProtocol.self]
+        return URLSession(configuration: config)
+    }
+
+    private func source(_ feed: Feed, hostOS: String = "15.0", channel: ReleaseChannel = .stable) throws -> VendorProbeSource {
+        let recipe = try #require(VendorProbeRegistry.recipes.first {
+            $0.bundleID == Self.bundleID && $0.channel == channel
+        })
         let endpoint = URL(string: "https://docker-feed.fixture.invalid/\(feed.rawValue)")!
-        return VendorProbeSource(
-            recipes: [recipe.with(url: endpoint)], session: URLSession(configuration: config),
-            hostOSVersion: hostOS)
+        return VendorProbeSource(recipes: [recipe.with(url: endpoint)], session: session, hostOSVersion: hostOS)
     }
 
     private func installed(
@@ -202,5 +252,55 @@ struct DockerProbeRecipeTests {
     @Test func nightlyCopyCannotUseTheStableRecipe() async throws {
         let source = try source(.captured)
         #expect(try await source.latestVersion(for: installed(channel: .nightly)) == nil)
+    }
+
+    @Test func eachChannelChecksItsRegisteredFeed() async throws {
+        let recipes = VendorProbeRegistry.recipes.filter { $0.bundleID == Self.bundleID }
+        #expect(Set(recipes.map(\.recipeID)) == ["vendor:com.docker.docker:stable", "vendor:com.docker.docker:nightly"])
+        let source = VendorProbeSource(recipes: recipes, session: session, hostOSVersion: "15.0")
+        let stable = try #require(try await source.latestVersion(for: installed()))
+        #expect(stable.version == "246961")
+        #expect(stable.downloadURL?.absoluteString == Self.imageURL)
+        #expect(stable.changelogURL != nil)
+
+        let nightly = try #require(try await source.latestVersion(for: installed(channel: .nightly)))
+        #expect(nightly.shortVersion == "4.101.0")
+        #expect(nightly.version == "247044")
+        #expect(nightly.downloadURL?.absoluteString == Self.nightlyImageURL)
+        #expect(nightly.vendorInstallerKind == .dmg)
+        #expect(nightly.expectedSHA256 == Self.nightlyImageSHA256)
+        #expect(nightly.changelogURL == nil)
+        #expect(nightly.deltas.isEmpty)
+        #expect(ChangelogRecipeRegistry.recipe(forBundleID: Self.bundleID, channel: .nightly) == nil)
+    }
+
+    @Test(arguments: Array(zip([Feed.stableWithNightlyImage, .nightlyWithStableImage], [ReleaseChannel.stable, .nightly])))
+    func rejectsAnArtifactFromTheOtherChannel(_ feed: Feed, channel: ReleaseChannel) async throws {
+        let remote = try #require(try await source(feed, channel: channel).latestVersion(for: installed(channel: channel)))
+        #expect(remote.version == (channel == .stable ? "246961" : "247044"))
+        #expect(remote.vendorInstallerKind == nil)
+        #expect(remote.expectedSHA256 == nil)
+        #expect(remote.requiresManualInstaller)
+    }
+
+    @Test func rejectsANightlyFeedRedirectedToStable() async throws {
+        let source = try source(.nightlyRedirectedToStable, channel: .nightly)
+        await #expect(throws: VendorProbeSource.ProbeFailed.self) {
+            try await source.latestVersion(for: installed(channel: .nightly))
+        }
+    }
+
+    @Test(arguments: Array(zip([
+        nil, #"{}"#, #"{"UseNightlyBuildUpdates":false}"#, #"{"UseNightlyBuildUpdates":true}"#,
+        #"{"UseNightlyBuildUpdates":"true"}"#, #"{"UseNightlyBuildUpdates":1}"#, "{", #"{"AcceptCanaryUpdates":true}"#,
+        #"{"UseNightlyBuildUpdates":true,"AcceptCanaryUpdates":true}"#,
+    ] as [String?], [false, false, false, true, false, false, false, false, true])))
+    func followsOnlyTheDockerNightlyBoolean(_ settings: String?, nightly: Bool) throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        if let settings { try Data(settings.utf8).write(to: url) }
+        let resolved = DockerDesktopChannel.resolve(settingsURL: url)
+        #expect(resolved.channel == (nightly ? .nightly : .stable))
+        #expect(resolved.feedOverride == nil)
     }
 }

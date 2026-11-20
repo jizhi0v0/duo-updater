@@ -175,6 +175,7 @@ import Foundation
             isWatched(alfred.standardizedFileURL.path),
             "Alfred's preferences tree is not under any watched root")
     }
+    #expect(isWatched(DockerDesktopChannel.settingsURL.standardizedFileURL.path))
     // CapCut is the case the comment below warns about, made real: it IS
     // sandboxed, and its choice is in neither `~/Library/Preferences` nor its
     // container — it is an INI under `~/Movies/CapCut/User Data/Config`. The

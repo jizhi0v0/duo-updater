@@ -189,6 +189,7 @@ public enum ChannelBinding {
         TailscaleChannel.bundleID.lowercased(),
         IINAChannel.bundleID.lowercased(),
         AlfredChannel.bundleID.lowercased(),
+        DockerDesktopChannel.bundleID,
         BetterDisplayChannel.bundleID.lowercased(),
         CapCutChannel.bundleID.lowercased(),
         CotEditorChannel.bundleID.lowercased(),
@@ -266,6 +267,7 @@ public enum ChannelBinding {
         // Alfred's is nested deeper still, under a machine-specific `<hash>`
         // directory, so the watch is on the subtree rather than on one file.
         if let alfred = AlfredChannel.preferencesBaseURL { roots.append(alfred) }
+        roots.append(DockerDesktopChannel.settingsURL.deletingLastPathComponent())
         // CapCut is the first bound app that is SANDBOXED and still does not keep
         // the choice in its container: `joinBeta` is an INI under
         // `~/Movies/CapCut/User Data/Config`. Neither of the two roots above
@@ -519,6 +521,7 @@ public enum ChannelBinding {
         case TailscaleChannel.bundleID.lowercased(): return { _, _ in TailscaleChannel.resolveCurrent() }
         case IINAChannel.bundleID.lowercased():    return { _, _ in IINAChannel.resolveCurrent() }
         case AlfredChannel.bundleID.lowercased():  return { _, _ in AlfredChannel.resolveCurrent() }
+        case DockerDesktopChannel.bundleID:       return { _, _ in DockerDesktopChannel.resolve() }
         case GhosttyChannel.bundleID.lowercased(): return { _, _ in GhosttyChannel.resolveCurrent() }
         case BetterDisplayChannel.bundleID.lowercased():
             return { _, _ in BetterDisplayChannel.resolveCurrent() }
@@ -706,14 +709,14 @@ public enum ChannelBinding {
 
     /// The bindings `allResolutions` deliberately does NOT cover, lower-cased.
     ///
-    /// OrbStack, Alfred, Tailscale, CapCut, Windscribe, super.engineering, Cua
+    /// OrbStack, Alfred, Docker Desktop, Tailscale, CapCut, Windscribe, super.engineering, Cua
     /// Driver, both Cindy editions, TextMate, Maestro and Claude Desktop have
     /// bindings that only pick which recipe runs. The
     /// install comes from that recipe, so their cross-channel question is already
     /// answered by a proof map keyed to that recipe, and enumerating them here
     /// would double-count them into a second registry.
     ///
-    /// ⚠️ The name predates the last of them. Six are backed by a
+    /// ⚠️ The name predates the last of them. Some are backed by a
     /// `VendorProbeRecipe` and answer to `ChannelProofRegistry.proofs`; Cua Driver,
     /// Cindy, TextMate and Maestro are backed by a `GitHubReleaseRule` and answer to
     /// `ChannelProofRegistry.githubProofs` instead. The membership test is "the
@@ -733,6 +736,7 @@ public enum ChannelBinding {
     public static let vendorProbeBackedBindings: Set<String> = [
         OrbStackChannel.bundleID.lowercased(),
         AlfredChannel.bundleID.lowercased(),
+        DockerDesktopChannel.bundleID,
         TailscaleChannel.bundleID.lowercased(),
         CapCutChannel.bundleID.lowercased(),
         WindscribeChannel.bundleID.lowercased(),

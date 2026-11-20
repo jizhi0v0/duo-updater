@@ -600,7 +600,8 @@ public struct VendorProbeSource: UpdateSource {
             return Scope(text: release ?? "", fellBack: false)
         }
         if case .dockerAppcast = recipe.mode {
-            let release = com_docker_docker.releaseBody(from: body, hostOSVersion: hostOSVersion)
+            let release = com_docker_docker.releaseBody(
+                from: body, channel: recipe.channel, hostOSVersion: hostOSVersion)
             return Scope(text: release?.text ?? "", fellBack: false, bundleVersion: release?.version)
         }
         guard let pattern = recipe.entryStartPattern else {
@@ -1355,6 +1356,9 @@ public struct VendorProbeSource: UpdateSource {
         }
         guard okRange.contains(http.statusCode) else {
             return .failure(.httpStatus(http.statusCode))
+        }
+        if case .dockerAppcast = recipe.mode, http.url != endpoint {
+            return .failure(.malformedResolvedURL("Docker appcast redirected from its channel endpoint"))
         }
         let text = String(decoding: data, as: UTF8.self)
         // Stored before the reply is even parsed: the assignment is a fact

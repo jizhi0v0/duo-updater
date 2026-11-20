@@ -5,23 +5,12 @@ enum com_docker_docker {
         family: "com-docker-docker",
         probes: [
         // History: docs/app-audits/com-docker-docker.md#历史与实测
-        // Docker's backend uses the stable JSON appcast. AppVersion and
+        // Docker's backend uses a JSON appcast for each track. AppVersion and
         // BuildNumber are the app bundle's marketing version and build.
         // Only the selected release's full DMG is eligible for the app swap.
         // It contains the notarized Docker.app (Team 9BNSXJN65R).
-        VendorProbeRecipe(
-            bundleID: "com.docker.docker",
-            url: URL(string: "\(downloadBase)/appcast.json")!,
-            mode: .dockerAppcast,
-            versionPattern: #""AppVersion"\s*:\s*"([0-9]+(?:\.[0-9]+)+)""#,
-            changelogURL: URL(string: "https://docs.docker.com/desktop/release-notes/"),
-            publishedAtPattern: #""Date"\s*:\s*"([0-9T:Z.+-]+)""#,
-            minimumSystemVersionPattern: #""MinOSVersion"\s*:\s*"([0-9]+(?:\.[0-9]+)+)""#,
-            install: VendorInstallSpec(
-                urlSource: .bodyPattern(#""URL"\s*:\s*"([^"]+)""#),
-                kind: .dmg,
-                checksumPattern: #""Checksum"\s*:\s*"([0-9a-f]{64})""#,
-                checksumFormat: .sha256Hex)),
+        probe(.stable),
+        probe(.nightly),
         ],
         changelogs: [
         // Docker Desktop — the release-notes page in its Markdown source form.
@@ -38,7 +27,7 @@ enum com_docker_docker {
         // (e.g. `[Docker Compose v5.4.0](…)`); without it a plain-text render prints the
         // brackets and the URL.
         ChangelogRecipe(
-            bundleID: "com.docker.docker",
+            bundleID: DockerDesktopChannel.bundleID,
             source: URL(string: "https://docs.docker.com/desktop/release-notes.md")!,
             entryPattern:
                 #"## (?<version>[0-9]+\.[0-9]+\.[0-9]+)\n\n"#
@@ -49,10 +38,36 @@ enum com_docker_docker {
             decodeEntities: false,
             markdownSource: true,
             maxEntries: 20,
-            minItemLength: 6),
+            minItemLength: 6,
+            excludedChannels: [.nightly]),
+        ],
+        channelProofs: [
+            ChannelProofKey(DockerDesktopChannel.bundleID, .nightly):
+                .artifact(#"\Ahttps://desktop-stage\.docker\.com/mac/main/arm64/[0-9]+/Docker\.dmg\z"#),
         ])
 
-    private static let downloadBase = "https://desktop.docker.com/mac/main/arm64"
+    private static func downloadBase(for channel: ReleaseChannel) -> String {
+        let host = channel == .nightly ? "desktop-stage.docker.com" : "desktop.docker.com"
+        return "https://\(host)/mac/main/arm64"
+    }
+
+    private static func probe(_ channel: ReleaseChannel) -> VendorProbeRecipe {
+        VendorProbeRecipe(
+            bundleID: DockerDesktopChannel.bundleID,
+            url: URL(string: "\(downloadBase(for: channel))/appcast.json")!,
+            mode: .dockerAppcast,
+            versionPattern: #""AppVersion"\s*:\s*"([0-9]+(?:\.[0-9]+)+)""#,
+            changelogURL: channel == .stable ? URL(string: "https://docs.docker.com/desktop/release-notes/") : nil,
+            publishedAtPattern: #""Date"\s*:\s*"([0-9T:Z.+-]+)""#,
+            minimumSystemVersionPattern: #""MinOSVersion"\s*:\s*"([0-9]+(?:\.[0-9]+)+)""#,
+            install: VendorInstallSpec(
+                urlSource: .bodyPattern(#""URL"\s*:\s*"([^"]+)""#),
+                kind: .dmg,
+                checksumPattern: #""Checksum"\s*:\s*"([0-9a-f]{64})""#,
+                checksumFormat: .sha256Hex),
+            channel: channel)
+    }
+
     private static let dottedVersion = #"\A[0-9]+(?:\.[0-9]+)+\z"#
 
     private struct Release {
@@ -87,7 +102,7 @@ enum com_docker_docker {
     /// A positive Visibility marks a published rollout; this isn't a prediction
     /// of which cohort Docker assigns this copy to.
     static func releaseBody(
-        from body: String, hostOSVersion: String
+        from body: String, channel: ReleaseChannel, hostOSVersion: String
     ) -> (text: String, version: VersionSide)? {
         guard let appcast = try? JSONSerialization.jsonObject(with: Data(body.utf8)) as? [String: Any],
               let items = appcast["Items"] as? [[String: Any]]
@@ -104,7 +119,7 @@ enum com_docker_docker {
         var selected = ["AppVersion": release.marketing, "MinOSVersion": release.minimumOS]
         selected["Date"] = release.fields["Date"] as? String
 
-        let expectedURL = "\(downloadBase)/\(release.build)/Docker.dmg"
+        let expectedURL = "\(downloadBase(for: channel))/\(release.build)/Docker.dmg"
         let images = (release.fields["Artifacts"] as? [[String: Any]] ?? []).filter {
             $0["Type"] as? String == "dmg" && $0["URL"] as? String == expectedURL
         }

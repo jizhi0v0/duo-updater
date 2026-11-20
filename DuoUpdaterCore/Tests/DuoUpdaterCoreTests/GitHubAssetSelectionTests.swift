@@ -131,6 +131,9 @@ struct GitHubAssetSelectionTests {
          ["opencode-desktop-mac-arm64.dmg", "opencode-desktop-mac-x64.dmg"]),
         (#"^OpenChamber-[0-9.]+-mac-(?:arm64|x64)\.zip$"#,
          ["OpenChamber-1.4.0-mac-arm64.zip", "OpenChamber-1.4.0-mac-x64.zip"]),
+        // DSH NEXT v2.0.24-next: two architecture-specific DMGs under one tag.
+        (#"^DSH-NEXT-[0-9.]+-next-(?:universal|arm64|x64)\.dmg$"#,
+         ["DSH-NEXT-2.0.24-next-x64.dmg", "DSH-NEXT-2.0.24-next-arm64.dmg"]),
         // Anki: `apple`/`intel` rather than arch tokens, so the arm build reads as
         // arch-neutral and only the Intel one is recognised as foreign.
         (#"^anki-[0-9.]+-mac-(apple|intel)\.dmg$"#,

@@ -580,7 +580,7 @@ public struct VendorProbeSource: UpdateSource {
         let extractor = recipe.selectHighest
             ? VendorProbeRecipe.highestVersion
             : VendorProbeRecipe.extractVersion
-        return extractor(Self.scopedBody(recipe, body.text).text, recipe.versionPattern)
+        return extractor(scopedBody(recipe, body.text).text, recipe.versionPattern)
     }
 
     /// The text a recipe's first-match patterns (`versionPattern`,
@@ -588,16 +588,20 @@ public struct VendorProbeSource: UpdateSource {
     /// `.bodyPattern`-family URL) should actually run against: the winning
     /// entry when `entryStartPattern` slices the body and a version-pattern
     /// match picks one (see `VendorProbeRecipe.highestVersionEntry`), or the
-    /// top-level release in Longbridge's manifest. Ordinary body recipes and
+    /// release selected from a vendor-specific manifest. Ordinary body recipes and
     /// unsuccessful regex slicing use `body` verbatim.
     ///
     /// The single choke point every reader of the fetched body goes through,
     /// so a recipe with `entryStartPattern` set can't have one reader (say, a
     /// future addition) forget to scope while the others do.
-    private static func scopedBody(_ recipe: VendorProbeRecipe, _ body: String) -> Scope {
+    private func scopedBody(_ recipe: VendorProbeRecipe, _ body: String) -> Scope {
         if case .longbridgeManifest = recipe.mode {
             let release = com_longbridge_app_desktop.releaseBody(from: body, channel: recipe.channel)
             return Scope(text: release ?? "", fellBack: false)
+        }
+        if case .dockerAppcast = recipe.mode {
+            let release = com_docker_docker.releaseBody(from: body, hostOSVersion: hostOSVersion)
+            return Scope(text: release?.text ?? "", fellBack: false, bundleVersion: release?.version)
         }
         guard let pattern = recipe.entryStartPattern else {
             return Scope(text: body, fellBack: false)
@@ -623,6 +627,7 @@ public struct VendorProbeSource: UpdateSource {
     private struct Scope {
         let text: String
         let fellBack: Bool
+        var bundleVersion: VersionSide? = nil
     }
 
     /// What a mode's fetch step yields on success: the text the version pattern
@@ -702,7 +707,7 @@ public struct VendorProbeSource: UpdateSource {
         // Sliced once: `fellBack` says slicing was asked for and produced no
         // winner, so everything below just reverted to whole-body first-match.
         // See `ProbeWarning.entryPatternNoMatch` for why that must not stay silent.
-        let scoped = Self.scopedBody(recipe, body.text)
+        let scoped = scopedBody(recipe, body.text)
         let scope = scoped.text
 
         // The sample a human (or `duo triage`) sees to fix a broken pattern must
@@ -712,7 +717,7 @@ public struct VendorProbeSource: UpdateSource {
         // pre-#76 whole-body semantics for exactly the recipes this fix changed
         // (`Triage.swift` validates a proposed pattern with
         // `VendorProbeRecipe.extractVersion(from: finding.bodySample, ...)`).
-        let sample = ProbeOutcome.sample(scope)
+        let sample = ProbeOutcome.sample(scope.isEmpty ? body.text : scope)
 
         // Default to the first match (the app's own field, which structured
         // bodies list first); only ascending-order feeds opt into highest-wins.
@@ -795,7 +800,7 @@ public struct VendorProbeSource: UpdateSource {
         // lands on the vendor's archive — now ask that archive which bundle it
         // holds. Failing here fails the probe: answering with the filename instead
         // is the phantom update (or the missed one) this mode exists to end.
-        var bundleVersion: VersionSide?
+        var bundleVersion = scoped.bundleVersion
         if case .redirectArchiveInfoPlist(let entry) = recipe.mode {
             guard let artifact = body.resolvedDownload else {
                 return fail(.malformedResolvedURL("the redirect resolved no artifact URL"),
@@ -1271,7 +1276,7 @@ public struct VendorProbeSource: UpdateSource {
                     status: http.statusCode))
             }
 
-        case .responseBody, .longbridgeManifest:
+        case .responseBody, .longbridgeManifest, .dockerAppcast:
             return await fetchResponseBody(recipe, endpoint: endpoint)
 
         case .versionedDirectory(let pattern):
@@ -1290,7 +1295,7 @@ public struct VendorProbeSource: UpdateSource {
             }
             let listing = await fetchResponseBody(recipe, endpoint: child)
             if case .success(let body) = listing,
-               recipe.entryStartPattern != nil, Self.scopedBody(recipe, body.text).fellBack {
+               recipe.entryStartPattern != nil, scopedBody(recipe, body.text).fellBack {
                 return .failure(.versionPatternNoMatch(sampleBytes: body.text.utf8.count))
             }
             return listing
@@ -1628,10 +1633,8 @@ public struct VendorProbeSource: UpdateSource {
         // installed app has a `buildVersion`, which a `versionIsBuild` app always
         // does — so a display marketing string here never drives the comparison.
         //
-        // A `bundle` pair (`.redirectArchiveInfoPlist`) replaces both: it is the
-        // artifact's own `Info.plist`, so its marketing string IS the bundle's by
-        // construction — the one case besides a Sparkle feed where
-        // `marketingMatchesBundle` is a fact rather than a guess.
+        // A `bundle` pair replaces both: it carries the app's own marketing
+        // version and build, either from its Info.plist or from Docker's appcast.
         let shortVersion = bundle.map(\.marketing) ?? (recipe.versionIsBuild ? display : version)
         // A `headBuildPattern` recipe keeps its marketing version in `shortVersion`
         // and puts the head's build id beside it; that id is the one `lineage`

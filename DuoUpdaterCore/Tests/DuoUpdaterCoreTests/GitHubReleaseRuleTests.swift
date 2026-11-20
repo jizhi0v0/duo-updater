@@ -94,7 +94,7 @@ private func extract(
     #expect(rule("ai.deepseek.dsh.desktop").installerKind == .dmg)
 }
 
-@Test func dshNextRulePinsTheNextUniversalDmg() {
+@Test func dshNextRuleKeepsNextTagsAndMacInstallers() {
     // DSH NEXT is a separate app under `ai.deepseek.dsh.desktop.next`, served
     // by the same repo as DSH Desktop but by its own `-next` tag line. Its
     // version keeps the suffix the bundle actually carries.
@@ -103,7 +103,16 @@ private func extract(
     #expect(extract("v2.0.21-beta.1", "ai.deepseek.dsh.desktop.next") == nil)
 
     let pattern = try! #require(rule("ai.deepseek.dsh.desktop.next").installAssetPattern)
-    #expect("DSH-NEXT-2.0.21-next-universal.dmg".range(of: pattern, options: .regularExpression) != nil)
+    let split = assetList(["DSH-NEXT-2.0.24-next-x64.dmg", "DSH-NEXT-2.0.24-next-arm64.dmg"])
+    let universal = assetList(["DSH-NEXT-2.0.23-next-universal.dmg"])
+    #expect(extract("v2.0.24-next", "ai.deepseek.dsh.desktop.next") == "2.0.24-next")
+    #expect(GitHubReleaseRule.installableAsset(
+        from: split, matching: pattern, preferring: .arm64, allowingIntelTranslation: false)?
+        .url.lastPathComponent == "DSH-NEXT-2.0.24-next-arm64.dmg")
+    #expect(GitHubReleaseRule.installableAsset(from: split, matching: pattern, preferring: .x86_64)?
+        .url.lastPathComponent == "DSH-NEXT-2.0.24-next-x64.dmg")
+    #expect(GitHubReleaseRule.installableAsset(from: universal, matching: pattern, preferring: .arm64)?
+        .url.lastPathComponent == "DSH-NEXT-2.0.23-next-universal.dmg")
     #expect("DSH-NEXT-2.0.21-next-x64-Setup.exe".range(of: pattern, options: .regularExpression) == nil)
     #expect("DSH-NEXT-2.0.21-next-arm64.deb".range(of: pattern, options: .regularExpression) == nil)
     #expect("DSH-Desktop-2.0.21-universal.dmg".range(of: pattern, options: .regularExpression) == nil)

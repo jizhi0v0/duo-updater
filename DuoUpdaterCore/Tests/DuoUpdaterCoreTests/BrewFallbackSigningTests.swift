@@ -23,9 +23,11 @@ import Testing
         var selfUpdating = false
         var version = "1.0"
         var channel: ReleaseChannel?
+        var token = "example"
+        var page: URL?
         func latestVersion(for app: InstalledApp) async throws -> RemoteVersion? {
             var remote = RemoteVersion(shortVersion: version, version: nil, downloadURL: nil,
-                                       sourceName: name, sourceIdentifier: "example")
+                                       pageURL: page, sourceName: name, sourceIdentifier: token)
             remote.homebrewSelfUpdating = selfUpdating
             remote.offeredChannel = channel
             return remote
@@ -67,6 +69,33 @@ import Testing
         let result = await UpdateChecker(sources: [brew]).check(claude)
         #expect(result.status == .unknown)
         #expect(result.remote == nil)
+    }
+
+    @Test func alfredCaskShowsVendorPointUpdateBeforeManualMigration() async throws {
+        let alfred = InstalledApp(
+            name: "Alfred", bundleID: AlfredChannel.bundleID, shortVersion: "5.8.1",
+            buildVersion: "2349", path: URL(fileURLWithPath: "/Applications/Alfred 5.app"),
+            isMASApp: false, sparkleFeedURL: nil, releaseChannel: .stable)
+        let page = try #require(URL(string: "https://formulae.brew.sh/cask/alfred"))
+        let brew = Brew(selfUpdating: true, version: "6.0.2", channel: .stable, token: "alfred", page: page)
+        let vendor = Downstream(name: "Vendor", version: "5.8.2")
+        let pointUpdate = await UpdateChecker(sources: [brew, vendor]).check(alfred)
+        #expect(pointUpdate.status == .updateAvailable(latest: "5.8.2"))
+        #expect(pointUpdate.remote?.sourceName == "Vendor")
+        #expect(pointUpdate.homebrewSourceIdentifier == "alfred")
+
+        let upToDateFeed = Downstream(name: "Vendor", version: "5.8.1")
+        let migration = await UpdateChecker(sources: [brew, upToDateFeed]).check(alfred)
+        #expect(migration.status == .updateAvailable(latest: "6.0.2"))
+        #expect(migration.manualMajorUpgradePage == page)
+
+        let homebrewOnly = await UpdateChecker(
+            sources: [brew, vendor],
+            brewFallback: BrewFallbackPolicy(blockedKeys: [InstallPreferenceKey.key(for: alfred)])
+        ).check(alfred)
+        #expect(homebrewOnly.remote?.sourceName == "Homebrew")
+        #expect(homebrewOnly.manualMajorUpgradePage == page)
+        #expect(await vendor.calls == 1)
     }
 
     /// An official cask marked `auto_updates` says the app's own updater is its

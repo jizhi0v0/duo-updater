@@ -48,3 +48,11 @@ proof says so.
 两条早期测试版不计入。同日 `general.xml` 与 `prerelease.xml` 都是 `version` 5.8.1、`build` 2349，
 `verify/baseline.json` 的 stable 与 beta 两行也都是 `5.8.1`：页面版本号、plist 的 `version` 与两行
 offered 同一口径（build 号只出现在日期前那段文字里）。beta 渠道查到的是同一个 recipe。
+
+### Alfred 6 正式发布后的更新与迁移（2026-11-20）
+
+- 直装 Alfred 5 的稳定、预览 feed 保持在 `/app/update5/`。官网发行说明已进入 6.x，Alfred 6 的 `/app/update6/general.xml` 与 `prerelease.xml` 在 VM 都返回 6.0.2（3222），位置是 `https://cachefly.alfredapp.com/Alfred_6.0.2_3222.tar.gz`。归档根目录为 `Alfred 6.app`，Bundle ID 仍为 `com.runningwithcrayons.Alfred`、Team `XZZXE9SED4`，严签通过，包内最低系统要求为 macOS 12。
+- 5.x 先完成其原更新轨的适用补丁，随后显示 6.x 大版本提示并打开官方迁移说明。官网要求另装 Alfred 6，首次启动使用 Migration Assistant，Powerpack 需 Alfred 6 授权。已装 6.x 的稳定与预览继续按各自 feed 更新。Homebrew 的 Alfred cask 同样以 `Alfred 6.app` 独立命名。
+- 夜扫用 `alfred5` 与 `alfred6` 区分同 Bundle ID、同渠道的两个版本代际。原 5.x 安装身份和基线随 recipe ID 改名保留。
+
+[官方迁移与授权说明](https://www.alfredapp.com/blog/tips-and-tricks/getting-started-with-alfred-6/) · [Homebrew cask 元数据](https://formulae.brew.sh/api/cask/alfred.json)

@@ -1141,6 +1141,14 @@ struct WorkbenchRowAction: View {
             // page, so it says "Open", as the self-updater route's button does.
             if let reason = result.remote?.homebrewIncompatibility {
                 CaskCompatibilityLabel(reason: reason).font(.callout)
+            } else if let page = result.manualMajorUpgradePage {
+                Button { NSWorkspace.shared.open(page) } label: {
+                    Label("Major update", systemImage: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                        .lineLimit(1).minimumScaleFactor(0.7)
+                }
+                .buttonStyle(.bordered)
+                .help("Open page")
             } else if let affordance = controls.detectionOnly {
                 Button(detectionOnlyTitle(affordance)) {
                     openDetectionOnly(affordance, app: result.app.path)

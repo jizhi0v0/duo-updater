@@ -1,6 +1,9 @@
 import Foundation
 
 enum com_runningwithcrayons_Alfred {
+    private static let migrationPage = URL(string:
+        "https://www.alfredapp.com/blog/tips-and-tricks/getting-started-with-alfred-6/")!
+
     static let set = AppRecipeSet(
         family: "com-runningwithcrayons-Alfred",
         probes: [
@@ -21,13 +24,15 @@ enum com_runningwithcrayons_Alfred {
             bundleID: AlfredChannel.bundleID,
             url: URL(string: "https://www.alfredapp.com/app/update5/prerelease.xml")!,
             mode: .responseBody,
-            versionPattern: #"<key>version</key>\s*<string>([0-9]+(?:\.[0-9]+)+)</string>"#,
+            versionPattern: #"<key>version</key>\s*<string>(5(?:\.[0-9]+)+)</string>"#,
             changelogURL: URL(string: "https://www.alfredapp.com/changelog/"),
             install: VendorInstallSpec(
                 urlSource: .bodyPattern(
                     #"<key>location</key>\s*<string>(https://[^<]+\.tar\.gz)</string>"#),
                 kind: .tarGz),
-            channel: .beta),
+            channel: .beta,
+            variant: "alfred5",
+            installedVersionPattern: #"^[0-5]\."#),
 
         // Alfred 5 — Sparkle PLIST appcast (not RSS). Alfred has no Info.plist
         // SUFeedURL (the feed is configured in Alfred's own Preferences), so it
@@ -46,12 +51,20 @@ enum com_runningwithcrayons_Alfred {
             bundleID: AlfredChannel.bundleID,
             url: URL(string: "https://www.alfredapp.com/app/update5/general.xml")!,
             mode: .responseBody,
-            versionPattern: #"<key>version</key>\s*<string>([0-9][0-9.]*)</string>"#,
+            versionPattern: #"<key>version</key>\s*<string>(5(?:\.[0-9]+)+)</string>"#,
             changelogURL: URL(string: "https://www.alfredapp.com/changelog/"),
             install: VendorInstallSpec(
                 urlSource: .bodyPattern(
                     #"<key>location</key>\s*<string>(https://[^<]+\.tar\.gz)</string>"#),
-                kind: .tarGz)),
+                kind: .tarGz),
+            variant: "alfred5",
+            installedVersionPattern: #"^[0-5]\."#),
+
+        // Alfred 6 shares the bundle id, but its own Update preferences point
+        // to a separate generation. On 5, advertise the vendor's separate
+        // install and Migration Assistant without replacing Alfred 5.
+        alfred6(channel: .stable, feed: "general"),
+        alfred6(channel: .beta, feed: "prerelease"),
         ],
         changelogs: [
         // History: docs/app-audits/com-runningwithcrayons-Alfred.md#历史与实测
@@ -93,5 +106,34 @@ enum com_runningwithcrayons_Alfred {
         // proof says so.
         ChannelProofKey("com.runningwithcrayons.Alfred", .beta):
             .recipeAnchor(#"prerelease\.xml"#, in: ["url"]),
+        ],
+        oneClickGates: [
+            OneClickGate(
+                bundleID: AlfredChannel.bundleID,
+                requirement: .installedVersion(pattern: #"^6\."#),
+                reason: "install Alfred 6 separately and follow its Migration Assistant",
+                offering: #"^(?:Vendor:Alfred_6(?:\.[0-9]+)+_[0-9]+\.tar\.gz|Homebrew:alfred|Homebrew:alfred@prerelease)$"#),
+            OneClickGate(
+                bundleID: AlfredChannel.bundleID,
+                requirement: .installedVersion(pattern: #"^[0-5]\."#),
+                reason: "this package is for the Alfred 5 update track",
+                offering: #"^Vendor:Alfred_5(?:\.[0-9]+)+_[0-9]+\.tar\.gz$"#),
         ])
+
+    private static func alfred6(channel: ReleaseChannel, feed: String) -> VendorProbeRecipe {
+        VendorProbeRecipe(
+            bundleID: AlfredChannel.bundleID,
+            url: URL(string: "https://www.alfredapp.com/app/update6/\(feed).xml")!,
+            mode: .responseBody,
+            versionPattern: #"<key>version</key>\s*<string>(6(?:\.[0-9]+)+)</string>"#,
+            downloadURL: migrationPage,
+            changelogURL: URL(string: "https://www.alfredapp.com/changelog/"),
+            install: VendorInstallSpec(
+                urlSource: .bodyPattern(
+                    #"<key>location</key>\s*<string>(https://cachefly\.alfredapp\.com/Alfred_6(?:\.[0-9]+)+_[0-9]+\.tar\.gz)</string>"#),
+                kind: .tarGz),
+            channel: channel,
+            variant: "alfred6",
+            installedVersionPattern: #"^[56]\."#)
+    }
 }

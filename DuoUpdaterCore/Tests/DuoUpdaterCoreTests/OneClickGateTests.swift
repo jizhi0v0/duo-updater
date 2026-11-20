@@ -85,7 +85,7 @@ struct OneClickGateTests {
 
     @Test func theRegisteredGatesAreTheMeasuredCases() {
         #expect(Set(OneClickGateRegistry.gates.map(\.bundleID))
-            == ["org.musescore.MuseScore", "com.axosoft.gitkraken", "ai.memoh.desktop", "io.hoppscotch.desktop",
+            == ["com.runningwithcrayons.Alfred", "org.musescore.MuseScore", "com.axosoft.gitkraken", "ai.memoh.desktop", "io.hoppscotch.desktop",
                 "co.zeit.hyper", "com.bilingify.readest", "io.masscode.app", "netdcy.FlowVision", "org.ferdium.ferdium-app", "io.museeks.app", "com.rambox",
                 "com.mucommander.muCommander", "com.bitwarden.desktop"])
     }
@@ -413,6 +413,8 @@ struct OneClickGateTests {
     @Test func everyOfferAScopedGateNamesHasAPackageCheck() {
         let vendorSources = ["GitHub", "Vendor", ElectronManifestSource.sourceName, MyGoUpdateSource.sourceName]
         let sources = vendorSources + ["Homebrew", "App Store", XcodeReleasesSource.sourceName, "Sparkle", "Unknown"]
+        let exceptions = Self.offeringsWithoutAPackageCheck.union(
+            ["Homebrew:alfred", "Homebrew:alfred@prerelease"])
         var named: Set<String> = []
         for gate in OneClickGateRegistry.gates {
             guard let offering = gate.offering else { continue }
@@ -448,13 +450,13 @@ struct OneClickGateTests {
                         let route = InstallCoordinator.route(for: result, requiresInstaller: kind == .pkg)
                         guard route != .vendor else { continue }
                         named.insert(identity)
-                        #expect(Self.offeringsWithoutAPackageCheck.contains(identity),
+                        #expect(exceptions.contains(identity),
                                 "\(gate.bundleID) names \(identity), routed \(route) with no package check")
                     }
                 }
             }
         }
-        #expect(named == Self.offeringsWithoutAPackageCheck, "an exception no gate names any more")
+        #expect(named == exceptions, "an exception no gate names any more")
     }
 
     /// The markers the downloaded package must carry, and must have been read

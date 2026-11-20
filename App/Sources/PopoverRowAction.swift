@@ -275,6 +275,8 @@ struct PopoverRowAction: View {
         case .detectionOnly:
             if let reason = result.remote?.homebrewIncompatibility {
                 CaskCompatibilityLabel(reason: reason).font(.caption2)
+            } else if result.manualMajorUpgradePage != nil {
+                majorUpgradeBadge
             } else if let affordance = controls.detectionOnly {
                 openButton(affordance)
             }
@@ -634,11 +636,19 @@ struct PopoverRowAction: View {
                 .font(.headline)
             Text("\(result.app.name) \(confirmationSides.installed) → \(confirmationSides.offered) is a major new version. If this is a commercial app, it may need a new license — with an expired subscription the update can drop into a limited/trial mode.")
                 .font(.callout)
-            Text("Continue only if it’s free or your license covers the new version. The new version replaces this copy. If “Keep a backup of the previous version” is on in [Settings](duoupdater-settings:backups), you can restore the version you have now.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .environment(\.openURL, openBackupSettingLink)
-            majorUpgradeButtons
+            if let page = result.manualMajorUpgradePage {
+                Button("Open page") {
+                    showMajorWarning = false
+                    NSWorkspace.shared.open(page)
+                }
+                .controlSize(.small)
+            } else {
+                Text("Continue only if it’s free or your license covers the new version. The new version replaces this copy. If “Keep a backup of the previous version” is on in [Settings](duoupdater-settings:backups), you can restore the version you have now.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .environment(\.openURL, openBackupSettingLink)
+                majorUpgradeButtons
+            }
         }
         .padding(12)
         .frame(width: 290)

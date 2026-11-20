@@ -1851,14 +1851,14 @@
       "sweepsSinceComment" : 0
     },
     "install:vendor:app.getmoshi.desktop.tauri:stable" : {
-      "consecutiveActionable" : 15,
+      "consecutiveActionable" : 16,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 1167,
       "lastCommentedAt" : "2026-11-15T13:07:33Z",
       "lastSignature" : "inventoryEntryMissing: a previously trac",
       "previousSignature" : "inventoryEntryMissing: a previously trac",
-      "sweepsSinceComment" : 10
+      "sweepsSinceComment" : 11
     },
     "install:vendor:app.getmoshi.desktop:stable" : {
       "consecutiveActionable" : 0,
@@ -2918,5 +2918,5 @@
     }
   },
   "schemaVersion" : 1,
-  "updatedAt" : "2026-11-19T15:19:10Z"
+  "updatedAt" : "2026-11-20T00:38:00Z"
 }

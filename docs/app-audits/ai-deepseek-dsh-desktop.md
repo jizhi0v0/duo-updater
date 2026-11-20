@@ -31,7 +31,7 @@
 | Channel | Bundle ID | 独立/共享 | 检测信号 | 门控方式 | 状态 |
 |---------|-----------|----------|---------|---------|------|
 | stable  | `ai.deepseek.dsh.desktop` | 独立 | tag `vX.Y.Z` + `DSH.Desktop-`/`DSH-Desktop-…dmg` | tag 锚 `^vX.Y.Z$`；资产 `Desktop-` 后紧跟数字 | ✓ |
-| next    | `ai.deepseek.dsh.desktop.next` | 独立 | tag `vX.Y.Z-next` + `DSH-NEXT-…-next-universal.dmg` | tag 锚 `^vX.Y.Z-next$`；资产 `DSH-NEXT-<v>-next-universal.dmg` | ✓ |
+| next    | `ai.deepseek.dsh.desktop.next` | 独立 | tag `vX.Y.Z-next` + `DSH-NEXT-…-next-*.dmg` | tag 锚 `^vX.Y.Z-next$`；资产架构限定为 `universal`、`arm64` 或 `x64` | ✓ |
 
 同一个版本号会在仓库里同时出现三个 release（观测 2026-10-30）：
 - `vX.Y.Z-beta.N`：**prerelease**，资产 `DSH-Desktop-Beta-…`；bundle id、Team、是否与 stable 共存未审计。
@@ -39,7 +39,7 @@
 - `vX.Y.Z-next`：**不是** prerelease，资产 `DSH-NEXT-…`，bundle `ai.deepseek.dsh.desktop.next`。
 
 两条规则的锚互为镜像：stable 的 tag 锚拒掉 `-beta.N` 和 `-next`，资产锚要求 `Desktop-` 后紧跟数字；
-next 的 tag 锚只接受 `-next`，资产锚只接受 `DSH-NEXT-<version>-next-universal.dmg`。
+NEXT 的 tag 锚只接受 `-next`，资产锚只接受 `DSH-NEXT-<version>-next-<arch>.dmg`。
 
 ## 更新检测
 - 源: `anywhere-labs/dsh-desktop` GitHub Releases。
@@ -66,10 +66,11 @@ next 的 tag 锚只接受 `-next`，资产锚只接受 `DSH-NEXT-<version>-next-
 - Recipe 状态: 不需要。
 
 ## 一键安装
-- 状态: **两个渠道都支持**，均为 universal dmg。
+- 状态: **两个渠道都支持**。stable 为 universal DMG；NEXT 支持通用包和按架构拆分的 DMG。
 - stable 格式: v2.0.1–v2.0.15 是 `DSH.Desktop-{v}-universal.dmg`（GitHub 把 "DSH Desktop" 的空格换成点），
   v2.0.16 起是 `DSH-Desktop-{v}-universal.dmg`。Pattern `^DSH[.-]Desktop-[0-9.]+-universal\.dmg$`。
-- next 格式: `DSH-NEXT-{v}-universal.dmg`，Pattern `^DSH-NEXT-[0-9.]+-next-universal\.dmg$`。
+- NEXT 格式: `DSH-NEXT-{v}-next-(universal|arm64|x64).dmg`。旧的通用包继续可选；同时存在拆分包时，
+  现有 GitHub 资产选择器优先选本机架构。
 - **读的是**: 人人可手动下载的 GA（官方 repo 公开资产）。
 - 包验（2026-08-30，v2.0.4 挂载）: `ai.deepseek.dsh.desktop` / `2.0.4`，Team
   `UM3Z9G5DNH`，`spctl accepted / Notarized Developer ID`。
@@ -84,7 +85,7 @@ next 的 tag 锚只接受 `-next`，资产锚只接受 `DSH-NEXT-<version>-next-
   `provider: github` / `repo: deepseek-harness-desktop`。
 
 ## 已知问题
-- **stable 轨道停在 v2.0.18**（2026-10-17 发布），而 NEXT 已到 v2.0.21-next（2026-10-29）。这是上游节奏，
+- **stable 轨道发布节奏独立**（2026-10-30 实测 stable 为 v2.0.18，NEXT 为 v2.0.21-next）。这是上游节奏，
   不是 recipe 坏了；stable 拷贝此时报「up to date」是对的。要不要在 UI 上提示 stable 用户迁移到 NEXT
   是产品决策，不要在 recipe 层把 stable 的行指向 NEXT。
 - `-beta.N` 渠道仍未审计：没下包，bundle id、Team、是否与 stable 共存都不知道。不接。
@@ -94,12 +95,27 @@ next 的 tag 锚只接受 `-next`，资产锚只接受 `DSH-NEXT-<version>-next-
 - NEXT 的 `app-update.yml` 指向旧 repo 名 `deepseek-harness-desktop`（GitHub 重定向到 `dsh-desktop`）。
   若这个重定向消失，NEXT 自己的 electron 更新和本 family 的 GitHub 规则会一起受影响，需复查。
 
+## 夜扫覆盖
+
+- `duo verify --github --only dsh` 枚举 `github:anywhere-labs/dsh-desktop:stable` 与
+  `github:anywhere-labs/dsh-desktop:stable:next`，安装检查由 `duo verify-install --only dsh` 下载
+  每条规则实际选中的包。Apple Silicon 上的 NEXT 拆分包选中 arm64；x64 同胞包不在单机夜扫的下载范围内。
+
+## 历史与实测
+
+- 2026-11-20：[`v2.0.24-next`](https://github.com/anywhere-labs/dsh-desktop/releases/tag/v2.0.24-next) 将通用
+  DMG 拆成 `DSH-NEXT-2.0.24-next-arm64.dmg` 和 `DSH-NEXT-2.0.24-next-x64.dmg`。旧规则回退到了
+  `2.0.23-next`（[#2105](https://github.com/jizhi0v0/duo-updater/issues/2105)）。Mac VM 挂载 arm64
+  与 x64 DMG，核对了 `ai.deepseek.dsh.desktop.next`、`2.0.24-next` 与 Team `UM3Z9G5DNH`。
+  两个包各含文件名所标明的单个架构。夜扫的 NEXT 身份记录从旧通用包的两个架构收窄到实际
+  下载的 arm64；签名、bundle ID 与首次观测记录沿用。
+
 ## 如何复验
 ```
 gh api 'repos/anywhere-labs/dsh-desktop/releases?per_page=8' --jq '.[]|"\(.tag_name) \([.assets[].name]|join(", "))"'
 duo verify --only dsh                        # 两条规则：stable 与 next
-duo verify-install --only dsh                # 下载真包 → stable 2.0.18 / next 2.0.21-next
-# 运行中的 NEXT 拷贝（2.0.20-next）应收到 2.0.21-next，而不是 stable 的 2.0.18
+duo verify-install --only dsh                # 下载 stable 和 NEXT 各自的 DMG
+# 安装 2.0.23-next 后，检查 NEXT 是否收到 2.0.24-next
 duo check | grep -i "DSH NEXT"
 # 端到端安装放到 VMPal macOS VM 里跑（不动本机正在运行的 DSH NEXT）：
 #   在 VM 里跑 `duo check`，再 `duo install "DSH NEXT" --yes`。

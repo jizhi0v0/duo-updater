@@ -20,6 +20,7 @@ enum ai_deepseek_dsh_desktop {
             installAssetPattern: #"^DSH[.-]Desktop-[0-9.]+-universal\.dmg$"#,
             installerKind: .dmg),
 
+        // History: docs/app-audits/ai-deepseek-dsh-desktop.md#历史与实测
         // DSH NEXT — the same client's pre-release train, installed as its own
         // app under its own bundle id (`…desktop.next`) beside DSH Desktop, not
         // an edition of that bundle. It publishes in parallel with the stable
@@ -27,11 +28,12 @@ enum ai_deepseek_dsh_desktop {
         // anchor rejects every `-next` tag.
         //
         // Its releases sit beside the stable ones in the same repo and are the
-        // same shape: `vX.Y.Z-next` tags (not GitHub prereleases) and one
-        // `DSH-NEXT-<version>-next-universal.dmg`. The `-beta.N` release of the
-        // same version carries `DSH-Desktop-Beta-…` and belongs to the stable
-        // bundle, so it is not a beta sibling of this one. The version group
-        // keeps the `-next` suffix because that is exactly what the bundle's
+        // same tag shape: `vX.Y.Z-next` (not GitHub prereleases). Older releases
+        // ship a universal DMG; newer releases ship separate arm64 and x64 DMGs.
+        // The standard asset selector prefers the host's native DMG, then universal.
+        // The `-beta.N` release carries `DSH-Desktop-Beta-…` and belongs to the
+        // stable bundle. The version group keeps the `-next` suffix, as the
+        // bundle's
         // CFBundleShortVersionString says; capturing only `X.Y.Z` would compare
         // correctly but show a string the bundle never carries. The asset anchor
         // takes only the `-next` dmg, so the stable and beta assets of the same
@@ -44,7 +46,7 @@ enum ai_deepseek_dsh_desktop {
             bundleID: "ai.deepseek.dsh.desktop.next",
             owner: "anywhere-labs", repo: "dsh-desktop",
             versionPattern: #"^v([0-9]+(?:\.[0-9]+)+-next)$"#,
-            installAssetPattern: #"^DSH-NEXT-[0-9.]+-next-universal\.dmg$"#,
+            installAssetPattern: #"^DSH-NEXT-[0-9.]+-next-(?:universal|arm64|x64)\.dmg$"#,
             installerKind: .dmg,
             variant: "next"),
         ])

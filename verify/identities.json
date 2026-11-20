@@ -813,8 +813,7 @@
     },
     "github:anywhere-labs\/dsh-desktop:stable:next" : {
       "architectures" : [
-        "arm64",
-        "x86_64"
+        "arm64"
       ],
       "bundleIdentifier" : "ai.deepseek.dsh.desktop.next",
       "firstSeenAt" : "2026-10-30T11:48:38Z",

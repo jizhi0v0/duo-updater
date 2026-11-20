@@ -38,7 +38,7 @@ public enum UpdateSourceGroup: String, CaseIterable, Sendable, Identifiable {
         // them.
         switch result.status {
         case .appStoreManaged: self = .appStore; return
-        case .testFlightManaged: self = .testFlight; return
+        case .testFlightManaged, .testFlightIncompatible: self = .testFlight; return
         case .toolboxManaged: self = .toolbox; return
         case .homebrewSuiteManaged: self = .homebrew; return
         default: break

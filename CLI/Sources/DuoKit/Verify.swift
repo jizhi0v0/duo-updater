@@ -281,8 +281,23 @@ public enum Verify {
     static func foldingBaselineComplaints(
         _ findings: [Finding], into baseline: inout Baseline
     ) -> [Finding] {
-        findings.map { finding in
-            baseline.reconcile(finding).reduce(finding) { $0.adding(warning: $1) }
+        // Blender's builder keeps candidates from older branches after the
+        // newest one ships. The stable probe checks the official arm64 DMG;
+        // use its clean, same-sweep answer as evidence of that publication.
+        let blenderStableID = "vendor:org.blenderfoundation.blender:stable"
+        let previousStable = baseline.entries[blenderStableID]?.lastGoodVersion
+        let publishedStable = findings.first { finding in
+            guard finding.recipeID == blenderStableID, finding.status == .ok,
+                  finding.publicWarnings.isEmpty, let version = finding.version
+            else { return false }
+            return !VersionComparator.isNewer(previousStable ?? version, than: version)
+        }?.version
+
+        return findings.map { finding in
+            let promotion = finding.recipeID == "vendor:org.blenderfoundation.blender:rc"
+                && finding.status == .ok && finding.publicWarnings.isEmpty ? publishedStable : nil
+            return baseline.reconcile(finding, promotedStableVersion: promotion)
+                .reduce(finding) { $0.adding(warning: $1) }
         }
     }
 

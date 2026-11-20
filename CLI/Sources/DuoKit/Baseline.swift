@@ -440,8 +440,12 @@ public struct Baseline: Codable, Sendable {
     /// `newestLast` recipe is the OLDEST one on the page. Reporting a version
     /// regression and dropping the collapse that explains it would send whoever
     /// picks it up looking for a version pattern that never changed.
+    /// `promotedStableVersion` is a verified publication from this sweep. Only
+    /// an exact match to the previous candidate lets its track move backwards.
     @discardableResult
-    public mutating func reconcile(_ finding: Finding) -> [String] {
+    public mutating func reconcile(
+        _ finding: Finding, promotedStableVersion: String? = nil
+    ) -> [String] {
         var entry = entries[finding.recipeID] ?? Entry()
         var complaints: [String] = []
 
@@ -452,6 +456,7 @@ public struct Baseline: Codable, Sendable {
             // changelog may have read another page than last time
             // (see `readDifferentPages`).
             if let previous = entry.lastGoodVersion, previous != version,
+               previous != promotedStableVersion,
                !Self.ordersByLineage(finding),
                Self.eitherIsNumbered(previous, version),
                !Self.readDifferentPages(finding, previous: previous, current: version),

@@ -1053,34 +1053,26 @@ public struct VendorProbeSource: UpdateSource {
                 if let myGoSignature, myGoSignature.signature == nil {
                     warnings.append(.myGoSignatureNoMatch)
                 }
+                let deltas: [DeltaPatch]
+                if case .dockerAppcast = recipe.mode {
+                    // This feed authorizes only the full DMG in the scoped
+                    // release. Raw JSON fields cannot supply alternate artifacts.
+                    deltas = []
+                } else {
+                    // These parsers read a whole Sparkle or MyGo document and
+                    // match the version themselves. An entry fragment can be
+                    // invalid XML even when the original feed is valid.
+                    deltas = VendorAppcastDeltas.patches(
+                        inBody: body.text, forVersion: version, feedURL: recipe.url)
+                        + MyGoManifest.patches(
+                            inBody: body.text, forVersion: version, feedURL: recipe.url,
+                            publicKey: spec.myGoPublicKey)
+                }
                 remote = Self.makeRemoteVersion(
                     recipe: recipe, version: version, install: spec, plan: plan,
                     resolvedDownload: body.resolvedDownload, display: display,
                     publishedAt: publishedFields.publishedAt, vendorDay: publishedFields.vendorDay,
-                    // Deliberately `body.text`, not `scope`: this parses the WHOLE
-                    // response as a Sparkle appcast document (`SparkleAppcastParser`)
-                    // rather than reading a pattern out of it, so an entry-scoped
-                    // fragment would not parse as XML at all. It is safe on its own
-                    // terms regardless of scoping — it re-matches `version` against
-                    // the parsed items itself and returns `[]` on anything but
-                    // exactly one match.
-                    //
-                    // Do not read the `entryStartPattern` population as "JSON
-                    // feeds that could never parse as an appcast anyway": WeChat's
-                    // is a real Sparkle appcast, sliced at `<item>`, so this line
-                    // now hands a parseable document to a parser that will parse
-                    // it. That is still correct — whole-body is exactly what this
-                    // call wants, and the feed carries no `sparkle:deltas` at all
-                    // (measured 2026-08-30) — but it holds for the reason stated
-                    // above, not because nothing here could parse.
-                    deltas: VendorAppcastDeltas.patches(
-                        inBody: body.text, forVersion: version, feedURL: recipe.url)
-                        // A MyGo manifest is JSON, an appcast XML: at most one of
-                        // the two finds anything in a body.
-                        + MyGoManifest.patches(
-                            inBody: body.text, forVersion: version, feedURL: recipe.url,
-                            publicKey: spec.myGoPublicKey),
-                    myGoSignature: myGoSignature,
+                    deltas: deltas, myGoSignature: myGoSignature,
                     bundle: bundleVersion, lineage: lineage)
                 // A recipe that names a checksum pattern but no longer matches one
                 // still installs — unverified. Silent today; flag it.

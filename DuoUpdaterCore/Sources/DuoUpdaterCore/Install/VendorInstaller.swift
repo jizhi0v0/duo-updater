@@ -96,6 +96,7 @@ public actor VendorInstaller {
         /// package it was offered as, or carries another edition's
         /// (`OneClickGateRegistry.packageMarkers`).
         case packageEditionMismatch
+        case packageVersionMismatch(expected: VersionSide, downloaded: VersionSide)
 
         public var errorDescription: String? {
             switch self {
@@ -117,6 +118,8 @@ public actor VendorInstaller {
                 return "Only the release asset itself can be checked against GitHub's published hash. Nothing was changed."
             case .packageEditionMismatch:
                 return "The downloaded app is not the edition this copy is. Nothing was changed."
+            case .packageVersionMismatch(let expected, let downloaded):
+                return "The downloaded app is \(downloaded.text(withBuild: true)), expected \(expected.text(withBuild: true)). Nothing was changed."
             }
         }
     }
@@ -484,6 +487,16 @@ public actor VendorInstaller {
             installedApp: result.app.path,
             trust: trust
         )
+        // UTM's same-marketing repacks compare on the build recorded in tagged
+        // source. Confirm it against the signed payload before swapping it in.
+        if result.app.recipeBundleID == com_utmapp_UTM.bundleID,
+           remote.sourceName == "GitHub", remote.version != nil {
+            let stagedApp = newApp
+            let downloaded = await offCooperativePool { StagedRelaunch.diskVersionSide(stagedApp) }
+            guard downloaded == remote.versionSide else {
+                throw InstallError.packageVersionMismatch(expected: remote.versionSide, downloaded: downloaded)
+            }
+        }
         let installedApp = result.app.path, finalTrust = trust
         let archiveAlone = await offCooperativePool {
             SignatureVerifier.originRestsOnArchiveAlone(trust: finalTrust, installedApp: installedApp)

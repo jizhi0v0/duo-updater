@@ -656,6 +656,12 @@ public struct GitHubReleasesSource: UpdateSource {
         }
     }
 
+    private struct MissingBuildSettings: LocalizedError {
+        let tag: String
+
+        var errorDescription: String? { "Could not read UTM's bundle build for \(tag)" }
+    }
+
     /// Which error a non-2xx status becomes.
     ///
     /// 429 is always the limit. A 403 is the limit only when the response says the
@@ -1023,17 +1029,15 @@ public struct GitHubReleasesSource: UpdateSource {
         }
 
         let tag = prefix + installed
-        // nil here is any of: the 404 `fetchReleases` translates for an exact-tag
-        // lookup, an unbuildable URL, a non-HTTP response, or a 200 whose body did
-        // not decode to a release. They differ in cause and not in consequence —
-        // none of them proves a channel — and a status worth retrying (403, 5xx)
-        // never reaches this line: it throws.
-        guard let release = try await fetchReleases(rule, list: false, tag: tag)?.first,
-              // An explicit `false` and a response that stopped carrying the field
-              // are different answers; only the first one means "stable".
-              release.hasExplicitReleaseState,
-              !release.isDraft
-        else {
+        let exact = try await fetchReleases(rule, list: false, tag: tag)?.first
+        var release = exact.flatMap {
+            $0.tag == tag && $0.hasExplicitReleaseState && !$0.isDraft ? $0 : nil
+        }
+        if rule.slug == com_utmapp_UTM.slug, let build = app.buildVersion {
+            release = try await utmInstalledRelease(
+                rule, plain: release, version: installed, build: build)
+        }
+        guard let release else {
             Log.source.info(
                 "GitHub \(app.bundleID ?? "?", privacy: .public): exact installed release \(tag, privacy: .public) could not prove a channel — answering on the stable rule rather than dropping the row")
             await channelStore?.forget(app)
@@ -1042,9 +1046,45 @@ public struct GitHubReleasesSource: UpdateSource {
 
         let proven: ReleaseChannel = release.isPrerelease ? rule.channel : .stable
         Log.source.info(
-            "GitHub \(app.bundleID ?? "?", privacy: .public): installed tag \(tag, privacy: .public) proves \(proven.rawValue, privacy: .public)")
+            "GitHub \(app.bundleID ?? "?", privacy: .public): installed tag \(release.tag, privacy: .public) proves \(proven.rawValue, privacy: .public)")
         await channelStore?.record(proven, for: app)
         return candidates.first { $0.channel == proven }
+    }
+
+    private func utmInstalledRelease(
+        _ rule: GitHubReleaseRule, plain: Release?, version: String, build: String
+    ) async throws -> Release? {
+        if let plain, try await utmBuild(for: plain.tag, version: version) == build {
+            return plain
+        }
+        // The plain tag may coexist with one or more repacks of that marketing
+        // version. Only an exact build match is evidence of the installed track.
+        let releases = try await fetchReleases(rule, list: true) ?? []
+        for release in releases where release.hasExplicitReleaseState && !release.isDraft
+            && release.tag.hasPrefix("v\(version)-")
+            && VendorProbeRecipe.extractVersion(from: release.tag, pattern: rule.versionPattern) == version {
+            if try await utmBuild(for: release.tag, version: version) == build {
+                return release
+            }
+        }
+        return nil
+    }
+
+    private func utmBuild(for tag: String, version: String) async throws -> String? {
+        guard VendorProbeRecipe.extractVersion(from: tag, pattern: com_utmapp_UTM.versionPattern) == version,
+              let url = URL(string: "https://raw.githubusercontent.com/\(com_utmapp_UTM.slug)/\(tag)/Build.xcconfig")
+        else { return nil }
+
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 15
+        request.cachePolicy = URLRequest.versionFeedCachePolicy
+        // The file is public. The GitHub API token does not belong in this request.
+        let (data, response) = try await session.versionFeedData(for: request, label: "UTM build settings")
+        guard let http = response as? HTTPURLResponse, http.url == url else { return nil }
+        if http.statusCode == 404 { return nil }
+        guard (200..<300).contains(http.statusCode) else { throw GitHubError.badStatus(http.statusCode) }
+        guard let settings = String(data: data, encoding: .utf8) else { return nil }
+        return com_utmapp_UTM.build(in: settings, for: version)
     }
 
     /// Run one rule and report everything that happened — the counterpart to
@@ -1114,7 +1154,8 @@ public struct GitHubReleasesSource: UpdateSource {
                 nil, tags, list)
         }
 
-        let tag = prefix + version
+        let tag = rule.slug == com_utmapp_UTM.slug && newest.tag.hasPrefix(prefix)
+            ? newest.tag : prefix + version
         guard let exact = try await fetchReleases(rule, list: false, tag: tag)?.first else {
             // `fetchReleases` turns a 404 on an exact-tag lookup into nil — the
             // one status that really does mean "this mechanism cannot classify
@@ -1128,9 +1169,7 @@ public struct GitHubReleasesSource: UpdateSource {
                 "\(tag) no longer carries both `prerelease` and `draft`; channel identification reads those fields"),
                 nil, tags, list)
         }
-        guard VendorProbeRecipe.extractVersion(
-            from: exact.tag, pattern: rule.versionPattern) == version
-        else {
+        guard exact.tag == tag, !exact.isDraft else {
             return (.channelDiscoveryBroken(
                 "\(tag) resolved to a different tag (\(exact.tag))"), nil, tags, list)
         }
@@ -1691,6 +1730,10 @@ public struct GitHubReleasesSource: UpdateSource {
             releases = releases.filter { release in
                 guard let v = VendorProbeRecipe.extractVersion(
                     from: release.tag, pattern: rule.versionPattern) else { return false }
+                if rule.slug == com_utmapp_UTM.slug, release.isPrerelease,
+                   VersionComparator.majorComponent(v) != VersionComparator.majorComponent(installedVersion) {
+                    return false
+                }
                 return !VersionComparator.isNewer(v, than: ceiling)
             }
         }
@@ -1742,6 +1785,11 @@ public struct GitHubReleasesSource: UpdateSource {
             if let list = try await fetchReleases(rule, list: true) {
                 releases = Self.stableOnly(list)
             }
+        }
+        if rule.slug == com_utmapp_UTM.slug, releases.count > 1 {
+            // Rank UTM's repacks after their plain tag for candidate selection.
+            // The suffix is kept out of the offered marketing version.
+            releases = Self.byVersionDescending(releases, pattern: com_utmapp_UTM.orderedTagPattern)
         }
         // Every matching release that carries a publish date — backfills the app's
         // visible release history into the timeline at no extra network cost (these
@@ -1820,6 +1868,15 @@ public struct GitHubReleasesSource: UpdateSource {
                     tagVersion: version, asset: asset.flatMap { chosen in
                         release.assets.first { $0.url == chosen.url }?.name
                     }, pattern: rule.assetVersionPattern)
+                var offeredBuild: String?
+                if rule.slug == com_utmapp_UTM.slug, release.tag != "v\(version)" {
+                    // The tag only identifies the respin. Its number is in the
+                    // namespace of tags, so do not use it as CFBundleVersion.
+                    guard let build = try await utmBuild(for: release.tag, version: offered) else {
+                        throw MissingBuildSettings(tag: release.tag)
+                    }
+                    offeredBuild = build
+                }
 
                 let page = release.htmlURL ?? URL(string: "https://github.com/\(rule.slug)/releases")
                 let body = release.body.flatMap { $0.isEmpty ? nil : $0 }
@@ -1859,7 +1916,8 @@ public struct GitHubReleasesSource: UpdateSource {
                 await RecipeHealth.shared.recordSuccess(id: rule.recipeID, source: name)
                 return Resolution(remote: RemoteVersion(
                     shortVersion: offered,
-                    version: nil,
+                    version: offeredBuild,
+                    marketingMatchesBundle: offeredBuild != nil,
                     downloadURL: asset?.url
                         ?? URL(string: "https://github.com/\(rule.slug)/releases"),
                     // The release page — an asset URL would download the archive.

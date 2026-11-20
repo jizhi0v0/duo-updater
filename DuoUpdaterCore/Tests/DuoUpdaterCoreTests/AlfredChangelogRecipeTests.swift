@@ -74,3 +74,59 @@ private let alfredChangelogFixture = #"""
         ChangelogRecipeRegistry.recipe(forBundleID: "com.runningwithcrayons.Alfred", channel: .beta))
     #expect(beta.source == stable.source)
 }
+
+@Test(arguments: [ReleaseChannel.stable, .beta])
+func alfredSixUpdatesInPlaceOnlyWithinSix(channel: ReleaseChannel) throws {
+    let bundleID = "com.runningwithcrayons.Alfred"
+    let recipes = VendorProbeRegistry.recipes.filter { $0.bundleID == bundleID && $0.channel == channel }
+    let five = try #require(recipes.first { $0.variant == "alfred5" })
+    let six = try #require(recipes.first { $0.variant == "alfred6" })
+    let feed = channel == .beta ? "prerelease.xml" : "general.xml"
+    #expect(five.url.path == "/app/update5/\(feed)")
+    #expect(six.url.path == "/app/update6/\(feed)")
+    #expect(five.matchesInstalled(version: "5.8.2"))
+    #expect(!five.matchesInstalled(version: "6.0"))
+    #expect(six.matchesInstalled(version: "5.8.2"))
+    #expect(six.matchesInstalled(version: "6.0"))
+    #expect(!six.matchesInstalled(version: "4.8"))
+
+    let sixXML = """
+    <key>build</key><integer>3222</integer>
+    <key>location</key><string>https://cachefly.alfredapp.com/Alfred_6.0.2_3222.tar.gz</string>
+    <key>version</key><string>6.0.2</string>
+    """
+    let current = try #require(VendorProbeRecipe.extractVersion(from: sixXML, pattern: six.versionPattern))
+    #expect(current == "6.0.2")
+    #expect(VendorProbeRecipe.extractVersion(from: sixXML, pattern: five.versionPattern) == nil)
+
+    func app(version: String) -> InstalledApp {
+        InstalledApp(name: "Alfred", bundleID: bundleID, shortVersion: version, buildVersion: nil,
+                     path: URL(fileURLWithPath: "/Applications/Alfred.app"), isMASApp: false,
+                     sparkleFeedURL: nil, releaseChannel: channel)
+    }
+
+    let fiveURL = try #require(URL(string: "https://cachefly.alfredapp.com/Alfred_5.8.2_2353.tar.gz"))
+    let sixURL = try #require(URL(string: "https://cachefly.alfredapp.com/Alfred_6.0.2_3222.tar.gz"))
+    let fiveOffer = VendorProbeSource.makeRemoteVersion(
+        recipe: five, version: "5.8.2", install: five.install, plan: (fiveURL, nil), resolvedDownload: nil)
+    let sixOffer = VendorProbeSource.makeRemoteVersion(
+        recipe: six, version: current, install: six.install, plan: (sixURL, nil), resolvedDownload: nil)
+    let outcomes = [
+        ProbeOutcome(recipeID: five.recipeID, bundleID: bundleID, channel: channel, remote: fiveOffer, failure: nil),
+        ProbeOutcome(recipeID: six.recipeID, bundleID: bundleID, channel: channel, remote: sixOffer, failure: nil),
+    ]
+
+    let oldFive = app(version: "5.8.1")
+    let currentFive = app(version: "5.8.2")
+    let oldSix = app(version: "6.0")
+    #expect(VendorProbeSource.best(of: outcomes, installedApp: oldFive)?.remote == fiveOffer)
+    #expect(VendorProbeSource.best(of: outcomes, installedApp: currentFive)?.remote == sixOffer)
+    #expect(OneClickGateRegistry.withholding(oldFive, offering: fiveOffer) == nil)
+    #expect(OneClickGateRegistry.withholding(currentFive, offering: sixOffer) != nil)
+    #expect(OneClickGateRegistry.withholding(oldSix, offering: sixOffer) == nil)
+
+    let migration = UpdateResult(app: currentFive, remote: sixOffer, status: .updateAvailable(latest: current))
+    #expect(migration.manualMajorUpgradePage == six.downloadURL)
+    let pointUpdate = UpdateResult(app: oldSix, remote: sixOffer, status: .updateAvailable(latest: current))
+    #expect(pointUpdate.manualMajorUpgradePage == nil)
+}

@@ -2370,13 +2370,13 @@
       "consecutiveInstallTransient" : 0,
       "sweepsSinceComment" : 0
     },
-    "install:vendor:com.runningwithcrayons.Alfred:beta" : {
+    "install:vendor:com.runningwithcrayons.Alfred:beta:alfred5" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "sweepsSinceComment" : 0
     },
-    "install:vendor:com.runningwithcrayons.Alfred:stable" : {
+    "install:vendor:com.runningwithcrayons.Alfred:stable:alfred5" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,

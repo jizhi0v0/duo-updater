@@ -527,7 +527,11 @@ public struct UpdateChecker: Sendable {
                     let followsClaudeLatest = app.bundleID?.lowercased() == ClaudeDesktopChannel.bundleID
                         && app.releaseChannel == .latest && remote.offeredChannel == .stable
                         && remote.homebrewSelfUpdating
-                    let checksOtherSources = (status == .upToDate || followsClaudeLatest)
+                    // A self-updating cask can advertise a separate new generation.
+                    // Keep checking the installed generation's own update feed
+                    // when this copy allows non-Brew checks.
+                    let offersManualMigration = remote.homebrewSelfUpdating && result.manualMajorUpgradePage != nil
+                    let checksOtherSources = (status == .upToDate || followsClaudeLatest || offersManualMigration)
                         && brewFallback.checksOtherSources(key, selfUpdating: remote.homebrewSelfUpdating)
                     if checksOtherSources && followsClaudeLatest {
                         result = UpdateResult(app: app, remote: nil, status: .unknown)
@@ -542,6 +546,9 @@ public struct UpdateChecker: Sendable {
                         brewAnswer = result
                         continue
                     }
+                }
+                if status == .upToDate, let brewAnswer, brewAnswer.manualMajorUpgradePage != nil {
+                    return brewAnswer
                 }
                 return result
             } catch let unversioned as ThirdPartyCaskSource.Unversioned {
@@ -609,9 +616,12 @@ public struct UpdateChecker: Sendable {
             }
         }
 
-        // No downstream source answered: keep the proven brew result, unless
-        // an attempted downstream check failed or refused this host.
-        if let brewAnswer, lastError == nil, refusal == nil { return brewAnswer }
+        // A proven manual migration remains actionable even when the optional
+        // installed-generation check failed. The ordinary Brew fallback still
+        // yields to a downstream error or compatibility refusal.
+        if let brewAnswer, (lastError == nil && refusal == nil) || brewAnswer.manualMajorUpgradePage != nil {
+            return brewAnswer
+        }
 
         // A Toolbox-managed row outranks a failed read, and only this one does.
         //

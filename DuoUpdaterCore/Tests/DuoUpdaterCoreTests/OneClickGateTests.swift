@@ -87,7 +87,7 @@ struct OneClickGateTests {
         #expect(Set(OneClickGateRegistry.gates.map(\.bundleID))
             == ["org.musescore.MuseScore", "com.axosoft.gitkraken", "ai.memoh.desktop", "io.hoppscotch.desktop",
                 "co.zeit.hyper", "com.bilingify.readest", "io.masscode.app", "netdcy.FlowVision", "org.ferdium.ferdium-app", "io.museeks.app", "com.rambox",
-                "com.mucommander.muCommander"])
+                "com.mucommander.muCommander", "com.runningwithcrayons.Alfred"])
     }
 
     /// Versions of the real bundles: stable 7.2.3, 7.2.2, 6.0.0, the nightlies
@@ -396,6 +396,7 @@ struct OneClickGateTests {
     /// the gate on the copy stands before the swap.
     static let offeringsWithoutAPackageCheck: Set<String> = [
         "Homebrew:hoppscotch", "Homebrew:hoppscotch-selfhost", "Homebrew:flowvision",
+        "Homebrew:alfred", "Homebrew:alfred@prerelease",
     ]
 
     /// The package check (`VendorInstaller` step 3c) runs on the `.vendor`

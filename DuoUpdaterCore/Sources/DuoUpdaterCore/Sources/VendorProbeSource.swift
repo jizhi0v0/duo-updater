@@ -400,7 +400,7 @@ public struct VendorProbeSource: UpdateSource {
         for recipe in matching {
             outcomes.append(await probeOutcome(recipe, allowInstall: allowInstall))
         }
-        return Self.best(of: outcomes)
+        return Self.best(of: outcomes, installedApp: app)
     }
 
     /// Pick the answer when a channel has more than one endpoint.
@@ -434,7 +434,7 @@ public struct VendorProbeSource: UpdateSource {
     /// a version that converged before we looked loses its real publish time
     /// permanently — it lands in the timeline as an estimated "≈" window with no
     /// way to correct it later. (1.30096.5 was lost this way on 2026-08-15.)
-    static func best(of outcomes: [ProbeOutcome]) -> ProbeOutcome? {
+    static func best(of outcomes: [ProbeOutcome], installedApp: InstalledApp? = nil) -> ProbeOutcome? {
         guard let first = outcomes.first else { return nil }
         var winner: ProbeOutcome?
         for outcome in outcomes {
@@ -449,7 +449,26 @@ public struct VendorProbeSource: UpdateSource {
                 winner = outcome
             }
         }
-        return winner ?? first
+        let preferred = winner ?? first
+        guard let app = installedApp, let installed = app.shortVersion,
+              let installedMajor = VersionComparator.majorComponent(installed),
+              let offered = preferred.remote?.shortVersion,
+              VersionComparator.isMajorUpgrade(from: installed, to: offered),
+              let gate = OneClickGateRegistry.withholding(app, offering: preferred.remote),
+              gate.offering != nil,
+              case .installedVersion = gate.requirement else {
+            return preferred
+        }
+        // A vendor can advertise a separate new generation while still
+        // maintaining the installed one. Finish an eligible point update
+        // first, then show the vendor's migration path on the next check.
+        let pointUpdates = outcomes.filter { outcome in
+            guard let remote = outcome.remote, let version = remote.shortVersion else { return false }
+            return VersionComparator.majorComponent(version) == installedMajor
+                && VersionComparator.isNewer(remote.versionSide, than: app.versionSide)
+                && OneClickGateRegistry.withholding(app, offering: remote) == nil
+        }
+        return best(of: pointUpdates) ?? preferred
     }
 
     /// Tie-break between two outcomes naming the same version: keep the one that

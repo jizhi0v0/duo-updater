@@ -897,11 +897,15 @@ private func makeApp(at dir: URL, name: String, info: [String: Any]) throws -> U
     #expect(stable.feedOverride == nil)
 }
 
-@Test func alfredHasARecipePerChannel() {
+@Test func alfredHasARecipePerChannelAndGeneration() {
     let alfred = VendorProbeRegistry.recipes.filter { $0.bundleID == AlfredChannel.bundleID }
-    #expect(alfred.count == 2)
-    #expect(Set(alfred.map(\.channel)) == [.stable, .beta])
-    // Both must be able to install: the tarball was verified same-team + notarized.
+    let byFeedGeneration = Dictionary(grouping: alfred, by: \.variant)
+    #expect(Set(byFeedGeneration.keys) == Set(["alfred5", "alfred6"]))
+    for recipes in byFeedGeneration.values {
+        #expect(recipes.count == 2)
+        #expect(Set(recipes.map(\.channel)) == [.stable, .beta])
+    }
+    // Each tarball can be installed within its own generation.
     #expect(alfred.allSatisfy { $0.install?.kind == .tarGz })
 }
 

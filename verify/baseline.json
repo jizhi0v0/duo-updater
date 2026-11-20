@@ -6250,7 +6250,7 @@
       "lastGoodVersion" : "2.13.1.0",
       "sweepsSinceComment" : 0
     },
-    "vendor:com.runningwithcrayons.Alfred:beta" : {
+    "vendor:com.runningwithcrayons.Alfred:beta:alfred5" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
@@ -6258,7 +6258,7 @@
       "lastGoodVersion" : "5.8.2",
       "sweepsSinceComment" : 0
     },
-    "vendor:com.runningwithcrayons.Alfred:stable" : {
+    "vendor:com.runningwithcrayons.Alfred:stable:alfred5" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,

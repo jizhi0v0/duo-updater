@@ -1136,11 +1136,30 @@ public struct UpdateResult: Sendable, Identifiable, Equatable {
         guard let from = app.shortVersion, let to = remote?.displayVersion,
               VersionComparator.isMajorUpgrade(from: from, to: to) else { return false }
 
+        if requiresSeparateGenerationInstall { return true }
         if let source = remote?.sourceName, Self.licenseNeutralSources.contains(source) {
             return false
         }
         if VersionComparator.isCalendarVersion(to) { return false }
 
+        return true
+    }
+
+    /// A generation boundary can require a separate install and migration.
+    /// The offer still deserves the major-version warning, with the vendor's
+    /// instructions taking the place of an in-place install action.
+    public var manualMajorUpgradePage: URL? {
+        guard isMajorUpgrade, !isVendorRewrite, requiresSeparateGenerationInstall else { return nil }
+        return remote?.pageURL
+    }
+
+    private var requiresSeparateGenerationInstall: Bool {
+        guard remote?.pageURL != nil,
+              let gate = OneClickGateRegistry.withholding(app, offering: remote),
+              gate.offering != nil,
+              case .installedVersion = gate.requirement else {
+            return false
+        }
         return true
     }
 }

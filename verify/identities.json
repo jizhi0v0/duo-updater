@@ -5257,7 +5257,7 @@
       "signedIdentifier" : "com.raycast.macos",
       "teamIdentifier" : "SY64MV22J9"
     },
-    "vendor:com.runningwithcrayons.Alfred:beta" : {
+    "vendor:com.runningwithcrayons.Alfred:beta:alfred5" : {
       "architectures" : [
         "arm64",
         "x86_64"
@@ -5271,7 +5271,7 @@
       "signedIdentifier" : "com.runningwithcrayons.Alfred",
       "teamIdentifier" : "XZZXE9SED4"
     },
-    "vendor:com.runningwithcrayons.Alfred:stable" : {
+    "vendor:com.runningwithcrayons.Alfred:stable:alfred5" : {
       "architectures" : [
         "arm64",
         "x86_64"

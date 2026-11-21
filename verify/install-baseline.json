@@ -1845,14 +1845,14 @@
       "sweepsSinceComment" : 0
     },
     "install:vendor:app.getmoshi.desktop.tauri:stable" : {
-      "consecutiveActionable" : 18,
+      "consecutiveActionable" : 19,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 1167,
       "lastCommentedAt" : "2026-11-15T13:07:33Z",
       "lastSignature" : "inventoryEntryMissing: a previously trac",
       "previousSignature" : "inventoryEntryMissing: a previously trac",
-      "sweepsSinceComment" : 13
+      "sweepsSinceComment" : 14
     },
     "install:vendor:app.getmoshi.desktop:stable" : {
       "consecutiveActionable" : 0,
@@ -2010,6 +2010,12 @@
       "consecutiveInstallTransient" : 0,
       "sweepsSinceComment" : 0
     },
+    "install:vendor:com.docker.docker:nightly" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
     "install:vendor:com.docker.docker:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
@@ -2143,13 +2149,11 @@
       "sweepsSinceComment" : 0
     },
     "install:vendor:com.jetbrains.intellij-EAP:preview" : {
-      "consecutiveActionable" : 2,
+      "closedAt" : "2026-11-21T04:52:34Z",
+      "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 2141,
-      "lastCommentedAt" : "2026-11-21T00:02:10Z",
-      "lastSignature" : "bundleIDMismatch: the download is com.je|identityChanged: bundle id com.jetbrains",
-      "previousSignature" : "bundleIDMismatch: the download is com.je|identityChanged: bundle id com.jetbrains",
       "sweepsSinceComment" : 0
     },
     "install:vendor:com.jetbrains.intellij:stable" : {
@@ -2934,5 +2938,5 @@
     }
   },
   "schemaVersion" : 1,
-  "updatedAt" : "2026-11-21T00:02:10Z"
+  "updatedAt" : "2026-11-21T04:52:34Z"
 }

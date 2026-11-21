@@ -5,7 +5,7 @@ enum com_anthropic_claudefordesktop {
         let isLatest = channel == .latest
         let endpoint = "https://api.anthropic.com/api/desktop/darwin/universal/squirrel/update"
             + "?device_id=__IDENTITY__&os_version=__HOST_OS_VERSION__"
-            + (isLatest ? "&channelUuid=77a14fc4-808e-4345-ac3e-090be671bf94" : "")
+            + (isLatest ? "&channelUuid=\(ClaudeDesktopChannel.latestChannelUUID)" : "")
         let archiveDirectory = isLatest ? "releases-latest" : "releases"
         let archivePath = #"https://downloads\.claude\.ai/"# + archiveDirectory + "/darwin/universal/"
         let zipName = #"Claude-[0-9a-f]+\.zip"#

@@ -201,9 +201,21 @@ public enum ArtifactInspection {
         }
 
         do {
-            let identity = try await offCooperativePool { () throws -> Identity in
+            let (identity, bundleWarnings) = try await offCooperativePool { () throws -> (Identity, [String]) in
                 try SignatureVerifier.verifyCodeSignature(appAt: app)
-                return try identity(of: app)
+                let identity = try identity(of: app)
+                // Attribute map drift only to Anthropic's Apple-anchored Developer ID.
+                let isClaudeZIP = kind == .zip
+                    && identity.bundleIdentifier == ClaudeDesktopChannel.bundleID
+                    && CLIToolTrust.signature(
+                        of: app, teamIdentifier: ClaudeDesktopChannel.teamIdentifier,
+                        signingIdentifier: ClaudeDesktopChannel.bundleID) == .vendor
+                let warnings = isClaudeZIP
+                    ? ClaudeDesktopChannel.installerWarnings(
+                        asar: app.appendingPathComponent("Contents/Resources/app.asar"),
+                        version: identity.shortVersion)
+                    : []
+                return (identity, warnings)
             }
             let notes = remote.sourceName == "Sparkle" && sparklePublicKey == nil
                 ? ["sparkleArchiveSignatureNotChecked: no previously audited key — "
@@ -211,7 +223,7 @@ public enum ArtifactInspection {
             return .success(Inspected(
                 bytes: bytes, finalHost: downloader.finalHost, kind: kind,
                 identity: identity, packageTeamIdentifier: nil, notes: notes,
-                warnings: archiveWarnings, sparkleSignatureVerified: sparkleSignatureVerified))
+                warnings: archiveWarnings + bundleWarnings, sparkleSignatureVerified: sparkleSignatureVerified))
         } catch { return failure(.signature, error) }
     }
 

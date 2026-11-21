@@ -213,7 +213,9 @@ import Network
         let outcome = await VendorProbeSource().probeDiagnostic(try Self.ideaEAPRecipe(url: server.url))
         #expect(outcome.remote?.version == "263.7307.44")
         #expect(outcome.remote?.vendorInstallerKind == nil)
-        #expect(outcome.remote?.downloadURL == nil)
+        #expect(outcome.remote?.requiresManualInstaller == true)
+        // The existing detection-only fallback is the feed URL, not a DMG.
+        #expect(outcome.remote?.downloadURL == server.url)
         #expect(outcome.warnings.contains(.installURLUnresolved))
     }
 

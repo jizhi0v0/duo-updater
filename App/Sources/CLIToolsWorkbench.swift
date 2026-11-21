@@ -88,8 +88,12 @@ struct CLIToolIcon: View {
     }
 
     private var logoHeight: CGFloat {
-        // These PNGs include transparent padding.
-        kind == .antigravityCLI || kind == .bub ? 0.8 : 0.6
+        switch kind {
+        // The transparent padding and the avatar frames leave less space for the mark.
+        case .antigravityCLI, .bub, .lorca: 0.8
+        case .managed where managed?.id == PyenvAdapter.id || managed?.id == RbenvAdapter.id: 0.85
+        default: 0.6
+        }
     }
 
     private var logo: String? {

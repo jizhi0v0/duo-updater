@@ -168,6 +168,7 @@ struct RecipeCodableTests {
                     (.responseBody, #"{"kind":"responseBody"}"#),
                     (.longbridgeManifest, #"{"kind":"longbridgeManifest"}"#),
                     (.dockerAppcast, #"{"kind":"dockerAppcast"}"#),
+                    (.jetBrainsIdeaEAP, #"{"kind":"jetBrainsIdeaEAP"}"#),
                     (.versionedDirectory(linkPattern: "(dir)(1.2)"),
                      #"{"kind":"versionedDirectory","linkPattern":"(dir)(1.2)"}"#),
                     (.zipEntryPlist(entry: "a/Info.plist", key: "K"),

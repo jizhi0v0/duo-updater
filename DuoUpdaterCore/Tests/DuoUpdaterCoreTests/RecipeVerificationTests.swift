@@ -128,6 +128,108 @@ import Network
             recipe: Self.recipe(url: server.url, pattern: shipping.versionPattern)).isEmpty)
     }
 
+    // Trimmed rows from JetBrains' data-services response. EAP 7 and the
+    // Beta were published before 2026.3.1 Preview led the list. Replaying the
+    // old latest=true envelope takes just the Beta row.
+    private static let ideaEAP7 = #"""
+    {"version":"2026.3","build":"263.7031.23","type":"eap","licenseRequired":false,"downloads":{
+      "macM1":{"link":"https://download.jetbrains.com/idea/idea-263.7031.23-aarch64.dmg"}
+    }}
+    """#
+    private static let ideaBeta = #"""
+    {"version":"2026.3","build":"263.7307.44","type":"eap","printableReleaseType":"Beta","licenseRequired":false,"downloads":{
+      "macM1":{"link":"https://download.jetbrains.com/idea/idea-263.7307.44-aarch64.dmg"}
+    }}
+    """#
+    private static let ideaPreview = #"""
+    {"version":"2026.3.1","build":"263.8311.30","type":"eap","printableReleaseType":"Preview","licenseRequired":true,"downloads":{
+      "macM1":{"link":"https://download.jetbrains.com/idea/idea-263.8311.30-aarch64.dmg"}
+    }}
+    """#
+
+    private static func ideaEAPRecipe(url: URL) throws -> VendorProbeRecipe {
+        try #require(VendorProbeRegistry.recipes.first {
+            $0.bundleID == "com.jetbrains.intellij-EAP" && $0.channel == .preview
+        }).with(url: url)
+    }
+
+    @Test(arguments: [
+        [ideaBeta], [ideaBeta, ideaEAP7], [ideaPreview, ideaEAP7, ideaBeta],
+    ])
+    func intelliJOffersTheSameEAPBuildWithOldAndMixedResponses(_ records: [String]) async throws {
+        let server = try StubServer(body: #"{"IIU":[\#(records.joined(separator: ","))]}"#)
+        defer { server.stop() }
+        let source = VendorProbeSource(recipes: [try Self.ideaEAPRecipe(url: server.url)])
+        func app(_ build: String) -> InstalledApp {
+            InstalledApp(name: "IntelliJ IDEA", bundleID: "com.jetbrains.intellij-EAP",
+                         shortVersion: "2026.3", buildVersion: "IU-\(build)",
+                         path: URL(fileURLWithPath: "/Applications/IntelliJ IDEA EAP.app"),
+                         isMASApp: false, sparkleFeedURL: nil, releaseChannel: .preview)
+        }
+
+        let old = app("263.7031.23")
+        let remote = try #require(try await source.latestVersion(for: old))
+        #expect(remote.version == "263.7307.44")
+        #expect(remote.vendorInstallerKind == .dmg)
+        #expect(remote.downloadURL?.absoluteString
+            == "https://download.jetbrains.com/idea/idea-263.7307.44-aarch64.dmg")
+        #expect(UpdateChecker.evaluate(installed: old, remote: remote)
+            == .updateAvailable(latest: "263.7307.44"))
+        #expect(UpdateChecker.evaluate(installed: app("263.7307.44"), remote: remote) == .upToDate)
+    }
+
+    @Test(arguments: [
+        #"{"IIU":[\#(ideaPreview)]}"#,
+        #"{"IIU":[{"build":"263.7307.44"},{"build":"263.7031.23","licenseRequired":"false"},{"build":"263.6800.24","licenseRequired":0}]}"#,
+        #"{"IU":[\#(ideaBeta)]}"#,
+        #"{"IIU":[\#(ideaBeta),{"build":"263.7307.44","licenseRequired":true}]}"#,
+    ])
+    func intelliJDoesNotOfferAnUnconfirmedEAPBuild(_ body: String) async throws {
+        let server = try StubServer(body: body)
+        defer { server.stop() }
+        let outcome = await VendorProbeSource().probeDiagnostic(try Self.ideaEAPRecipe(url: server.url))
+        #expect(outcome.remote == nil)
+        #expect(outcome.failure?.kind == "versionPatternNoMatch")
+    }
+
+    @Test(arguments: [
+        [
+            #"{"build":"263.7307.44","licenseRequired":false,"downloads":{"mac":{"link":"https://download.jetbrains.com/idea/idea-263.7307.44.dmg"}}}"#,
+            ideaEAP7,
+        ],
+        [
+            #"{"build":"263.7307.44","licenseRequired":false,"downloads":{"macM1":{"link":"https://download.jetbrains.com/idea/idea-263.8311.30-aarch64.dmg"}}}"#,
+            ideaEAP7,
+        ],
+        [
+            #"{"build":"263.7307.44","licenseRequired":false,"downloads":{"macM1":{"link":"https://example.invalid/idea/idea-263.7307.44-aarch64.dmg"}}}"#,
+            ideaEAP7,
+        ],
+        [ideaBeta, #"{"build":"263.7307.44","licenseRequired":false}"#],
+    ])
+    func intelliJRetainsDetectionWhenTheSelectedDMGCannotBeProved(_ records: [String]) async throws {
+        let server = try StubServer(body: #"{"IIU":[\#(records.joined(separator: ","))]}"#)
+        defer { server.stop() }
+        let outcome = await VendorProbeSource().probeDiagnostic(try Self.ideaEAPRecipe(url: server.url))
+        #expect(outcome.remote?.version == "263.7307.44")
+        #expect(outcome.remote?.vendorInstallerKind == nil)
+        #expect(outcome.remote?.downloadURL == nil)
+        #expect(outcome.warnings.contains(.installURLUnresolved))
+    }
+
+    @Test func intelliJEAPUsesOnlyTheFullDMGFromTheSelectedRecord() async throws {
+        let body = #"""
+        {"IIU":[\#(Self.ideaBeta)],"version":"263.7307.44",
+         "deltas":[{"from":"263.7031.23","url":"https://example.invalid/update.delta"}]}
+        """#
+        let server = try StubServer(body: body)
+        defer { server.stop() }
+        let outcome = await VendorProbeSource().probeDiagnostic(try Self.ideaEAPRecipe(url: server.url))
+        let remote = try #require(outcome.remote)
+        #expect(remote.vendorInstallerKind == .dmg)
+        #expect(remote.deltas.isEmpty)
+    }
+
     // MARK: - the silent failure: a pattern that matched the wrong scheme
 
     /// The Brave Beta regression from `92d6e30`. Nothing here fails: the fetch

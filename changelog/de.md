@@ -2,6 +2,20 @@
 
 Dies ist eine deutsche Übersetzung von `CHANGELOG.md`. Die englische Fassung ist maßgeblich; frühere Versionen, die hier nicht aufgeführt sind, fallen automatisch auf Englisch zurück.
 
+## 0.5.27
+
+**Docker Desktop folgt dem in Docker gewählten Kanal Stable oder Nightly.** Die Suche nach Updates für die stabile Version funktioniert wieder.
+
+**Alfred 6 kann im stabilen Kanal und im Vorschaukanal nach Updates suchen.** Alfred 5 erhält weiterhin eigene Updates und verlinkt bei verfügbarem Upgrade auf die offizielle Migrationsanleitung für Alfred 6.
+
+**IntelliJ IDEA EAP bleibt im EAP-Updatekanal.** Die Updatesuche berücksichtigt die Lizenzanforderungen der JetBrains-Vorschauversionen.
+
+**TestFlight-Apps bleiben in der Gruppe TestFlight**, auch wenn eine Betaversion mit deinem Mac nicht kompatibel ist.
+
+**Updates für GitHub Desktop, DSH NEXT, Bitwarden OSS und UTM funktionieren zuverlässiger.** Das betrifft das offizielle Installationspaket von GitHub Desktop, das neue Apple-Silicon-Paket von DSH NEXT, die Erkennung der OSS-Edition von Bitwarden und neu veröffentlichte UTM-Builds.
+
+**Die Versionshinweise für VMPal sind wieder verfügbar.**
+
 ## 0.5.26
 
 **Unterstützte Electron-Apps können nur die geänderten Teile herunterladen.** Ist ein wiederverwendbarer Download verfügbar, benötigen Updates weniger Daten; andernfalls wird das vollständige Paket geladen.

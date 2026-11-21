@@ -2,6 +2,20 @@
 
 本文档是 CHANGELOG.md 的简体中文翻译。英文版本是权威参考。未在本文档中列出的版本将自动回退至英文显示。
 
+## 0.5.27
+
+**Docker Desktop 会跟随你在 Docker 中选择的 Stable 或 Nightly 渠道更新。** 稳定版更新检查已恢复。
+
+**Alfred 6 支持检查稳定版和预览版更新。** Alfred 5 仍会收到本版本的更新，并在可升级时提供 Alfred 6 官方迁移指南。
+
+**IntelliJ IDEA EAP 会沿用 EAP 更新渠道。** 检查更新时会识别 JetBrains 预览版的授权要求。
+
+**TestFlight App 会留在 TestFlight 分组中**，即使某个测试版本与你的 Mac 不兼容。
+
+**GitHub Desktop、DSH NEXT、Bitwarden OSS 和 UTM 的更新更可靠。** 改进涵盖 GitHub Desktop 官方安装包、DSH NEXT 新的 Apple 芯片安装包、Bitwarden OSS 版本识别以及重新发布的 UTM 构建。
+
+**VMPal 的发布说明已恢复显示。**
+
 ## 0.5.26
 
 **受支持的 Electron 应用可只下载发生变化的部分。** 有可复用的下载时，更新会减少流量；否则会下载完整软件包。

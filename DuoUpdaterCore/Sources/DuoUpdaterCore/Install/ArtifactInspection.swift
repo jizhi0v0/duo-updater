@@ -204,11 +204,12 @@ public enum ArtifactInspection {
             let (identity, bundleWarnings) = try await offCooperativePool { () throws -> (Identity, [String]) in
                 try SignatureVerifier.verifyCodeSignature(appAt: app)
                 let identity = try identity(of: app)
-                // A matching Info.plist alone does not identify an Anthropic installer.
+                // Attribute map drift only to Anthropic's Apple-anchored Developer ID.
                 let isClaudeZIP = kind == .zip
                     && identity.bundleIdentifier == ClaudeDesktopChannel.bundleID
-                    && identity.signedIdentifier == ClaudeDesktopChannel.bundleID
-                    && identity.teamIdentifier == ClaudeDesktopChannel.teamIdentifier
+                    && CLIToolTrust.signature(
+                        of: app, teamIdentifier: ClaudeDesktopChannel.teamIdentifier,
+                        signingIdentifier: ClaudeDesktopChannel.bundleID) == .vendor
                 let warnings = isClaudeZIP
                     ? ClaudeDesktopChannel.installerWarnings(
                         asar: app.appendingPathComponent("Contents/Resources/app.asar"),

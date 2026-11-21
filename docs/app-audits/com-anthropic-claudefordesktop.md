@@ -33,8 +33,8 @@ Desktop 管理文件只含无法识别的键且偏好仍是 Latest 时，DuoUpda
   `vendor:com.anthropic.claudefordesktop:latest`。三个 recipe 都有安装 ZIP。
 - `duo verify --only com.anthropic.claudefordesktop` 实测三条版本源与共享的变更日志均通过。
   两条 Squirrel 路径需要扫描用户的 Claude `ant-did`，缺少设备 ID 的运行器只能覆盖 Stable GA。
-- 安装包夜扫在 ZIP 内的 Claude.app 验签并核对 bundle ID、签名标识和 Anthropic Team ID 后，
-  读取 `app.asar` 中的 Stable/Latest 映射。对 4.29.0 起的安装包，Latest UUID 与配方不一致时报
+- 安装包夜扫对 ZIP 内的 Claude.app 验签，核对 bundle ID、签名标识及 Apple Developer ID
+  证书中的 Anthropic Team ID，再读取 `app.asar` 中的 Stable/Latest 映射。对 4.29.0 起的安装包，Latest UUID 与配方不一致时报
   `claudeLatestChannelChanged`，缺失、格式无法识别或有矛盾时报 `claudeLatestChannelUnverified`。
   公开 Stable GA ZIP 即可检查包内映射，无需设备 ID。新版本随增量扫描检查，同版本同 URL 的包
   随现有周期性全量扫描复查。

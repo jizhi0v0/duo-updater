@@ -206,6 +206,72 @@ struct SparkleStagingTests {
     }
 
 
+    @Test func displayObservationFollowsSparkleDeltaFromUnreadableToSameBuildToNewer() throws {
+        try withScratch { root in
+            let caches = root.appendingPathComponent("Caches")
+            let installed = root.appendingPathComponent("Sparkly.app")
+            let app = sparkleApp(at: installed, short: "1.0", build: "20586")
+            let progress = parkedInstaller(in: caches)
+            func read(parked: [URL]) -> SelfUpdaterStaging.DisplayObservation {
+                SelfUpdaterStaging.displayObservation(
+                    for: app, parkedInstallerBundleURLs: parked, cachesDirectory: caches,
+                    installerRunsAsThisUser: true)
+            }
+
+            let copy = try stage(in: caches, short: "1.0", build: "20586")
+            try FileManager.default.removeItem(at: copy.appendingPathComponent("Contents/Info.plist"))
+            let unreadable = read(parked: [progress])
+            #expect(unreadable.staged == nil)
+            #expect(unreadable.armed)
+            #expect(unreadable.needsRecheck)
+            #expect(!read(parked: []).needsRecheck)
+
+            _ = try stage(in: caches, short: "1.0", build: "20586")
+            let sameBuild = read(parked: [progress])
+            #expect(sameBuild.staged == nil)
+            #expect(!sameBuild.armed)
+            #expect(sameBuild.needsRecheck)
+
+            _ = try stage(in: caches, short: "1.0", build: "20770")
+            let newer = read(parked: [progress])
+            #expect(newer.staged?.buildVersion == "20770")
+            #expect(!newer.armed)
+            #expect(!newer.needsRecheck)
+
+            let abandoned = read(parked: [])
+            #expect(abandoned.staged == nil)
+            #expect(!abandoned.armed)
+            #expect(!abandoned.needsRecheck)
+        }
+    }
+
+    @Test func displayObservationDoesNotRetryAnOlderCopyOrEmptyUserCache() throws {
+        try withScratch { root in
+            let caches = root.appendingPathComponent("Caches")
+            let installed = root.appendingPathComponent("Sparkly.app")
+            let app = sparkleApp(at: installed, short: "1.0", build: "20586")
+            let parked = [parkedInstaller(in: caches)]
+
+            _ = try stage(in: caches, short: "1.0", build: "20585")
+            let older = SelfUpdaterStaging.displayObservation(
+                for: app, parkedInstallerBundleURLs: parked, cachesDirectory: caches,
+                installerRunsAsThisUser: true)
+            #expect(older.staged == nil)
+            #expect(!older.armed)
+            #expect(!older.needsRecheck)
+
+            try FileManager.default.removeItem(at: caches)
+            for sameUser in [true, false] {
+                let empty = SelfUpdaterStaging.displayObservation(
+                    for: app, parkedInstallerBundleURLs: parked, cachesDirectory: caches,
+                    installerRunsAsThisUser: sameUser)
+                #expect(empty.staged == nil)
+                #expect(empty.armed == !sameUser)
+                #expect(!empty.needsRecheck)
+            }
+        }
+    }
+
     // MARK: - Reaching the shared `staged(for:)` entry point
 
     /// A Sparkle app with a newer build staged now answers the same question a

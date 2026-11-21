@@ -166,6 +166,51 @@ public enum SelfUpdaterStaging {
     private static let spotifyBundleID = "com.spotify.client"
     static let magpieBundleID = "com.yetone.magpie"
 
+    public struct DisplayObservation: Sendable {
+        public let staged: StagedSelfUpdate?
+        public let armed: Bool
+        public let needsRecheck: Bool
+    }
+
+    /// Read the display state once so a plist changing between reads cannot
+    /// yield both a versioned Relaunch and an armed (version unknown) row.
+    public static func displayObservation(
+        for app: InstalledApp,
+        parkedInstallerBundleURLs: [URL],
+        cachesDirectory: URL? = nil,
+        installerRunsAsThisUser: Bool? = nil,
+        fileManager: FileManager = .default
+    ) -> DisplayObservation {
+        let usesSparkle = !app.hasSelfUpdater && app.hasSparkleUpdater
+            && app.bundleID != spotifyBundleID
+            && app.bundleID != magpieBundleID && !isMozillaBundleID(app.bundleID)
+        let otherStaged = usesSparkle ? nil : staged(
+            for: app, cachesDirectory: cachesDirectory,
+            parkedInstallerBundleURLs: parkedInstallerBundleURLs, fileManager: fileManager)
+        guard let roots = parkedSparkleRoots(
+            app, cachesDirectory: cachesDirectory,
+            parkedInstallerBundleURLs: parkedInstallerBundleURLs, fileManager: fileManager)
+        else { return DisplayObservation(staged: otherStaged, armed: false, needsRecheck: false) }
+
+        if let copy = readSparkleStagedBundle(
+            bundleID: app.bundleID, sparkleRoots: roots, fileManager: fileManager) {
+            let newer = VersionComparator.isNewer(copy.versionSide, than: app.versionSide)
+            return DisplayObservation(
+                staged: usesSparkle && newer ? copy : otherStaged, armed: false,
+                needsRecheck: usesSparkle && !newer
+                    && VersionComparator.isSame(copy.versionSide, as: app.versionSide))
+        }
+
+        let stagingGone = sparkleStagingIsGone(sparkleRoots: roots, fileManager: fileManager)
+        let armed = !stagingGone || !(installerRunsAsThisUser
+            ?? sameUserSparkleInstallerRunning(for: app, sparkleRoots: roots))
+        // A live agent and populated staging can be a delta still writing its
+        // plist. With empty same-user staging, preserve the existing orphan or
+        // root-cache fallback without starting a short polling sequence.
+        return DisplayObservation(
+            staged: otherStaged, armed: armed, needsRecheck: usesSparkle && !stagingGone)
+    }
+
     /// The staged self-update for `app`, or nil when there isn't one. Returns nil
     /// unless: the app ships a self-updater, a ShipIt state file names *this exact
     /// bundle* as its target, the staged bundle still exists on disk, and its
@@ -612,8 +657,7 @@ public enum SelfUpdaterStaging {
         parkedInstallerBundleURLs: [URL]? = nil,
         fileManager: FileManager = .default
     ) -> StagedSelfUpdate? {
-        guard let bundleID = app.bundleID,
-              let sparkleRoots = sparkleCacheRoots(
+        guard let sparkleRoots = sparkleCacheRoots(
                 for: app, cachesDirectory: cachesDirectory, fileManager: fileManager)
         else { return nil }
 
@@ -622,6 +666,14 @@ public enum SelfUpdaterStaging {
         guard hasParkedSparkleInstaller(for: app, sparkleRoots: sparkleRoots, parked: parked)
         else { return nil }
 
+        return readSparkleStagedBundle(
+            bundleID: app.bundleID, sparkleRoots: sparkleRoots, fileManager: fileManager)
+    }
+
+    private static func readSparkleStagedBundle(
+        bundleID: String?, sparkleRoots: [URL], fileManager: FileManager
+    ) -> StagedSelfUpdate? {
+        guard let bundleID else { return nil }
         // Where the installer stages is the cache of the user it RUNS AS, which is
         // not always this one — see `sparkleInstallerArmedWithUnreadableStaging`.
         // This walk can only ever see a same-user install.
@@ -753,19 +805,27 @@ public enum SelfUpdaterStaging {
         _ app: InstalledApp, cachesDirectory: URL?,
         parkedInstallerBundleURLs: [URL]?, fileManager: FileManager
     ) -> [URL]? {
-        // Same admission as `staged(for:)`'s Sparkle branch.
+        guard let sparkleRoots = parkedSparkleRoots(
+            app, cachesDirectory: cachesDirectory,
+            parkedInstallerBundleURLs: parkedInstallerBundleURLs, fileManager: fileManager),
+              readSparkleStagedBundle(
+                bundleID: app.bundleID, sparkleRoots: sparkleRoots, fileManager: fileManager) == nil
+        else { return nil }
+        return sparkleRoots
+    }
+
+    private static func parkedSparkleRoots(
+        _ app: InstalledApp, cachesDirectory: URL?,
+        parkedInstallerBundleURLs: [URL]?, fileManager: FileManager
+    ) -> [URL]? {
         guard !app.hasSelfUpdater, app.hasSparkleUpdater,
               app.bundleID != spotifyBundleID,
               let sparkleRoots = sparkleCacheRoots(
                 for: app, cachesDirectory: cachesDirectory, fileManager: fileManager)
         else { return nil }
         let parked = parkedInstallerBundleURLs ?? liveParkedSparkleInstallers()
-        guard hasParkedSparkleInstaller(for: app, sparkleRoots: sparkleRoots, parked: parked),
-              sparkleStagedBundle(
-                for: app, cachesDirectory: cachesDirectory,
-                parkedInstallerBundleURLs: parked, fileManager: fileManager) == nil
-        else { return nil }
-        return sparkleRoots
+        return hasParkedSparkleInstaller(for: app, sparkleRoots: sparkleRoots, parked: parked)
+            ? sparkleRoots : nil
     }
 
     /// Cheapest first: the process walk only runs once the cache is found empty.

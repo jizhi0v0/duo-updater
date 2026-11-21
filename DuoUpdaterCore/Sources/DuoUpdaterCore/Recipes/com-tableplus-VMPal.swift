@@ -21,7 +21,7 @@ enum com_tableplus_VMPal {
             source: URL(string: "https://vmpal.com/blog/changelogs")!,
             entryPattern:
                 #"<h3\b[^>]*>\s*Version\s+(?<version>\d+\.\d+(?:\.\d+)?)\s*\(\d+\)\s*</h3>"#
-                + #"(?:\s*<h4\b[^>]*>\s*Release date:\s*(?<date>[^.<]+)\.?\s*</h4>)?"#
+                + #"(?:\s*<h4\b[^>]*>\s*Release date:\s*(?<date>[0-9]{1,2} [A-Za-z]+ [0-9]{4})\.?\s*</h4>)?"#
                 + #"(?:\s*<h5\b[^>]*>\s*<a\b[^>]*>Download</a>\s*</h5>)?"#
                 + #"\s*<ul\b[^>]*>(?<body>(?:(?!<h3\b).)*?)</ul>"#,
             itemPatterns: [#"<li\b[^>]*>\s*(?<item>.*?)\s*</li>"#]),

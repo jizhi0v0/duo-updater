@@ -269,6 +269,8 @@ final class AppListModel {
     /// `computeSelfUpdateStaging`, which moves a row from here into
     /// `pendingSelfUpdate` when the privileged helper can name the build (#588).
     private(set) var armedSelfInstallers: Set<String> = []
+    @ObservationIgnored private var stagingRecheck = StagingRecheck()
+    @ObservationIgnored private var stagingRecheckTask: Task<Void, Never>?
     /// Installer packages already downloaded and handed to the system installer,
     /// keyed by row id. While one is present and still matches the version on offer,
     /// the row shows "Install" (re-open the local package) rather than "Update"
@@ -6911,80 +6913,87 @@ final class AppListModel {
     /// plist/json parse per candidate), plus one LaunchServices query for the
     /// parked Sparkle installers, which is why it does not belong on the main
     /// actor.
-    private func computeSelfUpdateStaging() async {
-        let apps = results.map(\.app).filter(SelfUpdaterStaging.mayHaveStaging)
-        var (staged, armed) = await Task.detached(priority: .utility) {
-            // Asked once for the whole sweep rather than per app: the answer is a
-            // single global list either way, and `mayHaveStaging` admits every
-            // Sparkle app on the machine.
-            let parked = SelfUpdaterStaging.liveParkedSparkleInstallers()
-            var map: [String: StagedSelfUpdate] = [:]
-            var armed: Set<String> = []
-            for app in apps {
-                if let s = SelfUpdaterStaging.staged(
-                    for: app, parkedInstallerBundleURLs: parked) { map[app.id] = s }
-                if SelfUpdaterStaging.sparkleInstallerArmedWithUnreadableStaging(
-                    for: app, parkedInstallerBundleURLs: parked) { armed.insert(app.id) }
-            }
-            return (map, armed)
-        }.value
-        // An armed row whose staging only root can read: ask the helper which
-        // build it is, and give the row the versioned Relaunch when the answer
-        // is one (#588). Display only — the install gate and the restart
-        // standoff re-read the armed state themselves and never see this.
-        for (id, rootStaged) in await rootStagedSelfUpdates(armed: armed) {
-            staged[id] = rootStaged
-            armed.remove(id)
+    private func computeSelfUpdateStaging(isRecheck: Bool = false) async {
+        guard !Task.isCancelled else { return }
+        stagingRecheckTask?.cancel()
+        stagingRecheckTask = nil
+        let clock = ContinuousClock()
+        let sweep = stagingRecheck.begin(retry: isRecheck, at: clock.now)
+        defer {
+            if stagingRecheck.isCurrent(sweep) { scheduleStagingRecheck() }
         }
-        pendingSelfUpdate = staged
-        armedSelfInstallers = armed
+        let rowsGeneration = resultsGeneration
+        let retryIDs = isRecheck ? stagingRecheck.unsettledIDs : nil
+        let isCandidate: (InstalledApp) -> Bool = { app in
+            SelfUpdaterStaging.mayHaveStaging(app) && (retryIDs?.contains(app.id) ?? true)
+        }
+        let apps = results.map(\.app).filter(isCandidate)
+        var (staged, armed, unsettled) = await Task.detached(priority: .utility) {
+            // A fresh, shared liveness query for each sweep, including retries.
+            let parked = SelfUpdaterStaging.liveParkedSparkleInstallers()
+            var staged: [String: StagedSelfUpdate] = [:]
+            var armed: Set<String> = []
+            var unsettled: Set<String> = []
+            for app in apps {
+                let read = SelfUpdaterStaging.displayObservation(
+                    for: app, parkedInstallerBundleURLs: parked)
+                // This pass did not rescan installed bundles. If the bundle on
+                // disk moved, let its next regular refresh replace the row
+                // before offering to apply another build.
+                if isRecheck, (read.staged != nil || read.armed || read.needsRecheck),
+                   !VersionComparator.isSame(StagedRelaunch.diskVersionSide(app.path), as: app.versionSide) {
+                    continue
+                }
+                if let update = read.staged { staged[app.id] = update }
+                if read.armed { armed.insert(app.id) }
+                if read.needsRecheck { unsettled.insert(app.id) }
+            }
+            return (staged, armed, unsettled)
+        }.value
+        guard !Task.isCancelled, stagingRecheck.isCurrent(sweep) else { return }
+
+        // The helper only names builds for the display. Install and relaunch
+        // gates still re-read the live state themselves.
+        var rootVersions: [String: SelfUpdaterStaging.RootStagedVersions] = [:]
+        for app in apps where armed.contains(app.id) {
+            guard let bundleID = app.bundleID else { continue }
+            rootVersions[app.id] = await stagedVersionReader.read(bundleID: bundleID)
+            guard !Task.isCancelled, stagingRecheck.isCurrent(sweep) else { return }
+        }
+        // Other refreshes can replace a row while this sweep reads. Reordering
+        // or changing only the remote offer is fine, but an installed snapshot
+        // that moved under the read must not publish old staging.
+        guard rowsGeneration == resultsGeneration
+                || Set(apps) == Set(results.map(\.app).filter(isCandidate))
+        else { return }
+        for result in results where armed.contains(result.id) {
+            if let rootStaged = SelfUpdaterStaging.rootStagedUpdate(
+                for: result, armed: true, read: rootVersions[result.id]) {
+                staged[result.id] = rootStaged
+                armed.remove(result.id)
+                unsettled.remove(result.id)
+            }
+        }
+        if let retryIDs {
+            var currentStaging = pendingSelfUpdate
+            for id in retryIDs { currentStaging[id] = staged[id] }
+            pendingSelfUpdate = currentStaging
+            armedSelfInstallers = armedSelfInstallers.subtracting(retryIDs).union(armed)
+        } else {
+            pendingSelfUpdate = staged
+            armedSelfInstallers = armed
+        }
+        stagingRecheck.complete(sweep, unsettled: unsettled, at: clock.now)
         if !armed.isEmpty {
             let names = results.filter { armed.contains($0.id) }.map(\.app.name).joined(separator: ", ")
             Log.app.info("self-update armed, staging unreadable (relaunch pending): \(names, privacy: .public)")
         }
-        // Drop armed staged-swap hand-offs whose staging is gone or now points at a
-        // different version: each such marker is bound to the exact build it was
-        // armed for, and must not outlive it. (A hand-off already relaying removed
-        // its marker synchronously in `settleQuitHandoffs`, so this can't cancel one
-        // in flight.) The other landings aren't derived from `pendingSelfUpdate` at
-        // all — their build is already on disk, or is App Store's to deliver — so
-        // this sweep must not touch them; only the age check retires those.
-        // Drop only when the staging is GONE; when it merely MOVED, re-target.
-        // Dropping on any difference conflated the two, so a vendor shipping
-        // another build inside the marker's ten-minute life destroyed it — and
-        // the marker exists precisely to reopen an app that would otherwise stay
-        // closed after the swap. See `RelaunchLanding.retargeted`.
-        //
-        // Gone can also mean LANDED: the installer clears its staging once the
-        // swap is in, so read disk for those markers and let one that has landed
-        // relay as `.applied`. Read before touching the map, so the rewrite below
-        // stays one synchronous step; a marker armed during the read gets no disk
-        // reading and is judged as before.
-        var landedDisk: [String: VersionSide] = [:]
-        for (id, handoff) in quitHandoffs where pendingSelfUpdate[id] == nil {
-            if case .stagedSwap = handoff.landing {
-                landedDisk[id] = await Self.readVersionSideOffMain(handoff.result.app.path)
-            }
+        // A short reread is for the row and its notification. The regular
+        // refresh owns handoffs and downloaded installer packages.
+        if !isRecheck {
+            await reconcileStagedQuitHandoffs(sweep: sweep)
+            guard !Task.isCancelled, stagingRecheck.isCurrent(sweep) else { return }
         }
-        var becameApplied = false
-        quitHandoffs = quitHandoffs.compactMapValues { handoff in
-            guard let landing = handoff.landing.retargeted(
-                nowStaged: pendingSelfUpdate[handoff.result.id]?.versionSide,
-                disk: landedDisk[handoff.result.id],
-                appRunning: !AppRestarter.runningInstances(of: handoff.result.app).isEmpty)
-            else { return nil }
-            if landing == handoff.landing { return handoff }
-            if landing == .applied {
-                becameApplied = true
-                Log.app.notice("relaunch-handoff: \(handoff.result.app.name, privacy: .public) — staging cleared and the swap is on disk; relaunching once it is gone")
-            }
-            return QuitHandoff(
-                result: handoff.result, landing: landing,
-                activates: handoff.activates, armedAt: handoff.armedAt)
-        }
-        // Its terminate event may already have come and gone while the marker
-        // still waited on the staging, so settle now rather than on the next one.
-        if becameApplied { settleQuitHandoffs() }
         // Dismiss delivered "Relaunch to apply it" banners for every row that is not
         // currently offering a Relaunch. The standing question ("who should have a
         // banner right now?"), NOT the transition one ("who left the set since last
@@ -7026,28 +7035,68 @@ final class AppListModel {
         // Announce whatever is newly staged. Nothing here re-announces a build the
         // user has already been told about, so running this every pass is quiet.
         notifyStagedRelaunches()
-        // Same bookkeeping pass, same preconditions (`results` is current): drop any
-        // downloaded installer package that no longer matches what's on offer.
-        pruneStagedPackages()
+        // The regular bookkeeping pass can also retire installer packages.
+        if !isRecheck { pruneStagedPackages() }
     }
 
-    /// For each armed row, the staged update the privileged helper reads from
-    /// root's cache, kept only when it is one the row should show
-    /// (`SelfUpdaterStaging.rootStagedUpdate`). Empty when nothing is armed — the
-    /// usual case, which costs no XPC at all — and for every row the helper
-    /// cannot answer for: off, too old, silent, or nothing readable.
-    private func rootStagedSelfUpdates(armed: Set<String>) async -> [String: StagedSelfUpdate] {
-        guard !armed.isEmpty else { return [:] }
-        var found: [String: StagedSelfUpdate] = [:]
-        for result in results where armed.contains(result.id) {
-            guard let bundleID = result.app.bundleID else { continue }
-            let read = await stagedVersionReader.read(bundleID: bundleID)
-            if let rootStaged = SelfUpdaterStaging.rootStagedUpdate(
-                for: result, armed: true, read: read) {
-                found[result.id] = rootStaged
+    private func scheduleStagingRecheck() {
+        guard let deadline = stagingRecheck.deadline else { return }
+        stagingRecheckTask = Task { [weak self] in
+            do { try await ContinuousClock().sleep(until: deadline) } catch { return }
+            guard !Task.isCancelled, let self else { return }
+            // The sweep owns the next wait. Clearing this before it starts
+            // keeps it from canceling itself at the top of the read.
+            self.stagingRecheckTask = nil
+            Log.app.debug("self-update staging recheck")
+            await self.computeSelfUpdateStaging(isRecheck: true)
+        }
+    }
+
+    private func reconcileStagedQuitHandoffs(sweep: StagingRecheck.Sweep) async {
+        // Drop armed staged-swap hand-offs whose staging is gone or now points at a
+        // different version: each such marker is bound to the exact build it was
+        // armed for, and must not outlive it. (A hand-off already relaying removed
+        // its marker synchronously in `settleQuitHandoffs`, so this can't cancel one
+        // in flight.) The other landings aren't derived from `pendingSelfUpdate` at
+        // all — their build is already on disk, or is App Store's to deliver — so
+        // this sweep must not touch them; only the age check retires those.
+        // Drop only when the staging is GONE; when it merely MOVED, re-target.
+        // Dropping on any difference conflated the two, so a vendor shipping
+        // another build inside the marker's ten-minute life destroyed it — and
+        // the marker exists precisely to reopen an app that would otherwise stay
+        // closed after the swap. See `RelaunchLanding.retargeted`.
+        //
+        // Gone can also mean LANDED: the installer clears its staging once the
+        // swap is in, so read disk for those markers and let one that has landed
+        // relay as `.applied`. Read before touching the map, so the rewrite below
+        // stays one synchronous step; a marker armed during the read gets no disk
+        // reading and is judged as before.
+        var landedDisk: [String: VersionSide] = [:]
+        for (id, handoff) in quitHandoffs where pendingSelfUpdate[id] == nil {
+            if case .stagedSwap = handoff.landing {
+                landedDisk[id] = await Self.readVersionSideOffMain(handoff.result.app.path)
+                guard !Task.isCancelled, stagingRecheck.isCurrent(sweep) else { return }
             }
         }
-        return found
+        var becameApplied = false
+        quitHandoffs = quitHandoffs.compactMapValues { handoff in
+            guard let landing = handoff.landing.retargeted(
+                nowStaged: pendingSelfUpdate[handoff.result.id]?.versionSide,
+                disk: landedDisk[handoff.result.id],
+                appRunning: !AppRestarter.runningInstances(of: handoff.result.app).isEmpty)
+            else { return nil }
+            if landing == handoff.landing { return handoff }
+            if landing == .applied {
+                becameApplied = true
+                Log.app.notice("relaunch-handoff: \(handoff.result.app.name, privacy: .public) — staging cleared and the swap is on disk; relaunching once it is gone")
+            }
+            return QuitHandoff(
+                result: handoff.result, landing: landing,
+                activates: handoff.activates, armedAt: handoff.armedAt)
+        }
+        // Its terminate event may already have come and gone while the marker
+        // still waited on the staging, so settle now rather than on the next one.
+        if becameApplied { settleQuitHandoffs() }
     }
 
     // MARK: - Staged installer packages

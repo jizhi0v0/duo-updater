@@ -14,6 +14,7 @@ public struct FixStorageInstall: Sendable, Equatable {
 /// package into ~/.fix-storage; the installer links ~/.local/bin to that
 /// copy. The first public release has no --version switch.
 public struct FixStorageProvider: CLIToolProvider {
+    // History: docs/app-audits/fix-storage.md#历史与实测
     public let kind: CLIToolKind = .fixStorage
 
     private static let repository = "govijr/fix-storage"

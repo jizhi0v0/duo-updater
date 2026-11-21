@@ -31,7 +31,7 @@ public struct RbenvAdapter: ManagerAdapter {
     public static let id = ManagerID("rbenv")
 
     public static let descriptor = ManagerDescriptor(
-        id: id, displayName: "rbenv", signer: nil, logo: nil, tint: .label, lane: "rbenv",
+        id: id, displayName: "rbenv", signer: nil, logo: "cli-rbenv", tint: .label, lane: "rbenv",
         deadline: DefinitionLines.deadline)
 
     public var descriptor: ManagerDescriptor { Self.descriptor }

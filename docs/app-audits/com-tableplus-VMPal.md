@@ -51,9 +51,9 @@
 - 阻塞项: 无
 
 ## Changelog
-- 来源: `ChangelogRecipe`，`https://vmpal.com/changelog`
+- 来源: `ChangelogRecipe`，[VMPal macOS 发布说明](https://vmpal.com/blog/changelogs)。
 - 跟随 channel: 不适用（单轨）
-- Recipe 状态: 已有。页面每个构建一个 `<li class="vp-release">`：`<h2>VMPal 0.36</h2>`、`<time datetime="2026-10-06">`、`<div class="vp-release-body"><ul><li>…`。
+- 页面按版本列出 `<h3>Version … (…)</h3>`、`<h4>Release date: …</h4>`、下载链接和 `<ul>` 变更列表。Recipe 匹配相邻元素，只在版本自己的列表里读取变更。
 - 为什么不用 appcast 内联说明：`<description>` 是 TablePlus feed 同款模板（`<h2>Build 36 - Virtual Machines for Apple Silicon</h2>`、`<h4>Release date…</h4>`、`<ol>`）。生产的 `AppcastHTMLChangelogParser` 把 `<h2>` 当成一条变更，结果每个版本第一条都是「Build 36 - Virtual Machines for Apple Silicon」，日期也是 RFC 822 原文。recipe 在面板里排在内联说明前面，所以不会出现这个问题。
 - recipe 抓取失败时（页面取不到或正则不再匹配）：面板先找 `changelogURL`——这个 feed 没有 `releaseNotesLink`，也没登记 `ChangelogCatalog`，所以是 nil——然后退到 feed 的内联 `<description>`（`releaseNotesHTML`），经 `ReleaseNotesText` 按 HTML 渲染，也就是上面那份 TablePlus 模板正文，而不是空态（`WorkbenchWindowView.fallback`）。看到这份模板正文，说明 recipe 失效了。
 
@@ -123,3 +123,4 @@ lsof -p <VMPalMachine pid> | awk '$4=="txt"'   # VM 进程的可执行文件
 - 2026-10-06：对 recipe 做变异：去掉日期组的 `(?!</li>)` 后，没有 `<time>` 的条目会一直吞到下一个 release，拿走对方的日期和条目，`extractsVMPalEntriesInOrder` 变红；恢复后变绿。
 - 2026-11-02：0.113 → 0.114 由 VMPal 自己的 Sparkle 安装，卡在它自己回 `NSTerminateCancel`；duo 的 Relaunch、`duo restart`、菜单 Quit 三种请求都没能让它退出，强杀后一秒装好。日志、`launchctl` 作业状态与结论见「已知问题」。
 - 2026-11-03：补 #1783。换包 unlink 掉仍在运行的 helper 的可执行文件后，`proc_pidpath` 返回 ENOENT，守卫曾整条丢弃该进程、`blockers` 为空；现在回落到 `KERN_PROCARGS2` 保存的 exec 路径，VM 在跑时照样拒绝。
+- 2026-11-21：实测旧 `/changelog` 重定向到 `/blog/changelogs`，页面由 `vp-release` 列表改为博客标题与变更列表，触发 #2138。新正则匹配实测页面的全部 79 个版本块，最新 `0.124`（19 November 2026，两条变更）与 Sparkle 当时提供的版本一致。新版页面也改写了 0.36 的历史说明，需让旧缓存重新抓取。夜间监控继续使用 `changelog:com.tableplus.vmpal:-`。

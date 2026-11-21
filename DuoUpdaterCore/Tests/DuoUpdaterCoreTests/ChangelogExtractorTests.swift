@@ -56,41 +56,21 @@ private let tablePlusFixture = """
 </ul>
 """
 
-// vmpal.com/changelog. The second block is verbatim from the page on 2026-10-06
-// (its only release then). The first is the same template with `<time>` and the
-// download link removed: it proves a release without a date does not borrow the
-// next release's `datetime`.
+// Two consecutive releases from the macOS blog, with the older list trimmed.
 private let vmPalFixture = """
-<ol class="vp-changelog">
-  <li class="vp-release" id="build-37">
-    <div class="vp-release-meta">
-      <h2>VMPal 0.37</h2>
-      <p>Build 37</p>
-    </div>
-    <div class="vp-release-body">
-      <ul>
-        <li>Faster snapshots.</li>
-        <li>Fixed a crash when &quot;Pause&quot; was pressed twice.</li>
-      </ul>
-    </div>
-  </li>
-  <li class="vp-release" id="build-36">
-    <div class="vp-release-meta">
-      <h2>VMPal 0.36</h2>
-      <p>Build 36</p>
-      <time datetime="2026-10-06">6 October 2026</time>
-      <a class="vp-release-download" href="https://files.vmpal.com/macos/0.36/VMPal.dmg">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m-4-4 4 4 4-4M5 16v4h14v-4" /></svg>
-        Download build 36
-      </a>
-    </div>
-    <div class="vp-release-body">
-      <ul>
-        <li>Bug fixes and improvements.</li>
-      </ul>
-    </div>
-  </li>
-</ol>
+<h3 id="version-0124-124">Version 0.124 (124)</h3>
+<h4 id="release-date-19-november-2026">Release date: 19 November 2026.</h4>
+<h5 id="downloadhttpsfilesvmpalcommacos0124vmpaldmg"><a href="https://files.vmpal.com/macos/0.124/VMPal.dmg">Download</a></h5>
+<ul>
+<li>Reclaim Disk Space now gives back all the free space.</li>
+<li>Bug fixes and improvements.</li>
+</ul>
+<h3 id="version-0123-123">Version 0.123 (123)</h3>
+<h4 id="release-date-18-november-2026">Release date: 18 November 2026.</h4>
+<h5 id="downloadhttpsfilesvmpalcommacos0123vmpaldmg"><a href="https://files.vmpal.com/macos/0.123/VMPal.dmg">Download</a></h5>
+<ul>
+<li>AI agents read Windows and macOS apps faster, without screenshots.</li>
+</ul>
 """
 
 // A trimmed fixture mirroring LM Studio's real Next.js /changelog/lmstudio index
@@ -728,15 +708,36 @@ private let ghosttyFixture = """
     let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "com.tableplus.VMPal"))
     let changelog = try #require(ChangelogExtractor.extract(from: vmPalFixture, using: recipe))
 
-    #expect(changelog.entries.count == 2)
-    #expect(changelog.entries[0].version == "0.37")
-    #expect(changelog.entries[0].date == nil)
+    try #require(changelog.entries.count == 2)
+    #expect(changelog.entries[0].version == "0.124")
+    #expect(changelog.entries[0].date == "19 November 2026")
     #expect(changelog.entries[0].items == [
-        "Faster snapshots.", "Fixed a crash when \"Pause\" was pressed twice.",
+        "Reclaim Disk Space now gives back all the free space.",
+        "Bug fixes and improvements.",
     ])
-    #expect(changelog.entries[1].version == "0.36")
-    #expect(changelog.entries[1].date == "2026-10-06")
-    #expect(changelog.entries[1].items == ["Bug fixes and improvements."])
+    #expect(changelog.entries[1].version == "0.123")
+    #expect(changelog.entries[1].date == "18 November 2026")
+    #expect(changelog.entries[1].items == [
+        "AI agents read Windows and macOS apps faster, without screenshots.",
+    ])
+}
+
+@Test func partialVMPalEntriesCannotBorrowTheNextReleaseNotes() throws {
+    let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "com.tableplus.VMPal"))
+    let partialFixture = """
+    <h3 id="version-0127-127">Version 0.127 (127)</h3>
+    <ul><li>Unfinished list.</li>
+    <h3 id="version-0126-126">Version 0.126 (126)</h3>
+    <h4>Release date: 21 November 2026.</h4>
+    <h3 id="version-0125-125">Version 0.125 (125)</h3>
+    <ul><li>Undated release.</li></ul>
+    """ + "\n" + vmPalFixture
+    let changelog = try #require(ChangelogExtractor.extract(from: partialFixture, using: recipe))
+
+    #expect(changelog.entries.map(\.version) == ["0.125", "0.124", "0.123"])
+    let first = try #require(changelog.entries.first)
+    #expect(first.date == nil)
+    #expect(first.items == ["Undated release."])
 }
 
 @Test func extractsConductorEntriesInOrder() throws {

@@ -133,8 +133,10 @@ import Foundation
     /// neither fixture: pinned by CorkRecipeTests and InkscapeChangelogRecipeTests.
     /// 22 (Longbridge Pro's official RSS) moves neither fixture. Pinned by
     /// `stableReadsVersionedSummariesFromTheOfficialRSS`.
+    /// 24 (VMPal's macOS blog) moves neither fixture. Pinned by
+    /// `extractsVMPalEntriesInOrder`.
     @Test func pinnedGeneration() {
-        #expect(Changelog.parserGeneration == 23)
+        #expect(Changelog.parserGeneration == 24)
     }
 
     /// Stable (v4.3.6, bulleted): exercises `skipSections` — the `### Included

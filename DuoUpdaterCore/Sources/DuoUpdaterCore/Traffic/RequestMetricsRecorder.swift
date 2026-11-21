@@ -37,30 +37,25 @@ public final class RequestMetricsRecorder: NSObject, URLSessionTaskDelegate, @un
     private let purpose: RequestPurpose
     private let appID: String?
     private let store: EventStore
-    private let rateBudget: GitHubRateBudget.Store
+    private let rateBudget: GitHubRateBudget.Store?
     /// The GitHub credentials generation the request is made under, read here,
     /// in the calling task, for the reason the attribution is (see
     /// `countedData`): the budget keeps only answers to the credentials in use.
-    private let credentialGeneration: Int
+    private let credentialGeneration: Int?
 
-    public init(
+    public convenience init(
         _ purpose: RequestPurpose, appID: String? = nil, store: EventStore = .shared
     ) {
+        self.init(purpose, appID: appID, store: store, rateBudget: .shared)
+    }
+
+    /// A request can log its metrics without updating the displayed budget.
+    init(_ purpose: RequestPurpose, appID: String? = nil, store: EventStore, rateBudget: GitHubRateBudget.Store?) {
         self.purpose = purpose
         self.appID = appID
         self.store = store
-        self.rateBudget = .shared
-        self.credentialGeneration = GitHubRateBudget.Store.shared.requestGeneration()
-        super.init()
-    }
-
-    /// The test seam for where a GitHub API answer's budget goes.
-    init(_ purpose: RequestPurpose, store: EventStore, rateBudget: GitHubRateBudget.Store) {
-        self.purpose = purpose
-        self.appID = nil
-        self.store = store
         self.rateBudget = rateBudget
-        self.credentialGeneration = rateBudget.requestGeneration()
+        self.credentialGeneration = rateBudget?.requestGeneration()
         super.init()
     }
 
@@ -68,9 +63,10 @@ public final class RequestMetricsRecorder: NSObject, URLSessionTaskDelegate, @un
         _ session: URLSession, task: URLSessionTask,
         didFinishCollecting metrics: URLSessionTaskMetrics
     ) {
-        // Every GitHub API fetch passes here, so this is where Settings ▸ GitHub
-        // learns what is left of the budget, without a request of its own.
-        rateBudget.observe(metrics, generation: credentialGeneration)
+        // Ordinary GitHub API responses update the Settings snapshot here.
+        if let credentialGeneration {
+            rateBudget?.observe(metrics, generation: credentialGeneration)
+        }
         let events = Self.events(from: metrics, task: task, purpose: purpose, appID: appID)
         guard !events.isEmpty else { return }
         // Synchronous hand-off, not `Task { await store.append(…) }`. This
@@ -243,7 +239,8 @@ public extension URLSession {
         followsTokenRejection: Bool = true, gate: GitHubRateLimitGate.Store? = GitHubRateLimitGate.active
     ) async throws -> (Data, URLResponse) {
         guard followsTokenRejection else {
-            return try await recordedData(for: request, purpose: purpose, store: store)
+            // A pasted token is still being verified and has no current reading.
+            return try await recordedData(for: request, purpose: purpose, store: store, rateBudget: nil)
         }
         // Read in the calling task, for the attribution's reason below: a round
         // pins its generation in a task-local.
@@ -281,7 +278,8 @@ public extension URLSession {
     }
 
     private func recordedData(
-        for request: URLRequest, purpose: RequestPurpose, store: EventStore
+        for request: URLRequest, purpose: RequestPurpose, store: EventStore,
+        rateBudget: GitHubRateBudget.Store? = .shared
     ) async throws -> (Data, URLResponse) {
         // The attribution is read **here**, in the calling task, and handed to
         // the delegate as a stored property — never read inside the metrics
@@ -291,7 +289,7 @@ public extension URLSession {
         // A developer build may send API requests to a local stand-in
         // (`GitHubAPIMock`); a release hands `request` back unchanged.
         try await data(for: GitHubAPIMock.redirect(request), delegate: RequestMetricsRecorder(
-            purpose, appID: RequestAttribution.appID, store: store))
+            purpose, appID: RequestAttribution.appID, store: store, rateBudget: rateBudget))
     }
 
     /// `bytes(for:)` with the same recording, for a caller that must stop reading

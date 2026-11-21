@@ -46642,71 +46642,6 @@
         }
       }
     },
-    "GitHub counts some requests against a second hourly window of the same token, so two bars can appear.": {
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "GitHub zählt manche Anfragen in einem zweiten stündlichen Kontingent desselben Tokens, daher können zwei Balken erscheinen."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "GitHub cuenta algunas solicitudes en una segunda ventana horaria del mismo token, por lo que pueden aparecer dos barras."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "GitHub décompte certaines requêtes dans une deuxième fenêtre horaire du même jeton : deux barres peuvent donc apparaître."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "GitHub conteggia alcune richieste in una seconda finestra oraria dello stesso token, quindi possono comparire due barre."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "GitHub は一部のリクエストを同じトークンの別の 1 時間枠で数えるため、バーが 2 本表示されることがあります。"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "O GitHub conta algumas solicitações em uma segunda janela horária do mesmo token, por isso podem aparecer duas barras."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "GitHub учитывает часть запросов во втором часовом окне того же токена, поэтому могут появиться две полосы."
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "GitHub bazı istekleri aynı token’ın ikinci bir saatlik penceresinde sayar; bu yüzden iki çubuk görünebilir."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "GitHub 会把部分请求计入同一令牌的第二个每小时额度，所以可能出现两条。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "GitHub 會把部分請求計入同一權杖的第二個每小時額度，所以可能出現兩條。"
-          }
-        }
-      }
-    },
     "GitHub didn’t answer with a commit.": {
       "extractionState": "manual",
       "localizations": {
@@ -70968,136 +70903,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Time Machine 專用 — 無法寫入其他內容"
-          }
-        }
-      }
-    },
-    "Reset at %@ · no answer since": {
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Um %@ zurückgesetzt · seitdem keine Antwort"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Se restableció a las %@ · sin respuesta desde entonces"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Réinitialisé à %@ · aucune réponse depuis"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Azzerato alle %@ · nessuna risposta da allora"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@ にリセット · それ以降の応答なし"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Redefinido às %@ · sem resposta desde então"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Сброшено в %@ · с тех пор ответов нет"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sıfırlandı: %@ · o zamandan beri yanıt yok"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已于 %@ 重置 · 此后尚无响应"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已於 %@ 重設 · 此後尚無回應"
-          }
-        }
-      }
-    },
-    "Resets at %@": {
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Wird um %@ zurückgesetzt"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Se restablece a las %@"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Réinitialisation à %@"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Azzeramento alle %@"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@ にリセット"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Redefine às %@"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Сброс в %@"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sıfırlanma: %@"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@ 重置"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@ 重設"
           }
         }
       }
@@ -100541,6 +100346,331 @@
           "stringUnit": {
             "state": "translated",
             "value": "Homebrew 會下載並驗證宣告的安裝程式。請在其視窗中完成更新。"
+          }
+        }
+      }
+    },
+    "Recent readings returned by GitHub (core)": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zuletzt von GitHub gemeldete Werte (core)"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lecturas recientes de GitHub (core)"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Valeurs récemment reçues de GitHub (core)"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Valori recenti ricevuti da GitHub (core)"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GitHub から最近受信した値（core）"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Valores recentes retornados pelo GitHub (core)"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Недавние значения, полученные от GitHub (core)"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GitHub tarafından döndürülen son değerler (core)"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GitHub 最近返回的额度读数（core）"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GitHub 最近傳回的額度讀數（core）"
+          }
+        }
+      }
+    },
+    "GitHub can return different readings between responses. Each bar is a snapshot, not an additional allowance; the counts do not add together.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GitHub kann je nach Antwort unterschiedliche Werte melden. Jeder Balken ist eine Momentaufnahme, kein zusätzliches Kontingent; die Werte dürfen nicht addiert werden."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GitHub puede devolver lecturas distintas entre respuestas. Cada barra es una instantánea, no una cuota adicional; los recuentos no se suman."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GitHub peut renvoyer des valeurs différentes selon la réponse. Chaque barre est un instantané, pas un quota supplémentaire ; les valeurs ne s’additionnent pas."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GitHub può restituire valori diversi tra le risposte. Ogni barra è un’istantanea, non una quota aggiuntiva; i conteggi non si sommano."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GitHub の応答ごとに値が異なる場合があります。各バーは応答時の記録であり、追加の割り当てではありません。残量は合算できません。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O GitHub pode retornar valores diferentes entre respostas. Cada barra é um retrato de uma resposta, não uma cota extra; as contagens não se somam."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GitHub может возвращать разные значения в разных ответах. Каждая полоса — снимок ответа, а не дополнительная квота; значения не суммируются."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GitHub farklı yanıtlarda farklı değerler döndürebilir. Her çubuk bir yanıtın anlık kaydıdır, ek bir kota değildir; sayılar toplanamaz."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GitHub 在不同响应中可能返回不同读数。每条是一次响应中的额度快照，不代表独立额度，不能相加。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GitHub 在不同回應中可能傳回不同讀數。每條是一次回應中的額度快照，不代表獨立額度，不能相加。"
+          }
+        }
+      }
+    },
+    "Reset time passed · waiting for a new response": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rücksetzzeit verstrichen · Neue Antwort wird abgewartet"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pasó la hora de restablecimiento · Esperando otra respuesta"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Heure de réinitialisation passée · En attente d’une nouvelle réponse"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ora di ripristino trascorsa · In attesa di una nuova risposta"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "リセット時刻を過ぎました · 新しい応答を待機中"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O horário de redefinição passou · Aguardando nova resposta"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Время сброса прошло · Ожидание нового ответа"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sıfırlama zamanı geçti · Yeni yanıt bekleniyor"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重置时间已过 · 等待新响应"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重置時間已過 · 等待新回應"
+          }
+        }
+      }
+    },
+    "Reset time: %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rücksetzzeit: %@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hora de restablecimiento: %@"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Heure de réinitialisation : %@"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ora di ripristino: %@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "リセット時刻：%@"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Horário de redefinição: %@"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Время сброса: %@"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sıfırlama zamanı: %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重置时间：%@"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重置時間：%@"
+          }
+        }
+      }
+    },
+    "Response received: %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Antwort empfangen: %@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Respuesta recibida: %@"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Réponse reçue : %@"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Risposta ricevuta: %@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "応答の受信時刻：%@"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Resposta recebida: %@"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ответ получен: %@"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yanıt alındı: %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "响应时间：%@"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "回應時間：%@"
           }
         }
       }

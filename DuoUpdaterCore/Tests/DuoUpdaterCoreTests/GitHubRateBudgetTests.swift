@@ -125,7 +125,7 @@ struct GitHubRateBudgetTests {
         let server = try Server()
         let session = Self.session()
         let first = try await Self.fetch(server.url("/releases"), on: session)
-        #expect(GitHubRateBudget.reading(from: first.metrics, isAPI: Self.loopback)
+        #expect(GitHubRateBudget.observation(from: first.metrics, isAPI: Self.loopback)?.budget
             == GitHubRateBudget(limit: 60, remaining: 59, reset: Date(timeIntervalSince1970: Self.reset)))
 
         let second = try await Self.fetch(server.url("/releases"), on: session)
@@ -134,7 +134,9 @@ struct GitHubRateBudgetTests {
         let cached = transactions[0].response as? HTTPURLResponse
         try #require(cached?.value(forHTTPHeaderField: "x-ratelimit-remaining") == "59")
 
-        #expect(GitHubRateBudget.reading(from: second.metrics, isAPI: Self.loopback)?.remaining == 58)
+        let observation = try #require(GitHubRateBudget.observation(from: second.metrics, isAPI: Self.loopback))
+        #expect(observation.budget.remaining == 58)
+        #expect(observation.receivedAt == transactions.last?.responseEndDate)
     }
 
     /// A fetch answered from cache alone asked nobody: no reading. Mutation: drop
@@ -145,7 +147,7 @@ struct GitHubRateBudgetTests {
         _ = try await Self.fetch(server.url("/fresh"), on: session, policy: .useProtocolCachePolicy)
         let second = try await Self.fetch(server.url("/fresh"), on: session, policy: .useProtocolCachePolicy)
         try #require(second.metrics.transactionMetrics.map(\.resourceFetchType) == [.localCache])
-        #expect(GitHubRateBudget.reading(from: second.metrics, isAPI: Self.loopback) == nil)
+        #expect(GitHubRateBudget.observation(from: second.metrics, isAPI: Self.loopback) == nil)
     }
 
     /// Only the API's `core` budget. Mutations: drop the resource check; drop
@@ -154,9 +156,9 @@ struct GitHubRateBudgetTests {
         let server = try Server()
         let session = Self.session()
         let search = try await Self.fetch(server.url("/search"), on: session)
-        #expect(GitHubRateBudget.reading(from: search.metrics, isAPI: Self.loopback) == nil)
+        #expect(GitHubRateBudget.observation(from: search.metrics, isAPI: Self.loopback) == nil)
         let elsewhere = try await Self.fetch(server.url("/releases"), on: session)
-        #expect(GitHubRateBudget.reading(from: elsewhere.metrics, isAPI: { _ in false }) == nil)
+        #expect(GitHubRateBudget.observation(from: elsewhere.metrics, isAPI: { _ in false }) == nil)
     }
 
     /// Every `countedData` fetch's metrics reach the store, through the
@@ -186,6 +188,18 @@ struct GitHubRateBudgetTests {
         }
         #expect(budget.current(at: Date())
             == [GitHubRateBudget(limit: 60, remaining: 58, reset: Date(timeIntervalSince1970: Self.reset))])
+
+        // Draft verification skips the budget update and still logs the request
+        // with the purpose and attribution of its caller.
+        let appID = "ZZFixture-TokenVerification.app"
+        try await RequestAttribution.withApp(appID) {
+            _ = try await session.countedData(
+                for: URLRequest(url: server.url("/fresh")), purpose: .other,
+                store: events, followsTokenRejection: false)
+        }
+        await events.flush()
+        let verificationRequests = await events.events(.init(purpose: .other)).compactMap(\.request)
+        #expect(verificationRequests.map(\.appID) == [appID])
     }
 
     /// A change in Settings empties the card until the new credentials answer,
@@ -221,6 +235,8 @@ struct GitHubRateBudgetTests {
         let other = GitHubRateBudget(limit: 5000, remaining: 4999, reset: now.addingTimeInterval(1800))
         store.record(other, now: now, generation: credentials.generation)
         #expect(store.current(at: now) == [other])
+        store.record(token, now: now.addingTimeInterval(1), generation: first)
+        #expect(store.readings(at: now).latest?.budget == other)
     }
 
     /// The recorder tags the request with the generation it was made under —
@@ -271,84 +287,89 @@ struct GitHubRateBudgetTests {
         #expect(budget.current(at: Date()).map(\.limit) == [60])
     }
 
-    /// Within one window answers finish out of order: the lower count is kept.
-    /// Mutation: keep the last one seen whatever its count.
-    @Test func withinAWindowTheLowerCountIsKept() {
+    /// Each reset-time group keeps its latest raw response, including a higher
+    /// remaining count. Grouping is for display, not a claim of separate quotas.
+    @Test func sameResetKeepsTheLatestResponse() {
         let now = Date(timeIntervalSince1970: 1_000_000)
-        let hour = now.addingTimeInterval(1800)
-        let kept = [GitHubRateBudget(limit: 60, remaining: 30, reset: hour)]
-        #expect(GitHubRateBudget.keeping(kept, .init(limit: 60, remaining: 31, reset: hour), now: now) == kept)
-        #expect(GitHubRateBudget.keeping(kept, .init(limit: 60, remaining: 29, reset: hour), now: now).map(\.remaining)
-            == [29])
-        #expect(GitHubRateBudget.keeping([], kept[0], now: now) == kept)
+        let store = GitHubRateBudget.Store(isAPI: { _ in false })
+        let reset = now.addingTimeInterval(1800)
+        for (offset, remaining) in [4200, 4300, 4100].enumerated() {
+            let reading = GitHubRateBudget(limit: 5000, remaining: remaining, reset: reset)
+            store.record(reading, now: now.addingTimeInterval(Double(offset)))
+            #expect(store.current(at: now) == [reading])
+            #expect(store.readings(at: now).latest?.receivedAt == now.addingTimeInterval(Double(offset)))
+        }
     }
 
-    /// A token's two windows (observed 2026-10-08: one for `releases/latest`,
-    /// one for the rest) are both kept, earliest reset first, whichever answers
-    /// last. Mutation: let a different reset replace the window kept (the old
-    /// single-reading rule).
-    @Test func twoWindowsOfOneLimitAreBothKept() {
+    /// Keep the information GitHub reported instead of replacing every reset
+    /// time with whichever endpoint answered most recently.
+    @Test func differentResetTimesRetainSeparateReadings() {
         let now = Date(timeIntervalSince1970: 1_000_000)
-        let early = GitHubRateBudget(limit: 5000, remaining: 4200, reset: now.addingTimeInterval(600))
-        let late = GitHubRateBudget(limit: 5000, remaining: 3945, reset: now.addingTimeInterval(1800))
-        #expect(GitHubRateBudget.keeping([early], late, now: now) == [early, late])
-        #expect(GitHubRateBudget.keeping([late], early, now: now) == [early, late])
-        // Each keeps its own lower count.
-        let lower = GitHubRateBudget(limit: 5000, remaining: 4100, reset: early.reset)
-        #expect(GitHubRateBudget.keeping([early, late], lower, now: now) == [lower, late])
+        let store = GitHubRateBudget.Store(isAPI: { _ in false })
+        let first = GitHubRateBudget(limit: 5000, remaining: 4200, reset: now.addingTimeInterval(1800))
+        let second = GitHubRateBudget(limit: 5000, remaining: 4300, reset: first.reset.addingTimeInterval(1))
+        store.record(second, now: now.addingTimeInterval(1))
+        // An older response can arrive later through the metrics callback.
+        store.record(first, now: now)
+        let readings = store.readings(at: now)
+        #expect(readings.current.map(\.budget) == [first, second])
+        #expect(readings.current.map(\.receivedAt) == [now, now.addingTimeInterval(1)])
+        #expect(readings.latest?.budget == second)
     }
 
-    /// A token added or removed is another budget: every window kept goes.
-    /// Mutation: drop the `limit` filter.
-    @Test func anotherLimitDropsEveryWindow() {
+    @Test func onlyThreeMostRecentlyReceivedGroupsAreKept() {
         let now = Date(timeIntervalSince1970: 1_000_000)
-        let kept = [GitHubRateBudget(limit: 5000, remaining: 4200, reset: now.addingTimeInterval(600)),
-                    GitHubRateBudget(limit: 5000, remaining: 3945, reset: now.addingTimeInterval(1800))]
-        let anonymous = GitHubRateBudget(limit: 60, remaining: 59, reset: now.addingTimeInterval(3600))
-        #expect(GitHubRateBudget.keeping(kept, anonymous, now: now) == [anonymous])
+        let store = GitHubRateBudget.Store(isAPI: { _ in false })
+        let readings = (1...4).map {
+            GitHubRateBudget(limit: 5000, remaining: 4000 + $0, reset: now.addingTimeInterval(Double($0 * 600)))
+        }
+        for (offset, reading) in readings.enumerated() {
+            store.record(reading, now: now.addingTimeInterval(Double(offset)))
+        }
+        #expect(store.current(at: now) == Array(readings.suffix(3)))
+        let old = GitHubRateBudget(limit: 5000, remaining: 4999, reset: now.addingTimeInterval(3000))
+        store.record(old, now: now.addingTimeInterval(-1))
+        #expect(store.current(at: now) == Array(readings.suffix(3)))
     }
 
-    /// A window whose reset has passed is dropped, and a late answer from one is
-    /// not kept. Mutations: drop the `isCurrent` filter on the windows kept; keep
-    /// an ended `seen`.
-    @Test func endedWindowsAreDropped() {
+    /// A response whose metrics callback was delayed must not overwrite a
+    /// response received later on the network.
+    @Test func olderResponsesCannotReplaceANewerReading() {
         let now = Date(timeIntervalSince1970: 1_000_000)
-        let ended = GitHubRateBudget(limit: 5000, remaining: 12, reset: now.addingTimeInterval(-1))
-        let running = GitHubRateBudget(limit: 5000, remaining: 4999, reset: now.addingTimeInterval(3600))
-        #expect(GitHubRateBudget.keeping([ended], running, now: now) == [running])
-        #expect(GitHubRateBudget.keeping([running], ended, now: now) == [running])
+        let store = GitHubRateBudget.Store(isAPI: { _ in false })
+        let latest = GitHubRateBudget(limit: 5000, remaining: 4200, reset: now.addingTimeInterval(1800))
+        store.record(latest, now: now)
+        let older = GitHubRateBudget(limit: 5000, remaining: 4100, reset: latest.reset)
+        store.record(older, now: now.addingTimeInterval(-1))
+        #expect(store.current(at: now) == [latest])
     }
 
-    /// At most `windowCap`, the ones that end soonest dropped first. Mutations:
-    /// drop the cap; keep the earliest instead of the latest.
-    @Test func theWindowsAreCapped() {
+    @Test func aLateMetricsCallbackFromAnotherLimitDoesNotReplaceTheCurrentGroup() {
         let now = Date(timeIntervalSince1970: 1_000_000)
-        let windows = (1...4).map { GitHubRateBudget(limit: 5000, remaining: 100 * $0, reset: now.addingTimeInterval(Double(600 * $0))) }
-        let kept = windows.dropLast().reduce(into: [GitHubRateBudget]()) { $0 = GitHubRateBudget.keeping($0, $1, now: now) }
-        #expect(kept == Array(windows.prefix(3)))
-        #expect(GitHubRateBudget.keeping(kept, windows[3], now: now) == Array(windows.suffix(3)))
+        let store = GitHubRateBudget.Store(isAPI: { _ in false })
+        let token = GitHubRateBudget(limit: 5000, remaining: 4200, reset: now.addingTimeInterval(1800))
+        let anonymous = GitHubRateBudget(limit: 60, remaining: 59, reset: now.addingTimeInterval(600))
+        store.record(token, now: now)
+        store.record(anonymous, now: now.addingTimeInterval(2))
+        store.record(token, now: now.addingTimeInterval(1))
+        let readings = store.readings(at: now)
+        #expect(readings.current.map(\.budget) == [anonymous])
+        #expect(readings.latest?.budget == anonymous)
     }
 
-    /// The store: running windows only, and, once all have ended, when the
-    /// budget last refilled — not "nothing seen". Mutations: drop the
-    /// `isCurrent` filter in `current(at:)`; overwrite the windows with an empty
-    /// list when an ended answer arrives.
-    @Test func theStoreSaysWhatIsRunningAndWhenItLastRefilled() {
+    /// Passing the reported reset time makes a snapshot stale. The UI must
+    /// await another response rather than invent a refilled remaining count.
+    @Test func anExpiredReadingIsNoLongerCurrent() {
         let now = Date(timeIntervalSince1970: 1_000_000)
         let store = GitHubRateBudget.Store(isAPI: { _ in false })
         #expect(store.current(at: now).isEmpty && store.lastReset == nil)
-        let early = GitHubRateBudget(limit: 5000, remaining: 4200, reset: now.addingTimeInterval(600))
-        let late = GitHubRateBudget(limit: 5000, remaining: 3945, reset: now.addingTimeInterval(1800))
-        store.record(late, now: now)
-        store.record(early, now: now)
-        #expect(store.current(at: now) == [early, late])
-        #expect(store.current(at: now.addingTimeInterval(900)) == [late])
-        let after = now.addingTimeInterval(2000)
-        #expect(store.current(at: after).isEmpty)
-        #expect(store.lastReset == late.reset)
-        // A late answer from an ended window leaves that answer standing.
-        store.record(GitHubRateBudget(limit: 5000, remaining: 1, reset: now.addingTimeInterval(1900)), now: after)
-        #expect(store.lastReset == late.reset)
+        let reading = GitHubRateBudget(limit: 5000, remaining: 12, reset: now.addingTimeInterval(600))
+        store.record(reading, now: now)
+        #expect(store.current(at: reading.reset.addingTimeInterval(-1)) == [reading])
+        let afterReset = store.readings(at: reading.reset)
+        #expect(afterReset.current.isEmpty)
+        #expect(afterReset.latest == .init(budget: reading, receivedAt: now))
+        #expect(store.lastReset == reading.reset)
     }
 
     /// Under a fifth left is low, a fifth is not. Mutation: `<` → `<=`.

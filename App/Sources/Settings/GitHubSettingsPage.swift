@@ -28,7 +28,7 @@ struct GitHubSettingsPage: View {
     @FocusState private var tokenFocused: Bool
     /// The anonymous budget of this Mac's address, asked of GitHub while the page
     /// is open (`GitHubAnonymousBudget`); nil until the first answer.
-    @State private var anonymous: GitHubRateBudget?
+    @State private var anonymous: (budget: GitHubRateBudget, receivedAt: Date)?
 
     private static let tokenSettingsURL = URL(string: "https://github.com/settings/tokens")!
 
@@ -273,48 +273,62 @@ struct GitHubSettingsPage: View {
 
     // MARK: - Budget
 
-    /// What GitHub's last API answers said is left, one bar per window still
-    /// running (`GitHubRateBudget`: with a token GitHub has answered from two at
-    /// once), never fetched for its own sake. Laid out as the Backups page's disk
-    /// rows are: a name, then a full-width bar with its two figures under its two
-    /// ends. Re-read every few seconds while the page is open: a check can land
-    /// meanwhile, and a window can end. Under them, unless they already show it
-    /// (no token in use), the anonymous budget of this Mac's address, which is
-    /// asked for.
+    /// Recent `core` response snapshots, grouped by reported reset time solely
+    /// to keep the display bounded. Each carries its own response time; the copy
+    /// deliberately makes no claim that the samples are separate allowances.
     private var budgetCard: some View {
         SettingsCard {
             TimelineView(.periodic(from: .now, by: 5)) { context in
-                let store = GitHubRateBudget.Store.shared
-                let windows = store.current(at: context.date)
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(Self.title(of: windows))
-                    if windows.isEmpty {
-                        Text(Self.emptyLine(lastReset: store.lastReset))
+                let (readings, latest) = GitHubRateBudget.Store.shared.readings(at: context.date)
+                let budget = latest?.budget
+                let currentAnonymous = anonymous.flatMap { reading in
+                    reading.budget.isCurrent(at: context.date) ? reading : nil
+                }
+                let preferAnonymousProbe = currentAnonymous != nil
+                    && budget?.isAnonymous == true
+                    && readings.isEmpty
+                if !preferAnonymousProbe {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(Self.title(of: budget))
+                        Text("Recent readings returned by GitHub (core)")
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                    } else {
-                        VStack(alignment: .leading, spacing: 10) {
-                            ForEach(windows, id: \.reset) { window in
-                                budgetWindow(window)
+                        if readings.isEmpty {
+                            if let latest {
+                                Text("Reset time passed · waiting for a new response")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                Text(Self.responseLine(latest.receivedAt))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            } else {
+                                Text("No answer from GitHub yet")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        } else {
+                            VStack(alignment: .leading, spacing: 10) {
+                                ForEach(readings, id: \.budget.reset) { observation in
+                                    budgetWindow(observation.budget, receivedAt: observation.receivedAt)
+                                }
                             }
                         }
-                        if windows.count > 1 {
-                            Text("GitHub counts some requests against a second hourly window of the same token, so two bars can appear.")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
+                        Text("GitHub can return different readings between responses. Each bar is a snapshot, not an additional allowance; the counts do not add together.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
+                    .settingsRow()
                 }
-                .settingsRow()
-                // Left out while the bars above already show a window with its
-                // limit: without a token, the app's answers are this budget.
-                if let anonymous, anonymous.isCurrent(at: context.date),
-                   !windows.contains(where: { $0.limit == anonymous.limit }) {
-                    SettingsDivider()
+                if let currentAnonymous,
+                   budget?.isAnonymous != true || preferAnonymousProbe {
+                    if !preferAnonymousProbe { SettingsDivider() }
                     VStack(alignment: .leading, spacing: 3) {
                         Text("Without a token, on this network")
-                        budgetWindow(anonymous)
+                        Text("Recent readings returned by GitHub (core)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        budgetWindow(currentAnonymous.budget, receivedAt: currentAnonymous.receivedAt)
                         Text("Shared by everything on this network that asks GitHub without a token, such as the zoxide and Atuin updaters.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -323,28 +337,25 @@ struct GitHubSettingsPage: View {
                     .settingsRow()
                 }
             }
-            // Drawn again the moment the credentials change, not at the next tick.
+            // Draw again when the credentials change, before the next tick.
             .id(model.gitHubCredentialChanges)
         }
-        // Asked when the page opens, then each minute while it stays open. The
-        // request is free (`GitHubAnonymousBudget`); a failed one keeps the last
-        // answer, which stops showing once its window ends.
+        // Poll while the page is open. A failure keeps the last reply until
+        // its reported reset time.
         .task {
             let source = GitHubAnonymousBudget()
             while !Task.isCancelled {
-                if let reading = try? await source.current() { anonymous = reading }
+                if let reading = try? await source.current() {
+                    anonymous = (reading, Date())
+                }
                 try? await Task.sleep(for: .seconds(60))
             }
         }
-        // The menu's banner lands here when the anonymous budget is the spent
-        // one: this is where it is shown, and the token card below the fold is
-        // not the fix for it.
+        // The rate-limit banner links to the anonymous reading here.
         .settingsAnchor(.githubBudget)
     }
 
-    /// One window: its bar, then what is left under the bar's left end, in the
-    /// bar's colour, and when it refills under the right. Orange once running low.
-    private func budgetWindow(_ window: GitHubRateBudget) -> some View {
+    private func budgetWindow(_ window: GitHubRateBudget, receivedAt: Date) -> some View {
         let tint = window.isRunningLow ? Color.orange : Color.accentColor
         return VStack(alignment: .leading, spacing: 3) {
             CapacityBar(
@@ -357,22 +368,22 @@ struct GitHubSettingsPage: View {
             }
             .font(.caption)
             .monospacedDigit()
+            Text(Self.responseLine(receivedAt))
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
     }
 
-    /// Whose budget the bars are, by the limit GitHub stated: without a token
-    /// they are the same budget the row below would show.
-    private static func title(of windows: [GitHubRateBudget]) -> String {
-        guard let window = windows.first else { return String(localized: "GitHub API requests") }
-        return window.isAnonymous
+    private static func title(of budget: GitHubRateBudget?) -> String {
+        guard let budget else { return String(localized: "GitHub API requests") }
+        return budget.isAnonymous
             ? String(localized: "Without a token, on this network")
             : String(localized: "With your token")
     }
 
-    private static func emptyLine(lastReset: Date?) -> String {
-        guard let lastReset else { return String(localized: "No answer from GitHub yet") }
-        let time = lastReset.formatted(date: .omitted, time: .shortened)
-        return String(localized: "Reset at \(time) · no answer since")
+    private static func responseLine(_ date: Date) -> String {
+        let time = date.formatted(.dateTime.month(.abbreviated).day().hour().minute().second())
+        return String(localized: "Response received: \(time)")
     }
 
     private static func leftLine(_ window: GitHubRateBudget) -> String {
@@ -381,8 +392,8 @@ struct GitHubSettingsPage: View {
     }
 
     private static func resetLine(_ window: GitHubRateBudget) -> String {
-        let time = window.reset.formatted(date: .omitted, time: .shortened)
-        return String(localized: "Resets at \(time)")
+        let time = window.reset.formatted(.dateTime.hour().minute().second())
+        return String(localized: "Reset time: \(time)")
     }
 
     // MARK: - Actions

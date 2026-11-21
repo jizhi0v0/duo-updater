@@ -54,8 +54,12 @@ struct XcodeSettingsPage: View {
         .task { await downloads.reload() }
         // Signing in — here, from a row's "Sign In & Install", or noticed by
         // the hourly check — brings Apple's list in without pressing refresh.
+        // It also drops a "Sign-in cancelled" left by this page's window when
+        // the sign-in that followed came from another one.
         .onChange(of: session.signInNeed == nil) { _, signedIn in
-            if signedIn { Task { await downloads.reload() } }
+            guard signedIn else { return }
+            if feedback == .cancelled { feedback = nil }
+            Task { await downloads.reload() }
         }
         .confirmationDialog(
             "Sign Out and Clear Session?",

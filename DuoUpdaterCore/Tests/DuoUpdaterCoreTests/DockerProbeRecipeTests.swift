@@ -274,7 +274,7 @@ struct DockerProbeRecipeTests {
         #expect(ChangelogRecipeRegistry.recipe(forBundleID: Self.bundleID, channel: .nightly) == nil)
     }
 
-    @Test(arguments: Array(zip([Feed.stableWithNightlyImage, .nightlyWithStableImage], [ReleaseChannel.stable, .nightly])))
+    @Test(arguments: [(Feed.stableWithNightlyImage, ReleaseChannel.stable), (.nightlyWithStableImage, .nightly)])
     func rejectsAnArtifactFromTheOtherChannel(_ feed: Feed, channel: ReleaseChannel) async throws {
         let remote = try #require(try await source(feed, channel: channel).latestVersion(for: installed(channel: channel)))
         #expect(remote.version == (channel == .stable ? "246961" : "247044"))
@@ -290,11 +290,23 @@ struct DockerProbeRecipeTests {
         }
     }
 
-    @Test(arguments: Array(zip([
-        nil, #"{}"#, #"{"UseNightlyBuildUpdates":false}"#, #"{"UseNightlyBuildUpdates":true}"#,
-        #"{"UseNightlyBuildUpdates":"true"}"#, #"{"UseNightlyBuildUpdates":1}"#, "{", #"{"AcceptCanaryUpdates":true}"#,
-        #"{"UseNightlyBuildUpdates":true,"AcceptCanaryUpdates":true}"#,
-    ] as [String?], [false, false, false, true, false, false, false, false, true])))
+    @Test(arguments: [
+        (nil as String?, false),
+        (#"{}"#, false),
+        (#"{"UseNightlyBuildUpdates":false}"#, false),
+        (#"{"UseNightlyBuildUpdates":true}"#, true),
+        (#"{"UseNightlyBuildUpdates":"true"}"#, false),
+        (#"{"UseNightlyBuildUpdates":1}"#, false),
+        ("{", false),
+        (#"{"AcceptCanaryUpdates":true}"#, false),
+        (#"{"UseNightlyBuildUpdates":true,"AcceptCanaryUpdates":true}"#, true),
+        (#"{"useNightlyBuildUpdates":true}"#, true),
+        (#"{"useNightlyBuildUpdates":"true"}"#, false),
+        (#"{"UseNightlyBuildUpdates":false,"useNightlyBuildUpdates":true}"#, false),
+        (#"{"useNightlyBuildUpdates":true,"UseNightlyBuildUpdates":false}"#, false),
+        (#"{"UseNightlyBuildUpdates":true,"useNightlyBuildUpdates":false}"#, true),
+        (#"{"UseNightlyBuildUpdates":1,"useNightlyBuildUpdates":true}"#, false),
+    ])
     func followsOnlyTheDockerNightlyBoolean(_ settings: String?, nightly: Bool) throws {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".json")
         defer { try? FileManager.default.removeItem(at: url) }

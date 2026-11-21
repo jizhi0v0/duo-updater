@@ -13,6 +13,14 @@ enum DockerDesktopChannel {
 
         enum CodingKeys: String, CodingKey {
             case useNightlyBuildUpdates = "UseNightlyBuildUpdates"
+            case legacyUseNightlyBuildUpdates = "useNightlyBuildUpdates"
+        }
+
+        init(from decoder: Decoder) throws {
+            let values = try decoder.container(keyedBy: CodingKeys.self)
+            let key: CodingKeys = values.contains(.useNightlyBuildUpdates)
+                ? .useNightlyBuildUpdates : .legacyUseNightlyBuildUpdates
+            useNightlyBuildUpdates = try values.decodeIfPresent(Bool.self, forKey: key)
         }
     }
 

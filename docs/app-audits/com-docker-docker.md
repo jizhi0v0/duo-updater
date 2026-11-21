@@ -78,7 +78,8 @@ bundle：`SUFeedURL`、`app-update.yml`、Squirrel 和 Sparkle。
 
 外层 `Docker.app` 的 Stable 与 Nightly 构件同为 `channelID=main`，共享当前用户的更新设置。
 `~/Library/Group Containers/group.com.docker/settings-store.json` 中顶层 JSON 布尔值
-`UseNightlyBuildUpdates` 为 `true` 时选择 Nightly，其余情况选择 Stable。
+`UseNightlyBuildUpdates` 为 `true` 时选择 Nightly；该键缺失时读取旧拼写 `useNightlyBuildUpdates`。
+两者同时存在时，以 `UseNightlyBuildUpdates` 为准。没有生效的 `true` 时选择 Stable。
 `NightlyBuilds` feature flag 控制设置界面的入口；`AcceptCanaryUpdates` 影响所选渠道内的分批推送，
 两者均不作为 DuoUpdater 切换渠道的依据。
 
@@ -136,6 +137,9 @@ Apple Silicon VM 的 Docker 4.99.0（245822）重启后，缺省或关闭 `UseNi
 `AcceptCanaryUpdates` 仍请求 Nightly。公开 Nightly feed 的 247044 为 `Visibility=100`，
 同版本较新的 247119 为 `Visibility=0`。247044 的完整 DMG 与 feed 的 SHA-256 一致，包含
 原厂签名并公证的 Apple Silicon `com.docker.docker`（Team `9BNSXJN65R`）。
+
+同一 VM 中只写入旧键 `useNightlyBuildUpdates=true` 时，原生更新器也选择 Nightly。
+同时写入 `UseNightlyBuildUpdates=false` 时，无论键的顺序如何，原生更新器均选择 Stable。
 
 对照实验只在 VM 重放时改动 JSON 的 `Visibility`。Stable feed 上，`Visibility=0` 时两个设置
 均不提供该构件，`Visibility=1` 时只有开启 `AcceptCanaryUpdates` 才提供，`Visibility=100`

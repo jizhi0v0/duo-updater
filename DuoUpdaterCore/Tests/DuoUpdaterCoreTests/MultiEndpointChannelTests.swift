@@ -215,6 +215,33 @@ import Testing
         #expect(VendorProbeRecipe.extractVersion(from: stale, pattern: latest.versionPattern) == nil)
     }
 
+    @Test func theInstallerSweepChecksTheBundledChannelMapping() throws {
+        let asar = TestScratch.file("claude-channel-map")
+        defer { try? FileManager.default.removeItem(at: asar) }
+        let current = "77a14fc4-808e-4345-ac3e-090be671bf94"
+        let rotated = "bce73019-afd1-4838-925b-57aacc484abe"
+        func map(_ id: String) -> String {
+            #"var channels={stable:null,latest:"\#(id)",staggered:"51760d71-67e2-4366-9bf5-4221cda21f61"};"#
+        }
+        func warnings(_ payload: String) throws -> [String] {
+            try Data(payload.utf8).write(to: asar)
+            return ClaudeDesktopChannel.installerWarnings(asar: asar, version: "4.29.0")
+        }
+        #expect(ClaudeDesktopChannel.installerWarnings(asar: asar, version: "4.28.0").isEmpty)
+        #expect(ClaudeDesktopChannel.installerWarnings(asar: asar, version: "4.29.0").first?
+            .hasPrefix("claudeLatestChannelUnverified:") == true)
+        #expect(try warnings("\u{0}" + map(current) + map(current.uppercased())).isEmpty)
+        #expect(try warnings(map(rotated)) == [
+            "claudeLatestChannelChanged: the bundled map contains \(rotated). The Latest probe uses \(current)"
+        ])
+        #expect(try warnings("var unrelated = \"\(current)\";").first?
+            .hasPrefix("claudeLatestChannelUnverified:") == true)
+        #expect(try warnings(map(current) + map(rotated)).first?
+            .hasPrefix("claudeLatestChannelUnverified:") == true)
+        #expect(try warnings(map(current) + map("missing")).first?
+            .hasPrefix("claudeLatestChannelUnverified:") == true)
+    }
+
     /// The GA endpoint must stay id-free — it is the answer for a machine whose
     /// `ant-did` we can't read, and the reason the pair degrades gracefully.
     @Test func theGAEndpointNeedsNoIdentity() throws {

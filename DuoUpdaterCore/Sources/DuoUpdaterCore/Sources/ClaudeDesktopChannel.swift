@@ -2,6 +2,8 @@ import Foundation
 
 enum ClaudeDesktopChannel {
     static let bundleID = "com.anthropic.claudefordesktop"
+    static let teamIdentifier = "Q6L2SF6YDW"
+    static let latestChannelUUID = "77a14fc4-808e-4345-ac3e-090be671bf94"
     private static let firstChannelVersion = "4.29.0"
 
     enum Management {
@@ -84,5 +86,33 @@ enum ClaudeDesktopChannel {
             }
         }
         return hasUnrecognizedPolicy ? .undetermined : .unmanaged
+    }
+
+    /// The installer sweep checks the updater's channel map in the signed ZIP.
+    /// The public Stable archive is enough to check this even on a runner with
+    /// no device identity for the Squirrel probes. The read is bounded to small
+    /// windows, so it doesn't depend on the current hashed JS chunk name.
+    static func installerWarnings(asar: URL, version: String?) -> [String] {
+        if let version, VersionComparator.compare(version, firstChannelVersion) == .orderedAscending {
+            return []
+        }
+        let unverified = ["claudeLatestChannelUnverified: could not read a unique Stable/Latest channel map in Claude's app.asar"]
+        let marker = Data("{stable:null,latest:".utf8)
+        let pattern = #"\A\{stable:null,latest:"([0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12})"[,}]"#
+        // A UUID plus its quotes and trailing delimiter takes 39 bytes.
+        guard let windows = ExecutableBytes.windows(in: asar, marker: marker, before: 0, after: 39) else {
+            return unverified
+        }
+        let ids = windows.compactMap { bytes in
+            VendorProbeRecipe.extractVersion(from: String(decoding: bytes, as: UTF8.self), pattern: pattern)?
+                .lowercased()
+        }
+        guard ids.count == windows.count, let bundled = ids.first, ids.allSatisfy({ $0 == bundled }) else {
+            return unverified
+        }
+        guard bundled == latestChannelUUID else {
+            return ["claudeLatestChannelChanged: the bundled map contains \(bundled). The Latest probe uses \(latestChannelUUID)"]
+        }
+        return []
     }
 }

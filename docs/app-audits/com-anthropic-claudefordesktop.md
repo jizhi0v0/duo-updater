@@ -33,6 +33,11 @@ Desktop 管理文件只含无法识别的键且偏好仍是 Latest 时，DuoUpda
   `vendor:com.anthropic.claudefordesktop:latest`。三个 recipe 都有安装 ZIP。
 - `duo verify --only com.anthropic.claudefordesktop` 实测三条版本源与共享的变更日志均通过。
   两条 Squirrel 路径需要扫描用户的 Claude `ant-did`，缺少设备 ID 的运行器只能覆盖 Stable GA。
+- 安装包夜扫在 ZIP 内的 Claude.app 验签并核对 bundle ID、签名标识和 Anthropic Team ID 后，
+  读取 `app.asar` 中的 Stable/Latest 映射。对 4.29.0 起的安装包，Latest UUID 与配方不一致时报
+  `claudeLatestChannelChanged`，缺失、格式无法识别或有矛盾时报 `claudeLatestChannelUnverified`。
+  公开 Stable GA ZIP 即可检查包内映射，无需设备 ID。新版本随增量扫描检查，同版本同 URL 的包
+  随现有周期性全量扫描复查。
 - `duo verify-install --only vendor:com.anthropic.claudefordesktop:latest` 通过，验证了
   `6.6695.0` 的 399,150,694 字节 ZIP、bundle ID、Team ID 和通用架构。
 
@@ -53,6 +58,12 @@ Desktop 管理文件只含无法识别的键且偏好仍是 Latest 时，DuoUpda
   切换到 Latest 后同一副本收到 `6.6695.0`。用该版本的解包副本切回 Stable，结果为已最新。
 - 在 Apple Silicon macOS 27.3 上，用 `VendorInstaller.download` 和 `apply` 将隔离副本从
   `5.11492.5` 更新到 `6.6695.0`。下载摘要、解包、签名验证和替换阶段均通过，磁盘版本与目标一致。
+
+### 夜扫渠道映射样本（2026-11-21）
+
+- 官网 Stable GA 跳转返回 `6.28899.2`。该 ZIP 和此前由 Latest Squirrel 返回的
+  `6.6695.0` ZIP 均通过 `codesign --verify --deep --strict`，签名标识及 Team ID 一致，
+  两个 `app.asar` 都包含同一个 Latest UUID。两个 ZIP 仍来自各自的 CDN 目录。
 
 以下记录于 2026-09-14 从 recipe 注释迁出，正文保留原样。
 

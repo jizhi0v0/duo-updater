@@ -52,7 +52,9 @@ struct LogoTile<Mark: View>: View {
 /// since one colour would leave a blob and a blank square. Leaf's favicon is
 /// its repo's `site/public/favicon.svg` (MIT), also in its original colours. go install's Go logo
 /// is go.dev/brand's `go-logo-blue.svg`, unmodified and in its own colour, used
-/// with the Go team's approval (trademark@golang.org, 2026-10-28). bub and Lorca
+/// with the Go team's approval (trademark@golang.org, 2026-10-28). Antigravity
+/// uses Google's full-colour antigravity.google/assets/image/antigravity-logo.png.
+/// bub and Lorca
 /// publish only a PNG, so they stand in with an SF Symbol.
 struct CLIToolIcon: View {
     let kind: CLIToolKind
@@ -74,11 +76,16 @@ struct CLIToolIcon: View {
                 .scaledToFit()
                 // Amp's and nvm's marks are wordmarks, two and three times as
                 // wide as tall: they get the tile's width to stay legible.
-                .frame(width: size * (kind == .amp || kind == .nvm ? 0.8 : 0.6), height: size * 0.6)
+                .frame(width: size * logoWidth, height: size * (kind == .antigravityCLI ? 0.8 : 0.6))
         } else {
             Image(systemName: symbol)
                 .font(.system(size: size * 0.55, weight: .semibold))
         }
+    }
+
+    private var logoWidth: CGFloat {
+        // The Antigravity PNG includes transparent padding.
+        kind == .amp || kind == .nvm || kind == .antigravityCLI ? 0.8 : 0.6
     }
 
     private var logo: String? {
@@ -112,7 +119,8 @@ struct CLIToolIcon: View {
         case .obelus: "cli-obelus"
         case .biome: "cli-biome"
         case .leaf: "cli-leaf"
-        case .antigravityCLI, .bub, .lorca, .terminalMac: nil
+        case .antigravityCLI: "cli-antigravity"
+        case .bub, .lorca, .terminalMac, .fixStorage: nil
         case .managed: managed?.logo
         }
     }
@@ -123,6 +131,7 @@ struct CLIToolIcon: View {
         // terminal-mac is a whole separate Mac in a terminal, not a terminal
         // emulator itself; the window-in-a-window reads closer than "terminal".
         case .terminalMac: "macwindow.on.rectangle"
+        case .fixStorage: "externaldrive.fill"
         default: "terminal"
         }
     }
@@ -144,7 +153,8 @@ struct CLIToolIcon: View {
                 ? NSColor(srgbRed: 0xDB / 255, green: 0xC6 / 255, blue: 0x6F / 255, alpha: 1)
                 : NSColor(srgbRed: 0x9C / 255, green: 0x82 / 255, blue: 0x26 / 255, alpha: 1)
         })
-        case .antigravityCLI, .bun, .cursorAgent, .opencode, .rust, .fx, .boat, .herdr, .lorca, .zoxide, .nvm, .deno, .mise, .terminalMac: Color(nsColor: .labelColor)
+        case .bun, .cursorAgent, .opencode, .rust, .fx, .boat, .herdr, .lorca, .zoxide, .nvm, .deno, .mise, .terminalMac, .fixStorage: Color(nsColor: .labelColor)
+        case .antigravityCLI: Color(red: 0x42 / 255, green: 0x85 / 255, blue: 0xF4 / 255)
         // Obelus's brass (`obelus.svg`'s gradient): its #C9A227 in the dark,
         // the gradient's darker #8C6F33 on a light sidebar.
         case .obelus: Color(nsColor: NSColor(name: nil) { appearance in

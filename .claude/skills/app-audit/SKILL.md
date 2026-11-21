@@ -24,6 +24,11 @@ nothing about the rest reads as "all done". The evidence each one needs is in
 `.claude/skills/coverage-discovery/SKILL.md` §「What "onboarded" means」. For
 many apps at once, use that skill; it dispatches this one per app.
 
+For a standalone CLI, also check its row icon in `CLIToolIcon` and
+`Assets.xcassets/CLILogos`. Use the vendor's published mark when suitable.
+If one isn't available, choose an SF Symbol specific to the tool. Verify the
+rendered icon in the CLI workbench along with the version and release notes.
+
 For an app/channel/feed implementation, **nightly coverage or an evidenced gap
 is also a completion requirement in the same PR**. For an audit-only request,
 report its current status and hand off missing work. Read

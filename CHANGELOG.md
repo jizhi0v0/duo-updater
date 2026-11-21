@@ -19,6 +19,20 @@ release note is debugging our code:
 
 Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
+## 0.5.27
+
+**Docker Desktop updates follow the Stable or Nightly channel you select in Docker.** Update checks for Stable work again.
+
+**Alfred 6 can check for updates on its stable and preview channels.** Alfred 5 still receives its own updates and links to the official Alfred 6 migration guide when the upgrade is available.
+
+**IntelliJ IDEA EAP stays on the EAP update track.** Update checks account for the licensing requirements of JetBrains preview builds.
+
+**TestFlight apps stay in the TestFlight group** even when a beta build is incompatible with your Mac.
+
+**Update handling is more reliable for GitHub Desktop, DSH NEXT, Bitwarden OSS, and UTM.** This covers the official GitHub Desktop installer, DSH NEXT’s new Apple Silicon package, Bitwarden OSS edition matching, and republished UTM builds.
+
+**VMPal release notes are available again.**
+
 ## 0.5.26
 
 **Supported Electron apps can download only the parts that changed.** When a reusable download is available, updates use less data; otherwise they download the full package.

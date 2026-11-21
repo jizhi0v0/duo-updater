@@ -2,6 +2,20 @@
 
 Bu, `CHANGELOG.md` dosyasının Türkçe çevirisidir. Geçerli olan İngilizce sürümdür; burada yer almayan eski sürümler otomatik olarak İngilizce gösterilir.
 
+## 0.5.27
+
+**Docker Desktop, Docker’da seçtiğiniz Stable veya Nightly kanalını izler.** Kararlı kanal için güncelleme denetimi yeniden çalışıyor.
+
+**Alfred 6, kararlı ve önizleme kanallarında güncelleme arayabilir.** Alfred 5 kendi güncellemelerini almaya devam eder ve yükseltme kullanılabilir olduğunda resmi Alfred 6 geçiş kılavuzunu gösterir.
+
+**IntelliJ IDEA EAP, EAP güncelleme kanalında kalır.** Güncelleme denetimi JetBrains önizleme sürümlerinin lisans gereksinimlerini dikkate alır.
+
+**TestFlight uygulamaları TestFlight grubunda kalır**, beta sürümü Mac’inizle uyumlu olmasa bile.
+
+**GitHub Desktop, DSH NEXT, Bitwarden OSS ve UTM güncellemeleri daha güvenilir.** İyileştirmeler GitHub Desktop’ın resmi yükleyicisini, DSH NEXT’in yeni Apple Silicon paketini, Bitwarden OSS sürümünün tanınmasını ve yeniden yayımlanan UTM derlemelerini kapsar.
+
+**VMPal sürüm notları yeniden görüntülenebiliyor.**
+
 ## 0.5.26
 
 **Desteklenen Electron uygulamaları yalnızca değişen bölümleri indirebilir.** Yeniden kullanılabilir bir indirme varsa güncellemeler daha az veri kullanır; yoksa paketin tamamı indirilir.

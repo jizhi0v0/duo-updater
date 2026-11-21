@@ -12,6 +12,11 @@ import Testing
 @Suite struct DigestOnlyRecipeTests {
 
     private static let expected: [String: [[String]]] = [
+        "ad.neko.mithka": [
+            ["mithka-1.12.8-20261115-macos-x64.zip", "mithka-1.12.8-20261115-macos-arm64.zip",
+             "mithka-1.12.8-20261115-windows-arm64.zip", "release-manifest.json"],
+            ["mithka-1.10.3-20261103-macos-universal.zip"],
+        ],
         "org.alacritty": [
             ["Alacritty-v0.17.0.dmg", "Alacritty-v0.17.0-rc2.dmg"],
             ["Alacritty-v0.16.1.dmg", "alacritty.1.gz", "Alacritty-v0.16.1-portable.exe"],
@@ -107,6 +112,8 @@ import Testing
     /// a prerelease's, or an OS-specific extra.
     @Test func eachPatternPicksTheOneDmgForThisMac() throws {
         let picks: [String: [String]] = [
+            "ad.neko.mithka": ["mithka-1.12.8-20261115-macos-arm64.zip",
+                               "mithka-1.10.3-20261103-macos-universal.zip"],
             "org.alacritty": ["Alacritty-v0.17.0.dmg", "Alacritty-v0.16.1.dmg"],
             "org.flameshot.Flameshot": ["Flameshot-14.0-macos-arm64.dmg", "Flameshot-13.3.0-artifact-macos-arm64.dmg"],
             "org.darktable": ["darktable-5.6.1-arm64.dmg", "darktable-5.2.1-arm64.dmg", "darktable-5.4.0-arm64.dmg"],

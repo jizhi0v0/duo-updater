@@ -304,6 +304,10 @@ struct GitHubAssetSelectionTests {
           "Sheprd-20261109.1-universal-apple-darwin.dmg"],
          "Herdr and Sheprd name the same app before and after its rename; "
              + "one dmg per release, so these branches select between tags"),
+        (#"^mithka-[0-9]+\.[0-9]+\.[0-9]+-[0-9]{8}-macos-(?:arm64|universal)\.zip$"#,
+         ["mithka-1.10.3-20261103-macos-universal.zip", "mithka-1.12.8-20261115-macos-arm64.zip"],
+         "Stable publishes a single universal zip through 1.10.3 and separate arm64 and x64 "
+             + "zips starting at 1.11.8. The pattern admits one of those assets per tag"),
     ]
 
     /// Selection must not depend on the order GitHub happens to list assets in.

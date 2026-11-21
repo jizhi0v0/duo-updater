@@ -76,6 +76,8 @@ public enum CLIToolKind: String, Sendable, Codable, CaseIterable {
     case terminalMac = "terminal-mac"
     /// Leaf, the terminal document and diff reader.
     case leaf
+    /// govijr's storage utility installed by its shell script.
+    case fixStorage = "fix-storage"
     /// Every item any manager keeps — mise's tools, uv's tools and Pythons,
     /// pipx venvs, nvm's and fnm's Nodes, pyenv's and rbenv's lines, cargo's
     /// and go's installs (`CLITools/Managed/`). Which manager is a value on
@@ -119,6 +121,7 @@ public enum CLIToolKind: String, Sendable, Codable, CaseIterable {
         case .biome: return "Biome"
         case .terminalMac: return "terminal-mac"
         case .leaf: return "Leaf"
+        case .fixStorage: return "fix-storage"
         case .pnpm: return "pnpm"
         case .yarn: return "Yarn"
         // Never a row's title: a managed row is named by its item, its group
@@ -305,6 +308,7 @@ public struct CLIToolStatus: Sendable, Equatable {
         case biome(BiomeInstall)
         case terminalMac(TerminalMacInstall)
         case leaf(LeafInstall)
+        case fixStorage(FixStorageInstall)
         /// Any manager's item (`CLITools/Managed/`).
         case managed(ManagedItem)
     }
@@ -409,6 +413,7 @@ public struct CLIToolReport: Sendable, Equatable {
         case biome
         case terminalMac
         case leaf
+        case fixStorage
         case pnpm
         case yarn
         /// A manager and the installs of it the check found (`ManagedProvider`).

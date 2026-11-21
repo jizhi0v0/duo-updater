@@ -35,7 +35,7 @@ public enum CLIToolWording {
         case .deno: return "Deno Land"
         case .mise: return "Jeffrey Dickey"
         case .bub, .rust, .npm, .boat, .vitePlus, .herdr, .luvus, .lorca, .zoxide, .nvm, .atuin, .ghcup, .flyctl, .helm, .starship,
-             .obelus, .biome, .terminalMac, .leaf, .pnpm, .yarn: return nil
+             .obelus, .biome, .terminalMac, .leaf, .fixStorage, .pnpm, .yarn: return nil
         // A managed row's signer is its manager's (`ManagerDescriptor.signer`),
         // read from the status in `reason(_:of status:)`.
         case .managed: return nil

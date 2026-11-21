@@ -3,6 +3,7 @@
 `agy` 的独立稳定版由 [Google 的 shell 安装器](https://antigravity.google/cli/install.sh) 安装在
 `~/.local/bin/agy`。macOS Apple Silicon 发布包内是平铺的 Mach-O 可执行文件。DuoUpdater
 在 CLI 工具中显示它，`duo list`、`duo check` 和 `duo install` 使用同一个 provider。
+CLI 工具台使用 [Google 发布的彩色图标](https://antigravity.google/assets/image/antigravity-logo.png)。
 
 ## 覆盖
 

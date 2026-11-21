@@ -24,6 +24,7 @@ public enum CLITools {
             AtuinProvider(), GhcupProvider(),
             FlyctlProvider(), HelmProvider(), StarshipProvider(),
             DenoProvider(), MiseProvider(), ObelusProvider(), BiomeProvider(), TerminalMacProvider(), LeafProvider(),
+            FixStorageProvider(),
             GlobalPackagesProvider(.pnpm), GlobalPackagesProvider(.yarn),
         ]
     }

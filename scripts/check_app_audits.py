@@ -72,6 +72,8 @@ NON_APP = {
     "issue-111-appcast-channel-population.md",
     # The standalone agy executable has a signing identifier but no bundle ID.
     "antigravity-cli.md",
+    # The fix-storage launcher links to an npm package without a bundle ID.
+    "fix-storage.md",
     # A channel, not an app: Setapp editions of many apps share one audit.
     "com-setapp-managed.md",
 }

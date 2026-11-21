@@ -8,13 +8,13 @@ probes = Array(count: 0)
 changelogs = Array(count: 1)
 changelogs[0] = struct ChangelogRecipe
 changelogs[0].bundleID = "com.tableplus.vmpal"
-changelogs[0].source = URL("https://vmpal.com/changelog")
+changelogs[0].source = URL("https://vmpal.com/blog/changelogs")
 changelogs[0].sourceTemplate = nil
 changelogs[0].versionFromTemplate = false
 changelogs[0].mode = .html
-changelogs[0].entryPattern = "<li[^>]*class=\"vp-release\"[^>]*>.*?<h2[^>]*>\\s*VMPal (?<version>\\d+\\.\\d+(?:\\.\\d+)?)\\s*</h2>(?:(?:(?!</li>).)*?<time[^>]*datetime=\"(?<date>[^\"]+)\")?.*?<div[^>]*class=\"vp-release-body\"[^>]*>(?<body>.*?)</div>"
+changelogs[0].entryPattern = "<h3\\b[^>]*>\\s*Version\\s+(?<version>\\d+\\.\\d+(?:\\.\\d+)?)\\s*\\(\\d+\\)\\s*</h3>(?:\\s*<h4\\b[^>]*>\\s*Release date:\\s*(?<date>[0-9]{1,2} [A-Za-z]+ [0-9]{4})\\.?\\s*</h4>)?(?:\\s*<h5\\b[^>]*>\\s*<a\\b[^>]*>Download</a>\\s*</h5>)?\\s*<ul\\b[^>]*>(?<body>(?:(?!<h3\\b).)*?)</ul>"
 changelogs[0].itemPatterns = Array(count: 1)
-changelogs[0].itemPatterns[0] = "<li[^>]*>\\s*(?<item>.*?)\\s*</li>"
+changelogs[0].itemPatterns[0] = "<li\\b[^>]*>\\s*(?<item>.*?)\\s*</li>"
 changelogs[0].stripTags = true
 changelogs[0].decodeEntities = true
 changelogs[0].escapedMarkup = false

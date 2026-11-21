@@ -164,7 +164,9 @@ public struct Changelog: Codable, Sendable, Hashable {
     ///   minor-version-page bodies with versioned summaries from the feed.
     /// - 23: WorkBuddy recognizes release lists after introductory paragraphs,
     ///   so cached notes that omit the newest release are fetched again.
-    public static let parserGeneration = 23
+    /// - 24: VMPal's macOS blog replaces the old list and publishes different
+    ///   notes for already cached releases such as 0.36.
+    public static let parserGeneration = 24
 
     public let entries: [Entry]
 

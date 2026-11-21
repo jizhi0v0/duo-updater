@@ -5,33 +5,26 @@ enum com_tableplus_VMPal {
         family: "com-tableplus-VMPal",
         changelogs: [
         // History: docs/app-audits/com-tableplus-VMPal.md#历史与实测
-        // VMPal — the TablePlus team's VM app. One `<li class="vp-release">` per
-        // build on vmpal.com/changelog, newest first:
-        //   <h2>VMPal 0.36</h2> <p>Build 36</p> <time datetime="2026-10-06">…
-        //   <div class="vp-release-body"> <ul><li>…</li></ul> </div>
+        // The macOS release notes use the TablePlus blog's heading layout:
+        // h3 with marketing version and build, h4 with date, h5 with download,
+        // then the change list. Match adjacent elements so a partial entry
+        // cannot borrow the next release's metadata or list.
         //
         // Read from the page rather than left to the appcast's inline
         // `<description>`: that body is the same template as TablePlus's feed
         // (`<h2>Build 36 - <tagline></h2>`, `<h4>Release date…</h4>`, `<ol>`), and
         // `AppcastHTMLChangelogParser` folds the `<h2>` in as a change line, so
         // every release would open with a bullet repeating the build number and
-        // the product tagline. The page states the marketing version and an ISO
-        // date and nothing else in the body.
-        //
-        // The date group is optional so an entry the vendor publishes without a
-        // `<time>` still renders; it may not reach past the release's own closing
-        // `</li>`, or it would borrow the next release's date. The `<li>` items
-        // are matched only inside `vp-release-body`, which is why the outer
-        // `<li class="vp-release">` cannot be read as an item.
+        // the product tagline.
         ChangelogRecipe(
             bundleID: "com.tableplus.vmpal",
-            source: URL(string: "https://vmpal.com/changelog")!,
+            source: URL(string: "https://vmpal.com/blog/changelogs")!,
             entryPattern:
-                #"<li[^>]*class="vp-release"[^>]*>.*?"#
-                + #"<h2[^>]*>\s*VMPal (?<version>\d+\.\d+(?:\.\d+)?)\s*</h2>"#
-                + #"(?:(?:(?!</li>).)*?<time[^>]*datetime="(?<date>[^"]+)")?"#
-                + #".*?<div[^>]*class="vp-release-body"[^>]*>(?<body>.*?)</div>"#,
-            itemPatterns: [#"<li[^>]*>\s*(?<item>.*?)\s*</li>"#]),
+                #"<h3\b[^>]*>\s*Version\s+(?<version>\d+\.\d+(?:\.\d+)?)\s*\(\d+\)\s*</h3>"#
+                + #"(?:\s*<h4\b[^>]*>\s*Release date:\s*(?<date>[0-9]{1,2} [A-Za-z]+ [0-9]{4})\.?\s*</h4>)?"#
+                + #"(?:\s*<h5\b[^>]*>\s*<a\b[^>]*>Download</a>\s*</h5>)?"#
+                + #"\s*<ul\b[^>]*>(?<body>(?:(?!<h3\b).)*?)</ul>"#,
+            itemPatterns: [#"<li\b[^>]*>\s*(?<item>.*?)\s*</li>"#]),
         ],
         sparkleFeeds: [
         // VMPal — ships Sparkle with an `SUPublicEDKey` but no `SUFeedURL`: the

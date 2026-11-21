@@ -20,14 +20,15 @@
 | channel | Sparkle | Homebrew | MAS | GitHub | VendorProbe | Changelog |
 |---|---:|---:|---:|---:|---:|---:|
 | stable | — | ✗（auto_updates 且版本滞后） | — | — | ✓ | ✓ |
-| nightly | — | — | — | — | ○（缺真实构件/信号） | — |
+| nightly | — | — | — | — | ✓ | — |
 
-当前生效源为 **VendorProbe**。同一个 stable recipe 覆盖 Apple Silicon 的
-`com.docker.docker`。Docker 的 Intel 分发包不在 DuoUpdater 的宿主范围内。
+当前生效源为 **VendorProbe**。Apple Silicon 的 `com.docker.docker` 按用户设置选择 stable
+或 nightly。Docker 的 Intel 分发包不在 DuoUpdater 的宿主范围内。
 
 ## 更新检测
 
-- DuoUpdater 与 Docker backend 均使用 Apple Silicon stable 的 [JSON appcast](https://desktop.docker.com/mac/main/arm64/appcast.json)。
+- DuoUpdater 与 Docker backend 根据用户设置选择 Apple Silicon 的 JSON appcast。
+  [Stable](https://desktop.docker.com/mac/main/arm64/appcast.json) · [Nightly](https://desktop-stage.docker.com/mac/main/arm64/appcast.json)
 - 读取同一个 `Items` 条目的 `AppVersion` 与 `BuildNumber`，对应
   `CFBundleShortVersionString` 与 `CFBundleVersion`。
 - 在 `Visibility` 为正且符合宿主 `MinOSVersion` 的条目中按版本选最新项，
@@ -59,14 +60,14 @@ bundle：`SUFeedURL`、`app-update.yml`、Squirrel 和 Sparkle。
 
 ## Changelog
 
-- 已有 `ChangelogRecipe` 从 Docker Desktop release notes 的 Markdown 生成原生条目
-- VendorProbe 的 `changelogURL` 指向 `https://docs.docker.com/desktop/release-notes/`
-- release notes 中包含多平台下载链接；抽取器已有回归测试，避免把这些链接当正文噪声
+- Stable 的 `ChangelogRecipe` 从 Docker Desktop release notes 的 Markdown 生成原生条目，并过滤其中的多平台下载链接。
+  [Docker Desktop release notes](https://docs.docker.com/desktop/release-notes/)
+- 本次核对的 Nightly appcast 没有 release notes 链接，Nightly 行不使用 Stable 的发布说明。
 
 ## 一键安装
 
-- 状态: 支持
-- 格式: 同一发布条目的完整 Apple Silicon DMG。只接受 Docker CDN 上
+- Stable 与 Nightly 均支持一键安装。
+- 格式: 同一发布条目的完整 Apple Silicon DMG。只接受各自 Docker CDN 上
   `/mac/main/arm64/<BuildNumber>/Docker.dmg` 和该 artifact 的 SHA-256。
   DMG 或摘要缺失时版本仍可检测。Docker 的交互安装也使用这个 DMG 中的应用包。
   [Docker for Mac 安装文档](https://docs.docker.com/desktop/setup/install/mac-install/#install-interactively)
@@ -75,33 +76,44 @@ bundle：`SUFeedURL`、`app-update.yml`、Squirrel 和 Sparkle。
 
 ## Channels
 
-stable 已验证。GUI 代码里另有 feature-flagged `useNightlyBuildUpdates` 设置，但 stable
-构建只观测到 `channelID=main`。在拿到真实 nightly 构件、落盘信号和 endpoint 前，不把它
-登记为可检测渠道；缺口记录在 `CHANNEL_COVERAGE_TODO.md` §2b。
+外层 `Docker.app` 的 Stable 与 Nightly 构件同为 `channelID=main`，共享当前用户的更新设置。
+`~/Library/Group Containers/group.com.docker/settings-store.json` 中顶层 JSON 布尔值
+`UseNightlyBuildUpdates` 为 `true` 时选择 Nightly；该键缺失时读取旧拼写 `useNightlyBuildUpdates`。
+两者同时存在时，以 `UseNightlyBuildUpdates` 为准。没有生效的 `true` 时选择 Stable。
+`NightlyBuilds` feature flag 控制设置界面的入口；`AcceptCanaryUpdates` 影响所选渠道内的分批推送，
+两者均不作为 DuoUpdater 切换渠道的依据。
+
+Homebrew 的 `docker-desktop` cask 发布 Stable。默认允许自更新 cask 检查其他来源时，已选择
+Nightly 的副本使用 Nightly appcast。用户明确选择只通过 Homebrew 更新时，保留 Homebrew 的
+结果和渠道切换提示。
 
 历史上的 public Edge 与 Stable 已在 Docker Desktop 3.0.0 合并成单一发布流。
 [Docker 3.0.0 发布公告](https://www.docker.com/blog/docker-desktop-3-0-0-smaller-faster-releases/)
 
 ## 夜扫覆盖
 
-- `duo verify --only com.docker.docker` 走现有 VendorProbe 注册表，版本行仍为
-  `vendor:com.docker.docker:stable`，并检查原来的 changelog 行
-  `changelog:com.docker.docker:-`。
-- `duo verify-install --only com.docker.docker` 枚举
-  `install:vendor:com.docker.docker:stable`，继续对照既有的 Apple Silicon 安装包身份
-  记录 `vendor:com.docker.docker:stable`。
-- Docker 的 nightly 轨缺少经过验证的构件及更新源，因此没有该轨的扫描行。
+- `duo verify --only com.docker.docker --no-installed` 通过现有 VendorProbe 注册表检查
+  `vendor:com.docker.docker:stable`、`vendor:com.docker.docker:nightly` 和 Stable 的
+  `changelog:com.docker.docker:-`，并检查 `coverage:com.docker.docker`。2026-11-21 实测 4/4 通过。
+- `duo verify-install --only com.docker.docker --full` 枚举
+  `install:vendor:com.docker.docker:stable` 和 `install:vendor:com.docker.docker:nightly`。
+  Stable 沿用现有 Apple Silicon 安装包身份记录。2026-11-21 在 Apple Silicon VM 用
+  `duo verify-install --only vendor:com.docker.docker:nightly --full --identities <副本>` 实测 1/1 通过，
+  `vendor:com.docker.docker:nightly` 写入首个构件的身份。后续巡检用该记录检查连续性。
 
 ## 已知边界
 
 - 通用 `SelfUpdaterStaging` 能识别 Sparkle/ShipIt 标准缓存，不能识别 Docker backend 私有的
   已下载待安装状态。若要覆盖，应以实际 backend 状态布局另做 detector，不能借嵌套 Squirrel。
-- nightly 尚未验证，stable recipe 必须继续由 channel gate 限定，不能猜测跨轨更新。
+- Docker 官方文档将 `settings.json` 列为 4.34 及更早版本的设置文件。该版本范围的 Nightly 设置
+  尚未验证。当前规则读取 `settings-store.json`。
+  [Docker Desktop 文档历史版本](https://github.com/docker/docs/blob/46db9aafa35d7f7ada3be806af91ebe915454eb6/content/manuals/desktop/use-desktop/resource-saver.md#configure-resource-saver)
 
 ## 如何复验
 
 ```sh
 swift run --package-path application-test channel-verify "<Docker.app>" --expect stable
+# Docker 的 UseNightlyBuildUpdates 为 true 时，改为 --expect nightly
 
 # 外层和界面 bundle 的身份、版本及 channelID
 plutil -p "<Docker.app>/Contents/Info.plist"
@@ -118,12 +130,29 @@ find "<Docker.app>/Contents/MacOS/Docker Desktop.app/Contents" \
 
 ## 下一步
 
-1. 若能取得真实 nightly 构件，比较其 Info.plist、backend settings 和更新 endpoint，再决定
-   ChannelBinding 或独立 recipe。
-2. 若产品需要展示 Docker 已下载待安装状态，先记录 backend 的稳定状态文件/IPC，再添加专用
+1. 若产品需要展示 Docker 已下载待安装状态，先记录 backend 的稳定状态文件/IPC，再添加专用
    staging detector；不要复用 ShipIt。
 
 ## 历史与实测
+
+### 2026-11-21 — Nightly JSON 与渠道设置
+
+Apple Silicon VM 的 Docker 4.99.0（245822）重启后，缺省或关闭 `UseNightlyBuildUpdates`
+读取 Stable；打开该键后原生更新器读取 Nightly 并找到 4.101.0（247044）。同时打开
+`AcceptCanaryUpdates` 仍请求 Nightly。公开 Nightly feed 的 247044 为 `Visibility=100`，
+同版本较新的 247119 为 `Visibility=0`。247044 的完整 DMG 与 feed 的 SHA-256 一致，包含
+原厂签名并公证的 Apple Silicon `com.docker.docker`（Team `9BNSXJN65R`）。
+
+同一 VM 中只写入旧键 `useNightlyBuildUpdates=true` 时，原生更新器也选择 Nightly。
+同时写入 `UseNightlyBuildUpdates=false` 时，无论键的顺序如何，原生更新器均选择 Stable。
+只把旧键设为真并写进旧文件 `settings.json`，无论 `settings-store.json` 缺失还是将开关设为假，
+4.99.0 的原生更新器都选择 Stable。
+
+对照实验只在 VM 重放时改动 JSON 的 `Visibility`。Stable feed 上，`Visibility=0` 时两个设置
+均不提供该构件，`Visibility=1` 时只有开启 `AcceptCanaryUpdates` 才提供，`Visibility=100`
+时关闭该选项也收到构件。Nightly feed 上，将 247119 临时设成 `Visibility=1` 后，同时开启
+两个选项才收到 247119；临时设成 `100` 时只打开 Nightly 也能收到。DuoUpdater 沿用以正值识别
+已开始发布的构件、排除零值的策略，原生更新器继续独立决定分批推送。
 
 ### 2026-11-20 — #2119 stable JSON 切换
 

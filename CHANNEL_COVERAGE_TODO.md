@@ -351,12 +351,10 @@ tag 与资产名，互不相收。与 WhatCable 的区别是 **Yaak 的 beta rul
       关掉 `detect()`，把没勾过框的 beta 副本钉在 stable 轨上。四种状态打真实端点验过。
       `sparkleChannelName(.beta)` 与 feed 的 `prerelease` 对不上这件事随着换源一起消失了。
 
-- [ ] **Docker Desktop — nightly** · `com.docker.docker` — UI 的更新设置代码里存在受
-      feature flag 控制的 `useNightlyBuildUpdates`；观测 stable bundle 只给出 `channelID=main`，
-      backend 使用 `desktop.docker.com/mac/main/arm64/appcast.json`。尚未取得真实 nightly
-      构件，也未验证开关落盘后的本地信号和 endpoint，故暂不登记为 detectable。不要从嵌套
-      `Docker Desktop.app` 的 Squirrel 推断渠道：实际更新器是外层
-      `com.docker.backend.updater`（见 `docs/app-audits/com-docker-docker.md`）。
+- [x] **Docker Desktop — Nightly** · `com.docker.docker` — 当前用户 Docker 设置中的
+      `UseNightlyBuildUpdates=true` 选择 `desktop-stage.docker.com/mac/main/arm64/appcast.json`，
+      Stable 与 Nightly 各有检测和全量 DMG 安装规则。`AcceptCanaryUpdates` 影响同一渠道内的分批推送。
+      实测见 [审计](docs/app-audits/com-docker-docker.md#历史与实测)。
 
 - [ ] **OpenClaw** · `ai.openclaw.mac` — 渠道来自 Gateway `update.channel`（运行中 Gateway 优先，兜底 `~/.openclaw/openclaw.json`）：beta/dev → 标签 `beta`；extended-stable → 只认该标签。2026-10-08 appcast 近 100 版 0 条带标签；出现带标签条目即接 ChannelBinding（否则 extended-stable 会被 duo 跨轨推）。详见 [审计](docs/app-audits/ai-openclaw-mac.md)
 - [ ] **Superwhisper** · `com.superduper.superwhisper` — 二进制有 `includeBetaUpdates` 键、无 UI 文案；feed 233 条 0 标签，猜的 4 个 beta feed 都 404。需真 app 确认键与机制（agent 类 app）后再定 binding。详见 [审计](docs/app-audits/com-superduper-superwhisper.md)

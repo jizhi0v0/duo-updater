@@ -71,6 +71,31 @@ import Testing
         #expect(result.remote == nil)
     }
 
+    @Test func dockerNightlyChecksItsVendorBeforeOfferingAStableCask() async {
+        let docker = InstalledApp(
+            name: "Docker", bundleID: DockerDesktopChannel.bundleID, shortVersion: "4.99.0",
+            buildVersion: "245822", path: URL(fileURLWithPath: "/Applications/Docker.app"),
+            isMASApp: false, sparkleFeedURL: nil, releaseChannel: .nightly, channelIsAuthoritative: true)
+        let brew = Brew(selfUpdating: true, version: "4.100.0", channel: .stable, token: "docker-desktop")
+        let vendor = Downstream(name: "Vendor", version: "4.101.0")
+        let result = await UpdateChecker(sources: [brew, vendor]).check(docker)
+        #expect(result.remote?.sourceName == "Vendor")
+        #expect(result.status == .updateAvailable(latest: "4.101.0"))
+        #expect(result.homebrewSourceIdentifier == "docker-desktop")
+
+        let noNightlyAnswer = await UpdateChecker(sources: [brew]).check(docker)
+        #expect(noNightlyAnswer.status == .unknown)
+        #expect(noNightlyAnswer.remote == nil)
+
+        let held = await UpdateChecker(
+            sources: [brew, vendor],
+            brewFallback: BrewFallbackPolicy(blockedKeys: [InstallPreferenceKey.key(for: docker)])
+        ).check(docker)
+        #expect(held.remote?.sourceName == "Homebrew")
+        #expect(held.replacesChannelWithStable == .nightly)
+        #expect(await vendor.calls == 1)
+    }
+
     @Test func alfredCaskShowsVendorPointUpdateBeforeManualMigration() async throws {
         let alfred = InstalledApp(
             name: "Alfred", bundleID: AlfredChannel.bundleID, shortVersion: "5.8.1",

@@ -4502,6 +4502,19 @@
       "signedIdentifier" : "com.deepseek.dsh",
       "teamIdentifier" : "NAN929V4UM"
     },
+    "vendor:com.docker.docker:nightly" : {
+      "architectures" : [
+        "arm64"
+      ],
+      "bundleIdentifier" : "com.docker.docker",
+      "firstSeenAt" : "2026-11-21T00:06:32Z",
+      "firstSeenVersion" : "4.101.0",
+      "lastSeenAt" : "2026-11-21T00:06:32Z",
+      "lastSeenURLSHA256" : "e8698efec619f1d9055feea8282063f1d56bf4276bbeda91c406d62844577290",
+      "lastSeenVersion" : "4.101.0",
+      "signedIdentifier" : "com.docker.docker",
+      "teamIdentifier" : "9BNSXJN65R"
+    },
     "vendor:com.docker.docker:stable" : {
       "architectures" : [
         "arm64"

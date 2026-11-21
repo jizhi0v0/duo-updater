@@ -121,6 +121,67 @@ struct RunningAppAutoUpdateTests {
         #expect(ledger.holdReason(for: "other", version: "0.0.423", now: now, freeBytes: nil) == nil)
     }
 
+    @Test func legacyDiskSpacePauseAdmitsTheSameOfferForAFreshMeasurement() throws {
+        let json = #"""
+            {"entries":{"_Applications_Discord.app":{"version":"0.0.423","firstSeen":816545450.055032,
+            "failures":0,"gaveUp":false,"automaticFailure":{"disposition":"pauseVersion",
+            "reason":"Not enough free space on this Mac to install this update: it has 4.05 GB free and needs 13.52 GB. Nothing was changed."}}}}
+            """#
+        var ledger = try JSONDecoder().decode(Policy.Ledger.self, from: Data(json.utf8))
+        let key = "_Applications_Discord.app"
+        let version = "0.0.423"
+        let floor = BackupStore.freeSpaceFloorBytes
+        for freeBytes: Int64? in [nil, floor - 1] {
+            #expect(ledger.holdReason(for: key, version: version, now: now, freeBytes: freeBytes) == .waitingForSpace)
+            let entry = ledger.observe(key, version: version, now: now, freeBytes: freeBytes)
+            #expect(Policy.decide(entry: entry, now: now, freeBytes: freeBytes) == .wait(.waitingForSpace))
+        }
+        #expect(ledger.holdReason(for: key, version: version, now: now, freeBytes: floor) == nil)
+        #expect(ledger.entries[key]?.automaticFailure?.disposition == .waitForSpace)
+        let admitted = ledger.observe(key, version: version, now: now, freeBytes: floor)
+        #expect(admitted.automaticFailure == nil)
+        #expect(Policy.decide(entry: admitted, now: now, freeBytes: floor) == .quitAndUpdate)
+
+        // A fresh typed refusal supplies the installer's actual requirement.
+        let attempt = AutomaticUpdateFailurePolicy.Attempt()
+        attempt.record(DiskSpaceGuard.InsufficientSpace(needed: floor + 123, free: floor))
+        ledger.recordFailure(key, failure: try #require(attempt.failure(or: "missing")), now: now)
+        ledger = try JSONDecoder().decode(Policy.Ledger.self, from: JSONEncoder().encode(ledger))
+        let waiting = ledger.observe(key, version: version, now: now, freeBytes: floor + 122)
+        #expect(waiting.automaticFailure?.requiredFreeBytes == floor + 123)
+        #expect(Policy.decide(entry: waiting, now: now, freeBytes: floor + 122) == .wait(.waitingForSpace))
+    }
+
+    @Test func migratingLegacySpacePausesPreservesOtherPausesAndQuitHistory() throws {
+        struct LegacyLedger: Encodable { let entries: [String: Policy.Entry] }
+        let reason = DiskSpaceGuard.InsufficientSpace(needed: 12_000_000_000, free: 0).localizedDescription
+        let pause = AutomaticUpdateFailurePolicy.Failure(disposition: .pauseVersion, reason: reason)
+        let postQuit = Policy.Entry(version: "2.0", behindSince: now, lastQuit: now, automaticFailure: pause)
+        let priorQuit = now.addingTimeInterval(-60)
+        let earlier = Policy.Entry(version: "2.0", behindSince: now, failures: 1, lastQuit: priorQuit,
+                                   automaticFailure: pause)
+        let unrelated = Policy.Entry(version: "2.0", behindSince: now, automaticFailure:
+            .init(disposition: .pauseVersion, reason: "Update failed. \(reason)"))
+        let cooldown = Policy.Entry(version: "2.0", behindSince: now, automaticFailure:
+            .init(disposition: .pauseVersion, reason: reason, retryNotBefore: now.addingTimeInterval(60)))
+
+        let old = LegacyLedger(entries: ["postQuit": postQuit, "earlier": earlier,
+                                         "unrelated": unrelated, "cooldown": cooldown])
+        let migrated = try JSONDecoder().decode(Policy.Ledger.self, from: JSONEncoder().encode(old))
+        #expect(migrated.entries["postQuit"] == postQuit)
+        #expect(migrated.entries["unrelated"] == unrelated)
+        #expect(migrated.entries["cooldown"] == cooldown)
+        var earlierEntry = try #require(migrated.entries["earlier"])
+        #expect(earlierEntry.automaticFailure?.disposition == .waitForSpace)
+        earlierEntry.automaticFailure = pause
+        #expect(earlierEntry == earlier)
+
+        // A currently recorded pause can have the same text but carry no
+        // evidence that it is a recoverable pre-install refusal.
+        let current = Policy.Ledger(entries: ["earlier": earlier])
+        #expect(try JSONDecoder().decode(Policy.Ledger.self, from: JSONEncoder().encode(current)) == current)
+    }
+
     @Test func currentHoldExpiresWhenTheCooldownOrSpaceRequirementClears() {
         var ledger = Policy.Ledger()
         _ = ledger.observe("space", version: "2", now: now)

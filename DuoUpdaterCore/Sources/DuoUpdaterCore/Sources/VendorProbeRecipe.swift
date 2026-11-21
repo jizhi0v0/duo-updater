@@ -274,6 +274,9 @@ public struct VendorProbeRecipe: Sendable {
         /// GET Docker Desktop's JSON appcast and scope the patterns to the
         /// selected release and its matching full Apple Silicon DMG.
         case dockerAppcast
+        /// GET IntelliJ IDEA's prerelease list and select the latest
+        /// EAP-licensed build and its own Apple Silicon DMG.
+        case jetBrainsIdeaEAP
         /// GET a release index, then GET its highest versioned child directory.
         /// `linkPattern` captures a single directory component (including `/`)
         /// and its numeric version in groups 1 and 2. Only an immediate child of

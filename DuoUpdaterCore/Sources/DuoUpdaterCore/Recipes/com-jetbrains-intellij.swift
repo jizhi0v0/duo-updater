@@ -1,6 +1,51 @@
+import CoreFoundation
 import Foundation
 
 enum com_jetbrains_intellij {
+    private static let eapBuild = #"[0-9]+(?:\.[0-9]+){1,3}"#
+
+    // Match only the old EAP bundle's licensing class. Restrict the body seen
+    // by the regular probe readers to the selected build and its own Apple
+    // Silicon DMG. Unknown licensing and conflicting rows for a build cannot
+    // authorize it. An ambiguous or absent DMG leaves detection available.
+    static func eapReleaseBody(from body: String) -> String? {
+        guard let response = try? JSONSerialization.jsonObject(with: Data(body.utf8)) as? [String: Any],
+              let entries = response["IIU"] as? [Any]
+        else { return nil }
+        let records = entries.compactMap { entry -> (String, [String: Any])? in
+            guard let fields = entry as? [String: Any],
+                  let build = fields["build"] as? String,
+                  build.range(of: #"\A\#(eapBuild)\z"#, options: .regularExpression) != nil
+            else { return nil }
+            return (build, fields)
+        }
+        let builds = Dictionary(grouping: records, by: \.0)
+        let eapBuilds = builds.filter { _, rows in
+            rows.allSatisfy { _, fields in
+                guard let license = fields["licenseRequired"] as? NSNumber,
+                      CFGetTypeID(license) == CFBooleanGetTypeID()
+                else { return false }
+                return !license.boolValue
+            }
+        }
+        guard let (build, rows) = eapBuilds.max(by: {
+            VersionComparator.isNewer($1.key, than: $0.key)
+        }) else { return nil }
+
+        var selected = ["build": build]
+        let artifact = "https://download.jetbrains.com/idea/idea-\(build)-aarch64.dmg"
+        if rows.count == 1,
+           let downloads = rows[0].1["downloads"] as? [String: Any],
+           let mac = downloads["macM1"] as? [String: Any],
+           mac["link"] as? String == artifact {
+            selected["url"] = artifact
+        }
+        guard let data = try? JSONSerialization.data(
+            withJSONObject: selected, options: [.sortedKeys, .withoutEscapingSlashes])
+        else { return nil }
+        return String(decoding: data, as: UTF8.self)
+    }
+
     static let set = AppRecipeSet(
         family: "com-jetbrains-intellij",
         probes: [
@@ -24,24 +69,21 @@ enum com_jetbrains_intellij {
                 urlSource: .bodyPattern(#""macM1"\s*:\s*\{[^}]*?"link"\s*:\s*"([^"]+\.dmg)""#),
                 kind: .dmg)),
 
-        // IntelliJ IDEA EAP — same data services API on the `eap` channel. The EAP
-        // marketing "version" stays the same (e.g. "2026.2") across many builds, so
-        // comparing it would never detect a build bump; we compare on the `build`
-        // (e.g. 262.x) via `versionIsBuild`. The installed bundle's CFBundleVersion
-        // is prefixed (e.g. "IU-262.6653.22") while the API build is bare (e.g.
-        // "262.7132.23") — `UpdateChecker` strips the product-code prefix so they
-        // compare in one namespace. `channel: .preview` matches the `-EAP` bundle id (see
-        // ReleaseChannel). Like stable, only consulted when Toolbox isn't managing
-        // this copy.
+        // IntelliJ IDEA EAP — type=eap covers both EAP-licensed builds and
+        // point-release Previews signed with the stable id. Read the list so
+        // the current Preview cannot hide the latest EAP-licensed build.
+        // Compare CFBundleVersion (without the IU- prefix) since multiple EAP
+        // releases share the same marketing version. Only website-managed
+        // copies are eligible for this recipe's in-place install.
         VendorProbeRecipe(
             bundleID: "com.jetbrains.intellij-EAP",
-            url: URL(string: "https://data.services.jetbrains.com/products/releases?code=IIU&latest=true&type=eap")!,
-            mode: .responseBody,
-            versionPattern: #""build"\s*:\s*"([0-9]+(?:\.[0-9]+){1,3})""#,
+            url: URL(string: "https://data.services.jetbrains.com/products/releases?code=IIU&type=eap")!,
+            mode: .jetBrainsIdeaEAP,
+            versionPattern: #""build"\s*:\s*"(\#(eapBuild))""#,
             changelogURL: URL(string: "https://www.jetbrains.com/idea/whatsnew/"),
             versionIsBuild: true,
             install: VendorInstallSpec(
-                urlSource: .bodyPattern(#""macM1"\s*:\s*\{[^}]*?"link"\s*:\s*"([^"]+\.dmg)""#),
+                urlSource: .bodyPattern(#""url"\s*:\s*"([^"]+\.dmg)""#),
                 kind: .dmg),
             channel: .preview),
         ],
@@ -65,23 +107,9 @@ enum com_jetbrains_intellij {
             structuredFormat: .jetBrainsProductReleases),
         ],
         channelProofs: [
-        // EAP dmgs are named `idea-<build>-aarch64.dmg` — the same shape stable
-        // uses, so the filename proves nothing. The endpoint does: `type=eap` vs
-        // stable's `type=release`, and the install pattern reads the dmg out of
-        // that response body.
-        //
-        // `url` alone, and that is the honest scope rather than a weaker one: the
-        // response to `type=eap` contains ONLY EAP builds, so `versionPattern`
-        // (`"build": "…"`) and the install pattern (`"macM1" … "link"`) carry no
-        // channel token at all. Naming either would assert something this recipe
-        // cannot satisfy. (The install pattern is byte-identical to the stable
-        // recipe's; the version pattern is NOT — stable reads `"version"` and this
-        // reads `"build"`, because `versionIsBuild` compares the build. That
-        // difference is deliberate and says nothing about the channel.)
-        // What naming `url` buys is that swapping the endpoint back to
-        // `type=release` fails the proof instead of passing on patterns that never
-        // mentioned a channel.
+        // The URL selects the prerelease list. The mode further scopes it to
+        // the EAP licensing class before either reader sees a build or DMG.
         ChannelProofKey("com.jetbrains.intellij-EAP", .preview):
-            .recipeAnchor(#"type=eap"#, in: ["url"]),
+            .recipeAnchor(#"(?:[?&]type=eap(?:&|$)|^jetBrainsIdeaEAP$)"#, in: ["url", "mode"]),
         ])
 }

@@ -138,14 +138,14 @@ extension VendorProbeRecipe: Codable {
 
 extension VendorProbeRecipe.Mode: Codable {
     enum CodingKind: String, CaseIterable {
-        case redirectFilename, responseBody, longbridgeManifest, dockerAppcast, versionedDirectory,
+        case redirectFilename, responseBody, longbridgeManifest, dockerAppcast, jetBrainsIdeaEAP, versionedDirectory,
              zipEntryPlist, redirectArchiveInfoPlist
     }
 
     public init(from decoder: Decoder) throws {
         let (kind, c) = try RecipeCoding.taggedObject(CodingKind.self, in: decoder) {
             switch $0 {
-            case .redirectFilename, .responseBody, .longbridgeManifest, .dockerAppcast: return []
+            case .redirectFilename, .responseBody, .longbridgeManifest, .dockerAppcast, .jetBrainsIdeaEAP: return []
             case .versionedDirectory: return ["linkPattern"]
             case .zipEntryPlist: return ["entry", "key"]
             case .redirectArchiveInfoPlist: return ["entry"]
@@ -156,6 +156,7 @@ extension VendorProbeRecipe.Mode: Codable {
         case .responseBody: self = .responseBody
         case .longbridgeManifest: self = .longbridgeManifest
         case .dockerAppcast: self = .dockerAppcast
+        case .jetBrainsIdeaEAP: self = .jetBrainsIdeaEAP
         case .versionedDirectory:
             self = .versionedDirectory(linkPattern: try c.decode(String.self, forKey: .init("linkPattern")))
         case .zipEntryPlist:
@@ -179,6 +180,8 @@ extension VendorProbeRecipe.Mode: Codable {
             try c.encode(CodingKind.longbridgeManifest.rawValue, forKey: .init("kind"))
         case .dockerAppcast:
             try c.encode(CodingKind.dockerAppcast.rawValue, forKey: .init("kind"))
+        case .jetBrainsIdeaEAP:
+            try c.encode(CodingKind.jetBrainsIdeaEAP.rawValue, forKey: .init("kind"))
         case .versionedDirectory(let pattern):
             try c.encode(CodingKind.versionedDirectory.rawValue, forKey: .init("kind"))
             try c.encode(pattern, forKey: .init("linkPattern"))

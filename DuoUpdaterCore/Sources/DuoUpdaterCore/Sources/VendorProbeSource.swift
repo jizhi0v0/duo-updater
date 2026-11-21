@@ -604,6 +604,10 @@ public struct VendorProbeSource: UpdateSource {
                 from: body, channel: recipe.channel, hostOSVersion: hostOSVersion)
             return Scope(text: release?.text ?? "", fellBack: false, bundleVersion: release?.version)
         }
+        if case .jetBrainsIdeaEAP = recipe.mode {
+            let release = com_jetbrains_intellij.eapReleaseBody(from: body)
+            return Scope(text: release ?? "", fellBack: false)
+        }
         guard let pattern = recipe.entryStartPattern else {
             return Scope(text: body, fellBack: false)
         }
@@ -1055,11 +1059,12 @@ public struct VendorProbeSource: UpdateSource {
                     warnings.append(.myGoSignatureNoMatch)
                 }
                 let deltas: [DeltaPatch]
-                if case .dockerAppcast = recipe.mode {
-                    // This feed authorizes only the full DMG in the scoped
+                switch recipe.mode {
+                case .dockerAppcast, .jetBrainsIdeaEAP:
+                    // These feeds authorize only the full DMG in the scoped
                     // release. Raw JSON fields cannot supply alternate artifacts.
                     deltas = []
-                } else {
+                default:
                     // These parsers read a whole Sparkle or MyGo document and
                     // match the version themselves. An entry fragment can be
                     // invalid XML even when the original feed is valid.
@@ -1269,7 +1274,7 @@ public struct VendorProbeSource: UpdateSource {
                     status: http.statusCode))
             }
 
-        case .responseBody, .longbridgeManifest, .dockerAppcast:
+        case .responseBody, .longbridgeManifest, .dockerAppcast, .jetBrainsIdeaEAP:
             return await fetchResponseBody(recipe, endpoint: endpoint)
 
         case .versionedDirectory(let pattern):

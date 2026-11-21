@@ -17,4 +17,8 @@
 
 ## 夜扫覆盖
 
-`duo verify --github --only build.miguel.Exo` 枚举 `github:m1guelpf/Exo:stable`，`duo verify-install --only build.miguel.Exo --full` 从同一规则解析并检查完整 DMG。
+`duo verify --github --only build.miguel.Exo` 枚举 `github:m1guelpf/Exo:stable`，`duo verify-install --only build.miguel.Exo --full` 从同一规则解析并检查完整 DMG。2026-11-22 首次检查均通过。
+
+## VM 复验
+
+在 Apple Silicon macOS 27.2 VM 中，从官方 0.1.0 DMG 取出真实副本。签名 Release CLI 的 `duo check --all --json` 报告 GitHub 0.2.0，`duo install --yes --json` 返回 `applied: true`。更新后营销版本和构建号均为 0.2.0，严格签名校验与 Gatekeeper 均通过，复查报告 `up-to-date`。

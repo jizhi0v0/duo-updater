@@ -2,7 +2,7 @@
 
 ## 分发与更新检测
 
-- Telegram 客户端，GitHub 桌面版的 Bundle ID 为 `ad.neko.mithka`。已核对 1.10.3、1.11.8、1.12.8 和 1.13.4 Nightly 的真实包。GitHub 版最低 macOS 12，1.10.3 使用 universal ZIP，1.11.8 起发布分架构的 ZIP。规则接受 arm64 和旧 universal 文件名。
+- Telegram 客户端，GitHub 桌面版的 Bundle ID 为 `ad.neko.mithka`。已核对 0.7.41、1.10.3、1.11.8、1.12.8 和 1.13.4 Nightly 的真实包。0.7.41 要求 macOS 11，近期包要求 macOS 12。GitHub Stable 到 1.10.3 使用 universal ZIP，1.11.8 起发布分架构的 ZIP。规则接受 arm64 和旧 universal 文件名。
 - 规则读取 `iebb/mithka` 的 `/releases/latest`，以 `vX.Y.Z` tag 对比 `CFBundleShortVersionString`。例如 1.12.8 的 `CFBundleVersion` 是 26111503。早期稳定 tag、测试发包和 Nightly 的发布形态见 [GitHub Releases](https://github.com/iebb/mithka/releases)。
 - GitHub Nightly 的 tag 带 `-nightly.DATE.COMMIT`，真实 macOS 包和 Stable 共用名称、Bundle ID、ad-hoc 签名及纯数值营销版本，构建号使用同一日期格式。Duo 对直下副本使用 Stable 源。新版 Nightly 不会被降级，营销版本落后于 Stable 的 Nightly 会收到 Stable 更新提示。独立 Nightly 跟踪需要能区分这两类副本的信号。
 - App Store 和 TestFlight 的同 ID 副本由原有商店分发路径处理。GitHub 发布使用独立的桌面包。1.12.8 的 [厂商更新客户端](https://github.com/iebb/mithka/blob/v1.12.8/lib/update/release_feed.dart) 的原地更新包选择只覆盖 Linux 和 Windows。
@@ -17,4 +17,8 @@ GitHub 直下包是 ad-hoc 签名，签名标识为 `ad.neko.mithka`，通过严
 
 ## 夜扫覆盖
 
-`duo verify --github --only ad.neko.mithka` 枚举 `github:iebb/mithka:stable`，`duo verify-install --only ad.neko.mithka --full` 检查完整 arm64 ZIP。Nightly 与商店分发不在这个 GitHub Stable 夜扫项内。
+`duo verify --github --only ad.neko.mithka` 枚举 `github:iebb/mithka:stable`，`duo verify-install --only ad.neko.mithka --full` 检查完整 arm64 ZIP。2026-11-22 首次检查均通过。Nightly 与商店分发不在这个 GitHub Stable 夜扫项内。
+
+## VM 复验
+
+在 Apple Silicon macOS 27.2 VM 中，签名 Release CLI 从真实 1.10.3 universal 和 1.11.8 arm64 副本检测到 GitHub 1.12.8。关闭摘要安装开关时，`duo install --yes --json` 拒绝替换 1.11.8。打开开关后两个副本都完成原地更新，版本为 1.12.8（26111503），严格签名校验通过。复查显示 1.12.8 已是最新，1.13.4 Nightly 无降级提示。

@@ -28,7 +28,8 @@ public struct FnmNodeAdapter: ManagerAdapter {
     public static let id = ManagerID("fnm-node")
 
     public static let descriptor = ManagerDescriptor(
-        id: id, displayName: "fnm Node", signer: nil, logo: nil, tint: .label, lane: "fnm")
+        id: id, displayName: "fnm Node", signer: nil, logo: nil,
+        tint: .rgb(red: 0.94, green: 0.55, blue: 0.18), lane: "fnm")
 
     public var descriptor: ManagerDescriptor { Self.descriptor }
 

@@ -32,7 +32,7 @@ public struct PyenvAdapter: ManagerAdapter {
     public static let id = ManagerID("pyenv")
 
     public static let descriptor = ManagerDescriptor(
-        id: id, displayName: "pyenv", signer: nil, logo: nil, tint: .label, lane: "pyenv",
+        id: id, displayName: "pyenv", signer: nil, logo: "cli-pyenv", tint: .label, lane: "pyenv",
         deadline: DefinitionLines.deadline, versionOrder: .generic)
 
     public var descriptor: ManagerDescriptor { Self.descriptor }

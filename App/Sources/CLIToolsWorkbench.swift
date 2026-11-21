@@ -35,7 +35,7 @@ struct LogoTile<Mark: View>: View {
 /// A tool's mark on a faint tile of its colour, so the CLI tab's rows tell apart
 /// at a glance instead of all wearing the same grey terminal glyph.
 ///
-/// The logos are template-rendered in `Assets.xcassets/CLILogos` so they take
+/// Monochrome logos are template-rendered in `Assets.xcassets/CLILogos` so they take
 /// the tint. Claude Code, npm, Bun, uv, Cursor, OpenCode, Rust and Vite are Simple
 /// Icons 16.34.0 (CC0; Rust's is CC BY-SA 4.0, from the Rust Foundation); the
 /// rest are each vendor's own: fx.sh's header, boat.dev's favicon, ampcode.com's
@@ -54,8 +54,8 @@ struct LogoTile<Mark: View>: View {
 /// is go.dev/brand's `go-logo-blue.svg`, unmodified and in its own colour, used
 /// with the Go team's approval (trademark@golang.org, 2026-10-28). Antigravity
 /// uses Google's full-colour antigravity.google/assets/image/antigravity-logo.png.
-/// bub and Lorca
-/// publish only a PNG, so they stand in with an SF Symbol.
+/// Bub uses its light and dark favicons, Lorca its desktop icon, and pyenv and
+/// rbenv their project avatars. See CLIIcon-Attribution.md in the app resources.
 struct CLIToolIcon: View {
     let kind: CLIToolKind
     let size: CGFloat
@@ -76,7 +76,7 @@ struct CLIToolIcon: View {
                 .scaledToFit()
                 // Amp's and nvm's marks are wordmarks, two and three times as
                 // wide as tall: they get the tile's width to stay legible.
-                .frame(width: size * logoWidth, height: size * (kind == .antigravityCLI ? 0.8 : 0.6))
+                .frame(width: size * logoWidth, height: size * logoHeight)
         } else {
             Image(systemName: symbol)
                 .font(.system(size: size * 0.55, weight: .semibold))
@@ -84,8 +84,12 @@ struct CLIToolIcon: View {
     }
 
     private var logoWidth: CGFloat {
-        // The Antigravity PNG includes transparent padding.
-        kind == .amp || kind == .nvm || kind == .antigravityCLI ? 0.8 : 0.6
+        kind == .amp || kind == .nvm ? 0.8 : logoHeight
+    }
+
+    private var logoHeight: CGFloat {
+        // These PNGs include transparent padding.
+        kind == .antigravityCLI || kind == .bub ? 0.8 : 0.6
     }
 
     private var logo: String? {
@@ -120,18 +124,20 @@ struct CLIToolIcon: View {
         case .biome: "cli-biome"
         case .leaf: "cli-leaf"
         case .antigravityCLI: "cli-antigravity"
-        case .bub, .lorca, .terminalMac, .fixStorage: nil
+        case .bub: "cli-bub"
+        case .lorca: "cli-lorca"
+        case .terminalMac, .fixStorage: nil
         case .managed: managed?.logo
         }
     }
 
     private var symbol: String {
         switch kind {
-        case .bub: "bubbles.and.sparkles.fill"
         // terminal-mac is a whole separate Mac in a terminal, not a terminal
         // emulator itself; the window-in-a-window reads closer than "terminal".
         case .terminalMac: "macwindow.on.rectangle"
         case .fixStorage: "externaldrive.fill"
+        case .managed where managed?.id == FnmNodeAdapter.id: "bolt.fill"
         default: "terminal"
         }
     }
@@ -153,8 +159,9 @@ struct CLIToolIcon: View {
                 ? NSColor(srgbRed: 0xDB / 255, green: 0xC6 / 255, blue: 0x6F / 255, alpha: 1)
                 : NSColor(srgbRed: 0x9C / 255, green: 0x82 / 255, blue: 0x26 / 255, alpha: 1)
         })
-        case .bun, .cursorAgent, .opencode, .rust, .fx, .boat, .herdr, .lorca, .zoxide, .nvm, .deno, .mise, .terminalMac, .fixStorage: Color(nsColor: .labelColor)
+        case .bun, .cursorAgent, .opencode, .rust, .fx, .boat, .herdr, .zoxide, .nvm, .deno, .mise, .terminalMac, .fixStorage: Color(nsColor: .labelColor)
         case .antigravityCLI: Color(red: 0x42 / 255, green: 0x85 / 255, blue: 0xF4 / 255)
+        case .lorca: Color(red: 0x64 / 255, green: 0x45 / 255, blue: 0xED / 255)
         // Obelus's brass (`obelus.svg`'s gradient): its #C9A227 in the dark,
         // the gradient's darker #8C6F33 on a light sidebar.
         case .obelus: Color(nsColor: NSColor(name: nil) { appearance in

@@ -94,15 +94,20 @@ Nightly 的副本使用 Nightly appcast。用户明确选择只通过 Homebrew �
 
 - `duo verify --only com.docker.docker --no-installed` 通过现有 VendorProbe 注册表检查
   `vendor:com.docker.docker:stable`、`vendor:com.docker.docker:nightly` 和 Stable 的
-  `changelog:com.docker.docker:-`。
+  `changelog:com.docker.docker:-`，并检查 `coverage:com.docker.docker`。2026-11-21 实测 4/4 通过。
 - `duo verify-install --only com.docker.docker --full` 枚举
   `install:vendor:com.docker.docker:stable` 和 `install:vendor:com.docker.docker:nightly`。
-  Stable 沿用现有 Apple Silicon 安装包身份记录；Nightly 使用自己的 `vendor:com.docker.docker:nightly` 身份记录。
+  Stable 沿用现有 Apple Silicon 安装包身份记录。2026-11-21 在 Apple Silicon VM 用
+  `duo verify-install --only vendor:com.docker.docker:nightly --full --identities <副本>` 实测 1/1 通过，
+  `vendor:com.docker.docker:nightly` 写入首个构件的身份。后续巡检用该记录检查连续性。
 
 ## 已知边界
 
 - 通用 `SelfUpdaterStaging` 能识别 Sparkle/ShipIt 标准缓存，不能识别 Docker backend 私有的
   已下载待安装状态。若要覆盖，应以实际 backend 状态布局另做 detector，不能借嵌套 Squirrel。
+- Docker 官方文档将 `settings.json` 列为 4.34 及更早版本的设置文件。该版本范围的 Nightly 设置
+  尚未验证。当前规则读取 `settings-store.json`。
+  [Docker Desktop 文档历史版本](https://github.com/docker/docs/blob/46db9aafa35d7f7ada3be806af91ebe915454eb6/content/manuals/desktop/use-desktop/resource-saver.md#configure-resource-saver)
 
 ## 如何复验
 
@@ -140,6 +145,8 @@ Apple Silicon VM 的 Docker 4.99.0（245822）重启后，缺省或关闭 `UseNi
 
 同一 VM 中只写入旧键 `useNightlyBuildUpdates=true` 时，原生更新器也选择 Nightly。
 同时写入 `UseNightlyBuildUpdates=false` 时，无论键的顺序如何，原生更新器均选择 Stable。
+只把旧键设为真并写进旧文件 `settings.json`，无论 `settings-store.json` 缺失还是将开关设为假，
+4.99.0 的原生更新器都选择 Stable。
 
 对照实验只在 VM 重放时改动 JSON 的 `Visibility`。Stable feed 上，`Visibility=0` 时两个设置
 均不提供该构件，`Visibility=1` 时只有开启 `AcceptCanaryUpdates` 才提供，`Visibility=100`

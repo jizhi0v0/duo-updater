@@ -70,6 +70,34 @@ public enum RunningAppAutoUpdate {
     /// Per-install entries, keyed by the install's preference key.
     public struct Ledger: Codable, Equatable, Sendable {
         public var entries: [String: Entry]
+        // Pauses written after this migration retain their original classification.
+        private let migratedLegacySpacePauses = true
+
+        private enum CodingKeys: String, CodingKey {
+            case entries, migratedLegacySpacePauses
+        }
+
+        public init(from decoder: Decoder) throws {
+            let values = try decoder.container(keyedBy: CodingKeys.self)
+            entries = try values.decode([String: Entry].self, forKey: .entries)
+            guard try values.decodeIfPresent(Bool.self, forKey: .migratedLegacySpacePauses) != true else { return }
+
+            // The historical error's wording was fixed, with locale-formatted
+            // amounts. Once the floor is met, let the normal installer measure
+            // and reserve the space the current install actually needs.
+            let legacySpaceRefusal = #/Not enough free space on this Mac to install this update: it has [^\r\n]+ free and needs \p{Nd}[^\r\n]*\. Nothing was changed\./#
+            entries = entries.mapValues { original in
+                guard let failure = original.automaticFailure, failure.disposition == .pauseVersion,
+                      failure.requiredFreeBytes == nil, failure.retryNotBefore == nil,
+                      original.lastQuit.map({ $0 < original.behindSince }) ?? true,
+                      failure.reason.wholeMatch(of: legacySpaceRefusal) != nil else { return original }
+                var entry = original
+                entry.automaticFailure = .init(disposition: .waitForSpace, reason: failure.reason,
+                                               requiredFreeBytes: BackupStore.freeSpaceFloorBytes)
+                return entry
+            }
+        }
+
         public init(entries: [String: Entry] = [:]) { self.entries = entries }
 
         /// A still-applicable hold on the offered version, for the Events pane.

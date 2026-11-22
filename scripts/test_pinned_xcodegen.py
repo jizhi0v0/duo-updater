@@ -135,11 +135,7 @@ class PinnedScript(unittest.TestCase):
                      if p.name.endswith(".zip") or p.name == "xcodegen"]
         self.assertEqual(leftovers, [], "unverified bytes were kept in the cache")
 
-    # Mutation: drop `-f` from curl and the 404 page is saved as the zip, so the
-    # failure becomes a hash mismatch; delete `|| fail "could not download"` and
-    # the script dies on curl's own status with no message. Either turns this red.
-    # A loopback server, not a missing file:// path: curl exits non-zero on that
-    # with or without `-f`, so it would not reach either branch.
+    # An HTTP failure must stop the script before the response can be hashed.
     def test_a_failed_download_is_an_error_not_an_empty_path(self):
         class NotFound(http.server.BaseHTTPRequestHandler):
             def do_GET(self):
@@ -165,6 +161,18 @@ class PinnedScript(unittest.TestCase):
         self.assertIn("could not download", run.stderr)
         self.assertNotIn("SHA-256", run.stderr)
         self.assertEqual(list(self.cache.rglob("*.zip")), [], "an error page was kept as the zip")
+
+    def test_a_success_exit_cannot_hide_http_404(self):
+        # Model curl 8.14.1's --fail/--retry regression on every test runner.
+        curl = self.tmp / "curl"
+        curl.write_text("#!/bin/sh\nprintf 404\n")
+        curl.chmod(0o755)
+        run = self.run_script(PINNED, "https://example.invalid/xcodegen.zip",
+                              PATH=f"{self.tmp}:/usr/bin:/bin")
+        self.assertNotEqual(run.returncode, 0)
+        self.assertEqual(run.stdout, "")
+        self.assertIn("could not download https://example.invalid/xcodegen.zip (HTTP 404)", run.stderr)
+        self.assertEqual(list(self.cache.rglob("*.zip")), [])
 
     def test_a_good_zip_yields_a_working_binary_path(self):
         script = self.script_with_hash(self.good_sha)

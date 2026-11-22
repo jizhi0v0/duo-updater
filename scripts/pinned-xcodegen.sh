@@ -88,7 +88,14 @@ fi
 if [ "$verified" -eq 0 ]; then
     rm -f "$cached"
     note "downloading XcodeGen $XCODEGEN_VERSION"
-    curl -fsSL --retry 3 -o "$zip" "$URL" || fail "could not download $URL"
+    # curl 8.14.1 can exit zero on HTTP 404 with --fail and --retry (#17554).
+    http_status="$(curl -fsSL --retry 3 -o "$zip" -w '%{http_code}' "$URL")" \
+        || fail "could not download $URL"
+    case "$http_status" in
+        000|2[0-9][0-9]) ;; # 000 is used for file:// test fixtures.
+        *) fail "could not download $URL (HTTP $http_status)" ;;
+    esac
+    [ -s "$zip" ] || fail "could not download $URL (no archive received)"
     got="$(sha256_of "$zip")"
     [ "$got" = "$XCODEGEN_SHA256" ] \
         || fail "downloaded zip fails the pinned SHA-256 (expected $XCODEGEN_SHA256, got $got)"

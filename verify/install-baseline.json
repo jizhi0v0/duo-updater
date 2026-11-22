@@ -56,10 +56,9 @@
     },
     "install:electron:com.kimi.code.desktop:stable:mainland-cn" : {
       "consecutiveActionable" : 0,
-      "consecutiveInfra" : 1,
+      "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
-      "infraSince" : "2026-11-22T14:22:25Z",
-      "sweepsSinceComment" : 1
+      "sweepsSinceComment" : 0
     },
     "install:electron:com.moonshot.kimichat:stable" : {
       "consecutiveActionable" : 0,
@@ -1858,14 +1857,14 @@
       "sweepsSinceComment" : 0
     },
     "install:vendor:app.getmoshi.desktop.tauri:stable" : {
-      "consecutiveActionable" : 23,
+      "consecutiveActionable" : 24,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 1167,
       "lastCommentedAt" : "2026-11-22T14:22:27Z",
       "lastSignature" : "inventoryEntryMissing: a previously trac",
       "previousSignature" : "inventoryEntryMissing: a previously trac",
-      "sweepsSinceComment" : 0
+      "sweepsSinceComment" : 1
     },
     "install:vendor:app.getmoshi.desktop:stable" : {
       "consecutiveActionable" : 0,
@@ -1963,11 +1962,18 @@
       "consecutiveInstallTransient" : 0,
       "sweepsSinceComment" : 0
     },
-    "install:vendor:com.baidu.BaiduNetdisk-mac:stable" : {
+    "install:vendor:com.backblaze.Backblaze:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "sweepsSinceComment" : 0
+    },
+    "install:vendor:com.baidu.BaiduNetdisk-mac:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 1,
+      "consecutiveInstallTransient" : 0,
+      "infraSince" : "2026-11-22T23:31:57Z",
+      "sweepsSinceComment" : 1
     },
     "install:vendor:com.bjango.istatmenus:stable" : {
       "consecutiveActionable" : 0,
@@ -2325,6 +2331,12 @@
       "consecutiveInstallTransient" : 0,
       "sweepsSinceComment" : 0
     },
+    "install:vendor:com.objective-see.blockblock.helper:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
     "install:vendor:com.openai.codex:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
@@ -2356,6 +2368,18 @@
       "sweepsSinceComment" : 0
     },
     "install:vendor:com.postmanlabs.mac:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
+    "install:vendor:com.privateinternetaccess.vpn:beta:ga-fallback" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
+    "install:vendor:com.privateinternetaccess.vpn:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
@@ -2843,9 +2867,10 @@
     },
     "install:vendor:org.inkscape.Inkscape:stable" : {
       "consecutiveActionable" : 0,
-      "consecutiveInfra" : 0,
+      "consecutiveInfra" : 1,
       "consecutiveInstallTransient" : 0,
-      "sweepsSinceComment" : 0
+      "infraSince" : "2026-11-22T23:31:57Z",
+      "sweepsSinceComment" : 1
     },
     "install:vendor:org.krita:stable:download-page" : {
       "consecutiveActionable" : 0,
@@ -2919,6 +2944,12 @@
       "consecutiveInstallTransient" : 0,
       "sweepsSinceComment" : 0
     },
+    "install:vendor:org.openvanilla.inputmethod.McBopomofo:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
     "install:vendor:org.pgadmin.pgadmin4:stable" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
@@ -2969,5 +3000,5 @@
     }
   },
   "schemaVersion" : 1,
-  "updatedAt" : "2026-11-22T14:22:27Z"
+  "updatedAt" : "2026-11-22T23:32:03Z"
 }

@@ -2,6 +2,10 @@
 
 本文件是 CHANGELOG.md 的繁體中文翻譯，以英文版為準。本文件中未列出的版本會自動改以英文顯示。
 
+## 0.5.29-beta.1
+
+**DuoUpdater 可以開啟 Windscribe、Private Internet Access、BlockBlock、小麥注音和 Backblaze 的已驗證安裝程式。** 點擊灰色「更新」按鈕下載並開啟安裝程式，再在其視窗中完成更新。
+
 ## 0.5.28
 
 **修正了 Workbench 的 App 依更新來源分組時可能發生的捲動卡死。** 目前的分組標題會固定在頂端，捲到頂端繼續下拉時只會顯示一個標題。

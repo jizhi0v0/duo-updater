@@ -2,6 +2,10 @@
 
 Questa è la traduzione di `CHANGELOG.md`. In caso di differenze fa fede la versione inglese. Le versioni non elencate qui vengono mostrate automaticamente in inglese.
 
+## 0.5.29-beta.1
+
+**DuoUpdater può aprire i programmi di installazione verificati di Windscribe, Private Internet Access, BlockBlock, McBopomofo e Backblaze.** Fai clic sul pulsante grigio «Aggiorna» per scaricare e aprire il programma di installazione, poi completa l’aggiornamento nella sua finestra.
+
 ## 0.5.28
 
 **Risolto un blocco durante lo scorrimento delle app di Workbench raggruppate per origine degli aggiornamenti.** L’intestazione del gruppo attivo resta fissa in alto e compare una sola volta quando si trascina l’elenco verso il basso partendo dall’inizio.

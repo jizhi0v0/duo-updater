@@ -484,12 +484,12 @@ public struct UpdateChecker: Sendable {
             // did restate it, and the two halves immediately disagreed, which is
             // the failure this whole change is about.
             if app.isMASApp, !source.answersAppStoreCopies { continue }
-            // The PIA and BlockBlock installer handoffs are for direct copies.
-            // Keep identified casks on their existing path even if the Brew
-            // fallback would ordinarily ask the vendor recipe.
+            // These installer handoffs are for direct copies. Keep identified
+            // casks on their existing path even when Brew permits fallback.
             if brewAnswer != nil, source is VendorProbeSource,
                let bundleID = app.bundleID?.lowercased(),
-               [PrivateInternetAccessChannel.bundleID, com_objective_see_blockblock_helper.bundleID].contains(bundleID) {
+               [PrivateInternetAccessChannel.bundleID, com_objective_see_blockblock_helper.bundleID,
+                org_openvanilla_inputmethod_McBopomofo.bundleID.lowercased()].contains(bundleID) {
                 continue
             }
             do {

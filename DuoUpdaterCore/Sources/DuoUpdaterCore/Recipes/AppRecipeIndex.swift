@@ -375,6 +375,7 @@ public enum AppRecipeIndex {
         org_musescore_MuseScore.set,
         org_musicbrainz_Picard.set,
         org_openlogi_openlogi.set,
+        org_openvanilla_inputmethod_McBopomofo.set,
         org_pgadmin_pgadmin4.set,
         org_qbittorrent_qBittorrent.set,
         org_RedisLabs_RedisInsight_V2.set,

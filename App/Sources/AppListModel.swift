@@ -5754,7 +5754,9 @@ final class AppListModel {
             return .notInstalled
         }
 
-        if requiresInstaller(result) { await refreshHelperStatus(checkPackage: true) }
+        if requiresInstaller(result), result.remote?.vendorInstallerApp == nil {
+            await refreshHelperStatus(checkPackage: true)
+        }
         if AutomaticInstall.active {
             automaticInstallVersions[id] = (
                 from: result.app.versionSide.text(withBuild: true),
@@ -6011,7 +6013,8 @@ final class AppListModel {
         // Over an earlier install that was cut off both copy nothing: the
         // bundle is the damaged one, and a copy of it would replace the good
         // one the user would restore from (`InstallCoordinator.backUp`).
-        if !(backupRoute == .appStore && appStoreRouteWillNotInstall(result)) {
+        if result.remote?.vendorInstallerApp == nil,
+           !(backupRoute == .appStore && appStoreRouteWillNotInstall(result)) {
             let takingUserBackup = (prefs.keepBackups || backUpOnce)
                 && InstallCoordinator.wantsBackup(backupRoute)
             if takingUserBackup {
@@ -7297,6 +7300,9 @@ final class AppListModel {
         // the user cancelled, then the app arms its own update. Asked only once a
         // package is known to exist, so the ladder runs for those rows alone.
         if case .relaunchToApplyStaged = rowState(for: result) { return nil }
+        if result.remote?.vendorInstallerApp != nil {
+            return installerHandoffHelp(for: result, stagedFileName: staged.url.lastPathComponent)
+        }
         if canUsePackageHelper(result) {
             return String(localized: "Download and install \(result.app.name) \(staged.version)")
         }
@@ -7409,8 +7415,17 @@ final class AppListModel {
         }
         installErrors[result.id] = nil
         do {
-            try await packageInstaller.reopen(
-                package: staged.url, installedApp: result.app.path, expectedFingerprint: staged.fingerprint)
+            if let installer = result.remote?.vendorInstallerApp {
+                guard let fingerprint = staged.fingerprint else {
+                    stagedPackages[result.id] = nil
+                    persistStagedPackages()
+                    return
+                }
+                try await installer.open(staged.url, result: result, expectedProof: fingerprint)
+            } else {
+                try await packageInstaller.reopen(
+                    package: staged.url, installedApp: result.app.path, expectedFingerprint: staged.fingerprint)
+            }
             let note = String(localized: "Opened the installer for \(result.app.name) \(staged.version) — finish it there.")
             installNotes[result.id] = note
             inFlightNotes[result.id] = note
@@ -9745,6 +9760,7 @@ final class AppListModel {
             // download is unattended like any other; only the final hand-off to
             // the system installer needs the user, and `installAll` runs those
             // last (see its phase ordering).
+            && result.remote?.vendorInstallerApp == nil
             && (canAutoInstall(result) || requiresInstaller(result))
             && !defersToSelfUpdater(result)
             && UpdatePolicy.installConfirmation(for: result) == nil
@@ -10798,6 +10814,7 @@ final class AppListModel {
 
     private func canUsePackageHelper(_ result: UpdateResult) -> Bool {
         result.remote?.homebrewManualInstaller == nil
+            && result.remote?.vendorInstallerApp == nil
             && packageHelperAvailable && PackageInstallTrust.teamIdentifier(for: result.app.bundleID) != nil
     }
 

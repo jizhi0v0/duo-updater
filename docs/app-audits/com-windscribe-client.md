@@ -525,6 +525,10 @@ SimpleCrypt + 4 个字段的解析写成 Swift，挂成一条 `ChannelBinding` r
 
 ## 更新检测
 
+2026-11 的接入将三条轨统一到 `/ChangeLogs?platform=osx`。每个条目同时提供 `beta`、
+版本化 DMG URL、最低系统版本和 SHA-256，选出的版本与安装器来自同一条记录。档位继续
+沿用 0、[0,1]、[0,1,2] 的阶梯。以下是之前 stable 探测使用 summary 的历史记录。
+
 - 源: `https://api.windscribe.com/ChangeLogs/summary`（14,280 字节，2026-09-07）
 - **必须带 `Authorization` 头**，否则 403：
   ```
@@ -641,34 +645,62 @@ Windscribe 也没有任何灰度机制：请求里没有 device id、没有 iden
 
 ## 一键安装
 
-- 状态: **✗ 不支持，而且是结构性拒绝，不是待办**
-- 格式: dmg（约 73 MB），但**里面没有可拖拽的 app**
-- **读的是**: 人人可手动下载的 GA（见上）——这一栏为真也救不了下面三条
-- 阻塞（前两条可修，第三条不可）：
-  1. **dmg 里只有 `WindscribeInstaller.app`**（`com.windscribe.installer.macos`），
-     真身在它的 `Contents/Resources/windscribe.tar.lzma` 里。`ArchiveExtractor.extractApp`
-     **按扩展名分派**（`dmg`/`zip`/`gz`/`bz2`/`xz`/`tar`/`tbz`/`tgz`），`lzma` 不在其中。
-  2. 就算解开了，那个 tar 解出来是**光秃秃的 `Contents/`，没有 `.app` 外壳**，
-     `firstApp`（只认顶层 `.app` 目录）找不到东西 → `noAppFound`。
-  3. **装这个 app 不是换一个 bundle。** 它还要写
-     `/Library/LaunchDaemons/com.windscribe.helper.macos.plist`、
-     `/Library/PrivilegedHelperTools/com.windscribe.helper.macos`、
-     一个 system extension（`com.windscribe.client.splittunnelextension`）、
-     一个登录项、以及 `/usr/local/bin/windscribe-cli`。只换 bundle 会留下一个
-     **和 root helper 版本对不上的 VPN**。厂商自己的更新走
-     `WindscribeInstaller.app/Contents/MacOS/installer -q <appdir>`——那是以 root 跑
-     厂商二进制，DuoUpdater 没有这种安装路线，也不该为一个 app 长出来：
-     Windscribe 光 2026-08 一个月的 changelog 里，**四条**本地提权修复长在安装/更新
-     这条路径上——两条逐字写着 "staged updater bundle"（2.24.12 #1987 竞态、
-     2.24.10 #1964 继承的 SUID/SGID 位），另两条在安装器归档和引导解压流程上
-     （2.24.8 #1949、#1816）。（同月另有几条提权修复在 OpenVPN 参数处理等别的路径上，
-     不算在这四条里。）
+- **灰色 Update 下载并打开厂商安装器。** 用户在安装器里确认安装，helper 升级时可能需要
+  macOS 管理员授权。DuoUpdater 的入口只匹配 `/Applications/Windscribe.app` 的同 Team
+  副本。其他位置、不可验证的签名或缺失摘要保留官方网页入口。
+- DMG 必须通过厂商 SHA-256 校验。启动前核对安装器的签名、Team ID、Bundle ID 和版本，
+  在用户会话中打开安装器。Duo 不传静默安装参数，不替厂商更新 helper。
+- 官方 DMG 提供 `WindscribeInstaller.app`（`com.windscribe.installer.macos`）。应用本体
+  来自安装器内的 `Contents/Resources/windscribe.tar.lzma`。在 VM 中用系统 `tar` 解出
+  `Contents/`，放入 `Windscribe.app` 外壳后签名校验通过。DuoUpdater 已有为裸
+  `Contents/` 组装外壳的 `ContentsPayload`，`ArchiveExtractor` 仍缺少 `.lzma` 分派。
+- 官方升级会更新 `/Library/PrivilegedHelperTools/com.windscribe.helper.macos`，由
+  `/Library/LaunchDaemons/com.windscribe.helper.macos.plist` 启动，并维护
+  `/usr/local/bin/windscribe-cli` 入口。登录项和分流扩展随 bundle 分发。
+  只替换 bundle 会留下旧的系统 helper。Windscribe 本机自更新时，helper 验证并暂存安装器，
+  再由用户会话启动内层安装器。安装器通过 macOS 授权和 `SMJobBless` 更换 helper。
+  [自更新启动源码](https://github.com/Windscribe/Desktop-App/blob/v2.25.8/src/client/engine/engine/autoupdater/autoupdaterhelper_mac.cpp)
+  · [helper 安装源码](https://github.com/Windscribe/Desktop-App/blob/v2.25.8/src/client/engine/engine/helper/installhelper_mac.mm)
+
+### 2026-11-22 VM 验证
+
+Apple Silicon，macOS 27.2 (26B123)，标准应用路径 `/Applications/Windscribe.app`。
+取厂商发布的两个正式版（2.24.12 → 2.25.8）。两份 DMG 与厂商记录的 SHA-256 一致。
+两版安装器均为 `com.windscribe.installer.macos`、Team `GYZJYS7XUG`，通过签名及
+Gatekeeper 公证检查。[2.24.12 发布](https://github.com/Windscribe/Desktop-App/releases/tag/v2.24.12)
+· [2.25.8 发布](https://github.com/Windscribe/Desktop-App/releases/tag/v2.25.8)
+
+| 操作 | VM 结果 |
+| --- | --- |
+| 2.24.12 首次安装 | 官方安装器要求管理员授权。完成后 root helper 正常运行，二进制与 2.24.12 包内 helper 一致。 |
+| 从桌面用户会话运行 `windscribe-cli update` | 2.24.12 和 2.25.8 在 Windscribe 未登录时均返回退出码 1 和 `Not logged in`。2.25.8 源码还要求应用已发现可用更新。CLI 启动安装器后即可返回。 |
+| 从桌面用户会话启动 2.25.8 官方安装器的 `-update` 模式，拒绝授权 | 安装器已关闭旧应用，随后显示换 helper 的管理员授权。拒绝后磁盘上的应用仍是 2.24.12，旧 helper 二进制和运行进程仍在。 |
+| 重试并授权 | Windscribe 未登录也能完成。应用重开为 2.25.8，签名通过。运行中的 LaunchDaemon 换了进程，系统 helper 与 2.25.8 内置二进制一致（helper 165 → 177）。CLI 可连接新版应用。 |
+| 分流扩展 | 包内版本从 1.0.14 升至 1.0.17。系统列表中没有激活的 Windscribe 扩展。本次未验证已启用分流的升级、VPN 会话重连或已登录时的 CLI 自更新。 |
+
+厂商安装器先更换 helper，再移除旧 bundle、解包安装。拒绝授权发生在移除旧 bundle
+之前。后续解包失败属于另一种状态，本次未注入故障。接入时应在进程启动后继续复查磁盘
+上的应用版本及 helper 状态，确认完成后再报告成功。
+[CLI 命令源码](https://github.com/Windscribe/Desktop-App/blob/v2.25.8/src/windscribe-cli/backendcommander.cpp)
+· [安装步骤源码](https://github.com/Windscribe/Desktop-App/blob/v2.25.8/src/installer/gui/macos/installer/installer/installer.mm)
+
+如果接入安装动作，可用厂商 feed 同一条记录里的渠道、版本、DMG URL 和 SHA-256 绑定
+目标，校验 DMG 和安装器身份后，从用户会话移交给厂商安装器并由 macOS 授权。
+`-update` 来自当前厂商实现，仍需验证参数兼容性和不同渠道的产物。
 
 > ⚠️ **`duo verify` 的 `oneClickCandidate` 提示对这条 recipe 是哑的，别把沉默当证据。**
 > 现在这个端点根本不给下载 URL，所以它一个 artifact 都匹配不到。就算换回
 > `/CheckUpdate` 也一样哑：那个探测器要求 body 里出现字面量 `https://`
 > （`RecipeSanity.firstArtifactURL` 的正则起手就是 `https?://`），而它把 URL 写成
-> JSON 转义的 `https:\/\/…`。拒绝一键的理由写在上面三条里，不在那条提示的有无里。
+> JSON 转义的 `https:\/\/…`。安装动作的接入依据见上面的 VM 验证。
+
+## 夜扫覆盖
+
+`duo verify --only com.windscribe.client` 检查 stable、beta 和 guinea pig 的厂商探测。
+`duo verify-install --only com.windscribe.client` 枚举
+`vendor:com.windscribe.client:stable`、`vendor:com.windscribe.client:beta`、
+`vendor:com.windscribe.client:guineaPig`，下载并校验外层 DMG 和安装器身份。
+此检查不会启动安装器，也不验证已启用的分流扩展或 VPN 会话。
 
 ## 已知问题
 
@@ -752,7 +784,7 @@ Windscribe 也没有任何灰度机制：请求里没有 device id、没有 iden
    却装着更新的 prerelease 构建"**——仍然可能出现（偏好默认就是 Release），
    仍然不是缺陷。
 
-6. 一键安装：**结构性拒绝**，理由见上，三条里第三条不可修。
+6. 安装器交接：灰色 Update 打开已验证的官方安装器，由用户确认安装。
 
 ## 历史与实测
 

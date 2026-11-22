@@ -244,9 +244,9 @@ import CryptoKit
             }
             continue
         }
-        // pkg → manual installer (system installer); archives → in-place swap.
-        #expect(remote.requiresManualInstaller == (remote.vendorInstallerKind == .pkg),
-                "\(key) install routing disagrees with its kind")
+        let handsOff = remote.vendorInstallerKind == .pkg || remote.vendorInstallerApp != nil
+        #expect(remote.requiresManualInstaller == handsOff,
+                "\(key) install routing disagrees with its kind or declared installer app")
         // …and that the build came off this channel's train. Same rule the nightly
         // `duo verify` sweep applies, read from the core registry so the two can't
         // drift (see `RecipeSanity.crossChannelArtifact`).

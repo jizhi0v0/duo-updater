@@ -202,7 +202,11 @@ public enum ArtifactInspection {
 
         do {
             let (identity, bundleWarnings) = try await offCooperativePool { () throws -> (Identity, [String]) in
-                try SignatureVerifier.verifyCodeSignature(appAt: app)
+                if let installerApp = remote.vendorInstallerApp {
+                    _ = try installerApp.verify(app, version: remote.shortVersion)
+                } else {
+                    try SignatureVerifier.verifyCodeSignature(appAt: app)
+                }
                 let identity = try identity(of: app)
                 // Attribute map drift only to Anthropic's Apple-anchored Developer ID.
                 let isClaudeZIP = kind == .zip

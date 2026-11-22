@@ -80,6 +80,12 @@ struct RecipeCodableTests {
                 expected: VendorInstallSpec(
                     urlSource: .fixed(URL(string: "https://example.invalid/a.zip")!), kind: .zip)),
             .structure(
+                VendorInstallerApp.self,
+                keys: VendorInstallerApp.CodingKeys.allCases.map(\.stringValue),
+                required: #"{"bundleIdentifier":"zz.fixture.installer","teamIdentifier":"ZZ","installedPath":"/Applications/Fixture.app"}"#,
+                expected: VendorInstallerApp(bundleIdentifier: "zz.fixture.installer",
+                    teamIdentifier: "ZZ", installedPath: "/Applications/Fixture.app")),
+            .structure(
                 VendorHostRequirement.self,
                 keys: VendorHostRequirement.CodingKeys.allCases.map(\.stringValue),
                 required: "{}",

@@ -1062,8 +1062,14 @@ struct WorkbenchRowAction: View {
             // fetching it again. See `AppListModel.stagedPackage(for:)`.
             withChannelSwitchHint {
                 if let stagedFileName {
-                    Button("Install") { actions.openStagedPackage() }
-                        .buttonStyle(.borderedProminent)
+                    Button(action: actions.openStagedPackage) {
+                        if result.remote?.vendorInstallerApp != nil {
+                            Text("Update")
+                        } else {
+                            Text("Install")
+                        }
+                    }
+                        .buttonStyle(.bordered)
                         .help(installerHandoffHelp(for: result, stagedFileName: stagedFileName))
                 } else {
                     Button("Update") { actions.install() }

@@ -1037,7 +1037,8 @@ public struct VendorProbeSource: UpdateSource {
         // version to (so a `.bodyPattern` install URL can't resolve against a
         // different entry than the version it's paired with). A failure here
         // just falls back to detection-only; it never blocks the version.
-        if allowInstall, !artifactUnreachable, let spec = recipe.install {
+        if allowInstall, !artifactUnreachable, let spec = recipe.install,
+           spec.installerApp == nil || !scoped.fellBack {
             var resolved: (url: URL, checksum: String?)?
             var transient: TransientInstallURL?
             do {
@@ -1648,7 +1649,7 @@ public struct VendorProbeSource: UpdateSource {
         let namespace: InstalledApp.BuildNamespace =
             recipe.versionIsBuild || headBuild != nil ? recipe.buildNamespace : .bundle
 
-        if let spec, let plan {
+        if let spec, let plan, spec.installerApp == nil || plan.checksum != nil {
             return RemoteVersion(
                 shortVersion: shortVersion,
                 version: buildVersion,
@@ -1662,9 +1663,9 @@ public struct VendorProbeSource: UpdateSource {
                 // silently started a download (ToDesk, UU Remote).
                 pageURL: recipe.downloadURL,
                 sourceName: sourceName,
-                // pkg → hand to the system installer; archives → in-place swap.
-                requiresManualInstaller: spec.kind == .pkg,
+                requiresManualInstaller: spec.kind == .pkg || spec.installerApp != nil,
                 vendorInstallerKind: spec.kind,
+                vendorInstallerApp: spec.installerApp,
                 expectedSHA512: spec.checksumFormat == .sha512Base64 ? plan.checksum : nil,
                 expectedSHA256: spec.checksumFormat == .sha256Hex ? plan.checksum : nil,
                 myGoSignature: myGoSignature,
@@ -1759,9 +1760,10 @@ public struct VendorProbeSource: UpdateSource {
 
         case .bodyPattern(let pattern):
             guard
-                let raw = VendorProbeRecipe.extractVersion(from: body, pattern: pattern),
-                let url = URL(string: raw)
+                let raw = VendorProbeRecipe.extractVersion(from: body, pattern: pattern)
             else { return nil }
+            let decoded = spec.installerApp == nil ? raw : raw.replacingOccurrences(of: #"\/"#, with: "/")
+            guard let url = URL(string: decoded) else { return nil }
             return (Self.preferHTTPS(url), checksum)
 
         case .bodyPatternLast(let pattern):

@@ -34,6 +34,7 @@ probes[0].install? = struct VendorInstallSpec
 probes[0].install?.urlSource = .bodyPattern(_:)
 probes[0].install?.urlSource.0 = "(https://edgedl\\.me\\.gvt1\\.com/android/studio/install/[0-9.]+/android-studio-[^\"]*-mac_arm\\.dmg)"
 probes[0].install?.kind = .dmg
+probes[0].install?.installerApp = nil
 probes[0].install?.checksumPattern? = "\\A(?:(?!https://edgedl\\.me\\.gvt1\\.com/android/studio/install/[0-9.]+/android-studio-[^\"]*-mac_arm\\.dmg)[\\s\\S])*?\\{(?=[^{}]*\"link\"\\s*:\\s*\"https://edgedl\\.me\\.gvt1\\.com/android/studio/install/[0-9.]+/android-studio-[^\"]*-mac_arm\\.dmg\")[^{}]*?\"checksum\"\\s*:\\s*\"([0-9a-f]{64})\""
 probes[0].install?.checksumFormat = .sha256Hex
 probes[0].install?.requestHeaders = Dictionary(count: 0)
@@ -73,6 +74,7 @@ probes[1].install? = struct VendorInstallSpec
 probes[1].install?.urlSource = .bodyPattern(_:)
 probes[1].install?.urlSource.0 = "(https://edgedl\\.me\\.gvt1\\.com/android/studio/install/[0-9.]+/android-studio-[^\"]*(?:canary|beta|rc)[0-9]*-mac_arm\\.dmg)"
 probes[1].install?.kind = .dmg
+probes[1].install?.installerApp = nil
 probes[1].install?.checksumPattern? = "\\A(?:(?!https://edgedl\\.me\\.gvt1\\.com/android/studio/install/[0-9.]+/android-studio-[^\"]*(?:canary|beta|rc)[0-9]*-mac_arm\\.dmg)[\\s\\S])*?\\{(?=[^{}]*\"link\"\\s*:\\s*\"https://edgedl\\.me\\.gvt1\\.com/android/studio/install/[0-9.]+/android-studio-[^\"]*(?:canary|beta|rc)[0-9]*-mac_arm\\.dmg\")[^{}]*?\"checksum\"\\s*:\\s*\"([0-9a-f]{64})\""
 probes[1].install?.checksumFormat = .sha256Hex
 probes[1].install?.requestHeaders = Dictionary(count: 0)
@@ -112,6 +114,7 @@ probes[2].install? = struct VendorInstallSpec
 probes[2].install?.urlSource = .bodyPattern(_:)
 probes[2].install?.urlSource.0 = "(https://edgedl\\.me\\.gvt1\\.com/android/studio/install/[0-9.]+/android-studio-[^\"]*(?:beta|rc)[0-9]*-mac_arm\\.dmg)"
 probes[2].install?.kind = .dmg
+probes[2].install?.installerApp = nil
 probes[2].install?.checksumPattern? = "\\A(?:(?!https://edgedl\\.me\\.gvt1\\.com/android/studio/install/[0-9.]+/android-studio-[^\"]*(?:beta|rc)[0-9]*-mac_arm\\.dmg)[\\s\\S])*?\\{(?=[^{}]*\"link\"\\s*:\\s*\"https://edgedl\\.me\\.gvt1\\.com/android/studio/install/[0-9.]+/android-studio-[^\"]*(?:beta|rc)[0-9]*-mac_arm\\.dmg\")[^{}]*?\"checksum\"\\s*:\\s*\"([0-9a-f]{64})\""
 probes[2].install?.checksumFormat = .sha256Hex
 probes[2].install?.requestHeaders = Dictionary(count: 0)

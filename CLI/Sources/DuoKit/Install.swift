@@ -200,7 +200,8 @@ public enum Install {
             // An explicitly named app is one the user asked for by name, so a
             // hidden one is honoured rather than silently skipped — but --all
             // means "the updates I would see", which excludes them.
-            if settings.isHidden(result), options.queries.isEmpty { continue }
+            if options.queries.isEmpty,
+               settings.isHidden(result) || result.remote?.vendorInstallerApp != nil { continue }
             switch classify(result, settings: settings, environment: environment) {
             case .install(let route):
                 // Narrowed, not refused: an app excluded by --route was never
@@ -1214,7 +1215,8 @@ public enum Install {
             // preference. Not fatal when it fails — but said out loud, because
             // the alternative is discovering the safety net is gone only when a
             // later rollback finds nothing.
-            if keepBackups, InstallCoordinator.wantsBackup(route) {
+            if keepBackups, toInstall.remote?.vendorInstallerApp == nil,
+               InstallCoordinator.wantsBackup(route) {
                 stages.enter(.backingUp)
                 switch await InstallCoordinator.backUp(toInstall.app, route: route) {
                 case .saved:

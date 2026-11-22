@@ -264,7 +264,7 @@ extension VendorProbeRecipe.RequestBody.EchoedField: Codable {
 extension VendorInstallSpec: Codable {
     enum CodingKeys: String, CodingKey, CaseIterable {
         case urlSource, kind, checksumPattern, checksumFormat, requestHeaders, nestedArchivePath
-        case contentsArchivePattern, myGoPublicKey
+        case contentsArchivePattern, myGoPublicKey, installerApp
     }
 
     private static var codingDefaults: VendorInstallSpec {
@@ -289,7 +289,9 @@ extension VendorInstallSpec: Codable {
             contentsArchivePattern: try c.decodeOptional(
                 String.self, forKey: .contentsArchivePattern, default: d.contentsArchivePattern),
             myGoPublicKey: try c.decodeOptional(
-                String.self, forKey: .myGoPublicKey, default: d.myGoPublicKey))
+                String.self, forKey: .myGoPublicKey, default: d.myGoPublicKey),
+            installerApp: try c.decodeOptional(
+                VendorInstallerApp.self, forKey: .installerApp, default: d.installerApp))
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -308,6 +310,8 @@ extension VendorInstallSpec: Codable {
             defaultIsNil: d.contentsArchivePattern == nil)
         try c.encodeOptional(
             myGoPublicKey, forKey: .myGoPublicKey, defaultIsNil: d.myGoPublicKey == nil)
+        try c.encodeOptional(
+            installerApp, forKey: .installerApp, defaultIsNil: d.installerApp == nil)
     }
 }
 

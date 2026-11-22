@@ -212,11 +212,13 @@ public actor VendorInstaller {
         // `filesystemSafeToken` — see the same construction in `SparkleInstaller`
         // for the measured traversal (`999.0/../../…`) that a raw interpolation
         // turns into a recursive delete outside the scratch dir.
-        let workDir = FileManager.default.temporaryDirectory
-            .appendingPathComponent(
+        let workDir = remote.vendorInstallerApp != nil
+            ? PackageInstaller.workDirectory(forInstalledApp: result.app.path)
+            : FileManager.default.temporaryDirectory.appendingPathComponent(
                 "DuoUpdater-vendor-\(result.app.scratchSlug)-\((remote.displayVersion ?? "new").filesystemSafeToken)")
         try? FileManager.default.removeItem(at: workDir)
-        try FileManager.default.createDirectory(at: workDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: workDir, withIntermediateDirectories: true,
+            attributes: remote.vendorInstallerApp != nil ? [.posixPermissions: 0o700] : nil)
         InstallJournal.noteWorkDirectory(workDir)
         do {
             if let stash {
@@ -523,6 +525,10 @@ public actor VendorInstaller {
         onStage: @Sendable @escaping (InstallStage) -> Void,
         vetStub: @Sendable @escaping (URL) throws -> Void
     ) async throws -> URL {
+        if remote.vendorInstallerApp != nil {
+            guard remote.installTrust == .developerID, remote.expectedSHA256 != nil,
+                  download.localStash == nil else { throw InstallError.checksumMismatch }
+        }
         var newApp: URL
         // 2. Gate 1 (optional) — SHA-512 over the exact bytes we downloaded.
         //

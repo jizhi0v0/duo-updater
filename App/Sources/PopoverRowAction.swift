@@ -538,11 +538,17 @@ struct PopoverRowAction: View {
             // nothing (and re-uses the installer window if it's still open), so don't
             // make the user pull hundreds of megabytes down a second time because
             // they dismissed it.
-            Button { actions.openStagedPackage() } label: { Text("Install").rowButtonLabel() }
+            Button { actions.openStagedPackage() } label: {
+                if result.remote?.vendorInstallerApp != nil {
+                    Text("Update").rowButtonLabel()
+                } else {
+                    Text("Install").rowButtonLabel()
+                }
+            }
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
                 .controlSize(.small)
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.bordered)
                 .help(installerHandoffHelp(for: result, stagedFileName: stagedFileName))
         } else {
             Button { actions.install() } label: { Text("Update").rowButtonLabel() }

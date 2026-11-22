@@ -34,6 +34,7 @@ probes[0].install? = struct VendorInstallSpec
 probes[0].install?.urlSource = .bodyPattern(_:)
 probes[0].install?.urlSource.0 = "(?m)^\\s*- url: (https://opencode\\.ai/files/bin/[0-9]+(?:\\.[0-9]+)+\\/opencode-desktop-mac-arm64\\.dmg)$"
 probes[0].install?.kind = .dmg
+probes[0].install?.installerApp = nil
 probes[0].install?.checksumPattern? = "(?m)^\\s*- url: https://opencode\\.ai/files/bin/[0-9]+(?:\\.[0-9]+)+\\/opencode-desktop-mac-arm64\\.dmg\\n\\s*sha512: ([A-Za-z0-9+/=]+)$"
 probes[0].install?.checksumFormat = .sha512Base64
 probes[0].install?.requestHeaders = Dictionary(count: 0)

@@ -45,6 +45,7 @@ enum com_privateinternetaccess_vpn {
                     bundleIdentifier: bundleID,
                     teamIdentifier: "5357M5NW9W",
                     installedPath: "/Applications/Private Internet Access.app")),
-            channel: channel)
+            channel: channel,
+            variant: channel == .beta ? "ga-fallback" : nil)
     }
 }

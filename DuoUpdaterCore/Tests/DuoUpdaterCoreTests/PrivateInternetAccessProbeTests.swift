@@ -63,7 +63,7 @@ struct PrivateInternetAccessProbeTests {
         let newerBeta = try RecipeVerificationTests.StubServer(body: newerBetaBody)
         defer { newerBeta.stop() }
 
-        let ga = try Self.recipe(channel: .beta).with(url: stable.url)
+        let ga = try Self.recipe(channel: .beta, variant: "ga-fallback").with(url: stable.url)
         let beta = try Self.recipe(channel: .beta, variant: "beta-feed")
         let app = InstalledApp(name: "Private Internet Access", bundleID: Self.bundleID,
             shortVersion: "3.7.2", buildVersion: "3.7.2",

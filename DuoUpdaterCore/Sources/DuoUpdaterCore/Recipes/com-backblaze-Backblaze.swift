@@ -20,7 +20,9 @@ enum com_backblaze_Backblaze {
                     urlSource: .bodyPattern(
                         #""url"\s*:\s*"(https://secure\.backblaze\.com/api/install_backblaze\?file=bzinstall-mac-[0-9]+(?:\.[0-9]+){3}\.dmg)""#),
                     kind: .dmg,
-                    checksumPattern: #""sha256"\s*:\s*"([a-fA-F0-9]{64})""#,
+                    // The archive digest precedes the artifact array. The
+                    // later ruby_source_checksum has its own different sha256.
+                    checksumPattern: #""sha256"\s*:\s*"([a-fA-F0-9]{64})"\s*,\s*"artifacts"\s*:\s*\["#,
                     checksumFormat: .sha256Hex,
                     installerApp: VendorInstallerApp(
                         bundleIdentifier: "com.backblaze.bzdoinstall",

@@ -488,7 +488,8 @@ public struct UpdateChecker: Sendable {
             // casks on their existing path even when Brew permits fallback.
             if brewAnswer != nil, source is VendorProbeSource,
                let bundleID = app.bundleID?.lowercased(),
-               [PrivateInternetAccessChannel.bundleID, com_objective_see_blockblock_helper.bundleID,
+               [com_backblaze_Backblaze.bundleID.lowercased(), PrivateInternetAccessChannel.bundleID,
+                com_objective_see_blockblock_helper.bundleID,
                 org_openvanilla_inputmethod_McBopomofo.bundleID.lowercased()].contains(bundleID) {
                 continue
             }

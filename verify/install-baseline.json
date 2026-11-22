@@ -56,9 +56,10 @@
     },
     "install:electron:com.kimi.code.desktop:stable:mainland-cn" : {
       "consecutiveActionable" : 0,
-      "consecutiveInfra" : 0,
+      "consecutiveInfra" : 1,
       "consecutiveInstallTransient" : 0,
-      "sweepsSinceComment" : 0
+      "infraSince" : "2026-11-22T14:22:25Z",
+      "sweepsSinceComment" : 1
     },
     "install:electron:com.moonshot.kimichat:stable" : {
       "consecutiveActionable" : 0,
@@ -1857,14 +1858,14 @@
       "sweepsSinceComment" : 0
     },
     "install:vendor:app.getmoshi.desktop.tauri:stable" : {
-      "consecutiveActionable" : 22,
+      "consecutiveActionable" : 23,
       "consecutiveInfra" : 0,
       "consecutiveInstallTransient" : 0,
       "issueNumber" : 1167,
-      "lastCommentedAt" : "2026-11-15T13:07:33Z",
+      "lastCommentedAt" : "2026-11-22T14:22:27Z",
       "lastSignature" : "inventoryEntryMissing: a previously trac",
       "previousSignature" : "inventoryEntryMissing: a previously trac",
-      "sweepsSinceComment" : 17
+      "sweepsSinceComment" : 0
     },
     "install:vendor:app.getmoshi.desktop:stable" : {
       "consecutiveActionable" : 0,
@@ -2574,6 +2575,24 @@
       "consecutiveInstallTransient" : 0,
       "sweepsSinceComment" : 0
     },
+    "install:vendor:com.windscribe.client:beta" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
+    "install:vendor:com.windscribe.client:guineaPig" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
+    "install:vendor:com.windscribe.client:stable" : {
+      "consecutiveActionable" : 0,
+      "consecutiveInfra" : 0,
+      "consecutiveInstallTransient" : 0,
+      "sweepsSinceComment" : 0
+    },
     "install:vendor:com.workbuddy.workbuddy-ai:stable:arm64" : {
       "consecutiveActionable" : 0,
       "consecutiveInfra" : 0,
@@ -2950,5 +2969,5 @@
     }
   },
   "schemaVersion" : 1,
-  "updatedAt" : "2026-11-22T04:08:57Z"
+  "updatedAt" : "2026-11-22T14:22:27Z"
 }

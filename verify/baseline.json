@@ -5922,7 +5922,7 @@
       "issueNumber" : 2159,
       "lastCommentedAt" : "2026-11-21T14:40:43Z",
       "lastGoodAt" : "2026-11-21T02:38:33Z",
-      "lastGoodVersion" : "263.8311.30",
+      "lastGoodVersion" : "263.7307.44",
       "lastSignature" : "version went BACKWARDS since the last sw",
       "previousSignature" : "version went BACKWARDS since the last sw",
       "sweepsSinceComment" : 1

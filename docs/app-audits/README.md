@@ -148,6 +148,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 
 ## Single-channel — VendorProbe + optional Changelog
 
+- [x] [**BlockBlock**](com-objective-see-blockblock-helper.md) · `com.objective-see.blockblock.helper` — P · 官网 ZIP 摘要校验后从灰色 Update 打开厂商安装器 · 2026-11-22
 > ✓ marks = on-machine verified 2026-06-04 via `channel-verify` against a real
 > installed bundle (full production chain). The sweep's raw output is an
 > installed-app inventory, so it stays local (`application-test/records/`,

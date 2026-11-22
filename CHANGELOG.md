@@ -19,6 +19,10 @@ release note is debugging our code:
 
 Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
+## 0.5.29-beta.1
+
+**DuoUpdater can open verified installers for Windscribe, Private Internet Access, BlockBlock, McBopomofo and Backblaze.** Click the gray Update button to download and open the installer, then finish the update in the installer window.
+
 ## 0.5.28
 
 **Fixed a freeze when scrolling Workbench Apps by update source.** The active group stays fixed at the top, and pulling down at the top shows a single header.

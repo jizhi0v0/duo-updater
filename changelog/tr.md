@@ -2,6 +2,10 @@
 
 Bu, `CHANGELOG.md` dosyasının Türkçe çevirisidir. Geçerli olan İngilizce sürümdür; burada yer almayan eski sürümler otomatik olarak İngilizce gösterilir.
 
+## 0.5.29-beta.1
+
+**DuoUpdater artık Windscribe, Private Internet Access, BlockBlock, McBopomofo ve Backblaze için doğrulanmış yükleyicileri açabiliyor.** Yükleyiciyi indirip açmak için gri «Güncelle» düğmesine tıklayın, ardından güncellemeyi yükleyici penceresinde tamamlayın.
+
 ## 0.5.28
 
 **Workbench’te uygulamaları güncelleme kaynağına göre gruplandırdıktan sonra listeyi kaydırırken oluşan donma giderildi.** Etkin grubun başlığı üstte sabit kalır ve liste başından aşağı çekildiğinde yalnızca bir kez görünür.

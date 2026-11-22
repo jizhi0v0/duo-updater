@@ -194,6 +194,7 @@ public enum ChannelBinding {
         CapCutChannel.bundleID.lowercased(),
         CotEditorChannel.bundleID.lowercased(),
         WindscribeChannel.bundleID.lowercased(),
+        PrivateInternetAccessChannel.bundleID,
         SuperconductorChannel.bundleID.lowercased(),
         MacMouseFixChannel.bundleID.lowercased(),
         CuaDriverChannel.bundleID.lowercased(),
@@ -529,6 +530,8 @@ public enum ChannelBinding {
         case CotEditorChannel.bundleID.lowercased(): return { _, _ in CotEditorChannel.resolveCurrent() }
         case WindscribeChannel.bundleID.lowercased():
             return { _, _ in WindscribeChannel.resolveCurrent() }
+        case PrivateInternetAccessChannel.bundleID:
+            return { _, _ in PrivateInternetAccessChannel.resolveCurrent() }
         case SuperconductorChannel.bundleID.lowercased():
             return { _, _ in SuperconductorChannel.resolveCurrent() }
         case CodeEditChannel.bundleID.lowercased(): return { _, _ in CodeEditChannel.resolveCurrent() }
@@ -740,6 +743,7 @@ public enum ChannelBinding {
         TailscaleChannel.bundleID.lowercased(),
         CapCutChannel.bundleID.lowercased(),
         WindscribeChannel.bundleID.lowercased(),
+        PrivateInternetAccessChannel.bundleID,
         SuperconductorChannel.bundleID.lowercased(),
         CuaDriverChannel.bundleID.lowercased(),
         CindyChannel.globalBundleID.lowercased(),

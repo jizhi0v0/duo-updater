@@ -1,0 +1,152 @@
+// Generated from AppRecipeIndex.all by RecipeGoldenTests. Do not edit by hand.
+// Regenerate: DUO_RECORD_RECIPE_GOLDENS=1 swift test --package-path DuoUpdaterCore --filter RecipeGoldenTests
+
+family = "com-privateinternetaccess-vpn"
+
+probes = Array(count: 3)
+probes[0] = struct VendorProbeRecipe
+probes[0].bundleID = "com.privateinternetaccess.vpn"
+probes[0].channel = .stable
+probes[0].variant = nil
+probes[0].hostRequirement = nil
+probes[0].installedVersionPattern = nil
+probes[0].buildLineage = nil
+probes[0].headBuildPattern = nil
+probes[0].url = URL("https://www.privateinternetaccess.com/pages/changelog")
+probes[0].identities = Array(count: 0)
+probes[0].track = nil
+probes[0].mode = .responseBody
+probes[0].versionPattern = "<h3\\b[^>]*>\\s*v([0-9]+(?:\\.[0-9]+)+)\\s*</h3>"
+probes[0].transientBodyPattern = nil
+probes[0].trackClosedPattern = nil
+probes[0].downloadURL? = URL("https://www.privateinternetaccess.com/pages/changelog")
+probes[0].changelogURL? = URL("https://www.privateinternetaccess.com/pages/changelog")
+probes[0].selectHighest = false
+probes[0].selectsHighestPublishedBuild = false
+probes[0].versionIsBuild = false
+probes[0].buildNamespace = .bundle
+probes[0].displayVersionPattern = nil
+probes[0].publishedAtPattern = nil
+probes[0].minimumSystemVersionPattern = nil
+probes[0].maximumSystemVersionPattern = nil
+probes[0].entryStartPattern? = "<article class=\"changelog-release\">"
+probes[0].install? = struct VendorInstallSpec
+probes[0].install?.urlSource = .bodyPattern(_:)
+probes[0].install?.urlSource.0 = "href=\"(https://installers\\.privateinternetaccess\\.com/download/pia-macos-[0-9]+(?:\\.[0-9]+)+-[0-9]+\\.zip)\""
+probes[0].install?.kind = .zip
+probes[0].install?.installerApp? = struct VendorInstallerApp
+probes[0].install?.installerApp?.bundleIdentifier = "com.privateinternetaccess.vpn"
+probes[0].install?.installerApp?.teamIdentifier = "5357M5NW9W"
+probes[0].install?.installerApp?.installedPath = "/Applications/Private Internet Access.app"
+probes[0].install?.checksumPattern? = "<p class=\"sha256\">\\s*pia-macos-[0-9]+(?:\\.[0-9]+)+-[0-9]+\\.zip\\s*:\\s*<span class=\"code\">([a-fA-F0-9]{64})</span>"
+probes[0].install?.checksumFormat = .sha256Hex
+probes[0].install?.requestHeaders = Dictionary(count: 0)
+probes[0].install?.nestedArchivePath = nil
+probes[0].install?.contentsArchivePattern = nil
+probes[0].install?.myGoPublicKey = nil
+probes[0].requestBody = nil
+probes[0].followRedirects = true
+probes[0].requestHeaders = Dictionary(count: 0)
+probes[1] = struct VendorProbeRecipe
+probes[1].bundleID = "com.privateinternetaccess.vpn"
+probes[1].channel = .beta
+probes[1].variant? = "ga-fallback"
+probes[1].hostRequirement = nil
+probes[1].installedVersionPattern = nil
+probes[1].buildLineage = nil
+probes[1].headBuildPattern = nil
+probes[1].url = URL("https://www.privateinternetaccess.com/pages/changelog")
+probes[1].identities = Array(count: 0)
+probes[1].track = nil
+probes[1].mode = .responseBody
+probes[1].versionPattern = "<h3\\b[^>]*>\\s*v([0-9]+(?:\\.[0-9]+)+)\\s*</h3>"
+probes[1].transientBodyPattern = nil
+probes[1].trackClosedPattern = nil
+probes[1].downloadURL? = URL("https://www.privateinternetaccess.com/pages/changelog")
+probes[1].changelogURL? = URL("https://www.privateinternetaccess.com/pages/changelog")
+probes[1].selectHighest = false
+probes[1].selectsHighestPublishedBuild = false
+probes[1].versionIsBuild = false
+probes[1].buildNamespace = .bundle
+probes[1].displayVersionPattern = nil
+probes[1].publishedAtPattern = nil
+probes[1].minimumSystemVersionPattern = nil
+probes[1].maximumSystemVersionPattern = nil
+probes[1].entryStartPattern? = "<article class=\"changelog-release\">"
+probes[1].install? = struct VendorInstallSpec
+probes[1].install?.urlSource = .bodyPattern(_:)
+probes[1].install?.urlSource.0 = "href=\"(https://installers\\.privateinternetaccess\\.com/download/pia-macos-[0-9]+(?:\\.[0-9]+)+-[0-9]+\\.zip)\""
+probes[1].install?.kind = .zip
+probes[1].install?.installerApp? = struct VendorInstallerApp
+probes[1].install?.installerApp?.bundleIdentifier = "com.privateinternetaccess.vpn"
+probes[1].install?.installerApp?.teamIdentifier = "5357M5NW9W"
+probes[1].install?.installerApp?.installedPath = "/Applications/Private Internet Access.app"
+probes[1].install?.checksumPattern? = "<p class=\"sha256\">\\s*pia-macos-[0-9]+(?:\\.[0-9]+)+-[0-9]+\\.zip\\s*:\\s*<span class=\"code\">([a-fA-F0-9]{64})</span>"
+probes[1].install?.checksumFormat = .sha256Hex
+probes[1].install?.requestHeaders = Dictionary(count: 0)
+probes[1].install?.nestedArchivePath = nil
+probes[1].install?.contentsArchivePattern = nil
+probes[1].install?.myGoPublicKey = nil
+probes[1].requestBody = nil
+probes[1].followRedirects = true
+probes[1].requestHeaders = Dictionary(count: 0)
+probes[2] = struct VendorProbeRecipe
+probes[2].bundleID = "com.privateinternetaccess.vpn"
+probes[2].channel = .beta
+probes[2].variant? = "beta-feed"
+probes[2].hostRequirement = nil
+probes[2].installedVersionPattern = nil
+probes[2].buildLineage = nil
+probes[2].headBuildPattern = nil
+probes[2].url = URL("https://www.privateinternetaccess.com/clients/desktop/beta.json")
+probes[2].identities = Array(count: 0)
+probes[2].track = nil
+probes[2].mode = .responseBody
+probes[2].versionPattern = "\"latest_version_piax\"\\s*:\\s*\\{(?:\\s*\"[^\"]+\"\\s*:\\s*\\{[^{}]*\\}\\s*,)*\\s*\"mac\"\\s*:\\s*\\{[^{}]*?\"version\"\\s*:\\s*\"([0-9]+(?:\\.[0-9]+)+-beta(?:\\.[0-9]+)?)(?:\\+[0-9]+)?\""
+probes[2].transientBodyPattern = nil
+probes[2].trackClosedPattern = nil
+probes[2].downloadURL? = URL("https://helpdesk.privateinternetaccess.com/hc/en-us/articles/46777259429531-macOS-Installing-and-Using-the-PIA-App")
+probes[2].changelogURL? = URL("https://www.privateinternetaccess.com/pages/changelog")
+probes[2].selectHighest = false
+probes[2].selectsHighestPublishedBuild = false
+probes[2].versionIsBuild = false
+probes[2].buildNamespace = .bundle
+probes[2].displayVersionPattern = nil
+probes[2].publishedAtPattern = nil
+probes[2].minimumSystemVersionPattern = nil
+probes[2].maximumSystemVersionPattern = nil
+probes[2].entryStartPattern = nil
+probes[2].install = nil
+probes[2].requestBody = nil
+probes[2].followRedirects = true
+probes[2].requestHeaders = Dictionary(count: 0)
+
+changelogs = Array(count: 0)
+
+githubRules = Array(count: 0)
+
+appStoreCases = Array(count: 0)
+
+channelProofs = Dictionary(count: 1)
+channelProofs[ChannelProofKey(bundleID: "com.privateinternetaccess.vpn", channel: .beta)] = .recipeAnchor(_:in:)
+channelProofs[ChannelProofKey(bundleID: "com.privateinternetaccess.vpn", channel: .beta)].0 = "/(?:pages/changelog|clients/desktop/beta\\.json)$"
+channelProofs[ChannelProofKey(bundleID: "com.privateinternetaccess.vpn", channel: .beta)].in = Set(count: 1)
+channelProofs[ChannelProofKey(bundleID: "com.privateinternetaccess.vpn", channel: .beta)].in{0} = "url"
+
+githubChannelProofs = Dictionary(count: 0)
+
+bindingProofs = Dictionary(count: 0)
+
+sparkleFeeds = Dictionary(count: 0)
+
+supersededFeeds = Dictionary(count: 0)
+
+loginWalls = Dictionary(count: 0)
+
+changelogPages = Dictionary(count: 0)
+
+oneClickGates = Array(count: 0)
+
+loginItemAgentRestarts = Dictionary(count: 0)
+
+sunsets = Dictionary(count: 0)

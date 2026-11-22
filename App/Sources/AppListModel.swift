@@ -7300,6 +7300,9 @@ final class AppListModel {
         // the user cancelled, then the app arms its own update. Asked only once a
         // package is known to exist, so the ladder runs for those rows alone.
         if case .relaunchToApplyStaged = rowState(for: result) { return nil }
+        if result.remote?.vendorInstallerApp != nil {
+            return installerHandoffHelp(for: result, stagedFileName: staged.url.lastPathComponent)
+        }
         if canUsePackageHelper(result) {
             return String(localized: "Download and install \(result.app.name) \(staged.version)")
         }

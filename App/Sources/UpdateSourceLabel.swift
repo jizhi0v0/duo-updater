@@ -164,6 +164,9 @@ func installerHandoffHelp(for result: UpdateResult, stagedFileName: String?) -> 
         return String(localized: "Homebrew downloads and verifies the declared installer. Finish the update in its window.")
     }
     if result.remote?.vendorInstallerApp != nil {
+        if stagedFileName != nil {
+            return String(localized: "Update reopens the verified installer. Finish the update in its window.")
+        }
         return String(localized: "Downloads the official installer and opens it. Finish the update in its window.")
     }
     if let stagedFileName {

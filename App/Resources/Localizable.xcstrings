@@ -66,6 +66,71 @@
         }
       }
     },
+    "Update reopens the verified installer. Finish the update in its window.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Update öffnet das geprüfte Installationsprogramm erneut. Schließe das Update in dessen Fenster ab."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Actualizar vuelve a abrir el instalador verificado. Completa la actualización en su ventana."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mettre à jour rouvre l’installateur vérifié. Terminez la mise à jour dans sa fenêtre."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aggiorna riapre il programma di installazione verificato. Completa l’aggiornamento nella sua finestra."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「アップデート」で検証済みのインストーラーを再度開きます。そのウインドウでアップデートを完了してください。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Atualizar reabre o instalador verificado. Conclua a atualização na janela dele."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Кнопка «Обновить» снова откроет проверенный установщик. Завершите обновление в его окне."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Güncelle, doğrulanan yükleyiciyi yeniden açar. Güncellemeyi yükleyici penceresinde tamamlayın."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "点按「更新」可重新打开已验证的安装器。请在安装器中完成更新。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "點按「更新」可重新開啟已驗證的安裝程式。請在安裝程式中完成更新。"
+          }
+        }
+      }
+    },
     "Update archive cache": {
       "localizations": {
         "de": {

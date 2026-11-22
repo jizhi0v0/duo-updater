@@ -1,4 +1,5 @@
 import AppKit
+import CryptoKit
 import Foundation
 
 /// A release archive containing an interactive vendor installer. The installer
@@ -12,6 +13,19 @@ public struct VendorInstallerApp: Sendable, Hashable, Codable {
         self.bundleIdentifier = bundleIdentifier
         self.teamIdentifier = teamIdentifier
         self.installedPath = installedPath
+    }
+
+    enum CodingKeys: String, CodingKey, CaseIterable {
+        case bundleIdentifier, teamIdentifier, installedPath
+    }
+
+    public init(from decoder: Decoder) throws {
+        try RecipeCoding.rejectUnknownKeys(in: decoder, allowed: CodingKeys.self)
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            bundleIdentifier: try container.decode(String.self, forKey: .bundleIdentifier),
+            teamIdentifier: try container.decode(String.self, forKey: .teamIdentifier),
+            installedPath: try container.decode(String.self, forKey: .installedPath))
     }
 
     func matchesDestination(_ app: URL) -> Bool {
@@ -56,7 +70,7 @@ public struct VendorInstallerApp: Sendable, Hashable, Codable {
             throw HandoffError.unexpectedInstaller
         }
         let seal = try verify(installer, version: remote.shortVersion)
-        return Data("\(digest.lowercased()):\(seal)".utf8)
+        return Data(SHA256.hash(data: Data("\(digest.lowercased()):\(seal)".utf8)))
     }
 
     /// Explicit interactive launch. Re-check on every open, including a staged

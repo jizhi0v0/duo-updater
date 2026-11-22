@@ -1037,7 +1037,8 @@ public struct VendorProbeSource: UpdateSource {
         // version to (so a `.bodyPattern` install URL can't resolve against a
         // different entry than the version it's paired with). A failure here
         // just falls back to detection-only; it never blocks the version.
-        if allowInstall, !artifactUnreachable, let spec = recipe.install {
+        if allowInstall, !artifactUnreachable, let spec = recipe.install,
+           spec.installerApp == nil || !scoped.fellBack {
             var resolved: (url: URL, checksum: String?)?
             var transient: TransientInstallURL?
             do {

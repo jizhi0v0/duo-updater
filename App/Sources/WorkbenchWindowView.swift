@@ -1826,37 +1826,59 @@ private struct WorkbenchAppsList: View, @MainActor Equatable {
             && lhs.searchText == rhs.searchText
     }
 
+    private enum Entry: Identifiable {
+        case header(UpdateSourceGroup, AppListSection)
+        case app(UpdateResult, headerID: String?)
+
+        var headerID: String? {
+            switch self {
+            case .header(let group, _): AppSourceGroupHeader.scrollID(group)
+            case .app(_, let headerID): headerID
+            }
+        }
+
+        var id: String {
+            switch self {
+            case .header(let group, _): AppSourceGroupHeader.scrollID(group)
+            case .app(let result, _): result.id
+            }
+        }
+    }
+
     var body: some View {
+        let entries: [Entry] = sections.flatMap { section in
+            var entries: [Entry] = []
+            let headerID = section.group.map(AppSourceGroupHeader.scrollID)
+            if let group = section.group { entries.append(.header(group, section)) }
+            if section.expanded {
+                entries += section.rows.map { .app($0, headerID: headerID) }
+            }
+            return entries
+        }
+        let targets = Dictionary(entries.enumerated().map { position, entry in
+            (entry.id, SidebarFixedGroupHeaders.Target(position: position, headerID: entry.headerID))
+        }, uniquingKeysWith: { first, _ in first })
+        let fixedHeaders = SidebarFixedGroupHeaders(
+            targets: targets, initialHeaderID: entries.first?.headerID
+        ) { id in
+            guard let section = sections.first(where: { $0.group.map(AppSourceGroupHeader.scrollID) == id }),
+                  let group = section.group else { return nil }
+            return AnyView(groupHeader(group, section: section, isFixed: true))
+        }
         SidebarList(selection: $selection,
                     order: sections.filter(\.expanded).flatMap { $0.rows.map(\.id) },
                     label: String(localized: "Apps"), focus: focus, focusValue: .apps,
-                    isShown: isShown, isSearching: !SearchMatch.trimmed(searchText).isEmpty) {
-            ForEach(Array(sections.enumerated()), id: \.element.id) { index, section in
-                if section.group != nil {
-                    Color.clear.frame(height: index == 0
-                                      ? SidebarSectionMetrics.firstGap : SidebarSectionMetrics.betweenGap)
-                        .accessibilityHidden(true)
-                }
-                Section {
-                    if section.expanded {
-                        ForEach(section.rows) { result in
-                            WorkbenchAppRow(result: result, model: model)
-                                .equatable()
-                                .sidebarRow(result.id, selection: $selection)
-                        }
-                    }
-                } header: {
-                    if let group = section.group {
-                        AppSourceGroupHeader(
-                            group: group, count: section.rows.count, updates: section.updateCount,
-                            expanded: section.expanded,
-                            toggleDisabled: section.toggleDisabled,
-                            toggle: { toggleSection(group) })
-                            // `WorkbenchWindowView.sectionHeaderTrailingInset`.
-                            .padding(.trailing, 14)
-                            .sidebarSectionHeader(id: AppSourceGroupHeader.scrollID(group), isInitial: index == 0)
-                            .id(AppSourceGroupHeader.scrollID(group))
-                    }
+                    isShown: isShown, isSearching: !SearchMatch.trimmed(searchText).isEmpty,
+                    fixedHeaders: fixedHeaders) {
+            ForEach(entries) { entry in
+                switch entry {
+                case .header(let group, let section):
+                    groupHeader(group, section: section, isFixed: false)
+                        .id(entry.id)
+                case .app(let result, _):
+                    WorkbenchAppRow(result: result, model: model)
+                        .equatable()
+                        .sidebarRow(result.id, selection: $selection)
                 }
             }
         }
@@ -1880,6 +1902,18 @@ private struct WorkbenchAppsList: View, @MainActor Equatable {
                 }
             }
         }
+    }
+
+    private func groupHeader(
+        _ group: UpdateSourceGroup, section: AppListSection, isFixed: Bool
+    ) -> some View {
+        AppSourceGroupHeader(
+            group: group, count: section.rows.count, updates: section.updateCount,
+            expanded: section.expanded, toggleDisabled: section.toggleDisabled,
+            isFixed: isFixed, toggle: { toggleSection(group) })
+            // `WorkbenchWindowView.sectionHeaderTrailingInset`.
+            .padding(.trailing, 14)
+            .sidebarFixedAppHeader(inlineID: isFixed ? nil : AppSourceGroupHeader.scrollID(group))
     }
 }
 

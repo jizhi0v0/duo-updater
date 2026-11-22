@@ -33,9 +33,9 @@
       "bundleIdentifier" : "ai.ducoro.desktop",
       "firstSeenAt" : "2026-11-15T13:07:26Z",
       "firstSeenVersion" : "2026.1115.1130",
-      "lastSeenAt" : "2026-11-21T22:48:18Z",
-      "lastSeenURLSHA256" : "9d60307edfc1d59674b75e669e15355bfda73ca7de94c1a629099f7490b63896",
-      "lastSeenVersion" : "2026.1121.1511",
+      "lastSeenAt" : "2026-11-22T23:31:57Z",
+      "lastSeenURLSHA256" : "6282503a4fe100d9495b194a680a49d8546e9102fb5f71949b7aaf7282ce84e0",
+      "lastSeenVersion" : "2026.1122.1619",
       "signedIdentifier" : "ai.ducoro.desktop",
       "teamIdentifier" : "6YU2PK44KX"
     },
@@ -980,9 +980,9 @@
       "bundleIdentifier" : "com.dwarvesv.minimalbar",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "1.11.1",
-      "lastSeenAt" : "2026-11-19T15:19:06Z",
-      "lastSeenURLSHA256" : "a8ec3511bdd5850b58548296eabbb369db6984a7d6f03c1423c95bf2f52c19f3",
-      "lastSeenVersion" : "1.13.2",
+      "lastSeenAt" : "2026-11-22T23:31:57Z",
+      "lastSeenURLSHA256" : "1092cf053b92dabf9a521cb5c8d127f4612be96242aa5cff1c7f0bd62fc6aea3",
+      "lastSeenVersion" : "1.13.3",
       "signedIdentifier" : "com.dwarvesv.minimalbar",
       "sparklePublicKey" : "C7MH2NS46vKD4nNh9i4BmFzXLSAbP2jM5qZcaPw9u3w=",
       "teamIdentifier" : "W777S7V8TN"
@@ -1185,9 +1185,9 @@
       "bundleIdentifier" : "com.officecommun.search",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "1.0.4",
-      "lastSeenAt" : "2026-11-22T14:22:25Z",
-      "lastSeenURLSHA256" : "b667c3e0db98df1b68d31630444324f4079a758567477e8df4c6dcfa778f2704",
-      "lastSeenVersion" : "1.0.17",
+      "lastSeenAt" : "2026-11-22T23:31:57Z",
+      "lastSeenURLSHA256" : "8010f90f66233a24fae8f60b242c16f341a570e84d0461363a76fa0953786ebd",
+      "lastSeenVersion" : "1.0.18",
       "signedIdentifier" : "com.officecommun.search",
       "teamIdentifier" : "7BYKA895MC"
     },
@@ -1254,9 +1254,9 @@
       "bundleIdentifier" : "com.ccswitch.desktop",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "4.0.5",
-      "lastSeenAt" : "2026-11-21T14:20:25Z",
-      "lastSeenURLSHA256" : "5998bc84fec591adce351793fe74b9e0281659c68f0963c7c8db5bdffc66ad28",
-      "lastSeenVersion" : "4.0.38",
+      "lastSeenAt" : "2026-11-22T23:31:57Z",
+      "lastSeenURLSHA256" : "640fc95912bb90b808868ebe7568a2c5c5a339bc130619cf1e2369854cf4f91f",
+      "lastSeenVersion" : "4.0.39",
       "signedIdentifier" : "com.ccswitch.desktop",
       "teamIdentifier" : "R8UR22V2F9"
     },
@@ -1318,9 +1318,9 @@
       "bundleIdentifier" : "sh.paseo.desktop",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "0.11.1",
-      "lastSeenAt" : "2026-11-22T14:22:25Z",
-      "lastSeenURLSHA256" : "21f3f817cbd459f21bfdc33c4fab83ff37f545d5c09719fd85d45a3e7fb91a4f",
-      "lastSeenVersion" : "0.17.2",
+      "lastSeenAt" : "2026-11-22T23:31:57Z",
+      "lastSeenURLSHA256" : "fba400d0a47a5f8e54d9cad50a230d7be4877fae916be562567821594f8c3966",
+      "lastSeenVersion" : "0.17.3",
       "signedIdentifier" : "sh.paseo.desktop",
       "teamIdentifier" : "99ZMJMKU9Y"
     },
@@ -1467,9 +1467,9 @@
       "bundleIdentifier" : "com.lokii.app",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "0.1.1",
-      "lastSeenAt" : "2026-11-11T13:12:08Z",
-      "lastSeenURLSHA256" : "80f4763828eb0866ef7c1c25761e2292c9d01f7450da6ba17508c15cd81c33b7",
-      "lastSeenVersion" : "0.1.10",
+      "lastSeenAt" : "2026-11-22T23:31:57Z",
+      "lastSeenURLSHA256" : "35414b81bbe8d032497e91a49f90bdce6a931dd6a39831cda338e454d7cea15c",
+      "lastSeenVersion" : "0.2.0",
       "signedIdentifier" : "com.lokii.app",
       "sparklePublicKey" : "pxrsUMDmDnkDlrD0UqaLGc8tIGwWuY7xmmVT2G3SXtE="
     },
@@ -1600,9 +1600,9 @@
       "bundleIdentifier" : "io.agentsview.desktop",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "0.44.0",
-      "lastSeenAt" : "2026-11-10T01:32:02Z",
-      "lastSeenURLSHA256" : "8031d6ac258c16a66ce35fd732498affbdc5dfdbb7ee236dde9f330273fcbf03",
-      "lastSeenVersion" : "0.47.0",
+      "lastSeenAt" : "2026-11-22T23:31:57Z",
+      "lastSeenURLSHA256" : "4e466fa6fa23d89707fe3c2b9e60eecc2012cc69e2f29a0ac9845cd1dc275317",
+      "lastSeenVersion" : "0.48.0",
       "signedIdentifier" : "io.agentsview.desktop",
       "teamIdentifier" : "2YMZH84KR8"
     },
@@ -2183,9 +2183,9 @@
       "bundleIdentifier" : "com.itsytv.app",
       "firstSeenAt" : "2026-10-22T10:43:03Z",
       "firstSeenVersion" : "1.6.2",
-      "lastSeenAt" : "2026-11-15T22:08:46Z",
-      "lastSeenURLSHA256" : "45ac36379a8edd1b65e665d3c390519c93c336a634a73f1c8cccf422de5205c4",
-      "lastSeenVersion" : "1.9.0",
+      "lastSeenAt" : "2026-11-22T23:31:57Z",
+      "lastSeenURLSHA256" : "c1385337107de3163833ae22256346646205c3dbf524f7fe82f471355414be0f",
+      "lastSeenVersion" : "1.9.1",
       "signedIdentifier" : "com.itsytv.app",
       "teamIdentifier" : "R892A93W42"
     },
@@ -2374,9 +2374,9 @@
       "bundleIdentifier" : "org.rustgis.RustGIS",
       "firstSeenAt" : "2026-10-13T13:02:05Z",
       "firstSeenVersion" : "0.2.0",
-      "lastSeenAt" : "2026-11-16T03:09:44Z",
-      "lastSeenURLSHA256" : "e51584d6de0df4ddb92cdddeddd7caa40d6baea4cf2ed19ac3df23d8dcc88575",
-      "lastSeenVersion" : "0.7.0",
+      "lastSeenAt" : "2026-11-22T23:31:57Z",
+      "lastSeenURLSHA256" : "ce1ad4353656f6c96bd1361b41b891415638793da77e6ee8ebd07a340e5bad95",
+      "lastSeenVersion" : "0.8.0",
       "signedIdentifier" : "org.rustgis.RustGIS",
       "teamIdentifier" : "Z6ABKZWLA7"
     },
@@ -2413,9 +2413,9 @@
       "bundleIdentifier" : "com.t3tools.t3code",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "0.0.46-nightly.20261008.2849",
-      "lastSeenAt" : "2026-11-22T14:22:25Z",
-      "lastSeenURLSHA256" : "36db85015d890194911000fb703b2ac0be3bed4622bdb9c551e7a10490ba31f9",
-      "lastSeenVersion" : "0.1.12-nightly.20261122.5098",
+      "lastSeenAt" : "2026-11-22T23:31:57Z",
+      "lastSeenURLSHA256" : "9c1c96626003d918b4c77b13de8817361911503862869d6ec703ce03f1886600",
+      "lastSeenVersion" : "0.1.12-nightly.20261122.5111",
       "signedIdentifier" : "com.t3tools.t3code",
       "teamIdentifier" : "ARK85ZXQ4Z"
     },
@@ -2982,9 +2982,9 @@
       "bundleIdentifier" : "com.trycua.driver",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "0.34.0",
-      "lastSeenAt" : "2026-11-22T14:22:25Z",
-      "lastSeenURLSHA256" : "b97944ec33e0462f5f639a22b932f33577bb8ce8a86f5690c5d079e05e2dc06a",
-      "lastSeenVersion" : "0.58.1",
+      "lastSeenAt" : "2026-11-22T23:31:57Z",
+      "lastSeenURLSHA256" : "97b789edd76466134b60a32a339857b4ca666be06f78afcf2efa4569531ad6c4",
+      "lastSeenVersion" : "0.59.2",
       "signedIdentifier" : "com.trycua.driver",
       "teamIdentifier" : "YCK386LBJ7"
     },
@@ -3142,9 +3142,9 @@
       "bundleIdentifier" : "com.yetone.magpie",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "0.1.1133",
-      "lastSeenAt" : "2026-11-22T14:22:25Z",
-      "lastSeenURLSHA256" : "37fb78ea446153386602a492a9c61160b067e6b215e7650a4476671557ca6065",
-      "lastSeenVersion" : "0.1.4676",
+      "lastSeenAt" : "2026-11-22T23:31:57Z",
+      "lastSeenURLSHA256" : "e13c20edaa44f0675048e4ae44276c8e1cbd12fe0a3dc3079d813d83b0774e6c",
+      "lastSeenVersion" : "0.1.4685",
       "signedIdentifier" : "com.yetone.magpie",
       "teamIdentifier" : "LY7MVTUDZG"
     },
@@ -3785,9 +3785,9 @@
       "bundleIdentifier" : "com.swiftvm.app",
       "firstSeenAt" : "2026-11-15T13:07:26Z",
       "firstSeenVersion" : "1.13.0",
-      "lastSeenAt" : "2026-11-15T13:07:26Z",
-      "lastSeenURLSHA256" : "a6cdb3c4975b6e10804bcf4768e515c33cd12dcd52347fae7b975798c59e65dd",
-      "lastSeenVersion" : "1.13.0",
+      "lastSeenAt" : "2026-11-22T23:31:57Z",
+      "lastSeenURLSHA256" : "3f4a8c4cafc15e8ae55266e5e6ec79139de3f0da0a163075931f67150e4a89af",
+      "lastSeenVersion" : "1.14.0",
       "signedIdentifier" : "com.swiftvm.app",
       "sparklePublicKey" : "tFq+VHZspKMGDj7ZF\/SVMLTzjdFXEadBu5vMGOMHU2g=",
       "teamIdentifier" : "NYSXATY4AA"
@@ -4389,6 +4389,20 @@
       "signedIdentifier" : "com.axosoft.gitkraken",
       "teamIdentifier" : "T7QVVUTZQ8"
     },
+    "vendor:com.backblaze.Backblaze:stable" : {
+      "architectures" : [
+        "arm64",
+        "x86_64"
+      ],
+      "bundleIdentifier" : "com.backblaze.bzdoinstall",
+      "firstSeenAt" : "2026-11-22T23:31:57Z",
+      "firstSeenVersion" : "10.0.4.1082",
+      "lastSeenAt" : "2026-11-22T23:31:57Z",
+      "lastSeenURLSHA256" : "e936d41f1c0077129d4377cc5cbe98d458b1d6a30aa8478b22494b4b203e7ab4",
+      "lastSeenVersion" : "10.0.4.1082",
+      "signedIdentifier" : "com.backblaze.bzdoinstall",
+      "teamIdentifier" : "G4K4BQ7S8J"
+    },
     "vendor:com.baidu.BaiduNetdisk-mac:stable" : {
       "architectures" : [
         "arm64"
@@ -4666,9 +4680,9 @@
       "bundleIdentifier" : "com.google.Chrome.canary",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "157.0.8093.0",
-      "lastSeenAt" : "2026-11-22T14:22:25Z",
+      "lastSeenAt" : "2026-11-22T23:31:57Z",
       "lastSeenURLSHA256" : "11a232feff09fd1bca2fb1115f23af0ac3f3c39d1b12976b737b88bf3244a989",
-      "lastSeenVersion" : "160.0.8177.0",
+      "lastSeenVersion" : "160.0.8178.0",
       "signedIdentifier" : "com.google.Chrome.canary",
       "teamIdentifier" : "EQHXZ8M8AV"
     },
@@ -5168,10 +5182,24 @@
       ],
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "4.42.0",
-      "lastSeenAt" : "2026-11-22T14:22:25Z",
-      "lastSeenURLSHA256" : "f41aae49b9b9eebdeb8c302df9d66934a8c77a4406124d6c04bde47bec62b807",
+      "lastSeenAt" : "2026-11-22T23:31:57Z",
+      "lastSeenURLSHA256" : "badfbe5912ba361e3d0b6bf139dda45134e6f760f0387e86bb38aba91d606631",
       "lastSeenVersion" : "4.48.3",
       "packageTeamIdentifier" : "PU9BNSBJW7"
+    },
+    "vendor:com.objective-see.blockblock.helper:stable" : {
+      "architectures" : [
+        "arm64",
+        "x86_64"
+      ],
+      "bundleIdentifier" : "com.objective-see.blockblock.installer",
+      "firstSeenAt" : "2026-11-22T23:31:57Z",
+      "firstSeenVersion" : "2.5.2",
+      "lastSeenAt" : "2026-11-22T23:31:57Z",
+      "lastSeenURLSHA256" : "a16d2cbeb707c32b8b9b2f696c789ba9c1ca2fd1f91dda4a1a6cb8072e543183",
+      "lastSeenVersion" : "2.5.2",
+      "signedIdentifier" : "com.objective-see.blockblock.installer",
+      "teamIdentifier" : "VBG97UB4TA"
     },
     "vendor:com.operasoftware.Opera:stable" : {
       "architectures" : [
@@ -5227,6 +5255,34 @@
       "signedIdentifier" : "com.postmanlabs.mac",
       "teamIdentifier" : "H7H8Q7M5CK"
     },
+    "vendor:com.privateinternetaccess.vpn:beta:ga-fallback" : {
+      "architectures" : [
+        "arm64",
+        "x86_64"
+      ],
+      "bundleIdentifier" : "com.privateinternetaccess.vpn",
+      "firstSeenAt" : "2026-11-22T23:31:57Z",
+      "firstSeenVersion" : "3.8.0",
+      "lastSeenAt" : "2026-11-22T23:31:57Z",
+      "lastSeenURLSHA256" : "e1c50249f541e775ae37ec293647289458e57caa20545873d52db7f48226ab08",
+      "lastSeenVersion" : "3.8.0",
+      "signedIdentifier" : "com.privateinternetaccess.vpn",
+      "teamIdentifier" : "5357M5NW9W"
+    },
+    "vendor:com.privateinternetaccess.vpn:stable" : {
+      "architectures" : [
+        "arm64",
+        "x86_64"
+      ],
+      "bundleIdentifier" : "com.privateinternetaccess.vpn",
+      "firstSeenAt" : "2026-11-22T23:31:57Z",
+      "firstSeenVersion" : "3.8.0",
+      "lastSeenAt" : "2026-11-22T23:31:57Z",
+      "lastSeenURLSHA256" : "e1c50249f541e775ae37ec293647289458e57caa20545873d52db7f48226ab08",
+      "lastSeenVersion" : "3.8.0",
+      "signedIdentifier" : "com.privateinternetaccess.vpn",
+      "teamIdentifier" : "5357M5NW9W"
+    },
     "vendor:com.qianwen.inputmethod.desktopime:stable" : {
       "architectures" : [
         "arm64",
@@ -5275,8 +5331,8 @@
       "bundleIdentifier" : "com.raycast.macos",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "1.104.31",
-      "lastSeenAt" : "2026-11-22T14:22:25Z",
-      "lastSeenURLSHA256" : "ee1e100c0d96d05d0a2df7945a6652564a89734363f6efd03abdcee274d57ab7",
+      "lastSeenAt" : "2026-11-22T23:31:57Z",
+      "lastSeenURLSHA256" : "e015a55de931a840b32344ce297176811b35ad095e1c8b031023bd4255fdac0f",
       "lastSeenVersion" : "1.104.37",
       "signedIdentifier" : "com.raycast.macos",
       "teamIdentifier" : "SY64MV22J9"
@@ -5358,8 +5414,8 @@
       "bundleIdentifier" : "com.sogou.inputmethod.sogou",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "6.25.1.11973",
-      "lastSeenAt" : "2026-11-22T04:08:50Z",
-      "lastSeenURLSHA256" : "3d48acf3515f599546cdeaf75920913a56458e63e387d32efb6d9f65477f0871",
+      "lastSeenAt" : "2026-11-22T23:31:57Z",
+      "lastSeenURLSHA256" : "4fc576a56bf8d4c387b903494d118bf38d71e2f9f9f301533edb74fa2cdf04ba",
       "lastSeenVersion" : "6.25.3.12004",
       "signedIdentifier" : "com.sogou.inputmethod.sogou",
       "teamIdentifier" : "DFD88F82SU"
@@ -5786,9 +5842,9 @@
       "bundleIdentifier" : "com.zarifpour.superconductor",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "49cdc780",
-      "lastSeenAt" : "2026-11-21T22:48:18Z",
-      "lastSeenURLSHA256" : "2cce5664bc33ee4355880f6955c2dd7bea7cbf240d0da1a6239a49bc12b8498b",
-      "lastSeenVersion" : "dc0520a9",
+      "lastSeenAt" : "2026-11-22T23:31:57Z",
+      "lastSeenURLSHA256" : "07bdf814cd46b5b50545828528fe346347ceb8276f554fec46b3099db2d72c5f",
+      "lastSeenVersion" : "c476f73a",
       "signedIdentifier" : "com.zarifpour.superconductor",
       "teamIdentifier" : "MR38E36N26"
     },
@@ -5813,9 +5869,9 @@
       "bundleIdentifier" : "dev.hyperframes.desktop.canary",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "b292",
-      "lastSeenAt" : "2026-11-22T14:22:25Z",
-      "lastSeenURLSHA256" : "a0d7687d4bfc31eee2550c33d33c19c932bf5a9e0edc5a3b4c9131b066a42125",
-      "lastSeenVersion" : "b1198",
+      "lastSeenAt" : "2026-11-22T23:31:57Z",
+      "lastSeenURLSHA256" : "62c3ae38f2faad7d88dc8c0b6a6890f08017dd2704b3369724adf4c1b56f30e4",
+      "lastSeenVersion" : "b1207",
       "signedIdentifier" : "dev.hyperframes.desktop.canary",
       "teamIdentifier" : "2VW993BDT8"
     },
@@ -5827,9 +5883,9 @@
       "bundleIdentifier" : "dev.hyperframes.desktop",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "b290",
-      "lastSeenAt" : "2026-11-22T14:22:25Z",
-      "lastSeenURLSHA256" : "f14240b94988ed53484e1807465a705d69257fd50837160250a2674b4409b834",
-      "lastSeenVersion" : "b1191",
+      "lastSeenAt" : "2026-11-22T23:31:57Z",
+      "lastSeenURLSHA256" : "8cc9304a6410a206e2e45365332e8f5957d41c5e8bf75e524b5306485b025030",
+      "lastSeenVersion" : "b1201",
       "signedIdentifier" : "dev.hyperframes.desktop",
       "teamIdentifier" : "2VW993BDT8"
     },
@@ -6023,9 +6079,9 @@
       ],
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "1.103.375",
-      "lastSeenAt" : "2026-11-21T14:20:25Z",
-      "lastSeenURLSHA256" : "fe3e8a0cdafa619af56a92263f9d55c56396d8edf48adc86c1db748356d8c06a",
-      "lastSeenVersion" : "1.105.361",
+      "lastSeenAt" : "2026-11-22T23:31:57Z",
+      "lastSeenURLSHA256" : "6535a0032b2005b68f8bc5fe1d6218c6ed28f772c37c6cb77b8dc0ee96defc91",
+      "lastSeenVersion" : "1.105.368",
       "packageTeamIdentifier" : "W5364U7YZB"
     },
     "vendor:jan-nightly.ai.app:nightly:arm64" : {
@@ -6121,8 +6177,8 @@
       "bundleIdentifier" : "net.whatsapp.WhatsApp",
       "firstSeenAt" : "2026-10-09T05:20:43Z",
       "firstSeenVersion" : "26.40.20",
-      "lastSeenAt" : "2026-11-22T14:22:25Z",
-      "lastSeenURLSHA256" : "f2742f5cb25fdb14bb8a8d451d1bb1328bfa3abc5b43bef51d35bb4fe958f100",
+      "lastSeenAt" : "2026-11-22T23:31:57Z",
+      "lastSeenURLSHA256" : "5890d5c8b79111857055c6ebaa52bca8be107eacb2c9500bab96cb43a863e76d",
       "lastSeenVersion" : "26.46.21",
       "signedIdentifier" : "net.whatsapp.WhatsApp",
       "sparklePublicKey" : "2jE1ZmLwrfk0yprKc8DTdt5YlKRGI7lGmnf3EJqBA5A=",
@@ -6453,6 +6509,20 @@
       "lastSeenVersion" : "161.0b4",
       "signedIdentifier" : "org.mozilla.thunderbirdbeta",
       "teamIdentifier" : "43AQ936H96"
+    },
+    "vendor:org.openvanilla.inputmethod.McBopomofo:stable" : {
+      "architectures" : [
+        "arm64",
+        "x86_64"
+      ],
+      "bundleIdentifier" : "org.openvanilla.McBopomofo.McBopomofoInstaller",
+      "firstSeenAt" : "2026-11-22T23:31:57Z",
+      "firstSeenVersion" : "3.1.1",
+      "lastSeenAt" : "2026-11-22T23:31:57Z",
+      "lastSeenURLSHA256" : "9d96dbf559b44d6c98f587c0acccee3223f36e0b480a2a8e07b033794c62a247",
+      "lastSeenVersion" : "3.1.1",
+      "signedIdentifier" : "org.openvanilla.McBopomofo.McBopomofoInstaller",
+      "teamIdentifier" : "JK5M8ENA23"
     },
     "vendor:org.pgadmin.pgadmin4:stable" : {
       "architectures" : [

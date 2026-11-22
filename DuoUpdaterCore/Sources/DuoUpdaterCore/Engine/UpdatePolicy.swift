@@ -216,6 +216,7 @@ public enum UpdatePolicy {
         // and so give the same answer in any order: a gate may read a file
         // (`.executableContains`), and a row they already refuse skips it.
         if OneClickGateRegistry.withholding(result.app, offering: result.remote) != nil { return false }
+        if result.remote?.vendorInstallerApp != nil { return false }
         if result.remote?.homebrewManualInstaller == nil, environment.packageInstallerAvailable,
            PackageInstallTrust.teamIdentifier(for: result.app.bundleID) != nil,
            requiresInstaller(result, environment: environment) {
@@ -475,6 +476,11 @@ public enum UpdatePolicy {
         // one is repeated: callers offer `canAutoInstall || requiresInstaller`.
         // `PackageInstaller` refuses an installed copy without a Team ID too.
         if lacksTeamIdentifierForRoute(result) { return false }
+        if let installer = result.remote?.vendorInstallerApp {
+            return result.remote?.expectedSHA256 != nil
+                && installer.matchesDestination(result.app.path)
+                && OneClickGateRegistry.withholding(result.app, offering: result.remote) == nil
+        }
         switch result.remote?.sourceName {
         case "Homebrew":
             // A declared manual path is prepared by Brew, then handed to the

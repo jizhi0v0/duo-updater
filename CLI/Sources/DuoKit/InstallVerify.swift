@@ -660,8 +660,9 @@ public enum InstallVerify {
         // download that carries another one is either a vendor rename (#1030) or
         // a recipe resolving some other product's installer. Gate 4 refuses both.
         let downloaded = identity.bundleIdentifier ?? identity.signedIdentifier
-        if let downloaded, downloaded != recipeBundleID {
-            out.append("bundleIDMismatch: the download is \(downloaded), the recipe is keyed by \(recipeBundleID)")
+        let expected = remote.vendorInstallerApp?.bundleIdentifier ?? recipeBundleID
+        if let downloaded, downloaded != expected {
+            out.append("bundleIDMismatch: the download is \(downloaded), expected \(expected)")
         }
         // Gate 3 refuses a download without a Team unless the route is digest-only.
         if identity.teamIdentifier == nil, remote.installTrust == .developerID,

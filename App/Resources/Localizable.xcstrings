@@ -42153,6 +42153,71 @@
         }
       }
     },
+    "Downloads the official installer and opens it. Finish the update in its window.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lädt das offizielle Installationsprogramm herunter und öffnet es. Schließe das Update in dessen Fenster ab."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Descarga y abre el instalador oficial. Completa la actualización en su ventana."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Télécharge et ouvre l’installateur officiel. Terminez la mise à jour dans sa fenêtre."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scarica e apre il programma di installazione ufficiale. Completa l’aggiornamento nella sua finestra."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "公式インストーラーをダウンロードして開きます。そのウインドウでアップデートを完了してください。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Baixa e abre o instalador oficial. Conclua a atualização na janela dele."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Загружает и открывает официальный установщик. Завершите обновление в его окне."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Resmî yükleyiciyi indirir ve açar. Güncellemeyi yükleyici penceresinde tamamlayın."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下载并打开官方安装器。请在安装器中完成更新。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下載並開啟官方安裝程式。請在安裝程式中完成更新。"
+          }
+        }
+      }
+    },
     "Downloads the whole app again through mas. The predictable route for release builds, and it needs no Accessibility access.": {
       "extractionState": "manual",
       "localizations": {

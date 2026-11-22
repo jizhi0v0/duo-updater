@@ -91,6 +91,9 @@ public struct VendorInstallSpec: Sendable {
     /// URL carries no file extension (e.g. a CDN asset id).
     public let kind: VendorInstallerKind
 
+    /// Open this verified installer in the user session. Nil for bundle swaps and PKGs.
+    public let installerApp: VendorInstallerApp?
+
     /// Optional regex (capture group 1) for an expected digest of the download,
     /// pulled from the same response body, in the form `checksumFormat` names.
     /// When present we verify it before unpacking — defense in depth on top of the
@@ -175,10 +178,12 @@ public struct VendorInstallSpec: Sendable {
         requestHeaders: [String: String] = [:],
         nestedArchivePath: String? = nil,
         contentsArchivePattern: String? = nil,
-        myGoPublicKey: String? = nil
+        myGoPublicKey: String? = nil,
+        installerApp: VendorInstallerApp? = nil
     ) {
         self.urlSource = urlSource
         self.kind = kind
+        self.installerApp = installerApp
         self.checksumPattern = checksumPattern
         self.checksumFormat = checksumFormat
         self.requestHeaders = requestHeaders
@@ -1428,18 +1433,9 @@ public enum VendorProbeRegistry {
     /// The `"beta"` numbers a user on `channel` accepts, since the ladder means
     /// each level subsumes the more stable ones below it.
     ///
-    /// A switch that refuses what it has not been taught, NOT a ternary with a
-    /// catch-all. The catch-all is what this looked like first, and its else
-    /// branch built `[0-2]` — the guinea-pig set — for every channel that is not
-    /// beta, `.stable` included. Nothing would have caught that: the tests only
-    /// ask for the two tracks the call site passes, and
-    /// `RecipeSanity.crossChannelArtifact` returns early on a recipe with no
-    /// install spec. The next edit that reaches it is an obvious one — putting
-    /// stable on this endpoint too, or adding `.rc` — and it would have offered a
-    /// guinea pig build to every stable user, in the one direction the channel
-    /// gate exists to prevent.
     static func windscribeTrackSet(_ channel: ReleaseChannel) -> String? {
         switch channel {
+        case .stable: return "0"
         case .beta: return "[01]"           // release + beta
         case .guineaPig: return "[0-2]"     // release + beta + guinea pig
         default: return nil

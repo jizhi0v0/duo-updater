@@ -506,6 +506,9 @@ public actor InstallCoordinator {
         // and nothing changed" impossible to answer after the fact — the only
         // evidence was the app's own mtime. `.notice`, so it is still readable when
         // the report arrives hours later.
+        if result.remote?.vendorInstallerApp != nil, route != .installer || AutomaticInstall.active {
+            throw CoordinatorError.routeNotSupportedHere(route)
+        }
         if AutomaticInstall.active {
             try await AutomaticInstall.checkPermission()
             guard AutomaticInstall.supports(route, packageInstallerAvailable: packageExecutor != nil) else {
@@ -623,6 +626,36 @@ public actor InstallCoordinator {
                 })
 
         case .installer:
+            if let remote = result.remote, let spec = remote.vendorInstallerApp {
+                guard spec.matchesDestination(result.app.path) else {
+                    throw VendorInstallerApp.HandoffError.wrongDestination
+                }
+                let download = try await permits.withDownloadPermit(cancellable: true) {
+                    try Task.checkCancellation()
+                    return try await vendor.download(result, preferDelta: false,
+                        useLocalStash: false, population: nil, onStage: progress)
+                }
+                var handedOff = false
+                defer {
+                    if !handedOff { await removeItemOffCooperativePool(at: download.workDir) }
+                }
+                await releaseAfterDownload()
+                let installer = try await VendorInstaller.unpackVerified(
+                    remote, download: download, bundleName: result.app.name,
+                    onStage: progress, vetStub: VendorInstaller.stubSignedByTeam(of: result.app.path))
+                progress(.verifyingCodeSignature)
+                let proof = try await offCooperativePool {
+                    try spec.fingerprint(installer, remote: remote)
+                }
+                try Task.checkCancellation()
+                await beforeInstallerOpen()
+                try await InstallCommit.run("Vendor installer hand-off") {
+                    try await spec.open(installer, result: result, expectedProof: proof)
+                }
+                handedOff = true
+                return Outcome(bytesDownloaded: download.bytesDownloaded, finalHost: download.finalHost,
+                               stagedPackageURL: installer, applied: false, stagedPackageFingerprint: proof)
+            }
             progress(.downloading(fraction: 0))
             let verifyDownload: @Sendable (URL) throws -> Data? = { file in
                 try Self.verifyInstallerDownload(file, for: result, progress: progress)

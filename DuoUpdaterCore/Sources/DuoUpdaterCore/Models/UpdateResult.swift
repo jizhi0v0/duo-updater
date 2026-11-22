@@ -334,6 +334,7 @@ public struct RemoteVersion: Sendable, Hashable {
     /// `downloadURL`, so `VendorInstaller` unpacks it correctly. Nil for sources
     /// that don't drive a vendor in-place install.
     public let vendorInstallerKind: VendorInstallerKind?
+    public let vendorInstallerApp: VendorInstallerApp?
 
     /// Sparkle `sparkle:installationType="package"`: the enclosure is an archive
     /// (AdGuard ships a `.dmg`) whose root holds a `.pkg`, not an `.app`, so it
@@ -526,6 +527,7 @@ public struct RemoteVersion: Sendable, Hashable {
         appStore: AppStoreAvailability? = nil,
         requiresManualInstaller: Bool = false,
         vendorInstallerKind: VendorInstallerKind? = nil,
+        vendorInstallerApp: VendorInstallerApp? = nil,
         sparklePackageEnclosure: Bool = false,
         expectedSHA512: String? = nil,
         expectedSHA256: String? = nil,
@@ -562,6 +564,7 @@ public struct RemoteVersion: Sendable, Hashable {
         self.appStore = appStore
         self.requiresManualInstaller = requiresManualInstaller
         self.vendorInstallerKind = vendorInstallerKind
+        self.vendorInstallerApp = vendorInstallerApp
         self.sparklePackageEnclosure = sparklePackageEnclosure
         self.expectedSHA512 = expectedSHA512
         self.expectedSHA256 = expectedSHA256

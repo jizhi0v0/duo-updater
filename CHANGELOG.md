@@ -19,6 +19,22 @@ release note is debugging our code:
 
 Versions before 0.3.80 are the old long-form style; leave them as shipped.
 
+## 0.5.28
+
+**Fixed a freeze when scrolling Workbench Apps by update source.** The active group stays fixed at the top, and pulling down at the top shows a single header.
+
+**Automatic updates can resume after an older low-disk-space pause.** DuoUpdater checks available space again and retries when there’s enough room.
+
+**Sparkle’s staged update version refreshes in the open list.** DuoUpdater checks again briefly while Sparkle prepares a delta.
+
+**Xcode settings clear the sign-in cancellation message after a successful sign-in in another window.**
+
+**GitHub settings show recent API quota readings.** Each reading includes its response and reset times.
+
+**CLI Tools now tracks fix-storage and shows its official update command.** Antigravity CLI, Bub, Lorca, fnm Node, pyenv, and rbenv have updated icons.
+
+**Exo and Mithka can check and install stable updates from GitHub.** Mithka installation requires opting in to updates verified by the publisher’s checksum.
+
 ## 0.5.27
 
 **Docker Desktop updates follow the Stable or Nightly channel you select in Docker.** Update checks for Stable work again.

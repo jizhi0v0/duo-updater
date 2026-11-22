@@ -2,6 +2,22 @@
 
 Bu, `CHANGELOG.md` dosyasının Türkçe çevirisidir. Geçerli olan İngilizce sürümdür; burada yer almayan eski sürümler otomatik olarak İngilizce gösterilir.
 
+## 0.5.28
+
+**Workbench’te uygulamaları güncelleme kaynağına göre gruplandırdıktan sonra listeyi kaydırırken oluşan donma giderildi.** Etkin grubun başlığı üstte sabit kalır ve liste başından aşağı çekildiğinde yalnızca bir kez görünür.
+
+**Eski bir sürümde disk alanı yetersizliğinden duraklatılan otomatik güncellemeler devam edebilir.** DuoUpdater boş alanı yeniden kontrol eder ve yeterli alan açıldığında tekrar dener.
+
+**Sparkle’ın hazırladığı güncellemenin sürüm numarası açık listede yenilenir.** Sparkle fark güncellemesini hazırlarken DuoUpdater kısa bir süre yeniden kontrol eder.
+
+**Başka bir pencerede başarıyla giriş yapıldığında Xcode ayarlarındaki girişin iptal edildiğini belirten ileti kaldırılır.**
+
+**GitHub ayarları API kotasına ait son ölçümleri gösterir.** Her ölçümde yanıtın alındığı ve kotanın sıfırlanacağı saat belirtilir.
+
+**CLI araçları artık fix-storage’ı izliyor ve resmî güncelleme komutunu gösteriyor.** Antigravity CLI, Bub, Lorca, fnm Node, pyenv ve rbenv simgeleri yenilendi.
+
+**Exo ve Mithka’nın kararlı güncellemeleri GitHub üzerinden denetlenip yüklenebilir.** Mithka’yı yüklemek için yayıncının sağladığı sağlama toplamıyla doğrulanan güncellemelere izin vermek gerekir.
+
 ## 0.5.27
 
 **Docker Desktop, Docker’da seçtiğiniz Stable veya Nightly kanalını izler.** Kararlı kanal için güncelleme denetimi yeniden çalışıyor.

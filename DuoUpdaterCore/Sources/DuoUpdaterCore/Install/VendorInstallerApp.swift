@@ -28,8 +28,13 @@ public struct VendorInstallerApp: Sendable, Hashable, Codable {
             installedPath: try container.decode(String.self, forKey: .installedPath))
     }
 
+    private var destinationPath: String {
+        guard installedPath.hasPrefix("~/") else { return installedPath }
+        return FileManager.default.homeDirectoryForCurrentUser.path + String(installedPath.dropFirst())
+    }
+
     func matchesDestination(_ app: URL) -> Bool {
-        app.standardizedFileURL.path == installedPath
+        app.standardizedFileURL.path == destinationPath
     }
 
     enum HandoffError: LocalizedError {
@@ -83,7 +88,7 @@ public struct VendorInstallerApp: Sendable, Hashable, Codable {
         }
         try await offCooperativePool {
             guard matchesDestination(installed),
-                  installed.resolvingSymlinksInPath().path == installedPath,
+                  installed.resolvingSymlinksInPath().path == destinationPath,
                   let bundleID = result.app.bundleID,
                   CLIToolTrust.signature(of: installed, teamIdentifier: teamIdentifier,
                       signingIdentifier: bundleID) == .vendor,

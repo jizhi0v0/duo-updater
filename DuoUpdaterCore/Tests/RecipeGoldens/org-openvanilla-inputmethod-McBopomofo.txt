@@ -1,0 +1,75 @@
+// Generated from AppRecipeIndex.all by RecipeGoldenTests. Do not edit by hand.
+// Regenerate: DUO_RECORD_RECIPE_GOLDENS=1 swift test --package-path DuoUpdaterCore --filter RecipeGoldenTests
+
+family = "org-openvanilla-inputmethod-McBopomofo"
+
+probes = Array(count: 1)
+probes[0] = struct VendorProbeRecipe
+probes[0].bundleID = "org.openvanilla.inputmethod.McBopomofo"
+probes[0].channel = .stable
+probes[0].variant = nil
+probes[0].hostRequirement = nil
+probes[0].installedVersionPattern = nil
+probes[0].buildLineage = nil
+probes[0].headBuildPattern = nil
+probes[0].url = URL("https://api.github.com/repos/openvanilla/McBopomofo/releases/latest")
+probes[0].identities = Array(count: 0)
+probes[0].track = nil
+probes[0].mode = .responseBody
+probes[0].versionPattern = "\"browser_download_url\"\\s*:\\s*\"https://github\\.com/openvanilla/McBopomofo/releases/download/([0-9]+(?:\\.[0-9]+)+)/McBopomofo-Installer-\\1\\.zip\""
+probes[0].transientBodyPattern = nil
+probes[0].trackClosedPattern = nil
+probes[0].downloadURL? = URL("https://github.com/openvanilla/McBopomofo/releases")
+probes[0].changelogURL = nil
+probes[0].selectHighest = false
+probes[0].selectsHighestPublishedBuild = false
+probes[0].versionIsBuild = false
+probes[0].buildNamespace = .bundle
+probes[0].displayVersionPattern = nil
+probes[0].publishedAtPattern = nil
+probes[0].minimumSystemVersionPattern = nil
+probes[0].maximumSystemVersionPattern = nil
+probes[0].entryStartPattern? = "\"url\"\\s*:\\s*\"https://api\\.github\\.com/repos/openvanilla/McBopomofo/releases/assets/[0-9]+\""
+probes[0].install? = struct VendorInstallSpec
+probes[0].install?.urlSource = .bodyPattern(_:)
+probes[0].install?.urlSource.0 = "\"browser_download_url\"\\s*:\\s*\"(https://github\\.com/openvanilla/McBopomofo/releases/download/[0-9.]+/McBopomofo-Installer-[0-9.]+\\.zip)\""
+probes[0].install?.kind = .zip
+probes[0].install?.installerApp? = struct VendorInstallerApp
+probes[0].install?.installerApp?.bundleIdentifier = "org.openvanilla.McBopomofo.McBopomofoInstaller"
+probes[0].install?.installerApp?.teamIdentifier = "JK5M8ENA23"
+probes[0].install?.installerApp?.installedPath = "~/Library/Input Methods/McBopomofo.app"
+probes[0].install?.checksumPattern? = "\"digest\"\\s*:\\s*\"sha256:([a-fA-F0-9]{64})\""
+probes[0].install?.checksumFormat = .sha256Hex
+probes[0].install?.requestHeaders = Dictionary(count: 0)
+probes[0].install?.nestedArchivePath = nil
+probes[0].install?.contentsArchivePattern = nil
+probes[0].install?.myGoPublicKey = nil
+probes[0].requestBody = nil
+probes[0].followRedirects = true
+probes[0].requestHeaders = Dictionary(count: 0)
+
+changelogs = Array(count: 0)
+
+githubRules = Array(count: 0)
+
+appStoreCases = Array(count: 0)
+
+channelProofs = Dictionary(count: 0)
+
+githubChannelProofs = Dictionary(count: 0)
+
+bindingProofs = Dictionary(count: 0)
+
+sparkleFeeds = Dictionary(count: 0)
+
+supersededFeeds = Dictionary(count: 0)
+
+loginWalls = Dictionary(count: 0)
+
+changelogPages = Dictionary(count: 0)
+
+oneClickGates = Array(count: 0)
+
+loginItemAgentRestarts = Dictionary(count: 0)
+
+sunsets = Dictionary(count: 0)

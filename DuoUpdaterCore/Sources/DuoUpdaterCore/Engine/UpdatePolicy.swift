@@ -459,6 +459,14 @@ public enum UpdatePolicy {
         // Same as `canAutoInstall`: only a staged build that *is* the latest is
         // relaunch-only; one that trails the latest still gets a normal installer.
         if actionableStaged(result, staged: environment.stagedSelfUpdates[result.id]) != nil { return false }
+        if lacksTeamIdentifierForRoute(result) { return false }
+        // A checked vendor app runs in the current user's GUI and decides how
+        // to register an input source. The package routes below stay excluded.
+        if let installer = result.remote?.vendorInstallerApp {
+            return result.remote?.expectedSHA256 != nil
+                && installer.matchesDestination(result.app.path)
+                && OneClickGateRegistry.withholding(result.app, offering: result.remote) == nil
+        }
         // An input method is never handed to the system installer. This is not a
         // second opinion about the same question `canAutoInstall` answers — it is
         // the way AROUND that question: every caller offers the row on
@@ -472,15 +480,6 @@ public enum UpdatePolicy {
         // destination check does not close it either — it hard-refuses only inside
         // `/Applications` and falls back to matching a bundle name anywhere else.
         if environment.isInputMethod(result.app.path) { return false }
-        // Same gate as in `canAutoInstall`, for the same reason the input-method
-        // one is repeated: callers offer `canAutoInstall || requiresInstaller`.
-        // `PackageInstaller` refuses an installed copy without a Team ID too.
-        if lacksTeamIdentifierForRoute(result) { return false }
-        if let installer = result.remote?.vendorInstallerApp {
-            return result.remote?.expectedSHA256 != nil
-                && installer.matchesDestination(result.app.path)
-                && OneClickGateRegistry.withholding(result.app, offering: result.remote) == nil
-        }
         switch result.remote?.sourceName {
         case "Homebrew":
             // A declared manual path is prepared by Brew, then handed to the

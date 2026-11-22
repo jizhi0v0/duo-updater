@@ -2,6 +2,22 @@
 
 Questa è la traduzione di `CHANGELOG.md`. In caso di differenze fa fede la versione inglese. Le versioni non elencate qui vengono mostrate automaticamente in inglese.
 
+## 0.5.28
+
+**Risolto un blocco durante lo scorrimento delle app di Workbench raggruppate per origine degli aggiornamenti.** L’intestazione del gruppo attivo resta fissa in alto e compare una sola volta quando si trascina l’elenco verso il basso partendo dall’inizio.
+
+**Gli aggiornamenti automatici possono riprendere dopo una vecchia sospensione per spazio insufficiente.** DuoUpdater ricontrolla lo spazio disponibile e riprova quando ce n’è abbastanza.
+
+**Il numero di versione dell’aggiornamento Sparkle in preparazione si aggiorna nell’elenco aperto.** DuoUpdater ripete il controllo per un breve periodo mentre Sparkle prepara l’aggiornamento differenziale.
+
+**Le impostazioni di Xcode rimuovono l’avviso di accesso annullato dopo un accesso riuscito in un’altra finestra.**
+
+**Le impostazioni di GitHub mostrano i dati recenti sulla quota dell’API.** Ogni rilevazione riporta l’ora della risposta e quella del ripristino della quota.
+
+**Gli strumenti CLI ora rilevano fix-storage e ne mostrano il comando ufficiale di aggiornamento.** Sono state aggiornate le icone di Antigravity CLI, Bub, Lorca, fnm Node, pyenv e rbenv.
+
+**Exo e Mithka possono cercare e installare aggiornamenti stabili da GitHub.** Per installare Mithka, occorre consentire gli aggiornamenti verificati con il checksum dell’editore.
+
 ## 0.5.27
 
 **Docker Desktop segue il canale Stable o Nightly selezionato in Docker.** La ricerca degli aggiornamenti del canale stabile funziona di nuovo.

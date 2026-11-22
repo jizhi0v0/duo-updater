@@ -41,16 +41,16 @@ struct AppSourceGroupHeader: View {
     let expanded: Bool
     /// A search holds the section open and disables toggling.
     let toggleDisabled: Bool
+    let isFixed: Bool
     let toggle: () -> Void
 
     @Environment(\.sidebarScrollToHeader) private var scrollToHeader
-    @State private var pinned = false
 
     static func scrollID(_ group: UpdateSourceGroup) -> String { "app-source:\(group.rawValue)" }
 
     var body: some View {
         Button {
-            if pinned { scrollToHeader(Self.scrollID(group)) }
+            if isFixed { scrollToHeader(Self.scrollID(group)) }
             toggle()
         } label: {
             HStack(spacing: 4) {
@@ -76,11 +76,6 @@ struct AppSourceGroupHeader: View {
         .buttonStyle(.plain)
         .disabled(toggleDisabled)
         .help(expanded ? String(localized: "Hide apps") : String(localized: "Show apps"))
-        .sidebarGroupHeaderFrame()
-        .onGeometryChange(for: Bool.self) {
-            $0.frame(in: .named(SidebarSectionMetrics.coordinateSpace)).minY
-                <= SidebarSectionMetrics.verticalPadding + 0.5
-        } action: { pinned = $0 }
     }
 }
 

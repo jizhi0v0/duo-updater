@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import Observation
 
 /// The workbench's sidebar lists (Apps, CLI, Rollback): a lazily built scroll of
 /// rows that draws its own selection.
@@ -22,9 +23,8 @@ import AppKit
 /// - each row is an accessibility element with its selected state, and the list
 ///   a labelled container.
 ///
-/// Apps and CLI retain native section pinning to track the current section,
-/// but draw its header in one fixed overlay so adjacent sections cannot push
-/// the visible title up and down during fast scrolling.
+/// Apps track the current group with visible row IDs and draw its title in
+/// a fixed overlay. CLI derives its fixed title from native section pinning.
 struct SidebarList<Content: View, FocusValue: Hashable>: View {
     @Binding var selection: String?
     /// The selectable rows' ids in the order they are drawn: what the keys walk.
@@ -40,44 +40,36 @@ struct SidebarList<Content: View, FocusValue: Hashable>: View {
     var isShown = true
     /// Whether the list is showing search results.
     var isSearching = false
+    var fixedHeaders: SidebarFixedGroupHeaders? = nil
     @ViewBuilder var content: () -> Content
 
     @State private var viewportHeight: CGFloat = 0
     /// Only the displayed overlay can cover rows; later natural headers cannot.
     @State private var headerHeight: CGFloat = 0
+    @State private var fixedHeader = SidebarFixedHeaderState()
     @State private var keyboardScroll = SidebarKeyboardScroll()
 
     var body: some View {
         ScrollViewReader { proxy in
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
-                    content()
-                }
-                .padding(.bottom, 10)
-            }
-            // Let the sidebar show through the header without rows drawing
-            // underneath its text as they scroll past.
-            .mask {
-                Rectangle().padding(.top, headerHeight)
-            }
-            .overlayPreferenceValue(SidebarHeaderAnchorsKey.self, alignment: .topLeading) { headers in
-                GeometryReader { geometry in
-                    let current = headers.last(where: { geometry[$0.bounds].minY <= 0.5 })
-                        ?? headers.first(where: { $0.isInitial && geometry[$0.bounds].minY > 0.5 })
-                    if let header = current {
-                        header.content
-                            .id("pinned:\(header.id)")
-                            .frame(maxWidth: .infinity, alignment: .topLeading)
-                            .transaction { $0.disablesAnimations = true }
+            decoratedScroll {
+                ScrollView {
+                    LazyVStack(
+                        alignment: .leading, spacing: 0,
+                        pinnedViews: fixedHeaders == nil ? [.sectionHeaders] : []
+                    ) {
+                        content()
                     }
+                    .scrollTargetLayout(isEnabled: fixedHeaders != nil)
+                    .padding(.bottom, 10)
                 }
             }
             .environment(\.sidebarSelectedRowFrame, { id, frame in
                 guard keyboardScroll.target == id else { return }
-                if headerHeight > 0, frame.minY < headerHeight - 0.5 {
+                let obstruction = fixedHeaders == nil ? headerHeight : fixedHeader.height
+                if obstruction > 0, frame.minY < obstruction - 0.5 {
                     keyboardScroll.target = nil
                     let anchor = UnitPoint(x: 0.5, y: min(1,
-                        headerHeight / max(1, viewportHeight - frame.height)))
+                        obstruction / max(1, viewportHeight - frame.height)))
                     DispatchQueue.main.async {
                         guard selection == id else { return }
                         proxy.scrollTo(id, anchor: anchor)
@@ -125,6 +117,46 @@ struct SidebarList<Content: View, FocusValue: Hashable>: View {
         .id(isSearching ? order : nil)
     }
 
+    @ViewBuilder
+    private func decoratedScroll<Scroll: View>(@ViewBuilder _ content: () -> Scroll) -> some View {
+        let scroll = content()
+        if let fixedHeaders {
+            // The observer only picks a group. The mask and sibling overlay
+            // read that group without sending title measurements back to the stack.
+            scroll
+                .onScrollTargetVisibilityChange(idType: String.self, threshold: 0.01) { ids in
+                    fixedHeader.visibleIDs = ids
+                    fixedHeader.update(using: fixedHeaders, useInitialWhenMissing: false)
+                }
+                .onChange(of: fixedHeaders.targets, initial: true) {
+                    fixedHeader.update(using: fixedHeaders, useInitialWhenMissing: true)
+                }
+                .mask { SidebarFixedHeaderMask(state: fixedHeader) }
+                .overlay(alignment: .topLeading) {
+                    SidebarFixedHeaderOverlay(state: fixedHeader, headers: fixedHeaders)
+                }
+                .environment(\.sidebarFixedHeaderState, fixedHeader)
+        } else {
+            // Let the sidebar show through the header without rows drawing
+            // underneath its text as they scroll past.
+            scroll.mask {
+                Rectangle().padding(.top, headerHeight)
+            }
+            .overlayPreferenceValue(SidebarHeaderAnchorsKey.self, alignment: .topLeading) { headers in
+                GeometryReader { geometry in
+                    let current = headers.last(where: { geometry[$0.bounds].minY <= 0.5 })
+                        ?? headers.first(where: { $0.isInitial && geometry[$0.bounds].minY > 0.5 })
+                    if let header = current {
+                        header.content
+                            .id("pinned:\(header.id)")
+                            .frame(maxWidth: .infinity, alignment: .topLeading)
+                            .transaction { $0.disablesAnimations = true }
+                    }
+                }
+            }
+        }
+    }
+
     private static func move(for key: KeyEquivalent) -> SidebarMove? {
         switch key {
         case .upArrow: .up
@@ -153,8 +185,94 @@ enum SidebarRowMetrics {
 enum SidebarSectionMetrics {
     static let coordinateSpace = "sidebar-scroll"
     static let verticalPadding: CGFloat = 10
+    // The existing 20 pt small header control plus the two vertical insets.
+    static let fixedAppHeight: CGFloat = 20 + 2 * verticalPadding
     static let firstGap: CGFloat = 0
     static let betweenGap: CGFloat = 0
+}
+
+struct SidebarFixedGroupHeaders {
+    struct Target: Equatable {
+        let position: Int
+        let headerID: String?
+    }
+
+    let targets: [String: Target]
+    let initialHeaderID: String?
+    let content: @MainActor (String) -> AnyView?
+}
+
+@MainActor
+@Observable
+private final class SidebarFixedHeaderState {
+    private(set) var headerID: String?
+    @ObservationIgnored var visibleIDs: [String] = []
+
+    var height: CGFloat {
+        headerID == nil ? 0 : SidebarSectionMetrics.fixedAppHeight
+    }
+
+    func update(using headers: SidebarFixedGroupHeaders, useInitialWhenMissing: Bool) {
+        let first = visibleIDs.lazy.compactMap { headers.targets[$0] }
+            .min { $0.position < $1.position }
+        let next: String?
+        if let first {
+            next = first.headerID
+        } else if useInitialWhenMissing {
+            next = headers.initialHeaderID
+        } else {
+            // A transient empty report can occur during scroll or overscroll.
+            return
+        }
+        if headerID != next { headerID = next }
+    }
+}
+
+private struct SidebarFixedHeaderStateKey: EnvironmentKey {
+    static let defaultValue: SidebarFixedHeaderState? = nil
+}
+
+private extension EnvironmentValues {
+    var sidebarFixedHeaderState: SidebarFixedHeaderState? {
+        get { self[SidebarFixedHeaderStateKey.self] }
+        set { self[SidebarFixedHeaderStateKey.self] = newValue }
+    }
+}
+
+private struct SidebarFixedHeaderMask: View {
+    let state: SidebarFixedHeaderState
+
+    var body: some View {
+        Rectangle().padding(.top, state.height)
+    }
+}
+
+private struct SidebarFixedHeaderOverlay: View {
+    let state: SidebarFixedHeaderState
+    let headers: SidebarFixedGroupHeaders
+
+    var body: some View {
+        if let id = state.headerID, let content = headers.content(id) {
+            content.transaction { $0.disablesAnimations = true }
+        }
+    }
+}
+
+private struct SidebarFixedHeaderVisibility: ViewModifier {
+    let inlineID: String?
+    @Environment(\.sidebarFixedHeaderState) private var state
+
+    func body(content: Content) -> some View {
+        let isDuplicate = inlineID != nil && inlineID == state?.headerID
+        // Keep the scroll target and its size. Top-edge rubber-banding can
+        // pull the inline title out from under the fixed header's mask.
+        content
+            .opacity(isDuplicate ? 0 : 1)
+            .allowsHitTesting(!isDuplicate)
+            .accessibilityElement(children: .contain)
+            .accessibilityAddTraits(.isHeader)
+            .accessibilityHidden(isDuplicate)
+    }
 }
 
 private struct SidebarHeaderHeightKey: PreferenceKey {
@@ -258,6 +376,22 @@ extension View {
     func sidebarSectionHeader(id: String, isInitial: Bool = false) -> some View {
         SidebarSectionHeader(id: id, content: self, isInitial: isInitial)
     }
+
+    /// Apps use the same height for the ordinary in-list title and the overlay.
+    func sidebarFixedAppHeader(inlineID: String? = nil) -> some View {
+        sidebarHeaderStyle()
+            .frame(height: SidebarSectionMetrics.fixedAppHeight)
+            .modifier(SidebarFixedHeaderVisibility(inlineID: inlineID))
+    }
+
+    fileprivate func sidebarHeaderStyle() -> some View {
+        sidebarGroupHeaderFrame()
+            .font(.subheadline.weight(.bold))
+            .foregroundStyle(.secondary)
+            .padding(.leading, 14)
+            .padding(.trailing, 2)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
 }
 
 private struct SidebarSectionHeader<Content: View>: View {
@@ -268,14 +402,8 @@ private struct SidebarSectionHeader<Content: View>: View {
     @State private var covered = false
 
     var body: some View {
-        let header = content
-            .sidebarGroupHeaderFrame()
-            .font(.subheadline.weight(.bold))
-            .foregroundStyle(.secondary)
-            .padding(.leading, 14)
-            .padding(.trailing, 2)
+        let header = content.sidebarHeaderStyle()
             .padding(.vertical, SidebarSectionMetrics.verticalPadding)
-            .frame(maxWidth: .infinity, alignment: .leading)
             .background {
                 if isOverlay {
                     GeometryReader { geometry in

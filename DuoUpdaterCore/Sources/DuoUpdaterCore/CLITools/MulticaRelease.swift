@@ -53,7 +53,6 @@ struct MulticaRelease: Sendable {
 
     enum Failure: LocalizedError {
         case unreadableRelease
-        case bodyTooLarge
         case missingArchive
         case invalidChecksums
         case wrongDigest
@@ -61,7 +60,6 @@ struct MulticaRelease: Sendable {
         var errorDescription: String? {
             switch self {
             case .unreadableRelease: "The Multica release could not be read."
-            case .bodyTooLarge: "The Multica download exceeded its size limit."
             case .missingArchive: "The Multica release has no matching archive and checksum manifest."
             case .invalidChecksums: "The Multica archive checksum is missing, invalid, or disagrees with GitHub."
             case .wrongDigest: "The Multica download did not match its published checksum."
@@ -72,7 +70,7 @@ struct MulticaRelease: Sendable {
     typealias Fetch = @Sendable (URL, RequestPurpose, Bool, Int) async throws -> Data
     let fetch: Fetch
 
-    init(fetch: @escaping Fetch = Self.get) {
+    init(fetch: @escaping Fetch = CLIGitHubDownload.get) {
         self.fetch = fetch
     }
 
@@ -152,44 +150,5 @@ struct MulticaRelease: Sendable {
         }
         guard matches.count == 1, let digest = matches.first else { return nil }
         return GitHubReleasesSource.sha256Digest("sha256:\(digest)")
-    }
-
-    static func get(_ url: URL, purpose: RequestPurpose, force: Bool, limit: Int) async throws -> Data {
-        var request = URLRequest(url: url)
-        request.cachePolicy = force ? .reloadIgnoringLocalCacheData : URLRequest.versionFeedCachePolicy
-        request.timeoutInterval = purpose == .install ? 120 : 15
-        request.httpShouldHandleCookies = false
-        let credentials = GitHubCredentials.current
-        let generation = credentials.requestGeneration()
-        if url.host == "api.github.com" {
-            request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
-            request.setValue("2022-11-28", forHTTPHeaderField: "X-GitHub-Api-Version")
-            if !credentials.isRejected(generation: generation), let token = await ChangelogService.gitHubToken() {
-                request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-            }
-        }
-
-        for _ in 0..<2 {
-            let (bytes, response) = try await URLSession.updates.countedBytes(for: request, purpose: purpose)
-            if GitHubCredentials.isRejection(of: request, response) {
-                credentials.recordRejection(generation: generation)
-                request = GitHubCredentials.anonymous(request)
-                continue
-            }
-            guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
-                let code = (response as? HTTPURLResponse)?.statusCode ?? 0
-                let remaining = (response as? HTTPURLResponse)?.value(forHTTPHeaderField: "X-RateLimit-Remaining")
-                throw CLIToolReleaseNotesError.status(code, rateLimitRemaining: remaining, url: url)
-            }
-            guard http.expectedContentLength <= limit else { throw Failure.bodyTooLarge }
-            var body = Data()
-            if http.expectedContentLength > 0 { body.reserveCapacity(Int(http.expectedContentLength)) }
-            for try await byte in bytes {
-                guard body.count < limit else { throw Failure.bodyTooLarge }
-                body.append(byte)
-            }
-            return body
-        }
-        throw CLIToolReleaseNotesError.http(401)
     }
 }

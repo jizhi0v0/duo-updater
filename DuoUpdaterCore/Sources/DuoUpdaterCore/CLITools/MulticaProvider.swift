@@ -113,6 +113,18 @@ public struct MulticaProvider: CLIToolProvider {
         try await release.notes(force: force)
     }
 
+    private enum UpdateRefusal: LocalizedError {
+        case busy
+        case unpublished
+
+        var errorDescription: String? {
+            switch self {
+            case .busy: MulticaProvider.busyMessage
+            case .unpublished: "The installed Multica executable differs from the official release."
+            }
+        }
+    }
+
     static let busyMessage = "This Multica executable is in use. Close its running CLI or daemon and try again."
 
     public func update(
@@ -128,9 +140,9 @@ public struct MulticaProvider: CLIToolProvider {
 
         do {
             let snapshot = try await offCooperativePool {
-                guard scanner.reread(installed.path) == installed else { throw MulticaReplacement.Failure.changed }
+                guard scanner.reread(installed.path) == installed else { throw StandaloneCLIReplacement.Failure.changed }
                 guard usage([installed.target])[installed.target]?.isRunning != true else {
-                    throw MulticaReplacement.Failure.busy
+                    throw UpdateRefusal.busy
                 }
                 return CLIToolTrust.sha256(of: URL(fileURLWithPath: installed.executable))
             }
@@ -149,26 +161,30 @@ public struct MulticaProvider: CLIToolProvider {
                 let digest = CLIToolTrust.sha256(of: oldBinary)
                 return CLIToolTrust.matches(snapshot, published: digest)
             }
-            guard originalMatches else { throw MulticaReplacement.Failure.unpublished }
+            guard originalMatches else { throw UpdateRefusal.unpublished }
 
             progress("Downloading and verifying Multica \(after)")
             let newBinary = try await verifiedExecutable(version: after, for: installed.binary.architecture, at: work)
             progress("Replacing Multica \(before) with \(after)")
             return try await InstallCommit.run("Multica replacement") {
                 try await offCooperativePool {
-                    try MulticaReplacement.replace(installed, with: newBinary) {
+                    try StandaloneCLIReplacement.replace(
+                        at: installed.executable, original: installed.file, directory: installed.directory, with: newBinary
+                    ) {
                         guard scanner.reread(installed.path) == installed else {
-                            throw MulticaReplacement.Failure.changed
+                            throw StandaloneCLIReplacement.Failure.changed
                         }
                         guard usage([installed.target])[installed.target]?.isRunning != true else {
-                            throw MulticaReplacement.Failure.busy
+                            throw UpdateRefusal.busy
                         }
                     }
                 }
                 return .updated(version: after)
             }
-        } catch MulticaReplacement.Failure.busy {
+        } catch UpdateRefusal.busy {
             return .busy(Self.busyMessage)
+        } catch StandaloneCLIReplacement.Failure.inProgress {
+            return .busy(StandaloneCLIReplacement.Failure.inProgress.localizedDescription)
         } catch {
             if Task.isCancelled || error is CancellationError {
                 return .stopped(message: "Multica update cancelled", output: "", complete: true)

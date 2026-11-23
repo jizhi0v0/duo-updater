@@ -74,6 +74,8 @@ NON_APP = {
     "antigravity-cli.md",
     # The fix-storage launcher links to an npm package without a bundle ID.
     "fix-storage.md",
+    # The standalone nospeaker executable has a signing identifier but no bundle ID.
+    "nospeaker.md",
     # A channel, not an app: Setapp editions of many apps share one audit.
     "com-setapp-managed.md",
 }

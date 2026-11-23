@@ -34,6 +34,7 @@ public enum CLIToolWording {
         case .amp: return "Amp Frontier"
         case .deno: return "Deno Land"
         case .mise: return "Jeffrey Dickey"
+        case .nospeaker: return "Spoken Systems"
         case .bub, .rust, .npm, .boat, .vitePlus, .herdr, .luvus, .lorca, .zoxide, .nvm, .atuin, .ghcup, .flyctl, .helm, .starship,
              .obelus, .biome, .terminalMac, .leaf, .fixStorage, .multica, .pnpm, .yarn: return nil
         // A managed row's signer is its manager's (`ManagerDescriptor.signer`),
@@ -289,10 +290,12 @@ public enum CLIToolWording {
             if !install.linked, !install.quarantined, install.file.links == 1, !install.writable {
                 return String(localized: "The Multica executable or installation directory isn’t writable")
             }
-        case (.unverified, .multica):
+        case (.unverified, .multica), (.unverified, .nospeaker):
             return String(localized: "The new release can’t be checked against a published digest")
         case (.busy, .multica):
             return String(localized: "Multica is running")
+        case (.busy, .nospeaker):
+            return NospeakerProvider.busyMessage
         // In `ObelusCheck`'s order, as zoxide's.
         case (.unsupportedInstaller, .obelus(let obelus)):
             if !obelus.linked, !obelus.writable { return String(localized: "Updating it needs administrator rights") }

@@ -359,9 +359,11 @@ struct MulticaTests {
         let fm = FileManager.default
         let moved = fixture.root.appendingPathComponent("moved-stage")
         var foreignFile: URL?
-        try MulticaReplacement.replace(installed, with: source) {
+        try StandaloneCLIReplacement.replace(
+            at: installed.executable, original: installed.file, directory: installed.directory, with: source
+        ) {
             let entries = try fm.contentsOfDirectory(at: fixture.bin, includingPropertiesForKeys: nil)
-            let stage = try #require(entries.first { $0.lastPathComponent.hasPrefix(".duo-multica-") })
+            let stage = try #require(entries.first { $0.lastPathComponent.hasPrefix(".duo-cli-") })
             #expect(try fm.attributesOfItem(atPath: stage.path)[.posixPermissions] as? Int == 0o700)
             try fm.moveItem(at: stage, to: moved)
             let foreign = stage.appendingPathComponent("multica")
@@ -386,11 +388,13 @@ struct MulticaTests {
             onCancel: .terminateChild)
         try #require(changed.succeeded)
         #expect {
-            try MulticaReplacement.replace(installed, with: source) {
+            try StandaloneCLIReplacement.replace(
+                at: installed.executable, original: installed.file, directory: installed.directory, with: source
+            ) {
                 Issue.record("The staging directory should have been rejected before commit.")
             }
         } throws: { error in
-            guard case MulticaReplacement.Failure.unsafeStaging = error else { return false }
+            guard case StandaloneCLIReplacement.Failure.unsafeStaging = error else { return false }
             return true
         }
         #expect(try Data(contentsOf: fixture.executable) == old)

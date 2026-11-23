@@ -211,6 +211,7 @@ jobs:
           # actual inventory. The vendor signature gate uses a fixed app list.
           skip='listUnknownApps|liveFullCheckSmoke|installPipelineDryRun'
           skip="$skip|anAppStoreAppRestoresOverItself|noAppAlreadyInstalledOnThisMacWouldBeRefused"
+          skip="$skip|aRealSparkleUpdaterIdentifiesAsOneOfTheIdentitiesWeQueryFor"
           printf 'CORE_TEST_FLAGS=--skip "(%s)"\n' "$skip" >> "$GITHUB_ENV"
 
       - name: Toolchain

@@ -165,8 +165,12 @@ struct GitHubRateBudgetTests {
     /// recorder. Mutation: drop `rateBudget.observe(metrics)`.
     @Test func theRecorderFeedsTheStore() async throws {
         let server = try Server()
-        let session = Self.session()
-        let budget = GitHubRateBudget.Store(isAPI: Self.loopback)
+        // Use independent network responses here. The revalidation and cache
+        // tests above exercise URLSession's cached transactions separately.
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.urlCache = nil
+        let session = URLSession(configuration: configuration)
+        let budget = GitHubRateBudget.Store(isAPI: Self.loopback, credentials: GitHubCredentials())
         let file = FileManager.default.temporaryDirectory.appendingPathComponent("events-\(UUID().uuidString).sqlite")
         let events = EventStore(
             fileURL: file, retentionDays: 30, retentionBytes: 64 * 1024 * 1024,
@@ -177,17 +181,20 @@ struct GitHubRateBudgetTests {
             }
         }
         #expect(budget.current(at: Date()).isEmpty && budget.lastReset == nil)
-        for _ in 0..<2 {
+        for remaining in [59, 58] {
             var request = URLRequest(url: server.url("/releases"))
             request.cachePolicy = URLRequest.versionFeedCachePolicy
-            _ = try await session.data(
+            let (_, response) = try await session.data(
                 for: request, delegate: RequestMetricsRecorder(.versionCheck, store: events, rateBudget: budget))
+            let http = try #require(response as? HTTPURLResponse)
+            try #require(http.statusCode == 200)
+            try #require(http.value(forHTTPHeaderField: "x-ratelimit-remaining") == String(remaining))
+
+            // The recorder observes the budget in the metrics callback before
+            // URLSession resumes the data request, just like its event handoff.
+            #expect(budget.current(at: Date())
+                == [GitHubRateBudget(limit: 60, remaining: remaining, reset: Date(timeIntervalSince1970: Self.reset))])
         }
-        for _ in 0..<100 where budget.current(at: Date()).first?.remaining != 58 {
-            try await Task.sleep(for: .milliseconds(10))
-        }
-        #expect(budget.current(at: Date())
-            == [GitHubRateBudget(limit: 60, remaining: 58, reset: Date(timeIntervalSince1970: Self.reset))])
 
         // Draft verification skips the budget update and still logs the request
         // with the purpose and attribution of its caller.

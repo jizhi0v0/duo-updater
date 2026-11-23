@@ -688,6 +688,53 @@ private let ghosttyFixture = """
     #expect(changelog.entries[0].items[1] == "macOS: Fix stale mouse state leading to phantom drag/selection behavior after focus changes. #11276")
 }
 
+@Test func extractsKittyDetailedChangesInOrder() throws {
+    let fixture = """
+    <section id="recent-major-new-features">
+    <h2>Recent major new features</h2>
+    <section id="docked-windows-0-50">
+    <h3>Docked windows [0.50]<a class="headerlink" href="#docked-windows-0-50" title="Link to this heading">¶</a></h3>
+    <p>kitty windows can now be docked to an edge of another window.</p>
+    </section>
+    </section>
+    <section id="detailed-list-of-changes">
+    <h2>Detailed list of changes</h2>
+    <section id="id1">
+    <h3>0.51.1 [2026-11-23]<a class="headerlink" href="#id1" title="Link to this heading">¶</a></h3>
+    <ul class="simple">
+    <li><p>Fix the third and subsequent actions in a mouse mapping not
+    being run for the window that was clicked</p></li>
+    <li><p>macOS: Fix multiple font files sharing the same PostScript name sometimes
+    causing the wrong variant to be loaded (<a href="https://github.com/kovidgoyal/kitty/issues/10906">#10906</a>)</p></li>
+    </ul>
+    </section>
+    <section id="id2">
+    <h3>0.51.0 [2026-11-18]<a class="headerlink" href="#id2" title="Link to this heading">¶</a></h3>
+    <ul class="simple">
+    <li><p>Allow docking kitty windows to an edge of the OS window, below the tab bar,
+    with <code class="code docutils literal notranslate"><span class="pre">launch</span> <span class="pre">--type=os-window-dock</span></code>.
+    Resize with <code class="code docutils literal notranslate"><span class="pre">kitten</span> <span class="pre">&#64;</span> <span class="pre">resize-window</span></code>.</p></li>
+    </ul>
+    </section>
+    </section>
+    <ul><li><a href="#id2">0.51.0 [2026-11-18]</a></li></ul>
+    """
+    let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "net.kovidgoyal.kitty"))
+    let changelog = try #require(ChangelogExtractor.extract(from: fixture, using: recipe))
+
+    #expect(changelog.entries.map(\.version) == ["0.51.1", "0.51.0"])
+    #expect(changelog.entries.map(\.date) == ["2026-11-23", "2026-11-18"])
+    #expect(changelog.entries.map(\.items) == [
+        [
+            "Fix the third and subsequent actions in a mouse mapping not being run for the window that was clicked",
+            "macOS: Fix multiple font files sharing the same PostScript name sometimes causing the wrong variant to be loaded (#10906)",
+        ],
+        [
+            "Allow docking kitty windows to an edge of the OS window, below the tab bar, with launch --type=os-window-dock. Resize with kitten @ resize-window.",
+        ],
+    ])
+}
+
 @Test func extractsTablePlusEntriesInOrder() throws {
     let recipe = try #require(ChangelogRecipeRegistry.recipe(forBundleID: "com.tinyapp.TablePlus"))
     let changelog = try #require(ChangelogExtractor.extract(from: tablePlusFixture, using: recipe))

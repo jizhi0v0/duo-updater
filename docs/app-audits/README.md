@@ -555,6 +555,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [ ] [**Beekeeper Studio**](io-beekeeperstudio-desktop.md) · `io.beekeeperstudio.desktop` — 仅迁出历史：一键 arm64 dmg 的核对
 - [ ] [**Podman Desktop**](io-podmandesktop-PodmanDesktop.md) · `io.podmandesktop.PodmanDesktop` — 仅迁出历史：airgap 包的大小、repo 改名导致匿名限流的测量
 - [ ] [**Anki**](net-ankiweb-anki.md) · `net.ankiweb.anki` — 仅迁出历史：已关闭的 folded-build 缺口那段的原文
+- [ ] [**kitty**](net-kovidgoyal-kitty.md) · `net.kovidgoyal.kitty` — 官网详细更新日志接入实测
 - [ ] [**ImageOptim**](net-pornel-ImageOptim.md) · `net.pornel.ImageOptim` — 仅迁出历史：bundle 的 `SUFeedURL`、一键 `.tar.xz` 的核对
 - [ ] [**Bear**](net-shinyfrog-bear.md) · `net.shinyfrog.bear` — 仅迁出历史：App Store 探测用例的上线核对
 - [ ] [**GrandPerspective**](net-sourceforge-grandperspectiv.md) · `net.sourceforge.grandperspectiv` — 仅迁出历史：一键 dmg 的核对

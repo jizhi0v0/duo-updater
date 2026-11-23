@@ -489,22 +489,26 @@ public actor VendorInstaller {
             installedApp: result.app.path,
             trust: trust
         )
-        // GitHub rules that publish the exact bundle version can check it
-        // against the signed payload. UTM repacks also publish the build.
-        if remote.sourceName == "GitHub", remote.marketingMatchesBundle {
-            let stagedApp = newApp
-            let downloaded = await offCooperativePool { StagedRelaunch.diskVersionSide(stagedApp) }
-            let expected = remote.versionSide
-            guard downloaded.marketing == expected.marketing,
-                  expected.build == nil || downloaded.build == expected.build else {
-                throw InstallError.packageVersionMismatch(expected: expected, downloaded: downloaded)
-            }
-        }
         let installedApp = result.app.path, finalTrust = trust
-        let archiveAlone = await offCooperativePool {
-            SignatureVerifier.originRestsOnArchiveAlone(trust: finalTrust, installedApp: installedApp)
+        let stagedApp = newApp
+        let archiveAlone = try await offCooperativePool {
+            try Self.verifyGitHubPackageVersion(app: stagedApp, remote: remote)
+            return SignatureVerifier.originRestsOnArchiveAlone(trust: finalTrust, installedApp: installedApp)
         }
         return (newApp, stagedCheck, archiveAlone)
+    }
+
+    /// GitHub rules that publish the exact bundle version can check it against
+    /// the signed payload. UTM repacks also publish the build. Run off the
+    /// cooperative pool, after verifying the bundle's seal.
+    static func verifyGitHubPackageVersion(app: URL, remote: RemoteVersion) throws {
+        guard remote.sourceName == "GitHub", remote.marketingMatchesBundle else { return }
+        let expected = remote.versionSide
+        let downloaded = StagedRelaunch.diskVersionSide(app)
+        guard let marketing = expected.marketing, downloaded.marketing == marketing,
+              expected.build == nil || downloaded.build == expected.build else {
+            throw InstallError.packageVersionMismatch(expected: expected, downloaded: downloaded)
+        }
     }
 
     /// Gate 1 and unpacking for a full archive: the published digests and MyGo

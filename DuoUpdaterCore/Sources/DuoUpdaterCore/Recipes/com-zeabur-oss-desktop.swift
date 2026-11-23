@@ -13,6 +13,7 @@ enum com_zeabur_oss_desktop {
                 bundleID: bundleID,
                 owner: "zeabur-oss", repo: "zeabur",
                 versionPattern: #"^v([0-9]+\.[0-9]+\.[0-9]+)$"#,
+                candidateScope: .highestVersion,
                 installAssetPattern: #"^zeabur-desktop-v[0-9]+\.[0-9]+\.[0-9]+-darwin-arm64\.dmg$"#,
                 installerKind: .dmg),
 

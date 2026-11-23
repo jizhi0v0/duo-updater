@@ -1752,23 +1752,18 @@ public struct GitHubReleasesSource: UpdateSource {
             return release.assets.filter { $0.name == name }
         }
 
-        // A highest-version rule walks the page in version order rather than in
-        // GitHub's list order. Equal versions keep their order.
-        if rule.candidateScope == .highestVersion {
-            if isZeaburDesktop {
-                // Zeabur also reads /releases/latest so a burst of prereleases
-                // cannot push the Stable candidate out of the version comparison.
-                do {
-                    if let latest = try await fetchReleases(rule, list: false),
-                       let stable = Self.stableOnly(latest).first {
-                        releases.removeAll { $0.tag == stable.tag }
-                        releases.append(stable)
-                    }
-                } catch let error as GitHubError where error.statusCode == 404 {
-                    // The prerelease list still answers if no Stable is published.
+        if isZeaburDesktop, rule.usePrereleases {
+            // Zeabur also reads /releases/latest so a burst of prereleases
+            // cannot push the Stable candidate out of the version comparison.
+            do {
+                if let latest = try await fetchReleases(rule, list: false),
+                   let stable = Self.stableOnly(latest).first {
+                    releases.removeAll { $0.tag == stable.tag }
+                    releases.append(stable)
                 }
+            } catch let error as GitHubError where error.statusCode == 404 {
+                // The prerelease list still answers if no Stable is published.
             }
-            releases = Self.byVersionDescending(releases, pattern: rule.versionPattern)
         }
 
         // A rule that names a macOS installer asks a stricter question than "what
@@ -1811,6 +1806,11 @@ public struct GitHubReleasesSource: UpdateSource {
             if let list = try await fetchReleases(rule, list: true) {
                 releases = Self.stableOnly(list)
             }
+        }
+        // Sort after the Stable fallback fetch as well. A backport can appear
+        // before the highest desktop version on GitHub's list.
+        if rule.candidateScope == .highestVersion {
+            releases = Self.byVersionDescending(releases, pattern: rule.versionPattern)
         }
         if rule.slug == com_utmapp_UTM.slug, releases.count > 1 {
             // Rank UTM's repacks after their plain tag for candidate selection.

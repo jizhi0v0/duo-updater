@@ -15,7 +15,7 @@
 
 ## 检测、一键更新与发布说明
 
-- `ReleaseChannel.detect` 识别 Zeabur 预发布的 `-beta.N` 与 `-rc.N` 后缀。Stable 读取 GitHub 最新正式版。预发布读取 30 项发布列表，加入独立请求得到的最新正式版，再按版本选择可用的 Desktop 资产。这个顺序对应厂商 updater 的晋升规则。历史时间线只收录有对应 arm64 桌面 DMG 的条目。
+- `ReleaseChannel.detect` 识别 Zeabur 预发布的 `-beta.N` 与 `-rc.N` 后缀。Stable 读取 GitHub 最新正式版，若缺桌面 DMG，则从发布列表按版本选择。预发布读取 30 项发布列表，加入独立请求得到的最新正式版，再按版本选择可用的 Desktop 资产。这个顺序对应厂商 updater 的晋升规则。历史时间线只收录有对应 arm64 桌面 DMG 的条目。
 - 厂商 Tauri updater 读取 `latest.json` 并验证其归档的 minisign 签名。Duo 选 GitHub 上文件名与标签对应的 `zeabur-desktop-v<VERSION>-darwin-arm64.dmg`，沿用资产摘要、Developer ID 和同一 Team 校验，并在替换前确认签名 App 的版本。
 - 共用 GitHub release 正文，内容也涉及同仓库的服务端和 CLI。`GitHubMarkdownParser` 从 0.3.0 的正文提取了 3 项结构化摘要，厂商页面提供完整的段落说明。
 

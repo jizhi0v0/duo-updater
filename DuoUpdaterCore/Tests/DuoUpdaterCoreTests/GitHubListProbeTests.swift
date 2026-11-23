@@ -152,9 +152,10 @@ struct GitHubListProbeTests {
         let list = GitHubReleasesSource.listEndpoint(rule, pageSize: rule.listPageSize)
         let misplaced = Self.release("v1.2.0", assets: ["OpenScreens-1.1.0.dmg"], prerelease: false)
         let published = Self.release("v1.1.0", assets: ["OpenScreens-1.1.0.dmg"], prerelease: false)
+        let older = Self.release("v1.0.0", assets: ["OpenScreens-1.0.0.dmg"], prerelease: false)
         ByURLProtocol.script.load([
             latest: .init(body: misplaced, etag: nil),
-            list: .init(body: Self.page([misplaced, published]), etag: nil),
+            list: .init(body: Self.page([misplaced, older, published]), etag: nil),
         ])
         let source = GitHubReleasesSource(rules: [rule], session: Self.session())
         let result = await source.resolveDiagnostic(rule, preferring: .arm64, allowingIntelTranslation: false)
@@ -162,7 +163,7 @@ struct GitHubListProbeTests {
         #expect(result.remote?.shortVersion == "1.1.0")
         #expect(result.remote?.downloadURL?.lastPathComponent == "OpenScreens-1.1.0.dmg")
         #expect(result.remote?.marketingMatchesBundle == true)
-        #expect(result.remote?.releaseHistory.map(\.version) == ["1.1.0"])
+        #expect(result.remote?.releaseHistory.map(\.version) == ["1.1.0", "1.0.0"])
         #expect(ByURLProtocol.script.urls == [latest, list])
     }
 

@@ -12,6 +12,7 @@ enum com_burakgon_openscreens {
                 bundleID: bundleID,
                 owner: "burakgon", repo: "OpenScreens",
                 versionPattern: #"^v([0-9]+\.[0-9]+\.[0-9]+)$"#,
+                candidateScope: .highestVersion,
                 installAssetPattern: #"^OpenScreens-[0-9]+\.[0-9]+\.[0-9]+\.dmg$"#,
                 installerKind: .dmg),
         ])

@@ -5,27 +5,34 @@ import Testing
 struct PrivateInternetAccessChangelogTests {
     private static let bundleID = "com.privateinternetaccess.vpn"
 
-    // Representative HTML using the article and h3 anchors already exercised
-    // by the PIA vendor-probe tests. Live validation against the raw vendor
-    // page remains required before the recipe is considered production-ready.
+    // Trimmed from the vendor page on 2026-11-23. Keep a download panel,
+    // the log-list boundary, an encoded apostrophe, and a checksum paragraph.
     private static let page = #"""
     <article class="changelog-release">
-      <ul class="downloads"><li><a href="https://installers.privateinternetaccess.com/download/pia-macos-3.8-08539.zip">Mac ZIP download</a></li></ul>
-      <h3 class="text-primary" style="margin-bottom:0px">v3.8.0</h3>
-      <h4 class="text-muted">Release Date: October 15, 2026</h4>
-      <ul>
-        <li>Windows: WireGuard now uses WireGuard-NT</li>
-        <li>All: WireGuard is now the default protocol</li>
-        <li>Linux/macOS: New WireGuard Amnezia driver</li>
-        <li>macOS: Fixed split tunnel &amp; DNS interaction</li>
+      <span class="anchortag" id="v3.8.0"></span>
+      <div class="panel panel-primary pull-right panel-download">
+        <div class="panel-heading"><div class="panel-title">Downloads</div></div>
+        <div class="list-group">
+          <a class="list-group-item" href="https://installers.privateinternetaccess.com/download/pia-macos-3.8-08539.zip">
+            <span class="os-label">Mac</span>
+          </a>
+        </div>
+      </div>
+      <h3 class="text-primary" style="margin-bottom:0px">
+        v3.8.0
+      </h3>
+      <h4 class="text-primary" style="margin-bottom:20px">Release Date: October 15, 2026</h4>
+      <ul class="log-list">
+        <li>All: WireGuard is now the default protocol for new installations</li>
+        <li>macOS: Fixed an issue when split tunnel system extension setup wasn&#39;t completed</li>
       </ul>
-      <h3>SHA-256 Checksums:</h3>
+      <h3 style="font-size:16px;">SHA-256 Checksums:</h3>
       <p class="sha256">pia-macos-3.8-08539.zip:<span class="code">824b5a469a7e42a634e98f140e6d31d567d564c8edaa78ebb6b05f0de311008e</span></p>
     </article>
     <article class="changelog-release">
       <h3 class="text-primary" style="margin-bottom:0px">v3.7.2</h3>
-      <h4>Release Date: March 19, 2026</h4>
-      <ul><li>Connectivity improvements</li></ul>
+      <h4 class="text-primary" style="margin-bottom:20px">Release Date: March 19, 2026</h4>
+      <ul class="log-list"><li>Connectivity improvements</li></ul>
       <p class="sha256">pia-macos-3.7.2-08420.zip:5677fa</p>
     </article>
     """#
@@ -38,10 +45,10 @@ struct PrivateInternetAccessChangelogTests {
         let changelog = try #require(ChangelogExtractor.extract(from: Self.page, using: Self.recipe()))
         #expect(changelog.entries.map(\.version) == ["3.8.0", "3.7.2"])
         #expect(changelog.entries.map(\.date) == ["October 15, 2026", "March 19, 2026"])
-        #expect(changelog.entries.map(\.items.count) == [4, 1])
-        #expect(changelog.entries[0].items[3] == "macOS: Fixed split tunnel & DNS interaction")
+        #expect(changelog.entries.map(\.items.count) == [2, 1])
+        #expect(changelog.entries[0].items.last?.contains("wasn't completed") == true)
         let text = changelog.entries.flatMap(\.items).joined(separator: "\n")
-        #expect(!text.contains("Mac ZIP download"))
+        #expect(!text.contains("Downloads"))
         #expect(!text.contains("SHA-256"))
         #expect(!text.contains("pia-macos-"))
         #expect(changelog.entries[1].items == ["Connectivity improvements"])

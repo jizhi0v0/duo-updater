@@ -19,7 +19,7 @@
 
 ## 历史与实测
 
-- 2026-11-23，官网浏览器可见的版本记录包括 3.8.0（2026-10-15）、3.7.2（2026-03-19），并含各平台的变更列表；离线 fixture 根据现有 vendor-probe 测试中的 article/h3 HTML 锚点构造。此执行环境无法下载原始官网 HTML，发布前必须以生产解析器运行 `duo verify --changelog --only com.privateinternetaccess.vpn --samples` 核验真实页面结构、版本日期与条目数量。
+- 2026-11-23，直接下载官网发布页原始 HTML，核对 7 段版本记录。生产 CLI 的 changelog 和 coverage 检查均为 `ok`。最新为 3.8.0（2026-10-15，5 条），上一版为 3.7.2（2026-03-19，1 条）。测试夹具保留官网的下载区、版本标题、日期、变更列表和校验段结构。
 
 - 2026-11-22，厂商官网稳定版为 3.8.0，Mac ZIP 名为 `pia-macos-3.8-08539.zip`。同页列出 3.7.2（08420）的 Mac ZIP 和摘要。公开应用更新 API 的 GA 记录为 3.5.7，Beta 记录为 3.6.1-beta.2，因此稳定版采用当前官网下载记录。
 - Apple Silicon macOS 27.2 VM，从厂商 3.7.2 升级到 3.8.0。签名 ZIP 与官网摘要一致。安装器直接打开 macOS 的 Install Helper 授权。拒绝授权时旧应用与 daemon 仍可用。授权后安装器将暂存应用迁移至 `/Applications/Private Internet Access.app`，应用及 daemon 均更新到 3.8.0。测试未连接 VPN。此处记录直接运行厂商安装器的验证。

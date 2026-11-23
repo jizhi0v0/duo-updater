@@ -337,6 +337,42 @@ private let hbuilderXCodeSpanFixture = #"""
     #expect(log.entries.last?.items == ["See CHANGELOG.md for details."])
 }
 
+@Test func swiftVMChangelogReadsOnlyAppReleasesOnEachTrack() throws {
+    let feed = #"""
+    [
+      {"tag_name":"v1.14.0","prerelease":false,"draft":false,"published_at":"2026-11-22T18:42:38Z",
+       "body":"## What's Changed\n* Show host CPU and memory usage for each VM\n* Scroll Windows guests at the trackpad's speed"},
+      {"tag_name":"v1.14.0-beta.99","prerelease":true,"draft":false,"published_at":"2026-11-22T11:22:14Z",
+       "body":"## What's Changed\n* Show host CPU and memory usage for each VM\n* Scroll Windows guests at the trackpad's speed"},
+      {"tag_name":"qemu-builds","prerelease":true,"draft":false,"published_at":"2026-10-23T11:50:46Z",
+       "body":"QEMU as scripts/build-qemu.sh builds it, for the release workflows to put into the app."},
+      {"tag_name":"v1.13.0","prerelease":false,"draft":false,"published_at":"2026-11-09T21:13:03Z",
+       "body":"## What's Changed\n* Run accelerated guests at the Mac's refresh rate, up to 120 Hz"},
+      {"tag_name":"v1.13.0-beta.94","prerelease":true,"draft":false,"published_at":"2026-11-09T20:57:43Z",
+       "body":"## What's Changed\n* Run accelerated guests at the Mac's refresh rate, up to 120 Hz"},
+      {"tag_name":"v1.0.0","prerelease":false,"draft":false,"published_at":"2026-10-11T16:48:47Z","body":null},
+      {"tag_name":"beta-channel","prerelease":true,"draft":false,"published_at":"2026-10-11T15:05:52Z",
+       "body":"Rolling Sparkle appcast for the beta channel. Do not delete."}
+    ]
+    """#
+    let stableRecipe = try #require(ChangelogRecipeRegistry.recipe(
+        forBundleID: SwiftVMChannel.bundleID, channel: .stable))
+    let betaRecipe = try #require(ChangelogRecipeRegistry.recipe(
+        forBundleID: SwiftVMChannel.bundleID, channel: .beta))
+    let stable = try #require(ChangelogService.parse(stableRecipe, body: feed))
+    let beta = try #require(ChangelogService.parse(betaRecipe, body: feed))
+
+    #expect(stable.entries.map(\.version) == ["1.14.0", "1.13.0"])
+    #expect(beta.entries.map(\.version) == ["1.14.0-beta.99", "1.13.0-beta.94"])
+    #expect(stable.entries.first?.date == "2026-11-22")
+    #expect(beta.entries.first?.date == "2026-11-22")
+    #expect(stable.entries.first?.items == [
+        "Show host CPU and memory usage for each VM",
+        "Scroll Windows guests at the trackpad's speed",
+    ])
+    #expect(beta.entries.first?.items == stable.entries.first?.items)
+}
+
 // MARK: - Three apps moved off the web view (verbatim slices, fetched 2026-08-22)
 
 /// Alcove's changelog API: majors holding point releases. Flattened per MINOR,

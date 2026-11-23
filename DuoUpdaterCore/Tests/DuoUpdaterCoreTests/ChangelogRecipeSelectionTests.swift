@@ -130,11 +130,9 @@ struct ChangelogRecipeSelectionTests {
         #expect(page == .fromSource(URL(string: "https://apps.apple.com/app/id1")!))
     }
 
-    /// `fallbackPage`'s comment says no catalog entry is a vendor page for a
-    /// bundle id that also has a recipe, and the argument for the whole change is
-    /// that the set is expected to MOVE. A hand-transcribed measurement inside a
-    /// comment drifts silently, so derive it: this fails when the overlap changes,
-    /// pointing the next person at the comment that has to be re-read.
+    /// When a catalog page and recipe overlap, recheck the vendor page's
+    /// distribution in `fallbackPage`. SwiftVM's page covers the Developer ID
+    /// distributions that use its Stable and Beta Sparkle feeds.
     ///
     /// The assertion is on the SET, not a count — a count stays green when one id
     /// leaves and another arrives, which is exactly the edit worth catching.
@@ -143,7 +141,8 @@ struct ChangelogRecipeSelectionTests {
         let recipes = Set(ChangelogRecipeRegistry.recipes.map { $0.bundleID.lowercased() })
         #expect(catalog.intersection(recipes) == [
             "app.chatwise", "com.electron.ollama", "com.longbridge.app.desktop",
-            "com.mitchellh.ghostty", "com.robinebers.openusage", "net.imput.helium",
+            "com.mitchellh.ghostty", "com.robinebers.openusage", "com.swiftvm.app",
+            "net.imput.helium",
         ], "The catalog/recipe overlap moved. Re-read ChangelogRecipeSelection.fallbackPage: a new entry here is a vendor page that a store copy could reach through the web view.")
         // The case the whole change is about has no catalog entry, so it lands on
         // "No release notes" rather than a vendor page. If this ever gains one,

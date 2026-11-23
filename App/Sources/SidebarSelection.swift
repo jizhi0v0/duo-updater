@@ -28,10 +28,10 @@ enum SidebarSelection {
         checked: Bool
     ) -> HomebrewCaskTarget {
         if let row = packages.first(where: { $0.kind == .cask && $0.name == cask }) {
-            return .row("brew:formula:\(row.key)")
+            return .row(row.workbenchRowID)
         }
         if let row = unchecked.first(where: { $0.kind == .cask && $0.fullName == cask }) {
-            return .row("brew:unchecked:\(row.id)")
+            return .row(row.workbenchRowID)
         }
         return checked ? .unavailable : .awaitingInventory
     }
@@ -85,4 +85,19 @@ enum SidebarSelection {
         (homebrewExpanded ? homebrew : []) + managers.flatMap { $0.expanded ? $0.tools : [] }
             + (otherToolsExpanded ? tools : [])
     }
+}
+
+
+// Match ForEach's identity to selection and scroll targeting, including for
+// rows the lazy stack has not built yet.
+extension BrewInstalledFormula {
+    var workbenchRowID: String { "brew:formula:\(key)" }
+}
+
+extension BrewCaskLifecycle {
+    var workbenchRowID: String { "brew:cask:\(token)" }
+}
+
+extension BrewUncheckedPackage {
+    var workbenchRowID: String { "brew:unchecked:\(id)" }
 }

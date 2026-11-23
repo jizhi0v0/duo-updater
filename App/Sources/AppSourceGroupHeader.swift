@@ -10,8 +10,6 @@ struct AppListSection: Equatable, Identifiable {
     let rows: [UpdateResult]
     /// Drawn open. Always true in the popover, which does not close sections.
     var expanded = true
-    /// A search holds it open and disables toggling.
-    var toggleDisabled = false
 
     var id: String { group?.rawValue ?? "interrupted" }
     var updateCount: Int { rows.filter(\.hasUpdate).count }
@@ -39,8 +37,6 @@ struct AppSourceGroupHeader: View {
     let count: Int
     let updates: Int
     let expanded: Bool
-    /// A search holds the section open and disables toggling.
-    let toggleDisabled: Bool
     let isFixed: Bool
     let toggle: () -> Void
 
@@ -74,7 +70,6 @@ struct AppSourceGroupHeader: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .disabled(toggleDisabled)
         .help(expanded ? String(localized: "Hide apps") : String(localized: "Show apps"))
     }
 }

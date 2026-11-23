@@ -6,17 +6,14 @@ import Testing
 /// Only constructs the providers; nothing is scanned or checked.
 struct CLIToolGitHubAPITests {
 
-    /// Bun, OpenCode, zoxide and nvm ask `releases/latest` on every check, Herdr
-    /// when its manifests do not name the build (measured 2026-10-08). Every other tool's
-    /// version source revalidates to 304 without the GitHub API; Obelus's reads
-    /// a release download (`SHA256SUMS`), not the API.
+    /// Registered providers that use the GitHub release API for version checks.
     ///
-    /// Mutation: drop `readsGitHubAPI` from any of the five providers, or set it
+    /// Mutation: drop `readsGitHubAPI` from any of these providers, or set it
     /// on another one.
-    @Test func exactlyBunOpenCodeHerdrZoxideAndNvmReadTheGitHubAPI() {
+    @Test func exactlyExpectedStandaloneProvidersReadTheGitHubAPI() {
         let providers = CLITools.standaloneProviders()
         #expect(Set(providers.map(\.kind)) == Set(CLIToolKind.allCases).subtracting([.managed]))
-        #expect(Set(providers.filter(\.readsGitHubAPI).map(\.kind)) == [.bun, .opencode, .herdr, .zoxide, .nvm, .terminalMac])
+        #expect(Set(providers.filter(\.readsGitHubAPI).map(\.kind)) == [.bun, .opencode, .herdr, .zoxide, .nvm, .terminalMac, .multica])
     }
 
     /// No manager's check asks api.github.com from our process (design §3.4):

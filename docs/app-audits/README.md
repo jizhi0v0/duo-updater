@@ -234,6 +234,9 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 
 ## Single-channel — GitHub Releases
 
+- [x] [**Multica**](ai-multica-desktop.md) · `ai.multica.desktop` — G（Stable，arm64 DMG，旧 ID 确认后迁移）· 独立 CLI 验摘要原位更新、Homebrew 公式走 Brew · 2026-11-23
+- [x] [**Trina AX**](com-treesoop-mycel.md) · `com.treesoop.mycel` — G（公开 Stable，universal DMG，一键及旧团队重连 VM 验证）· 2026-11-23
+
 - [x] [**Exo**](build-miguel-Exo.md) · `build.miguel.Exo` — G（Stable，Developer ID 签名的 arm64 DMG）
 - [x] [**Mithka（GitHub）**](ad-neko-mithka.md) · `ad.neko.mithka` — G（Stable，arm64 / universal ZIP，用户允许时按发布摘要一键更新）
 - [x] [**Codiff**](dev-nkzw-tech-codiff.md) · `dev.nkzw-tech.codiff` — G（arm64 ZIP 一键安装、结构化日志）· 2026-11-16
@@ -464,7 +467,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 - [x] [**DaisyDisk**](com-daisydiskapp-DaisyDiskStandAlone.md) · `com.daisydiskapp.DaisyDiskStandAlone` — S · MAS 副本 `com.daisydiskapp.DaisyDisk` 由 App Store 通用覆盖 · cask `auto_updates` 不影响，Sparkle 先应答 · 无 EdDSA（只有 DSA），通用一键 ✓（code signature + Team 闸）· 真包 4.34.2 验证 ✓ · 2026-09-14 复核
 - [x] [**SuperCmd**](com-supercmd-SuperCmd.md) · `com.supercmd.SuperCmd` — S(v2 stable) S(v2 beta，独立 id `com.supercmd.SuperCmd.beta`、独立 feed) G(v1 `com.supercmd.app`，**detection-only**) · 同名两个 app：v2 闭源原生 Sparkle、v1 开源 Electron 已停更，版本号 1.0.0–1.0.7 两边重叠 · 三个真包验证 ✓ · 2026-09-17
 - [x] [**ShiftBar**](com-superoutman-ShiftBar-prototype.md) · `com.superoutman.ShiftBar.prototype` — S · 单轨道（发布 workflow 断言 build 单调递增，无 prerelease 分支）· feed 内联 `sparkle:format="markdown"` notes —— **借此修了通用缺口：该属性此前从未被解析**，Markdown notes 一律落到原始文本回落 · feed 只留 1 个 item，releaseHistory 恒为 1 · arm64 + macOS 27 下限由 feed 现读 · 真包 0.1.13 验证 ✓ · 2026-09-20
-- [x] [**SwiftVM**](com-swiftvm-app.md) · `com.swiftvm.app` — S+B · stable/beta 各自的 feed，beta 由构建定死（`SwiftVMChannel`）· 真包 1.0.0 / beta.12 / beta.16 验证 ✓ · 一键端到端 ✓（beta.12→beta.16；stable 只有一版，无旧版可测） · ✗ changelog：厂商 release 正文为空 · 2026-10-12
+- [x] [**SwiftVM**](com-swiftvm-app.md) · `com.swiftvm.app` — S+B · Stable/Beta 各自的 feed，Beta 由构建定死（`SwiftVMChannel`）· 2026-10-12 验证 1.0.0 / beta.12 / beta.16，Beta 一键升级 ✓ · GitHub Releases changelog 按轨解析 · 2026-11-23
 - [x] [**Sensei**](org-cindori-Sensei.md) · `org.cindori.Sensei` — S · 一键 ✓ · changelog 结构化（Fixed/Improved 分节）· 2026-10-12
 - [x] [**Backdrop**](com-cindori-Backdrop.md) · `com.cindori.Backdrop` — S · 一键（delta，壁纸 agent 在跑也可） · changelog 结构化（无分节）· 2026-10-12
 - [x] [**Kuvo Box**](run-kuvo-app.md) · `run.kuvo.app` — S + 精确旧 feed 修正 · 版本/下载归属独立 Box 仓库 · 一键 ✓ VM 0.1.2→0.1.3（静止/运行/重启） · 原生日志 ✓ What's new / Fixes · 2026-11-15

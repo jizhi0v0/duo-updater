@@ -1,11 +1,11 @@
-# Build and test on GitHub-hosted Macs, with an opt-in mini for App CI.
+# Build and test on the Mac mini for trusted CI runs when opted in.
 #
 # The last workflow this repository had was deleted the day it went public
 # (4ff9a90, 2026-08-14) because it pointed at a self-hosted runner running as the
 # desktop user, and a public repo eventually gets a pull_request trigger pointed at
 # it. That reasoning still stands, so this one is built the other way round:
 #
-#   • Fork PRs, main pushes and manual runs use GitHub-hosted Macs.
+#   • Fork PRs and recipe-autofix branches use GitHub-hosted Macs.
 #   • The workflow token is read-only. The App tests and Release builds use
 #     CODE_SIGNING_ALLOWED=NO and a default DUO_TEAM_ID.
 #   • `pull_request`, never `pull_request_target`. The latter runs the BASE
@@ -22,12 +22,15 @@
 # + Xcode 27, same 3-core M1 tier as macos-latest). NOT `xcode-27-xlarge` — larger
 # runners are billed even on public repositories.
 #
-# With DUO_MINI_APP_CI=enabled this workflow routes the App job to the mini
-# for the repository owner's same-repo PRs. Autofix branches stay hosted.
+# With DUO_MINI_CI=enabled the three macOS jobs use the mini for owner-authored
+# same-repo PRs, owner pushes to protected main, and owner dispatches on branches.
+# Main stays hosted when recipe-autofix can merge without human review.
 # Keep GitHub's collaborators-only PR creation policy while the desktop
 # runners are available. Their root-owned hook also checks the event and repo.
-# Assign duo-mini-app to one runner to limit concurrency on the shared disk.
-# The mini uses per-job build directories and leaves hosted caches alone.
+# Assign duo-mini-app and duo-mini-core to different runners. The Core runner
+# serializes Swift and Release disk-image tests, while App can build in parallel.
+# All three jobs use temporary build directories on the mini. Disable the
+# repository variable to use GitHub-hosted macOS runners for new runs.
 name: CI
 
 on:
@@ -59,7 +62,27 @@ jobs:
     outputs:
       bench_only: ${{ steps.bench.outputs.bench_only }}
       nightly_only: ${{ steps.nightly.outputs.nightly_only }}
+      mini: ${{ steps.macos.outputs.mini }}
     steps:
+      - name: Choose the macOS runners
+        id: macos
+        env:
+          USE_MINI: >-
+            ${{ vars.DUO_MINI_CI == 'enabled'
+              && github.repository == 'jizhi0v0/duo-updater'
+              && github.actor == github.repository_owner
+              && (
+                (github.event_name == 'pull_request'
+                  && github.event.pull_request.head.repo.full_name == github.repository
+                  && github.event.pull_request.user.login == github.repository_owner
+                  && !startsWith(github.head_ref, 'recipe-autofix/'))
+                || (github.event_name == 'push' && github.ref == 'refs/heads/main'
+                  && vars.RECIPE_AUTOFIX_AUTOMERGE != '1')
+                || (github.event_name == 'workflow_dispatch' && github.ref_type == 'branch'
+                  && !startsWith(github.ref_name, 'recipe-autofix/'))
+              ) }}
+        run: printf 'mini=%s\n' "$USE_MINI" >> "$GITHUB_OUTPUT"
+
       - name: Check out trusted nightly classifier
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -107,15 +130,17 @@ jobs:
           echo "bench_only=$only"
 
   # `make test` in its three parts plus Core's Release pass, each on its own
-  # runner. One after another they took 22–28 minutes, more than half of it one
+  # runner slot. One after another they took 22–28 minutes, more than half of it one
   # compile: run 37190107638 spent 8 minutes in `make test` and 14 in the Release
   # step, 10.7 of those building the test target. Side by side the wall clock is
-  # the longest job instead of the sum. Standard runners on a public repository
-  # cost nothing either way; the price is up to three macOS runners per push.
+  # the longest job instead of the sum on hosted runners. The mini runs the
+  # two Core jobs on the same slot because both attach disk images.
   swift:
     needs: route
     if: needs.route.outputs.bench_only != 'true' && needs.route.outputs.nightly_only != 'true'
-    runs-on: xcode-27
+    runs-on: &core-runners >-
+      ${{ fromJSON(needs.route.outputs.mini == 'true'
+        && '["self-hosted","macOS","ARM64","duo-mini-core"]' || '"xcode-27"') }}
     # Core's suite reaches vendor endpoints (the install gates download real
     # packages and verify sha512 + Team ID), so it is slower and less predictable
     # than a pure unit run. Generous, but far under the 6h job ceiling.
@@ -135,12 +160,29 @@ jobs:
       # cache restore count toward the 150 s; the compile is in the same step as
       # the tests and cannot.
       - name: Mount the Simulator runtimes now
+        if: runner.environment == 'github-hosted'
         run: |
           xcrun simctl list runtimes
           echo "SIM_RUNTIMES_MOUNTED_AT=$(date +%s)" >> "$GITHUB_ENV"
 
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - &mini-toolchain
+        name: Select the mini toolchain
+        if: runner.environment == 'self-hosted'
+        run: |
+          echo "DEVELOPER_DIR=/Applications/Xcode-27.2.app/Contents/Developer" >> "$GITHUB_ENV"
+          printf '%s\n' "$HOME/.local/bin" /opt/homebrew/bin >> "$GITHUB_PATH"
+
+      - &mini-core-build
+        name: Set the Core build directory
+        if: runner.environment == 'self-hosted'
+        run: |
+          scratch="$(mktemp -d "$RUNNER_TEMP/duo-core-ci.XXXXXX")"
+          echo "SWIFTPM_TEST_SCRATCH=$scratch" >> "$GITHUB_ENV"
 
       - name: Toolchain
         run: |
@@ -162,10 +204,12 @@ jobs:
       # source and one test file (128 s). Restoring ~300 MB took 14–17 s, and
       # saving it 15–21 s.
       - name: Name SwiftPM's build cache
+        if: runner.environment == 'github-hosted'
         id: spm-key
         run: echo "key=spm-${{ github.job }}-$({ xcodebuild -version; swift --version; } 2>&1 | shasum | cut -c1-12)" >> "$GITHUB_OUTPUT"
 
       - name: Restore SwiftPM's build
+        if: runner.environment == 'github-hosted'
         id: spm-cache
         uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
         with:
@@ -178,6 +222,7 @@ jobs:
         run: python3 scripts/ci_build_cache.py restore DuoUpdaterCore/.build
 
       - name: Let the Simulator runtime mounts settle
+        if: runner.environment == 'github-hosted'
         run: |
           left=$(( SIM_RUNTIMES_MOUNTED_AT + 150 - $(date +%s) ))
           echo "waiting ${left}s"
@@ -201,6 +246,7 @@ jobs:
       # first suite failed 4 of 12 times with it running (one a 17-minute hang
       # in `hdiutil attach`) and 0 of 12 with it stopped.
       - name: Stop simdiskimaged
+        if: runner.environment == 'github-hosted'
         run: |
           sudo launchctl disable system/com.apple.CoreSimulator.simdiskimaged || true
           sudo launchctl bootout system/com.apple.CoreSimulator.simdiskimaged || true
@@ -208,9 +254,7 @@ jobs:
           if pgrep -lf simdiskimaged; then echo "::warning::simdiskimaged is still running"; fi
 
       - name: make test-swift
-        # DUO_DOWNLOAD_GATE moves the one test that fetches real vendor builds off
-        # a metered connection onto this runner, where egress is free. Measured on
-        # the author's Mac: `make test` goes from ~185 MB to ~25 MB.
+        # DUO_DOWNLOAD_GATE keeps the test that fetches real vendor builds in CI.
         #
         # It was switched on once before and wedged three runs out of three — the
         # test process stopped emitting entirely, for 46 and 16 minutes, until a
@@ -237,16 +281,17 @@ jobs:
         # among its own descendants.
         env:
           DUO_DOWNLOAD_GATE: '1'
-        run: scripts/run-unclamped.sh scripts/run-with-hang-report.sh 1800 make test-swift
+          DUO_HANG_REPORT_SCOPE: ${{ runner.environment == 'self-hosted' && 'job' || 'machine' }}
+        run: ${{ runner.environment == 'github-hosted' && 'scripts/run-unclamped.sh' || '' }} scripts/run-with-hang-report.sh 1800 make test-swift
 
       # After a failed test too: the build itself is sound, and main's failures
       # are mostly tests. Not after a cancel, which can stop a build halfway.
       - name: Record the build's file times
-        if: ${{ !cancelled() && github.event_name != 'pull_request' && steps.spm-cache.outputs.cache-hit != 'true' }}
+        if: ${{ !cancelled() && runner.environment == 'github-hosted' && github.event_name != 'pull_request' && steps.spm-cache.outputs.cache-hit != 'true' }}
         run: python3 scripts/ci_build_cache.py stamp DuoUpdaterCore/.build
 
       - name: Save SwiftPM's build
-        if: ${{ !cancelled() && github.event_name != 'pull_request' && steps.spm-cache.outputs.cache-hit != 'true' }}
+        if: ${{ !cancelled() && runner.environment == 'github-hosted' && github.event_name != 'pull_request' && steps.spm-cache.outputs.cache-hit != 'true' }}
         uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
         with:
           path: DuoUpdaterCore/.build
@@ -256,15 +301,8 @@ jobs:
     needs: route
     if: needs.route.outputs.bench_only != 'true' && needs.route.outputs.nightly_only != 'true'
     runs-on: >-
-      ${{ fromJSON(
-        vars.DUO_MINI_APP_CI == 'enabled'
-        && github.event_name == 'pull_request'
-        && github.event.pull_request.head.repo.full_name == github.repository
-        && github.event.pull_request.user.login == github.repository_owner
-        && github.actor == github.repository_owner
-        && !startsWith(github.head_ref, 'recipe-autofix/')
-        && '["self-hosted","macOS","ARM64","duo-mini-app"]'
-        || '"xcode-27"') }}
+      ${{ fromJSON(needs.route.outputs.mini == 'true'
+        && '["self-hosted","macOS","ARM64","duo-mini-app"]' || '"xcode-27"') }}
     timeout-minutes: 45
     steps:
       - name: Check out
@@ -272,11 +310,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Select the mini toolchain
-        if: runner.environment == 'self-hosted'
-        run: |
-          echo "DEVELOPER_DIR=/Applications/Xcode-27.2.app/Contents/Developer" >> "$GITHUB_ENV"
-          printf '%s\n' "$HOME/.local/bin" /opt/homebrew/bin >> "$GITHUB_PATH"
+      - *mini-toolchain
 
       - name: Toolchain
         run: |
@@ -441,18 +475,24 @@ jobs:
   release:
     needs: route
     if: needs.route.outputs.bench_only != 'true' && needs.route.outputs.nightly_only != 'true'
-    runs-on: xcode-27
+    runs-on: *core-runners
     timeout-minutes: 30
     steps:
       # Same as `swift` (see there): the Simulator runtimes mount now, not under
       # the disk-image tests.
       - name: Mount the Simulator runtimes now
+        if: runner.environment == 'github-hosted'
         run: |
           xcrun simctl list runtimes
           echo "SIM_RUNTIMES_MOUNTED_AT=$(date +%s)" >> "$GITHUB_ENV"
 
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - *mini-toolchain
+      - *mini-core-build
 
       - name: Toolchain
         run: |
@@ -467,10 +507,12 @@ jobs:
       # compiling), 2.9 with no Swift change since the cache (1 s), 12.2 after
       # an edit to one Core source and one test file (556 s).
       - name: Name SwiftPM's build cache
+        if: runner.environment == 'github-hosted'
         id: spm-key
         run: echo "key=spm-${{ github.job }}-$({ xcodebuild -version; swift --version; } 2>&1 | shasum | cut -c1-12)" >> "$GITHUB_OUTPUT"
 
       - name: Restore SwiftPM's build
+        if: runner.environment == 'github-hosted'
         id: spm-cache
         uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
         with:
@@ -483,6 +525,7 @@ jobs:
         run: python3 scripts/ci_build_cache.py restore DuoUpdaterCore/.build
 
       - name: Let the Simulator runtime mounts settle
+        if: runner.environment == 'github-hosted'
         run: |
           left=$(( SIM_RUNTIMES_MOUNTED_AT + 150 - $(date +%s) ))
           echo "waiting ${left}s"
@@ -490,6 +533,7 @@ jobs:
 
       # Same as `swift` (see there): `simdiskimaged` ejects test images.
       - name: Stop simdiskimaged
+        if: runner.environment == 'github-hosted'
         run: |
           sudo launchctl disable system/com.apple.CoreSimulator.simdiskimaged || true
           sudo launchctl bootout system/com.apple.CoreSimulator.simdiskimaged || true
@@ -512,16 +556,18 @@ jobs:
       # Junie abort still reproduces that way.
       # Unclamped on a hosted runner, as in the swift job's `make test-swift`.
       - name: Core tests (Release)
-        run: scripts/run-unclamped.sh scripts/run-with-hang-report.sh 1200 make test-release
+        env:
+          DUO_HANG_REPORT_SCOPE: ${{ runner.environment == 'self-hosted' && 'job' || 'machine' }}
+        run: ${{ runner.environment == 'github-hosted' && 'scripts/run-unclamped.sh' || '' }} scripts/run-with-hang-report.sh 1200 make test-release
 
       # After a failed test too: the build itself is sound, and main's failures
       # are mostly tests. Not after a cancel, which can stop a build halfway.
       - name: Record the build's file times
-        if: ${{ !cancelled() && github.event_name != 'pull_request' && steps.spm-cache.outputs.cache-hit != 'true' }}
+        if: ${{ !cancelled() && runner.environment == 'github-hosted' && github.event_name != 'pull_request' && steps.spm-cache.outputs.cache-hit != 'true' }}
         run: python3 scripts/ci_build_cache.py stamp DuoUpdaterCore/.build
 
       - name: Save SwiftPM's build
-        if: ${{ !cancelled() && github.event_name != 'pull_request' && steps.spm-cache.outputs.cache-hit != 'true' }}
+        if: ${{ !cancelled() && runner.environment == 'github-hosted' && github.event_name != 'pull_request' && steps.spm-cache.outputs.cache-hit != 'true' }}
         uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
         with:
           path: DuoUpdaterCore/.build

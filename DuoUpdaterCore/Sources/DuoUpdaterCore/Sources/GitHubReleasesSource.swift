@@ -1842,6 +1842,7 @@ public struct GitHubReleasesSource: UpdateSource {
         }
         var skippedForMissingAsset: [String] = []
         var skippedPast: [SkippedRelease] = []
+        var assetMisses = 0
         var refusedForHost: [String] = []
         var archIncompatible = false
         for release in releases {
@@ -1852,19 +1853,23 @@ public struct GitHubReleasesSource: UpdateSource {
                 // version and we keep walking back.
                 if let pattern = rule.installAssetPattern,
                    !GitHubReleaseRule.carriesInstallableAsset(from: assets, matching: pattern) {
+                    let candidates = GitHubReleaseRule.renamedInstallerCandidates(in: release.assets)
+                        .filter { !isZeaburDesktop || !$0.hasPrefix("zeaburctl-") }
                     skippedForMissingAsset.append(release.tag)
                     skippedPast.append(SkippedRelease(
-                        tag: release.tag, version: version,
-                        candidates: GitHubReleaseRule.renamedInstallerCandidates(in: release.assets)))
+                        tag: release.tag, version: version, candidates: candidates))
                     // Walking back forever is how a renamed asset turns into a
                     // confident "up to date" on a version from a year ago. A
                     // handful of platform-partial releases is normal; a run of
                     // them means the pattern stopped matching, which is a recipe
                     // failure and has to surface as one.
-                    // For exact tag-named DMGs, the bounded page can contain
-                    // other products. Keep their diagnostics, but let the
-                    // highest desktop candidate on that page answer.
-                    if !pinsDMGToTag, skippedForMissingAsset.count > Self.maxReleasesWithoutMacOSAsset { break }
+                    // These two repositories also version separate products.
+                    // Count a miss toward the cutoff only when their skipped
+                    // release carries a plausible desktop installer.
+                    if !pinsDMGToTag || !candidates.isEmpty {
+                        assetMisses += 1
+                        if assetMisses > Self.maxReleasesWithoutMacOSAsset { break }
+                    }
                     continue
                 }
                 // The vendor says this release is not for this host's

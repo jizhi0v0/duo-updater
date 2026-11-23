@@ -105,7 +105,9 @@ struct GitHubListProbeTests {
             Self.release("v0.4.0", assets: ["zeabur-desktop-v0.3.0-beta.1-darwin-arm64.dmg"], prerelease: false),
             Self.release("v0.3.0-beta.5", assets: ["zeabur-desktop-v0.3.0-beta.5-darwin-arm64.dmg"]),
             Self.release("v0.2.0", assets: ["zeaburctl-v0.2.0-darwin-arm64.tar.gz"], prerelease: false),
-        ] + (stableOnList ? [stable] : [])
+        ] + (0...5).map {
+            Self.release("v0.4.\($0 + 1)", assets: ["zeaburctl-v0.4.\($0 + 1)-darwin-arm64.tar.gz"], prerelease: false)
+        } + (stableOnList ? [stable] : [])
         ByURLProtocol.script.load([
             endpoint: .init(body: Self.page(releases), etag: nil),
             latest: .init(body: stable, etag: nil),
@@ -146,27 +148,34 @@ struct GitHubListProbeTests {
         #expect(ByURLProtocol.script.urls == [endpoint, GitHubReleasesSource.latestEndpoint(rule)])
     }
 
-    @Test func openScreensTakesTheHighestStableReleaseWithItsOwnDMG() async throws {
+    @Test(arguments: [false, true])
+    func openScreensDistinguishesMobileReleasesFromRenamedMacInstallers(renamed: Bool) async throws {
         let rule = try #require(GitHubReleaseRegistry.rules.first { $0.bundleID == "com.burakgon.openscreens" })
         let latest = GitHubReleasesSource.latestEndpoint(rule)
         let list = GitHubReleasesSource.listEndpoint(rule, pageSize: rule.listPageSize)
         let misplaced = Self.release("v1.2.0", assets: ["OpenScreens-1.1.0.dmg"], prerelease: false)
         let published = Self.release("v1.1.0", assets: ["OpenScreens-1.1.0.dmg"], prerelease: false)
         let older = Self.release("v1.0.0", assets: ["OpenScreens-1.0.0.dmg"], prerelease: false)
-        let mobileOnly = (3...7).map {
-            Self.release("v1.\($0).0", assets: ["OpenScreens-1.\($0).0.ipa"], prerelease: false)
+        let otherReleases = (3...7).map {
+            let name = renamed ? "OpenScreens-Mac-1.\($0).0.dmg" : "OpenScreens-1.\($0).0.ipa"
+            return Self.release("v1.\($0).0", assets: [name], prerelease: false)
         }
         ByURLProtocol.script.load([
             latest: .init(body: misplaced, etag: nil),
-            list: .init(body: Self.page([misplaced, older, published] + mobileOnly), etag: nil),
+            list: .init(body: Self.page([misplaced, older, published] + otherReleases), etag: nil),
         ])
         let source = GitHubReleasesSource(rules: [rule], session: Self.session())
         let result = await source.resolveDiagnostic(rule, preferring: .arm64, allowingIntelTranslation: false)
 
-        #expect(result.remote?.shortVersion == "1.1.0")
-        #expect(result.remote?.downloadURL?.lastPathComponent == "OpenScreens-1.1.0.dmg")
-        #expect(result.remote?.marketingMatchesBundle == true)
-        #expect(result.remote?.releaseHistory.map(\.version) == ["1.1.0", "1.0.0"])
+        if renamed {
+            #expect(result.remote == nil)
+            #expect(result.failure?.kind == "assetPatternNoMatch")
+        } else {
+            #expect(result.remote?.shortVersion == "1.1.0")
+            #expect(result.remote?.downloadURL?.lastPathComponent == "OpenScreens-1.1.0.dmg")
+            #expect(result.remote?.marketingMatchesBundle == true)
+            #expect(result.remote?.releaseHistory.map(\.version) == ["1.1.0", "1.0.0"])
+        }
         #expect(ByURLProtocol.script.urls == [latest, list])
     }
 

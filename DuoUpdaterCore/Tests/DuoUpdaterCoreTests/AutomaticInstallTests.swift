@@ -223,11 +223,13 @@ struct AutomaticInstallTests {
                                buildVersion: nil, path: target, isMASApp: false, sparkleFeedURL: nil)
         #expect(!AutomaticInstall.hasRunningProcess(at: target, processes: NestedAppGuard.liveProcesses()))
         let (launches, launch) = AsyncStream<Void>.makeStream()
+        let launched = DispatchSemaphore(value: 0)
         let helperTask = Task {
             for await _ in launches {
                 return try await ChildProcess.run(helper.path, ["60"],
                     standardOutput: .discard, standardError: .discard,
-                    onCancel: .terminateChild)
+                    onCancel: .terminateChild,
+                    onLaunch: { _ in launched.signal() })
             }
             throw CancellationError()
         }
@@ -239,6 +241,10 @@ struct AutomaticInstallTests {
             // this synchronous exchange guard is on Dispatch.
             launch.yield(())
             launch.finish()
+            // Yielding only schedules the task; the process may not exist yet.
+            // offpool-lint:allow — rotateContents calls this hook in its offCooperativePool exchange.
+            try #require(launched.wait(timeout: .now() + 15) == .success,
+                         "The real helper must launch before testing its guard")
             var observed: [NestedAppGuard.RunningProcess] = []
             for _ in 0..<100 {
                 observed = NestedAppGuard.liveProcesses().filter {

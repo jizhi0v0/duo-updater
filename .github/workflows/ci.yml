@@ -23,8 +23,8 @@
 # runners are billed even on public repositories.
 #
 # With DUO_MINI_CI=enabled the three macOS jobs use the mini for owner-authored
-# same-repo PRs, owner pushes to protected main, and owner dispatches on branches.
-# Main stays hosted when recipe-autofix can merge without human review.
+# same-repo PRs, their verified merges to main, and owner dispatches on branches.
+# Merges from recipe-autofix branches stay hosted too.
 # Keep GitHub's collaborators-only PR creation policy while the desktop
 # runners are available. Their root-owned hook also checks the event and repo.
 # Assign duo-mini-app and duo-mini-core to different runners. The Core runner
@@ -64,25 +64,6 @@ jobs:
       nightly_only: ${{ steps.nightly.outputs.nightly_only }}
       mini: ${{ steps.macos.outputs.mini }}
     steps:
-      - name: Choose the macOS runners
-        id: macos
-        env:
-          USE_MINI: >-
-            ${{ vars.DUO_MINI_CI == 'enabled'
-              && github.repository == 'jizhi0v0/duo-updater'
-              && github.actor == github.repository_owner
-              && (
-                (github.event_name == 'pull_request'
-                  && github.event.pull_request.head.repo.full_name == github.repository
-                  && github.event.pull_request.user.login == github.repository_owner
-                  && !startsWith(github.head_ref, 'recipe-autofix/'))
-                || (github.event_name == 'push' && github.ref == 'refs/heads/main'
-                  && vars.RECIPE_AUTOFIX_AUTOMERGE != '1')
-                || (github.event_name == 'workflow_dispatch' && github.ref_type == 'branch'
-                  && !startsWith(github.ref_name, 'recipe-autofix/'))
-              ) }}
-        run: printf 'mini=%s\n' "$USE_MINI" >> "$GITHUB_OUTPUT"
-
       - name: Check out trusted nightly classifier
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -128,6 +109,41 @@ jobs:
           fi
           echo "bench_only=$only" >> "$GITHUB_OUTPUT"
           echo "bench_only=$only"
+
+      - name: Choose the macOS runners
+        id: macos
+        if: steps.nightly.outputs.nightly_only != 'true' && steps.bench.outputs.bench_only != 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          USE_MINI: >-
+            ${{ vars.DUO_MINI_CI == 'enabled'
+              && github.repository == 'jizhi0v0/duo-updater'
+              && github.actor == github.repository_owner
+              && (
+                (github.event_name == 'pull_request'
+                  && github.event.pull_request.head.repo.full_name == github.repository
+                  && github.event.pull_request.user.login == github.repository_owner
+                  && !startsWith(github.head_ref, 'recipe-autofix/'))
+                || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+                || (github.event_name == 'workflow_dispatch' && github.ref_type == 'branch'
+                  && !startsWith(github.ref_name, 'recipe-autofix/'))
+              ) }}
+        run: |
+          # Auto-merges can use the owner's identity. For main, require the
+          # originating PR of the exact pushed commit before using the mini.
+          if [ "$USE_MINI" = true ] && [ "$GITHUB_EVENT_NAME" = push ]; then
+            if ! gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/pulls" |
+              jq -e --arg repo "$GITHUB_REPOSITORY" --arg sha "$GITHUB_SHA" --arg owner "$GITHUB_ACTOR" '
+                [ .[][] | select(.merged_at != null and .merge_commit_sha == $sha
+                  and .base.ref == "main" and .base.repo.full_name == $repo) ]
+                | length == 1 and (.[0] | .user.login == $owner and .head.repo.full_name == $repo
+                  and (.head.ref | type == "string" and (ascii_downcase | startswith("recipe-autofix/") | not)))
+              ' >/dev/null; then
+              USE_MINI=false
+            fi
+          fi
+          printf 'mini=%s\n' "$USE_MINI" >> "$GITHUB_OUTPUT"
 
   # `make test` in its three parts plus Core's Release pass, each on its own
   # runner slot. One after another they took 22–28 minutes, more than half of it one

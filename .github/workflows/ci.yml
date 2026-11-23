@@ -30,7 +30,8 @@
 # Assign duo-mini-app and duo-mini-core to different runners. The Core runner
 # serializes Swift and Release disk-image tests, while App can build in parallel.
 # All three jobs use temporary build directories on the mini. Disable the
-# repository variable to use GitHub-hosted macOS runners for new runs.
+# repository variable to use GitHub-hosted macOS runners for new runs, or opt
+# into hosted macOS for one dispatch to refresh its caches.
 name: CI
 
 on:
@@ -38,6 +39,11 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      hosted_macos:
+        description: Run the macOS jobs on GitHub-hosted runners
+        type: boolean
+        default: false
 
 # Read-only. The release path deliberately does not live in this workflow.
 permissions:
@@ -120,6 +126,7 @@ jobs:
             ${{ vars.DUO_MINI_CI == 'enabled'
               && github.repository == 'jizhi0v0/duo-updater'
               && github.actor == github.repository_owner
+              && !(github.event_name == 'workflow_dispatch' && inputs.hosted_macos)
               && (
                 (github.event_name == 'pull_request'
                   && github.event.pull_request.head.repo.full_name == github.repository
@@ -130,9 +137,10 @@ jobs:
                   && !startsWith(github.ref_name, 'recipe-autofix/'))
               ) }}
         run: |
-          # Auto-merges can use the owner's identity. For main, require the
-          # originating PR of the exact pushed commit before using the mini.
-          if [ "$USE_MINI" = true ] && [ "$GITHUB_EVENT_NAME" = push ]; then
+          # Auto-merges can use the owner's identity. For main pushes and
+          # dispatches, require the originating PR of the exact run commit.
+          if [ "$USE_MINI" = true ] && [ "$GITHUB_REF" = refs/heads/main ] &&
+            [ "$GITHUB_EVENT_NAME" != pull_request ]; then
             if ! gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/pulls" |
               jq -e --arg repo "$GITHUB_REPOSITORY" --arg sha "$GITHUB_SHA" --arg owner "$GITHUB_ACTOR" '
                 [ .[][] | select(.merged_at != null and .merge_commit_sha == $sha

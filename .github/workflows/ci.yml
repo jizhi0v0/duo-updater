@@ -260,6 +260,7 @@ jobs:
         vars.DUO_MINI_APP_CI == 'enabled'
         && github.event_name == 'pull_request'
         && github.event.pull_request.head.repo.full_name == github.repository
+        && github.event.pull_request.user.login == github.repository_owner
         && github.actor == github.repository_owner
         && !startsWith(github.head_ref, 'recipe-autofix/')
         && '["self-hosted","macOS","ARM64","duo-mini-app"]'

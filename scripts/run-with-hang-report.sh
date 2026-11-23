@@ -44,6 +44,14 @@ child=$!
 # up as swiftpm-testing-helper; the app target's is xctest under xcodebuild.
 sample_targets='swiftpm-testing-helper|xctest|swift-test|xcodebuild'
 
+sample_candidates() {
+    if [ "${DUO_HANG_REPORT_SCOPE:-machine}" = "job" ]; then
+        descendants_of "$child"
+    else
+        pgrep -f "$sample_targets" 2>/dev/null
+    fi
+}
+
 waited=0
 while kill -0 "$child" 2>/dev/null; do
     if [ "$waited" -ge "$budget" ]; then
@@ -64,7 +72,7 @@ while kill -0 "$child" 2>/dev/null; do
                 sleep 60
             fi
             echo "=== SAMPLE ROUND $round ==================================" >&2
-            for pid in $(pgrep -f "$sample_targets" 2>/dev/null); do
+            for pid in $(sample_candidates); do
                 [ "$pid" = "$$" ] && continue
                 comm="$(ps -o comm= -p "$pid" 2>/dev/null)"
                 case "${comm##*/}" in
@@ -78,7 +86,7 @@ while kill -0 "$child" 2>/dev/null; do
             done
         done
         echo "=== STACKS ===============================================" >&2
-        for pid in $(pgrep -f "$sample_targets" 2>/dev/null); do
+        for pid in $(sample_candidates); do
             [ "$pid" = "$$" ] && continue
             comm="$(ps -o comm= -p "$pid" 2>/dev/null)"
             # Match the process NAME, not the command line. `pgrep -f` also hits

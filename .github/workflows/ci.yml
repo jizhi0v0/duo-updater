@@ -1,14 +1,13 @@
-# Build and test on a GitHub-hosted Mac.
+# Build and test on GitHub-hosted Macs, with an opt-in mini for App CI.
 #
 # The last workflow this repository had was deleted the day it went public
 # (4ff9a90, 2026-08-14) because it pointed at a self-hosted runner running as the
 # desktop user, and a public repo eventually gets a pull_request trigger pointed at
 # it. That reasoning still stands, so this one is built the other way round:
 #
-#   • GitHub-hosted runner only. Nothing here can reach a machine of ours.
-#   • No secrets. `make test` needs none — both xcodebuild invocations already pass
-#     CODE_SIGNING_ALLOWED=NO, and DUO_TEAM_ID has a default — so a fork's pull
-#     request has nothing to exfiltrate even if it rewrites this file.
+#   • Fork PRs, main pushes and manual runs use GitHub-hosted Macs.
+#   • The workflow token is read-only. The App tests and Release builds use
+#     CODE_SIGNING_ALLOWED=NO and a default DUO_TEAM_ID.
 #   • `pull_request`, never `pull_request_target`. The latter runs the BASE
 #     workflow with the repository's secrets available to a fork's code, which is
 #     the standard way this goes wrong.
@@ -23,8 +22,12 @@
 # + Xcode 27, same 3-core M1 tier as macos-latest). NOT `xcode-27-xlarge` — larger
 # runners are billed even on public repositories.
 #
-# All events use GitHub-hosted runners. The mini is excluded because its
-# disk space is insufficient for CI builds and persistent workspaces.
+# With DUO_MINI_APP_CI=enabled this workflow routes the App job to the mini
+# for the repository owner's same-repo PRs. Autofix branches stay hosted.
+# Keep GitHub's collaborators-only PR creation policy while the desktop
+# runners are available. Their root-owned hook also checks the event and repo.
+# Assign duo-mini-app to one runner to limit concurrency on the shared disk.
+# The mini uses per-job build directories and leaves hosted caches alone.
 name: CI
 
 on:
@@ -252,11 +255,28 @@ jobs:
   app:
     needs: route
     if: needs.route.outputs.bench_only != 'true' && needs.route.outputs.nightly_only != 'true'
-    runs-on: xcode-27
+    runs-on: >-
+      ${{ fromJSON(
+        vars.DUO_MINI_APP_CI == 'enabled'
+        && github.event_name == 'pull_request'
+        && github.event.pull_request.head.repo.full_name == github.repository
+        && github.event.pull_request.user.login == github.repository_owner
+        && github.actor == github.repository_owner
+        && !startsWith(github.head_ref, 'recipe-autofix/')
+        && '["self-hosted","macOS","ARM64","duo-mini-app"]'
+        || '"xcode-27"') }}
     timeout-minutes: 45
     steps:
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Select the mini toolchain
+        if: runner.environment == 'self-hosted'
+        run: |
+          echo "DEVELOPER_DIR=/Applications/Xcode-27.2.app/Contents/Developer" >> "$GITHUB_ENV"
+          printf '%s\n' "$HOME/.local/bin" /opt/homebrew/bin >> "$GITHUB_PATH"
 
       - name: Toolchain
         run: |
@@ -279,12 +299,18 @@ jobs:
       # with distinct Debug/Release products. Localization's emit-strings build
       # stays separate so its settings and .stringsdata cannot mix with tests;
       # its Sparkle embed also requires artifacts under its own DerivedData.
-      - name: Name Xcode's build cache
+      - name: Set Xcode build directories
         id: xcode-key
         run: |
-          python3 scripts/ci_xcode_cache.py >> "$GITHUB_OUTPUT"
-          dd="$(python3 scripts/derived_data_path.py ci-xcode "$PWD")"
-          loc="$(python3 scripts/derived_data_path.py ci-localizable "$PWD")"
+          if [ "$RUNNER_ENVIRONMENT" = self-hosted ]; then
+            scratch="$(mktemp -d "$RUNNER_TEMP/duo-app-ci.XXXXXX")"
+            dd="$scratch/build"
+            loc="$scratch/localizable"
+          else
+            python3 scripts/ci_xcode_cache.py >> "$GITHUB_OUTPUT"
+            dd="$(python3 scripts/derived_data_path.py ci-xcode "$PWD")"
+            loc="$(python3 scripts/derived_data_path.py ci-localizable "$PWD")"
+          fi
           echo "dd=$dd" >> "$GITHUB_OUTPUT"
           echo "loc=$loc" >> "$GITHUB_OUTPUT"
           echo "APP_TESTS_DD=$dd" >> "$GITHUB_ENV"
@@ -306,6 +332,7 @@ jobs:
       # Keep only reusable build data: no test reports, logs, index stores or
       # SDK stat caches from the old VM. PRs read but never publish these caches.
       - name: Restore Xcode's build
+        if: runner.environment == 'github-hosted'
         id: xcode-cache
         uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
         with:
@@ -329,6 +356,8 @@ jobs:
         run: make test-scripts
 
       - name: make test-app
+        env:
+          DUO_HANG_REPORT_SCOPE: ${{ runner.environment == 'self-hosted' && 'job' || 'machine' }}
         run: scripts/run-with-hang-report.sh 1200 make test-app
 
       # The App tests and localization extraction compile Debug. Core's Release
@@ -339,11 +368,11 @@ jobs:
         run: make test-release-build
 
       - name: Record the Xcode build's source times
-        if: github.event_name != 'pull_request' && steps.xcode-cache.outputs.cache-hit != 'true'
+        if: runner.environment == 'github-hosted' && github.event_name != 'pull_request' && steps.xcode-cache.outputs.cache-hit != 'true'
         run: python3 scripts/ci_build_cache.py stamp "$APP_TESTS_DD"
 
       - name: Save Xcode's build
-        if: github.event_name != 'pull_request' && steps.xcode-cache.outputs.cache-hit != 'true'
+        if: runner.environment == 'github-hosted' && github.event_name != 'pull_request' && steps.xcode-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
         with:
           path: |

@@ -58,12 +58,12 @@ struct GitHubListProbeTests {
         return URLSession(configuration: configuration)
     }
 
-    private static func release(_ tag: String, assets: [String] = ["App-arm64.zip"]) -> String {
+    private static func release(_ tag: String, assets: [String] = ["App-arm64.zip"], prerelease: Bool = true) -> String {
         let assetJSON = assets.map {
             #"{"name": "\#($0)", "browser_download_url": "https://example.com/\#($0)", "size": 10}"#
         }.joined(separator: ",")
         return """
-        {"tag_name": "\(tag)", "assets": [\(assetJSON)], "prerelease": true, "draft": false,
+        {"tag_name": "\(tag)", "assets": [\(assetJSON)], "prerelease": \(prerelease), "draft": false,
          "published_at": "2026-09-05T00:00:00Z", "html_url": "https://github.com/example/app/releases/tag/\(tag)"}
         """
     }
@@ -91,6 +91,26 @@ struct GitHubListProbeTests {
         let dir = DuoStateDirectory.testProcessScratchRoot
             .appendingPathComponent("duo-list-probe-tests-\(UUID().uuidString)")
         return GitHubConditionalCache(fileURL: dir.appendingPathComponent("cache.json"))
+    }
+
+    @Test func zeaburBetaTakesTheHighestDesktopVersion() async throws {
+        let rule = try #require(GitHubReleaseRegistry.rules.first {
+            $0.bundleID == "com.zeabur.oss.desktop" && $0.channel == .beta
+        })
+        let endpoint = GitHubReleasesSource.listEndpoint(rule, pageSize: rule.listPageSize)
+        ByURLProtocol.script.load([
+            endpoint: .init(body: Self.page([
+                Self.release("v0.4.0", assets: ["zeaburctl-v0.4.0-darwin-arm64.tar.gz"], prerelease: false),
+                Self.release("v0.3.0-beta.5", assets: ["zeabur-desktop-v0.3.0-beta.5-darwin-arm64.dmg"]),
+                Self.release("v0.3.0", assets: ["zeabur-desktop-v0.3.0-darwin-arm64.dmg"], prerelease: false),
+            ]), etag: nil),
+        ])
+        let source = GitHubReleasesSource(rules: [rule], session: Self.session())
+        let result = await source.resolveDiagnostic(rule, preferring: .arm64, allowingIntelTranslation: false)
+
+        #expect(result.remote?.shortVersion == "0.3.0")
+        #expect(result.remote?.downloadURL?.lastPathComponent == "zeabur-desktop-v0.3.0-darwin-arm64.dmg")
+        #expect(ByURLProtocol.script.urls == [endpoint])
     }
 
     // MARK: - The probe answers, and nothing else is fetched

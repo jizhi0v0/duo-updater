@@ -64,6 +64,8 @@ struct GitHubListPageSizeTests {
         "com.insomnia.app/stable": 10,        // gap 9 (core@11.0.0→core@10.3.1), +1
         "com.github.GitHubClient/beta": 5,    // gap 4 (release-3.4.16-beta1→…3.4.13-beta2), +1
         "com.vorssaint.utils/beta": 2,        // gap 1 (only 4 -beta. tags ever), +1
+        // Zeabur Desktop: all 6 DMG releases were consecutive and started at index 0.
+        "com.zeabur.oss.desktop/beta": 1,
         "com.microsoft.Headlamp/stable": 5,   // gap 4 (v0.23.0→v0.22.0), +1
         "com.bitwarden.desktop/stable": 8,    // gap 7 (desktop-v2026.6.0→…2026.5.0), +1
         // T3 Code nightly: a LEADING-run floor too. Newest 100 releases on

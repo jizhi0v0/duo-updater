@@ -432,34 +432,46 @@ struct MenuContentView: View {
         CGFloat(count) * Self.minRowHeight >= Self.maxListHeight
     }
 
-    @ViewBuilder
-    private func rows(_ matches: SearchMatch.AppMatches<UpdateResult>) -> some View {
-        if !isSearching && model.prefs.appGrouping == .source {
-            // One section per update source, the same sections as the
-            // workbench's (`AppListSection`), always open: the list is short
-            // unless "Show all" is on, and a closed section here would hide an
-            // update the menu-bar badge still counts.
-            let sections = AppListSection.sections(
-                matches.apps, standIns: Set(model.interruptedStandIns.map(\.id)),
-                grouping: .source, group: model.sourceGroup(for:))
-            ForEach(sections) { section in
-                if let group = section.group {
-                    PopoverSourceGroupHeader(group: group, count: section.rows.count)
-                }
-                rowRun(section.rows)
+    private enum ListEntry: Identifiable {
+        case header(UpdateSourceGroup, count: Int)
+        case app(UpdateResult, showsDivider: Bool)
+
+        var id: String {
+            switch self {
+            case .header(let group, _): "popover-source:\(group.id)"
+            case .app(let result, _): result.id
             }
-        } else {
-            rowRun(matches.apps, bundleIDOnly: Set(matches.bundleIDOnly.map(\.id)))
         }
     }
 
-    private func rowRun(_ list: [UpdateResult], bundleIDOnly: Set<String> = []) -> some View {
-        ForEach(Array(list.enumerated()), id: \.element.id) { index, result in
-            // Divider *between* rows only — a trailing one after the last row left
-            // a dangling line floating over the empty space below a short list.
-            if index > 0 { Divider() }
-            AppRow(result: result, model: model,
-                   matchedBundleID: bundleIDOnly.contains(result.id) ? result.app.bundleID : nil)
+    private func rows(_ matches: SearchMatch.AppMatches<UpdateResult>) -> some View {
+        let grouping = isSearching ? .none : model.prefs.appGrouping
+        let standIns = grouping == .source ? Set(model.interruptedStandIns.map(\.id)) : []
+        let sections = AppListSection.sections(matches.apps, standIns: standIns,
+                                               grouping: grouping, group: model.sourceGroup(for:))
+        // Give the lazy stack one item per title or app. Nested groups with
+        // different row counts made its estimated scroll height jump across groups.
+        let entries: [ListEntry] = sections.flatMap { section in
+            let rows: [ListEntry] = section.rows.enumerated().map { index, result in
+                .app(result, showsDivider: index > 0)
+            }
+            guard let group = section.group else { return rows }
+            return [.header(group, count: section.rows.count)] + rows
+        }
+        let bundleIDOnly = Set(matches.bundleIDOnly.map(\.id))
+
+        return ForEach(entries) { entry in
+            switch entry {
+            case .header(let group, let count):
+                PopoverSourceGroupHeader(group: group, count: count)
+            case .app(let result, let showsDivider):
+                // Keep the divider with its app so each entry measures as one item.
+                VStack(spacing: 0) {
+                    if showsDivider { Divider() }
+                    AppRow(result: result, model: model,
+                           matchedBundleID: bundleIDOnly.contains(result.id) ? result.app.bundleID : nil)
+                }
+            }
         }
     }
 

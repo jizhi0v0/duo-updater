@@ -24,8 +24,8 @@ import Observation
 /// - each row is an accessibility element with its selected state, and the list
 ///   a labelled container.
 ///
-/// Apps track the current group with visible row IDs and draw its title in
-/// a fixed overlay. CLI derives its fixed title from native section pinning.
+/// Apps and CLI track the current group with visible row IDs and draw its
+/// title in a fixed overlay.
 struct SidebarList<Content: View, FocusValue: Hashable>: View {
     @Binding var selection: String?
     /// The selectable rows' ids in the order they are drawn: what the keys walk.
@@ -249,9 +249,7 @@ enum SidebarSectionMetrics {
     static let coordinateSpace = "sidebar-scroll"
     static let verticalPadding: CGFloat = 10
     // The existing 20 pt small header control plus the two vertical insets.
-    static let fixedAppHeight: CGFloat = 20 + 2 * verticalPadding
-    static let firstGap: CGFloat = 0
-    static let betweenGap: CGFloat = 0
+    static let fixedHeaderHeight: CGFloat = 20 + 2 * verticalPadding
 }
 
 struct SidebarFixedGroupHeaders {
@@ -272,7 +270,7 @@ private final class SidebarFixedHeaderState {
     @ObservationIgnored var visibleIDs: [String] = []
 
     var height: CGFloat {
-        headerID == nil ? 0 : SidebarSectionMetrics.fixedAppHeight
+        headerID == nil ? 0 : SidebarSectionMetrics.fixedHeaderHeight
     }
 
     func update(using headers: SidebarFixedGroupHeaders, useInitialWhenMissing: Bool) {
@@ -440,10 +438,10 @@ extension View {
         SidebarSectionHeader(id: id, content: self, isInitial: isInitial)
     }
 
-    /// Apps use the same height for the ordinary in-list title and the overlay.
-    func sidebarFixedAppHeader(inlineID: String? = nil) -> some View {
+    /// Keep the same height for the ordinary in-list title and the overlay.
+    func sidebarFixedHeader(inlineID: String? = nil) -> some View {
         sidebarHeaderStyle()
-            .frame(height: SidebarSectionMetrics.fixedAppHeight)
+            .frame(height: SidebarSectionMetrics.fixedHeaderHeight)
             .modifier(SidebarFixedHeaderVisibility(inlineID: inlineID))
     }
 

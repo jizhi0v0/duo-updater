@@ -10,7 +10,7 @@ macOS 的两个公开版本沿用同一身份。README 把 Mac 用户指向 GitH
 
 ## 检测、一键更新与发布说明
 
-实包无 `SUFeedURL`。GitHub 规则读取三段式 Stable 标签并选取同系列 Mac DMG。未来只有移动端资产的 release 会被现有 macOS 资产筛选跳过。下载沿用 GitHub 资产摘要和 Developer ID 连续性校验。发布正文由共享的 `GitHubMarkdownParser` 转成结构化发布说明。
+实包无 `SUFeedURL`。GitHub 规则读取三段式 Stable 标签并选取同版本 Mac DMG。只有移动端资产的 release 不进入桌面时间线。下载沿用 GitHub 资产摘要和 Developer ID 连续性校验，替换前核对签名 App 的版本和标签一致。发布正文由共享的 `GitHubMarkdownParser` 转成结构化发布说明。
 
 ## 历史与实测
 

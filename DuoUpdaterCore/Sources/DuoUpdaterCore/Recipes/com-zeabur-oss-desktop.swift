@@ -1,6 +1,8 @@
 import Foundation
 
 enum com_zeabur_oss_desktop {
+    static let bundleID = "com.zeabur.oss.desktop"
+
     static let set = AppRecipeSet(
         family: "com-zeabur-oss-desktop",
         githubRules: [
@@ -8,27 +10,28 @@ enum com_zeabur_oss_desktop {
             // Desktop first shipped on the 0.3.0 line. Earlier releases can
             // carry a Mac zeaburctl archive under the same tag scheme.
             GitHubReleaseRule(
-                bundleID: "com.zeabur.oss.desktop",
+                bundleID: bundleID,
                 owner: "zeabur-oss", repo: "zeabur",
                 versionPattern: #"^v([0-9]+\.[0-9]+\.[0-9]+)$"#,
                 installAssetPattern: #"^zeabur-desktop-v[0-9]+\.[0-9]+\.[0-9]+-darwin-arm64\.dmg$"#,
                 installerKind: .dmg),
 
-            // The installed -beta.N suffix selects this rule. Like Zeabur's
-            // updater, choose by version so a higher Stable can graduate a
-            // Beta copy, even when a lower Beta was published later.
+            // The installed -beta.N or -rc.N suffix selects this rule. Like
+            // Zeabur's updater, read a page of 30 and choose by version.
+            // GitHubReleasesSource also checks /releases/latest for promotion.
             GitHubReleaseRule(
-                bundleID: "com.zeabur.oss.desktop",
+                bundleID: bundleID,
                 owner: "zeabur-oss", repo: "zeabur",
                 usePrereleases: true,
-                versionPattern: #"^v([0-9]+\.[0-9]+\.[0-9]+(?:-beta\.[0-9]+)?)$"#,
+                listPageSize: 30,
+                versionPattern: #"^v([0-9]+\.[0-9]+\.[0-9]+(?:-(?:beta|rc)\.[0-9]+)?)$"#,
                 candidateScope: .highestVersion,
-                installAssetPattern: #"^zeabur-desktop-v[0-9]+\.[0-9]+\.[0-9]+(?:-beta\.[0-9]+)?-darwin-arm64\.dmg$"#,
+                installAssetPattern: #"^zeabur-desktop-v[0-9]+\.[0-9]+\.[0-9]+(?:-(?:beta|rc)\.[0-9]+)?-darwin-arm64\.dmg$"#,
                 installerKind: .dmg,
                 channel: .beta),
         ],
         githubChannelProofs: [
-            ChannelProofKey("com.zeabur.oss.desktop", .beta):
+            ChannelProofKey(bundleID, .beta):
                 .recipeAnchor(#"^true$|^highestVersion$"#, in: ["usePrereleases", "candidateScope"]),
         ])
 }

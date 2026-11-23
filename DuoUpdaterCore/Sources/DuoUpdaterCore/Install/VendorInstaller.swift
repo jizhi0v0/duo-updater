@@ -489,14 +489,15 @@ public actor VendorInstaller {
             installedApp: result.app.path,
             trust: trust
         )
-        // UTM's same-marketing repacks compare on the build recorded in tagged
-        // source. Confirm it against the signed payload before swapping it in.
-        if result.app.recipeBundleID == com_utmapp_UTM.bundleID,
-           remote.sourceName == "GitHub", remote.version != nil {
+        // GitHub rules that publish the exact bundle version can check it
+        // against the signed payload. UTM repacks also publish the build.
+        if remote.sourceName == "GitHub", remote.marketingMatchesBundle {
             let stagedApp = newApp
             let downloaded = await offCooperativePool { StagedRelaunch.diskVersionSide(stagedApp) }
-            guard downloaded == remote.versionSide else {
-                throw InstallError.packageVersionMismatch(expected: remote.versionSide, downloaded: downloaded)
+            let expected = remote.versionSide
+            guard downloaded.marketing == expected.marketing,
+                  expected.build == nil || downloaded.build == expected.build else {
+                throw InstallError.packageVersionMismatch(expected: expected, downloaded: downloaded)
             }
         }
         let installedApp = result.app.path, finalTrust = trust

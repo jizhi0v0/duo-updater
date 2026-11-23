@@ -277,6 +277,13 @@ public enum ReleaseChannel: String, Codable, Sendable, Hashable, CaseIterable {
             return .beta
         }
 
+        // Zeabur's updater and tap put release candidates on the Beta track.
+        if bundleID == com_zeabur_oss_desktop.bundleID,
+           let version = version?.trimmingCharacters(in: .whitespacesAndNewlines),
+           fullyMatches(#"[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+"#, version) {
+            return .beta
+        }
+
         // 0.91 Zettlr — its weekly nightly (nightly.zettlr.com, built from
         //     `develop`) ships the stable bundle id and name and stamps the
         //     version `<package.json version>+nightly` (`build.yml`; the real

@@ -174,6 +174,37 @@ import Foundation
     #expect(channel("0.20.0") == .beta)
     try write("{}", for: "dev.athas.app")
     #expect(channel("0.20.0") == .stable)
+    // A present native file with invalid JSONC keeps GPUI on Stable instead
+    // of reusing the legacy profile's valid beta opt-in.
+    try write(#"{updateChannel:"beta"}"#, for: "dev.athas.app")
+    #expect(channel("0.19.0-beta.4") == .stable)
+    try write(#"{"updateChannel":'beta'}"#, for: "dev.athas.app")
+    #expect(channel("0.19.0-beta.4") == .stable)
+    try write(#"{"updateChannel":"beta",/* stray second comma */,}"#, for: "dev.athas.app")
+    #expect(channel("0.19.0-beta.4") == .stable)
+    try write(#"{"updateChannel":"beta","nested":[1,,]}"#, for: "dev.athas.app")
+    #expect(channel("0.19.0-beta.4") == .stable)
+    try write(#"""
+    {
+        "url": "https://example.test/a//b/*c*/",
+        "nested": {"updateChannel": "stable",},
+        /* last setting wins */ "updateChannel": "stable",
+        "update\u0043hannel": "beta", // preserve genuine GPUI opt-ins
+    }
+    """#, for: "dev.athas.app")
+    #expect(channel("0.19.0-beta.4") == .beta)
+    try write(#"{"updateChannel":"beta","updateChannel":"stable"}"#, for: "dev.athas.app")
+    #expect(channel("0.19.0-beta.4") == .stable)
+
+    let nativeSettings = home.appendingPathComponent("Library/Application Support/dev.athas.app/settings.json")
+    let utf16 = try #require(#"{"updateChannel":"beta"}"#.data(using: .utf16LittleEndian))
+    try utf16.write(to: nativeSettings)
+    #expect(channel("0.19.0-beta.4") == .stable)
+
+    try write(#"{"updateChannel":"beta",}"#, for: "com.code.athas")
+    #expect(channel("0.18.0-beta.2") == .stable)
+    try FileManager.default.removeItem(at: nativeSettings)
+    #expect(channel("0.19.0-beta.4") == .beta)
 }
 
 // MARK: - Signal

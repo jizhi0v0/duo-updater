@@ -19,6 +19,9 @@ Tauri 与 GPUI 的正式发行包都叫 `Athas.app`，Bundle ID 为 `com.code.at
 - Vendor 一键安装使用官方 `Athas_aarch64.app.tar.gz`。Duo Updater 沿用签名、Team ID、Bundle ID 和架构校验。Athas 自更新器另用 minisign 验签。
 - 两个渠道的结构化更新说明复用 GitHub Releases Markdown 解析。Beta 也显示已转正版本，并过滤历史的 `-preview.N` 发行包。 [GitHub Releases](https://github.com/athasdev/athas/releases)
 
+Tauri 读取 UTF-8 JSON。GPUI 接受 UTF-8 JSONC 的注释和尾逗号，也用同样的格式读取首启时的 Tauri 配置。
+配置语法错误或缺少有效的 Beta 选项时使用 Stable。GPUI 当前配置存在且可读时优先采用它。
+
 ## 夜扫覆盖
 
 - 版本探测由 Vendor registry 枚举 `vendor:com.code.athas:stable` 和 `vendor:com.code.athas:beta`。
@@ -32,3 +35,9 @@ Tauri 与 GPUI 的正式发行包都叫 `Athas.app`，Bundle ID 为 `com.code.at
 - 实际解包两份更新 archive，两个版本字段都与 manifest 一致，`LSMinimumSystemVersion` 分别为 10.15 和 10.15.7。两包均通过 Gatekeeper 的 Notarized Developer ID 检查。
 - 用签名 Release `duo` 在同一 VM 检查三份真实副本。官网 Stable 0.16.3 由 Vendor 提供 0.17.0，一键安装成功。Homebrew 0.17.0 在 Stable 设置下由 Homebrew 应答并显示最新。GPUI 0.19.0-beta.4 按 Stable 检查时保持原版本。
 - 同一份 Homebrew 0.17.0 改用 Beta 设置后由 Vendor 提供 0.19.0-beta.4，一键安装成功。磁盘版本为 0.19.0-beta.4，Bundle ID 和签名 Team 未变，签名校验通过。Homebrew 的 Caskroom 记录仍为 0.17.0，再次检查由 Vendor 返回 0.19.0-beta.4 并显示最新。
+- 2026-11-23，Apple Silicon macOS 27.3。使用官方签名的 GPUI 0.19.0-beta.4 真包与隔离配置，
+  通过 `channel-verify` 运行实际频道解析、Vendor 探测和更新判定。只有 JSON5 才接受的未加引号键回到 Stable，
+  即使旧配置保留 Beta。包含注释及尾逗号的合法 JSONC 选中 Beta。实时端点分别应答 0.17.0 与 0.19.0-beta.4。
+  Tauri 0.17.0 真包拒绝有尾逗号的配置并保持 Stable，换成合法 JSON 后选中 Beta 并获报 0.19.0-beta.4。
+- 同日，Apple Silicon macOS 27.2 VM 的签名 Release 设置页显示了新的 Homebrew 提示。
+  展开说明后，官方 Athas Beta 副本使用 Update Source，Homebrew Only 可覆盖 Beta 的默认选择。

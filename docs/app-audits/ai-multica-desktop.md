@@ -17,7 +17,7 @@
 ## 桌面检测、一键安装与 Changelog
 
 - 复用 `app-responsively.swift` 的 GitHub provider 路径。版本用 `^v([0-9]+\.[0-9]+\.[0-9]+)$`，安装包用 `^multica-desktop-[0-9]+\.[0-9]+\.[0-9]+-mac-arm64\.dmg$`。`GitHubReleasesSource` 已会跳过当前平台缺安装包的 tag，例如 0.3.36 和 0.3.25，避免把只带 CLI 的 release 当成桌面更新。
-- 复用默认的 Developer ID 安装信任与 GitHub asset SHA-256。Electron 配置是 `provider: github`，通用 `ElectronManifestSource` 需要包内声明的具体 URL。`latest-mac.yml` 首选 arm64 ZIP，另列 DMG。原生 updater 会自动下载，退出时应用，已下载 ZIP 的复用和双 updater 竞争待实测。
+- 复用默认的 Developer ID 安装信任与 GitHub asset SHA-256。Electron 配置是 `provider: github`，通用 `ElectronManifestSource` 需要包内声明的具体 URL。`latest-mac.yml` 首选 arm64 ZIP，另列 DMG。原生 updater 会自动下载，退出时应用，VM 已实测 Electron 下载完 ZIP 的场景，Duo 会提示用原生更新，`duo restart` 等待原生更新应用后再启动。
 - `GitHubMarkdownParser` 可消费 release 正文的列表。0.11.1 的 55 条原始项目混合桌面、CLI 和服务端变更，两类产品可共享 release 正文。当前调研未验证 Workbench 的最终渲染。
 
 [0.11.1 发布与变更日志](https://github.com/multica-ai/multica/releases/tag/v0.11.1) · [Desktop updater](https://github.com/multica-ai/multica/blob/v0.11.1/apps/desktop/src/main/updater.ts)
@@ -33,8 +33,9 @@
 ## VM 实测
 
 - Apple Silicon、macOS 27.2。签名 Release 的 `duo check` 识别 0.11.0 → 0.11.1，`duo install --yes` 报告原位安装成功。严格签名、公证和升级后版本检查通过。
+- 运行中的 Desktop 0.11.0 已暂存 0.11.1 的官方 ZIP 时，`duo install` 跳过，`duo restart` 完成厂商更新。磁盘版本为 0.11.1，新进程已启动，严格签名通过。
 - 0.1.7 原版识别为可升 0.11.1。`--yes` 跳过，明确确认两个提示后，原位安装成功并读出新版 Bundle ID 和版本。严格签名通过。
-- 独立 CLI 在隔离的 `MULTICA_BIN_DIR` 中经签名 Release 的 `duo list`、`duo check`、`duo install --yes` 完成 0.11.0 → 0.11.1。更新后的可执行文件与官方 tarball 二进制逐字节相同，第二次检查为最新。
+- 独立 CLI 在隔离的 `MULTICA_BIN_DIR` 中经签名 Release 的 `duo list`、`duo check`、`duo install --yes` 完成 0.11.0 → 0.11.1。更新后的可执行文件与官方 tarball 二进制逐字节相同，第二次检查为最新。旧命名归档的 0.1.8 亦通过独立 CLI 原位升级。
 - 官方 tap 安装 0.11.1 成功。`brew leaves` 的安装请求清单列出 `multica-ai/tap/multica`，可执行文件链接指向 Cellar。测试安装和 tap 已移除。
 - 实际 `multica update` 请求遇到 GitHub 匿名配额耗尽的 HTTP 403。Duo 使用自己的 GitHub 请求和信任路径。带登录数据的旧 ID 迁移仍待实测。
 

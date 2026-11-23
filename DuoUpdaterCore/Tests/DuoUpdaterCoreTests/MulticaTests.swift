@@ -233,31 +233,21 @@ struct MulticaTests {
         #expect(try Data(contentsOf: fixture.executable) == local)
     }
 
-    @Test func manualUpdateRequiresAUsableVendorRelease() async throws {
+    @Test func readOnlyStandaloneHasNoCommandThatCouldUpdateAnotherCopy() async throws {
         let fixture = try Fixture()
         defer { fixture.clean() }
         let archive = ["name": "multica-cli-\(after)-darwin-arm64.tar.gz"]
         let available = try fixture.release(after, assets: [archive, ["name": "checksums.txt"]])
-        let legacy = try fixture.release(after, assets: [
-            archive, ["name": "multica_darwin_arm64.tar.gz"], ["name": "checksums.txt"],
-        ])
         let provider = MulticaProvider(scanner: fixture.scanner, release: .init { _, _, _, _ in available },
                                        usage: { _ in [:] })
-        let legacyProvider = MulticaProvider(scanner: fixture.scanner, release: .init { _, _, _, _ in legacy },
-                                             usage: { _ in [:] })
 
-        for (version, canUseVersioned, canUseLegacy) in [
-            (before, false, false), ("0.1.14", false, true), ("0.2.10", true, true),
-        ] {
-            try fixture.write(Self.binary(version), to: fixture.executable)
-            try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: fixture.executable.path)
-            for (source, offersManual) in [(provider, canUseVersioned), (legacyProvider, canUseLegacy)] {
-                let readonly = try #require(await source.check().statuses.first)
-                #expect(readonly.oneClick == nil)
-                #expect(readonly.commandToCopy?.executable == (offersManual ? fixture.executable.path : nil))
-                #expect(readonly.commandToCopy?.arguments == (offersManual ? ["update"] : nil))
-            }
-        }
+        try fixture.write(Self.binary("0.11.0"), to: fixture.executable)
+        try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: fixture.executable.path)
+        let readOnly = try #require(await provider.check().statuses.first)
+        #expect(readOnly.state == .updateAvailable)
+        #expect(readOnly.withheld == .unsupportedInstaller)
+        #expect(readOnly.oneClick == nil)
+        #expect(readOnly.commandToCopy == nil)
 
         let incomplete = try fixture.release(after, assets: [archive])
         let badRelease = MulticaProvider(scanner: fixture.scanner, release: .init { _, _, _, _ in incomplete },

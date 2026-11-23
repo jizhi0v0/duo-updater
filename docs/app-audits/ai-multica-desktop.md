@@ -28,7 +28,7 @@
 
 独立 provider 沿用现有无执行扫描惯例，按真实路径排除 Cellar、App bundle 和由其他管理器持有的文件。VM 的旧版与现行 Go 二进制均可读到 `-X main.version=`，可结合 Go package path / Mach-O 校验离线读版。`GoBuildInfo` 读取 linker flags，配合 Go package path 和 Mach-O 校验离线读版。安装时按架构选择版本化 tarball，兼容旧命名。使用官方 `checksums.txt`，GitHub 提供 asset digest 时还要核对两者一致。归档中只提取根目录的 `multica`。
 
-官方 CLI 与 standalone daemon 有各自的更新入口。Daemon 在空闲时更新并重启，Desktop 管理的 daemon 跳过该自动更新。Duo 在下载前和替换前检查正在运行的同一路径进程，并对不可写路径提供手动命令。替换前核对旧版二进制与官方归档一致，保留文件权限并原子替换。CLI 和 Desktop 的 release notes 取自同一份 GitHub 发布数据。[CLI 更新实现](https://github.com/multica-ai/multica/blob/v0.11.1/server/internal/cli/update.go) · [Daemon 更新实现](https://github.com/multica-ai/multica/blob/v0.11.1/server/internal/daemon/auto_update.go)
+官方 CLI 与 standalone daemon 有各自的更新入口。Daemon 在空闲时更新并重启，Desktop 管理的 daemon 跳过该自动更新。Duo 在下载前和替换前检查正在运行的同一路径进程。不可写的路径只显示更新，因为官方命令可能把 Homebrew 前缀下的独立副本按公式处理。替换前核对旧版二进制与官方归档一致，保留文件权限并原子替换。CLI 和 Desktop 的 release notes 取自同一份 GitHub 发布数据。[CLI 更新实现](https://github.com/multica-ai/multica/blob/v0.11.1/server/internal/cli/update.go) · [Daemon 更新实现](https://github.com/multica-ai/multica/blob/v0.11.1/server/internal/daemon/auto_update.go)
 
 ## VM 实测
 

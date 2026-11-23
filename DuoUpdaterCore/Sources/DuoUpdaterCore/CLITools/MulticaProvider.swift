@@ -62,12 +62,10 @@ public struct MulticaProvider: CLIToolProvider {
         _ install: MulticaInstall, published: Result<MulticaRelease.Published, any Error>?, usage: CLIToolUsage?
     ) -> CLIToolStatus {
         func verdict(_ state: CLIToolState, latest: String? = nil, oneClick: CLIToolCommand? = nil,
-                     withheld: CLIToolWithheld? = nil, note: String? = nil,
-                     manual: CLIToolCommand? = nil) -> CLIToolStatus {
+                     withheld: CLIToolWithheld? = nil, note: String? = nil) -> CLIToolStatus {
             CLIToolStatus(
                 kind: .multica, path: install.path, installedVersion: install.version, latestVersion: latest,
-                channel: nil, state: state, oneClick: oneClick, withheld: withheld, note: note,
-                manualCommand: manual, detail: .multica(install))
+                channel: nil, state: state, oneClick: oneClick, withheld: withheld, note: note, detail: .multica(install))
         }
 
         guard let installed = install.version, MulticaRelease.isVersion(installed), let published else {
@@ -99,21 +97,13 @@ public struct MulticaProvider: CLIToolProvider {
             return verdict(.updateAvailable, latest: latest.version, withheld: .unverified,
                            note: "The Multica release has no matching archive and checksum manifest.")
         }
-        let quotedPath = NvmCheck.shellQuoted(install.path)
         guard install.writable else {
-            // v0.1.14 added standalone updates; v0.2.10 added versioned
-            // archive names to the updater's existing legacy name lookup.
-            let hasStandaloneUpdate = VersionComparator.compare(installed, "0.1.14") != .orderedAscending
-            let findsArchive = VersionComparator.compare(installed, "0.2.10") != .orderedAscending
-                || latest.legacyArchive(for: install.binary.architecture) != nil
-            let command = hasStandaloneUpdate && findsArchive
-                ? CLIToolCommand(executable: install.path, arguments: ["update"], pathPrefix: nil,
-                                 shellLine: quotedPath + " update")
-                : nil
+            // The vendor command can switch to Homebrew under its prefix
+            // even if the selected executable was installed from a tarball.
             return verdict(.updateAvailable, latest: latest.version, withheld: .unsupportedInstaller,
-                           note: "Multica’s executable or installation directory cannot be updated by this user.",
-                           manual: command)
+                           note: "Multica’s executable or installation directory cannot be updated by this user.")
         }
+        let quotedPath = NvmCheck.shellQuoted(install.path)
         let command = CLIToolCommand(executable: "duo", arguments: ["install", install.path], pathPrefix: nil,
                                      shellLine: "duo install " + quotedPath)
         return verdict(.updateAvailable, latest: latest.version, oneClick: command)

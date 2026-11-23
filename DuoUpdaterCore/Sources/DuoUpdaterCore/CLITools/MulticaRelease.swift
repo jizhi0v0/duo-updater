@@ -39,11 +39,7 @@ struct MulticaRelease: Sendable {
         func archive(for architecture: MulticaBinary.Architecture) -> Asset? {
             let versioned = "multica-cli-\(version)-darwin-\(architecture.rawValue).tar.gz"
             if assets.contains(where: { $0.name == versioned }) { return asset(named: versioned) }
-            return legacyArchive(for: architecture)
-        }
-
-        func legacyArchive(for architecture: MulticaBinary.Architecture) -> Asset? {
-            asset(named: "multica_darwin_\(architecture.rawValue).tar.gz")
+            return asset(named: "multica_darwin_\(architecture.rawValue).tar.gz")
         }
 
         var checksums: Asset? { asset(named: "checksums.txt") }

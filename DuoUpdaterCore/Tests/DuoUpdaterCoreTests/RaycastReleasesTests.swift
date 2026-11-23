@@ -131,6 +131,9 @@ private let raycastChangelogFixture = #"""
             // architecture check can only refuse.
             "vendor:com.lemon.lvoverseas:stable",
             "vendor:com.lemon.lvoverseas:beta",
+            // Athas reads darwin-aarch64 from the manifest and uses its archive.
+            "vendor:com.code.athas:stable",
+            "vendor:com.code.athas:beta",
             // Carbon Copy Cloner: three separately downloadable major-version
             // generations (5/6/7) share one bundle id, each with its own fixed,
             // vendor-documented minimum OS floor (10.10/10.15/13.1) that has held

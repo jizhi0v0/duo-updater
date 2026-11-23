@@ -6,9 +6,8 @@
 # it. That reasoning still stands, so this one is built the other way round:
 #
 #   • Fork PRs, main pushes and manual runs use GitHub-hosted Macs.
-#   • No secrets. `make test` needs none — both xcodebuild invocations already pass
-#     CODE_SIGNING_ALLOWED=NO, and DUO_TEAM_ID has a default — so a fork's pull
-#     request has nothing to exfiltrate even if it rewrites this file.
+#   • The workflow token is read-only. The App tests and Release builds use
+#     CODE_SIGNING_ALLOWED=NO and a default DUO_TEAM_ID.
 #   • `pull_request`, never `pull_request_target`. The latter runs the BASE
 #     workflow with the repository's secrets available to a fork's code, which is
 #     the standard way this goes wrong.
@@ -23,8 +22,8 @@
 # + Xcode 27, same 3-core M1 tier as macos-latest). NOT `xcode-27-xlarge` — larger
 # runners are billed even on public repositories.
 #
-# DUO_MINI_APP_CI=enabled permits only the repository owner's same-repo PRs
-# to run the App job on the mini. Autofix branches stay hosted.
+# With DUO_MINI_APP_CI=enabled this workflow routes the App job to the mini
+# for the repository owner's same-repo PRs. Autofix branches stay hosted.
 # Keep GitHub's collaborators-only PR creation policy while the desktop
 # runners are available. Their root-owned hook also checks the event and repo.
 # Assign duo-mini-app to one runner to limit concurrency on the shared disk.

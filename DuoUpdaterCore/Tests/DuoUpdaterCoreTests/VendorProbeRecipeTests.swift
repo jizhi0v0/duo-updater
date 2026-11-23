@@ -125,6 +125,57 @@ import Foundation
     #expect(recipe?.install?.kind == .pkg)
 }
 
+@Test func athasManifestRequiresTheSelectedTrackAndMatchingArm64Archive() throws {
+    let stable = try #require(VendorProbeRegistry.recipes.first {
+        $0.bundleID == AthasChannel.bundleID && $0.channel == .stable
+    })
+    let beta = try #require(VendorProbeRegistry.recipes.first {
+        $0.bundleID == AthasChannel.bundleID && $0.channel == .beta
+    })
+    let betaBody = #"""
+    {"version":"0.19.0-beta.4","notes":"Athas v0.19.0-beta.4: the native (GPUI) Athas.\n","pub_date":"2026-11-22T11:16:54.477Z","platforms":{"darwin-aarch64":{"signature":"trimmed","url":"https://github.com/athasdev/athas/releases/download/v0.19.0-beta.4/Athas_aarch64.app.tar.gz"}}}
+    """#
+    let stableBody = betaBody.replacingOccurrences(of: "0.19.0-beta.4", with: "0.17.0")
+    #expect(stable.requestHeaders == ["X-Athas-Update-Channel": "stable"])
+    #expect(beta.requestHeaders == ["X-Athas-Update-Channel": "beta"])
+    #expect(VendorProbeRecipe.extractVersion(from: stableBody, pattern: stable.versionPattern) == "0.17.0")
+    #expect(VendorProbeRecipe.extractVersion(from: betaBody, pattern: beta.versionPattern) == "0.19.0-beta.4")
+    #expect(VendorProbeRecipe.extractVersion(from: betaBody, pattern: stable.versionPattern) == nil)
+    #expect(VendorProbeRecipe.extractVersion(from: stableBody, pattern: beta.versionPattern) == "0.17.0")
+    let otherVersion = betaBody.replacingOccurrences(of: "/v0.19.0-beta.4/", with: "/v0.19.0-beta.3/")
+    #expect(VendorProbeRecipe.extractVersion(from: otherVersion, pattern: beta.versionPattern) == nil)
+    let intelOnly = betaBody.replacingOccurrences(of: "aarch64", with: "x86_64")
+    #expect(VendorProbeRecipe.extractVersion(from: intelOnly, pattern: beta.versionPattern) == nil)
+}
+
+@Test func athasReadsTheSettingsOfTheInstalledGeneration() throws {
+    let home = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: home) }
+
+    func write(_ contents: String, for id: String) throws {
+        let directory = home.appendingPathComponent("Library/Application Support/\(id)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try Data(contents.utf8).write(to: directory.appendingPathComponent("settings.json"))
+    }
+    func channel(_ version: String) -> ReleaseChannel {
+        AthasChannel.resolve(bundleStrings: ["CFBundleShortVersionString": version], home: home).channel
+    }
+
+    #expect(channel("0.19.0-beta.4") == .stable)
+    try write(#"{"updateChannel":"beta"}"#, for: "com.code.athas")
+    #expect(channel("0.16.1") == .stable)
+    #expect(channel("0.16.2") == .beta)
+    #expect(channel("0.17.0") == .beta)
+    #expect(channel("0.19.0-beta.4") == .beta)
+    try write(#"{"updateChannel":"stable",}"#, for: "dev.athas.app")
+    #expect(channel("0.19.0-beta.4") == .stable)
+    #expect(channel("0.18.0-beta.2") == .beta)
+    try write(#"{"updateChannel":"beta",}"#, for: "dev.athas.app")
+    #expect(channel("0.20.0") == .beta)
+    try write("{}", for: "dev.athas.app")
+    #expect(channel("0.20.0") == .stable)
+}
+
 // MARK: - Signal
 
 /// Older real Signal file lists, with truncated hashes. Current full hashes

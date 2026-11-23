@@ -75,6 +75,7 @@ public enum AppRecipeIndex {
         com_ccswitch_desktop.set,
         com_claudecode_context.set,
         com_claudoscope_app.set,
+        com_code_athas.set,
         com_colliderli_iina.set,
         com_compresso_app.set,
         com_conductor_app.set,

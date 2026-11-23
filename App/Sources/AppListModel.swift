@@ -10265,10 +10265,12 @@ final class AppListModel {
             || prefs.brewFallback.override(for: InstallPreferenceKey.key(for: result.app)) != nil
     }
 
-    /// What "Use Settings" means for this row: the Settings default, or on for
-    /// an official cask marked `auto_updates`.
+    /// The default also turns on for an official self-updating cask or Athas
+    /// after the user has chosen its Beta channel.
     func brewFallbackChecksByDefault(for result: UpdateResult) -> Bool {
-        prefs.brewFallback.checksOtherSourcesByDefault(selfUpdating: result.homebrewSelfUpdating)
+        prefs.brewFallback.checksOtherSourcesByDefault(
+            selfUpdating: result.homebrewSelfUpdating,
+            followsAppChannel: BrewFallbackPolicy.followsAthasBeta(result.app, cask: result.homebrewSourceIdentifier))
     }
 
     func brewFallbackOverride(for result: UpdateResult) -> BrewFallbackPolicy.Override? {

@@ -302,17 +302,24 @@ public struct BrewFallbackPolicy: Sendable, Equatable {
         choice != override(for: key) || rowWithheld || signingRefusals[key] != nil
     }
 
-    /// What a copy without its own choice does: `selfUpdating` is an official
-    /// cask marked `auto_updates` (`UpdateResult.homebrewSelfUpdating`).
-    public func checksOtherSourcesByDefault(selfUpdating: Bool) -> Bool {
-        checksOtherSourcesByDefault || selfUpdating
+    /// Athas can follow Beta with the same app that the standard stable cask
+    /// installed. Its explicit channel preference can take priority over the cask.
+    public static func followsAthasBeta(_ app: InstalledApp, cask: String?) -> Bool {
+        cask == "athas" && app.bundleID?.lowercased() == AthasChannel.bundleID
+            && app.releaseChannel == .beta && app.channelIsAuthoritative
     }
 
-    public func checksOtherSources(_ key: String, selfUpdating: Bool) -> Bool {
+    /// The default for an official `auto_updates` cask or a copy that explicitly
+    /// follows the app's own channel. The per-copy source choice takes precedence.
+    public func checksOtherSourcesByDefault(selfUpdating: Bool, followsAppChannel: Bool = false) -> Bool {
+        checksOtherSourcesByDefault || selfUpdating || followsAppChannel
+    }
+
+    public func checksOtherSources(_ key: String, selfUpdating: Bool, followsAppChannel: Bool = false) -> Bool {
         switch override(for: key) {
         case .checkOtherSources: return true
         case .homebrewOnly: return false
-        case nil: return checksOtherSourcesByDefault(selfUpdating: selfUpdating)
+        case nil: return checksOtherSourcesByDefault(selfUpdating: selfUpdating, followsAppChannel: followsAppChannel)
         }
     }
 }

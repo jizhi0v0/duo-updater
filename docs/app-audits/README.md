@@ -101,6 +101,7 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 
 ## Multi-channel families (audit covers all channels)
 
+- [x] [**Athas**](com-code-athas.md) · `com.code.athas` — P(stable/beta) C · 两代共用官方更新 API，按应用设置选源；参与 Beta 的 Homebrew 副本跟随厂商渠道 · 2026-11-23
 - [x] [**Private Internet Access**](com-privateinternetaccess-vpn.md) · `com.privateinternetaccess.vpn` — P(stable/beta) · 官方稳定版灰色 Update 打开厂商安装器 · Beta 可检测，稳定版可作为回落 · 2026-11-22
 - [x] [**Mattermost Desktop**](Mattermost-Desktop.md) · `Mattermost.Desktop` — G(stable) P(RC/nightly) · 一键 ZIP ✓（含旧 ID 迁移、RC/日期 nightly）· stable 结构化日志 ✓；RC/nightly 无独立说明 · 2026-11-16
 - [x] [**Claude Desktop**](com-anthropic-claudefordesktop.md) · `com.anthropic.claudefordesktop` — P(stable/latest) C · 共享 bundle ID，读取 Claude 设置 · 两轨官方 ZIP · 2026-11-18

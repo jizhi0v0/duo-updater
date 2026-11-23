@@ -151,6 +151,10 @@ Info.plist 在 2.02 上**完全不可用**（版本是 Electron 的 `36.6.0`）�
   `.artifact(/nightly/(super.engineering|Superconductor)-nightly-<sha8>-arm64<后缀>.dmg)`（2026-09-23 b4ff1a8d 起文件名前缀改成 `super.engineering-`）。版本是 commit hash，排序靠
   `BuildLineage`（`changelog.json`）。stable 重开时的待办见审计文档。
 
+### Pattern B/C 续 — Athas（2026-11-23 接 stable/beta）
+
+- **Athas** `com.code.athas` — Tauri 0.16.2 起和 GPUI 共用官方 JSON 更新 API，`X-Athas-Update-Channel` 选择渠道。两代分别读取各自的 `settings.json`，GPUI 在没有新配置时沿用 Tauri 的设置。官方 Stable Cask 的副本在用户选 Beta 后查询厂商源；Duo Updater 内显式选择 Homebrew Only 的副本继续走 Cask。旧 `com.code.athas.preview` 的独立更新源返回 204。详见 [审计](docs/app-audits/com-code-athas.md)。
+
 ### Pattern B/C 续 — Open Screen Sharing（2026-10-17 接 nightly）
 
 - **Open Screen Sharing** `io.nekohasekai.screensharing` — 设置 → App → Update Track（stable / nightly），选择写在 app

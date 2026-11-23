@@ -2148,6 +2148,7 @@ private struct WorkbenchSidebarRow: View {
                 BrewFallbackMenu(
                     choice: brewFallbackChoice,
                     checksByDefault: brewFallbackByDefault,
+                    followsAppChannel: BrewFallbackPolicy.followsAthasBeta(result.app, cask: result.homebrewSourceIdentifier),
                     withheldForSigning: result.brewFallbackWithheldForSigning,
                     set: setBrewFallback)
                     .disabled(isChecking)

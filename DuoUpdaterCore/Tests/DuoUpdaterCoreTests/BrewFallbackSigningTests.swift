@@ -96,6 +96,41 @@ import Testing
         #expect(await vendor.calls == 1)
     }
 
+    @Test func athasFollowsTheSelectedBetaUnlessTheUserKeepsHomebrewOnly() async {
+        func athas(_ channel: ReleaseChannel, authoritative: Bool = true) -> InstalledApp {
+            InstalledApp(
+                name: "Athas", bundleID: AthasChannel.bundleID, shortVersion: "0.16.0",
+                buildVersion: "0.16.0", path: URL(fileURLWithPath: "/Applications/Athas.app"),
+                isMASApp: false, sparkleFeedURL: nil, releaseChannel: channel,
+                channelIsAuthoritative: authoritative)
+        }
+        let beta = athas(.beta)
+        let brew = Brew(version: "0.17.0", channel: .stable, token: "athas")
+        let vendor = Downstream(name: "Vendor", version: "0.19.0-beta.4")
+        let checker = UpdateChecker(sources: [brew, vendor])
+        let optedIn = await checker.check(beta)
+        #expect(optedIn.remote?.sourceName == "Vendor")
+        #expect(optedIn.status == .updateAvailable(latest: "0.19.0-beta.4"))
+        #expect(optedIn.homebrewSourceIdentifier == "athas")
+
+        let noBetaAnswer = await UpdateChecker(sources: [brew]).check(beta)
+        #expect(noBetaAnswer.status == .unknown)
+        #expect(noBetaAnswer.remote == nil)
+        #expect(noBetaAnswer.homebrewSourceIdentifier == "athas")
+
+        let stable = await checker.check(athas(.stable))
+        #expect(stable.remote?.sourceName == "Homebrew")
+        let inferredBeta = await checker.check(athas(.beta, authoritative: false))
+        #expect(inferredBeta.remote?.sourceName == "Homebrew")
+
+        let held = await UpdateChecker(
+            sources: [brew, vendor],
+            brewFallback: BrewFallbackPolicy(blockedKeys: [InstallPreferenceKey.key(for: beta)])
+        ).check(beta)
+        #expect(held.remote?.sourceName == "Homebrew")
+        #expect(await vendor.calls == 1)
+    }
+
     @Test func alfredCaskShowsVendorPointUpdateBeforeManualMigration() async throws {
         let alfred = InstalledApp(
             name: "Alfred", bundleID: AlfredChannel.bundleID, shortVersion: "5.8.1",

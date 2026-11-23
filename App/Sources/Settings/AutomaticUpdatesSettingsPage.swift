@@ -305,9 +305,16 @@ struct AutomaticUpdateSetupSheet: View {
     }
 
     private var board: some View {
-        HStack(alignment: .top, spacing: 10) {
-            ForEach(Self.columns, id: \.self) { mode in column(mode) }
-            unsupportedColumn
+        let query = SearchMatch.trimmed(filter)
+        let matches = SearchMatch.rankedApps(query, in: candidates, name: \.result.app.name).apps
+        // Keep the scroll layout during drag and drop. Search changes can shrink
+        // a scrolled lazy stack and leave its matching rows unrealized.
+        let searchLayoutID = query.isEmpty ? nil : matches.map(\.id)
+        return HStack(alignment: .top, spacing: 10) {
+            ForEach(Self.columns, id: \.self) { mode in
+                column(mode, items: matches.filter { placement[$0.id] == mode }, searchLayoutID: searchLayoutID)
+            }
+            unsupportedColumn(query: query)
         }
         .frame(maxHeight: .infinity)
         .coordinateSpace(name: Self.space)
@@ -318,15 +325,14 @@ struct AutomaticUpdateSetupSheet: View {
 
     private static let space = "automatic-update-board"
 
-    private func column(_ mode: Mode) -> some View {
-        let items = items(in: mode)
+    private func column(_ mode: Mode, items: [Candidate], searchLayoutID: [String]?) -> some View {
         let targeted = dragLocation.map { columnFrames[mode]?.contains($0) == true } ?? false
         return VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: 4) {
                 HStack(alignment: .firstTextBaseline) {
                     Text(Self.title(mode)).font(.headline)
                     Spacer()
-                    Text(verbatim: "\(count(in: mode))")
+                    Text(verbatim: "\(items.count)")
                         .font(.headline.monospacedDigit())
                         .foregroundStyle(.secondary)
                 }
@@ -346,13 +352,14 @@ struct AutomaticUpdateSetupSheet: View {
             Divider()
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 2) {
-                    ForEach(items) { item in tile(item, in: mode) }
+                    ForEach(items) { item in tile(item, in: mode, items: items) }
                 }
                 .padding(6)
             }
+            .id(searchLayoutID)
             .overlay {
                 if items.isEmpty {
-                    Text(filter.isEmpty ? "Drag apps here" : "No matching apps")
+                    Text(searchLayoutID == nil ? "Drag apps here" : "No matching apps")
                         .font(.callout)
                         .foregroundStyle(.tertiary)
                 }
@@ -370,7 +377,7 @@ struct AutomaticUpdateSetupSheet: View {
         })
     }
 
-    private func tile(_ item: Candidate, in mode: Mode) -> some View {
+    private func tile(_ item: Candidate, in mode: Mode, items: [Candidate]) -> some View {
         let selected = selection.contains(item.id)
         return HStack(spacing: 8) {
             Image(nsImage: AppIconCache.icon(for: item.result.app.path.path))
@@ -397,7 +404,7 @@ struct AutomaticUpdateSetupSheet: View {
         .help("Why this category?")
         // Modifier taps first: a plain tap also fires with a modifier held.
         .highPriorityGesture(TapGesture().modifiers(.command).onEnded { toggle(item.id) })
-        .highPriorityGesture(TapGesture().modifiers(.shift).onEnded { extend(to: item.id, in: mode) })
+        .highPriorityGesture(TapGesture().modifiers(.shift).onEnded { extend(to: item.id, in: items) })
         .onTapGesture { selection = [item.id]; anchor = item.id }
         .gesture(DragGesture(minimumDistance: 4, coordinateSpace: .named(Self.space))
             .onChanged { value in
@@ -463,8 +470,8 @@ struct AutomaticUpdateSetupSheet: View {
 
     /// Select from the anchor to `id` within one column, as a list does. An
     /// anchor in another column starts the range afresh at `id`.
-    private func extend(to id: String, in mode: Mode) {
-        let ids = items(in: mode).map(\.id)
+    private func extend(to id: String, in items: [Candidate]) {
+        let ids = items.map(\.id)
         guard let end = ids.firstIndex(of: id) else { return }
         guard let anchor, let start = ids.firstIndex(of: anchor) else {
             selection = [id]; self.anchor = id; return
@@ -478,14 +485,14 @@ struct AutomaticUpdateSetupSheet: View {
         }
     }
 
-    private var unsupportedColumn: some View {
-        let items = unsupported.filter { filter.isEmpty || SearchMatch.matches(filter, in: [$0.app.name]) }
+    private func unsupportedColumn(query: String) -> some View {
+        let items = SearchMatch.rankedApps(query, in: unsupported, name: \.app.name).apps
         return VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: 4) {
                 HStack(alignment: .firstTextBaseline) {
                     Text("Manual Updates").font(.headline)
                     Spacer()
-                    Text(verbatim: "\(unsupported.count)")
+                    Text(verbatim: "\(items.count)")
                         .font(.headline.monospacedDigit())
                         .foregroundStyle(.secondary)
                 }
@@ -521,6 +528,7 @@ struct AutomaticUpdateSetupSheet: View {
                 }
                 .padding(6)
             }
+            .id(query.isEmpty ? nil : items.map(\.id))
             .overlay {
                 if items.isEmpty {
                     Text("No matching apps")
@@ -545,17 +553,6 @@ struct AutomaticUpdateSetupSheet: View {
         case .alsoWhenRunning: "May quit and reopen apps to install updates."
         case .whenClosed: "Waits until the app has quit."
         case .never: "Updates only when you choose."
-        }
-    }
-
-    private func count(in mode: Mode) -> Int {
-        candidates.filter { placement[$0.id] == mode }.count
-    }
-
-    private func items(in mode: Mode) -> [Candidate] {
-        candidates.filter {
-            placement[$0.id] == mode
-                && (filter.isEmpty || SearchMatch.matches(filter, in: [$0.result.app.name]))
         }
     }
 

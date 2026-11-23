@@ -196,6 +196,13 @@ public struct BundleIDMigration: Sendable, Equatable {
             from: "com.stray.app", to: "com.rclone.ui",
             teamID: "8FT82R3S6A", lastFromVersion: "1.9.3", firstToVersion: "2.0.0",
             isRewrite: true),
+        // Multica's original local coding client (0.1.7) and the workspace
+        // desktop app (0.2.10 onward) have different IDs but the same Team.
+        // Ask for confirmation before replacing an original local client.
+        BundleIDMigration(
+            from: "com.multica.app", to: "ai.multica.desktop",
+            teamID: "Q85ULLN279", lastFromVersion: "0.1.7", firstToVersion: "0.2.10",
+            isRewrite: true),
     ]
 
     /// Whether an installed copy signed as `from` at `version` is this rename.

@@ -64,12 +64,16 @@ public struct GoBuildInfo: Sendable, Equatable {
     /// binary was built outside module mode.
     public let main: Module?
     public let dependencies: [Module]
+    /// The recorded `-ldflags` build setting, including Go's outer quotes if needed.
+    let linkerFlags: String?
 
-    public init(goVersion: String, packagePath: String? = nil, main: Module?, dependencies: [Module]) {
+    public init(goVersion: String, packagePath: String? = nil, main: Module?, dependencies: [Module],
+                linkerFlags: String? = nil) {
         self.goVersion = goVersion
         self.packagePath = packagePath
         self.main = main
         self.dependencies = dependencies
+        self.linkerFlags = linkerFlags
     }
 
     /// The main module or the dependency with this module path.
@@ -137,13 +141,15 @@ public struct GoBuildInfo: Sendable, Equatable {
 
     /// The module lines, as `runtime/debug.ParseBuildInfo` reads them: one record
     /// per newline-*terminated* line, tab-separated, an `=>` line replacing the
-    /// module on the line before it. `path` names the main package; `build`
-    /// lines carry nothing asked of this type and are skipped, as is anything
+    /// module on the line before it. `path` names the main package. Build
+    /// settings other than linker flags are skipped, as is anything
     /// malformed — one bad line does not cost the rest.
     static func parse(goVersion: String, modinfo: String) -> GoBuildInfo {
         var packagePath: String?
         var main: Module?
         var dependencies: [Module] = []
+        var linkerFlags: String?
+        let linkerFlagKey = "-ldflags="
         // Which module an `=>` line applies to, so it can be rebuilt with it.
         enum Last { case main, dependency, none }
         var last = Last.none
@@ -175,11 +181,15 @@ public struct GoBuildInfo: Sendable, Equatable {
                     break
                 }
                 last = .none
+            case "build" where fields.count == 2 && fields[1].hasPrefix(linkerFlagKey):
+                linkerFlags = String(fields[1].dropFirst(linkerFlagKey.count))
+                last = .none
             default:
                 last = .none
             }
         }
-        return GoBuildInfo(goVersion: goVersion, packagePath: packagePath, main: main, dependencies: dependencies)
+        return GoBuildInfo(goVersion: goVersion, packagePath: packagePath, main: main, dependencies: dependencies,
+                           linkerFlags: linkerFlags)
     }
 
     /// A uvarint length and that many bytes, as `debug/buildinfo.decodeString`.

@@ -234,6 +234,9 @@ Per-app audit checklist. Run `/app-audit <App>` for each, then check off.
 
 ## Single-channel — GitHub Releases
 
+- [x] [**Multica**](ai-multica-desktop.md) · `ai.multica.desktop` — G（Stable，arm64 DMG，旧 ID 确认后迁移）· 独立 CLI 验摘要原位更新、Homebrew 公式走 Brew · 2026-11-23
+- [x] [**Trina AX**](com-treesoop-mycel.md) · `com.treesoop.mycel` — G（公开 Stable，universal DMG，一键及旧团队重连 VM 验证）· 2026-11-23
+
 - [x] [**Exo**](build-miguel-Exo.md) · `build.miguel.Exo` — G（Stable，Developer ID 签名的 arm64 DMG）
 - [x] [**Mithka（GitHub）**](ad-neko-mithka.md) · `ad.neko.mithka` — G（Stable，arm64 / universal ZIP，用户允许时按发布摘要一键更新）
 - [x] [**Codiff**](dev-nkzw-tech-codiff.md) · `dev.nkzw-tech.codiff` — G（arm64 ZIP 一键安装、结构化日志）· 2026-11-16

@@ -1738,11 +1738,32 @@ public struct GitHubReleasesSource: UpdateSource {
             }
         }
 
-        // A highest-version rule walks the page in version order rather than in
-        // the order GitHub lists it. Stable, so equal versions keep their order;
-        // a tag the pattern cannot read goes last and is skipped by the walk.
-        if rule.candidateScope == .highestVersion {
-            releases = Self.byVersionDescending(releases, pattern: rule.versionPattern)
+        let isZeaburDesktop = rule.bundleID == com_zeabur_oss_desktop.bundleID
+        let pinsDMGToTag = isZeaburDesktop || rule.bundleID == com_burakgon_openscreens.bundleID
+
+        // These publishers generate exactly one Mac DMG named from the tag.
+        // A signed DMG from another release cannot establish this version.
+        func eligibleAssets(in release: Release) -> [(name: String, url: URL, size: Int64?)] {
+            guard pinsDMGToTag else { return release.assets }
+            guard release.tag.hasPrefix("v") else { return [] }
+            let name = isZeaburDesktop
+                ? "zeabur-desktop-\(release.tag)-darwin-arm64.dmg"
+                : "OpenScreens-\(release.tag.dropFirst()).dmg"
+            return release.assets.filter { $0.name == name }
+        }
+
+        if isZeaburDesktop, rule.usePrereleases {
+            // Zeabur also reads /releases/latest so a burst of prereleases
+            // cannot push the Stable candidate out of the version comparison.
+            do {
+                if let latest = try await fetchReleases(rule, list: false),
+                   let stable = Self.stableOnly(latest).first {
+                    releases.removeAll { $0.tag == stable.tag }
+                    releases.append(stable)
+                }
+            } catch let error as GitHubError where error.statusCode == 404 {
+                // The prerelease list still answers if no Stable is published.
+            }
         }
 
         // A rule that names a macOS installer asks a stricter question than "what
@@ -1761,7 +1782,7 @@ public struct GitHubReleasesSource: UpdateSource {
         // what the unauthenticated 60/hour budget can afford.
         if let pattern = rule.installAssetPattern, !rule.usePrereleases,
            !releases.contains(where: {
-               GitHubReleaseRule.carriesInstallableAsset(from: $0.assets, matching: pattern)
+               GitHubReleaseRule.carriesInstallableAsset(from: eligibleAssets(in: $0), matching: pattern)
            }) {
             Log.source.debug("GitHub \(rule.slug, privacy: .public): latest release carries no macOS asset, falling back to the releases list")
             // The list endpoint is not the latest endpoint with more rows: GitHub
@@ -1786,6 +1807,11 @@ public struct GitHubReleasesSource: UpdateSource {
                 releases = Self.stableOnly(list)
             }
         }
+        // Sort after the Stable fallback fetch as well. A backport can appear
+        // before the highest desktop version on GitHub's list.
+        if rule.candidateScope == .highestVersion {
+            releases = Self.byVersionDescending(releases, pattern: rule.versionPattern)
+        }
         if rule.slug == com_utmapp_UTM.slug, releases.count > 1 {
             // Rank UTM's repacks after their plain tag for candidate selection.
             // The suffix is kept out of the offered marketing version.
@@ -1805,31 +1831,45 @@ public struct GitHubReleasesSource: UpdateSource {
         let history: [ReleaseHistoryEntry] = releases.compactMap { release in
             guard let v = VendorProbeRecipe.extractVersion(from: release.tag, pattern: rule.versionPattern)
             else { return nil }
+            // A shared release can ship only the CLI, server or mobile app.
+            if pinsDMGToTag, let pattern = rule.installAssetPattern,
+               !GitHubReleaseRule.carriesInstallableAsset(from: eligibleAssets(in: release), matching: pattern) {
+                return nil
+            }
             let fields = ReleaseDate.publishedFields(from: release.publishedAt)
             guard fields.publishedAt != nil || fields.vendorDay != nil else { return nil }
             return ReleaseHistoryEntry(version: v, publishedAt: fields.publishedAt, vendorDay: fields.vendorDay)
         }
         var skippedForMissingAsset: [String] = []
         var skippedPast: [SkippedRelease] = []
+        var assetMisses = 0
         var refusedForHost: [String] = []
         var archIncompatible = false
         for release in releases {
             if let version = VendorProbeRecipe.extractVersion(from: release.tag, pattern: rule.versionPattern) {
+                let assets = eligibleAssets(in: release)
                 // See the fallback above: for an install-capable rule the macOS
                 // artifact IS the release, so a tag without one is not this app's
                 // version and we keep walking back.
                 if let pattern = rule.installAssetPattern,
-                   !GitHubReleaseRule.carriesInstallableAsset(from: release.assets, matching: pattern) {
+                   !GitHubReleaseRule.carriesInstallableAsset(from: assets, matching: pattern) {
+                    let candidates = GitHubReleaseRule.renamedInstallerCandidates(in: release.assets)
+                        .filter { !isZeaburDesktop || !$0.hasPrefix("zeaburctl-") }
                     skippedForMissingAsset.append(release.tag)
                     skippedPast.append(SkippedRelease(
-                        tag: release.tag, version: version,
-                        candidates: GitHubReleaseRule.renamedInstallerCandidates(in: release.assets)))
+                        tag: release.tag, version: version, candidates: candidates))
                     // Walking back forever is how a renamed asset turns into a
                     // confident "up to date" on a version from a year ago. A
                     // handful of platform-partial releases is normal; a run of
                     // them means the pattern stopped matching, which is a recipe
                     // failure and has to surface as one.
-                    if skippedForMissingAsset.count > Self.maxReleasesWithoutMacOSAsset { break }
+                    // These two repositories also version separate products.
+                    // Count a miss toward the cutoff only when their skipped
+                    // release carries a plausible desktop installer.
+                    if !pinsDMGToTag || !candidates.isEmpty {
+                        assetMisses += 1
+                        if assetMisses > Self.maxReleasesWithoutMacOSAsset { break }
+                    }
                     continue
                 }
                 // The vendor says this release is not for this host's
@@ -1848,7 +1888,7 @@ public struct GitHubReleasesSource: UpdateSource {
                 // would be its own kind of wrong.
                 if let pattern = rule.installAssetPattern,
                    GitHubReleaseRule.isArchIncompatibleOnly(
-                       assets: release.assets, matching: pattern,
+                       assets: assets, matching: pattern,
                        preferring: hostArch, allowingIntelTranslation: canRunIntel) {
                     archIncompatible = true
                     break
@@ -1859,7 +1899,7 @@ public struct GitHubReleasesSource: UpdateSource {
                 // detection-only: link to the releases page, install nothing.
                 let asset = rule.installAssetPattern.flatMap {
                     GitHubReleaseRule.installableAsset(
-                        from: release.assets, matching: $0,
+                        from: assets, matching: $0,
                         preferring: hostArch, allowingIntelTranslation: canRunIntel)
                 }
                 // The version the chosen file installs, for a vendor that respins
@@ -1917,7 +1957,7 @@ public struct GitHubReleasesSource: UpdateSource {
                 return Resolution(remote: RemoteVersion(
                     shortVersion: offered,
                     version: offeredBuild,
-                    marketingMatchesBundle: offeredBuild != nil,
+                    marketingMatchesBundle: offeredBuild != nil || pinsDMGToTag,
                     downloadURL: asset?.url
                         ?? URL(string: "https://github.com/\(rule.slug)/releases"),
                     // The release page — an asset URL would download the archive.

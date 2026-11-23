@@ -207,6 +207,7 @@ public enum ArtifactInspection {
                 } else {
                     try SignatureVerifier.verifyCodeSignature(appAt: app)
                 }
+                try VendorInstaller.verifyGitHubPackageVersion(app: app, remote: remote)
                 let identity = try identity(of: app)
                 // Attribute map drift only to Anthropic's Apple-anchored Developer ID.
                 let isClaudeZIP = kind == .zip

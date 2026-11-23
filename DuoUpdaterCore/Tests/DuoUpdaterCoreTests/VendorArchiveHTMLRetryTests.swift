@@ -187,6 +187,38 @@ struct VendorArchiveHTMLRetryTests {
         #expect(failure.bytes == Int64(page.count * server.requests))
     }
 
+    @Test(arguments: [
+        (version: "2.0.0", build: Optional<String>.none, accepted: true),
+        (version: "2.0.0", build: Optional("3"), accepted: false),
+        (version: "2.1.0", build: Optional<String>.none, accepted: false),
+    ])
+    func verifyInstallChecksTheSignedGitHubVersion(
+        expected: (version: String, build: String?, accepted: Bool)
+    ) async throws {
+        let dir = try DigestOnlyInstallTests.scratch("github-version")
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let app = try await DigestOnlyInstallTests.makeApp(
+            at: dir.appendingPathComponent("src/Test.app"), signing: .sealed(identifier: nil))
+        let zip = dir.appendingPathComponent("Test.zip")
+        try await DigestOnlyInstallTests.zip(app, to: zip)
+        let server = try Server(bodies: [Data(contentsOf: zip)])
+        let workDir = dir.appendingPathComponent("work")
+        try FileManager.default.createDirectory(at: workDir, withIntermediateDirectories: true)
+        let remote = RemoteVersion(
+            shortVersion: expected.version, version: expected.build, marketingMatchesBundle: true,
+            downloadURL: server.url, sourceName: "GitHub", vendorInstallerKind: .zip)
+
+        switch await ArtifactInspection.inspect(remote, bundleName: "Test", workDir: workDir) {
+        case .success(let inspected):
+            #expect(expected.accepted)
+            #expect(inspected.identity?.shortVersion == "2.0.0")
+        case .failure(let failure):
+            #expect(!expected.accepted)
+            #expect(failure.stage == .signature)
+            #expect(failure.message.contains("expected \(remote.versionSide.text(withBuild: true))"))
+        }
+    }
+
     @Test(arguments: [200, 403])
     func onlyHTMLPatchContentEarnsFullArchiveFallback(status: Int) async throws {
         let dir = try DigestOnlyInstallTests.scratch("html-patch")

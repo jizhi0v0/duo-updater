@@ -58,12 +58,12 @@ struct GitHubListProbeTests {
         return URLSession(configuration: configuration)
     }
 
-    private static func release(_ tag: String, assets: [String] = ["App-arm64.zip"]) -> String {
+    private static func release(_ tag: String, assets: [String] = ["App-arm64.zip"], prerelease: Bool = true) -> String {
         let assetJSON = assets.map {
             #"{"name": "\#($0)", "browser_download_url": "https://example.com/\#($0)", "size": 10}"#
         }.joined(separator: ",")
         return """
-        {"tag_name": "\(tag)", "assets": [\(assetJSON)], "prerelease": true, "draft": false,
+        {"tag_name": "\(tag)", "assets": [\(assetJSON)], "prerelease": \(prerelease), "draft": false,
          "published_at": "2026-09-05T00:00:00Z", "html_url": "https://github.com/example/app/releases/tag/\(tag)"}
         """
     }
@@ -91,6 +91,92 @@ struct GitHubListProbeTests {
         let dir = DuoStateDirectory.testProcessScratchRoot
             .appendingPathComponent("duo-list-probe-tests-\(UUID().uuidString)")
         return GitHubConditionalCache(fileURL: dir.appendingPathComponent("cache.json"))
+    }
+
+    @Test(arguments: [false, true])
+    func zeaburBetaTakesLatestStableAndRecordsOnlyDesktopHistory(stableOnList: Bool) async throws {
+        let rule = try #require(GitHubReleaseRegistry.rules.first {
+            $0.bundleID == "com.zeabur.oss.desktop" && $0.channel == .beta
+        })
+        let endpoint = GitHubReleasesSource.listEndpoint(rule, pageSize: rule.listPageSize)
+        let latest = GitHubReleasesSource.latestEndpoint(rule)
+        let stable = Self.release("v0.3.0", assets: ["zeabur-desktop-v0.3.0-darwin-arm64.dmg"], prerelease: false)
+        let releases = [
+            Self.release("v0.4.0", assets: ["zeabur-desktop-v0.3.0-beta.1-darwin-arm64.dmg"], prerelease: false),
+            Self.release("v0.3.0-beta.5", assets: ["zeabur-desktop-v0.3.0-beta.5-darwin-arm64.dmg"]),
+            Self.release("v0.2.0", assets: ["zeaburctl-v0.2.0-darwin-arm64.tar.gz"], prerelease: false),
+        ] + (0...5).map {
+            Self.release("v0.4.\($0 + 1)", assets: ["zeaburctl-v0.4.\($0 + 1)-darwin-arm64.tar.gz"], prerelease: false)
+        } + (stableOnList ? [stable] : [])
+        ByURLProtocol.script.load([
+            endpoint: .init(body: Self.page(releases), etag: nil),
+            latest: .init(body: stable, etag: nil),
+        ])
+        let source = GitHubReleasesSource(rules: [rule], session: Self.session())
+        let result = await source.resolveDiagnostic(rule, preferring: .arm64, allowingIntelTranslation: false)
+
+        #expect(result.remote?.shortVersion == "0.3.0")
+        #expect(result.remote?.downloadURL?.lastPathComponent == "zeabur-desktop-v0.3.0-darwin-arm64.dmg")
+        #expect(result.remote?.releaseHistory.map(\.version) == ["0.3.0", "0.3.0-beta.5"])
+        #expect(ByURLProtocol.script.urls == [endpoint, latest])
+    }
+
+    @Test(arguments: ["0.3.1-beta.1", "0.3.1-rc.1"])
+    func zeaburPrereleaseCopyTakesANewerReleaseCandidate(_ installedVersion: String) async throws {
+        let id = "com.zeabur.oss.desktop"
+        let rules = GitHubReleaseRegistry.rules.filter { $0.bundleID == id }
+        let rule = try #require(rules.first { $0.channel == .beta })
+        let endpoint = GitHubReleasesSource.listEndpoint(rule, pageSize: rule.listPageSize)
+        ByURLProtocol.script.load([
+            endpoint: .init(body: Self.page([
+                Self.release("v0.3.1-beta.5", assets: ["zeabur-desktop-v0.3.1-beta.5-darwin-arm64.dmg"]),
+                Self.release("v0.3.1-rc.2", assets: ["zeabur-desktop-v0.3.1-rc.2-darwin-arm64.dmg"]),
+            ]), etag: nil),
+        ])
+        let channel = ReleaseChannel.detect(
+            name: "Zeabur", bundleID: id, keystoneChannel: nil, version: installedVersion)
+        let app = InstalledApp(
+            name: "Zeabur", bundleID: id, shortVersion: installedVersion, buildVersion: installedVersion,
+            path: URL(fileURLWithPath: "/Applications/Zeabur.app"), isMASApp: false,
+            sparkleFeedURL: nil, releaseChannel: channel)
+        let source = GitHubReleasesSource(rules: rules, session: Self.session())
+        let remote = try #require(try await source.latestVersion(for: app))
+
+        #expect(channel == .beta)
+        #expect(remote.shortVersion == "0.3.1-rc.2")
+        #expect(remote.downloadURL?.lastPathComponent == "zeabur-desktop-v0.3.1-rc.2-darwin-arm64.dmg")
+        #expect(ByURLProtocol.script.urls == [endpoint, GitHubReleasesSource.latestEndpoint(rule)])
+    }
+
+    @Test(arguments: [false, true])
+    func openScreensDistinguishesMobileReleasesFromRenamedMacInstallers(renamed: Bool) async throws {
+        let rule = try #require(GitHubReleaseRegistry.rules.first { $0.bundleID == "com.burakgon.openscreens" })
+        let latest = GitHubReleasesSource.latestEndpoint(rule)
+        let list = GitHubReleasesSource.listEndpoint(rule, pageSize: rule.listPageSize)
+        let misplaced = Self.release("v1.2.0", assets: ["OpenScreens-1.1.0.dmg"], prerelease: false)
+        let published = Self.release("v1.1.0", assets: ["OpenScreens-1.1.0.dmg"], prerelease: false)
+        let older = Self.release("v1.0.0", assets: ["OpenScreens-1.0.0.dmg"], prerelease: false)
+        let otherReleases = (3...7).map {
+            let name = renamed ? "OpenScreens-Mac-1.\($0).0.dmg" : "OpenScreens-1.\($0).0.ipa"
+            return Self.release("v1.\($0).0", assets: [name], prerelease: false)
+        }
+        ByURLProtocol.script.load([
+            latest: .init(body: misplaced, etag: nil),
+            list: .init(body: Self.page([misplaced, older, published] + otherReleases), etag: nil),
+        ])
+        let source = GitHubReleasesSource(rules: [rule], session: Self.session())
+        let result = await source.resolveDiagnostic(rule, preferring: .arm64, allowingIntelTranslation: false)
+
+        if renamed {
+            #expect(result.remote == nil)
+            #expect(result.failure?.kind == "assetPatternNoMatch")
+        } else {
+            #expect(result.remote?.shortVersion == "1.1.0")
+            #expect(result.remote?.downloadURL?.lastPathComponent == "OpenScreens-1.1.0.dmg")
+            #expect(result.remote?.marketingMatchesBundle == true)
+            #expect(result.remote?.releaseHistory.map(\.version) == ["1.1.0", "1.0.0"])
+        }
+        #expect(ByURLProtocol.script.urls == [latest, list])
     }
 
     // MARK: - The probe answers, and nothing else is fetched
